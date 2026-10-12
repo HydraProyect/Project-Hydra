@@ -1515,6 +1515,10 @@ public partial class CentrosListaPatronTests : BunitContext
         var cut = Renderizar(ConCentros(Enumerable.Range(1, centros).Select(i => Centro($"Centro {i:00}")).ToArray()));
 
         cut.FindAll(".paginador").Any().Should().Be(conPaginador);
+        var tarjeta = cut.Find(".tarjeta-listado");
+        tarjeta.QuerySelector(".tarjeta-listado-contenido .cabecera-columnas-centros").Should().NotBeNull();
+        tarjeta.QuerySelector(".tarjeta-listado-contenido .lista-filas-acordeon").Should().NotBeNull();
+        tarjeta.QuerySelector(".tarjeta-listado-pie .leyenda-atajos-lista").Should().NotBeNull();
     }
 
     [Fact]

@@ -169,250 +169,252 @@
         }
 
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="ClienteListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
-                @if (_seleccionMultiple)
-                {
-                    <TemplateColumn Title="" Align="Align.Center">
-                        <HeaderTemplate Context="columna">
-                            <input type="checkbox" aria-label="Seleccionar los de esta página" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
-                        </HeaderTemplate>
-                        <ChildContent>
-                            <input type="checkbox" aria-label="@($"Seleccionar {context.RazonSocial}")" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" @onclick:stopPropagation="true" />
-                        </ChildContent>
-                    </TemplateColumn>
-                }
-                <TemplateColumn Title="@Textos["ListaColumnaCliente"]" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.RazonSocial))"
-                                IsDefaultSortColumn="@_orden.Es("cliente")" InitialSortDirection="_orden.Direccion">
-                    @* Patrón de listados: la fila no lleva menú «⋯». El nombre es un botón
-                       que abre la vista rápida (el panel del Context Workspace), igual que
-                       Enter sobre la fila enfocada. QuickGrid no expone el clic de la fila: la
-                       clase «fila-pulsable» (RowClass) y «nombre-abre-vista-rapida» son el
-                       contrato con el oyente delegado de atajos-lista.js, que convierte el
-                       clic en un punto sin controles de la fila en un clic sobre este botón.
-                       A la página Cliente 360 (/clientes/{id}) se va con el icono 360 del
-                       final de la fila y con el del panel.
+            @TarjetaListado.Renderizar(@<text>
+                <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="ClienteListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+                    @if (_seleccionMultiple)
+                    {
+                        <TemplateColumn Title="" Align="Align.Center">
+                            <HeaderTemplate Context="columna">
+                                <input type="checkbox" aria-label="Seleccionar los de esta página" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                            </HeaderTemplate>
+                            <ChildContent>
+                                <input type="checkbox" aria-label="@($"Seleccionar {context.RazonSocial}")" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" @onclick:stopPropagation="true" />
+                            </ChildContent>
+                        </TemplateColumn>
+                    }
+                    <TemplateColumn Title="@Textos["ListaColumnaCliente"]" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.RazonSocial))"
+                                    IsDefaultSortColumn="@_orden.Es("cliente")" InitialSortDirection="_orden.Direccion">
+                        @* Patrón de listados: la fila no lleva menú «⋯». El nombre es un botón
+                           que abre la vista rápida (el panel del Context Workspace), igual que
+                           Enter sobre la fila enfocada. QuickGrid no expone el clic de la fila: la
+                           clase «fila-pulsable» (RowClass) y «nombre-abre-vista-rapida» son el
+                           contrato con el oyente delegado de atajos-lista.js, que convierte el
+                           clic en un punto sin controles de la fila en un clic sobre este botón.
+                           A la página Cliente 360 (/clientes/{id}) se va con el icono 360 del
+                           final de la fila y con el del panel.
 
-                       Identidad en dos líneas, como la celda «Trabajador» de /trabajadores: arriba la
-                       razón social con sus avisos («⚑ Crítico», «Sin contacto») y debajo el CIF. *@
-                    <span class="celda-cliente-empresarial">
-                    <span class="celda-cliente-empresarial-nombre">
-                    <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida"
-                            aria-label="@Textos["AbrirVistaRapidaDe", context.RazonSocial]"
-                            @onclick="() => AbrirVistaRapidaAsync(context.Id)" @onclick:stopPropagation="true"><TextoResaltado Texto="@context.RazonSocial" Termino="@_busqueda" /></button>
-                    @* «⚑ Crítico» junto al nombre, en lugar de la antigua columna «Crítico». *@
-                    @if (context.EsCritico)
-                    {
-                        <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="insignia-critico" title="@Textos["ListaCriticoTitulo"]"><Icono Nombre="bandera" Tamano="TamanoIcono.Pequeno" />@Textos["Critico"]</Badge>
-                    }
-                    @* Perfil incompleto: sin agenda no hay a quién reclamarle.
-                       Lleva directo a la pestaña que lo resuelve. No sale en el
-                       mockup y se conserva. *@
-                    @if (context.SinContactoEnAgenda)
-                    {
-                        <button type="button" class="aviso-sin-agenda"
-                                title="Sin contacto en la agenda: no se puede reclamar documentación a este Cliente"
-                                @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "agenda")'
-                                @onclick:stopPropagation="true">
-                            Sin contacto
-                        </button>
-                    }
-                    </span>
-                    @* Segunda línea: el CIF, que se copia con un clic sin abrir la fila; sin CIF,
-                       una raya. No tiene cabecera propia, así que la pantalla no ofrece ordenar
-                       por CIF (ObtenerClientesQuery sí admite ese orden). *@
-                    <span class="celda-cliente-empresarial-cif">
-                        @if (string.IsNullOrWhiteSpace(context.Cif))
+                           Identidad en dos líneas, como la celda «Trabajador» de /trabajadores: arriba la
+                           razón social con sus avisos («⚑ Crítico», «Sin contacto») y debajo el CIF. *@
+                        <span class="celda-cliente-empresarial">
+                        <span class="celda-cliente-empresarial-nombre">
+                        <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida"
+                                aria-label="@Textos["AbrirVistaRapidaDe", context.RazonSocial]"
+                                @onclick="() => AbrirVistaRapidaAsync(context.Id)" @onclick:stopPropagation="true"><TextoResaltado Texto="@context.RazonSocial" Termino="@_busqueda" /></button>
+                        @* «⚑ Crítico» junto al nombre, en lugar de la antigua columna «Crítico». *@
+                        @if (context.EsCritico)
                         {
-                            <span class="texto-vacio-celda">—</span>
+                            <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="insignia-critico" title="@Textos["ListaCriticoTitulo"]"><Icono Nombre="bandera" Tamano="TamanoIcono.Pequeno" />@Textos["Critico"]</Badge>
                         }
-                        else
+                        @* Perfil incompleto: sin agenda no hay a quién reclamarle.
+                           Lleva directo a la pestaña que lo resuelve. No sale en el
+                           mockup y se conserva. *@
+                        @if (context.SinContactoEnAgenda)
                         {
-                            <BotonCopiar EnLinea="true" Valor="@context.Cif" Texto="@context.Cif" Etiqueta="@Textos["EtiquetaCif"]"
-                                         NombreAccesible="@Textos["CopiarCif", context.Cif]" />
+                            <button type="button" class="aviso-sin-agenda"
+                                    title="Sin contacto en la agenda: no se puede reclamar documentación a este Cliente"
+                                    @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "agenda")'
+                                    @onclick:stopPropagation="true">
+                                Sin contacto
+                            </button>
                         }
-                    </span>
-                    </span>
-                </TemplateColumn>
-                <TemplateColumn Title="Gestor CAE">
-                    @* Decisión del propietario (2026-10-09): el formulario «Editar Cliente
-                       empresarial» de esta página —el único sitio donde se cambia el Gestor CAE
-                       de referencia— ya no cuelga de un menú de fila: lo abre esta celda, y solo
-                       para quien puede reasignar (Administrador, Dirección CAE, Coordinador
-                       CAE). Al resto la celda no se le ofrece como control: es texto. *@
-                    @if (_puedeReasignarEjecutivo)
-                    {
-                        var asignado = GestorCaeDeLaFila(context.EjecutivoUsuarioId);
-                        <button type="button" class="celda-gestor-cae-pulsable"
-                                aria-label="@NombreAccesibleCambiarGestorCae(context.RazonSocial, asignado)" title="@Textos["CambiarGestorCaeTitulo"]"
-                                @onclick="() => AbrirEditarAsync(context.Id)" @onclick:stopPropagation="true">
-                            @if (asignado is not null)
+                        </span>
+                        @* Segunda línea: el CIF, que se copia con un clic sin abrir la fila; sin CIF,
+                           una raya. No tiene cabecera propia, así que la pantalla no ofrece ordenar
+                           por CIF (ObtenerClientesQuery sí admite ese orden). *@
+                        <span class="celda-cliente-empresarial-cif">
+                            @if (string.IsNullOrWhiteSpace(context.Cif))
                             {
-                                <span class="persona-identidad">
-                                    <AvatarUsuario Nombre="@asignado.NombreCompleto" Avatar="@asignado.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />@asignado.NombreCompleto
-                                </span>
+                                <span class="texto-vacio-celda">—</span>
                             }
                             else
                             {
-                                <span class="texto-vacio-celda">@Textos["GestorCaeSinAsignar"]</span>
+                                <BotonCopiar EnLinea="true" Valor="@context.Cif" Texto="@context.Cif" Etiqueta="@Textos["EtiquetaCif"]"
+                                             NombreAccesible="@Textos["CopiarCif", context.Cif]" />
                             }
-                        </button>
-                    }
-                    else if (GestorCaeDeLaFila(context.EjecutivoUsuarioId) is { } gestor)
-                    {
-                        <span class="persona-identidad">
-                            <AvatarUsuario Nombre="@gestor.NombreCompleto" Avatar="@gestor.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />@gestor.NombreCompleto
                         </span>
-                    }
-                    else
-                    {
-                        <span class="texto-vacio-celda">—</span>
-                    }
-                </TemplateColumn>
-                <TemplateColumn Title="Centros" Align="Align.Center">
-                    @* El recuento abre su ventana de contexto con los centros de este Cliente
-                       empresarial; pulsar uno abre el panel en su pestaña «Centros» (la lista
-                       /centros no filtra por Cliente empresarial). La fila solo trae el número:
-                       los nombres se piden la primera vez que el puntero o el foco llegan al
-                       recuento (ObtenerCentrosDeClienteQuery, la consulta de esa pestaña) y se
-                       olvidan con cada carga de la lista. El clic dentro de la ventana no
-                       abre la vista rápida: el oyente «pulsarFila» de atajos-lista.js excluye su panel. *@
-                    @if (context.Centros > 0)
-                    {
-                        <span class="ranura-centros-cliente" @onmouseenter="() => CargarCentrosDeFilaAsync(context.Id)" @onfocusin="() => CargarCentrosDeFilaAsync(context.Id)">
-                            <VentanaContexto Etiqueta="@Textos[context.Centros == 1 ? "VerCentroDe" : "VerCentrosDe", context.Centros, context.RazonSocial]"
-                                             Titulo="@Textos[context.Centros == 1 ? "CentrosTituloUno" : "CentrosTituloVarios", context.Centros]"
-                                             Colocacion="VentanaContextoColocacion.AbajoCentro" Interactiva="true"
-                                             Pie="@PieDeCentrosDeFila(context.Id)">
-                                <Disparador>
-                                    <span class="enlace-centros-cliente">@context.Centros</span>
-                                </Disparador>
-                                <Detalle>
-                                    @if (_centrosDeFila.TryGetValue(context.Id, out var centrosDeFila))
-                                    {
-                                        @foreach (var centro in centrosDeFila.Take(MaximoCentrosEnVentana))
-                                        {
-                                            <VentanaContextoElemento Secundario="@centro.EmpresaRazonSocial" Ayuda="@Textos["CentroDeVentanaAyuda"]"
-                                                                     AlPulsar="() => AbrirCentrosDeFilaAsync(context.Id)">
-                                                @centro.Nombre
-                                            </VentanaContextoElemento>
-                                        }
-                                    }
-                                    else if (_centrosDeFilaConError.Contains(context.Id))
-                                    {
-                                        <span class="ventana-linea">@Textos["CentrosDeFilaError"]</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="ventana-linea">@Textos["CentrosDeFilaCargando"]</span>
-                                    }
-                                </Detalle>
-                            </VentanaContexto>
                         </span>
-                    }
-                    else
-                    {
-                        <span class="texto-vacio-celda">0</span>
-                    }
-                </TemplateColumn>
-                @* Columna de orden por defecto: el peor estado primero (Vencido → Faltante →
-                   Urgente → Próximo → sin incidencias), resuelto en ObtenerClientesQuery. La pastilla dice el peor
-                   estado y el motivo de debajo cuántas alertas hay en él; lo correcto va sin pastilla.
-                   El motivo abre una ventana de contexto con las alertas de la fila, una por línea y de la más
-                   grave a la menos (ClienteListaDto.Incidencias: las MISMAS que dan la pastilla, de todos los
-                   estados y no solo del peor, hasta el tope de la consulta). Cada línea nombra el documento y
-                   el Trabajador, como en Centros; quien puede escribir la pulsa y la corrige aquí
-                   (CorreccionIncidenciaDocumental). El nombre del Trabajador va en la ventana, no en la fila.
-                   El clic dentro de la ventana no abre la vista rápida: «pulsarFila» de atajos-lista.js
-                   excluye su panel. Una fila con estado y sin incidencias (no ocurre con la consulta de esta
-                   página) conserva el motivo de texto: no se abre una ventana sin líneas. *@
-                <TemplateColumn Title="Estado documental" Sortable="true" IsDefaultSortColumn="@_orden.Es("documentacion")" InitialSortDirection="_orden.Direccion" Class="col-estado"
-                                SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.EstadoDocumentalPeor))">
-                    @if (context.EstadoDocumentalPeor is { } peor)
-                    {
-                        var cliente = context;
-                        var motivo = MotivoEstadoDocumental(cliente.EstadoDocumentalCantidad);
-                        if (cliente.Incidencias.Count > 0)
+                    </TemplateColumn>
+                    <TemplateColumn Title="Gestor CAE">
+                        @* Decisión del propietario (2026-10-09): el formulario «Editar Cliente
+                           empresarial» de esta página —el único sitio donde se cambia el Gestor CAE
+                           de referencia— ya no cuelga de un menú de fila: lo abre esta celda, y solo
+                           para quien puede reasignar (Administrador, Dirección CAE, Coordinador
+                           CAE). Al resto la celda no se le ofrece como control: es texto. *@
+                        @if (_puedeReasignarEjecutivo)
                         {
-                            <EstadoFila Tono="EstadoDocumentoUi.Tono(peor)" Texto="@EstadoDocumentoUi.Texto(peor)" Titulo="@TituloEstadoDocumental(peor)">
-                                <MotivoContenido>
-                                    <VentanaContexto Etiqueta="@EtiquetaDeIncidencias(cliente, peor, motivo)"
-                                                     Titulo="@TituloDeIncidencias(cliente.IncidenciasTotales)"
-                                                     Colocacion="VentanaContextoColocacion.AbajoCentro"
-                                                     Interactiva="_puedeEscribir"
-                                                     Pie="@PieDeIncidencias(cliente)">
-                                        <Disparador>
-                                            <span class="motivo-incidencias-cliente">@motivo</span>
-                                        </Disparador>
-                                        <Detalle>
-                                            @* La identidad es la de la alerta (AlertaDto.IdDeFila): un Faltante no tiene documento.
-                                               Pasa por ClavesDeHermanos, así que ni una identidad repetida tumbaría el circuito.
-                                               La pastilla de cada línea colorea por gravedad (TonoDeSeveridad), como los demás
-                                               desgloses: lo urgente va en rojo aunque se rotule «Por vencer» igual que lo próximo.
-                                               El motivo cuenta solo las del peor estado; el título de la ventana, todas. *@
-                                            @{ var claves = new ClavesDeHermanos(); }
-                                            @foreach (var incidencia in cliente.Incidencias)
-                                            {
-                                                if (_puedeEscribir)
-                                                {
-                                                    <VentanaContextoElemento @key="claves.De(incidencia.Clave)"
-                                                                             Ayuda="@Comunes["VentanaIncidenciaAyuda"].Value"
-                                                                             Secundario="@SecundarioDeIncidencia(incidencia)"
-                                                                             AlPulsar="() => CorregirIncidenciaAsync(incidencia)">
-                                                        <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
-                                                        <span class="incidencia-cliente-texto">@TextoDeIncidencia(incidencia)</span>
-                                                    </VentanaContextoElemento>
-                                                }
-                                                else
-                                                {
-                                                    <span class="ventana-linea" @key="claves.De(incidencia.Clave)">
-                                                        <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
-                                                        <span class="incidencia-cliente-texto">@TextoDeIncidencia(incidencia)</span>
-                                                        @if (SecundarioDeIncidencia(incidencia) is { } secundario)
-                                                        {
-                                                            <span class="incidencia-cliente-secundario">@secundario</span>
-                                                        }
-                                                    </span>
-                                                }
-                                            }
-                                        </Detalle>
-                                    </VentanaContexto>
-                                </MotivoContenido>
-                            </EstadoFila>
+                            var asignado = GestorCaeDeLaFila(context.EjecutivoUsuarioId);
+                            <button type="button" class="celda-gestor-cae-pulsable"
+                                    aria-label="@NombreAccesibleCambiarGestorCae(context.RazonSocial, asignado)" title="@Textos["CambiarGestorCaeTitulo"]"
+                                    @onclick="() => AbrirEditarAsync(context.Id)" @onclick:stopPropagation="true">
+                                @if (asignado is not null)
+                                {
+                                    <span class="persona-identidad">
+                                        <AvatarUsuario Nombre="@asignado.NombreCompleto" Avatar="@asignado.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />@asignado.NombreCompleto
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="texto-vacio-celda">@Textos["GestorCaeSinAsignar"]</span>
+                                }
+                            </button>
+                        }
+                        else if (GestorCaeDeLaFila(context.EjecutivoUsuarioId) is { } gestor)
+                        {
+                            <span class="persona-identidad">
+                                <AvatarUsuario Nombre="@gestor.NombreCompleto" Avatar="@gestor.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />@gestor.NombreCompleto
+                            </span>
                         }
                         else
                         {
-                            <EstadoFila Tono="EstadoDocumentoUi.Tono(peor)" Texto="@EstadoDocumentoUi.Texto(peor)" Titulo="@TituloEstadoDocumental(peor)"
-                                        Motivo="@motivo" />
+                            <span class="texto-vacio-celda">—</span>
                         }
-                    }
-                    else
-                    {
-                        <EstadoFila Correcto="true" Texto="@EstadoDocumentoUi.SinIncidencias" Titulo="@Textos["TituloSinIncidencias"]" />
-                    }
-                </TemplateColumn>
-                <TemplateColumn Title="" Align="Align.End">
-                    @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú: «Abrir ficha
-                       360» es este icono; «Editar», el lápiz del panel (tecla «e») para la
-                       identidad y la celda «Gestor CAE» para el formulario con la reasignación;
-                       «Dar de baja», la selección múltiple (☑ de la cabecera o tecla «x»), con
-                       su «Deshacer». La baja es lógica (EliminarClientesCommand), y por eso se
-                       rotula «Dar de baja» en la barra de lote, en el diálogo y en los avisos. *@
-                    <Boton360 Nombre="@context.RazonSocial" Href="@($"/clientes/{context.Id}")" />
-                </TemplateColumn>
-            </QuickGrid>
-
-            @* Solo con más de una página (al tamaño mínimo, 20): con menos no hay nada que
-               paginar, pero por encima de 20 se conserva el selector de tamaño aunque el
-               tamaño elegido quepa en una página. Y si ya se eligió un tamaño mayor que el
-               mínimo, el paginador se queda aunque el total baje (un filtro): sin él no habría
-               forma de volver al tamaño de antes. Con cero resultados manda el estado vacío. *@
-            @if (_totalElementos > TamanoPaginaMinimo || (_totalElementos > 0 && _paginacion.ItemsPerPage > TamanoPaginaMinimo))
-            {
-            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                              Etiqueta="Cliente(s)" PaginaActualChanged="CambiarPaginaAsync"
-                              TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-            }
-            <LeyendaAtajosLista HayFilas="@(_totalElementos > 0)" />
+                    </TemplateColumn>
+                    <TemplateColumn Title="Centros" Align="Align.Center">
+                        @* El recuento abre su ventana de contexto con los centros de este Cliente
+                           empresarial; pulsar uno abre el panel en su pestaña «Centros» (la lista
+                           /centros no filtra por Cliente empresarial). La fila solo trae el número:
+                           los nombres se piden la primera vez que el puntero o el foco llegan al
+                           recuento (ObtenerCentrosDeClienteQuery, la consulta de esa pestaña) y se
+                           olvidan con cada carga de la lista. El clic dentro de la ventana no
+                           abre la vista rápida: el oyente «pulsarFila» de atajos-lista.js excluye su panel. *@
+                        @if (context.Centros > 0)
+                        {
+                            <span class="ranura-centros-cliente" @onmouseenter="() => CargarCentrosDeFilaAsync(context.Id)" @onfocusin="() => CargarCentrosDeFilaAsync(context.Id)">
+                                <VentanaContexto Etiqueta="@Textos[context.Centros == 1 ? "VerCentroDe" : "VerCentrosDe", context.Centros, context.RazonSocial]"
+                                                 Titulo="@Textos[context.Centros == 1 ? "CentrosTituloUno" : "CentrosTituloVarios", context.Centros]"
+                                                 Colocacion="VentanaContextoColocacion.AbajoCentro" Interactiva="true"
+                                                 Pie="@PieDeCentrosDeFila(context.Id)">
+                                    <Disparador>
+                                        <span class="enlace-centros-cliente">@context.Centros</span>
+                                    </Disparador>
+                                    <Detalle>
+                                        @if (_centrosDeFila.TryGetValue(context.Id, out var centrosDeFila))
+                                        {
+                                            @foreach (var centro in centrosDeFila.Take(MaximoCentrosEnVentana))
+                                            {
+                                                <VentanaContextoElemento Secundario="@centro.EmpresaRazonSocial" Ayuda="@Textos["CentroDeVentanaAyuda"]"
+                                                                         AlPulsar="() => AbrirCentrosDeFilaAsync(context.Id)">
+                                                    @centro.Nombre
+                                                </VentanaContextoElemento>
+                                            }
+                                        }
+                                        else if (_centrosDeFilaConError.Contains(context.Id))
+                                        {
+                                            <span class="ventana-linea">@Textos["CentrosDeFilaError"]</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="ventana-linea">@Textos["CentrosDeFilaCargando"]</span>
+                                        }
+                                    </Detalle>
+                                </VentanaContexto>
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="texto-vacio-celda">0</span>
+                        }
+                    </TemplateColumn>
+                    @* Columna de orden por defecto: el peor estado primero (Vencido → Faltante →
+                       Urgente → Próximo → sin incidencias), resuelto en ObtenerClientesQuery. La pastilla dice el peor
+                       estado y el motivo de debajo cuántas alertas hay en él; lo correcto va sin pastilla.
+                       El motivo abre una ventana de contexto con las alertas de la fila, una por línea y de la más
+                       grave a la menos (ClienteListaDto.Incidencias: las MISMAS que dan la pastilla, de todos los
+                       estados y no solo del peor, hasta el tope de la consulta). Cada línea nombra el documento y
+                       el Trabajador, como en Centros; quien puede escribir la pulsa y la corrige aquí
+                       (CorreccionIncidenciaDocumental). El nombre del Trabajador va en la ventana, no en la fila.
+                       El clic dentro de la ventana no abre la vista rápida: «pulsarFila» de atajos-lista.js
+                       excluye su panel. Una fila con estado y sin incidencias (no ocurre con la consulta de esta
+                       página) conserva el motivo de texto: no se abre una ventana sin líneas. *@
+                    <TemplateColumn Title="Estado documental" Sortable="true" IsDefaultSortColumn="@_orden.Es("documentacion")" InitialSortDirection="_orden.Direccion" Class="col-estado"
+                                    SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.EstadoDocumentalPeor))">
+                        @if (context.EstadoDocumentalPeor is { } peor)
+                        {
+                            var cliente = context;
+                            var motivo = MotivoEstadoDocumental(cliente.EstadoDocumentalCantidad);
+                            if (cliente.Incidencias.Count > 0)
+                            {
+                                <EstadoFila Tono="EstadoDocumentoUi.Tono(peor)" Texto="@EstadoDocumentoUi.Texto(peor)" Titulo="@TituloEstadoDocumental(peor)">
+                                    <MotivoContenido>
+                                        <VentanaContexto Etiqueta="@EtiquetaDeIncidencias(cliente, peor, motivo)"
+                                                         Titulo="@TituloDeIncidencias(cliente.IncidenciasTotales)"
+                                                         Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                         Interactiva="_puedeEscribir"
+                                                         Pie="@PieDeIncidencias(cliente)">
+                                            <Disparador>
+                                                <span class="motivo-incidencias-cliente">@motivo</span>
+                                            </Disparador>
+                                            <Detalle>
+                                                @* La identidad es la de la alerta (AlertaDto.IdDeFila): un Faltante no tiene documento.
+                                                   Pasa por ClavesDeHermanos, así que ni una identidad repetida tumbaría el circuito.
+                                                   La pastilla de cada línea colorea por gravedad (TonoDeSeveridad), como los demás
+                                                   desgloses: lo urgente va en rojo aunque se rotule «Por vencer» igual que lo próximo.
+                                                   El motivo cuenta solo las del peor estado; el título de la ventana, todas. *@
+                                                @{ var claves = new ClavesDeHermanos(); }
+                                                @foreach (var incidencia in cliente.Incidencias)
+                                                {
+                                                    if (_puedeEscribir)
+                                                    {
+                                                        <VentanaContextoElemento @key="claves.De(incidencia.Clave)"
+                                                                                 Ayuda="@Comunes["VentanaIncidenciaAyuda"].Value"
+                                                                                 Secundario="@SecundarioDeIncidencia(incidencia)"
+                                                                                 AlPulsar="() => CorregirIncidenciaAsync(incidencia)">
+                                                            <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
+                                                            <span class="incidencia-cliente-texto">@TextoDeIncidencia(incidencia)</span>
+                                                        </VentanaContextoElemento>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="ventana-linea" @key="claves.De(incidencia.Clave)">
+                                                            <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
+                                                            <span class="incidencia-cliente-texto">@TextoDeIncidencia(incidencia)</span>
+                                                            @if (SecundarioDeIncidencia(incidencia) is { } secundario)
+                                                            {
+                                                                <span class="incidencia-cliente-secundario">@secundario</span>
+                                                            }
+                                                        </span>
+                                                    }
+                                                }
+                                            </Detalle>
+                                        </VentanaContexto>
+                                    </MotivoContenido>
+                                </EstadoFila>
+                            }
+                            else
+                            {
+                                <EstadoFila Tono="EstadoDocumentoUi.Tono(peor)" Texto="@EstadoDocumentoUi.Texto(peor)" Titulo="@TituloEstadoDocumental(peor)"
+                                            Motivo="@motivo" />
+                            }
+                        }
+                        else
+                        {
+                            <EstadoFila Correcto="true" Texto="@EstadoDocumentoUi.SinIncidencias" Titulo="@Textos["TituloSinIncidencias"]" />
+                        }
+                    </TemplateColumn>
+                    <TemplateColumn Title="" Align="Align.End">
+                        @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú: «Abrir ficha
+                           360» es este icono; «Editar», el lápiz del panel (tecla «e») para la
+                           identidad y la celda «Gestor CAE» para el formulario con la reasignación;
+                           «Dar de baja», la selección múltiple (☑ de la cabecera o tecla «x»), con
+                           su «Deshacer». La baja es lógica (EliminarClientesCommand), y por eso se
+                           rotula «Dar de baja» en la barra de lote, en el diálogo y en los avisos. *@
+                        <Boton360 Nombre="@context.RazonSocial" Href="@($"/clientes/{context.Id}")" />
+                    </TemplateColumn>
+                </QuickGrid>
+            </text>, @<text>
+                @* Solo con más de una página (al tamaño mínimo, 20): con menos no hay nada que
+                   paginar, pero por encima de 20 se conserva el selector de tamaño aunque el
+                   tamaño elegido quepa en una página. Y si ya se eligió un tamaño mayor que el
+                   mínimo, el paginador se queda aunque el total baje (un filtro): sin él no habría
+                   forma de volver al tamaño de antes. Con cero resultados manda el estado vacío. *@
+                @if (_totalElementos > TamanoPaginaMinimo || (_totalElementos > 0 && _paginacion.ItemsPerPage > TamanoPaginaMinimo))
+                {
+                <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                                  Etiqueta="Cliente(s)" PaginaActualChanged="CambiarPaginaAsync"
+                                  TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+                }
+                <LeyendaAtajosLista HayFilas="@(_totalElementos > 0)" />
+            </text>)
         </div>
 
         @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)

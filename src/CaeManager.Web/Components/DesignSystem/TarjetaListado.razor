@@ -1,0 +1,29 @@
+@* Una sola superficie para cabecera, grupos, filas y pie. El recorte de las esquinas
+   vive en list-page.css; no crea un contenedor de scroll ni recorta los elementos flotantes. *@
+@Renderizar(Contenido, Pie)
+
+@code {
+    [Parameter, EditorRequired] public RenderFragment? Contenido { get; set; }
+    [Parameter] public RenderFragment? Pie { get; set; }
+
+    // Las páginas con QuickGrid invocan este fragmento en su propio render:
+    // una frontera de componente adicional altera el orden de actualización
+    // de sus columnas y provoca recargas y pérdida del foco de fila.
+    public static RenderFragment Renderizar(RenderFragment? contenido, RenderFragment? pie = null) => builder =>
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "tarjeta-listado");
+        builder.OpenElement(2, "div");
+        builder.AddAttribute(3, "class", "tarjeta-listado-contenido");
+        builder.AddContent(4, contenido);
+        builder.CloseElement();
+        if (pie is not null)
+        {
+            builder.OpenElement(5, "div");
+            builder.AddAttribute(6, "class", "tarjeta-listado-pie");
+            builder.AddContent(7, pie);
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+    };
+}
