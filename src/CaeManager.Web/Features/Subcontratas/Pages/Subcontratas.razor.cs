@@ -411,9 +411,6 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
     private string TextoNivelFiltro => OpcionesNivel.FirstOrDefault(o => o.Valor == _nivelFiltro)?.Texto ?? _nivelFiltro;
 
-    private bool MostrarPaginador =>
-        _totalElementos > TamanoPaginaMinimo || (_totalElementos > 0 && _tamanoPagina > TamanoPaginaMinimo);
-
     /// <summary>
     /// Limpia la búsqueda, el nivel y el estado en memoria Y en la URL, con UNA navegación y UNA
     /// consulta: los filtros vuelven por <see cref="OnParametersSetAsync"/> desde <c>?q=</c>,

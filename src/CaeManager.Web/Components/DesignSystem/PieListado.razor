@@ -1,0 +1,45 @@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> TextosPie
+
+@* Variante localizada de PaginadorSimple, activada solo para el pie de tarjeta. *@
+<div class="paginador paginador-simple paginador-pie-listado">
+    <span class="paginador-inicio">
+        <span class="paginador-texto">@(TextoFilasMostradas ?? TextosPie["PaginadorMostrando", ElementosEnPagina ?? 0, TotalElementos].Value)</span>
+        @if (TotalPaginas > 1)
+        {
+            <button type="button" aria-label="@(EtiquetaAnterior ?? TextosPie["PaginadorAnterior"].Value)" disabled="@(PaginaActual <= 1)" @onclick="() => CambiarPaginaAsync(PaginaActual - 1)"><Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" /></button>
+            <button type="button" aria-label="@(EtiquetaSiguiente ?? TextosPie["PaginadorSiguiente"].Value)" disabled="@(PaginaActual >= TotalPaginas)" @onclick="() => CambiarPaginaAsync(PaginaActual + 1)"><Icono Nombre="siguiente" Tamano="TamanoIcono.Pequeno" /></button>
+        }
+    </span>
+    <div class="paginador-centro">@Centro</div>
+    <span class="paginador-opciones-tamano" role="group" aria-label="@(EtiquetaTamanoPagina ?? TextosPie["PaginadorFilasPorPagina"].Value)">
+        <span>@(EtiquetaTamanoPagina ?? TextosPie["PaginadorFilasPorPagina"].Value)</span>
+        @foreach (var opcion in OpcionesTamanoPagina)
+        {
+            @if (opcion != OpcionesTamanoPagina[0])
+            {
+                <span aria-hidden="true">·</span>
+            }
+            <button type="button" aria-pressed="@(TamanoPagina == opcion ? "true" : "false")" disabled="@(!TamanoPaginaChanged.HasDelegate)" @onclick="() => TamanoPaginaChanged.InvokeAsync(opcion)">@opcion</button>
+        }
+    </span>
+</div>
+
+@code {
+    [Parameter] public int PaginaActual { get; set; } = 1;
+    [Parameter] public int TotalPaginas { get; set; }
+    [Parameter] public int TotalElementos { get; set; }
+    [Parameter] public int? ElementosEnPagina { get; set; }
+    [Parameter] public int TamanoPagina { get; set; } = 20;
+    [Parameter] public IReadOnlyList<int> OpcionesTamanoPagina { get; set; } = [20, 50, 100];
+    [Parameter] public EventCallback<int> PaginaActualChanged { get; set; }
+    [Parameter] public EventCallback<int> TamanoPaginaChanged { get; set; }
+    [Parameter] public string? TextoFilasMostradas { get; set; }
+    [Parameter] public string? EtiquetaTamanoPagina { get; set; }
+    [Parameter] public string? EtiquetaAnterior { get; set; }
+    [Parameter] public string? EtiquetaSiguiente { get; set; }
+    [Parameter] public RenderFragment? Centro { get; set; }
+
+    private Task CambiarPaginaAsync(int pagina) => PaginaActualChanged.InvokeAsync(pagina);
+}

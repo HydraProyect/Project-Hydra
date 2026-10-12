@@ -19,11 +19,11 @@ public partial class VisitasGen2Tests
     }
 
     [Fact]
-    public void Sin_visitas_no_hay_leyenda_de_atajos()
+    public void Sin_visitas_el_pie_conserva_la_leyenda_de_atajos()
     {
         var cut = Renderizar(new MediatorVisitas());
 
         cut.WaitForAssertion(() => cut.FindAll(".estado-vacio").Should().ContainSingle("es el estado vacío: no hay filas que recorrer"));
-        cut.FindAll(LeyendaAtajosEnPagina.Selector).Should().BeEmpty();
+        cut.FindAll(LeyendaAtajosEnPagina.Selector).Should().ContainSingle("el pie conserva la leyenda también sin resultados");
     }
 }

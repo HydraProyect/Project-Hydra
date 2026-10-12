@@ -76,7 +76,7 @@ public partial class TrabajadoresListaGen2Tests
             mediador.Almacen.Add(Trabajador("Nombre", $"Apellido {i:00}"));
         var editado = mediador.Almacen.Single(f => f.Dto.Apellidos == "Apellido 23").Dto.Id;
         var cut = Renderizar(mediador);
-        await cut.FindAll(".paginador-simple button").Single(b => b.TextContent.Contains("Siguiente")).ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".paginador-simple button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().HaveCount(5).And.StartWith("Nombre Apellido 21"));
         await AlternarSeleccionMultiple(cut);
         await cut.Find("tbody input[aria-label='Seleccionar a Nombre Apellido 22']").ChangeAsync(new ChangeEventArgs { Value = true });
@@ -91,7 +91,8 @@ public partial class TrabajadoresListaGen2Tests
 
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(
             "Nombre Apellido 21", "Nombre Apellido 22", "Renombrado Apellido 23", "Nombre Apellido 24", "Nombre Apellido 25"));
-        cut.Find(".paginador-texto").TextContent.Should().Contain("Página 2 de 2").And.Contain("25 trabajador(es)");
+        ComprobacionPieListado.Pagina(cut, 2, 2);
+        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 5 de 25");
         cut.Find("tbody input[aria-label='Seleccionar a Nombre Apellido 22']").HasAttribute("checked").Should().BeTrue(
             "la selección de otra fila sigue marcada");
         cut.Find("tbody input[aria-label='Seleccionar a Renombrado Apellido 23']").HasAttribute("checked").Should().BeTrue(
@@ -139,7 +140,7 @@ public partial class TrabajadoresListaGen2Tests
         var dePagina1 = mediador.Almacen.Single(f => f.Dto.Apellidos == "Apellido 01").Dto.Id;
         var dePagina2 = mediador.Almacen.Single(f => f.Dto.Apellidos == "Apellido 21").Dto.Id;
         var cut = Renderizar(mediador);
-        await cut.FindAll(".paginador-simple button").Single(b => b.TextContent.Contains("Siguiente")).ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".paginador-simple button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().HaveCount(5).And.StartWith("Nombre Apellido 21"));
         var enviadasAntes = mediador.Enviadas.Count;
         Renombrar(mediador, dePagina1, nombre: "Renombrado");

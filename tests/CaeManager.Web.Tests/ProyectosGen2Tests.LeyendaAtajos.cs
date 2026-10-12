@@ -5,7 +5,7 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// Pie de lista con la leyenda de atajos (Cierre listados, línea H). Proyectos no maneja <c>x</c> (no hay
-/// selección múltiple), así que su leyenda no la anuncia. No pagina: la leyenda va tras la tabla.
+/// selección múltiple), así que su leyenda no la anuncia. El pie compartido conserva la leyenda dentro de la tarjeta.
 /// </summary>
 public partial class ProyectosGen2Tests
 {
@@ -19,12 +19,12 @@ public partial class ProyectosGen2Tests
     }
 
     [Fact]
-    public async Task Sin_proyectos_no_hay_leyenda_de_atajos()
+    public async Task Sin_proyectos_el_pie_conserva_la_leyenda_de_atajos()
     {
         var cut = await RenderizarConClienteAsync();
 
         cut.Find(".estado-vacio h3").TextContent.Should().Be("Sin proyectos", "es el estado vacío: no hay filas que recorrer");
-        cut.FindAll(LeyendaAtajosEnPagina.Selector).Should().BeEmpty();
+        cut.FindAll(LeyendaAtajosEnPagina.Selector).Should().ContainSingle("el pie conserva la leyenda también sin resultados");
     }
 
     [Fact]

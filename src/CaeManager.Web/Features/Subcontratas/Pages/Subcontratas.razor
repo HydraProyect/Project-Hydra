@@ -410,17 +410,11 @@
                 }
             </div>
             </div>
-        </text>, @<text>
-            @* Solo con más de una página al tamaño mínimo (20), o si ya se eligió un tamaño mayor:
-               sin él no habría forma de volver al tamaño de antes. Mismo criterio que Clientes. *@
-            @if (MostrarPaginador)
-            {
-                <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                                  Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
-                                  TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-            }
-            <LeyendaAtajosLista />
-        </text>)
+        </text>, PieDelListado)
+    }
+    @if (!_errorCarga && !_cargando && _elementosPagina.Count == 0)
+    {
+        @TarjetaListado.Renderizar(null, PieDelListado)
     }
     }
 </div>
@@ -475,3 +469,16 @@
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 
 </LimiteDeErrores>
+
+@code {
+    private RenderFragment PieDelListado => @<text>
+        @if (!_errorCarga && (!_cargando || _totalElementos > 0))
+        {
+            <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                                  PaginaActualChanged="CambiarPaginaAsync"
+                                  TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
+                    <Centro><LeyendaAtajosLista /></Centro>
+                </PaginadorSimple>
+        }
+    </text>;
+}

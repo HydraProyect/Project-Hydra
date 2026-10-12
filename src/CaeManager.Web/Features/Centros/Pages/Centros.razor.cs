@@ -783,9 +783,6 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         await CargarAsync(resetPagina: true);
     }
 
-    private bool MostrarPaginador =>
-        _totalElementos > TamanoPaginaMinimo || (_totalElementos > 0 && _tamanoPagina > TamanoPaginaMinimo);
-
     // --- Agrupación por Cliente empresarial y filas tintadas (rediseño de listados, fase 1) ---
 
     /// <summary>

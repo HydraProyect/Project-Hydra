@@ -616,7 +616,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
     [Theory]
     [InlineData(20, false)]
     [InlineData(21, true)]
-    public void El_paginador_solo_aparece_con_mas_de_una_pagina(int empresas, bool conPaginador)
+    public void El_pie_siempre_aparece_y_la_navegacion_solo_con_mas_de_una_pagina(int empresas, bool conPaginador)
     {
         var mediador = new MediatorFalso();
         for (var i = 1; i <= empresas; i++)
@@ -624,7 +624,8 @@ public partial class EmpresasListaGen2Tests : BunitContext
 
         var cut = Renderizar(mediador);
 
-        cut.FindAll(".paginador").Any().Should().Be(conPaginador);
+        cut.FindAll(".paginador-inicio button").Any().Should().Be(conPaginador);
+        cut.Find(".tarjeta-listado-pie .paginador-opciones-tamano").Should().NotBeNull();
         var tarjeta = cut.Find(".tarjeta-listado");
         tarjeta.QuerySelector(".tarjeta-listado-contenido .marco-lista-empresas").Should().NotBeNull();
         tarjeta.QuerySelector(".tarjeta-listado-pie .leyenda-atajos-lista").Should().NotBeNull();

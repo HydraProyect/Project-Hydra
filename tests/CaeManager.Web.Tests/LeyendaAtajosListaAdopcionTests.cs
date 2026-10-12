@@ -29,22 +29,18 @@ public class LeyendaAtajosListaAdopcionTests
     }
 
     /// <summary>
-    /// En estas seis la rejilla sigue montada con la lista vacía, así que la leyenda cuelga del mismo recuento
-    /// que el paginador. Sin <c>HayFilas</c> se quedaría sola al pie de una lista sin filas que recorrer.
+    /// La propuesta completa mantiene el pie de tarjeta también con cero resultados. La leyenda vive
+    /// en su zona central; no se oculta al vaciarse la rejilla. Los casos bUnit comprueban el resultado
+    /// renderizado, mientras esta prueba observa la adopción explícita en el marcado de cada pantalla.
     /// </summary>
     [Theory]
-    [InlineData("Trabajadores")]
-    [InlineData("Clientes")]
-    [InlineData("Vehiculos")]
-    [InlineData("Documentos")]
-    [InlineData("Gestiones")]
-    [InlineData("Visitas")]
-    public void Con_la_rejilla_siempre_montada_la_leyenda_depende_de_que_haya_filas(string pagina)
+    [MemberData(nameof(Paginas))]
+    public void La_leyenda_se_monta_en_el_centro_del_pie_sin_depender_del_recuento(string pagina)
     {
         var linea = Leer(pagina, ".razor").Split('\n').Single(l => l.Contains("<LeyendaAtajosLista", StringComparison.Ordinal));
 
-        linea.Should().Contain("HayFilas=\"@(_totalElementos > 0)\"",
-            $"{pagina}.razor no desmonta la rejilla al quedarse sin resultados: la leyenda se esconde con HayFilas");
+        linea.Should().Contain("<Centro><LeyendaAtajosLista");
+        linea.Should().NotContain("HayFilas=", $"el pie de {pagina} permanece completo con cero resultados");
     }
 
     /// <summary>

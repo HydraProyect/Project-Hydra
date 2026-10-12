@@ -168,8 +168,8 @@
             </p>
         }
 
-        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            @TarjetaListado.Renderizar(@<text>
+        @TarjetaListado.Renderizar(@<text>
+                <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
                 <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="ClienteListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                     @if (_seleccionMultiple)
                     {
@@ -401,21 +401,9 @@
                         <Boton360 Nombre="@context.RazonSocial" Href="@($"/clientes/{context.Id}")" />
                     </TemplateColumn>
                 </QuickGrid>
-            </text>, @<text>
-                @* Solo con más de una página (al tamaño mínimo, 20): con menos no hay nada que
-                   paginar, pero por encima de 20 se conserva el selector de tamaño aunque el
-                   tamaño elegido quepa en una página. Y si ya se eligió un tamaño mayor que el
-                   mínimo, el paginador se queda aunque el total baje (un filtro): sin él no habría
-                   forma de volver al tamaño de antes. Con cero resultados manda el estado vacío. *@
-                @if (_totalElementos > TamanoPaginaMinimo || (_totalElementos > 0 && _paginacion.ItemsPerPage > TamanoPaginaMinimo))
-                {
-                <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                                  Etiqueta="Cliente(s)" PaginaActualChanged="CambiarPaginaAsync"
-                                  TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-                }
-                <LeyendaAtajosLista HayFilas="@(_totalElementos > 0)" />
-            </text>)
-        </div>
+            
+                </div>
+</text>, PieDelListado)
 
         @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
         {
@@ -536,3 +524,16 @@
 </ModalFormulario>
 </LimiteDeErrores>
 
+
+@code {
+    private RenderFragment PieDelListado => @<text>
+        @if (!_errorCarga && (!_cargando || _totalElementos > 0))
+        {
+            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                                  PaginaActualChanged="CambiarPaginaAsync"
+                                  TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
+                    <Centro><LeyendaAtajosLista /></Centro>
+                </PaginadorSimple>
+        }
+    </text>;
+}

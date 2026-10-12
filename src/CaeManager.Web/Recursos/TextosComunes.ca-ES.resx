@@ -482,4 +482,16 @@
   <data name="AgendaSinContactosParaReclamar" xml:space="preserve">
     <value>Sense contactes per reclamar.</value>
   </data>
+  <data name="PaginadorMostrando" xml:space="preserve">
+    <value>Mostrant {0} de {1}</value>
+  </data>
+  <data name="PaginadorFilasPorPagina" xml:space="preserve">
+    <value>Files per pàgina:</value>
+  </data>
+  <data name="PaginadorAnterior" xml:space="preserve">
+    <value>Anterior</value>
+  </data>
+  <data name="PaginadorSiguiente" xml:space="preserve">
+    <value>Següent</value>
+  </data>
 </root>

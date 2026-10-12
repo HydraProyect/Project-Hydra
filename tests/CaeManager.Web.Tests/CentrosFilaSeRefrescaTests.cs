@@ -156,7 +156,7 @@ public class CentrosFilaSeRefrescaTests : BunitContext
 
     private static async Task IrALaPaginaDosAsync(IRenderedComponent<Centros> cut)
     {
-        await cut.FindAll(".paginador-simple button").Single(b => b.TextContent.Contains("Siguiente")).ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".paginador-simple button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.AbrirGruposDeCentros();
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().HaveCount(5).And.StartWith("Centro 21"));
     }
@@ -204,7 +204,8 @@ public class CentrosFilaSeRefrescaTests : BunitContext
 
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(
             "Centro 21", "Centro 22", "Renombrado 23", "Centro 24", "Centro 25"));
-        cut.Find(".paginador-texto").TextContent.Should().Contain("Página 2 de 2").And.Contain("25 centro(s)");
+        ComprobacionPieListado.Pagina(cut, 2, 2);
+        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 5 de 25");
         cut.Find("input[aria-label='Seleccionar el centro Centro 22']").HasAttribute("checked").Should().BeTrue(
             "la selección de otra fila sigue marcada");
         cut.Find("input[aria-label='Seleccionar el centro Renombrado 23']").HasAttribute("checked").Should().BeTrue(
