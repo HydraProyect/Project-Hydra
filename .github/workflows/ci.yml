@@ -107,6 +107,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: alcance
     if: ${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.integracion != 'false') }}
+    permissions:
+      contents: read
+      packages: read
     strategy:
       # Un bloque que falla no cancela a los demás: de una ejecución interesa
       # ver TODOS los fallos, no solo el primero que aparezca.
@@ -123,17 +126,24 @@ jobs:
         # MismaVersionDePostgresTests (Architecture) en los tres servicios de
         # este fichero y en el resto de sitios del repositorio.
         #
-        # Se sirve desde el espejo público de las imágenes oficiales de Docker
-        # en Amazon ECR Public (public.ecr.aws/docker/library/), no desde
-        # Docker Hub: los runners comparten IP de salida y Docker Hub limita
-        # las descargas sin autenticar, así que «Initialize containers» fallaba
-        # con `toomanyrequests` antes de arrancar un solo test y tiraba la cola
-        # de fusión entera (2026-10-09). El digest es el mismo que el de
-        # producción, y es el digest —no el registro ni la etiqueta— lo que
-        # identifica el contenido: cambia de dónde se descarga, no qué se
-        # ejecuta. Los tres servicios de este fichero y el de
-        # integraciones-con-clave.yml usan el mismo origen.
-        image: public.ecr.aws/docker/library/postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+        # La imagen sale del espejo privado de la organización en GHCR
+        # (ghcr.io/hydraproyect/postgres): la misma imagen y el mismo digest que
+        # servía Amazon ECR Public, que ahora solo es el origen de la copia
+        # (espejo-postgres.yml, IMAGEN_ORIGEN). No se baja de ECR Public ni de
+        # Docker Hub: los dos limitan las descargas anónimas desde las IP
+        # compartidas de los runners, y «Initialize containers» fallaba con
+        # `toomanyrequests` antes de arrancar un solo test (2026-10-09 y
+        # siguientes). El paquete es PRIVADO: el runner lo lee con el
+        # GITHUB_TOKEN del propio run (bloque `credentials` de cada servicio y
+        # `packages: read` en el job), sin secreto nuevo. Cambia de dónde se
+        # descarga, no qué se ejecuta: lo que identifica el contenido es el
+        # digest. Al subir la versión de PostgreSQL, lanzar antes el workflow
+        # espejo-postgres.yml con la nueva IMAGEN_ORIGEN y comprobar su resultado;
+        # solo después se cambian estas referencias, nunca al revés.
+        image: ghcr.io/hydraproyect/postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+        credentials:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -1008,6 +1018,9 @@ jobs:
     # salto sea legítimo lo decide el agregador `e2e-tests`.
     needs: alcance
     if: ${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.e2e != 'false') }}
+    permissions:
+      contents: read
+      packages: read
     strategy:
       # Un bloque que falla no cancela a los demás: interesa saber todo lo
       # que está roto, no solo lo primero.
@@ -1019,9 +1032,12 @@ jobs:
     # servicio que usa el job tests-integracion.
     services:
       postgres:
-        # Espejo de ECR Public, mismo digest que producción: ver el comentario
-        # del servicio postgres del job tests-integracion.
-        image: public.ecr.aws/docker/library/postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+        # Espejo GHCR, mismo digest que producción y mismas credenciales del run:
+        # ver el comentario del servicio postgres del job tests-integracion.
+        image: ghcr.io/hydraproyect/postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+        credentials:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -1328,6 +1344,9 @@ jobs:
     # la etiqueta «CI: completo» o si cambia la infraestructura de CI.
     needs: alcance
     if: ${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.carga != 'false') }}
+    permissions:
+      contents: read
+      packages: read
     # No bloqueante a propósito (P1-5 de la revisión de madurez): es la
     # primera cifra real de carga que existe en el repo (P1-19 de
     # Project-Hydra-Negocio/MATURITY_REVIEW.md, antes no había ninguna) — sin un
@@ -1342,9 +1361,12 @@ jobs:
     continue-on-error: true
     services:
       postgres:
-        # Espejo de ECR Public, mismo digest que producción: ver el comentario
-        # del servicio postgres del job tests-integracion.
-        image: public.ecr.aws/docker/library/postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+        # Espejo GHCR, mismo digest que producción y mismas credenciales del run:
+        # ver el comentario del servicio postgres del job tests-integracion.
+        image: ghcr.io/hydraproyect/postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+        credentials:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
         env:
           POSTGRES_PASSWORD: postgres
         ports:
