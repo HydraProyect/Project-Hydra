@@ -236,12 +236,12 @@ public class CentrosEnlaceUnicoCentro360Tests : BunitContext
     }
 
     /// <summary>
-    /// D-30: «+ Asignar trabajador» repetida en cada centro expandido de la lista competía con la
-    /// primaria de la cabecera. En la lista baja a secundaria; en Centro 360 (valor por defecto del
-    /// acordeón, mockup «Centro 360 TALVEG») sigue siendo primaria.
+    /// Fila expandida de /centros: sin «+ Asignar trabajador» (ni primaria ni secundaria; el alta vive
+    /// en Centro 360). El acordeón de Centro 360 (valor por defecto, mockup «Centro 360 TALVEG») sigue
+    /// pintándola como primaria.
     /// </summary>
     [Fact]
-    public async Task Asignar_trabajador_es_secundaria_en_la_fila_expandida_y_primaria_por_defecto()
+    public async Task Asignar_trabajador_no_aparece_en_la_fila_expandida_y_en_la_ficha_es_primaria()
     {
         var centro = Centro("Centro Logístico Norte");
         RegistrarServicios(new MediatorPorTipo { Centros = [centro], Trabajadores = Trabajadores(Escenario.TodosAlDia) });
@@ -250,9 +250,8 @@ public class CentrosEnlaceUnicoCentro360Tests : BunitContext
         await lista.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
         lista.WaitForAssertion(() => lista.Find(".tarjeta-fila-acordeon-contenido").TextContent.Should().Contain("Todos al día"));
 
-        var enLista = lista.Find(".tarjeta-fila-acordeon-contenido").QuerySelectorAll("button")
-            .Single(b => b.TextContent.Trim() == "+ Asignar trabajador");
-        enLista.ClassList.Should().Contain("boton-secundario").And.NotContain("boton-primario");
+        lista.Find(".tarjeta-fila-acordeon-contenido").QuerySelectorAll("button")
+            .Select(b => b.TextContent.Trim()).Should().NotContain("+ Asignar trabajador");
 
         var ficha = Render<AcordeonAsignacionesCentro>(p => p
             .Add(a => a.CentroId, centro.Id)
@@ -260,5 +259,58 @@ public class CentrosEnlaceUnicoCentro360Tests : BunitContext
         ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("+ Asignar trabajador"));
         ficha.FindAll("button").Single(b => b.TextContent.Trim() == "+ Asignar trabajador")
             .ClassList.Should().Contain("boton-primario", "en Centro 360 es la primaria del cuerpo, como en el mockup");
+    }
+
+    /// <summary>
+    /// Fila desplegada de /centros (<c>ModoListado</c>): solo la fila de Trabajador con incidencia.
+    /// Sin barra de asignar ni de dar de baja, sin buscador y sin casillas, aunque la selección
+    /// múltiple esté activa (maqueta v29: la fila desplegada no las tiene).
+    /// </summary>
+    [Theory]
+    [InlineData(Escenario.IncidenciasConOcultos)]
+    [InlineData(Escenario.IncidenciasSinOcultos)]
+    public async Task Modo_listado_solo_lista_las_incidencias_sin_asignar_buscar_ni_casillas(Escenario escenario)
+    {
+        var centroId = Guid.NewGuid();
+        RegistrarServicios(new MediatorPorTipo { Trabajadores = Trabajadores(escenario) });
+
+        var cut = Render<AcordeonAsignacionesCentro>(p => p
+            .Add(a => a.CentroId, centroId)
+            .Add(a => a.CentroNombre, "Centro Logístico Norte")
+            .Add(a => a.SoloIncidencias, true)
+            .Add(a => a.ModoListado, true)
+            .Add(a => a.SeleccionMultiple, true));
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain(MarcaDelEscenario(escenario)));
+
+        var botones = cut.FindAll("button").Select(b => b.TextContent.Trim()).ToList();
+        botones.Should().NotContain("+ Asignar trabajador");
+        botones.Should().NotContain("Dar de baja seleccionados");
+        cut.FindAll("input").Should().BeEmpty("sin buscador «Buscar trabajador…» ni casillas por trabajador");
+        cut.FindAll(".lista-trabajadores-acordeon .fila-relacion").Should().ContainSingle("solo la fila con incidencia");
+        cut.Markup.Should().Contain("Salas Moreno, Javier");
+    }
+
+    /// <summary>
+    /// Centro 360 (<c>ModoListado</c> por defecto, false) conserva la barra de asignar y dar de baja,
+    /// el buscador y las casillas de la selección múltiple.
+    /// </summary>
+    [Fact]
+    public async Task Modo_por_defecto_conserva_asignar_dar_de_baja_buscador_y_casillas()
+    {
+        var centroId = Guid.NewGuid();
+        RegistrarServicios(new MediatorPorTipo { Trabajadores = Trabajadores(Escenario.IncidenciasConOcultos) });
+
+        var cut = Render<AcordeonAsignacionesCentro>(p => p
+            .Add(a => a.CentroId, centroId)
+            .Add(a => a.CentroNombre, "Centro Logístico Norte")
+            .Add(a => a.SeleccionMultiple, true));
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ruiz Peña, Ana"));
+
+        var botones = cut.FindAll("button").Select(b => b.TextContent.Trim()).ToList();
+        botones.Should().Contain("+ Asignar trabajador");
+        botones.Should().Contain("Dar de baja seleccionados");
+        cut.FindAll("input[placeholder='Buscar trabajador…']").Should().ContainSingle();
     }
 }
