@@ -502,7 +502,7 @@
     <value>Centros donde esta subcontrata tiene actividad real (trabajadores con asignación activa).</value>
   </data>
   <data name="SubtituloCentro" xml:space="preserve">
-    <value>{0} · {1} trabajador(es)</value>
+    <value>{0} · {1} trabajadores</value>
   </data>
   <data name="ConfirmarEliminarVerificacionTitulo" xml:space="preserve">
     <value>¿Eliminar esta verificación?</value>
@@ -870,4 +870,11 @@
   <data name="RecuentoDocumentosSinConfirmarVarios" xml:space="preserve">
     <value>{0} documentos con la vigencia sin confirmar</value>
   </data>
+  <data name="PestanaVehiculos" xml:space="preserve"><value>Vehículos</value></data>
+  <data name="SubtituloCentroUno" xml:space="preserve"><value>{0} · 1 trabajador</value></data>
+  <data name="ErrorVehiculos" xml:space="preserve"><value>No pudimos cargar los vehículos</value></data>
+  <data name="Reintentar" xml:space="preserve"><value>Reintentar</value></data>
+  <data name="SinVehiculos" xml:space="preserve"><value>Sin vehículos registrados</value></data>
+  <data name="ResumenVehiculos" xml:space="preserve"><value>Mostrando {0} de {1} · del peor estado al mejor</value></data>
+  <data name="EstadoVehiculoDesconocido" xml:space="preserve"><value>Estado desconocido</value></data>
 </root>

@@ -38,13 +38,15 @@ namespace CaeManager.Web.Features.Subcontratas.Pages;
 /// <para>
 /// Compone, con las MISMAS consultas que <c>SubcontrataWorkspacePanel</c> y que la fila desplegada del listado
 /// (<c>AcordeonTrabajadoresSubcontrata</c>) —mismo alcance y misma RLS—, la identidad con el anillo
-/// y las pestañas Trabajadores, Supervisión, Centros, Agenda e Historial. La edición de la identidad y
+/// y las pestañas Trabajadores, Supervisión, Centros, Vehículos, Agenda e Historial. La edición de la identidad y
 /// de las credenciales sigue viviendo en el panel: «Editar» lo abre.
+/// Vehículos usa además el listado existente filtrado por la Empresa contraparte en posición Subcontratista;
+/// conserva la visibilidad de Vehículos del servidor y se pide solo al abrir su pestaña.
 /// </para>
 ///
 /// <para>
 /// <b>Qué no enseña todavía, y por qué</b> (cada punto es un incremento propio): la documentación de empresa de la
-/// subcontrata y su pestaña «Gestión», los proyectos, los vehículos, el estado por Centro, la cadena de
+/// subcontrata y su pestaña «Gestión», los proyectos, el estado por Centro, la cadena de
 /// subcontratación y quién registró cada verificación. Ningún DTO los trae hoy. El anillo, por lo mismo, solo
 /// mide la documentación de sus trabajadores (<see cref="ObtenerCumplimientoSubcontrataQuery"/>).
 /// </para>
@@ -62,6 +64,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     internal const string PestanaTrabajadores = "trabajadores";
     internal const string PestanaSupervision = "supervision";
     internal const string PestanaCentros = "centros";
+    internal const string PestanaVehiculos = "vehiculos";
     internal const string PestanaAgenda = "agenda";
     internal const string PestanaHistorial = "historial";
 
@@ -69,7 +72,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     internal const int TamanoPaginaTrabajadores = 50;
 
     private static readonly string[] PestanasValidas =
-        [PestanaTrabajadores, PestanaSupervision, PestanaCentros, PestanaAgenda, PestanaHistorial];
+        [PestanaTrabajadores, PestanaSupervision, PestanaCentros, PestanaVehiculos, PestanaAgenda, PestanaHistorial];
 
     [Parameter] public Guid SubcontrataId { get; set; }
 
@@ -882,6 +885,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         {
             Contador = _centros is { } centros ? new ContadorPestana(centros.Count, Textos["GlosaCentros"]) : null
         },
+        new(PestanaVehiculos, Textos["PestanaVehiculos"]),
         new(PestanaAgenda, Textos["PestanaAgenda"]),
         new(PestanaHistorial, Textos["PestanaHistorial"])
     ];

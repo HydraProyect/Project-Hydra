@@ -179,6 +179,9 @@
                             <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Subcontrata" PropietarioId="_detalle.Id" />
                         </Tarjeta>
                         break;
+                    case PestanaVehiculos:
+                        <PestanaVehiculosSubcontrata EmpresaContraparteId="_detalle.Id" />
+                        break;
                     case PestanaHistorial:
                         <Tarjeta>
                             <PestanaHistorial EntidadTipo="Subcontrata" EntidadId="_detalle.Id" />
@@ -533,7 +536,7 @@
                     {
                         <FilaRelacion @key="centro.Id" Nombre="@centro.Nombre" NombreIcono="centros"
                                       OnNombre="() => AbrirPanelCentro(centro)" OnAbrir360="() => IrACentro360(centro.Id)">
-                            <Detalle>@Textos["SubtituloCentro", centro.ClienteRazonSocial, centro.TrabajadoresAsignados]</Detalle>
+                            <Detalle>@Textos[centro.TrabajadoresAsignados == 1 ? "SubtituloCentroUno" : "SubtituloCentro", centro.ClienteRazonSocial, centro.TrabajadoresAsignados]</Detalle>
                         </FilaRelacion>
                     }
                 </ChildContent>
