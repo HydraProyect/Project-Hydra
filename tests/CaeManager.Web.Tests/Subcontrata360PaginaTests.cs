@@ -18,6 +18,7 @@ using CaeManager.Application.Subcontratas.Queries.ObtenerTrabajadoresDocumentaci
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Usuarios.Queries.ObtenerDobleFactorPropio;
+using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Subcontratas;
@@ -101,6 +102,7 @@ public class Subcontrata360PaginaTests : BunitContext
             ObtenerTrabajadoresDocumentacionPorSubcontrataQuery => (IReadOnlyList<TrabajadorDocumentacionSubcontrataDto>)Trabajadores,
             ObtenerSupervisionSubcontrataQuery => Supervision,
             ObtenerCentrosConActividadDeSubcontrataQuery => (IReadOnlyList<CentroConActividadDto>)Centros,
+            ObtenerVehiculosQuery q => new ResultadoPaginado<VehiculoListaDto>([], 0, q.Pagina, q.TamanoPagina),
             ObtenerDobleFactorPropioQuery => DobleFactor,
             ObtenerCredencialAccesoSubcontrataQuery => Credencial,
             CambiarNivelServicioSubcontrataCommand or EliminarSubcontrataCommand or EliminarVerificacionExternaSubcontrataCommand => Result.Exito(),
@@ -522,6 +524,34 @@ public class Subcontrata360PaginaTests : BunitContext
         cut.WaitForAssertion(() => mediador.Enviadas.OfType<EliminarSubcontrataCommand>().Should().ContainSingle()
             .Which.Id.Should().Be(SubcontrataId));
         new Uri(Navegacion.Uri).AbsolutePath.Should().Be("/subcontratas");
+    }
+
+    [Fact]
+    public async Task Vehiculos_va_entre_Centros_y_Agenda_y_se_carga_solo_al_abrir_su_pestana()
+    {
+        var mediador = Montar();
+        var cut = Renderizar();
+        mediador.Enviadas.Should().NotContain(q => q is ObtenerVehiculosQuery);
+        var pestanas = cut.FindAll("[role=tab]").Select(t => t.TextContent.Trim()).ToList();
+        pestanas.FindIndex(t => t.StartsWith("Vehículos")).Should().Be(pestanas.FindIndex(t => t.StartsWith("Centros")) + 1);
+        pestanas.FindIndex(t => t.StartsWith("Agenda")).Should().Be(pestanas.FindIndex(t => t.StartsWith("Vehículos")) + 1);
+
+        await cut.FindAll("[role=tab]").Single(t => t.TextContent.StartsWith("Vehículos"))
+            .ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Should().ContainSingle().Which.SubcontrataId.Should().Be(SubcontrataId);
+        Navegacion.Uri.Should().Contain("pestana=vehiculos");
+        cut.Markup.Should().Contain("Sin vehículos registrados");
+    }
+
+    [Theory]
+    [InlineData(1, "1 trabajador")]
+    [InlineData(3, "3 trabajadores")]
+    public void Centros_muestra_el_titular_y_los_trabajadores_asignados_sin_inventar_un_porcentaje(int trabajadores, string cifra)
+    {
+        var mediador = Montar();
+        mediador.Centros = [new CentroConActividadDto(CentroId, "Almacén Vigo", "Cyberdyne Ibérica S.A.", trabajadores)];
+        var cut = Renderizar("?pestana=centros");
+        cut.Find(".fila-relacion-detalle").TextContent.Should().Be($"Cyberdyne Ibérica S.A. · {cifra}").And.NotContain("%");
     }
 
     // ── Supervisión ───────────────────────────────────────────────────────
