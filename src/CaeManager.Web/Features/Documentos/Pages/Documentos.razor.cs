@@ -460,6 +460,21 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private DrawerGestionDocumento _drawerGestion = default!;
     private PlataformaTab? _plataformaTab;
 
+    private bool _visorVisible;
+    private Guid _visorDocumentoId;
+    private string _visorTitulo = string.Empty;
+
+    /// <summary>
+    /// «Ver PDF» de la columna Archivo. Solo se pinta con <c>ArchivoUrl</c> presente, así que aquí
+    /// siempre hay algo que mostrar; el visor es el mismo de Visitas y se monta solo mientras está abierto.
+    /// </summary>
+    private void AbrirVisor(DocumentoListaDto documento)
+    {
+        _visorDocumentoId = documento.Id;
+        _visorTitulo = $"{documento.TipoDocumentoNombre} — {documento.PropietarioNombre}";
+        _visorVisible = true;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;

@@ -284,7 +284,11 @@
                         <TemplateColumn Title="Archivo">
                             @if (context.ArchivoUrl is not null)
                             {
-                                <a href="/documentos/@context.Id/archivo" target="_blank">Ver PDF</a>
+                                @* Botón y no enlace: abre el visor en un modal (VisorDocumento) sin salir de la lista.
+                                   «Abrir en pestaña nueva» sigue dentro del propio visor. *@
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                       aria-label="@Textos["VerPdfAria", context.TipoDocumentoNombre, context.PropietarioNombre]"
+                                       OnClick="() => AbrirVisor(context)">@Textos["VerPdf"]</Boton>
                             }
                             else
                             {
@@ -361,6 +365,8 @@
 
 
 <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" OnCerrado="LimpiarEnlaceProfundoDeUrl" />
+
+<VisorDocumento Visible="_visorVisible" VisibleChanged="v => _visorVisible = v" DocumentoId="_visorDocumentoId" Titulo="@_visorTitulo" />
 
 @* El lote solo elimina: tanto la selección múltiple como su barra requieren un rol con escritura. *@
 <SoloConEscritura>

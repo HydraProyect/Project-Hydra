@@ -84,7 +84,31 @@ public static class CabecerasSeguridadExtensions
         });
     }
 
-    private static string ConstruirPoliticaSeguridadContenido(HttpContext contexto)
+    /// <summary>
+    /// Deja que ESTA respuesta —y solo ella— se incruste en un <c>&lt;iframe&gt;</c> de la propia
+    /// aplicación: <c>X-Frame-Options: SAMEORIGIN</c> y <c>frame-ancestors 'self'</c>. Lo invoca el
+    /// endpoint del PDF de un Documento para que <c>VisorDocumento</c> pueda mostrarlo en un modal.
+    ///
+    /// <para>
+    /// El resto de la aplicación sigue en <c>DENY</c> / <c>'none'</c>: este método no cambia lo que
+    /// <see cref="UseCabecerasSeguridad"/> pone por defecto, lo pisa en una respuesta concreta, y solo
+    /// después de que el middleware haya corrido (el endpoint se ejecuta más abajo en el pipeline).
+    /// Nunca permite a otro origen incrustar el PDF: <c>'self'</c> no es un comodín.
+    /// </para>
+    ///
+    /// <para>
+    /// Se reconstruye la política entera con la misma función que usa el middleware, no se edita el
+    /// texto de la cabecera ya escrita: así las demás directivas (incluido el hash del import map) no
+    /// pueden divergir de las del resto de respuestas.
+    /// </para>
+    /// </summary>
+    public static void PermitirIncrustacionEnMismoOrigen(this HttpContext contexto)
+    {
+        contexto.Response.Headers["Content-Security-Policy"] = ConstruirPoliticaSeguridadContenido(contexto, "'self'");
+        contexto.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
+    }
+
+    private static string ConstruirPoliticaSeguridadContenido(HttpContext contexto, string frameAncestors = "'none'")
     {
         return
             "default-src 'self'; " +
@@ -96,7 +120,7 @@ public static class CabecerasSeguridadExtensions
             "object-src 'none'; " +
             "base-uri 'self'; " +
             "form-action 'self'; " +
-            "frame-ancestors 'none'";
+            $"frame-ancestors {frameAncestors}";
     }
 
     /// <summary>

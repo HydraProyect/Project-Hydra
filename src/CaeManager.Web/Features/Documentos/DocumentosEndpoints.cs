@@ -10,6 +10,7 @@ using CaeManager.Web.Exportacion;
 using CaeManager.Web.Services;
 using ClosedXML.Excel;
 using MediatR;
+using Microsoft.Net.Http.Headers;
 
 namespace CaeManager.Web.Features.Documentos;
 
@@ -154,6 +155,28 @@ public static class DocumentosEndpoints
         }
 
         await registroAcceso.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
+
+        // Se muestra en el navegador, no se descarga: VisorDocumento lo incrusta en un <iframe> y los
+        // enlaces «Ver PDF» lo abren en una pestaña. Pasar el nombre a Results.File como
+        // fileDownloadName habría añadido Content-Disposition: attachment (el defecto que forzaba la
+        // descarga); aquí va en una cabecera `inline` propia, que el ejecutor del resultado respeta
+        // porque no recibe nombre. Quien quiere descargar sigue pudiendo: el enlace «Descargar PDF» del
+        // panel del Documento lleva el atributo `download`, y el navegador lo aplica sobre `inline`.
+        if (!string.IsNullOrWhiteSpace(documento.NombreArchivoDescarga))
+        {
+            var disposicion = new ContentDispositionHeaderValue("inline");
+            disposicion.SetHttpFileName(documento.NombreArchivoDescarga);
+            contexto.Response.Headers.ContentDisposition = disposicion.ToString();
+        }
+        else
+        {
+            contexto.Response.Headers.ContentDisposition = "inline";
+        }
+
+        // X-Frame-Options: DENY y frame-ancestors 'none' son el valor por defecto de toda la
+        // aplicación (UseCabecerasSeguridad). Solo esta respuesta se relaja, y solo al mismo origen.
+        contexto.PermitirIncrustacionEnMismoOrigen();
+
         // enableRangeProcessing: el visor de PDF del navegador pide por
         // rangos al paginar/buscar en vez de volver a traer el archivo
         // entero en cada petición. No reduce el coste del servidor —
@@ -161,6 +184,6 @@ public static class DocumentosEndpoints
         // memoria antes de servirlo (medición de Módulo 2, PR #360) — la
         // lectura por rangos que sí lo haría exige un formato cifrado por
         // bloques, pendiente de decisión.
-        return Results.File(flujo, "application/pdf", documento.NombreArchivoDescarga, enableRangeProcessing: true);
+        return Results.File(flujo, "application/pdf", enableRangeProcessing: true);
     }
 }
