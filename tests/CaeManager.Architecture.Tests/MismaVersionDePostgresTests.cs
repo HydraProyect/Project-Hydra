@@ -22,17 +22,19 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>Registro de origen.</b> Los servicios de CI descargan esa misma imagen del
-/// espejo público de las imágenes oficiales de Docker en Amazon ECR Public
-/// (<c>public.ecr.aws/docker/library/</c>) porque Docker Hub limita las
-/// descargas sin autenticar desde las IP compartidas de los runners (2026-10-09:
-/// <c>toomanyrequests</c> en «Initialize containers», cola de fusión caída). El
-/// digest identifica el contenido con independencia del registro que lo sirva,
-/// así que ese prefijo —y solo ese— se retira antes de comparar: la etiqueta y
-/// el digest tienen que seguir siendo los de producción. Una referencia desde
-/// cualquier otro registro se ve y cuenta como divergente, y producción misma
-/// se sigue exigiendo sin prefijo. En <c>.github/workflows/</c> el espejo es
-/// además obligatorio en todas las referencias: una sola que vuelva a Docker
-/// Hub devuelve el fallo a su job aunque el digest coincida.
+/// espejo privado de la organización en GHCR (<c>ghcr.io/hydraproyect/postgres</c>),
+/// copia del mismo digest que se sirve desde Amazon ECR Public
+/// (<c>public.ecr.aws/docker/library/</c>), que es el origen de la copia. Ni ECR
+/// Public ni Docker Hub se usan en los servicios: ambos limitan las descargas
+/// anónimas desde las IP compartidas de los runners («Initialize containers» con
+/// <c>toomanyrequests</c>, 2026-10-09). El digest identifica el contenido con
+/// independencia del registro que lo sirva, así que el prefijo de los espejos
+/// permitidos —y solo ese— se retira antes de comparar: la etiqueta y el digest
+/// tienen que seguir siendo los de producción. Una referencia desde cualquier otro
+/// registro se ve y cuenta como divergente, y producción misma se sigue exigiendo
+/// sin prefijo. En <c>.github/workflows/</c> el espejo es además obligatorio en
+/// todas las referencias: una sola que vuelva a Docker Hub devuelve el fallo a su
+/// job aunque el digest coincida.
 /// </para>
 ///
 /// <para>
@@ -45,9 +47,14 @@ public class MismaVersionDePostgresTests
 {
     private const string ComposeDeProduccion = "deploy/local/docker-compose.produccion.yml";
 
-    // Único origen distinto de Docker Hub que se da por equivalente: el espejo
-    // de las imágenes oficiales en Amazon ECR Public (ver el resumen de la clase).
-    private const string EspejoDeImagenesOficiales = "public.ecr.aws/docker/library/";
+    // Espejos por los que puede bajar la imagen un servicio de la CI: el origen de
+    // la copia (ECR Public) y el espejo privado de la organización (GHCR). Mismo
+    // nombre, etiqueta y digest son la misma imagen (ver el resumen de la clase).
+    private static readonly string[] EspejosPermitidos =
+    {
+        "public.ecr.aws/docker/library/",
+        "ghcr.io/hydraproyect/",
+    };
 
     // Prefijo de registro y ruta delante del nombre (`docker.io/library/`,
     // `public.ecr.aws/docker/library/`, `localhost:5000/`…). Se captura
@@ -105,12 +112,12 @@ public class MismaVersionDePostgresTests
         // vacía lo garantizan los controles positivos de arriba.
         var workflowsSinEspejo = referencias
             .Where(r => r.Fichero.StartsWith(".github/workflows/", StringComparison.Ordinal))
-            .Where(r => !r.Imagen.StartsWith(EspejoDeImagenesOficiales, StringComparison.Ordinal))
+            .Where(r => !EsEspejoPermitido(r.Imagen))
             .Select(r => $"{r.Fichero}:{r.Linea}: {r.Imagen}")
             .ToList();
 
         workflowsSinEspejo.Should().BeEmpty(
-            $"los servicios de PostgreSQL de la CI se descargan de {EspejoDeImagenesOficiales} y no de Docker Hub, " +
+            "los servicios de PostgreSQL de la CI se descargan de un espejo permitido (ECR Public o GHCR de la organización) y no de Docker Hub, " +
             "que limita las descargas sin autenticar desde las IP compartidas de los runners");
 
         var divergentes = referencias
@@ -122,12 +129,17 @@ public class MismaVersionDePostgresTests
             $"producción ({ComposeDeProduccion}) usa {produccion} y la CI se alinea con producción, nunca al revés");
     }
 
-    // Mismo nombre, etiqueta y digest servidos desde el espejo son la misma
-    // imagen; cualquier otro prefijo se conserva y hace divergir la referencia.
-    private static string SinEspejo(string imagen) =>
-        imagen.StartsWith(EspejoDeImagenesOficiales, StringComparison.Ordinal)
-            ? imagen[EspejoDeImagenesOficiales.Length..]
-            : imagen;
+    // Mismo nombre, etiqueta y digest servidos desde un espejo permitido son la
+    // misma imagen; cualquier otro prefijo se conserva y hace divergir la
+    // referencia. Lo que se exige es la etiqueta y el digest, no el registro.
+    private static string SinEspejo(string imagen)
+    {
+        var espejo = EspejosPermitidos.FirstOrDefault(p => imagen.StartsWith(p, StringComparison.Ordinal));
+        return espejo is null ? imagen : imagen[espejo.Length..];
+    }
+
+    private static bool EsEspejoPermitido(string imagen) =>
+        EspejosPermitidos.Any(p => imagen.StartsWith(p, StringComparison.Ordinal));
 
     private static string ImagenDeProduccion()
     {

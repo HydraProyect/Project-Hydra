@@ -10,9 +10,10 @@
 # SOLO SE LANZA A MANO (workflow_dispatch). No tiene push, pull_request,
 # schedule ni merge_group: no corre nunca sola ni al fusionar.
 #
-# NO CAMBIA de dónde baja hoy el CI. Las referencias de ci.yml y de
-# integraciones-con-clave.yml siguen apuntando a public.ecr.aws hasta un
-# incremento posterior, que solo se hará cuando el paquete sea público.
+# Las referencias de ci.yml e integraciones-con-clave.yml bajan de
+# ghcr.io/hydraproyect/postgres (el espejo que publica este workflow) con el
+# GITHUB_TOKEN del run. Este workflow sigue copiando desde Amazon ECR Public:
+# IMAGEN_ORIGEN es el origen de la copia.
 #
 # La referencia de origen vive en una sola variable, IMAGEN_ORIGEN, con la
 # forma completa registro/nombre:etiqueta@digest. El digest es el mismo que el
@@ -34,9 +35,9 @@
 # lanzar este workflow y comprobar que el resultado es correcto ANTES de cambiar
 # las referencias de la CI. En ese orden, nunca al revés.
 #
-# Tras la primera publicación el paquete nace PRIVADO. Hay que marcarlo como
-# público a mano en la organización (Packages de HydraProyect) antes de cambiar
-# las referencias de ci.yml. Ese paso lo recuerda el resumen del job.
+# Tras la primera publicación el paquete nace PRIVADO. La CI lo lee con el
+# GITHUB_TOKEN del run (credentials y packages: read), así que no hace falta
+# marcarlo público para que los servicios lo bajen.
 name: Espejo de postgres en GHCR
 
 on:
@@ -143,5 +144,5 @@ jobs:
             echo ""
             echo "Referencia final: \`$DESTINO:$ETIQUETA@$DIGEST\`"
             echo ""
-            echo "**Pendiente a mano:** el paquete nace privado. Márcalo como público en la organización HydraProyect antes de cambiar las referencias de \`ci.yml\`."
+            echo "**Nota:** el paquete nace privado. La CI lo baja con el GITHUB_TOKEN del run; no hace falta marcarlo público."
           } >> "$GITHUB_STEP_SUMMARY"
