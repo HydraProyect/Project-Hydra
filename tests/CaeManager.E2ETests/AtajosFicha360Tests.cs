@@ -27,9 +27,11 @@ public class AtajosFicha360Tests(WebAppFixture fixture)
 
         // Las posiciones (qué pestaña, qué fila) se leen en la página, no con localizadores
         // posicionales: es justo lo que el atajo promete («la siguiente», «la segunda»).
-        await page.WaitForSelectorAsync("a[href^='/subcontratas/']", new() { Timeout = 30_000 });
+        // :not([download]) deja fuera el icono «Exportar a Excel» de la cabecera, que también cuelga de
+        // /subcontratas/ pero es una descarga, no una ficha.
+        await page.WaitForSelectorAsync("a[href^='/subcontratas/']:not([download])", new() { Timeout = 30_000 });
         var rutas = await page.EvaluateAsync<string[]>(
-            "() => [...new Set([...document.querySelectorAll(\"a[href^='/subcontratas/']\")].map(e => e.getAttribute('href')))]");
+            "() => [...new Set([...document.querySelectorAll(\"a[href^='/subcontratas/']:not([download])\")].map(e => e.getAttribute('href')))]");
 
         var html = page.Locator("html");
         var enfocada = page.Locator("[data-fila-enfocada]");
