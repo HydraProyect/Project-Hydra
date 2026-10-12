@@ -77,6 +77,46 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
     private int _pagina = 1;
     private int _tamanoPagina = ObtenerEstadoTipoDocumentoQuery.TamanoPaginaPorDefecto;
     private readonly HashSet<Guid> _desplegadas = [];
+    private string _empresaDePagina = string.Empty;
+    private string _centroDePagina = string.Empty;
+    private string _agrupacionDePagina = string.Empty;
+
+    // Estos selectores solo conocen la página recibida; no alteran la consulta ni sus recuentos globales.
+    private IReadOnlyList<FilaTrabajadorTipoDocumentoDto> FilasDePaginaVisibles =>
+        (_estado?.Filas ?? [])
+        .Where(f => string.IsNullOrEmpty(_empresaDePagina) || f.EmpresaId?.ToString() == _empresaDePagina)
+        .Where(f => string.IsNullOrEmpty(_centroDePagina) || f.Centros.Any(c => c.CentroId.ToString() == _centroDePagina))
+        .ToList();
+
+    private IEnumerable<FilaTrabajadorTipoDocumentoDto> FilasDePaginaOrdenadas =>
+        _agrupacionDePagina == "empresa"
+            ? FilasDePaginaVisibles.GroupBy(f => f.EmpresaId).SelectMany(g => g)
+            : FilasDePaginaVisibles;
+
+    private IEnumerable<(Guid Id, string Nombre)> EmpresasDePagina =>
+        (_estado?.Filas ?? []).Where(f => f.EmpresaId.HasValue && !string.IsNullOrWhiteSpace(f.EmpresaNombre))
+        .Select(f => (Id: f.EmpresaId!.Value, Nombre: f.EmpresaNombre!)).DistinctBy(e => e.Id).OrderBy(e => e.Nombre);
+
+    private IEnumerable<(Guid Id, string Nombre)> CentrosDePagina =>
+        (_estado?.Filas ?? []).SelectMany(f => f.Centros).Select(c => (Id: c.CentroId, Nombre: c.CentroNombre))
+        .DistinctBy(c => c.Id).OrderBy(c => c.Nombre);
+
+    private void CambiarEmpresaDePagina(string valor) => _empresaDePagina = valor;
+    private void CambiarCentroDePagina(string valor) => _centroDePagina = valor;
+    private void CambiarAgrupacionDePagina(string valor) => _agrupacionDePagina = valor;
+
+    private void RestablecerVistaDePagina()
+    {
+        _empresaDePagina = string.Empty;
+        _centroDePagina = string.Empty;
+        _agrupacionDePagina = string.Empty;
+    }
+
+    private void CambiarPestana(string id)
+    {
+        Pestana = id == PestanaTrabajadores ? id : PestanaTrabajadores;
+        NavigationManager.ActualizarFiltroEnUrl("pestana", null);
+    }
 
     private IReadOnlyList<BreadcrumbElemento> Miguero =>
     [
@@ -168,6 +208,7 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
     /// </summary>
     private async Task CargarAsync()
     {
+        RestablecerVistaDePagina();
         var carga = ++_carga;
         _cargando = _estado is null;
         _error = false;

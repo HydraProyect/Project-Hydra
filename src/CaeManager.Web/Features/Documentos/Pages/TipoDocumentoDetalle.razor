@@ -67,7 +67,7 @@
 
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
             <ChildContent>
-                <Pestanas Definiciones="Pestanas" PestanaActiva="@PestanaActiva" PestanaActivaChanged="_ => { }" EtiquetaGrupo="@Textos["EtiquetaGrupoPestanas"]">
+                <Pestanas Definiciones="Pestanas" PestanaActiva="@PestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["EtiquetaGrupoPestanas"]">
                     @if (estado.Trabajadores == 0)
                     {
                         <Tarjeta>
@@ -90,11 +90,43 @@
                         <FiltroEstadosMultiple Opciones="OpcionesDeEstado" Seleccion="_estadosMarcados" SeleccionChanged="CambiarEstadosAsync"
                                                Total="estado.Trabajadores" TextoTodos="@Textos["Todos"]" Etiqueta="@Textos["EtiquetaFiltroEstado"]" />
 
-                        <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["EtiquetaLista"]">
-                            <Encabezado>@Textos["Mostrando", estado.Filas.Count, estado.TotalFiltradas]</Encabezado>
-                            <ChildContent>
-                                @foreach (var fila in estado.Filas)
+                        <fieldset class="tipo360-filtros-pagina">
+                            <legend>@Textos["FiltrarEstaPagina"]</legend>
+                            <CampoSelect Etiqueta="@Textos["FiltroEmpresaPagina"]" Valor="@_empresaDePagina" ValorChanged="CambiarEmpresaDePagina">
+                                <option value="">@Textos["TodasLasEmpresasPagina"]</option>
+                                @foreach (var empresa in EmpresasDePagina)
                                 {
+                                    <option value="@empresa.Id">@empresa.Nombre</option>
+                                }
+                            </CampoSelect>
+                            <CampoSelect Etiqueta="@Textos["FiltroCentroPagina"]" Valor="@_centroDePagina" ValorChanged="CambiarCentroDePagina">
+                                <option value="">@Textos["TodosLosCentrosPagina"]</option>
+                                @foreach (var centro in CentrosDePagina)
+                                {
+                                    <option value="@centro.Id">@centro.Nombre</option>
+                                }
+                            </CampoSelect>
+                            <CampoSelect Etiqueta="@Textos["AgruparPagina"]" Valor="@_agrupacionDePagina" ValorChanged="CambiarAgrupacionDePagina">
+                                <option value="">@Textos["SinAgruparPagina"]</option>
+                                <option value="empresa">@Textos["AgruparPorEmpresaPagina"]</option>
+                            </CampoSelect>
+                        </fieldset>
+
+                        <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["EtiquetaLista"]">
+                            <Encabezado>
+                                <span>@Textos["MostrandoPagina", FilasDePaginaVisibles.Count, estado.Filas.Count]</span>
+                                <span> · @Textos["TotalDelFiltro", estado.TotalFiltradas]</span>
+                            </Encabezado>
+                            <ChildContent>
+                                @{ Guid? empresaAnterior = null; var primerGrupo = true; }
+                                @foreach (var fila in FilasDePaginaOrdenadas)
+                                {
+                                    @if (_agrupacionDePagina == "empresa" && (primerGrupo || empresaAnterior != fila.EmpresaId))
+                                    {
+                                        <li class="tipo360-grupo-empresa">@(string.IsNullOrWhiteSpace(fila.EmpresaNombre) ? Textos["EmpresaNoDisponible"] : fila.EmpresaNombre)</li>
+                                        empresaAnterior = fila.EmpresaId;
+                                        primerGrupo = false;
+                                    }
                                     var trabajadorId = fila.TrabajadorId;
                                     var accion = TextoAccion(fila.PeorEstado);
                                     <FilaRelacion @key="trabajadorId" Nombre="@fila.Nombre" Iniciales="@Iniciales(fila.Nombre)"
@@ -155,7 +187,7 @@
                                 }
                             </ChildContent>
                             <Pie>
-                                @if (estado.Filas.Count == 0 && HayFiltrosActivos)
+                                @if (FilasDePaginaVisibles.Count == 0 && (HayFiltrosActivos || !string.IsNullOrEmpty(_empresaDePagina) || !string.IsNullOrEmpty(_centroDePagina)))
                                 {
                                     <p class="tipo360-nota">
                                         @Textos["FiltroSinResultados"]

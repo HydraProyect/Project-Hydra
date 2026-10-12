@@ -159,6 +159,113 @@ public class TipoDocumento360UrlTests : BunitContext
 
     private static IElement Buscador(IRenderedComponent<TipoDocumentoDetalle> cut) => cut.Find("input[type=search]");
 
+    [Fact]
+    public async Task Empresa_y_Centro_filtran_solo_la_pagina_sin_consultas_ni_recuentos_globales_falsos()
+    {
+        var mediador = Montar();
+        var empresaA = Guid.NewGuid();
+        var empresaB = Guid.NewGuid();
+        var otroCentro = Guid.NewGuid();
+        mediador.Filas[0] = mediador.Filas[0] with { EmpresaId = empresaA, EmpresaNombre = "Empresa A" };
+        mediador.Filas[1] = mediador.Filas[1] with { EmpresaId = empresaA, EmpresaNombre = "Empresa A", Centros = [new(otroCentro, "Centro Sur", Guid.NewGuid(), EstadoDocumento.Faltante, null)] };
+        mediador.Filas[2] = mediador.Filas[2] with { EmpresaId = empresaB, EmpresaNombre = "Empresa B" };
+        var cut = Renderizar();
+        var contadores = cut.Find(".filtro-estados").TextContent;
+        var cabecera = cut.Find(".cabecera-identidad").TextContent;
+
+        cut.Find(".tipo360-filtros-pagina legend").TextContent.Should().Be("Filtrar esta página");
+        await cut.FindAll(".tipo360-filtros-pagina select")[0].ChangeAsync(new ChangeEventArgs { Value = empresaA.ToString() });
+        Nombres(cut).Should().Equal("Marta Vencida", "Pedro Pendiente");
+        cut.FindAll(".tipo360-filtros-pagina select")[0].QuerySelectorAll("option").Select(o => o.TextContent)
+            .Should().Contain("Empresa B", "las opciones salen de la página completa, antes de los filtros locales");
+        await cut.FindAll(".tipo360-filtros-pagina select")[1].ChangeAsync(new ChangeEventArgs { Value = CentroId.ToString() });
+        Nombres(cut).Should().Equal("Marta Vencida");
+        cut.Find(".lista-relaciones-encabezado").TextContent.Should().Contain("Mostrando 1 de 5 de esta página").And.Contain("5 Trabajadores en el filtro global");
+        cut.Find(".filtro-estados").TextContent.Should().Be(contadores);
+        cut.Find(".cabecera-identidad").TextContent.Should().Be(cabecera);
+        Consulta.Should().BeEmpty();
+        mediador.Consultas.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Agrupar_por_Empresa_conserva_una_fila_por_Trabajador_y_el_orden_dentro_del_grupo()
+    {
+        var mediador = Montar();
+        var empresaA = Guid.NewGuid();
+        var empresaB = Guid.NewGuid();
+        mediador.Filas[0] = mediador.Filas[0] with { EmpresaId = empresaA, EmpresaNombre = "Empresa A" };
+        mediador.Filas[1] = mediador.Filas[1] with { EmpresaId = empresaB, EmpresaNombre = "Empresa B" };
+        mediador.Filas[2] = mediador.Filas[2] with { EmpresaId = empresaA, EmpresaNombre = "Empresa A" };
+        var cut = Renderizar();
+
+        await cut.FindAll(".tipo360-filtros-pagina select")[2].ChangeAsync(new ChangeEventArgs { Value = "empresa" });
+        Nombres(cut).Should().Equal("Marta Vencida", "Martín Urgente", "Pedro Pendiente", "Paula Próxima", "Vera Vigente");
+        cut.FindAll(".tipo360-grupo-empresa").Select(e => e.TextContent.Trim())
+            .Should().Equal("Empresa A", "Empresa B", "Nombre de Empresa no disponible");
+        cut.FindAll(".lista-relaciones-tarjeta").Should().ContainSingle();
+        mediador.Consultas.Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Una_pagina_parcial_no_ofrece_Empresas_ni_Centros_que_no_ha_cargado()
+    {
+        var mediador = Montar();
+        for (var i = 0; i < 15; i++) mediador.Filas.Add(Fila($"Trabajador {i}", EstadoDocumento.Vigente));
+        mediador.Filas.Add(Fila("Fuera de página", EstadoDocumento.Vigente) with
+        {
+            EmpresaId = Guid.NewGuid(),
+            EmpresaNombre = "Empresa fuera de página",
+            Centros = [new(Guid.NewGuid(), "Centro fuera de página", Guid.NewGuid(), EstadoDocumento.Vigente, null)]
+        });
+        var cut = Renderizar();
+        Nombres(cut).Should().HaveCount(20).And.NotContain("Fuera de página");
+        cut.Find(".tipo360-filtros-pagina").TextContent.Should().NotContain("Empresa fuera de página").And.NotContain("Centro fuera de página");
+        cut.Find(".lista-relaciones-encabezado").TextContent.Should().Contain("Mostrando 20 de 20 de esta página").And.Contain("21 Trabajadores en el filtro global");
+        cut.FindComponent<PaginadorSimple>().Instance.TotalElementos.Should().Be(21);
+    }
+
+    [Theory]
+    [InlineData("pagina")]
+    [InlineData("tamano")]
+    [InlineData("estado")]
+    [InlineData("tipo")]
+    public async Task Al_cambiar_el_universo_cargado_se_restablecen_los_selectores_de_pagina(string cambio)
+    {
+        var mediador = Montar();
+        var empresa = Guid.NewGuid();
+        mediador.Filas[0] = mediador.Filas[0] with { EmpresaId = empresa, EmpresaNombre = "Empresa A" };
+        for (var i = 0; i < 20; i++) mediador.Filas.Add(Fila($"Trabajador {i}", EstadoDocumento.Vigente));
+        var cut = Renderizar();
+        await cut.FindAll(".tipo360-filtros-pagina select")[0].ChangeAsync(new ChangeEventArgs { Value = empresa.ToString() });
+        await cut.FindAll(".tipo360-filtros-pagina select")[1].ChangeAsync(new ChangeEventArgs { Value = CentroId.ToString() });
+        await cut.FindAll(".tipo360-filtros-pagina select")[2].ChangeAsync(new ChangeEventArgs { Value = "empresa" });
+
+        if (cambio == "pagina")
+            await cut.InvokeAsync(() => cut.FindComponent<PaginadorSimple>().Instance.PaginaActualChanged.InvokeAsync(2));
+        else if (cambio == "tamano")
+            await cut.InvokeAsync(() => cut.FindComponent<PaginadorSimple>().Instance.TamanoPaginaChanged.InvokeAsync(50));
+        else if (cambio == "estado")
+            await Contador(cut, "Vigente").ClickAsync(new MouseEventArgs());
+        else
+            cut.Render(p => p.Add(x => x.TipoDocumentoId, Guid.NewGuid()));
+
+        cut.FindAll(".tipo360-filtros-pagina select").Select(s => s.GetAttribute("value")).Should().OnlyContain(v => v == string.Empty);
+        cut.FindAll(".tipo360-grupo-empresa").Should().BeEmpty();
+        Nombres(cut).Should().NotBeEmpty();
+        mediador.Consultas.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task La_pestana_por_defecto_limpia_su_parametro_sin_perder_los_filtros_ni_releer()
+    {
+        var mediador = Montar();
+        var cut = Renderizar("?pestana=desconocida&estado=PorVencer&q=Mart");
+        await cut.InvokeAsync(() => cut.FindComponent<Pestanas>().Instance.PestanaActivaChanged.InvokeAsync("trabajadores"));
+        Consulta.Should().Contain("estado=PorVencer").And.Contain("q=Mart").And.NotContain("pestana=");
+        Nombres(cut).Should().Equal("Martín Urgente");
+        mediador.Consultas.Should().ContainSingle();
+    }
+
     // ── ?estado= ──────────────────────────────────────────────────────────
 
     [Fact]
