@@ -1,3 +1,6 @@
+@using CaeManager.Application.Centros.Queries.ObtenerDocumentacionEmpresasDeCentro
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Documentos
 @*
     Centro 360 (Centro 360 TALVEG, Parte XVI PROMPT 13) — ver comentario de
     cabecera en el .razor.cs para el porqué de lo que esta página NO
@@ -252,6 +255,107 @@
                             </Tarjeta>
                         }
                     }
+                    @if (_pestana is PestanaDocumentacionCentro or PestanaRequisitos)
+                    {
+                        @if (_cargandoLecturasFase2)
+                        {
+                            <EstadoCargando Filas="3" />
+                        }
+                        else if (_errorLecturasFase2)
+                        {
+                            <EstadoVacio Titulo="@Textos["LecturaCentroError360"]" />
+                        }
+                        else if (_pestana == PestanaDocumentacionCentro)
+                        {
+                            @if (_documentacionEmpresas.Count == 0)
+                            {
+                                <EstadoVacio Titulo="@Textos[_detalle.GestionCae == ModalidadGestionCae.SinGestionCae ? "DocumentacionCentroSinGestion360" : "DocumentacionCentroSinEmpresas360"]" />
+                            }
+                            @if (_documentacionEmpresas.Any(e => e.Documentos.Count > 0))
+                            {
+                                <CampoTexto Etiqueta="@Textos["BuscarDocumentacionCentro360"]" Valor="@_busquedaDocumentacionCentro" ValorChanged="v => _busquedaDocumentacionCentro = v" />
+                                <FranjaEstado Opciones="OpcionesDocumentacionCentro" Valor="@_estadosDocumentacionCentro" ValorChanged="v => _estadosDocumentacionCentro = v"
+                                               Recuentos="RecuentosDocumentacionCentro" EtiquetaAccesible="@Textos["FiltrarDocumentacionCentro360"]" />
+                            }
+                            @foreach (var empresa in _documentacionEmpresas)
+                            {
+                                var documentosVisibles = DocumentosParaMostrar(empresa);
+                                <Tarjeta @key="empresa.EmpresaId" Titulo="@Textos["DocumentacionCentroExigeA360"]">
+                                    <AccionesHeader>
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEmpresaDocumentacion(empresa)">@empresa.Nombre</Boton>
+                                        <Boton360 Nombre="@empresa.Nombre" OnClick="() => IrAEmpresaDocumentacion(empresa)" />
+                                    </AccionesHeader>
+                                    <ChildContent>
+                                        @if (empresa.Documentos.Count == 0)
+                                        {
+                                            <EstadoVacio Titulo="@Textos["DocumentacionCentroSinExigidos360"]" />
+                                        }
+                                        else if (documentosVisibles.Count == 0)
+                                        {
+                                            <EstadoVacio Titulo="@Textos["DocumentacionCentroFiltroVacio360"]" />
+                                        }
+                                        else
+                                        {
+                                            <ListaRelaciones Etiqueta="@Textos["DocumentacionCentroLista360", empresa.Nombre]">
+                                                @foreach (var documento in documentosVisibles)
+                                                {
+                                                    <FilaRelacion @key="documento.TipoDocumentoId" Nombre="@documento.Nombre" Tono="EstadoDocumentoFicha360.TonoFila(documento.Estado)">
+                                                        <Detalle>
+                                                            @if (documento.DocumentoId is null)
+                                                            {
+                                                                @Textos["DocumentoCentroAusente360"]
+                                                            }
+                                                            else
+                                                            {
+                                                                @if (documento.FechaEmision is { } emision)
+                                                                {
+                                                                    <span>@Textos["DocumentoCentroEmision360", emision.ToString("dd/MM/yyyy")]</span>
+                                                                }
+                                                                @if (documento.FechaVencimiento is { } vence)
+                                                                {
+                                                                    <span> · @Textos["DocumentoCentroVence360", vence.ToString("dd/MM/yyyy")]</span>
+                                                                }
+                                                                @if (documento.EnToleranciaHasta is { } tolerancia)
+                                                                {
+                                                                    <span> · @Textos["DocumentoCentroToleranciaHasta360", tolerancia.ToString("dd/MM/yyyy")]</span>
+                                                                }
+                                                            }
+                                                        </Detalle>
+                                                        <Estado><Badge Tono="EstadoDocumentoFicha360.Tono(documento.Estado)">@EstadoDocumentoFicha360.Texto(documento.Estado)</Badge></Estado>
+                                                        <Acciones><Boton360 Nombre="@documento.Nombre" OnClick="() => IrATipoDocumento(documento.TipoDocumentoId)" /></Acciones>
+                                                    </FilaRelacion>
+                                                }
+                                            </ListaRelaciones>
+                                        }
+                                        @if (empresa.Documentos.Count > 0)
+                                        {
+                                            <p class="nota">@Textos["DocumentacionCentroRecuento360", documentosVisibles.Count, empresa.Documentos.Count]</p>
+                                        }
+                                    </ChildContent>
+                                </Tarjeta>
+                            }
+                        }
+                        else if (_requisitosCentro.Count == 0)
+                        {
+                            <EstadoVacio Titulo="@Textos["RequisitosCentroVacio360"]" />
+                        }
+                        else
+                        {
+                            <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["PestanaRequisitos360"]">
+                                @foreach (var requisito in _requisitosCentro)
+                                {
+                                    <FilaRelacion @key="requisito.TipoDocumentoId" Nombre="@requisito.Nombre">
+                                        <Detalle>
+                                            @Textos[requisito.AmbitoAplicacion == AmbitoAplicacion.Empresa ? "RequisitoCentroEmpresa360" : "RequisitoCentroTrabajador360"]
+                                            · @Textos["RequisitoCentroTolerancia360", ReglaBloqueoDeAcceso.ResolverToleranciaDias(requisito.ToleranciaDias, requisito.ToleranciaHeredadaDias)]
+                                        </Detalle>
+                                        <Estado>@Textos[requisito.BloqueaAcceso ? "RequisitoCentroBloquea360" : "RequisitoCentroNoBloquea360"]</Estado>
+                                        <Acciones><Boton360 Nombre="@requisito.Nombre" OnClick="() => IrATipoDocumento(requisito.TipoDocumentoId)" /></Acciones>
+                                    </FilaRelacion>
+                                }
+                            </ListaRelaciones>
+                        }
+                    }
                     @if (_pestana == PestanaFicha && HayDatosFicha)
                     {
                         <CajasFicha Cajas="CajasDeFicha" />
@@ -399,6 +503,10 @@
                     @if (!string.IsNullOrWhiteSpace(detalle.Contacto))
                     {
                         <DatoRejilla Etiqueta="@Textos["FichaContactoCentro"]" Valor="@detalle.Contacto" />
+                    }
+                    @if (detalle.ContratoVigenteHasta is { } hasta)
+                    {
+                        <DatoRejilla Etiqueta="@Textos["FichaContratoHasta360"]" Valor="@hasta.ToString("dd/MM/yyyy")" />
                     }
                 </RejillaDatos>
             </Tarjeta>

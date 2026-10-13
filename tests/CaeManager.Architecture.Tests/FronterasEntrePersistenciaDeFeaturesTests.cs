@@ -168,6 +168,14 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "IEmpresasQueryContext"),
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "ISubcontratasQueryContext"),
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "ITrabajadoresQueryContext"),
+        // Documentación por Empresa empleadora en un Centro: Asignaciones activas, titulares visibles,
+        // documentos operativos y umbrales. Requisitos y tolerancias reutilizan su lectura autorizada.
+        ("Centros.ObtenerDocumentacionEmpresasDeCentroQueryHandler", "IAsignacionesQueryContext"),
+        ("Centros.ObtenerDocumentacionEmpresasDeCentroQueryHandler", "ITrabajadoresQueryContext"),
+        ("Centros.ObtenerDocumentacionEmpresasDeCentroQueryHandler", "IEmpresasQueryContext"),
+        ("Centros.ObtenerDocumentacionEmpresasDeCentroQueryHandler", "IDocumentosQueryContext"),
+        ("Centros.ObtenerDocumentacionEmpresasDeCentroQueryHandler", "IConfiguracionQueryContext"),
+
         ("Centros.ObtenerVehiculosConActividadDeCentroQueryHandler", "IAsignacionesQueryContext"),
         ("Centros.ObtenerVehiculosConActividadDeCentroQueryHandler", "IEmpresasQueryContext"),
         ("Centros.ObtenerVehiculosConActividadDeCentroQueryHandler", "ISubcontratasQueryContext"),

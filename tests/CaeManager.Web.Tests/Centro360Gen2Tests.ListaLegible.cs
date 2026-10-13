@@ -83,7 +83,7 @@ public partial class Centro360Gen2Tests
             new(Guid.NewGuid(), new(2026, 12, 5), new(2026, 12, 6), 1)
         ];
         var cut = Renderizar(id);
-        cut.FindAll("[role=tab]")[1].QuerySelector(".pestanas-contador")!.TextContent.Trim().Should().Be("2 visitas programadas");
+        cut.Find("[role=tab][aria-controls$='-visitas']").QuerySelector(".pestanas-contador")!.TextContent.Trim().Should().Be("2 visitas programadas");
     }
 
     [Fact]

@@ -470,4 +470,27 @@
   <data name="ListadoDocumentoPorVencerSingular" xml:space="preserve">
     <value>{0}/{1} · {2} en {3} dia</value>
   </data>
+  <data name="PestanaDocumentacionCentro360" xml:space="preserve"><value>Documentació del Centre</value></data>
+  <data name="PestanaRequisitos360" xml:space="preserve"><value>Requisits</value></data>
+  <data name="LecturaCentroError360" xml:space="preserve"><value>No s’ha pogut carregar la documentació del Centre</value></data>
+  <data name="DocumentacionCentroSinGestion360" xml:space="preserve"><value>Aquest Centre no requereix gestió CAE</value></data>
+  <data name="DocumentacionCentroSinEmpresas360" xml:space="preserve"><value>Sense Empreses visibles en aquest Centre</value></data>
+  <data name="DocumentacionCentroSinExigidos360" xml:space="preserve"><value>Sense documentació exigida a aquesta Empresa</value></data>
+  <data name="DocumentacionCentroLista360" xml:space="preserve"><value>Documentació de {0} al Centre</value></data>
+  <data name="DocumentacionCentroRecuento360" xml:space="preserve"><value>Mostrant {0} de {1} · del pitjor estat al millor</value></data>
+  <data name="RequisitosCentroVacio360" xml:space="preserve"><value>Sense requisits documentals aplicables</value></data>
+  <data name="RequisitoCentroEmpresa360" xml:space="preserve"><value>Empresa ocupadora</value></data>
+  <data name="RequisitoCentroTrabajador360" xml:space="preserve"><value>Treballador</value></data>
+  <data name="RequisitoCentroTolerancia360" xml:space="preserve"><value>Tolerància: {0} dies</value></data>
+  <data name="RequisitoCentroBloquea360" xml:space="preserve"><value>Bloqueja l’accés</value></data>
+  <data name="RequisitoCentroNoBloquea360" xml:space="preserve"><value>No bloqueja l’accés</value></data>
+  <data name="FichaContratoHasta360" xml:space="preserve"><value>Contracte vigent fins al</value></data>
+  <data name="DocumentoCentroAusente360" xml:space="preserve"><value>Aquest Centre l’exigeix i no hi ha cap document</value></data>
+  <data name="DocumentoCentroEmision360" xml:space="preserve"><value>Emès el {0}</value></data>
+  <data name="DocumentoCentroVence360" xml:space="preserve"><value>Venciment: {0}</value></data>
+  <data name="DocumentoCentroToleranciaHasta360" xml:space="preserve"><value>En tolerància en aquest Centre fins al {0}</value></data>
+  <data name="BuscarDocumentacionCentro360" xml:space="preserve"><value>Cerca document o Empresa ocupadora</value></data>
+  <data name="FiltrarDocumentacionCentro360" xml:space="preserve"><value>Filtra la documentació del Centre per estat</value></data>
+  <data name="DocumentacionCentroFiltroVacio360" xml:space="preserve"><value>Cap document coincideix amb els filtres</value></data>
+  <data name="DocumentacionCentroExigeA360" xml:space="preserve"><value>Documentació que aquest Centre exigeix a</value></data>
 </root>

@@ -474,4 +474,27 @@
   <data name="ListadoDocumentoPorVencerSingular" xml:space="preserve">
     <value>{0}/{1} · {2} en {3} día</value>
   </data>
+  <data name="PestanaDocumentacionCentro360" xml:space="preserve"><value>Documentación del Centro</value></data>
+  <data name="PestanaRequisitos360" xml:space="preserve"><value>Requisitos</value></data>
+  <data name="LecturaCentroError360" xml:space="preserve"><value>No se pudo cargar la documentación del Centro</value></data>
+  <data name="DocumentacionCentroSinGestion360" xml:space="preserve"><value>Este Centro no requiere gestión CAE</value></data>
+  <data name="DocumentacionCentroSinEmpresas360" xml:space="preserve"><value>Sin Empresas visibles en este Centro</value></data>
+  <data name="DocumentacionCentroSinExigidos360" xml:space="preserve"><value>Sin documentación exigida a esta Empresa</value></data>
+  <data name="DocumentacionCentroLista360" xml:space="preserve"><value>Documentación de {0} en el Centro</value></data>
+  <data name="DocumentacionCentroRecuento360" xml:space="preserve"><value>Mostrando {0} de {1} · del peor estado al mejor</value></data>
+  <data name="RequisitosCentroVacio360" xml:space="preserve"><value>Sin requisitos documentales aplicables</value></data>
+  <data name="RequisitoCentroEmpresa360" xml:space="preserve"><value>Empresa empleadora</value></data>
+  <data name="RequisitoCentroTrabajador360" xml:space="preserve"><value>Trabajador</value></data>
+  <data name="RequisitoCentroTolerancia360" xml:space="preserve"><value>Tolerancia: {0} días</value></data>
+  <data name="RequisitoCentroBloquea360" xml:space="preserve"><value>Bloquea el acceso</value></data>
+  <data name="RequisitoCentroNoBloquea360" xml:space="preserve"><value>No bloquea el acceso</value></data>
+  <data name="FichaContratoHasta360" xml:space="preserve"><value>Contrato vigente hasta</value></data>
+  <data name="DocumentoCentroAusente360" xml:space="preserve"><value>Lo exige este Centro y no hay documento</value></data>
+  <data name="DocumentoCentroEmision360" xml:space="preserve"><value>Emitido el {0}</value></data>
+  <data name="DocumentoCentroVence360" xml:space="preserve"><value>Vencimiento: {0}</value></data>
+  <data name="DocumentoCentroToleranciaHasta360" xml:space="preserve"><value>En tolerancia en este Centro hasta {0}</value></data>
+  <data name="BuscarDocumentacionCentro360" xml:space="preserve"><value>Buscar documento o Empresa empleadora</value></data>
+  <data name="FiltrarDocumentacionCentro360" xml:space="preserve"><value>Filtrar documentación del Centro por estado</value></data>
+  <data name="DocumentacionCentroFiltroVacio360" xml:space="preserve"><value>Ningún documento coincide con los filtros</value></data>
+  <data name="DocumentacionCentroExigeA360" xml:space="preserve"><value>Documentación que este Centro exige a</value></data>
 </root>
