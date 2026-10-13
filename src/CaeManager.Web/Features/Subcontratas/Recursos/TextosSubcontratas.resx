@@ -877,4 +877,7 @@
   <data name="SinVehiculos" xml:space="preserve"><value>Sin vehículos registrados</value></data>
   <data name="ResumenVehiculos" xml:space="preserve"><value>Mostrando {0} de {1} · del peor estado al mejor</value></data>
   <data name="EstadoVehiculoDesconocido" xml:space="preserve"><value>Estado desconocido</value></data>
+  <data name="CentroFraccionDocumental360" xml:space="preserve"><value>{0} de {1} al día</value></data>
+  <data name="CentroSinRequisitos360" xml:space="preserve"><value>Sin requisitos documentales para sus Trabajadores</value></data>
+  <data name="CentroUniversoDocumental360" xml:space="preserve"><value>Documentación de sus Trabajadores exigida en cada Centro</value></data>
 </root>

@@ -182,6 +182,9 @@
                     case PestanaVehiculos:
                         <PestanaVehiculosSubcontrata EmpresaContraparteId="_detalle.Id" />
                         break;
+                    case PestanaFicha:
+                        <CajasFicha Cajas="@_cajasFicha" />
+                        break;
                     case PestanaHistorial:
                         <Tarjeta>
                             <PestanaHistorial EntidadTipo="Subcontrata" EntidadId="_detalle.Id" />
@@ -528,15 +531,30 @@
         }
         else if (_centros is not null)
         {
-            @* Sin cifra ni pastilla: CentroConActividadDto no trae el estado de la subcontrata en cada Centro. *@
+            @* Cumplimiento de sus Trabajadores en cada Centro: universo contextual, no el global de la Empresa. *@
             <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["PestanaCentros"]">
                 <Encabezado>@Plural(_centros.Count, "ResumenCentrosUno", "ResumenCentrosVarios")</Encabezado>
+                <Pie>@Textos["CentroUniversoDocumental360"]</Pie>
                 <ChildContent>
                     @foreach (var centro in _centros)
                     {
                         <FilaRelacion @key="centro.Id" Nombre="@centro.Nombre" NombreIcono="centros"
+                                      Tono="@(_cumplimientoCentros.TryGetValue(centro.Id, out var estadoCentro) && estadoCentro.PeorEstado is { } peor ? EstadoDocumentoFicha360.TonoFila(peor) : null)"
                                       OnNombre="() => AbrirPanelCentro(centro)" OnAbrir360="() => IrACentro360(centro.Id)">
                             <Detalle>@Textos[centro.TrabajadoresAsignados == 1 ? "SubtituloCentroUno" : "SubtituloCentro", centro.ClienteRazonSocial, centro.TrabajadoresAsignados]</Detalle>
+                            <Cifra>
+                                @if (_cumplimientoCentros.TryGetValue(centro.Id, out var cumplimiento))
+                                {
+                                    @if (cumplimiento.Cumplimiento.Porcentaje is { } porcentaje)
+                                    {
+                                        <span>@porcentaje% <small>@Textos["CentroFraccionDocumental360", cumplimiento.Cumplimiento.AlDia, cumplimiento.Cumplimiento.Requeridos]</small></span>
+                                    }
+                                    else
+                                    {
+                                        <span aria-label="@Textos["CentroSinRequisitos360"]">—</span>
+                                    }
+                                }
+                            </Cifra>
                         </FilaRelacion>
                     }
                 </ChildContent>

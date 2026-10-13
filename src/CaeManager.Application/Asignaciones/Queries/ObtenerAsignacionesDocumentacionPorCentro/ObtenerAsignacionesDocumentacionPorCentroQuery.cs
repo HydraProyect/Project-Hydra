@@ -36,7 +36,7 @@ namespace CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumen
 /// sin recalcular el estado del documento: sigue siendo <c>Vigente</c> con
 /// fecha de referencia = hoy, solo se compara además contra esta fecha.
 /// </param>
-public record ObtenerAsignacionesDocumentacionPorCentroQuery(Guid CentroId, DateOnly? VentanaVisitaFechaFin = null)
+public record ObtenerAsignacionesDocumentacionPorCentroQuery(Guid CentroId, DateOnly? VentanaVisitaFechaFin = null, Guid? EmpresaEmpleadoraSubcontratistaId = null)
     : IRequest<IReadOnlyList<TrabajadorAsignacionDocumentacionDto>>;
 
 /// <param name="CaducaEnVentanaVisita">
@@ -96,11 +96,16 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
     {
         if (!await alcanceDatos.CentroVisibleAsync(request.CentroId, cancellationToken))
             return [];
+        // El parámetro solo acota una lectura: la columna legacy SubcontrataId identifica a la Empresa
+        // empleadora en una Relación de subcontratación, no un tipo permanente de Empresa.
+        if (request.EmpresaEmpleadoraSubcontratistaId is { } empresaId && !await alcanceDatos.SubcontrataVisibleAsync(empresaId, cancellationToken))
+            return [];
 
         var asignaciones = await (
             from asignacion in asignacionesContext.Asignaciones
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             where asignacion.CentroId == request.CentroId && asignacion.FechaBaja == null
+                && (request.EmpresaEmpleadoraSubcontratistaId == null || trabajador.SubcontrataId == request.EmpresaEmpleadoraSubcontratistaId)
             orderby trabajador.Apellidos, trabajador.Nombre
             select new
             {
@@ -120,7 +125,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             .ToListAsync(cancellationToken);
 
         // Tipos requeridos por ESTE centro — ver ResolucionTipoDocumentoCentro:
-        // fila explícita manda, sin fila sigue el criterio global EsObligatorio.
+        // fila explícita manda, sin fila sigue el criterio global CuentaParaCumplimiento.
         var tipoIdsCandidatos = tiposCandidatos.Select(t => t.Id).ToHashSet();
         var filasDelCentro = (await tiposDocumentoContext.TiposDocumentoCentros
             .Where(tc => tipoIdsCandidatos.Contains(tc.TipoDocumentoId) && tc.CentroId == request.CentroId)

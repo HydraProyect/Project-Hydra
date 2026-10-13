@@ -1,3 +1,4 @@
+using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConCumplimientoDeSubcontrata;
 using System.Globalization;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Centros;
@@ -36,8 +37,9 @@ namespace CaeManager.Web.Features.Subcontratas.Pages;
 /// Empresa: la misma Empresa puede ser contratista directa en otra cadena.
 ///
 /// <para>
-/// Compone, con las MISMAS consultas que <c>SubcontrataWorkspacePanel</c> y que la fila desplegada del listado
-/// (<c>AcordeonTrabajadoresSubcontrata</c>) —mismo alcance y misma RLS—, la identidad con el anillo
+/// Conserva las consultas de identidad y añade una lectura del cumplimiento de sus Trabajadores por Centro.
+/// Reutiliza los lectores de <c>SubcontrataWorkspacePanel</c> y del listado
+/// (<c>AcordeonTrabajadoresSubcontrata</c>), con el mismo alcance y RLS, para la identidad y el anillo
 /// y las pestañas Trabajadores, Supervisión, Centros, Vehículos, Agenda e Historial. La edición de la identidad y
 /// de las credenciales sigue viviendo en el panel: «Editar» lo abre.
 /// Vehículos usa además el listado existente filtrado por la Empresa contraparte en posición Subcontratista;
@@ -46,8 +48,8 @@ namespace CaeManager.Web.Features.Subcontratas.Pages;
 ///
 /// <para>
 /// <b>Qué no enseña todavía, y por qué</b> (cada punto es un incremento propio): la documentación de empresa de la
-/// subcontrata y su pestaña «Gestión», los proyectos, el estado por Centro, la cadena de
-/// subcontratación y quién registró cada verificación. Ningún DTO los trae hoy. El anillo, por lo mismo, solo
+/// subcontrata y su pestaña «Gestión», los proyectos, la cadena de
+/// subcontratación y quién registró cada verificación. El anillo solo
 /// mide la documentación de sus trabajadores (<see cref="ObtenerCumplimientoSubcontrataQuery"/>).
 /// </para>
 ///
@@ -66,13 +68,14 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     internal const string PestanaCentros = "centros";
     internal const string PestanaVehiculos = "vehiculos";
     internal const string PestanaAgenda = "agenda";
+    internal const string PestanaFicha = "ficha";
     internal const string PestanaHistorial = "historial";
 
     /// <summary>Tope de filas de la pestaña Trabajadores: si hay más, el resumen lo dice (mismo tope que el panel).</summary>
     internal const int TamanoPaginaTrabajadores = 50;
 
     private static readonly string[] PestanasValidas =
-        [PestanaTrabajadores, PestanaSupervision, PestanaCentros, PestanaVehiculos, PestanaAgenda, PestanaHistorial];
+        [PestanaTrabajadores, PestanaSupervision, PestanaCentros, PestanaVehiculos, PestanaAgenda, PestanaFicha, PestanaHistorial];
 
     [Parameter] public Guid SubcontrataId { get; set; }
 
@@ -140,6 +143,9 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     private bool _confirmarEliminarVerificacionVisible;
     private bool _eliminandoVerificacion;
 
+    // Rescate de d723988e2: sin dato real de cadena no se crea ninguna caja ni placeholder.
+    private readonly List<CajaFicha> _cajasFicha = [];
+    private IReadOnlyDictionary<Guid, CentroCumplimientoSubcontrataDto> _cumplimientoCentros = new Dictionary<Guid, CentroCumplimientoSubcontrataDto>();
     private string _pestana = PestanaTrabajadores;
     private string? _pestanaDeLaUrl;
     private string? _estadoDeLaUrl;
@@ -202,7 +208,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         if (!_urlAdoptada || !string.Equals(_pestanaDeLaUrl, Pestana, StringComparison.Ordinal))
         {
             _pestanaDeLaUrl = Pestana;
-            _pestana = PestanasValidas.Contains(Pestana) ? Pestana! : PestanaTrabajadores;
+            _pestana = PestanasValidas.Contains(Pestana) && (Pestana != PestanaFicha || _cajasFicha.Count > 0) ? Pestana! : PestanaTrabajadores;
         }
 
         if (!_urlAdoptada || !string.Equals(_estadoDeLaUrl, Estado, StringComparison.Ordinal))
@@ -242,6 +248,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         _cargandoSupervision = true;
         _errorSupervision = false;
         _centros = null;
+        _cumplimientoCentros = new Dictionary<Guid, CentroCumplimientoSubcontrataDto>();
         _cargandoCentros = true;
         _errorCentros = false;
         _nombresClientes = new Dictionary<Guid, string>();
@@ -491,9 +498,10 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerCentrosConActividadDeSubcontrataQuery(id), _cancelacion);
+            var resultado = await Mediator.Send(new ObtenerCentrosConCumplimientoDeSubcontrataQuery(id), _cancelacion);
             if (carga != _cargaCentros) return;
-            _centros = resultado;
+            _centros = resultado.Select(r => r.Centro).ToList();
+            _cumplimientoCentros = resultado.ToDictionary(r => r.Centro.Id);
         }
         catch (Exception)
         {
@@ -887,6 +895,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         },
         new(PestanaVehiculos, Textos["PestanaVehiculos"]),
         new(PestanaAgenda, Textos["PestanaAgenda"]),
+        .. (_cajasFicha.Count > 0 ? new PestanaDefinicion[] { new(PestanaFicha, Comunes["PestanaFicha"]) } : []),
         new(PestanaHistorial, Textos["PestanaHistorial"])
     ];
 
