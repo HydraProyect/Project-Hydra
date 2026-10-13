@@ -22,7 +22,7 @@ public static class VehiculosEndpoints
     }
 
     /// <remarks>
-    /// Los parámetros de consulta son los de «Exportar esta vista»: los mismos criterios que
+    /// Los parámetros de consulta son los de la exportación de la vista filtrada: los mismos criterios que
     /// <c>Vehiculos.razor.cs</c> pasa a <see cref="ObtenerVehiculosQuery"/>, leídos igual que
     /// allí. Sin ninguno, es «Exportar todo». Las dos variantes pasan por esa misma consulta:
     /// su autorización, su alcance y su Tenant son los del listado. Las columnas son las del

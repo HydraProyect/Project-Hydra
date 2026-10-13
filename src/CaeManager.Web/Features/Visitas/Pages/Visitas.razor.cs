@@ -1786,7 +1786,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         StateHasChanged();
     }
 
-    // ---- Exportar esta vista ----
+    // ---- Exportación de la vista filtrada ----
 
     private string? _ordenExportar;
     private bool _descendenteExportar;

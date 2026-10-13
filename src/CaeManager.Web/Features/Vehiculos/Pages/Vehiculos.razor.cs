@@ -1005,7 +1005,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         StateHasChanged();
     }
 
-    // ---- Exportar esta vista ----
+    // ---- Exportación de la vista filtrada ----
 
     private string? _ordenExportar;
     private bool _descendenteExportar;

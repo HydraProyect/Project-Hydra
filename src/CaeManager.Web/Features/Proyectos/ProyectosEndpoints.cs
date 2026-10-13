@@ -21,7 +21,7 @@ public static class ProyectosEndpoints
     }
 
     /// <remarks>
-    /// «Exportar esta vista» lleva los criterios de la pantalla: el Cliente empresarial del filtro (si
+    /// la exportación de la vista filtrada lleva los criterios de la pantalla: el Cliente empresarial del filtro (si
     /// hay uno), la búsqueda y los estados de la franja. «Exportar todo» (sin criterios) saca los
     /// Proyectos de todos los Clientes empresariales que el usuario alcanza. Las dos variantes piden
     /// las filas a la consulta del listado (<see cref="ObtenerProyectosQuery"/>), página a página y

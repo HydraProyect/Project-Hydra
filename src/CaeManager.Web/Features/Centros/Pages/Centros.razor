@@ -44,7 +44,7 @@
                          RutaExportar="/centros/exportar.xlsx" CriteriosExportar="CriteriosExportar" EtiquetaExportar="@Textos["ListaExportarExcel"]">
             <Menu>
                 @* Descargas por GET: el icono y «esta vista» comparten criterios; «todo» va sin filtros. *@
-                <CaeManager.Web.Exportacion.EntradasExportar SoloTodo="true" Ruta="/centros/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />
+                <CaeManager.Web.Exportacion.EntradasExportar Ruta="/centros/exportar.xlsx" />
                 <ItemMenuAccion Href="/asignaciones/exportar.xlsx">@Textos["ExportarAsignaciones"]</ItemMenuAccion>
             </Menu>
             <Primaria>

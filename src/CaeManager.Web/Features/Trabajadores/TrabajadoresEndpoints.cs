@@ -39,7 +39,7 @@ public static class TrabajadoresEndpoints
     /// Público para que el test mida la decisión del estado 4a sin levantar la aplicación.
     /// </summary>
     /// <remarks>
-    /// Los parámetros de consulta son los de «Exportar esta vista»: los mismos
+    /// Los parámetros de consulta son los de la exportación de la vista filtrada: los mismos
     /// criterios que <c>Trabajadores.razor.cs</c> pasa a
     /// <see cref="ObtenerTrabajadoresQuery"/>, leídos igual que allí. Sin
     /// ninguno, es «Exportar todo». Las dos variantes pasan por esa misma
