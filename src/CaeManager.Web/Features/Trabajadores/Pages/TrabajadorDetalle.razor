@@ -220,6 +220,10 @@
                             <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["PestanaCentros"]">
                                 <Encabezado>@Textos[_centros.Count == 1 ? "ResumenCentroOrdenado" : "ResumenCentrosOrdenados", CentrosVisibles.Count, _centros.Count]</Encabezado>
                                 <ChildContent>
+                                @if (CentrosVisibles.Count == 0)
+                                {
+                                    <p class="texto-vacio-seccion" role="status">@Textos["CentrosVacioFiltros360"]</p>
+                                }
                                 @foreach (var centro in CentrosVisibles)
                                 {
                                     var incidencias = Incidencias(centro);

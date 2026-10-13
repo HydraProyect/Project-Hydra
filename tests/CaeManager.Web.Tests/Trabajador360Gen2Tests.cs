@@ -341,6 +341,21 @@ public class Trabajador360Gen2Tests : BunitContext
         mediador.Enviadas.Should().HaveCount(consultas);
     }
 
+    [Fact]
+    public async Task El_filtro_de_Centros_sin_resultados_explica_el_estado_vacio()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        mediador.Centros[id] = [Centro("Centro vigente", "Empresa del Centro", EstadoDocumento.Vigente,
+            Documento("Documento vigente", EstadoDocumento.Vigente))];
+        var cut = RenderizarEn(id, "");
+        await AbrirPestanaAsync(cut, "Centros");
+        await cut.Find(".franja-estado [data-estado=Ficha360Pendiente]").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".trabajador360-centros .fila-relacion-nombre").Should().BeEmpty();
+        cut.Find(".trabajador360-centros [role=status]").TextContent.Should().Be("Ningún Centro coincide con los filtros.");
+        cut.Find(".trabajador360-centros .lista-relaciones-encabezado").TextContent.Should().Contain("Mostrando 0 de 1 centro");
+    }
+
     [Theory]
     [InlineData(EstadoIndicadorBase.Vencido, "Renovar")]
     [InlineData(EstadoIndicadorBase.ProximoAVencer, "Renovar")]
@@ -516,7 +531,7 @@ public class Trabajador360Gen2Tests : BunitContext
     }
 
     [Fact]
-    public void Son_cuatro_pestanas_y_solo_Operacion_lleva_el_recuento_de_documentos_con_incidencia()
+    public void Son_cinco_pestanas_y_solo_Operacion_lleva_el_recuento_de_documentos_con_incidencia()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
