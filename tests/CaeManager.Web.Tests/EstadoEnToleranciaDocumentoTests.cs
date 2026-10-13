@@ -185,9 +185,12 @@ public class EstadoEnToleranciaDocumentoTests : BunitContext
     [Fact]
     public void Un_vencido_en_tolerancia_sigue_contando_en_los_vencidos_del_Trabajador()
     {
-        var cut = Renderizar(Trabajador("Ruiz Peña, Ana", EstadoDocumento.EnTolerancia, Hasta));
+        var cut = Renderizar(true, Trabajador("Ruiz Peña, Ana", EstadoDocumento.EnTolerancia, Hasta));
 
-        cut.Markup.Should().Contain("1 documento vencido", "esconderlo de la ranura de vencidos contaría menos de lo que hay");
+        cut.FindComponent<FranjaEstado>().Instance.Recuentos!["Vencido"].Should().Be(1,
+            "el vencido en tolerancia sigue contando en el chip Vencido");
+        cut.Find(".fila-relacion-detalle").TextContent.Should().Contain("Formación PRL")
+            .And.Contain("Vencido · en tolerancia hasta 15/10");
     }
 
     [Fact]
@@ -195,8 +198,9 @@ public class EstadoEnToleranciaDocumentoTests : BunitContext
     {
         var cut = Renderizar(Trabajador("Ruiz Peña, Ana", EstadoDocumento.EnTolerancia, Hasta));
 
-        cut.FindAll(".ventana-linea").Select(l => l.TextContent.Trim())
-            .Should().ContainSingle().Which.Should().Be("Formación PRL — Vencido · en tolerancia hasta 15/10");
+        cut.Find(".fila-relacion-detalle").TextContent.Should().Contain("Formación PRL")
+            .And.Contain("Vencido · en tolerancia hasta 15/10",
+                "el último día de tolerancia sigue visible en la línea gris, aunque se retire la ventana");
     }
 
     [Fact]
@@ -206,7 +210,7 @@ public class EstadoEnToleranciaDocumentoTests : BunitContext
 
         var totales = cut.Find("[data-totales-documentales]").TextContent;
         System.Text.RegularExpressions.Regex.Replace(totales, @"\s+", " ").Should()
-            .Contain("1 exigidos · 0 al día · 1 vencidos · 0 faltantes");
+            .Contain("1 exigidos · 0 al día · 1 vencido · 0 pendientes");
     }
 
     [Theory]

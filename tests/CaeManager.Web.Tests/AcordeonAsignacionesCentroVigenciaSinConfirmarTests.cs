@@ -286,15 +286,63 @@ public class AcordeonAsignacionesCentroVigenciaSinConfirmarTests : BunitContext
     }
 
     [Fact]
-    public async Task Nombre_y_Detalles_abren_el_panel_del_Trabajador_y_no_la_Asignacion()
+    public async Task Nombre_y_360_abren_el_panel_del_Trabajador_y_no_la_Asignacion()
     {
         var trabajador = Asignado("Ana Ruiz", EstadoDocumento.Vigente);
         RegistrarServicios(new MediatorFalso { Trabajadores = [trabajador] });
         var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(x => x.CentroId, Guid.NewGuid()).Add(x => x.CentroNombre, "Centro Norte"));
         await cut.Find(".fila-relacion-nombre").ClickAsync(new MouseEventArgs());
         Services.GetRequiredService<ContextWorkspaceService>().FrameActual!.EntidadId.Should().Be(trabajador.TrabajadorId);
-        await cut.Find(".fila-relacion-acciones .accion-fila-enlace").ClickAsync(new MouseEventArgs());
+        await cut.Find(".fila-relacion-acciones .boton-360").ClickAsync(new MouseEventArgs());
         Services.GetRequiredService<ContextWorkspaceService>().FrameActual!.EntidadId.Should().Be(trabajador.TrabajadorId);
+    }
+
+    [Fact]
+    public async Task La_fila_legible_conserva_nombres_completos_iniciales_fraccion_y_estado()
+    {
+        var nombre = "Adrián Bravo Nieto del Río";
+        var documento = "Información de riesgos y medidas preventivas del Centro";
+        var trabajador = Asignado(nombre, EstadoDocumento.Vencido) with
+        {
+            Documentos = [new(Guid.NewGuid(), Guid.NewGuid(), documento, EstadoDocumento.Vencido, new DateOnly(2026, 9, 1))],
+            Cumplimiento = new FraccionCumplimiento(4, 5)
+        };
+        RegistrarServicios(new MediatorFalso { Trabajadores = [trabajador] });
+        var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(x => x.CentroId, Guid.NewGuid()).Add(x => x.CentroNombre, "Centro Norte"));
+        cut.Find(".fila-relacion-nombre").TextContent.Should().Be(nombre);
+        cut.Find(".fila-relacion-avatar").TextContent.Should().Be("AB");
+        cut.Find(".fila-trabajador-fraccion").TextContent.Should().Be("4 de 5");
+        cut.Find(".fila-relacion-estado").TextContent.Trim().Should().Be("Vencido");
+        cut.Find(".fila-relacion-detalle").TextContent.Should().Contain(documento).And.Contain("01/09/2026");
+        await cut.Find(".fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
+        cut.Find(".celda-documento-nombre button").TextContent.Trim().Should().Be(documento);
+        cut.FindAll(".documentos-trabajador-ficha").Should().ContainSingle();
+    }
+
+    [Fact]
+    public void La_franja_cuenta_cada_Trabajador_por_su_peor_estado_y_prioriza_el_bloqueo_antes_de_filtrar()
+    {
+        var vencido = Asignado("Ana Alba", EstadoDocumento.Vencido) with
+        {
+            Documentos = [new(Guid.NewGuid(), Guid.NewGuid(), "Caducado", EstadoDocumento.Vencido, null),
+                new(null, Guid.NewGuid(), "Falta", EstadoDocumento.Faltante, null)]
+        };
+        var bloqueado = Asignado("Zoe Zulu", EstadoDocumento.Vigente);
+        RegistrarServicios(new MediatorFalso { Trabajadores = [vencido, bloqueado, Asignado("Luis Uno", EstadoDocumento.Urgente), Asignado("Luis Dos", EstadoDocumento.Proximo)] });
+        var centroId = Guid.NewGuid();
+        var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(x => x.CentroId, centroId).Add(x => x.CentroNombre, "Centro Norte")
+            .Add(x => x.MostrarTotales, true).Add(x => x.FiltroTexto, "Ana").Add(x => x.FiltroEstado, nameof(EstadoDocumento.Vencido))
+            .Add(x => x.Bloqueos, [new(centroId, "Centro Norte", bloqueado.TrabajadorId, bloqueado.TrabajadorNombre, Guid.NewGuid(), "Formación PRL")]));
+        cut.FindAll(".lista-trabajadores-acordeon [data-pieza=fila]").Should().ContainSingle();
+        cut.Find(".franja-estado [data-estado=Bloqueado] b").TextContent.Should().Be("1");
+        cut.Find(".franja-estado [data-estado=Vencido] b").TextContent.Should().Be("1");
+        cut.Find(".franja-estado [data-estado=Faltante] b").TextContent.Should().Be("0");
+        cut.Find(".franja-estado [data-estado='Urgente,Proximo'] b").TextContent.Should().Be("2");
+        cut.Find(".franja-estado button b").TextContent.Should().Be("4");
+        cut.Find(".resumen-trabajadores").TextContent.Should().Contain("Mostrando 1 de 4");
+        cut.Find("[data-totales-documentales]").TextContent.Should().Contain("lista completa, no sobre la filtrada");
+        cut.Render(p => p.Add(x => x.FiltroTexto, null).Add(x => x.FiltroEstado, "Bloqueado"));
+        cut.Find(".lista-trabajadores-acordeon .fila-relacion-nombre").TextContent.Should().Be("Zoe Zulu");
     }
 
 }

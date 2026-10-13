@@ -1,4 +1,5 @@
 using CaeManager.Domain.Common;
+using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Alertas;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
@@ -117,12 +118,15 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     [Parameter] public string? FiltroTexto { get; set; }
 
     /// <summary>
-    /// Filtro de estado documental gobernado por el consumidor, con los valores
-    /// de <see cref="OpcionesEstadoDocumental"/>. Vacío o desconocido no filtra
+    /// Filtro por el peor estado del Trabajador, gobernado por el consumidor, con los valores
+    /// de <see cref="OpcionesFranja"/>. «Bloqueado» prevalece sobre la documentación; la tolerancia
+    /// conserva su estado calculado y no se vuelve a clasificar como vencida. Vacío o desconocido no filtra
     /// nada: la lista completa es el desenlace honesto de un filtro que no se
     /// entiende, no una lista vacía.
     /// </summary>
     [Parameter] public string? FiltroEstado { get; set; }
+    [Parameter] public EventCallback<string?> FiltroEstadoChanged { get; set; }
+    [Parameter] public EventCallback<(Guid CentroId, int? Trabajadores)> OnResumenCargado { get; set; }
 
     /// <summary>
     /// Pie con los totales documentales de la lista («Totales del centro» del
@@ -296,6 +300,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         _cargando = true;
         _errorCarga = false;
         StateHasChanged();
+        await OnResumenCargado.InvokeAsync((centroId, null));
 
         try
         {
@@ -310,6 +315,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
                 : [];
             if (carga != _cargaLista) return;
             _trabajadoresVisitaSinAsignacion = sinAsignacion;
+            await OnResumenCargado.InvokeAsync((centroId, _trabajadores.Count));
         }
         catch (Exception)
         {
@@ -433,8 +439,10 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     private string TextoBusqueda => FiltroTexto ?? _busquedaTrabajador;
 
     /// <summary>
-    /// Búsqueda por nombre y filtro de estado documental sobre
-    /// <see cref="TrabajadoresAMostrar"/> — client-side, sin consulta nueva:
+    /// Búsqueda por nombre y filtro por el peor estado del Trabajador sobre
+    /// <see cref="TrabajadoresAMostrar"/> — client-side, sin consulta nueva.
+    /// Vencido incluye En tolerancia; los demás estados son exclusivos por peor estado.
+    /// Los chips comparten esta regla y, por ese solape, no suman el total:
     /// con una plantilla grande (Centro 360, SoloIncidencias=false) la lista
     /// completa no tenía ninguna forma de encontrar un trabajador concreto sin
     /// desplazarse a mano.
@@ -448,10 +456,9 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
             if (!string.IsNullOrWhiteSpace(TextoBusqueda))
                 lista = lista.Where(t => t.TrabajadorNombre.Contains(TextoBusqueda, StringComparison.OrdinalIgnoreCase)).ToList();
 
-            if (EstadosFiltrados is { Count: > 0 } estados)
-                // «Vencido» incluye al vencido en tolerancia: filtrar por vencidos no puede esconderlo.
-                lista = lista.Where(t => t.Documentos.Any(d => estados.Contains(d.Estado)
-                    || (d.Estado == EstadoDocumento.EnTolerancia && estados.Contains(EstadoDocumento.Vencido)))).ToList();
+            var estados = SeleccionEstados.Separar(FiltroEstado).Where(v => OpcionesFranja.Any(o => o.Valores.Contains(v))).ToHashSet();
+            if (estados.Count > 0)
+                lista = lista.Where(t => estados.Any(estado => CoincideEstadoTrabajador(t, estado))).ToList();
 
             // OrderBy es estable: el lector ya desempata por apellidos y nombre.
             // No se puede reconstruir ese orden desde TrabajadorNombre (nombre + apellidos).
@@ -459,38 +466,59 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         }
     }
 
-    /// <summary>
-    /// Estado documental por el que se filtra, leído del mismo léxico cerrado
-    /// que el resto de la aplicación (<c>nameof(EstadoDocumento.X)</c>, igual
-    /// que <see cref="EstadoDocumentoUi.OpcionesDocumentales"/>). Un valor
-    /// desconocido no filtra: la lista completa es el desenlace honesto de un
-    /// filtro que no se entiende, no una lista vacía. Admite varios separados por
-    /// comas: la opción «Por vencer» lleva Urgente y Próximo, que comparten rótulo.
-    /// </summary>
-    private IReadOnlyList<EstadoDocumento> EstadosFiltrados => SeleccionEstados.Separar<EstadoDocumento>(FiltroEstado);
+    private bool HayFiltroAplicado => !string.IsNullOrWhiteSpace(TextoBusqueda) || SeleccionEstados.Separar(FiltroEstado).Count > 0;
 
-    private bool HayFiltroAplicado => !string.IsNullOrWhiteSpace(TextoBusqueda) || EstadosFiltrados.Count > 0;
-
-    /// <summary>
-    /// Opciones del filtro de estado de la barra de trabajo de Centro 360. Un
-    /// trabajador coincide cuando alguno de sus documentos exigidos está en ese
-    /// estado — la fila es del trabajador, la pregunta es sobre sus documentos.
-    /// Se ordenan de peor a mejor por el mismo motivo que
-    /// <see cref="EstadoDocumentoUi.OpcionesDocumentales"/>: al filtrar, lo que
-    /// el gestor busca es lo que le urge. «Sin confirmar» (vigencia sin anotar)
-    /// va detrás de lo malo conocido y delante de lo vigente. Urgente y Próximo
-    /// se rotulan igual («Por vencer»), así que son una sola opción con los dos
-    /// valores: dos opciones con el mismo texto no se podrían distinguir.
-    /// </summary>
-    public static IReadOnlyList<OpcionEstado> OpcionesEstadoDocumental =>
+    private IReadOnlyList<OpcionFranjaEstado> OpcionesFranja =>
     [
-        new(nameof(EstadoDocumento.Vencido), EstadoDocumentoUi.Texto(EstadoDocumento.Vencido)),
-        new(nameof(EstadoDocumento.Faltante), EstadoDocumentoUi.Texto(EstadoDocumento.Faltante)),
-        new(nameof(EstadoDocumento.EnTolerancia), EstadoDocumentoUi.Texto(EstadoDocumento.EnTolerancia)),
-        new(nameof(EstadoDocumento.Urgente) + "," + nameof(EstadoDocumento.Proximo), EstadoDocumentoUi.Texto(EstadoDocumento.Urgente)),
-        new(nameof(EstadoDocumento.SinConfirmar), EstadoDocumentoUi.Texto(EstadoDocumento.SinConfirmar)),
-        new(nameof(EstadoDocumento.Vigente), EstadoDocumentoUi.Texto(EstadoDocumento.Vigente))
+        new(Textos["BloqueadoEtiqueta"], TonoBadge.Peligro, "Bloqueado"),
+        new(EstadoDocumentoFicha360.Texto(EstadoDocumento.Vencido), TonoBadge.Peligro, nameof(EstadoDocumento.Vencido)),
+        new(EstadoDocumentoFicha360.Texto(EstadoDocumento.Faltante), TonoBadge.Peligro, nameof(EstadoDocumento.Faltante)),
+        new(EstadoDocumentoFicha360.Texto(EstadoDocumento.EnTolerancia), TonoBadge.Tolerancia, nameof(EstadoDocumento.EnTolerancia)),
+        new(EstadoDocumentoFicha360.Texto(EstadoDocumento.Urgente), TonoBadge.Advertencia, nameof(EstadoDocumento.Urgente), nameof(EstadoDocumento.Proximo)),
+        new(EstadoDocumentoFicha360.Texto(EstadoDocumento.SinConfirmar), TonoBadge.Advertencia, nameof(EstadoDocumento.SinConfirmar)),
+        new(EstadoDocumentoFicha360.Texto(EstadoDocumento.Vigente), TonoBadge.Exito, nameof(EstadoDocumento.Vigente))
     ];
+
+    private string EstadoTrabajador(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        EstaBloqueado(trabajador.TrabajadorId) ? "Bloqueado" :
+        trabajador.PeorEstado == EstadoDocumento.SinCaducidad ? nameof(EstadoDocumento.Vigente) : trabajador.PeorEstado.ToString();
+
+    private bool CoincideEstadoTrabajador(TrabajadorAsignacionDocumentacionDto trabajador, string estado)
+    {
+        var peorEstado = EstadoTrabajador(trabajador);
+        return peorEstado == estado ||
+            (peorEstado == nameof(EstadoDocumento.EnTolerancia) && estado == nameof(EstadoDocumento.Vencido));
+    }
+
+    private IReadOnlyDictionary<string, int> RecuentosFranja => OpcionesFranja.SelectMany(o => o.Valores)
+        .Distinct().ToDictionary(estado => estado, estado => _trabajadores.Count(t => CoincideEstadoTrabajador(t, estado)));
+
+    private static string InicialesTrabajador(string nombre) => string.Concat(nombre
+        .Split([' ', ','], StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+
+    private string TextoFraccionTrabajador(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        trabajador.Cumplimiento.Requeridos == 0 ? "—" :
+        Textos["FraccionDocumental360", trabajador.Cumplimiento.AlDia, trabajador.Cumplimiento.Requeridos].Value;
+
+    private string MotivoDocumental(TrabajadorAsignacionDocumentacionDto trabajador)
+    {
+        if (trabajador.Cumplimiento.Requeridos == 0) return Textos["SinExigenciasTrabajador360"];
+        if (EstadoDocumentoFicha360.Clave(trabajador.PeorEstado) == EstadoDocumentoFicha360.Clave(EstadoDocumento.Vigente))
+            return Textos["DocumentacionVigenteTrabajador360"];
+        var documento = trabajador.Documentos.FirstOrDefault(d => d.Estado == trabajador.PeorEstado);
+        return documento is null ? EstadoDocumentoFicha360.Texto(trabajador.PeorEstado) :
+            documento.Estado == EstadoDocumento.Faltante ? $"{documento.TipoDocumentoNombre} · {EstadoDocumentoFicha360.Texto(documento.Estado)}" :
+            $"{documento.TipoDocumentoNombre} · {TextoVigencia(documento)}" +
+            (documento.EnToleranciaHasta is { } hasta ? $" · {EstadoDocumentoUi.Texto(EstadoDocumento.EnTolerancia, hasta)}" : string.Empty);
+    }
+
+    private static bool PuedePedir(TrabajadorAsignacionDocumentacionDto trabajador) => trabajador.Documentos.Any(d =>
+        d.Estado == EstadoDocumento.Faltante || (d.DocumentoId is not null &&
+        (VentanaReclamacion.EsReclamable(d.FechaVencimiento, DiaDeNegocio.Hoy()) ||
+         (d.Estado == EstadoDocumento.SinConfirmar && d.FechaVencimiento is null))));
+
+    private static AccionDocumentoFicha360? AccionDocumento(DocumentoRequeridoDto documento) =>
+        documento.Estado == EstadoDocumento.Proximo ? AccionDocumentoFicha360.Renovar : EstadoDocumentoFicha360.Accion(documento.Estado);
 
     /// <summary>
     /// Por qué no se ve ningún trabajador. El vacío por filtro y el vacío por
@@ -501,13 +529,13 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         get
         {
             var porTexto = string.IsNullOrWhiteSpace(TextoBusqueda) ? null : $"«{TextoBusqueda}»";
-            var porEstado = EstadosFiltrados is [var estado, ..] ? EstadoDocumentoUi.Texto(estado).ToLowerInvariant() : null;
+            var porEstado = OpcionesFranja.FirstOrDefault(o => o.Valores.Any(SeleccionEstados.Separar(FiltroEstado).Contains))?.Texto.ToLowerInvariant();
 
             return (porTexto, porEstado) switch
             {
-                (not null, not null) => $"Ningún trabajador coincide con {porTexto} y tiene algún documento en estado «{porEstado}».",
+                (not null, not null) => $"Ningún trabajador coincide con {porTexto} y su peor estado es «{porEstado}».",
                 (not null, null) => $"Ningún trabajador coincide con {porTexto}.",
-                (null, not null) => $"Ningún trabajador de este centro tiene algún documento en estado «{porEstado}».",
+                (null, not null) => $"Ningún trabajador de este centro tiene como peor estado «{porEstado}».",
                 _ => "Ningún trabajador coincide con el filtro."
             };
         }
@@ -550,51 +578,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
             _expandidosTrabajador.Remove(asignacionId);
     }
 
-    /// <summary>
-    /// Documentos vencidos del trabajador para la 1ª ranura de recuento
-    /// (contrato de fidelidad 2026-08-09 § 1.1/1.4). "Faltante cuenta como
-    /// vencido" — mismo criterio que <c>ObtenerCentrosQuery.Desglosar</c> a
-    /// nivel de Centro, para que el léxico cerrado no necesite una tercera
-    /// casilla también aquí.
-    /// </summary>
-    private static IReadOnlyList<DocumentoRequeridoDto> DocumentosVencidos(TrabajadorAsignacionDocumentacionDto trabajador) =>
-        trabajador.Documentos.Where(d => EstadoDocumentoUi.HaVencido(d.Estado) || d.Estado == EstadoDocumento.Faltante).ToList();
-
-    /// <summary>Documentos próximos a vencer del trabajador, para la 2ª ranura de recuento.</summary>
-    private static IReadOnlyList<DocumentoRequeridoDto> DocumentosProximos(TrabajadorAsignacionDocumentacionDto trabajador) =>
-        trabajador.Documentos.Where(d => d.Estado == EstadoDocumento.Proximo).ToList();
-
-    /// <summary>
-    /// Documentos en ventana urgente del trabajador, para la 3ª ranura.
-    /// "Urgente" es la única severidad que ni la 1ª ni la 2ª ranura recogen
-    /// (mismo criterio que <c>ObtenerCentrosQuery.Desglosar</c>, que tampoco
-    /// la cuenta en ninguno de los dos recuentos del Centro) — por eso es lo
-    /// único que le queda por decir a esta ranura sin repetir lo que ya dicen
-    /// las dos anteriores. Mostrar aquí <c>trabajador.PeorEstado</c> siempre
-    /// (como hacía la cabecera de <c>SeccionColapsable</c>) duplicaba el
-    /// recuento de vencidos/próximos con otro badge al lado — justo el efecto
-    /// que la lámina evita dejando esta ranura vacía en la mayoría de filas.
-    /// </summary>
-    private static IReadOnlyList<DocumentoRequeridoDto> DocumentosUrgentes(TrabajadorAsignacionDocumentacionDto trabajador) =>
-        trabajador.Documentos.Where(d => d.Estado == EstadoDocumento.Urgente).ToList();
-
-    /// <summary>Nombre accesible del badge de solo recuento — mismo criterio que <c>Centros.razor.cs.DescribirRecuento</c>, sin el desglose por ámbito porque aquí el sujeto ya es un único trabajador.</summary>
-    private static string DescribirRecuentoTrabajador(IReadOnlyList<DocumentoRequeridoDto> documentos, string calificativo) =>
-        documentos.Count == 1
-            ? $"1 documento {calificativo}"
-            : $"{documentos.Count} documentos {(calificativo.EndsWith('o') ? calificativo + "s" : calificativo)}";
-
-    private static string DescribirDocumentoIncidencia(DocumentoRequeridoDto documento) => documento.Estado switch
-    {
-        EstadoDocumento.Faltante => $"{documento.TipoDocumentoNombre} — falta",
-        EstadoDocumento.Vencido when documento.FechaVencimiento is { } vencio => $"{documento.TipoDocumentoNombre} — venció {vencio:dd/MM/yyyy}",
-        EstadoDocumento.EnTolerancia =>
-            $"{documento.TipoDocumentoNombre} — {EstadoDocumentoUi.Texto(documento.Estado, documento.EnToleranciaHasta)}",
-        EstadoDocumento.Proximo when documento.FechaVencimiento is { } caduca => $"{documento.TipoDocumentoNombre} — caduca {caduca:dd/MM/yyyy}",
-        _ => documento.TipoDocumentoNombre
-    };
-
-    /// <summary>"Detalles" de la fila de Trabajador (blueprint § 3.3, contrato § 1.4) — mismo patrón que Trabajadores.razor/Incidencias.razor/Gestiones.razor, no una ruta nueva.</summary>
+    /// <summary>El nombre y el botón 360 conservan el panel del Trabajador.</summary>
     private Task AbrirDetalleTrabajador(TrabajadorAsignacionDocumentacionDto trabajador) =>
         WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, trabajador.TrabajadorId, trabajador.TrabajadorNombre, "informacion");
 
@@ -823,13 +807,4 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         return EstadoDocumentoUi.HaVencido(documento.Estado) ? $"Vencio {texto}" : $"Caduca {texto}";
     }
 
-    /// <summary>
-    /// Si la accion necesita peso visual. Un documento al dia conserva
-    /// "Gestionar" pero atenuado (04 section 2.5): sigue disponible, deja de
-    /// competir por la atencion con las filas que si piden intervencion.
-    /// </summary>
-    private static bool RequiereIntervencion(DocumentoRequeridoDto documento) =>
-        documento.DocumentoId is null
-        || documento.CaducaEnVentanaVisita
-        || documento.Estado is EstadoDocumento.Vencido or EstadoDocumento.EnTolerancia or EstadoDocumento.Proximo or EstadoDocumento.Faltante;
 }

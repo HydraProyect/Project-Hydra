@@ -1,6 +1,8 @@
 using Bunit;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
@@ -34,6 +36,10 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
             Task.FromResult((TResponse)(object)(request switch
             {
                 ObtenerAsignacionesDocumentacionPorCentroQuery => Trabajadores,
+                ObtenerDocumentoPorIdQuery consulta => new DocumentoDetalleDto(
+                    consulta.Id, AmbitoAplicacion.Trabajador, "Ruiz Peña, Ana", "Reconocimiento médico", true,
+                    new DateOnly(2026, 1, 15), new DateOnly(2027, 1, 15), default, null, null, null, null, null, null,
+                    Guid.NewGuid(), PerfilDocumentoOficial.Ninguno, null),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
 
@@ -123,7 +129,7 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
             .And.Contain("si no dice nada, porque el tipo se pide siempre");
     }
 
-    // ---- «Gestionar» unificado con AcordeonTrabajadoresSubcontrata (lote 3, patrón de lista pieza 5) ----
+    // ---- Acciones por estado; documentos al día conservan Gestionar sin atenuación ----
 
     private static TrabajadorAsignacionDocumentacionDto TrabajadorConDocumento(EstadoDocumento estado) => new(
         Guid.NewGuid(), Guid.NewGuid(), "Ruiz Peña, Ana", new DateOnly(2026, 1, 15), estado,
@@ -131,9 +137,11 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
             estado == EstadoDocumento.Faltante ? null : new DateOnly(2027, 1, 15))],
         CumplimientoDocumental.Evaluar([estado]));
 
-    private async Task<IRenderedComponent<AcordeonAsignacionesCentro>> RenderizarExpandidoAsync(EstadoDocumento estado, string? rol = null)
+    private async Task<IRenderedComponent<AcordeonAsignacionesCentro>> RenderizarExpandidoAsync(EstadoDocumento estado, string? rol = null, bool riesgoEnVisita = false)
     {
-        RegistrarServicios(new MediatorFalso { Trabajadores = [TrabajadorConDocumento(estado)] });
+        var trabajador = TrabajadorConDocumento(estado);
+        if (riesgoEnVisita) trabajador = trabajador with { Documentos = [trabajador.Documentos[0] with { CaducaEnVentanaVisita = true }] };
+        RegistrarServicios(new MediatorFalso { Trabajadores = [trabajador] });
         if (rol is not null)
             this.ConRolDeEscritura(rol);
 
@@ -147,26 +155,49 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
     }
 
     [Fact]
-    public async Task Gestionar_se_ofrece_a_quien_escribe_y_no_a_Consulta()
+    public async Task Subir_se_ofrece_a_quien_escribe_y_no_a_Consulta()
     {
         var escribe = await RenderizarExpandidoAsync(EstadoDocumento.Faltante);
-        escribe.FindAll(".tabla-documentos-requeridos button").Select(b => b.TextContent.Trim()).Should().Contain("Gestionar",
+        escribe.FindAll(".tabla-documentos-requeridos button").Select(b => b.TextContent.Trim()).Should().Contain("Subir",
             "control positivo: con un rol que escribe el botón está");
 
         // Otro contexto: mismo montaje con Consulta, que no puede ejecutar CrearDocumento/RenovarDocumento.
         using var consulta = new ConsultaSinEscritura();
         var cut = await consulta.RenderizarAsync();
-        cut.FindAll(".tabla-documentos-requeridos button").Select(b => b.TextContent.Trim()).Should().NotContain("Gestionar");
+        cut.FindAll(".tabla-documentos-requeridos button").Select(b => b.TextContent.Trim()).Should().NotContain("Subir");
     }
 
-    [Fact]
-    public async Task Gestionar_atenuado_de_un_documento_al_dia_explica_por_que()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Documento_vigente_conserva_Gestionar_y_su_clic_abre_la_gestion_incluso_en_Visita(bool riesgoEnVisita)
     {
-        var cut = await RenderizarExpandidoAsync(EstadoDocumento.Vigente);
+        var cut = await RenderizarExpandidoAsync(EstadoDocumento.Vigente, riesgoEnVisita: riesgoEnVisita);
+        var boton = cut.Find(".tabla-documentos-requeridos .columna-accion button");
+        boton.TextContent.Trim().Should().Be("Gestionar");
+        boton.ClassList.Should().Contain("accion-fila-enlace").And.NotContain("accion-atenuada");
+        boton.HasAttribute("title").Should().BeFalse();
+        await boton.ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.Find(".drawer-panel").TextContent.Should().Contain("Renovar documento")
+            .And.Contain("Reconocimiento médico").And.Contain("Ruiz Peña, Ana"));
+    }
 
-        var boton = cut.FindAll(".tabla-documentos-requeridos button").Single(b => b.TextContent.Trim() == "Gestionar");
-        boton.ClassList.Should().Contain("accion-atenuada");
-        boton.GetAttribute("title").Should().Contain("Al día", "una acción atenuada sin motivo visible es un botón roto");
+    [Theory]
+    [InlineData(EstadoDocumento.Vencido, "Renovar")]
+    [InlineData(EstadoDocumento.EnTolerancia, "Renovar")]
+    [InlineData(EstadoDocumento.Urgente, "Renovar")]
+    [InlineData(EstadoDocumento.Proximo, "Renovar")]
+    [InlineData(EstadoDocumento.SinConfirmar, "Confirmar")]
+    [InlineData(EstadoDocumento.Faltante, "Subir")]
+    [InlineData(EstadoDocumento.SinCaducidad, "Gestionar")]
+    [InlineData(EstadoDocumento.Vigente, "Gestionar")]
+    public async Task La_accion_del_documento_depende_de_su_estado_y_no_esta_atenuada(EstadoDocumento estado, string accion)
+    {
+        var cut = await RenderizarExpandidoAsync(estado);
+        var boton = cut.Find(".tabla-documentos-requeridos .columna-accion button");
+        boton.TextContent.Trim().Should().Be(accion);
+        boton.ClassList.Should().NotContain("accion-atenuada");
+        boton.HasAttribute("disabled").Should().BeFalse();
     }
 
     [Fact]
@@ -174,9 +205,20 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
     {
         var cut = await RenderizarExpandidoAsync(EstadoDocumento.Faltante);
 
-        var boton = cut.FindAll(".tabla-documentos-requeridos button").Single(b => b.TextContent.Trim() == "Gestionar");
+        var boton = cut.FindAll(".tabla-documentos-requeridos button").Single(b => b.TextContent.Trim() == "Subir");
         boton.ClassList.Should().NotContain("accion-atenuada");
         boton.GetAttribute("title").Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(EstadoDocumento.Vigente)]
+    [InlineData(EstadoDocumento.SinCaducidad)]
+    [InlineData(EstadoDocumento.Vencido)]
+    public async Task Consulta_no_recibe_accion_de_fila_para_un_documento(EstadoDocumento estado)
+    {
+        using var consulta = new ConsultaSinEscritura();
+        var cut = await consulta.RenderizarAsync(estado);
+        cut.FindAll(".tabla-documentos-requeridos .columna-accion button").Should().BeEmpty();
     }
 
     /// <summary>Segundo contexto de bUnit con rol Consulta: el rol se fija al construir los servicios.</summary>
@@ -184,11 +226,11 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
     {
         public ConsultaSinEscritura() => JSInterop.Mode = JSRuntimeMode.Loose;
 
-        public async Task<IRenderedComponent<AcordeonAsignacionesCentro>> RenderizarAsync()
+        public async Task<IRenderedComponent<AcordeonAsignacionesCentro>> RenderizarAsync(EstadoDocumento estado = EstadoDocumento.Faltante)
         {
             Services.AddLocalization();
             this.ConRolDeEscritura(CaeManager.Infrastructure.Identity.Roles.Consulta);
-            Services.AddScoped<IMediator>(_ => new MediatorFalso { Trabajadores = [TrabajadorConDocumento(EstadoDocumento.Faltante)] });
+            Services.AddScoped<IMediator>(_ => new MediatorFalso { Trabajadores = [TrabajadorConDocumento(estado)] });
             Services.AddScoped<ToastService>();
             Services.AddScoped<ContextWorkspaceService>();
             Services.AddScoped<IFileStorageService, AlmacenArchivosQueNadieDebeTocar>();

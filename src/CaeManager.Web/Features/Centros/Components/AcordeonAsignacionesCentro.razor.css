@@ -1,4 +1,98 @@
-/* Las tres ranuras se ajustan a la columna de estado del patrón compartido. */
-.tarjeta-fila-acordeon-indicadores {
-    width: 100%;
+.lista-trabajadores-acordeon {
+    --ancho-fraccion-trabajador: 76px;
+    --ancho-estado-trabajador: 128px;
+    --ancho-acciones-trabajador: 100px;
+}
+
+.lista-trabajadores-acordeon ::deep .fila-relacion-nombre {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+}
+
+.lista-trabajadores-acordeon ::deep .fila-relacion-rejilla {
+    grid-template-columns: minmax(0, 1fr) var(--ancho-fraccion-trabajador) var(--ancho-estado-trabajador) var(--ancho-acciones-trabajador);
+}
+
+.documentos-trabajador-ficha {
+    display: block;
+}
+
+.documentos-trabajador-ficha .fila-documento-requerido {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: var(--space-2) var(--space-3);
+    padding-block: var(--space-3);
+}
+
+.documentos-trabajador-ficha .documentos-requeridos-cabecera {
+    display: block;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+}
+
+.documentos-trabajador-ficha .celda-documento-nombre {
+    grid-column: 1 / -1;
+}
+
+.documentos-trabajador-ficha .fila-documento-requerido > :nth-child(2) {
+    grid-column: 2;
+    grid-row: 2;
+}
+
+.documentos-trabajador-ficha .fila-documento-requerido > :nth-child(3) {
+    grid-column: 1;
+    grid-row: 2;
+}
+
+.documentos-trabajador-ficha .columna-accion {
+    grid-column: 3;
+    grid-row: 2;
+}
+
+.documentos-trabajador-ficha .celda-documento-nombre,
+.documentos-trabajador-ficha ::deep .enlace-nombre-fila {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+}
+
+.aviso-visita-sin-asignacion {
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+}
+
+.aviso-visita-sin-asignacion .fila-documento-requerido {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+@media (max-width: 700px) {
+    .lista-trabajadores-acordeon ::deep .fila-relacion-rejilla {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .lista-trabajadores-acordeon ::deep .fila-relacion-identidad {
+        grid-column: 1 / -1;
+    }
+
+    .documentos-trabajador-ficha .fila-documento-requerido {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .documentos-trabajador-ficha .columna-accion {
+        grid-column: 2;
+        grid-row: 3;
+    }
+}
+
+.documentos-trabajador-ficha .celda-documento-nombre {
+    flex-wrap: wrap;
 }

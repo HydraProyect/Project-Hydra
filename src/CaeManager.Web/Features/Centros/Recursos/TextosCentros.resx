@@ -12,10 +12,6 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="CabeceraCliente" xml:space="preserve">
-    <value>Cliente:</value>
-    <comment>Rótulo en pantalla del Cliente empresarial del Centro (contrato Gen2 § 14: Cliente empresarial se rotula «Cliente», decisión de rótulo del 2026-10-09).</comment>
-  </data>
   <data name="KickerCentro360" xml:space="preserve">
     <value>Centro</value>
     <comment>Qué es la ficha, en versalitas sobre el nombre del Centro (cabecera de identidad de Centro 360).</comment>
@@ -23,10 +19,6 @@
   <data name="EtiquetaLateral360" xml:space="preserve">
     <value>Contexto del centro</value>
     <comment>Nombre accesible del lateral de Centro 360 (canales de gestión y próxima visita).</comment>
-  </data>
-  <data name="CabeceraEmpresa" xml:space="preserve">
-    <value>Empresa:</value>
-    <comment>Empresa contratista que trabaja en el Centro.</comment>
   </data>
   <data name="GestionCaeTitulo" xml:space="preserve">
     <value>Gestión CAE</value>
@@ -179,9 +171,6 @@
   </data>
   <data name="TituloBloqueos" xml:space="preserve">
     <value>{0} documentos con bloqueo de plataforma</value>
-  </data>
-  <data name="GestionarAtenuadoAlDia" xml:space="preserve">
-    <value>Al día: no necesita intervención, pero puedes sustituirlo</value>
   </data>
   <data name="MenuEliminarCentro" xml:space="preserve">
     <value>Eliminar centro</value>
@@ -392,5 +381,58 @@
   </data>
   <data name="CalificativoBloqueo" xml:space="preserve">
     <value>con bloqueo de plataforma</value>
+  </data>
+  <data name="MostrandoTrabajadores360" xml:space="preserve">
+    <value>Mostrando {0} de {1} · del peor estado al mejor</value>
+  </data>
+  <data name="FraccionDocumental360" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="PedirDocumentacion360" xml:space="preserve">
+    <value>Pedir</value>
+  </data>
+  <data name="TotalesListaCompleta360" xml:space="preserve">
+    <value>Se calcula sobre la lista completa, no sobre la filtrada.</value>
+  </data>
+  <data name="SinExigenciasTrabajador360" xml:space="preserve">
+    <value>Este Centro no le exige documentación específica.</value>
+  </data>
+  <data name="DocumentacionVigenteTrabajador360" xml:space="preserve">
+    <value>Toda la documentación que le exige este Centro está vigente.</value>
+  </data>
+  <data name="AccionDocumento360Renovar" xml:space="preserve">
+    <value>Renovar</value>
+  </data>
+  <data name="AccionDocumento360Subir" xml:space="preserve">
+    <value>Subir</value>
+  </data>
+  <data name="AccionDocumento360Confirmar" xml:space="preserve">
+    <value>Confirmar</value>
+  </data>
+  <data name="TrabajadoresAsignados360" xml:space="preserve">
+    <value>{0} trabajadores asignados</value>
+  </data>
+  <data name="VisitasProgramadas360" xml:space="preserve">
+    <value>visitas programadas</value>
+  </data>
+  <data name="ParaAvisarVisita360" xml:space="preserve">
+    <value>Para avisar de cada visita</value>
+  </data>
+  <data name="PorCorreo360" xml:space="preserve">
+    <value>Por correo</value>
+  </data>
+  <data name="TrabajadorAsignado360" xml:space="preserve">
+    <value>1 trabajador asignado</value>
+  </data>
+  <data name="CabeceraCliente" xml:space="preserve">
+    <value>Cliente:</value>
+    <comment>Rótulo en pantalla del Cliente empresarial del Centro (contrato Gen2 § 14: Cliente empresarial se rotula «Cliente», decisión de rótulo del 2026-10-09).</comment>
+  </data>
+  <data name="CabeceraEmpresa" xml:space="preserve">
+    <value>Empresa:</value>
+    <comment>Empresa que trabaja en el Centro.</comment>
+  </data>
+  <data name="GestionarDocumento360" xml:space="preserve">
+    <value>Gestionar</value>
   </data>
 </root>

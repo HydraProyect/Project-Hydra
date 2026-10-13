@@ -184,7 +184,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await tablaDocumentos.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // Fila específica de ESTE tipo de documento — el resto de tipos
-        // obligatorios del catálogo compartido también aparecen como "Falta"
+        // obligatorios del catálogo compartido también aparecen como "Pendiente"
         // para este Trabajador nuevo, así que no basta con buscar ese texto
         // suelto en toda la tabla.
         var filaDocumento = tablaDocumentos.Locator(".fila-documento-requerido", new LocatorLocatorOptions { HasText = nombreTipoDocumento });
@@ -193,7 +193,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         // - Por clase, porque la misma palabra aparece también dentro de la
         //   ventana de contexto que envuelve al badge, y GetByText la
         //   resolvía dos veces. La clase es "badge-peligro" desde que
-        //   "Falta" dejó de pintarse en tono neutro: un requisito sin
+        //   "Pendiente" dejó de pintarse en tono neutro: un requisito sin
         //   documento no es un estado benigno.
         // - Por texto, porque "badge-peligro" ya no identifica el caso: un
         //   documento presente pero Vencido o Urgente lleva esa misma
@@ -205,8 +205,8 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await Expect(badgeFalta).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         await Expect(badgeFalta).ToHaveTextAsync("Pendiente", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
 
-        // --- Paso 5: Gestionar → subir el documento, sin salir de /centros ---
-        await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).ClickAsync();
+        // --- Paso 5: Subir el documento pendiente, sin salir de /centros ---
+        await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Subir" }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);

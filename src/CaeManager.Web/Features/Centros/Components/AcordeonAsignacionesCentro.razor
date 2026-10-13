@@ -163,7 +163,7 @@ else
 
     @if (!ModoListado && _trabajadoresVisitaSinAsignacion.Count > 0)
     {
-        <div class="alerta-info" role="status">
+        <div class="aviso-visita-sin-asignacion" role="status">
             <p>La próxima visita a este centro incluye a estos trabajadores sin asignación activa aquí:</p>
             @foreach (var trabajador in _trabajadoresVisitaSinAsignacion)
             {
@@ -179,6 +179,13 @@ else
                 </div>
             }
         </div>
+    }
+
+    @if (MostrarTotales)
+    {
+        <FranjaEstado Opciones="OpcionesFranja" Valor="@FiltroEstado" ValorChanged="FiltroEstadoChanged"
+                      Recuentos="RecuentosFranja" TotalTodos="_trabajadores.Count" />
+        <p class="resumen-trabajadores">@Textos["MostrandoTrabajadores360", TrabajadoresFiltrados.Count, _trabajadores.Count]</p>
     }
 
     @if (_trabajadores.Count == 0)
@@ -237,10 +244,7 @@ else
             @foreach (var trabajador in TrabajadoresFiltrados)
             {
                 var expandido = _expandidosTrabajador.Contains(trabajador.AsignacionId);
-                var vencidos = DocumentosVencidos(trabajador);
-                var proximos = DocumentosProximos(trabajador);
-                var urgentes = DocumentosUrgentes(trabajador);
-                <FilaRelacion @key="trabajador.AsignacionId" Nombre="@trabajador.TrabajadorNombre"
+                <FilaRelacion @key="trabajador.AsignacionId" Nombre="@trabajador.TrabajadorNombre" Iniciales="@InicialesTrabajador(trabajador.TrabajadorNombre)"
                               Tono="@(EstaBloqueado(trabajador.TrabajadorId) ? TonoFila.Peligro : EstadoDocumentoFicha360.TonoFila(trabajador.PeorEstado))"
                               Avatar="@(SeleccionMultiple && !ModoListado ? CasillaSeleccion(trabajador) : null)"
                               OnNombre="() => AbrirDetalleTrabajador(trabajador)"
@@ -250,83 +254,32 @@ else
                     <Detalle>
                         @if (EstaBloqueado(trabajador.TrabajadorId))
                         {
-                            <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" title="@DescripcionBloqueo(trabajador.TrabajadorId)">@Textos["BloqueadoEtiqueta"]</Badge>
                             <MotivoBloqueoTrabajador TrabajadorId="trabajador.TrabajadorId"
                                                      Bloqueos="BloqueosDe(trabajador.TrabajadorId)"
                                                      Otros="OtrosPendientesDe(trabajador)"
-                                                     OnPedir="PedirAsync" />
+                                                     OnPedir="PedirAsync" MostrarAcciones="@(!ModoListado)" />
+                        }
+                        else
+                        {
+                            <span>@MotivoDocumental(trabajador)</span>
                         }
                     </Detalle>
                     <Cifra>
-                        <span class="fila-trabajador-fraccion">@(trabajador.Cumplimiento.Requeridos > 0 ? $"{trabajador.Cumplimiento.AlDia}/{trabajador.Cumplimiento.Requeridos}" : "—")</span>
+                        <span class="fila-trabajador-fraccion">@TextoFraccionTrabajador(trabajador)</span>
                     </Cifra>
                     <Estado>
-                            <span class="tarjeta-fila-acordeon-indicadores">
-                                <span class="ranura-recuento">
-                                    @if (vencidos.Count > 0)
-                                    {
-                                        <VentanaContexto Etiqueta="@DescribirRecuentoTrabajador(vencidos, "vencido")"
-                                                         Titulo="@($"{vencidos.Count} {(vencidos.Count == 1 ? "documento vencido" : "documentos vencidos")}")">
-                                            <Disparador>
-                                                <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
-                                                    @vencidos.Count
-                                                </Badge>
-                                            </Disparador>
-                                            <Detalle>
-                                                @foreach (var documento in vencidos)
-                                                {
-                                                    <span class="ventana-linea">@DescribirDocumentoIncidencia(documento)</span>
-                                                }
-                                            </Detalle>
-                                        </VentanaContexto>
-                                    }
-                                </span>
-                                <span class="ranura-recuento">
-                                    @if (proximos.Count > 0)
-                                    {
-                                        <VentanaContexto Etiqueta="@DescribirRecuentoTrabajador(proximos, "próximo a vencer")"
-                                                         Titulo="@($"{proximos.Count} {(proximos.Count == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
-                                            <Disparador>
-                                                <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
-                                                    @proximos.Count
-                                                </Badge>
-                                            </Disparador>
-                                            <Detalle>
-                                                @foreach (var documento in proximos)
-                                                {
-                                                    <span class="ventana-linea">@DescribirDocumentoIncidencia(documento)</span>
-                                                }
-                                            </Detalle>
-                                        </VentanaContexto>
-                                    }
-                                </span>
-                                <span class="ranura-recuento ranura-recuento-final">
-                                    @if (urgentes.Count > 0)
-                                    {
-                                        <VentanaContexto Etiqueta="@DescribirRecuentoTrabajador(urgentes, "urgente")"
-                                                         Titulo="@($"{urgentes.Count} {(urgentes.Count == 1 ? "documento urgente" : "documentos urgentes")}")">
-                                            <Disparador>
-                                                <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
-                                                    @urgentes.Count
-                                                </Badge>
-                                            </Disparador>
-                                            <Detalle>
-                                                @foreach (var documento in urgentes)
-                                                {
-                                                    <span class="ventana-linea">@DescribirDocumentoIncidencia(documento)</span>
-                                                }
-                                            </Detalle>
-                                        </VentanaContexto>
-                                    }
-                                </span>
-                            </span>
+                        <Badge Tono="@(EstaBloqueado(trabajador.TrabajadorId) ? TonoBadge.Peligro : EstadoDocumentoFicha360.Tono(trabajador.PeorEstado))">
+                            @(EstaBloqueado(trabajador.TrabajadorId) ? Textos["BloqueadoEtiqueta"].Value : EstadoDocumentoFicha360.Texto(trabajador.PeorEstado))
+                        </Badge>
                     </Estado>
                     <Acciones>
-                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                               class="@("accion-fila-enlace" + (trabajador.PeorEstado == EstadoDocumento.Vigente ? " accion-atenuada" : null))"
-                               OnClick="() => AbrirDetalleTrabajador(trabajador)">
-                            Detalles
-                        </Boton>
+                        @if (!ModoListado && !EstaBloqueado(trabajador.TrabajadorId) && PuedePedir(trabajador))
+                        {
+                            <SoloConEscritura>
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                       OnClick="() => PedirAsync(new(AmbitoAplicacion.Trabajador, trabajador.TrabajadorId))">@Textos["PedirDocumentacion360"]</Boton>
+                            </SoloConEscritura>
+                        }
                     </Acciones>
                     <Desplegable>
                         @if (expandido)
@@ -337,16 +290,7 @@ else
                             }
                             else
                             {
-                                @*
-                                    Tercer nivel, variante A (OD-12 cerrada, contrato § 1.5,
-                                    blueprint § 3.4, DDL-034): columnas FIJAS
-                                    Documento · Estado · Vigencia · Acción.
-
-                                    La rejilla vive en el contenedor y no en cada fila: es lo
-                                    que hace que las cuatro columnas caigan en la misma
-                                    vertical aunque una fila no tenga fecha de vigencia.
-                                *@
-                                <div class="tabla-documentos-requeridos" role="table"
+                                <div class="tabla-documentos-requeridos documentos-trabajador-ficha" role="table"
                                      aria-label="@($"Documentación exigida a {trabajador.TrabajadorNombre}")">
                                     <div class="documentos-requeridos-cabecera" role="row">
                                         <span role="columnheader">Documento</span>
@@ -434,17 +378,12 @@ else
                                                 </TextoFechaCopiable>
                                             </span>
                                             <span class="columna-accion" role="cell">
-                                                @*
-                                                    La acción existe SIEMPRE y se atenúa cuando el documento no
-                                                    la necesita (blueprint § 3.4, 04 § 2.5) — no desaparece: un
-                                                    documento al día también puede querer sustituirse.
-                                                *@
+                                                @* La acción existe siempre para quien puede escribir, también con documentos al día. *@
                                                 <SoloConEscritura>
                                                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                                           class="@("accion-fila-enlace" + (RequiereIntervencion(documento) ? null : " accion-atenuada"))"
-                                                           title="@(RequiereIntervencion(documento) ? null : Textos["GestionarAtenuadoAlDia"].Value)"
+                                                           class="accion-fila-enlace"
                                                            OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
-                                                        Gestionar
+                                                        @(AccionDocumento(documento) is { } accion ? Textos[$"AccionDocumento360{accion}"] : Textos["GestionarDocumento360"])
                                                     </Boton>
                                                 </SoloConEscritura>
                                             </span>
@@ -472,7 +411,9 @@ else
                 <span>
                     Documentación de los trabajadores de este centro:
                     @TotalesDocumentales.Exigidos exigidos · @TotalesDocumentales.AlDia al día ·
-                    @TotalesDocumentales.Vencidos vencidos · @TotalesDocumentales.Faltantes faltantes
+                    @Textos[TotalesDocumentales.Vencidos == 1 ? "GrupoResumenVencidoUno" : "GrupoResumenVencidoVarios", TotalesDocumentales.Vencidos]
+                    · @Textos[TotalesDocumentales.Faltantes == 1 ? "GrupoResumenPendienteUno" : "GrupoResumenPendienteVarios", TotalesDocumentales.Faltantes]
+                    @Textos["TotalesListaCompleta360"]
                 </span>
             </div>
         }
