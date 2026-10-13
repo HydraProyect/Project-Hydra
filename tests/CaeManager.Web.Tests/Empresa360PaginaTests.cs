@@ -622,8 +622,9 @@ public class Empresa360PaginaTests : BunitContext
         cut.Find(".fila-relacion-avatar").TextContent.Trim().Should().Be("AR");
         cut.FindAll(".fila-relacion-icono").Should().BeEmpty();
         var detalle = cut.Find(".fila-relacion-detalle");
-        detalle.TextContent.Trim().Should().Be(unico.Dni);
+        detalle.TextContent.Trim().Should().Be($"DNI {unico.Dni}");
         var copiar = detalle.QuerySelectorAll(".boton-copiar").Should().ContainSingle().Subject;
+        copiar.TextContent.Should().Be(unico.Dni);
         copiar.ClassList.Should().Contain("boton-copiar-en-linea");
         copiar.GetAttribute("title").Should().Be($"Copiar {unico.Dni}");
         copiar.GetAttribute("aria-label").Should().Be($"Copiar {unico.Dni}");
