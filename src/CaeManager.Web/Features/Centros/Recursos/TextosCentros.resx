@@ -430,6 +430,9 @@
   </data>
   <data name="CabeceraEmpresa" xml:space="preserve">
     <value>Empresa:</value>
-    <comment>Empresa contratista que trabaja en el Centro.</comment>
+    <comment>Empresa que trabaja en el Centro.</comment>
+  </data>
+  <data name="GestionarDocumento360" xml:space="preserve">
+    <value>Gestionar</value>
   </data>
 </root>

@@ -1,6 +1,8 @@
 using Bunit;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
@@ -34,6 +36,10 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
             Task.FromResult((TResponse)(object)(request switch
             {
                 ObtenerAsignacionesDocumentacionPorCentroQuery => Trabajadores,
+                ObtenerDocumentoPorIdQuery consulta => new DocumentoDetalleDto(
+                    consulta.Id, AmbitoAplicacion.Trabajador, "Ruiz Peña, Ana", "Reconocimiento médico", true,
+                    new DateOnly(2026, 1, 15), new DateOnly(2027, 1, 15), default, null, null, null, null, null, null,
+                    Guid.NewGuid(), PerfilDocumentoOficial.Ninguno, null),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
 
@@ -123,7 +129,7 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
             .And.Contain("si no dice nada, porque el tipo se pide siempre");
     }
 
-    // ---- Acciones por estado; documentos al día sin acción de fila (G2) ----
+    // ---- Acciones por estado; documentos al día conservan Gestionar sin atenuación ----
 
     private static TrabajadorAsignacionDocumentacionDto TrabajadorConDocumento(EstadoDocumento estado) => new(
         Guid.NewGuid(), Guid.NewGuid(), "Ruiz Peña, Ana", new DateOnly(2026, 1, 15), estado,
@@ -164,11 +170,16 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Documento_vigente_no_ofrece_accion_de_fila_incluso_si_caduca_en_la_Visita(bool riesgoEnVisita)
+    public async Task Documento_vigente_conserva_Gestionar_y_su_clic_abre_la_gestion_incluso_en_Visita(bool riesgoEnVisita)
     {
         var cut = await RenderizarExpandidoAsync(EstadoDocumento.Vigente, riesgoEnVisita: riesgoEnVisita);
-        cut.FindAll(".tabla-documentos-requeridos .columna-accion button").Should().BeEmpty();
-        cut.Find(".celda-documento-nombre button").TextContent.Trim().Should().Be("Reconocimiento médico");
+        var boton = cut.Find(".tabla-documentos-requeridos .columna-accion button");
+        boton.TextContent.Trim().Should().Be("Gestionar");
+        boton.ClassList.Should().Contain("accion-fila-enlace").And.NotContain("accion-atenuada");
+        boton.HasAttribute("title").Should().BeFalse();
+        await boton.ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.Find(".drawer-panel").TextContent.Should().Contain("Renovar documento")
+            .And.Contain("Reconocimiento médico").And.Contain("Ruiz Peña, Ana"));
     }
 
     [Theory]
@@ -178,16 +189,11 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
     [InlineData(EstadoDocumento.Proximo, "Renovar")]
     [InlineData(EstadoDocumento.SinConfirmar, "Confirmar")]
     [InlineData(EstadoDocumento.Faltante, "Subir")]
-    [InlineData(EstadoDocumento.SinCaducidad, null)]
-    [InlineData(EstadoDocumento.Vigente, null)]
-    public async Task La_accion_del_documento_depende_de_su_estado_y_no_esta_atenuada(EstadoDocumento estado, string? accion)
+    [InlineData(EstadoDocumento.SinCaducidad, "Gestionar")]
+    [InlineData(EstadoDocumento.Vigente, "Gestionar")]
+    public async Task La_accion_del_documento_depende_de_su_estado_y_no_esta_atenuada(EstadoDocumento estado, string accion)
     {
         var cut = await RenderizarExpandidoAsync(estado);
-        if (accion is null)
-        {
-            cut.FindAll(".tabla-documentos-requeridos .columna-accion button").Should().BeEmpty();
-            return;
-        }
         var boton = cut.Find(".tabla-documentos-requeridos .columna-accion button");
         boton.TextContent.Trim().Should().Be(accion);
         boton.ClassList.Should().NotContain("accion-atenuada");
@@ -204,11 +210,14 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
         boton.GetAttribute("title").Should().BeNull();
     }
 
-    [Fact]
-    public async Task Consulta_no_recibe_accion_de_fila_para_un_documento_vencido()
+    [Theory]
+    [InlineData(EstadoDocumento.Vigente)]
+    [InlineData(EstadoDocumento.SinCaducidad)]
+    [InlineData(EstadoDocumento.Vencido)]
+    public async Task Consulta_no_recibe_accion_de_fila_para_un_documento(EstadoDocumento estado)
     {
         using var consulta = new ConsultaSinEscritura();
-        var cut = await consulta.RenderizarAsync(EstadoDocumento.Vencido);
+        var cut = await consulta.RenderizarAsync(estado);
         cut.FindAll(".tabla-documentos-requeridos .columna-accion button").Should().BeEmpty();
     }
 

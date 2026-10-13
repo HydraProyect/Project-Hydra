@@ -1,4 +1,4 @@
-@*
+﻿@*
     Contenido del acordeón "Asignaciones" de una fila de /centros (Centro 360,
     Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.1/0.2). Autocontenido: solo se instancia cuando
     el usuario expande la fila (SeccionColapsable no renderiza su
@@ -378,16 +378,14 @@ else
                                                 </TextoFechaCopiable>
                                             </span>
                                             <span class="columna-accion" role="cell">
-                                                @if (AccionDocumento(documento) is { } accion)
-                                                {
-                                                    <SoloConEscritura>
-                                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                                               class="accion-fila-enlace"
-                                                               OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
-                                                            @Textos[$"AccionDocumento360{accion}"]
-                                                        </Boton>
-                                                    </SoloConEscritura>
-                                                }
+                                                @* La acción existe siempre para quien puede escribir, también con documentos al día. *@
+                                                <SoloConEscritura>
+                                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                                           class="accion-fila-enlace"
+                                                           OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
+                                                        @(AccionDocumento(documento) is { } accion ? Textos[$"AccionDocumento360{accion}"] : Textos["GestionarDocumento360"])
+                                                    </Boton>
+                                                </SoloConEscritura>
                                             </span>
                                         </div>
                                     }
