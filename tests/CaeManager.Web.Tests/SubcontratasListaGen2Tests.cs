@@ -160,7 +160,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
     private SeleccionEmpresaGestionadaDePrueba Seleccion { get; set; } = new();
 
     /// <param name="busqueda">Valor del filtro de texto que llega por la URL (?q=).</param>
-    private IRenderedComponent<Subcontratas> Renderizar(MediatorFalso mediador, string? busqueda = null)
+    private IRenderedComponent<Subcontratas> Renderizar(MediatorFalso mediador, string? busqueda = null, string? url = null)
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
@@ -172,7 +172,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         // El filtro es [SupplyParameterFromQuery]: se llega a él navegando, no
         // pasándolo como parámetro de componente.
         Services.GetRequiredService<NavigationManager>()
-            .NavigateTo(busqueda is null ? "subcontratas" : "subcontratas?q=" + Uri.EscapeDataString(busqueda));
+            .NavigateTo(url ?? (busqueda is null ? "subcontratas" : "subcontratas?q=" + Uri.EscapeDataString(busqueda)));
 
         return Render<Subcontratas>();
     }

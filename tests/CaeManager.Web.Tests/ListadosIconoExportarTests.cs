@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.AspNetCore.WebUtilities;
 using Bunit;
 using FluentAssertions;
@@ -20,7 +21,13 @@ internal static class ComprobacionIconoExportar
             foreach (var (nombre, valor) in esperados)
                 criterios[nombre].ToString().Should().Be(valor);
             criterios.Values.Where(v => string.IsNullOrWhiteSpace(v.ToString())).Should().BeEmpty();
-            var parametros = endpoint.GetMethod("ExportarAsync")!.GetParameters().Select(p => p.Name);
+            // Cinco endpoints de estos listados registran un único manejador con q mediante lambda.
+            // Se leen sus parámetros compilados, sin depender del nombre generado por el compilador.
+            var manejador = endpoint.GetMethod("ExportarAsync") ?? endpoint.GetNestedTypes(BindingFlags.NonPublic)
+                .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static))
+                .Where(m => m.GetParameters().Any(p => p.Name == "q")).Should().ContainSingle().Which;
+            var parametros = manejador.GetParameters().Select(p =>
+                p.GetCustomAttribute<Microsoft.AspNetCore.Mvc.FromQueryAttribute>()?.Name ?? p.Name);
             foreach (var nombre in criterios.Keys)
                 parametros.Should().Contain(nombre, "el nombre debe coincidir con el parámetro real del endpoint");
         });
@@ -52,6 +59,27 @@ internal static class ComprobacionIconoExportar
 
 public partial class TrabajadoresListaGen2Tests
 {
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public void El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(bool activos, bool esSubcontrata)
+    {
+        var (mediador, idFiltro, _, _) = PrepararCatalogosDeAlta(esSubcontrata, autorizado: true);
+        var centroId = Guid.Parse("bbbbbbbb-1111-1111-1111-111111111111");
+        mediador.Centros.Add(new CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector.CentroSelectorDto(
+            centroId, "Planta Norte", "Cliente empresarial de prueba", "Empresa de prueba"));
+        var empleador = esSubcontrata ? "subcontrata" : "empresa";
+        var cut = Renderizar(mediador, activos
+            ? $"trabajadores?q=Pe%C3%B1a%20%26%20Hijos&estado=Vencido&{empleador}={idFiltro}&centro={centroId}&orden=trabajador-desc"
+            : "trabajadores?q=&estado=&empresa=&subcontrata=&centro=&orden=");
+        var esperados = activos
+            ? new Dictionary<string, string> { ["q"] = "Peña & Hijos", ["estado"] = "Vencido", [empleador] = idFiltro.ToString(), ["centro"] = centroId.ToString(), ["orden"] = "Apellidos", ["desc"] = "true" }
+            : new Dictionary<string, string> { ["orden"] = "EstadoDocumental" };
+        ComprobacionIconoExportar.Criterios(cut, "/trabajadores/exportar.xlsx",
+            typeof(CaeManager.Web.Features.Trabajadores.TrabajadoresEndpoints), esperados);
+    }
+
     [Fact]
     public void La_cabecera_adopta_exportacion_filtrada_con_menu_solo_Exportar_todo() =>
         ComprobacionIconoExportar.Cabecera(Renderizar(new MediatorFalso()), "/trabajadores/exportar.xlsx", false);
@@ -59,6 +87,21 @@ public partial class TrabajadoresListaGen2Tests
 
 public partial class EmpresasListaGen2Tests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(bool activos)
+    {
+        var cut = Renderizar(new MediatorFalso(), activos
+            ? "empresas?q=Pe%C3%B1a%20%26%20Hijos&estado=Vencido"
+            : "empresas?q=&estado=");
+        var esperados = activos
+            ? new Dictionary<string, string> { ["q"] = "Peña & Hijos", ["estado"] = "Vencido" }
+            : new Dictionary<string, string>();
+        ComprobacionIconoExportar.Criterios(cut, "/empresas/exportar.xlsx",
+            typeof(CaeManager.Web.Features.Empresas.EmpresasEndpoints), esperados);
+    }
+
     [Fact]
     public void La_cabecera_adopta_exportacion_filtrada_con_menu_solo_Exportar_todo() =>
         ComprobacionIconoExportar.Cabecera(Renderizar(new MediatorFalso()), "/empresas/exportar.xlsx", false);
@@ -66,6 +109,21 @@ public partial class EmpresasListaGen2Tests
 
 public partial class SubcontratasListaGen2Tests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(bool activos)
+    {
+        var cut = Renderizar(new MediatorFalso(), url: activos
+            ? "subcontratas?q=Pe%C3%B1a%20%26%20Hijos&estado=Vencido&nivel=Gestionada"
+            : "subcontratas?q=&estado=&nivel=");
+        var esperados = activos
+            ? new Dictionary<string, string> { ["q"] = "Peña & Hijos", ["estado"] = "Vencido", ["nivel"] = "Gestionada" }
+            : new Dictionary<string, string>();
+        ComprobacionIconoExportar.Criterios(cut, "/subcontratas/exportar.xlsx",
+            typeof(CaeManager.Web.Features.Subcontratas.SubcontratasEndpoints), esperados);
+    }
+
     [Fact]
     public void La_cabecera_adopta_exportacion_filtrada_con_menu_solo_Exportar_todo() =>
         ComprobacionIconoExportar.Cabecera(Renderizar(new MediatorFalso()), "/subcontratas/exportar.xlsx", false);
@@ -163,6 +221,22 @@ public partial class GestionesListaGen2Tests
 
 public partial class ClientesListaGen2Tests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(bool activos)
+    {
+        var gestora = GestorCae("Marta Ibarra");
+        var cut = Renderizar(new MediatorFalso(), activos
+            ? $"clientes?q=Pe%C3%B1a%20%26%20Hijos&critico=true&gestor={gestora.Id}&estado=Vencido&orden=cliente-desc"
+            : "clientes?q=&critico=false&gestor=&estado=&orden=", gestores: [gestora]);
+        var esperados = activos
+            ? new Dictionary<string, string> { ["q"] = "Peña & Hijos", ["critico"] = "true", ["ejecutivo"] = gestora.Id.ToString(), ["estado"] = "Vencido", ["orden"] = "RazonSocial", ["desc"] = "true" }
+            : new Dictionary<string, string> { ["orden"] = "EstadoDocumentalPeor" };
+        ComprobacionIconoExportar.Criterios(cut, "/clientes/exportar.xlsx",
+            typeof(CaeManager.Web.Features.Clientes.ClientesEndpoints), esperados);
+    }
+
     [Fact]
     public void La_cabecera_adopta_exportacion_filtrada_y_conserva_Mas_acciones() =>
         ComprobacionIconoExportar.Cabecera(Renderizar(new MediatorFalso()), "/clientes/exportar.xlsx", true);
@@ -170,6 +244,21 @@ public partial class ClientesListaGen2Tests
 
 public partial class DocumentosGen2Tests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(bool activos)
+    {
+        var (cut, _) = Renderizar(ConOpcionesDeFiltro(), url: activos
+            ? $"documentos?q=Pe%C3%B1a%20%26%20Hijos&Ambito=Trabajador&Estado=Vencido&Tipo={TipoSeguroId}&Plataforma={PlataformaNalandaId}&orden=emision-desc"
+            : "documentos?q=&Ambito=&Estado=&Tipo=&Plataforma=&orden=");
+        var esperados = activos
+            ? new Dictionary<string, string> { ["q"] = "Peña & Hijos", ["ambito"] = "Trabajador", ["estado"] = "Vencido", ["tipo"] = TipoSeguroId.ToString(), ["plataforma"] = PlataformaNalandaId.ToString(), ["orden"] = "FechaEmision", ["desc"] = "true" }
+            : new Dictionary<string, string> { ["orden"] = CaeManager.Application.Documentos.Queries.ObtenerDocumentos.ObtenerDocumentosQuery.OrdenPorSeveridad };
+        ComprobacionIconoExportar.Criterios(cut, "/documentos/exportar.xlsx",
+            typeof(CaeManager.Web.Features.Documentos.DocumentosEndpoints), esperados);
+    }
+
     [Fact]
     public void La_cabecera_adopta_exportacion_filtrada_y_conserva_Mas_acciones() =>
         ComprobacionIconoExportar.Cabecera(Renderizar().Cut, "/documentos/exportar.xlsx", true);
@@ -177,6 +266,23 @@ public partial class DocumentosGen2Tests
 
 public partial class CentrosListaPatronTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(bool activos)
+    {
+        var mediador = ConDosClientes();
+        var centro = mediador.Centros.First();
+        var cut = RenderizarConGruposContraidos(mediador, url: activos
+            ? $"centros?q=Pe%C3%B1a%20%26%20Hijos&estado=Vencido&cliente={ClienteOrion}&empresa={EmpresaMontajes}&CentroId={centro.Id}&orden=cumplimiento-desc"
+            : "centros?q=&estado=&cliente=&empresa=&orden=");
+        var esperados = activos
+            ? new Dictionary<string, string> { ["q"] = "Peña & Hijos", ["estado"] = "Vencido", ["cliente"] = ClienteOrion.ToString(), ["empresa"] = EmpresaMontajes.ToString(), ["centro"] = centro.Id.ToString(), ["orden"] = "CumplimientoPorcentaje", ["desc"] = "true" }
+            : new Dictionary<string, string>();
+        ComprobacionIconoExportar.Criterios(cut, "/centros/exportar.xlsx",
+            typeof(CaeManager.Web.Features.Centros.CentrosEndpoints), esperados);
+    }
+
     [Fact]
     public void La_cabecera_adopta_exportacion_filtrada_y_conserva_asignaciones()
     {
