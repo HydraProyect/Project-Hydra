@@ -389,4 +389,25 @@
   <data name="AccionRapidaReabrirAria" xml:space="preserve"><value>Reobrir el projecte {0}</value></data>
   <data name="ErrorFaltaCliente" xml:space="preserve"><value>Selecciona un Client.</value></data>
   <data name="ErrorCargarCentros" xml:space="preserve"><value>No hem pogut carregar els centres d'aquest Client. Torna a triar-lo per reintentar-ho.</value></data>
+  <data name="PestanaEmpresasProyecto" xml:space="preserve"><value>Empreses</value></data>
+  <data name="PestanaVisitasProyecto" xml:space="preserve"><value>Visites</value></data>
+  <data name="ListaEmpresasProyecto" xml:space="preserve"><value>Empreses ocupadores amb tècnics al Projecte</value></data>
+  <data name="ListaVisitasProyecto" xml:space="preserve"><value>Visites del Centre durant el Projecte</value></data>
+  <data name="ResumenEmpresasProyecto" xml:space="preserve"><value>{0} Empreses ocupadores · del pitjor estat al millor</value></data>
+  <data name="EmpresaProyectoUnTecnico" xml:space="preserve"><value>1 tècnic actiu al Projecte</value></data>
+  <data name="EmpresaProyectoTecnicos" xml:space="preserve"><value>{0} tècnics actius al Projecte</value></data>
+  <data name="FraccionEmpresaProyecto" xml:space="preserve"><value>{0} de {1}</value></data>
+  <data name="EmpresaProyectoSinRequisitos" xml:space="preserve"><value>—</value></data>
+  <data name="UniversoEmpresasProyecto" xml:space="preserve"><value>La xifra mesura la documentació d’Empresa que exigeix {0}, no la dels tècnics ni el compliment global de l’Empresa.</value></data>
+  <data name="ResumenVisitasProyecto" xml:space="preserve"><value>{0} visites · per data d’inici</value></data>
+  <data name="FechasVisitaProyecto" xml:space="preserve"><value>{0} – {1}</value></data>
+  <data name="VisitaProyectoUnTrabajador" xml:space="preserve"><value>1 treballador a la Visita</value></data>
+  <data name="VisitaProyectoTrabajadores" xml:space="preserve"><value>{0} treballadors a la Visita</value></data>
+  <data name="ProgramarVisitaProyecto" xml:space="preserve"><value>Programar una visita</value></data>
+  <data name="EmpresasProyectoVacio" xml:space="preserve"><value>Sense Empreses ocupadores visibles amb tècnics actius.</value></data>
+  <data name="VisitasProyectoVacio" xml:space="preserve"><value>Sense visites visibles del Centre en aquest període.</value></data>
+  <data name="LecturaEmpresasProyectoError" xml:space="preserve"><value>No s’han pogut carregar les Empreses ocupadores.</value></data>
+  <data name="LecturaVisitasProyectoError" xml:space="preserve"><value>No s’han pogut carregar les Visites del període.</value></data>
+  <data name="ResumenEmpresaProyecto" xml:space="preserve"><value>1 Empresa ocupadora · del pitjor estat al millor</value></data>
+  <data name="ResumenVisitaProyecto" xml:space="preserve"><value>1 visita · per data d’inici</value></data>
 </root>

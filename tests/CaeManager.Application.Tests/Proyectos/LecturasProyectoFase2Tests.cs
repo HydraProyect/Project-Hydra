@@ -1,0 +1,231 @@
+using CaeManager.Application.Common;
+using CaeManager.Application.Proyectos;
+using CaeManager.Application.Proyectos.Queries.ObtenerEmpresasProyecto;
+using CaeManager.Application.Proyectos.Queries.ObtenerVisitasProyecto;
+using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Documentos;
+using CaeManager.Application.Tests.Integraciones;
+using CaeManager.Application.Tests.Plantillas;
+using CaeManager.Application.Tests.Reportes;
+using CaeManager.Application.Tests.TiposDocumento;
+using CaeManager.Application.Trabajadores;
+using CaeManager.Application.Visitas;
+using CaeManager.Domain.Common;
+using CaeManager.Domain.Configuracion;
+using CaeManager.Domain.Centros;
+using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Proyectos;
+using CaeManager.Domain.Trabajadores;
+using CaeManager.Domain.Visitas;
+using FluentAssertions;
+
+namespace CaeManager.Application.Tests.Proyectos;
+
+public class LecturasProyectoFase2Tests
+{
+    private sealed class ProyectosContexto : IProyectosQueryContext
+    {
+        public List<Proyecto> Lista { get; } = [];
+        public List<ProyectoTecnico> Tecnicos { get; } = [];
+        public IQueryable<Proyecto> Proyectos => new TestAsyncQueryable<Proyecto>(Lista.AsQueryable());
+        public IQueryable<ProyectoTecnico> ProyectosTecnicos => new TestAsyncQueryable<ProyectoTecnico>(Tecnicos.AsQueryable());
+    }
+
+    private sealed class VisitasContexto : IVisitasQueryContext
+    {
+        public List<Visita> Lista { get; } = [];
+        public List<VisitaTrabajador> Trabajadores { get; } = [];
+        public IQueryable<Visita> Visitas => new TestAsyncQueryable<Visita>(Lista.AsQueryable());
+        public IQueryable<VisitaTrabajador> VisitasTrabajadores => new TestAsyncQueryable<VisitaTrabajador>(Trabajadores.AsQueryable());
+    }
+
+    private readonly ProyectosContexto _proyectos = new();
+    private readonly VisitasContexto _visitas = new();
+    private readonly CentrosQueryContextFalso _centros = new();
+    private readonly EmpresasQueryContextFalso _empresas = new();
+    private readonly TrabajadoresQueryContextFalso _trabajadores = new();
+    private readonly DocumentosQueryContextFalso _documentos = new();
+    private readonly TiposDocumentoQueryContextFalso _tipos = new();
+    private readonly ConfiguracionQueryContextFalso _configuracion = new();
+    private readonly Empresa _empleadora = new("Empresa empleadora del Proyecto");
+    private readonly Centro _centro;
+    private readonly Proyecto _proyecto;
+    private readonly TipoDocumento _tipo = new("Seguro RC", 12, true, 1, AmbitoAplicacion.Empresa, RequisitoDocumental.Si);
+
+    public LecturasProyectoFase2Tests()
+    {
+        var clienteEmpresarialId = Guid.NewGuid();
+        _centro = new Centro(clienteEmpresarialId, Guid.NewGuid(), "Centro del Proyecto");
+        _proyecto = Proyecto.Crear(clienteEmpresarialId, _centro.Id, "Proyecto", new(2026, 10, 1), new(2026, 10, 31), null);
+        _proyectos.Lista.Add(_proyecto);
+        _centros.ListaCentros.Add(_centro);
+        _empresas.ListaEmpresas.Add(_empleadora);
+        var tecnico = Trabajador.DeEmpresa(_empleadora.Id, "Ana", "Alba", "60005002A");
+        _trabajadores.ListaTrabajadores.Add(tecnico);
+        _proyectos.Tecnicos.Add(new ProyectoTecnico(_proyecto.Id, tecnico.Id, new(2026, 10, 1)));
+        _tipos.ListaTiposDocumento.Add(_tipo);
+        _configuracion.ListaParametrosSistema.Add(new ParametroSistema(30, 7));
+        _visitas.Lista.Add(new Visita(_centro.Id, new(2026, 10, 4), new(2026, 10, 5), null));
+    }
+
+    private Task<IReadOnlyList<EmpresaProyectoDto>> EmpresasAsync(IAlcanceDatosService? alcance = null) =>
+        new ObtenerEmpresasProyectoQueryHandler(_proyectos, _trabajadores, _empresas, _centros,
+            _documentos, _tipos, _configuracion, alcance ?? new AlcanceDatosServiceFalso())
+            .Handle(new(_proyecto.Id), CancellationToken.None);
+
+    private Task<IReadOnlyList<VisitaProyectoDto>> VisitasAsync(IAlcanceDatosService? alcance = null) =>
+        new ObtenerVisitasProyectoQueryHandler(_proyectos, _centros, _visitas, alcance ?? new AlcanceDatosServiceFalso())
+            .Handle(new(_proyecto.Id), CancellationToken.None);
+
+    [Fact]
+    public async Task Sin_alcance_al_Cliente_empresarial_no_se_revela_ninguna_Empresa_ni_Visita()
+    {
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [],
+            centroIdsVisibles: [_centro.Id], empresaIdsVisibles: [_empleadora.Id]);
+        (await EmpresasAsync(alcance)).Should().BeEmpty();
+        (await VisitasAsync(alcance)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Sin_alcance_al_Centro_no_se_revela_ninguna_Empresa_ni_Visita()
+    {
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false,
+            clienteIdsVisibles: [_proyecto.ClienteId], centroIdsVisibles: [], empresaIdsVisibles: [_empleadora.Id]);
+        (await EmpresasAsync(alcance)).Should().BeEmpty();
+        (await VisitasAsync(alcance)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task La_Empresa_empleadora_fuera_del_alcance_no_aporta_nombre_ni_fraccion()
+    {
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false,
+            clienteIdsVisibles: [_proyecto.ClienteId], centroIdsVisibles: [_centro.Id], empresaIdsVisibles: []);
+        (await EmpresasAsync(alcance)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_Proyecto_inexistente_no_revela_datos()
+    {
+        _proyectos.Lista.Clear();
+        (await EmpresasAsync()).Should().BeEmpty();
+        (await VisitasAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task La_relacion_Subcontrata_exige_su_alcance_y_conserva_su_ruta_contextual()
+    {
+        var trabajador = Trabajador.DeSubcontrata(_empleadora.Id, "Ana", "Alba", "60005002A");
+        _trabajadores.ListaTrabajadores.Clear();
+        _trabajadores.ListaTrabajadores.Add(trabajador);
+        _proyectos.Tecnicos.Clear();
+        _proyectos.Tecnicos.Add(new ProyectoTecnico(_proyecto.Id, trabajador.Id, new(2026, 10, 1)));
+        var restringido = new AlcanceDatosServiceFalso(tieneAccesoTotal: false,
+            clienteIdsVisibles: [_proyecto.ClienteId], centroIdsVisibles: [_centro.Id], subcontrataIdsVisibles: []);
+        (await EmpresasAsync(restringido)).Should().BeEmpty();
+        var permitido = new AlcanceDatosServiceFalso(tieneAccesoTotal: false,
+            clienteIdsVisibles: [_proyecto.ClienteId], centroIdsVisibles: [_centro.Id], subcontrataIdsVisibles: [_empleadora.Id]);
+        (await EmpresasAsync(permitido)).Should().ContainSingle().Which.DesdeRelacionSubcontrata.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Un_tecnico_de_baja_o_de_otro_Proyecto_no_aporta_Empresa()
+    {
+        _proyectos.Tecnicos[0].DarDeBaja(new(2026, 10, 2));
+        _proyectos.Tecnicos.Add(new ProyectoTecnico(Guid.NewGuid(), _trabajadores.ListaTrabajadores[0].Id, new(2026, 10, 1)));
+        (await EmpresasAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task El_documento_sustituido_no_cuenta_aunque_su_sustituto_no_este_cargado()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var anterior = Documento.DeEmpresa(_empleadora.Id, _tipo.Id, hoy.AddDays(-10), VigenciaDocumento.VenceEl(hoy.AddDays(90)));
+        var nuevo = Documento.DeEmpresa(_empleadora.Id, _tipo.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddDays(120)));
+        anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+        _documentos.ListaDocumentos.Add(anterior);
+        var empresa = (await EmpresasAsync()).Should().ContainSingle().Which;
+        empresa.Cumplimiento.AlDia.Should().Be(0);
+        empresa.PeorEstado.Should().Be(EstadoDocumento.Faltante);
+    }
+
+    [Fact]
+    public async Task La_fraccion_cuenta_un_documento_efectivo_por_tipo_y_no_la_version_vencida()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        _documentos.ListaDocumentos.Add(Documento.DeEmpresa(_empleadora.Id, _tipo.Id, hoy.AddMonths(-18), VigenciaDocumento.VenceEl(hoy.AddDays(-90))));
+        _documentos.ListaDocumentos.Add(Documento.DeEmpresa(_empleadora.Id, _tipo.Id, hoy.AddDays(-1), VigenciaDocumento.VenceEl(hoy.AddDays(90))));
+        var empresa = (await EmpresasAsync()).Should().ContainSingle().Subject;
+        empresa.Cumplimiento.Should().Be(new FraccionCumplimiento(1, 1));
+        empresa.PeorEstado.Should().Be(EstadoDocumento.Vigente);
+        empresa.TecnicosActivos.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Sin_documento_el_tipo_exigido_cuenta_pendiente_y_sin_tipos_no_hay_porcentaje()
+    {
+        var empresa = (await EmpresasAsync()).Should().ContainSingle().Subject;
+        empresa.Cumplimiento.Should().Be(new FraccionCumplimiento(0, 1));
+        empresa.PeorEstado.Should().Be(EstadoDocumento.Faltante);
+        _tipos.ListaTiposDocumento.Clear();
+        empresa = (await EmpresasAsync()).Should().ContainSingle().Subject;
+        empresa.Cumplimiento.Porcentaje.Should().BeNull();
+        empresa.PeorEstado.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task La_exclusion_del_tipo_en_el_Centro_prevalece_sobre_su_valor_general()
+    {
+        _tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(_tipo.Id, _centro.Id, incluido: false));
+        var empresa = (await EmpresasAsync()).Should().ContainSingle().Subject;
+        empresa.Cumplimiento.Should().Be(FraccionCumplimiento.SinRequisitos);
+    }
+
+    [Fact]
+    public async Task El_vencido_en_tolerancia_no_se_cuenta_como_al_dia()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        _tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(_tipo.Id, _centro.Id, toleranciaDias: 10));
+        _documentos.ListaDocumentos.Add(Documento.DeEmpresa(_empleadora.Id, _tipo.Id, hoy.AddMonths(-12), VigenciaDocumento.VenceEl(hoy.AddDays(-2))));
+        var empresa = (await EmpresasAsync()).Should().ContainSingle().Subject;
+        empresa.PeorEstado.Should().Be(EstadoDocumento.EnTolerancia);
+        empresa.Cumplimiento.Should().Be(new FraccionCumplimiento(0, 1));
+    }
+
+    [Fact]
+    public async Task Las_Visitas_son_del_Centro_intersectan_el_periodo_y_no_estan_canceladas()
+    {
+        _visitas.Lista.Add(new Visita(Guid.NewGuid(), new(2026, 10, 4), new(2026, 10, 5), null));
+        _visitas.Lista.Add(new Visita(_centro.Id, new(2026, 9, 1), new(2026, 9, 2), null));
+        _visitas.Lista.Add(new Visita(_centro.Id, new(2026, 11, 1), new(2026, 11, 2), null));
+        var solapada = new Visita(_centro.Id, new(2026, 9, 30), new(2026, 10, 1), null);
+        _visitas.Lista.Add(solapada);
+        var cancelada = new Visita(_centro.Id, new(2026, 10, 7), new(2026, 10, 8), null);
+        cancelada.Cancelar(DateTime.UtcNow, "Cancelada para la prueba");
+        _visitas.Lista.Add(cancelada);
+        var filas = await VisitasAsync();
+        filas.Should().HaveCount(2);
+        filas[0].Id.Should().Be(solapada.Id);
+    }
+
+    [Fact]
+    public async Task Un_periodo_abierto_no_inventa_una_fecha_final()
+    {
+        var abierto = Proyecto.Crear(_proyecto.ClienteId, _centro.Id, "Periodo abierto", new(2026, 10, 1), null, null);
+        _proyectos.Lista.Add(abierto);
+        var futura = new Visita(_centro.Id, new(2028, 10, 7), new(2028, 10, 8), null);
+        _visitas.Lista.Add(futura);
+        var filas = await new ObtenerVisitasProyectoQueryHandler(_proyectos, _centros, _visitas, new AlcanceDatosServiceFalso())
+            .Handle(new(abierto.Id), CancellationToken.None);
+        filas.Should().Contain(v => v.Id == futura.Id);
+    }
+
+    [Fact]
+    public async Task El_cierre_real_acota_el_periodo_aunque_la_fecha_prevista_sea_posterior()
+    {
+        _proyecto.Cerrar(new(2026, 10, 10));
+        var posterior = new Visita(_centro.Id, new(2026, 10, 20), new(2026, 10, 21), null);
+        _visitas.Lista.Add(posterior);
+        (await VisitasAsync()).Should().NotContain(v => v.Id == posterior.Id);
+    }
+}

@@ -20,7 +20,7 @@ public static class ResolucionTipoDocumentoCentro
     /// las filas de los Centros/Tipos que interesan a la consulta.
     /// </param>
     /// <param name="esObligatorioPorDefecto">
-    /// <see cref="TipoDocumento.EsObligatorio"/> del tipo — criterio con el
+    /// <see cref="TipoDocumento.CuentaParaCumplimiento"/> del tipo — criterio con el
     /// que se resuelve el par cuando no hay fila explícita.
     /// </param>
     public static bool Aplica(

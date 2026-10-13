@@ -389,4 +389,25 @@
   <data name="AccionRapidaReabrirAria" xml:space="preserve"><value>Reabrir el proyecto {0}</value></data>
   <data name="ErrorFaltaCliente" xml:space="preserve"><value>Selecciona un Cliente.</value></data>
   <data name="ErrorCargarCentros" xml:space="preserve"><value>No pudimos cargar los centros de este Cliente. Vuelve a elegirlo para reintentar.</value></data>
+  <data name="PestanaEmpresasProyecto" xml:space="preserve"><value>Empresas</value></data>
+  <data name="PestanaVisitasProyecto" xml:space="preserve"><value>Visitas</value></data>
+  <data name="ListaEmpresasProyecto" xml:space="preserve"><value>Empresas empleadoras con técnicos en el Proyecto</value></data>
+  <data name="ListaVisitasProyecto" xml:space="preserve"><value>Visitas del Centro durante el Proyecto</value></data>
+  <data name="ResumenEmpresasProyecto" xml:space="preserve"><value>{0} Empresas empleadoras · del peor estado al mejor</value></data>
+  <data name="EmpresaProyectoUnTecnico" xml:space="preserve"><value>1 técnico activo en el Proyecto</value></data>
+  <data name="EmpresaProyectoTecnicos" xml:space="preserve"><value>{0} técnicos activos en el Proyecto</value></data>
+  <data name="FraccionEmpresaProyecto" xml:space="preserve"><value>{0} de {1}</value></data>
+  <data name="EmpresaProyectoSinRequisitos" xml:space="preserve"><value>—</value></data>
+  <data name="UniversoEmpresasProyecto" xml:space="preserve"><value>La cifra mide la documentación de Empresa que exige {0}, no la de los técnicos ni el cumplimiento global de la Empresa.</value></data>
+  <data name="ResumenVisitasProyecto" xml:space="preserve"><value>{0} visitas · por fecha de inicio</value></data>
+  <data name="FechasVisitaProyecto" xml:space="preserve"><value>{0} – {1}</value></data>
+  <data name="VisitaProyectoUnTrabajador" xml:space="preserve"><value>1 trabajador en la Visita</value></data>
+  <data name="VisitaProyectoTrabajadores" xml:space="preserve"><value>{0} trabajadores en la Visita</value></data>
+  <data name="ProgramarVisitaProyecto" xml:space="preserve"><value>Programar visita</value></data>
+  <data name="EmpresasProyectoVacio" xml:space="preserve"><value>Sin Empresas empleadoras visibles con técnicos activos.</value></data>
+  <data name="VisitasProyectoVacio" xml:space="preserve"><value>Sin visitas visibles del Centro en este periodo.</value></data>
+  <data name="LecturaEmpresasProyectoError" xml:space="preserve"><value>No se han podido cargar las Empresas empleadoras.</value></data>
+  <data name="LecturaVisitasProyectoError" xml:space="preserve"><value>No se han podido cargar las Visitas del periodo.</value></data>
+  <data name="ResumenEmpresaProyecto" xml:space="preserve"><value>1 Empresa empleadora · del peor estado al mejor</value></data>
+  <data name="ResumenVisitaProyecto" xml:space="preserve"><value>1 visita · por fecha de inicio</value></data>
 </root>

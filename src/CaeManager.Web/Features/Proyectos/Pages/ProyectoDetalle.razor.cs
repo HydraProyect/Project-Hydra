@@ -7,6 +7,8 @@ using CaeManager.Application.Proyectos.Commands.ReabrirProyecto;
 using CaeManager.Application.Proyectos.Commands.RestaurarProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectoPorId;
 using CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto;
+using CaeManager.Application.Proyectos.Queries.ObtenerEmpresasProyecto;
+using CaeManager.Application.Proyectos.Queries.ObtenerVisitasProyecto;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Common;
 using CaeManager.Web.Components.DesignSystem;
@@ -18,11 +20,11 @@ using Microsoft.AspNetCore.Components;
 namespace CaeManager.Web.Features.Proyectos.Pages;
 
 /// <summary>
-/// Proyecto 360, primer incremento («con lo que ya viaja»): la página compone las MISMAS
-/// consultas y los mismos comandos que el panel de detalle del listado de Proyectos
-/// (<see cref="Proyectos"/>), sin ninguna consulta nueva. No pinta anillo, banda de
-/// incidencias ni las pestañas Empresas, Vehículos, Visitas e Historial: sus datos todavía
-/// no existen.
+/// Proyecto 360: conserva los comandos del panel y añade lecturas autorizadas de Empresas empleadoras
+/// y Visitas del periodo a las consultas del panel de detalle del listado de Proyectos
+/// (<see cref="Proyectos"/>). Empresas deriva sus participantes de los técnicos activos y mide
+/// los documentos que exige el Centro. Visitas deriva el mismo Centro y el periodo del Proyecto.
+/// No hay asignación de Vehículos, nuevos campos de Ficha ni historial de envíos en el modelo.
 ///
 /// <para>
 /// Lo que el panel enseñaba como campo y aquí cambia de sitio: el estado va en la pastilla
@@ -42,6 +44,8 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     internal const string PestanaTecnicos = "tecnicos";
     internal const string PestanaDocumentos = "documentos";
     internal const string PestanaFicha = "ficha";
+    internal const string PestanaEmpresas = "empresas";
+    internal const string PestanaVisitas = "visitas";
 
     [Parameter] public Guid ProyectoId { get; set; }
 
@@ -58,6 +62,13 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     private bool _error;
 
     private List<TecnicoProyectoDto> _tecnicos = [];
+    private IReadOnlyList<EmpresaProyectoDto> _empresasProyecto = [];
+    private IReadOnlyList<VisitaProyectoDto> _visitasProyecto = [];
+    private bool _cargandoRelacionados = true;
+    private bool _errorEmpresasProyecto;
+    private bool _errorVisitasProyecto;
+    private int _cargaRelacionados;
+
     private bool _cargandoTecnicos = true;
     private bool _errorTecnicos;
 
@@ -82,7 +93,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
 
     private static DateOnly Hoy => DiaDeNegocio.Hoy();
 
-    private string PestanaActiva => Pestana is PestanaDocumentos or PestanaFicha ? Pestana : PestanaTecnicos;
+    private string PestanaActiva => Pestana is PestanaDocumentos or PestanaFicha or PestanaEmpresas or PestanaVisitas ? Pestana : PestanaTecnicos;
 
     private IReadOnlyList<BreadcrumbElemento> Miguero =>
         [new BreadcrumbElemento(Textos["MigaProyectos"]), new BreadcrumbElemento(_detalle?.Nombre ?? "…")];
@@ -98,6 +109,8 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
             Contador = _detalle is null ? null : new ContadorPestana(_detalle.DocumentosGestionados, Textos["GlosaDocumentosGestionados"])
         },
         // «Ficha» va la última mientras no haya «Historial»; cuando exista, justo antes.
+        new(PestanaEmpresas, Textos["PestanaEmpresasProyecto"]),
+        new(PestanaVisitas, Textos["PestanaVisitasProyecto"]),
         new(PestanaFicha, Comunes["PestanaFicha"])
     ];
 
@@ -135,6 +148,12 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     {
         _cargaDetalle++;
         _cargaTecnicos++;
+        _cargaRelacionados++;
+        _empresasProyecto = [];
+        _visitasProyecto = [];
+        _cargandoRelacionados = true;
+        _errorEmpresasProyecto = false;
+        _errorVisitasProyecto = false;
         _detalle = null;
         _error = false;
         _tecnicos = [];
@@ -212,7 +231,47 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
             if (carga == _cargaTecnicos)
                 _cargandoTecnicos = false;
         }
+        if (carga == _cargaTecnicos && _detalle is not null && _detalle.Id == proyectoId)
+            await CargarRelacionadosAsync();
     }
+
+    private async Task CargarRelacionadosAsync()
+    {
+        var carga = ++_cargaRelacionados;
+        var proyectoId = ProyectoId;
+        _cargandoRelacionados = true;
+        _errorEmpresasProyecto = false;
+        _errorVisitasProyecto = false;
+        // Secuenciales: los lectores comparten el DbContext del scope.
+        try
+        {
+            var empresas = await Mediator.Send(new ObtenerEmpresasProyectoQuery(proyectoId), _cancelacion);
+            if (carga != _cargaRelacionados) return;
+            _empresasProyecto = empresas;
+        }
+        catch (OperationCanceledException) when (_cancelacion.IsCancellationRequested) { return; }
+        catch (Exception) { if (carga == _cargaRelacionados) _errorEmpresasProyecto = true; }
+        try
+        {
+            var visitas = await Mediator.Send(new ObtenerVisitasProyectoQuery(proyectoId), _cancelacion);
+            if (carga != _cargaRelacionados) return;
+            _visitasProyecto = visitas;
+        }
+        catch (OperationCanceledException) when (_cancelacion.IsCancellationRequested) { return; }
+        catch (Exception) { if (carga == _cargaRelacionados) _errorVisitasProyecto = true; }
+        finally { if (carga == _cargaRelacionados) _cargandoRelacionados = false; }
+    }
+
+    private Task AbrirEmpresaProyectoAsync(EmpresaProyectoDto empresa) => WorkspaceService.AbrirAsync(
+        empresa.DesdeRelacionSubcontrata ? EntidadWorkspace.Subcontrata : EntidadWorkspace.Empresa,
+        empresa.Id, empresa.RazonSocial, "informacion");
+
+    private string RutaEmpresaProyecto(EmpresaProyectoDto empresa) =>
+        $"/{(empresa.DesdeRelacionSubcontrata ? "subcontratas" : "empresas")}/{empresa.Id}";
+
+    private void IrAVisitaProyecto(Guid visitaId) => NavigationManager.NavigateTo($"/visitas/{visitaId}");
+
+    private void ProgramarVisitaProyecto() => NavigationManager.NavigateTo($"/visitas?centroId={_detalle!.CentroId}");
 
     private void IrABreadcrumb(int indice)
     {
