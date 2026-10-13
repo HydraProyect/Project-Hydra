@@ -66,12 +66,12 @@ public class KeyTipsEnListadoTests(WebAppFixtureListados fixture)
         await Assertions.Expect(html).ToHaveAttributeAsync("data-keytips", "raiz");
 
         // --- La letra de un menú: lo abre el servidor y las letras pasan a sus opciones. ---
-        var masFiltros = page.Locator("[data-keytip='L']");
-        await page.Keyboard.PressAsync("l");
-        await Assertions.Expect(masFiltros).ToHaveAttributeAsync("aria-expanded", "true");
+        var filtrosGuardados = page.Locator("[data-keytip='G']");
+        await page.Keyboard.PressAsync("g");
+        await Assertions.Expect(filtrosGuardados).ToHaveAttributeAsync("aria-expanded", "true");
         await Assertions.Expect(html).ToHaveAttributeAsync("data-keytips", "menu");
         await page.Keyboard.PressAsync("Backspace");
-        await Assertions.Expect(masFiltros).ToHaveAttributeAsync("aria-expanded", "false");
+        await Assertions.Expect(filtrosGuardados).ToHaveAttributeAsync("aria-expanded", "false");
         await Assertions.Expect(html).ToHaveAttributeAsync("data-keytips", "raiz");
 
         // --- Con el modo encendido, «j» no mueve la fila (no es una letra de la raíz). ---

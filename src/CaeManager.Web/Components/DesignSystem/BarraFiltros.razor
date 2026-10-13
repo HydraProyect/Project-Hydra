@@ -5,7 +5,7 @@
     Una tarjeta con:
     - el buscador primero y los filtros después, CADA UNO con su etiqueta
       visible encima (nunca «Estado: todos» dentro de la opción);
-    - «Filtros guardados» al final de la fila, si el llamador pasa alguno;
+    - «Filtros guardados» al final de la fila: siempre en modo pastillas; en el clásico, si hay alguno;
     - debajo, cuando hay filtros activos: los chips (con su ✕), «Limpiar todo»
       junto a ellos y «Guardar filtro» a la derecha.
     - «Restablecer vista» en la fila, tras los filtros, solo si el llamador pasa
@@ -38,14 +38,11 @@
     MODO PASTILLAS (rediseño de listados, fase 1; se activa pasando «Pastillas»):
     una sola fila sin tarjeta con el buscador «Filtrar esta pantalla» (pista F: la
     tecla f lo enfoca, atajos-lista.js), una PastillaFiltro por filtro, «Más
-    filtros» (los filtros secundarios, los filtros guardados con su ✕ y «Guardar
-    filtro») y, a la derecha, un resumen. Debajo, los chips y «Limpiar todo» como
+    filtros» (solo los filtros secundarios, cuando existen), una pastilla propia «Filtros
+    guardados» (lista, ✕ y «Guardar filtro») siempre visible y, a la derecha, un resumen. Debajo, los chips y «Limpiar todo» como
     en el modo de siempre. Las pantallas que no pasan «Pastillas» no cambian.
 
-    FiltrosGuardadosEnPastilla rotula el menú como «Filtros guardados» cuando la pantalla no tiene
-    filtros secundarios. Las pantallas que no activan esa variante mantienen «Más filtros».
-
-    KeyTips (keytips.js): F el buscador (en los dos modos), L el menú de filtros; cada pastilla
+    KeyTips (keytips.js): F el buscador (en los dos modos), L «Más filtros», G «Filtros guardados»; cada pastilla
     deduce su letra del nombre del filtro (PastillaFiltro).
 
         <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
@@ -77,30 +74,30 @@
         @Pastillas
         @if (HayMasFiltros)
         {
-            <MenuAcciones Etiqueta="@(FiltrosGuardadosEnPastilla ? Comunes["FiltrosGuardados"] : Comunes["MasFiltros"])" Pastilla="true" Activa="MasFiltrosActivos" Keytip="L">
+            <MenuAcciones Etiqueta="@Comunes["MasFiltros"]" Pastilla="true" Activa="MasFiltrosActivos" Keytip="L">
                 @MasFiltros
-                @if (FiltrosGuardados.Count > 0)
-                {
-                    <span class="menu-filtros-titulo" role="presentation">@Comunes["FiltrosGuardados"]</span>
-                    @foreach (var filtro in FiltrosGuardados)
-                    {
-                        <div class="menu-filtro-guardado" role="none">
-                            <ItemMenuAccion OnClick="() => OnAplicarFiltroGuardado.InvokeAsync(filtro.Valor)">@filtro.Texto</ItemMenuAccion>
-                            @if (OnBorrarFiltroGuardado.HasDelegate)
-                            {
-                                <ItemMenuAccion Clase="menu-filtro-guardado-borrar" EtiquetaAccesible="@string.Format(Comunes["BorrarFiltroGuardado"].Value, filtro.Texto)"
-                                                OnClick="() => OnBorrarFiltroGuardado.InvokeAsync(filtro.Valor)"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></ItemMenuAccion>
-                            }
-                        </div>
-                    }
-                }
-                @if (OnGuardarFiltro.HasDelegate)
-                {
-                    @* Sin filtros aplicados no hay nada que guardar: el ítem se ve, deshabilitado. *@
-                    <ItemMenuAccion OnClick="@(HayFiltrosActivos ? OnGuardarFiltro : default)">@Comunes["GuardarFiltro"]</ItemMenuAccion>
-                }
             </MenuAcciones>
         }
+        @* Pastilla propia: se ofrece incluso cuando todavía no hay filtros guardados. *@
+        <MenuAcciones Etiqueta="@Comunes["FiltrosGuardados"]" Pastilla="true" Keytip="G">
+            @if (FiltrosGuardados.Count == 0)
+            {
+                <span class="menu-filtros-titulo" role="presentation">@Comunes["FiltrosGuardadosVacio"]</span>
+            }
+            @foreach (var filtro in FiltrosGuardados)
+            {
+                <div class="menu-filtro-guardado" role="none">
+                    <ItemMenuAccion OnClick="() => OnAplicarFiltroGuardado.InvokeAsync(filtro.Valor)">@filtro.Texto</ItemMenuAccion>
+                    @if (OnBorrarFiltroGuardado.HasDelegate)
+                    {
+                        <ItemMenuAccion Clase="menu-filtro-guardado-borrar" EtiquetaAccesible="@string.Format(Comunes["BorrarFiltroGuardado"].Value, filtro.Texto)"
+                                        OnClick="() => OnBorrarFiltroGuardado.InvokeAsync(filtro.Valor)"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></ItemMenuAccion>
+                    }
+                </div>
+            }
+            @* Sin criterios activos o sin callback, la acción se ofrece deshabilitada. *@
+            <ItemMenuAccion OnClick="@(HayFiltrosActivos && OnGuardarFiltro.HasDelegate ? OnGuardarFiltro : default)">@Comunes["GuardarFiltro"]</ItemMenuAccion>
+        </MenuAcciones>
         @if (VistaRecordada is { DifiereDeInicio: true })
         {
             <button type="button" class="restablecer-vista-barra" title="@Comunes["RestablecerVistaTitulo"]" @onclick="VistaRecordada.RestablecerAsync">@Comunes["RestablecerVista"]</button>
@@ -164,8 +161,6 @@ else
 }
 
 @code {
-    /// <summary>Presenta las vistas guardadas en su propia pastilla cuando no hay filtros secundarios.</summary>
-    [Parameter] public bool FiltrosGuardadosEnPastilla { get; set; }
     /// <summary>Etiqueta visible del buscador.</summary>
     [Parameter] public string EtiquetaBuscador { get; set; } = "Buscar";
 
@@ -179,7 +174,7 @@ else
     /// <summary>Los selects de filtro, en orden. Cada uno con <c>Etiqueta</c> visible (<see cref="CampoSelect"/> o <see cref="FiltroEstado"/>).</summary>
     [Parameter] public RenderFragment? Filtros { get; set; }
 
-    /// <summary>Filtros guardados del usuario para esta pantalla. Vacío: no se pinta el select.</summary>
+    /// <summary>Filtros guardados del usuario para esta pantalla. Vacío: la pastilla permanece; el select clásico se omite.</summary>
     [Parameter] public IReadOnlyList<OpcionEstado> FiltrosGuardados { get; set; } = [];
 
     /// <summary>Se invoca con el <c>Valor</c> del filtro guardado elegido.</summary>
@@ -194,7 +189,7 @@ else
     /// <summary>«Limpiar todo». Debe limpiar también la URL.</summary>
     [Parameter] public EventCallback OnLimpiarTodo { get; set; }
 
-    /// <summary>«Guardar filtro». Sin delegado no se pinta el botón.</summary>
+    /// <summary>«Guardar filtro». Sin delegado se deshabilita el ítem en modo pastillas y se omite el botón clásico.</summary>
     [Parameter] public EventCallback OnGuardarFiltro { get; set; }
 
     /// <summary>Modo pastillas: una <see cref="PastillaFiltro"/> por filtro principal. Con valor, la barra pasa a ese modo.</summary>
@@ -225,5 +220,5 @@ else
     /// <summary>Modo pastillas: texto a la derecha de la fila («3 Clientes con estos filtros»).</summary>
     [Parameter] public RenderFragment? Resumen { get; set; }
 
-    private bool HayMasFiltros => MasFiltros is not null || FiltrosGuardados.Count > 0 || OnGuardarFiltro.HasDelegate;
+    private bool HayMasFiltros => MasFiltros is not null;
 }

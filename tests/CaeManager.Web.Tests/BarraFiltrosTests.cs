@@ -203,6 +203,39 @@ public class BarraFiltrosTests : BunitContext
     }
 
     [Fact]
+    public async Task Los_secundarios_y_los_guardados_tienen_menus_y_KeyTips_distintos()
+    {
+        var cut = RenderizarConPastillas(p => p
+            .Add(b => b.MasFiltros, (RenderFragment)(b => b.AddMarkupContent(0, "<span>Filtro secundario</span>")))
+            .Add(b => b.FiltrosGuardados, [new OpcionEstado("f-1", "Vista de Marta")])
+            .Add(b => b.OnGuardarFiltro, () => { }));
+        var botones = cut.FindAll(".menu-acciones-disparador");
+        botones.Select(b => b.GetAttribute("aria-label")).Should().Equal("Estado", "Más filtros", "Filtros guardados");
+        var mas = cut.Find("button[aria-label='Más filtros']");
+        mas.GetAttribute("data-keytip").Should().Be("L");
+        cut.Find("button[aria-label='Filtros guardados']").GetAttribute("data-keytip").Should().Be("G");
+        await mas.ClickAsync(new MouseEventArgs());
+        cut.Find("[role=menu]").TextContent.Should().Contain("Filtro secundario")
+            .And.NotContain("Vista de Marta").And.NotContain("Guardar filtro");
+        await mas.ClickAsync(new MouseEventArgs());
+        await cut.Find("button[aria-label='Filtros guardados']").ClickAsync(new MouseEventArgs());
+        cut.Find("[role=menu]").TextContent.Should().Contain("Vista de Marta").And.NotContain("Filtro secundario");
+    }
+
+    [Fact]
+    public async Task Sin_guardados_la_pastilla_se_ve_y_permite_guardar_criterios_activos()
+    {
+        var guardados = 0;
+        var cut = RenderizarConPastillas(p => p.Add(b => b.HayFiltrosActivos, true)
+            .Add(b => b.OnGuardarFiltro, () => guardados++));
+        cut.FindAll("button[aria-label='Más filtros']").Should().BeEmpty();
+        await cut.Find("button[aria-label='Filtros guardados']").ClickAsync(new MouseEventArgs());
+        cut.Find("[role=menu]").TextContent.Should().Contain("No hay filtros guardados");
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Guardar filtro").ClickAsync(new MouseEventArgs());
+        guardados.Should().Be(1);
+    }
+
+    [Fact]
     public void Con_pastillas_el_buscador_es_Filtrar_esta_pantalla_con_la_tecla_F()
     {
         var cut = RenderizarConPastillas();
@@ -230,13 +263,13 @@ public class BarraFiltrosTests : BunitContext
         var cut = RenderizarConPastillas(p => p.Add(b => b.Resumen, (RenderFragment)(r => r.AddContent(0, "3 con estos filtros"))));
 
         var fila = cut.Find(".barra-filtros-pastillas-fila");
-        fila.Children.Select(e => e.ClassList[0]).Should().Equal("barra-filtros-buscador-pantalla", "menu-acciones", "barra-filtros-resumen");
-        cut.FindAll(".menu-acciones-disparador").Select(d => d.GetAttribute("aria-label")).Should().Equal("Estado");
+        fila.Children.Select(e => e.ClassList[0]).Should().Equal("barra-filtros-buscador-pantalla", "menu-acciones", "menu-acciones", "barra-filtros-resumen");
+        cut.FindAll(".menu-acciones-disparador").Select(d => d.GetAttribute("aria-label")).Should().Equal("Estado", "Filtros guardados");
         cut.Find(".barra-filtros-resumen").TextContent.Should().Be("3 con estos filtros");
     }
 
     [Fact]
-    public async Task Mas_filtros_aplica_y_borra_los_guardados_y_guarda_el_actual()
+    public async Task Filtros_guardados_aplica_y_borra_los_guardados_y_guarda_el_actual()
     {
         var aplicados = new List<string>();
         var borrados = new List<string>();
@@ -248,22 +281,21 @@ public class BarraFiltrosTests : BunitContext
             .Add(b => b.OnBorrarFiltroGuardado, v => borrados.Add(v))
             .Add(b => b.OnGuardarFiltro, () => guardados++));
 
-        var masFiltros = () => cut.FindAll(".menu-acciones-disparador").Single(d => d.GetAttribute("aria-label") == "Más filtros");
+        var menuGuardados = () => cut.FindAll(".menu-acciones-disparador").Single(d => d.GetAttribute("aria-label") == "Filtros guardados");
 
-        await masFiltros().ClickAsync(new MouseEventArgs());
-        cut.Find("[role=menu] .menu-filtros-titulo").TextContent.Trim().Should().Be("Filtros guardados");
+        await menuGuardados().ClickAsync(new MouseEventArgs());
         cut.FindAll("[role=menu] [role=menuitem]").Select(i => i.GetAttribute("aria-label") ?? i.TextContent.Trim())
             .Should().Equal("Críticos de Marta", "Borrar filtro guardado Críticos de Marta", "Guardar filtro");
 
         await cut.FindAll("[role=menu] [role=menuitem]")[0].ClickAsync(new MouseEventArgs());
         aplicados.Should().Equal("f-1");
 
-        await masFiltros().ClickAsync(new MouseEventArgs());
+        await menuGuardados().ClickAsync(new MouseEventArgs());
         await cut.Find("[aria-label='Borrar filtro guardado Críticos de Marta']").ClickAsync(new MouseEventArgs());
         borrados.Should().Equal("f-1");
         aplicados.Should().HaveCount(1, "el aspa borra; no aplica");
 
-        await masFiltros().ClickAsync(new MouseEventArgs());
+        await menuGuardados().ClickAsync(new MouseEventArgs());
         await cut.FindAll("[role=menu] [role=menuitem]").Single(i => i.TextContent.Trim() == "Guardar filtro").ClickAsync(new MouseEventArgs());
         guardados.Should().Be(1);
     }
@@ -279,7 +311,7 @@ public class BarraFiltrosTests : BunitContext
         cut.FindAll(".chips-filtros").Should().BeEmpty();
         cut.FindAll(".limpiar-filtros-barra").Should().BeEmpty();
 
-        await cut.FindAll(".menu-acciones-disparador").Single(d => d.GetAttribute("aria-label") == "Más filtros").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".menu-acciones-disparador").Single(d => d.GetAttribute("aria-label") == "Filtros guardados").ClickAsync(new MouseEventArgs());
         var guardar = cut.FindAll("[role=menu] [role=menuitem]").Single(i => i.TextContent.Trim() == "Guardar filtro");
         guardar.HasAttribute("disabled").Should().BeTrue();
         await guardar.ClickAsync(new MouseEventArgs());

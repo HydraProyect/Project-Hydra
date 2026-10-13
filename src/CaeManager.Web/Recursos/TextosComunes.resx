@@ -506,4 +506,7 @@
   <data name="PaginadorSiguiente" xml:space="preserve">
     <value>Siguiente</value>
   </data>
+  <data name="FiltrosGuardadosVacio" xml:space="preserve">
+    <value>No hay filtros guardados</value>
+  </data>
 </root>

@@ -133,7 +133,7 @@ public class VisitasCabeceraYFiltrosComunesTests : BunitContext
             .Should().Be("Buscar por centro, titular o empresa…");
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(p => p.GetAttribute("aria-label"))
             .Should().Equal(
-                ["Solo activas: Sí", "Solo urgentes", "Notificada al titular del Centro", "Más filtros"],
+                ["Solo activas: Sí", "Solo urgentes", "Notificada al titular del Centro", "Más filtros", "Filtros guardados"],
                 "«Solo activas» nace marcado; el orden vive en «Más filtros»");
 
         OpcionesDe(cut, "Solo activas").Should().Equal("No", "Sí");

@@ -63,7 +63,7 @@ namespace CaeManager.Web.Tests;
 /// </list>
 /// La pieza sola (modal, error de nombre repetido, borrado) está en <see cref="FiltrosGuardadosDeListadoTests"/>.
 /// </summary>
-public class FiltrosGuardadosEnListadosTests : BunitContext
+public partial class FiltrosGuardadosEnListadosTests : BunitContext
 {
     private static readonly Guid ClienteA = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid ClienteB = Guid.Parse("22222222-2222-2222-2222-222222222222");
@@ -198,9 +198,9 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
             .Single(b => b.GetAttribute("aria-label") is { } nombre && (nombre == etiqueta || nombre.StartsWith(etiqueta + ": ", StringComparison.Ordinal)));
 
     /// <summary>Abre el menú de vistas guardadas de cada pantalla y pulsa el ítem indicado.</summary>
-    private static async Task PulsarEnMasFiltrosAsync<TPagina>(IRenderedComponent<TPagina> cut, string item) where TPagina : IComponent
+    private static async Task PulsarEnFiltrosGuardadosAsync<TPagina>(IRenderedComponent<TPagina> cut, string item) where TPagina : IComponent
     {
-        await Pastilla(cut, typeof(TPagina) == typeof(Centros) ? "Filtros guardados" : "Más filtros").ClickAsync(new MouseEventArgs());
+        await Pastilla(cut, "Filtros guardados").ClickAsync(new MouseEventArgs());
         await cut.FindAll(".barra-filtros-pastillas [role=menuitem]")
             .Single(i => i.TextContent.Trim() == item).ClickAsync(new MouseEventArgs());
     }
@@ -208,7 +208,7 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
     /// <summary>«Guardar filtro» de la barra, un nombre y «Guardar»: devuelve el comando que salió.</summary>
     private async Task<GuardarFiltroCommand> GuardarFiltroAsync<TPagina>(IRenderedComponent<TPagina> cut, string nombre) where TPagina : IComponent
     {
-        await PulsarEnMasFiltrosAsync(cut, "Guardar filtro");
+        await PulsarEnFiltrosGuardadosAsync(cut, "Guardar filtro");
         await cut.Find("[role=dialog] input").InputAsync(new ChangeEventArgs { Value = nombre });
         await cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
 
@@ -217,7 +217,7 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
     }
 
     /// <summary>
-    /// Aplica el filtro guardado desde «Más filtros» y devuelve los parámetros que quedan en la URL. Afirma
+    /// Aplica el filtro guardado desde «Filtros guardados» y devuelve los parámetros que quedan en la URL. Afirma
     /// de paso que la URL se escribió en UNA navegación: varias seguidas se pisan (ActualizarFiltrosEnUrl).
     /// </summary>
     private async Task<Dictionary<string, string>> AplicarAsync<TPagina>(IRenderedComponent<TPagina> cut, string nombre) where TPagina : IComponent
@@ -229,7 +229,7 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
         Navegacion.LocationChanged += Contar;
         try
         {
-            await PulsarEnMasFiltrosAsync(cut, nombre);
+            await PulsarEnFiltrosGuardadosAsync(cut, nombre);
         }
         finally
         {

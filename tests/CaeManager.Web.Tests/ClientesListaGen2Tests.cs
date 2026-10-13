@@ -583,10 +583,10 @@ public partial class ClientesListaGen2Tests : BunitContext
     private static Task AlternarEnLaFranja(IRenderedComponent<Clientes> cut, string rotulo) =>
         cut.BotonDeFranja(rotulo).ClickAsync(new MouseEventArgs());
 
-    /// <summary>Abre «Más filtros» y pulsa el ítem con ese texto (un filtro guardado o «Guardar filtro»).</summary>
+    /// <summary>Abre «Filtros guardados» y pulsa el ítem con ese texto (un filtro guardado o «Guardar filtro»).</summary>
     private static async Task PulsarEnMasFiltros(IRenderedComponent<Clientes> cut, string item)
     {
-        await Pastilla(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+        await Pastilla(cut, "Filtros guardados").ClickAsync(new MouseEventArgs());
         await cut.FindAll(".barra-filtros-pastillas [role=menuitem]")
             .Single(i => i.TextContent.Trim() == item).ClickAsync(new MouseEventArgs());
     }
@@ -725,7 +725,7 @@ public partial class ClientesListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso());
 
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(b => b.GetAttribute("aria-label"))
-            .Should().Equal("Gestor CAE", "Criticidad", "Más filtros");
+            .Should().Equal("Gestor CAE", "Criticidad", "Filtros guardados");
         cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Pendientes", "Por vencer", "Sin incidencias");
         cut.MarcadosEnFranja().Should().Equal(["Todos"], "sin filtro de estado, el marcado es «Todos»");
     }
@@ -2286,7 +2286,7 @@ public partial class ClientesListaGen2Tests : BunitContext
 
         mediador.Enviadas.OfType<EliminarFiltroGuardadoCommand>().Should().Equal([new EliminarFiltroGuardadoCommand(filtro.Id)]);
         cut.FindAll("[role=dialog]").Should().BeEmpty();
-        await Pastilla(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+        await Pastilla(cut, "Filtros guardados").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindAll(".barra-filtros-pastillas .menu-filtro-guardado").Should().BeEmpty());
     }
 
@@ -2301,12 +2301,12 @@ public partial class ClientesListaGen2Tests : BunitContext
         await BotonDelDialogo(cut, "Cancelar").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<EliminarFiltroGuardadoCommand>().Should().BeEmpty();
-        await Pastilla(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+        await Pastilla(cut, "Filtros guardados").ClickAsync(new MouseEventArgs());
         cut.FindAll(".barra-filtros-pastillas .menu-filtro-guardado").Should().ContainSingle(c => c.TextContent.Contains("Cartera Levante"));
     }
 
     /// <summary>
-    /// Los filtros guardados viven dentro de «Más filtros» (rediseño de listados, fase 1): uno
+    /// Los filtros guardados viven dentro de «Filtros guardados» (rediseño de listados, fase 1): uno
     /// por línea con su ✕, y «Guardar filtro» al final, deshabilitado mientras no haya filtros
     /// que guardar.
     /// </summary>
@@ -2316,7 +2316,7 @@ public partial class ClientesListaGen2Tests : BunitContext
         var filtro = new FiltroGuardadoDto(Guid.NewGuid(), "Cartera Levante", "{\"Busqueda\":null,\"SoloCriticos\":true}", DateTime.UtcNow);
         var cut = Renderizar(new MediatorFalso { Almacen = { Cliente("Refrielectric S.A.") }, FiltrosGuardados = { filtro } });
 
-        await Pastilla(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+        await Pastilla(cut, "Filtros guardados").ClickAsync(new MouseEventArgs());
 
         var guardado = cut.Find(".barra-filtros-pastillas .menu-filtro-guardado");
         guardado.QuerySelectorAll("[role=menuitem]").Select(i => i.GetAttribute("aria-label") ?? i.TextContent.Trim())
@@ -2328,7 +2328,7 @@ public partial class ClientesListaGen2Tests : BunitContext
 
     private static async Task PulsarBorrarFiltroGuardado(IRenderedComponent<Clientes> cut, string nombre)
     {
-        await Pastilla(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+        await Pastilla(cut, "Filtros guardados").ClickAsync(new MouseEventArgs());
         await cut.Find($".barra-filtros-pastillas [aria-label='Borrar filtro guardado {nombre}']").ClickAsync(new MouseEventArgs());
     }
 

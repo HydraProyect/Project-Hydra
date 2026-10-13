@@ -351,7 +351,7 @@ public class DocumentosVacioPorFiltroTests : BunitContext
     private async Task<(IRenderedComponent<PaginaDocumentos> Cut, NavigationManager Navegacion)> AbrirGuardarFiltroAsync()
     {
         // Con un filtro activo: desde el patrón único de lista (BarraFiltros) «Guardar filtro» solo se
-        // ofrece en Más filtros, así que reabrir el modal por su botón exige un filtro puesto.
+        // ofrece en Filtros guardados, así que reabrir el modal por su botón exige un filtro puesto.
         var cut = Renderizar(estado: nameof(EstadoDocumento.Vencido));
         var navegacion = Services.GetRequiredService<NavigationManager>();
         await cut.InvokeAsync(() => navegacion.NavigateTo("documentos?Estado=Vencido&accion=guardar-filtro"));
@@ -398,7 +398,7 @@ public class DocumentosVacioPorFiltroTests : BunitContext
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
 
         await cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla")
-            .Single(b => b.GetAttribute("aria-label") == "Más filtros").ClickAsync(new MouseEventArgs());
+            .Single(b => b.GetAttribute("aria-label") == "Filtros guardados").ClickAsync(new MouseEventArgs());
         await cut.FindAll(".barra-filtros-pastillas [role=menuitem]").Single(b => b.TextContent.Trim() == "Guardar filtro").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Etiqueta == "Nombre"));
 

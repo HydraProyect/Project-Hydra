@@ -170,8 +170,8 @@ public static class CatalogoAtajos
     /// </summary>
     /// <remarks>
     /// <c>X</c> activa el icono de exportación de la vista filtrada en los listados.
-    /// <c>T</c> (franja de estado) sigue reservada. <c>G</c> (filtros guardados) vive dentro de «Más filtros»
-    /// (<c>L</c>) en el modo pastillas.
+    /// <c>T</c> (franja de estado) sigue reservada. <c>L</c> abre los filtros secundarios cuando existen;
+    /// <c>G</c> abre la pastilla propia de filtros guardados en los diez listados.
     /// </remarks>
     public static readonly IReadOnlyList<DefinicionAtajo> KeyTips =
     [
@@ -193,5 +193,5 @@ public static class CatalogoAtajos
     /// Las reservadas sin control no se anuncian: una letra anunciada que no hace nada es peor
     /// que una que falta.
     /// </summary>
-    public static readonly IReadOnlyCollection<string> KeyTipsConControl = ["S", "X", "K", "M", "N", "F", "L", "A", "E"];
+    public static readonly IReadOnlyCollection<string> KeyTipsConControl = ["S", "X", "K", "M", "N", "F", "L", "G", "A", "E"];
 }
