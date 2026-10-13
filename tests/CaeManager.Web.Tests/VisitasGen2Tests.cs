@@ -324,11 +324,13 @@ public partial class VisitasGen2Tests : BunitContext
     private static ResultadoPaginado<VisitaListaDto> Pagina(params VisitaListaDto[] visitas) =>
         new(visitas, visitas.Length, 1, 20);
 
-    private IRenderedComponent<Visitas> Renderizar(MediatorVisitas mediator)
+    private IRenderedComponent<Visitas> Renderizar(MediatorVisitas mediator, string? url = null)
     {
         Services.AddScoped<IMediator>(_ => mediator);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
+        if (url is not null)
+            Services.GetRequiredService<NavigationManager>().NavigateTo(url);
         return Render<Visitas>();
     }
 
