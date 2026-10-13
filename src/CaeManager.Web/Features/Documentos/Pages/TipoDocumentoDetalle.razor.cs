@@ -77,6 +77,7 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
     private int _pagina = 1;
     private int _tamanoPagina = ObtenerEstadoTipoDocumentoQuery.TamanoPaginaPorDefecto;
     private readonly HashSet<Guid> _desplegadas = [];
+    private const string EmpresaSinDato = "sin-empresa";
     private string _empresaDePagina = string.Empty;
     private string _centroDePagina = string.Empty;
     private string _agrupacionDePagina = string.Empty;
@@ -84,7 +85,7 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
     // Estos selectores solo conocen la página recibida; no alteran la consulta ni sus recuentos globales.
     private IReadOnlyList<FilaTrabajadorTipoDocumentoDto> FilasDePaginaVisibles =>
         (_estado?.Filas ?? [])
-        .Where(f => string.IsNullOrEmpty(_empresaDePagina) || f.EmpresaId?.ToString() == _empresaDePagina)
+        .Where(f => string.IsNullOrEmpty(_empresaDePagina) || (_empresaDePagina == EmpresaSinDato ? f.EmpresaId is null : f.EmpresaId?.ToString() == _empresaDePagina))
         .Where(f => string.IsNullOrEmpty(_centroDePagina) || f.Centros.Any(c => c.CentroId.ToString() == _centroDePagina))
         .ToList();
 

@@ -292,8 +292,10 @@
     <value>No hem pogut desar la nota interna. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="OrdenDocumentos" xml:space="preserve"><value>del pitjor estat al millor</value></data>
-  <data name="DocumentosCargados" xml:space="preserve"><value>S'han carregat {0} de {1} documents registrats.</value></data>
+  <data name="DocumentosCargados" xml:space="preserve"><value>S'han carregat {0} de {1} documents registrats. Els recomptes i filtres només inclouen els documents carregats.</value></data>
   <data name="AccionRenovar" xml:space="preserve"><value>Renova</value></data>
   <data name="AccionConfirmar" xml:space="preserve"><value>Confirma</value></data>
   <data name="AccionSubir" xml:space="preserve"><value>Puja</value></data>
+  <data name="DocumentosVacioFiltroTitulo" xml:space="preserve"><value>Cap document amb aquests filtres</value></data>
+  <data name="DocumentosVacioFiltroDescripcion" xml:space="preserve"><value>Canvia l’estat seleccionat per veure els altres documents carregats.</value></data>
 </root>

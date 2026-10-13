@@ -152,6 +152,10 @@
                                         }
                                     </Encabezado>
                                     <ChildContent>
+                                        @if (DocumentosVisibles.Count == 0)
+                                        {
+                                            <EstadoVacio Titulo="@Textos["DocumentosVacioFiltroTitulo"]" Descripcion="@Textos["DocumentosVacioFiltroDescripcion"]" />
+                                        }
                                         @foreach (var documento in DocumentosVisibles)
                                         {
                                             <FilaRelacion @key="documento.Id"

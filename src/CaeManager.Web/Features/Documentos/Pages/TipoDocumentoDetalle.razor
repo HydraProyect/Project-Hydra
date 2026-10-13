@@ -94,6 +94,10 @@
                             <legend>@Textos["FiltrarEstaPagina"]</legend>
                             <CampoSelect Etiqueta="@Textos["FiltroEmpresaPagina"]" Valor="@_empresaDePagina" ValorChanged="CambiarEmpresaDePagina">
                                 <option value="">@Textos["TodasLasEmpresasPagina"]</option>
+                                @if ((_estado?.Filas ?? []).Any(f => f.EmpresaId is null))
+                                {
+                                    <option value="@EmpresaSinDato">@Textos["SinEmpresaEmpleadoraPagina"]</option>
+                                }
                                 @foreach (var empresa in EmpresasDePagina)
                                 {
                                     <option value="@empresa.Id">@empresa.Nombre</option>
