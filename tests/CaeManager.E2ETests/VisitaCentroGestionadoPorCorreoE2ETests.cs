@@ -112,8 +112,14 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await page.WaitForTimeoutAsync(500);
         await botonExpandir.ClickAsync();
         await Expect(botonExpandir).ToHaveAttributeAsync("aria-expanded", "true", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
-        var botonExpandirTrabajador = page.GetByRole(AriaRole.Button,
-            new PageGetByRoleOptions { Name = $"Documentos exigidos a {nombreTrabajador} {apellidosTrabajador}" });
+        // En el listado el chevron se oculta para quien gestiona: «Gestionar» abre el mismo desglose.
+        var botonExpandirTrabajador = page.Locator(".fila-relacion",
+                new PageLocatorOptions
+                {
+                    Has = page.GetByRole(AriaRole.Button,
+                    new PageGetByRoleOptions { Name = $"{nombreTrabajador} {apellidosTrabajador}", Exact = true })
+                })
+            .Locator(".fila-trabajador-gestionar");
         await botonExpandirTrabajador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await page.WaitForTimeoutAsync(300);
         await botonExpandirTrabajador.ClickAsync();
