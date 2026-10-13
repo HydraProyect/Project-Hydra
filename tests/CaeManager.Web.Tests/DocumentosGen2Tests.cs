@@ -220,9 +220,9 @@ public partial class DocumentosGen2Tests : BunitContext
             _ => null,
         };
         var (cut, _) = Renderizar(mediador);
-        cut.WaitForAssertion(() => PastillaDocumentoFase1(cut, "Más filtros"));
+        cut.WaitForAssertion(() => PastillaDocumentoFase1(cut, "Filtros guardados"));
 
-        await PastillaDocumentoFase1(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+        await PastillaDocumentoFase1(cut, "Filtros guardados").ClickAsync(new MouseEventArgs());
         await cut.Find("[aria-label='Borrar filtro guardado Vencidos']").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<EliminarFiltroGuardadoCommand>().Should().BeEmpty("pulsar el aspa solo pide confirmación");
@@ -677,7 +677,7 @@ public partial class DocumentosGen2Tests : BunitContext
         var mediador = ConDocumentos(Documento("Reconocimiento médico"));
         mediador.Interceptar = p => p is GuardarFiltroCommand ? retenido.Task : null;
 
-        // «Guardar filtro» vive dentro de Más filtros: solo con un filtro activo.
+        // «Guardar filtro» vive dentro de Filtros guardados: solo con un filtro activo.
         var (cut, _) = Renderizar(mediador, url: "documentos?Estado=Vencido");
 
         await GuardarFiltroDocumentoFase1(cut);
@@ -786,7 +786,7 @@ public partial class DocumentosGen2Tests : BunitContext
     {
         var (cut, mediador) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")), url: "documentos?Estado=Vencido", rol: "Consulta");
         UltimaConsultaDeDocumentos(mediador).Estados.Should().Equal(EstadoDocumento.Vencido);
-        PastillaDocumentoFase1(cut, "Más filtros").Click();
+        PastillaDocumentoFase1(cut, "Filtros guardados").Click();
         var guardar = cut.FindAll(".barra-filtros-pastillas [role=menuitem]").Single(b => b.TextContent.Trim() == "Guardar filtro");
         guardar.GetAttribute("disabled").Should().BeNull();
         guardar.GetAttribute("aria-disabled").Should().NotBe("true");
@@ -1645,7 +1645,7 @@ public partial class DocumentosGen2Tests : BunitContext
 
     private static async Task GuardarFiltroDocumentoFase1(IRenderedComponent<PaginaDocumentos> cut)
     {
-        await PastillaDocumentoFase1(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+        await PastillaDocumentoFase1(cut, "Filtros guardados").ClickAsync(new MouseEventArgs());
         await cut.FindAll(".barra-filtros-pastillas [role=menuitem]")
             .Single(b => b.TextContent.Trim() == "Guardar filtro").ClickAsync(new MouseEventArgs());
     }
@@ -1809,7 +1809,7 @@ public partial class DocumentosGen2Tests : BunitContext
 
         async Task AplicarGuardado(string nombre)
         {
-            await cut.FindAll(".menu-acciones-disparador").Single(d => d.GetAttribute("aria-label") == "Más filtros")
+            await cut.FindAll(".menu-acciones-disparador").Single(d => d.GetAttribute("aria-label") == "Filtros guardados")
                 .ClickAsync(new MouseEventArgs());
             await cut.FindAll(".barra-filtros-pastillas .menu-filtro-guardado [role=menuitem]")
                 .First(b => b.TextContent.Trim() == nombre).ClickAsync(new MouseEventArgs());

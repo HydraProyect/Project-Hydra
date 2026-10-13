@@ -45,7 +45,7 @@ public class KeyTipsEnListadoTests(WebAppFixtureListados fixture)
         // Las letras se pintan en el mismo paso que el atributo: se leen de la capa, sin
         // localizar por texto.
         var pintadas = (await letras.AllTextContentsAsync()).Select(l => l.Trim()).ToList();
-        foreach (var letra in new[] { "K", "F", "L", "A" })
+        foreach (var letra in new[] { "K", "F", "G", "A" })
             Assert.Single(pintadas, l => l == letra);
 
         // --- A abre el desplegable «Agrupar» por el circuito: las letras pasan a sus dos opciones. ---
@@ -66,12 +66,12 @@ public class KeyTipsEnListadoTests(WebAppFixtureListados fixture)
         await Assertions.Expect(html).ToHaveAttributeAsync("data-keytips", "raiz");
 
         // --- La letra de un menú: lo abre el servidor y las letras pasan a sus opciones. ---
-        var masFiltros = page.Locator("[data-keytip='L']");
-        await page.Keyboard.PressAsync("l");
-        await Assertions.Expect(masFiltros).ToHaveAttributeAsync("aria-expanded", "true");
+        var filtrosGuardados = page.Locator("[data-keytip='G']");
+        await page.Keyboard.PressAsync("g");
+        await Assertions.Expect(filtrosGuardados).ToHaveAttributeAsync("aria-expanded", "true");
         await Assertions.Expect(html).ToHaveAttributeAsync("data-keytips", "menu");
         await page.Keyboard.PressAsync("Backspace");
-        await Assertions.Expect(masFiltros).ToHaveAttributeAsync("aria-expanded", "false");
+        await Assertions.Expect(filtrosGuardados).ToHaveAttributeAsync("aria-expanded", "false");
         await Assertions.Expect(html).ToHaveAttributeAsync("data-keytips", "raiz");
 
         // --- Con el modo encendido, «j» no mueve la fila (no es una letra de la raíz). ---

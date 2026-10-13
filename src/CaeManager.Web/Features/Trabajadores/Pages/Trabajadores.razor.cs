@@ -763,7 +763,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         // «Todas»: FiltrarPorEmpresaAsync suelta también la subcontrata, en una sola recarga.
         : FiltrarPorEmpresaAsync(string.Empty);
 
-    /// <summary>Los filtros guardados de esta pantalla, dentro de «Más filtros».</summary>
+    /// <summary>Los filtros guardados de esta pantalla, en su pastilla propia.</summary>
     private IReadOnlyList<OpcionEstado> OpcionesFiltrosGuardados =>
         _filtrosGuardados.Select(f => new OpcionEstado(f.Id.ToString(), f.Nombre)).ToList();
 

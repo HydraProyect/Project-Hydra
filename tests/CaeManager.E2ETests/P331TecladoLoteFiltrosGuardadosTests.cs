@@ -150,15 +150,15 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         await filaA.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
         await filaB.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
-        // --- Filtros guardados (dentro de «Más filtros»): guardar, verlo, aplicarlo y borrarlo ---
+        // --- Filtros guardados (dentro de «Filtros guardados»): guardar, verlo, aplicarlo y borrarlo ---
         var nombreFiltro = $"P331 filtro {sufijo}";
         var buscador = page.GetByPlaceholder("Filtrar esta pantalla: nombre");
-        var masFiltros = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Más filtros", Exact = true });
+        var filtrosGuardados = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Filtros guardados", Exact = true });
         var filtroGuardado = page.GetByRole(AriaRole.Menuitem, new PageGetByRoleOptions { Name = nombreFiltro, Exact = true });
 
         await buscador.FillAsync(razonSocialA);
         await page.WaitForTimeoutAsync(400); // debounce de CampoTexto (300ms): «Guardar filtro» se habilita con un filtro aplicado
-        await masFiltros.ClickAsync();
+        await filtrosGuardados.ClickAsync();
         await page.GetByRole(AriaRole.Menuitem, new PageGetByRoleOptions { Name = "Guardar filtro", Exact = true }).ClickAsync();
 
         var modalGuardarFiltro = page.GetByRole(AriaRole.Dialog).Filter(new LocatorFilterOptions { HasText = "Guardar filtro actual" });
@@ -168,21 +168,21 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
 
         // Limpiar la búsqueda a mano y volver a aplicarla desde el filtro
         // guardado demuestra que reconstruye el estado, no solo que existe.
-        // El filtro está en «Más filtros» de inmediato, sin recargar.
+        // El filtro está en «Filtros guardados» de inmediato, sin recargar.
         await buscador.FillAsync(string.Empty);
         await page.WaitForTimeoutAsync(400); // debounce de CampoTexto (300ms)
 
-        await masFiltros.ClickAsync();
+        await filtrosGuardados.ClickAsync();
         await filtroGuardado.ClickAsync();
         await Expect(buscador).ToHaveValueAsync(razonSocialA);
 
-        // Borrar el filtro guardado desde su ✕ en «Más filtros». El borrado pide
+        // Borrar el filtro guardado desde su ✕ en «Filtros guardados». El borrado pide
         // confirmación (no tiene deshacer): sigue ahí hasta que se confirma.
-        await masFiltros.ClickAsync();
+        await filtrosGuardados.ClickAsync();
         await page.GetByRole(AriaRole.Menuitem, new PageGetByRoleOptions { Name = $"Borrar filtro guardado {nombreFiltro}", Exact = true }).ClickAsync();
         await page.GetByRole(AriaRole.Dialog).GetByText("Borrar filtro", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
         await page.GetByRole(AriaRole.Dialog).WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
-        await masFiltros.ClickAsync();
+        await filtrosGuardados.ClickAsync();
         await Expect(filtroGuardado).ToHaveCountAsync(0);
     }
 

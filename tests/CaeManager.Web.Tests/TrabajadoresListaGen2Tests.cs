@@ -646,10 +646,10 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         return cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]").Select(i => i.TextContent.Trim()).ToList();
     }
 
-    /// <summary>Abre «Más filtros» y pulsa el ítem con ese texto (un filtro guardado o «Guardar filtro»).</summary>
+    /// <summary>Abre «Filtros guardados» y pulsa el ítem con ese texto (un filtro guardado o «Guardar filtro»).</summary>
     private static async Task PulsarEnMasFiltros(IRenderedComponent<Trabajadores> cut, string item)
     {
-        await Pastilla(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+        await Pastilla(cut, "Filtros guardados").ClickAsync(new MouseEventArgs());
         await cut.FindAll(".barra-filtros-pastillas [role=menuitem]")
             .Single(i => i.TextContent.Trim() == item).ClickAsync(new MouseEventArgs());
     }
@@ -953,7 +953,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(b => b.GetAttribute("aria-label"))
-            .Should().Equal("Empresa", "Centro", "Más filtros");
+            .Should().Equal("Empresa", "Centro", "Filtros guardados");
         cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Por vencer", "Sin confirmar", "Sin incidencias");
         cut.MarcadosEnFranja().Should().Equal(["Todos"], "sin filtro de estado, el marcado es «Todos»");
         UltimaConsulta(mediador).ConRecuentosPorEstado.Should().BeTrue("sin pedirlos, la franja no tendría cifras");
@@ -1324,7 +1324,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         cut.FindAll("[role=dialog]").Should().BeEmpty();
         mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().ContainSingle(
             "borrado el filtro no se relee la lista: si esa relectura fallara, la confirmación quedaría abierta sobre un filtro que ya no existe");
-        await Pastilla(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+        await Pastilla(cut, "Filtros guardados").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindAll(".barra-filtros-pastillas .menu-filtro-guardado").Should().BeEmpty());
     }
 
@@ -1339,18 +1339,18 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<EliminarFiltroGuardadoCommand>().Should().BeEmpty();
-        await Pastilla(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+        await Pastilla(cut, "Filtros guardados").ClickAsync(new MouseEventArgs());
         cut.FindAll(".barra-filtros-pastillas .menu-filtro-guardado").Should().ContainSingle(c => c.TextContent.Contains("Solo Vega"));
     }
 
     private static async Task PulsarBorrarFiltroGuardado(IRenderedComponent<Trabajadores> cut, string nombre)
     {
-        await Pastilla(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+        await Pastilla(cut, "Filtros guardados").ClickAsync(new MouseEventArgs());
         await cut.Find($".barra-filtros-pastillas [aria-label='Borrar filtro guardado {nombre}']").ClickAsync(new MouseEventArgs());
     }
 
     /// <summary>
-    /// Los filtros guardados viven dentro de «Más filtros», uno por línea con su ✕, y «Guardar
+    /// Los filtros guardados viven dentro de «Filtros guardados», uno por línea con su ✕, y «Guardar
     /// filtro» al final: se ve pero está deshabilitado mientras no haya ningún filtro aplicado
     /// (no hay nada que guardar).
     /// </summary>
@@ -1364,7 +1364,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador);
 
-        await Pastilla(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+        await Pastilla(cut, "Filtros guardados").ClickAsync(new MouseEventArgs());
 
         var items = cut.FindAll(".barra-filtros-pastillas [role=menuitem]");
         items.Select(i => i.TextContent.Trim()).Should().Equal("Solo Vega", "", "Guardar filtro");
@@ -1386,7 +1386,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
             .Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
             .Should().Equal(["Atajos de teclado", "Más acciones"], "sin selección ni alta: ambas exportaciones siguen siendo enlaces de lectura");
         cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("aria-label").Should().Be("Exportar a Excel");
-        Pastilla(cut, "Más filtros").Should().NotBeNull("la barra sigue ahí: solo falta el modo de selección");
+        Pastilla(cut, "Filtros guardados").Should().NotBeNull("la barra sigue ahí: solo falta el modo de selección");
         cut.FindAll(".barra-acciones-lote").Should().BeEmpty();
         cut.FindAll("tbody input[type=checkbox]").Should().BeEmpty();
     }

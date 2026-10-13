@@ -1530,7 +1530,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         }
     }
 
-    /// <summary>El ✕ de un filtro guardado dentro de «Más filtros» (con su Id): pide confirmación.</summary>
+    /// <summary>El ✕ de un filtro guardado dentro de «Filtros guardados» (con su Id): pide confirmación.</summary>
     private void PedirEliminarFiltroGuardado(string idTexto) =>
         _filtroGuardadoAEliminar = _filtrosGuardados.FirstOrDefault(f => f.Id.ToString() == idTexto);
 

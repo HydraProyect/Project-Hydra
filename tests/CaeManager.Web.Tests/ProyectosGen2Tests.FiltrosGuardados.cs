@@ -31,10 +31,10 @@ public partial class ProyectosGen2Tests
     private void ConFiltroGuardado(string nombre, string valoresJson) =>
         _mediator.FiltrosGuardados.Add(new FiltroGuardadoDto(Guid.NewGuid(), nombre, valoresJson, DateTime.UtcNow));
 
-    /// <summary>Abre «Más filtros» y pulsa el filtro guardado con ese nombre. La tarea puede quedar pendiente de una pregunta.</summary>
+    /// <summary>Abre «Filtros guardados» y pulsa el filtro guardado con ese nombre. La tarea puede quedar pendiente de una pregunta.</summary>
     private static async Task AplicarFiltroGuardadoAsync(IRenderedComponent<Proyectos> cut, string nombre)
     {
-        var disparador = DisparadorPastilla(cut, "Más filtros");
+        var disparador = DisparadorPastilla(cut, "Filtros guardados");
         if (disparador.GetAttribute("aria-expanded") != "true")
             await disparador.ClickAsync(new MouseEventArgs());
 
