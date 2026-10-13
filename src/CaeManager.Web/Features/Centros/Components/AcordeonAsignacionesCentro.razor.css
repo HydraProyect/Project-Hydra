@@ -96,3 +96,44 @@
 .documentos-trabajador-ficha .celda-documento-nombre {
     flex-wrap: wrap;
 }
+
+/* La fila del listado mantiene nombre, estado, motivo y gestión en una línea. */
+.lista-trabajadores-acordeon-listado ::deep .fila-relacion-rejilla {
+    grid-template-columns: minmax(230px, auto) auto minmax(0, 1fr) auto;
+    min-height: 0;
+    padding-block: var(--space-2);
+}
+
+.lista-trabajadores-acordeon-listado ::deep .fila-relacion-estado {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.lista-trabajadores-acordeon-listado ::deep .fila-relacion-cifra {
+    grid-column: 3;
+    grid-row: 1;
+    text-align: start;
+    min-width: 0;
+}
+
+.lista-trabajadores-acordeon-listado ::deep .fila-relacion-detalle {
+    display: none;
+}
+
+/* «Gestionar» sustituye al chevron solo donde existe; el rol sin escritura conserva el chevron para leer el desglose. */
+.lista-trabajadores-acordeon-listado ::deep .fila-relacion:has(.fila-trabajador-gestionar) .fila-relacion-desplegar {
+    display: none;
+}
+
+.lista-trabajadores-acordeon-listado ::deep .fila-relacion-nombre,
+.fila-trabajador-motivo {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fila-trabajador-motivo {
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}

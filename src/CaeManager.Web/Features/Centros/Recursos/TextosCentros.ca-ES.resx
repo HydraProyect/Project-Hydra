@@ -458,4 +458,16 @@
   <data name="ProgramarVisitaCentroAccesible" xml:space="preserve">
     <value>Programar visita en aquest Centre</value>
   </data>
+  <data name="ListadoDocumentosIncidencia" xml:space="preserve">
+    <value>{0} documents</value>
+  </data>
+  <data name="ListadoDocumentoPorVencer" xml:space="preserve">
+    <value>{0}/{1} · {2} en {3} dies</value>
+  </data>
+  <data name="ListadoDocumentoVenceHoy" xml:space="preserve">
+    <value>{0}/{1} · {2} avui</value>
+  </data>
+  <data name="ListadoDocumentoPorVencerSingular" xml:space="preserve">
+    <value>{0}/{1} · {2} en {3} dia</value>
+  </data>
 </root>
