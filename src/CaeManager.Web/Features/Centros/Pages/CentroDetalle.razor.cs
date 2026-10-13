@@ -63,6 +63,15 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
 
     private const string PestanaTrabajadores = "trabajadores";
     private const string PestanaVisitas = "visitas";
+    private const string PestanaFicha = "ficha";
+    private const string PestanaHistorial = "historial";
+
+    private bool HayDatosFicha => _detalle is { } detalle &&
+        (!string.IsNullOrWhiteSpace(detalle.CodigoCentro) || !string.IsNullOrWhiteSpace(detalle.Direccion) || !string.IsNullOrWhiteSpace(detalle.Contacto));
+
+    // Solo cambia el orden de presentación: _visitas[0] conserva la ventana de riesgo que eligió el lector.
+    private IReadOnlyList<VisitaResumenDto> VisitasParaMostrar => _visitas
+        .OrderBy(v => v.FechaInicio).ThenBy(v => v.FechaFin).ThenBy(v => v.VisitaId).ToList();
     private string _pestana = PestanaTrabajadores;
     private string? _pestanaDeLaUrl;
 
@@ -84,8 +93,18 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         new(PestanaVisitas, Textos["PestanaVisitas"])
         {
             Contador = new ContadorPestana(_visitas.Count, Textos["VisitasProgramadas360"])
-        }
+        },
+        .. HayDatosFicha ? new PestanaDefinicion[] { new(PestanaFicha, Textos["PestanaFicha"]) } : [],
+        new(PestanaHistorial, Textos["PestanaHistorial"])
     ];
+
+    private void RevalidarPestanaFicha()
+    {
+        if (_detalle is null || _pestana != PestanaFicha || HayDatosFicha) return;
+        _pestana = PestanaTrabajadores;
+        _pestanaDeLaUrl = null;
+        NavigationManager.ActualizarFiltroEnUrl("pestana", null);
+    }
 
     private void CambiarPestana(string pestana)
     {
@@ -163,13 +182,16 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         if (!string.Equals(_pestanaDeLaUrl, Pestana, StringComparison.Ordinal))
         {
             _pestanaDeLaUrl = Pestana;
-            _pestana = Pestana == PestanaVisitas ? PestanaVisitas : PestanaTrabajadores;
+            _pestana = Pestana is PestanaVisitas or PestanaFicha or PestanaHistorial ? Pestana : PestanaTrabajadores;
         }
 
         AdoptarFiltrosDeLaUrl();
 
         if (_centroCargado == CentroId)
+        {
+            RevalidarPestanaFicha();
             return;
+        }
 
         _centroCargado = CentroId;
         ReiniciarParaNuevoCentro();
@@ -271,6 +293,8 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
                 _error = true;
                 return;
             }
+
+            RevalidarPestanaFicha();
 
             var pagina = await Mediator.Send(new ObtenerCentrosQuery(
                 Busqueda: null, ClienteId: null, Pagina: 1, TamanoPagina: 1, CentroId: centroId), _cancelacion);
