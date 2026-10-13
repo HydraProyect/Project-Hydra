@@ -143,7 +143,7 @@ public class DesactivarCortaLaSesionTests(WebAppFixtureConRevalidacionRapida fix
             // proveedor de filas de QuickGrid (mismo camino que un cambio de filtro o de página)
             // sin quitar a Acme de la lista si el circuito siguiera sirviendo datos. Antes se
             // cambiaba el tamaño de página, pero desde el rediseño de listados (fase 1) el
-            // paginador no aparece con 20 Clientes empresariales o menos, y la siembra tiene 9.
+            // pie actual muestra «Mostrando N de M» también en una sola página; la siembra tiene 9 Clientes empresariales.
             await paginaVictima.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Cliente", Exact = true })
                 .ClickAsync();
 

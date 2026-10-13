@@ -52,10 +52,14 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
 
         public List<object> Enviadas { get; } = [];
 
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        public Task<object>? ListaRetenida { get; init; }
+
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
-            return Task.FromResult((TResponse)(object)(request switch
+            if (request is ObtenerVehiculosQuery && ListaRetenida is not null)
+                return (TResponse)await ListaRetenida;
+            return (TResponse)(object)(request switch
             {
                 ObtenerClientesAutorizadosQuery => (object)(IReadOnlyList<ClienteAutorizadoDto>)[],
                 ObtenerPerfilVocabularioActualQuery => PerfilVocabularioTenant.Consultora,
@@ -66,7 +70,7 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
                 ObtenerAlcanceCeroQuery => (object)AlcanceCero,
                 ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
-            }));
+            });
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
@@ -102,6 +106,7 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
 
     /// <summary>Parámetros de consulta adicionales (<c>empresa=…</c>), ya codificados. Se fija antes de renderizar.</summary>
     private string? _consultaExtra;
+    private Task<object>? _listaRetenida;
 
     // ------------------------------------- El empleador viaja en la URL (T20)
 
@@ -146,7 +151,7 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
     private (IRenderedComponent<Vehiculos> Cut, MediatorPorTipo Mediador) RenderizarConMediador(
         string? busqueda = null, string? estado = null, params VehiculoListaDto[] vehiculos)
     {
-        var mediador = new MediatorPorTipo { Vehiculos = vehiculos, AlcanceCero = _alcanceCero };
+        var mediador = new MediatorPorTipo { Vehiculos = vehiculos, AlcanceCero = _alcanceCero, ListaRetenida = _listaRetenida };
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());

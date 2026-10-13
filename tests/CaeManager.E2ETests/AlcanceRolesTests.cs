@@ -26,7 +26,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
     /// <summary>
     /// Total de Clientes empresariales que la lista dice tener: el contador junto al título
     /// (CabeceraListado, rediseño de listados fase 1). Antes se leía del paginador («Página X de
-    /// Y — N cliente(s)»), pero el paginador ya solo aparece con más de una página, y la siembra
+    /// Y — N cliente(s)»). El pie actual usa «Mostrando N de M» incluso en una sola página; la siembra
     /// determinista tiene 9. El contador solo se pinta con la carga terminada sin error, así que
     /// esperarlo es esperar a que la consulta haya respondido.
     /// </summary>

@@ -90,6 +90,7 @@ public class GestionesVacioPorFiltroTests : BunitContext
         var cut = Renderizar(estado: nameof(EstadoGestion.Completada));
 
         cut.Markup.Should().Contain("Ninguna gestión con estos filtros");
+        cut.FindAll(".tarjeta-listado-contenido .estado-vacio").Should().ContainSingle();
         cut.Markup.Should().Contain("Quitar los filtros");
         cut.Markup.Should().NotContain("Las gestiones se generan desde Mi trabajo",
             "explicar cómo se generan a quien acaba de filtrar por «Completadas» sugiere que no se generan");
