@@ -47,11 +47,9 @@
     else if (_detalle is not null)
     {
         @*
-            Tarjeta de identidad compartida de las fichas 360. El anillo queda
-            aplazado: falta el agregado completo de Centros y el criterio de
-            incidencias. Sin anillo, velo-cumplimiento conserva la superficie lisa.
-            Los indicadores se conservan porque las listas aún no tienen chips
-            de estado que sustituyan sus recuentos y ventanas de detalle.
+            Tarjeta de identidad compartida de las fichas 360. El anillo solo se ofrece
+            con todos los Centros cargados y la lectura de bloqueos completada.
+            Excluye los Centros sin gestión CAE y cuenta los que no tienen incidencias.
         *@
         <CabeceraIdentidad Titulo="@_detalle.RazonSocial" Kicker="@Textos["Kicker"]" Anillo="@(MostrarAnillo ? AnilloDeCentros : null)">
             <JuntoAlTitulo>
@@ -150,6 +148,10 @@
                                 </div>
                                 <FranjaEstado Opciones="OpcionesFranjaCentros" Valor="@_estado" ValorChanged="CambiarEstado"
                                               Recuentos="RecuentosCentros" TotalTodos="CentrosPorBusqueda.Count" />
+                                @if (_totalCentros > _centros.Count)
+                                {
+                                    <p class="texto-descriptivo" data-recuentos-parciales>@Textos["AvisoFranjaCentrosParcial", _centros.Count, _totalCentros]</p>
+                                }
                                 <p class="cliente360-resumen-lista">
                                     @ResumenCentros · @Textos["OrdenCentros"]
                                     @if (centrosVisibles.Count == 0)
@@ -175,7 +177,7 @@
                                 {
                                     <section class="cliente360-sin-gestion-cae" aria-labelledby="cliente360-sin-gestion-titulo">
                                         <h3 id="cliente360-sin-gestion-titulo">@Textos["SinGestionCaeAnillo"]</h3>
-                                        <ListaRelaciones Etiqueta="@Textos["ListaCentros"]">
+                                        <ListaRelaciones Etiqueta="@Textos["ListaCentrosSinGestionCae"]">
                                             @foreach (var centro in centrosVisibles.Where(c => c.Estado == EstadoCentro.SinGestionCae))
                                             {
                                                 <FilaRelacion @key="centro.Id" Nombre="@centro.Nombre" Href="@($"/centros/{centro.Id}")" NombreIcono="centros"

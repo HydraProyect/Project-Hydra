@@ -33,13 +33,13 @@ namespace CaeManager.Web.Features.Clientes.Pages;
 /// </para>
 ///
 /// <para>
-/// <b>Todos los centros del cliente, sin query nueva.</b> Se piden ordenados
+/// <b>Centros del Cliente empresarial, sin query nueva.</b> Se piden ordenados
 /// por Estado descendente (del peor al mejor): ese orden obliga al handler a
 /// tomar su «camino con estado», que ya materializa y calcula el estado de
 /// TODOS los centros del cliente antes de paginar — el coste es el de todos
 /// sus centros sea cual sea el tamaño de página. El tamaño de página
 /// (<see cref="MaximoCentros"/>) solo acota lo que se pinta; si el cliente
-/// tiene más, la lista lo dice y los indicadores se cuentan sobre lo pintado.
+/// tiene más, la lista y la franja lo avisan: los chips cuentan lo pintado y el anillo se oculta.
 /// </para>
 ///
 /// <para>
@@ -247,8 +247,8 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     {
         builder.OpenComponent<AnilloCumplimiento>(0);
         builder.AddAttribute(1, nameof(AnilloCumplimiento.Porcentaje), (int)Math.Round(100d * CentrosSinIncidencias / CentrosConGestionCae.Count));
-        builder.AddAttribute(2, nameof(AnilloCumplimiento.Detalle), Textos["FraccionCentros", CentrosSinIncidencias, CentrosConGestionCae.Count].Value);
-        builder.AddAttribute(3, nameof(AnilloCumplimiento.Etiqueta), Textos["AnilloCentros", CentrosSinIncidencias, CentrosConGestionCae.Count].Value);
+        builder.AddAttribute(2, nameof(AnilloCumplimiento.Detalle), Textos[CentrosConGestionCae.Count == 1 ? "FraccionCentroUno" : "FraccionCentros", CentrosSinIncidencias, CentrosConGestionCae.Count].Value);
+        builder.AddAttribute(3, nameof(AnilloCumplimiento.Etiqueta), Textos[CentrosConGestionCae.Count == 1 ? "AnilloCentroUno" : "AnilloCentros", CentrosSinIncidencias, CentrosConGestionCae.Count].Value);
         builder.AddAttribute(4, nameof(AnilloCumplimiento.Tamano), TamanoAnillo.Cabecera);
         builder.CloseComponent();
     };

@@ -142,7 +142,7 @@
     <value>subcontratas</value>
   </data>
   <data name="ResumenCentrosTruncado" xml:space="preserve">
-    <value>Se muestran los {0} centros con peor estado de {1}.</value>
+    <value>Se muestran los {0} centros con peor estado de {1}</value>
     <comment>La lista se corta en MaximoCentros; los indicadores se cuentan sobre lo mostrado.</comment>
   </data>
   <data name="DetalleEntraComoContratista" xml:space="preserve">
@@ -217,7 +217,7 @@
     <value>Mostrando {0} de {1}</value>
   </data>
   <data name="ResumenCentrosBuscadosTruncado" xml:space="preserve">
-    <value>Mostrando {0} de los {1} centros con peor estado; este Cliente tiene {2} y el buscador solo mira esos {1}.</value>
+    <value>Mostrando {0} de los {1} centros con peor estado; este Cliente tiene {2} y el buscador solo mira esos {1}</value>
     <comment>Buscador activo con la lista cortada en MaximoCentros.</comment>
   </data>
   <data name="QuitarFiltros" xml:space="preserve">
@@ -550,4 +550,8 @@
   <data name="DetalleTrabajadorBloqueadoUno" xml:space="preserve"><value>1 trabajador bloqueado</value></data>
   <data name="DetalleBloqueoPlataformaUno" xml:space="preserve"><value>1 bloqueado por la plataforma</value></data>
   <data name="DetalleBloqueosPlataformaVarios" xml:space="preserve"><value>{0} bloqueados por la plataforma</value></data>
+  <data name="FraccionCentroUno" xml:space="preserve"><value>{0} de {1} centro</value></data>
+  <data name="AnilloCentroUno" xml:space="preserve"><value>{0} de {1} centro con gestión CAE sin incidencias</value></data>
+  <data name="ListaCentrosSinGestionCae" xml:space="preserve"><value>Centros sin gestión CAE</value></data>
+  <data name="AvisoFranjaCentrosParcial" xml:space="preserve"><value>Los recuentos y filtros corresponden a los {0} Centros cargados de {1}.</value></data>
 </root>

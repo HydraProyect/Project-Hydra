@@ -130,7 +130,7 @@
     <value>subcontractes</value>
   </data>
   <data name="ResumenCentrosTruncado" xml:space="preserve">
-    <value>Es mostren els {0} centres amb pitjor estat de {1}.</value>
+    <value>Es mostren els {0} centres amb pitjor estat de {1}</value>
   </data>
   <data name="DetalleEntraComoContratista" xml:space="preserve">
     <value>Entra com a contractista: {0}</value>
@@ -202,7 +202,7 @@
     <value>Es mostren {0} de {1}</value>
   </data>
   <data name="ResumenCentrosBuscadosTruncado" xml:space="preserve">
-    <value>Es mostren {0} dels {1} centres amb pitjor estat; aquest Client en té {2} i el cercador només mira aquests {1}.</value>
+    <value>Es mostren {0} dels {1} centres amb pitjor estat; aquest Client en té {2} i el cercador només mira aquests {1}</value>
   </data>
   <data name="QuitarFiltros" xml:space="preserve">
     <value>Treu els filtres</value>
@@ -526,4 +526,8 @@
   <data name="DetalleTrabajadorBloqueadoUno" xml:space="preserve"><value>1 treballador bloquejat</value></data>
   <data name="DetalleBloqueoPlataformaUno" xml:space="preserve"><value>1 bloquejat per la plataforma</value></data>
   <data name="DetalleBloqueosPlataformaVarios" xml:space="preserve"><value>{0} bloquejats per la plataforma</value></data>
+  <data name="FraccionCentroUno" xml:space="preserve"><value>{0} de {1} centre</value></data>
+  <data name="AnilloCentroUno" xml:space="preserve"><value>{0} de {1} centre amb gestió CAE sense incidències</value></data>
+  <data name="ListaCentrosSinGestionCae" xml:space="preserve"><value>Centres sense gestió CAE</value></data>
+  <data name="AvisoFranjaCentrosParcial" xml:space="preserve"><value>Els recomptes i filtres corresponen als {0} Centres carregats de {1}.</value></data>
 </root>

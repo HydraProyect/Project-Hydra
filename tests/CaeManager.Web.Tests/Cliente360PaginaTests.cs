@@ -498,7 +498,8 @@ public class Cliente360PaginaTests : BunitContext
         var sinGestion = cut.Find(".cliente360-sin-gestion-cae");
         sinGestion.HasAttribute("aria-label").Should().BeFalse();
         sinGestion.GetAttribute("aria-labelledby").Should().Be(sinGestion.QuerySelector("h3")!.Id);
-        sinGestion.QuerySelector(".lista-relaciones")!.GetAttribute("aria-label").Should().Be("Centros de este Cliente");
+        sinGestion.QuerySelector(".lista-relaciones")!.GetAttribute("aria-label").Should().Be("Centros sin gestión CAE");
+        cut.FindAll(".lista-relaciones[aria-label='Centros de este Cliente']").Should().ContainSingle();
         cut.FindAll(".fila-relacion-nombre").Select(x => x.TextContent.Trim()).Should().Equal("Vigente", "Por vencer", "Sin CAE");
     }
 
@@ -521,6 +522,40 @@ public class Cliente360PaginaTests : BunitContext
         cut.Find(".cliente360-resumen-lista").TextContent.Should().Be("Mostrando 1 de 3 · del peor estado al mejor");
         mediador.Enviadas.Should().HaveCount(consultas, "el filtro actúa sobre la lista ya cargada");
         cut.Find("[data-pieza=anillo]").GetAttribute("aria-label").Should().StartWith("1 de 3");
+    }
+
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(true, 0)]
+    public void El_anillo_excluye_al_Centro_vigente_con_bloqueo_de_acceso_visible(bool bloqueado, int sinIncidencias)
+    {
+        var (id, mediador) = ClienteBase();
+        var centro = Centro("Centro documentalmente vigente", EstadoCentro.Vigente, cumplimiento: 100);
+        mediador.Centros.Add(centro);
+        if (bloqueado)
+            mediador.Bloqueos.Add(Bloqueo(id, centro.Nombre, Guid.NewGuid(), "Ana Alba") with { CentroId = centro.Id });
+        Registrar(mediador);
+        var cut = Renderizar(id);
+        cut.Find("[data-pieza=anillo]").GetAttribute("aria-label").Should().Be($"{sinIncidencias} de 1 centro con gestión CAE sin incidencias");
+        cut.Find(".anillo-cumplimiento-detalle").TextContent.Should().Be($"{sinIncidencias} de 1 centro");
+    }
+
+    [Theory]
+    [InlineData("es", "centro")]
+    [InlineData("ca-ES", "centre")]
+    public void El_anillo_de_un_solo_Centro_usa_el_singular_en_es_y_ca(string idioma, string singular)
+    {
+        var anterior = System.Globalization.CultureInfo.CurrentUICulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo(idioma);
+            var (id, mediador) = ClienteBase();
+            mediador.Centros.Add(Centro("Centro", EstadoCentro.Vigente));
+            Registrar(mediador);
+            var cut = Renderizar(id);
+            cut.Find(".anillo-cumplimiento-detalle").TextContent.Should().Be($"1 de 1 {singular}");
+        }
+        finally { System.Globalization.CultureInfo.CurrentUICulture = anterior; }
     }
 
     [Fact]
@@ -852,8 +887,9 @@ public class Cliente360PaginaTests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.Find(".cliente360-resumen-lista").TextContent.Should().Be("Se muestran los 2 centros con peor estado de 250. · del peor estado al mejor");
+        cut.Find(".cliente360-resumen-lista").TextContent.Should().Be("Se muestran los 2 centros con peor estado de 250 · del peor estado al mejor");
         cut.FindAll("[data-pieza=anillo]").Should().BeEmpty("una lista truncada no define una fracción global");
+        cut.Find("[data-recuentos-parciales]").TextContent.Should().Be("Los recuentos y filtros corresponden a los 2 Centros cargados de 250.");
         cut.Find(".cliente360-indicador-boton").TextContent.Trim().Should().Be("Bloqueo de la plataforma CAE en 1 de 250 centros");
     }
 
