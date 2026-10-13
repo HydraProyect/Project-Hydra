@@ -690,4 +690,7 @@
   <data name="ResumenDocumentoOrdenado" xml:space="preserve"><value>Mostrant {0} de {1} document · del pitjor estat al millor</value></data>
   <data name="ResumenDocumentosOrdenados" xml:space="preserve"><value>Mostrant {0} de {1} documents · del pitjor estat al millor</value></data>
   <data name="EtiquetaCopiarNacimiento" xml:space="preserve"><value>Copia la data de naixement</value></data>
+  <data name="CentrosVacioFiltros360" xml:space="preserve">
+    <value>Cap Centre coincideix amb els filtres.</value>
+  </data>
 </root>

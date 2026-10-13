@@ -690,4 +690,7 @@
   <data name="ResumenDocumentoOrdenado" xml:space="preserve"><value>Mostrando {0} de {1} documento · del peor estado al mejor</value></data>
   <data name="ResumenDocumentosOrdenados" xml:space="preserve"><value>Mostrando {0} de {1} documentos · del peor estado al mejor</value></data>
   <data name="EtiquetaCopiarNacimiento" xml:space="preserve"><value>Copiar la fecha de nacimiento</value></data>
+  <data name="CentrosVacioFiltros360" xml:space="preserve">
+    <value>Ningún Centro coincide con los filtros.</value>
+  </data>
 </root>
