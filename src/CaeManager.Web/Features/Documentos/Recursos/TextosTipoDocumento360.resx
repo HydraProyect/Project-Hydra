@@ -244,14 +244,15 @@
     <value>—</value>
   </data>
   <data name="FiltrarEstaPagina" xml:space="preserve"><value>Filtrar esta página</value></data>
-  <data name="FiltroEmpresaPagina" xml:space="preserve"><value>Empresa de esta página</value></data>
+  <data name="FiltroEmpresaPagina" xml:space="preserve"><value>Empresa empleadora de esta página</value></data>
   <data name="FiltroCentroPagina" xml:space="preserve"><value>Centro</value></data>
-  <data name="TodasLasEmpresasPagina" xml:space="preserve"><value>Todas las Empresas de esta página</value></data>
+  <data name="TodasLasEmpresasPagina" xml:space="preserve"><value>Todas las Empresas empleadoras de esta página</value></data>
   <data name="TodosLosCentrosPagina" xml:space="preserve"><value>Todos los Centros de esta página</value></data>
   <data name="AgruparPagina" xml:space="preserve"><value>Agrupar esta página</value></data>
   <data name="SinAgruparPagina" xml:space="preserve"><value>Sin agrupar</value></data>
-  <data name="AgruparPorEmpresaPagina" xml:space="preserve"><value>Por Empresa</value></data>
+  <data name="AgruparPorEmpresaPagina" xml:space="preserve"><value>Por Empresa empleadora</value></data>
   <data name="MostrandoPagina" xml:space="preserve"><value>Mostrando {0} de {1} de esta página</value></data>
   <data name="TotalDelFiltro" xml:space="preserve"><value>{0} Trabajadores en el filtro global</value></data>
-  <data name="EmpresaNoDisponible" xml:space="preserve"><value>Nombre de Empresa no disponible</value></data>
+  <data name="EmpresaNoDisponible" xml:space="preserve"><value>Nombre de Empresa empleadora no disponible</value></data>
+  <data name="SinEmpresaEmpleadoraPagina" xml:space="preserve"><value>Sin Empresa empleadora</value></data>
 </root>

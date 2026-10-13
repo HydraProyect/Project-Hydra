@@ -83,8 +83,9 @@
     padding: 0;
     border: 0;
     background: none;
-    font: inherit;
-    font-weight: 600;
+    font: var(--font-label-md);
+    font-size: inherit;
+    line-height: inherit;
     color: inherit;
     cursor: copy;
 }
@@ -113,5 +114,7 @@
     list-style: none;
     padding: var(--space-2) var(--space-3);
     background: var(--color-surface-hover);
-    font-weight: 600;
+    font: var(--font-label-md);
+    font-size: inherit;
+    line-height: inherit;
 }

@@ -496,6 +496,39 @@ public class Vehiculo360PaginaTests : BunitContext
     }
 
     [Theory]
+    [InlineData("Vencido,PorVencer", 2)]
+    [InlineData("desconocido", 4)]
+    public void La_URL_de_documentos_admite_estados_CSV_y_descarta_el_invalido(string estado, int filas)
+    {
+        var (id, mediador) = CamionGrua();
+        Registrar(mediador);
+        var cut = Renderizar(id, $"?estado={estado}");
+        cut.FindAll(".lista-relaciones-tarjeta .fila-relacion-nombre").Should().HaveCount(filas);
+    }
+
+    [Fact]
+    public void Documentos_sin_coincidencias_conserva_el_filtro_y_explica_el_vacio()
+    {
+        var (id, mediador) = CamionGrua();
+        Registrar(mediador);
+        var cut = Renderizar(id, "?estado=Pendiente");
+        cut.FindAll(".lista-relaciones-tarjeta .fila-relacion-nombre").Should().BeEmpty();
+        cut.Find(".franja-estado").Should().NotBeNull();
+        cut.Find(".lista-relaciones-tarjeta .estado-vacio").TextContent.Should().Contain("Ningún documento con estos filtros");
+    }
+
+    [Fact]
+    public void Los_recuentos_parciales_declaran_el_universo_de_documentos_cargados()
+    {
+        var (id, mediador) = CamionGrua();
+        mediador.TotalDocumentos = 70;
+        Registrar(mediador);
+        var cut = Renderizar(id);
+        cut.Find("[data-documentos-truncados]").TextContent.Should().Contain("4 de 70")
+            .And.Contain("Los recuentos y filtros solo abarcan los documentos cargados.");
+    }
+
+    [Theory]
     [InlineData(EstadoDocumento.Vencido, "Renovar")]
     [InlineData(EstadoDocumento.SinConfirmar, "Confirmar")]
     public async Task La_accion_del_estado_inicia_el_editor_del_documento_correcto(EstadoDocumento estado, string accion)

@@ -292,8 +292,10 @@
     <value>No pudimos guardar la nota interna. Intenta nuevamente en unos segundos.</value>
   </data>
   <data name="OrdenDocumentos" xml:space="preserve"><value>del peor estado al mejor</value></data>
-  <data name="DocumentosCargados" xml:space="preserve"><value>Se han cargado {0} de {1} documentos registrados.</value></data>
+  <data name="DocumentosCargados" xml:space="preserve"><value>Se han cargado {0} de {1} documentos registrados. Los recuentos y filtros solo abarcan los documentos cargados.</value></data>
   <data name="AccionRenovar" xml:space="preserve"><value>Renovar</value></data>
   <data name="AccionConfirmar" xml:space="preserve"><value>Confirmar</value></data>
   <data name="AccionSubir" xml:space="preserve"><value>Subir</value></data>
+  <data name="DocumentosVacioFiltroTitulo" xml:space="preserve"><value>Ningún documento con estos filtros</value></data>
+  <data name="DocumentosVacioFiltroDescripcion" xml:space="preserve"><value>Cambia el estado seleccionado para ver los demás documentos cargados.</value></data>
 </root>
