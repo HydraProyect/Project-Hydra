@@ -675,8 +675,8 @@ public partial class Centro360Gen2Tests : BunitContext
 
         cut.Find("h1").TextContent.Trim().Should().Be("Centro Norte");
         var entradilla = cut.Find(".cabecera-identidad-datos").TextContent;
-        entradilla.Should().Contain("Refrielectric S.A.")
-            .And.Contain("0 trabajadores asignados").And.Contain("Ibertec GmbH").And.NotContain("21/08–23/08");
+        entradilla.Should().Contain("Cliente: Refrielectric S.A.")
+            .And.Contain("0 trabajadores asignados").And.Contain("Empresa: Ibertec GmbH").And.NotContain("21/08–23/08");
         // Decisión de rótulo del 2026-10-09 (CONTRATO_TERMINOLOGIA § 3.2): el Cliente empresarial se rotula
         // «Cliente» en todas las pantallas; el rótulo largo no vuelve.
         entradilla.Should().NotContain("Cliente empresarial", "la pantalla dice «Cliente», no el rótulo largo");
@@ -1062,7 +1062,7 @@ public partial class Centro360Gen2Tests : BunitContext
         var cut = RenderizarAcordeon(id);
 
         var totales = cut.Find("[data-totales-documentales]").TextContent;
-        totales.Should().Contain("4 exigidos").And.Contain("2 al día").And.Contain("1 vencidos").And.Contain("1 pendientes")
+        totales.Should().Contain("4 exigidos").And.Contain("2 al día").And.Contain("1 vencido").And.Contain("1 pendiente")
             .And.Contain("trabajadores de este centro", "la documentación de la Empresa no entra en esta suma");
     }
 

@@ -44,7 +44,7 @@ public partial class Centro360Gen2Tests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void El_modo_listado_no_ofrece_Pedir_ni_la_pastilla_Bloqueado(bool modoListado)
+    public void El_modo_listado_conserva_Bloqueado_pero_no_ofrece_Pedir(bool modoListado)
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -60,7 +60,7 @@ public partial class Centro360Gen2Tests
         var pastillas = cut.FindAll(".fila-relacion-estado .badge").Select(b => b.TextContent.Trim());
         if (modoListado)
         {
-            pastillas.Should().NotContain("Bloqueado");
+            pastillas.Should().Contain("Bloqueado");
             cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Pedir");
             cut.FindAll("input, .acordeon-asignaciones-cabecera, .aviso-visita-sin-asignacion").Should().BeEmpty();
         }

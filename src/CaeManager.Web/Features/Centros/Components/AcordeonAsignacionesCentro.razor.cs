@@ -487,6 +487,10 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     private static string InicialesTrabajador(string nombre) => string.Concat(nombre
         .Split([' ', ','], StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
 
+    private string TextoFraccionTrabajador(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        trabajador.Cumplimiento.Requeridos == 0 ? "—" :
+        Textos["FraccionDocumental360", trabajador.Cumplimiento.AlDia, trabajador.Cumplimiento.Requeridos].Value;
+
     private string MotivoDocumental(TrabajadorAsignacionDocumentacionDto trabajador)
     {
         if (trabajador.Cumplimiento.Requeridos == 0) return Textos["SinExigenciasTrabajador360"];

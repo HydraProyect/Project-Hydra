@@ -387,9 +387,6 @@
   <data name="PedirDocumentacion360" xml:space="preserve">
     <value>Demanar</value>
   </data>
-  <data name="PendientesDocumentales360" xml:space="preserve">
-    <value>pendents.</value>
-  </data>
   <data name="TotalesListaCompleta360" xml:space="preserve">
     <value>Es calcula sobre la llista completa, no sobre la filtrada.</value>
   </data>
@@ -420,10 +417,15 @@
   <data name="PorCorreo360" xml:space="preserve">
     <value>Per correu</value>
   </data>
-  <data name="GestionarDocumento360" xml:space="preserve">
-    <value>Gestionar</value>
-  </data>
   <data name="TrabajadorAsignado360" xml:space="preserve">
     <value>1 treballador assignat</value>
+  </data>
+  <data name="CabeceraCliente" xml:space="preserve">
+    <value>Client:</value>
+    <comment>Rètol en pantalla del Client empresarial del Centre (CONTRATO_TERMINOLOGIA § 3.2; decisió de rètol del 2026-10-09).</comment>
+  </data>
+  <data name="CabeceraEmpresa" xml:space="preserve">
+    <value>Empresa:</value>
+    <comment>Empresa contractista que treballa al Centre.</comment>
   </data>
 </root>

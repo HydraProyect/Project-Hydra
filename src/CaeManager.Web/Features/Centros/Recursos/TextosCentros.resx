@@ -391,9 +391,6 @@
   <data name="PedirDocumentacion360" xml:space="preserve">
     <value>Pedir</value>
   </data>
-  <data name="PendientesDocumentales360" xml:space="preserve">
-    <value>pendientes.</value>
-  </data>
   <data name="TotalesListaCompleta360" xml:space="preserve">
     <value>Se calcula sobre la lista completa, no sobre la filtrada.</value>
   </data>
@@ -424,10 +421,15 @@
   <data name="PorCorreo360" xml:space="preserve">
     <value>Por correo</value>
   </data>
-  <data name="GestionarDocumento360" xml:space="preserve">
-    <value>Gestionar</value>
-  </data>
   <data name="TrabajadorAsignado360" xml:space="preserve">
     <value>1 trabajador asignado</value>
+  </data>
+  <data name="CabeceraCliente" xml:space="preserve">
+    <value>Cliente:</value>
+    <comment>Rótulo en pantalla del Cliente empresarial del Centro (contrato Gen2 § 14: Cliente empresarial se rotula «Cliente», decisión de rótulo del 2026-10-09).</comment>
+  </data>
+  <data name="CabeceraEmpresa" xml:space="preserve">
+    <value>Empresa:</value>
+    <comment>Empresa contratista que trabaja en el Centro.</comment>
   </data>
 </root>

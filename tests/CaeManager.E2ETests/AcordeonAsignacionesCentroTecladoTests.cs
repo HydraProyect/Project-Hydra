@@ -66,7 +66,8 @@ public class AcordeonAsignacionesCentroTecladoTests(WebAppFixture fixture)
         Assert.All(divisores.Skip(1), borde => Assert.Equal(1, borde));
         await Assertions.Expect(page.Locator(".lista-trabajadores-acordeon .lista-relaciones-tarjeta")).ToHaveCountAsync(1);
         await Assertions.Expect(page.Locator(".lista-trabajadores-acordeon .lista-relaciones")).ToHaveAttributeAsync("aria-label", new System.Text.RegularExpressions.Regex("^Trabajadores · .+$"));
-        var conPedir = filas.Filter(new() { Has = page.Locator(".fila-relacion-acciones").GetByRole(AriaRole.Button, new() { Name = "Pedir", Exact = true }) });
+        var accionesFila = page.Locator(".fila-relacion-acciones");
+        var conPedir = filas.Filter(new() { Has = accionesFila.GetByRole(AriaRole.Button, new() { Name = "Pedir", Exact = true }) });
         if (await conPedir.CountAsync() > 0)
         {
             var nombreConPedir = await conPedir.EvaluateAllAsync<string>("elementos => elementos.find(e => e.getBoundingClientRect().height > 0).querySelector('.fila-relacion-nombre').textContent.trim()");
@@ -78,6 +79,24 @@ public class AcordeonAsignacionesCentroTecladoTests(WebAppFixture fixture)
         {
             await page.Keyboard.PressAsync("e");
             await Assertions.Expect(page.Locator(".workspace-panel")).ToHaveCountAsync(0);
+            // Control positivo del cableado de e, aun si la siembra no ofrece Pedir:
+            // una acción DOM con el mismo selector debe recibir el clic. No envía reclamaciones.
+            var nombreControl = await filas.EvaluateAllAsync<string>("""
+                elementos => {
+                    const fila = elementos.find(e => e.getBoundingClientRect().height > 0);
+                    const accion = document.createElement('button');
+                    accion.type = 'button';
+                    accion.textContent = 'Pedir';
+                    accion.setAttribute('data-accion-fila', '');
+                    accion.addEventListener('click', () => accion.setAttribute('data-activado-por-e', 'si'));
+                    fila.querySelector('.fila-relacion-acciones').appendChild(accion);
+                    return fila.querySelector('.fila-relacion-nombre').textContent.trim();
+                }
+                """);
+            await page.GetByRole(AriaRole.Button, new() { Name = nombreControl, Exact = true }).FocusAsync();
+            await page.Keyboard.PressAsync("e");
+            await Assertions.Expect(accionesFila.GetByRole(AriaRole.Button, new() { Name = "Pedir", Exact = true }))
+                .ToHaveAttributeAsync("data-activado-por-e", "si");
         }
 
     }

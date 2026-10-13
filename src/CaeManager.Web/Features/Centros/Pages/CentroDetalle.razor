@@ -64,11 +64,11 @@
             <Datos>
                 @* Cada contraparte es un bloque: la línea de datos es flex y separaría el rótulo de su nombre. *@
                 <span>
-                    <a class="enlace-nombre-fila centro360-contraparte" href="@($"/clientes/{_detalle.ClienteId}")">@_detalle.ClienteRazonSocial</a>
+                    @Textos["CabeceraCliente"] <a class="enlace-nombre-fila centro360-contraparte" href="@($"/clientes/{_detalle.ClienteId}")">@_detalle.ClienteRazonSocial</a>
                     <Boton360 Nombre="@_detalle.ClienteRazonSocial" OnClick="AbrirClienteEmpresarial" />
                 </span>
                 <span>
-                    <a class="enlace-nombre-fila centro360-contraparte" href="@($"/empresas/{_detalle.EmpresaId}")">@_detalle.EmpresaRazonSocial</a>
+                    @Textos["CabeceraEmpresa"] <a class="enlace-nombre-fila centro360-contraparte" href="@($"/empresas/{_detalle.EmpresaId}")">@_detalle.EmpresaRazonSocial</a>
                     <Boton360 Nombre="@_detalle.EmpresaRazonSocial" OnClick="AbrirEmpresa" />
                 </span>
                 @if (_numeroTrabajadores is { } numero)
