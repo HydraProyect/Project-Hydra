@@ -387,4 +387,7 @@
   <data name="CopiarDni" xml:space="preserve">
     <value>Copiar {0}</value>
   </data>
+  <data name="PrefijoDni" xml:space="preserve">
+    <value>DNI</value>
+  </data>
 </root>
