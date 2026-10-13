@@ -45,7 +45,7 @@ public class KeyTipsEnListadoTests(WebAppFixtureListados fixture)
         // Las letras se pintan en el mismo paso que el atributo: se leen de la capa, sin
         // localizar por texto.
         var pintadas = (await letras.AllTextContentsAsync()).Select(l => l.Trim()).ToList();
-        foreach (var letra in new[] { "K", "F", "L", "A" })
+        foreach (var letra in new[] { "K", "F", "G", "A" })
             Assert.Single(pintadas, l => l == letra);
 
         // --- A abre el desplegable «Agrupar» por el circuito: las letras pasan a sus dos opciones. ---
