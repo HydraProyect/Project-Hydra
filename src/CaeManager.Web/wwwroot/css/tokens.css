@@ -436,7 +436,7 @@
      queda #dcebff, con la letra muted 2,37:1 y --color-text 1,09:1 (tinte de peligro o aviso).
      Se usa el azul de la paleta G de --color-primary-50 de oscuro (#0f2040): muted 5,64:1 y
      --color-text 14,50:1, que cubre la letra sin tinte y con tinte. */
-  --color-contador-grupo-fondo: #0f2040;
+  --color-contador-grupo-fondo: var(--color-primary-50);
   /* Botón primario: fondo --color-primary-400 (#2f6fdd), el escalón de la paleta
      que sigue cumpliendo AA con letra blanca: 4,73:1. El hover baja a
      #1e4a9e (el --color-primary-600 de :root, que aquí está remapeado a

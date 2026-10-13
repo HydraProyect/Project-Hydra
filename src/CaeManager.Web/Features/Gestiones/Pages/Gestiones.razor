@@ -25,7 +25,7 @@
     <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : (int?)_totalElementos)"
                          RutaExportar="/gestiones/exportar.xlsx" CriteriosExportar="CriteriosExportar">
             <Menu>
-                <CaeManager.Web.Exportacion.EntradasExportar SoloTodo="true" Ruta="/gestiones/exportar.xlsx" />
+                <CaeManager.Web.Exportacion.EntradasExportar Ruta="/gestiones/exportar.xlsx" />
             </Menu>
     </CabeceraListado>
 

@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.WebUtilities;
 
 namespace CaeManager.Web.Exportacion;
 
-/// <summary>El mismo enlace de vista filtrada para el icono y las entradas de exportación del menú.</summary>
+/// <summary>Construye el enlace de la vista filtrada para el icono de exportación.</summary>
 internal static class EnlaceDeExportacion
 {
     internal static string ConCriterios(string ruta, IReadOnlyDictionary<string, string?> criterios) =>

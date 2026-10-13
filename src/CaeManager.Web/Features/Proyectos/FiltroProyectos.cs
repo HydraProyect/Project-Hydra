@@ -7,7 +7,7 @@ namespace CaeManager.Web.Features.Proyectos;
 /// <summary>
 /// El filtro de estado del listado de Proyectos tal como viaja en la URL (estados separados por coma) y
 /// su traducción al parámetro de <see cref="ObtenerProyectosQuery"/>. Lo comparten la página y su
-/// exportación: «Exportar esta vista» saca las filas que la pantalla enseña porque las dos piden lo mismo
+/// exportación: la exportación de la vista filtrada saca las filas que la pantalla enseña porque las dos piden lo mismo
 /// a la misma consulta.
 /// </summary>
 public static class FiltroProyectos

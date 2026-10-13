@@ -257,7 +257,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     /// <summary>
     /// El orden de columna viaja en la URL y forma parte de la vista. La rejilla nace ordenada por
-    /// documentación. «Exportar esta vista» sigue leyendo el orden de la última petición de la rejilla
+    /// documentación. la exportación de la vista filtrada sigue leyendo el orden de la última petición de la rejilla
     /// (<see cref="_ordenExportar"/>), venga de un clic en la cabecera o de la URL.
     /// </summary>
     private readonly OrdenDeRejilla _orden = new(
@@ -1548,12 +1548,12 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         }
     }
 
-    /// <summary>El orden de la última carga de la rejilla, para que «Exportar esta vista» salga en el mismo.</summary>
+    /// <summary>El orden de la última carga de la rejilla, para que la exportación de la vista filtrada salga en el mismo.</summary>
     private string? _ordenExportar;
     private bool _descendenteExportar;
 
     /// <summary>
-    /// Los criterios de «Exportar esta vista»: los mismos que esta página pasa a la consulta del
+    /// Los criterios de la exportación de la vista filtrada: los mismos que esta página pasa a la consulta del
     /// listado, con los nombres de parámetro del endpoint de exportación, que los lee igual.
     /// </summary>
     private Dictionary<string, string?> CriteriosExportar => new()

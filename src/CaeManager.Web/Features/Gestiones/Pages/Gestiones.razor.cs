@@ -610,7 +610,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         }
     }
 
-    // ---- Exportar esta vista ----
+    // ---- Exportación de la vista filtrada ----
 
     private string? _ordenExportar;
     private bool _descendenteExportar;

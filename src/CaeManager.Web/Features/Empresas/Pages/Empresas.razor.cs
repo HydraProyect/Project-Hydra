@@ -1023,7 +1023,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     }
 
     /// <summary>
-    /// Los criterios de «Exportar esta vista»: los mismos que esta página pasa a la consulta del
+    /// Los criterios de la exportación de la vista filtrada: los mismos que esta página pasa a la consulta del
     /// listado, con los nombres de parámetro del endpoint de exportación, que los lee igual.
     /// </summary>
     private Dictionary<string, string?> CriteriosExportar => new()

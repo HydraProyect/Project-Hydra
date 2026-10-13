@@ -54,7 +54,7 @@ public class CabeceraListadoExportacionTests : BunitContext
     }
 
     [Fact]
-    public void Icono_y_menu_exportan_los_mismos_criterios_codificados_y_omiten_los_vacios()
+    public void El_icono_codifica_los_criterios_y_el_menu_exporta_todo_sin_ellos()
     {
         var criterios = new Dictionary<string, string?>
         {
@@ -69,7 +69,6 @@ public class CabeceraListadoExportacionTests : BunitContext
         {
             b.OpenComponent<EntradasExportar>(0);
             b.AddAttribute(1, nameof(EntradasExportar.Ruta), "/documentos/exportar.xlsx");
-            b.AddAttribute(2, nameof(EntradasExportar.Criterios), criterios);
             b.CloseComponent();
         };
         var cut = Render<CabeceraListado>(p => p.Add(c => c.Titulo, "Lista")
@@ -77,7 +76,8 @@ public class CabeceraListadoExportacionTests : BunitContext
             .Add(c => c.CriteriosExportar, criterios).Add(c => c.Menu, menu));
         var enlace = cut.Find("a[data-keytip=X]").GetAttribute("href")!;
         cut.Find(".menu-acciones-disparador").Click();
-        cut.FindAll("a.menu-acciones-item")[0].GetAttribute("href").Should().Be(enlace);
+        cut.FindAll("a.menu-acciones-item").Should().ContainSingle().Which.GetAttribute("href")
+            .Should().Be("/documentos/exportar.xlsx");
         var query = QueryHelpers.ParseQuery(new Uri("https://example.test" + enlace).Query);
         query["q"].ToString().Should().Be(criterios["q"]);
         query["estado"].ToString().Should().Be(criterios["estado"]);

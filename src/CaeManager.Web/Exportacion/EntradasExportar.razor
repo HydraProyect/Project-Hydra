@@ -1,38 +1,11 @@
-@*
-    Entradas reutilizables para los consumidores que ofrecen las dos variantes de exportación:
-    «Exportar esta vista» lleva al endpoint los mismos
-    criterios que la consulta de la pantalla —búsqueda, filtros y orden— y dice cuántas filas
-    saldrán; «Exportar todo» va sin criterios. Son enlaces (descarga por GET), no acciones del
-    circuito. Los dos pasan por la misma consulta del listado, con su autorización y su alcance.
-    Las cabeceras de los diez listados usan el icono de CabeceraListado y comparten la construcción
-    del enlace con esta pieza. Los diez listados usan SoloTodo en el menú: la vista filtrada se
-    descarga desde el icono y «Exportar todo» conserva el endpoint sin criterios.
-*@
+@* El menú descarga todo el listado sin criterios; el icono de la cabecera descarga la vista filtrada. *@
 @using Microsoft.Extensions.Localization
 @using CaeManager.Web.Recursos
 @inject IStringLocalizer<TextosComunes> Comunes
 
-@if (!SoloTodo)
-{
-    <ItemMenuAccion Href="@EnlaceVista">@(Total is { } total ? Comunes["ExportarEstaVista", total] : Comunes["ExportarEstaVistaSinRecuento"])</ItemMenuAccion>
-}
 <ItemMenuAccion Href="@Ruta">@Comunes["ExportarTodo"]</ItemMenuAccion>
 
 @code {
-    /// <summary>Ofrece únicamente la descarga sin criterios cuando la cabecera ya exporta la vista.</summary>
-    [Parameter] public bool SoloTodo { get; set; }
-
-    /// <summary>Ruta del endpoint, sin query: <c>/trabajadores/exportar.xlsx</c>.</summary>
+    /// <summary>Ruta del endpoint sin criterios de la vista.</summary>
     [Parameter, EditorRequired] public string Ruta { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Total de filas de la vista (todas las páginas), el mismo que pinta el contador de la cabecera.
-    /// Sin valor mientras la página carga o si la carga falló: el rótulo no dice un número que no sabe.
-    /// </summary>
-    [Parameter] public int? Total { get; set; }
-
-    /// <summary>Criterios de la vista, con los nombres de parámetro del endpoint. Los vacíos no viajan.</summary>
-    [Parameter] public IReadOnlyDictionary<string, string?> Criterios { get; set; } = new Dictionary<string, string?>();
-
-    private string EnlaceVista => EnlaceDeExportacion.ConCriterios(Ruta, Criterios);
 }

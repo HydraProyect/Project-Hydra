@@ -1490,7 +1490,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         }
     }
 
-    // ---- Exportar esta vista ----
+    // ---- Exportación de la vista filtrada ----
 
     /// <summary>
     /// Los criterios de la vista con los nombres de parámetro de <c>/proyectos/exportar.xlsx</c>:
