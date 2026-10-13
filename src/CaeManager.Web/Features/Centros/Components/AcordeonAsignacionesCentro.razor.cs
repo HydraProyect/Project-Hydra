@@ -512,6 +512,30 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
             (documento.EnToleranciaHasta is { } hasta ? $" · {EstadoDocumentoUi.Texto(EstadoDocumento.EnTolerancia, hasta)}" : string.Empty);
     }
 
+    private static string NombreTrabajadorListado(string nombre)
+    {
+        var partes = nombre.Split(", ", 2, StringSplitOptions.TrimEntries);
+        return partes.Length == 2 ? $"{partes[1]} {partes[0]}" : nombre;
+    }
+
+    // La fila compacta no repite el estado en el motivo; la gestión conserva el desglose existente.
+    private string MotivoTrabajadorListado(TrabajadorAsignacionDocumentacionDto trabajador)
+    {
+        if (EstaBloqueado(trabajador.TrabajadorId)) return DescripcionBloqueo(trabajador.TrabajadorId);
+        var documentos = trabajador.Documentos.Where(d =>
+            EstadoDocumentoFicha360.Clave(d.Estado) == EstadoDocumentoFicha360.Clave(trabajador.PeorEstado)).ToList();
+        if (documentos.Count > 1) return Textos["ListadoDocumentosIncidencia", documentos.Count];
+        if (documentos.Count == 0) return MotivoDocumental(trabajador);
+        var documento = documentos[0];
+        if (documento.Estado is EstadoDocumento.Urgente or EstadoDocumento.Proximo && documento.FechaVencimiento is { } fecha)
+        {
+            var dias = fecha.DayNumber - DiaDeNegocio.Hoy().DayNumber;
+            return Textos[dias == 1 ? "ListadoDocumentoPorVencerSingular" : "ListadoDocumentoPorVencer",
+                trabajador.Cumplimiento.AlDia, trabajador.Cumplimiento.Requeridos, documento.TipoDocumentoNombre, dias];
+        }
+        return documento.TipoDocumentoNombre;
+    }
+
     private static bool PuedePedir(TrabajadorAsignacionDocumentacionDto trabajador) => trabajador.Documentos.Any(d =>
         d.Estado == EstadoDocumento.Faltante || (d.DocumentoId is not null &&
         (VentanaReclamacion.EsReclamable(d.FechaVencimiento, DiaDeNegocio.Hoy()) ||

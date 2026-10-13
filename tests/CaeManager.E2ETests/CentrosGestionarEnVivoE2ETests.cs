@@ -168,9 +168,8 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
 
         // El acordeón tiene dos niveles: expandir el Centro revela la fila
         // del Trabajador, pero la tabla de documentos exigidos vive detrás
-        // de un segundo expandir propio de esa fila.
-        var botonExpandirTrabajador = page.GetByRole(AriaRole.Button,
-            new PageGetByRoleOptions { Name = $"Documentos exigidos a {nombreTrabajador} {apellidosTrabajador}" });
+        // de «Gestionar» en esa fila.
+        var botonExpandirTrabajador = filaCentro.Locator(".fila-trabajador-gestionar");
         await botonExpandirTrabajador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         // El acordeón vuelve a renderizar la fila al terminar CargarAsync —
         // un margen corto evita apuntar a un nodo que Blazor está

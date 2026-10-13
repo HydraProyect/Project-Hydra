@@ -24,7 +24,7 @@ namespace CaeManager.Web.Tests;
 /// «Sin caducidad» queda solo para lo confirmado como tal, y un estado sin fecha que no es ninguno de los dos
 /// (un hueco) se rotula «—».
 /// </summary>
-public class AcordeonAsignacionesCentroVigenciaSinConfirmarTests : BunitContext
+public partial class AcordeonAsignacionesCentroVigenciaSinConfirmarTests : BunitContext
 {
     public AcordeonAsignacionesCentroVigenciaSinConfirmarTests() => JSInterop.Mode = JSRuntimeMode.Loose;
 

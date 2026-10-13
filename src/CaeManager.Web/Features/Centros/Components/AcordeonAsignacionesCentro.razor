@@ -239,16 +239,16 @@ else
         }
         else
         {
-        <div class="lista-trabajadores-acordeon">
+        <div class="lista-trabajadores-acordeon @(ModoListado ? "lista-trabajadores-acordeon-listado" : null)">
             <ListaRelaciones Etiqueta="@($"{Textos["PestanaTrabajadores"]} · {CentroNombre}")" EnTarjeta="true">
             @foreach (var trabajador in TrabajadoresFiltrados)
             {
                 var expandido = _expandidosTrabajador.Contains(trabajador.AsignacionId);
-                <FilaRelacion @key="trabajador.AsignacionId" Nombre="@trabajador.TrabajadorNombre" Iniciales="@InicialesTrabajador(trabajador.TrabajadorNombre)"
+                <FilaRelacion @key="trabajador.AsignacionId" Nombre="@(ModoListado ? NombreTrabajadorListado(trabajador.TrabajadorNombre) : trabajador.TrabajadorNombre)" Iniciales="@(ModoListado ? null : InicialesTrabajador(trabajador.TrabajadorNombre))"
                               Tono="@(EstaBloqueado(trabajador.TrabajadorId) ? TonoFila.Peligro : EstadoDocumentoFicha360.TonoFila(trabajador.PeorEstado))"
                               Avatar="@(SeleccionMultiple && !ModoListado ? CasillaSeleccion(trabajador) : null)"
                               OnNombre="() => AbrirDetalleTrabajador(trabajador)"
-                              OnAbrir360="() => AbrirDetalleTrabajador(trabajador)"
+                              OnAbrir360="@(ModoListado ? default : EventCallback.Factory.Create(this, () => AbrirDetalleTrabajador(trabajador)))"
                               Desplegada="expandido" DesplegadaChanged="_ => AlternarExpansionTrabajador(trabajador.AsignacionId)"
                               EtiquetaDesplegar="@($"Documentos exigidos a {trabajador.TrabajadorNombre}")">
                     <Detalle>
@@ -265,7 +265,14 @@ else
                         }
                     </Detalle>
                     <Cifra>
-                        <span class="fila-trabajador-fraccion">@TextoFraccionTrabajador(trabajador)</span>
+                        @if (ModoListado)
+                        {
+                            <span class="fila-trabajador-motivo" title="@MotivoTrabajadorListado(trabajador)">@MotivoTrabajadorListado(trabajador)</span>
+                        }
+                        else
+                        {
+                            <span class="fila-trabajador-fraccion">@TextoFraccionTrabajador(trabajador)</span>
+                        }
                     </Cifra>
                     <Estado>
                         <Badge Tono="@(EstaBloqueado(trabajador.TrabajadorId) ? TonoBadge.Peligro : EstadoDocumentoFicha360.Tono(trabajador.PeorEstado))">
@@ -273,6 +280,14 @@ else
                         </Badge>
                     </Estado>
                     <Acciones>
+                        @if (ModoListado)
+                        {
+                            <SoloConEscritura>
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                       class="fila-trabajador-gestionar" aria-expanded="@(expandido ? "true" : "false")"
+                                       OnClick="() => AlternarExpansionTrabajador(trabajador.AsignacionId)">@Textos["GestionarDocumento360"]</Boton>
+                            </SoloConEscritura>
+                        }
                         @if (!ModoListado && !EstaBloqueado(trabajador.TrabajadorId) && PuedePedir(trabajador))
                         {
                             <SoloConEscritura>

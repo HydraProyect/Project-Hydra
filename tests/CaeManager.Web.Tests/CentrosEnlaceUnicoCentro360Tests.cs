@@ -196,7 +196,7 @@ public class CentrosEnlaceUnicoCentro360Tests : BunitContext
         await cut.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => cut.Find(".tarjeta-fila-acordeon-contenido").TextContent
-            .Should().Contain(MarcaDelEscenario(escenario)));
+            .Should().Contain(escenario == Escenario.IncidenciasSinOcultos ? "Javier Salas Moreno" : MarcaDelEscenario(escenario)));
 
         var contenido = cut.Find(".tarjeta-fila-acordeon-contenido");
         CaminosACentro360(contenido, centro.Id).Should().Be(1,
@@ -281,14 +281,14 @@ public class CentrosEnlaceUnicoCentro360Tests : BunitContext
             .Add(a => a.ModoListado, true)
             .Add(a => a.SeleccionMultiple, true));
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain(MarcaDelEscenario(escenario)));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain(escenario == Escenario.IncidenciasSinOcultos ? "Javier Salas Moreno" : MarcaDelEscenario(escenario)));
 
         var botones = cut.FindAll("button").Select(b => b.TextContent.Trim()).ToList();
         botones.Should().NotContain("+ Asignar trabajador");
         botones.Should().NotContain("Dar de baja seleccionados");
         cut.FindAll("input").Should().BeEmpty("sin buscador «Buscar trabajador…» ni casillas por trabajador");
         cut.FindAll(".lista-trabajadores-acordeon .fila-relacion").Should().ContainSingle("solo la fila con incidencia");
-        cut.Markup.Should().Contain("Salas Moreno, Javier");
+        cut.Markup.Should().Contain("Javier Salas Moreno");
     }
 
     /// <summary>
