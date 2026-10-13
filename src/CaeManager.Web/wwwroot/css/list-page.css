@@ -416,7 +416,7 @@
 }
 
 .grupo-lista-destacado .grupo-lista-contador {
-    background: var(--color-primary-100);
+    background: var(--color-contador-grupo-fondo);
     border-radius: var(--radius-full);
     padding: 1px 9px;
     font-weight: 600;
@@ -460,8 +460,15 @@
     color: var(--color-warning-700);
 }
 
-.grupo-lista.fila-tintada-peligro .grupo-lista-contador,
-.grupo-lista.fila-tintada-aviso .grupo-lista-contador,
+/* Un selector por regla: el test de contraste (ColoresDeLaRegla) lee cada selector con su llave. */
+.grupo-lista.fila-tintada-peligro .grupo-lista-contador {
+    color: var(--color-text);
+}
+
+.grupo-lista.fila-tintada-aviso .grupo-lista-contador {
+    color: var(--color-text);
+}
+
 .grupo-lista.fila-tintada-peligro .grupo-lista-resumen,
 .grupo-lista.fila-tintada-aviso .grupo-lista-resumen {
     color: var(--color-text);

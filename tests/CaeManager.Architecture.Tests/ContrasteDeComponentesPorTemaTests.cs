@@ -147,6 +147,14 @@ public class ContrasteDeComponentesPorTemaTests
         new("Cabecera de grupo del listado", ListPage, [".grupo-lista-cabecera"]),
         new("Contador de la cabecera de grupo", ListPage, [".grupo-lista-contador"], FondoSiFalta: "var(--color-surface)"),
         new("Resumen por estado de la cabecera de grupo", ListPage, [".grupo-lista-resumen"], FondoSiFalta: "var(--color-surface)"),
+        // Contador de un grupo destacado (pastilla con fondo propio): sin tinte y con cada tinte de
+        // grupo. El tinte solo cambia la letra (.grupo-lista.fila-tintada-* .grupo-lista-contador, que
+        // gana por última declaración); el fondo es el de la pastilla, que es opaco.
+        new("Contador de grupo destacado", ListPage, [".grupo-lista-contador", ".grupo-lista-destacado .grupo-lista-contador"]),
+        new("Contador de grupo destacado con tinte de peligro", ListPage,
+            [".grupo-lista-contador", ".grupo-lista-destacado .grupo-lista-contador", ".grupo-lista.fila-tintada-peligro .grupo-lista-contador"]),
+        new("Contador de grupo destacado con tinte de aviso", ListPage,
+            [".grupo-lista-contador", ".grupo-lista-destacado .grupo-lista-contador", ".grupo-lista.fila-tintada-aviso .grupo-lista-contador"]),
 
         // ---- Enlaces ----
         new("Enlace sobre superficie", "wwwroot/css/base.css", ["a"], FondoSiFalta: "var(--color-surface)"),
