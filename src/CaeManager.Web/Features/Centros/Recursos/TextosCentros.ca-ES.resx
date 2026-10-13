@@ -420,10 +420,10 @@
   <data name="PorCorreo360" xml:space="preserve">
     <value>Per correu</value>
   </data>
-  <data name="CumplimientoSinUniverso360" xml:space="preserve">
-    <value>Sense documentació exigida als treballadors d'aquest centre</value>
-  </data>
   <data name="GestionarDocumento360" xml:space="preserve">
     <value>Gestionar</value>
+  </data>
+  <data name="TrabajadorAsignado360" xml:space="preserve">
+    <value>1 treballador assignat</value>
   </data>
 </root>

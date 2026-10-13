@@ -1,3 +1,9 @@
+.lista-trabajadores-acordeon {
+    --ancho-fraccion-trabajador: 76px;
+    --ancho-estado-trabajador: 128px;
+    --ancho-acciones-trabajador: 100px;
+}
+
 .lista-trabajadores-acordeon ::deep .fila-relacion-nombre {
     white-space: normal;
     overflow: visible;
@@ -6,7 +12,7 @@
 }
 
 .lista-trabajadores-acordeon ::deep .fila-relacion-rejilla {
-    grid-template-columns: minmax(0, 1fr) 76px 128px 100px;
+    grid-template-columns: minmax(0, 1fr) var(--ancho-fraccion-trabajador) var(--ancho-estado-trabajador) var(--ancho-acciones-trabajador);
 }
 
 .documentos-trabajador-ficha {

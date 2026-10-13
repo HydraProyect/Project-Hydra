@@ -257,7 +257,7 @@ else
                             <MotivoBloqueoTrabajador TrabajadorId="trabajador.TrabajadorId"
                                                      Bloqueos="BloqueosDe(trabajador.TrabajadorId)"
                                                      Otros="OtrosPendientesDe(trabajador)"
-                                                     OnPedir="PedirAsync" />
+                                                     OnPedir="PedirAsync" MostrarAcciones="@(!ModoListado)" />
                         }
                         else
                         {
@@ -268,12 +268,12 @@ else
                         <span class="fila-trabajador-fraccion">@Textos["FraccionDocumental360", trabajador.Cumplimiento.AlDia, trabajador.Cumplimiento.Requeridos]</span>
                     </Cifra>
                     <Estado>
-                        <Badge Tono="@(EstaBloqueado(trabajador.TrabajadorId) ? TonoBadge.Peligro : EstadoDocumentoFicha360.Tono(trabajador.PeorEstado))">
-                            @(EstaBloqueado(trabajador.TrabajadorId) ? Textos["BloqueadoEtiqueta"].Value : EstadoDocumentoFicha360.Texto(trabajador.PeorEstado))
+                        <Badge Tono="@(!ModoListado && EstaBloqueado(trabajador.TrabajadorId) ? TonoBadge.Peligro : EstadoDocumentoFicha360.Tono(trabajador.PeorEstado))">
+                            @(!ModoListado && EstaBloqueado(trabajador.TrabajadorId) ? Textos["BloqueadoEtiqueta"].Value : EstadoDocumentoFicha360.Texto(trabajador.PeorEstado))
                         </Badge>
                     </Estado>
                     <Acciones>
-                        @if (!EstaBloqueado(trabajador.TrabajadorId) && PuedePedir(trabajador))
+                        @if (!ModoListado && !EstaBloqueado(trabajador.TrabajadorId) && PuedePedir(trabajador))
                         {
                             <SoloConEscritura>
                                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
@@ -404,7 +404,7 @@ else
             centro» a secas — la documentación de la Empresa va en su propio
             bloque y no entra en esta suma.
         *@
-        @if (MostrarTotales)
+        @if (MostrarTotales && TotalesDocumentales.Exigidos > 0)
         {
             <div class="nota-trabajadores-ocultos" data-totales-documentales>
                 <span>

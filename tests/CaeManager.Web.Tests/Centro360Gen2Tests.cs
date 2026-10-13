@@ -660,11 +660,10 @@ public partial class Centro360Gen2Tests : BunitContext
     /// <summary>
     /// La cabecera del mockup: nombre, las dos contrapartes, la ventana de la
     /// próxima visita y el anillo con el porcentaje que devuelve la consulta.
-    /// El Cliente empresarial se rotula «Cliente empresarial» en pantalla
-    /// (CONTRATO_TERMINOLOGIA § 3.2; Gen2 § 14 enmendado el 2026-10-02).
+    /// El Cliente empresarial se rotula «Cliente» en pantalla (CONTRATO_TERMINOLOGIA § 3.2).
     /// </summary>
     [Fact]
-    public void La_cabecera_nombra_el_centro_su_cliente_empresarial_y_los_Trabajadores_asignados()
+    public void La_cabecera_nombra_el_centro_sus_contrapartes_y_los_Trabajadores_asignados()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -677,15 +676,15 @@ public partial class Centro360Gen2Tests : BunitContext
         cut.Find("h1").TextContent.Trim().Should().Be("Centro Norte");
         var entradilla = cut.Find(".cabecera-identidad-datos").TextContent;
         entradilla.Should().Contain("Refrielectric S.A.")
-            .And.Contain("0 trabajadores asignados").And.NotContain("Ibertec GmbH").And.NotContain("21/08–23/08");
+            .And.Contain("0 trabajadores asignados").And.Contain("Ibertec GmbH").And.NotContain("21/08–23/08");
         // Decisión de rótulo del 2026-10-09 (CONTRATO_TERMINOLOGIA § 3.2): el Cliente empresarial se rotula
         // «Cliente» en todas las pantallas; el rótulo largo no vuelve.
         entradilla.Should().NotContain("Cliente empresarial", "la pantalla dice «Cliente», no el rótulo largo");
-        cut.FindComponent<AnilloCumplimiento>().Instance.Detalle.Should().Be("0 de 0");
+        cut.FindComponent<AnilloCumplimiento>().Instance.Detalle.Should().BeNull();
         // El anillo va a la izquierda de la identidad, como en las cuatro páginas 360
         // (decisión del propietario 2026-09-24), no entre las acciones.
-        cut.FindComponent<AnilloCumplimiento>().Instance.Porcentaje.Should().BeNull();
-        cut.FindComponent<AnilloCumplimiento>().Instance.Etiqueta.Should().Be("Sin documentación exigida a los trabajadores de este centro");
+        cut.FindComponent<AnilloCumplimiento>().Instance.Porcentaje.Should().Be(61);
+        cut.FindComponent<AnilloCumplimiento>().Instance.Etiqueta.Should().Be("61% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro");
         cut.Find(".cabecera-identidad-acciones").QuerySelector("[role=img]").Should().BeNull();
     }
 
@@ -697,7 +696,7 @@ public partial class Centro360Gen2Tests : BunitContext
     /// nombre.
     /// </summary>
     [Fact]
-    public void El_Cliente_empresarial_de_la_cabecera_enlaza_a_su_pagina_360_y_su_boton_abre_el_panel()
+    public void Las_contrapartes_de_la_cabecera_enlazan_a_sus_paginas_360_y_sus_botones_abren_el_panel()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -710,14 +709,16 @@ public partial class Centro360Gen2Tests : BunitContext
 
         var enlaces = entradilla.QuerySelectorAll("a");
         enlaces.Select(a => (a.TextContent.Trim(), a.GetAttribute("href"))).Should().Equal(
-            ("Refrielectric S.A.", $"/clientes/{detalle.ClienteId}"));
+            ("Refrielectric S.A.", $"/clientes/{detalle.ClienteId}"), ("Ibertec GmbH", $"/empresas/{detalle.EmpresaId}"));
 
         var workspace = Services.GetRequiredService<ContextWorkspaceService>();
 
         cut.Find("button[aria-label='Consultar Refrielectric S.A. de un vistazo']").Click();
         workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Cliente, detalle.ClienteId, "Refrielectric S.A.", "informacion"));
 
-        entradilla.QuerySelectorAll("button").Should().ContainSingle();
+        cut.Find("button[aria-label='Consultar Ibertec GmbH de un vistazo']").Click();
+        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Empresa, detalle.EmpresaId, "Ibertec GmbH", "informacion"));
+        entradilla.QuerySelectorAll("button").Should().HaveCount(2);
     }
 
     /// <summary>
@@ -976,7 +977,7 @@ public partial class Centro360Gen2Tests : BunitContext
 
     /// <summary>
     /// Urgente y Próximo se rotulan igual («Por vencer»): el filtro ofrece una sola opción con ese texto, y
-    /// elegirla deja a la vista a quien tenga un documento en cualquiera de los dos estados.
+    /// elegirla deja a la vista al Trabajador cuyo peor estado sea uno de los dos.
     /// </summary>
     [Fact]
     public void El_filtro_de_estado_ofrece_un_solo_Por_vencer_que_trae_lo_urgente_y_lo_proximo()

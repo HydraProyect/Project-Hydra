@@ -26,11 +26,14 @@
                     @if (entidad is { } e)
                     {
                         @* «Pedir» acaba en EnviarReclamacionCommand, denegado a Consulta: el motivo se le dice, el botón no. *@
-                        <SoloConEscritura>
-                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="motivo-bloqueo-pedir"
-                                   aria-label="@Textos["MotivoBloqueoPedirDe", bloqueo.TipoDocumentoNombre]"
-                                   OnClick="() => OnPedir.InvokeAsync(e)">@Textos["MotivoBloqueoPedir"]</Boton>
-                        </SoloConEscritura>
+                        @if (MostrarAcciones)
+                        {
+                            <SoloConEscritura>
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="motivo-bloqueo-pedir"
+                                       aria-label="@Textos["MotivoBloqueoPedirDe", bloqueo.TipoDocumentoNombre]"
+                                       OnClick="() => OnPedir.InvokeAsync(e)">@Textos["MotivoBloqueoPedir"]</Boton>
+                            </SoloConEscritura>
+                        }
                     }
                     else
                     {
@@ -49,11 +52,14 @@
                         <span class="motivo-bloqueo-texto">@DescribirOtro(documento)</span>
                         @if (EsReclamable(documento))
                         {
-                            <SoloConEscritura>
-                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="motivo-bloqueo-pedir"
-                                       aria-label="@Textos["MotivoBloqueoPedirDe", documento.TipoDocumentoNombre]"
-                                       OnClick="() => OnPedir.InvokeAsync(new EntidadAPedir(AmbitoAplicacion.Trabajador, TrabajadorId))">@Textos["MotivoBloqueoPedir"]</Boton>
-                            </SoloConEscritura>
+                            @if (MostrarAcciones)
+                            {
+                                <SoloConEscritura>
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="motivo-bloqueo-pedir"
+                                           aria-label="@Textos["MotivoBloqueoPedirDe", documento.TipoDocumentoNombre]"
+                                           OnClick="() => OnPedir.InvokeAsync(new EntidadAPedir(AmbitoAplicacion.Trabajador, TrabajadorId))">@Textos["MotivoBloqueoPedir"]</Boton>
+                                </SoloConEscritura>
+                            }
                         }
                     </li>
                 }

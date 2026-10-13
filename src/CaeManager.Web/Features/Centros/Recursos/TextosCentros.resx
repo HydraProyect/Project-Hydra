@@ -424,10 +424,10 @@
   <data name="PorCorreo360" xml:space="preserve">
     <value>Por correo</value>
   </data>
-  <data name="CumplimientoSinUniverso360" xml:space="preserve">
-    <value>Sin documentación exigida a los trabajadores de este centro</value>
-  </data>
   <data name="GestionarDocumento360" xml:space="preserve">
     <value>Gestionar</value>
+  </data>
+  <data name="TrabajadorAsignado360" xml:space="preserve">
+    <value>1 trabajador asignado</value>
   </data>
 </root>

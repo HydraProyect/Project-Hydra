@@ -67,9 +67,13 @@
                     <a class="enlace-nombre-fila centro360-contraparte" href="@($"/clientes/{_detalle.ClienteId}")">@_detalle.ClienteRazonSocial</a>
                     <Boton360 Nombre="@_detalle.ClienteRazonSocial" OnClick="AbrirClienteEmpresarial" />
                 </span>
+                <span>
+                    <a class="enlace-nombre-fila centro360-contraparte" href="@($"/empresas/{_detalle.EmpresaId}")">@_detalle.EmpresaRazonSocial</a>
+                    <Boton360 Nombre="@_detalle.EmpresaRazonSocial" OnClick="AbrirEmpresa" />
+                </span>
                 @if (_numeroTrabajadores is { } numero)
                 {
-                    <span>· @Textos["TrabajadoresAsignados360", numero]</span>
+                    <span>· @Textos[numero == 1 ? "TrabajadorAsignado360" : "TrabajadoresAsignados360", numero]</span>
                 }
             </Datos>
             <JuntoAlTitulo>
@@ -298,7 +302,7 @@
                                                 <span>
                                                     @if (UrlPortalCae.Normalizar(canal.UrlAcceso) is { } destino)
                                                     {
-                                                        <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno"
+                                                        <Boton Variante="@(canal.EsPrincipal ? VarianteBoton.Primario : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno"
                                                                Href="@destino" target="_blank" rel="noopener noreferrer"
                                                                title="@canal.UrlAcceso"
                                                                aria-label="@($"Abrir el portal {canal.UrlAcceso} en una pestaña nueva")">
@@ -361,7 +365,6 @@
 </LimiteDeErrores>
 
 @code {
-    private RenderFragment AnilloDeCabecera => @<AnilloCumplimiento Porcentaje="@(_cumplimientoTrabajadores is { } cumplimiento ? cumplimiento.Porcentaje : _resumen?.CumplimientoPorcentaje)" Tamano="TamanoAnillo.Cabecera"
-                                                                    Detalle="@(_cumplimientoTrabajadores is { } fraccion ? Textos["FraccionDocumental360", fraccion.AlDia, fraccion.Requeridos].Value : null)"
-                                                                    Etiqueta="@(_cumplimientoTrabajadores is { Requeridos: 0 } ? Textos["CumplimientoSinUniverso360"].Value : $"{(_cumplimientoTrabajadores is { } cumplimientoEtiqueta ? cumplimientoEtiqueta.Porcentaje : _resumen?.CumplimientoPorcentaje)}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro")" />;
+    private RenderFragment AnilloDeCabecera => @<AnilloCumplimiento Porcentaje="_resumen?.CumplimientoPorcentaje" Tamano="TamanoAnillo.Cabecera"
+                                                                    Etiqueta="@($"{_resumen?.CumplimientoPorcentaje}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro")" />;
 }

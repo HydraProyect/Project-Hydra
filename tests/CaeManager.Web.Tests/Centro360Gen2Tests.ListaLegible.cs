@@ -12,7 +12,7 @@ namespace CaeManager.Web.Tests;
 public partial class Centro360Gen2Tests
 {
     [Fact]
-    public void La_cabecera_usa_la_fraccion_cargada_completa_sin_reconstruirla_desde_los_documentos_o_el_porcentaje()
+    public void La_cabecera_usa_el_porcentaje_del_resumen_aunque_la_lista_tenga_otra_fraccion()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -25,19 +25,19 @@ public partial class Centro360Gen2Tests
         ];
         var cut = Renderizar(id);
         var anillo = cut.FindComponent<AnilloCumplimiento>();
-        anillo.Instance.Detalle.Should().Be("5 de 10");
-        anillo.Instance.Porcentaje.Should().Be(50);
+        anillo.Instance.Detalle.Should().BeNull();
+        anillo.Instance.Porcentaje.Should().Be(17);
         cut.Find(".cabecera-identidad-datos").TextContent.Should().Contain("2 trabajadores asignados");
         var consultas = mediador.Enviadas.Count;
         var navegador = Services.GetRequiredService<NavigationManager>();
         navegador.NavigateTo($"centros/{id}?q=Ana&estado=Vigente");
-        cut.FindComponent<AnilloCumplimiento>().Instance.Detalle.Should().Be("5 de 10");
+        cut.FindComponent<AnilloCumplimiento>().Instance.Porcentaje.Should().Be(17);
         cut.Find(".cabecera-identidad-datos").TextContent.Should().Contain("2 trabajadores asignados");
         mediador.Enviadas.Count.Should().Be(consultas);
     }
 
     [Fact]
-    public async Task Una_respuesta_retardada_del_Centro_anterior_no_cambia_la_fraccion_del_nuevo()
+    public async Task Una_respuesta_retardada_del_Centro_anterior_no_cambia_el_recuento_del_nuevo()
     {
         var a = Guid.NewGuid();
         var b = Guid.NewGuid();
@@ -48,13 +48,17 @@ public partial class Centro360Gen2Tests
         });
         mediador.Detalles[a] = Detalle(a, "Centro A");
         mediador.Detalles[b] = Detalle(b, "Centro B");
-        mediador.Asignaciones[a] = [Asignado("Ana Alba", EstadoDocumento.Vigente) with { Cumplimiento = new(100, 100) }];
+        mediador.Resumenes[a] = Resumen(a, "Centro A", porcentaje: 80);
+        mediador.Resumenes[b] = Resumen(b, "Centro B", porcentaje: 61);
+        mediador.Asignaciones[a] = [Asignado("Ana Alba", EstadoDocumento.Vigente) with { Cumplimiento = new(100, 100) }, Asignado("Luis Uno", EstadoDocumento.Vigente)];
         mediador.Asignaciones[b] = [Asignado("Zoe Zulu", EstadoDocumento.Vencido) with { Cumplimiento = new(1, 3) }];
         var cut = Renderizar(a);
         cut.Render(p => p.Add(x => x.CentroId, b));
-        cut.WaitForAssertion(() => cut.FindComponent<AnilloCumplimiento>().Instance.Detalle.Should().Be("1 de 3"));
+        cut.WaitForAssertion(() => cut.FindComponent<AnilloCumplimiento>().Instance.Porcentaje.Should().Be(61));
+        cut.WaitForAssertion(() => cut.Find(".cabecera-identidad-datos").TextContent.Should().Contain("1 trabajador asignado"));
         await cut.InvokeAsync(retenida.SetResult);
-        cut.FindComponent<AnilloCumplimiento>().Instance.Detalle.Should().Be("1 de 3");
+        cut.Find(".cabecera-identidad-datos").TextContent.Should().Contain("1 trabajador asignado");
+        cut.FindComponent<AnilloCumplimiento>().Instance.Porcentaje.Should().Be(61);
     }
 
     [Fact]
@@ -83,13 +87,12 @@ public partial class Centro360Gen2Tests
     }
 
     [Fact]
-    public void El_pie_conserva_el_universo_cero_sin_inventar_documentos()
+    public void El_pie_documental_se_omite_si_no_hay_exigidos()
     {
         var id = Guid.NewGuid();
         Registrar(new MediatorFalso()).Asignaciones[id] = [Asignado("Ana Alba", EstadoDocumento.Vigente)];
         var cut = RenderizarAcordeon(id);
-        var pie = cut.Find("[data-totales-documentales]").TextContent;
-        pie.Should().Contain("0 exigidos").And.Contain("0 al día").And.Contain("0 vencidos").And.Contain("0 pendientes");
+        cut.FindAll("[data-totales-documentales]").Should().BeEmpty();
     }
 
     [Theory]

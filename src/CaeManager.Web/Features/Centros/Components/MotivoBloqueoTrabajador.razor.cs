@@ -27,6 +27,9 @@ public partial class MotivoBloqueoTrabajador
 
     [Parameter, EditorRequired] public EventCallback<EntidadAPedir> OnPedir { get; set; }
 
+    /// <summary>El acordeón del listado conserva el motivo, pero no ofrece reclamaciones.</summary>
+    [Parameter] public bool MostrarAcciones { get; set; } = true;
+
     /// <summary>Estados que se enseñan como «además»: no bloquean, pero el Gestor CAE los va a tener que atender.</summary>
     public static bool EsPendienteQueNoBloquea(EstadoDocumento estado) =>
         estado is EstadoDocumento.Urgente or EstadoDocumento.Proximo or EstadoDocumento.EnTolerancia or EstadoDocumento.SinConfirmar;

@@ -54,13 +54,11 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     [Inject] private ToastService ToastService { get; set; } = default!;
 
     private int? _numeroTrabajadores;
-    private FraccionCumplimiento? _cumplimientoTrabajadores;
 
-    private void ActualizarResumenTrabajadores((Guid CentroId, int? Trabajadores, FraccionCumplimiento? Cumplimiento) resumen)
+    private void ActualizarResumenTrabajadores((Guid CentroId, int? Trabajadores) resumen)
     {
         if (resumen.CentroId != CentroId) return;
         _numeroTrabajadores = resumen.Trabajadores;
-        _cumplimientoTrabajadores = resumen.Cumplimiento;
     }
 
     private const string PestanaTrabajadores = "trabajadores";
@@ -248,7 +246,6 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         _detalle = null;
         _resumen = null;
         _numeroTrabajadores = null;
-        _cumplimientoTrabajadores = null;
         _visitas = [];
         _canales = [];
         _documentosPorReclamar = 0;

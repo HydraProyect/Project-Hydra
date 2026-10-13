@@ -118,14 +118,15 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     [Parameter] public string? FiltroTexto { get; set; }
 
     /// <summary>
-    /// Filtro de estado documental gobernado por el consumidor, con los valores
-    /// de <see cref="OpcionesEstadoDocumental"/>. Vacío o desconocido no filtra
+    /// Filtro por el peor estado del Trabajador, gobernado por el consumidor, con los valores
+    /// de <see cref="OpcionesFranja"/>. «Bloqueado» prevalece sobre la documentación; la tolerancia
+    /// conserva su estado calculado y no se vuelve a clasificar como vencida. Vacío o desconocido no filtra
     /// nada: la lista completa es el desenlace honesto de un filtro que no se
     /// entiende, no una lista vacía.
     /// </summary>
     [Parameter] public string? FiltroEstado { get; set; }
     [Parameter] public EventCallback<string?> FiltroEstadoChanged { get; set; }
-    [Parameter] public EventCallback<(Guid CentroId, int? Trabajadores, FraccionCumplimiento? Cumplimiento)> OnResumenCargado { get; set; }
+    [Parameter] public EventCallback<(Guid CentroId, int? Trabajadores)> OnResumenCargado { get; set; }
 
     /// <summary>
     /// Pie con los totales documentales de la lista («Totales del centro» del
@@ -299,7 +300,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         _cargando = true;
         _errorCarga = false;
         StateHasChanged();
-        await OnResumenCargado.InvokeAsync((centroId, null, null));
+        await OnResumenCargado.InvokeAsync((centroId, null));
 
         try
         {
@@ -314,7 +315,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
                 : [];
             if (carga != _cargaLista) return;
             _trabajadoresVisitaSinAsignacion = sinAsignacion;
-            await OnResumenCargado.InvokeAsync((centroId, _trabajadores.Count, FraccionCumplimiento.Sumar(_trabajadores.Select(t => t.Cumplimiento))));
+            await OnResumenCargado.InvokeAsync((centroId, _trabajadores.Count));
         }
         catch (Exception)
         {
@@ -438,7 +439,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     private string TextoBusqueda => FiltroTexto ?? _busquedaTrabajador;
 
     /// <summary>
-    /// Búsqueda por nombre y filtro de estado documental sobre
+    /// Búsqueda por nombre y filtro exclusivo por el peor estado del Trabajador sobre
     /// <see cref="TrabajadoresAMostrar"/> — client-side, sin consulta nueva:
     /// con una plantilla grande (Centro 360, SoloIncidencias=false) la lista
     /// completa no tenía ninguna forma de encontrar un trabajador concreto sin
