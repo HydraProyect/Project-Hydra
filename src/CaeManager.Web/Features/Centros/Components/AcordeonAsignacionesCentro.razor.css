@@ -116,8 +116,12 @@
     min-width: 0;
 }
 
-.lista-trabajadores-acordeon-listado ::deep .fila-relacion-detalle,
-.lista-trabajadores-acordeon-listado ::deep .fila-relacion-desplegar {
+.lista-trabajadores-acordeon-listado ::deep .fila-relacion-detalle {
+    display: none;
+}
+
+/* «Gestionar» sustituye al chevron solo donde existe; el rol sin escritura conserva el chevron para leer el desglose. */
+.lista-trabajadores-acordeon-listado ::deep .fila-relacion:has(.fila-trabajador-gestionar) .fila-relacion-desplegar {
     display: none;
 }
 

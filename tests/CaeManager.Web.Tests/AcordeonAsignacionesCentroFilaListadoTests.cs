@@ -5,6 +5,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Features.Centros.Components;
+using CaeManager.Web.Features.Documentos;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -90,5 +91,53 @@ public partial class AcordeonAsignacionesCentroVigenciaSinConfirmarTests
         var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(c => c.CentroId, Guid.NewGuid()).Add(c => c.ModoListado, true));
         cut.FindAll(".fila-trabajador-gestionar").Should().BeEmpty();
         cut.Find(".fila-trabajador-motivo").TextContent.Should().Be("Aptitud médica");
+    }
+
+    private static TrabajadorAsignacionDocumentacionDto TrabajadorConDocumento(DocumentoRequeridoDto documento) =>
+        new(Guid.NewGuid(), Guid.NewGuid(), "Ruiz Peña, Ana", DiaDeNegocio.Hoy(), documento.Estado, [documento],
+            CumplimientoDocumental.Evaluar([documento.Estado]));
+
+    [Fact]
+    public void Consulta_conserva_el_chevron_para_leer_el_desglose_en_el_listado()
+    {
+        RegistrarServicios(new MediatorFalso
+        {
+            Trabajadores = [TrabajadorConDocumento(new DocumentoRequeridoDto(
+            Guid.NewGuid(), Guid.NewGuid(), "Aptitud médica", EstadoDocumento.Vencido, null))]
+        });
+        this.ConRolDeEscritura(Roles.Consulta);
+        var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(c => c.CentroId, Guid.NewGuid()).Add(c => c.ModoListado, true));
+        cut.FindAll(".fila-trabajador-gestionar").Should().BeEmpty();
+        cut.Find(".fila-relacion-desplegar").Click();
+        cut.Find(".fila-relacion-desplegar").GetAttribute("aria-expanded").Should().Be("true");
+    }
+
+    [Fact]
+    public void Un_vencido_en_tolerancia_conserva_su_ultimo_dia_en_el_motivo_compacto()
+    {
+        this.ConRolDeEscritura();
+        var hasta = DiaDeNegocio.Hoy().AddDays(3);
+        RegistrarServicios(new MediatorFalso
+        {
+            Trabajadores = [TrabajadorConDocumento(new DocumentoRequeridoDto(
+            Guid.NewGuid(), Guid.NewGuid(), "Formación PRL", EstadoDocumento.EnTolerancia, DiaDeNegocio.Hoy().AddDays(-1),
+            EnToleranciaHasta: hasta))]
+        });
+        var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(c => c.CentroId, Guid.NewGuid()).Add(c => c.ModoListado, true));
+        cut.Find(".fila-trabajador-motivo").TextContent.Should().Be(
+            "Formación PRL · " + EstadoDocumentoUi.Texto(EstadoDocumento.EnTolerancia, hasta));
+    }
+
+    [Fact]
+    public void Un_documento_que_vence_hoy_dice_hoy_y_no_en_0_dias()
+    {
+        this.ConRolDeEscritura();
+        RegistrarServicios(new MediatorFalso
+        {
+            Trabajadores = [TrabajadorConDocumento(new DocumentoRequeridoDto(
+            Guid.NewGuid(), Guid.NewGuid(), "Aptitud médica", EstadoDocumento.Urgente, DiaDeNegocio.Hoy()))]
+        });
+        var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(c => c.CentroId, Guid.NewGuid()).Add(c => c.ModoListado, true));
+        cut.Find(".fila-trabajador-motivo").TextContent.Should().Be("1/1 · Aptitud médica hoy");
     }
 }

@@ -527,10 +527,12 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         if (documentos.Count > 1) return Textos["ListadoDocumentosIncidencia", documentos.Count];
         if (documentos.Count == 0) return MotivoDocumental(trabajador);
         var documento = documentos[0];
+        if (documento.EnToleranciaHasta is { } hasta)
+            return $"{documento.TipoDocumentoNombre} · {EstadoDocumentoUi.Texto(EstadoDocumento.EnTolerancia, hasta)}";
         if (documento.Estado is EstadoDocumento.Urgente or EstadoDocumento.Proximo && documento.FechaVencimiento is { } fecha)
         {
             var dias = fecha.DayNumber - DiaDeNegocio.Hoy().DayNumber;
-            return Textos[dias == 1 ? "ListadoDocumentoPorVencerSingular" : "ListadoDocumentoPorVencer",
+            return Textos[dias <= 0 ? "ListadoDocumentoVenceHoy" : dias == 1 ? "ListadoDocumentoPorVencerSingular" : "ListadoDocumentoPorVencer",
                 trabajador.Cumplimiento.AlDia, trabajador.Cumplimiento.Requeridos, documento.TipoDocumentoNombre, dias];
         }
         return documento.TipoDocumentoNombre;
