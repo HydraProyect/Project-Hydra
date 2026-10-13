@@ -439,8 +439,10 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     private string TextoBusqueda => FiltroTexto ?? _busquedaTrabajador;
 
     /// <summary>
-    /// Búsqueda por nombre y filtro exclusivo por el peor estado del Trabajador sobre
-    /// <see cref="TrabajadoresAMostrar"/> — client-side, sin consulta nueva:
+    /// Búsqueda por nombre y filtro por el peor estado del Trabajador sobre
+    /// <see cref="TrabajadoresAMostrar"/> — client-side, sin consulta nueva.
+    /// Vencido incluye En tolerancia; los demás estados son exclusivos por peor estado.
+    /// Los chips comparten esta regla y, por ese solape, no suman el total:
     /// con una plantilla grande (Centro 360, SoloIncidencias=false) la lista
     /// completa no tenía ninguna forma de encontrar un trabajador concreto sin
     /// desplazarse a mano.
@@ -456,7 +458,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
             var estados = SeleccionEstados.Separar(FiltroEstado).Where(v => OpcionesFranja.Any(o => o.Valores.Contains(v))).ToHashSet();
             if (estados.Count > 0)
-                lista = lista.Where(t => estados.Contains(EstadoTrabajador(t))).ToList();
+                lista = lista.Where(t => estados.Any(estado => CoincideEstadoTrabajador(t, estado))).ToList();
 
             // OrderBy es estable: el lector ya desempata por apellidos y nombre.
             // No se puede reconstruir ese orden desde TrabajadorNombre (nombre + apellidos).
@@ -481,8 +483,15 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         EstaBloqueado(trabajador.TrabajadorId) ? "Bloqueado" :
         trabajador.PeorEstado == EstadoDocumento.SinCaducidad ? nameof(EstadoDocumento.Vigente) : trabajador.PeorEstado.ToString();
 
-    private IReadOnlyDictionary<string, int> RecuentosFranja => _trabajadores
-        .GroupBy(EstadoTrabajador).ToDictionary(g => g.Key, g => g.Count());
+    private bool CoincideEstadoTrabajador(TrabajadorAsignacionDocumentacionDto trabajador, string estado)
+    {
+        var peorEstado = EstadoTrabajador(trabajador);
+        return peorEstado == estado ||
+            (peorEstado == nameof(EstadoDocumento.EnTolerancia) && estado == nameof(EstadoDocumento.Vencido));
+    }
+
+    private IReadOnlyDictionary<string, int> RecuentosFranja => OpcionesFranja.SelectMany(o => o.Valores)
+        .Distinct().ToDictionary(estado => estado, estado => _trabajadores.Count(t => CoincideEstadoTrabajador(t, estado)));
 
     private static string InicialesTrabajador(string nombre) => string.Concat(nombre
         .Split([' ', ','], StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));

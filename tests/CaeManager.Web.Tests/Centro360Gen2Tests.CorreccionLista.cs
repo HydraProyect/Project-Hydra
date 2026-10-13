@@ -15,7 +15,7 @@ public partial class Centro360Gen2Tests
     [InlineData("Faltante", "")]
     [InlineData("Bloqueado", "Zoe Bloqueada")]
     [InlineData("EnTolerancia", "Tina Tolerada")]
-    public void El_filtro_exclusivo_usa_el_peor_estado_y_nunca_otra_causa_del_Trabajador(string estado, string nombre)
+    public void El_filtro_usa_el_peor_estado_con_Vencido_incluyendo_EnTolerancia(string estado, string nombre)
     {
         var id = Guid.NewGuid();
         var vencida = Asignado("Ana Vencida", EstadoDocumento.Vencido,
@@ -30,13 +30,13 @@ public partial class Centro360Gen2Tests
         var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(x => x.CentroId, id)
             .Add(x => x.CentroNombre, "Centro Norte").Add(x => x.MostrarTotales, true).Add(x => x.FiltroEstado, estado));
         var nombres = cut.FindAll(".lista-trabajadores-acordeon .fila-relacion-nombre").Select(n => n.TextContent).ToList();
-        nombres.Should().Equal(nombre.Length == 0 ? [] : new[] { nombre });
+        nombres.Should().Equal(estado == "Vencido" ? ["Ana Vencida", "Tina Tolerada"] : nombre.Length == 0 ? [] : new[] { nombre });
         var franja = cut.FindComponent<FranjaEstado>().Instance;
         franja.TotalTodos.Should().Be(3);
         franja.Recuentos.Should().NotBeNull();
         var recuentos = franja.Recuentos!;
-        recuentos.Values.Sum().Should().Be(3);
-        recuentos["Vencido"].Should().Be(1);
+        recuentos.Values.Sum().Should().Be(4, "En tolerancia también cuenta en Vencido; los chips no suman el total");
+        recuentos["Vencido"].Should().Be(2);
         recuentos["Bloqueado"].Should().Be(1);
         recuentos["EnTolerancia"].Should().Be(1);
     }
