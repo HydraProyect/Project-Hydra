@@ -554,4 +554,9 @@
   <data name="AnilloCentroUno" xml:space="preserve"><value>{0} de {1} centro con gestión CAE sin incidencias</value></data>
   <data name="ListaCentrosSinGestionCae" xml:space="preserve"><value>Centros sin gestión CAE</value></data>
   <data name="AvisoFranjaCentrosParcial" xml:space="preserve"><value>Los recuentos y filtros corresponden a los {0} Centros cargados de {1}.</value></data>
+  <data name="CentrosSubcontrata360" xml:space="preserve"><value>{0} centros de este Cliente</value></data>
+  <data name="UniversoSubcontrata360" xml:space="preserve"><value>Documentación de sus Trabajadores exigida en los Centros de este Cliente.</value></data>
+  <data name="SinCentrosSubcontrata360" xml:space="preserve"><value>Sin actividad en Centros visibles de este Cliente</value></data>
+  <data name="FraccionSubcontrata360" xml:space="preserve"><value>{0} de {1} al día</value></data>
+  <data name="CentroSubcontrata360" xml:space="preserve"><value>1 centro de este Cliente</value></data>
 </root>

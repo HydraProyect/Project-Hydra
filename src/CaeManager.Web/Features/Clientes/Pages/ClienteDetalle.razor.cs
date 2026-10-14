@@ -4,6 +4,9 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerResumenCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
+using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasConCentrosDeCliente;
+using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConCumplimientoDeSubcontrata;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Centros;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
@@ -21,11 +24,11 @@ namespace CaeManager.Web.Features.Clientes.Pages;
 /// con <c>/clientes/{id}/lectura-ia</c>, que es más específica.
 ///
 /// <para>
-/// <b>Mismas consultas y mismo alcance que el panel.</b> Cabecera
+/// <b>Lectores de identidad del panel y cumplimiento contextual por Centro.</b> Cabecera
 /// (<see cref="ObtenerClientePorIdQuery"/>), recuentos
-/// (<see cref="ObtenerResumenClienteQuery"/>), empresas y subcontratas: las
-/// cuatro del panel, que filtran por <c>IAlcanceDatosService</c> y viajan con
-/// RLS. Centros NO usa <c>ObtenerCentrosDeClienteQuery</c> del panel (solo trae
+/// (<see cref="ObtenerResumenClienteQuery"/>) y empresas conservan los lectores del panel.
+/// Subcontratas usa <see cref="ObtenerSubcontratasConCentrosDeClienteQuery"/> para añadir solo Centros visibles
+/// del Cliente empresarial, con documentos de sus Trabajadores. Centros NO usa <c>ObtenerCentrosDeClienteQuery</c> del panel (solo trae
 /// nombre y Empresa), sino <see cref="ObtenerCentrosQuery"/> con
 /// <c>ClienteId</c> —la misma que la lista /centros, con el mismo alcance
 /// (<c>ObtenerCentroIdsVisiblesAsync</c>)—, porque es la que trae por Centro
@@ -117,6 +120,8 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     private bool _cargandoEmpresas;
     private bool _errorEmpresas;
     private IReadOnlyList<SubcontrataDeClienteDto>? _subcontratas;
+    private IReadOnlyDictionary<Guid, IReadOnlyList<CentroCumplimientoSubcontrataDto>> _centrosSubcontratas = new Dictionary<Guid, IReadOnlyList<CentroCumplimientoSubcontrataDto>>();
+    private readonly HashSet<Guid> _subcontratasDesplegadas = [];
     private bool _cargandoSubcontratas;
     private bool _errorSubcontratas;
 
@@ -345,6 +350,8 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _errorEmpresas = false;
         _cargandoEmpresas = false;
         _subcontratas = null;
+        _centrosSubcontratas = new Dictionary<Guid, IReadOnlyList<CentroCumplimientoSubcontrataDto>>();
+        _subcontratasDesplegadas.Clear();
         _errorSubcontratas = false;
         _cargandoSubcontratas = false;
     }
@@ -517,9 +524,10 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
 
         try
         {
-            var subcontratas = await Mediator.Send(new ObtenerSubcontratasDeClienteQuery(id), _cancelacion);
+            var subcontratas = await Mediator.Send(new ObtenerSubcontratasConCentrosDeClienteQuery(id), _cancelacion);
             if (carga != _cargaSubcontratas) return;
-            _subcontratas = subcontratas;
+            _subcontratas = subcontratas.Select(s => s.Subcontrata).ToList();
+            _centrosSubcontratas = subcontratas.ToDictionary(s => s.Subcontrata.Id, s => s.Centros);
         }
         catch (Exception)
         {
