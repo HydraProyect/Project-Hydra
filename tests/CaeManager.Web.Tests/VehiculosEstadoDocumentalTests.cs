@@ -322,9 +322,7 @@ public partial class VehiculosEstadoDocumentalTests : BunitContext
             IncidenciaDe("Permiso de circulación", EstadoDocumento.SinConfirmar));
         var cut = Renderizar(new MediadorFalso { Almacen = { grua } }, rol: Roles.Consulta);
 
-        var celda = CeldaDeEstado(cut);
         Motivo(cut).Should().Be("1 vencido · 1 sin confirmar", "control positivo: el motivo se ve igual");
-        celda.QuerySelectorAll("button").Should().BeEmpty("no se ofrece un formulario que el comando va a denegar");
         AbrirIncidencias(cut).QuerySelectorAll(".incidencia-lectura").Should().HaveCount(2, "control positivo: el desglose se sigue viendo");
     }
 

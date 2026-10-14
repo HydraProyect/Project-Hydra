@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
@@ -84,5 +85,37 @@ public partial class VehiculosEstadoDocumentalTests
         var cut = Renderizar(new MediadorFalso { Almacen = { Vehiculo("Formación móvil", EstadoDocumento.Urgente, IncidenciaDe("Formación Art. 19", EstadoDocumento.Urgente, 5)) } }, "vehiculos?q=formacion");
         cut.FindAll(".vehiculo-detalle-incidencias").Should().ContainSingle();
         cut.Find(".coincidencia-incidencia .incidencia-tipo mark").TextContent.Should().Be("Formación");
+    }
+
+    [Fact]
+    public void Una_fila_abierta_por_la_busqueda_se_puede_contraer_con_su_chevron()
+    {
+        var cut = Renderizar(new MediadorFalso { Almacen = { Vehiculo("Formación móvil", EstadoDocumento.Urgente, IncidenciaDe("Formación Art. 19", EstadoDocumento.Urgente, 5)) } }, "vehiculos?q=formacion");
+        cut.FindAll(".vehiculo-detalle-incidencias").Should().ContainSingle();
+        cut.Find(".boton-expandir-incidencias").GetAttribute("aria-expanded").Should().Be("true");
+        cut.Find(".boton-expandir-incidencias").Click();
+        cut.FindAll(".vehiculo-detalle-incidencias").Should().BeEmpty("el primer clic cierra lo que la búsqueda abrió");
+        cut.Find(".boton-expandir-incidencias").Click();
+        cut.FindAll(".vehiculo-detalle-incidencias").Should().ContainSingle("el segundo clic lo vuelve a abrir");
+    }
+
+    [Fact]
+    public void Contraer_todo_cierra_tambien_las_filas_abiertas_por_la_busqueda_y_el_rotulo_corresponde()
+    {
+        var cut = Renderizar(new MediadorFalso { Almacen = { Vehiculo("Formación móvil", EstadoDocumento.Urgente, IncidenciaDe("Formación Art. 19", EstadoDocumento.Urgente, 5)) } }, "vehiculos?q=formacion");
+        cut.Find("button[data-keytip=E]").TextContent.Should().Contain("Contraer todo", "la fila ya se ve abierta por la búsqueda");
+        cut.Find("button[data-keytip=E]").Click();
+        cut.FindAll(".vehiculo-detalle-incidencias").Should().BeEmpty();
+        cut.Find("button[data-keytip=E]").TextContent.Should().Contain("Expandir todo");
+    }
+
+    [Fact]
+    public void La_subcaja_enseña_la_fecha_absoluta_junto_al_motivo_relativo()
+    {
+        var cut = Renderizar(new MediadorFalso { Almacen = { Vehiculo("Furgoneta", EstadoDocumento.Vencido, IncidenciaDe("ITV", EstadoDocumento.Vencido, -3)) } });
+        cut.Find(".boton-expandir-incidencias").Click();
+        var esperada = DiaDeNegocio.Hoy().AddDays(-3).ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture);
+        cut.Find(".vehiculo-detalle-incidencias .incidencia-fecha").TextContent.Should().Be(esperada);
+        cut.Find(".vehiculo-detalle-incidencias .incidencia-motivo").TextContent.Should().NotContain(esperada, "el motivo es el relativo");
     }
 }

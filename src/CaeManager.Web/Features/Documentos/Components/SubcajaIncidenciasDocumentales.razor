@@ -28,11 +28,15 @@
     public static bool Coincide(IncidenciaDocumentalDto incidencia, string? busqueda) =>
         !string.IsNullOrWhiteSpace(busqueda) && TextoDeBusqueda.Contiene(MotivoIncidenciasUi.NombreDeTipo(incidencia) + " " + Motivo(incidencia), busqueda);
 
-    private static string Motivo(IncidenciaDocumentalDto incidencia) => EstadoDocumentoUi.MotivoDeDocumento(incidencia.Estado, incidencia.FechaVencimiento, DiaDeNegocio.Hoy()) ?? incidencia.FechaVencimiento?.ToString("dd/MM/yyyy") ?? string.Empty;
+    private static string Motivo(IncidenciaDocumentalDto incidencia) => EstadoDocumentoUi.MotivoDeDocumento(incidencia.Estado, incidencia.FechaVencimiento, DiaDeNegocio.Hoy()) ?? string.Empty;
 
     private RenderFragment Contenido(IncidenciaDocumentalDto incidencia) => @<text>
         <span class="incidencia-tipo"><TextoResaltado Texto="@MotivoIncidenciasUi.NombreDeTipo(incidencia)" Termino="@Busqueda" /></span>
         <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
         <span class="incidencia-motivo"><TextoResaltado Texto="@Motivo(incidencia)" Termino="@Busqueda" /></span>
+        @if (incidencia.FechaVencimiento is { } vence)
+        {
+            <span class="incidencia-fecha">@vence.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture)</span>
+        }
     </text>;
 }

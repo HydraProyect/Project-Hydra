@@ -40,6 +40,8 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     private bool _cargaPendiente = true;
     private bool _opcionesOrdenVehiculo;
     private readonly HashSet<Guid> _expandidos = [];
+    // Filas que la búsqueda abriría por una incidencia coincidente y que se cerraron a mano.
+    private readonly HashSet<Guid> _cerradasAMano = [];
     private CancellationTokenSource? _peticionActiva;
     private string _campoOrdenVehiculo = nameof(VehiculoListaDto.Nombre);
 
@@ -47,6 +49,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     {
         _pagina = pagina;
         _expandidos.Clear();
+        _cerradasAMano.Clear();
         return CargarListaAsync();
     }
 
@@ -439,6 +442,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             {
                 _seleccionados.Clear();
                 _expandidos.Clear();
+                _cerradasAMano.Clear();
                 _idEnfocado = null;
             }
 
@@ -491,6 +495,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     private async Task BuscarAsync(string valor)
     {
         _busqueda = valor;
+        _cerradasAMano.Clear();
         NavigationManager.ActualizarFiltroEnUrl("q", valor);
         await RecargarAsync();
     }
@@ -553,21 +558,34 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     }
 
     private bool TodosExpandidos => _elementosPagina.Any(v => v.Incidencias.Count > 0)
-        && _elementosPagina.Where(v => v.Incidencias.Count > 0).All(v => _expandidos.Contains(v.Id));
+        && _elementosPagina.Where(v => v.Incidencias.Count > 0).All(EstaExpandido);
 
     private void AlternarExpansion(Guid id)
     {
-        if (!_expandidos.Add(id)) _expandidos.Remove(id);
+        var vehiculo = _elementosPagina.FirstOrDefault(v => v.Id == id);
+        if (vehiculo is not null && EstaExpandido(vehiculo))
+        {
+            _expandidos.Remove(id);
+            _cerradasAMano.Add(id);
+        }
+        else
+        {
+            _cerradasAMano.Remove(id);
+            _expandidos.Add(id);
+        }
     }
 
     private void AlternarTodosExpandidos(bool expandir)
     {
         _expandidos.Clear();
-        if (expandir) _expandidos.UnionWith(_elementosPagina.Where(v => v.Incidencias.Count > 0).Select(v => v.Id));
+        _cerradasAMano.Clear();
+        var conIncidencias = _elementosPagina.Where(v => v.Incidencias.Count > 0).Select(v => v.Id);
+        if (expandir) _expandidos.UnionWith(conIncidencias);
+        else _cerradasAMano.UnionWith(conIncidencias);
     }
 
     private bool EstaExpandido(VehiculoListaDto vehiculo) => _expandidos.Contains(vehiculo.Id)
-        || vehiculo.Incidencias.Any(i => CaeManager.Web.Features.Documentos.Components.SubcajaIncidenciasDocumentales.Coincide(i, _busqueda));
+        || (!_cerradasAMano.Contains(vehiculo.Id) && vehiculo.Incidencias.Any(i => CaeManager.Web.Features.Documentos.Components.SubcajaIncidenciasDocumentales.Coincide(i, _busqueda)));
 
     /// <summary>
     /// Los cuatro filtros de la barra. Separa "aún no hay vehículos" de

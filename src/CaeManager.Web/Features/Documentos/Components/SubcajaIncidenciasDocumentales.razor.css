@@ -26,6 +26,12 @@
     font-weight: 600;
 }
 
+.incidencia-fecha {
+    color: var(--color-text-muted);
+    margin-inline-start: auto;
+    font-variant-numeric: tabular-nums;
+}
+
 .incidencia-motivo {
     color: var(--color-text-muted);
 }
