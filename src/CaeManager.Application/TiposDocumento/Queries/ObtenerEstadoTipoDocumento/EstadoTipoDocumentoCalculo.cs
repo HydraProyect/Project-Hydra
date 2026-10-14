@@ -32,7 +32,9 @@ public sealed record ParDeTipoDocumento(
     DateOnly? EnToleranciaHasta,
     Guid? DocumentoId,
     DateOnly? FechaEmision,
-    DateOnly? FechaVencimiento);
+    DateOnly? FechaVencimiento,
+    bool BloqueaAcceso = false,
+    int ToleranciaDias = 0);
 
 /// <summary>
 /// Agrupación y recuento de la página «Tipo de documento 360». Función pura sobre los pares exigidos del tipo:

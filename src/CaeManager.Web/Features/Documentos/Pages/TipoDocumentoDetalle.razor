@@ -68,6 +68,48 @@
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
             <ChildContent>
                 <Pestanas Definiciones="Pestanas" PestanaActiva="@PestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["EtiquetaGrupoPestanas"]">
+                    @if (PestanaActiva == PestanaCentros)
+                    {
+                        <p>@Textos["UniversoCentros360"]</p>
+                        <ListaRelaciones Etiqueta="@Textos["PestanaCentros360"]">
+                            @foreach (var centro in estado.CentrosExigencia ?? [])
+                            {
+                                <FilaRelacion @key="centro.Id" Nombre="@centro.Nombre" Href="@($"/centros/{centro.Id}")" NombreIcono="centros" Tono="EstadoDocumentoFicha360.TonoFila(centro.PeorEstado)">
+                                    <Detalle>@Textos[centro.BloqueaAcceso ? "Bloquea360" : "NoBloquea360"] · @Textos["Tolerancia360", centro.ToleranciaDias]</Detalle>
+                                    <Cifra>@Textos["Fraccion360", centro.Cumplimiento.AlDia, centro.Cumplimiento.Requeridos]</Cifra>
+                                    <Estado><Badge Tono="TonoEstado(centro.PeorEstado)">@TextoEstado(centro.PeorEstado)</Badge></Estado>
+                                </FilaRelacion>
+                            }
+                        </ListaRelaciones>
+                        @if (estado.CentrosExigencia is not { Count: > 0 })
+                        {
+                            <EstadoVacio Titulo="@Textos["SinCentros360"]" />
+                        }
+                    }
+                    else if (PestanaActiva == PestanaEmpresas)
+                    {
+                        <p>@Textos["UniversoEmpresas360"]</p>
+                        <ListaRelaciones Etiqueta="@Textos["PestanaEmpresas360"]">
+                            @foreach (var empresa in estado.EmpresasEmpleadoras ?? [])
+                            {
+                                <FilaRelacion Nombre="@(empresa.Nombre ?? Textos["SinEmpresaEmpleadoraPagina"])" Href="@(empresa.Id is { } id ? $"/empresas/{id}" : null)" NombreIcono="empresas" Tono="EstadoDocumentoFicha360.TonoFila(empresa.PeorEstado)">
+                                    <Detalle>@Textos["DetalleEmpresa360", empresa.Trabajadores, empresa.Centros]</Detalle>
+                                    <Cifra>@Textos["Fraccion360", empresa.Cumplimiento.AlDia, empresa.Cumplimiento.Requeridos]</Cifra>
+                                    <Estado><Badge Tono="TonoEstado(empresa.PeorEstado)">@TextoEstado(empresa.PeorEstado)</Badge></Estado>
+                                </FilaRelacion>
+                            }
+                        </ListaRelaciones>
+                        @if (estado.EmpresasEmpleadoras is not { Count: > 0 })
+                        {
+                            <EstadoVacio Titulo="@Textos["SinEmpresas360"]" />
+                        }
+                    }
+                    else if (PestanaActiva == PestanaFicha)
+                    {
+                        <CajasFicha Cajas="CajasDeFicha" />
+                    }
+                    else
+                    {
                     @if (estado.Trabajadores == 0)
                     {
                         <Tarjeta>
@@ -206,6 +248,7 @@
                                          TamanoPagina="estado.TamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync"
                                          Etiqueta="@Textos[estado.TotalFiltradas == 1 ? "MetaTrabajadoresUno" : "MetaTrabajadoresVarios"]" />
                     }
+                    }
                 </Pestanas>
             </ChildContent>
             <Lateral>
@@ -246,6 +289,21 @@
 </LimiteDeErrores>
 
 @code {
+    private IReadOnlyList<CajaFicha> CajasDeFicha
+    {
+        get
+        {
+            var cajas = new List<CajaFicha>();
+            if (_estado is null) return cajas;
+            if (!string.IsNullOrWhiteSpace(_estado.Descripcion)) cajas.Add(new("descripcion", CajaDeTexto("FichaDescripcion360", _estado.Descripcion)));
+            if (!string.IsNullOrWhiteSpace(_estado.CriteriosValidacion)) cajas.Add(new("criterios", CajaDeTexto("FichaCriterios360", _estado.CriteriosValidacion)));
+            if (!string.IsNullOrWhiteSpace(_estado.SeSolicitaA)) cajas.Add(new("solicitud", CajaDeTexto("InfoSeSolicitaA", _estado.SeSolicitaA)));
+            if (!string.IsNullOrWhiteSpace(_estado.Observaciones)) cajas.Add(new("observaciones", CajaDeTexto("FichaObservaciones360", _estado.Observaciones)));
+            return cajas;
+        }
+    }
+
+    private RenderFragment CajaDeTexto(string clave, string valor) => @<Tarjeta Titulo="@Textos[clave]" Compacta="true"><p>@valor</p></Tarjeta>;
     // Línea de datos de la cabecera: vigencia, pastilla de exigencia, a cuántos Centros y Trabajadores alcanza y la
     // frase que hace evidente la regla de recuento.
     private RenderFragment DatosDeCabecera(EstadoTipoDocumentoDto estado) => @<text>

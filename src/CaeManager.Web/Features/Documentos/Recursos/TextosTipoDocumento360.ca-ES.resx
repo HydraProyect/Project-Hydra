@@ -255,4 +255,19 @@
   <data name="TotalDelFiltro" xml:space="preserve"><value>{0} Treballadors en el filtre global</value></data>
   <data name="EmpresaNoDisponible" xml:space="preserve"><value>Nom d’Empresa ocupadora no disponible</value></data>
   <data name="SinEmpresaEmpleadoraPagina" xml:space="preserve"><value>Sense Empresa ocupadora</value></data>
+  <data name="PestanaCentros360" xml:space="preserve"><value>Centres que el requereixen</value></data>
+  <data name="PestanaEmpresas360" xml:space="preserve"><value>Empreses</value></data>
+  <data name="PestanaFicha360" xml:space="preserve"><value>Fitxa</value></data>
+  <data name="UniversoCentros360" xml:space="preserve"><value>Documentació exigida als Treballadors en cada Centre visible. Bloqueja descriu la configuració del requisit, no un bloqueig efectiu.</value></data>
+  <data name="UniversoEmpresas360" xml:space="preserve"><value>Documentació dels Treballadors de cada Empresa ocupadora exigida als Centres visibles; cada parella Centre i Treballador compta una vegada.</value></data>
+  <data name="Bloquea360" xml:space="preserve"><value>Bloqueja</value></data>
+  <data name="NoBloquea360" xml:space="preserve"><value>No bloqueja</value></data>
+  <data name="Tolerancia360" xml:space="preserve"><value>Tolerància: {0} dies</value></data>
+  <data name="Fraccion360" xml:space="preserve"><value>{0} de {1} al dia</value></data>
+  <data name="SinCentros360" xml:space="preserve"><value>Cap Centre visible el requereix a un Treballador</value></data>
+  <data name="SinEmpresas360" xml:space="preserve"><value>Sense Treballadors amb aquest requisit en Centres visibles</value></data>
+  <data name="DetalleEmpresa360" xml:space="preserve"><value>{0} Treballadors · {1} Centres</value></data>
+  <data name="FichaDescripcion360" xml:space="preserve"><value>Descripció</value></data>
+  <data name="FichaCriterios360" xml:space="preserve"><value>Criteris de validació</value></data>
+  <data name="FichaObservaciones360" xml:space="preserve"><value>Observacions</value></data>
 </root>

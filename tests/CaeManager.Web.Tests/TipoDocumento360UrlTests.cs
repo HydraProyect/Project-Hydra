@@ -30,11 +30,21 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class TipoDocumento360UrlTests : BunitContext
 {
-    public TipoDocumento360UrlTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public TipoDocumento360UrlTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        JSInterop.SetupModule("./js/cajas-ficha.js").Setup<double[]>("medirAlturas", _ => true).SetResult([]);
+    }
 
     private sealed class MediatorFalso : IMediator
     {
         public List<FilaTrabajadorTipoDocumentoDto> Filas { get; } = [];
+        public List<CentroExigenciaTipoDocumentoDto> CentrosExigencia { get; } = [];
+        public List<EmpresaExigenciaTipoDocumentoDto> EmpresasEmpleadoras { get; } = [];
+        public string? Descripcion { get; set; }
+        public string? Criterios { get; set; }
+        public string? SeSolicitaA { get; set; }
+        public string? Observaciones { get; set; }
 
         /// <summary><c>false</c>: como el handler real con el rol Consulta o el rol Cliente, responde <c>null</c>.</summary>
         public bool PuedeLeer { get; set; } = true;
@@ -63,11 +73,12 @@ public class TipoDocumento360UrlTests : BunitContext
             var lista = filtradas.ToList();
 
             return new EstadoTipoDocumentoDto(
-                q.TipoDocumentoId, "Formación PRL", 12, true, default, default, null, [],
+                q.TipoDocumentoId, "Formación PRL", 12, true, default, default, SeSolicitaA, [],
                 new FraccionCumplimiento(Filas.Count(f => f.CentrosAlDia > 0), Filas.Count),
                 Centros: 1, Trabajadores: Filas.Count, EstadoTipoDocumentoCalculo.Recuentos(Filas),
                 lista.Skip((q.Pagina - 1) * q.TamanoPagina).Take(q.TamanoPagina).ToList(), lista.Count, q.Pagina, q.TamanoPagina,
-                Notas: null);
+                Notas: null, CentrosExigencia: CentrosExigencia, EmpresasEmpleadoras: EmpresasEmpleadoras, Descripcion: Descripcion,
+                CriteriosValidacion: Criterios, Observaciones: Observaciones);
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
@@ -142,6 +153,69 @@ public class TipoDocumento360UrlTests : BunitContext
         var cut = Render<TipoDocumentoDetalle>(p => p.Add(x => x.TipoDocumentoId, TipoId));
         cut.WaitForAssertion(() => cut.FindAll("[aria-busy=true]").Should().BeEmpty());
         return cut;
+    }
+
+    [Fact]
+    public void Centros_exigidos_usan_agregado_completo_y_configuracion_sin_borrar_la_URL()
+    {
+        var mediador = Montar();
+        mediador.CentrosExigencia.Add(new(CentroId, "Centro Norte", true, 7, new(1, 2), EstadoDocumento.Faltante));
+        var cut = Renderizar("?q=ninguno&estado=Vigente&extra=conservar");
+        cut.FindAll("[role=tab]").Single(t => t.TextContent == "Centros que lo exigen").Click();
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Norte"));
+        var fila = cut.Find($"a[href='/centros/{CentroId}']").Closest("li")!;
+        fila.TextContent.Should().Contain("Bloquea").And.Contain("Tolerancia: 7 días").And.Contain("1 de 2 al día");
+        fila.GetAttribute("data-tono").Should().Be("peligro");
+        Consulta.Should().Contain("pestana=centros").And.Contain("extra=conservar").And.Contain("q=ninguno");
+    }
+
+    [Fact]
+    public void Empresas_empleadoras_usan_fraccion_de_pares_y_no_inventan_identidad()
+    {
+        var mediador = Montar();
+        var id = Guid.NewGuid();
+        mediador.EmpresasEmpleadoras.Add(new(id, "Empresa empleadora", 2, 3, new(4, 6), EstadoDocumento.Vencido));
+        mediador.EmpresasEmpleadoras.Add(new(null, null, 1, 1, new(0, 1), EstadoDocumento.Faltante));
+        var cut = Renderizar("?pestana=empresas");
+        cut.Markup.Should().Contain("Sin Empresa empleadora");
+        var fila = cut.Find($"a[href='/empresas/{id}']").Closest("li")!;
+        fila.TextContent.Should().Contain("4 de 6 al día").And.Contain("2 Trabajadores · 3 Centros");
+        fila.GetAttribute("data-tono").Should().Be("peligro");
+        cut.FindAll(".fila-relacion-nombre").Where(n => n.TextContent == "Sin Empresa empleadora").Should().ContainSingle().Which.TagName.Should().Be("SPAN");
+    }
+
+    [Fact]
+    public void Ficha_solo_con_cajas_reales_y_enlace_profundo_funcional()
+    {
+        var mediador = Montar();
+        mediador.Descripcion = "Descripción real";
+        mediador.Criterios = "Criterios reales";
+        mediador.SeSolicitaA = "A la Empresa empleadora";
+        mediador.Observaciones = "Observaciones reales";
+        var cut = Renderizar("?pestana=ficha");
+        cut.Find("[role=tab][aria-selected=true]").TextContent.Should().Be("Ficha");
+        cut.FindAll("[data-caja]").Should().HaveCount(4);
+        cut.Find("[data-pieza=cajas-ficha]").TextContent.Should().Contain("Descripción real").And.Contain("Criterios reales").And.Contain("A la Empresa empleadora").And.Contain("Observaciones reales");
+    }
+
+    [Fact]
+    public void Ficha_sin_datos_se_oculta_y_la_URL_vuelve_a_Trabajadores()
+    {
+        Montar();
+        var cut = Renderizar("?pestana=ficha");
+        cut.FindAll("[role=tab]").Should().NotContain(t => t.TextContent == "Ficha");
+        cut.Find("[role=tab][aria-selected=true]").TextContent.Should().StartWith("Trabajadores");
+    }
+
+    [Theory]
+    [InlineData("centros", "Ningún Centro visible lo exige a un Trabajador")]
+    [InlineData("empresas", "Sin Trabajadores con este requisito en Centros visibles")]
+    public void Agregados_vacios_no_inventan_filas(string pestana, string titulo)
+    {
+        Montar();
+        var cut = Renderizar($"?pestana={pestana}");
+        cut.Markup.Should().Contain(titulo);
+        cut.FindAll("li.fila-relacion").Should().BeEmpty();
     }
 
     private NavigationManager Navegacion => Services.GetRequiredService<NavigationManager>();

@@ -245,6 +245,74 @@ public class ObtenerEstadoTipoDocumentoQueryTests
     }
 
     [Fact]
+    public async Task Agregados_completos_por_Centro_y_Empresa_no_se_recortan_con_la_pagina_ni_el_buscador()
+    {
+        var e = new Escenario();
+        var norte = e.Centro("Centro Norte");
+        var sur = e.Centro("Centro Sur");
+        var pares = new List<ParDocumentalExigido>();
+        for (var i = 0; i < 25; i++)
+            pares.Add(e.Par(norte, e.Trabajador($"Persona{i}", "Apellido"), EstadoDocumento.Vencido));
+        var vigente = e.Trabajador("Solo", "Vigente");
+        pares.Add(e.Par(norte, vigente, EstadoDocumento.Vigente));
+        pares.Add(e.Par(sur, vigente, EstadoDocumento.Vigente));
+        var dto = await e.Handler(new CalculoFalso([.. pares])).Handle(new(e.Epi.Id, TamanoPagina: 1, Busqueda: "Solo"), CancellationToken.None);
+        dto!.Filas.Should().ContainSingle();
+        dto.CentrosExigencia.Should().HaveCount(2);
+        dto.CentrosExigencia!.Single(c => c.Id == norte.Id).Cumplimiento.Should().Be(new FraccionCumplimiento(1, 26));
+        dto.CentrosExigencia.Single(c => c.Id == norte.Id).PeorEstado.Should().Be(EstadoDocumento.Vencido);
+        var empresa = dto.EmpresasEmpleadoras.Should().ContainSingle().Subject;
+        empresa.Id.Should().Be(e.Empresa.Id);
+        empresa.Trabajadores.Should().Be(26);
+        empresa.Centros.Should().Be(2);
+        empresa.Cumplimiento.Should().Be(new FraccionCumplimiento(2, 27));
+        empresa.PeorEstado.Should().Be(EstadoDocumento.Vencido);
+    }
+
+    [Fact]
+    public async Task Agregados_conservan_el_alcance_de_Centros_y_la_configuracion_del_requisito()
+    {
+        var e = new Escenario();
+        var propio = e.Centro("Centro visible");
+        var ajeno = e.Centro("Centro oculto");
+        var trabajador = e.Trabajador("Ana", "Alba");
+        e.Tipos.ListaTiposDocumentoCentros.Add(new(e.Epi.Id, propio.Id, bloqueaAcceso: true, toleranciaDias: 7));
+        var dto = await e.Handler(new CalculoFalso([e.Par(propio, trabajador, EstadoDocumento.Faltante), e.Par(ajeno, trabajador, EstadoDocumento.Vencido)]), centroIdsVisibles: [propio.Id])
+            .Handle(new(e.Epi.Id), CancellationToken.None);
+        var centro = dto!.CentrosExigencia.Should().ContainSingle().Subject;
+        centro.Id.Should().Be(propio.Id);
+        centro.BloqueaAcceso.Should().BeTrue();
+        centro.ToleranciaDias.Should().Be(7);
+        dto.EmpresasEmpleadoras.Should().ContainSingle().Subject.Cumplimiento.Should().Be(new FraccionCumplimiento(0, 1));
+    }
+
+    [Fact]
+    public async Task Agregado_sin_Empresa_empleadora_no_infiere_SubcontrataId()
+    {
+        var e = new Escenario();
+        var centro = e.Centro("Centro Norte");
+        var trabajador = CaeManager.Domain.Trabajadores.Trabajador.DeSubcontrata(Guid.NewGuid(), "Ana", "Alba", Escenario.Dni(60006000));
+        e.Trabajadores.ListaTrabajadores.Add(trabajador);
+        var dto = await e.Handler(new CalculoFalso([e.Par(centro, trabajador, EstadoDocumento.Faltante)])).Handle(new(e.Epi.Id), CancellationToken.None);
+        var empresa = dto!.EmpresasEmpleadoras.Should().ContainSingle().Subject;
+        empresa.Id.Should().BeNull();
+        empresa.Nombre.Should().BeNull();
+        empresa.Cumplimiento.Should().Be(new FraccionCumplimiento(0, 1));
+    }
+
+    [Fact]
+    public async Task Ficha_transporta_solo_campos_reales_del_Tipo_de_documento()
+    {
+        var e = new Escenario();
+        e.Epi.Actualizar(e.Epi.Nombre, 12, true, 1, e.Epi.Requerido, e.Epi.Naturaleza, null, "Descripción real", "Criterios reales", "A la Empresa empleadora", "Observaciones reales");
+        var dto = await e.Handler(new CalculoFalso([])).Handle(new(e.Epi.Id), CancellationToken.None);
+        dto!.Descripcion.Should().Be("Descripción real");
+        dto.CriteriosValidacion.Should().Be("Criterios reales");
+        dto.SeSolicitaA.Should().Be("A la Empresa empleadora");
+        dto.Observaciones.Should().Be("Observaciones reales");
+    }
+
+    [Fact]
     public async Task El_filtro_de_estados_y_la_pagina_recortan_las_filas_pero_no_el_anillo_ni_los_recuentos()
     {
         var escenario = new Escenario();
