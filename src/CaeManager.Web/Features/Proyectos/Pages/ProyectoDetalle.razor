@@ -249,18 +249,13 @@
                     {
                         <FilaRelacion @key="empresa.Id" Nombre="@empresa.RazonSocial" NombreIcono="empresas"
                                       OnNombre="() => AbrirEmpresaProyectoAsync(empresa)"
-                                      OnAbrir360="() => NavigationManager.NavigateTo(RutaEmpresaProyecto(empresa))"
-                                      Tono="@(empresa.PeorEstado is { } peor ? EstadoDocumentoFicha360.TonoFila(peor) : null)">
-                            <Detalle>@Textos[empresa.TecnicosActivos == 1 ? "EmpresaProyectoUnTecnico" : "EmpresaProyectoTecnicos", empresa.TecnicosActivos]</Detalle>
-                            <Cifra>@(empresa.Cumplimiento.Requeridos == 0 ? Textos["EmpresaProyectoSinRequisitos"].Value : Textos["FraccionEmpresaProyecto", empresa.Cumplimiento.AlDia, empresa.Cumplimiento.Requeridos].Value)</Cifra>
-                            <Estado>
-                                @if (empresa.PeorEstado is { } estado) { <Badge Tono="@EstadoDocumentoFicha360.Tono(estado)">@EstadoDocumentoFicha360.Texto(estado)</Badge> }
-                            </Estado>
+                                      OnAbrir360="() => NavigationManager.NavigateTo(RutaEmpresaProyecto(empresa))">
+                            <Detalle>@TextoPapelEmpresaProyecto(empresa) · @Textos[empresa.TecnicosActivos == 1 ? "EmpresaProyectoUnTecnico" : "EmpresaProyectoTecnicos", empresa.TecnicosActivos]</Detalle>
                         </FilaRelacion>
                     }
                 </ChildContent>
             </ListaRelaciones>
-            <p class="texto-descriptivo">@Textos["UniversoEmpresasProyecto", _detalle!.CentroNombre]</p>
+            <p class="texto-descriptivo">@Textos["OrigenEmpresasProyecto"]</p>
         }
     };
 

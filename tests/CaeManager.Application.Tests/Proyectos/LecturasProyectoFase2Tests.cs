@@ -6,14 +6,9 @@ using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Application.Tests.Plantillas;
-using CaeManager.Application.Tests.Reportes;
-using CaeManager.Application.Tests.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas;
-using CaeManager.Domain.Common;
-using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Trabajadores;
@@ -45,13 +40,9 @@ public class LecturasProyectoFase2Tests
     private readonly CentrosQueryContextFalso _centros = new();
     private readonly EmpresasQueryContextFalso _empresas = new();
     private readonly TrabajadoresQueryContextFalso _trabajadores = new();
-    private readonly DocumentosQueryContextFalso _documentos = new();
-    private readonly TiposDocumentoQueryContextFalso _tipos = new();
-    private readonly ConfiguracionQueryContextFalso _configuracion = new();
     private readonly Empresa _empleadora = new("Empresa empleadora del Proyecto");
     private readonly Centro _centro;
     private readonly Proyecto _proyecto;
-    private readonly TipoDocumento _tipo = new("Seguro RC", 12, true, 1, AmbitoAplicacion.Empresa, RequisitoDocumental.Si);
 
     public LecturasProyectoFase2Tests()
     {
@@ -64,14 +55,12 @@ public class LecturasProyectoFase2Tests
         var tecnico = Trabajador.DeEmpresa(_empleadora.Id, "Ana", "Alba", "60005002A");
         _trabajadores.ListaTrabajadores.Add(tecnico);
         _proyectos.Tecnicos.Add(new ProyectoTecnico(_proyecto.Id, tecnico.Id, new(2026, 10, 1)));
-        _tipos.ListaTiposDocumento.Add(_tipo);
-        _configuracion.ListaParametrosSistema.Add(new ParametroSistema(30, 7));
         _visitas.Lista.Add(new Visita(_centro.Id, new(2026, 10, 4), new(2026, 10, 5), null));
     }
 
     private Task<IReadOnlyList<EmpresaProyectoDto>> EmpresasAsync(IAlcanceDatosService? alcance = null) =>
         new ObtenerEmpresasProyectoQueryHandler(_proyectos, _trabajadores, _empresas, _centros,
-            _documentos, _tipos, _configuracion, alcance ?? new AlcanceDatosServiceFalso())
+            alcance ?? new AlcanceDatosServiceFalso())
             .Handle(new(_proyecto.Id), CancellationToken.None);
 
     private Task<IReadOnlyList<VisitaProyectoDto>> VisitasAsync(IAlcanceDatosService? alcance = null) =>
@@ -97,7 +86,7 @@ public class LecturasProyectoFase2Tests
     }
 
     [Fact]
-    public async Task La_Empresa_empleadora_fuera_del_alcance_no_aporta_nombre_ni_fraccion()
+    public async Task La_Empresa_empleadora_fuera_del_alcance_no_aporta_nombre_ni_tecnicos()
     {
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false,
             clienteIdsVisibles: [_proyecto.ClienteId], centroIdsVisibles: [_centro.Id], empresaIdsVisibles: []);
@@ -137,59 +126,30 @@ public class LecturasProyectoFase2Tests
     }
 
     [Fact]
-    public async Task El_documento_sustituido_no_cuenta_aunque_su_sustituto_no_este_cargado()
+    public async Task La_Empresa_con_ambos_papeles_conserva_una_fila_y_los_dos_tecnicos()
     {
-        var hoy = DiaDeNegocio.Hoy();
-        var anterior = Documento.DeEmpresa(_empleadora.Id, _tipo.Id, hoy.AddDays(-10), VigenciaDocumento.VenceEl(hoy.AddDays(90)));
-        var nuevo = Documento.DeEmpresa(_empleadora.Id, _tipo.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddDays(120)));
-        anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
-        _documentos.ListaDocumentos.Add(anterior);
+        var contraparte = Trabajador.DeSubcontrata(_empleadora.Id, "Leo", "Mas", "11111111H");
+        _trabajadores.ListaTrabajadores.Add(contraparte);
+        _proyectos.Tecnicos.Add(new ProyectoTecnico(_proyecto.Id, contraparte.Id, new(2026, 10, 1)));
         var empresa = (await EmpresasAsync()).Should().ContainSingle().Which;
-        empresa.Cumplimiento.AlDia.Should().Be(0);
-        empresa.PeorEstado.Should().Be(EstadoDocumento.Faltante);
-    }
-
-    [Fact]
-    public async Task La_fraccion_cuenta_un_documento_efectivo_por_tipo_y_no_la_version_vencida()
-    {
-        var hoy = DiaDeNegocio.Hoy();
-        _documentos.ListaDocumentos.Add(Documento.DeEmpresa(_empleadora.Id, _tipo.Id, hoy.AddMonths(-18), VigenciaDocumento.VenceEl(hoy.AddDays(-90))));
-        _documentos.ListaDocumentos.Add(Documento.DeEmpresa(_empleadora.Id, _tipo.Id, hoy.AddDays(-1), VigenciaDocumento.VenceEl(hoy.AddDays(90))));
-        var empresa = (await EmpresasAsync()).Should().ContainSingle().Subject;
-        empresa.Cumplimiento.Should().Be(new FraccionCumplimiento(1, 1));
-        empresa.PeorEstado.Should().Be(EstadoDocumento.Vigente);
+        empresa.DesdeEmpresaDirecta.Should().BeTrue();
+        empresa.DesdeRelacionSubcontrata.Should().BeTrue();
+        empresa.TecnicosActivos.Should().Be(2);
+        var directo = new AlcanceDatosServiceFalso(tieneAccesoTotal: false,
+            clienteIdsVisibles: [_proyecto.ClienteId], centroIdsVisibles: [_centro.Id],
+            empresaIdsVisibles: [_empleadora.Id], subcontrataIdsVisibles: []);
+        empresa = (await EmpresasAsync(directo)).Should().ContainSingle().Which;
+        empresa.DesdeEmpresaDirecta.Should().BeTrue();
+        empresa.DesdeRelacionSubcontrata.Should().BeFalse();
         empresa.TecnicosActivos.Should().Be(1);
     }
 
     [Fact]
-    public async Task Sin_documento_el_tipo_exigido_cuenta_pendiente_y_sin_tipos_no_hay_porcentaje()
+    public async Task El_DTO_de_Empresa_no_expone_fraccion_ni_estado_documental()
     {
-        var empresa = (await EmpresasAsync()).Should().ContainSingle().Subject;
-        empresa.Cumplimiento.Should().Be(new FraccionCumplimiento(0, 1));
-        empresa.PeorEstado.Should().Be(EstadoDocumento.Faltante);
-        _tipos.ListaTiposDocumento.Clear();
-        empresa = (await EmpresasAsync()).Should().ContainSingle().Subject;
-        empresa.Cumplimiento.Porcentaje.Should().BeNull();
-        empresa.PeorEstado.Should().BeNull();
-    }
-
-    [Fact]
-    public async Task La_exclusion_del_tipo_en_el_Centro_prevalece_sobre_su_valor_general()
-    {
-        _tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(_tipo.Id, _centro.Id, incluido: false));
-        var empresa = (await EmpresasAsync()).Should().ContainSingle().Subject;
-        empresa.Cumplimiento.Should().Be(FraccionCumplimiento.SinRequisitos);
-    }
-
-    [Fact]
-    public async Task El_vencido_en_tolerancia_no_se_cuenta_como_al_dia()
-    {
-        var hoy = DiaDeNegocio.Hoy();
-        _tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(_tipo.Id, _centro.Id, toleranciaDias: 10));
-        _documentos.ListaDocumentos.Add(Documento.DeEmpresa(_empleadora.Id, _tipo.Id, hoy.AddMonths(-12), VigenciaDocumento.VenceEl(hoy.AddDays(-2))));
-        var empresa = (await EmpresasAsync()).Should().ContainSingle().Subject;
-        empresa.PeorEstado.Should().Be(EstadoDocumento.EnTolerancia);
-        empresa.Cumplimiento.Should().Be(new FraccionCumplimiento(0, 1));
+        (await EmpresasAsync()).Should().ContainSingle().Which.TecnicosActivos.Should().Be(1);
+        typeof(EmpresaProyectoDto).GetProperty("Cumplimiento").Should().BeNull();
+        typeof(EmpresaProyectoDto).GetProperty("PeorEstado").Should().BeNull();
     }
 
     [Fact]

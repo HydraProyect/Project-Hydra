@@ -501,13 +501,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // que ya tiene ObtenerTecnicosProyectoQueryHandler, en una sola consulta para toda la lista.
         ("Proyectos.ObtenerProyectosQueryHandler", "ITrabajadoresQueryContext"),
         ("Proyectos.ObtenerTecnicosProyectoQueryHandler", "ITrabajadoresQueryContext"),
-        // Lecturas derivadas del Proyecto: empleadores de técnicos activos, requisitos documentales
-        // del Centro y Visitas en su periodo. Contexts de lectura con Tenant propietario y alcance.
+        // Lecturas derivadas del Proyecto: empleadores de técnicos activos
+        // y Visitas en su periodo. Contexts de lectura con Tenant propietario y alcance.
         ("Proyectos.ObtenerEmpresasProyectoQueryHandler", "ICentrosQueryContext"),
-        ("Proyectos.ObtenerEmpresasProyectoQueryHandler", "IConfiguracionQueryContext"),
-        ("Proyectos.ObtenerEmpresasProyectoQueryHandler", "IDocumentosQueryContext"),
         ("Proyectos.ObtenerEmpresasProyectoQueryHandler", "IEmpresasQueryContext"),
-        ("Proyectos.ObtenerEmpresasProyectoQueryHandler", "ITiposDocumentoQueryContext"),
         ("Proyectos.ObtenerEmpresasProyectoQueryHandler", "ITrabajadoresQueryContext"),
         ("Proyectos.ObtenerVisitasProyectoQueryHandler", "ICentrosQueryContext"),
         ("Proyectos.ObtenerVisitasProyectoQueryHandler", "IVisitasQueryContext"),

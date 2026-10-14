@@ -492,6 +492,6 @@ src/CaeManager.Web/Services/RevalidacionClienteActivoMiddleware.cs :: TenantClie
 src/CaeManager.Web/Services/TrazaSoporteService.cs :: TenantClienteId = 1
 
 # Lecturas derivadas de Proyecto: FK legacy de Cliente empresarial, inevitable para repetir
-# la autorización vecina y resolver la tolerancia existente; no introduce un modelo nuevo.
-src/CaeManager.Application/Proyectos/Queries/ObtenerEmpresasProyecto/ObtenerEmpresasProyectoQuery.cs :: ClienteId = 3
+# la autorización vecina; no introduce un modelo nuevo.
+src/CaeManager.Application/Proyectos/Queries/ObtenerEmpresasProyecto/ObtenerEmpresasProyectoQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Proyectos/Queries/ObtenerVisitasProyecto/ObtenerVisitasProyectoQuery.cs :: ClienteId = 1

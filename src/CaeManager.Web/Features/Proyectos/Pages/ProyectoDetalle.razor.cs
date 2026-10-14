@@ -263,11 +263,15 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     }
 
     private Task AbrirEmpresaProyectoAsync(EmpresaProyectoDto empresa) => WorkspaceService.AbrirAsync(
-        empresa.DesdeRelacionSubcontrata ? EntidadWorkspace.Subcontrata : EntidadWorkspace.Empresa,
+        empresa.DesdeEmpresaDirecta ? EntidadWorkspace.Empresa : EntidadWorkspace.Subcontrata,
         empresa.Id, empresa.RazonSocial, "informacion");
 
     private string RutaEmpresaProyecto(EmpresaProyectoDto empresa) =>
-        $"/{(empresa.DesdeRelacionSubcontrata ? "subcontratas" : "empresas")}/{empresa.Id}";
+        $"/{(empresa.DesdeEmpresaDirecta ? "empresas" : "subcontratas")}/{empresa.Id}";
+
+    private string TextoPapelEmpresaProyecto(EmpresaProyectoDto empresa) =>
+        Textos[empresa.DesdeEmpresaDirecta && empresa.DesdeRelacionSubcontrata ? "EmpresaProyectoAmbosPapeles"
+            : empresa.DesdeEmpresaDirecta ? "EmpresaProyectoPapelDirecta" : "EmpresaProyectoPapelSubcontrata"];
 
     private void IrAVisitaProyecto(Guid visitaId) => NavigationManager.NavigateTo($"/visitas/{visitaId}");
 
