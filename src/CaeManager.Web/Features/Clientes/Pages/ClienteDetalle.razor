@@ -14,6 +14,7 @@
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Blindaje42.Components
 @using CaeManager.Web.Features.Centros
+@using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Clientes.Components
 @using CaeManager.Web.Features.Clientes.Recursos
 @using Microsoft.Extensions.Localization
@@ -240,18 +241,52 @@
                             }
                             else if (_subcontratas is not null)
                             {
-                                @*
-                                    Subcontrata 360 todavía no tiene página: hasta
-                                    entonces el nombre abre el panel, igual que el
-                                    botón 360 (anotación NAVEGACIÓN del mockup).
-                                *@
                                 <p class="cliente360-resumen-lista">@Plural(_subcontratas.Count, "ResumenSubcontratasUno", "ResumenSubcontratasVarios")</p>
                                 <ListaRelaciones Etiqueta="@Textos["ListaSubcontratas"]">
                                     @foreach (var subcontrata in _subcontratas)
                                     {
+                                        var centros = _centrosSubcontratas.GetValueOrDefault(subcontrata.Id) ?? [];
                                         <FilaRelacion @key="subcontrata.Id" Nombre="@subcontrata.RazonSocial" NombreIcono="subcontratas"
                                                       Href="@($"/subcontratas/{subcontrata.Id}")"
-                                                      OnAbrir360="() => AbrirSubcontrataAsync(subcontrata)" />
+                                                      Desplegada="@(_subcontratasDesplegadas.Contains(subcontrata.Id))"
+                                                      DesplegadaChanged="@(abierta => { if (abierta) _subcontratasDesplegadas.Add(subcontrata.Id); else _subcontratasDesplegadas.Remove(subcontrata.Id); })"
+                                                      OnAbrir360="() => AbrirSubcontrataAsync(subcontrata)">
+                                            <Detalle>@Textos[centros.Count == 1 ? "CentroSubcontrata360" : "CentrosSubcontrata360", centros.Count]</Detalle>
+                                            <Desplegable>
+                                                <p class="cliente360-resumen-lista">@Textos["UniversoSubcontrata360"]</p>
+                                                @if (centros.Count == 0)
+                                                {
+                                                    <EstadoVacio Titulo="@Textos["SinCentrosSubcontrata360"]" />
+                                                }
+                                                else
+                                                {
+                                                    <ListaRelaciones Etiqueta="@Textos["ListaCentros"]">
+                                                        @foreach (var fila in centros)
+                                                        {
+                                                            <FilaRelacion @key="fila.Centro.Id" Nombre="@fila.Centro.Nombre" Href="@($"/centros/{fila.Centro.Id}")" NombreIcono="centros"
+                                                                          Tono="@(fila.PeorEstado is { } peor ? EstadoDocumentoFicha360.TonoFila(peor) : null)">
+                                                                <Cifra>
+                                                                    @if (fila.Cumplimiento.Porcentaje is { } porcentaje)
+                                                                    {
+                                                                        <span>@porcentaje% · @Textos["FraccionSubcontrata360", fila.Cumplimiento.AlDia, fila.Cumplimiento.Requeridos]</span>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <span>@Textos["CentroSinRequisitos"]</span>
+                                                                    }
+                                                                </Cifra>
+                                                                <Estado>
+                                                                    @if (fila.PeorEstado is { } estado)
+                                                                    {
+                                                                        <Badge Tono="EstadoDocumentoFicha360.Tono(estado)">@EstadoDocumentoFicha360.Texto(estado)</Badge>
+                                                                    }
+                                                                </Estado>
+                                                            </FilaRelacion>
+                                                        }
+                                                    </ListaRelaciones>
+                                                }
+                                            </Desplegable>
+                                        </FilaRelacion>
                                     }
                                 </ListaRelaciones>
                             }

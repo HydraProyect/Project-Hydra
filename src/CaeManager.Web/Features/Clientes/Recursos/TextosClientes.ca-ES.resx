@@ -530,4 +530,9 @@
   <data name="AnilloCentroUno" xml:space="preserve"><value>{0} de {1} centre amb gestió CAE sense incidències</value></data>
   <data name="ListaCentrosSinGestionCae" xml:space="preserve"><value>Centres sense gestió CAE</value></data>
   <data name="AvisoFranjaCentrosParcial" xml:space="preserve"><value>Els recomptes i filtres corresponen als {0} Centres carregats de {1}.</value></data>
+  <data name="CentrosSubcontrata360" xml:space="preserve"><value>{0} centres del Client</value></data>
+  <data name="UniversoSubcontrata360" xml:space="preserve"><value>Documentació dels seus Treballadors exigida als Centres del Client.</value></data>
+  <data name="SinCentrosSubcontrata360" xml:space="preserve"><value>Sense activitat en Centres visibles del Client</value></data>
+  <data name="FraccionSubcontrata360" xml:space="preserve"><value>{0} de {1} al dia</value></data>
+  <data name="CentroSubcontrata360" xml:space="preserve"><value>1 centre del Client</value></data>
 </root>

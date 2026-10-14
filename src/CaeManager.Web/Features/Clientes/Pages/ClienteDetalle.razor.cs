@@ -4,6 +4,9 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerResumenCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
+using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasConCentrosDeCliente;
+using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConCumplimientoDeSubcontrata;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Centros;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
@@ -21,11 +24,11 @@ namespace CaeManager.Web.Features.Clientes.Pages;
 /// con <c>/clientes/{id}/lectura-ia</c>, que es más específica.
 ///
 /// <para>
-/// <b>Mismas consultas y mismo alcance que el panel.</b> Cabecera
+/// <b>Lectores de identidad del panel y cumplimiento contextual por Centro.</b> Cabecera
 /// (<see cref="ObtenerClientePorIdQuery"/>), recuentos
-/// (<see cref="ObtenerResumenClienteQuery"/>), empresas y subcontratas: las
-/// cuatro del panel, que filtran por <c>IAlcanceDatosService</c> y viajan con
-/// RLS. Centros NO usa <c>ObtenerCentrosDeClienteQuery</c> del panel (solo trae
+/// (<see cref="ObtenerResumenClienteQuery"/>) y empresas conservan los lectores del panel.
+/// Subcontratas usa <see cref="ObtenerSubcontratasConCentrosDeClienteQuery"/> para añadir solo Centros visibles
+/// del Cliente empresarial, con documentos de sus Trabajadores. Centros NO usa <c>ObtenerCentrosDeClienteQuery</c> del panel (solo trae
 /// nombre y Empresa), sino <see cref="ObtenerCentrosQuery"/> con
 /// <c>ClienteId</c> —la misma que la lista /centros, con el mismo alcance
 /// (<c>ObtenerCentroIdsVisiblesAsync</c>)—, porque es la que trae por Centro
@@ -117,8 +120,14 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     private bool _cargandoEmpresas;
     private bool _errorEmpresas;
     private IReadOnlyList<SubcontrataDeClienteDto>? _subcontratas;
+    private IReadOnlyDictionary<Guid, IReadOnlyList<CentroCumplimientoSubcontrataDto>> _centrosSubcontratas = new Dictionary<Guid, IReadOnlyList<CentroCumplimientoSubcontrataDto>>();
+    private readonly HashSet<Guid> _subcontratasDesplegadas = [];
     private bool _cargandoSubcontratas;
     private bool _errorSubcontratas;
+    private bool _centrosSubcontratasLeidos;
+    private bool _cargandoCentrosSubcontratas;
+    private bool _datosInicialesCargados;
+    private int _cargaCentrosSubcontratas;
 
     private string _pestanaActiva = PestanaPorDefecto;
     private string? _pestanaDeLaUrl;
@@ -169,7 +178,10 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         }
 
         if (_clienteCargado == ClienteId)
+        {
+            await CargarCentrosSubcontratasSiProcedeAsync();
             return;
+        }
 
         _clienteCargado = ClienteId;
         ReiniciarParaNuevoCliente();
@@ -273,15 +285,16 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         pestana == "blindaje42" ? "documentacion" :
         _pestanas.Any(p => p.Id == pestana) ? pestana! : PestanaPorDefecto;
 
-    private void CambiarPestana(string pestana)
+    private async Task CambiarPestana(string pestana)
     {
         _pestanaActiva = Normalizar(pestana);
         _pestanaDeLaUrl = _pestanaActiva == PestanaPorDefecto ? null : _pestanaActiva;
         NavigationManager.ActualizarFiltroEnUrl("pestana", _pestanaDeLaUrl);
+        await CargarCentrosSubcontratasSiProcedeAsync();
     }
 
     /// <summary>Los indicadores de la cabecera cuentan centros: al pulsarlos se ven esos centros.</summary>
-    private void IrACentros() => CambiarPestana(PestanaPorDefecto);
+    private Task IrACentros() => CambiarPestana(PestanaPorDefecto);
 
     /// <summary>Invalida cualquier carga en vuelo: su respuesta ya no escribirá nada.</summary>
     private void InvalidarCargas()
@@ -292,6 +305,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _cargaCentros++;
         _cargaEmpresas++;
         _cargaSubcontratas++;
+        _cargaCentrosSubcontratas++;
     }
 
     private Task AbrirToleranciasAsync()
@@ -346,6 +360,11 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _errorEmpresas = false;
         _cargandoEmpresas = false;
         _subcontratas = null;
+        _datosInicialesCargados = false;
+        _centrosSubcontratasLeidos = false;
+        _cargandoCentrosSubcontratas = false;
+        _centrosSubcontratas = new Dictionary<Guid, IReadOnlyList<CentroCumplimientoSubcontrataDto>>();
+        _subcontratasDesplegadas.Clear();
         _errorSubcontratas = false;
         _cargandoSubcontratas = false;
     }
@@ -373,6 +392,9 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         await CargarEmpresasAsync();
         if (generacion != _generacion) return;
         await CargarSubcontratasAsync();
+        if (generacion != _generacion) return;
+        _datosInicialesCargados = true;
+        await CargarCentrosSubcontratasSiProcedeAsync();
     }
 
     /// <summary>Un doble clic en «Reintentar» no lanza una segunda cadena: la primera ya puso _cargando.</summary>
@@ -508,7 +530,12 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         }
     }
 
-    private Task ReintentarSubcontratasAsync() => _cargandoSubcontratas ? Task.CompletedTask : CargarSubcontratasAsync();
+    private async Task ReintentarSubcontratasAsync()
+    {
+        if (_cargandoSubcontratas) return;
+        await CargarSubcontratasAsync();
+        await CargarCentrosSubcontratasSiProcedeAsync();
+    }
 
     private async Task CargarSubcontratasAsync()
     {
@@ -533,6 +560,36 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             if (carga == _cargaSubcontratas)
             {
                 _cargandoSubcontratas = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    // La lectura barata alimenta los recuentos. La documental espera a la pestaña y a la carga inicial:
+    // las consultas comparten DbContext y no deben ejecutarse en paralelo.
+    private async Task CargarCentrosSubcontratasSiProcedeAsync()
+    {
+        if (!_datosInicialesCargados || _pestanaActiva != "subcontratas" || _centrosSubcontratasLeidos || _cargandoCentrosSubcontratas || _errorSubcontratas) return;
+        var carga = ++_cargaCentrosSubcontratas;
+        var id = _clienteCargado!.Value;
+        _cargandoCentrosSubcontratas = true;
+        _cargandoSubcontratas = true;
+        try
+        {
+            var filas = await Mediator.Send(new ObtenerSubcontratasConCentrosDeClienteQuery(id), _cancelacion);
+            if (carga != _cargaCentrosSubcontratas) return;
+            _centrosSubcontratas = filas.ToDictionary(s => s.Subcontrata.Id, s => s.Centros);
+            _centrosSubcontratasLeidos = true;
+        }
+        catch (Exception)
+        {
+            if (carga == _cargaCentrosSubcontratas) _errorSubcontratas = true;
+        }
+        finally
+        {
+            if (carga == _cargaCentrosSubcontratas)
+            {
+                _cargandoCentrosSubcontratas = _cargandoSubcontratas = false;
                 StateHasChanged();
             }
         }

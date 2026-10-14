@@ -13,6 +13,8 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerResumenCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
+using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasConCentrosDeCliente;
+using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConCumplimientoDeSubcontrata;
 using CaeManager.Application.Common;
 using CaeManager.Application.TiposDocumento.Commands.EstablecerToleranciaClienteEmpresarial;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerToleranciasClienteEmpresarial;
@@ -73,6 +75,8 @@ public class Cliente360PaginaTests : BunitContext
         public Dictionary<Guid, List<EmpresaDeClienteDto>> EmpresasPorCliente { get; } = [];
         public Dictionary<Guid, List<CentroListaDto>> CentrosPorCliente { get; } = [];
         public List<SubcontrataDeClienteDto> Subcontratas { get; } = [];
+        public List<CentroCumplimientoSubcontrataDto> CentrosSubcontrata { get; } = [];
+        public Dictionary<Guid, Task<IReadOnlyList<SubcontrataConCentrosDeClienteDto>>> SubcontratasPendientes { get; } = [];
         public List<BlindajeEmpresaDto> Certificaciones { get; } = [];
         public List<SolicitudCertificacionTgssDto> HistorialCertificaciones { get; } = [];
 
@@ -84,10 +88,12 @@ public class Cliente360PaginaTests : BunitContext
         /// <summary>Lo que ocurre en el servidor al guardar una tolerancia (p. ej. que los bloqueos cambien).</summary>
         public Action? AlGuardarTolerancia { get; set; }
 
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
-            return Task.FromResult((TResponse)Responder(request)!);
+            if (request is ObtenerSubcontratasConCentrosDeClienteQuery q && SubcontratasPendientes.TryGetValue(q.Id, out var pendiente))
+                return (TResponse)(object)await pendiente;
+            return (TResponse)Responder(request)!;
         }
 
         private object? Responder(object request) => request switch
@@ -101,6 +107,7 @@ public class Cliente360PaginaTests : BunitContext
             ObtenerEmpresasDeClienteQuery q when EmpresasPorCliente.TryGetValue(q.ClienteId, out var propias) => propias,
             ObtenerEmpresasDeClienteQuery => Empresas,
             ObtenerSubcontratasDeClienteQuery => Subcontratas,
+            ObtenerSubcontratasConCentrosDeClienteQuery => Subcontratas.Select(s => new SubcontrataConCentrosDeClienteDto(s, CentrosSubcontrata)).ToList(),
             ObtenerBlindajeEmpresasDeClienteQuery => Certificaciones,
             ObtenerHistorialCertificacionesTgssQuery => HistorialCertificaciones,
             SolicitarCertificacionTgssCommand => Result.Exito(Guid.NewGuid()),
@@ -967,6 +974,87 @@ public class Cliente360PaginaTests : BunitContext
 
         Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().Be(
             new WorkspaceFrame(EntidadWorkspace.Subcontrata, subcontrata.Id, "Andamios Cantábrico S.L.", "informacion"));
+    }
+
+    [Fact]
+    public void Subcontrata_despliega_Centros_y_su_documentacion_contextual()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Subcontratas.Add(new(Guid.NewGuid(), "Contraparte"));
+        var centro = Guid.NewGuid();
+        mediador.CentrosSubcontrata.Add(new(new(centro, "Centro Norte", "Cliente", 2), new(1, 2), EstadoDocumento.Faltante));
+        Registrar(mediador);
+        var cut = Renderizar(id, "?pestana=subcontratas");
+        cut.Find(".fila-relacion-detalle").TextContent.Should().Be("1 centro de este Cliente");
+        cut.FindAll("a.fila-relacion-nombre").Should().ContainSingle();
+        cut.Find(".fila-relacion-desplegar").Click();
+        var fila = cut.Find($"a[href='/centros/{centro}']").Closest("li")!;
+        fila.TextContent.Should().Contain("50%").And.Contain("1 de 2 al día").And.Contain("Pendiente");
+        fila.GetAttribute("data-tono").Should().Be("peligro");
+        cut.Markup.Should().Contain("Documentación de sus Trabajadores exigida en los Centros de este Cliente.");
+        cut.Find(".fila-relacion-desplegar").Click();
+        cut.FindAll($"a[href='/centros/{centro}']").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Subcontrata_sin_Centros_visibles_muestra_vacio_contextual()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Subcontratas.Add(new(Guid.NewGuid(), "Contraparte"));
+        Registrar(mediador);
+        var cut = Renderizar(id, "?pestana=subcontratas");
+        cut.Find(".fila-relacion-desplegar").Click();
+        cut.Markup.Should().Contain("Sin actividad en Centros visibles de este Cliente");
+    }
+
+    [Fact]
+    public void Centro_sin_requisitos_no_inventa_un_porcentaje()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Subcontratas.Add(new(Guid.NewGuid(), "Contraparte"));
+        mediador.CentrosSubcontrata.Add(new(new(Guid.NewGuid(), "Centro Norte", "Cliente", 2), FraccionCumplimiento.SinRequisitos, null));
+        Registrar(mediador);
+        var cut = Renderizar(id, "?pestana=subcontratas");
+        cut.Find(".fila-relacion-desplegar").Click();
+        cut.Find(".fila-relacion-desplegado").TextContent.Should().Contain("Sin requisitos").And.NotContain("%");
+    }
+
+    [Fact]
+    public void Centros_de_Subcontratas_se_leen_solo_al_abrir_la_pestana_y_se_conservan_al_reabrir()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Subcontratas.Add(new(Guid.NewGuid(), "Contraparte"));
+        Registrar(mediador);
+        var cut = Renderizar(id);
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerSubcontratasDeClienteQuery>().Should().ContainSingle());
+        mediador.Enviadas.OfType<ObtenerSubcontratasConCentrosDeClienteQuery>().Should().BeEmpty();
+        cut.FindAll(".pestanas-boton").Single(b => b.TextContent.StartsWith("Subcontratas")).Click();
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerSubcontratasConCentrosDeClienteQuery>().Should().ContainSingle());
+        cut.FindAll(".pestanas-boton").Single(b => b.TextContent.StartsWith("Centros")).Click();
+        cut.FindAll(".pestanas-boton").Single(b => b.TextContent.StartsWith("Subcontratas")).Click();
+        mediador.Enviadas.OfType<ObtenerSubcontratasConCentrosDeClienteQuery>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Respuesta_tardia_de_Subcontratas_no_mezcla_dos_Clientes_empresariales()
+    {
+        var (id, mediador) = ClienteBase();
+        var otro = Guid.NewGuid();
+        var contraparte = new SubcontrataDeClienteDto(Guid.NewGuid(), "Contraparte compartida");
+        mediador.Subcontratas.Add(contraparte);
+        mediador.CentrosSubcontrata.Add(new(new(Guid.NewGuid(), "Centro de B", "Cliente B", 1), new(1, 1), EstadoDocumento.Vigente));
+        mediador.Detalles[otro] = mediador.Detalles[id] with { Id = otro, RazonSocial = "Cliente B" };
+        var pendiente = new TaskCompletionSource<IReadOnlyList<SubcontrataConCentrosDeClienteDto>>();
+        mediador.SubcontratasPendientes[id] = pendiente.Task;
+        Registrar(mediador);
+        var cut = Renderizar(id, "?pestana=subcontratas");
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerSubcontratasConCentrosDeClienteQuery>().Should().ContainSingle());
+        cut.Render(p => p.Add(x => x.ClienteId, otro));
+        pendiente.SetResult([new(contraparte, [new(new(Guid.NewGuid(), "Centro anterior", "Cliente A", 1), new(0, 1), EstadoDocumento.Faltante)])]);
+        await cut.InvokeAsync(() => Task.CompletedTask);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Cliente B"));
+        cut.Find(".fila-relacion-desplegar").Click();
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro de B").And.NotContain("Centro anterior"));
     }
 
     // ── Error ─────────────────────────────────────────────────────────────
