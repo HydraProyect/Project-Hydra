@@ -1,3 +1,4 @@
+using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConCumplimientoDeSubcontrata;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
@@ -67,6 +68,7 @@ public class Subcontrata360PaginaTests : BunitContext
         public List<TrabajadorDocumentacionSubcontrataDto> Trabajadores { get; set; } = [];
         public SupervisionSubcontrataDto Supervision { get; set; } = new([], []);
         public List<CentroConActividadDto> Centros { get; set; } = [];
+        public IReadOnlyList<CentroCumplimientoSubcontrataDto>? CentrosConCumplimiento { get; set; }
         public CredencialAccesoSubcontrataDto? Credencial { get; set; }
         public bool DobleFactor { get; set; } = true;
         public bool FallaElCumplimiento { get; set; }
@@ -101,6 +103,7 @@ public class Subcontrata360PaginaTests : BunitContext
             ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)[],
             ObtenerTrabajadoresDocumentacionPorSubcontrataQuery => (IReadOnlyList<TrabajadorDocumentacionSubcontrataDto>)Trabajadores,
             ObtenerSupervisionSubcontrataQuery => Supervision,
+            ObtenerCentrosConCumplimientoDeSubcontrataQuery => CentrosConCumplimiento ?? Centros.Select(c => new CentroCumplimientoSubcontrataDto(c, FraccionCumplimiento.SinRequisitos, null)).ToList(),
             ObtenerCentrosConActividadDeSubcontrataQuery => (IReadOnlyList<CentroConActividadDto>)Centros,
             ObtenerVehiculosQuery q => new ResultadoPaginado<VehiculoListaDto>([], 0, q.Pagina, q.TamanoPagina),
             ObtenerDobleFactorPropioQuery => DobleFactor,
@@ -142,6 +145,39 @@ public class Subcontrata360PaginaTests : BunitContext
     {
         public Task<byte[]> ConvertirAPdfAsync(byte[] contenidoDocx, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("Con el drawer cerrado no se convierte nada.");
+    }
+
+    [Fact]
+    public void Sin_cajas_reales_no_hay_Ficha_ni_texto_de_cadena_y_se_conservan_las_seis_pestanas()
+    {
+        Montar();
+        var cut = Renderizar();
+        cut.FindAll("[role=tab]").Select(t => System.Text.RegularExpressions.Regex.Match(t.TextContent.Trim(), "^(Trabajadores|Supervisión|Centros|Vehículos|Agenda|Historial)").Value)
+            .Should().Equal("Trabajadores", "Supervisión", "Centros", "Vehículos", "Agenda", "Historial");
+        cut.Markup.Should().NotContain("Cadena de subcontratación");
+    }
+
+    [Fact]
+    public void La_URL_ficha_sin_cajas_reales_abre_Trabajadores_sin_placeholder()
+    {
+        Montar();
+        var cut = Renderizar("?pestana=ficha");
+        cut.FindAll("[role=tab][aria-selected=true]").Should().ContainSingle().Which.TextContent.Should().StartWith("Trabajadores");
+        cut.FindAll("[data-pieza=cajas-ficha]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Centros_muestra_la_fraccion_contextual_sin_cambiar_el_anillo_global()
+    {
+        var mediador = Montar();
+        mediador.Cumplimiento = new FraccionCumplimiento(3, 4);
+        mediador.CentrosConCumplimiento = [new(new(CentroId, "Centro Norte", "Cliente Norte", 2), new(1, 2), EstadoDocumento.Faltante)];
+        var cut = Renderizar("?pestana=centros");
+        cut.FindComponent<FilaRelacion>().Markup.Should().Contain("50%").And.Contain("1 de 2 al día");
+        cut.FindComponent<FilaRelacion>().Instance.Tono.Should().Be(TonoFila.Peligro);
+        cut.FindComponent<AnilloCumplimiento>().Instance.Porcentaje.Should().Be(75);
+        cut.Markup.Should().Contain("Documentación de sus Trabajadores exigida en cada Centro");
+        mediador.Enviadas.OfType<ObtenerCentrosConCumplimientoDeSubcontrataQuery>().Should().ContainSingle().Which.Id.Should().Be(SubcontrataId);
     }
 
     // ── Montaje ───────────────────────────────────────────────────────────
@@ -552,6 +588,7 @@ public class Subcontrata360PaginaTests : BunitContext
         mediador.Centros = [new CentroConActividadDto(CentroId, "Almacén Vigo", "Cyberdyne Ibérica S.A.", trabajadores)];
         var cut = Renderizar("?pestana=centros");
         cut.Find(".fila-relacion-detalle").TextContent.Should().Be($"Cyberdyne Ibérica S.A. · {cifra}").And.NotContain("%");
+        cut.Find(".fila-relacion").TextContent.Should().NotContain("%");
     }
 
     // ── Supervisión ───────────────────────────────────────────────────────
