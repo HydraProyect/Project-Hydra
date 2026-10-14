@@ -298,4 +298,10 @@
   <data name="AccionSubir" xml:space="preserve"><value>Subir</value></data>
   <data name="DocumentosVacioFiltroTitulo" xml:space="preserve"><value>Ningún documento con estos filtros</value></data>
   <data name="DocumentosVacioFiltroDescripcion" xml:space="preserve"><value>Cambia el estado seleccionado para ver los demás documentos cargados.</value></data>
+  <data name="DesplegarIncidenciasVehiculo" xml:space="preserve">
+    <value>Desplegar incidencias de {0}</value>
+  </data>
+  <data name="OpcionesOrdenVehiculo" xml:space="preserve">
+    <value>Opciones de orden del vehículo</value>
+  </data>
 </root>

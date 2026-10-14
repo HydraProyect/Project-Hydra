@@ -1,0 +1,38 @@
+@using CaeManager.Application.Documentos
+@using CaeManager.Application.Common
+@using CaeManager.Domain.Common
+@using CaeManager.Web.Features.Documentos
+
+<div class="subcaja-incidencias" role="list">
+@foreach (var incidencia in Incidencias)
+{
+    <div class="@(Coincide(incidencia, Busqueda) ? "subfila-incidencia coincidencia-incidencia" : "subfila-incidencia")" role="listitem" @key="incidencia.DocumentoId">
+        @if (Interactiva && AlPulsar.HasDelegate)
+        {
+            <button type="button" class="incidencia-corregir" @onclick="() => AlPulsar.InvokeAsync(incidencia)" @onclick:stopPropagation="true">@Contenido(incidencia)</button>
+        }
+        else
+        {
+            <span class="incidencia-lectura">@Contenido(incidencia)</span>
+        }
+    </div>
+}
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<IncidenciaDocumentalDto> Incidencias { get; set; } = [];
+    [Parameter] public bool Interactiva { get; set; }
+    [Parameter] public EventCallback<IncidenciaDocumentalDto> AlPulsar { get; set; }
+    [Parameter] public string? Busqueda { get; set; }
+
+    public static bool Coincide(IncidenciaDocumentalDto incidencia, string? busqueda) =>
+        !string.IsNullOrWhiteSpace(busqueda) && TextoDeBusqueda.Contiene(MotivoIncidenciasUi.NombreDeTipo(incidencia) + " " + Motivo(incidencia), busqueda);
+
+    private static string Motivo(IncidenciaDocumentalDto incidencia) => EstadoDocumentoUi.MotivoDeDocumento(incidencia.Estado, incidencia.FechaVencimiento, DiaDeNegocio.Hoy()) ?? incidencia.FechaVencimiento?.ToString("dd/MM/yyyy") ?? string.Empty;
+
+    private RenderFragment Contenido(IncidenciaDocumentalDto incidencia) => @<text>
+        <span class="incidencia-tipo"><TextoResaltado Texto="@MotivoIncidenciasUi.NombreDeTipo(incidencia)" Termino="@Busqueda" /></span>
+        <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
+        <span class="incidencia-motivo"><TextoResaltado Texto="@Motivo(incidencia)" Termino="@Busqueda" /></span>
+    </text>;
+}

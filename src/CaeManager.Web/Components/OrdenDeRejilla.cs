@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Components.QuickGrid;
 namespace CaeManager.Web.Components;
 
 /// <summary>
-/// El orden de columna de un listado QuickGrid, en la URL: <c>?orden=columna</c> o
+/// El orden de columna de un listado, en la URL: <c>?orden=columna</c> o
 /// <c>?orden=columna-desc</c>, con claves estables en minúsculas que la página declara junto a la
 /// propiedad del DTO por la que ordena cada una (la que lee <see cref="LecturaOrden"/>). Sin
 /// <c>orden</c>, el de fábrica. Forma parte de la vista del listado: lo llevan los filtros
@@ -21,6 +21,10 @@ namespace CaeManager.Web.Components;
 /// columna ordenable <c>IsDefaultSortColumn="@_orden.Es(…)" InitialSortDirection="@_orden.Direccion"</c>:
 /// al remontarse nace ya ordenada y pide los datos una vez.</item>
 /// </list>
+/// <para>
+/// Un listado con renderizado propio puede reutilizar Clave, Propiedad y Direccion para componer la misma
+/// consulta; Leer valida la URL y Anotar reconoce el orden aplicado sin depender del componente QuickGrid.
+/// </para>
 /// </summary>
 public sealed class OrdenDeRejilla
 {

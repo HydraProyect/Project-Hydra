@@ -1,0 +1,39 @@
+.subcaja-incidencias {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-surface-subtle);
+}
+
+.incidencia-corregir,
+.incidencia-lectura {
+    display: grid;
+    grid-template-columns: minmax(230px, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    padding: var(--space-2) 0;
+    color: var(--color-text);
+    font: var(--font-body-sm);
+    text-align: start;
+}
+
+.incidencia-corregir {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.incidencia-tipo {
+    font-weight: 600;
+}
+
+.incidencia-motivo {
+    color: var(--color-text-muted);
+}
+
+.coincidencia-incidencia {
+    background: var(--color-resaltado-busqueda);
+}
+
+.subfila-incidencia + .subfila-incidencia {
+    border-top: 1px solid var(--color-border);
+}

@@ -34,35 +34,27 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// <summary>La empresa activa aún no se ha resuelto: se pinta una carga en vez de la lista.</summary>
     private bool _resolviendoEmpresa = true;
 
-    private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
+    private int _pagina = 1;
+    private int _tamanoPagina = 20;
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
+    private bool _cargaPendiente = true;
+    private bool _opcionesOrdenVehiculo;
+    private readonly HashSet<Guid> _expandidos = [];
+    private CancellationTokenSource? _peticionActiva;
+    private string _campoOrdenVehiculo = nameof(VehiculoListaDto.Nombre);
 
-    // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_paginacion.ItemsPerPage));
-
-    private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
-
-    // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
-    // Una sola petición: SetCurrentPageIndexAsync ya avisa a QuickGrid aunque la
-    // página no cambie, así que refrescar además la rejilla pedía lo mismo dos
-    // veces (ver RecargarAsync).
-    private Task CambiarTamanoPaginaAsync(int tamano)
+    private Task CambiarPaginaAsync(int pagina)
     {
-        _paginacion.ItemsPerPage = tamano;
-        return _paginacion.SetCurrentPageIndexAsync(0);
+        _pagina = pagina;
+        _expandidos.Clear();
+        return CargarListaAsync();
     }
 
-    private QuickGrid<VehiculoListaDto>? _grid;
-    private TemplateColumn<VehiculoListaDto>? _columnaVehiculo;
-    private ColumnBase<VehiculoListaDto>? _ultimaColumnaOrden;
-    private bool _ultimoOrdenAscendente = true;
-    private string _campoOrdenVehiculo = nameof(VehiculoListaDto.Nombre);
-    private bool _ordenVehiculoPendiente;
-    private SortDirection _direccionOrdenPendiente;
-    private static readonly GridSort<VehiculoListaDto> OrdenPorNombre = GridSort<VehiculoListaDto>.ByAscending(v => v.Nombre);
-    private static readonly GridSort<VehiculoListaDto> OrdenPorModelo = GridSort<VehiculoListaDto>.ByAscending(v => v.Modelo);
-
-    private GridSort<VehiculoListaDto> OrdenColumnaVehiculo =>
-        _campoOrdenVehiculo == nameof(VehiculoListaDto.Modelo) ? OrdenPorModelo : OrdenPorNombre;
+    private Task CambiarTamanoPaginaAsync(int tamano)
+    {
+        _tamanoPagina = tamano;
+        return RecargarAsync();
+    }
 
     private string TituloColumnaVehiculo => Textos["ListaColumnaVehiculoOrden",
         Textos[_campoOrdenVehiculo == nameof(VehiculoListaDto.Modelo) ? "EtiquetaModelo" : "EtiquetaNombre"].Value].Value;
@@ -200,7 +192,6 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private IValidator<CrearVehiculoCommand> ValidadorCrear { get; set; } = default!;
 
-    private GridItemsProvider<VehiculoListaDto>? _proveedorElementos;
 
     /// <summary>
     /// Se cancela al retirarse la página: las consultas en curso dejan de
@@ -231,14 +222,6 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     // cambio la saque del filtro activo, hasta la siguiente carga. Los recuentos de la franja
     // tampoco se recalculan hasta entonces.
 
-    /// <summary>
-    /// La siguiente petición de QuickGrid se sirve de <see cref="_elementosPagina"/> sin consultar:
-    /// QuickGrid solo repinta sus filas cuando su proveedor le entrega una página, y una carga
-    /// de verdad limpiaría la selección y la fila enfocada. El total no cambia, así que no hay
-    /// segunda petición (ver RecargarAsync).
-    /// </summary>
-    private bool _servirPaginaEnMemoria;
-
     private void AlGuardarEntidad(EntidadWorkspace tipo, Guid id)
     {
         if (tipo == EntidadWorkspace.Vehiculo)
@@ -250,7 +233,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         // Con una carga en vuelo no se sustituye nada: la sustitución caería sobre una página que
         // está a punto de cambiar. Hueco conocido: si esa carga leyó antes de que el guardado
         // fuera firme, la fila conserva el dato anterior hasta la siguiente carga.
-        if (_desechado || _grid is null || _cargando || !_elementosPagina.Any(e => e.Id == id))
+        if (_desechado || _cargando || !_elementosPagina.Any(e => e.Id == id))
             return;
 
         var carga = _cargaVigente;
@@ -265,22 +248,17 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
                     Busqueda: null, ConRecuentosPorEstado: true, VehiculoId: id, ConDesgloseDocumental: true),
                 _ciclo.Token);
             var indice = _elementosPagina.FindIndex(e => e.Id == id);
-            if (_desechado || _grid is null || _cargando || carga != _cargaVigente || indice < 0
+            if (_desechado || _cargando || carga != _cargaVigente || indice < 0
                 || resultado.Elementos.FirstOrDefault() is not { } actualizada)
                 return;
 
             _elementosPagina[indice] = actualizada;
-            _servirPaginaEnMemoria = true;
-            await _grid.RefreshDataAsync();
+            StateHasChanged();
         }
         catch (Exception)
         {
             // El guardado ya es firme: que falle la relectura no es un error que enseñar. La
             // fila conserva el dato anterior hasta la siguiente carga, como antes de este aviso.
-        }
-        finally
-        {
-            _servirPaginaEnMemoria = false;
         }
     }
 
@@ -331,9 +309,6 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         if (_sinEmpresaSeleccionada)
             return;
 
-        // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
-        _proveedorElementos = ProveerElementosAsync;
-
         _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
         _subcontratasDisponibles = await Mediator.Send(new ObtenerSubcontratasParaSelectorQuery());
     }
@@ -366,7 +341,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         if (empresaDeLaUrl != _filtroEmpresaId)
             _filtroEmpresaId = empresaDeLaUrl;
 
-        LeerOrden(OrdenInicial);
+        if (LeerOrden(OrdenInicial)) _cargaPendiente = true;
     }
 
     /// <summary>Un Id de la URL solo vale si es un Guid; cualquier otra cosa es «sin filtro».</summary>
@@ -391,37 +366,32 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         await RecargarAsync();
     }
 
-    private async ValueTask<GridItemsProviderResult<VehiculoListaDto>> ProveerElementosAsync(
-        GridItemsProviderRequest<VehiculoListaDto> request)
+    private async Task CargarListaAsync()
     {
-        if (_servirPaginaEnMemoria)
-        {
-            // Refresco de una fila tras guardar en la vista rápida (ver RefrescarFilaAsync).
-            _servirPaginaEnMemoria = false;
-            return GridItemsProviderResult.From(_elementosPagina.ToList(), _totalElementos);
-        }
-
-        if (_desechado)
-            return GridItemsProviderResult.From(new List<VehiculoListaDto>(), 0);
-
+        if (_desechado) return;
+        _cargaPendiente = false;
         // Todo lo que define la pregunta —el número de carga y el token— se lee
         // ANTES del await. Leer _ciclo.Token después dejaría que un Dispose
         // intermedio lo hubiera desechado.
         var carga = ++_cargaVigente;
 
         // Dos motivos para cancelar: que la página se retire (el ciclo) y que
-        // la rejilla pida otra página, otro orden u otro filtro (QuickGrid).
-        using var cancelacion = CancellationTokenSource.CreateLinkedTokenSource(_ciclo.Token, request.CancellationToken);
+        // se pida otra página, otro orden u otro filtro.
+        using var cancelacion = CancellationTokenSource.CreateLinkedTokenSource(_ciclo.Token);
+        var anterior = _peticionActiva;
+        _peticionActiva = cancelacion;
+        anterior?.Cancel();
         var token = cancelacion.Token;
 
         // La pregunta se compone entera ANTES del await, como el número de carga y el token.
-        var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+        var ordenarPor = _orden.Propiedad;
+        var descendente = _orden.Direccion == SortDirection.Descending;
         var consulta = new ObtenerVehiculosQuery(
             Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
             EmpresaId: Guid.TryParse(_filtroEmpresaId, out var empresaId) ? empresaId : null,
             SubcontrataId: Guid.TryParse(_filtroSubcontrataId, out var subcontrataId) ? subcontrataId : null,
-            Pagina: (request.StartIndex / _paginacion.ItemsPerPage) + 1,
-            TamanoPagina: _paginacion.ItemsPerPage,
+            Pagina: _pagina,
+            TamanoPagina: _tamanoPagina,
             OrdenarPor: ordenarPor,
             Descendente: descendente,
             EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
@@ -432,17 +402,15 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         // La misma pregunta que la carga anterior conserva la selección y la fila enfocada (es el refresco
         // tras corregir una incidencia, ver RefrescarTrasCorreccionAsync); cualquier otra las limpia.
         var conservarSeleccion = consulta == _consultaQueConservaSeleccion;
-        if (!conservarSeleccion)
-            _consultaQueConservaSeleccion = null;
+        _consultaQueConservaSeleccion = null;
         _ultimaConsulta = consulta;
 
         _cargando = true;
         _errorCarga = false;
+        StateHasChanged();
 
         try
         {
-            _ultimaColumnaOrden = request.SortByColumn;
-            _ultimoOrdenAscendente = request.SortByAscending;
             if (_orden.Anotar(ordenarPor, descendente))
                 NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
             (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
@@ -451,10 +419,9 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
 
             // La respuesta de una búsqueda ya abandonada no puede pisar el
             // total, las filas ni la selección de la pregunta que sí se está
-            // mirando. QuickGrid descarta por su cuenta el resultado de un
-            // provider superado, pero el estado de la página lo escribimos aquí.
+            // mirando: solo la generación vigente escribe el estado de la página.
             if (!EsVigente(carga))
-                return GridItemsProviderResult.From(new List<VehiculoListaDto>(), 0);
+                return;
 
             _totalElementos = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
@@ -471,25 +438,32 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             else
             {
                 _seleccionados.Clear();
+                _expandidos.Clear();
                 _idEnfocado = null;
             }
 
-            return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
+            _expandidos.IntersectWith(elementos.Where(v => v.Incidencias.Count > 0).Select(v => v.Id));
+            if (_pagina > TotalPaginas)
+            {
+                _pagina = TotalPaginas;
+                await CargarListaAsync();
+            }
         }
         catch (Exception) when (!EsVigente(carga))
         {
             // Una carga superada que falla no es un error de la vigente: no
             // puede tapar su resultado con el estado de error de una pregunta
             // que ya nadie hace.
-            return GridItemsProviderResult.From(new List<VehiculoListaDto>(), 0);
+            return;
         }
         catch (Exception)
         {
             _errorCarga = true;
-            return GridItemsProviderResult.From(new List<VehiculoListaDto>(), 0);
+            return;
         }
         finally
         {
+            if (ReferenceEquals(_peticionActiva, cancelacion)) _peticionActiva = null;
             if (EsVigente(carga))
             {
                 _cargando = false;
@@ -545,35 +519,55 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     private string EtiquetaFiltroSubcontrata =>
         _subcontratasDisponibles.FirstOrDefault(s => s.Id.ToString() == _filtroSubcontrataId)?.RazonSocial ?? Textos["EtiquetaSubcontrata"].Value;
 
-    /// <summary>
-    /// Escoge el campo de la celda combinada sin modificar el botón de orden nativo. La ordenación
-    /// se ejecuta después del render, cuando QuickGrid ya recibió el nuevo SortBy de la columna.
-    /// </summary>
-    private Task CambiarCampoOrdenVehiculoAsync(string valor)
+    private async Task OrdenarAsync(string propiedad, bool? descendente = null)
     {
-        if (valor is not (nameof(VehiculoListaDto.Nombre) or nameof(VehiculoListaDto.Modelo)) || valor == _campoOrdenVehiculo)
-            return Task.CompletedTask;
+        _opcionesOrdenVehiculo = false;
+        var clave = propiedad switch
+        {
+            nameof(VehiculoListaDto.Nombre) => "vehiculo",
+            nameof(VehiculoListaDto.Modelo) => "modelo",
+            nameof(VehiculoListaDto.EmpleadorNombre) => "empleador",
+            nameof(VehiculoListaDto.NumeroPlaca) => "matricula",
+            _ => "documentacion",
+        };
+        var desc = descendente ?? (_orden.Propiedad == propiedad && _orden.Direccion != SortDirection.Descending);
+        LeerOrden(clave + (desc ? "-desc" : string.Empty));
+        NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
+        await RecargarAsync();
+    }
 
+    private async Task CambiarCampoOrdenVehiculoAsync(string valor)
+    {
+        if (valor is not (nameof(VehiculoListaDto.Nombre) or nameof(VehiculoListaDto.Modelo)) || valor == _campoOrdenVehiculo) return;
+        var desc = _orden.Es("vehiculo", "modelo") && _orden.Direccion == SortDirection.Descending;
         _campoOrdenVehiculo = valor;
-        _direccionOrdenPendiente = ReferenceEquals(_ultimaColumnaOrden, _columnaVehiculo) && !_ultimoOrdenAscendente
-            ? SortDirection.Descending : SortDirection.Ascending;
-        _ordenVehiculoPendiente = true;
-        return Task.CompletedTask;
+        _opcionesOrdenVehiculo = false;
+        await OrdenarAsync(valor, desc);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        var grid = _grid;
-        var columna = _columnaVehiculo;
-        if (_desechado || !_ordenVehiculoPendiente || grid is null || columna is null)
-            return;
+        if (_cargaPendiente && !_resolviendoEmpresa && !_sinEmpresaSeleccionada && !_desechado)
+            await CargarListaAsync();
 
-        // Consumir antes del await evita repetir el orden en el render que provoca la carga.
-        _ordenVehiculoPendiente = false;
-        await grid.SortByColumnAsync(columna, _direccionOrdenPendiente);
-        if (!_desechado && ReferenceEquals(grid, _grid))
-            await grid.HideColumnOptionsAsync();
     }
+
+    private bool TodosExpandidos => _elementosPagina.Any(v => v.Incidencias.Count > 0)
+        && _elementosPagina.Where(v => v.Incidencias.Count > 0).All(v => _expandidos.Contains(v.Id));
+
+    private void AlternarExpansion(Guid id)
+    {
+        if (!_expandidos.Add(id)) _expandidos.Remove(id);
+    }
+
+    private void AlternarTodosExpandidos(bool expandir)
+    {
+        _expandidos.Clear();
+        if (expandir) _expandidos.UnionWith(_elementosPagina.Where(v => v.Incidencias.Count > 0).Select(v => v.Id));
+    }
+
+    private bool EstaExpandido(VehiculoListaDto vehiculo) => _expandidos.Contains(vehiculo.Id)
+        || vehiculo.Incidencias.Any(i => CaeManager.Web.Features.Documentos.Components.SubcajaIncidenciasDocumentales.Coincide(i, _busqueda));
 
     /// <summary>
     /// Los cuatro filtros de la barra. Separa "aún no hay vehículos" de
@@ -621,8 +615,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     ///
     /// <para>
     /// No se suelta al leerla: si la corrección cambia el total (la fila corregida sale del filtro activo),
-    /// QuickGrid vuelve a pedir la misma página por su cuenta en el render siguiente, y esa segunda petición es
-    /// el mismo refresco, no una recarga nueva. Mismo patrón que <c>Trabajadores.razor.cs</c>.
+    /// La rejilla propia pide una página por corrección; el recibo se consume al componer esa petición.
     /// </para>
     /// </summary>
     private ObtenerVehiculosQuery? _consultaQueConservaSeleccion;
@@ -643,11 +636,11 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// </summary>
     private async Task RefrescarTrasCorreccionAsync()
     {
-        if (_desechado || _grid is null)
+        if (_desechado)
             return;
 
         _consultaQueConservaSeleccion = _ultimaConsulta;
-        await _grid.RefreshDataAsync();
+        await CargarListaAsync();
         StateHasChanged();
     }
 
@@ -677,7 +670,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"));
         _filtroSubcontrataId = IdDesdeUrl(vista.GetValueOrDefault("subcontrata"));
         _filtroEmpresaId = _filtroSubcontrataId.Length > 0 ? string.Empty : IdDesdeUrl(vista.GetValueOrDefault("empresa"));
-        var cambiaElOrden = LeerOrden(vista.GetValueOrDefault("orden"));
+        LeerOrden(vista.GetValueOrDefault("orden"));
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = _busqueda,
@@ -687,32 +680,15 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             ["orden"] = _orden.EnUrl,
         });
 
-        // Con otro orden la rejilla se remonta en el siguiente render y pide ella los datos:
-        // refrescar además la saliente sería pedirlos dos veces.
-        if (cambiaElOrden && _paginacion.CurrentPageIndex == 0)
-            StateHasChanged();
-        else
-            await RecargarAsync();
+        await RecargarAsync();
     }
 
-    /// <summary>
-    /// Vuelve a la página 1 y pide la lista UNA vez.
-    /// <see cref="PaginationState.SetCurrentPageIndexAsync"/> no lleva guarda de
-    /// igualdad: avisa a QuickGrid cambie o no la página, y QuickGrid recarga al
-    /// recibir el aviso. Llamar además a <c>RefreshDataAsync</c> pedía dos veces
-    /// lo mismo. Ver <c>Clientes.razor.cs</c> para el detalle del componente.
-    /// </summary>
+    /// <summary>Vuelve a la página 1 y pide una sola página de propietarios.</summary>
     private async Task RecargarAsync()
     {
-        // Una recarga pedida por la página no es el refresco tras corregir una incidencia: aunque repita la
-        // pregunta, limpia la selección y la fila enfocada.
         _consultaQueConservaSeleccion = null;
-
-        if (_grid is not null && _paginacion.CurrentPageIndex == 0)
-            await _grid.RefreshDataAsync();
-        else
-            await _paginacion.SetCurrentPageIndexAsync(0);
-
+        _pagina = 1;
+        await CargarListaAsync();
         StateHasChanged();
     }
 
@@ -960,7 +936,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             _ => null
         };
         var foco = item.Id == _idEnfocado ? "fila-enfocada" : null;
-        // «fila-pulsable»: QuickGrid no ofrece clic de fila, así que es atajos-lista.js quien, al
+        // «fila-pulsable»: atajos-lista.js es quien, al
         // hacer clic en cualquier punto de la fila que no sea un control, pulsa su nombre.
         return string.Join(' ', new[] { "fila-pulsable", foco, tinte }.Where(c => c is not null));
     }
@@ -1012,7 +988,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     /// <summary>
     /// Los criterios de la vista con los nombres de parámetro de <c>/vehiculos/exportar.xlsx</c>:
-    /// los mismos que <see cref="ProveerElementosAsync"/> pasa a la consulta del listado.
+    /// los mismos que <see cref="CargarListaAsync"/> pasa a la consulta del listado.
     /// </summary>
     private Dictionary<string, string?> CriteriosExportar => new()
     {
