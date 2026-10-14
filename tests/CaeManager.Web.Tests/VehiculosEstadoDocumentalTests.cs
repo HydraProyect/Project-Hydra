@@ -48,11 +48,11 @@ namespace CaeManager.Web.Tests;
 /// vive dentro de <c>.ventana-contexto-panel</c>, que es lo que ese guion excluye.
 /// </para>
 /// </summary>
-public class VehiculosEstadoDocumentalTests : BunitContext
+public partial class VehiculosEstadoDocumentalTests : BunitContext
 {
     private static readonly Guid EmpresaPropia = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
-    /// <summary>QuickGrid y AtajosListaTeclado importan sus módulos JS al montarse.</summary>
+    /// <summary>AtajosListaTeclado importa su módulo JS al montarse.</summary>
     public VehiculosEstadoDocumentalTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -156,7 +156,7 @@ public class VehiculosEstadoDocumentalTests : BunitContext
         return cut;
     }
 
-    /// <summary>Filas con datos (QuickGrid rellena la página con filas vacías).</summary>
+    /// <summary>Filas de vehículos; las filas de detalle no pertenecen a la colección de propietarios.</summary>
     private static IReadOnlyList<IElement> Filas(IRenderedComponent<Vehiculos> cut) =>
         cut.FindAll("tbody tr:has(button.enlace-nombre-fila)");
 
@@ -167,7 +167,19 @@ public class VehiculosEstadoDocumentalTests : BunitContext
         Filas(cut)[fila].QuerySelector("td.col-estado")!;
 
     private static string? Motivo(IRenderedComponent<Vehiculos> cut, int fila = 0) =>
-        CeldaDeEstado(cut, fila).QuerySelector(".estado-fila-motivo .motivo-incidencias-texto")?.TextContent.Trim();
+        CeldaDeEstado(cut, fila).QuerySelector(".estado-fila-motivo")?.TextContent.Trim();
+
+    private static IElement AbrirIncidencias(IRenderedComponent<Vehiculos> cut, int fila = 0)
+    {
+        var propietario = Filas(cut)[fila];
+        var chevron = propietario.QuerySelector(".boton-expandir-incidencias");
+        chevron.Should().NotBeNull();
+        if (chevron!.GetAttribute("aria-expanded") != "true") chevron.Click();
+        var detalle = Filas(cut)[fila].NextElementSibling;
+        detalle.Should().NotBeNull();
+        detalle!.ClassList.Should().Contain("vehiculo-detalle-incidencias");
+        return detalle;
+    }
 
     private static List<string> Cabeceras(IRenderedComponent<Vehiculos> cut) =>
         cut.FindAll("thead th").Select(th => th.QuerySelector(".col-title-text")?.TextContent.Trim() ?? string.Empty).ToList();
@@ -252,7 +264,7 @@ public class VehiculosEstadoDocumentalTests : BunitContext
         var celda = CeldaDeEstado(cut);
         celda.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Vencido");
         Motivo(cut).Should().Be("2 vencidos · 1 por vencer");
-        celda.QuerySelectorAll("button.ventana-contexto-elemento .motivo-incidencias-tipo").Select(e => e.TextContent.Trim())
+        AbrirIncidencias(cut).QuerySelectorAll("button.incidencia-corregir .incidencia-tipo").Select(e => e.TextContent.Trim())
             .Should().Equal("ITV", "Tarjeta de transporte", "Seguro del vehículo");
     }
 
@@ -297,7 +309,9 @@ public class VehiculosEstadoDocumentalTests : BunitContext
         });
 
         Filas(cut).Should().HaveCount(2);
-        cut.FindAll("td.col-estado button.ventana-contexto-elemento").Should().HaveCount(4);
+        AbrirIncidencias(cut, 0);
+        AbrirIncidencias(cut, 1);
+        cut.FindAll("button.incidencia-corregir").Should().HaveCount(4);
     }
 
     [Fact]
@@ -308,10 +322,8 @@ public class VehiculosEstadoDocumentalTests : BunitContext
             IncidenciaDe("Permiso de circulación", EstadoDocumento.SinConfirmar));
         var cut = Renderizar(new MediadorFalso { Almacen = { grua } }, rol: Roles.Consulta);
 
-        var celda = CeldaDeEstado(cut);
         Motivo(cut).Should().Be("1 vencido · 1 sin confirmar", "control positivo: el motivo se ve igual");
-        celda.QuerySelectorAll("button").Should().BeEmpty("no se ofrece un formulario que el comando va a denegar");
-        celda.QuerySelectorAll(".ventana-linea").Should().HaveCount(2, "control positivo: el desglose se sigue viendo");
+        AbrirIncidencias(cut).QuerySelectorAll(".incidencia-lectura").Should().HaveCount(2, "control positivo: el desglose se sigue viendo");
     }
 
     // --- Corrección en la misma pantalla -------------------------------------------------------
@@ -324,9 +336,9 @@ public class VehiculosEstadoDocumentalTests : BunitContext
         var mediador = new MediadorFalso { Almacen = { Vehiculo("Camión grúa", EstadoDocumento.Vencido, vencida, urgente) } };
         var cut = Renderizar(mediador);
         var consultasDeListaAntes = ConsultasDeLista(mediador);
-        var boton = CeldaDeEstado(cut).QuerySelectorAll("button.ventana-contexto-elemento")[1];
-        boton.Closest(".ventana-contexto-panel").Should().NotBeNull(
-            "es lo que «pulsarFila» de atajos-lista.js excluye para no abrir además la vista rápida");
+        var boton = AbrirIncidencias(cut).QuerySelectorAll("button.incidencia-corregir")[1];
+        boton.Closest("tr.fila-pulsable").Should().BeNull(
+            "la fila de detalle no es una fila de propietario que abre la vista rápida");
 
         await boton.ClickAsync(new MouseEventArgs());
 
@@ -361,7 +373,7 @@ public class VehiculosEstadoDocumentalTests : BunitContext
         var pregunta = UltimaConsulta(mediador);
         var consultasAntes = ConsultasDeLista(mediador);
 
-        await CeldaDeEstado(cut).QuerySelector("button.ventana-contexto-elemento")!.ClickAsync(new MouseEventArgs());
+        await AbrirIncidencias(cut).QuerySelector("button.incidencia-corregir")!.ClickAsync(new MouseEventArgs());
 
         var formulario = cut.FindComponent<DrawerGestionDocumento>();
         formulario.Markup.Should().Contain("Renovar documento", "con Documento se renueva ese, no se da de alta otro");
@@ -440,9 +452,8 @@ public class VehiculosEstadoDocumentalTests : BunitContext
     }
 
     /// <summary>
-    /// Si la corrección saca la fila corregida del filtro activo, el total cambia y QuickGrid vuelve a pedir la
-    /// misma página por su cuenta: esa segunda petición es el mismo refresco, y lo marcado en las demás filas
-    /// sigue marcado.
+    /// Si la corrección saca la fila del filtro, se actualiza el total con una petición y se conserva
+    /// la selección de las demás filas.
     /// </summary>
     [Fact]
     public async Task Tras_corregir_la_seleccion_se_conserva_aunque_la_fila_corregida_salga_del_filtro_y_cambie_el_total()
@@ -466,10 +477,10 @@ public class VehiculosEstadoDocumentalTests : BunitContext
 
         cut.WaitForAssertion(() => Nombres(cut).Should().Equal("Furgoneta"));
         var peticiones = mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Skip(consultasAntes).ToList();
-        peticiones.Should().HaveCount(2, "control del escenario: al cambiar el total, QuickGrid pide la página una segunda vez");
+        peticiones.Should().ContainSingle("la rejilla propia no necesita una segunda petición al actualizar el total");
         peticiones.Should().OnlyContain(q => q == pregunta);
         CasillaDe(cut, "Furgoneta").HasAttribute("checked").Should().BeTrue(
-            "la segunda petición es el mismo refresco: lo marcado sigue marcado");
+            "el refresco conserva lo marcado que sigue en la página");
         cut.Find(".barra-acciones-lote-cantidad").TextContent.Trim().Should().Be("1 seleccionado en esta página");
     }
 

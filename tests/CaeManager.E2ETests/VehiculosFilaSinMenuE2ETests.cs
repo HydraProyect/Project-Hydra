@@ -7,7 +7,7 @@ namespace CaeManager.E2ETests;
 
 /// <summary>
 /// Patrón de listados sin menú «⋯» (decisión 2026-10-08), en Vehículos. La lista es un
-/// QuickGrid, que no ofrece clic de fila: la fila lleva «fila-pulsable» y es
+/// tabla con filas de detalle independientes: la fila del vehículo lleva «fila-pulsable» y es
 /// <c>atajos-lista.js</c> quien, ante un clic en cualquier punto que no sea un control, pulsa
 /// el nombre de la fila. Esa mitad no existe para bUnit: solo se prueba aquí, en un navegador
 /// real, junto con que los controles de dentro (matrícula copiable, icono 360) no abren la
@@ -48,10 +48,9 @@ public class VehiculosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     }
 
     /// <summary>
-    /// «j» enfoca la única fila. Se reintenta porque QuickGrid vuelve a pedir la página por su
-    /// cuenta cuando el total cambia (aquí, al filtrar), y cada carga limpia la fila enfocada:
-    /// una «j» que llegue antes de esa segunda carga pierde el foco sin que nada en el DOM lo
-    /// anuncie. El foco se saca antes del campo de filtro, donde «j» sería texto.
+    /// «j» enfoca la única fila del vehículo. El foco se saca antes del campo de filtro,
+    /// donde «j» sería texto. Este helper conserva los reintentos existentes mientras se
+    /// valida el cambio de renderizado; los detalles no llevan «fila-pulsable».
     /// </summary>
     private static async Task EnfocarLaFilaConJAsync(IPage page)
     {

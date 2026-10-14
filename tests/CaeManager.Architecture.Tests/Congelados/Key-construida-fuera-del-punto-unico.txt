@@ -27,4 +27,3 @@ src/CaeManager.Web/Features/TiposDocumento/Pages/TiposDocumento.razor :: Generac
 src/CaeManager.Web/Features/TiposDocumento/Pages/TiposDocumento.razor :: GeneracionDe(claveOficial) = 1
 src/CaeManager.Web/Features/Trabajadores/Components/PanelDocumentacionBase.razor :: indicador.Tipo = 2
 src/CaeManager.Web/Features/Trabajadores/Pages/Trabajadores.razor :: _orden.Version = 1
-src/CaeManager.Web/Features/Vehiculos/Pages/Vehiculos.razor :: _orden.Version = 1

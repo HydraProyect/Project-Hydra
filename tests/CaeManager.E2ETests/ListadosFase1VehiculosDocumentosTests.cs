@@ -7,8 +7,8 @@ namespace CaeManager.E2ETests;
 /// <summary>
 /// Recorridos de fase 1. AppCollection conserva la serialización y la base efímera
 /// de WebAppFixture. No se modifica SQL ni la identidad de runtime; los Vehículos se crean por UI.
-/// Los botones de orden siguen siendo los de QuickGrid: se observan sus datos y clases actuales,
-/// sin fijar qué dirección debe anunciar el nombre accesible del botón.
+/// Vehículos conserva el contrato de marcado del orden en su rejilla propia; Documentos usa QuickGrid.
+/// Se observan los datos, las clases y el foco, sin fijar la dirección en el nombre accesible.
 /// </summary>
 [Collection("AppCollectionListados")]
 public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture)
