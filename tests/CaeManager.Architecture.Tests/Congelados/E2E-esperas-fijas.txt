@@ -31,7 +31,6 @@ tests/CaeManager.E2ETests/RecorridoFichas360.cs :: WaitForTimeoutAsync = 2
 tests/CaeManager.E2ETests/Rendimiento/MedidorConsultasSql.cs :: Task.Delay = 1
 tests/CaeManager.E2ETests/SubidaMasivaTests.cs :: WaitForTimeoutAsync = 1
 tests/CaeManager.E2ETests/TrabajadoresFilaSinMenuE2ETests.cs :: WaitForTimeoutAsync = 2
-tests/CaeManager.E2ETests/VehiculosFilaSinMenuE2ETests.cs :: WaitForTimeoutAsync = 2
 tests/CaeManager.E2ETests/VisitaCentroGestionadoPorCorreoE2ETests.cs :: WaitForTimeoutAsync = 5
 tests/CaeManager.E2ETests/VisitasFilaSinMenuE2ETests.cs :: WaitForTimeoutAsync = 2
 # Pausa del bucle que espera a que la aplicación recién arrancada acepte conexiones.
