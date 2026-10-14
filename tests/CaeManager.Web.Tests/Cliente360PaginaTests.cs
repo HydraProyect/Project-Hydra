@@ -620,8 +620,8 @@ public class Cliente360PaginaTests : BunitContext
         var cut = Renderizar(id);
 
         Textos(cut.FindAll("[role=tab]")).Should().Equal([
-            "Centros2 centros", "Subcontratas0 subcontratas", "Documentación",
-            "Empresas1 empresa", "Agenda", "Historial"]);
+            "Centros2 centros", "Empresas1 empresa", "Subcontratas0 subcontratas",
+            "Documentación", "Agenda", "Historial"]);
         cut.FindAll("[role=tab]").Should().HaveCount(6);
         cut.FindAll("[role=tab]").Select(t => t.TextContent).Should().NotContain(t => t.Contains("Blindaje"));
         cut.Find(".pestanas-boton-activa").TextContent.Should().StartWith("Centros");
