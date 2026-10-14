@@ -6,7 +6,7 @@ using static Microsoft.Playwright.Assertions;
 namespace CaeManager.E2ETests;
 
 /// <summary>
-/// Patrón de listados sin menú «⋯» (decisión 2026-10-08), en Vehículos. La lista es un
+/// Patrón de listados sin menú «⋯» (decisión 2026-10-08), en Vehículos. La lista es una
 /// tabla con filas de detalle independientes: la fila del vehículo lleva «fila-pulsable» y es
 /// <c>atajos-lista.js</c> quien, ante un clic en cualquier punto que no sea un control, pulsa
 /// el nombre de la fila. Esa mitad no existe para bUnit: solo se prueba aquí, en un navegador
@@ -48,30 +48,58 @@ public class VehiculosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     }
 
     /// <summary>
-    /// «j» enfoca la única fila del vehículo. El foco se saca antes del campo de filtro,
-    /// donde «j» sería texto. Este helper conserva los reintentos existentes mientras se
-    /// valida el cambio de renderizado; los detalles no llevan «fila-pulsable».
+    /// «j» enfoca la única fila del vehículo tras terminar la carga observada en la tabla.
+    /// El foco sale del campo de filtro, donde «j» sería texto. Los detalles no son propietarios.
     /// </summary>
     private static async Task EnfocarLaFilaConJAsync(IPage page)
     {
-        var enfocada = page.Locator("tbody tr.fila-enfocada");
-        for (var intento = 0; intento < 5; intento++)
-        {
-            if (await enfocada.CountAsync() == 0)
-            {
-                await page.Locator("thead th.col-estado button.col-title").FocusAsync();
-                await page.Keyboard.PressAsync("j");
-            }
+        await Expect(page.Locator("table.vehiculos-rejilla-propia")).ToHaveAttributeAsync("aria-busy", "false");
+        await page.Locator("thead th.col-estado button.col-title").FocusAsync();
+        await page.Keyboard.PressAsync("j");
+        await Expect(page.Locator("tbody tr.fila-enfocada")).ToHaveCountAsync(1);
+    }
 
-            await page.WaitForTimeoutAsync(400);
-            if (await enfocada.CountAsync() == 1)
+    [Fact]
+    public async Task La_incidencia_desplegada_abre_su_correccion_sin_abrir_la_vista_rapida()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+        await page.SetViewportSizeAsync(1280, 800);
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/vehiculos");
+        await Expect(page.Locator("table.vehiculos-rejilla-propia")).ToHaveAttributeAsync("aria-busy", "false");
+
+        // Control positivo: la siembra de esta fixture debe ofrecer una incidencia corregible.
+        // El nombre se observa en el navegador; no se fija un vehículo ni una posición de la siembra.
+        var chevrons = page.GetByRole(AriaRole.Button, new() { NameRegex = new Regex("^Desplegar incidencias de ") });
+        var candidatos = await chevrons.AllAsync();
+        Assert.NotEmpty(candidatos);
+        foreach (var candidato in candidatos)
+        {
+            var etiqueta = await candidato.GetAttributeAsync("aria-label");
+            Assert.NotNull(etiqueta);
+            var chevron = page.GetByRole(AriaRole.Button, new() { Name = etiqueta, Exact = true });
+            await Expect(chevron).ToHaveCountAsync(1);
+            await chevron.ClickAsync();
+            await Expect(chevron).ToHaveAttributeAsync("aria-expanded", "true");
+            var detalle = page.Locator(".vehiculo-detalle-incidencias");
+            await Expect(detalle).ToHaveCountAsync(1);
+            await Expect(detalle).Not.ToHaveClassAsync(new Regex(@"\bfila-pulsable\b"));
+            var acciones = await detalle.GetByRole(AriaRole.Button).AllAsync();
+            Assert.NotEmpty(acciones);
+            foreach (var accion in acciones)
             {
-                await page.WaitForTimeoutAsync(600);
-                if (await enfocada.CountAsync() == 1) return;
+                // Se identifica la línea por su nombre accesible observado, sin usar su posición.
+                var nombre = (await accion.InnerTextAsync()).Trim();
+                var corregir = detalle.GetByRole(AriaRole.Button, new() { Name = nombre, Exact = true });
+                await Expect(corregir).ToHaveCountAsync(1);
+                await corregir.ClickAsync();
+                await Expect(page.GetByRole(AriaRole.Dialog, new() { NameRegex = new Regex("^(Renovar|Nuevo) documento$") })).ToBeVisibleAsync();
+                await Expect(page.Locator(".workspace-panel")).ToHaveCountAsync(0);
+                return;
             }
         }
-
-        await Expect(enfocada).ToHaveCountAsync(1);
+        Assert.Fail("La fixture no ofreció ninguna línea de incidencia pulsable.");
     }
 
     [Fact]
