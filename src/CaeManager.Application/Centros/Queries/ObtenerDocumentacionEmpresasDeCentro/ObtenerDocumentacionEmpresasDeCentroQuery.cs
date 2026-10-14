@@ -16,7 +16,7 @@ public record ObtenerDocumentacionEmpresasDeCentroQuery(Guid CentroId) : IReques
 public record DocumentoEmpresaCentroDto(Guid TipoDocumentoId, string Nombre, Guid? DocumentoId,
     EstadoDocumento Estado, DateOnly? FechaVencimiento, bool BloqueaAcceso, DateOnly? FechaEmision = null, DateOnly? EnToleranciaHasta = null);
 public record DocumentacionEmpresaCentroDto(Guid EmpresaId, string Nombre, bool DesdeRelacionSubcontrata,
-    FraccionCumplimiento Cumplimiento, IReadOnlyList<DocumentoEmpresaCentroDto> Documentos);
+    IReadOnlyList<DocumentoEmpresaCentroDto> Documentos);
 
 /// <summary>
 /// Documentación exigida a la Empresa configurada en ESTE Centro y a las Empresas empleadoras con Asignaciones activas.
@@ -66,14 +66,12 @@ public class ObtenerDocumentacionEmpresasDeCentroQueryHandler(
         var resultado = new List<DocumentacionEmpresaCentroDto>();
         foreach (var empresa in empleadoras)
         {
-            var vigencias = new List<EstadoDocumento>();
             var filas = new List<DocumentoEmpresaCentroDto>();
             foreach (var requisito in requisitos)
             {
                 efectivos.TryGetValue((empresa.Id, requisito.TipoDocumentoId), out var doc);
                 var vigencia = doc is null ? EstadoDocumento.Faltante : CalculadoraEstadoDocumento.Calcular(
                     doc.EstadoVigencia, doc.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
-                vigencias.Add(vigencia);
                 var contextual = doc is null ? (Estado: vigencia, EnToleranciaHasta: (DateOnly?)null) : VigenciaEnCentro.Aplicar(vigencia, doc.EstadoVigencia,
                     doc.FechaVencimiento, doc.FechaEmision, new CondicionesDeAccesoDelCentro(requisito.PeriodicidadEspecialMeses,
                         ReglaBloqueoDeAcceso.ResolverToleranciaDias(requisito.ToleranciaDias, requisito.ToleranciaHeredadaDias)), hoy);
@@ -81,7 +79,7 @@ public class ObtenerDocumentacionEmpresasDeCentroQueryHandler(
                     contextual.Estado == EstadoDocumento.SinCaducidad ? EstadoDocumento.Vigente : contextual.Estado, doc?.FechaVencimiento, requisito.BloqueaAcceso, doc?.FechaEmision, contextual.EnToleranciaHasta));
             }
             resultado.Add(new(empresa.Id, empresa.RazonSocial, empresa.DesdeRelacionSubcontrata,
-                CumplimientoDocumental.Evaluar(vigencias), filas.OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado)).ThenBy(d => d.Nombre).ToList()));
+                filas.OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado)).ThenBy(d => d.Nombre).ToList()));
         }
         return resultado.OrderBy(e => e.Nombre).ToList();
     }

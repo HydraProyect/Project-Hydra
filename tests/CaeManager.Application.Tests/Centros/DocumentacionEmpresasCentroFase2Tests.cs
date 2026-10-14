@@ -84,15 +84,14 @@ public class DocumentacionEmpresasCentroFase2Tests
         (await Leer(alcance)).Should().BeEmpty();
     }
     [Fact]
-    public async Task Ausente_y_exclusion_de_tipo_no_inventan_un_cien_por_ciento()
+    public async Task Ausente_y_exclusion_de_tipo_conservan_los_estados_sin_fraccion_de_Empresa()
     {
         var empresa = (await Leer()).Should().ContainSingle().Which;
         empresa.Documentos.Should().ContainSingle().Which.Estado.Should().Be(EstadoDocumento.Faltante);
-        empresa.Cumplimiento.AlDia.Should().Be(0);
         _mediador.Filas = _mediador.Filas.Select(r => r with { Aplica = false }).ToList();
         empresa = (await Leer()).Should().ContainSingle().Which;
         empresa.Documentos.Should().BeEmpty();
-        empresa.Cumplimiento.Porcentaje.Should().BeNull();
+        typeof(DocumentacionEmpresaCentroDto).GetProperty("Cumplimiento").Should().BeNull();
     }
     [Fact]
     public async Task Un_tipo_de_Trabajador_no_se_exige_a_la_Empresa()
@@ -107,18 +106,17 @@ public class DocumentacionEmpresasCentroFase2Tests
         var antiguo = Documento.DeEmpresa(_empresa.Id, _tipo, hoy.AddYears(-1), VigenciaDocumento.VenceEl(hoy.AddDays(-1)));
         var vigente = Documento.DeEmpresa(_empresa.Id, _tipo, hoy, VigenciaDocumento.VenceEl(hoy.AddDays(90)));
         _documentos.ListaDocumentos.AddRange([antiguo, vigente]);
-        (await Leer()).Should().ContainSingle().Which.Cumplimiento.AlDia.Should().Be(1);
+        (await Leer()).Should().ContainSingle().Which.Documentos.Should().ContainSingle().Which.Estado.Should().Be(EstadoDocumento.Vigente);
         vigente.SustituirPor(Documento.DeEmpresa(_empresa.Id, _tipo, hoy, VigenciaDocumento.VenceEl(hoy.AddDays(180))), MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
         (await Leer()).Should().ContainSingle().Which.Documentos.Should().ContainSingle().Which.Estado.Should().Be(EstadoDocumento.Vencido);
     }
     [Fact]
-    public async Task La_tolerancia_se_presenta_pero_el_vencido_no_cuenta_como_al_dia()
+    public async Task La_tolerancia_se_presenta_sin_fraccion_de_Empresa()
     {
         var hoy = DiaDeNegocio.Hoy();
         _mediador.Filas = _mediador.Filas.Select(r => r with { ToleranciaDias = 10 }).ToList();
         _documentos.ListaDocumentos.Add(Documento.DeEmpresa(_empresa.Id, _tipo, hoy.AddMonths(-1), VigenciaDocumento.VenceEl(hoy.AddDays(-1))));
         var empresa = (await Leer()).Should().ContainSingle().Which;
-        empresa.Cumplimiento.AlDia.Should().Be(0);
         empresa.Documentos.Should().ContainSingle().Which.Estado.Should().Be(EstadoDocumento.EnTolerancia);
     }
     [Fact]

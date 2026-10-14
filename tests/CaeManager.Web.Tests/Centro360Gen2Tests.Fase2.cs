@@ -24,7 +24,7 @@ public partial class Centro360Gen2Tests
         var vigente = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
         mediador.Detalles[id] = Detalle(id, "Centro Sur");
-        mediador.DocumentacionEmpresas[id] = [new(empresa, "Empresa Sur", false, CumplimientoDocumental.Evaluar([EstadoDocumento.Vencido, EstadoDocumento.Vigente]),
+        mediador.DocumentacionEmpresas[id] = [new(empresa, "Empresa Sur", false,
             [new(vencido, "Seguro", Guid.NewGuid(), EstadoDocumento.Vencido, new(2026, 10, 1), true, new(2025, 10, 1)),
              new(vigente, "Certificado", Guid.NewGuid(), EstadoDocumento.Vigente, new(2027, 1, 1), false)])];
         var navegador = Services.GetRequiredService<NavigationManager>();
@@ -110,7 +110,7 @@ public partial class Centro360Gen2Tests
         var mediador = Registrar(new MediatorFalso { Retener = p => p is ObtenerDocumentacionEmpresasDeCentroQuery q && q.CentroId == a ? pendiente.Task : null });
         mediador.Detalles[a] = Detalle(a, "Centro A");
         mediador.Detalles[b] = Detalle(b, "Centro B");
-        mediador.DocumentacionEmpresas[a] = [new(Guid.NewGuid(), "Empresa antigua", false, CumplimientoDocumental.Evaluar(Array.Empty<EstadoDocumento>()), [])];
+        mediador.DocumentacionEmpresas[a] = [new(Guid.NewGuid(), "Empresa antigua", false, [])];
         Services.GetRequiredService<NavigationManager>().NavigateTo($"centros/{a}?pestana=documentacion-centro");
         var cut = Renderizar(a);
         cut.Render(p => p.Add(x => x.CentroId, b));
