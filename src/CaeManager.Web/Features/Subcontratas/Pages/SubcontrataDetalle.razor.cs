@@ -1,3 +1,4 @@
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConCumplimientoDeSubcontrata;
 using System.Globalization;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
@@ -40,15 +41,14 @@ namespace CaeManager.Web.Features.Subcontratas.Pages;
 /// Conserva las consultas de identidad y añade una lectura del cumplimiento de sus Trabajadores por Centro.
 /// Reutiliza los lectores de <c>SubcontrataWorkspacePanel</c> y del listado
 /// (<c>AcordeonTrabajadoresSubcontrata</c>), con el mismo alcance y RLS, para la identidad y el anillo
-/// y las pestañas Trabajadores, Supervisión, Centros, Vehículos, Agenda e Historial. La edición de la identidad y
+/// y las pestañas Trabajadores, Gestión/Supervisión, Centros, Vehículos, Agenda e Historial. La edición de la identidad y
 /// de las credenciales sigue viviendo en el panel: «Editar» lo abre.
 /// Vehículos usa además el listado existente filtrado por la Empresa contraparte en posición Subcontratista;
 /// conserva la visibilidad de Vehículos del servidor y se pide solo al abrir su pestaña.
 /// </para>
 ///
 /// <para>
-/// <b>Qué no enseña todavía, y por qué</b> (cada punto es un incremento propio): la documentación de empresa de la
-/// subcontrata y su pestaña «Gestión», los proyectos, la cadena de
+/// <b>Qué no enseña todavía, y por qué</b> (cada punto es un incremento propio): los requisitos de documentos de empresa sin registro, los proyectos, la cadena de
 /// subcontratación y quién registró cada verificación. El anillo solo
 /// mide la documentación de sus trabajadores (<see cref="ObtenerCumplimientoSubcontrataQuery"/>).
 /// </para>
@@ -64,7 +64,8 @@ namespace CaeManager.Web.Features.Subcontratas.Pages;
 public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     internal const string PestanaTrabajadores = "trabajadores";
-    internal const string PestanaSupervision = "supervision";
+    internal const string PestanaSupervision = "supervision"; // Alias de enlaces existentes.
+    internal const string PestanaGestion = "gestion";
     internal const string PestanaCentros = "centros";
     internal const string PestanaVehiculos = "vehiculos";
     internal const string PestanaAgenda = "agenda";
@@ -75,7 +76,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     internal const int TamanoPaginaTrabajadores = 50;
 
     private static readonly string[] PestanasValidas =
-        [PestanaTrabajadores, PestanaSupervision, PestanaCentros, PestanaVehiculos, PestanaAgenda, PestanaFicha, PestanaHistorial];
+        [PestanaTrabajadores, PestanaGestion, PestanaCentros, PestanaVehiculos, PestanaAgenda, PestanaFicha, PestanaHistorial];
 
     [Parameter] public Guid SubcontrataId { get; set; }
 
@@ -106,6 +107,16 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     private bool _errorTrabajadores;
     private IReadOnlySet<string> _estadosMarcados = new HashSet<string>();
     private readonly HashSet<Guid> _trabajadoresDesplegados = [];
+
+    private IReadOnlyList<DocumentoListaDto> _documentosGestion = [];
+    private bool _gestionLeida;
+    private bool _cargandoGestion;
+    private bool _errorGestion;
+    private bool _datosInicialesListos;
+    private int _cargaGestion;
+    private bool EsGestionada => _detalle?.NivelServicio == NivelServicioSubcontrata.Gestionada;
+    private string RotuloGestion => Textos[EsGestionada ? "PestanaGestion" : "PestanaSupervision"];
+    private int DocumentosGestionConProblema => _documentosGestion.Count(d => d.Estado is EstadoDocumento.Vencido or EstadoDocumento.Faltante or EstadoDocumento.SinConfirmar);
 
     private SupervisionSubcontrataDto? _supervision;
     private bool _cargandoSupervision = true;
@@ -185,14 +196,40 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
             ? NivelServicioSubcontrata.Gestionada
             : NivelServicioSubcontrata.Supervisada;
 
-    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+    private bool _panelAbierto;
+    protected override void OnInitialized()
+    {
+        _cancelacion = _ciclo.Token;
+        _panelAbierto = WorkspaceService.EstaAbierto;
+        WorkspaceService.OnCambio += AlCambiarElPanel;
+    }
+
+    private void AlCambiarElPanel()
+    {
+        var abierto = WorkspaceService.EstaAbierto;
+        var seCerro = _panelAbierto && !abierto;
+        _panelAbierto = abierto;
+        if (seCerro && _detalle is not null)
+            _ = InvokeAsync(RecargarDesdePanelAsync);
+    }
+
+    private async Task RecargarDesdePanelAsync()
+    {
+        _gestionLeida = false;
+        _errorGestion = false;
+        await RecargarCabeceraAsync();
+        StateHasChanged();
+    }
 
     protected override async Task OnParametersSetAsync()
     {
         AdoptarUrl();
 
         if (_subcontrataCargada == SubcontrataId)
+        {
+            await CargarGestionSiProcedeAsync();
             return;
+        }
 
         _subcontrataCargada = SubcontrataId;
         ReiniciarParaNuevaSubcontrata();
@@ -208,7 +245,8 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         if (!_urlAdoptada || !string.Equals(_pestanaDeLaUrl, Pestana, StringComparison.Ordinal))
         {
             _pestanaDeLaUrl = Pestana;
-            _pestana = PestanasValidas.Contains(Pestana) && (Pestana != PestanaFicha || _cajasFicha.Count > 0) ? Pestana! : PestanaTrabajadores;
+            var solicitada = Pestana == PestanaSupervision ? PestanaGestion : Pestana;
+            _pestana = PestanasValidas.Contains(solicitada) && (solicitada != PestanaFicha || _cajasFicha.Count > 0) ? solicitada! : PestanaTrabajadores;
         }
 
         if (!_urlAdoptada || !string.Equals(_estadoDeLaUrl, Estado, StringComparison.Ordinal))
@@ -223,6 +261,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     private void InvalidarCargas()
     {
         _generacion++;
+        _cargaGestion++;
         _cargaDetalle++;
         _cargaNombres++;
         _cargaTrabajadores++;
@@ -245,6 +284,8 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         // Los contadores marcados no se reinician aquí: los fija la URL de la subcontrata que se abre (AdoptarUrl).
         _trabajadoresDesplegados.Clear();
         _supervision = null;
+        _documentosGestion = [];
+        _gestionLeida = _cargandoGestion = _errorGestion = _datosInicialesListos = false;
         _cargandoSupervision = true;
         _errorSupervision = false;
         _centros = null;
@@ -289,7 +330,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         if (generacion != _generacion) return;
         await CargarTrabajadoresAsync();
         if (generacion != _generacion) return;
-        await CargarSupervisionAsync();
+        if (!EsGestionada) await CargarSupervisionAsync();
         if (generacion != _generacion) return;
         await CargarCentrosAsync();
         if (generacion != _generacion) return;
@@ -297,6 +338,9 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         // Mismo motivo que EmpresaDetalle: en el prerenderizado estático no hay circuito que vaya a usar el dato.
         if (RendererInfo.IsInteractive)
             await CargarDobleFactorAsync();
+        if (generacion != _generacion) return;
+        _datosInicialesListos = true;
+        await CargarGestionSiProcedeAsync();
     }
 
     /// <summary>Un doble clic en «Reintentar» no lanza una segunda cadena: la primera ya puso <c>_cargando</c>.</summary>
@@ -367,6 +411,8 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
             }
 
             _detalle = detalle;
+            if (!EsGestionada && _supervision is null) await CargarSupervisionAsync();
+            await CargarGestionSiProcedeAsync();
         }
         catch (Exception)
         {
@@ -456,6 +502,53 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
             }
         }
     }
+
+    // Documentos registrados y visibles: la lectura existente mantiene autorización, RLS y vigencia.
+    // Se espera la carga inicial y se pagina completa, sin multiplicar lecturas por Centro.
+    private async Task CargarGestionSiProcedeAsync()
+    {
+        if (!_datosInicialesListos || !EsGestionada || _pestana != PestanaGestion || _gestionLeida || _cargandoGestion || _errorGestion) return;
+        var carga = ++_cargaGestion;
+        var id = _detalle!.Id;
+        _cargandoGestion = true;
+        try
+        {
+            var documentos = new List<DocumentoListaDto>();
+            for (var pagina = 1; ; pagina++)
+            {
+                var resultado = await Mediator.Send(new ObtenerDocumentosQuery(null, AmbitoAplicacion.Empresa, null,
+                    Pagina: pagina, TamanoPagina: 100, PropietarioId: id, OrdenarPor: ObtenerDocumentosQuery.OrdenPorSeveridad), _cancelacion);
+                if (carga != _cargaGestion) return;
+                documentos.AddRange(resultado.Elementos);
+                if (documentos.Count >= resultado.TotalElementos || resultado.Elementos.Count == 0) break;
+            }
+            if (carga != _cargaGestion) return;
+            _documentosGestion = documentos;
+            _gestionLeida = true;
+        }
+        catch (Exception)
+        {
+            if (carga == _cargaGestion) _errorGestion = true;
+        }
+        finally
+        {
+            if (carga == _cargaGestion)
+            {
+                _cargandoGestion = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task ReintentarGestionAsync()
+    {
+        if (_cargandoGestion) return;
+        _errorGestion = false;
+        await CargarGestionSiProcedeAsync();
+    }
+
+    private Task AbrirDocumentoGestionAsync(DocumentoListaDto documento) =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, documento.Id, documento.TipoDocumentoNombre, "informacion");
 
     private Task ReintentarSupervisionAsync() => _cargandoSupervision ? Task.CompletedTask : CargarSupervisionAsync();
 
@@ -757,8 +850,6 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     }
 
     // La explicación del mockup describe el nivel Supervisada; con Gestionada se conserva la del panel.
-    private string ExplicacionDeSupervision =>
-        _detalle?.NivelServicio == NivelServicioSubcontrata.Supervisada ? Textos["ExplicacionSupervisada360"] : Textos["ExplicacionSupervision"];
 
     private string TextoUltimaVerificacion =>
         _supervision?.Centros.SelectMany(c => c.Tipos).Select(t => t.UltimaVerificacion?.FechaVerificacion).Max() is { } fecha
@@ -863,11 +954,12 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
             NavigationManager.NavigateTo("/subcontratas");
     }
 
-    private void CambiarPestana(string pestana)
+    private async Task CambiarPestana(string pestana)
     {
-        _pestana = pestana;
-        _pestanaDeLaUrl = pestana == PestanaTrabajadores ? null : pestana;
+        _pestana = pestana == PestanaSupervision ? PestanaGestion : pestana;
+        _pestanaDeLaUrl = _pestana == PestanaTrabajadores ? null : _pestana;
         NavigationManager.ActualizarFiltroEnUrl("pestana", _pestanaDeLaUrl);
+        await CargarGestionSiProcedeAsync();
     }
 
 
@@ -883,11 +975,11 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
                 ? new ContadorPestana(trabajadores.Count, Textos["GlosaTrabajadores"], EnAlerta: TrabajadoresConProblema.Count > 0)
                 : null
         },
-        new(PestanaSupervision, Textos["PestanaSupervision"])
+        new(PestanaGestion, RotuloGestion)
         {
-            Contador = _supervision is not null && TiposConProblema > 0
-                ? new ContadorPestana(TiposConProblema, Textos["GlosaSupervision"], EnAlerta: true)
-                : null
+            Contador = EsGestionada
+                ? (_gestionLeida && DocumentosGestionConProblema > 0 ? new ContadorPestana(DocumentosGestionConProblema, Textos["GlosaGestion"], EnAlerta: true) : null)
+                : (_supervision is not null && TiposConProblema > 0 ? new ContadorPestana(TiposConProblema, Textos["GlosaSupervision"], EnAlerta: true) : null)
         },
         new(PestanaCentros, Textos["PestanaCentros"])
         {
@@ -1191,6 +1283,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
 
     public void Dispose()
     {
+        WorkspaceService.OnCambio -= AlCambiarElPanel;
         InvalidarCargas();
         _ciclo.Cancel();
         _ciclo.Dispose();

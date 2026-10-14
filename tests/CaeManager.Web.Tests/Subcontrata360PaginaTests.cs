@@ -1,3 +1,4 @@
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConCumplimientoDeSubcontrata;
 using AngleSharp.Dom;
 using Bunit;
@@ -72,6 +73,10 @@ public class Subcontrata360PaginaTests : BunitContext
         public CredencialAccesoSubcontrataDto? Credencial { get; set; }
         public bool DobleFactor { get; set; } = true;
         public bool FallaElCumplimiento { get; set; }
+        public bool FallaGestion { get; set; }
+        public List<DocumentoListaDto> DocumentosGestion { get; } = [];
+        public Dictionary<Guid, Task<ResultadoPaginado<DocumentoListaDto>>> GestionPendiente { get; } = [];
+        public Dictionary<Guid, SubcontrataDetalleDto> DetallesPorId { get; } = [];
 
         /// <summary>Lo que responde el servidor a «Guardar» de la nota, y la ficha que entrega la relectura posterior.</summary>
         public Result ResultadoNota { get; set; } = Result.Exito();
@@ -80,21 +85,28 @@ public class Subcontrata360PaginaTests : BunitContext
 
         public List<object> Enviadas { get; } = [];
 
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+            if (request is ObtenerDocumentosQuery q && q.PropietarioId is { } propietario && GestionPendiente.TryGetValue(propietario, out var pendiente))
+                return (TResponse)(object)await pendiente;
+            if (request is ObtenerDocumentosQuery && FallaGestion) throw new InvalidOperationException("fallo de lectura");
+            if (request is CambiarNivelServicioSubcontrataCommand nivel && Detalle is not null)
+                Detalle = Detalle with { NivelServicio = nivel.NivelServicio };
             if (FallaElCumplimiento && request is ObtenerCumplimientoSubcontrataQuery)
-                return Task.FromException<TResponse>(new InvalidOperationException("fallo transitorio"));
+                throw new InvalidOperationException("fallo transitorio");
             if (request is GuardarNotaInternaSubcontrataCommand && ExcepcionAlGuardarNota is { } excepcion)
-                return Task.FromException<TResponse>(excepcion);
+                throw excepcion;
             if (request is GuardarNotaInternaSubcontrataCommand && ResultadoNota.EsExitoso && DetalleTrasGuardarNota is not null)
                 Detalle = DetalleTrasGuardarNota;
-            return Task.FromResult((TResponse)Responder(request)!);
+            return (TResponse)Responder(request)!;
         }
 
         private object? Responder(object request) => request switch
         {
+            ObtenerSubcontrataPorIdQuery q when DetallesPorId.TryGetValue(q.Id, out var propia) => propia,
             ObtenerSubcontrataPorIdQuery => Detalle,
+            ObtenerDocumentosQuery q => new ResultadoPaginado<DocumentoListaDto>(DocumentosGestion.Skip((q.Pagina - 1) * q.TamanoPagina).Take(q.TamanoPagina).ToList(), DocumentosGestion.Count, q.Pagina, q.TamanoPagina),
             ObtenerCumplimientoSubcontrataQuery => Cumplimiento,
             ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)[],
             ObtenerEmpresasParaSelectorQuery => (IReadOnlyList<EmpresaSelectorDto>)[],
@@ -589,6 +601,136 @@ public class Subcontrata360PaginaTests : BunitContext
         var cut = Renderizar("?pestana=centros");
         cut.Find(".fila-relacion-detalle").TextContent.Should().Be($"Cyberdyne Ibérica S.A. · {cifra}").And.NotContain("%");
         cut.Find(".fila-relacion").TextContent.Should().NotContain("%");
+    }
+
+    private static DocumentoListaDto DocumentoDeEmpresa(string nombre, EstadoDocumento estado) =>
+        new(Guid.NewGuid(), AmbitoAplicacion.Empresa, "Transportes Terminator S.L.", nombre,
+            DiaDeNegocio.Hoy().AddDays(-180), DiaDeNegocio.Hoy().AddDays(estado == EstadoDocumento.Vencido ? -1 : 90), estado, null, [], Guid.NewGuid());
+
+    [Theory]
+    [InlineData(NivelServicioSubcontrata.Gestionada, "gestion", Roles.GestorCae)]
+    [InlineData(NivelServicioSubcontrata.Gestionada, "supervision", Roles.GestorCae)]
+    [InlineData(NivelServicioSubcontrata.Supervisada, "gestion", Roles.GestorCae)]
+    [InlineData(NivelServicioSubcontrata.Supervisada, "supervision", Roles.GestorCae)]
+    [InlineData(NivelServicioSubcontrata.Gestionada, "gestion", Roles.Cliente)]
+    [InlineData(NivelServicioSubcontrata.Supervisada, "supervision", Roles.Cliente)]
+    public void Nivel_de_servicio_determina_rotulo_contenido_contador_y_ambos_enlaces_sin_guarda_de_rol(
+        NivelServicioSubcontrata nivel, string pesta, string rol)
+    {
+        var m = Montar(rol, x =>
+        {
+            x.Detalle = Detalle(nivel);
+            x.DocumentosGestion.Add(DocumentoDeEmpresa("RNT gestionado", EstadoDocumento.Vencido));
+            x.DocumentosGestion.Add(DocumentoDeEmpresa("Seguro gestionado", EstadoDocumento.Vigente));
+        });
+        var cut = Renderizar($"?pestana={pesta}");
+        var gestionada = nivel == NivelServicioSubcontrata.Gestionada;
+        var tab = cut.FindAll("[role=tab]")[1];
+        tab.TextContent.Should().StartWith(gestionada ? "Gestión" : "Supervisión");
+        tab.TextContent.Should().Contain(gestionada ? "documentos con problema en la gestión" : "documentos con problema en la supervisión");
+        tab.TextContent.Should().Contain("1");
+        cut.FindAll("[role=tab]").Should().HaveCount(6);
+        tab.GetAttribute("aria-selected").Should().Be("true");
+        cut.Find(".pestanas-boton-activa").TextContent.Should().Be(tab.TextContent);
+        if (gestionada)
+        {
+            var seccion = cut.Find("[data-gestion-documental]");
+            cut.FindAll(".cabecera-identidad-acciones button").Select(b => b.TextContent).Should().NotContain(t => t.Contains("Registrar verificación"));
+            seccion.TextContent.Should().Contain("Gestionada: tu equipo guarda y renueva").And.Contain("RNT gestionado").And.Contain("Seguro gestionado");
+            seccion.QuerySelectorAll(".fila-relacion .badge").Select(b => b.TextContent.Trim()).Should().Equal("Vencido", "Vigente");
+            seccion.QuerySelectorAll(".fila-relacion").First().GetAttribute("data-tono").Should().Be("peligro");
+            var q = m.Enviadas.OfType<ObtenerDocumentosQuery>().Should().ContainSingle().Which;
+            q.PropietarioId.Should().Be(SubcontrataId);
+            q.Ambito.Should().Be(AmbitoAplicacion.Empresa);
+            q.TrabajadorId.Should().BeNull();
+            q.OrdenarPor.Should().Be(ObtenerDocumentosQuery.OrdenPorSeveridad);
+            m.Enviadas.OfType<ObtenerSupervisionSubcontrataQuery>().Should().BeEmpty();
+        }
+        else
+        {
+            cut.Markup.Should().Contain("Supervisada: la subcontrata sube su documentación a la plataforma del titular del Centro");
+            cut.Markup.Should().NotContain("RNT gestionado");
+            m.Enviadas.OfType<ObtenerDocumentosQuery>().Should().BeEmpty();
+        }
+    }
+
+    [Fact]
+    public async Task Cambio_de_nivel_desde_el_panel_actualiza_la_misma_pestana_sin_navegar_ni_recrear_la_ficha()
+    {
+        var m = Montar();
+        m.DocumentosGestion.Add(DocumentoDeEmpresa("RNT gestionado", EstadoDocumento.Vencido));
+        var cut = Renderizar("?pestana=supervision&extra=conservar");
+        var uri = Navegacion.Uri;
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Subcontrata, SubcontrataId, "Transportes", "informacion"));
+        m.Detalle = m.Detalle! with { NivelServicio = NivelServicioSubcontrata.Gestionada };
+        await cut.InvokeAsync(workspace.CerrarAsync);
+        cut.WaitForAssertion(() => cut.Find(".pestanas-boton-activa").TextContent.Should().StartWith("Gestión"));
+        cut.Find("[data-gestion-documental]").TextContent.Should().Contain("RNT gestionado");
+        Navegacion.Uri.Should().Be(uri);
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Subcontrata, SubcontrataId, "Transportes", "informacion"));
+        m.Detalle = m.Detalle with { NivelServicio = NivelServicioSubcontrata.Supervisada };
+        await cut.InvokeAsync(workspace.CerrarAsync);
+        cut.WaitForAssertion(() => cut.Find(".pestanas-boton-activa").TextContent.Should().StartWith("Supervisión"));
+        cut.FindAll("[data-gestion-documental]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Gestion_es_diferida_completa_y_no_se_repite_al_reabrir_la_pestana()
+    {
+        var m = Montar(ajustar: x => x.Detalle = Detalle(NivelServicioSubcontrata.Gestionada));
+        m.DocumentosGestion.AddRange(Enumerable.Range(0, 101).Select(i => DocumentoDeEmpresa($"Registro {i}", EstadoDocumento.Vigente)));
+        var cut = Renderizar();
+        m.Enviadas.OfType<ObtenerDocumentosQuery>().Should().BeEmpty();
+        cut.FindAll("[role=tab]")[1].Click();
+        cut.WaitForAssertion(() => cut.FindAll("[data-gestion-documental] .fila-relacion").Count.Should().Be(101));
+        m.Enviadas.OfType<ObtenerDocumentosQuery>().Select(q => q.Pagina).Should().Equal(1, 2);
+        new Uri(Navegacion.Uri).Query.Should().Be("?pestana=gestion");
+        cut.FindAll("[role=tab]")[0].Click();
+        cut.FindAll("[role=tab]")[1].Click();
+        m.Enviadas.OfType<ObtenerDocumentosQuery>().Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void Error_de_Gestion_no_se_disfraza_de_vacio_y_el_reintento_lee_de_nuevo()
+    {
+        var m = Montar(ajustar: x => { x.Detalle = Detalle(NivelServicioSubcontrata.Gestionada); x.FallaGestion = true; });
+        var cut = Renderizar("?pestana=gestion");
+        cut.Find("[data-gestion-documental] .estado-vacio").TextContent.Should().Contain("No pudimos cargar");
+        m.FallaGestion = false;
+        cut.Find("[data-gestion-documental] .estado-vacio button").Click();
+        cut.WaitForAssertion(() => cut.Find("[data-gestion-documental]").TextContent.Should().Contain("Sin documentos de empresa registrados visibles."));
+        m.Enviadas.OfType<ObtenerDocumentosQuery>().Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Respuesta_tardia_de_Gestion_no_sustituye_los_documentos_de_otra_Empresa_contraparte()
+    {
+        var m = Montar(ajustar: x => x.Detalle = Detalle(NivelServicioSubcontrata.Gestionada));
+        var siguiente = Guid.NewGuid();
+        m.DetallesPorId[siguiente] = m.Detalle! with { Id = siguiente, RazonSocial = "Empresa B" };
+        m.DocumentosGestion.Add(DocumentoDeEmpresa("Documento de B", EstadoDocumento.Vigente));
+        var pendiente = new TaskCompletionSource<ResultadoPaginado<DocumentoListaDto>>();
+        m.GestionPendiente[SubcontrataId] = pendiente.Task;
+        Navegacion.NavigateTo($"subcontratas/{SubcontrataId}?pestana=gestion");
+        var cut = Render<SubcontrataDetalle>(p => p.Add(x => x.SubcontrataId, SubcontrataId));
+        cut.WaitForAssertion(() => m.Enviadas.OfType<ObtenerDocumentosQuery>().Should().ContainSingle());
+        Navegacion.NavigateTo($"subcontratas/{siguiente}?pestana=gestion");
+        cut.Render(p => p.Add(x => x.SubcontrataId, siguiente));
+        pendiente.SetResult(new([DocumentoDeEmpresa("Documento anterior", EstadoDocumento.Vencido)], 1, 1, 100));
+        await cut.InvokeAsync(() => Task.CompletedTask);
+        cut.WaitForAssertion(() => cut.Find("[data-gestion-documental]").TextContent.Should().Contain("Documento de B").And.NotContain("Documento anterior"));
+    }
+
+    [Fact]
+    public void El_nombre_del_documento_de_Gestion_abre_su_panel_existente()
+    {
+        var m = Montar(ajustar: x => x.Detalle = Detalle(NivelServicioSubcontrata.Gestionada));
+        var documento = DocumentoDeEmpresa("RNT gestionado", EstadoDocumento.Vencido);
+        m.DocumentosGestion.Add(documento);
+        var cut = Renderizar("?pestana=gestion");
+        cut.Find("[data-gestion-documental] button.fila-relacion-nombre").Click();
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Documento, documento.Id, documento.TipoDocumentoNombre, "informacion"));
     }
 
     // ── Supervisión ───────────────────────────────────────────────────────
