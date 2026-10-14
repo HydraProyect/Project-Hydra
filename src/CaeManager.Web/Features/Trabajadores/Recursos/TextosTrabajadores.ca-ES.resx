@@ -693,4 +693,5 @@
   <data name="CentrosVacioFiltros360" xml:space="preserve">
     <value>Cap Centre coincideix amb els filtres.</value>
   </data>
+  <data name="DesplegarIncidenciasTrabajador" xml:space="preserve"><value>Desplegar incidències de {0}</value></data>
 </root>

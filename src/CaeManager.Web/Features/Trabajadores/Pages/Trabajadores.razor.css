@@ -36,3 +36,13 @@
 .pista-documento-info {
     color: var(--color-text-muted);
 }
+
+.trabajador-identidad { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: var(--space-2); }
+.boton-expandir-incidencias, .col-title { border: none; padding: 0; background: none; cursor: pointer; }
+.boton-expandir-incidencias[aria-expanded=true] { transform: rotate(90deg); }
+.col-sort-asc .col-title::after { content: " ↑"; }
+.col-sort-desc .col-title::after { content: " ↓"; }
+.trabajadores-rejilla-propia .trabajador-detalle-incidencias > td { padding: 0; }
+
+.seleccion-trabajador { text-align: center; }
+.acciones-trabajador { text-align: end; }

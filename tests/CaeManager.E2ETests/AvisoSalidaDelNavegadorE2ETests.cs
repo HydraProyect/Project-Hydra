@@ -13,7 +13,7 @@ namespace CaeManager.E2ETests;
 /// NavigationManager de prueba sí llama al NavigationLock, y por eso el defecto pasó sin verse.
 ///
 /// <para>
-/// Dos pantallas de forma distinta: Trabajadores (lista QuickGrid, el formulario vive en la ficha del Context
+/// Dos pantallas de forma distinta: Trabajadores (tabla propia, el formulario vive en la ficha del Context
 /// Workspace, que está en el layout y se cierra en cuanto el circuito sabe que la URL cambió) y Centros (lista en
 /// acordeón, el formulario es un drawer de la propia página). En las dos: «Seguir editando» conserva lo escrito y
 /// la URL de la vista, y «Salir y descartar» repite la navegación detenida.

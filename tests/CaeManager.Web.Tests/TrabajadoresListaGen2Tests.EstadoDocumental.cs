@@ -27,7 +27,7 @@ namespace CaeManager.Web.Tests;
 /// <para>
 /// Lo que estos tests NO observan: que el clic en una incidencia no abra además la vista rápida de la fila.
 /// Ese clic de fila lo atiende <c>atajos-lista.js</c>, que bUnit no ejecuta; aquí solo se fija que el botón
-/// vive dentro de <c>.ventana-contexto-panel</c>, que es lo que ese guion excluye.
+/// vive en una fila de detalle independiente sin <c>fila-pulsable</c>; el clic real se fija en E2E.
 /// </para>
 /// </summary>
 public partial class TrabajadoresListaGen2Tests
@@ -44,6 +44,16 @@ public partial class TrabajadoresListaGen2Tests
 
     private static AngleSharp.Dom.IElement CeldaDeEstado(IRenderedComponent<Trabajadores> cut, int fila = 0) =>
         FilasDeDatos(cut)[fila].QuerySelector("td.col-estado")!;
+
+    private static AngleSharp.Dom.IElement AbrirIncidencias(IRenderedComponent<Trabajadores> cut, int fila = 0)
+    {
+        var propietario = FilasDeDatos(cut)[fila];
+        var chevron = propietario.QuerySelector(".boton-expandir-incidencias")!;
+        if (chevron.GetAttribute("aria-expanded") != "true") chevron.Click();
+        var detalle = FilasDeDatos(cut)[fila].NextElementSibling!;
+        detalle.ClassList.Should().Contain("trabajador-detalle-incidencias");
+        return detalle;
+    }
 
     /// <summary>Las consultas que hace el formulario de corrección al montarse, que el doble de la lista no conoce.</summary>
     private void ConFormularioDeCorreccion(MediatorFalso mediador)
@@ -70,7 +80,7 @@ public partial class TrabajadoresListaGen2Tests
 
         var celda = CeldaDeEstado(cut);
         celda.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Por vencer", "la pastilla se pinta siempre");
-        celda.QuerySelector(".estado-fila-motivo .motivo-incidencias-texto")!.TextContent.Trim()
+        celda.QuerySelector(".estado-fila-motivo")!.TextContent.Trim()
             .Should().Be("Formación Art. 19 · Caduca en 5 días");
     }
 
@@ -86,9 +96,9 @@ public partial class TrabajadoresListaGen2Tests
 
         var celda = CeldaDeEstado(cut);
         celda.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Vencido");
-        celda.QuerySelector(".motivo-incidencias-texto")!.TextContent.Trim()
+        celda.QuerySelector(".estado-fila-motivo")!.TextContent.Trim()
             .Should().Be("2 vencidos · 1 por vencer · 1 sin confirmar");
-        celda.QuerySelectorAll("button.ventana-contexto-elemento .motivo-incidencias-tipo").Select(e => e.TextContent.Trim())
+        AbrirIncidencias(cut).QuerySelectorAll("button.incidencia-corregir .incidencia-tipo").Select(e => e.TextContent.Trim())
             .Should().Equal("Aptitud médica", "Contrato", "Formación Art. 19", "Entrega de EPI");
     }
 
@@ -104,7 +114,8 @@ public partial class TrabajadoresListaGen2Tests
         var cut = Renderizar(new MediatorFalso { Almacen = { ana, bea } });
 
         FilasDeDatos(cut).Should().HaveCount(2);
-        cut.FindAll("td.col-estado button.ventana-contexto-elemento").Should().HaveCount(4);
+        cut.Find("button[data-keytip=E]").Click();
+        cut.FindAll(".trabajador-detalle-incidencias button.incidencia-corregir").Should().HaveCount(4);
     }
 
     [Fact]
@@ -117,10 +128,10 @@ public partial class TrabajadoresListaGen2Tests
         var cut = Renderizar(new MediatorFalso { Almacen = { javier } });
 
         var celda = CeldaDeEstado(cut);
-        celda.QuerySelector(".motivo-incidencias-texto")!.TextContent.Trim().Should().Be("1 vencido · 1 sin confirmar",
+        celda.QuerySelector(".estado-fila-motivo")!.TextContent.Trim().Should().Be("1 vencido · 1 sin confirmar",
             "control positivo: el motivo se ve igual");
         celda.QuerySelectorAll("button").Should().BeEmpty("no se ofrece un formulario que el comando va a denegar");
-        celda.QuerySelectorAll(".ventana-linea").Should().HaveCount(2, "control positivo: el desglose se sigue viendo");
+        AbrirIncidencias(cut).QuerySelectorAll(".incidencia-lectura").Should().HaveCount(2, "control positivo: el desglose se sigue viendo");
     }
 
     [Fact]
@@ -133,9 +144,11 @@ public partial class TrabajadoresListaGen2Tests
         ConFormularioDeCorreccion(mediador);
         var cut = Renderizar(mediador);
         var consultasDeListaAntes = mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Count();
-        var boton = CeldaDeEstado(cut).QuerySelectorAll("button.ventana-contexto-elemento")[1];
-        boton.Closest(".ventana-contexto-panel").Should().NotBeNull(
-            "es lo que «pulsarFila» de atajos-lista.js excluye para no abrir además la vista rápida");
+        var botones = AbrirIncidencias(cut).QuerySelectorAll("button.incidencia-corregir");
+        botones.Should().HaveCount(2);
+        var boton = botones[1];
+        boton.Closest("tr")!.ClassList.Should().NotContain("fila-pulsable",
+            "el detalle no es otra fila de propietario");
 
         await boton.ClickAsync(new MouseEventArgs());
 
@@ -241,11 +254,11 @@ public partial class TrabajadoresListaGen2Tests
         await cut.InvokeAsync(() => correccion.Instance.OnCorregida.InvokeAsync());
 
         cut.WaitForAssertion(() => FilasDeDatos(cut).Should().ContainSingle("Bea salió del filtro"));
-        mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Skip(consultasAntes).Should().HaveCount(2,
-            "control del escenario: al cambiar el total, QuickGrid pide la página una segunda vez")
+        mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Skip(consultasAntes).Should().HaveCount(1,
+            "la tabla nativa pide una página, aunque cambie el total")
             .And.OnlyContain(q => q == pregunta);
         cut.Find("tbody input[aria-label='Seleccionar a Ana Moreno']").HasAttribute("checked").Should().BeTrue(
-            "la segunda petición es el mismo refresco: lo marcado sigue marcado");
+            "el refresco conserva la selección de quien sigue en la página");
         cut.Find(".barra-acciones-lote-cantidad").TextContent.Trim().Should().Be("1 seleccionado en esta página");
     }
 
@@ -263,7 +276,7 @@ public partial class TrabajadoresListaGen2Tests
         var mediador = new MediatorFalso { Almacen = { javier, Trabajador("Zoe", "Zamora") } };
         var cut = Renderizar(mediador);
         TextoDelNombre(FilasDeDatos(cut)[0]).Should().Be("Javier Salas Moreno", "punto de partida: es la primera fila");
-        CeldaDeEstado(cut).QuerySelector(".motivo-incidencias-texto")!.TextContent.Trim()
+        CeldaDeEstado(cut).QuerySelector(".estado-fila-motivo")!.TextContent.Trim()
             .Should().Be("1 vencido · 1 sin confirmar", "punto de partida");
 
         // Lo que deja el guardado: el vencido se renovó y queda solo el sin confirmar.
@@ -273,7 +286,7 @@ public partial class TrabajadoresListaGen2Tests
             IncidenciaDe("Entrega de EPI", EstadoDocumento.SinConfirmar));
         await AvisarGuardadoAsync(cut, EntidadWorkspace.Trabajador, javier.Dto.Id);
 
-        cut.WaitForAssertion(() => CeldaDeEstado(cut).QuerySelector(".motivo-incidencias-texto")!.TextContent.Trim()
+        cut.WaitForAssertion(() => CeldaDeEstado(cut).QuerySelector(".estado-fila-motivo")!.TextContent.Trim()
             .Should().Be("Entrega de EPI", "la fila refrescada pinta el motivo que vuelve"));
         CeldaDeEstado(cut).QuerySelector(".badge")!.TextContent.Trim().Should().Be("Sin confirmar");
         FilasDeDatos(cut)[0].QuerySelector(".celda-registrados-vigentes")!.TextContent.Trim().Should().Be("3/4");

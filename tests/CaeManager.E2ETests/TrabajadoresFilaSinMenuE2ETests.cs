@@ -6,8 +6,8 @@ using static Microsoft.Playwright.Assertions;
 namespace CaeManager.E2ETests;
 
 /// <summary>
-/// Patrón de listados sin menú «⋯» (decisión 2026-10-08), en Trabajadores. La lista es un
-/// QuickGrid, que no ofrece clic de fila: la fila lleva «fila-pulsable» y es
+/// Patrón de listados sin menú «⋯» (decisión 2026-10-08), en Trabajadores. La lista tiene filas de detalle independientes.
+/// La fila del Trabajador lleva «fila-pulsable» y es
 /// <c>atajos-lista.js</c> quien, ante un clic en cualquier punto que no sea un control, pulsa
 /// el nombre de la fila. Esa mitad no existe para bUnit: solo se prueba aquí, en un navegador
 /// real, junto con que los controles de dentro (DNI copiable, icono 360) no abren la vista
@@ -34,30 +34,49 @@ public class TrabajadoresFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         return page;
     }
 
-    /// <summary>
-    /// «j» sin fila enfocada enfoca la primera. Se reintenta porque QuickGrid vuelve a pedir la
-    /// página por su cuenta tras el primer pintado cuando el total cambia (ver
-    /// <c>Trabajadores.RecargarAsync</c>), y cada carga limpia la fila enfocada: una «j» que
-    /// llegue antes de esa segunda carga pierde el foco sin que nada en el DOM lo anuncie.
-    /// Mientras no haya fila enfocada, repetir «j» vuelve a la primera, así que el reintento no
-    /// cambia qué fila se prueba.
-    /// </summary>
+    /// <summary>La carga observada termina antes de enfocar la cabecera y recorrer los propietarios.</summary>
     private static async Task EnfocarPrimeraFilaConJAsync(IPage page)
     {
-        var enfocada = page.Locator("tbody tr.fila-enfocada");
-        for (var intento = 0; intento < 5; intento++)
-        {
-            if (await enfocada.CountAsync() == 0)
-                await page.Keyboard.PressAsync("j");
-            await page.WaitForTimeoutAsync(400);
-            if (await enfocada.CountAsync() == 1 && await PrimeraFila(page).EvaluateAsync<bool>("f => f.classList.contains('fila-enfocada')"))
-            {
-                await page.WaitForTimeoutAsync(600);
-                if (await enfocada.CountAsync() == 1) return;
-            }
-        }
+        await Expect(page.Locator("table.trabajadores-rejilla-propia")).ToHaveAttributeAsync("aria-busy", "false");
+        await page.Locator("thead th.col-estado button.col-title").FocusAsync();
+        await page.Keyboard.PressAsync("j");
+        await Expect(page.Locator("tbody tr.fila-enfocada")).ToHaveCountAsync(1);
+    }
 
-        await Expect(enfocada).ToHaveCountAsync(1);
+    [Fact]
+    public async Task La_incidencia_desplegada_abre_el_formulario_sin_abrir_la_vista_rapida()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await AbrirTrabajadoresAsync(contexto);
+        await Expect(page.Locator("table.trabajadores-rejilla-propia")).ToHaveAttributeAsync("aria-busy", "false");
+        var candidatos = await page.GetByRole(AriaRole.Button, new() { NameRegex = new Regex("^Desplegar incidencias de ") }).AllAsync();
+        Assert.NotEmpty(candidatos); // La fixture debe ofrecer incidencias; no se convierte su ausencia en éxito.
+        foreach (var candidato in candidatos)
+        {
+            var etiqueta = await candidato.GetAttributeAsync("aria-label");
+            Assert.NotNull(etiqueta);
+            var chevron = page.GetByRole(AriaRole.Button, new() { Name = etiqueta, Exact = true });
+            if (await chevron.CountAsync() != 1) continue; // Puede haber dos Trabajadores con el mismo nombre.
+            await chevron.ClickAsync();
+            await Expect(chevron).ToHaveAttributeAsync("aria-expanded", "true");
+            var detalle = page.Locator(".trabajador-detalle-incidencias");
+            await Expect(detalle).ToHaveCountAsync(1);
+            await Expect(detalle).Not.ToHaveClassAsync(new Regex(@"\bfila-pulsable\b"));
+            var acciones = await detalle.GetByRole(AriaRole.Button).AllAsync();
+            Assert.NotEmpty(acciones);
+            foreach (var accion in acciones)
+            {
+                var nombre = (await accion.InnerTextAsync()).Trim();
+                var corregir = detalle.GetByRole(AriaRole.Button, new() { Name = nombre, Exact = true });
+                if (await corregir.CountAsync() != 1) continue;
+                await corregir.ClickAsync();
+                await Expect(page.GetByRole(AriaRole.Dialog, new() { NameRegex = new Regex("^(Renovar|Nuevo) documento$") })).ToBeVisibleAsync();
+                await Expect(page.Locator(".workspace-panel")).ToHaveCountAsync(0);
+                return;
+            }
+            await chevron.ClickAsync();
+        }
+        Assert.Fail("La fixture no ofrece una incidencia corregible identificable por nombre accesible único.");
     }
 
     [Fact]
