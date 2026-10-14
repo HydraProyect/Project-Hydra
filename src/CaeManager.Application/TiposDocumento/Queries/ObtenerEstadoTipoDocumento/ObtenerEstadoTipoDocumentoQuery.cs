@@ -72,7 +72,17 @@ public record EstadoTipoDocumentoDto(
     int TotalFiltradas,
     int Pagina,
     int TamanoPagina,
-    string? Notas);
+    string? Notas,
+    IReadOnlyList<CentroExigenciaTipoDocumentoDto>? CentrosExigencia = null,
+    IReadOnlyList<EmpresaExigenciaTipoDocumentoDto>? EmpresasEmpleadoras = null,
+    string? Descripcion = null,
+    string? CriteriosValidacion = null,
+    string? Observaciones = null);
+
+public record CentroExigenciaTipoDocumentoDto(Guid Id, string Nombre, bool BloqueaAcceso, int ToleranciaDias,
+    FraccionCumplimiento Cumplimiento, EstadoDocumento PeorEstado);
+public record EmpresaExigenciaTipoDocumentoDto(Guid? Id, string? Nombre, int Trabajadores, int Centros,
+    FraccionCumplimiento Cumplimiento, EstadoDocumento PeorEstado);
 
 public record RecuentoGrupoEstadoDto(GrupoEstadoTipoDocumento Grupo, int Filas);
 
@@ -135,6 +145,9 @@ public class ObtenerEstadoTipoDocumentoQueryHandler(
                 t.Requerido,
                 t.Naturaleza,
                 t.SeSolicitaA,
+                t.Descripcion,
+                t.CriteriosValidacion,
+                t.Observaciones,
                 t.Notas
             })
             .FirstOrDefaultAsync(cancellationToken);
@@ -174,7 +187,17 @@ public class ObtenerEstadoTipoDocumentoQueryHandler(
             TotalFiltradas: filtradas.Count,
             Pagina: pagina,
             TamanoPagina: tamano,
-            Notas: await politicaNotaInterna.PuedeLeerAsync(cancellationToken) ? tipo.Notas : null);
+            Notas: await politicaNotaInterna.PuedeLeerAsync(cancellationToken) ? tipo.Notas : null,
+            // Universo completo antes de filtros/paginación; cada fracción mide pares Centro × Trabajador.
+            CentrosExigencia: pares.GroupBy(p => p.CentroId).Select(g => new CentroExigenciaTipoDocumentoDto(
+                g.Key, g.First().CentroNombre, g.First().BloqueaAcceso, g.First().ToleranciaDias,
+                CumplimientoDocumental.Evaluar(g.Select(p => p.Estado)), g.MinBy(p => SeveridadEstadoDocumento.Rango(p.Estado))!.Estado))
+                .OrderBy(c => SeveridadEstadoDocumento.Rango(c.PeorEstado)).ThenBy(c => c.Nombre).ToList(),
+            EmpresasEmpleadoras: pares.GroupBy(p => p.EmpresaId).Select(g => new EmpresaExigenciaTipoDocumentoDto(
+                g.Key, g.First().EmpresaNombre, g.Select(p => p.TrabajadorId).Distinct().Count(), g.Select(p => p.CentroId).Distinct().Count(),
+                CumplimientoDocumental.Evaluar(g.Select(p => p.Estado)), g.MinBy(p => SeveridadEstadoDocumento.Rango(p.Estado))!.Estado))
+                .OrderBy(e => SeveridadEstadoDocumento.Rango(e.PeorEstado)).ThenBy(e => e.Nombre).ToList(),
+            Descripcion: tipo.Descripcion, CriteriosValidacion: tipo.CriteriosValidacion, Observaciones: tipo.Observaciones);
     }
 
     private async Task<IReadOnlyList<ParDeTipoDocumento>> CargarParesAsync(Guid tipoDocumentoId, CancellationToken cancellationToken)
@@ -241,11 +264,11 @@ public class ObtenerEstadoTipoDocumentoQueryHandler(
             var tieneDocumento = documentos.TryGetValue(par.TrabajadorId, out var documento);
             var estado = par.Estado;
             DateOnly? enToleranciaHasta = null;
+            var filaCentro = filasDeCentro.GetValueOrDefault(par.CentroId);
+            var condiciones = VigenciaEnCentro.Condiciones(filaCentro,
+                toleranciasDeClientes.TryGetValue((centro.ClienteEmpresarialId, tipoDocumentoId), out var dias) ? dias : null);
             if (tieneDocumento)
             {
-                var condiciones = VigenciaEnCentro.Condiciones(
-                    filasDeCentro.GetValueOrDefault(par.CentroId),
-                    toleranciasDeClientes.TryGetValue((centro.ClienteEmpresarialId, tipoDocumentoId), out var dias) ? dias : null);
                 (estado, enToleranciaHasta) = VigenciaEnCentro.Aplicar(
                     par.Estado, documento!.EstadoVigencia, documento.FechaVencimiento, documento.FechaEmision, condiciones, hoy);
             }
@@ -260,7 +283,8 @@ public class ObtenerEstadoTipoDocumentoQueryHandler(
                 estado, enToleranciaHasta,
                 tieneDocumento ? documento!.Id : null,
                 tieneDocumento ? documento!.FechaEmision : null,
-                tieneDocumento ? documento!.FechaVencimiento : null));
+                tieneDocumento ? documento!.FechaVencimiento : null,
+                filaCentro is { Incluido: true, BloqueaAcceso: true }, condiciones.ToleranciaDias));
         }
 
         return pares;

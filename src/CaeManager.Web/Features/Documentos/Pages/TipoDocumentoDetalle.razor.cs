@@ -24,7 +24,8 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 /// </para>
 ///
 /// <para>
-/// Fuera de este incremento (lista de aceptación, § 2): pestañas «Centros que lo exigen», «Empresas» e «Historial», grupo
+/// Centros y Empresas usan agregados completos de los pares exigidos; Ficha muestra solo campos reales del Tipo.
+/// Fuera de este incremento: «Historial», grupo
 /// «Sin Centro que lo exija», «Reclamar pendientes», «Pendiente de subir» por plataforma, «Bloqueado», tolerancia en el
 /// lateral y las variantes Empresa y Vehículo.
 /// </para>
@@ -40,6 +41,9 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
         $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae},{Roles.GestorCae}";
 
     internal const string PestanaTrabajadores = "trabajadores";
+    private const string PestanaCentros = "centros";
+    private const string PestanaEmpresas = "empresas";
+    private const string PestanaFicha = "ficha";
 
     [Parameter] public Guid TipoDocumentoId { get; set; }
 
@@ -115,8 +119,8 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
 
     private void CambiarPestana(string id)
     {
-        Pestana = id == PestanaTrabajadores ? id : PestanaTrabajadores;
-        NavigationManager.ActualizarFiltroEnUrl("pestana", null);
+        Pestana = Pestanas.Any(p => p.Id == id) ? id : PestanaTrabajadores;
+        NavigationManager.ActualizarFiltroEnUrl("pestana", Pestana == PestanaTrabajadores ? null : Pestana);
     }
 
     private IReadOnlyList<BreadcrumbElemento> Miguero =>
@@ -130,11 +134,14 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
         new(PestanaTrabajadores, Textos["PestanaTrabajadores"])
         {
             Contador = new ContadorPestana(_estado?.Trabajadores ?? 0, Textos["GlosaPestanaTrabajadores"])
-        }
+        },
+        new(PestanaCentros, Textos["PestanaCentros360"]),
+        new(PestanaEmpresas, Textos["PestanaEmpresas360"]),
+        .. (CajasDeFicha.Count > 0 ? new[] { new PestanaDefinicion(PestanaFicha, Textos["PestanaFicha360"]) } : [])
     ];
 
     /// <summary>
-    /// La pestaña que se enseña. Hoy solo hay una: un <c>?pestana=</c> desconocido cae en ella, igual que en las demás
+    /// La pestaña que se enseña. Un <c>?pestana=</c> desconocido cae en Trabajadores, igual que en las demás
     /// fichas, y como es la de por defecto no se escribe en la URL.
     /// </summary>
     private string PestanaActiva => Pestanas.Any(p => p.Id == Pestana) ? Pestana! : PestanaTrabajadores;
