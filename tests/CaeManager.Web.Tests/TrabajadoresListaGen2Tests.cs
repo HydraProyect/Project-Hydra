@@ -66,7 +66,7 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public partial class TrabajadoresListaGen2Tests : BunitContext
 {
-    /// <summary>QuickGrid y AtajosListaTeclado importan sus módulos JS al montarse.</summary>
+    /// <summary>AtajosListaTeclado importa su módulo JS al montarse.</summary>
     public TrabajadoresListaGen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -664,7 +664,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
     private static List<string> TextosDeLosChips(IRenderedComponent<Trabajadores> cut) =>
         cut.FindAll(".barra-filtros-pastillas .chip-filtro").Select(c => c.TextContent.Trim()).ToList();
 
-    /// <summary>Clases de las filas con datos (QuickGrid rellena la página con filas vacías).</summary>
+    /// <summary>Clases de los propietarios, excluyendo las filas de detalle.</summary>
     private static List<string> ClasesDeLasFilas(IRenderedComponent<Trabajadores> cut) =>
         FilasDeDatos(cut).Select(tr => tr.ClassName ?? string.Empty).ToList();
 
@@ -1700,14 +1700,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         cut.WaitForAssertion(() => Columna(cut, 0).Should().HaveCount(25));
     }
 
-    /// <summary>
-    /// Cambiar el tamaño de página pide la página 1 del tamaño nuevo UNA vez.
-    /// Mismo motivo que <see cref="Buscar_desde_la_caja_navega_una_vez_y_hace_una_sola_consulta"/>:
-    /// <c>SetCurrentPageIndexAsync</c> ya avisa a QuickGrid aunque la página no
-    /// cambie, y refrescar además la rejilla pedía lo mismo dos veces. Los 25
-    /// trabajadores son los mismos antes y después, así que con el total quieto
-    /// lo que se cuenta es lo que pide la página.
-    /// </summary>
+    /// <summary>Cambiar el tamaño de página pide la página 1 del tamaño nuevo una vez.</summary>
     [Fact]
     public async Task Cambiar_el_tamano_de_pagina_hace_una_sola_consulta()
     {
@@ -1776,17 +1769,10 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         cut.FindAll(".chip-filtro").Should().BeEmpty();
         navegaciones().Should().Be(1, "la búsqueda y el estado se quitan de la URL en una sola navegación");
         mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Skip(consultasAntes).Distinct().Should().ContainSingle(
-            "es una sola pregunta nueva; aquí el total pasa de 0 a 2 y QuickGrid la repite idéntica por su cuenta, así que cuántas "
-            + "veces se hace lo cuenta Quitar_los_filtros_sin_cambiar_el_total_navega_una_vez_y_hace_una_sola_consulta");
+            "es una sola pregunta nueva; el render nativo no duplica las consultas");
     }
 
-    /// <summary>
-    /// Recuento exacto de «Quitar los filtros»: una navegación y una consulta.
-    /// El almacén vacío deja el total en 0 antes y después; si cambiara,
-    /// QuickGrid volvería a pedir la misma página en el render siguiente (ver
-    /// <see cref="Buscar_desde_la_caja_navega_una_vez_y_hace_una_sola_consulta"/>)
-    /// y el recuento mezclaría esa repetición con lo que pide la página.
-    /// </summary>
+    /// <summary>Quitar filtros navega y pide una sola consulta, también con el almacén vacío.</summary>
     [Fact]
     public async Task Quitar_los_filtros_sin_cambiar_el_total_navega_una_vez_y_hace_una_sola_consulta()
     {
@@ -1858,13 +1844,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
     /// que encuentra la URL igual a la pantalla y no repite la consulta; si la
     /// repitiera, cada búsqueda costaría dos.
     ///
-    /// <para>
-    /// El total se queda en 1 (de «Salas» a «Vega») a propósito: cuando el
-    /// total cambia, QuickGrid vuelve a pedir la misma página por su cuenta en
-    /// el render siguiente (su pila: <c>QuickGrid.OnParametersSetAsync</c> →
-    /// <c>RefreshDataCoreAsync</c>), y el recuento mezclaría esa repetición
-    /// con lo que pide la página.
-    /// </para>
+    /// La tabla nativa no repite peticiones por cambios del total.
     /// </summary>
     [Fact]
     public async Task Buscar_desde_la_caja_navega_una_vez_y_hace_una_sola_consulta()
@@ -1939,8 +1919,8 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
     /// <summary>
     /// La fila no lleva menú. El nombre es el botón que abre la vista rápida —el panel del
     /// Context Workspace, ya no un drawer propio—, y la fila lleva «fila-pulsable», la marca con
-    /// la que atajos-lista.js pulsa ese botón al hacer clic en cualquier otro punto (QuickGrid no
-    /// ofrece clic de fila: esa mitad solo la prueba el E2E). A la página Trabajador 360 se va con
+    /// la que atajos-lista.js pulsa ese botón al hacer clic en cualquier otro punto (el clic real
+    /// solo lo prueba el E2E). A la página Trabajador 360 se va con
     /// el icono 360 del final de la fila, que es un enlace real.
     /// </summary>
     [Fact]

@@ -26,4 +26,3 @@ src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor :: _versionSelectorC
 src/CaeManager.Web/Features/TiposDocumento/Pages/TiposDocumento.razor :: GeneracionDe(clave) = 1
 src/CaeManager.Web/Features/TiposDocumento/Pages/TiposDocumento.razor :: GeneracionDe(claveOficial) = 1
 src/CaeManager.Web/Features/Trabajadores/Components/PanelDocumentacionBase.razor :: indicador.Tipo = 2
-src/CaeManager.Web/Features/Trabajadores/Pages/Trabajadores.razor :: _orden.Version = 1
