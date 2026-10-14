@@ -1,3 +1,7 @@
+using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
+using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata;
+using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 using CaeManager.Application.Clientes.Queries.ObtenerCentrosDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
 using CaeManager.Application.Common;
@@ -29,8 +33,21 @@ public class ObtenerSubcontratasConCentrosDeClienteQueryHandler(IMediator mediat
         foreach (var subcontrata in subcontratas)
         {
             if (!await alcance.SubcontrataVisibleAsync(subcontrata.Id, cancellationToken)) continue;
-            var centros = visibles.Count == 0 ? [] : await mediator.Send(new ObtenerCentrosConCumplimientoDeSubcontrataQuery(subcontrata.Id), cancellationToken);
-            resultado.Add(new(subcontrata, centros.Where(c => visibles.Contains(c.Centro.Id)).ToList()));
+            var centros = new List<CentroCumplimientoSubcontrataDto>();
+            if (visibles.Count > 0)
+            {
+                var actividad = await mediator.Send(new ObtenerCentrosConActividadDeSubcontrataQuery(subcontrata.Id), cancellationToken);
+                // Intersectar antes de leer documentos: los Centros de otros Clientes empresariales no se calculan.
+                foreach (var centro in actividad.Where(c => visibles.Contains(c.Id)))
+                {
+                    var trabajadores = await mediator.Send(new ObtenerAsignacionesDocumentacionPorCentroQuery(centro.Id,
+                        EmpresaEmpleadoraSubcontratistaId: subcontrata.Id), cancellationToken);
+                    var fraccion = new FraccionCumplimiento(trabajadores.Sum(t => t.Cumplimiento.AlDia), trabajadores.Sum(t => t.Cumplimiento.Requeridos));
+                    var estados = trabajadores.Where(t => t.Cumplimiento.Requeridos > 0).Select(t => t.PeorEstado).ToList();
+                    centros.Add(new(centro, fraccion, estados.Count == 0 ? null : estados.MinBy(SeveridadEstadoDocumento.Rango)));
+                }
+            }
+            resultado.Add(new(subcontrata, centros));
         }
         return resultado;
     }

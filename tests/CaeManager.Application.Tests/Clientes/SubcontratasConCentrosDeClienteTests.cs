@@ -1,3 +1,5 @@
+using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
+using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Clientes.Queries.ObtenerCentrosDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
@@ -36,7 +38,11 @@ public class SubcontratasConCentrosDeClienteTests
         resultado.Single().Centros.Single().Cumplimiento.Should().Be(new CaeManager.Domain.Documentos.FraccionCumplimiento(1, 2));
         m.Enviadas.OfType<ObtenerCentrosDeClienteQuery>().Should().ContainSingle().Which.ClienteId.Should().Be(_cliente);
         m.Enviadas.OfType<ObtenerSubcontratasDeClienteQuery>().Should().ContainSingle().Which.ClienteId.Should().Be(_cliente);
-        m.Enviadas.OfType<ObtenerCentrosConCumplimientoDeSubcontrataQuery>().Should().ContainSingle().Which.Id.Should().Be(_empresa);
+        m.Enviadas.OfType<ObtenerCentrosConActividadDeSubcontrataQuery>().Should().ContainSingle().Which.SubcontrataId.Should().Be(_empresa);
+        var documental = m.Enviadas.OfType<ObtenerAsignacionesDocumentacionPorCentroQuery>().Should().ContainSingle().Which;
+        documental.CentroId.Should().Be(_centro);
+        documental.EmpresaEmpleadoraSubcontratistaId.Should().Be(_empresa);
+        m.Enviadas.OfType<ObtenerCentrosConCumplimientoDeSubcontrataQuery>().Should().BeEmpty();
     }
     [Fact]
     public async Task Sin_visibilidad_del_Cliente_empresarial_no_consulta()
@@ -51,6 +57,7 @@ public class SubcontratasConCentrosDeClienteTests
         var m = Datos();
         var resultado = await Leer(m, new(tieneAccesoTotal: false, clienteIdsVisibles: [_cliente], subcontrataIdsVisibles: [_empresa], centroIdsVisibles: []));
         resultado.Should().ContainSingle().Which.Centros.Should().BeEmpty();
+        m.Enviadas.OfType<ObtenerAsignacionesDocumentacionPorCentroQuery>().Should().BeEmpty();
         m.Enviadas.OfType<ObtenerCentrosConCumplimientoDeSubcontrataQuery>().Should().BeEmpty();
     }
     [Fact]
@@ -85,10 +92,17 @@ public class SubcontratasConCentrosDeClienteTests
             {
                 ObtenerCentrosDeClienteQuery => Propios,
                 ObtenerSubcontratasDeClienteQuery => Subcontratas,
-                ObtenerCentrosConCumplimientoDeSubcontrataQuery => Centros,
+                ObtenerCentrosConActividadDeSubcontrataQuery => Centros.Select(c => c.Centro).ToList(),
+                ObtenerAsignacionesDocumentacionPorCentroQuery q => Documentos(q.CentroId),
                 _ => throw new NotSupportedException()
             };
             return Task.FromResult((TResponse)respuesta);
+        }
+        private IReadOnlyList<TrabajadorAsignacionDocumentacionDto> Documentos(Guid id)
+        {
+            var centro = Centros.Single(c => c.Centro.Id == id);
+            return [new(Guid.NewGuid(), Guid.NewGuid(), "Trabajador", new DateOnly(2026, 1, 1),
+                centro.PeorEstado ?? EstadoDocumento.Vigente, [], centro.Cumplimiento)];
         }
         public Task Send<TRequest>(TRequest request, CancellationToken ct = default) where TRequest : IRequest => Task.CompletedTask;
         public Task<object?> Send(object request, CancellationToken ct = default) => throw new NotSupportedException();

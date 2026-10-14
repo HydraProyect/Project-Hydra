@@ -299,7 +299,7 @@ public class Cliente360PaginaTests : BunitContext
         var cut = Renderizar(id);
 
         // La carga de Empresas debe haber terminado: una ausencia durante la carga no prueba el caso de varias.
-        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerSubcontratasConCentrosDeClienteQuery>().Should().ContainSingle());
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerSubcontratasDeClienteQuery>().Should().ContainSingle());
         var datos = cut.Find(".cabecera-identidad-datos").TextContent;
         if (cantidad == 1)
             datos.Should().Contain("Entra como contratista: Ibertec GmbH");
@@ -981,10 +981,29 @@ public class Cliente360PaginaTests : BunitContext
     }
 
     [Fact]
+    public void Centros_de_Subcontratas_se_leen_solo_al_abrir_la_pestana_y_se_conservan_al_reabrir()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Subcontratas.Add(new(Guid.NewGuid(), "Contraparte"));
+        Registrar(mediador);
+        var cut = Renderizar(id);
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerSubcontratasDeClienteQuery>().Should().ContainSingle());
+        mediador.Enviadas.OfType<ObtenerSubcontratasConCentrosDeClienteQuery>().Should().BeEmpty();
+        cut.FindAll(".pestanas-boton").Single(b => b.TextContent.StartsWith("Subcontratas")).Click();
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerSubcontratasConCentrosDeClienteQuery>().Should().ContainSingle());
+        cut.FindAll(".pestanas-boton").Single(b => b.TextContent.StartsWith("Centros")).Click();
+        cut.FindAll(".pestanas-boton").Single(b => b.TextContent.StartsWith("Subcontratas")).Click();
+        mediador.Enviadas.OfType<ObtenerSubcontratasConCentrosDeClienteQuery>().Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task Respuesta_tardia_de_Subcontratas_no_mezcla_dos_Clientes_empresariales()
     {
         var (id, mediador) = ClienteBase();
         var otro = Guid.NewGuid();
+        var contraparte = new SubcontrataDeClienteDto(Guid.NewGuid(), "Contraparte compartida");
+        mediador.Subcontratas.Add(contraparte);
+        mediador.CentrosSubcontrata.Add(new(new(Guid.NewGuid(), "Centro de B", "Cliente B", 1), new(1, 1), EstadoDocumento.Vigente));
         mediador.Detalles[otro] = mediador.Detalles[id] with { Id = otro, RazonSocial = "Cliente B" };
         var pendiente = new TaskCompletionSource<IReadOnlyList<SubcontrataConCentrosDeClienteDto>>();
         mediador.SubcontratasPendientes[id] = pendiente.Task;
@@ -992,9 +1011,11 @@ public class Cliente360PaginaTests : BunitContext
         var cut = Renderizar(id, "?pestana=subcontratas");
         cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerSubcontratasConCentrosDeClienteQuery>().Should().ContainSingle());
         cut.Render(p => p.Add(x => x.ClienteId, otro));
-        pendiente.SetResult([new(new(Guid.NewGuid(), "Contraparte anterior"), [])]);
+        pendiente.SetResult([new(contraparte, [new(new(Guid.NewGuid(), "Centro anterior", "Cliente A", 1), new(0, 1), EstadoDocumento.Faltante)])]);
         await cut.InvokeAsync(() => Task.CompletedTask);
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Cliente B").And.NotContain("Contraparte anterior"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Cliente B"));
+        cut.Find(".fila-relacion-desplegar").Click();
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro de B").And.NotContain("Centro anterior"));
     }
 
     // ── Error ─────────────────────────────────────────────────────────────
