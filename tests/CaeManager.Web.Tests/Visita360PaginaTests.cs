@@ -582,6 +582,21 @@ public class Visita360PaginaTests : BunitContext
         cut.FindAll("[data-pieza=fila]").Should().HaveCount(5);
     }
 
+    [Fact]
+    public async Task Vacio_filtrado_tras_actualizar_documentacion_ofrece_Quitar_filtros_en_la_nota()
+    {
+        var (cut, mediador) = Montar(Detalle(), documentacion: DocumentacionConIncidencias());
+        cut.FindAll(".filtro-estados-opcion").Single(b => b.TextContent.StartsWith("Vencido", StringComparison.Ordinal)).Click();
+        mediador.Documentacion = new(Guid.NewGuid(), new(EstadoDocumento.Vigente, [Documento("RNT", EstadoDocumento.Vigente)]),
+            [new(Paula, "Paula Campos", "Contratista Demo S.L.", new(EstadoDocumento.Vigente, [Documento("Aptitud médica", EstadoDocumento.Vigente, Paula)]))]);
+        await cut.InvokeAsync(() => cut.FindComponent<DrawerGestionDocumento>().Instance.OnGuardado.InvokeAsync());
+        cut.WaitForAssertion(() => cut.FindAll("[data-pieza=fila]").Should().BeEmpty());
+        cut.Find(".lista-relaciones-pie").TextContent.Should().Contain("Ninguno con ese filtro.");
+        cut.Find(".lista-relaciones-pie button").Click();
+        cut.WaitForAssertion(() => cut.FindAll("[data-pieza=fila]").Count.Should().Be(2));
+        cut.FindAll(".filtro-estados-opcion[aria-pressed=true]").Should().ContainSingle().Which.TextContent.Should().StartWith("Todos");
+    }
+
     private sealed record IElementoFiltro(AngleSharp.Dom.IElement Elemento)
     {
         public void Clic() => Elemento.Click();

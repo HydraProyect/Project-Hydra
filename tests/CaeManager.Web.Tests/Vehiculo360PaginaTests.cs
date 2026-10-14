@@ -622,7 +622,10 @@ public class Vehiculo360PaginaTests : BunitContext
         var cut = Renderizar(id, "?estado=Pendiente");
         cut.FindAll(".lista-relaciones-tarjeta .fila-relacion-nombre").Should().BeEmpty();
         cut.Find(".franja-estado").Should().NotBeNull();
-        cut.Find(".lista-relaciones-tarjeta .estado-vacio").TextContent.Should().Contain("Ningún documento con estos filtros");
+        cut.Find(".lista-relaciones-pie").TextContent.Should().Contain("Ninguno con ese filtro.");
+        cut.Find(".lista-relaciones-pie button").Click();
+        cut.WaitForAssertion(() => cut.FindAll(".lista-relaciones-tarjeta .fila-relacion-nombre").Count.Should().Be(4));
+        new Uri(Services.GetRequiredService<NavigationManager>().Uri).Query.Should().NotContain("estado=");
     }
 
     [Fact]

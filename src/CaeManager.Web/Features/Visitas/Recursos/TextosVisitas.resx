@@ -553,7 +553,7 @@
     <value>Este centro no le exige documentación.</value>
   </data>
   <data name="Visita360NingunoEnLosEstados" xml:space="preserve">
-    <value>Ninguno en los estados marcados.</value>
+    <value>Ninguno con ese filtro.</value>
   </data>
   <data name="Visita360Asunto" xml:space="preserve">
     <value>Asunto:</value>

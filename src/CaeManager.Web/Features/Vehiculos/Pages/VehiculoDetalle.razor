@@ -150,10 +150,6 @@
                                         }
                                     </Encabezado>
                                     <ChildContent>
-                                        @if (DocumentosVisibles.Count == 0)
-                                        {
-                                            <EstadoVacio Titulo="@Textos["DocumentosVacioFiltroTitulo"]" Descripcion="@Textos["DocumentosVacioFiltroDescripcion"]" />
-                                        }
                                         @foreach (var documento in DocumentosVisibles)
                                         {
                                             <FilaRelacion @key="documento.Id"
@@ -178,7 +174,17 @@
                                             </FilaRelacion>
                                         }
                                     </ChildContent>
-                                    <Pie>@Textos["FichaNotaRegistrados"]</Pie>
+                                    <Pie>
+                                        @if (DocumentosVisibles.Count == 0)
+                                        {
+                                            @Textos["DocumentosVacioFiltroTitulo"]
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" OnClick="() => CambiarEstado(null)">@Textos["BotonQuitarFiltros"]</Boton>
+                                        }
+                                        else
+                                        {
+                                            @Textos["FichaNotaRegistrados"]
+                                        }
+                                    </Pie>
                                 </ListaRelaciones>
                             }
                             break;

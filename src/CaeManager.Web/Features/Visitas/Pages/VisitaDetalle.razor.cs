@@ -403,6 +403,8 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
         documentacion.Documentos.All(d =>
             CumplimientoDocumental.EsConforme(d.Estado) || d.Estado is EstadoDocumento.EnTolerancia);
 
+    private void QuitarFiltrosEstados() => _estadosMarcados = new HashSet<string>();
+
     private bool HayFiltrosActivos => _estadosMarcados.Count > 0;
 
     /// <summary>Algún documento exigido vencido o sin presentar: lo que pone en alerta el contador.</summary>

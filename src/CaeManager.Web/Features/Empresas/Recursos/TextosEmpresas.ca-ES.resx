@@ -129,17 +129,8 @@
   <data name="BuscadorTrabajadores" xml:space="preserve">
     <value>Cerca un treballador d'aquesta empresa…</value>
   </data>
-  <data name="VacioBusquedaTitulo" xml:space="preserve">
-    <value>Cap treballador amb aquest filtre</value>
-  </data>
   <data name="QuitarFiltros" xml:space="preserve">
     <value>Treu els filtres</value>
-  </data>
-  <data name="VacioFiltroTitulo" xml:space="preserve">
-    <value>Cap treballador en aquest estat</value>
-  </data>
-  <data name="VerTodos" xml:space="preserve">
-    <value>Veure'ls tots</value>
   </data>
   <data name="ErrorTrabajadores" xml:space="preserve">
     <value>No hem pogut carregar els treballadors</value>
@@ -318,4 +309,5 @@
   <data name="PrefijoDni" xml:space="preserve">
     <value>DNI</value>
   </data>
+  <data name="NingunoConFiltro" xml:space="preserve"><value>Cap amb aquest filtre.</value></data>
 </root>

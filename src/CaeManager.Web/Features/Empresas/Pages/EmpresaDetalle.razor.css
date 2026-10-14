@@ -53,3 +53,8 @@
     font: var(--font-caption);
     color: var(--color-text-muted);
 }
+
+.empresa360-vacio-filtrado {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
