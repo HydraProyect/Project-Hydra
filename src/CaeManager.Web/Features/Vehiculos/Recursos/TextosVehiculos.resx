@@ -304,4 +304,8 @@
   <data name="OpcionesOrdenVehiculo" xml:space="preserve">
     <value>Opciones de orden del vehículo</value>
   </data>
+  <data name="PestanaCentrosEmpleador360" xml:space="preserve"><value>Centros de su Empresa empleadora</value></data>
+  <data name="CentrosOrientativos360" xml:space="preserve"><value>El vehículo no está asignado a ningún Centro ni Visita. Esta lista es orientativa: muestra Centros donde trabajan los Trabajadores de su Empresa empleadora.</value></data>
+  <data name="SinCentrosEmpleador360" xml:space="preserve"><value>Sin actividad en Centros visibles de su Empresa empleadora</value></data>
+  <data name="ErrorCentros360" xml:space="preserve"><value>No pudimos cargar los Centros de su Empresa empleadora</value></data>
 </root>

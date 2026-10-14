@@ -2,6 +2,9 @@ using AngleSharp.Dom;
 using Bunit;
 using Bunit.TestDoubles;
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEmpresa;
+using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Vehiculos.Commands.GuardarNotaInternaVehiculo;
@@ -55,6 +58,10 @@ public class Vehiculo360PaginaTests : BunitContext
         public int? TotalDocumentos { get; set; }
 
         public bool FallaDocumentos { get; set; }
+        public List<CentroConActividadDto> Centros { get; } = [];
+        public bool FallaCentros { get; set; }
+        public TaskCompletionSource? DocumentosPendientes { get; set; }
+        public Dictionary<Guid, TaskCompletionSource<IReadOnlyList<CentroConActividadDto>>> CentrosPendientes { get; } = [];
 
         /// <summary>Si está, la consulta de detalle de ese Vehículo no responde hasta que se complete.</summary>
         public Dictionary<Guid, TaskCompletionSource> Compuertas { get; } = [];
@@ -68,10 +75,22 @@ public class Vehiculo360PaginaTests : BunitContext
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+            if (request is ObtenerDocumentosQuery && DocumentosPendientes is { } documentos)
+                return ResponderTrasAsync<TResponse>(documentos.Task, request);
+            var empresa = request switch
+            {
+                ObtenerCentrosConActividadDeEmpresaQuery e => (Guid?)e.EmpresaId,
+                ObtenerCentrosConActividadDeSubcontrataQuery s => s.SubcontrataId,
+                _ => null
+            };
+            if (empresa is { } empresaId && CentrosPendientes.TryGetValue(empresaId, out var pendiente))
+                return CentrosTrasAsync<TResponse>(pendiente.Task);
             return request is ObtenerVehiculoPorIdQuery q && Compuertas.TryGetValue(q.Id, out var compuerta)
                 ? ResponderTrasAsync<TResponse>(compuerta.Task, request)
                 : Task.FromResult((TResponse)Responder(request)!);
         }
+
+        private static async Task<TResponse> CentrosTrasAsync<TResponse>(Task<IReadOnlyList<CentroConActividadDto>> tarea) => (TResponse)(object)await tarea;
 
         private async Task<TResponse> ResponderTrasAsync<TResponse>(Task compuerta, object request)
         {
@@ -82,6 +101,8 @@ public class Vehiculo360PaginaTests : BunitContext
         private object? Responder(object request) => request switch
         {
             ObtenerVehiculoPorIdQuery q => Detalles.GetValueOrDefault(q.Id),
+            ObtenerCentrosConActividadDeEmpresaQuery or ObtenerCentrosConActividadDeSubcontrataQuery when FallaCentros => throw new InvalidOperationException("Fallo de Centros simulado"),
+            ObtenerCentrosConActividadDeEmpresaQuery or ObtenerCentrosConActividadDeSubcontrataQuery => Centros,
             GuardarNotaInternaVehiculoCommand => ResponderGuardarNota(),
             ObtenerDocumentosQuery when FallaDocumentos => throw new InvalidOperationException("fallo simulado"),
             ObtenerDocumentosQuery => new ResultadoPaginado<DocumentoListaDto>(
@@ -154,6 +175,93 @@ public class Vehiculo360PaginaTests : BunitContext
         var cut = Render<VehiculoDetalle>(p => p.Add(x => x.VehiculoId, id));
         cut.WaitForAssertion(() => cut.FindAll(".cabecera-identidad, .estado-vacio").Should().NotBeEmpty());
         return cut;
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Centros_orientativos_reutilizan_el_lector_de_su_Empresa_empleadora(bool empleadorEsEmpresa)
+    {
+        var (id, mediador) = CamionGrua(empleadorEsEmpresa: empleadorEsEmpresa);
+        var centroId = Guid.NewGuid();
+        mediador.Centros.Add(new(centroId, "Centro Norte", "Cliente Norte", 3));
+        Registrar(mediador);
+        var cut = Renderizar(id, "?pestana=centros");
+        cut.WaitForAssertion(() => cut.FindAll($"a[href='/centros/{centroId}']").Should().ContainSingle());
+        cut.Markup.Should().Contain("El vehículo no está asignado a ningún Centro ni Visita.").And.Contain("Esta lista es orientativa");
+        cut.Find(".fila-relacion").TextContent.Should().Contain("Cliente Norte").And.NotContain("%");
+        cut.Find(".fila-relacion").GetAttribute("data-tono").Should().BeNull();
+        if (empleadorEsEmpresa)
+        {
+            mediador.Enviadas.OfType<ObtenerCentrosConActividadDeEmpresaQuery>().Should().ContainSingle().Which.EmpresaId.Should().Be(mediador.Detalles[id].EmpresaId!.Value);
+            mediador.Enviadas.OfType<ObtenerCentrosConActividadDeSubcontrataQuery>().Should().BeEmpty();
+        }
+        else
+        {
+            mediador.Enviadas.OfType<ObtenerCentrosConActividadDeSubcontrataQuery>().Should().ContainSingle().Which.SubcontrataId.Should().Be(mediador.Detalles[id].SubcontrataId!.Value);
+            mediador.Enviadas.OfType<ObtenerCentrosConActividadDeEmpresaQuery>().Should().BeEmpty();
+        }
+    }
+
+    [Fact]
+    public void Centros_se_cargan_solo_al_abrir_su_pestana_y_se_conservan_los_parametros()
+    {
+        var (id, mediador) = CamionGrua();
+        Registrar(mediador);
+        var cut = Renderizar(id, "?extra=conservar");
+        mediador.Enviadas.OfType<ObtenerCentrosConActividadDeEmpresaQuery>().Should().BeEmpty();
+        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Centros de su Empresa empleadora")).Click();
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Sin actividad en Centros visibles de su Empresa empleadora"));
+        new Uri(Services.GetRequiredService<NavigationManager>().Uri).Query.Should().Contain("pestana=centros").And.Contain("extra=conservar");
+        cut.FindAll("[role=tab]").Single(t => t.TextContent.StartsWith("Documentación")).Click();
+        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Centros de su Empresa empleadora")).Click();
+        mediador.Enviadas.OfType<ObtenerCentrosConActividadDeEmpresaQuery>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Centros_no_arrancan_otra_lectura_mientras_Documentacion_esta_en_curso()
+    {
+        var (id, mediador) = CamionGrua();
+        var documentos = new TaskCompletionSource();
+        mediador.DocumentosPendientes = documentos;
+        Registrar(mediador);
+        var cut = Renderizar(id);
+        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Centros de su Empresa empleadora")).Click();
+        mediador.Enviadas.OfType<ObtenerCentrosConActividadDeEmpresaQuery>().Should().BeEmpty();
+        documentos.SetResult();
+        await cut.InvokeAsync(() => Task.CompletedTask);
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerCentrosConActividadDeEmpresaQuery>().Should().ContainSingle());
+    }
+
+    [Fact]
+    public void Error_de_Centros_no_se_disfraza_de_vacio_y_se_puede_reintentar()
+    {
+        var (id, mediador) = CamionGrua();
+        mediador.FallaCentros = true;
+        Registrar(mediador);
+        var cut = Renderizar(id, "?pestana=centros");
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("No pudimos cargar los Centros de su Empresa empleadora"));
+        cut.Markup.Should().NotContain("Sin actividad en Centros visibles de su Empresa empleadora");
+        mediador.FallaCentros = false;
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Reintentar").Click();
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Sin actividad en Centros visibles de su Empresa empleadora"));
+    }
+
+    [Fact]
+    public async Task Respuesta_tardia_de_Centros_no_mezcla_Vehiculos_de_distintas_Empresas_empleadoras()
+    {
+        var (id, mediador) = CamionGrua();
+        var siguiente = Guid.NewGuid();
+        mediador.Detalles[siguiente] = mediador.Detalles[id] with { Id = siguiente, EmpresaId = Guid.NewGuid(), Nombre = "Vehículo nuevo" };
+        var pendiente = new TaskCompletionSource<IReadOnlyList<CentroConActividadDto>>();
+        mediador.CentrosPendientes[mediador.Detalles[id].EmpresaId!.Value] = pendiente;
+        Registrar(mediador);
+        var cut = Renderizar(id, "?pestana=centros");
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerCentrosConActividadDeEmpresaQuery>().Should().ContainSingle());
+        cut.Render(p => p.Add(x => x.VehiculoId, siguiente));
+        pendiente.SetResult([new(Guid.NewGuid(), "Centro anterior", "Cliente anterior", 1)]);
+        await cut.InvokeAsync(() => Task.CompletedTask);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Vehículo nuevo").And.NotContain("Centro anterior"));
     }
 
     private static DocumentoListaDto Documento(string tipo, EstadoDocumento estado, DateOnly? vence) =>
@@ -388,7 +496,7 @@ public class Vehiculo360PaginaTests : BunitContext
 
         var cut = Renderizar(id, "?pestana=historial");
 
-        cut.FindAll(".pestanas-boton").Should().HaveCount(2);
+        cut.FindAll(".pestanas-boton").Should().HaveCount(3);
         cut.Find(".pestanas-boton-activa").TextContent.Should().Contain("Historial");
         var historial = cut.FindComponent<Stub<PestanaHistorial>>().Instance.Parameters;
         historial.Get(x => x.EntidadTipo).Should().Be("Vehiculo");
@@ -401,7 +509,7 @@ public class Vehiculo360PaginaTests : BunitContext
         var (id, mediador) = CamionGrua();
         Registrar(mediador);
 
-        var cut = Renderizar(id, "?pestana=centros");
+        var cut = Renderizar(id, "?pestana=desconocida");
 
         cut.Find(".pestanas-boton-activa").TextContent.Should().Contain("Documentación");
     }

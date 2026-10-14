@@ -1,4 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEmpresa;
+using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Vehiculos.Commands.GuardarNotaInternaVehiculo;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculoPorId;
@@ -22,7 +25,7 @@ namespace CaeManager.Web.Features.Vehiculos.Pages;
 /// sigue abriendo para editar sus datos.
 ///
 /// <para>
-/// <b>Mismas consultas y mismo alcance que el panel.</b> La cabecera sale de
+/// <b>Lectores existentes y mismo alcance que el panel.</b> La cabecera sale de
 /// <see cref="ObtenerVehiculoPorIdQuery"/> (que devuelve null fuera del alcance:
 /// no encontrado y sin acceso no se distinguen) y la lista de
 /// <see cref="ObtenerDocumentosQuery"/> con el Vehículo como propietario, la
@@ -47,6 +50,7 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     private static readonly (string Id, string Clave)[] _pestanas =
     [
         ("documentacion", "EtiquetaDocumentacion"),
+        ("centros", "PestanaCentrosEmpleador360"),
         ("historial", "PestanaHistorial")
     ];
 
@@ -97,6 +101,9 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     private int _totalDocumentos;
     private bool _cargandoDocumentos;
     private bool _errorDocumentos;
+    private IReadOnlyList<CentroConActividadDto>? _centros;
+    private bool _cargandoCentros;
+    private bool _errorCentros;
 
     private DrawerGestionDocumento? _drawerGestion;
 
@@ -119,6 +126,7 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     private int _generacion;
     private int _cargaCabecera;
     private int _cargaDocumentos;
+    private int _cargaCentros;
 
     /// <summary>
     /// Los contadores impiden que una respuesta tardía escriba; esto corta la
@@ -151,11 +159,15 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
         }
 
         if (_vehiculoCargado == VehiculoId)
+        {
+            if (_pestanaActiva == "centros") await CargarCentrosAsync();
             return;
+        }
 
         _vehiculoCargado = VehiculoId;
         ReiniciarParaNuevoVehiculo();
         await CargarTodoAsync();
+        if (_pestanaActiva == "centros") await CargarCentrosAsync();
     }
 
     /// <summary>
@@ -175,11 +187,12 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     private static string Normalizar(string? pestana) =>
         _pestanas.Any(p => p.Id == pestana) ? pestana! : PestanaPorDefecto;
 
-    private void CambiarPestana(string pestana)
+    private async Task CambiarPestana(string pestana)
     {
         _pestanaActiva = Normalizar(pestana);
         _pestanaDeLaUrl = _pestanaActiva == PestanaPorDefecto ? null : _pestanaActiva;
         NavigationManager.ActualizarFiltroEnUrl("pestana", _pestanaDeLaUrl);
+        if (_pestanaActiva == "centros") await CargarCentrosAsync();
     }
 
     /// <summary>Invalida cualquier carga en vuelo: su respuesta ya no escribirá nada.</summary>
@@ -188,6 +201,7 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
         _generacion++;
         _cargaCabecera++;
         _cargaDocumentos++;
+        _cargaCentros++;
     }
 
     private void ReiniciarParaNuevoVehiculo()
@@ -199,6 +213,9 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
         _totalDocumentos = 0;
         _cargandoDocumentos = false;
         _errorDocumentos = false;
+        _centros = null;
+        _cargandoCentros = false;
+        _errorCentros = false;
         _editorNotaVisible = false;
         _guardandoNota = false;
         _notaEnEdicion = string.Empty;
@@ -290,6 +307,37 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
         }
     }
 
+    private async Task CargarCentrosAsync()
+    {
+        if (_detalle is null || _cargandoDocumentos || _cargandoCentros || _centros is not null) return;
+        var detalle = _detalle;
+        var carga = ++_cargaCentros;
+        _cargandoCentros = true;
+        _errorCentros = false;
+        try
+        {
+            IReadOnlyList<CentroConActividadDto> centros = detalle.EmpresaId is { } empresa
+                ? await Mediator.Send(new ObtenerCentrosConActividadDeEmpresaQuery(empresa), _cancelacion)
+                : detalle.SubcontrataId is { } subcontrata
+                    ? await Mediator.Send(new ObtenerCentrosConActividadDeSubcontrataQuery(subcontrata), _cancelacion)
+                    : [];
+            if (carga != _cargaCentros || _detalle?.EmpresaId != detalle.EmpresaId || _detalle?.SubcontrataId != detalle.SubcontrataId) return;
+            _centros = centros;
+        }
+        catch (Exception)
+        {
+            if (carga == _cargaCentros) _errorCentros = true;
+        }
+        finally
+        {
+            if (carga == _cargaCentros)
+            {
+                _cargandoCentros = false;
+                StateHasChanged();
+            }
+        }
+    }
+
     /// <summary>
     /// Tras subir un documento o cerrar el panel: anillo y lista se
     /// vuelven a leer, sin pasar por el esqueleto.
@@ -309,6 +357,8 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
         }
 
         await CargarDocumentosAsync();
+        _centros = null;
+        if (_pestanaActiva == "centros") await CargarCentrosAsync();
     }
 
     /// <summary>

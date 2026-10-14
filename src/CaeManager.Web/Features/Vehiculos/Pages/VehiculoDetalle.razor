@@ -3,13 +3,11 @@
     documentación registrada, su historial y sus datos. Mockup de referencia:
     «Vehiculo 360 página TALVEG.dc.html».
 
-    Primer incremento («con lo que ya viaja»): identidad con anillo,
-    pestañas Documentación e Historial y tarjeta lateral
+    Identidad con anillo, pestañas Documentación, Centros orientativos de su Empresa empleadora e Historial y tarjeta lateral
     Información. El lateral se cierra con la «Nota interna» (pieza NotaInterna),
     que se edita en su propio DrawerFormulario y se guarda con un comando
-    estrecho, no con el panel. Quedan para los siguientes: contadores de estado, orden del
-    peor al mejor y «Renovar»/«Confirmar» en la fila (segundo); pestaña
-    «Centros de su empleador» (tercero); fecha de alta, tarjeta lateral del
+    estrecho, no con el panel. Los Centros describen actividad de Trabajadores de su Empresa empleadora,
+    sin asignación del Vehículo a Centro ni Visita. Quedan pendientes fecha de alta, tarjeta lateral del
     empleador y «Eliminar vehículo» con «Deshacer».
 
     El anillo mide los documentos REGISTRADOS, no los exigidos: todavía no
@@ -181,6 +179,35 @@
                                         }
                                     </ChildContent>
                                     <Pie>@Textos["FichaNotaRegistrados"]</Pie>
+                                </ListaRelaciones>
+                            }
+                            break;
+
+                        case "centros":
+                            <p>@Textos["CentrosOrientativos360"]</p>
+                            @if (_cargandoCentros)
+                            {
+                                <EstadoCargando Filas="3" />
+                            }
+                            else if (_errorCentros)
+                            {
+                                <EstadoVacio Titulo="@Textos["ErrorCentros360"]">
+                                    <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarCentrosAsync">@Textos["BotonReintentar"]</Boton></Accion>
+                                </EstadoVacio>
+                            }
+                            else if (_centros is { Count: 0 })
+                            {
+                                <EstadoVacio Titulo="@Textos["SinCentrosEmpleador360"]" />
+                            }
+                            else if (_centros is not null)
+                            {
+                                <ListaRelaciones Etiqueta="@Textos["PestanaCentrosEmpleador360"]">
+                                    @foreach (var centro in _centros)
+                                    {
+                                        <FilaRelacion @key="centro.Id" Nombre="@centro.Nombre" Href="@($"/centros/{centro.Id}")" NombreIcono="centros">
+                                            <Detalle>@centro.ClienteRazonSocial</Detalle>
+                                        </FilaRelacion>
+                                    }
                                 </ListaRelaciones>
                             }
                             break;
