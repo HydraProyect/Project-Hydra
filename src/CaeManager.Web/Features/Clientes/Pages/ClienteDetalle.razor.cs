@@ -268,7 +268,8 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         string.IsNullOrEmpty(_estado) ? CentrosPorBusqueda
         : CentrosPorBusqueda.Where(c => SeleccionEstados.Separar<EstadoCentro>(_estado).Contains(c.Estado)).ToList();
 
-    private static string Normalizar(string? pestana) =>
+    private string Normalizar(string? pestana) =>
+        pestana == "empresas" && _empresas is { Count: 1 } ? PestanaPorDefecto :
         pestana == "blindaje42" ? "documentacion" :
         _pestanas.Any(p => p.Id == pestana) ? pestana! : PestanaPorDefecto;
 
@@ -490,6 +491,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             var empresas = await Mediator.Send(new ObtenerEmpresasDeClienteQuery(id), _cancelacion);
             if (carga != _cargaEmpresas) return;
             _empresas = empresas;
+            _pestanaActiva = Normalizar(_pestanaDeLaUrl);
         }
         catch (Exception)
         {
@@ -618,7 +620,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     }
 
     private IReadOnlyList<PestanaDefinicion> PestanasConRecuento =>
-        _pestanas.Select(p =>
+        _pestanas.Where(p => p.Id != "empresas" || _empresas is not { Count: 1 }).Select(p =>
         {
             var definicion = new PestanaDefinicion(p.Id, Textos[p.Clave]);
             return p.Id switch

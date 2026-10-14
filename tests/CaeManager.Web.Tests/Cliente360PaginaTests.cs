@@ -254,6 +254,7 @@ public class Cliente360PaginaTests : BunitContext
         // con «!»: en ejecución llega null. Se reproduce ese valor.
         mediador.Detalles[id] = mediador.Detalles[id] with { Cif = null! };
         mediador.Empresas.Add(new EmpresaDeClienteDto(Guid.NewGuid(), "Ibertec GmbH", null));
+        mediador.Empresas.Add(new EmpresaDeClienteDto(Guid.NewGuid(), "Otra contratista", null));
         Registrar(mediador);
 
         var cut = Renderizar(id, "?pestana=empresas");
@@ -422,6 +423,7 @@ public class Cliente360PaginaTests : BunitContext
         var (id, mediador) = ClienteBase();
         mediador.Centros.Add(Centro("Planta Barakaldo", EstadoCentro.Bloqueado));
         mediador.Empresas.Add(new EmpresaDeClienteDto(Guid.NewGuid(), "Ibertec GmbH", "B-12345678"));
+        mediador.Empresas.Add(new EmpresaDeClienteDto(Guid.NewGuid(), "Otra contratista", null));
         Registrar(mediador);
         var cut = Renderizar(id, "?pestana=empresas");
         cut.Find(".pestanas-boton-activa").TextContent.Should().Contain("Empresas");
@@ -449,6 +451,8 @@ public class Cliente360PaginaTests : BunitContext
         mediador.Resumenes[idB] = new ResumenClienteDto(idB, "Aislamientos Nervión S.L.", "B-99.000.111", false, Alta, null, 1, 7);
         mediador.CentrosPorCliente[idB] = [Centro("Nave logística Tudela", EstadoCentro.Vigente, empresa: "Montajes Ebro S.L.")];
         mediador.EmpresasPorCliente[idB] = [new EmpresaDeClienteDto(Guid.NewGuid(), "Montajes Ebro S.L.", "B-50111222")];
+        mediador.EmpresasPorCliente[idA].Add(new EmpresaDeClienteDto(Guid.NewGuid(), "Segunda contratista A", null));
+        mediador.EmpresasPorCliente[idB].Add(new EmpresaDeClienteDto(Guid.NewGuid(), "Segunda contratista B", null));
         Registrar(mediador);
         var cut = Renderizar(idA, "?pestana=empresas");
         cut.WaitForAssertion(() => cut.Find(".fila-relacion-nombre").TextContent.Should().Contain("Ibertec GmbH"));
@@ -458,7 +462,7 @@ public class Cliente360PaginaTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find("h1").TextContent.Should().Contain("Aislamientos Nervión S.L."));
         cut.WaitForAssertion(() => cut.FindAll(".fila-relacion-nombre").Select(a => a.TextContent.Trim())
-            .Should().Equal(["Montajes Ebro S.L."]));
+            .Should().Equal(["Montajes Ebro S.L.", "Segunda contratista B"]));
         mediador.Enviadas.OfType<ObtenerEmpresasDeClienteQuery>().Should().Contain(new ObtenerEmpresasDeClienteQuery(idB));
         cut.Markup.Should().NotContain("Refrielectric S.A.").And.NotContain("Ibertec GmbH").And.NotContain("Planta Barakaldo");
     }
@@ -606,6 +610,42 @@ public class Cliente360PaginaTests : BunitContext
         cut.Find("[data-pieza=anillo]").GetAttribute("aria-label").Should().StartWith("0 de 1");
     }
 
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(2, true)]
+    public void Empresas_solo_se_ofrece_si_no_hay_una_unica_Empresa_contratista(int cantidad, bool visible)
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Empresas.AddRange(Enumerable.Range(0, cantidad).Select(i => new EmpresaDeClienteDto(Guid.NewGuid(), $"Contratista {i}", null)));
+        Registrar(mediador);
+        var cut = Renderizar(id, "?pestana=empresas&q=vigo&extra=conservar");
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerSubcontratasDeClienteQuery>().Should().ContainSingle());
+        cut.FindAll("[role=tab]").Any(t => t.TextContent.StartsWith("Empresas", StringComparison.Ordinal)).Should().Be(visible);
+        cut.Find(".pestanas-boton-activa").TextContent.Should().StartWith(visible ? "Empresas" : "Centros");
+        if (visible)
+            Textos(cut.FindAll("[role=tab]")).Should().Equal([
+                "Centros0 centros", "Empresas2 empresas", "Subcontratas0 subcontratas", "Documentación", "Agenda", "Historial"]);
+        if (!visible) cut.Find(".cabecera-identidad-datos").TextContent.Should().Contain("Entra como contratista: Contratista 0");
+        new Uri(Services.GetRequiredService<NavigationManager>().Uri).Query.Should().Contain("q=vigo").And.Contain("extra=conservar");
+    }
+
+    [Fact]
+    public void Pasar_de_una_a_varias_Empresas_contratistas_restituye_la_pestana_sin_recrear_la_ficha()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.EmpresasPorCliente[id] = [new(Guid.NewGuid(), "Única contratista", null)];
+        var otro = Guid.NewGuid();
+        mediador.Detalles[otro] = mediador.Detalles[id] with { Id = otro, RazonSocial = "Cliente B" };
+        mediador.EmpresasPorCliente[otro] = [new(Guid.NewGuid(), "Primera contratista B", null), new(Guid.NewGuid(), "Segunda contratista B", null)];
+        Registrar(mediador);
+        var cut = Renderizar(id, "?pestana=empresas");
+        cut.Find(".pestanas-boton-activa").TextContent.Should().StartWith("Centros");
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"clientes/{otro}?pestana=empresas");
+        cut.Render(p => p.Add(x => x.ClienteId, otro));
+        cut.WaitForAssertion(() => cut.Find(".pestanas-boton-activa").TextContent.Should().StartWith("Empresas"));
+        cut.FindAll(".fila-relacion-nombre").Select(f => f.TextContent).Should().Equal("Primera contratista B", "Segunda contratista B");
+    }
+
     // ── Pestañas ──────────────────────────────────────────────────────────
 
     [Fact]
@@ -620,9 +660,9 @@ public class Cliente360PaginaTests : BunitContext
         var cut = Renderizar(id);
 
         Textos(cut.FindAll("[role=tab]")).Should().Equal([
-            "Centros2 centros", "Empresas1 empresa", "Subcontratas0 subcontratas",
-            "Documentación", "Agenda", "Historial"]);
-        cut.FindAll("[role=tab]").Should().HaveCount(6);
+            "Centros2 centros", "Subcontratas0 subcontratas", "Documentación",
+            "Agenda", "Historial"]);
+        cut.FindAll("[role=tab]").Should().HaveCount(5);
         cut.FindAll("[role=tab]").Select(t => t.TextContent).Should().NotContain(t => t.Contains("Blindaje"));
         cut.Find(".pestanas-boton-activa").TextContent.Should().StartWith("Centros");
     }
@@ -770,11 +810,9 @@ public class Cliente360PaginaTests : BunitContext
 
         var cut = Renderizar(id);
 
-        // El contador de la pestaña solo existe con las Empresas ya cargadas: sin esperarlo, «no nombra ninguna» daría
-        // verde también con la lista sin llegar.
-        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerEmpresasDeClienteQuery>().Should().NotBeEmpty());
-        cut.WaitForAssertion(() => cut.FindAll(".pestanas-boton").Select(b => b.TextContent)
-            .Should().Contain(t => t.Contains("Empresas") && t.Contains("1")));
+        // La consulta barata siguiente fija que terminó la carga de Empresas; la pestaña redundante ya no se dibuja.
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerSubcontratasDeClienteQuery>().Should().ContainSingle());
+        cut.FindAll(".pestanas-boton").Select(b => b.TextContent).Should().NotContain(t => t.StartsWith("Empresas"));
         var filas = cut.FindAll("li.fila-relacion");
         filas[0].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("3 vencidos");
         filas[1].QuerySelector(".fila-relacion-detalle").Should().BeNull();
@@ -899,6 +937,7 @@ public class Cliente360PaginaTests : BunitContext
         var (id, mediador) = ClienteBase();
         var empresa = new EmpresaDeClienteDto(Guid.NewGuid(), "Ibertec GmbH", "B-12345678");
         mediador.Empresas.Add(empresa);
+        mediador.Empresas.Add(new EmpresaDeClienteDto(Guid.NewGuid(), "Otra contratista", null));
         Registrar(mediador);
         var cut = Renderizar(id, "?pestana=empresas");
 
