@@ -130,8 +130,9 @@ public partial class TrabajadoresListaGen2Tests
         var celda = CeldaDeEstado(cut);
         celda.QuerySelector(".estado-fila-motivo")!.TextContent.Trim().Should().Be("1 vencido · 1 sin confirmar",
             "control positivo: el motivo se ve igual");
-        celda.QuerySelectorAll("button").Should().BeEmpty("no se ofrece un formulario que el comando va a denegar");
-        AbrirIncidencias(cut).QuerySelectorAll(".incidencia-lectura").Should().HaveCount(2, "control positivo: el desglose se sigue viendo");
+        var desglose = AbrirIncidencias(cut);
+        desglose.QuerySelectorAll(".incidencia-lectura").Should().HaveCount(2, "control positivo: el desglose se sigue viendo");
+        desglose.QuerySelectorAll("button").Should().BeEmpty("no se ofrece un formulario que el comando va a denegar");
     }
 
     [Fact]
@@ -231,9 +232,8 @@ public partial class TrabajadoresListaGen2Tests
     }
 
     /// <summary>
-    /// Si la corrección saca la fila corregida del filtro activo, el total cambia y QuickGrid vuelve a pedir la
-    /// misma página por su cuenta: esa segunda petición es el mismo refresco, y lo marcado en las demás filas
-    /// sigue marcado.
+    /// Si la corrección saca la fila corregida del filtro activo, el total cambia y la página se recarga con él:
+    /// esa recarga es el mismo refresco, y lo marcado en las demás filas sigue marcado.
     /// </summary>
     [Fact]
     public async Task Tras_corregir_la_seleccion_se_conserva_aunque_la_fila_corregida_salga_del_filtro_y_cambie_el_total()
