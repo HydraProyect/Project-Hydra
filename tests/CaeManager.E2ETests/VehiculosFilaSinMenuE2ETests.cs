@@ -57,6 +57,10 @@ public class VehiculosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await page.Locator("thead th.col-estado button.col-title").FocusAsync();
         await page.Keyboard.PressAsync("j");
         await Expect(page.Locator("tbody tr.fila-enfocada")).ToHaveCountAsync(1);
+        // La clase llega con el parche del servidor; el foco del DOM pasa a la fila un fotograma después
+        // (enfocarFilaActiva de atajos-lista.js). Mientras el foco siga en el botón de la cabecera,
+        // Enter se descarta como tecla de un elemento interactivo: se espera al foco real de la fila.
+        await Expect(page.Locator("tbody tr.fila-enfocada")).ToBeFocusedAsync();
     }
 
     [Fact]
