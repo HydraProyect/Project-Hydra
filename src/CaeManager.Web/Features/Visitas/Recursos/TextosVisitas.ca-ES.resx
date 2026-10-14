@@ -553,7 +553,7 @@
     <value>Aquest centre no li exigeix documentació.</value>
   </data>
   <data name="Visita360NingunoEnLosEstados" xml:space="preserve">
-    <value>Cap en els estats marcats.</value>
+    <value>Cap amb aquest filtre.</value>
   </data>
   <data name="Visita360Asunto" xml:space="preserve">
     <value>Assumpte:</value>

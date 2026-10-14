@@ -235,18 +235,10 @@
 
                 @if (TotalDelFiltro == 0)
                 {
-                    <EstadoVacio Titulo="@Textos[HayBusqueda ? "VacioBusquedaTitulo" : "VacioFiltroTitulo"]">
-                        <Accion>
-                            @if (HayBusqueda)
-                            {
-                                <Boton Variante="VarianteBoton.Secundario" OnClick="QuitarFiltrosAsync">@Textos["QuitarFiltros"]</Boton>
-                            }
-                            else
-                            {
-                                <Boton Variante="VarianteBoton.Secundario" OnClick="() => CambiarFiltroAsync(FiltroTrabajadores.Todos)">@Textos["VerTodos"]</Boton>
-                            }
-                        </Accion>
-                    </EstadoVacio>
+                    <p class="empresa360-vacio-filtrado">
+                        @Textos["NingunoConFiltro"]
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" OnClick="QuitarFiltrosAsync">@Textos["QuitarFiltros"]</Boton>
+                    </p>
                 }
                 else
                 {

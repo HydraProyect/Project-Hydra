@@ -888,6 +888,7 @@ public class Empresa360PaginaTests : BunitContext
         Registrar(Empresa());
         var cut = Renderizar("?q=nadie-se-llama-asi&estado=por-vencer");
         cut.FindAll(".fila-relacion").Should().BeEmpty();
+        cut.Find("p.empresa360-vacio-filtrado").TextContent.Should().Contain("Ninguno con ese filtro.");
         Buscador(cut).GetAttribute("value").Should().Be("nadie-se-llama-asi", "sin coincidencias el buscador sigue ahí para corregir el texto");
 
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Quitar filtros").ClickAsync(new MouseEventArgs());
@@ -896,6 +897,18 @@ public class Empresa360PaginaTests : BunitContext
         ChipPulsado(cut).Should().StartWith("Todos");
         Buscador(cut).GetAttribute("value").Should().BeEmpty();
         new Uri(Navegacion.Uri).Query.Should().BeEmpty("si la URL conservara q o estado, recargar los repondría");
+    }
+
+    [Fact]
+    public async Task Vacio_de_estado_sin_busqueda_tambien_ofrece_Quitar_filtros_y_conserva_otros_parametros()
+    {
+        Registrar(Empresa([Trabajador(EstadoDocumento.Vigente)]));
+        var cut = Renderizar("?estado=por-vencer&extra=conservar");
+        cut.FindAll(".fila-relacion").Should().BeEmpty();
+        cut.Find("p.empresa360-vacio-filtrado").TextContent.Should().Contain("Ninguno con ese filtro.");
+        await cut.Find("p.empresa360-vacio-filtrado button").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".fila-relacion").Should().ContainSingle());
+        new Uri(Navegacion.Uri).Query.Should().Be("?extra=conservar");
     }
 
     [Fact]

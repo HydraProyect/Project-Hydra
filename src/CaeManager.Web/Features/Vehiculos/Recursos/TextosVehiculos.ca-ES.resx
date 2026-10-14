@@ -296,8 +296,7 @@
   <data name="AccionRenovar" xml:space="preserve"><value>Renova</value></data>
   <data name="AccionConfirmar" xml:space="preserve"><value>Confirma</value></data>
   <data name="AccionSubir" xml:space="preserve"><value>Puja</value></data>
-  <data name="DocumentosVacioFiltroTitulo" xml:space="preserve"><value>Cap document amb aquests filtres</value></data>
-  <data name="DocumentosVacioFiltroDescripcion" xml:space="preserve"><value>Canvia l’estat seleccionat per veure els altres documents carregats.</value></data>
+  <data name="DocumentosVacioFiltroTitulo" xml:space="preserve"><value>Cap amb aquest filtre.</value></data>
   <data name="DesplegarIncidenciasVehiculo" xml:space="preserve">
     <value>Desplega incidències de {0}</value>
   </data>
