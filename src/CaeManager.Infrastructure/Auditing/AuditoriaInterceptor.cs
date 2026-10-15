@@ -74,6 +74,10 @@ namespace CaeManager.Infrastructure.Auditing;
 ///    <c>app_enmascarar_auditoria_de_trabajador_anonimizado</c>, que reescribe
 ///    con "***" esos mismos campos en las entradas anteriores de ese Trabajador.
 ///    Ver <see cref="EsAnonimizacionDeTrabajador"/>.
+/// 8. Los datos personales de la ficha de <see cref="Empresa"/> 360: quién
+///    firma los documentos y el nombre, el teléfono y el correo de los
+///    contactos de la Organización SPA, de formación y del Técnico PRL. Se
+///    enmascaran en toda entrada de Empresa. Ver el comentario de esa entrada.
 /// </summary>
 public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesInterceptor
 {
@@ -195,6 +199,21 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             nameof(Trabajador.TipoVinculo), nameof(Trabajador.FechaAltaEmpresa), nameof(Trabajador.FechaBajaEmpresa),
             nameof(Trabajador.FiguraEnRnt), nameof(Trabajador.TipoPermisoTrabajo),
             nameof(Trabajador.CaducidadPermisoTrabajo), nameof(Trabajador.MotivoPermisoTrabajo),
+        ],
+
+        // Punto 8 del comentario de clase (2026-10-16): los datos personales de la
+        // ficha de Empresa 360. El rastro conserva qué campo cambió, quién y cuándo;
+        // nunca el nombre, el teléfono ni el correo de una persona de contacto. El
+        // canal de firma, la custodia del sello, la modalidad preventiva y los
+        // nombres de la Organización SPA y de la Mutua son datos de organizaciones
+        // y quedan en claro.
+        [typeof(Empresa)] =
+        [
+            nameof(Empresa.FirmanteDocumentos),
+            nameof(Empresa.ContactoSpaNombre), nameof(Empresa.ContactoSpaTelefono), nameof(Empresa.ContactoSpaCorreo),
+            nameof(Empresa.ContactoFormacionNombre), nameof(Empresa.ContactoFormacionTelefono),
+            nameof(Empresa.ContactoFormacionCorreo),
+            nameof(Empresa.TecnicoPrlNombre), nameof(Empresa.TecnicoPrlTelefono), nameof(Empresa.TecnicoPrlCorreo),
         ]
     };
 
