@@ -45,6 +45,7 @@ public class ConductoresDeVehiculoBajoRlsTests : IAsyncLifetime
     private Guid _tenantAjeno;
     private Guid _grua;
     private Guid _trabajadorPropio;
+    private Guid _otraPropia;
     private Guid _trabajadorAjeno;
 
     public async Task InitializeAsync()
@@ -71,10 +72,11 @@ public class ConductoresDeVehiculoBajoRlsTests : IAsyncLifetime
             await _propietario.SaveChangesAsync();
             var grua = Vehiculo.DeEmpresa(propia.Id, "Camión grúa", "Iveco Daily", "1234BCD");
             var raul = Trabajador.DeEmpresa(propia.Id, "Raúl", "Ortega Gil", "77189989B");
+            var ana = Trabajador.DeEmpresa(propia.Id, "Ana", "Vidal Ruiz", "45678912S");
             _propietario.Vehiculos.Add(grua);
-            _propietario.Trabajadores.Add(raul);
+            _propietario.Trabajadores.AddRange(raul, ana);
             await _propietario.SaveChangesAsync();
-            (_grua, _trabajadorPropio) = (grua.Id, raul.Id);
+            (_grua, _trabajadorPropio, _otraPropia) = (grua.Id, raul.Id, ana.Id);
         }
 
         using (AmbitoTenantExplicito.Establecer(_tenantAjeno))
@@ -160,8 +162,28 @@ public class ConductoresDeVehiculoBajoRlsTests : IAsyncLifetime
         detalle.Conductores.Should().Equal(new ConductorVehiculoDto(_trabajadorPropio, "Raúl Ortega Gil"));
     }
 
-    private EditarFichaVehiculoCommandHandler Handler() =>
-        new(new VehiculoRepository(_runtime), _runtime, new AlcanceDatosServiceFalso(), _runtime);
+    /// <summary>
+    /// Segunda petición sobre un Vehículo que ya tiene conductor: el alta entra por la colección cargada con
+    /// Include (con el fixup de la FK compuesta) y la baja la borra. Cada petición usa su propio contexto.
+    /// </summary>
+    [Fact]
+    public async Task Sustituir_el_conductor_en_otra_peticion_borra_el_anterior_y_sella_el_nuevo_en_el_Tenant_de_la_sesion()
+    {
+        (await Handler().Handle(Comando(await Version(), _trabajadorPropio), CancellationToken.None)).EsExitoso.Should().BeTrue();
+
+        await using var otraPeticion = CrearRuntime(_tenantSesion);
+        var resultado = await Handler(otraPeticion).Handle(Comando(await Version(), _otraPropia), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.Error.Mensaje);
+        (await _propietario.Set<VehiculoTrabajador>().IgnoreQueryFilters().AsNoTracking()
+                .Select(c => new { c.TenantId, c.TrabajadorId }).ToListAsync())
+            .Should().ContainSingle().Which.Should().Be(new { TenantId = _tenantSesion, TrabajadorId = _otraPropia });
+    }
+
+    private EditarFichaVehiculoCommandHandler Handler() => Handler(_runtime);
+
+    private static EditarFichaVehiculoCommandHandler Handler(CaeManagerDbContext contexto) =>
+        new(new VehiculoRepository(contexto), contexto, new AlcanceDatosServiceFalso(), contexto);
 
     private EditarFichaVehiculoCommand Comando(Guid version, params Guid[] trabajadorIds) =>
         new(_grua, version, "Camión grúa", "Propio", null, null, null, null, null, trabajadorIds);
