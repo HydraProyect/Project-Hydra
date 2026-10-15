@@ -1,3 +1,6 @@
+using CaeManager.Web.Features.Documentos;
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionEmpresasDeCentro;
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro;
 using CaeManager.Domain.Documentos;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -26,12 +29,10 @@ namespace CaeManager.Web.Features.Centros.Pages;
 /// enlace "Ver Centro 360" de la vista previa recortada de /centros
 /// (AcordeonAsignacionesCentro.SoloIncidencias) o directamente por URL.
 ///
-/// Deliberadamente NO reimplementa edición de Información, Requisitos del
-/// Centro, Vehículos, Agenda ni Historial: eso ya vive, completo, en
-/// CentroWorkspacePanel (el panel lateral que abre "Detalles" en /centros).
-/// Esta página compone lo que ese panel no ofrece de un vistazo — cabecera
-/// de cumplimiento, próxima visita y la lista de trabajadores COMPLETA (a
-/// diferencia de la vista previa) — y remite al panel para operar.
+/// La edición de Información y Requisitos sigue en CentroWorkspacePanel. La ficha muestra
+/// los requisitos aplicables y la documentación de las Empresas empleadoras, mediante lecturas
+/// autorizadas diferidas. También compone la cabecera, Visitas, Trabajadores, Ficha e Historial;
+/// no añade comandos ni cambia la configuración del Centro.
 /// </summary>
 public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
@@ -62,12 +63,14 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     }
 
     private const string PestanaTrabajadores = "trabajadores";
+    private const string PestanaDocumentacionCentro = "documentacion-centro";
+    private const string PestanaRequisitos = "requisitos";
     private const string PestanaVisitas = "visitas";
     private const string PestanaFicha = "ficha";
     private const string PestanaHistorial = "historial";
 
     private bool HayDatosFicha => _detalle is { } detalle &&
-        (!string.IsNullOrWhiteSpace(detalle.CodigoCentro) || !string.IsNullOrWhiteSpace(detalle.Direccion) || !string.IsNullOrWhiteSpace(detalle.Contacto));
+        (!string.IsNullOrWhiteSpace(detalle.CodigoCentro) || !string.IsNullOrWhiteSpace(detalle.Direccion) || !string.IsNullOrWhiteSpace(detalle.Contacto) || detalle.ContratoVigenteHasta is not null);
 
     // Solo cambia el orden de presentación: _visitas[0] conserva la ventana de riesgo que eligió el lector.
     private IReadOnlyList<VisitaResumenDto> VisitasParaMostrar => _visitas
@@ -90,10 +93,12 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
                 Textos[TrabajadoresConIncidencias == 1 ? "GlosaTrabajadorConIncidencias" : "GlosaTrabajadoresConIncidencias"],
                 EnAlerta: TrabajadoresConIncidencias > 0)
         },
+        new(PestanaDocumentacionCentro, Textos["PestanaDocumentacionCentro360"]),
         new(PestanaVisitas, Textos["PestanaVisitas"])
         {
             Contador = new ContadorPestana(_visitas.Count, Textos["VisitasProgramadas360"])
         },
+        new(PestanaRequisitos, Textos["PestanaRequisitos360"]),
         .. HayDatosFicha ? new PestanaDefinicion[] { new(PestanaFicha, Textos["PestanaFicha"]) } : [],
         new(PestanaHistorial, Textos["PestanaHistorial"])
     ];
@@ -106,11 +111,12 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         NavigationManager.ActualizarFiltroEnUrl("pestana", null);
     }
 
-    private void CambiarPestana(string pestana)
+    private async Task CambiarPestana(string pestana)
     {
         _pestana = pestana;
         _pestanaDeLaUrl = pestana == PestanaTrabajadores ? null : pestana;
         NavigationManager.ActualizarFiltroEnUrl("pestana", _pestanaDeLaUrl);
+        await CargarLecturasFase2Async();
     }
 
     private CentroDetalleDto? _detalle;
@@ -182,7 +188,7 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         if (!string.Equals(_pestanaDeLaUrl, Pestana, StringComparison.Ordinal))
         {
             _pestanaDeLaUrl = Pestana;
-            _pestana = Pestana is PestanaVisitas or PestanaFicha or PestanaHistorial ? Pestana : PestanaTrabajadores;
+            _pestana = Pestana is PestanaVisitas or PestanaFicha or PestanaHistorial or PestanaDocumentacionCentro or PestanaRequisitos ? Pestana : PestanaTrabajadores;
         }
 
         AdoptarFiltrosDeLaUrl();
@@ -190,12 +196,14 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         if (_centroCargado == CentroId)
         {
             RevalidarPestanaFicha();
+            await CargarLecturasFase2Async();
             return;
         }
 
         _centroCargado = CentroId;
         ReiniciarParaNuevoCentro();
         await CargarAsync();
+        await CargarLecturasFase2Async();
     }
 
     /// <summary>
@@ -265,6 +273,14 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private void ReiniciarParaNuevoCentro()
     {
         InvalidarCargas();
+        _busquedaDocumentacionCentro = string.Empty;
+        _estadosDocumentacionCentro = null;
+        _documentacionEmpresas = [];
+        _requisitosCentro = [];
+        _lecturaDocumentacionCentro = null;
+        _lecturaRequisitosCentro = null;
+        _errorLecturasFase2 = false;
+        _cargandoLecturasFase2 = false;
         _detalle = null;
         _resumen = null;
         _numeroTrabajadores = null;
@@ -530,4 +546,73 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
 
         return partes.Count == 0 ? cabeza : $"{cabeza}: {string.Join(" y ", partes)}";
     }
+
+    private IReadOnlyList<DocumentacionEmpresaCentroDto> _documentacionEmpresas = [];
+    private IReadOnlyList<DocumentacionRequeridaCentroDto> _requisitosCentro = [];
+    private Guid? _lecturaDocumentacionCentro;
+    private Guid? _lecturaRequisitosCentro;
+    private bool _cargandoLecturasFase2;
+    private bool _errorLecturasFase2;
+
+    private async Task CargarLecturasFase2Async()
+    {
+        if (_detalle is null || _pestana is not (PestanaDocumentacionCentro or PestanaRequisitos)) return;
+        var id = CentroId;
+        var carga = _cargaDetalle;
+        var documentacion = _pestana == PestanaDocumentacionCentro;
+        if ((documentacion ? _lecturaDocumentacionCentro : _lecturaRequisitosCentro) == id) return;
+        if (documentacion) _lecturaDocumentacionCentro = id; else _lecturaRequisitosCentro = id;
+        _cargandoLecturasFase2 = true;
+        _errorLecturasFase2 = false;
+        try
+        {
+            if (documentacion)
+            {
+                var resultado = await Mediator.Send(new ObtenerDocumentacionEmpresasDeCentroQuery(id), _cancelacion);
+                if (carga != _cargaDetalle) return;
+                _documentacionEmpresas = resultado;
+            }
+            else
+            {
+                var resultado = await Mediator.Send(new ObtenerDocumentacionRequeridaDeCentroQuery(id), _cancelacion);
+                if (carga != _cargaDetalle) return;
+                _requisitosCentro = _detalle.GestionCae == ModalidadGestionCae.SinGestionCae ? [] : (resultado ?? []).Where(r => r.Aplica).ToList();
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception)
+        {
+            if (carga == _cargaDetalle) _errorLecturasFase2 = true;
+        }
+        finally
+        {
+            if (carga == _cargaDetalle) _cargandoLecturasFase2 = false;
+        }
+    }
+
+    private Task AbrirEmpresaDocumentacion(DocumentacionEmpresaCentroDto empresa) =>
+        WorkspaceService.AbrirAsync(empresa.DesdeRelacionSubcontrata ? EntidadWorkspace.Subcontrata : EntidadWorkspace.Empresa,
+            empresa.EmpresaId, empresa.Nombre, "documentacion");
+    private void IrAEmpresaDocumentacion(DocumentacionEmpresaCentroDto empresa) =>
+        NavigationManager.NavigateTo($"/{(empresa.DesdeRelacionSubcontrata ? "subcontratas" : "empresas")}/{empresa.EmpresaId}");
+    private void IrATipoDocumento(Guid id) => NavigationManager.NavigateTo($"/documentos/tipos/{id}");
+
+    private string _busquedaDocumentacionCentro = string.Empty;
+    private string? _estadosDocumentacionCentro;
+    private static IReadOnlyList<OpcionFranjaEstado> OpcionesDocumentacionCentro =>
+        new[] { EstadoDocumento.Vencido, EstadoDocumento.Faltante, EstadoDocumento.EnTolerancia,
+            EstadoDocumento.Urgente, EstadoDocumento.SinConfirmar, EstadoDocumento.Vigente }
+        .Select(e => new OpcionFranjaEstado(EstadoDocumentoFicha360.Texto(e), EstadoDocumentoFicha360.Tono(e), EstadoDocumentoFicha360.Clave(e))).ToList();
+    private IEnumerable<DocumentoEmpresaCentroDto> DocumentosQueCoinciden(DocumentacionEmpresaCentroDto empresa) =>
+        empresa.Documentos.Where(d => string.IsNullOrWhiteSpace(_busquedaDocumentacionCentro)
+            || d.Nombre.Contains(_busquedaDocumentacionCentro, StringComparison.OrdinalIgnoreCase)
+            || empresa.Nombre.Contains(_busquedaDocumentacionCentro, StringComparison.OrdinalIgnoreCase));
+    private IReadOnlyList<DocumentoEmpresaCentroDto> DocumentosParaMostrar(DocumentacionEmpresaCentroDto empresa)
+    {
+        var estados = SeleccionEstados.Separar(_estadosDocumentacionCentro);
+        return DocumentosQueCoinciden(empresa).Where(d => estados.Count == 0 || estados.Contains(EstadoDocumentoFicha360.Clave(d.Estado))).ToList();
+    }
+    private IReadOnlyDictionary<string, int> RecuentosDocumentacionCentro => _documentacionEmpresas
+        .SelectMany(DocumentosQueCoinciden).GroupBy(d => EstadoDocumentoFicha360.Clave(d.Estado))
+        .ToDictionary(g => g.Key, g => g.Count());
 }

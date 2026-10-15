@@ -1,3 +1,5 @@
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionEmpresasDeCentro;
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro;
 using CaeManager.Application.Auditoria.Queries;
 using System.Reflection;
 using AngleSharp.Dom;
@@ -70,6 +72,8 @@ public partial class Centro360Gen2Tests : BunitContext
     /// </summary>
     private sealed class MediatorFalso : IMediator
     {
+        public Dictionary<Guid, List<DocumentacionEmpresaCentroDto>> DocumentacionEmpresas { get; } = [];
+        public Dictionary<Guid, List<DocumentacionRequeridaCentroDto>> Requisitos { get; } = [];
         public Dictionary<Guid, CentroDetalleDto> Detalles { get; } = [];
         public Dictionary<Guid, List<RegistroAuditoriaListaDto>> Auditoria { get; } = [];
         public Dictionary<Guid, CentroListaDto> Resumenes { get; } = [];
@@ -111,6 +115,8 @@ public partial class Centro360Gen2Tests : BunitContext
 
         private object? Responder(object request) => request switch
         {
+            ObtenerDocumentacionEmpresasDeCentroQuery q => DocumentacionEmpresas.GetValueOrDefault(q.CentroId) ?? [],
+            ObtenerDocumentacionRequeridaDeCentroQuery q => Requisitos.GetValueOrDefault(q.CentroId) ?? [],
             ObtenerCentroPorIdQuery q => Detalles.GetValueOrDefault(q.Id),
             ObtenerAuditoriaQuery q => new ResultadoPaginado<RegistroAuditoriaListaDto>(
                 q.EntidadTipo == "Centro" && q.EntidadId is { } id ? Auditoria.GetValueOrDefault(id) ?? [] : [],
@@ -286,7 +292,7 @@ public partial class Centro360Gen2Tests : BunitContext
 
         cut.FindAll("[role=tab]")
             .Select(t => t.ChildNodes.OfType<IText>().First(n => !string.IsNullOrWhiteSpace(n.Data)).Data.Trim())
-            .Should().Equal("Trabajadores", "Visitas", "Ficha", "Historial");
+            .Should().Equal("Trabajadores", "Documentación del Centro", "Visitas", "Requisitos", "Ficha", "Historial");
         var primera = cut.FindAll("[role=tab]")[0];
         primera.GetAttribute("aria-selected").Should().Be("true");
         primera.QuerySelector(".pestanas-contador")!.TextContent.Trim().Should().Be("2 trabajadores con incidencias");
@@ -320,7 +326,7 @@ public partial class Centro360Gen2Tests : BunitContext
         navegador.NavigateTo($"/centros/{id}?q=Marta&estado=Vencido");
         var cut = Renderizar(id);
 
-        await cut.FindAll("[role=tab]")[1].ClickAsync(new MouseEventArgs());
+        await cut.Find("[role=tab][aria-controls$='-visitas']").ClickAsync(new MouseEventArgs());
         navegador.Uri.Should().Contain("pestana=visitas").And.Contain("q=Marta").And.Contain("estado=Vencido");
         await cut.FindAll("[role=tab]")[0].ClickAsync(new MouseEventArgs());
         navegador.Uri.Should().NotContain("pestana=").And.Contain("q=Marta").And.Contain("estado=Vencido");
@@ -340,7 +346,7 @@ public partial class Centro360Gen2Tests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.FindAll("[role=tab]")[1].GetAttribute("aria-selected").Should().Be("true");
+        cut.Find("[role=tab][aria-controls$='-visitas']").GetAttribute("aria-selected").Should().Be("true");
         cut.FindAll("[role=tabpanel] .elemento-lista-lateral-etiqueta").Select(v => v.TextContent.Trim())
             .Should().Equal("10/10/2026 – 22/10/2026", "12/10/2026 – 14/10/2026");
         cut.FindAll("[role=tabpanel] .elemento-lista-lateral-detalles").Select(v => v.TextContent.Trim())
@@ -421,9 +427,9 @@ public partial class Centro360Gen2Tests : BunitContext
         var consultas = mediador.Enviadas.Count;
         var navegador = Services.GetRequiredService<NavigationManager>();
 
-        await cut.FindAll("[role=tab]")[1].ClickAsync(new MouseEventArgs());
+        await cut.Find("[role=tab][aria-controls$='-visitas']").ClickAsync(new MouseEventArgs());
         navegador.Uri.Should().Contain("pestana=visitas");
-        cut.FindAll("[role=tab]")[1].GetAttribute("aria-selected").Should().Be("true");
+        cut.Find("[role=tab][aria-controls$='-visitas']").GetAttribute("aria-selected").Should().Be("true");
         await cut.FindAll("[role=tab]")[0].ClickAsync(new MouseEventArgs());
 
         navegador.Uri.Should().NotContain("pestana=");
