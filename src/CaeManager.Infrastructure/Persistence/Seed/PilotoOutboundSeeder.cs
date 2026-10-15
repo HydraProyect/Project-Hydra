@@ -401,7 +401,7 @@ public static class PilotoOutboundSeeder
             // escenarios que se le añadieron después (reclamaciones de Trabajador, Visitas en sus estados, documento
             // renovado). Los delata la falta del documento renovado, que esta versión siembra en el mismo guardado.
             if (tenant.Escenario == EscenarioPilotoOutbound.Grande
-                && !await dbContext.Documentos.AnyAsync(d => d.SustituidoPorDocumentoId != null, cancellationToken))
+                && !await dbContext.Documentos.AnyAsync(d => d.MotivoSustitucion != null, cancellationToken))
                 return DatosSembrados.DeOtraVersion;
 
             return DatosSembrados.DeEstaVersion;
@@ -475,9 +475,10 @@ public static class PilotoOutboundSeeder
                         "No se pudo vincular a un Gestor CAE del piloto con su Coordinadora CAE: " +
                         string.Join(", ", resultado.Errors.Select(e => e.Description)));
             }
+
+            await CrearCuentaPendienteDeActivacionAsync(userManager, logger, tenantOperadorId, cuentas.GestorPendienteDeActivacion, coordinadora.Id);
         }
 
-        await CrearCuentaPendienteDeActivacionAsync(userManager, logger, tenantOperadorId, cuentas.GestorPendienteDeActivacion, coordinadora.Id);
 
         return new Equipo(administrador, gestoraPrimera.Id, gestorSegundo.Id, coordinadora.Id);
     }
@@ -497,8 +498,6 @@ public static class PilotoOutboundSeeder
     private static async Task CrearCuentaPendienteDeActivacionAsync(
         UserManager<ApplicationUser> userManager, ILogger logger, Guid tenantOperadorId, string email, Guid coordinadoraId)
     {
-        using var ambito = AmbitoTenantExplicito.Establecer(tenantOperadorId);
-
         if (await userManager.FindByEmailAsync(email) is not null)
             return;
 
@@ -1365,7 +1364,7 @@ public static class PilotoOutboundSeeder
 
             dia = D.AddDays(DisenoT1PilotoOutbound.DiasHastaLaVisitaCancelada);
             Crear(DisenoT1PilotoOutbound.VisitaCancelada, dia, dia, "Ajuste de variadores en la línea de envasado")
-                .Cancelar(antesDeSembrar, "El cliente aplaza la parada de la línea.");
+                .Cancelar(antesDeSembrar, "Se aplaza la parada de la línea.");
         }
 
         /// <summary>

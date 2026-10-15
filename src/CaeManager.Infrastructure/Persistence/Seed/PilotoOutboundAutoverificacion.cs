@@ -112,7 +112,7 @@ public static class PilotoOutboundAutoverificacion
     public sealed record MedicionAsistenteIa(CarteraDelAsistenteIa Gestora, CarteraDelAsistenteIa Coordinadora);
 
     /// <summary>
-    /// Lo que el Tenant del Operador CAE externo enseña en sus pantalla de equipo: las cuentas del equipo de la
+    /// Lo que el Tenant del Operador CAE externo enseña en su pantalla de equipo: las cuentas del equipo de la
     /// Coordinadora CAE pendientes de activación. La solicitud de cartera y la propuesta de apoyo (R14) no se siembran: sus
     /// políticas de seguridad de registros exigen el Tenant de origen de una sesión autenticada.
     /// </summary>
@@ -734,7 +734,7 @@ public static class PilotoOutboundAutoverificacion
             .Select(v => new { v.FechaInicio, v.FechaFin, v.EstaCancelada, v.DocumentacionGestionadaEnUtc }).ToListAsync(cancellationToken);
         var renovados = await dbContext.Documentos.AsNoTracking()
             .Where(x => x.TrabajadorId != null && x.MotivoSustitucion == MotivoSustitucionDocumento.Renovacion
-                        && dbContext.Documentos.Any(n => n.Id == x.SustituidoPorDocumentoId && n.SustituidoPorDocumentoId == null
+                        && dbContext.Documentos.Any(n => n.Id == x.SustituidoPorDocumentoId && n.MotivoSustitucion == null
                                                          && n.TrabajadorId == x.TrabajadorId && n.TipoDocumentoId == x.TipoDocumentoId))
             .CountAsync(cancellationToken);
         var acudenA = (await dbContext.VisitasTrabajadores.AsNoTracking()

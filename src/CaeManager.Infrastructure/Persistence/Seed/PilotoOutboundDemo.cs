@@ -468,6 +468,13 @@ public static class ConstruccionMitadPilotoOutbound
     public const int DiasHastaLaVisita = 15;
 }
 
+/// <summary>Las Visitas de T4 y T5, que no tenían ninguna: una futura y una pasada, lejos de las 48 horas.</summary>
+public static class DisenoVisitasT4T5PilotoOutbound
+{
+    public const int DiasHastaLaVisita = 14;
+    public const int DiasDesdeLaVisitaPasada = 12;
+}
+
 /// <summary>
 /// El diseño de T5, «pocos Trabajadores, muchos Centros»: cuatro Trabajadores,
 /// cada uno con Asignación activa a entre ocho y catorce de los catorce Centros
@@ -500,13 +507,6 @@ public static class ConstruccionMitadPilotoOutbound
 /// Ese Centro no lo marca como bloqueante: la tolerancia solo cambia el rótulo.
 /// </para>
 /// </summary>
-/// <summary>Las Visitas de T4 y T5, que no tenían ninguna: una futura y una pasada, lejos de las 48 horas.</summary>
-public static class DisenoVisitasT4T5PilotoOutbound
-{
-    public const int DiasHastaLaVisita = 14;
-    public const int DiasDesdeLaVisitaPasada = 12;
-}
-
 public static class DisenoT5PilotoOutbound
 {
     /// <summary>A cuántos Centros (los primeros del catálogo) tiene Asignación activa cada Trabajador.</summary>
@@ -782,8 +782,8 @@ public static class DisenoT1PilotoOutbound
     /// Trabajador, por su documento Vencido. Los dos Trabajadores están en un solo Centro, sin plataforma.
     /// <list type="bullet">
     /// <item>La reciente, sin respuesta: «se envió» dos días antes de la demostración o, si eso todavía no ha
-    /// llegado el día en que se siembra, el día anterior a la siembra. Nunca queda en el futuro, y sembrando en
-    /// los seis días anteriores a la demostración sigue a menos de siete días de su envío el día D.</item>
+    /// llegado el día en que se siembra, el día anterior a la siembra. Nunca queda en el futuro. Sembrando
+    /// con la demostración a siete días o más, el día D ya lleva más de siete días sin respuesta (Inicio la cuenta aparte).</item>
     /// <item>La respondida: enviada <see cref="DiasDesdeLaReclamacionRespondida"/> días antes de la demostración
     /// y contestada (un Mensaje entrante en su hilo) <see cref="DiasDesdeLaRespuesta"/> días antes.</item>
     /// </list>
@@ -800,8 +800,8 @@ public static class DisenoT1PilotoOutbound
     /// requisitos ni documentos que falten.
     /// <list type="bullet">
     /// <item>En curso los diez días en que se puede sembrar (empieza en D−9 y acaba en D+2), con la documentación
-    /// gestionada. Es una Visita activa que ya empezó: cuenta en las Visitas urgentes de Inicio y es una fila de
-    /// Mi trabajo, todos los días.</item>
+    /// gestionada. Es una Visita activa que ya empezó: cuenta en las Visitas urgentes de Inicio todos los días; no es una fila de
+    /// Mi trabajo (esa solo trae las urgentes por llegar).</item>
     /// <item>Con la documentación gestionada, dentro de <see cref="DiasHastaLaVisitaGestionada"/> días: lejos de
     /// las 48 horas.</item>
     /// <item>Pasada: fue <see cref="DiasDesdeLaVisitaPasada"/> días antes de la demostración.</item>
@@ -1365,8 +1365,8 @@ public static class CatalogoPilotoOutbound
     /// confirmar, 756 de 854, el 89 %; se admite 87..91. Mi trabajo: 37 vencidos, 21
     /// «Falta», 3 requisitos bloqueantes pendientes, 15 urgentes y 12 próximos, más
     /// las acreditaciones externas (del orden de 28 Pendientes de subir, 26 Subidas,
-    /// una Rechazada y una vencida en plataforma), y la Visita en curso: unas 145
-    /// filas, 146 la víspera y el día de la demostración por la Visita por correo.
+    /// una Rechazada y una vencida en plataforma), y las tres señales de IA y correo: unas 147
+    /// filas, 148 la víspera y el día de la demostración por la Visita por correo.
     /// La versión anterior del documento renovado no cuenta en Inicio, en los pares
     /// ni en Mi trabajo: está sustituida. T1 es la excepción declarada al
     /// volumen de 40 a 80 filas de la cartera; se admite 100..250.

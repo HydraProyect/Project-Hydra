@@ -1294,10 +1294,32 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     }
 
     /// <summary>
+    /// T4 y T5 llevan cada uno una Visita futura y una pasada, a un Centro con un Trabajador asignado, lejos de las 48 horas.
+    /// Sin ellas Visitas estaba vacío en esos dos Tenants.
+    /// </summary>
+    [Theory]
+    [InlineData("T4")]
+    [InlineData("T5")]
+    public async Task T4_y_T5_llevan_una_Visita_futura_y_una_pasada(string clave)
+    {
+        var tenant = clave == "T4" ? CatalogoPilotoOutbound.T4 : CatalogoPilotoOutbound.T5;
+        var d = ArnesPilotoOutbound.FechaDemostracion();
+        var id = await fixture.Arnes.TenantIdAsync(tenant.Nombre);
+
+        var visitas = await fixture.Arnes.EnTenantAsync(id, async (db, _) => await db.Visitas
+            .Select(v => new { v.FechaInicio, v.FechaFin, v.EstaCancelada, Acuden = db.VisitasTrabajadores.Count(x => x.VisitaId == v.Id) })
+            .OrderBy(v => v.FechaInicio).ToListAsync());
+
+        visitas.Should().HaveCount(2, "MEDIDO: una pasada y una futura");
+        visitas.Select(v => (v.FechaInicio, v.FechaFin, v.EstaCancelada, v.Acuden)).Should().Equal(
+            (d.AddDays(-DisenoVisitasT4T5PilotoOutbound.DiasDesdeLaVisitaPasada), d.AddDays(-DisenoVisitasT4T5PilotoOutbound.DiasDesdeLaVisitaPasada), false, 1),
+            (d.AddDays(DisenoVisitasT4T5PilotoOutbound.DiasHastaLaVisita), d.AddDays(DisenoVisitasT4T5PilotoOutbound.DiasHastaLaVisita), false, 1));
+    }
+
+    /// <summary>
     /// Lo que espera en el Tenant del Operador CAE externo, leído con las consultas de sus pantallas: la cuenta pendiente
-    /// de activación en el equipo de la Coordinadora CAE, la solicitud de incorporación del Gestor CAE segundo a T5 en la
-    /// bandeja de la Coordinadora CAE y la propuesta de apoyo de la Gestora CAE primera sobre T4, enviada por ella y
-    /// recibida por él. Ninguna de las dos le da acceso: su Mi trabajo sigue siendo T2, T3 y T6 (test anterior).
+    /// de activación en el equipo de la Coordinadora CAE. La solicitud de incorporación y la propuesta de apoyo (R14) no se
+    /// siembran todavía: sus políticas exigen el Tenant de origen de una sesión autenticada.
     /// </summary>
     [Fact]
     public async Task El_Operador_CAE_externo_tiene_una_cuenta_pendiente_de_activacion()
