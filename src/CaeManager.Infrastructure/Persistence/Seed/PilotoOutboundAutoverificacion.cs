@@ -190,7 +190,9 @@ public static class PilotoOutboundAutoverificacion
         ],
         new MedicionAsistenteIa(comoGestora.AsistenteIa, comoCoordinadora.AsistenteIa),
         new MedicionOperador(comoCoordinadora.PendientesActivacion),
-        DiasHastaLaDemostracion: opciones.FechaDemostracion.DayNumber - DiaDeNegocio.Hoy().DayNumber);
+        // Pasada la demostración la distancia es negativa y lo que depende del día (las Visitas urgentes) ya no tiene término de
+        // comparación en el catálogo: no se compara, como si no se conociera.
+        DiasHastaLaDemostracion: opciones.FechaDemostracion.DayNumber - DiaDeNegocio.Hoy().DayNumber is >= 0 and var dias ? dias : null);
     }
 
     /// <summary>
@@ -691,12 +693,15 @@ public static class PilotoOutboundAutoverificacion
                 .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.FechaEmision }).ToListAsync(cancellationToken))
             .GroupBy(d => d.TrabajadorId).ToDictionary(g => g.Key, g => g.Min(d => d.FechaEmision));
         var conAltaPosterior = trabajadores.Count(t =>
-            t.FechaAltaEmpresa is { } alta && primeraEmisionPorTrabajador.TryGetValue(t.Id, out var primera) && alta > primera);
+            t.FechaAltaEmpresa is { } alta && primeraEmisionPorTrabajador.TryGetValue(t.Id, out var primera) && alta >= primera);
 
         // Los tipos del catálogo de #1363, en uso (no sustituidos): uno por obra, uno en el perfil de obras, uno en el autónomo.
         async Task<int> EnUsoDeAsync(string nombreDeTipo)
         {
-            var tipoId = await dbContext.TiposDocumento.AsNoTracking().Where(t => t.Nombre == nombreDeTipo).Select(t => t.Id).SingleAsync(cancellationToken);
+            // Un Tenant sembrado antes de que el catálogo tuviera estos tipos no los tiene (la migración solo los crea en el
+            // Tenant #1): cuenta cero, y la discrepancia nombra el contador en vez de impedir medir el lote entero.
+            var tipoId = await dbContext.TiposDocumento.AsNoTracking().Where(t => t.Nombre == nombreDeTipo).Select(t => t.Id).SingleOrDefaultAsync(cancellationToken);
+            if (tipoId == Guid.Empty) return 0;
             return await dbContext.Documentos.AsNoTracking().Operativos().CountAsync(d => d.TipoDocumentoId == tipoId, cancellationToken);
         }
 

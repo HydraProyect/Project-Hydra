@@ -138,8 +138,8 @@ public sealed record ObraPilotoOutbound(string Nombre, int Centro, int DiasDesde
 
 /// <summary>
 /// «EnCurso»: ya empezó y no ha terminado, y lo sigue estando todos los días en que se puede sembrar (D−9 a D): su duración
-/// abarca ese margen entero. Una «Futura» que empieza a uno o dos días de la demostración está, ese día, dentro de la ventana
-/// de aviso de 48 h (urgente); los días anteriores del margen aún no lo es.
+/// abarca ese margen entero. Una «Futura» que empieza a un día de la demostración está dentro de la ventana de aviso de 48 h
+/// (urgente) el día D−1 y el propio D; los días anteriores del margen aún no lo es.
 /// </summary>
 public enum EstadoVisitaPilotoOutbound { Futura, EnCurso, Realizada, Vencida, Cancelada }
 
@@ -322,8 +322,8 @@ public static class CatalogoPilotoOutbound
         GestionesPendientes = 3,
         Visitas =
         [
-            new(0, 10, 2, EstadoVisitaPilotoOutbound.Futura, "Reconocimiento inicial del centro antes del arranque"),
-            new(0, 1, 1, EstadoVisitaPilotoOutbound.Futura, "Entrada de la primera cuadrilla para el replanteo de las canalizaciones")
+            new(0, 10, 2, EstadoVisitaPilotoOutbound.Futura, "Entrada de la primera cuadrilla para el replanteo de las canalizaciones"),
+            new(0, 1, 1, EstadoVisitaPilotoOutbound.Futura, "Reconocimiento inicial del centro antes del arranque")
         ]
     };
 
@@ -419,7 +419,7 @@ public static class CatalogoPilotoOutbound
             new(0, 6, 1, EstadoVisitaPilotoOutbound.Futura, "Inspección de seguridad del andamiaje"),
             new(2, 27, 2, EstadoVisitaPilotoOutbound.Futura, "Visita de la propiedad al replanteo de seguidores"),
             new(1, -18, 1, EstadoVisitaPilotoOutbound.Realizada, "Replanteo de la cimentación"),
-            new(2, -10, 14, EstadoVisitaPilotoOutbound.EnCurso, "Montaje de la grúa torre y de los medios auxiliares")
+            new(0, -10, 14, EstadoVisitaPilotoOutbound.EnCurso, "Montaje de la grúa torre y de los medios auxiliares")
         ]
     };
 
@@ -600,7 +600,7 @@ public static class CatalogoPilotoOutbound
         {
             var estados = tenant.Extranjeros
                 .Select(e => CaeManager.Domain.Documentos.CalculadoraEstadoDocumento.Calcular(
-                    CaeManager.Domain.Documentos.VigenciaDocumento.VenceEl(referencia.AddDays(e.DiasHastaLaCaducidad + dias)), referencia, 30, 15))
+                    CaeManager.Domain.Documentos.VigenciaDocumento.VenceEl(referencia.AddDays(e.DiasHastaLaCaducidad + dias)), referencia, ParametroSistemaSeedData.UmbralAmbarDias, ParametroSistemaSeedData.UmbralRojoDias))
                 .ToList();
             vencidos.Add(estados.Count(e => e == CaeManager.Domain.Documentos.EstadoDocumento.Vencido));
             urgentes.Add(estados.Count(e => e == CaeManager.Domain.Documentos.EstadoDocumento.Urgente));
