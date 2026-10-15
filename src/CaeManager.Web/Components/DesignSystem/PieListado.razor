@@ -2,6 +2,27 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> TextosPie
 
+@if (PresentacionMaqueta)
+{
+<div class="pie-lista-maqueta">
+    <div class="pie-lista-inicio">
+        <button type="button" aria-label="@(EtiquetaAnterior ?? TextosPie["PaginadorAnterior"].Value)" disabled="@(PaginaActual <= 1 || !PaginaActualChanged.HasDelegate)" @onclick="() => CambiarPaginaAsync(PaginaActual - 1)"><Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" /> @(EtiquetaAnterior ?? TextosPie["PaginadorAnterior"].Value)</button>
+        <span class="paginador-texto">@TextosPie["ListaPagina", PaginaActual, Math.Max(TotalPaginas, 1)] — @(TextoFilasMostradas ?? TextosPie["PaginadorMostrando", ElementosEnPagina ?? 0, TotalElementos].Value)</span>
+    </div>
+    <div class="pie-lista-opciones">
+        <label>@TextosPie["ListaMostrar"]
+            <select aria-label="@(EtiquetaTamanoPagina ?? TextosPie["PaginadorFilasPorPagina"].Value)" value="@TamanoPagina" disabled="@(!TamanoPaginaChanged.HasDelegate)" @onchange="e => TamanoPaginaChanged.InvokeAsync(int.Parse((string)e.Value!))">
+                @if (!OpcionesTamanoPagina.Contains(TamanoPagina)) { <option value="@TamanoPagina">@TamanoPagina</option> }
+                @foreach (var opcion in OpcionesTamanoPagina) { <option value="@opcion">@opcion</option> }
+            </select>
+        </label>
+        <button type="button" aria-label="@(EtiquetaSiguiente ?? TextosPie["PaginadorSiguiente"].Value)" disabled="@(PaginaActual >= TotalPaginas || !PaginaActualChanged.HasDelegate)" @onclick="() => CambiarPaginaAsync(PaginaActual + 1)">@(EtiquetaSiguiente ?? TextosPie["PaginadorSiguiente"].Value) <Icono Nombre="siguiente" Tamano="TamanoIcono.Pequeno" /></button>
+    </div>
+    <div class="pie-lista-atajos">@Centro</div>
+</div>
+}
+else
+{
 @* Variante localizada de PaginadorSimple, activada solo para el pie de tarjeta. *@
 <div class="paginador paginador-simple paginador-pie-listado">
     <span class="paginador-inicio">
@@ -26,7 +47,10 @@
     </span>
 </div>
 
+}
+
 @code {
+    [Parameter] public bool PresentacionMaqueta { get; set; }
     [Parameter] public int PaginaActual { get; set; } = 1;
     [Parameter] public int TotalPaginas { get; set; }
     [Parameter] public int TotalElementos { get; set; }

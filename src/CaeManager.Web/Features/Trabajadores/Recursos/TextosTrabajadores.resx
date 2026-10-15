@@ -634,7 +634,7 @@
     <value>Filtrar esta pantalla: nombre, DNI o alias</value>
   </data>
   <data name="ListaColumnaTrabajador" xml:space="preserve">
-    <value>Trabajador</value>
+    <value>Nombre</value>
   </data>
   <data name="ListaOpcionSubcontrata" xml:space="preserve">
     <value>{0} (subcontrata)</value>
@@ -661,7 +661,7 @@
     <value>Editar (e)</value>
   </data>
   <data name="ListaColumnaEstadoDocumental" xml:space="preserve">
-    <value>Estado documental</value>
+    <value>Documentación</value>
   </data>
   <data name="ListaColumnaRegistradosVigentes" xml:space="preserve">
     <value>Registrados vigentes</value>
@@ -714,4 +714,6 @@
   <data name="FichaErrorGuardar" xml:space="preserve"><value>No se pudo guardar la ficha. Vuelve a intentarlo.</value></data>
   <data name="FichaCopiarDato" xml:space="preserve"><value>Copiar el dato</value></data>
   <data name="FichaFechaInvalida" xml:space="preserve"><value>Introduce una fecha válida.</value></data>
+  <data name="ListaColumnaDni" xml:space="preserve"><value>DNI</value></data>
+  <data name="ListaColumnaEmpleador" xml:space="preserve"><value>Empresa / Subcontrata</value></data>
 </root>

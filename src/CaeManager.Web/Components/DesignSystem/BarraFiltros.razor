@@ -63,12 +63,12 @@
 
 @if (Pastillas is not null)
 {
-<section class="barra-filtros-pastillas" aria-label="@EtiquetaRegion">
+<section class="barra-filtros-pastillas @(PresentacionMaqueta ? "barra-filtros-maqueta" : null)" aria-label="@EtiquetaRegion">
     <div class="barra-filtros-pastillas-fila">
         <div class="barra-filtros-buscador-pantalla">
             <span class="barra-filtros-buscador-icono" aria-hidden="true"><Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" /></span>
-            <CampoTexto Placeholder="@(PlaceholderBuscador ?? Comunes["FiltrarEstaPantalla"].Value)" Valor="@Busqueda" ValorChanged="BusquedaChanged"
-                        aria-label="@Comunes["FiltrarEstaPantalla"]" aria-keyshortcuts="f" data-filtro-pantalla="" data-keytip="F" />
+            <CampoTexto Etiqueta="@(PresentacionMaqueta ? Comunes["ListaBuscar"].Value : null)" Placeholder="@(PlaceholderBuscador ?? Comunes["FiltrarEstaPantalla"].Value)" Valor="@Busqueda" ValorChanged="BusquedaChanged"
+                        aria-label="@(PresentacionMaqueta ? Comunes["ListaBuscar"] : Comunes["FiltrarEstaPantalla"])" aria-keyshortcuts="f" data-filtro-pantalla="" data-keytip="F" />
             <kbd class="barra-filtros-tecla" aria-hidden="true">F</kbd>
         </div>
         @Pastillas
@@ -102,7 +102,7 @@
         {
             <button type="button" class="restablecer-vista-barra" title="@Comunes["RestablecerVistaTitulo"]" @onclick="VistaRecordada.RestablecerAsync">@Comunes["RestablecerVista"]</button>
         }
-        @Herramientas
+        @if (!PresentacionMaqueta) { @Herramientas }
         @if (Resumen is not null)
         {
             <span class="barra-filtros-resumen">@Resumen</span>
@@ -115,6 +115,7 @@
             <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
             @Chips
             <button type="button" class="limpiar-filtros-barra" @onclick="OnLimpiarTodo">@Comunes["LimpiarTodo"]</button>
+            @if (PresentacionMaqueta && OnGuardarFiltro.HasDelegate) { <button type="button" class="guardar-filtro-barra" @onclick="OnGuardarFiltro">@Comunes["GuardarFiltro"]</button> }
         </div>
     }
 </section>
@@ -160,7 +161,21 @@ else
 </section>
 }
 
+@if (PresentacionMaqueta)
+{
+    <div class="lista-herramientas-maqueta">
+        <BarraHerramientasLista SeleccionMultiple="SeleccionMultiple" SeleccionMultipleChanged="SeleccionMultipleChanged" />
+        @if (Contador is not null) { <span class="lista-contador" role="status"><span class="cabecera-listado-contador">@Contador</span> @Comunes["ListaResultadosUnidad"]</span> }
+        @Herramientas
+    </div>
+}
+
 @code {
+    [Parameter] public bool PresentacionMaqueta { get; set; }
+    [Parameter] public int? Contador { get; set; }
+    [Parameter] public bool SeleccionMultiple { get; set; }
+    [Parameter] public EventCallback<bool> SeleccionMultipleChanged { get; set; }
+
     /// <summary>Etiqueta visible del buscador.</summary>
     [Parameter] public string EtiquetaBuscador { get; set; } = "Buscar";
 

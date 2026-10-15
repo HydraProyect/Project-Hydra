@@ -49,8 +49,8 @@
 *@
 <div class="contenedor-pagina">
     @* Cabecera y barra de filtros comunes de los listados. El recuento va junto al título y el
-       conmutador de selección múltiple (☑) en la cabecera, como en las otras nueve pantallas. *@
-    <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_errorCarga || _cargando ? null : _totalElementos)"
+       conmutador de selección múltiple en la barra, como en las otras nueve pantallas. *@
+    <CabeceraListado Grupo="Operacion" ControlesEnBarra="true" Titulo="@Textos["TituloPagina"]" Contador="@(_errorCarga || _cargando ? null : _totalElementos)"
                      SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
                          RutaExportar="/visitas/exportar.xlsx" CriteriosExportar="CriteriosExportar">
             <Menu>
@@ -64,18 +64,20 @@
     @* Los mismos filtros que tenía la barra antigua, uno por pastilla: «Solo activas» (marcado de
        fábrica), «Solo urgentes» y «Notificada…». El orden no es un filtro (no recorta la lista: por
        eso no cuenta en HayFiltrosActivos ni lleva chip) y vive en «Más filtros». Todos viajan en la URL. *@
-    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["PlaceholderBusqueda"]"
+    <BarraFiltros PresentacionMaqueta="true" Contador="@(_errorCarga || _cargando ? null : _totalElementos)" SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["PlaceholderBusqueda"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
                   OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
                   VistaRecordada="_vistaRecordada"
                   MasFiltrosActivos="@(_orden == OrdenPorDocumentacion)">
         <Pastillas>
-            <PastillaFiltro Etiqueta="@Textos["FiltroSoloActivas"]" TextoTodos="@Textos["OpcionNo"]"
+            <FranjaEstado PresentacionCampo="true" Opciones="OpcionesEstadoDocumentacion" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                  Recuentos="_recuentosPorEstado" TextoTodos="@Textos["OpcionTodas"]" EtiquetaAccesible="@Textos["ColumnaDocumentacion"]" />
+            <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["FiltroSoloActivas"]" TextoTodos="@Textos["OpcionNo"]"
                             Valor="@(_soloActivas ? ValorSi : string.Empty)" ValorChanged="v => CambiarSoloActivasAsync(v == ValorSi)" Opciones="OpcionesSi" />
-            <PastillaFiltro Etiqueta="@Textos["FiltroSoloUrgentes"]" TextoTodos="@Textos["OpcionNo"]"
+            <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["FiltroSoloUrgentes"]" TextoTodos="@Textos["OpcionNo"]"
                             Valor="@(_soloUrgentes ? ValorSi : string.Empty)" ValorChanged="v => CambiarSoloUrgentesAsync(v == ValorSi)" Opciones="OpcionesSi" />
-            <PastillaFiltro Etiqueta="@Textos["EtiquetaNotificadaTitular"]" TextoTodos="@Textos["OpcionTodas"]"
+            <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["EtiquetaNotificadaTitular"]" TextoTodos="@Textos["OpcionTodas"]"
                             Valor="@_filtroNotificado" ValorChanged="FiltrarPorNotificadoAsync" Opciones="OpcionesNotificado" />
         </Pastillas>
         <MasFiltros>
@@ -114,11 +116,10 @@
                                OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Visitas"
                              ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
-    @* Franja de estado sobre la columna «Documentación», con sus cuatro valores reales y los mismos
+    @* Selector desplegable del filtro «Documentación», con sus cuatro valores reales y los mismos
        rótulos que la celda. Admite varios a la vez, viaja en la URL como «estado» y cada botón dice
        cuántas visitas hay con los demás filtros aplicados: con «Solo activas» puesto, «Cancelada» es 0. *@
-    <FranjaEstado Opciones="OpcionesEstadoDocumentacion" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
-                  Recuentos="_recuentosPorEstado" TextoTodos="@Textos["OpcionTodas"]" EtiquetaAccesible="@Textos["ColumnaDocumentacion"]" />
+
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -135,7 +136,7 @@
         @* El grid se mantiene siempre montado (solo se oculta con CSS) para que la
            referencia @@ref siga siendo válida y RefreshDataAsync funcione incluso al
            pasar de 0 a 1 elementos — ver Clientes.razor.cs. *@
-        @TarjetaListado.Renderizar(@<text>
+        @TarjetaListado.RenderizarMaqueta(@<text>
                 <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
                 <QuickGrid @ref="_grid" TGridItem="VisitaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                     @if (_seleccionMultiple)
@@ -304,11 +305,11 @@
                                            OnClick="() => AbrirReactivar(context.Id, context.Version, context.CentroNombre)">@Textos["AccionReactivar"]</Boton>
                                 </SoloConEscritura>
                             }
-                            <Boton360 Nombre="@Textos["NombreVisitaPara360", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]" Href="@($"/visitas/{context.Id}")" />
+                            <Boton360 PresentacionMenu="true" Nombre="@Textos["NombreVisitaPara360", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]" Href="@($"/visitas/{context.Id}")" />
                         </span>
                     </TemplateColumn>
                 </QuickGrid>
-            
+
                 </div>
 </text>, PieDelListado)
 
@@ -861,7 +862,7 @@
     private RenderFragment? PieDelListado => _errorCarga || (_cargando && _totalElementos == 0) ? null : @<text>
         @if (!_errorCarga && (!_cargando || _totalElementos > 0))
         {
-            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+            <PaginadorSimple PresentacionMaqueta="true" PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
                                   TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
                     <Centro><LeyendaAtajosLista /></Centro>

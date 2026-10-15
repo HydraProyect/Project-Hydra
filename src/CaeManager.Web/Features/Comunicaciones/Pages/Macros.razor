@@ -40,19 +40,21 @@
        opción «Todas las macros» del mockup NO está: pide una consulta nueva
        sin filtro de cliente que ObtenerMacrosQuery no tiene, y añadirla es
        tocar Application, fuera de este incremento. *@
-    <div class="barra-filtros macros-filtros">
-        <CampoSelect Etiqueta="Cliente" Valor="@_clienteFiltro" ValorChanged="FiltrarPorClienteAsync">
-            <option value="">Solo genéricas</option>
-            @foreach (var cliente in _clientesSelector)
+    <section class="barra-filtros-lista">
+        <div class="barra-filtros-lista-fila">
+            <CampoSelect Etiqueta="Cliente" Valor="@_clienteFiltro" ValorChanged="FiltrarPorClienteAsync">
+                <option value="">Solo genéricas</option>
+                @foreach (var cliente in _clientesSelector)
+                {
+                    <option value="@cliente.Id">@cliente.RazonSocial</option>
+                }
+            </CampoSelect>
+            @if (!_cargando && !_errorCarga)
             {
-                <option value="@cliente.Id">@cliente.RazonSocial</option>
+                <p class="macros-filtro-resumen" title="@DesgloseFiltro">@ResumenFiltro</p>
             }
-        </CampoSelect>
-        @if (!_cargando && !_errorCarga)
-        {
-            <p class="macros-filtro-resumen" title="@DesgloseFiltro">@ResumenFiltro</p>
-        }
-    </div>
+        </div>
+    </section>
 
     @if (_errorCarga)
     {
@@ -153,7 +155,7 @@
                 </table>
             </div>
 
-            <PaginadorSimple PaginaActual="_paginaActual" TotalPaginas="TotalPaginas" TotalElementos="_macros.Count"
+            <PaginadorSimple PresentacionMaqueta="true" ElementosEnPagina="MacrosPagina.Count()" PaginaActual="_paginaActual" TotalPaginas="TotalPaginas" TotalElementos="_macros.Count"
                              Etiqueta="@EtiquetaRecuento" PaginaActualChanged="CambiarPagina"
                              TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPagina" />
         </div>

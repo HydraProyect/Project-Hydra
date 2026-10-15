@@ -343,7 +343,7 @@ public class TiposDocumentoGen2Tests : BunitContext
         Interruptor(cut, campo, nombre).ChangeAsync(new ChangeEventArgs { Value = true });
 
     private static IElement SelectorDeFiltro(IRenderedComponent<TiposDocumentoPagina> cut, int posicion) =>
-        cut.FindAll(".barra-filtros select")[posicion];
+        cut.FindAll(".barra-filtros-lista select")[posicion];
 
     private static Task ElegirCliente(IRenderedComponent<TiposDocumentoPagina> cut, Guid clienteId) =>
         SelectorDeFiltro(cut, 0).ChangeAsync(new ChangeEventArgs { Value = clienteId.ToString() });

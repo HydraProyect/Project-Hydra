@@ -233,7 +233,7 @@ public class MacrosGen2Tests : BunitContext
         cut.Find(".macros-filtro-resumen").TextContent.Trim()
             .Should().Be("2 genéricas + 1 de Refrielectric S.A.", "el filtro SUMA, y la frase lo dice");
         cut.Find(".paginador-texto").TextContent.Trim()
-            .Should().Be("Página 1 de 1 — 3 macro(s): 2 genérica(s) · 1 de Refrielectric S.A.");
+            .Should().Be("Página 1 de 1 — Mostrando 3 de 3");
     }
 
     [Fact]
@@ -316,9 +316,9 @@ public class MacrosGen2Tests : BunitContext
         var (cut, _) = Renderizar(escenario);
 
         Filas(cut).Should().HaveCount(20);
-        cut.Find(".paginador-texto").TextContent.Trim().Should().Be("Página 1 de 2 — 25 macro(s) genérica(s)");
+        cut.Find(".paginador-texto").TextContent.Trim().Should().Be("Página 1 de 2 — Mostrando 20 de 25");
 
-        await Pulsar(cut, ".paginador button", "Siguiente");
+        await Pulsar(cut, ".pie-lista-maqueta button", "Siguiente");
 
         TitulosFilas(cut).Should().Equal(Enumerable.Range(21, 5).Select(i => $"Genérica {i:00}"),
             "la segunda página son las cinco que no cabían en la primera");
@@ -329,7 +329,7 @@ public class MacrosGen2Tests : BunitContext
         cut.Find(".paginador-texto").TextContent.Trim().Should().StartWith("Página 1 de 2",
             "otra lista empieza por su primera página");
 
-        await cut.Find(".paginador-tamano-select").ChangeAsync(new ChangeEventArgs { Value = "50" });
+        await cut.Find(".pie-lista-opciones select").ChangeAsync(new ChangeEventArgs { Value = "50" });
 
         Filas(cut).Should().HaveCount(25);
     }

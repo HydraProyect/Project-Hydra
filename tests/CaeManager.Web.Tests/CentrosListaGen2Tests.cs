@@ -211,7 +211,7 @@ public class CentrosListaGen2Tests : BunitContext
         await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Centro, abierto.Id, abierto.Nombre, "informacion"));
         workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
 
-        await cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        await cut.Find(".lista-herramientas-maqueta button[aria-pressed]").ClickAsync(new MouseEventArgs());
         await cut.Find("input[aria-label='Seleccionar el centro Centro Logístico Norte']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
             .ClickAsync(new MouseEventArgs());
@@ -234,7 +234,7 @@ public class CentrosListaGen2Tests : BunitContext
         var cut = Renderizar(elegido, superviviente);
         _mediador.NoEliminables.Add(superviviente.Id);
 
-        await cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        await cut.Find(".lista-herramientas-maqueta button[aria-pressed]").ClickAsync(new MouseEventArgs());
         await cut.Find("input[aria-label='Seleccionar el centro Centro Logístico Norte']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.Find("input[aria-label='Seleccionar el centro Centro Logístico Sur']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
@@ -266,7 +266,7 @@ public class CentrosListaGen2Tests : BunitContext
         cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain(
             ["Eliminar centro", "Eliminar seleccionados"], "la fila no ofrece la baja y aún no hay selección");
 
-        await cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        await cut.Find(".lista-herramientas-maqueta button[aria-pressed]").ClickAsync(new MouseEventArgs());
         await cut.Find("input[aria-label='Seleccionar el centro Centro Logístico Norte']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
         cut.Find("[role=dialog]").TextContent.Should().Contain("¿Eliminar 1 centro(s)?");

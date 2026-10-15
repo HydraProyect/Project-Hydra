@@ -32,7 +32,7 @@
        su rótulo en la cabecera y conserva el estado vacío cuando todavía no hay selección. *@
     @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
     {
-        <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
+        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple"
                          SeleccionMultipleChanged="@(_puedeEscribir && !_alcanceCero && !_errorCarga ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)"
                          RutaExportar="@(_alcanceCero ? null : "/vehiculos/exportar.xlsx")" CriteriosExportar="CriteriosExportar" Menu="@(!_alcanceCero ? MenuExportarTodo : null)">
@@ -46,7 +46,7 @@
     }
     else
     {
-        <CabeceraListado Titulo="@Textos["TituloPagina"]" />
+        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@Textos["TituloPagina"]" />
     }
 
     @if (_resolviendoEmpresa)
@@ -64,13 +64,15 @@
     {
     @if (!_alcanceCero)
     {
-    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
+    <BarraFiltros PresentacionMaqueta="true" Contador="@(_cargando || _errorCarga ? null : _totalElementos)" SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="@(_puedeEscribir && !_alcanceCero && !_errorCarga ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
                   OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
                   VistaRecordada="_vistaRecordada">
         <Pastillas>
-            <PastillaFiltro Etiqueta="@Textos["EtiquetaEmpleador"]" TextoTodos="@Textos["ListaFiltroTodos"]"
+            <FranjaEstado PresentacionCampo="true" Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                  Recuentos="_recuentosPorEstado" />
+            <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["EtiquetaEmpleador"]" TextoTodos="@Textos["ListaFiltroTodos"]"
                             Valor="@ValorFiltroEmpleador" ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
         </Pastillas>
         <Herramientas><BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" /></Herramientas>
@@ -93,11 +95,10 @@
                                OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Vehiculos"
                              ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
-    @* Franja de estado: sustituye a la pastilla «Documentación». Admite varios estados a la vez, viaja en la
+    @* Selector desplegable de estado: conserva la semántica de la franja para «Documentación». Admite varios estados a la vez, viaja en la
        URL como «estado» (estados de código separados por coma) y cada botón dice cuántas filas hay, con los
        demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
-    <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
-                  Recuentos="_recuentosPorEstado" />
+
     }
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -112,7 +113,7 @@
     }
     else
     {
-        @TarjetaListado.Renderizar(@<text>
+        @TarjetaListado.RenderizarMaqueta(@<text>
                 <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
                 <table class="tabla-datos quickgrid vehiculos-rejilla-propia" theme="default" aria-busy="@(_cargando ? "true" : "false")">
                     <thead><tr>
@@ -153,7 +154,7 @@
                                 }
                             </td>
                             <td class="col-estado"><EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)" Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)" Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" Motivo="@MotivoIncidenciasUi.Texto(context.Incidencias, CaeManager.Domain.Common.DiaDeNegocio.Hoy())" /></td>
-                            <td><Boton360 Nombre="@context.Nombre" Href="@($"/vehiculos/{context.Id}")" /></td>
+                            <td><Boton360 PresentacionMenu="true" Nombre="@context.Nombre" Href="@($"/vehiculos/{context.Id}")" /></td>
                         </tr>
                         @if (context.Incidencias.Count > 0 && EstaExpandido(context))
                         {
@@ -164,7 +165,7 @@
                     }
                     </tbody>
                 </table>
-            
+
                 </div>
 
         @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
@@ -274,7 +275,7 @@
     private RenderFragment? PieDelListado => _errorCarga || (_cargando && _totalElementos == 0) ? null : @<text>
         @if (!_errorCarga && (!_cargando || _totalElementos > 0))
         {
-            <PaginadorSimple PaginaActual="@_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+            <PaginadorSimple PresentacionMaqueta="true" PaginaActual="@_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
                                   TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
                     <Centro><LeyendaAtajosLista /></Centro>

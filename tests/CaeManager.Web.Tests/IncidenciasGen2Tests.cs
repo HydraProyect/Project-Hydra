@@ -562,7 +562,7 @@ public class IncidenciasGen2Tests : BunitContext
         cut.WaitForAssertion(() => ConsultasDeLista(mediador).Should().BeGreaterThan(0));
         var consultasAntes = ConsultasDeLista(mediador);
 
-        await cut.Find(".paginador-tamano-select").ChangeAsync(new ChangeEventArgs { Value = "50" });
+        await cut.Find(".pie-lista-opciones select").ChangeAsync(new ChangeEventArgs { Value = "50" });
 
         cut.WaitForAssertion(() => mediador.Consultas.Last().TamanoPagina.Should().Be(50));
         mediador.Consultas.Last().Pagina.Should().Be(1);

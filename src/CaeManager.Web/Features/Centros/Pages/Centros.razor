@@ -34,12 +34,12 @@
     @* Rediseño de listados, fase 1: cabecera de una línea (CabeceraListado) con el contador, el
        conmutador ☑ de selección múltiple, el icono de exportación del listado y el menú «⋯» con
        «Exportar asignaciones» (lectura: cualquier
-       rol) y UNA acción primaria. Sin antetítulo («Negocio» ya está en las migas) y sin el rótulo
+       rol) y UNA acción primaria. Con antetítulo de grupo y sin el rótulo
        de la empresa gestionada: el selector de la barra lateral ya dice cuál es, y al cambiarla
        recarga esta ruta sin query (I14). El estado vacío sin empresa elegida (4a) sigue más abajo. *@
     @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
     {
-        <CabeceraListado Titulo="@Textos["ListaTitulo"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
+        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@Textos["ListaTitulo"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
                          RutaExportar="/centros/exportar.xlsx" CriteriosExportar="CriteriosExportar" EtiquetaExportar="@Textos["ListaExportarExcel"]">
             <Menu>
@@ -57,7 +57,7 @@
     }
     else
     {
-        <CabeceraListado Titulo="@Textos["ListaTitulo"]" />
+        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@Textos["ListaTitulo"]" />
     }
 
     @if (_resolviendoEmpresa)
@@ -87,15 +87,17 @@
         La pastilla «Filtros guardados» guarda los parámetros de vista de la URL, con
         la agrupación y el orden: FiltrosGuardadosDeListado y ParametrosDeVista.
     *@
-    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
+    <BarraFiltros PresentacionMaqueta="true" Contador="@(_cargando || _errorCarga ? null : _totalElementos)" SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
                   OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
                   VistaRecordada="_vistaRecordada">
         <Pastillas>
-            <PastillaFiltro Etiqueta="@Textos["FiltroClienteEmpresarial"]" TextoTodos="@Textos["FiltroTodos"]" Valor="@_clienteFiltro"
+            <FranjaEstado PresentacionCampo="true" Opciones="EstadoCentroUi.Franja" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                  Recuentos="_recuentosPorEstado" />
+            <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["FiltroClienteEmpresarial"]" TextoTodos="@Textos["FiltroTodos"]" Valor="@_clienteFiltro"
                             ValorChanged="CambiarClienteFiltroAsync" Opciones="_opcionesCliente" />
-            <PastillaFiltro Etiqueta="@Textos["FiltroEmpresa"]" TextoTodos="@Textos["FiltroTodas"]" Valor="@_empresaFiltro"
+            <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["FiltroEmpresa"]" TextoTodos="@Textos["FiltroTodas"]" Valor="@_empresaFiltro"
                             ValorChanged="CambiarEmpresaFiltroAsync" Opciones="_opcionesEmpresa" />
         </Pastillas>
         <Herramientas>
@@ -132,11 +134,10 @@
     <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Centros"
                              ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
 
-    @* Franja de estado: sustituye a la pastilla «Estado». Admite varios estados a la vez, viaja en la URL como
+    @* Selector desplegable de estado: conserva la semántica de la franja para «Estado». Admite varios estados a la vez, viaja en la URL como
        «estado» (estados de código separados por coma) y cada botón dice cuántos Centros hay, con los demás
        filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
-    <FranjaEstado Opciones="EstadoCentroUi.Franja" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
-                  Recuentos="_recuentosPorEstado" />
+
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -211,7 +212,7 @@
            navegación por celdas que no existe. «Cumplimiento» es el único rótulo que ordena (la consulta
            solo ordena por él en esta pantalla): pulsarlo de nuevo invierte el sentido. Los anchos son los
            de la fila (Centros.razor.css). *@
-        @TarjetaListado.Renderizar(@<text>
+        @TarjetaListado.RenderizarMaqueta(@<text>
             @CabeceraDeColumnas
 
             @* Agrupación por Cliente empresarial (de serie): una cabecera por grupo (CabeceraGrupoLista)
@@ -437,9 +438,9 @@
                             </span>
                             @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú: «Vista rápida» es el
                                clic en la fila; «Abrir ficha 360», este icono; «Eliminar centro», la selección
-                               múltiple (☑ de la cabecera o tecla «x») con «Eliminar seleccionados» y su «Deshacer». *@
+                               múltiple (botón de la barra o tecla «x») con «Eliminar seleccionados» y su «Deshacer». *@
                             <div class="tarjeta-fila-acordeon-acciones">
-                                <Boton360 Nombre="@centro.Nombre" Href="@($"/centros/{centro.Id}")" />
+                                <Boton360 PresentacionMenu="true" Nombre="@centro.Nombre" Href="@($"/centros/{centro.Id}")" />
                             </div>
                         </div>
                         @if (expandido)
@@ -479,7 +480,7 @@
     }
     @if (!_errorCarga && !_cargando && _elementosPagina.Count == 0)
     {
-        @TarjetaListado.Renderizar(@<text>
+        @TarjetaListado.RenderizarMaqueta(@<text>
             @CabeceraDeColumnas
             <div class="lista-filas-acordeon"></div>
         </text>, PieDelListado)
@@ -601,7 +602,7 @@
     private RenderFragment PieDelListado => @<text>
         @if (!_errorCarga && (!_cargando || _totalElementos > 0))
         {
-            <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+            <PaginadorSimple PresentacionMaqueta="true" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
                                   TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
                     <Centro><LeyendaAtajosLista /></Centro>

@@ -494,4 +494,13 @@
   <data name="FiltrosGuardadosVacio" xml:space="preserve">
     <value>No hi ha filtres desats</value>
   </data>
+  <data name="ListaGrupoNegocio" xml:space="preserve"><value>Negoci</value></data>
+  <data name="ListaGrupoOperacion" xml:space="preserve"><value>Operació</value></data>
+  <data name="ListaMas" xml:space="preserve"><value>Més</value></data>
+  <data name="ListaBuscar" xml:space="preserve"><value>Cercar</value></data>
+  <data name="ListaPagina" xml:space="preserve"><value>Pàgina {0} de {1}</value></data>
+  <data name="ListaMostrar" xml:space="preserve"><value>Mostra</value></data>
+  <data name="ListaResultadosUnidad" xml:space="preserve"><value>resultats</value></data>
+  <data name="ListaDocumentacion" xml:space="preserve"><value>Documentació</value></data>
+  <data name="ListaEstado" xml:space="preserve"><value>Estat</value></data>
 </root>

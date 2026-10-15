@@ -371,7 +371,7 @@ public partial class VisitasGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Norte"));
         var consultasAntes = mediator.ConsultasVisitas;
 
-        await cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent == "50").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        await cut.Find(".pie-lista-opciones select").ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "50" });
 
         cut.WaitForAssertion(() => mediator.ConsultasVisitas.Should().BeGreaterThan(consultasAntes));
         (mediator.ConsultasVisitas - consultasAntes).Should().Be(1,
@@ -1006,8 +1006,8 @@ public partial class VisitasGen2Tests : BunitContext
         var fila = Fila(cut, "Planta Zaragoza");
         fila.TextContent.Should().Contain("Cancelada");
         fila.QuerySelector("[title='Obra aplazada']").Should().NotBeNull("el motivo acompaña a la marca");
-        fila.QuerySelector(".visitas-celda-acciones a.boton-360-pagina").Should().NotBeNull("control positivo: la celda de acciones se pintó");
-        fila.QuerySelectorAll(".menu-acciones-disparador").Should().BeEmpty();
+        fila.QuerySelector(".visitas-celda-acciones .menu-acciones-disparador").Should().NotBeNull("control positivo: la celda de acciones se pintó");
+        fila.QuerySelectorAll(".menu-acciones-disparador").Should().ContainSingle();
         (BotonReactivarDeFila(cut, "Planta Zaragoza") is not null).Should().Be(seOfrece);
     }
 

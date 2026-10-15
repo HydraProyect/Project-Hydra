@@ -332,9 +332,9 @@ public partial class DocumentosGen2Tests : BunitContext
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty();
         cut.FindAll("tbody tr:has(button.enlace-nombre-fila)").Should().ContainSingle();
         var cabecera = cut.Find(".cabecera-pagina");
-        cabecera.QuerySelectorAll(".cabecera-pagina-kicker").Should().BeEmpty();
+        cabecera.QuerySelector(".cabecera-pagina-kicker")!.TextContent.Trim().Should().Be("Negocio");
         cabecera.QuerySelector("h1.titulo-pagina")!.TextContent.Trim().Should().Be("Documentos");
-        cabecera.QuerySelector(".cabecera-listado-contador")!.TextContent.Trim().Should().Be("1");
+        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("1");
     }
 
     /// <summary>
@@ -1235,7 +1235,7 @@ public partial class DocumentosGen2Tests : BunitContext
     {
         var (cut, mediador) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty();
-        PastillaDocumentoFase1(cut, "Ámbito").GetAttribute("aria-label").Should().Be("Ámbito");
+        PastillaDocumentoFase1(cut, "Ámbito").GetAttribute("aria-label").Should().Be("Ámbito: Todos");
         var franja = cut.Find(".franja-estado");
         franja.GetAttribute("role").Should().Be("group");
         franja.GetAttribute("aria-label").Should().Be("Filtrar por estado");
@@ -1274,7 +1274,7 @@ public partial class DocumentosGen2Tests : BunitContext
         var mediador = ConDocumentos(Enumerable.Range(1, 21).Select(i => Documento("Contrato " + i)).ToArray());
         var (cut, _) = Renderizar(mediador);
         var consultasAntes = mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Count();
-        cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent == "50").Click();
+        cut.Find(".pie-lista-opciones select").Change("50");
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().TamanoPagina.Should().Be(50);
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().HaveCount(consultasAntes + 1);
     }
@@ -1314,7 +1314,7 @@ public partial class DocumentosGen2Tests : BunitContext
     {
         var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila()));
 
-        cut.FindAll("table .menu-acciones-disparador").Should().BeEmpty();
+        cut.FindAll("table .menu-acciones-disparador").Should().NotBeEmpty();
         cut.Find(".cabecera-pagina .menu-acciones-disparador").Should().NotBeNull("control positivo: el menú «Más» de la cabecera sigue");
         cut.Find("tbody tr").ClassList.Should().Contain("fila-pulsable");
         cut.Find("tbody tr button.enlace-nombre-fila").ClassList.Should().Contain("nombre-abre-vista-rapida");
@@ -1350,7 +1350,7 @@ public partial class DocumentosGen2Tests : BunitContext
     {
         var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila()));
 
-        cut.Find("tbody a.boton-360-pagina").GetAttribute("href").Should().Be($"/documentos/tipos/{TipoId}");
+        AccionesListadoMaqueta.Enlace(cut, "tbody").GetAttribute("href").Should().Be($"/documentos/tipos/{TipoId}");
     }
 
     /// <summary>Un productor que no informe el tipo no pinta un enlace a ninguna parte.</summary>
@@ -1360,7 +1360,7 @@ public partial class DocumentosGen2Tests : BunitContext
         var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
 
         cut.Find("tbody .documentos-accion-rapida").Should().NotBeNull("control positivo: la celda de acciones está pintada");
-        cut.FindAll("tbody a.boton-360-pagina").Should().BeEmpty();
+        cut.FindAll("tbody .menu-acciones-disparador").Should().BeEmpty();
     }
 
     /// <summary>
@@ -1374,7 +1374,7 @@ public partial class DocumentosGen2Tests : BunitContext
         cut.Find("tbody tr button.enlace-nombre-fila").Should().NotBeNull("control positivo: la fila está pintada");
 
         cut.FindAll("tbody .documentos-accion-rapida").Should().BeEmpty();
-        cut.FindAll("tbody a.boton-360-pagina").Should().BeEmpty();
+        cut.FindAll("tbody .menu-acciones-disparador").Should().BeEmpty();
 
         var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;
         await cut.InvokeAsync(() => atajos.OnAtajo.InvokeAsync("j"));
@@ -1472,7 +1472,7 @@ public partial class DocumentosGen2Tests : BunitContext
         var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico"), Documento("Formación PRL")),
             url: "documentos?Estado=Vencido");
 
-        cut.Find(".cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("2");
+        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("2");
     }
 
     // QuickGrid: eventos nativos de opciones/cabecera; las aserciones decisivas observan ObtenerDocumentosQuery.
@@ -1525,7 +1525,7 @@ public partial class DocumentosGen2Tests : BunitContext
         m.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty();
         var filas = cut.FindAll("tbody tr:has(button.enlace-nombre-fila)");
         filas.Should().HaveCount(3);
-        cut.Find(".cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("3");
+        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("3");
         var celda = filas[0].QuerySelectorAll("td").Single(td => td.TextContent.Contains(vencido.PropietarioNombre));
         celda.TextContent.Should().Contain("Cliente").And.NotContain("Cliente empresarial");
         filas[0].TextContent.Should().Contain(vencido.FechaEmision.ToString("dd/MM/yyyy"))

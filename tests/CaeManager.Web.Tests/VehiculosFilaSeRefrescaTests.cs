@@ -122,7 +122,7 @@ public partial class VehiculosFilaSeRefrescaTests : BunitContext
         Services.AddScoped<IValidator<CrearVehiculoCommand>>(_ => new InlineValidator<CrearVehiculoCommand>());
         Services.GetRequiredService<NavigationManager>().NavigateTo(url);
         var cut = Render<Vehiculos>();
-        cut.WaitForState(() => cut.FindAll("tbody a.boton-360-pagina").Count > 0);
+        cut.WaitForState(() => cut.FindAll("tbody .menu-acciones-disparador").Count > 0);
         return cut;
     }
 
@@ -153,7 +153,7 @@ public partial class VehiculosFilaSeRefrescaTests : BunitContext
 
     private static async Task IrALaPagina2Async(IRenderedComponent<Vehiculos> cut)
     {
-        await cut.FindAll(".paginador-simple button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => Nombres(cut).Should().HaveCount(5).And.StartWith("Vehículo 21"));
     }
 
@@ -204,7 +204,7 @@ public partial class VehiculosFilaSeRefrescaTests : BunitContext
         cut.WaitForAssertion(() => Nombres(cut).Should().Equal(
             "Vehículo 21", "Vehículo 22", "Renombrado", "Vehículo 24", "Vehículo 25"));
         ComprobacionPieListado.Pagina(cut, 2, 2);
-        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 5 de 25");
+        cut.Find(".paginador-texto").TextContent.Should().EndWith("Mostrando 5 de 25");
         Filas(cut).Select(tr => tr.QuerySelector("input[type=checkbox]")!.HasAttribute("checked")).Should().Equal(
             [false, true, true, false, false], "la selección sigue marcada, también la de la fila sustituida");
         Filas(cut).Select(tr => tr.ClassList.Contains("fila-enfocada")).Should().Equal(true, false, false, false, false);

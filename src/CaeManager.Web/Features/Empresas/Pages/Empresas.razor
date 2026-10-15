@@ -37,12 +37,12 @@
        el icono ⤓ de exportación de la vista filtrada (lectura: cualquier rol) y UNA acción primaria. El título lo sigue decidiendo el perfil de vocabulario del
        Tenant («Empresas», o «Mi empresa» con el perfil ClienteDirecto).
 
-       Sin antetítulo («Negocio» ya está en las migas) y sin el rótulo de la empresa gestionada:
+       Con antetítulo de grupo y sin el rótulo de la empresa gestionada:
        el selector de la barra lateral ya dice cuál es. El estado vacío sin empresa elegida (4a)
        sigue más abajo. *@
     @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
     {
-        <CabeceraListado Titulo="@_tituloPagina" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
+        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@_tituloPagina" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
                          RutaExportar="/empresas/exportar.xlsx" CriteriosExportar="CriteriosExportar">
             <Menu>
@@ -64,7 +64,7 @@
     }
     else
     {
-        <CabeceraListado Titulo="@_tituloPagina" />
+        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@_tituloPagina" />
     }
 
     @if (_resolviendoEmpresa)
@@ -88,13 +88,15 @@
          dice los dos.
        - El estado documental es el peor estado de vigencia de los documentos de la Empresa; viaja
          en la URL como «estado». *@
-    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
+    <BarraFiltros PresentacionMaqueta="true" Contador="@(_cargando || _errorCarga ? null : _totalElementos)" SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
                   OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
                   VistaRecordada="_vistaRecordada">
         @* Sin pastillas desde que el estado se filtra en la franja; el fragmento vacío mantiene la barra en modo pastillas. *@
-        <Pastillas></Pastillas>
+        <Pastillas>
+            <FranjaEstado PresentacionCampo="true" Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                  Recuentos="_recuentosPorEstado" TextoTodos="@Textos["ListaFiltroTodas"]" /></Pastillas>
         <Herramientas>
             @if (_elementosPagina.Count > 0)
             {
@@ -124,11 +126,10 @@
                                OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Empresas"
                              ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
-    @* Franja de estado: sustituye a la pastilla «Documentación». Admite varios estados a la vez, viaja en la
+    @* Selector desplegable de estado: conserva la semántica de la franja para «Documentación». Admite varios estados a la vez, viaja en la
        URL como «estado» (estados de código separados por coma) y cada botón dice cuántas filas hay, con los
        demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
-    <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
-                  Recuentos="_recuentosPorEstado" TextoTodos="@Textos["ListaFiltroTodas"]" />
+
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -201,7 +202,7 @@
         @* Marco de la lista del mockup: una sola tarjeta con la cabecera de
            columnas arriba y las filas separadas por una línea, en vez de una
            tarjeta suelta por Empresa. *@
-        @TarjetaListado.Renderizar(@<text>
+        @TarjetaListado.RenderizarMaqueta(@<text>
             <div class="marco-lista-empresas">
             @* Cabecera de columnas (#498). Sin roles de tabla a propósito: esto no
                es una tabla —la fila se despliega— y anunciarlo como tal prometería
@@ -330,9 +331,9 @@
                                «Vista rápida» es el clic en la fila; «Abrir Empresa 360», este icono;
                                «Detección de trabajadores», la pastilla de la columna Detecciones (misma
                                condición: solo con detecciones pendientes); «Eliminar», la selección
-                               múltiple (☑ de la cabecera o tecla «x»). *@
+                               múltiple (botón de la barra o tecla «x»). *@
                             <div class="tarjeta-fila-acordeon-acciones">
-                                <Boton360 Nombre="@empresa.RazonSocial" Href="@($"/empresas/{empresa.Id}")" />
+                                <Boton360 PresentacionMenu="true" Nombre="@empresa.RazonSocial" Href="@($"/empresas/{empresa.Id}")" />
                             </div>
                         </div>
                         @if (expandido)
@@ -402,7 +403,7 @@
     }
     @if (!_errorCarga && !_cargando && _elementosPagina.Count == 0)
     {
-        @TarjetaListado.Renderizar(null, PieDelListado)
+        @TarjetaListado.RenderizarMaqueta(null, PieDelListado)
     }
     }
 </div>
@@ -454,7 +455,7 @@
     private RenderFragment PieDelListado => @<text>
         @if (!_errorCarga && (!_cargando || _totalElementos > 0))
         {
-            <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+            <PaginadorSimple PresentacionMaqueta="true" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
                                   TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
                     <Centro><LeyendaAtajosLista /></Centro>

@@ -235,9 +235,8 @@ public class EmpresasVacioPorFiltroTests : BunitContext
         var cut = Renderizar(empresas: new EmpresaListaDto(
             Guid.NewGuid(), "Montajes Ebro S.L.", "B-48.220.917", DateTime.UtcNow, null, null, 0));
 
-        cut.FindAll(".lista-filas-acordeon a.boton-360-pagina").Should().ContainSingle(
+        cut.FindAll(".lista-filas-acordeon .menu-acciones-disparador").Should().ContainSingle(
             "la fila pintada es la barrera que hace válida la comprobación siguiente");
-        cut.FindAll(".lista-filas-acordeon .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
         cut.FindAll(".badge-deteccion").Should().BeEmpty();
     }
 

@@ -194,7 +194,7 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
         var cut = Renderizar(trabajadores: new TrabajadorListaDto(
             id, "Javier", "Salas Moreno", "12345678Z", "Montajes Ebro S.L."));
 
-        cut.Find("tbody a.boton-360-pagina").GetAttribute("href").Should().Be($"/trabajadores/{id}");
+        AccionesListadoMaqueta.Enlace(cut, "tbody").GetAttribute("href").Should().Be($"/trabajadores/{id}");
         cut.Find("tbody button.nombre-abre-vista-rapida").TextContent.Trim().Should().Be("Javier Salas Moreno",
             "el destino nuevo se suma, no sustituye a la vista rápida");
     }
@@ -218,7 +218,7 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
         // D-15: sin alcance no hay lista que filtrar, guardar ni exportar.
         cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty("filtros y «Guardar filtro» sobre una lista que no puede existir");
         cut.FindAll("header.cabecera-pagina a[data-keytip=X]").Should().BeEmpty("sin alcance no se ofrece exportar una lista que no puede existir");
-        cut.FindAll("header.cabecera-pagina button.cabecera-listado-icono[aria-pressed]").Should().BeEmpty("sin lista no hay nada que seleccionar");
+        cut.FindAll(".lista-herramientas-maqueta button[aria-pressed]").Should().BeEmpty("sin lista no hay nada que seleccionar");
     }
 
     [Fact]

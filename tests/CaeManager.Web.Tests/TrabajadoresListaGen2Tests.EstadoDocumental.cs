@@ -297,19 +297,17 @@ public partial class TrabajadoresListaGen2Tests
     // --- Registrados vigentes -----------------------------------------------------------------
 
     [Fact]
-    public void Registrados_vigentes_dice_cuantos_de_los_registrados_estan_al_dia_y_una_raya_si_no_hay_ninguno()
+    public void La_tabla_de_la_maqueta_no_anade_la_columna_de_registrados_vigentes()
     {
         var conDocumentos = ConDesglose(Trabajador("Ana", "Alonso", estado: EstadoDocumento.Vencido), 10, 8,
             IncidenciaDe("Aptitud médica", EstadoDocumento.Vencido, -1), IncidenciaDe("Contrato", EstadoDocumento.Vencido, -2));
         var sinDocumentos = Trabajador("Bea", "Moreno", estado: null);
         var cut = Renderizar(new MediatorFalso { Almacen = { conDocumentos, sinDocumentos } });
 
-        var celdas = FilasDeDatos(cut).Select(tr => tr.QuerySelector("td.col-registrados-vigentes .celda-registrados-vigentes")!).ToList();
-
-        celdas.Select(c => c.TextContent.Trim()).Should().Equal("8/10", "—");
-        celdas[0].QuerySelector(".barra-cumplimiento")!.GetAttribute("aria-label").Should().Be("8 de 10 documentos registrados al día");
-        celdas[0].QuerySelector(".barra-cumplimiento-relleno")!.GetAttribute("style").Should().Be("width:80%");
-        celdas[1].QuerySelector(".barra-cumplimiento-sin-universo").Should().NotBeNull("sin documentos registrados no hay fracción que pintar");
+        FilasDeDatos(cut).Should().HaveCount(2);
+        cut.FindAll("td.col-registrados-vigentes, th.col-registrados-vigentes").Should().BeEmpty();
+        cut.FindAll("thead th").Select(th => th.TextContent.Trim())
+            .Should().Equal("Nombre", "DNI", "Empresa / Subcontrata", "Documentación", "");
     }
 
     // --- Filtro «Centro» ----------------------------------------------------------------------

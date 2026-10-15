@@ -363,7 +363,7 @@ public partial class ProyectosGen2Tests : BunitContext
         _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];
         var cut = await RenderizarConClienteAsync();
 
-        cut.FindAll("tbody .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
+        cut.FindAll("tbody .menu-acciones-disparador").Should().NotBeEmpty();
         cut.FindAll("tbody tr").Should().OnlyContain(f => f.ClassList.Contains("fila-pulsable"));
         PanelDeDetalleAbierto(cut).Should().BeFalse();
 
@@ -397,10 +397,9 @@ public partial class ProyectosGen2Tests : BunitContext
         _mediator.Proyectos = [ProyectoAbierto];
         var cut = await RenderizarConClienteAsync();
 
-        // El enlace corta su clic y no tiene manejador propio: bUnit lo dice con esta excepción
-        // —«nadie recibe este clic»—, que es justo la propiedad. Sin el corte llegaría a la fila.
-        var clic = () => FilaDe(cut, ProyectoAbierto).QuerySelector("a.boton-360-pagina")!.ClickAsync(new MouseEventArgs());
-        await clic.Should().ThrowAsync<MissingEventHandlerException>();
+        // El enlace cierra el menú sin propagar la apertura de la vista rápida.
+        var clic = () => AccionesListadoMaqueta.Enlace(FilaDe(cut, ProyectoAbierto)).ClickAsync(new MouseEventArgs());
+        await clic();
 
         PanelDeDetalleAbierto(cut).Should().BeFalse("el enlace 360 lleva a la página, no al panel");
         _mediator.Enviados.OfType<ObtenerProyectoPorIdQuery>().Should().BeEmpty();
@@ -759,9 +758,9 @@ public partial class ProyectosGen2Tests : BunitContext
         var cut = await RenderizarConClienteAsync();
         var destino = $"/proyectos/{ProyectoCerrado.Id}";
 
-        var enlaceDeLaFila = FilaDe(cut, ProyectoCerrado).QuerySelector("a.boton-360-pagina")!;
+        var enlaceDeLaFila = AccionesListadoMaqueta.Enlace(FilaDe(cut, ProyectoCerrado));
         enlaceDeLaFila.GetAttribute("href").Should().Be(destino);
-        enlaceDeLaFila.GetAttribute("aria-label").Should().Contain(ProyectoCerrado.Nombre, "con un icono por fila, el nombre accesible dice cuál abre");
+        FilaDe(cut, ProyectoCerrado).QuerySelector(".menu-acciones-disparador")!.GetAttribute("aria-label").Should().Contain(ProyectoCerrado.Nombre);
 
         await AbrirDetalle(cut, ProyectoCerrado);
         cut.Find("aside.panel-proyecto .cabecera-panel-proyecto a.boton-360-pagina").GetAttribute("href").Should().Be(destino);

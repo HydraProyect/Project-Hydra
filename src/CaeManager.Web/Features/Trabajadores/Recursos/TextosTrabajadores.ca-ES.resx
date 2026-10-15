@@ -634,7 +634,7 @@
     <value>Filtra aquesta pantalla: nom, DNI o àlies</value>
   </data>
   <data name="ListaColumnaTrabajador" xml:space="preserve">
-    <value>Treballador</value>
+    <value>Nom</value>
   </data>
   <data name="ListaOpcionSubcontrata" xml:space="preserve">
     <value>{0} (subcontracta)</value>
@@ -661,7 +661,7 @@
     <value>Edita (e)</value>
   </data>
   <data name="ListaColumnaEstadoDocumental" xml:space="preserve">
-    <value>Estat documental</value>
+    <value>Documentació</value>
   </data>
   <data name="ListaColumnaRegistradosVigentes" xml:space="preserve">
     <value>Registrats vigents</value>
@@ -714,4 +714,6 @@
   <data name="FichaErrorGuardar" xml:space="preserve"><value>No s’ha pogut desar la fitxa. Torna-ho a provar.</value></data>
   <data name="FichaCopiarDato" xml:space="preserve"><value>Copia la dada</value></data>
   <data name="FichaFechaInvalida" xml:space="preserve"><value>Introdueix una data vàlida.</value></data>
+  <data name="ListaColumnaDni" xml:space="preserve"><value>Document d’identitat</value></data>
+  <data name="ListaColumnaEmpleador" xml:space="preserve"><value>Empresa / Subcontracta</value></data>
 </root>

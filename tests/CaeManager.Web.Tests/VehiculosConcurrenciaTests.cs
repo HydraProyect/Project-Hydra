@@ -105,7 +105,7 @@ public class VehiculosConcurrenciaTests : BunitContext
         Services.AddScoped<IValidator<CrearVehiculoCommand>>(_ => new InlineValidator<CrearVehiculoCommand>());
         Services.GetRequiredService<NavigationManager>().NavigateTo("vehiculos");
         var cut = Render<Vehiculos>();
-        cut.WaitForState(() => cut.FindAll("tbody a.boton-360-pagina").Count > 0);
+        cut.WaitForState(() => cut.FindAll("tbody .menu-acciones-disparador").Count > 0);
         return (cut, m);
     }
 
@@ -149,9 +149,9 @@ public class VehiculosConcurrenciaTests : BunitContext
         var (cut, _) = Renderizar(furgoneta);
         var workspace = Services.GetRequiredService<ContextWorkspaceService>();
 
-        cut.FindAll("tbody .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
+        cut.FindAll("tbody .menu-acciones-disparador").Should().NotBeEmpty();
         cut.Find("tbody tr").ClassList.Should().Contain("fila-pulsable");
-        cut.Find("tbody a.boton-360-pagina").GetAttribute("href").Should().Be($"/vehiculos/{furgoneta.Id}");
+        AccionesListadoMaqueta.Enlace(cut, "tbody").GetAttribute("href").Should().Be($"/vehiculos/{furgoneta.Id}");
         workspace.FrameActual.Should().BeNull("punto de partida: ningún panel abierto");
 
         var nombre = cut.Find("tbody button.nombre-abre-vista-rapida");
@@ -403,7 +403,7 @@ public class VehiculosConcurrenciaTests : BunitContext
         m.Enviadas.OfType<ObtenerVehiculosQuery>().Should().NotBeEmpty();
         var filas = cut.FindAll("tbody tr:has(button.enlace-nombre-fila)");
         filas.Should().HaveCount(3);
-        cut.Find(".cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("3");
+        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("3");
         filas[0].QuerySelectorAll("td").Single(td => td.TextContent.Contains(vencido.Nombre))
             .TextContent.Should().Contain(vencido.Modelo);
         filas[0].TextContent.Should().Contain(vencido.NumeroPlaca);

@@ -273,7 +273,7 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
         var (cut, mediador) = RenderizarConMediador(vehiculos: Enumerable.Range(1, 21)
             .Select(i => new VehiculoListaDto(Guid.NewGuid(), "Vehículo " + i, "Transit", "Placa " + i, "Montajes Ebro S.L.")).ToArray());
         var consultasAntes = ConsultasDeLista(mediador);
-        cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent == "50").Click();
+        cut.Find(".pie-lista-opciones select").Change("50");
         mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Last().TamanoPagina.Should().Be(50);
         (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
             "avisar a la paginación y refrescar la rejilla son dos formas de pedir lo mismo");
