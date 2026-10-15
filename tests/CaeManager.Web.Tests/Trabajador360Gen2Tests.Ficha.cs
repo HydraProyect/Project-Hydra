@@ -48,7 +48,8 @@ public partial class Trabajador360Gen2Tests
             FiguraEnRnt = "Sí, desde mayo de 2023",
             TipoPermisoTrabajo = "Residencia y trabajo por cuenta ajena",
             CaducidadPermisoTrabajo = new(2027, 2, 18),
-            MotivoPermisoTrabajo = "Se identifica con NIE"
+            MotivoPermisoTrabajo = "Se identifica con NIE",
+            PermisoTrabajoVisible = true
         };
         var cut = Renderizar(id); await AbrirPestanaAsync(cut, "Ficha");
         cut.FindComponent<CajasFicha>().Instance.Cajas.Select(c => c.Clave).Should().Equal("altas-plataforma", "vinculo-empresa", "permiso-trabajo");
@@ -60,6 +61,24 @@ public partial class Trabajador360Gen2Tests
         cut.Find(".cajas-ficha").TextContent.Should().Contain("41 1234567 89").And.Contain("Colombiana")
             .And.Contain("02/05/2023").And.Contain("Sí, desde mayo de 2023").And.Contain("18/02/2027").And.Contain("Se identifica con NIE");
         cut.FindAll("[data-caja='vinculo-empresa'] dd")[2].TextContent.Trim().Should().Be("Sigue de alta", "la maqueta lo rotula así cuando hay alta y no baja");
+    }
+
+    // Decisión del 2026-10-15: al Usuario de Cliente el servidor no le manda el permiso de trabajo
+    // (PermisoTrabajoVisible = false); la pantalla retira la caja entera en vez de pintarla vacía.
+    [Fact]
+    public async Task Sin_permiso_de_trabajo_visible_la_ficha_no_pinta_su_caja_y_conserva_afiliacion_y_vinculo()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        m.Detalles[id] = m.Detalles[id] with
+        {
+            NumeroAfiliacionSeguridadSocial = "41123456789",
+            TipoVinculo = "Plantilla",
+            PermisoTrabajoVisible = false
+        };
+        var cut = Renderizar(id); await AbrirPestanaAsync(cut, "Ficha");
+        cut.FindComponent<CajasFicha>().Instance.Cajas.Select(c => c.Clave).Should().Equal("altas-plataforma", "vinculo-empresa");
+        cut.FindAll("[data-caja='permiso-trabajo']").Should().BeEmpty();
+        cut.Find(".cajas-ficha").TextContent.Should().Contain("41 1234567 89").And.Contain("Plantilla");
     }
 
     [Fact]

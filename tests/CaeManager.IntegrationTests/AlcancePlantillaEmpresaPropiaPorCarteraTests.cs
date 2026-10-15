@@ -128,7 +128,8 @@ public class AlcancePlantillaEmpresaPropiaPorCarteraTests : IAsyncLifetime
     private async Task<TrabajadorDetalleDto?> DetalleAsync(Guid usuarioId, string rol, Guid tenant, Guid trabajadorId)
     {
         await using var contexto = CrearContexto(tenant);
-        var handler = new ObtenerTrabajadorPorIdQueryHandler(contexto, contexto, CrearServicio(contexto, usuarioId, rol, tenant));
+        var handler = new ObtenerTrabajadorPorIdQueryHandler(contexto, contexto, CrearServicio(contexto, usuarioId, rol, tenant),
+            PoliticaNotaInternaPruebas.Con(rol));
         return await handler.Handle(new ObtenerTrabajadorPorIdQuery(trabajadorId), CancellationToken.None);
     }
 
