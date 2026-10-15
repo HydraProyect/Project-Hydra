@@ -1,8 +1,11 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Plantillas;
+using CaeManager.Application.Trabajadores.Commands.EditarFichaTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Trabajadores;
@@ -43,7 +46,7 @@ public class ObtenerFichaTrabajadorTests
     }
 
     private static (Trabajador Trabajador, ObtenerTrabajadorPorIdQueryHandler Handler) ConFichaCompleta(
-        Application.Common.IPoliticaNotaInterna politica)
+        IPoliticaNotaInterna politica)
     {
         var empresa = new Empresa("Montajes", "B12345674");
         var t = Trabajador.DeEmpresa(empresa.Id, "Paula", "Campos", "12345678Z");
@@ -92,6 +95,27 @@ public class ObtenerFichaTrabajadorTests
         dto.TipoPermisoTrabajo.Should().Be("Residencia y trabajo por cuenta ajena");
         dto.CaducidadPermisoTrabajo.Should().Be(new DateOnly(2027, 2, 18));
         dto.MotivoPermisoTrabajo.Should().Be("Se identifica con NIE");
+    }
+
+    /// <summary>
+    /// La ficha es read-modify-write: el Drawer de edición precarga el permiso desde este DTO y
+    /// <c>EditarFichaTrabajadorCommand</c> lo reescribe entero. Quien puede guardar la ficha tiene que recibir el
+    /// permiso al leer; si no, «Guardar» lo borraría sin haberlo visto. Rol a rol de la lista real de
+    /// <c>AutorizacionEscrituraBehavior</c>: un rol de escritura nuevo que esta consulta no entregue pone el test en rojo.
+    /// </summary>
+    [Fact]
+    public async Task Todo_rol_que_puede_guardar_la_ficha_recibe_el_permiso_de_trabajo_al_leer()
+    {
+        var rolesConEscritura = AutorizacionEscrituraBehavior<EditarFichaTrabajadorCommand, Result>.RolesConEscritura;
+        rolesConEscritura.Should().NotBeEmpty("con la lista real vacía, el bucle de abajo no mediría nada");
+
+        foreach (var rol in rolesConEscritura)
+        {
+            var (t, handler) = ConFichaCompleta(PoliticaNotaInternaPruebas.Con(rol));
+            var dto = await handler.Handle(new(t.Id), CancellationToken.None);
+            dto!.PermisoTrabajoVisible.Should().BeTrue($"el rol {rol} puede guardar la ficha y la reescribe entera");
+            dto.MotivoPermisoTrabajo.Should().Be("Se identifica con NIE", $"el rol {rol} puede guardar la ficha");
+        }
     }
 
     [Fact]
