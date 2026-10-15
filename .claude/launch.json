@@ -6,6 +6,12 @@
       "runtimeExecutable": "dotnet",
       "runtimeArgs": ["run", "--no-build", "--project", "src/CaeManager.Web", "--launch-profile", "http"],
       "port": 5186
+    },
+    {
+      "name": "talveg-piloto-local",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "C:\\Users\\chris\\AppData\\Local\\Temp\\claude\\C--Users-chris-Project-Hydra--claude-worktrees-talveg-gsm-pilot-outbound-d28244\\adb1306a-bca0-448d-8fc3-3f3d7416a1c8\\scratchpad\\run-piloto.ps1"],
+      "port": 5241
     }
   ]
 }
