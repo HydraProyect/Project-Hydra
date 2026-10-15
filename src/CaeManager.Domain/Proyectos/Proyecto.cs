@@ -22,6 +22,10 @@ namespace CaeManager.Domain.Proyectos;
 /// <see cref="FechaCierreReal"/>. FechaFinPrevista es la vigencia
 /// contratada (null = indefinida); FechaCierreReal es el cierre real,
 /// independiente de si la vigencia prevista ya venció.
+///
+/// <see cref="Tipo"/> distingue la obra de siempre de un <see cref="TipoProyecto.Evento"/>: un evento tiene
+/// siempre fecha de fin (FechaFinPrevista obligatoria) y está terminado en cuanto se cierra o pasa esa fecha
+/// (<see cref="EventoTerminadoEn"/>). El tipo se fija al crear y no cambia.
 /// </summary>
 public class Proyecto : EntidadBase
 {
@@ -30,6 +34,7 @@ public class Proyecto : EntidadBase
 
     public Guid ClienteId { get; private set; }
     public Guid CentroId { get; private set; }
+    public TipoProyecto Tipo { get; private set; } = TipoProyecto.Obra;
     public string Nombre { get; private set; } = string.Empty;
     public DateOnly FechaInicio { get; private set; }
     public DateOnly? FechaFinPrevista { get; private set; }
@@ -38,21 +43,35 @@ public class Proyecto : EntidadBase
 
     public bool EstaAbierto => FechaCierreReal is null;
 
+    public bool EsEvento => Tipo == TipoProyecto.Evento;
+
+    /// <summary>
+    /// Un evento terminado es uno cerrado o cuya fecha de fin ya pasó (el último día cuenta como vigente).
+    /// Una obra nunca está «terminada» en este sentido: su cierre sigue siendo <see cref="FechaCierreReal"/>.
+    /// La consulta de Trabajadores del Centro repite esta expresión en LINQ traducible a SQL.
+    /// </summary>
+    public bool EventoTerminadoEn(DateOnly hoy) =>
+        EsEvento && (FechaCierreReal is not null || FechaFinPrevista < hoy);
+
     private Proyecto()
     {
     }
 
     public static Proyecto Crear(
-        Guid clienteId, Guid centroId, string nombre, DateOnly fechaInicio, DateOnly? fechaFinPrevista, string? notas)
+        Guid clienteId, Guid centroId, string nombre, DateOnly fechaInicio, DateOnly? fechaFinPrevista, string? notas,
+        TipoProyecto tipo = TipoProyecto.Obra)
     {
+        if (!Enum.IsDefined(tipo))
+            throw new ArgumentException("Tipo de proyecto no válido.", nameof(tipo));
         if (clienteId == Guid.Empty)
             throw new ArgumentException("El proyecto debe pertenecer a un cliente.", nameof(clienteId));
         if (centroId == Guid.Empty)
             throw new ArgumentException("El proyecto debe pertenecer a un centro.", nameof(centroId));
         if (fechaFinPrevista is not null && fechaFinPrevista < fechaInicio)
             throw new ArgumentException("La fecha de fin prevista no puede ser anterior a la de inicio.", nameof(fechaFinPrevista));
+        ExigirFinSiEsEvento(tipo, fechaFinPrevista);
 
-        var proyecto = new Proyecto { ClienteId = clienteId, CentroId = centroId, FechaInicio = fechaInicio };
+        var proyecto = new Proyecto { ClienteId = clienteId, CentroId = centroId, FechaInicio = fechaInicio, Tipo = tipo };
         proyecto.EstablecerNombre(nombre);
         proyecto.FechaFinPrevista = fechaFinPrevista;
         proyecto.EstablecerNotas(notas);
@@ -63,6 +82,7 @@ public class Proyecto : EntidadBase
     {
         if (fechaFinPrevista is not null && fechaFinPrevista < FechaInicio)
             throw new ArgumentException("La fecha de fin prevista no puede ser anterior a la de inicio.", nameof(fechaFinPrevista));
+        ExigirFinSiEsEvento(Tipo, fechaFinPrevista);
 
         EstablecerNombre(nombre);
         FechaFinPrevista = fechaFinPrevista;
@@ -82,6 +102,12 @@ public class Proyecto : EntidadBase
     public void Reabrir()
     {
         FechaCierreReal = null;
+    }
+
+    private static void ExigirFinSiEsEvento(TipoProyecto tipo, DateOnly? fechaFinPrevista)
+    {
+        if (tipo == TipoProyecto.Evento && fechaFinPrevista is null)
+            throw new ArgumentException("Un evento necesita fecha de fin.", nameof(fechaFinPrevista));
     }
 
     private void EstablecerNombre(string nombre)

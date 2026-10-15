@@ -79,7 +79,7 @@ public class CaeManagerDbContext(
         ITrabajadoresQueryContext, ITiposDocumentoQueryContext, IDocumentosQueryContext, IDocumentosIaQueryContext,
         INotificacionesQueryContext, IAsignacionesQueryContext, IVisitasQueryContext, IVehiculosQueryContext,
         IConfiguracionQueryContext, IAuditoriaQueryContext, ITenantsQueryContext,
-        IFacturacionQueryContext, IProyectosQueryContext, IRetencionQueryContext,
+        IFacturacionQueryContext, IProyectosQueryContext, IRequisitosEventoQueryContext, IRetencionQueryContext,
         IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext, IIntegracionesQueryContext,
         IGestionesQueryContext, IProveedoresPlataformaCaeQueryContext, IReclamacionesQueryContext,
         ITelemetriaQueryContext, CaeManager.Application.Contactos.IContactosAgendaQueryContext,
@@ -224,6 +224,12 @@ public class CaeManagerDbContext(
     IQueryable<Proyecto> IProyectosQueryContext.Proyectos => Proyectos;
     public DbSet<ProyectoTecnico> ProyectosTecnicos => Set<ProyectoTecnico>();
     IQueryable<ProyectoTecnico> IProyectosQueryContext.ProyectosTecnicos => ProyectosTecnicos;
+    public DbSet<ProyectoRequisito> ProyectosRequisitos => Set<ProyectoRequisito>();
+    IQueryable<ProyectoRequisito> IRequisitosEventoQueryContext.ProyectosRequisitos => ProyectosRequisitos;
+    public DbSet<PlantillaRequisitosEvento> PlantillasRequisitosEvento => Set<PlantillaRequisitosEvento>();
+    IQueryable<PlantillaRequisitosEvento> IRequisitosEventoQueryContext.PlantillasRequisitosEvento => PlantillasRequisitosEvento;
+    public DbSet<PlantillaRequisitosEventoTipo> PlantillasRequisitosEventoTipos => Set<PlantillaRequisitosEventoTipo>();
+    IQueryable<PlantillaRequisitosEventoTipo> IRequisitosEventoQueryContext.PlantillasRequisitosEventoTipos => PlantillasRequisitosEventoTipos;
     public DbSet<DelegacionTenant> DelegacionesTenant => Set<DelegacionTenant>();
     IQueryable<DelegacionTenant> ITenantsQueryContext.DelegacionesTenant => DelegacionesTenant;
     public DbSet<CaeManager.Domain.Soporte.RegistroActividadSoporte> RegistrosActividadSoporte => Set<CaeManager.Domain.Soporte.RegistroActividadSoporte>();

@@ -174,6 +174,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "IEmpresasQueryContext"),
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "ISubcontratasQueryContext"),
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "ITrabajadoresQueryContext"),
+        // Quien entra en un Centro por un evento vigente (Proyecto de tipo Evento) figura sin Asignación (2026-10-15).
+        ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "IProyectosQueryContext"),
         // Documentación por Empresa empleadora en un Centro: Asignaciones activas, titulares visibles,
         // documentos operativos y umbrales. Requisitos y tolerancias reutilizan su lectura autorizada.
         ("Centros.ObtenerDocumentacionEmpresasDeCentroQueryHandler", "IAsignacionesQueryContext"),
@@ -505,6 +507,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Plataforma.AbrirSesionPrivilegiadaCommandHandler", "ITenantsQueryContext"),
         ("Proyectos.AsignarTecnicoProyectoCommandHandler","ITrabajadoresQueryContext"),
         ("Proyectos.CrearProyectoCommandHandler", "ICentrosQueryContext"),
+        // Requisitos documentales de un evento: el Tipo de Documento se valida y se nombra desde su lectura.
+        ("Proyectos.AnadirRequisitoEventoCommandHandler", "ITiposDocumentoQueryContext"),
+        ("Proyectos.ObtenerRequisitosEventoQueryHandler", "ITiposDocumentoQueryContext"),
         ("Proyectos.ObtenerProyectoPorIdQueryHandler", "ICentrosQueryContext"),
         ("Proyectos.ObtenerProyectoPorIdQueryHandler", "IClientesQueryContext"),
         ("Proyectos.ObtenerProyectoPorIdQueryHandler", "IDocumentosQueryContext"),

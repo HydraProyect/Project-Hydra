@@ -50,6 +50,10 @@
                 {
                     <Badge Tono="TonoBadge.Neutro">@Textos["EstadoCerradoConFecha", _detalle.FechaCierreReal!]</Badge>
                 }
+                @if (EsEvento)
+                {
+                    <Badge Tono="TonoBadge.Info">@Textos["BadgeEvento"]</Badge>
+                }
             </JuntoAlTitulo>
             <Datos>
                 <span class="proyecto360-meta">
@@ -133,6 +137,52 @@
                         </ChildContent>
                     </Tarjeta>
 
+                    @if (EsEvento)
+                    {
+                        @* Lo que el evento pide a quien entra; se copió de una plantilla o de otro evento al crearlo. *@
+                        <Tarjeta Titulo="@Textos["TituloRequisitosEvento"]" Compacta="true">
+                            @if (_errorRequisitosEvento)
+                            {
+                                <EstadoVacio Titulo="@Textos["ErrorRequisitosEvento"]" />
+                            }
+                            else if (_requisitosEvento.Count == 0)
+                            {
+                                <p class="proyecto360-requisitos-vacio">@Textos["VacioRequisitosEvento"]</p>
+                            }
+                            else
+                            {
+                                <ul class="proyecto360-requisitos" aria-label="@Textos["TituloRequisitosEvento"]">
+                                    @foreach (var requisito in _requisitosEvento)
+                                    {
+                                        <li>
+                                            <span>@requisito.Nombre</span>
+                                            <SoloConEscritura>
+                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoRequisito"
+                                                       aria-label="@Textos["QuitarRequisitoAria", requisito.Nombre]"
+                                                       OnClick="() => QuitarRequisitoEventoAsync(requisito.TipoDocumentoId)">@Textos["AccionQuitar"]</Boton>
+                                            </SoloConEscritura>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                            <SoloConEscritura>
+                                <CampoSelect Etiqueta="@Textos["EtiquetaAnadirRequisito"]" Valor="@_tipoDocumentoAAnadir" ValorChanged="v => _tipoDocumentoAAnadir = v">
+                                    <option value="">@Textos["OpcionElegirTipoDocumento"]</option>
+                                    @foreach (var tipo in TiposDocumentoAnadibles)
+                                    {
+                                        <option value="@tipo.Id">@tipo.Nombre</option>
+                                    }
+                                </CampoSelect>
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_guardandoRequisito" OnClick="AnadirRequisitoEventoAsync">@Textos["AccionAnadirRequisito"]</Boton>
+                                @if (_requisitosEvento.Count > 0)
+                                {
+                                    <CampoTexto Etiqueta="@Textos["EtiquetaNombrePlantilla"]" Valor="@_nombrePlantilla" ValorChanged="v => _nombrePlantilla = v" />
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_guardandoRequisito" OnClick="GuardarPlantillaRequisitosAsync">@Textos["AccionGuardarPlantilla"]</Boton>
+                                }
+                            </SoloConEscritura>
+                        </Tarjeta>
+                    }
+
                     @if (_detalle.NotaInternaVisible)
                     {
                     <NotaInterna Texto="@_detalle.Notas">
@@ -157,7 +207,7 @@
                  TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
     <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_editNombre" ValorChanged="v => _editNombre = v"
                 MensajeError="@(_editErrores.GetValueOrDefault("Nombre"))" />
-    <CampoTexto Etiqueta="@Textos["EtiquetaFinPrevistoOpcional"]" Type="date" Valor="@_editFechaFinPrevista" ValorChanged="v => _editFechaFinPrevista = v" />
+    <CampoTexto Etiqueta="@(EsEvento ? Textos["EtiquetaFinEvento"] : Textos["EtiquetaFinPrevistoOpcional"])" Type="date" Valor="@_editFechaFinPrevista" ValorChanged="v => _editFechaFinPrevista = v" />
     <CampoTexto Etiqueta="@Textos["EtiquetaNotas"]" Valor="@_editNotas" ValorChanged="v => _editNotas = v"
                 MensajeError="@(_editErrores.GetValueOrDefault("Notas"))" />
 </DrawerFormulario>

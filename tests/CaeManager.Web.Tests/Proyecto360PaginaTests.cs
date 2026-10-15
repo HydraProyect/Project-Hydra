@@ -13,6 +13,10 @@ using CaeManager.Application.Proyectos.Queries.ObtenerProyectoPorId;
 using CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerEmpresasProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerVisitasProyecto;
+using CaeManager.Application.Proyectos.Commands.RequisitosEvento;
+using CaeManager.Application.Proyectos.Queries.RequisitosEvento;
+using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
+using CaeManager.Domain.Proyectos;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -91,6 +95,8 @@ public class Proyecto360PaginaTests : BunitContext
         public bool FallarDetalle { get; set; }
         public bool SinTecnicos { get; set; }
         public bool FallarTecnicos { get; set; }
+        public List<RequisitoEventoDto> Requisitos { get; } = [];
+        public List<TipoDocumentoListaDto> TiposDocumento { get; } = [];
 
         /// <summary>Comandos que responden con un <see cref="Result"/> fallido, por tipo.</summary>
         public HashSet<Type> Fallidos { get; } = [];
@@ -161,6 +167,11 @@ public class Proyecto360PaginaTests : BunitContext
                 CerrarProyectoCommand => Result.Exito(),
                 ReabrirProyectoCommand => Result.Exito(),
                 ActualizarProyectoCommand => Result.Exito(),
+                ObtenerRequisitosEventoQuery => (IReadOnlyList<RequisitoEventoDto>)Requisitos.ToList(),
+                ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)TiposDocumento.ToList(),
+                AnadirRequisitoEventoCommand => Result.Exito(),
+                QuitarRequisitoEventoCommand => Result.Exito(),
+                GuardarPlantillaRequisitosEventoCommand => Result.Exito(Guid.NewGuid()),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
             };
 
@@ -840,4 +851,77 @@ public class Proyecto360PaginaTests : BunitContext
         PlazoProyecto.PorcentajeDelPlazo(DateOnly.Parse(inicio), fin is null ? null : DateOnly.Parse(fin),
                 cierre is null ? null : DateOnly.Parse(cierre), DateOnly.Parse(hoy))
             .Should().Be(esperado);
+
+    // ------------------------------------------------------------------ requisitos de un evento (2026-10-15)
+
+    private static readonly Guid TipoSeguroId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    private static readonly Guid TipoFormacionId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+
+    private static TipoDocumentoListaDto TipoDocumento(Guid id, string nombre) => new(
+        id, nombre, VigenciaMeses: 12, AplicaVencimientoAutomatico: false, Orden: 0, AmbitoAplicacion.Trabajador,
+        default, default, null, null, null, null, false, false, false, default, []);
+
+    /// <summary>El Proyecto abierto como evento, con un requisito ya incluido y otro tipo de documento por añadir.</summary>
+    private IRenderedComponent<ProyectoDetalle> RenderizarEvento()
+    {
+        _mediador.Detalles[AbiertoId] = Abierto with { Tipo = TipoProyecto.Evento };
+        _mediador.Requisitos.Add(new RequisitoEventoDto(TipoSeguroId, "Seguro de accidentes", AmbitoAplicacion.Trabajador));
+        _mediador.TiposDocumento.AddRange([TipoDocumento(TipoSeguroId, "Seguro de accidentes"), TipoDocumento(TipoFormacionId, "Formación de evacuación")]);
+        return Renderizar(AbiertoId);
+    }
+
+    [Fact]
+    public void Un_evento_lleva_su_pastilla_y_sus_requisitos_en_el_lateral()
+    {
+        var cut = RenderizarEvento();
+
+        cut.WaitForAssertion(() => cut.Find("[data-pieza=lateral]").QuerySelectorAll("[data-pieza=tarjeta] .tarjeta-titulo")
+            .Select(t => t.TextContent.Trim()).Should().Equal("Información", "Requisitos del evento", "Nota interna"));
+        cut.FindAll("[data-pieza=pastilla]").Select(p => p.TextContent.Trim()).Should().Contain("Evento");
+        cut.Find("ul.proyecto360-requisitos").TextContent.Should().Contain("Seguro de accidentes");
+        cut.FindComponents<CampoSelect>().Single(c => c.Instance.Etiqueta == "Añadir requisito").FindAll("option")
+            .Select(o => o.TextContent.Trim()).Should().Equal(["Elige un tipo de documento", "Formación de evacuación"],
+                "un tipo ya incluido no se ofrece otra vez");
+    }
+
+    [Fact]
+    public void Una_obra_no_pide_ni_pinta_requisitos_de_evento()
+    {
+        var cut = Renderizar(AbiertoId);
+
+        cut.FindAll("ul.proyecto360-requisitos").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Requisitos del evento");
+        _mediador.Enviados.OfType<ObtenerRequisitosEventoQuery>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Anadir_y_quitar_un_requisito_envian_el_evento_y_el_tipo_de_documento()
+    {
+        var cut = RenderizarEvento();
+        cut.WaitForAssertion(() => cut.Find("ul.proyecto360-requisitos"));
+
+        await cut.FindComponents<CampoSelect>().Single(c => c.Instance.Etiqueta == "Añadir requisito").Find("select")
+            .ChangeAsync(new ChangeEventArgs { Value = TipoFormacionId.ToString() });
+        await BotonConTexto(cut, "[data-pieza=lateral] button", "Añadir").ClickAsync(new MouseEventArgs());
+        _mediador.Enviados.OfType<AnadirRequisitoEventoCommand>().Should().ContainSingle()
+            .Which.Should().Be(new AnadirRequisitoEventoCommand(AbiertoId, TipoFormacionId));
+
+        await cut.Find("button[aria-label='Quitar Seguro de accidentes de los requisitos']").ClickAsync(new MouseEventArgs());
+        _mediador.Enviados.OfType<QuitarRequisitoEventoCommand>().Should().ContainSingle()
+            .Which.Should().Be(new QuitarRequisitoEventoCommand(AbiertoId, TipoSeguroId));
+    }
+
+    [Fact]
+    public async Task Guardar_los_requisitos_como_plantilla_envia_el_evento_y_el_nombre()
+    {
+        var cut = RenderizarEvento();
+        cut.WaitForAssertion(() => cut.Find("ul.proyecto360-requisitos"));
+
+        await EscribirAsync(cut, "Nombre de la plantilla", "Partido estándar");
+        await BotonConTexto(cut, "[data-pieza=lateral] button", "Guardar como plantilla").ClickAsync(new MouseEventArgs());
+
+        _mediador.Enviados.OfType<GuardarPlantillaRequisitosEventoCommand>().Should().ContainSingle()
+            .Which.Should().Be(new GuardarPlantillaRequisitosEventoCommand(AbiertoId, "Partido estándar"));
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(t => t.Mensaje == "Plantilla guardada.");
+    }
 }

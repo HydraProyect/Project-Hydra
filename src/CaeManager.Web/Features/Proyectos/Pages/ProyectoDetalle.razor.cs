@@ -202,7 +202,10 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         }
 
         if (carga == _cargaDetalle && _detalle is not null)
+        {
             await CargarTecnicosAsync();
+            await CargarRequisitosEventoAsync();
+        }
     }
 
     private async Task CargarTecnicosAsync()

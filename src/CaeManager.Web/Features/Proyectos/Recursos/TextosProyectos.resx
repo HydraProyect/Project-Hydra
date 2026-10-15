@@ -412,4 +412,76 @@
   <data name="EmpresaProyectoPapelSubcontrata" xml:space="preserve"><value>Subcontrata</value></data>
   <data name="EmpresaProyectoAmbosPapeles" xml:space="preserve"><value>Empresa empleadora directa · Subcontrata</value></data>
   <data name="OrigenEmpresasProyecto" xml:space="preserve"><value>Empresas empleadoras derivadas de los técnicos activos del Proyecto.</value></data>
+  <data name="BadgeEvento" xml:space="preserve">
+    <value>Evento</value>
+  </data>
+  <data name="EtiquetaTipoProyecto" xml:space="preserve">
+    <value>Tipo</value>
+  </data>
+  <data name="OpcionTipoObra" xml:space="preserve">
+    <value>Obra o instalación</value>
+  </data>
+  <data name="OpcionTipoEvento" xml:space="preserve">
+    <value>Evento (partido, feria…)</value>
+  </data>
+  <data name="EtiquetaFinEvento" xml:space="preserve">
+    <value>Fin del evento</value>
+  </data>
+  <data name="ErrorFinEvento" xml:space="preserve">
+    <value>Un evento necesita fecha de fin.</value>
+  </data>
+  <data name="EtiquetaOrigenRequisitos" xml:space="preserve">
+    <value>Requisitos documentales</value>
+  </data>
+  <data name="OpcionSinRequisitos" xml:space="preserve">
+    <value>Sin requisitos (los añades después)</value>
+  </data>
+  <data name="GrupoPlantillas" xml:space="preserve">
+    <value>Copiar de una plantilla</value>
+  </data>
+  <data name="GrupoEventos" xml:space="preserve">
+    <value>Copiar de otro evento</value>
+  </data>
+  <data name="OpcionOrigenConRequisitos" xml:space="preserve">
+    <value>{0} ({1} requisitos)</value>
+  </data>
+  <data name="TituloRequisitosEvento" xml:space="preserve">
+    <value>Requisitos del evento</value>
+  </data>
+  <data name="ErrorRequisitosEvento" xml:space="preserve">
+    <value>No se pudieron cargar los requisitos del evento.</value>
+  </data>
+  <data name="VacioRequisitosEvento" xml:space="preserve">
+    <value>Este evento todavía no pide ningún documento.</value>
+  </data>
+  <data name="QuitarRequisitoAria" xml:space="preserve">
+    <value>Quitar {0} de los requisitos</value>
+  </data>
+  <data name="AccionQuitar" xml:space="preserve">
+    <value>Quitar</value>
+  </data>
+  <data name="EtiquetaAnadirRequisito" xml:space="preserve">
+    <value>Añadir requisito</value>
+  </data>
+  <data name="OpcionElegirTipoDocumento" xml:space="preserve">
+    <value>Elige un tipo de documento</value>
+  </data>
+  <data name="AccionAnadirRequisito" xml:space="preserve">
+    <value>Añadir</value>
+  </data>
+  <data name="EtiquetaNombrePlantilla" xml:space="preserve">
+    <value>Nombre de la plantilla</value>
+  </data>
+  <data name="AccionGuardarPlantilla" xml:space="preserve">
+    <value>Guardar como plantilla</value>
+  </data>
+  <data name="ToastRequisitoAnadido" xml:space="preserve">
+    <value>Requisito añadido.</value>
+  </data>
+  <data name="ToastRequisitoQuitado" xml:space="preserve">
+    <value>Requisito quitado.</value>
+  </data>
+  <data name="ToastPlantillaGuardada" xml:space="preserve">
+    <value>Plantilla guardada.</value>
+  </data>
 </root>

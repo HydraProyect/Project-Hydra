@@ -170,14 +170,20 @@ src/CaeManager.Application/Plantillas/Commands/GenerarDocumentoIndividual/Genera
 src/CaeManager.Application/Proyectos/Commands/ActualizarProyecto/ActualizarProyectoCommand.cs :: ClienteId = 2
 src/CaeManager.Application/Proyectos/Commands/AsignarTecnicoProyecto/AsignarTecnicoProyectoCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Proyectos/Commands/CerrarProyecto/CerrarProyectoCommand.cs :: ClienteId = 1
-src/CaeManager.Application/Proyectos/Commands/CrearProyecto/CrearProyectoCommand.cs :: ClienteId = 8
+src/CaeManager.Application/Proyectos/Commands/CrearProyecto/CrearProyectoCommand.cs :: ClienteId = 12
 src/CaeManager.Application/Proyectos/Commands/DesasignarTecnicoProyecto/DesasignarTecnicoProyectoCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Proyectos/Commands/EliminarProyecto/EliminarProyectoCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Proyectos/Commands/ReabrirProyecto/ReabrirProyectoCommand.cs :: ClienteId = 1
+# Proyecto de tipo Evento (2026-10-15): la plantilla de requisitos es de un Cliente empresarial con la
+# misma columna y la misma autorización que Proyecto.ClienteId; sigue la decisión D1 abierta.
+src/CaeManager.Application/Proyectos/Commands/RequisitosEvento/RequisitosEventoCommands.cs :: ClienteId = 3
 src/CaeManager.Application/Proyectos/Commands/RestaurarProyecto/RestaurarProyectoCommand.cs :: ClienteId = 3
 src/CaeManager.Application/Proyectos/ProyectoAutorizacion.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Proyectos/ProyectoAutorizacion.cs :: clienteId = 2
 src/CaeManager.Application/Proyectos/ProyectoAutorizacion.cs :: clienteIdsVisibles = 3
+# Lecturas derivadas de Proyecto: FK legacy de Cliente empresarial, inevitable para repetir
+# la autorización vecina; no introduce un modelo nuevo.
+src/CaeManager.Application/Proyectos/Queries/ObtenerEmpresasProyecto/ObtenerEmpresasProyectoQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Proyectos/Queries/ObtenerProyectoPorId/ObtenerProyectoPorIdQuery.cs :: ClienteId = 4
 src/CaeManager.Application/Proyectos/Queries/ObtenerProyectoPorId/ObtenerProyectoPorIdQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Proyectos/Queries/ObtenerProyectoPorId/ObtenerProyectoPorIdQuery.cs :: clienteIdsVisibles = 3
@@ -188,6 +194,8 @@ src/CaeManager.Application/Proyectos/Queries/ObtenerProyectosParaSelector/Obtene
 src/CaeManager.Application/Proyectos/Queries/ObtenerProyectosParaSelector/ObtenerProyectosParaSelectorQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Proyectos/Queries/ObtenerProyectosParaSelector/ObtenerProyectosParaSelectorQuery.cs :: clienteIdsVisibles = 3
 src/CaeManager.Application/Proyectos/Queries/ObtenerTecnicosProyecto/ObtenerTecnicosProyectoQuery.cs :: ClienteId = 1
+src/CaeManager.Application/Proyectos/Queries/ObtenerVisitasProyecto/ObtenerVisitasProyectoQuery.cs :: ClienteId = 1
+src/CaeManager.Application/Proyectos/Queries/RequisitosEvento/RequisitosEventoQueries.cs :: ClienteId = 9
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/EnviarReclamacionCommand.cs :: ClienteId = 8
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/EnviarReclamacionCommand.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/EnviarReclamacionCommand.cs :: clienteIdsVisibles = 3
@@ -306,6 +314,9 @@ src/CaeManager.Domain/Operaciones/AsignacionResponsabilidad.cs :: RelacionClient
 src/CaeManager.Domain/Plantillas/PlantillaDocumento.cs :: ClienteId = 2
 src/CaeManager.Domain/Plantillas/PlantillaDocumento.cs :: clienteId = 2
 src/CaeManager.Domain/Proyectos/IProyectoRepository.cs :: clienteId = 1
+src/CaeManager.Domain/Proyectos/IProyectoRequisitoRepository.cs :: clienteId = 1
+src/CaeManager.Domain/Proyectos/PlantillaRequisitosEvento.cs :: ClienteId = 2
+src/CaeManager.Domain/Proyectos/PlantillaRequisitosEvento.cs :: clienteId = 4
 src/CaeManager.Domain/Proyectos/Proyecto.cs :: ClienteId = 2
 src/CaeManager.Domain/Proyectos/Proyecto.cs :: clienteId = 4
 src/CaeManager.Domain/Reclamaciones/ReclamacionDocumental.cs :: ClienteId = 4
@@ -352,6 +363,7 @@ src/CaeManager.Infrastructure/Persistence/Configurations/DocumentoConfiguration.
 src/CaeManager.Infrastructure/Persistence/Configurations/MacroRespuestaConfiguration.cs :: ClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Configurations/PlantillaDocumentoConfiguration.cs :: ClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Configurations/ProyectoConfiguration.cs :: ClienteId = 4
+src/CaeManager.Infrastructure/Persistence/Configurations/ProyectoRequisitoConfiguration.cs :: ClienteId = 2
 src/CaeManager.Infrastructure/Persistence/Configurations/ReclamacionDocumentalConfiguration.cs :: ClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Configurations/RegistroTiempoGestionConfiguration.cs :: ClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Configurations/RelacionEmpresarialConfiguration.cs :: ClienteId = 4
@@ -369,6 +381,8 @@ src/CaeManager.Infrastructure/Persistence/Repositories/DelegacionTenantRepositor
 src/CaeManager.Infrastructure/Persistence/Repositories/EmpresaRepository.cs :: ClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Repositories/ProyectoRepository.cs :: ClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Repositories/ProyectoRepository.cs :: clienteId = 2
+src/CaeManager.Infrastructure/Persistence/Repositories/ProyectoRequisitoRepository.cs :: ClienteId = 1
+src/CaeManager.Infrastructure/Persistence/Repositories/ProyectoRequisitoRepository.cs :: clienteId = 2
 src/CaeManager.Infrastructure/Persistence/Repositories/RelacionEmpresarialRepository.cs :: ClienteId = 4
 src/CaeManager.Infrastructure/Persistence/Repositories/RelacionEmpresarialRepository.cs :: clienteId = 10
 src/CaeManager.Infrastructure/Persistence/Repositories/RelacionEmpresarialRepository.cs :: clienteIds = 2
@@ -463,7 +477,7 @@ src/CaeManager.Web/Features/Proyectos/Pages/ProyectoDetalle.razor :: ClienteId =
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor :: _nuevoClienteId = 1
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: ClienteId = 2
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: _nuevoClienteId = 6
-src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: clienteId = 9
+src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: clienteId = 10
 src/CaeManager.Web/Features/Proyectos/ProyectosEndpoints.cs :: ClienteId = 1
 src/CaeManager.Web/Features/Reportes/Pages/Reportes.razor :: _clienteId = 1
 src/CaeManager.Web/Features/Reportes/Pages/Reportes.razor.cs :: ClienteId = 3
@@ -492,8 +506,3 @@ src/CaeManager.Web/Services/CurrentUserService.cs :: TenantClienteId = 1
 src/CaeManager.Web/Services/CurrentUserService.cs :: tenantClienteId = 2
 src/CaeManager.Web/Services/RevalidacionClienteActivoMiddleware.cs :: TenantClienteId = 1
 src/CaeManager.Web/Services/TrazaSoporteService.cs :: TenantClienteId = 1
-
-# Lecturas derivadas de Proyecto: FK legacy de Cliente empresarial, inevitable para repetir
-# la autorización vecina; no introduce un modelo nuevo.
-src/CaeManager.Application/Proyectos/Queries/ObtenerEmpresasProyecto/ObtenerEmpresasProyectoQuery.cs :: ClienteId = 1
-src/CaeManager.Application/Proyectos/Queries/ObtenerVisitasProyecto/ObtenerVisitasProyectoQuery.cs :: ClienteId = 1

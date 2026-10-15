@@ -1,3 +1,4 @@
+using CaeManager.Domain.Proyectos;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
@@ -56,6 +57,9 @@ public record ProyectoListaDto(
     /// mismo nombre de Proyecto o de Centro.
     /// </summary>
     public Guid ClienteId { get; init; }
+
+    /// <summary>Obra o Evento: la fila de un evento lleva su marca.</summary>
+    public TipoProyecto Tipo { get; init; }
 
     /// <summary>Razón social del Cliente empresarial del Proyecto.</summary>
     public string ClienteRazonSocial { get; init; } = string.Empty;
@@ -158,6 +162,7 @@ public class ObtenerProyectosQueryHandler(
                 x.proyecto.FechaInicio, x.proyecto.FechaFinPrevista, x.proyecto.FechaCierreReal, x.proyecto.FechaCierreReal == null)
             {
                 ClienteId = x.proyecto.ClienteId,
+                Tipo = x.proyecto.Tipo,
                 ClienteRazonSocial = x.cliente.RazonSocial
             })
             .ToListAsync(cancellationToken);

@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using CaeManager.Application.Centros;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Proyectos;
 using FluentAssertions;
 
 namespace CaeManager.Architecture.Tests;
@@ -43,6 +44,14 @@ public class OrdinalesDeEnumsPublicadosTests
                 [nameof(EstadoDocumento.Faltante)] = 5,
                 [nameof(EstadoDocumento.SinConfirmar)] = 6,
                 [nameof(EstadoDocumento.EnTolerancia)] = 7,
+            }
+        },
+        {
+            // Proyectos.Tipo se guarda como entero: una obra existente es 0 por el DEFAULT de la migración.
+            nameof(TipoProyecto), new Dictionary<string, int>
+            {
+                [nameof(TipoProyecto.Obra)] = 0,
+                [nameof(TipoProyecto.Evento)] = 1,
             }
         },
         {
