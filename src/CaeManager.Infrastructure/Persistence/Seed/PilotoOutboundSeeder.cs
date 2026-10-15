@@ -188,6 +188,11 @@ public static class PilotoOutboundSeeder
                 "Siembra del piloto Outbound: {Motivo} En ese Tenant no se escribe nada y el arranque continúa.",
                 MensajeDeDatosDeOtraVersion([nombre]));
 
+        // Un lote de una versión anterior sigue en la base: sembrar encima chocaría con sus cuentas. No se escribe nada
+        // hasta que se retire (el aviso de arriba ya lo ha dicho).
+        if (deOtraVersion.Any(CatalogoPilotoOutbound.NombresTenantsDeVersionesAnteriores.Contains))
+            return new Resultado(false, [], deOtraVersion, 0, 0, TimeSpan.Zero);
+
         if (OpcionesPilotoOutbound.MotivoFechaNoUtilizable(parametros.FechaDemostracion, DiaDeNegocio.Hoy()) is { } motivo)
         {
             if (await PrimerTenantSinSembrarAsync(dbContext, cancellationToken) is { } pendiente)
@@ -340,6 +345,10 @@ public static class PilotoOutboundSeeder
                 && await DatosSembradosAsync(dbContext, tenant, tenantId, cancellationToken) == DatosSembrados.DeOtraVersion)
                 deOtraVersion.Add(tenant.Nombre);
         }
+
+        // Los Tenants de versiones anteriores del catálogo (con otros nombres) que sigan en la base: esta versión no los
+        // siembra, pero sus cuentas (mismos correos) chocarían con las del Tenant que ahora las lleva.
+        deOtraVersion.AddRange(CatalogoPilotoOutbound.NombresTenantsDeVersionesAnteriores.Where(existentes.ContainsKey));
 
         return deOtraVersion;
     }
