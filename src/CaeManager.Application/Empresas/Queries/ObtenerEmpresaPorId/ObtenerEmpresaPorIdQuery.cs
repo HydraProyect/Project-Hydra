@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,6 +8,15 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 
 public record ObtenerEmpresaPorIdQuery(Guid Id) : IRequest<EmpresaDetalleDto?>;
 
+/// <param name="Notas">
+/// La «Nota interna» de la ficha 360 (<c>Empresa.Notas</c>, una sola por Empresa, compartida entre sus papeles). Solo
+/// viaja para los roles de <see cref="ObtenerSubcontrataPorIdQueryHandler.RolesQueVenLaNotaInterna"/>; para cualquier
+/// otro es <c>null</c>.
+/// </param>
+/// <param name="NotaInternaVisible">
+/// Si quien pregunta es del equipo y por tanto la ficha debe pintar la tarjeta «Nota interna» (aunque esté vacía).
+/// Con <c>false</c> la ficha no la pinta: <c>Notas</c> nulo no distingue «sin nota» de «no te la enseño».
+/// </param>
 public record EmpresaDetalleDto(
     Guid Id,
     string RazonSocial,
@@ -16,7 +26,9 @@ public record EmpresaDetalleDto(
     Guid Version,
     string? Cnae = null,
     string? ConvenioAplicable = null,
-    bool EsActividadAnexoI = false);
+    bool EsActividadAnexoI = false,
+    string? Notas = null,
+    bool NotaInternaVisible = false);
 
 /// <summary>
 /// F4.2c: <c>ClienteIds</c> sale de la arista, con el MISMO criterio de
@@ -30,8 +42,17 @@ public record EmpresaDetalleDto(
 /// Cliente vivo pero fuera del alcance del usuario debe seguir viajando en
 /// el DTO, porque hoy el diff de bajas se define sobre este contenido y
 /// acotarlo reabriría el cierre silencioso por la puerta del alcance.
+///
+/// <para>
+/// <b>Nota interna: el corte es de aquí, no de la página.</b> Esta consulta la lee también el rol Cliente (portal,
+/// por <c>EmpresaWorkspacePanel</c>) y la nota es del equipo del Tenant propietario. Solo se entrega a los roles de
+/// <see cref="ObtenerSubcontrataPorIdQueryHandler.RolesQueVenLaNotaInterna"/> —la misma lista blanca que Subcontrata
+/// 360 y Vehículo 360, una sola definición de quién ve una «Nota interna»—; a cualquier otro le responde
+/// <c>Notas = null</c> y <c>NotaInternaVisible = false</c>.
+/// </para>
 /// </summary>
-public class ObtenerEmpresaPorIdQueryHandler(IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerEmpresaPorIdQueryHandler(
+    IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerEmpresaPorIdQuery, EmpresaDetalleDto?>
 {
     public async Task<EmpresaDetalleDto?> Handle(ObtenerEmpresaPorIdQuery request, CancellationToken cancellationToken)
@@ -60,7 +81,7 @@ public class ObtenerEmpresaPorIdQueryHandler(IEmpresasQueryContext dbContext, IA
 
         var empresa = await dbContext.Empresas
             .Where(e => e.Id == request.Id)
-            .Select(e => new { e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc, e.Version, e.Cnae, e.ConvenioAplicable, e.EsActividadAnexoI })
+            .Select(e => new { e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc, e.Version, e.Cnae, e.ConvenioAplicable, e.EsActividadAnexoI, e.Notas })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (empresa is null) return null;
@@ -70,8 +91,12 @@ public class ObtenerEmpresaPorIdQueryHandler(IEmpresasQueryContext dbContext, IA
             .Join(dbContext.Empresas.Where(e => e.EsCritico != null), r => r.ClienteId, e => e.Id, (r, e) => e.Id)
             .ToListAsync(cancellationToken);
 
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
+        var esDelEquipo = rol is not null && ObtenerSubcontrataPorIdQueryHandler.RolesQueVenLaNotaInterna.Contains(rol);
+
         return new EmpresaDetalleDto(
             empresa.Id, empresa.RazonSocial, empresa.Cif, empresa.CreadoEnUtc, clienteIds, empresa.Version,
-            empresa.Cnae, empresa.ConvenioAplicable, empresa.EsActividadAnexoI);
+            empresa.Cnae, empresa.ConvenioAplicable, empresa.EsActividadAnexoI,
+            Notas: esDelEquipo ? empresa.Notas : null, NotaInternaVisible: esDelEquipo);
     }
 }

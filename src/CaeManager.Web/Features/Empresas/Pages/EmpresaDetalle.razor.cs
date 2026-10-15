@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas.Commands.GuardarNotaInternaEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresaSinContrasena;
@@ -9,9 +10,12 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
+using CaeManager.Web.Recursos;
 using CaeManager.Web.Services;
+using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Empresas.Pages;
 
@@ -51,13 +55,19 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     internal const string PestanaClientes = "clientes";
     internal const string PestanaDocumentacion = "documentacion";
     internal const string PestanaAgenda = "agenda";
-    internal const string PestanaSello = "sello";
+    internal const string PestanaFicha = "ficha";
+
+    /// <summary>
+    /// Valor que tuvo la pestaña «Sello» antes de entrar en «Ficha» (decisión del 2026-10-10): un enlace o un marcador
+    /// con <c>?pestana=sello</c> sigue abriendo la ficha, en la pestaña donde ahora vive el Sello.
+    /// </summary>
+    private const string PestanaSelloRetirada = "sello";
     internal const string PestanaHistorial = "historial";
 
     internal const int TamanoPagina = 20;
 
     private static readonly string[] PestanasValidas =
-        [PestanaTrabajadores, PestanaClientes, PestanaDocumentacion, PestanaAgenda, PestanaSello, PestanaHistorial];
+        [PestanaTrabajadores, PestanaClientes, PestanaDocumentacion, PestanaAgenda, PestanaFicha, PestanaHistorial];
 
     [Parameter] public Guid EmpresaId { get; set; }
 
@@ -74,6 +84,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
 
     private EmpresaDetalleDto? _detalle;
     private int? _cumplimiento;
@@ -191,7 +202,9 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         if (!_urlAdoptada || !string.Equals(_pestanaDeLaUrl, Pestana, StringComparison.Ordinal))
         {
             _pestanaDeLaUrl = Pestana;
-            _pestana = PestanasValidas.Contains(Pestana) ? Pestana! : PestanaTrabajadores;
+            _pestana = string.Equals(Pestana, PestanaSelloRetirada, StringComparison.Ordinal)
+                ? PestanaFicha
+                : PestanasValidas.Contains(Pestana) ? Pestana! : PestanaTrabajadores;
         }
 
         if (!_urlAdoptada || !string.Equals(_estadoDeLaUrl, Estado, StringComparison.Ordinal))
@@ -244,6 +257,12 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         _credencial = null;
         _cargandoAcceso = true;
         _errorAcceso = false;
+        _editorNotaVisible = false;
+        _guardandoNota = false;
+        _notaEnEdicion = string.Empty;
+        _borradorNotaTrasConflicto = null;
+        _mensajeErrorNota = null;
+        _errorCampoNota = null;
     }
 
     private async Task CargarAsync()
@@ -698,6 +717,129 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     private string Plural(int n, string claveUno, string claveVarios) =>
         n == 1 ? Textos[claveUno] : Textos[claveVarios, n];
 
+    // ── Nota interna ──────────────────────────────────────────────────────
+
+    private int _cargaRelecturaDetalle;
+    private bool _editorNotaVisible;
+    private bool _guardandoNota;
+    private string _notaEnEdicion = string.Empty;
+    /// <summary>Lo que el usuario escribió cuando otra persona guardó antes: se recupera al reabrir el editor, nunca se reenvía solo.</summary>
+    private string? _borradorNotaTrasConflicto;
+    private string? _mensajeErrorNota;
+    private string? _errorCampoNota;
+    private readonly InstantaneaFormulario _instantaneaNota = new();
+
+    /// <summary>
+    /// La <c>Version</c> que la ficha enseñaba al abrirse el editor: es la que se manda. Con el editor abierto la ficha
+    /// puede releerse y traer una versión posterior; mandar esa pisaría, sin conflicto, una nota que quien edita no ha visto.
+    /// </summary>
+    private Guid _versionAlAbrirNota;
+
+    /// <summary>Lo lee DrawerFormulario, que lleva dentro el guardián de cerrar y de navegar; cerrado no hay nada que perder.</summary>
+    private bool HayCambiosEnLaNota => _editorNotaVisible && _instantaneaNota.Difiere(_notaEnEdicion);
+
+    private void AbrirEditorNota()
+    {
+        if (_detalle is null) return;
+
+        _notaEnEdicion = _borradorNotaTrasConflicto ?? _detalle.Notas ?? string.Empty;
+        _borradorNotaTrasConflicto = null;
+        _mensajeErrorNota = null;
+        _errorCampoNota = null;
+        _versionAlAbrirNota = _detalle.Version;
+        _instantaneaNota.Fijar(_notaEnEdicion);
+        _editorNotaVisible = true;
+    }
+
+    private void CambiarVisibilidadEditorNota(bool visible) => _editorNotaVisible = visible;
+
+    /// <summary>
+    /// Manda solo la nota y la <c>Version</c> que la ficha enseñaba al abrir el editor. Si otra persona guardó entre
+    /// medias —la nota o los datos de la Empresa, que comparten <c>Version</c>—, el servidor responde el conflicto: el
+    /// editor se cierra, se relee la cabecera (la tarjeta enseña lo que hay ahora) y el texto propio queda como
+    /// borrador para reaplicarlo al reabrir. Nunca se reenvía con la versión nueva sin pasar por ahí. Tras guardar
+    /// bien también se relee, porque la <c>Version</c> cambió. Otros fallos solo muestran el motivo.
+    /// </summary>
+    private async Task GuardarNotaAsync()
+    {
+        if (_detalle is null || _guardandoNota) return;
+
+        var generacion = _generacion;
+        var detalle = _detalle;
+        _guardandoNota = true;
+        _mensajeErrorNota = null;
+        _errorCampoNota = null;
+
+        try
+        {
+            var resultado = await Mediator.Send(new GuardarNotaInternaEmpresaCommand(detalle.Id, _notaEnEdicion, _versionAlAbrirNota));
+
+            if (resultado.EsFallido)
+            {
+                if (generacion != _generacion) return;
+                // Un conflicto cierra el editor y relee: reenviar con la versión nueva sin mirarla pisaría en silencio
+                // la nota de la otra persona.
+                if (resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto)
+                {
+                    _borradorNotaTrasConflicto = _notaEnEdicion;
+                    ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                    _editorNotaVisible = false;
+                    await RecargarDetalleAsync();
+                }
+                else
+                {
+                    _mensajeErrorNota = resultado.Error.Mensaje;
+                }
+                return;
+            }
+
+            // Lo guardado se confirma aunque la ficha ya enseñe otra Empresa.
+            ToastService.Mostrar(Textos["ToastNotaInternaGuardada"], TonoToast.Exito);
+            if (generacion != _generacion) return;
+            _editorNotaVisible = false;
+
+            // La tarjeta enseña ya lo guardado aunque la relectura de abajo falle; la Version buena la trae la relectura.
+            _detalle = detalle with { Notas = string.IsNullOrWhiteSpace(_notaEnEdicion) ? null : _notaEnEdicion.Trim() };
+            await RecargarDetalleAsync();
+        }
+        catch (ValidationException ex)
+        {
+            if (generacion == _generacion)
+                _errorCampoNota = ex.Errors.FirstOrDefault()?.ErrorMessage ?? Textos["ErrorGuardarNotaInterna"];
+        }
+        catch (Exception)
+        {
+            if (generacion == _generacion)
+                _mensajeErrorNota = Textos["ErrorGuardarNotaInterna"];
+        }
+        finally
+        {
+            if (generacion == _generacion)
+                _guardandoNota = false;
+        }
+    }
+
+    /// <summary>
+    /// Relee solo la cabecera de la Empresa (<c>ObtenerEmpresaPorIdQuery</c>), sin el estado de carga de la página
+    /// entera: trae la <c>Version</c> nueva y la nota vigente. Un fallo deja lo que ya se enseña.
+    /// </summary>
+    private async Task RecargarDetalleAsync()
+    {
+        // Contador propio: avanzar _cargaDetalle dejaría colgado el «cargando» de una CargarAsync en vuelo.
+        var generacion = _generacion;
+        var relectura = ++_cargaRelecturaDetalle;
+        try
+        {
+            var detalle = await Mediator.Send(new ObtenerEmpresaPorIdQuery(EmpresaId), _cancelacion);
+            if (relectura == _cargaRelecturaDetalle && generacion == _generacion && detalle is not null)
+                _detalle = detalle;
+        }
+        catch (Exception)
+        {
+            // Se queda lo que ya hay en pantalla.
+        }
+    }
+
     private IReadOnlyList<PestanaDefinicion> Pestanas =>
     [
         new(PestanaTrabajadores, Textos["PestanaTrabajadores"])
@@ -710,7 +852,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         },
         new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
         new(PestanaAgenda, Textos["PestanaAgenda"]),
-        new(PestanaSello, Textos["PestanaSello"]),
+        new(PestanaFicha, Comunes["PestanaFicha"]),
         new(PestanaHistorial, Textos["PestanaHistorial"])
     ];
 }

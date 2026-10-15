@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
@@ -80,7 +81,7 @@ public class ObtenerPorIdMultiTenantTests : IAsyncLifetime
     public async Task Una_empresa_del_tenant_A_no_resuelve_para_el_tenant_B_aunque_su_alcance_sea_total()
     {
         await using var contextoB = CrearContexto(_tenantB);
-        var handler = new ObtenerEmpresaPorIdQueryHandler(contextoB, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerEmpresaPorIdQueryHandler(contextoB, new AlcanceDatosServiceFalso(), new UsuarioSinRol());
 
         var resultado = await handler.Handle(new ObtenerEmpresaPorIdQuery(_empresaDeAId), CancellationToken.None);
 
@@ -123,7 +124,7 @@ public class ObtenerPorIdMultiTenantTests : IAsyncLifetime
         var alcance = new AlcanceDatosServiceFalso();
         var inexistente = Guid.NewGuid();
 
-        var empresaHandler = new ObtenerEmpresaPorIdQueryHandler(contextoB, alcance);
+        var empresaHandler = new ObtenerEmpresaPorIdQueryHandler(contextoB, alcance, new UsuarioSinRol());
         var clienteHandler = new ObtenerClientePorIdQueryHandler(contextoB, alcance);
         var centroHandler = new ObtenerCentroPorIdQueryHandler(contextoB, contextoB, alcance);
 
@@ -150,7 +151,7 @@ public class ObtenerPorIdMultiTenantTests : IAsyncLifetime
         await using var contextoA = CrearContexto(_tenantA);
         var alcance = new AlcanceDatosServiceFalso();
 
-        (await new ObtenerEmpresaPorIdQueryHandler(contextoA, alcance)
+        (await new ObtenerEmpresaPorIdQueryHandler(contextoA, alcance, new UsuarioSinRol())
             .Handle(new ObtenerEmpresaPorIdQuery(_empresaDeAId), CancellationToken.None)).Should().NotBeNull(
             "el propio tenant sigue viendo sus datos — la prueba anterior aísla el tenant, no rompe la resolución");
 
@@ -159,5 +160,15 @@ public class ObtenerPorIdMultiTenantTests : IAsyncLifetime
 
         (await new ObtenerCentroPorIdQueryHandler(contextoA, contextoA, alcance)
             .Handle(new ObtenerCentroPorIdQuery(_centroDeAId), CancellationToken.None)).Should().NotBeNull();
+    }
+
+    /// <summary>Estas pruebas miden el aislamiento por Tenant, no la nota interna: el rol no interviene.</summary>
+    private sealed class UsuarioSinRol : ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(null);
+        public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(null);
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(null);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(null);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 }

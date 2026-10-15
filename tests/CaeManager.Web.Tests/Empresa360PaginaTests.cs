@@ -2,12 +2,14 @@ using AngleSharp.Dom;
 using Bunit;
 using Bunit.TestDoubles;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas.Commands.GuardarNotaInternaEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresaSinContrasena;
 using CaeManager.Application.Empresas.Queries.ObtenerCumplimientoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
@@ -47,6 +49,8 @@ public class Empresa360PaginaTests : BunitContext
         ComponentFactories.AddStub<PestanaAgendaContactos>();
         ComponentFactories.AddStub<PestanaSelloEmpresa>();
         ComponentFactories.AddStub<PestanaHistorial>();
+        // Las cajas de «Ficha» se ordenan por altura: el navegador no existe aquí, se le da una medida fija.
+        JSInterop.SetupModule("./js/cajas-ficha.js").Setup<double[]>("medirAlturas", _ => true).SetResult([100, 100]);
     }
 
     private sealed class MediatorFalso : IMediator
@@ -58,6 +62,10 @@ public class Empresa360PaginaTests : BunitContext
         public Dictionary<Guid, CredencialAccesoEmpresaDto> Credenciales { get; } = [];
 
         public List<object> Enviadas { get; } = [];
+
+        /// <summary>Lo que responde el servidor a «Guardar» de la nota interna.</summary>
+        public Result ResultadoNota { get; set; } = Result.Exito();
+        public Exception? ExcepcionAlGuardarNota { get; set; }
 
         /// <summary>Como AutorizacionSecretosDeTenantBehavior con un rol que lee secretos y sin 2FA (P1-I1).</summary>
         public bool SinDobleFactor { get; set; }
@@ -80,8 +88,18 @@ public class Empresa360PaginaTests : BunitContext
                 ? new CredencialAccesoEmpresaSinContrasenaDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Notas)
                 : null,
             ObtenerCredencialAccesoEmpresaQuery q => Credenciales.GetValueOrDefault(q.EmpresaId),
+            GuardarNotaInternaEmpresaCommand c => ResponderGuardarNota(c),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
+
+        private Result ResponderGuardarNota(GuardarNotaInternaEmpresaCommand c)
+        {
+            if (ExcepcionAlGuardarNota is { } excepcion)
+                throw excepcion;
+            if (ResultadoNota.EsExitoso && Detalles.TryGetValue(c.Id, out var actual))
+                Detalles[c.Id] = actual with { Notas = string.IsNullOrWhiteSpace(c.Notas) ? null : c.Notas.Trim(), Version = Guid.NewGuid() };
+            return ResultadoNota;
+        }
 
         /// <summary>Misma semántica que ObtenerTrabajadoresQueryHandler (ver la doc de la clase).</summary>
         private ResultadoPaginado<TrabajadorListaDto> ResponderTrabajadores(ObtenerTrabajadoresQuery q)
@@ -445,7 +463,7 @@ public class Empresa360PaginaTests : BunitContext
         var cut = Renderizar();
 
         cut.FindAll("[role=tab]").Select(t => t.ChildNodes.OfType<IText>().First(n => !string.IsNullOrWhiteSpace(n.Data)).Data.Trim())
-            .Should().Equal(["Trabajadores", "Clientes", "Documentación", "Agenda", "Sello", "Historial"]);
+            .Should().Equal(["Trabajadores", "Clientes", "Documentación", "Agenda", "Ficha", "Historial"]);
         Pestana(cut, "Trabajadores").GetAttribute("aria-selected").Should().Be("true");
         Pestana(cut, "Trabajadores").TextContent.Should().Contain("25");
         Pestana(cut, "Clientes").TextContent.Should().Contain("2");
@@ -457,9 +475,9 @@ public class Empresa360PaginaTests : BunitContext
         Registrar(Empresa());
         var cut = Renderizar();
 
-        await Pestana(cut, "Sello").ClickAsync(new MouseEventArgs());
+        await Pestana(cut, "Ficha").ClickAsync(new MouseEventArgs());
 
-        Navegacion.Uri.Should().Contain("pestana=sello");
+        Navegacion.Uri.Should().Contain("pestana=ficha");
         cut.FindComponent<Stub<PestanaSelloEmpresa>>().Instance.Parameters.Get(x => x.EntidadId).Should().Be(EmpresaId);
 
         await Pestana(cut, "Trabajadores").ClickAsync(new MouseEventArgs());
@@ -617,6 +635,9 @@ public class Empresa360PaginaTests : BunitContext
 
     // ── Credencial de acceso ──────────────────────────────────────────────
 
+    /// <summary>«Acceso a plataforma CAE» vive en la pestaña «Ficha» (decisión del 2026-10-10), no en el lateral.</summary>
+    private const string EnFicha = "?pestana=ficha";
+
     private MediatorFalso EmpresaConCredencial(string? contrasena = "clave-secreta-123", string rol = Roles.GestorCae)
     {
         var mediador = Empresa();
@@ -636,7 +657,7 @@ public class Empresa360PaginaTests : BunitContext
     {
         var mediador = EmpresaConCredencial(rol: Roles.Consulta);
 
-        var cut = Renderizar();
+        var cut = Renderizar(EnFicha);
 
         // Barrera: la tarjeta pintó la credencial; si no, la ausencia de abajo sería verde vacío.
         cut.FindAll(".boton-copiar").Select(b => b.TextContent.Trim()).Should().Contain("Copiar usuario");
@@ -649,7 +670,7 @@ public class Empresa360PaginaTests : BunitContext
     {
         var mediador = EmpresaConCredencial();
 
-        var cut = Renderizar();
+        var cut = Renderizar(EnFicha);
 
         // Mockup: la propia URL es la etiqueta de su fila, con el aviso de credenciales de terceros.
         var filaUrl = cut.FindAll(".elemento-lista-lateral").First();
@@ -675,7 +696,7 @@ public class Empresa360PaginaTests : BunitContext
         var mediador = EmpresaConCredencial();
         mediador.SinDobleFactor = true;
 
-        var cut = Renderizar();
+        var cut = Renderizar(EnFicha);
 
         var acceso = cut.WaitForElement(".acceso-requiere-2fa");
         acceso.TextContent.Should().Contain("Activa la autenticación en dos pasos para ver el acceso.");
@@ -695,7 +716,7 @@ public class Empresa360PaginaTests : BunitContext
     {
         EmpresaConCredencial();
 
-        var cut = Renderizar();
+        var cut = Renderizar(EnFicha);
 
         var filaUsuario = cut.FindAll(".elemento-lista-lateral")
             .Single(f => f.QuerySelector(".elemento-lista-lateral-etiqueta")!.TextContent.Trim() == "Usuario");
@@ -711,7 +732,7 @@ public class Empresa360PaginaTests : BunitContext
     {
         EmpresaConCredencial(rol: Roles.Consulta);
 
-        var cut = Renderizar();
+        var cut = Renderizar(EnFicha);
 
         var acceso = cut.FindAll(".tarjeta").Single(t => t.TextContent.Contains("Acceso a plataforma CAE"));
         // Barrera: la credencial se pintó; si no, la ausencia de «Editar →» sería verde vacío.
@@ -725,7 +746,7 @@ public class Empresa360PaginaTests : BunitContext
         var mediador = EmpresaConCredencial();
         var modulo = JSInterop.SetupModule("./js/clipboard.js");
         modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
-        var cut = Renderizar();
+        var cut = Renderizar(EnFicha);
 
         await cut.FindAll(".boton-copiar").Single(b => b.TextContent.Trim() == "Copiar contraseña").ClickAsync(new MouseEventArgs());
 
@@ -741,7 +762,7 @@ public class Empresa360PaginaTests : BunitContext
         EmpresaConCredencial(contrasena: null);
         var modulo = JSInterop.SetupModule("./js/clipboard.js");
         modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
-        var cut = Renderizar();
+        var cut = Renderizar(EnFicha);
 
         await cut.FindAll(".boton-copiar").Single(b => b.TextContent.Trim() == "Copiar contraseña").ClickAsync(new MouseEventArgs());
 
@@ -754,10 +775,186 @@ public class Empresa360PaginaTests : BunitContext
     {
         Registrar(Empresa());
 
-        var cut = Renderizar();
+        var cut = Renderizar(EnFicha);
 
         cut.Markup.Should().Contain("Sin credenciales que puedas consultar.");
         cut.FindAll(".boton-copiar").Select(b => b.TextContent.Trim()).Should().NotContain("Copiar contraseña");
+    }
+
+    // ── «Ficha», lateral y nota interna ───────────────────────────────────
+
+    private const string NotaGuardada = "Pide la llave en portería. Contacto: Leire.";
+
+    private static MediatorFalso EmpresaConNota(string? notas = NotaGuardada, bool visible = true)
+    {
+        var mediador = Empresa();
+        mediador.Detalles[EmpresaId] = mediador.Detalles[EmpresaId] with { Notas = notas, NotaInternaVisible = visible };
+        return mediador;
+    }
+
+    private static IElement? TarjetaNota(IRenderedComponent<EmpresaDetalle> cut) =>
+        cut.FindAll("[data-pieza=nota-interna]").SingleOrDefault();
+
+    private static IElement EditorNota(IRenderedComponent<EmpresaDetalle> cut) =>
+        cut.FindAll("[role=dialog]").Single(d => d.QuerySelector("h2")?.TextContent.Trim() == "Nota interna");
+
+    private static bool EditorNotaAbierto(IRenderedComponent<EmpresaDetalle> cut) =>
+        cut.FindAll("[role=dialog]").Any(d => d.QuerySelector("h2")?.TextContent.Trim() == "Nota interna");
+
+    private static IRenderedComponent<EmpresaDetalle> AbrirEditorNota(IRenderedComponent<EmpresaDetalle> cut)
+    {
+        TarjetaNota(cut)!.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Editar →").Click();
+        cut.WaitForAssertion(() => EditorNotaAbierto(cut).Should().BeTrue());
+        return cut;
+    }
+
+    /// <summary>Decisión del 2026-10-10: el lateral lleva dos cajas como mucho; «Acceso a plataforma CAE» pasa a «Ficha».</summary>
+    [Fact]
+    public void El_lateral_lleva_Informacion_y_Nota_interna_y_nada_mas()
+    {
+        var mediador = EmpresaConNota();
+        mediador.Credenciales[EmpresaId] = new CredencialAccesoEmpresaDto("https://app.twind.io/login", null, "usuario.ibertec", null, null);
+        Registrar(mediador);
+
+        var cut = Renderizar();
+
+        cut.FindAll("[data-pieza='lateral'] .tarjeta-titulo").Select(t => t.TextContent.Trim())
+            .Should().Equal("Información", "Nota interna");
+        cut.Markup.Should().NotContain("Acceso a plataforma CAE", "no está en el lateral ni en Trabajadores: vive en «Ficha»");
+    }
+
+    [Fact]
+    public void La_pestana_Ficha_lleva_las_cajas_Sello_y_Acceso_a_plataforma_con_el_mismo_contenido()
+    {
+        var mediador = EmpresaConCredencial();
+        mediador.Detalles[EmpresaId] = mediador.Detalles[EmpresaId] with { NotaInternaVisible = true };
+
+        var cut = Renderizar(EnFicha);
+
+        Pestana(cut, "Ficha").GetAttribute("aria-selected").Should().Be("true");
+        cut.FindAll("[data-pieza=cajas-ficha] [data-caja]").Select(c => c.GetAttribute("data-caja"))
+            .Should().BeEquivalentTo(["sello", "acceso"]);
+        cut.FindComponent<Stub<PestanaSelloEmpresa>>().Instance.Parameters.Get(x => x.EntidadId).Should().Be(EmpresaId);
+        cut.Find("[data-caja=sello] .tarjeta-titulo").TextContent.Trim().Should().Be("Sello");
+        var acceso = cut.Find("[data-caja=acceso]");
+        acceso.QuerySelector(".tarjeta-titulo")!.TextContent.Trim().Should().Be("Acceso a plataforma CAE");
+        acceso.TextContent.Should().Contain("usuario.ibertec");
+    }
+
+    /// <summary>Un enlace o marcador viejo con <c>?pestana=sello</c> no se rompe: abre «Ficha», donde ahora vive el Sello.</summary>
+    [Fact]
+    public void El_enlace_antiguo_pestana_sello_abre_la_pestana_Ficha()
+    {
+        Registrar(Empresa());
+
+        var cut = Renderizar("?pestana=sello");
+
+        Pestana(cut, "Ficha").GetAttribute("aria-selected").Should().Be("true");
+        cut.FindComponent<Stub<PestanaSelloEmpresa>>().Instance.Parameters.Get(x => x.EntidadId).Should().Be(EmpresaId);
+        cut.FindAll("[role=tab]").Select(t => t.TextContent).Should().NotContain(t => t.Contains("Sello"), "«Sello» ya no es pestaña");
+    }
+
+    [Fact]
+    public void El_equipo_ve_la_nota_interna_al_final_del_lateral_con_su_pie()
+    {
+        Registrar(EmpresaConNota());
+        var cut = Renderizar();
+
+        var tarjeta = TarjetaNota(cut);
+        tarjeta!.TextContent.Should().Contain(NotaGuardada).And.Contain("No la ve el cliente.");
+        tarjeta.TextContent.Should().NotContain("Sin nota interna.");
+    }
+
+    [Fact]
+    public void Sin_nota_el_equipo_ve_la_tarjeta_con_su_vacio()
+    {
+        Registrar(EmpresaConNota(notas: null));
+        var cut = Renderizar();
+
+        TarjetaNota(cut)!.TextContent.Should().Contain("Sin nota interna.").And.Contain("No la ve el cliente.");
+    }
+
+    /// <summary>
+    /// Con <c>NotaInternaVisible = false</c> (rol Cliente, o uno que el servidor no conoce) la tarjeta no existe, ni
+    /// vacía: «Sin nota interna.» ya diría que hay una nota del equipo que esa persona no puede leer.
+    /// </summary>
+    [Fact]
+    public void Si_el_servidor_no_la_entrega_la_tarjeta_no_se_pinta_ni_vacia()
+    {
+        Registrar(EmpresaConNota(notas: null, visible: false));
+
+        var cut = Renderizar();
+
+        cut.Find("h1").TextContent.Trim().Should().Be("Ibertec GmbH");
+        TarjetaNota(cut).Should().BeNull();
+        cut.Markup.Should().NotContain("Nota interna").And.NotContain("No la ve el cliente.");
+    }
+
+    [Fact]
+    public void Consulta_lee_la_nota_pero_no_se_le_ofrece_editarla()
+    {
+        Registrar(EmpresaConNota(), Roles.Consulta);
+
+        var cut = Renderizar();
+
+        TarjetaNota(cut)!.TextContent.Should().Contain(NotaGuardada);
+        TarjetaNota(cut)!.QuerySelectorAll("button").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Editar_abre_el_editor_con_la_nota_y_guardar_manda_solo_la_nota_con_la_version_leida()
+    {
+        var mediador = EmpresaConNota();
+        var versionLeida = mediador.Detalles[EmpresaId].Version;
+        Registrar(mediador);
+        var cut = AbrirEditorNota(Renderizar());
+
+        var campo = EditorNota(cut).QuerySelector("textarea")!;
+        campo.TextContent.Should().Be(NotaGuardada);
+        campo.Input("Ahora, en recepción.");
+        EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
+
+        cut.WaitForAssertion(() => EditorNotaAbierto(cut).Should().BeFalse());
+        mediador.Enviadas.OfType<GuardarNotaInternaEmpresaCommand>().Should().ContainSingle()
+            .Which.Should().Be(new GuardarNotaInternaEmpresaCommand(EmpresaId, "Ahora, en recepción.", versionLeida));
+        TarjetaNota(cut)!.TextContent.Should().Contain("Ahora, en recepción.").And.NotContain(NotaGuardada);
+    }
+
+    [Fact]
+    public void Tras_un_conflicto_el_editor_se_cierra_y_la_nota_de_la_otra_persona_se_ve_antes_de_reaplicar()
+    {
+        var mediador = EmpresaConNota();
+        mediador.ResultadoNota = Result.Fallo(Error.Crear(ConcurrenciaOptimista.CodigoConflicto, "Otra persona modificó esta empresa mientras la editabas."));
+        Registrar(mediador);
+        var cut = AbrirEditorNota(Renderizar());
+        mediador.Detalles[EmpresaId] = mediador.Detalles[EmpresaId] with { Notas = "La de otra persona.", Version = Guid.NewGuid() };
+
+        EditorNota(cut).QuerySelector("textarea")!.Input("Lo mío.");
+        EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
+
+        cut.WaitForAssertion(() => TarjetaNota(cut)!.TextContent.Should().Contain("La de otra persona."));
+        cut.WaitForAssertion(() => EditorNotaAbierto(cut).Should().BeFalse());
+        mediador.Enviadas.OfType<GuardarNotaInternaEmpresaCommand>().Should().HaveCount(1,
+            "la ficha no reenvía con la versión nueva sin que el usuario vea la nota de esa persona");
+
+        AbrirEditorNota(cut);
+        EditorNota(cut).QuerySelector("textarea")!.TextContent.Should().Be("Lo mío.");
+    }
+
+    [Fact]
+    public void Si_el_servidor_rechaza_la_nota_el_editor_sigue_abierto_con_el_motivo()
+    {
+        var rechazo = Error.Crear("Empresa.NotaRechazada", "La nota no se puede guardar ahora.");
+        var mediador = EmpresaConNota();
+        mediador.ResultadoNota = Result.Fallo(rechazo);
+        Registrar(mediador);
+        var cut = AbrirEditorNota(Renderizar());
+
+        EditorNota(cut).QuerySelector("textarea")!.Input("Lo mío.");
+        EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
+
+        cut.WaitForAssertion(() => EditorNota(cut).QuerySelector(".drawer-aviso")!.TextContent.Should().Contain(rechazo.Mensaje));
+        TarjetaNota(cut)!.TextContent.Should().Contain(NotaGuardada, "lo rechazado no se da por guardado");
     }
 
     // ── Acciones según permiso ────────────────────────────────────────────
