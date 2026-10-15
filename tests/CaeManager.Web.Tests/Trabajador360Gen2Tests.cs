@@ -18,6 +18,7 @@ using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
+using CaeManager.Application.Trabajadores.Commands.EditarFichaTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -59,12 +60,15 @@ namespace CaeManager.Web.Tests;
 /// antes que la respuesta.
 /// </para>
 /// </summary>
-public class Trabajador360Gen2Tests : BunitContext
+public partial class Trabajador360Gen2Tests : BunitContext
 {
     /// <summary>BotonCopiar importa ./js/clipboard.js.</summary>
     public Trabajador360Gen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        // CajasFicha mide las tres cajas de Ficha: en modo laxo medirAlturas devolvería null.
+        // Una medida vacía las deja en su orden de llegada, que es el que afirman los tests.
+        JSInterop.SetupModule("./js/cajas-ficha.js").Setup<double[]>("medirAlturas", _ => true).SetResult([]);
         Services.AddLocalization();
         this.ConRolDeEscritura();
     }
@@ -77,6 +81,7 @@ public class Trabajador360Gen2Tests : BunitContext
     private sealed class MediatorFalso : IMediator
     {
         public Dictionary<Guid, TrabajadorDetalleDto> Detalles { get; } = [];
+        public Result ResultadoFicha { get; set; } = Result.Exito();
         public Dictionary<Guid, List<CentroDocumentacionTrabajadorDto>> Centros { get; } = [];
         public List<ContactoAgendaDto> Contactos { get; } = [];
         public Dictionary<Guid, List<GestionListaDto>> Gestiones { get; } = [];
@@ -123,6 +128,7 @@ public class Trabajador360Gen2Tests : BunitContext
         private object? Responder(object request) => request switch
         {
             ObtenerTrabajadorPorIdQuery q => Detalles.GetValueOrDefault(q.Id),
+            EditarFichaTrabajadorCommand c => GuardarFicha(c),
             ObtenerDocumentacionPorCentroDeTrabajadorQuery q =>
                 (IReadOnlyList<CentroDocumentacionTrabajadorDto>)(Centros.GetValueOrDefault(q.TrabajadorId) ?? []),
             ObtenerGestionesQuery q => Paginar(q),
@@ -145,6 +151,26 @@ public class Trabajador360Gen2Tests : BunitContext
                     .Select(tipo => new IndicadorDocumentacionBase(tipo, EstadoIndicadorBase.SinConfirmar, Guid.NewGuid(), null)).ToList())),
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
+
+        private Result GuardarFicha(EditarFichaTrabajadorCommand c)
+        {
+            if (ResultadoFicha.EsFallido) return ResultadoFicha;
+            Detalles[c.Id] = Detalles[c.Id] with
+            {
+                NumeroAfiliacionSeguridadSocial = c.NumeroAfiliacionSeguridadSocial,
+                Puesto = c.Puesto,
+                FechaNacimiento = c.FechaNacimiento,
+                Nacionalidad = c.Nacionalidad,
+                TipoVinculo = c.TipoVinculo,
+                FechaAltaEmpresa = c.FechaAltaEmpresa,
+                FechaBajaEmpresa = c.FechaBajaEmpresa,
+                FiguraEnRnt = c.FiguraEnRnt,
+                TipoPermisoTrabajo = c.TipoPermisoTrabajo,
+                CaducidadPermisoTrabajo = c.CaducidadPermisoTrabajo,
+                MotivoPermisoTrabajo = c.MotivoPermisoTrabajo
+            };
+            return ResultadoFicha;
+        }
 
         private Result Completar(CompletarGestionCommand comando)
         {
@@ -258,7 +284,7 @@ public class Trabajador360Gen2Tests : BunitContext
     [InlineData(true, true)]
     [InlineData(true, false)]
     [InlineData(false, true)]
-    public async Task Ficha_muestra_solo_los_datos_de_altas_cargados_y_conserva_su_posicion_y_URL(bool puesto, bool nacimiento)
+    public async Task Ficha_muestra_todos_los_campos_y_conserva_su_posicion_y_URL(bool puesto, bool nacimiento)
     {
         var id = Guid.NewGuid();
         var mediador = ConTrabajador(id);
@@ -274,9 +300,9 @@ public class Trabajador360Gen2Tests : BunitContext
 
         cut.FindAll("[role=tab]").Select(t => t.FirstChild!.TextContent.Trim()).Should().Equal("Operación", "Centros", "Documentación", "Ficha", "Historial");
         var cajas = cut.Find(".cajas-ficha");
-        cajas.QuerySelectorAll("[data-caja]").Should().ContainSingle();
-        cajas.TextContent.Should().Contain("Datos para altas en plataforma").And.NotContain("Observación que no debe pintarse").And.NotContain("Vínculo con la empresa");
-        cajas.QuerySelectorAll("dt").Select(d => d.TextContent.Trim()).Should().HaveCount((puesto ? 1 : 0) + (nacimiento ? 1 : 0));
+        cajas.QuerySelectorAll("[data-caja]").Should().HaveCount(3);
+        cajas.TextContent.Should().Contain("Datos para altas en plataforma").And.NotContain("Observación que no debe pintarse").And.Contain("Vínculo con la empresa");
+        cajas.QuerySelectorAll("dt").Should().HaveCount(11);
         if (puesto) cajas.TextContent.Should().Contain("Oficial de montaje");
         if (nacimiento)
         {
@@ -288,15 +314,15 @@ public class Trabajador360Gen2Tests : BunitContext
     }
 
     [Fact]
-    public void Sin_datos_de_Ficha_no_hay_pestana_ni_caja_vacia_y_su_enlace_abre_Operacion()
+    public void Sin_datos_de_Ficha_su_enlace_muestra_las_cajas_para_poder_rellenarlas()
     {
         var id = Guid.NewGuid();
         var mediador = ConTrabajador(id);
         mediador.Detalles[id] = mediador.Detalles[id] with { Puesto = " ", FechaNacimiento = null, Observaciones = "No es una nota interna" };
         var cut = RenderizarEn(id, "?pestana=ficha");
-        cut.FindAll("[role=tab]").Select(t => t.FirstChild!.TextContent.Trim()).Should().NotContain("Ficha");
-        PestanaSeleccionada(cut).Should().Be("Operación");
-        cut.FindAll(".cajas-ficha").Should().BeEmpty();
+        cut.FindAll("[role=tab]").Select(t => t.FirstChild!.TextContent.Trim()).Should().Contain("Ficha");
+        PestanaSeleccionada(cut).Should().Be("Ficha");
+        cut.FindAll("[data-caja] dd").Should().HaveCount(11).And.OnlyContain(d => d.TextContent.Trim() == "—");
     }
 
     [Fact]
@@ -309,8 +335,8 @@ public class Trabajador360Gen2Tests : BunitContext
         var cut = RenderizarEn(id, "?pestana=ficha");
         PestanaSeleccionada(cut).Should().Be("Ficha");
         await cut.InvokeAsync(() => cut.Render(p => p.Add(x => x.TrabajadorId, otro)));
-        PestanaSeleccionada(cut).Should().Be("Operación");
-        cut.FindAll(".cajas-ficha").Should().BeEmpty();
+        PestanaSeleccionada(cut).Should().Be("Ficha");
+        cut.FindAll("[data-caja]").Should().HaveCount(3);
         await cut.InvokeAsync(() => cut.Render(p => p.Add(x => x.TrabajadorId, id)));
         PestanaSeleccionada(cut).Should().Be("Ficha");
     }

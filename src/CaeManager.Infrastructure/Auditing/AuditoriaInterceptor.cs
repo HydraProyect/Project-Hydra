@@ -7,6 +7,7 @@ using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Subcontratas;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -60,6 +61,10 @@ namespace CaeManager.Infrastructure.Auditing;
 ///    ValoresJson): los valores de un filtro guardado o de la vista recordada
 ///    pueden llevar la búsqueda libre — un nombre, un DNI. Ver el comentario
 ///    de esa entrada.
+/// 6. La ficha de altas en plataforma de <see cref="Trabajador"/> (número de
+///    afiliación a la Seguridad Social, nacionalidad, vínculo y permiso de
+///    trabajo): datos personales que el historial conservaría después de
+///    anonimizar al Trabajador. Ver el comentario de esa entrada.
 /// </summary>
 public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesInterceptor
 {
@@ -167,7 +172,25 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         // pantalla y con qué nombre, y cuándo; los valores siguen en la fila
         // FiltrosGuardados mientras exista. La vista recordada no escribe la
         // búsqueda (VistaRecordadaDeListado), pero comparte fila y columna.
-        [typeof(FiltroGuardado)] = [nameof(FiltroGuardado.ValoresJson)]
+        [typeof(FiltroGuardado)] = [nameof(FiltroGuardado.ValoresJson)],
+
+        // Punto 6 del comentario de clase (2026-10-15): la ficha de altas en
+        // plataforma de Trabajador 360. El historial no tiene purga y
+        // Trabajador.Anonimizar solo vacía la fila: un valor copiado aquí
+        // sobreviviría a la supresión (el propio Anonimizar dejaría el valor
+        // anterior en DatosAntes). El rastro conserva qué campo cambió, quién
+        // y cuándo; nunca el número de afiliación ni el resto de la ficha.
+        // Alcance: solo los campos de la ficha. Nombre, apellidos, DNI, correo,
+        // teléfono, fecha de nacimiento, puesto y observaciones del Trabajador
+        // siguen en claro en el historial y también sobreviven a Anonimizar:
+        // hueco anterior a esta entrada, pendiente de decisión propia.
+        [typeof(Trabajador)] =
+        [
+            nameof(Trabajador.NumeroAfiliacionSeguridadSocial), nameof(Trabajador.Nacionalidad),
+            nameof(Trabajador.TipoVinculo), nameof(Trabajador.FechaAltaEmpresa), nameof(Trabajador.FechaBajaEmpresa),
+            nameof(Trabajador.FiguraEnRnt), nameof(Trabajador.TipoPermisoTrabajo),
+            nameof(Trabajador.CaducidadPermisoTrabajo), nameof(Trabajador.MotivoPermisoTrabajo),
+        ]
     };
 
     /// <summary>

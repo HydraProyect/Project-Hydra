@@ -694,4 +694,24 @@
     <value>Ningún Centro coincide con los filtros.</value>
   </data>
   <data name="DesplegarIncidenciasTrabajador" xml:space="preserve"><value>Desplegar incidencias de {0}</value></data>
+  <data name="FichaAfiliacion" xml:space="preserve"><value>N.º de afiliación a la Seguridad Social</value></data>
+  <data name="FichaPuesto" xml:space="preserve"><value>Puesto u oficio</value></data>
+  <data name="FichaNacionalidad" xml:space="preserve"><value>Nacionalidad</value></data>
+  <data name="FichaVinculoEmpresa" xml:space="preserve"><value>Vínculo con la empresa</value></data>
+  <data name="FichaTipoVinculo" xml:space="preserve"><value>Tipo de vínculo</value></data>
+  <data name="FichaAltaEmpresa" xml:space="preserve"><value>Alta en la empresa</value></data>
+  <data name="FichaBaja" xml:space="preserve"><value>Baja</value></data>
+  <data name="FichaSigueDeAlta" xml:space="preserve"><value>Sigue de alta</value></data>
+  <data name="FichaFiguraRnt" xml:space="preserve"><value>Figura en el RNT</value></data>
+  <data name="FichaPermisoTrabajo" xml:space="preserve"><value>Permiso de trabajo</value></data>
+  <data name="FichaTipoPermiso" xml:space="preserve"><value>Tipo</value></data>
+  <data name="FichaCaduca" xml:space="preserve"><value>Caduca</value></data>
+  <data name="FichaMotivo" xml:space="preserve"><value>Motivo</value></data>
+  <data name="FichaEditarEnlace" xml:space="preserve"><value>Editar →</value></data>
+  <data name="FichaEditarTitulo" xml:space="preserve"><value>Editar la ficha del trabajador</value></data>
+  <data name="FichaNoDisponible" xml:space="preserve"><value>No se pudo cargar la ficha del trabajador.</value></data>
+  <data name="FichaGuardada" xml:space="preserve"><value>Ficha del trabajador guardada.</value></data>
+  <data name="FichaErrorGuardar" xml:space="preserve"><value>No se pudo guardar la ficha. Vuelve a intentarlo.</value></data>
+  <data name="FichaCopiarDato" xml:space="preserve"><value>Copiar el dato</value></data>
+  <data name="FichaFechaInvalida" xml:space="preserve"><value>Introduce una fecha válida.</value></data>
 </root>

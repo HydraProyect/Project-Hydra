@@ -28,6 +28,16 @@ public record TrabajadorApiListaDto(
         };
 }
 
+/// <summary>Contrato público previo de detalle; los datos nuevos de la ficha no se publican en la API v1.</summary>
+public record TrabajadorApiDetalleDto(Guid Id, Guid? EmpresaId, Guid? SubcontrataId,
+    string EmpleadorNombre, string Nombre, string Apellidos, string? Dni, DateOnly? FechaNacimiento,
+    string? Email, string? Observaciones, string? Alias, string? Telefono, string? Puesto, Guid Version)
+{
+    public static TrabajadorApiDetalleDto DesdeInterno(TrabajadorDetalleDto dto) =>
+        new(dto.Id, dto.EmpresaId, dto.SubcontrataId, dto.EmpleadorNombre, dto.Nombre, dto.Apellidos,
+            dto.Dni, dto.FechaNacimiento, dto.Email, dto.Observaciones, dto.Alias, dto.Telefono, dto.Puesto, dto.Version);
+}
+
 public static class TrabajadoresApiEndpoints
 {
     public static IEndpointRouteBuilder MapTrabajadoresApiEndpoints(this IEndpointRouteBuilder endpoints)
@@ -46,7 +56,7 @@ public static class TrabajadoresApiEndpoints
         endpoints.MapGet("/trabajadores/{id:guid}", async (Guid id, IMediator mediator, CancellationToken cancellationToken) =>
         {
             var trabajador = await mediator.Send(new ObtenerTrabajadorPorIdQuery(id), cancellationToken);
-            return trabajador is null ? Results.NotFound() : Results.Ok(trabajador);
+            return trabajador is null ? Results.NotFound() : Results.Ok(TrabajadorApiDetalleDto.DesdeInterno(trabajador));
         });
 
         return endpoints;

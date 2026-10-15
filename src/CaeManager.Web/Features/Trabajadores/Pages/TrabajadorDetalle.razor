@@ -520,29 +520,107 @@
         }
     </fieldset>
 </ModalFormulario>
+@if (_detalle is not null)
+{
+    <SoloConEscritura>
+        <EditarFichaTrabajadorDrawer @key="TrabajadorId" TrabajadorId="TrabajadorId" Visible="_editorFichaVisible"
+            VisibleChanged="v => _editorFichaVisible = v" OnGuardada="CargarAsync" />
+    </SoloConEscritura>
+}
 </LimiteDeErrores>
 
 @code {
-    private IReadOnlyList<CajaFicha> CajasDeFicha => HayDatosFicha ? [new("altas-plataforma", CajaAltasPlataforma)] : [];
+    private IReadOnlyList<CajaFicha> CajasDeFicha =>
+        [new("altas-plataforma", CajaAltasPlataforma), new("vinculo-empresa", CajaVinculoEmpresa), new("permiso-trabajo", CajaPermisoTrabajo)];
+
+    private RenderFragment AccionEditarFicha => @<SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _editorFichaVisible = true">@Textos["FichaEditarEnlace"]</Boton></SoloConEscritura>;
 
     private RenderFragment CajaAltasPlataforma => __builder =>
     {
         if (_detalle is { } detalle)
         {
             <Tarjeta Titulo="@Textos["FichaDatosAltas"]" Compacta="true">
-                <RejillaDatos>
-                    @if (!string.IsNullOrWhiteSpace(detalle.Puesto))
-                    {
-                        <DatoRejilla Etiqueta="@Textos["EtiquetaPuestoOficio"]" Valor="@detalle.Puesto" />
-                    }
-                    @if (detalle.FechaNacimiento is { } nacimiento)
-                    {
-                        <DatoRejilla Etiqueta="@Textos["EtiquetaFechaNacimiento"]">
-                            <BotonCopiar Valor="@nacimiento.ToString("dd/MM/yyyy")" Texto="@nacimiento.ToString("dd/MM/yyyy")" Etiqueta="@Textos["EtiquetaCopiarNacimiento"]" />
+                <AccionesHeader>@AccionEditarFicha</AccionesHeader>
+                <ChildContent>
+                    <RejillaDatos>
+                        <DatoRejilla Etiqueta="@Textos["FichaAfiliacion"]">
+                            @if (FormatoAfiliacion(detalle.NumeroAfiliacionSeguridadSocial) is { } valor)
+                            {
+                                <BotonCopiar Valor="@valor" Texto="@valor" Etiqueta="@Textos["FichaCopiarDato"]" />
+                            }
+                            else { <span>—</span> }
                         </DatoRejilla>
-                    }
-                </RejillaDatos>
+                        <DatoRejilla Etiqueta="@Textos["FichaPuesto"]" Valor="@detalle.Puesto" />
+                        <DatoRejilla Etiqueta="@Textos["EtiquetaFechaNacimiento"]">
+                            @if (detalle.FechaNacimiento?.ToString("dd/MM/yyyy") is { } valor)
+                            {
+                                <BotonCopiar Valor="@valor" Texto="@valor" Etiqueta="@Textos["EtiquetaCopiarNacimiento"]" />
+                            }
+                            else { <span>—</span> }
+                        </DatoRejilla>
+                        <DatoRejilla Etiqueta="@Textos["FichaNacionalidad"]" Valor="@detalle.Nacionalidad" />
+                    </RejillaDatos>
+                </ChildContent>
             </Tarjeta>
         }
     };
+
+    private RenderFragment CajaVinculoEmpresa => __builder =>
+    {
+        if (_detalle is { } detalle)
+        {
+            <Tarjeta Titulo="@Textos["FichaVinculoEmpresa"]" Compacta="true">
+                <AccionesHeader>@AccionEditarFicha</AccionesHeader>
+                <ChildContent>
+                    <RejillaDatos>
+                        <DatoRejilla Etiqueta="@Textos["FichaTipoVinculo"]" Valor="@detalle.TipoVinculo" />
+                        <DatoRejilla Etiqueta="@Textos["FichaAltaEmpresa"]">
+                            @if (detalle.FechaAltaEmpresa?.ToString("dd/MM/yyyy") is { } valor)
+                            {
+                                <BotonCopiar Valor="@valor" Texto="@valor" Etiqueta="@Textos["FichaCopiarDato"]" />
+                            }
+                            else { <span>—</span> }
+                        </DatoRejilla>
+                        <DatoRejilla Etiqueta="@Textos["FichaBaja"]">
+                            @if (detalle.FechaBajaEmpresa?.ToString("dd/MM/yyyy") is { } valor)
+                            {
+                                <BotonCopiar Valor="@valor" Texto="@valor" Etiqueta="@Textos["FichaCopiarDato"]" />
+                            }
+                            else if (detalle.FechaAltaEmpresa is not null)
+                            {
+                                @* Maqueta: «Sigue de alta». Solo con un alta informada; sin ella no hay vínculo que afirmar. *@
+                                <span>@Textos["FichaSigueDeAlta"]</span>
+                            }
+                            else { <span>—</span> }
+                        </DatoRejilla>
+                        <DatoRejilla Etiqueta="@Textos["FichaFiguraRnt"]" Valor="@detalle.FiguraEnRnt" />
+                    </RejillaDatos>
+                </ChildContent>
+            </Tarjeta>
+        }
+    };
+
+    private RenderFragment CajaPermisoTrabajo => __builder =>
+    {
+        if (_detalle is { } detalle)
+        {
+            <Tarjeta Titulo="@Textos["FichaPermisoTrabajo"]" Compacta="true">
+                <AccionesHeader>@AccionEditarFicha</AccionesHeader>
+                <ChildContent>
+                    <RejillaDatos>
+                        <DatoRejilla Etiqueta="@Textos["FichaTipoPermiso"]" Valor="@detalle.TipoPermisoTrabajo" Ancho="true" />
+                        <DatoRejilla Etiqueta="@Textos["FichaCaduca"]">
+                            @if (detalle.CaducidadPermisoTrabajo?.ToString("dd/MM/yyyy") is { } valor)
+                            {
+                                <BotonCopiar Valor="@valor" Texto="@valor" Etiqueta="@Textos["FichaCopiarDato"]" />
+                            }
+                            else { <span>—</span> }
+                        </DatoRejilla>
+                        <DatoRejilla Etiqueta="@Textos["FichaMotivo"]" Valor="@detalle.MotivoPermisoTrabajo" />
+                    </RejillaDatos>
+                </ChildContent>
+            </Tarjeta>
+        }
+    };
+
 }

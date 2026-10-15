@@ -7273,6 +7273,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
+                    b.Property<DateOnly?>("CaducidadPermisoTrabajo")
+                        .HasColumnType("date");
+
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -7296,13 +7299,35 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<bool>("EstaEliminado")
                         .HasColumnType("boolean");
 
+                    b.Property<DateOnly?>("FechaAltaEmpresa")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("FechaBajaEmpresa")
+                        .HasColumnType("date");
+
                     b.Property<DateOnly?>("FechaNacimiento")
                         .HasColumnType("date");
+
+                    b.Property<string>("FiguraEnRnt")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("MotivoPermisoTrabajo")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Nacionalidad")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<string>("NumeroAfiliacionSeguridadSocial")
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)");
 
                     b.Property<string>("Observaciones")
                         .HasMaxLength(1000)
@@ -7321,6 +7346,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("TipoPermisoTrabajo")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("TipoVinculo")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<Guid>("Version")
                         .IsConcurrencyToken()

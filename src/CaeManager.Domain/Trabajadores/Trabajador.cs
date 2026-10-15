@@ -14,6 +14,8 @@ public class Trabajador : EntidadBase
     public const int LongitudMaximaAlias = 150;
     public const int LongitudMaximaPuesto = 150;
     public const int LongitudMaximaEmail = 200;
+    public const int LongitudMaximaCampoFicha = 200;
+    public const int LongitudMaximaNumeroAfiliacion = 12;
 
     /// <summary>Igual que <c>Conversacion.LongitudMaximaTelefonoContacto</c> — un E.164 nunca pasa de 15 dígitos más el "+".</summary>
     public const int LongitudMaximaTelefono = 20;
@@ -69,6 +71,16 @@ public class Trabajador : EntidadBase
     public string? Telefono { get; private set; }
 
     public string? Observaciones { get; private set; }
+
+    public string? NumeroAfiliacionSeguridadSocial { get; private set; }
+    public string? Nacionalidad { get; private set; }
+    public string? TipoVinculo { get; private set; }
+    public DateOnly? FechaAltaEmpresa { get; private set; }
+    public DateOnly? FechaBajaEmpresa { get; private set; }
+    public string? FiguraEnRnt { get; private set; }
+    public string? TipoPermisoTrabajo { get; private set; }
+    public DateOnly? CaducidadPermisoTrabajo { get; private set; }
+    public string? MotivoPermisoTrabajo { get; private set; }
 
     public string NombreCompleto => $"{Nombre} {Apellidos}";
 
@@ -184,6 +196,15 @@ public class Trabajador : EntidadBase
         Telefono = null;
         Observaciones = null;
         Puesto = null;
+        NumeroAfiliacionSeguridadSocial = null;
+        Nacionalidad = null;
+        TipoVinculo = null;
+        FechaAltaEmpresa = null;
+        FechaBajaEmpresa = null;
+        FiguraEnRnt = null;
+        TipoPermisoTrabajo = null;
+        CaducidadPermisoTrabajo = null;
+        MotivoPermisoTrabajo = null;
 
         AnonimizadoEnUtc = ahoraUtc;
     }
@@ -213,6 +234,72 @@ public class Trabajador : EntidadBase
         Observaciones = observaciones;
         EstablecerTelefono(telefono);
         EstablecerPuesto(puesto);
+    }
+
+    /// <summary>
+    /// Datos opcionales para altas en plataformas. No se deduce el vínculo, la presencia
+    /// en el RNT ni la necesidad de permiso a partir del documento de identidad.
+    /// </summary>
+    public void ActualizarFicha(string? numeroAfiliacionSeguridadSocial, string? puesto,
+        DateOnly? fechaNacimiento, string? nacionalidad, string? tipoVinculo,
+        DateOnly? fechaAltaEmpresa, DateOnly? fechaBajaEmpresa, string? figuraEnRnt,
+        string? tipoPermisoTrabajo, DateOnly? caducidadPermisoTrabajo, string? motivoPermisoTrabajo)
+    {
+        if (EstaAnonimizado)
+            throw new InvalidOperationException(
+                "Este trabajador está anonimizado: sus datos personales se suprimieron y no pueden volver a introducirse.");
+
+        // Se valida todo antes de mutar para no dejar una ficha parcialmente modificada.
+        var afiliacion = NormalizarNumeroAfiliacion(numeroAfiliacionSeguridadSocial);
+        var puestoNormalizado = NormalizarCampoFicha(puesto, LongitudMaximaPuesto);
+        var nacionalidadNormalizada = NormalizarCampoFicha(nacionalidad);
+        var vinculo = NormalizarCampoFicha(tipoVinculo);
+        var rnt = NormalizarCampoFicha(figuraEnRnt);
+        var permiso = NormalizarCampoFicha(tipoPermisoTrabajo);
+        var motivo = NormalizarCampoFicha(motivoPermisoTrabajo);
+        if (fechaAltaEmpresa.HasValue && fechaBajaEmpresa.HasValue && fechaBajaEmpresa < fechaAltaEmpresa)
+            throw new ArgumentException("La baja no puede ser anterior al alta en la empresa.", nameof(fechaBajaEmpresa));
+
+        NumeroAfiliacionSeguridadSocial = afiliacion;
+        Puesto = puestoNormalizado;
+        FechaNacimiento = fechaNacimiento;
+        Nacionalidad = nacionalidadNormalizada;
+        TipoVinculo = vinculo;
+        FechaAltaEmpresa = fechaAltaEmpresa;
+        FechaBajaEmpresa = fechaBajaEmpresa;
+        FiguraEnRnt = rnt;
+        TipoPermisoTrabajo = permiso;
+        CaducidadPermisoTrabajo = caducidadPermisoTrabajo;
+        MotivoPermisoTrabajo = motivo;
+    }
+
+    /// <summary>
+    /// Solo formato: 11 o 12 dígitos ASCII, admitiendo espacios, barras y guiones.
+    /// Se conserva el cero inicial y no se verifica el control ni la existencia en la TGSS.
+    /// Las 11 cifras permiten la representación de la maqueta (41 1234567 89).
+    /// </summary>
+    public static string? NormalizarNumeroAfiliacion(string? valor)
+    {
+        if (string.IsNullOrWhiteSpace(valor)) return null;
+        var numero = new string(valor.Where(c => !char.IsWhiteSpace(c) && c is not ('/' or '-')).ToArray());
+        if (numero.Length is not (11 or 12) || numero.Any(c => c is < '0' or > '9'))
+            throw new ArgumentException("Introduce un número de afiliación de 11 o 12 dígitos.", nameof(valor));
+        return numero;
+    }
+
+    public static bool NumeroAfiliacionValido(string? valor)
+    {
+        try { NormalizarNumeroAfiliacion(valor); return true; }
+        catch (ArgumentException) { return false; }
+    }
+
+    private static string? NormalizarCampoFicha(string? valor, int limite = LongitudMaximaCampoFicha)
+    {
+        if (string.IsNullOrWhiteSpace(valor)) return null;
+        var normalizado = valor.Trim();
+        if (normalizado.Length > limite)
+            throw new ArgumentException($"El campo no puede superar {limite} caracteres.", nameof(valor));
+        return normalizado;
     }
 
     /// <summary>
