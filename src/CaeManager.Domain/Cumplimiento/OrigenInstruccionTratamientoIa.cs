@@ -24,5 +24,15 @@ public enum OrigenInstruccionTratamientoIa
     /// haga falta abrir el enum, ver decisiones a elevar del RETURN PACKAGE
     /// de HO-035-02.
     /// </summary>
-    ProductoContratado
+    ProductoContratado,
+
+    /// <summary>
+    /// La activa, Tenant a Tenant, el Administrador del Operador CAE externo que
+    /// administra el Tenant propietario por Encargo de administración pleno
+    /// (decisión de Chris, 2026-10-15; opción 3 del 2026-09-24). El clic es
+    /// técnico: la autoridad es la cláusula del contrato con la empresa
+    /// gestionada en que se apoya el encargo, que la fila guarda junto al
+    /// encargo y al Actor real.
+    /// </summary>
+    EncargoAdministracion
 }

@@ -1681,6 +1681,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ClausulaContrato")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("EncargoAdministracionId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("FechaAceptacionUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -1721,7 +1728,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "FechaAceptacionUtc");
 
-                    b.ToTable("InstruccionesTratamientoIaTenantPropietario", (string)null);
+                    b.ToTable("InstruccionesTratamientoIaTenantPropietario", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_InstruccionesTratamientoIa_EncargoSoloPorEncargo", "(\"OrigenInstruccion\" = 'EncargoAdministracion') = (\"EncargoAdministracionId\" IS NOT NULL AND \"ClausulaContrato\" IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", b =>

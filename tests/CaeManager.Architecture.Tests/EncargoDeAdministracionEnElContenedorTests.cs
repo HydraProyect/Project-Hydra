@@ -124,6 +124,8 @@ public class EncargoDeAdministracionEnElContenedorTests
     {
         public Task<Guid?> EncargoQueElevaAsync() => Task.FromResult<Guid?>(null);
         public Guid? EncargoDeLaUltimaResolucion(Guid asignacionOperacionId) => null;
+        public Task<Guid?> EncargoPlenoAsync() => Task.FromResult<Guid?>(null);
+        public bool EncargoPlenoDeLaUltimaResolucion(Guid asignacionOperacionId) => false;
     }
 
     private static string Raiz()

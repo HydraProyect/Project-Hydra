@@ -42,7 +42,8 @@ public class AsignarRolACuentaCommandHandler(
     ICurrentUserService currentUserService,
     ITenantActual tenantActual,
     ITransaccionDeComando transaccion,
-    IAsignacionAutomaticaDePrincipal asignacionAutomatica)
+    IAsignacionAutomaticaDePrincipal asignacionAutomatica,
+    IEncargoDeAdministracionActual? encargoActual = null)
     : IRequestHandler<AsignarRolACuentaCommand, Result<CuentaConRolAsignado>>
 {
     public static readonly Error RolNoAsignado = Error.Crear(
@@ -63,7 +64,8 @@ public class AsignarRolACuentaCommandHandler(
             return Result.Fallo<CuentaConRolAsignado>(AutoridadSobreCuentas.RolDesconocido);
 
         var origen = await currentUserService.ObtenerTenantOrigenIdAsync();
-        var rolAsignable = RolesReservadosAlTenantDeOrigen.Verificar(request.Rol, origen, tenantActual.TenantId);
+        var rolAsignable = RolesReservadosAlTenantDeOrigen.Verificar(request.Rol, origen, tenantActual.TenantId,
+            await RolesReservadosAlTenantDeOrigen.ActuaPorEncargoPlenoAsync(encargoActual));
         if (rolAsignable.EsFallido)
             return Result.Fallo<CuentaConRolAsignado>(rolAsignable.Error);
 
@@ -77,7 +79,8 @@ public class AsignarRolACuentaCommandHandler(
         // La cuenta destino tiene rol de Propiedad: solo la toca quien actúa en su propio
         // Tenant de origen (primer acto excluido del Encargo de administración, D-8).
         var destinoIntocable = CuentasConRolDePropiedad.VerificarDestino(
-            cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId);
+            cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId,
+            await RolesReservadosAlTenantDeOrigen.ActuaPorEncargoPlenoAsync(encargoActual));
         if (destinoIntocable.EsFallido)
             return Result.Fallo<CuentaConRolAsignado>(destinoIntocable.Error);
 

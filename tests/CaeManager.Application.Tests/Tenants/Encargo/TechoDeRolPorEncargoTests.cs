@@ -204,7 +204,46 @@ public class TechoDeRolPorEncargoTests
             .Should().Be(new RolEfectivoPorOperacion("Administrador", escenario.EncargoId));
     }
 
-    private sealed class Escenario : IOperacionesQueryContext, IEncargosAdministracionQueryContext, IPerfilDePropiedadEnOrigen
+    // Decisión del 2026-10-15: el encargo es pleno solo si eleva Y el Tenant propietario no tiene
+    // Administrador propio, ni activo ni pendiente de activar. Un Tenant con Administrador propio no cambia.
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task El_encargo_que_eleva_es_pleno_solo_sin_Administrador_propio(bool tieneAdministradorPropio, bool pleno)
+    {
+        var escenario = new Escenario("CoordinadorCae", "Administrador", Encargo.Vigente)
+        {
+            TieneAdministradorPropio = tieneAdministradorPropio,
+        };
+
+        (await escenario.ResolverAsync("Administrador"))
+            .Should().Be(new RolEfectivoPorOperacion("Administrador", escenario.EncargoId, pleno));
+    }
+
+    [Theory]
+    [InlineData(Encargo.Ninguno)]
+    [InlineData(Encargo.Retirado)]
+    public async Task Sin_Administrador_propio_pero_sin_encargo_vigente_no_hay_pleno(Encargo encargo)
+    {
+        var escenario = new Escenario("CoordinadorCae", "Administrador", encargo) { TieneAdministradorPropio = false };
+
+        (await escenario.ResolverAsync("Administrador"))
+            .Should().Be(new RolEfectivoPorOperacion("CoordinadorCae", null), "la ausencia de Administrador no concede nada sin encargo");
+    }
+
+    [Fact]
+    public async Task Sin_Administrador_propio_la_cartera_parcial_no_alcanza_el_pleno()
+    {
+        var escenario = new Escenario("CoordinadorCae", "Administrador", Encargo.Vigente, ambitoDeCartera: Ambito(AmbitoParcial.Centro))
+        {
+            TieneAdministradorPropio = false,
+        };
+
+        (await escenario.ResolverAsync("Administrador"))
+            .Should().Be(new RolEfectivoPorOperacion("CoordinadorCae", null));
+    }
+
+    private sealed class Escenario : IOperacionesQueryContext, IEncargosAdministracionQueryContext, IPerfilDePropiedadEnOrigen, ITenantConAdministradorPropio
     {
         private readonly AsignacionOperacion _operacion;
         private readonly List<AsignacionOperacion> _operaciones = [];
@@ -254,6 +293,14 @@ public class TechoDeRolPorEncargoTests
         public IQueryable<EncargoAdministracion> EncargosAdministracion =>
             new TestAsyncQueryable<EncargoAdministracion>(_encargos.AsQueryable());
 
+        public bool TieneAdministradorPropio { get; set; } = true;
+
+        public Task<bool> TieneAdministradorPropioAsync(Guid tenantId, CancellationToken cancellationToken = default)
+        {
+            tenantId.Should().Be(Propietario, "se pregunta por el Administrador propio del Tenant propietario, no del Operador");
+            return Task.FromResult(TieneAdministradorPropio);
+        }
+
         public Task<string?> ObtenerAsync(Guid usuarioId, Guid tenantOrigenId, CancellationToken cancellationToken = default)
         {
             VecesQueSeLeyoElPerfil++;
@@ -263,7 +310,7 @@ public class TechoDeRolPorEncargoTests
         }
 
         public Task<RolEfectivoPorOperacion> ResolverAsync(string? rolDeSesionEnOrigen, DateTime? ahora = null) =>
-            new TechoDeRolPorEncargo(this, this, this).ResolverAsync(
+            new TechoDeRolPorEncargo(this, this, this, this).ResolverAsync(
                 Usuario, Operador, Propietario, _operacion.Id, rolDeSesionEnOrigen, ahora ?? Ahora, default);
 
         private EncargoAdministracion? Construir(Encargo encargo)

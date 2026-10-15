@@ -121,17 +121,25 @@ public class ConfiguracionHubGen2Tests : BunitContext
     // ---------------------------------------------------------------- arnés
 
     private MediadorDelHub Registrar(
-        bool esAdministradorPlataforma = false, bool conPermisoAccesosSensibles = false, bool porEncargo = false)
+        bool esAdministradorPlataforma = false, bool conPermisoAccesosSensibles = false, bool porEncargo = false,
+        bool pleno = false)
     {
         var mediador = new MediadorDelHub { EsAdministradorPlataforma = esAdministradorPlataforma };
         var autorizacion = AddAuthorization();
         autorizacion.SetAuthorized("administrador@tenant.test");
         autorizacion.SetRoles(CaeManager.Infrastructure.Identity.Roles.Administrador);
         // Quien administra por Encargo de administración lleva el rol elevado Y el claim del encargo.
-        if (porEncargo)
+        // Con encargo pleno (decisión de Chris, 2026-10-15) lleva además el claim del pleno.
+        var encargo = Guid.NewGuid().ToString();
+        if (porEncargo && pleno)
+            autorizacion.SetClaims(
+                new System.Security.Claims.Claim(
+                    CaeManager.Web.Services.RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion, encargo),
+                new System.Security.Claims.Claim(
+                    CaeManager.Web.Services.RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoPleno, encargo));
+        else if (porEncargo)
             autorizacion.SetClaims(new System.Security.Claims.Claim(
-                CaeManager.Web.Services.RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion,
-                Guid.NewGuid().ToString()));
+                CaeManager.Web.Services.RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion, encargo));
         if (conPermisoAccesosSensibles)
             autorizacion.SetPolicies(CaeManager.Infrastructure.Identity.Policies.ConsultarAccesoDocumentosSensibles);
         Services.AddScoped<IMediator>(_ => mediador);
@@ -142,9 +150,9 @@ public class ConfiguracionHubGen2Tests : BunitContext
 
     private IRenderedComponent<Configuracion> RenderizarHub(
         string? entrada, bool esAdministradorPlataforma = false, bool conPermisoAccesosSensibles = false,
-        bool porEncargo = false)
+        bool porEncargo = false, bool pleno = false)
     {
-        Registrar(esAdministradorPlataforma, conPermisoAccesosSensibles, porEncargo);
+        Registrar(esAdministradorPlataforma, conPermisoAccesosSensibles, porEncargo, pleno);
         return Render<Configuracion>(p => p.Add(x => x.EntradaRuta, entrada));
     }
 
@@ -178,6 +186,17 @@ public class ConfiguracionHubGen2Tests : BunitContext
 
         Navegacion(cut).QuerySelectorAll("a").Select(a => a.GetAttribute("href"))
             .Should().Contain(RutasExcluidasDelEncargo, "el filtro solo actúa sobre quien lleva el claim del encargo");
+    }
+
+    [Fact]
+    public void Con_encargo_pleno_quien_administra_por_encargo_si_ve_todas_esas_entradas()
+    {
+        // Decisión de Chris, 2026-10-15: sin Administrador propio en el Tenant propietario, el
+        // encargo es pleno y el hub no esconde nada.
+        var cut = RenderizarHub("plataforma", conPermisoAccesosSensibles: true, porEncargo: true, pleno: true);
+
+        Navegacion(cut).QuerySelectorAll("a").Select(a => a.GetAttribute("href"))
+            .Should().Contain(RutasExcluidasDelEncargo, "con encargo pleno el filtro del encargo no actúa");
     }
 
     [Theory]

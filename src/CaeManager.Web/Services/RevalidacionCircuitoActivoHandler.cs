@@ -220,7 +220,10 @@ public class RevalidacionCircuitoActivoHandler(
     /// El circuito se negoció con el rol elevado por un encargo (lleva su claim)
     /// y ese mismo encargo ya no eleva. Un encargo DISTINTO tampoco vale: el
     /// circuito se abrió al amparo de una cláusula concreta, y el claim que
-    /// lleva la nombra.
+    /// lleva la nombra. Lo mismo con el claim de encargo pleno (decisión de
+    /// Chris, 2026-10-15): si el Tenant propietario pasa a tener Administrador
+    /// propio, el encargo deja de ser pleno y el circuito, que se negoció sin
+    /// exclusiones, se corta.
     /// </summary>
     private async Task<bool> ElEncargoDelCircuitoDejoDeElevarAsync()
     {
@@ -229,7 +232,14 @@ public class RevalidacionCircuitoActivoHandler(
         if (claim is null) return false;
 
         var encargoQueEleva = await encargoDeAdministracionActual.EncargoQueElevaAsync();
-        return !Guid.TryParse(claim, out var encargoDelCircuito) || encargoQueEleva != encargoDelCircuito;
+        if (!Guid.TryParse(claim, out var encargoDelCircuito) || encargoQueEleva != encargoDelCircuito)
+            return true;
+
+        var claimPleno = principal.FindFirst(RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoPleno)?.Value;
+        if (claimPleno is null) return false;
+
+        var encargoPleno = await encargoDeAdministracionActual.EncargoPlenoAsync();
+        return !Guid.TryParse(claimPleno, out var plenoDelCircuito) || encargoPleno != plenoDelCircuito;
     }
 
     public ValueTask DisposeAsync()

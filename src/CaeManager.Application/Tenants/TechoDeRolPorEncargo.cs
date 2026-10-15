@@ -7,7 +7,14 @@ namespace CaeManager.Application.Tenants;
 /// El rol efectivo por la vía de Operación y, si lo subió un Encargo de
 /// administración, el Id de ese encargo.
 /// </summary>
-public readonly record struct RolEfectivoPorOperacion(string? Rol, Guid? EncargoAdministracionId)
+/// <param name="EncargoPleno">
+/// El encargo que elevó es <b>pleno</b>: el Tenant propietario no tiene
+/// Administrador propio, ni activo ni pendiente de activar, así que quien administra por encargo lo hace
+/// sin excepciones (decisión de Chris, 2026-10-15). Falso si no elevó o si el
+/// Tenant propietario tiene Administrador propio: entonces rigen las
+/// exclusiones del 2026-10-08.
+/// </param>
+public readonly record struct RolEfectivoPorOperacion(string? Rol, Guid? EncargoAdministracionId, bool EncargoPleno = false)
 {
     public static RolEfectivoPorOperacion Ninguno => new(null, null);
 }
@@ -45,21 +52,30 @@ public readonly record struct RolEfectivoPorOperacion(string? Rol, Guid? Encargo
 /// nunca eleva, solo puede impedirlo</b>: una Dirección CAE rebajada a Consulta
 /// por entrar con contraseña estando activo el SSO no se eleva.</item>
 /// <item>Rol efectivo = el de Identity (Administrador o Dirección CAE).</item>
+/// <item>El encargo es <b>pleno</b> si el Tenant propietario no tiene ningún
+/// Administrador propio, ni activo ni pendiente de activar (<see cref="ITenantConAdministradorPropio"/>).
+/// No cambia el rol: decide si rigen las exclusiones del 2026-10-08.</item>
 /// </list>
 /// </para>
 ///
 /// <para>
-/// Lo que el rol elevado <b>no</b> abre se decide en otros sitios, no aquí: las
-/// cuentas con rol de Propiedad (<c>Usuarios</c>), los Operadores CAE externos
-/// (<see cref="IAutorizacionDelegacionTenant"/>), el propio encargo
-/// (<see cref="Encargo.AutoridadSobreElEncargo"/>) y las áreas de
-/// <c>ActosExcluidosDelEncargo</c>.
+/// <b>Encargo pleno (decisión de Chris, 2026-10-15).</b> En un Tenant
+/// propietario sin Administrador propio, quien administra por encargo es
+/// Administrador pleno, sin excepciones: no rigen las áreas de
+/// <c>ActosExcluidosDelEncargo</c> ni la reserva de cuentas con rol de
+/// Propiedad, y puede retirar su propio encargo. En un Tenant con Administrador
+/// propio nada cambia respecto del 2026-10-08: siguen rigiendo las exclusiones
+/// (cuentas con rol de Propiedad en <c>Usuarios</c>, el propio encargo en
+/// <see cref="Encargo.AutoridadSobreElEncargo"/> y las áreas de
+/// <c>ActosExcluidosDelEncargo</c>). La autoridad sigue viniendo del encargo:
+/// sin él, la cartera sola nunca llega aquí con rol de Propiedad.
 /// </para>
 /// </summary>
 public class TechoDeRolPorEncargo(
     IOperacionesQueryContext operaciones,
     IEncargosAdministracionQueryContext encargos,
-    IPerfilDePropiedadEnOrigen perfilDePropiedadEnOrigen)
+    IPerfilDePropiedadEnOrigen perfilDePropiedadEnOrigen,
+    ITenantConAdministradorPropio tenantConAdministradorPropio)
 {
     /// <summary>Roles de cartera que un encargo puede elevar. Consulta queda fuera a propósito.</summary>
     public static readonly IReadOnlyList<string> RolesDeCarteraElevables = ["CoordinadorCae", "GestorCae"];
@@ -117,7 +133,9 @@ public class TechoDeRolPorEncargo(
         if (!string.Equals(rolDeSesionEnOrigen, perfil, StringComparison.Ordinal))
             return soloCartera;
 
-        // 7. El perfil de origen, con el encargo que lo ampara.
-        return new RolEfectivoPorOperacion(perfil, encargoId);
+        // 7. El perfil de origen, con el encargo que lo ampara. 8. Pleno solo si el
+        // Tenant propietario no tiene Administrador propio, ni activo ni pendiente de activar.
+        var pleno = !await tenantConAdministradorPropio.TieneAdministradorPropioAsync(tenantId, cancellationToken);
+        return new RolEfectivoPorOperacion(perfil, encargoId, pleno);
     }
 }

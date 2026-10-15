@@ -54,7 +54,8 @@ public class CambiarActivacionUsuarioCommandHandler(
     IBloqueoCarteraUsuario bloqueoCartera,
     ICatalogoIncorporacionCartera catalogo,
     IDirectorioDestinosCartera directorioDestinos,
-    IDirectorioUsuariosService directorioUsuarios)
+    IDirectorioUsuariosService directorioUsuarios,
+    IEncargoDeAdministracionActual? encargoActual = null)
     : IRequestHandler<CambiarActivacionUsuarioCommand, Result>
 {
     public static readonly Error PrincipalNoRelevado = Error.Crear(
@@ -78,7 +79,8 @@ public class CambiarActivacionUsuarioCommandHandler(
         // La cuenta destino tiene rol de Propiedad: solo la toca quien actúa en su propio
         // Tenant de origen (primer acto excluido del Encargo de administración, D-8).
         var destinoIntocable = CuentasConRolDePropiedad.VerificarDestino(
-            cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId);
+            cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId,
+            await RolesReservadosAlTenantDeOrigen.ActuaPorEncargoPlenoAsync(encargoActual));
         if (destinoIntocable.EsFallido)
             return destinoIntocable;
 

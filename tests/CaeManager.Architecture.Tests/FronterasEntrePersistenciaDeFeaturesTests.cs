@@ -64,6 +64,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // Ficha de Vehículo: valida la selección de Trabajadores del mismo Tenant propietario.
         ("Vehiculos.EditarFichaVehiculoCommandHandler", "ITrabajadoresQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "IAsignacionesQueryContext"),
+        // Encargo de administración pleno (decisión del 2026-10-15): activar la IA por encargo
+        // relee la fila del encargo pleno (vigente, del Tenant propietario activo) para guardar
+        // su cláusula en la instrucción; no se da por buena la señal del rol efectivo.
+        ("Cumplimiento.ActivarTratamientoIaPorEncargoCommandHandler", "IEncargosAdministracionQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "ICentrosQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "IClientesQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "IConfiguracionQueryContext"),

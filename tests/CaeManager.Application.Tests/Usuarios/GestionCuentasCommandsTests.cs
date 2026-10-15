@@ -775,10 +775,10 @@ public class GestionCuentasCommandsTests
         ActorCon(rolElevado, OtroTenant);
 
     private static CambiarActivacionUsuarioCommandHandler NuevoCambioDeActivacion(
-        IGestionCuentasUsuario puerto, ICurrentUserService actor) =>
+        IGestionCuentasUsuario puerto, ICurrentUserService actor, IEncargoDeAdministracionActual? encargoActual = null) =>
         new(puerto, actor, EnSuTenant, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(),
             new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen());
+            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), encargoActual);
 
     [Theory]
     [InlineData("Administrador", "Administrador")]
@@ -831,6 +831,96 @@ public class GestionCuentasCommandsTests
         puerto.Escrituras.Should().BeEmpty();
     }
 
+    // Decisión del 2026-10-15: con encargo pleno (Tenant propietario sin Administrador propio),
+    // el Operador CAE externo es Administrador sin excepciones, también sobre las cuentas de Propiedad.
+    // La cuenta pendiente que gestiona es de Dirección CAE: una cuenta Administrador pendiente cuenta
+    // como Administrador propio (app_tenant_tiene_administrador_propio) y el encargo no sería pleno.
+    [Fact]
+    public async Task Con_encargo_pleno_quien_administra_por_encargo_concede_y_gestiona_las_cuentas_de_Propiedad()
+    {
+        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("DireccionCae", pendiente: true) };
+        var actor = QuienAdministraPorEncargo();
+        var pleno = new EncargoPlenoFijo();
+
+        (await new CrearUsuarioCommandHandler(puerto, actor, EnSuTenant, new CatalogoIncorporacionCarteraFalso(),
+                new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), encargoActual: pleno)
+            .Handle(Alta("Administrador"), default)).EsExitoso.Should().BeTrue("da de alta al Administrador propio");
+        (await new EditarUsuarioCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(),
+                new AsignacionAutomaticaInerte(), encargoActual: pleno)
+            .Handle(Edicion("DireccionCae"), default)).EsExitoso.Should().BeTrue();
+        (await new GenerarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant, encargoActual: pleno)
+            .Handle(new(Cuenta), default)).EsExitoso.Should().BeTrue();
+        (await new CorregirCorreoCuentaPendienteCommandHandler(puerto, actor, EnSuTenant, encargoActual: pleno)
+            .Handle(new(Cuenta, "nuevo@x.test"), default)).EsExitoso.Should().BeTrue();
+        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant, encargoActual: pleno)
+            .Handle(new(Cuenta), default)).EsExitoso.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Con_encargo_pleno_asigna_roles_de_Propiedad_y_cambia_la_activacion_de_sus_cuentas_y_sin_pleno_no(bool pleno)
+    {
+        // Mismo actor (Administrador por encargo desde el Operador CAE) y mismas cuentas: lo único que
+        // cambia es si el encargo es pleno. Sin pleno, el encargo eleva pero rigen las exclusiones.
+        var encargo = new EncargoPlenoFijo(pleno);
+        var actor = QuienAdministraPorEncargo();
+        var sinRol = Guid.NewGuid();
+        var puerto = new GestionCuentasFalsa
+        {
+            [Cuenta] = CuentaPropia("DireccionCae"),
+            [sinRol] = CuentaPropia(null, id: sinRol),
+        };
+
+        AsignarRolACuentaCommandHandler Asignar() => new(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(),
+            new AsignacionAutomaticaInerte(), encargo);
+
+        var conceder = await Asignar().Handle(new AsignarRolACuentaCommand(sinRol, "Administrador"), default);
+        // AsignarRolACuenta solo da rol a una cuenta sin rol: sobre la de Dirección CAE, con pleno la
+        // para «ya tiene rol» (pasó la regla del destino) y sin pleno la regla del destino.
+        var sobrePropiedad = await Asignar().Handle(new AsignarRolACuentaCommand(Cuenta, "Consulta"), default);
+        var desactivar = await NuevoCambioDeActivacion(puerto, actor, encargo).Handle(new(Cuenta, false), default);
+
+        if (pleno)
+        {
+            conceder.EsExitoso.Should().BeTrue("con encargo pleno concede el rol Administrador");
+            sobrePropiedad.Error.Should().Be(AsignarRolACuentaCommandHandler.CuentaConRol,
+                "la regla del destino ya no la para; la para que ya tenga rol");
+            desactivar.EsExitoso.Should().BeTrue("con encargo pleno desactiva una cuenta de Dirección CAE");
+            puerto.Escrituras.Should().NotBeEmpty();
+        }
+        else
+        {
+            conceder.Error.Codigo.Should().Be("Usuarios.RolReservadoAlTenantDeOrigen");
+            sobrePropiedad.Error.Should().Be(CuentasConRolDePropiedad.SoloElTenantPropietario);
+            desactivar.Error.Should().Be(CuentasConRolDePropiedad.SoloElTenantPropietario);
+            puerto.Escrituras.Should().BeEmpty();
+        }
+    }
+
+    [Fact]
+    public async Task Con_encargo_pleno_el_selector_ofrece_los_roles_reservados()
+    {
+        var handler = new CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables.ObtenerRolesNoAsignablesQueryHandler(
+            QuienAdministraPorEncargo(), EnSuTenant, encargoActual: new EncargoPlenoFijo());
+
+        (await handler.Handle(new(), default)).Should().BeEmpty();
+    }
+
+    /// <summary>Un encargo que eleva; pleno salvo que se diga lo contrario.</summary>
+    private sealed class EncargoPlenoFijo(bool pleno = true) : IEncargoDeAdministracionActual
+    {
+        private static readonly Guid Encargo = Guid.NewGuid();
+
+        public Task<Guid?> EncargoQueElevaAsync() => Task.FromResult<Guid?>(Encargo);
+
+        public Guid? EncargoDeLaUltimaResolucion(Guid asignacionOperacionId) => Encargo;
+
+        public Task<Guid?> EncargoPlenoAsync() => Task.FromResult<Guid?>(pleno ? Encargo : null);
+
+        public bool EncargoPlenoDeLaUltimaResolucion(Guid asignacionOperacionId) => pleno;
+    }
+
     [Fact]
     public async Task Quien_administra_por_encargo_si_gestiona_las_cuentas_con_rol_de_Operacion()
     {
@@ -863,12 +953,20 @@ public class GestionCuentasCommandsTests
     [Fact]
     public void La_regla_del_destino_falla_cerrada_sin_Tenant_de_origen_o_sin_Tenant_activo()
     {
-        CuentasConRolDePropiedad.VerificarDestino(["Administrador"], null, Tenant).Error
+        CuentasConRolDePropiedad.VerificarDestino(["Administrador"], null, Tenant, false).Error
             .Should().Be(CuentasConRolDePropiedad.SoloElTenantPropietario);
-        CuentasConRolDePropiedad.VerificarDestino(["DireccionCae"], OtroTenant, null).Error
+        CuentasConRolDePropiedad.VerificarDestino(["DireccionCae"], OtroTenant, null, false).Error
             .Should().Be(CuentasConRolDePropiedad.SoloElTenantPropietario);
-        CuentasConRolDePropiedad.VerificarDestino(["GestorCae"], null, Tenant).EsExitoso.Should().BeTrue();
-        CuentasConRolDePropiedad.VerificarDestino(["Administrador"], Tenant, Tenant).EsExitoso.Should().BeTrue();
+        CuentasConRolDePropiedad.VerificarDestino(["GestorCae"], null, Tenant, false).EsExitoso.Should().BeTrue();
+        CuentasConRolDePropiedad.VerificarDestino(["Administrador"], Tenant, Tenant, false).EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Con_encargo_pleno_la_regla_del_destino_admite_cuentas_de_Propiedad_desde_el_Operador()
+    {
+        CuentasConRolDePropiedad.VerificarDestino(["Administrador"], OtroTenant, Tenant, false).Error
+            .Should().Be(CuentasConRolDePropiedad.SoloElTenantPropietario);
+        CuentasConRolDePropiedad.VerificarDestino(["Administrador"], OtroTenant, Tenant, true).EsExitoso.Should().BeTrue();
     }
 
     // ---------- Primer usuario elegible (ADR-011 § 2.7, enmienda 2026-10-08, punto 4) ----------

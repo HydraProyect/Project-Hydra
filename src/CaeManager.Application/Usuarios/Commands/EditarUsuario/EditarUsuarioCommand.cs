@@ -61,7 +61,8 @@ public class EditarUsuarioCommandHandler(
     ICurrentUserService currentUserService,
     ITenantActual tenantActual,
     ITransaccionDeComando transaccion,
-    IAsignacionAutomaticaDePrincipal asignacionAutomatica)
+    IAsignacionAutomaticaDePrincipal asignacionAutomatica,
+    IEncargoDeAdministracionActual? encargoActual = null)
     : IRequestHandler<EditarUsuarioCommand, Result>
 {
     public static readonly Error RolNoCambiado = Error.Crear(
@@ -94,7 +95,8 @@ public class EditarUsuarioCommandHandler(
         // La cuenta destino tiene rol de Propiedad: solo la toca quien actúa en su propio
         // Tenant de origen (primer acto excluido del Encargo de administración, D-8).
         var destinoIntocable = CuentasConRolDePropiedad.VerificarDestino(
-            cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId);
+            cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId,
+            await RolesReservadosAlTenantDeOrigen.ActuaPorEncargoPlenoAsync(encargoActual));
         if (destinoIntocable.EsFallido)
             return destinoIntocable;
 
@@ -102,7 +104,8 @@ public class EditarUsuarioCommandHandler(
         if (concedeRol)
         {
             var rolAsignable = RolesReservadosAlTenantDeOrigen.Verificar(
-                request.Rol, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId);
+                request.Rol, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId,
+                await RolesReservadosAlTenantDeOrigen.ActuaPorEncargoPlenoAsync(encargoActual));
             if (rolAsignable.EsFallido)
                 return rolAsignable;
         }

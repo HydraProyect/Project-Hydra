@@ -105,4 +105,56 @@ public class InstruccionTratamientoIaTenantPropietarioTests
 
         accion.Should().Throw<ArgumentException>();
     }
+
+    // --- Encargo de administración pleno (decisión del 2026-10-15) ---------------------------
+
+    [Fact]
+    public void Por_encargo_guarda_el_encargo_la_clausula_y_al_Actor_real()
+    {
+        var fecha = DateTime.UtcNow;
+        var actor = Guid.NewGuid();
+        var encargo = Guid.NewGuid();
+
+        var instruccion = InstruccionTratamientoIaTenantPropietario.PorEncargoDeAdministracion(
+            "v1", "v2", fecha, actor, encargo, "Cláusula 7.2");
+
+        instruccion.OrigenInstruccion.Should().Be(OrigenInstruccionTratamientoIa.EncargoAdministracion);
+        instruccion.EncargoAdministracionId.Should().Be(encargo);
+        instruccion.ClausulaContrato.Should().Be("Cláusula 7.2");
+        instruccion.RegistradaPorUsuarioId.Should().Be(actor);
+        instruccion.VersionDpaAceptada.Should().Be("v1");
+        instruccion.VersionAnexoSubencargadosAceptada.Should().Be("v2");
+        instruccion.EstaVigente.Should().BeTrue();
+    }
+
+    [Fact]
+    public void El_constructor_general_no_crea_una_activacion_por_encargo_sin_encargo_ni_clausula()
+    {
+        var accion = () => new InstruccionTratamientoIaTenantPropietario(
+            "v1", "v2", DateTime.UtcNow, OrigenInstruccionTratamientoIa.EncargoAdministracion, Guid.NewGuid());
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    [Theory]
+    [InlineData(false, "Cláusula 7.2")]
+    [InlineData(true, "")]
+    [InlineData(true, "   ")]
+    public void Por_encargo_exige_encargo_y_clausula(bool conEncargo, string clausula)
+    {
+        var accion = () => InstruccionTratamientoIaTenantPropietario.PorEncargoDeAdministracion(
+            "v1", "v2", DateTime.UtcNow, Guid.NewGuid(), conEncargo ? Guid.NewGuid() : Guid.Empty, clausula);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Por_encargo_rechaza_una_clausula_mas_larga_que_la_del_encargo()
+    {
+        var accion = () => InstruccionTratamientoIaTenantPropietario.PorEncargoDeAdministracion(
+            "v1", "v2", DateTime.UtcNow, Guid.NewGuid(), Guid.NewGuid(),
+            new string('x', InstruccionTratamientoIaTenantPropietario.LongitudMaximaClausula + 1));
+
+        accion.Should().Throw<ArgumentException>();
+    }
 }

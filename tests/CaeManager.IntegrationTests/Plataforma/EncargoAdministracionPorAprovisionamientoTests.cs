@@ -161,8 +161,11 @@ public class EncargoAdministracionPorAprovisionamientoTests : IAsyncLifetime
             var retirado = EncargoAdministracion.Registrar(
                 operacion, "Cláusula 7.ª del contrato de servicio", EncargoAdministracion.VersionTextoVigente,
                 OrigenEncargoAdministracion.AprovisionamientoDePlataforma, _soporte, ahora.AddHours(-12), vigenciaHasta: null);
-            retirado.Retirar(_soporte, ahora.AddHours(-6));
             siembra.EncargosAdministracion.Add(retirado);
+            await siembra.SaveChangesAsync();
+            // Se registra vigente y se retira después: TR_EncargosAdministracion_NaceVigente rechaza
+            // insertar una fila ya retirada.
+            retirado.Retirar(_soporte, ahora.AddHours(-6));
             await siembra.SaveChangesAsync();
             retiradoId = retirado.Id;
         }

@@ -114,6 +114,9 @@
   <data name="AvisoPorEncargoCuerpo" xml:space="preserve">
     <value>Entras con tu perfil de Administrador o Dirección CAE porque esta organización ha encargado su administración a la tuya. Quedan reservados a un Administrador propio de la organización las cuentas de Administrador y Dirección CAE, los Operadores CAE externos, el propio encargo, y las pantallas de auditoría, facturación, claves de API, integraciones, importaciones, retención y configuración global de IA.</value>
   </data>
+  <data name="AvisoPorEncargoCuerpoPleno" xml:space="preserve">
+    <value>Entras con tu perfil de Administrador o Dirección CAE porque esta organización ha encargado su administración a la tuya y no tiene Administrador propio: la administras como Administrador pleno, también sus cuentas de Administrador y Dirección CAE, la auditoría, la facturación, las claves de API, las integraciones, las importaciones, la retención, la configuración global de IA y el propio encargo, al que puedes renunciar.</value>
+  </data>
   <data name="ReservadoPresupuestoIa" xml:space="preserve">
     <value>El presupuesto de IA lo fija un Administrador propio de esta organización: no forma parte del Encargo de administración.</value>
   </data>

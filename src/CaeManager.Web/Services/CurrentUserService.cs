@@ -97,6 +97,12 @@ public class CurrentUserService(
     /// <inheritdoc />
     public async Task<Guid?> EncargoQueElevaAsync() => (await ResolverRolEfectivoAsync()).EncargoAdministracionId;
 
+    /// <inheritdoc />
+    public async Task<Guid?> EncargoPlenoAsync() =>
+        await ResolverRolEfectivoAsync() is { EncargoPleno: true, EncargoAdministracionId: { } encargoId }
+            ? encargoId
+            : null;
+
     /// <summary>
     /// La operación seleccionada y el encargo que elevaba la última vez que se
     /// resolvió el rol efectivo para ella en este ámbito (petición o circuito).
@@ -104,13 +110,20 @@ public class CurrentUserService(
     /// auditoría describe el contexto en el que el usuario está, no cada Tenant
     /// que una consulta agregada visita.
     /// </summary>
-    private (Guid AsignacionOperacionId, Guid? EncargoAdministracionId)? ultimaResolucionDeLaSeleccion;
+    private (Guid AsignacionOperacionId, Guid? EncargoAdministracionId, bool EncargoPleno)? ultimaResolucionDeLaSeleccion;
 
     /// <inheritdoc />
     public Guid? EncargoDeLaUltimaResolucion(Guid asignacionOperacionId) =>
         ultimaResolucionDeLaSeleccion is { } ultima && ultima.AsignacionOperacionId == asignacionOperacionId
             ? ultima.EncargoAdministracionId
             : null;
+
+    /// <inheritdoc />
+    public bool EncargoPlenoDeLaUltimaResolucion(Guid asignacionOperacionId) =>
+        ultimaResolucionDeLaSeleccion is { } ultima
+        && ultima.AsignacionOperacionId == asignacionOperacionId
+        && ultima.EncargoAdministracionId is not null
+        && ultima.EncargoPleno;
 
     /// <summary>
     /// UNA sola resolución para el rol efectivo y para la señal «actúa por
@@ -164,7 +177,7 @@ public class CurrentUserService(
         {
             var porOperacion = await ResolverRolViaOperacionAsync(
                 tenantSeleccionado, usuarioId.Value, asignacionOperacionId, RolDeSesionEnOrigen(usuario));
-            ultimaResolucionDeLaSeleccion = (asignacionOperacionId, porOperacion.EncargoAdministracionId);
+            ultimaResolucionDeLaSeleccion = (asignacionOperacionId, porOperacion.EncargoAdministracionId, porOperacion.EncargoPleno);
             return porOperacion;
         }
 

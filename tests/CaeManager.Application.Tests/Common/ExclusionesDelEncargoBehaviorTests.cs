@@ -131,12 +131,32 @@ public class ExclusionesDelEncargoBehaviorTests
         encargo.VecesConsultado.Should().Be(0, "una petición que no está en la lista no paga la resolución del rol efectivo");
     }
 
+    // Decisión del 2026-10-15: en un Tenant sin Administrador propio, el Operador CAE externo con
+    // encargo es Administrador pleno, sin excepciones.
+    [Fact]
+    public async Task Con_encargo_pleno_ninguna_peticion_excluida_se_interrumpe()
+    {
+        foreach (var fila in ComandosExcluidos)
+        {
+            var (respuesta, llegoAlHandler) = await PasarAsync((ICommand)fila[1], Result.Exito(), EncargoVigente, pleno: true);
+            llegoAlHandler.Should().BeTrue((string)fila[0]);
+            respuesta.EsExitoso.Should().BeTrue();
+        }
+
+        foreach (var fila in ConsultasExcluidas)
+        {
+            var (respuesta, llegoAlHandler) = await PasarAsync(fila[1], "datos", EncargoVigente, pleno: true);
+            llegoAlHandler.Should().BeTrue((string)fila[0]);
+            respuesta.Should().Be("datos");
+        }
+    }
+
     private static async Task<(TResponse Respuesta, bool LlegoAlHandler)> PasarAsync<TRequest, TResponse>(
-        TRequest peticion, TResponse respuestaDelHandler, Guid? encargo)
+        TRequest peticion, TResponse respuestaDelHandler, Guid? encargo, bool pleno = false)
         where TRequest : notnull
     {
         var llegoAlHandler = false;
-        var behavior = new ExclusionesDelEncargoBehavior<TRequest, TResponse>(new EncargoFijo(encargo));
+        var behavior = new ExclusionesDelEncargoBehavior<TRequest, TResponse>(new EncargoFijo(encargo, pleno));
 
         var respuesta = await behavior.Handle(
             peticion, _ => { llegoAlHandler = true; return Task.FromResult(respuestaDelHandler); }, CancellationToken.None);
@@ -144,7 +164,7 @@ public class ExclusionesDelEncargoBehaviorTests
         return (respuesta, llegoAlHandler);
     }
 
-    private sealed class EncargoFijo(Guid? encargo) : IEncargoDeAdministracionActual
+    private sealed class EncargoFijo(Guid? encargo, bool pleno = false) : IEncargoDeAdministracionActual
     {
         public int VecesConsultado { get; private set; }
 
@@ -155,5 +175,9 @@ public class ExclusionesDelEncargoBehaviorTests
         }
 
         public Guid? EncargoDeLaUltimaResolucion(Guid asignacionOperacionId) => encargo;
+
+        public Task<Guid?> EncargoPlenoAsync() => Task.FromResult(pleno ? encargo : null);
+
+        public bool EncargoPlenoDeLaUltimaResolucion(Guid asignacionOperacionId) => pleno && encargo is not null;
     }
 }

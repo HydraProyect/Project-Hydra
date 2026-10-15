@@ -60,14 +60,16 @@ public class EncargoAdministracionCommandsTests
 
     private sealed record Actor(
         Guid UsuarioId, Guid? TenantOrigen, bool EsAdministradorMiembro,
-        SesionPrivilegiadaActiva? Sesion = null, Guid? UsuarioSimulado = null);
+        SesionPrivilegiadaActiva? Sesion = null, Guid? UsuarioSimulado = null,
+        Guid? EncargoPleno = null, string RolEfectivo = "Administrador", Guid? UsuarioDeSesion = null);
 
     private AutoridadSobreElEncargo Autoridad(Actor actor) => new(
         new SesionFija(actor.Sesion),
         // El rol efectivo es Administrador para todos: ninguna decisión de este acto puede depender de él.
-        new CurrentUserServiceFalso(actor.UsuarioId, "Administrador", actor.TenantOrigen),
+        new CurrentUserServiceFalso(actor.UsuarioDeSesion ?? actor.UsuarioId, actor.RolEfectivo, actor.TenantOrigen),
         new ActorFijo(new ActorAuditoria(actor.UsuarioId, actor.UsuarioSimulado, TipoViaAcceso.Normal, null)),
-        new PertenenciaFija(actor.EsAdministradorMiembro));
+        new PertenenciaFija(actor.EsAdministradorMiembro),
+        new EncargoPlenoFijo(actor.EncargoPleno));
 
     private Task<CaeManager.Domain.Common.Result<Guid>> RegistrarAsync(
         Actor actor, Guid? operacionId = null, string clausula = Clausula, DateTime? vigenciaHasta = null, Guid? tenantActivo = null) =>
@@ -338,6 +340,63 @@ public class EncargoAdministracionCommandsTests
         encargo.RetiradoEnUtc.Should().BeNull();
     }
 
+    // --- Renuncia con encargo pleno (decisión del 2026-10-15) ---------------------------------
+
+    [Fact]
+    public async Task Con_encargo_pleno_el_Administrador_del_Operador_CAE_renuncia_a_ese_encargo_y_queda_quien()
+    {
+        var encargo = EncargoYaRegistrado();
+        var actor = AdministradorDelOperadorCaePorEncargo() with { EncargoPleno = encargo.Id };
+
+        (await RetirarAsync(actor, encargo.Id)).EsExitoso.Should().BeTrue();
+
+        encargo.RetiradoEnUtc.Should().Be(Ahora);
+        encargo.RetiradoPorUsuarioId.Should().Be(actor.UsuarioId, "la auditoría guarda al Actor real del Operador");
+        _repositorio.VecesGuardado.Should().Be(1);
+    }
+
+    public static TheoryData<string> RenunciasQueNoValen => new()
+    {
+        "encargo no pleno", "pleno de otro encargo", "rol Dirección CAE", "acto simulado",
+        "Sesión Privilegiada", "sesión de otro usuario",
+    };
+
+    [Theory]
+    [MemberData(nameof(RenunciasQueNoValen))]
+    public async Task El_Operador_CAE_solo_renuncia_con_encargo_pleno_sobre_ese_encargo_como_Administrador_y_sin_simular(string caso)
+    {
+        var encargo = EncargoYaRegistrado();
+        var actor = AdministradorDelOperadorCaePorEncargo() with { EncargoPleno = encargo.Id };
+        actor = caso switch
+        {
+            "encargo no pleno" => actor with { EncargoPleno = null },
+            "pleno de otro encargo" => actor with { EncargoPleno = Guid.NewGuid() },
+            "rol Dirección CAE" => actor with { RolEfectivo = "DireccionCae" },
+            "acto simulado" => actor with { UsuarioSimulado = Guid.NewGuid() },
+            "Sesión Privilegiada" => actor with
+            {
+                Sesion = new SesionPrivilegiadaActiva(Guid.NewGuid(), Guid.NewGuid(), Propietario, CapacidadPrivilegio.SoporteLectura, null),
+            },
+            "sesión de otro usuario" => actor with { UsuarioDeSesion = Guid.NewGuid() },
+            _ => throw new ArgumentOutOfRangeException(nameof(caso)),
+        };
+
+        (await RetirarAsync(actor, encargo.Id)).Error.Should().Be(AutoridadSobreElEncargo.NoAutorizado, caso);
+
+        encargo.RetiradoEnUtc.Should().BeNull();
+        _repositorio.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Con_encargo_pleno_el_Operador_CAE_sigue_sin_registrar_encargos()
+    {
+        var encargo = EncargoYaRegistrado();
+        encargo.Retirar(Guid.NewGuid(), Ahora.AddDays(-1));
+        var actor = AdministradorDelOperadorCaePorEncargo() with { EncargoPleno = encargo.Id };
+
+        (await RegistrarAsync(actor)).Error.Should().Be(AutoridadSobreElEncargo.NoAutorizado);
+    }
+
     [Fact]
     public async Task Un_encargo_de_otro_Tenant_propietario_no_se_encuentra()
     {
@@ -489,6 +548,17 @@ public class EncargoAdministracionCommandsTests
             VecesGuardado++;
             return Task.FromResult(!ElGuardadoPierdeLaCarrera);
         }
+    }
+
+    private sealed class EncargoPlenoFijo(Guid? encargoPleno) : IEncargoDeAdministracionActual
+    {
+        public Task<Guid?> EncargoQueElevaAsync() => Task.FromResult(encargoPleno);
+
+        public Guid? EncargoDeLaUltimaResolucion(Guid asignacionOperacionId) => encargoPleno;
+
+        public Task<Guid?> EncargoPlenoAsync() => Task.FromResult(encargoPleno);
+
+        public bool EncargoPlenoDeLaUltimaResolucion(Guid asignacionOperacionId) => encargoPleno is not null;
     }
 
     private sealed class SesionFija(SesionPrivilegiadaActiva? sesion) : ISesionPrivilegiadaActual

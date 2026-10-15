@@ -21,6 +21,13 @@ public class InstruccionTratamientoIaTenantPropietarioConfiguration : IEntityTyp
 
         builder.Property(i => i.OrigenInstruccion).IsRequired().HasConversion<string>().HasMaxLength(30);
 
+        builder.Property(i => i.ClausulaContrato).HasMaxLength(InstruccionTratamientoIaTenantPropietario.LongitudMaximaClausula);
+
+        // La activación por encargo nombra su encargo y su cláusula; las demás, ninguno de los dos.
+        builder.ToTable(t => t.HasCheckConstraint(
+            "CK_InstruccionesTratamientoIa_EncargoSoloPorEncargo",
+            "(\"OrigenInstruccion\" = 'EncargoAdministracion') = (\"EncargoAdministracionId\" IS NOT NULL AND \"ClausulaContrato\" IS NOT NULL)"));
+
         builder.Property(i => i.MotivoRevocacion).HasMaxLength(InstruccionTratamientoIaTenantPropietario.LongitudMaximaMotivoRevocacion);
 
         // Consulta del gate (Nivel 0): "¿tiene este tenant una fila vigente?"

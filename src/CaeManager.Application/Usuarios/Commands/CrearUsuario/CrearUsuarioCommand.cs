@@ -66,7 +66,8 @@ public class CrearUsuarioCommandHandler(
     ITenantActual tenantActual,
     ICatalogoIncorporacionCartera catalogoCartera,
     ITransaccionDeComando transaccion,
-    IAsignacionAutomaticaDePrincipal asignacionAutomatica)
+    IAsignacionAutomaticaDePrincipal asignacionAutomatica,
+    IEncargoDeAdministracionActual? encargoActual = null)
     : IRequestHandler<CrearUsuarioCommand, Result<UsuarioCreado>>
 {
     public static readonly Error CarteraSoloParaGestorCae = Error.Crear(
@@ -105,7 +106,8 @@ public class CrearUsuarioCommandHandler(
                 "Usuarios.SinOrganizacion", "No pudimos determinar tu organización. Vuelve a iniciar sesión."));
 
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
-        var rolAsignable = RolesReservadosAlTenantDeOrigen.Verificar(request.Rol, tenantOrigenId, tenantId);
+        var rolAsignable = RolesReservadosAlTenantDeOrigen.Verificar(request.Rol, tenantOrigenId, tenantId,
+            await RolesReservadosAlTenantDeOrigen.ActuaPorEncargoPlenoAsync(encargoActual));
         if (rolAsignable.EsFallido)
             return Result.Fallo<UsuarioCreado>(rolAsignable.Error);
 

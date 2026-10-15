@@ -111,6 +111,17 @@ public class RolEfectivoDelWorkspaceMiddleware(RequestDelegate siguiente)
     /// </summary>
     public const string TipoClaimEncargoAdministracion = "talveg:encargo_administracion";
 
+    /// <summary>
+    /// Claim en memoria que acompaña a <see cref="TipoClaimEncargoAdministracion"/>
+    /// cuando el encargo es <b>pleno</b>: el Tenant propietario no tiene
+    /// Administrador propio, ni activo ni pendiente de activar (decisión de Chris, 2026-10-15). Su valor es el
+    /// Id del encargo. Con él, <see cref="PaginasExcluidasDelEncargoAuthorizationHandler"/>
+    /// no niega nada; <see cref="RevalidacionCircuitoActivoHandler"/> corta el
+    /// circuito si el encargo deja de ser pleno. Mismo ciclo de vida que el otro:
+    /// solo lo pone este middleware y se retira antes de decidir.
+    /// </summary>
+    public const string TipoClaimEncargoPleno = "talveg:encargo_administracion_pleno";
+
     public async Task InvokeAsync(
         HttpContext contexto,
         IClienteActivoSeleccionado clienteActivoSeleccionado,
@@ -129,14 +140,17 @@ public class RolEfectivoDelWorkspaceMiddleware(RequestDelegate siguiente)
 
             // Misma resolución que acaba de dar el rol (no una segunda consulta):
             // el claim del encargo y el rol elevado salen de la misma decisión.
-            var encargoQueEleva = clienteActivoSeleccionado.AsignacionOperacionIdSeleccionada is { } operacionId
+            var operacionSeleccionada = clienteActivoSeleccionado.AsignacionOperacionIdSeleccionada;
+            var encargoQueEleva = operacionSeleccionada is { } operacionId
                 ? encargoDeAdministracionActual.EncargoDeLaUltimaResolucion(operacionId)
                 : null;
+            var encargoPleno = operacionSeleccionada is { } operacionDelPleno
+                               && encargoDeAdministracionActual.EncargoPlenoDeLaUltimaResolucion(operacionDelPleno);
 
             ConservarRolDeSesionOrigen(contexto.User, rolDeSesion);
             AplicarRol(contexto.User, rolEfectivo);
             if (rolEfectivo is not null && encargoQueEleva is { } encargoId)
-                AplicarClaimDelEncargo(contexto.User, encargoId);
+                AplicarClaimDelEncargo(contexto.User, encargoId, encargoPleno);
 
             // Se registra porque hasta REC-189 esta sustitución no dejaba
             // rastro alguno: el propio hallazgo N-5 que este middleware
@@ -255,14 +269,18 @@ public class RolEfectivoDelWorkspaceMiddleware(RequestDelegate siguiente)
     private static void RetirarClaimDelEncargo(ClaimsPrincipal principal)
     {
         foreach (var identidad in principal.Identities)
-            foreach (var claim in identidad.FindAll(TipoClaimEncargoAdministracion).ToList())
+            foreach (var claim in identidad.Claims
+                         .Where(c => c.Type is TipoClaimEncargoAdministracion or TipoClaimEncargoPleno).ToList())
                 identidad.RemoveClaim(claim);
     }
 
-    private static void AplicarClaimDelEncargo(ClaimsPrincipal principal, Guid encargoId)
+    private static void AplicarClaimDelEncargo(ClaimsPrincipal principal, Guid encargoId, bool pleno)
     {
-        if (principal.Identity is ClaimsIdentity identidadPrincipal)
-            identidadPrincipal.AddClaim(new Claim(TipoClaimEncargoAdministracion, encargoId.ToString()));
+        if (principal.Identity is not ClaimsIdentity identidadPrincipal) return;
+
+        identidadPrincipal.AddClaim(new Claim(TipoClaimEncargoAdministracion, encargoId.ToString()));
+        if (pleno)
+            identidadPrincipal.AddClaim(new Claim(TipoClaimEncargoPleno, encargoId.ToString()));
     }
 
     private static void AplicarRol(ClaimsPrincipal principal, string? rolEfectivo)

@@ -68,6 +68,28 @@ public class RolEfectivoDelWorkspaceMiddlewareTests
             .Which.Value.Should().Be(encargo.ToString());
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task El_claim_de_encargo_pleno_solo_acompana_a_un_encargo_pleno(bool pleno)
+    {
+        var protector = ProtectorDePruebas();
+        var encargo = Guid.NewGuid();
+        var token = ClienteActivoSeleccionado.Proteger(
+            protector, Usuario, TenantVisitado, asignacionOperacionId: Guid.NewGuid());
+        var contexto = ContextoCon(token, rolDeSesion: Roles.Administrador);
+        ((ClaimsIdentity)contexto.User.Identity!).AddClaim(new Claim(
+            RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoPleno, Guid.NewGuid().ToString()));
+
+        await EjecutarAsync(contexto, protector, new CurrentUserServiceFalso(Roles.Administrador, encargo, encargoPleno: pleno));
+
+        var claims = contexto.User.FindAll(RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoPleno).ToList();
+        if (pleno)
+            claims.Should().ContainSingle().Which.Value.Should().Be(encargo.ToString());
+        else
+            claims.Should().BeEmpty("el claim pleno que traía el principal se retira y no se repone");
+    }
+
     [Fact]
     public async Task Sin_encargo_que_eleve_el_claim_del_encargo_no_sobrevive_aunque_viniera_en_el_principal()
     {
@@ -573,13 +595,15 @@ public class RolEfectivoDelWorkspaceMiddlewareTests
     /// afirman que el middleware <b>no</b> consulta, y sin el contador esa
     /// afirmación no sería observable.
     /// </summary>
-    private sealed class CurrentUserServiceFalso(string? rolEfectivo, Guid? encargoQueEleva = null)
+    private sealed class CurrentUserServiceFalso(string? rolEfectivo, Guid? encargoQueEleva = null, bool encargoPleno = false)
         : ICurrentUserService, IEncargoDeAdministracionActual
     {
         public int VecesConsultado { get; private set; }
 
         public Task<Guid?> EncargoQueElevaAsync() => Task.FromResult(encargoQueEleva);
         public Guid? EncargoDeLaUltimaResolucion(Guid asignacionOperacionId) => encargoQueEleva;
+        public Task<Guid?> EncargoPlenoAsync() => Task.FromResult(encargoPleno ? encargoQueEleva : null);
+        public bool EncargoPlenoDeLaUltimaResolucion(Guid asignacionOperacionId) => encargoPleno && encargoQueEleva is not null;
 
         public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
         public Task<string?> ObtenerRolEfectivoAsync()

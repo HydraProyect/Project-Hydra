@@ -578,8 +578,9 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     /// Operador CAE externo que recibe. Se LEE desde las dos posiciones, como
     /// las asignaciones; se ESCRIBE solo con el Tenant propietario como Tenant
     /// activo y nunca desde una conexión cuyo Tenant de origen sea el Operador
-    /// CAE que lo recibe — «nadie del Operador CAE registra ni retira su propio
-    /// encargo», llevado a la base. Sin FORCE por el mismo motivo que los
+    /// CAE que lo recibe — «nadie del Operador CAE registra su propio encargo»,
+    /// llevado a la base. Única excepción (2026-10-15): con encargo pleno, el
+    /// Operador CAE renuncia a él, y solo escribe la fila ya retirada. Sin FORCE por el mismo motivo que los
     /// catálogos de asignación.
     /// </summary>
     [Fact]
@@ -610,8 +611,18 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
             .And.Contain("OperadorTenantId").And.Contain("app.tenant_origen_id")
             .And.Contain("IS DISTINCT FROM",
                 "la escritura exige que el Tenant de origen de la conexión NO sea el Operador CAE del encargo")
-            .And.Contain(" AND ", "las dos condiciones de escritura hacen falta a la vez")
-            .And.NotContain(" OR ", "una disyunción en la escritura dejaría escribir desde la posición del Operador CAE");
+            .And.Contain(" AND ", "las dos condiciones de escritura hacen falta a la vez");
+
+        // Decisión del 2026-10-15 (encargo pleno): la única escritura desde la posición del Operador
+        // CAE es la renuncia, una fila que queda retirada en un Tenant propietario sin Administrador
+        // propio. Es la única disyunción admitida.
+        var withCheck = politica.WithCheck!;
+        System.Text.RegularExpressions.Regex.Matches(withCheck, " OR ").Should().HaveCount(1,
+            "una disyunción más en la escritura dejaría escribir desde la posición del Operador CAE");
+        withCheck[withCheck.IndexOf(" OR ", StringComparison.Ordinal)..].Should()
+            .Contain("\"RetiradoEnUtc\" IS NOT NULL", "el Operador CAE solo escribe la fila si queda retirada")
+            .And.MatchRegex(@"NOT (public\.)?app_tenant_tiene_administrador_propio\(""PropietarioTenantId""\)",
+                "y solo con encargo pleno: en un Tenant con Administrador propio no renuncia");
     }
 
     /// <summary>

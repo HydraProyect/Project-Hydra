@@ -119,6 +119,14 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Persistence/Repositories/ClaveApiRepository.cs",
             """.SqlQuery<Guid?>($"SELECT app_tenant_de_clave_api({hashClave}) AS \"Value\"")""")] = 1,
 
+        // Encargo de administración pleno (decisión del 2026-10-15): si el Tenant propietario
+        // tiene Administrador propio (activo o pendiente de activar) se pregunta a la función SECURITY DEFINER
+        // app_tenant_tiene_administrador_propio (migración 20261015180535), que devuelve solo un
+        // booleano; leer AspNetUsers por EF fallaría abierto si la RLS ocultara las cuentas del
+        // propietario a quien opera desde el Operador CAE. Parámetro por EF.
+        [("src/CaeManager.Infrastructure/Autorizacion/TenantConAdministradorPropioEnBase.cs",
+            """.SqlQuery<bool?>($"SELECT app_tenant_tiene_administrador_propio({tenantId}) AS \"Value\"")""")] = 1,
+
         // Mismo patrón para las cuentas de Identity (P1-M1): con RLS en
         // AspNetUsers, el login, la 2FA, la recuperación de contraseña y la
         // revalidación de la cookie buscan una cuenta antes de que exista

@@ -83,6 +83,22 @@ public class InstruccionTratamientoIaTenantPropietario : EntidadConTenant
     public DateTime? RevocadaEnUtc { get; private set; }
     public string? MotivoRevocacion { get; private set; }
 
+    /// <summary>
+    /// Solo con <see cref="OrigenInstruccionTratamientoIa.EncargoAdministracion"/>:
+    /// el Encargo de administración que amparó la activación. Nulo en los demás orígenes.
+    /// </summary>
+    public Guid? EncargoAdministracionId { get; private set; }
+
+    /// <summary>
+    /// Solo con <see cref="OrigenInstruccionTratamientoIa.EncargoAdministracion"/>: la
+    /// cláusula del contrato con la empresa gestionada en que se apoya, copiada del
+    /// encargo en el momento de activar (si el encargo cambiara, la fila conserva la
+    /// que valía entonces).
+    /// </summary>
+    public string? ClausulaContrato { get; private set; }
+
+    public const int LongitudMaximaClausula = Tenants.EncargoAdministracion.LongitudMaximaClausula;
+
     /// <summary>Vigente ⇔ no revocada. Ver <c>IInstruccionTratamientoIaService</c> (Application) para el único punto de consulta.</summary>
     public bool EstaVigente => RevocadaEnUtc is null;
 
@@ -98,6 +114,19 @@ public class InstruccionTratamientoIaTenantPropietario : EntidadConTenant
         OrigenInstruccionTratamientoIa origenInstruccion,
         Guid registradaPorUsuarioId)
     {
+        if (origenInstruccion == OrigenInstruccionTratamientoIa.EncargoAdministracion)
+            throw new ArgumentException("La activación por encargo se crea con PorEncargoDeAdministracion.", nameof(origenInstruccion));
+
+        Inicializar(versionDpaAceptada, versionAnexoSubencargadosAceptada, fechaAceptacionUtc, origenInstruccion, registradaPorUsuarioId);
+    }
+
+    private void Inicializar(
+        string versionDpaAceptada,
+        string versionAnexoSubencargadosAceptada,
+        DateTime fechaAceptacionUtc,
+        OrigenInstruccionTratamientoIa origenInstruccion,
+        Guid registradaPorUsuarioId)
+    {
         VersionDpaAceptada = ValidarVersion(versionDpaAceptada, nameof(versionDpaAceptada));
         VersionAnexoSubencargadosAceptada = ValidarVersion(versionAnexoSubencargadosAceptada, nameof(versionAnexoSubencargadosAceptada));
 
@@ -107,6 +136,40 @@ public class InstruccionTratamientoIaTenantPropietario : EntidadConTenant
         FechaAceptacionUtc = fechaAceptacionUtc;
         OrigenInstruccion = origenInstruccion;
         RegistradaPorUsuarioId = registradaPorUsuarioId;
+    }
+
+    /// <summary>
+    /// Activación por el Administrador del Operador CAE externo con Encargo de
+    /// administración pleno (decisión de Chris, 2026-10-15). Las dos versiones son
+    /// las de los textos aceptados; el encargo y su cláusula son la autoridad.
+    /// </summary>
+    public static InstruccionTratamientoIaTenantPropietario PorEncargoDeAdministracion(
+        string versionDpaAceptada,
+        string versionAnexoSubencargadosAceptada,
+        DateTime fechaAceptacionUtc,
+        Guid actorRealUsuarioId,
+        Guid encargoAdministracionId,
+        string clausulaContrato)
+    {
+        if (encargoAdministracionId == Guid.Empty)
+            throw new ArgumentException("La activación por encargo tiene que nombrar el encargo que la ampara.", nameof(encargoAdministracionId));
+
+        if (string.IsNullOrWhiteSpace(clausulaContrato))
+            throw new ArgumentException("La activación por encargo tiene que guardar la cláusula en que se apoya.", nameof(clausulaContrato));
+
+        var clausula = clausulaContrato.Trim();
+        if (clausula.Length > LongitudMaximaClausula)
+            throw new ArgumentException($"La cláusula no puede superar {LongitudMaximaClausula} caracteres.", nameof(clausulaContrato));
+
+        var instruccion = new InstruccionTratamientoIaTenantPropietario
+        {
+            EncargoAdministracionId = encargoAdministracionId,
+            ClausulaContrato = clausula,
+        };
+        instruccion.Inicializar(
+            versionDpaAceptada, versionAnexoSubencargadosAceptada, fechaAceptacionUtc,
+            OrigenInstruccionTratamientoIa.EncargoAdministracion, actorRealUsuarioId);
+        return instruccion;
     }
 
     /// <summary>

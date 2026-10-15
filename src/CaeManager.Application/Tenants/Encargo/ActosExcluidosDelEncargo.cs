@@ -15,10 +15,20 @@ using CaeManager.Application.TiposDocumento.Commands.ActualizarVerificacionIaGlo
 namespace CaeManager.Application.Tenants.Encargo;
 
 /// <summary>
-/// Lista cerrada de lo que el Encargo de administración <b>no</b> abre
+/// Lista cerrada de lo que el Encargo de administración <b>no pleno</b> no abre
 /// (decisión D-8, 2026-10-08), aunque el rol efectivo de quien administra por
 /// encargo sea Administrador o Dirección CAE. La aplica
 /// <see cref="Common.ExclusionesDelEncargoBehavior{TRequest,TResponse}"/>.
+///
+/// <para>
+/// <b>Dos regímenes.</b> Con encargo <b>no pleno</b> (el Tenant propietario
+/// tiene Administrador propio, activo o pendiente de activar) rige esta lista
+/// entera. Con encargo <b>pleno</b> (el Tenant propietario no tiene
+/// Administrador propio; decisión de Chris, 2026-10-15) no rige: quien
+/// administra por encargo es Administrador pleno y el behavior deja pasar todas
+/// estas peticiones. La señal es <see cref="Common.IEncargoDeAdministracionActual.EncargoPlenoAsync"/>,
+/// y sin ella el behavior falla cerrado (rige la lista).
+/// </para>
 ///
 /// <para>
 /// <b>Por qué hace falta.</b> Estas peticiones no comprueban el rol en su
@@ -42,7 +52,10 @@ namespace CaeManager.Application.Tenants.Encargo;
 /// actuar por encargo sino de la posición de quien actúa: cuentas con rol de
 /// Propiedad (<c>CuentasConRolDePropiedad</c>), Operadores CAE externos
 /// (<c>IAutorizacionDelegacionTenant</c>) y el propio encargo
-/// (<see cref="AutoridadSobreElEncargo"/>).
+/// (<see cref="AutoridadSobreElEncargo"/>). Con encargo pleno, las cuentas con
+/// rol de Propiedad y la renuncia al propio encargo se abren en sus reglas
+/// respectivas; los Operadores CAE externos siguen exigiendo ser Administrador
+/// miembro del Tenant propietario.
 /// </para>
 ///
 /// <para>
