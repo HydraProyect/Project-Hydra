@@ -1,3 +1,4 @@
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
@@ -32,7 +33,8 @@ public record TrabajadorDetalleDto(
     string? TipoPermisoTrabajo = null,
     DateOnly? CaducidadPermisoTrabajo = null,
     string? MotivoPermisoTrabajo = null,
-    bool PermisoTrabajoVisible = false);
+    bool PermisoTrabajoVisible = false,
+    TipoContratacion TipoContratacion = TipoContratacion.CuentaAjena);
 
 /// <summary>
 /// Detalle de Trabajador 360.
@@ -82,7 +84,8 @@ public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasCo
                 t.FiguraEnRnt,
                 t.TipoPermisoTrabajo,
                 t.CaducidadPermisoTrabajo,
-                t.MotivoPermisoTrabajo
+                t.MotivoPermisoTrabajo,
+                t.TipoContratacion
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -104,6 +107,7 @@ public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasCo
             conPermisoTrabajo ? trabajador.TipoPermisoTrabajo : null,
             conPermisoTrabajo ? trabajador.CaducidadPermisoTrabajo : null,
             conPermisoTrabajo ? trabajador.MotivoPermisoTrabajo : null,
-            conPermisoTrabajo);
+            conPermisoTrabajo,
+            trabajador.TipoContratacion);
     }
 }

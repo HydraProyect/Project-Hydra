@@ -1520,6 +1520,8 @@ public static class PilotoOutboundSeeder
                     tipoPermisoTrabajo: extranjero?.TipoPermiso,
                     caducidadPermisoTrabajo: extranjero is null ? null : D.AddDays(extranjero.DiasHastaLaCaducidad),
                     motivoPermisoTrabajo: extranjero is null ? null : "Autorización de residencia y trabajo por cuenta ajena");
+                if (tenant.Perfil == PerfilPilotoOutbound.Autonomo)
+                    trabajadores[i].CambiarTipoContratacion(TipoContratacion.Autonomo);
             }
         }
 

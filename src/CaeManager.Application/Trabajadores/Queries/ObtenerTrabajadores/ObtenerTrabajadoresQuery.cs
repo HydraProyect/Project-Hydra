@@ -1,3 +1,5 @@
+using CaeManager.Domain.Trabajadores;
+using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
@@ -42,7 +44,7 @@ public record ObtenerTrabajadoresQuery(
     string? Busqueda, Guid? EmpresaId = null, Guid? SubcontrataId = null, int Pagina = 1, int TamanoPagina = 20,
     Guid? CentroId = null, bool ConDesgloseDocumental = false,
     string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null,
-    bool ConRecuentosPorEstado = false, Guid? TrabajadorId = null)
+    bool ConRecuentosPorEstado = false, Guid? TrabajadorId = null, bool? VoluntarioInactivo = null)
     : IRequest<ResultadoPaginado<TrabajadorListaDto>>;
 
 public record TrabajadorListaDto(
@@ -60,13 +62,22 @@ public record TrabajadorListaDto(
 
     /// <summary>De los registrados, los que están al día (<see cref="CumplimientoDocumental.EsConforme(EstadoDocumento)"/>).</summary>
     public int DocumentosVigentes { get; init; }
+
+    /// <summary>Cuenta ajena, autónomo o voluntario.</summary>
+    public TipoContratacion TipoContratacion { get; init; }
+
+    /// <summary>
+    /// Voluntario sin Proyecto de tipo Evento vigente ni futuro (ver <c>ActividadVoluntario</c>): sigue en el
+    /// listado, marcado, pero sus vencimientos no avisan ni cuentan en el Centro.
+    /// </summary>
+    public bool VoluntarioInactivo { get; init; }
 }
 
 public class ObtenerTrabajadoresQueryHandler(
     IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
     IDocumentosQueryContext documentosContext, IConfiguracionQueryContext configuracionContext,
     IAlcanceDatosService alcanceDatos, ICalculoEstadoDocumentalService calculoEstadoDocumental,
-    IAsignacionesQueryContext asignacionesContext)
+    IAsignacionesQueryContext asignacionesContext, IProyectosQueryContext proyectosContext)
     : IRequestHandler<ObtenerTrabajadoresQuery, ResultadoPaginado<TrabajadorListaDto>>
 {
     public async Task<ResultadoPaginado<TrabajadorListaDto>> Handle(
@@ -121,6 +132,16 @@ public class ObtenerTrabajadoresQueryHandler(
 
             consulta = consulta.Where(x => centroVisible && asignacionesContext.Asignaciones
                 .Any(a => a.TrabajadorId == x.trabajador.Id && a.CentroId == centroId && a.FechaBaja == null));
+        }
+
+        // Filtro de actividad: true = solo los voluntarios inactivos; false = todos menos ellos. Solo estrecha.
+        if (request.VoluntarioInactivo is { } soloInactivos)
+        {
+            var inactivos = ActividadVoluntarios.VoluntariosInactivosIds(
+                trabajadoresContext.Trabajadores, proyectosContext, DiaDeNegocio.Hoy());
+            consulta = soloInactivos
+                ? consulta.Where(x => inactivos.Contains(x.trabajador.Id))
+                : consulta.Where(x => !inactivos.Contains(x.trabajador.Id));
         }
 
         // Lista blanca de columnas ordenables — ver ObtenerClientesQuery. Este
@@ -311,6 +332,8 @@ public class ObtenerTrabajadoresQueryHandler(
     private async Task<IReadOnlyList<TrabajadorListaDto>> ConDesgloseAsync(
         IReadOnlyList<TrabajadorListaDto> pagina, ObtenerTrabajadoresQuery request, CancellationToken cancellationToken)
     {
+        pagina = await ConActividadAsync(pagina, cancellationToken);
+
         if (!request.ConDesgloseDocumental || pagina.Count == 0)
             return pagina;
 
@@ -325,6 +348,28 @@ public class ObtenerTrabajadoresQueryHandler(
                     DocumentosRegistrados = desglose.DocumentosRegistrados,
                     DocumentosVigentes = desglose.DocumentosVigentes
                 }
+                : t)
+            .ToList();
+    }
+
+    /// <summary>Tipo de contratación y actividad de voluntario de las filas YA paginadas, en una sola consulta.</summary>
+    private async Task<IReadOnlyList<TrabajadorListaDto>> ConActividadAsync(
+        IReadOnlyList<TrabajadorListaDto> pagina, CancellationToken cancellationToken)
+    {
+        if (pagina.Count == 0)
+            return pagina;
+
+        var ids = pagina.Select(t => t.Id).ToList();
+        var inactivos = ActividadVoluntarios.VoluntariosInactivosIds(
+            trabajadoresContext.Trabajadores, proyectosContext, DiaDeNegocio.Hoy());
+        var actividad = await trabajadoresContext.Trabajadores
+            .Where(t => ids.Contains(t.Id))
+            .Select(t => new { t.Id, t.TipoContratacion, Inactivo = inactivos.Contains(t.Id) })
+            .ToDictionaryAsync(t => t.Id, cancellationToken);
+
+        return pagina
+            .Select(t => actividad.TryGetValue(t.Id, out var a)
+                ? t with { TipoContratacion = a.TipoContratacion, VoluntarioInactivo = a.Inactivo }
                 : t)
             .ToList();
     }

@@ -10,7 +10,8 @@ public record EditarFichaTrabajadorCommand(Guid Id, Guid Version,
     string? NumeroAfiliacionSeguridadSocial, string? Puesto, DateOnly? FechaNacimiento,
     string? Nacionalidad, string? TipoVinculo, DateOnly? FechaAltaEmpresa, DateOnly? FechaBajaEmpresa,
     string? FiguraEnRnt, string? TipoPermisoTrabajo, DateOnly? CaducidadPermisoTrabajo,
-    string? MotivoPermisoTrabajo) : ICommand;
+    string? MotivoPermisoTrabajo,
+    TipoContratacion? TipoContratacion = null) : ICommand;
 
 public class EditarFichaTrabajadorCommandValidator : AbstractValidator<EditarFichaTrabajadorCommand>
 {
@@ -23,6 +24,7 @@ public class EditarFichaTrabajadorCommandValidator : AbstractValidator<EditarFic
         RuleFor(c => c.Puesto).MaximumLength(Trabajador.LongitudMaximaPuesto);
         RuleFor(c => c.Nacionalidad).MaximumLength(Trabajador.LongitudMaximaCampoFicha);
         RuleFor(c => c.TipoVinculo).MaximumLength(Trabajador.LongitudMaximaCampoFicha);
+        RuleFor(c => c.TipoContratacion).IsInEnum().WithMessage("Elige cuenta ajena, autónomo o voluntario.");
         RuleFor(c => c.FiguraEnRnt).MaximumLength(Trabajador.LongitudMaximaCampoFicha);
         RuleFor(c => c.TipoPermisoTrabajo).MaximumLength(Trabajador.LongitudMaximaCampoFicha);
         RuleFor(c => c.MotivoPermisoTrabajo).MaximumLength(Trabajador.LongitudMaximaCampoFicha);
@@ -51,6 +53,9 @@ public class EditarFichaTrabajadorCommandHandler(ITrabajadorRepository repositor
             request.FechaNacimiento, request.Nacionalidad, request.TipoVinculo, request.FechaAltaEmpresa,
             request.FechaBajaEmpresa, request.FiguraEnRnt, request.TipoPermisoTrabajo,
             request.CaducidadPermisoTrabajo, request.MotivoPermisoTrabajo);
+        // null = no se cambia: quien edita la ficha sin conocer el campo no devuelve a un voluntario a cuenta ajena.
+        if (request.TipoContratacion is { } tipoContratacion)
+            trabajador.CambiarTipoContratacion(tipoContratacion);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();
     }

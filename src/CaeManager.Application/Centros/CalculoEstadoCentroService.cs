@@ -1,3 +1,4 @@
+using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
@@ -131,9 +132,20 @@ public class CalculoEstadoCentroService(
     ITrabajadoresQueryContext trabajadoresContext,
     IAsignacionesQueryContext asignacionesContext,
     IConfiguracionQueryContext configuracionContext,
-    IEmpresasQueryContext empresasContext)
+    IEmpresasQueryContext empresasContext,
+    IProyectosQueryContext proyectosContext)
     : ICalculoEstadoCentroService
 {
+    /// <summary>
+    /// Las Asignaciones activas que cuentan en el Centro: todas menos las de los voluntarios inactivos, sin evento
+    /// vigente ni futuro; esos no se borran, pero su documentacion no cuenta para el estado ni el cumplimiento.
+    /// </summary>
+    private IQueryable<CaeManager.Domain.Asignaciones.Asignacion> AsignacionesQueCuentan()
+    {
+        var inactivos = ActividadVoluntarios.VoluntariosInactivosIds(trabajadoresContext.Trabajadores, proyectosContext, DiaDeNegocio.Hoy());
+        return asignacionesContext.Asignaciones.Where(a => inactivos.Contains(a.TrabajadorId) == false);
+    }
+
     public async Task<IReadOnlyDictionary<Guid, ResultadoEstadoCentro>> CalcularAsync(
         IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken)
     {
@@ -210,7 +222,7 @@ public class CalculoEstadoCentroService(
         // filtro una vigencia vencida bloquearía un Centro por alguien que ya
         // no trabaja ahí. Es el mismo criterio que usa el resto del cálculo de
         // documentos de Trabajador; los de Empresa no dependen de asignaciones.
-        var asignacionesActivas = await asignacionesContext.Asignaciones
+        var asignacionesActivas = await AsignacionesQueCuentan()
             .Where(a => a.FechaBaja == null && centroIds.Contains(a.CentroId))
             .Select(a => new { a.CentroId, a.TrabajadorId })
             .ToListAsync(cancellationToken);
@@ -316,7 +328,7 @@ public class CalculoEstadoCentroService(
 
         if (rechazadas.Count == 0) return;
 
-        var asignacionesActivas = await asignacionesContext.Asignaciones
+        var asignacionesActivas = await AsignacionesQueCuentan()
             .Where(a => a.FechaBaja == null && centroIds.Contains(a.CentroId))
             .Select(a => new { a.CentroId, a.TrabajadorId })
             .ToListAsync(cancellationToken);
@@ -484,7 +496,7 @@ public class CalculoEstadoCentroService(
         Dictionary<Guid, List<CausaEstadoCentro>> causasPorCentro, CancellationToken cancellationToken)
     {
         var asignacionesActivas = await (
-            from asignacion in asignacionesContext.Asignaciones
+            from asignacion in AsignacionesQueCuentan()
             where asignacion.FechaBaja == null && centroIds.Contains(asignacion.CentroId)
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             select new
@@ -666,7 +678,7 @@ public class CalculoEstadoCentroService(
             return [];
 
         var empresasPorCentro = (await (
-            from asignacion in asignacionesContext.Asignaciones
+            from asignacion in AsignacionesQueCuentan()
             where asignacion.FechaBaja == null && conGestionCae.Contains(asignacion.CentroId)
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             select new { asignacion.CentroId, trabajador.EmpresaId, trabajador.SubcontrataId })
@@ -740,7 +752,7 @@ public class CalculoEstadoCentroService(
             return [];
 
         var asignacionesActivas = await (
-            from asignacion in asignacionesContext.Asignaciones
+            from asignacion in AsignacionesQueCuentan()
             where asignacion.FechaBaja == null && conGestionCae.Contains(asignacion.CentroId)
             join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id

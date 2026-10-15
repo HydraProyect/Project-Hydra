@@ -28,7 +28,8 @@ public record CrearTrabajadorCommand(
     string? Observaciones,
     string? Alias = null,
     string? Telefono = null,
-    string? Puesto = null) : ICommand<Guid>, IComandoDeAprovisionamiento;
+    string? Puesto = null,
+    TipoContratacion TipoContratacion = TipoContratacion.CuentaAjena) : ICommand<Guid>, IComandoDeAprovisionamiento;
 
 public class CrearTrabajadorCommandValidator : AbstractValidator<CrearTrabajadorCommand>
 {
@@ -37,6 +38,8 @@ public class CrearTrabajadorCommandValidator : AbstractValidator<CrearTrabajador
         RuleFor(c => c)
             .Must(c => (c.EmpresaId is not null) ^ (c.SubcontrataId is not null))
             .WithMessage("Selecciona una empresa o una subcontrata (no ambas).");
+
+        RuleFor(c => c.TipoContratacion).IsInEnum().WithMessage("Elige cuenta ajena, autónomo o voluntario.");
 
         RuleFor(c => c.Nombre)
             .NotEmpty().WithMessage("El nombre es obligatorio.")
@@ -111,6 +114,7 @@ public class CrearTrabajadorCommandHandler(
                 request.SubcontrataId!.Value, request.Nombre, request.Apellidos, request.Dni,
                 request.FechaNacimiento, request.Email, request.Observaciones, request.Alias, request.Telefono, request.Puesto);
 
+        trabajador.CambiarTipoContratacion(request.TipoContratacion);
         repositorio.Agregar(trabajador);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

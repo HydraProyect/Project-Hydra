@@ -53,6 +53,13 @@ public class Proyecto : EntidadBase
     public bool EventoTerminadoEn(DateOnly hoy) =>
         EsEvento && (FechaCierreReal is not null || FechaFinPrevista < hoy);
 
+    /// <summary>
+    /// Un evento vigente es uno que ya empezó y no ha terminado (<see cref="EventoTerminadoEn"/>): mientras lo está,
+    /// sus requisitos (<see cref="ProyectoRequisito"/>) cuentan para el cumplimiento de los voluntarios que participan.
+    /// </summary>
+    public bool EventoVigenteEn(DateOnly hoy) =>
+        EsEvento && FechaInicio <= hoy && !EventoTerminadoEn(hoy);
+
     private Proyecto()
     {
     }
