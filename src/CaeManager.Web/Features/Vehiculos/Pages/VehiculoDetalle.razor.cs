@@ -51,6 +51,7 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     [
         ("documentacion", "EtiquetaDocumentacion"),
         ("centros", "PestanaCentrosEmpleador360"),
+        ("ficha", "PestanaFicha"),
         ("historial", "PestanaHistorial")
     ];
 
@@ -106,6 +107,9 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     private bool _errorCentros;
 
     private DrawerGestionDocumento? _drawerGestion;
+    private bool _editorFichaVisible;
+    private void AbrirEditorFicha() => _editorFichaVisible = true;
+    private Task RecargarFichaAsync() => CargarCabeceraAsync(silenciosa: true);
 
     private string _pestanaActiva = PestanaPorDefecto;
     private string? _pestanaDeLaUrl;
@@ -217,6 +221,7 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
         _cargandoCentros = false;
         _errorCentros = false;
         _editorNotaVisible = false;
+        _editorFichaVisible = false;
         _guardandoNota = false;
         _notaEnEdicion = string.Empty;
         _borradorNotaTrasConflicto = null;

@@ -38,7 +38,7 @@ namespace CaeManager.Web.Tests;
 /// <c>@ref</c>), pero ningún test lo abre: su alta tiene sus tests.
 /// </para>
 /// </summary>
-public class Vehiculo360PaginaTests : BunitContext
+public partial class Vehiculo360PaginaTests : BunitContext
 {
     private static readonly DateOnly Hoy = DiaDeNegocio.Hoy();
 
@@ -46,6 +46,7 @@ public class Vehiculo360PaginaTests : BunitContext
     public Vehiculo360PaginaTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        JSInterop.SetupModule("./js/cajas-ficha.js").Setup<double[]>("medirAlturas", _ => true).SetResult([200, 100]);
         ComponentFactories.AddStub<PestanaHistorial>();
     }
 
@@ -66,6 +67,8 @@ public class Vehiculo360PaginaTests : BunitContext
         /// <summary>Si está, la consulta de detalle de ese Vehículo no responde hasta que se complete.</summary>
         public Dictionary<Guid, TaskCompletionSource> Compuertas { get; } = [];
         public List<object> Enviadas { get; } = [];
+        public IReadOnlyList<CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector.TrabajadorSelectorDto> TrabajadoresFicha { get; set; } = [];
+        public Result ResultadoFicha { get; set; } = Result.Exito();
 
         /// <summary>Lo que responde el servidor a «Guardar» de la nota, y la ficha que entrega la relectura posterior.</summary>
         public Result ResultadoNota { get; set; } = Result.Exito();
@@ -101,6 +104,8 @@ public class Vehiculo360PaginaTests : BunitContext
         private object? Responder(object request) => request switch
         {
             ObtenerVehiculoPorIdQuery q => Detalles.GetValueOrDefault(q.Id),
+            CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector.ObtenerTrabajadoresParaSelectorQuery => TrabajadoresFicha,
+            CaeManager.Application.Vehiculos.Commands.EditarFichaVehiculo.EditarFichaVehiculoCommand => ResultadoFicha,
             ObtenerCentrosConActividadDeEmpresaQuery or ObtenerCentrosConActividadDeSubcontrataQuery when FallaCentros => throw new InvalidOperationException("Fallo de Centros simulado"),
             ObtenerCentrosConActividadDeEmpresaQuery or ObtenerCentrosConActividadDeSubcontrataQuery => Centros,
             GuardarNotaInternaVehiculoCommand => ResponderGuardarNota(),
@@ -496,7 +501,7 @@ public class Vehiculo360PaginaTests : BunitContext
 
         var cut = Renderizar(id, "?pestana=historial");
 
-        cut.FindAll(".pestanas-boton").Should().HaveCount(3);
+        cut.FindAll(".pestanas-boton").Should().HaveCount(4);
         cut.Find(".pestanas-boton-activa").TextContent.Should().Contain("Historial");
         var historial = cut.FindComponent<Stub<PestanaHistorial>>().Instance.Parameters;
         historial.Get(x => x.EntidadTipo).Should().Be("Vehiculo");

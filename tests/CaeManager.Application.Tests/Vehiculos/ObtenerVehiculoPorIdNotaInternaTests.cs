@@ -44,7 +44,8 @@ public class ObtenerVehiculoPorIdNotaInternaTests
             throw new NotSupportedException();
     }
 
-    private static (ObtenerVehiculoPorIdQueryHandler Handler, Vehiculo Vehiculo) Montar(string? rol, string? nota = Nota, CaeManager.Application.Plataforma.SesionPrivilegiadaActiva? sesion = null)
+    private static (ObtenerVehiculoPorIdQueryHandler Handler, Vehiculo Vehiculo) Montar(string? rol, string? nota = Nota, CaeManager.Application.Plataforma.SesionPrivilegiadaActiva? sesion = null,
+        IReadOnlyList<Guid>? trabajadorIdsVisibles = null)
     {
         var empresa = new Empresa("Montajes Skynet S.L.");
         var empresas = new EmpresasQueryContextFalso();
@@ -54,10 +55,41 @@ public class ObtenerVehiculoPorIdNotaInternaTests
         vehiculo.FijarNotaInterna(nota);
 
         var handler = new ObtenerVehiculoPorIdQueryHandler(
-            empresas, new VehiculosFalso(vehiculo), new AlcanceDatosServiceFalso(vehiculoIdsVisibles: [vehiculo.Id]),
+            empresas, new VehiculosFalso(vehiculo), new AlcanceDatosServiceFalso(vehiculoIdsVisibles: [vehiculo.Id], trabajadorIdsVisibles: trabajadorIdsVisibles),
             new SinDocumentos(), PoliticaNotaInternaPruebas.Con(rol, sesion));
 
         return (handler, vehiculo);
+    }
+
+    [Fact]
+    public async Task La_ficha_entrega_los_siete_campos_sin_depender_de_la_nota_interna()
+    {
+        var (handler, vehiculo) = Montar("Cliente");
+        vehiculo.ActualizarFicha("Grúa", "Renting", "Última el 11/11/2025", "Registrada", "Nostromo", "AU-1", "Pagado");
+        var dto = await handler.Handle(new(vehiculo.Id), CancellationToken.None);
+        new[] { dto!.Tipo, dto.Titularidad, dto.RevisionGrua, dto.DeclaracionCe, dto.Aseguradora, dto.Poliza, dto.Recibo }
+            .Should().Equal("Grúa", "Renting", "Última el 11/11/2025", "Registrada", "Nostromo", "AU-1", "Pagado");
+        dto.Notas.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Los_conductores_del_detalle_respetan_cartera_soft_delete_y_tenant()
+    {
+        var visible = CaeManager.Domain.Trabajadores.Trabajador.DeEmpresa(Guid.NewGuid(), "Raúl", "Ortega", "12345678Z");
+        var oculto = CaeManager.Domain.Trabajadores.Trabajador.DeEmpresa(Guid.NewGuid(), "Hugo", "Marín", "12345678Z");
+        var eliminado = CaeManager.Domain.Trabajadores.Trabajador.DeEmpresa(Guid.NewGuid(), "Luis", "Marín", "12345678Z");
+        var ajeno = CaeManager.Domain.Trabajadores.Trabajador.DeEmpresa(Guid.NewGuid(), "Ana", "Marín", "12345678Z");
+        eliminado.MarcarComoEliminado(Guid.NewGuid());
+        typeof(EntidadConTenant).GetProperty(nameof(EntidadConTenant.TenantId))!.SetValue(ajeno, Guid.NewGuid());
+        var (handler, vehiculo) = Montar("GestorCae", trabajadorIdsVisibles: [visible.Id, eliminado.Id, ajeno.Id]);
+        foreach (var t in new[] { visible, oculto, eliminado, ajeno })
+        {
+            vehiculo.AutorizarConductor(t.Id);
+            typeof(VehiculoTrabajador).GetProperty(nameof(VehiculoTrabajador.Trabajador))!
+                .SetValue(vehiculo.Conductores.Single(c => c.TrabajadorId == t.Id), t);
+        }
+        var dto = await handler.Handle(new(vehiculo.Id), CancellationToken.None);
+        dto!.Conductores.Should().ContainSingle().Which.Should().Be(new ConductorVehiculoDto(visible.Id, "Raúl Ortega"));
     }
 
     [Theory]

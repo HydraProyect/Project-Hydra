@@ -1,9 +1,9 @@
 @*
     Vehículo 360 (página): la ficha entera de un Vehículo, con su
     documentación registrada, su historial y sus datos. Mockup de referencia:
-    «Vehiculo 360 página TALVEG.dc.html».
+    «Paginas 360 nuevas TALVEG.maqueta.html», incluida la pestaña Ficha.
 
-    Identidad con anillo, pestañas Documentación, Centros orientativos de su Empresa empleadora e Historial y tarjeta lateral
+    Identidad con anillo, pestañas Documentación, Centros orientativos de su Empresa empleadora, Ficha e Historial y tarjeta lateral
     Información. El lateral se cierra con la «Nota interna» (pieza NotaInterna),
     que se edita en su propio DrawerFormulario y se guarda con un comando
     estrecho, no con el panel. Los Centros describen actividad de Trabajadores de su Empresa empleadora,
@@ -18,9 +18,10 @@
     Sin banda de incidencias bajo la cabecera (decisión de producto del
     2026-10-09): los vencidos se ven, y se abren, en su fila.
 
-    Editar abre el panel del Vehículo (Context Workspace) en «Información»,
+    Editar los datos de identidad abre el panel del Vehículo (Context Workspace) en «Información»,
     que es donde vive la edición en línea con su aviso de cambios sin
-    guardar; al cerrarse el panel la ficha se vuelve a leer.
+    guardar; al cerrarse el panel la ficha se vuelve a leer. Las cajas de Ficha
+    se editan con su propio DrawerFormulario y comando estrecho.
 *@
 @page "/vehiculos/{VehiculoId:guid}"
 @rendermode InteractiveServer
@@ -30,6 +31,7 @@
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Documentos.Components
 @using CaeManager.Web.Features.Vehiculos.Recursos
+@using CaeManager.Web.Features.Vehiculos.Components
 @using CaeManager.Web.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosVehiculos> Textos
@@ -218,6 +220,35 @@
                             }
                             break;
 
+                        case "ficha":
+                            <CajasFicha Cajas="CajasDeFicha" />
+                            <Tarjeta Titulo="@Textos["FichaConductores"]">
+                                <AccionesHeader>
+                                    <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirEditorFicha">@Textos["FichaEditarEnlace"]</Boton></SoloConEscritura>
+                                </AccionesHeader>
+                                <ChildContent>
+                                    @if (_detalle.Conductores.Count == 0)
+                                    {
+                                        <p class="vehiculo360-nota">@Textos["FichaSinConductores"]</p>
+                                    }
+                                    else
+                                    {
+                                        <ListaRelaciones Etiqueta="@Textos["FichaConductores"]">
+                                            @foreach (var conductor in _detalle.Conductores)
+                                            {
+                                                <FilaRelacion @key="conductor.TrabajadorId" Nombre="@conductor.NombreCompleto"
+                                                    OnAbrir360="() => AbrirConductorAsync(conductor.TrabajadorId, conductor.NombreCompleto)"
+                                                    Href="@($"/trabajadores/{conductor.TrabajadorId}")" NombreIcono="trabajadores">
+                                                    <Estado><Badge Tono="TonoBadge.Exito">@Textos["FichaAutorizado"]</Badge></Estado>
+                                                </FilaRelacion>
+                                            }
+                                        </ListaRelaciones>
+                                    }
+                                    <p class="vehiculo360-nota">@Textos["FichaNotaConductores"]</p>
+                                </ChildContent>
+                            </Tarjeta>
+                            break;
+
                         case "historial":
                             <PestanaHistorial EntidadTipo="Vehiculo" EntidadId="VehiculoId" />
                             break;
@@ -263,6 +294,8 @@
 
         <SoloConEscritura>
             <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="RecargarTrasCambioAsync" />
+            <EditarFichaVehiculoDrawer @key="VehiculoId" VehiculoId="VehiculoId" Visible="_editorFichaVisible"
+                VisibleChanged="v => _editorFichaVisible = v" OnGuardada="RecargarFichaAsync" />
         </SoloConEscritura>
 
         @* Editor de la nota interna: solo se abre desde «Editar →» de su tarjeta, que ya está tras SoloConEscritura. *@
@@ -277,3 +310,44 @@
     }
 </div>
 </LimiteDeErrores>
+
+@code {
+    private IReadOnlyList<CajaFicha> CajasDeFicha =>
+        [new("tipo-titularidad", CajaTipoTitularidad), new("seguro", CajaSeguro)];
+
+    private Task AbrirConductorAsync(Guid id, string nombre) =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, id, nombre, "informacion");
+
+    private RenderFragment CajaTipoTitularidad => __builder =>
+    {
+        <Tarjeta Titulo="@Textos["FichaTipoTitularidad"]">
+            <AccionesHeader>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirEditorFicha">@Textos["FichaEditarEnlace"]</Boton></SoloConEscritura>
+            </AccionesHeader>
+            <ChildContent>
+                <RejillaDatos>
+                    <DatoRejilla Etiqueta="@Textos["FichaTipo"]" Valor="@(_detalle!.Tipo ?? "—")" Ancho="true" />
+                    <DatoRejilla Etiqueta="@Textos["FichaTitularidad"]" Valor="@(_detalle.Titularidad ?? "—")" Ancho="true" />
+                    <DatoRejilla Etiqueta="@Textos["FichaRevisionGrua"]" Valor="@(_detalle.RevisionGrua ?? "—")" />
+                    <DatoRejilla Etiqueta="@Textos["FichaDeclaracionCe"]" Valor="@(_detalle.DeclaracionCe ?? "—")" />
+                </RejillaDatos>
+            </ChildContent>
+        </Tarjeta>
+    };
+
+    private RenderFragment CajaSeguro => __builder =>
+    {
+        <Tarjeta Titulo="@Textos["FichaSeguro"]">
+            <AccionesHeader>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirEditorFicha">@Textos["FichaEditarEnlace"]</Boton></SoloConEscritura>
+            </AccionesHeader>
+            <ChildContent>
+                <RejillaDatos>
+                    <DatoRejilla Etiqueta="@Textos["FichaAseguradora"]" Valor="@(_detalle!.Aseguradora ?? "—")" />
+                    <DatoRejilla Etiqueta="@Textos["FichaPoliza"]" Valor="@(_detalle.Poliza ?? "—")" />
+                    <DatoRejilla Etiqueta="@Textos["FichaRecibo"]" Valor="@(_detalle.Recibo ?? "—")" Ancho="true" />
+                </RejillaDatos>
+            </ChildContent>
+        </Tarjeta>
+    };
+}

@@ -307,4 +307,61 @@
   <data name="CentrosOrientativos360" xml:space="preserve"><value>El vehículo no está asignado a ningún Centro ni Visita. Esta lista es orientativa: muestra Centros donde trabajan los Trabajadores de su Empresa empleadora.</value></data>
   <data name="SinCentrosEmpleador360" xml:space="preserve"><value>Sin actividad en Centros visibles de su Empresa empleadora</value></data>
   <data name="ErrorCentros360" xml:space="preserve"><value>No pudimos cargar los Centros de su Empresa empleadora</value></data>
+  <data name="PestanaFicha" xml:space="preserve">
+    <value>Ficha</value>
+  </data>
+  <data name="FichaTipoTitularidad" xml:space="preserve">
+    <value>Tipo y titularidad</value>
+  </data>
+  <data name="FichaTipo" xml:space="preserve">
+    <value>Tipo</value>
+  </data>
+  <data name="FichaTitularidad" xml:space="preserve">
+    <value>Titularidad</value>
+  </data>
+  <data name="FichaRevisionGrua" xml:space="preserve">
+    <value>Revisión de la grúa</value>
+  </data>
+  <data name="FichaDeclaracionCe" xml:space="preserve">
+    <value>Declaración CE</value>
+  </data>
+  <data name="FichaSeguro" xml:space="preserve">
+    <value>Seguro</value>
+  </data>
+  <data name="FichaAseguradora" xml:space="preserve">
+    <value>Aseguradora</value>
+  </data>
+  <data name="FichaPoliza" xml:space="preserve">
+    <value>Póliza</value>
+  </data>
+  <data name="FichaRecibo" xml:space="preserve">
+    <value>Recibo</value>
+  </data>
+  <data name="FichaConductores" xml:space="preserve">
+    <value>Conductores y operadores autorizados</value>
+  </data>
+  <data name="FichaAutorizado" xml:space="preserve">
+    <value>Autorizado</value>
+  </data>
+  <data name="FichaSinConductores" xml:space="preserve">
+    <value>Sin conductores ni operadores autorizados.</value>
+  </data>
+  <data name="FichaNotaConductores" xml:space="preserve">
+    <value>El carné y la autorización de uso los pide el Centro por persona.</value>
+  </data>
+  <data name="FichaSinTrabajadores" xml:space="preserve">
+    <value>No hay trabajadores disponibles.</value>
+  </data>
+  <data name="FichaEditarTitulo" xml:space="preserve">
+    <value>Editar ficha del vehículo</value>
+  </data>
+  <data name="FichaNoDisponible" xml:space="preserve">
+    <value>No pudimos cargar la ficha para editarla. Cierra el formulario y vuelve a abrirlo.</value>
+  </data>
+  <data name="FichaGuardada" xml:space="preserve">
+    <value>Ficha del vehículo guardada.</value>
+  </data>
+  <data name="FichaErrorGuardar" xml:space="preserve">
+    <value>No pudimos guardar la ficha del vehículo.</value>
+  </data>
 </root>

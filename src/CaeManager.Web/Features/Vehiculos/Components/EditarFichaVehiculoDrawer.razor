@@ -1,0 +1,141 @@
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
+@using CaeManager.Application.Vehiculos.Commands.EditarFichaVehiculo
+@using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculoPorId
+@using CaeManager.Domain.Common
+@using CaeManager.Web.Features.Vehiculos.Recursos
+@using FluentValidation
+@using MediatR
+@using Microsoft.Extensions.Localization
+@implements IDisposable
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject IStringLocalizer<TextosVehiculos> Textos
+
+<DrawerFormulario Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Textos["FichaEditarTitulo"]"
+    Cargando="_cargando" HayCambios="() => Visible && _lista && _instantanea.Difiere(Instantanea())"
+    Guardando="_guardando" MensajeError="@_error" HayErroresDeCampo="@(_errores.Count > 0)"
+    MotivoGuardarDeshabilitado="@(!_lista ? Textos["FichaNoDisponible"].Value : null)" OnGuardar="GuardarAsync"
+    TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <CampoTexto Etiqueta="@Textos["FichaTipo"]" Valor="@_tipo" ValorChanged="v => _tipo = v" MensajeError="@Error(nameof(EditarFichaVehiculoCommand.Tipo))" />
+    <CampoTexto Etiqueta="@Textos["FichaTitularidad"]" Valor="@_titularidad" ValorChanged="v => _titularidad = v" MensajeError="@Error(nameof(EditarFichaVehiculoCommand.Titularidad))" />
+    <CampoTexto Etiqueta="@Textos["FichaRevisionGrua"]" Valor="@_revisionGrua" ValorChanged="v => _revisionGrua = v" MensajeError="@Error(nameof(EditarFichaVehiculoCommand.RevisionGrua))" />
+    <CampoTexto Etiqueta="@Textos["FichaDeclaracionCe"]" Valor="@_declaracionCe" ValorChanged="v => _declaracionCe = v" MensajeError="@Error(nameof(EditarFichaVehiculoCommand.DeclaracionCe))" />
+    <CampoTexto Etiqueta="@Textos["FichaAseguradora"]" Valor="@_aseguradora" ValorChanged="v => _aseguradora = v" MensajeError="@Error(nameof(EditarFichaVehiculoCommand.Aseguradora))" />
+    <CampoTexto Etiqueta="@Textos["FichaPoliza"]" Valor="@_poliza" ValorChanged="v => _poliza = v" MensajeError="@Error(nameof(EditarFichaVehiculoCommand.Poliza))" />
+    <CampoTexto Etiqueta="@Textos["FichaRecibo"]" Valor="@_recibo" ValorChanged="v => _recibo = v" MensajeError="@Error(nameof(EditarFichaVehiculoCommand.Recibo))" />
+    <SelectorMultiple Etiqueta="@Textos["FichaConductores"]" Elementos="Opciones" Seleccionados="_seleccionados"
+        OnAlternar="Alternar" TextoVacio="@Textos["FichaSinTrabajadores"]" MensajeError="@Error(nameof(EditarFichaVehiculoCommand.TrabajadorIds))" />
+</DrawerFormulario>
+
+@code {
+    [Parameter] public Guid VehiculoId { get; set; }
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter] public EventCallback OnGuardada { get; set; }
+
+    private bool _abierto, _cargando, _guardando, _lista;
+    private int _generacion;
+    private Guid _id, _version;
+    private string _tipo = "", _titularidad = "", _revisionGrua = "", _declaracionCe = "",
+        _aseguradora = "", _poliza = "", _recibo = "";
+    private string? _error;
+    private Dictionary<string, string> _errores = [];
+    private HashSet<Guid> _seleccionados = [];
+    private IReadOnlyList<TrabajadorSelectorDto> _trabajadores = [];
+    private readonly InstantaneaFormulario _instantanea = new();
+    private readonly CancellationTokenSource _ciclo = new();
+
+    private IReadOnlyList<ElementoSeleccionable> Opciones => EtiquetasSelectorTrabajador.Construir(_trabajadores)
+        .Select(t => new ElementoSeleccionable(t.Id, t.Texto)).ToList();
+    private string? Error(string campo) => _errores.GetValueOrDefault(campo);
+    private string Instantanea() => System.Text.Json.JsonSerializer.Serialize(new
+    {
+        _tipo, _titularidad, _revisionGrua, _declaracionCe, _aseguradora, _poliza, _recibo,
+        Trabajadores = _seleccionados.Order().ToArray()
+    });
+    private void Alternar((Guid Id, bool Marcado) cambio)
+    {
+        if (cambio.Marcado) _seleccionados.Add(cambio.Id);
+        else _seleccionados.Remove(cambio.Id);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Visible)
+        {
+            if (_abierto) ++_generacion;
+            _abierto = false;
+            return;
+        }
+        if (_abierto && _id == VehiculoId) return;
+        _abierto = true;
+        _id = VehiculoId;
+        var generacion = ++_generacion;
+        _cargando = true;
+        _guardando = _lista = false;
+        _error = null;
+        _errores.Clear();
+        try
+        {
+            var detalle = await Mediator.Send(new ObtenerVehiculoPorIdQuery(_id), _ciclo.Token);
+            var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), _ciclo.Token);
+            if (generacion != _generacion) return;
+            if (detalle is null) { _error = Textos["FichaNoDisponible"]; return; }
+            _version = detalle.Version;
+            _tipo = detalle.Tipo ?? ""; _titularidad = detalle.Titularidad ?? "";
+            _revisionGrua = detalle.RevisionGrua ?? ""; _declaracionCe = detalle.DeclaracionCe ?? "";
+            _aseguradora = detalle.Aseguradora ?? ""; _poliza = detalle.Poliza ?? ""; _recibo = detalle.Recibo ?? "";
+            _trabajadores = trabajadores;
+            var disponibles = trabajadores.Select(t => t.Id).ToHashSet();
+            _seleccionados = detalle.Conductores.Select(c => c.TrabajadorId).Where(disponibles.Contains).ToHashSet();
+            _instantanea.Fijar(Instantanea());
+            _lista = true;
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
+        catch (Exception) { if (generacion == _generacion) _error = Textos["FichaNoDisponible"]; }
+        finally { if (generacion == _generacion) _cargando = false; }
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (!_lista || _guardando || !Visible) return;
+        var generacion = _generacion;
+        _guardando = true;
+        _errores.Clear();
+        _error = null;
+        try
+        {
+            var comando = new EditarFichaVehiculoCommand(_id, _version, _tipo, _titularidad,
+                _revisionGrua, _declaracionCe, _aseguradora, _poliza, _recibo, _seleccionados.Order().ToArray());
+            var validacion = new EditarFichaVehiculoCommandValidator().Validate(comando);
+            if (!validacion.IsValid) throw new ValidationException(validacion.Errors);
+            var resultado = await Mediator.Send(comando, _ciclo.Token);
+            if (generacion != _generacion) return;
+            if (resultado.EsFallido)
+            {
+                // La versión original se conserva: el borrador nunca se reenvía con una versión no revisada.
+                _error = resultado.Error.Mensaje;
+                return;
+            }
+            _instantanea.Fijar(Instantanea());
+            ToastService.Mostrar(Textos["FichaGuardada"], TonoToast.Exito);
+            await VisibleChanged.InvokeAsync(false);
+            await OnGuardada.InvokeAsync();
+        }
+        catch (ValidationException ex)
+        {
+            if (generacion == _generacion)
+                _errores = ex.Errors.GroupBy(e => e.PropertyName).ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
+        catch (Exception) { if (generacion == _generacion) _error = Textos["FichaErrorGuardar"]; }
+        finally { if (generacion == _generacion) _guardando = false; }
+    }
+
+    public void Dispose()
+    {
+        ++_generacion;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+}

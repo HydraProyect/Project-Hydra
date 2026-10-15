@@ -16,6 +16,18 @@ public class Vehiculo : EntidadBase
     public const int LongitudMaximaModelo = 100;
     public const int LongitudMaximaNumeroPlaca = 20;
     public const int LongitudMaximaNotas = 2000;
+    public const int LongitudMaximaCampoFicha = 200;
+
+    public string? Tipo { get; private set; }
+    public string? Titularidad { get; private set; }
+    public string? RevisionGrua { get; private set; }
+    public string? DeclaracionCe { get; private set; }
+    public string? Aseguradora { get; private set; }
+    public string? Poliza { get; private set; }
+    public string? Recibo { get; private set; }
+
+    private readonly List<VehiculoTrabajador> _conductores = [];
+    public IReadOnlyCollection<VehiculoTrabajador> Conductores => _conductores.AsReadOnly();
 
     public Guid? EmpresaId { get; private set; }
     public Guid? SubcontrataId { get; private set; }
@@ -66,6 +78,36 @@ public class Vehiculo : EntidadBase
         EstablecerNombre(nombre);
         EstablecerModelo(modelo);
         EstablecerNumeroPlaca(numeroPlaca);
+    }
+
+    public void ActualizarFicha(string? tipo, string? titularidad, string? revisionGrua,
+        string? declaracionCe, string? aseguradora, string? poliza, string? recibo)
+    {
+        // Validar todo antes de mutar: un campo inválido no deja una ficha parcialmente modificada.
+        var campos = new[] { tipo, titularidad, revisionGrua, declaracionCe, aseguradora, poliza, recibo }
+            .Select(NormalizarCampoFicha).ToArray();
+        (Tipo, Titularidad, RevisionGrua, DeclaracionCe, Aseguradora, Poliza, Recibo) =
+            (campos[0], campos[1], campos[2], campos[3], campos[4], campos[5], campos[6]);
+    }
+
+    public void AutorizarConductor(Guid trabajadorId)
+    {
+        if (_conductores.Any(c => c.TrabajadorId == trabajadorId)) return;
+        _conductores.Add(new VehiculoTrabajador(Id, trabajadorId));
+        RenovarVersion();
+    }
+
+    public void RetirarConductor(VehiculoTrabajador conductor)
+    {
+        if (_conductores.Remove(conductor)) RenovarVersion();
+    }
+
+    private static string? NormalizarCampoFicha(string? valor)
+    {
+        var normalizado = string.IsNullOrWhiteSpace(valor) ? null : valor.Trim();
+        if (normalizado is { Length: > LongitudMaximaCampoFicha })
+            throw new ArgumentException($"El campo no puede superar {LongitudMaximaCampoFicha} caracteres.", nameof(valor));
+        return normalizado;
     }
 
     /// <summary>

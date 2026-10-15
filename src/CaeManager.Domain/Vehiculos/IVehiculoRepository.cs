@@ -7,4 +7,5 @@ public interface IVehiculoRepository
     Task<bool> ExisteConMatriculaAsync(string numeroPlaca, Guid? excluirId = null, CancellationToken cancellationToken = default);
 
     void Agregar(Vehiculo vehiculo);
+    void QuitarConductor(VehiculoTrabajador conductor);
 }
