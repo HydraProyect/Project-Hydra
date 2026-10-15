@@ -329,4 +329,119 @@ public class CalculoBloqueoDeAccesoDeTrabajadoresTests
         enTolerancia.ToleranciaDias.Should().Be(15);
         evaluados.Single(e => e.TipoDocumentoId == TipoApto).Resultado.EnToleranciaHasta.Should().BeNull();
     }
+
+    // ---------- Pendiente en la plataforma CAE del Centro (decisión del propietario, 2026-10-10) ----------
+    // Bloquea SOLO si el Centro marca el tipo con BloqueaAcceso (un requisito bloqueante del Centro): un RNT bloqueante
+    // pendiente bloquea; una ISO opcional pendiente no bloquea a nadie.
+
+    private static readonly Guid Carla = Guid.NewGuid();
+    private static readonly Guid TipoRnt = Guid.NewGuid();
+    private static readonly Guid TipoIso = Guid.NewGuid();
+
+    private static readonly VigenciaDocumento VigenteUnAno = VigenciaDocumento.VenceEl(Hoy.AddYears(1));
+
+    private static IReadOnlyList<RequisitoEvaluado> EvaluarConPendientes(
+        IReadOnlyCollection<AsignacionParaBloqueo> asignaciones,
+        IReadOnlyCollection<RequisitoBloqueanteDelCentro> requisitos,
+        IReadOnlyCollection<PendienteParaBloqueo> pendientes,
+        params DocumentoParaBloqueo[] documentos) =>
+        CalculoBloqueoDeAccesoDeTrabajadores.Evaluar(asignaciones, requisitos, documentos, Hoy, pendientes);
+
+    [Theory]
+    [InlineData(EstadoAcreditacion.PendienteDeSubir, SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma)]
+    [InlineData(EstadoAcreditacion.Subida, SituacionDeRequisitoBloqueante.SinValidarEnPlataforma)]
+    public void P1_un_pendiente_de_Trabajador_de_tipo_bloqueante_bloquea_a_ese_Trabajador_solo_en_ese_Centro(
+        EstadoAcreditacion estado, SituacionDeRequisitoBloqueante esperada)
+    {
+        var evaluados = EvaluarConPendientes(
+            [new(CentroA, Ana, EmpresaX), new(CentroA, Beto, EmpresaX), new(CentroB, Ana, EmpresaX)],
+            [DeTrabajadorEn(CentroA, TipoApto, toleranciaDias: 15), DeTrabajadorEn(CentroB, TipoApto)],
+            [new PendienteParaBloqueo(CentroA, Ana, null, TipoApto, estado)],
+            DeTrabajador(Ana, TipoApto, VigenteUnAno), DeTrabajador(Beto, TipoApto, VigenteUnAno));
+
+        var bloqueos = evaluados.Where(e => ReglaBloqueoDeAcceso.Bloquea(e.Resultado.Situacion)).ToList();
+        var bloqueo = bloqueos.Should().ContainSingle("solo Ana en el Centro A; Beto y Ana en el Centro B tienen el documento al día").Subject;
+        bloqueo.CentroId.Should().Be(CentroA);
+        bloqueo.TrabajadorId.Should().Be(Ana);
+        bloqueo.Ambito.Should().Be(AmbitoAplicacion.Trabajador);
+        bloqueo.Resultado.Situacion.Should().Be(esperada);
+        bloqueo.ToleranciaDias.Should().Be(0, "el Pendiente no tiene fecha: no le aplica tolerancia");
+        evaluados.Should().HaveCount(3, "una fila por Asignación y requisito, sin filas añadidas por el pendiente");
+    }
+
+    [Fact]
+    public void P2_un_pendiente_de_tipo_que_el_Centro_no_marca_bloqueante_no_bloquea_a_nadie()
+    {
+        // La ISO es opcional en el Centro A (sin BloqueaAcceso: no hay requisito); el RNT sí es bloqueante y está al día.
+        var evaluados = EvaluarConPendientes(
+            [new(CentroA, Ana, EmpresaX)],
+            [DeEmpresaEn(CentroA, TipoRnt)],
+            [new PendienteParaBloqueo(CentroA, null, EmpresaX, TipoIso, EstadoAcreditacion.PendienteDeSubir),
+             new PendienteParaBloqueo(CentroA, Ana, null, TipoIso, EstadoAcreditacion.Subida)],
+            DeEmpresa(EmpresaX, TipoRnt, VigenteUnAno));
+
+        var unico = evaluados.Should().ContainSingle("el pendiente de un tipo no bloqueante no añade fila").Subject;
+        unico.TipoDocumentoId.Should().Be(TipoRnt);
+        unico.Resultado.Situacion.Should().Be(SituacionDeRequisitoBloqueante.Cumplido);
+    }
+
+    [Fact]
+    public void P3_un_pendiente_de_Empresa_de_tipo_bloqueante_bloquea_a_todos_los_Trabajadores_de_esa_Empresa_en_ese_Centro()
+    {
+        var evaluados = EvaluarConPendientes(
+            [new(CentroA, Ana, EmpresaX), new(CentroA, Beto, EmpresaX), new(CentroA, Carla, EmpresaY), new(CentroB, Ana, EmpresaX)],
+            [DeEmpresaEn(CentroA, TipoRnt), DeEmpresaEn(CentroB, TipoRnt)],
+            [new PendienteParaBloqueo(CentroA, null, EmpresaX, TipoRnt, EstadoAcreditacion.PendienteDeSubir)],
+            DeEmpresa(EmpresaX, TipoRnt, VigenteUnAno), DeEmpresa(EmpresaY, TipoRnt, VigenteUnAno));
+
+        var bloqueados = evaluados.Where(e => ReglaBloqueoDeAcceso.Bloquea(e.Resultado.Situacion)).ToList();
+        bloqueados.Select(e => e.TrabajadorId).Should().BeEquivalentTo([Ana, Beto], "Carla es de otra Empresa; Ana en el Centro B no tiene pendiente");
+        bloqueados.Should().OnlyContain(e =>
+            e.CentroId == CentroA
+            && e.Ambito == AmbitoAplicacion.Empresa
+            && e.EmpresaId == EmpresaX
+            && e.Resultado.Situacion == SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma);
+    }
+
+    [Fact]
+    public void P4_un_requisito_bloqueante_ausente_sigue_ausente_aunque_haya_un_pendiente_del_mismo_tipo()
+    {
+        var evaluados = EvaluarConPendientes(
+            [new(CentroA, Ana, EmpresaX)],
+            [DeTrabajadorEn(CentroA, TipoPss)],
+            [new PendienteParaBloqueo(CentroA, Ana, null, TipoPss, EstadoAcreditacion.PendienteDeSubir)]);
+
+        evaluados.Should().ContainSingle().Which.Resultado.Situacion.Should().Be(SituacionDeRequisitoBloqueante.Ausente);
+    }
+
+    [Fact]
+    public void P5_sin_pendientes_la_evaluacion_es_la_de_siempre()
+    {
+        var conLista = EvaluarConPendientes(
+            [new(CentroA, Ana, EmpresaX)], [DeTrabajadorEn(CentroA, TipoPss)], [],
+            DeTrabajador(Ana, TipoPss, VigenteUnAno));
+        var sinLista = CalculoBloqueoDeAccesoDeTrabajadores.Evaluar(
+            [new(CentroA, Ana, EmpresaX)], [DeTrabajadorEn(CentroA, TipoPss)],
+            [DeTrabajador(Ana, TipoPss, VigenteUnAno)], Hoy);
+
+        conLista.Should().Equal(sinLista);
+        conLista.Should().ContainSingle().Which.Resultado.Situacion.Should().Be(SituacionDeRequisitoBloqueante.Cumplido);
+    }
+
+    [Fact]
+    public void P6_Calcular_lista_el_pendiente_de_tipo_bloqueante_entre_los_bloqueos_y_no_el_opcional()
+    {
+        var bloqueos = CalculoBloqueoDeAccesoDeTrabajadores.Calcular(
+            [new(CentroA, Ana, EmpresaX)],
+            [DeTrabajadorEn(CentroA, TipoApto)],
+            [DeTrabajador(Ana, TipoApto, VigenteUnAno), DeTrabajador(Ana, TipoIso, VigenteUnAno)],
+            Hoy,
+            [new PendienteParaBloqueo(CentroA, Ana, null, TipoApto, EstadoAcreditacion.Subida),
+             new PendienteParaBloqueo(CentroA, Ana, null, TipoIso, EstadoAcreditacion.Subida)]);
+
+        var bloqueo = bloqueos.Should().ContainSingle().Subject;
+        bloqueo.TipoDocumentoId.Should().Be(TipoApto);
+        bloqueo.Situacion.Should().Be(SituacionDeRequisitoBloqueante.SinValidarEnPlataforma);
+        bloqueo.VencimientoEfectivo.Should().Be(Hoy.AddYears(1));
+    }
 }

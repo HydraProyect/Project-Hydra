@@ -154,7 +154,7 @@ public class SemaforoDeCentrosDemoTests
             // de consulta que implementa — el mismo cálculo que alimenta el
             // badge de /centros y el Centro 360, no una réplica.
             var servicio = new CalculoEstadoCentroService(
-                contexto, contexto, contexto, contexto, contexto, contexto);
+                contexto, contexto, contexto, contexto, contexto, contexto, contexto);
 
             var resultado = await servicio.CalcularAsync(centroIdsConPlantilla, CancellationToken.None);
 

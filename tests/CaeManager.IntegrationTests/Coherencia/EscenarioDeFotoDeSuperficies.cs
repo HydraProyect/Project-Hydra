@@ -224,7 +224,7 @@ internal sealed class EscenarioDeFotoDeSuperficies
         string Tip(Guid id) => tipos.GetValueOrDefault(id, id.ToString());
         string Fr(FraccionCumplimiento f) => $"{f.AlDia}/{f.Requeridos}";
 
-        var calculoCentro = new CalculoEstadoCentroService(c, c, c, c, c, c);
+        var calculoCentro = new CalculoEstadoCentroService(c, c, c, c, c, c, c);
         var calculoDocumental = new CalculoEstadoDocumentalService(c, c, c);
         var calculoSubcontrata = new CalculoEstadoSubcontrataService(c, c, c, c, c, c, alcance);
         var centroIds = centros.Keys.ToList();
@@ -253,7 +253,7 @@ internal sealed class EscenarioDeFotoDeSuperficies
         }
 
         // 5. Contexto Trabajador.
-        var documentacion = new ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(c, c, c, c, c, c, alcance, new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(c, c, c, c, c, alcance, new CurrentUserServiceMutable { Rol = "Administrador" }));
+        var documentacion = new ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(c, c, c, c, c, c, c, alcance, new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(c, c, c, c, c, alcance, new CurrentUserServiceMutable { Rol = "Administrador" }));
         foreach (var trabajador in trabajadores.Keys)
         {
             var filas = await documentacion.Handle(new ObtenerDocumentacionPorCentroDeTrabajadorQuery(trabajador), CancellationToken.None);

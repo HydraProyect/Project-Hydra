@@ -29,6 +29,16 @@ public record EvaluacionDeAccesoPorCentro(
 /// por Trabajador del Centro 360, para que ninguna superficie recalcule el bloqueo.
 ///
 /// <para>
+/// Desde el 2026-10-10 también aplica el Pendiente en la plataforma (<see cref="ReglaPendienteEnPlataforma"/>): un documento
+/// que vale pero está sin subir o sin validar en la plataforma CAE de un Centro bloquea a su sujeto en ese Centro
+/// (<see cref="SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma"/> o
+/// <see cref="SituacionDeRequisitoBloqueante.SinValidarEnPlataforma"/>) <b>solo si el Centro marca ese tipo con
+/// <c>BloqueaAcceso</c></b>, con la misma carga que pone el Centro en <c>EstadoCentro.Pendiente</c>
+/// (<see cref="PendientesEnPlataformaDeCentros"/>). Un tipo pendiente que el Centro no marca como bloqueante pone el Centro en
+/// «Pendiente» pero no bloquea a nadie.
+/// </para>
+///
+/// <para>
 /// Alcance: solo Centros visibles para el usuario (<see cref="IAlcanceDatosService"/>) y con gestión CAE (un Centro sin
 /// gestión CAE no exige documentación a nadie: una fila <c>BloqueaAcceso</c> que quedó de cuando la exigía no bloquea nada,
 /// P1-X2). El aislamiento entre Tenants lo da RLS: nunca se cruza de un Tenant a otro.
@@ -105,6 +115,16 @@ public class EvaluacionDeAccesoPorCentroService(
             .ToList();
 
         var centrosConRequisitos = requisitos.Select(r => r.CentroId).Distinct().ToList();
+
+        // Pendiente en la plataforma (decisión 2026-10-10): solo se mira en los Centros con requisitos bloqueantes, porque
+        // solo bloquea un tipo que el Centro marca con BloqueaAcceso; el cruce con cada requisito lo hace
+        // CalculoBloqueoDeAccesoDeTrabajadores. Un Centro sin plataforma no devuelve ninguno.
+        var pendientes = (await PendientesEnPlataformaDeCentros.CargarAsync(
+                centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext,
+                centrosConRequisitos, hoy, cancellationToken))
+            .Select(p => new PendienteParaBloqueo(p.CentroId, p.TrabajadorId, p.EmpresaId, p.TipoDocumentoId, p.EstadoAcreditacion))
+            .ToList();
+
         var asignaciones = await (
             from asignacion in asignacionesContext.Asignaciones
             where asignacion.FechaBaja == null && centrosConRequisitos.Contains(asignacion.CentroId)
@@ -170,7 +190,8 @@ public class EvaluacionDeAccesoPorCentroService(
                 .ToList(),
             requisitos,
             documentos,
-            hoy);
+            hoy,
+            pendientes);
 
         return new EvaluacionDeAccesoPorCentro(asignacionesEvaluadas, evaluados);
     }

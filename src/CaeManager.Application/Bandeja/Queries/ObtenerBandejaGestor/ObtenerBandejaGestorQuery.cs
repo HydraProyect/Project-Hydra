@@ -285,6 +285,15 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
             // Documento de Empresa no tiene Trabajador, se queda sin este dato.
             TrabajadorNombre: r.TrabajadorId is not null ? r.PropietarioNombre : null)));
 
+        // Un bloqueo por documento sin subir o sin validar en la plataforma (decisión 2026-10-10) conserva siempre su fila de
+        // requisito, aunque su acreditación PendienteDeSubir salga también en la cola: la fila de requisito es la que cuenta
+        // como bloqueo (BloqueaElAcceso, EsBloqueo en Mi trabajo) y la de plataforma solo como actuación. Quitarla convertiría
+        // un bloqueo en una actuación y, en un documento de Empresa, N Trabajadores bloqueados en una sola fila sin Trabajador.
+        var plataformas = pendientesPlataforma
+            .SelectMany(proveedor => proveedor.Clientes.SelectMany(cliente => cliente.Documentos
+                .Where(d => d.Estado is EstadoAcreditacion.PendienteDeSubir or EstadoAcreditacion.Rechazada)
+                .Select(d => (proveedor, cliente, d))))
+            .ToList();
         items.AddRange(requisitos.Select(rq => new ItemBandejaDto(
             Id: IdDeFilaDeCola.Requisito(rq.CentroId, rq.TrabajadorId, rq.TipoDocumentoId),
             Tipo: TipoItemBandeja.RequisitoPendiente,
@@ -370,11 +379,6 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
         // la parte que importa gestionar — por eso va en el subtítulo. Subida
         // no entra: está esperando la respuesta de la plataforma y no hay
         // nada que hacer hasta que llegue (seguimiento, no cola).
-        var plataformas = pendientesPlataforma
-            .SelectMany(proveedor => proveedor.Clientes.SelectMany(cliente => cliente.Documentos
-                .Where(d => d.Estado is EstadoAcreditacion.PendienteDeSubir or EstadoAcreditacion.Rechazada)
-                .Select(d => (proveedor, cliente, d))));
-
         items.AddRange(plataformas.Select(x => new ItemBandejaDto(
             Id: IdDeFilaDeCola.Plataforma(x.d.AcreditacionId),
             Tipo: x.d.Estado == EstadoAcreditacion.Rechazada ? TipoItemBandeja.PlataformaRechazada : TipoItemBandeja.PlataformaPendiente,

@@ -30,13 +30,39 @@ public enum ContextoCumplimiento
 /// <param name="TrabajadorId">Trabajador al que se le exige.</param>
 /// <param name="TipoDocumentoId">Tipo exigido.</param>
 /// <param name="Estado">Estado del documento efectivo del par (<c>DocumentoEfectivo</c>, Application), o Faltante.</param>
+/// <param name="PendienteEnPlataforma">
+/// El documento efectivo del par está pendiente en la plataforma CAE de ESTE Centro (sin subir o subido sin validar,
+/// <see cref="ReglaPendienteEnPlataforma.CuentaEnElCentro"/>) <b>y el Centro marca el tipo como bloqueante</b>
+/// (<see cref="TipoDocumentoCentro.BloqueaAcceso"/>): solo lo obligatorio baja el porcentaje; un Pendiente de un tipo sin esa
+/// marca deja el par al día. Siempre <c>false</c> en un Centro sin plataforma.
+/// </param>
 public readonly record struct ParDocumentalExigido(
     Guid CentroId,
     Guid ClienteEmpresarialId,
     Guid? EmpresaId,
     Guid TrabajadorId,
     Guid TipoDocumentoId,
-    EstadoDocumento Estado);
+    EstadoDocumento Estado,
+    bool PendienteEnPlataforma);
+
+/// <summary>
+/// Un par Empresa × TipoDocumento de ámbito Empresa que un Centro exige hoy a una Empresa con Trabajadores de Asignación
+/// activa en él (decisión del propietario, 2026-10-10: el Pendiente de Empresa baja el porcentaje del Centro). Solo entra
+/// en el contexto <see cref="ContextoCumplimiento.Centro"/>: los porcentajes de Trabajador, Empresa y Cliente empresarial
+/// no lo reciben (los documentos de ámbito Empresa siguen fuera de ellos). Sus campos significan lo mismo que en
+/// <see cref="ParDocumentalExigido"/>, salvo que el sujeto es la Empresa y no un Trabajador.
+/// </summary>
+/// <param name="CentroId">Centro que exige el tipo.</param>
+/// <param name="EmpresaId">Empresa a la que se le exige: la de algún Trabajador con Asignación activa en el Centro.</param>
+/// <param name="TipoDocumentoId">Tipo de ámbito Empresa exigido.</param>
+/// <param name="Estado">Estado del documento efectivo del par, o Faltante.</param>
+/// <param name="PendienteEnPlataforma">Mismo significado que en <see cref="ParDocumentalExigido.PendienteEnPlataforma"/>.</param>
+public readonly record struct ParDocumentalDeEmpresaExigido(
+    Guid CentroId,
+    Guid EmpresaId,
+    Guid TipoDocumentoId,
+    EstadoDocumento Estado,
+    bool PendienteEnPlataforma);
 
 /// <summary>
 /// Fracción de cumplimiento: cuántos de los requeridos están al día. <see cref="Porcentaje"/> es <c>null</c> cuando no
@@ -66,9 +92,19 @@ public sealed record FraccionCumplimiento(int AlDia, int Requeridos)
 /// <see cref="EstadoDocumento.Vencido"/>, <see cref="EstadoDocumento.Faltante"/>,
 /// <see cref="EstadoDocumento.SinConfirmar"/> y <see cref="EstadoDocumento.EnTolerancia"/> (un estado de contexto que ningún
 /// porcentaje recibe hoy: se calculan con el estado de vigencia real, Vencido; que un vencido dentro de la tolerancia cuente
-/// como al día es el incremento 2 del porcentaje, en <see cref="EsConforme(ParDocumentalExigido)"/>). Lo de «Sin confirmar» NO es la regla de los paneles ni de las incidencias, donde
+/// como al día es el incremento 2 del porcentaje, en <see cref="EsConforme(ParDocumentalExigido, ContextoCumplimiento)"/>). Lo de «Sin confirmar» NO es la regla de los paneles ni de las incidencias, donde
 /// «Sin confirmar» cuenta como al día con aviso (decisión 2026-10-01): en un porcentaje es no conforme (decisión
 /// 2026-10-03), porque nadie ha comprobado que el documento valga.
+/// </para>
+///
+/// <para>
+/// <b>Pendiente en la plataforma</b> (decisión 2026-10-10): un par cuyo documento vale pero está sin subir o subido sin
+/// validar en la plataforma CAE de su Centro (<see cref="ParDocumentalExigido.PendienteEnPlataforma"/>) NO está al día
+/// <b>en el porcentaje del Centro</b>: el Trabajador todavía no puede entrar allí. Solo si el Centro marca el tipo
+/// «bloquea el acceso» (decisión 3 del 2026-10-10: el anillo cuenta lo obligatorio configurado; un tipo opcional pendiente
+/// no lo baja) y solo en ese contexto: cada porcentaje
+/// mide su contexto (decisión 2026-10-03), y los de Trabajador, Empresa y Cliente empresarial miden su documentación, no
+/// la acreditación en la plataforma de cada Centro. Un Centro sin plataforma no cambia.
 /// </para>
 ///
 /// <para>
@@ -76,8 +112,9 @@ public sealed record FraccionCumplimiento(int AlDia, int Requeridos)
 /// </para>
 ///
 /// <para>
-/// <b>Fuera del universo, a propósito, hasta que el propietario decida.</b> (1) Los documentos de ámbito Empresa: hoy
-/// ningún porcentaje los cuenta y el cálculo no sabe qué tipos de Empresa exige cada Centro. (2) El tratamiento de los
+/// <b>Fuera del universo, a propósito, hasta que el propietario decida.</b> (1) Los documentos de ámbito Empresa, salvo en
+/// el porcentaje del Centro (decisión 2026-10-10: <see cref="ParDocumentalDeEmpresaExigido"/>, <see cref="PorCentro"/>); en
+/// los de Trabajador, Empresa y Cliente empresarial siguen fuera. (2) El tratamiento de los
 /// documentos históricos sustituidos: no entran (un documento sustituido es historial, <c>DocumentoOperativo</c>) y de
 /// los operativos de un par representa el documento efectivo (<c>DocumentoEfectivo</c>: válido hoy, nominativo, emisión
 /// más reciente) y no se decide otra.
@@ -97,18 +134,46 @@ public static class CumplimientoDocumental
     /// <see cref="ParDocumentalExigido.ClienteEmpresarialId"/> y <see cref="ParDocumentalExigido.CentroId"/>, y bastará
     /// añadirle la fecha de vencimiento y la tolerancia resuelta. Nada fuera de este método debe decidir «al día» para un
     /// par (los recuentos por estado de los KPI no tienen fecha ni Centro y siguen usando <see cref="EsConforme(EstadoDocumento)"/>).
+    /// Ya depende también del contexto en un punto: en el del Centro, un par pendiente en la plataforma de ese Centro no es
+    /// conforme si además el Centro marca el tipo como bloqueante (<see cref="ParDocumentalExigido.PendienteEnPlataforma"/>);
+    /// en los demás contextos no cuenta.
     /// </summary>
-    public static bool EsConforme(ParDocumentalExigido par) => EsConforme(par.Estado);
+    public static bool EsConforme(ParDocumentalExigido par, ContextoCumplimiento contexto) =>
+        EsConforme(par.Estado) && !(contexto == ContextoCumplimiento.Centro && par.PendienteEnPlataforma);
 
-    /// <summary>Fracción de un conjunto de pares exigidos: todos entran en el denominador, solo los conformes (<see cref="EsConforme(ParDocumentalExigido)"/>) en el numerador.</summary>
-    public static FraccionCumplimiento Evaluar(IEnumerable<ParDocumentalExigido> pares)
+    /// <summary>El numerador para un par de Empresa: la misma regla del contexto Centro que <see cref="EsConforme(ParDocumentalExigido, ContextoCumplimiento)"/> (el estado vale y no está pendiente en la plataforma).</summary>
+    public static bool EsConforme(ParDocumentalDeEmpresaExigido par) =>
+        EsConforme(par.Estado) && !par.PendienteEnPlataforma;
+
+    /// <summary>
+    /// La fracción de cada Centro con sus dos universos: los pares Trabajador × Tipo y los pares Empresa × Tipo
+    /// (<see cref="ParDocumentalDeEmpresaExigido"/>), todos en el denominador y solo los conformes en el numerador. Un Centro
+    /// sin ningún par no aparece.
+    /// </summary>
+    public static Dictionary<Guid, FraccionCumplimiento> PorCentro(
+        IEnumerable<ParDocumentalExigido> paresDeTrabajador, IEnumerable<ParDocumentalDeEmpresaExigido> paresDeEmpresa)
+    {
+        var resultado = PorContexto(ContextoCumplimiento.Centro, paresDeTrabajador);
+        foreach (var grupo in paresDeEmpresa.GroupBy(p => p.CentroId))
+        {
+            var deEmpresa = new FraccionCumplimiento(grupo.Count(EsConforme), grupo.Count());
+            resultado[grupo.Key] = resultado.TryGetValue(grupo.Key, out var deTrabajador)
+                ? FraccionCumplimiento.Sumar([deTrabajador, deEmpresa])
+                : deEmpresa;
+        }
+
+        return resultado;
+    }
+
+    /// <summary>Fracción de un conjunto de pares exigidos en un contexto: todos entran en el denominador, solo los conformes (<see cref="EsConforme(ParDocumentalExigido, ContextoCumplimiento)"/>) en el numerador.</summary>
+    public static FraccionCumplimiento Evaluar(IEnumerable<ParDocumentalExigido> pares, ContextoCumplimiento contexto)
     {
         var alDia = 0;
         var requeridos = 0;
         foreach (var par in pares)
         {
             requeridos++;
-            if (EsConforme(par)) alDia++;
+            if (EsConforme(par, contexto)) alDia++;
         }
 
         return new FraccionCumplimiento(alDia, requeridos);
@@ -142,16 +207,16 @@ public static class CumplimientoDocumental
         return new FraccionCumplimiento(alDia, requeridos);
     }
 
-    /// <summary>Fracción de un contexto: los pares exigidos que le pertenecen, medidos con <see cref="Evaluar(IEnumerable{ParDocumentalExigido})"/>.</summary>
+    /// <summary>Fracción de un contexto: los pares exigidos que le pertenecen, medidos con <see cref="EsConforme(ParDocumentalExigido, ContextoCumplimiento)"/>.</summary>
     public static FraccionCumplimiento De(ContextoCumplimiento contexto, Guid id, IEnumerable<ParDocumentalExigido> pares) =>
-        Evaluar(pares.Where(p => Pertenece(contexto, id, p)));
+        Evaluar(pares.Where(p => Pertenece(contexto, id, p)), contexto);
 
     /// <summary>La fracción de cada contexto presente en los pares. Un contexto sin ningún par exigido no aparece.</summary>
     public static Dictionary<Guid, FraccionCumplimiento> PorContexto(ContextoCumplimiento contexto, IEnumerable<ParDocumentalExigido> pares) =>
         pares
             .Where(p => Clave(contexto, p) is not null)
             .GroupBy(p => Clave(contexto, p)!.Value)
-            .ToDictionary(g => g.Key, g => Evaluar(g));
+            .ToDictionary(g => g.Key, g => Evaluar(g, contexto));
 
     private static bool Pertenece(ContextoCumplimiento contexto, Guid id, ParDocumentalExigido par) => Clave(contexto, par) == id;
 
