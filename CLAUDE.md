@@ -49,7 +49,7 @@ Con autonomía autorizada, avanza sin pedir confirmación entre pasos ya fijados
 
 ## Cuándo parar
 
-Para y pregunta solo ante una decisión de producto, negocio, seguridad o arquitectura; falta de acceso o de secretos; producción u operaciones irreversibles. Las dudas técnicas se resuelven con el agente `revisor-puente`, no con Chris. Informa como DECISIÓN NECESARIA con evidencia y opciones.
+Para y pregunta solo ante una decisión de producto, negocio, seguridad o arquitectura; falta de acceso o de secretos; producción u operaciones irreversibles; contradicción entre decisiones fijadas; tener que inventar una regla crítica; consecuencias comerciales no definidas. Las dudas técnicas se resuelven con el agente `revisor-puente`, no con Chris. No interrumpas por compilación, tests, fixtures, arnés, ratchets o gates: son trabajo tuyo. Informa como DECISIÓN NECESARIA con evidencia y opciones.
 
 ## Seguridad y multi-tenancy
 
@@ -65,20 +65,20 @@ Bucle completo, evidencia y cierre: skill `protocolo-hydra-autonomia`.
 
 ## Antes de abrir una PR
 
-- Revisión previa con el agente `revisor-puente`, pidiéndole refutarlo (indispensable si toca autorización, RLS, multi-tenancy, criptografía o auditoría). Codex, con cuota, como segunda opinión.
-- El cuerpo lleva una sección titulada exactamente `## Revisión Codex` con el resultado real: una línea de hallazgos aceptados o rechazados, o «sin hallazgos»; sin marcadores («pendiente», «TODO»). Lo comprueba `scripts/verificar-gobernanza-pr.sh` (check no `required`, pero visible en rojo).
+- Revisión previa con el agente `revisor-puente`, pidiéndole refutarlo (indispensable si toca autorización, RLS, multi-tenancy, criptografía o auditoría). Codex, con cuota, como segunda opinión; un agente que no sea Claude usa Codex.
+- El cuerpo lleva una sección titulada exactamente `## Revisión Codex` con el resultado real y el revisor que la hizo (revisor-puente o Codex): una línea de hallazgos aceptados o rechazados, o «sin hallazgos»; sin marcadores («pendiente», «TODO»). Lo comprueba `scripts/verificar-gobernanza-pr.sh` (check no `required`, pero visible en rojo).
 - Si toca `deploy/bootstrap/roles-de-cluster.sql`, añade `## Paso operativo en servidores` nombrando staging y producción: ningún adaptador de despliegue ejecuta ese fichero.
-- Crea la PR con `gh pr create --label "Type: …" --label "Priority: …" --milestone "…"`; sin esos metadatos queda en rojo. Milestones: `gh api repos/HydraProyect/Project-Hydra/milestones --jq '.[].title'`.
+- Crea la PR con `gh pr create --label "Type: …" --label "Priority: …" --milestone "…"`; sin milestone ni etiquetas la PR queda en rojo y bloqueada. Milestones: `gh api repos/HydraProyect/Project-Hydra/milestones --jq '.[].title'`.
 
 ## Skills
 
-Sin la skill, trabaja con este fichero y anótalo en la PR.
+Si falta `protocolo-hydra-contratos` o `protocolo-hydra-verificacion`, no reconstruyas su contenido de memoria: cuando el cambio toque DTO, API, esquema, autorización o RLS, o tengas que dar por buena una evidencia, detente e informa «skill normativa ausente: <nombre>». En los demás casos, y sin cualquier otra skill, trabaja con este fichero y anótalo en la PR.
 
 | Skill | Cárgala cuando |
 |---|---|
 | `protocolo-hydra-autonomia` | empieces trabajo autónomo o cierres un incremento |
 | `protocolo-hydra-verificacion` | interpretes tests, gates, CI o mutaciones, o comuniques evidencia de diff, búsqueda o log |
-| `protocolo-hydra-sesiones-paralelas` | cortes ramas, abras PRs o veas un fallo transversal de CI |
+| `protocolo-hydra-sesiones-paralelas` | vayas a tocar código, cortes ramas, abras PRs, coordines sesiones o veas un fallo transversal de CI |
 | `protocolo-hydra-sesion` | seas la sesión principal (título, grupo, tablero, ENTREGA) |
 | `protocolo-hydra-contratos` | cambies un contrato o una regla documentada |
 | `protocolo-hydra-dependencias` | actualices paquetes, revises Dependabot o toques secretos de CI |
