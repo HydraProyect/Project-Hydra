@@ -56,9 +56,12 @@
                 @* Registrar, cambiar de nivel y eliminar son órdenes denegadas a Consulta en Application:
                    sin escritura no hay acción principal ni menú. *@
                 <SoloConEscritura>
+                    @if (!EsGestionada)
+                    {
                     <Boton Variante="VarianteBoton.Primario" OnClick="RegistrarVerificacionAsync" Deshabilitado="@(!HayCentrosDondeVerificar)">
                         @Textos["AccionRegistrarVerificacion"]
                     </Boton>
+                    }
                     <MenuAcciones ConBorde="true" EtiquetaAccesible="@Textos["MenuMasAcciones"]">
                         <ItemMenuAccion OnClick="AbrirPanelInformacion">@Textos["MenuEditarSubcontrata"]</ItemMenuAccion>
                         <ItemMenuAccion OnClick="CambiarNivelAsync">@Textos["BotonCambiarNivel", EstadoSupervisionUi.TextoNivel(Textos, NivelOpuesto)]</ItemMenuAccion>
@@ -74,10 +77,44 @@
             <ChildContent>
                 @switch (_pestana)
                 {
-                    case PestanaSupervision:
+                    case PestanaGestion:
                         @* En el marcado, y no en @code como la de Centros: sus filas llevan una @key construida,
                            y ClavesDeHermanos se declara junto a los hermanos. *@
+                        @if (EsGestionada)
+                        {
+                            <section class="subcontrata360-seccion" aria-label="@Textos["PestanaGestion"]" data-gestion-documental>
+                                <p class="subcontrata360-nota">@Textos["ExplicacionGestionada360"]</p>
+                                @if (_cargandoGestion)
+                                {
+                                    <EstadoCargando Filas="3" />
+                                }
+                                else if (_errorGestion)
+                                {
+                                    <EstadoVacio Titulo="@Textos["GestionError"]"><Accion><Boton Variante="VarianteBoton.Secundario" OnClick="ReintentarGestionAsync">@Comunes["Reintentar"]</Boton></Accion></EstadoVacio>
+                                }
+                                else if (_gestionLeida)
+                                {
+                                    <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["GestionLista"]">
+                                        <Encabezado>@Textos["GestionMostrando", _documentosGestion.Count]</Encabezado>
+                                        <ChildContent>
+                                            @foreach (var documento in _documentosGestion)
+                                            {
+                                                <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre" NombreIcono="documento"
+                                                              Tono="EstadoDocumentoFicha360.TonoFila(documento.Estado)" OnNombre="() => AbrirDocumentoGestionAsync(documento)">
+                                                    <Detalle>@(documento.FechaVencimiento is { } fecha ? Textos["GestionVence", fecha.ToString("dd/MM/yyyy")] : Textos["GestionSinFecha"])</Detalle>
+                                                    <Estado><Badge Tono="EstadoDocumentoFicha360.Tono(documento.Estado)">@EstadoDocumentoFicha360.Texto(documento.Estado)</Badge></Estado>
+                                                </FilaRelacion>
+                                            }
+                                        </ChildContent>
+                                        <Pie>@if (_documentosGestion.Count == 0) { @Textos["GestionVacio"] }</Pie>
+                                    </ListaRelaciones>
+                                }
+                            </section>
+                        }
+                        else
+                        {
                     <section class="subcontrata360-seccion" aria-label="@Textos["PestanaSupervision"]">
+                        <p class="subcontrata360-nota">@Textos["ExplicacionSupervisada360"]</p>
                             @if (_cargandoSupervision)
                             {
                                 <Tarjeta><EstadoCargando Filas="4" /></Tarjeta>
@@ -113,7 +150,7 @@
                                     <Encabezado>
                                         @* El encabezado de ListaRelaciones es un párrafo: dentro solo cabe contenido de línea. *@
                                         <span class="subcontrata360-linea">
-                                            <span>@ExplicacionDeSupervision @TextoUltimaVerificacion</span>
+                                            <span>@TextoUltimaVerificacion</span>
                                             <SoloConEscritura>
                                                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="RegistrarVerificacionAsync" Deshabilitado="@(!HayCentrosDondeVerificar)">
                                                     @Textos["BotonRegistrarVerificacion"]
@@ -170,6 +207,7 @@
                                 </ListaRelaciones>
                             }
                         </section>
+                        }
                         break;
                     case PestanaCentros:
                         @PestanaDeCentros

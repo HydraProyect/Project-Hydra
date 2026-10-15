@@ -808,7 +808,7 @@
     <value>S'exigeix i no hi ha document</value>
   </data>
   <data name="ExplicacionSupervisada360" xml:space="preserve">
-    <value>Supervisada: la subcontracta puja la seva documentació a la plataforma del Client titular del Centre i el teu equip hi comprova que és vàlida. La comprovació caduca i s'ha de repetir.</value>
+    <value>Supervisada: la subcontracta puja la seva documentació a la plataforma del titular del Centre i el teu equip hi comprova que és vàlida. La comprovació caduca i s'ha de repetir.</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
@@ -880,4 +880,13 @@
   <data name="CentroFraccionDocumental360" xml:space="preserve"><value>{0} de {1} al dia</value></data>
   <data name="CentroSinRequisitos360" xml:space="preserve"><value>Sense requisits documentals per als seus Treballadors</value></data>
   <data name="CentroUniversoDocumental360" xml:space="preserve"><value>Documentació dels seus Treballadors exigida a cada Centre</value></data>
+  <data name="PestanaGestion" xml:space="preserve"><value>Gestió</value></data>
+  <data name="GlosaGestion" xml:space="preserve"><value>documents amb problemes en la gestió</value></data>
+  <data name="ExplicacionGestionada360" xml:space="preserve"><value>Gestionada: el teu equip desa i renova la documentació d’empresa d’aquesta subcontracta, la mateixa que es demana a qualsevol empresa.</value></data>
+  <data name="GestionLista" xml:space="preserve"><value>Documentació d’empresa de la subcontracta</value></data>
+  <data name="GestionMostrando" xml:space="preserve"><value>Es mostren {0} de {0} · del pitjor estat al millor</value></data>
+  <data name="GestionError" xml:space="preserve"><value>No hem pogut carregar la documentació d’empresa</value></data>
+  <data name="GestionVence" xml:space="preserve"><value>Venç: {0}</value></data>
+  <data name="GestionSinFecha" xml:space="preserve"><value>Sense data de venciment</value></data>
+  <data name="GestionVacio" xml:space="preserve"><value>Sense documents d’empresa registrats visibles.</value></data>
 </root>
