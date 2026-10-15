@@ -43,19 +43,15 @@ public class MigracionesTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Siembra_los_81_tipos_de_documento_del_catalogo()
+    public async Task Siembra_todos_los_tipos_de_documento_del_catalogo()
     {
-        // 15+21+1=37 de Trabajador (excel original + ampliación Fase 37 +
-        // "DNI o NIE en vigor", 2026-08-09) + 13+17=30 de Empresa (documentos
-        // base obligatorios del cliente + ampliación Fase 37) + 4 de Vehículo
-        // (ITC, ficha técnica, seguro, autorización de circulación) + 6 del
-        // tramo 0.3 del MVP-1 de formatos (2026-08-14, F-27/F-41/F-47/F-70/
-        // F-93/F-95 — F-107 no suma porque ya existía como "Comunicación de
-        // desplazamiento") + 4 del tramo 1.2 (F-44/F-52/F-50/F-29 — F-53 no
-        // suma porque ya existía como "Declaración Responsable CAE") =
-        // 37+30+4+6+4 = 81.
+        // La migración aplicada debe dejar en el Tenant #1 exactamente el catálogo
+        // de TipoDocumentoSeedData.Datos (84 filas a 2026-10-15: 39 de Trabajador,
+        // 40 de Empresa, 4 de Vehículo y 1 de Proyecto). Se compara contra Datos y
+        // no contra un literal para que añadir un tipo no obligue a tocar este
+        // test, pero un tipo que HasData no llegue a sembrar sí lo rompe.
         var total = await _dbContext.TiposDocumento.CountAsync();
-        total.Should().Be(81);
+        total.Should().Be(TipoDocumentoSeedData.Datos.Length);
     }
 
     [Fact]
