@@ -136,7 +136,12 @@ public sealed record ExtranjeroPilotoOutbound(int Trabajador, string Nacionalida
 
 public sealed record ObraPilotoOutbound(string Nombre, int Centro, int DiasDesdeElInicio, int? MesesPrevistos, int Tecnicos, bool Cerrada = false);
 
-public enum EstadoVisitaPilotoOutbound { Futura, Realizada, Vencida, Cancelada }
+/// <summary>
+/// «EnCurso»: ya empezó y no ha terminado, y lo sigue estando todos los días en que se puede sembrar (D−9 a D): su duración
+/// abarca ese margen entero. Una «Futura» que empieza a uno o dos días de la demostración está, ese día, dentro de la ventana
+/// de aviso de 48 h (urgente); los días anteriores del margen aún no lo es.
+/// </summary>
+public enum EstadoVisitaPilotoOutbound { Futura, EnCurso, Realizada, Vencida, Cancelada }
 
 /// <summary>Una Visita: «Realizada» tiene la documentación gestionada; «Vencida» pasó sin gestionarla.</summary>
 /// <param name="PorCorreo">Visita de origen «Correo» al Centro que se gestiona por correo: la comprobación previa y el ZIP salen de ella.</param>
@@ -164,6 +169,13 @@ public sealed record IntervaloPilotoOutbound(int Minimo, int Maximo)
 
     public override string ToString() => $"entre {Minimo} y {Maximo}";
 }
+
+/// <summary>
+/// Lo que Inicio tiene que contar de los documentos de Trabajador de un Tenant, deducido de la receta
+/// (<see cref="CatalogoPilotoOutbound.DocumentosEsperadosEnInicio"/>): intervalos para lo que depende del día de medición.
+/// </summary>
+public sealed record InicioDocumentalEsperadoPilotoOutbound(
+    IntervaloPilotoOutbound Vencidos, IntervaloPilotoOutbound Urgentes, IntervaloPilotoOutbound Proximos, int SinConfirmar);
 
 /// <summary>
 /// Lo que la autoverificación exige de cada perfil además de su estructura (que sale del catálogo): los porcentajes,
@@ -225,18 +237,33 @@ public static class CatalogoPilotoOutbound
     /// (<see cref="FechasPilotoOutbound.EnRegla"/>).
     /// </summary>
     public static IReadOnlyList<string> TiposQueNoCaducan { get; } =
-        ["Formación 60h (base convenio)", InformacionArt18, CarretillasElevadoras, "Contrato de Trabajo", "Alta en Seguridad Social"];
+        ["Formación 60h (base convenio)", InformacionArt18, CarretillasElevadoras, "Contrato de Trabajo", "Alta en Seguridad Social", LibroDeSubcontratacion];
 
     /// <summary>Los cinco tipos de ámbito Trabajador exigidos por defecto. La siembra comprueba que el catálogo del Tenant dice lo mismo antes de escribir.</summary>
     public static IReadOnlyList<string> TiposExigidosDeTrabajador { get; } =
         [AptitudMedica, EntregaEpi, FormacionArt19, InformacionArt18, DocumentoIdentidad];
 
+    /// <summary>
+    /// Los documentos de un Trabajador que nacen con su relación laboral: ninguno puede estar emitido antes de que la persona
+    /// cause alta en la Empresa (el Documento de identidad y el permiso de trabajo sí: son anteriores al contrato).
+    /// </summary>
+    public static IReadOnlyList<string> TiposPosterioresAlAlta { get; } = [FormacionArt19, AptitudMedica, InformacionArt18, EntregaEpi];
+
     /// <summary>Lo que cada Subcontrata tiene de su propia Empresa.</summary>
     public static IReadOnlyList<string> TiposDeDocumentoDeSubcontrata { get; } =
         ["Seguro de Responsabilidad Civil + recibo de pago", "Evaluación de Riesgos Laborales", "Modalidad Preventiva"];
 
-    /// <summary>El tipo de Empresa que no se exige por defecto y que el perfil D lleva: lo que una obra pide a quien trae maquinaria.</summary>
-    public const string TipoDeEmpresaDeMaquinaria = "Relación de Maquinaria";
+    /// <summary>
+    /// El Registro de Empresas Acreditadas (Ley 32/2006): un tipo de Empresa que no se exige por defecto ni cuenta para el
+    /// cumplimiento de quien no pisa una obra (es «Condicional»). El perfil de obras lo lleva y sus Centros, que son obras, lo piden.
+    /// </summary>
+    public const string CertificadoReaConstruccion = "Certificado de inscripción en el REA";
+
+    /// <summary>Uno por obra (art. 8 Ley 32/2006): tipo de ámbito Proyecto, sin caducidad mientras dure la obra.</summary>
+    public const string LibroDeSubcontratacion = "Libro de Subcontratación";
+
+    /// <summary>El justificante mensual de la cuota del autónomo: el autónomo es su propia Empresa, y sus Centros se lo piden.</summary>
+    public const string ReciboDeAutonomos = "Recibo de cuota de autónomos (RETA)";
 
     /// <summary>Los dos certificados mensuales de la Empresa: coherentes con su tipo solo pueden estar «Próximo», y tiñen de ámbar todo Centro que los exige.</summary>
     public static IReadOnlyList<string> CertificadosMensualesDeEmpresa { get; } =
@@ -293,7 +320,11 @@ public static class CatalogoPilotoOutbound
         Receta = new(Ausentes: 24, SinConfirmar: 2, AcreditacionesSubidas: 3, AcreditacionesRechazadas: 2),
         CentroConPlataforma = 0,
         GestionesPendientes = 3,
-        Visitas = [new(0, 10, 2, EstadoVisitaPilotoOutbound.Futura, "Reconocimiento inicial del centro antes del arranque")]
+        Visitas =
+        [
+            new(0, 10, 2, EstadoVisitaPilotoOutbound.Futura, "Reconocimiento inicial del centro antes del arranque"),
+            new(0, 1, 1, EstadoVisitaPilotoOutbound.Futura, "Entrada de la primera cuadrilla para el replanteo de las canalizaciones")
+        ]
     };
 
     /// <summary>
@@ -387,7 +418,8 @@ public static class CatalogoPilotoOutbound
         [
             new(0, 6, 1, EstadoVisitaPilotoOutbound.Futura, "Inspección de seguridad del andamiaje"),
             new(2, 27, 2, EstadoVisitaPilotoOutbound.Futura, "Visita de la propiedad al replanteo de seguidores"),
-            new(1, -18, 1, EstadoVisitaPilotoOutbound.Realizada, "Replanteo de la cimentación")
+            new(1, -18, 1, EstadoVisitaPilotoOutbound.Realizada, "Replanteo de la cimentación"),
+            new(2, -10, 14, EstadoVisitaPilotoOutbound.EnCurso, "Montaje de la grúa torre y de los medios auxiliares")
         ]
     };
 
@@ -483,6 +515,114 @@ public static class CatalogoPilotoOutbound
     /// <summary>Cuántos Trabajadores siembra el Tenant: los de su Empresa propia y los de sus Subcontratas.</summary>
     public static int TrabajadoresSembrados(TenantPilotoOutbound tenant) => tenant.TrabajadoresSembrados;
 
+    /// <summary>Los tipos del catálogo que vencen solos, por nombre: lo único que el reparto de la receta necesita saber de un tipo.</summary>
+    private static readonly Lazy<IReadOnlyDictionary<string, bool>> VencenSolos = new(() =>
+    {
+        var vencen = new Dictionary<string, bool>();
+        foreach (var tipo in TipoDocumentoSeedData.CrearCopiasParaTenant())
+            vencen.TryAdd(tipo.Nombre, tipo.AplicaVencimientoAutomatico);
+        return vencen;
+    });
+
+    /// <summary>Si el tipo del catálogo vence solo (vencimiento automático): el reparto de la receta lo usa para decidir qué situación le cabe.</summary>
+    public static bool VencePorSuTipo(string nombreDeTipo) => VencenSolos.Value[nombreDeTipo];
+
+    /// <summary>
+    /// Los pares (Trabajador, tipo exigido) que se apartan de «en regla», según la receta del perfil. Se reparten sin azar:
+    /// los pares, de los Trabajadores desde el primero afectado y sin los de baja, se recorren con un paso primo con su
+    /// número, y cada uno recibe la primera situación de la receta que le cabe. Es la única definición: la usan el
+    /// sembrador, que la escribe, y la autoverificación, que mide lo escrito contra ella (el recuento de la receta es un
+    /// máximo: si no quedan pares compatibles con una situación, el recuento realizado es menor).
+    /// </summary>
+    public static List<DesviacionDocumentoPilotoOutbound> Desviaciones(TenantPilotoOutbound tenant, int total, Func<string, bool> vencePorSuTipo)
+    {
+        var receta = tenant.Receta;
+        var pares = new List<(int Trabajador, string Tipo)>();
+        for (var t = receta.PrimerTrabajadorAfectado; t < Math.Min(total, receta.HastaElTrabajador); t++)
+        {
+            if (tenant.DeBaja.Contains(t)) continue;
+            foreach (var tipo in TiposExigidosDeTrabajador)
+                pares.Add((t, tipo));
+        }
+
+        var resultado = new List<DesviacionDocumentoPilotoOutbound>();
+        if (pares.Count > 0)
+        {
+            var paso = new[] { 7, 11, 13, 17, 19, 23, 29 }.First(p => pares.Count % p != 0);
+            var (vencidos, urgentes, proximos, ausentes, sinConfirmar) =
+                (receta.Vencidos, receta.Urgentes, receta.Proximos, receta.Ausentes, receta.SinConfirmar);
+
+            for (var k = 0; k < pares.Count; k++)
+            {
+                var (t, nombre) = pares[(int)((long)k * paso % pares.Count)];
+                var vencePorSuTipoElPar = vencePorSuTipo(nombre);
+                SituacionDocumentoPilotoOutbound? situacion = null;
+
+                if (vencePorSuTipoElPar && vencidos > 0) { situacion = SituacionDocumentoPilotoOutbound.Vencido; vencidos--; }
+                else if (vencePorSuTipoElPar && urgentes > 0) { situacion = SituacionDocumentoPilotoOutbound.Urgente; urgentes--; }
+                else if (vencePorSuTipoElPar && proximos > 0) { situacion = SituacionDocumentoPilotoOutbound.Proximo; proximos--; }
+                else if (!vencePorSuTipoElPar && sinConfirmar > 0) { situacion = SituacionDocumentoPilotoOutbound.SinConfirmar; sinConfirmar--; }
+                else if (ausentes > 0) { situacion = SituacionDocumentoPilotoOutbound.Ausente; ausentes--; }
+
+                if (situacion is { } s) resultado.Add(new DesviacionDocumentoPilotoOutbound(t, nombre, s));
+            }
+        }
+
+        // El Centro con un requisito que bloquea el acceso lo tiene incumplido de verdad: el primer Trabajador, con la aptitud vencida.
+        if (tenant.CentroConRequisitoBloqueante is not null)
+        {
+            resultado.RemoveAll(d => d.Trabajador == 0 && d.Tipo == AptitudMedica);
+            resultado.Add(new DesviacionDocumentoPilotoOutbound(0, AptitudMedica, SituacionDocumentoPilotoOutbound.Vencido));
+        }
+
+        return resultado;
+    }
+
+    /// <summary>
+    /// Lo que Inicio cuenta de los documentos de Trabajador de un Tenant, deducido de la receta y de lo demás que el
+    /// catálogo declara: las desviaciones realizadas, el documento vencido del Trabajador de la tolerancia y el permiso
+    /// de trabajo de cada extranjero. Los permisos están fechados desde la demostración y Inicio los clasifica con el día
+    /// en que se mide (de D−<see cref="OpcionesPilotoOutbound.MargenMaximoDias"/> a D), así que lo suyo es un intervalo;
+    /// lo demás está fijado para todos esos días y es exacto.
+    /// </summary>
+    public static InicioDocumentalEsperadoPilotoOutbound DocumentosEsperadosEnInicio(TenantPilotoOutbound tenant)
+    {
+        var desviaciones = Desviaciones(tenant, tenant.TrabajadoresSembrados, VencePorSuTipo);
+        int Cuenta(SituacionDocumentoPilotoOutbound s) => desviaciones.Count(d => d.Situacion == s);
+
+        var fijoVencidos = Cuenta(SituacionDocumentoPilotoOutbound.Vencido) + (tenant.Tolerancia is null ? 0 : 1);
+        var fijoUrgentes = Cuenta(SituacionDocumentoPilotoOutbound.Urgente);
+        var fijoProximos = Cuenta(SituacionDocumentoPilotoOutbound.Proximo);
+
+        var (vencidos, urgentes, proximos) = (new List<int>(), new List<int>(), new List<int>());
+        var referencia = new DateOnly(2030, 1, 1);
+        for (var dias = 0; dias <= OpcionesPilotoOutbound.MargenMaximoDias; dias++)
+        {
+            var estados = tenant.Extranjeros
+                .Select(e => CaeManager.Domain.Documentos.CalculadoraEstadoDocumento.Calcular(
+                    CaeManager.Domain.Documentos.VigenciaDocumento.VenceEl(referencia.AddDays(e.DiasHastaLaCaducidad + dias)), referencia, 30, 15))
+                .ToList();
+            vencidos.Add(estados.Count(e => e == CaeManager.Domain.Documentos.EstadoDocumento.Vencido));
+            urgentes.Add(estados.Count(e => e == CaeManager.Domain.Documentos.EstadoDocumento.Urgente));
+            proximos.Add(estados.Count(e => e == CaeManager.Domain.Documentos.EstadoDocumento.Proximo));
+        }
+
+        return new(
+            new(fijoVencidos + vencidos.Min(), fijoVencidos + vencidos.Max()),
+            new(fijoUrgentes + urgentes.Min(), fijoUrgentes + urgentes.Max()),
+            new(fijoProximos + proximos.Min(), fijoProximos + proximos.Max()),
+            Cuenta(SituacionDocumentoPilotoOutbound.SinConfirmar));
+    }
+
+    /// <summary>
+    /// Cuántas Visitas «urgentes» cuenta Inicio un día de medición: las que están en curso y las que empiezan dentro de la
+    /// ventana de aviso de 48 h (hoy no cuenta como futura). <paramref name="diasHastaLaDemostracion"/> es D menos el día de
+    /// medición: de 0 (el propio día) a <see cref="OpcionesPilotoOutbound.MargenMaximoDias"/>.
+    /// </summary>
+    public static int VisitasUrgentesEn(TenantPilotoOutbound tenant, int diasHastaLaDemostracion) =>
+        tenant.Visitas.Count(v => v.Estado == EstadoVisitaPilotoOutbound.EnCurso
+            || (v.Estado == EstadoVisitaPilotoOutbound.Futura && v.DiasDesdeLaDemostracion + diasHastaLaDemostracion is >= 1 and <= 2));
+
     /// <summary>
     /// Los porcentajes que la autoverificación exige de cada perfil, escritos a mano a partir de lo que el perfil dice
     /// (plan 07, § 2) y de lo medido en la primera siembra.
@@ -491,7 +631,7 @@ public static class CatalogoPilotoOutbound
         tenant.Perfil switch
         {
             PerfilPilotoOutbound.AlDia => new(new(75, 98), new(75, 100), CentrosVigentesMinimo: 1),
-            PerfilPilotoOutbound.RecienIncorporada => new(new(0, 100), new(0, 45)),
+            PerfilPilotoOutbound.RecienIncorporada => new(new(70, 95), new(10, 45)),
             PerfilPilotoOutbound.Multicliente => new(new(60, 95), new(50, 92)),
             PerfilPilotoOutbound.ObrasYMaquinaria => new(new(60, 95), new(60, 95)),
             PerfilPilotoOutbound.Autonomo => new(new(80, 100), new(80, 100)),

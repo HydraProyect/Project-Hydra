@@ -341,6 +341,46 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
     }
 
     [Fact]
+    public async Task La_retirada_borra_tambien_un_Tenant_de_un_lote_de_version_anterior_con_sus_filas_y_su_fichero_y_no_toca_un_fichero_ajeno()
+    {
+        await using var arnes = await ArnesPilotoOutbound.CrearAsync();
+        var nombre = CatalogoPilotoOutbound.NombresTenantsDeVersionesAnteriores[0];
+        CatalogoPilotoOutbound.Tenants.Select(t => t.Nombre).Should().NotContain(nombre, "control: ya no es un Tenant de esta versión del piloto");
+
+        var ajeno = await GuardarFicheroEnUnTenantAjenoAsync(arnes);
+        var antiguo = new Tenant(nombre, PerfilVocabularioTenant.ClienteDirecto);
+        antiguo.MarcarDatosDemoCompletados();
+        var claveDelLogo = await arnes.EnTenantAsync(antiguo.Id, async (db, sp) =>
+        {
+            db.Tenants.Add(antiguo);
+            await db.SaveChangesAsync();
+
+            db.Empresas.Add(new CaeManager.Domain.Empresas.Empresa(nombre, DatosPruebaSeeder.GenerarCifValido(9_912_345)));
+            using var png = new MemoryStream([1, 2, 3]);
+            var logo = await sp.GetRequiredService<IFileStorageService>().GuardarAsync(png, "logo.png");
+            antiguo.EstablecerLogo(logo, new string('a', Tenant.LongitudLogoVersion), DateTime.UtcNow);
+            await db.SaveChangesAsync();
+            return logo;
+        });
+
+        var antes = await arnes.RecuentoAsync();
+        (antes["Tenants del piloto"], antes["Empresas"]).Should().Be((1, 1), "MEDIDO: el recuento ve el Tenant de la versión anterior y su Empresa (control positivo)");
+        File.Exists(RutaEnElAlmacen(arnes, claveDelLogo)).Should().BeTrue("control: el logo existe antes de retirar");
+
+        var anunciados = new List<string>();
+        var retirados = await RetirarAsync(arnes, ConfiguracionConfirmada, anunciados);
+
+        retirados.Should().HaveCount(1, "MEDIDO: la retirada reconoce el nombre de un lote de una versión anterior");
+        anunciados.Should().Equal([nombre], "y lo anuncia por su nombre");
+        (await TenantsDelPilotoAsync(arnes)).Should().BeEmpty("MEDIDO: el Tenant ya no existe");
+        var despues = await arnes.RecuentoAsync();
+        (despues["Tenants del piloto"], despues["Empresas"]).Should().Be((0, 0), "MEDIDO: ni el Tenant ni su Empresa");
+        File.Exists(RutaEnElAlmacen(arnes, claveDelLogo)).Should().BeFalse("MEDIDO: su logo se borró del almacén");
+        File.Exists(RutaEnElAlmacen(arnes, ajeno.Clave)).Should().BeTrue("MEDIDO: el fichero de un Tenant ajeno al lote sigue ahí");
+        (await RetirarAsync(arnes, ConfiguracionConfirmada, [])).Should().BeEmpty("MEDIDO: sin nada que retirar, la orden es repetible");
+    }
+
+    [Fact]
     public async Task Un_corte_justo_despues_de_aprovisionar_un_Tenant_no_lo_deja_sin_marcador_y_ni_la_siembra_ni_la_retirada_se_niegan_despues()
     {
         await using var arnes = await ArnesPilotoOutbound.CrearAsync();
