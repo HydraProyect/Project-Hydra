@@ -379,4 +379,41 @@
     <value>DNI</value>
   </data>
   <data name="NingunoConFiltro" xml:space="preserve"><value>Ninguno con ese filtro.</value></data>
+  <data name="FichaCanalFirma" xml:space="preserve"><value>Cómo se le envía lo que hay que firmar</value></data>
+  <data name="FichaFirmante" xml:space="preserve"><value>Quién firma en nombre de la Empresa</value></data>
+  <data name="FichaModalidadPreventiva" xml:space="preserve"><value>Modalidad de organización preventiva</value></data>
+  <data name="FichaOrganizacionSpa" xml:space="preserve"><value>Servicio de prevención ajeno</value></data>
+  <data name="FichaContactoSpaNombre" xml:space="preserve"><value>Nombre del contacto de la Organización SPA</value></data>
+  <data name="FichaContactoSpaTelefono" xml:space="preserve"><value>Teléfono del contacto de la Organización SPA</value></data>
+  <data name="FichaContactoSpaCorreo" xml:space="preserve"><value>Correo del contacto de la Organización SPA</value></data>
+  <data name="FichaMutuaNombre" xml:space="preserve"><value>Mutua colaboradora con la Seguridad Social</value></data>
+  <data name="FichaContactoFormacionNombre" xml:space="preserve"><value>Nombre del contacto de formación</value></data>
+  <data name="FichaContactoFormacionTelefono" xml:space="preserve"><value>Teléfono del contacto de formación</value></data>
+  <data name="FichaContactoFormacionCorreo" xml:space="preserve"><value>Correo del contacto de formación</value></data>
+  <data name="FichaTecnicoPrlNombre" xml:space="preserve"><value>Técnico de PRL</value></data>
+  <data name="FichaTecnicoPrlTelefono" xml:space="preserve"><value>Teléfono del Técnico de PRL</value></data>
+  <data name="FichaTecnicoPrlCorreo" xml:space="preserve"><value>Correo del Técnico de PRL</value></data>
+  <data name="FichaFirmaDocumentos" xml:space="preserve"><value>Firma de documentos</value></data>
+  <data name="FichaPrevencion" xml:space="preserve"><value>Prevención</value></data>
+  <data name="FichaMutua" xml:space="preserve"><value>Mutua</value></data>
+  <data name="FichaFormacion" xml:space="preserve"><value>Entidad de formación</value></data>
+  <data name="FichaCustodiaSello" xml:space="preserve"><value>Sello custodiado por el Operador CAE</value></data>
+  <data name="FichaSinInformar" xml:space="preserve"><value>Sin informar</value></data>
+  <data name="FichaDocuSign" xml:space="preserve"><value>DocuSign</value></data>
+  <data name="FichaPorCorreo" xml:space="preserve"><value>Por correo</value></data>
+  <data name="FichaSi" xml:space="preserve"><value>Sí</value></data>
+  <data name="FichaNo" xml:space="preserve"><value>No</value></data>
+  <data name="FichaEditarTitulo" xml:space="preserve"><value>Editar ficha de la Empresa</value></data>
+  <data name="FichaEditarEnlace" xml:space="preserve"><value>Editar →</value></data>
+  <data name="FichaNoDisponible" xml:space="preserve"><value>No se pudo cargar la ficha.</value></data>
+  <data name="FichaGuardada" xml:space="preserve"><value>Ficha de la Empresa guardada.</value></data>
+  <data name="FichaErrorGuardar" xml:space="preserve"><value>No se pudo guardar la ficha.</value></data>
+  <data name="FichaCopiarCorreoSpa" xml:space="preserve"><value>el correo del contacto de la Organización SPA</value></data>
+  <data name="FichaCopiarTelefonoSpa" xml:space="preserve"><value>el teléfono del contacto de la Organización SPA</value></data>
+  <data name="FichaCopiarCorreoTecnicoPrl" xml:space="preserve"><value>el correo del Técnico de PRL</value></data>
+  <data name="FichaCopiarTelefonoTecnicoPrl" xml:space="preserve"><value>el teléfono del Técnico de PRL</value></data>
+  <data name="FichaCopiarCorreoFormacion" xml:space="preserve"><value>el correo del contacto de formación</value></data>
+  <data name="FichaCopiarTelefonoFormacion" xml:space="preserve"><value>el teléfono del contacto de formación</value></data>
+  <data name="FichaCopiarNombreAccesible" xml:space="preserve"><value>Copiar {0}</value></data>
+  <data name="FichaNotaTecnico" xml:space="preserve"><value>Al Técnico de PRL se le envía lo que necesita su firma o su gestión.</value></data>
 </root>

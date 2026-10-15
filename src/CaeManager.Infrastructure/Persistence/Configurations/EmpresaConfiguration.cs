@@ -38,6 +38,22 @@ public class EmpresaConfiguration : IEntityTypeConfiguration<Empresa>
         builder.Property(e => e.Notas).HasMaxLength(2000);
         builder.Property(e => e.NivelServicio).HasMaxLength(50);
 
+        builder.Property(e => e.CanalFirmaDocumentos).HasMaxLength(200);
+        builder.Property(e => e.SelloCustodiadoPorOperadorCae);
+        builder.Property(e => e.FirmanteDocumentos).HasMaxLength(200);
+        builder.Property(e => e.ModalidadOrganizacionPreventiva).HasMaxLength(200);
+        builder.Property(e => e.OrganizacionSpa).HasMaxLength(200);
+        builder.Property(e => e.ContactoSpaNombre).HasMaxLength(200);
+        builder.Property(e => e.ContactoSpaTelefono).HasMaxLength(50);
+        builder.Property(e => e.ContactoSpaCorreo).HasMaxLength(254);
+        builder.Property(e => e.Mutua).HasMaxLength(200);
+        builder.Property(e => e.ContactoFormacionNombre).HasMaxLength(200);
+        builder.Property(e => e.ContactoFormacionTelefono).HasMaxLength(50);
+        builder.Property(e => e.ContactoFormacionCorreo).HasMaxLength(254);
+        builder.Property(e => e.TecnicoPrlNombre).HasMaxLength(200);
+        builder.Property(e => e.TecnicoPrlTelefono).HasMaxLength(50);
+        builder.Property(e => e.TecnicoPrlCorreo).HasMaxLength(254);
+
         builder.HasIndex(e => new { e.TenantId, e.RazonSocial }).IsUnique();
         builder.HasIndex(e => new { e.TenantId, e.Cif }).IsUnique();
         builder.HasIndex(e => new { e.TenantId, e.EsPropia });

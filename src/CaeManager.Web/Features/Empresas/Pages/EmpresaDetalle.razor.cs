@@ -114,7 +114,8 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     private SelloEmpresaDto? _sello;
     private bool HayCajaAcceso => UrlPortalCae.Normalizar(_credencial?.UrlAcceso) is not null || _errorAcceso || _accesoRequiereDosFactores;
     private bool HayCajaSello => _sello is not null || _puedeEscribir;
-    private bool HayCajasDeFicha => HayCajaAcceso || HayCajaSello;
+    private bool _editorFichaVisible;
+    private bool HayCajasDeFicha => HayCajaAcceso || HayCajaSello || _detalle?.FichaVisible == true;
     private CredencialAccesoEmpresaSinContrasenaDto? _credencial;
     private bool _cargandoAcceso = true;
     private bool _errorAcceso;
@@ -241,6 +242,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     private void ReiniciarParaNuevaEmpresa()
     {
         InvalidarCargas();
+        _editorFichaVisible = false;
         _detalle = null;
         _cumplimiento = null;
         _error = false;
@@ -802,6 +804,8 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
                 _guardandoNota = false;
         }
     }
+
+    private Task FichaGuardadaAsync() => RecargarDetalleTrasNotaAsync(_generacion);
 
     /// <summary>Relee solo la cabecera (nota y Version). Si falla, la ficha se queda con lo que ya enseñaba.</summary>
     private async Task RecargarDetalleTrasNotaAsync(int generacion)
