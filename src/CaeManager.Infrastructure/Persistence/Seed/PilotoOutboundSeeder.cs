@@ -736,6 +736,12 @@ public static class PilotoOutboundSeeder
         private readonly int _indiceTenant = CatalogoPilotoOutbound.Tenants.ToList().IndexOf(tenant);
         private readonly List<string> _clavesDePdf = [];
         private readonly Dictionary<Guid, Guid> _clienteEmpresarialDelCentro = [];
+
+        /// <summary>
+        /// De cada Trabajador, la emisión más antigua —también la de una versión que luego se sustituye— de un documento de
+        /// <see cref="CatalogoPilotoOutbound.TiposPosterioresAlAlta"/>: su alta en la Empresa tiene que ser anterior.
+        /// </summary>
+        private readonly Dictionary<Guid, DateOnly> _emisionMasAntiguaPosteriorAlAlta = [];
         private IReadOnlyList<TipoDocumento> _tipos = [];
         private int _semilla;
 
@@ -786,7 +792,7 @@ public static class PilotoOutboundSeeder
                 SenalesDeIa(propia, centros, trabajadores, documentos, documentosDeEmpresa, desviaciones, activas);
             ReclamacionesDelPerfil(propia, centros, trabajadores, documentos, desviaciones, activas);
             GestionesPendientesDelPerfil(centros, trabajadores, desviaciones, activas);
-            ProyectosDelPerfil(centros, trabajadores, activas);
+            await ProyectosDelPerfilAsync(centros, trabajadores, activas);
             VerificacionesExternasDeLasSupervisadas(centros, trabajadores, subcontratas, activas);
             if (tenant.ConDocumentoRenovado)
                 await DocumentoRenovadoAsync(trabajadores, documentos, desviaciones);
@@ -927,54 +933,11 @@ public static class PilotoOutboundSeeder
         }
 
         /// <summary>
-        /// Los pares (Trabajador, tipo exigido) que se apartan de «en regla», según la receta del perfil. Se reparten sin
-        /// azar: los pares, de los Trabajadores desde el primero afectado y sin los de baja, se recorren con un paso primo
-        /// con su número, y cada uno recibe la primera situación de la receta que le cabe.
+        /// Los pares (Trabajador, tipo exigido) que se apartan de «en regla», según la receta del perfil: la definición es
+        /// <see cref="CatalogoPilotoOutbound.Desviaciones"/>, la misma con la que la autoverificación mide lo escrito.
         /// </summary>
-        private List<DesviacionDocumentoPilotoOutbound> Desviaciones(int total)
-        {
-            var receta = tenant.Receta;
-            var pares = new List<(int Trabajador, string Tipo)>();
-            for (var t = receta.PrimerTrabajadorAfectado; t < Math.Min(total, receta.HastaElTrabajador); t++)
-            {
-                if (tenant.DeBaja.Contains(t)) continue;
-                foreach (var tipo in CatalogoPilotoOutbound.TiposExigidosDeTrabajador)
-                    pares.Add((t, tipo));
-            }
-
-            var resultado = new List<DesviacionDocumentoPilotoOutbound>();
-            if (pares.Count > 0)
-            {
-                var paso = new[] { 7, 11, 13, 17, 19, 23, 29 }.First(p => pares.Count % p != 0);
-                var (vencidos, urgentes, proximos, ausentes, sinConfirmar) =
-                    (receta.Vencidos, receta.Urgentes, receta.Proximos, receta.Ausentes, receta.SinConfirmar);
-
-                for (var k = 0; k < pares.Count; k++)
-                {
-                    var (t, nombre) = pares[(int)((long)k * paso % pares.Count)];
-                    var vencePorSuTipo = Tipo(nombre).AplicaVencimientoAutomatico;
-                    SituacionDocumentoPilotoOutbound? situacion = null;
-
-                    if (vencePorSuTipo && vencidos > 0) { situacion = SituacionDocumentoPilotoOutbound.Vencido; vencidos--; }
-                    else if (vencePorSuTipo && urgentes > 0) { situacion = SituacionDocumentoPilotoOutbound.Urgente; urgentes--; }
-                    else if (vencePorSuTipo && proximos > 0) { situacion = SituacionDocumentoPilotoOutbound.Proximo; proximos--; }
-                    else if (!vencePorSuTipo && sinConfirmar > 0) { situacion = SituacionDocumentoPilotoOutbound.SinConfirmar; sinConfirmar--; }
-                    else if (ausentes > 0) { situacion = SituacionDocumentoPilotoOutbound.Ausente; ausentes--; }
-
-                    if (situacion is { } s) resultado.Add(new DesviacionDocumentoPilotoOutbound(t, nombre, s));
-                }
-            }
-
-            // El Centro con un requisito que bloquea el acceso lo tiene incumplido de verdad: el primer Trabajador, con la aptitud vencida.
-            if (tenant.CentroConRequisitoBloqueante is not null)
-            {
-                resultado.RemoveAll(d => d.Trabajador == 0 && d.Tipo == CatalogoPilotoOutbound.AptitudMedica);
-                resultado.Add(new DesviacionDocumentoPilotoOutbound(
-                    0, CatalogoPilotoOutbound.AptitudMedica, SituacionDocumentoPilotoOutbound.Vencido));
-            }
-
-            return resultado;
-        }
+        private List<DesviacionDocumentoPilotoOutbound> Desviaciones(int total) =>
+            CatalogoPilotoOutbound.Desviaciones(tenant, total, nombre => Tipo(nombre).AplicaVencimientoAutomatico);
 
         /// <summary>
         /// Los cinco tipos exigidos por defecto de cada Trabajador, en regla salvo lo que digan las desviaciones. Devuelve
@@ -1042,7 +1005,8 @@ public static class PilotoOutboundSeeder
         /// <summary>
         /// Un documento, con su PDF, de cada tipo que se exige por defecto a una Empresa, para la Empresa propia, en regla
         /// (<see cref="FechasPilotoOutbound.EnRegla"/>): Vigente, salvo los dos certificados mensuales, que están «Próximo».
-        /// Sin plantilla no hay RLC, RNT ni ITA: el autónomo no los tiene. El perfil de obras suma la relación de maquinaria.
+        /// Sin plantilla no hay RLC, RNT ni ITA: el autónomo no los tiene y lleva en su lugar el recibo de su cuota (mensual,
+        /// «Próximo»). El perfil de obras suma el certificado de inscripción en el REA.
         /// </summary>
         private async Task<List<Documento>> DocumentosExigidosDeLaEmpresaPropiaAsync(Empresa propia)
         {
@@ -1053,8 +1017,11 @@ public static class PilotoOutboundSeeder
                 // Un documento mensual solo puede estar «Próximo» (vence al mes) y tiñe de ámbar todos los Centros de la Empresa
                 // —las causas de Empresa no distinguen los Centros que lo exigen—: el perfil que quiere Centros «Vigente» no lo siembra.
                 .Where(t => !tenant.TiposDeEmpresaNoExigidos.Contains(t.Nombre)).ToList();
+            // Tipos del catálogo que no se exigen por defecto y que cada perfil lleva: el REA de quien pisa obras, el recibo del autónomo.
             if (tenant.Perfil == PerfilPilotoOutbound.ObrasYMaquinaria)
-                tiposDeEmpresa.Add(Tipo(CatalogoPilotoOutbound.TipoDeEmpresaDeMaquinaria));
+                tiposDeEmpresa.Add(Tipo(CatalogoPilotoOutbound.CertificadoReaConstruccion));
+            if (tenant.Perfil == PerfilPilotoOutbound.Autonomo)
+                tiposDeEmpresa.Add(Tipo(CatalogoPilotoOutbound.ReciboDeAutonomos));
             if (conPdfPesado.FirstOrDefault(n => tiposDeEmpresa.All(t => t.Nombre != n)) is { } ajeno)
                 throw new InvalidOperationException($"{tenant.Clave}: «{ajeno}», que iba a llevar un PDF pesado, ya no se exige por defecto a una Empresa.");
 
@@ -1118,6 +1085,18 @@ public static class PilotoOutboundSeeder
             foreach (var centro in centros)
                 foreach (var nombre in tenant.TiposDeEmpresaNoExigidos)
                     dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(Tipo(nombre).Id, centro.Id, incluido: false));
+
+            // Lo que no se exige por defecto y el Centro del perfil sí pide: la obra, el REA de quien trae a sus Trabajadores; la
+            // fábrica o la acería, el recibo de cuota de quien trabaja allí por cuenta propia.
+            var propioDelPerfil = tenant.Perfil switch
+            {
+                PerfilPilotoOutbound.ObrasYMaquinaria => CatalogoPilotoOutbound.CertificadoReaConstruccion,
+                PerfilPilotoOutbound.Autonomo => CatalogoPilotoOutbound.ReciboDeAutonomos,
+                _ => null
+            };
+            if (propioDelPerfil is not null)
+                foreach (var centro in centros)
+                    dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(Tipo(propioDelPerfil).Id, centro.Id, incluido: true));
 
             if (tenant.Tolerancia is { } tolerancia)
                 dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
@@ -1325,6 +1304,10 @@ public static class PilotoOutboundSeeder
                     case EstadoVisitaPilotoOutbound.Realizada:
                         visita.MarcarDocumentacionGestionada(fin.AddDays(-2).ToDateTime(new TimeOnly(16, 0), DateTimeKind.Utc));
                         break;
+                    case EstadoVisitaPilotoOutbound.EnCurso:
+                        // Una Visita que ya ha empezado entró con la documentación gestionada el día antes de empezar.
+                        visita.MarcarDocumentacionGestionada(inicio.AddDays(-1).ToDateTime(new TimeOnly(16, 0), DateTimeKind.Utc));
+                        break;
                     case EstadoVisitaPilotoOutbound.Cancelada:
                         visita.Cancelar(antesDeSembrar, "Se aplaza el trabajo a petición del Cliente empresarial.");
                         break;
@@ -1413,7 +1396,7 @@ public static class PilotoOutboundSeeder
         /// Los Proyectos de obra del perfil de obras, cada uno en el Centro de su obra y con sus técnicos (los primeros
         /// Trabajadores activos del Centro); el cerrado, con todos sus técnicos dados de baja el día del cierre.
         /// </summary>
-        private void ProyectosDelPerfil(List<Centro> centros, List<Trabajador> trabajadores, Dictionary<int, List<int>> activas)
+        private async Task ProyectosDelPerfilAsync(List<Centro> centros, List<Trabajador> trabajadores, Dictionary<int, List<int>> activas)
         {
             foreach (var obra in tenant.Obras)
             {
@@ -1424,6 +1407,12 @@ public static class PilotoOutboundSeeder
                 var cierre = obra.Cerrada ? inicio.AddMonths(obra.MesesPrevistos!.Value) : (DateOnly?)null;
                 if (cierre is { } fecha) proyecto.Cerrar(fecha);
                 dbContext.Proyectos.Add(proyecto);
+
+                // El Libro de Subcontratación de la obra (art. 8 Ley 32/2006): lo abre el contratista principal el día que
+                // empieza la obra y no caduca mientras dure. Un documento del Proyecto, con su PDF.
+                var libro = Tipo(CatalogoPilotoOutbound.LibroDeSubcontratacion);
+                var claveDelLibro = await GuardarPdfAsync(libro.Nombre, obra.Nombre, inicio, vence: null, pesado: false);
+                Anadir(Documento.DeProyecto(proyecto.Id, libro.Id, inicio, VigenciaDocumento.NoCaduca, claveDelLibro));
 
                 var tecnicos = Enumerable.Range(0, trabajadores.Count)
                     .Where(t => activas.TryGetValue(t, out var lista) && lista.Contains(obra.Centro)).Take(obra.Tecnicos).ToList();
@@ -1502,7 +1491,15 @@ public static class PilotoOutboundSeeder
             {
                 var extranjero = tenant.Extranjeros.SingleOrDefault(e => e.Trabajador == i);
                 var esPropio = i < tenant.Trabajadores;
-                var vinculo = tenant.Perfil == PerfilPilotoOutbound.Autonomo ? "Autónomo (RETA)"
+                // El alta es anterior a cualquier documento de la relación laboral de la persona, también a una versión que
+                // luego se sustituyó: la mayor antigüedad que el modelo de fechas daba por hecha (900 días y más) no lo
+                // garantizaba con los documentos de vigencia larga o con un vencimiento ya pasado.
+                var altaPorAntiguedad = D.AddDays(-(900 + i * 11));
+                var alta = _emisionMasAntiguaPosteriorAlAlta.TryGetValue(trabajadores[i].Id, out var primeraEmision)
+                           && primeraEmision.AddDays(-(30 + i % 20)) < altaPorAntiguedad
+                    ? primeraEmision.AddDays(-(30 + i % 20))
+                    : altaPorAntiguedad;
+                var vinculo = tenant.Perfil == PerfilPilotoOutbound.Autonomo ? "Trabajo por cuenta propia"
                     : i == tenant.TrabajadorDeEtt ? "ETT (puesta a disposición)"
                     : i % 6 == 5 ? "Contrato temporal"
                     : "Contrato indefinido";
@@ -1514,7 +1511,7 @@ public static class PilotoOutboundSeeder
                     fechaNacimiento: NacimientoDe(i),
                     nacionalidad: extranjero?.Nacionalidad ?? "Española",
                     tipoVinculo: vinculo,
-                    fechaAltaEmpresa: D.AddDays(-(900 + i * 11)),
+                    fechaAltaEmpresa: alta,
                     fechaBajaEmpresa: esPropio && tenant.DeBaja.Contains(i) ? D.AddDays(-30) : null,
                     figuraEnRnt: esPropio && tenant.Perfil != PerfilPilotoOutbound.Autonomo ? "Sí" : "No",
                     tipoPermisoTrabajo: extranjero?.TipoPermiso,
@@ -1611,6 +1608,10 @@ public static class PilotoOutboundSeeder
         {
             if (sinConfirmar && vence is not null)
                 throw new InvalidOperationException($"{tenant.Clave}: un documento sin confirmar no lleva fecha de vencimiento.");
+
+            if (CatalogoPilotoOutbound.TiposPosterioresAlAlta.Contains(tipo.Nombre)
+                && (!_emisionMasAntiguaPosteriorAlAlta.TryGetValue(trabajador.Id, out var masAntigua) || emision < masAntigua))
+                _emisionMasAntiguaPosteriorAlAlta[trabajador.Id] = emision;
 
             var clave = await GuardarPdfAsync(tipo.Nombre, $"{trabajador.Nombre} {trabajador.Apellidos}", emision, vence, pesado: false);
             var documento = Documento.DeTrabajador(
