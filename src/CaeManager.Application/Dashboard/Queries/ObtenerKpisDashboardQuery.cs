@@ -73,7 +73,7 @@ public record KpisDashboardDto(
     /// </summary>
     int TrabajadoresBloqueados = 0,
     /// <summary>
-    /// Pares Trabajador × Tipo de documento que exigen los Centros de Trabajo del alcance (contexto
+    /// Pares Trabajador × Tipo de documento, y Empresa × Tipo de ámbito Empresa (2026-10-10), que exigen los Centros de Trabajo del alcance (contexto
     /// <see cref="ContextoCumplimiento.Centro"/>) cuando en él no hay ningún Documento de Trabajador: todos faltan y son el
     /// «de cuántos» del 0 de <see cref="TasaCumplimientoDocumental"/>. Vale 0 en cuanto existe algún documento — la tasa
     /// sale entonces de <see cref="Fraccion"/> y esos pares no se consultan.

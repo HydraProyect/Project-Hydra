@@ -175,11 +175,14 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     }
 
     [Fact]
-    public void T3_da_la_misma_mitad_en_Centros_Empresa_Inicio_y_Vision_de_cartera()
+    public void T3_da_la_mitad_en_Empresa_Inicio_y_Vision_de_cartera_y_en_Centros_la_mitad_mas_los_tipos_de_Empresa()
     {
         var m = fixture.Informe.De(T3);
 
-        m.Centros.Should().HaveCount(4).And.OnlyContain(c => c.Cumplimiento == 50);
+        // Desde el 2026-10-10 el porcentaje de cada Centro suma los 13 tipos de Empresa de la Empresa propia, en regla:
+        // 3 + 13 de 6 + 13 = 84 % en los dos Centros con tres Trabajadores y 2 + 13 de 4 + 13 = 88 % en los dos con dos.
+        m.Centros.Should().HaveCount(4);
+        m.Centros.Select(c => c.Cumplimiento).Should().BeEquivalentTo(new int?[] { 84, 84, 88, 88 });
         m.EmpresaCumplimiento.Should().Be(50);
         m.InicioCumplimiento.Should().Be(50);
         m.VisionCarteraCumplimiento.Should().Be(50);
@@ -245,7 +248,8 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
                 $"[{string.Join("; ", incidencias.Select(i => $"{i.Estado} · {NombreDelTipo(i.TipoDocumentoId)} · {i.Ambito} · suyo={i.TrabajadorId is { } t && suyos.Contains(t)}"))}]");
 
             exigidos.Select(id => NombreDelTipo(id)).Should().BeEquivalentTo(loQueExigeCadaCentro, "control: el instrumento sabe qué exige el Centro");
-            centro.CumplimientoPorcentaje.Should().Be(50);
+            // La mitad de sus Trabajadores + los 13 tipos de Empresa en regla (2026-10-10): 3 + 13 de 6 + 13 o 2 + 13 de 4 + 13.
+            centro.CumplimientoPorcentaje.Should().Be(suyos.Count == 3 ? 84 : 88);
             centro.Estado.Should().Be(EstadoCentro.Vencido);
             centro.Recuentos.TotalVencidas.Should().Be(suyos.Count, "MEDIDO: un vencido por Trabajador del Centro, y ninguno más");
             // Lo único que un Centro enseña sin ser de sus Trabajadores es de su Empresa: los dos certificados mensuales,
@@ -347,7 +351,8 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         (m.ClientesEmpresariales, m.ClientesEmpresarialesSinContacto).Should().Be((6, 0));
 
         m.Centros.Should().HaveCount(14);
-        m.Centros.Count(c => c is { Estado: EstadoCentro.Vencido, Cumplimiento: 95 }).Should().Be(8, "MEDIDO: los ocho Centros del Trabajador con el vencido");
+        m.Centros.Count(c => c is { Estado: EstadoCentro.Vencido, Cumplimiento: 97 }).Should().Be(8,
+            "MEDIDO: los ocho Centros del Trabajador con el vencido; 19 + 13 de 20 + 13 desde que suman los 13 tipos de Empresa en regla (2026-10-10)");
         m.Centros.Count(c => c is { Estado: EstadoCentro.Urgente, Cumplimiento: 100 }).Should().Be(2);
         // Los cuatro sin nada pendiente de sus Trabajadores: los tiñen los dos certificados mensuales de la Empresa propia.
         m.Centros.Count(c => c is { Estado: EstadoCentro.Proximo, Cumplimiento: 100 }).Should().Be(4);
@@ -497,10 +502,10 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         // Barcelona, la peor: ningún Centro al 100 %. El primero es el del desplazamiento: 15 de 18 pares, con dos
         // documentos vencidos y uno que falta, así que está Vencido (Vencido precede a Faltante).
         De(DisenoT6PilotoOutbound.Barcelona).Should().Equal(
-            (EstadoCentro.Vencido, 83), (EstadoCentro.Vencido, 80), (EstadoCentro.Faltante, 80), (EstadoCentro.Faltante, 87));
+            (EstadoCentro.Vencido, 90), (EstadoCentro.Vencido, 89), (EstadoCentro.Faltante, 91), (EstadoCentro.Faltante, 93));
         // Madrid, intermedia: dos Centros con pares incumplidos y dos solo con avisos.
         De(DisenoT6PilotoOutbound.Madrid).Should().Equal(
-            (EstadoCentro.Vencido, 90), (EstadoCentro.Urgente, 100), (EstadoCentro.Urgente, 100), (EstadoCentro.Faltante, 87));
+            (EstadoCentro.Vencido, 96), (EstadoCentro.Urgente, 100), (EstadoCentro.Urgente, 100), (EstadoCentro.Faltante, 93));
         // Santander, casi limpia: los cuatro al 100 %, y solo dos avisos de sus Trabajadores. Los dos Centros sin
         // ninguno quedan «Próximo» por los dos certificados mensuales de la Empresa propia.
         De(DisenoT6PilotoOutbound.Santander).Should().Equal(
@@ -796,7 +801,14 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         casos["Acreditación externa Rechazada"].Should().Be(1);
         casos["Acreditación externa vencida en plataforma"].Should().Be(1);
         casos["Documento de Empresa vencido en la Empresa propia"].Should().Be(1, "MEDIDO: exactamente uno, de un tipo que no se exige por defecto");
-        casos["Trabajador bloqueado en un Centro y no en otro"].Should().Be(2);
+        // Qué se cuenta (PilotoOutboundAutoverificacion): los Trabajadores bloqueados en algún Centro por la evaluación de acceso
+        // y no bloqueados en otro Centro donde tienen Asignación activa. Son 3 = los 2 de la aptitud médica vencida en Illescas
+        // (que no bloquea en su otro Centro) + 1 que solo está bloqueado porque un documento de tipo bloqueante está sin subir
+        // o sin validar en la plataforma de su Centro (Pendiente en la plataforma, 2026-10-10). Los dos componentes se miden
+        // por separado, con la consulta de su pantalla, en T1_el_bloqueo_por_Centro_la_tolerancia_y_la_reclamacion_…: aquí
+        // solo se fija la suma. Antes de la regla eran 2. Los demás pendientes de T1 (28 sin subir y 26 subidos) ponen el
+        // Centro en «Pendiente» pero no bloquean a nadie: solo bloquea el tipo que el Centro marca «bloquea el acceso».
+        casos["Trabajador bloqueado en un Centro y no en otro"].Should().Be(3);
         casos["Trabajador de baja"].Should().Be(6);
         casos["Subcontrata con documentación propia"].Should().Be(3);
         casos["Vehículo con documento vencido"].Should().Be(1);
@@ -832,10 +844,34 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
 
             var evaluacion = await sp.GetRequiredService<CaeManager.Application.Centros.IEvaluacionDeAccesoPorCentroService>()
                 .EvaluarAsync(null, CancellationToken.None);
+            // Ausente o vencido: el Pendiente en la plataforma (2026-10-10) también bloquea un requisito del Centro, pero es
+            // otro caso y se mide aparte, abajo.
             var sinCumplir = evaluacion.Requisitos
-                .Where(r => r.Resultado.Situacion != SituacionDeRequisitoBloqueante.Cumplido)
+                .Where(r => r.Resultado.Situacion != SituacionDeRequisitoBloqueante.Cumplido
+                    && !ReglaBloqueoDeAcceso.EsPendienteEnPlataforma(r.Resultado.Situacion))
                 .Select(r => (r.TrabajadorId, Centro: nombreDelCentro[r.CentroId], Tipo: nombreDelTipo[r.TipoDocumentoId], r.Resultado.Situacion))
                 .ToList();
+            var centrosConPendiente = evaluacion.Requisitos
+                .Where(r => ReglaBloqueoDeAcceso.EsPendienteEnPlataforma(r.Resultado.Situacion))
+                .Select(r => r.CentroId).ToHashSet();
+            var centrosConPlataforma = await db.CanalesGestionDocumental
+                .Where(c => c.Tipo == TipoCanalGestion.Plataforma).Select(c => c.CentroId).ToListAsync();
+            centrosConPendiente.Should().NotBeEmpty("MEDIDO: T1 siembra acreditaciones sin subir y subidas sin validar");
+            centrosConPendiente.Should().BeSubsetOf(centrosConPlataforma, "solo un Centro con plataforma tiene Pendiente en la plataforma");
+            // El caso «bloqueado en un Centro y no en otro» (ver T1_tiene_al_menos_una_vez_cada_caso…), medido aquí como lo
+            // mide la siembra: bloqueado en algún Centro (ausente, vencido o pendiente) y con otra Asignación activa donde no.
+            var bloqueadoEn = evaluacion.Requisitos
+                .Where(r => ReglaBloqueoDeAcceso.Bloquea(r.Resultado.Situacion))
+                .Select(r => (r.TrabajadorId, r.CentroId)).ToHashSet();
+            // Todas las Asignaciones activas, no solo las de Centros con requisito bloqueante (evaluacion.Asignaciones): el
+            // «otro Centro» puede no exigir nada y por eso no estar bloqueado.
+            var activas = await db.Asignaciones.Where(a => a.FechaBaja == null).Select(a => new { a.TrabajadorId, a.CentroId }).ToListAsync();
+            var bloqueadosEnUnCentroYNoEnOtro = bloqueadoEn.Select(b => b.TrabajadorId).Distinct()
+                .Where(t => activas.Any(a => a.TrabajadorId == t && !bloqueadoEn.Contains((t, a.CentroId))))
+                .ToList();
+            bloqueadosEnUnCentroYNoEnOtro.Should().HaveCount(3, "MEDIDO: es el caso de la matriz, medido con la consulta de Inicio");
+            bloqueadosEnUnCentroYNoEnOtro.Except(sinCumplir.Select(r => r.TrabajadorId)).Should().HaveCount(1,
+                "MEDIDO: de los 3, 2 son la aptitud vencida y 1 solo está bloqueado por un documento de tipo bloqueante pendiente en la plataforma");
 
             // La ficha de cada Trabajador al que la aptitud le bloquea un Centro: su aptitud, Centro a Centro.
             var aptitudPorCentro = new Dictionary<Guid, Dictionary<string, EstadoDocumento>>();

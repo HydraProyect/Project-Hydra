@@ -23,6 +23,7 @@ src/CaeManager.Application/Centros/Commands/CrearCentro/CrearCentroCommand.cs ::
 src/CaeManager.Application/Centros/Commands/EditarCentro/EditarCentroCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Centros/Commands/RestaurarCentro/RestaurarCentroCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Centros/EvaluacionDeAccesoPorCentroService.cs :: ClienteId = 1
+src/CaeManager.Application/Centros/PendientesEnPlataformaDeCentros.cs :: ClienteId = 1
 src/CaeManager.Application/Centros/Queries/ObtenerCentroPorId/ObtenerCentroPorIdQuery.cs :: ClienteId = 3
 src/CaeManager.Application/Centros/Queries/ObtenerCentros/ObtenerCentrosQuery.cs :: ClienteId = 11
 src/CaeManager.Application/Centros/Queries/ObtenerCentrosParaSelector/ObtenerCentrosParaSelectorQuery.cs :: ClienteId = 5
@@ -260,7 +261,7 @@ src/CaeManager.Application/TiposDocumento/Queries/ObtenerEstadoTipoDocumento/Obt
 src/CaeManager.Application/TiposDocumento/Queries/ObtenerTiposDocumento/ObtenerTiposDocumentoQuery.cs :: ClienteId = 5
 src/CaeManager.Application/Trabajadores/Deteccion/DeteccionTrabajadoresService.cs :: ClienteId = 4
 src/CaeManager.Application/Trabajadores/Deteccion/DeteccionTrabajadoresService.cs :: clienteId = 2
-src/CaeManager.Application/Trabajadores/Queries/ObtenerDocumentacionPorCentroDeTrabajador/ObtenerDocumentacionPorCentroDeTrabajadorQuery.cs :: ClienteId = 6
+src/CaeManager.Application/Trabajadores/Queries/ObtenerDocumentacionPorCentroDeTrabajador/ObtenerDocumentacionPorCentroDeTrabajadorQuery.cs :: ClienteId = 2
 src/CaeManager.Application/Usuarios/Commands/CrearUsuario/CrearUsuarioCommand.cs :: ClienteId = 3
 src/CaeManager.Application/Usuarios/Commands/EditarUsuario/EditarUsuarioCommand.cs :: ClienteId = 3
 src/CaeManager.Application/Usuarios/IGestionCuentasUsuario.cs :: ClienteId = 3

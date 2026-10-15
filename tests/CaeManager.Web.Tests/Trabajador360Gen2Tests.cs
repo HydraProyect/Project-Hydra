@@ -204,6 +204,7 @@ public class Trabajador360Gen2Tests : BunitContext
         new(Guid.NewGuid(), Guid.NewGuid(), nombre, Guid.NewGuid(), clienteEmpresarial,
             new DateOnly(2026, 7, 2), peorEstado, documentos,
             // Con «Sin caducidad» el listado no lo trae pero el par cuenta: un caso aparte construye el Dto con su fracción.
+            CumplimientoDocumental.Evaluar(documentos.Select(d => d.Estado)),
             CumplimientoDocumental.Evaluar(documentos.Select(d => d.Estado)));
 
     private static GestionListaDto Gestion(Guid trabajadorId, string tipoDocumento, string centro) =>
@@ -682,7 +683,7 @@ public class Trabajador360Gen2Tests : BunitContext
             new CentroDocumentacionTrabajadorDto(
                 Guid.NewGuid(), Guid.NewGuid(), "Centro Norte", Guid.NewGuid(), "Refrielectric S.A.", new DateOnly(2026, 7, 2),
                 EstadoDocumento.Vencido, [Documento("Formación específica de centro", EstadoDocumento.Vencido)],
-                new FraccionCumplimiento(1, 2))
+                new FraccionCumplimiento(1, 2), new FraccionCumplimiento(1, 2))
         ];
 
         var cut = Renderizar(id);

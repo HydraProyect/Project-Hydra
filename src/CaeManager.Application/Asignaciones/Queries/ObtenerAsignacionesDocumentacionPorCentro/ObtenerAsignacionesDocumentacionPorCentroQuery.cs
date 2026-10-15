@@ -190,6 +190,15 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             tipoIdsRequeridos,
             cancellationToken);
 
+        // Pendiente en la plataforma (decisión 2026-10-10): la misma carga que el % del Centro (PendientesEnPlataformaDeCentros);
+        // solo baja el cumplimiento el de un tipo que el Centro marca «bloquea el acceso».
+        var pendientesQueBajanElPorcentaje = (await PendientesEnPlataformaDeCentros.CargarAsync(
+                centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext,
+                [request.CentroId], hoy, cancellationToken))
+            .Where(p => p.TrabajadorId is not null && p.BloqueaAcceso)
+            .Select(p => (TrabajadorId: p.TrabajadorId!.Value, p.TipoDocumentoId))
+            .ToHashSet();
+
         var resultado = new List<TrabajadorAsignacionDocumentacionDto>();
 
         foreach (var asignacion in asignaciones)
@@ -241,11 +250,17 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             var ordenados = items.OrderBy(i => SeveridadEstadoDocumento.Rango(i.Estado)).ThenBy(i => i.TipoDocumentoNombre).ToList();
             var peorEstado = ordenados.Count > 0 ? ordenados[0].Estado : EstadoDocumento.Vigente;
 
-            var cumplimiento = CumplimientoDocumental.Evaluar(tiposRequeridosPorCentro.Select(tipo =>
-                preferidosPorPar.TryGetValue((asignacion.TrabajadorId, tipo.Id), out var preferido)
-                    ? CalculadoraEstadoDocumento.Calcular(
-                        preferido.EstadoVigencia, preferido.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
-                    : EstadoDocumento.Faltante));
+            // Los mismos pares y la misma regla que el % del Centro (CalcularCumplimientoAsync): un Pendiente en la
+            // plataforma de un tipo que el Centro marca «bloquea el acceso» no cuenta como al día en este contexto.
+            var cumplimiento = CumplimientoDocumental.Evaluar(
+                tiposRequeridosPorCentro.Select(tipo => new ParDocumentalExigido(
+                    request.CentroId, clienteEmpresarialId, EmpresaId: null, asignacion.TrabajadorId, tipo.Id,
+                    preferidosPorPar.TryGetValue((asignacion.TrabajadorId, tipo.Id), out var preferido)
+                        ? CalculadoraEstadoDocumento.Calcular(
+                            preferido.EstadoVigencia, preferido.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
+                        : EstadoDocumento.Faltante,
+                    pendientesQueBajanElPorcentaje.Contains((asignacion.TrabajadorId, tipo.Id)))),
+                ContextoCumplimiento.Centro);
 
             resultado.Add(new TrabajadorAsignacionDocumentacionDto(
                 asignacion.AsignacionId, asignacion.TrabajadorId, asignacion.TrabajadorNombre, asignacion.FechaAlta,

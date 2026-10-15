@@ -54,14 +54,16 @@ public class ObtenerBandejaGestorQueryHandlerTests
 
     private static ProveedorAcreditacionesDto PendientePlataforma(
         EstadoAcreditacion estado = EstadoAcreditacion.PendienteDeSubir, string proveedorNombre = "Dokify",
-        string? motivoRechazo = null) => new(
+        string? motivoRechazo = null, Guid? trabajadorId = null, Guid? empresaId = null, Guid? centroId = null,
+        Guid? tipoDocumentoId = null) => new(
         ProveedorPlataformaCaeId: Guid.NewGuid(), ProveedorNombre: proveedorNombre, ProveedorCodigo: "dokify",
         Clientes: [new ClienteAcreditacionesDto(
             ClienteId: Guid.NewGuid(), ClienteNombre: "Cliente Norte S.A.",
             Documentos: [new AcreditacionDrillDownDto(
                 AcreditacionId: Guid.NewGuid(), DocumentoId: Guid.NewGuid(), PropietarioNombre: "Iker Etxeberria",
                 TipoDocumentoNombre: "Formación 60h", Estado: estado, UltimoMotivoRechazo: motivoRechazo,
-                TrabajadorId: Guid.NewGuid())]) ]);
+                TrabajadorId: empresaId is null ? trabajadorId ?? Guid.NewGuid() : null, EmpresaId: empresaId,
+                CentroId: centroId, TipoDocumentoId: tipoDocumentoId)]) ]);
 
     private static IReadOnlyList<ItemBandejaDto> Fusionar(
         IReadOnlyList<AlertaDto>? alertas = null,
@@ -75,6 +77,98 @@ public class ObtenerBandejaGestorQueryHandlerTests
             alertas ?? [], revisiones ?? [], requisitos ?? [], visitasUrgentes ?? [], sugerenciasVisita ?? [], detecciones ?? [],
             pendientesPlataforma ?? [],
             Hoy, HorasAvisoVisita, HorasCriticasVisita);
+
+    /// <summary>
+    /// Pendiente en la plataforma (2026-10-10): un Trabajador bloqueado porque su documento bloqueante está SIN SUBIR a la
+    /// plataforma del Centro no es una fila más de la cola cuando ya sale como su acreditación pendiente de subir. La
+    /// fila de requisito solo se quita si la acreditación es del mismo Trabajador, del mismo Centro y del mismo tipo.
+    /// </summary>
+    [Fact]
+    public void Un_bloqueo_por_pendiente_de_subir_no_duplica_la_fila_de_la_acreditacion_del_mismo_Trabajador_Centro_y_tipo()
+    {
+        var bloqueo = Requisito() with { Situacion = SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma };
+
+        var resultado = Fusionar(
+            requisitos: [bloqueo, Requisito()],
+            pendientesPlataforma: [PendientePlataforma(
+                EstadoAcreditacion.PendienteDeSubir, trabajadorId: bloqueo.TrabajadorId, centroId: bloqueo.CentroId,
+                tipoDocumentoId: bloqueo.TipoDocumentoId)]);
+
+        resultado.Where(i => i.Tipo == TipoItemBandeja.RequisitoPendiente).Should().ContainSingle(
+            "solo el requisito ausente; el pendiente de subir ya está en la cola como su acreditación");
+        resultado.Where(i => i.Tipo == TipoItemBandeja.PlataformaPendiente).Should().ContainSingle("control positivo: la acreditación sí sale");
+    }
+
+    /// <summary>
+    /// Si la acreditación pendiente NO es la de este bloqueo (otro Trabajador, otro Centro u otro tipo; o no hay ninguna
+    /// porque la fuente de acreditaciones usa el alcance de gestión y no el de lectura), el bloqueo conserva su fila: si
+    /// no, el Trabajador bloqueado desaparecería de la Bandeja. Rompe cualquier emparejamiento más laxo que Trabajador,
+    /// Centro y tipo.
+    /// </summary>
+    [Theory]
+    [InlineData("otro Trabajador")]
+    [InlineData("otro Centro")]
+    [InlineData("otro tipo")]
+    [InlineData("sin acreditación")]
+    public void Un_bloqueo_por_pendiente_de_subir_sin_la_acreditacion_que_lo_cubre_conserva_su_fila_de_requisito(string caso)
+    {
+        var bloqueo = Requisito() with { Situacion = SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma };
+        IReadOnlyList<ProveedorAcreditacionesDto> acreditaciones = caso == "sin acreditación" ? [] :
+        [
+            PendientePlataforma(
+                EstadoAcreditacion.PendienteDeSubir,
+                trabajadorId: caso == "otro Trabajador" ? Guid.NewGuid() : bloqueo.TrabajadorId,
+                centroId: caso == "otro Centro" ? Guid.NewGuid() : bloqueo.CentroId,
+                tipoDocumentoId: caso == "otro tipo" ? Guid.NewGuid() : bloqueo.TipoDocumentoId)
+        ];
+
+        var resultado = Fusionar(requisitos: [bloqueo], pendientesPlataforma: acreditaciones);
+
+        resultado.Should().ContainSingle(i => i.Tipo == TipoItemBandeja.RequisitoPendiente, caso);
+    }
+
+    /// <summary>
+    /// El requisito de Empresa bloquea a sus Trabajadores por un documento de la Empresa: lo cubre la acreditación de ESA
+    /// Empresa en ese Centro y tipo (sin Trabajador), y no la de otra Empresa.
+    /// </summary>
+    [Fact]
+    public void Un_bloqueo_de_Empresa_pendiente_de_subir_lo_cubre_solo_la_acreditacion_de_esa_Empresa()
+    {
+        var empresa = Guid.NewGuid();
+        var bloqueo = Requisito() with
+        {
+            Ambito = AmbitoAplicacion.Empresa,
+            EmpresaId = empresa,
+            EmpresaNombre = "Montajes Ebro S.L.",
+            Situacion = SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma
+        };
+
+        var deOtraEmpresa = Fusionar(requisitos: [bloqueo], pendientesPlataforma:
+            [PendientePlataforma(EstadoAcreditacion.PendienteDeSubir, empresaId: Guid.NewGuid(), centroId: bloqueo.CentroId, tipoDocumentoId: bloqueo.TipoDocumentoId)]);
+        var deLaEmpresa = Fusionar(requisitos: [bloqueo], pendientesPlataforma:
+            [PendientePlataforma(EstadoAcreditacion.PendienteDeSubir, empresaId: empresa, centroId: bloqueo.CentroId, tipoDocumentoId: bloqueo.TipoDocumentoId)]);
+
+        deOtraEmpresa.Should().ContainSingle(i => i.Tipo == TipoItemBandeja.RequisitoPendiente, "la acreditación es de otra Empresa");
+        deLaEmpresa.Should().NotContain(i => i.Tipo == TipoItemBandeja.RequisitoPendiente, "la cubre la acreditación de su Empresa");
+        deLaEmpresa.Should().ContainSingle(i => i.Tipo == TipoItemBandeja.PlataformaPendiente);
+    }
+
+    /// <summary>
+    /// Subido y sin validar NO sale en la cola como acreditación (está esperando a la plataforma: seguimiento, no cola), así
+    /// que el bloqueo que causa conserva su fila de requisito: si no, el Trabajador bloqueado desaparecería de la Bandeja.
+    /// </summary>
+    [Fact]
+    public void Un_bloqueo_por_documento_subido_sin_validar_conserva_su_fila_de_requisito()
+    {
+        var resultado = Fusionar(
+            requisitos: [Requisito() with { Situacion = SituacionDeRequisitoBloqueante.SinValidarEnPlataforma }],
+            pendientesPlataforma: [PendientePlataforma(EstadoAcreditacion.Subida)]);
+
+        resultado.Should().ContainSingle(i => i.Tipo == TipoItemBandeja.RequisitoPendiente,
+            "la acreditación subida no entra en la cola, así que el requisito es la única fila de ese bloqueo");
+        resultado.Should().NotContain(i => i.Tipo == TipoItemBandeja.PlataformaPendiente,
+            "control: la acreditación subida no genera fila propia");
+    }
 
     [Fact]
     public void Excluye_las_alertas_en_estado_Proximo()
