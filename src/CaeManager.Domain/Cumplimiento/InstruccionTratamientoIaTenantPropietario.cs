@@ -91,7 +91,7 @@ public class InstruccionTratamientoIaTenantPropietario : EntidadConTenant
 
     /// <summary>
     /// Solo con <see cref="OrigenInstruccionTratamientoIa.EncargoAdministracion"/>: la
-    /// cláusula del contrato con la empresa gestionada en que se apoya, copiada del
+    /// cláusula del contrato que ampara el encargo con el Tenant propietario, copiada del
     /// encargo en el momento de activar (si el encargo cambiara, la fila conserva la
     /// que valía entonces).
     /// </summary>
