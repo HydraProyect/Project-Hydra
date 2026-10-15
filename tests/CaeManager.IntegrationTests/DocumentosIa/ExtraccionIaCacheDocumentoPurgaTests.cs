@@ -252,6 +252,8 @@ public class ExtraccionIaCacheDocumentoPurgaTests : IAsyncLifetime
             new AlmacenamientoArchivosFalso(),
             new TenantActualAmbiental { TenantId = _tenant },
             contexto,
+            new TransaccionDeComando(contexto),
+            new CaeManager.Infrastructure.Auditing.EnmascaradoAuditoriaTrabajadorAnonimizado(contexto),
             new AlertaOperativaFalsa(),
             NullLogger<EjecucionPurgaService>.Instance);
 

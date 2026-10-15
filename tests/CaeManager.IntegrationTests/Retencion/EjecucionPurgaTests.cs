@@ -6,12 +6,15 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Retencion;
 using CaeManager.Domain.Trabajadores;
+using System.Data.Common;
+using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -127,6 +130,8 @@ public class EjecucionPurgaTests : IAsyncLifetime
                 new AlmacenamientoArchivosFalso(),
                 new TenantActualAmbiental { TenantId = _tenant },
                 contextoEjecucion,
+                new TransaccionDeComando(contextoEjecucion),
+                new EnmascaradoAuditoriaTrabajadorAnonimizado(contextoEjecucion),
                 new AlertaOperativaFalsa(),
                 NullLogger<EjecucionPurgaService>.Instance);
 
@@ -145,6 +150,90 @@ public class EjecucionPurgaTests : IAsyncLifetime
         var solicitudEjecutada = await contextoVerificacion.SolicitudesPurga.FirstAsync(s => s.Id == solicitudId);
         solicitudEjecutada.ResultadoEjecucion.Should().Be(ResultadoEjecucionPurga.Completa,
             "anonimizar un Trabajador no tiene paso de almacenamiento externo que pueda fallar a medias");
+    }
+
+    /// <summary>
+    /// Anonimizar y enmascarar el historial de auditoría van en la misma transacción
+    /// (decisión de Chris, 2026-10-15): si la función de enmascarado falla —aquí, sin
+    /// Tenant en la sesión, 42501—, la anonimización del Trabajador y el paso de la
+    /// solicitud a Ejecutada tampoco se confirman.
+    /// </summary>
+    [Fact]
+    public async Task Si_falla_el_enmascarado_del_historial_la_anonimizacion_no_se_confirma()
+    {
+        Guid trabajadorId;
+        await using (var contextoSiembra = CrearContexto())
+        {
+            var empresaId = await contextoSiembra.Empresas.Select(e => e.Id).FirstAsync();
+            var trabajador = Trabajador.DeEmpresa(
+                empresaId, "Manuel", "Moreno", "12345678Z", new DateOnly(1985, 1, 1), null, null, null);
+            contextoSiembra.Trabajadores.Add(trabajador);
+            await contextoSiembra.SaveChangesAsync();
+
+            var fechaBaja = _hoy.AddYears(-6);
+            var asignacion = new Asignacion(trabajador.Id, _centroId, fechaBaja.AddYears(-1));
+            asignacion.DarDeBaja(fechaBaja);
+            contextoSiembra.Asignaciones.Add(asignacion);
+            await contextoSiembra.SaveChangesAsync();
+            trabajadorId = trabajador.Id;
+        }
+
+        Guid solicitudId;
+        await using (var contextoDeteccion = CrearContexto())
+        {
+            var servicioDeteccion = new DeteccionPurgaService(
+                contextoDeteccion,
+                contextoDeteccion,
+                contextoDeteccion,
+                new SolicitudPurgaRepository(contextoDeteccion),
+                Microsoft.Extensions.Options.Options.Create(new RetencionDatosOptions
+                {
+                    AniosRetencionDocumentos = 5,
+                    AniosRetencionTrabajadores = 5
+                }),
+                new TenantActualAmbiental { TenantId = _tenant },
+                contextoDeteccion);
+
+            (await servicioDeteccion.DetectarAsync(_hoy)).Should().Be(1);
+            var solicitud = await contextoDeteccion.SolicitudesPurga
+                .SingleAsync(s => s.TipoDato == TipoDatoPurgable.TrabajadoresDadosDeBaja);
+            solicitud.Programar(_hoy, _usuarioAutorizador, _hoy);
+            await contextoDeteccion.SaveChangesAsync();
+            solicitudId = solicitud.Id;
+        }
+
+        await using (var contextoEjecucion = CrearContexto(tenantEnLaSesion: false))
+        {
+            var servicioEjecucion = new EjecucionPurgaService(
+                contextoEjecucion,
+                contextoEjecucion,
+                contextoEjecucion,
+                new SolicitudPurgaRepository(contextoEjecucion),
+                new ExtraccionIaCacheRepository(contextoEjecucion),
+                new AlmacenamientoArchivosFalso(),
+                new TenantActualAmbiental { TenantId = _tenant },
+                contextoEjecucion,
+                new TransaccionDeComando(contextoEjecucion),
+                new EnmascaradoAuditoriaTrabajadorAnonimizado(contextoEjecucion),
+                new AlertaOperativaFalsa(),
+                NullLogger<EjecucionPurgaService>.Instance);
+
+            var ejecutar = () => servicioEjecucion.EjecutarAsync(solicitudId, _hoy);
+            await ejecutar.Should().ThrowAsync<Npgsql.PostgresException>()
+                .Where(e => e.SqlState == "42501");
+        }
+
+        await using var contextoVerificacion = CrearContexto();
+        var trabajadorSinTocar = await contextoVerificacion.Trabajadores
+            .IgnoreQueryFilters()
+            .FirstAsync(t => t.Id == trabajadorId);
+        trabajadorSinTocar.EstaAnonimizado.Should().BeFalse(
+            "el enmascarado del historial falló y debía arrastrar consigo a la anonimización");
+        trabajadorSinTocar.Nombre.Should().Be("Manuel");
+
+        var solicitudSinEjecutar = await contextoVerificacion.SolicitudesPurga.FirstAsync(s => s.Id == solicitudId);
+        solicitudSinEjecutar.Estado.Should().Be(EstadoSolicitudPurga.Programada);
+        solicitudSinEjecutar.ResultadoEjecucion.Should().BeNull();
     }
 
     /// <summary>
@@ -225,6 +314,8 @@ public class EjecucionPurgaTests : IAsyncLifetime
                 new AlmacenamientoArchivosFalso(),
                 new TenantActualAmbiental { TenantId = _tenant },
                 contextoEjecucion,
+                new TransaccionDeComando(contextoEjecucion),
+                new EnmascaradoAuditoriaTrabajadorAnonimizado(contextoEjecucion),
                 new AlertaOperativaFalsa(),
                 NullLogger<EjecucionPurgaService>.Instance);
 
@@ -291,6 +382,8 @@ public class EjecucionPurgaTests : IAsyncLifetime
                 new AlmacenamientoArchivosFalso(fallaAlEliminar: true),
                 new TenantActualAmbiental { TenantId = _tenant },
                 contextoEjecucion,
+                new TransaccionDeComando(contextoEjecucion),
+                new EnmascaradoAuditoriaTrabajadorAnonimizado(contextoEjecucion),
                 alertas,
                 NullLogger<EjecucionPurgaService>.Instance);
 
@@ -343,6 +436,8 @@ public class EjecucionPurgaTests : IAsyncLifetime
                 new AlmacenamientoArchivosFalso(),
                 new TenantActualAmbiental { TenantId = _tenant },
                 contextoEjecucion,
+                new TransaccionDeComando(contextoEjecucion),
+                new EnmascaradoAuditoriaTrabajadorAnonimizado(contextoEjecucion),
                 alertas,
                 NullLogger<EjecucionPurgaService>.Instance);
 
@@ -368,15 +463,34 @@ public class EjecucionPurgaTests : IAsyncLifetime
             .Should().BeFalse("una ejecución completa no deja incidencias");
     }
 
-    private CaeManagerDbContext CrearContexto()
+    private CaeManagerDbContext CrearContexto(bool tenantEnLaSesion = true)
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
-        var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
+        var builder = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-            .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
-            .Options;
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual));
+        if (tenantEnLaSesion) builder.AddInterceptors(new TenantEnLaSesion(_tenant));
+        var options = builder.Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    /// <summary>
+    /// <c>app.tenant_id</c> en cada conexión, como hace <c>TenantRlsConnectionInterceptor</c>
+    /// en producción: la ejecución de una purga de Trabajadores llama a
+    /// <c>app_enmascarar_auditoria_de_trabajador_anonimizado</c>, que sin Tenant en la
+    /// sesión falla con 42501. Estos tests conectan como propietario (sin RLS), así que
+    /// fijarlo no cambia lo que ven.
+    /// </summary>
+    private sealed class TenantEnLaSesion(Guid tenant) : DbConnectionInterceptor
+    {
+        public override async Task ConnectionOpenedAsync(
+            DbConnection connection, ConnectionEndEventData eventData, CancellationToken cancellationToken = default)
+        {
+            await using var comando = connection.CreateCommand();
+            comando.CommandText = $"SELECT set_config('app.tenant_id', '{tenant}', false);";
+            await comando.ExecuteNonQueryAsync(cancellationToken);
+        }
     }
 
     private sealed class AlmacenamientoArchivosFalso(bool fallaAlEliminar = false) : IFileStorageService

@@ -151,6 +151,16 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Identity/SegundoFactorDeCuentasIdentity.cs",
             ".SqlQuery<string>(")] = 1,
 
+        // Anonimizar a un Trabajador enmascara sus datos personales en el historial de
+        // auditoría (decisión de Chris, 2026-10-15). RegistrosAuditoria es de solo
+        // inserción para cae_app_runtime; la única reescritura es la función SECURITY
+        // DEFINER app_enmascarar_auditoria_de_trabajador_anonimizado (migración
+        // EnmascaraAuditoriaDeTrabajadorAnonimizado), que toma el Tenant de app.tenant_id,
+        // exige que el Trabajador esté anonimizado y solo pone "***" en sus campos
+        // personales. Devuelve un recuento; el Guid va parametrizado por EF.
+        [("src/CaeManager.Infrastructure/Auditing/EnmascaradoAuditoriaTrabajadorAnonimizado.cs",
+            """.SqlQuery<int>($"SELECT app_enmascarar_auditoria_de_trabajador_anonimizado({trabajadorId}) AS \"Value\"")""")] = 1,
+
         // Detección de ciclos en la cadena de Relaciones Empresariales (auditoría
         // Módulo 5): un único WITH RECURSIVE en vez de una consulta por nivel.
         // Rodea el filtro global de EF, pero la tabla tiene FORCE ROW LEVEL
