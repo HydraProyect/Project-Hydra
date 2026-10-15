@@ -12,6 +12,7 @@ using CaeManager.Application.Visitas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Incidencias;
+using CaeManager.Domain.Proyectos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -212,9 +213,15 @@ public class ObtenerCatalogoKpisQueryHandler(
     /// igual "para toda la página en vez de una consulta por fila" que
     /// <c>ObtenerEmpresasQuery.CalcularCumplimientoPorEmpresaAsync</c> — en vez de una
     /// consulta por cliente. El cálculo por cliente individual (pantalla de Facturación)
-    /// sigue viviendo, sin tocar, en <see cref="ObtenerResumenFacturacionQuery"/>.
+    /// sigue viviendo en <see cref="ObtenerResumenFacturacionQuery"/>.
+    ///
+    /// Un Proyecto de tipo <see cref="Domain.Proyectos.TipoProyecto.Evento"/> NO es igual en las dos: la pantalla
+    /// de Facturación lo excluye (los eventos no se facturan), y aquí cuenta como Centro temporal, vigente solo entre
+    /// su fecha de inicio y su fecha de fin (<see cref="VigenciaDeProyecto"/>), en los conceptos de técnicos y de días
+    /// de Proyecto (decisión de producto de 2026-10-15). Mientras haya un evento con técnicos o días en el período,
+    /// esta cifra no coincide con la suma de las pantallas de Facturación.
     /// </summary>
-    private async Task<decimal> CalcularFacturacionEstimadaAsync(PeriodoKpi periodo, CancellationToken cancellationToken)
+    internal async Task<decimal> CalcularFacturacionEstimadaAsync(PeriodoKpi periodo, CancellationToken cancellationToken)
     {
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
@@ -367,18 +374,33 @@ public class ObtenerCatalogoKpisQueryHandler(
             .ToDictionary(g => g.Key, g => g.Select(x => x.DocumentoId).Distinct().Count());
     }
 
+    /// <summary>
+    /// Trabajadores únicos con alta en algún Proyecto del cliente dentro del período. Un evento cuenta como Centro
+    /// temporal (<see cref="VigenciaDeProyecto"/>): solo mientras está vigente, entre su inicio y su fin. La
+    /// consulta SQL acota por el alta del Trabajador y la vigencia del evento se afina en memoria sobre esas filas.
+    /// </summary>
     private async Task<Dictionary<Guid, int>> ContarTecnicosAsignadosProyectoPorClienteAsync(
-        IReadOnlyList<Guid> clienteIds, DateOnly inicio, DateOnly fin, CancellationToken cancellationToken) =>
-        (await (
+        IReadOnlyList<Guid> clienteIds, DateOnly inicio, DateOnly fin, CancellationToken cancellationToken)
+    {
+        var filas = await (
             from proyecto in proyectosContext.Proyectos
             where clienteIds.Contains(proyecto.ClienteId)
             join tecnico in proyectosContext.ProyectosTecnicos on proyecto.Id equals tecnico.ProyectoId
             where tecnico.FechaAlta <= fin && (tecnico.FechaBaja == null || tecnico.FechaBaja >= inicio)
-            select new { proyecto.ClienteId, tecnico.TrabajadorId })
-            .Distinct()
-            .ToListAsync(cancellationToken))
-            .GroupBy(x => x.ClienteId)
+            select new
+            {
+                proyecto.ClienteId, proyecto.Tipo, proyecto.FechaInicio, proyecto.FechaFinPrevista, proyecto.FechaCierreReal,
+                tecnico.TrabajadorId, tecnico.FechaAlta, tecnico.FechaBaja,
+            })
+            .ToListAsync(cancellationToken);
+
+        var hoy = DiaDeNegocio.Hoy();
+        return filas
+            .Where(f => VigenciaDeProyecto.TecnicoCuentaEnPeriodo(
+                f.Tipo, f.FechaInicio, f.FechaFinPrevista, f.FechaCierreReal, hoy, f.FechaAlta, f.FechaBaja, inicio, fin))
+            .GroupBy(f => f.ClienteId)
             .ToDictionary(g => g.Key, g => g.Select(x => x.TrabajadorId).Distinct().Count());
+    }
 
     private async Task<Dictionary<Guid, int>> ContarGestionesProyectoPorClienteAsync(
         IReadOnlyList<Guid> clienteIds, DateTime inicio, DateTime fin, CancellationToken cancellationToken)
@@ -403,13 +425,18 @@ public class ObtenerCatalogoKpisQueryHandler(
             .ToDictionary(g => g.Key, g => g.Count());
     }
 
-    /// <summary>Suma de días en memoria (sin agregación en SQL posible: cada Proyecto intersecta el período de forma distinta) tras traer los datos de todos los Clientes en una sola consulta.</summary>
+    /// <summary>
+    /// Suma de días en memoria (sin agregación en SQL posible: cada Proyecto intersecta el período de forma distinta) tras
+    /// traer los datos de todos los Clientes en una sola consulta. Una obra cuenta hasta su cierre real, o hasta hoy si
+    /// sigue abierta; un evento cuenta como Centro temporal y solo entre su inicio y su fin
+    /// (<see cref="VigenciaDeProyecto.DiasVigentesEnPeriodo"/>), nunca como obra abierta hasta el cierre.
+    /// </summary>
     private async Task<Dictionary<Guid, int>> ContarDiasProyectoAbiertoPorClienteAsync(
         IReadOnlyList<Guid> clienteIds, DateOnly inicio, DateOnly fin, CancellationToken cancellationToken)
     {
         var proyectos = await proyectosContext.Proyectos
             .Where(p => clienteIds.Contains(p.ClienteId))
-            .Select(p => new { p.ClienteId, p.FechaInicio, p.FechaCierreReal })
+            .Select(p => new { p.ClienteId, p.Tipo, p.FechaInicio, p.FechaFinPrevista, p.FechaCierreReal })
             .ToListAsync(cancellationToken);
 
         var hoy = DiaDeNegocio.Hoy();
@@ -417,13 +444,11 @@ public class ObtenerCatalogoKpisQueryHandler(
 
         foreach (var proyecto in proyectos)
         {
-            var aperturaFin = proyecto.FechaCierreReal ?? hoy;
-            var desde = proyecto.FechaInicio > inicio ? proyecto.FechaInicio : inicio;
-            var hasta = aperturaFin < fin ? aperturaFin : fin;
+            var dias = VigenciaDeProyecto.DiasVigentesEnPeriodo(
+                proyecto.Tipo, proyecto.FechaInicio, proyecto.FechaFinPrevista, proyecto.FechaCierreReal, hoy, inicio, fin);
 
-            if (hasta < desde) continue;
+            if (dias == 0) continue;
 
-            var dias = hasta.DayNumber - desde.DayNumber + 1;
             resultado[proyecto.ClienteId] = resultado.GetValueOrDefault(proyecto.ClienteId) + dias;
         }
 
