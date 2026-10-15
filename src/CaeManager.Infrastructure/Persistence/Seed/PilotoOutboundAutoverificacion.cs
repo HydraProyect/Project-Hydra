@@ -9,7 +9,10 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
+using CaeManager.Application.Operaciones.ApoyoCartera.Queries;
+using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
+using CaeManager.Application.Usuarios;
 using CaeManager.Application.Visitas.GestionPorCorreo;
 using CaeManager.Application.Visitas.PaqueteDocumental;
 using CaeManager.Domain.Centros;
@@ -110,8 +113,17 @@ public static class PilotoOutboundAutoverificacion
     /// <summary>La comprobación de cartera del Asistente IA, medida como la Gestora CAE primera y como la Coordinadora CAE.</summary>
     public sealed record MedicionAsistenteIa(CarteraDelAsistenteIa Gestora, CarteraDelAsistenteIa Coordinadora);
 
+    /// <summary>
+    /// Lo que el Tenant del Operador CAE externo enseña en sus pantallas de equipo y de cartera: las solicitudes de
+    /// incorporación pendientes que ve la Coordinadora CAE, las propuestas de apoyo pendientes que la Gestora CAE
+    /// primera ha enviado y las cuentas del equipo de la Coordinadora CAE pendientes de activación.
+    /// </summary>
+    public sealed record MedicionOperador(int SolicitudesPendientesCoordinadora, int PropuestasEnviadasGestora, int PendientesActivacionEquipo);
+
     /// <param name="AsistenteIa">Nulo si no se midió: <see cref="Repartir"/> lo da por discrepancia, no por bueno.</param>
-    public sealed record Informe(IReadOnlyList<MedicionTenant> Tenants, MedicionAsistenteIa? AsistenteIa = null)
+    /// <param name="Operador">Nulo si no se midió: igual que <paramref name="AsistenteIa"/>.</param>
+    public sealed record Informe(
+        IReadOnlyList<MedicionTenant> Tenants, MedicionAsistenteIa? AsistenteIa = null, MedicionOperador? Operador = null)
     {
         public MedicionTenant De(TenantPilotoOutbound tenant) => Tenants.Single(t => t.Clave == tenant.Clave);
     }
@@ -152,7 +164,9 @@ public static class PilotoOutboundAutoverificacion
             fabricaDeAmbitos, cuentas.GestoraPrimera, Roles.GestorCae,
             async servicios => (
                 Tenants: await MedirComoGestoraAsync(servicios, opciones, tenantsQueNoSeMiden, cancellationToken),
-                AsistenteIa: await MedirCarteraDelAsistenteIaAsync(servicios, cancellationToken)),
+                AsistenteIa: await MedirCarteraDelAsistenteIaAsync(servicios, cancellationToken),
+                PropuestasEnviadas: (await servicios.GetRequiredService<ISender>().Send(
+                    new ObtenerPropuestasApoyoPendientesQuery(), cancellationToken)).Enviadas.Count),
             cancellationToken);
 
         var comoCoordinadora = await ComoCuentaDelPilotoAsync(
@@ -160,7 +174,13 @@ public static class PilotoOutboundAutoverificacion
             async servicios => (
                 VisionCartera: (await servicios.GetRequiredService<ISender>().Send(new ObtenerKpisGlobalesQuery(), cancellationToken))
                     .ClientesConMasRiesgo.ToDictionary(c => c.Nombre),
-                AsistenteIa: await MedirCarteraDelAsistenteIaAsync(servicios, cancellationToken)),
+                AsistenteIa: await MedirCarteraDelAsistenteIaAsync(servicios, cancellationToken),
+                SolicitudesPendientes: await servicios.GetRequiredService<ISender>().Send(
+                    new ObtenerSolicitudesIncorporacionCarteraQuery(SoloPendientes: true), cancellationToken) is { EsExitoso: true } bandeja
+                    ? bandeja.Valor.Pendientes.Count
+                    : -1,
+                PendientesActivacion: (await servicios.GetRequiredService<ISender>().Send(
+                    new ObtenerEquipoDeCoordinadorQuery(), cancellationToken)).Count(m => m.PendienteActivacion)),
             cancellationToken);
         var visionCartera = comoCoordinadora.VisionCartera;
 
@@ -174,7 +194,8 @@ public static class PilotoOutboundAutoverificacion
                 VisionCarteraSinDatos = visionCartera.GetValueOrDefault(m.Nombre)?.SinDatos ?? false
             })
         ],
-        new MedicionAsistenteIa(comoGestora.AsistenteIa, comoCoordinadora.AsistenteIa));
+        new MedicionAsistenteIa(comoGestora.AsistenteIa, comoCoordinadora.AsistenteIa),
+        new MedicionOperador(comoCoordinadora.SolicitudesPendientes, comoGestora.PropuestasEnviadas, comoCoordinadora.PendientesActivacion));
     }
 
     /// <summary>
@@ -292,9 +313,23 @@ public static class PilotoOutboundAutoverificacion
 
         // Control positivo de «cero filas»: en la MISMA lectura de Mi trabajo, otro Tenant sí trae filas.
         // Es del lote entero: no se atribuye a ningún Tenant.
-        IReadOnlyList<string> delLoteEntero = informe.Tenants.All(t => t.MiTrabajoFilas == 0)
-            ? ["Mi trabajo · control positivo: ningún Tenant del piloto trae filas, así que un cero no demuestra nada."]
-            : [];
+        var delLoteEntero = new List<string>();
+        if (informe.Tenants.All(t => t.MiTrabajoFilas == 0))
+            delLoteEntero.Add("Mi trabajo · control positivo: ningún Tenant del piloto trae filas, así que un cero no demuestra nada.");
+
+        // Lo del Tenant del Operador CAE externo depende de T4 y T5 (la propuesta y la solicitud van sobre sus
+        // operaciones): es del lote entero, y con un Tenant sin medir solo se avisa.
+        if (informe.Operador is not { } operador)
+            delLoteEntero.Add("Operador CAE externo · no se midió.");
+        else
+        {
+            void ExigeOperador(string contador, int medido) =>
+                delLoteEntero.AddRange(medido == 1 ? [] : [$"Operador CAE externo · {contador}: medido {medido}, esperado 1."]);
+
+            ExigeOperador("solicitudes de incorporación a cartera pendientes que ve la Coordinadora CAE", operador.SolicitudesPendientesCoordinadora);
+            ExigeOperador("propuestas de apoyo pendientes enviadas por la Gestora CAE primera", operador.PropuestasEnviadasGestora);
+            ExigeOperador("cuentas del equipo de la Coordinadora CAE pendientes de activación", operador.PendientesActivacionEquipo);
+        }
 
         var (asistenteExigidas, asistenteSoloAvisadas) = RepartirAsistenteIa(informe.AsistenteIa, tenantsQueNoSeMiden);
         d.AddRange(asistenteExigidas);
@@ -705,6 +740,14 @@ public static class PilotoOutboundAutoverificacion
 
         var visitas = await dbContext.Visitas.AsNoTracking().Where(v => !v.EstaCancelada)
             .OrderBy(v => v.FechaInicio).Select(v => new { v.Id, v.CentroId, v.FechaInicio }).ToListAsync(cancellationToken);
+        // Los estados de una Visita salen de sus datos, como en la aplicación; aquí también cuentan las canceladas.
+        var todasLasVisitas = await dbContext.Visitas.AsNoTracking()
+            .Select(v => new { v.FechaInicio, v.FechaFin, v.EstaCancelada, v.DocumentacionGestionadaEnUtc }).ToListAsync(cancellationToken);
+        var renovados = await dbContext.Documentos.AsNoTracking()
+            .Where(x => x.TrabajadorId != null && x.MotivoSustitucion == MotivoSustitucionDocumento.Renovacion
+                        && dbContext.Documentos.Any(n => n.Id == x.SustituidoPorDocumentoId && n.SustituidoPorDocumentoId == null
+                                                         && n.TrabajadorId == x.TrabajadorId && n.TipoDocumentoId == x.TipoDocumentoId))
+            .CountAsync(cancellationToken);
         var acudenA = (await dbContext.VisitasTrabajadores.AsNoTracking()
             .Select(vt => new { vt.VisitaId, vt.TrabajadorId }).ToListAsync(cancellationToken)).ToLookup(x => x.VisitaId, x => x.TrabajadorId);
 
@@ -713,6 +756,8 @@ public static class PilotoOutboundAutoverificacion
         var respuestas = await dbContext.Mensajes.AsNoTracking().Where(x => x.Direccion == DireccionMensaje.Entrante)
             .Select(x => new { x.ConversacionId, x.FechaUtc }).ToListAsync(cancellationToken);
         var haceUnaSemana = hoy.AddDays(-7).ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+        // Reciente: enviada dentro de los diez días anteriores a la demostración, los mismos en que se puede sembrar.
+        var haceDiezDiasDeLaDemostracion = d.AddDays(-OpcionesPilotoOutbound.MargenMaximoDias - 1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
 
         var casos = new Dictionary<string, int>
         {
@@ -746,8 +791,21 @@ public static class PilotoOutboundAutoverificacion
             [CasosDeEstadoPilotoOutbound.GestionPendiente] = await dbContext.Gestiones.AsNoTracking()
                 .CountAsync(g => g.Estado == EstadoGestion.Pendiente, cancellationToken),
             [CasosDeEstadoPilotoOutbound.ReclamacionSinRespuesta] = reclamaciones.Count(
-                r => r.FechaEnvioUtc <= haceUnaSemana && !respuestas.Any(x => x.ConversacionId == r.ConversacionId && x.FechaUtc > r.FechaEnvioUtc))
+                r => r.FechaEnvioUtc <= haceUnaSemana && !Respondida(r.ConversacionId, r.FechaEnvioUtc)),
+            [CasosDeEstadoPilotoOutbound.ReclamacionRecienteSinRespuesta] = reclamaciones.Count(
+                r => r.FechaEnvioUtc >= haceDiezDiasDeLaDemostracion && !Respondida(r.ConversacionId, r.FechaEnvioUtc)),
+            [CasosDeEstadoPilotoOutbound.ReclamacionRespondida] = reclamaciones.Count(r => Respondida(r.ConversacionId, r.FechaEnvioUtc)),
+            [CasosDeEstadoPilotoOutbound.VisitaEnCurso] = todasLasVisitas.Count(
+                v => !v.EstaCancelada && v.FechaInicio <= hoy && hoy <= v.FechaFin),
+            [CasosDeEstadoPilotoOutbound.VisitaPasada] = todasLasVisitas.Count(v => !v.EstaCancelada && v.FechaFin < hoy),
+            [CasosDeEstadoPilotoOutbound.VisitaCancelada] = todasLasVisitas.Count(v => v.EstaCancelada),
+            [CasosDeEstadoPilotoOutbound.VisitaConDocumentacionGestionada] = todasLasVisitas.Count(
+                v => !v.EstaCancelada && v.FechaInicio > hoy && v.DocumentacionGestionadaEnUtc is not null),
+            [CasosDeEstadoPilotoOutbound.DocumentoRenovado] = renovados
         };
+
+        bool Respondida(Guid? conversacionId, DateTime enviada) =>
+            respuestas.Any(x => x.ConversacionId == conversacionId && x.FechaUtc > enviada);
 
         // El paquete documental: la primera Visita a un Centro cuyo canal principal es un correo, con la regla de la pantalla.
         MedicionPaquete? paquete = null;

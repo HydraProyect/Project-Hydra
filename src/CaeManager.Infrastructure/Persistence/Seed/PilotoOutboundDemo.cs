@@ -98,15 +98,21 @@ public sealed record TenantPilotoOutbound(
 
 /// <summary>Direcciones de las cuentas de la demostración. Las locales son las del arranque en Development; la vía administrativa pasa las de un dominio propio.</summary>
 /// <param name="UsuarioDeClienteEmpresarialT1">La cuenta opcional de la matriz: un Usuario de Cliente de T1, que solo lee lo de su Cliente empresarial.</param>
+/// <param name="GestorPendienteDeActivacion">
+/// Un Gestor CAE del equipo de la Coordinadora CAE dado de alta y todavía sin activar: sin contraseña, sin login
+/// externo y sin cartera. No está en <see cref="Todas"/>, que son las cuentas con contraseña: nadie entra con ella,
+/// y la siembra no le genera ni le envía el enlace de activación.
+/// </param>
 public sealed record CuentasPilotoOutbound(
     string GestoraPrimera, string GestorSegundo, string Coordinadora, string AdministradorOperador, string AdministradorT1,
-    string UsuarioDeClienteEmpresarialT1)
+    string UsuarioDeClienteEmpresarialT1, string GestorPendienteDeActivacion)
 {
     public static CuentasPilotoOutbound Locales { get; } = new(
         "gestora1.piloto@caemanager.local", "gestor2.piloto@caemanager.local", "coordinadora.piloto@caemanager.local",
         "administrador.piloto@caemanager.local", "administrador.t1.piloto@caemanager.local",
-        "cliente.t1.piloto@caemanager.local");
+        "cliente.t1.piloto@caemanager.local", "gestor3.piloto@caemanager.local");
 
+    /// <summary>Las cuentas con contraseña. La pendiente de activación (<see cref="GestorPendienteDeActivacion"/>) no está.</summary>
     public IReadOnlyList<string> Todas =>
         [GestoraPrimera, GestorSegundo, Coordinadora, AdministradorOperador, AdministradorT1, UsuarioDeClienteEmpresarialT1];
 }
@@ -764,6 +770,54 @@ public static class DisenoT1PilotoOutbound
     /// </summary>
     public const int DiasDesdeLaReclamacion = 20;
 
+    /// <summary>
+    /// Las dos reclamaciones de documentos de Trabajador, cada una al Cliente empresarial dueño del Centro del
+    /// Trabajador, por su documento Vencido. Los dos Trabajadores están en un solo Centro, sin plataforma.
+    /// <list type="bullet">
+    /// <item>La reciente, sin respuesta: «se envió» dos días antes de la demostración o, si eso todavía no ha
+    /// llegado el día en que se siembra, el día anterior a la siembra. Nunca queda en el futuro, y sembrando en
+    /// los seis días anteriores a la demostración sigue a menos de siete días de su envío el día D.</item>
+    /// <item>La respondida: enviada <see cref="DiasDesdeLaReclamacionRespondida"/> días antes de la demostración
+    /// y contestada (un Mensaje entrante en su hilo) <see cref="DiasDesdeLaRespuesta"/> días antes.</item>
+    /// </list>
+    /// </summary>
+    public static (int Trabajador, string Tipo) ReclamacionReciente { get; } = (10, CatalogoPilotoOutbound.EntregaEpi);
+    public static (int Trabajador, string Tipo) ReclamacionRespondida { get; } = (22, CatalogoPilotoOutbound.AptitudMedica);
+    public const int DiasAntesDeLaDemostracionDeLaReclamacionReciente = 2;
+    public const int DiasDesdeLaReclamacionRespondida = 16;
+    public const int DiasDesdeLaRespuesta = 14;
+
+    /// <summary>
+    /// Las Visitas en los estados que el dominio distingue, además de la Visita por correo. Cada una a un Centro sin
+    /// plataforma ni correo, con un Trabajador sin ninguna desviación asignado solo a ese Centro: no añaden pares,
+    /// requisitos ni documentos que falten.
+    /// <list type="bullet">
+    /// <item>En curso los diez días en que se puede sembrar (empieza en D−9 y acaba en D+2), con la documentación
+    /// gestionada. Es una Visita activa que ya empezó: cuenta en las Visitas urgentes de Inicio y es una fila de
+    /// Mi trabajo, todos los días.</item>
+    /// <item>Con la documentación gestionada, dentro de <see cref="DiasHastaLaVisitaGestionada"/> días: lejos de
+    /// las 48 horas.</item>
+    /// <item>Pasada: fue <see cref="DiasDesdeLaVisitaPasada"/> días antes de la demostración.</item>
+    /// <item>Cancelada: iba a ser dentro de <see cref="DiasHastaLaVisitaCancelada"/> días.</item>
+    /// </list>
+    /// </summary>
+    public static (int Centro, int Trabajador) VisitaEnCurso { get; } = (2, 2);
+    public static (int Centro, int Trabajador) VisitaGestionada { get; } = (8, 8);
+    public static (int Centro, int Trabajador) VisitaPasada { get; } = (17, 17);
+    public static (int Centro, int Trabajador) VisitaCancelada { get; } = (4, 32);
+    public const int DiasDesdeElInicioDeLaVisitaEnCurso = 9;
+    public const int DiasHastaElFinDeLaVisitaEnCurso = 2;
+    public const int DiasHastaLaVisitaGestionada = 12;
+    public const int DiasDesdeLaVisitaPasada = 20;
+    public const int DiasHastaLaVisitaCancelada = 6;
+
+    /// <summary>
+    /// El documento renovado: el del Trabajador y el tipo indicados es el vigente, y tiene en su historial la versión
+    /// anterior, que venció el día en que se emitió la nueva y quedó sustituida por renovación. Un Trabajador sin
+    /// ninguna desviación, en un solo Centro, sin plataforma: la versión anterior no deja acreditación externa.
+    /// </summary>
+    public static (int Trabajador, string Tipo) DocumentoRenovado { get; } = (26, CatalogoPilotoOutbound.AptitudMedica);
+
     public static bool EsDeSubcontrata(int trabajador) => trabajador >= TrabajadoresPropios;
 
     /// <summary>A cuál de las tres subcontratas pertenece (0..2). Solo para los índices 150..174.</summary>
@@ -874,13 +928,22 @@ public static class CasosDeEstadoPilotoOutbound
     public const string VisitaAMenosDe48Horas = "Visita a menos de 48 horas de la demostración";
     public const string GestionPendiente = "Gestión pendiente";
     public const string ReclamacionSinRespuesta = "Reclamación enviada sin respuesta";
+    public const string ReclamacionRecienteSinRespuesta = "Reclamación reciente sin respuesta";
+    public const string ReclamacionRespondida = "Reclamación respondida";
+    public const string VisitaEnCurso = "Visita en curso";
+    public const string VisitaPasada = "Visita pasada";
+    public const string VisitaCancelada = "Visita cancelada";
+    public const string VisitaConDocumentacionGestionada = "Visita con documentación gestionada";
+    public const string DocumentoRenovado = "Documento renovado con su versión anterior en el historial";
 
     public static IReadOnlyList<string> Todos { get; } =
     [
         Vencido, Urgente, Proximo, SinConfirmar, SinCaducidad, EnTolerancia, FaltanteBloqueante, FaltanteNoBloqueante,
         AcreditacionPendienteDeSubir, AcreditacionSubida, AcreditacionAceptada, AcreditacionRechazada, AcreditacionVencidaEnPlataforma,
         TrabajadorBloqueadoEnUnCentroYNoEnOtro, TrabajadorDeBaja, DocumentoDeEmpresaVencido, SubcontrataConDocumentacionPropia,
-        VehiculoConDocumentoVencido, VisitaAMenosDe48Horas, GestionPendiente, ReclamacionSinRespuesta
+        VehiculoConDocumentoVencido, VisitaAMenosDe48Horas, GestionPendiente, ReclamacionSinRespuesta,
+        ReclamacionRecienteSinRespuesta, ReclamacionRespondida, VisitaEnCurso, VisitaPasada, VisitaCancelada,
+        VisitaConDocumentacionGestionada, DocumentoRenovado
     ];
 }
 
@@ -957,6 +1020,7 @@ public static class CatalogoPilotoOutbound
     public const string NombreAdministradorOperador = "Jorge Sancho Vera";
     public const string NombreAdministradorT1 = "Beatriz Molina Ferrer";
     public const string NombreUsuarioDeClienteEmpresarialT1 = "Ramón Ibáñez Cuesta";
+    public const string NombreGestorPendienteDeActivacion = "Sergio Navas Olmedo";
 
     public const string AptitudMedica = "Certificado de aptitud médica";
     public const string EntregaEpi = "Entrega de EPI";
@@ -1261,7 +1325,8 @@ public static class CatalogoPilotoOutbound
     /// Estructura, exacta: 150 Trabajadores propios y 25 de tres subcontratas, doce
     /// Clientes empresariales y veintiocho Centros. Documentos: 175 × 5 − 21 ausentes
     /// = 854 de Trabajador, 13 + 1 de la Empresa propia, 2 × 4 de los Vehículos y
-    /// 3 × 3 de las subcontratas: 885, cada uno con su PDF. Pares exigidos: 193
+    /// 3 × 3 de las subcontratas: 885, y la versión anterior del documento renovado,
+    /// que sigue en el historial: 886, cada uno con su PDF. Pares exigidos: 193
     /// Asignaciones activas × 5 = 965, de los que 21 no tienen documento.
     /// </para>
     ///
@@ -1272,8 +1337,10 @@ public static class CatalogoPilotoOutbound
     /// confirmar, 756 de 854, el 89 %; se admite 87..91. Mi trabajo: 37 vencidos, 21
     /// «Falta», 3 requisitos bloqueantes pendientes, 15 urgentes y 12 próximos, más
     /// las acreditaciones externas (del orden de 28 Pendientes de subir, 26 Subidas,
-    /// una Rechazada y una vencida en plataforma): unas 144 filas, 145 la víspera y
-    /// el día de la demostración por la Visita. T1 es la excepción declarada al
+    /// una Rechazada y una vencida en plataforma), y la Visita en curso: unas 145
+    /// filas, 146 la víspera y el día de la demostración por la Visita por correo.
+    /// La versión anterior del documento renovado no cuenta en Inicio, en los pares
+    /// ni en Mi trabajo: está sustituida. T1 es la excepción declarada al
     /// volumen de 40 a 80 filas de la cartera; se admite 100..250.
     /// </para>
     /// </summary>
@@ -1282,7 +1349,7 @@ public static class CatalogoPilotoOutbound
             ? null
             : new(
                 TrabajadoresPropios: 150, TrabajadoresDeSubcontrata: 25, Subcontratas: 3, ClientesEmpresariales: 12, Centros: 28,
-                Documentos: 885, ParesExigidos: 965, ParesFaltantes: 21,
+                Documentos: 886, ParesExigidos: 965, ParesFaltantes: 21,
                 CumplimientoEmpresa: new(82, 88), CumplimientoInicioYVisionDeCartera: new(87, 91), FilasMiTrabajo: new(100, 250),
                 CasosDeEstado: CasosDeEstadoPilotoOutbound.Todos,
                 DiasHastaLaVisita: 1, TrabajadoresDeLaVisita: 2, ExigidosDeTrabajadorEnElPaquete: 10, ExigidosDeEmpresaEnElPaquete: 13);
