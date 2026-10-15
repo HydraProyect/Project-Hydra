@@ -111,20 +111,20 @@ public class DocumentosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         // más de una página, se pide el tamaño de página mayor para no depender del orden.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos?Ambito=Empresa");
         await Expect(page.Locator("table tbody tr.fila-pulsable")).Not.ToHaveCountAsync(0);
-        var tamanos = page.GetByRole(AriaRole.Group, new() { Name = "Filas por página:", Exact = true });
-        var mayor = tamanos.GetByRole(AriaRole.Button, new() { Name = "100", Exact = true });
-        if (await mayor.GetAttributeAsync("aria-pressed") != "true")
+        // El pie de la maqueta elige el tamaño de página en un selector «Mostrar».
+        var mayor = page.Locator(".pie-lista-opciones select");
+        if (await mayor.InputValueAsync() != "100")
         {
             var textoPaginador = page.Locator(".paginador-texto");
-            var recuento = Regex.Match(await textoPaginador.InnerTextAsync(), @"^Mostrando \d+ de (\d+)$");
+            var recuento = Regex.Match(await textoPaginador.InnerTextAsync(), @"Mostrando \d+ de (\d+)$");
             Assert.True(recuento.Success, "El pie debe exponer el total de la consulta.");
             var filasEsperadas = Math.Min(100, int.Parse(recuento.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture));
-            await mayor.ClickAsync();
-            await Expect(mayor).ToHaveAttributeAsync("aria-pressed", "true");
+            await mayor.SelectOptionAsync("100");
+            await Expect(mayor).ToHaveValueAsync("100");
             // Barrera de datos: las filas reales, excluidas las de relleno de QuickGrid,
             // deben corresponder al tamaño nuevo y al total de esta consulta.
             await Expect(page.Locator("table tbody tr.fila-pulsable")).ToHaveCountAsync(filasEsperadas);
-            await Expect(textoPaginador).ToHaveTextAsync($"Mostrando {filasEsperadas} de {recuento.Groups[1].Value}");
+            await Expect(textoPaginador).ToContainTextAsync($"Mostrando {filasEsperadas} de {recuento.Groups[1].Value}");
         }
 
         var filas = page.Locator("table tbody tr.fila-pulsable")

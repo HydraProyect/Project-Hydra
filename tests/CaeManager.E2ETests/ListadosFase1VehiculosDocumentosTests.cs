@@ -82,6 +82,8 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture
         // El estado se filtra en la franja de estado (sustituyó a la pastilla «Estado»): un botón por
         // estado, localizable por su estado de código (data-estado).
         var botonVigentes = page.Locator(".franja-estado-boton[data-estado='Vigente']");
+        // En la presentación de maqueta los botones de estado viven en un desplegable «Documentación».
+        await page.Locator(".franja-campo-desplegable > summary").First.ClickAsync();
         await botonVigentes.ClickAsync();
         await Expect(botonVigentes).ToHaveAttributeAsync("aria-pressed", "true");
         var vigencia = Cabecera(page, "Vigencia");
