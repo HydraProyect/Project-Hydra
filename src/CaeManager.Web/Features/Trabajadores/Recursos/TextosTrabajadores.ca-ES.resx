@@ -714,4 +714,14 @@
   <data name="FichaErrorGuardar" xml:space="preserve"><value>No s’ha pogut desar la fitxa. Torna-ho a provar.</value></data>
   <data name="FichaCopiarDato" xml:space="preserve"><value>Copia la dada</value></data>
   <data name="FichaFechaInvalida" xml:space="preserve"><value>Introdueix una data vàlida.</value></data>
+  <data name="EtiquetaTipoContratacion" xml:space="preserve"><value>Tipus de contractació</value></data>
+  <data name="TipoContratacionCuentaAjena" xml:space="preserve"><value>Compte d’altri</value></data>
+  <data name="TipoContratacionAutonomo" xml:space="preserve"><value>Autònom</value></data>
+  <data name="TipoContratacionVoluntario" xml:space="preserve"><value>Voluntari</value></data>
+  <data name="VoluntarioInactivo" xml:space="preserve"><value>Voluntari inactiu</value></data>
+  <data name="VoluntarioInactivoAyuda" xml:space="preserve"><value>Sense esdeveniment vigent ni futur: els seus venciments no avisen ni compten al Centre. Es reactiva en assignar-lo a un altre esdeveniment.</value></data>
+  <data name="EtiquetaActividad" xml:space="preserve"><value>Activitat</value></data>
+  <data name="OpcionActividadTodos" xml:space="preserve"><value>Tots</value></data>
+  <data name="OpcionSinVoluntariosInactivos" xml:space="preserve"><value>Sense voluntaris inactius</value></data>
+  <data name="OpcionSoloVoluntariosInactivos" xml:space="preserve"><value>Només voluntaris inactius</value></data>
 </root>

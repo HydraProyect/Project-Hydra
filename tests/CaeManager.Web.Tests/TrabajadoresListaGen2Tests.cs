@@ -942,7 +942,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Pastillas «Empresa» y «Centro», y «Más filtros»; la documentación va en la franja de estado. La maqueta
+    /// Pastillas «Empresa», «Centro» y «Actividad» (voluntarios inactivos), y «Más filtros»; la documentación va en la franja de estado. La maqueta
     /// dibuja también «Cliente» como pastilla: ObtenerTrabajadoresQuery no sabe filtrar por él, y una pastilla
     /// que no filtra nada no se pinta. Subcontrata no tiene pastilla propia: va dentro de «Empresa».
     /// </summary>
@@ -953,7 +953,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(b => b.GetAttribute("aria-label"))
-            .Should().Equal("Empresa", "Centro", "Filtros guardados");
+            .Should().Equal("Empresa", "Centro", "Actividad", "Filtros guardados");
         cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Por vencer", "Sin confirmar", "Sin incidencias");
         cut.MarcadosEnFranja().Should().Equal(["Todos"], "sin filtro de estado, el marcado es «Todos»");
         UltimaConsulta(mediador).ConRecuentosPorEstado.Should().BeTrue("sin pedirlos, la franja no tendría cifras");

@@ -20,6 +20,11 @@
     <CampoTexto Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Type="date" Valor="@_nacimiento" ValorChanged="v => _nacimiento = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FechaNacimiento))" />
     <CampoTexto Etiqueta="@Textos["FichaNacionalidad"]" Valor="@_nacionalidad" ValorChanged="v => _nacionalidad = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.Nacionalidad))" />
     <CampoTexto Etiqueta="@Textos["FichaTipoVinculo"]" Valor="@_vinculo" ValorChanged="v => _vinculo = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.TipoVinculo))" />
+    <CampoSelect Etiqueta="@Textos["EtiquetaTipoContratacion"]" Valor="@_tipoContratacion" ValorChanged="v => _tipoContratacion = v">
+        <option value="CuentaAjena">@Textos["TipoContratacionCuentaAjena"]</option>
+        <option value="Autonomo">@Textos["TipoContratacionAutonomo"]</option>
+        <option value="Voluntario">@Textos["TipoContratacionVoluntario"]</option>
+    </CampoSelect>
     <CampoTexto Etiqueta="@Textos["FichaAltaEmpresa"]" Type="date" Valor="@_alta" ValorChanged="v => _alta = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa))" />
     <CampoTexto Etiqueta="@Textos["FichaBaja"]" Type="date" Valor="@_baja" ValorChanged="v => _baja = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FechaBajaEmpresa))" />
     <CampoTexto Etiqueta="@Textos["FichaFiguraRnt"]" Valor="@_rnt" ValorChanged="v => _rnt = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FiguraEnRnt))" />
@@ -38,7 +43,7 @@
     private int _generacion;
     private Guid _id, _version;
     private string _afiliacion = "", _puesto = "", _nacimiento = "", _nacionalidad = "",
-        _vinculo = "", _alta = "", _baja = "", _rnt = "", _permiso = "", _caducidad = "", _motivo = "";
+        _vinculo = "", _tipoContratacion = "CuentaAjena", _alta = "", _baja = "", _rnt = "", _permiso = "", _caducidad = "", _motivo = "";
     private string? _error;
     private Dictionary<string, string> _errores = [];
     private readonly InstantaneaFormulario _instantanea = new();
@@ -47,7 +52,7 @@
     private string? Error(string campo) => _errores.GetValueOrDefault(campo);
     private string Instantanea() => System.Text.Json.JsonSerializer.Serialize(new
     {
-        _afiliacion, _puesto, _nacimiento, _nacionalidad, _vinculo, _alta, _baja, _rnt, _permiso, _caducidad, _motivo
+        _afiliacion, _puesto, _nacimiento, _nacionalidad, _vinculo, _tipoContratacion, _alta, _baja, _rnt, _permiso, _caducidad, _motivo
     });
 
     private DateOnly? Fecha(string valor, string campo)
@@ -85,6 +90,7 @@
             _nacimiento = detalle.FechaNacimiento?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? "";
             _nacionalidad = detalle.Nacionalidad ?? "";
             _vinculo = detalle.TipoVinculo ?? "";
+            _tipoContratacion = detalle.TipoContratacion.ToString();
             _alta = detalle.FechaAltaEmpresa?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? "";
             _baja = detalle.FechaBajaEmpresa?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? "";
             _rnt = detalle.FiguraEnRnt ?? "";
@@ -119,7 +125,8 @@
                 _rnt,
                 _permiso,
                 Fecha(_caducidad, nameof(EditarFichaTrabajadorCommand.CaducidadPermisoTrabajo)),
-                _motivo);
+                _motivo,
+                Enum.Parse<CaeManager.Domain.Trabajadores.TipoContratacion>(_tipoContratacion));
             var validacion = new EditarFichaTrabajadorCommandValidator().Validate(comando);
             if (!validacion.IsValid) throw new ValidationException(validacion.Errors);
             var resultado = await Mediator.Send(comando, _ciclo.Token);

@@ -46,3 +46,10 @@
 
 .seleccion-trabajador { text-align: center; }
 .acciones-trabajador { text-align: end; }
+
+/* Voluntario sin evento vigente ni futuro: sigue en la lista, en segundo plano. */
+.voluntario-inactivo {
+    margin-inline-start: var(--espacio-2, 0.5rem);
+    font-size: var(--texto-xs, 0.75rem);
+    color: var(--color-texto-secundario, inherit);
+}

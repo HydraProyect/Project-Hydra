@@ -101,6 +101,8 @@
                             ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
             <PastillaFiltro Etiqueta="@Textos["EtiquetaCentro"]" TextoTodos="@Textos["OpcionTodosLosCentros"]" Valor="@_filtroCentroId"
                             ValorChanged="FiltrarPorCentroAsync" Opciones="OpcionesFiltroCentro" />
+            <PastillaFiltro Etiqueta="@Textos["EtiquetaActividad"]" TextoTodos="@Textos["OpcionActividadTodos"]" Valor="@_filtroActividad"
+                            ValorChanged="FiltrarPorActividadAsync" Opciones="OpcionesFiltroActividad" />
         </Pastillas>
         <Herramientas><BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" /></Herramientas>
         @* Lo que está filtrando se ve y se quita de uno en uno: el valor de cada pastilla vive
@@ -185,6 +187,10 @@
                             <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida"
                                     aria-label="@Textos["AbrirVistaRapidaDe", NombreCompleto(context)]"
                                     @onclick="() => AbrirVistaRapidaAsync(context.Id)"><TextoResaltado Texto="@context.Nombre" Termino="@_busqueda" />@(" ")<TextoResaltado Texto="@context.Apellidos" Termino="@_busqueda" /></button>
+                            @if (context.VoluntarioInactivo)
+                            {
+                                <span class="voluntario-inactivo" title="@Textos["VoluntarioInactivoAyuda"]">@Textos["VoluntarioInactivo"]</span>
+                            }
                             @if (!string.IsNullOrWhiteSpace(context.Dni))
                             {
                                 <span class="celda-trabajador-dni">
@@ -309,6 +315,11 @@
     <CampoTexto Etiqueta="@Textos["EtiquetaApellidos"]" Valor="@_apellidos" ValorChanged="v => _apellidos = v" OnBlur="ValidarApellidosAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Apellidos))" />
     <CampoTexto Etiqueta="@Textos["EtiquetaAliasOpcional"]" Placeholder="@Textos["PlaceholderAlias"]" Valor="@_alias" ValorChanged="v => _alias = v" OnBlur="ValidarAliasAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Alias))" />
     <CampoTexto Etiqueta="@Textos["EtiquetaPuestoOpcional"]" Placeholder="@Textos["PlaceholderPuesto"]" Valor="@_puesto" ValorChanged="v => _puesto = v" OnBlur="ValidarPuestoAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Puesto))" />
+    <CampoSelect Etiqueta="@Textos["EtiquetaTipoContratacion"]" Valor="@_tipoContratacion" ValorChanged="v => _tipoContratacion = v">
+        <option value="CuentaAjena">@Textos["TipoContratacionCuentaAjena"]</option>
+        <option value="Autonomo">@Textos["TipoContratacionAutonomo"]</option>
+        <option value="Voluntario">@Textos["TipoContratacionVoluntario"]</option>
+    </CampoSelect>
     <CampoTexto Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Type="date" Valor="@_fechaNacimiento" ValorChanged="v => _fechaNacimiento = v" />
     <CampoTexto Etiqueta="@Textos["EtiquetaEmail"]" Type="email" Valor="@_email" ValorChanged="v => _email = v" OnBlur="ValidarEmailAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Email))" />
     <CampoTexto Etiqueta="@Textos["EtiquetaTelefonoWhatsapp"]" Type="tel" Placeholder="+34 600 00 00 00" Valor="@_telefono" ValorChanged="v => _telefono = v" OnBlur="ValidarTelefonoAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Telefono))" />
