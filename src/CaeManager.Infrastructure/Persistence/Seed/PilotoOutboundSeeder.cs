@@ -364,7 +364,8 @@ public static class PilotoOutboundSeeder
             ? $"El Tenant «{nombresDeTenant[0]}» tiene"
             : $"Los Tenants «{string.Join("», «", nombresDeTenant)}» tienen") +
         " datos sembrados por otra versión de la siembra del piloto: hay Empresas y ninguna lleva el identificador fiscal " +
-        $"que esta versión da a la Empresa propia. Hay que retirar el lote ({PilotoOutboundRetirada.Argumento}) antes de volver a sembrar.";
+        "que esta versión da a la Empresa propia o, en el Tenant grande, falta el documento renovado que esta versión " +
+        $"siembra. Hay que retirar el lote ({PilotoOutboundRetirada.Argumento}) antes de volver a sembrar.";
 
     /// <summary>Qué hay sembrado en un Tenant propietario del piloto, según sus Empresas.</summary>
     internal enum DatosSembrados
@@ -375,7 +376,10 @@ public static class PilotoOutboundSeeder
         /// <summary>Está la Empresa propia con el identificador fiscal que esta versión le da. No se toca.</summary>
         DeEstaVersion,
 
-        /// <summary>Hay Empresas y ninguna con ese identificador fiscal: las sembró otra versión. No se toca y se dice.</summary>
+        /// <summary>
+        /// Hay Empresas y ninguna con ese identificador fiscal, o el Tenant grande no tiene el documento renovado: las
+        /// sembró otra versión. No se toca y se dice.
+        /// </summary>
         DeOtraVersion,
     }
 
@@ -392,7 +396,16 @@ public static class PilotoOutboundSeeder
 
         var cifEmpresaPropia = CifDe(tenant, 0);
         if (await dbContext.Empresas.AnyAsync(e => e.Cif == cifEmpresaPropia, cancellationToken))
+        {
+            // T1 de una versión anterior lleva la Empresa propia con el mismo identificador fiscal, pero no los
+            // escenarios que se le añadieron después (reclamaciones de Trabajador, Visitas en sus estados, documento
+            // renovado). Los delata la falta del documento renovado, que esta versión siembra en el mismo guardado.
+            if (tenant.Escenario == EscenarioPilotoOutbound.Grande
+                && !await dbContext.Documentos.AnyAsync(d => d.MotivoSustitucion != null, cancellationToken))
+                return DatosSembrados.DeOtraVersion;
+
             return DatosSembrados.DeEstaVersion;
+        }
 
         return await dbContext.Empresas.AnyAsync(cancellationToken) ? DatosSembrados.DeOtraVersion : DatosSembrados.Ninguno;
     }
@@ -462,9 +475,52 @@ public static class PilotoOutboundSeeder
                         "No se pudo vincular a un Gestor CAE del piloto con su Coordinadora CAE: " +
                         string.Join(", ", resultado.Errors.Select(e => e.Description)));
             }
+
+            await CrearCuentaPendienteDeActivacionAsync(userManager, logger, tenantOperadorId, cuentas.GestorPendienteDeActivacion, coordinadora.Id);
         }
 
+
         return new Equipo(administrador, gestoraPrimera.Id, gestorSegundo.Id, coordinadora.Id);
+    }
+
+    /// <summary>
+    /// La séptima cuenta: un Gestor CAE del equipo de la Coordinadora CAE dado de alta y todavía sin activar, como
+    /// queda tras el alta de la aplicación (<c>GestionCuentasUsuarioIdentity.CrearAsync</c>): sin contraseña, sin login
+    /// externo y sin cambio de contraseña pendiente. Es lo que la aplicación entiende por «pendiente de activación».
+    ///
+    /// <para>
+    /// <b>No genera enlace ni envía correo.</b> El alta de la aplicación tampoco lo hace por sí sola: el enlace lo
+    /// genera aparte <c>GenerarActivacionUsuarioCommand</c>, y aquí no se llama. Sin aceptación de términos, que la
+    /// persona aún no ha visto, y sin cartera: hasta que entre no opera nada. Idempotente por su correo: si ya existe
+    /// —activada o no en un ensayo— no se toca.
+    /// </para>
+    /// </summary>
+    private static async Task CrearCuentaPendienteDeActivacionAsync(
+        UserManager<ApplicationUser> userManager, ILogger logger, Guid tenantOperadorId, string email, Guid coordinadoraId)
+    {
+        if (await userManager.FindByEmailAsync(email) is not null)
+            return;
+
+        var usuario = new ApplicationUser
+        {
+            UserName = email,
+            Email = email,
+            NombreCompleto = CatalogoPilotoOutbound.NombreGestorPendienteDeActivacion,
+            EmailConfirmed = true,
+            TenantId = tenantOperadorId,
+            CoordinadorUsuarioId = coordinadoraId,
+            DebeCambiarContrasena = false,
+        };
+
+        var resultado = await userManager.CreateAsync(usuario);
+        if (resultado.Succeeded)
+            resultado = await userManager.AddToRoleAsync(usuario, Roles.GestorCae);
+        if (!resultado.Succeeded)
+            throw new InvalidOperationException(
+                "No se pudo sembrar la cuenta del piloto pendiente de activación: " +
+                string.Join(", ", resultado.Errors.Select(e => e.Description)));
+
+        logger.LogInformation("Piloto Outbound: cuenta de Gestor CAE pendiente de activación creada, sin enlace ni correo.");
     }
 
     /// <summary>
@@ -958,6 +1014,8 @@ public static class PilotoOutboundSeeder
                     dbContext.Asignaciones.Add(new Asignacion(trabajadores[siguienteTrabajador++].Id, centros[c].Id, D.AddDays(-20 - k)));
             }
 
+            VisitasDeUnTenantSinVisitas(centros, trabajadores, c => CatalogoPilotoOutbound.RequisitosPorCentroT4.Take(c).Sum(x => x.Trabajadores));
+
             if (siguienteTrabajador != trabajadores.Count)
                 throw new InvalidOperationException(
                     $"{tenant.Clave}: el catálogo reparte {siguienteTrabajador} Trabajadores entre sus Centros y declara {trabajadores.Count}.");
@@ -1004,6 +1062,10 @@ public static class PilotoOutboundSeeder
                 _fechas.ConVencimiento(Tipo(DisenoT5PilotoOutbound.TipoVencidoEnTolerancia), D.AddDays(-DisenoT5PilotoOutbound.DiasDesdeQueVencio));
 
             await DocumentosDeTrabajadoresAsync(trabajadores, DisenoT5PilotoOutbound.Desviaciones, fechasFijadas);
+
+            // El Trabajador n está en los CentrosPorTrabajador[n] primeros: el primero de un Centro es el primero que llega hasta él.
+            VisitasDeUnTenantSinVisitas(
+                centros, trabajadores, c => DisenoT5PilotoOutbound.CentrosPorTrabajador.Select((n, t) => (n, t)).First(x => x.n > c).t);
         }
 
         /// <summary>T6: ver <see cref="DisenoT6PilotoOutbound"/>.</summary>
@@ -1137,6 +1199,197 @@ public static class PilotoOutboundSeeder
             dbContext.ReclamacionesDocumentales.Add(reclamacion);
             dbContext.EventosConversacion.Add(new EventoConversacion(
                 conversacion.Id, TipoEventoConversacion.ReclamacionEnviada, reclamacion.Id, enviada));
+
+            // Después de todo lo anterior y sin pedir fechas al contador: nada de lo que ya estaba cambia de fecha.
+            ReclamacionesDeTrabajadorDelGrande(centros, trabajadores, documentos);
+            VisitasEnSusEstadosDelGrande(centros, trabajadores);
+            await DocumentoRenovadoDelGrandeAsync(trabajadores, documentos);
+            SenalesDeIaDelGrande(propia, centros, trabajadores, documentos, documentoDeEmpresaVencido);
+        }
+
+        /// <summary>
+        /// Las tres filas de Mi trabajo que vienen de la IA y de los correos (<see cref="DisenoT1PilotoOutbound.RevisionIaPendiente"/>):
+        /// una revisión de IA, una detección de alta y una sugerencia de Visita, todas pendientes. Son REGISTROS de lo que
+        /// la aplicación habría dejado tras analizar un documento y un correo: aquí no se llama a ningún proveedor de IA ni
+        /// se envía nada. El correo que origina la sugerencia es entrante, de la dirección de coordinación CAE del Cliente
+        /// empresarial dueño del Centro, que sale de la configuración de contactos.
+        /// </summary>
+        private void SenalesDeIaDelGrande(
+            Empresa propia, List<Centro> centros, List<Trabajador> trabajadores,
+            Dictionary<(int Trabajador, string Tipo), Documento> documentos, Documento documentoDeEmpresa)
+        {
+            var (t, nombreTipo) = DisenoT1PilotoOutbound.RevisionIaPendiente;
+            if (!documentos.TryGetValue(DisenoT1PilotoOutbound.RevisionIaPendiente, out var documentoRevisado)
+                || DisenoT1PilotoOutbound.DesviacionesDe(t).Count > 0 || DisenoT1PilotoOutbound.CentrosActivosDe(t).Count != 1)
+                throw new InvalidOperationException(
+                    $"{tenant.Clave}: la revisión de IA de ({t}, {nombreTipo}) tiene que ser de un documento de un Trabajador en regla, en un solo Centro.");
+
+            dbContext.RevisionesIaDocumento.Add(RevisionIaDocumento.Crear(
+                documentoRevisado.Id, DisenoT1PilotoOutbound.ConfianzaDeLaRevisionIa, tipoDetectado: nombreTipo,
+                fechaEmisionDetectada: documentoRevisado.FechaEmision, fechaVencimientoDetectada: null, tieneFirmaDetectada: false,
+                motivo: "La fecha de emisión no se lee con claridad y no se detecta firma. Conviene que alguien lo mire."));
+
+            dbContext.DeteccionesTrabajador.Add(DeteccionTrabajador.Nuevo(
+                documentoDeEmpresa.Id, propia.Id, DisenoT1PilotoOutbound.NombreDeLaDeteccion,
+                DisenoT1PilotoOutbound.ApellidosDeLaDeteccion, DisenoT1PilotoOutbound.DniDeLaDeteccion));
+
+            var centro = centros[DisenoT1PilotoOutbound.CentroDeLaSugerenciaDeVisita];
+            var especificacion = tenant.ClientesEmpresariales.Single(c => c.Centros.Any(x => x.Nombre == centro.Nombre));
+            var remitente = parametros.Contactos.DireccionDe(IdentidadesPilotoOutbound.EtiquetaDeCoordinacionCae(especificacion.RazonSocial));
+            var recibido = D.AddDays(-OpcionesPilotoOutbound.MargenMaximoDias - 1).ToDateTime(new TimeOnly(8, 40), DateTimeKind.Utc);
+            var conversacion = new Conversacion($"Aviso de inspección en {centro.Nombre}", clienteId: centro.ClienteId);
+            var mensaje = conversacion.AgregarMensaje(
+                DireccionMensaje.Entrante, CanalConversacion.Correo, remitente,
+                $"<p>Mañana pasa una inspección por {centro.Nombre} y entrará personal de otra contrata. Avisadnos de quién viene.</p>",
+                recibido);
+            conversacion.AgregarParticipante(remitente, RolParticipante.De, TipoParticipanteOrigen.Empresa, centro.ClienteId);
+            dbContext.Conversaciones.Add(conversacion);
+
+            dbContext.SugerenciasVisitaCorreo.Add(new SugerenciaVisitaCorreo(
+                mensaje.Id, centro.Id, fechaInicioSugerida: null, fechaFinSugerida: null,
+                resumen: "Inspección sorpresa en el Centro; el correo no precisa la fecha.",
+                confianza: 70, confianzaCentro: 90, confianzaFechas: 40));
+        }
+
+        /// <summary>
+        /// Una Visita futura y una pasada en un Tenant que no tenía ninguna (T4 y T5): a un Centro cada una y con el primer
+        /// Trabajador asignado a él, lejos de las 48 horas. No cambian ningún documento ni par.
+        /// </summary>
+        private void VisitasDeUnTenantSinVisitas(
+            List<Centro> centros, List<Trabajador> trabajadores, Func<int, int> primerTrabajadorDelCentro)
+        {
+            void Crear(int c, int diasDesdeLaDemostracion, string notas)
+            {
+                var dia = D.AddDays(diasDesdeLaDemostracion);
+                var visita = new Visita(centros[c].Id, dia, dia, notas, OrigenVisita.Manual);
+                dbContext.Visitas.Add(visita);
+                dbContext.VisitasTrabajadores.Add(new VisitaTrabajador(visita.Id, trabajadores[primerTrabajadorDelCentro(c)].Id));
+            }
+
+            Crear(0, DisenoVisitasT4T5PilotoOutbound.DiasHastaLaVisita, "Revisión de instalaciones antes del arranque");
+            Crear(1, -DisenoVisitasT4T5PilotoOutbound.DiasDesdeLaVisitaPasada, "Reconocimiento inicial del centro");
+        }
+
+        /// <summary>
+        /// Las dos reclamaciones de documentos de Trabajador (<see cref="DisenoT1PilotoOutbound.ReclamacionReciente"/> y
+        /// <see cref="DisenoT1PilotoOutbound.ReclamacionRespondida"/>), cada una al Cliente empresarial dueño del Centro
+        /// del Trabajador. Son REGISTROS, como la de la Empresa propia: su fila, su hilo y su entrada en la cronología,
+        /// y en la respondida, el Mensaje entrante con la respuesta. No se envía ni se encola nada.
+        /// </summary>
+        private void ReclamacionesDeTrabajadorDelGrande(
+            List<Centro> centros, List<Trabajador> trabajadores, Dictionary<(int Trabajador, string Tipo), Documento> documentos)
+        {
+            // La reciente, nunca en el futuro: dos días antes de la demostración o, si ese día aún no ha llegado, el anterior a la siembra.
+            var diaDeLaReciente = D.AddDays(-DisenoT1PilotoOutbound.DiasAntesDeLaDemostracionDeLaReclamacionReciente);
+            if (diaDeLaReciente >= DiaDeNegocio.Hoy()) diaDeLaReciente = DiaDeNegocio.Hoy().AddDays(-1);
+
+            Reclamar(DisenoT1PilotoOutbound.ReclamacionReciente, diaDeLaReciente.ToDateTime(new TimeOnly(9, 15), DateTimeKind.Utc), respuesta: null);
+            Reclamar(
+                DisenoT1PilotoOutbound.ReclamacionRespondida,
+                D.AddDays(-DisenoT1PilotoOutbound.DiasDesdeLaReclamacionRespondida).ToDateTime(new TimeOnly(9, 30), DateTimeKind.Utc),
+                respuesta: D.AddDays(-DisenoT1PilotoOutbound.DiasDesdeLaRespuesta).ToDateTime(new TimeOnly(12, 10), DateTimeKind.Utc));
+
+            void Reclamar((int Trabajador, string Tipo) caso, DateTime enviada, DateTime? respuesta)
+            {
+                var (t, nombreTipo) = caso;
+                if (!documentos.TryGetValue(caso, out var documento)
+                    || DisenoT1PilotoOutbound.DesviacionesDe(t).SingleOrDefault(d => d.Tipo == nombreTipo)?.Situacion != SituacionDocumentoPilotoOutbound.Vencido
+                    || DisenoT1PilotoOutbound.CentrosActivosDe(t).Count != 1)
+                    throw new InvalidOperationException(
+                        $"{tenant.Clave}: la reclamación de ({t}, {nombreTipo}) tiene que ser de un documento Vencido de un Trabajador con un solo Centro.");
+
+                var centro = centros[DisenoT1PilotoOutbound.CentroPrincipalDe(t)];
+                var especificacion = tenant.ClientesEmpresariales.Single(c => c.Centros.Any(x => x.Nombre == centro.Nombre));
+                var destinatario = parametros.Contactos.DireccionDe(IdentidadesPilotoOutbound.EtiquetaDeCoordinacionCae(especificacion.RazonSocial));
+                var trabajador = trabajadores[t];
+
+                var conversacion = new Conversacion($"Documentación pendiente de {trabajador.Nombre} {trabajador.Apellidos}", clienteId: centro.ClienteId);
+                conversacion.AgregarMensaje(
+                    DireccionMensaje.Saliente, CanalConversacion.Correo, $"gestion-cae@{ContactosPilotoOutbound.DominioPorDefecto}",
+                    $"<p>El documento «{nombreTipo}» de {trabajador.Nombre} {trabajador.Apellidos}, que trabaja en {centro.Nombre}, ha vencido. " +
+                    "Por favor, enviadnos el renovado.</p>",
+                    enviada);
+                conversacion.AgregarParticipante(destinatario, RolParticipante.Para, TipoParticipanteOrigen.Empresa, centro.ClienteId);
+                if (respuesta is { } respondida)
+                    conversacion.AgregarMensaje(
+                        DireccionMensaje.Entrante, CanalConversacion.Correo, destinatario,
+                        "<p>Recibido. El reconocimiento está pedido y os enviamos el certificado en cuanto lo tengamos.</p>",
+                        respondida);
+                dbContext.Conversaciones.Add(conversacion);
+
+                var reclamacion = ReclamacionDocumental.ParaCliente(
+                    centro.ClienteId, gestoraPrimeraId, destinatario, enviada, [documento.Id], conversacion.Id);
+                dbContext.ReclamacionesDocumentales.Add(reclamacion);
+                dbContext.EventosConversacion.Add(new EventoConversacion(
+                    conversacion.Id, TipoEventoConversacion.ReclamacionEnviada, reclamacion.Id, enviada));
+            }
+        }
+
+        /// <summary>
+        /// Una Visita en cada estado que el dominio distingue y que la Visita por correo no enseña: en curso, con la
+        /// documentación gestionada, pasada y cancelada (<see cref="DisenoT1PilotoOutbound.VisitaEnCurso"/> y
+        /// siguientes). El estado sale de sus datos, como en la aplicación: fechas, documentación gestionada y cancelación.
+        /// </summary>
+        private void VisitasEnSusEstadosDelGrande(List<Centro> centros, List<Trabajador> trabajadores)
+        {
+            var antesDeSembrar = D.AddDays(-OpcionesPilotoOutbound.MargenMaximoDias - 1).ToDateTime(new TimeOnly(16, 0), DateTimeKind.Utc);
+
+            Visita Crear((int Centro, int Trabajador) caso, DateOnly inicio, DateOnly fin, string notas)
+            {
+                var (c, t) = caso;
+                if (c == DisenoT1PilotoOutbound.CentroPorCorreo || DisenoT1PilotoOutbound.CentrosConPlataforma.Contains(c)
+                    || DisenoT1PilotoOutbound.DesviacionesDe(t).Count > 0 || !DisenoT1PilotoOutbound.CentrosActivosDe(t).SequenceEqual([c]))
+                    throw new InvalidOperationException(
+                        $"{tenant.Clave}: la Visita al Centro {c} tiene que ser a un Centro sin plataforma ni correo, con un Trabajador en regla asignado solo a él.");
+
+                var visita = new Visita(centros[c].Id, inicio, fin, notas, OrigenVisita.Manual);
+                dbContext.Visitas.Add(visita);
+                dbContext.VisitasTrabajadores.Add(new VisitaTrabajador(visita.Id, trabajadores[t].Id));
+                return visita;
+            }
+
+            Crear(
+                DisenoT1PilotoOutbound.VisitaEnCurso,
+                D.AddDays(-DisenoT1PilotoOutbound.DiasDesdeElInicioDeLaVisitaEnCurso), D.AddDays(DisenoT1PilotoOutbound.DiasHastaElFinDeLaVisitaEnCurso),
+                "Sustitución de luminarias en la nave de producción")
+                .MarcarDocumentacionGestionada(antesDeSembrar);
+
+            var dia = D.AddDays(DisenoT1PilotoOutbound.DiasHastaLaVisitaGestionada);
+            Crear(DisenoT1PilotoOutbound.VisitaGestionada, dia, dia, "Revisión anual del grupo electrógeno")
+                .MarcarDocumentacionGestionada(antesDeSembrar);
+
+            dia = D.AddDays(-DisenoT1PilotoOutbound.DiasDesdeLaVisitaPasada);
+            Crear(DisenoT1PilotoOutbound.VisitaPasada, dia, dia, "Medición de tierras del centro de transformación")
+                .MarcarDocumentacionGestionada(dia.AddDays(-2).ToDateTime(new TimeOnly(16, 0), DateTimeKind.Utc));
+
+            dia = D.AddDays(DisenoT1PilotoOutbound.DiasHastaLaVisitaCancelada);
+            Crear(DisenoT1PilotoOutbound.VisitaCancelada, dia, dia, "Ajuste de variadores en la línea de envasado")
+                .Cancelar(antesDeSembrar, "Se aplaza la parada de la línea.");
+        }
+
+        /// <summary>
+        /// El documento renovado (<see cref="DisenoT1PilotoOutbound.DocumentoRenovado"/>): el que ya está sembrado es
+        /// el vigente, y se le da la versión anterior, del mismo titular y tipo, con su PDF y con las fechas que el
+        /// tipo le habría dado: venció el día en que se emitió el vigente. La sustitución va por el mismo camino de
+        /// dominio que «Renovar» (<see cref="Documento.SustituirPor"/>, motivo Renovación): la anterior queda en el
+        /// historial y deja de contar.
+        /// </summary>
+        private async Task DocumentoRenovadoDelGrandeAsync(
+            List<Trabajador> trabajadores, Dictionary<(int Trabajador, string Tipo), Documento> documentos)
+        {
+            var (t, nombreTipo) = DisenoT1PilotoOutbound.DocumentoRenovado;
+            var tipo = Tipo(nombreTipo);
+            if (!documentos.TryGetValue(DisenoT1PilotoOutbound.DocumentoRenovado, out var vigente)
+                || DisenoT1PilotoOutbound.DesviacionesDe(t).Count > 0 || DisenoT1PilotoOutbound.CentrosActivosDe(t).Count != 1
+                || DisenoT1PilotoOutbound.CentrosConPlataforma.Contains(DisenoT1PilotoOutbound.CentroPrincipalDe(t))
+                || !tipo.AplicaVencimientoAutomatico)
+                throw new InvalidOperationException(
+                    $"{tenant.Clave}: el documento renovado ({t}, {nombreTipo}) tiene que ser de un Trabajador en regla, en un solo Centro sin " +
+                    "plataforma, y de un tipo que vence solo.");
+
+            var (emision, vence) = _fechas.ConVencimiento(tipo, vigente.FechaEmision);
+            var anterior = await DocumentoDeTrabajadorAsync(trabajadores[t], tipo, emision, vence);
+            anterior.SustituirPor(vigente, MotivoSustitucionDocumento.Renovacion, vigente.FechaEmision.ToDateTime(new TimeOnly(10, 0), DateTimeKind.Utc));
         }
 
         /// <summary>

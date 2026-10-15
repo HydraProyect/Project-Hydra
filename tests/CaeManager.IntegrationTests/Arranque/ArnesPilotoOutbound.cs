@@ -255,6 +255,16 @@ internal sealed class ArnesPilotoOutbound : IAsyncDisposable
                 ["Tenants en total"] = await b.Tenants.CountAsync(),
                 ["Cuentas del piloto"] = await b.Users.IgnoreQueryFilters().CountAsync(u => cuentas.Contains(u.Email!)),
                 ["Cuentas en total"] = await b.Users.IgnoreQueryFilters().CountAsync(),
+                ["Cuenta pendiente de activación"] = await b.Users.IgnoreQueryFilters().CountAsync(
+                    u => u.Email == CuentasPilotoOutbound.Locales.GestorPendienteDeActivacion),
+                ["Revisiones de IA"] = await b.RevisionesIaDocumento.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
+                ["Detecciones de Trabajador"] = await b.DeteccionesTrabajador.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
+                ["Sugerencias de Visita"] = await b.SugerenciasVisitaCorreo.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
+                ["Visitas"] = await b.Visitas.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
+                ["Reclamaciones documentales"] = await b.ReclamacionesDocumentales.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
+                // Las dos tablas de catálogo cruzan Tenants: se cuentan enteras, que es lo que la retirada tiene que dejar a cero.
+                ["Solicitudes de incorporación a cartera"] = await b.SolicitudesIncorporacionCartera.IgnoreQueryFilters().CountAsync(),
+                ["Propuestas de apoyo"] = await b.PropuestasApoyoCartera.IgnoreQueryFilters().CountAsync(),
                 ["Empresas"] = await b.Empresas.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
                 ["Centros"] = await b.Centros.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
                 ["Trabajadores"] = await b.Trabajadores.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),

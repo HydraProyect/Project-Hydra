@@ -146,6 +146,7 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
 
     /// <summary>Lo que la autoverificación dice cuando el informe no trae la comprobación de cartera del Asistente IA.</summary>
     private const string AsistenteIaSinMedir = "Asistente IA · instrucción de tratamiento de IA de la cartera: no se midió.";
+    private const string OperadorSinMedir = "Operador CAE externo · no se midió.";
 
     /// <summary>
     /// Aparta de la matriz un documento del Tenant: a uno de un Tipo que vence solo se le mueve la emisión y se le
@@ -205,6 +206,19 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
         (await PrimerTenantSinSembrarAsync(arnes)).Should().BeNull("MEDIDO: no queda nada que una ejecución vaya a escribir");
         (await TenantsConDatosDeOtraVersionAsync(arnes)).Should().Equal(
             [ConDatosDeOtraVersion.Nombre], "MEDIDO: sigue siendo de otra versión hasta que se retire el lote");
+
+        // T1 lleva además su propia marca de versión: el documento renovado. Un T1 sembrado antes de que la siembra
+        // escribiera la renovación tiene la Empresa propia de esta versión, pero no la versión anterior del documento.
+        var idT1 = await arnes.TenantIdAsync(CatalogoPilotoOutbound.NombreTenantT1);
+        (await arnes.EnTenantAsync(idT1, (db, _) => db.Documentos.Where(d => d.SustituidoPorDocumentoId != null)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(d => d.SustituidoPorDocumentoId, (Guid?)null)
+                .SetProperty(d => d.SustituidoEnUtc, (DateTime?)null)
+                .SetProperty(d => d.MotivoSustitucion, (CaeManager.Domain.Documentos.MotivoSustitucionDocumento?)null))))
+            .Should().Be(1, "control: T1 tenía un documento renovado, y se le ha quitado la renovación");
+        (await TenantsConDatosDeOtraVersionAsync(arnes)).Should().BeEquivalentTo(
+            [ConDatosDeOtraVersion.Nombre, CatalogoPilotoOutbound.NombreTenantT1],
+            "MEDIDO: un T1 sin documento renovado es un lote de otra versión, aunque su Empresa propia sea la de esta");
     }
 
     /// <summary>
@@ -435,17 +449,19 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
 
         var (todas, ninguna) = PilotoOutboundAutoverificacion.Repartir(nadaMedido, []);
         todas.Where(l => !l.StartsWith(ControlPositivoDeCeroFilas)).Should().Equal(
-            [.. CatalogoPilotoOutbound.Tenants.Select(SinMedir), AsistenteIaSinMedir],
-            "control: sin nada medido, cada Tenant propietario tiene su discrepancia, y el Asistente IA la suya: no haber medido no es haber pasado");
+            [.. CatalogoPilotoOutbound.Tenants.Select(SinMedir), AsistenteIaSinMedir, OperadorSinMedir],
+            "control: sin nada medido, cada Tenant propietario tiene su discrepancia, y el Operador CAE externo y el Asistente IA la suya: no haber medido no es haber pasado");
         todas.Should().ContainSingle(
             l => l.StartsWith(ControlPositivoDeCeroFilas), "MEDIDO: sin ningún Tenant sin medir se exige todo, también lo del lote entero");
         ninguna.Should().BeEmpty("MEDIDO: y no queda nada solo avisado");
         PilotoOutboundAutoverificacion.Discrepancias(nadaMedido).Should().Equal(todas, "control: es lo que exige quien mide los seis");
 
         var (exigidas, soloAvisadas) = PilotoOutboundAutoverificacion.Repartir(nadaMedido, [ConDatosDeOtraVersion.Nombre]);
-        soloAvisadas.Should().ContainSingle("MEDIDO: con un Tenant sin medir, lo del lote entero solo se avisa")
-            .Which.Should().StartWith(ControlPositivoDeCeroFilas, "MEDIDO: es el control positivo de «cero filas»");
-        exigidas.Should().NotContain(l => l.StartsWith(ControlPositivoDeCeroFilas), "MEDIDO: y deja de estar entre lo exigido");
+        soloAvisadas.Should().HaveCount(2, "MEDIDO: con un Tenant sin medir, lo del lote entero solo se avisa");
+        soloAvisadas.Should().ContainSingle(l => l.StartsWith(ControlPositivoDeCeroFilas), "MEDIDO: el control positivo de «cero filas»")
+            .And.Contain(OperadorSinMedir, "MEDIDO: y lo del Operador CAE externo, que depende de T4 y T5");
+        exigidas.Should().NotContain(l => l.StartsWith(ControlPositivoDeCeroFilas), "MEDIDO: y deja de estar entre lo exigido")
+            .And.NotContain(OperadorSinMedir);
         exigidas.Should().Contain(SinMedir(CatalogoPilotoOutbound.T2), "MEDIDO: lo de un Tenant que sí se mide se sigue exigiendo");
     }
 
