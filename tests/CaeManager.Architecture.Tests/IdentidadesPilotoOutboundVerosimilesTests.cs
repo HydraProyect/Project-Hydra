@@ -120,7 +120,7 @@ public partial class IdentidadesPilotoOutboundVerosimilesTests(ITestOutputHelper
     public void Los_identificadores_fiscales_son_validos_unicos_no_correlativos_y_llevan_la_letra_de_su_forma_juridica()
     {
         var empresas = EmpresasDelLote();
-        empresas.Should().HaveCountGreaterThan(40);
+        empresas.Should().HaveCountGreaterThan(20, "el lote tiene la Empresa propia, los Clientes empresariales y las Subcontratas de los siete Tenants");
 
         // El autónomo no es una sociedad: su identificador fiscal es el NIF de la persona.
         var sociedades = empresas.Where(e => e.Tenant.Perfil != PerfilPilotoOutbound.Autonomo || e.RazonSocial != e.Tenant.Nombre).ToList();

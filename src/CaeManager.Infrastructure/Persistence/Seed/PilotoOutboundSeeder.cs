@@ -726,6 +726,7 @@ public static class PilotoOutboundSeeder
         private readonly FechasPilotoOutbound _fechas = new(parametros.FechaDemostracion);
         private readonly int _indiceTenant = CatalogoPilotoOutbound.Tenants.ToList().IndexOf(tenant);
         private readonly List<string> _clavesDePdf = [];
+        private readonly Dictionary<Guid, Guid> _clienteEmpresarialDelCentro = [];
         private IReadOnlyList<TipoDocumento> _tipos = [];
         private int _semilla;
 
@@ -827,6 +828,7 @@ public static class PilotoOutboundSeeder
                         contratoVigenteHasta: D.AddDays(300 + numero * 20));
                     dbContext.Centros.Add(centro);
                     centros.Add(centro);
+                    _clienteEmpresarialDelCentro[centro.Id] = clienteEmpresarial.Id;
 
                     AnadirContacto(ContactoAgenda.DeCentro(
                         centro.Id, Persona(OrdinalDelContactoDeCentro(numero)),
@@ -1409,7 +1411,7 @@ public static class PilotoOutboundSeeder
                 var centro = centros[obra.Centro];
                 var inicio = D.AddDays(obra.DiasDesdeElInicio);
                 var proyecto = Proyecto.Crear(
-                    centro.ClienteId, centro.Id, obra.Nombre, inicio, obra.MesesPrevistos is { } meses ? inicio.AddMonths(meses) : null, notas: null);
+                    _clienteEmpresarialDelCentro[centro.Id], centro.Id, obra.Nombre, inicio, obra.MesesPrevistos is { } meses ? inicio.AddMonths(meses) : null, notas: null);
                 var cierre = obra.Cerrada ? inicio.AddMonths(obra.MesesPrevistos!.Value) : (DateOnly?)null;
                 if (cierre is { } fecha) proyecto.Cerrar(fecha);
                 dbContext.Proyectos.Add(proyecto);

@@ -605,8 +605,14 @@ public static class PilotoOutboundAutoverificacion
         var centros = await dbContext.Centros.AsNoTracking().Select(x => x.ClienteId).ToListAsync(cancellationToken);
         var trabajadores = await dbContext.Trabajadores.AsNoTracking().Select(t => new
         {
-            t.EmpresaId, t.SubcontrataId, t.NumeroAfiliacionSeguridadSocial, t.Nacionalidad, t.TipoVinculo, t.FechaAltaEmpresa,
-            t.TipoPermisoTrabajo, t.CaducidadPermisoTrabajo
+            t.EmpresaId,
+            t.SubcontrataId,
+            t.NumeroAfiliacionSeguridadSocial,
+            t.Nacionalidad,
+            t.TipoVinculo,
+            t.FechaAltaEmpresa,
+            t.TipoPermisoTrabajo,
+            t.CaducidadPermisoTrabajo
         }).ToListAsync(cancellationToken);
         var vehiculos = await dbContext.Vehiculos.AsNoTracking()
             .Select(v => new { v.Id, v.Tipo, v.Titularidad, v.Aseguradora, v.Poliza }).ToListAsync(cancellationToken);

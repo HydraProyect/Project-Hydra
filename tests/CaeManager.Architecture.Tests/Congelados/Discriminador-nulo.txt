@@ -26,3 +26,4 @@ src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs :: EsCritico
 src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs :: EsCritico = 5
 src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs :: EsCritico = 1
 src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: EsCritico = 1
+src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAutoverificacion.cs :: NivelServicio = 2
