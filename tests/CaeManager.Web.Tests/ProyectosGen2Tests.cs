@@ -27,6 +27,8 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
+using CaeManager.Application.Proyectos.Queries.RequisitosEvento;
+
 namespace CaeManager.Web.Tests;
 
 /// <summary>
@@ -117,6 +119,7 @@ public partial class ProyectosGen2Tests : BunitContext
         public bool FallarAlCargarProyectos { get; set; }
         public List<FiltroGuardadoDto> FiltrosGuardados { get; } = [];
         public List<object> Enviados { get; } = [];
+        public OrigenesRequisitosEventoDto Origenes { get; set; } = OrigenesRequisitosEventoDto.Vacio;
 
         private readonly List<(Func<object, bool> Cuando, TaskCompletionSource<object?> Respuesta)> _retenciones = [];
         private readonly HashSet<Guid> _tecnicosDadosDeBaja = [];
@@ -210,6 +213,7 @@ public partial class ProyectosGen2Tests : BunitContext
                 RestaurarProyectoCommand => Result.Exito(),
                 CerrarProyectoCommand => Result.Exito(),
                 CrearProyectoCommand => Result.Exito(Guid.NewGuid()),
+                ObtenerOrigenesRequisitosEventoQuery => Origenes,
                 ReabrirProyectoCommand => Result.Exito(),
                 ActualizarProyectoCommand => Result.Exito(),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")

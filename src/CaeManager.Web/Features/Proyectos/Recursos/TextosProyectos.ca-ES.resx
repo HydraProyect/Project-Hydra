@@ -413,75 +413,75 @@
   <data name="EmpresaProyectoAmbosPapeles" xml:space="preserve"><value>Empresa ocupadora directa · Subcontracta</value></data>
   <data name="OrigenEmpresasProyecto" xml:space="preserve"><value>Empreses ocupadores derivades dels tècnics actius del Projecte.</value></data>
   <data name="BadgeEvento" xml:space="preserve">
-    <value>Evento</value>
+    <value>Esdeveniment</value>
   </data>
   <data name="EtiquetaTipoProyecto" xml:space="preserve">
-    <value>Tipo</value>
+    <value>Tipus</value>
   </data>
   <data name="OpcionTipoObra" xml:space="preserve">
-    <value>Obra o instalación</value>
+    <value>Obra o instal·lació</value>
   </data>
   <data name="OpcionTipoEvento" xml:space="preserve">
-    <value>Evento (partido, feria…)</value>
+    <value>Esdeveniment (partit, fira…)</value>
   </data>
   <data name="EtiquetaFinEvento" xml:space="preserve">
-    <value>Fin del evento</value>
+    <value>Final de l'esdeveniment</value>
   </data>
   <data name="ErrorFinEvento" xml:space="preserve">
-    <value>Un evento necesita fecha de fin.</value>
+    <value>Un esdeveniment necessita data de final.</value>
   </data>
   <data name="EtiquetaOrigenRequisitos" xml:space="preserve">
-    <value>Requisitos documentales</value>
+    <value>Requisits documentals</value>
   </data>
   <data name="OpcionSinRequisitos" xml:space="preserve">
-    <value>Sin requisitos (los añades después)</value>
+    <value>Sense requisits (els afegeixes després)</value>
   </data>
   <data name="GrupoPlantillas" xml:space="preserve">
-    <value>Copiar de una plantilla</value>
+    <value>Copiar d'una plantilla</value>
   </data>
   <data name="GrupoEventos" xml:space="preserve">
-    <value>Copiar de otro evento</value>
+    <value>Copiar d'un altre esdeveniment</value>
   </data>
   <data name="OpcionOrigenConRequisitos" xml:space="preserve">
-    <value>{0} ({1} requisitos)</value>
+    <value>{0} ({1} requisits)</value>
   </data>
   <data name="TituloRequisitosEvento" xml:space="preserve">
-    <value>Requisitos del evento</value>
+    <value>Requisits de l'esdeveniment</value>
   </data>
   <data name="ErrorRequisitosEvento" xml:space="preserve">
-    <value>No se pudieron cargar los requisitos del evento.</value>
+    <value>No s'han pogut carregar els requisits de l'esdeveniment.</value>
   </data>
   <data name="VacioRequisitosEvento" xml:space="preserve">
-    <value>Este evento todavía no pide ningún documento.</value>
+    <value>Aquest esdeveniment encara no demana cap document.</value>
   </data>
   <data name="QuitarRequisitoAria" xml:space="preserve">
-    <value>Quitar {0} de los requisitos</value>
+    <value>Treure {0} dels requisits</value>
   </data>
   <data name="AccionQuitar" xml:space="preserve">
-    <value>Quitar</value>
+    <value>Treure</value>
   </data>
   <data name="EtiquetaAnadirRequisito" xml:space="preserve">
-    <value>Añadir requisito</value>
+    <value>Afegir requisit</value>
   </data>
   <data name="OpcionElegirTipoDocumento" xml:space="preserve">
-    <value>Elige un tipo de documento</value>
+    <value>Tria un tipus de document</value>
   </data>
   <data name="AccionAnadirRequisito" xml:space="preserve">
-    <value>Añadir</value>
+    <value>Afegir</value>
   </data>
   <data name="EtiquetaNombrePlantilla" xml:space="preserve">
-    <value>Nombre de la plantilla</value>
+    <value>Nom de la plantilla</value>
   </data>
   <data name="AccionGuardarPlantilla" xml:space="preserve">
-    <value>Guardar como plantilla</value>
+    <value>Desar com a plantilla</value>
   </data>
   <data name="ToastRequisitoAnadido" xml:space="preserve">
-    <value>Requisito añadido.</value>
+    <value>Requisit afegit.</value>
   </data>
   <data name="ToastRequisitoQuitado" xml:space="preserve">
-    <value>Requisito quitado.</value>
+    <value>Requisit tret.</value>
   </data>
   <data name="ToastPlantillaGuardada" xml:space="preserve">
-    <value>Plantilla guardada.</value>
+    <value>Plantilla desada.</value>
   </data>
 </root>

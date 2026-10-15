@@ -68,6 +68,12 @@ public partial class ProyectoDetalle
             ToastService.Mostrar(textoExito, TonoToast.Exito);
             await CargarRequisitosEventoAsync();
         }
+        catch (Exception)
+        {
+            // El circuito no cae por un fallo de la base: se avisa y la lista se relee.
+            ToastService.Mostrar(Textos["ErrorRequisitosEvento"], TonoToast.Error);
+            await CargarRequisitosEventoAsync();
+        }
         finally
         {
             _guardandoRequisito = false;

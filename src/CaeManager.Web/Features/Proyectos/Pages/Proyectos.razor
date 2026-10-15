@@ -335,7 +335,7 @@
                             <div class="rejilla-formulario">
                                 <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_editNombre" ValorChanged="v => _editNombre = v"
                                             MensajeError="@(_editErrores.GetValueOrDefault("Nombre"))" />
-                                <CampoTexto Etiqueta="@Textos["EtiquetaFinPrevistoOpcional"]" Type="date" Valor="@_editFechaFinPrevista" ValorChanged="v => _editFechaFinPrevista = v" />
+                                <CampoTexto Etiqueta="@(_detalle?.Tipo == TipoProyecto.Evento ? Textos["EtiquetaFinEvento"] : Textos["EtiquetaFinPrevistoOpcional"])" Type="date" Valor="@_editFechaFinPrevista" ValorChanged="v => _editFechaFinPrevista = v" />
                                 <CampoTexto Etiqueta="@Textos["EtiquetaNotas"]" Valor="@_editNotas" ValorChanged="v => _editNotas = v" />
                             </div>
                             <div class="acciones-formulario">

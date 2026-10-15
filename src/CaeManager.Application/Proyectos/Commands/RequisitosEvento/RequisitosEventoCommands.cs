@@ -100,7 +100,14 @@ public class QuitarRequisitoEventoCommandHandler(
         if (requisito is null) return Result.Exito();
 
         requisitos.Eliminar(requisito);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Otra pestaña lo quitó antes: el estado pedido ya es el de la base.
+        }
         return Result.Exito();
     }
 }

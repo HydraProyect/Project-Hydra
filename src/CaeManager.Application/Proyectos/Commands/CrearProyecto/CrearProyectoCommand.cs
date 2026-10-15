@@ -87,7 +87,7 @@ public class CrearProyectoCommandHandler(
         if (request.CopiarRequisitosDeProyectoId is { } origenId)
         {
             var origen = await proyectosContext.Proyectos
-                .Where(p => p.Id == origenId).Select(p => new { p.ClienteId }).FirstOrDefaultAsync(cancellationToken);
+                .Where(p => p.Id == origenId && p.Tipo == TipoProyecto.Evento).Select(p => new { p.ClienteId }).FirstOrDefaultAsync(cancellationToken);
             if (origen is null || !await ProyectoAutorizacion.VisibleAsync(origen.ClienteId, alcanceDatos, cancellationToken))
                 return null;
 

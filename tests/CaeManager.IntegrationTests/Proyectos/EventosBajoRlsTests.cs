@@ -3,6 +3,7 @@ using CaeManager.Application.Plataforma;
 using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro;
 using CaeManager.Application.Proyectos.Commands.CrearProyecto;
 using CaeManager.Application.Proyectos.Commands.RequisitosEvento;
+using CaeManager.Application.Proyectos.Queries.RequisitosEvento;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
@@ -35,6 +36,7 @@ public class EventosBajoRlsTests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private CaeManagerDbContext _propietario = null!;
+    private Guid _eventoOtroCliente, _obra;
     private CaeManagerDbContext _runtime = null!;
     private CaeManagerDbContext _runtimeAjeno = null!;
     private Guid _tenantSesion;
@@ -84,7 +86,10 @@ public class EventosBajoRlsTests : IAsyncLifetime
 
             var pasado = Proyecto.Crear(club.Id, estadio.Id, "Jornada 1", hoy.AddDays(-20), hoy.AddDays(-19), null, TipoProyecto.Evento);
             var proximo = Proyecto.Crear(club.Id, estadio.Id, "Jornada 3", hoy.AddDays(5), hoy.AddDays(6), null, TipoProyecto.Evento);
-            _propietario.Proyectos.AddRange(pasado, proximo);
+            var eventoOtro = Proyecto.Crear(otro.Id, pabellonOtro.Id, "Torneo del patronato", hoy.AddDays(-3), hoy.AddDays(-2), null, TipoProyecto.Evento);
+            var obra = Proyecto.Crear(club.Id, estadio.Id, "Reforma de gradas", hoy.AddDays(-60), null, null);
+            _propietario.Proyectos.AddRange(pasado, proximo, eventoOtro, obra);
+            (_eventoOtroCliente, _obra) = (eventoOtro.Id, obra.Id);
             await _propietario.SaveChangesAsync();
             _propietario.ProyectosRequisitos.AddRange(new ProyectoRequisito(pasado.Id, dni.Id), new ProyectoRequisito(pasado.Id, seguro.Id));
             var plantillaOtro = PlantillaRequisitosEvento.Crear(otro.Id, "Plantilla del patronato", [dni.Id]);
@@ -222,14 +227,96 @@ public class EventosBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task Al_cerrar_el_evento_vigente_su_voluntario_deja_de_figurar_en_el_Centro()
     {
-        var evento = await _propietario.Proyectos.IgnoreQueryFilters().SingleAsync(p => p.Id == _eventoProximo);
-        evento.Cerrar(evento.FechaInicio);
-        await _propietario.SaveChangesAsync();
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var evento = await _propietario.Proyectos.IgnoreQueryFilters().SingleAsync(p => p.Id == _eventoProximo);
+            evento.Cerrar(evento.FechaInicio);
+            await _propietario.SaveChangesAsync();
+        }
 
         var filas = await new ObtenerTrabajadoresAsignadosDeCentroQueryHandler(_runtime, _runtime, _runtime, _runtime, new AlcanceDatosServiceFalso())
             .Handle(new ObtenerTrabajadoresAsignadosDeCentroQuery(_estadio), CancellationToken.None);
 
         filas.Select(f => f.TrabajadorId).Should().Equal(_asignadoYVoluntario);
+    }
+
+    /// <summary>El último día del evento todavía es vigente: quien entra por él figura en el Centro hasta ese día incluido.</summary>
+    [Fact]
+    public async Task El_voluntario_de_un_evento_que_termina_hoy_aun_figura_en_el_Centro()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var jornada2 = Proyecto.Crear(_cliente, _estadio, "Jornada 2", hoy.AddDays(-1), hoy, null, TipoProyecto.Evento);
+            _propietario.Proyectos.Add(jornada2);
+            await _propietario.SaveChangesAsync();
+            _propietario.ProyectosTecnicos.Add(new ProyectoTecnico(jornada2.Id, _voluntarioSoloPasado, hoy.AddDays(-1)));
+            await _propietario.SaveChangesAsync();
+        }
+
+        var filas = await new ObtenerTrabajadoresAsignadosDeCentroQueryHandler(_runtime, _runtime, _runtime, _runtime, new AlcanceDatosServiceFalso())
+            .Handle(new ObtenerTrabajadoresAsignadosDeCentroQuery(_estadio), CancellationToken.None);
+
+        filas.Should().ContainSingle(f => f.TrabajadorId == _voluntarioSoloPasado).Which.EventoNombre.Should().Be("Jornada 2");
+    }
+
+    [Fact]
+    public async Task Un_evento_de_un_Cliente_fuera_del_alcance_no_sirve_de_origen()
+    {
+        var resultado = await CrearEvento("Jornada 8", copiarDe: _eventoOtroCliente, alcance: new AlcanceDatosServiceFalso(clienteIds: [_cliente]));
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Proyecto.OrigenRequisitosNoEncontrado");
+    }
+
+    [Fact]
+    public async Task Una_obra_no_sirve_de_origen_de_requisitos()
+    {
+        var resultado = await CrearEvento("Jornada 9", copiarDe: _obra);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Proyecto.OrigenRequisitosNoEncontrado");
+    }
+
+    /// <summary>Añadir, quitar y guardar plantilla pasan por la misma puerta: evento visible por su Cliente empresarial.</summary>
+    [Fact]
+    public async Task Los_comandos_de_requisitos_no_tocan_un_evento_fuera_del_alcance_ni_una_obra()
+    {
+        var fuera = new AlcanceDatosServiceFalso(clienteIds: [_otroCliente]);
+        var repo = new ProyectoRepository(_runtime);
+        var requisitos = new ProyectoRequisitoRepository(_runtime);
+
+        var anadir = await new AnadirRequisitoEventoCommandHandler(repo, requisitos, _runtime, fuera, _runtime)
+            .Handle(new AnadirRequisitoEventoCommand(_eventoPasado, _dni), CancellationToken.None);
+        var quitar = await new QuitarRequisitoEventoCommandHandler(repo, requisitos, fuera, _runtime)
+            .Handle(new QuitarRequisitoEventoCommand(_eventoPasado, _dni), CancellationToken.None);
+        var plantilla = await new GuardarPlantillaRequisitosEventoCommandHandler(repo, requisitos, new PlantillaRequisitosEventoRepository(_runtime), fuera, _runtime)
+            .Handle(new GuardarPlantillaRequisitosEventoCommand(_eventoPasado, "Copia ajena"), CancellationToken.None);
+        var enObra = await new AnadirRequisitoEventoCommandHandler(repo, requisitos, _runtime, new AlcanceDatosServiceFalso(), _runtime)
+            .Handle(new AnadirRequisitoEventoCommand(_obra, _dni), CancellationToken.None);
+
+        new[] { anadir.Error.Codigo, quitar.Error.Codigo, plantilla.Error.Codigo }.Should().AllBe("Proyecto.NoEncontrado");
+        enObra.Error.Codigo.Should().Be("Proyecto.NoEsEvento");
+        (await _propietario.ProyectosRequisitos.IgnoreQueryFilters().CountAsync(r => r.ProyectoId == _eventoPasado)).Should().Be(2);
+        (await _propietario.PlantillasRequisitosEvento.IgnoreQueryFilters().CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Las_lecturas_de_requisitos_se_traducen_a_SQL_y_respetan_el_alcance()
+    {
+        var requisitos = await new ObtenerRequisitosEventoQueryHandler(_runtime, _runtime, _runtime, new AlcanceDatosServiceFalso())
+            .Handle(new ObtenerRequisitosEventoQuery(_eventoPasado), CancellationToken.None);
+        requisitos.Select(r => r.Nombre).Should().BeEquivalentTo("DNI del voluntario", "Seguro de voluntariado");
+
+        var ajenos = await new ObtenerRequisitosEventoQueryHandler(_runtime, _runtime, _runtime, new AlcanceDatosServiceFalso(clienteIds: [_otroCliente]))
+            .Handle(new ObtenerRequisitosEventoQuery(_eventoPasado), CancellationToken.None);
+        ajenos.Should().BeEmpty("el evento es de un Cliente empresarial fuera del alcance");
+
+        var origenes = await new ObtenerOrigenesRequisitosEventoQueryHandler(_runtime, _runtime, new AlcanceDatosServiceFalso())
+            .Handle(new ObtenerOrigenesRequisitosEventoQuery(_cliente), CancellationToken.None);
+        origenes.Eventos.Should().Contain(o => o.Id == _eventoPasado && o.Requisitos == 2);
+        origenes.Eventos.Select(o => o.Id).Should().NotContain([_obra, _eventoOtroCliente], "solo eventos del mismo Cliente empresarial");
+        origenes.Plantillas.Should().BeEmpty("la única plantilla es de otro Cliente empresarial");
     }
 
     private Task<Result<Guid>> CrearEvento(

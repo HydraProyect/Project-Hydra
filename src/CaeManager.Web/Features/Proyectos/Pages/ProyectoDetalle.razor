@@ -207,7 +207,7 @@
                  TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
     <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_editNombre" ValorChanged="v => _editNombre = v"
                 MensajeError="@(_editErrores.GetValueOrDefault("Nombre"))" />
-    <CampoTexto Etiqueta="@Textos["EtiquetaFinPrevistoOpcional"]" Type="date" Valor="@_editFechaFinPrevista" ValorChanged="v => _editFechaFinPrevista = v" />
+    <CampoTexto Etiqueta="@(EsEvento ? Textos["EtiquetaFinEvento"] : Textos["EtiquetaFinPrevistoOpcional"])" Type="date" Valor="@_editFechaFinPrevista" ValorChanged="v => _editFechaFinPrevista = v" />
     <CampoTexto Etiqueta="@Textos["EtiquetaNotas"]" Valor="@_editNotas" ValorChanged="v => _editNotas = v"
                 MensajeError="@(_editErrores.GetValueOrDefault("Notas"))" />
 </DrawerFormulario>
