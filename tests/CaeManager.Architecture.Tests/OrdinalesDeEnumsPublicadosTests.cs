@@ -3,6 +3,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Proyectos;
+using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
 
 namespace CaeManager.Architecture.Tests;
@@ -52,6 +53,15 @@ public class OrdinalesDeEnumsPublicadosTests
             {
                 [nameof(TipoProyecto.Obra)] = 0,
                 [nameof(TipoProyecto.Evento)] = 1,
+            }
+        },
+        {
+            // Trabajadores.TipoContratacion se guarda como entero: un Trabajador existente es 0 (cuenta ajena) por el DEFAULT de la migración.
+            nameof(TipoContratacion), new Dictionary<string, int>
+            {
+                [nameof(TipoContratacion.CuentaAjena)] = 0,
+                [nameof(TipoContratacion.Autonomo)] = 1,
+                [nameof(TipoContratacion.Voluntario)] = 2,
             }
         },
         {
