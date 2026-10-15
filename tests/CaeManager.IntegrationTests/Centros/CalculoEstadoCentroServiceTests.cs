@@ -442,7 +442,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     /// Premisa del estado vacío de "Centros con menor cumplimiento"
     /// (<c>ObtenerCatalogoKpisQuery</c> solo lista centros con
     /// <c>Requeridos &gt; 0</c>): un centro que SÍ pide documentación de
-    /// trabajador —aquí por el valor general del tipo, sin fila propia, igual
+    /// trabajador —aquí por una inclusión explícita del tipo en el Centro, igual
     /// que el centro del fixture— pero sin ningún trabajador asignado cuenta
     /// cero requeridos, exactamente como uno que no pide nada. Por eso el
     /// dashboard no puede atribuir la lista vacía a que ningún centro la pida.
@@ -455,6 +455,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         Guid centroSinTrabajadoresId;
         await using (var contexto = CrearContexto())
         {
+            contexto.TiposDocumentoCentros.Add(new TipoDocumentoCentro(_tipoDocumentoObligatorioId, _centroId, incluido: true));
             var centroConTrabajadores = await contexto.Centros.SingleAsync(c => c.Id == _centroId);
             var centroSinTrabajadores = new Centro(centroConTrabajadores.ClienteId, _empresaId, "Centro sin trabajadores");
             contexto.Centros.Add(centroSinTrabajadores);
@@ -469,7 +470,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         var soloElVacio = await servicio.CalcularCumplimientoAsync([centroSinTrabajadoresId], CancellationToken.None);
 
         ambos[_centroId].Requeridos.Should().Be(1,
-            "control positivo: el mismo tipo, sin fila de centro, se pide y se evalúa en cuanto hay un trabajador asignado");
+            "control positivo: el tipo incluido en el Centro se evalúa cuando hay un trabajador asignado");
         ambos[centroSinTrabajadoresId].Requeridos.Should().Be(0,
             "sin trabajadores asignados no hay pares trabajador × tipo que evaluar, aunque el centro pida el tipo");
         soloElVacio[centroSinTrabajadoresId].Requeridos.Should().Be(0,
@@ -492,6 +493,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         var hoy = DiaDeNegocio.Hoy();
         await using (var contexto = CrearContexto())
         {
+            contexto.TiposDocumentoCentros.Add(new TipoDocumentoCentro(_tipoDocumentoObligatorioId, _centroId, incluido: true));
             contexto.Documentos.Add(Documento.DeTrabajador(
                 _trabajadorId, _tipoDocumentoObligatorioId, hoy.AddYears(-1), VigenciaDocumento.VenceEl(hoy.AddDays(-10))));
             contexto.Documentos.Add(Documento.DeTrabajador(
@@ -520,6 +522,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         var hoy = DiaDeNegocio.Hoy();
         await using (var contexto = CrearContexto())
         {
+            contexto.TiposDocumentoCentros.Add(new TipoDocumentoCentro(_tipoDocumentoObligatorioId, _centroId, incluido: true));
             contexto.Documentos.Add(Documento.DeTrabajador(
                 _trabajadorId, _tipoDocumentoObligatorioId, hoy.AddDays(-200), VigenciaDocumento.VenceEl(hoy.AddDays(300))));
             contexto.Documentos.Add(Documento.DeTrabajador(
@@ -562,6 +565,47 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     }
 
     /// <summary>Otro Centro del mismo Tenant, con su propio Trabajador asignado.</summary>
+
+    [Theory]
+    [InlineData(null, 0)]
+    [InlineData(false, 0)]
+    [InlineData(true, 1)]
+    public async Task El_porcentaje_solo_cuenta_inclusiones_explicitas_del_Centro(bool? incluido, int requeridos)
+    {
+        await using var contexto = CrearContexto();
+        if (incluido is { } valor)
+        {
+            contexto.TiposDocumentoCentros.Add(new TipoDocumentoCentro(_tipoDocumentoObligatorioId, _centroId, incluido: valor));
+            await contexto.SaveChangesAsync();
+        }
+        var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto);
+        var resultado = (await servicio.CalcularCumplimientoAsync([_centroId], CancellationToken.None))[_centroId];
+        resultado.Requeridos.Should().Be(requeridos);
+        resultado.AlDia.Should().Be(0);
+        resultado.Porcentaje.Should().Be(requeridos == 0 ? null : 0);
+        // La herencia global sigue aplicando a la detección de faltantes, independientemente del porcentaje.
+        if (incluido is null)
+            (await servicio.ObtenerParesExigidosAsync([_centroId], CancellationToken.None)).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Un_tipo_global_no_incluido_no_reduce_el_porcentaje_del_Centro()
+    {
+        await using var contexto = CrearContexto();
+        var opcional = new TipoDocumento("Opcional incluido", null, aplicaVencimientoAutomatico: false, 2,
+            AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.No);
+        contexto.TiposDocumento.Add(opcional);
+        contexto.TiposDocumentoCentros.Add(new TipoDocumentoCentro(opcional.Id, _centroId, incluido: true));
+        contexto.Documentos.Add(Documento.DeTrabajador(_trabajadorId, opcional.Id, DiaDeNegocio.Hoy(),
+            VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1))));
+        await contexto.SaveChangesAsync();
+        var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto);
+        var resultado = (await servicio.CalcularCumplimientoAsync([_centroId], CancellationToken.None))[_centroId];
+        resultado.Requeridos.Should().Be(1, "el obligatorio global sin inclusión explícita no entra en el denominador");
+        resultado.AlDia.Should().Be(1);
+        resultado.Porcentaje.Should().Be(100);
+    }
+
     private async Task<(Guid CentroId, Guid TrabajadorId)> SembrarSegundoCentroAsync()
     {
         await using var contexto = CrearContexto();

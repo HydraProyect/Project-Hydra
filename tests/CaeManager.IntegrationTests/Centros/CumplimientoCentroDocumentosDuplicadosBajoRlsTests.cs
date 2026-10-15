@@ -122,6 +122,7 @@ public class CumplimientoCentroDocumentosDuplicadosBajoRlsTests : IAsyncLifetime
         await _propietario.SaveChangesAsync();
 
         _propietario.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, hoy));
+        _propietario.TiposDocumentoCentros.Add(new TipoDocumentoCentro(tipo.Id, centro.Id, incluido: true));
         var vencido = Documento.DeTrabajador(trabajador.Id, tipo.Id, hoy.AddYears(-1), VigenciaDocumento.VenceEl(hoy.AddDays(-10)));
         var renovacion = Documento.DeTrabajador(trabajador.Id, tipo.Id, hoy.AddDays(-5), vigenciaDeLaRenovacion);
         _propietario.Documentos.AddRange(vencido, renovacion);
