@@ -403,6 +403,7 @@
   <data name="ProgramarVisitaProyecto" xml:space="preserve"><value>Programar una visita</value></data>
   <data name="EmpresasProyectoVacio" xml:space="preserve"><value>Sense Empreses ocupadores visibles amb tècnics actius.</value></data>
   <data name="VisitasProyectoVacio" xml:space="preserve"><value>Sense visites visibles del Centre en aquest període.</value></data>
+  <data name="NotaVisitasProyecto" xml:space="preserve"><value>Una visita no pertany a un projecte. Aquestes són les del mateix Centre dins de les dates del projecte.</value></data>
   <data name="LecturaEmpresasProyectoError" xml:space="preserve"><value>No s’han pogut carregar les Empreses ocupadores.</value></data>
   <data name="LecturaVisitasProyectoError" xml:space="preserve"><value>No s’han pogut carregar les Visites del període.</value></data>
   <data name="ResumenEmpresaProyecto" xml:space="preserve"><value>1 Empresa ocupadora · per nom</value></data>

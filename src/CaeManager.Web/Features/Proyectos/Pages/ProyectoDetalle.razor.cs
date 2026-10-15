@@ -275,7 +275,11 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
 
     private void IrAVisitaProyecto(Guid visitaId) => NavigationManager.NavigateTo($"/visitas/{visitaId}");
 
-    private void ProgramarVisitaProyecto() => NavigationManager.NavigateTo($"/visitas?centroId={_detalle!.CentroId}");
+    private void ProgramarVisitaProyecto()
+    {
+        if (_detalle?.EstaAbierto == true)
+            NavigationManager.NavigateTo($"/visitas?centroId={_detalle.CentroId}");
+    }
 
     private void IrABreadcrumb(int indice)
     {

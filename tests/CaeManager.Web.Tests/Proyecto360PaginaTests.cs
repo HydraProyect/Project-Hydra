@@ -608,6 +608,33 @@ public class Proyecto360PaginaTests : BunitContext
     }
 
     [Fact]
+    public void Visitas_pone_la_nota_y_Programar_visita_al_pie_despues_de_la_lista_como_la_maqueta()
+    {
+        _mediador.Visitas[AbiertoId] = [new(Guid.NewGuid(), new(2026, 10, 4), new(2026, 10, 5), 3)];
+        var cut = Renderizar(AbiertoId, "?pestana=visitas");
+        const string nota = "Una visita no pertenece a un proyecto. Estas son las del mismo Centro dentro de las fechas del proyecto.";
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain(nota));
+        var lista = cut.Markup.IndexOf("lista-relaciones-tarjeta", StringComparison.Ordinal);
+        var posNota = cut.Markup.IndexOf(nota, StringComparison.Ordinal);
+        var posBoton = cut.Markup.IndexOf("Programar visita", StringComparison.Ordinal);
+        lista.Should().BeGreaterThan(-1);
+        posNota.Should().BeGreaterThan(lista);
+        posBoton.Should().BeGreaterThan(posNota);
+    }
+
+    [Fact]
+    public void Proyecto_cerrado_conserva_las_visitas_sin_ofrecer_programar()
+    {
+        var visitaId = Guid.NewGuid();
+        _mediador.Visitas[CerradoId] = [new(visitaId, new(2026, 2, 4), new(2026, 2, 5), 3)];
+        var cut = Renderizar(CerradoId, "?pestana=visitas");
+
+        cut.WaitForAssertion(() => cut.FindAll("a").Should().Contain(a => a.GetAttribute("href") == $"/visitas/{visitaId}"));
+        Botones(cut).Should().NotContain("Programar visita");
+    }
+
+    [Fact]
     public void Visitas_sin_resultados_declara_el_periodo_visible()
     {
         var cut = Renderizar(AbiertoId, "?pestana=visitas");
