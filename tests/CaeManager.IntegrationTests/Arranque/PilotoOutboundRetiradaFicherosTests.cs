@@ -145,7 +145,7 @@ public class PilotoOutboundRetiradaFicherosTests(ITestOutputHelper salida)
 
         // ── C. Retirada ─────────────────────────────────────────────────
         (await arnes.RetirarAsync()).Select(r => r.NombreTenant).Should().Equal(
-            CatalogoPilotoOutbound.NombresTenants, "MEDIDO: la retirada no se niega por las filas nuevas y retira el lote entero");
+            CatalogoPilotoOutbound.NombresTenants.Where(n => !CatalogoPilotoOutbound.NombresTenantsDeVersionesAnteriores.Contains(n)), "MEDIDO: la retirada no se niega por las filas nuevas y retira el lote entero");
 
         // C.1 Familia a familia, por su clave y ANTES del recuento global: si la retirada deja de borrar una
         // familia, el rojo la nombra. El recuento solo diría cuántos ficheros sobran.

@@ -62,6 +62,18 @@ public sealed record TenantPilotoOutbound(
     /// <summary>El Centro con canal de plataforma (acreditaciones externas), si lo hay.</summary>
     public int? CentroConPlataforma { get; init; }
 
+    /// <summary>El Centro que se gestiona por correo (canal principal por correo, sin plataforma), si lo hay.</summary>
+    public int? CentroPorCorreo { get; init; }
+
+    /// <summary>Un Centro que concede tolerancia a un tipo de documento, con un Trabajador suyo cuyo documento está vencido dentro de ella.</summary>
+    public ToleranciaPilotoOutbound? Tolerancia { get; init; }
+
+    /// <summary>
+    /// Las tres filas de Mi trabajo que vienen de la IA y de los correos: una revisión de IA, una detección de alta y una
+    /// sugerencia de Visita, pendientes. Son registros, no llaman a ningún proveedor.
+    /// </summary>
+    public bool ConSenalesDeIa { get; init; }
+
     /// <summary>El Centro con un requisito que bloquea el acceso (la aptitud médica), si lo hay.</summary>
     public int? CentroConRequisitoBloqueante { get; init; }
 
@@ -127,7 +139,12 @@ public sealed record ObraPilotoOutbound(string Nombre, int Centro, int DiasDesde
 public enum EstadoVisitaPilotoOutbound { Futura, Realizada, Vencida, Cancelada }
 
 /// <summary>Una Visita: «Realizada» tiene la documentación gestionada; «Vencida» pasó sin gestionarla.</summary>
-public sealed record VisitaPilotoOutbound(int Centro, int DiasDesdeLaDemostracion, int DuracionDias, EstadoVisitaPilotoOutbound Estado, string Notas);
+/// <param name="PorCorreo">Visita de origen «Correo» al Centro que se gestiona por correo: la comprobación previa y el ZIP salen de ella.</param>
+public sealed record VisitaPilotoOutbound(
+    int Centro, int DiasDesdeLaDemostracion, int DuracionDias, EstadoVisitaPilotoOutbound Estado, string Notas, bool PorCorreo = false);
+
+/// <summary>El Centro que concede días de tolerancia a un tipo de documento, y el documento de un Trabajador suyo que venció hace <paramref name="DiasDesdeQueVencio"/>.</summary>
+public sealed record ToleranciaPilotoOutbound(int Centro, string Tipo, int Dias, int DiasDesdeQueVencio);
 
 /// <summary>
 /// Cuántos pares (Trabajador, tipo exigido) se apartan de «en regla», repartidos sin azar entre los Trabajadores desde
@@ -138,7 +155,7 @@ public sealed record VisitaPilotoOutbound(int Centro, int DiasDesdeLaDemostracio
 /// <param name="AcreditacionesRechazadas">En el Centro con plataforma: acreditaciones rechazadas, con motivo.</param>
 public sealed record RecetaDocumentalPilotoOutbound(
     int Vencidos = 0, int Urgentes = 0, int Proximos = 0, int Ausentes = 0, int SinConfirmar = 0,
-    int AcreditacionesSubidas = 0, int AcreditacionesRechazadas = 0, int PrimerTrabajadorAfectado = 0);
+    int AcreditacionesSubidas = 0, int AcreditacionesRechazadas = 0, int PrimerTrabajadorAfectado = 0, int HastaElTrabajador = int.MaxValue);
 
 /// <summary>Un intervalo cerrado: lo que la autoverificación admite donde el diseño no fija un número exacto.</summary>
 public sealed record IntervaloPilotoOutbound(int Minimo, int Maximo)
@@ -316,13 +333,18 @@ public static class CatalogoPilotoOutbound
             new("Furgoneta de guardia", "Furgoneta compacta", "6619KHM", "Furgoneta", "Renting", "Seguros Almenara", [9]),
             new("Pick-up de coordinación", "Pick-up doble cabina", "8854LCN", "Turismo", "Renting", "Seguros Almenara", [14])
         ],
-        Receta = new(Vencidos: 11, Urgentes: 4, Proximos: 8, Ausentes: 10, SinConfirmar: 6, AcreditacionesSubidas: 5, AcreditacionesRechazadas: 2),
+        // Hasta el Trabajador 24 (exclusive): los del último Centro, el que se gestiona por correo, quedan con todo en regla.
+        Receta = new(Vencidos: 11, Urgentes: 4, Proximos: 8, Ausentes: 10, SinConfirmar: 6, AcreditacionesSubidas: 5, AcreditacionesRechazadas: 2, HastaElTrabajador: 24),
         CentroConPlataforma = 2,
+        CentroPorCorreo = 5,
+        Tolerancia = new(3, FormacionArt19, 30, 12),
+        ConSenalesDeIa = true,
         ReclamacionesRespondidas = 1,
         ConDocumentoRenovado = true,
         Visitas =
         [
             new(0, 4, 1, EstadoVisitaPilotoOutbound.Futura, "Parada técnica de la planta"),
+            new(5, 4, 1, EstadoVisitaPilotoOutbound.Futura, "Revisión de inversores y cuadros de protección", PorCorreo: true),
             new(3, 30, 3, EstadoVisitaPilotoOutbound.Futura, "Mantenimiento anual del parque fotovoltaico"),
             new(4, -12, 1, EstadoVisitaPilotoOutbound.Realizada, "Revisión de las líneas de envasado"),
             new(1, -13, 1, EstadoVisitaPilotoOutbound.Vencida, "Auditoría interna del laboratorio"),
@@ -473,7 +495,7 @@ public static class CatalogoPilotoOutbound
             PerfilPilotoOutbound.Multicliente => new(new(60, 95), new(50, 92)),
             PerfilPilotoOutbound.ObrasYMaquinaria => new(new(60, 95), new(60, 95)),
             PerfilPilotoOutbound.Autonomo => new(new(80, 100), new(80, 100)),
-            PerfilPilotoOutbound.ConSubcontratas => new(new(60, 95), new(60, 95)),
+            PerfilPilotoOutbound.ConSubcontratas => new(new(60, 100), new(60, 95)),
             PerfilPilotoOutbound.Bloqueada => new(new(0, 60), new(0, 60)),
             _ => throw new ArgumentOutOfRangeException(nameof(tenant))
         };

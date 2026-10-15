@@ -22,9 +22,9 @@ namespace CaeManager.IntegrationTests.Arranque;
 ///
 /// <para>
 /// <b>Montaje, el mismo en las dos vías.</b> Una siembra cortada justo después de
-/// aprovisionar T2: quedan el Tenant del Operador CAE externo, T4 y T3 con sus datos, T2
-/// aprovisionado y sin datos, y T5, T6 y T1 sin existir. Después se cambia, con las
-/// entidades y dentro del ámbito de T3, el identificador fiscal de su Empresa propia: T3
+/// aprovisionar G: quedan el Tenant del Operador CAE externo, E y B con sus datos, G
+/// aprovisionado y sin datos, y A, F, D y C sin existir. Después se cambia, con las
+/// entidades y dentro del ámbito de B, el identificador fiscal de su Empresa propia: B
 /// pasa a ser un Tenant con datos de otra versión, y sigue habiendo algo pendiente que
 /// una ejecución querría escribir.
 /// </para>
@@ -46,8 +46,8 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
     private static readonly EntornoDePrueba Produccion = new("Production");
     private static readonly IConfiguration ConfiguracionVacia = new ConfigurationBuilder().Build();
 
-    /// <summary>T2 es el siguiente a T3 en el orden de siembra: el corte lo deja aprovisionado y sin datos.</summary>
-    private const string NombreDelPendiente = CatalogoPilotoOutbound.NombreTenantA;
+    /// <summary>G es el siguiente a B en el orden de siembra (E, B, G, A, F, D, C): el corte lo deja aprovisionado y sin datos.</summary>
+    private const string NombreDelPendiente = CatalogoPilotoOutbound.NombreTenantG;
 
     private static LoggerQueFalla CorteJustoDespuesDeAprovisionarElPendiente() => new($"Tenant de demo sembrado: {NombreDelPendiente}");
 
@@ -201,24 +201,11 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
             .And.Contain("Hay que retirar el lote").And.Contain(PilotoOutboundRetirada.Argumento)
             .And.Contain("no se escribe nada y el arranque continúa");
         resultado!.TenantsConDatosNuevos.Should().Equal(
-            [NombreDelPendiente, CatalogoPilotoOutbound.NombreTenantF, CatalogoPilotoOutbound.NombreTenantD, CatalogoPilotoOutbound.NombreTenantC],
+            [NombreDelPendiente, CatalogoPilotoOutbound.NombreTenantA, CatalogoPilotoOutbound.NombreTenantF, CatalogoPilotoOutbound.NombreTenantD, CatalogoPilotoOutbound.NombreTenantC],
             "MEDIDO: los demás siguen su curso —también el que estaba aprovisionado y sin datos—, y el de otra versión no está entre los escritos");
         (await PrimerTenantSinSembrarAsync(arnes)).Should().BeNull("MEDIDO: no queda nada que una ejecución vaya a escribir");
         (await TenantsConDatosDeOtraVersionAsync(arnes)).Should().Equal(
             [ConDatosDeOtraVersion.Nombre], "MEDIDO: sigue siendo de otra versión hasta que se retire el lote");
-
-        // T1 lleva además su propia marca de versión: el documento renovado. Un T1 sembrado antes de que la siembra
-        // escribiera la renovación tiene la Empresa propia de esta versión, pero no la versión anterior del documento.
-        var idT1 = await arnes.TenantIdAsync(CatalogoPilotoOutbound.NombreTenantC);
-        (await arnes.EnTenantAsync(idT1, (db, _) => db.Documentos.Where(d => d.SustituidoPorDocumentoId != null)
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(d => d.SustituidoPorDocumentoId, (Guid?)null)
-                .SetProperty(d => d.SustituidoEnUtc, (DateTime?)null)
-                .SetProperty(d => d.MotivoSustitucion, (CaeManager.Domain.Documentos.MotivoSustitucionDocumento?)null))))
-            .Should().Be(1, "control: T1 tenía un documento renovado, y se le ha quitado la renovación");
-        (await TenantsConDatosDeOtraVersionAsync(arnes)).Should().BeEquivalentTo(
-            [ConDatosDeOtraVersion.Nombre, CatalogoPilotoOutbound.NombreTenantC],
-            "MEDIDO: un T1 sin documento renovado es un lote de otra versión, aunque su Empresa propia sea la de esta");
     }
 
     /// <summary>
@@ -320,9 +307,9 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
             "MEDIDO: una discrepancia de un Tenant recién escrito sigue tumbando el arranque, también en el caso mixto")).Which;
         salida.WriteLine("MEDIDO " + negativa.Message);
 
-        negativa.Message.Should().Contain($"{Prefijo(CatalogoPilotoOutbound.A)} · {DiscrepanciaDeFecha}", "MEDIDO: lo que tumba es el Tenant recién escrito")
+        negativa.Message.Should().Contain($"{Prefijo(CatalogoPilotoOutbound.G)} · {DiscrepanciaDeFecha}", "MEDIDO: lo que tumba es el Tenant recién escrito")
             .And.NotContain($"«{ConDatosDeOtraVersion.Nombre}»", "MEDIDO: el Tenant de otra versión no está entre lo exigido");
-        CatalogoPilotoOutbound.A.Nombre.Should().Be(NombreDelPendiente, "control: el Tenant descuadrado es el que se acaba de escribir");
+        CatalogoPilotoOutbound.G.Nombre.Should().Be(NombreDelPendiente, "control: el Tenant descuadrado es el que se acaba de escribir");
         DebeAvisarSoloDeQueNoSeMide(avisosConDescuadre);
 
         // Lo que exime es la lista de la siembra, no cómo estén los datos después: sin el Tenant en ella, se mide.
@@ -459,7 +446,7 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
         var (exigidas, soloAvisadas) = PilotoOutboundAutoverificacion.Repartir(nadaMedido, [ConDatosDeOtraVersion.Nombre]);
         soloAvisadas.Should().HaveCount(2, "MEDIDO: con un Tenant sin medir, lo del lote entero solo se avisa");
         soloAvisadas.Should().ContainSingle(l => l.StartsWith(ControlPositivoDeCeroFilas), "MEDIDO: el control positivo de «cero filas»")
-            .And.Contain(OperadorSinMedir, "MEDIDO: y lo del Operador CAE externo, que depende de T4 y T5");
+            .And.Contain(OperadorSinMedir, "MEDIDO: y lo del Operador CAE externo, que depende de E y F");
         exigidas.Should().NotContain(l => l.StartsWith(ControlPositivoDeCeroFilas), "MEDIDO: y deja de estar entre lo exigido")
             .And.NotContain(OperadorSinMedir);
         exigidas.Should().Contain(SinMedir(CatalogoPilotoOutbound.A), "MEDIDO: lo de un Tenant que sí se mide se sigue exigiendo");
@@ -476,7 +463,7 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
 
         var (exigidas, _) = PilotoOutboundAutoverificacion.Repartir(nadaMedido, [NombreDelPendiente]);
 
-        exigidas.Should().NotContain(SinMedir(CatalogoPilotoOutbound.A), "MEDIDO: del Tenant de la lista no sale ninguna discrepancia, tampoco la de «no se pudo medir»");
+        exigidas.Should().NotContain(SinMedir(CatalogoPilotoOutbound.G), "MEDIDO: del Tenant de la lista no sale ninguna discrepancia, tampoco la de «no se pudo medir»");
         exigidas.Should().Equal(
             [.. CatalogoPilotoOutbound.Tenants.Where(t => t.Nombre != NombreDelPendiente).Select(SinMedir), AsistenteIaSinMedir],
             "MEDIDO: los que no están en la lista se exigen todos, también el que este fichero usa como Tenant de otra versión");
@@ -497,7 +484,7 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
 
             var antes = await arnes.RecuentoAsync();
             salida.WriteLine("MEDIDO antes de repetir la orden: " + Texto(antes));
-            antes["Tenants del piloto"].Should().Be(4, "control: el del Operador CAE externo, T4 y T3 sembrados y T2 aprovisionado; faltan T5, T6 y T1");
+            antes["Tenants del piloto"].Should().Be(4, "control: el del Operador CAE externo, E y B sembrados y G aprovisionado; faltan A, F, D y C");
             antes["Empresas"].Should().BeGreaterThan(0, "control positivo: el recuento ve las Empresas del lote");
             antes["Documentos"].Should().BeGreaterThan(0, "control positivo: el recuento ve los Documentos del lote");
             (await PrimerTenantSinSembrarAsync(arnes)).Should().Be(

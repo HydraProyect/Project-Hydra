@@ -764,13 +764,16 @@ public static class PilotoOutboundSeeder
             var activas = CrearAsignaciones(centros, trabajadores);
 
             var desviaciones = Desviaciones(trabajadores.Count);
-            var documentos = await DocumentosDeTrabajadoresAsync(trabajadores, desviaciones);
+            var documentos = await DocumentosDeTrabajadoresAsync(trabajadores, desviaciones, FechasFijadasDelPerfil(trabajadores, desviaciones, activas));
             await DocumentosDeLosExtranjerosAsync(trabajadores);
-            await DocumentosExigidosDeLaEmpresaPropiaAsync(propia);
+            var documentosDeEmpresa = await DocumentosExigidosDeLaEmpresaPropiaAsync(propia);
             await VehiculosAsync(propia, trabajadores);
             RequisitosPropiosDeLosCentros(centros);
             await AcreditacionesExternasAsync(centros, trabajadores, documentos, activas);
-            VisitasDelPerfil(centros, trabajadores, activas);
+            VisitasDelPerfil(centros, trabajadores, activas, desviaciones);
+            CanalPorCorreoDelCentro(centros);
+            if (tenant.ConSenalesDeIa)
+                SenalesDeIa(propia, centros, trabajadores, documentos, documentosDeEmpresa, desviaciones, activas);
             ReclamacionesDelPerfil(propia, centros, trabajadores, documentos, desviaciones, activas);
             GestionesPendientesDelPerfil(centros, trabajadores, desviaciones, activas);
             ProyectosDelPerfil(centros, trabajadores, activas);
@@ -921,7 +924,7 @@ public static class PilotoOutboundSeeder
         {
             var receta = tenant.Receta;
             var pares = new List<(int Trabajador, string Tipo)>();
-            for (var t = receta.PrimerTrabajadorAfectado; t < total; t++)
+            for (var t = receta.PrimerTrabajadorAfectado; t < Math.Min(total, receta.HastaElTrabajador); t++)
             {
                 if (tenant.DeBaja.Contains(t)) continue;
                 foreach (var tipo in CatalogoPilotoOutbound.TiposExigidosDeTrabajador)
@@ -967,7 +970,8 @@ public static class PilotoOutboundSeeder
         /// los documentos por (índice del Trabajador, tipo); un par que no está es un documento que falta.
         /// </summary>
         private async Task<Dictionary<(int Trabajador, string Tipo), Documento>> DocumentosDeTrabajadoresAsync(
-            List<Trabajador> trabajadores, IReadOnlyList<DesviacionDocumentoPilotoOutbound> desviaciones)
+            List<Trabajador> trabajadores, IReadOnlyList<DesviacionDocumentoPilotoOutbound> desviaciones,
+            IReadOnlyDictionary<(int Trabajador, string Tipo), (DateOnly Emision, DateOnly Vence)>? fijadas = null)
         {
             var documentos = new Dictionary<(int Trabajador, string Tipo), Documento>();
 
@@ -981,6 +985,10 @@ public static class PilotoOutboundSeeder
                     switch (situacion)
                     {
                         case SituacionDocumentoPilotoOutbound.Ausente:
+                            continue;
+
+                        case null when fijadas is not null && fijadas.TryGetValue((t, nombreTipo), out var fechasFijadas):
+                            documentos[(t, nombreTipo)] = await DocumentoDeTrabajadorAsync(trabajadores[t], tipo, fechasFijadas.Emision, fechasFijadas.Vence);
                             continue;
 
                         case null:
@@ -1025,11 +1033,15 @@ public static class PilotoOutboundSeeder
         /// (<see cref="FechasPilotoOutbound.EnRegla"/>): Vigente, salvo los dos certificados mensuales, que están «Próximo».
         /// Sin plantilla no hay RLC, RNT ni ITA: el autónomo no los tiene. El perfil de obras suma la relación de maquinaria.
         /// </summary>
-        private async Task DocumentosExigidosDeLaEmpresaPropiaAsync(Empresa propia)
+        private async Task<List<Documento>> DocumentosExigidosDeLaEmpresaPropiaAsync(Empresa propia)
         {
+            var creados = new List<Documento>();
             var conPdfPesado = tenant.Perfil == PerfilPilotoOutbound.Multicliente ? new[] { TipoDeEmpresaConPdfPesado } : [];
             var tiposDeEmpresa = TiposExigidos(AmbitoAplicacion.Empresa)
-                .Where(t => !(tenant.EmpresaSinPlantilla && CatalogoPilotoOutbound.TiposDeEmpresaDePlantilla.Contains(t.Nombre))).ToList();
+                .Where(t => !(tenant.EmpresaSinPlantilla && CatalogoPilotoOutbound.TiposDeEmpresaDePlantilla.Contains(t.Nombre)))
+                // Un documento mensual solo puede estar «Próximo» (vence al mes) y tiñe de ámbar todos los Centros de la Empresa
+                // —las causas de Empresa no distinguen los Centros que lo exigen—: el perfil que quiere Centros «Vigente» no lo siembra.
+                .Where(t => !tenant.TiposDeEmpresaNoExigidos.Contains(t.Nombre)).ToList();
             if (tenant.Perfil == PerfilPilotoOutbound.ObrasYMaquinaria)
                 tiposDeEmpresa.Add(Tipo(CatalogoPilotoOutbound.TipoDeEmpresaDeMaquinaria));
             if (conPdfPesado.FirstOrDefault(n => tiposDeEmpresa.All(t => t.Nombre != n)) is { } ajeno)
@@ -1041,8 +1053,12 @@ public static class PilotoOutboundSeeder
                 int? semillaDeVencimiento = tipo.AplicaVencimientoAutomatico || i % 2 == 0 ? Siguiente() : null;
                 var (emision, vence) = _fechas.EnRegla(tipo, Siguiente(), semillaDeVencimiento);
                 var clave = await GuardarPdfAsync(tipo.Nombre, tenant.Nombre, emision, vence, pesado: conPdfPesado.Contains(tipo.Nombre));
-                Anadir(Documento.DeEmpresa(propia.Id, tipo.Id, emision, Vigencia(vence), clave));
+                var documentoDeEmpresa = Documento.DeEmpresa(propia.Id, tipo.Id, emision, Vigencia(vence), clave);
+                Anadir(documentoDeEmpresa);
+                creados.Add(documentoDeEmpresa);
             }
+
+            return creados;
         }
 
         /// <summary>
@@ -1091,6 +1107,10 @@ public static class PilotoOutboundSeeder
             foreach (var centro in centros)
                 foreach (var nombre in tenant.TiposDeEmpresaNoExigidos)
                     dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(Tipo(nombre).Id, centro.Id, incluido: false));
+
+            if (tenant.Tolerancia is { } tolerancia)
+                dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
+                    Tipo(tolerancia.Tipo).Id, centros[tolerancia.Centro].Id, incluido: true, toleranciaDias: tolerancia.Dias));
 
             if (tenant.CentroConRequisitoBloqueante is { } c)
                 dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
@@ -1167,10 +1187,105 @@ public static class PilotoOutboundSeeder
         }
 
         /// <summary>
+        /// El Trabajador de la tolerancia: el primero asignado solo al Centro que la concede y sin ninguna desviación en ese tipo.
+        /// Su documento vence hace unos días dentro de los que concede el Centro: allí se pinta «en tolerancia».
+        /// </summary>
+        private int? TrabajadorDeLaTolerancia(
+            int total, List<DesviacionDocumentoPilotoOutbound> desviaciones, Dictionary<int, List<int>> activas)
+        {
+            if (tenant.Tolerancia is not { } tolerancia) return null;
+
+            for (var t = 0; t < total; t++)
+                if (activas.TryGetValue(t, out var lista) && lista.Count == 1 && lista[0] == tolerancia.Centro
+                    && !desviaciones.Any(x => x.Trabajador == t && x.Tipo == tolerancia.Tipo))
+                    return t;
+
+            throw new InvalidOperationException($"{tenant.Clave}: ningún Trabajador del Centro {tolerancia.Centro} sirve para el caso de tolerancia.");
+        }
+
+        private int? _trabajadorDeLaTolerancia;
+
+        private bool EsElDeLaTolerancia(int trabajador, Dictionary<int, List<int>> activas) => _trabajadorDeLaTolerancia == trabajador;
+
+        private IReadOnlyDictionary<(int Trabajador, string Tipo), (DateOnly Emision, DateOnly Vence)>? FechasFijadasDelPerfil(
+            List<Trabajador> trabajadores, List<DesviacionDocumentoPilotoOutbound> desviaciones, Dictionary<int, List<int>> activas)
+        {
+            _trabajadorDeLaTolerancia = TrabajadorDeLaTolerancia(trabajadores.Count, desviaciones, activas);
+            if (_trabajadorDeLaTolerancia is not { } t || tenant.Tolerancia is not { } tolerancia) return null;
+
+            return new Dictionary<(int, string), (DateOnly, DateOnly)>
+            {
+                [(t, tolerancia.Tipo)] = _fechas.ConVencimiento(Tipo(tolerancia.Tipo), D.AddDays(-tolerancia.DiasDesdeQueVencio))
+            };
+        }
+
+        /// <summary>El Centro que se gestiona por correo: su canal principal es una dirección que sale de la misma regla que los contactos de agenda.</summary>
+        private void CanalPorCorreoDelCentro(List<Centro> centros)
+        {
+            if (tenant.CentroPorCorreo is not { } c) return;
+            if (tenant.CentroConPlataforma == c)
+                throw new InvalidOperationException($"{tenant.Clave}: el Centro que se gestiona por correo no puede tener además canal de plataforma.");
+
+            var canal = CanalGestionDocumental.PorEmail(
+                centros[c].Id, "Solicitudes de acceso",
+                parametros.Contactos.DireccionDe(IdentidadesPilotoOutbound.EtiquetaDeSolicitudesDeAcceso(tenant.Centros[c])),
+                Persona(OrdinalDelContactoDeCentro(c + 1)));
+            canal.MarcarComoPrincipal();
+            dbContext.CanalesGestionDocumental.Add(canal);
+        }
+
+        /// <summary>
+        /// Las tres filas de Mi trabajo que vienen de la IA y de los correos: una revisión de IA, una detección de alta y una
+        /// sugerencia de Visita, todas pendientes. Son REGISTROS de lo que la aplicación habría dejado tras analizar un
+        /// documento y un correo: aquí no se llama a ningún proveedor de IA ni se envía nada. El correo que origina la
+        /// sugerencia es entrante, de la dirección de coordinación CAE del Cliente empresarial dueño del Centro.
+        /// </summary>
+        private void SenalesDeIa(
+            Empresa propia, List<Centro> centros, List<Trabajador> trabajadores,
+            Dictionary<(int Trabajador, string Tipo), Documento> documentos, List<Documento> documentosDeEmpresa,
+            List<DesviacionDocumentoPilotoOutbound> desviaciones, Dictionary<int, List<int>> activas)
+        {
+            var revisado = Enumerable.Range(0, trabajadores.Count).FirstOrDefault(
+                t => !desviaciones.Any(x => x.Trabajador == t) && activas.TryGetValue(t, out var lista) && lista.Count == 1
+                     && t != _trabajadorDeLaTolerancia && !tenant.DeBaja.Contains(t) && tenant.TrabajadorDeEtt != t
+                     && documentos.ContainsKey((t, CatalogoPilotoOutbound.FormacionArt19)), -1);
+            if (revisado < 0)
+                throw new InvalidOperationException($"{tenant.Clave}: ningún Trabajador en regla y en un solo Centro para la revisión de IA.");
+
+            var documentoRevisado = documentos[(revisado, CatalogoPilotoOutbound.FormacionArt19)];
+            dbContext.RevisionesIaDocumento.Add(RevisionIaDocumento.Crear(
+                documentoRevisado.Id, 55, tipoDetectado: CatalogoPilotoOutbound.FormacionArt19,
+                fechaEmisionDetectada: documentoRevisado.FechaEmision, fechaVencimientoDetectada: null, tieneFirmaDetectada: false,
+                motivo: "La fecha de emisión no se lee con claridad y no se detecta firma. Conviene que alguien lo mire."));
+
+            dbContext.DeteccionesTrabajador.Add(DeteccionTrabajador.Nuevo(
+                documentosDeEmpresa[0].Id, propia.Id, "Ismael", "Cebrián Roldán", IdentidadesPilotoOutbound.DniDeLaDeteccion(tenant)));
+
+            var centro = centros[0];
+            var especificacion = tenant.ClientesEmpresariales.Single(c => c.Centros.Any(x => x.Nombre == centro.Nombre));
+            var remitente = parametros.Contactos.DireccionDe(IdentidadesPilotoOutbound.EtiquetaDeCoordinacionCae(especificacion.RazonSocial));
+            var recibido = D.AddDays(-OpcionesPilotoOutbound.MargenMaximoDias - 1).ToDateTime(new TimeOnly(8, 40), DateTimeKind.Utc);
+            var conversacion = new Conversacion($"Aviso de inspección en {centro.Nombre}", clienteId: centro.ClienteId);
+            var mensaje = conversacion.AgregarMensaje(
+                DireccionMensaje.Entrante, CanalConversacion.Correo, remitente,
+                $"<p>Mañana pasa una inspección por {centro.Nombre} y entrará personal de otra contrata. Avisadnos de quién viene.</p>",
+                recibido);
+            conversacion.AgregarParticipante(remitente, RolParticipante.De, TipoParticipanteOrigen.Empresa, centro.ClienteId);
+            dbContext.Conversaciones.Add(conversacion);
+
+            dbContext.SugerenciasVisitaCorreo.Add(new SugerenciaVisitaCorreo(
+                mensaje.Id, centro.Id, fechaInicioSugerida: null, fechaFinSugerida: null,
+                resumen: "Inspección sorpresa en el Centro; el correo no precisa la fecha.",
+                confianza: 70, confianzaCentro: 90, confianzaFechas: 40));
+        }
+
+        /// <summary>
         /// Las Visitas del perfil, en su estado: futura, realizada (con la documentación gestionada), vencida (pasó sin
         /// gestionarla) o cancelada. Acuden los dos primeros Trabajadores activos del Centro.
         /// </summary>
-        private void VisitasDelPerfil(List<Centro> centros, List<Trabajador> trabajadores, Dictionary<int, List<int>> activas)
+        private void VisitasDelPerfil(
+            List<Centro> centros, List<Trabajador> trabajadores, Dictionary<int, List<int>> activas,
+            List<DesviacionDocumentoPilotoOutbound> desviaciones)
         {
             var antesDeSembrar = D.AddDays(-OpcionesPilotoOutbound.MargenMaximoDias - 1).ToDateTime(new TimeOnly(16, 0), DateTimeKind.Utc);
 
@@ -1178,11 +1293,19 @@ public static class PilotoOutboundSeeder
             {
                 var inicio = D.AddDays(especificacion.DiasDesdeLaDemostracion);
                 var fin = inicio.AddDays(especificacion.DuracionDias - 1);
-                var visita = new Visita(centros[especificacion.Centro].Id, inicio, fin, especificacion.Notas, OrigenVisita.Manual);
+                var visita = new Visita(
+                    centros[especificacion.Centro].Id, inicio, fin, especificacion.Notas,
+                    especificacion.PorCorreo ? OrigenVisita.Correo : OrigenVisita.Manual);
                 dbContext.Visitas.Add(visita);
 
+                // La Visita por correo lleva a dos Trabajadores con todo en regla: lo que viaja en su ZIP es todo lo que el Centro exige.
                 var acuden = Enumerable.Range(0, trabajadores.Count)
-                    .Where(t => activas.TryGetValue(t, out var lista) && lista.Contains(especificacion.Centro)).Take(2);
+                    .Where(t => activas.TryGetValue(t, out var lista) && lista.Contains(especificacion.Centro)
+                                && (!especificacion.PorCorreo || (!desviaciones.Any(x => x.Trabajador == t) && !EsElDeLaTolerancia(t, activas))))
+                    .Take(2).ToList();
+                if (especificacion.PorCorreo && acuden.Count < 2)
+                    throw new InvalidOperationException(
+                        $"{tenant.Clave}: la Visita por correo necesita dos Trabajadores del Centro {especificacion.Centro} sin ninguna desviación y solo hay {acuden.Count}.");
                 foreach (var t in acuden)
                     dbContext.VisitasTrabajadores.Add(new VisitaTrabajador(visita.Id, trabajadores[t].Id));
 

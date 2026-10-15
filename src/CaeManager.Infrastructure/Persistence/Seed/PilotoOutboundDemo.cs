@@ -452,6 +452,10 @@ public static class IdentidadesPilotoOutbound
     public static string Dni(TenantPilotoOutbound tenant, int i) =>
         DatosPruebaSeeder.GenerarDniValido(10_000_000 + (int)((OrdinalEnElLote(tenant, i) + 1L) * 37_139_213 % 80_000_000));
 
+    /// <summary>El documento de identidad de la persona que detecta la IA en un documento de Empresa: un ordinal por encima de los de Trabajador del lote, así que no repite ninguno.</summary>
+    public static string DniDeLaDeteccion(TenantPilotoOutbound tenant) =>
+        DatosPruebaSeeder.GenerarDniValido(10_000_000 + (int)((OrdinalesDeTrabajador + IndiceDe(tenant) + 1L) * 37_139_213 % 80_000_000));
+
     private static int OrdinalEnElLote(TenantPilotoOutbound tenant, int i)
     {
         var ordinal = CatalogoPilotoOutbound.Tenants.Take(IndiceDe(tenant)).Sum(CatalogoPilotoOutbound.TrabajadoresSembrados) + i;

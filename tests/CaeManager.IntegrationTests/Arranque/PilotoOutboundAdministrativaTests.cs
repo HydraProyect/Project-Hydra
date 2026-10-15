@@ -155,9 +155,9 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
             errores.ToString().Should().BeEmpty();
 
             var tenants = await TenantsDelPilotoAsync(arnes);
-            tenants.Should().HaveCount(7, "MEDIDO: seis Tenants propietarios y el del Operador CAE externo");
+            tenants.Should().HaveCount(8, "MEDIDO: siete Tenants propietarios y el del Operador CAE externo");
             tenants.Should().OnlyContain(t => t.Marcado, "MEDIDO: todos llevan el marcador de demo");
-            resultado.Tenants.Select(t => t.Nombre).Should().Equal(CatalogoPilotoOutbound.NombresTenants);
+            resultado.Tenants.Select(t => t.Nombre).Should().Equal(CatalogoPilotoOutbound.NombresTenants.Where(n => !CatalogoPilotoOutbound.NombresTenantsDeVersionesAnteriores.Contains(n)));
 
             var credenciales = LeerCredenciales(resultado.FicheroCredenciales);
             credenciales.Should().HaveCount(6, "MEDIDO: Administrador, Coordinadora CAE y dos Gestores CAE del Operador CAE externo, y las dos cuentas de T1");
@@ -279,15 +279,16 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
                 arnes, ConfiguracionConfirmada, anunciados, real => new AlmacenQueFallaCuando(real, () => anunciados.Count >= 1));
             await cortada.Should().ThrowAsync<IOException>().WithMessage("*fallo inyectado*");
 
-            anunciados.Should().Equal([CatalogoPilotoOutbound.NombreTenantC], "MEDIDO: T1 se anunció en cuanto se borró, antes del fallo en el siguiente");
+            var vigentes = CatalogoPilotoOutbound.NombresTenants.Where(n => !CatalogoPilotoOutbound.NombresTenantsDeVersionesAnteriores.Contains(n)).ToList();
+            anunciados.Should().Equal([CatalogoPilotoOutbound.NombreTenantA], "MEDIDO: A, el primero del lote, se anunció en cuanto se borró, antes del fallo en el siguiente");
             (await TenantsDelPilotoAsync(arnes)).Select(t => t.Nombre).Should().BeEquivalentTo(
-                CatalogoPilotoOutbound.NombresTenants.Except(anunciados),
+                vigentes.Except(anunciados),
                 "MEDIDO: lo anunciado es exactamente lo que ya no existe; el resto sigue ahí");
 
             // B.3 Repetir la orden retira lo que faltaba.
             var resto = await RetirarAsync(arnes, ConfiguracionConfirmada, anunciados);
-            resto.Should().HaveCount(6);
-            anunciados.Should().Equal(CatalogoPilotoOutbound.NombresTenants, "MEDIDO: Tenants propietarios primero y el del Operador CAE externo al final");
+            resto.Should().HaveCount(7);
+            anunciados.Should().Equal(vigentes, "MEDIDO: Tenants propietarios primero y el del Operador CAE externo al final");
 
             // B.3 bis. Los ficheros del ensayo se han ido, el descartado incluido; el del Tenant ajeno sigue y se lee.
             // Fichero a fichero y ANTES del recuento global, y los cuatro juntos: si la retirada deja de borrar una
