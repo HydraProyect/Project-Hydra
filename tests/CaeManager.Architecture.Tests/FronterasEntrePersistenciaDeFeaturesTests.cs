@@ -73,6 +73,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Alertas.ObtenerAlertasQueryHandler", "IConfiguracionQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "IDocumentosQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "IEmpresasQueryContext"),
+        // Voluntarios inactivos y requisitos de los eventos vigentes (tipo de contratación, 2026-10-16).
+        ("Alertas.ObtenerAlertasQueryHandler", "IProyectosQueryContext"),
+        ("Alertas.ObtenerAlertasQueryHandler", "IRequisitosEventoQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "ITiposDocumentoQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "ITrabajadoresQueryContext"),
         ("Alertas.ObtenerSugerenciasPreventivasQueryHandler", "IAsignacionesQueryContext"),
@@ -643,6 +646,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IDocumentosQueryContext"),
         ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IEmpresasQueryContext"),
         ("Trabajadores.ObtenerTrabajadoresQueryHandler", "ISubcontratasQueryContext"),
+        // Filtro e indicador de voluntario inactivo (tipo de contratación, 2026-10-16).
+        ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IProyectosQueryContext"),
         ("Trabajadores.ObtenerTrabajadorPorIdQueryHandler", "IEmpresasQueryContext"),
         // P4 (2026-09-23): sin DNI, la etiqueta del selector desempata homónimos por el empleador
         // (razón social de su Empresa o Subcontrata), proyectado con LEFT JOIN en la misma consulta.

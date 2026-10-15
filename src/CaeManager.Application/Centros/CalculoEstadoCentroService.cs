@@ -138,7 +138,7 @@ public class CalculoEstadoCentroService(
 {
     /// <summary>
     /// Las Asignaciones activas que cuentan en el Centro: todas menos las de los voluntarios inactivos, sin evento
-    /// vigente ni futuro; esos no se borran, pero su documentacion no cuenta para el estado ni el cumplimiento.
+    /// vigente ni futuro; esos no se borran, pero su documentación no cuenta para el estado ni el cumplimiento.
     /// </summary>
     private IQueryable<CaeManager.Domain.Asignaciones.Asignacion> AsignacionesQueCuentan()
     {
