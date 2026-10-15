@@ -92,6 +92,8 @@ public static class PilotoOutboundAutoverificacion
         int Subcontratas, int SubcontratasSinTrabajadores, int SubcontratasSupervisadas, int VerificacionesExternas,
         int EmpresasPropias, int CentrosFueraDeUnClienteDelTenant, int EmpresasNoVisiblesParaLaGestora,
         int VisitasFuturas, int VisitasRealizadas, int VisitasVencidas, int VisitasCanceladas,
+        int VisitasEnCurso, int VisitasConAvisoUrgente,
+        int TrabajadoresConAltaPosteriorAUnDocumento, int LibrosDeSubcontratacion, int CertificadosRea, int RecibosDeAutonomos,
         int DocumentosRenovados, int AcreditacionesSubidas, int AcreditacionesRechazadas, int AcreditacionesRechazadasSinMotivo,
         int ReclamacionesSinRespuesta, int ReclamacionesRespondidas);
 
@@ -115,8 +117,13 @@ public static class PilotoOutboundAutoverificacion
 
     /// <param name="AsistenteIa">Nulo si no se midió: <see cref="Repartir"/> lo da por discrepancia, no por bueno.</param>
     /// <param name="Operador">Nulo si no se midió: igual que <paramref name="AsistenteIa"/>.</param>
+    /// <param name="DiasHastaLaDemostracion">
+    /// D menos el día en que se midió (de 0 a <see cref="OpcionesPilotoOutbound.MargenMaximoDias"/> en una siembra
+    /// normal). Nulo si no se conoce: lo que depende del día de medición —las Visitas urgentes— no se compara.
+    /// </param>
     public sealed record Informe(
-        IReadOnlyList<MedicionTenant> Tenants, MedicionAsistenteIa? AsistenteIa = null, MedicionOperador? Operador = null)
+        IReadOnlyList<MedicionTenant> Tenants, MedicionAsistenteIa? AsistenteIa = null, MedicionOperador? Operador = null,
+        int? DiasHastaLaDemostracion = null)
     {
         public MedicionTenant De(TenantPilotoOutbound tenant) => Tenants.Single(t => t.Clave == tenant.Clave);
     }
@@ -182,7 +189,10 @@ public static class PilotoOutboundAutoverificacion
             })
         ],
         new MedicionAsistenteIa(comoGestora.AsistenteIa, comoCoordinadora.AsistenteIa),
-        new MedicionOperador(comoCoordinadora.PendientesActivacion));
+        new MedicionOperador(comoCoordinadora.PendientesActivacion),
+        // Pasada la demostración la distancia es negativa y lo que depende del día (las Visitas urgentes) ya no tiene término de
+        // comparación en el catálogo: no se compara, como si no se conociera.
+        DiasHastaLaDemostracion: opciones.FechaDemostracion.DayNumber - DiaDeNegocio.Hoy().DayNumber is >= 0 and var dias ? dias : null);
     }
 
     /// <summary>
@@ -302,6 +312,36 @@ public static class PilotoOutboundAutoverificacion
             Exige("Visitas · realizadas", e.VisitasRealizadas, tenant.Visitas.Count(x => x.Estado == EstadoVisitaPilotoOutbound.Realizada));
             Exige("Visitas · vencidas", e.VisitasVencidas, tenant.Visitas.Count(x => x.Estado == EstadoVisitaPilotoOutbound.Vencida));
             Exige("Visitas · canceladas", e.VisitasCanceladas, tenant.Visitas.Count(x => x.Estado == EstadoVisitaPilotoOutbound.Cancelada));
+            Exige("Visitas · en curso", e.VisitasEnCurso, tenant.Visitas.Count(x => x.Estado == EstadoVisitaPilotoOutbound.EnCurso));
+
+            // Lo que depende del día de medición: con la distancia a la demostración conocida, lo que Inicio cuenta como
+            // urgente tiene que ser lo que el catálogo dice para ese día, y coincidir con lo que dicen las filas de las Visitas.
+            if (informe.DiasHastaLaDemostracion is { } diasHastaLaDemostracion)
+            {
+                Exige(
+                    "Visitas · con aviso urgente (empiezan dentro de las 48 h de aviso)",
+                    e.VisitasConAvisoUrgente,
+                    tenant.Visitas.Count(x => x.Estado == EstadoVisitaPilotoOutbound.Futura
+                                              && x.DiasDesdeLaDemostracion + diasHastaLaDemostracion is >= 1 and <= 2));
+                Exige(
+                    "Inicio · Visitas urgentes (en curso y con aviso urgente)",
+                    m.InicioVisitasUrgentes, CatalogoPilotoOutbound.VisitasUrgentesEn(tenant, diasHastaLaDemostracion));
+            }
+
+            // Coherencia de fechas y los tipos del catálogo de construcción y autónomos.
+            Exige("Trabajadores · con el alta en la Empresa posterior a un documento de su relación laboral", e.TrabajadoresConAltaPosteriorAUnDocumento, 0);
+            Exige("Proyectos · Libros de Subcontratación (uno por obra)", e.LibrosDeSubcontratacion, tenant.Obras.Count);
+            Exige("Empresas · certificado de inscripción en el REA", e.CertificadosRea, tenant.Perfil == PerfilPilotoOutbound.ObrasYMaquinaria ? 1 : 0);
+            Exige("Empresas · recibo de cuota de autónomos (RETA)", e.RecibosDeAutonomos, tenant.Perfil == PerfilPilotoOutbound.Autonomo ? 1 : 0);
+
+            // Lo que Inicio cuenta de los documentos de Trabajador, contra lo que la receta del perfil dice (deducido del
+            // catálogo, no medido: lo realizado puede ser menos que lo pedido si no quedan pares compatibles).
+            var inicioEsperado = CatalogoPilotoOutbound.DocumentosEsperadosEnInicio(tenant);
+            Dentro("Inicio · documentos vencidos", m.InicioVencidos, inicioEsperado.Vencidos);
+            Dentro("Inicio · documentos urgentes", m.InicioUrgentes, inicioEsperado.Urgentes);
+            Dentro("Inicio · documentos próximos", m.InicioProximos, inicioEsperado.Proximos);
+            Exige("Inicio · documentos sin confirmar", m.InicioSinConfirmar, inicioEsperado.SinConfirmar);
+
             Exige("Documentos · renovados (versión anterior en el historial)", e.DocumentosRenovados, tenant.ConDocumentoRenovado ? 1 : 0);
             Exige("Acreditaciones externas · pendientes de validar (subidas)", e.AcreditacionesSubidas, tenant.Receta.AcreditacionesSubidas);
             Exige("Acreditaciones externas · rechazadas", e.AcreditacionesRechazadas, tenant.Receta.AcreditacionesRechazadas);
@@ -605,6 +645,7 @@ public static class PilotoOutboundAutoverificacion
         var centros = await dbContext.Centros.AsNoTracking().Select(x => x.ClienteId).ToListAsync(cancellationToken);
         var trabajadores = await dbContext.Trabajadores.AsNoTracking().Select(t => new
         {
+            t.Id,
             t.EmpresaId,
             t.SubcontrataId,
             t.NumeroAfiliacionSeguridadSocial,
@@ -642,6 +683,28 @@ public static class PilotoOutboundAutoverificacion
 
         var extranjeros = trabajadores.Where(t => t.TipoPermisoTrabajo != null).ToList();
 
+        // Coherencia de fechas: nadie causa alta en la Empresa después de la emisión de un documento de su relación laboral
+        // (formación, aptitud, información, entrega de EPI), tampoco de una versión que luego se sustituyó.
+        var nombresPosterioresAlAlta = CatalogoPilotoOutbound.TiposPosterioresAlAlta.ToList();
+        var tiposPosterioresAlAlta = await dbContext.TiposDocumento.AsNoTracking()
+            .Where(t => nombresPosterioresAlAlta.Contains(t.Nombre)).Select(t => t.Id).ToListAsync(cancellationToken);
+        var primeraEmisionPorTrabajador = (await dbContext.Documentos.AsNoTracking()
+                .Where(d => d.TrabajadorId != null && tiposPosterioresAlAlta.Contains(d.TipoDocumentoId))
+                .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.FechaEmision }).ToListAsync(cancellationToken))
+            .GroupBy(d => d.TrabajadorId).ToDictionary(g => g.Key, g => g.Min(d => d.FechaEmision));
+        var conAltaPosterior = trabajadores.Count(t =>
+            t.FechaAltaEmpresa is { } alta && primeraEmisionPorTrabajador.TryGetValue(t.Id, out var primera) && alta >= primera);
+
+        // Los tipos del catálogo de #1363, en uso (no sustituidos): uno por obra, uno en el perfil de obras, uno en el autónomo.
+        async Task<int> EnUsoDeAsync(string nombreDeTipo)
+        {
+            // Un Tenant sembrado antes de que el catálogo tuviera estos tipos no los tiene (la migración solo los crea en el
+            // Tenant #1): cuenta cero, y la discrepancia nombra el contador en vez de impedir medir el lote entero.
+            var tipoId = await dbContext.TiposDocumento.AsNoTracking().Where(t => t.Nombre == nombreDeTipo).Select(t => t.Id).SingleOrDefaultAsync(cancellationToken);
+            if (tipoId == Guid.Empty) return 0;
+            return await dbContext.Documentos.AsNoTracking().Operativos().CountAsync(d => d.TipoDocumentoId == tipoId, cancellationToken);
+        }
+
         return new MedicionEstructura(
             TrabajadoresPropios: trabajadores.Count(t => t.EmpresaId != null),
             TrabajadoresDeSubcontrata: trabajadores.Count(t => t.SubcontrataId != null),
@@ -666,6 +729,12 @@ public static class PilotoOutboundAutoverificacion
             VisitasRealizadas: visitas.Count(v => !v.EstaCancelada && v.FechaFin < hoy && v.DocumentacionGestionadaEnUtc is not null),
             VisitasVencidas: visitas.Count(v => !v.EstaCancelada && v.FechaFin < hoy && v.DocumentacionGestionadaEnUtc is null),
             VisitasCanceladas: visitas.Count(v => v.EstaCancelada),
+            VisitasEnCurso: visitas.Count(v => !v.EstaCancelada && v.FechaInicio <= hoy && hoy <= v.FechaFin),
+            VisitasConAvisoUrgente: visitas.Count(v => !v.EstaCancelada && v.FechaInicio > hoy && v.FechaInicio <= hoy.AddDays(2)),
+            TrabajadoresConAltaPosteriorAUnDocumento: conAltaPosterior,
+            LibrosDeSubcontratacion: await EnUsoDeAsync(CatalogoPilotoOutbound.LibroDeSubcontratacion),
+            CertificadosRea: await EnUsoDeAsync(CatalogoPilotoOutbound.CertificadoReaConstruccion),
+            RecibosDeAutonomos: await EnUsoDeAsync(CatalogoPilotoOutbound.ReciboDeAutonomos),
             DocumentosRenovados: renovados,
             AcreditacionesSubidas: acreditaciones.Count(a => a.Estado == EstadoAcreditacion.Subida),
             AcreditacionesRechazadas: acreditaciones.Count(a => a.Estado == EstadoAcreditacion.Rechazada),
