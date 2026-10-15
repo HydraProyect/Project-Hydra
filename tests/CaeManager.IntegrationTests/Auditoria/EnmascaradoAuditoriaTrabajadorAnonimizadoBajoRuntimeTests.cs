@@ -423,6 +423,13 @@ public class EnmascaradoAuditoriaTrabajadorAnonimizadoBajoRuntimeTests
             return;
         }
 
+        // Mismo formato compacto que escribe AuditoriaInterceptor: ObtenerAuditoriaQuery busca
+        // el marcador literal "EstaEliminado":true para ofrecer Restaurar, y un JSON
+        // reformateado (json_object_agg escribe "k" : v) lo perdería en silencio.
+        despues.Should().NotContain("\" : ").And.NotContain(", \"");
+        if (antes.Contains("\"EstaEliminado\":true", StringComparison.Ordinal))
+            despues.Should().Contain("\"EstaEliminado\":true");
+
         var objetoAntes = JsonNode.Parse(antes)!.AsObject();
         var objetoDespues = JsonNode.Parse(despues!)!.AsObject();
         objetoDespues.Select(p => p.Key).Should().Equal(objetoAntes.Select(p => p.Key));

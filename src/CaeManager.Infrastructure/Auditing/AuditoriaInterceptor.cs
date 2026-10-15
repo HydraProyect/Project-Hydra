@@ -63,8 +63,9 @@ namespace CaeManager.Infrastructure.Auditing;
 ///    de esa entrada.
 /// 6. La ficha de altas en plataforma de <see cref="Trabajador"/> (número de
 ///    afiliación a la Seguridad Social, nacionalidad, vínculo y permiso de
-///    trabajo): datos personales que el historial conservaría después de
-///    anonimizar al Trabajador. Ver el comentario de esa entrada.
+///    trabajo): se enmascaran en toda entrada de Trabajador, esté o no
+///    anonimizado; el resto de sus datos personales solo al anonimizarlo
+///    (punto 7). Ver el comentario de esa entrada.
 /// 7. Los datos personales de un <see cref="Trabajador"/> al anonimizarlo
 ///    (decisión de Chris, 2026-10-15): la entrada que deja
 ///    <see cref="Trabajador.Anonimizar"/> no copia los valores anteriores de

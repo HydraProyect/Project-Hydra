@@ -52,20 +52,29 @@ public class EjecucionPurgaService(
         // de soft-delete más abajo.
         if (tenantActual.TenantId is not { } tenantId) return 0;
 
-        var suprimidos = 0;
+        (ResultadoAnonimizacion Resultado, TipoDatoPurgable Tipo)? ejecucion = null;
         await transaccion.EjecutarAsync(async ct =>
         {
-            suprimidos = await EjecutarEnTransaccionAsync(tenantId, solicitudId, hoy, ct);
+            ejecucion = await EjecutarEnTransaccionAsync(tenantId, solicitudId, hoy, ct);
             return Result.Exito();
         }, cancellationToken);
 
-        return suprimidos;
+        if (ejecucion is not { } hecho) return 0;
+
+        // Después del commit: un reintento de la transacción no deja dos líneas, y un commit
+        // fallido no deja una que diga que la purga se hizo.
+        logger.LogWarning(
+            "Purga ejecutada: {Suprimidos}/{Candidatos} registros de tipo {Tipo} anonimizados, {Fallidos} con incidencias (solicitud {SolicitudId}).",
+            hecho.Resultado.Suprimidos, hecho.Resultado.Candidatos, hecho.Tipo, hecho.Resultado.Fallidos, solicitudId);
+
+        return hecho.Resultado.Suprimidos;
     }
 
-    private async Task<int> EjecutarEnTransaccionAsync(Guid tenantId, Guid solicitudId, DateOnly hoy, CancellationToken cancellationToken)
+    private async Task<(ResultadoAnonimizacion Resultado, TipoDatoPurgable Tipo)?> EjecutarEnTransaccionAsync(
+        Guid tenantId, Guid solicitudId, DateOnly hoy, CancellationToken cancellationToken)
     {
         var solicitud = await solicitudRepositorio.ObtenerPorIdAsync(solicitudId, cancellationToken);
-        if (solicitud is null) return 0;
+        if (solicitud is null) return null;
 
         // Lanza si no está autorizada o si no ha llegado la fecha. Se deja
         // propagar a propósito: llegar aquí sin autorización es un error de
@@ -98,11 +107,7 @@ public class EjecucionPurgaService(
         foreach (var trabajadorId in resultado.TrabajadoresAnonimizados)
             await enmascaradoAuditoria.EnmascararAsync(trabajadorId, cancellationToken);
 
-        logger.LogWarning(
-            "Purga ejecutada: {Suprimidos}/{Candidatos} registros de tipo {Tipo} anonimizados, {Fallidos} con incidencias (solicitud {SolicitudId}).",
-            resultado.Suprimidos, resultado.Candidatos, solicitud.TipoDato, resultado.Fallidos, solicitud.Id);
-
-        return resultado.Suprimidos;
+        return (resultado, solicitud.TipoDato);
     }
 
     /// <summary>

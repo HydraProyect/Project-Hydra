@@ -26,8 +26,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             //     si ese Trabajador es del Tenant de la sesión y ya está anonimizado
             //     (AnonimizadoEnUtc no nulo); si no, devuelve 0 sin tocar nada.
             //   - Campos: solo los valores de las claves de Trabajador.CamposDeDatosPersonales
-            //     dentro de DatosAntes y DatosDespues pasan a "***", con el resto del JSON en el
-            //     mismo orden. Nunca Accion, UsuarioId, ActorRealUsuarioId, TipoActor, ViaAcceso,
+            //     dentro de DatosAntes y DatosDespues (si son un objeto JSON) pasan a "***"; el
+            //     resto del JSON se copia tal cual, en el mismo orden y con el mismo formato
+            //     compacto (ObtenerAuditoriaQuery busca el marcador literal "EstaEliminado":true). Nunca Accion, UsuarioId, ActorRealUsuarioId, TipoActor, ViaAcceso,
             //     ViaAccesoId, FechaUtc ni el resto de columnas.
             // Devuelve cuántas entradas reescribió. EXECUTE solo para cae_app_runtime.
             migrationBuilder.Sql(
@@ -60,21 +61,23 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   END IF;
 
                   UPDATE public."RegistrosAuditoria" r
-                     SET "DatosAntes" = CASE WHEN r."DatosAntes" IS NULL THEN NULL ELSE (
-                           SELECT COALESCE(json_object_agg(e.clave,
-                                    CASE WHEN e.clave = ANY (v_campos) THEN to_json('***'::text) ELSE e.valor END
-                                    ORDER BY e.orden)::text, r."DatosAntes")
-                           FROM json_each(r."DatosAntes"::json) WITH ORDINALITY AS e(clave, valor, orden)) END,
-                         "DatosDespues" = CASE WHEN r."DatosDespues" IS NULL THEN NULL ELSE (
-                           SELECT COALESCE(json_object_agg(e.clave,
-                                    CASE WHEN e.clave = ANY (v_campos) THEN to_json('***'::text) ELSE e.valor END
-                                    ORDER BY e.orden)::text, r."DatosDespues")
-                           FROM json_each(r."DatosDespues"::json) WITH ORDINALITY AS e(clave, valor, orden)) END
+                     SET "DatosAntes" = CASE WHEN jsonb_typeof(r."DatosAntes"::jsonb) = 'object' THEN (
+                           SELECT COALESCE('{' || string_agg(to_json(e.clave)::text || ':' ||
+                                    CASE WHEN e.clave = ANY (v_campos) THEN '"***"' ELSE e.valor::text END,
+                                    ',' ORDER BY e.orden) || '}', r."DatosAntes")
+                           FROM json_each(r."DatosAntes"::json) WITH ORDINALITY AS e(clave, valor, orden))
+                           ELSE r."DatosAntes" END,
+                         "DatosDespues" = CASE WHEN jsonb_typeof(r."DatosDespues"::jsonb) = 'object' THEN (
+                           SELECT COALESCE('{' || string_agg(to_json(e.clave)::text || ':' ||
+                                    CASE WHEN e.clave = ANY (v_campos) THEN '"***"' ELSE e.valor::text END,
+                                    ',' ORDER BY e.orden) || '}', r."DatosDespues")
+                           FROM json_each(r."DatosDespues"::json) WITH ORDINALITY AS e(clave, valor, orden))
+                           ELSE r."DatosDespues" END
                    WHERE r."TenantId" = v_tenant
                      AND r."EntidadTipo" = 'Trabajador'
                      AND r."EntidadId" = p_trabajador_id
-                     AND (COALESCE(r."DatosAntes"::jsonb ?| v_campos, false)
-                          OR COALESCE(r."DatosDespues"::jsonb ?| v_campos, false));
+                     AND (COALESCE(jsonb_typeof(r."DatosAntes"::jsonb) = 'object' AND r."DatosAntes"::jsonb ?| v_campos, false)
+                          OR COALESCE(jsonb_typeof(r."DatosDespues"::jsonb) = 'object' AND r."DatosDespues"::jsonb ?| v_campos, false));
 
                   GET DIAGNOSTICS v_filas = ROW_COUNT;
                   RETURN v_filas;
