@@ -154,7 +154,7 @@
                                 }
                             </td>
                             <td class="col-estado"><EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)" Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)" Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" Motivo="@MotivoIncidenciasUi.Texto(context.Incidencias, CaeManager.Domain.Common.DiaDeNegocio.Hoy())" /></td>
-                            <td><Boton360 PresentacionMenu="true" Nombre="@context.Nombre" Href="@($"/vehiculos/{context.Id}")" /></td>
+                            <td><Boton360 Nombre="@context.Nombre" Href="@($"/vehiculos/{context.Id}")" /></td>
                         </tr>
                         @if (context.Incidencias.Count > 0 && EstaExpandido(context))
                         {

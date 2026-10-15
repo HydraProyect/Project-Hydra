@@ -27,7 +27,7 @@
     </CabeceraPagina>
 
     <section class="barra-filtros-lista">
-        <div class="barra-filtros-lista-fila">
+        <div class="barra-filtros-lista-fila buzon-selector-conexion">
             <CampoSelect Etiqueta="Buzón conectado" Valor="@(_conexionSeleccionadaId?.ToString() ?? string.Empty)" ValorChanged="SeleccionarConexionAsync">
                 <option value="">Selecciona un buzón…</option>
                 @foreach (var conexion in _conexiones)

@@ -316,7 +316,7 @@
                                     @if (context.TipoDocumentoId != Guid.Empty)
                                     {
                                         <AuthorizeView Roles="@TipoDocumentoDetalle.RolesDeLaPagina" Context="autorizacion">
-                                            <Boton360 PresentacionMenu="true" Nombre="@context.TipoDocumentoNombre" Href="@($"/documentos/tipos/{context.TipoDocumentoId}")" />
+                                            <Boton360 Nombre="@context.TipoDocumentoNombre" Href="@($"/documentos/tipos/{context.TipoDocumentoId}")" />
                                         </AuthorizeView>
                                     }
                                 </span>

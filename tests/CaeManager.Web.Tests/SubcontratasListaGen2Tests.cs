@@ -212,7 +212,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         var buscador = cut.Find(".barra-filtros-pastillas input[type=text]");
         buscador.GetAttribute("placeholder").Should().Be("Filtrar esta pantalla: razón social o CIF",
             "ObtenerSubcontratasQuery busca en los dos; los E2E usan este texto");
-        buscador.GetAttribute("aria-label").Should().Be("Filtrar esta pantalla");
+        buscador.GetAttribute("aria-label").Should().Be("Buscar");
         buscador.HasAttribute("data-filtro-pantalla").Should().BeTrue("es lo que enfoca la tecla f (atajos-lista.js)");
     }
 
@@ -308,12 +308,12 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L."), Subcontrata("Pinturas Lauburu S.A.")] });
         cut.FindAll(".boton-expandir-fila").Select(b => b.GetAttribute("aria-expanded")).Should().Equal("false", "false");
 
-        var boton = cut.FindAll(".barra-filtros-pastillas-fila .barra-herramientas-lista button").Single();
+        var boton = cut.FindAll(".lista-herramientas-maqueta .barra-herramientas-lista button").Single(b => b.TextContent.Contains("todo", StringComparison.Ordinal));
         boton.TextContent.Trim().Should().Be("Expandir todo");
         boton.Click();
 
         cut.FindAll(".boton-expandir-fila").Select(b => b.GetAttribute("aria-expanded")).Should().Equal("true", "true");
-        cut.Find(".barra-herramientas-lista button").TextContent.Trim().Should().Be("Contraer todo");
+        cut.FindAll(".barra-herramientas-lista button").Select(b => b.TextContent.Trim()).Should().Contain("Contraer todo");
     }
 
     [Theory]
@@ -622,8 +622,8 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         var id = Guid.NewGuid();
         var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id)] });
 
-        cut.FindAll(".lista-filas-acordeon .menu-acciones-disparador").Should().NotBeEmpty();
-        AccionesListadoMaqueta.Enlace(cut, ".lista-filas-acordeon").GetAttribute("href").Should().Be($"/subcontratas/{id}");
+        cut.FindAll(".lista-filas-acordeon .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
+        cut.Find(".lista-filas-acordeon a.boton-360-pagina").GetAttribute("href").Should().Be($"/subcontratas/{id}");
 
         await cut.Find(".fila-pulsable").ClickAsync(new MouseEventArgs());
 

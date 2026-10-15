@@ -409,7 +409,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
         var buscador = cut.Find(".barra-filtros-pastillas input[type=text]");
         buscador.GetAttribute("placeholder").Should().Be("Filtrar esta pantalla: razón social o CIF",
             "ObtenerEmpresasQuery busca en los dos; los E2E usan este texto");
-        buscador.GetAttribute("aria-label").Should().Be("Filtrar esta pantalla");
+        buscador.GetAttribute("aria-label").Should().Be("Buscar");
         buscador.HasAttribute("data-filtro-pantalla").Should().BeTrue("es lo que enfoca la tecla f (atajos-lista.js)");
     }
 
@@ -669,15 +669,15 @@ public partial class EmpresasListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso { Almacen = { Empresa("Refrielectric S.A."), Empresa("Montajes Ebro S.L.") } });
         cut.FindAll(".boton-expandir-fila").Select(b => b.GetAttribute("aria-expanded")).Should().Equal("false", "false");
 
-        var boton = cut.FindAll(".barra-filtros-pastillas-fila .barra-herramientas-lista button").Single();
+        var boton = cut.FindAll(".lista-herramientas-maqueta .barra-herramientas-lista button").Single(b => b.TextContent.Contains("todo", StringComparison.Ordinal));
         boton.TextContent.Trim().Should().Be("Expandir todo");
-        cut.FindAll(".barra-herramientas-lista button").Should().NotContain(b => b.TextContent.Contains("Selección múltiple"),
-            "la selección múltiple vive en el ☑ de la cabecera");
+        cut.FindAll(".barra-herramientas-lista button").Should().Contain(b => b.TextContent.Contains("Selección múltiple"),
+            "la selección múltiple vive en la barra de herramientas, como en la maqueta");
 
         await boton.ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => cut.FindAll(".boton-expandir-fila").Select(b => b.GetAttribute("aria-expanded")).Should().Equal("true", "true"));
-        cut.Find(".barra-herramientas-lista button").TextContent.Trim().Should().Be("Contraer todo");
+        cut.FindAll(".barra-herramientas-lista button").Select(b => b.TextContent.Trim()).Should().Contain("Contraer todo");
     }
 
     [Fact]
@@ -782,9 +782,9 @@ public partial class EmpresasListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador);
 
-        cut.FindAll(".lista-filas-acordeon .menu-acciones-disparador").Should().NotBeEmpty();
+        cut.FindAll(".lista-filas-acordeon .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
 
-        var icono360 = AccionesListadoMaqueta.Enlace(cut, ".lista-filas-acordeon");
+        var icono360 = cut.Find(".lista-filas-acordeon a.boton-360-pagina");
         icono360.GetAttribute("href").Should().Be($"/empresas/{empresa.Id}");
 
         var workspace = Services.GetRequiredService<ContextWorkspaceService>();

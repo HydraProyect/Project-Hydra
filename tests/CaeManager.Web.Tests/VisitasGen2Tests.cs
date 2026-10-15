@@ -1006,8 +1006,8 @@ public partial class VisitasGen2Tests : BunitContext
         var fila = Fila(cut, "Planta Zaragoza");
         fila.TextContent.Should().Contain("Cancelada");
         fila.QuerySelector("[title='Obra aplazada']").Should().NotBeNull("el motivo acompaña a la marca");
-        fila.QuerySelector(".visitas-celda-acciones .menu-acciones-disparador").Should().NotBeNull("control positivo: la celda de acciones se pintó");
-        fila.QuerySelectorAll(".menu-acciones-disparador").Should().ContainSingle();
+        fila.QuerySelector(".visitas-celda-acciones a.boton-360-pagina").Should().NotBeNull("control positivo: la celda de acciones se pintó");
+        fila.QuerySelectorAll(".menu-acciones-disparador").Should().BeEmpty();
         (BotonReactivarDeFila(cut, "Planta Zaragoza") is not null).Should().Be(seOfrece);
     }
 

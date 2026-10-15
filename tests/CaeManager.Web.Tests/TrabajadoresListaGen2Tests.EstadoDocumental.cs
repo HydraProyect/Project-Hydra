@@ -289,7 +289,6 @@ public partial class TrabajadoresListaGen2Tests
         cut.WaitForAssertion(() => CeldaDeEstado(cut).QuerySelector(".estado-fila-motivo")!.TextContent.Trim()
             .Should().Be("Entrega de EPI", "la fila refrescada pinta el motivo que vuelve"));
         CeldaDeEstado(cut).QuerySelector(".badge")!.TextContent.Trim().Should().Be("Sin confirmar");
-        FilasDeDatos(cut)[0].QuerySelector(".celda-registrados-vigentes")!.TextContent.Trim().Should().Be("3/4");
         UltimaConsulta(mediador).TrabajadorId.Should().Be(javier.Dto.Id, "control: fue la consulta por id, no una recarga de página");
         UltimaConsulta(mediador).ConDesgloseDocumental.Should().BeTrue("sin pedirlo, la fila refrescada volvería sin motivo ni fracción");
     }

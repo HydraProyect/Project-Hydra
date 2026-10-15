@@ -194,7 +194,7 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
         var cut = Renderizar(trabajadores: new TrabajadorListaDto(
             id, "Javier", "Salas Moreno", "12345678Z", "Montajes Ebro S.L."));
 
-        AccionesListadoMaqueta.Enlace(cut, "tbody").GetAttribute("href").Should().Be($"/trabajadores/{id}");
+        cut.Find("tbody a.boton-360-pagina").GetAttribute("href").Should().Be($"/trabajadores/{id}");
         cut.Find("tbody button.nombre-abre-vista-rapida").TextContent.Trim().Should().Be("Javier Salas Moreno",
             "el destino nuevo se suma, no sustituye a la vista rápida");
     }

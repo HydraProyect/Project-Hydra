@@ -230,7 +230,7 @@ public partial class GestionesListaGen2Tests : BunitContext
         cut.Find("header.cabecera-pagina .cabecera-pagina-kicker").TextContent.Trim().Should().Be("Operación");
         cut.Find("header.cabecera-pagina h1").TextContent.Trim().Should().Be("Gestiones");
         cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("1");
-        cut.FindAll("header.cabecera-pagina button[aria-label='Selección múltiple']").Should().BeEmpty();
+        cut.FindAll("button[aria-label='Selección múltiple']").Should().BeEmpty();
         cut.Markup.Should().NotContain("Se crean solas");
         cut.Markup.Should().NotContain("Nueva gestión", "esta pantalla no da de alta");
     }

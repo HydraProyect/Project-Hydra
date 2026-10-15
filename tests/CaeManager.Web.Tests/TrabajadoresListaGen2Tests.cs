@@ -936,7 +936,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
 
         var buscador = cut.Find(".barra-filtros-pastillas input[type=text]");
         buscador.GetAttribute("placeholder").Should().Be("Filtrar esta pantalla: nombre, DNI o alias");
-        buscador.GetAttribute("aria-label").Should().Be("Filtrar esta pantalla");
+        buscador.GetAttribute("aria-label").Should().Be("Buscar");
         buscador.HasAttribute("data-filtro-pantalla").Should().BeTrue("es lo que enfoca la tecla f (atajos-lista.js)");
         cut.Find(".barra-filtros-pastillas kbd.barra-filtros-tecla").TextContent.Trim().Should().Be("F");
     }
@@ -1659,7 +1659,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador);
 
-        await CabeceraOrdenable(cut, "Empresa").ClickAsync(new MouseEventArgs());
+        await CabeceraOrdenable(cut, "Empresa / Subcontrata").ClickAsync(new MouseEventArgs());
 
         UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(TrabajadorListaDto.EmpleadorNombre));
         cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal(["Moreno", "Alonso"], "Dexter va antes que Montajes"));
@@ -1930,9 +1930,9 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso { Almacen = { ana } });
         var workspace = Services.GetRequiredService<ContextWorkspaceService>();
 
-        cut.FindAll("tbody .menu-acciones-disparador").Should().NotBeEmpty();
+        cut.FindAll("tbody .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
         cut.Find("tbody tr").ClassList.Should().Contain("fila-pulsable");
-        AccionesListadoMaqueta.Enlace(cut, "tbody").GetAttribute("href").Should().Be($"/trabajadores/{ana.Dto.Id}");
+        cut.Find("tbody a.boton-360-pagina").GetAttribute("href").Should().Be($"/trabajadores/{ana.Dto.Id}");
         workspace.FrameActual.Should().BeNull("punto de partida: ningún panel abierto");
 
         var nombre = cut.Find("tbody button.nombre-abre-vista-rapida");

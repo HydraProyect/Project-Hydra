@@ -302,8 +302,8 @@ public partial class CentrosListaPatronTests : BunitContext
         var cut = Renderizar(ConCentros(norte, sur));
 
         cut.FindAll(".tarjeta-fila-acordeon").Should().HaveCount(2, "control positivo: las dos filas están pintadas");
-        cut.FindAll(".lista-filas-acordeon .menu-acciones-disparador").Should().NotBeEmpty();
-        var iconos = cut.FindAll(".tarjeta-fila-acordeon-acciones").Select(AccionesListadoMaqueta.Enlace).ToList();
+        cut.FindAll(".lista-filas-acordeon .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
+        var iconos = cut.FindAll(".tarjeta-fila-acordeon-acciones a.boton-360-pagina");
         iconos.Select(i => i.GetAttribute("href")).Should().Equal($"/centros/{norte.Id}", $"/centros/{sur.Id}");
         iconos.Select(i => i.GetAttribute("aria-label")).Should().Equal(
             "Abrir la ficha 360 de Centro Norte", "Abrir la ficha 360 de Centro Sur");

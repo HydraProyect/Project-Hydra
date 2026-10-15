@@ -42,7 +42,7 @@
 @inject IStringLocalizer<TextosComunes> Comunes
 @inject IStringLocalizer<CaeManager.Web.Features.AtajosGlobales.Recursos.TextosAtajosGlobales> TextosAtajos
 
-<CabeceraPagina Titulo="@Titulo" Kicker="@(Grupo is null ? null : Comunes["ListaGrupo" + Grupo].Value)" JuntoAlTitulo="@((ControlesEnBarra || Contador is null) && DatoCabecera is null ? null : JuntoAlTituloFragment)">
+<CabeceraPagina Titulo="@Titulo" Kicker="@(Grupo is null ? null : Grupo switch { "Negocio" => Comunes["ListaGrupoNegocio"].Value, "Operacion" => Comunes["ListaGrupoOperacion"].Value, _ => Grupo })" JuntoAlTitulo="@((ControlesEnBarra || Contador is null) && DatoCabecera is null ? null : JuntoAlTituloFragment)">
     <Acciones>
         @if (!ControlesEnBarra && SeleccionMultipleChanged.HasDelegate)
         {

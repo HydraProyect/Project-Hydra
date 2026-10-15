@@ -9,44 +9,12 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
 
-internal static class AccionesListadoMaqueta
-{
-    internal static IElement Enlace(IElement fila)
-    {
-        fila.QuerySelector(".menu-acciones-disparador")!.Click();
-        return fila.QuerySelector("a.menu-acciones-item[href]")!;
-    }
-
-    internal static IElement Enlace<T>(IRenderedComponent<T> cut, string selector) where T : IComponent
-    {
-        cut.Find(selector + " .menu-acciones-disparador").Click();
-        return cut.Find(selector + " a.menu-acciones-item[href]");
-    }
-}
-
 public sealed class ListadoMaquetaTests : BunitContext
 {
     public ListadoMaquetaTests()
     {
         Services.AddLocalization();
         JSInterop.Mode = JSRuntimeMode.Loose;
-    }
-
-    [Fact]
-    public async Task El_menu_de_fila_conserva_el_destino_y_no_ejecuta_la_apertura_de_panel()
-    {
-        var aperturas = 0;
-        var cut = Render<Boton360>(p => p.Add(c => c.PresentacionMenu, true)
-            .Add(c => c.Nombre, "Entidad de prueba").Add(c => c.Href, "/trabajadores/42")
-            .Add(c => c.OnClick, () => aperturas++));
-
-        cut.FindAll("a").Should().BeEmpty();
-        cut.Find(".menu-acciones-disparador").GetAttribute("aria-label").Should().Contain("Entidad de prueba");
-        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        var enlace = cut.Find("a[role=menuitem]");
-        enlace.GetAttribute("href").Should().Be("/trabajadores/42");
-        await enlace.ClickAsync(new MouseEventArgs());
-        aperturas.Should().Be(0);
     }
 
     [Theory]

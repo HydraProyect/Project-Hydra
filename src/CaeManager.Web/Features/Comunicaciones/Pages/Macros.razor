@@ -41,7 +41,7 @@
        sin filtro de cliente que ObtenerMacrosQuery no tiene, y añadirla es
        tocar Application, fuera de este incremento. *@
     <section class="barra-filtros-lista">
-        <div class="barra-filtros-lista-fila">
+        <div class="barra-filtros-lista-fila macros-filtros">
             <CampoSelect Etiqueta="Cliente" Valor="@_clienteFiltro" ValorChanged="FiltrarPorClienteAsync">
                 <option value="">Solo genéricas</option>
                 @foreach (var cliente in _clientesSelector)

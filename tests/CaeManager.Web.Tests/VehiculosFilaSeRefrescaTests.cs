@@ -122,7 +122,7 @@ public partial class VehiculosFilaSeRefrescaTests : BunitContext
         Services.AddScoped<IValidator<CrearVehiculoCommand>>(_ => new InlineValidator<CrearVehiculoCommand>());
         Services.GetRequiredService<NavigationManager>().NavigateTo(url);
         var cut = Render<Vehiculos>();
-        cut.WaitForState(() => cut.FindAll("tbody .menu-acciones-disparador").Count > 0);
+        cut.WaitForState(() => cut.FindAll("tbody a.boton-360-pagina").Count > 0);
         return cut;
     }
 
@@ -191,7 +191,7 @@ public partial class VehiculosFilaSeRefrescaTests : BunitContext
         var editado = mediador.Almacen.Single(v => v.Nombre == "Vehículo 23").Id;
         var cut = Renderizar(mediador);
         await IrALaPagina2Async(cut);
-        await cut.Find(".cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        await cut.Find("button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
         await Filas(cut)[1].QuerySelector("input[type=checkbox]")!.ChangeAsync(new ChangeEventArgs { Value = true });
         await Filas(cut)[2].QuerySelector("input[type=checkbox]")!.ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.OnAtajo.InvokeAsync("j"));

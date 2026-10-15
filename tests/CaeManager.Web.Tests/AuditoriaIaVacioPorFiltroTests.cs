@@ -55,6 +55,7 @@ public class AuditoriaIaVacioPorFiltroTests : BunitContext
     private IRenderedComponent<Features.AuditoriaIa.Pages.AuditoriaIa> Renderizar(
         string? proveedor = null, params RegistroAuditoriaIaDto[] registros)
     {
+        Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => new MediatorConRegistros(registros));
 
         // [SupplyParameterFromQuery]: se navega a la URI, no se pasa como parámetro.

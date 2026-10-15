@@ -179,7 +179,7 @@ public partial class ProyectosGen2Tests
         _mediator.Proyectos = [ProyectoCerrado];
         var cut = await RenderizarConClienteAsync();
 
-        FilaDe(cut, ProyectoCerrado).QuerySelector("td.col-acciones .menu-acciones-disparador").Should().NotBeNull(
+        FilaDe(cut, ProyectoCerrado).QuerySelector("td.col-acciones .boton-360").Should().NotBeNull(
             "la celda de acciones tiene que estar pintada para que la ausencia signifique algo");
         FilaDe(cut, ProyectoCerrado).QuerySelectorAll(".proyectos-accion-rapida").Should().BeEmpty();
     }

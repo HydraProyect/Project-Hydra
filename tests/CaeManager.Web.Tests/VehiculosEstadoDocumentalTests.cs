@@ -152,7 +152,7 @@ public partial class VehiculosEstadoDocumentalTests : BunitContext
         Services.AddScoped<IValidator<CrearVehiculoCommand>>(_ => new InlineValidator<CrearVehiculoCommand>());
         Services.GetRequiredService<NavigationManager>().NavigateTo(url);
         var cut = Render<Vehiculos>();
-        cut.WaitForState(() => cut.FindAll("tbody .menu-acciones-disparador").Count > 0);
+        cut.WaitForState(() => cut.FindAll("tbody a.boton-360-pagina").Count > 0);
         return cut;
     }
 
@@ -189,7 +189,7 @@ public partial class VehiculosEstadoDocumentalTests : BunitContext
     private static ObtenerVehiculosQuery UltimaConsulta(MediadorFalso mediador) => mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Last();
 
     private static Task AlternarSeleccionMultiple(IRenderedComponent<Vehiculos> cut) =>
-        cut.Find(".cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        cut.Find("button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
 
     private static Task MarcarAsync(IRenderedComponent<Vehiculos> cut, string nombre) =>
         CasillaDe(cut, nombre).ChangeAsync(new ChangeEventArgs { Value = true });
@@ -222,7 +222,7 @@ public partial class VehiculosEstadoDocumentalTests : BunitContext
         celdas[2].QuerySelector(".celda-vehiculo-matricula")!.TextContent.Should().Contain("9012GHI");
         celdas[2].QuerySelector(".celda-vehiculo-matricula button").Should().NotBeNull("la matrícula se sigue pudiendo copiar");
         celdas[3].ClassList.Should().Contain("col-estado");
-        AccionesListadoMaqueta.Enlace(celdas[4]).GetAttribute("href").Should().StartWith("/vehiculos/");
+        celdas[4].QuerySelector("a.boton-360-pagina")!.GetAttribute("href").Should().StartWith("/vehiculos/");
 
         // Con la selección múltiple, la casilla va delante y el resto no se mueve.
         await AlternarSeleccionMultiple(cut);

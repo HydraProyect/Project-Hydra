@@ -287,7 +287,7 @@ public partial class DocumentosGen2Tests : BunitContext
     /// <summary>Activa los checkboxes de fila y marca las <paramref name="cuantas"/> primeras.</summary>
     private static async Task SeleccionarFilas(IRenderedComponent<PaginaDocumentos> cut, int cuantas)
     {
-        await BotonPorTexto(cut, ".cabecera-pagina button[aria-label]", "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "button[aria-label]", "Selección múltiple").ClickAsync(new MouseEventArgs());
 
         var casillas = cut.FindAll(".tabla-datos tbody input[type=checkbox]");
         for (var i = 0; i < cuantas; i++)
@@ -304,7 +304,7 @@ public partial class DocumentosGen2Tests : BunitContext
     private static async Task MarcarPrimeraFila(IRenderedComponent<PaginaDocumentos> cut)
     {
         if (cut.FindAll(".tabla-datos tbody input[type=checkbox]").Count == 0)
-            await BotonPorTexto(cut, ".cabecera-pagina button[aria-label]", "Selección múltiple").ClickAsync(new MouseEventArgs());
+            await BotonPorTexto(cut, "button[aria-label]", "Selección múltiple").ClickAsync(new MouseEventArgs());
 
         cut.FindAll(".tabla-datos tbody input[type=checkbox]").Should().NotBeEmpty(
             "sin casillas no hay lote que preparar, y el caso se quedaría sin observar nada");
@@ -1314,7 +1314,7 @@ public partial class DocumentosGen2Tests : BunitContext
     {
         var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila()));
 
-        cut.FindAll("table .menu-acciones-disparador").Should().NotBeEmpty();
+        cut.FindAll("table .menu-acciones-disparador").Should().BeEmpty();
         cut.Find(".cabecera-pagina .menu-acciones-disparador").Should().NotBeNull("control positivo: el menú «Más» de la cabecera sigue");
         cut.Find("tbody tr").ClassList.Should().Contain("fila-pulsable");
         cut.Find("tbody tr button.enlace-nombre-fila").ClassList.Should().Contain("nombre-abre-vista-rapida");
@@ -1350,7 +1350,7 @@ public partial class DocumentosGen2Tests : BunitContext
     {
         var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila()));
 
-        AccionesListadoMaqueta.Enlace(cut, "tbody").GetAttribute("href").Should().Be($"/documentos/tipos/{TipoId}");
+        cut.Find("tbody a.boton-360-pagina").GetAttribute("href").Should().Be($"/documentos/tipos/{TipoId}");
     }
 
     /// <summary>Un productor que no informe el tipo no pinta un enlace a ninguna parte.</summary>
@@ -1360,7 +1360,7 @@ public partial class DocumentosGen2Tests : BunitContext
         var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
 
         cut.Find("tbody .documentos-accion-rapida").Should().NotBeNull("control positivo: la celda de acciones está pintada");
-        cut.FindAll("tbody .menu-acciones-disparador").Should().BeEmpty();
+        cut.FindAll("tbody a.boton-360-pagina").Should().BeEmpty();
     }
 
     /// <summary>
@@ -1374,7 +1374,7 @@ public partial class DocumentosGen2Tests : BunitContext
         cut.Find("tbody tr button.enlace-nombre-fila").Should().NotBeNull("control positivo: la fila está pintada");
 
         cut.FindAll("tbody .documentos-accion-rapida").Should().BeEmpty();
-        cut.FindAll("tbody .menu-acciones-disparador").Should().BeEmpty();
+        cut.FindAll("tbody a.boton-360-pagina").Should().BeEmpty();
 
         var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;
         await cut.InvokeAsync(() => atajos.OnAtajo.InvokeAsync("j"));

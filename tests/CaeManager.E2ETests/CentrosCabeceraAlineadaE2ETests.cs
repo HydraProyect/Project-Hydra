@@ -73,7 +73,7 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
         // Con la selección puesta los grupos se muestran abiertos, así que las filas se ven sin desagrupar.
         await page.WaitForFunctionAsync("""
             () => {
-                const conmutador = document.querySelector("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']");
+                const conmutador = document.querySelector("button[aria-label='Selección múltiple']");
                 if (!conmutador) return false;
                 if (conmutador.getAttribute('aria-pressed') === 'true') return true;
                 conmutador.click();

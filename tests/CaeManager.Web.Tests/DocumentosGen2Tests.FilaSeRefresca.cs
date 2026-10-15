@@ -154,7 +154,7 @@ public partial class DocumentosGen2Tests
         var editado = almacen.Documentos.Single(d => d.TipoDocumentoNombre == "Documento 23").Id;
         var (cut, mediador) = RenderizarAlmacen(almacen);
         await IrALaPagina2DeDocumentosAsync(cut);
-        await BotonPorTexto(cut, ".cabecera-pagina button[aria-label]", "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "button[aria-label]", "Selección múltiple").ClickAsync(new MouseEventArgs());
         await FilaDelTipo(cut, "Documento 22").QuerySelector("input[type=checkbox]")!.ChangeAsync(new ChangeEventArgs { Value = true });
         await FilaDelTipo(cut, "Documento 23").QuerySelector("input[type=checkbox]")!.ChangeAsync(new ChangeEventArgs { Value = true });
         var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;

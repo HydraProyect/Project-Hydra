@@ -53,7 +53,7 @@ public partial class VisitasGen2Tests
 
         var fila = Fila(cut, "Centro Norte");
         fila.ClassList.Should().Contain("fila-pulsable", "es la marca que lee el oyente de clic de fila");
-        fila.QuerySelectorAll(".menu-acciones-disparador").Should().ContainSingle();
+        fila.QuerySelectorAll(".menu-acciones-disparador").Should().BeEmpty();
 
         var boton = BotonVistaRapida(cut, "Centro Norte");
         boton.TextContent.Trim().Should().Be(TextoFechasEsperado(norte));
@@ -92,7 +92,7 @@ public partial class VisitasGen2Tests
         mediator.Visitas.Add(norte);
         var cut = Renderizar(mediator);
 
-        var enlace = AccionesListadoMaqueta.Enlace(Fila(cut, "Centro Norte"));
+        var enlace = Fila(cut, "Centro Norte").QuerySelector("a.boton-360-pagina");
 
         enlace.Should().NotBeNull();
         enlace!.GetAttribute("href").Should().Be($"/visitas/{norte.Id}");

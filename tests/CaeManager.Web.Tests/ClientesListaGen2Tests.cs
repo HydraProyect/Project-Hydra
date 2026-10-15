@@ -701,7 +701,7 @@ public partial class ClientesListaGen2Tests : BunitContext
         var buscador = Buscador(cut);
         buscador.GetAttribute("placeholder").Should().Be("Filtrar esta pantalla: nombre",
             "ObtenerClientesQuery solo busca en la razón social y el DTO no tiene alias; los E2E usan este texto");
-        buscador.GetAttribute("aria-label").Should().Be("Filtrar esta pantalla");
+        buscador.GetAttribute("aria-label").Should().Be("Buscar");
         buscador.HasAttribute("data-filtro-pantalla").Should().BeTrue("es lo que enfoca la tecla f (atajos-lista.js)");
         cut.Find(".barra-filtros-pastillas kbd.barra-filtros-tecla").TextContent.Trim().Should().Be("F");
         cut.Markup.Should().NotContain("alias o CIF");
@@ -1743,7 +1743,7 @@ public partial class ClientesListaGen2Tests : BunitContext
             .And.Contain(c => c!.Contains("ventana-contexto-elemento"), "control positivo: el instrumento ve los manejadores de la fila");
         conManejadorDeClic.Should().OnlyContain(e => e.TagName == "BUTTON");
         fila.QuerySelector("input[type=checkbox]").Should().NotBeNull("la casilla es un input");
-        AccionesListadoMaqueta.Enlace(fila).Should().NotBeNull("el icono 360 es un enlace real");
+        fila.QuerySelector("a.boton-360-pagina[href]").Should().NotBeNull("el icono 360 es un enlace real");
         fila.QuerySelector("button.ventana-contexto-disparador").Should().NotBeNull("el recuento de centros es un botón");
     }
 
@@ -1758,8 +1758,8 @@ public partial class ClientesListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso { Almacen = { Cliente("Aislamientos Nervión S.L."), abierto } });
 
         cut.FindAll("header.cabecera-pagina .menu-acciones-disparador").Should().NotBeEmpty("control positivo: el menú «⋯» de la cabecera sigue");
-        cut.FindAll("tbody .menu-acciones-disparador").Should().HaveCount(2);
-        AccionesListadoMaqueta.Enlace(Fila(cut, abierto.RazonSocial)).GetAttribute("href").Should().Be($"/clientes/{abierto.Id}");
+        cut.FindAll("tbody .menu-acciones, tbody .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
+        Fila(cut, abierto.RazonSocial).QuerySelector("a.boton-360-pagina")!.GetAttribute("href").Should().Be($"/clientes/{abierto.Id}");
         cut.FindAll("tbody button").Select(b => b.TextContent.Trim())
             .Should().NotContain("Editar").And.NotContain("Dar de baja").And.NotContain("Abrir ficha 360");
     }

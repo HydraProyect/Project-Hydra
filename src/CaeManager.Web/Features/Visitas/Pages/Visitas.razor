@@ -305,7 +305,7 @@
                                            OnClick="() => AbrirReactivar(context.Id, context.Version, context.CentroNombre)">@Textos["AccionReactivar"]</Boton>
                                 </SoloConEscritura>
                             }
-                            <Boton360 PresentacionMenu="true" Nombre="@Textos["NombreVisitaPara360", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]" Href="@($"/visitas/{context.Id}")" />
+                            <Boton360 Nombre="@Textos["NombreVisitaPara360", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]" Href="@($"/visitas/{context.Id}")" />
                         </span>
                     </TemplateColumn>
                 </QuickGrid>

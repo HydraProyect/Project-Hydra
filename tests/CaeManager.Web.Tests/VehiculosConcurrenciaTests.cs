@@ -105,7 +105,7 @@ public class VehiculosConcurrenciaTests : BunitContext
         Services.AddScoped<IValidator<CrearVehiculoCommand>>(_ => new InlineValidator<CrearVehiculoCommand>());
         Services.GetRequiredService<NavigationManager>().NavigateTo("vehiculos");
         var cut = Render<Vehiculos>();
-        cut.WaitForState(() => cut.FindAll("tbody .menu-acciones-disparador").Count > 0);
+        cut.WaitForState(() => cut.FindAll("tbody a.boton-360-pagina").Count > 0);
         return (cut, m);
     }
 
@@ -129,7 +129,7 @@ public class VehiculosConcurrenciaTests : BunitContext
         cut.Markup.Should().Contain("Furgoneta de obra", "la lista es lectura: la fila se ve");
         cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Selección múltiple");
         cut.FindAll("tbody tr:has(button.enlace-nombre-fila)").Should().ContainSingle();
-        cut.FindAll(".cabecera-pagina button[aria-label='Selección múltiple']").Should().BeEmpty();
+        cut.FindAll("button[aria-label='Selección múltiple']").Should().BeEmpty();
         cut.FindAll("input[type=checkbox]").Should().BeEmpty();
     }
 
@@ -149,9 +149,9 @@ public class VehiculosConcurrenciaTests : BunitContext
         var (cut, _) = Renderizar(furgoneta);
         var workspace = Services.GetRequiredService<ContextWorkspaceService>();
 
-        cut.FindAll("tbody .menu-acciones-disparador").Should().NotBeEmpty();
+        cut.FindAll("tbody .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
         cut.Find("tbody tr").ClassList.Should().Contain("fila-pulsable");
-        AccionesListadoMaqueta.Enlace(cut, "tbody").GetAttribute("href").Should().Be($"/vehiculos/{furgoneta.Id}");
+        cut.Find("tbody a.boton-360-pagina").GetAttribute("href").Should().Be($"/vehiculos/{furgoneta.Id}");
         workspace.FrameActual.Should().BeNull("punto de partida: ningún panel abierto");
 
         var nombre = cut.Find("tbody button.nombre-abre-vista-rapida");
@@ -189,7 +189,7 @@ public class VehiculosConcurrenciaTests : BunitContext
         cut.FindComponents<DialogoConfirmacion>().Where(d => !deFiltrosGuardados.Contains(d.Instance))
             .Should().ContainSingle("de baja solo queda el diálogo del lote");
 
-        await cut.Find(".cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        await cut.Find("button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
         await cut.Find("input[aria-label^='Seleccionar el vehículo Furgoneta de obra']").ChangeAsync(new ChangeEventArgs { Value = true });
         await Boton(cut, "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
         await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
@@ -263,7 +263,7 @@ public class VehiculosConcurrenciaTests : BunitContext
         var (cut, m) = Renderizar(furgoneta, Vehiculo("Camión grúa"));
         m.BajaLote = Result.Exito(new ResultadoEliminacionLoteDto(1, [], [furgoneta.Id]));
 
-        await cut.Find(".cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        await cut.Find("button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
         cut.FindAll("input[type=checkbox]")[1].Change(true);
         await Boton(cut, "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
         var dialogo = DialogoEliminarLote(cut);
@@ -286,7 +286,7 @@ public class VehiculosConcurrenciaTests : BunitContext
 
         // Activa "Selección múltiple" (los checkboxes de fila solo se pintan
         // con esto activo) y marca la primera fila.
-        await cut.Find(".cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        await cut.Find("button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
         cut.FindAll("input[type=checkbox]")[1].Change(true);
         await Boton(cut, "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
 
@@ -353,7 +353,7 @@ public class VehiculosConcurrenciaTests : BunitContext
         await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Vehiculo, abierto.Id, "Ficha abierta", "informacion"));
         workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
 
-        await cut.Find(".cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        await cut.Find("button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
         await cut.Find("input[aria-label^='Seleccionar el vehículo Furgoneta de obra']").ChangeAsync(new ChangeEventArgs { Value = true });
         await Boton(cut, "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
         await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());

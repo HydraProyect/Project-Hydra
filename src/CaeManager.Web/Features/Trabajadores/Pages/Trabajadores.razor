@@ -202,7 +202,7 @@
                                 <td>@context.EmpleadorNombre</td>
 
                                 <td class="col-estado"><EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)" Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)" Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" Motivo="@MotivoIncidenciasUi.Texto(context.Incidencias, CaeManager.Domain.Common.DiaDeNegocio.Hoy())" /></td>
-                                <td class="acciones-trabajador"><Boton360 PresentacionMenu="true" Nombre="@NombreCompleto(context)" Href="@($"/trabajadores/{context.Id}")" /></td>
+                                <td class="acciones-trabajador"><Boton360 Nombre="@NombreCompleto(context)" Href="@($"/trabajadores/{context.Id}")" /></td>
                             </tr>
                             @if (context.Incidencias.Count > 0 && EstaExpandido(context))
                             {
