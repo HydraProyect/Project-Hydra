@@ -165,6 +165,7 @@
                         @(CabeceraOrdenable(nameof(TrabajadorListaDto.Apellidos), Textos["ListaColumnaTrabajador"]))
                         <th scope="col">@Textos["ListaColumnaDni"]</th>
                         @(CabeceraOrdenable(nameof(TrabajadorListaDto.EmpleadorNombre), Textos["ListaColumnaEmpleador"]))
+                        <th scope="col" class="col-registrados-vigentes">@Textos["ListaColumnaRegistradosVigentes"]</th>
                         @(CabeceraOrdenable(nameof(TrabajadorListaDto.EstadoDocumental), Textos["ListaColumnaEstadoDocumental"], "col-estado"))
                         <th scope="col"></th>
                     </tr></thead>
@@ -201,12 +202,19 @@
                                 </td>
                                 <td>@context.EmpleadorNombre</td>
 
+                                <td class="col-registrados-vigentes">
+                                    <span class="celda-registrados-vigentes">
+                                        <BarraCumplimiento Porcentaje="@PorcentajeRegistradosVigentes(context)"
+                                                           Texto="@MotivoIncidenciasUi.RegistradosVigentes(context.DocumentosVigentes, context.DocumentosRegistrados)"
+                                                           Etiqueta="@MotivoIncidenciasUi.RegistradosVigentesAccesible(context.DocumentosVigentes, context.DocumentosRegistrados)" />
+                                    </span>
+                                </td>
                                 <td class="col-estado"><EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)" Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)" Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" Motivo="@MotivoIncidenciasUi.Texto(context.Incidencias, CaeManager.Domain.Common.DiaDeNegocio.Hoy())" /></td>
                                 <td class="acciones-trabajador"><Boton360 Nombre="@NombreCompleto(context)" Href="@($"/trabajadores/{context.Id}")" /></td>
                             </tr>
                             @if (context.Incidencias.Count > 0 && EstaExpandido(context))
                             {
-                                <tr @key="claves.De((context.Id, true))" class="trabajador-detalle-incidencias"><td colspan="@(_seleccionMultiple ? 6 : 5)">
+                                <tr @key="claves.De((context.Id, true))" class="trabajador-detalle-incidencias"><td colspan="@(_seleccionMultiple ? 7 : 6)">
                                     <SubcajaIncidenciasDocumentales Incidencias="context.Incidencias" Interactiva="_puedeEscribir" AlPulsar="incidencia => CorregirIncidenciaAsync(context, incidencia)" Busqueda="@_busqueda" />
                                 </td></tr>
                             }

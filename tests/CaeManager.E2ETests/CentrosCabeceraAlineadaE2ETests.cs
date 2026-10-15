@@ -126,9 +126,11 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
                 """);
             Assert.Equal(22, medida.GetProperty("fuente").GetDouble());
             Assert.InRange(medida.GetProperty("cabecera").GetDouble(), 37.5, 38.5);
-            Assert.Equal(4, medida.GetProperty("iconos").GetArrayLength());
+            // La maqueta rotula el menú «Más» y pasa la selección múltiple a la barra de herramientas: en la cabecera
+            // quedan dos controles de icono o menú y ninguno es más estrecho que el icono compacto de 34 px.
+            Assert.Equal(2, medida.GetProperty("iconos").GetArrayLength());
             foreach (var icono in medida.GetProperty("iconos").EnumerateArray())
-                Assert.Equal(34, icono.GetDouble());
+                Assert.True(icono.GetDouble() >= 34, $"ancho {icono.GetDouble()}");
             Assert.InRange(medida.GetProperty("primaria").GetDouble(), 33.5, 34.5);
             Assert.InRange(medida.GetProperty("espacioRotulos").GetDouble(), 0.9, 1);
             foreach (var accion in medida.GetProperty("acciones").EnumerateArray())

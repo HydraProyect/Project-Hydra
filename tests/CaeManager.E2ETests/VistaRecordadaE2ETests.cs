@@ -254,7 +254,7 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
     private static async Task CircuitoAtendiendoAsync(IPage page, string pastilla)
     {
         var disparador = page.Locator(".barra-filtros-pastillas")
-            .GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = pastilla, Exact = true });
+            .GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex("^" + System.Text.RegularExpressions.Regex.Escape(pastilla) + "(?::|$)") });
         await Ayudas.AbrirMenuAccionesAsync(disparador);
         await disparador.PressAsync("Escape");
         await Expect(disparador).ToHaveAttributeAsync("aria-expanded", "false");

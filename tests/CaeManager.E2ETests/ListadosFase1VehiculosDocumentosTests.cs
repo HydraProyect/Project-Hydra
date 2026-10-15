@@ -86,6 +86,8 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture
         await page.Locator(".franja-campo-desplegable > summary").First.ClickAsync();
         await botonVigentes.ClickAsync();
         await Expect(botonVigentes).ToHaveAttributeAsync("aria-pressed", "true");
+        // Se cierra el desplegable: abierto, su panel tapa la cabecera de la tabla.
+        await page.Locator(".franja-campo-desplegable > summary").First.ClickAsync();
         var vigencia = Cabecera(page, "Vigencia");
         await ElegirOpcionDocumentoAsync(vigencia, "Ordenar por emisión");
         await ComprobarOrdenDocumentoAsync(page, vigencia, "emision");

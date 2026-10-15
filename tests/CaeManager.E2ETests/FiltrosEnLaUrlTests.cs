@@ -33,7 +33,7 @@ public partial class FiltrosEnLaUrlTests(WebAppFixtureListados fixture)
         await page.Locator("table.tabla-datos").WaitForAsync();
 
         var pastillas = page.Locator(".barra-filtros-pastillas");
-        await pastillas.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Empresa", Exact = true }).ClickAsync();
+        await pastillas.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex(@"^Empresa(?::|$)") }).ClickAsync();
         var opciones = pastillas.GetByRole(AriaRole.Menuitemradio);
         await Expect(opciones).Not.ToHaveCountAsync(0);
         // «Todas» no filtra: se elige, por su nombre accesible, una Empresa real.
