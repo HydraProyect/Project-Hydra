@@ -168,7 +168,8 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
             resultado.Cuentas.Should().OnlyContain(c => c.ContrasenaEntregada);
 
             (await arnes.RecuentoAsync())["Cuentas del piloto"].Should().Be(0, "MEDIDO: ninguna cuenta con la dirección local @caemanager.local");
-            (await CuentasDelDominioAsync(arnes)).Should().Be(6);
+            (await CuentasDelDominioAsync(arnes)).Should().Be(7, "MEDIDO: las seis con contraseña y la pendiente de activación, sin contraseña ni credencial");
+            credenciales.Select(c => c.Email).Should().NotContain(PilotoOutboundAdministrativa.CuentasDe(Dominio).GestorPendienteDeActivacion);
 
             if (OperatingSystem.IsLinux())
                 File.GetUnixFileMode(resultado.FicheroCredenciales).Should().Be(

@@ -92,7 +92,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         fixture.Resultado.TenantsConDatosNuevos.Should().Equal(
             CatalogoPilotoOutbound.EnOrdenDeSiembra.Select(t => t.Nombre), "MEDIDO: los pequeños primero y T1 el último");
         fixture.Resultado.Pdf.Should().Be(fixture.Resultado.Documentos, "MEDIDO: un PDF por documento");
-        fixture.Resultado.Documentos.Should().Be(1164, "MEDIDO: 885 de T1, 77 de T2, 33 de T3, ninguno de T4, 33 de T5 y 136 de T6");
+        fixture.Resultado.Documentos.Should().Be(1165, "MEDIDO: 886 de T1, 77 de T2, 33 de T3, ninguno de T4, 33 de T5 y 136 de T6");
 
         // La duración del lote y la memoria pico las dice la propia siembra, en su línea de registro.
         var lineaDelLote = fixture.Registro.Informativas.Should()
@@ -669,19 +669,20 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         rastros["Documentos (control positivo)"].Should().Be(279, "control positivo: el recuento ve las filas de los Tenants del piloto");
         rastros.Where(p => !p.Key.StartsWith("Documentos", StringComparison.Ordinal)).Should().OnlyContain(p => p.Value == 0);
 
-        // T1 lleva UNA reclamación como registro histórico: su fila, su hilo con el mensaje que salió y su entrada en la
-        // cronología. Es lo que queda después de un envío, sembrado sin enviar: el espía de arriba sigue vacío, el
-        // mensaje no tiene estado de entrega que un proceso pudiera recoger y no hay ninguna notificación.
+        // T1 lleva TRES reclamaciones como registro histórico (la de la Empresa propia y las dos de Trabajador): su fila,
+        // su hilo con el mensaje que salió y su entrada en la cronología, y en la respondida, el mensaje que llegó. Es lo
+        // que queda después de un envío, sembrado sin enviar: el espía de arriba sigue vacío, ningún mensaje tiene estado
+        // de entrega que un proceso pudiera recoger y no hay ninguna notificación.
         var rastrosDeT1 = await RastrosAsync([T1.Nombre]);
         salida.WriteLine("MEDIDO rastros de envío en T1: " + string.Join(", ", rastrosDeT1.Select(p => $"{p.Key} {p.Value}")));
         rastrosDeT1.Should().Equal(new Dictionary<string, int>
         {
-            ["Documentos (control positivo)"] = 885,
-            ["Reclamaciones documentales"] = 1,
-            ["Conversaciones"] = 1,
-            ["Mensajes"] = 1,
+            ["Documentos (control positivo)"] = 886,
+            ["Reclamaciones documentales"] = 3,
+            ["Conversaciones"] = 3,
+            ["Mensajes"] = 4,
             ["Mensajes con estado de entrega"] = 0,
-            ["Eventos de conversación"] = 1,
+            ["Eventos de conversación"] = 3,
             ["Notificaciones a usuarios"] = 0,
         });
     }
@@ -722,14 +723,15 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
                 fixture.Informe.Tenants.Where(t => t.Clave != T1.Clave), $"MEDIDO: lo que se ensaya el día D−5 es lo que se ve el día {dia:yyyy-MM-dd}");
 
             // T1 tiene lo ÚNICO que depende del día: su Visita por correo empieza en D+1, así que desde D−1 es urgente
-            // (una actuación más en Mi trabajo y una Visita urgente en Inicio). Todo lo demás de T1 no se mueve.
+            // (una actuación más en Mi trabajo y una Visita urgente más en Inicio). La Visita en curso es urgente todos
+            // los días, de D−9 a D: siempre una en Inicio. Todo lo demás de T1 no se mueve.
             var (ensayo, eseDiaT1) = (fixture.Informe.De(T1), eseDia.De(T1));
             var yaEsUrgente = dia >= fecha.AddDays(-1);
             salida.WriteLine(
                 $"MEDIDO T1 el día {dia:yyyy-MM-dd}: actuaciones {eseDiaT1.MiTrabajoActuaciones}, Visitas urgentes {eseDiaT1.InicioVisitasUrgentes}, " +
                 $"días hasta la Visita por correo {eseDiaT1.Grande!.Paquete!.DiasDesdeHoy}");
             (eseDiaT1.MiTrabajoActuaciones - ensayo.MiTrabajoActuaciones, eseDiaT1.InicioVisitasUrgentes, eseDiaT1.Grande.Paquete.DiasDesdeHoy)
-                .Should().Be(yaEsUrgente ? (1, 1, 1) : (0, 0, 10));
+                .Should().Be(yaEsUrgente ? (1, 2, 1) : (0, 1, 10));
             (eseDiaT1 with
             {
                 MiTrabajoActuaciones = ensayo.MiTrabajoActuaciones,
@@ -751,7 +753,8 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         (g.TrabajadoresPropios, g.TrabajadoresDeSubcontrata, g.Subcontratas).Should().Be((150, 25, 3));
         (m.ClientesEmpresariales, m.ClientesEmpresarialesSinContacto, m.Centros.Count).Should().Be((12, 0, 28));
         (m.Documentos, m.DocumentosSinPdf).Should().Be(
-            (885, 0), "MEDIDO: 854 de Trabajador (175 × 5 menos los 21 que faltan), 14 de la Empresa propia, 8 de los dos Vehículos y 9 de las tres subcontratas");
+            (886, 0), "MEDIDO: 855 de Trabajador (175 × 5 menos los 21 que faltan, más la versión anterior del renovado), 14 de la Empresa propia, " +
+                      "8 de los dos Vehículos y 9 de las tres subcontratas");
         (m.ParesExigidos, m.ParesFaltantes).Should().Be((965, 21), "MEDIDO: 193 Asignaciones activas × cinco tipos");
         (m.MiTrabajoPresente, m.MiTrabajoAlcanceCero, m.MiTrabajoNoConsultado).Should().Be((true, false, false));
         m.ContactosDeAgenda.Should().BeGreaterThan(40, "MEDIDO: la Empresa propia, cada Cliente empresarial, cada Centro y cada subcontrata tienen a quién escribir");
@@ -788,7 +791,9 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             "Acreditación externa Rechazada", "Acreditación externa vencida en plataforma",
             "Trabajador bloqueado en un Centro y no en otro", "Trabajador de baja", "Documento de Empresa vencido en la Empresa propia",
             "Subcontrata con documentación propia", "Vehículo con documento vencido", "Visita a menos de 48 horas de la demostración",
-            "Gestión pendiente", "Reclamación enviada sin respuesta"
+            "Gestión pendiente", "Reclamación enviada sin respuesta",
+            "Reclamación reciente sin respuesta", "Reclamación respondida", "Visita en curso", "Visita pasada", "Visita cancelada",
+            "Visita con documentación gestionada", "Documento renovado con su versión anterior en el historial"
         ]);
         casos.Should().OnlyContain(c => c.Value >= 1);
 
@@ -802,7 +807,14 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         casos["Vehículo con documento vencido"].Should().Be(1);
         casos["Visita a menos de 48 horas de la demostración"].Should().Be(1);
         casos["Gestión pendiente"].Should().Be(4);
-        casos["Reclamación enviada sin respuesta"].Should().Be(1);
+        casos["Reclamación enviada sin respuesta"].Should().Be(1, "MEDIDO: la reciente todavía no lleva siete días");
+        casos["Reclamación reciente sin respuesta"].Should().Be(1);
+        casos["Reclamación respondida"].Should().Be(1);
+        casos["Visita en curso"].Should().Be(1);
+        casos["Visita pasada"].Should().Be(1);
+        casos["Visita cancelada"].Should().Be(1);
+        casos["Visita con documentación gestionada"].Should().Be(1, "MEDIDO: la Visita por correo no tiene la documentación gestionada");
+        casos["Documento renovado con su versión anterior en el historial"].Should().Be(1);
     }
 
     /// <summary>
@@ -1230,7 +1242,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             });
         }
 
-        tamanos.Should().HaveCount(1164, "MEDIDO: 885 de T1, 77 de T2, 33 de T3, ninguno de T4, 33 de T5 y 136 de T6");
+        tamanos.Should().HaveCount(1165, "MEDIDO: 886 de T1, 77 de T2, 33 de T3, ninguno de T4, 33 de T5 y 136 de T6");
         var pesados = tamanos.Where(t => t.Bytes >= 5_000_000).ToList();
         salida.WriteLine($"MEDIDO PDF pesado: {string.Join(", ", pesados.Select(p => $"{p.Tenant} {p.Bytes} bytes"))}; el mayor de los demás: {tamanos.Where(t => t.Bytes < 5_000_000).Max(t => t.Bytes)} bytes");
         pesados.Select(p => p.Tenant).Should().BeEquivalentTo(["T1", "T1", "T2"], "MEDIDO: uno de la Empresa propia de T2 y dos de la de T1");
@@ -1275,6 +1287,49 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         (await ClavesVistasPorAsync(CuentasPilotoOutbound.Locales.GestoraPrimera)).Should().Equal("T1", "T2", "T3", "T4", "T5", "T6");
     }
 
+    /// <summary>
+    /// Lo que espera en el Tenant del Operador CAE externo, leído con las consultas de sus pantallas: la cuenta pendiente
+    /// de activación en el equipo de la Coordinadora CAE, la solicitud de incorporación del Gestor CAE segundo a T5 en la
+    /// bandeja de la Coordinadora CAE y la propuesta de apoyo de la Gestora CAE primera sobre T4, enviada por ella y
+    /// recibida por él. Ninguna de las dos le da acceso: su Mi trabajo sigue siendo T2, T3 y T6 (test anterior).
+    /// </summary>
+    [Fact]
+    public async Task El_Operador_CAE_externo_tiene_una_cuenta_pendiente_de_activacion_una_solicitud_y_una_propuesta_pendientes()
+    {
+        var locales = CuentasPilotoOutbound.Locales;
+        var operador = CatalogoPilotoOutbound.NombreTenantOperador;
+
+        var equipo = await fixture.Arnes.ComoCuentaAsync(operador, locales.Coordinadora,
+            sp => sp.GetRequiredService<ISender>().Send(new CaeManager.Application.Usuarios.ObtenerEquipoDeCoordinadorQuery()));
+        var bandeja = await fixture.Arnes.ComoCuentaAsync(operador, locales.Coordinadora,
+            sp => sp.GetRequiredService<ISender>().Send(
+                new CaeManager.Application.Operaciones.IncorporacionCartera.Queries.ObtenerSolicitudesIncorporacionCarteraQuery(SoloPendientes: true)));
+        var enviadas = await fixture.Arnes.ComoCuentaAsync(operador, locales.GestoraPrimera,
+            sp => sp.GetRequiredService<ISender>().Send(new CaeManager.Application.Operaciones.ApoyoCartera.Queries.ObtenerPropuestasApoyoPendientesQuery()));
+        var recibidas = await fixture.Arnes.ComoCuentaAsync(operador, locales.GestorSegundo,
+            sp => sp.GetRequiredService<ISender>().Send(new CaeManager.Application.Operaciones.ApoyoCartera.Queries.ObtenerPropuestasApoyoPendientesQuery()));
+
+        salida.WriteLine($"MEDIDO equipo de la Coordinadora CAE: {string.Join(", ", equipo.Select(m => $"{m.NombreCompleto} (pendiente {m.PendienteActivacion})"))}");
+        var pendiente = equipo.Should().ContainSingle(m => m.PendienteActivacion).Subject;
+        (pendiente.Email, pendiente.NombreCompleto, pendiente.Activo).Should().Be(
+            (locales.GestorPendienteDeActivacion, CatalogoPilotoOutbound.NombreGestorPendienteDeActivacion, true));
+        equipo.Should().HaveCount(3, "control positivo: los dos Gestores CAE activos y el pendiente");
+
+        var cuenta = await fixture.Arnes.ComoBootstrapAsync(b =>
+            b.Users.IgnoreQueryFilters().SingleAsync(u => u.Email == locales.GestorPendienteDeActivacion));
+        (cuenta.PasswordHash, cuenta.DebeCambiarContrasena).Should().Be(((string?)null, false), "MEDIDO: nace como el alta de la aplicación, sin contraseña");
+        fixture.Arnes.Correo.Intentos.Should().BeEmpty("MEDIDO: sembrarla no genera enlace ni envía el correo de activación");
+
+        bandeja.EsExitoso.Should().BeTrue();
+        var solicitud = bandeja.Valor.Pendientes.Should().ContainSingle().Subject;
+        (solicitud.NombreEmpresa, solicitud.SolicitanteUsuarioId).Should().Be(
+            (T5.Nombre, await fixture.Arnes.ComoBootstrapAsync(b => b.Users.IgnoreQueryFilters()
+                .Where(u => u.Email == locales.GestorSegundo).Select(u => u.Id).SingleAsync())));
+
+        enviadas.Enviadas.Should().ContainSingle().And.BeEquivalentTo(recibidas.Recibidas, "MEDIDO: la misma propuesta, vista por sus dos extremos");
+        (enviadas.Recibidas.Count, recibidas.Enviadas.Count).Should().Be((0, 0));
+    }
+
     [Theory]
     [InlineData("administrador-del-operador", "*no tiene exactamente el rol GestorCae*")]
     [InlineData("administrador-de-T1", "*no es de ese Tenant*")]
@@ -1307,8 +1362,10 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         var antes = await fixture.Arnes.RecuentoAsync();
         antes["Tenants del piloto"].Should().Be(7, "control: el recuento ve los seis Tenants propietarios y el del Operador CAE externo");
         antes["Cuentas del piloto"].Should().Be(6, "MEDIDO: las cinco del equipo y de T1, y el Usuario de Cliente de T1");
-        antes["Documentos"].Should().Be(1164);
-        antes["Ficheros en el almacén"].Should().Be(1164);
+        antes["Cuenta pendiente de activación"].Should().Be(1, "MEDIDO: la séptima, fuera de las seis que tienen contraseña");
+        (antes["Solicitudes de incorporación a cartera"], antes["Propuestas de apoyo"]).Should().Be((1, 1));
+        antes["Documentos"].Should().Be(1165);
+        antes["Ficheros en el almacén"].Should().Be(1165);
 
         var segunda = await fixture.Arnes.SembrarAsync(fixture.Configuracion);
 
@@ -1791,11 +1848,15 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
         await arnes.BackfillAsync();
         PilotoOutboundAutoverificacion.Exigir(await arnes.MedirAsync(configuracion));
         var completa = await arnes.RecuentoAsync();
-        completa["Ficheros en el almacén"].Should().Be(1164);
+        completa["Ficheros en el almacén"].Should().Be(1165);
+        var escenariosDelOperador = new[] { "Cuenta pendiente de activación", "Solicitudes de incorporación a cartera", "Propuestas de apoyo" };
+        escenariosDelOperador.Select(k => completa[k]).Should().Equal([1, 1, 1], "control positivo: la siembra completa los tiene");
 
         // 3. La retirada no deja nada del piloto y no toca lo demás.
         (await arnes.RetirarAsync()).Should().HaveCount(7);
-        (await arnes.RecuentoAsync()).Should().BeEquivalentTo(sinPiloto, "MEDIDO: ni Tenants, ni cuentas, ni filas, ni ficheros del piloto; lo demás, igual que antes");
+        var retirada = await arnes.RecuentoAsync();
+        retirada.Should().BeEquivalentTo(sinPiloto, "MEDIDO: ni Tenants, ni cuentas, ni filas, ni ficheros del piloto; lo demás, igual que antes");
+        escenariosDelOperador.Select(k => retirada[k]).Should().Equal([0, 0, 0], "MEDIDO: la retirada borra la cuenta pendiente, la solicitud y la propuesta");
         sinPiloto["Tenants en total"].Should().BeGreaterThan(0, "control positivo: había otros Tenants que no debían tocarse");
 
         // 4. Cancelación en mitad de T2.

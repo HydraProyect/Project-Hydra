@@ -123,7 +123,10 @@ public static class PilotoOutboundAdministrativa
             locales.FechaDemostracion, locales.Contactos);
     }
 
-    /// <summary>Las seis cuentas del piloto en el dominio indicado, con la misma parte local que las de la siembra local.</summary>
+    /// <summary>
+    /// Las siete cuentas del piloto en el dominio indicado, con la misma parte local que las de la siembra local: las
+    /// seis con contraseña y la pendiente de activación, que no la tiene y a la que no se entrega nada.
+    /// </summary>
     public static CuentasPilotoOutbound CuentasDe(string dominio)
     {
         static string ParteLocal(string email) => email[..email.IndexOf('@')];
@@ -132,7 +135,8 @@ public static class PilotoOutboundAdministrativa
         return new CuentasPilotoOutbound(
             $"{ParteLocal(locales.GestoraPrimera)}@{dominio}", $"{ParteLocal(locales.GestorSegundo)}@{dominio}",
             $"{ParteLocal(locales.Coordinadora)}@{dominio}", $"{ParteLocal(locales.AdministradorOperador)}@{dominio}",
-            $"{ParteLocal(locales.AdministradorT1)}@{dominio}", $"{ParteLocal(locales.UsuarioDeClienteEmpresarialT1)}@{dominio}");
+            $"{ParteLocal(locales.AdministradorT1)}@{dominio}", $"{ParteLocal(locales.UsuarioDeClienteEmpresarialT1)}@{dominio}",
+            $"{ParteLocal(locales.GestorPendienteDeActivacion)}@{dominio}");
     }
 
     // ── Precondiciones (antes de escribir nada) ─────────────────────────────
