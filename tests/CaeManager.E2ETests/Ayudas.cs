@@ -715,6 +715,7 @@ public static class Ayudas
         var fixture = WebAppFixture.DeLaUrl(baseUrl)
             ?? throw new InvalidOperationException(
                 $"Ninguna fixture sirve la URL base «{baseUrl}»: no se puede olvidar la vista recordada de la cuenta antes de entrar.");
+        System.IO.File.AppendAllText("C:/Users/chris/AppData/Local/Temp/claude/C--Users-chris-Project-Hydra--claude-worktrees-gallant-wiles-50b962/1f97ead1-dd9d-414f-9df7-21c274892225/scratchpad/bucle/harness.txt", $"OLVIDAR {System.DateTime.UtcNow:O} {email}{System.Environment.NewLine}");
         await fixture.OlvidarVistasRecordadasAsync(email);
 
         await page.GotoAsync($"{baseUrl}/cuenta/iniciar-sesion");

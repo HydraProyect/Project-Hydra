@@ -279,6 +279,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
             return;
 
         _desechado = true;
+        Logger.LogWarning("DIAG-VISTA DISPOSE Pantalla={Pantalla} Pendiente={Pendiente} Turno={Turno} Ts={Ts:O}", Pantalla, _pendiente, _turno, DateTimeOffset.UtcNow);
         _ciclo.Cancel();
         _ciclo.Dispose();
         if (_escuchando)
@@ -396,6 +397,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
     private void Programar(string serializada)
     {
         _pendiente = serializada;
+        Logger.LogWarning("DIAG-VISTA PROGRAMAR Pantalla={Pantalla} Valor={Valor} Turno={Turno} Ts={Ts:O}", Pantalla, serializada, _turno + 1, DateTimeOffset.UtcNow);
         _ = EsperarYPersistirAsync(serializada, ++_turno, _ciclo.Token);
     }
 
@@ -428,9 +430,11 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
     {
         try
         {
+            Logger.LogWarning("DIAG-VISTA ENVIAR {Accion} Pantalla={Pantalla} Valor={Valor} Desechado={Desechado} Ts={Ts:O}", serializada == SinVista ? "OLVIDAR" : "GUARDAR", Pantalla, serializada, _desechado, DateTimeOffset.UtcNow);
             var resultado = serializada == SinVista
                 ? await Mediator.Send(new OlvidarVistaRecordadaCommand(Pantalla))
                 : await Mediator.Send(new GuardarVistaRecordadaCommand(Pantalla, serializada));
+            Logger.LogWarning("DIAG-VISTA ENVIADO {Accion} Pantalla={Pantalla} Valor={Valor} Ts={Ts:O}", serializada == SinVista ? "OLVIDAR" : "GUARDAR", Pantalla, serializada, DateTimeOffset.UtcNow);
 
             // P. ej. bajo una Sesión Privilegiada: lo esperado, sin aviso. Al registro va la pantalla, no la vista.
             if (resultado is { EsFallido: true })
