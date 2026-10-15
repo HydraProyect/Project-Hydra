@@ -83,7 +83,7 @@ public interface ICalculoEstadoCentroService
 
     /// <summary>
     /// Cumplimiento documental de cada Centro (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
-    /// § 0.5): <c>Requeridos</c> son los pares Trabajador×TipoDocumento que el Centro exige a sus Trabajadores con
+    /// § 0.5): <c>Requeridos</c> son los pares Trabajador×TipoDocumento incluidos explícitamente en el Centro para sus Trabajadores con
     /// Asignación activa y <c>AlDia</c> los que <see cref="CumplimientoDocumental"/> cuenta como al día. Es el contexto
     /// <see cref="ContextoCumplimiento.Centro"/>; un Centro sin ningún par exigido (o sin gestión CAE) queda en 0/0,
     /// cuyo porcentaje es <c>null</c>.
@@ -97,9 +97,9 @@ public interface ICalculoEstadoCentroService
 
     /// <summary>
     /// Los pares exigidos de esos Centros, uno por Centro × Trabajador × TipoDocumento, con el estado de su documento
-    /// preferido: el universo con el que se mide CUALQUIER contexto de <see cref="ContextoCumplimiento"/>
-    /// (<see cref="CumplimientoDocumental.De"/>). Un Empresa o un Cliente empresarial se obtienen agrupando estos pares,
-    /// no recalculando el universo.
+    /// preferido. Empresa y Cliente empresarial se obtienen agrupando estos pares, sin recalcular el universo.
+    /// El porcentaje del Centro en <see cref="CalcularCumplimientoAsync"/> aplica además el filtro de inclusiones
+    /// explícitas; esta lectura conserva la herencia global para sus demás consumidores.
     /// </summary>
     Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesExigidosAsync(
         IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken);
@@ -509,7 +509,15 @@ public class CalculoEstadoCentroService(
         IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken)
     {
         var pares = await ObtenerParesExigidosAsync(centroIds, cancellationToken);
-        var porCentro = CumplimientoDocumental.PorContexto(ContextoCumplimiento.Centro, pares);
+        // El porcentaje cuenta únicamente inclusiones explícitas del Centro. La herencia global
+        // sigue vigente para las otras lecturas de pares exigidos y no cambia su contrato.
+        var incluidos = await tiposDocumentoContext.TiposDocumentoCentros
+            .Where(tc => centroIds.Contains(tc.CentroId) && tc.Incluido)
+            .Select(tc => new { tc.CentroId, tc.TipoDocumentoId })
+            .ToListAsync(cancellationToken);
+        var clavesIncluidas = incluidos.Select(tc => (tc.CentroId, tc.TipoDocumentoId)).ToHashSet();
+        var paresDelPorcentaje = pares.Where(p => clavesIncluidas.Contains((p.CentroId, p.TipoDocumentoId)));
+        var porCentro = CumplimientoDocumental.PorContexto(ContextoCumplimiento.Centro, paresDelPorcentaje);
 
         // Un Centro sin ningún par (sin gestión CAE, sin Trabajadores o sin tipos exigidos) sigue en el resultado, en
         // 0/0: su porcentaje es null («sin requisitos»), nunca un 100 %.

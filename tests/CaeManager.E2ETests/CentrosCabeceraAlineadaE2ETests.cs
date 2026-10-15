@@ -12,7 +12,7 @@ namespace CaeManager.E2ETests;
 /// fila medía lo que dijera el navegador (20 px en Chromium) y su hueco de la cabecera 16, así que «Centro»
 /// y «Empresa» no caían sobre sus celdas. Un test de bUnit no puede verlo: no hay maquetación.
 /// <para>
-/// <b>Qué mira y qué no.</b> Compara el borde izquierdo de cada hueco de la cabecera con el de la celda que
+/// <b>Qué mira y qué no.</b> Los dos casos de alineación comparan el borde izquierdo de cada hueco de la cabecera con el de la celda que
 /// ocupa su mismo lugar en la fila, sin afirmar ningún ancho en píxeles. Los dos indicadores («Estado» y
 /// «Visita») se comparan uno a uno, no como bloque. No mira dónde empieza el contenido
 /// DENTRO de cada celda.
@@ -85,6 +85,69 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
 
         // casilla · chevron · Centro · Empresa · Cumplimiento · Estado · Visita · acciones
         await AfirmarAlineadoEnLosDosTemasAsync(page, columnas: 8, "con selección múltiple");
+    }
+
+    [Fact]
+    public async Task La_variante_visual_del_listado_mide_titulo_cabecera_y_accion_compacta_en_ambos_temas()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await AbrirCentrosAsync(contexto);
+        await page.SetViewportSizeAsync(1526, 1200);
+        await Ayudas.MostrarCentrosSinAgruparAsync(page);
+        foreach (var boton in await page.GetByRole(AriaRole.Button,
+            new() { NameRegex = new System.Text.RegularExpressions.Regex("^Asignaciones de ") }).AllAsync())
+        {
+            if (await boton.GetAttributeAsync("aria-expanded") != "true") await boton.ClickAsync();
+            if (await page.Locator(".fila-trabajador-gestionar").CountAsync() > 0) break;
+        }
+        await Expect(page.Locator(".fila-trabajador-gestionar")).Not.ToHaveCountAsync(0);
+        foreach (var tema in new[] { "claro", "oscuro" })
+        {
+            await page.EvaluateAsync("tema => document.documentElement.setAttribute('data-theme', tema)", tema);
+            var medida = await page.EvaluateAsync<JsonElement>("""
+                () => {
+                    const titulo = document.querySelector('main .titulo-pagina');
+                    const cabecera = document.querySelector('.cabecera-columnas-centros');
+                    const acciones = Array.from(document.querySelectorAll('.fila-trabajador-gestionar'));
+                    const cajas = Array.from(document.querySelectorAll('.lista-trabajadores-acordeon-listado .lista-relaciones-tarjeta'));
+                    return {
+                        fuente: parseFloat(getComputedStyle(titulo).fontSize),
+                        cabecera: cabecera.getBoundingClientRect().height,
+                        iconos: Array.from(document.querySelectorAll(".acciones-cabecera .cabecera-listado-icono, .acciones-cabecera .menu-acciones-disparador")).map(e => e.getBoundingClientRect().width),
+                        primaria: document.querySelector(".acciones-cabecera .boton").getBoundingClientRect().height,
+                        espacioRotulos: parseFloat(getComputedStyle(cabecera).letterSpacing),
+                        acciones: acciones.map(e => ({ h: e.getBoundingClientRect().height,
+                            borde: parseFloat(getComputedStyle(e).borderTopWidth) })),
+                        nombres: Array.from(document.querySelectorAll(".lista-trabajadores-acordeon-listado .fila-relacion-nombre")).map(e => parseFloat(getComputedStyle(e).fontSize)),
+                        cajas: cajas.map(e => ({ borde: parseFloat(getComputedStyle(e).borderTopWidth),
+                            radio: parseFloat(getComputedStyle(e).borderTopLeftRadius) }))
+                    };
+                }
+                """);
+            Assert.Equal(22, medida.GetProperty("fuente").GetDouble());
+            Assert.InRange(medida.GetProperty("cabecera").GetDouble(), 37.5, 38.5);
+            Assert.Equal(4, medida.GetProperty("iconos").GetArrayLength());
+            foreach (var icono in medida.GetProperty("iconos").EnumerateArray())
+                Assert.Equal(34, icono.GetDouble());
+            Assert.InRange(medida.GetProperty("primaria").GetDouble(), 33.5, 34.5);
+            Assert.InRange(medida.GetProperty("espacioRotulos").GetDouble(), 0.9, 1);
+            foreach (var accion in medida.GetProperty("acciones").EnumerateArray())
+            {
+                Assert.InRange(accion.GetProperty("h").GetDouble(), 16, 20);
+                Assert.Equal(0, accion.GetProperty("borde").GetDouble());
+            }
+            foreach (var nombre in medida.GetProperty("nombres").EnumerateArray())
+                Assert.Equal(12, nombre.GetDouble());
+            foreach (var caja in medida.GetProperty("cajas").EnumerateArray())
+            {
+                Assert.Equal(0, caja.GetProperty("borde").GetDouble());
+                Assert.Equal(0, caja.GetProperty("radio").GetDouble());
+            }
+            await page.EvaluateAsync("() => window.scrollTo(0, 0)");
+            var carpeta = Path.Combine(Path.GetTempPath(), "centros-fidelidad-local");
+            Directory.CreateDirectory(carpeta);
+            await page.ScreenshotAsync(new() { Path = Path.Combine(carpeta, $"centros-{tema}.png"), FullPage = true });
+        }
     }
 
     private async Task<IPage> AbrirCentrosAsync(IBrowserContext contexto)

@@ -101,7 +101,8 @@
 .lista-trabajadores-acordeon-listado ::deep .fila-relacion-rejilla {
     grid-template-columns: minmax(230px, auto) auto minmax(0, 1fr) auto;
     min-height: 0;
-    padding-block: var(--space-2);
+    padding-block: 6px;
+    font-size: 12px;
 }
 
 .lista-trabajadores-acordeon-listado ::deep .fila-relacion-estado {
@@ -136,4 +137,29 @@
 .fila-trabajador-motivo {
     color: var(--color-text-muted);
     font: var(--font-body-sm);
+}
+
+/* Subcaja plana solo en el listado; Centro 360 conserva la tarjeta de relaciones. */
+.lista-trabajadores-acordeon-listado ::deep .lista-relaciones-tarjeta {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.lista-trabajadores-acordeon-listado ::deep .fila-trabajador-gestionar {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    font-size: 12px;
+    line-height: 18px;
+}
+
+.lista-trabajadores-acordeon-listado ::deep .fila-relacion-nombre {
+    font-size: 12px;
+    line-height: 18px;
+    font-weight: 700;
 }

@@ -113,6 +113,13 @@ public class CoherenciaDelCumplimientoEntreSuperficiesTests : IAsyncLifetime
         contexto.TiposDocumento.Add(tipo);
         await contexto.SaveChangesAsync();
 
+        // La comparación entre superficies usa los mismos requisitos explícitos en cada Centro.
+        contexto.TiposDocumentoCentros.AddRange(
+            new TipoDocumentoCentro(tipo.Id, centroA.Id, incluido: true),
+            new TipoDocumentoCentro(tipo.Id, centroB.Id, incluido: true),
+            new TipoDocumentoCentro(tipo.Id, centroC.Id, incluido: true));
+        await contexto.SaveChangesAsync();
+
         // Una fila por caso límite de la tabla. «alDia» está escrito a mano: es lo que dicen las decisiones del propietario.
         _casos =
         [

@@ -241,7 +241,8 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
     /// <summary>
     /// Decisión del propietario, 2026-10-09 («que no dé 100 %»): un Tenant con Centros de Trabajo y sin ningún Documento
     /// de Trabajador no enseña 100 %. Si sus Centros exigen algún par (A: un Trabajador asignado y un tipo requerido) da
-    /// 0 %, como Centros y Empresas; si no exigen ninguno (B: tipo no requerido) no hay nada que medir. Se mide en Inicio
+    /// 0 %, conservando la herencia global aunque el porcentaje del Centro solo cuente inclusiones explícitas;
+    /// si no exigen ninguno (B: tipo no requerido) no hay nada que medir. Se mide en Inicio
     /// y en la fila de Visión de cartera, que reutiliza la misma consulta por Tenant.
     /// </summary>
     [Fact]
@@ -261,6 +262,9 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
         var antesC = await InicioDeAsync(_tenantC);
 
         await BorrarDocumentosDeTrabajadorAsync(_tenantA);
+        using (AmbitoTenantExplicito.Establecer(_tenantA))
+            (await _propietario.TiposDocumentoCentros.CountAsync()).Should().Be(0,
+                "control: los requisitos de A son heredados, no inclusiones explícitas del Centro");
         await BorrarDocumentosDeTrabajadorAsync(_tenantB);
 
         var enA = await InicioDeAsync(_tenantA);

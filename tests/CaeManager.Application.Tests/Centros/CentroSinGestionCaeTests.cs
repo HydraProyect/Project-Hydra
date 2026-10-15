@@ -107,6 +107,11 @@ public class CentroSinGestionCaeTests
     [Fact]
     public async Task El_centro_sin_gestion_cae_no_tiene_porcentaje_de_cumplimiento()
     {
+        // El control del porcentaje exige inclusión explícita en ambos Centros. Sin gestión CAE
+        // sigue sin requisitos incluso cuando el tipo está incluido localmente.
+        var tipo = _tipos.ListaTiposDocumento.Single().Id;
+        _tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(tipo, _conGestion.Id, incluido: true));
+        _tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(tipo, _sinGestion.Id, incluido: true));
         var cumplimiento = await Calculo().CalcularCumplimientoAsync([_conGestion.Id, _sinGestion.Id], CancellationToken.None);
 
         var sin = cumplimiento.TryGetValue(_sinGestion.Id, out var fraccion) ? fraccion : new FraccionCumplimiento(0, 0);

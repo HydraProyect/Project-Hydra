@@ -730,6 +730,8 @@ public static class PilotoOutboundSeeder
                     throw new InvalidOperationException($"El escenario {tenant.Escenario} de {tenant.Clave} no tiene constructor en la siembra del piloto.");
             }
 
+            MaterializarInclusionesDeLosCentros(centros);
+
             // T2 y T1 siembran la documentación de su Empresa propia dentro de su constructor, y T4 no tiene ningún
             // documento a propósito. A los demás se les da aquí, al final: así no se mueve ninguna de sus otras fechas.
             if (tenant.Escenario is EscenarioPilotoOutbound.Mitad or EscenarioPilotoOutbound.PocosTrabajadoresMuchosCentros
@@ -1472,6 +1474,26 @@ public static class PilotoOutboundSeeder
                     };
                     var (emitido, vence) = _fechas.ConVencimiento(tipo, vencimientoDeDiseno);
                     await DocumentoDeTrabajadorAsync(trabajadores[i], tipo, emitido, vence);
+                }
+            }
+        }
+
+        /// <summary>
+        /// El catálogo del piloto declara estos requisitos para sus Centros. Se guardan como
+        /// inclusiones explícitas para el porcentaje, conservando las exclusiones y ajustes
+        /// particulares ya sembrados por cada escenario. No modifica Tenants existentes.
+        /// </summary>
+        private void MaterializarInclusionesDeLosCentros(IReadOnlyCollection<Centro> centros)
+        {
+            var configurados = dbContext.TiposDocumentoCentros.Local
+                .Select(tc => (tc.CentroId, tc.TipoDocumentoId)).ToHashSet();
+            foreach (var centro in centros)
+            {
+                foreach (var nombre in CatalogoPilotoOutbound.TiposExigidosDeTrabajador)
+                {
+                    var tipoId = Tipo(nombre).Id;
+                    if (configurados.Add((centro.Id, tipoId)))
+                        dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(tipoId, centro.Id, incluido: true));
                 }
             }
         }

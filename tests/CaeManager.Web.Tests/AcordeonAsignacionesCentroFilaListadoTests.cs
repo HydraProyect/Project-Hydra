@@ -37,6 +37,7 @@ public partial class AcordeonAsignacionesCentroVigenciaSinConfirmarTests
         fila.QuerySelector(".fila-trabajador-motivo")!.GetAttribute("title").Should().Be(motivo);
         fila.QuerySelectorAll(".fila-trabajador-fraccion").Should().BeEmpty();
         fila.QuerySelector(".fila-trabajador-gestionar")!.TextContent.Trim().Should().Be("Gestionar");
+        fila.QuerySelector(".fila-trabajador-gestionar")!.ClassList.Should().Contain("accion-fila-enlace", "la acción del listado se presenta como enlace, conservando el botón accesible");
     }
 
     [Theory]

@@ -219,9 +219,10 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
         var fraccion = KpisDashboardDto.FraccionDe(vigentes, proximos, urgentes, vencidos, sinConfirmar, sinCaducidad);
 
         // Sin ningún Documento de Trabajador la fracción no dice nada: lo que falta lo dicen los pares que exigen los
-        // Centros del alcance, con el mismo cálculo que el listado de Centros. Solo se consulta en ese caso.
+        // Centros del alcance, incluida la herencia global. No es el porcentaje del Centro (que cuenta solo
+        // inclusiones explícitas): esta lectura detecta documentos faltantes. Solo se consulta en ese caso.
         var paresExigidosSinDocumento = fraccion.Requeridos == 0 && centroIds.Count > 0
-            ? (await calculoEstadoCentro.CalcularCumplimientoAsync(centroIds, cancellationToken)).Values.Sum(f => f.Requeridos)
+            ? (await calculoEstadoCentro.ObtenerParesExigidosAsync(centroIds, cancellationToken)).Count
             : 0;
         var (tasa, sinDatos) = KpisDashboardDto.SinDocumentos(fraccion, paresExigidosSinDocumento);
 

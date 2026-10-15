@@ -20,16 +20,17 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    min-height: 40px;
+    min-height: 38px;
     padding: 0 var(--space-4);
     margin-bottom: var(--space-2);
     background: var(--color-surface);
     border: var(--border-default);
     border-radius: var(--radius-lg);
     font: var(--font-label);
-    font-size: 11px;
+    font-size: 12px;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: .06em;
+    letter-spacing: .08em;
     color: var(--color-text-muted);
 }
 
@@ -250,4 +251,45 @@
 .acordeon-centro-enlace-360 {
     font: var(--font-label-md);
     color: var(--color-primary-500);
+}
+
+/* Variante del listado: v29, .top/.tool. No cambia las cabeceras de otras pantallas. */
+.listado-centros-fidelidad ::deep .cabecera-pagina {
+    min-height: 48px;
+    margin-bottom: 6px;
+}
+
+.listado-centros-fidelidad ::deep .titulo-pagina {
+    font-size: 22px;
+    line-height: 28px;
+}
+
+.listado-centros-fidelidad ::deep .barra-filtros-pastillas {
+    margin-bottom: 10px;
+}
+
+.listado-centros-fidelidad ::deep .barra-filtros-buscador-pantalla {
+    max-width: 340px;
+}
+
+.listado-centros-fidelidad ::deep .acciones-cabecera {
+    gap: 8px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .listado-centros-fidelidad ::deep .cabecera-listado-icono,
+    .listado-centros-fidelidad ::deep .acciones-cabecera .menu-acciones-disparador {
+        width: 34px;
+        height: 34px;
+        border-radius: 6px;
+    }
+
+    .listado-centros-fidelidad ::deep .acciones-cabecera .boton {
+        min-height: 34px;
+        padding: 8px 14px;
+        border: 0;
+        border-radius: 6px;
+        font-size: 13px;
+        line-height: 18px;
+    }
 }

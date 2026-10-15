@@ -47,7 +47,7 @@ public record ObtenerCentrosQuery(
 /// <param name="CumplimientoPorcentaje">
 /// % de cumplimiento documental de los trabajadores del centro (Centro 360,
 /// Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.5) — <c>null</c> cuando no hay ningún par
-/// Trabajador×TipoDocumento obligatorio aplicable, ver <see cref="FraccionCumplimiento"/>.
+/// Trabajador×TipoDocumento incluido explícitamente en ese Centro, ver <see cref="FraccionCumplimiento"/>.
 /// </param>
 /// <summary>
 /// Una incidencia concreta del centro, con el ámbito al que pertenece. Es lo
