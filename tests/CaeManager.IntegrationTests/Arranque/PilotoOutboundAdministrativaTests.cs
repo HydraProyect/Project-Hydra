@@ -221,7 +221,7 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
             // Un documento descartado (borrado lógico: su PDF sigue en disco), un logo, la plantilla en blanco de
             // un requisito de Centro, y una fila del piloto que nombra la clave del fichero AJENO: la retirada
             // pedirá borrarla dentro del ámbito de T1 y el almacén no debe resolverla.
-            var idT1 = tenants.Single(t => t.Nombre == CatalogoPilotoOutbound.NombreTenantT1).Id;
+            var idT1 = tenants.Single(t => t.Nombre == CatalogoPilotoOutbound.NombreTenantC).Id;
             var (claveDescartada, claveLogo, clavePlantilla) = await arnes.EnTenantAsync(idT1, async (db, sp) =>
             {
                 var almacen = sp.GetRequiredService<IFileStorageService>();
@@ -279,7 +279,7 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
                 arnes, ConfiguracionConfirmada, anunciados, real => new AlmacenQueFallaCuando(real, () => anunciados.Count >= 1));
             await cortada.Should().ThrowAsync<IOException>().WithMessage("*fallo inyectado*");
 
-            anunciados.Should().Equal([CatalogoPilotoOutbound.NombreTenantT1], "MEDIDO: T1 se anunció en cuanto se borró, antes del fallo en el siguiente");
+            anunciados.Should().Equal([CatalogoPilotoOutbound.NombreTenantC], "MEDIDO: T1 se anunció en cuanto se borró, antes del fallo en el siguiente");
             (await TenantsDelPilotoAsync(arnes)).Select(t => t.Nombre).Should().BeEquivalentTo(
                 CatalogoPilotoOutbound.NombresTenants.Except(anunciados),
                 "MEDIDO: lo anunciado es exactamente lo que ya no existe; el resto sigue ahí");
@@ -385,7 +385,7 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
             using (var ambito = arnes.Servicios.CreateScope())
                 await DelegacionDemoSeeder.AprovisionarTenantAsync(
                     ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>(),
-                    CatalogoPilotoOutbound.NombreTenantT3, PerfilVocabularioTenant.ClienteDirecto, NullLogger.Instance,
+                    CatalogoPilotoOutbound.NombreTenantB, PerfilVocabularioTenant.ClienteDirecto, NullLogger.Instance,
                     CancellationToken.None, esOperadorCaeExterno: false);
 
             var antes = await arnes.RecuentoAsync();
@@ -394,7 +394,7 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
             var siembra = () => SembrarAsync(arnes, Opciones(directorio));
 
             await siembra.Should().ThrowAsync<InvalidOperationException>()
-                .WithMessage($"*«{CatalogoPilotoOutbound.NombreTenantT3}»*NO lleva el marcador de datos de demo*");
+                .WithMessage($"*«{CatalogoPilotoOutbound.NombreTenantB}»*NO lleva el marcador de datos de demo*");
             (await arnes.RecuentoAsync()).Should().BeEquivalentTo(antes, "MEDIDO: no escribe ni en ese Tenant ni a su lado");
             (await CuentasDelDominioAsync(arnes)).Should().Be(0);
             Directory.GetFiles(directorio).Should().BeEmpty("MEDIDO: ni siquiera se abrió el fichero de credenciales");

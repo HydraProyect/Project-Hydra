@@ -83,7 +83,7 @@ public class PilotoOutboundRetiradaFicherosTests(ITestOutputHelper salida)
     /// autorización: lo envía el Administrador del Tenant propietario T1, la cuenta que la siembra crea.
     /// </summary>
     private static Task<string?> PlantarOriginalDePlantillaDeDocumentoAsync(ArnesPilotoOutbound arnes, Guid tenantId) =>
-        arnes.ComoCuentaAsync(CatalogoPilotoOutbound.NombreTenantT1, CuentasPilotoOutbound.Locales.AdministradorT1, async sp =>
+        arnes.ComoCuentaAsync(CatalogoPilotoOutbound.NombreTenantC, CuentasPilotoOutbound.Locales.AdministradorT1, async sp =>
         {
             using (AmbitoTenantExplicito.Establecer(tenantId))
             {
@@ -110,7 +110,7 @@ public class PilotoOutboundRetiradaFicherosTests(ITestOutputHelper salida)
 
         (await arnes.SembrarAsync(ArnesPilotoOutbound.Configurar(ArnesPilotoOutbound.FechaDemostracion())))
             .Should().NotBeNull("control: la siembra del piloto está activa y escribe el lote");
-        var idT1 = await arnes.TenantIdAsync(CatalogoPilotoOutbound.NombreTenantT1);
+        var idT1 = await arnes.TenantIdAsync(CatalogoPilotoOutbound.NombreTenantC);
         var ficherosDeLaSiembra = arnes.FicherosEnElAlmacen();
 
         // ── A. Lo que un ensayo puede dejar en T1 y la siembra no escribe ──
