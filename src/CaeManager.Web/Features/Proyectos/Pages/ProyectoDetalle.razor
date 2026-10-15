@@ -1,7 +1,6 @@
 @*
-    Proyecto 360 — página (mockup «Proyecto 360 página TALVEG»), primer
-    incremento. Ver el comentario de cabecera del .razor.cs: mismas consultas y
-    comandos que el panel de detalle del listado de Proyectos.
+    Proyecto 360: conserva los comandos del listado y añade lecturas derivadas de Empresas
+    empleadoras y Visitas del Centro durante el periodo del Proyecto, sin nuevas asignaciones.
 *@
 @page "/proyectos/{ProyectoId:guid}"
 @rendermode InteractiveServer
@@ -10,6 +9,7 @@
 @using CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
 @using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Proyectos.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosProyectos> Textos
@@ -98,6 +98,14 @@
                     @if (PestanaActiva == PestanaDocumentos)
                     {
                         @PestanaDeDocumentos
+                    }
+                    else if (PestanaActiva == PestanaEmpresas)
+                    {
+                        @PestanaDeEmpresasProyecto
+                    }
+                    else if (PestanaActiva == PestanaVisitas)
+                    {
+                        @PestanaDeVisitasProyecto
                     }
                     else if (PestanaActiva == PestanaFicha)
                     {
@@ -225,6 +233,53 @@
             }
             <p class="proyecto360-nota">@Textos["PlazoNota"]</p>
         </Tarjeta>
+    };
+
+    private RenderFragment PestanaDeEmpresasProyecto => __builder =>
+    {
+        if (_cargandoRelacionados) { <EstadoCargando Filas="3" /> }
+        else if (_errorEmpresasProyecto) { <EstadoVacio Titulo="@Textos["LecturaEmpresasProyectoError"]" /> }
+        else
+        {
+            <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["ListaEmpresasProyecto"]">
+                <Encabezado>@Textos[_empresasProyecto.Count == 1 ? "ResumenEmpresaProyecto" : "ResumenEmpresasProyecto", _empresasProyecto.Count]</Encabezado>
+                <ChildContent>
+                    @if (_empresasProyecto.Count == 0) { <p class="texto-vacio-seccion">@Textos["EmpresasProyectoVacio"]</p> }
+                    @foreach (var empresa in _empresasProyecto)
+                    {
+                        <FilaRelacion @key="empresa.Id" Nombre="@empresa.RazonSocial" NombreIcono="empresas"
+                                      OnNombre="() => AbrirEmpresaProyectoAsync(empresa)"
+                                      OnAbrir360="() => NavigationManager.NavigateTo(RutaEmpresaProyecto(empresa))">
+                            <Detalle>@TextoPapelEmpresaProyecto(empresa) · @Textos[empresa.TecnicosActivos == 1 ? "EmpresaProyectoUnTecnico" : "EmpresaProyectoTecnicos", empresa.TecnicosActivos]</Detalle>
+                        </FilaRelacion>
+                    }
+                </ChildContent>
+            </ListaRelaciones>
+            <p class="texto-descriptivo">@Textos["OrigenEmpresasProyecto"]</p>
+        }
+    };
+
+    private RenderFragment PestanaDeVisitasProyecto => __builder =>
+    {
+        <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" OnClick="ProgramarVisitaProyecto">@Textos["ProgramarVisitaProyecto"]</Boton></SoloConEscritura>
+        if (_cargandoRelacionados) { <EstadoCargando Filas="3" /> }
+        else if (_errorVisitasProyecto) { <EstadoVacio Titulo="@Textos["LecturaVisitasProyectoError"]" /> }
+        else
+        {
+            <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["ListaVisitasProyecto"]">
+                <Encabezado>@Textos[_visitasProyecto.Count == 1 ? "ResumenVisitaProyecto" : "ResumenVisitasProyecto", _visitasProyecto.Count]</Encabezado>
+                <ChildContent>
+                    @if (_visitasProyecto.Count == 0) { <p class="texto-vacio-seccion">@Textos["VisitasProyectoVacio"]</p> }
+                    @foreach (var visita in _visitasProyecto)
+                    {
+                        <FilaRelacion @key="visita.Id" Nombre="@Textos["FechasVisitaProyecto", visita.FechaInicio.ToString("dd/MM/yyyy"), visita.FechaFin.ToString("dd/MM/yyyy")].Value"
+                                      NombreIcono="visitas" Href="@($"/visitas/{visita.Id}")" OnAbrir360="() => IrAVisitaProyecto(visita.Id)">
+                            <Detalle>@Textos[visita.Trabajadores == 1 ? "VisitaProyectoUnTrabajador" : "VisitaProyectoTrabajadores", visita.Trabajadores]</Detalle>
+                        </FilaRelacion>
+                    }
+                </ChildContent>
+            </ListaRelaciones>
+        }
     };
 
     private RenderFragment PestanaDeTecnicos => __builder =>

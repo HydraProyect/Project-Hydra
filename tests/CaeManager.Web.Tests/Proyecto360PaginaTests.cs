@@ -11,6 +11,8 @@ using CaeManager.Application.Proyectos.Commands.ReabrirProyecto;
 using CaeManager.Application.Proyectos.Commands.RestaurarProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectoPorId;
 using CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto;
+using CaeManager.Application.Proyectos.Queries.ObtenerEmpresasProyecto;
+using CaeManager.Application.Proyectos.Queries.ObtenerVisitasProyecto;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -84,6 +86,8 @@ public class Proyecto360PaginaTests : BunitContext
     private sealed class MediadorProyecto : IMediator
     {
         public Dictionary<Guid, ProyectoDetalleDto> Detalles { get; } = new() { [AbiertoId] = Abierto, [CerradoId] = Cerrado };
+        public Dictionary<Guid, IReadOnlyList<EmpresaProyectoDto>> Empresas { get; } = [];
+        public Dictionary<Guid, IReadOnlyList<VisitaProyectoDto>> Visitas { get; } = [];
         public bool FallarDetalle { get; set; }
         public bool SinTecnicos { get; set; }
         public bool FallarTecnicos { get; set; }
@@ -147,6 +151,8 @@ public class Proyecto360PaginaTests : BunitContext
                 ObtenerProyectoPorIdQuery q => Detalles.GetValueOrDefault(q.Id),
                 ObtenerTecnicosProyectoQuery when FallarTecnicos => throw new InvalidOperationException("fallo simulado de los técnicos"),
                 ObtenerTecnicosProyectoQuery => Tecnicos(),
+                ObtenerEmpresasProyectoQuery q => Empresas.GetValueOrDefault(q.ProyectoId) ?? [],
+                ObtenerVisitasProyectoQuery q => Visitas.GetValueOrDefault(q.ProyectoId) ?? [],
                 ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)[new TrabajadorSelectorDto(TrabajadorSelectorId, "Ibáñez Soto, Marta", null, null)],
                 AsignarTecnicoProyectoCommand => Result.Exito(Guid.NewGuid()),
                 DesasignarTecnicoProyectoCommand => Result.Exito(),
@@ -312,9 +318,9 @@ public class Proyecto360PaginaTests : BunitContext
         var cut = Renderizar(AbiertoId, "?pestana=ficha");
 
         var pestanas = cut.FindAll("[role=tab]");
-        pestanas.Should().HaveCount(3);
-        pestanas[2].TextContent.Trim().Should().Be("Ficha");
-        pestanas[2].GetAttribute("aria-selected").Should().Be("true");
+        pestanas.Should().HaveCount(5);
+        pestanas[4].TextContent.Trim().Should().Be("Ficha");
+        pestanas[4].GetAttribute("aria-selected").Should().Be("true");
 
         var cajas = cut.FindAll("[data-pieza=cajas-ficha] > [data-caja]");
         cajas.Select(c => c.GetAttribute("data-caja")).Should().Equal("plazo");
@@ -545,6 +551,79 @@ public class Proyecto360PaginaTests : BunitContext
 
         _mediador.Enviados.OfType<RestaurarProyectoCommand>().Should().ContainSingle().Which.Id.Should().Be(AbiertoId);
         Navegacion.Uri.Should().EndWith($"/proyectos/{AbiertoId}");
+    }
+
+    [Theory]
+    [InlineData(true, false, "Empresa empleadora directa")]
+    [InlineData(false, true, "Subcontrata")]
+    [InlineData(true, true, "Empresa empleadora directa · Subcontrata")]
+    public async Task Empresas_conserva_ambos_papeles_y_abre_su_ficha_contextual(bool desdeEmpresaDirecta, bool desdeRelacionSubcontrata, string papel)
+    {
+        var empresaId = Guid.NewGuid();
+        _mediador.Empresas[AbiertoId] = [new(empresaId, "Empresa empleadora A", 2, desdeEmpresaDirecta, desdeRelacionSubcontrata)];
+        var cut = Renderizar(AbiertoId, "?pestana=empresas&extra=conservar");
+        var fila = cut.Find(".lista-relaciones-tarjeta .fila-relacion");
+        cut.Find(".lista-relaciones-encabezado").TextContent.Should().Contain("1 Empresa empleadora");
+        cut.FindComponents<FilaRelacion>().Should().ContainSingle();
+        var patron = cut.FindComponents<FilaRelacion>().Single().Instance;
+        fila.TextContent.Should().Contain("Empresa empleadora A").And.Contain(papel).And.Contain("2 técnicos activos en el Proyecto");
+        cut.Markup.Should().Contain("Empresas empleadoras derivadas de los técnicos activos del Proyecto.");
+        _mediador.Enviados.OfType<ObtenerEmpresasProyectoQuery>().Should().ContainSingle().Which.ProyectoId.Should().Be(AbiertoId);
+        await fila.QuerySelector(".fila-relacion-nombre")!.ClickAsync(new MouseEventArgs());
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().Be(new WorkspaceFrame(desdeEmpresaDirecta ? EntidadWorkspace.Empresa : EntidadWorkspace.Subcontrata, empresaId, "Empresa empleadora A", "informacion"));
+        var consultas = _mediador.Enviados.Count;
+        await cut.FindAll("[role=tab]").Single(t => t.TextContent.Trim() == "Visitas").ClickAsync(new MouseEventArgs());
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("pestana=visitas").And.Contain("extra=conservar");
+        _mediador.Enviados.Should().HaveCount(consultas);
+        await cut.InvokeAsync(() => patron.OnAbrir360.InvokeAsync());
+        Navegacion.Uri.Should().EndWith($"/{(desdeEmpresaDirecta ? "empresas" : "subcontratas")}/{empresaId}");
+    }
+
+    [Fact]
+    public void Empresas_no_presenta_fraccion_estado_ni_tinte_documental()
+    {
+        _mediador.Empresas[AbiertoId] = [new(Guid.NewGuid(), "Empresa empleadora", 1, true, false)];
+        var cut = Renderizar(AbiertoId, "?pestana=empresas");
+        var fila = cut.Find(".lista-relaciones-tarjeta .fila-relacion");
+        fila.TextContent.Should().Contain("1 técnico activo en el Proyecto").And.NotContain("0 de 0").And.NotContain("100");
+        var patron = cut.FindComponents<FilaRelacion>().Single().Instance;
+        patron.Cifra.Should().BeNull();
+        patron.Estado.Should().BeNull();
+        patron.Tono.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Visitas_muestra_sus_fechas_y_Programar_lleva_el_Centro_sin_crear_relaciones()
+    {
+        var visitaId = Guid.NewGuid();
+        _mediador.Visitas[AbiertoId] = [new(visitaId, new(2026, 10, 4), new(2026, 10, 5), 3)];
+        var cut = Renderizar(AbiertoId, "?pestana=visitas");
+        var fila = cut.Find(".lista-relaciones-tarjeta .fila-relacion");
+        cut.Find(".lista-relaciones-encabezado").TextContent.Should().Contain("1 visita");
+        fila.TextContent.Should().Contain("04/10/2026 – 05/10/2026").And.Contain("3 trabajadores en la Visita");
+        fila.QuerySelector("a")!.GetAttribute("href").Should().Be($"/visitas/{visitaId}");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Programar visita").ClickAsync(new MouseEventArgs());
+        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith($"/visitas?centroId={CentroId}");
+        _mediador.Enviados.OfType<ObtenerVisitasProyectoQuery>().Should().ContainSingle().Which.ProyectoId.Should().Be(AbiertoId);
+    }
+
+    [Fact]
+    public void Visitas_sin_resultados_declara_el_periodo_visible()
+    {
+        var cut = Renderizar(AbiertoId, "?pestana=visitas");
+        cut.Markup.Should().Contain("Sin visitas visibles del Centro en este periodo.");
+    }
+
+    [Fact]
+    public async Task La_respuesta_tardia_de_Empresas_no_pasa_al_siguiente_Proyecto()
+    {
+        var retenida = _mediador.Retener(q => q is ObtenerEmpresasProyectoQuery { ProyectoId: var id } && id == AbiertoId);
+        _mediador.Empresas[CerradoId] = [new(Guid.NewGuid(), "Empresa del segundo Proyecto", 1, true, false)];
+        var cut = Renderizar(AbiertoId, "?pestana=empresas");
+        cut.Render(p => p.Add(x => x.ProyectoId, CerradoId));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Empresa del segundo Proyecto"));
+        await cut.InvokeAsync(() => retenida.SetResult((IReadOnlyList<EmpresaProyectoDto>)[new(Guid.NewGuid(), "Respuesta antigua", 1, true, false)]));
+        cut.WaitForAssertion(() => cut.Markup.Should().NotContain("Respuesta antigua").And.Contain("Empresa del segundo Proyecto"));
     }
 
     // ------------------------------------------------------------------ pestañas y carrera de cargas
