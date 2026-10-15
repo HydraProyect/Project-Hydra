@@ -505,4 +505,7 @@
   <data name="FiltrarDocumentacionCentro360" xml:space="preserve"><value>Filtrar documentación del Centro por estado</value></data>
   <data name="DocumentacionCentroFiltroVacio360" xml:space="preserve"><value>Ningún documento coincide con los filtros</value></data>
   <data name="DocumentacionCentroExigeA360" xml:space="preserve"><value>Documentación que este Centro exige a</value></data>
+  <data name="SubtituloTrabajadorPorEvento" xml:space="preserve">
+    <value>{0} · solo por el evento «{1}» · desde {2}</value>
+  </data>
 </root>

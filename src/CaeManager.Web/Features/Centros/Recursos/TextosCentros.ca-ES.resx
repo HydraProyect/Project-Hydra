@@ -499,4 +499,7 @@
   <data name="FiltrarDocumentacionCentro360" xml:space="preserve"><value>Filtra la documentació del Centre per estat</value></data>
   <data name="DocumentacionCentroFiltroVacio360" xml:space="preserve"><value>Cap document coincideix amb els filtres</value></data>
   <data name="DocumentacionCentroExigeA360" xml:space="preserve"><value>Documentació que aquest Centre exigeix a</value></data>
+  <data name="SubtituloTrabajadorPorEvento" xml:space="preserve">
+    <value>{0} · solo por el evento «{1}» · desde {2}</value>
+  </data>
 </root>

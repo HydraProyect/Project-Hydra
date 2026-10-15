@@ -15,6 +15,8 @@ using CaeManager.Application.Proyectos.Commands.RestaurarProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectoPorId;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectos;
 using CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto;
+using CaeManager.Application.Proyectos.Queries.RequisitosEvento;
+using CaeManager.Domain.Proyectos;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
@@ -672,6 +674,17 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private string _nuevaFechaInicio = string.Empty;
     private string _nuevaFechaFinPrevista = string.Empty;
     private string _nuevasNotas = string.Empty;
+
+    /// <summary>Nombre de <see cref="TipoProyecto"/> elegido en el alta; un evento exige fecha de fin y ofrece copiar requisitos.</summary>
+    private string _nuevoTipo = nameof(TipoProyecto.Obra);
+
+    /// <summary>Origen de los requisitos del evento nuevo: vacío, <see cref="PrefijoPlantilla"/> + id o <see cref="PrefijoEvento"/> + id.</summary>
+    private string _nuevoOrigenRequisitos = string.Empty;
+
+    private OrigenesRequisitosEventoDto _origenesRequisitos = OrigenesRequisitosEventoDto.Vacio;
+    private const string PrefijoPlantilla = "plantilla:";
+    private const string PrefijoEvento = "evento:";
+    private bool NuevoEsEvento => _nuevoTipo == nameof(TipoProyecto.Evento);
     private bool _guardando;
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
@@ -685,6 +698,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         _nuevaFechaInicio = Hoy.ToString("yyyy-MM-dd");
         _nuevaFechaFinPrevista = string.Empty;
         _nuevasNotas = string.Empty;
+        _nuevoTipo = nameof(TipoProyecto.Obra);
+        _nuevoOrigenRequisitos = string.Empty;
         _mensajeErrorFormulario = null;
         _erroresCampo = new Dictionary<string, string>();
         _drawerVisible = true;
@@ -705,6 +720,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     {
         var version = ++_versionCentrosAlta;
         _centrosDisponibles = [];
+        _origenesRequisitos = OrigenesRequisitosEventoDto.Vacio;
+        _nuevoOrigenRequisitos = string.Empty;
         if (!Guid.TryParse(_nuevoClienteId, out var clienteId))
             return;
 
@@ -713,6 +730,10 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
             var centros = await Mediator.Send(new ObtenerCentrosParaSelectorQuery(ClienteId: clienteId));
             if (version != _versionCentrosAlta) return;
             _centrosDisponibles = centros;
+            // Plantillas y eventos del mismo Cliente empresarial de los que un evento nuevo puede copiar requisitos.
+            var origenes = await Mediator.Send(new ObtenerOrigenesRequisitosEventoQuery(clienteId));
+            if (version != _versionCentrosAlta) return;
+            _origenesRequisitos = origenes;
         }
         catch (Exception ex)
         {
@@ -835,7 +856,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         IniciarEdicionInfo();
     }
 
-    private object?[] ValoresFormulario() => [_nuevoClienteId, _nuevoCentroId, _nuevoNombre, _nuevaFechaInicio, _nuevaFechaFinPrevista, _nuevasNotas];
+    private object?[] ValoresFormulario() => [_nuevoClienteId, _nuevoCentroId, _nuevoNombre, _nuevaFechaInicio, _nuevaFechaFinPrevista, _nuevasNotas, _nuevoTipo, _nuevoOrigenRequisitos];
 
     private void CerrarFormulariosDescartando()
     {
@@ -879,9 +900,23 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
             DateOnly? fechaFinPrevista = DateOnly.TryParse(_nuevaFechaFinPrevista, out var fv) ? fv : null;
             var notas = string.IsNullOrWhiteSpace(_nuevasNotas) ? null : _nuevasNotas;
+            var tipo = NuevoEsEvento ? TipoProyecto.Evento : TipoProyecto.Obra;
+            if (tipo == TipoProyecto.Evento && fechaFinPrevista is null)
+            {
+                _mensajeErrorFormulario = Textos["ErrorFinEvento"];
+                return;
+            }
+
+            Guid? plantillaId = null, eventoOrigenId = null;
+            if (tipo == TipoProyecto.Evento && _nuevoOrigenRequisitos.StartsWith(PrefijoPlantilla, StringComparison.Ordinal)
+                && Guid.TryParse(_nuevoOrigenRequisitos[PrefijoPlantilla.Length..], out var p))
+                plantillaId = p;
+            else if (tipo == TipoProyecto.Evento && _nuevoOrigenRequisitos.StartsWith(PrefijoEvento, StringComparison.Ordinal)
+                && Guid.TryParse(_nuevoOrigenRequisitos[PrefijoEvento.Length..], out var e))
+                eventoOrigenId = e;
 
             var resultado = await Mediator.Send(new CrearProyectoCommand(
-                clienteId, centroId, _nuevoNombre, fechaInicio, fechaFinPrevista, notas));
+                clienteId, centroId, _nuevoNombre, fechaInicio, fechaFinPrevista, notas, tipo, eventoOrigenId, plantillaId));
 
             if (resultado.EsFallido)
             {

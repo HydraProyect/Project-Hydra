@@ -1,3 +1,4 @@
+using CaeManager.Domain.Proyectos;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
@@ -26,7 +27,8 @@ public record ProyectoDetalleDto(
     int DocumentosGestionados,
     Guid Version,
     // La «Nota interna» la decide la política única; la página obedece esta bandera para pintar la caja.
-    bool NotaInternaVisible = false);
+    bool NotaInternaVisible = false,
+    TipoProyecto Tipo = TipoProyecto.Obra);
 
 public class ObtenerProyectoPorIdQueryHandler(
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IDocumentosQueryContext documentosContext, IProyectosQueryContext proyectosContext, IAlcanceDatosService alcanceDatos,
@@ -57,6 +59,7 @@ public class ObtenerProyectoPorIdQueryHandler(
         return new ProyectoDetalleDto(
             proyecto.Id, proyecto.ClienteId, clienteRazonSocial, proyecto.CentroId, centroNombre, proyecto.Nombre,
             proyecto.FechaInicio, proyecto.FechaFinPrevista, proyecto.FechaCierreReal, proyecto.FechaCierreReal == null,
-            conNotaInterna ? proyecto.Notas : null, tecnicosActivos, documentosGestionados, proyecto.Version, conNotaInterna);
+            conNotaInterna ? proyecto.Notas : null, tecnicosActivos, documentosGestionados, proyecto.Version, conNotaInterna,
+            proyecto.Tipo);
     }
 }

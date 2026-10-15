@@ -7,6 +7,8 @@
 @using CaeManager.Application.Proyectos.Queries.ObtenerProyectoPorId
 @using CaeManager.Application.Proyectos.Queries.ObtenerProyectos
 @using CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto
+@using CaeManager.Application.Proyectos.Queries.RequisitosEvento
+@using CaeManager.Domain.Proyectos
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Proyectos.Recursos
@@ -140,6 +142,10 @@
                                             @* El nombre es el destino de teclado del clic en la fila (la fila no es focable con Tab). *@
                                             <button type="button" class="enlace-nombre-fila nombre-proyecto nombre-abre-vista-rapida"
                                                     @onclick="() => AbrirDetalleConAvisoAsync(proyecto.Id)" @onclick:stopPropagation="true"><TextoResaltado Texto="@proyecto.Nombre" Termino="@_busqueda.Trim()" /></button>
+                                            @if (proyecto.Tipo == TipoProyecto.Evento)
+                                            {
+                                                <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@Textos["BadgeEvento"]</Badge>
+                                            }
                                             @* Con «Todos», dos filas pueden compartir nombre de Proyecto o de Centro: el
                                                Cliente las distingue. Con un Cliente en el filtro sobraría en todas. La
                                                búsqueda no mira el Cliente, así que no se resalta. *@
@@ -451,6 +457,11 @@
             }
         </CampoSelect>
 
+        <CampoSelect Etiqueta="@Textos["EtiquetaTipoProyecto"]" Valor="@_nuevoTipo" ValorChanged="v => _nuevoTipo = v">
+            <option value="@nameof(TipoProyecto.Obra)">@Textos["OpcionTipoObra"]</option>
+            <option value="@nameof(TipoProyecto.Evento)">@Textos["OpcionTipoEvento"]</option>
+        </CampoSelect>
+
         <CampoSelect Etiqueta="@Textos["EtiquetaCentro"]" Valor="@_nuevoCentroId" ValorChanged="v => _nuevoCentroId = v">
             <option value="">@Textos["OpcionElegirCentro"]</option>
             @foreach (var centro in _centrosDisponibles)
@@ -464,7 +475,33 @@
 
         <CampoTexto Etiqueta="@Textos["EtiquetaFechaInicio"]" Type="date" Valor="@_nuevaFechaInicio" ValorChanged="v => _nuevaFechaInicio = v" />
 
-        <CampoTexto Etiqueta="@Textos["EtiquetaFinPrevistoOpcionalAlta"]" Type="date" Valor="@_nuevaFechaFinPrevista" ValorChanged="v => _nuevaFechaFinPrevista = v" />
+        <CampoTexto Etiqueta="@(NuevoEsEvento ? Textos["EtiquetaFinEvento"] : Textos["EtiquetaFinPrevistoOpcionalAlta"])" Type="date" Valor="@_nuevaFechaFinPrevista" ValorChanged="v => _nuevaFechaFinPrevista = v" />
+
+        @if (NuevoEsEvento)
+        {
+            @* Los requisitos de un evento se copian de una plantilla o de otro evento del mismo Cliente empresarial. *@
+            <CampoSelect Etiqueta="@Textos["EtiquetaOrigenRequisitos"]" Valor="@_nuevoOrigenRequisitos" ValorChanged="v => _nuevoOrigenRequisitos = v">
+                <option value="">@Textos["OpcionSinRequisitos"]</option>
+                @if (_origenesRequisitos.Plantillas.Count > 0)
+                {
+                    <optgroup label="@Textos["GrupoPlantillas"]">
+                        @foreach (var plantilla in _origenesRequisitos.Plantillas)
+                        {
+                            <option value="@($"{PrefijoPlantilla}{plantilla.Id}")">@Textos["OpcionOrigenConRequisitos", plantilla.Nombre, plantilla.Requisitos]</option>
+                        }
+                    </optgroup>
+                }
+                @if (_origenesRequisitos.Eventos.Count > 0)
+                {
+                    <optgroup label="@Textos["GrupoEventos"]">
+                        @foreach (var evento in _origenesRequisitos.Eventos)
+                        {
+                            <option value="@($"{PrefijoEvento}{evento.Id}")">@Textos["OpcionOrigenConRequisitos", evento.Nombre, evento.Requisitos]</option>
+                        }
+                    </optgroup>
+                }
+            </CampoSelect>
+        }
 
         <CampoTexto Etiqueta="@Textos["EtiquetaNotas"]" Valor="@_nuevasNotas" ValorChanged="v => _nuevasNotas = v" />
     </ChildContent>

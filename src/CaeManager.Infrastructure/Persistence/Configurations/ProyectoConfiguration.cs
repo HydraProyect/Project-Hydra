@@ -16,6 +16,9 @@ public class ProyectoConfiguration : IEntityTypeConfiguration<Proyecto>
         builder.Property(p => p.Nombre).HasMaxLength(Proyecto.LongitudMaximaNombre).IsRequired();
         builder.Property(p => p.Notas).HasMaxLength(Proyecto.LongitudMaximaNotas);
 
+        // Entero; las filas anteriores a la columna quedan como Obra (0) por el valor por defecto de la migración.
+        builder.Property(p => p.Tipo).HasConversion<int>();
+
         // Nombre único por (tenant, cliente) — no se puede repetir aunque el
         // proyecto esté en otro centro del mismo cliente, ni tras cerrarse
         // (solo se libera si se elimina, ver Project-Hydra-Negocio/tecnico/DATABASE.md y
