@@ -261,7 +261,6 @@
 
     private RenderFragment PestanaDeVisitasProyecto => __builder =>
     {
-        <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" OnClick="ProgramarVisitaProyecto">@Textos["ProgramarVisitaProyecto"]</Boton></SoloConEscritura>
         if (_cargandoRelacionados) { <EstadoCargando Filas="3" /> }
         else if (_errorVisitasProyecto) { <EstadoVacio Titulo="@Textos["LecturaVisitasProyectoError"]" /> }
         else
@@ -279,6 +278,11 @@
                     }
                 </ChildContent>
             </ListaRelaciones>
+            <p class="texto-descriptivo">@Textos["NotaVisitasProyecto"]</p>
+        }
+        if (_detalle?.EstaAbierto == true)
+        {
+            <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" OnClick="ProgramarVisitaProyecto">@Textos["ProgramarVisitaProyecto"]</Boton></SoloConEscritura>
         }
     };
 

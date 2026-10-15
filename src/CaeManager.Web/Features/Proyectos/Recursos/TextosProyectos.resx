@@ -403,6 +403,7 @@
   <data name="ProgramarVisitaProyecto" xml:space="preserve"><value>Programar visita</value></data>
   <data name="EmpresasProyectoVacio" xml:space="preserve"><value>Sin Empresas empleadoras visibles con técnicos activos.</value></data>
   <data name="VisitasProyectoVacio" xml:space="preserve"><value>Sin visitas visibles del Centro en este periodo.</value></data>
+  <data name="NotaVisitasProyecto" xml:space="preserve"><value>Una visita no pertenece a un proyecto. Estas son las del mismo Centro dentro de las fechas del proyecto.</value></data>
   <data name="LecturaEmpresasProyectoError" xml:space="preserve"><value>No se han podido cargar las Empresas empleadoras.</value></data>
   <data name="LecturaVisitasProyectoError" xml:space="preserve"><value>No se han podido cargar las Visitas del periodo.</value></data>
   <data name="ResumenEmpresaProyecto" xml:space="preserve"><value>1 Empresa empleadora · por nombre</value></data>
