@@ -7,6 +7,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Tenants;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
@@ -19,9 +20,9 @@ namespace CaeManager.IntegrationTests.Facturacion;
 
 /// <summary>
 /// Los Proyectos de tipo Evento contra PostgreSQL real: la pantalla de Facturación los excluye
-/// (<c>Proyectos.Tipo</c> se filtra en la propia consulta) y la estimación de KPI los cuenta como Centro
-/// temporal, vigentes entre su inicio y su fin. Comprueba que las dos consultas traducen a SQL; la regla de
-/// fechas y la mutación están en <c>EventosEnFacturacionYKpiTests</c> (Application.Tests).
+/// (<c>Proyectos.Tipo</c> se filtra en la propia consulta) y la estimación de KPI también. Comprueba que las dos
+/// consultas traducen a SQL con el filtro; la cobertura por concepto y las mutaciones están en
+/// <c>EventosEnFacturacionYKpiTests</c> (Application.Tests).
 /// </summary>
 public class EventosEnFacturacionYKpiPostgresTests : IAsyncLifetime
 {
@@ -63,8 +64,13 @@ public class EventosEnFacturacionYKpiPostgresTests : IAsyncLifetime
         _contexto.Proyectos.AddRange(obra, evento);
         await _contexto.SaveChangesAsync();
 
-        _contexto.ProyectosTecnicos.Add(new ProyectoTecnico(obra.Id, Guid.NewGuid(), new DateOnly(2026, 3, 10)));
-        _contexto.ProyectosTecnicos.Add(new ProyectoTecnico(evento.Id, Guid.NewGuid(), new DateOnly(2026, 3, 5)));
+        var tecnicoDeObra = Trabajador.DeEmpresa(empresa.Id, "Homer", "Simpson", "77189989B");
+        var tecnicoDeEvento = Trabajador.DeEmpresa(empresa.Id, "Marge", "Bouvier", "12345678Z");
+        _contexto.Trabajadores.AddRange(tecnicoDeObra, tecnicoDeEvento);
+        await _contexto.SaveChangesAsync();
+
+        _contexto.ProyectosTecnicos.Add(new ProyectoTecnico(obra.Id, tecnicoDeObra.Id, new DateOnly(2026, 3, 10)));
+        _contexto.ProyectosTecnicos.Add(new ProyectoTecnico(evento.Id, tecnicoDeEvento.Id, new DateOnly(2026, 3, 5)));
         _contexto.TarifasCliente.Add(TarifaCliente.Crear(cliente.Id, ConceptoFacturable.TecnicoAsignadoProyecto, 100m, "EUR"));
         _contexto.TarifasCliente.Add(TarifaCliente.Crear(cliente.Id, ConceptoFacturable.DiaProyectoAbierto, 1m, "EUR"));
         await _contexto.SaveChangesAsync();
@@ -94,7 +100,7 @@ public class EventosEnFacturacionYKpiPostgresTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task La_estimacion_de_KPI_suma_la_obra_y_el_evento_como_centro_temporal()
+    public async Task La_estimacion_de_KPI_solo_suma_la_obra()
     {
         using var ambito = AmbitoTenantExplicito.Establecer(_tenant);
         var handler = new ObtenerCatalogoKpisQueryHandler(
@@ -104,6 +110,6 @@ public class EventosEnFacturacionYKpiPostgresTests : IAsyncLifetime
         var estimacion = await handler.CalcularFacturacionEstimadaAsync(
             PeriodoKpi.DeFechas(new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 31)), CancellationToken.None);
 
-        estimacion.Should().Be(2 * 100m + (11 + 4) * 1m, "dos técnicos (obra y evento) y 11 + 4 días (el evento, del 5 al 8)");
+        estimacion.Should().Be(100m + 11 * 1m, "un técnico y 11 días, los de la obra; el evento no suma");
     }
 }

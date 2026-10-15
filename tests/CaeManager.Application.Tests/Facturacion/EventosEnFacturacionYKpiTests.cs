@@ -19,11 +19,10 @@ using FluentAssertions;
 namespace CaeManager.Application.Tests.Facturacion;
 
 /// <summary>
-/// Decisión de producto de 2026-10-15 sobre los Proyectos de tipo Evento: (1) no cuentan para la facturación, así que
-/// <see cref="ObtenerResumenFacturacionQuery"/> los excluye de los tres conceptos de Proyecto; (2) en la estimación
-/// de facturación del catálogo de KPI (<see cref="ObtenerCatalogoKpisQueryHandler"/>) un evento cuenta como Centro
-/// temporal, vigente solo entre su fecha de inicio y su fecha de fin (el último día cuenta), no como obra abierta
-/// hasta el cierre. Los dos lados se ejercitan con las mismas filas para que la diferencia sea la del tipo.
+/// Decisión de producto de 2026-10-15 sobre los Proyectos de tipo Evento: no cuentan para la facturación, así que
+/// <see cref="ObtenerResumenFacturacionQuery"/> y la estimación de facturación del catálogo de KPI
+/// (<see cref="ObtenerCatalogoKpisQueryHandler"/>) los excluyen de los tres conceptos de Proyecto (técnicos,
+/// gestiones y días abiertos). Cada test pone una obra y un evento y exige que solo cuente la obra.
 /// </summary>
 public class EventosEnFacturacionYKpiTests
 {
@@ -133,84 +132,52 @@ public class EventosEnFacturacionYKpiTests
     }
 
     [Fact]
-    public async Task La_estimacion_de_KPI_cuenta_los_dias_del_evento_solo_entre_su_inicio_y_su_fin_y_no_hasta_el_cierre()
+    public async Task La_estimacion_de_KPI_no_suma_los_dias_del_evento_ni_aunque_este_cerrado_tarde()
     {
-        // Evento del 5 al 8 de marzo (4 días, el último cuenta) cerrado de forma tardía el 25: como obra abierta serían 21 días.
         Evento(new DateOnly(2026, 3, 5), new DateOnly(2026, 3, 8), cierre: new DateOnly(2026, 3, 25));
         Obra(new DateOnly(2026, 3, 10), new DateOnly(2026, 3, 20));
         Tarifa(ConceptoFacturable.DiaProyectoAbierto, PrecioDia);
 
         var estimacion = await EstimacionDeKpiAsync(InicioMarzo, FinMarzo);
 
-        estimacion.Should().Be((4 + 11) * PrecioDia, "4 días del evento (5-8, ambos inclusive) + 11 de la obra");
+        estimacion.Should().Be(11 * PrecioDia, "solo los 11 días de la obra; ningún importe de evento entra en la estimación");
     }
 
     [Fact]
-    public async Task La_estimacion_de_KPI_acorta_el_evento_cerrado_antes_de_su_fin()
-    {
-        Evento(new DateOnly(2026, 3, 5), new DateOnly(2026, 3, 8), cierre: new DateOnly(2026, 3, 6));
-        Tarifa(ConceptoFacturable.DiaProyectoAbierto, PrecioDia);
-
-        var estimacion = await EstimacionDeKpiAsync(InicioMarzo, FinMarzo);
-
-        estimacion.Should().Be(2 * PrecioDia, "el evento terminó al cerrarse: 5 y 6 de marzo");
-    }
-
-    [Fact]
-    public async Task La_estimacion_de_KPI_no_cuenta_un_evento_terminado_en_un_periodo_posterior()
-    {
-        Evento(new DateOnly(2026, 3, 5), new DateOnly(2026, 3, 8));
-        Tarifa(ConceptoFacturable.DiaProyectoAbierto, PrecioDia);
-
-        var estimacion = await EstimacionDeKpiAsync(new DateOnly(2026, 4, 1), new DateOnly(2026, 4, 30));
-
-        estimacion.Should().Be(0m, "un evento no sigue vigente tras su fin; una obra sin cerrar sí seguiría contando");
-    }
-
-    [Fact]
-    public async Task La_estimacion_de_KPI_cuenta_el_ultimo_dia_del_evento()
-    {
-        // El periodo del KPI se resuelve por meses naturales: el evento cruza de marzo a abril y acaba el 2 de abril.
-        Evento(new DateOnly(2026, 3, 30), new DateOnly(2026, 4, 2));
-        Tarifa(ConceptoFacturable.DiaProyectoAbierto, PrecioDia);
-
-        (await EstimacionDeKpiAsync(InicioMarzo, FinMarzo)).Should().Be(2 * PrecioDia, "30 y 31 de marzo");
-        (await EstimacionDeKpiAsync(new DateOnly(2026, 4, 1), new DateOnly(2026, 4, 30))).Should().Be(2 * PrecioDia,
-            "1 y 2 de abril: el día de fin cuenta y el 3 ya no");
-    }
-
-    [Fact]
-    public async Task La_estimacion_de_KPI_cuenta_los_tecnicos_del_evento_solo_mientras_esta_vigente()
+    public async Task La_estimacion_de_KPI_no_suma_los_tecnicos_del_evento()
     {
         var obra = Obra(new DateOnly(2026, 3, 10), new DateOnly(2026, 3, 20));
         var evento = Evento(new DateOnly(2026, 3, 5), new DateOnly(2026, 3, 8));
         Tecnico(obra, new DateOnly(2026, 3, 10));
         Tecnico(evento, new DateOnly(2026, 3, 5));
+        Tecnico(evento, new DateOnly(2026, 3, 6));
         Tarifa(ConceptoFacturable.TecnicoAsignadoProyecto, PrecioTecnico);
 
-        (await EstimacionDeKpiAsync(InicioMarzo, FinMarzo)).Should().Be(2 * PrecioTecnico, "el técnico de la obra y el del evento");
-        (await EstimacionDeKpiAsync(new DateOnly(2026, 4, 1), new DateOnly(2026, 4, 30))).Should().Be(PrecioTecnico,
-            "en abril el evento ya no está vigente aunque su técnico siga con alta sin baja; el de la obra sí cuenta");
+        (await EstimacionDeKpiAsync(InicioMarzo, FinMarzo)).Should().Be(PrecioTecnico, "solo el técnico de la obra");
     }
 
     [Fact]
-    public async Task La_estimacion_de_KPI_no_cuenta_el_tecnico_dado_de_alta_tras_el_fin_del_evento()
+    public async Task La_estimacion_de_KPI_no_suma_las_gestiones_del_evento()
     {
+        var obra = Obra(new DateOnly(2026, 3, 10), null);
         var evento = Evento(new DateOnly(2026, 3, 5), new DateOnly(2026, 3, 8));
-        Tecnico(evento, new DateOnly(2026, 3, 20));
-        Tarifa(ConceptoFacturable.TecnicoAsignadoProyecto, PrecioTecnico);
+        var tipo = Guid.NewGuid();
+        _contextos.Documentos.Add(Documento.DeProyecto(obra.Id, tipo, new DateOnly(2026, 3, 11), VigenciaDocumento.NoCaduca));
+        _contextos.Documentos.Add(Documento.DeProyecto(evento.Id, tipo, new DateOnly(2026, 3, 6), VigenciaDocumento.NoCaduca));
+        Tarifa(ConceptoFacturable.GestionProyectoRealizada, PrecioGestion);
+        var dia = DateOnly.FromDateTime(_contextos.Documentos.Select(d => d.CreadoEnUtc).Max());
 
-        (await EstimacionDeKpiAsync(InicioMarzo, FinMarzo)).Should().Be(0m, "el alta es posterior al fin del evento: nunca coincidió con él");
+        (await EstimacionDeKpiAsync(dia, dia)).Should().Be(PrecioGestion, "solo el documento de la obra");
     }
 
     [Fact]
-    public async Task La_estimacion_de_KPI_cuenta_una_sola_vez_al_tecnico_que_esta_en_un_evento_y_en_una_obra()
+    public async Task La_estimacion_de_KPI_cuenta_una_sola_vez_al_tecnico_que_esta_en_dos_obras()
     {
-        var obra = Obra(new DateOnly(2026, 3, 10), new DateOnly(2026, 3, 20));
-        var evento = Evento(new DateOnly(2026, 3, 5), new DateOnly(2026, 3, 8));
+        var obraA = Obra(new DateOnly(2026, 3, 10), new DateOnly(2026, 3, 20));
+        var obraB = Obra(new DateOnly(2026, 3, 12), new DateOnly(2026, 3, 22));
         var trabajador = Guid.NewGuid();
-        Tecnico(obra, new DateOnly(2026, 3, 10), trabajadorId: trabajador);
-        Tecnico(evento, new DateOnly(2026, 3, 5), trabajadorId: trabajador);
+        Tecnico(obraA, new DateOnly(2026, 3, 10), trabajadorId: trabajador);
+        Tecnico(obraB, new DateOnly(2026, 3, 12), trabajadorId: trabajador);
         Tarifa(ConceptoFacturable.TecnicoAsignadoProyecto, PrecioTecnico);
 
         (await EstimacionDeKpiAsync(InicioMarzo, FinMarzo)).Should().Be(PrecioTecnico, "técnicos únicos por cliente");

@@ -13,9 +13,8 @@ public static class PlazoProyecto
     /// que usa la facturación por días de obra abierta
     /// (ObtenerResumenFacturacionQuery, <c>hasta - desde + 1</c>): dos cifras
     /// de "días abiertos" que no cuadrasen entre sí serían peor que ninguna.
-    /// Esta cuenta no distingue el tipo: para un evento (que no se factura, y que en el KPI
-    /// de facturación estimada cuenta solo entre su inicio y su fin, ver
-    /// <c>VigenciaDeProyecto</c>) muestra los días hasta el cierre o hasta hoy.
+    /// Esta cuenta no distingue el tipo: para un evento (que no se factura) muestra los días
+    /// hasta el cierre o hasta hoy, no solo entre su inicio y su fin.
     /// Sin valor si el proyecto todavía no ha empezado.
     /// </summary>
     public static int? DiasAbiertos(DateOnly inicio, DateOnly? cierre, DateOnly hoy)
