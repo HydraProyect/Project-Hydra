@@ -160,12 +160,12 @@ public class FechasPilotoOutboundCoherentesConElTipoTests
     [Fact]
     public void Un_documento_del_que_el_diseno_fija_la_emision_vence_cuando_el_producto_lo_calcularia()
     {
-        var aptitud = Catalogo.Single(t => t.Nombre == DisenoT5PilotoOutbound.TipoConCondicionesPorCentro);
+        var aptitud = Catalogo.Single(t => t.Nombre == CatalogoPilotoOutbound.AptitudMedica);
 
         foreach (var fechas in Demostraciones())
         {
             var emision = fechas.FechaDemostracion
-                .AddDays(-DisenoT5PilotoOutbound.DiasDesdeElVencimientoPorPeriodicidad).AddMonths(-DisenoT5PilotoOutbound.MesesDePeriodicidadEspecial);
+                .AddDays(-20).AddMonths(-6);
 
             var (emitido, vence) = fechas.DesdeEmision(aptitud, emision);
 

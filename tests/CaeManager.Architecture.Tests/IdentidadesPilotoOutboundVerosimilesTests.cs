@@ -43,7 +43,7 @@ public partial class IdentidadesPilotoOutboundVerosimilesTests(ITestOutputHelper
         .. from tenant in Tenants
            from empresa in new[] { (Ordinal: 0, RazonSocial: tenant.Nombre) }
                .Concat(tenant.ClientesEmpresariales.Select((c, i) => (Ordinal: i + 1, c.RazonSocial)))
-               .Concat((tenant.Subcontratas ?? []).Select((s, i) => (Ordinal: IdentidadesPilotoOutbound.OrdinalDeLaPrimeraSubcontrata + i, RazonSocial: s)))
+               .Concat(tenant.Subcontratas.Select((s, i) => (Ordinal: IdentidadesPilotoOutbound.OrdinalDeLaPrimeraSubcontrata + i, s.RazonSocial)))
            select (tenant, empresa.RazonSocial, IdentidadesPilotoOutbound.Cif(tenant, empresa.Ordinal))
     ];
 
@@ -51,11 +51,11 @@ public partial class IdentidadesPilotoOutboundVerosimilesTests(ITestOutputHelper
     public void Ningun_Trabajador_del_lote_repite_nombre_completo_y_ninguna_pareja_de_apellidos_domina()
     {
         var trabajadores = TrabajadoresDelLote();
-        trabajadores.Should().HaveCountGreaterThan(200, "el lote tiene los 175 Trabajadores de T1 y los de los otros cinco Tenants");
+        trabajadores.Should().HaveCountGreaterThan(100, "el lote tiene los Trabajadores propios y los de las Subcontratas de los siete Tenants");
 
         trabajadores.GroupBy(t => t.NombreCompleto).Where(g => g.Count() > 1)
             .Select(g => $"{g.Key}: {string.Join(", ", g.Select(t => $"{t.Tenant.Clave}[{t.Indice}]"))}")
-            .Should().BeEmpty("ningún nombre completo se repite entre los Trabajadores de los seis Tenants");
+            .Should().BeEmpty("ningún nombre completo se repite entre los Trabajadores de los siete Tenants");
 
         // El criterio de «no domina», en su forma más estricta: una pareja de apellidos la lleva UN Trabajador del lote.
         trabajadores.GroupBy(t => t.Apellidos).Where(g => g.Count() > 1)
@@ -72,10 +72,7 @@ public partial class IdentidadesPilotoOutboundVerosimilesTests(ITestOutputHelper
                 delTenant.Count() / 10, $"en {delTenant.Key.Clave} ningún primer apellido lo lleva más de uno de cada diez Trabajadores");
         }
 
-        foreach (var t in trabajadores.Where(t =>
-                     (t.Tenant == CatalogoPilotoOutbound.T5)
-                     || (t.Tenant == CatalogoPilotoOutbound.T6 && t.Indice == DisenoT6PilotoOutbound.TrabajadorDesplazado)
-                     || (t.Tenant == CatalogoPilotoOutbound.T1 && DisenoT1PilotoOutbound.TrabajadoresDeLaVisita.Contains(t.Indice))))
+        foreach (var t in trabajadores.Where(t => t.Indice == 0))
             salida.WriteLine($"MEDIDO {t.Tenant.Clave}[{t.Indice}]: {t.NombreCompleto} · {t.Dni} · {IdentidadesPilotoOutbound.Puesto(t.Tenant, t.Indice)}");
     }
 
@@ -123,9 +120,11 @@ public partial class IdentidadesPilotoOutboundVerosimilesTests(ITestOutputHelper
     public void Los_identificadores_fiscales_son_validos_unicos_no_correlativos_y_llevan_la_letra_de_su_forma_juridica()
     {
         var empresas = EmpresasDelLote();
-        empresas.Should().HaveCountGreaterThan(40);
+        empresas.Should().HaveCountGreaterThan(20, "el lote tiene la Empresa propia, los Clientes empresariales y las Subcontratas de los siete Tenants");
 
-        foreach (var (tenant, razonSocial, cif) in empresas)
+        // El autónomo no es una sociedad: su identificador fiscal es el NIF de la persona.
+        var sociedades = empresas.Where(e => e.Tenant.Perfil != PerfilPilotoOutbound.Autonomo || e.RazonSocial != e.Tenant.Nombre).ToList();
+        foreach (var (tenant, razonSocial, cif) in sociedades)
         {
             var analisis = ValidadorIdentificacion.Analizar(cif);
             (analisis.EsValido, analisis.Tipo).Should().Be(
@@ -135,15 +134,22 @@ public partial class IdentidadesPilotoOutboundVerosimilesTests(ITestOutputHelper
             cif[0].Should().Be(letra, $"«{razonSocial}» es una sociedad {(letra == 'A' ? "anónima" : "limitada")}");
         }
 
-        empresas.Select(e => e.RazonSocial).Should().OnlyContain(
+        foreach (var (tenant, razonSocial, cif) in empresas.Except(sociedades))
+        {
+            var analisis = ValidadorIdentificacion.Analizar(cif);
+            (analisis.EsValido, analisis.Tipo).Should().Be(
+                (true, TipoIdentificacion.Dni), $"{cif}, del autónomo «{razonSocial}» ({tenant.Clave}), es un DNI con su letra de control");
+        }
+
+        sociedades.Select(e => e.RazonSocial).Should().OnlyContain(
             r => r.EndsWith(", S.A.", StringComparison.Ordinal) || r.EndsWith(", S.L.", StringComparison.Ordinal),
             "el catálogo solo usa las dos formas jurídicas a las que la siembra sabe dar letra");
         empresas.Select(e => e.Cif).Should().OnlyHaveUniqueItems("ningún identificador fiscal se repite en el lote");
-        empresas.Select(e => e.Cif[0]).Distinct().Should().BeEquivalentTo(['A', 'B'], "el catálogo tiene sociedades anónimas y limitadas");
+        sociedades.Select(e => e.Cif[0]).Distinct().Should().BeEquivalentTo(['A', 'B'], "el catálogo tiene sociedades anónimas y limitadas");
 
         foreach (var delTenant in empresas.GroupBy(e => e.Tenant))
         {
-            var numeros = delTenant.Select(e => long.Parse(e.Cif[1..8])).Order().ToList();
+            var numeros = delTenant.Where(e => char.IsLetter(e.Cif[0])).Select(e => long.Parse(e.Cif[1..8])).Order().ToList();
             numeros.Zip(numeros.Skip(1), (a, b) => b - a).Min().Should().BeGreaterThan(
                 100, $"las Empresas de {delTenant.Key.Clave} no tienen identificadores fiscales correlativos");
         }
@@ -169,10 +175,6 @@ public partial class IdentidadesPilotoOutboundVerosimilesTests(ITestOutputHelper
 
             salida.WriteLine($"MEDIDO {tenant.Clave}: {string.Join(", ", codigos)}");
         }
-
-        // El test de integración de T3 recorre sus Centros por código y espera encontrarlos en el orden del catálogo.
-        CatalogoPilotoOutbound.T3.Centros.Select(CatalogoPilotoOutbound.T3.CodigoDe).Should().BeInAscendingOrder(
-            StringComparer.Ordinal, "en T3, el orden de los códigos es el orden de los Centros en el catálogo");
     }
 
     [GeneratedRegex(@"^[a-z0-9]+([.-][a-z0-9]+)*$")]
@@ -195,7 +197,7 @@ public partial class IdentidadesPilotoOutboundVerosimilesTests(ITestOutputHelper
                 .. tenant.Centros.Select(c => c.Zona).OfType<ZonaPilotoOutbound>().Distinct()
                     .Select(z => IdentidadesPilotoOutbound.EtiquetaDeCoordinacionDeZona(z, tenant.Nombre)),
                 .. tenant.ClientesEmpresariales.Select(c => IdentidadesPilotoOutbound.EtiquetaDeCoordinacionCae(c.RazonSocial)),
-                .. (tenant.Subcontratas ?? []).Select(IdentidadesPilotoOutbound.EtiquetaDePrevencion),
+                .. tenant.Subcontratas.Select(x => IdentidadesPilotoOutbound.EtiquetaDePrevencion(x.RazonSocial)),
                 .. tenant.Centros.Select(IdentidadesPilotoOutbound.EtiquetaDeCoordinacionDeAccesos),
                 .. tenant.Centros.Select(IdentidadesPilotoOutbound.EtiquetaDeSolicitudesDeAcceso)
             ];
@@ -213,7 +215,7 @@ public partial class IdentidadesPilotoOutboundVerosimilesTests(ITestOutputHelper
         }
 
         // Con un buzón único configurado, todas las direcciones del lote son variantes «+etiqueta» de la misma: la
-        // etiqueta es lo que dice a qué contacto, de cuál de los seis Tenants, se escribió.
+        // etiqueta es lo que dice a qué contacto, de cuál de los siete Tenants, se escribió.
         delLote.GroupBy(e => e).Where(g => g.Count() > 1).Select(g => g.Key)
             .Should().BeEmpty("ninguna dirección se repite en el lote: cada contacto y cada canal, de cualquier Tenant, tiene la suya");
     }

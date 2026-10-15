@@ -83,7 +83,7 @@ public class PilotoOutboundRetiradaFicherosTests(ITestOutputHelper salida)
     /// autorización: lo envía el Administrador del Tenant propietario T1, la cuenta que la siembra crea.
     /// </summary>
     private static Task<string?> PlantarOriginalDePlantillaDeDocumentoAsync(ArnesPilotoOutbound arnes, Guid tenantId) =>
-        arnes.ComoCuentaAsync(CatalogoPilotoOutbound.NombreTenantT1, CuentasPilotoOutbound.Locales.AdministradorT1, async sp =>
+        arnes.ComoCuentaAsync(CatalogoPilotoOutbound.NombreTenantC, CuentasPilotoOutbound.Locales.AdministradorT1, async sp =>
         {
             using (AmbitoTenantExplicito.Establecer(tenantId))
             {
@@ -110,7 +110,7 @@ public class PilotoOutboundRetiradaFicherosTests(ITestOutputHelper salida)
 
         (await arnes.SembrarAsync(ArnesPilotoOutbound.Configurar(ArnesPilotoOutbound.FechaDemostracion())))
             .Should().NotBeNull("control: la siembra del piloto está activa y escribe el lote");
-        var idT1 = await arnes.TenantIdAsync(CatalogoPilotoOutbound.NombreTenantT1);
+        var idT1 = await arnes.TenantIdAsync(CatalogoPilotoOutbound.NombreTenantC);
         var ficherosDeLaSiembra = arnes.FicherosEnElAlmacen();
 
         // ── A. Lo que un ensayo puede dejar en T1 y la siembra no escribe ──
@@ -145,7 +145,7 @@ public class PilotoOutboundRetiradaFicherosTests(ITestOutputHelper salida)
 
         // ── C. Retirada ─────────────────────────────────────────────────
         (await arnes.RetirarAsync()).Select(r => r.NombreTenant).Should().Equal(
-            CatalogoPilotoOutbound.NombresTenants, "MEDIDO: la retirada no se niega por las filas nuevas y retira el lote entero");
+            CatalogoPilotoOutbound.NombresTenants.Where(n => !CatalogoPilotoOutbound.NombresTenantsDeVersionesAnteriores.Contains(n)), "MEDIDO: la retirada no se niega por las filas nuevas y retira el lote entero");
 
         // C.1 Familia a familia, por su clave y ANTES del recuento global: si la retirada deja de borrar una
         // familia, el rojo la nombra. El recuento solo diría cuántos ficheros sobran.
