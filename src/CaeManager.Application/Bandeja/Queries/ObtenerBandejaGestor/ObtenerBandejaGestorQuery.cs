@@ -175,6 +175,7 @@ public enum TipoItemBandeja
 /// a su fila en la pestaña Plataforma (<c>?acreditacionId=</c>, P0-9b) y no a
 /// la lista entera de todas las plataformas.
 /// </param>
+/// <param name="VisitaId">Solo en <c>VisitaUrgente</c>: la Visita concreta, para que «Ver visita» abra su ficha (<c>/visitas/{id}</c>) y no la lista entera.</param>
 public record ItemBandejaDto(
     string Id,
     TipoItemBandeja Tipo,
@@ -196,7 +197,8 @@ public record ItemBandejaDto(
     string? ProveedorNombre = null,
     bool? EmpresaEsPropia = null,
     bool RechazoBloqueaCentro = false,
-    Guid? AcreditacionId = null);
+    Guid? AcreditacionId = null,
+    Guid? VisitaId = null);
 
 public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracionQueryContext configuracionContext)
     : IRequestHandler<ObtenerBandejaGestorQuery, IReadOnlyList<ItemBandejaDto>>
@@ -318,7 +320,8 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
                 TipoDocumentoId: null,
                 RequisitoId: null,
                 ClienteId: v.ClienteId,
-                ClienteNombre: v.ClienteRazonSocial)));
+                ClienteNombre: v.ClienteRazonSocial,
+                VisitaId: v.Id)));
 
         // Sin fecha detectada la IA no pudo precisar cuándo es — se trata
         // como "visita sorpresa" (mismo día, sin margen) en vez de

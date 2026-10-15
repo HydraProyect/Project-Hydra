@@ -367,14 +367,14 @@ public class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
-    public void RequisitoPendiente_sin_url_propia_aterriza_en_la_bandeja_del_Tenant()
+    public void RequisitoPendiente_de_otro_Tenant_aterriza_en_los_requisitos_de_su_Centro()
     {
         var cut = Renderizar();
 
         var requisito = Formulario(FilaDe(cut, "Requisito del centro"));
 
         requisito.Tenant.Should().Be(TenantRefri.ToString());
-        requisito.ReturnUrl.Should().Be($"/bandeja?{Vuelta}");
+        requisito.ReturnUrl.Should().StartWith("/centros/").And.Contain("?pestana=requisitos&").And.EndWith(Vuelta);
     }
 
     [Fact]

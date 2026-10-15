@@ -14,14 +14,18 @@ namespace CaeManager.Web.Tests;
 public class AccionesBandejaTests
 {
     private static ItemBandejaDto Item(TipoItemBandeja tipo, Guid? documentoId = null, Guid? trabajadorId = null,
-        Guid? tipoDocumentoId = null, Guid? empresaId = null, Guid? sugerenciaVisitaId = null) => new(
+        Guid? tipoDocumentoId = null, Guid? empresaId = null, Guid? sugerenciaVisitaId = null, Guid? centroId = null, Guid? visitaId = null) => new(
         Id: "x", Tipo: tipo, Titulo: "t", Subtitulo: "s", Fecha: null,
-        TrabajadorId: trabajadorId, CentroId: null, DocumentoId: documentoId, TipoDocumentoId: tipoDocumentoId,
-        RequisitoId: null, SugerenciaVisitaId: sugerenciaVisitaId, EmpresaId: empresaId);
+        TrabajadorId: trabajadorId, CentroId: centroId, DocumentoId: documentoId, TipoDocumentoId: tipoDocumentoId,
+        RequisitoId: null, SugerenciaVisitaId: sugerenciaVisitaId, EmpresaId: empresaId, VisitaId: visitaId);
 
     [Fact]
-    public void RequisitoPendiente_no_tiene_url_propia()
+    public void RequisitoPendiente_aterriza_en_los_requisitos_de_su_centro()
     {
+        var centroId = Guid.NewGuid();
+
+        AccionesBandeja.ResolverUrl(Item(TipoItemBandeja.RequisitoPendiente, centroId: centroId))
+            .Should().Be($"/centros/{centroId}?pestana=requisitos");
         AccionesBandeja.ResolverUrl(Item(TipoItemBandeja.RequisitoPendiente)).Should().BeNull();
     }
 
@@ -41,8 +45,11 @@ public class AccionesBandejaTests
     }
 
     [Fact]
-    public void VisitaUrgente_va_a_la_lista_de_visitas()
+    public void VisitaUrgente_abre_el_detalle_de_su_visita()
     {
+        var id = Guid.NewGuid();
+
+        AccionesBandeja.ResolverUrl(Item(TipoItemBandeja.VisitaUrgente, visitaId: id)).Should().Be($"/visitas/{id}");
         AccionesBandeja.ResolverUrl(Item(TipoItemBandeja.VisitaUrgente)).Should().Be("/visitas");
     }
 

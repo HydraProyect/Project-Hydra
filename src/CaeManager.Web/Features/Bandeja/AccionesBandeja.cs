@@ -22,25 +22,22 @@ public static class AccionesBandeja
     /// componer el <c>returnUrl</c> exacto del POST cross-Tenant a
     /// <c>/cuenta/cliente-activo</c> (contrato
     /// Project-Hydra-Negocio/tecnico/CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.md § 8: "pantalla
-    /// exacta", no un aterrizaje genérico). <c>RequisitoPendiente</c> no
-    /// tiene URL propia — abre un <c>ContextWorkspacePanel</c> in-situ, sin
-    /// ruta por Id — <c>null</c> documenta ese hueco en vez de inventar una
-    /// URL que no lleva a ningún sitio real; el llamador cross-Tenant cae a
-    /// <c>/bandeja</c> del Tenant destino como fallback (misma decisión).
+    /// exacta", no un aterrizaje genérico). <c>RequisitoPendiente</c> apunta a la ficha de su Centro
+    /// (pestaña requisitos); sin Centro devuelve <c>null</c> y el llamador cross-Tenant cae a <c>/bandeja</c>.
     /// </summary>
     public static string? ResolverUrl(ItemBandejaDto item) => item.Tipo switch
     {
         // Falta/Vencido/Urgente vienen de ObtenerAlertasQuery — mismo destino
         // que ya usa GestionarAlerta en Alertas.razor.cs.
         TipoItemBandeja.RevisionIa => "/documentos/revision-ia",
-        TipoItemBandeja.RequisitoPendiente => null,
+        // AbrirAsync abre el panel in-situ; esta URL es la ficha del Centro en su pestaña de requisitos y la usan
+        // las filas de Mi trabajo (AccionCrossTenant), también las del Tenant activo.
+        TipoItemBandeja.RequisitoPendiente => item.CentroId is { } centroId ? $"/centros/{centroId}?pestana=requisitos" : null,
         // Mismo destino que ya usa el botón "Crear visita" de la Bandeja de
         // Comunicaciones — el Drawer de /visitas prellena los datos.
         TipoItemBandeja.SugerenciaVisitaUrgente => $"/visitas?sugerenciaId={item.SugerenciaVisitaId}",
-        // Sin deep-link a una Visita concreta todavía (el Drawer de detalle
-        // es estado interno de /visitas, no hay ruta por Id) — abre la lista
-        // ya filtrada por urgencia es lo más cercano disponible hoy.
-        TipoItemBandeja.VisitaUrgente => "/visitas",
+        // «Ver visita» abre el detalle de la Visita concreta; sin id (ítem antiguo) cae a la lista.
+        TipoItemBandeja.VisitaUrgente => item.VisitaId is { } visitaId ? $"/visitas/{visitaId}" : "/visitas",
         TipoItemBandeja.DeteccionPendiente => $"/empresas/{item.EmpresaId}/deteccion-trabajadores",
         // La acción real (MarcarAcreditacionSubidaCommand) vive en la pestaña
         // Plataforma de /documentos, no en DocumentoWorkspacePanel (el
