@@ -9,8 +9,6 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
-using CaeManager.Application.Operaciones.ApoyoCartera.Queries;
-using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
 using CaeManager.Application.Usuarios;
 using CaeManager.Application.Visitas.GestionPorCorreo;
@@ -114,11 +112,11 @@ public static class PilotoOutboundAutoverificacion
     public sealed record MedicionAsistenteIa(CarteraDelAsistenteIa Gestora, CarteraDelAsistenteIa Coordinadora);
 
     /// <summary>
-    /// Lo que el Tenant del Operador CAE externo enseña en sus pantallas de equipo y de cartera: las solicitudes de
-    /// incorporación pendientes que ve la Coordinadora CAE, las propuestas de apoyo pendientes que la Gestora CAE
-    /// primera ha enviado y las cuentas del equipo de la Coordinadora CAE pendientes de activación.
+    /// Lo que el Tenant del Operador CAE externo enseña en sus pantalla de equipo: las cuentas del equipo de la
+    /// Coordinadora CAE pendientes de activación. La solicitud de cartera y la propuesta de apoyo (R14) no se siembran: sus
+    /// políticas de seguridad de registros exigen el Tenant de origen de una sesión autenticada.
     /// </summary>
-    public sealed record MedicionOperador(int SolicitudesPendientesCoordinadora, int PropuestasEnviadasGestora, int PendientesActivacionEquipo);
+    public sealed record MedicionOperador(int PendientesActivacionEquipo);
 
     /// <param name="AsistenteIa">Nulo si no se midió: <see cref="Repartir"/> lo da por discrepancia, no por bueno.</param>
     /// <param name="Operador">Nulo si no se midió: igual que <paramref name="AsistenteIa"/>.</param>
@@ -164,9 +162,7 @@ public static class PilotoOutboundAutoverificacion
             fabricaDeAmbitos, cuentas.GestoraPrimera, Roles.GestorCae,
             async servicios => (
                 Tenants: await MedirComoGestoraAsync(servicios, opciones, tenantsQueNoSeMiden, cancellationToken),
-                AsistenteIa: await MedirCarteraDelAsistenteIaAsync(servicios, cancellationToken),
-                PropuestasEnviadas: (await servicios.GetRequiredService<ISender>().Send(
-                    new ObtenerPropuestasApoyoPendientesQuery(), cancellationToken)).Enviadas.Count),
+                AsistenteIa: await MedirCarteraDelAsistenteIaAsync(servicios, cancellationToken)),
             cancellationToken);
 
         var comoCoordinadora = await ComoCuentaDelPilotoAsync(
@@ -175,10 +171,6 @@ public static class PilotoOutboundAutoverificacion
                 VisionCartera: (await servicios.GetRequiredService<ISender>().Send(new ObtenerKpisGlobalesQuery(), cancellationToken))
                     .ClientesConMasRiesgo.ToDictionary(c => c.Nombre),
                 AsistenteIa: await MedirCarteraDelAsistenteIaAsync(servicios, cancellationToken),
-                SolicitudesPendientes: await servicios.GetRequiredService<ISender>().Send(
-                    new ObtenerSolicitudesIncorporacionCarteraQuery(SoloPendientes: true), cancellationToken) is { EsExitoso: true } bandeja
-                    ? bandeja.Valor.Pendientes.Count
-                    : -1,
                 PendientesActivacion: (await servicios.GetRequiredService<ISender>().Send(
                     new ObtenerEquipoDeCoordinadorQuery(), cancellationToken)).Count(m => m.PendienteActivacion)),
             cancellationToken);
@@ -195,7 +187,7 @@ public static class PilotoOutboundAutoverificacion
             })
         ],
         new MedicionAsistenteIa(comoGestora.AsistenteIa, comoCoordinadora.AsistenteIa),
-        new MedicionOperador(comoCoordinadora.SolicitudesPendientes, comoGestora.PropuestasEnviadas, comoCoordinadora.PendientesActivacion));
+        new MedicionOperador(comoCoordinadora.PendientesActivacion));
     }
 
     /// <summary>
@@ -325,9 +317,6 @@ public static class PilotoOutboundAutoverificacion
         {
             void ExigeOperador(string contador, int medido) =>
                 delLoteEntero.AddRange(medido == 1 ? [] : [$"Operador CAE externo · {contador}: medido {medido}, esperado 1."]);
-
-            ExigeOperador("solicitudes de incorporación a cartera pendientes que ve la Coordinadora CAE", operador.SolicitudesPendientesCoordinadora);
-            ExigeOperador("propuestas de apoyo pendientes enviadas por la Gestora CAE primera", operador.PropuestasEnviadasGestora);
             ExigeOperador("cuentas del equipo de la Coordinadora CAE pendientes de activación", operador.PendientesActivacionEquipo);
         }
 
@@ -801,6 +790,12 @@ public static class PilotoOutboundAutoverificacion
             [CasosDeEstadoPilotoOutbound.VisitaCancelada] = todasLasVisitas.Count(v => v.EstaCancelada),
             [CasosDeEstadoPilotoOutbound.VisitaConDocumentacionGestionada] = todasLasVisitas.Count(
                 v => !v.EstaCancelada && v.FechaInicio > hoy && v.DocumentacionGestionadaEnUtc is not null),
+            [CasosDeEstadoPilotoOutbound.RevisionIaPendiente] = await dbContext.RevisionesIaDocumento.AsNoTracking()
+                .CountAsync(r => !r.Resuelta, cancellationToken),
+            [CasosDeEstadoPilotoOutbound.DeteccionPendiente] = await dbContext.DeteccionesTrabajador.AsNoTracking()
+                .CountAsync(x => !x.Resuelta, cancellationToken),
+            [CasosDeEstadoPilotoOutbound.SugerenciaDeVisitaPendiente] = await dbContext.SugerenciasVisitaCorreo.AsNoTracking()
+                .CountAsync(x => !x.Resuelta, cancellationToken),
             [CasosDeEstadoPilotoOutbound.DocumentoRenovado] = renovados
         };
 

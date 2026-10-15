@@ -257,6 +257,9 @@ internal sealed class ArnesPilotoOutbound : IAsyncDisposable
                 ["Cuentas en total"] = await b.Users.IgnoreQueryFilters().CountAsync(),
                 ["Cuenta pendiente de activación"] = await b.Users.IgnoreQueryFilters().CountAsync(
                     u => u.Email == CuentasPilotoOutbound.Locales.GestorPendienteDeActivacion),
+                ["Revisiones de IA"] = await b.RevisionesIaDocumento.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
+                ["Detecciones de Trabajador"] = await b.DeteccionesTrabajador.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
+                ["Sugerencias de Visita"] = await b.SugerenciasVisitaCorreo.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
                 ["Visitas"] = await b.Visitas.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
                 ["Reclamaciones documentales"] = await b.ReclamacionesDocumentales.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
                 // Las dos tablas de catálogo cruzan Tenants: se cuentan enteras, que es lo que la retirada tiene que dejar a cero.

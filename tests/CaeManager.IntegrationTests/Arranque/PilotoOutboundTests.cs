@@ -204,11 +204,12 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     [Fact]
     public async Task T3_ningun_Centro_ensena_un_documento_que_no_exige_ni_de_un_Trabajador_que_no_es_suyo()
     {
+        var idT3 = await fixture.Arnes.TenantIdAsync(T3.Nombre);
         var (centros, asignaciones, filas, tipos, previa, centroDeLaVisita, mensuales) = await fixture.Arnes.ComoGestoraPrimeraEnAsync(T3.Nombre, async sp =>
         {
             var db = sp.GetRequiredService<CaeManager.Infrastructure.Persistence.CaeManagerDbContext>();
             var sender = sp.GetRequiredService<ISender>();
-            var visita = await db.Visitas.Select(v => new { v.Id, v.CentroId }).SingleAsync();
+            var visita = await db.Visitas.Where(v => v.TenantId == idT3).Select(v => new { v.Id, v.CentroId }).SingleAsync();
 
             return (
                 (await sender.Send(new CaeManager.Application.Centros.Queries.ObtenerCentros.ObtenerCentrosQuery(null, null, TamanoPagina: 1000))).Elementos,
@@ -679,8 +680,8 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         {
             ["Documentos (control positivo)"] = 886,
             ["Reclamaciones documentales"] = 3,
-            ["Conversaciones"] = 3,
-            ["Mensajes"] = 4,
+            ["Conversaciones"] = 4,
+            ["Mensajes"] = 5,
             ["Mensajes con estado de entrega"] = 0,
             ["Eventos de conversación"] = 3,
             ["Notificaciones a usuarios"] = 0,
@@ -793,7 +794,8 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             "Subcontrata con documentación propia", "Vehículo con documento vencido", "Visita a menos de 48 horas de la demostración",
             "Gestión pendiente", "Reclamación enviada sin respuesta",
             "Reclamación reciente sin respuesta", "Reclamación respondida", "Visita en curso", "Visita pasada", "Visita cancelada",
-            "Visita con documentación gestionada", "Documento renovado con su versión anterior en el historial"
+            "Visita con documentación gestionada", "Documento renovado con su versión anterior en el historial",
+            "Revisión de IA pendiente", "Detección de Trabajador pendiente", "Sugerencia de Visita pendiente"
         ]);
         casos.Should().OnlyContain(c => c.Value >= 1);
 
@@ -815,6 +817,9 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         casos["Visita cancelada"].Should().Be(1);
         casos["Visita con documentación gestionada"].Should().Be(1, "MEDIDO: la Visita por correo no tiene la documentación gestionada");
         casos["Documento renovado con su versión anterior en el historial"].Should().Be(1);
+        casos["Revisión de IA pendiente"].Should().Be(1);
+        casos["Detección de Trabajador pendiente"].Should().Be(1);
+        casos["Sugerencia de Visita pendiente"].Should().Be(1);
     }
 
     /// <summary>
@@ -965,6 +970,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             var sender = sp.GetRequiredService<ISender>();
             var visita = await (from v in db.Visitas
                                 join c in db.Centros on v.CentroId equals c.Id
+                                where v.Origen == OrigenVisita.Correo
                                 select new { v.Id, v.FechaInicio, Centro = c.Nombre }).SingleAsync();
 
             return (
@@ -1294,20 +1300,13 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     /// recibida por él. Ninguna de las dos le da acceso: su Mi trabajo sigue siendo T2, T3 y T6 (test anterior).
     /// </summary>
     [Fact]
-    public async Task El_Operador_CAE_externo_tiene_una_cuenta_pendiente_de_activacion_una_solicitud_y_una_propuesta_pendientes()
+    public async Task El_Operador_CAE_externo_tiene_una_cuenta_pendiente_de_activacion()
     {
         var locales = CuentasPilotoOutbound.Locales;
         var operador = CatalogoPilotoOutbound.NombreTenantOperador;
 
         var equipo = await fixture.Arnes.ComoCuentaAsync(operador, locales.Coordinadora,
             sp => sp.GetRequiredService<ISender>().Send(new CaeManager.Application.Usuarios.ObtenerEquipoDeCoordinadorQuery()));
-        var bandeja = await fixture.Arnes.ComoCuentaAsync(operador, locales.Coordinadora,
-            sp => sp.GetRequiredService<ISender>().Send(
-                new CaeManager.Application.Operaciones.IncorporacionCartera.Queries.ObtenerSolicitudesIncorporacionCarteraQuery(SoloPendientes: true)));
-        var enviadas = await fixture.Arnes.ComoCuentaAsync(operador, locales.GestoraPrimera,
-            sp => sp.GetRequiredService<ISender>().Send(new CaeManager.Application.Operaciones.ApoyoCartera.Queries.ObtenerPropuestasApoyoPendientesQuery()));
-        var recibidas = await fixture.Arnes.ComoCuentaAsync(operador, locales.GestorSegundo,
-            sp => sp.GetRequiredService<ISender>().Send(new CaeManager.Application.Operaciones.ApoyoCartera.Queries.ObtenerPropuestasApoyoPendientesQuery()));
 
         salida.WriteLine($"MEDIDO equipo de la Coordinadora CAE: {string.Join(", ", equipo.Select(m => $"{m.NombreCompleto} (pendiente {m.PendienteActivacion})"))}");
         var pendiente = equipo.Should().ContainSingle(m => m.PendienteActivacion).Subject;
@@ -1320,14 +1319,6 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         (cuenta.PasswordHash, cuenta.DebeCambiarContrasena).Should().Be(((string?)null, false), "MEDIDO: nace como el alta de la aplicación, sin contraseña");
         fixture.Arnes.Correo.Intentos.Should().BeEmpty("MEDIDO: sembrarla no genera enlace ni envía el correo de activación");
 
-        bandeja.EsExitoso.Should().BeTrue();
-        var solicitud = bandeja.Valor.Pendientes.Should().ContainSingle().Subject;
-        (solicitud.NombreEmpresa, solicitud.SolicitanteUsuarioId).Should().Be(
-            (T5.Nombre, await fixture.Arnes.ComoBootstrapAsync(b => b.Users.IgnoreQueryFilters()
-                .Where(u => u.Email == locales.GestorSegundo).Select(u => u.Id).SingleAsync())));
-
-        enviadas.Enviadas.Should().ContainSingle().And.BeEquivalentTo(recibidas.Recibidas, "MEDIDO: la misma propuesta, vista por sus dos extremos");
-        (enviadas.Recibidas.Count, recibidas.Enviadas.Count).Should().Be((0, 0));
     }
 
     [Theory]
@@ -1363,7 +1354,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         antes["Tenants del piloto"].Should().Be(7, "control: el recuento ve los seis Tenants propietarios y el del Operador CAE externo");
         antes["Cuentas del piloto"].Should().Be(6, "MEDIDO: las cinco del equipo y de T1, y el Usuario de Cliente de T1");
         antes["Cuenta pendiente de activación"].Should().Be(1, "MEDIDO: la séptima, fuera de las seis que tienen contraseña");
-        (antes["Solicitudes de incorporación a cartera"], antes["Propuestas de apoyo"]).Should().Be((1, 1));
+        (antes["Solicitudes de incorporación a cartera"], antes["Propuestas de apoyo"]).Should().Be((0, 0), "MEDIDO: no se siembran: sus políticas exigen el Tenant de origen de una sesión autenticada");
         antes["Documentos"].Should().Be(1165);
         antes["Ficheros en el almacén"].Should().Be(1165);
 
@@ -1526,9 +1517,11 @@ public class PilotoOutboundSensibilidadTests(ITestOutputHelper salida)
         var t1 = await arnes.TenantIdAsync(CatalogoPilotoOutbound.NombreTenantT1);
         var tipoQueYaNoViaja = await arnes.EnTenantAsync(t1, async (db, _) =>
         {
+            // Solo los de la Visita por correo: las demás Visitas de T1 llevan a otros Trabajadores.
             var documento = await (from acude in db.VisitasTrabajadores
+                                   join visitaDeCorreo in db.Visitas on acude.VisitaId equals visitaDeCorreo.Id
                                    join x in db.Documentos on (Guid?)acude.TrabajadorId equals x.TrabajadorId
-                                   where x.FechaVencimiento != null
+                                   where visitaDeCorreo.Origen == OrigenVisita.Correo && x.FechaVencimiento != null
                                    orderby x.Id
                                    select x).FirstAsync();
             await CorregirComoElProductoAsync(db, documento, DiaDeNegocio.Hoy().AddDays(-20));
@@ -1849,14 +1842,15 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
         PilotoOutboundAutoverificacion.Exigir(await arnes.MedirAsync(configuracion));
         var completa = await arnes.RecuentoAsync();
         completa["Ficheros en el almacén"].Should().Be(1165);
-        var escenariosDelOperador = new[] { "Cuenta pendiente de activación", "Solicitudes de incorporación a cartera", "Propuestas de apoyo" };
-        escenariosDelOperador.Select(k => completa[k]).Should().Equal([1, 1, 1], "control positivo: la siembra completa los tiene");
+        var escenariosDelOperador = new[] { "Cuenta pendiente de activación",
+            "Revisiones de IA", "Detecciones de Trabajador", "Sugerencias de Visita" };
+        escenariosDelOperador.Select(k => completa[k]).Should().Equal([1, 1, 1, 1], "control positivo: la siembra completa los tiene");
 
         // 3. La retirada no deja nada del piloto y no toca lo demás.
         (await arnes.RetirarAsync()).Should().HaveCount(7);
         var retirada = await arnes.RecuentoAsync();
         retirada.Should().BeEquivalentTo(sinPiloto, "MEDIDO: ni Tenants, ni cuentas, ni filas, ni ficheros del piloto; lo demás, igual que antes");
-        escenariosDelOperador.Select(k => retirada[k]).Should().Equal([0, 0, 0], "MEDIDO: la retirada borra la cuenta pendiente, la solicitud y la propuesta");
+        escenariosDelOperador.Select(k => retirada[k]).Should().Equal([0, 0, 0, 0], "MEDIDO: la retirada borra la cuenta pendiente y las tres señales de IA y correo");
         sinPiloto["Tenants en total"].Should().BeGreaterThan(0, "control positivo: había otros Tenants que no debían tocarse");
 
         // 4. Cancelación en mitad de T2.

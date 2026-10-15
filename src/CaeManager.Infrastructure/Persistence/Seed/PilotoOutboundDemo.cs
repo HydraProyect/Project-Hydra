@@ -500,6 +500,13 @@ public static class ConstruccionMitadPilotoOutbound
 /// Ese Centro no lo marca como bloqueante: la tolerancia solo cambia el rótulo.
 /// </para>
 /// </summary>
+/// <summary>Las Visitas de T4 y T5, que no tenían ninguna: una futura y una pasada, lejos de las 48 horas.</summary>
+public static class DisenoVisitasT4T5PilotoOutbound
+{
+    public const int DiasHastaLaVisita = 14;
+    public const int DiasDesdeLaVisitaPasada = 12;
+}
+
 public static class DisenoT5PilotoOutbound
 {
     /// <summary>A cuántos Centros (los primeros del catálogo) tiene Asignación activa cada Trabajador.</summary>
@@ -818,6 +825,23 @@ public static class DisenoT1PilotoOutbound
     /// </summary>
     public static (int Trabajador, string Tipo) DocumentoRenovado { get; } = (26, CatalogoPilotoOutbound.AptitudMedica);
 
+    /// <summary>
+    /// Las tres filas de Mi trabajo que vienen de la IA y de los correos, cada una pendiente de resolver: una revisión de
+    /// IA sobre el documento vigente de un Trabajador sin ninguna desviación, una detección de alta de un Trabajador de la
+    /// Empresa propia (sobre su documento vencido de Empresa, el listado de donde se «detectó») y una sugerencia de Visita
+    /// sin fecha, la «visita sorpresa» que Mi trabajo enseña siempre. No cambian ningún documento, par, Visita ni
+    /// porcentaje: solo añaden tres filas a Mi trabajo. Todo es texto inventado; el DNI no es de nadie.
+    /// </summary>
+    public static (int Trabajador, string Tipo) RevisionIaPendiente => (
+        Enumerable.Range(30, TrabajadoresPropios - 30).First(t => !EstaDeBaja(t) && DesviacionesDe(t).Count == 0 && CentrosActivosDe(t).Count == 1),
+        CatalogoPilotoOutbound.EntregaEpi);
+    public const int ConfianzaDeLaRevisionIa = 54;
+    public const string DniDeLaDeteccion = "99999999R";
+    public const string NombreDeLaDeteccion = "Ismael";
+    public const string ApellidosDeLaDeteccion = "Orozco Valdivia";
+    /// <summary>El Centro al que se refiere el correo de la sugerencia de Visita: uno sin plataforma ni correo.</summary>
+    public const int CentroDeLaSugerenciaDeVisita = 17;
+
     public static bool EsDeSubcontrata(int trabajador) => trabajador >= TrabajadoresPropios;
 
     /// <summary>A cuál de las tres subcontratas pertenece (0..2). Solo para los índices 150..174.</summary>
@@ -935,6 +959,9 @@ public static class CasosDeEstadoPilotoOutbound
     public const string VisitaCancelada = "Visita cancelada";
     public const string VisitaConDocumentacionGestionada = "Visita con documentación gestionada";
     public const string DocumentoRenovado = "Documento renovado con su versión anterior en el historial";
+    public const string RevisionIaPendiente = "Revisión de IA pendiente";
+    public const string DeteccionPendiente = "Detección de Trabajador pendiente";
+    public const string SugerenciaDeVisitaPendiente = "Sugerencia de Visita pendiente";
 
     public static IReadOnlyList<string> Todos { get; } =
     [
@@ -943,7 +970,8 @@ public static class CasosDeEstadoPilotoOutbound
         TrabajadorBloqueadoEnUnCentroYNoEnOtro, TrabajadorDeBaja, DocumentoDeEmpresaVencido, SubcontrataConDocumentacionPropia,
         VehiculoConDocumentoVencido, VisitaAMenosDe48Horas, GestionPendiente, ReclamacionSinRespuesta,
         ReclamacionRecienteSinRespuesta, ReclamacionRespondida, VisitaEnCurso, VisitaPasada, VisitaCancelada,
-        VisitaConDocumentacionGestionada, DocumentoRenovado
+        VisitaConDocumentacionGestionada, DocumentoRenovado,
+        RevisionIaPendiente, DeteccionPendiente, SugerenciaDeVisitaPendiente
     ];
 }
 

@@ -10,7 +10,6 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Gestiones;
 using CaeManager.Domain.Integraciones;
-using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Reclamaciones;
 using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Subcontratas;
@@ -252,9 +251,6 @@ public static class PilotoOutboundSeeder
             // Un Tenant a la vez en memoria: lo rastreado de este no acompaña al siguiente.
             dbContext.ChangeTracker.Clear();
         }
-
-        // Después del bucle: las dos operaciones que usan (T4 y T5) ya están abiertas.
-        await SembrarPeticionesDeCarteraAsync(dbContext, tenantOperadorId, equipo, deOtraVersion, cancellationToken);
 
         cronometro.Stop();
         var resultado = new Resultado(
@@ -526,54 +522,6 @@ public static class PilotoOutboundSeeder
                 string.Join(", ", resultado.Errors.Select(e => e.Description)));
 
         logger.LogInformation("Piloto Outbound: cuenta de Gestor CAE pendiente de activación creada, sin enlace ni correo.");
-    }
-
-    /// <summary>
-    /// Lo que espera a la Coordinadora CAE y al Gestor CAE segundo en «Mi cartera»: una solicitud de incorporación
-    /// del Gestor CAE segundo a la cartera de T5, pendiente, y una propuesta de apoyo de la Gestora CAE primera al
-    /// Gestor CAE segundo sobre T4, pendiente. Los dos Tenants están fuera de la cartera del Gestor CAE segundo, como
-    /// exigen los comandos de la aplicación, y la solicitud no le da acceso a nada hasta que se acepte.
-    ///
-    /// <para>
-    /// Se crean una sola vez: si ya hay alguna de ese Gestor CAE sobre esa operación, en cualquier estado, no se
-    /// añade otra. Aceptarla o rechazarla en un ensayo no hace que el siguiente arranque la reponga. Si T4 o T5
-    /// tienen datos de otra versión, no se toca su operación.
-    /// </para>
-    /// </summary>
-    private static async Task SembrarPeticionesDeCarteraAsync(
-        CaeManagerDbContext dbContext, Guid tenantOperadorId, Equipo equipo, IReadOnlyList<string> deOtraVersion,
-        CancellationToken cancellationToken)
-    {
-        var existentes = await TenantsExistentesAsync(dbContext, cancellationToken);
-        var ahora = DateTime.UtcNow;
-
-        using var ambito = AmbitoTenantExplicito.Establecer(tenantOperadorId);
-
-        async Task<AsignacionOperacion?> OperacionSobreAsync(TenantPilotoOutbound tenant)
-        {
-            if (deOtraVersion.Contains(tenant.Nombre) || !existentes.TryGetValue(tenant.Nombre, out var propietarioId))
-                return null;
-
-            return await dbContext.AsignacionesOperacion.FirstOrDefaultAsync(
-                o => o.PropietarioTenantId == propietarioId && o.OperadorTenantId == tenantOperadorId && !o.EsRaiz
-                     && o.Estado == EstadoAsignacion.Vigente, cancellationToken);
-        }
-
-        if (await OperacionSobreAsync(CatalogoPilotoOutbound.T5) is { } operacionT5
-            && !await dbContext.SolicitudesIncorporacionCartera.AnyAsync(
-                s => s.AsignacionOperacionId == operacionT5.Id && s.SolicitanteUsuarioId == equipo.GestorSegundoId, cancellationToken))
-            dbContext.SolicitudesIncorporacionCartera.Add(SolicitudIncorporacionCartera.Crear(
-                operacionT5, equipo.GestorSegundoId,
-                "Llevo la coordinación de accesos de dos de sus centros y me vendría bien verlos en mi cartera.", ahora));
-
-        if (await OperacionSobreAsync(CatalogoPilotoOutbound.T4) is { } operacionT4
-            && !await dbContext.PropuestasApoyoCartera.AnyAsync(
-                p => p.AsignacionOperacionId == operacionT4.Id && p.ProponenteUsuarioId == equipo.GestoraPrimeraId
-                     && p.DestinatarioUsuarioId == equipo.GestorSegundoId, cancellationToken))
-            dbContext.PropuestasApoyoCartera.Add(PropuestaApoyoCartera.Crear(
-                operacionT4, equipo.GestoraPrimeraId, equipo.GestorSegundoId, vigenciaHastaPropuesta: null, ahora));
-
-        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
@@ -1067,6 +1015,8 @@ public static class PilotoOutboundSeeder
                     dbContext.Asignaciones.Add(new Asignacion(trabajadores[siguienteTrabajador++].Id, centros[c].Id, D.AddDays(-20 - k)));
             }
 
+            VisitasDeUnTenantSinVisitas(centros, trabajadores, c => CatalogoPilotoOutbound.RequisitosPorCentroT4.Take(c).Sum(x => x.Trabajadores));
+
             if (siguienteTrabajador != trabajadores.Count)
                 throw new InvalidOperationException(
                     $"{tenant.Clave}: el catálogo reparte {siguienteTrabajador} Trabajadores entre sus Centros y declara {trabajadores.Count}.");
@@ -1113,6 +1063,10 @@ public static class PilotoOutboundSeeder
                 _fechas.ConVencimiento(Tipo(DisenoT5PilotoOutbound.TipoVencidoEnTolerancia), D.AddDays(-DisenoT5PilotoOutbound.DiasDesdeQueVencio));
 
             await DocumentosDeTrabajadoresAsync(trabajadores, DisenoT5PilotoOutbound.Desviaciones, fechasFijadas);
+
+            // El Trabajador n está en los CentrosPorTrabajador[n] primeros: el primero de un Centro es el primero que llega hasta él.
+            VisitasDeUnTenantSinVisitas(
+                centros, trabajadores, c => DisenoT5PilotoOutbound.CentrosPorTrabajador.Select((n, t) => (n, t)).First(x => x.n > c).t);
         }
 
         /// <summary>T6: ver <see cref="DisenoT6PilotoOutbound"/>.</summary>
@@ -1251,6 +1205,70 @@ public static class PilotoOutboundSeeder
             ReclamacionesDeTrabajadorDelGrande(centros, trabajadores, documentos);
             VisitasEnSusEstadosDelGrande(centros, trabajadores);
             await DocumentoRenovadoDelGrandeAsync(trabajadores, documentos);
+            SenalesDeIaDelGrande(propia, centros, trabajadores, documentos, documentoDeEmpresaVencido);
+        }
+
+        /// <summary>
+        /// Las tres filas de Mi trabajo que vienen de la IA y de los correos (<see cref="DisenoT1PilotoOutbound.RevisionIaPendiente"/>):
+        /// una revisión de IA, una detección de alta y una sugerencia de Visita, todas pendientes. Son REGISTROS de lo que
+        /// la aplicación habría dejado tras analizar un documento y un correo: aquí no se llama a ningún proveedor de IA ni
+        /// se envía nada. El correo que origina la sugerencia es entrante, de la dirección de coordinación CAE del Cliente
+        /// empresarial dueño del Centro, que sale de la configuración de contactos.
+        /// </summary>
+        private void SenalesDeIaDelGrande(
+            Empresa propia, List<Centro> centros, List<Trabajador> trabajadores,
+            Dictionary<(int Trabajador, string Tipo), Documento> documentos, Documento documentoDeEmpresa)
+        {
+            var (t, nombreTipo) = DisenoT1PilotoOutbound.RevisionIaPendiente;
+            if (!documentos.TryGetValue(DisenoT1PilotoOutbound.RevisionIaPendiente, out var documentoRevisado)
+                || DisenoT1PilotoOutbound.DesviacionesDe(t).Count > 0 || DisenoT1PilotoOutbound.CentrosActivosDe(t).Count != 1)
+                throw new InvalidOperationException(
+                    $"{tenant.Clave}: la revisión de IA de ({t}, {nombreTipo}) tiene que ser de un documento de un Trabajador en regla, en un solo Centro.");
+
+            dbContext.RevisionesIaDocumento.Add(RevisionIaDocumento.Crear(
+                documentoRevisado.Id, DisenoT1PilotoOutbound.ConfianzaDeLaRevisionIa, tipoDetectado: nombreTipo,
+                fechaEmisionDetectada: documentoRevisado.FechaEmision, fechaVencimientoDetectada: null, tieneFirmaDetectada: false,
+                motivo: "La fecha de emisión no se lee con claridad y no se detecta firma. Conviene que alguien lo mire."));
+
+            dbContext.DeteccionesTrabajador.Add(DeteccionTrabajador.Nuevo(
+                documentoDeEmpresa.Id, propia.Id, DisenoT1PilotoOutbound.NombreDeLaDeteccion,
+                DisenoT1PilotoOutbound.ApellidosDeLaDeteccion, DisenoT1PilotoOutbound.DniDeLaDeteccion));
+
+            var centro = centros[DisenoT1PilotoOutbound.CentroDeLaSugerenciaDeVisita];
+            var especificacion = tenant.ClientesEmpresariales.Single(c => c.Centros.Any(x => x.Nombre == centro.Nombre));
+            var remitente = parametros.Contactos.DireccionDe(IdentidadesPilotoOutbound.EtiquetaDeCoordinacionCae(especificacion.RazonSocial));
+            var recibido = D.AddDays(-OpcionesPilotoOutbound.MargenMaximoDias - 1).ToDateTime(new TimeOnly(8, 40), DateTimeKind.Utc);
+            var conversacion = new Conversacion($"Aviso de inspección en {centro.Nombre}", clienteId: centro.ClienteId);
+            var mensaje = conversacion.AgregarMensaje(
+                DireccionMensaje.Entrante, CanalConversacion.Correo, remitente,
+                $"<p>Mañana pasa una inspección por {centro.Nombre} y entrará personal de otra contrata. Avisadnos de quién viene.</p>",
+                recibido);
+            conversacion.AgregarParticipante(remitente, RolParticipante.De, TipoParticipanteOrigen.Empresa, centro.ClienteId);
+            dbContext.Conversaciones.Add(conversacion);
+
+            dbContext.SugerenciasVisitaCorreo.Add(new SugerenciaVisitaCorreo(
+                mensaje.Id, centro.Id, fechaInicioSugerida: null, fechaFinSugerida: null,
+                resumen: "Inspección sorpresa en el Centro; el correo no precisa la fecha.",
+                confianza: 70, confianzaCentro: 90, confianzaFechas: 40));
+        }
+
+        /// <summary>
+        /// Una Visita futura y una pasada en un Tenant que no tenía ninguna (T4 y T5): a un Centro cada una y con el primer
+        /// Trabajador asignado a él, lejos de las 48 horas. No cambian ningún documento ni par.
+        /// </summary>
+        private void VisitasDeUnTenantSinVisitas(
+            List<Centro> centros, List<Trabajador> trabajadores, Func<int, int> primerTrabajadorDelCentro)
+        {
+            void Crear(int c, int diasDesdeLaDemostracion, string notas)
+            {
+                var dia = D.AddDays(diasDesdeLaDemostracion);
+                var visita = new Visita(centros[c].Id, dia, dia, notas, OrigenVisita.Manual);
+                dbContext.Visitas.Add(visita);
+                dbContext.VisitasTrabajadores.Add(new VisitaTrabajador(visita.Id, trabajadores[primerTrabajadorDelCentro(c)].Id));
+            }
+
+            Crear(0, DisenoVisitasT4T5PilotoOutbound.DiasHastaLaVisita, "Revisión de instalaciones antes del arranque");
+            Crear(1, -DisenoVisitasT4T5PilotoOutbound.DiasDesdeLaVisitaPasada, "Reconocimiento inicial del centro");
         }
 
         /// <summary>

@@ -211,7 +211,10 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
         // escribiera la renovación tiene la Empresa propia de esta versión, pero no la versión anterior del documento.
         var idT1 = await arnes.TenantIdAsync(CatalogoPilotoOutbound.NombreTenantT1);
         (await arnes.EnTenantAsync(idT1, (db, _) => db.Documentos.Where(d => d.SustituidoPorDocumentoId != null)
-            .ExecuteUpdateAsync(s => s.SetProperty(d => d.SustituidoPorDocumentoId, (Guid?)null))))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(d => d.SustituidoPorDocumentoId, (Guid?)null)
+                .SetProperty(d => d.SustituidoEnUtc, (DateTime?)null)
+                .SetProperty(d => d.MotivoSustitucion, (CaeManager.Domain.Documentos.MotivoSustitucionDocumento?)null))))
             .Should().Be(1, "control: T1 tenía un documento renovado, y se le ha quitado la renovación");
         (await TenantsConDatosDeOtraVersionAsync(arnes)).Should().BeEquivalentTo(
             [ConDatosDeOtraVersion.Nombre, CatalogoPilotoOutbound.NombreTenantT1],
