@@ -19,6 +19,14 @@ namespace CaeManager.Application.Common;
 /// </para>
 ///
 /// <para>
+/// <b>Encargo pleno (decisión de Chris, 2026-10-15).</b> Si el Tenant
+/// propietario no tiene Administrador propio, ni activo ni pendiente de activar, el encargo es pleno y no
+/// se excluye nada: quien administra por encargo es Administrador sin
+/// excepciones. Las exclusiones siguen rigiendo, sin cambio, en un Tenant
+/// propietario con Administrador propio que haya concedido el encargo.
+/// </para>
+///
+/// <para>
 /// Hace falta en Application y no basta con las puertas de página: los
 /// handlers de estas áreas no comprueban el rol, así que su única barrera era
 /// una ruta que mira el rol ya elevado.
@@ -37,6 +45,10 @@ public class ExclusionesDelEncargoBehavior<TRequest, TResponse>(IEncargoDeAdmini
             return await next(cancellationToken);
 
         if (await encargoActual.EncargoQueElevaAsync() is null)
+            return await next(cancellationToken);
+
+        // Encargo pleno: Tenant propietario sin Administrador propio, sin excepciones.
+        if (await encargoActual.EncargoPlenoAsync() is not null)
             return await next(cancellationToken);
 
         return CrearRespuestaFallo(ErroresEncargoAdministracion.ActoExcluido, request.GetType().Name);

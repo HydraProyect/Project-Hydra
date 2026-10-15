@@ -41,9 +41,9 @@ public partial class ParametrosSistemaPanel : ComponentBase
     private string? _mensajeErrorPresupuestoIa;
 
     /// <summary>
-    /// Quien administra por Encargo de administración (decisión D-8, 2026-10-08) no fija el
-    /// presupuesto de IA: <c>ActualizarPresupuestoIaCommand</c> está entre los actos excluidos y la
-    /// tarjeta no se le ofrece. La barrera es la de Application; esto evita ofrecer lo que falla.
+    /// Quien administra por Encargo de administración no pleno (decisión D-8, 2026-10-08) no fija
+    /// el presupuesto de IA: <c>ActualizarPresupuestoIaCommand</c> está entre los actos excluidos y la
+    /// tarjeta no se le ofrece. Con encargo pleno (decisión de Chris, 2026-10-15) sí. La barrera es la de Application; esto evita ofrecer lo que falla.
     /// </summary>
     private bool _presupuestoIaReservado;
 
@@ -51,7 +51,7 @@ public partial class ParametrosSistemaPanel : ComponentBase
     {
         // El estado de autenticación del circuito ya está resuelto: se asigna antes del primer render.
         if (EstadoAutenticacion is not null)
-            _presupuestoIaReservado = PaginasExcluidasDelEncargo.ActuaPorEncargo((await EstadoAutenticacion).User);
+            _presupuestoIaReservado = PaginasExcluidasDelEncargo.RigenLasExclusiones((await EstadoAutenticacion).User);
         await CargarAsync();
     }
 

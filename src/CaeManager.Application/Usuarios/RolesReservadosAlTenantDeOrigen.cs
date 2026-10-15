@@ -33,6 +33,15 @@ namespace CaeManager.Application.Usuarios;
 /// </para>
 ///
 /// <para>
+/// <b>Única excepción: el Encargo de administración pleno</b> (decisión de
+/// Chris, 2026-10-15). En un Tenant propietario sin Administrador propio
+/// (ni activo ni pendiente de activar), quien lo administra por encargo es Administrador pleno y puede
+/// conceder estos roles en ese Tenant. La autoridad viene del encargo, no de la
+/// cartera: sin encargo pleno, una Asignación de Cartera o de Operación nunca
+/// concede un rol de Propiedad (la regla del 2026-09-23 sigue íntegra).
+/// </para>
+///
+/// <para>
 /// Falla cerrado: sin Tenant de origen o sin Context Workspace resueltos, el
 /// contexto se trata como cruzado. Los literales de rol se repiten a propósito
 /// (Application no referencia <c>Roles</c> de Infrastructure.Identity, mismo
@@ -52,8 +61,15 @@ public static class RolesReservadosAlTenantDeOrigen
     public static bool EsContextoCruzado(Guid? tenantOrigenId, Guid? tenantContextoId) =>
         tenantOrigenId is null || tenantContextoId is null || tenantOrigenId != tenantContextoId;
 
-    public static Result Verificar(string? rol, Guid? tenantOrigenId, Guid? tenantContextoId) =>
-        EsReservado(rol) && EsContextoCruzado(tenantOrigenId, tenantContextoId)
+    /// <summary>
+    /// Quien actúa lo hace por un Encargo de administración pleno en el Tenant
+    /// activo. Sin la señal (<c>null</c>) falla cerrado: no es pleno.
+    /// </summary>
+    public static async Task<bool> ActuaPorEncargoPlenoAsync(Common.IEncargoDeAdministracionActual? encargoActual) =>
+        encargoActual is not null && await encargoActual.EncargoPlenoAsync() is not null;
+
+    public static Result Verificar(string? rol, Guid? tenantOrigenId, Guid? tenantContextoId, bool encargoPleno) =>
+        EsReservado(rol) && EsContextoCruzado(tenantOrigenId, tenantContextoId) && !encargoPleno
             ? Result.Fallo(Error.Crear(
                 "Usuarios.RolReservadoAlTenantDeOrigen",
                 "Administrador y Dirección CAE solo se asignan desde tu propia organización, " +

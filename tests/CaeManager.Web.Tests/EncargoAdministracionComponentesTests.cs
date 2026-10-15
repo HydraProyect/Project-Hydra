@@ -59,9 +59,9 @@ public class EncargoAdministracionComponentesTests : BunitContext
             null, null, estado == EstadoEncargoAdministracion.Retirado ? new DateTime(2026, 10, 5, 9, 0, 0, DateTimeKind.Utc) : null,
             estado);
 
-    private void ComoUsuario(bool porEncargo)
+    private void ComoUsuario(bool porEncargo, bool pleno = false)
     {
-        Services.AddScoped<AuthenticationStateProvider>(_ => new Autenticacion(porEncargo));
+        Services.AddScoped<AuthenticationStateProvider>(_ => new Autenticacion(porEncargo, pleno));
         Services.AddAuthorizationCore();
         Services.AddCascadingAuthenticationState();
     }
@@ -225,6 +225,21 @@ public class EncargoAdministracionComponentesTests : BunitContext
         var aviso = cut.Find("[data-testid=aviso-por-encargo]");
         aviso.TextContent.Should().Contain("Por encargo").And.Contain("Administras esta organización por encargo");
         aviso.TextContent.Should().NotContain("es administrador de");
+        aviso.TextContent.Should().Contain("Quedan reservados", "con encargo no pleno enumera los actos reservados");
+    }
+
+    [Fact]
+    public void Con_encargo_pleno_el_aviso_no_dice_que_haya_actos_reservados()
+    {
+        // Decisión de Chris, 2026-10-15: sin Administrador propio en el Tenant propietario, quien
+        // administra por encargo es Administrador pleno; el rótulo no puede contar lo contrario.
+        ComoUsuario(porEncargo: true, pleno: true);
+
+        var aviso = Render<AvisoAdministraPorEncargo>().Find("[data-testid=aviso-por-encargo]");
+
+        aviso.TextContent.Should().Contain("Administras esta organización por encargo")
+            .And.Contain("como Administrador pleno");
+        aviso.TextContent.Should().NotContain("Quedan reservados");
     }
 
     [Fact]
@@ -251,6 +266,17 @@ public class EncargoAdministracionComponentesTests : BunitContext
     }
 
     [Fact]
+    public void Con_encargo_pleno_si_se_le_ofrece_fijar_el_presupuesto_de_IA()
+    {
+        ComoUsuario(porEncargo: true, pleno: true);
+
+        var cut = Render<ParametrosSistemaPanel>();
+
+        cut.WaitForAssertion(() => cut.FindAll("input[type=number]").Should().HaveCount(5, "con encargo pleno nada se reserva"));
+        cut.FindAll("[data-testid=presupuesto-ia-reservado]").Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Un_Administrador_propio_si_ve_y_guarda_el_presupuesto_de_IA()
     {
         ComoUsuario(porEncargo: false);
@@ -265,13 +291,16 @@ public class EncargoAdministracionComponentesTests : BunitContext
 
     // ------------------------------------------------------------------ dobles
 
-    private sealed class Autenticacion(bool porEncargo) : AuthenticationStateProvider
+    private sealed class Autenticacion(bool porEncargo, bool pleno) : AuthenticationStateProvider
     {
         public override Task<AuthenticationState> GetAuthenticationStateAsync()
         {
             var claims = new List<Claim> { new(ClaimTypes.Role, CaeManager.Infrastructure.Identity.Roles.Administrador) };
+            var encargo = Guid.NewGuid().ToString();
             if (porEncargo)
-                claims.Add(new Claim(RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion, Guid.NewGuid().ToString()));
+                claims.Add(new Claim(RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion, encargo));
+            if (pleno)
+                claims.Add(new Claim(RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoPleno, encargo));
             return Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity(claims, "test"))));
         }
     }

@@ -28,7 +28,8 @@ public record GenerarActivacionUsuarioCommand(Guid UsuarioId) : ICommand<string>
 public class GenerarActivacionUsuarioCommandHandler(
     IGestionCuentasUsuario cuentas,
     ICurrentUserService currentUserService,
-    ITenantActual tenantActual)
+    ITenantActual tenantActual,
+    IEncargoDeAdministracionActual? encargoActual = null)
     : IRequestHandler<GenerarActivacionUsuarioCommand, Result<string>>
 {
     public static readonly Error YaActivada = Error.Crear(
@@ -48,7 +49,8 @@ public class GenerarActivacionUsuarioCommandHandler(
         // Regenerar el enlace de activación de un Administrador pendiente equivale a
         // quedarse con su cuenta: quien lo pide recibe el enlace.
         var destinoIntocable = CuentasConRolDePropiedad.VerificarDestino(
-            cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId);
+            cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId,
+            await RolesReservadosAlTenantDeOrigen.ActuaPorEncargoPlenoAsync(encargoActual));
         if (destinoIntocable.EsFallido)
             return Result.Fallo<string>(destinoIntocable.Error);
 

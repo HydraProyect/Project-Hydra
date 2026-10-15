@@ -114,6 +114,9 @@
   <data name="AvisoPorEncargoCuerpo" xml:space="preserve">
     <value>Hi entres amb el teu perfil d'Administrador o Direcció CAE perquè aquesta organització ha encarregat la seva administració a la teva. Queden reservats a un Administrador propi de l'organització els comptes d'Administrador i Direcció CAE, els Operadors CAE externs, el mateix encàrrec, i les pantalles d'auditoria, facturació, claus d'API, integracions, importacions, retenció i configuració global d'IA.</value>
   </data>
+  <data name="AvisoPorEncargoCuerpoPleno" xml:space="preserve">
+    <value>Hi entres amb el teu perfil d'Administrador o Direcció CAE perquè aquesta organització ha encarregat la seva administració a la teva i no té Administrador propi: l'administres com a Administrador ple, també els seus comptes d'Administrador i Direcció CAE, l'auditoria, la facturació, les claus d'API, les integracions, les importacions, la retenció, la configuració global d'IA i el mateix encàrrec, al qual pot renunciar qui hi entri com a Administrador.</value>
+  </data>
   <data name="ReservadoPresupuestoIa" xml:space="preserve">
     <value>El pressupost d'IA el fixa un Administrador propi d'aquesta organització: no forma part de l'Encàrrec d'administració.</value>
   </data>

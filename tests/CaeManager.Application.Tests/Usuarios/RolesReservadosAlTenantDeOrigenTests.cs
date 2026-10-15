@@ -37,6 +37,23 @@ public class RolesReservadosAlTenantDeOrigenTests
         resultado.EsExitoso.Should().BeTrue();
     }
 
+    // Decisión del 2026-10-15: el Operador CAE externo con Encargo de administración pleno es
+    // Administrador del Tenant propietario sin excepciones, también para conceder estos roles.
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    public void Con_encargo_pleno_admite_los_roles_reservados_en_el_Context_Workspace_cruzado(string rol)
+    {
+        RolesReservadosAlTenantDeOrigen.Verificar(rol, TenantOperadorCae, TenantPropietario, encargoPleno: true)
+            .EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Sin_la_senal_del_encargo_no_se_actua_por_encargo_pleno()
+    {
+        (await RolesReservadosAlTenantDeOrigen.ActuaPorEncargoPlenoAsync(null)).Should().BeFalse();
+    }
+
     [Theory]
     [InlineData("CoordinadorCae")]
     [InlineData("GestorCae")]
@@ -94,7 +111,7 @@ public class RolesReservadosAlTenantDeOrigenTests
     // La regla la aplican los Commands de Usuarios/Commands (P1-I2); aquí se prueba
     // la regla misma, que es la que esos Commands llaman.
     private static Task<CaeManager.Domain.Common.Result> VerificarAsync(string rol, Guid? tenantOrigen, Guid? contexto) =>
-        Task.FromResult(RolesReservadosAlTenantDeOrigen.Verificar(rol, tenantOrigen, contexto));
+        Task.FromResult(RolesReservadosAlTenantDeOrigen.Verificar(rol, tenantOrigen, contexto, false));
 
     private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual
     {

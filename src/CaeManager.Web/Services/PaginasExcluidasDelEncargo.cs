@@ -16,6 +16,12 @@ namespace CaeManager.Web.Services;
 /// <c>PaginasClasificadasParaElEncargoTests</c>: una pantalla nueva de
 /// Administrador no se abre bajo encargo sin que alguien lo haya decidido.
 /// </para>
+///
+/// <para>
+/// Solo rige con encargo <b>no pleno</b>: en un Tenant propietario sin
+/// Administrador propio, ni activo ni pendiente de activar, el encargo es pleno y no se niega ninguna
+/// página (decisión de Chris, 2026-10-15).
+/// </para>
 /// </summary>
 public static class PaginasExcluidasDelEncargo
 {
@@ -41,6 +47,22 @@ public static class PaginasExcluidasDelEncargo
     /// <summary>El principal lleva el claim que marca que su rol está elevado por un encargo.</summary>
     public static bool ActuaPorEncargo(System.Security.Claims.ClaimsPrincipal usuario) =>
         usuario.HasClaim(c => c.Type == RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion);
+
+    /// <summary>
+    /// Actúa por encargo y el encargo es pleno (Tenant propietario sin Administrador
+    /// propio, ni activo ni pendiente de activar; decisión de Chris, 2026-10-15): no se
+    /// le niega ninguna página.
+    /// </summary>
+    public static bool ActuaPorEncargoPleno(System.Security.Claims.ClaimsPrincipal usuario) =>
+        usuario.HasClaim(c => c.Type == RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoPleno);
+
+    /// <summary>
+    /// Rigen las exclusiones del encargo del 2026-10-08: actúa por encargo y el encargo
+    /// <b>no</b> es pleno. Es la señal que usan las pantallas para reservar lo que el encargo
+    /// no abre; con encargo pleno no se reserva nada.
+    /// </summary>
+    public static bool RigenLasExclusiones(System.Security.Claims.ClaimsPrincipal usuario) =>
+        ActuaPorEncargo(usuario) && !ActuaPorEncargoPleno(usuario);
 }
 
 /// <summary>
@@ -96,7 +118,7 @@ public sealed class PaginasExcluidasDelEncargoAuthorizationHandler : IAuthorizat
 {
     public Task HandleAsync(AuthorizationHandlerContext context)
     {
-        if (PaginasExcluidasDelEncargo.ActuaPorEncargo(context.User) && EstaExcluido(context.Resource))
+        if (PaginasExcluidasDelEncargo.RigenLasExclusiones(context.User) && EstaExcluido(context.Resource))
             context.Fail();
 
         return Task.CompletedTask;

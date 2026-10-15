@@ -28,11 +28,20 @@ namespace CaeManager.Application.Usuarios;
 /// </para>
 ///
 /// <para>
-/// Lo que el encargo <b>no</b> abre, y por eso no se decide con el rol efectivo:
-/// conceder Administrador o Dirección CAE
-/// (<see cref="RolesReservadosAlTenantDeOrigen"/>) y actuar sobre una cuenta que
+/// El encargo tiene dos regímenes, y ninguno se decide solo con el rol efectivo:
+/// <list type="bullet">
+/// <item><b>Encargo no pleno</b> (el Tenant propietario tiene Administrador
+/// propio, activo o pendiente de activar; decisión D-8, 2026-10-08): el encargo
+/// <b>no</b> abre conceder Administrador o Dirección CAE
+/// (<see cref="RolesReservadosAlTenantDeOrigen"/>) ni actuar sobre una cuenta que
 /// ya tiene uno de esos roles (<see cref="CuentasConRolDePropiedad"/>). Las dos
-/// reglas comparan el Tenant de origen de quien actúa con el Tenant activo.
+/// reglas comparan el Tenant de origen de quien actúa con el Tenant activo.</item>
+/// <item><b>Encargo pleno</b> (el Tenant propietario no tiene Administrador
+/// propio; decisión de Chris, 2026-10-15): quien administra por encargo es
+/// Administrador pleno y las dos reglas lo dejan pasar. La señal es
+/// <see cref="IEncargoDeAdministracionActual.EncargoPlenoAsync"/>; sin ella
+/// (<c>null</c>) fallan cerradas, como en el régimen no pleno.</item>
+/// </list>
 /// </para>
 /// </summary>
 public static class AutoridadSobreCuentas

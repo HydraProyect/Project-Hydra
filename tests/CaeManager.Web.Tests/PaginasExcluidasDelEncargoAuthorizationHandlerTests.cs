@@ -56,6 +56,14 @@ public class PaginasExcluidasDelEncargoAuthorizationHandlerTests
             "un Fail() explícito gana al requisito de rol que el rol elevado satisface");
     }
 
+    // Decisión del 2026-10-15: con encargo pleno (Tenant sin Administrador propio) no hay exclusiones.
+    [Theory]
+    [MemberData(nameof(PaginasExcluidas))]
+    public async Task Con_encargo_pleno_entra_tambien_en_las_paginas_excluidas(Type pagina)
+    {
+        (await AutorizarAsync(Administrador(porEncargo: true, pleno: true), Ruta(pagina))).Succeeded.Should().BeTrue();
+    }
+
     [Theory]
     [MemberData(nameof(PaginasExcluidas))]
     public async Task Un_Administrador_propio_sigue_entrando_en_esas_mismas_paginas(Type pagina)
@@ -122,11 +130,14 @@ public class PaginasExcluidasDelEncargoAuthorizationHandlerTests
             .AuthorizeAsync(usuario, recurso, SoloAdministrador);
     }
 
-    private static ClaimsPrincipal Administrador(bool porEncargo)
+    private static ClaimsPrincipal Administrador(bool porEncargo, bool pleno = false)
     {
         var identidad = new ClaimsIdentity([new Claim(ClaimTypes.Role, Roles.Administrador)], "prueba");
+        var encargo = Guid.NewGuid().ToString();
         if (porEncargo)
-            identidad.AddClaim(new Claim(RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion, Guid.NewGuid().ToString()));
+            identidad.AddClaim(new Claim(RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion, encargo));
+        if (porEncargo && pleno)
+            identidad.AddClaim(new Claim(RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoPleno, encargo));
         return new ClaimsPrincipal(identidad);
     }
 

@@ -16,7 +16,8 @@ namespace CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
 /// </summary>
 public record ObtenerRolesNoAsignablesQuery : IRequest<IReadOnlyList<string>>;
 
-public class ObtenerRolesNoAsignablesQueryHandler(ICurrentUserService currentUserService, ITenantActual tenantActual)
+public class ObtenerRolesNoAsignablesQueryHandler(ICurrentUserService currentUserService, ITenantActual tenantActual,
+    IEncargoDeAdministracionActual? encargoActual = null)
     : IRequestHandler<ObtenerRolesNoAsignablesQuery, IReadOnlyList<string>>
 {
     public async Task<IReadOnlyList<string>> Handle(ObtenerRolesNoAsignablesQuery request, CancellationToken cancellationToken)
@@ -24,6 +25,7 @@ public class ObtenerRolesNoAsignablesQueryHandler(ICurrentUserService currentUse
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
 
         return RolesReservadosAlTenantDeOrigen.EsContextoCruzado(tenantOrigenId, tenantActual.TenantId)
+               && !await RolesReservadosAlTenantDeOrigen.ActuaPorEncargoPlenoAsync(encargoActual)
             ? RolesReservadosAlTenantDeOrigen.Roles
             : [];
     }

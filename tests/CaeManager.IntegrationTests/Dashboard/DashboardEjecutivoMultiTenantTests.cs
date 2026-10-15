@@ -178,6 +178,8 @@ public class DashboardEjecutivoMultiTenantTests : IAsyncLifetime
         // Entra en un contenedor con AddApplication(): declara que no eleva por Encargo de administración.
         public Task<Guid?> EncargoQueElevaAsync() => Task.FromResult<Guid?>(null);
         public Guid? EncargoDeLaUltimaResolucion(Guid asignacionOperacionId) => null;
+        public Task<Guid?> EncargoPlenoAsync() => Task.FromResult<Guid?>(null);
+        public bool EncargoPlenoDeLaUltimaResolucion(Guid asignacionOperacionId) => false;
 
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId);
 

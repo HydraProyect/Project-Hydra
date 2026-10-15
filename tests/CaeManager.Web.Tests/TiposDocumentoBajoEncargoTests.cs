@@ -37,10 +37,10 @@ public class TiposDocumentoBajoEncargoTests : BunitContext
         Services.AddLocalization();
     }
 
-    private IRenderedComponent<TiposDocumento> Renderizar(bool porEncargo)
+    private IRenderedComponent<TiposDocumento> Renderizar(bool porEncargo, bool pleno = false)
     {
         // La última inscripción gana: mismo rol que ConRolDeEscritura y, además, el claim del encargo.
-        Services.AddScoped<AuthenticationStateProvider>(_ => new Autenticacion(porEncargo));
+        Services.AddScoped<AuthenticationStateProvider>(_ => new Autenticacion(porEncargo, pleno));
         var cut = Render<TiposDocumento>();
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Formación PRL"));
         return cut;
@@ -59,6 +59,18 @@ public class TiposDocumentoBajoEncargoTests : BunitContext
     }
 
     [Fact]
+    public void Con_encargo_pleno_los_tiene_habilitados()
+    {
+        // Decisión de Chris, 2026-10-15: sin Administrador propio en el Tenant propietario, el
+        // encargo es pleno y la configuración global de IA no se reserva.
+        var cut = Renderizar(porEncargo: true, pleno: true);
+
+        var interruptores = cut.FindAll("input.interruptor-tipo");
+        interruptores.Should().NotBeEmpty();
+        interruptores.Should().OnlyContain(i => !i.HasAttribute("disabled"));
+    }
+
+    [Fact]
     public void Un_Administrador_propio_los_tiene_habilitados()
     {
         var cut = Renderizar(porEncargo: false);
@@ -68,13 +80,16 @@ public class TiposDocumentoBajoEncargoTests : BunitContext
         interruptores.Should().OnlyContain(i => !i.HasAttribute("disabled"), "control positivo: sin el claim nada se reserva");
     }
 
-    private sealed class Autenticacion(bool porEncargo) : AuthenticationStateProvider
+    private sealed class Autenticacion(bool porEncargo, bool pleno) : AuthenticationStateProvider
     {
         public override Task<AuthenticationState> GetAuthenticationStateAsync()
         {
             var claims = new List<Claim> { new(ClaimTypes.Role, Roles.Administrador) };
+            var encargo = Guid.NewGuid().ToString();
             if (porEncargo)
-                claims.Add(new Claim(RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion, Guid.NewGuid().ToString()));
+                claims.Add(new Claim(RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion, encargo));
+            if (pleno)
+                claims.Add(new Claim(RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoPleno, encargo));
             return Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity(claims, "test"))));
         }
     }

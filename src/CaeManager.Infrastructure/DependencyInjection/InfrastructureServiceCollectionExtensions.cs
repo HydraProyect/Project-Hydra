@@ -503,6 +503,8 @@ public static class InfrastructureServiceCollectionExtensions
         // ese Tenant (contrato del selector de Tenant, I7).
         services.AddScoped<CaeManager.Application.Tenants.IAdministradorDelTenantPropietario,
             AdministradorDelTenantPropietarioEnBase>();
+        // Encargo pleno (2026-10-15): si el Tenant propietario tiene Administrador propio que pueda actuar.
+        services.AddScoped<CaeManager.Application.Tenants.ITenantConAdministradorPropio, TenantConAdministradorPropioEnBase>();
         services.AddScoped<CaeManager.Application.Tenants.Logo.IAutorizacionLogoTenant,
             CaeManager.Application.Tenants.Logo.AutorizacionLogoTenant>();
         // Encargo de administración (D-8): el perfil de Propiedad de la cuenta en su Tenant de

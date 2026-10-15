@@ -19,10 +19,20 @@ namespace CaeManager.Application.Common;
 /// </para>
 ///
 /// <para>
-/// Quien la consume no autoriza con ella: <b>restringe</b>.
+/// <see cref="EncargoQueElevaAsync"/> no autoriza: <b>restringe</b>.
 /// <c>ExclusionesDelEncargoBehavior</c> niega las áreas excluidas, la
 /// auditoría marca la vía, y la revalidación del circuito corta un claim que
 /// ya no vale.
+/// </para>
+///
+/// <para>
+/// <see cref="EncargoPlenoAsync"/> sí abre (decisión de Chris, 2026-10-15): con
+/// un encargo pleno —Tenant propietario sin Administrador propio, ni activo ni pendiente de activar— quien
+/// administra por encargo es Administrador pleno, sin las exclusiones del
+/// 2026-10-08. Lo consumen, y solo para levantar esas exclusiones, las
+/// exclusiones por área, la reserva de cuentas con rol de Propiedad, la
+/// renuncia al propio encargo y la activación del tratamiento con IA. Nunca
+/// concede acceso a un Tenant: sin cartera no hay rol, haya o no encargo.
 /// </para>
 /// </summary>
 public interface IEncargoDeAdministracionActual
@@ -42,6 +52,19 @@ public interface IEncargoDeAdministracionActual
     /// resuelto en este ámbito, o si la operación no es la de esa resolución.
     /// </summary>
     Guid? EncargoDeLaUltimaResolucion(Guid asignacionOperacionId);
+
+    /// <summary>
+    /// El encargo que eleva el rol efectivo <b>y es pleno</b> (el Tenant
+    /// propietario no tiene Administrador propio, ni activo ni pendiente de activar), resuelto en fresco
+    /// contra la base; <c>null</c> si no se elevó o si el encargo no es pleno.
+    /// </summary>
+    Task<Guid?> EncargoPlenoAsync();
+
+    /// <summary>
+    /// Como <see cref="EncargoDeLaUltimaResolucion"/>, pero solo si aquella
+    /// resolución dio el encargo por pleno. Para el middleware que deja el claim.
+    /// </summary>
+    bool EncargoPlenoDeLaUltimaResolucion(Guid asignacionOperacionId);
 }
 
 /// <summary>
@@ -58,4 +81,8 @@ public sealed class SinEncargoDeAdministracion : IEncargoDeAdministracionActual
     public Task<Guid?> EncargoQueElevaAsync() => Task.FromResult<Guid?>(null);
 
     public Guid? EncargoDeLaUltimaResolucion(Guid asignacionOperacionId) => null;
+
+    public Task<Guid?> EncargoPlenoAsync() => Task.FromResult<Guid?>(null);
+
+    public bool EncargoPlenoDeLaUltimaResolucion(Guid asignacionOperacionId) => false;
 }

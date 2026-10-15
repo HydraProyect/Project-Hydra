@@ -130,8 +130,8 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
     private string RutaLecturaIaPorCliente => IntegradaEnConfiguracion ? "/configuracion/ia" : "/configuracion/lectura-ia";
 
     /// <summary>
-    /// Quien administra por Encargo de administración (decisión D-8, 2026-10-08) no cambia la
-    /// configuración global de IA de un tipo: los cuatro comandos <c>…GlobalCommand</c> están entre
+    /// Quien administra por Encargo de administración no pleno (decisión D-8, 2026-10-08) no cambia
+    /// la configuración global de IA de un tipo (con encargo pleno, decisión de Chris, 2026-10-15, sí): los cuatro comandos <c>…GlobalCommand</c> están entre
     /// los actos excluidos, y sus interruptores y el selector de documento oficial se le pintan
     /// deshabilitados. La barrera es la de Application; esto evita ofrecer lo que falla.
     /// </summary>
@@ -143,7 +143,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
     {
         // El estado de autenticación del circuito ya está resuelto: se asigna antes del primer render.
         if (EstadoAutenticacion is not null)
-            _iaGlobalReservada = PaginasExcluidasDelEncargo.ActuaPorEncargo((await EstadoAutenticacion).User);
+            _iaGlobalReservada = PaginasExcluidasDelEncargo.RigenLasExclusiones((await EstadoAutenticacion).User);
 
         try
         {

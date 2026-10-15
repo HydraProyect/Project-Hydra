@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Security.Claims;
 using CaeManager.Application.Common;
+using CaeManager.Application.Cumplimiento.Commands.ActivarTratamientoIaPorEncargo;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Commands.RegistrarEncargoAdministracion;
@@ -463,6 +464,170 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
         }
     }
 
+    // ── Encargo pleno (decisión del 2026-10-15): Tenant propietario sin Administrador propio ──
+
+    [Fact]
+    public async Task La_funcion_del_Administrador_propio_responde_igual_desde_el_Operador_CAE_y_cuenta_las_cuentas_pendientes()
+    {
+        (await TieneAdministradorPropioAsync(_adminOperador, _propietario)).Should().BeTrue(
+            "desde el Operador CAE la RLS de cuentas oculta las del propietario; la función las ve igual");
+        (await TieneAdministradorPropioAsync(_adminOtroOperador, _propietarioDelOtro)).Should().BeFalse(
+            "control: el Tenant propietario del otro Operador CAE no tiene Administrador propio");
+
+        var desactivado = await SembrarUsuarioAsync("admin-desactivado", _propietarioDelOtro, Roles.Administrador);
+        await DesactivarAsync(desactivado);
+        (await TieneAdministradorPropioAsync(_adminOtroOperador, _propietarioDelOtro)).Should().BeFalse(
+            "una cuenta desactivada no es un Administrador propio");
+
+        await SembrarUsuarioAsync("admin-pendiente", _propietarioDelOtro, Roles.Administrador, conContrasena: false);
+        (await TieneAdministradorPropioAsync(_adminOtroOperador, _propietarioDelOtro)).Should().BeTrue(
+            "falla cerrado: una cuenta Administrador pendiente de activar cuenta como Administrador propio, " +
+            "para que el Operador CAE no pueda redirigir su activación ni eliminarla");
+    }
+
+    [Fact]
+    public async Task La_funcion_del_Administrador_propio_cuenta_una_cuenta_activa()
+    {
+        await SembrarUsuarioAsync("admin-activo", _propietarioDelOtro, Roles.Administrador);
+        (await TieneAdministradorPropioAsync(_adminOtroOperador, _propietarioDelOtro)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Sin_Administrador_propio_el_encargo_que_eleva_es_pleno_y_con_el_no()
+    {
+        (await RolEnAsync(_adminOtroOperador, _propietarioDelOtro, _operacionDelOtro, Roles.Administrador))
+            .Should().Be(new RolEfectivoPorOperacion(Roles.Administrador, _encargoDelOtro, EncargoPleno: true));
+        (await RolEnAsync(_adminOperador, _propietario, _operacion, Roles.Administrador))
+            .Should().Be(new RolEfectivoPorOperacion(Roles.Administrador, _encargo, EncargoPleno: false),
+                "un Tenant con Administrador propio no cambia");
+    }
+
+    [Fact]
+    public async Task Con_encargo_pleno_el_Operador_CAE_renuncia_con_el_rol_de_runtime_pero_no_se_registra_uno_vigente()
+    {
+        using (var ambito = Sesion(_adminOtroOperador, _propietarioDelOtro))
+        {
+            var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            var encargo = await contexto.EncargosAdministracion.SingleAsync(e => e.Id == _encargoDelOtro);
+            encargo.Retirar(_adminOtroOperador.Id, DateTime.UtcNow);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var comprobacion = ContextoPropietarioDeLaBase())
+        {
+            var retirado = await comprobacion.EncargosAdministracion.SingleAsync(e => e.Id == _encargoDelOtro);
+            retirado.RetiradoEnUtc.Should().NotBeNull();
+            retirado.RetiradoPorUsuarioId.Should().Be(_adminOtroOperador.Id, "queda el Actor real del Operador CAE");
+        }
+
+        using (var ambito = Sesion(_adminOtroOperador, _propietarioDelOtro))
+        {
+            var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            var operacion = await contexto.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionDelOtro);
+            contexto.EncargosAdministracion.Add(Encargar(operacion, _adminOtroOperador.Id, DateTime.UtcNow));
+
+            var registrar = async () => await contexto.SaveChangesAsync();
+
+            (await registrar.Should().ThrowAsync<DbUpdateException>(
+                    "ni con encargo pleno se da a sí mismo un encargo vigente"))
+                .Which.InnerException.Should().BeOfType<PostgresException>()
+                .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        }
+    }
+
+    [Fact]
+    public async Task Con_encargo_pleno_el_Operador_CAE_no_inserta_un_encargo_ya_retirado_con_el_rol_de_runtime()
+    {
+        // La disyunción del WITH CHECK que permite la renuncia admitiría una fila que ya nace retirada;
+        // lo impide TR_EncargosAdministracion_NaceVigente.
+        using (var ambito = Sesion(_adminOtroOperador, _propietarioDelOtro))
+        {
+            var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            var operacion = await contexto.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionDelOtro);
+            var retirado = Encargar(operacion, _adminOtroOperador.Id, DateTime.UtcNow.AddMinutes(-5));
+            retirado.Retirar(_adminOtroOperador.Id, DateTime.UtcNow);
+            contexto.EncargosAdministracion.Add(retirado);
+
+            var insertar = async () => await contexto.SaveChangesAsync();
+
+            (await insertar.Should().ThrowAsync<DbUpdateException>())
+                .Which.InnerException.Should().BeOfType<PostgresException>()
+                .Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+        }
+
+        await using var comprobacion = ContextoPropietarioDeLaBase();
+        (await comprobacion.EncargosAdministracion.CountAsync(e => e.PropietarioTenantId == _propietarioDelOtro))
+            .Should().Be(1, "solo queda el encargo vigente sembrado");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Con_Administrador_propio_activo_o_pendiente_el_Operador_CAE_no_renuncia_con_el_rol_de_runtime(bool activo)
+    {
+        // El caso de El_Operador_CAE_no_retira_su_propio_encargo_con_el_rol_de_runtime, ahora en el Tenant
+        // que tenía encargo pleno: en cuanto tiene un Administrador propio, aunque esté pendiente, el WITH
+        // CHECK deja de admitir la renuncia.
+        await SembrarUsuarioAsync("admin-propio", _propietarioDelOtro, Roles.Administrador, conContrasena: activo);
+
+        using (var ambito = Sesion(_adminOtroOperador, _propietarioDelOtro))
+        {
+            var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            var encargo = await contexto.EncargosAdministracion.SingleAsync(e => e.Id == _encargoDelOtro);
+            encargo.Retirar(_adminOtroOperador.Id, DateTime.UtcNow);
+
+            var guardar = async () => await contexto.SaveChangesAsync();
+
+            (await guardar.Should().ThrowAsync<DbUpdateException>())
+                .Which.InnerException.Should().BeOfType<PostgresException>()
+                .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        }
+
+        await using var comprobacion = ContextoPropietarioDeLaBase();
+        (await comprobacion.EncargosAdministracion.SingleAsync(e => e.Id == _encargoDelOtro)).RetiradoEnUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Con_encargo_pleno_el_Administrador_del_Operador_CAE_activa_la_IA_del_Tenant_propietario_bajo_RLS()
+    {
+        Guid instruccionId;
+        _sesion.Rol = Roles.Administrador;
+        using (var ambito = Sesion(_adminOtroOperador, _propietarioDelOtro))
+        {
+            var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            var resultado = await new ActivarTratamientoIaPorEncargoCommandHandler(
+                    _tenantActual, _sesion, _actor, new SesionPrivilegiadaAusente(),
+                    new CurrentUserServiceFalso(encargoPleno: _encargoDelOtro), contexto,
+                    new InstruccionTratamientoIaTenantPropietarioRepository(contexto), contexto, TimeProvider.System)
+                .Handle(new ActivarTratamientoIaPorEncargoCommand("DPA-2026-10", "Anexo-II-2026-10"), CancellationToken.None);
+
+            resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
+            instruccionId = resultado.Valor;
+        }
+
+        await using var comprobacion = ContextoPropietarioDeLaBase();
+        var fila = await comprobacion.InstruccionesTratamientoIaTenantPropietario.IgnoreQueryFilters()
+            .SingleAsync(i => i.Id == instruccionId);
+        fila.TenantId.Should().Be(_propietarioDelOtro, "el Tenant propietario es el de los datos, no el Operador CAE");
+        fila.EncargoAdministracionId.Should().Be(_encargoDelOtro);
+        fila.ClausulaContrato.Should().Be(Clausula);
+        fila.RegistradaPorUsuarioId.Should().Be(_adminOtroOperador.Id);
+    }
+
+    private async Task DesactivarAsync(ApplicationUser usuario)
+    {
+        await using var siembra = ContextoPropietarioDeLaBase();
+        await siembra.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE \"AspNetUsers\" SET \"LockoutEnd\" = {DateTimeOffset.MaxValue} WHERE \"Id\" = {usuario.Id}");
+    }
+
+    private async Task<bool> TieneAdministradorPropioAsync(ApplicationUser usuario, Guid tenantActivo)
+    {
+        using var ambito = Sesion(usuario, tenantActivo);
+        return await new TenantConAdministradorPropioEnBase(ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>())
+            .TieneAdministradorPropioAsync(tenantActivo, CancellationToken.None);
+    }
+
     // ── El techo, leyendo Identity bajo RLS desde el Tenant propietario ───
 
     [Fact]
@@ -535,8 +700,8 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
             .Should().Be(RolEfectivoPorOperacion.Ninguno, "ahí no tiene cartera ni posición");
 
         (await RolEnAsync(_adminOtroOperador, _propietarioDelOtro, _operacionDelOtro, Roles.Administrador))
-            .Should().Be(new RolEfectivoPorOperacion(Roles.Administrador, _encargoDelOtro),
-                "control: el otro Operador CAE sí administra por encargo el Tenant que se lo dio");
+            .Should().Be(new RolEfectivoPorOperacion(Roles.Administrador, _encargoDelOtro, EncargoPleno: true),
+                "control: el otro Operador CAE sí administra por encargo (pleno: sin Administrador propio) el Tenant que se lo dio");
     }
 
     // ── Retirada con el circuito abierto ──────────────────────────────────
@@ -625,6 +790,88 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
         }
     }
 
+    // ── Encargo pleno con el circuito abierto (decisión del 2026-10-15) ───
+
+    [Fact]
+    public async Task CurrentUserService_responde_el_encargo_pleno_solo_sin_Administrador_propio_y_lo_retira_en_cuanto_aparece_uno()
+    {
+        using (var ambito = Sesion(_adminOperador, _propietario))
+        {
+            var conAdministradorPropio = CircuitoDe(ambito, _adminOperador, _propietario, _operacion, Roles.Administrador, _encargo);
+            (await conAdministradorPropio.Usuario.EncargoQueElevaAsync()).Should().Be(_encargo, "control: el encargo eleva");
+            (await conAdministradorPropio.Usuario.EncargoPlenoAsync()).Should().BeNull("el Tenant tiene Administrador propio");
+            conAdministradorPropio.Usuario.EncargoPlenoDeLaUltimaResolucion(_operacion).Should().BeFalse();
+        }
+
+        using (var ambito = Sesion(_adminOtroOperador, _propietarioDelOtro))
+        {
+            var circuito = CircuitoDe(
+                ambito, _adminOtroOperador, _propietarioDelOtro, _operacionDelOtro, Roles.Administrador, _encargoDelOtro,
+                plenoEnElClaim: true);
+            (await circuito.Usuario.EncargoPlenoAsync()).Should().Be(_encargoDelOtro);
+            circuito.Usuario.EncargoPlenoDeLaUltimaResolucion(_operacionDelOtro).Should().BeTrue();
+            circuito.Usuario.EncargoPlenoDeLaUltimaResolucion(_operacion).Should().BeFalse("otra operación no hereda la resolución");
+
+            await SembrarUsuarioAsync("admin-invitado", _propietarioDelOtro, Roles.Administrador, conContrasena: false);
+
+            (await circuito.Usuario.EncargoPlenoAsync()).Should().BeNull(
+                "no se memoiza: la invitación de un Administrador propio, aun pendiente, acaba el pleno en la siguiente resolución");
+            (await circuito.Usuario.EncargoQueElevaAsync()).Should().Be(_encargoDelOtro, "el encargo sigue elevando, ya no pleno");
+        }
+    }
+
+    [Fact]
+    public async Task El_circuito_que_nacio_con_encargo_pleno_se_corta_cuando_deja_de_serlo()
+    {
+        using var ambito = Sesion(_adminOtroOperador, _propietarioDelOtro);
+        var circuito = CircuitoDe(
+            ambito, _adminOtroOperador, _propietarioDelOtro, _operacionDelOtro, Roles.Administrador, _encargoDelOtro,
+            plenoEnElClaim: true);
+        circuito.Seleccion.TenantIdSeleccionado.Should().Be(_propietarioDelOtro);
+
+        var handler = circuito.Revalidacion(intervaloSegundos: 1);
+        var blazor = (Circuit)RuntimeHelpers.GetUninitializedObject(typeof(Circuit));
+        await handler.OnCircuitOpenedAsync(blazor, CancellationToken.None);
+        try
+        {
+            // Control negativo: con el encargo pleno vigente, varios ciclos del temporizador no cortan nada.
+            await Task.Delay(TimeSpan.FromSeconds(3));
+            circuito.Seleccion.TenantIdSeleccionado.Should().Be(_propietarioDelOtro);
+
+            // El Tenant propietario pasa a tener un Administrador propio (pendiente de activar basta).
+            await SembrarUsuarioAsync("admin-invitado", _propietarioDelOtro, Roles.Administrador, conContrasena: false);
+
+            (await EsperarHastaAsync(() => circuito.Seleccion.TenantIdSeleccionado is null, TimeSpan.FromSeconds(10)))
+                .Should().BeTrue("el circuito se negoció sin exclusiones y el encargo ya no es pleno");
+        }
+        finally
+        {
+            await handler.OnCircuitClosedAsync(blazor, CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task Un_circuito_con_encargo_no_pleno_no_se_corta_por_el_pleno()
+    {
+        // El claim del pleno solo vale si el circuito lo lleva: el Administrador del Operador CAE en un
+        // Tenant con Administrador propio sigue con su encargo no pleno.
+        using var ambito = Sesion(_adminOperador, _propietario);
+        var circuito = CircuitoDe(ambito, _adminOperador, _propietario, _operacion, Roles.Administrador, _encargo);
+
+        var handler = circuito.Revalidacion(intervaloSegundos: 1);
+        var blazor = (Circuit)RuntimeHelpers.GetUninitializedObject(typeof(Circuit));
+        await handler.OnCircuitOpenedAsync(blazor, CancellationToken.None);
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(3));
+            circuito.Seleccion.TenantIdSeleccionado.Should().Be(_propietario);
+        }
+        finally
+        {
+            await handler.OnCircuitClosedAsync(blazor, CancellationToken.None);
+        }
+    }
+
     // ── Montaje ───────────────────────────────────────────────────────────
 
     private static readonly TimeSpan CaducidadDelAlcance = TimeSpan.FromSeconds(60);
@@ -676,7 +923,8 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
     {
         var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         return new TechoDeRolPorEncargo(contexto, contexto, new PerfilDePropiedadEnOrigenEnBase(
-            ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>()));
+            ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>()),
+            new TenantConAdministradorPropioEnBase(contexto));
     }
 
     private AutoridadSobreElEncargo Autoridad(IServiceScope ambito) =>
@@ -707,7 +955,7 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
     /// </summary>
     private CircuitoDePrueba CircuitoDe(
         IServiceScope ambito, ApplicationUser usuario, Guid tenantSeleccionado, Guid operacionId,
-        string rolDeSesionEnOrigen, Guid? encargoEnElClaim, TimeProvider? reloj = null)
+        string rolDeSesionEnOrigen, Guid? encargoEnElClaim, TimeProvider? reloj = null, bool plenoEnElClaim = false)
     {
         var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         var proteccion = new EphemeralDataProtectionProvider();
@@ -722,6 +970,8 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
         };
         if (encargoEnElClaim is { } encargoId)
             claims.Add(new Claim(RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion, encargoId.ToString()));
+        if (plenoEnElClaim && encargoEnElClaim is { } encargoPlenoId)
+            claims.Add(new Claim(RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoPleno, encargoPlenoId.ToString()));
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "prueba"));
 
         var http = new DefaultHttpContext { User = principal };
@@ -808,7 +1058,7 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
         return tenant.Id;
     }
 
-    private async Task<ApplicationUser> SembrarUsuarioAsync(string alias, Guid tenant, string rol)
+    private async Task<ApplicationUser> SembrarUsuarioAsync(string alias, Guid tenant, string rol, bool conContrasena = true)
     {
         using var ambito = _arnes.Servicios.CreateScope();
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
@@ -824,7 +1074,8 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
 
         using (AmbitoTenantExplicito.Establecer(tenant))
         {
-            (await userManager.CreateAsync(usuario, Contrasena)).Succeeded.Should().BeTrue();
+            (await (conContrasena ? userManager.CreateAsync(usuario, Contrasena) : userManager.CreateAsync(usuario)))
+                .Succeeded.Should().BeTrue();
             (await userManager.AddToRoleAsync(usuario, rol)).Succeeded.Should().BeTrue();
         }
 

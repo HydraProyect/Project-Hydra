@@ -10,14 +10,20 @@ namespace CaeManager.IntegrationTests;
 /// </param>
 public class CurrentUserServiceFalso(
     Guid? usuarioId = null, string? rol = null, Guid? tenantOrigenId = null, bool tieneDobleFactorActivo = true,
-    string? rolOrigen = null)
+    string? rolOrigen = null, Guid? encargoPleno = null)
     : ICurrentUserService, IEncargoDeAdministracionActual
 {
-    // Este doble no modela el Encargo de administración y lo declara: nunca eleva. Tiene que
-    // decirlo él porque AddApplication() falla si el ICurrentUserService registrado no da la señal.
-    public Task<Guid?> EncargoQueElevaAsync() => Task.FromResult<Guid?>(null);
+    // Este doble no calcula el Encargo de administración: por defecto nunca eleva. Con
+    // encargoPleno declara un encargo pleno ya resuelto (el rol lo fija quien construye el doble),
+    // para probar bajo RLS lo que el encargo pleno abre. Tiene que decirlo él porque AddApplication()
+    // falla si el ICurrentUserService registrado no da la señal.
+    public Task<Guid?> EncargoQueElevaAsync() => Task.FromResult(encargoPleno);
 
-    public Guid? EncargoDeLaUltimaResolucion(Guid asignacionOperacionId) => null;
+    public Guid? EncargoDeLaUltimaResolucion(Guid asignacionOperacionId) => encargoPleno;
+
+    public Task<Guid?> EncargoPlenoAsync() => Task.FromResult(encargoPleno);
+
+    public bool EncargoPlenoDeLaUltimaResolucion(Guid asignacionOperacionId) => encargoPleno is not null;
 
     public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult(usuarioId);
 

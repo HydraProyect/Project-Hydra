@@ -41,6 +41,15 @@ public sealed record AutoridadParaElEncargo(Guid ActorRealUsuarioId, OrigenEncar
 /// </para>
 ///
 /// <para>
+/// <b>Renuncia con encargo pleno</b> (decisión de Chris, 2026-10-15): el
+/// Administrador del Operador CAE externo que administra por un encargo pleno
+/// —Tenant propietario sin Administrador propio, ni activo ni pendiente de activar— puede <b>retirar</b>
+/// ese mismo encargo (<see cref="ResolverRenunciaAsync"/>). Nunca registrarlo:
+/// darse a sí mismo el encargo no es administrar el Tenant, es apropiárselo, y
+/// la política RLS solo le deja escribir una fila ya retirada.
+/// </para>
+///
+/// <para>
 /// El Actor real que se guarda sale de <see cref="IActorAuditoria"/>, no del
 /// usuario de la sesión a secas: cuando exista la impersonación, el encargo lo
 /// habrá registrado quien estaba detrás del teclado, y un acto simulado no
@@ -51,12 +60,14 @@ public class AutoridadSobreElEncargo(
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
     ICurrentUserService currentUserService,
     IActorAuditoria actorAuditoria,
-    IAdministradorDelTenantPropietario administradorDelTenant)
+    IAdministradorDelTenantPropietario administradorDelTenant,
+    IEncargoDeAdministracionActual? encargoActual = null)
 {
     public static readonly Error NoAutorizado = Error.Crear(
         "Encargo.NoAutorizado",
         "El encargo de administración solo lo registra o lo retira un Administrador propio de la organización " +
-        "o el soporte de TALVEG en una sesión de aprovisionamiento. Nunca la organización que lo recibe.");
+        "o el soporte de TALVEG en una sesión de aprovisionamiento. La organización que lo recibe nunca lo registra, " +
+        "y solo renuncia a él si administra por encargo una organización sin Administrador propio.");
 
     /// <summary>
     /// La autoridad de quien actúa sobre los encargos de
@@ -89,6 +100,35 @@ public class AutoridadSobreElEncargo(
             ? new AutoridadParaElEncargo(actorReal, OrigenEncargoAdministracion.AdministradorPropio)
             : null;
     }
+
+    /// <summary>
+    /// El Actor real que puede retirar <paramref name="encargoId"/> por renuncia:
+    /// actúa ahora mismo por ESE encargo, el encargo es pleno y su rol efectivo
+    /// es Administrador (una Dirección CAE elevada no renuncia por la
+    /// organización). <c>null</c> en cualquier otro caso, incluida una sesión
+    /// simulada o una Sesión Privilegiada.
+    /// </summary>
+    public async Task<Guid?> ResolverRenunciaAsync(Guid encargoId, CancellationToken cancellationToken = default)
+    {
+        if (encargoId == Guid.Empty || encargoActual is null) return null;
+
+        var actor = await actorAuditoria.ObtenerAsync();
+        if (actor.ActorRealUsuarioId is not { } actorReal || actor.UsuarioSimuladoId is not null)
+            return null;
+
+        if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not null)
+            return null;
+
+        if (await currentUserService.ObtenerUsuarioActualIdAsync() != actorReal)
+            return null;
+
+        if (await encargoActual.EncargoPlenoAsync() != encargoId)
+            return null;
+
+        return await currentUserService.ObtenerRolEfectivoAsync() == RolAdministrador ? actorReal : null;
+    }
+
+    private const string RolAdministrador = "Administrador";
 
     /// <summary>
     /// Quien actúa pertenece al Operador CAE externo del encargo. Falla cerrado:

@@ -27,12 +27,13 @@ internal static class TechoDeRolSinEncargoSembrado
         {
             var operaciones = sp.GetRequiredService<IOperacionesQueryContext>();
             return new TechoDeRolPorEncargo(
-                operaciones, (IEncargosAdministracionQueryContext)operaciones, new PerfilQueNoSeConsulta());
+                operaciones, (IEncargosAdministracionQueryContext)operaciones, new PerfilQueNoSeConsulta(),
+                new PerfilQueNoSeConsulta());
         });
         return servicios;
     }
 
-    private sealed class PerfilQueNoSeConsulta : IPerfilDePropiedadEnOrigen
+    private sealed class PerfilQueNoSeConsulta : IPerfilDePropiedadEnOrigen, ITenantConAdministradorPropio
     {
         public Task<string?> ObtenerAsync(
             Guid usuarioId, Guid tenantOrigenId, CancellationToken cancellationToken = default) =>
@@ -40,5 +41,10 @@ internal static class TechoDeRolSinEncargoSembrado
                 "Este contenedor de prueba se compone sin Encargo de administración sembrado: el perfil de "
                 + "Propiedad en origen no debería consultarse. Si el test siembra un encargo, compón el "
                 + "TechoDeRolPorEncargo con PerfilDePropiedadEnOrigenEnBase.");
+
+        public Task<bool> TieneAdministradorPropioAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException(
+                "Sin Encargo de administración sembrado no se pregunta si el Tenant tiene Administrador propio: "
+                + "si el test siembra un encargo, compón el TechoDeRolPorEncargo con TenantConAdministradorPropioEnBase.");
     }
 }

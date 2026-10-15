@@ -36,7 +36,8 @@ public record CorregirCorreoCuentaPendienteCommand(Guid UsuarioId, string Correo
 public class CorregirCorreoCuentaPendienteCommandHandler(
     IGestionCuentasUsuario cuentas,
     ICurrentUserService currentUserService,
-    ITenantActual tenantActual)
+    ITenantActual tenantActual,
+    IEncargoDeAdministracionActual? encargoActual = null)
     : IRequestHandler<CorregirCorreoCuentaPendienteCommand, Result<string>>
 {
     public static readonly Error CorreoObligatorio = Error.Crear(
@@ -66,7 +67,8 @@ public class CorregirCorreoCuentaPendienteCommandHandler(
         // elige quien lo pide—, así que una cuenta con rol de Propiedad solo la toca quien
         // actúa en su propio Tenant de origen (acto excluido del Encargo de administración, D-8).
         var destinoIntocable = CuentasConRolDePropiedad.VerificarDestino(
-            cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId);
+            cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId,
+            await RolesReservadosAlTenantDeOrigen.ActuaPorEncargoPlenoAsync(encargoActual));
         if (destinoIntocable.EsFallido)
             return Result.Fallo<string>(destinoIntocable.Error);
 

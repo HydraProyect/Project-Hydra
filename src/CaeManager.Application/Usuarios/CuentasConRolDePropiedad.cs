@@ -22,10 +22,13 @@ namespace CaeManager.Application.Usuarios;
 /// </para>
 ///
 /// <para>
-/// <b>Sin excepción</b>, ni por encargo ni de plataforma: compara identidades
-/// de Tenant, el mismo criterio que
-/// <see cref="RolesReservadosAlTenantDeOrigen.EsContextoCruzado"/>, y falla
-/// cerrado si alguna no se resuelve. Un Administrador propio del Tenant
+/// <b>Única excepción: el Encargo de administración pleno</b> (decisión de
+/// Chris, 2026-10-15): en un Tenant propietario sin Administrador propio
+/// (ni activo ni pendiente de activar), quien lo administra por encargo es Administrador pleno, también
+/// sobre estas cuentas. Con encargo no pleno (el Tenant tiene Administrador
+/// propio) y de plataforma, sin excepción: compara identidades de Tenant, el
+/// mismo criterio que <see cref="RolesReservadosAlTenantDeOrigen.EsContextoCruzado"/>,
+/// y falla cerrado si alguna no se resuelve. Un Administrador propio del Tenant
 /// propietario no se ve afectado: su Tenant de origen es el Tenant activo.
 /// </para>
 /// </summary>
@@ -44,9 +47,10 @@ public static class CuentasConRolDePropiedad
     /// activo no es el Tenant de origen de quien actúa.
     /// </summary>
     public static Result VerificarDestino(
-        IEnumerable<string> rolesDeLaCuentaDestino, Guid? tenantOrigenId, Guid? tenantContextoId) =>
+        IEnumerable<string> rolesDeLaCuentaDestino, Guid? tenantOrigenId, Guid? tenantContextoId, bool encargoPleno) =>
         TieneRolDePropiedad(rolesDeLaCuentaDestino)
         && RolesReservadosAlTenantDeOrigen.EsContextoCruzado(tenantOrigenId, tenantContextoId)
+        && !encargoPleno
             ? Result.Fallo(SoloElTenantPropietario)
             : Result.Exito();
 }
