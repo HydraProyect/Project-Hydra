@@ -36,7 +36,9 @@ public interface IContadorPendientesSelectorTenant
 /// </summary>
 public sealed class ContadorPendientesSelectorTenant(TimeProvider reloj) : IContadorPendientesSelectorTenant
 {
-    public static readonly TimeSpan Vida = TimeSpan.FromSeconds(60);
+    // 10 s: lo justo para absorber las relecturas en ráfaga del selector sin que una tarea resuelta tarde
+    // un minuto en bajar el contador (recorrido del piloto Outbound, C6).
+    public static readonly TimeSpan Vida = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan TopeDelCalculo = TimeSpan.FromSeconds(10);
     private const int TopeDeEntradas = 256;
 
