@@ -61,6 +61,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // El endpoint del logo del Tenant (lote 1) autoriza con ese mismo predicado
         // antes de leer la fila del Tenant pedido (invariante I2 e I11).
         ("Tenants.ObtenerLogoTenantQueryHandler", "IOperacionesQueryContext"),
+        // Ficha de Vehículo: valida la selección de Trabajadores del mismo Tenant propietario.
+        ("Vehiculos.EditarFichaVehiculoCommandHandler", "ITrabajadoresQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "IAsignacionesQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "ICentrosQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "IClientesQueryContext"),

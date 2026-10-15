@@ -37,7 +37,19 @@ public record VehiculoDetalleDto(
     FraccionCumplimiento DocumentosAlDia,
     EstadoDocumento? PeorEstadoDocumental,
     string? Notas,
-    bool NotaInternaVisible);
+    bool NotaInternaVisible)
+{
+    public string? Tipo { get; init; }
+    public string? Titularidad { get; init; }
+    public string? RevisionGrua { get; init; }
+    public string? DeclaracionCe { get; init; }
+    public string? Aseguradora { get; init; }
+    public string? Poliza { get; init; }
+    public string? Recibo { get; init; }
+    public IReadOnlyList<ConductorVehiculoDto> Conductores { get; init; } = [];
+}
+
+public record ConductorVehiculoDto(Guid TrabajadorId, string NombreCompleto);
 
 /// <summary>
 /// <para>
@@ -58,9 +70,33 @@ public class ObtenerVehiculoPorIdQueryHandler(
     {
         if (!await alcanceDatos.VehiculoVisibleAsync(request.Id, cancellationToken)) return null;
 
+        var visibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
+
         var vehiculo = await vehiculosContext.Vehiculos
             .Where(v => v.Id == request.Id)
-            .Select(v => new { v.Id, v.EmpresaId, v.SubcontrataId, v.Nombre, v.Modelo, v.NumeroPlaca, v.Version, v.Notas })
+            .Select(v => new
+            {
+                v.Id,
+                v.EmpresaId,
+                v.SubcontrataId,
+                v.Nombre,
+                v.Modelo,
+                v.NumeroPlaca,
+                v.Version,
+                v.Notas,
+                v.Tipo,
+                v.Titularidad,
+                v.RevisionGrua,
+                v.DeclaracionCe,
+                v.Aseguradora,
+                v.Poliza,
+                v.Recibo,
+                Conductores = v.Conductores
+                    .Where(c => c.Trabajador.TenantId == v.TenantId && !c.Trabajador.EstaEliminado
+                        && (visibles == null || visibles.Contains(c.TrabajadorId)))
+                    .OrderBy(c => c.Trabajador.Apellidos).ThenBy(c => c.Trabajador.Nombre).ThenBy(c => c.TrabajadorId)
+                    .Select(c => new ConductorVehiculoDto(c.TrabajadorId, c.Trabajador.Nombre + " " + c.Trabajador.Apellidos)).ToList()
+            })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (vehiculo is null) return null;
@@ -77,6 +113,16 @@ public class ObtenerVehiculoPorIdQueryHandler(
         return new VehiculoDetalleDto(
             vehiculo.Id, vehiculo.EmpresaId, vehiculo.SubcontrataId, empleadorNombre, vehiculo.Nombre, vehiculo.Modelo,
             vehiculo.NumeroPlaca, vehiculo.Version, CumplimientoDocumental.Evaluar(estados), peorEstado,
-            Notas: veLaNota ? vehiculo.Notas : null, NotaInternaVisible: veLaNota);
+            Notas: veLaNota ? vehiculo.Notas : null, NotaInternaVisible: veLaNota)
+        {
+            Tipo = vehiculo.Tipo,
+            Titularidad = vehiculo.Titularidad,
+            RevisionGrua = vehiculo.RevisionGrua,
+            DeclaracionCe = vehiculo.DeclaracionCe,
+            Aseguradora = vehiculo.Aseguradora,
+            Poliza = vehiculo.Poliza,
+            Recibo = vehiculo.Recibo,
+            Conductores = vehiculo.Conductores
+        };
     }
 }

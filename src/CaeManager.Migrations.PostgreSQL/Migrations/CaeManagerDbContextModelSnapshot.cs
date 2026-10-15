@@ -18,7 +18,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -7357,8 +7357,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Aseguradora")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeclaracionCe")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<DateTime?>("EliminadoEnUtc")
                         .HasColumnType("timestamp with time zone");
@@ -7391,11 +7399,31 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<string>("Poliza")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Recibo")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("RevisionGrua")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<Guid?>("SubcontrataId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Tipo")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Titularidad")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<Guid>("Version")
                         .IsConcurrencyToken()
@@ -7415,6 +7443,31 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "SubcontrataId");
 
                     b.ToTable("Vehiculos", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Vehiculos.VehiculoTrabajador", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TrabajadorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("VehiculoId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "TrabajadorId");
+
+                    b.HasIndex("TenantId", "VehiculoId", "TrabajadorId")
+                        .IsUnique();
+
+                    b.ToTable("VehiculosTrabajadores", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa", b =>
@@ -8617,6 +8670,25 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Vehiculos.VehiculoTrabajador", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Trabajadores.Trabajador", "Trabajador")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "TrabajadorId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Vehiculos.Vehiculo", null)
+                        .WithMany("Conductores")
+                        .HasForeignKey("TenantId", "VehiculoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Trabajador");
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Visitas.Visita", b =>
                 {
                     b.HasOne("CaeManager.Domain.Centros.Centro", null)
@@ -8754,6 +8826,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             modelBuilder.Entity("CaeManager.Domain.Reclamaciones.ReclamacionDocumental", b =>
                 {
                     b.Navigation("Documentos");
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Vehiculos.Vehiculo", b =>
+                {
+                    b.Navigation("Conductores");
                 });
 #pragma warning restore 612, 618
         }

@@ -14,4 +14,5 @@ public class VehiculoRepositorioFalso : IVehiculoRepository
         Task.FromResult(Vehiculos.Any(v => v.NumeroPlaca == numeroPlaca && v.Id != excluirId));
 
     public void Agregar(Vehiculo vehiculo) => Vehiculos.Add(vehiculo);
+    public void QuitarConductor(VehiculoTrabajador conductor) { }
 }

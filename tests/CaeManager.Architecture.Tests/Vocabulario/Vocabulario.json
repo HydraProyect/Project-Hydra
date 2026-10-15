@@ -499,6 +499,21 @@
       ],
       "contexto": "acceso de plataforma",
       "motivo": "El orden del menú lateral es un ajuste global de plataforma: lo ven todos los usuarios de todos los Tenants y solo lo cambia un Actor de Plataforma TALVEG con concesión global (OrdenMenuSinAccesoTexto). Habla de Tenants como conjunto porque es el plano de plataforma, no el de un usuario de negocio."
+    },
+    {
+      "id": "operador-de-maquinaria-en-ficha-de-vehiculo",
+      "prohibidos": [
+        "operador-a-secas"
+      ],
+      "ficheros": [
+        "src/CaeManager.Web/Features/Vehiculos/Recursos/TextosVehiculos*.resx"
+      ],
+      "claves": [
+        "FichaConductores",
+        "FichaSinConductores"
+      ],
+      "contexto": "operador de maquinaria",
+      "motivo": "Ficha de Vehículo 360, rótulo de la maqueta vigente «Conductores y operadores autorizados»: son los Trabajadores autorizados a conducir el Vehículo o a manejar su equipo (la grúa), el sentido de oficio de «operador de maquinaria». No nombra un Operador CAE (organización) ni un Gestor CAE (persona). Solo estas dos claves; cualquier otro texto de Vehículos con «operador» sigue prohibido."
     }
   ]
 }

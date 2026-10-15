@@ -307,4 +307,61 @@
   <data name="CentrosOrientativos360" xml:space="preserve"><value>El vehicle no està assignat a cap Centre ni Visita. Aquesta llista és orientativa: mostra Centres on treballen els Treballadors de la seva Empresa ocupadora.</value></data>
   <data name="SinCentrosEmpleador360" xml:space="preserve"><value>Sense activitat en Centres visibles de la seva Empresa ocupadora</value></data>
   <data name="ErrorCentros360" xml:space="preserve"><value>No hem pogut carregar els Centres de la seva Empresa ocupadora</value></data>
+  <data name="PestanaFicha" xml:space="preserve">
+    <value>Fitxa</value>
+  </data>
+  <data name="FichaTipoTitularidad" xml:space="preserve">
+    <value>Tipus i titularitat</value>
+  </data>
+  <data name="FichaTipo" xml:space="preserve">
+    <value>Tipus</value>
+  </data>
+  <data name="FichaTitularidad" xml:space="preserve">
+    <value>Titularitat</value>
+  </data>
+  <data name="FichaRevisionGrua" xml:space="preserve">
+    <value>Revisió de la grua</value>
+  </data>
+  <data name="FichaDeclaracionCe" xml:space="preserve">
+    <value>Declaració CE</value>
+  </data>
+  <data name="FichaSeguro" xml:space="preserve">
+    <value>Assegurança</value>
+  </data>
+  <data name="FichaAseguradora" xml:space="preserve">
+    <value>Asseguradora</value>
+  </data>
+  <data name="FichaPoliza" xml:space="preserve">
+    <value>Pòlissa</value>
+  </data>
+  <data name="FichaRecibo" xml:space="preserve">
+    <value>Rebut</value>
+  </data>
+  <data name="FichaConductores" xml:space="preserve">
+    <value>Conductors i operadors autoritzats</value>
+  </data>
+  <data name="FichaAutorizado" xml:space="preserve">
+    <value>Autoritzat</value>
+  </data>
+  <data name="FichaSinConductores" xml:space="preserve">
+    <value>Sense conductors ni operadors autoritzats.</value>
+  </data>
+  <data name="FichaNotaConductores" xml:space="preserve">
+    <value>El carnet i l’autorització d’ús els demana el Centre per persona.</value>
+  </data>
+  <data name="FichaSinTrabajadores" xml:space="preserve">
+    <value>No hi ha treballadors disponibles.</value>
+  </data>
+  <data name="FichaEditarTitulo" xml:space="preserve">
+    <value>Editar la fitxa del vehicle</value>
+  </data>
+  <data name="FichaNoDisponible" xml:space="preserve">
+    <value>No hem pogut carregar la fitxa per editar-la. Tanca el formulari i torna a obrir-lo.</value>
+  </data>
+  <data name="FichaGuardada" xml:space="preserve">
+    <value>Fitxa del vehicle desada.</value>
+  </data>
+  <data name="FichaErrorGuardar" xml:space="preserve">
+    <value>No hem pogut desar la fitxa del vehicle.</value>
+  </data>
 </root>

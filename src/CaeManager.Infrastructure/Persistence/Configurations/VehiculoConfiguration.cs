@@ -16,6 +16,14 @@ public class VehiculoConfiguration : IEntityTypeConfiguration<Vehiculo>
         builder.Property(v => v.Modelo).IsRequired().HasMaxLength(Vehiculo.LongitudMaximaModelo);
         builder.Property(v => v.NumeroPlaca).IsRequired().HasMaxLength(Vehiculo.LongitudMaximaNumeroPlaca);
         builder.Property(v => v.Notas).HasMaxLength(Vehiculo.LongitudMaximaNotas);
+        builder.Property(v => v.Tipo).HasMaxLength(Vehiculo.LongitudMaximaCampoFicha);
+        builder.Property(v => v.Titularidad).HasMaxLength(Vehiculo.LongitudMaximaCampoFicha);
+        builder.Property(v => v.RevisionGrua).HasMaxLength(Vehiculo.LongitudMaximaCampoFicha);
+        builder.Property(v => v.DeclaracionCe).HasMaxLength(Vehiculo.LongitudMaximaCampoFicha);
+        builder.Property(v => v.Aseguradora).HasMaxLength(Vehiculo.LongitudMaximaCampoFicha);
+        builder.Property(v => v.Poliza).HasMaxLength(Vehiculo.LongitudMaximaCampoFicha);
+        builder.Property(v => v.Recibo).HasMaxLength(Vehiculo.LongitudMaximaCampoFicha);
+        builder.Navigation(v => v.Conductores).UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasIndex(v => new { v.TenantId, v.NumeroPlaca }).IsUnique();
         builder.HasIndex(v => v.EmpresaId);

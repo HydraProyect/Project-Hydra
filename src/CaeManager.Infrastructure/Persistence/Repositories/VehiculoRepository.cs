@@ -6,7 +6,7 @@ namespace CaeManager.Infrastructure.Persistence.Repositories;
 public class VehiculoRepository(CaeManagerDbContext dbContext) : IVehiculoRepository
 {
     public Task<Vehiculo?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-        dbContext.Vehiculos.FirstOrDefaultAsync(v => v.Id == id, cancellationToken);
+        dbContext.Vehiculos.Include(v => v.Conductores).FirstOrDefaultAsync(v => v.Id == id, cancellationToken);
 
     public Task<bool> ExisteConMatriculaAsync(string numeroPlaca, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
         dbContext.Vehiculos.AnyAsync(
@@ -14,4 +14,5 @@ public class VehiculoRepository(CaeManagerDbContext dbContext) : IVehiculoReposi
             cancellationToken);
 
     public void Agregar(Vehiculo vehiculo) => dbContext.Vehiculos.Add(vehiculo);
+    public void QuitarConductor(VehiculoTrabajador conductor) => dbContext.Set<VehiculoTrabajador>().Remove(conductor);
 }
