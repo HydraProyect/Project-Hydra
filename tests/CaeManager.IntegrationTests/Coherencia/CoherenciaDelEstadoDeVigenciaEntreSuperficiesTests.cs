@@ -163,6 +163,10 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
         contexto.TiposDocumento.AddRange(tipoTrabajador, tipoEmpresa, tipoVehiculo);
         await contexto.SaveChangesAsync();
 
+        // El porcentaje del Centro requiere inclusión explícita; los estados comparados no cambian.
+        contexto.TiposDocumentoCentros.Add(new TipoDocumentoCentro(tipoTrabajador.Id, centro.Id, incluido: true));
+        await contexto.SaveChangesAsync();
+
         // Los casos límite de los umbrales (ámbar 30, rojo 15) y los tres estados sin fecha de cálculo.
         _casos =
         [
