@@ -12,6 +12,7 @@ Documento :: ClienteId -> ClienteId = 1
 HistorialInforme :: ClienteId -> ClienteId = 1
 MacroRespuesta :: ClienteId -> ClienteId = 1
 PlantillaDocumento :: ClienteId -> ClienteId = 1
+PlantillaRequisitosEvento :: ClienteId -> ClienteId = 1
 Proyecto :: ClienteId -> ClienteId = 1
 ReclamacionDocumental :: ClienteId -> ClienteId = 1
 RegistroTiempoGestion :: ClienteId -> ClienteId = 1
