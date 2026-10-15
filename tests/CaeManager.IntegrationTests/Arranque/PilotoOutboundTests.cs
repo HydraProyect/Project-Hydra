@@ -175,14 +175,13 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     }
 
     [Fact]
-    public void T3_da_la_mitad_en_Empresa_Inicio_y_Vision_de_cartera_y_en_Centros_la_mitad_mas_los_tipos_de_Empresa()
+    public void T3_da_la_misma_mitad_en_Centros_Empresa_Inicio_y_Vision_de_cartera()
     {
         var m = fixture.Informe.De(T3);
 
-        // Desde el 2026-10-10 el porcentaje de cada Centro suma los 13 tipos de Empresa de la Empresa propia, en regla:
-        // 3 + 13 de 6 + 13 = 84 % en los dos Centros con tres Trabajadores y 2 + 13 de 4 + 13 = 88 % en los dos con dos.
-        m.Centros.Should().HaveCount(4);
-        m.Centros.Select(c => c.Cumplimiento).Should().BeEquivalentTo(new int?[] { 84, 84, 88, 88 });
+        // Los tipos de Empresa entran en el porcentaje del Centro solo si el Centro los incluye explícitamente (decisión del
+        // 2026-10-10, punto 3, con #1349); la siembra de T3 no los incluye, así que el Centro sigue en la mitad.
+        m.Centros.Should().HaveCount(4).And.OnlyContain(c => c.Cumplimiento == 50);
         m.EmpresaCumplimiento.Should().Be(50);
         m.InicioCumplimiento.Should().Be(50);
         m.VisionCarteraCumplimiento.Should().Be(50);
@@ -248,8 +247,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
                 $"[{string.Join("; ", incidencias.Select(i => $"{i.Estado} · {NombreDelTipo(i.TipoDocumentoId)} · {i.Ambito} · suyo={i.TrabajadorId is { } t && suyos.Contains(t)}"))}]");
 
             exigidos.Select(id => NombreDelTipo(id)).Should().BeEquivalentTo(loQueExigeCadaCentro, "control: el instrumento sabe qué exige el Centro");
-            // La mitad de sus Trabajadores + los 13 tipos de Empresa en regla (2026-10-10): 3 + 13 de 6 + 13 o 2 + 13 de 4 + 13.
-            centro.CumplimientoPorcentaje.Should().Be(suyos.Count == 3 ? 84 : 88);
+            centro.CumplimientoPorcentaje.Should().Be(50);
             centro.Estado.Should().Be(EstadoCentro.Vencido);
             centro.Recuentos.TotalVencidas.Should().Be(suyos.Count, "MEDIDO: un vencido por Trabajador del Centro, y ninguno más");
             // Lo único que un Centro enseña sin ser de sus Trabajadores es de su Empresa: los dos certificados mensuales,
@@ -351,8 +349,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         (m.ClientesEmpresariales, m.ClientesEmpresarialesSinContacto).Should().Be((6, 0));
 
         m.Centros.Should().HaveCount(14);
-        m.Centros.Count(c => c is { Estado: EstadoCentro.Vencido, Cumplimiento: 97 }).Should().Be(8,
-            "MEDIDO: los ocho Centros del Trabajador con el vencido; 19 + 13 de 20 + 13 desde que suman los 13 tipos de Empresa en regla (2026-10-10)");
+        m.Centros.Count(c => c is { Estado: EstadoCentro.Vencido, Cumplimiento: 95 }).Should().Be(8, "MEDIDO: los ocho Centros del Trabajador con el vencido");
         m.Centros.Count(c => c is { Estado: EstadoCentro.Urgente, Cumplimiento: 100 }).Should().Be(2);
         // Los cuatro sin nada pendiente de sus Trabajadores: los tiñen los dos certificados mensuales de la Empresa propia.
         m.Centros.Count(c => c is { Estado: EstadoCentro.Proximo, Cumplimiento: 100 }).Should().Be(4);
@@ -502,10 +499,10 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         // Barcelona, la peor: ningún Centro al 100 %. El primero es el del desplazamiento: 15 de 18 pares, con dos
         // documentos vencidos y uno que falta, así que está Vencido (Vencido precede a Faltante).
         De(DisenoT6PilotoOutbound.Barcelona).Should().Equal(
-            (EstadoCentro.Vencido, 90), (EstadoCentro.Vencido, 89), (EstadoCentro.Faltante, 91), (EstadoCentro.Faltante, 93));
+            (EstadoCentro.Vencido, 83), (EstadoCentro.Vencido, 80), (EstadoCentro.Faltante, 80), (EstadoCentro.Faltante, 87));
         // Madrid, intermedia: dos Centros con pares incumplidos y dos solo con avisos.
         De(DisenoT6PilotoOutbound.Madrid).Should().Equal(
-            (EstadoCentro.Vencido, 96), (EstadoCentro.Urgente, 100), (EstadoCentro.Urgente, 100), (EstadoCentro.Faltante, 93));
+            (EstadoCentro.Vencido, 90), (EstadoCentro.Urgente, 100), (EstadoCentro.Urgente, 100), (EstadoCentro.Faltante, 87));
         // Santander, casi limpia: los cuatro al 100 %, y solo dos avisos de sus Trabajadores. Los dos Centros sin
         // ninguno quedan «Próximo» por los dos certificados mensuales de la Empresa propia.
         De(DisenoT6PilotoOutbound.Santander).Should().Equal(
