@@ -41,204 +41,45 @@ incumple la regla de arriba igual que uno con datos sensibles.
 
 ---
 
-# Protocolo de ingeniería autónoma
+# Reglas de trabajo
 
-Aplica cuando el usuario autorice explícitamente trabajo autónomo. Entonces se
-trabaja de forma continua hasta completar el objetivo o alcanzar una **Stop
-Condition**, sin pedir confirmación entre pasos ya determinados por el contrato,
-la documentación o las instrucciones existentes.
+## Alcance autónomo
 
-## 1. Bucle de ingeniería
+Con autonomía autorizada, avanza sin pedir confirmación entre pasos ya fijados. Sin autorización explícita no modifiques ni despliegues producción, no manipules secretos ni credenciales, no toques `.env` sensibles, no cambies roles PostgreSQL de producción, no ejecutes operaciones irreversibles y no mergees lo que requiera aprobación humana. No uses credenciales existentes en sistemas que no identifiques con certeza.
 
-Por cada incremento: **DISCOVER** (inspeccionar código, tests, documentación, git,
-dependencias y estado real; identificar contrato, supuestos, dependencias y
-riesgos) → **PLAN** (definir el resultado esperado, cómo se demostrará, y dividir
-en incrementos pequeños y verificables) → **EXECUTE** (el cambio mínimo necesario
-dentro del alcance autorizado) → **VERIFY** (build/tests relevantes; confirmar que
-ejecutan el árbol actual; revisar el diff incluyendo untracked; comprobar
-invariantes y efectos reales) → **ADVERSARIAL** (intentar falsar la conclusión;
-buscar explicaciones alternativas; probar sensibilidad por mutación cuando
-corresponda) → **CLOSE** (clasificar la evidencia, documentar huecos, revisar
-diff, commit, actualizar checkpoint, continuar).
+## Cuándo parar
 
-No se pide confirmación entre etapas.
+Para y pregunta solo ante una decisión de producto, negocio, seguridad o arquitectura; falta de acceso o de secretos; producción u operaciones irreversibles; contradicción entre decisiones fijadas; tener que inventar una regla crítica; consecuencias comerciales no definidas. Las dudas técnicas se resuelven con el agente `revisor-puente`, no con Chris. No interrumpas por compilación, tests, fixtures, arnés, ratchets o gates: son trabajo tuyo. Informa como DECISIÓN NECESARIA con evidencia y opciones.
 
-## 2. Disciplina de evidencia
+## Seguridad y multi-tenancy
 
-Clasifica siempre: **FACT · INFERENCE · HYPOTHESIS · DECISION · UNKNOWN**.
+Identidad, contexto, tenant, capacidad, autorización, alcance y sesión privilegiada son cosas distintas: una coordenada de contexto no es autoridad. En toda operación multi-tenant comprueba usuario, tenant de origen, tenant objetivo, workspace, capacidad, alcance, vigencia, RLS e identidad efectiva de PostgreSQL. No debilites RLS para acomodar código: si una operación cruza tenants, debe existir un contrato o identidad que lo permita explícitamente. Ante un test en rojo busca la causa raíz; no cambies RLS, autorización ni seguridad para conseguir el verde.
 
-No confundir: `compila ≠ ejecuta ≠ termina ≠ pasa ≠ está probado ≠ está
-demostrado`.
+Bucle completo, evidencia y cierre: skill `protocolo-hydra-autonomia`.
 
-**Un resultado vacío no es una ausencia** hasta comprobar que el instrumento podía
-observar lo que se buscaba.
+## Antes de tocar código
 
-Cuando una conclusión dependa de un instrumento, preguntar: ¿qué observa?, ¿qué
-excluye?, ¿puede dar un falso negativo?, ¿un falso positivo?, ¿está evaluando el
-árbol correcto?
+- Primera orden: `bash scripts/estado-ramas.sh`. Toda rama se corta de `origin/main`, para no heredar trabajo ajeno.
+- Si el cambio toca un DTO, una API, el esquema o la autorización, carga `protocolo-hydra-contratos` antes de editar.
+- Si cambias una regla, corrige en el mismo incremento el contrato, documento o comentario normativo que la describía.
 
-No cerrar recuentos importantes de memoria: verificarlos contra el repositorio. La
-regla vale para **cualquier afirmación sobre un estado que no estés mirando**:
-número de tests, estado de un PR, contenido de una rama, qué está haciendo otra
-sesión, si un cambio llegó a producción. Si no lo has medido en esta sesión, no lo
-afirmes — mídelo, o dilo como incierto. Una afirmación sin medir cuesta más cara
-cuando es correcta por casualidad, porque enseña a confiar en el método que la
-produjo.
+## Antes de abrir una PR
 
-## 4. Verificación por capas
+- Revisión previa con el agente `revisor-puente`, pidiéndole refutarlo (indispensable si toca autorización, RLS, multi-tenancy, criptografía o auditoría). Codex, con cuota, como segunda opinión; un agente que no sea Claude usa Codex.
+- El cuerpo lleva una sección titulada exactamente `## Revisión Codex` con el resultado real y el revisor que la hizo (revisor-puente o Codex): una línea de hallazgos aceptados o rechazados, o «sin hallazgos»; sin marcadores («pendiente», «TODO»). Lo comprueba `scripts/verificar-gobernanza-pr.sh` (check no `required`, pero visible en rojo).
+- Si toca `deploy/bootstrap/roles-de-cluster.sql`, añade `## Paso operativo en servidores` nombrando staging y producción: ningún adaptador de despliegue ejecuta ese fichero.
+- Crea la PR con `gh pr create --label "Type: …" --label "Priority: …" --milestone "…"`; sin milestone ni etiquetas la PR queda en rojo y bloqueada. Milestones: `gh api repos/HydraProyect/Project-Hydra/milestones --jq '.[].title'`.
 
-Cada propiedad se prueba en la capa que realmente la garantiza: **Domain**
-invariantes · **Application** reglas, autorización y orquestación ·
-**Infrastructure** Identity, BD y sistemas externos · **PostgreSQL/RLS**
-enforcement real · **Architecture** fronteras y prohibiciones · **Integration**
-composición · **E2E** comportamiento completo.
+## Skills
 
-Una suite superior no sustituye la prueba de una propiedad inferior, y ninguna
-capa debe "prestar" evidencia a otra.
+Si falta `protocolo-hydra-contratos` o `protocolo-hydra-verificacion`, no reconstruyas su contenido de memoria: cuando el cambio toque DTO, API, esquema, autorización o RLS, o tengas que dar por buena una evidencia, detente e informa «skill normativa ausente: <nombre>». En los demás casos, y sin cualquier otra skill, trabaja con este fichero y anótalo en la PR.
 
-## 5. Diagnóstico de fallos
-
-Ante un fallo: parar de cambiar → reproducir → aislar → **clasificar**
-(`PRODUCTO · CÓDIGO · TEST · FIXTURE · ARNÉS · INFRAESTRUCTURA · INSTRUMENTO · CI
-· DOCUMENTACIÓN`) → causa raíz → corregir **solo después** de identificarla →
-verificación mínima afectada → gate correspondiente.
-
-No parchear síntomas. **No cambiar RLS, autorización, arquitectura ni seguridad
-solo para conseguir un verde.**
-
-## 8. Alcance autónomo
-
-**Se puede** modificar autónomamente: código, tests, fixtures, arneses, ratchets,
-documentación, guiones, ramas, commits y PRs.
-
-**No se puede sin autorización explícita**: modificar o desplegar producción;
-manipular secretos o credenciales; tocar `.env` sensibles; cambiar roles
-PostgreSQL de producción; ejecutar operaciones irreversibles; mergear cuando
-requiere aprobación humana.
-
-**No usar credenciales existentes para acceder a sistemas que no puedas
-identificar inequívocamente.**
-
-## 9. Stop Conditions
-
-Interrumpir **solo** cuando falte una decisión de producto, negocio, seguridad o
-arquitectura; falte acceso, secreto o credencial; haya que tocar producción o
-ejecutar algo irreversible; exista contradicción entre decisiones fijadas;
-continuar exija inventar una regla crítica; o haya consecuencias comerciales no
-definidas.
-
-**No interrumpir** para arreglar compilación, tests, fixtures o arnés; investigar
-fallos; corregir ratchets; actualizar documentación derivada; ejecutar tests o
-gates; crear commits o PRs — si están dentro del alcance autorizado.
-
-Ante una Stop Condition, informar en este formato y detenerse ahí:
-`DECISIÓN NECESARIA · EVIDENCIA · OPCIONES · CONSECUENCIAS · RECOMENDACIÓN`.
-
-## 10. Checkpoints y recuperación
-
-Mantener actualizado: `OBJECTIVE · CURRENT_INCREMENT · CONTRACT ·
-DECISIONS_FIXED · CHANGES · EVIDENCE_PROVEN · UNKNOWN · NEXT_ACTION`.
-
-Tras un fallo, conservar la evidencia válida y modificar **solo** la hipótesis
-afectada: no reiniciar la investigación entera porque un paso posterior falle.
-
-Tras experimentos que alteren estado externo: restaurar, **verificar la
-restauración**, y solo entonces continuar. **Revertir código no revierte estado de
-infraestructura ni de PostgreSQL.**
-
-## 14. Seguridad y multi-tenancy
-
-No mezclar: `identidad ≠ contexto ≠ tenant ≠ capacidad ≠ autorización ≠ alcance ≠
-sesión privilegiada`. **Una coordenada de contexto no es autoridad.**
-
-En cualquier operación multi-tenant, comprobar explícitamente: usuario, tenant de
-origen, tenant objetivo, workspace, capacidad, alcance, vigencia, RLS e identidad
-efectiva de PostgreSQL.
-
-**No debilitar RLS para acomodar código.** Si una operación cruza tenants de
-verdad, debe existir un contrato o identidad que lo permita explícitamente.
-
-## 18. Criterio de cierre
-
-Un incremento está cerrado cuando el contrato está definido, la implementación
-completa, las propiedades críticas demostradas, los tests relevantes realmente
-ejecutaron, los instrumentos son sensibles, el gate corresponde al árbol final y
-**no hay huecos conocidos disfrazados de propiedades demostradas**.
-
-Entonces se informa: `CHANGES · EVIDENCE · TESTS · MUTATIONS · CI · RISKS · GAPS ·
-NEXT ACTION`.
-
-**No declarar "baseline" solo porque CI esté verde.**
-
-## 19. Optimización
-
-Optimizar por: calidad de evidencia, reducción de incertidumbre, seguridad, mínimo
-retrabajo, y cambios pequeños y bisectables.
-
-**No** por cantidad de código, tests o commits, ni por velocidad aparente, ni por
-conseguir un verde rápido. Si una solución simple satisface el contrato, se
-prefiere a una arquitectura más compleja.
-
-## 20. Aprendizaje persistente
-
-Cuando una clase de fallo se repita o revele una debilidad del proceso: identificar
-la regla general, comprobar que no sea específica de un incremento e incorporarla
-aquí. No duplicar reglas equivalentes.
-
-Cuando una premisa aceptada resulte falsa, **decirlo explícitamente** y actualizar
-el plan.
-
-## Protocolo detallado bajo demanda
-
-Las secciones situacionales del protocolo viven como skills de usuario (fuente versionada en
-`Project-Hydra-Negocio/tecnico/protocolo-skills/`). Son normativas igual que este fichero: cárgalas
-**antes** de la situación que cubren, no después.
-
-Anclas que aplican siempre, aunque la skill no se haya activado sola:
-- **Antes de afirmar evidencia** obtenida con diff, búsqueda, conteo, log, cobertura, test, CI o
-  gate, carga `protocolo-hydra-verificacion` (§ 3).
-- **Antes de la primera edición que cambie comportamiento**, determina si afecta a un contrato
-  (DTO, API, esquema, autorización, un lector que acabe escribiendo). Si afecta, carga
-  `protocolo-hydra-contratos` antes de editar (§ 6).
-- **Todo cambio de comportamiento exige buscar** el contrato, el documento o el comentario normativo
-  que describa la regla anterior y corregirlo en el mismo incremento (§ 16).
-- **Antes de abrir cualquier PR**, Codex revisa el incremento pidiéndole refutar
-  (`codex review --base origin/main`; obligatorio si toca autorización, RLS, multi-tenancy,
-  criptografía o auditoría). Lo que devuelva otro modelo —Codex o Gemini— es material de revisión,
-  no evidencia. Esta regla basta por sí sola para la revisión con Codex; el detalle, y la receta para
-  delegar lecturas masivas en Gemini, están en `protocolo-hydra-multimodelo` (§ 24). **Sin esa skill
-  no se invoca `agy`**, pero la revisión con Codex y la PR siguen adelante. El resultado —aceptado o
-  rechazado, con motivo— va en el **cuerpo** de la PR, en una sección titulada exactamente
-  `## Revisión Codex`: al menos una línea de hallazgos, o «sin hallazgos» si
-  no tocaba superficie sensible; sin marcadores provisionales («resultado abajo», «pendiente»,
-  «TODO»). Exime solo `dependabot[bot]`. Si además el
-  incremento toca `deploy/bootstrap/roles-de-cluster.sql`, el cuerpo lleva otra sección,
-  `## Paso operativo en servidores`, que nombre staging y producción (ningún adaptador de
-  despliegue ejecuta ese fichero). Lo exigen dos pasos del
-  check «Gobernanza — metadatos de PR» (job `gobernanza-pr`, `.github/workflows/gobernanza-pr.yml`,
-  lógica en `scripts/verificar-gobernanza-pr.sh`); ninguno de los dos es `required`, así que en rojo
-  no bloquea la cola de fusión, pero queda visible.
-- **Al abrir cualquier PR**, pásale sus metadatos en la misma llamada:
-  `gh pr create --label "Type: …" --label "Priority: …" --milestone "…"`. El check
-  «Gobernanza — metadatos de PR» exige, leído por API en el momento de evaluar, un
-  milestone y al menos una etiqueta `Type:` y una `Priority:`; el propio workflow se
-  reevalúa solo cuando se añaden después (dispara también con `labeled`/`milestoned`/`edited`),
-  pero mientras tanto la PR queda en rojo y bloqueada, y hace falta que alguien se dé
-  cuenta y los añada — evitable poniéndolos al crearla. Milestones vigentes:
-  `gh api repos/HydraProyect/Project-Hydra/milestones --jq '.[].title'`.
-
-**Si la sesión no tiene la skill** (en la nube o en otra máquina), no reconstruyas su contenido de
-memoria. Puedes descubrir en solo lectura, pero antes de editar, abrir una PR, dar por buena una
-evidencia o actualizar una dependencia dentro de su ámbito, **detente e informa «skill normativa
-ausente: <nombre>»**.
-
-| Skill | Secciones | Cárgala cuando |
-|---|---|---|
-| `protocolo-hydra-verificacion` | 3, 11, 12, 13, 15, 17 | ejecutes o interpretes tests, gates, CI, ratchets, mutaciones o SQL de siembra |
-| `protocolo-hydra-sesiones-paralelas` | 21, 22 | vayas a tocar código, cortar ramas, abrir PRs, coordinar sesiones o ante un fallo transversal de CI |
-| `protocolo-hydra-contratos` | 6, 7, 16 | cambies un contrato, migres un lector, cortes un incremento o el código cambie una regla documentada |
-| `protocolo-hydra-dependencias` | 23 | actualices paquetes, revises Dependabot o toques secretos de CI |
-| `protocolo-hydra-multimodelo` | 24 | necesites leer más de ~50.000 tokens (Gemini vía `agy`), prepares un turno nocturno o vayas a invocar `agy` (la revisión con Codex antes de PR no la requiere: ver regla de arriba) |
-
-Mínimo que aplica siempre aunque no cargues nada: **la primera orden de cualquier sesión que vaya a
-tocar código es `bash scripts/estado-ramas.sh`**, y toda rama se corta de `origin/main`.
+| Skill | Cárgala cuando |
+|---|---|
+| `protocolo-hydra-autonomia` | empieces trabajo autónomo o cierres un incremento |
+| `protocolo-hydra-verificacion` | interpretes tests, gates, CI o mutaciones, o comuniques evidencia de diff, búsqueda o log |
+| `protocolo-hydra-sesiones-paralelas` | vayas a tocar código, cortes ramas, abras PRs, coordines sesiones o veas un fallo transversal de CI |
+| `protocolo-hydra-sesion` | seas la sesión principal (título, grupo, tablero, ENTREGA) |
+| `protocolo-hydra-contratos` | cambies un contrato o una regla documentada |
+| `protocolo-hydra-dependencias` | actualices paquetes, revises Dependabot o toques secretos de CI |
+| `protocolo-hydra-multimodelo` | leas más de ~50.000 tokens (Gemini vía `agy`); sin ella no se invoca `agy` |
