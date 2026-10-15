@@ -4,6 +4,7 @@ using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa;
 using CaeManager.Application.Empresas.Commands.GuardarNotaInternaEmpresa;
+using CaeManager.Application.Empresas.Commands.EditarFichaEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresaSinContrasena;
@@ -39,7 +40,7 @@ namespace CaeManager.Web.Tests;
 /// falso que no ordenara daría verde con una página que mezcla estados.
 /// </para>
 /// </summary>
-public class Empresa360PaginaTests : BunitContext
+public partial class Empresa360PaginaTests : BunitContext
 {
     public Empresa360PaginaTests()
     {
@@ -87,6 +88,7 @@ public class Empresa360PaginaTests : BunitContext
                 : null,
             ObtenerCredencialAccesoEmpresaQuery q => Credenciales.GetValueOrDefault(q.EmpresaId),
             GuardarNotaInternaEmpresaCommand c => GuardarNota(c),
+            EditarFichaEmpresaCommand c => GuardarFicha(c),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -99,6 +101,15 @@ public class Empresa360PaginaTests : BunitContext
             if (ResultadoNota.EsExitoso && DetalleTrasGuardarNota is not null)
                 Detalles[c.Id] = DetalleTrasGuardarNota;
             return ResultadoNota;
+        }
+
+        public Result ResultadoFicha { get; set; } = Result.Exito();
+        public EmpresaDetalleDto? DetalleTrasGuardarFicha { get; set; }
+        private Result GuardarFicha(EditarFichaEmpresaCommand c)
+        {
+            if (ResultadoFicha.EsExitoso && DetalleTrasGuardarFicha is not null)
+                Detalles[c.Id] = DetalleTrasGuardarFicha;
+            return ResultadoFicha;
         }
 
         /// <summary>Misma semántica que ObtenerTrabajadoresQueryHandler (ver la doc de la clase).</summary>
@@ -202,7 +213,8 @@ public class Empresa360PaginaTests : BunitContext
         var mediador = new MediatorFalso();
         mediador.Detalles[EmpresaId] = new EmpresaDetalleDto(
             EmpresaId, "Ibertec GmbH", "B-48.220.917", new DateTime(2025, 3, 14, 10, 0, 0, DateTimeKind.Utc),
-            [Guid.NewGuid(), Guid.NewGuid()], Guid.NewGuid(), "4322", "Metal de Bizkaia", true);
+            [Guid.NewGuid(), Guid.NewGuid()], Guid.NewGuid(), "4322", "Metal de Bizkaia", true) with
+        { FichaVisible = true };
         mediador.Sellos[EmpresaId] = new SelloEmpresaDto("/sello.png", DateTime.UtcNow);
         mediador.Cumplimiento[EmpresaId] = cumplimiento;
         mediador.Trabajadores[EmpresaId] = trabajadores ?? Plantilla();
@@ -519,15 +531,23 @@ public class Empresa360PaginaTests : BunitContext
     [InlineData("")]
     [InlineData("?pestana=ficha")]
     [InlineData("?pestana=sello")]
-    public void Sin_datos_para_cajas_no_hay_pestana_Ficha(string consulta)
+    public void Sin_datos_opcionales_la_pestana_Ficha_conserva_las_cajas_de_empresa(string consulta)
     {
         var m = Empresa();
         m.Sellos.Clear();
         Registrar(m, Roles.Consulta);
         var cut = Renderizar(consulta);
-        cut.FindAll("[role=tab]").Should().NotContain(t => t.TextContent.Trim() == "Ficha");
-        Pestana(cut, "Trabajadores").GetAttribute("aria-selected").Should().Be("true");
-        cut.FindAll("[data-pieza=cajas-ficha]").Should().BeEmpty();
+        cut.FindAll("[role=tab]").Should().Contain(t => t.TextContent.Trim() == "Ficha");
+        if (!string.IsNullOrEmpty(consulta))
+        {
+            Pestana(cut, "Ficha").GetAttribute("aria-selected").Should().Be("true");
+            cut.FindAll("[data-caja]").Should().HaveCount(4);
+        }
+        else
+        {
+            Pestana(cut, "Trabajadores").GetAttribute("aria-selected").Should().Be("true",
+                "sin ?pestana= la página abre en Trabajadores aunque haya cajas de ficha");
+        }
     }
 
     [Fact]
@@ -538,7 +558,7 @@ public class Empresa360PaginaTests : BunitContext
         var lateral = cut.Find(".cuerpo-con-lateral-lateral");
         lateral.QuerySelectorAll(".tarjeta").Should().ContainSingle();
         lateral.TextContent.Should().Contain("Información").And.NotContain("Carpeta de documentación");
-        cut.FindAll("[data-caja]").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "sello");
+        cut.FindAll("[data-caja]").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "firma-documentos", "prevencion", "mutua", "formacion", "sello");
         var tabs = cut.FindAll("[role=tab]");
         tabs[^2].TextContent.Trim().Should().Be("Ficha");
         tabs[^1].TextContent.Trim().Should().Be("Historial");
@@ -565,7 +585,7 @@ public class Empresa360PaginaTests : BunitContext
         var m = EmpresaConCredencial(rol: Roles.Consulta);
         m.Sellos.Clear();
         var cut = Renderizar("?pestana=ficha");
-        cut.FindAll("[data-caja]").Select(c => c.GetAttribute("data-caja")).Should().Equal(new[] { "acceso" });
+        cut.FindAll("[data-caja]").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "firma-documentos", "prevencion", "mutua", "formacion");
         cut.FindComponents<Stub<PestanaSelloEmpresa>>().Should().BeEmpty();
         cut.Markup.Should().Contain("https://app.twind.io/login").And.NotContain("usuario.ibertec");
     }
@@ -578,7 +598,7 @@ public class Empresa360PaginaTests : BunitContext
         Registrar(m);
         var cut = Renderizar("?pestana=ficha");
         Pestana(cut, "Ficha").GetAttribute("aria-selected").Should().Be("true");
-        cut.FindAll("[data-caja]").Select(c => c.GetAttribute("data-caja")).Should().Equal(new[] { "sello" });
+        cut.FindAll("[data-caja]").Select(c => c.GetAttribute("data-caja")).Should().Equal("firma-documentos", "prevencion", "mutua", "formacion", "sello");
         cut.FindComponent<Stub<PestanaSelloEmpresa>>().Instance.Parameters.Get(x => x.EntidadId).Should().Be(EmpresaId);
     }
 
@@ -588,20 +608,20 @@ public class Empresa360PaginaTests : BunitContext
         var m = EmpresaConCredencial();
         m.Sellos.Clear();
         var cut = Renderizar("?pestana=ficha");
-        cut.FindAll("[data-caja]").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "sello");
+        cut.FindAll("[data-caja]").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "firma-documentos", "prevencion", "mutua", "formacion", "sello");
         cut.FindComponent<Stub<PestanaSelloEmpresa>>().Instance.Parameters.Get(x => x.EntidadId).Should().Be(EmpresaId);
     }
 
     [Fact]
-    public void El_enlace_a_Ficha_sin_cajas_tambien_cae_en_Trabajadores_al_cambiar_la_url()
+    public void El_enlace_a_Ficha_sin_datos_opcionales_conserva_las_cajas_de_empresa()
     {
         var m = Empresa();
         m.Sellos.Clear();
         Registrar(m, Roles.Consulta);
         var cut = Renderizar();
         Navegacion.NavigateTo($"/empresas/{EmpresaId}?pestana=ficha");
-        cut.WaitForAssertion(() => Pestana(cut, "Trabajadores").GetAttribute("aria-selected").Should().Be("true"));
-        cut.FindAll("[data-pieza=cajas-ficha]").Should().BeEmpty();
+        cut.WaitForAssertion(() => Pestana(cut, "Ficha").GetAttribute("aria-selected").Should().Be("true"));
+        cut.FindAll("[data-caja]").Should().HaveCount(4);
     }
 
     // ── Filas: enlace a la página y 360 al panel ──────────────────────────
@@ -785,7 +805,7 @@ public class Empresa360PaginaTests : BunitContext
         m.Credenciales[EmpresaId] = m.Credenciales[EmpresaId] with { UrlAcceso = url };
         var cut = Renderizar("?pestana=ficha");
         cut.FindAll("[data-caja=acceso]").Should().BeEmpty();
-        cut.FindAll("[role=tab]").Should().NotContain(t => t.TextContent.Trim() == "Ficha");
+        cut.FindAll("[role=tab]").Should().Contain(t => t.TextContent.Trim() == "Ficha");
     }
 
     [Fact]

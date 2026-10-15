@@ -152,6 +152,11 @@
             </Lateral>
         </CuerpoConLateral>
 
+        <SoloConEscritura>
+            <EditarFichaEmpresaDrawer @key="EmpresaId" EmpresaId="EmpresaId" Visible="_editorFichaVisible"
+                VisibleChanged="v => _editorFichaVisible = v" OnGuardada="FichaGuardadaAsync" />
+        </SoloConEscritura>
+
         @* Editor de la nota interna: solo se abre desde «Editar →» de su tarjeta, que ya está tras SoloConEscritura. *@
         <DrawerFormulario Visible="_editorNotaVisible" VisibleChanged="CambiarVisibilidadEditorNota" Titulo="@Comunes["NotaInternaTitulo"]"
                           HayCambios="() => HayCambiosEnLaNota" Guardando="_guardandoNota" MensajeError="@_mensajeErrorNota"
@@ -169,8 +174,119 @@
     private IReadOnlyList<CajaFicha> CajasDeFicha =>
     [
         .. HayCajaAcceso ? new[] { new CajaFicha("acceso", CajaDeAcceso) } : [],
+        .. _detalle?.FichaVisible == true ? new[] { new CajaFicha("firma-documentos", CajaFirmaDocumentos), new CajaFicha("prevencion", CajaPrevencion), new CajaFicha("mutua", CajaMutua), new CajaFicha("formacion", CajaFormacion) } : [],
         .. HayCajaSello ? new[] { new CajaFicha("sello", CajaDeSello) } : []
     ];
+
+    private RenderFragment AccionEditarFicha => @<SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _editorFichaVisible = true">@Textos["FichaEditarEnlace"]</Boton></SoloConEscritura>;
+
+    private RenderFragment CajaFirmaDocumentos => __builder =>
+    {
+        if (_detalle is { FichaVisible: true } detalle)
+        {
+            <Tarjeta Titulo="@Textos["FichaFirmaDocumentos"]" Compacta="true">
+                <AccionesHeader>@AccionEditarFicha</AccionesHeader>
+                <ChildContent>
+                    <RejillaDatos>
+                        <DatoRejilla Etiqueta="@Textos["FichaCanalFirma"]" Valor="@(detalle.CanalFirmaDocumentos == CaeManager.Domain.Empresas.Empresa.CanalFirmaPorCorreo ? Textos["FichaPorCorreo"].Value : detalle.CanalFirmaDocumentos)" Ancho="true" />
+                        <DatoRejilla Etiqueta="@Textos["FichaFirmante"]" Valor="@detalle.FirmanteDocumentos" Ancho="true" />
+                        <DatoRejilla Etiqueta="@Textos["FichaCustodiaSello"]" Valor="@(detalle.SelloCustodiadoPorOperadorCae is { } custodia ? Textos[custodia ? "FichaSi" : "FichaNo"].Value : null)" Ancho="true" />
+                    </RejillaDatos>
+                </ChildContent>
+            </Tarjeta>
+        }
+    };
+
+    private RenderFragment CajaPrevencion => __builder =>
+    {
+        if (_detalle is { FichaVisible: true } detalle)
+        {
+            <Tarjeta Titulo="@Textos["FichaPrevencion"]" Compacta="true">
+                <AccionesHeader>@AccionEditarFicha</AccionesHeader>
+                <ChildContent>
+                    <RejillaDatos>
+                        <DatoRejilla Etiqueta="@Textos["FichaModalidadPreventiva"]" Valor="@detalle.ModalidadOrganizacionPreventiva" Ancho="true" />
+                        <DatoRejilla Etiqueta="@Textos["FichaOrganizacionSpa"]" Valor="@detalle.OrganizacionSpa" Ancho="true" />
+                        <DatoRejilla Etiqueta="@Textos["FichaContactoSpaNombre"]" Valor="@detalle.ContactoSpaNombre" Ancho="true" />
+                        <DatoRejilla Etiqueta="@Textos["FichaContactoSpaCorreo"]" Ancho="true">
+                            @if (!string.IsNullOrWhiteSpace(detalle.ContactoSpaCorreo))
+                            {
+                                <BotonCopiar Valor="@detalle.ContactoSpaCorreo" Texto="@detalle.ContactoSpaCorreo" Etiqueta="@Textos["FichaCopiarCorreoSpa"]" NombreAccesible="@Textos["FichaCopiarNombreAccesible", Textos["FichaCopiarCorreoSpa"]]" />
+                            }
+                            else { <span>—</span> }
+                        </DatoRejilla>
+                        <DatoRejilla Etiqueta="@Textos["FichaContactoSpaTelefono"]" Ancho="true">
+                            @if (!string.IsNullOrWhiteSpace(detalle.ContactoSpaTelefono))
+                            {
+                                <BotonCopiar Valor="@detalle.ContactoSpaTelefono" Texto="@detalle.ContactoSpaTelefono" Etiqueta="@Textos["FichaCopiarTelefonoSpa"]" NombreAccesible="@Textos["FichaCopiarNombreAccesible", Textos["FichaCopiarTelefonoSpa"]]" />
+                            }
+                            else { <span>—</span> }
+                        </DatoRejilla>
+                        <DatoRejilla Etiqueta="@Textos["FichaTecnicoPrlNombre"]" Valor="@detalle.TecnicoPrlNombre" Ancho="true" />
+                        <DatoRejilla Etiqueta="@Textos["FichaTecnicoPrlCorreo"]" Ancho="true">
+                            @if (!string.IsNullOrWhiteSpace(detalle.TecnicoPrlCorreo))
+                            {
+                                <BotonCopiar Valor="@detalle.TecnicoPrlCorreo" Texto="@detalle.TecnicoPrlCorreo" Etiqueta="@Textos["FichaCopiarCorreoTecnicoPrl"]" NombreAccesible="@Textos["FichaCopiarNombreAccesible", Textos["FichaCopiarCorreoTecnicoPrl"]]" />
+                            }
+                            else { <span>—</span> }
+                        </DatoRejilla>
+                        <DatoRejilla Etiqueta="@Textos["FichaTecnicoPrlTelefono"]" Ancho="true">
+                            @if (!string.IsNullOrWhiteSpace(detalle.TecnicoPrlTelefono))
+                            {
+                                <BotonCopiar Valor="@detalle.TecnicoPrlTelefono" Texto="@detalle.TecnicoPrlTelefono" Etiqueta="@Textos["FichaCopiarTelefonoTecnicoPrl"]" NombreAccesible="@Textos["FichaCopiarNombreAccesible", Textos["FichaCopiarTelefonoTecnicoPrl"]]" />
+                            }
+                            else { <span>—</span> }
+                        </DatoRejilla>
+                    </RejillaDatos>
+                    <p class="texto-descriptivo">@Textos["FichaNotaTecnico"]</p>
+                </ChildContent>
+            </Tarjeta>
+        }
+    };
+
+    private RenderFragment CajaMutua => __builder =>
+    {
+        if (_detalle is { FichaVisible: true } detalle)
+        {
+            <Tarjeta Titulo="@Textos["FichaMutua"]" Compacta="true">
+                <AccionesHeader>@AccionEditarFicha</AccionesHeader>
+                <ChildContent>
+                    <RejillaDatos>
+                        <DatoRejilla Etiqueta="@Textos["FichaMutuaNombre"]" Valor="@detalle.Mutua" Ancho="true" />
+                    </RejillaDatos>
+                </ChildContent>
+            </Tarjeta>
+        }
+    };
+
+    private RenderFragment CajaFormacion => __builder =>
+    {
+        if (_detalle is { FichaVisible: true } detalle)
+        {
+            <Tarjeta Titulo="@Textos["FichaFormacion"]" Compacta="true">
+                <AccionesHeader>@AccionEditarFicha</AccionesHeader>
+                <ChildContent>
+                    <RejillaDatos>
+                        <DatoRejilla Etiqueta="@Textos["FichaContactoFormacionNombre"]" Valor="@detalle.ContactoFormacionNombre" Ancho="true" />
+                        <DatoRejilla Etiqueta="@Textos["FichaContactoFormacionCorreo"]" Ancho="true">
+                            @if (!string.IsNullOrWhiteSpace(detalle.ContactoFormacionCorreo))
+                            {
+                                <BotonCopiar Valor="@detalle.ContactoFormacionCorreo" Texto="@detalle.ContactoFormacionCorreo" Etiqueta="@Textos["FichaCopiarCorreoFormacion"]" NombreAccesible="@Textos["FichaCopiarNombreAccesible", Textos["FichaCopiarCorreoFormacion"]]" />
+                            }
+                            else { <span>—</span> }
+                        </DatoRejilla>
+                        <DatoRejilla Etiqueta="@Textos["FichaContactoFormacionTelefono"]" Ancho="true">
+                            @if (!string.IsNullOrWhiteSpace(detalle.ContactoFormacionTelefono))
+                            {
+                                <BotonCopiar Valor="@detalle.ContactoFormacionTelefono" Texto="@detalle.ContactoFormacionTelefono" Etiqueta="@Textos["FichaCopiarTelefonoFormacion"]" NombreAccesible="@Textos["FichaCopiarNombreAccesible", Textos["FichaCopiarTelefonoFormacion"]]" />
+                            }
+                            else { <span>—</span> }
+                        </DatoRejilla>
+                    </RejillaDatos>
+                </ChildContent>
+            </Tarjeta>
+        }
+    };
 
     private RenderFragment CajaDeSello => __builder =>
     {

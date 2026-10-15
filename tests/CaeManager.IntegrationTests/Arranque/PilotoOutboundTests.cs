@@ -451,15 +451,95 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             .Should().Equal([1, 1, 1], "MEDIDO: una de cada, en C");
     }
 
-    /// <summary>Las Visitas de cada estado: futuras, realizadas, vencidas (pasaron sin gestionar) y canceladas.</summary>
+    /// <summary>Las Visitas de cada estado: futuras, en curso, realizadas, vencidas (pasaron sin gestionar) y canceladas.</summary>
     [Fact]
-    public void Las_Visitas_se_siembran_en_sus_cuatro_estados()
+    public void Las_Visitas_se_siembran_en_sus_cinco_estados_y_una_es_urgente()
     {
         var visitas = fixture.Informe.Tenants.Select(t => t.Estructura).ToList();
         visitas.Sum(e => e.VisitasFuturas).Should().BeGreaterThan(0);
         visitas.Sum(e => e.VisitasRealizadas).Should().BeGreaterThan(0);
         visitas.Sum(e => e.VisitasVencidas).Should().BeGreaterThan(0);
         visitas.Sum(e => e.VisitasCanceladas).Should().BeGreaterThan(0);
+        visitas.Sum(e => e.VisitasEnCurso).Should().BeGreaterThan(0, "MEDIDO: hay una Visita en curso");
+    }
+
+    /// <summary>
+    /// «En curso» y «urgente» en perfiles distintos, con las cifras escritas a mano: la de D empezó diez días antes de la
+    /// demostración y sigue en curso todos los días en que se puede sembrar (D−9 a D); la de B empieza un día después de la
+    /// demostración, así que cae dentro de las 48 h de aviso solo en D−1 y D (el día de medición por defecto, D−5, aún no).
+    /// </summary>
+    [Fact]
+    public async Task D_tiene_una_Visita_en_curso_cualquier_dia_de_la_siembra_y_B_una_a_menos_de_48_horas_el_dia_de_la_demostracion()
+    {
+        var fecha = ArnesPilotoOutbound.FechaDemostracion();
+        var (d, b) = ("D", "B");
+
+        foreach (var dia in new[] { fecha.AddDays(-OpcionesPilotoOutbound.MargenMaximoDias), fecha.AddDays(-5), fecha.AddDays(-2), fecha.AddDays(-1), fecha })
+        {
+            Informe eseDia;
+            using (DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojEn(dia.ToDateTime(new TimeOnly(11, 0), DateTimeKind.Utc))))
+                eseDia = await fixture.Arnes.MedirAsync(fixture.Configuracion);
+
+            var enD = eseDia.Tenants.Single(t => t.Clave == d);
+            var enB = eseDia.Tenants.Single(t => t.Clave == b);
+            salida.WriteLine($"MEDIDO {dia:yyyy-MM-dd}: D en curso {enD.Estructura.VisitasEnCurso} urgentes en Inicio {enD.InicioVisitasUrgentes}; " +
+                             $"B con aviso urgente {enB.Estructura.VisitasConAvisoUrgente} urgentes en Inicio {enB.InicioVisitasUrgentes}");
+
+            (enD.Estructura.VisitasEnCurso, enD.InicioVisitasUrgentes).Should().Be((1, 1), $"MEDIDO el día {dia:yyyy-MM-dd}: la Visita en curso de D cuenta como urgente en Inicio");
+            // Empieza en D+1: dentro de las 48 h de aviso el día D−1 (empieza a dos días) y el propio D, no antes.
+            var urgenteDeB = dia >= fecha.AddDays(-1) ? 1 : 0;
+            (enB.Estructura.VisitasConAvisoUrgente, enB.InicioVisitasUrgentes).Should().Be((urgenteDeB, urgenteDeB), $"MEDIDO el día {dia:yyyy-MM-dd}");
+            eseDia.Tenants.Where(t => t.Clave is not ("D" or "B")).Should().OnlyContain(
+                t => t.Estructura.VisitasEnCurso == 0 && t.Estructura.VisitasConAvisoUrgente == 0, "ningún otro perfil tiene una Visita en curso ni a menos de 48 h");
+        }
+    }
+
+    /// <summary>
+    /// Los tres tipos de #1363 llegan a cada Tenant del piloto por la copia del catálogo y se usan en sus perfiles —el REA
+    /// y un Libro de Subcontratación por obra en D, el recibo de RETA en E— en vez de los sustitutos de antes. Escritos a mano.
+    /// </summary>
+    [Fact]
+    public async Task Los_tipos_de_REA_Libro_de_Subcontratacion_y_RETA_estan_en_cada_Tenant_y_los_usan_D_y_E_y_no_sus_sustitutos()
+    {
+        foreach (var tenant in CatalogoPilotoOutbound.Tenants)
+        {
+            var (ambitos, enUso, sustituto) = await fixture.Arnes.EnTenantAsync(await fixture.Arnes.TenantIdAsync(tenant.Nombre), async (db, _) =>
+            {
+                var tipos = await db.TiposDocumento.AsNoTracking().ToListAsync();
+                var usados = await db.Documentos.AsNoTracking().Select(x => x.TipoDocumentoId).ToListAsync();
+                return (
+                    tipos.Where(t => t.Nombre is "Certificado de inscripción en el REA" or "Libro de Subcontratación" or "Recibo de cuota de autónomos (RETA)")
+                        .ToDictionary(t => t.Nombre, t => (t.AmbitoAplicacion, t.VigenciaMeses)),
+                    tipos.Where(t => usados.Contains(t.Id)).GroupBy(t => t.Nombre).ToDictionary(g => g.Key, g => usados.Count(u => g.Any(t => t.Id == u))),
+                    tipos.Any(t => t.Nombre is "Relación de Maquinaria") && usados.Any(u => tipos.Any(t => t.Id == u && t.Nombre == "Relación de Maquinaria")));
+            });
+
+            ambitos.Should().BeEquivalentTo(new Dictionary<string, (AmbitoAplicacion, int?)>
+            {
+                ["Certificado de inscripción en el REA"] = (AmbitoAplicacion.Empresa, 36),
+                ["Libro de Subcontratación"] = (AmbitoAplicacion.Proyecto, null),
+                ["Recibo de cuota de autónomos (RETA)"] = (AmbitoAplicacion.Empresa, 1),
+            }, $"MEDIDO {tenant.Clave}: el Tenant recibió los tres tipos por la copia del catálogo");
+
+            sustituto.Should().BeFalse($"{tenant.Clave}: ningún documento usa ya «Relación de Maquinaria»");
+
+            // Que los Centros del perfil pidan el tipo: los tres de D el REA y los dos de E el recibo; los demás, ninguno de los tres.
+            var pedidos = await fixture.Arnes.EnTenantAsync(await fixture.Arnes.TenantIdAsync(tenant.Nombre), (db, _) =>
+                (from requisito in db.TiposDocumentoCentros.AsNoTracking()
+                 join tipo in db.TiposDocumento.AsNoTracking() on requisito.TipoDocumentoId equals tipo.Id
+                 where requisito.Incluido && (tipo.Nombre == "Certificado de inscripción en el REA" || tipo.Nombre == "Recibo de cuota de autónomos (RETA)")
+                 group requisito by tipo.Nombre into g
+                 select new { Nombre = g.Key, Centros = g.Count() }).ToDictionaryAsync(x => x.Nombre, x => x.Centros));
+            pedidos.Should().BeEquivalentTo(tenant.Clave switch
+            {
+                "D" => new Dictionary<string, int> { ["Certificado de inscripción en el REA"] = 3 },
+                "E" => new Dictionary<string, int> { ["Recibo de cuota de autónomos (RETA)"] = 2 },
+                _ => []
+            }, $"MEDIDO {tenant.Clave}: los Centros que piden el REA o el recibo de RETA");
+            (enUso.GetValueOrDefault("Certificado de inscripción en el REA"), enUso.GetValueOrDefault("Libro de Subcontratación"),
+                enUso.GetValueOrDefault("Recibo de cuota de autónomos (RETA)"))
+                .Should().Be(tenant.Clave switch { "D" => (1, 5, 0), "E" => (0, 0, 1), _ => (0, 0, 0) }, $"MEDIDO {tenant.Clave}: dónde se usan");
+        }
     }
 
     // Los dos tipos de documento que vencen solos al mes, escritos a mano.
@@ -485,7 +565,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     /// caduca» los Tipos cuya nota del catálogo dice que no tienen caducidad.
     /// </summary>
     [Fact]
-    public async Task Las_fechas_de_cada_documento_son_las_que_el_producto_le_habria_dado_y_solo_cinco_tipos_quedan_sin_caducidad()
+    public async Task Las_fechas_de_cada_documento_son_las_que_el_producto_le_habria_dado_y_solo_seis_tipos_quedan_sin_caducidad()
     {
         var d = ArnesPilotoOutbound.FechaDemostracion();
         var hoy = DiaDeNegocio.Hoy();
@@ -664,6 +744,12 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         antes["Cuenta pendiente de activación"].Should().Be(1, "MEDIDO: la séptima, fuera de las seis que tienen contraseña");
         (antes["Solicitudes de incorporación a cartera"], antes["Propuestas de apoyo"]).Should().Be((0, 0), "MEDIDO: no se siembran: sus políticas exigen el Tenant de origen de una sesión autenticada");
         antes["Ficheros en el almacén"].Should().Be(antes["Documentos"]);
+        // Control positivo de las cuatro tablas que el recuento ve desde que cuenta Vehículos, Proyectos, verificaciones y
+        // acreditaciones: una segunda siembra que duplicara cualquiera de ellas dejaba el recuento igual hasta entonces.
+        // Las cifras salen de la matriz (A..G): 2+1+4+6+1+3+1 Vehículos, los 5 Proyectos de D y la Subcontrata Supervisada de F por sus tres tipos.
+        (antes["Vehículos"], antes["Proyectos"], antes["Verificaciones externas de Subcontrata"])
+            .Should().Be((18, 5, 3), "MEDIDO: Vehículos, Proyectos y verificaciones externas del lote");
+        antes["Acreditaciones externas"].Should().BeGreaterThan(0, "MEDIDO: las plataformas de A, B y C llevan acreditaciones");
 
         var segunda = await fixture.Arnes.SembrarAsync(fixture.Configuracion);
 
@@ -721,9 +807,50 @@ public class PilotoOutboundSensibilidadTests(ITestOutputHelper salida)
         (await HuellaDeEscriturasAsync(arnes)).Should().Be(huellaAntes, "MEDIDO: la medición no deja auditoría ni toca las cuentas con las que mide");
         arnes.Servicios.GetRequiredService<IHttpContextAccessor>().HttpContext.Should().BeNull("MEDIDO: la identidad se retira al terminar");
 
-        // 2. Un documento de Trabajador del perfil A pasa a estar vencido: solo A se aparta del diseño.
         var a = CatalogoPilotoOutbound.A;
         var idA = await arnes.TenantIdAsync(a.Nombre);
+
+        // 1 bis. Por qué A no lleva el certificado de la Seguridad Social ni el ITA de su Empresa propia, medido. Un documento
+        // mensual de la Empresa —emitido nueve días antes de hoy, como el más reciente que la siembra daría— vence antes de 30
+        // días, «Próximo», y la causa de Empresa tiñe TODOS los Centros de esa Empresa, aunque el
+        // Centro no exija el tipo (AgregarCausasDeEmpresaAsync no mira los requisitos del Centro). Con estos dos documentos A
+        // dejaría de tener ningún Centro «Vigente» (el primero pasa a «Próximo»); se retiran (borrado lógico) y se comprueba que A vuelve a su estado.
+        var vigentesDeAAntes = informe.De(a).Centros.Count(c => c.Estado == EstadoCentro.Vigente);
+        vigentesDeAAntes.Should().BeGreaterThan(0, "control: A tiene Centros «Vigente» antes de tocar nada");
+        var certificados = new[] { "Certificado de estar al corriente con la Seguridad Social", "ITA" };
+        var sembradosParaElDiagnostico = await arnes.EnTenantAsync(idA, async (db, _) =>
+        {
+            var propia = await db.Empresas.SingleAsync(e => e.EsPropia);
+            var emision = DiaDeNegocio.Hoy().AddDays(-9);
+            var creados = new List<Documento>();
+            foreach (var nombre in certificados)
+            {
+                var tipo = await db.TiposDocumento.SingleAsync(t => t.Nombre == nombre);
+                tipo.VigenciaMeses.Should().Be(1, $"control: «{nombre}» es mensual");
+                var vence = CalculadoraEstadoDocumento.CalcularFechaVencimiento(emision, tipo.VigenciaMeses);
+                var documento = Documento.DeEmpresa(propia.Id, tipo.Id, emision, VigenciaDocumento.VenceEl(vence!.Value), archivoUrl: null);
+                db.Documentos.Add(documento);
+                creados.Add(documento);
+            }
+
+            await db.SaveChangesAsync();
+            return creados.Select(c => c.Id).ToList();
+        });
+        var conLosCertificados = (await arnes.MedirAsync(configuracion)).De(a);
+        salida.WriteLine("MEDIDO A con los dos certificados mensuales: " + PilotoOutboundTextos.CentrosPorEstado(conLosCertificados));
+        conLosCertificados.Centros.Count(c => c.Estado == EstadoCentro.Vigente).Should().Be(
+            0, "MEDIDO: un documento mensual de la Empresa propia —«Próximo» por su propio tipo— deja a todos sus Centros sin «Vigente»");
+        conLosCertificados.Centros.Select(c => c.Estado).Should().BeEquivalentTo([EstadoCentro.Proximo, EstadoCentro.Pendiente], "MEDIDO: el Centro que era «Vigente» pasa a «Próximo» y el que ya esperaba una acreditación sigue «Pendiente»");
+        await arnes.EnTenantAsync(idA, async (db, _) =>
+        {
+            foreach (var id in sembradosParaElDiagnostico)
+                (await db.Documentos.SingleAsync(d => d.Id == id)).MarcarComoEliminado(Guid.NewGuid());
+            return await db.SaveChangesAsync();
+        });
+        (await arnes.MedirAsync(configuracion)).De(a).Centros.Count(c => c.Estado == EstadoCentro.Vigente)
+            .Should().Be(vigentesDeAAntes, "restauración verificada: sin los dos certificados A vuelve a tener sus Centros «Vigente»");
+
+        // 2. Un documento de Trabajador del perfil A pasa a estar vencido: solo A se aparta del diseño.
         await arnes.EnTenantAsync(idA, async (db, _) =>
         {
             var documento = await db.Documentos.Where(d => d.TrabajadorId != null && d.FechaVencimiento != null).OrderBy(d => d.Id).FirstAsync();
@@ -755,6 +882,24 @@ public class PilotoOutboundSensibilidadTests(ITestOutputHelper salida)
         var conDosPropias = PilotoOutboundAutoverificacion.Discrepancias(await arnes.MedirAsync(configuracion));
         conDosPropias.Should().Contain(l => l.StartsWith($"{b.Clave} «{b.Nombre}» · ") && l.Contains("Empresas con EsPropia"),
             "MEDIDO: dos Empresas propias en un Tenant es una discrepancia nombrada");
+
+        // 4. Un Trabajador de F con el alta en la Empresa DESPUÉS de su Formación Art. 19: la autoverificación lo nombra.
+        var f = CatalogoPilotoOutbound.F;
+        var idF = await arnes.TenantIdAsync(f.Nombre);
+        await arnes.EnTenantAsync(idF, async (db, _) =>
+        {
+            var formacion = await db.TiposDocumento.Where(t => t.Nombre == CatalogoPilotoOutbound.FormacionArt19).Select(t => t.Id).SingleAsync();
+            var trabajadorId = await db.Documentos.Where(d => d.TrabajadorId != null && d.TipoDocumentoId == formacion)
+                .OrderBy(d => d.Id).Select(d => d.TrabajadorId!.Value).FirstAsync();
+            var trabajador = await db.Trabajadores.SingleAsync(t => t.Id == trabajadorId);
+            typeof(CaeManager.Domain.Trabajadores.Trabajador).GetProperty(nameof(CaeManager.Domain.Trabajadores.Trabajador.FechaAltaEmpresa))!
+                .SetValue(trabajador, DiaDeNegocio.Hoy().AddDays(-1));
+            return await db.SaveChangesAsync();
+        });
+        var conAltaPosterior = PilotoOutboundAutoverificacion.Discrepancias(await arnes.MedirAsync(configuracion));
+        conAltaPosterior.Should().Contain(
+            l => l.StartsWith($"{f.Clave} «{f.Nombre}» · ") && l.Contains("alta en la Empresa posterior") && l.Contains("medido 1, esperado 0"),
+            "MEDIDO: un alta posterior a su formación es una discrepancia nombrada, y solo la de ese Trabajador");
     }
 
     /// <summary>

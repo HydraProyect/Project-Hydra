@@ -9,6 +9,30 @@ namespace CaeManager.Domain.Empresas;
 /// </summary>
 public class Empresa : EntidadBase
 {
+    public const int LongitudMaximaCampoFicha = 200;
+    public const int LongitudMaximaTelefonoFicha = 50;
+    public const int LongitudMaximaCorreoFicha = 254;
+
+    /// <summary>Los dos canales de firma de documentos que admite la ficha de Empresa 360.</summary>
+    public const string CanalFirmaDocuSign = "DocuSign";
+    public const string CanalFirmaPorCorreo = "Por correo";
+
+    public string? CanalFirmaDocumentos { get; private set; }
+    public bool? SelloCustodiadoPorOperadorCae { get; private set; }
+    public string? FirmanteDocumentos { get; private set; }
+    public string? ModalidadOrganizacionPreventiva { get; private set; }
+    public string? OrganizacionSpa { get; private set; }
+    public string? ContactoSpaNombre { get; private set; }
+    public string? ContactoSpaTelefono { get; private set; }
+    public string? ContactoSpaCorreo { get; private set; }
+    public string? Mutua { get; private set; }
+    public string? ContactoFormacionNombre { get; private set; }
+    public string? ContactoFormacionTelefono { get; private set; }
+    public string? ContactoFormacionCorreo { get; private set; }
+    public string? TecnicoPrlNombre { get; private set; }
+    public string? TecnicoPrlTelefono { get; private set; }
+    public string? TecnicoPrlCorreo { get; private set; }
+
     public const int LongitudMaximaRazonSocial = 200;
     public const int LongitudCif = 9;
     public const int LongitudMaximaCnae = 10;
@@ -195,6 +219,64 @@ public class Empresa : EntidadBase
             throw new ArgumentException($"La nota interna no puede superar {LongitudMaximaNotas} caracteres.", nameof(notas));
 
         Notas = normalizada;
+    }
+
+    public void ActualizarFicha(
+        string? canalFirmaDocumentos,
+        bool? selloCustodiadoPorOperadorCae,
+        string? firmanteDocumentos,
+        string? modalidadOrganizacionPreventiva,
+        string? organizacionSpa,
+        string? contactoSpaNombre,
+        string? contactoSpaTelefono,
+        string? contactoSpaCorreo,
+        string? mutua,
+        string? contactoFormacionNombre,
+        string? contactoFormacionTelefono,
+        string? contactoFormacionCorreo,
+        string? tecnicoPrlNombre,
+        string? tecnicoPrlTelefono,
+        string? tecnicoPrlCorreo)
+    {
+        var canalFirmaDocumentosNormalizado = NormalizarCampoFicha(canalFirmaDocumentos, LongitudMaximaCampoFicha);
+        var firmanteDocumentosNormalizado = NormalizarCampoFicha(firmanteDocumentos, LongitudMaximaCampoFicha);
+        var modalidadOrganizacionPreventivaNormalizado = NormalizarCampoFicha(modalidadOrganizacionPreventiva, LongitudMaximaCampoFicha);
+        var organizacionSpaNormalizado = NormalizarCampoFicha(organizacionSpa, LongitudMaximaCampoFicha);
+        var contactoSpaNombreNormalizado = NormalizarCampoFicha(contactoSpaNombre, LongitudMaximaCampoFicha);
+        var contactoSpaTelefonoNormalizado = NormalizarCampoFicha(contactoSpaTelefono, LongitudMaximaTelefonoFicha);
+        var contactoSpaCorreoNormalizado = NormalizarCampoFicha(contactoSpaCorreo, LongitudMaximaCorreoFicha);
+        var mutuaNormalizado = NormalizarCampoFicha(mutua, LongitudMaximaCampoFicha);
+        var contactoFormacionNombreNormalizado = NormalizarCampoFicha(contactoFormacionNombre, LongitudMaximaCampoFicha);
+        var contactoFormacionTelefonoNormalizado = NormalizarCampoFicha(contactoFormacionTelefono, LongitudMaximaTelefonoFicha);
+        var contactoFormacionCorreoNormalizado = NormalizarCampoFicha(contactoFormacionCorreo, LongitudMaximaCorreoFicha);
+        var tecnicoPrlNombreNormalizado = NormalizarCampoFicha(tecnicoPrlNombre, LongitudMaximaCampoFicha);
+        var tecnicoPrlTelefonoNormalizado = NormalizarCampoFicha(tecnicoPrlTelefono, LongitudMaximaTelefonoFicha);
+        var tecnicoPrlCorreoNormalizado = NormalizarCampoFicha(tecnicoPrlCorreo, LongitudMaximaCorreoFicha);
+        if (canalFirmaDocumentosNormalizado is not (null or CanalFirmaDocuSign or CanalFirmaPorCorreo))
+            throw new ArgumentException("El canal de firma debe ser DocuSign o Por correo.", nameof(canalFirmaDocumentos));
+        CanalFirmaDocumentos = canalFirmaDocumentosNormalizado;
+        SelloCustodiadoPorOperadorCae = selloCustodiadoPorOperadorCae;
+        FirmanteDocumentos = firmanteDocumentosNormalizado;
+        ModalidadOrganizacionPreventiva = modalidadOrganizacionPreventivaNormalizado;
+        OrganizacionSpa = organizacionSpaNormalizado;
+        ContactoSpaNombre = contactoSpaNombreNormalizado;
+        ContactoSpaTelefono = contactoSpaTelefonoNormalizado;
+        ContactoSpaCorreo = contactoSpaCorreoNormalizado;
+        Mutua = mutuaNormalizado;
+        ContactoFormacionNombre = contactoFormacionNombreNormalizado;
+        ContactoFormacionTelefono = contactoFormacionTelefonoNormalizado;
+        ContactoFormacionCorreo = contactoFormacionCorreoNormalizado;
+        TecnicoPrlNombre = tecnicoPrlNombreNormalizado;
+        TecnicoPrlTelefono = tecnicoPrlTelefonoNormalizado;
+        TecnicoPrlCorreo = tecnicoPrlCorreoNormalizado;
+    }
+
+    private static string? NormalizarCampoFicha(string? valor, int limite)
+    {
+        var normalizado = string.IsNullOrWhiteSpace(valor) ? null : valor.Trim();
+        if (normalizado is not null && normalizado.Length > limite)
+            throw new ArgumentException($"El campo no puede superar {limite} caracteres.", nameof(valor));
+        return normalizado;
     }
 
     private void EstablecerRazonSocial(string razonSocial)

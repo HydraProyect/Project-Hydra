@@ -77,7 +77,7 @@ public class FechasPilotoOutboundCoherentesConElTipoTests
                         Falla("el vencimiento no es la emisión más los meses del Tipo");
 
                     if (CatalogoPilotoOutbound.TiposQueNoCaducan.Contains(tipo.Nombre) != (vence is null))
-                        Falla("«no caduca» es de los cinco Tipos de la lista, y solo de ellos");
+                        Falla("«no caduca» es de los seis Tipos de la lista, y solo de ellos");
 
                     if (vence is not { } fecha) continue;
 
@@ -179,7 +179,7 @@ public class FechasPilotoOutboundCoherentesConElTipoTests
     {
         var porNombre = TipoDocumentoSeedData.Datos.ToDictionary(d => d.Nombre);
 
-        CatalogoPilotoOutbound.TiposQueNoCaducan.Should().HaveCount(5).And.OnlyHaveUniqueItems();
+        CatalogoPilotoOutbound.TiposQueNoCaducan.Should().HaveCount(6).And.OnlyHaveUniqueItems();
         foreach (var nombre in CatalogoPilotoOutbound.TiposQueNoCaducan.Append(CatalogoPilotoOutbound.DocumentoIdentidad))
         {
             porNombre.Should().ContainKey(nombre, "si el catálogo semilla renombra el Tipo, la siembra del piloto dejaría de reconocerlo y le pondría otra vigencia");

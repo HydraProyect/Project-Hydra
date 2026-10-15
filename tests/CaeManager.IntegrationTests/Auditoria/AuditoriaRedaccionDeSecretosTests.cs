@@ -724,6 +724,67 @@ public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Punto 8 del interceptor: quien firma y los nombres, teléfonos y correos
+    /// de los contactos de la ficha de Empresa 360 no quedan en claro ni al
+    /// escribirlos (DatosDespues) ni al cambiarlos (DatosAntes). La Mutua es
+    /// un dato de organización y sigue en claro: así el test distingue
+    /// «enmascara estos campos» de «enmascara toda la fila».
+    /// </summary>
+    [Fact]
+    public async Task Los_contactos_de_la_ficha_de_empresa_no_aparecen_en_claro_ni_al_escribirlos_ni_al_cambiarlos()
+    {
+        const string firmante = "FIRMANTE-no-debe-aparecer";
+        const string nombreSpa = "CONTACTO-SPA-no-debe-aparecer";
+        const string telefonoSpa = "600111222";
+        const string correoSpa = "contacto.spa@no-debe-aparecer.example";
+        const string nombreFormacion = "CONTACTO-FORMACION-no-debe-aparecer";
+        const string telefonoFormacion = "600333444";
+        const string correoFormacion = "formacion@no-debe-aparecer.example";
+        const string nombreTecnico = "TECNICO-PRL-no-debe-aparecer";
+        const string telefonoTecnico = "600555666";
+        const string correoTecnico = "tecnico@no-debe-aparecer.example";
+        const string mutua = "MUTUA-en-claro";
+        string[] personales = [firmante, nombreSpa, telefonoSpa, correoSpa, nombreFormacion, telefonoFormacion,
+            correoFormacion, nombreTecnico, telefonoTecnico, correoTecnico];
+        Guid empresaId;
+        await using (var contexto = CrearContexto())
+        {
+            var empresa = new Empresa("Empresa de la ficha 360", "B10380194");
+            empresaId = empresa.Id;
+            contexto.Empresas.Add(empresa);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto())
+        {
+            var empresa = await contexto.Empresas.SingleAsync(e => e.Id == empresaId);
+            empresa.ActualizarFicha("DocuSign", true, firmante, "Servicio de prevención ajeno", "Prevención Nostromo",
+                nombreSpa, telefonoSpa, correoSpa, mutua, nombreFormacion, telefonoFormacion, correoFormacion,
+                nombreTecnico, telefonoTecnico, correoTecnico);
+            await contexto.SaveChangesAsync();
+        }
+
+        var alta = await ObtenerRegistroDeModificacionAsync(nameof(Empresa));
+        foreach (var dato in personales) alta.DatosDespues.Should().NotContain(dato);
+        alta.DatosDespues.Should().Contain("\"TecnicoPrlCorreo\":\"***\"");
+        alta.DatosDespues.Should().Contain("\"FirmanteDocumentos\":\"***\"");
+        alta.DatosDespues.Should().Contain(mutua, "la Mutua es un dato de organización, no de una persona");
+
+        await using (var contexto = CrearContexto())
+        {
+            var empresa = await contexto.Empresas.SingleAsync(e => e.Id == empresaId);
+            empresa.ActualizarFicha("Por correo", false, null, null, null, null, null, null, mutua,
+                null, null, null, null, null, null);
+            await contexto.SaveChangesAsync();
+        }
+
+        var vaciado = await ObtenerRegistroDeModificacionAsync(nameof(Empresa));
+        vaciado.Id.Should().NotBe(alta.Id, "el vaciado deja su propia fila de modificación");
+        foreach (var dato in personales) vaciado.DatosAntes.Should().NotContain(dato);
+        vaciado.DatosAntes.Should().Contain("\"ContactoSpaNombre\":\"***\"");
+    }
+
+    /// <summary>
     /// Un alta de correo real: la conversación arrastra el mensaje y el
     /// mensaje su adjunto en un único <c>SaveChanges</c>, que es como los
     /// escribe la ingesta de webhook. Devuelve el Id del mensaje.
