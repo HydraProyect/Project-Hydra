@@ -10,6 +10,7 @@ using CaeManager.Application.Visitas;
 using CaeManager.Application.Facturacion.Queries.ObtenerTarifasCliente;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Facturacion;
+using CaeManager.Domain.Proyectos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -53,6 +54,10 @@ public record LineaFacturacionDto(
 /// tarifa a mitad del mes afecta al cálculo completo del mes. Para mayor
 /// precisión histórica se pueden añadir fechas de vigencia a <see cref="TarifaCliente"/>
 /// en una fase posterior.
+///
+/// Los Proyectos de tipo <see cref="TipoProyecto.Evento"/> no se facturan (decisión de producto de 2026-10-15): los
+/// tres conceptos de Proyecto (técnicos, gestiones y días abiertos) solo cuentan obras. Los conceptos de Centro no
+/// cambian: los participantes de un evento son <c>ProyectoTecnico</c>, no Asignaciones al Centro.
 /// </summary>
 public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IDocumentosQueryContext documentosContext, IFacturacionQueryContext facturacionContext, IProyectosQueryContext proyectosContext, ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext)
     : IRequestHandler<ObtenerResumenFacturacionQuery, ResumenFacturacionDto?>
@@ -191,11 +196,11 @@ public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asi
             .CountAsync(ct);
     }
 
-    /// <summary>Técnicos únicos con alta en algún Proyecto del cliente, activa en algún punto del período — factura la obra, no la gestión CAE tradicional.</summary>
+    /// <summary>Técnicos únicos con alta en alguna obra del cliente (no en un evento), activa en algún punto del período — factura la obra, no la gestión CAE tradicional.</summary>
     private async Task<int> ContarTecnicosAsignadosProyectoAsync(Guid clienteId, DateOnly inicio, DateOnly fin, CancellationToken ct)
     {
         var proyectoIds = await proyectosContext.Proyectos
-            .Where(p => p.ClienteId == clienteId)
+            .Where(p => p.ClienteId == clienteId && p.Tipo != TipoProyecto.Evento)
             .Select(p => p.Id)
             .ToListAsync(ct);
 
@@ -213,7 +218,7 @@ public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asi
     private async Task<int> ContarGestionesProyectoAsync(Guid clienteId, DateTime inicio, DateTime fin, CancellationToken ct)
     {
         var proyectoIds = await proyectosContext.Proyectos
-            .Where(p => p.ClienteId == clienteId)
+            .Where(p => p.ClienteId == clienteId && p.Tipo != TipoProyecto.Evento)
             .Select(p => p.Id)
             .ToListAsync(ct);
 
@@ -228,14 +233,14 @@ public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asi
     }
 
     /// <summary>
-    /// Suma, para cada Proyecto del cliente, los días de intersección entre
+    /// Suma, para cada obra del cliente (los eventos no se facturan), los días de intersección entre
     /// su periodo abierto (FechaInicio–FechaCierreReal, o "hoy" si sigue
     /// abierto) y el período de facturación consultado.
     /// </summary>
     private async Task<int> ContarDiasProyectoAbiertoAsync(Guid clienteId, DateOnly inicio, DateOnly fin, CancellationToken ct)
     {
         var proyectos = await proyectosContext.Proyectos
-            .Where(p => p.ClienteId == clienteId)
+            .Where(p => p.ClienteId == clienteId && p.Tipo != TipoProyecto.Evento)
             .Select(p => new { p.FechaInicio, p.FechaCierreReal })
             .ToListAsync(ct);
 

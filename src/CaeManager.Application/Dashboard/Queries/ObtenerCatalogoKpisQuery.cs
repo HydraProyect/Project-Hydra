@@ -12,6 +12,7 @@ using CaeManager.Application.Visitas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Incidencias;
+using CaeManager.Domain.Proyectos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -212,9 +213,14 @@ public class ObtenerCatalogoKpisQueryHandler(
     /// igual "para toda la página en vez de una consulta por fila" que
     /// <c>ObtenerEmpresasQuery.CalcularCumplimientoPorEmpresaAsync</c> — en vez de una
     /// consulta por cliente. El cálculo por cliente individual (pantalla de Facturación)
-    /// sigue viviendo, sin tocar, en <see cref="ObtenerResumenFacturacionQuery"/>.
+    /// sigue viviendo en <see cref="ObtenerResumenFacturacionQuery"/>.
+    ///
+    /// Igual que esa Query, los tres conceptos de Proyecto (técnicos, gestiones y días abiertos) solo cuentan
+    /// obras: un Proyecto de tipo <see cref="Domain.Proyectos.TipoProyecto.Evento"/> no se factura, y ningún importe
+    /// de evento entra en esta estimación (decisión de producto de 2026-10-15). Interna para que los tests la ejerciten
+    /// sin montar los trece contextos de <see cref="Handle"/>.
     /// </summary>
-    private async Task<decimal> CalcularFacturacionEstimadaAsync(PeriodoKpi periodo, CancellationToken cancellationToken)
+    internal async Task<decimal> CalcularFacturacionEstimadaAsync(PeriodoKpi periodo, CancellationToken cancellationToken)
     {
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
@@ -371,7 +377,7 @@ public class ObtenerCatalogoKpisQueryHandler(
         IReadOnlyList<Guid> clienteIds, DateOnly inicio, DateOnly fin, CancellationToken cancellationToken) =>
         (await (
             from proyecto in proyectosContext.Proyectos
-            where clienteIds.Contains(proyecto.ClienteId)
+            where clienteIds.Contains(proyecto.ClienteId) && proyecto.Tipo != TipoProyecto.Evento
             join tecnico in proyectosContext.ProyectosTecnicos on proyecto.Id equals tecnico.ProyectoId
             where tecnico.FechaAlta <= fin && (tecnico.FechaBaja == null || tecnico.FechaBaja >= inicio)
             select new { proyecto.ClienteId, tecnico.TrabajadorId })
@@ -384,7 +390,7 @@ public class ObtenerCatalogoKpisQueryHandler(
         IReadOnlyList<Guid> clienteIds, DateTime inicio, DateTime fin, CancellationToken cancellationToken)
     {
         var proyectos = await proyectosContext.Proyectos
-            .Where(p => clienteIds.Contains(p.ClienteId))
+            .Where(p => clienteIds.Contains(p.ClienteId) && p.Tipo != TipoProyecto.Evento)
             .Select(p => new { p.Id, p.ClienteId })
             .ToListAsync(cancellationToken);
 
@@ -408,7 +414,7 @@ public class ObtenerCatalogoKpisQueryHandler(
         IReadOnlyList<Guid> clienteIds, DateOnly inicio, DateOnly fin, CancellationToken cancellationToken)
     {
         var proyectos = await proyectosContext.Proyectos
-            .Where(p => clienteIds.Contains(p.ClienteId))
+            .Where(p => clienteIds.Contains(p.ClienteId) && p.Tipo != TipoProyecto.Evento)
             .Select(p => new { p.ClienteId, p.FechaInicio, p.FechaCierreReal })
             .ToListAsync(cancellationToken);
 

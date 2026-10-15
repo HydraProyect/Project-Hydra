@@ -20,12 +20,12 @@ public enum ConceptoFacturable
     /// <summary>Por cada documento creado o renovado para trabajadores asignados al cliente durante el período.</summary>
     DocumentoGestionado,
 
-    /// <summary>Por cada técnico único asignado a algún Proyecto del cliente durante el período — facturación de obra, separada de la gestión CAE tradicional.</summary>
+    /// <summary>Por cada técnico único asignado a alguna obra del cliente durante el período — facturación de obra, separada de la gestión CAE tradicional. Los Proyectos de tipo Evento no se facturan.</summary>
     TecnicoAsignadoProyecto,
 
-    /// <summary>Por cada Documento gestionado (creado) en algún Proyecto del cliente durante el período.</summary>
+    /// <summary>Por cada Documento gestionado (creado) en alguna obra del cliente durante el período. Los Proyectos de tipo Evento no se facturan.</summary>
     GestionProyectoRealizada,
 
-    /// <summary>Por cada día que algún Proyecto del cliente permaneció abierto dentro del período.</summary>
+    /// <summary>Por cada día que alguna obra del cliente permaneció abierta dentro del período. Los Proyectos de tipo Evento no se facturan.</summary>
     DiaProyectoAbierto,
 }

@@ -18,6 +18,9 @@
        la lógica de lectura sin depender del reloj de pared de la máquina. -->
   <ItemGroup>
     <InternalsVisibleTo Include="CaeManager.Application.Tests" />
+    <!-- ObtenerCatalogoKpisQueryHandler.CalcularFacturacionEstimadaAsync es interna: el test de integración
+         de eventos la ejecuta contra PostgreSQL sin montar los trece contextos del Handle completo. -->
+    <InternalsVisibleTo Include="CaeManager.IntegrationTests" />
   </ItemGroup>
 
   <PropertyGroup>

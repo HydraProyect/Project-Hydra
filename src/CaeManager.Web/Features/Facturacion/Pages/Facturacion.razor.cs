@@ -572,9 +572,9 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
         ConceptoFacturable.AltaCentro => "Por centro dado de alta durante el período",
         ConceptoFacturable.VisitaTrabajadorExtranjero => "Por trabajador sin DNI español que visita un centro en el período",
         ConceptoFacturable.DocumentoGestionado => "Por documento creado en el período para un trabajador asignado",
-        ConceptoFacturable.TecnicoAsignadoProyecto => "Por técnico distinto asignado a algún proyecto en el período",
-        ConceptoFacturable.GestionProyectoRealizada => "Por documento creado en el período en un proyecto",
-        ConceptoFacturable.DiaProyectoAbierto => "Por día abierto de cada proyecto, contando el primero y el último",
+        ConceptoFacturable.TecnicoAsignadoProyecto => "Por técnico distinto asignado a alguna obra en el período (los eventos no se facturan)",
+        ConceptoFacturable.GestionProyectoRealizada => "Por documento creado en el período en una obra (los eventos no se facturan)",
+        ConceptoFacturable.DiaProyectoAbierto => "Por día abierto de cada obra, contando el primero y el último (los eventos no se facturan)",
         _ => string.Empty
     };
 

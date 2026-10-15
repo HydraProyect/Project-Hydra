@@ -8,7 +8,8 @@ namespace CaeManager.Domain.Proyectos;
 /// <see cref="Asignaciones.Asignacion"/> (Trabajador↔Centro). No todo
 /// Trabajador con Asignación activa al Centro de un Proyecto trabaja
 /// necesariamente en esa obra concreta, de ahí la relación explícita:
-/// alimenta la facturación "por técnico" (<see cref="Facturacion.ConceptoFacturable.TecnicoAsignadoProyecto"/>).
+/// alimenta la facturación "por técnico" (<see cref="Facturacion.ConceptoFacturable.TecnicoAsignadoProyecto"/>)
+/// solo en una obra: quien participa en un <see cref="TipoProyecto.Evento"/> no se factura.
 /// </summary>
 public class ProyectoTecnico : EntidadConTenant, IVersionable
 {
