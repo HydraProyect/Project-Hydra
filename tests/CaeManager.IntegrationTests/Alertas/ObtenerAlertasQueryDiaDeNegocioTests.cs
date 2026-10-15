@@ -78,7 +78,7 @@ public class ObtenerAlertasQueryDiaDeNegocioTests : IAsyncLifetime
         var handler = new ObtenerAlertasQueryHandler(
             consulta, consulta, consulta, consulta, consulta, consulta, consulta,
             new ResolverClientePrincipalService(consulta, consulta, consulta),
-            new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(consulta, consulta, consulta));
+            new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(consulta, consulta, consulta), consulta, consulta);
 
         var alertas = await handler.Handle(new ObtenerAlertasQuery(), CancellationToken.None);
 

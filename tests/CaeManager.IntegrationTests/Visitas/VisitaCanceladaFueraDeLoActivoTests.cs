@@ -117,7 +117,7 @@ public class VisitaCanceladaFueraDeLoActivoTests : IAsyncLifetime
     public async Task Los_contadores_de_Inicio_no_cuentan_la_cancelada()
     {
         await using var lectura = CrearContexto();
-        var calculo = new CalculoEstadoCentroService(lectura, lectura, lectura, lectura, lectura, lectura, lectura);
+        var calculo = new CalculoEstadoCentroService(lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura);
 
         var kpis = await new ObtenerKpisDashboardQueryHandler(lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso(), calculo, new EvaluacionDeAccesoPorCentroService(lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso()))
             .Handle(new ObtenerKpisDashboardQuery(), CancellationToken.None);

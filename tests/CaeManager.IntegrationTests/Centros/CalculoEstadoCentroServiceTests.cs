@@ -213,7 +213,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         await SembrarAcreditacionEnAsync(otroCentro, otroTrabajador, Rechazada);
 
         await using var contexto = CrearContexto();
-        var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto);
+        var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto);
         var resultados = await servicio.CalcularAsync([_centroId, otroCentro], CancellationToken.None);
 
         resultados[otroCentro].Estado.Should().Be(EstadoCentro.Bloqueado,
@@ -470,7 +470,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         }
 
         await using var lectura = CrearContexto();
-        var servicio = new CalculoEstadoCentroService(lectura, lectura, lectura, lectura, lectura, lectura, lectura);
+        var servicio = new CalculoEstadoCentroService(lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura);
 
         var ambos = await servicio.CalcularCumplimientoAsync([_centroId, centroSinTrabajadoresId], CancellationToken.None);
         var soloElVacio = await servicio.CalcularCumplimientoAsync([centroSinTrabajadoresId], CancellationToken.None);
@@ -508,7 +508,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         }
 
         await using var lectura = CrearContexto();
-        var servicio = new CalculoEstadoCentroService(lectura, lectura, lectura, lectura, lectura, lectura, lectura);
+        var servicio = new CalculoEstadoCentroService(lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura);
 
         var cumplimiento = await servicio.CalcularCumplimientoAsync([_centroId], CancellationToken.None);
 
@@ -537,7 +537,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         }
 
         await using var lectura = CrearContexto();
-        var servicio = new CalculoEstadoCentroService(lectura, lectura, lectura, lectura, lectura, lectura, lectura);
+        var servicio = new CalculoEstadoCentroService(lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura);
 
         var cumplimiento = await servicio.CalcularCumplimientoAsync([_centroId], CancellationToken.None);
 
@@ -584,7 +584,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
             contexto.TiposDocumentoCentros.Add(new TipoDocumentoCentro(_tipoDocumentoObligatorioId, _centroId, incluido: valor));
             await contexto.SaveChangesAsync();
         }
-        var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto);
+        var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto);
         var resultado = (await servicio.CalcularCumplimientoAsync([_centroId], CancellationToken.None))[_centroId];
         resultado.Requeridos.Should().Be(requeridos);
         resultado.AlDia.Should().Be(0);
@@ -605,7 +605,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         contexto.Documentos.Add(Documento.DeTrabajador(_trabajadorId, opcional.Id, DiaDeNegocio.Hoy(),
             VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1))));
         await contexto.SaveChangesAsync();
-        var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto);
+        var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto);
         var resultado = (await servicio.CalcularCumplimientoAsync([_centroId], CancellationToken.None))[_centroId];
         resultado.Requeridos.Should().Be(1, "el obligatorio global sin inclusión explícita no entra en el denominador");
         resultado.AlDia.Should().Be(1);
@@ -633,7 +633,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     private async Task<ResultadoEstadoCentro> CalcularAsync()
     {
         await using var contexto = CrearContexto();
-        var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto);
+        var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto);
 
         var resultados = await servicio.CalcularAsync([_centroId], CancellationToken.None);
         return resultados[_centroId];

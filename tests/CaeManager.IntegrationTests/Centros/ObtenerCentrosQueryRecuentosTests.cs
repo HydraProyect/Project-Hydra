@@ -201,7 +201,7 @@ public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerCentrosQueryHandler(
             contexto, contexto, new AlcanceDatosServiceFalso(),
-            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto));
+            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto));
 
         var resultado = await handler.Handle(
             new ObtenerCentrosQuery(null, null, Estado: null, CentroId: _centroId),

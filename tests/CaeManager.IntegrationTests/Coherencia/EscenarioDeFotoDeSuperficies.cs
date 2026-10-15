@@ -224,7 +224,7 @@ internal sealed class EscenarioDeFotoDeSuperficies
         string Tip(Guid id) => tipos.GetValueOrDefault(id, id.ToString());
         string Fr(FraccionCumplimiento f) => $"{f.AlDia}/{f.Requeridos}";
 
-        var calculoCentro = new CalculoEstadoCentroService(c, c, c, c, c, c, c);
+        var calculoCentro = new CalculoEstadoCentroService(c, c, c, c, c, c, c, c);
         var calculoDocumental = new CalculoEstadoDocumentalService(c, c, c);
         var calculoSubcontrata = new CalculoEstadoSubcontrataService(c, c, c, c, c, c, alcance);
         var centroIds = centros.Keys.ToList();
@@ -235,7 +235,7 @@ internal sealed class EscenarioDeFotoDeSuperficies
 
         // 3. Alertas.
         var alertas = await new ObtenerAlertasQueryHandler(
-                c, c, c, c, c, c, c, new ResolverClientePrincipalService(c, c, c), alcance, new DocumentosFaltantesService(c, c, c))
+                c, c, c, c, c, c, c, new ResolverClientePrincipalService(c, c, c), alcance, new DocumentosFaltantesService(c, c, c), c, c)
             .Handle(new ObtenerAlertasQuery(), CancellationToken.None);
         Seccion("Alertas").AddRange(alertas.Select(a =>
             $"{Tra(a.TrabajadorId)} | {Tip(a.TipoDocumentoId)} | {a.Estado} | {(a.CentroId is { } ci ? Cen(ci) : "sin centro")} | {a.FechaVencimiento:yyyy-MM-dd}".Replace(_hoy.ToString("yyyy-MM-dd"), "HOY")));

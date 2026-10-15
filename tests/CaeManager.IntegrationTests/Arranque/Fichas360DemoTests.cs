@@ -468,7 +468,7 @@ public class Fichas360DemoTests(Fichas360DemoFixture fixture) : IClassFixture<Fi
                     .ToListAsync())
                 .ToDictionary(d => d.TrabajadorId!.Value);
 
-            var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto);
+            var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto);
             var pares = await servicio.ObtenerParesExigidosAsync(centros.Select(c => c.Id).ToList(), CancellationToken.None);
 
             return pares.Where(par => par.TipoDocumentoId == tipoId).ToDictionary(

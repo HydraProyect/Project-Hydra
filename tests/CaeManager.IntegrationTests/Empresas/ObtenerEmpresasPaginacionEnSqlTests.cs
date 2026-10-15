@@ -107,7 +107,7 @@ public class ObtenerEmpresasPaginacionEnSqlTests : IAsyncLifetime
         new(contexto, new AlcanceDatosServiceFalso(),
             new CalculoEstadoDocumentalService(contexto, contexto, contexto),
             contexto, contexto, contexto, contexto,
-            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto));
+            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto));
 
     private CaeManagerDbContext CrearContexto(Action<string>? capturarSql = null)
     {

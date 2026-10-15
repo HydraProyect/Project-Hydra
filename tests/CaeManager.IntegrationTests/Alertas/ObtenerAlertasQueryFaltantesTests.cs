@@ -74,7 +74,7 @@ public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime
         var handler = new ObtenerAlertasQueryHandler(
             contexto, contexto, contexto, contexto, contexto, contexto, contexto,
             new ResolverClientePrincipalService(contexto, contexto, contexto),
-            new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(contexto, contexto, contexto));
+            new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(contexto, contexto, contexto), contexto, contexto);
 
         var alertas = await handler.Handle(new ObtenerAlertasQuery(), CancellationToken.None);
 
@@ -99,7 +99,7 @@ public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime
         var handler = new ObtenerAlertasQueryHandler(
             lectura, lectura, lectura, lectura, lectura, lectura, lectura,
             new ResolverClientePrincipalService(lectura, lectura, lectura),
-            new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(lectura, lectura, lectura));
+            new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(lectura, lectura, lectura), lectura, lectura);
 
         var alertas = await handler.Handle(new ObtenerAlertasQuery(), CancellationToken.None);
 
@@ -120,7 +120,7 @@ public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime
         var handler = new ObtenerAlertasQueryHandler(
             lectura, lectura, lectura, lectura, lectura, lectura, lectura,
             new ResolverClientePrincipalService(lectura, lectura, lectura),
-            new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(lectura, lectura, lectura));
+            new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(lectura, lectura, lectura), lectura, lectura);
 
         var alertas = await handler.Handle(new ObtenerAlertasQuery(), CancellationToken.None);
 

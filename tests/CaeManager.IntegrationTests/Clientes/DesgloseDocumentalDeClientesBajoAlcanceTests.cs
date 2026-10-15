@@ -285,7 +285,7 @@ public class DesgloseDocumentalDeClientesBajoAlcanceTests : IAsyncLifetime
         new MediadorDeAlertas(new ObtenerAlertasQueryHandler(
             contexto, contexto, contexto, contexto, contexto, contexto, contexto,
             new ResolverClientePrincipalService(contexto, contexto, contexto), alcance,
-            new DocumentosFaltantesService(contexto, contexto, contexto))),
+            new DocumentosFaltantesService(contexto, contexto, contexto), contexto, contexto)),
         alcance);
 
     private CurrentUserServiceFalso UsuarioGestor() => new(_gestor, Roles.GestorCae, tenantOrigenId: _tenantSesion);
