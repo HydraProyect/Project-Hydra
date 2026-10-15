@@ -3694,6 +3694,59 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             VerificacionIaActiva = false
+                        },
+                        new
+                        {
+                            Id = new Guid("80000000-0000-0000-0000-000000000001"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = true,
+                            DeteccionTrabajadoresActiva = false,
+                            LecturaIaActiva = true,
+                            Naturaleza = "ObligacionCondicionada",
+                            Nombre = "Certificado de inscripción en el REA",
+                            Notas = "Registro de Empresas Acreditadas (Ley 32/2006 y RD 1109/2007). Solo aplica a obras de construcción. La inscripción tiene validez de 3 años y se renueva.",
+                            Orden = 54,
+                            PerfilDocumentoOficial = "Ninguno",
+                            Requerido = "Condicional",
+                            Sensibilidad = "SinDatosPersonales",
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false,
+                            VigenciaMeses = 36
+                        },
+                        new
+                        {
+                            Id = new Guid("80000000-0000-0000-0000-000000000002"),
+                            AmbitoAplicacion = "Proyecto",
+                            AplicaVencimientoAutomatico = false,
+                            DeteccionTrabajadoresActiva = false,
+                            LecturaIaActiva = true,
+                            Naturaleza = "ObligacionCondicionada",
+                            Nombre = "Libro de Subcontratación",
+                            Notas = "Art. 8 Ley 32/2006. Uno por obra: lo lleva el contratista principal y recoge cada subcontratación. Sin caducidad mientras dure la obra.",
+                            Orden = 1,
+                            PerfilDocumentoOficial = "Ninguno",
+                            Requerido = "Condicional",
+                            Sensibilidad = "DatosPersonales",
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
+                        },
+                        new
+                        {
+                            Id = new Guid("80000000-0000-0000-0000-000000000003"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = true,
+                            DeteccionTrabajadoresActiva = false,
+                            LecturaIaActiva = true,
+                            Naturaleza = "RequisitoCliente",
+                            Nombre = "Recibo de cuota de autónomos (RETA)",
+                            Notas = "Justificante mensual de pago de la cuota del Régimen Especial de Trabajadores Autónomos. El autónomo es su propia Empresa.",
+                            Orden = 55,
+                            PerfilDocumentoOficial = "Ninguno",
+                            Requerido = "No",
+                            Sensibilidad = "DatosPersonales",
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false,
+                            VigenciaMeses = 1
                         });
                 });
 

@@ -161,6 +161,17 @@ public static class TipoDocumentoSeedData
         (new Guid("70000000-0000-0000-0000-000000000002"), "Información y coordinación con trabajadores autónomos", null, false, 52, AmbitoAplicacion.Empresa, false, "F-52 del catálogo de formatos PRL — art. 24.5 LPRL · art. 4.1 RD 171/2004. Vigente hasta modificación — vencimiento manual."),
         (new Guid("70000000-0000-0000-0000-000000000003"), "Registro del deber de vigilancia sobre subcontratas", null, false, 53, AmbitoAplicacion.Empresa, false, "F-50 del catálogo de formatos PRL — art. 24.3 LPRL · art. 10 RD 171/2004. El único de la familia D que la ley impone directamente al contratista principal sobre sus Subcontratas. Un registro por subcontrata/verificación — vencimiento manual."),
         (new Guid("70000000-0000-0000-0000-000000000004"), "Recibí de normas, procedimientos y plan de emergencia", null, false, 39, AmbitoAplicacion.Trabajador, false, "F-29 del catálogo de formatos PRL — arts. 18 y 20 LPRL. Vigente hasta modificación de normas/plan — vencimiento manual."),
+
+        // --- Tres tipos reales de construcción y autónomos (2026-10-15, decisión
+        // del propietario). Ninguno es EsObligatorio=true: el REA y el Libro de
+        // Subcontratación se activan solo en obra de construcción, así que son
+        // RequisitoDocumental.Condicional (ver RequeridoDe) — el mismo patrón que
+        // "Designación de Recursos Preventivos" — y no cuentan para el
+        // cumplimiento de quien no pisa una obra; el recibo de RETA queda
+        // opcional (Requerido=No) y lo pide quien lo necesite. ---
+        (new Guid("80000000-0000-0000-0000-000000000001"), "Certificado de inscripción en el REA", 36, true, 54, AmbitoAplicacion.Empresa, false, "Registro de Empresas Acreditadas (Ley 32/2006 y RD 1109/2007). Solo aplica a obras de construcción. La inscripción tiene validez de 3 años y se renueva."),
+        (new Guid("80000000-0000-0000-0000-000000000002"), "Libro de Subcontratación", null, false, 1, AmbitoAplicacion.Proyecto, false, "Art. 8 Ley 32/2006. Uno por obra: lo lleva el contratista principal y recoge cada subcontratación. Sin caducidad mientras dure la obra."),
+        (new Guid("80000000-0000-0000-0000-000000000003"), "Recibo de cuota de autónomos (RETA)", 1, true, 55, AmbitoAplicacion.Empresa, false, "Justificante mensual de pago de la cuota del Régimen Especial de Trabajadores Autónomos. El autónomo es su propia Empresa."),
     ];
 
     /// <summary>
@@ -294,6 +305,9 @@ public static class TipoDocumentoSeedData
         "Certificado de estar al corriente con Hacienda" => NaturalezaJuridica.ObligacionCondicionada,
         // Ley 45/1999: desplazamiento transnacional.
         "Comunicación de desplazamiento" => NaturalezaJuridica.ObligacionCondicionada,
+        // Ley 32/2006 y RD 1109/2007: REA y Libro de Subcontratación, en obra de construcción.
+        "Certificado de inscripción en el REA" => NaturalezaJuridica.ObligacionCondicionada,
+        "Libro de Subcontratación" => NaturalezaJuridica.ObligacionCondicionada,
         "Documento acreditativo de empresa extranjera" => NaturalezaJuridica.ObligacionCondicionada,
         "Certificado A1 de Seguridad Social" => NaturalezaJuridica.ObligacionCondicionada,
 
@@ -449,8 +463,13 @@ public static class TipoDocumentoSeedData
             "RD 902/2020: retribución desglosada por trabajador y sexo — identifica a cada persona con su salario, sin revelar salud."),
         ["Información y coordinación con trabajadores autónomos"] = (SensibilidadDocumental.DatosPersonales,
             "Identifica al trabajador autónomo con el que se coordina."),
+        ["Libro de Subcontratación"] = (SensibilidadDocumental.DatosPersonales,
+            "Art. 8 Ley 32/2006: recoge, por cada subcontratación, la identificación de los representantes legales y de las personas que intervienen en la obra."),
+        ["Recibo de cuota de autónomos (RETA)"] = (SensibilidadDocumental.DatosPersonales,
+            "El autónomo es su propia Empresa: el recibo lo identifica como persona física (nombre, DNI, cuenta de cargo), sin revelar salud."),
 
         // --- Sin datos personales — ámbito Empresa (el contenido describe a la organización, no a una persona) ---
+        ["Certificado de inscripción en el REA"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar + " Acredita la inscripción de la Empresa en el Registro de Empresas Acreditadas."),
         ["Certificado de estar al corriente con la Seguridad Social"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
         ["Certificado de estar al corriente con Hacienda"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
         ["RLC"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar + " El listado nominal es el RNT, tipo distinto."),
@@ -503,6 +522,10 @@ public static class TipoDocumentoSeedData
         // RD 171/2004 no los exige incondicionalmente para toda empresa.
         "Designación de Recursos Preventivos" => RequisitoDocumental.Condicional,
         "Procedimiento de Coordinación de Actividades Empresariales" => RequisitoDocumental.Condicional,
+        // Solo se activan en obra de construcción (REA: Ley 32/2006 y RD
+        // 1109/2007; Libro de Subcontratación: art. 8 Ley 32/2006).
+        "Certificado de inscripción en el REA" => RequisitoDocumental.Condicional,
+        "Libro de Subcontratación" => RequisitoDocumental.Condicional,
         // Es cotización y aseguramiento, no prevención — sale del baseline CAE.
         "Mutua" => RequisitoDocumental.No,
         // Ley 45/1999 art. 6.5 exige documentación traducida, no jurada —
