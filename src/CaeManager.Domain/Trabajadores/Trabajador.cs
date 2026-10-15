@@ -162,6 +162,25 @@ public class Trabajador : EntidadBase
     public bool EstaAnonimizado => AnonimizadoEnUtc is not null;
 
     /// <summary>
+    /// Las propiedades que <see cref="Anonimizar"/> vacía: los datos personales del
+    /// Trabajador. Es también lo que se enmascara en su historial de auditoría al
+    /// anonimizarlo (decisión de Chris, 2026-10-15): <c>AuditoriaInterceptor</c> no copia
+    /// sus valores anteriores en la entrada que deja la anonimización, y la función
+    /// <c>app_enmascarar_auditoria_de_trabajador_anonimizado</c> (migración
+    /// <c>EnmascaraAuditoriaDeTrabajadorAnonimizado</c>) reescribe con "***" estas mismas
+    /// claves en las entradas anteriores. La función repite la lista en SQL: una propiedad
+    /// personal nueva se añade aquí, en <see cref="Anonimizar"/> y en la función.
+    /// </summary>
+    public static readonly IReadOnlyList<string> CamposDeDatosPersonales =
+    [
+        nameof(Nombre), nameof(Apellidos), nameof(Alias), nameof(Dni), nameof(FechaNacimiento),
+        nameof(Email), nameof(Telefono), nameof(Observaciones), nameof(Puesto),
+        nameof(NumeroAfiliacionSeguridadSocial), nameof(Nacionalidad), nameof(TipoVinculo),
+        nameof(FechaAltaEmpresa), nameof(FechaBajaEmpresa), nameof(FiguraEnRnt),
+        nameof(TipoPermisoTrabajo), nameof(CaducidadPermisoTrabajo), nameof(MotivoPermisoTrabajo),
+    ];
+
+    /// <summary>
     /// Rompe de forma irreversible el vínculo con la persona física
     /// (Project-Hydra-Negocio/tecnico/RGPD-TRATAMIENTO-DATOS.md § 5: purgar es anonimizar, no borrar).
     ///

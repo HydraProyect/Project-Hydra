@@ -65,6 +65,14 @@ namespace CaeManager.Infrastructure.Auditing;
 ///    afiliación a la Seguridad Social, nacionalidad, vínculo y permiso de
 ///    trabajo): datos personales que el historial conservaría después de
 ///    anonimizar al Trabajador. Ver el comentario de esa entrada.
+/// 7. Los datos personales de un <see cref="Trabajador"/> al anonimizarlo
+///    (decisión de Chris, 2026-10-15): la entrada que deja
+///    <see cref="Trabajador.Anonimizar"/> no copia los valores anteriores de
+///    <see cref="Trabajador.CamposDeDatosPersonales"/>, y en la misma
+///    transacción <c>EjecucionPurgaService</c> llama a la función
+///    <c>app_enmascarar_auditoria_de_trabajador_anonimizado</c>, que reescribe
+///    con "***" esos mismos campos en las entradas anteriores de ese Trabajador.
+///    Ver <see cref="EsAnonimizacionDeTrabajador"/>.
 /// </summary>
 public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesInterceptor
 {
@@ -175,15 +183,11 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         [typeof(FiltroGuardado)] = [nameof(FiltroGuardado.ValoresJson)],
 
         // Punto 6 del comentario de clase (2026-10-15): la ficha de altas en
-        // plataforma de Trabajador 360. El historial no tiene purga y
-        // Trabajador.Anonimizar solo vacía la fila: un valor copiado aquí
-        // sobreviviría a la supresión (el propio Anonimizar dejaría el valor
-        // anterior en DatosAntes). El rastro conserva qué campo cambió, quién
-        // y cuándo; nunca el número de afiliación ni el resto de la ficha.
-        // Alcance: solo los campos de la ficha. Nombre, apellidos, DNI, correo,
-        // teléfono, fecha de nacimiento, puesto y observaciones del Trabajador
-        // siguen en claro en el historial y también sobreviven a Anonimizar:
-        // hueco anterior a esta entrada, pendiente de decisión propia.
+        // plataforma de Trabajador 360. El rastro conserva qué campo cambió,
+        // quién y cuándo; nunca el número de afiliación ni el resto de la ficha.
+        // Nombre, apellidos, DNI, correo, teléfono, fecha de nacimiento, puesto y
+        // observaciones sí quedan en claro mientras el Trabajador conserva sus
+        // datos; al anonimizarlo se enmascaran también en el historial (punto 7).
         [typeof(Trabajador)] =
         [
             nameof(Trabajador.NumeroAfiliacionSeguridadSocial), nameof(Trabajador.Nacionalidad),
@@ -209,6 +213,25 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
     {
         [typeof(ApplicationUser)] = [nameof(ApplicationUser.UltimaActividadUtc), nameof(ApplicationUser.ConcurrencyStamp)]
     };
+
+    /// <summary>
+    /// Punto 7 del comentario de clase. Los datos personales del Trabajador más
+    /// los campos de la ficha que <see cref="PropiedadesSensiblesPorTipo"/> ya
+    /// enmascara siempre: hoy coinciden, pero la unión evita que un campo
+    /// sensible deje de enmascararse en la anonimización por no estar en la lista.
+    /// </summary>
+    private static readonly HashSet<string> CamposPersonalesDeTrabajador =
+        [.. Trabajador.CamposDeDatosPersonales, .. PropiedadesSensiblesPorTipo[typeof(Trabajador)]];
+
+    /// <summary>
+    /// El guardado en el que <see cref="Trabajador.Anonimizar"/> vacía la fila:
+    /// <c>AnonimizadoEnUtc</c> pasa de nulo a una fecha. Su entrada se escribe
+    /// con los datos personales enmascarados en antes y después; queda qué
+    /// campos cambiaron, quién y cuándo, nunca el valor que se suprimía.
+    /// </summary>
+    private static bool EsAnonimizacionDeTrabajador(EntityEntry entrada) =>
+        entrada is { Entity: Trabajador, State: EntityState.Modified }
+        && entrada.Property(nameof(Trabajador.AnonimizadoEnUtc)) is { IsModified: true, OriginalValue: null, CurrentValue: not null };
 
     public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData,
@@ -319,7 +342,9 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
                 accion = accionPropia;
 
             var (entidadTipo, entidadId) = ResolverTipoEId(entrada);
-            var sensibles = PropiedadesSensiblesPorTipo.GetValueOrDefault(entrada.Entity.GetType());
+            var sensibles = EsAnonimizacionDeTrabajador(entrada)
+                ? CamposPersonalesDeTrabajador
+                : PropiedadesSensiblesPorTipo.GetValueOrDefault(entrada.Entity.GetType());
             var silenciosas = PropiedadesSilenciosasPorTipo.GetValueOrDefault(entrada.Entity.GetType());
 
             // En Added/Deleted no hay "propiedad modificada" que distinguir —

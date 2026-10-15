@@ -2,6 +2,7 @@ using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Retencion;
 using Microsoft.EntityFrameworkCore;
@@ -24,6 +25,12 @@ namespace CaeManager.Application.Retencion;
 /// propuesta se revisó y autorizó sobre un conjunto concreto de registros, y
 /// ejecutarla no puede llevarse por delante nada que no estuviera en él por el
 /// tiempo transcurrido entre la autorización y la ejecución.
+///
+/// Todo ocurre en una sola transacción (<see cref="ITransaccionDeComando"/>):
+/// anonimizar a un Trabajador y enmascarar sus datos personales en el historial
+/// de auditoría (<see cref="IEnmascaradoAuditoriaTrabajadorAnonimizado"/>) se
+/// confirman juntos o no se confirma ninguno. Con reintentos, la transacción
+/// entera puede repetirse: borrar de nuevo un archivo ya borrado no falla.
 /// </summary>
 public class EjecucionPurgaService(
     IAsignacionesQueryContext asignacionesContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext,
@@ -32,6 +39,8 @@ public class EjecucionPurgaService(
     IFileStorageService almacenamiento,
     ITenantActual tenantActual,
     IUnitOfWork unitOfWork,
+    ITransaccionDeComando transaccion,
+    IEnmascaradoAuditoriaTrabajadorAnonimizado enmascaradoAuditoria,
     IAlertaOperativa alertaOperativa,
     ILogger<EjecucionPurgaService> logger)
 {
@@ -43,6 +52,18 @@ public class EjecucionPurgaService(
         // de soft-delete más abajo.
         if (tenantActual.TenantId is not { } tenantId) return 0;
 
+        var suprimidos = 0;
+        await transaccion.EjecutarAsync(async ct =>
+        {
+            suprimidos = await EjecutarEnTransaccionAsync(tenantId, solicitudId, hoy, ct);
+            return Result.Exito();
+        }, cancellationToken);
+
+        return suprimidos;
+    }
+
+    private async Task<int> EjecutarEnTransaccionAsync(Guid tenantId, Guid solicitudId, DateOnly hoy, CancellationToken cancellationToken)
+    {
         var solicitud = await solicitudRepositorio.ObtenerPorIdAsync(solicitudId, cancellationToken);
         if (solicitud is null) return 0;
 
@@ -57,7 +78,7 @@ public class EjecucionPurgaService(
         {
             TipoDatoPurgable.Documentos => await AnonimizarDocumentosAsync(tenantId, solicitud.Id, solicitud.FechaCorte, ahora, cancellationToken),
             TipoDatoPurgable.TrabajadoresDadosDeBaja => await AnonimizarTrabajadoresAsync(tenantId, solicitud.FechaCorte, ahora, cancellationToken),
-            _ => new ResultadoAnonimizacion(0, 0, [])
+            _ => new ResultadoAnonimizacion(0, 0, [], [])
         };
 
         foreach (var incidencia in resultado.Incidencias)
@@ -71,6 +92,12 @@ public class EjecucionPurgaService(
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        // Después del guardado y dentro de la misma transacción: la función solo
+        // enmascara a un Trabajador que la base ya ve anonimizado, y así alcanza
+        // también a la entrada de auditoría que acaba de dejar la anonimización.
+        foreach (var trabajadorId in resultado.TrabajadoresAnonimizados)
+            await enmascaradoAuditoria.EnmascararAsync(trabajadorId, cancellationToken);
+
         logger.LogWarning(
             "Purga ejecutada: {Suprimidos}/{Candidatos} registros de tipo {Tipo} anonimizados, {Fallidos} con incidencias (solicitud {SolicitudId}).",
             resultado.Suprimidos, resultado.Candidatos, solicitud.TipoDato, resultado.Fallidos, solicitud.Id);
@@ -78,8 +105,12 @@ public class EjecucionPurgaService(
         return resultado.Suprimidos;
     }
 
-    /// <summary>Cuántos candidatos había, cuántos se suprimieron y las incidencias de los que no.</summary>
-    private readonly record struct ResultadoAnonimizacion(int Candidatos, int Suprimidos, IReadOnlyList<IncidenciaPurga> Incidencias)
+    /// <summary>
+    /// Cuántos candidatos había, cuántos se suprimieron, las incidencias de los que no
+    /// y qué Trabajadores se anonimizaron (para enmascarar su historial de auditoría).
+    /// </summary>
+    private readonly record struct ResultadoAnonimizacion(
+        int Candidatos, int Suprimidos, IReadOnlyList<IncidenciaPurga> Incidencias, IReadOnlyList<Guid> TrabajadoresAnonimizados)
     {
         public int Fallidos => Candidatos - Suprimidos;
     }
@@ -178,7 +209,7 @@ public class EjecucionPurgaService(
                 NivelAlertaOperativa.Critica);
         }
 
-        return new ResultadoAnonimizacion(documentos.Count, anonimizados, incidencias);
+        return new ResultadoAnonimizacion(documentos.Count, anonimizados, incidencias, []);
     }
 
     private async Task<ResultadoAnonimizacion> AnonimizarTrabajadoresAsync(
@@ -201,6 +232,6 @@ public class EjecucionPurgaService(
 
         // Sin paso de almacenamiento externo — anonimizar un Trabajador no
         // puede fallar a medias hoy, así que no hay incidencias que registrar.
-        return new ResultadoAnonimizacion(trabajadores.Count, trabajadores.Count, []);
+        return new ResultadoAnonimizacion(trabajadores.Count, trabajadores.Count, [], [.. trabajadores.Select(t => t.Id)]);
     }
 }
