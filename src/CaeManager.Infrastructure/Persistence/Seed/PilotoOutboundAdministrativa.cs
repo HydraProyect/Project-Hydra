@@ -318,8 +318,8 @@ public static class PilotoOutboundAdministrativa
         (cuentas.Coordinadora, Roles.CoordinadorCae, CatalogoPilotoOutbound.NombreTenantOperador),
         (cuentas.GestoraPrimera, Roles.GestorCae, CatalogoPilotoOutbound.NombreTenantOperador),
         (cuentas.GestorSegundo, Roles.GestorCae, CatalogoPilotoOutbound.NombreTenantOperador),
-        (cuentas.AdministradorT1, Roles.Administrador, CatalogoPilotoOutbound.NombreTenantT1),
-        (cuentas.UsuarioDeClienteEmpresarialT1, Roles.Cliente, CatalogoPilotoOutbound.NombreTenantT1),
+        (cuentas.AdministradorT1, Roles.Administrador, CatalogoPilotoOutbound.NombreTenantC),
+        (cuentas.UsuarioDeClienteEmpresarialT1, Roles.Cliente, CatalogoPilotoOutbound.NombreTenantC),
     ];
 
     /// <summary>
