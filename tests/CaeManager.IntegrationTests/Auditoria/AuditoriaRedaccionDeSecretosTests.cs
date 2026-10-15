@@ -2,7 +2,9 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Integraciones;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -669,6 +671,56 @@ public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
         cambio.DatosAntes.Should().Contain("\"ValoresJson\":\"***\"");
         cambio.DatosDespues.Should().NotContain(EstadoDeLaVistaNueva);
         cambio.DatosDespues.Should().Contain("\"ValoresJson\":\"***\"");
+    }
+
+    /// <summary>
+    /// Punto 6 del interceptor: el número de afiliación a la Seguridad Social
+    /// y la nacionalidad de la ficha de Trabajador 360 no quedan en claro ni
+    /// al editarlos (DatosDespues) ni al anonimizar al Trabajador (DatosAntes
+    /// de la supresión): el historial no tiene purga y conservaría el dato
+    /// que Anonimizar acaba de vaciar. Marcadores ASCII sin caracteres que
+    /// System.Text.Json escape, por el mismo motivo que los de arriba.
+    /// </summary>
+    [Fact]
+    public async Task El_numero_de_afiliacion_de_un_trabajador_no_aparece_en_claro_ni_al_editarlo_ni_al_anonimizarlo()
+    {
+        const string afiliacion = "281234567840";
+        const string nacionalidad = "NACIONALIDAD-no-debe-aparecer-en-claro";
+        Guid trabajadorId;
+        await using (var contexto = CrearContexto())
+        {
+            var empresa = new Empresa("Empresa de la ficha", "B10380194");
+            var trabajador = Trabajador.DeEmpresa(empresa.Id, "Nora", "Vidal", "12345678Z");
+            trabajadorId = trabajador.Id;
+            contexto.Empresas.Add(empresa);
+            contexto.Trabajadores.Add(trabajador);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto())
+        {
+            var trabajador = await contexto.Trabajadores.SingleAsync(t => t.Id == trabajadorId);
+            trabajador.ActualizarFicha(afiliacion, null, null, nacionalidad, null, null, null, null, null, null, null);
+            await contexto.SaveChangesAsync();
+        }
+
+        var edicion = await ObtenerRegistroDeModificacionAsync(nameof(Trabajador));
+        edicion.DatosDespues.Should().NotContain(afiliacion);
+        edicion.DatosDespues.Should().NotContain(nacionalidad);
+        edicion.DatosDespues.Should().Contain("\"NumeroAfiliacionSeguridadSocial\":\"***\"");
+
+        await using (var contexto = CrearContexto())
+        {
+            var trabajador = await contexto.Trabajadores.SingleAsync(t => t.Id == trabajadorId);
+            trabajador.Anonimizar(DateTime.UtcNow);
+            await contexto.SaveChangesAsync();
+        }
+
+        var supresion = await ObtenerRegistroDeModificacionAsync(nameof(Trabajador));
+        supresion.Id.Should().NotBe(edicion.Id, "la supresión deja su propia fila de modificación");
+        supresion.DatosAntes.Should().NotContain(afiliacion);
+        supresion.DatosAntes.Should().NotContain(nacionalidad);
+        supresion.DatosAntes.Should().Contain("\"NumeroAfiliacionSeguridadSocial\":\"***\"");
     }
 
     /// <summary>

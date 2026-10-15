@@ -694,4 +694,24 @@
     <value>Cap Centre coincideix amb els filtres.</value>
   </data>
   <data name="DesplegarIncidenciasTrabajador" xml:space="preserve"><value>Desplega incidències de {0}</value></data>
+  <data name="FichaAfiliacion" xml:space="preserve"><value>Núm. d’afiliació a la Seguretat Social</value></data>
+  <data name="FichaPuesto" xml:space="preserve"><value>Lloc de treball o ofici</value></data>
+  <data name="FichaNacionalidad" xml:space="preserve"><value>Nacionalitat</value></data>
+  <data name="FichaVinculoEmpresa" xml:space="preserve"><value>Vincle amb l’empresa</value></data>
+  <data name="FichaTipoVinculo" xml:space="preserve"><value>Tipus de vincle</value></data>
+  <data name="FichaAltaEmpresa" xml:space="preserve"><value>Alta a l’empresa</value></data>
+  <data name="FichaBaja" xml:space="preserve"><value>Baixa</value></data>
+  <data name="FichaSigueDeAlta" xml:space="preserve"><value>Continua d'alta</value></data>
+  <data name="FichaFiguraRnt" xml:space="preserve"><value>Figura al RNT</value></data>
+  <data name="FichaPermisoTrabajo" xml:space="preserve"><value>Permís de treball</value></data>
+  <data name="FichaTipoPermiso" xml:space="preserve"><value>Tipus</value></data>
+  <data name="FichaCaduca" xml:space="preserve"><value>Caduca</value></data>
+  <data name="FichaMotivo" xml:space="preserve"><value>Motiu</value></data>
+  <data name="FichaEditarEnlace" xml:space="preserve"><value>Edita →</value></data>
+  <data name="FichaEditarTitulo" xml:space="preserve"><value>Edita la fitxa del treballador</value></data>
+  <data name="FichaNoDisponible" xml:space="preserve"><value>No s’ha pogut carregar la fitxa del treballador.</value></data>
+  <data name="FichaGuardada" xml:space="preserve"><value>S’ha desat la fitxa del treballador.</value></data>
+  <data name="FichaErrorGuardar" xml:space="preserve"><value>No s’ha pogut desar la fitxa. Torna-ho a provar.</value></data>
+  <data name="FichaCopiarDato" xml:space="preserve"><value>Copia la dada</value></data>
+  <data name="FichaFechaInvalida" xml:space="preserve"><value>Introdueix una data vàlida.</value></data>
 </root>

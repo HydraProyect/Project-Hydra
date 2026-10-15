@@ -82,7 +82,14 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosTipoDocumento360> TextosDocumentos360 { get; set; } = default!;
 
-    private bool HayDatosFicha => _detalle is { } detalle && (detalle.FechaNacimiento.HasValue || !string.IsNullOrWhiteSpace(detalle.Puesto));
+    private bool _editorFichaVisible;
+
+    /// <summary>
+    /// El número de afiliación se guarda solo con dígitos; se presenta como en la maqueta
+    /// («41 1234567 89»): provincia, número y dígitos de control.
+    /// </summary>
+    public static string? FormatoAfiliacion(string? digitos) =>
+        digitos is { Length: >= 5 } d ? $"{d[..2]} {d[2..^2]} {d[^2..]}" : digitos;
     private string? _estadoCentrosDeLaUrl;
     private IReadOnlySet<string> _estadosCentros = new HashSet<string>();
 
@@ -237,7 +244,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         },
         new(PestanaCentros, Textos["PestanaCentros"]),
         new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
-        .. HayDatosFicha ? new[] { new PestanaDefinicion(PestanaFicha, Comunes["PestanaFicha"]) } : [],
+        new(PestanaFicha, Comunes["PestanaFicha"]),
         new(PestanaHistorial, Textos["PestanaHistorial"])
     ];
 
@@ -309,8 +316,6 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         _urlAdoptada = true;
         _pestanaDeLaUrl = Pestana;
         _pestanaActiva = PestanasValidas.Contains(Pestana) ? Pestana! : PestanaOperacion;
-        if (_detalle is not null && _pestanaActiva == PestanaFicha && !HayDatosFicha)
-            _pestanaActiva = PestanaOperacion;
     }
 
     /// <summary>Cambia de pestaña y la deja en la URL sin recargar la ficha; Operación, la de entrada, no lleva parámetro.</summary>
@@ -366,7 +371,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             }
 
             if (_pestanaDeLaUrl == PestanaFicha)
-                _pestanaActiva = HayDatosFicha ? PestanaFicha : PestanaOperacion;
+                _pestanaActiva = PestanaFicha;
 
             // El acordeón se cierra al cambiar de pregunta: los Ids
             // expandidos eran de la respuesta anterior y no significan nada
@@ -921,6 +926,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// </summary>
     private void CerrarModalesPendientes()
     {
+        _editorFichaVisible = false;
         _crearGestionVisible = false;
         _tipoDocumentoParaGestion = string.Empty;
         _errorCrearGestion = null;

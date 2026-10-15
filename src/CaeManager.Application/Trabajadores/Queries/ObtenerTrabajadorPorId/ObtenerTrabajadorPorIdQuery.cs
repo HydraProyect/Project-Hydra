@@ -22,7 +22,16 @@ public record TrabajadorDetalleDto(
     string? Alias,
     string? Telefono,
     string? Puesto,
-    Guid Version);
+    Guid Version,
+    string? NumeroAfiliacionSeguridadSocial = null,
+    string? Nacionalidad = null,
+    string? TipoVinculo = null,
+    DateOnly? FechaAltaEmpresa = null,
+    DateOnly? FechaBajaEmpresa = null,
+    string? FiguraEnRnt = null,
+    string? TipoPermisoTrabajo = null,
+    DateOnly? CaducidadPermisoTrabajo = null,
+    string? MotivoPermisoTrabajo = null);
 
 public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerTrabajadorPorIdQuery, TrabajadorDetalleDto?>
@@ -47,7 +56,16 @@ public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasCo
                 t.Alias,
                 t.Telefono,
                 t.Puesto,
-                t.Version
+                t.Version,
+                t.NumeroAfiliacionSeguridadSocial,
+                t.Nacionalidad,
+                t.TipoVinculo,
+                t.FechaAltaEmpresa,
+                t.FechaBajaEmpresa,
+                t.FiguraEnRnt,
+                t.TipoPermisoTrabajo,
+                t.CaducidadPermisoTrabajo,
+                t.MotivoPermisoTrabajo
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -60,6 +78,9 @@ public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasCo
         return new TrabajadorDetalleDto(
             trabajador.Id, trabajador.EmpresaId, trabajador.SubcontrataId, empleadorNombre, trabajador.Nombre, trabajador.Apellidos,
             trabajador.Dni, trabajador.FechaNacimiento, trabajador.Email, trabajador.Observaciones, trabajador.Alias,
-            trabajador.Telefono, trabajador.Puesto, trabajador.Version);
+            trabajador.Telefono, trabajador.Puesto, trabajador.Version,
+            trabajador.NumeroAfiliacionSeguridadSocial, trabajador.Nacionalidad, trabajador.TipoVinculo,
+            trabajador.FechaAltaEmpresa, trabajador.FechaBajaEmpresa, trabajador.FiguraEnRnt,
+            trabajador.TipoPermisoTrabajo, trabajador.CaducidadPermisoTrabajo, trabajador.MotivoPermisoTrabajo);
     }
 }

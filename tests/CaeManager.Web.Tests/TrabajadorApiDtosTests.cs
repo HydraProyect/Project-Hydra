@@ -2,6 +2,7 @@ using System.Text.Json;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Api.V1;
 using FluentAssertions;
@@ -16,6 +17,24 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class TrabajadorApiDtosTests
 {
+    [Fact]
+    public void El_detalle_publico_conserva_su_contrato_sin_los_datos_nuevos_de_la_ficha()
+    {
+        var dto = new TrabajadorDetalleDto(Guid.NewGuid(), Guid.NewGuid(), null, "Montajes Ebro",
+            "Nora", "Vidal", "12345678Z", new(1988, 3, 14), "nora@example.test", "Observación", "Nor",
+            "+34600111222", "Electricista", Guid.NewGuid(), NumeroAfiliacionSeguridadSocial: "41123456789",
+            Nacionalidad: "Colombiana", TipoVinculo: "Plantilla", FiguraEnRnt: "Sí",
+            TipoPermisoTrabajo: "Residencia y trabajo", MotivoPermisoTrabajo: "NIE");
+        var opciones = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        JsonSerializer.Serialize(dto, opciones).Should().Contain("numeroAfiliacionSeguridadSocial");
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(TrabajadorApiDetalleDto.DesdeInterno(dto), opciones));
+        json.RootElement.EnumerateObject().Select(p => p.Name).Should().Equal(
+            "id", "empresaId", "subcontrataId", "empleadorNombre", "nombre", "apellidos", "dni",
+            "fechaNacimiento", "email", "observaciones", "alias", "telefono", "puesto", "version");
+        json.RootElement.GetProperty("nombre").GetString().Should().Be(dto.Nombre);
+        json.RootElement.GetProperty("version").GetGuid().Should().Be(dto.Version);
+    }
+
     private static readonly string[] CamposPublicos = ["id", "nombre", "apellidos", "dni", "empleadorNombre", "estadoDocumental"];
 
     private static TrabajadorListaDto InternoConDesglose() =>

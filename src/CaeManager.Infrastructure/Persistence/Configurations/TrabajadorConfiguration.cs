@@ -23,6 +23,15 @@ public class TrabajadorConfiguration : IEntityTypeConfiguration<Trabajador>
         builder.Property(t => t.Apellidos).IsRequired().HasMaxLength(Trabajador.LongitudMaximaApellidos);
         builder.Property(t => t.Alias).HasMaxLength(Trabajador.LongitudMaximaAlias);
         builder.Property(t => t.Puesto).HasMaxLength(Trabajador.LongitudMaximaPuesto);
+        builder.Property(t => t.NumeroAfiliacionSeguridadSocial).HasMaxLength(Trabajador.LongitudMaximaNumeroAfiliacion);
+        builder.Property(t => t.Nacionalidad).HasMaxLength(Trabajador.LongitudMaximaCampoFicha);
+        builder.Property(t => t.TipoVinculo).HasMaxLength(Trabajador.LongitudMaximaCampoFicha);
+        builder.Property(t => t.FechaAltaEmpresa).HasColumnType("date");
+        builder.Property(t => t.FechaBajaEmpresa).HasColumnType("date");
+        builder.Property(t => t.FiguraEnRnt).HasMaxLength(Trabajador.LongitudMaximaCampoFicha);
+        builder.Property(t => t.TipoPermisoTrabajo).HasMaxLength(Trabajador.LongitudMaximaCampoFicha);
+        builder.Property(t => t.CaducidadPermisoTrabajo).HasColumnType("date");
+        builder.Property(t => t.MotivoPermisoTrabajo).HasMaxLength(Trabajador.LongitudMaximaCampoFicha);
         builder.Property(t => t.Dni).HasMaxLength(Trabajador.LongitudMaximaDni);
         builder.Property(t => t.Email).HasMaxLength(Trabajador.LongitudMaximaEmail);
         builder.Property(t => t.Telefono).HasMaxLength(Trabajador.LongitudMaximaTelefono);
