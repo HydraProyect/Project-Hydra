@@ -213,7 +213,10 @@ public partial class Trabajador360Gen2Tests : BunitContext
         Guid id, string nombre, string apellidos, string? telefono = null, string? email = null, string? alias = null) => new(
         id, EmpresaId: Guid.NewGuid(), SubcontrataId: null, EmpleadorNombre: "Refrielectric S.L.",
         nombre, apellidos, Dni: "12345678Z", FechaNacimiento: null, email, Observaciones: null,
-        alias, telefono, Puesto: "Oficial de 1.ª — montaje", Version: Guid.NewGuid());
+        alias, telefono, Puesto: "Oficial de 1.ª — montaje", Version: Guid.NewGuid(),
+        // Los tests de esta clase miran como el equipo de gestión, que recibe el permiso de trabajo; el caso del
+        // Usuario de Cliente lo fija aparte con PermisoTrabajoVisible = false.
+        PermisoTrabajoVisible: true);
 
     private static DocumentoRequeridoDto Documento(string tipo, EstadoDocumento estado, bool existe = true) =>
         new(existe ? Guid.NewGuid() : null, Guid.NewGuid(), tipo, estado,

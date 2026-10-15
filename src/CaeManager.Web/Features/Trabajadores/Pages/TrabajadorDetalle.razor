@@ -530,8 +530,11 @@
 </LimiteDeErrores>
 
 @code {
-    private IReadOnlyList<CajaFicha> CajasDeFicha =>
-        [new("altas-plataforma", CajaAltasPlataforma), new("vinculo-empresa", CajaVinculoEmpresa), new("permiso-trabajo", CajaPermisoTrabajo)];
+    // El permiso de trabajo solo llega a quien puede leerlo (ObtenerTrabajadorPorIdQuery, decisión del 2026-10-15): al
+    // Usuario de Cliente se le retira la caja entera en vez de enseñarle una caja vacía que parecería «sin permiso».
+    private IReadOnlyList<CajaFicha> CajasDeFicha => _detalle?.PermisoTrabajoVisible == true
+        ? [new("altas-plataforma", CajaAltasPlataforma), new("vinculo-empresa", CajaVinculoEmpresa), new("permiso-trabajo", CajaPermisoTrabajo)]
+        : [new("altas-plataforma", CajaAltasPlataforma), new("vinculo-empresa", CajaVinculoEmpresa)];
 
     private RenderFragment AccionEditarFicha => @<SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _editorFichaVisible = true">@Textos["FichaEditarEnlace"]</Boton></SoloConEscritura>;
 
