@@ -234,6 +234,12 @@
   <data name="BloqueoSituacionAusente" xml:space="preserve">
     <value>no té el document</value>
   </data>
+  <data name="BloqueoSituacionSinSubirAPlataforma" xml:space="preserve">
+    <value>sense pujar a la plataforma del Centre</value>
+  </data>
+  <data name="BloqueoSituacionSinValidarEnPlataforma" xml:space="preserve">
+    <value>pujat, sense validar a la plataforma del Centre</value>
+  </data>
   <data name="BloqueoSituacionVencido" xml:space="preserve">
     <value>va vèncer el {0}</value>
   </data>

@@ -646,8 +646,9 @@ public class CalculoEstadoCentroService(
 
         var conGestionCae = await CentrosConGestionCaeAsync(centroIds, cancellationToken);
         var hoy = DiaDeNegocio.Hoy();
-        var pendientes = await PendientesQueBajanElPorcentajeAsync(conGestionCae, hoy, cancellationToken);
-        return await ObtenerParesDeTrabajadorAsync(centroIds, conGestionCae, pendientes, hoy, cancellationToken);
+        // Sin la carga de lo pendiente en la plataforma: la marca PendienteEnPlataforma de un par solo la lee el porcentaje
+        // del Centro (CalcularCumplimientoAsync, que la carga por su cuenta), y ningún consumidor de este método lo calcula.
+        return await ObtenerParesDeTrabajadorAsync(centroIds, conGestionCae, [], hoy, cancellationToken);
     }
 
     /// <summary>

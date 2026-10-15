@@ -238,6 +238,14 @@
   <data name="BloqueoSituacionAusente" xml:space="preserve">
     <value>no tiene el documento</value>
   </data>
+  <data name="BloqueoSituacionSinSubirAPlataforma" xml:space="preserve">
+    <value>sin subir a la plataforma del Centro</value>
+    <comment>El documento vale, pero está sin subir a la plataforma CAE de este Centro y el Centro lo marca como bloqueante (decisión del 2026-10-10).</comment>
+  </data>
+  <data name="BloqueoSituacionSinValidarEnPlataforma" xml:space="preserve">
+    <value>subido, sin validar en la plataforma del Centro</value>
+    <comment>El documento vale y está subido, pero la plataforma CAE de este Centro aún no lo ha validado y el Centro lo marca como bloqueante (decisión del 2026-10-10).</comment>
+  </data>
   <data name="BloqueoSituacionVencido" xml:space="preserve">
     <value>venció el {0}</value>
   </data>

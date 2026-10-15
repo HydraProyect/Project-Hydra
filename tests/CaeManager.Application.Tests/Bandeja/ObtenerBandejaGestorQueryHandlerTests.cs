@@ -80,11 +80,11 @@ public class ObtenerBandejaGestorQueryHandlerTests
 
     /// <summary>
     /// Pendiente en la plataforma (2026-10-10): un Trabajador bloqueado porque su documento bloqueante está SIN SUBIR a la
-    /// plataforma del Centro no es una fila más de la cola cuando ya sale como su acreditación pendiente de subir. La
-    /// fila de requisito solo se quita si la acreditación es del mismo Trabajador, del mismo Centro y del mismo tipo.
+    /// plataforma del Centro conserva su fila de requisito aunque la acreditación pendiente de subir salga también: la de
+    /// requisito es la que cuenta como bloqueo; la de plataforma, como actuación.
     /// </summary>
     [Fact]
-    public void Un_bloqueo_por_pendiente_de_subir_no_duplica_la_fila_de_la_acreditacion_del_mismo_Trabajador_Centro_y_tipo()
+    public void Un_bloqueo_por_pendiente_de_subir_conserva_su_fila_de_requisito_junto_a_la_de_la_acreditacion()
     {
         var bloqueo = Requisito() with { Situacion = SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma };
 
@@ -94,8 +94,8 @@ public class ObtenerBandejaGestorQueryHandlerTests
                 EstadoAcreditacion.PendienteDeSubir, trabajadorId: bloqueo.TrabajadorId, centroId: bloqueo.CentroId,
                 tipoDocumentoId: bloqueo.TipoDocumentoId)]);
 
-        resultado.Where(i => i.Tipo == TipoItemBandeja.RequisitoPendiente).Should().ContainSingle(
-            "solo el requisito ausente; el pendiente de subir ya está en la cola como su acreditación");
+        resultado.Where(i => i.Tipo == TipoItemBandeja.RequisitoPendiente).Should().HaveCount(2,
+            "el pendiente de subir sigue siendo un bloqueo, además del requisito ausente");
         resultado.Where(i => i.Tipo == TipoItemBandeja.PlataformaPendiente).Should().ContainSingle("control positivo: la acreditación sí sale");
     }
 
@@ -128,11 +128,11 @@ public class ObtenerBandejaGestorQueryHandlerTests
     }
 
     /// <summary>
-    /// El requisito de Empresa bloquea a sus Trabajadores por un documento de la Empresa: lo cubre la acreditación de ESA
-    /// Empresa en ese Centro y tipo (sin Trabajador), y no la de otra Empresa.
+    /// El requisito de Empresa bloquea a cada Trabajador de esa Empresa por un documento de la Empresa: aunque la acreditación
+    /// de ESA Empresa (sin Trabajador) salga en la cola, cada Trabajador bloqueado conserva su fila de requisito.
     /// </summary>
     [Fact]
-    public void Un_bloqueo_de_Empresa_pendiente_de_subir_lo_cubre_solo_la_acreditacion_de_esa_Empresa()
+    public void Un_bloqueo_de_Empresa_pendiente_de_subir_conserva_la_fila_de_cada_Trabajador()
     {
         var empresa = Guid.NewGuid();
         var bloqueo = Requisito() with
@@ -149,7 +149,7 @@ public class ObtenerBandejaGestorQueryHandlerTests
             [PendientePlataforma(EstadoAcreditacion.PendienteDeSubir, empresaId: empresa, centroId: bloqueo.CentroId, tipoDocumentoId: bloqueo.TipoDocumentoId)]);
 
         deOtraEmpresa.Should().ContainSingle(i => i.Tipo == TipoItemBandeja.RequisitoPendiente, "la acreditación es de otra Empresa");
-        deLaEmpresa.Should().NotContain(i => i.Tipo == TipoItemBandeja.RequisitoPendiente, "la cubre la acreditación de su Empresa");
+        deLaEmpresa.Should().ContainSingle(i => i.Tipo == TipoItemBandeja.RequisitoPendiente, "el bloqueo del Trabajador no lo sustituye la acreditación de su Empresa");
         deLaEmpresa.Should().ContainSingle(i => i.Tipo == TipoItemBandeja.PlataformaPendiente);
     }
 
