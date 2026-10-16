@@ -56,12 +56,19 @@ namespace CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 /// (<see cref="IPendientesDeReclamacionService"/>): un pedido que ya no es pendiente hace fallar el envío entero. Misma
 /// autorización, mismo destinatario, mismo registro y mismo evento que la reclamación por vencimiento: no es otro flujo.
 /// </param>
+/// <param name="CorreosAdicionales">
+/// Destinatarios que el gestor añade a mano, además de los contactos de la agenda (que siguen siendo obligatorios: al menos uno). No se
+/// guardan en la agenda. Se validan aquí (formato, sin repetidos, tope), no en la UI — ver <see cref="DestinatariosExtraDeReclamacion"/>.
+/// </param>
+/// <param name="CorreosEnCopia">Direcciones en copia (CC) del mismo envío; mismas reglas que <paramref name="CorreosAdicionales"/>.</param>
 public record EnviarReclamacionCommand(
     Guid ClienteId,
     IReadOnlyList<Guid> DocumentoIds,
     Guid? CentroId = null,
     IReadOnlyList<Guid>? ContactoIdsSeleccionados = null,
-    IReadOnlyList<PendienteSinFecha>? Pendientes = null) : ICommand<EnvioReclamacionResultado>;
+    IReadOnlyList<PendienteSinFecha>? Pendientes = null,
+    IReadOnlyList<string>? CorreosAdicionales = null,
+    IReadOnlyList<string>? CorreosEnCopia = null) : ICommand<EnvioReclamacionResultado>;
 
 public class EnviarReclamacionCommandHandler(
     IEmpresasQueryContext empresasContext,
@@ -85,11 +92,11 @@ public class EnviarReclamacionCommandHandler(
         var p = preparada.Valor;
         var envio = await registroEnvio.EnviarYRegistrarAsync(
             new TitularReclamacion(p.TitularId, p.TitularRazonSocial, AmbitoAplicacion.Cliente),
-            p.DocumentoIds, p.Correos, p.Asunto, p.CuerpoHtml, cancellationToken, p.DocumentosQueFaltan);
+            p.DocumentoIds, p.CorreosParaEnviar, p.Asunto, p.CuerpoHtml, cancellationToken, p.DocumentosQueFaltan, p.EnCopia);
 
         return envio.EsFallido
             ? Result.Fallo<EnvioReclamacionResultado>(envio.Error)
-            : Result.Exito(new EnvioReclamacionResultado(p.DocumentoIds, p.Correos, p.DocumentosQueFaltan.Count));
+            : Result.Exito(new EnvioReclamacionResultado(p.DocumentoIds, p.CorreosParaEnviar, p.DocumentosQueFaltan.Count, p.EnCopia));
     }
 
     /// <summary>
@@ -223,13 +230,17 @@ public class EnviarReclamacionCommandHandler(
             .Concat(pendientes.Valor.Where(p => p.DocumentoId is not null).Select(p => p.DocumentoId!.Value))
             .Distinct().ToList();
         var destinatarios = resueltos.Select(d => d.Email).Distinct().ToList();
+        var extra = DestinatariosExtraDeReclamacion.Resolver(request.CorreosAdicionales, request.CorreosEnCopia, destinatarios);
+        if (extra.EsFallido)
+            return Result.Fallo<ReclamacionPreparada>(extra.Error);
+
         var asunto = ConstruirAsunto(cliente.RazonSocial);
         var cuerpoHtml = ConstruirCuerpoHtml(
             cliente.RazonSocial, filas.Select(f => (f.TrabajadorNombre, f.TipoDocumentoNombre, f.FechaVencimiento!.Value)), pendientes.Valor);
 
         return Result.Exito(new ReclamacionPreparada(
             request.ClienteId, cliente.RazonSocial, documentoIds, destinatarios,
-            [.. resueltos.GroupBy(d => d.Email).Select(g => g.First())], asunto, cuerpoHtml, pendientes.Valor));
+            [.. resueltos.GroupBy(d => d.Email).Select(g => g.First())], asunto, cuerpoHtml, pendientes.Valor, extra.Valor));
     }
 
     /// <summary>Asunto del correo. Público para que la vista previa de la pestaña Reclamaciones muestre exactamente el que se enviará, sin copiarlo.</summary>

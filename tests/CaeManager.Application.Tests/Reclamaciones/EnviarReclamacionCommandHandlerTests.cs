@@ -740,4 +740,40 @@ public class EnviarReclamacionCommandHandlerTests
         previa.EsFallido.Should().BeTrue();
         previa.Error.Codigo.Should().Be(envio.Error.Codigo);
     }
+
+    [Fact]
+    public async Task Los_destinatarios_manuales_y_la_copia_llegan_al_envio_del_Cliente_y_un_manual_invalido_lo_hace_fallar_entero()
+    {
+        var escenario = ConstruirEscenario();
+        var documento = AgregarDocumento(escenario, Hoy.AddDays(10));
+        var contacto = Contacto();
+        escenario.Entorno.Agenda.RespuestaResolverAsync = [contacto];
+        var handler = escenario.Entorno.CrearHandler();
+
+        var bueno = await handler.Handle(
+            new EnviarReclamacionCommand(
+                escenario.Cliente.Id, [documento.Id],
+                CorreosAdicionales: ["jefe.obra@subcontrata.test"], CorreosEnCopia: ["coordinacion@arcosspa.test"]),
+            CancellationToken.None);
+
+        bueno.EsExitoso.Should().BeTrue();
+        escenario.Entorno.RegistroEnvio.UltimosDestinatarios.Should().Equal(contacto.Email, "jefe.obra@subcontrata.test");
+        escenario.Entorno.RegistroEnvio.UltimosEnCopia.Should().Equal("coordinacion@arcosspa.test");
+        bueno.Valor.EnCopia.Should().Equal("coordinacion@arcosspa.test");
+
+        var malo = await handler.Handle(
+            new EnviarReclamacionCommand(escenario.Cliente.Id, [documento.Id], CorreosEnCopia: ["no-es-un-correo"]),
+            CancellationToken.None);
+
+        malo.EsFallido.Should().BeTrue();
+        malo.Error.Codigo.Should().Be("Reclamacion.CorreoNoValido");
+
+        var repetido = await handler.Handle(
+            new EnviarReclamacionCommand(escenario.Cliente.Id, [documento.Id], CorreosAdicionales: [contacto.Email.ToUpperInvariant()]),
+            CancellationToken.None);
+
+        repetido.EsFallido.Should().BeTrue();
+        repetido.Error.Codigo.Should().Be("Reclamacion.CorreoRepetido");
+        escenario.Entorno.RegistroEnvio.VecesLlamado.Should().Be(1, "los envios fallidos no llegaron a la cola comun");
+    }
 }
