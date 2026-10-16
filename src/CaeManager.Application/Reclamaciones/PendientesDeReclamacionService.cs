@@ -6,6 +6,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -134,7 +135,8 @@ public class PendientesDeReclamacionService(
     IAlcanceDatosService alcanceDatos)
     : IPendientesDeReclamacionService
 {
-    private sealed record Par(Guid TrabajadorId, string TrabajadorNombre, Guid CentroId, string CentroNombre, Guid ClienteId, string ClienteNombre);
+    private sealed record Par(Guid TrabajadorId, string TrabajadorNombre, Guid CentroId, string CentroNombre, Guid ClienteId, string ClienteNombre,
+        TipoContratacion TipoContratacion);
 
     public async Task<IReadOnlyList<PendientesDeUnTitular>> ListarParaClientesAsync(
         Guid? centroId, Guid? clienteId, IReadOnlyCollection<Guid>? trabajadorIds, IReadOnlyList<Guid>? tipoDocumentoIds,
@@ -160,7 +162,8 @@ public class PendientesDeReclamacionService(
             where clienteIdsVisibles == null || clienteIdsVisibles.Contains(centro.ClienteId)
             join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             select new Par(
-                trabajador.Id, trabajador.Nombre + " " + trabajador.Apellidos, centro.Id, centro.Nombre, cliente.Id, cliente.RazonSocial))
+                trabajador.Id, trabajador.Nombre + " " + trabajador.Apellidos, centro.Id, centro.Nombre, cliente.Id, cliente.RazonSocial,
+                trabajador.TipoContratacion))
             .Distinct()
             .ToListAsync(cancellationToken);
 
@@ -191,7 +194,7 @@ public class PendientesDeReclamacionService(
 
         // Ausentes: el requisito del Centro sin ningún Documento operativo del Tipo.
         var faltantes = await documentosFaltantes.CalcularAsync(
-            [.. pares.Select(p => new ParejaTrabajadorCentro(p.TrabajadorId, p.TrabajadorNombre, p.CentroId, p.CentroNombre))],
+            [.. pares.Select(p => new ParejaTrabajadorCentro(p.TrabajadorId, p.TrabajadorNombre, p.CentroId, p.CentroNombre, p.TipoContratacion))],
             cancellationToken);
 
         var clientePorCentro = pares.GroupBy(p => p.CentroId).ToDictionary(g => g.Key, g => g.First());

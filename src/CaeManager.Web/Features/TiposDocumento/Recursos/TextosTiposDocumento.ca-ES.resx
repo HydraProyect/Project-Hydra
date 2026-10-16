@@ -429,4 +429,19 @@
   <data name="ErrorGuardarFormulario" xml:space="preserve">
     <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
   </data>
+  <data name="EtiquetaSerieContratacion" xml:space="preserve">
+    <value>Es demana de sèrie a</value>
+  </data>
+  <data name="PistaSerieContratacion" xml:space="preserve">
+    <value>Només compta per al que es demana de sèrie: si un centre el marca expressament o un esdeveniment l’exigeix, es demana igualment.</value>
+  </data>
+  <data name="TipoContratacionCuentaAjena" xml:space="preserve">
+    <value>Compte d’altri</value>
+  </data>
+  <data name="TipoContratacionAutonomo" xml:space="preserve">
+    <value>Autònom</value>
+  </data>
+  <data name="TipoContratacionVoluntario" xml:space="preserve">
+    <value>Voluntari</value>
+  </data>
 </root>

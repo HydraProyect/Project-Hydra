@@ -5,6 +5,7 @@
 @using CaeManager.Application.TiposDocumento.Commands.CrearTipoDocumento
 @using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
 @using CaeManager.Domain.Documentos
+@using CaeManager.Domain.Trabajadores
 @using CaeManager.Web.Features.TiposDocumento.Recursos
 @using CaeManager.Web.Recursos
 @using MediatR
@@ -318,6 +319,28 @@
             @Textos["VistaPreviaExigencia"]
             <Badge Tono="@TonoExigencia(_requerido, _naturaleza)">@TextoExigencia(_requerido, _naturaleza)</Badge>
         </p>
+        @if (_ambito == AmbitoAplicacion.Trabajador)
+        {
+            @* Serie por tipo de contratación (decisión de 2026-10-16): solo filtra lo que se pide de
+               serie; la fila explícita de un Centro y los requisitos del evento no pasan por aquí. *@
+            <div class="bloque-campo bloque-serie-contratacion" role="group" aria-labelledby="etiqueta-serie-contratacion">
+                <span id="etiqueta-serie-contratacion" class="etiqueta-campo">@Textos["EtiquetaSerieContratacion"]</span>
+                @foreach (var tipo in Enum.GetValues<TipoContratacion>())
+                {
+                    <label class="opcion-serie-contratacion">
+                        <input type="checkbox"
+                               checked="@_tiposContratacionDeSerie.Incluye(tipo)"
+                               @onchange="e => AlternarTipoContratacionDeSerie(tipo, e.Value is bool marcado && marcado)" />
+                        @TextoTipoContratacion(tipo)
+                    </label>
+                }
+                @if (ObtenerError(nameof(CrearTipoDocumentoCommand.TiposContratacionDeSerie)) is { } errorSerie)
+                {
+                    <span class="campo-mensaje-error" role="alert">@errorSerie</span>
+                }
+                <p class="pista-campo">@Textos["PistaSerieContratacion"]</p>
+            </div>
+        }
     </fieldset>
 
     <CampoTexto Etiqueta="@Textos["EtiquetaOrden"]" Type="number" Valor="@_orden" ValorChanged="v => _orden = v" />

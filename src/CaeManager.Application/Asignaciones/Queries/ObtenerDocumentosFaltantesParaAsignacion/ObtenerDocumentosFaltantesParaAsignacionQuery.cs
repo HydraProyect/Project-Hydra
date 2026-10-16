@@ -61,7 +61,7 @@ public class ObtenerDocumentosFaltantesParaAsignacionQueryHandler(
 
         var trabajadores = await trabajadoresContext.Trabajadores
             .Where(t => request.TrabajadorIds.Contains(t.Id))
-            .Select(t => new { t.Id, Nombre = t.Nombre + " " + t.Apellidos })
+            .Select(t => new { t.Id, Nombre = t.Nombre + " " + t.Apellidos, t.TipoContratacion })
             .ToListAsync(cancellationToken);
 
         var centros = await centrosContext.Centros
@@ -70,7 +70,7 @@ public class ObtenerDocumentosFaltantesParaAsignacionQueryHandler(
             .ToListAsync(cancellationToken);
 
         var parejas = trabajadores
-            .SelectMany(t => centros.Select(c => new ParejaTrabajadorCentro(t.Id, t.Nombre, c.Id, c.Nombre)))
+            .SelectMany(t => centros.Select(c => new ParejaTrabajadorCentro(t.Id, t.Nombre, c.Id, c.Nombre, t.TipoContratacion)))
             .ToList();
 
         return await servicio.CalcularAsync(parejas, cancellationToken);

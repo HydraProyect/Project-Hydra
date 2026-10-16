@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Trabajadores;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Alertas;
@@ -16,7 +17,8 @@ namespace CaeManager.Application.Alertas;
 /// asignar" (preflight de asignación en lote, Fase B) — misma regla de
 /// negocio, dos preguntas.
 /// </summary>
-public record ParejaTrabajadorCentro(Guid TrabajadorId, string TrabajadorNombre, Guid CentroId, string CentroNombre);
+public record ParejaTrabajadorCentro(
+    Guid TrabajadorId, string TrabajadorNombre, Guid CentroId, string CentroNombre, TipoContratacion TipoContratacion);
 
 public record DocumentoFaltanteDto(
     Guid TrabajadorId, string TrabajadorNombre, Guid CentroId, string CentroNombre, Guid TipoDocumentoId, string TipoDocumentoNombre);
@@ -49,7 +51,7 @@ public class DocumentosFaltantesService(
 
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
+            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si, t.TiposContratacionDeSerie })
             .ToListAsync(cancellationToken);
 
         if (tiposCandidatos.Count == 0)
@@ -80,7 +82,9 @@ public class DocumentosFaltantesService(
         {
             foreach (var tipo in tiposCandidatos)
             {
-                if (!ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, pareja.CentroId, tipo.CuentaParaCumplimiento))
+                if (!ResolucionTipoDocumentoCentro.Aplica(
+                        filasPorPar, tipo.Id, pareja.CentroId, tipo.CuentaParaCumplimiento,
+                        tipo.TiposContratacionDeSerie, pareja.TipoContratacion))
                     continue;
 
                 if (parejasConDocumento.Contains((pareja.TrabajadorId, tipo.Id)))

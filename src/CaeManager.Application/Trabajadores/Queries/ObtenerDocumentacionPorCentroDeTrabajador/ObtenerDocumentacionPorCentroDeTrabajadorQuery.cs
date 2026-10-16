@@ -95,9 +95,15 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
 
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
+            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si, t.TiposContratacionDeSerie })
             .ToListAsync(cancellationToken);
         var tipoIdsCandidatos = tiposCandidatos.Select(t => t.Id).ToHashSet();
+
+        // La serie documental de cada tipo se filtra por el tipo de contratación de este Trabajador.
+        var tipoContratacion = await trabajadoresContext.Trabajadores
+            .Where(t => t.Id == request.TrabajadorId)
+            .Select(t => t.TipoContratacion)
+            .FirstAsync(cancellationToken);
 
         var filasDeLosCentros = (await tiposDocumentoContext.TiposDocumentoCentros
             .Where(tc => tipoIdsCandidatos.Contains(tc.TipoDocumentoId) && centroIds.Contains(tc.CentroId))
@@ -151,7 +157,8 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
         {
             var tiposRequeridos = tiposCandidatos
                 .Where(t => !sinGestionCae.Contains(asignacion.CentroId)
-                    && ResolucionTipoDocumentoCentro.Aplica(filasDeLosCentros, t.Id, asignacion.CentroId, t.CuentaParaCumplimiento))
+                    && ResolucionTipoDocumentoCentro.Aplica(
+                        filasDeLosCentros, t.Id, asignacion.CentroId, t.CuentaParaCumplimiento, t.TiposContratacionDeSerie, tipoContratacion))
                 .ToList();
 
             var items = new List<DocumentoRequeridoDto>();

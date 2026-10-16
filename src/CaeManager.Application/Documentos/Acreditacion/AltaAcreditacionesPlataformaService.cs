@@ -202,8 +202,13 @@ public class AltaAcreditacionesPlataformaService(
         var tipoIds = candidatos.Select(c => c.Documento.TipoDocumentoId).Distinct().ToArray();
         var obligatorioPorDefecto = await tiposDocumentoContext.TiposDocumento
             .Where(t => tipoIds.Contains(t.Id))
-            .Select(t => new { t.Id, t.Requerido })
-            .ToDictionaryAsync(t => t.Id, t => t.Requerido == RequisitoDocumental.Si, cancellationToken);
+            .Select(t => new { t.Id, t.Requerido, t.TiposContratacionDeSerie })
+            .ToDictionaryAsync(t => t.Id, t => (Obligatorio: t.Requerido == RequisitoDocumental.Si, t.TiposContratacionDeSerie), cancellationToken);
+        // La serie por tipo de contratación solo filtra los Documentos de un Trabajador: el de una Empresa no tiene.
+        var tipoContratacionDeTrabajador = await CargarTipoContratacionDeTrabajadorAsync(
+            altas.Trabajadores,
+            candidatos.Where(c => c.Documento.TrabajadorId is not null).Select(c => c.Documento.TrabajadorId!.Value).ToHashSet(),
+            cancellationToken);
         var filaPorPar = (await tiposDocumentoContext.TiposDocumentoCentros
                 .Where(tc => centroIds.Contains(tc.CentroId) && tipoIds.Contains(tc.TipoDocumentoId))
                 .ToListAsync(cancellationToken))
@@ -232,9 +237,13 @@ public class AltaAcreditacionesPlataformaService(
         var agregadas = 0;
         foreach (var (documento, centroId, canalId) in candidatos)
         {
-            if (!ResolucionTipoDocumentoCentro.Aplica(
-                    filaPorPar, documento.TipoDocumentoId, centroId,
-                    obligatorioPorDefecto.GetValueOrDefault(documento.TipoDocumentoId)))
+            var (esObligatorio, serie) = obligatorioPorDefecto.GetValueOrDefault(documento.TipoDocumentoId);
+            var aplica = documento.TrabajadorId is { } trabajadorId
+                         && tipoContratacionDeTrabajador.TryGetValue(trabajadorId, out var tipoContratacion)
+                ? ResolucionTipoDocumentoCentro.Aplica(
+                    filaPorPar, documento.TipoDocumentoId, centroId, esObligatorio, serie, tipoContratacion)
+                : ResolucionTipoDocumentoCentro.Aplica(filaPorPar, documento.TipoDocumentoId, centroId, esObligatorio);
+            if (!aplica)
                 continue;
 
             foreach (var canal in canalesPorCentro[centroId])
@@ -248,6 +257,24 @@ public class AltaAcreditacionesPlataformaService(
         }
 
         return agregadas;
+    }
+
+    private async Task<Dictionary<Guid, TipoContratacion>> CargarTipoContratacionDeTrabajadorAsync(
+        IReadOnlyCollection<Trabajador> trabajadoresNuevos, IReadOnlySet<Guid> trabajadorIds, CancellationToken cancellationToken)
+    {
+        var resultado = new Dictionary<Guid, TipoContratacion>();
+        var trabajadorIdsConsulta = trabajadorIds.ToArray();
+        if (trabajadorIdsConsulta.Length > 0)
+            foreach (var t in await trabajadoresContext.Trabajadores
+                         .Where(t => trabajadorIdsConsulta.Contains(t.Id))
+                         .Select(t => new { t.Id, t.TipoContratacion })
+                         .ToListAsync(cancellationToken))
+                resultado[t.Id] = t.TipoContratacion;
+
+        foreach (var t in trabajadoresNuevos.Where(t => trabajadorIds.Contains(t.Id)))
+            resultado[t.Id] = t.TipoContratacion;
+
+        return resultado;
     }
 
     private async Task<Dictionary<Guid, Guid?>> CargarEmpresaDeTrabajadorAsync(

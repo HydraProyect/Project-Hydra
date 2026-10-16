@@ -12,6 +12,7 @@ using CaeManager.Application.TiposDocumento.Queries.ObtenerTipoDocumentoPorId;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.EncargoDeAdministracion.Recursos;
 using CaeManager.Web.Services;
@@ -100,6 +101,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
     private Guid? _editandoId;
     private string _nombre = string.Empty;
     private AmbitoAplicacion _ambito = AmbitoAplicacion.Trabajador;
+    private TiposContratacion _tiposContratacionDeSerie = TiposContratacion.Todos;
     private bool _aplicaVencimientoAutomatico;
     private RequisitoDocumental _requerido;
     private RequisitoDocumental _requeridoOriginal;
@@ -686,6 +688,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
         _editandoId = null;
         _nombre = string.Empty;
         _ambito = AmbitoAplicacion.Trabajador;
+        _tiposContratacionDeSerie = TiposContratacion.Todos;
         _aplicaVencimientoAutomatico = false;
         _requerido = RequisitoDocumental.No;
         _requeridoOriginal = RequisitoDocumental.No;
@@ -743,6 +746,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
         _editandoId = tipo.Id;
         _nombre = tipo.Nombre;
         _ambito = tipo.AmbitoAplicacion;
+        _tiposContratacionDeSerie = tipo.TiposContratacionDeSerie;
         _aplicaVencimientoAutomatico = tipo.AplicaVencimientoAutomatico;
         _requerido = tipo.Requerido;
         _requeridoOriginal = tipo.Requerido;
@@ -790,6 +794,22 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
 
     private void QuitarAlias(string alias) => _aliasesSeleccionados.Remove(alias);
 
+    private void AlternarTipoContratacionDeSerie(TipoContratacion tipo, bool marcado) =>
+        _tiposContratacionDeSerie = marcado
+            ? _tiposContratacionDeSerie | tipo.ComoConjunto()
+            : _tiposContratacionDeSerie & ~tipo.ComoConjunto();
+
+    private string TextoTipoContratacion(TipoContratacion tipo) => tipo switch
+    {
+        TipoContratacion.Autonomo => Textos["TipoContratacionAutonomo"].Value,
+        TipoContratacion.Voluntario => Textos["TipoContratacionVoluntario"].Value,
+        _ => Textos["TipoContratacionCuentaAjena"].Value,
+    };
+
+    /// <summary>La serie solo viaja para Ámbito Trabajador; en los demás el comando conserva o fija Todos.</summary>
+    private TiposContratacion? SerieQueSeEnvia() =>
+        _ambito == AmbitoAplicacion.Trabajador ? _tiposContratacionDeSerie : null;
+
     private Task ManejarTeclaAliasAsync(KeyboardEventArgs e)
     {
         if (e.Key == "Enter")
@@ -811,7 +831,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
     [
         _nombre, _aliasNuevo, _aliasesSeleccionados, _ambito, _aplicaVencimientoAutomatico, _vigenciaMeses,
         _requerido, _naturaleza, _orden, _notas, _descripcion, _criteriosValidacion, _seSolicitaA,
-        _observaciones, _centroIdsSeleccionados,
+        _observaciones, _centroIdsSeleccionados, _tiposContratacionDeSerie,
     ];
 
     private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
@@ -1028,7 +1048,8 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
                 var resultado = await Mediator.Send(
                     new CrearTipoDocumentoCommand(
                         _nombre, vigenciaMeses, _aplicaVencimientoAutomatico, orden, _ambito, _requerido, _naturaleza, notas,
-                        descripcion, criteriosValidacion, seSolicitaA, observaciones, CentroIdsQueSeEnvian(), _aliasesSeleccionados));
+                        descripcion, criteriosValidacion, seSolicitaA, observaciones, CentroIdsQueSeEnvian(), _aliasesSeleccionados,
+                        SerieQueSeEnvia()));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
             else
@@ -1036,7 +1057,8 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
                 var resultado = await Mediator.Send(
                     new EditarTipoDocumentoCommand(
                         _editandoId.Value, _nombre, vigenciaMeses, _aplicaVencimientoAutomatico, orden, _requerido, _naturaleza, notas,
-                        descripcion, criteriosValidacion, seSolicitaA, observaciones, CentroIdsQueSeEnvian(), _aliasesSeleccionados));
+                        descripcion, criteriosValidacion, seSolicitaA, observaciones, CentroIdsQueSeEnvian(), _aliasesSeleccionados,
+                        SerieQueSeEnvia()));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 

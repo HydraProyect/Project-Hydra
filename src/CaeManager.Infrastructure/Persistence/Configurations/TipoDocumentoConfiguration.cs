@@ -20,6 +20,9 @@ public class TipoDocumentoConfiguration : IEntityTypeConfiguration<TipoDocumento
         builder.Property(t => t.Observaciones).HasMaxLength(TipoDocumento.LongitudMaximaObservaciones);
 
         builder.Property(t => t.AmbitoAplicacion).HasConversion<string>().HasMaxLength(20).IsRequired();
+        // Máscara de bits (TiposContratacion): entero, no cadena, porque un conjunto no tiene un único nombre.
+        // Las filas anteriores nacen en Todos (7) desde la migración, que conserva el comportamiento previo.
+        builder.Property(t => t.TiposContratacionDeSerie).HasConversion<int>().IsRequired();
         builder.Property(t => t.PerfilDocumentoOficial).HasConversion<string>().HasMaxLength(20).IsRequired();
 
         // Los dos ejes que sustituyen a EsObligatorio. Como cadena, igual que

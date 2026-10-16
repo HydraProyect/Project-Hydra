@@ -14,6 +14,7 @@ using CaeManager.Application.TiposDocumento.Queries.ObtenerTipoDocumentoPorId;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
 using MediatR;
@@ -310,6 +311,46 @@ public class TiposDocumentoGen2Tests : BunitContext
         new(Guid.NewGuid(), nombre, vigencia, vigencia is not null, orden, ambito, requerido, naturaleza,
             Descripcion: null, CriteriosValidacion: null, SeSolicitaA: null, Observaciones: null,
             LecturaIaActiva: false, DeteccionTrabajadoresActiva: false, VerificacionIaActiva: false, oficial, aliases ?? []);
+
+    // ------------------------------------------- serie por tipo de contratación
+
+    private static IReadOnlyList<IElement> CasillasSerie(IRenderedComponent<TiposDocumentoPagina> cut) =>
+        cut.FindAll(".bloque-serie-contratacion label.opcion-serie-contratacion input[type=checkbox]");
+
+    [Fact]
+    public async Task La_serie_de_un_tipo_de_trabajador_nace_marcada_para_los_tres_y_se_guarda_sin_voluntario()
+    {
+        var escenario = new Escenario();
+        escenario.Tipos.Add(Tipo("Aptitud médica", AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si));
+        var (cut, mediador) = Renderizar(escenario);
+
+        await PulsarEditar(cut, "Aptitud médica");
+
+        cut.FindAll(".bloque-serie-contratacion label.opcion-serie-contratacion").Select(Texto)
+            .Should().Equal("Cuenta ajena", "Autónomo", "Voluntario");
+        CasillasSerie(cut).Should().OnlyContain(c => c.HasAttribute("checked"));
+
+        await CasillasSerie(cut)[2].ChangeAsync(new ChangeEventArgs { Value = false });
+        await PulsarGuardar(cut);
+
+        mediador.Enviados.OfType<EditarTipoDocumentoCommand>().Should().ContainSingle()
+            .Which.TiposContratacionDeSerie.Should().Be(TiposContratacion.CuentaAjena | TiposContratacion.Autonomo);
+    }
+
+    [Fact]
+    public async Task Un_tipo_de_empresa_no_ofrece_serie_por_tipo_de_contratacion_ni_la_envia()
+    {
+        var escenario = new Escenario();
+        escenario.Tipos.Add(Tipo("RLC", AmbitoAplicacion.Empresa));
+        var (cut, mediador) = Renderizar(escenario);
+
+        await PulsarEditar(cut, "RLC");
+
+        cut.FindAll(".bloque-serie-contratacion").Should().BeEmpty();
+        await PulsarGuardar(cut);
+        mediador.Enviados.OfType<EditarTipoDocumentoCommand>().Should().ContainSingle()
+            .Which.TiposContratacionDeSerie.Should().BeNull();
+    }
 
     // ---------------------------------------------------------------- arnés
 

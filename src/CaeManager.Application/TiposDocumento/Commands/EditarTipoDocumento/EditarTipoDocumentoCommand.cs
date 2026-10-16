@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Trabajadores;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -23,7 +24,9 @@ public record EditarTipoDocumentoCommand(
     string? SeSolicitaA,
     string? Observaciones,
     IReadOnlyList<Guid> CentroIds,
-    IReadOnlyList<string>? Aliases = null) : ICommand;
+    IReadOnlyList<string>? Aliases = null,
+    // Serie por tipo de contratación (solo Ámbito Trabajador). Null = se conserva la que tenga.
+    TiposContratacion? TiposContratacionDeSerie = null) : ICommand;
 
 public class EditarTipoDocumentoCommandValidator : AbstractValidator<EditarTipoDocumentoCommand>
 {
@@ -52,6 +55,10 @@ public class EditarTipoDocumentoCommandValidator : AbstractValidator<EditarTipoD
         RuleFor(c => c.CriteriosValidacion).MaximumLength(TipoDocumento.LongitudMaximaCriteriosValidacion);
         RuleFor(c => c.SeSolicitaA).MaximumLength(TipoDocumento.LongitudMaximaSeSolicitaA);
         RuleFor(c => c.Observaciones).MaximumLength(TipoDocumento.LongitudMaximaObservaciones);
+
+        RuleFor(c => c.TiposContratacionDeSerie)
+            .Must(t => t is null || (t.Value & TiposContratacion.Todos) != TiposContratacion.Ninguno)
+            .WithMessage("Marca al menos un tipo de contratación al que se pide de serie este documento.");
     }
 }
 
@@ -84,6 +91,12 @@ public class EditarTipoDocumentoCommandHandler(
             request.Observaciones);
 
         tipoDocumento.EstablecerAliases(request.Aliases ?? []);
+
+        // Restringir la serie no da de baja nada: los Documentos ya creados siguen ahí y solo dejan de exigirse
+        // de serie a quien queda fuera. Ampliarla no crea pendientes de acreditar, igual que cambiar Requerido
+        // (ver IAltaAcreditacionesPlataformaService).
+        if (tipoDocumento.AmbitoAplicacion == AmbitoAplicacion.Trabajador && request.TiposContratacionDeSerie is { } serie)
+            tipoDocumento.EstablecerTiposContratacionDeSerie(serie);
 
         // Solo se BORRAN las filas Incluido=true (creadas desde este mismo picker) que
         // dejen de marcarse — las Incluido=false son exclusiones explícitas por Centro

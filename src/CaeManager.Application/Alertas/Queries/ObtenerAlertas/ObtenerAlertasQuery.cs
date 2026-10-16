@@ -289,7 +289,8 @@ public class ObtenerAlertasQueryHandler(
                 TrabajadorNombre = trabajador.Nombre + " " + trabajador.Apellidos,
                 CentroId = centro.Id,
                 centro.Nombre,
-                trabajador.EmpresaId
+                trabajador.EmpresaId,
+                trabajador.TipoContratacion
             })
             .Distinct()
             .ToListAsync(cancellationToken);
@@ -299,7 +300,7 @@ public class ObtenerAlertasQueryHandler(
             .ToDictionary(g => g.Key, g => g.First().EmpresaId);
 
         var parejas = asignacionesActivas
-            .Select(a => new ParejaTrabajadorCentro(a.TrabajadorId, a.TrabajadorNombre, a.CentroId, a.Nombre))
+            .Select(a => new ParejaTrabajadorCentro(a.TrabajadorId, a.TrabajadorNombre, a.CentroId, a.Nombre, a.TipoContratacion))
             .ToList();
 
         IReadOnlyList<DocumentoFaltanteDto> faltantesPorCentro = parejas.Count == 0

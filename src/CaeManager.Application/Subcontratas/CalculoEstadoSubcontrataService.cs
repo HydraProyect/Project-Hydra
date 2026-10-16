@@ -158,7 +158,7 @@ public class CalculoEstadoSubcontrataService(
         consultaTrabajadores = consultaTrabajadores.Where(t => !voluntariosInactivos.Contains(t.Id));
 
         var trabajadores = await consultaTrabajadores
-            .Select(t => new { t.Id, SubcontrataId = t.SubcontrataId!.Value, Nombre = t.Nombre + " " + t.Apellidos })
+            .Select(t => new { t.Id, SubcontrataId = t.SubcontrataId!.Value, Nombre = t.Nombre + " " + t.Apellidos, t.TipoContratacion })
             .ToListAsync(cancellationToken);
 
         if (trabajadores.Count == 0)
@@ -166,6 +166,7 @@ public class CalculoEstadoSubcontrataService(
 
         var subcontrataPorTrabajador = trabajadores.ToDictionary(t => t.Id, t => t.SubcontrataId);
         var nombrePorTrabajador = trabajadores.ToDictionary(t => t.Id, t => t.Nombre);
+        var tipoContratacionPorTrabajador = trabajadores.ToDictionary(t => t.Id, t => t.TipoContratacion);
         var trabajadorIds = trabajadores.Select(t => t.Id).ToList();
 
         var asignacionesActivas = await asignacionesContext.Asignaciones
@@ -204,7 +205,7 @@ public class CalculoEstadoSubcontrataService(
 
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
+            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si, t.TiposContratacionDeSerie })
             .ToListAsync(cancellationToken);
 
         if (tiposCandidatos.Count == 0)
@@ -226,10 +227,12 @@ public class CalculoEstadoSubcontrataService(
         {
             var centrosDelTrabajador = centrosPorTrabajador.GetValueOrDefault(trabajadorId, []);
             var tiposDeEvento = tiposDeEventoPorTrabajador.GetValueOrDefault(trabajadorId);
+            var tipoContratacion = tipoContratacionPorTrabajador[trabajadorId];
 
             tiposRequeridosPorTrabajador[trabajadorId] = tiposCandidatos
                 .Where(t => tiposDeEvento?.Contains(t.Id) == true
-                    || centrosDelTrabajador.Any(centroId => !sinGestionCae.Contains(centroId) && ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.CuentaParaCumplimiento)))
+                    || centrosDelTrabajador.Any(centroId => !sinGestionCae.Contains(centroId) && ResolucionTipoDocumentoCentro.Aplica(
+                        filasPorPar, t.Id, centroId, t.CuentaParaCumplimiento, t.TiposContratacionDeSerie, tipoContratacion)))
                 .Select(t => t.Id)
                 .ToList();
         }
