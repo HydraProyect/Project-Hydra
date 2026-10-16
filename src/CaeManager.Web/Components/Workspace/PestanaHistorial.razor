@@ -35,13 +35,11 @@ else
         @foreach (var registro in _registros)
         {
             <li class="workspace-historial-item" @key="registro.Id">
-                <div class="workspace-historial-cabecera">
-                    <Badge Tono="@(registro.Accion switch { "Creado" => TonoBadge.Exito, "Eliminado" => TonoBadge.Peligro, _ => TonoBadge.Advertencia })">
-                        @registro.Accion
-                    </Badge>
-                    <span class="workspace-historial-fecha">@registro.FechaUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")</span>
-                </div>
-                <span class="workspace-historial-usuario">@NombreUsuario(registro.UsuarioId)</span>
+                <Badge Tono="@(registro.Accion switch { "Creado" => TonoBadge.Exito, "Eliminado" => TonoBadge.Peligro, _ => TonoBadge.Advertencia })">
+                    @registro.Accion
+                </Badge>
+                <span class="workspace-historial-usuario" title="@NombreUsuario(registro.UsuarioId)">@NombreUsuario(registro.UsuarioId)</span>
+                <span class="workspace-historial-fecha">@registro.FechaUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")</span>
             </li>
         }
     </ul>

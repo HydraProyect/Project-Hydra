@@ -123,7 +123,6 @@
                     @for (var i = 0; i < Math.Min(bandeja.Grupos.Count, MaximoGruposAtencion); i++)
                     {
                         <GrupoCola @key="bandeja.Grupos[i].GrupoId" Grupo="bandeja.Grupos[i]"
-                                   ExpandidaPorDefecto="@(i == 0 && TipoItemBandejaUi.BloqueaAccesoDeVerdad(bandeja.Grupos[i]))"
                                    Compacto="true" AgruparPorEmpresa="AgruparPorEmpresa" />
                     }
                     @{ var claves = new ClavesDeHermanos(); }

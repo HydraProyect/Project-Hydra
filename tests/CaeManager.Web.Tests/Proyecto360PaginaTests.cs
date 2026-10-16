@@ -12,6 +12,7 @@ using CaeManager.Application.Proyectos.Commands.RestaurarProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectoPorId;
 using CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerEmpresasProyecto;
+using CaeManager.Application.Proyectos.Queries.ObtenerVehiculosProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerVisitasProyecto;
 using CaeManager.Application.Proyectos.Commands.RequisitosEvento;
 using CaeManager.Application.Proyectos.Queries.RequisitosEvento;
@@ -59,6 +60,7 @@ public class Proyecto360PaginaTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
         ComponentFactories.AddStub<PestanaDocumentacion>();
+        ComponentFactories.AddStub<PestanaHistorial>();
         ComponentFactories.AddStub<EnlaceProfundoOtraEmpresa>();
         this.ConRolDeEscritura();
     }
@@ -92,6 +94,7 @@ public class Proyecto360PaginaTests : BunitContext
         public Dictionary<Guid, ProyectoDetalleDto> Detalles { get; } = new() { [AbiertoId] = Abierto, [CerradoId] = Cerrado };
         public Dictionary<Guid, IReadOnlyList<EmpresaProyectoDto>> Empresas { get; } = [];
         public Dictionary<Guid, IReadOnlyList<VisitaProyectoDto>> Visitas { get; } = [];
+        public Dictionary<Guid, IReadOnlyList<VehiculoProyectoDto>> Vehiculos { get; } = [];
         public bool FallarDetalle { get; set; }
         public bool SinTecnicos { get; set; }
         public bool FallarTecnicos { get; set; }
@@ -159,6 +162,7 @@ public class Proyecto360PaginaTests : BunitContext
                 ObtenerTecnicosProyectoQuery => Tecnicos(),
                 ObtenerEmpresasProyectoQuery q => Empresas.GetValueOrDefault(q.ProyectoId) ?? [],
                 ObtenerVisitasProyectoQuery q => Visitas.GetValueOrDefault(q.ProyectoId) ?? [],
+                ObtenerVehiculosProyectoQuery q => Vehiculos.GetValueOrDefault(q.ProyectoId) ?? [],
                 ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)[new TrabajadorSelectorDto(TrabajadorSelectorId, "Ibáñez Soto, Marta", null, null)],
                 AsignarTecnicoProyectoCommand => Result.Exito(Guid.NewGuid()),
                 DesasignarTecnicoProyectoCommand => Result.Exito(),
@@ -329,9 +333,10 @@ public class Proyecto360PaginaTests : BunitContext
         var cut = Renderizar(AbiertoId, "?pestana=ficha");
 
         var pestanas = cut.FindAll("[role=tab]");
-        pestanas.Should().HaveCount(5);
-        pestanas[4].TextContent.Trim().Should().Be("Ficha");
-        pestanas[4].GetAttribute("aria-selected").Should().Be("true");
+        pestanas.Should().HaveCount(7);
+        pestanas[5].TextContent.Trim().Should().Be("Ficha");
+        pestanas[5].GetAttribute("aria-selected").Should().Be("true");
+        pestanas[6].TextContent.Trim().Should().Be("Historial");
 
         var cajas = cut.FindAll("[data-pieza=cajas-ficha] > [data-caja]");
         cajas.Select(c => c.GetAttribute("data-caja")).Should().Equal("plazo");
@@ -767,6 +772,141 @@ public class Proyecto360PaginaTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Empresa del segundo Proyecto"));
         await cut.InvokeAsync(() => retenida.SetResult((IReadOnlyList<EmpresaProyectoDto>)[new(Guid.NewGuid(), "Respuesta antigua", 1, true, false)]));
         cut.WaitForAssertion(() => cut.Markup.Should().NotContain("Respuesta antigua").And.Contain("Empresa del segundo Proyecto"));
+    }
+
+    // ------------------------------------------------------------------ Vehículos, Historial y lo que no existe
+
+    [Fact]
+    public void Las_pestanas_incluyen_Vehiculos_y_Historial_con_Ficha_justo_antes_del_Historial()
+    {
+        var cut = Renderizar(AbiertoId);
+
+        var rotulos = cut.FindAll("[role=tab]").Select(t => t.TextContent.Trim()).ToList();
+        rotulos.Should().HaveCount(7);
+        rotulos[0].Should().StartWith("Técnicos");
+        rotulos[1].Should().StartWith("Documentos");
+        rotulos.Skip(2).Should().Equal("Empresas", "Vehículos", "Visitas", "Ficha", "Historial");
+    }
+
+    [Fact]
+    public async Task Vehiculos_muestra_los_de_las_Empresas_participantes_con_su_dueno_y_abre_panel_y_ficha()
+    {
+        var vehiculoId = Guid.NewGuid();
+        _mediador.Vehiculos[AbiertoId] = [new(vehiculoId, "Furgoneta 1", "Ford Transit", "1234 ABC", Guid.NewGuid(), "Limpiezas Raccoon S.L.")];
+        var cut = Renderizar(AbiertoId, "?pestana=vehiculos");
+
+        var fila = cut.Find(".lista-relaciones-tarjeta .fila-relacion");
+        cut.Find(".lista-relaciones-encabezado").TextContent.Should().Contain("1 vehículo");
+        fila.TextContent.Should().Contain("Furgoneta 1").And.Contain("1234 ABC").And.Contain("Ford Transit").And.Contain("Limpiezas Raccoon S.L.");
+        cut.Markup.Should().Contain("Un vehículo no se asigna a un Proyecto");
+        _mediador.Enviados.OfType<ObtenerVehiculosProyectoQuery>().Should().ContainSingle().Which.ProyectoId.Should().Be(AbiertoId);
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain(t => t.Contains("Asignar vehículo"),
+            "no hay relación Vehículo-Proyecto que escribir");
+
+        await fila.QuerySelector(".fila-relacion-nombre")!.ClickAsync(new MouseEventArgs());
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual
+            .Should().Be(new WorkspaceFrame(EntidadWorkspace.Vehiculo, vehiculoId, "Furgoneta 1", "informacion"));
+
+        var patron = cut.FindComponents<FilaRelacion>().Single().Instance;
+        patron.Cifra.Should().BeNull("no se inventa una fracción documental del vehículo");
+        patron.Estado.Should().BeNull();
+        await cut.InvokeAsync(() => patron.OnAbrir360.InvokeAsync());
+        Navegacion.Uri.Should().EndWith($"/vehiculos/{vehiculoId}");
+    }
+
+    [Fact]
+    public void Vehiculos_sin_resultados_lo_declara_y_con_el_Proyecto_cerrado_sigue_en_solo_lectura()
+    {
+        var cut = Renderizar(CerradoId, "?pestana=vehiculos");
+
+        cut.Markup.Should().Contain("Sin vehículos visibles de las Empresas empleadoras con técnicos activos.");
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain(t => t.Contains("Asignar vehículo"));
+    }
+
+    [Fact]
+    public void Vehiculos_con_la_lectura_fallida_muestra_el_error_sin_romper_las_otras_pestanas()
+    {
+        _mediador.QueLanzan.Add(typeof(ObtenerVehiculosProyectoQuery));
+        var cut = Renderizar(AbiertoId, "?pestana=vehiculos");
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("No se han podido cargar los vehículos de las Empresas empleadoras."));
+        cut.FindAll("[role=tab]").Single(t => t.TextContent.Trim() == "Empresas").Click();
+        cut.Markup.Should().NotContain("No se han podido cargar las Empresas empleadoras.");
+    }
+
+    [Fact]
+    public async Task La_respuesta_tardia_de_Vehiculos_no_pasa_al_siguiente_Proyecto()
+    {
+        var retenida = _mediador.Retener(q => q is ObtenerVehiculosProyectoQuery { ProyectoId: var id } && id == AbiertoId);
+        _mediador.Vehiculos[CerradoId] = [new(Guid.NewGuid(), "Vehículo del segundo Proyecto", "Modelo", "1111 AAA", Guid.NewGuid(), "Empresa B")];
+        var cut = Renderizar(AbiertoId, "?pestana=vehiculos");
+        cut.Render(p => p.Add(x => x.ProyectoId, CerradoId));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Vehículo del segundo Proyecto"));
+        await cut.InvokeAsync(() => retenida.SetResult(
+            (IReadOnlyList<VehiculoProyectoDto>)[new(Guid.NewGuid(), "Respuesta antigua", "Modelo", "2222 BBB", Guid.NewGuid(), "Empresa A")]));
+        cut.WaitForAssertion(() => cut.Markup.Should().NotContain("Respuesta antigua").And.Contain("Vehículo del segundo Proyecto"));
+    }
+
+    [Fact]
+    public void Historial_es_la_auditoria_del_propio_Proyecto_y_llega_por_la_url()
+    {
+        var cut = Renderizar(AbiertoId, "?pestana=historial");
+
+        var historial = cut.FindComponent<Stub<PestanaHistorial>>().Instance.Parameters;
+        historial.Get(x => x.EntidadTipo).Should().Be("Proyecto");
+        historial.Get(x => x.EntidadId).Should().Be(AbiertoId);
+        cut.FindAll("[role=tab]").Single(t => t.GetAttribute("aria-selected") == "true").TextContent.Trim().Should().Be("Historial");
+        cut.FindAll("[data-pieza=fila]").Should().BeEmpty("el historial no pinta la lista de técnicos ni inventa eventos propios");
+    }
+
+    [Fact]
+    public void Pulsar_historial_lo_deja_en_la_url()
+    {
+        var cut = Renderizar(AbiertoId);
+
+        cut.FindAll("[role=tab]").Single(p => p.TextContent.Trim() == "Historial").Click();
+
+        Navegacion.Uri.Should().EndWith($"proyectos/{AbiertoId}?pestana=historial");
+    }
+
+    /// <summary>
+    /// Decisión del propietario (2026-10-16): el Proyecto no tiene porcentaje global; solo cada Empresa dentro de él.
+    /// El único porcentaje de la ficha es el del plazo transcurrido, que es otra medida y vive en la caja «Plazo».
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("?pestana=empresas")]
+    [InlineData("?pestana=vehiculos")]
+    [InlineData("?pestana=documentos")]
+    [InlineData("?pestana=visitas")]
+    [InlineData("?pestana=ficha")]
+    public void El_Proyecto_no_muestra_porcentaje_global_ni_anillo_de_cumplimiento(string consulta)
+    {
+        _mediador.Empresas[AbiertoId] = [new(Guid.NewGuid(), "Empresa empleadora A", 2, true, false)];
+        _mediador.Vehiculos[AbiertoId] = [new(Guid.NewGuid(), "Furgoneta 1", "Ford Transit", "1234 ABC", Guid.NewGuid(), "Empresa A")];
+        _mediador.Visitas[AbiertoId] = [new(Guid.NewGuid(), new(2026, 10, 4), new(2026, 10, 5), 3)];
+        var cut = Renderizar(AbiertoId, consulta);
+
+        cut.FindAll("[data-pieza=anillo], .anillo").Should().BeEmpty();
+        cut.Markup.Should().NotContain("de cumplimiento").And.NotContain("Cumplimiento del proyecto");
+        if (consulta == "?pestana=ficha")
+            cut.FindAll("[data-pieza=cajas-ficha] > [data-caja]").Should().ContainSingle("solo la caja del plazo lleva porcentaje");
+        else
+            cut.Markup.Should().NotContain("%", "fuera de la caja «Plazo» de la ficha no hay ningún porcentaje");
+    }
+
+    /// <summary>
+    /// Figuras del Proyecto y adhesión al plan de seguridad no tienen dato en el modelo (sin esquema): la ficha no
+    /// las pinta ni con valores inventados. Se retiran de aquí cuando exista su dato.
+    /// </summary>
+    [Fact]
+    public void La_ficha_no_pinta_figuras_ni_adhesion_sin_dato_que_las_respalde()
+    {
+        var cut = Renderizar(AbiertoId, "?pestana=ficha");
+
+        cut.FindAll("[data-pieza=cajas-ficha] > [data-caja]").Select(c => c.GetAttribute("data-caja")).Should().Equal("plazo");
+        cut.Markup.Should().NotContain("Figuras del proyecto").And.NotContain("Recurso preventivo")
+            .And.NotContain("Jefe de obra").And.NotContain("Adhesión");
     }
 
     // ------------------------------------------------------------------ pestañas y carrera de cargas

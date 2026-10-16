@@ -144,6 +144,7 @@ public class DrawerReclamacionLotePendientesSinFechaTests : BunitContext
         cut.Markup.Should().Contain("Enviar (2)");
 
         await cut.FindAll("button").Single(b => b.TextContent.Trim().StartsWith("Enviar (")).ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Enviar reclamación").ClickAsync(new MouseEventArgs());
 
         var envio = _mediator.Recibidas.OfType<EnviarReclamacionCommand>().Should().ContainSingle().Which;
         envio.ClienteId.Should().Be(ClienteTitularId);
@@ -161,6 +162,7 @@ public class DrawerReclamacionLotePendientesSinFechaTests : BunitContext
         var enviar = cut.FindAll("button").Single(b => b.TextContent.Trim().StartsWith("Enviar ("));
         enviar.HasAttribute("disabled").Should().BeFalse("hay algo marcado aunque nada venza");
         await enviar.ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Enviar reclamación").ClickAsync(new MouseEventArgs());
 
         var envio = _mediator.Recibidas.OfType<EnviarReclamacionCommand>().Should().ContainSingle().Which;
         envio.DocumentoIds.Should().BeEmpty();

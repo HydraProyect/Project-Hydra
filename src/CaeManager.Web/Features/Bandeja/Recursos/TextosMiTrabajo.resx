@@ -327,4 +327,13 @@
   <data name="ReclamacionSinFecha" xml:space="preserve">
     <value>Sin fecha</value>
   </data>
+  <data name="ReclamacionConfirmarTitulo" xml:space="preserve">
+    <value>¿Enviar la reclamación a {0}?</value>
+  </data>
+  <data name="ReclamacionConfirmarMensaje" xml:space="preserve">
+    <value>Se reclamarán {0} documento(s) a {1} contacto(s) de la agenda: {2}. El correo sale a terceros y no se puede deshacer.</value>
+  </data>
+  <data name="ReclamacionConfirmarBoton" xml:space="preserve">
+    <value>Enviar reclamación</value>
+  </data>
 </root>

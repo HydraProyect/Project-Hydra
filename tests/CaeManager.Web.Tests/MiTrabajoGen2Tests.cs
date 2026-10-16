@@ -121,7 +121,23 @@ public class MiTrabajoGen2Tests : BunitContext
 
     private MediadorFijo? _mediador;
 
+    /// <summary>
+    /// La pantalla carga con todo plegado (decisión de producto 2026-10-16). La mayoría de los tests miran filas, así
+    /// que parten de «Expandir todas», como haría el Gestor CAE; los que fijan la carga inicial usan <see cref="RenderizarPlegado"/>.
+    /// </summary>
     private IRenderedComponent<MiTrabajoPagina> Renderizar(
+        Func<MiTrabajoAgregadoDto>? respuesta = null,
+        Func<Result<IReadOnlyList<CandidatoIncorporacionCarteraDto>>>? candidatos = null,
+        string? rol = null,
+        string? url = null,
+        bool interactivo = false)
+    {
+        var cut = RenderizarPlegado(respuesta, candidatos, rol, url, interactivo);
+        ExpandirTodas(cut);
+        return cut;
+    }
+
+    private IRenderedComponent<MiTrabajoPagina> RenderizarPlegado(
         Func<MiTrabajoAgregadoDto>? respuesta = null,
         Func<Result<IReadOnlyList<CandidatoIncorporacionCarteraDto>>>? candidatos = null,
         string? rol = null,
@@ -155,6 +171,14 @@ public class MiTrabajoGen2Tests : BunitContext
 
     /// <summary>La vuelta a Mi trabajo sin filtros que lleva todo destino (RetornoMiTrabajo).</summary>
     private static readonly string Vuelta = $"volver={Uri.EscapeDataString("/mi-trabajo")}";
+
+    /// <summary>La pantalla carga con todo plegado: los tests que miran filas parten de «Expandir todas», como haría el Gestor CAE.</summary>
+    private static void ExpandirTodas(IRenderedComponent<MiTrabajoPagina> cut)
+    {
+        var boton = cut.FindAll(".mi-trabajo-plegar-todas").FirstOrDefault();
+        if (boton is not null && cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").All(c => c.GetAttribute("aria-expanded") == "false"))
+            boton.Click();
+    }
 
     private static IReadOnlyList<string> TitulosVisibles(IRenderedComponent<MiTrabajoPagina> cut) =>
         cut.FindAll(".mi-trabajo-fila-titulo").Select(e => e.TextContent).ToList();
@@ -466,6 +490,92 @@ public class MiTrabajoGen2Tests : BunitContext
         cut.FindAll(".mi-trabajo-grupo-nombre").Select(e => e.TextContent).Should().Equal("Laboratorios Dexter");
     }
 
+    /// <summary>Decisión de producto (2026-10-16): Mi trabajo carga SIEMPRE con todos los grupos de Tenant plegados.</summary>
+    [Fact]
+    public void La_pantalla_carga_con_todos_los_Tenants_plegados_y_sin_filas()
+    {
+        var cut = RenderizarPlegado();
+
+        var cabeceras = cut.FindAll(".mi-trabajo-grupo-cabecera-tenant");
+        cabeceras.Should().NotBeEmpty();
+        cabeceras.Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+        cut.FindAll(".mi-trabajo-fila").Should().BeEmpty();
+        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas");
+    }
+
+    /// <summary>Decisión de la coordinadora (2026-10-16): el modo Severidad también carga plegado, con cabeceras plegables y «Expandir todas».</summary>
+    [Fact]
+    public void El_modo_Severidad_carga_con_todas_las_cabeceras_plegadas_y_se_despliegan_una_a_una_o_todas()
+    {
+        var cut = RenderizarPlegado(url: "mi-trabajo?agrupar=severidad");
+
+        var cabeceras = cut.FindAll(".mi-trabajo-grupo-cabecera-severidad");
+        cabeceras.Should().NotBeEmpty();
+        cabeceras.Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+        cut.FindAll(".mi-trabajo-fila").Should().BeEmpty();
+        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas");
+
+        cabeceras[0].Click();
+
+        var tras = cut.FindAll(".mi-trabajo-grupo-cabecera-severidad");
+        tras[0].GetAttribute("aria-expanded").Should().Be("true");
+        tras.Skip(1).Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false", "abrir una no abre las demás");
+        TitulosVisibles(cut).Should().NotBeEmpty();
+
+        cut.Find(".mi-trabajo-plegar-todas").Click();
+        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas", "con una abierta y otras plegadas el botón pliega todo");
+        cut.FindAll(".mi-trabajo-grupo-cabecera-severidad").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+
+        cut.Find(".mi-trabajo-plegar-todas").Click();
+        cut.FindAll(".mi-trabajo-grupo-cabecera-severidad").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "true");
+
+        cut.Find(".mi-trabajo-volver-plegar").Click();
+        cut.FindAll(".mi-trabajo-grupo-cabecera-severidad").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+        cut.FindAll(".mi-trabajo-volver-plegar").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Expandir_todas_despliega_todo_y_cambia_su_rotulo_y_Volver_a_plegar_deja_todo_plegado_otra_vez()
+    {
+        var cut = RenderizarPlegado();
+        cut.FindAll(".mi-trabajo-volver-plegar").Should().BeEmpty("no hay nada desplegado que volver a plegar");
+
+        cut.Find(".mi-trabajo-plegar-todas").Click();
+
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "true");
+        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Plegar todas");
+        TitulosVisibles(cut).Should().NotBeEmpty();
+
+        cut.Find(".mi-trabajo-volver-plegar").Click();
+
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas");
+        TitulosVisibles(cut).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Lo que el Gestor CAE despliega vale para su visita a la pantalla y nada más: no se escribe ni se lee ningún
+    /// almacenamiento del navegador, y una instancia nueva de la pantalla (otra carga) vuelve a partir plegada aunque
+    /// la anterior terminara con un Tenant desplegado.
+    /// </summary>
+    [Fact]
+    public void Lo_desplegado_en_una_visita_no_se_restaura_en_la_siguiente()
+    {
+        var cut = RenderizarPlegado();
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").First(c => c.TextContent.Contains("Refrielectric")).Click();
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").First(c => c.TextContent.Contains("Refrielectric"))
+            .GetAttribute("aria-expanded").Should().Be("true", "durante la visita se puede desplegar");
+        TitulosVisibles(cut).Should().NotBeEmpty();
+
+        cut.Dispose();
+        var siguiente = Render<MiTrabajoPagina>();
+
+        siguiente.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+        TitulosVisibles(siguiente).Should().BeEmpty();
+        JSInterop.Invocations.Where(i => i.Identifier.Contains("Storage", StringComparison.OrdinalIgnoreCase)).Should()
+            .BeEmpty("la expansión no se guarda en localStorage ni en ninguna preferencia");
+    }
+
     [Fact]
     public void Plegar_la_cabecera_de_un_Tenant_esconde_sus_filas_y_resume_lo_que_tiene()
     {
@@ -533,6 +643,7 @@ public class MiTrabajoGen2Tests : BunitContext
         var cut = Renderizar();
 
         cut.FindAll(".mi-trabajo-pestana").Single(b => b.TextContent == "Severidad").Click();
+        ExpandirTodas(cut);
 
         cut.FindAll(".mi-trabajo-grupo-nombre").Select(e => e.TextContent).Should().Equal("Bloqueo", "Requiere actuación", "Próximo", "Seguimiento");
         FilaDe(cut, "Rechazado por la plataforma").QuerySelector(".mi-trabajo-fila-contexto")!.TextContent

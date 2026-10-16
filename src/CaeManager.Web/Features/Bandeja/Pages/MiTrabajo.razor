@@ -11,8 +11,10 @@
 <LimiteDeErrores Pagina="this">
 @* Mi trabajo Gen2, Nivel 1 multi-Tenant: mockup «Cola operativa multi-Tenant»
    (Mi trabajo.dc.html) sobre CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.
-   Toda la cola de cada Tenant está aquí: lo urgente a la vista y el resto tras
-   «Ver»; una búsqueda activa anula los pliegues (contrato § 5). Cada acción
+   Toda la cola de cada Tenant está aquí, pero la pantalla carga SIEMPRE con todos
+   los grupos de Tenant plegados (decisión de producto 2026-10-16, sin estado
+   persistido): al desplegar un Tenant se ve lo urgente y el resto tras «Ver»; una
+   búsqueda activa anula los pliegues (contrato § 5). Cada acción
    entra en su Tenant por el POST de /cuenta/cliente-activo (AccionCrossTenant).
    El Tenant de origen del Operador CAE no se gestiona desde aquí (§ 10).
 
@@ -145,9 +147,9 @@
                     <div class="mi-trabajo-barra-derecha">
                         <input class="mi-trabajo-filtro" type="search" aria-label="@Textos["FiltroEtiqueta"]"
                                placeholder="@Textos["FiltroMarcador"]" value="@_busqueda" @oninput="CambiarBusqueda" />
-                        @if (_agrupar == AgruparMiTrabajo.Tenant && string.IsNullOrWhiteSpace(_busqueda))
+                        @if (string.IsNullOrWhiteSpace(_busqueda))
                         {
-                            <button type="button" class="mi-trabajo-plegar-todas" @onclick="AlternarTodas">@(TodoPlegado ? Textos["ExpandirTodas"] : Textos["PlegarTodas"])</button>
+                            <button type="button" class="mi-trabajo-plegar-todas" disabled="@_cargando" @onclick="AlternarTodas">@(TodoPlegado ? Textos["ExpandirTodas"] : Textos["PlegarTodas"])</button>
                         }
                         <span class="mi-trabajo-atajos"><kbd>j</kbd> <kbd>k</kbd> @Textos["AtajoMover"] · <kbd>↵</kbd> @Textos["AtajoAbrir"]</span>
                     </div>
@@ -230,10 +232,13 @@
                                 }
                                 else
                                 {
-                                    <div class="mi-trabajo-grupo-cabecera">
+                                    @* Modo Severidad: mismo patrón que la cabecera de Tenant, plegada al cargar. *@
+                                    <button type="button" class="mi-trabajo-grupo-cabecera mi-trabajo-grupo-cabecera-severidad" aria-expanded="@(grupo.Plegado ? "false" : "true")"
+                                            @onclick="() => AlternarSeveridad(grupo.Clave)">
+                                        <span class="@("mi-trabajo-chevron" + (grupo.Plegado ? " mi-trabajo-chevron-plegado" : ""))"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
                                         <span class="mi-trabajo-grupo-nombre">@grupo.Etiqueta</span>
                                         <span class="mi-trabajo-grupo-total">@grupo.Total</span>
-                                    </div>
+                                    </button>
                                 }
 
                                 @* Los lotes y sus filas son hermanos bajo este mismo grupo: una sola fuente de claves para todos (numera las
@@ -310,7 +315,7 @@
                         }
                         <div class="mi-trabajo-pie">
                             <span>@Pie</span>
-                            @if (_abiertos.Count > 0 || _cerrados.Count > 0)
+                            @if (_abiertos.Count > 0 || _tenantsAbiertos.Count > 0 || _severidadesAbiertas.Count > 0)
                             {
                                 <button type="button" class="mi-trabajo-volver-plegar" @onclick="VolverAPlegar">@Textos["VolverAPlegar"]</button>
                             }

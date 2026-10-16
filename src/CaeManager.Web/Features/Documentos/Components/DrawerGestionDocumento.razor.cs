@@ -364,7 +364,10 @@ public partial class DrawerGestionDocumento : ComponentBase
         _propietarioNombreSoloLectura = documento.PropietarioNombre;
         _tipoDocumentoNombreSoloLectura = documento.TipoDocumentoNombre;
         _tipoDocumentoAplicaVencimientoAutomaticoEdit = documento.TipoDocumentoAplicaVencimientoAutomatico;
-        _fechaEmision = documento.FechaEmision.ToString("yyyy-MM-dd");
+        // Renovar es emitir otro documento: la fecha de emisión nace vacía, no con la del documento anterior (un clic de
+        // «Guardar» no puede renovar con la fecha vieja sin que nadie la haya mirado). La del anterior se conserva solo
+        // para avisar si la nueva es anterior a ella (GuardarAsync).
+        _fechaEmision = string.Empty;
         _fechaEmisionOriginal = documento.FechaEmision;
         _fechaVencimientoManual = documento.FechaVencimiento?.ToString("yyyy-MM-dd") ?? string.Empty;
         // Renovar sin tocar la vigencia no puede perder la confirmación de

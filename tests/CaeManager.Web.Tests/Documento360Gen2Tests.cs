@@ -227,11 +227,30 @@ public partial class Documento360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         await Boton(cut, "Renovar").ClickAsync(new MouseEventArgs());
+        await EmisionDeRenovacion.EscribirAsync(cut);
         await Boton(cut, "Guardar fechas y comentarios (sin sustituir el archivo)").ClickAsync(new MouseEventArgs());
 
         cut.FindAll("[role=alert]").Should().ContainSingle("el formulario tiene que recibir el fallo");
         cut.Find("[role=alert]").TextContent.Should().Be("Otra persona ya lo renovó.");
         Services.GetRequiredService<ToastService>().Mensajes.Should().BeEmpty("un Result fallido no es éxito");
+    }
+
+    [Fact]
+    public async Task Renovar_abre_la_fecha_de_emision_vacia_y_no_guarda_hasta_escribirla()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediadorFalso());
+        mediador.Detalles[id] = Detalle(id);
+        var cut = Renderizar(id);
+
+        await Boton(cut, "Renovar").ClickAsync(new MouseEventArgs());
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de emisión").Instance.Valor
+            .Should().BeNullOrEmpty("renovar no hereda la fecha de emisión del documento anterior");
+
+        await Boton(cut, "Guardar fechas y comentarios (sin sustituir el archivo)").ClickAsync(new MouseEventArgs());
+
+        cut.Find("[role=alert]").TextContent.Should().Be("Introduce una fecha de emisión válida.");
+        mediador.Enviadas.OfType<RenovarDocumentoCommand>().Should().BeEmpty("sin fecha de emisión no hay renovación");
     }
 
     /// <summary>
@@ -267,6 +286,7 @@ public partial class Documento360Gen2Tests : BunitContext
         consultas.Distinct().Should().ContainSingle();
 
         await Boton(cut, "Renovar").ClickAsync(new MouseEventArgs());
+        await EmisionDeRenovacion.EscribirAsync(cut);
         await Boton(cut, "Guardar fechas y comentarios (sin sustituir el archivo)").ClickAsync(new MouseEventArgs());
         mediador.Tokens.Where(t => t.Peticion is RenovarDocumentoCommand).Should().ContainSingle()
             .Which.Token.CanBeCanceled.Should().BeFalse("cerrar la ficha no deshace una escritura ya solicitada");

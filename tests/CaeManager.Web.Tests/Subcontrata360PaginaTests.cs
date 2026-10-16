@@ -10,6 +10,7 @@ using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Commands.CambiarNivelServicioSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarVerificacionExterna;
+using CaeManager.Application.Subcontratas.Commands.RestaurarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.GuardarNotaInternaSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata;
@@ -120,7 +121,8 @@ public class Subcontrata360PaginaTests : BunitContext
             ObtenerVehiculosQuery q => new ResultadoPaginado<VehiculoListaDto>([], 0, q.Pagina, q.TamanoPagina),
             ObtenerDobleFactorPropioQuery => DobleFactor,
             ObtenerCredencialAccesoSubcontrataQuery => Credencial,
-            CambiarNivelServicioSubcontrataCommand or EliminarSubcontrataCommand or EliminarVerificacionExternaSubcontrataCommand => Result.Exito(),
+            CambiarNivelServicioSubcontrataCommand or EliminarSubcontrataCommand or RestaurarSubcontrataCommand
+                or EliminarVerificacionExternaSubcontrataCommand => Result.Exito(),
             GuardarNotaInternaSubcontrataCommand => ResultadoNota,
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
@@ -572,6 +574,24 @@ public class Subcontrata360PaginaTests : BunitContext
         cut.WaitForAssertion(() => mediador.Enviadas.OfType<EliminarSubcontrataCommand>().Should().ContainSingle()
             .Which.Id.Should().Be(SubcontrataId));
         new Uri(Navegacion.Uri).AbsolutePath.Should().Be("/subcontratas");
+    }
+
+    [Fact]
+    public async Task Eliminar_ofrece_Deshacer_que_restaura_la_subcontrata_y_vuelve_a_su_ficha()
+    {
+        var mediador = Montar();
+        var cut = Renderizar();
+
+        AbrirMenuDeCabeceraYPulsar(cut, "Eliminar");
+        cut.FindAll("button").Last(b => b.ClassList.Any(c => c.Contains("destructivo"))).Click();
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<EliminarSubcontrataCommand>().Should().ContainSingle());
+
+        var avisos = Services.GetRequiredService<ToastService>();
+        var aviso = avisos.Mensajes.Should().ContainSingle(m => m.TextoAccion == "Deshacer").Subject;
+        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+
+        mediador.Enviadas.OfType<RestaurarSubcontrataCommand>().Should().ContainSingle().Which.Id.Should().Be(SubcontrataId);
+        new Uri(Navegacion.Uri).AbsolutePath.Should().Be($"/subcontratas/{SubcontrataId}");
     }
 
     [Fact]

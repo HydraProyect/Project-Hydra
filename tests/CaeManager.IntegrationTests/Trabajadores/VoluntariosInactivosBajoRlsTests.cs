@@ -353,7 +353,7 @@ public class VoluntariosInactivosBajoRlsTests : IAsyncLifetime
 
     private static async Task<IReadOnlyList<TrabajadorListaDto>> Listar(CaeManagerDbContext c, bool? inactivo)
     {
-        var handler = new ObtenerTrabajadoresQueryHandler(c, c, c, c, new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(c, c, c), c, c);
+        var handler = new ObtenerTrabajadoresQueryHandler(c, c, c, c, new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(c, c, c), c, c, new DocumentosFaltantesService(c, c, c));
         return (await handler.Handle(new ObtenerTrabajadoresQuery(null, TamanoPagina: 50, VoluntarioInactivo: inactivo), CancellationToken.None)).Elementos;
     }
 

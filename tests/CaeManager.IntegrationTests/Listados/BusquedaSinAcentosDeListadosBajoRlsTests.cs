@@ -1,3 +1,4 @@
+using CaeManager.Application.Alertas;
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
@@ -264,7 +265,7 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
     {
         var handler = new ObtenerTrabajadoresQueryHandler(
             contexto, contexto, contexto, contexto, alcance, new CalculoEstadoDocumentalService(contexto, contexto, contexto),
-            contexto, contexto);
+            contexto, contexto, new DocumentosFaltantesService(contexto, contexto, contexto));
         var resultado = await handler.Handle(new ObtenerTrabajadoresQuery(termino), CancellationToken.None);
         return resultado.Elementos.Select(t => t.Id).ToList();
     }
