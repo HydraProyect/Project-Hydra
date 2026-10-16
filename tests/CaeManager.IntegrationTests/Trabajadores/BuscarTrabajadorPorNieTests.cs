@@ -1,3 +1,4 @@
+using CaeManager.Application.Alertas;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Configuracion;
@@ -73,7 +74,7 @@ public class BuscarTrabajadorPorNieTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerTrabajadoresQueryHandler(
             contexto, contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto, contexto), contexto, contexto);
+            new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto, contexto), contexto, contexto, new DocumentosFaltantesService(contexto, contexto, contexto));
 
         var resultado = await handler.Handle(
             new ObtenerTrabajadoresQuery(termino, OrdenarPor: ordenarPor, TamanoPagina: 50), CancellationToken.None);

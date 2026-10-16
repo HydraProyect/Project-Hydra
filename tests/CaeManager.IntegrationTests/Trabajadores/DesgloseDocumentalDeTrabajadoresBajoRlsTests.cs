@@ -1,3 +1,4 @@
+using CaeManager.Application.Alertas;
 using System.Data.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
@@ -143,6 +144,27 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
         var ana = resultado.Elementos.Single(t => t.Id == _ana);
         ana.Incidencias.Should().BeEmpty();
         (ana.DocumentosRegistrados, ana.DocumentosVigentes).Should().Be((0, 0), "sin documentos no hay fracción");
+    }
+
+    /// <summary>
+    /// Lo exigido y sin documento sale en la fila con la regla única de faltantes: Iker, con Asignación activa en un
+    /// Centro que exige los cuatro Tipos y solo la aptitud registrada, tiene tres; Nora los tiene todos, y Ana, de
+    /// baja en su único Centro, no tiene exigencia alguna. Sin desglose no se calcula.
+    /// </summary>
+    [Fact]
+    public async Task Los_tipos_exigidos_por_un_Centro_activo_y_sin_documento_salen_en_la_fila_y_solo_con_desglose()
+    {
+        var conDesglose = await HandlerSinCartera().Handle(
+            new ObtenerTrabajadoresQuery(null, ConDesgloseDocumental: true, ConRecuentosPorEstado: true), CancellationToken.None);
+
+        conDesglose.Elementos.Single(t => t.Id == _iker).DocumentosFaltantes.Should().Equal(
+            "Contrato de trabajo", "Entrega de EPI", "Formación Art. 19");
+        conDesglose.Elementos.Single(t => t.Id == _nora).DocumentosFaltantes.Should().BeEmpty();
+        conDesglose.Elementos.Single(t => t.Id == _ana).DocumentosFaltantes.Should().BeEmpty();
+
+        var sinDesglose = await HandlerSinCartera().Handle(
+            new ObtenerTrabajadoresQuery(null, ConRecuentosPorEstado: true), CancellationToken.None);
+        sinDesglose.Elementos.Should().OnlyContain(t => t.DocumentosFaltantes.Count == 0);
     }
 
     /// <summary>
@@ -368,12 +390,14 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
 
     private ObtenerTrabajadoresQueryHandler HandlerSinCartera() => new(
         _runtime, _runtime, _runtime, _runtime, new AlcanceDatosServiceFalso(),
-        new CalculoEstadoDocumentalService(_runtime, _runtime, _runtime), _runtime, _runtime);
+        new CalculoEstadoDocumentalService(_runtime, _runtime, _runtime), _runtime, _runtime,
+        new DocumentosFaltantesService(_runtime, _runtime, _runtime));
 
     private ObtenerTrabajadoresQueryHandler HandlerDelGestor() => new(
         _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor,
         new AlcanceDatosService(_runtimeDelGestor, UsuarioGestor(), _tenantDeLaPeticion, new SesionPrivilegiadaAusente()),
-        new CalculoEstadoDocumentalService(_runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor), _runtimeDelGestor, _runtimeDelGestor);
+        new CalculoEstadoDocumentalService(_runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor), _runtimeDelGestor, _runtimeDelGestor,
+        new DocumentosFaltantesService(_runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor));
 
     private CurrentUserServiceFalso UsuarioGestor() => new(_gestor, Roles.GestorCae, tenantOrigenId: _tenantSesion);
 

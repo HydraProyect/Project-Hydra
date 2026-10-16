@@ -1043,6 +1043,29 @@ public partial class Trabajador360Gen2Tests : BunitContext
     }
 
     [Fact]
+    public void La_cabecera_nombra_cada_tipo_exigido_sin_documento_una_sola_vez_aunque_dos_centros_lo_exijan()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] =
+        [
+            Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Faltante,
+                Documento("Aptitud médica", EstadoDocumento.Faltante, existe: false),
+                Documento("Contrato", EstadoDocumento.Vigente)),
+            Centro("Nave Berriz", "Talleres Berriz Coop.", EstadoDocumento.Faltante,
+                Documento("Formación Art. 19", EstadoDocumento.Faltante, existe: false),
+                Documento("Aptitud médica", EstadoDocumento.Faltante, existe: false))
+        ];
+
+        var cut = Renderizar(id);
+
+        var cabecera = cut.Find(".cabecera-identidad").TextContent;
+        cabecera.Should().Contain("Falta: Aptitud médica, Formación Art. 19");
+        cabecera.Should().NotContain("Vigente");
+    }
+
+    [Fact]
     public async Task Cada_documento_exigido_es_una_FilaRelacion_ordenada_y_tenida_segun_su_estado()
     {
         var id = Guid.NewGuid();

@@ -284,6 +284,15 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
     private EstadoDocumento? PeorEstadoGlobal => CentroMasUrgente?.PeorEstado;
 
+    /// <summary>Los Tipos que algún Centro le exige y de los que no tiene documento, sin repetir (un Tipo exigido en dos Centros cuenta una vez).</summary>
+    private IReadOnlyList<string> TiposFaltantes => _centros
+        .SelectMany(c => c.Documentos)
+        .Where(d => d.DocumentoId is null && d.Estado == EstadoDocumento.Faltante)
+        .Select(d => d.TipoDocumentoNombre)
+        .Distinct()
+        .Order(StringComparer.CurrentCulture)
+        .ToList();
+
     /// <summary>El primer documento faltante/vencido del centro más urgente — lo que abre el botón primario "Subir documento" de la cabecera (mockup § cabecera: el botón y el badge de urgencia hablan del mismo problema).</summary>
     private DocumentoRequeridoDto? DocumentoMasUrgente =>
         CentroMasUrgente?.Documentos.FirstOrDefault(EsIncidencia);

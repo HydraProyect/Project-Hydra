@@ -1357,7 +1357,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// </summary>
     private string ObtenerClaseFila(TrabajadorListaDto item)
     {
-        var tinte = item.EstadoDocumental switch
+        var tinte = EstadoDocumentoUi.ConFaltantes(item.EstadoDocumental, item.DocumentosFaltantes.Count > 0) switch
         {
             EstadoDocumento.Faltante or EstadoDocumento.Vencido => "fila-tintada-peligro",
             EstadoDocumento.Urgente => "fila-tintada-aviso",
