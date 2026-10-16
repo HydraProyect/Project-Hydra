@@ -81,7 +81,7 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
         await using var runtime = escenario.ContextoRuntime();
         async Task<List<SubcontrataListaDto>> LeerAsync(IAlcanceDatosService alcance)
         {
-            var servicio = new CalculoEstadoSubcontrataService(runtime, runtime, runtime, runtime, runtime, runtime, alcance);
+            var servicio = new CalculoEstadoSubcontrataService(runtime, runtime, runtime, runtime, runtime, runtime, alcance, runtime, runtime);
             var handler = new ObtenerSubcontratasQueryHandler(runtime, alcance, servicio, runtime);
             return (await handler.Handle(new ObtenerSubcontratasQuery(null), CancellationToken.None)).Elementos.ToList();
         }
@@ -292,7 +292,7 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
     private static async Task<IEnumerable<Guid>> BuscarSubcontratasAsync(
         CaeManagerDbContext contexto, IAlcanceDatosService alcance, string termino)
     {
-        var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance);
+        var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance, contexto, contexto);
         var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio, contexto);
         var resultado = await handler.Handle(new ObtenerSubcontratasQuery(termino), CancellationToken.None);
         return resultado.Elementos.Select(s => s.Id).ToList();

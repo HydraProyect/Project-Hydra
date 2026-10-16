@@ -94,9 +94,10 @@ public record ResultadoEstadoCentro(EstadoCentro Estado, IReadOnlyList<CausaEsta
 /// vigencia vencida en la plataforma y la acreditación rechazada por ella; y una
 /// no bloqueante para el Centro, el documento pendiente en su plataforma (sin
 /// subir o subido sin validar), que lo pone en <see cref="EstadoCentro.Pendiente"/>.
-/// Desde el 2026-10-15 suma también los requisitos de cada evento vigente del Centro (Proyecto de tipo Evento, criterio en
-/// VigenciaEvento.AportaRequisitosEn) para los voluntarios que participan en él, tengan o no Asignación al Centro; y no
-/// cuenta a los voluntarios inactivos (sin evento vigente ni futuro).
+/// Desde el 2026-10-15 suma también los requisitos de cada evento del Centro (Proyecto de tipo Evento, criterio en
+/// VigenciaEvento.AportaRequisitosEn: desde la asignación, mientras el evento es futuro o vigente, decisión 2026-10-16)
+/// para todos los Trabajadores asignados a él, voluntarios o no y de la Empresa o de una Subcontrata, tengan o no
+/// Asignación al Centro; y no cuenta a los voluntarios inactivos (sin evento vigente ni futuro).
 /// </summary>
 public interface ICalculoEstadoCentroService
 {
@@ -107,8 +108,8 @@ public interface ICalculoEstadoCentroService
     /// Cumplimiento documental de cada Centro (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
     /// § 0.5): <c>Requeridos</c> son los pares Trabajador×TipoDocumento incluidos explícitamente en el Centro para sus Trabajadores con
     /// Asignación activa más los pares Empresa×TipoDocumento (ámbito Empresa) incluidos explícitamente para las Empresas de esos Trabajadores
-    /// (decisión del propietario, 2026-10-10), más los pares Voluntario×TipoDocumento que pide cada evento vigente del Centro aunque el
-    /// Centro no incluya ese tipo (decisión 2026-10-15), y <c>AlDia</c> los que <see cref="CumplimientoDocumental"/> cuenta como al día. Es el contexto
+    /// (decisión del propietario, 2026-10-10), más los pares Trabajador×TipoDocumento que pide cada evento futuro o vigente del Centro a quien
+    /// está asignado a él aunque el Centro no incluya ese tipo (decisiones 2026-10-15 y 2026-10-16), y <c>AlDia</c> los que <see cref="CumplimientoDocumental"/> cuenta como al día. Es el contexto
     /// <see cref="ContextoCumplimiento.Centro"/>; un Centro sin ningún par exigido (o sin gestión CAE) queda en 0/0,
     /// cuyo porcentaje es <c>null</c>.
     ///
@@ -621,7 +622,7 @@ public class CalculoEstadoCentroService(
             .Select(tc => new { tc.CentroId, tc.TipoDocumentoId })
             .ToListAsync(cancellationToken);
         var clavesIncluidas = incluidos.Select(tc => (tc.CentroId, tc.TipoDocumentoId)).ToHashSet();
-        // Los requisitos de un evento vigente cuentan aunque el Centro no incluya ese tipo: los exige el evento.
+        // Los requisitos de un evento futuro o vigente cuentan aunque el Centro no incluya ese tipo: los exige el evento.
         var paresDeEvento = await ObtenerParesDeEventoAsync(conGestionCae, pendientes, hoy, cancellationToken);
         var porCentro = CumplimientoDocumental.PorCentro(
             UnirConParesDeEvento(paresDeTrabajador.Where(p => clavesIncluidas.Contains((p.CentroId, p.TipoDocumentoId))), paresDeEvento),
@@ -674,7 +675,7 @@ public class CalculoEstadoCentroService(
     }
 
     /// <summary>
-    /// Los pares del Centro más los de los eventos vigentes que el Centro no tenga ya: si un mismo Trabajador × Tipo sale por
+    /// Los pares del Centro más los de los eventos futuros o vigentes que el Centro no tenga ya: si un mismo Trabajador × Tipo sale por
     /// las dos vías, cuenta una vez.
     /// </summary>
     private static List<ParDocumentalExigido> UnirConParesDeEvento(
@@ -687,24 +688,24 @@ public class CalculoEstadoCentroService(
     }
 
     /// <summary>
-    /// Requisitos de los eventos vigentes de estos Centros para sus voluntarios (decisión 2026-10-15, criterio en
-    /// <see cref="CaeManager.Domain.Proyectos.VigenciaEvento.AportaRequisitosEn"/>): cuentan en el Centro del evento aunque el
-    /// voluntario no tenga Asignación en él, porque participar en un evento no la crea. Un voluntario inactivo nunca
-    /// aparece aquí: participa en un evento vigente, luego está activo.
+    /// Requisitos de los eventos futuros o vigentes de estos Centros para todos los Trabajadores asignados a ellos
+    /// (decisiones 2026-10-15 y 2026-10-16, criterio en <see cref="CaeManager.Domain.Proyectos.VigenciaEvento.AportaRequisitosEn"/>):
+    /// cuentan en el Centro del evento aunque el Trabajador no tenga Asignación en él, porque participar en un evento no la
+    /// crea. Un voluntario inactivo nunca aparece aquí: participa en un evento sin terminar, luego está activo.
     /// </summary>
-    private async Task<List<RequisitoDeEventoDeVoluntario>> RequisitosDeEventosAsync(
+    private async Task<List<RequisitoDeEvento>> RequisitosDeEventosAsync(
         List<Guid> conGestionCae, DateOnly hoy, CancellationToken cancellationToken) =>
         conGestionCae.Count == 0
             ? []
-            : await ActividadVoluntarios
-                .RequisitosDeEventosVigentes(
+            : await RequisitosDeEventos
+                .DeEventosQueLosAportan(
                     trabajadoresContext.Trabajadores, proyectosContext, requisitosEventoContext.ProyectosRequisitos, tiposDocumentoContext.TiposDocumento, hoy)
                 .Where(r => conGestionCae.Contains(r.CentroId))
                 .Distinct()
                 .ToListAsync(cancellationToken);
 
     /// <summary>
-    /// Causas de los requisitos de eventos vigentes, con el mismo criterio que las de Trabajador con Asignación
+    /// Causas de los requisitos de eventos futuros o vigentes, con el mismo criterio que las de Trabajador con Asignación
     /// (<see cref="AgregarCausasDeTrabajadorAsync"/>): Faltante si no hay ningún documento operativo de ese tipo, o la
     /// vigencia de cada documento que vence dentro del umbral. No repite una causa que el Centro ya tenga.
     /// </summary>
@@ -758,7 +759,7 @@ public class CalculoEstadoCentroService(
     }
 
     /// <summary>
-    /// Los pares Voluntario × Tipo que añaden los eventos vigentes en su Centro (<see cref="RequisitosDeEventosAsync"/>), con
+    /// Los pares Trabajador × Tipo que añaden los eventos futuros o vigentes en su Centro (<see cref="RequisitosDeEventosAsync"/>), con
     /// el estado del documento efectivo, igual que <see cref="ObtenerParesDeTrabajadorAsync"/>.
     /// </summary>
     private async Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesDeEventoAsync(

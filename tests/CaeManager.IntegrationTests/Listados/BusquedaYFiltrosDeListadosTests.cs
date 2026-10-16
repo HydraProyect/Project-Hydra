@@ -242,7 +242,7 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var alcance = new AlcanceDatosServiceFalso();
-        var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance);
+        var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance, contexto, contexto);
         var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio, contexto);
 
         var resultado = await handler.Handle(new ObtenerSubcontratasQuery(null, NivelServicio: nivel), CancellationToken.None);

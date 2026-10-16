@@ -39,12 +39,11 @@ public class ObtenerTrabajadoresAsignadosDeCentroQueryHandler(
             select new { asignacion.TrabajadorId, asignacion.FechaAlta, EventoNombre = (string?)null })
             .ToListAsync(cancellationToken);
 
-        // Misma expresión que Proyecto.EventoTerminadoEn, negada y traducible a SQL.
+        // Eventos sin terminar (vigentes o futuros): el mismo criterio que Proyecto.EventoTerminadoEn, negado y traducible a SQL.
         var hoy = DiaDeNegocio.Hoy();
         var porEventos = await (
-            from proyecto in proyectosContext.Proyectos
-            where proyecto.CentroId == request.CentroId && proyecto.Tipo == TipoProyecto.Evento
-                && proyecto.FechaCierreReal == null && proyecto.FechaFinPrevista >= hoy
+            from proyecto in proyectosContext.Proyectos.Where(VigenciaEvento.SinTerminarEn(hoy))
+            where proyecto.CentroId == request.CentroId
             join participante in proyectosContext.ProyectosTecnicos on proyecto.Id equals participante.ProyectoId
             where participante.FechaBaja == null
             orderby proyecto.FechaInicio

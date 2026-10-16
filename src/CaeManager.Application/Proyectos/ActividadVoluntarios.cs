@@ -1,4 +1,3 @@
-using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Trabajadores;
 
@@ -27,40 +26,4 @@ public static class ActividadVoluntarios
                        select participante.ProyectoId).Any()
                select trabajador.Id;
     }
-
-    /// <summary>
-    /// Los requisitos (<see cref="ProyectoRequisito"/>) de los eventos vigentes (ya empezados y sin terminar, ver
-    /// <see cref="VigenciaEvento.AportaRequisitosEn"/>, el mismo criterio que <see cref="Proyecto.EventoVigenteEn"/>) para cada voluntario que participa en ellos, con el Centro del evento.
-    /// Es lo que el evento añade al cumplimiento del voluntario mientras dura.
-    /// </summary>
-    public static IQueryable<RequisitoDeEventoDeVoluntario> RequisitosDeEventosVigentes(
-        IQueryable<Trabajador> trabajadores, IProyectosQueryContext proyectos, IQueryable<ProyectoRequisito> requisitos,
-        IQueryable<TipoDocumento> tiposDocumento, DateOnly hoy) =>
-        from proyecto in proyectos.Proyectos.Where(VigenciaEvento.AportaRequisitosEn(hoy))
-        join participante in proyectos.ProyectosTecnicos on proyecto.Id equals participante.ProyectoId
-        where participante.FechaBaja == null
-        join trabajador in trabajadores on participante.TrabajadorId equals trabajador.Id
-        where trabajador.TipoContratacion == TipoContratacion.Voluntario
-        join requisito in requisitos on proyecto.Id equals requisito.ProyectoId
-        // Solo lo que se le puede pedir a una persona: un tipo de ámbito Empresa o Vehículo no es un faltante del voluntario.
-        join tipo in tiposDocumento on requisito.TipoDocumentoId equals tipo.Id
-        where tipo.AmbitoAplicacion == AmbitoAplicacion.Trabajador
-        select new RequisitoDeEventoDeVoluntario
-        {
-            TrabajadorId = trabajador.Id,
-            TrabajadorNombre = trabajador.Nombre + " " + trabajador.Apellidos,
-            EmpresaId = trabajador.EmpresaId,
-            CentroId = proyecto.CentroId,
-            TipoDocumentoId = requisito.TipoDocumentoId,
-        };
-}
-
-/// <summary>Un Tipo de Documento que un evento vigente pide a un voluntario que participa en él, en el Centro del evento.</summary>
-public sealed record RequisitoDeEventoDeVoluntario
-{
-    public Guid TrabajadorId { get; init; }
-    public string TrabajadorNombre { get; init; } = string.Empty;
-    public Guid? EmpresaId { get; init; }
-    public Guid CentroId { get; init; }
-    public Guid TipoDocumentoId { get; init; }
 }

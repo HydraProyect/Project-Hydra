@@ -207,17 +207,18 @@ public class ObtenerAlertasQueryHandler(
     }
 
     /// <summary>
-    /// Requisitos de los eventos vigentes que les faltan a sus voluntarios: mientras el evento dura, lo que pide
+    /// Requisitos de los eventos que les faltan a los Trabajadores asignados a ellos (voluntarios o no, de la Empresa o
+    /// de una Subcontrata): desde la asignación y mientras el evento es futuro o vigente (decisión 2026-10-16), lo que pide
     /// cuenta para su cumplimiento en el Centro del evento, aunque no tengan Asignación a ese Centro, porque
     /// participar en un evento no la crea. Mismo criterio de falta que el de los Centros: ningún documento
     /// operativo de ese Tipo.
     /// </summary>
-    private async Task<List<DocumentoFaltanteDto>> FaltantesPorEventosVigentesAsync(
+    private async Task<List<DocumentoFaltanteDto>> FaltantesPorEventosAsync(
         IReadOnlyList<Guid>? trabajadorIdsVisibles, IReadOnlyList<Guid>? centroIdsVisibles, DateOnly hoy,
         Dictionary<Guid, Guid?> empresaIdPorTrabajador, CancellationToken cancellationToken)
     {
-        var requisitos = await ActividadVoluntarios
-            .RequisitosDeEventosVigentes(
+        var requisitos = await RequisitosDeEventos
+            .DeEventosQueLosAportan(
                 trabajadoresContext.Trabajadores, proyectosContext, requisitosEventoContext.ProyectosRequisitos,
                 tiposDocumentoContext.TiposDocumento, hoy)
             .Where(r => trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(r.TrabajadorId))
@@ -304,7 +305,7 @@ public class ObtenerAlertasQueryHandler(
         IReadOnlyList<DocumentoFaltanteDto> faltantesPorCentro = parejas.Count == 0
             ? []
             : await documentosFaltantesService.CalcularAsync(parejas, cancellationToken);
-        var faltantesPorEvento = await FaltantesPorEventosVigentesAsync(
+        var faltantesPorEvento = await FaltantesPorEventosAsync(
             trabajadorIdsVisibles, centroIdsVisibles, hoy, empresaIdPorTrabajador, cancellationToken);
         var faltantes = faltantesPorCentro
             .Concat(faltantesPorEvento)
