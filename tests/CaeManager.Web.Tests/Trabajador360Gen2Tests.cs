@@ -316,6 +316,49 @@ public partial class Trabajador360Gen2Tests : BunitContext
         mediador.Enviadas.Should().HaveCount(consultas);
     }
 
+    [Theory]
+    [InlineData("es", "Copiar el DNI", "Copiar el teléfono", "Copiar el correo electrónico", "Copiar la fecha de nacimiento",
+        "Copiar el número de afiliación a la Seguridad Social", "Copiar la fecha de alta en la empresa",
+        "Copiar la fecha de baja en la empresa", "Copiar la caducidad del permiso de trabajo")]
+    [InlineData("ca-ES", "Copia el DNI", "Copia el telèfon", "Copia el correu electrònic", "Copia la data de naixement",
+        "Copia el número d’afiliació a la Seguretat Social", "Copia la data d’alta a l’empresa",
+        "Copia la data de baixa a l’empresa", "Copia la caducitat del permís de treball")]
+    public async Task Cada_boton_de_copiar_de_la_ficha_dice_que_dato_copia(string cultura, params string[] esperados)
+    {
+        var anterior = System.Globalization.CultureInfo.CurrentUICulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = new(cultura);
+            var id = Guid.NewGuid();
+            var mediador = ConTrabajador(id);
+            mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno", telefono: "600111222", email: "javier@ejemplo.com") with
+            {
+                FechaNacimiento = new DateOnly(1988, 3, 14),
+                NumeroAfiliacionSeguridadSocial = "281234567840",
+                FechaAltaEmpresa = new DateOnly(2024, 1, 10),
+                FechaBajaEmpresa = new DateOnly(2026, 6, 30),
+                TipoPermisoTrabajo = "NIE",
+                CaducidadPermisoTrabajo = new DateOnly(2027, 5, 3)
+            };
+            var cut = RenderizarEn(id, "");
+            var enOperacion = Nombres(cut);
+            // La pestaña Ficha es la cuarta (Operación, Centros, Documentación, Ficha, Historial) en cualquier cultura.
+            await cut.FindAll("[role=tab]")[3].ClickAsync(new MouseEventArgs());
+            var enFicha = Nombres(cut);
+
+            enOperacion.Concat(enFicha).Distinct().Should().BeEquivalentTo(esperados);
+            enOperacion.Should().OnlyHaveUniqueItems("dos botones con el mismo nombre accesible no se distinguen para un lector de pantalla");
+            enFicha.Should().OnlyHaveUniqueItems("dos botones con el mismo nombre accesible no se distinguen para un lector de pantalla");
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = anterior;
+        }
+
+        static List<string> Nombres(IRenderedComponent<TrabajadorDetalle> cut) =>
+            cut.FindAll("button.boton-copiar").Select(b => b.GetAttribute("aria-label")!).ToList();
+    }
+
     [Fact]
     public void Sin_datos_de_Ficha_su_enlace_muestra_las_cajas_para_poder_rellenarlas()
     {

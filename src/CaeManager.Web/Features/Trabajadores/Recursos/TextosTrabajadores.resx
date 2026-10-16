@@ -336,14 +336,8 @@
   <data name="SeparadorDatosTrabajador" xml:space="preserve">
     <value>Datos del trabajador</value>
   </data>
-  <data name="EtiquetaCopiarTelefono" xml:space="preserve">
-    <value>el teléfono</value>
-  </data>
   <data name="EtiquetaCorreo" xml:space="preserve">
     <value>Correo electrónico</value>
-  </data>
-  <data name="EtiquetaCopiarCorreo" xml:space="preserve">
-    <value>el correo electrónico</value>
   </data>
   <data name="SeparadorAgendaEmpleador" xml:space="preserve">
     <value>Agenda del empleador</value>
@@ -689,7 +683,6 @@
   <data name="ResumenCentrosOrdenados" xml:space="preserve"><value>Mostrando {0} de {1} centros · del peor estado al mejor</value></data>
   <data name="ResumenDocumentoOrdenado" xml:space="preserve"><value>Mostrando {0} de {1} documento · del peor estado al mejor</value></data>
   <data name="ResumenDocumentosOrdenados" xml:space="preserve"><value>Mostrando {0} de {1} documentos · del peor estado al mejor</value></data>
-  <data name="EtiquetaCopiarNacimiento" xml:space="preserve"><value>Copiar la fecha de nacimiento</value></data>
   <data name="CentrosVacioFiltros360" xml:space="preserve">
     <value>Ningún Centro coincide con los filtros.</value>
   </data>
@@ -712,7 +705,7 @@
   <data name="FichaNoDisponible" xml:space="preserve"><value>No se pudo cargar la ficha del trabajador.</value></data>
   <data name="FichaGuardada" xml:space="preserve"><value>Ficha del trabajador guardada.</value></data>
   <data name="FichaErrorGuardar" xml:space="preserve"><value>No se pudo guardar la ficha. Vuelve a intentarlo.</value></data>
-<data name="FichaFechaInvalida" xml:space="preserve"><value>Introduce una fecha válida.</value></data>
+  <data name="FichaFechaInvalida" xml:space="preserve"><value>Introduce una fecha válida.</value></data>
   <data name="FichaCopiarAfiliacion" xml:space="preserve"><value>el número de afiliación a la Seguridad Social</value></data>
   <data name="FichaCopiarAltaEmpresa" xml:space="preserve"><value>la fecha de alta en la empresa</value></data>
   <data name="FichaCopiarBajaEmpresa" xml:space="preserve"><value>la fecha de baja en la empresa</value></data>

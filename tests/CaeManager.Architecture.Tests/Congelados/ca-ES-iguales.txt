@@ -977,7 +977,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Err
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ErrorSeleccionaEmpresa = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ErrorSeleccionaSubcontrata = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: EtiquetaAliasOpcional = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: EtiquetaCopiarCorreo = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: EtiquetaCorreo = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: EtiquetaDocumentacion = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: EtiquetaDocumentoIdentidad = 1
