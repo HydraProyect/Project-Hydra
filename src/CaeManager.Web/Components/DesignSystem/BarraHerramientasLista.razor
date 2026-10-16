@@ -3,9 +3,11 @@
     aloja los controles que actúan sobre la lista entera, no sobre el dato que
     se busca.
 
-    Hoy solo dos, y por eso es un componente compartido y no markup repetido
+    Hoy solo dos controles más el contenido libre Extra, y por eso es un componente compartido y no markup repetido
     en cada página: son 9 listas y la regla del propio plan es que los
-    transversales se arreglan una vez como pieza compartida.
+    transversales se arreglan una vez como pieza compartida. Si no se pasa
+    ninguno (ni SeleccionMultipleChanged, ni OnAlternarTodos, ni Extra), no
+    pinta nada: ni siquiera el contenedor, para no dejar un hueco vacío.
 
     - "Selección múltiple": los checkboxes de fila dejan de estar siempre
       visibles (ruido permanente para una acción ocasional) y aparecen solo
@@ -22,6 +24,8 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
 
+@if (SeleccionMultipleChanged.HasDelegate || OnAlternarTodos.HasDelegate || Extra is not null)
+{
 <div class="barra-herramientas-lista">
     @if (SeleccionMultipleChanged.HasDelegate)
     {
@@ -45,6 +49,7 @@
         @Extra
     }
 </div>
+}
 
 @code {
     [Parameter] public bool SeleccionMultiple { get; set; }

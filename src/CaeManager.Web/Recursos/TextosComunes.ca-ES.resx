@@ -494,6 +494,7 @@
   <data name="FiltrosGuardadosVacio" xml:space="preserve">
     <value>No hi ha filtres desats</value>
   </data>
+  <data name="SelectorResultadoSingular" xml:space="preserve"><value>{0} resultat</value></data>
   <data name="ListaGrupoNegocio" xml:space="preserve"><value>Negoci</value></data>
   <data name="ListaGrupoOperacion" xml:space="preserve"><value>Operació</value></data>
   <data name="ListaMas" xml:space="preserve"><value>Més</value></data>
