@@ -155,12 +155,12 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
             errores.ToString().Should().BeEmpty();
 
             var tenants = await TenantsDelPilotoAsync(arnes);
-            tenants.Should().HaveCount(8, "MEDIDO: siete Tenants propietarios y el del Operador CAE externo");
+            tenants.Should().HaveCount(9, "MEDIDO: ocho Tenants propietarios y el del Operador CAE externo");
             tenants.Should().OnlyContain(t => t.Marcado, "MEDIDO: todos llevan el marcador de demo");
             resultado.Tenants.Select(t => t.Nombre).Should().Equal(CatalogoPilotoOutbound.NombresTenants.Where(n => !CatalogoPilotoOutbound.NombresTenantsDeVersionesAnteriores.Contains(n)));
 
             var credenciales = LeerCredenciales(resultado.FicheroCredenciales);
-            credenciales.Should().HaveCount(6, "MEDIDO: Administrador, Coordinadora CAE y dos Gestores CAE del Operador CAE externo, y las dos cuentas de T1");
+            credenciales.Should().HaveCount(7, "MEDIDO: Administrador, Dirección CAE, Coordinadora CAE y dos Gestores CAE del Operador CAE externo, y las dos cuentas de T1");
             credenciales.Select(c => c.Contrasena).Should().OnlyHaveUniqueItems("MEDIDO: una contraseña distinta por cuenta")
                 .And.NotContainNulls().And.NotContain(CredencialesDemo.ContrasenaPorDefecto, "nunca la contraseña compartida");
             credenciales.Should().OnlyContain(c => c.Email.EndsWith("@" + Dominio) && !c.Email.EndsWith("@caemanager.local"));
@@ -168,7 +168,7 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
             resultado.Cuentas.Should().OnlyContain(c => c.ContrasenaEntregada);
 
             (await arnes.RecuentoAsync())["Cuentas del piloto"].Should().Be(0, "MEDIDO: ninguna cuenta con la dirección local @caemanager.local");
-            (await CuentasDelDominioAsync(arnes)).Should().Be(7, "MEDIDO: las seis con contraseña y la pendiente de activación, sin contraseña ni credencial");
+            (await CuentasDelDominioAsync(arnes)).Should().Be(8, "MEDIDO: las siete con contraseña y la pendiente de activación, sin contraseña ni credencial");
             credenciales.Select(c => c.Email).Should().NotContain(PilotoOutboundAdministrativa.CuentasDe(Dominio).GestorPendienteDeActivacion);
 
             if (OperatingSystem.IsLinux())
@@ -287,7 +287,7 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
 
             // B.3 Repetir la orden retira lo que faltaba.
             var resto = await RetirarAsync(arnes, ConfiguracionConfirmada, anunciados);
-            resto.Should().HaveCount(7);
+            resto.Should().HaveCount(8);
             anunciados.Should().Equal(vigentes, "MEDIDO: Tenants propietarios primero y el del Operador CAE externo al final");
 
             // B.3 bis. Los ficheros del ensayo se han ido, el descartado incluido; el del Tenant ajeno sigue y se lee.

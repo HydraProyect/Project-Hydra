@@ -150,11 +150,11 @@ public class PilotoOutboundAdministrativaPrecondicionesTests
     }
 
     [Fact]
-    public void Las_seis_cuentas_son_del_dominio_indicado_y_ninguna_del_dominio_local()
+    public void Las_siete_cuentas_con_contrasena_son_del_dominio_indicado_y_ninguna_del_dominio_local()
     {
         var cuentas = PilotoOutboundAdministrativa.CuentasDe(Dominio);
 
-        cuentas.Todas.Should().HaveCount(6).And.OnlyHaveUniqueItems()
+        cuentas.Todas.Should().HaveCount(7).And.OnlyHaveUniqueItems()
             .And.OnlyContain(c => c.EndsWith("@" + Dominio) && !c.Contains("caemanager.local"));
         cuentas.Todas.Select(c => c[..c.IndexOf('@')]).Should().Equal(
             CuentasPilotoOutbound.Locales.Todas.Select(c => c[..c.IndexOf('@')]),

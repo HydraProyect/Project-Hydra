@@ -883,7 +883,7 @@ if (args.Contains(PilotoOutboundAdministrativa.ArgumentoSembrar))
     return;
 }
 
-// Retirada completa de la siembra del piloto Outbound (sus siete Tenants, con marcador de
+// Retirada completa de la siembra del piloto Outbound (sus Tenants, con marcador de
 // demo, y los ficheros que sus filas nombran en el almacén): mismo patrón de dos pasos que --retirar-demo-direccion,
 // más la misma confirmación de entorno que su siembra. Cada Tenant se anuncia en cuanto se
 // borra, no al final: un fallo a mitad deja en la salida qué se retiró ya, y la orden se repite.

@@ -243,7 +243,7 @@ public static class PilotoOutboundSeeder
                     parametros.Cuentas.AdministradorT1, CatalogoPilotoOutbound.NombreAdministradorT1, Roles.Administrador, cancellationToken);
 
             if (await SembrarDatosAsync(
-                    dbContext, almacen, tenant, tenantPropietarioId, parametros, equipo.GestoraPrimeraId, recuento, cancellationToken))
+                    dbContext, almacen, tenant, tenantPropietarioId, parametros, equipo.GestorDeReferencia(tenant), recuento, cancellationToken))
                 recuento.TenantsConDatosNuevos.Add(tenant.Nombre);
 
             // La cuenta opcional de la matriz, después de los datos: su alcance es el primer Cliente empresarial de T1,
@@ -284,7 +284,21 @@ public static class PilotoOutboundSeeder
         public int Pdf { get; set; }
     }
 
-    private sealed record Equipo(ApplicationUser Administrador, Guid GestoraPrimeraId, Guid GestorSegundoId, Guid CoordinadoraId);
+    private sealed record Equipo(ApplicationUser Administrador, Guid GestoraPrimeraId, Guid GestorSegundoId, Guid CoordinadoraId)
+    {
+        /// <summary>Los Gestores CAE con la Asignación de Cartera del Tenant entero: uno, o los dos en el compartido.</summary>
+        public IReadOnlyList<Guid> GestoresDe(TenantPilotoOutbound tenant) =>
+        [
+            .. tenant.EnCarteraDeLaGestoraPrimera ? [GestoraPrimeraId] : Array.Empty<Guid>(),
+            .. tenant.EnCarteraDelGestorSegundo ? [GestorSegundoId] : Array.Empty<Guid>()
+        ];
+
+        /// <summary>
+        /// El Gestor CAE que figura como referencia en los datos del Tenant (gestor del Cliente empresarial, remitente de
+        /// las reclamaciones, quien anotó las verificaciones externas): el primero de su cartera.
+        /// </summary>
+        public Guid GestorDeReferencia(TenantPilotoOutbound tenant) => GestoresDe(tenant)[0];
+    }
 
     /// <summary>
     /// Un nombre del piloto ocupado por un Tenant sin marcador de demo puede ser un
@@ -458,6 +472,8 @@ public static class PilotoOutboundSeeder
 
         var cuentas = parametros.Cuentas;
         var administrador = await CrearAsync(cuentas.AdministradorOperador, CatalogoPilotoOutbound.NombreAdministradorOperador, Roles.Administrador);
+        // La Dirección CAE del Operador CAE externo: sin cartera propia, su alcance es el del rol (ve todo el Operador CAE externo).
+        await CrearAsync(cuentas.DireccionCae, CatalogoPilotoOutbound.NombreDireccionCae, Roles.DireccionCae);
         var coordinadora = await CrearAsync(cuentas.Coordinadora, CatalogoPilotoOutbound.NombreCoordinadora, Roles.CoordinadorCae);
         var gestoraPrimera = await CrearAsync(cuentas.GestoraPrimera, CatalogoPilotoOutbound.NombreGestoraPrimera, Roles.GestorCae);
         var gestorSegundo = await CrearAsync(cuentas.GestorSegundo, CatalogoPilotoOutbound.NombreGestorSegundo, Roles.GestorCae);
@@ -486,7 +502,7 @@ public static class PilotoOutboundSeeder
     }
 
     /// <summary>
-    /// La séptima cuenta: un Gestor CAE del equipo de la Coordinadora CAE dado de alta y todavía sin activar, como
+    /// La octava cuenta: un Gestor CAE del equipo de la Coordinadora CAE dado de alta y todavía sin activar, como
     /// queda tras el alta de la aplicación (<c>GestionCuentasUsuarioIdentity.CrearAsync</c>): sin contraseña, sin login
     /// externo y sin cambio de contraseña pendiente. Es lo que la aplicación entiende por «pendiente de activación».
     ///
@@ -529,7 +545,7 @@ public static class PilotoOutboundSeeder
     /// La instrucción de tratamiento de IA vigente de un Tenant del piloto: sin ella el
     /// Nivel 0 (<c>IInstruccionTratamientoIaService</c>) bloquea todo tratamiento con IA en
     /// ese Tenant, y el Asistente IA falla cerrado para cualquier cuenta que lo tenga en su
-    /// cartera (<c>ComprobarInstruccionIaCarteraQuery</c>). La llevan los siete: el Tenant
+    /// cartera (<c>ComprobarInstruccionIaCarteraQuery</c>). La llevan todos: el Tenant
     /// del Operador CAE externo y cada Tenant propietario.
     ///
     /// <para>
@@ -634,8 +650,7 @@ public static class PilotoOutboundSeeder
         await DelegacionDemoSeeder.CrearDelegacionAsync(
             dbContext, tenantOperadorId, tenantPropietarioId, equipo.Administrador, logger, tenant.Nombre, cancellationToken);
 
-        var gestores = new List<Guid> { equipo.GestoraPrimeraId };
-        if (tenant.EnCarteraDelGestorSegundo) gestores.Add(equipo.GestorSegundoId);
+        var gestores = equipo.GestoresDe(tenant);
 
         using (AmbitoTenantExplicito.Establecer(tenantOperadorId))
         {
@@ -793,6 +808,7 @@ public static class PilotoOutboundSeeder
             ReclamacionesDelPerfil(propia, centros, trabajadores, documentos, desviaciones, activas);
             GestionesPendientesDelPerfil(centros, trabajadores, desviaciones, activas);
             await ProyectosDelPerfilAsync(centros, trabajadores, activas);
+            EventosDelPerfil(centros, trabajadores);
             VerificacionesExternasDeLasSupervisadas(centros, trabajadores, subcontratas, activas);
             if (tenant.ConDocumentoRenovado)
                 await DocumentoRenovadoAsync(trabajadores, documentos, desviaciones);
@@ -1485,6 +1501,65 @@ public static class PilotoOutboundSeeder
         /// en el RNT y, en los extranjeros, el permiso de trabajo y su caducidad. El alta es siempre anterior a cualquier
         /// formación o aptitud de la persona.
         /// </summary>
+        /// <summary>
+        /// Los Proyectos de tipo Evento del perfil, con sus requisitos copiados de la plantilla del Cliente empresarial (la
+        /// copia es una foto, como al crear un evento desde una plantilla) y sus participantes. El alta en el evento es
+        /// anterior a su inicio: los requisitos cuentan desde la asignación, también mientras el evento es futuro. Al
+        /// terminado se le da la baja de los participantes y el cierre el día en que acabó. Comprueba que las fechas dan el
+        /// estado que el catálogo declara todos los días en que se puede sembrar.
+        /// </summary>
+        private void EventosDelPerfil(List<Centro> centros, List<Trabajador> trabajadores)
+        {
+            if (tenant.Eventos.Count == 0) return;
+
+            var plantillaDeclarada = tenant.PlantillaDeEventos
+                ?? throw new InvalidOperationException($"{tenant.Clave}: los eventos necesitan la plantilla de requisitos del perfil.");
+            var tipos = plantillaDeclarada.Tipos.Select(n => Tipo(n).Id).ToList();
+            var plantillas = new Dictionary<Guid, PlantillaRequisitosEvento>();
+
+            foreach (var evento in tenant.Eventos)
+            {
+                var centro = centros[evento.Centro];
+                var clienteEmpresarialId = _clienteEmpresarialDelCentro[centro.Id];
+                if (!plantillas.ContainsKey(clienteEmpresarialId))
+                {
+                    var plantilla = PlantillaRequisitosEvento.Crear(clienteEmpresarialId, plantillaDeclarada.Nombre, tipos);
+                    dbContext.PlantillasRequisitosEvento.Add(plantilla);
+                    plantillas[clienteEmpresarialId] = plantilla;
+                }
+
+                var inicio = D.AddDays(evento.DiasDesdeLaDemostracion);
+                var fin = inicio.AddDays(evento.DuracionDias - 1);
+                var primerDia = D.AddDays(-OpcionesPilotoOutbound.MargenMaximoDias);
+                var estadoEnTodoElMargen = fin < primerDia ? EstadoEventoPilotoOutbound.Terminado
+                    : inicio <= primerDia && fin >= D ? EstadoEventoPilotoOutbound.EnCurso
+                    : inicio > D ? EstadoEventoPilotoOutbound.Futuro
+                    : (EstadoEventoPilotoOutbound?)null;
+                if (estadoEnTodoElMargen != evento.Estado)
+                    throw new InvalidOperationException(
+                        $"{tenant.Clave}: el evento «{evento.Nombre}» no está «{evento.Estado}» todos los días en que se puede sembrar.");
+
+                var proyecto = Proyecto.Crear(
+                    clienteEmpresarialId, centro.Id, evento.Nombre, inicio, fin, notas: null, TipoProyecto.Evento);
+                if (evento.Estado == EstadoEventoPilotoOutbound.Terminado) proyecto.Cerrar(fin);
+                dbContext.Proyectos.Add(proyecto);
+
+                foreach (var tipo in tipos)
+                    dbContext.ProyectosRequisitos.Add(new ProyectoRequisito(proyecto.Id, tipo));
+
+                for (var j = 0; j < evento.Participantes.Count; j++)
+                {
+                    // Asignado antes del primer día en que se puede sembrar, también al futuro: nunca un alta por venir.
+                    var porElInicio = inicio.AddDays(-(10 + j % 5));
+                    var antesDelMargen = D.AddDays(-(OpcionesPilotoOutbound.MargenMaximoDias + 1 + j % 5));
+                    var participante = new ProyectoTecnico(
+                        proyecto.Id, trabajadores[evento.Participantes[j]].Id, porElInicio < antesDelMargen ? porElInicio : antesDelMargen);
+                    if (evento.Estado == EstadoEventoPilotoOutbound.Terminado) participante.DarDeBaja(fin);
+                    dbContext.ProyectosTecnicos.Add(participante);
+                }
+            }
+        }
+
         private void FichasDeLosTrabajadores(List<Trabajador> trabajadores)
         {
             for (var i = 0; i < trabajadores.Count; i++)
@@ -1500,6 +1575,7 @@ public static class PilotoOutboundSeeder
                     ? primeraEmision.AddDays(-(30 + i % 20))
                     : altaPorAntiguedad;
                 var vinculo = tenant.Perfil == PerfilPilotoOutbound.Autonomo ? "Trabajo por cuenta propia"
+                    : tenant.EsVoluntario(i) ? "Voluntariado (Ley 45/2015)"
                     : i == tenant.TrabajadorDeEtt ? "ETT (puesta a disposición)"
                     : i % 6 == 5 ? "Contrato temporal"
                     : "Contrato indefinido";
@@ -1513,12 +1589,14 @@ public static class PilotoOutboundSeeder
                     tipoVinculo: vinculo,
                     fechaAltaEmpresa: alta,
                     fechaBajaEmpresa: esPropio && tenant.DeBaja.Contains(i) ? D.AddDays(-30) : null,
-                    figuraEnRnt: esPropio && tenant.Perfil != PerfilPilotoOutbound.Autonomo ? "Sí" : "No",
+                    figuraEnRnt: esPropio && tenant.Perfil != PerfilPilotoOutbound.Autonomo && !tenant.EsVoluntario(i) ? "Sí" : "No",
                     tipoPermisoTrabajo: extranjero?.TipoPermiso,
                     caducidadPermisoTrabajo: extranjero is null ? null : D.AddDays(extranjero.DiasHastaLaCaducidad),
                     motivoPermisoTrabajo: extranjero is null ? null : "Autorización de residencia y trabajo por cuenta ajena");
                 if (tenant.Perfil == PerfilPilotoOutbound.Autonomo)
                     trabajadores[i].CambiarTipoContratacion(TipoContratacion.Autonomo);
+                else if (tenant.EsVoluntario(i))
+                    trabajadores[i].CambiarTipoContratacion(TipoContratacion.Voluntario);
             }
         }
 

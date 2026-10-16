@@ -2,8 +2,7 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 
 /// <summary>
 /// El perfil de Tenant beneficiario: cada Tenant del piloto representa un tipo de cliente real distinto, de modo que
-/// cambiar de Tenant en pantalla enseña otro estado documental (plan 07-SIEMBRA-REALISTA-PLAN, § 2). El perfil H
-/// (eventos con voluntarios) no está: necesita un Proyecto de tipo Evento y un tipo de contratación que aún no existen.
+/// cambiar de Tenant en pantalla enseña otro estado documental (plan 07-SIEMBRA-REALISTA-PLAN, § 2).
 /// </summary>
 public enum PerfilPilotoOutbound
 {
@@ -26,17 +25,52 @@ public enum PerfilPilotoOutbound
     ConSubcontratas,
 
     /// <summary>G · Bloqueada: documentos caducados, un requisito que bloquea el acceso y reclamaciones sin respuesta.</summary>
-    Bloqueada
+    Bloqueada,
+
+    /// <summary>
+    /// H · Eventos con voluntarios: pocos Trabajadores fijos y muchos voluntarios que entran por Proyectos de tipo Evento
+    /// (uno terminado, uno en curso y uno futuro); los que solo estuvieron en el terminado quedan inactivos.
+    /// </summary>
+    EventosConVoluntarios
 }
+
+/// <summary>
+/// De qué Gestor CAE del Operador CAE externo es la Asignación de Cartera del Tenant beneficiario. Cada Gestor CAE tiene
+/// Tenants exclusivos y uno se comparte; la Coordinadora CAE ve los de los dos (por <c>CoordinadorUsuarioId</c>).
+/// </summary>
+public enum CarteraPilotoOutbound
+{
+    GestoraPrimera,
+    GestorSegundo,
+    Compartida
+}
+
+/// <summary>En qué está un Proyecto de tipo Evento todos los días en que se puede sembrar (D−9 a D).</summary>
+public enum EstadoEventoPilotoOutbound { Terminado, EnCurso, Futuro }
+
+/// <summary>
+/// Un Proyecto de tipo Evento en un Centro. <paramref name="Participantes"/> son índices de Trabajador del Tenant (los
+/// propios y, a continuación, los de sus Subcontratas): cada uno entra con un alta en el evento y, si el evento terminó,
+/// con su baja el último día.
+/// </summary>
+public sealed record EventoPilotoOutbound(
+    string Nombre, int Centro, int DiasDesdeLaDemostracion, int DuracionDias, EstadoEventoPilotoOutbound Estado,
+    IReadOnlyList<int> Participantes);
+
+/// <summary>La plantilla de requisitos que comparten los eventos de un Cliente empresarial: nombres de Tipo de documento.</summary>
+public sealed record PlantillaEventoPilotoOutbound(string Nombre, IReadOnlyList<string> Tipos);
 
 /// <param name="Clave">Letra del perfil (A..G): va en los mensajes de la autoverificación y de la siembra, nunca en un dato que se vea en pantalla.</param>
 /// <param name="Nombre">Nombre del Tenant propietario y razón social de su Empresa propia (la única con EsPropia).</param>
-/// <param name="EnCarteraDelGestorSegundo">La Gestora CAE primera lleva todos; el segundo Gestor CAE, solo los marcados.</param>
+/// <param name="Cartera">El Gestor CAE que lo lleva en su cartera, o los dos si es el compartido.</param>
 /// <param name="Trabajadores">Trabajadores de la Empresa propia; los de cada Subcontrata se suman a continuación.</param>
 public sealed record TenantPilotoOutbound(
-    string Clave, string Nombre, PerfilPilotoOutbound Perfil, bool EnCarteraDelGestorSegundo,
+    string Clave, string Nombre, PerfilPilotoOutbound Perfil, CarteraPilotoOutbound Cartera,
     int Trabajadores, IReadOnlyList<ClienteEmpresarialPilotoOutbound> ClientesEmpresariales)
 {
+    public bool EnCarteraDeLaGestoraPrimera => Cartera != CarteraPilotoOutbound.GestorSegundo;
+    public bool EnCarteraDelGestorSegundo => Cartera != CarteraPilotoOutbound.GestoraPrimera;
+
     public IReadOnlyList<CentroPilotoOutbound> Centros { get; } = [.. ClientesEmpresariales.SelectMany(c => c.Centros)];
 
     /// <summary>Cuántos Trabajadores propios hay en cada Centro, en el orden de <see cref="Centros"/>: suman <see cref="Trabajadores"/>.</summary>
@@ -52,6 +86,23 @@ public sealed record TenantPilotoOutbound(
     public IReadOnlyList<VehiculoPilotoOutbound> Vehiculos { get; init; } = [];
     public IReadOnlyList<ObraPilotoOutbound> Obras { get; init; } = [];
     public IReadOnlyList<VisitaPilotoOutbound> Visitas { get; init; } = [];
+
+    /// <summary>Cuántos de los Trabajadores propios son voluntarios: los últimos de la lista (tipo de contratación «Voluntario»).</summary>
+    public int Voluntarios { get; init; }
+
+    public IReadOnlyList<EventoPilotoOutbound> Eventos { get; init; } = [];
+    public PlantillaEventoPilotoOutbound? PlantillaDeEventos { get; init; }
+
+    /// <summary>Si el Trabajador propio <paramref name="i"/> es voluntario.</summary>
+    public bool EsVoluntario(int i) => i >= Trabajadores - Voluntarios && i < Trabajadores;
+
+    /// <summary>
+    /// Los voluntarios que quedan inactivos (regla de <c>ActividadVoluntario</c>): los que no participan en ningún evento en
+    /// curso ni futuro. Deducido del catálogo, no medido.
+    /// </summary>
+    public int VoluntariosInactivos =>
+        Enumerable.Range(Trabajadores - Voluntarios, Voluntarios)
+            .Count(v => !Eventos.Any(e => e.Estado != EstadoEventoPilotoOutbound.Terminado && e.Participantes.Contains(v)));
     public IReadOnlyList<ExtranjeroPilotoOutbound> Extranjeros { get; init; } = [];
 
     /// <summary>Un Trabajador cedido por una ETT (tipo de vínculo «ETT»).</summary>
@@ -187,7 +238,7 @@ public sealed record EsperadoPilotoOutbound(
 
 /// <summary>
 /// El catálogo declarativo de la siembra del piloto del Servicio TALVEG Outbound: un Operador CAE externo de
-/// demostración y siete Tenants beneficiarios (A..G), uno por perfil. Todos los nombres propios viven aquí; el
+/// demostración y ocho Tenants beneficiarios (A..H), uno por perfil. Todos los nombres propios viven aquí; el
 /// sembrador, la autoverificación y los tests los referencian por constante. Las razones sociales y las personas son
 /// inventadas y no coinciden con ninguna empresa ni persona real conocida.
 /// </summary>
@@ -202,6 +253,7 @@ public static class CatalogoPilotoOutbound
     public const string NombreTenantE = "Rubén Salas Quintana";
     public const string NombreTenantF = "Instalaciones y Montajes Pelvira, S.A.";
     public const string NombreTenantG = "Reformas y Pavimentos Quiroga, S.L.";
+    public const string NombreTenantH = "Eventos Deportivos Valmora, S.L.";
 
     /// <summary>
     /// Los nombres de los seis Tenants de la versión anterior del piloto. Ya no se siembran, pero la retirada del lote
@@ -217,6 +269,7 @@ public static class CatalogoPilotoOutbound
     public const string NombreGestorSegundo = "Daniel Rubio Marín";
     public const string NombreCoordinadora = "Carmen Lozano Prieto";
     public const string NombreAdministradorOperador = "Jorge Sancho Vera";
+    public const string NombreDireccionCae = "Elena Garrido Ocaña";
     public const string NombreAdministradorT1 = "Beatriz Molina Ferrer";
     public const string NombreUsuarioDeClienteEmpresarialT1 = "Ramón Ibáñez Cuesta";
     public const string NombreGestorPendienteDeActivacion = "Sergio Navas Olmedo";
@@ -282,7 +335,7 @@ public static class CatalogoPilotoOutbound
     /// segundo está lo que aún se mueve (próximos y pendientes de validar). Los dos certificados mensuales no se exigen en
     /// sus Centros: un documento mensual coherente solo puede estar «Próximo» y los teñiría todos de ámbar.
     /// </summary>
-    public static TenantPilotoOutbound A { get; } = new("A", NombreTenantA, PerfilPilotoOutbound.AlDia, true, 16,
+    public static TenantPilotoOutbound A { get; } = new("A", NombreTenantA, PerfilPilotoOutbound.AlDia, CarteraPilotoOutbound.GestorSegundo, 16,
     [
         new("Hipermercados Valtora, S.A.",
         [
@@ -310,7 +363,7 @@ public static class CatalogoPilotoOutbound
     };
 
     /// <summary>B · Recién incorporada: un solo Centro, casi todo pendiente de aportar y algún rechazo en la plataforma.</summary>
-    public static TenantPilotoOutbound B { get; } = new("B", NombreTenantB, PerfilPilotoOutbound.RecienIncorporada, false, 7,
+    public static TenantPilotoOutbound B { get; } = new("B", NombreTenantB, PerfilPilotoOutbound.RecienIncorporada, CarteraPilotoOutbound.GestoraPrimera, 7,
     [
         new("Logística Burcena, S.A.", [Centro("Plataforma logística de Illescas", "Illescas")])
     ])
@@ -331,7 +384,7 @@ public static class CatalogoPilotoOutbound
     /// C · Multicliente: tres Clientes empresariales con dos Centros cada uno, exigencias distintas, un Trabajador en dos
     /// Centros, uno de baja, otro cedido por una ETT y dos extranjeros con permiso de trabajo (uno próximo a caducar).
     /// </summary>
-    public static TenantPilotoOutbound C { get; } = new("C", NombreTenantC, PerfilPilotoOutbound.Multicliente, true, 28,
+    public static TenantPilotoOutbound C { get; } = new("C", NombreTenantC, PerfilPilotoOutbound.Multicliente, CarteraPilotoOutbound.Compartida, 28,
     [
         new("Química Hastrel, S.A.",
         [
@@ -384,7 +437,7 @@ public static class CatalogoPilotoOutbound
     };
 
     /// <summary>D · Obras y maquinaria: tres Centros que son obras, cuatro Proyectos abiertos y uno cerrado, y maquinaria con ITC y seguro.</summary>
-    public static TenantPilotoOutbound D { get; } = new("D", NombreTenantD, PerfilPilotoOutbound.ObrasYMaquinaria, false, 20,
+    public static TenantPilotoOutbound D { get; } = new("D", NombreTenantD, PerfilPilotoOutbound.ObrasYMaquinaria, CarteraPilotoOutbound.GestoraPrimera, 20,
     [
         new("Promociones Ibaltar, S.A.",
         [
@@ -424,7 +477,7 @@ public static class CatalogoPilotoOutbound
     };
 
     /// <summary>E · Autónomo: una persona que es su propia Trabajadora, sin plantilla ni documentos de plantilla, con dos Centros.</summary>
-    public static TenantPilotoOutbound E { get; } = new("E", NombreTenantE, PerfilPilotoOutbound.Autonomo, false, 1,
+    public static TenantPilotoOutbound E { get; } = new("E", NombreTenantE, PerfilPilotoOutbound.Autonomo, CarteraPilotoOutbound.GestoraPrimera, 1,
     [
         new("Papelera Mirtaldo, S.A.", [Centro("Fábrica de papel de Hernani", "Hernani")]),
         new("Siderúrgica Moltrevi, S.A.", [Centro("Acería de Avilés", "Avilés")])
@@ -439,7 +492,7 @@ public static class CatalogoPilotoOutbound
     };
 
     /// <summary>F · Con subcontratas: tres Centros, tres Subcontratas (una Supervisada) y una de ellas contratada por otra Subcontrata.</summary>
-    public static TenantPilotoOutbound F { get; } = new("F", NombreTenantF, PerfilPilotoOutbound.ConSubcontratas, true, 14,
+    public static TenantPilotoOutbound F { get; } = new("F", NombreTenantF, PerfilPilotoOutbound.ConSubcontratas, CarteraPilotoOutbound.GestorSegundo, 14,
     [
         new("Terminal Portuaria Tusmedo, S.A.", [Centro("Terminal de contenedores de Algeciras", "Algeciras")]),
         new("Centros de Datos Cinvelto, S.L.", [Centro("Centro de datos de Alcobendas", "Alcobendas")]),
@@ -470,7 +523,7 @@ public static class CatalogoPilotoOutbound
     };
 
     /// <summary>G · Bloqueada: un solo Centro con un requisito que bloquea el acceso, muchos documentos caducados y reclamaciones sin respuesta.</summary>
-    public static TenantPilotoOutbound G { get; } = new("G", NombreTenantG, PerfilPilotoOutbound.Bloqueada, false, 8,
+    public static TenantPilotoOutbound G { get; } = new("G", NombreTenantG, PerfilPilotoOutbound.Bloqueada, CarteraPilotoOutbound.GestoraPrimera, 8,
     [
         new("Laboratorios Visquena, S.A.", [Centro("Planta farmacéutica de Alcalá de Henares", "Alcalá de Henares")])
     ])
@@ -493,14 +546,40 @@ public static class CatalogoPilotoOutbound
         ]
     };
 
-    /// <summary>A..G, en el orden de los perfiles.</summary>
-    public static IReadOnlyList<TenantPilotoOutbound> Tenants { get; } = [A, B, C, D, E, F, G];
+    /// <summary>
+    /// H · Eventos con voluntarios: tres Trabajadores fijos por cuenta ajena y veinte voluntarios en el estadio de un
+    /// Cliente empresarial, una Subcontrata de control de accesos y tres eventos con requisitos copiados de una plantilla.
+    /// Los voluntarios que solo estuvieron en el evento terminado (del 3 al 9) quedan inactivos; los nuevos del evento
+    /// futuro (del 19 al 22) tienen requisitos por aportar desde su asignación, igual que la Subcontrata.
+    /// </summary>
+    public static TenantPilotoOutbound H { get; } = new("H", NombreTenantH, PerfilPilotoOutbound.EventosConVoluntarios, CarteraPilotoOutbound.GestorSegundo, 23,
+    [
+        new("Recintos Deportivos Altaverde, S.A.", [Centro("Estadio Altaverde de Leganés", "Leganés")])
+    ])
+    {
+        TrabajadoresPorCentro = [23],
+        Voluntarios = 20,
+        Subcontratas = [new("Control de Accesos Brivental, S.L.", 4)],
+        Vehiculos = [new("Furgoneta de material", "Furgoneta de carga ligera", "8146LPR", "Furgoneta", "Propiedad", "Seguros Almenara", [0, 2])],
+        // Solo los voluntarios del evento en curso y del futuro (del 17 al 22): los fijos, al día, y los inactivos sin ruido.
+        Receta = new(Proximos: 2, Ausentes: 4, SinConfirmar: 1, PrimerTrabajadorAfectado: 17, HastaElTrabajador: 23),
+        PlantillaDeEventos = new("Jornada en el estadio", [DocumentoIdentidad, FormacionArt19, InformacionArt18, EntregaEpi]),
+        Eventos =
+        [
+            new("Partido de liga, jornada 4", 0, -45, 1, EstadoEventoPilotoOutbound.Terminado, [0, 1, 2, .. Enumerable.Range(3, 12)]),
+            new("Torneo de otoño de fútbol base", 0, -12, 16, EstadoEventoPilotoOutbound.EnCurso, [0, 1, .. Enumerable.Range(10, 9), 23, 24]),
+            new("Partido de liga, jornada 9", 0, 20, 1, EstadoEventoPilotoOutbound.Futuro, [0, 2, .. Enumerable.Range(17, 6), 23, 24, 25, 26])
+        ]
+    };
+
+    /// <summary>A..H, en el orden de los perfiles.</summary>
+    public static IReadOnlyList<TenantPilotoOutbound> Tenants { get; } = [A, B, C, D, E, F, G, H];
 
     /// <summary>
     /// El orden en que se siembran: los pequeños primero y C el último, para que una ejecución en un servidor con poca
     /// memoria haya dejado hecho lo más posible si se interrumpe en el mayor.
     /// </summary>
-    public static IReadOnlyList<TenantPilotoOutbound> EnOrdenDeSiembra { get; } = [E, B, G, A, F, D, C];
+    public static IReadOnlyList<TenantPilotoOutbound> EnOrdenDeSiembra { get; } = [E, B, G, A, F, H, D, C];
 
     /// <summary>
     /// El Tenant que lleva además las cuentas propias del piloto (un Administrador del Tenant y un Usuario de Cliente de su
@@ -511,6 +590,26 @@ public static class CatalogoPilotoOutbound
     /// <summary>Los Tenants del lote, con los de versiones anteriores y el del Operador CAE externo al final: es el orden de retirada.</summary>
     public static IReadOnlyList<string> NombresTenants { get; } =
         [.. Tenants.Select(t => t.Nombre), .. NombresTenantsDeVersionesAnteriores, NombreTenantOperador];
+
+    /// <summary>Las razones sociales que el catálogo inventado da a las Empresas del Tenant: la propia, sus Clientes empresariales y sus Subcontratas.</summary>
+    public static IReadOnlySet<string> RazonesSocialesDe(TenantPilotoOutbound tenant) =>
+        new HashSet<string>([tenant.Nombre, .. tenant.ClientesEmpresariales.Select(c => c.RazonSocial), .. tenant.Subcontratas.Select(s => s.RazonSocial)]);
+
+    /// <summary>
+    /// El reparto de carteras del Operador CAE externo (decisión del 2026-10-16): cada Gestor CAE con al menos un Tenant
+    /// exclusivo y exactamente un Tenant compartido. Vacía si el catálogo lo cumple.
+    /// </summary>
+    public static IReadOnlyList<string> DiscrepanciasDelRepartoDeCarteras(IReadOnlyList<TenantPilotoOutbound> tenants)
+    {
+        var d = new List<string>();
+        if (!tenants.Any(t => t.Cartera == CarteraPilotoOutbound.GestoraPrimera))
+            d.Add("Carteras · la Gestora CAE primera no tiene ningún Tenant exclusivo.");
+        if (!tenants.Any(t => t.Cartera == CarteraPilotoOutbound.GestorSegundo))
+            d.Add("Carteras · el segundo Gestor CAE no tiene ningún Tenant exclusivo.");
+        if (tenants.Count(t => t.Cartera == CarteraPilotoOutbound.Compartida) != 1)
+            d.Add("Carteras · no hay exactamente un Tenant compartido por los dos Gestores CAE.");
+        return d;
+    }
 
     /// <summary>Cuántos Trabajadores siembra el Tenant: los de su Empresa propia y los de sus Subcontratas.</summary>
     public static int TrabajadoresSembrados(TenantPilotoOutbound tenant) => tenant.TrabajadoresSembrados;
@@ -637,6 +736,7 @@ public static class CatalogoPilotoOutbound
             PerfilPilotoOutbound.Autonomo => new(new(80, 100), new(80, 100)),
             PerfilPilotoOutbound.ConSubcontratas => new(new(60, 100), new(60, 95)),
             PerfilPilotoOutbound.Bloqueada => new(new(0, 60), new(0, 60)),
+            PerfilPilotoOutbound.EventosConVoluntarios => new(new(60, 100), new(60, 100)),
             _ => throw new ArgumentOutOfRangeException(nameof(tenant))
         };
 }
