@@ -58,8 +58,12 @@ public class EncargoAdministracion : Entity, IVersionable
 
     public OrigenEncargoAdministracion Origen { get; private set; }
 
-    /// <summary>Actor real que lo registró; nunca un usuario simulado. Guid suelto hacia <c>ApplicationUser</c>.</summary>
-    public Guid RegistradoPorUsuarioId { get; private set; }
+    /// <summary>
+    /// Actor real que lo registró; nunca un usuario simulado. Guid suelto hacia <c>ApplicationUser</c>.
+    /// Vacío solo con <see cref="OrigenEncargoAdministracion.SiembraDeDemostracion"/>: ahí no lo
+    /// registró nadie, y la base exige que el vacío y ese origen vayan juntos.
+    /// </summary>
+    public Guid? RegistradoPorUsuarioId { get; private set; }
 
     public DateTime RegistradoEnUtc { get; private set; }
 
@@ -98,6 +102,35 @@ public class EncargoAdministracion : Entity, IVersionable
         ArgumentNullException.ThrowIfNull(operacion);
         if (registradoPorUsuarioId == Guid.Empty)
             throw new ArgumentException("El encargo debe tener quien lo registra.", nameof(registradoPorUsuarioId));
+        if (origen == OrigenEncargoAdministracion.SiembraDeDemostracion)
+            throw new ArgumentException(
+                "Un encargo con quien lo registra no puede tener el origen de la siembra de demostración.", nameof(origen));
+
+        return Crear(operacion, clausulaContrato, versionTexto, origen, registradoPorUsuarioId, ahora, vigenciaHasta);
+    }
+
+    /// <summary>
+    /// El encargo de la siembra de datos de demostración del piloto (decisión de Chris,
+    /// 2026-10-16, opción A): mismas reglas que <see cref="Registrar"/>, con origen
+    /// <see cref="OrigenEncargoAdministracion.SiembraDeDemostracion"/> y sin quien lo registra,
+    /// porque no lo registró nadie. Solo lo llama la siembra, nunca un comando de Application
+    /// (lo congela un test de arquitectura).
+    /// </summary>
+    public static EncargoAdministracion SembrarDeDemostracion(
+        AsignacionOperacion operacion, string clausulaContrato, DateTime ahora) =>
+        Crear(operacion, clausulaContrato, VersionTextoVigente, OrigenEncargoAdministracion.SiembraDeDemostracion,
+            registradoPorUsuarioId: null, ahora, vigenciaHasta: null);
+
+    private static EncargoAdministracion Crear(
+        AsignacionOperacion operacion,
+        string clausulaContrato,
+        string versionTexto,
+        OrigenEncargoAdministracion origen,
+        Guid? registradoPorUsuarioId,
+        DateTime ahora,
+        DateTime? vigenciaHasta)
+    {
+        ArgumentNullException.ThrowIfNull(operacion);
         if (operacion.EsRaiz || operacion.EsOperacionInterna)
             throw new ArgumentException(
                 "Solo se encarga la administración sobre una operación externa de un Operador CAE.", nameof(operacion));

@@ -10,6 +10,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Gestiones;
 using CaeManager.Domain.Integraciones;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Reclamaciones;
 using CaeManager.Domain.RelacionesEmpresariales;
@@ -686,7 +687,67 @@ public static class PilotoOutboundSeeder
                 await writer.AsegurarCarteraTenantEnteroAsync(tenantPropietarioId, gestorId, cancellationToken);
                 await dbContext.SaveChangesAsync(cancellationToken);
             }
+
+            await SembrarAdministracionPorEncargoAsync(
+                dbContext, tenant, tenantPropietarioId, tenantOperadorId, equipo.Administrador.Id, logger, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// Referencia a la cláusula que lleva el Encargo de administración sembrado. Dice lo que es: no hay contrato
+    /// detrás, y la cláusula contractual sigue pendiente de revisión legal (no vale con datos reales).
+    /// </summary>
+    internal const string ClausulaEncargoDeDemostracion =
+        "Datos de demostración del piloto: sin contrato real; la cláusula de encargo está pendiente de revisión legal.";
+
+    /// <summary>
+    /// Que el Administrador del Operador CAE externo administre por encargo los Tenants propietarios sin
+    /// Administrador propio (decisión de Chris, 2026-10-16, opción A). Dos piezas, las dos idempotentes:
+    /// <list type="number">
+    /// <item><b>Su Asignación de Cartera</b> del Tenant entero, con rol Coordinador CAE y sin marca de principal,
+    /// en los ocho Tenants. Es la misma que emite el producto al escalar o asumir el principal
+    /// (<c>EscaladoDePrincipalDeCartera</c>): la Operación nunca concede un rol de Propiedad. Sin ella el encargo no
+    /// eleva a nadie (<c>TechoDeRolPorEncargo</c>: sin cartera no hay rol). En C, que tiene Administrador propio y no
+    /// lleva encargo, entra como Coordinador CAE y nada más.</item>
+    /// <item><b>El Encargo de administración</b>, en todos menos C, ligado a la operación externa y con origen
+    /// <see cref="OrigenEncargoAdministracion.SiembraDeDemostracion"/>: sin quien lo registra, porque no lo registró
+    /// nadie. No se atribuye a la identidad raíz de plataforma ni al Operador CAE externo que lo recibe.</item>
+    /// </list>
+    /// Cuenta también un encargo retirado: si alguien lo retiró en un ensayo, la siembra no lo repone en el siguiente
+    /// arranque (como la instrucción de IA). La retirada del lote borra los dos con el resto de filas del Tenant.
+    /// Se llama dentro del ámbito del Tenant propietario que abre <see cref="AbrirOperacionExternaAsync"/>.
+    /// </summary>
+    private static async Task SembrarAdministracionPorEncargoAsync(
+        CaeManagerDbContext dbContext, TenantPilotoOutbound tenant, Guid tenantPropietarioId, Guid tenantOperadorId,
+        Guid administradorOperadorId, ILogger logger, CancellationToken cancellationToken)
+    {
+        var ahora = DateTime.UtcNow;
+        var operacion = (await dbContext.AsignacionesOperacion
+                .Where(o => o.PropietarioTenantId == tenantPropietarioId && o.OperadorTenantId == tenantOperadorId && !o.EsRaiz)
+                .ToListAsync(cancellationToken))
+            .SingleOrDefault(o => o.EstaVigenteEn(ahora))
+            ?? throw new InvalidOperationException(
+                $"El Tenant «{tenant.Nombre}» del piloto no tiene una operación externa vigente del Operador CAE externo.");
+
+        var carteras = await dbContext.AsignacionesCartera
+            .Where(c => c.AsignacionOperacionId == operacion.Id && c.UsuarioId == administradorOperadorId)
+            .ToListAsync(cancellationToken);
+        if (!carteras.Any(c => c.EstaVigenteEn(ahora) && c.Ambito.EsUniversal))
+            dbContext.AsignacionesCartera.Add(AsignacionCartera.Externa(
+                operacion, administradorOperadorId, Roles.CoordinadorCae, AmbitoAsignacion.Universal,
+                operacion.VigenciaDesde, vigenciaHasta: null, ahora));
+
+        var llevaEncargo = !ReferenceEquals(tenant, CatalogoPilotoOutbound.TenantConCuentasPropias);
+        if (llevaEncargo && !await dbContext.EncargosAdministracion.AnyAsync(
+                e => e.AsignacionOperacionId == operacion.Id, cancellationToken))
+        {
+            dbContext.EncargosAdministracion.Add(
+                EncargoAdministracion.SembrarDeDemostracion(operacion, ClausulaEncargoDeDemostracion, ahora));
+            logger.LogInformation(
+                "Piloto Outbound, Encargo de administración (siembra de demostración) registrado en «{Tenant}».", tenant.Nombre);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>

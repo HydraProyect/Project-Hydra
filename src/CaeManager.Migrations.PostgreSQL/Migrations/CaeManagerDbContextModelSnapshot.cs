@@ -7281,7 +7281,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime>("RegistradoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("RegistradoPorUsuarioId")
+                    b.Property<Guid?>("RegistradoPorUsuarioId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("RetiradoEnUtc")
@@ -7317,7 +7317,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsUnique()
                         .HasFilter("\"RetiradoEnUtc\" IS NULL");
 
-                    b.ToTable("EncargosAdministracion", (string)null);
+                    b.ToTable("EncargosAdministracion", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_EncargosAdministracion_RegistranteSegunOrigen", "(\"Origen\" = 'SiembraDeDemostracion') = (\"RegistradoPorUsuarioId\" IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Tenants.Tenant", b =>

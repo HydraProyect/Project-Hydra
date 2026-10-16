@@ -4,6 +4,7 @@ using CaeManager.Application.AsistenteIa.Queries.PreguntarAlAsistente;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
+using CaeManager.Application.Cumplimiento.Commands.ActivarTratamientoIaPorEncargo;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesSinRespuesta;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
 using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
@@ -817,6 +818,104 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         segunda.TenantsConDatosNuevos.Should().BeEmpty();
         (await fixture.Arnes.RecuentoAsync()).Should().BeEquivalentTo(antes, "MEDIDO: ni una fila, ni una cuenta, ni un fichero más");
         salida.WriteLine("MEDIDO recuento: " + string.Join(", ", antes.Select(p => $"{p.Key} {p.Value}")));
+    }
+
+    /// <summary>
+    /// Decisión de Chris (2026-10-16, opción A): cada Tenant beneficiario sin Administrador propio —los siete que no
+    /// son C— lleva un Encargo de administración vigente a favor del Operador CAE externo, sembrado por la siembra
+    /// sin quien lo registre. C, con Administrador propio, no lleva ninguno. Y el Administrador del Operador CAE
+    /// externo tiene en los ocho la cartera del Tenant entero con rol Coordinador CAE, sin marca de principal, que es
+    /// lo que el encargo eleva. Se lee con la identidad de bootstrap y se afirma por nombre contra el catálogo.
+    /// </summary>
+    [Fact]
+    public async Task Los_siete_Tenants_sin_Administrador_propio_llevan_el_encargo_de_la_siembra_y_C_no()
+    {
+        var conEncargo = CatalogoPilotoOutbound.Tenants.Where(t => !ReferenceEquals(t, C)).Select(t => t.Nombre).ToList();
+        conEncargo.Should().HaveCount(7);
+
+        var medido = await fixture.Arnes.ComoBootstrapAsync(async b =>
+        {
+            var operadorId = await b.Tenants.Where(t => t.Nombre == CatalogoPilotoOutbound.NombreTenantOperador).Select(t => t.Id).SingleAsync();
+            var administradorId = await b.Users.IgnoreQueryFilters()
+                .Where(u => u.Email == CuentasPilotoOutbound.Locales.AdministradorOperador).Select(u => u.Id).SingleAsync();
+            var nombres = CatalogoPilotoOutbound.Tenants.Select(t => t.Nombre).ToList();
+            var tenants = await b.Tenants.Where(t => nombres.Contains(t.Nombre)).ToDictionaryAsync(t => t.Id, t => t.Nombre);
+
+            var encargos = await b.EncargosAdministracion.IgnoreQueryFilters()
+                .Where(e => tenants.Keys.Contains(e.PropietarioTenantId)).ToListAsync();
+            var carteras = await (
+                from cartera in b.AsignacionesCartera.IgnoreQueryFilters()
+                join operacion in b.AsignacionesOperacion.IgnoreQueryFilters() on cartera.AsignacionOperacionId equals operacion.Id
+                where cartera.UsuarioId == administradorId && tenants.Keys.Contains(operacion.PropietarioTenantId)
+                select new { Tenant = operacion.PropietarioTenantId, operacion.OperadorTenantId, cartera }).ToListAsync();
+
+            return (operadorId, tenants, encargos, carteras: carteras.Select(c => (c.Tenant, c.OperadorTenantId, c.cartera)).ToList());
+        });
+
+        var ahora = DateTime.UtcNow;
+        medido.encargos.Select(e => medido.tenants[e.PropietarioTenantId]).Should().BeEquivalentTo(conEncargo,
+            "uno por Tenant sin Administrador propio, y ninguno en C");
+        medido.encargos.Should().AllSatisfy(e =>
+        {
+            e.EstaVigente(ahora).Should().BeTrue();
+            e.OperadorTenantId.Should().Be(medido.operadorId);
+            e.Origen.Should().Be(OrigenEncargoAdministracion.SiembraDeDemostracion);
+            e.RegistradoPorUsuarioId.Should().BeNull("no lo registró nadie: no se atribuye a una persona");
+            e.ClausulaContrato.Should().Be(PilotoOutboundSeeder.ClausulaEncargoDeDemostracion);
+        });
+
+        medido.carteras.Select(c => medido.tenants[c.Tenant]).Should().BeEquivalentTo(
+            CatalogoPilotoOutbound.Tenants.Select(t => t.Nombre), "una cartera en cada uno de los ocho, también en C");
+        medido.carteras.Should().AllSatisfy(c =>
+        {
+            c.OperadorTenantId.Should().Be(medido.operadorId, "cuelga de la operación externa del Operador CAE externo");
+            c.cartera.Rol.Should().Be(Roles.CoordinadorCae, "la Operación nunca concede un rol de Propiedad");
+            c.cartera.Ambito.EsUniversal.Should().BeTrue("del Tenant entero: si no, el encargo no eleva");
+            c.cartera.EsPrincipal.Should().BeFalse("el principal sigue siendo del Gestor CAE");
+            c.cartera.EstaVigenteEn(ahora).Should().BeTrue();
+        });
+    }
+
+    /// <summary>
+    /// El encargo surte efecto con la identidad real y por el camino de producción (<c>CurrentUserService</c> →
+    /// <c>TechoDeRolPorEncargo</c>, bajo el rol restringido): en un Tenant con encargo el Administrador del Operador CAE
+    /// externo es Administrador pleno y supera la autoridad de un acto de Administrador, activar la IA por encargo
+    /// (<c>ActivarTratamientoIaPorEncargoCommand</c>), que se detiene después, en «ya está activada», porque la siembra
+    /// deja la instrucción de demostración vigente. En C entra con el rol de su cartera, Coordinador CAE, sin encargo
+    /// que lo eleve, y el mismo acto se le niega por autoridad.
+    /// </summary>
+    [Fact]
+    public async Task El_Administrador_del_Operador_CAE_administra_por_encargo_un_Tenant_sin_Administrador_propio_y_C_no()
+    {
+        var conEncargo = CatalogoPilotoOutbound.Tenants.First(t => !ReferenceEquals(t, C));
+
+        var enElDeEncargo = await ComoAdministradorDelOperadorEnAsync(conEncargo);
+        enElDeEncargo.Rol.Should().Be(Roles.Administrador);
+        enElDeEncargo.EncargoPleno.Should().NotBeNull("el encargo que eleva es pleno: el Tenant no tiene Administrador propio");
+        enElDeEncargo.Activar.Error.Should().Be(ActivarTratamientoIaPorEncargoCommandHandler.YaVigente,
+            "la autoridad pasa; lo que lo detiene es la instrucción de demostración ya vigente");
+
+        var enC = await ComoAdministradorDelOperadorEnAsync(C);
+        enC.Rol.Should().Be(Roles.CoordinadorCae, "sin encargo, el rol de su cartera");
+        enC.EncargoPleno.Should().BeNull();
+        enC.Activar.Error.Should().Be(ActivarTratamientoIaPorEncargoCommandHandler.NoAutorizado);
+    }
+
+    private async Task<(string? Rol, Guid? EncargoPleno, Result<Guid> Activar)> ComoAdministradorDelOperadorEnAsync(
+        TenantPilotoOutbound tenant)
+    {
+        var tenantId = await fixture.Arnes.TenantIdAsync(tenant.Nombre);
+        return await fixture.Arnes.ComoCuentaAsync(
+            CatalogoPilotoOutbound.NombreTenantOperador, CuentasPilotoOutbound.Locales.AdministradorOperador, async sp =>
+            {
+                using (AmbitoTenantExplicito.Establecer(tenantId))
+                {
+                    var usuario = sp.GetRequiredService<ICurrentUserService>();
+                    return (await usuario.ObtenerRolEfectivoAsync(), await sp.GetRequiredService<IEncargoDeAdministracionActual>().EncargoPlenoAsync(),
+                        await sp.GetRequiredService<ISender>().Send(
+                            new ActivarTratamientoIaPorEncargoCommand("DPA-2026-10", "Anexo-II-2026-10")));
+                }
+            });
     }
 
     private sealed class RelojEn(DateTime utc) : TimeProvider

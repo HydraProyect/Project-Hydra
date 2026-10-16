@@ -45,6 +45,9 @@
   <data name="OrigenPlataforma" xml:space="preserve">
     <value>El soporte de TALVEG, en el aprovisionamiento</value>
   </data>
+  <data name="OrigenSiembraDeDemostracion" xml:space="preserve">
+    <value>La siembra de datos de demostración, sin nadie que lo registrara</value>
+  </data>
   <data name="OrigenAdministradorPropio" xml:space="preserve">
     <value>Un Administrador de esta organización</value>
   </data>

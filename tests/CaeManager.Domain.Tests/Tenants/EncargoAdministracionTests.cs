@@ -55,6 +55,42 @@ public class EncargoAdministracionTests
         encargo.EstaVigente(Ahora).Should().BeTrue();
     }
 
+    [Fact]
+    public void El_de_la_siembra_de_demostracion_nace_vigente_sin_quien_lo_registra_y_con_las_mismas_reglas()
+    {
+        var operacion = OperacionExternaUniversal();
+
+        var encargo = EncargoAdministracion.SembrarDeDemostracion(operacion, "  " + Clausula + "  ", Ahora);
+
+        encargo.Origen.Should().Be(OrigenEncargoAdministracion.SiembraDeDemostracion);
+        encargo.RegistradoPorUsuarioId.Should().BeNull("no lo registró nadie");
+        encargo.AsignacionOperacionId.Should().Be(operacion.Id);
+        encargo.PropietarioTenantId.Should().Be(Propietario);
+        encargo.OperadorTenantId.Should().Be(Operador);
+        encargo.ClausulaContrato.Should().Be(Clausula);
+        encargo.VersionTexto.Should().Be(EncargoAdministracion.VersionTextoVigente);
+        encargo.VigenciaHasta.Should().BeNull();
+        encargo.EstaVigente(Ahora).Should().BeTrue();
+
+        // Las reglas de la operación y de la cláusula son las mismas que las del producto.
+        var parcial = AsignacionOperacion.Externa(
+            Propietario, Operador, ServicioCae.Outbound, new AmbitoAsignacion(CentroId: Guid.NewGuid()), Ahora.AddDays(-30), null, Ahora);
+        FluentActions.Invoking(() => EncargoAdministracion.SembrarDeDemostracion(parcial, Clausula, Ahora))
+            .Should().Throw<ArgumentException>();
+        FluentActions.Invoking(() => EncargoAdministracion.SembrarDeDemostracion(operacion, " ", Ahora))
+            .Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Con_quien_lo_registra_no_se_admite_el_origen_de_la_siembra_de_demostracion()
+    {
+        var registrar = () => EncargoAdministracion.Registrar(
+            OperacionExternaUniversal(), Clausula, EncargoAdministracion.VersionTextoVigente,
+            OrigenEncargoAdministracion.SiembraDeDemostracion, ActorReal, Ahora, vigenciaHasta: null);
+
+        registrar.Should().Throw<ArgumentException>().WithParameterName("origen");
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
