@@ -20,6 +20,13 @@ public class CentroConfiguration : IEntityTypeConfiguration<Centro>
         builder.Property(c => c.Direccion).HasMaxLength(Centro.LongitudMaximaDireccion);
         builder.Property(c => c.Contacto).HasMaxLength(Centro.LongitudMaximaContacto);
 
+        builder.Property(c => c.HorarioAcceso).HasMaxLength(500);
+        builder.Property(c => c.ControlAccesosNombre).HasMaxLength(200);
+        builder.Property(c => c.ControlAccesosTelefono).HasMaxLength(50);
+        builder.Property(c => c.TecnicoPrevencionNombre).HasMaxLength(200);
+        builder.Property(c => c.TecnicoPrevencionTelefono).HasMaxLength(50);
+        builder.Property(c => c.TecnicoPrevencionCorreo).HasMaxLength(254);
+
         // P1-X2: GestionCae se guarda como entero (convención); la migración que
         // la añade rellena 0 (ConGestionCae), así que los Centros que ya
         // existían siguen exigiendo gestión CAE sin backfill.

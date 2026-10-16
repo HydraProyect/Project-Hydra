@@ -502,4 +502,26 @@
   <data name="SubtituloTrabajadorPorEvento" xml:space="preserve">
     <value>{0} · només per l'esdeveniment «{1}» · des de {2}</value>
   </data>
+  <data name="FichaEditarTitulo" xml:space="preserve"><value>Editar accés i prevenció</value></data>
+  <data name="FichaAccesoTitulo" xml:space="preserve"><value>Accés al Centre</value></data>
+  <data name="FichaPrevencionTitulo" xml:space="preserve"><value>Prevenció i treballs especials del Centre</value></data>
+  <data name="FichaSinInformar" xml:space="preserve"><value>Sense informar</value></data>
+  <data name="FichaSi" xml:space="preserve"><value>Sí</value></data>
+  <data name="FichaNo" xml:space="preserve"><value>No</value></data>
+  <data name="FichaNoDisponible" xml:space="preserve"><value>No hem pogut carregar la fitxa d’aquest centre.</value></data>
+  <data name="FichaGuardada" xml:space="preserve"><value>Fitxa del centre desada.</value></data>
+  <data name="FichaErrorGuardar" xml:space="preserve"><value>No hem pogut desar la fitxa. Torna-ho a provar.</value></data>
+  <data name="FichaHorarioAcceso" xml:space="preserve"><value>Horari d’accés</value></data>
+  <data name="FichaControlAccesosNombre" xml:space="preserve"><value>Control d’accessos</value></data>
+  <data name="FichaControlAccesosTelefono" xml:space="preserve"><value>Telèfon de control d’accessos</value></data>
+  <data name="FichaTecnicoPrevencionNombre" xml:space="preserve"><value>Tècnic de prevenció</value></data>
+  <data name="FichaTecnicoPrevencionTelefono" xml:space="preserve"><value>Telèfon de prevenció</value></data>
+  <data name="FichaTecnicoPrevencionCorreo" xml:space="preserve"><value>Correu de prevenció</value></data>
+  <data name="FichaTrabajosEnAltura" xml:space="preserve"><value>Treballs en altura</value></data>
+  <data name="FichaEspaciosConfinados" xml:space="preserve"><value>Espais confinats</value></data>
+  <data name="FichaAtmosferasExplosivas" xml:space="preserve"><value>Atmosferes explosives</value></data>
+  <data name="BotonGuardar" xml:space="preserve"><value>Desar</value></data>
+  <data name="BotonCancelar" xml:space="preserve"><value>Cancel·lar</value></data>
+  <data name="FichaCopiarDato" xml:space="preserve"><value>Copia {0}</value></data>
+  <data name="FichaEditarAccion" xml:space="preserve"><value>Editar</value></data>
 </root>

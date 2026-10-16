@@ -29,9 +29,10 @@ public partial class Centro360Gen2Tests
         var consultas = mediador.Enviadas.Count;
         await cut.Find("[role=tab][aria-controls$='-ficha']").ClickAsync(new MouseEventArgs());
         navegador.Uri.Should().Contain("pestana=ficha").And.Contain("q=Ana").And.Contain("estado=Vencido").And.Contain("extra=conservar");
-        cut.FindComponent<CajasFicha>().Instance.Cajas.Should().ContainSingle();
+        cut.FindComponent<CajasFicha>().Instance.Cajas.Should().HaveCount(2);
         var caja = cut.Find("[data-caja=datos-centro]").TextContent;
-        caja.Should().Contain("CN-01").And.Contain("Pol. Norte 4").And.Contain("Marta R.");
+        caja.Should().Contain("CN-01").And.Contain("Marta R.");
+        cut.Find("[data-caja=acceso-centro]").TextContent.Should().Contain("Pol. Norte 4");
         caja.Should().NotContain("Horario").And.NotContain("Control de accesos").And.NotContain("Técnico de prevención");
         cut.Find(".barra-filtros").HasAttribute("hidden").Should().BeTrue();
         mediador.Enviadas.Count.Should().Be(consultas);
@@ -50,7 +51,7 @@ public partial class Centro360Gen2Tests
         Services.GetRequiredService<NavigationManager>().NavigateTo($"centros/{id}?pestana=ficha");
         var cut = Renderizar(id);
         cut.FindComponent<CajasFicha>().Instance.Cajas.Should().ContainSingle();
-        cut.Find("[data-caja=datos-centro]").TextContent.Should().Contain(etiqueta).And.Contain(codigo ?? direccion ?? contacto!);
+        cut.Find(direccion is null ? "[data-caja=datos-centro]" : "[data-caja=acceso-centro]").TextContent.Should().Contain(etiqueta).And.Contain(codigo ?? direccion ?? contacto!);
         cut.FindComponents<DatoRejilla>().Should().ContainSingle();
     }
 

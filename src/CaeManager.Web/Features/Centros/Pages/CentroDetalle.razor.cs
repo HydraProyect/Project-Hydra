@@ -69,8 +69,18 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private const string PestanaFicha = "ficha";
     private const string PestanaHistorial = "historial";
 
+    private bool HayAccesoFicha => _detalle is { } d &&
+        (!string.IsNullOrWhiteSpace(d.Direccion) || d.FichaVisible &&
+            (d.HorarioAcceso is not null || d.ControlAccesosNombre is not null || d.ControlAccesosTelefono is not null));
+    private bool HayDatosBasicosFicha => _detalle is { } d &&
+        (!string.IsNullOrWhiteSpace(d.CodigoCentro) || !string.IsNullOrWhiteSpace(d.Contacto) || d.ContratoVigenteHasta is not null);
+    private bool HayPrevencionFicha => _detalle is { FichaVisible: true } d &&
+        (d.TecnicoPrevencionNombre is not null || d.TecnicoPrevencionCorreo is not null || d.TecnicoPrevencionTelefono is not null
+            || d.TrabajosEnAltura is not null || d.EspaciosConfinados is not null || d.AtmosferasExplosivas is not null);
+    private bool _editarFichaVisible;
+
     private bool HayDatosFicha => _detalle is { } detalle &&
-        (!string.IsNullOrWhiteSpace(detalle.CodigoCentro) || !string.IsNullOrWhiteSpace(detalle.Direccion) || !string.IsNullOrWhiteSpace(detalle.Contacto) || detalle.ContratoVigenteHasta is not null);
+        (!string.IsNullOrWhiteSpace(detalle.CodigoCentro) || !string.IsNullOrWhiteSpace(detalle.Direccion) || !string.IsNullOrWhiteSpace(detalle.Contacto) || detalle.ContratoVigenteHasta is not null || HayAccesoFicha || HayPrevencionFicha);
 
     // Solo cambia el orden de presentación: _visitas[0] conserva la ventana de riesgo que eligió el lector.
     private IReadOnlyList<VisitaResumenDto> VisitasParaMostrar => _visitas

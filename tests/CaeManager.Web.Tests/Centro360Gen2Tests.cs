@@ -62,6 +62,7 @@ public partial class Centro360Gen2Tests : BunitContext
     public Centro360Gen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        JSInterop.SetupModule("./js/cajas-ficha.js").Setup<double[]>("medirAlturas", _ => true).SetResult([]);
         this.ConRolDeEscritura();
     }
 
@@ -90,6 +91,8 @@ public partial class Centro360Gen2Tests : BunitContext
 
         public Result<ResultadoBajaLoteDto> ResultadoBaja { get; set; } = Result.Exito(new ResultadoBajaLoteDto(0, []));
         public Result<Guid> ResultadoCrearAsignacion { get; set; } = Result.Exito(Guid.NewGuid());
+        public Result ResultadoFicha { get; set; } = Result.Exito();
+        public CentroDetalleDto? DetalleTrasGuardarFicha { get; set; }
 
         /// <summary>Si devuelve una tarea, la respuesta espera a que se complete.</summary>
         public Func<object, Task?>? Retener { get; set; }
@@ -140,8 +143,15 @@ public partial class Centro360Gen2Tests : BunitContext
             CrearAsignacionCommand => ResultadoCrearAsignacion,
             EliminarCentroCommand => Result.Exito(),
             RestaurarCentroCommand => Result.Exito(),
+            CaeManager.Application.Centros.Commands.EditarFichaCentro.EditarFichaCentroCommand c => GuardarFicha(c),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
+
+        private Result GuardarFicha(CaeManager.Application.Centros.Commands.EditarFichaCentro.EditarFichaCentroCommand comando)
+        {
+            if (ResultadoFicha.EsExitoso && DetalleTrasGuardarFicha is { } detalle) Detalles[comando.Id] = detalle;
+            return ResultadoFicha;
+        }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
             Task.CompletedTask;
