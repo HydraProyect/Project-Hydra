@@ -835,12 +835,121 @@ public class Proyecto360PaginaTests : BunitContext
     [InlineData("2026-01-09", "2026-03-04", "2026-10-08", 55)]   // cerrado: hasta el cierre real
     [InlineData("2026-10-08", null, "2026-10-08", 1)]
     public void Dias_abiertos_cuenta_inclusiva(string inicio, string? cierre, string hoy, int esperado) =>
-        PlazoProyecto.DiasAbiertos(DateOnly.Parse(inicio), cierre is null ? null : DateOnly.Parse(cierre), DateOnly.Parse(hoy))
+        PlazoProyecto.DiasAbiertos(TipoProyecto.Obra, DateOnly.Parse(inicio), null, cierre is null ? null : DateOnly.Parse(cierre), DateOnly.Parse(hoy))
             .Should().Be(esperado);
 
     [Fact]
     public void Dias_abiertos_sin_valor_si_no_ha_empezado() =>
-        PlazoProyecto.DiasAbiertos(new DateOnly(2026, 12, 1), null, new DateOnly(2026, 10, 8)).Should().BeNull();
+        PlazoProyecto.DiasAbiertos(TipoProyecto.Obra, new DateOnly(2026, 12, 1), null, null, new DateOnly(2026, 10, 8)).Should().BeNull();
+
+    /// <summary>
+    /// La obra sin cerrar sigue abierta aunque haya pasado su fin previsto: sus días llegan a hoy, no al fin
+    /// (decisión 2026-10-16: la ventana acotada es solo del evento).
+    /// </summary>
+    [Fact]
+    public void Una_obra_pasada_de_su_fin_previsto_sin_cerrar_sigue_contando_hasta_hoy() =>
+        PlazoProyecto.DiasAbiertos(TipoProyecto.Obra, new DateOnly(2026, 3, 12), new DateOnly(2026, 5, 1), null, new DateOnly(2026, 10, 8))
+            .Should().Be(211);
+
+    /// <summary>
+    /// Un evento cuenta solo entre sus fechas (decisión 2026-10-16, «Centro temporal»): del inicio al fin
+    /// previsto, o al cierre real si llega antes, o a hoy mientras está en curso. Cuenta inclusiva.
+    /// </summary>
+    [Theory]
+    [InlineData("2026-10-20", "2026-10-25", null, "2026-10-08", null)]         // futuro: sin valor
+    [InlineData("2026-10-01", "2026-10-20", null, "2026-10-08", 8)]            // en curso: hasta hoy
+    [InlineData("2026-10-01", "2026-10-20", null, "2026-10-01", 1)]            // el día de inicio ya cuenta
+    [InlineData("2026-10-01", "2026-10-20", null, "2026-10-20", 20)]           // el último día todavía está en curso
+    [InlineData("2026-03-12", "2026-03-20", null, "2026-10-08", 9)]            // terminado sin cierre: se queda en el fin
+    [InlineData("2026-03-12", "2026-03-20", "2026-03-15", "2026-10-08", 4)]    // cerrado antes del fin: hasta el cierre
+    [InlineData("2026-03-12", "2026-03-20", "2026-04-01", "2026-10-08", 9)]    // cerrado tarde: el evento ya había terminado
+    [InlineData("2026-03-12", "2026-03-20", "2026-03-20", "2026-10-08", 9)]    // cerrado el mismo día del fin
+    public void Dias_abiertos_de_un_evento_solo_cuentan_entre_sus_fechas(
+        string inicio, string fin, string? cierre, string hoy, int? esperado) =>
+        PlazoProyecto.DiasAbiertos(TipoProyecto.Evento, DateOnly.Parse(inicio), DateOnly.Parse(fin),
+                cierre is null ? null : DateOnly.Parse(cierre), DateOnly.Parse(hoy))
+            .Should().Be(esperado);
+
+    /// <summary>El porcentaje del plazo de un evento terminado y sin cerrar se queda en 100 y el de uno en curso avanza.</summary>
+    [Theory]
+    [InlineData("2026-10-01", "2026-10-20", "2026-10-10", 50)]   // 10 de 20 días
+    [InlineData("2026-10-01", "2026-10-20", "2026-12-31", 100)]  // terminado sin cerrar
+    public void El_porcentaje_del_plazo_de_un_evento_sin_cerrar_llega_a_100_y_no_lo_supera(string inicio, string fin, string hoy, int esperado) =>
+        PlazoProyecto.PorcentajeDelPlazo(DateOnly.Parse(inicio), DateOnly.Parse(fin), null, DateOnly.Parse(hoy))
+            .Should().Be(esperado);
+
+    [Fact]
+    public void El_plazo_de_un_evento_terminado_y_sin_cerrar_en_la_ficha_se_queda_en_la_duracion_del_evento()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        _mediador.Detalles[AbiertoId] = Abierto with
+        {
+            Tipo = TipoProyecto.Evento,
+            FechaInicio = hoy.AddDays(-20),
+            FechaFinPrevista = hoy.AddDays(-12),
+            FechaCierreReal = null,
+        };
+
+        var cut = Renderizar(AbiertoId, "?pestana=ficha");
+
+        cut.WaitForAssertion(() => cut.Find("[data-pieza=cajas-ficha] [data-caja=plazo]").TextContent
+            .Should().Contain("9 días abierto", "del inicio al fin del evento, no hasta hoy (21 días)").And.NotContain("21 días"));
+    }
+
+    [Fact]
+    public void El_plazo_de_un_evento_cerrado_antes_de_su_fin_cuenta_hasta_el_cierre_y_no_lleva_la_nota_de_facturacion()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        _mediador.Detalles[AbiertoId] = Abierto with
+        {
+            Tipo = TipoProyecto.Evento,
+            EstaAbierto = false,
+            FechaInicio = hoy.AddDays(-20),
+            FechaFinPrevista = hoy.AddDays(-12),
+            FechaCierreReal = hoy.AddDays(-17),
+        };
+
+        var cut = Renderizar(AbiertoId, "?pestana=ficha");
+
+        cut.WaitForAssertion(() => cut.Find("[data-pieza=cajas-ficha] [data-caja=plazo]").TextContent
+            .Should().Contain("4 días abierto", "del inicio al cierre, que llegó antes que el fin previsto")
+            .And.NotContain("facturación", "un evento no se factura"));
+    }
+
+    [Fact]
+    public void El_plazo_de_un_evento_futuro_dice_que_todavia_no_ha_empezado()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        _mediador.Detalles[AbiertoId] = Abierto with
+        {
+            Tipo = TipoProyecto.Evento,
+            FechaInicio = hoy.AddDays(10),
+            FechaFinPrevista = hoy.AddDays(12),
+            FechaCierreReal = null,
+        };
+
+        var cut = Renderizar(AbiertoId, "?pestana=ficha");
+
+        cut.WaitForAssertion(() => cut.Find("[data-pieza=cajas-ficha] [data-caja=plazo]").TextContent
+            .Should().Contain("Todavía no ha empezado"));
+    }
+
+    [Fact]
+    public void Una_obra_pasada_de_su_fin_previsto_sigue_sumando_dias_en_la_ficha()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        _mediador.Detalles[AbiertoId] = Abierto with
+        {
+            FechaInicio = hoy.AddDays(-20),
+            FechaFinPrevista = hoy.AddDays(-12),
+            FechaCierreReal = null,
+        };
+
+        var cut = Renderizar(AbiertoId, "?pestana=ficha");
+
+        cut.WaitForAssertion(() => cut.Find("[data-pieza=cajas-ficha] [data-caja=plazo]").TextContent
+            .Should().Contain("21 días abierto").And.Contain("Los días abiertos son la base de la facturación del proyecto."));
+    }
 
     [Theory]
     [InlineData("2026-03-12", "2026-11-30", null, "2026-10-08", 80)]

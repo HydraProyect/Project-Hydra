@@ -121,11 +121,12 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     /// <summary>
     /// El motivo bajo la pastilla de estado: cuánto lleva abierto el Proyecto o cuánto duró, con la cuenta
-    /// inclusiva de <see cref="PlazoProyecto.DiasAbiertos"/> (la de la ficha 360 y la facturación por días).
+    /// inclusiva de <see cref="PlazoProyecto.DiasAbiertos"/> (la de la ficha 360 y la facturación por días). Un Evento cuenta
+    /// solo entre sus fechas (decisión 2026-10-16), no hasta hoy.
     /// </summary>
     private string MotivoEstado(ProyectoListaDto proyecto)
     {
-        if (PlazoProyecto.DiasAbiertos(proyecto.FechaInicio, proyecto.FechaCierreReal, Hoy) is not { } dias)
+        if (PlazoProyecto.DiasAbiertos(proyecto.Tipo, proyecto.FechaInicio, proyecto.FechaFinPrevista, proyecto.FechaCierreReal, Hoy) is not { } dias)
             return proyecto.EstaAbierto ? Textos["PlazoSinEmpezar"] : string.Empty;
 
         return proyecto.EstaAbierto
@@ -1095,8 +1096,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         return Task.CompletedTask;
     }
 
-    private static int? DiasAbiertos(DateOnly inicio, DateOnly? cierre, DateOnly hoy) =>
-        PlazoProyecto.DiasAbiertos(inicio, cierre, hoy);
+    private static int? DiasAbiertos(ProyectoDetalleDto detalle, DateOnly hoy) =>
+        PlazoProyecto.DiasAbiertos(detalle.Tipo, detalle.FechaInicio, detalle.FechaFinPrevista, detalle.FechaCierreReal, hoy);
 
     private string TextoTecnicosActivos(int tecnicosActivos) =>
         tecnicosActivos == 1

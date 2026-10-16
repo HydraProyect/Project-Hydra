@@ -281,7 +281,11 @@
             {
                 <p class="proyecto360-plazo-detalle">@PlazoDetalle</p>
             }
-            <p class="proyecto360-nota">@Textos["PlazoNota"]</p>
+            @if (!EsEvento)
+            {
+                // La facturación por días solo cuenta obras: un evento no se factura, así que no lleva esta nota.
+                <p class="proyecto360-nota">@Textos["PlazoNota"]</p>
+            }
         </Tarjeta>
     };
 
