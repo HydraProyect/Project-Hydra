@@ -52,9 +52,10 @@ public class EncargoAdministracionComponentesTests : BunitContext
     private ToastService Toasts => Services.GetRequiredService<ToastService>();
 
     private static EncargoAdministracionDto Encargo(
-        EstadoEncargoAdministracion estado = EstadoEncargoAdministracion.Vigente, string operador = Operador) =>
+        EstadoEncargoAdministracion estado = EstadoEncargoAdministracion.Vigente, string operador = Operador,
+        OrigenEncargoAdministracion origen = OrigenEncargoAdministracion.AprovisionamientoDePlataforma) =>
         new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), operador, Clausula, "v1",
-            OrigenEncargoAdministracion.AprovisionamientoDePlataforma, Guid.NewGuid(),
+            origen, origen == OrigenEncargoAdministracion.SiembraDeDemostracion ? null : Guid.NewGuid(),
             new DateTime(2026, 10, 1, 9, 0, 0, DateTimeKind.Utc), new DateTime(2026, 10, 1, 9, 0, 0, DateTimeKind.Utc),
             null, null, estado == EstadoEncargoAdministracion.Retirado ? new DateTime(2026, 10, 5, 9, 0, 0, DateTimeKind.Utc) : null,
             estado);
@@ -79,6 +80,23 @@ public class EncargoAdministracionComponentesTests : BunitContext
         fila.TextContent.Should().Contain(Operador).And.Contain(Clausula).And.Contain("Vigente").And.Contain("Sin fecha de fin");
         cut.Markup.Should().NotContain("Operador CAE externo anterior");
         cut.Markup.Should().Contain("administran por encargo").And.NotContain("es administrador de");
+    }
+
+    /// <summary>
+    /// Cada origen dice quién registró el encargo. El de la siembra de demostración no lo atribuye a
+    /// nadie: si cayera en la rama por defecto diría «Un Administrador de esta organización», que es falso.
+    /// </summary>
+    [Theory]
+    [InlineData(OrigenEncargoAdministracion.AprovisionamientoDePlataforma, "El soporte de TALVEG, en el aprovisionamiento")]
+    [InlineData(OrigenEncargoAdministracion.AdministradorPropio, "Un Administrador de esta organización")]
+    [InlineData(OrigenEncargoAdministracion.SiembraDeDemostracion, "La siembra de datos de demostración, sin nadie que lo registrara")]
+    public void El_panel_dice_quien_registro_el_encargo_segun_su_origen(OrigenEncargoAdministracion origen, string texto)
+    {
+        _mediator.Encargos = [Encargo(origen: origen)];
+
+        var cut = Render<EncargoAdministracionPanel>();
+
+        cut.Find("[data-testid=encargo-vigente]").TextContent.Should().Contain(texto);
     }
 
     [Fact]

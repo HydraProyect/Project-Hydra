@@ -41,7 +41,7 @@ public record EncargoAdministracionDto(
     string ClausulaContrato,
     string VersionTexto,
     OrigenEncargoAdministracion Origen,
-    Guid RegistradoPorUsuarioId,
+    Guid? RegistradoPorUsuarioId,
     DateTime RegistradoEnUtc,
     DateTime VigenciaDesde,
     DateTime? VigenciaHasta,

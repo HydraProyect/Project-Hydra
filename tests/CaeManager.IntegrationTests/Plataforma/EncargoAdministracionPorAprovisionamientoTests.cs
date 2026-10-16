@@ -181,15 +181,18 @@ public class EncargoAdministracionPorAprovisionamientoTests : IAsyncLifetime
             .Should().Be((PostgresErrorCodes.CheckViolation, -1), "el autor de la retirada no se reescribe");
 
         // Las columnas salen de la migración que crea la tabla, no de memoria.
-        string Insertar(Guid operadorTenantId) =>
+        string Insertar(
+            Guid operadorTenantId,
+            OrigenEncargoAdministracion origen = OrigenEncargoAdministracion.AprovisionamientoDePlataforma,
+            string? registrante = null) =>
             $"""
             INSERT INTO public."EncargosAdministracion"
                 ("Id", "PropietarioTenantId", "OperadorTenantId", "AsignacionOperacionId", "ClausulaContrato",
                  "VersionTexto", "Origen", "RegistradoPorUsuarioId", "RegistradoEnUtc", "VigenciaDesde", "Version")
             VALUES
                 ('{Guid.NewGuid()}', '{_propietario.Id}', '{operadorTenantId}', '{_operacionId}', 'Cláusula de prueba',
-                 '{EncargoAdministracion.VersionTextoVigente}', '{OrigenEncargoAdministracion.AprovisionamientoDePlataforma}',
-                 '{_soporte}', now(), now(), '{Guid.NewGuid()}');
+                 '{EncargoAdministracion.VersionTextoVigente}', '{origen}',
+                 {registrante ?? $"'{_soporte}'"}, now(), now(), '{Guid.NewGuid()}');
             """;
 
         (await SqlStateComoAprovisionamientoAsync(Insertar(_plataforma.Id)))
@@ -199,6 +202,18 @@ public class EncargoAdministracionPorAprovisionamientoTests : IAsyncLifetime
         // Sin él, el rojo anterior podría ser de un disparador que no ve la operación bajo RLS.
         (await SqlStateComoAprovisionamientoAsync(Insertar(_operador.Id)))
             .Should().Be(((string?)null, 1));
+
+        // CK_EncargosAdministracion_RegistranteSegunOrigen: sin quien lo registra si y solo si lo sembró la
+        // siembra de demostración. Control positivo primero: la fila de la siembra, sin registrante, entra; así
+        // los dos rojos siguientes son del CHECK y no de un disparador o de la RLS.
+        (await SqlStateComoAprovisionamientoAsync(
+                Insertar(_operador.Id, OrigenEncargoAdministracion.SiembraDeDemostracion, registrante: "NULL")))
+            .Should().Be(((string?)null, 1), "la siembra de demostración no atribuye el encargo a nadie");
+        (await SqlStateComoAprovisionamientoAsync(Insertar(_operador.Id, OrigenEncargoAdministracion.SiembraDeDemostracion)))
+            .Should().Be((PostgresErrorCodes.CheckViolation, -1), "un encargo de la siembra no se atribuye a una persona");
+        (await SqlStateComoAprovisionamientoAsync(
+                Insertar(_operador.Id, OrigenEncargoAdministracion.AprovisionamientoDePlataforma, registrante: "NULL")))
+            .Should().Be((PostgresErrorCodes.CheckViolation, -1), "un encargo del producto siempre tiene quien lo registró");
 
         await using var comprobacion = CrearContexto(_propietario.Id, new SinSeleccion());
         var fila = await comprobacion.EncargosAdministracion.AsNoTracking().SingleAsync();

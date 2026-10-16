@@ -88,9 +88,12 @@ public partial class EncargoAdministracionPanel : ComponentBase, IDisposable
         encargo.Estado == EstadoEncargoAdministracion.Vigente ? Textos["EstadoVigente"] : Textos["EstadoCaducado"];
 
     private string OrigenDe(EncargoAdministracionDto encargo) =>
-        encargo.Origen == OrigenEncargoAdministracion.AprovisionamientoDePlataforma
-            ? Textos["OrigenPlataforma"]
-            : Textos["OrigenAdministradorPropio"];
+        encargo.Origen switch
+        {
+            OrigenEncargoAdministracion.AprovisionamientoDePlataforma => Textos["OrigenPlataforma"],
+            OrigenEncargoAdministracion.SiembraDeDemostracion => Textos["OrigenSiembraDeDemostracion"],
+            _ => Textos["OrigenAdministradorPropio"],
+        };
 
     private string VigenciaDe(EncargoAdministracionDto encargo) =>
         encargo.VigenciaHasta is { } hasta ? Textos["VigenteHasta", Dia(hasta)] : Textos["SinFechaFin"];

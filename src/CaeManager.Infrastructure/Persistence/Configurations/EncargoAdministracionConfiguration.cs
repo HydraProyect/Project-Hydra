@@ -10,9 +10,18 @@ public class EncargoAdministracionConfiguration : IEntityTypeConfiguration<Encar
     /// <summary>Nombre del índice único de encargos sin retirar: el Command traduce su 23505 a «ya hay uno».</summary>
     public const string IndiceVigentePorOperacion = "IX_EncargosAdministracion_VigentePorOperacion";
 
+    /// <summary>
+    /// Sin quien lo registra si y solo si lo sembró la siembra de demostración: ni un encargo
+    /// del producto sin autor, ni uno de la siembra atribuido a una persona.
+    /// </summary>
+    public const string CheckRegistranteSegunOrigen = "CK_EncargosAdministracion_RegistranteSegunOrigen";
+
     public void Configure(EntityTypeBuilder<EncargoAdministracion> builder)
     {
-        builder.ToTable("EncargosAdministracion");
+        builder.ToTable("EncargosAdministracion", t => t.HasCheckConstraint(
+            CheckRegistranteSegunOrigen,
+            $"(\"{nameof(EncargoAdministracion.Origen)}\" = '{nameof(OrigenEncargoAdministracion.SiembraDeDemostracion)}') = " +
+            $"(\"{nameof(EncargoAdministracion.RegistradoPorUsuarioId)}\" IS NULL)"));
         builder.HasKey(e => e.Id);
 
         builder.Property(e => e.PropietarioTenantId).IsRequired();
@@ -21,7 +30,6 @@ public class EncargoAdministracionConfiguration : IEntityTypeConfiguration<Encar
         builder.Property(e => e.ClausulaContrato).IsRequired().HasMaxLength(EncargoAdministracion.LongitudMaximaClausula);
         builder.Property(e => e.VersionTexto).IsRequired().HasMaxLength(EncargoAdministracion.LongitudMaximaVersionTexto);
         builder.Property(e => e.Origen).IsRequired().HasConversion<string>().HasMaxLength(40);
-        builder.Property(e => e.RegistradoPorUsuarioId).IsRequired();
         builder.Property(e => e.RegistradoEnUtc).IsRequired();
         builder.Property(e => e.VigenciaDesde).IsRequired();
 

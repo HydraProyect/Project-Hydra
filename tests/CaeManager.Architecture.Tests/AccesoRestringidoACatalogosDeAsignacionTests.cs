@@ -130,6 +130,13 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         // verificaciones externas. No escribe en el catálogo.
         "src/CaeManager.Infrastructure/Persistence/Seed/Fichas360DemoSeeder.cs",
 
+        // Siembra del piloto Outbound (inerte salvo DatosPrueba:PilotoOutbound:Activo; la administrativa solo desde
+        // el modo de CLI): dentro del ámbito de cada Tenant propietario del piloto, lee su operación externa vigente
+        // del Operador CAE externo y añade, si falta, la Asignación de Cartera del Tenant entero con rol Coordinador
+        // CAE y sin marca de principal del Administrador de ese Operador CAE, la misma que emite el escalado del
+        // principal; es la que el Encargo de administración de la siembra eleva (decisión de Chris, 2026-10-16).
+        "src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs",
+
         // Registro de los DbSet y de las interfaces de consulta.
         "src/CaeManager.Infrastructure/Persistence/CaeManagerDbContext.cs",
 

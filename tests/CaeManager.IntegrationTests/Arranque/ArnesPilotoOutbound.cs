@@ -84,6 +84,9 @@ internal sealed class ArnesPilotoOutbound : IAsyncDisposable
         builder.Services.AddScoped<ICurrentUserService, CaeManager.Web.Services.CurrentUserService>();
         builder.Services.AddScoped<IActorAuditoria, CaeManager.Web.Services.ActorAuditoriaDesdeSesion>();
         builder.Services.AddScoped<ITenantActual, CaeManager.Web.Services.TenantActual>();
+        // Como Program.cs: los handlers que fechan con el reloj inyectado (ActivarTratamientoIaPorEncargo) lo piden.
+        Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton(
+            builder.Services, TimeProvider.System);
 
         // El último registro gana: cualquier correo que algo intente enviar durante la siembra o la
         // medición llega a este espía en vez de a SmtpEmailService.
@@ -276,6 +279,7 @@ internal sealed class ArnesPilotoOutbound : IAsyncDisposable
                 ["Acreditaciones externas"] = await b.AcreditacionesDocumentoPlataforma.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
                 ["Contactos de agenda"] = await b.ContactosAgenda.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
                 ["Instrucciones de tratamiento de IA"] = await b.InstruccionesTratamientoIaTenantPropietario.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
+                ["Encargos de administración"] = await b.EncargosAdministracion.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.PropietarioTenantId)),
                 ["Asignaciones de Operación"] = await b.AsignacionesOperacion.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.PropietarioTenantId)),
                 ["Asignaciones de Cartera"] = await (
                     from cartera in b.AsignacionesCartera.IgnoreQueryFilters()
