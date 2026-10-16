@@ -189,8 +189,10 @@ public static class PilotoOutboundAutoverificacion
             direccionCaeConSuRol = await ComoCuentaDelPilotoAsync(
                 fabricaDeAmbitos, cuentas.DireccionCae, Roles.DireccionCae, _ => Task.FromResult(true), cancellationToken);
         }
-        catch (InvalidOperationException)
+        catch (CuentaDelPilotoNoApta)
         {
+            // Solo la cuenta ausente, de otro Tenant o con otro rol: lo demás (sin Operador CAE externo, dentro de una
+            // petición HTTP) sigue siendo un error de la autoverificación, no una discrepancia de la Dirección CAE.
             direccionCaeConSuRol = false;
         }
 
@@ -406,7 +408,7 @@ public static class PilotoOutboundAutoverificacion
                 delLoteEntero.AddRange(medido == 1 ? [] : [$"Operador CAE externo · {contador}: medido {medido}, esperado 1."]);
             ExigeOperador("cuentas del equipo de la Coordinadora CAE pendientes de activación", operador.PendientesActivacionEquipo);
             if (!operador.DireccionCaeConSuRol)
-                delLoteEntero.Add("Operador CAE externo · cuenta de Dirección CAE: no existe en el Tenant del Operador CAE externo o no tiene exactamente ese rol.");
+                d.Add("Operador CAE externo · cuenta de Dirección CAE: no existe en el Tenant del Operador CAE externo o no tiene exactamente ese rol.");
         }
 
         // El reparto de carteras que el catálogo declara: cada Gestor CAE con algún Tenant exclusivo y uno compartido.
@@ -852,6 +854,9 @@ public static class PilotoOutboundAutoverificacion
     /// <paramref name="lectura"/> y se retira en el <c>finally</c>.
     /// </para>
     /// </summary>
+    /// <summary>La cuenta con la que se iba a medir no existe en el Tenant del Operador CAE externo o no tiene exactamente su rol.</summary>
+    private sealed class CuentaDelPilotoNoApta(string mensaje) : InvalidOperationException(mensaje);
+
     private static async Task<T> ComoCuentaDelPilotoAsync<T>(
         IServiceScopeFactory fabricaDeAmbitos, string email, string rolExigido,
         Func<IServiceProvider, Task<T>> lectura, CancellationToken cancellationToken)
@@ -880,13 +885,13 @@ public static class PilotoOutboundAutoverificacion
             var userManager = servicios.GetRequiredService<UserManager<ApplicationUser>>();
             var cuenta = await userManager.FindByEmailAsync(email);
             if (cuenta is null || cuenta.TenantId != operador.Id)
-                throw new InvalidOperationException(
+                throw new CuentaDelPilotoNoApta(
                     "La autoverificación del piloto solo mide con las cuentas sembradas en el Tenant del Operador CAE externo " +
                     $"del piloto, y la cuenta de {rolExigido} indicada no es de ese Tenant.");
 
             var roles = await userManager.GetRolesAsync(cuenta);
             if (roles.Count != 1 || roles[0] != rolExigido)
-                throw new InvalidOperationException(
+                throw new CuentaDelPilotoNoApta(
                     $"La cuenta del piloto con la que se iba a medir no tiene exactamente el rol {rolExigido}: no se construye su identidad.");
 
             identidad = await servicios.GetRequiredService<IUserClaimsPrincipalFactory<ApplicationUser>>().CreateAsync(cuenta);

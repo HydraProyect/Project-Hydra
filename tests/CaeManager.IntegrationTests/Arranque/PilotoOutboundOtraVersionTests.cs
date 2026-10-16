@@ -151,7 +151,7 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
     /// <summary>
     /// Aparta de la matriz un documento del Tenant: a uno de un Tipo que vence solo se le mueve la emisión y se le
     /// deja el vencimiento, con la corrección del dominio. Deja de tener las fechas que el producto le habría dado,
-    /// que es una de las cosas que la autoverificación mide en los seis Tenants.
+    /// que es una de las cosas que la autoverificación mide en los Tenants del piloto.
     /// </summary>
     private static async Task DescuadrarUnaFechaAsync(ArnesPilotoOutbound arnes, Guid tenantId) =>
         (await arnes.EnTenantAsync(tenantId, async (db, _) =>
@@ -441,7 +441,7 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
         todas.Should().ContainSingle(
             l => l.StartsWith(ControlPositivoDeCeroFilas), "MEDIDO: sin ningún Tenant sin medir se exige todo, también lo del lote entero");
         ninguna.Should().BeEmpty("MEDIDO: y no queda nada solo avisado");
-        PilotoOutboundAutoverificacion.Discrepancias(nadaMedido).Should().Equal(todas, "control: es lo que exige quien mide los seis");
+        PilotoOutboundAutoverificacion.Discrepancias(nadaMedido).Should().Equal(todas, "control: es lo que exige quien mide los Tenants del piloto");
 
         var (exigidas, soloAvisadas) = PilotoOutboundAutoverificacion.Repartir(nadaMedido, [ConDatosDeOtraVersion.Nombre]);
         soloAvisadas.Should().HaveCount(2, "MEDIDO: con un Tenant sin medir, lo del lote entero solo se avisa");
@@ -484,7 +484,7 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
 
             var antes = await arnes.RecuentoAsync();
             salida.WriteLine("MEDIDO antes de repetir la orden: " + Texto(antes));
-            antes["Tenants del piloto"].Should().Be(4, "control: el del Operador CAE externo, E y B sembrados y G aprovisionado; faltan A, F, D y C");
+            antes["Tenants del piloto"].Should().Be(4, "control: el del Operador CAE externo, E y B sembrados y G aprovisionado; faltan A, F, H, D y C");
             antes["Empresas"].Should().BeGreaterThan(0, "control positivo: el recuento ve las Empresas del lote");
             antes["Documentos"].Should().BeGreaterThan(0, "control positivo: el recuento ve los Documentos del lote");
             (await PrimerTenantSinSembrarAsync(arnes)).Should().Be(

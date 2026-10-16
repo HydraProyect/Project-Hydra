@@ -502,7 +502,7 @@ public static class PilotoOutboundSeeder
     }
 
     /// <summary>
-    /// La séptima cuenta: un Gestor CAE del equipo de la Coordinadora CAE dado de alta y todavía sin activar, como
+    /// La octava cuenta: un Gestor CAE del equipo de la Coordinadora CAE dado de alta y todavía sin activar, como
     /// queda tras el alta de la aplicación (<c>GestionCuentasUsuarioIdentity.CrearAsync</c>): sin contraseña, sin login
     /// externo y sin cambio de contraseña pendiente. Es lo que la aplicación entiende por «pendiente de activación».
     ///
@@ -545,7 +545,7 @@ public static class PilotoOutboundSeeder
     /// La instrucción de tratamiento de IA vigente de un Tenant del piloto: sin ella el
     /// Nivel 0 (<c>IInstruccionTratamientoIaService</c>) bloquea todo tratamiento con IA en
     /// ese Tenant, y el Asistente IA falla cerrado para cualquier cuenta que lo tenga en su
-    /// cartera (<c>ComprobarInstruccionIaCarteraQuery</c>). La llevan los siete: el Tenant
+    /// cartera (<c>ComprobarInstruccionIaCarteraQuery</c>). La llevan todos: el Tenant
     /// del Operador CAE externo y cada Tenant propietario.
     ///
     /// <para>
