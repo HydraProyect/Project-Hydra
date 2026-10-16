@@ -193,7 +193,7 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryTests : IAsyncLi
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
-            contexto, contexto, contexto, contexto, contexto, contexto, alcance);
+            contexto, contexto, contexto, contexto, contexto, contexto, alcance, contexto, contexto);
 
         return await handler.Handle(new ObtenerTrabajadoresDocumentacionPorSubcontrataQuery(_subcontrataId), CancellationToken.None);
     }

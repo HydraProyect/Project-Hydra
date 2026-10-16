@@ -6,6 +6,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Subcontratas;
+using CaeManager.Application.Subcontratas.Queries.ObtenerTrabajadoresDocumentacionPorSubcontrata;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -250,6 +251,30 @@ public class VoluntariosInactivosBajoRlsTests : IAsyncLifetime
         resumen.Incidencias.Should().NotContain(i => i.TrabajadorId == voluntarioInactivoDeSubcontrata,
             "el voluntario inactivo de la Subcontrata no cuenta, igual que en el Centro y en los avisos");
         resumen.Fraccion.Requeridos.Should().Be(1, "solo el DNI del evento: el voluntario inactivo no suma requeridos");
+
+        // El acordeón de la Subcontrata mide el mismo universo que su fila: Pablo debe el DNI del evento y Eva sigue
+        // listada sin nada exigido.
+        var acordeon = await new ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(c, c, c, c, c, c, new AlcanceDatosServiceFalso(), c, c)
+            .Handle(new ObtenerTrabajadoresDocumentacionPorSubcontrataQuery(subcontrataId), CancellationToken.None);
+        acordeon.Single(t => t.TrabajadorId == deSubcontrata).Cumplimiento.Requeridos.Should().Be(1);
+        acordeon.Single(t => t.TrabajadorId == voluntarioInactivoDeSubcontrata).Cumplimiento.Requeridos.Should().Be(0,
+            "el voluntario inactivo sigue listado, pero no se le exige nada");
+        FraccionCumplimiento.Sumar(acordeon.Select(t => t.Cumplimiento)).Should().Be(resumen.Fraccion);
+    }
+
+    [Fact]
+    public async Task Una_participacion_dada_de_baja_no_aporta_los_requisitos_del_evento()
+    {
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var participacion = await _propietario.ProyectosTecnicos.SingleAsync(p => p.TrabajadorId == _futuro);
+            participacion.DarDeBaja(DiaDeNegocio.Hoy());
+            await _propietario.SaveChangesAsync();
+        }
+        await using var c = CrearRuntime(_tenantSesion);
+
+        (await Alertas(c)).Should().NotContain(a => a.TrabajadorId == _futuro && a.TipoDocumentoId == _dni);
+        (await Alertas(c)).Should().Contain(a => a.TrabajadorId == _vigente && a.TipoDocumentoId == _dni, "control positivo");
     }
 
     [Fact]

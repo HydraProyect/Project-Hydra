@@ -300,7 +300,7 @@ public class CoherenciaDelCumplimientoEntreSuperficiesTests : IAsyncLifetime
         var listaSubcontratas = await new ObtenerSubcontratasQueryHandler(c, alcance, calculoSubcontrata, c)
             .Handle(new ObtenerSubcontratasQuery(Busqueda: null), CancellationToken.None);
         ComprobarPorcentaje("Lista de Subcontratas · S", listaSubcontratas.Elementos.Single(s => s.Id == _subcontrataS).CumplimientoPorcentaje, 50);
-        var trabajadoresSubcontrata = await new ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(c, c, c, c, c, c, alcance)
+        var trabajadoresSubcontrata = await new ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(c, c, c, c, c, c, alcance, c, c)
             .Handle(new ObtenerTrabajadoresDocumentacionPorSubcontrataQuery(_subcontrataS), CancellationToken.None);
         Comprobar("Acordeón de la Subcontrata S · suma de Trabajadores",
             FraccionCumplimiento.Sumar(trabajadoresSubcontrata.Select(t => t.Cumplimiento)), 2, 4);

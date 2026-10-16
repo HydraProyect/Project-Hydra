@@ -5,6 +5,7 @@ using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentaci
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Proyectos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
@@ -55,7 +56,9 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
     IDocumentosQueryContext documentosContext,
     IConfiguracionQueryContext configuracionContext,
     ICentrosQueryContext centrosContext,
-    IAlcanceDatosService alcanceDatos)
+    IAlcanceDatosService alcanceDatos,
+    IProyectosQueryContext proyectosContext,
+    IRequisitosEventoQueryContext requisitosEventoContext)
     : IRequestHandler<ObtenerTrabajadoresDocumentacionPorSubcontrataQuery, IReadOnlyList<TrabajadorDocumentacionSubcontrataDto>>
 {
     public async Task<IReadOnlyList<TrabajadorDocumentacionSubcontrataDto>> Handle(
@@ -85,19 +88,41 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
             return [];
 
         var trabajadorIds = trabajadores.Select(t => t.Id).ToList();
+        var hoy = DiaDeNegocio.Hoy();
+
+        // Mismo universo que CalculoEstadoSubcontrataService: el voluntario inactivo sigue listado, pero no se le exige
+        // nada; y lo que pide cada evento futuro o vigente cuenta para quien está asignado a él (decisión 2026-10-16).
+        var voluntariosInactivos = (await ActividadVoluntarios
+            .VoluntariosInactivosIds(trabajadoresContext.Trabajadores, proyectosContext, hoy)
+            .Where(id => trabajadorIds.Contains(id))
+            .ToListAsync(cancellationToken)).ToHashSet();
+        var cuentan = trabajadorIds.Where(id => !voluntariosInactivos.Contains(id)).ToList();
 
         var asignacionesActivas = await asignacionesContext.Asignaciones
-            .Where(a => a.FechaBaja == null && trabajadorIds.Contains(a.TrabajadorId))
+            .Where(a => a.FechaBaja == null && cuentan.Contains(a.TrabajadorId))
             .Select(a => new { a.TrabajadorId, a.CentroId })
+            .ToListAsync(cancellationToken);
+
+        var requisitosDeEvento = await RequisitosDeEventos
+            .DeEventosQueLosAportan(
+                trabajadoresContext.Trabajadores, proyectosContext, requisitosEventoContext.ProyectosRequisitos, tiposDocumentoContext.TiposDocumento, hoy)
+            .Where(r => cuentan.Contains(r.TrabajadorId))
+            .Select(r => new { r.TrabajadorId, r.CentroId, r.TipoDocumentoId })
+            .Distinct()
             .ToListAsync(cancellationToken);
 
         var centrosPorTrabajador = asignacionesActivas
             .GroupBy(a => a.TrabajadorId)
             .ToDictionary(g => g.Key, g => g.Select(a => a.CentroId).Distinct().ToList());
 
-        // P1-X2: un Centro sin gestión CAE no exige ningún tipo a quien trabaja allí.
+        // P1-X2: un Centro sin gestión CAE no exige ningún tipo a quien trabaja allí, tampoco por sus eventos.
         var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(
-            centrosContext, asignacionesActivas.Select(a => a.CentroId), cancellationToken);
+            centrosContext, asignacionesActivas.Select(a => a.CentroId).Concat(requisitosDeEvento.Select(r => r.CentroId)), cancellationToken);
+
+        var tiposDeEventoPorTrabajador = requisitosDeEvento
+            .Where(r => !sinGestionCae.Contains(r.CentroId))
+            .GroupBy(r => r.TrabajadorId)
+            .ToDictionary(g => g.Key, g => g.Select(r => r.TipoDocumentoId).ToHashSet());
 
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
@@ -106,7 +131,7 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
 
         var tiposRequeridosPorTrabajador = new Dictionary<Guid, List<Guid>>();
 
-        if (tiposCandidatos.Count > 0 && asignacionesActivas.Count > 0)
+        if (tiposCandidatos.Count > 0 && (asignacionesActivas.Count > 0 || requisitosDeEvento.Count > 0))
         {
             var centroIds = asignacionesActivas.Select(a => a.CentroId).Distinct().ToList();
             var tipoIdsCandidatos = tiposCandidatos.Select(t => t.Id).ToHashSet();
@@ -119,12 +144,12 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
             foreach (var trabajadorId in trabajadorIds)
             {
                 var centrosDelTrabajador = centrosPorTrabajador.GetValueOrDefault(trabajadorId, []);
-                tiposRequeridosPorTrabajador[trabajadorId] = centrosDelTrabajador.Count == 0
-                    ? []
-                    : tiposCandidatos
-                        .Where(t => centrosDelTrabajador.Any(centroId => !sinGestionCae.Contains(centroId) && ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.CuentaParaCumplimiento)))
-                        .Select(t => t.Id)
-                        .ToList();
+                var tiposDeEvento = tiposDeEventoPorTrabajador.GetValueOrDefault(trabajadorId);
+                tiposRequeridosPorTrabajador[trabajadorId] = tiposCandidatos
+                    .Where(t => tiposDeEvento?.Contains(t.Id) == true
+                        || centrosDelTrabajador.Any(centroId => !sinGestionCae.Contains(centroId) && ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.CuentaParaCumplimiento)))
+                    .Select(t => t.Id)
+                    .ToList();
             }
         }
         else
@@ -148,7 +173,6 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
                 .ToDictionary(g => g.Key, g => g.Select(d => (d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc)).ToList());
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-        var hoy = DiaDeNegocio.Hoy();
 
         var resultado = new List<TrabajadorDocumentacionSubcontrataDto>();
 

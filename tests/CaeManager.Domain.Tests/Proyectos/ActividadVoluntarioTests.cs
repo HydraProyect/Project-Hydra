@@ -106,6 +106,7 @@ public class ActividadVoluntarioTests
                 var dia = Hoy.AddDays(desplazamiento);
                 sinTerminarEn(dia)(proyecto).Should().Be(proyecto.EsEvento && !proyecto.EventoTerminadoEn(dia), $"{proyecto.Nombre} el {dia}");
                 aportaRequisitosEn(dia)(proyecto).Should().Be(proyecto.EventoAportaRequisitosEn(dia), $"{proyecto.Nombre} el {dia}");
+                aportaRequisitosEn(dia)(proyecto).Should().Be(sinTerminarEn(dia)(proyecto), $"opción B: aporta requisitos mientras está sin terminar, {proyecto.Nombre} el {dia}");
             }
 
         aportaRequisitosEn(Hoy.AddDays(-1))(abierto).Should().BeTrue("opción B: el evento futuro ya aporta sus requisitos");
