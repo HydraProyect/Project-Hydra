@@ -42,7 +42,8 @@ public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext,
         if (!await alcanceDatos.CentroVisibleAsync(request.Id, cancellationToken)) return null;
 
         // Los contactos personales de la ficha siguen la misma política que Empresa 360.
-        // El Drawer lee y escribe con el mismo ámbito de gestión.
+        // El Drawer lee y escribe con el mismo ámbito de gestión. Una clave de la API pública entra con rol
+        // Consulta y pasaría esta política: por eso la API v1 publica CentroApiDetalleDto, sin la ficha.
         var conFicha = await politicaNotaInterna.PuedeLeerAsync(cancellationToken)
             && await alcanceDatos.CentroParaGestionVisibleAsync(request.Id, cancellationToken);
 

@@ -1,3 +1,4 @@
+using CaeManager.Application.Centros.Commands.EditarFichaCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
@@ -5,6 +6,7 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -159,5 +161,55 @@ public class ObtenerPorIdMultiTenantTests : IAsyncLifetime
 
         (await new ObtenerCentroPorIdQueryHandler(contextoA, contextoA, alcance, PoliticaNotaInternaPruebas.Con("GestorCae"))
             .Handle(new ObtenerCentroPorIdQuery(_centroDeAId), CancellationToken.None)).Should().NotBeNull();
+    }
+
+    /// <summary>
+    /// Ficha de acceso y prevención de Centro 360 contra Postgres real. Decisión de producto (2026-10-16): en Outbound
+    /// un Centro nace vacío, así que el Centro recién sembrado se lee con la ficha visible y todo sin informar. Y el
+    /// comando de edición no alcanza un Centro de otro Tenant aunque el alcance de cartera sea total.
+    /// </summary>
+    [Fact]
+    public async Task La_ficha_de_un_Centro_recien_creado_esta_sin_informar_y_otro_tenant_no_puede_editarla()
+    {
+        await using (var contextoA = CrearContexto(_tenantA))
+        {
+            var ficha = await new ObtenerCentroPorIdQueryHandler(contextoA, contextoA, new AlcanceDatosServiceFalso(),
+                PoliticaNotaInternaPruebas.Con("GestorCae")).Handle(new ObtenerCentroPorIdQuery(_centroDeAId), CancellationToken.None);
+            ficha.Should().NotBeNull();
+            ficha!.FichaVisible.Should().BeTrue("control positivo: el propio Tenant con gestión sí lee la ficha");
+            new object?[]
+            {
+                ficha.HorarioAcceso, ficha.ControlAccesosNombre, ficha.ControlAccesosTelefono,
+                ficha.TecnicoPrevencionNombre, ficha.TecnicoPrevencionTelefono, ficha.TecnicoPrevencionCorreo,
+                ficha.TrabajosEnAltura, ficha.EspaciosConfinados, ficha.AtmosferasExplosivas,
+            }.Should().AllSatisfy(v => v.Should().BeNull("un Centro recién creado no trae ningún dato de acceso ni de prevención"));
+        }
+
+        Guid version;
+        await using (var contextoA = CrearContexto(_tenantA))
+            version = (await contextoA.Centros.AsNoTracking().SingleAsync(c => c.Id == _centroDeAId)).Version;
+
+        await using (var contextoB = CrearContexto(_tenantB))
+        {
+            var resultado = await new EditarFichaCentroCommandHandler(new CentroRepository(contextoB),
+                    new AlcanceDatosServiceFalso(), contextoB)
+                .Handle(new EditarFichaCentroCommand(_centroDeAId, version, "7 a 19", "Persona accesos", "600111222",
+                    null, null, null, true, null, null), CancellationToken.None);
+            resultado.EsFallido.Should().BeTrue();
+            resultado.Error.Codigo.Should().Be("Centro.NoEncontrado");
+        }
+
+        await using (var contextoA = CrearContexto(_tenantA))
+        {
+            var centro = await contextoA.Centros.AsNoTracking().SingleAsync(c => c.Id == _centroDeAId);
+            centro.HorarioAcceso.Should().BeNull("el Tenant B no ha escrito en el Centro del Tenant A");
+            centro.TrabajosEnAltura.Should().BeNull();
+
+            var propio = await new EditarFichaCentroCommandHandler(new CentroRepository(contextoA),
+                    new AlcanceDatosServiceFalso(), contextoA)
+                .Handle(new EditarFichaCentroCommand(_centroDeAId, version, "7 a 19", null, null, null, null, null,
+                    null, null, null), CancellationToken.None);
+            propio.EsExitoso.Should().BeTrue("control positivo: el propio Tenant sí edita su ficha");
+        }
     }
 }
