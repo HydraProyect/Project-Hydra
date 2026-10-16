@@ -794,10 +794,20 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
 
     private void QuitarAlias(string alias) => _aliasesSeleccionados.Remove(alias);
 
-    private void AlternarTipoContratacionDeSerie(TipoContratacion tipo, bool marcado) =>
-        _tiposContratacionDeSerie = marcado
+    private static readonly TipoContratacion[] _tiposContratacion = Enum.GetValues<TipoContratacion>();
+
+    private bool EsUltimoDeLaSerie(TipoContratacion tipo) => _tiposContratacionDeSerie == tipo.ComoConjunto();
+
+    private void AlternarTipoContratacionDeSerie(TipoContratacion tipo, bool marcado)
+    {
+        var nueva = marcado
             ? _tiposContratacionDeSerie | tipo.ComoConjunto()
             : _tiposContratacionDeSerie & ~tipo.ComoConjunto();
+
+        // Igual que la casilla deshabilitada: la serie nunca queda vacía.
+        if (nueva != TiposContratacion.Ninguno)
+            _tiposContratacionDeSerie = nueva;
+    }
 
     private string TextoTipoContratacion(TipoContratacion tipo) => tipo switch
     {

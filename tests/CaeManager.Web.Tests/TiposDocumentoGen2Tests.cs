@@ -331,10 +331,30 @@ public class TiposDocumentoGen2Tests : BunitContext
         CasillasSerie(cut).Should().OnlyContain(c => c.HasAttribute("checked"));
 
         await CasillasSerie(cut)[2].ChangeAsync(new ChangeEventArgs { Value = false });
+        CasillasSerie(cut).Should().NotContain(c => c.HasAttribute("disabled"), "quedan dos marcadas");
         await PulsarGuardar(cut);
 
         mediador.Enviados.OfType<EditarTipoDocumentoCommand>().Should().ContainSingle()
             .Which.TiposContratacionDeSerie.Should().Be(TiposContratacion.CuentaAjena | TiposContratacion.Autonomo);
+    }
+
+    [Fact]
+    public async Task La_ultima_casilla_marcada_de_la_serie_no_se_puede_desmarcar()
+    {
+        var escenario = new Escenario();
+        escenario.Tipos.Add(Tipo("Aptitud médica", AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si));
+        var (cut, mediador) = Renderizar(escenario);
+
+        await PulsarEditar(cut, "Aptitud médica");
+        await CasillasSerie(cut)[1].ChangeAsync(new ChangeEventArgs { Value = false });
+        await CasillasSerie(cut)[2].ChangeAsync(new ChangeEventArgs { Value = false });
+
+        CasillasSerie(cut)[0].HasAttribute("disabled").Should().BeTrue();
+        await CasillasSerie(cut)[0].ChangeAsync(new ChangeEventArgs { Value = false });
+        await PulsarGuardar(cut);
+
+        mediador.Enviados.OfType<EditarTipoDocumentoCommand>().Should().ContainSingle()
+            .Which.TiposContratacionDeSerie.Should().Be(TiposContratacion.CuentaAjena);
     }
 
     [Fact]
