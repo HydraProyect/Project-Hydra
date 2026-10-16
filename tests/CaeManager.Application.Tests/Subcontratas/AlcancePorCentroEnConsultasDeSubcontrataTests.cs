@@ -132,7 +132,8 @@ public class AlcancePorCentroEnConsultasDeSubcontrataTests
         new(_asignaciones, _centros, _empresas, _trabajadores, alcance);
 
     private ObtenerSupervisionSubcontrataQueryHandler Supervision(AlcanceDatosServiceFalso alcance) =>
-        new(_subcontratas, _asignaciones, _trabajadores, _centros, _empresas, _tipos, _configuracion, alcance);
+        new(_subcontratas, _asignaciones, _trabajadores, _centros, _empresas, _tipos, _configuracion, alcance,
+            new CaeManager.Application.Tests.Proyectos.ProyectosQueryContextFalso());
 
     private ObtenerEvidenciaVerificacionParaDescargaQueryHandler Evidencia(AlcanceDatosServiceFalso alcance) =>
         new(_subcontratas, alcance);

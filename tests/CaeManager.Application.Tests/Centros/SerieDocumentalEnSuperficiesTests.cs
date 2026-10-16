@@ -97,7 +97,7 @@ public class SerieDocumentalEnSuperficiesTests
     {
         var supervision = await new ObtenerSupervisionSubcontrataQueryHandler(
                 _subcontratas, _asignaciones, _trabajadores, _centros, _empresas, _tipos, _configuracion,
-                new AlcanceDatosServiceFalso())
+                new AlcanceDatosServiceFalso(), _proyectos)
             .Handle(new ObtenerSupervisionSubcontrataQuery(_subcontrata.Id), CancellationToken.None);
         return supervision!.Centros.Where(c => c.CentroId == _centro.Id).SelectMany(c => c.Tipos)
             .SingleOrDefault(t => t.TipoDocumentoId == _tipo.Id);
@@ -147,6 +147,33 @@ public class SerieDocumentalEnSuperficiesTests
             _subcontrata.Id, _centro.Id, otroTipo.Id, Hoy.AddDays(-2), ResultadoVerificacionExterna.Valido, Guid.NewGuid()));
 
         (await FilaDeSupervision())!.Exigido.Should().BeTrue("sin personal no hay tipo de contratación al que aplicar la serie");
+    }
+
+    /// <summary>
+    /// Un voluntario sin evento vigente ni futuro está inactivo y no es personal para la serie: el Centro sigue en la
+    /// supervisión por su asignación, pero el tipo se decide «sin personal» (regla general). Con la serie Todos el
+    /// resultado es el mismo con o sin evento; la serie sin voluntario es la que distingue si el voluntario cuenta.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false, true)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, false)]
+    public async Task Supervision_solo_cuenta_como_personal_al_voluntario_con_evento_vigente(
+        bool conEvento, bool serieSinVoluntario, bool exigidoEsperado)
+    {
+        if (!conEvento)
+            _proyectos.ListaProyectosTecnicos.Clear();
+        if (serieSinVoluntario)
+            SerieSinVoluntario();
+        Asignar(_voluntario);
+
+        var fila = await FilaDeSupervision();
+
+        (fila?.Exigido ?? false).Should().Be(exigidoEsperado,
+            conEvento
+                ? "con evento vigente el voluntario es personal activo y decide la serie"
+                : "sin evento el voluntario está inactivo: no hay personal y se aplica la regla general sin serie");
     }
 
     // ---- Cumplimiento y documentación de la Subcontrata ----

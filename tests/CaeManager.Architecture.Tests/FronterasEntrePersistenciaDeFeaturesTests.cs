@@ -581,6 +581,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "ICentrosQueryContext"),
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "IClientesQueryContext"),
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "IConfiguracionQueryContext"),
+        // Voluntarios inactivos (sin evento vigente ni futuro) no cuentan como personal para la serie documental (2026-10-16).
+        ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "IProyectosQueryContext"),
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "ITiposDocumentoQueryContext"),
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "ITrabajadoresQueryContext"),
         ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "IAsignacionesQueryContext"),

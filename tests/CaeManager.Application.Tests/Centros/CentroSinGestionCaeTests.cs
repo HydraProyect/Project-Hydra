@@ -224,7 +224,7 @@ public class CentroSinGestionCaeTests
 
         var supervision = await new ObtenerSupervisionSubcontrataQueryHandler(
                 new SubcontratasQueryContextFalso(), _asignaciones, _trabajadores, _centros, _empresas, _tipos, _configuracion,
-                new AlcanceDatosServiceFalso())
+                new AlcanceDatosServiceFalso(), _proyectos)
             .Handle(new ObtenerSupervisionSubcontrataQuery(_subcontrata.Id), CancellationToken.None);
 
         supervision!.CentrosSeleccionables.Select(c => c.CentroId).Should().Contain(_conGestion.Id).And.NotContain(_sinGestion.Id);

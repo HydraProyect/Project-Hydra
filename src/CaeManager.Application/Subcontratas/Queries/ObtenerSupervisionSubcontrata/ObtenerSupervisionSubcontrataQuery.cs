@@ -6,6 +6,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Proyectos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
@@ -75,7 +76,8 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
     IEmpresasQueryContext empresasContext,
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IConfiguracionQueryContext configuracionContext,
-    IAlcanceDatosService alcanceDatos)
+    IAlcanceDatosService alcanceDatos,
+    IProyectosQueryContext proyectosContext)
     : IRequestHandler<ObtenerSupervisionSubcontrataQuery, SupervisionSubcontrataDto?>
 {
     public async Task<SupervisionSubcontrataDto?> Handle(
@@ -127,12 +129,22 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
             where asignacion.FechaBaja == null
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             where trabajador.SubcontrataId == request.SubcontrataId
-            select new { asignacion.CentroId, trabajador.TipoContratacion })
+            select new { asignacion.CentroId, trabajador.Id, trabajador.TipoContratacion })
             .Distinct()
             .ToListAsync(cancellationToken);
 
+        // Un voluntario sin evento vigente ni futuro está inactivo (mismo criterio que CalculoEstadoSubcontrataService):
+        // el Centro sigue en la supervisión por su asignación, pero no cuenta como personal para decidir la serie.
+        var voluntariosInactivos = (await ActividadVoluntarios
+                .VoluntariosInactivosIds(
+                    trabajadoresContext.Trabajadores.Where(t => t.SubcontrataId == request.SubcontrataId),
+                    proyectosContext, DiaDeNegocio.Hoy())
+                .ToListAsync(cancellationToken))
+            .ToHashSet();
+
         var centroIdsConActividad = personalPorCentro.Select(p => p.CentroId).Distinct().ToList();
         var tiposContratacionPorCentro = personalPorCentro
+            .Where(p => !voluntariosInactivos.Contains(p.Id))
             .GroupBy(p => p.CentroId)
             .ToDictionary(g => g.Key, g => g.Select(p => p.TipoContratacion).Distinct().ToList());
 
