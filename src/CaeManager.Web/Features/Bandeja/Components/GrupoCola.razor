@@ -136,7 +136,7 @@
 
     [Parameter, EditorRequired] public GrupoColaDto Grupo { get; set; } = default!;
 
-    /// <summary>Colapsado por defecto salvo que el llamador ya sepa que este es el primer grupo (ver Inicio.razor: el primero que bloquea acceso se abre solo).</summary>
+    /// <summary>Colapsado por defecto. Inicio (decisión de producto 2026-10-16) no lo pasa nunca: carga con todos los grupos plegados, también el primero que bloquea acceso; solo /bandeja abre los suyos de partida.</summary>
     [Parameter] public bool ExpandidaPorDefecto { get; set; }
 
     /// <summary>

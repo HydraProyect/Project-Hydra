@@ -421,6 +421,14 @@
   <data name="EmpresaProyectoPapelSubcontrata" xml:space="preserve"><value>Subcontrata</value></data>
   <data name="EmpresaProyectoAmbosPapeles" xml:space="preserve"><value>Empresa empleadora directa · Subcontrata</value></data>
   <data name="OrigenEmpresasProyecto" xml:space="preserve"><value>Empresas empleadoras derivadas de los técnicos activos del Proyecto.</value></data>
+  <data name="PestanaVehiculosProyecto" xml:space="preserve"><value>Vehículos</value></data>
+  <data name="PestanaHistorialProyecto" xml:space="preserve"><value>Historial</value></data>
+  <data name="ListaVehiculosProyecto" xml:space="preserve"><value>Vehículos de las Empresas empleadoras del Proyecto</value></data>
+  <data name="ResumenVehiculosProyecto" xml:space="preserve"><value>{0} vehículos · por nombre</value></data>
+  <data name="ResumenVehiculoProyecto" xml:space="preserve"><value>1 vehículo · por nombre</value></data>
+  <data name="VehiculosProyectoVacio" xml:space="preserve"><value>Sin vehículos visibles de las Empresas empleadoras con técnicos activos.</value></data>
+  <data name="LecturaVehiculosProyectoError" xml:space="preserve"><value>No se han podido cargar los vehículos de las Empresas empleadoras.</value></data>
+  <data name="OrigenVehiculosProyecto" xml:space="preserve"><value>Un vehículo no se asigna a un Proyecto: estos son los de las Empresas empleadoras derivadas de los técnicos activos.</value></data>
   <data name="BadgeEvento" xml:space="preserve">
     <value>Evento</value>
   </data>

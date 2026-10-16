@@ -421,6 +421,14 @@
   <data name="EmpresaProyectoPapelSubcontrata" xml:space="preserve"><value>Subcontracta</value></data>
   <data name="EmpresaProyectoAmbosPapeles" xml:space="preserve"><value>Empresa ocupadora directa · Subcontracta</value></data>
   <data name="OrigenEmpresasProyecto" xml:space="preserve"><value>Empreses ocupadores derivades dels tècnics actius del Projecte.</value></data>
+  <data name="PestanaVehiculosProyecto" xml:space="preserve"><value>Vehicles</value></data>
+  <data name="PestanaHistorialProyecto" xml:space="preserve"><value>Historial</value></data>
+  <data name="ListaVehiculosProyecto" xml:space="preserve"><value>Vehicles de les Empreses ocupadores del Projecte</value></data>
+  <data name="ResumenVehiculosProyecto" xml:space="preserve"><value>{0} vehicles · per nom</value></data>
+  <data name="ResumenVehiculoProyecto" xml:space="preserve"><value>1 vehicle · per nom</value></data>
+  <data name="VehiculosProyectoVacio" xml:space="preserve"><value>Sense vehicles visibles de les Empreses ocupadores amb tècnics actius.</value></data>
+  <data name="LecturaVehiculosProyectoError" xml:space="preserve"><value>No s’han pogut carregar els vehicles de les Empreses ocupadores.</value></data>
+  <data name="OrigenVehiculosProyecto" xml:space="preserve"><value>Un vehicle no s’assigna a un Projecte: aquests són els de les Empreses ocupadores derivades dels tècnics actius.</value></data>
   <data name="BadgeEvento" xml:space="preserve">
     <value>Esdeveniment</value>
   </data>
