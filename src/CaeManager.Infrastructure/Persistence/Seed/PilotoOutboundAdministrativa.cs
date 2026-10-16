@@ -124,8 +124,8 @@ public static class PilotoOutboundAdministrativa
     }
 
     /// <summary>
-    /// Las siete cuentas del piloto en el dominio indicado, con la misma parte local que las de la siembra local: las
-    /// seis con contraseña y la pendiente de activación, que no la tiene y a la que no se entrega nada.
+    /// Las ocho cuentas del piloto en el dominio indicado, con la misma parte local que las de la siembra local: las
+    /// siete con contraseña y la pendiente de activación, que no la tiene y a la que no se entrega nada.
     /// </summary>
     public static CuentasPilotoOutbound CuentasDe(string dominio)
     {
@@ -136,7 +136,7 @@ public static class PilotoOutboundAdministrativa
             $"{ParteLocal(locales.GestoraPrimera)}@{dominio}", $"{ParteLocal(locales.GestorSegundo)}@{dominio}",
             $"{ParteLocal(locales.Coordinadora)}@{dominio}", $"{ParteLocal(locales.AdministradorOperador)}@{dominio}",
             $"{ParteLocal(locales.AdministradorT1)}@{dominio}", $"{ParteLocal(locales.UsuarioDeClienteEmpresarialT1)}@{dominio}",
-            $"{ParteLocal(locales.GestorPendienteDeActivacion)}@{dominio}");
+            $"{ParteLocal(locales.GestorPendienteDeActivacion)}@{dominio}", $"{ParteLocal(locales.DireccionCae)}@{dominio}");
     }
 
     // ── Precondiciones (antes de escribir nada) ─────────────────────────────
@@ -315,6 +315,7 @@ public static class PilotoOutboundAdministrativa
     private static IReadOnlyList<(string Email, string Rol, string NombreTenant)> CuentasConSuTenant(CuentasPilotoOutbound cuentas) =>
     [
         (cuentas.AdministradorOperador, Roles.Administrador, CatalogoPilotoOutbound.NombreTenantOperador),
+        (cuentas.DireccionCae, Roles.DireccionCae, CatalogoPilotoOutbound.NombreTenantOperador),
         (cuentas.Coordinadora, Roles.CoordinadorCae, CatalogoPilotoOutbound.NombreTenantOperador),
         (cuentas.GestoraPrimera, Roles.GestorCae, CatalogoPilotoOutbound.NombreTenantOperador),
         (cuentas.GestorSegundo, Roles.GestorCae, CatalogoPilotoOutbound.NombreTenantOperador),

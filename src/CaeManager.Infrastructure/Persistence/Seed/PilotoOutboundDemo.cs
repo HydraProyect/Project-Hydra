@@ -38,6 +38,7 @@ public enum SituacionDocumentoPilotoOutbound
 public sealed record DesviacionDocumentoPilotoOutbound(int Trabajador, string Tipo, SituacionDocumentoPilotoOutbound Situacion);
 
 /// <summary>Direcciones de las cuentas de la demostración. Las locales son las del arranque en Development; la vía administrativa pasa las de un dominio propio.</summary>
+/// <param name="DireccionCae">La Dirección CAE del Operador CAE externo: sin cartera propia, ve todo por su rol.</param>
 /// <param name="UsuarioDeClienteEmpresarialT1">La cuenta opcional de la matriz: un Usuario de Cliente de T1, que solo lee lo de su Cliente empresarial.</param>
 /// <param name="GestorPendienteDeActivacion">
 /// Un Gestor CAE del equipo de la Coordinadora CAE dado de alta y todavía sin activar: sin contraseña, sin login
@@ -46,16 +47,16 @@ public sealed record DesviacionDocumentoPilotoOutbound(int Trabajador, string Ti
 /// </param>
 public sealed record CuentasPilotoOutbound(
     string GestoraPrimera, string GestorSegundo, string Coordinadora, string AdministradorOperador, string AdministradorT1,
-    string UsuarioDeClienteEmpresarialT1, string GestorPendienteDeActivacion)
+    string UsuarioDeClienteEmpresarialT1, string GestorPendienteDeActivacion, string DireccionCae)
 {
     public static CuentasPilotoOutbound Locales { get; } = new(
         "gestora1.piloto@caemanager.local", "gestor2.piloto@caemanager.local", "coordinadora.piloto@caemanager.local",
         "administrador.piloto@caemanager.local", "administrador.t1.piloto@caemanager.local",
-        "cliente.t1.piloto@caemanager.local", "gestor3.piloto@caemanager.local");
+        "cliente.t1.piloto@caemanager.local", "gestor3.piloto@caemanager.local", "direccion.piloto@caemanager.local");
 
     /// <summary>Las cuentas con contraseña. La pendiente de activación (<see cref="GestorPendienteDeActivacion"/>) no está.</summary>
     public IReadOnlyList<string> Todas =>
-        [GestoraPrimera, GestorSegundo, Coordinadora, AdministradorOperador, AdministradorT1, UsuarioDeClienteEmpresarialT1];
+        [GestoraPrimera, GestorSegundo, Coordinadora, AdministradorOperador, DireccionCae, AdministradorT1, UsuarioDeClienteEmpresarialT1];
 }
 
 /// <summary>
@@ -522,7 +523,14 @@ public static class IdentidadesPilotoOutbound
     public static string Puesto(TenantPilotoOutbound tenant, int i)
     {
         if (tenant.SubcontrataDe(i) is { } s)
-            return PuestosDeLasSubcontratas[s % PuestosDeLasSubcontratas.Length];
+            return tenant.Perfil == PerfilPilotoOutbound.EventosConVoluntarios
+                ? "Auxiliar de control de accesos"
+                : PuestosDeLasSubcontratas[s % PuestosDeLasSubcontratas.Length];
+
+        if (tenant.Perfil == PerfilPilotoOutbound.EventosConVoluntarios)
+            return tenant.EsVoluntario(i)
+                ? new[] { "Voluntario de acomodación", "Voluntario de accesos", "Voluntario de información" }[i % 3]
+                : new[] { "Coordinador de eventos", "Responsable de seguridad del evento", "Técnico de mantenimiento del recinto" }[i % 3];
 
         string[] puestos = tenant.Perfil switch
         {
