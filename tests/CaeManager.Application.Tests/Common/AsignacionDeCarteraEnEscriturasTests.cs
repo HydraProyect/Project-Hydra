@@ -11,6 +11,8 @@ using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Tests.Proyectos;
 using CaeManager.Application.Tests.TiposDocumento;
 using CaeManager.Application.Tests.Vehiculos;
+using CaeManager.Application.TiposDocumento.Commands.CrearTipoDocumento;
+using CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento;
 using CaeManager.Application.Vehiculos.Commands.CrearVehiculo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
@@ -225,6 +227,96 @@ public class AsignacionDeCarteraEnEscriturasTests
         var tipos = new TiposDocumentoQueryContextFalso();
         tipos.ListaTiposDocumento.Add(tipo);
         return (centro, tipo, centros, tipos, new TipoDocumentoCentroRepositorioFalso());
+    }
+
+    // ---- Centros de un Tipo de documento (misma Documentación requerida del Centro, por el otro lado)
+
+    [Fact]
+    public async Task Crear_un_tipo_de_documento_requerido_en_un_centro_fuera_de_la_cartera_responde_como_inexistente()
+    {
+        var (centro, _, centros, _, filas) = MundoCentro();
+        var repositorio = new TipoDocumentoRepositorioFalso();
+        var handler = new CrearTipoDocumentoCommandHandler(repositorio, filas, centros, SinCartera(), new UnitOfWorkFalso());
+
+        var resultado = await handler.Handle(ComandoCrearTipo([centro.Id]), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("TipoDocumento.CentroNoEncontrado");
+        filas.Relaciones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Crear_un_tipo_de_documento_requerido_en_un_centro_dentro_de_la_cartera_lo_vincula()
+    {
+        var (centro, _, centros, _, filas) = MundoCentro();
+        var handler = new CrearTipoDocumentoCommandHandler(
+            new TipoDocumentoRepositorioFalso(), filas, centros,
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [centro.Id]), new UnitOfWorkFalso());
+
+        var resultado = await handler.Handle(ComandoCrearTipo([centro.Id]), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        filas.Relaciones.Should().ContainSingle(f => f.CentroId == centro.Id);
+    }
+
+    [Fact]
+    public async Task Editar_un_tipo_de_documento_no_vincula_un_centro_nuevo_fuera_de_la_cartera()
+    {
+        var (centro, tipo, centros, _, filas) = MundoCentro();
+        var handler = EditarTipo(tipo, centros, filas, SinCartera());
+
+        var resultado = await handler.Handle(ComandoEditarTipo(tipo, [centro.Id]), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("TipoDocumento.CentroNoEncontrado");
+        filas.Relaciones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Editar_un_tipo_de_documento_no_quita_por_ausencia_un_centro_fuera_de_la_cartera()
+    {
+        // § 6: el Gestor CAE no veía el Centro ajeno en el selector, así que no pudo desmarcarlo;
+        // solo se quita el Centro de su cartera que sí dejó de marcar.
+        var (centroAjeno, tipo, centros, _, filas) = MundoCentro();
+        var centroPropio = new Centro(Guid.NewGuid(), Guid.NewGuid(), "Planta de Coslada");
+        centros.ListaCentros.Add(centroPropio);
+        filas.Agregar(new TipoDocumentoCentro(tipo.Id, centroAjeno.Id));
+        filas.Agregar(new TipoDocumentoCentro(tipo.Id, centroPropio.Id));
+        var handler = EditarTipo(
+            tipo, centros, filas, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [centroPropio.Id]));
+
+        var resultado = await handler.Handle(ComandoEditarTipo(tipo, []), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        filas.Relaciones.Select(f => f.CentroId).Should().Equal(centroAjeno.Id);
+    }
+
+    [Fact]
+    public async Task Editar_un_tipo_de_documento_con_acceso_total_quita_por_ausencia_cualquier_centro()
+    {
+        var (centro, tipo, centros, _, filas) = MundoCentro();
+        filas.Agregar(new TipoDocumentoCentro(tipo.Id, centro.Id));
+        var handler = EditarTipo(tipo, centros, filas, AccesoTotal());
+
+        var resultado = await handler.Handle(ComandoEditarTipo(tipo, []), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        filas.Relaciones.Should().BeEmpty();
+    }
+
+    private static CrearTipoDocumentoCommand ComandoCrearTipo(IReadOnlyList<Guid> centroIds) => new(
+        "Formación en altura", null, false, 1, AmbitoAplicacion.Trabajador, RequisitoDocumental.Si,
+        NaturalezaJuridica.RequisitoCliente, null, null, null, null, null, centroIds);
+
+    private static EditarTipoDocumentoCommand ComandoEditarTipo(TipoDocumento tipo, IReadOnlyList<Guid> centroIds) => new(
+        tipo.Id, tipo.Nombre, null, false, 1, RequisitoDocumental.Si, NaturalezaJuridica.RequisitoCliente,
+        null, null, null, null, null, centroIds);
+
+    private static EditarTipoDocumentoCommandHandler EditarTipo(
+        TipoDocumento tipo, CentrosQueryContextFalso centros, TipoDocumentoCentroRepositorioFalso filas, IAlcanceDatosService alcance)
+    {
+        var repositorio = new TipoDocumentoRepositorioFalso();
+        repositorio.Agregar(tipo);
+        return new EditarTipoDocumentoCommandHandler(
+            repositorio, filas, centros, new AltaAcreditacionesPlataformaServiceFalso(), alcance, new UnitOfWorkFalso());
     }
 
     // ---- Vinculaciones de una Empresa o Subcontrata nueva

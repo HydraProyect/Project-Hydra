@@ -61,7 +61,7 @@ public class CrearTipoDocumentoCommandValidator : AbstractValidator<CrearTipoDoc
 
 public class CrearTipoDocumentoCommandHandler(
     ITipoDocumentoRepository repositorio, ITipoDocumentoCentroRepository tipoDocumentoCentroRepositorio,
-    ICentrosQueryContext centrosContext, IUnitOfWork unitOfWork)
+    ICentrosQueryContext centrosContext, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearTipoDocumentoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearTipoDocumentoCommand request, CancellationToken cancellationToken)
@@ -77,7 +77,12 @@ public class CrearTipoDocumentoCommandHandler(
             var centroIds = request.CentroIds.Distinct().ToList();
             var centrosEncontrados = await centrosContext.Centros.Where(c => centroIds.Contains(c.Id)).CountAsync(cancellationToken);
 
-            if (centrosEncontrados != centroIds.Count)
+            // Asignación de Cartera: marcar un Centro aquí le impone Documentación requerida, lo mismo
+            // que EstablecerDocumentacionRequeridaCentroCommand; fuera de la cartera de gestión el Centro
+            // «no existe».
+            var centrosDeGestion = await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken);
+
+            if (centrosEncontrados != centroIds.Count || (centrosDeGestion is not null && !centroIds.All(centrosDeGestion.Contains)))
                 return Result.Fallo<Guid>(Error.Crear("TipoDocumento.CentroNoEncontrado", "Alguno de los centros seleccionados no existe."));
         }
 

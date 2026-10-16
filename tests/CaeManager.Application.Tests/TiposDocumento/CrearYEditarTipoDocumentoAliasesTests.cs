@@ -25,7 +25,7 @@ public class CrearYEditarTipoDocumentoAliasesTests
     {
         var repositorio = new TipoDocumentoRepositorioFalso();
         var handler = new CrearTipoDocumentoCommandHandler(
-            repositorio, new TipoDocumentoCentroRepositorioFalso(), new CentrosQueryContextFalso(), new UnitOfWorkFalso());
+            repositorio, new TipoDocumentoCentroRepositorioFalso(), new CentrosQueryContextFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(ComandoCrear(["TC2", "RNT"]), CancellationToken.None);
 
@@ -39,7 +39,7 @@ public class CrearYEditarTipoDocumentoAliasesTests
     {
         var repositorio = new TipoDocumentoRepositorioFalso();
         var handler = new CrearTipoDocumentoCommandHandler(
-            repositorio, new TipoDocumentoCentroRepositorioFalso(), new CentrosQueryContextFalso(), new UnitOfWorkFalso());
+            repositorio, new TipoDocumentoCentroRepositorioFalso(), new CentrosQueryContextFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(ComandoCrear(null), CancellationToken.None);
 
@@ -55,7 +55,7 @@ public class CrearYEditarTipoDocumentoAliasesTests
         tipo.EstablecerAliases(["TC2"]);
         repositorio.Agregar(tipo);
         var handler = new EditarTipoDocumentoCommandHandler(
-            repositorio, new TipoDocumentoCentroRepositorioFalso(), new CentrosQueryContextFalso(), new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso());
+            repositorio, new TipoDocumentoCentroRepositorioFalso(), new CentrosQueryContextFalso(), new AltaAcreditacionesPlataformaServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(
             new EditarTipoDocumentoCommand(

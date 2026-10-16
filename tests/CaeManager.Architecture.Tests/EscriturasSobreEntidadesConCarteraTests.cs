@@ -50,10 +50,6 @@ public class EscriturasSobreEntidadesConCarteraTests
             "cuentas de usuario: autoridad de Propiedad (AutoridadSobreCuentas, RolesReservadosAlTenantDeOrigen), no " +
             "de Operación; IAlcanceDatosService excluye expresamente los usuarios de sus listas",
         ["EditarUsuarioCommandHandler"] = "mismo motivo que CrearUsuarioCommandHandler",
-        ["CrearTipoDocumentoCommandHandler"] =
-            "catálogo de Tipos de documento del Tenant: configuración, no Operación (IAlcanceDatosService); la página " +
-            "/tipos-documento es solo de Administrador",
-        ["EditarTipoDocumentoCommandHandler"] = "mismo motivo que CrearTipoDocumentoCommandHandler",
         ["CrearTarifaClienteCommandHandler"] =
             "tarifas de facturación: plano Comercial, no Operación; la página /facturacion es solo de Administrador y " +
             "Dirección CAE, que no tienen restricción de cartera",
@@ -71,10 +67,14 @@ public class EscriturasSobreEntidadesConCarteraTests
     /// </summary>
     private static readonly HashSet<string> Pendientes =
     [
-        // Incidencias (CentroId, TrabajadorId): fuera de este incremento, que cierra documentos,
-        // acreditaciones, reclamaciones y las fichas de Empresa, Subcontrata, Centro y Vehículo.
+        // Incidencias (CentroId, TrabajadorId, o Id(s) de una Incidencia colgada de ellos): fuera de
+        // este incremento, que cierra documentos, acreditaciones, reclamaciones, Tipos de documento y
+        // las fichas de Empresa, Subcontrata, Centro y Vehículo.
         "CrearIncidenciaCommandHandler",
         "EditarIncidenciaCommandHandler",
+        "EliminarIncidenciaCommandHandler",
+        "EliminarIncidenciasCommandHandler",
+        "MarcarResueltaIncidenciaCommandHandler",
     ];
 
     [Fact]
@@ -127,9 +127,12 @@ public class EscriturasSobreEntidadesConCarteraTests
                                          && (Entidades.Any(e => p.Name == e + "Id" || p.Name == e + "Ids")
                                              || (p.Name is "Id" or "Ids" && EstaEnUnaCarpetaConCartera(comando))));
 
-    /// <summary>Carpetas de Application cuyo agregado raíz tiene cartera.</summary>
+    /// <summary>
+    /// Carpetas de Application cuyo agregado raíz tiene cartera, más Incidencias: una Incidencia
+    /// cuelga de un Centro o un Trabajador, así que su <c>Id</c> también alcanza filas con cartera.
+    /// </summary>
     private static readonly string[] CarpetasConCartera =
-        ["Documentos", "Empresas", "Clientes", "Subcontratas", "Centros", "Trabajadores", "Vehiculos"];
+        ["Documentos", "Empresas", "Clientes", "Subcontratas", "Centros", "Trabajadores", "Vehiculos", "Incidencias"];
 
     private static bool EstaEnUnaCarpetaConCartera(Type comando) =>
         comando.Namespace?.Split('.') is [_, "Application", var carpeta, ..] && CarpetasConCartera.Contains(carpeta);

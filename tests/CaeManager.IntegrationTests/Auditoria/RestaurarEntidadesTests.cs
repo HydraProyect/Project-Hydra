@@ -416,6 +416,57 @@ public class RestaurarEntidadesTests : IAsyncLifetime
         (await contextoRestaurar.Documentos.SingleAsync(d => d.Id == documentoId)).EstaEliminado.Should().BeFalse();
     }
 
+    /// <summary>
+    /// EliminarProyecto no arrastra sus Documentos: desde la Papelera se restaura un Documento cuyo
+    /// Proyecto ya está eliminado. La comprobación de cartera resuelve su Cliente empresarial sin el
+    /// filtro de borrado lógico, tanto sin restricción como con una cartera que alcanza a ese Cliente.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Restaura_un_documento_de_un_proyecto_eliminado(bool conCarteraDelCliente)
+    {
+        Guid documentoId, clienteId;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente del Proyecto S.A.", "B12345674", false, null, null);
+            var empresa = new Empresa("Empresa del Proyecto S.L.", "B87654323");
+            contexto.Empresas.AddRange(cliente, empresa);
+            await contexto.SaveChangesAsync();
+
+            var centro = new Centro(cliente.Id, empresa.Id, "Centro del Proyecto");
+            var tipo = new TipoDocumento("Plan de seguridad de la obra", null, false, 1, AmbitoAplicacion.Proyecto);
+            contexto.Centros.Add(centro);
+            contexto.TiposDocumento.Add(tipo);
+            await contexto.SaveChangesAsync();
+
+            var proyecto = Proyecto.Crear(cliente.Id, centro.Id, "Obra de la nave", new DateOnly(2026, 10, 1), null, null);
+            contexto.Proyectos.Add(proyecto);
+            await contexto.SaveChangesAsync();
+
+            var documento = Documento.DeProyecto(
+                proyecto.Id, tipo.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1)));
+            contexto.Documentos.Add(documento);
+            await contexto.SaveChangesAsync();
+
+            documento.MarcarComoEliminado(Guid.NewGuid());
+            proyecto.MarcarComoEliminado(Guid.NewGuid());
+            await contexto.SaveChangesAsync();
+            documentoId = documento.Id;
+            clienteId = cliente.Id;
+        }
+
+        await using var contextoRestaurar = CrearContexto(_tenant);
+        var alcance = conCarteraDelCliente ? new AlcanceDatosServiceFalso(clienteIds: [clienteId]) : new AlcanceDatosServiceFalso();
+        var handler = new RestaurarDocumentoCommandHandler(
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, contextoRestaurar, contextoRestaurar);
+
+        var resultado = await handler.Handle(new RestaurarDocumentoCommand(documentoId), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        (await contextoRestaurar.Documentos.SingleAsync(d => d.Id == documentoId)).EstaEliminado.Should().BeFalse();
+    }
+
     [Fact]
     public async Task Un_documento_eliminado_de_otro_tenant_no_se_restaura()
     {

@@ -102,7 +102,7 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new CrearTipoDocumentoCommandHandler(
-            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, contexto);
+            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, new AlcanceDatosServiceFalso(), contexto);
 
         var resultado = await handler.Handle(
             new CrearTipoDocumentoCommand(
@@ -125,7 +125,7 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         var handler = new EditarTipoDocumentoCommandHandler(
-            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), contexto);
+            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(), contexto);
 
         var resultado = await handler.Handle(
             new EditarTipoDocumentoCommand(

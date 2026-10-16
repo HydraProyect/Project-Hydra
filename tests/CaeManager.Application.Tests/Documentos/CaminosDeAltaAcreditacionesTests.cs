@@ -267,7 +267,7 @@ public class CaminosDeAltaAcreditacionesTests
         var tipos = new TipoDocumentoRepositorioFalso();
         tipos.Agregar(tipo);
         var handler = new EditarTipoDocumentoCommandHandler(
-            tipos, new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.Servicio(), new UnitOfWorkFalso());
+            tipos, new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(
             new EditarTipoDocumentoCommand(

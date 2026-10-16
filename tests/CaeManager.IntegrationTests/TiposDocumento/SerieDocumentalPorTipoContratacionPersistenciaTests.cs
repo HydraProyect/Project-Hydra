@@ -76,7 +76,7 @@ public class SerieDocumentalPorTipoContratacionPersistenciaTests : IAsyncLifetim
 
             var handler = new EditarTipoDocumentoCommandHandler(
                 new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto,
-                AltaAcreditacionesDePrueba.Con(contexto), contexto);
+                AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(), contexto);
             var resultado = await handler.Handle(
                 new EditarTipoDocumentoCommand(tipoId, "Aptitud médica", 12, true, 1, RequisitoDocumental.Si,
                     NaturalezaJuridica.ObligacionLegal, null, null, null, null, null, [], null,

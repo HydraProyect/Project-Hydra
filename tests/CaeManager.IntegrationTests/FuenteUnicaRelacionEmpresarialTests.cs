@@ -8,6 +8,7 @@ using CaeManager.Application.Plataforma;
 using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EditarSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Subcontratas;
@@ -206,6 +207,124 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
         await using var verificacion = CrearContexto();
         (await verificacion.RelacionesEmpresariales.SingleAsync(r => r.ProveedoraId == subcontrataId && r.ClienteId == empresaUno))
             .EstaVigente.Should().BeTrue("empresaUno está fuera de la cartera: el usuario no pudo desmarcarla");
+    }
+
+    /// <summary>
+    /// Gemelo del anterior en el eje de Clientes empresariales: clienteUno no está en la cartera de
+    /// lectura de Clientes, así que la edición que no lo menciona no cierra la arista.
+    /// </summary>
+    [Fact]
+    public async Task EditarSubcontrataCommand_no_cierra_por_ausencia_un_Cliente_fuera_de_la_cartera()
+    {
+        Guid subcontrataId, clienteUno;
+        await using (var contexto = CrearContexto())
+        {
+            var cli1 = Empresa.CrearComoCliente("Cliente Cartera Tres S.A.", "B10380962", false, null, null);
+            var subcontrata = Empresa.CrearComoSubcontrata("Subcontrata Cartera Dos S.L.", "B10380970", NivelServicioSubcontrata.Gestionada.ToString());
+            contexto.Empresas.AddRange(cli1, subcontrata);
+            await contexto.SaveChangesAsync();
+            clienteUno = cli1.Id; subcontrataId = subcontrata.Id;
+
+            contexto.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(subcontrataId, clienteUno, DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto())
+        {
+            var resultado = await EditarSubcontrataConCartera(contexto, subcontrataId, "Subcontrata Cartera Dos S.L.", "B10380970",
+                clienteIds: [], empresaIds: [], carteraDeClientes: []);
+
+            resultado.EsExitoso.Should().BeTrue();
+        }
+
+        await using var verificacion = CrearContexto();
+        (await verificacion.RelacionesEmpresariales.SingleAsync(r => r.ProveedoraId == subcontrataId && r.ClienteId == clienteUno))
+            .EstaVigente.Should().BeTrue("clienteUno está fuera de la cartera: el usuario no pudo desmarcarlo");
+    }
+
+    /// <summary>
+    /// Vinculaciones NUEVAS fuera de la cartera: EditarEmpresa con un Cliente empresarial ajeno, y
+    /// EditarSubcontrata con una Empresa o un Cliente empresarial ajenos, responden como si no
+    /// existieran y no escriben ninguna arista.
+    /// </summary>
+    [Fact]
+    public async Task EditarEmpresaCommand_no_vincula_un_Cliente_nuevo_fuera_de_la_cartera()
+    {
+        Guid empresaId, clienteAjeno;
+        await using (var contexto = CrearContexto())
+        {
+            var cli = Empresa.CrearComoCliente("Cliente Cartera Cuatro S.A.", "B10380988", false, null, null);
+            var empresa = new Empresa("Empresa Cartera Tres S.L.", "B10380996");
+            contexto.Empresas.AddRange(cli, empresa);
+            await contexto.SaveChangesAsync();
+            clienteAjeno = cli.Id; empresaId = empresa.Id;
+        }
+
+        await using (var contexto = CrearContexto())
+        {
+            var handler = new EditarEmpresaCommandHandler(
+                new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
+                new GuardDeCierreDeArista(contexto, contexto, contexto),
+                new AlcanceDatosServiceFalso(clienteIds: [], empresaIds: [empresaId]), contexto);
+
+            var resultado = await handler.Handle(
+                new EditarEmpresaCommand(empresaId, "Empresa Cartera Tres S.L.", "B10380996", [clienteAjeno]),
+                CancellationToken.None);
+
+            resultado.Error.Codigo.Should().Be("Empresa.ClienteNoEncontrado");
+        }
+
+        await using var verificacion = CrearContexto();
+        (await verificacion.RelacionesEmpresariales.AnyAsync(r => r.ProveedoraId == empresaId)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task EditarSubcontrataCommand_no_vincula_una_Empresa_ni_un_Cliente_nuevos_fuera_de_la_cartera()
+    {
+        Guid subcontrataId, empresaAjena, clienteAjeno;
+        await using (var contexto = CrearContexto())
+        {
+            var cli = Empresa.CrearComoCliente("Cliente Cartera Cinco S.A.", "B10381002", false, null, null);
+            var empresa = new Empresa("Empresa Cartera Cuatro S.L.", "B10381010");
+            var subcontrata = Empresa.CrearComoSubcontrata("Subcontrata Cartera Tres S.L.", "B10381028", NivelServicioSubcontrata.Gestionada.ToString());
+            contexto.Empresas.AddRange(cli, empresa, subcontrata);
+            await contexto.SaveChangesAsync();
+            clienteAjeno = cli.Id; empresaAjena = empresa.Id; subcontrataId = subcontrata.Id;
+        }
+
+        await using (var contexto = CrearContexto())
+        {
+            var conEmpresaAjena = await EditarSubcontrataConCartera(contexto, subcontrataId, "Subcontrata Cartera Tres S.L.", "B10381028",
+                clienteIds: [], empresaIds: [empresaAjena], carteraDeClientes: [clienteAjeno]);
+            conEmpresaAjena.Error.Codigo.Should().Be("Subcontrata.EmpresaNoEncontrada");
+        }
+
+        await using (var contexto = CrearContexto())
+        {
+            var conClienteAjeno = await EditarSubcontrataConCartera(contexto, subcontrataId, "Subcontrata Cartera Tres S.L.", "B10381028",
+                clienteIds: [clienteAjeno], empresaIds: [], carteraDeClientes: []);
+            conClienteAjeno.Error.Codigo.Should().Be("Subcontrata.ClienteNoEncontrado");
+        }
+
+        await using var verificacion = CrearContexto();
+        (await verificacion.RelacionesEmpresariales.AnyAsync(r => r.ProveedoraId == subcontrataId)).Should().BeFalse();
+    }
+
+    /// <summary>
+    /// EditarSubcontrata con un Gestor CAE cuya cartera de gestión solo alcanza a la propia
+    /// Subcontrata y cuya cartera de Clientes empresariales es <paramref name="carteraDeClientes"/>.
+    /// </summary>
+    private static async Task<Result> EditarSubcontrataConCartera(
+        CaeManagerDbContext contexto, Guid subcontrataId, string razonSocial, string cif,
+        IReadOnlyList<Guid> clienteIds, IReadOnlyList<Guid> empresaIds, IReadOnlyList<Guid> carteraDeClientes)
+    {
+        var handler = new EditarSubcontrataCommandHandler(
+            new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
+            new GuardDeCierreDeArista(contexto, contexto, contexto),
+            new AlcanceDatosServiceFalso(clienteIds: carteraDeClientes, empresaIds: [subcontrataId], subcontrataIds: [subcontrataId]),
+            contexto);
+
+        return await handler.Handle(new EditarSubcontrataCommand(subcontrataId, razonSocial, cif, clienteIds, empresaIds), CancellationToken.None);
     }
 
     /// <summary>

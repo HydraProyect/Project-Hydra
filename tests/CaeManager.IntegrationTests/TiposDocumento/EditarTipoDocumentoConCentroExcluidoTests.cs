@@ -94,7 +94,7 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
         var (tipo, centro) = await CrearTipoYCentroConExclusionAsync(contexto);
 
         var editarHandler = new EditarTipoDocumentoCommandHandler(
-            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), contexto);
+            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(), contexto);
 
         var resultado = await editarHandler.Handle(
             new EditarTipoDocumentoCommand(
@@ -113,7 +113,7 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
         var (tipo, centro) = await CrearTipoYCentroConExclusionAsync(contexto);
 
         var editarHandler = new EditarTipoDocumentoCommandHandler(
-            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), contexto);
+            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(), contexto);
 
         await editarHandler.Handle(
             new EditarTipoDocumentoCommand(
@@ -146,7 +146,7 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
         var (tipo, centro) = await CrearTipoYCentroConExclusionAsync(contexto);
 
         var editarHandler = new EditarTipoDocumentoCommandHandler(
-            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), contexto);
+            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(), contexto);
 
         // Ningún centro marcado en el picker: la exclusión no se ve desde aquí y no debe borrarse.
         var resultado = await editarHandler.Handle(

@@ -26,11 +26,11 @@ public class CrearYEditarTipoDocumentoSerieContratacionTests
             null, null, null, null, null, [], null, serie);
 
     private static CrearTipoDocumentoCommandHandler HandlerCrear(TipoDocumentoRepositorioFalso repositorio) =>
-        new(repositorio, new TipoDocumentoCentroRepositorioFalso(), new CentrosQueryContextFalso(), new UnitOfWorkFalso());
+        new(repositorio, new TipoDocumentoCentroRepositorioFalso(), new CentrosQueryContextFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
 
     private static EditarTipoDocumentoCommandHandler HandlerEditar(TipoDocumentoRepositorioFalso repositorio) =>
         new(repositorio, new TipoDocumentoCentroRepositorioFalso(), new CentrosQueryContextFalso(),
-            new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso());
+            new AltaAcreditacionesPlataformaServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
 
     [Fact]
     public async Task Crear_sin_serie_pide_de_serie_a_todos()
