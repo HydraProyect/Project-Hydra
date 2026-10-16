@@ -135,15 +135,26 @@ public class Proyecto : EntidadBase
     /// <summary>
     /// Deshace un cierre: el proyecto vuelve a contar como abierto. Un evento solo se reabre con una fecha de fin
     /// prevista de <paramref name="hoy"/> o posterior: con la fecha ya pasada, el cierre automático
-    /// (<see cref="CerrarEventoTerminado"/>) lo volvería a cerrar en su siguiente pase. Para alargarlo, primero se cambia
-    /// la fecha de fin (se puede editar cerrado) y después se reabre.
+    /// (<see cref="CerrarEventoTerminado"/>) lo volvería a cerrar en su siguiente pase. La nueva fecha llega en el mismo
+    /// paso (<paramref name="nuevaFechaFinPrevista"/>, solo para eventos) o se cambia antes editando el proyecto cerrado.
+    /// Los participantes dados de baja por el cierre no se reactivan: se vuelven a asignar.
     /// </summary>
-    public void Reabrir(DateOnly hoy)
+    public void Reabrir(DateOnly hoy, DateOnly? nuevaFechaFinPrevista = null)
     {
-        if (EsEvento && FechaFinPrevista < hoy)
+        if (nuevaFechaFinPrevista is { } nueva)
+        {
+            if (!EsEvento)
+                throw new InvalidOperationException("Solo un evento cambia su fecha de fin al reabrirse.");
+            if (nueva < FechaInicio)
+                throw new ArgumentException("La fecha de fin prevista no puede ser anterior a la de inicio.", nameof(nuevaFechaFinPrevista));
+        }
+
+        if (EsEvento && (nuevaFechaFinPrevista ?? FechaFinPrevista) < hoy)
             throw new InvalidOperationException(
                 "Un evento con la fecha de fin ya pasada no se puede reabrir: cambia antes la fecha de fin a hoy o a una posterior.");
 
+        if (nuevaFechaFinPrevista is not null)
+            FechaFinPrevista = nuevaFechaFinPrevista;
         FechaCierreReal = null;
     }
 

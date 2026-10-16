@@ -291,6 +291,15 @@
   <data name="ConfirmarReabrirTitulo" xml:space="preserve">
     <value>¿Reabrir el proyecto?</value>
   </data>
+  <data name="ReabrirEventoExplicacion" xml:space="preserve">
+    <value>La data de fi d'aquest esdeveniment ja ha passat. Indica la nova data de fi, d'avui o posterior; si no, es tornaria a tancar sol. Els seus participants no es reactiven: torna a assignar-los.</value>
+  </data>
+  <data name="EtiquetaNuevaFechaFinReabrir" xml:space="preserve">
+    <value>Nova data de fi</value>
+  </data>
+  <data name="ErrorNuevaFechaFinReabrir" xml:space="preserve">
+    <value>Introdueix una data de fi d'avui o posterior.</value>
+  </data>
   <data name="ConfirmarReabrirMensaje" xml:space="preserve">
     <value>El proyecto {0} volverá a contar como abierto y se borrará su fecha de cierre ({1}). Si solo querías corregir la fecha, vuelve a cerrarlo con la correcta.</value>
   </data>

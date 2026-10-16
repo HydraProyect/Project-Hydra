@@ -276,6 +276,47 @@ public class ProyectoAutorizacionEscrituraTests
     }
 
     [Fact]
+    public async Task Reabrir_un_evento_terminado_con_una_nueva_fecha_de_fin_futura_lo_deja_abierto_con_esa_fecha()
+    {
+        var clienteId = Guid.NewGuid();
+        var hoy = DiaDeNegocio.Hoy();
+        var evento = Proyecto.Crear(clienteId, Guid.NewGuid(), "Partido", hoy.AddDays(-3), hoy.AddDays(-1), null, TipoProyecto.Evento);
+        evento.CerrarEventoTerminado(hoy);
+        var repositorio = new ProyectoRepositorioFalso();
+        repositorio.Agregar(evento);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new ReabrirProyectoCommandHandler(repositorio, AlcanceSinAcceso(clienteId), unitOfWork);
+
+        var resultado = await handler.Handle(new ReabrirProyectoCommand(evento.Id, NuevaFechaFinPrevista: hoy.AddDays(4)), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        evento.EstaAbierto.Should().BeTrue();
+        evento.FechaFinPrevista.Should().Be(hoy.AddDays(4));
+        unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Theory]
+    [InlineData(-1, "Proyecto.EventoFinPasado")]
+    [InlineData(-10, "Proyecto.FechaFinAnteriorAlInicio")]
+    public async Task Reabrir_un_evento_con_una_nueva_fecha_no_valida_falla_sin_tocarlo(int dias, string codigo)
+    {
+        var clienteId = Guid.NewGuid();
+        var hoy = DiaDeNegocio.Hoy();
+        var evento = Proyecto.Crear(clienteId, Guid.NewGuid(), "Partido", hoy.AddDays(-3), hoy.AddDays(-2), null, TipoProyecto.Evento);
+        evento.CerrarEventoTerminado(hoy);
+        var repositorio = new ProyectoRepositorioFalso();
+        repositorio.Agregar(evento);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new ReabrirProyectoCommandHandler(repositorio, AlcanceSinAcceso(clienteId), unitOfWork);
+
+        var resultado = await handler.Handle(new ReabrirProyectoCommand(evento.Id, NuevaFechaFinPrevista: hoy.AddDays(dias)), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(codigo);
+        evento.EstaAbierto.Should().BeFalse();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Reabrir_un_evento_cuya_fecha_de_fin_es_hoy_lo_deja_abierto()
     {
         var clienteId = Guid.NewGuid();

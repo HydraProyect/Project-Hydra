@@ -16,6 +16,10 @@ namespace CaeManager.Infrastructure.Proyectos;
 /// no se queda abierto mostrando «fin previsto superado hace N días» ni contando como abierto en listados, filtros o
 /// avisos. Cada evento terminado se cierra con <see cref="Proyecto.CerrarEventoTerminado"/>, que fija
 /// <c>FechaCierreReal</c> = <c>FechaFinPrevista</c> (el día en que terminó, no el del pase). Las obras no se tocan.
+/// Sus participantes vigentes (<see cref="ProyectoTecnico"/> sin <c>FechaBaja</c>) se dan de baja con
+/// <c>FechaBaja</c> = <c>FechaFinPrevista</c> (o su alta, si entraron después), igual que la siembra: un evento terminado
+/// no sigue mostrando «N técnicos activos» (decisión de la coordinadora, 2026-10-16, en línea con «sin ruido»). Al
+/// reabrir no se reactivan solos: se vuelven a asignar.
 ///
 /// <para>
 /// <b>Cierre persistido y no derivado.</b> <c>FechaCierreReal</c> es la única marca de abierto/cerrado que leen el filtro
@@ -135,12 +139,24 @@ public class CierreEventosTerminadosHostedService(
             .Where(VigenciaEvento.PendienteDeCierreEn(hoy))
             .ToListAsync(stoppingToken);
 
-        var cerrados = pendientes.Count(evento => evento.CerrarEventoTerminado(hoy));
-        if (cerrados == 0)
+        var cerrados = pendientes.Where(evento => evento.CerrarEventoTerminado(hoy)).ToList();
+        if (cerrados.Count == 0)
             return;
+
+        var finPorEvento = cerrados.ToDictionary(evento => evento.Id, evento => evento.FechaFinPrevista!.Value);
+        var idsCerrados = finPorEvento.Keys.ToList();
+        var participantes = await dbContext.ProyectosTecnicos
+            .Where(participante => idsCerrados.Contains(participante.ProyectoId) && participante.FechaBaja == null)
+            .ToListAsync(stoppingToken);
+        foreach (var participante in participantes)
+        {
+            var fin = finPorEvento[participante.ProyectoId];
+            participante.DarDeBaja(fin < participante.FechaAlta ? participante.FechaAlta : fin);
+        }
 
         await dbContext.SaveChangesAsync(stoppingToken);
         logger.LogInformation(
-            "Cierre de eventos terminados: {Cerrados} cerrados en el Tenant propietario {TenantId}.", cerrados, tenantId);
+            "Cierre de eventos terminados: {Cerrados} cerrados y {Participantes} participantes dados de baja en el Tenant propietario {TenantId}.",
+            cerrados.Count, participantes.Count, tenantId);
     }
 }

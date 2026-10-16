@@ -154,6 +154,33 @@ public class ProyectoEventoTests
     }
 
     [Fact]
+    public void Un_evento_cerrado_se_reabre_con_la_nueva_fecha_de_fin_en_el_mismo_paso()
+    {
+        var hoy = Fin.AddDays(3);
+        var evento = Evento();
+        evento.CerrarEventoTerminado(hoy);
+
+        evento.Reabrir(hoy, hoy.AddDays(5));
+
+        evento.EstaAbierto.Should().BeTrue();
+        evento.FechaFinPrevista.Should().Be(hoy.AddDays(5));
+        var conFechaPasada = () => Evento().Reabrir(hoy, Fin);
+        conFechaPasada.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Una_obra_no_cambia_su_fecha_de_fin_al_reabrirse()
+    {
+        var obra = Proyecto.Crear(Guid.NewGuid(), Guid.NewGuid(), "Obra", Inicio, Fin, null);
+        obra.Cerrar(Fin);
+
+        var reabrir = () => obra.Reabrir(Fin, Fin.AddDays(9));
+
+        reabrir.Should().Throw<InvalidOperationException>();
+        obra.EstaAbierto.Should().BeFalse();
+    }
+
+    [Fact]
     public void El_predicado_de_pendientes_de_cierre_es_el_complemento_de_sin_terminar_entre_los_eventos_abiertos()
     {
         var abiertoPasado = Evento();

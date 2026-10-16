@@ -240,7 +240,15 @@
     Mensaje="@MensajeConfirmarReabrir"
     TextoBotonConfirmar="@Textos["AccionReabrirProyecto"]"
     EnProgreso="_reabriendo"
-    OnConfirmar="ConfirmarReabrirAsync" />
+    HayCambios="() => !string.IsNullOrEmpty(_nuevaFechaFinReabrir)"
+    OnConfirmar="ConfirmarReabrirAsync">
+    @if (ReabrirPideFechaFin)
+    {
+        <p>@Textos["ReabrirEventoExplicacion"]</p>
+        <CampoTexto Etiqueta="@Textos["EtiquetaNuevaFechaFinReabrir"]" Type="date" Valor="@_nuevaFechaFinReabrir"
+                    ValorChanged="v => { _nuevaFechaFinReabrir = v; _errorReabrir = null; }" MensajeError="@_errorReabrir" />
+    }
+</DialogoConfirmacion>
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarVisible"
