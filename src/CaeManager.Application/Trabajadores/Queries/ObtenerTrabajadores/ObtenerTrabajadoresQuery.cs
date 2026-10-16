@@ -1,6 +1,7 @@
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Common;
+using CaeManager.Application.Alertas;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
@@ -71,13 +72,23 @@ public record TrabajadorListaDto(
     /// listado, marcado, pero sus vencimientos no avisan ni cuentan en el Centro.
     /// </summary>
     public bool VoluntarioInactivo { get; init; }
+
+    /// <summary>
+    /// Nombres de los Tipos de documento que algún Centro con Asignación activa del Trabajador le EXIGE y de los que no
+    /// tiene ningún Documento operativo (la misma regla de <see cref="IDocumentosFaltantesService"/>: Alertas, preflight
+    /// de asignación y Trabajador 360). Sin repetir y por nombre. Solo los rellena <c>ConDesgloseDocumental</c>. Un
+    /// Trabajador con alguno nunca se presenta como «Sin incidencias», aunque <see cref="EstadoDocumental"/>, que mide
+    /// solo los documentos registrados, diga lo contrario.
+    /// </summary>
+    public IReadOnlyList<string> DocumentosFaltantes { get; init; } = [];
 }
 
 public class ObtenerTrabajadoresQueryHandler(
     IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
     IDocumentosQueryContext documentosContext, IConfiguracionQueryContext configuracionContext,
     IAlcanceDatosService alcanceDatos, ICalculoEstadoDocumentalService calculoEstadoDocumental,
-    IAsignacionesQueryContext asignacionesContext, IProyectosQueryContext proyectosContext)
+    IAsignacionesQueryContext asignacionesContext, IProyectosQueryContext proyectosContext,
+    IDocumentosFaltantesService documentosFaltantes)
     : IRequestHandler<ObtenerTrabajadoresQuery, ResultadoPaginado<TrabajadorListaDto>>
 {
     public async Task<ResultadoPaginado<TrabajadorListaDto>> Handle(
@@ -340,16 +351,51 @@ public class ObtenerTrabajadoresQueryHandler(
         var desgloses = await calculoEstadoDocumental.CalcularDesgloseAsync(
             AmbitoAplicacion.Trabajador, pagina.Select(t => t.Id).ToList(), cancellationToken);
 
+        var faltantes = await FaltantesPorTrabajadorAsync(pagina, cancellationToken);
+
         return pagina
-            .Select(t => desgloses.TryGetValue(t.Id, out var desglose)
+            .Select(t => (desgloses.TryGetValue(t.Id, out var desglose)
                 ? t with
                 {
                     Incidencias = desglose.Incidencias,
                     DocumentosRegistrados = desglose.DocumentosRegistrados,
                     DocumentosVigentes = desglose.DocumentosVigentes
                 }
-                : t)
+                : t) with
+            {
+                DocumentosFaltantes = faltantes.GetValueOrDefault(t.Id) ?? []
+            })
             .ToList();
+    }
+
+    /// <summary>
+    /// Lo que cada Trabajador de la página tiene exigido y sin documento, con la regla única de
+    /// <see cref="IDocumentosFaltantesService"/> sobre sus Asignaciones activas (una consulta de Asignaciones y la del
+    /// servicio para toda la página). El nombre del Centro no se pinta aquí y no se carga.
+    /// </summary>
+    private async Task<Dictionary<Guid, IReadOnlyList<string>>> FaltantesPorTrabajadorAsync(
+        IReadOnlyList<TrabajadorListaDto> pagina, CancellationToken cancellationToken)
+    {
+        var ids = pagina.Select(t => t.Id).ToList();
+        var centrosActivos = await asignacionesContext.Asignaciones
+            .Where(a => ids.Contains(a.TrabajadorId) && a.FechaBaja == null)
+            .Select(a => new { a.TrabajadorId, a.CentroId })
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        if (centrosActivos.Count == 0)
+            return [];
+
+        var porId = pagina.ToDictionary(t => t.Id);
+        var parejas = centrosActivos
+            .Select(a => new ParejaTrabajadorCentro(
+                a.TrabajadorId, string.Empty, a.CentroId, string.Empty, porId[a.TrabajadorId].TipoContratacion))
+            .ToList();
+
+        return (await documentosFaltantes.CalcularAsync(parejas, cancellationToken))
+            .GroupBy(f => f.TrabajadorId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<string>)g.Select(f => f.TipoDocumentoNombre).Distinct().Order(StringComparer.CurrentCulture).ToList());
     }
 
     /// <summary>Tipo de contratación y actividad de voluntario de las filas YA paginadas, en una sola consulta.</summary>

@@ -85,6 +85,45 @@ public partial class TrabajadoresListaGen2Tests
     }
 
     [Fact]
+    public void Quien_no_tiene_un_documento_exigido_nunca_se_pinta_sin_incidencias_y_el_motivo_dice_cual_falta()
+    {
+        // El estado calculado solo mira los documentos registrados: aquí todos están al día, pero un Centro exige
+        // un Tipo del que no hay ninguno.
+        var javier = Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Vigente);
+        javier = javier with { Dto = javier.Dto with { DocumentosFaltantes = ["Formación Art. 19", "Aptitud médica"] } };
+        var cut = Renderizar(new MediatorFalso { Almacen = { javier } });
+
+        var celda = CeldaDeEstado(cut);
+        celda.TextContent.Should().NotContain("Sin incidencias");
+        celda.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Pendiente");
+        celda.QuerySelector(".estado-fila-motivo")!.TextContent.Trim()
+            .Should().Be("Falta: Formación Art. 19, Aptitud médica");
+    }
+
+    [Fact]
+    public void Con_un_vencido_y_un_exigido_sin_documento_manda_el_vencido_y_el_motivo_dice_ambos()
+    {
+        var javier = ConDesglose(Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Vencido), 3, 2,
+            IncidenciaDe("Contrato", EstadoDocumento.Vencido, -3));
+        javier = javier with { Dto = javier.Dto with { DocumentosFaltantes = ["Aptitud médica"] } };
+        var cut = Renderizar(new MediatorFalso { Almacen = { javier } });
+
+        var celda = CeldaDeEstado(cut);
+        celda.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Vencido");
+        celda.QuerySelector(".estado-fila-motivo")!.TextContent.Trim().Should().Be("Contrato · Falta: Aptitud médica");
+    }
+
+    [Fact]
+    public void Sin_nada_exigido_pendiente_la_fila_sigue_sin_incidencias()
+    {
+        var cut = Renderizar(new MediatorFalso { Almacen = { Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Vigente) } });
+
+        var celda = CeldaDeEstado(cut);
+        celda.TextContent.Should().Contain("Sin incidencias");
+        celda.QuerySelector(".estado-fila-motivo").Should().BeNull();
+    }
+
+    [Fact]
     public void Con_varias_incidencias_el_motivo_las_cuenta_por_clase_y_el_desglose_lleva_una_linea_por_documento()
     {
         var javier = ConDesglose(Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Vencido), 10, 7,
