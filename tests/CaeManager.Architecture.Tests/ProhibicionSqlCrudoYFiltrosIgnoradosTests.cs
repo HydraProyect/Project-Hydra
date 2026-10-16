@@ -72,7 +72,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Application/Centros/Commands/RestaurarCentro/RestaurarCentroCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Empresas/Commands/RestaurarEmpresa/RestaurarEmpresaCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Trabajadores/Commands/RestaurarTrabajador/RestaurarTrabajadorCommand.cs", ".IgnoreQueryFilters()")] = 1,
-        [("src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs", ".IgnoreQueryFilters()")] = 1,
+        // 2: el Documento eliminado, y el Proyecto dueño, que puede estar eliminado también (EliminarProyecto no
+        // arrastra sus Documentos) y del que se lee solo el Cliente empresarial para la Asignación de Cartera;
+        // las dos consultas van acotadas al Tenant actual.
+        [("src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs", ".IgnoreQueryFilters()")] = 2,
         [("src/CaeManager.Application/Subcontratas/Commands/RestaurarSubcontrata/RestaurarSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Vehiculos/Commands/RestaurarVehiculo/RestaurarVehiculoCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Proyectos/Commands/RestaurarProyecto/RestaurarProyectoCommand.cs", ".IgnoreQueryFilters()")] = 1,

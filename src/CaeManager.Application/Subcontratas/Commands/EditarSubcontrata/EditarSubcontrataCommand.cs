@@ -79,7 +79,10 @@ public class EditarSubcontrataCommandHandler(
         var empresaIdsActuales = contrapartes.EmpresaPropiaIds.ToHashSet();
 
         var empresaIdsNuevos = empresaIdsDeseados.Except(empresaIdsActuales).ToList();
-        if (await empresasContext.Empresas.Where(e => empresaIdsNuevos.Contains(e.Id)).CountAsync(cancellationToken) != empresaIdsNuevos.Count)
+        // Asignación de Cartera: una vinculación nueva fuera de la cartera es una escritura sobre esa
+        // Empresa o ese Cliente empresarial, así que «no existe» (lo mismo para ClienteIds abajo).
+        if (await empresasContext.Empresas.Where(e => empresaIdsNuevos.Contains(e.Id)).CountAsync(cancellationToken) != empresaIdsNuevos.Count
+            || !await alcanceDatos.TodasLasEmpresasParaGestionVisiblesAsync(empresaIdsNuevos, cancellationToken))
             return Result.Fallo(Error.Crear("Subcontrata.EmpresaNoEncontrada", "Alguna de las empresas seleccionadas no existe."));
 
         var clienteIdsDeseados = request.ClienteIds.Distinct().ToHashSet();
@@ -87,7 +90,8 @@ public class EditarSubcontrataCommandHandler(
 
         // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         var clienteIdsNuevos = clienteIdsDeseados.Except(clienteIdsActuales).ToList();
-        if (await empresasContext.Empresas.Where(e => clienteIdsNuevos.Contains(e.Id)).CountAsync(cancellationToken) != clienteIdsNuevos.Count)
+        if (await empresasContext.Empresas.Where(e => clienteIdsNuevos.Contains(e.Id)).CountAsync(cancellationToken) != clienteIdsNuevos.Count
+            || !await alcanceDatos.TodosLosClientesVisiblesAsync(clienteIdsNuevos, cancellationToken))
             return Result.Fallo(Error.Crear("Subcontrata.ClienteNoEncontrado", "Alguno de los Clientes seleccionados no existe."));
 
         // PD-1: se BLOQUEA, no se arrastra. Los dos guards van ANTES de
@@ -100,13 +104,22 @@ public class EditarSubcontrataCommandHandler(
         // Se evalúan sobre las BAJAS calculadas, nunca sobre el conjunto de
         // contrapartes: una contraparte opaca no origina baja y por tanto
         // tampoco bloqueo (invariante de F4.2c).
-        var bajasDeCliente = clienteIdsActuales.Where(id => !clienteIdsDeseados.Contains(id)).ToList();
+        //
+        // Asignación de Cartera (§ 6 de contratos, bajas por ausencia): lo que queda fuera de la cartera
+        // no aparece en los selectores, así que su ausencia no es un desmarcado y nunca cierra la arista.
+        var clientesVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        var empresasGestionables = await alcanceDatos.ObtenerEmpresaIdsParaGestionAsync(cancellationToken);
+        var bajasDeCliente = clienteIdsActuales
+            .Where(id => !clienteIdsDeseados.Contains(id) && (clientesVisibles is null || clientesVisibles.Contains(id)))
+            .ToList();
 
         // La segunda es la arista de PD-4 (subcontrata → contratista): la que
         // el guard de F5 § 5.4(a), formulado sobre Centros, no podía ver —
         // para ese par no existe ni puede existir una fila de Centro—. Era un
         // clic: abrir la ficha, desmarcar la contratista, guardar.
-        var bajasDeEmpresa = empresaIdsActuales.Where(id => !empresaIdsDeseados.Contains(id)).ToList();
+        var bajasDeEmpresa = empresaIdsActuales
+            .Where(id => !empresaIdsDeseados.Contains(id) && (empresasGestionables is null || empresasGestionables.Contains(id)))
+            .ToList();
 
         foreach (var contraparteId in bajasDeCliente.Concat(bajasDeEmpresa))
             if (await guardDeCierre.TieneOperacionVivaAsync(subcontrata.Id, contraparteId, cancellationToken))

@@ -74,6 +74,28 @@ public static class AlcanceDatosServiceExtensions
         return ids is null || ids.Contains(empresaId);
     }
 
+    /// <summary>
+    /// Todos los <paramref name="clientesEmpresariales"/> están en la cartera (lista
+    /// vacía: true). Para los comandos que vinculan algo a varios Clientes a la vez; una sola
+    /// consulta de alcance, no una por Id.
+    /// </summary>
+    public static async Task<bool> TodosLosClientesVisiblesAsync(
+        this IAlcanceDatosService alcance, IReadOnlyCollection<Guid> clientesEmpresariales, CancellationToken cancellationToken = default)
+    {
+        if (clientesEmpresariales.Count == 0) return true;
+        var ids = await alcance.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        return ids is null || clientesEmpresariales.All(ids.Contains);
+    }
+
+    /// <summary>Igual que <see cref="TodosLosClientesVisiblesAsync"/>, con el alcance de gestión de Empresas.</summary>
+    public static async Task<bool> TodasLasEmpresasParaGestionVisiblesAsync(
+        this IAlcanceDatosService alcance, IReadOnlyCollection<Guid> empresaIds, CancellationToken cancellationToken = default)
+    {
+        if (empresaIds.Count == 0) return true;
+        var ids = await alcance.ObtenerEmpresaIdsParaGestionAsync(cancellationToken);
+        return ids is null || empresaIds.All(ids.Contains);
+    }
+
     public static async Task<bool> SubcontrataVisibleAsync(
         this IAlcanceDatosService alcance, Guid subcontrataId, CancellationToken cancellationToken = default)
     {

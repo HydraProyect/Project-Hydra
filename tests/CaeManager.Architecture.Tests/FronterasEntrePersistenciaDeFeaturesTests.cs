@@ -364,6 +364,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.DetectarCamposDocumentoQueryHandler", "ITrabajadoresQueryContext"),
         ("Documentos.EliminarDocumentoCommandHandler", "IProyectosQueryContext"),
         ("Documentos.EliminarDocumentosCommandHandler", "IProyectosQueryContext"),
+        // Asignación de Cartera al restaurar: DocumentoVisibleAsync resuelve el Cliente empresarial
+        // de un Documento de Proyecto, igual que al eliminarlo.
+        ("Documentos.RestaurarDocumentoCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionAceptadaCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionRechazadaCommandHandler", "IProyectosQueryContext"),
         ("Documentos.RestaurarAnotacionAcreditacionCommandHandler", "IProyectosQueryContext"),

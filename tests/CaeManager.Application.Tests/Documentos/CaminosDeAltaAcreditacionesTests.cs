@@ -221,7 +221,7 @@ public class CaminosDeAltaAcreditacionesTests
         mundo.DocumentoDe(trabajador, mundo.Tipo(RequisitoDocumental.Si, nombre: "Reconocimiento médico"));
         var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(
             new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.TiposDocumentoContexto,
-            mundo.Servicio(), new UnitOfWorkFalso());
+            mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(
             new EstablecerDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id, Incluido: true, null, false, null, null, ToleranciaDias: null),
@@ -244,7 +244,7 @@ public class CaminosDeAltaAcreditacionesTests
         mundo.DocumentoDe(trabajador, tipo);
         var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(
             new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.TiposDocumentoContexto,
-            mundo.Servicio(), new UnitOfWorkFalso());
+            mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(
             new EstablecerDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id, Incluido: false, null, false, null, null, ToleranciaDias: null),
@@ -267,7 +267,7 @@ public class CaminosDeAltaAcreditacionesTests
         var tipos = new TipoDocumentoRepositorioFalso();
         tipos.Agregar(tipo);
         var handler = new EditarTipoDocumentoCommandHandler(
-            tipos, new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.Servicio(), new UnitOfWorkFalso());
+            tipos, new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(
             new EditarTipoDocumentoCommand(

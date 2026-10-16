@@ -33,6 +33,7 @@ public class CrearSubcontrataCommandHandler(
     IEmpresaRepository repositorio,
     IRelacionEmpresarialRepository relacionEmpresarialRepositorio,
     IEmpresasQueryContext empresasContext,
+    IAlcanceDatosService alcanceDatos,
     IUnitOfWork unitOfWork)
     : IRequestHandler<CrearSubcontrataCommand, Result<Guid>>
 {
@@ -48,10 +49,14 @@ public class CrearSubcontrataCommandHandler(
         var clienteIds = request.ClienteIds.Distinct().ToList();
         var empresaIds = request.EmpresaIds.Distinct().ToList();
 
-        if (await empresasContext.Empresas.Where(e => clienteIds.Contains(e.Id)).CountAsync(cancellationToken) != clienteIds.Count)
+        // Y Asignación de Cartera: vincular la Subcontrata nueva a un Cliente empresarial o a una
+        // Empresa es escribir sobre ellos; fuera de la cartera «no existen».
+        if (await empresasContext.Empresas.Where(e => clienteIds.Contains(e.Id)).CountAsync(cancellationToken) != clienteIds.Count
+            || !await alcanceDatos.TodosLosClientesVisiblesAsync(clienteIds, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Subcontrata.ClienteNoEncontrado", "Alguno de los Clientes seleccionados no existe."));
 
-        if (await empresasContext.Empresas.Where(e => empresaIds.Contains(e.Id)).CountAsync(cancellationToken) != empresaIds.Count)
+        if (await empresasContext.Empresas.Where(e => empresaIds.Contains(e.Id)).CountAsync(cancellationToken) != empresaIds.Count
+            || !await alcanceDatos.TodasLasEmpresasParaGestionVisiblesAsync(empresaIds, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Subcontrata.EmpresaNoEncontrada", "Alguna de las empresas seleccionadas no existe."));
 
         var subcontrata = Empresa.CrearComoSubcontrata(request.RazonSocial, request.Cif, NivelServicioSubcontrata.Gestionada.ToString());

@@ -65,7 +65,7 @@ public class EditarTipoDocumentoCommandValidator : AbstractValidator<EditarTipoD
 public class EditarTipoDocumentoCommandHandler(
     ITipoDocumentoRepository repositorio, ITipoDocumentoCentroRepository tipoDocumentoCentroRepositorio,
     ICentrosQueryContext centrosContext, IAltaAcreditacionesPlataformaService altaAcreditaciones,
-    IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarTipoDocumentoCommand, Result>
 {
     public async Task<Result> Handle(EditarTipoDocumentoCommand request, CancellationToken cancellationToken)
@@ -116,11 +116,19 @@ public class EditarTipoDocumentoCommandHandler(
         // (hallazgo de la auditoría de PR #48). Solo hace falta verificar las
         // vinculaciones NUEVAS: las que ya estaban antes ya pasaron por esta
         // comprobación cuando se crearon.
+        //
+        // Asignación de Cartera: las vinculaciones nuevas tienen que caer en la cartera de gestión
+        // (mismo criterio que EstablecerDocumentacionRequeridaCentroCommand), y las bajas por ausencia
+        // solo se calculan sobre los Centros que la cartera deja gestionar: un Centro que el usuario no
+        // podía desmarcar no se interpreta como quitado.
+        var centrosDeGestion = await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken);
         var centroIdsNuevos = deseados.Except(actualesCentroIds).ToList();
-        if (await centrosContext.Centros.Where(c => centroIdsNuevos.Contains(c.Id)).CountAsync(cancellationToken) != centroIdsNuevos.Count)
+        if (await centrosContext.Centros.Where(c => centroIdsNuevos.Contains(c.Id)).CountAsync(cancellationToken) != centroIdsNuevos.Count
+            || (centrosDeGestion is not null && !centroIdsNuevos.All(centrosDeGestion.Contains)))
             return Result.Fallo(Error.Crear("TipoDocumento.CentroNoEncontrado", "Alguno de los centros seleccionados no existe."));
 
-        foreach (var tc in actuales.Where(tc => !deseados.Contains(tc.CentroId)))
+        foreach (var tc in actuales.Where(tc => !deseados.Contains(tc.CentroId)
+                                                && (centrosDeGestion is null || centrosDeGestion.Contains(tc.CentroId))))
             tipoDocumentoCentroRepositorio.Eliminar(tc);
 
         var filaExcluidaPorCentroId = todasLasFilas.Where(tc => !tc.Incluido).ToDictionary(tc => tc.CentroId);

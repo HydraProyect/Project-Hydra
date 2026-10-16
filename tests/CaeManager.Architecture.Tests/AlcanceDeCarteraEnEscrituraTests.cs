@@ -37,6 +37,12 @@ namespace CaeManager.Architecture.Tests;
 /// agregados (Proyecto, Evaluación, Incidencia...) es una decisión de
 /// alcance de cartera todavía sin definir para ellos, no un olvido de este
 /// mecanismo — no se inventa aquí.
+///
+/// Su red gemela, más ancha, es <see cref="EscriturasSobreEntidadesConCarteraTests"/>:
+/// decide por el contrato del comando (Ids de entidades con cartera) y no por
+/// el repositorio, así que también ve los comandos que llegan a la fila por
+/// un QueryContext, los que crean algo colgado de una Empresa y los que
+/// vinculan listas de Clientes empresariales o Empresas.
 /// </summary>
 public class AlcanceDeCarteraEnEscrituraTests
 {
