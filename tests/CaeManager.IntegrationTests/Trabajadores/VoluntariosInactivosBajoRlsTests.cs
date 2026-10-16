@@ -9,6 +9,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Proyectos;
@@ -59,6 +60,7 @@ public class VoluntariosInactivosBajoRlsTests : IAsyncLifetime
         {
             var club = new Empresa("Club Deportivo Springfield", "G10380186");
             _propietario.Empresas.Add(club);
+            _propietario.ParametrosSistema.Add(new ParametroSistema(30, 15));
             await _propietario.SaveChangesAsync();
             var estadio = new Centro(club.Id, club.Id, "Estadio municipal");
             var dni = new TipoDocumento("DNI del voluntario", null, false, 1, AmbitoAplicacion.Trabajador);
@@ -102,6 +104,7 @@ public class VoluntariosInactivosBajoRlsTests : IAsyncLifetime
         {
             var otra = new Empresa("Patronato Shelbyville", "G87654323");
             _propietario.Empresas.Add(otra);
+            _propietario.ParametrosSistema.Add(new ParametroSistema(30, 15));
             await _propietario.SaveChangesAsync();
             var ajeno = Voluntario(otra.Id, "Lucía", "Pardo Ríos", "22222222J");
             _propietario.Trabajadores.Add(ajeno);
