@@ -426,6 +426,42 @@ public class RestaurarEntidadesTests : IAsyncLifetime
     [InlineData(true)]
     public async Task Restaura_un_documento_de_un_proyecto_eliminado(bool conCarteraDelCliente)
     {
+        var (documentoId, clienteId) = await SembrarDocumentoDeProyectoEliminadoAsync();
+
+        await using var contextoRestaurar = CrearContexto(_tenant);
+        var alcance = conCarteraDelCliente ? new AlcanceDatosServiceFalso(clienteIds: [clienteId]) : new AlcanceDatosServiceFalso();
+        var handler = new RestaurarDocumentoCommandHandler(
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, contextoRestaurar, contextoRestaurar);
+
+        var resultado = await handler.Handle(new RestaurarDocumentoCommand(documentoId), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        (await contextoRestaurar.Documentos.SingleAsync(d => d.Id == documentoId)).EstaEliminado.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Mismo Documento de Proyecto eliminado, con la cartera de OTRO Cliente empresarial del mismo
+    /// Tenant: responde como inexistente (el mismo código que un Id que no existe) y sigue eliminado.
+    /// </summary>
+    [Fact]
+    public async Task Un_documento_de_un_proyecto_eliminado_fuera_de_la_cartera_no_se_restaura()
+    {
+        var (documentoId, _) = await SembrarDocumentoDeProyectoEliminadoAsync();
+
+        await using var contextoRestaurar = CrearContexto(_tenant);
+        var handler = new RestaurarDocumentoCommandHandler(
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant },
+            new AlcanceDatosServiceFalso(clienteIds: [Guid.NewGuid()]), contextoRestaurar, contextoRestaurar);
+
+        var resultado = await handler.Handle(new RestaurarDocumentoCommand(documentoId), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeFalse();
+        resultado.Error.Codigo.Should().Be("Documento.NoEncontrado");
+        (await contextoRestaurar.Documentos.IgnoreQueryFilters().SingleAsync(d => d.Id == documentoId)).EstaEliminado.Should().BeTrue();
+    }
+
+    private async Task<(Guid DocumentoId, Guid ClienteId)> SembrarDocumentoDeProyectoEliminadoAsync()
+    {
         Guid documentoId, clienteId;
         await using (var contexto = CrearContexto(_tenant))
         {
@@ -456,15 +492,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
             clienteId = cliente.Id;
         }
 
-        await using var contextoRestaurar = CrearContexto(_tenant);
-        var alcance = conCarteraDelCliente ? new AlcanceDatosServiceFalso(clienteIds: [clienteId]) : new AlcanceDatosServiceFalso();
-        var handler = new RestaurarDocumentoCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, contextoRestaurar, contextoRestaurar);
-
-        var resultado = await handler.Handle(new RestaurarDocumentoCommand(documentoId), CancellationToken.None);
-
-        resultado.EsExitoso.Should().BeTrue();
-        (await contextoRestaurar.Documentos.SingleAsync(d => d.Id == documentoId)).EstaEliminado.Should().BeFalse();
+        return (documentoId, clienteId);
     }
 
     [Fact]

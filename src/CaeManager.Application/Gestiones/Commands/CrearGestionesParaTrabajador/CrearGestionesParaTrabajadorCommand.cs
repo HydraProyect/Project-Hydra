@@ -63,6 +63,12 @@ public class CrearGestionesParaTrabajadorCommandHandler(
             .Distinct()
             .ToListAsync(cancellationToken);
 
+        // Asignación de Cartera: que el Trabajador sea visible no basta, porque puede estar asignado
+        // también a Centros de otro Cliente empresarial. Solo nace una Gestión en los Centros del
+        // alcance de gestión (null = sin restricción); fuera de ella, el Centro no cuenta.
+        if (await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken) is { } centrosDeGestion)
+            centroIds = centroIds.Where(centrosDeGestion.Contains).ToList();
+
         if (centroIds.Count == 0)
         {
             return Result.Fallo<ResultadoCrearGestionesDto>(Error.Crear(

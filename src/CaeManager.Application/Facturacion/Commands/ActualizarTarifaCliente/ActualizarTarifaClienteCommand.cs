@@ -26,11 +26,16 @@ public class ActualizarTarifaClienteCommandValidator : AbstractValidator<Actuali
 
 public class ActualizarTarifaClienteCommandHandler(
     ITarifaClienteRepository repositorio,
+    ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)
     : IRequestHandler<ActualizarTarifaClienteCommand, Result>
 {
     public async Task<Result> Handle(ActualizarTarifaClienteCommand request, CancellationToken cancellationToken)
     {
+        // Plano Comercial: por rol, no por cartera — ver AutorizacionTarifasCliente.
+        if (!await currentUserService.PuedeGestionarTarifasAsync())
+            return Result.Fallo(AutorizacionTarifasCliente.SinPermiso);
+
         var tarifa = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (tarifa is null)
             return Result.Fallo(Error.Crear("TarifaCliente.NoEncontrada", "La tarifa no existe o no tienes acceso."));

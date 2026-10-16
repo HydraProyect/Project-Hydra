@@ -8,13 +8,15 @@ namespace CaeManager.Application.Incidencias.Commands.EliminarIncidencia;
 public record EliminarIncidenciaCommand(Guid Id) : ICommand;
 
 public class EliminarIncidenciaCommandHandler(
-    IIncidenciaRepository repositorio, IUnitOfWork unitOfWork, ICurrentUserService currentUserService)
+    IIncidenciaRepository repositorio, IUnitOfWork unitOfWork, ICurrentUserService currentUserService,
+    IAlcanceDatosService alcanceDatos)
     : IRequestHandler<EliminarIncidenciaCommand, Result>
 {
     public async Task<Result> Handle(EliminarIncidenciaCommand request, CancellationToken cancellationToken)
     {
         var incidencia = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (incidencia is null)
+        // Asignación de Cartera: fuera del alcance de gestión de su Centro, la Incidencia «no existe».
+        if (incidencia is null || !await alcanceDatos.CentroParaGestionVisibleAsync(incidencia.CentroId, cancellationToken))
             return Result.Fallo(Error.Crear("Incidencia.NoEncontrada", "No encontramos esta incidencia."));
 
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();

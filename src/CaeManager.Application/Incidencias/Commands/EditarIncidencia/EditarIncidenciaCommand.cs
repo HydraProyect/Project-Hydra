@@ -24,19 +24,22 @@ public class EditarIncidenciaCommandValidator : AbstractValidator<EditarIncidenc
 }
 
 public class EditarIncidenciaCommandHandler(
-    IIncidenciaRepository repositorio, ITrabajadoresQueryContext trabajadoresContext, IUnitOfWork unitOfWork)
+    IIncidenciaRepository repositorio, ITrabajadoresQueryContext trabajadoresContext,
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarIncidenciaCommand, Result>
 {
     public async Task<Result> Handle(EditarIncidenciaCommand request, CancellationToken cancellationToken)
     {
         var incidencia = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (incidencia is null)
+        // Asignación de Cartera: fuera del alcance de gestión de su Centro, la Incidencia «no existe».
+        if (incidencia is null || !await alcanceDatos.CentroParaGestionVisibleAsync(incidencia.CentroId, cancellationToken))
             return Result.Fallo(Error.Crear("Incidencia.NoEncontrada", "No encontramos esta incidencia."));
 
         if (ConcurrenciaOptimista.Verificar(incidencia, request.Version, "esta incidencia") is { } conflicto)
             return Result.Fallo(conflicto);
 
-        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md. Solo dentro
+        // del Tenant, no contra la cartera: ver CrearIncidenciaCommandHandler.
         if (request.TrabajadorId is { } trabajadorId
             && !await trabajadoresContext.Trabajadores.AnyAsync(t => t.Id == trabajadorId, cancellationToken))
             return Result.Fallo(Error.Crear("Incidencia.TrabajadorNoEncontrado", "No encontramos este trabajador."));

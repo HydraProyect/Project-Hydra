@@ -15,6 +15,10 @@ public class EliminarTarifaClienteCommandHandler(
 {
     public async Task<Result> Handle(EliminarTarifaClienteCommand request, CancellationToken cancellationToken)
     {
+        // Plano Comercial: por rol, no por cartera — ver AutorizacionTarifasCliente.
+        if (!await currentUserService.PuedeGestionarTarifasAsync())
+            return Result.Fallo(AutorizacionTarifasCliente.SinPermiso);
+
         var tarifa = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (tarifa is null)
             return Result.Fallo(Error.Crear("TarifaCliente.NoEncontrada", "La tarifa no existe o no tienes acceso."));
