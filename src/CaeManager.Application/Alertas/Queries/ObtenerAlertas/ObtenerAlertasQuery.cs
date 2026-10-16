@@ -231,7 +231,7 @@ public class ObtenerAlertasQueryHandler(
                 .Where(d => d.TrabajadorId != null
                     && trabajadorIds.Contains(d.TrabajadorId.Value)
                     && tipoIds.Contains(d.TipoDocumentoId))
-                .Select(d => new { TrabajadorId = d.TrabajadorId.Value, d.TipoDocumentoId })
+                .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId })
                 .ToListAsync(cancellationToken))
             .Select(d => (d.TrabajadorId, d.TipoDocumentoId))
             .ToHashSet();

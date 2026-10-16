@@ -11,9 +11,9 @@ public class ProyectosQueryContextFalso : IProyectosQueryContext, IRequisitosEve
     public List<ProyectoRequisito> ListaProyectosRequisitos { get; } = [];
     public List<PlantillaRequisitosEvento> ListaPlantillas { get; } = [];
 
-    public IQueryable<Proyecto> Proyectos => ListaProyectos.AsQueryable();
-    public IQueryable<ProyectoTecnico> ProyectosTecnicos => ListaProyectosTecnicos.AsQueryable();
-    public IQueryable<ProyectoRequisito> ProyectosRequisitos => ListaProyectosRequisitos.AsQueryable();
+    public IQueryable<Proyecto> Proyectos => new CaeManager.Application.Tests.Integraciones.TestAsyncQueryable<Proyecto>(ListaProyectos.AsQueryable());
+    public IQueryable<ProyectoTecnico> ProyectosTecnicos => new CaeManager.Application.Tests.Integraciones.TestAsyncQueryable<ProyectoTecnico>(ListaProyectosTecnicos.AsQueryable());
+    public IQueryable<ProyectoRequisito> ProyectosRequisitos => new CaeManager.Application.Tests.Integraciones.TestAsyncQueryable<ProyectoRequisito>(ListaProyectosRequisitos.AsQueryable());
     public IQueryable<PlantillaRequisitosEvento> PlantillasRequisitosEvento => ListaPlantillas.AsQueryable();
     public IQueryable<PlantillaRequisitosEventoTipo> PlantillasRequisitosEventoTipos => ListaPlantillas.SelectMany(p => p.Tipos).AsQueryable();
 }

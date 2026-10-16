@@ -83,7 +83,7 @@ public class PendienteEnPlataformaBajoRlsTests : IAsyncLifetime
         await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
     }
 
-    private CalculoEstadoCentroService Calculo() => new(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime);
+    private CalculoEstadoCentroService Calculo() => new(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime);
 
     private EvaluacionDeAccesoPorCentroService Evaluacion(IAlcanceDatosService? alcance = null) =>
         new(_runtime, _runtime, _runtime, _runtime, _runtime, alcance ?? new AlcanceDatosServiceFalso());

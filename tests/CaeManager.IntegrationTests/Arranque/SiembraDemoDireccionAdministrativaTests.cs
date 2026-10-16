@@ -387,7 +387,7 @@ public class SiembraDemoDireccionAdministrativaSobreBaseTests
                         var clienteId = await contexto.Empresas
                             .Where(e => e.EsCritico != null && e.RazonSocial == cliente.RazonSocial).Select(e => e.Id).SingleAsync();
                         var centros = await contexto.Centros.Where(c => c.ClienteId == clienteId).OrderBy(c => c.CodigoCentro).ToListAsync();
-                        var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto);
+                        var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto);
                         var resultado = await servicio.CalcularAsync(centros.Select(c => c.Id).ToList(), CancellationToken.None);
 
                         centros.Select(c => resultado[c.Id].Estado).Should().Equal(

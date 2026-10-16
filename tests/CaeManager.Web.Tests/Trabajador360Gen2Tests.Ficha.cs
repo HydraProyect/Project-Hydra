@@ -4,6 +4,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores.Commands.EditarFichaTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Trabajadores.Components;
@@ -111,6 +112,27 @@ public partial class Trabajador360Gen2Tests
         cut.FindAll("[role=dialog]").Should().BeEmpty();
         cut.Find("[data-caja='altas-plataforma']").TextContent.Should().Contain("Electricista");
         m.Enviadas.OfType<ObtenerTrabajadorPorIdQuery>().Should().HaveCount(3, "carga de página, apertura y refresco");
+    }
+
+    // Decisión del 2026-10-15: el tipo de contratación se elige en la ficha (cuenta ajena, autónomo o voluntario).
+    [Fact]
+    public async Task El_selector_de_tipo_de_contratacion_precarga_el_valor_y_envia_el_elegido()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        m.Detalles[id] = m.Detalles[id] with { TipoContratacion = TipoContratacion.Autonomo };
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        var selector = drawer.FindComponents<CampoSelect>().Single(c => c.Instance.Etiqueta == "Tipo de contratación");
+        selector.Instance.Valor.Should().Be("Autonomo", "precarga el tipo guardado, no el valor por defecto");
+        selector.FindAll("option").Select(o => $"{o.GetAttribute("value")}={o.TextContent.Trim()}")
+            .Should().Equal("CuentaAjena=Cuenta ajena", "Autonomo=Autónomo", "Voluntario=Voluntario");
+        drawer.FindComponent<DrawerFormulario>().Instance.HayCambios().Should().BeFalse();
+
+        await selector.Find("select").ChangeAsync(new ChangeEventArgs { Value = "Voluntario" });
+        drawer.FindComponent<DrawerFormulario>().Instance.HayCambios().Should().BeTrue("cambiar el tipo es un cambio sin guardar");
+        await GuardarFicha(drawer);
+
+        m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().ContainSingle()
+            .Which.TipoContratacion.Should().Be(TipoContratacion.Voluntario);
     }
 
     [Fact]

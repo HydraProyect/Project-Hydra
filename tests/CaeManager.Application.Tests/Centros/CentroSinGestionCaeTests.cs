@@ -85,7 +85,9 @@ public class CentroSinGestionCaeTests
     }
 
     private CalculoEstadoCentroService Calculo() =>
-        new(_centros, _documentos, _tipos, _trabajadores, _asignaciones, _configuracion, _empresas, new CaeManager.Application.Tests.Proyectos.ProyectosQueryContextFalso());
+        new(_centros, _documentos, _tipos, _trabajadores, _asignaciones, _configuracion, _empresas, _proyectos, _proyectos);
+
+    private readonly CaeManager.Application.Tests.Proyectos.ProyectosQueryContextFalso _proyectos = new();
 
     // ---- Cumplimiento y estado ----
 

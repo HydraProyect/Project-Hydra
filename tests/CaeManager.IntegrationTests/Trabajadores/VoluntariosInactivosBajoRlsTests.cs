@@ -36,7 +36,7 @@ public class VoluntariosInactivosBajoRlsTests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private CaeManagerDbContext _propietario = null!;
-    private Guid _tenantSesion, _tenantAjeno, _estadio, _dni, _seguro, _eventoProximo;
+    private Guid _tenantSesion, _tenantAjeno, _estadio, _dni, _seguro, _eventoVigente, _eventoProximo;
     private Guid _inactivo, _vigente, _futuro, _ajena, _voluntarioAjeno;
 
     public async Task InitializeAsync()
@@ -96,7 +96,7 @@ public class VoluntariosInactivosBajoRlsTests : IAsyncLifetime
                 Documento.DeTrabajador(ajena.Id, seguro.Id, fechaEmision: ahora.AddDays(-400), vigencia: VigenciaDocumento.VenceEl(ahora.AddDays(-5))));
             await _propietario.SaveChangesAsync();
 
-            (_estadio, _dni, _seguro, _eventoProximo) = (estadio.Id, dni.Id, seguro.Id, proximo.Id);
+            (_estadio, _dni, _seguro, _eventoVigente, _eventoProximo) = (estadio.Id, dni.Id, seguro.Id, vigente.Id, proximo.Id);
             (_inactivo, _vigente, _futuro, _ajena) = (inactivo.Id, enVigente.Id, enFuturo.Id, ajena.Id);
         }
 
@@ -158,10 +158,49 @@ public class VoluntariosInactivosBajoRlsTests : IAsyncLifetime
     {
         await using var c = CrearRuntime(_tenantSesion);
 
-        var estado = (await new CalculoEstadoCentroService(c, c, c, c, c, c, c, c).CalcularAsync([_estadio], CancellationToken.None))[_estadio];
+        var estado = (await new CalculoEstadoCentroService(c, c, c, c, c, c, c, c, c).CalcularAsync([_estadio], CancellationToken.None))[_estadio];
 
         estado.Causas.Should().Contain(x => x.TrabajadorId == _ajena, "control positivo");
         estado.Causas.Should().NotContain(x => x.TrabajadorId == _inactivo);
+    }
+
+    [Fact]
+    public async Task El_requisito_del_evento_vigente_cuenta_en_el_estado_y_el_cumplimiento_del_Centro_del_evento()
+    {
+        Guid sinAsignacion;
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var club = await _propietario.Empresas.Select(e => e.Id).SingleAsync();
+            var voluntario = Voluntario(club, "Nerea", "Lago Prieto", "33333333P");
+            _propietario.Trabajadores.Add(voluntario);
+            await _propietario.SaveChangesAsync();
+            var hoy = DiaDeNegocio.Hoy();
+            _propietario.ProyectosTecnicos.Add(new ProyectoTecnico(_eventoVigente, voluntario.Id, hoy.AddDays(-1)));
+            _propietario.Documentos.Add(Documento.DeTrabajador(voluntario.Id, _dni, fechaEmision: hoy.AddDays(-10),
+                vigencia: VigenciaDocumento.VenceEl(hoy.AddDays(365))));
+            await _propietario.SaveChangesAsync();
+            sinAsignacion = voluntario.Id;
+        }
+        await using var c = CrearRuntime(_tenantSesion);
+        var servicio = new CalculoEstadoCentroService(c, c, c, c, c, c, c, c, c);
+
+        var estado = (await servicio.CalcularAsync([_estadio], CancellationToken.None))[_estadio];
+        estado.Causas.Should().ContainSingle(x => x.TrabajadorId == _vigente && x.TipoDocumentoId == _dni && x.Estado == EstadoDocumento.Faltante,
+            "el DNI que pide el evento vigente le falta a su voluntario y cuenta en el estado del Centro del evento");
+        estado.Causas.Should().NotContain(x => x.TipoDocumentoId == _dni && (x.TrabajadorId == _futuro || x.TrabajadorId == _ajena),
+            "el evento futuro aún no aporta requisitos (opción A) y los del evento solo cuentan para sus voluntarios");
+        estado.Causas.Should().NotContain(x => x.TrabajadorId == sinAsignacion, "su DNI está vigente");
+
+        var pares = await servicio.ObtenerParesExigidosAsync([_estadio], CancellationToken.None);
+        pares.Should().ContainSingle(p => p.TrabajadorId == sinAsignacion && p.TipoDocumentoId == _dni)
+            .Which.Estado.Should().Be(EstadoDocumento.Vigente, "el voluntario del evento cuenta en su Centro aunque no tenga Asignación");
+        pares.Should().ContainSingle(p => p.TrabajadorId == _vigente && p.TipoDocumentoId == _dni)
+            .Which.Estado.Should().Be(EstadoDocumento.Faltante);
+
+        var cumplimiento = (await servicio.CalcularCumplimientoAsync([_estadio], CancellationToken.None))[_estadio];
+        cumplimiento.Requeridos.Should().Be(2,
+            "el Centro no incluye ningún tipo, así que solo cuentan los dos requisitos del evento vigente: Iker sin DNI y Nerea con él");
+        cumplimiento.AlDia.Should().Be(1);
     }
 
     [Fact]

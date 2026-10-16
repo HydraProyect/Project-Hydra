@@ -81,4 +81,29 @@ public class ActividadVoluntarioTests
         evento.EventoVigenteEn(Hoy.AddDays(2)).Should().BeFalse();
         Obra().EventoVigenteEn(Hoy).Should().BeFalse("una obra no es un evento");
     }
+
+    /// <summary>
+    /// El criterio es uno solo (<see cref="VigenciaEvento"/>): la regla en memoria y el predicado que se traduce a SQL dan lo
+    /// mismo en todos los casos, así que pasar de la opción A a la B no puede dejar uno de los dos atrás.
+    /// </summary>
+    [Fact]
+    public void La_regla_en_memoria_y_el_predicado_traducible_a_SQL_coinciden_dia_a_dia()
+    {
+        var abierto = Evento(Hoy, Hoy.AddDays(1));
+        var cerrado = Evento(Hoy.AddDays(-3), Hoy.AddDays(3));
+        cerrado.Cerrar(Hoy.AddDays(-1));
+        var sinTerminarEn = (DateOnly dia) => VigenciaEvento.SinTerminarEn(dia).Compile();
+        var aportaRequisitosEn = (DateOnly dia) => VigenciaEvento.AportaRequisitosEn(dia).Compile();
+
+        foreach (var proyecto in new[] { abierto, cerrado, Obra() })
+            for (var desplazamiento = -2; desplazamiento <= 3; desplazamiento++)
+            {
+                var dia = Hoy.AddDays(desplazamiento);
+                sinTerminarEn(dia)(proyecto).Should().Be(proyecto.EsEvento && !proyecto.EventoTerminadoEn(dia), $"{proyecto.Nombre} el {dia}");
+                aportaRequisitosEn(dia)(proyecto).Should().Be(proyecto.EventoVigenteEn(dia), $"{proyecto.Nombre} el {dia}");
+            }
+
+        aportaRequisitosEn(Hoy.AddDays(-1))(abierto).Should().BeFalse("opción A: antes de empezar no aporta requisitos");
+        sinTerminarEn(Hoy.AddDays(-1))(abierto).Should().BeTrue("pero el evento futuro sí mantiene activo al voluntario");
+    }
 }

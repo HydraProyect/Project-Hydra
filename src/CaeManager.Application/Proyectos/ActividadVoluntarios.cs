@@ -12,31 +12,30 @@ public static class ActividadVoluntarios
 {
     /// <summary>
     /// Ids de los Trabajadores voluntarios inactivos: voluntarios sin participación activa (ProyectoTecnico sin
-    /// baja) en ningún Proyecto de tipo Evento sin terminar (ni cerrado ni pasada su fecha de fin), vigente o futuro.
+    /// baja) en ningún Proyecto de tipo Evento sin terminar (<see cref="VigenciaEvento.SinTerminarEn"/>), vigente o futuro.
     /// </summary>
     public static IQueryable<Guid> VoluntariosInactivosIds(
-        IQueryable<Trabajador> trabajadores, IProyectosQueryContext proyectos, DateOnly hoy) =>
-        from trabajador in trabajadores
-        where trabajador.TipoContratacion == TipoContratacion.Voluntario
-        where !(from participante in proyectos.ProyectosTecnicos
-                join proyecto in proyectos.Proyectos on participante.ProyectoId equals proyecto.Id
-                where participante.TrabajadorId == trabajador.Id && participante.FechaBaja == null
-                    && proyecto.Tipo == TipoProyecto.Evento
-                    && proyecto.FechaCierreReal == null && proyecto.FechaFinPrevista >= hoy
-                select participante.ProyectoId).Any()
-        select trabajador.Id;
+        IQueryable<Trabajador> trabajadores, IProyectosQueryContext proyectos, DateOnly hoy)
+    {
+        var eventosSinTerminar = proyectos.Proyectos.Where(VigenciaEvento.SinTerminarEn(hoy));
+        return from trabajador in trabajadores
+               where trabajador.TipoContratacion == TipoContratacion.Voluntario
+               where !(from participante in proyectos.ProyectosTecnicos
+                       join proyecto in eventosSinTerminar on participante.ProyectoId equals proyecto.Id
+                       where participante.TrabajadorId == trabajador.Id && participante.FechaBaja == null
+                       select participante.ProyectoId).Any()
+               select trabajador.Id;
+    }
 
     /// <summary>
     /// Los requisitos (<see cref="ProyectoRequisito"/>) de los eventos vigentes (ya empezados y sin terminar, ver
-    /// <see cref="Proyecto.EventoVigenteEn"/>) para cada voluntario que participa en ellos, con el Centro del evento.
+    /// <see cref="VigenciaEvento.AportaRequisitosEn"/>, el mismo criterio que <see cref="Proyecto.EventoVigenteEn"/>) para cada voluntario que participa en ellos, con el Centro del evento.
     /// Es lo que el evento añade al cumplimiento del voluntario mientras dura.
     /// </summary>
     public static IQueryable<RequisitoDeEventoDeVoluntario> RequisitosDeEventosVigentes(
         IQueryable<Trabajador> trabajadores, IProyectosQueryContext proyectos, IQueryable<ProyectoRequisito> requisitos,
         DateOnly hoy) =>
-        from proyecto in proyectos.Proyectos
-        where proyecto.Tipo == TipoProyecto.Evento && proyecto.FechaInicio <= hoy
-            && proyecto.FechaCierreReal == null && proyecto.FechaFinPrevista >= hoy
+        from proyecto in proyectos.Proyectos.Where(VigenciaEvento.AportaRequisitosEn(hoy))
         join participante in proyectos.ProyectosTecnicos on proyecto.Id equals participante.ProyectoId
         where participante.FechaBaja == null
         join trabajador in trabajadores on participante.TrabajadorId equals trabajador.Id
