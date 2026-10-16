@@ -7547,6 +7547,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("TipoContratacion")
+                        .HasColumnType("integer");
+
                     b.Property<string>("TipoPermisoTrabajo")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");

@@ -107,7 +107,7 @@ public class PendienteEnPlataformaCoherenciaBajoRlsTests : IAsyncLifetime
         await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
     }
 
-    private CalculoEstadoCentroService Calculo() => new(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime);
+    private CalculoEstadoCentroService Calculo() => new(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime);
 
     private EvaluacionDeAccesoPorCentroService Evaluacion() =>
         new(_runtime, _runtime, _runtime, _runtime, _runtime, new AlcanceDatosServiceFalso());

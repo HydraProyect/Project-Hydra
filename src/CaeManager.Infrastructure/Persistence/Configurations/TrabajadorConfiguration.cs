@@ -26,6 +26,7 @@ public class TrabajadorConfiguration : IEntityTypeConfiguration<Trabajador>
         builder.Property(t => t.NumeroAfiliacionSeguridadSocial).HasMaxLength(Trabajador.LongitudMaximaNumeroAfiliacion);
         builder.Property(t => t.Nacionalidad).HasMaxLength(Trabajador.LongitudMaximaCampoFicha);
         builder.Property(t => t.TipoVinculo).HasMaxLength(Trabajador.LongitudMaximaCampoFicha);
+        builder.Property(t => t.TipoContratacion).HasConversion<int>();
         builder.Property(t => t.FechaAltaEmpresa).HasColumnType("date");
         builder.Property(t => t.FechaBajaEmpresa).HasColumnType("date");
         builder.Property(t => t.FiguraEnRnt).HasMaxLength(Trabajador.LongitudMaximaCampoFicha);

@@ -1,3 +1,4 @@
+using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
@@ -89,7 +90,9 @@ public class ObtenerAlertasQueryHandler(
     IEmpresasQueryContext empresasContext,
     IResolverClientePrincipalService resolverClientePrincipal,
     IAlcanceDatosService alcanceDatos,
-    IDocumentosFaltantesService documentosFaltantesService)
+    IDocumentosFaltantesService documentosFaltantesService,
+    IProyectosQueryContext proyectosContext,
+    IRequisitosEventoQueryContext requisitosEventoContext)
     : IRequestHandler<ObtenerAlertasQuery, IReadOnlyList<AlertaDto>>
 {
     public async Task<IReadOnlyList<AlertaDto>> Handle(ObtenerAlertasQuery request, CancellationToken cancellationToken)
@@ -125,11 +128,15 @@ public class ObtenerAlertasQueryHandler(
         // filtro es solo por arriba).
         var fechaLimiteAlerta = hoy.AddDays(parametros.UmbralAmbarDias);
 
+        // Un voluntario inactivo, sin evento vigente ni futuro, no se borra; pero sus vencimientos no avisan.
+        var voluntariosInactivos = ActividadVoluntarios.VoluntariosInactivosIds(trabajadoresContext.Trabajadores, proyectosContext, hoy);
+
         var vigenciaFilas = await (
             from documento in documentosContext.Documentos.Operativos()
             where documento.TrabajadorId != null
             where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
             join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
+            where voluntariosInactivos.Contains(trabajador.Id) == false
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             where documento.FechaVencimiento != null && documento.FechaVencimiento <= fechaLimiteAlerta
             select new
@@ -165,7 +172,8 @@ public class ObtenerAlertasQueryHandler(
                 ? a with { CentroId = principal.CentroId, ClienteId = principal.ClienteId, ClienteNombre = principal.ClienteNombre }
                 : a);
 
-        var alertasFaltantes = await ObtenerFaltantesAsync(trabajadorIdsVisibles, centroIdsVisibles, cancellationToken);
+        var alertasFaltantes = await ObtenerFaltantesAsync(
+            trabajadorIdsVisibles, centroIdsVisibles, voluntariosInactivos, hoy, cancellationToken);
 
         var combinadas = alertasVigencia
             .Concat(alertasFaltantes)
@@ -199,19 +207,79 @@ public class ObtenerAlertasQueryHandler(
     }
 
     /// <summary>
+    /// Requisitos de los eventos vigentes que les faltan a sus voluntarios: mientras el evento dura, lo que pide
+    /// cuenta para su cumplimiento en el Centro del evento, aunque no tengan Asignación a ese Centro, porque
+    /// participar en un evento no la crea. Mismo criterio de falta que el de los Centros: ningún documento
+    /// operativo de ese Tipo.
+    /// </summary>
+    private async Task<List<DocumentoFaltanteDto>> FaltantesPorEventosVigentesAsync(
+        IReadOnlyList<Guid>? trabajadorIdsVisibles, IReadOnlyList<Guid>? centroIdsVisibles, DateOnly hoy,
+        Dictionary<Guid, Guid?> empresaIdPorTrabajador, CancellationToken cancellationToken)
+    {
+        var requisitos = await ActividadVoluntarios
+            .RequisitosDeEventosVigentes(
+                trabajadoresContext.Trabajadores, proyectosContext, requisitosEventoContext.ProyectosRequisitos,
+                tiposDocumentoContext.TiposDocumento, hoy)
+            .Where(r => trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(r.TrabajadorId))
+            .Where(r => centroIdsVisibles == null || centroIdsVisibles.Contains(r.CentroId))
+            .ToListAsync(cancellationToken);
+        // P1-X2, como el resto de faltantes de Centro: un Centro sin gestión CAE no exige nada, tampoco por sus eventos.
+        var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(
+            centrosContext, requisitos.Select(r => r.CentroId), cancellationToken);
+        requisitos = requisitos.Where(r => !sinGestionCae.Contains(r.CentroId)).ToList();
+        if (requisitos.Count == 0)
+            return [];
+
+        var trabajadorIds = requisitos.Select(r => r.TrabajadorId).Distinct().ToList();
+        var tipoIds = requisitos.Select(r => r.TipoDocumentoId).Distinct().ToList();
+        var conDocumento = (await documentosContext.Documentos.Operativos()
+                .Where(d => d.TrabajadorId != null
+                    && trabajadorIds.Contains(d.TrabajadorId.Value)
+                    && tipoIds.Contains(d.TipoDocumentoId))
+                .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId })
+                .ToListAsync(cancellationToken))
+            .Select(d => (d.TrabajadorId, d.TipoDocumentoId))
+            .ToHashSet();
+
+        var pendientes = requisitos.Where(r => conDocumento.Contains((r.TrabajadorId, r.TipoDocumentoId)) == false).ToList();
+        if (pendientes.Count == 0)
+            return [];
+
+        var centroIds = pendientes.Select(r => r.CentroId).Distinct().ToList();
+        var nombresCentro = await centrosContext.Centros
+            .Where(c => centroIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Nombre, cancellationToken);
+        var tipoIdsPendientes = pendientes.Select(r => r.TipoDocumentoId).Distinct().ToList();
+        var nombresTipo = await tiposDocumentoContext.TiposDocumento
+            .Where(t => tipoIdsPendientes.Contains(t.Id))
+            .ToDictionaryAsync(t => t.Id, t => t.Nombre, cancellationToken);
+
+        foreach (var requisito in pendientes)
+            empresaIdPorTrabajador.TryAdd(requisito.TrabajadorId, requisito.EmpresaId);
+
+        return pendientes
+            .Where(r => nombresCentro.ContainsKey(r.CentroId) && nombresTipo.ContainsKey(r.TipoDocumentoId))
+            .Select(r => new DocumentoFaltanteDto(
+                r.TrabajadorId, r.TrabajadorNombre, r.CentroId, nombresCentro[r.CentroId], r.TipoDocumentoId, nombresTipo[r.TipoDocumentoId]))
+            .ToList();
+    }
+
+    /// <summary>
     /// Delegado en <see cref="IDocumentosFaltantesService"/> (Fase B5): la
     /// misma regla de "qué le falta a un Trabajador en un Centro" que ahora
     /// también usa el preflight de asignación en lote — antes vivía
     /// duplicada en un método privado de esta clase.
     /// </summary>
     private async Task<List<AlertaDto>> ObtenerFaltantesAsync(
-        IReadOnlyList<Guid>? trabajadorIdsVisibles, IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
+        IReadOnlyList<Guid>? trabajadorIdsVisibles, IReadOnlyList<Guid>? centroIdsVisibles,
+        IQueryable<Guid> voluntariosInactivos, DateOnly hoy, CancellationToken cancellationToken)
     {
         var asignacionesActivas = await (
             from asignacion in asignacionesContext.Asignaciones
             where asignacion.FechaBaja == null
             where centroIdsVisibles == null || centroIdsVisibles.Contains(asignacion.CentroId)
             where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(asignacion.TrabajadorId)
+            where voluntariosInactivos.Contains(asignacion.TrabajadorId) == false
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
             select new
@@ -225,9 +293,6 @@ public class ObtenerAlertasQueryHandler(
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        if (asignacionesActivas.Count == 0)
-            return [];
-
         var empresaIdPorTrabajador = asignacionesActivas
             .GroupBy(a => a.TrabajadorId)
             .ToDictionary(g => g.Key, g => g.First().EmpresaId);
@@ -236,7 +301,15 @@ public class ObtenerAlertasQueryHandler(
             .Select(a => new ParejaTrabajadorCentro(a.TrabajadorId, a.TrabajadorNombre, a.CentroId, a.Nombre))
             .ToList();
 
-        var faltantes = await documentosFaltantesService.CalcularAsync(parejas, cancellationToken);
+        IReadOnlyList<DocumentoFaltanteDto> faltantesPorCentro = parejas.Count == 0
+            ? []
+            : await documentosFaltantesService.CalcularAsync(parejas, cancellationToken);
+        var faltantesPorEvento = await FaltantesPorEventosVigentesAsync(
+            trabajadorIdsVisibles, centroIdsVisibles, hoy, empresaIdPorTrabajador, cancellationToken);
+        var faltantes = faltantesPorCentro
+            .Concat(faltantesPorEvento)
+            .DistinctBy(f => (f.TrabajadorId, f.CentroId, f.TipoDocumentoId))
+            .ToList();
         if (faltantes.Count == 0)
             return [];
 

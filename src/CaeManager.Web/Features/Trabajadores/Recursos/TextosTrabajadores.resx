@@ -706,6 +706,16 @@
   <data name="FichaGuardada" xml:space="preserve"><value>Ficha del trabajador guardada.</value></data>
   <data name="FichaErrorGuardar" xml:space="preserve"><value>No se pudo guardar la ficha. Vuelve a intentarlo.</value></data>
   <data name="FichaFechaInvalida" xml:space="preserve"><value>Introduce una fecha válida.</value></data>
+  <data name="EtiquetaTipoContratacion" xml:space="preserve"><value>Tipo de contratación</value></data>
+  <data name="TipoContratacionCuentaAjena" xml:space="preserve"><value>Cuenta ajena</value></data>
+  <data name="TipoContratacionAutonomo" xml:space="preserve"><value>Autónomo</value></data>
+  <data name="TipoContratacionVoluntario" xml:space="preserve"><value>Voluntario</value></data>
+  <data name="VoluntarioInactivo" xml:space="preserve"><value>Voluntario inactivo</value></data>
+  <data name="VoluntarioInactivoAyuda" xml:space="preserve"><value>Sin evento vigente ni futuro: sus vencimientos no avisan ni cuentan en el Centro. Se reactiva al asignarlo a otro evento.</value></data>
+  <data name="EtiquetaActividad" xml:space="preserve"><value>Actividad</value></data>
+  <data name="OpcionActividadTodos" xml:space="preserve"><value>Todos</value></data>
+  <data name="OpcionSinVoluntariosInactivos" xml:space="preserve"><value>Sin voluntarios inactivos</value></data>
+  <data name="OpcionSoloVoluntariosInactivos" xml:space="preserve"><value>Solo voluntarios inactivos</value></data>
   <data name="FichaCopiarAfiliacion" xml:space="preserve"><value>el número de afiliación a la Seguridad Social</value></data>
   <data name="FichaCopiarAltaEmpresa" xml:space="preserve"><value>la fecha de alta en la empresa</value></data>
   <data name="FichaCopiarBajaEmpresa" xml:space="preserve"><value>la fecha de baja en la empresa</value></data>

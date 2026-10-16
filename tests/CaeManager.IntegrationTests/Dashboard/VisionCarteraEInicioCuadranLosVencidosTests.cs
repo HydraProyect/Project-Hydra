@@ -257,6 +257,8 @@ public class VisionCarteraEInicioCuadranLosVencidosTests : IAsyncLifetime
         servicios.AddSingleton<ITenantsQueryContext>(runtime);
         servicios.AddSingleton<IOperacionesQueryContext>(runtime);
         servicios.AddSingleton<CaeManager.Application.Empresas.IEmpresasQueryContext>(runtime);
+        servicios.AddSingleton<CaeManager.Application.Proyectos.IProyectosQueryContext>(runtime);
+        servicios.AddSingleton<CaeManager.Application.Proyectos.IRequisitosEventoQueryContext>(runtime);
         servicios.AddSingleton<CaeManager.Application.Centros.ICentrosQueryContext>(runtime);
         servicios.AddSingleton<CaeManager.Application.Trabajadores.ITrabajadoresQueryContext>(runtime);
         servicios.AddSingleton<CaeManager.Application.TiposDocumento.ITiposDocumentoQueryContext>(runtime);

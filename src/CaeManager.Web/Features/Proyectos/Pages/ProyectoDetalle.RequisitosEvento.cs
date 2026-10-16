@@ -1,6 +1,7 @@
 using CaeManager.Application.Proyectos.Commands.RequisitosEvento;
 using CaeManager.Application.Proyectos.Queries.RequisitosEvento;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Web.Components.DesignSystem;
 
@@ -22,7 +23,9 @@ public partial class ProyectoDetalle
     private bool EsEvento => _detalle?.Tipo == TipoProyecto.Evento;
 
     private IEnumerable<TipoDocumentoListaDto> TiposDocumentoAnadibles =>
-        _tiposDocumentoDisponibles.Where(t => _requisitosEvento.All(r => r.TipoDocumentoId != t.Id));
+        // Un evento solo pide documentos de trabajador: los aporta cada participante (AnadirRequisitoEventoCommandHandler).
+        _tiposDocumentoDisponibles.Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador
+            && _requisitosEvento.All(r => r.TipoDocumentoId != t.Id));
 
     private async Task CargarRequisitosEventoAsync()
     {

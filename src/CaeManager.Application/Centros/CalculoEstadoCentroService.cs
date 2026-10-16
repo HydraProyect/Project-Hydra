@@ -1,3 +1,4 @@
+using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
@@ -93,6 +94,9 @@ public record ResultadoEstadoCentro(EstadoCentro Estado, IReadOnlyList<CausaEsta
 /// vigencia vencida en la plataforma y la acreditación rechazada por ella; y una
 /// no bloqueante para el Centro, el documento pendiente en su plataforma (sin
 /// subir o subido sin validar), que lo pone en <see cref="EstadoCentro.Pendiente"/>.
+/// Desde el 2026-10-15 suma también los requisitos de cada evento vigente del Centro (Proyecto de tipo Evento, criterio en
+/// VigenciaEvento.AportaRequisitosEn) para los voluntarios que participan en él, tengan o no Asignación al Centro; y no
+/// cuenta a los voluntarios inactivos (sin evento vigente ni futuro).
 /// </summary>
 public interface ICalculoEstadoCentroService
 {
@@ -103,7 +107,8 @@ public interface ICalculoEstadoCentroService
     /// Cumplimiento documental de cada Centro (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
     /// § 0.5): <c>Requeridos</c> son los pares Trabajador×TipoDocumento incluidos explícitamente en el Centro para sus Trabajadores con
     /// Asignación activa más los pares Empresa×TipoDocumento (ámbito Empresa) incluidos explícitamente para las Empresas de esos Trabajadores
-    /// (decisión del propietario, 2026-10-10), y <c>AlDia</c> los que <see cref="CumplimientoDocumental"/> cuenta como al día. Es el contexto
+    /// (decisión del propietario, 2026-10-10), más los pares Voluntario×TipoDocumento que pide cada evento vigente del Centro aunque el
+    /// Centro no incluya ese tipo (decisión 2026-10-15), y <c>AlDia</c> los que <see cref="CumplimientoDocumental"/> cuenta como al día. Es el contexto
     /// <see cref="ContextoCumplimiento.Centro"/>; un Centro sin ningún par exigido (o sin gestión CAE) queda en 0/0,
     /// cuyo porcentaje es <c>null</c>.
     ///
@@ -131,9 +136,21 @@ public class CalculoEstadoCentroService(
     ITrabajadoresQueryContext trabajadoresContext,
     IAsignacionesQueryContext asignacionesContext,
     IConfiguracionQueryContext configuracionContext,
-    IEmpresasQueryContext empresasContext)
+    IEmpresasQueryContext empresasContext,
+    IProyectosQueryContext proyectosContext,
+    IRequisitosEventoQueryContext requisitosEventoContext)
     : ICalculoEstadoCentroService
 {
+    /// <summary>
+    /// Las Asignaciones activas que cuentan en el Centro: todas menos las de los voluntarios inactivos, sin evento
+    /// vigente ni futuro; esos no se borran, pero su documentación no cuenta para el estado ni el cumplimiento.
+    /// </summary>
+    private IQueryable<CaeManager.Domain.Asignaciones.Asignacion> AsignacionesQueCuentan()
+    {
+        var inactivos = ActividadVoluntarios.VoluntariosInactivosIds(trabajadoresContext.Trabajadores, proyectosContext, DiaDeNegocio.Hoy());
+        return asignacionesContext.Asignaciones.Where(a => inactivos.Contains(a.TrabajadorId) == false);
+    }
+
     public async Task<IReadOnlyDictionary<Guid, ResultadoEstadoCentro>> CalcularAsync(
         IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken)
     {
@@ -156,6 +173,7 @@ public class CalculoEstadoCentroService(
         {
             await AgregarCausasDeEmpresaAsync(conGestionCae, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
             await AgregarCausasDeTrabajadorAsync(conGestionCae, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
+            await AgregarCausasDeRequisitosDeEventoAsync(conGestionCae, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
             await AgregarCausasDeVigenciaEnPlataformaAsync(conGestionCae, hoy, causasPorCentro, cancellationToken);
             await AgregarCausasDeRechazoEnPlataformaAsync(conGestionCae, causasPorCentro, cancellationToken);
             await AgregarCausasPendientesEnPlataformaAsync(conGestionCae, hoy, causasPorCentro, cancellationToken);
@@ -210,7 +228,7 @@ public class CalculoEstadoCentroService(
         // filtro una vigencia vencida bloquearía un Centro por alguien que ya
         // no trabaja ahí. Es el mismo criterio que usa el resto del cálculo de
         // documentos de Trabajador; los de Empresa no dependen de asignaciones.
-        var asignacionesActivas = await asignacionesContext.Asignaciones
+        var asignacionesActivas = await AsignacionesQueCuentan()
             .Where(a => a.FechaBaja == null && centroIds.Contains(a.CentroId))
             .Select(a => new { a.CentroId, a.TrabajadorId })
             .ToListAsync(cancellationToken);
@@ -316,7 +334,7 @@ public class CalculoEstadoCentroService(
 
         if (rechazadas.Count == 0) return;
 
-        var asignacionesActivas = await asignacionesContext.Asignaciones
+        var asignacionesActivas = await AsignacionesQueCuentan()
             .Where(a => a.FechaBaja == null && centroIds.Contains(a.CentroId))
             .Select(a => new { a.CentroId, a.TrabajadorId })
             .ToListAsync(cancellationToken);
@@ -394,7 +412,7 @@ public class CalculoEstadoCentroService(
         Dictionary<Guid, List<CausaEstadoCentro>> causasPorCentro, CancellationToken cancellationToken)
     {
         var pendientes = await PendientesEnPlataformaDeCentros.CargarAsync(
-            centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext,
+            centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, AsignacionesQueCuentan(),
             centroIds, hoy, cancellationToken);
 
         // El nombre de la Empresa dueña del documento (una Subcontrata o la Empresa propia del Trabajador), no un «Empresa» genérico.
@@ -484,7 +502,7 @@ public class CalculoEstadoCentroService(
         Dictionary<Guid, List<CausaEstadoCentro>> causasPorCentro, CancellationToken cancellationToken)
     {
         var asignacionesActivas = await (
-            from asignacion in asignacionesContext.Asignaciones
+            from asignacion in AsignacionesQueCuentan()
             where asignacion.FechaBaja == null && centroIds.Contains(asignacion.CentroId)
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             select new
@@ -603,8 +621,10 @@ public class CalculoEstadoCentroService(
             .Select(tc => new { tc.CentroId, tc.TipoDocumentoId })
             .ToListAsync(cancellationToken);
         var clavesIncluidas = incluidos.Select(tc => (tc.CentroId, tc.TipoDocumentoId)).ToHashSet();
+        // Los requisitos de un evento vigente cuentan aunque el Centro no incluya ese tipo: los exige el evento.
+        var paresDeEvento = await ObtenerParesDeEventoAsync(conGestionCae, pendientes, hoy, cancellationToken);
         var porCentro = CumplimientoDocumental.PorCentro(
-            paresDeTrabajador.Where(p => clavesIncluidas.Contains((p.CentroId, p.TipoDocumentoId))).ToList(),
+            UnirConParesDeEvento(paresDeTrabajador.Where(p => clavesIncluidas.Contains((p.CentroId, p.TipoDocumentoId))), paresDeEvento),
             paresDeEmpresa.Where(p => clavesIncluidas.Contains((p.CentroId, p.TipoDocumentoId))).ToList());
 
         // Un Centro sin ningún par (sin gestión CAE, sin Trabajadores o sin tipos exigidos) sigue en el resultado, en
@@ -633,7 +653,7 @@ public class CalculoEstadoCentroService(
         conGestionCae.Count == 0
             ? []
             : (await PendientesEnPlataformaDeCentros.CargarAsync(
-                    centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext,
+                    centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, AsignacionesQueCuentan(),
                     conGestionCae, hoy, cancellationToken))
                 .Where(p => p.BloqueaAcceso)
                 .ToList();
@@ -648,7 +668,136 @@ public class CalculoEstadoCentroService(
         var hoy = DiaDeNegocio.Hoy();
         // Sin la carga de lo pendiente en la plataforma: la marca PendienteEnPlataforma de un par solo la lee el porcentaje
         // del Centro (CalcularCumplimientoAsync, que la carga por su cuenta), y ningún consumidor de este método lo calcula.
-        return await ObtenerParesDeTrabajadorAsync(centroIds, conGestionCae, [], hoy, cancellationToken);
+        return UnirConParesDeEvento(
+            await ObtenerParesDeTrabajadorAsync(centroIds, conGestionCae, [], hoy, cancellationToken),
+            await ObtenerParesDeEventoAsync(conGestionCae, [], hoy, cancellationToken));
+    }
+
+    /// <summary>
+    /// Los pares del Centro más los de los eventos vigentes que el Centro no tenga ya: si un mismo Trabajador × Tipo sale por
+    /// las dos vías, cuenta una vez.
+    /// </summary>
+    private static List<ParDocumentalExigido> UnirConParesDeEvento(
+        IEnumerable<ParDocumentalExigido> paresDelCentro, IReadOnlyList<ParDocumentalExigido> paresDeEvento)
+    {
+        var resultado = paresDelCentro.ToList();
+        var claves = resultado.Select(p => (p.CentroId, p.TrabajadorId, p.TipoDocumentoId)).ToHashSet();
+        resultado.AddRange(paresDeEvento.Where(p => claves.Add((p.CentroId, p.TrabajadorId, p.TipoDocumentoId))));
+        return resultado;
+    }
+
+    /// <summary>
+    /// Requisitos de los eventos vigentes de estos Centros para sus voluntarios (decisión 2026-10-15, criterio en
+    /// <see cref="CaeManager.Domain.Proyectos.VigenciaEvento.AportaRequisitosEn"/>): cuentan en el Centro del evento aunque el
+    /// voluntario no tenga Asignación en él, porque participar en un evento no la crea. Un voluntario inactivo nunca
+    /// aparece aquí: participa en un evento vigente, luego está activo.
+    /// </summary>
+    private async Task<List<RequisitoDeEventoDeVoluntario>> RequisitosDeEventosAsync(
+        List<Guid> conGestionCae, DateOnly hoy, CancellationToken cancellationToken) =>
+        conGestionCae.Count == 0
+            ? []
+            : await ActividadVoluntarios
+                .RequisitosDeEventosVigentes(
+                    trabajadoresContext.Trabajadores, proyectosContext, requisitosEventoContext.ProyectosRequisitos, tiposDocumentoContext.TiposDocumento, hoy)
+                .Where(r => conGestionCae.Contains(r.CentroId))
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+    /// <summary>
+    /// Causas de los requisitos de eventos vigentes, con el mismo criterio que las de Trabajador con Asignación
+    /// (<see cref="AgregarCausasDeTrabajadorAsync"/>): Faltante si no hay ningún documento operativo de ese tipo, o la
+    /// vigencia de cada documento que vence dentro del umbral. No repite una causa que el Centro ya tenga.
+    /// </summary>
+    private async Task AgregarCausasDeRequisitosDeEventoAsync(
+        List<Guid> conGestionCae, DateOnly hoy, int umbralAmbarDias, int umbralRojoDias,
+        Dictionary<Guid, List<CausaEstadoCentro>> causasPorCentro, CancellationToken cancellationToken)
+    {
+        var requisitos = await RequisitosDeEventosAsync(conGestionCae, hoy, cancellationToken);
+        if (requisitos.Count == 0) return;
+
+        var trabajadorIds = requisitos.Select(r => r.TrabajadorId).Distinct().ToList();
+        var tipoIds = requisitos.Select(r => r.TipoDocumentoId).Distinct().ToList();
+        var nombresTipo = await tiposDocumentoContext.TiposDocumento
+            .Where(t => tipoIds.Contains(t.Id))
+            .ToDictionaryAsync(t => t.Id, t => t.Nombre, cancellationToken);
+        var documentos = (await documentosContext.Documentos.Operativos()
+                .Where(d => d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId!.Value) && tipoIds.Contains(d.TipoDocumentoId))
+                .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.FechaVencimiento })
+                .ToListAsync(cancellationToken))
+            .ToLookup(d => (d.TrabajadorId, d.TipoDocumentoId));
+
+        foreach (var requisito in requisitos)
+        {
+            if (!nombresTipo.TryGetValue(requisito.TipoDocumentoId, out var nombreTipo)) continue;
+            var causas = causasPorCentro[requisito.CentroId];
+            var descripcion = $"{nombreTipo} — {requisito.TrabajadorNombre}";
+            var delPar = documentos[(requisito.TrabajadorId, requisito.TipoDocumentoId)].ToList();
+
+            if (delPar.Count == 0)
+            {
+                if (!causas.Any(c => c.TrabajadorId == requisito.TrabajadorId && c.TipoDocumentoId == requisito.TipoDocumentoId && c.DocumentoId is null))
+                    causas.Add(new CausaEstadoCentro(
+                        descripcion, EstadoDocumento.Faltante, Bloqueante: false, AmbitoCausa.Trabajador,
+                        DocumentoId: null, requisito.TipoDocumentoId, FechaVencimiento: null, requisito.TrabajadorId));
+                continue;
+            }
+
+            // Ya en memoria y solo los de estos pares: la clasificación es la de CalculadoraEstadoDocumento, sin prefiltro.
+            foreach (var documento in delPar.Where(d => d.FechaVencimiento != null))
+            {
+                var estado = CalculadoraEstadoDocumento.Calcular(
+                    VigenciaDocumento.VenceEl(documento.FechaVencimiento!.Value), hoy, umbralAmbarDias, umbralRojoDias);
+                if (estado is EstadoDocumento.Vigente) continue;
+                if (causas.Any(c => c.TrabajadorId == requisito.TrabajadorId && c.DocumentoId == documento.Id)) continue;
+
+                causas.Add(new CausaEstadoCentro(
+                    descripcion, estado, Bloqueante: false, AmbitoCausa.Trabajador,
+                    documento.Id, documento.TipoDocumentoId, documento.FechaVencimiento, requisito.TrabajadorId));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Los pares Voluntario × Tipo que añaden los eventos vigentes en su Centro (<see cref="RequisitosDeEventosAsync"/>), con
+    /// el estado del documento efectivo, igual que <see cref="ObtenerParesDeTrabajadorAsync"/>.
+    /// </summary>
+    private async Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesDeEventoAsync(
+        List<Guid> conGestionCae, IReadOnlyList<PendienteEnPlataformaDeCentro> pendientes, DateOnly hoy, CancellationToken cancellationToken)
+    {
+        var requisitos = await RequisitosDeEventosAsync(conGestionCae, hoy, cancellationToken);
+        if (requisitos.Count == 0)
+            return [];
+
+        var centroIds = requisitos.Select(r => r.CentroId).Distinct().ToList();
+        var clientePorCentro = await ClienteEmpresarialPorCentroAsync(centroIds, cancellationToken);
+        var trabajadorIds = requisitos.Select(r => r.TrabajadorId).Distinct().ToList();
+        var tipoIds = requisitos.Select(r => r.TipoDocumentoId).Distinct().ToList();
+        var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
+        var documentosExistentes = await documentosContext.Documentos.Operativos()
+            .Where(d => d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId!.Value) && tipoIds.Contains(d.TipoDocumentoId))
+            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc })
+            .ToListAsync(cancellationToken);
+        var efectivos = DocumentoEfectivo.UnoPorClave(
+                documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy)
+            .ToDictionary(
+                p => p.Key,
+                p => CalculadoraEstadoDocumento.Calcular(p.Value.EstadoVigencia, p.Value.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias));
+        var pendientesDeTrabajador = pendientes
+            .Where(p => p.TrabajadorId is not null)
+            .Select(p => (p.CentroId, TrabajadorId: p.TrabajadorId!.Value, p.TipoDocumentoId))
+            .ToHashSet();
+
+        return requisitos
+            .Where(r => clientePorCentro.ContainsKey(r.CentroId))
+            .Select(r =>
+            {
+                var tieneEfectivo = efectivos.TryGetValue((r.TrabajadorId, r.TipoDocumentoId), out var estado);
+                return new ParDocumentalExigido(
+                    r.CentroId, clientePorCentro[r.CentroId], r.EmpresaId, r.TrabajadorId, r.TipoDocumentoId,
+                    tieneEfectivo ? estado : EstadoDocumento.Faltante,
+                    tieneEfectivo && pendientesDeTrabajador.Contains((r.CentroId, r.TrabajadorId, r.TipoDocumentoId)));
+            })
+            .ToList();
     }
 
     /// <summary>
@@ -666,7 +815,7 @@ public class CalculoEstadoCentroService(
             return [];
 
         var empresasPorCentro = (await (
-            from asignacion in asignacionesContext.Asignaciones
+            from asignacion in AsignacionesQueCuentan()
             where asignacion.FechaBaja == null && conGestionCae.Contains(asignacion.CentroId)
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             select new { asignacion.CentroId, trabajador.EmpresaId, trabajador.SubcontrataId })
@@ -740,15 +889,17 @@ public class CalculoEstadoCentroService(
             return [];
 
         var asignacionesActivas = await (
-            from asignacion in asignacionesContext.Asignaciones
+            from asignacion in AsignacionesQueCuentan()
             where asignacion.FechaBaja == null && conGestionCae.Contains(asignacion.CentroId)
-            join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
-            select new { asignacion.CentroId, ClienteEmpresarialId = centro.ClienteId, asignacion.TrabajadorId, trabajador.EmpresaId })
+            select new { asignacion.CentroId, asignacion.TrabajadorId, trabajador.EmpresaId })
             .ToListAsync(cancellationToken);
 
         if (asignacionesActivas.Count == 0)
             return [];
+
+        var clientePorCentro = await ClienteEmpresarialPorCentroAsync(
+            asignacionesActivas.Select(a => a.CentroId).Distinct().ToList(), cancellationToken);
 
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
@@ -790,7 +941,8 @@ public class CalculoEstadoCentroService(
             .ToHashSet();
 
         var pares = new List<ParDocumentalExigido>();
-        foreach (var asignacion in asignacionesActivas)
+        // Como el join con Centros de antes: una Asignación a un Centro que no se lee no aporta pares.
+        foreach (var asignacion in asignacionesActivas.Where(a => clientePorCentro.ContainsKey(a.CentroId)))
         {
             foreach (var tipo in tiposCandidatos)
             {
@@ -804,11 +956,17 @@ public class CalculoEstadoCentroService(
                     && pendientesQueBajanElPorcentaje.Contains((asignacion.CentroId, asignacion.TrabajadorId, tipo.Id));
 
                 pares.Add(new ParDocumentalExigido(
-                    asignacion.CentroId, asignacion.ClienteEmpresarialId, asignacion.EmpresaId, asignacion.TrabajadorId, tipo.Id, estado,
+                    asignacion.CentroId, clientePorCentro[asignacion.CentroId], asignacion.EmpresaId, asignacion.TrabajadorId, tipo.Id, estado,
                     pendienteEnPlataforma));
             }
         }
 
         return pares;
     }
+
+    /// <summary>El Cliente empresarial de cada Centro, que lleva cada par exigido; una sola lectura para las dos vías.</summary>
+    private Task<Dictionary<Guid, Guid>> ClienteEmpresarialPorCentroAsync(List<Guid> centroIds, CancellationToken cancellationToken) =>
+        centrosContext.Centros
+            .Where(c => centroIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.ClienteId, cancellationToken);
 }

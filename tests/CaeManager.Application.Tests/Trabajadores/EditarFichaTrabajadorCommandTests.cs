@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EditarFichaTrabajador;
 using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
@@ -108,5 +109,33 @@ public class EditarFichaTrabajadorCommandTests
             CaducidadPermisoTrabajo = null,
             MotivoPermisoTrabajo = null
         }).IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Sin_tipo_de_contratacion_la_ficha_no_lo_cambia_y_con_tipo_lo_guarda()
+    {
+        var t = Crear(); t.CambiarTipoContratacion(TipoContratacion.Autonomo); var (handler, _) = Montar(t);
+        (await handler.Handle(Comando(t), CancellationToken.None)).EsExitoso.Should().BeTrue();
+        t.TipoContratacion.Should().Be(TipoContratacion.Autonomo, "null significa que el formulario no lo toca");
+
+        (await handler.Handle(Comando(t) with { TipoContratacion = TipoContratacion.Voluntario }, CancellationToken.None))
+            .EsExitoso.Should().BeTrue();
+        t.TipoContratacion.Should().Be(TipoContratacion.Voluntario);
+    }
+
+    [Fact]
+    public void Los_validadores_rechazan_un_tipo_de_contratacion_fuera_del_enum()
+    {
+        var ficha = Comando(Crear());
+        new EditarFichaTrabajadorCommandValidator().Validate(ficha with { TipoContratacion = TipoContratacion.Voluntario })
+            .IsValid.Should().BeTrue();
+        new EditarFichaTrabajadorCommandValidator().Validate(ficha with { TipoContratacion = (TipoContratacion)99 })
+            .Errors.Should().ContainSingle(e => e.PropertyName == "TipoContratacion.Value" || e.PropertyName == "TipoContratacion");
+
+        var alta = new CrearTrabajadorCommand(Guid.NewGuid(), null, "Ana", "Ruiz", "12345678Z", null, null, null);
+        new CrearTrabajadorCommandValidator().Validate(alta with { TipoContratacion = TipoContratacion.Voluntario })
+            .IsValid.Should().BeTrue();
+        new CrearTrabajadorCommandValidator().Validate(alta with { TipoContratacion = (TipoContratacion)99 })
+            .Errors.Should().ContainSingle(e => e.PropertyName == "TipoContratacion");
     }
 }

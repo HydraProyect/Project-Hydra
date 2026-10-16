@@ -75,6 +75,9 @@ public class Trabajador : EntidadBase
     public string? NumeroAfiliacionSeguridadSocial { get; private set; }
     public string? Nacionalidad { get; private set; }
     public string? TipoVinculo { get; private set; }
+
+    /// <summary>Cuenta ajena, autónomo o voluntario (ver <see cref="Trabajadores.TipoContratacion"/>). Por defecto, cuenta ajena.</summary>
+    public TipoContratacion TipoContratacion { get; private set; } = TipoContratacion.CuentaAjena;
     public DateOnly? FechaAltaEmpresa { get; private set; }
     public DateOnly? FechaBajaEmpresa { get; private set; }
     public string? FiguraEnRnt { get; private set; }
@@ -226,6 +229,21 @@ public class Trabajador : EntidadBase
         MotivoPermisoTrabajo = null;
 
         AnonimizadoEnUtc = ahoraUtc;
+    }
+
+    /// <summary>
+    /// Fija si presta servicio por cuenta ajena, como autónomo o como voluntario. No se deduce de
+    /// <see cref="TipoVinculo"/> ni del documento de identidad.
+    /// </summary>
+    public void CambiarTipoContratacion(TipoContratacion tipo)
+    {
+        if (EstaAnonimizado)
+            throw new InvalidOperationException(
+                "Este trabajador está anonimizado: sus datos personales se suprimieron y no pueden volver a introducirse.");
+        if (!Enum.IsDefined(tipo))
+            throw new ArgumentOutOfRangeException(nameof(tipo), tipo, "Tipo de contratación desconocido.");
+
+        TipoContratacion = tipo;
     }
 
     public void Actualizar(

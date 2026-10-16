@@ -83,7 +83,7 @@ public class PendienteEnPlataformaBajoRlsTests : IAsyncLifetime
         await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
     }
 
-    private CalculoEstadoCentroService Calculo() => new(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime);
+    private CalculoEstadoCentroService Calculo() => new(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime);
 
     private EvaluacionDeAccesoPorCentroService Evaluacion(IAlcanceDatosService? alcance = null) =>
         new(_runtime, _runtime, _runtime, _runtime, _runtime, alcance ?? new AlcanceDatosServiceFalso());
@@ -207,6 +207,24 @@ public class PendienteEnPlataformaBajoRlsTests : IAsyncLifetime
         var estado = (await Calculo().CalcularAsync([_sesion.CentroConPlataforma], CancellationToken.None))[_sesion.CentroConPlataforma];
         estado.Estado.Should().Be(EstadoCentro.Pendiente, "la marca de bloqueo no cambia el estado del Centro");
         estado.Causas.Should().Contain(c => c.PendienteEnPlataforma && c.TrabajadorId == _sesion.Ana);
+    }
+
+    [Fact]
+    public async Task El_pendiente_de_un_voluntario_inactivo_no_cuenta_en_el_estado_del_Centro()
+    {
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var ana = await _propietario.Trabajadores.SingleAsync(t => t.Id == _sesion.Ana);
+            ana.CambiarTipoContratacion(TipoContratacion.Voluntario);
+            await _propietario.SaveChangesAsync();
+        }
+
+        var estado = (await Calculo().CalcularAsync([_sesion.CentroConPlataforma], CancellationToken.None))[_sesion.CentroConPlataforma];
+
+        estado.Causas.Should().NotContain(c => c.TrabajadorId == _sesion.Ana,
+            "voluntaria sin evento vigente ni futuro: inactiva, no cuenta en el Centro, tampoco por su acreditación pendiente (decisión 2026-10-15)");
+        estado.Causas.Should().Contain(c => c.PendienteEnPlataforma && c.TipoDocumentoId == _sesion.TipoEmpresa,
+            "control positivo: el RNT de la Empresa sigue pendiente, Beto y Eva siguen asignados");
     }
 
     [Fact]

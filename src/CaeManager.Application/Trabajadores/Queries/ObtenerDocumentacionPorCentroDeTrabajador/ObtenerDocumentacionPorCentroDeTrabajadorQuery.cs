@@ -139,7 +139,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
         // tipo que ese Centro marca «bloquea el acceso». Un Centro sin gestión CAE no exige nada, así que no se consulta.
         var centroIdsConGestionCae = centroIds.Where(id => !sinGestionCae.Contains(id)).ToList();
         var pendientesQueBajanElPorcentaje = (await PendientesEnPlataformaDeCentros.CargarAsync(
-                centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext,
+                centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext.Asignaciones,
                 centroIdsConGestionCae, hoy, cancellationToken))
             .Where(p => p.TrabajadorId == request.TrabajadorId && p.BloqueaAcceso)
             .Select(p => (p.CentroId, p.TipoDocumentoId))

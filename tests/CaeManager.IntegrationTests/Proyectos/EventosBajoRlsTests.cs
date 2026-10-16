@@ -210,6 +210,29 @@ public class EventosBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task El_handler_no_anade_un_Tipo_de_Documento_que_no_es_de_ambito_Trabajador()
+    {
+        Guid rnt;
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var tipo = new TipoDocumento("RNT del club", null, false, 3, AmbitoAplicacion.Empresa);
+            _propietario.TiposDocumento.Add(tipo);
+            await _propietario.SaveChangesAsync();
+            rnt = tipo.Id;
+        }
+        var handler = new AnadirRequisitoEventoCommandHandler(
+            new ProyectoRepository(_runtime), new ProyectoRequisitoRepository(_runtime), _runtime, new AlcanceDatosServiceFalso(), _runtime);
+
+        var resultado = await handler.Handle(new AnadirRequisitoEventoCommand(_eventoProximo, rnt), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue("un evento pide lo que aporta cada participante: un documento de Empresa no lo cumple nadie");
+        resultado.Error.Codigo.Should().Be("Proyecto.RequisitoNoEsDeTrabajador");
+        (await _runtime.ProyectosRequisitos.CountAsync(r => r.TipoDocumentoId == rnt)).Should().Be(0);
+        (await handler.Handle(new AnadirRequisitoEventoCommand(_eventoProximo, _dni), CancellationToken.None)).EsExitoso
+            .Should().BeTrue("control positivo: un tipo de ámbito Trabajador sí se añade");
+    }
+
+    [Fact]
     public async Task El_Centro_no_muestra_a_quien_solo_entro_por_un_evento_terminado_y_si_al_de_un_evento_vigente()
     {
         var filas = await new ObtenerTrabajadoresAsignadosDeCentroQueryHandler(_runtime, _runtime, _runtime, _runtime, new AlcanceDatosServiceFalso())

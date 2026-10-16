@@ -48,10 +48,18 @@ public class Proyecto : EntidadBase
     /// <summary>
     /// Un evento terminado es uno cerrado o cuya fecha de fin ya pasó (el último día cuenta como vigente).
     /// Una obra nunca está «terminada» en este sentido: su cierre sigue siendo <see cref="FechaCierreReal"/>.
-    /// La consulta de Trabajadores del Centro repite esta expresión en LINQ traducible a SQL.
+    /// El criterio vive en <see cref="VigenciaEvento.SinTerminarEn"/>, el mismo que traducen a SQL las consultas de
+    /// voluntarios; la consulta de Trabajadores del Centro aún repite su propia expresión en LINQ.
     /// </summary>
     public bool EventoTerminadoEn(DateOnly hoy) =>
-        EsEvento && (FechaCierreReal is not null || FechaFinPrevista < hoy);
+        EsEvento && !VigenciaEvento.EstaSinTerminar(this, hoy);
+
+    /// <summary>
+    /// Un evento vigente es uno cuyos requisitos (<see cref="ProyectoRequisito"/>) cuentan para el cumplimiento de los
+    /// voluntarios que participan: hoy, ya empezado y sin terminar (opción A). El criterio vive en
+    /// <see cref="VigenciaEvento.AportaRequisitosEn"/>, el mismo que traducen a SQL el estado del Centro y los avisos.
+    /// </summary>
+    public bool EventoVigenteEn(DateOnly hoy) => VigenciaEvento.AportaSusRequisitos(this, hoy);
 
     private Proyecto()
     {
