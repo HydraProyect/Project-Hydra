@@ -17,6 +17,14 @@ public class BarraHerramientasListaTests : BunitContext
     public BarraHerramientasListaTests() => Services.AddLocalization();
 
     [Fact]
+    public void Sin_acciones_no_reserva_espacio_para_la_barra()
+    {
+        var cut = Render<BarraHerramientasLista>();
+
+        cut.FindAll(".barra-herramientas-lista").Should().BeEmpty();
+    }
+
+    [Fact]
     public void Sin_lista_de_acordeon_no_pinta_el_boton_de_expandir()
     {
         var cut = Render<BarraHerramientasLista>(p => p.Add(b => b.SeleccionMultipleChanged, _ => { }));

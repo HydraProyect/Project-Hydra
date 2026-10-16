@@ -22,6 +22,8 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
 
+@if (SeleccionMultipleChanged.HasDelegate || OnAlternarTodos.HasDelegate || Extra is not null)
+{
 <div class="barra-herramientas-lista">
     @if (SeleccionMultipleChanged.HasDelegate)
     {
@@ -45,6 +47,7 @@
         @Extra
     }
 </div>
+}
 
 @code {
     [Parameter] public bool SeleccionMultiple { get; set; }

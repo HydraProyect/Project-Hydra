@@ -494,4 +494,5 @@
   <data name="FiltrosGuardadosVacio" xml:space="preserve">
     <value>No hi ha filtres desats</value>
   </data>
+  <data name="SelectorResultadoSingular" xml:space="preserve"><value>{0} resultat</value></data>
 </root>

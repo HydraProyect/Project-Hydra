@@ -94,7 +94,7 @@
             }
             @if (EsBuscable)
             {
-                <span class="csa-anuncio" role="status">@AnuncioResultados</span>
+                <span class="csa-anuncio" role="@(_consulta.Length > 0 ? "status" : null)">@AnuncioResultados</span>
             }
         </div>
     }
@@ -158,7 +158,7 @@
 
     [Parameter, EditorRequired] public IReadOnlyList<OpcionSelect> Opciones { get; set; } = [];
 
-    private string AnuncioResultados => _consulta.Length == 0 ? string.Empty : Comunes["SelectorResultados", _visibles.Count].Value;
+    private string AnuncioResultados => _consulta.Length == 0 ? string.Empty : Comunes[_visibles.Count == 1 ? "SelectorResultadoSingular" : "SelectorResultados", _visibles.Count].Value;
 
     private string IdCampo => string.IsNullOrWhiteSpace(Id) ? _idAuto : Id;
     private string _idEtiqueta => $"{IdCampo}-etiqueta";

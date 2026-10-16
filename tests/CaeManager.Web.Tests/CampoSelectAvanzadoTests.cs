@@ -66,6 +66,34 @@ public class CampoSelectAvanzadoTests : BunitContext
 
     // ------------------------------------------------------------ anatomía y ARIA
 
+    [Theory]
+    [InlineData("es", "medica", "1 resultado")]
+    [InlineData("es", "a", "4 resultados")]
+    [InlineData("ca-ES", "medica", "1 resultat")]
+    [InlineData("ca-ES", "a", "4 resultats")]
+    public async Task Solo_anuncia_la_busqueda_con_la_concordancia_correcta(string cultura, string consulta, string esperado)
+    {
+        var anterior = System.Globalization.CultureInfo.CurrentUICulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = new(cultura);
+            var cut = Renderizar(buscable: true);
+            await Disparador(cut).ClickAsync(new MouseEventArgs());
+            cut.FindAll("[role=status]").Should().BeEmpty();
+
+            await Buscador(cut).InputAsync(new ChangeEventArgs { Value = consulta });
+            cut.FindAll("[role=status]").Should().ContainSingle()
+                .Which.TextContent.Should().Be(esperado);
+
+            await Buscador(cut).InputAsync(new ChangeEventArgs { Value = "" });
+            cut.FindAll("[role=status]").Should().BeEmpty();
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = anterior;
+        }
+    }
+
     [Fact]
     public void Cerrado_es_un_combobox_con_la_etiqueta_y_el_valor_actual()
     {

@@ -712,6 +712,14 @@
   <data name="FichaNoDisponible" xml:space="preserve"><value>No s’ha pogut carregar la fitxa del treballador.</value></data>
   <data name="FichaGuardada" xml:space="preserve"><value>S’ha desat la fitxa del treballador.</value></data>
   <data name="FichaErrorGuardar" xml:space="preserve"><value>No s’ha pogut desar la fitxa. Torna-ho a provar.</value></data>
-  <data name="FichaCopiarDato" xml:space="preserve"><value>Copia la dada</value></data>
-  <data name="FichaFechaInvalida" xml:space="preserve"><value>Introdueix una data vàlida.</value></data>
+<data name="FichaFechaInvalida" xml:space="preserve"><value>Introdueix una data vàlida.</value></data>
+  <data name="FichaCopiarAfiliacion" xml:space="preserve"><value>el número d’afiliació a la Seguretat Social</value></data>
+  <data name="FichaCopiarAltaEmpresa" xml:space="preserve"><value>la data d’alta a l’empresa</value></data>
+  <data name="FichaCopiarBajaEmpresa" xml:space="preserve"><value>la data de baixa a l’empresa</value></data>
+  <data name="FichaCopiarCaducidadPermiso" xml:space="preserve"><value>la caducitat del permís de treball</value></data>
+  <data name="FichaCopiarDni" xml:space="preserve"><value>el DNI</value></data>
+  <data name="FichaCopiarTelefono" xml:space="preserve"><value>el telèfon</value></data>
+  <data name="FichaCopiarCorreo" xml:space="preserve"><value>el correu electrònic</value></data>
+  <data name="FichaCopiarNacimiento" xml:space="preserve"><value>la data de naixement</value></data>
+  <data name="FichaCopiarNombreAccesible" xml:space="preserve"><value>Copia {0}</value></data>
 </root>

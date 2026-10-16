@@ -712,6 +712,14 @@
   <data name="FichaNoDisponible" xml:space="preserve"><value>No se pudo cargar la ficha del trabajador.</value></data>
   <data name="FichaGuardada" xml:space="preserve"><value>Ficha del trabajador guardada.</value></data>
   <data name="FichaErrorGuardar" xml:space="preserve"><value>No se pudo guardar la ficha. Vuelve a intentarlo.</value></data>
-  <data name="FichaCopiarDato" xml:space="preserve"><value>Copiar el dato</value></data>
-  <data name="FichaFechaInvalida" xml:space="preserve"><value>Introduce una fecha válida.</value></data>
+<data name="FichaFechaInvalida" xml:space="preserve"><value>Introduce una fecha válida.</value></data>
+  <data name="FichaCopiarAfiliacion" xml:space="preserve"><value>el número de afiliación a la Seguridad Social</value></data>
+  <data name="FichaCopiarAltaEmpresa" xml:space="preserve"><value>la fecha de alta en la empresa</value></data>
+  <data name="FichaCopiarBajaEmpresa" xml:space="preserve"><value>la fecha de baja en la empresa</value></data>
+  <data name="FichaCopiarCaducidadPermiso" xml:space="preserve"><value>la caducidad del permiso de trabajo</value></data>
+  <data name="FichaCopiarDni" xml:space="preserve"><value>el DNI</value></data>
+  <data name="FichaCopiarTelefono" xml:space="preserve"><value>el teléfono</value></data>
+  <data name="FichaCopiarCorreo" xml:space="preserve"><value>el correo electrónico</value></data>
+  <data name="FichaCopiarNacimiento" xml:space="preserve"><value>la fecha de nacimiento</value></data>
+  <data name="FichaCopiarNombreAccesible" xml:space="preserve"><value>Copiar {0}</value></data>
 </root>

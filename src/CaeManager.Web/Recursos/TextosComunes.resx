@@ -503,4 +503,5 @@
   <data name="FiltrosGuardadosVacio" xml:space="preserve">
     <value>No hay filtros guardados</value>
   </data>
+  <data name="SelectorResultadoSingular" xml:space="preserve"><value>{0} resultado</value></data>
 </root>
