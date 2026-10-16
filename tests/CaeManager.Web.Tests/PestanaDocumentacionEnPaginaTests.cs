@@ -73,6 +73,25 @@ public class PestanaDocumentacionEnPaginaTests : BunitContext
         filas[1].QuerySelector(".fila-relacion-cifra")!.TextContent.Trim().Should().Be("Vence: —");
     }
 
+    /// <summary>En la página 360 el panel se abre sobre el Documento; dentro del panel el Documento se apila sobre la entidad.</summary>
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 2)]
+    public async Task Abrir_un_documento_reemplaza_el_panel_en_pagina_y_lo_apila_en_el_panel(bool enPagina, int framesEsperados)
+    {
+        var cut = Renderizar(enPagina);
+        var servicio = Services.GetRequiredService<ContextWorkspaceService>();
+        await servicio.AbrirAsync(EntidadWorkspace.Empresa, Guid.NewGuid(), "Ibertec GmbH", "informacion");
+
+        var objetivo = enPagina
+            ? cut.Find("li.fila-relacion .fila-relacion-nombre")
+            : cut.Find(".workspace-fila-entidad");
+        await objetivo.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        servicio.Pila.Should().HaveCount(framesEsperados);
+        servicio.FrameActual!.Tipo.Should().Be(EntidadWorkspace.Documento);
+    }
+
     [Fact]
     public void Sin_EnPagina_el_panel_conserva_la_lista_de_filas_boton()
     {

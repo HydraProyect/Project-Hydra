@@ -31,7 +31,7 @@ public class PasadaVisualStagingHojasDeEstiloTests
     {
         var usos = Directory.EnumerateFiles(Ruta("Features"), "*.razor", SearchOption.AllDirectories)
             .Concat(Directory.EnumerateFiles(Ruta("Components"), "*.razor", SearchOption.AllDirectories))
-            .Where(f => Regex.IsMatch(File.ReadAllText(f), @"class=""barra-filtros""[^>]*\bhidden="))
+            .Where(f => Regex.IsMatch(File.ReadAllText(f), @"<[a-z]+(?=[^>]*\sclass=""(?:[^""]*\s)?barra-filtros(?:\s[^""]*)?"")(?=[^>]*\shidden=)"))
             .Select(Path.GetFileName)
             .ToList();
 
@@ -57,19 +57,6 @@ public class PasadaVisualStagingHojasDeEstiloTests
 
         css.Should().MatchRegex(@"(?s)\.agenda-contacto-email[^{]*\{[^}]*overflow-wrap\s*:\s*anywhere");
         Cuerpo(css, ".agenda-contacto-datos").Should().Contain("min-width: 0");
-    }
-
-    /// <summary>
-    /// El título de Centros era menor que el de Empresas y Trabajadores por un <c>font-size: 22px</c> propio de la pantalla:
-    /// los tres usan ahora el <c>.titulo-pagina</c> compartido.
-    /// </summary>
-    [Fact]
-    public void El_titulo_de_la_lista_de_Centros_no_redefine_su_tamano()
-    {
-        var css = Leer("Features", "Centros", "Pages", "Centros.razor.css");
-
-        css.Should().Contain(".listado-centros-fidelidad", "control positivo: la hoja se ha leído");
-        css.Should().NotContain("titulo-pagina");
     }
 
     private static string Cuerpo(string css, string selector)

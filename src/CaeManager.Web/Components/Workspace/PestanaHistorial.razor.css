@@ -40,7 +40,7 @@
     color: var(--color-text-muted);
 }
 
-/* Ancho de panel estrecho: la fecha pasa a su propia línea bajo el autor. */
+/* Viewport estrecho (no el ancho del panel): la fecha pasa a su propia línea bajo el autor. */
 @media (max-width: 480px) {
     .workspace-historial-item {
         grid-template-columns: auto minmax(0, 1fr);

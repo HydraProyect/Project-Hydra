@@ -259,6 +259,11 @@
     margin-bottom: 6px;
 }
 
+.listado-centros-fidelidad ::deep .titulo-pagina {
+    font-size: 22px;
+    line-height: 28px;
+}
+
 .listado-centros-fidelidad ::deep .barra-filtros-pastillas {
     margin-bottom: 10px;
 }

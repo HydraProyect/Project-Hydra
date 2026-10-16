@@ -113,7 +113,7 @@ public class AcordeonAsignacionesCentroIncidenciaEmpresaSinEstadoTests : BunitCo
         fila.TextContent.Should().NotContain("Sin caducidad");
     }
 
-    private IRenderedComponent<AcordeonAsignacionesCentro> RenderizarBloqueEmpresa(int incidencias)
+    private IRenderedComponent<AcordeonAsignacionesCentro> RenderizarBloqueEmpresa(int incidencias, bool modoListado = false)
     {
         Services.AddLocalization();
         this.ConRolDeEscritura();
@@ -135,10 +135,33 @@ public class AcordeonAsignacionesCentroIncidenciaEmpresaSinEstadoTests : BunitCo
             .Add(a => a.CentroNombre, "Centro Logístico Norte")
             .Add(a => a.EmpresaId, Guid.NewGuid())
             .Add(a => a.EmpresaNombre, "Empresa Recuentos S.L.")
+            .Add(a => a.ModoListado, modoListado)
             .Add(a => a.IncidenciasEmpresa, lista));
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("bloque-empresa-ambito"));
         return cut;
+    }
+
+    /// <summary>
+    /// El bloque Empresa comparte rejilla con los Trabajadores pero no la clase de su lista: los selectores de pruebas y de
+    /// atajos de teclado que leen <c>.lista-trabajadores-acordeon</c> hablan de Trabajadores, no de la Empresa.
+    /// </summary>
+    [Fact]
+    public void El_bloque_Empresa_no_lleva_la_clase_de_la_lista_de_Trabajadores()
+    {
+        var cut = RenderizarBloqueEmpresa(incidencias: 1);
+
+        cut.FindAll(".lista-trabajadores-acordeon .fila-relacion").Should().BeEmpty();
+        cut.Find(".bloque-empresa-ambito").ClassList.Should().NotContain("bloque-empresa-ambito-listado");
+    }
+
+    /// <summary>En la fila desplegada de /centros (ModoListado) la Empresa sigue el criterio compacto de sus Trabajadores.</summary>
+    [Fact]
+    public void En_el_listado_de_Centros_el_bloque_Empresa_lleva_la_variante_compacta()
+    {
+        var cut = RenderizarBloqueEmpresa(incidencias: 1, modoListado: true);
+
+        cut.Find(".bloque-empresa-ambito").ClassList.Should().Contain("bloque-empresa-ambito-listado");
     }
 
     /// <summary>
@@ -156,7 +179,7 @@ public class AcordeonAsignacionesCentroIncidenciaEmpresaSinEstadoTests : BunitCo
         var fila = tarjeta.QuerySelector("li.fila-relacion.fila-relacion-rejilla");
         fila.Should().NotBeNull("la Empresa es una fila de la misma lista en tarjeta que los Trabajadores");
 
-        fila!.QuerySelector(".fila-relacion-cifra")!.TextContent.Trim().Should().Be("2 incidencias");
+        fila!.QuerySelector(".fila-relacion-cifra")!.TextContent.Trim().Should().Be("2 doc.");
         fila.QuerySelector(".fila-relacion-estado")!.TextContent.Should().Contain("Con incidencia");
         fila.QuerySelector(".fila-relacion-acciones")!.TextContent.Should().Contain("Detalles");
 
@@ -178,7 +201,7 @@ public class AcordeonAsignacionesCentroIncidenciaEmpresaSinEstadoTests : BunitCo
 
         cut.FindAll(".bloque-empresa-ambito .fila-documento-requerido").Should().HaveCount(1, "va desplegada de entrada: solo existe si hay algo que resolver");
         chevron().GetAttribute("aria-expanded").Should().Be("true");
-        cut.Find(".bloque-empresa-ambito .fila-relacion-cifra").TextContent.Trim().Should().Be("1 incidencia");
+        cut.Find(".bloque-empresa-ambito .fila-relacion-cifra").TextContent.Trim().Should().Be("1 doc.");
 
         chevron().Click();
 

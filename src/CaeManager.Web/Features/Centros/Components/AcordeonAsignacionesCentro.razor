@@ -76,21 +76,22 @@ else
             Contrato de fidelidad 2026-08-09 § 1.5: mismas columnas Documento ·
             Estado · Vigencia · Acción.
         *@
-        <div class="lista-trabajadores-acordeon bloque-empresa-ambito" data-bloque-empresa>
+        <div class="bloque-empresa-ambito @(ModoListado ? "bloque-empresa-ambito-listado" : null)" data-bloque-empresa>
             <ListaRelaciones Etiqueta="@($"Empresa · {EmpresaNombre}")" EnTarjeta="true">
                 <FilaRelacion Nombre="@EmpresaNombre" NombreIcono="empresas" Tono="TonoFila.Peligro"
                               OnNombre="AbrirDetalleEmpresa"
                               Desplegada="_empresaDesplegada" DesplegadaChanged="v => _empresaDesplegada = v"
-                              EtiquetaDesplegar="@($"Documentos con incidencia de {EmpresaNombre}")">
-                    <Detalle>Solo se listan las incidencias; el resto de su documentación está en Detalles.</Detalle>
+                              EtiquetaDesplegar="@Textos["EmpresaBloqueDesplegar", EmpresaNombre]">
+                    <Detalle>@Textos["EmpresaBloqueNota"]</Detalle>
                     <Cifra>
-                        <span class="fila-trabajador-fraccion">@IncidenciasEmpresa.Count @(IncidenciasEmpresa.Count == 1 ? "incidencia" : "incidencias")</span>
+                        @* Cifra corta como el «3 de 4» de los Trabajadores: la columna mide 76 px. El nombre completo va en el title. *@
+                        <span class="fila-trabajador-fraccion" title="@Textos[IncidenciasEmpresa.Count == 1 ? "EmpresaBloqueCifraUno" : "EmpresaBloqueCifraVarios", IncidenciasEmpresa.Count]">@IncidenciasEmpresa.Count doc.</span>
                     </Cifra>
                     <Estado>
-                        <Badge Tono="TonoBadge.Peligro" ConIcono>Con incidencia</Badge>
+                        <Badge Tono="TonoBadge.Peligro">@Textos["EmpresaBloqueEstado"]</Badge>
                     </Estado>
                     <Acciones>
-                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" OnClick="AbrirDetalleEmpresa">
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" aria-label="@Textos["EmpresaBloqueDetalles", EmpresaNombre]" OnClick="AbrirDetalleEmpresa">
                             Detalles
                         </Boton>
                     </Acciones>
