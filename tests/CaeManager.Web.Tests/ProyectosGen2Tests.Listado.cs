@@ -5,6 +5,7 @@ using CaeManager.Application.Proyectos.Commands.CrearProyecto;
 using CaeManager.Application.Proyectos.Commands.ReabrirProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectos;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Proyectos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Proyectos;
@@ -128,9 +129,37 @@ public partial class ProyectosGen2Tests
     [InlineData("2026-03-12", null, null, "2026-10-08", null)]                 // sin fin previsto
     [InlineData("2026-01-09", "2026-02-01", "2026-03-04", "2026-10-08", null)] // cerrado, aunque cerrara tarde
     public void Dias_de_retraso(string inicio, string? fin, string? cierre, string hoy, int? esperado) =>
-        PlazoProyecto.DiasDeRetraso(DateOnly.Parse(inicio), fin is null ? null : DateOnly.Parse(fin),
+        PlazoProyecto.DiasDeRetraso(TipoProyecto.Obra, DateOnly.Parse(inicio), fin is null ? null : DateOnly.Parse(fin),
                 cierre is null ? null : DateOnly.Parse(cierre), DateOnly.Parse(hoy))
             .Should().Be(esperado);
+
+    /// <summary>
+    /// Un evento nunca muestra retraso (decisión 2026-10-16): pasado su fin previsto se cierra solo, y entre la
+    /// medianoche y el pase del proceso programado la pantalla ya lo trata como cerrado en esa fecha.
+    /// </summary>
+    [Theory]
+    [InlineData("2026-10-01", "2026-10-03", null, "2026-10-08", null, "2026-10-03")] // abierto y pasado: cerrado en su fin
+    [InlineData("2026-10-01", "2026-10-08", null, "2026-10-08", null, null)]         // su último día sigue abierto
+    [InlineData("2026-10-01", "2026-10-03", "2026-10-02", "2026-10-08", null, "2026-10-02")] // cerrado a mano antes
+    public void Un_evento_nunca_tiene_retraso_y_pasado_su_fin_cuenta_como_cerrado(
+        string inicio, string fin, string? cierre, string hoy, int? retraso, string? cierreEfectivo)
+    {
+        var cierreReal = cierre is null ? (DateOnly?)null : DateOnly.Parse(cierre);
+
+        PlazoProyecto.DiasDeRetraso(TipoProyecto.Evento, DateOnly.Parse(inicio), DateOnly.Parse(fin), cierreReal, DateOnly.Parse(hoy))
+            .Should().Be(retraso);
+        PlazoProyecto.CierreEfectivo(TipoProyecto.Evento, DateOnly.Parse(fin), cierreReal, DateOnly.Parse(hoy))
+            .Should().Be(cierreEfectivo is null ? null : DateOnly.Parse(cierreEfectivo));
+    }
+
+    [Fact]
+    public void Una_obra_pasada_de_su_fin_sigue_abierta_y_con_retraso()
+    {
+        PlazoProyecto.CierreEfectivo(TipoProyecto.Obra, new DateOnly(2026, 10, 3), null, new DateOnly(2026, 10, 8))
+            .Should().BeNull();
+        PlazoProyecto.DiasDeRetraso(TipoProyecto.Obra, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 3), null, new DateOnly(2026, 10, 8))
+            .Should().Be(5);
+    }
 
     // ------------------------------------------------------------------ «Reabrir» en la fila
 

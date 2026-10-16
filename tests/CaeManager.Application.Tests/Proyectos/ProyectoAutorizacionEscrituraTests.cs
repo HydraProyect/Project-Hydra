@@ -7,6 +7,7 @@ using CaeManager.Application.Proyectos.Commands.EliminarProyecto;
 using CaeManager.Application.Proyectos.Commands.ReabrirProyecto;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Plantillas;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
@@ -247,6 +248,49 @@ public class ProyectoAutorizacionEscrituraTests
         resultado.EsExitoso.Should().BeTrue();
         proyecto.EstaAbierto.Should().BeTrue();
         proyecto.FechaCierreReal.Should().BeNull();
+        unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Un evento cerrado (a mano o por el cierre automático, decisión 2026-10-16) con la fecha de fin ya pasada no se
+    /// reabre: el proceso programado lo volvería a cerrar en el pase siguiente. El usuario cambia antes la fecha de fin.
+    /// </summary>
+    [Fact]
+    public async Task Reabrir_un_evento_con_la_fecha_de_fin_pasada_falla_sin_tocarlo()
+    {
+        var clienteId = Guid.NewGuid();
+        var hoy = DiaDeNegocio.Hoy();
+        var evento = Proyecto.Crear(clienteId, Guid.NewGuid(), "Partido", hoy.AddDays(-3), hoy.AddDays(-1), null, TipoProyecto.Evento);
+        evento.CerrarEventoTerminado(hoy).Should().BeTrue("precondición: el evento terminó ayer");
+        var repositorio = new ProyectoRepositorioFalso();
+        repositorio.Agregar(evento);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new ReabrirProyectoCommandHandler(repositorio, AlcanceSinAcceso(clienteId), unitOfWork);
+
+        var resultado = await handler.Handle(new ReabrirProyectoCommand(evento.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeFalse();
+        resultado.Error.Codigo.Should().Be("Proyecto.EventoFinPasado");
+        evento.EstaAbierto.Should().BeFalse();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Reabrir_un_evento_cuya_fecha_de_fin_es_hoy_lo_deja_abierto()
+    {
+        var clienteId = Guid.NewGuid();
+        var hoy = DiaDeNegocio.Hoy();
+        var evento = Proyecto.Crear(clienteId, Guid.NewGuid(), "Partido", hoy.AddDays(-3), hoy, null, TipoProyecto.Evento);
+        evento.Cerrar(hoy.AddDays(-1));
+        var repositorio = new ProyectoRepositorioFalso();
+        repositorio.Agregar(evento);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new ReabrirProyectoCommandHandler(repositorio, AlcanceSinAcceso(clienteId), unitOfWork);
+
+        var resultado = await handler.Handle(new ReabrirProyectoCommand(evento.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        evento.EstaAbierto.Should().BeTrue();
         unitOfWork.VecesGuardado.Should().Be(1);
     }
 

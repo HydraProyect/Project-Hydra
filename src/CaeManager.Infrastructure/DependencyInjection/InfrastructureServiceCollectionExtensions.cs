@@ -610,6 +610,10 @@ public static class InfrastructureServiceCollectionExtensions
         // filtran por Estado, así que una vigente caducada bloquearía el alta
         // de su sustituta (F1 del plan de migración).
         services.AddHostedService<Operaciones.ExpiracionAsignacionesHostedService>();
+        // Cierra los Proyectos de tipo Evento cuya fecha de fin ya pasó (decisión
+        // 2026-10-16), auditado como Sistema. Sin interruptor: es la regla del
+        // evento, no una automatización opcional del Tenant.
+        services.AddHostedService<Proyectos.CierreEventosTerminadosHostedService>();
 
         // Tramo 1 bis del MVP-1 de formatos (corte mínimo, 2026-08-14):
         // sondeo del sumario diario del BOE. El cliente HTTP se registra

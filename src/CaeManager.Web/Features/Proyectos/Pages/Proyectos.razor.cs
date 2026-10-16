@@ -139,7 +139,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// de plazo se queda en el 100 % y por sí sola no distingue «acaba hoy» de «lleva un mes de retraso».
     /// </summary>
     private string? TextoFinPrevistoSuperado(ProyectoListaDto proyecto) =>
-        PlazoProyecto.DiasDeRetraso(proyecto.FechaInicio, proyecto.FechaFinPrevista, proyecto.FechaCierreReal, Hoy) is { } dias
+        PlazoProyecto.DiasDeRetraso(proyecto.Tipo, proyecto.FechaInicio, proyecto.FechaFinPrevista, proyecto.FechaCierreReal, Hoy) is { } dias
             ? Textos[dias == 1 ? "PlazoSuperadoUno" : "PlazoSuperadoVarios", dias].Value
             : null;
 

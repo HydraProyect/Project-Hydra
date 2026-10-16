@@ -333,7 +333,8 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
 
             var fin = _detalle.FechaFinPrevista;
 
-            if (_detalle.FechaCierreReal is { } cierre)
+            // Un evento pasado de su fin ya está cerrado aunque el proceso programado aún no lo haya persistido.
+            if (PlazoProyecto.CierreEfectivo(_detalle.Tipo, fin, _detalle.FechaCierreReal, Hoy) is { } cierre)
             {
                 var cerrado = Textos["PlazoCerradoEl", cierre].Value;
                 if (fin is not { } previsto || previsto == cierre)

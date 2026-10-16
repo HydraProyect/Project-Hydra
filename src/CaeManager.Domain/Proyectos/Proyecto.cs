@@ -26,6 +26,12 @@ namespace CaeManager.Domain.Proyectos;
 /// <see cref="Tipo"/> distingue la obra de siempre de un <see cref="TipoProyecto.Evento"/>: un evento tiene
 /// siempre fecha de fin (FechaFinPrevista obligatoria) y está terminado en cuanto se cierra o pasa esa fecha
 /// (<see cref="EventoTerminadoEn"/>). El tipo se fija al crear y no cambia.
+///
+/// Un evento se cierra solo (decisión 2026-10-16): cuando pasa su FechaFinPrevista, el proceso programado
+/// <c>CierreEventosTerminadosHostedService</c> persiste <see cref="FechaCierreReal"/> = FechaFinPrevista con
+/// <see cref="CerrarEventoTerminado"/>, como actor Sistema auditado, para que no quede abierto con «fin previsto
+/// superado» en listados, filtros y avisos. Si la fecha cambia, el usuario la modifica antes del cierre o reabre el
+/// evento después con una fecha de fin de hoy o posterior (<see cref="Reabrir"/>). Las obras no se cierran solas.
 /// </summary>
 public class Proyecto : EntidadBase
 {
@@ -109,8 +115,35 @@ public class Proyecto : EntidadBase
         FechaCierreReal = fechaCierre;
     }
 
-    public void Reabrir()
+    /// <summary>
+    /// Cierre automático de un evento terminado: si es un evento abierto cuya FechaFinPrevista ya pasó en
+    /// <paramref name="hoy"/> (el último día cuenta como vigente), lo cierra con fecha de cierre real = su fecha de fin
+    /// prevista —el día en que terminó, no el día en que corrió el proceso— y devuelve <c>true</c>. En cualquier otro
+    /// caso (obra, ya cerrado, aún vigente o futuro) no toca nada y devuelve <c>false</c>. Lo usa solo el proceso
+    /// programado <c>CierreEventosTerminadosHostedService</c>; el criterio de la consulta que lo alimenta es
+    /// <see cref="VigenciaEvento.PendienteDeCierreEn"/>.
+    /// </summary>
+    public bool CerrarEventoTerminado(DateOnly hoy)
     {
+        if (!EsEvento || !EstaAbierto || FechaFinPrevista is not { } fin || fin >= hoy)
+            return false;
+
+        FechaCierreReal = fin;
+        return true;
+    }
+
+    /// <summary>
+    /// Deshace un cierre: el proyecto vuelve a contar como abierto. Un evento solo se reabre con una fecha de fin
+    /// prevista de <paramref name="hoy"/> o posterior: con la fecha ya pasada, el cierre automático
+    /// (<see cref="CerrarEventoTerminado"/>) lo volvería a cerrar en su siguiente pase. Para alargarlo, primero se cambia
+    /// la fecha de fin (se puede editar cerrado) y después se reabre.
+    /// </summary>
+    public void Reabrir(DateOnly hoy)
+    {
+        if (EsEvento && FechaFinPrevista < hoy)
+            throw new InvalidOperationException(
+                "Un evento con la fecha de fin ya pasada no se puede reabrir: cambia antes la fecha de fin a hoy o a una posterior.");
+
         FechaCierreReal = null;
     }
 

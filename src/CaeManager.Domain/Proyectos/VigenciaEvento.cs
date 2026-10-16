@@ -14,7 +14,13 @@ namespace CaeManager.Domain.Proyectos;
 /// cumplimiento de los Trabajadores asignados a él. Desde la decisión del 2026-10-16 (opción B) es el mismo criterio que
 /// <see cref="SinTerminarEn"/>: cuentan desde la asignación al evento mientras es futuro o vigente, no solo desde su
 /// <c>FechaInicio</c>, para que quien entra llegue al evento con la documentación preparada.</item>
+/// <item><see cref="PendienteDeCierreEn"/>: evento todavía abierto cuya fecha de fin ya pasó, el que el cierre automático
+/// (<c>CierreEventosTerminadosHostedService</c>, decisión 2026-10-16) cierra con <see cref="Proyecto.CerrarEventoTerminado"/>.
+/// Es el complemento exacto de <see cref="SinTerminarEn"/> entre los eventos abiertos.</item>
 /// </list>
+/// <see cref="SinTerminarEn"/> sigue mirando la fecha de fin aunque el cierre ya se persista: entre la medianoche y el
+/// siguiente pase del proceso programado (como mucho una hora), el evento pasado sigue sin <c>FechaCierreReal</c>, y en
+/// ese hueco nadie debe tratarlo como vigente.
 /// </summary>
 public static class VigenciaEvento
 {
@@ -31,6 +37,15 @@ public static class VigenciaEvento
     /// <see cref="SinTerminarEn"/> (opción B, 2026-10-16): un evento futuro ya se los pide a quien está asignado a él.
     /// </summary>
     public static Expression<Func<Proyecto, bool>> AportaRequisitosEn(DateOnly hoy) => FijarDia(SinTerminar, hoy);
+
+    private static readonly Expression<Func<Proyecto, DateOnly, bool>> PendienteDeCierre = (proyecto, hoy) =>
+        proyecto.Tipo == TipoProyecto.Evento && proyecto.FechaCierreReal == null && proyecto.FechaFinPrevista < hoy;
+
+    /// <summary>
+    /// Predicado traducible a SQL: evento abierto (sin <c>FechaCierreReal</c>) cuya fecha de fin prevista es anterior a
+    /// <paramref name="hoy"/>. El último día del evento cuenta como vigente, así que no se cierra hasta el día siguiente.
+    /// </summary>
+    public static Expression<Func<Proyecto, bool>> PendienteDeCierreEn(DateOnly hoy) => FijarDia(PendienteDeCierre, hoy);
 
     internal static bool EstaSinTerminar(Proyecto proyecto, DateOnly hoy) => SinTerminarCompilada(proyecto, hoy);
 
