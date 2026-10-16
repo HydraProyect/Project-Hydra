@@ -172,6 +172,9 @@ public class MiTrabajoClavesUnicasTests : BunitContext
         cut.Render();
 
         cut.FindAll(".mi-trabajo-pestana").Single(b => b.TextContent == "Severidad").Click();
+        // Las cabeceras de severidad también cargan plegadas.
+        foreach (var cabecera in cut.FindAll(".mi-trabajo-grupo-cabecera-severidad").Where(c => c.GetAttribute("aria-expanded") == "false"))
+            cabecera.Click();
         cut.FindAll(".mi-trabajo-fila").Should().HaveCount(3);
         ClavesDeRender.Duplicadas(this, cut).Should().BeEmpty("agrupado por severidad: un solo grupo con filas de los dos Tenants");
         cut.Render();

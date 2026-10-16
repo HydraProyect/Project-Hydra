@@ -628,6 +628,18 @@ public static class Ayudas
     }
 
     /// <summary>
+    /// <c>/bandeja</c> carga con todos los grupos plegados (decisión de producto 2026-10-16): despliega los que sigan
+    /// plegados para que sus tarjetas existan en el DOM. Espera a que haya grupos y los abre con un clic de JS, sin
+    /// localizadores por posición.
+    /// </summary>
+    public static async Task DesplegarGruposDeBandejaAsync(IPage page)
+    {
+        var cabeceras = page.Locator(".grupo-cola-cabecera");
+        await Assertions.Expect(cabeceras).Not.ToHaveCountAsync(0, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
+        await cabeceras.EvaluateAllAsync<bool>("els => { els.filter(e => e.getAttribute('aria-expanded') === 'false').forEach(e => e.click()); return true; }");
+    }
+
+    /// <summary>
     /// Selecciona una fila de la bandeja unificada de <c>/comunicaciones</c>
     /// (<c>FilaConversacion.razor</c>) confirmando que el clic llegó de verdad
     /// al circuito de Blazor antes de devolver el control.

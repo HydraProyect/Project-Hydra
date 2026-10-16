@@ -503,11 +503,37 @@ public class MiTrabajoGen2Tests : BunitContext
         cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas");
     }
 
-    /// <summary>
-    /// Lo que el Gestor CAE despliega vale para su visita a la pantalla y nada más: no se escribe ni se lee ningún
-    /// almacenamiento del navegador, y una instancia nueva de la pantalla (otra carga) vuelve a partir plegada aunque
-    /// la anterior terminara con un Tenant desplegado.
-    /// </summary>
+    /// <summary>Decisión de la coordinadora (2026-10-16): el modo Severidad también carga plegado, con cabeceras plegables y «Expandir todas».</summary>
+    [Fact]
+    public void El_modo_Severidad_carga_con_todas_las_cabeceras_plegadas_y_se_despliegan_una_a_una_o_todas()
+    {
+        var cut = RenderizarPlegado(url: "mi-trabajo?agrupar=severidad");
+
+        var cabeceras = cut.FindAll(".mi-trabajo-grupo-cabecera-severidad");
+        cabeceras.Should().NotBeEmpty();
+        cabeceras.Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+        cut.FindAll(".mi-trabajo-fila").Should().BeEmpty();
+        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas");
+
+        cabeceras[0].Click();
+
+        var tras = cut.FindAll(".mi-trabajo-grupo-cabecera-severidad");
+        tras[0].GetAttribute("aria-expanded").Should().Be("true");
+        tras.Skip(1).Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false", "abrir una no abre las demás");
+        TitulosVisibles(cut).Should().NotBeEmpty();
+
+        cut.Find(".mi-trabajo-plegar-todas").Click();
+        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas", "con una abierta y otras plegadas el botón pliega todo");
+        cut.FindAll(".mi-trabajo-grupo-cabecera-severidad").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+
+        cut.Find(".mi-trabajo-plegar-todas").Click();
+        cut.FindAll(".mi-trabajo-grupo-cabecera-severidad").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "true");
+
+        cut.Find(".mi-trabajo-volver-plegar").Click();
+        cut.FindAll(".mi-trabajo-grupo-cabecera-severidad").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+        cut.FindAll(".mi-trabajo-volver-plegar").Should().BeEmpty();
+    }
+
     [Fact]
     public void Expandir_todas_despliega_todo_y_cambia_su_rotulo_y_Volver_a_plegar_deja_todo_plegado_otra_vez()
     {
@@ -527,6 +553,11 @@ public class MiTrabajoGen2Tests : BunitContext
         TitulosVisibles(cut).Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Lo que el Gestor CAE despliega vale para su visita a la pantalla y nada más: no se escribe ni se lee ningún
+    /// almacenamiento del navegador, y una instancia nueva de la pantalla (otra carga) vuelve a partir plegada aunque
+    /// la anterior terminara con un Tenant desplegado.
+    /// </summary>
     [Fact]
     public void Lo_desplegado_en_una_visita_no_se_restaura_en_la_siguiente()
     {
@@ -612,6 +643,7 @@ public class MiTrabajoGen2Tests : BunitContext
         var cut = Renderizar();
 
         cut.FindAll(".mi-trabajo-pestana").Single(b => b.TextContent == "Severidad").Click();
+        ExpandirTodas(cut);
 
         cut.FindAll(".mi-trabajo-grupo-nombre").Select(e => e.TextContent).Should().Equal("Bloqueo", "Requiere actuación", "Próximo", "Seguimiento");
         FilaDe(cut, "Rechazado por la plataforma").QuerySelector(".mi-trabajo-fila-contexto")!.TextContent
