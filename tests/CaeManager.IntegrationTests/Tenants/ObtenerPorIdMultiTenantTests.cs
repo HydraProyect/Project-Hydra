@@ -103,7 +103,7 @@ public class ObtenerPorIdMultiTenantTests : IAsyncLifetime
     public async Task Un_centro_del_tenant_A_no_resuelve_para_el_tenant_B_aunque_su_alcance_sea_total()
     {
         await using var contextoB = CrearContexto(_tenantB);
-        var handler = new ObtenerCentroPorIdQueryHandler(contextoB, contextoB, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerCentroPorIdQueryHandler(contextoB, contextoB, new AlcanceDatosServiceFalso(), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var resultado = await handler.Handle(new ObtenerCentroPorIdQuery(_centroDeAId), CancellationToken.None);
 
@@ -125,7 +125,7 @@ public class ObtenerPorIdMultiTenantTests : IAsyncLifetime
 
         var empresaHandler = new ObtenerEmpresaPorIdQueryHandler(contextoB, alcance, PoliticaNotaInternaPruebas.Con("GestorCae"));
         var clienteHandler = new ObtenerClientePorIdQueryHandler(contextoB, alcance, PoliticaNotaInternaPruebas.Con("GestorCae"));
-        var centroHandler = new ObtenerCentroPorIdQueryHandler(contextoB, contextoB, alcance);
+        var centroHandler = new ObtenerCentroPorIdQueryHandler(contextoB, contextoB, alcance, PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var deOtroTenant = new object?[]
         {
@@ -157,7 +157,7 @@ public class ObtenerPorIdMultiTenantTests : IAsyncLifetime
         (await new ObtenerClientePorIdQueryHandler(contextoA, alcance, PoliticaNotaInternaPruebas.Con("GestorCae"))
             .Handle(new ObtenerClientePorIdQuery(_clienteDeAId), CancellationToken.None)).Should().NotBeNull();
 
-        (await new ObtenerCentroPorIdQueryHandler(contextoA, contextoA, alcance)
+        (await new ObtenerCentroPorIdQueryHandler(contextoA, contextoA, alcance, PoliticaNotaInternaPruebas.Con("GestorCae"))
             .Handle(new ObtenerCentroPorIdQuery(_centroDeAId), CancellationToken.None)).Should().NotBeNull();
     }
 }

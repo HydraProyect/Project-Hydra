@@ -78,6 +78,11 @@ namespace CaeManager.Infrastructure.Auditing;
 ///    firma los documentos y el nombre, el teléfono y el correo de los
 ///    contactos de la Organización SPA, de formación y del Técnico PRL. Se
 ///    enmascaran en toda entrada de Empresa. Ver el comentario de esa entrada.
+/// 9. Los datos personales de la ficha de <see cref="Centro"/> 360: el nombre y
+///    el teléfono del contacto de control de accesos y el nombre, el teléfono y
+///    el correo del Técnico de prevención. Se enmascaran en toda entrada de
+///    Centro. El horario de acceso y los indicadores de trabajos especiales no
+///    son datos personales y quedan en claro. Ver el comentario de esa entrada.
 /// </summary>
 public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesInterceptor
 {
@@ -207,7 +212,10 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         // canal de firma, la custodia del sello, la modalidad preventiva y los
         // nombres de la Organización SPA y de la Mutua son datos de organizaciones
         // y quedan en claro.
-        // La ficha de Centro 360 sigue el criterio de los contactos de Empresa 360.
+        // Punto 9 del comentario de clase (2026-10-16): los datos personales de la
+        // ficha de Centro 360, con el mismo criterio que los contactos de Empresa 360
+        // (punto 8). El rastro conserva qué campo cambió, quién y cuándo; nunca el
+        // nombre, el teléfono ni el correo de una persona de contacto.
         [typeof(Centro)] =
         [
             nameof(Centro.ControlAccesosNombre), nameof(Centro.ControlAccesosTelefono),
