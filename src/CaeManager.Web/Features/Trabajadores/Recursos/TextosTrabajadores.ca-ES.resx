@@ -715,4 +715,5 @@
   <data name="FichaCopiarCorreo" xml:space="preserve"><value>el correu electrònic</value></data>
   <data name="FichaCopiarNacimiento" xml:space="preserve"><value>la data de naixement</value></data>
   <data name="FichaCopiarNombreAccesible" xml:space="preserve"><value>Copia {0}</value></data>
+  <data name="FichaCopiarNombreAccesibleConValor" xml:space="preserve"><value>Copia {0}: {1}</value></data>
 </root>
