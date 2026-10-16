@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Proyectos.Queries.ObtenerEmpresasProyecto;
+using CaeManager.Application.Proyectos.Queries.ObtenerVehiculosProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerVisitasProyecto;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -10,6 +11,7 @@ using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
+using CaeManager.Domain.Vehiculos;
 using CaeManager.Domain.Visitas;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
@@ -38,6 +40,8 @@ public class EmpresasYVisitasProyectoBajoRuntimeTests : IAsyncLifetime
     private Guid _directa;
     private Guid _contraparte;
     private Guid _visita;
+    private Guid _vehiculoDirecta;
+    private Guid _vehiculoContraparte;
 
     public async Task InitializeAsync()
     {
@@ -69,7 +73,13 @@ public class EmpresasYVisitasProyectoBajoRuntimeTests : IAsyncLifetime
             var otroCliente = Empresa.CrearComoCliente("Cliente empresarial fuera de cartera", "B10380202", false, null, null);
             var directa = new Empresa("Empresa empleadora directa", "B10380194");
             var contraparte = Empresa.CrearComoSubcontrata("Empresa contraparte empleadora", null, "Estandar");
-            contexto.Empresas.AddRange(cliente, otroCliente, directa, contraparte);
+            var noParticipa = new Empresa("Empresa sin técnicos en el Proyecto");
+            contexto.Empresas.AddRange(cliente, otroCliente, directa, contraparte, noParticipa);
+            var vehiculoDirecta = Vehiculo.DeEmpresa(directa.Id, "Furgoneta de la directa", "Ford Transit", "1234ABC");
+            var vehiculoContraparte = Vehiculo.DeSubcontrata(contraparte.Id, "Grúa de la contraparte", "Liebherr", "9999ZZZ");
+            var vehiculoAjenoAlProyecto = Vehiculo.DeEmpresa(noParticipa.Id, "Camión que no participa", "Iveco", "0001AAA");
+            contexto.Vehiculos.AddRange(vehiculoDirecta, vehiculoContraparte, vehiculoAjenoAlProyecto);
+            _vehiculoDirecta = vehiculoDirecta.Id; _vehiculoContraparte = vehiculoContraparte.Id;
             var centro = new Centro(cliente.Id, directa.Id, "Centro visible");
             var fuera = new Centro(otroCliente.Id, directa.Id, "Centro fuera de cartera");
             contexto.Centros.AddRange(centro, fuera);
@@ -163,6 +173,33 @@ public class EmpresasYVisitasProyectoBajoRuntimeTests : IAsyncLifetime
         fuera.Empresas.Should().BeEmpty(); fuera.Visitas.Should().BeEmpty();
         var administrador = await Leer(_fueraDeCartera, _administrador, Roles.Administrador);
         administrador.Empresas.Should().NotBeEmpty(); administrador.Visitas.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task Vehiculos_del_Proyecto_traducen_SQL_por_las_dos_rutas_y_excluyen_Empresas_que_no_participan()
+    {
+        var vehiculos = await LeerVehiculos(_proyecto, _administrador, Roles.Administrador);
+        vehiculos.Select(v => v.Id).Should().BeEquivalentTo([_vehiculoDirecta, _vehiculoContraparte]);
+        vehiculos.Single(v => v.Id == _vehiculoDirecta).EmpleadorId.Should().Be(_directa);
+        vehiculos.Single(v => v.Id == _vehiculoContraparte).EmpleadorNombre.Should().Be("Empresa contraparte empleadora");
+    }
+
+    [Fact]
+    public async Task Vehiculos_del_Proyecto_respetan_Tenant_y_cartera_con_controles_positivos()
+    {
+        (await LeerVehiculos(_proyecto, _gestor, Roles.GestorCae)).Should().NotBeEmpty();
+        (await LeerVehiculos(_fueraDeCartera, _gestor, Roles.GestorCae)).Should().BeEmpty();
+        (await LeerVehiculos(_fueraDeCartera, _administrador, Roles.Administrador)).Should().NotBeEmpty();
+        (await LeerVehiculos(_proyectoAjeno, _administrador, Roles.Administrador)).Should().BeEmpty();
+    }
+
+    private async Task<IReadOnlyList<VehiculoProyectoDto>> LeerVehiculos(Guid proyectoId, Guid usuario, string rol)
+    {
+        await using var contexto = Contexto(_propietario.Id, usuario, rol);
+        var alcance = new AlcanceDatosService(contexto, new CurrentUserServiceFalso(usuario, rol, tenantOrigenId: _propietario.Id),
+            new TenantActualAmbiental { TenantId = _propietario.Id }, new SesionPrivilegiadaAusente());
+        return await new ObtenerVehiculosProyectoQueryHandler(contexto, contexto, contexto, contexto, contexto, alcance)
+            .Handle(new(proyectoId), CancellationToken.None);
     }
 
     private sealed record Lectura(IReadOnlyList<EmpresaProyectoDto> Empresas, IReadOnlyList<VisitaProyectoDto> Visitas);

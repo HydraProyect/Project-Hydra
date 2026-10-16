@@ -107,9 +107,17 @@
                     {
                         @PestanaDeEmpresasProyecto
                     }
+                    else if (PestanaActiva == PestanaVehiculos)
+                    {
+                        @PestanaDeVehiculosProyecto
+                    }
                     else if (PestanaActiva == PestanaVisitas)
                     {
                         @PestanaDeVisitasProyecto
+                    }
+                    else if (PestanaActiva == PestanaHistorial)
+                    {
+                        <PestanaHistorial @key="ProyectoId" EntidadTipo="Proyecto" EntidadId="ProyectoId" />
                     }
                     else if (PestanaActiva == PestanaFicha)
                     {
@@ -318,6 +326,30 @@
                 </ChildContent>
             </ListaRelaciones>
             <p class="texto-descriptivo">@Textos["OrigenEmpresasProyecto"]</p>
+        }
+    };
+
+    private RenderFragment PestanaDeVehiculosProyecto => __builder =>
+    {
+        if (_cargandoRelacionados) { <EstadoCargando Filas="3" /> }
+        else if (_errorVehiculosProyecto) { <EstadoVacio Titulo="@Textos["LecturaVehiculosProyectoError"]" /> }
+        else
+        {
+            <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["ListaVehiculosProyecto"]">
+                <Encabezado>@Textos[_vehiculosProyecto.Count == 1 ? "ResumenVehiculoProyecto" : "ResumenVehiculosProyecto", _vehiculosProyecto.Count]</Encabezado>
+                <ChildContent>
+                    @if (_vehiculosProyecto.Count == 0) { <p class="texto-vacio-seccion">@Textos["VehiculosProyectoVacio"]</p> }
+                    @foreach (var vehiculo in _vehiculosProyecto)
+                    {
+                        <FilaRelacion @key="vehiculo.Id" Nombre="@vehiculo.Nombre" NombreIcono="vehiculos"
+                                      OnNombre="() => AbrirVehiculoProyectoAsync(vehiculo)"
+                                      OnAbrir360="() => IrAVehiculoProyecto(vehiculo.Id)">
+                            <Detalle>@vehiculo.NumeroPlaca · @vehiculo.Modelo · @vehiculo.EmpleadorNombre</Detalle>
+                        </FilaRelacion>
+                    }
+                </ChildContent>
+            </ListaRelaciones>
+            <p class="texto-descriptivo">@Textos["OrigenVehiculosProyecto"]</p>
         }
     };
 

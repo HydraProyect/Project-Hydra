@@ -8,6 +8,7 @@ using CaeManager.Application.Proyectos.Commands.RestaurarProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectoPorId;
 using CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerEmpresasProyecto;
+using CaeManager.Application.Proyectos.Queries.ObtenerVehiculosProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerVisitasProyecto;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Common;
@@ -21,10 +22,14 @@ namespace CaeManager.Web.Features.Proyectos.Pages;
 
 /// <summary>
 /// Proyecto 360: conserva los comandos del panel y añade lecturas autorizadas de Empresas empleadoras
-/// y Visitas del periodo a las consultas del panel de detalle del listado de Proyectos
+///, Vehículos e Historial a las consultas del panel de detalle del listado de Proyectos
 /// (<see cref="Proyectos"/>). Empresas deriva sus participantes de los técnicos activos y mide
-/// los documentos que exige el Centro. Visitas deriva el mismo Centro y el periodo del Proyecto.
-/// No hay asignación de Vehículos, nuevos campos de Ficha ni historial de envíos en el modelo.
+/// los documentos que exige el Centro. Vehículos son los de esas mismas Empresas participantes (un Vehículo
+/// no se asigna a un Proyecto en el modelo). Visitas deriva el mismo Centro y el periodo del Proyecto.
+/// Historial es la auditoría genérica del propio Proyecto (<c>PestanaHistorial</c>, como Centro y Empresa 360):
+/// no incluye altas ni bajas de técnicos porque no tienen EntidadId de Proyecto. No hay porcentaje global del
+/// Proyecto (decisión del propietario, 2026-10-16): solo el porcentaje de cada Empresa dentro de él, pendiente.
+/// Tampoco hay en el modelo figuras del Proyecto, adhesión al plan de seguridad ni historial de envíos.
 ///
 /// <para>
 /// Lo que el panel enseñaba como campo y aquí cambia de sitio: el estado va en la pastilla
@@ -46,6 +51,8 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     internal const string PestanaFicha = "ficha";
     internal const string PestanaEmpresas = "empresas";
     internal const string PestanaVisitas = "visitas";
+    internal const string PestanaVehiculos = "vehiculos";
+    internal const string PestanaHistorial = "historial";
 
     [Parameter] public Guid ProyectoId { get; set; }
 
@@ -64,9 +71,11 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     private List<TecnicoProyectoDto> _tecnicos = [];
     private IReadOnlyList<EmpresaProyectoDto> _empresasProyecto = [];
     private IReadOnlyList<VisitaProyectoDto> _visitasProyecto = [];
+    private IReadOnlyList<VehiculoProyectoDto> _vehiculosProyecto = [];
     private bool _cargandoRelacionados = true;
     private bool _errorEmpresasProyecto;
     private bool _errorVisitasProyecto;
+    private bool _errorVehiculosProyecto;
     private int _cargaRelacionados;
 
     private bool _cargandoTecnicos = true;
@@ -93,7 +102,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
 
     private static DateOnly Hoy => DiaDeNegocio.Hoy();
 
-    private string PestanaActiva => Pestana is PestanaDocumentos or PestanaFicha or PestanaEmpresas or PestanaVisitas ? Pestana : PestanaTecnicos;
+    private string PestanaActiva => Pestana is PestanaDocumentos or PestanaFicha or PestanaEmpresas or PestanaVisitas or PestanaVehiculos or PestanaHistorial ? Pestana : PestanaTecnicos;
 
     private IReadOnlyList<BreadcrumbElemento> Miguero =>
         [new BreadcrumbElemento(Textos["MigaProyectos"]), new BreadcrumbElemento(_detalle?.Nombre ?? "…")];
@@ -108,10 +117,12 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         {
             Contador = _detalle is null ? null : new ContadorPestana(_detalle.DocumentosGestionados, Textos["GlosaDocumentosGestionados"])
         },
-        // «Ficha» va la última mientras no haya «Historial»; cuando exista, justo antes.
         new(PestanaEmpresas, Textos["PestanaEmpresasProyecto"]),
+        new(PestanaVehiculos, Textos["PestanaVehiculosProyecto"]),
         new(PestanaVisitas, Textos["PestanaVisitasProyecto"]),
-        new(PestanaFicha, Comunes["PestanaFicha"])
+        // «Historial» va la última y «Ficha» justo antes, como en Centro 360.
+        new(PestanaFicha, Comunes["PestanaFicha"]),
+        new(PestanaHistorial, Textos["PestanaHistorialProyecto"])
     ];
 
     /// <summary>
@@ -151,9 +162,11 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         _cargaRelacionados++;
         _empresasProyecto = [];
         _visitasProyecto = [];
+        _vehiculosProyecto = [];
         _cargandoRelacionados = true;
         _errorEmpresasProyecto = false;
         _errorVisitasProyecto = false;
+        _errorVehiculosProyecto = false;
         _detalle = null;
         _error = false;
         _tecnicos = [];
@@ -245,6 +258,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         _cargandoRelacionados = true;
         _errorEmpresasProyecto = false;
         _errorVisitasProyecto = false;
+        _errorVehiculosProyecto = false;
         // Secuenciales: los lectores comparten el DbContext del scope.
         try
         {
@@ -262,6 +276,14 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         }
         catch (OperationCanceledException) when (_cancelacion.IsCancellationRequested) { return; }
         catch (Exception) { if (carga == _cargaRelacionados) _errorVisitasProyecto = true; }
+        try
+        {
+            var vehiculos = await Mediator.Send(new ObtenerVehiculosProyectoQuery(proyectoId), _cancelacion);
+            if (carga != _cargaRelacionados) return;
+            _vehiculosProyecto = vehiculos;
+        }
+        catch (OperationCanceledException) when (_cancelacion.IsCancellationRequested) { return; }
+        catch (Exception) { if (carga == _cargaRelacionados) _errorVehiculosProyecto = true; }
         finally { if (carga == _cargaRelacionados) _cargandoRelacionados = false; }
     }
 
@@ -275,6 +297,11 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     private string TextoPapelEmpresaProyecto(EmpresaProyectoDto empresa) =>
         Textos[empresa.DesdeEmpresaDirecta && empresa.DesdeRelacionSubcontrata ? "EmpresaProyectoAmbosPapeles"
             : empresa.DesdeEmpresaDirecta ? "EmpresaProyectoPapelDirecta" : "EmpresaProyectoPapelSubcontrata"];
+
+    private Task AbrirVehiculoProyectoAsync(VehiculoProyectoDto vehiculo) =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Vehiculo, vehiculo.Id, vehiculo.Nombre, "informacion");
+
+    private void IrAVehiculoProyecto(Guid vehiculoId) => NavigationManager.NavigateTo($"/vehiculos/{vehiculoId}");
 
     private void IrAVisitaProyecto(Guid visitaId) => NavigationManager.NavigateTo($"/visitas/{visitaId}");
 
