@@ -7,8 +7,9 @@
     Información. El lateral se cierra con la «Nota interna» (pieza NotaInterna),
     que se edita en su propio DrawerFormulario y se guarda con un comando
     estrecho, no con el panel. Los Centros describen actividad de Trabajadores de su Empresa empleadora,
-    sin asignación del Vehículo a Centro ni Visita. Quedan pendientes fecha de alta, tarjeta lateral del
-    empleador y «Eliminar vehículo» con «Deshacer».
+    sin asignación del Vehículo a Centro ni Visita. «Eliminar vehículo» (menú «Más acciones») vuelve al
+    listado con un aviso que ofrece «Deshacer». Quedan pendientes fecha de alta y tarjeta lateral del
+    empleador.
 
     El anillo mide los documentos REGISTRADOS, no los exigidos: todavía no
     existe un universo de documentos exigidos a un vehículo. Por eso aquí no
@@ -96,6 +97,8 @@
                     <Boton Variante="VarianteBoton.Primario" OnClick="SubirDocumentoAsync">@Textos["FichaSubirDocumento"]</Boton>
                     <MenuAcciones EtiquetaAccesible="@Textos["FichaMasAcciones"]" ConBorde="true">
                         <ItemMenuAccion OnClick="AbrirInformacionAsync">@Textos["FichaEditarVehiculo"]</ItemMenuAccion>
+                        @* EliminarVehiculoCommand es ICommand: denegado a Consulta, que no ve este menú. *@
+                        <ItemMenuAccion OnClick="() => _confirmarEliminarVisible = true" Destructivo="true">@Textos["FichaEliminarVehiculo"]</ItemMenuAccion>
                     </MenuAcciones>
                 </SoloConEscritura>
             </Acciones>
@@ -296,6 +299,13 @@
             <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="RecargarTrasCambioAsync" />
             <EditarFichaVehiculoDrawer @key="VehiculoId" VehiculoId="VehiculoId" Visible="_editorFichaVisible"
                 VisibleChanged="v => _editorFichaVisible = v" OnGuardada="RecargarFichaAsync" />
+            <DialogoConfirmacion
+                Visible="_confirmarEliminarVisible"
+                VisibleChanged="v => _confirmarEliminarVisible = v"
+                Titulo="@Textos["FichaConfirmarEliminarTitulo", _detalle.Nombre]"
+                Mensaje="@Textos["FichaConfirmarEliminarMensaje"]"
+                EnProgreso="_eliminando"
+                OnConfirmar="ConfirmarEliminarAsync" />
         </SoloConEscritura>
 
         @* Editor de la nota interna: solo se abre desde «Editar →» de su tarjeta, que ya está tras SoloConEscritura. *@
