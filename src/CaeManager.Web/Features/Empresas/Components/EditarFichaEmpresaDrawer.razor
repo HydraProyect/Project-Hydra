@@ -1,0 +1,172 @@
+@using CaeManager.Application.Empresas.Commands.EditarFichaEmpresa
+@using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId
+@using CaeManager.Domain.Common
+@using CaeManager.Domain.Empresas
+@using CaeManager.Web.Features.Empresas.Recursos
+@using FluentValidation
+@using MediatR
+@using Microsoft.Extensions.Localization
+@implements IDisposable
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject IStringLocalizer<TextosEmpresas> Textos
+
+<DrawerFormulario Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Textos["FichaEditarTitulo"]"
+    Cargando="_cargando" HayCambios="() => Visible && _lista && _instantanea.Difiere(Instantanea())"
+    Guardando="_guardando" MensajeError="@_error" HayErroresDeCampo="@(_errores.Count > 0)"
+    MotivoGuardarDeshabilitado="@(!_lista ? Textos["FichaNoDisponible"].Value : null)" OnGuardar="GuardarAsync"
+    TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <CampoSelect Etiqueta="@Textos["FichaCanalFirma"]" Valor="@_canalFirmaDocumentos" ValorChanged="v => _canalFirmaDocumentos = v"><option value="">@Textos["FichaSinInformar"]</option><option value="@Empresa.CanalFirmaDocuSign">@Textos["FichaDocuSign"]</option><option value="@Empresa.CanalFirmaPorCorreo">@Textos["FichaPorCorreo"]</option></CampoSelect>
+    <CampoSelect Etiqueta="@Textos["FichaCustodiaSello"]" Valor="@_custodia" ValorChanged="v => _custodia = v"><option value="">@Textos["FichaSinInformar"]</option><option value="true">@Textos["FichaSi"]</option><option value="false">@Textos["FichaNo"]</option></CampoSelect>
+    <CampoTexto Etiqueta="@Textos["FichaFirmante"]" Valor="@_firmanteDocumentos" ValorChanged="v => _firmanteDocumentos = v" MensajeError="@Error(nameof(EditarFichaEmpresaCommand.FirmanteDocumentos))" />
+    <CampoTexto Etiqueta="@Textos["FichaModalidadPreventiva"]" Valor="@_modalidadOrganizacionPreventiva" ValorChanged="v => _modalidadOrganizacionPreventiva = v" MensajeError="@Error(nameof(EditarFichaEmpresaCommand.ModalidadOrganizacionPreventiva))" />
+    <CampoTexto Etiqueta="@Textos["FichaOrganizacionSpa"]" Valor="@_organizacionSpa" ValorChanged="v => _organizacionSpa = v" MensajeError="@Error(nameof(EditarFichaEmpresaCommand.OrganizacionSpa))" />
+    <CampoTexto Etiqueta="@Textos["FichaContactoSpaNombre"]" Valor="@_contactoSpaNombre" ValorChanged="v => _contactoSpaNombre = v" MensajeError="@Error(nameof(EditarFichaEmpresaCommand.ContactoSpaNombre))" />
+    <CampoTexto Etiqueta="@Textos["FichaContactoSpaTelefono"]" Valor="@_contactoSpaTelefono" ValorChanged="v => _contactoSpaTelefono = v" MensajeError="@Error(nameof(EditarFichaEmpresaCommand.ContactoSpaTelefono))" />
+    <CampoTexto Etiqueta="@Textos["FichaContactoSpaCorreo"]" Valor="@_contactoSpaCorreo" ValorChanged="v => _contactoSpaCorreo = v" MensajeError="@Error(nameof(EditarFichaEmpresaCommand.ContactoSpaCorreo))" />
+    <CampoTexto Etiqueta="@Textos["FichaMutuaNombre"]" Valor="@_mutua" ValorChanged="v => _mutua = v" MensajeError="@Error(nameof(EditarFichaEmpresaCommand.Mutua))" />
+    <CampoTexto Etiqueta="@Textos["FichaContactoFormacionNombre"]" Valor="@_contactoFormacionNombre" ValorChanged="v => _contactoFormacionNombre = v" MensajeError="@Error(nameof(EditarFichaEmpresaCommand.ContactoFormacionNombre))" />
+    <CampoTexto Etiqueta="@Textos["FichaContactoFormacionTelefono"]" Valor="@_contactoFormacionTelefono" ValorChanged="v => _contactoFormacionTelefono = v" MensajeError="@Error(nameof(EditarFichaEmpresaCommand.ContactoFormacionTelefono))" />
+    <CampoTexto Etiqueta="@Textos["FichaContactoFormacionCorreo"]" Valor="@_contactoFormacionCorreo" ValorChanged="v => _contactoFormacionCorreo = v" MensajeError="@Error(nameof(EditarFichaEmpresaCommand.ContactoFormacionCorreo))" />
+    <CampoTexto Etiqueta="@Textos["FichaTecnicoPrlNombre"]" Valor="@_tecnicoPrlNombre" ValorChanged="v => _tecnicoPrlNombre = v" MensajeError="@Error(nameof(EditarFichaEmpresaCommand.TecnicoPrlNombre))" />
+    <CampoTexto Etiqueta="@Textos["FichaTecnicoPrlTelefono"]" Valor="@_tecnicoPrlTelefono" ValorChanged="v => _tecnicoPrlTelefono = v" MensajeError="@Error(nameof(EditarFichaEmpresaCommand.TecnicoPrlTelefono))" />
+    <CampoTexto Etiqueta="@Textos["FichaTecnicoPrlCorreo"]" Valor="@_tecnicoPrlCorreo" ValorChanged="v => _tecnicoPrlCorreo = v" MensajeError="@Error(nameof(EditarFichaEmpresaCommand.TecnicoPrlCorreo))" />
+</DrawerFormulario>
+
+@code {
+    [Parameter] public Guid EmpresaId { get; set; }
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter] public EventCallback OnGuardada { get; set; }
+
+    private bool _abierto, _cargando, _guardando, _lista;
+    private int _generacion;
+    private Guid _id, _version;
+    private string _canalFirmaDocumentos = "",
+        _firmanteDocumentos = "",
+        _modalidadOrganizacionPreventiva = "",
+        _organizacionSpa = "",
+        _contactoSpaNombre = "",
+        _contactoSpaTelefono = "",
+        _contactoSpaCorreo = "",
+        _mutua = "",
+        _contactoFormacionNombre = "",
+        _contactoFormacionTelefono = "",
+        _contactoFormacionCorreo = "",
+        _tecnicoPrlNombre = "",
+        _tecnicoPrlTelefono = "",
+        _tecnicoPrlCorreo = "",
+        _custodia = "";
+    private string? _error;
+    private Dictionary<string, string> _errores = [];
+    private readonly InstantaneaFormulario _instantanea = new();
+    private readonly CancellationTokenSource _ciclo = new();
+
+    private string? Error(string campo) => _errores.GetValueOrDefault(campo);
+    private string Instantanea() => System.Text.Json.JsonSerializer.Serialize(new
+    {
+        _canalFirmaDocumentos, _firmanteDocumentos, _modalidadOrganizacionPreventiva, _organizacionSpa, _contactoSpaNombre, _contactoSpaTelefono, _contactoSpaCorreo, _mutua, _contactoFormacionNombre, _contactoFormacionTelefono, _contactoFormacionCorreo, _tecnicoPrlNombre, _tecnicoPrlTelefono, _tecnicoPrlCorreo, _custodia
+    });
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Visible)
+        {
+            if (_abierto) ++_generacion;
+            _abierto = false;
+            return;
+        }
+        if (_abierto && _id == EmpresaId) return;
+        _abierto = true;
+        _id = EmpresaId;
+        var generacion = ++_generacion;
+        _cargando = true;
+        _guardando = _lista = false;
+        _error = null;
+        _errores.Clear();
+        try
+        {
+            var detalle = await Mediator.Send(new ObtenerEmpresaPorIdQuery(_id), _ciclo.Token);
+            if (generacion != _generacion) return;
+            if (detalle is null || !detalle.FichaVisible) { _error = Textos["FichaNoDisponible"]; return; }
+            _version = detalle.Version;
+            _canalFirmaDocumentos = detalle.CanalFirmaDocumentos ?? "";
+            _firmanteDocumentos = detalle.FirmanteDocumentos ?? "";
+            _modalidadOrganizacionPreventiva = detalle.ModalidadOrganizacionPreventiva ?? "";
+            _organizacionSpa = detalle.OrganizacionSpa ?? "";
+            _contactoSpaNombre = detalle.ContactoSpaNombre ?? "";
+            _contactoSpaTelefono = detalle.ContactoSpaTelefono ?? "";
+            _contactoSpaCorreo = detalle.ContactoSpaCorreo ?? "";
+            _mutua = detalle.Mutua ?? "";
+            _contactoFormacionNombre = detalle.ContactoFormacionNombre ?? "";
+            _contactoFormacionTelefono = detalle.ContactoFormacionTelefono ?? "";
+            _contactoFormacionCorreo = detalle.ContactoFormacionCorreo ?? "";
+            _tecnicoPrlNombre = detalle.TecnicoPrlNombre ?? "";
+            _tecnicoPrlTelefono = detalle.TecnicoPrlTelefono ?? "";
+            _tecnicoPrlCorreo = detalle.TecnicoPrlCorreo ?? "";
+            _custodia = detalle.SelloCustodiadoPorOperadorCae?.ToString().ToLowerInvariant() ?? "";
+            _instantanea.Fijar(Instantanea());
+            _lista = true;
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
+        catch (Exception) { if (generacion == _generacion) _error = Textos["FichaNoDisponible"]; }
+        finally { if (generacion == _generacion) _cargando = false; }
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (!_lista || _guardando || !Visible) return;
+        var generacion = _generacion;
+        _guardando = true;
+        _errores.Clear();
+        _error = null;
+        try
+        {
+            var comando = new EditarFichaEmpresaCommand(_id, _version,
+                _canalFirmaDocumentos,
+                _custodia == "" ? null : _custodia == "true",
+                _firmanteDocumentos,
+                _modalidadOrganizacionPreventiva,
+                _organizacionSpa,
+                _contactoSpaNombre,
+                _contactoSpaTelefono,
+                _contactoSpaCorreo,
+                _mutua,
+                _contactoFormacionNombre,
+                _contactoFormacionTelefono,
+                _contactoFormacionCorreo,
+                _tecnicoPrlNombre,
+                _tecnicoPrlTelefono,
+                _tecnicoPrlCorreo);
+            var validacion = new EditarFichaEmpresaCommandValidator().Validate(comando);
+            if (!validacion.IsValid) throw new ValidationException(validacion.Errors);
+            var resultado = await Mediator.Send(comando, _ciclo.Token);
+            if (generacion != _generacion) return;
+            if (resultado.EsFallido)
+            {
+                // La versión original se conserva: el borrador nunca se reenvía con una versión no revisada.
+                _error = resultado.Error.Mensaje;
+                return;
+            }
+            _instantanea.Fijar(Instantanea());
+            ToastService.Mostrar(Textos["FichaGuardada"], TonoToast.Exito);
+            await VisibleChanged.InvokeAsync(false);
+            await OnGuardada.InvokeAsync();
+        }
+        catch (ValidationException ex)
+        {
+            if (generacion == _generacion)
+                _errores = ex.Errors.GroupBy(e => e.PropertyName).ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
+        catch (Exception) { if (generacion == _generacion) _error = Textos["FichaErrorGuardar"]; }
+        finally { if (generacion == _generacion) _guardando = false; }
+    }
+
+    public void Dispose()
+    {
+        ++_generacion;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+}

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
@@ -32,5 +33,18 @@ internal sealed class ContextoAnteriorALaMarcaDePrincipal(
         builder.Entity<AsignacionCartera>().Ignore(c => c.EsPrincipal);
         // Posterior a EsPrincipal (D-9): un esquema anterior a la marca tampoco tiene esta columna.
         builder.Entity<AsignacionCartera>().Ignore(c => c.EraPrincipalAlCerrarsePorCascada);
+        // Posterior también (AnadeFichaEmpresa): las clases que usan este contexto siembran Empresas sobre un
+        // esquema sin las quince columnas de la ficha de Empresa 360.
+        foreach (var campo in CamposDeLaFichaDeEmpresa) builder.Entity<Empresa>().Ignore(campo);
     }
+
+    private static readonly string[] CamposDeLaFichaDeEmpresa =
+    [
+        nameof(Empresa.CanalFirmaDocumentos), nameof(Empresa.SelloCustodiadoPorOperadorCae),
+        nameof(Empresa.FirmanteDocumentos), nameof(Empresa.ModalidadOrganizacionPreventiva),
+        nameof(Empresa.OrganizacionSpa), nameof(Empresa.ContactoSpaNombre), nameof(Empresa.ContactoSpaTelefono),
+        nameof(Empresa.ContactoSpaCorreo), nameof(Empresa.Mutua), nameof(Empresa.ContactoFormacionNombre),
+        nameof(Empresa.ContactoFormacionTelefono), nameof(Empresa.ContactoFormacionCorreo),
+        nameof(Empresa.TecnicoPrlNombre), nameof(Empresa.TecnicoPrlTelefono), nameof(Empresa.TecnicoPrlCorreo),
+    ];
 }

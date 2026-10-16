@@ -18,7 +18,23 @@ public record EmpresaDetalleDto(
     string? ConvenioAplicable = null,
     bool EsActividadAnexoI = false,
     string? Notas = null,
-    bool NotaInternaVisible = false);
+    bool NotaInternaVisible = false,
+    string? CanalFirmaDocumentos = null,
+    bool? SelloCustodiadoPorOperadorCae = null,
+    string? FirmanteDocumentos = null,
+    string? ModalidadOrganizacionPreventiva = null,
+    string? OrganizacionSpa = null,
+    string? ContactoSpaNombre = null,
+    string? ContactoSpaTelefono = null,
+    string? ContactoSpaCorreo = null,
+    string? Mutua = null,
+    string? ContactoFormacionNombre = null,
+    string? ContactoFormacionTelefono = null,
+    string? ContactoFormacionCorreo = null,
+    string? TecnicoPrlNombre = null,
+    string? TecnicoPrlTelefono = null,
+    string? TecnicoPrlCorreo = null,
+    bool FichaVisible = false);
 
 /// <summary>
 /// F4.2c: <c>ClienteIds</c> sale de la arista, con el MISMO criterio de
@@ -64,9 +80,43 @@ public class ObtenerEmpresaPorIdQueryHandler(IEmpresasQueryContext dbContext, IA
         // Mismo criterio que Cliente 360 (ObtenerClientePorIdQuery): solo viaja a quien opera desde el lado de gestión.
         var conNotaInterna = await politicaNotaInterna.PuedeLeerAsync(cancellationToken);
 
+        // Ficha de Empresa 360 (firma de documentos, prevención, mutua, formación y Técnico PRL): lleva datos
+        // personales de terceros (nombres, teléfonos y correos de contactos), así que solo viaja a quien lee la
+        // «Nota interna» —mismo criterio que el permiso de trabajo de Trabajador 360 (#1359): ni el Usuario de
+        // Cliente ni la impersonación— y además tiene alcance de gestión sobre esta Empresa, que es la misma
+        // segunda barrera de EditarFichaEmpresaCommand. Read-modify-write: todo rol de escritura con alcance de
+        // gestión la recibe, así que el Drawer nunca reescribe una ficha que no pudo leer.
+        var conFicha = conNotaInterna && await alcanceDatos.EmpresaParaGestionVisibleAsync(request.Id, cancellationToken);
+
         var empresa = await dbContext.Empresas
             .Where(e => e.Id == request.Id)
-            .Select(e => new { e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc, e.Version, e.Cnae, e.ConvenioAplicable, e.EsActividadAnexoI, e.Notas })
+            .Select(e => new
+            {
+                e.Id,
+                e.RazonSocial,
+                e.Cif,
+                e.CreadoEnUtc,
+                e.Version,
+                e.Cnae,
+                e.ConvenioAplicable,
+                e.EsActividadAnexoI,
+                e.Notas,
+                e.CanalFirmaDocumentos,
+                e.SelloCustodiadoPorOperadorCae,
+                e.FirmanteDocumentos,
+                e.ModalidadOrganizacionPreventiva,
+                e.OrganizacionSpa,
+                e.ContactoSpaNombre,
+                e.ContactoSpaTelefono,
+                e.ContactoSpaCorreo,
+                e.Mutua,
+                e.ContactoFormacionNombre,
+                e.ContactoFormacionTelefono,
+                e.ContactoFormacionCorreo,
+                e.TecnicoPrlNombre,
+                e.TecnicoPrlTelefono,
+                e.TecnicoPrlCorreo
+            })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (empresa is null) return null;
@@ -79,6 +129,22 @@ public class ObtenerEmpresaPorIdQueryHandler(IEmpresasQueryContext dbContext, IA
         return new EmpresaDetalleDto(
             empresa.Id, empresa.RazonSocial, empresa.Cif, empresa.CreadoEnUtc, clienteIds, empresa.Version,
             empresa.Cnae, empresa.ConvenioAplicable, empresa.EsActividadAnexoI,
-            conNotaInterna ? empresa.Notas : null, conNotaInterna);
+            conNotaInterna ? empresa.Notas : null, conNotaInterna,
+            conFicha ? empresa.CanalFirmaDocumentos : null,
+            conFicha ? empresa.SelloCustodiadoPorOperadorCae : null,
+            conFicha ? empresa.FirmanteDocumentos : null,
+            conFicha ? empresa.ModalidadOrganizacionPreventiva : null,
+            conFicha ? empresa.OrganizacionSpa : null,
+            conFicha ? empresa.ContactoSpaNombre : null,
+            conFicha ? empresa.ContactoSpaTelefono : null,
+            conFicha ? empresa.ContactoSpaCorreo : null,
+            conFicha ? empresa.Mutua : null,
+            conFicha ? empresa.ContactoFormacionNombre : null,
+            conFicha ? empresa.ContactoFormacionTelefono : null,
+            conFicha ? empresa.ContactoFormacionCorreo : null,
+            conFicha ? empresa.TecnicoPrlNombre : null,
+            conFicha ? empresa.TecnicoPrlTelefono : null,
+            conFicha ? empresa.TecnicoPrlCorreo : null,
+            conFicha);
     }
 }

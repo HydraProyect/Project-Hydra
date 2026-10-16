@@ -4291,6 +4291,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("CanalFirmaDocumentos")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<string>("Cif")
                         .HasMaxLength(9)
                         .HasColumnType("character varying(9)");
@@ -4298,6 +4302,30 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<string>("Cnae")
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
+
+                    b.Property<string>("ContactoFormacionCorreo")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<string>("ContactoFormacionNombre")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ContactoFormacionTelefono")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ContactoSpaCorreo")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<string>("ContactoSpaNombre")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ContactoSpaTelefono")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.Property<string>("ConvenioAplicable")
                         .HasMaxLength(300)
@@ -4327,6 +4355,18 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<bool>("EstaEliminado")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("FirmanteDocumentos")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ModalidadOrganizacionPreventiva")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Mutua")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<string>("NivelServicio")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
@@ -4335,10 +4375,29 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<string>("OrganizacionSpa")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<string>("RazonSocial")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<bool?>("SelloCustodiadoPorOperadorCae")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("TecnicoPrlCorreo")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<string>("TecnicoPrlNombre")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("TecnicoPrlTelefono")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
