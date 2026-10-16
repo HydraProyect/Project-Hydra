@@ -1,3 +1,5 @@
+using CaeManager.Domain.Proyectos;
+
 namespace CaeManager.Web.Features.Proyectos;
 
 /// <summary>
@@ -7,30 +9,43 @@ namespace CaeManager.Web.Features.Proyectos;
 public static class PlazoProyecto
 {
     /// <summary>
-    /// Días del periodo abierto del proyecto: de <paramref name="inicio"/> al
-    /// cierre real o, si sigue abierto, a <paramref name="hoy"/>. Cuenta
-    /// INCLUSIVA —el día de inicio y el de cierre cuentan los dos—, la misma
-    /// que usa la facturación por días de obra abierta
-    /// (ObtenerResumenFacturacionQuery, <c>hasta - desde + 1</c>): dos cifras
-    /// de "días abiertos" que no cuadrasen entre sí serían peor que ninguna.
-    /// Esta cuenta no distingue el tipo: para un evento (que no se factura) muestra los días
-    /// hasta el cierre o hasta hoy, no solo entre su inicio y su fin.
+    /// Días del periodo abierto del proyecto. Cuenta INCLUSIVA —el día de inicio y el último cuentan los
+    /// dos—, la misma que usa la facturación por días de obra abierta
+    /// (ObtenerResumenFacturacionQuery, <c>hasta - desde + 1</c>) de las obras: dos cifras de "días abiertos" que no
+    /// cuadrasen entre sí serían peor que ninguna. Un evento no se factura, así que no tiene cifra con la que cuadrar.
     /// Sin valor si el proyecto todavía no ha empezado.
+    /// <list type="bullet">
+    /// <item>Una <see cref="TipoProyecto.Obra"/> cuenta del <paramref name="inicio"/> al cierre real o, si
+    /// sigue abierta, a <paramref name="hoy"/>: la obra sin cerrar sigue abierta aunque haya pasado su fin
+    /// previsto.</item>
+    /// <item>Un <see cref="TipoProyecto.Evento"/> (decisión 2026-10-16: «Centro temporal») cuenta solo entre sus
+    /// fechas: del inicio a la fecha de fin prevista, o al cierre real si este llega antes, o a hoy si todavía
+    /// está en curso. Un evento terminado y sin cerrar no sigue sumando días cada mañana, y uno futuro no tiene
+    /// valor. Es la misma ventana que <see cref="VigenciaEvento"/> usa para mantener activos a los voluntarios.</item>
+    /// </list>
     /// </summary>
-    public static int? DiasAbiertos(DateOnly inicio, DateOnly? cierre, DateOnly hoy)
+    public static int? DiasAbiertos(TipoProyecto tipo, DateOnly inicio, DateOnly? finPrevisto, DateOnly? cierre, DateOnly hoy)
     {
         var fin = cierre ?? hoy;
-        return fin < inicio ? null : fin.DayNumber - inicio.DayNumber + 1;
+        if (tipo == TipoProyecto.Evento && finPrevisto is { } previsto && previsto < fin)
+            fin = previsto;
+
+        return DiasInclusivos(inicio, fin);
     }
+
+    private static int? DiasInclusivos(DateOnly inicio, DateOnly fin) =>
+        fin < inicio ? null : fin.DayNumber - inicio.DayNumber + 1;
 
     /// <summary>
     /// Parte del plazo previsto ya consumida, de 0 a 100, con la misma cuenta inclusiva que
-    /// <see cref="DiasAbiertos"/> en el numerador y en el denominador. Sin valor si no hay fin
+    /// <see cref="DiasAbiertos"/> en el numerador y en el denominador. No distingue el tipo porque no hace falta:
+    /// el tope en 100 hace que un evento terminado (cuya ventana acaba en su fin previsto) dé la misma cifra que
+    /// una obra pasada de plazo. Sin valor si no hay fin
     /// previsto, si el fin previsto es anterior al inicio o si el proyecto todavía no ha empezado.
     /// </summary>
     public static int? PorcentajeDelPlazo(DateOnly inicio, DateOnly? finPrevisto, DateOnly? cierre, DateOnly hoy)
     {
-        if (finPrevisto is not { } fin || fin < inicio || DiasAbiertos(inicio, cierre, hoy) is not { } abiertos)
+        if (finPrevisto is not { } fin || fin < inicio || DiasInclusivos(inicio, cierre ?? hoy) is not { } abiertos)
             return null;
 
         var total = fin.DayNumber - inicio.DayNumber + 1;

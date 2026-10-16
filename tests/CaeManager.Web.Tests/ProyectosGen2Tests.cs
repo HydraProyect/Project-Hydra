@@ -86,7 +86,7 @@ public partial class ProyectosGen2Tests : BunitContext
     private static ProyectoDetalleDto DetalleDe(ProyectoListaDto p) => new(
         p.Id, ClienteId, "Refrielectric S.L.", p.CentroId, p.CentroNombre, p.Nombre,
         p.FechaInicio, p.FechaFinPrevista, p.FechaCierreReal, p.EstaAbierto,
-        Notas: null, TecnicosActivos: 1, DocumentosGestionados: 3, Version: Guid.NewGuid());
+        Notas: null, TecnicosActivos: 1, DocumentosGestionados: 3, Version: Guid.NewGuid(), Tipo: p.Tipo);
 
     private static readonly Guid ClienteBId = Guid.Parse("88888888-8888-8888-8888-888888888888");
     private static readonly Guid Abierto2Id = Guid.Parse("55555555-5555-5555-5555-555555555555");

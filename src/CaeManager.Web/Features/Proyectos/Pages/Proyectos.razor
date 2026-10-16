@@ -321,7 +321,7 @@
                                 <CampoInfo Etiqueta="@Textos["EtiquetaEstado"]" Valor="@(_detalle.EstaAbierto ? Textos["BadgeAbierto"].Value : Textos["EstadoCerradoConFecha", _detalle.FechaCierreReal!].Value)" />
                                 <CampoInfo Etiqueta="@Textos["EtiquetaTecnicosActivos"]" Valor="@_detalle.TecnicosActivos.ToString()" />
                                 <CampoInfo Etiqueta="@Textos["EtiquetaDocumentosGestionados"]" Valor="@_detalle.DocumentosGestionados.ToString()" />
-                                <CampoInfo Etiqueta="@Textos["EtiquetaDiasAbiertos"]" Valor="@DiasAbiertos(_detalle.FechaInicio, _detalle.FechaCierreReal, Hoy)?.ToString()" />
+                                <CampoInfo Etiqueta="@Textos["EtiquetaDiasAbiertos"]" Valor="@DiasAbiertos(_detalle, Hoy)?.ToString()" />
                             </div>
                             <div class="notas-proyecto">
                                 <span class="titulo-notas-proyecto">@Textos["EtiquetaNotas"]</span>

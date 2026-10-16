@@ -320,7 +320,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
 
     private string PlazoTitulo => _detalle is null
         ? string.Empty
-        : PlazoProyecto.DiasAbiertos(_detalle.FechaInicio, _detalle.FechaCierreReal, Hoy) is { } dias
+        : PlazoProyecto.DiasAbiertos(_detalle.Tipo, _detalle.FechaInicio, _detalle.FechaFinPrevista, _detalle.FechaCierreReal, Hoy) is { } dias
             ? Plural(dias, "PlazoDiasAbiertoUno", "PlazoDiasAbiertoVarios")
             : Textos["PlazoSinEmpezar"];
 
