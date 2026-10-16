@@ -108,7 +108,9 @@ public class MiTrabajoCargaPorPartesTests : BunitContext
         var cut = Renderizar(mediador);
 
         mediador.Liberar(0);
-        DesplegarTodos(cut);
+        // Con la carga en marcha «Expandir todas» está desactivado: se abre la cabecera de la Empresa que ya llegó.
+        cut.WaitForAssertion(() => cut.Find(".mi-trabajo-grupo-cabecera-tenant").GetAttribute("aria-expanded").Should().Be("false"), Espera);
+        cut.Find(".mi-trabajo-grupo-cabecera-tenant").Click();
 
         cut.WaitForAssertion(() =>
         {

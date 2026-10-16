@@ -264,6 +264,11 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await Expect(cartera.Filter(new() { HasText = TenantBeneficiarioA })).ToBeVisibleAsync(EsperaEnFrio);
         await Expect(cartera.Filter(new() { HasText = TenantBeneficiarioB })).ToBeVisibleAsync();
         await Expect(cartera.Filter(new() { HasText = TenantFueraDeCartera })).ToHaveCountAsync(0);
+        // Mi trabajo carga con todo plegado: se despliega la cola entera (barrera: la de A ya se ve) para que
+        // la ausencia del Tenant de fuera diga algo.
+        await Expect(page.Locator(".mi-trabajo-progreso")).ToHaveCountAsync(0);
+        await page.Locator(".mi-trabajo-plegar-todas").ClickAsync();
+        await Expect(page.Locator("div[role=button][aria-label$='· " + TenantBeneficiarioA + "']")).Not.ToHaveCountAsync(0);
         await Expect(page.Locator("div[role=button][aria-label$='· " + TenantFueraDeCartera + "']")).ToHaveCountAsync(0);
 
         // La cola filtrada por un Trabajador de la cartera encuentra filas: control positivo del filtro.

@@ -509,6 +509,25 @@ public class MiTrabajoGen2Tests : BunitContext
     /// la anterior terminara con un Tenant desplegado.
     /// </summary>
     [Fact]
+    public void Expandir_todas_despliega_todo_y_cambia_su_rotulo_y_Volver_a_plegar_deja_todo_plegado_otra_vez()
+    {
+        var cut = RenderizarPlegado();
+        cut.FindAll(".mi-trabajo-volver-plegar").Should().BeEmpty("no hay nada desplegado que volver a plegar");
+
+        cut.Find(".mi-trabajo-plegar-todas").Click();
+
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "true");
+        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Plegar todas");
+        TitulosVisibles(cut).Should().NotBeEmpty();
+
+        cut.Find(".mi-trabajo-volver-plegar").Click();
+
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas");
+        TitulosVisibles(cut).Should().BeEmpty();
+    }
+
+    [Fact]
     public void Lo_desplegado_en_una_visita_no_se_restaura_en_la_siguiente()
     {
         var cut = RenderizarPlegado();

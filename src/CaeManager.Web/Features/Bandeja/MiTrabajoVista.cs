@@ -138,7 +138,9 @@ public sealed class MiTrabajoVista
     /// Filas que se pintan, en orden de pantalla — la misma secuencia que
     /// recorren j/k. Con «Todas», Próximo y Seguimiento quedan plegados tras el
     /// resumen de calendario hasta que el Gestor CAE lo abre (mockup:
-    /// <c>abiertos</c>). Una búsqueda activa anula todo pliegue: el buscador
+    /// <c>abiertos</c>). En modo Tenant, además, solo se enseñan las filas de los Tenants
+    /// que el Gestor CAE ha desplegado (<see cref="FiltroMiTrabajo.TenantsAbiertos"/>, vacío
+    /// al cargar). Una búsqueda activa anula todo pliegue: el buscador
     /// tiene que alcanzar cada gestión de la cartera (contrato § 5, que corrige
     /// en esto al mockup, donde el pliegue se aplicaba después del filtro).
     /// </summary>
