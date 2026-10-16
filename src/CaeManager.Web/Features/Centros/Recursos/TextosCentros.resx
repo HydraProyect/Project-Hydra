@@ -508,6 +508,30 @@
   <data name="SubtituloTrabajadorPorEvento" xml:space="preserve">
     <value>{0} · solo por el evento «{1}» · desde {2}</value>
   </data>
+  <data name="EmpresaBloqueNota" xml:space="preserve">
+    <value>Solo se listan las incidencias; el resto de su documentación está en Detalles.</value>
+    <comment>Nota de la fila de la Empresa en la pestaña Trabajadores de Centro 360: sin ella, una lista corta se leería como «casi no tiene documentación».</comment>
+  </data>
+  <data name="EmpresaBloqueEstado" xml:space="preserve">
+    <value>Con incidencia</value>
+    <comment>Pastilla de estado de la fila de la Empresa en Centro 360.</comment>
+  </data>
+  <data name="EmpresaBloqueCifraUno" xml:space="preserve">
+    <value>{0} documento de empresa con incidencia</value>
+    <comment>Nombre completo (title) de la cifra «1 doc.» de la fila de la Empresa.</comment>
+  </data>
+  <data name="EmpresaBloqueCifraVarios" xml:space="preserve">
+    <value>{0} documentos de empresa con incidencia</value>
+    <comment>Nombre completo (title) de la cifra «N doc.» de la fila de la Empresa.</comment>
+  </data>
+  <data name="EmpresaBloqueDetalles" xml:space="preserve">
+    <value>Detalles de {0}</value>
+    <comment>Nombre accesible del botón «Detalles» de la fila de la Empresa; {0} es la razón social.</comment>
+  </data>
+  <data name="EmpresaBloqueDesplegar" xml:space="preserve">
+    <value>Documentos con incidencia de {0}</value>
+    <comment>Nombre accesible del chevron que pliega la fila de la Empresa; {0} es la razón social.</comment>
+  </data>
   <data name="FichaEditarTitulo" xml:space="preserve"><value>Editar acceso y prevención</value></data>
   <data name="FichaAccesoTitulo" xml:space="preserve"><value>Acceso al Centro</value></data>
   <data name="FichaPrevencionTitulo" xml:space="preserve"><value>Prevención y trabajos especiales del Centro</value></data>
