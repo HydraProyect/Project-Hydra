@@ -524,4 +524,9 @@
   <data name="BotonCancelar" xml:space="preserve"><value>Cancel·lar</value></data>
   <data name="FichaCopiarDato" xml:space="preserve"><value>Copia {0}</value></data>
   <data name="FichaEditarAccion" xml:space="preserve"><value>Editar</value></data>
+  <data name="FichaConfigurarAccion" xml:space="preserve"><value>Configurar</value></data>
+  <data name="FichaAccesoVacioTitulo" xml:space="preserve"><value>Accés sense configurar</value></data>
+  <data name="FichaAccesoVacioDescripcion" xml:space="preserve"><value>Encara no s'ha informat l'horari ni el contacte de control d'accessos d'aquest Centre.</value></data>
+  <data name="FichaPrevencionVacioTitulo" xml:space="preserve"><value>Prevenció sense configurar</value></data>
+  <data name="FichaPrevencionVacioDescripcion" xml:space="preserve"><value>Encara no s'ha informat el Tècnic de prevenció ni els treballs especials d'aquest Centre.</value></data>
 </root>

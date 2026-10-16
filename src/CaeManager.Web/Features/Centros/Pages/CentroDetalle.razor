@@ -495,8 +495,8 @@
     private IReadOnlyList<CajaFicha> CajasDeFicha => HayDatosFicha ?
     [
         .. HayDatosBasicosFicha ? new CajaFicha[] { new("datos-centro", DatosDeFicha) } : [],
-        .. HayAccesoFicha ? new CajaFicha[] { new("acceso-centro", AccesoDeFicha) } : [],
-        .. HayPrevencionFicha ? new CajaFicha[] { new("prevencion-centro", PrevencionDeFicha) } : []
+        .. MuestraCajaAcceso ? new CajaFicha[] { new("acceso-centro", AccesoDeFicha) } : [],
+        .. MuestraCajaPrevencion ? new CajaFicha[] { new("prevencion-centro", PrevencionDeFicha) } : []
     ] : [];
 
     private RenderFragment AccesoDeFicha => __builder =>
@@ -505,30 +505,39 @@
         {
             <Tarjeta Titulo="@Textos["FichaAccesoTitulo"]" Compacta="true">
                 <AccionesHeader>
-                    @if (detalle.FichaVisible)
+                    @if (detalle.FichaVisible && !AccesoSinConfigurar)
                     {
                         <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _editarFichaVisible = true">@Textos["FichaEditarAccion"]</Boton></SoloConEscritura>
                     }
                 </AccionesHeader>
                 <ChildContent>
-                    <RejillaDatos>
-                        @if (!string.IsNullOrWhiteSpace(detalle.Direccion))
-                        {
-                            <DatoRejilla Etiqueta="@Textos["FichaDireccionCentro"]"><BotonCopiar Valor="@detalle.Direccion" Texto="@detalle.Direccion" Etiqueta="@Textos["FichaDireccionCentro"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaDireccionCentro"]]" /></DatoRejilla>
-                        }
-                        @if (detalle.FichaVisible && detalle.HorarioAcceso is not null)
-                        {
-                            <DatoRejilla Etiqueta="@Textos["FichaHorarioAcceso"]" Valor="@detalle.HorarioAcceso" />
-                        }
-                        @if (detalle.FichaVisible && detalle.ControlAccesosNombre is not null)
-                        {
-                            <DatoRejilla Etiqueta="@Textos["FichaControlAccesosNombre"]" Valor="@detalle.ControlAccesosNombre" />
-                        }
-                        @if (detalle.FichaVisible && detalle.ControlAccesosTelefono is not null)
-                        {
-                            <DatoRejilla Etiqueta="@Textos["FichaControlAccesosTelefono"]"><BotonCopiar Valor="@detalle.ControlAccesosTelefono" Texto="@detalle.ControlAccesosTelefono" Etiqueta="@Textos["FichaControlAccesosTelefono"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaControlAccesosTelefono"]]" /></DatoRejilla>
-                        }
-                    </RejillaDatos>
+                    @if (AccesoSinConfigurar)
+                    {
+                        <EstadoVacio Titulo="@Textos["FichaAccesoVacioTitulo"]" Descripcion="@Textos["FichaAccesoVacioDescripcion"]">
+                            <Accion><SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => _editarFichaVisible = true">@Textos["FichaConfigurarAccion"]</Boton></SoloConEscritura></Accion>
+                        </EstadoVacio>
+                    }
+                    else
+                    {
+                        <RejillaDatos>
+                            @if (!string.IsNullOrWhiteSpace(detalle.Direccion))
+                            {
+                                <DatoRejilla Etiqueta="@Textos["FichaDireccionCentro"]"><BotonCopiar Valor="@detalle.Direccion" Texto="@detalle.Direccion" Etiqueta="@Textos["FichaDireccionCentro"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaDireccionCentro"]]" /></DatoRejilla>
+                            }
+                            @if (detalle.FichaVisible && detalle.HorarioAcceso is not null)
+                            {
+                                <DatoRejilla Etiqueta="@Textos["FichaHorarioAcceso"]" Valor="@detalle.HorarioAcceso" />
+                            }
+                            @if (detalle.FichaVisible && detalle.ControlAccesosNombre is not null)
+                            {
+                                <DatoRejilla Etiqueta="@Textos["FichaControlAccesosNombre"]" Valor="@detalle.ControlAccesosNombre" />
+                            }
+                            @if (detalle.FichaVisible && detalle.ControlAccesosTelefono is not null)
+                            {
+                                <DatoRejilla Etiqueta="@Textos["FichaControlAccesosTelefono"]"><BotonCopiar Valor="@detalle.ControlAccesosTelefono" Texto="@detalle.ControlAccesosTelefono" Etiqueta="@Textos["FichaControlAccesosTelefono"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaControlAccesosTelefono"]]" /></DatoRejilla>
+                            }
+                        </RejillaDatos>
+                    }
                 </ChildContent>
             </Tarjeta>
         }
@@ -539,34 +548,48 @@
         if (_detalle is { } detalle)
         {
             <Tarjeta Titulo="@Textos["FichaPrevencionTitulo"]" Compacta="true">
-                <AccionesHeader><SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _editarFichaVisible = true">@Textos["FichaEditarAccion"]</Boton></SoloConEscritura></AccionesHeader>
+                <AccionesHeader>
+                    @if (!PrevencionSinConfigurar)
+                    {
+                        <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _editarFichaVisible = true">@Textos["FichaEditarAccion"]</Boton></SoloConEscritura>
+                    }
+                </AccionesHeader>
                 <ChildContent>
-                    <RejillaDatos>
-                        @if (detalle.TecnicoPrevencionNombre is not null)
-                        {
-                            <DatoRejilla Etiqueta="@Textos["FichaTecnicoPrevencionNombre"]" Valor="@detalle.TecnicoPrevencionNombre" />
-                        }
-                        @if (detalle.TecnicoPrevencionTelefono is not null)
-                        {
-                            <DatoRejilla Etiqueta="@Textos["FichaTecnicoPrevencionTelefono"]"><BotonCopiar Valor="@detalle.TecnicoPrevencionTelefono" Texto="@detalle.TecnicoPrevencionTelefono" Etiqueta="@Textos["FichaTecnicoPrevencionTelefono"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaTecnicoPrevencionTelefono"]]" /></DatoRejilla>
-                        }
-                        @if (detalle.TecnicoPrevencionCorreo is not null)
-                        {
-                            <DatoRejilla Etiqueta="@Textos["FichaTecnicoPrevencionCorreo"]"><BotonCopiar Valor="@detalle.TecnicoPrevencionCorreo" Texto="@detalle.TecnicoPrevencionCorreo" Etiqueta="@Textos["FichaTecnicoPrevencionCorreo"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaTecnicoPrevencionCorreo"]]" /></DatoRejilla>
-                        }
-                        @if (detalle.TrabajosEnAltura is { } valorTrabajosEnAltura)
-                        {
-                            <DatoRejilla Etiqueta="@Textos["FichaTrabajosEnAltura"]" Valor="@Textos[valorTrabajosEnAltura ? "FichaSi" : "FichaNo"]" />
-                        }
-                        @if (detalle.EspaciosConfinados is { } valorEspaciosConfinados)
-                        {
-                            <DatoRejilla Etiqueta="@Textos["FichaEspaciosConfinados"]" Valor="@Textos[valorEspaciosConfinados ? "FichaSi" : "FichaNo"]" />
-                        }
-                        @if (detalle.AtmosferasExplosivas is { } valorAtmosferasExplosivas)
-                        {
-                            <DatoRejilla Etiqueta="@Textos["FichaAtmosferasExplosivas"]" Valor="@Textos[valorAtmosferasExplosivas ? "FichaSi" : "FichaNo"]" />
-                        }
-                    </RejillaDatos>
+                    @if (PrevencionSinConfigurar)
+                    {
+                        <EstadoVacio Titulo="@Textos["FichaPrevencionVacioTitulo"]" Descripcion="@Textos["FichaPrevencionVacioDescripcion"]">
+                            <Accion><SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => _editarFichaVisible = true">@Textos["FichaConfigurarAccion"]</Boton></SoloConEscritura></Accion>
+                        </EstadoVacio>
+                    }
+                    else
+                    {
+                        <RejillaDatos>
+                            @if (detalle.TecnicoPrevencionNombre is not null)
+                            {
+                                <DatoRejilla Etiqueta="@Textos["FichaTecnicoPrevencionNombre"]" Valor="@detalle.TecnicoPrevencionNombre" />
+                            }
+                            @if (detalle.TecnicoPrevencionTelefono is not null)
+                            {
+                                <DatoRejilla Etiqueta="@Textos["FichaTecnicoPrevencionTelefono"]"><BotonCopiar Valor="@detalle.TecnicoPrevencionTelefono" Texto="@detalle.TecnicoPrevencionTelefono" Etiqueta="@Textos["FichaTecnicoPrevencionTelefono"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaTecnicoPrevencionTelefono"]]" /></DatoRejilla>
+                            }
+                            @if (detalle.TecnicoPrevencionCorreo is not null)
+                            {
+                                <DatoRejilla Etiqueta="@Textos["FichaTecnicoPrevencionCorreo"]"><BotonCopiar Valor="@detalle.TecnicoPrevencionCorreo" Texto="@detalle.TecnicoPrevencionCorreo" Etiqueta="@Textos["FichaTecnicoPrevencionCorreo"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaTecnicoPrevencionCorreo"]]" /></DatoRejilla>
+                            }
+                            @if (detalle.TrabajosEnAltura is { } valorTrabajosEnAltura)
+                            {
+                                <DatoRejilla Etiqueta="@Textos["FichaTrabajosEnAltura"]" Valor="@Textos[valorTrabajosEnAltura ? "FichaSi" : "FichaNo"]" />
+                            }
+                            @if (detalle.EspaciosConfinados is { } valorEspaciosConfinados)
+                            {
+                                <DatoRejilla Etiqueta="@Textos["FichaEspaciosConfinados"]" Valor="@Textos[valorEspaciosConfinados ? "FichaSi" : "FichaNo"]" />
+                            }
+                            @if (detalle.AtmosferasExplosivas is { } valorAtmosferasExplosivas)
+                            {
+                                <DatoRejilla Etiqueta="@Textos["FichaAtmosferasExplosivas"]" Valor="@Textos[valorAtmosferasExplosivas ? "FichaSi" : "FichaNo"]" />
+                            }
+                        </RejillaDatos>
+                    }
                 </ChildContent>
             </Tarjeta>
         }

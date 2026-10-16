@@ -6,6 +6,24 @@ namespace CaeManager.Domain.Tests.Centros;
 
 public class FichaCentroTests
 {
+    // Decisión de producto (2026-10-16): en Outbound un Centro nace vacío; ningún campo de
+    // acceso ni de prevención toma un valor por defecto, y menos un «No».
+    [Fact]
+    public void Un_Centro_recien_creado_tiene_toda_la_ficha_de_acceso_y_prevencion_sin_informar()
+    {
+        var centro = new Centro(Guid.NewGuid(), Guid.NewGuid(), "Centro de prueba");
+
+        centro.HorarioAcceso.Should().BeNull();
+        centro.ControlAccesosNombre.Should().BeNull();
+        centro.ControlAccesosTelefono.Should().BeNull();
+        centro.TecnicoPrevencionNombre.Should().BeNull();
+        centro.TecnicoPrevencionTelefono.Should().BeNull();
+        centro.TecnicoPrevencionCorreo.Should().BeNull();
+        centro.TrabajosEnAltura.Should().BeNull("sin informar no es «No»");
+        centro.EspaciosConfinados.Should().BeNull("sin informar no es «No»");
+        centro.AtmosferasExplosivas.Should().BeNull("sin informar no es «No»");
+    }
+
     [Fact]
     public void La_ficha_normaliza_los_contactos_y_conserva_los_tres_trabajos_por_separado()
     {

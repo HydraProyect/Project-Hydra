@@ -77,10 +77,18 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private bool HayPrevencionFicha => _detalle is { FichaVisible: true } d &&
         (d.TecnicoPrevencionNombre is not null || d.TecnicoPrevencionCorreo is not null || d.TecnicoPrevencionTelefono is not null
             || d.TrabajosEnAltura is not null || d.EspaciosConfinados is not null || d.AtmosferasExplosivas is not null);
+    // Decisión de producto (2026-10-16): en Outbound un Centro nace vacío. Quien puede leer la ficha ve
+    // siempre las cajas de Acceso y Prevención; sin datos muestran un estado vacío con «Configurar»,
+    // nunca un «No» por defecto. Ningún campo de estas cajas genera requisitos ni entra en el cumplimiento.
+    private bool AccesoSinConfigurar => _detalle is { } d && string.IsNullOrWhiteSpace(d.Direccion)
+        && d.HorarioAcceso is null && d.ControlAccesosNombre is null && d.ControlAccesosTelefono is null;
+    private bool PrevencionSinConfigurar => !HayPrevencionFicha;
+    private bool MuestraCajaAcceso => HayAccesoFicha || _detalle is { FichaVisible: true };
+    private bool MuestraCajaPrevencion => _detalle is { FichaVisible: true };
     private bool _editarFichaVisible;
 
     private bool HayDatosFicha => _detalle is { } detalle &&
-        (!string.IsNullOrWhiteSpace(detalle.CodigoCentro) || !string.IsNullOrWhiteSpace(detalle.Direccion) || !string.IsNullOrWhiteSpace(detalle.Contacto) || detalle.ContratoVigenteHasta is not null || HayAccesoFicha || HayPrevencionFicha);
+        (!string.IsNullOrWhiteSpace(detalle.CodigoCentro) || !string.IsNullOrWhiteSpace(detalle.Direccion) || !string.IsNullOrWhiteSpace(detalle.Contacto) || detalle.ContratoVigenteHasta is not null || MuestraCajaAcceso || MuestraCajaPrevencion);
 
     // Solo cambia el orden de presentación: _visitas[0] conserva la ventana de riesgo que eligió el lector.
     private IReadOnlyList<VisitaResumenDto> VisitasParaMostrar => _visitas

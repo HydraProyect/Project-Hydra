@@ -146,7 +146,8 @@ public partial class Centro360Gen2Tests
             EspaciosConfinados = null
         };
         var cut = Renderizar(id);
-        cut.FindAll("[role=tab][aria-controls$='-ficha']").Should().BeEmpty();
+        cut.FindAll("[role=tab][aria-controls$='-ficha']").Should().ContainSingle(
+            "quien puede leer la ficha ve sus cajas aunque estén sin configurar (decisión de producto 2026-10-16)");
         await cut.Find(".cabecera-identidad .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
         var accion = cut.FindComponents<ItemMenuAccion>().Single(c => c.Markup.Contains("Editar acceso y prevención"));
         await cut.InvokeAsync(() => accion.Instance.OnClick.InvokeAsync());
@@ -163,5 +164,31 @@ public partial class Centro360Gen2Tests
         var cut = Renderizar(id);
         cut.FindAll(".cuerpo-con-lateral-principal .elemento-lista-lateral-etiqueta").Select(x => x.TextContent.Trim())
             .Should().Equal("12/12/2026 – 14/12/2026", "13/12/2026 – 15/12/2026", "20/12/2026 – 22/12/2026");
+    }
+
+    // Decisión de producto (2026-10-16): un Centro recién creado no parece configurado. Las dos cajas
+    // muestran un estado vacío con «Configurar» y ningún trabajo especial aparece como «No».
+    [Theory]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    public void Un_Centro_sin_ficha_muestra_las_cajas_vacias_con_Configurar_y_sin_ningun_No(string rol, bool escritura)
+    {
+        this.ConRolDeEscritura(rol);
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro de prueba") with { FichaVisible = true, Direccion = null };
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"centros/{id}?pestana=ficha");
+
+        var cut = Renderizar(id);
+
+        var acceso = cut.Find("[data-caja=acceso-centro]");
+        var prevencion = cut.Find("[data-caja=prevencion-centro]");
+        acceso.TextContent.Should().Contain("Acceso sin configurar");
+        prevencion.TextContent.Should().Contain("Prevención sin configurar");
+        acceso.QuerySelectorAll("button").Count(b => b.TextContent.Trim() == "Configurar").Should().Be(escritura ? 1 : 0);
+        prevencion.QuerySelectorAll("button").Count(b => b.TextContent.Trim() == "Configurar").Should().Be(escritura ? 1 : 0);
+        cut.FindAll("[data-caja=acceso-centro] .tarjeta-acciones button, [data-caja=prevencion-centro] .tarjeta-acciones button")
+            .Should().BeEmpty("sin datos no hay nada que editar: la acción es Configurar");
+        cut.FindComponents<DatoRejilla>().Select(c => c.Instance.Valor).Should().NotContain("No").And.NotContain("Sí");
     }
 }

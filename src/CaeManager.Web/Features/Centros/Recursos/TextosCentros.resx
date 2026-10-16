@@ -530,4 +530,9 @@
   <data name="BotonCancelar" xml:space="preserve"><value>Cancelar</value></data>
   <data name="FichaCopiarDato" xml:space="preserve"><value>Copiar {0}</value></data>
   <data name="FichaEditarAccion" xml:space="preserve"><value>Editar</value></data>
+  <data name="FichaConfigurarAccion" xml:space="preserve"><value>Configurar</value></data>
+  <data name="FichaAccesoVacioTitulo" xml:space="preserve"><value>Acceso sin configurar</value></data>
+  <data name="FichaAccesoVacioDescripcion" xml:space="preserve"><value>Todavía no se ha informado el horario ni el contacto de control de accesos de este Centro.</value></data>
+  <data name="FichaPrevencionVacioTitulo" xml:space="preserve"><value>Prevención sin configurar</value></data>
+  <data name="FichaPrevencionVacioDescripcion" xml:space="preserve"><value>Todavía no se ha informado el Técnico de prevención ni los trabajos especiales de este Centro.</value></data>
 </root>
