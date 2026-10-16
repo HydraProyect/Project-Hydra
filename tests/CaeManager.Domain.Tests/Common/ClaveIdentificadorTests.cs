@@ -129,9 +129,9 @@ public class ClaveIdentificadorTests
     {
         var aceptados = 0;
         for (var primera = 'A'; primera <= 'Z'; primera++)
-        for (var segunda = 'A'; segunda <= 'Z'; segunda++)
-            if (ClaveIdentificador.DesdePasaporte($"{primera}{segunda}", "12345") is not null)
-                aceptados++;
+            for (var segunda = 'A'; segunda <= 'Z'; segunda++)
+                if (ClaveIdentificador.DesdePasaporte($"{primera}{segunda}", "12345") is not null)
+                    aceptados++;
         aceptados.Should().Be(249);
         foreach (var pais in new[] { "AX", "BQ", "CW", "SX", "SS", "PS", "VA", "AQ", "UM" })
             ClaveIdentificador.DesdePasaporte(pais, "12345").Should().NotBeNull();
@@ -174,9 +174,9 @@ public class ClaveIdentificadorTests
     {
         var aceptados = new List<string>();
         for (var primera = 'A'; primera <= 'Z'; primera++)
-        for (var segunda = 'A'; segunda <= 'Z'; segunda++)
-            if (ClaveIdentificador.DesdePasaporte($"{primera}{segunda}", "12345") is not null)
-                aceptados.Add($"{primera}{segunda}");
+            for (var segunda = 'A'; segunda <= 'Z'; segunda++)
+                if (ClaveIdentificador.DesdePasaporte($"{primera}{segunda}", "12345") is not null)
+                    aceptados.Add($"{primera}{segunda}");
 
         var huella = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.ASCII.GetBytes(string.Join(' ', aceptados))));
