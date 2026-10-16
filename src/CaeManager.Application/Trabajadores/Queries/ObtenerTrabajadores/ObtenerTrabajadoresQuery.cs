@@ -77,8 +77,15 @@ public record TrabajadorListaDto(
     /// Nombres de los Tipos de documento que algún Centro con Asignación activa del Trabajador le EXIGE y de los que no
     /// tiene ningún Documento operativo (la misma regla de <see cref="IDocumentosFaltantesService"/>: Alertas, preflight
     /// de asignación y Trabajador 360). Sin repetir y por nombre. Solo los rellena <c>ConDesgloseDocumental</c>. Un
-    /// Trabajador con alguno nunca se presenta como «Sin incidencias», aunque <see cref="EstadoDocumental"/>, que mide
-    /// solo los documentos registrados, diga lo contrario.
+    /// Trabajador con alguno nunca se presenta como «Sin incidencias» en la fila, aunque <see cref="EstadoDocumental"/>,
+    /// que mide solo los documentos registrados, diga lo contrario.
+    ///
+    /// <para>
+    /// Límites declarados: el filtro, los recuentos y la ordenación por estado siguen calculándose sobre los documentos
+    /// registrados (no ven estos faltantes); y, como en Trabajador 360, no entran los faltantes por requisitos de un
+    /// Proyecto de tipo Evento, que Alertas sí suma. Un voluntario inactivo no los tiene (sus requisitos no avisan) y
+    /// solo se miran los Centros que el usuario ve.
+    /// </para>
     /// </summary>
     public IReadOnlyList<string> DocumentosFaltantes { get; init; } = [];
 }
@@ -376,9 +383,16 @@ public class ObtenerTrabajadoresQueryHandler(
     private async Task<Dictionary<Guid, IReadOnlyList<string>>> FaltantesPorTrabajadorAsync(
         IReadOnlyList<TrabajadorListaDto> pagina, CancellationToken cancellationToken)
     {
-        var ids = pagina.Select(t => t.Id).ToList();
+        // Como Alertas: un voluntario inactivo no avisa (sus requisitos no cuentan) y solo se miran los Centros que el
+        // usuario ve, para no revelar la exigencia de un Centro ajeno a su alcance.
+        var ids = pagina.Where(t => !t.VoluntarioInactivo).Select(t => t.Id).ToList();
+        if (ids.Count == 0)
+            return [];
+
+        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         var centrosActivos = await asignacionesContext.Asignaciones
-            .Where(a => ids.Contains(a.TrabajadorId) && a.FechaBaja == null)
+            .Where(a => ids.Contains(a.TrabajadorId) && a.FechaBaja == null
+                && (centroIdsVisibles == null || centroIdsVisibles.Contains(a.CentroId)))
             .Select(a => new { a.TrabajadorId, a.CentroId })
             .Distinct()
             .ToListAsync(cancellationToken);

@@ -59,7 +59,14 @@ public static class MotivoIncidenciasUi
     public static string? FaltanTipos(IReadOnlyList<string> tiposFaltantes) =>
         tiposFaltantes.Count == 0
             ? null
-            : string.Format(CultureInfo.CurrentCulture, TextosVigenciaDocumento.Texto("MotivoFaltaTipos"), string.Join(", ", tiposFaltantes));
+            : tiposFaltantes.Count <= MaximoTiposNombrados
+                ? string.Format(CultureInfo.CurrentCulture, TextosVigenciaDocumento.Texto("MotivoFaltaTipos"), string.Join(", ", tiposFaltantes))
+                : string.Format(
+                    CultureInfo.CurrentCulture, TextosVigenciaDocumento.Texto("MotivoFaltaTiposYMas"),
+                    string.Join(", ", tiposFaltantes.Take(MaximoTiposNombrados)), tiposFaltantes.Count - MaximoTiposNombrados);
+
+    /// <summary>Cuántos Tipos faltantes se nombran antes de resumir el resto («y 2 más»): la celda y la insignia no desbordan.</summary>
+    private const int MaximoTiposNombrados = 3;
 
     /// <summary>
     /// El motivo de una fila con lo que falta: primero lo que explica su estado (<see cref="Texto"/>) y después los

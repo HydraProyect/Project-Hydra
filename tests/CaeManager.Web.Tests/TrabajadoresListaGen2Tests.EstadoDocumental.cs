@@ -98,6 +98,17 @@ public partial class TrabajadoresListaGen2Tests
         celda.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Pendiente");
         celda.QuerySelector(".estado-fila-motivo")!.TextContent.Trim()
             .Should().Be("Falta: Formación Art. 19, Aptitud médica");
+        FilasDeDatos(cut)[0].ClassList.Should().Contain("fila-tintada-peligro", "lo exigido sin documento tiñe la fila como cualquier otro pendiente");
+    }
+
+    [Fact]
+    public void Con_muchos_tipos_exigidos_sin_documento_el_motivo_nombra_tres_y_resume_el_resto()
+    {
+        var javier = Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Vigente);
+        javier = javier with { Dto = javier.Dto with { DocumentosFaltantes = ["A", "B", "C", "D", "E"] } };
+        var cut = Renderizar(new MediatorFalso { Almacen = { javier } });
+
+        CeldaDeEstado(cut).QuerySelector(".estado-fila-motivo")!.TextContent.Trim().Should().Be("Falta: A, B, C y 2 más");
     }
 
     [Fact]
