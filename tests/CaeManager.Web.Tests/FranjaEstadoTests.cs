@@ -30,6 +30,24 @@ public class FranjaEstadoTests : BunitContext
         Services.AddLocalization();
     }
 
+    [Fact]
+    public void El_campo_desplegable_conserva_la_seleccion_multiple_y_resume_los_estados()
+    {
+        var cut = Render<FranjaEstado>(p => p.Add(c => c.PresentacionCampo, true)
+            .Add(c => c.Opciones, Opciones).Add(c => c.Valor, "Vencido")
+            .Add(c => c.ValorChanged, (string? valor) => _emitidos.Add(valor)));
+
+        cut.Find("summary").GetAttribute("aria-label").Should().Be("Documentación: Vencidos");
+        cut.Find("button[data-estado='Urgente,Proximo']").Click();
+        _emitidos.Should().ContainSingle().Which.Should().Contain("Vencido").And.Contain("Urgente").And.Contain("Proximo");
+        cut.Render(p => p.Add(c => c.Valor, _emitidos.Single()));
+        cut.Find("summary").TextContent.Should().Contain("Vencidos").And.Contain("Por vencer");
+        cut.Find("button[data-estado=Vencido]").GetAttribute("aria-pressed").Should().Be("true");
+        cut.Find("button[data-estado='Urgente,Proximo']").GetAttribute("aria-pressed").Should().Be("true");
+        cut.Find(".franja-estado button").Click();
+        _emitidos.Last().Should().BeNull();
+    }
+
     private IRenderedComponent<FranjaEstado> Renderizar(
         string? valor = null, IReadOnlyDictionary<string, int>? recuentos = null, int? totalTodos = null,
         string? textoTodos = null, string? etiquetaAccesible = null) =>

@@ -336,14 +336,8 @@
   <data name="SeparadorDatosTrabajador" xml:space="preserve">
     <value>Datos del trabajador</value>
   </data>
-  <data name="EtiquetaCopiarTelefono" xml:space="preserve">
-    <value>el teléfono</value>
-  </data>
   <data name="EtiquetaCorreo" xml:space="preserve">
     <value>Correo electrónico</value>
-  </data>
-  <data name="EtiquetaCopiarCorreo" xml:space="preserve">
-    <value>el correo electrónico</value>
   </data>
   <data name="SeparadorAgendaEmpleador" xml:space="preserve">
     <value>Agenda del empleador</value>
@@ -634,7 +628,7 @@
     <value>Filtra aquesta pantalla: nom, DNI o àlies</value>
   </data>
   <data name="ListaColumnaTrabajador" xml:space="preserve">
-    <value>Treballador</value>
+    <value>Nom</value>
   </data>
   <data name="ListaOpcionSubcontrata" xml:space="preserve">
     <value>{0} (subcontracta)</value>
@@ -661,7 +655,7 @@
     <value>Edita (e)</value>
   </data>
   <data name="ListaColumnaEstadoDocumental" xml:space="preserve">
-    <value>Estat documental</value>
+    <value>Documentació</value>
   </data>
   <data name="ListaColumnaRegistradosVigentes" xml:space="preserve">
     <value>Registrats vigents</value>
@@ -689,7 +683,6 @@
   <data name="ResumenCentrosOrdenados" xml:space="preserve"><value>Mostrant {0} de {1} centres · del pitjor estat al millor</value></data>
   <data name="ResumenDocumentoOrdenado" xml:space="preserve"><value>Mostrant {0} de {1} document · del pitjor estat al millor</value></data>
   <data name="ResumenDocumentosOrdenados" xml:space="preserve"><value>Mostrant {0} de {1} documents · del pitjor estat al millor</value></data>
-  <data name="EtiquetaCopiarNacimiento" xml:space="preserve"><value>Copia la data de naixement</value></data>
   <data name="CentrosVacioFiltros360" xml:space="preserve">
     <value>Cap Centre coincideix amb els filtres.</value>
   </data>
@@ -712,7 +705,6 @@
   <data name="FichaNoDisponible" xml:space="preserve"><value>No s’ha pogut carregar la fitxa del treballador.</value></data>
   <data name="FichaGuardada" xml:space="preserve"><value>S’ha desat la fitxa del treballador.</value></data>
   <data name="FichaErrorGuardar" xml:space="preserve"><value>No s’ha pogut desar la fitxa. Torna-ho a provar.</value></data>
-  <data name="FichaCopiarDato" xml:space="preserve"><value>Copia la dada</value></data>
   <data name="FichaFechaInvalida" xml:space="preserve"><value>Introdueix una data vàlida.</value></data>
   <data name="EtiquetaTipoContratacion" xml:space="preserve"><value>Tipus de contractació</value></data>
   <data name="TipoContratacionCuentaAjena" xml:space="preserve"><value>Compte d’altri</value></data>
@@ -724,4 +716,16 @@
   <data name="OpcionActividadTodos" xml:space="preserve"><value>Tots</value></data>
   <data name="OpcionSinVoluntariosInactivos" xml:space="preserve"><value>Sense voluntaris inactius</value></data>
   <data name="OpcionSoloVoluntariosInactivos" xml:space="preserve"><value>Només voluntaris inactius</value></data>
+  <data name="FichaCopiarAfiliacion" xml:space="preserve"><value>el número d’afiliació a la Seguretat Social</value></data>
+  <data name="FichaCopiarAltaEmpresa" xml:space="preserve"><value>la data d’alta a l’empresa</value></data>
+  <data name="FichaCopiarBajaEmpresa" xml:space="preserve"><value>la data de baixa a l’empresa</value></data>
+  <data name="FichaCopiarCaducidadPermiso" xml:space="preserve"><value>la caducitat del permís de treball</value></data>
+  <data name="FichaCopiarDni" xml:space="preserve"><value>el DNI</value></data>
+  <data name="FichaCopiarTelefono" xml:space="preserve"><value>el telèfon</value></data>
+  <data name="FichaCopiarCorreo" xml:space="preserve"><value>el correu electrònic</value></data>
+  <data name="FichaCopiarNacimiento" xml:space="preserve"><value>la data de naixement</value></data>
+  <data name="FichaCopiarNombreAccesible" xml:space="preserve"><value>Copia {0}</value></data>
+  <data name="FichaCopiarNombreAccesibleConValor" xml:space="preserve"><value>Copia {0}: {1}</value></data>
+  <data name="ListaColumnaDni" xml:space="preserve"><value>Document d’identitat</value></data>
+  <data name="ListaColumnaEmpleador" xml:space="preserve"><value>Empresa / Subcontracta</value></data>
 </root>

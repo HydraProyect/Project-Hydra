@@ -316,6 +316,69 @@ public partial class Trabajador360Gen2Tests : BunitContext
         mediador.Enviadas.Should().HaveCount(consultas);
     }
 
+    [Theory]
+    [InlineData("es", "Copiar", "el DNI", "el teléfono", "el correo electrónico", "la fecha de nacimiento",
+        "el número de afiliación a la Seguridad Social", "la fecha de alta en la empresa",
+        "la fecha de baja en la empresa", "la caducidad del permiso de trabajo")]
+    [InlineData("ca-ES", "Copia", "el DNI", "el telèfon", "el correu electrònic", "la data de naixement",
+        "el número d’afiliació a la Seguretat Social", "la data d’alta a l’empresa",
+        "la data de baixa a l’empresa", "la caducitat del permís de treball")]
+    public async Task Cada_boton_de_copiar_de_la_ficha_dice_que_dato_copia(
+        string cultura, string verbo, string dni, string telefono, string correo, string nacimiento,
+        string afiliacion, string alta, string baja, string caducidad)
+    {
+        var anterior = System.Globalization.CultureInfo.CurrentUICulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = new(cultura);
+            var id = Guid.NewGuid();
+            var mediador = ConTrabajador(id);
+            mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno", telefono: "600111222", email: "javier@ejemplo.com") with
+            {
+                FechaNacimiento = new DateOnly(1988, 3, 14),
+                NumeroAfiliacionSeguridadSocial = "281234567840",
+                FechaAltaEmpresa = new DateOnly(2024, 1, 10),
+                FechaBajaEmpresa = new DateOnly(2026, 6, 30),
+                TipoPermisoTrabajo = "NIE",
+                CaducidadPermisoTrabajo = new DateOnly(2027, 5, 3)
+            };
+            var cut = RenderizarEn(id, "");
+
+            // Cada nombre va atado a su dato, no solo existe. Los botones con rótulo «Copiar» se localizan por el valor
+            // que los acompaña en su fila; los que llevan el valor como rótulo lo conservan en el nombre accesible
+            // (WCAG 2.5.3, «Label in Name»), de modo que el propio nombre fija la pareja.
+            string DeRotuloCopiar(string valor) => cut.FindAll("button.boton-copiar")
+                .Where(b => b.TextContent.Trim() == "Copiar" && b.ParentElement!.TextContent.Contains(valor))
+                .Should().ContainSingle().Subject.GetAttribute("aria-label")!;
+            DeRotuloCopiar("12345678Z").Should().Be($"{verbo} {dni}");
+            DeRotuloCopiar("600111222").Should().Be($"{verbo} {telefono}");
+            DeRotuloCopiar("javier@ejemplo.com").Should().Be($"{verbo} {correo}");
+            var enOperacion = Nombres(cut);
+
+            // La pestaña Ficha es la cuarta (Operación, Centros, Documentación, Ficha, Historial) en cualquier cultura.
+            await cut.FindAll("[role=tab]")[3].ClickAsync(new MouseEventArgs());
+            var enFicha = Nombres(cut);
+
+            enFicha.Should().Contain(new[]
+            {
+                $"{verbo} {nacimiento}: 14/03/1988",
+                $"{verbo} {alta}: 10/01/2024",
+                $"{verbo} {baja}: 30/06/2026",
+                $"{verbo} {caducidad}: 03/05/2027"
+            }, "las cuatro fechas copiables llevan su valor en el nombre accesible");
+            enFicha.Should().ContainSingle(n => n.StartsWith($"{verbo} {afiliacion}: ", StringComparison.Ordinal) && n.Contains("28 12345678 40"));
+            enOperacion.Should().OnlyHaveUniqueItems("dos botones con el mismo nombre accesible no se distinguen para un lector de pantalla");
+            enFicha.Should().OnlyHaveUniqueItems("dos botones con el mismo nombre accesible no se distinguen para un lector de pantalla");
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = anterior;
+        }
+
+        static List<string> Nombres(IRenderedComponent<TrabajadorDetalle> cut) =>
+            cut.FindAll("button.boton-copiar").Select(b => b.GetAttribute("aria-label")!).ToList();
+    }
+
     [Fact]
     public void Sin_datos_de_Ficha_su_enlace_muestra_las_cajas_para_poder_rellenarlas()
     {

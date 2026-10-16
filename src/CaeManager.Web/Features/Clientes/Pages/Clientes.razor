@@ -36,7 +36,7 @@
        empresariales del Tenant (Empresas que reciben el servicio en una Relación
        Empresarial), no Clientes comerciales TALVEG.
 
-       Sin antetítulo («Negocio» ya está en las migas) y sin el rótulo de la empresa
+       Con antetítulo de grupo y sin el rótulo de la empresa
        gestionada: el selector de la barra lateral ya dice cuál es. El estado vacío sin
        empresa elegida (4a) sigue más abajo.
 
@@ -45,7 +45,7 @@
        «Alta guiada» (con escritura y alcance no cero). *@
     @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
     {
-        <CabeceraListado Titulo="@Textos["ListaTitulo"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
+        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@Textos["ListaTitulo"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
                          RutaExportar="/clientes/exportar.xlsx" CriteriosExportar="CriteriosExportar">
             <Menu>
@@ -72,7 +72,7 @@
     }
     else
     {
-        <CabeceraListado Titulo="@Textos["ListaTitulo"]" />
+        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@Textos["ListaTitulo"]" />
     }
     @if (_resolviendoEmpresa)
     {
@@ -98,15 +98,17 @@
        - «Gestor CAE» nombra a la persona de referencia de este Cliente empresarial (no
          concede alcance: la cartera es el Tenant entero); el campo del modelo sigue siendo
          deuda terminológica en código. *@
-    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
+    <BarraFiltros PresentacionMaqueta="true" Contador="@(_cargando || _errorCarga ? null : _totalElementos)" SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos"
                   OnLimpiarTodo="LimpiarFiltrosAsync" OnGuardarFiltro="AbrirGuardarFiltro"
                   FiltrosGuardados="OpcionesFiltrosGuardados" OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync"
                   OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado"
                   VistaRecordada="_vistaRecordada">
         <Pastillas>
-            <PastillaFiltro Etiqueta="Gestor CAE" Valor="@_ejecutivoFiltro" ValorChanged="CambiarEjecutivoFiltroAsync" Opciones="OpcionesGestorCae" />
-            <PastillaFiltro Etiqueta="@Textos["ListaFiltroCriticidad"]" Valor="@(_soloCriticos ? ValorSoloCriticos : string.Empty)"
+            <FranjaEstado PresentacionCampo="true" Opciones="FranjaEstadoDocumental" Valor="@_estadoDocumentalFiltro" ValorChanged="CambiarEstadoDocumentalFiltroAsync"
+                  Recuentos="_recuentosPorEstado" TotalTodos="_totalSinFiltroDeEstado" />
+            <PastillaFiltro PresentacionCampo="true" Etiqueta="Gestor CAE" Valor="@_ejecutivoFiltro" ValorChanged="CambiarEjecutivoFiltroAsync" Opciones="OpcionesGestorCae" />
+            <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["ListaFiltroCriticidad"]" Valor="@(_soloCriticos ? ValorSoloCriticos : string.Empty)"
                             ValorChanged="v => CambiarSoloCriticosAsync(v == ValorSoloCriticos)" Opciones="OpcionesCriticidad" />
         </Pastillas>
         <Chips>
@@ -136,11 +138,10 @@
                              ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged"
                              ListoParaRestaurar="_directorioDeGestoresCargado" />
 
-    @* Franja de estado: sustituye a la pastilla «Estado». Admite varios estados a la vez y viaja en la URL como
+    @* Selector desplegable de estado: conserva la semántica de la franja para «Estado». Admite varios estados a la vez y viaja en la URL como
        «estado». Aquí un botón pregunta si el Cliente empresarial tiene ALGUNA alerta en ese estado, así que uno
        con vencidos y por vencer cuenta en los dos botones: las cifras no suman el total, que se pasa aparte. *@
-    <FranjaEstado Opciones="FranjaEstadoDocumental" Valor="@_estadoDocumentalFiltro" ValorChanged="CambiarEstadoDocumentalFiltroAsync"
-                  Recuentos="_recuentosPorEstado" TotalTodos="_totalSinFiltroDeEstado" />
+
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -170,7 +171,7 @@
             </p>
         }
 
-        @TarjetaListado.Renderizar(@<text>
+        @TarjetaListado.RenderizarMaqueta(@<text>
                 <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
                 <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="ClienteListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                     @if (_seleccionMultiple)
@@ -397,13 +398,13 @@
                         @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú: «Abrir ficha
                            360» es este icono; «Editar», el lápiz del panel (tecla «e») para la
                            identidad y la celda «Gestor CAE» para el formulario con la reasignación;
-                           «Dar de baja», la selección múltiple (☑ de la cabecera o tecla «x»), con
+                           «Dar de baja», la selección múltiple (botón de la barra o tecla «x»), con
                            su «Deshacer». La baja es lógica (EliminarClientesCommand), y por eso se
                            rotula «Dar de baja» en la barra de lote, en el diálogo y en los avisos. *@
                         <Boton360 Nombre="@context.RazonSocial" Href="@($"/clientes/{context.Id}")" />
                     </TemplateColumn>
                 </QuickGrid>
-            
+
                 </div>
 </text>, PieDelListado)
 
@@ -468,7 +469,7 @@
             </CampoSelect>
             <p class="texto-vacio-seccion">Al cambiarlo, se avisa al Gestor CAE anterior y al nuevo. Es el Gestor CAE de referencia del Cliente: no cambia lo que cada uno puede ver.</p>
         }
-    
+
     </ChildContent>
     <PieExtra>
         @if (_editandoId is null)
@@ -531,7 +532,7 @@
     private RenderFragment? PieDelListado => _errorCarga || (_cargando && _totalElementos == 0) ? null : @<text>
         @if (!_errorCarga && (!_cargando || _totalElementos > 0))
         {
-            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+            <PaginadorSimple PresentacionMaqueta="true" PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
                                   TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
                     <Centro><LeyendaAtajosLista /></Centro>

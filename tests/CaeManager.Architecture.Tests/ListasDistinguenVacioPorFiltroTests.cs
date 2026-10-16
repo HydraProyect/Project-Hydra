@@ -155,7 +155,13 @@ public class ListasDistinguenVacioPorFiltroTests
     /// comprueba en el código antes de actuar sobre él.
     /// </para>
     /// </summary>
-    private static readonly Dictionary<string, string> DeudaCongelada = new();
+    private static readonly Dictionary<string, string> DeudaCongelada = new()
+    {
+        // Medido en Buzon.razor (2026-10-16): su único control sobre la lista es el selector del Buzón conectado y la
+        // navegación por carpetas; no hay búsqueda ni filtro que deje la lista vacía, y su «Carpeta vacía» ya es el
+        // único vacío posible. El escáner lo marca solo por la clase barra-filtros-lista de la tarjeta del selector.
+        ["Buzon.razor"] = "sin filtros de lista: selector de buzón y carpetas",
+    };
 
     [Fact]
     public void Toda_lista_con_filtros_distingue_vacio_sin_registros_de_vacio_por_filtro()

@@ -19,12 +19,13 @@ internal static class ComprobacionPieListado
         cut.WaitForAssertion(() =>
         {
             cut.FindAll(".tarjeta-listado").Should().ContainSingle();
-            cut.Find(".tarjeta-listado-pie .paginador-texto").TextContent.Should().Be("Mostrando 0 de 0");
-            cut.FindAll(".tarjeta-listado-pie .paginador-opciones-tamano button")
+            cut.Find(".tarjeta-listado-pie-separado").Closest(".tarjeta-listado").Should().BeNull();
+            cut.Find(".tarjeta-listado-pie-separado .paginador-texto").TextContent.Should().EndWith("Mostrando 0 de 0");
+            cut.FindAll(".pie-lista-opciones select option")
                 .Select(b => b.TextContent).Should().Equal("20", "50", "100");
-            cut.FindAll(".paginador-inicio button").Should().BeEmpty();
-            cut.FindAll(".paginador-tamano-select").Should().BeEmpty();
-            cut.FindAll(".paginador-centro .leyenda-atajos-lista").Should().ContainSingle();
+            cut.FindAll(".pie-lista-maqueta button").Should().OnlyContain(b => b.HasAttribute("disabled"));
+            cut.FindAll(".pie-lista-opciones select").Should().ContainSingle();
+            cut.FindAll(".pie-lista-atajos .leyenda-atajos-lista").Should().ContainSingle();
         });
     }
 }
@@ -32,42 +33,42 @@ internal static class ComprobacionPieListado
 public partial class CentrosListaPatronTests
 {
     [Fact]
-    public void El_pie_del_listado_vacio_sigue_dentro_de_la_tarjeta() =>
+    public void El_pie_del_listado_vacio_permanece_debajo_de_la_tarjeta() =>
         ComprobacionPieListado.Vacio(Renderizar(ConCentros()));
 }
 
 public partial class EmpresasListaGen2Tests
 {
     [Fact]
-    public void El_pie_del_listado_vacio_sigue_dentro_de_la_tarjeta() =>
+    public void El_pie_del_listado_vacio_permanece_debajo_de_la_tarjeta() =>
         ComprobacionPieListado.Vacio(Renderizar(new MediatorFalso()));
 }
 
 public partial class SubcontratasListaGen2Tests
 {
     [Fact]
-    public void El_pie_del_listado_vacio_sigue_dentro_de_la_tarjeta() =>
+    public void El_pie_del_listado_vacio_permanece_debajo_de_la_tarjeta() =>
         ComprobacionPieListado.Vacio(Renderizar(new MediatorFalso()));
 }
 
 public partial class TrabajadoresListaGen2Tests
 {
     [Fact]
-    public void El_pie_del_listado_vacio_sigue_dentro_de_la_tarjeta() =>
+    public void El_pie_del_listado_vacio_permanece_debajo_de_la_tarjeta() =>
         ComprobacionPieListado.Vacio(Renderizar(new MediatorFalso()));
 }
 
 public partial class ClientesListaGen2Tests
 {
     [Fact]
-    public void El_pie_del_listado_vacio_sigue_dentro_de_la_tarjeta() =>
+    public void El_pie_del_listado_vacio_permanece_debajo_de_la_tarjeta() =>
         ComprobacionPieListado.Vacio(Renderizar(new MediatorFalso()));
 }
 
 public partial class DocumentosGen2Tests
 {
     [Fact]
-    public void El_pie_del_listado_vacio_sigue_dentro_de_la_tarjeta()
+    public void El_pie_del_listado_vacio_permanece_debajo_de_la_tarjeta()
     {
         var (cut, _) = Renderizar();
         ComprobacionPieListado.Vacio(cut);
@@ -77,7 +78,7 @@ public partial class DocumentosGen2Tests
 public partial class VisitasGen2Tests
 {
     [Fact]
-    public void El_pie_del_listado_vacio_sigue_dentro_de_la_tarjeta() =>
+    public void El_pie_del_listado_vacio_permanece_debajo_de_la_tarjeta() =>
         ComprobacionPieListado.Vacio(Renderizar(new MediatorVisitas()));
 
     [Fact]
@@ -96,6 +97,6 @@ public partial class VisitasGen2Tests
 public partial class ProyectosGen2Tests
 {
     [Fact]
-    public async Task El_pie_del_listado_vacio_sigue_dentro_de_la_tarjeta() =>
+    public async Task El_pie_del_listado_vacio_permanece_debajo_de_la_tarjeta() =>
         ComprobacionPieListado.Vacio(await RenderizarConClienteAsync());
 }

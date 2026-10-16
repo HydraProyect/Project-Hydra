@@ -19,6 +19,29 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
 
+@if (PresentacionCampo)
+{
+    <div class="franja-campo-lista">
+        <span class="franja-campo-etiqueta">@EtiquetaCampo</span>
+        <details class="franja-campo-desplegable">
+            <summary aria-label="@($"{EtiquetaCampo}: {TextoSeleccion}")">@TextoSeleccion <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></summary>
+            <div class="franja-campo-panel">@Botones</div>
+        </details>
+    </div>
+}
+else
+{
+    @Botones
+}
+
+@code {
+    [Parameter] public bool PresentacionCampo { get; set; }
+    [Parameter] public string? Etiqueta { get; set; }
+    private string EtiquetaCampo => Etiqueta ?? Comunes["ListaDocumentacion"].Value;
+    private string TextoSeleccion => _seleccion.Count == 0
+        ? TextoTodos ?? Comunes["OpcionTodos"].Value
+        : string.Join(", ", Opciones.Where(EstaMarcada).Select(o => o.Texto));
+    private RenderFragment Botones => @<text>
 <div class="franja-estado" role="group" aria-label="@(EtiquetaAccesible ?? Comunes["FranjaEstadoEtiqueta"].Value)">
     <button type="button" class="franja-estado-boton" aria-pressed="@AriaPulsado(_seleccion.Count == 0)" @onclick="LimpiarAsync">
         @(TextoTodos ?? Comunes["OpcionTodos"].Value)
@@ -43,8 +66,8 @@
         </button>
     }
 </div>
+    </text>;
 
-@code {
     private IReadOnlyList<string> _seleccion = [];
 
     /// <summary>Botones de estado, de peor a mejor. «Todos» lo añade la franja.</summary>

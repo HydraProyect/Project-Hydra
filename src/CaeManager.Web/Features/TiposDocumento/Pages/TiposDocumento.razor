@@ -36,34 +36,36 @@
         </Acciones>
     </CabeceraPagina>
 
-    <div class="barra-filtros barra-filtros-tipos">
-        <CampoTexto Placeholder="@Textos["PlaceholderBusqueda"]" aria-label="@Textos["AriaBusqueda"]"
-                    Valor="@_terminoBusqueda" ValorChanged="BuscarAsync" />
+    <section class="barra-filtros-lista">
+        <div class="barra-filtros-lista-fila">
+            <CampoTexto Etiqueta="@Comunes["ListaBuscar"]" Placeholder="@Textos["PlaceholderBusqueda"]" aria-label="@Textos["AriaBusqueda"]"
+                        Valor="@_terminoBusqueda" ValorChanged="BuscarAsync" />
 
-        <CampoSelect Etiqueta="@Textos["FiltroCliente"]" Valor="@_clienteFiltroId" ValorChanged="CambiarClienteFiltroAsync">
-            <option value="">@Textos["OpcionTodosClientes"]</option>
-            @foreach (var cliente in _clientesFiltroDisponibles)
-            {
-                <option value="@cliente.Id">@cliente.RazonSocial</option>
-            }
-        </CampoSelect>
+            <CampoSelect Etiqueta="@Textos["FiltroCliente"]" Valor="@_clienteFiltroId" ValorChanged="CambiarClienteFiltroAsync">
+                <option value="">@Textos["OpcionTodosClientes"]</option>
+                @foreach (var cliente in _clientesFiltroDisponibles)
+                {
+                    <option value="@cliente.Id">@cliente.RazonSocial</option>
+                }
+            </CampoSelect>
 
-        <CampoSelect Etiqueta="@Textos["FiltroEmpresa"]" Valor="@_empresaFiltroId" ValorChanged="CambiarEmpresaFiltroAsync" Deshabilitado="@string.IsNullOrEmpty(_clienteFiltroId)">
-            <option value="">@Textos["OpcionTodasEmpresas"]</option>
-            @foreach (var empresa in _empresasFiltroDisponibles)
-            {
-                <option value="@empresa.Id">@empresa.RazonSocial</option>
-            }
-        </CampoSelect>
+            <CampoSelect Etiqueta="@Textos["FiltroEmpresa"]" Valor="@_empresaFiltroId" ValorChanged="CambiarEmpresaFiltroAsync" Deshabilitado="@string.IsNullOrEmpty(_clienteFiltroId)">
+                <option value="">@Textos["OpcionTodasEmpresas"]</option>
+                @foreach (var empresa in _empresasFiltroDisponibles)
+                {
+                    <option value="@empresa.Id">@empresa.RazonSocial</option>
+                }
+            </CampoSelect>
 
-        <CampoSelect Etiqueta="@Textos["FiltroCentro"]" Valor="@_centroFiltroId" ValorChanged="CambiarCentroFiltroAsync" Deshabilitado="@string.IsNullOrEmpty(_empresaFiltroId)">
-            <option value="">@Textos["OpcionTodosCentros"]</option>
-            @foreach (var centro in _centrosFiltroDisponibles)
-            {
-                <option value="@centro.Id">@centro.Nombre</option>
-            }
-        </CampoSelect>
-    </div>
+            <CampoSelect Etiqueta="@Textos["FiltroCentro"]" Valor="@_centroFiltroId" ValorChanged="CambiarCentroFiltroAsync" Deshabilitado="@string.IsNullOrEmpty(_empresaFiltroId)">
+                <option value="">@Textos["OpcionTodosCentros"]</option>
+                @foreach (var centro in _centrosFiltroDisponibles)
+                {
+                    <option value="@centro.Id">@centro.Nombre</option>
+                }
+            </CampoSelect>
+        </div>
+    </section>
 
     @if (_errorCarga)
     {
@@ -224,7 +226,7 @@
             </table>
         </div>
 
-        <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_tipos.Count"
+        <PaginadorSimple PresentacionMaqueta="true" ElementosEnPagina="TiposDePagina.Count" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_tipos.Count"
                           Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="IrAPaginaAsync"
                           TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
     }

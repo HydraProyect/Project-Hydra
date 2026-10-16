@@ -13,15 +13,15 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>Conectores CAE — @Marca.Nombre</PageTitle>
 
-<div class="pagina-conectores-cae">
-    <h1>Conectores CAE</h1>
-
-    <p class="descripcion-delegaciones">
+<div class="contenedor-pagina pagina-conectores-cae">
+    <CabeceraPagina Titulo="Conectores CAE">
+        <Descripcion>
         Cada conector activo aquí es un candidato a que la extensión de navegador ofrezca "Subir"
         para él. Desactivar uno no borra ni cambia ningún canal de gestión documental ya
         configurado con él — solo apaga, de inmediato y sin publicar una extensión nueva, el
         botón que dejaría inyectar un documento en su plataforma.
-    </p>
+        </Descripcion>
+    </CabeceraPagina>
 
     @if (_error is not null)
     {

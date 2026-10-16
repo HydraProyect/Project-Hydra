@@ -118,7 +118,7 @@ public class VisitasCabeceraYFiltrosComunesTests : BunitContext
             .Which.GetAttribute("data-keytip").Should().Be("K");
         cut.Find("button[aria-label='Selección múltiple']").GetAttribute("data-keytip").Should().Be("S");
         cut.Find("[data-keytip-contenedor='N']").TextContent.Should().Contain("Nueva visita");
-        cut.Markup.Should().NotContain("Operación", "la cabecera de listado no lleva antetítulo: el grupo ya está en las migas");
+        cut.Find(".cabecera-pagina-kicker").TextContent.Trim().Should().Be("Operación", "la maqueta rotula el grupo con un antetítulo sobre el título");
     }
 
     // ------------------------------------------------------------------- filtros
@@ -133,7 +133,7 @@ public class VisitasCabeceraYFiltrosComunesTests : BunitContext
             .Should().Be("Buscar por centro, titular o empresa…");
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(p => p.GetAttribute("aria-label"))
             .Should().Equal(
-                ["Solo activas: Sí", "Solo urgentes", "Notificada al titular del Centro", "Más filtros", "Filtros guardados"],
+                ["Solo activas: Sí", "Solo urgentes: No", "Notificada al titular del Centro: Todas", "Más filtros", "Filtros guardados"],
                 "«Solo activas» nace marcado; el orden vive en «Más filtros»");
 
         OpcionesDe(cut, "Solo activas").Should().Equal("No", "Sí");

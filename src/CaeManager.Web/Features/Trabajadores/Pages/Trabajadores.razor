@@ -35,7 +35,7 @@
        primaria. El título lo sigue decidiendo el perfil de vocabulario del Tenant y si el usuario
        es del Tenant propietario («Mis trabajadores» solo en Cliente Directo propio).
 
-       Sin antetítulo y sin el rótulo de la empresa gestionada: el selector de la barra lateral ya
+       Con antetítulo de grupo y sin el rótulo de la empresa gestionada: el selector de la barra lateral ya
        dice cuál es. El estado vacío sin empresa elegida (4a) sigue más abajo.
 
        D-15: con alcance cero la lista no puede existir, así que ni se exporta (daría un fichero
@@ -43,7 +43,7 @@
        (eliminar, asignar a centro), toda ella escritura: Consulta no ve el ☑. *@
     @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa && _parametrosInicializados)
     {
-        <CabeceraListado Titulo="@TituloPagina" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
+        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@TituloPagina" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple"
                          SeleccionMultipleChanged="@(_puedeEscribir && !_alcanceCero ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)"
                          RutaExportar="@(_alcanceCero ? null : "/trabajadores/exportar.xlsx")" CriteriosExportar="CriteriosExportar" Menu="@(!_alcanceCero ? MenuExportarTodo : null)">
@@ -57,7 +57,7 @@
     }
     else
     {
-        <CabeceraListado Titulo="@TituloPagina" />
+        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@TituloPagina" />
     }
 
     @if (_resolviendoEmpresa)
@@ -90,18 +90,20 @@
     @* D-15: sin alcance (Asignación de Cartera) no hay lista que filtrar, guardar ni seleccionar. *@
     @if (!_alcanceCero)
     {
-    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
+    <BarraFiltros PresentacionMaqueta="true" Contador="@(_cargando || _errorCarga ? null : _totalElementos)" SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="@(_puedeEscribir && !_alcanceCero ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   OnGuardarFiltro="AbrirGuardarFiltro" FiltrosGuardados="OpcionesFiltrosGuardados"
                   OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync"
                   OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado"
                   VistaRecordada="_vistaRecordada">
         <Pastillas>
-            <PastillaFiltro Etiqueta="@Textos["EtiquetaEmpresa"]" TextoTodos="@Textos["OpcionTodas"]" Valor="@ValorFiltroEmpleador"
+            <FranjaEstado PresentacionCampo="true" Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                  Recuentos="_recuentosPorEstado" />
+            <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["EtiquetaEmpresa"]" TextoTodos="@Textos["OpcionTodas"]" Valor="@ValorFiltroEmpleador"
                             ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
-            <PastillaFiltro Etiqueta="@Textos["EtiquetaCentro"]" TextoTodos="@Textos["OpcionTodosLosCentros"]" Valor="@_filtroCentroId"
+            <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["EtiquetaCentro"]" TextoTodos="@Textos["OpcionTodosLosCentros"]" Valor="@_filtroCentroId"
                             ValorChanged="FiltrarPorCentroAsync" Opciones="OpcionesFiltroCentro" />
-            <PastillaFiltro Etiqueta="@Textos["EtiquetaActividad"]" TextoTodos="@Textos["OpcionActividadTodos"]" Valor="@_filtroActividad"
+            <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["EtiquetaActividad"]" TextoTodos="@Textos["OpcionActividadTodos"]" Valor="@_filtroActividad"
                             ValorChanged="FiltrarPorActividadAsync" Opciones="OpcionesFiltroActividad" />
         </Pastillas>
         <Herramientas><BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" /></Herramientas>
@@ -129,11 +131,10 @@
     </BarraFiltros>
     <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Trabajadores"
                              ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
-    @* Franja de estado: sustituye a la pastilla «Documentación». Admite varios estados a la vez, viaja en la
+    @* Selector desplegable de estado: conserva la semántica de la franja para «Documentación». Admite varios estados a la vez, viaja en la
        URL como «estado» (estados de código separados por coma) y cada botón dice cuántas filas hay, con los
        demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
-    <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
-                  Recuentos="_recuentosPorEstado" />
+
     }
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -154,8 +155,8 @@
             <Esqueleto Forma="FormaEsqueleto.Tabla" Cantidad="8" Columnas="4" />
         }
 
-        @* La carga nativa conserva la tabla y el pie dentro de la tarjeta. *@
-        @TarjetaListado.Renderizar(@<text>
+        @* La carga nativa conserva la tabla y el pie externo durante la carga. *@
+        @TarjetaListado.RenderizarMaqueta(@<text>
                 <div class="contenido-entra" style="display:@(_totalElementos == 0 ? "none" : "block")">
                 <table class="tabla-datos quickgrid trabajadores-rejilla-propia" theme="default" aria-busy="@(_cargando ? "true" : "false")">
                     <thead><tr>
@@ -164,7 +165,8 @@
                             <th scope="col" class="seleccion-trabajador"><input type="checkbox" aria-label="@Textos["AriaSeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" /></th>
                         }
                         @(CabeceraOrdenable(nameof(TrabajadorListaDto.Apellidos), Textos["ListaColumnaTrabajador"]))
-                        @(CabeceraOrdenable(nameof(TrabajadorListaDto.EmpleadorNombre), Textos["EtiquetaEmpresa"]))
+                        <th scope="col">@Textos["ListaColumnaDni"]</th>
+                        @(CabeceraOrdenable(nameof(TrabajadorListaDto.EmpleadorNombre), Textos["ListaColumnaEmpleador"]))
                         <th scope="col" class="col-registrados-vigentes">@Textos["ListaColumnaRegistradosVigentes"]</th>
                         @(CabeceraOrdenable(nameof(TrabajadorListaDto.EstadoDocumental), Textos["ListaColumnaEstadoDocumental"], "col-estado"))
                         <th scope="col"></th>
@@ -191,36 +193,40 @@
                             {
                                 <span class="voluntario-inactivo" title="@Textos["VoluntarioInactivoAyuda"]">@Textos["VoluntarioInactivo"]</span>
                             }
-                            @if (!string.IsNullOrWhiteSpace(context.Dni))
-                            {
-                                <span class="celda-trabajador-dni">
-                                    DNI <BotonCopiar EnLinea="true" Valor="@context.Dni" Texto="@context.Dni" TerminoResaltado="@_busqueda" Etiqueta="@Textos["EtiquetaCopiarDni"]"
-                                                     NombreAccesible="@Textos["CopiarDni", context.Dni]" />
-                                </span>
-                            }
                         </span>
 
                                 </div></td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(context.Dni))
+                            {
+                                <span class="celda-trabajador-dni">
+                                    <BotonCopiar EnLinea="true" Valor="@context.Dni" Texto="@context.Dni" TerminoResaltado="@_busqueda" Etiqueta="@Textos["EtiquetaCopiarDni"]"
+                                                     NombreAccesible="@Textos["CopiarDni", context.Dni]" />
+                                </span>
+                                    }
+                                </td>
                                 <td>@context.EmpleadorNombre</td>
-                                <td class="col-registrados-vigentes">                        <span class="celda-registrados-vigentes">
-                            <BarraCumplimiento Porcentaje="@PorcentajeRegistradosVigentes(context)"
-                                               Texto="@MotivoIncidenciasUi.RegistradosVigentes(context.DocumentosVigentes, context.DocumentosRegistrados)"
-                                               Etiqueta="@MotivoIncidenciasUi.RegistradosVigentesAccesible(context.DocumentosVigentes, context.DocumentosRegistrados)" />
-                        </span>
-</td>
+
+                                <td class="col-registrados-vigentes">
+                                    <span class="celda-registrados-vigentes">
+                                        <BarraCumplimiento Porcentaje="@PorcentajeRegistradosVigentes(context)"
+                                                           Texto="@MotivoIncidenciasUi.RegistradosVigentes(context.DocumentosVigentes, context.DocumentosRegistrados)"
+                                                           Etiqueta="@MotivoIncidenciasUi.RegistradosVigentesAccesible(context.DocumentosVigentes, context.DocumentosRegistrados)" />
+                                    </span>
+                                </td>
                                 <td class="col-estado"><EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)" Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)" Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" Motivo="@MotivoIncidenciasUi.Texto(context.Incidencias, CaeManager.Domain.Common.DiaDeNegocio.Hoy())" /></td>
                                 <td class="acciones-trabajador"><Boton360 Nombre="@NombreCompleto(context)" Href="@($"/trabajadores/{context.Id}")" /></td>
                             </tr>
                             @if (context.Incidencias.Count > 0 && EstaExpandido(context))
                             {
-                                <tr @key="claves.De((context.Id, true))" class="trabajador-detalle-incidencias"><td colspan="@(_seleccionMultiple ? 6 : 5)">
+                                <tr @key="claves.De((context.Id, true))" class="trabajador-detalle-incidencias"><td colspan="@(_seleccionMultiple ? 7 : 6)">
                                     <SubcajaIncidenciasDocumentales Incidencias="context.Incidencias" Interactiva="_puedeEscribir" AlPulsar="incidencia => CorregirIncidenciaAsync(context, incidencia)" Busqueda="@_busqueda" />
                                 </td></tr>
                             }
                         }
                     </tbody>
                 </table>
-            
+
                 </div>
 
         @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
@@ -419,7 +425,7 @@
     private RenderFragment? PieDelListado => _errorCarga || (_cargando && _totalElementos == 0) ? null : @<text>
         @if (!_errorCarga && (!_cargando || _totalElementos > 0))
         {
-            <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+            <PaginadorSimple PresentacionMaqueta="true" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
                                   TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
                     <Centro><LeyendaAtajosLista /></Centro>

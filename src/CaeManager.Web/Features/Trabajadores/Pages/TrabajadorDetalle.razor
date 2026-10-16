@@ -59,7 +59,7 @@
             <Datos>
                 <span>
                     DNI: <b>@_detalle.Dni</b>
-                    <BotonCopiar Valor="@_detalle.Dni" Etiqueta="@Textos["EtiquetaCopiarDni"]" />
+                    <BotonCopiar Valor="@_detalle.Dni" Etiqueta="@Textos["FichaCopiarDni"]" NombreAccesible="@Textos["FichaCopiarNombreAccesible", Textos["FichaCopiarDni"]]" />
                 </span>
                 <span aria-hidden="true">·</span>
                 <span>
@@ -431,7 +431,7 @@
                                     <dt class="trabajador360-contacto-clave">@Textos["EtiquetaTelefono"]</dt>
                                     <dd class="trabajador360-contacto-valor">
                                         <span class="trabajador360-contacto-texto">@_detalle.Telefono</span>
-                                        <BotonCopiar Valor="@_detalle.Telefono" Etiqueta="@Textos["EtiquetaCopiarTelefono"]" />
+                                        <BotonCopiar Valor="@_detalle.Telefono" Etiqueta="@Textos["FichaCopiarTelefono"]" NombreAccesible="@Textos["FichaCopiarNombreAccesible", Textos["FichaCopiarTelefono"]]" />
                                     </dd>
                                 </div>
                             }
@@ -441,7 +441,7 @@
                                     <dt class="trabajador360-contacto-clave">@Textos["EtiquetaCorreo"]</dt>
                                     <dd class="trabajador360-contacto-valor">
                                         <span class="trabajador360-contacto-texto">@_detalle.Email</span>
-                                        <BotonCopiar Valor="@_detalle.Email" Etiqueta="@Textos["EtiquetaCopiarCorreo"]" />
+                                        <BotonCopiar Valor="@_detalle.Email" Etiqueta="@Textos["FichaCopiarCorreo"]" NombreAccesible="@Textos["FichaCopiarNombreAccesible", Textos["FichaCopiarCorreo"]]" />
                                     </dd>
                                 </div>
                             }
@@ -549,7 +549,7 @@
                         <DatoRejilla Etiqueta="@Textos["FichaAfiliacion"]">
                             @if (FormatoAfiliacion(detalle.NumeroAfiliacionSeguridadSocial) is { } valor)
                             {
-                                <BotonCopiar Valor="@valor" Texto="@valor" Etiqueta="@Textos["FichaCopiarDato"]" />
+                                <BotonCopiar Valor="@valor" Texto="@valor" Etiqueta="@Textos["FichaCopiarAfiliacion"]" NombreAccesible="@Textos["FichaCopiarNombreAccesibleConValor", Textos["FichaCopiarAfiliacion"], valor]" />
                             }
                             else { <span>—</span> }
                         </DatoRejilla>
@@ -557,7 +557,7 @@
                         <DatoRejilla Etiqueta="@Textos["EtiquetaFechaNacimiento"]">
                             @if (detalle.FechaNacimiento?.ToString("dd/MM/yyyy") is { } valor)
                             {
-                                <BotonCopiar Valor="@valor" Texto="@valor" Etiqueta="@Textos["EtiquetaCopiarNacimiento"]" />
+                                <BotonCopiar Valor="@valor" Texto="@valor" Etiqueta="@Textos["FichaCopiarNacimiento"]" NombreAccesible="@Textos["FichaCopiarNombreAccesibleConValor", Textos["FichaCopiarNacimiento"], valor]" />
                             }
                             else { <span>—</span> }
                         </DatoRejilla>
@@ -580,14 +580,14 @@
                         <DatoRejilla Etiqueta="@Textos["FichaAltaEmpresa"]">
                             @if (detalle.FechaAltaEmpresa?.ToString("dd/MM/yyyy") is { } valor)
                             {
-                                <BotonCopiar Valor="@valor" Texto="@valor" Etiqueta="@Textos["FichaCopiarDato"]" />
+                                <BotonCopiar Valor="@valor" Texto="@valor" Etiqueta="@Textos["FichaCopiarAltaEmpresa"]" NombreAccesible="@Textos["FichaCopiarNombreAccesibleConValor", Textos["FichaCopiarAltaEmpresa"], valor]" />
                             }
                             else { <span>—</span> }
                         </DatoRejilla>
                         <DatoRejilla Etiqueta="@Textos["FichaBaja"]">
                             @if (detalle.FechaBajaEmpresa?.ToString("dd/MM/yyyy") is { } valor)
                             {
-                                <BotonCopiar Valor="@valor" Texto="@valor" Etiqueta="@Textos["FichaCopiarDato"]" />
+                                <BotonCopiar Valor="@valor" Texto="@valor" Etiqueta="@Textos["FichaCopiarBajaEmpresa"]" NombreAccesible="@Textos["FichaCopiarNombreAccesibleConValor", Textos["FichaCopiarBajaEmpresa"], valor]" />
                             }
                             else if (detalle.FechaAltaEmpresa is not null)
                             {
@@ -615,7 +615,7 @@
                         <DatoRejilla Etiqueta="@Textos["FichaCaduca"]">
                             @if (detalle.CaducidadPermisoTrabajo?.ToString("dd/MM/yyyy") is { } valor)
                             {
-                                <BotonCopiar Valor="@valor" Texto="@valor" Etiqueta="@Textos["FichaCopiarDato"]" />
+                                <BotonCopiar Valor="@valor" Texto="@valor" Etiqueta="@Textos["FichaCopiarCaducidadPermiso"]" NombreAccesible="@Textos["FichaCopiarNombreAccesibleConValor", Textos["FichaCopiarCaducidadPermiso"], valor]" />
                             }
                             else { <span>—</span> }
                         </DatoRejilla>

@@ -75,7 +75,7 @@ public class EmpresasCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
 
         // El clic se repite hasta que el propio conmutador dice que está pulsado, porque llega con el
         // prerender antes que el circuito (mismo patrón que Ayudas.MostrarCentrosSinAgruparAsync).
-        var conmutador = page.Locator("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']");
+        var conmutador = page.Locator("button[aria-label='Selección múltiple']");
         for (var intento = 1; await conmutador.GetAttributeAsync("aria-pressed") != "true"; intento++)
         {
             Assert.True(intento <= 10, "«Selección múltiple» no se aplicó tras 10 clics.");

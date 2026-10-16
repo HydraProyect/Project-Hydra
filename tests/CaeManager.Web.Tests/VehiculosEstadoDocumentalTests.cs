@@ -189,7 +189,7 @@ public partial class VehiculosEstadoDocumentalTests : BunitContext
     private static ObtenerVehiculosQuery UltimaConsulta(MediadorFalso mediador) => mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Last();
 
     private static Task AlternarSeleccionMultiple(IRenderedComponent<Vehiculos> cut) =>
-        cut.Find(".cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        cut.Find("button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
 
     private static Task MarcarAsync(IRenderedComponent<Vehiculos> cut, string nombre) =>
         CasillaDe(cut, nombre).ChangeAsync(new ChangeEventArgs { Value = true });

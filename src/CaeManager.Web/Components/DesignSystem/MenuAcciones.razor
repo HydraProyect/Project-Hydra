@@ -9,7 +9,7 @@
 *@
 <div class="menu-acciones">
     <button type="button" class="@ClasesDisparador" aria-haspopup="menu" aria-expanded="@(_abierto ? "true" : "false")"
-            aria-controls="@_panelId" aria-label="@(Etiqueta ?? EtiquetaAccesible ?? "Más acciones")" title="@(Etiqueta is null && ConBorde ? EtiquetaAccesible : null)"
+            aria-controls="@_panelId" aria-label="@(EtiquetaAccesible ?? Etiqueta ?? "Más acciones")" title="@(Etiqueta is null && ConBorde ? EtiquetaAccesible : null)"
             data-keytip="@Keytip" data-keytip-nombre="@KeytipNombre"
             @ref="_disparador" @onclick="Alternar" @onkeydown="ManejarTeclaDisparadorAsync">
         @if (Etiqueta is null)

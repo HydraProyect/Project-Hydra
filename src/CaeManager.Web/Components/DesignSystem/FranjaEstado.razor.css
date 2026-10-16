@@ -83,3 +83,12 @@
 .franja-estado-punto-info {
     color: var(--color-info-500);
 }
+
+.franja-campo-lista { display: flex; flex: 1 1 160px; min-width: 0; flex-direction: column; gap: var(--space-1); }
+.franja-campo-etiqueta { font: var(--font-caption); color: var(--color-text); }
+.franja-campo-desplegable { position: relative; }
+.franja-campo-desplegable summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: var(--space-10); padding: var(--space-2) var(--space-3); border: var(--border-default); border-radius: var(--radius-sm); color: var(--color-text); cursor: pointer; list-style: none; }
+.franja-campo-desplegable summary::-webkit-details-marker { display: none; }
+.franja-campo-desplegable summary:focus-visible { outline: var(--border-focus); }
+.franja-campo-panel { position: absolute; top: 100%; left: 0; min-width: 100%; width: max-content; max-width: min(360px, 85vw); z-index: 20; padding: var(--space-2); background: var(--color-surface); border: var(--border-default); border-radius: var(--radius-sm); }
+.franja-campo-panel .franja-estado { flex-direction: column; align-items: stretch; margin: 0; }
