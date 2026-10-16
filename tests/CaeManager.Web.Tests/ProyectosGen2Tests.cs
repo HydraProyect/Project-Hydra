@@ -397,8 +397,6 @@ public partial class ProyectosGen2Tests : BunitContext
         _mediator.Proyectos = [ProyectoAbierto];
         var cut = await RenderizarConClienteAsync();
 
-        // El enlace corta su clic y no tiene manejador propio: bUnit lo dice con esta excepción
-        // —«nadie recibe este clic»—, que es justo la propiedad. Sin el corte llegaría a la fila.
         var clic = () => FilaDe(cut, ProyectoAbierto).QuerySelector("a.boton-360-pagina")!.ClickAsync(new MouseEventArgs());
         await clic.Should().ThrowAsync<MissingEventHandlerException>();
 

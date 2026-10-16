@@ -504,4 +504,13 @@
     <value>No hay filtros guardados</value>
   </data>
   <data name="SelectorResultadoSingular" xml:space="preserve"><value>{0} resultado</value></data>
+  <data name="ListaGrupoNegocio" xml:space="preserve"><value>Negocio</value></data>
+  <data name="ListaGrupoOperacion" xml:space="preserve"><value>Operación</value></data>
+  <data name="ListaMas" xml:space="preserve"><value>Más</value></data>
+  <data name="ListaBuscar" xml:space="preserve"><value>Buscar</value></data>
+  <data name="ListaPagina" xml:space="preserve"><value>Página {0} de {1}</value></data>
+  <data name="ListaMostrar" xml:space="preserve"><value>Mostrar</value></data>
+  <data name="ListaResultadosUnidad" xml:space="preserve"><value>resultados</value></data>
+  <data name="ListaDocumentacion" xml:space="preserve"><value>Documentación</value></data>
+  <data name="ListaEstado" xml:space="preserve"><value>Estado</value></data>
 </root>

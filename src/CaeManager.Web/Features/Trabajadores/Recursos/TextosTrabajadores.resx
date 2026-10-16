@@ -628,7 +628,7 @@
     <value>Filtrar esta pantalla: nombre, DNI o alias</value>
   </data>
   <data name="ListaColumnaTrabajador" xml:space="preserve">
-    <value>Trabajador</value>
+    <value>Nombre</value>
   </data>
   <data name="ListaOpcionSubcontrata" xml:space="preserve">
     <value>{0} (subcontrata)</value>
@@ -655,7 +655,7 @@
     <value>Editar (e)</value>
   </data>
   <data name="ListaColumnaEstadoDocumental" xml:space="preserve">
-    <value>Estado documental</value>
+    <value>Documentación</value>
   </data>
   <data name="ListaColumnaRegistradosVigentes" xml:space="preserve">
     <value>Registrados vigentes</value>
@@ -716,4 +716,6 @@
   <data name="FichaCopiarNacimiento" xml:space="preserve"><value>la fecha de nacimiento</value></data>
   <data name="FichaCopiarNombreAccesible" xml:space="preserve"><value>Copiar {0}</value></data>
   <data name="FichaCopiarNombreAccesibleConValor" xml:space="preserve"><value>Copiar {0}: {1}</value></data>
+  <data name="ListaColumnaDni" xml:space="preserve"><value>DNI</value></data>
+  <data name="ListaColumnaEmpleador" xml:space="preserve"><value>Empresa / Subcontrata</value></data>
 </root>

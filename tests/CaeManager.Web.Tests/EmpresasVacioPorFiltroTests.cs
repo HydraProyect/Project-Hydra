@@ -237,8 +237,8 @@ public class EmpresasVacioPorFiltroTests : BunitContext
 
         cut.FindAll(".lista-filas-acordeon a.boton-360-pagina").Should().ContainSingle(
             "la fila pintada es la barrera que hace válida la comprobación siguiente");
-        cut.FindAll(".lista-filas-acordeon .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
         cut.FindAll(".badge-deteccion").Should().BeEmpty();
+        cut.FindAll(".lista-filas-acordeon .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
     }
 
     [Fact]

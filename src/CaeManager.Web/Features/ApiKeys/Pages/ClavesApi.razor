@@ -34,7 +34,9 @@
                     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
                     <div class="claves-api-tabla-contenedor">
-                        <table class="tabla-datos claves-api-tabla">
+                        <TarjetaListado>
+                    <Contenido>
+<table class="tabla-datos claves-api-tabla">
                             <thead><tr><th>Nombre</th><th>Prefijo</th><th>Creada</th><th>Último uso</th><th>Estado</th><th><span class="solo-lector">Acciones</span></th></tr></thead>
                             <tbody>
                             @foreach (var clave in _claves)
@@ -48,6 +50,8 @@
                             }
                             </tbody>
                         </table>
+                    </Contenido>
+                </TarjetaListado>
                     </div>
                 }
             }

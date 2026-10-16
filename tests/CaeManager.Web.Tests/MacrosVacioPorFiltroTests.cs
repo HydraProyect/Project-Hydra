@@ -99,6 +99,7 @@ public class MacrosVacioPorFiltroTests : BunitContext
     private IRenderedComponent<Macros> Renderizar(params MacroListaDto[] todas)
     {
         this.ConRolDeEscritura();
+        Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => new MediatorConSemanticaDeMacros(todas));
         Services.AddScoped<ToastService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
@@ -114,7 +115,7 @@ public class MacrosVacioPorFiltroTests : BunitContext
 
     /// <summary>El selector de cliente es el único control de la barra.</summary>
     private static void FiltrarPorCliente(IRenderedComponent<Macros> cut)
-        => cut.Find(".barra-filtros select").Change(ClienteDePrueba.Id.ToString());
+        => cut.Find(".barra-filtros-lista select").Change(ClienteDePrueba.Id.ToString());
 
     [Fact]
     public void Sin_cliente_elegido_no_se_afirma_que_no_haya_ninguna_macro()

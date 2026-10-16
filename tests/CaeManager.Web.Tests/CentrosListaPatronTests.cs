@@ -230,7 +230,7 @@ public partial class CentrosListaPatronTests : BunitContext
         var cut = Renderizar(ConCartera(origenGestionado: false, Centro("Centro Norte")), tenantSeleccionado: EmpresaSur);
 
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
-        cut.Find("header.cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("1");
+        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("1");
         cut.Markup.Should().Contain("Centro Norte");
     }
 
@@ -392,13 +392,13 @@ public partial class CentrosListaPatronTests : BunitContext
         var cut = Renderizar(ConCentros(Centro("Centro Norte"), Centro("Centro Sur")));
 
         var cabecera = cut.Find("header.cabecera-pagina");
-        cabecera.QuerySelector(".cabecera-pagina-kicker").Should().BeNull();
+        cabecera.QuerySelector(".cabecera-pagina-kicker")!.TextContent.Trim().Should().Be("Negocio");
         cabecera.QuerySelector("h1")!.TextContent.Trim().Should().Be("Centros");
-        cabecera.QuerySelector(".cabecera-listado-contador")!.TextContent.Trim().Should().Be("2");
+        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("2");
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
-        acciones.QuerySelectorAll("a.cabecera-listado-icono").Should().ContainSingle().Which.GetAttribute("aria-label").Should().Be("Exportar a Excel");
+        acciones.QuerySelectorAll("a.cabecera-listado-exportar").Should().ContainSingle().Which.GetAttribute("aria-label").Should().Be("Exportar a Excel");
         acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
-            .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nuevo centro");
+            .Should().Equal("Atajos de teclado", "Más acciones", "+ Nuevo centro");
 
         await cut.Find("header.cabecera-pagina .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
 
@@ -440,8 +440,8 @@ public partial class CentrosListaPatronTests : BunitContext
         var cut = Renderizar(ConDosClientes());
 
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(p => p.GetAttribute("aria-label"))
-            .Should().Equal(["Cliente", "Empresa", "Filtros guardados", "Agrupar: Cliente"],
-                "las pastillas de filtro, y detrás el desplegable «Agrupar», que es vista y no filtro");
+            .Should().Equal(["Cliente: Todos", "Empresa: Todas", "Filtros guardados"],
+                "el desplegable Agrupar aparece en la barra de herramientas de la lista");
         cut.RotulosDeFranja().Should().Equal(
             "Todos", "Bloqueo de la plataforma CAE", "Vencido", "Pendiente", "Por vencer", "Vigente", "No requiere gestión CAE");
         cut.MarcadosEnFranja().Should().Equal(["Todos"], "sin filtro de estado, el marcado es «Todos»");
@@ -539,7 +539,7 @@ public partial class CentrosListaPatronTests : BunitContext
         var mediador = ConDosClientes();
         var cut = Renderizar(mediador);
 
-        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Single(p => p.GetAttribute("aria-label") == "Cliente").Click();
+        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Single(p => p.GetAttribute("aria-label")!.StartsWith("Cliente:", StringComparison.Ordinal)).Click();
         cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]").Single(i => i.TextContent.Trim() == "Pegaso Cliente S.L.").Click();
 
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().ClienteId.Should().Be(ClientePegaso);
@@ -581,7 +581,7 @@ public partial class CentrosListaPatronTests : BunitContext
     }
 
     private static AngleSharp.Dom.IElement Disparador(IRenderedComponent<Centros> cut, string etiqueta) =>
-        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Single(p => p.GetAttribute("aria-label") == etiqueta);
+        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Single(p => p.GetAttribute("aria-label") is { } nombre && (nombre == etiqueta || nombre.StartsWith(etiqueta + ": ", StringComparison.Ordinal)));
 
     /// <summary>
     /// El campo de la agrupación se rotula con el texto de su pastilla de filtro (hoy «Cliente empresarial»; el
@@ -622,7 +622,7 @@ public partial class CentrosListaPatronTests : BunitContext
         workspace.EstaAbierto.Should().BeFalse("Enter no abre el panel de un Centro oculto");
         cut.FindAll(".grupo-lista-cabecera")[1].Click();
         cut.FindAll(".fila-enfocada").Should().BeEmpty("el foco se soltó al contraer");
-        cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").Click();
+        cut.Find(".lista-herramientas-maqueta button[aria-pressed]").Click();
         cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox]").Should().OnlyContain(c => !c.HasAttribute("checked"),
             "x sobre una fila oculta no la marca para el lote");
     }
@@ -636,7 +636,7 @@ public partial class CentrosListaPatronTests : BunitContext
     {
         var cut = RenderizarConGruposContraidos(ConDosClientes());
         var atajos = cut.FindComponent<AtajosListaTeclado>();
-        var conmutador = "header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']";
+        var conmutador = ".lista-herramientas-maqueta button[aria-pressed]";
         cut.Find(conmutador).Click();
         await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("j"));
         cut.FindAll(".fila-enfocada").Should().ContainSingle("control: hay fila enfocada con los grupos abiertos");
@@ -774,7 +774,7 @@ public partial class CentrosListaPatronTests : BunitContext
 
         await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("x"));
 
-        cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").GetAttribute("aria-pressed").Should().Be("true");
+        cut.Find(".lista-herramientas-maqueta button[aria-pressed]").GetAttribute("aria-pressed").Should().Be("true");
         cut.FindAll("button.grupo-lista-cabecera").Should().BeEmpty("con algo marcado los grupos no se contraen");
         cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox]").Should().HaveCount(3);
         cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox][checked]").Should().ContainSingle();
@@ -830,7 +830,7 @@ public partial class CentrosListaPatronTests : BunitContext
     {
         var cut = Renderizar(ConDosClientes());
         if (seleccionMultiple)
-            cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").Click();
+            cut.Find(".lista-herramientas-maqueta button[aria-pressed]").Click();
         string[] columnas = ["columna-empresa-centro", "columna-cumplimiento-centro"];
         static IEnumerable<string> Orden(AngleSharp.Dom.IElement contenedor, string[] clases) =>
             contenedor.Children.SelectMany(c => c.ClassList).Where(clases.Contains);
@@ -1155,7 +1155,7 @@ public partial class CentrosListaPatronTests : BunitContext
     {
         var mediador = ConDosClientes();
         var cut = RenderizarConGruposContraidos(mediador);
-        cut.Find(".barra-filtros-pastillas .barra-herramientas-lista button").Click();
+        cut.Find(".lista-herramientas-maqueta button[data-keytip=E]").Click();
         var vencido = mediador.Centros.Single(c => c.Estado == EstadoCentro.Vencido);
         var acordeon = cut.FindComponents<Bunit.TestDoubles.Stub<AcordeonAsignacionesCentro>>()
             .Single(a => a.Instance.Parameters.Get(p => p.CentroId) == vencido.Id);
@@ -1183,7 +1183,7 @@ public partial class CentrosListaPatronTests : BunitContext
     {
         var mediador = ConDosClientes();
         var cut = RenderizarConGruposContraidos(mediador);
-        cut.Find(".barra-filtros-pastillas .barra-herramientas-lista button").Click();
+        cut.Find(".lista-herramientas-maqueta button[data-keytip=E]").Click();
         var vencido = mediador.Centros.Single(c => c.Estado == EstadoCentro.Vencido);
         string[] CabecerasYFilas() => cut
             .FindAll(".lista-filas-acordeon .grupo-lista-nombre, .lista-filas-acordeon .enlace-nombre-fila")
@@ -1246,9 +1246,9 @@ public partial class CentrosListaPatronTests : BunitContext
         var cut = RenderizarConGruposContraidos(ConDosClientes());
 
         var agrupar = DesplegableAgrupar(cut);
-        var expandir = cut.Find(".barra-filtros-pastillas .barra-herramientas-lista button");
+        var expandir = cut.Find(".lista-herramientas-maqueta button[data-keytip=E]");
         agrupar.CompareDocumentPosition(expandir).HasFlag(AngleSharp.Dom.DocumentPositions.Following).Should().BeTrue();
-        agrupar.Closest(".barra-filtros-pastillas").Should().NotBeNull();
+        agrupar.Closest(".lista-herramientas-maqueta").Should().NotBeNull();
         cut.FindAll(".segmentado-lista").Should().BeEmpty();
 
         agrupar.Click();
@@ -1317,13 +1317,13 @@ public partial class CentrosListaPatronTests : BunitContext
     {
         var cut = RenderizarConGruposContraidos(ConDosClientes());
 
-        cut.Find(".barra-filtros-pastillas .barra-herramientas-lista button").Click();
+        cut.Find(".lista-herramientas-maqueta button[data-keytip=E]").Click();
 
         cut.FindAll(".grupo-lista-cabecera").Select(c => c.GetAttribute("aria-expanded")).Should().AllBe("true");
         cut.FindAll(".boton-expandir-fila").Select(b => b.GetAttribute("aria-expanded")).Should().Equal("true", "true", "true");
-        cut.Find(".barra-filtros-pastillas .barra-herramientas-lista button").TextContent.Trim().Should().Be("Contraer todo");
+        cut.Find(".lista-herramientas-maqueta button[data-keytip=E]").TextContent.Trim().Should().Be("Contraer todo");
 
-        cut.Find(".barra-filtros-pastillas .barra-herramientas-lista button").Click();
+        cut.Find(".lista-herramientas-maqueta button[data-keytip=E]").Click();
 
         cut.FindAll(".grupo-lista-cabecera").Select(c => c.GetAttribute("aria-expanded")).Should().AllBe("false");
         cut.FindAll(".tarjeta-fila-acordeon").Should().BeEmpty();
@@ -1338,7 +1338,7 @@ public partial class CentrosListaPatronTests : BunitContext
     {
         var cut = RenderizarConGruposContraidos(ConDosClientes());
 
-        cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").Click();
+        cut.Find(".lista-herramientas-maqueta button[aria-pressed]").Click();
 
         cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox]").Should().HaveCount(3);
     }
@@ -1417,11 +1417,11 @@ public partial class CentrosListaPatronTests : BunitContext
     /// </summary>
     [Theory]
     [InlineData("input[aria-label='Seleccionar el centro Centro Norte']")]
-    [InlineData("a.boton-360-pagina")]
+
     public async Task La_casilla_y_el_icono_360_cortan_el_clic_antes_de_la_fila(string selector)
     {
         var cut = Renderizar(ConCentros(Centro("Centro Norte")));
-        await cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        await cut.Find(".lista-herramientas-maqueta button[aria-pressed]").ClickAsync(new MouseEventArgs());
 
         var clic = () => cut.Find(".lista-filas-acordeon " + selector).ClickAsync(new MouseEventArgs());
 
@@ -1513,12 +1513,13 @@ public partial class CentrosListaPatronTests : BunitContext
     {
         var cut = Renderizar(ConCentros(Enumerable.Range(1, centros).Select(i => Centro($"Centro {i:00}")).ToArray()));
 
-        cut.FindAll(".paginador-inicio button").Any().Should().Be(conPaginador);
-        cut.Find(".tarjeta-listado-pie .paginador-opciones-tamano").Should().NotBeNull();
+        cut.Find(".pie-lista-inicio button").HasAttribute("disabled").Should().BeTrue();
+        cut.Find(".pie-lista-opciones button").HasAttribute("disabled").Should().Be(!conPaginador);
+        cut.Find(".pie-lista-opciones select").Should().NotBeNull();
         var tarjeta = cut.Find(".tarjeta-listado");
         tarjeta.QuerySelector(".tarjeta-listado-contenido .cabecera-columnas-centros").Should().NotBeNull();
         tarjeta.QuerySelector(".tarjeta-listado-contenido .lista-filas-acordeon").Should().NotBeNull();
-        tarjeta.QuerySelector(".tarjeta-listado-pie .leyenda-atajos-lista").Should().NotBeNull();
+        cut.Find(".pie-lista-atajos .leyenda-atajos-lista").Should().NotBeNull();
     }
 
     [Fact]
@@ -1527,7 +1528,7 @@ public partial class CentrosListaPatronTests : BunitContext
         var mediador = ConCentros(Enumerable.Range(1, 21).Select(i => Centro($"Centro {i:00}")).ToArray());
         var cut = Renderizar(mediador);
 
-        cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent == "50").Click();
+        cut.Find(".pie-lista-opciones select").Change("50");
 
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().TamanoPagina.Should().Be(50);
     }

@@ -846,7 +846,7 @@ public partial class UsuariosGen2Tests : BunitContext
         var cut = Renderizar();
 
         cut.Find(".estado-vacio").TextContent.Should().Contain("Aún no hay usuarios");
-        cut.FindAll(".barra-filtros").Should().BeEmpty();
+        cut.FindAll(".barra-filtros-lista").Should().BeEmpty();
         cut.Find(".estado-vacio").QuerySelector(".estado-vacio-accion").Should().BeNull(
             "el alta ya está en la cabecera");
     }
@@ -862,7 +862,7 @@ public partial class UsuariosGen2Tests : BunitContext
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
 
         var cut = Renderizar();
-        await cut.Find(".barra-filtros input").InputAsync(new() { Value = "no-existe-nadie-asi" });
+        await cut.Find(".barra-filtros-lista input").InputAsync(new() { Value = "no-existe-nadie-asi" });
 
         var vacio = cut.Find(".estado-vacio").TextContent;
         vacio.Should().Contain("Ningún usuario coincide");

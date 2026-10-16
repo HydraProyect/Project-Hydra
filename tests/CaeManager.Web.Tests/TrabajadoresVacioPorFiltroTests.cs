@@ -218,7 +218,7 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
         // D-15: sin alcance no hay lista que filtrar, guardar ni exportar.
         cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty("filtros y «Guardar filtro» sobre una lista que no puede existir");
         cut.FindAll("header.cabecera-pagina a[data-keytip=X]").Should().BeEmpty("sin alcance no se ofrece exportar una lista que no puede existir");
-        cut.FindAll("header.cabecera-pagina button.cabecera-listado-icono[aria-pressed]").Should().BeEmpty("sin lista no hay nada que seleccionar");
+        cut.FindAll(".lista-herramientas-maqueta button[aria-pressed]").Should().BeEmpty("sin lista no hay nada que seleccionar");
     }
 
     [Fact]

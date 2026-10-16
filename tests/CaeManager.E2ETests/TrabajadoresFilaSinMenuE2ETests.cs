@@ -22,7 +22,7 @@ public class TrabajadoresFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     // recorrido vale para cualquier fila, así que se toma la primera, y su celda «Empresa» (la
     // segunda) como punto de la fila que no es ningún control.
     private static ILocator PrimeraFila(IPage page) => page.Locator("tbody tr.fila-pulsable").First;
-    private static ILocator CeldaSinControles(ILocator fila) => fila.Locator("td:nth-child(2)");
+    private static ILocator CeldaSinControles(ILocator fila) => fila.Locator("td:nth-child(3)");
 
     private async Task<IPage> AbrirTrabajadoresAsync(IBrowserContext contexto)
     {

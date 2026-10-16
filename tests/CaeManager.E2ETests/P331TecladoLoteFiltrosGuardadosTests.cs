@@ -78,9 +78,13 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         // («Gestor CAE»): es un botón, y los botones no consumen j/k/x, así que
         // desde ahí j/k sí deben recorrer la lista. No suponemos más que eso.
         await page.Keyboard.PressAsync("Tab");
-        var pastillaGestor = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Gestor CAE", Exact = true });
+        // En la presentación de maqueta el desplegable de Documentación precede a las pastillas: se sigue con Tab
+        // hasta la de «Gestor CAE» (como mucho dos pasos más).
+        var pastillaGestor = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex(@"^Gestor CAE(?::|$)") });
+        for (var paso = 0; paso < 2 && !await pastillaGestor.EvaluateAsync<bool>("e => e === document.activeElement"); paso++)
+            await page.Keyboard.PressAsync("Tab");
         await Expect(pastillaGestor).ToBeFocusedAsync();
-        await Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Criticidad", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex(@"^Criticidad(?::|$)") })).ToBeVisibleAsync();
 
         // Salir del buscador dispara ManejarBlurAsync (CampoTexto.razor),
         // que reinvoca ValorChanged aunque el valor no haya cambiado — eso
@@ -200,7 +204,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
-        var buscador = page.GetByRole(AriaRole.Textbox, new PageGetByRoleOptions { Name = "Filtrar esta pantalla", Exact = true });
+        var buscador = page.GetByRole(AriaRole.Textbox, new PageGetByRoleOptions { Name = "Buscar", Exact = true });
         await Expect(buscador).Not.ToBeFocusedAsync();
 
         // Un botón con el foco no consume la «f» (mismo criterio que j/k).
@@ -224,11 +228,11 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
-        var buscador = page.GetByRole(AriaRole.Textbox, new PageGetByRoleOptions { Name = "Filtrar esta pantalla", Exact = true });
+        var buscador = page.GetByRole(AriaRole.Textbox, new PageGetByRoleOptions { Name = "Buscar", Exact = true });
 
         // Menú abierto: la pastilla «Criticidad» enfoca su opción vigente («Todos»). Hasta el 2026-10-08 se
         // usaba la pastilla «Estado», que pasó a ser la franja de estado (botones, sin menú).
-        var pastillaEstado = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Criticidad", Exact = true });
+        var pastillaEstado = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex(@"^Criticidad(?::|$)") });
         await pastillaEstado.ClickAsync();
         var todos = page.GetByRole(AriaRole.Menuitemradio, new PageGetByRoleOptions { Name = "Todos", Exact = true });
         await Expect(todos).ToBeFocusedAsync();

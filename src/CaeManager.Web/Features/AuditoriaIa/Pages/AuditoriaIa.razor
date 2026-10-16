@@ -21,22 +21,24 @@
         </Descripcion>
     </CabeceraPagina>
 
-    <div class="barra-filtros">
-        <CampoSelect Etiqueta="Proveedor" Valor="@(_filtroProveedor ?? string.Empty)" ValorChanged="FiltrarPorProveedorAsync">
-            <option value="">Todos</option>
-            @foreach (var (codigo, nombre) in ProveedoresDelDesplegable)
-            {
-                <option value="@codigo">@nombre</option>
-            }
-            @if (FiltroFueraDelDesplegable)
-            {
-                @* Un ?proveedor= que no está en la lista (enlace compartido, código
-                   nuevo) se ofrece seleccionado: dejar el control en «Todos» sobre
-                   una tabla filtrada mentiría sobre lo que se está viendo. *@
-                <option value="@_filtroProveedor">@NombreProveedor(_filtroProveedor!)</option>
-            }
-        </CampoSelect>
-    </div>
+    <section class="barra-filtros-lista">
+        <div class="barra-filtros-lista-fila">
+            <CampoSelect Etiqueta="Proveedor" Valor="@(_filtroProveedor ?? string.Empty)" ValorChanged="FiltrarPorProveedorAsync">
+                <option value="">Todos</option>
+                @foreach (var (codigo, nombre) in ProveedoresDelDesplegable)
+                {
+                    <option value="@codigo">@nombre</option>
+                }
+                @if (FiltroFueraDelDesplegable)
+                {
+                    @* Un ?proveedor= que no está en la lista (enlace compartido, código
+                       nuevo) se ofrece seleccionado: dejar el control en «Todos» sobre
+                       una tabla filtrada mentiría sobre lo que se está viendo. *@
+                    <option value="@_filtroProveedor">@NombreProveedor(_filtroProveedor!)</option>
+                }
+            </CampoSelect>
+        </div>
+    </section>
 
     @if (_error)
     {
@@ -206,7 +208,7 @@
             </table>
         </div>
 
-        <PaginadorSimple PaginaActual="Resultado.Pagina" TotalPaginas="Resultado.TotalPaginas"
+        <PaginadorSimple PresentacionMaqueta="true" ElementosEnPagina="Resultado.Elementos.Count" TamanoPagina="Resultado.TamanoPagina" PaginaActual="Resultado.Pagina" TotalPaginas="Resultado.TotalPaginas"
                           TotalElementos="Resultado.TotalElementos" Etiqueta="registro(s)"
                           PaginaActualChanged="IrAPaginaAsync" />
     }

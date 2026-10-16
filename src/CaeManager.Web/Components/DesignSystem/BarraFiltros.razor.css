@@ -1,0 +1,20 @@
+.barra-filtros-maqueta {
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-3);
+}
+.barra-filtros-maqueta .barra-filtros-pastillas-fila { align-items: flex-end; gap: var(--space-3); }
+.barra-filtros-maqueta .barra-filtros-buscador-pantalla { flex: 2 1 260px; max-width: none; }
+.barra-filtros-maqueta ::deep .campo label { font: var(--font-caption); color: var(--color-text); }
+.barra-filtros-maqueta .barra-filtros-buscador-icono,
+.barra-filtros-maqueta .barra-filtros-tecla { top: auto; bottom: var(--space-3); transform: none; }
+.barra-filtros-maqueta ::deep .campo-input { min-height: var(--space-10); }
+.barra-filtros-maqueta ::deep .menu-acciones-disparador-pastilla { min-height: var(--space-10); border-radius: var(--radius-sm); }
+.barra-filtros-maqueta .guardar-filtro-barra { margin-left: auto; }
+.lista-herramientas-maqueta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-3); }
+.lista-contador { color: var(--color-text-muted); font: var(--font-body-md); }
+.lista-herramientas-maqueta ::deep .barra-herramientas-lista:empty { display: none; }
+
+.lista-contador .cabecera-listado-contador { padding: 0; border-radius: 0; background: none; font: inherit; }

@@ -58,7 +58,7 @@ public partial class VisitasGen2Tests
 
     private static async Task IrALaPaginaDosDeVisitasAsync(IRenderedComponent<Visitas> cut)
     {
-        await cut.FindAll(".paginador-simple button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => CentrosDeLasFilas(cut).Should().HaveCount(5));
     }
 
@@ -109,7 +109,7 @@ public partial class VisitasGen2Tests
         cut.WaitForAssertion(() => BotonVistaRapida(cut, "Centro 23").TextContent.Trim().Should().Be(TextoFechasEsperado(UnaSemanaMas(editada))));
         CentrosDeLasFilas(cut).Should().Equal("Centro 21", "Centro 22", "Centro 23", "Centro 24", "Centro 25");
         ComprobacionPieListado.Pagina(cut, 2, 2);
-        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 5 de 25");
+        cut.Find(".paginador-texto").TextContent.Should().EndWith("Mostrando 5 de 25");
         CasillaDeSeleccion(cut, "Centro 22").HasAttribute("checked").Should().BeTrue("la selección de otra fila sigue marcada");
         CasillaDeSeleccion(cut, "Centro 23").HasAttribute("checked").Should().BeTrue("la fila sustituida sigue seleccionada");
         cut.FindAll("tbody input[type=checkbox]:not(.visitas-interruptor)").Count(c => c.HasAttribute("checked")).Should().Be(2);

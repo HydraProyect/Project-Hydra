@@ -10,7 +10,7 @@
 *@
 @if (ElementosEnPagina is not null || TextoFilasMostradas is not null)
 {
-    <PieListado PaginaActual="PaginaActual" TotalPaginas="TotalPaginas" TotalElementos="TotalElementos"
+    <PieListado PresentacionMaqueta="PresentacionMaqueta" PaginaActual="PaginaActual" TotalPaginas="TotalPaginas" TotalElementos="TotalElementos"
                 ElementosEnPagina="ElementosEnPagina" TamanoPagina="TamanoPagina" OpcionesTamanoPagina="OpcionesTamanoPagina"
                 PaginaActualChanged="PaginaActualChanged" TamanoPaginaChanged="TamanoPaginaChanged"
                 TextoFilasMostradas="@TextoFilasMostradas" EtiquetaTamanoPagina="@EtiquetaTamanoPagina"
@@ -44,6 +44,7 @@ else
 }
 
 @code {
+    [Parameter] public bool PresentacionMaqueta { get; set; }
     [Parameter] public int PaginaActual { get; set; } = 1;
     [Parameter] public int TotalPaginas { get; set; }
     [Parameter] public int TotalElementos { get; set; }

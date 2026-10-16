@@ -1,5 +1,6 @@
 @page "/gestiones"
 @rendermode InteractiveServer
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> ComunesLista
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Gestiones.Commands.CompletarGestion
@@ -22,21 +23,23 @@
 
 <div class="contenedor-pagina">
     @* Sin alta: las gestiones se crean desde los caminos ya existentes. *@
-    <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : (int?)_totalElementos)"
+    <CabeceraListado Grupo="Operacion" ControlesEnBarra="true" Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : (int?)_totalElementos)"
                          RutaExportar="/gestiones/exportar.xlsx" CriteriosExportar="CriteriosExportar">
             <Menu>
                 <CaeManager.Web.Exportacion.EntradasExportar Ruta="/gestiones/exportar.xlsx" />
             </Menu>
     </CabeceraListado>
 
-    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
+    <BarraFiltros PresentacionMaqueta="true" Contador="@(_cargando || _errorCarga ? null : (int?)_totalElementos)" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
                   PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
                   OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
                   VistaRecordada="_vistaRecordada">
         @* Sin pastillas desde que el estado se filtra en la franja; el fragmento vacío mantiene la barra en modo pastillas. *@
-        <Pastillas></Pastillas>
+        <Pastillas>
+            <FranjaEstado PresentacionCampo="true" Etiqueta="@ComunesLista["ListaEstado"]" Opciones="OpcionesEstado" Valor="@_filtroEstado" ValorChanged="FiltrarPorEstadoAsync"
+                  Recuentos="_recuentosPorEstado" TextoTodos="@Textos["FiltroTodas"]" /></Pastillas>
         <Chips>
             @if (!string.IsNullOrWhiteSpace(_busqueda))
             {
@@ -48,10 +51,9 @@
                                OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Gestiones"
                              ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
-    @* Franja de estado: sustituye a la pastilla «Estado». Viaja en la URL como «estado» y cada botón dice
+    @* Selector desplegable de estado: conserva la semántica de la franja para «Estado». Viaja en la URL como «estado» y cada botón dice
        cuántas Gestiones hay, con la búsqueda aplicada. Con los dos botones marcados se ven todas. *@
-    <FranjaEstado Opciones="OpcionesEstado" Valor="@_filtroEstado" ValorChanged="FiltrarPorEstadoAsync"
-                  Recuentos="_recuentosPorEstado" TextoTodos="@Textos["FiltroTodas"]" />
+
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
     @if (_errorCarga)
     {
@@ -72,7 +74,7 @@
         @* La rejilla se monta siempre (es la que pide los datos): se esconde
            mientras no haya filas que enseñar, y en su lugar se ve el esqueleto
            o el estado vacío que toque. *@
-        @TarjetaListado.Renderizar(@<text>
+        @TarjetaListado.RenderizarMaqueta(@<text>
                 <div style="display:@(_totalElementos == 0 ? "none" : "block")">
                 <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="GestionListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                     <TemplateColumn @ref="_columnaTrabajador" Title="@Textos[_ordenTrabajadorPorCentro ? "ListaTrabajadorPorCentro" : "ColumnaTrabajador"]"
@@ -132,7 +134,7 @@
                         </SoloConEscritura>
                     </TemplateColumn>
                 </QuickGrid>
-            
+
                 </div>
 
         @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
@@ -253,7 +255,7 @@
     private RenderFragment? PieDelListado => _errorCarga || (_cargando && _totalElementos == 0) ? null : @<text>
         @if (!_errorCarga && (!_cargando || _totalElementos > 0))
         {
-            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+            <PaginadorSimple PresentacionMaqueta="true" PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
                                   TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
                     <Centro><LeyendaAtajosLista Omitir="@(["x", "e"])" /></Centro>

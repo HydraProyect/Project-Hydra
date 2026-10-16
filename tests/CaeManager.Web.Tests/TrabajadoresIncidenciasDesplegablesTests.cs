@@ -70,10 +70,10 @@ public partial class TrabajadoresListaGen2Tests
         for (var i = 0; i < 21; i++) mediador.Almacen.Add(ConDesglose(Trabajador($"Persona{i:00}", "Alonso"), 1, 0, IncidenciaDe("Contrato", EstadoDocumento.Vencido, -2)));
         var cut = Renderizar(mediador);
         AbrirIncidencias(cut);
-        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 20 de 21");
+        cut.Find(".paginador-texto").TextContent.Should().EndWith("Mostrando 20 de 21");
         FilasDeDatos(cut).Should().HaveCount(20);
         await cut.Find("button[aria-label='Siguiente']").ClickAsync(new MouseEventArgs());
-        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 1 de 21");
+        cut.Find(".paginador-texto").TextContent.Should().EndWith("Mostrando 1 de 21");
         cut.FindAll(".trabajador-detalle-incidencias").Should().BeEmpty();
         await cut.Find("button[aria-label='Anterior']").ClickAsync(new MouseEventArgs());
         cut.FindAll(".trabajador-detalle-incidencias").Should().BeEmpty();
@@ -115,7 +115,7 @@ public partial class TrabajadoresListaGen2Tests
     {
         var cut = Renderizar(new MediatorFalso(), "trabajadores?q=Nadie");
         cut.FindAll(".tarjeta-listado .estado-vacio").Should().ContainSingle();
-        cut.Find(".tarjeta-listado .paginador-texto").TextContent.Should().Be("Mostrando 0 de 0");
+        cut.Find(".tarjeta-listado-pie-separado .paginador-texto").TextContent.Should().EndWith("Mostrando 0 de 0");
         FilasDeDatos(cut).Should().BeEmpty();
     }
     [Fact]

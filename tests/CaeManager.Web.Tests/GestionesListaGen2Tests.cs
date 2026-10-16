@@ -221,16 +221,16 @@ public partial class GestionesListaGen2Tests : BunitContext
         cut.Find("aside.vista-rapida-gestion .meta-vista-rapida-gestion .badge").TextContent.Trim();
 
     [Fact]
-    public void La_cabecera_lleva_total_medido_sin_kicker_alta_ni_seleccion()
+    public void La_cabecera_indica_operacion_y_el_total_medido_va_en_la_barra_sin_alta_ni_seleccion()
     {
         var m = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra") } };
         var cut = Renderizar(m);
         m.Enviadas.OfType<ObtenerGestionesQuery>().Should().NotBeEmpty();
         cut.FindAll("tbody tr:has(.gestion-trabajador-centro)").Should().ContainSingle();
-        cut.FindAll("header.cabecera-pagina .cabecera-pagina-kicker").Should().BeEmpty();
+        cut.Find("header.cabecera-pagina .cabecera-pagina-kicker").TextContent.Trim().Should().Be("Operación");
         cut.Find("header.cabecera-pagina h1").TextContent.Trim().Should().Be("Gestiones");
-        cut.Find("header.cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("1");
-        cut.FindAll("header.cabecera-pagina button[aria-label='Selección múltiple']").Should().BeEmpty();
+        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("1");
+        cut.FindAll("button[aria-label='Selección múltiple']").Should().BeEmpty();
         cut.Markup.Should().NotContain("Se crean solas");
         cut.Markup.Should().NotContain("Nueva gestión", "esta pantalla no da de alta");
     }
@@ -830,9 +830,9 @@ public partial class GestionesListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         ColumnaDeLasFilas(cut, 0).Should().HaveCount(20).And.StartWith("Trabajador 25");
         ComprobacionPieListado.Pagina(cut, 1, 2);
-        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 20 de 25");
+        cut.Find(".paginador-texto").TextContent.Should().EndWith("Mostrando 20 de 25");
 
-        await cut.FindAll(".paginador-simple button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
 
         var consulta = mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last();
         consulta.Pagina.Should().Be(2);
@@ -840,7 +840,7 @@ public partial class GestionesListaGen2Tests : BunitContext
         cut.WaitForAssertion(() => ColumnaDeLasFilas(cut, 0).Should().Equal(
             ["Trabajador 05", "Trabajador 04", "Trabajador 03", "Trabajador 02", "Trabajador 01"]));
         ComprobacionPieListado.Pagina(cut, 2, 2);
-        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 5 de 25");
+        cut.Find(".paginador-texto").TextContent.Should().EndWith("Mostrando 5 de 25");
     }
 
     [Fact]
@@ -964,7 +964,7 @@ public partial class GestionesListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         var consultasAntes = ConsultasDeLista(mediador);
 
-        await cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent == "50").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        await cut.Find(".pie-lista-opciones select").ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "50" });
 
         cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last().TamanoPagina.Should().Be(50));
         mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last().Pagina.Should().Be(1);

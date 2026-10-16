@@ -656,7 +656,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
 
     /// <summary>El conmutador ☑ «Selección múltiple» de la cabecera.</summary>
     private static IElement ConmutadorSeleccion(IRenderedComponent<Trabajadores> cut) =>
-        cut.Find("header.cabecera-pagina button.cabecera-listado-icono");
+        cut.Find(".lista-herramientas-maqueta button[aria-pressed]");
 
     private static Task AlternarSeleccionMultiple(IRenderedComponent<Trabajadores> cut) =>
         ConmutadorSeleccion(cut).ClickAsync(new MouseEventArgs());
@@ -892,14 +892,14 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
 
         var cabecera = cut.Find("header.cabecera-pagina");
         cabecera.QuerySelector("h1.titulo-pagina")!.TextContent.Trim().Should().Be(titulo);
-        cabecera.QuerySelector(".cabecera-pagina-kicker").Should().BeNull("el grupo del menú ya está en las migas");
-        cabecera.QuerySelector(".cabecera-listado-contador")!.TextContent.Trim().Should().Be("2");
+        cabecera.QuerySelector(".cabecera-pagina-kicker")!.TextContent.Trim().Should().Be("Negocio");
+        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("2");
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
 
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
-        acciones.QuerySelectorAll("a.cabecera-listado-icono").Should().ContainSingle().Which.GetAttribute("aria-label").Should().Be("Exportar a Excel");
+        acciones.QuerySelectorAll("a.cabecera-listado-exportar").Should().ContainSingle().Which.GetAttribute("aria-label").Should().Be("Exportar a Excel");
         acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
-            .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nuevo trabajador");
+            .Should().Equal("Atajos de teclado", "Más acciones", "+ Nuevo trabajador");
     }
 
     [Fact]
@@ -936,7 +936,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
 
         var buscador = cut.Find(".barra-filtros-pastillas input[type=text]");
         buscador.GetAttribute("placeholder").Should().Be("Filtrar esta pantalla: nombre, DNI o alias");
-        buscador.GetAttribute("aria-label").Should().Be("Filtrar esta pantalla");
+        buscador.GetAttribute("aria-label").Should().Be("Buscar");
         buscador.HasAttribute("data-filtro-pantalla").Should().BeTrue("es lo que enfoca la tecla f (atajos-lista.js)");
         cut.Find(".barra-filtros-pastillas kbd.barra-filtros-tecla").TextContent.Trim().Should().Be("F");
     }
@@ -953,7 +953,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(b => b.GetAttribute("aria-label"))
-            .Should().Equal("Empresa", "Centro", "Filtros guardados");
+            .Should().Equal("Empresa: Todas", "Centro: Todos", "Filtros guardados");
         cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Por vencer", "Sin confirmar", "Sin incidencias");
         cut.MarcadosEnFranja().Should().Equal(["Todos"], "sin filtro de estado, el marcado es «Todos»");
         UltimaConsulta(mediador).ConRecuentosPorEstado.Should().BeTrue("sin pedirlos, la franja no tendría cifras");
@@ -1450,30 +1450,30 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
     // --- Filas (rediseño de listados, fase 1) ------------------------------------------------
 
     /// <summary>
-    /// Una sola celda «Trabajador» con «Nombre Apellidos» (abre la vista rápida) y el DNI copiable debajo;
-    /// después Empresa, «Registrados vigentes» y «Estado documental» con la pastilla de estado. Sin incidencias
+    /// Una celda «Trabajador» con «Nombre Apellidos» que abre la vista rápida y otra con el DNI copiable;
+    /// después Empresa y «Estado documental» con la pastilla de estado. Sin incidencias
     /// que desglosar, la celda de estado es solo la pastilla (el motivo y «vigentes/registrados» se prueban en
     /// TrabajadoresListaGen2Tests.EstadoDocumental.cs). Sin la documentación base del listado («Al día en lo
     /// básico» y sus cuatro puntos), que ni siquiera se pide.
     /// </summary>
     [Fact]
-    public void La_fila_lleva_la_celda_Trabajador_con_el_DNI_debajo_la_empresa_los_vigentes_y_el_estado()
+    public void La_fila_separa_el_DNI_del_nombre_y_conserva_la_empresa_y_el_estado()
     {
         var javier = Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Urgente);
         var mediador = new MediatorFalso { Almacen = { javier } };
         var cut = Renderizar(mediador);
 
         cut.FindAll("thead th").Select(th => th.TextContent.Trim())
-            .Should().Equal("Trabajador", "Empresa", "Registrados vigentes", "Estado documental", "");
+            .Should().Equal("Nombre", "DNI", "Empresa / Subcontrata", "Registrados vigentes", "Documentación", "");
         var fila = FilasDeDatos(cut).Single();
         var celdas = fila.QuerySelectorAll("td");
         celdas[0].QuerySelector(".enlace-nombre-fila")!.TextContent.Trim().Should().Be("Javier Salas Moreno");
-        celdas[0].QuerySelector(".celda-trabajador-dni")!.TextContent.Should().Contain("DNI").And.Contain(javier.Dto.Dni);
-        celdas[1].TextContent.Trim().Should().Be("Montajes Ebro S.L.");
-        celdas[2].ClassList.Should().Contain("col-registrados-vigentes");
-        celdas[3].QuerySelector(".badge")!.TextContent.Trim().Should().Be("Por vencer", "Urgente y Próximo se rotulan igual");
-        celdas[3].QuerySelector(".badge")!.ClassList.Should().Contain("badge-advertencia", "y con el mismo tono: lo urgente ya no va en rojo en la pastilla");
-        celdas[3].TextContent.Trim().Should().Be("Por vencer", "sin incidencias en el desglose no hay motivo que pintar: solo la pastilla");
+        celdas[0].QuerySelector(".celda-trabajador-dni").Should().BeNull();
+        celdas[1].QuerySelector(".celda-trabajador-dni")!.TextContent.Should().Contain(javier.Dto.Dni);
+        celdas[2].TextContent.Trim().Should().Be("Montajes Ebro S.L.");
+        celdas[4].QuerySelector(".badge")!.TextContent.Trim().Should().Be("Por vencer", "Urgente y Próximo se rotulan igual");
+        celdas[4].QuerySelector(".badge")!.ClassList.Should().Contain("badge-advertencia", "y con el mismo tono: lo urgente ya no va en rojo en la pastilla");
+        celdas[4].TextContent.Trim().Should().Be("Por vencer", "sin incidencias en el desglose no hay motivo que pintar: solo la pastilla");
         cut.Markup.Should().NotContain("Al día en lo básico").And.NotContain("Documentación base");
         cut.FindAll(".panel-doc-base").Should().BeEmpty();
         mediador.Enviadas.Should().NotContain(e => e.GetType().Name == "ObtenerDocumentacionBaseTrabajadoresQuery",
@@ -1544,8 +1544,8 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         Columna(cut, 0).Should().HaveCount(20, "control positivo: la página está llena");
-        cut.FindAll(".paginador-simple").Should().ContainSingle();
-        cut.FindAll(".paginador-inicio button").Should().BeEmpty();
+        cut.FindAll(".pie-lista-maqueta").Should().ContainSingle();
+        cut.FindAll(".pie-lista-maqueta button").Should().OnlyContain(b => b.HasAttribute("disabled"));
         cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("20");
     }
 
@@ -1637,13 +1637,13 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         Columna(cut, 0).Should().Equal(["Zubiri", "Alonso", "Moreno"], "punto de partida: el peor estado primero");
 
-        await CabeceraOrdenable(cut, "Trabajador").ClickAsync(new MouseEventArgs());
+        await CabeceraOrdenable(cut, "Nombre").ClickAsync(new MouseEventArgs());
 
         UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(TrabajadorListaDto.Apellidos));
         UltimaConsulta(mediador).Descendente.Should().BeFalse();
         cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal(["Alonso", "Moreno", "Zubiri"]));
 
-        await CabeceraOrdenable(cut, "Trabajador").ClickAsync(new MouseEventArgs());
+        await CabeceraOrdenable(cut, "Nombre").ClickAsync(new MouseEventArgs());
 
         UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(TrabajadorListaDto.Apellidos));
         UltimaConsulta(mediador).Descendente.Should().BeTrue("la segunda pulsación invierte el orden");
@@ -1659,7 +1659,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador);
 
-        await CabeceraOrdenable(cut, "Empresa").ClickAsync(new MouseEventArgs());
+        await CabeceraOrdenable(cut, "Empresa / Subcontrata").ClickAsync(new MouseEventArgs());
 
         UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(TrabajadorListaDto.EmpleadorNombre));
         cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal(["Moreno", "Alonso"], "Dexter va antes que Montajes"));
@@ -1682,18 +1682,18 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         Columna(cut, 0).Should().HaveCount(20).And.StartWith("Apellido 01");
         ComprobacionPieListado.Pagina(cut, 1, 2);
-        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 20 de 25");
+        cut.Find(".paginador-texto").TextContent.Should().EndWith("Mostrando 20 de 25");
 
-        await cut.FindAll(".paginador-simple button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
 
         UltimaConsulta(mediador).Pagina.Should().Be(2);
         UltimaConsulta(mediador).TamanoPagina.Should().Be(20);
         cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal(
             ["Apellido 21", "Apellido 22", "Apellido 23", "Apellido 24", "Apellido 25"]));
         ComprobacionPieListado.Pagina(cut, 2, 2);
-        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 5 de 25");
+        cut.Find(".paginador-texto").TextContent.Should().EndWith("Mostrando 5 de 25");
 
-        await cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent == "50").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        await cut.Find(".pie-lista-opciones select").ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "50" });
 
         UltimaConsulta(mediador).Pagina.Should().Be(1);
         UltimaConsulta(mediador).TamanoPagina.Should().Be(50);
@@ -1710,7 +1710,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         var consultasAntes = ConsultasDeLista(mediador);
 
-        await cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent == "50").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        await cut.Find(".pie-lista-opciones select").ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "50" });
 
         cut.WaitForAssertion(() => Columna(cut, 0).Should().HaveCount(25));
         UltimaConsulta(mediador).TamanoPagina.Should().Be(50);

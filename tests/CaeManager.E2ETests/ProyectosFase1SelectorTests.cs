@@ -22,7 +22,7 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
         var selector = page.GetByRole(AriaRole.Button,
             new PageGetByRoleOptions { NameRegex = new Regex(@"^Cliente(?:$|:)") });
         await Expect(selector).ToBeVisibleAsync();
-        await Expect(selector).ToHaveTextAsync("Cliente");
+        await Expect(selector).ToHaveAttributeAsync("aria-label", "Cliente: Todos");
         // Sin elegir nada, la lista ya trae filas: las de todos los Clientes empresariales del alcance.
         var filas = page.Locator("table.tabla-proyectos tbody tr");
         await Expect(filas).Not.ToHaveCountAsync(0);
@@ -43,7 +43,7 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
         await opcion.FocusAsync();
         await opcion.PressAsync("Space");
         await Expect(menu).ToBeHiddenAsync();
-        Assert.True((await selector.InnerTextAsync()).Trim() == "Cliente: " + contraparte,
+        Assert.True(await selector.GetAttributeAsync("aria-label") == "Cliente: " + contraparte,
             "La selección física no aplica el Cliente concreto a la pastilla de Proyectos.");
         // Control positivo de la ausencia del final: elegido, el filtro viaja en la URL.
         await Expect(page).ToHaveURLAsync(new Regex("cliente="));
@@ -57,7 +57,7 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
         await elegir.FocusAsync();
         await elegir.PressAsync("Space");
         await Expect(menu).ToBeHiddenAsync();
-        await Expect(selector).ToHaveTextAsync("Cliente");
+        await Expect(selector).ToHaveAttributeAsync("aria-label", "Cliente: Todos");
         await Expect(selector).ToBeFocusedAsync();
         await Expect(page).Not.ToHaveURLAsync(new Regex("cliente="));
         await Expect(filas).Not.ToHaveCountAsync(0);
@@ -92,7 +92,7 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
             await opcion.FocusAsync();
             await opcion.PressAsync("Space");
             await Expect(menu).ToBeHiddenAsync(); // El callback termina después de cargar este contexto.
-            await Expect(selector).ToHaveTextAsync("Cliente: " + nombre);
+            await Expect(selector).ToHaveAttributeAsync("aria-label", "Cliente: " + nombre);
             await Expect(page.GetByRole(AriaRole.Heading,
                 new PageGetByRoleOptions { Name = "No pudimos cargar los proyectos", Exact = true })).ToHaveCountAsync(0);
             if (await filas.CountAsync() > 0)
@@ -136,7 +136,7 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
         await Expect(pregunta).ToBeHiddenAsync();
         await Expect(selector).Not.ToHaveAttributeAsync("aria-controls", panelAnteriorId!);
         await Expect(selector).ToBeVisibleAsync();
-        await Expect(selector).ToHaveTextAsync("Cliente: " + clienteConProyectos);
+        await Expect(selector).ToHaveAttributeAsync("aria-label", "Cliente: " + clienteConProyectos);
         await Expect(panel.Locator(".nombre-cabecera-panel-proyecto")).ToHaveTextAsync(nombreProyecto);
         await Expect(campoNombre).ToHaveValueAsync(nombreSinGuardar);
         Assert.Equal(nombresAntes, (await filas.Locator("button.nombre-proyecto").AllTextContentsAsync())
@@ -210,7 +210,7 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
         // La URL sigue diciendo la vista que sigue en pantalla.
         await Expect(page).ToHaveURLAsync(urlDeLaVista);
         await Expect(pregunta).ToBeHiddenAsync();
-        await Expect(selector).ToHaveTextAsync("Cliente: " + cliente);
+        await Expect(selector).ToHaveAttributeAsync("aria-label", "Cliente: " + cliente);
         await Expect(todos).ToHaveAttributeAsync("aria-pressed", "true");
         await Expect(cerrados).ToHaveAttributeAsync("aria-pressed", "false");
         await Expect(campoNombre).ToHaveValueAsync(nombreSinGuardar);
@@ -288,7 +288,7 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
         await Expect(pregunta).ToBeVisibleAsync();
         await Expect(page).ToHaveURLAsync(urlDeLaVista);
         // Mientras pregunta, la vista en pantalla no ha tomado nada de la URL de destino y el panel sigue con lo escrito.
-        await Expect(selector).ToHaveTextAsync("Cliente: " + cliente);
+        await Expect(selector).ToHaveAttributeAsync("aria-label", "Cliente: " + cliente);
         await Expect(todos).ToHaveAttributeAsync("aria-pressed", "true");
         await Expect(buscador).ToHaveValueAsync(string.Empty);
         await Expect(campoNombre).ToHaveValueAsync(nombreSinGuardar);
@@ -304,7 +304,7 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
         await Expect(cerrados).ToHaveAttributeAsync("aria-pressed", "true");
         await Expect(todos).ToHaveAttributeAsync("aria-pressed", "false");
         await Expect(buscador).ToHaveValueAsync(termino!);
-        await Expect(selector).ToHaveTextAsync("Cliente");
+        await Expect(selector).ToHaveAttributeAsync("aria-label", "Cliente: Todos");
         await Expect(nombresDeLasFilas).ToHaveTextAsync(nombresDeDestino);
         // Descartar repite «atrás»: la URL es la de destino, tal cual estaba en el historial.
         await Expect(page).ToHaveURLAsync(urlDeDestino);
@@ -331,7 +331,7 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
             await opcion.FocusAsync();
             await opcion.PressAsync("Space");
             await Expect(menu).ToBeHiddenAsync();
-            await Expect(selector).ToHaveTextAsync("Cliente: " + nombre);
+            await Expect(selector).ToHaveAttributeAsync("aria-label", "Cliente: " + nombre);
             if (await filas.CountAsync() > 0)
                 return nombre;
         }

@@ -53,7 +53,7 @@ public partial class EmpresasListaGen2Tests
 
     private static async Task IrALaPagina2Async(IRenderedComponent<Empresas> cut)
     {
-        await cut.FindAll(".paginador-simple button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => RazonesSociales(cut).Should().HaveCount(5).And.StartWith("Empresa 21"));
     }
 
@@ -113,7 +113,7 @@ public partial class EmpresasListaGen2Tests
         cut.WaitForAssertion(() => RazonesSociales(cut).Should().Equal(
             "Empresa 21", "Empresa 22", "Renombrada", "Empresa 24", "Empresa 25"));
         ComprobacionPieListado.Pagina(cut, 2, 2);
-        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 5 de 25");
+        cut.Find(".paginador-texto").TextContent.Should().EndWith("Mostrando 5 de 25");
         cut.Find("input[aria-label='Seleccionar Empresa 22']").HasAttribute("checked").Should().BeTrue("la selección de otra fila sigue marcada");
         cut.Find("input[aria-label='Seleccionar Renombrada']").HasAttribute("checked").Should().BeTrue("la fila sustituida sigue seleccionada");
         cut.FindAll(".tarjeta-fila-acordeon-cabecera input[type=checkbox]").Count(c => c.HasAttribute("checked")).Should().Be(2);
