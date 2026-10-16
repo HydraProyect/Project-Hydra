@@ -50,10 +50,10 @@ public partial class VehiculosEstadoDocumentalTests
         for (var i = 0; i < 21; i++) mediador.Almacen.Add(Vehiculo($"Vehículo {i:00}", EstadoDocumento.Vencido, IncidenciaDe("ITV", EstadoDocumento.Vencido, -2)));
         var cut = Renderizar(mediador);
         AbrirIncidencias(cut);
-        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 20 de 21");
+        cut.Find(".paginador-texto").TextContent.Should().EndWith("Mostrando 20 de 21");
         Filas(cut).Should().HaveCount(20);
         await cut.Find("button[aria-label='Siguiente']").ClickAsync(new MouseEventArgs());
-        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 1 de 21");
+        cut.Find(".paginador-texto").TextContent.Should().EndWith("Mostrando 1 de 21");
         cut.FindAll(".vehiculo-detalle-incidencias").Should().BeEmpty();
         await cut.Find("button[aria-label='Anterior']").ClickAsync(new MouseEventArgs());
         cut.FindAll(".vehiculo-detalle-incidencias").Should().BeEmpty();

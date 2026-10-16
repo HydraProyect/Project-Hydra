@@ -156,7 +156,7 @@ public class CentrosFilaSeRefrescaTests : BunitContext
 
     private static async Task IrALaPaginaDosAsync(IRenderedComponent<Centros> cut)
     {
-        await cut.FindAll(".paginador-simple button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.AbrirGruposDeCentros();
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().HaveCount(5).And.StartWith("Centro 21"));
     }
@@ -189,7 +189,7 @@ public class CentrosFilaSeRefrescaTests : BunitContext
         var editado = mediador.Almacen.Single(c => c.Nombre == "Centro 23").Id;
         var cut = Renderizar(mediador);
         await IrALaPaginaDosAsync(cut);
-        await cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        await cut.Find(".lista-herramientas-maqueta button[aria-pressed]").ClickAsync(new MouseEventArgs());
         await cut.Find("input[aria-label='Seleccionar el centro Centro 22']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.Find("input[aria-label='Seleccionar el centro Centro 23']").ChangeAsync(new ChangeEventArgs { Value = true });
         var atajos = cut.FindComponent<AtajosListaTeclado>();
@@ -205,7 +205,7 @@ public class CentrosFilaSeRefrescaTests : BunitContext
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(
             "Centro 21", "Centro 22", "Renombrado 23", "Centro 24", "Centro 25"));
         ComprobacionPieListado.Pagina(cut, 2, 2);
-        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 5 de 25");
+        cut.Find(".paginador-texto").TextContent.Should().EndWith("Mostrando 5 de 25");
         cut.Find("input[aria-label='Seleccionar el centro Centro 22']").HasAttribute("checked").Should().BeTrue(
             "la selección de otra fila sigue marcada");
         cut.Find("input[aria-label='Seleccionar el centro Renombrado 23']").HasAttribute("checked").Should().BeTrue(

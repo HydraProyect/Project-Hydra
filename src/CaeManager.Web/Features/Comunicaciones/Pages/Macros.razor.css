@@ -11,17 +11,11 @@
     text-decoration: underline;
 }
 
-/* list-page.css limita .barra-filtros a 480px: aquí el selector lleva al
-   lado el resumen de lo que hay en la lista. */
+/* La tarjeta de filtros la pone .barra-filtros-lista (list-page.css); aquí el
+   selector lleva al lado el resumen de lo que hay en la lista. */
 .macros-filtros {
-    max-width: none;
     flex-wrap: wrap;
     align-items: flex-end;
-    gap: var(--space-3);
-    padding: var(--space-3);
-    background-color: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
 }
 
 .macros-filtros ::deep .campo {

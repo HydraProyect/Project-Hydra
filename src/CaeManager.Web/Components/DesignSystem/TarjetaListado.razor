@@ -3,6 +3,20 @@
 @Renderizar(Contenido, Pie)
 
 @code {
+    // Conserva las columnas QuickGrid en el render del llamador; el pie queda fuera de la superficie.
+    public static RenderFragment RenderizarMaqueta(RenderFragment? contenido, RenderFragment? pie = null) => builder =>
+    {
+        builder.AddContent(0, Renderizar(contenido));
+        if (pie is not null)
+        {
+            builder.OpenElement(1, "div");
+            builder.AddAttribute(2, "class", "tarjeta-listado-pie tarjeta-listado-pie-separado");
+            builder.AddAttribute(3, "style", "border-top:0;padding:0;margin-top:var(--space-3)");
+            builder.AddContent(4, pie);
+            builder.CloseElement();
+        }
+    };
+
     [Parameter, EditorRequired] public RenderFragment? Contenido { get; set; }
     [Parameter] public RenderFragment? Pie { get; set; }
 

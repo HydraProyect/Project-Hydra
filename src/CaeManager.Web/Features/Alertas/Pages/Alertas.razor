@@ -171,7 +171,9 @@
                                tarjeta (DocumentoReclamableDto.TrabajadorNombre es null ahí). *@
                             @{ var muestraTrabajador = lote.Ambito != AmbitoAplicacion.Empresa; }
                             <div class="alertas-tabla-desplazable">
-                                <table class="tabla-datos">
+                                <TarjetaListado>
+                    <Contenido>
+<table class="tabla-datos">
                                     <thead>
                                         <tr>
                                             <th></th>
@@ -204,6 +206,8 @@
                                         }
                                     </tbody>
                                 </table>
+                    </Contenido>
+                </TarjetaListado>
                             </div>
                         </ChildContent>
                     </Tarjeta>
@@ -316,7 +320,9 @@
                     @if (abierto)
                     {
                         <div class="alertas-tabla-desplazable">
-                            <table class="tabla-datos">
+                            <TarjetaListado>
+                    <Contenido>
+<table class="tabla-datos">
                                 <thead>
                                     <tr>
                                         <th>@Textos["ColumnaTrabajador"]</th>
@@ -365,6 +371,8 @@
                                     }
                                 </tbody>
                             </table>
+                    </Contenido>
+                </TarjetaListado>
                         </div>
                     }
                 </section>

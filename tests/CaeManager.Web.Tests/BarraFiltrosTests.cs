@@ -263,7 +263,7 @@ public class BarraFiltrosTests : BunitContext
         var cut = RenderizarConPastillas(p => p.Add(b => b.Resumen, (RenderFragment)(r => r.AddContent(0, "3 con estos filtros"))));
 
         var fila = cut.Find(".barra-filtros-pastillas-fila");
-        fila.Children.Select(e => e.ClassList[0]).Should().Equal("barra-filtros-buscador-pantalla", "menu-acciones", "menu-acciones", "barra-filtros-resumen");
+        fila.Children.Select(e => e.ClassList[0]).Should().Equal("barra-filtros-buscador-pantalla", "filtro-pastilla-lista", "menu-acciones", "barra-filtros-resumen");
         cut.FindAll(".menu-acciones-disparador").Select(d => d.GetAttribute("aria-label")).Should().Equal("Estado", "Filtros guardados");
         cut.Find(".barra-filtros-resumen").TextContent.Should().Be("3 con estos filtros");
     }

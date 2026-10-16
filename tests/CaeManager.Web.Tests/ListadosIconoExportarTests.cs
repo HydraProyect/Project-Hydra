@@ -40,7 +40,7 @@ internal static class ComprobacionIconoExportar
         enlace.GetAttribute("aria-label").Should().Be("Exportar a Excel");
         enlace.HasAttribute("download").Should().BeTrue();
         cut.FindAll("header.cabecera-pagina .menu-acciones").Should().ContainSingle();
-        cut.FindAll("header.cabecera-pagina .cabecera-listado-icono")
+        cut.FindAll("header.cabecera-pagina [data-keytip=X], header.cabecera-pagina [data-keytip=K]")
             .Select(e => e.GetAttribute("data-keytip")).Where(k => k != "S").Should().Equal("X", "K");
         var menu = cut.Find("header.cabecera-pagina .menu-acciones-disparador");
         menu.Click();

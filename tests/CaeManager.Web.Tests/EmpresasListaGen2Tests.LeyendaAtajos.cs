@@ -15,8 +15,8 @@ public partial class EmpresasListaGen2Tests
         var cut = Renderizar(new MediatorFalso { Almacen = { Empresa("Montajes Ebro S.L.") } });
 
         cut.TeclasDeLaLeyenda().Should().Equal("j", "k", "Enter", "e", "x", "f", "Alt", "?");
-        cut.FindAll(".paginador-simple").Should().ContainSingle("el pie permanece visible con una sola página");
-        cut.FindAll(".paginador-inicio button").Should().BeEmpty();
+        cut.FindAll(".pie-lista-maqueta").Should().ContainSingle("el pie permanece visible con una sola página");
+        cut.FindAll(".pie-lista-maqueta button").Should().OnlyContain(b => b.HasAttribute("disabled"));
     }
 
     [Fact]

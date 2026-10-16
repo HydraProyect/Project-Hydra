@@ -42,9 +42,9 @@
 @inject IStringLocalizer<TextosComunes> Comunes
 @inject IStringLocalizer<CaeManager.Web.Features.AtajosGlobales.Recursos.TextosAtajosGlobales> TextosAtajos
 
-<CabeceraPagina Titulo="@Titulo" JuntoAlTitulo="@(Contador is null && DatoCabecera is null ? null : JuntoAlTituloFragment)">
+<CabeceraPagina Titulo="@Titulo" Kicker="@(Grupo is null ? null : Grupo switch { "Negocio" => Comunes["ListaGrupoNegocio"].Value, "Operacion" => Comunes["ListaGrupoOperacion"].Value, _ => Grupo })" JuntoAlTitulo="@((ControlesEnBarra || Contador is null) && DatoCabecera is null ? null : JuntoAlTituloFragment)">
     <Acciones>
-        @if (SeleccionMultipleChanged.HasDelegate)
+        @if (!ControlesEnBarra && SeleccionMultipleChanged.HasDelegate)
         {
             <button type="button" class="cabecera-listado-icono @(SeleccionMultiple ? "cabecera-listado-icono-activo" : null)"
                     aria-pressed="@(SeleccionMultiple ? "true" : "false")"
@@ -55,8 +55,9 @@
         }
         @if (EnlaceExportar is { } enlace)
         {
-            <a class="cabecera-listado-icono" href="@enlace" download aria-label="@TextoExportar" title="@TextoExportar" data-keytip="X">
+            <a class="@(ControlesEnBarra ? "cabecera-listado-exportar" : "cabecera-listado-icono")" href="@enlace" download aria-label="@TextoExportar" title="@TextoExportar" data-keytip="X">
                 <Icono Nombre="descargar" />
+                @if (ControlesEnBarra) { <span>@TextoExportar</span> }
             </a>
         }
         <button type="button" class="cabecera-listado-icono" aria-label="@TextosAtajos["TituloAyuda"]" title="@TextosAtajos["TituloAyuda"]"
@@ -65,7 +66,7 @@
         </button>
         @if (Menu is not null)
         {
-            <MenuAcciones ConBorde="true" EtiquetaAccesible="@Comunes["MasAcciones"]" Keytip="M">@Menu</MenuAcciones>
+            <MenuAcciones Etiqueta="@(ControlesEnBarra ? Comunes["ListaMas"].Value : null)" ConBorde="true" EtiquetaAccesible="@Comunes["MasAcciones"]" Keytip="M">@Menu</MenuAcciones>
         }
         @if (Primaria is not null)
         {
@@ -75,6 +76,8 @@
 </CabeceraPagina>
 
 @code {
+    [Parameter] public string? Grupo { get; set; }
+    [Parameter] public bool ControlesEnBarra { get; set; }
     /// <summary>Título de la pantalla (el <c>h1</c>).</summary>
     [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
 
@@ -110,7 +113,7 @@
 
     private RenderFragment JuntoAlTituloFragment => __builder =>
     {
-        @if (Contador is not null)
+        @if (!ControlesEnBarra && Contador is not null)
         {
             <span class="cabecera-listado-contador">@Contador</span>
         }

@@ -6,6 +6,7 @@
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}")]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Infrastructure.Identity
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> ComunesListados
 
 <LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
@@ -42,13 +43,15 @@
        que pueda devolver cero de por sí. *@
     @if (!_errorCarga && !_cargando && _usuarios.Count > 0)
     {
-        <div class="barra-filtros">
-            <CampoTexto Placeholder="Buscar por nombre o correo…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-            <FiltroEstado Etiqueta="Rol" Valor="@_rolFiltro" ValorChanged="FiltrarPorRolAsync"
-                          Opciones="OpcionesRol" />
-            <FiltroEstado Etiqueta="Estado" Valor="@_activacionFiltro" ValorChanged="FiltrarPorActivacionAsync"
-                          Opciones="OpcionesActivacion" />
-        </div>
+        <section class="barra-filtros-lista">
+        <div class="barra-filtros-lista-fila">
+                <CampoTexto Etiqueta="@ComunesListados["ListaBuscar"]" Placeholder="Buscar por nombre o correo…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+                <FiltroEstado Etiqueta="Rol" Valor="@_rolFiltro" ValorChanged="FiltrarPorRolAsync"
+                              Opciones="OpcionesRol" />
+                <FiltroEstado Etiqueta="Estado" Valor="@_activacionFiltro" ValorChanged="FiltrarPorActivacionAsync"
+                              Opciones="OpcionesActivacion" />
+            </div>
+    </section>
     }
 
     @if (_errorCarga)
@@ -240,7 +243,7 @@
             </tbody>
         </table>
 
-        <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="UsuariosFiltrados.Count"
+        <PaginadorSimple PresentacionMaqueta="true" ElementosEnPagina="UsuariosDePagina.Count" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="UsuariosFiltrados.Count"
                           Etiqueta="usuario(s)" PaginaActualChanged="IrAPaginaAsync"
                           TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
     }

@@ -122,7 +122,7 @@ public class CentrosListaSoloLecturaTests : BunitContext
     public async Task La_barra_de_lote_con_baja_y_asignacion_masiva_solo_la_ve_un_rol_con_escritura(string rol, bool debeVerse)
     {
         var cut = Renderizar(rol);
-        await cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        await cut.Find(".lista-herramientas-maqueta button[aria-pressed]").ClickAsync(new MouseEventArgs());
         await cut.Find("input[aria-label='Seleccionar el centro Centro Logístico Norte']").ChangeAsync(new ChangeEventArgs { Value = true });
 
         var textos = cut.FindAll("button").Select(b => b.TextContent.Trim()).ToList();

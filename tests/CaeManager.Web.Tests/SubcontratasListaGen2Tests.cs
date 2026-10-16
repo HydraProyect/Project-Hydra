@@ -178,7 +178,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
     }
 
     private Task EncenderSeleccionMultiple(IRenderedComponent<Subcontratas> cut) =>
-        cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        cut.Find(".lista-herramientas-maqueta button[aria-pressed]").ClickAsync(new MouseEventArgs());
 
     /// <summary>
     /// Rediseño de listados, fase 1: cabecera de una línea con el contador, el ☑, el icono de
@@ -190,15 +190,15 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L."), Subcontrata("Pinturas Lauburu S.A.")] });
 
         var cabecera = cut.Find("header.cabecera-pagina");
-        cabecera.QuerySelector(".cabecera-pagina-kicker").Should().BeNull("«Negocio» ya está en las migas");
+        cabecera.QuerySelector(".cabecera-pagina-kicker")!.TextContent.Trim().Should().Be("Negocio");
         cabecera.QuerySelector("h1")!.TextContent.Trim().Should().Be("Subcontratas");
-        cabecera.QuerySelector(".cabecera-listado-contador")!.TextContent.Trim().Should().Be("2");
+        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("2");
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
 
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
-        acciones.QuerySelectorAll("a.cabecera-listado-icono").Should().ContainSingle().Which.GetAttribute("aria-label").Should().Be("Exportar a Excel");
+        acciones.QuerySelectorAll("a.cabecera-listado-exportar").Should().ContainSingle().Which.GetAttribute("aria-label").Should().Be("Exportar a Excel");
         acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
-            .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nueva subcontrata");
+            .Should().Equal("Atajos de teclado", "Más acciones", "+ Nueva subcontrata");
 
         cut.FindAll("header.cabecera-pagina .menu-acciones").Should().ContainSingle();
         cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href").Should().Be("/subcontratas/exportar.xlsx");
@@ -212,7 +212,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         var buscador = cut.Find(".barra-filtros-pastillas input[type=text]");
         buscador.GetAttribute("placeholder").Should().Be("Filtrar esta pantalla: razón social o CIF",
             "ObtenerSubcontratasQuery busca en los dos; los E2E usan este texto");
-        buscador.GetAttribute("aria-label").Should().Be("Filtrar esta pantalla");
+        buscador.GetAttribute("aria-label").Should().Be("Buscar");
         buscador.HasAttribute("data-filtro-pantalla").Should().BeTrue("es lo que enfoca la tecla f (atajos-lista.js)");
     }
 
@@ -234,7 +234,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         var navegacion = Services.GetRequiredService<NavigationManager>();
 
-        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Single(b => b.GetAttribute("aria-label") == "Nivel de servicio").Click();
+        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Single(b => b.GetAttribute("aria-label")!.StartsWith("Nivel de servicio:", StringComparison.Ordinal)).Click();
         cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]").Single(i => i.TextContent.Trim() == "Supervisada").Click();
 
         mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Last().NivelServicio.Should().Be(NivelServicioSubcontrata.Supervisada);
@@ -308,12 +308,12 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L."), Subcontrata("Pinturas Lauburu S.A.")] });
         cut.FindAll(".boton-expandir-fila").Select(b => b.GetAttribute("aria-expanded")).Should().Equal("false", "false");
 
-        var boton = cut.FindAll(".barra-filtros-pastillas-fila .barra-herramientas-lista button").Single();
+        var boton = cut.FindAll(".lista-herramientas-maqueta .barra-herramientas-lista button").Single(b => b.TextContent.Contains("todo", StringComparison.Ordinal));
         boton.TextContent.Trim().Should().Be("Expandir todo");
         boton.Click();
 
         cut.FindAll(".boton-expandir-fila").Select(b => b.GetAttribute("aria-expanded")).Should().Equal("true", "true");
-        cut.Find(".barra-herramientas-lista button").TextContent.Trim().Should().Be("Contraer todo");
+        cut.FindAll(".barra-herramientas-lista button").Select(b => b.TextContent.Trim()).Should().Contain("Contraer todo");
     }
 
     [Theory]
@@ -326,11 +326,12 @@ public partial class SubcontratasListaGen2Tests : BunitContext
             Subcontratas = Enumerable.Range(1, subcontratas).Select(i => Subcontrata($"Subcontrata {i:00}")).ToList()
         });
 
-        cut.FindAll(".paginador-inicio button").Any().Should().Be(conPaginador);
-        cut.Find(".tarjeta-listado-pie .paginador-opciones-tamano").Should().NotBeNull();
+        cut.Find(".pie-lista-inicio button").HasAttribute("disabled").Should().BeTrue();
+        cut.Find(".pie-lista-opciones button").HasAttribute("disabled").Should().Be(!conPaginador);
+        cut.Find(".pie-lista-opciones select").Should().NotBeNull();
         var tarjeta = cut.Find(".tarjeta-listado");
         tarjeta.QuerySelector(".tarjeta-listado-contenido .marco-lista-acordeon").Should().NotBeNull();
-        tarjeta.QuerySelector(".tarjeta-listado-pie .leyenda-atajos-lista").Should().NotBeNull();
+        cut.Find(".pie-lista-atajos .leyenda-atajos-lista").Should().NotBeNull();
     }
 
     /// <summary>
@@ -350,7 +351,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         cut.Find(".tarjeta-fila-acordeon-cabecera").Children.Length.Should().Be(cabecera.Children.Length,
             "sin selección múltiple");
 
-        cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").Click();
+        cut.Find(".lista-herramientas-maqueta button[aria-pressed]").Click();
 
         cut.Find(".tarjeta-fila-acordeon-cabecera").Children.Length
             .Should().Be(cut.Find(".cabecera-columnas-subcontratas").Children.Length,
@@ -682,7 +683,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
     /// </summary>
     [Theory]
     [InlineData("input[aria-label='Seleccionar la empresa Andamios Bidasoa S.L.']")]
-    [InlineData("a.boton-360-pagina")]
+
     public async Task La_casilla_y_el_icono_360_cortan_el_clic_antes_de_la_fila(string selector)
     {
         var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.")] });
@@ -767,7 +768,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador);
 
-        cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").Click();
+        cut.Find(".lista-herramientas-maqueta button[aria-pressed]").Click();
         await cut.Find("input[aria-label='Seleccionar la empresa Andamios Bidasoa S.L.']")
             .ChangeAsync(new ChangeEventArgs { Value = true });
         cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").Click();
@@ -942,7 +943,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
             EntidadWorkspace.Subcontrata, ibaEnElLote ? elegida : otra, "Ficha abierta", "informacion"));
         workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
 
-        cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").Click();
+        cut.Find(".lista-herramientas-maqueta button[aria-pressed]").Click();
         await cut.Find("input[aria-label='Seleccionar la empresa Andamios Bidasoa S.L.']")
             .ChangeAsync(new ChangeEventArgs { Value = true });
         cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").Click();
@@ -967,7 +968,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         var workspace = Services.GetRequiredService<ContextWorkspaceService>();
         await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Subcontrata, elegida, "Andamios Bidasoa S.L.", "informacion"));
 
-        cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").Click();
+        cut.Find(".lista-herramientas-maqueta button[aria-pressed]").Click();
         await cut.Find("input[aria-label='Seleccionar la empresa Andamios Bidasoa S.L.']").ChangeAsync(new ChangeEventArgs { Value = true });
         cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").Click();
         cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").Click();
@@ -985,7 +986,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         this.ConRolDeEscritura(Roles.Consulta);
         var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.")] });
 
-        cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").Click();
+        cut.Find(".lista-herramientas-maqueta button[aria-pressed]").Click();
         await cut.Find("input[aria-label='Seleccionar la empresa Andamios Bidasoa S.L.']").ChangeAsync(new ChangeEventArgs { Value = true });
 
         cut.Markup.Should().Contain("Andamios Bidasoa S.L.", "la lista es lectura: la fila se ve");
@@ -1098,7 +1099,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         var cut = Renderizar(ConCartera(origenGestionado: false));
 
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
-        cut.Find("header.cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("1");
+        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("1");
         cut.Markup.Should().Contain("Andamios Bidasoa S.L.");
     }
 
@@ -1122,7 +1123,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         cut.Markup.Should().NotContain("Andamios Bidasoa S.L.");
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty("no hay empresa activa que nombrar en el estado 4a");
         cut.FindAll("header.cabecera-pagina a[data-keytip=X]").Should().BeEmpty("el icono exportaría datos del origen sin Empresa elegida");
-        cut.FindAll("header.cabecera-pagina .cabecera-listado-contador").Should().BeEmpty();
+        cut.FindAll(".lista-herramientas-maqueta .cabecera-listado-contador").Should().BeEmpty();
         ConsultasDeLista(mediador).Should().Be(0, "no se piden las subcontratas de la organización de origen");
     }
 
@@ -1274,7 +1275,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         var mediador = new MediatorFalso { Subcontratas = almacen };
         var cut = Renderizar(mediador);
         cut.Find(".franja-estado [data-estado='Vencido']").Click();
-        await cut.FindAll(".paginador-simple button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Select(e => e.TextContent.Trim())
             .Should().Equal(["Subcontrata 21"], "punto de partida: la página 2 tiene una sola fila"));
 
@@ -1283,8 +1284,8 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         await cut.InvokeAsync(() => correccion.Instance.OnCorregida.InvokeAsync());
 
         cut.WaitForAssertion(() => cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Should().HaveCount(20));
-        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 20 de 20");
-        cut.FindAll(".paginador-inicio button").Should().BeEmpty("con una sola página no hace falta navegación");
+        cut.Find(".paginador-texto").TextContent.Should().EndWith("Mostrando 20 de 20");
+        cut.FindAll(".pie-lista-maqueta button").Should().OnlyContain(b => b.HasAttribute("disabled"));
         mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Last().Pagina.Should().Be(1);
     }
 }

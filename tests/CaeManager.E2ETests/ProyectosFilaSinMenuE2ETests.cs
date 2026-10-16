@@ -49,7 +49,7 @@ public class ProyectosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
             await opcion.FocusAsync();
             await opcion.PressAsync("Space");
             await Expect(menu).ToBeHiddenAsync();
-            await Expect(selector).ToHaveTextAsync("Cliente: " + nombre);
+            await Expect(selector).ToHaveAttributeAsync("aria-label", "Cliente: " + nombre);
             // La lista de ese Cliente empresarial ya está pintada (tabla o estado vacío) antes de leerla.
             await Expect(page.Locator("table.tabla-proyectos, .estado-vacio")).ToBeVisibleAsync();
 

@@ -18,7 +18,9 @@
 @inject IStringLocalizer<TextosComunes> Comunes
 
 @* KeyTips: la letra se deduce del nombre del filtro, no del texto con el valor aplicado. *@
-<MenuAcciones @ref="_menu" Etiqueta="@TextoDisparador" Pastilla="true" Activa="@Activa" Keytip="" KeytipNombre="@Etiqueta">
+<div class="@(PresentacionCampo ? "filtro-campo-lista" : "filtro-pastilla-lista")">
+@if (PresentacionCampo) { <span class="filtro-campo-etiqueta">@Etiqueta</span> }
+<MenuAcciones @ref="_menu" Etiqueta="@(PresentacionCampo ? TextoValor : TextoDisparador)" EtiquetaAccesible="@(PresentacionCampo ? $"{Etiqueta}: {TextoValor}" : TextoDisparador)" Pastilla="true" Activa="@Activa" Keytip="" KeytipNombre="@Etiqueta">
     @if (OfrecerTodos)
     {
         <ItemMenuAccion Marcado="@(!Activa)" OnClick="() => ElegirAsync(string.Empty)">@(TextoTodos ?? Comunes["OpcionTodos"].Value)</ItemMenuAccion>
@@ -28,8 +30,11 @@
         <ItemMenuAccion Marcado="@(opcion.Valor == Valor)" OnClick="() => ElegirAsync(opcion.Valor)">@opcion.Texto</ItemMenuAccion>
     }
 </MenuAcciones>
+</div>
 
 @code {
+    [Parameter] public bool PresentacionCampo { get; set; }
+    private string TextoValor => Opciones.FirstOrDefault(o => o.Valor == Valor)?.Texto ?? TextoTodos ?? Comunes["OpcionTodos"].Value;
     private MenuAcciones? _menu;
 
     internal Task EnfocarAsync() => _menu?.EnfocarDisparadorAsync() ?? Task.CompletedTask;

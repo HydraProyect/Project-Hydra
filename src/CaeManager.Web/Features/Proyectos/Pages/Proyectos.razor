@@ -1,5 +1,6 @@
 @page "/proyectos"
 @rendermode InteractiveServer
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> ComunesLista
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
@@ -19,7 +20,7 @@
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <CabeceraListado Titulo="@Textos["TituloPagina"]"
+    <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@Textos["TituloPagina"]"
                      Contador="@(ListaDisponible && _listaCargada ? (int?)_totalElementos : null)"
                      RutaExportar="@(ListaDisponible ? "/proyectos/exportar.xlsx" : null)" CriteriosExportar="CriteriosExportar" Menu="@(ListaDisponible ? MenuExportarTodo : null)">
         <Primaria>
@@ -52,15 +53,17 @@
     }
     else
     {
-        <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
+        <BarraFiltros PresentacionMaqueta="true" Contador="@(ListaDisponible && _listaCargada ? (int?)_totalElementos : null)" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
                       PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                       HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                       FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
                       OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
                       VistaRecordada="_vistaRecordada">
             <Pastillas>
+            <FranjaEstado PresentacionCampo="true" Etiqueta="@ComunesLista["ListaEstado"]" Opciones="OpcionesEstado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                      Recuentos="_recuentosPorEstado" />
                 @* Filtro opcional: «Todos» (el valor vacío) lista los Proyectos de todos los Clientes empresariales visibles. *@
-                <PastillaFiltro @key="_versionSelectorCliente" @ref="_selectorClienteEmpresarial" Etiqueta="@Textos["EtiquetaCliente"]"
+                <PastillaFiltro PresentacionCampo="true" @key="_versionSelectorCliente" @ref="_selectorClienteEmpresarial" Etiqueta="@Textos["EtiquetaCliente"]"
                                 Valor="@(_clienteSeleccionadoId == Guid.Empty ? string.Empty : _clienteSeleccionadoId.ToString())"
                                 ValorChanged="OnClienteSeleccionadoAsync" Opciones="OpcionesClienteListado" />
             </Pastillas>
@@ -75,11 +78,10 @@
                                    OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
         <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Proyectos"
                                  ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
-        @* Franja de estado: sustituye a la pastilla «Estado». Viaja en la URL como «estado» y cada botón dice
+        @* Selector desplegable de estado: conserva la semántica de la franja para «Estado». Viaja en la URL como «estado» y cada botón dice
            cuántos Proyectos hay con el Cliente y la búsqueda aplicados. Con los dos botones marcados se ven
            todos. Está desde la primera carga, sin cifras hasta que llegan los recuentos. *@
-        <FranjaEstado Opciones="OpcionesEstado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
-                      Recuentos="_recuentosPorEstado" />
+
         @if (_errorProyectos)
         {
             <EstadoVacio NombreIcono="error-circulo" Titulo="@Textos["ErrorProyectosTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
@@ -115,7 +117,7 @@
         {
             <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
-            @TarjetaListado.Renderizar(@<text>
+            @TarjetaListado.RenderizarMaqueta(@<text>
                 <div class="contenedor-tabla-proyectos" aria-busy="@(_cargandoProyectos ? "true" : "false")">
                     <table class="tabla-datos tabla-proyectos">
                         <thead>
@@ -244,7 +246,7 @@
         }
         @if (_listaCargada && !_errorProyectos && _totalElementos == 0)
         {
-            @TarjetaListado.Renderizar(null, PieDelListado)
+            @TarjetaListado.RenderizarMaqueta(null, PieDelListado)
         }
     }
 </div>
@@ -568,7 +570,7 @@
     private RenderFragment PieDelListado => @<text>
         @if (_listaCargada && !_errorProyectos)
         {
-            <PaginadorSimple PaginaActual="_paginaActual" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+            <PaginadorSimple PresentacionMaqueta="true" PaginaActual="_paginaActual" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                      PaginaActualChanged="CambiarPaginaAsync"
                                      TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_proyectos.Count">
                     <Centro><LeyendaAtajosLista Omitir="@(["x"])" /></Centro>

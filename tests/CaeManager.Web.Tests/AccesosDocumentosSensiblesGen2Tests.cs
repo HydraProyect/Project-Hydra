@@ -390,7 +390,7 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
         var cut = Renderizar();
 
         _mediador.Consultas.Single().TamanoPagina.Should().Be(30);
-        var select = cut.Find(".paginador-tamano-select");
+        var select = cut.Find(".pie-lista-opciones select");
         select.QuerySelectorAll("option").Select(Texto).Should().Equal(["30", "50", "100"]);
         select.GetAttribute("value").Should().Be("30", "el selector dice el tamaño con el que de verdad se consulta");
     }
@@ -402,7 +402,7 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
         var cut = Renderizar();
         Filas(cut).Should().HaveCount(30);
 
-        await cut.FindAll(".paginador button").Single(b => Texto(b) == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".pie-lista-maqueta button").Single(b => Texto(b) == "Siguiente").ClickAsync(new MouseEventArgs());
 
         _mediador.Consultas.Last().Pagina.Should().Be(2);
         cut.WaitForAssertion(() => Filas(cut).Select(f => Celda(f, 2)).Should().Equal(Enumerable.Range(31, 5).Select(IdDocumento)));
@@ -413,10 +413,10 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
     {
         Sembrar(35);
         var cut = Renderizar();
-        await cut.FindAll(".paginador button").Single(b => Texto(b) == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".pie-lista-maqueta button").Single(b => Texto(b) == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => Filas(cut).Should().HaveCount(5));
 
-        await cut.Find(".paginador-tamano-select").ChangeAsync(new ChangeEventArgs { Value = "50" });
+        await cut.Find(".pie-lista-opciones select").ChangeAsync(new ChangeEventArgs { Value = "50" });
 
         var consulta = _mediador.Consultas.Last();
         consulta.Pagina.Should().Be(1);

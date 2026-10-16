@@ -32,11 +32,11 @@ public partial class CentrosListaPatronTests
     public void La_cabecera_ordena_seleccion_exportacion_teclado_y_menu_y_conserva_asignaciones()
     {
         var cut = Renderizar(ConDosClientes(), url: "centros?q=Planta");
-        var acciones = cut.FindAll("header.cabecera-pagina .cabecera-listado-icono, header.cabecera-pagina .menu-acciones-disparador");
+        var acciones = cut.FindAll("header.cabecera-pagina .cabecera-listado-exportar, header.cabecera-pagina .cabecera-listado-icono, header.cabecera-pagina .menu-acciones-disparador");
         acciones.Select(a => a.GetAttribute("aria-label")).Should().Equal(
-            "Selección múltiple", "Exportar a Excel", "Atajos de teclado", "Más acciones");
-        acciones[1].GetAttribute("href").Should().StartWith("/centros/exportar.xlsx?").And.Contain("q=Planta");
-        acciones[3].Click();
+            "Exportar a Excel", "Atajos de teclado", "Más acciones");
+        acciones[0].GetAttribute("href").Should().StartWith("/centros/exportar.xlsx?").And.Contain("q=Planta");
+        acciones[2].Click();
         cut.Find("a[href='/asignaciones/exportar.xlsx']").TextContent.Trim().Should().Be("Exportar asignaciones");
     }
 
@@ -45,7 +45,7 @@ public partial class CentrosListaPatronTests
     [InlineData(0, true)]
     [InlineData(1, false)]
     [InlineData(21, false)]
-    public void La_tarjeta_contiene_cabecera_lista_de_grupos_y_pie_incluso_sin_filas(int total, bool filtrada)
+    public void La_tarjeta_contiene_la_tabla_y_el_pie_separado_permanece_incluso_sin_filas(int total, bool filtrada)
     {
         var cut = RenderizarConGruposContraidos(ConCentros(
             Enumerable.Range(1, total).Select(i => CentroDe($"Centro {i}", ClienteOrion, EmpresaMontajes, EstadoCentro.Vigente)).ToArray()),
@@ -56,10 +56,10 @@ public partial class CentrosListaPatronTests
         tarjeta.QuerySelectorAll(".tarjeta-listado-contenido .cabecera-columnas-centros").Should().ContainSingle();
         tarjeta.QuerySelectorAll(".tarjeta-listado-contenido .lista-filas-acordeon").Should().ContainSingle();
         tarjeta.QuerySelectorAll(".tarjeta-listado-contenido .grupo-lista").Count().Should().Be(total > 0 ? 1 : 0);
-        tarjeta.QuerySelectorAll(".tarjeta-listado-pie .paginador-pie-listado").Should().ContainSingle();
-        tarjeta.QuerySelector(".paginador-texto")!.TextContent.Trim().Should().Be($"Mostrando {Math.Min(20, total)} de {total}");
-        tarjeta.QuerySelector(".paginador-centro [data-pieza=leyenda-atajos]").Should().NotBeNull();
-        tarjeta.QuerySelectorAll(".paginador-opciones-tamano button").Select(b => b.TextContent.Trim()).Should().Equal("20", "50", "100");
+        cut.FindAll(".tarjeta-listado-pie-separado .pie-lista-maqueta").Should().ContainSingle();
+        cut.Find(".pie-lista-maqueta .paginador-texto").TextContent.Trim().Should().EndWith($"Mostrando {Math.Min(20, total)} de {total}");
+        cut.Find(".pie-lista-atajos [data-pieza=leyenda-atajos]").Should().NotBeNull();
+        cut.FindAll(".pie-lista-opciones select option").Select(b => b.TextContent.Trim()).Should().Equal("20", "50", "100");
     }
 
     [Theory]

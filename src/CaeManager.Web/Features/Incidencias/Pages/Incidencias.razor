@@ -23,6 +23,7 @@
 @inject ToastService ToastService
 @inject ContextWorkspaceService WorkspaceService
 @inject IStringLocalizer<TextosIncidencias> Textos
+@inject IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> ComunesListados
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
@@ -35,10 +36,12 @@
         </Acciones>
     </CabeceraPagina>
 
-    <div class="barra-filtros">
-        <CampoTexto Placeholder="@Textos["PlaceholderBusqueda"]" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-        <FiltroEstado Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync" Opciones="OpcionesEstado" TextoTodos="@Textos["OpcionTodas"]" />
-    </div>
+    <section class="barra-filtros-lista">
+        <div class="barra-filtros-lista-fila">
+            <CampoTexto Etiqueta="@ComunesListados["ListaBuscar"]" Placeholder="@Textos["PlaceholderBusqueda"]" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+            <FiltroEstado Etiqueta="@Textos["EtiquetaEstado"]" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync" Opciones="OpcionesEstado" TextoTodos="@Textos["OpcionTodas"]" />
+        </div>
+    </section>
 
     @* El valor del filtro de estado vive dentro de un desplegable cerrado: sin
        el chip, una lista de incidencias abiertas se lee como la lista de todas.
@@ -144,7 +147,7 @@
                 </TemplateColumn>
             </QuickGrid>
 
-            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+            <PaginadorSimple PresentacionMaqueta="true" ElementosEnPagina="_elementosPagina.Count" PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                               Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
         </div>

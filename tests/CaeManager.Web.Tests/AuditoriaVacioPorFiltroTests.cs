@@ -112,6 +112,7 @@ public class AuditoriaVacioPorFiltroTests : BunitContext
     private IRenderedComponent<Features.Auditoria.Pages.Auditoria> Renderizar(
         string? entidad = null, params RegistroAuditoriaListaDto[] registros)
     {
+        Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => new MediatorConRegistros(registros));
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped<ToastService>();

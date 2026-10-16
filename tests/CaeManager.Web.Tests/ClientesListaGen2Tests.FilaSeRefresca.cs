@@ -44,7 +44,7 @@ public partial class ClientesListaGen2Tests
 
     private static async Task IrALaPagina2Async(IRenderedComponent<Clientes> cut)
     {
-        await cut.FindAll(".paginador-simple button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().HaveCount(5).And.StartWith("Cliente 21"));
     }
 
@@ -97,7 +97,7 @@ public partial class ClientesListaGen2Tests
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(
             "Cliente 21", "Cliente 22", "Renombrado", "Cliente 24", "Cliente 25"));
         ComprobacionPieListado.Pagina(cut, 2, 2);
-        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 5 de 25");
+        cut.Find(".paginador-texto").TextContent.Should().EndWith("Mostrando 5 de 25");
         FilasConDatos(cut).Select(tr => tr.QuerySelector("input[type=checkbox]")!.HasAttribute("checked")).Should().Equal(
             [false, true, true, false, false], "la selección sigue marcada, también la de la fila sustituida");
         FilasConDatos(cut).Select(tr => (tr.ClassName ?? string.Empty).Contains("fila-enfocada")).Should().Equal(true, false, false, false, false);

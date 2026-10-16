@@ -28,8 +28,8 @@
         <Boton Variante="@(SeleccionMultiple ? VarianteBoton.Secundario : VarianteBoton.Fantasma)"
                Tamano="TamanoBoton.Pequeno"
                OnClick="AlternarSeleccionMultipleAsync"
-               aria-pressed="@(SeleccionMultiple ? "true" : "false")" data-keytip="S">
-            Selección múltiple
+               aria-label="@Comunes["SeleccionMultiple"]" aria-pressed="@(SeleccionMultiple ? "true" : "false")" data-keytip="S">
+            @Comunes["SeleccionMultiple"]
         </Boton>
     }
 

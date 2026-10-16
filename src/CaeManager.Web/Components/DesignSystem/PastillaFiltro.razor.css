@@ -1,0 +1,5 @@
+.filtro-pastilla-lista { display: contents; }
+.filtro-campo-lista { display: flex; flex: 1 1 140px; min-width: 0; flex-direction: column; gap: var(--space-1); }
+.filtro-campo-etiqueta { font: var(--font-caption); color: var(--color-text); }
+.filtro-campo-lista ::deep .menu-acciones-disparador { width: 100%; justify-content: space-between; min-height: var(--space-10); border-radius: var(--radius-sm); }
+.filtro-campo-lista ::deep .menu-acciones { width: 100%; }

@@ -163,14 +163,14 @@ public class TiposDocumentoVacioPorFiltroTests : BunitContext
     /// </summary>
     private static void Buscar(IRenderedComponent<Features.TiposDocumento.Pages.TiposDocumento> cut, string texto)
     {
-        var buscador = cut.Find(".barra-filtros input[type=text]");
+        var buscador = cut.Find(".barra-filtros-lista input[type=text]");
         buscador.Input(texto);
         buscador.Blur();
     }
 
     /// <summary>El selector de cliente no rebota: su <c>onchange</c> filtra en el acto.</summary>
     private static void FiltrarPorCliente(IRenderedComponent<Features.TiposDocumento.Pages.TiposDocumento> cut)
-        => cut.Find(".barra-filtros select").Change(ClienteDePrueba.Id.ToString());
+        => cut.Find(".barra-filtros-lista select").Change(ClienteDePrueba.Id.ToString());
 
     [Fact]
     public void Buscando_algo_que_no_aparece_no_se_invita_a_crear_el_primero()
@@ -262,7 +262,7 @@ public class TiposDocumentoVacioPorFiltroTests : BunitContext
 
         // Barrera: la barra existe y tiene sus cuatro controles. Sin ella, la
         // ausencia de chips daría verde igual si la barra no se hubiera pintado.
-        cut.Find(".barra-filtros").Children.Length.Should().Be(4);
-        cut.FindAll(".barra-filtros .chip-filtro").Should().BeEmpty();
+        cut.Find(".barra-filtros-lista-fila").Children.Length.Should().Be(4);
+        cut.FindAll(".barra-filtros-lista .chip-filtro").Should().BeEmpty();
     }
 }

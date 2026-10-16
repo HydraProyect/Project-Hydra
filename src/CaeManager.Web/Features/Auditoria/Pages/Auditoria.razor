@@ -23,28 +23,30 @@
         </Acciones>
     </CabeceraPagina>
 
-    <div class="barra-filtros">
-        <CampoSelect Etiqueta="Tipo de entidad" Valor="@(_filtroEntidadTipo ?? string.Empty)" ValorChanged="FiltrarPorEntidadAsync">
-            <option value="">Todas</option>
-            @* Atajo, no catálogo: AuditoriaInterceptor registra el nombre
-               simple de CUALQUIER entidad del dominio, así que en la tabla
-               salen tipos (mensajes, líneas de WhatsApp...) que esta lista
-               no ofrece. «Todas» es lo que de verdad los enseña. *@
-            <optgroup label="Entidades principales">
-                @foreach (var tipo in TiposEntidad)
+    <section class="barra-filtros-lista">
+        <div class="barra-filtros-lista-fila">
+            <CampoSelect Etiqueta="Tipo de entidad" Valor="@(_filtroEntidadTipo ?? string.Empty)" ValorChanged="FiltrarPorEntidadAsync">
+                <option value="">Todas</option>
+                @* Atajo, no catálogo: AuditoriaInterceptor registra el nombre
+                   simple de CUALQUIER entidad del dominio, así que en la tabla
+                   salen tipos (mensajes, líneas de WhatsApp...) que esta lista
+                   no ofrece. «Todas» es lo que de verdad los enseña. *@
+                <optgroup label="Entidades principales">
+                    @foreach (var tipo in TiposEntidad)
+                    {
+                        <option value="@tipo">@tipo</option>
+                    }
+                </optgroup>
+                @if (FiltroFueraDelCatalogo)
                 {
-                    <option value="@tipo">@tipo</option>
+                    @* Un ?entidad= que no es de las principales (un enlace
+                       compartido) sí filtra en servidor; sin esta opción el
+                       desplegable diría «Todas» sobre una tabla filtrada. *@
+                    <option value="@_filtroEntidadTipo">@_filtroEntidadTipo</option>
                 }
-            </optgroup>
-            @if (FiltroFueraDelCatalogo)
-            {
-                @* Un ?entidad= que no es de las principales (un enlace
-                   compartido) sí filtra en servidor; sin esta opción el
-                   desplegable diría «Todas» sobre una tabla filtrada. *@
-                <option value="@_filtroEntidadTipo">@_filtroEntidadTipo</option>
-            }
-        </CampoSelect>
-    </div>
+            </CampoSelect>
+        </div>
+    </section>
 
     @if (_error)
     {
@@ -161,7 +163,7 @@
             </tbody>
         </table>
 
-        <PaginadorSimple PaginaActual="Resultado.Pagina" TotalPaginas="Resultado.TotalPaginas"
+        <PaginadorSimple PresentacionMaqueta="true" ElementosEnPagina="Resultado.Elementos.Count" TamanoPagina="Resultado.TamanoPagina" PaginaActual="Resultado.Pagina" TotalPaginas="Resultado.TotalPaginas"
                           TotalElementos="Resultado.TotalElementos" Etiqueta="registro(s)"
                           PaginaActualChanged="IrAPaginaAsync" />
     }
