@@ -84,6 +84,9 @@ internal sealed class ArnesPilotoOutbound : IAsyncDisposable
         builder.Services.AddScoped<ICurrentUserService, CaeManager.Web.Services.CurrentUserService>();
         builder.Services.AddScoped<IActorAuditoria, CaeManager.Web.Services.ActorAuditoriaDesdeSesion>();
         builder.Services.AddScoped<ITenantActual, CaeManager.Web.Services.TenantActual>();
+        // Como Program.cs: los handlers que fechan con el reloj inyectado (ActivarTratamientoIaPorEncargo) lo piden.
+        Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton(
+            builder.Services, TimeProvider.System);
 
         // El último registro gana: cualquier correo que algo intente enviar durante la siembra o la
         // medición llega a este espía en vez de a SmtpEmailService.
