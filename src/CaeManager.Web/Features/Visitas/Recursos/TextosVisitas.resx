@@ -681,4 +681,52 @@
   <data name="MotivoTramo" xml:space="preserve">
     <value>Tramo {0}</value>
   </data>
+  <data name="Visita360Contacto" xml:space="preserve">
+    <value>Contacto en el Centro</value>
+  </data>
+  <data name="ContactoNombre" xml:space="preserve">
+    <value>Nombre</value>
+  </data>
+  <data name="ContactoTelefono" xml:space="preserve">
+    <value>Teléfono</value>
+  </data>
+  <data name="ContactoCorreo" xml:space="preserve">
+    <value>Correo</value>
+  </data>
+  <data name="Visita360ContactoSinInformar" xml:space="preserve">
+    <value>Esta visita no tiene contacto.</value>
+  </data>
+  <data name="Visita360ContactoAnadir" xml:space="preserve">
+    <value>Añadir contacto</value>
+  </data>
+  <data name="ContactoEditarTitulo" xml:space="preserve">
+    <value>Contacto de la visita</value>
+  </data>
+  <data name="ContactoAyudaPorDefecto" xml:space="preserve">
+    <value>Al crear la visita se copia el contacto del Centro. Cambiarlo aquí no cambia el del Centro.</value>
+  </data>
+  <data name="ContactoNoDisponible" xml:space="preserve">
+    <value>No se ha podido cargar el contacto de esta visita.</value>
+  </data>
+  <data name="ContactoGuardado" xml:space="preserve">
+    <value>Contacto de la visita guardado.</value>
+  </data>
+  <data name="ContactoErrorGuardar" xml:space="preserve">
+    <value>No se ha podido guardar el contacto. Inténtalo de nuevo.</value>
+  </data>
+  <data name="Visita360Recomendaciones" xml:space="preserve">
+    <value>Recomendaciones</value>
+  </data>
+  <data name="Visita360RecomendacionesAyuda" xml:space="preserve">
+    <value>Salen de la documentación que exige el Centro y de las fechas de esta visita.</value>
+  </data>
+  <data name="RecomendacionDocumentacionPendiente" xml:space="preserve">
+    <value>{0} tiene documentación pendiente: {1}.</value>
+  </data>
+  <data name="RecomendacionVenceAntesDeLaEntrada" xml:space="preserve">
+    <value>{1} de {0} vence el {2}, antes del día de entrada.</value>
+  </data>
+  <data name="RecomendacionVenceDuranteLaVisita" xml:space="preserve">
+    <value>{1} de {0} vence el {2}, antes de que termine la visita.</value>
+  </data>
 </root>

@@ -1,5 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Auditoria;
+using CaeManager.Domain.Centros;
+using CaeManager.Domain.Visitas;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Empresas;
@@ -782,6 +784,57 @@ public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
         vaciado.Id.Should().NotBe(alta.Id, "el vaciado deja su propia fila de modificación");
         foreach (var dato in personales) vaciado.DatosAntes.Should().NotContain(dato);
         vaciado.DatosAntes.Should().Contain("\"ContactoSpaNombre\":\"***\"");
+    }
+
+    /// <summary>
+    /// Punto 10 del comentario de <see cref="AuditoriaInterceptor"/>: el contacto de la Visita 360 se enmascara en toda
+    /// entrada de Visita, también en el alta, cuando se rellena copiando el contacto del Centro.
+    /// </summary>
+    [Fact]
+    public async Task El_contacto_de_la_visita_no_aparece_en_claro_ni_al_crearla_ni_al_cambiarlo()
+    {
+        const string contactoDelCentro = "CONTACTO-CENTRO-no-debe-aparecer";
+        const string nombre = "CONTACTO-VISITA-no-debe-aparecer";
+        const string telefono = "600777888";
+        const string correo = "contacto.visita@no-debe-aparecer.example";
+        string[] personales = [contactoDelCentro, nombre, telefono, correo];
+        Guid visitaId;
+        await using (var contexto = CrearContexto())
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente de la visita 360", "B10380194", false, null, null);
+            var empresa = new Empresa("Empresa de la visita 360", "B10380186");
+            contexto.Empresas.AddRange(cliente, empresa);
+            await contexto.SaveChangesAsync();
+            var centro = new Centro(cliente.Id, empresa.Id, "Centro de la visita 360");
+            contexto.Centros.Add(centro);
+            await contexto.SaveChangesAsync();
+
+            var visita = new Visita(centro.Id, new DateOnly(2026, 11, 2), new DateOnly(2026, 11, 3), null);
+            visita.RellenarContactoDesdeCentro(contactoDelCentro);
+            visitaId = visita.Id;
+            contexto.Visitas.Add(visita);
+            await contexto.SaveChangesAsync();
+        }
+
+        var alta = await ObtenerRegistroAsync(nameof(Visita));
+        alta.Accion.Should().Be("Creado");
+        foreach (var dato in personales) alta.DatosDespues.Should().NotContain(dato);
+        alta.DatosDespues.Should().Contain("\"ContactoNombre\":\"***\"");
+
+        await using (var contexto = CrearContexto())
+        {
+            var visita = await contexto.Visitas.SingleAsync(v => v.Id == visitaId);
+            visita.ActualizarContacto(nombre, telefono, correo);
+            await contexto.SaveChangesAsync();
+        }
+
+        var cambio = await ObtenerRegistroDeModificacionAsync(nameof(Visita));
+        foreach (var dato in personales)
+        {
+            cambio.DatosAntes.Should().NotContain(dato);
+            cambio.DatosDespues.Should().NotContain(dato);
+        }
+        cambio.DatosDespues.Should().Contain("\"ContactoCorreo\":\"***\"");
     }
 
     /// <summary>

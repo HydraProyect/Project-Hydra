@@ -1,3 +1,4 @@
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 
 namespace CaeManager.Domain.Visitas;
@@ -25,6 +26,14 @@ public class Visita : EntidadBase
 {
     public const int LongitudMaximaNotas = 1000;
     public const int LongitudMaximaMotivo = 500;
+
+    /// <summary>
+    /// Igual que <see cref="Centro.LongitudMaximaContacto"/>: el nombre se rellena por defecto copiando el contacto
+    /// del Centro, que es texto libre de hasta esa longitud, y la copia no puede fallar ni recortarse.
+    /// </summary>
+    public const int LongitudMaximaContactoNombre = Centro.LongitudMaximaContacto;
+    public const int LongitudMaximaContactoTelefono = 50;
+    public const int LongitudMaximaContactoCorreo = 254;
 
     public Guid CentroId { get; private set; }
     public DateOnly FechaInicio { get; private set; }
@@ -96,6 +105,21 @@ public class Visita : EntidadBase
     /// <summary>Motivo opcional de la última reactivación.</summary>
     public string? MotivoReactivacion { get; private set; }
 
+    /// <summary>
+    /// Contacto de la Visita (decisión de producto, 2026-10-16): la persona a la que se dirige quien entra en el
+    /// Centro para esta Visita. Es un campo propio de la Visita, no una referencia al Centro: al crearla se rellena
+    /// por defecto con el contacto del Centro (<see cref="RellenarContactoDesdeCentro"/>) y después puede cambiarse
+    /// por otra persona (<see cref="ActualizarContacto"/>) sin tocar el Centro. Los tres campos son datos personales:
+    /// la auditoría los enmascara y la ficha solo los enseña con la política de lectura de las fichas 360.
+    /// </summary>
+    public string? ContactoNombre { get; private set; }
+
+    /// <inheritdoc cref="ContactoNombre"/>
+    public string? ContactoTelefono { get; private set; }
+
+    /// <inheritdoc cref="ContactoNombre"/>
+    public string? ContactoCorreo { get; private set; }
+
     public bool EstaActiva(DateOnly hoy) => !EstaCancelada && FechaFin >= hoy;
 
     /// <summary>
@@ -143,6 +167,53 @@ public class Visita : EntidadBase
     }
 
     public void MarcarNotificadoCliente(bool notificado) => NotificadoCliente = notificado;
+
+    /// <summary>
+    /// Sustituye el contacto de la Visita. Un campo vacío o solo con espacios queda sin informar. Valida las tres
+    /// longitudes antes de escribir ninguna: un valor inválido no deja el contacto a medias.
+    /// </summary>
+    public void ActualizarContacto(string? nombre, string? telefono, string? correo)
+    {
+        var nombreNormalizado = NormalizarCampoContacto(nombre, LongitudMaximaContactoNombre, nameof(nombre));
+        var telefonoNormalizado = NormalizarCampoContacto(telefono, LongitudMaximaContactoTelefono, nameof(telefono));
+        var correoNormalizado = NormalizarCampoContacto(correo, LongitudMaximaContactoCorreo, nameof(correo));
+        ContactoNombre = nombreNormalizado;
+        ContactoTelefono = telefonoNormalizado;
+        ContactoCorreo = correoNormalizado;
+    }
+
+    /// <summary>
+    /// Valor por defecto del contacto al crear la Visita: el contacto del Centro (<see cref="Centro.Contacto"/>).
+    /// Ese campo es texto libre, sin teléfono ni correo separados, así que se copia tal cual al nombre, salvo
+    /// cuando el texto entero es una sola dirección de correo, que va al correo (el borrador de «Pedir
+    /// prioridad» también reconoce como dirección un contacto de Centro con arroba). No se parte ni se
+    /// interpreta nada más. Sin contacto en el Centro, la Visita queda sin contacto.
+    /// </summary>
+    public void RellenarContactoDesdeCentro(string? contactoCentro)
+    {
+        var limpio = string.IsNullOrWhiteSpace(contactoCentro) ? null : contactoCentro.Trim();
+        if (limpio is null) return;
+
+        if (EsUnaSolaDireccionDeCorreo(limpio) && limpio.Length <= LongitudMaximaContactoCorreo)
+            ActualizarContacto(null, null, limpio);
+        else
+            ActualizarContacto(limpio, null, null);
+    }
+
+    private static bool EsUnaSolaDireccionDeCorreo(string texto)
+    {
+        var arroba = texto.IndexOf('@');
+        return arroba > 0 && arroba == texto.LastIndexOf('@') && arroba < texto.Length - 1
+            && !texto.Any(char.IsWhiteSpace);
+    }
+
+    private static string? NormalizarCampoContacto(string? valor, int longitudMaxima, string parametro)
+    {
+        var normalizado = string.IsNullOrWhiteSpace(valor) ? null : valor.Trim();
+        if (normalizado?.Length > longitudMaxima)
+            throw new ArgumentException($"El campo no puede superar {longitudMaxima} caracteres.", parametro);
+        return normalizado;
+    }
 
     /// <summary>
     /// Añadir o quitar un Trabajador cambia la Visita aunque solo se escriba la unión

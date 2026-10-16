@@ -250,6 +250,48 @@ public class CrearVisitaCommandTests : IAsyncLifetime
             "D-21: la Visita dada de alta a mano guarda Manual, no Plataforma");
     }
 
+    /// <summary>
+    /// Contacto de la Visita (decisión de producto, 2026-10-16): al crearla se rellena por defecto con el contacto del
+    /// Centro, en una columna propia de la Visita. Cambiar después el contacto del Centro no cambia el de la Visita.
+    /// </summary>
+    [Fact]
+    public async Task Al_crear_la_visita_copia_el_contacto_del_Centro_en_su_propio_contacto()
+    {
+        await using var contexto = CrearContexto();
+
+        var cliente = Empresa.CrearComoCliente("Cliente Contacto Visita S.L.", "B10380194", false, null, null);
+        var empresa = new Empresa("Empresa Contacto Visita S.L.", "B10380186");
+        contexto.Empresas.AddRange(cliente, empresa);
+        await contexto.SaveChangesAsync();
+
+        var centro = new Centro(cliente.Id, empresa.Id, "Centro Contacto Visita", contacto: "Pedro Salas 954 555 010");
+        var trabajador = Trabajador.DeEmpresa(empresa.Id, "Luis", "Pérez", "87654321X");
+        contexto.Centros.Add(centro);
+        contexto.Trabajadores.Add(trabajador);
+        await contexto.SaveChangesAsync();
+
+        var handler = new CrearVisitaCommandHandler(
+            new VisitaRepository(contexto), new VisitaTrabajadorRepository(contexto),
+            contexto, contexto,
+            new SugerenciaVisitaCorreoRepository(contexto), contexto,
+            new PaqueteDocumentalDeMentira(), new EvaluadorExpedienteDeMentira(), new CurrentUserServiceFalso(), new PublicadorDeMentira(), contexto,
+            NullLogger<CrearVisitaCommandHandler>.Instance, new AlcanceDatosServiceFalso());
+
+        var resultado = await handler.Handle(new CrearVisitaCommand(
+            centro.Id, DiaDeNegocio.Hoy().AddDays(1), DiaDeNegocio.Hoy().AddDays(1), [trabajador.Id], Notas: null), CancellationToken.None);
+        resultado.EsExitoso.Should().BeTrue();
+
+        centro.Actualizar(centro.Nombre, null, null, "Otra persona del Centro", null);
+        await contexto.SaveChangesAsync();
+
+        await using var lectura = CrearContexto();
+        var visita = await lectura.Visitas.SingleAsync(v => v.Id == resultado.Valor);
+        visita.ContactoNombre.Should().Be("Pedro Salas 954 555 010",
+            "el contacto se copia al crear y es de la Visita: cambiar el del Centro después no lo arrastra");
+        visita.ContactoTelefono.Should().BeNull("el contacto del Centro es texto libre y no se parte en teléfono");
+        visita.ContactoCorreo.Should().BeNull();
+    }
+
     private CaeManagerDbContext CrearContexto()
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };

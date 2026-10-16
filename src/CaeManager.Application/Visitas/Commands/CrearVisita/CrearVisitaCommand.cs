@@ -58,7 +58,13 @@ public class CrearVisitaCommandHandler(
     public async Task<Result<Guid>> Handle(CrearVisitaCommand request, CancellationToken cancellationToken)
     {
         // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
-        if (!await centrosContext.Centros.AnyAsync(c => c.Id == request.CentroId, cancellationToken))
+        // El contacto del Centro se lee en la misma consulta: es el valor por defecto del contacto
+        // de la Visita (decisión de producto, 2026-10-16), que luego puede cambiarse en Visita 360.
+        var centro = await centrosContext.Centros
+            .Where(c => c.Id == request.CentroId)
+            .Select(c => new { c.Contacto })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (centro is null)
             return CentroNoEncontrado();
 
         // Alcance de cartera: existir en el Tenant no basta. Un Gestor CAE solo
@@ -101,6 +107,7 @@ public class CrearVisitaCommandHandler(
 
         var origen = Visita.OrigenAlCrear(request.SugerenciaVisitaCorreoId is not null, canalDelMensaje);
         var visita = new Visita(request.CentroId, request.FechaInicio, request.FechaFin, request.Notas, origen, request.HoraEstimadaAcceso);
+        visita.RellenarContactoDesdeCentro(centro.Contacto);
         repositorio.Agregar(visita);
 
         foreach (var trabajadorId in trabajadorIds)

@@ -11,6 +11,7 @@ using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
+using CaeManager.Application.Visitas.Commands.EditarContactoVisita;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Commands.QuitarMarcaDocumentacionGestionada;
 using CaeManager.Application.Visitas.Commands.ReactivarVisita;
@@ -45,7 +46,7 @@ namespace CaeManager.Web.Tests;
 /// <c>PaqueteDocumentalVisitaCorreoTests</c> contra el handler real.
 /// </para>
 /// </summary>
-public class Visita360PaginaTests : BunitContext
+public partial class Visita360PaginaTests : BunitContext
 {
     public Visita360PaginaTests()
     {
@@ -120,6 +121,9 @@ public class Visita360PaginaTests : BunitContext
                 case CancelarVisitaCommand c:
                     Detalles[c.Id] = Detalles[c.Id] with { EstaCancelada = true, MotivoCancelacion = c.Motivo };
                     return Result.Exito(new VisitaCanceladaDto(c.Id, Guid.NewGuid()));
+                case EditarContactoVisitaCommand c:
+                    Detalles[c.Id] = Detalles[c.Id] with { ContactoNombre = c.Nombre, ContactoTelefono = c.Telefono, ContactoCorreo = c.Correo, Version = Guid.NewGuid() };
+                    return Result.Exito();
                 case ReactivarVisitaCommand c:
                     Detalles[c.Id] = Detalles[c.Id] with { EstaCancelada = false, MotivoCancelacion = null };
                     return Result.Exito();

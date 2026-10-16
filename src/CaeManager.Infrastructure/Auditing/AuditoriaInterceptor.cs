@@ -8,6 +8,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
+using CaeManager.Domain.Visitas;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -83,6 +84,10 @@ namespace CaeManager.Infrastructure.Auditing;
 ///    el correo del Técnico de prevención. Se enmascaran en toda entrada de
 ///    Centro. El horario de acceso y los indicadores de trabajos especiales no
 ///    son datos personales y quedan en claro. Ver el comentario de esa entrada.
+/// 10. El contacto de la <see cref="Visita"/> 360: su nombre, su teléfono y su
+///    correo, con el mismo criterio que la ficha de Centro 360 (punto 9). Se
+///    enmascaran en toda entrada de Visita, también cuando se rellenan al
+///    crearla copiando el contacto del Centro.
 /// </summary>
 public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesInterceptor
 {
@@ -220,6 +225,13 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         [
             nameof(Centro.ControlAccesosNombre), nameof(Centro.ControlAccesosTelefono),
             nameof(Centro.TecnicoPrevencionNombre), nameof(Centro.TecnicoPrevencionTelefono), nameof(Centro.TecnicoPrevencionCorreo),
+        ],
+        // Punto 10 del comentario de clase (2026-10-17): el contacto de la Visita 360, con el
+        // mismo criterio que la ficha de Centro 360 (punto 9). El rastro conserva qué campo
+        // cambió, quién y cuándo; nunca el nombre, el teléfono ni el correo del contacto.
+        [typeof(Visita)] =
+        [
+            nameof(Visita.ContactoNombre), nameof(Visita.ContactoTelefono), nameof(Visita.ContactoCorreo),
         ],
         [typeof(Empresa)] =
         [

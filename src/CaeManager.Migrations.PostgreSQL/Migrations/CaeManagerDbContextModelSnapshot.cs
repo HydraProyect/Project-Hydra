@@ -7911,6 +7911,18 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("CentroId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ContactoCorreo")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<string>("ContactoNombre")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ContactoTelefono")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<Guid?>("ConversacionOrigenId")
                         .HasColumnType("uuid");
 

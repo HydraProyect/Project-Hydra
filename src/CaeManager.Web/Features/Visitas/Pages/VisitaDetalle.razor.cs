@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Visitas;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Visitas.Commands;
@@ -106,6 +107,32 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
     private bool _marcandoDocumentacionGestionada;
     private (Guid Id, Guid Version)? _visitaDelPaquete;
     private bool _editarVisible;
+    private bool _editarContactoVisible;
+
+    private static bool TieneContacto(DetalleVisitaDto visita) =>
+        !string.IsNullOrWhiteSpace(visita.ContactoNombre) || !string.IsNullOrWhiteSpace(visita.ContactoTelefono)
+        || !string.IsNullOrWhiteSpace(visita.ContactoCorreo);
+
+    /// <summary>
+    /// Recomendaciones de la Visita: solo las que salen de la documentación ya cargada y de las fechas
+    /// (<see cref="RecomendacionesVisita"/>). Lista vacía = la sección no se pinta.
+    /// </summary>
+    private IReadOnlyList<RecomendacionVisita> Recomendaciones(DocumentacionVisitaDto documentacion) =>
+        _detalle is { } visita
+            ? RecomendacionesVisita.Calcular(documentacion, visita.EmpresaRazonSocial, visita.FechaInicio, visita.FechaFin, Hoy, visita.EstaCancelada)
+            : [];
+
+    private string TextoRecomendacion(RecomendacionVisita recomendacion)
+    {
+        var tipos = string.Join(", ", recomendacion.TiposDocumento);
+        var fecha = recomendacion.Fecha?.ToString("dd/MM/yyyy") ?? string.Empty;
+        return recomendacion.Tipo switch
+        {
+            TipoRecomendacionVisita.DocumentacionPendiente => Textos["RecomendacionDocumentacionPendiente", recomendacion.Sujeto, tipos],
+            TipoRecomendacionVisita.VenceAntesDeLaEntrada => Textos["RecomendacionVenceAntesDeLaEntrada", recomendacion.Sujeto, tipos, fecha],
+            _ => Textos["RecomendacionVenceDuranteLaVisita", recomendacion.Sujeto, tipos, fecha],
+        };
+    }
 
     private bool _visorVisible;
     private Guid _visorDocumentoId;
