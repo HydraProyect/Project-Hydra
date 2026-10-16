@@ -37,14 +37,17 @@ public class FalloSmtpDeLaReclamacionTests
         ReclamacionDocumentalRepositorioQueCaptura Repositorio,
         UnitOfWorkFalso UnitOfWork);
 
-    private static Entorno Construir(params string[] destinatariosQueFallan)
+    private static Entorno Construir(params string[] destinatariosQueFallan) =>
+        Construir(new EmailServiceQueFallaPara(destinatariosQueFallan));
+
+    private static Entorno Construir(IEmailService emailService)
     {
         var repositorio = new ReclamacionDocumentalRepositorioQueCaptura();
         var unitOfWork = new UnitOfWorkFalso();
 
         var servicio = new RegistroEnvioReclamacionService(
             new IntegracionesQueryContextFalso(),
-            new EmailServiceQueFallaPara(destinatariosQueFallan),
+            emailService,
             repositorio,
             new CurrentUserServiceFalso(Guid.NewGuid()),
             new CorreoDelActorRealFalso(),
@@ -113,6 +116,45 @@ public class FalloSmtpDeLaReclamacionTests
         resultado.EsExitoso.Should().BeTrue();
         entorno.Repositorio.Agregadas.Should().ContainSingle()
             .Which.DestinatarioEmail.Should().Be($"{Contacto}; {Prl}");
+    }
+
+    [Fact]
+    public async Task Una_excepcion_del_transporte_con_un_solo_destinatario_no_registra_nada_y_es_un_fallo_de_envio()
+    {
+        var entorno = Construir(new EmailServiceQueLanzaPara([Contacto]));
+
+        var resultado = await Enviar(entorno, Contacto);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Reclamacion.EnvioFallido");
+        entorno.Repositorio.Agregadas.Should().BeEmpty();
+        entorno.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Una_excepcion_con_el_primer_correo_ya_entregado_registra_al_primero_y_avisa_del_segundo()
+    {
+        // Antes la excepción subía entera: el primer correo había salido y no quedaba ningún registro de ello.
+        var entorno = Construir(new EmailServiceQueLanzaPara([Prl]));
+
+        var resultado = await Enviar(entorno, Contacto, Prl);
+
+        resultado.EsFallido.Should().BeTrue("no llegó a todos y la UI no puede darla por enviada");
+        resultado.Error.Codigo.Should().Be("Reclamacion.EnvioParcial");
+        resultado.Error.Mensaje.Should().Contain(Prl);
+        entorno.Repositorio.Agregadas.Should().ContainSingle()
+            .Which.DestinatarioEmail.Should().Be(Contacto);
+        entorno.UnitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    private sealed class EmailServiceQueLanzaPara(IReadOnlyCollection<string> destinatariosQueLanzan) : IEmailService
+    {
+        public Task<Result> EnviarAsync(
+            string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
+            string? responderA = null, CancellationToken cancellationToken = default) =>
+            destinatariosQueLanzan.Contains(destinatarioEmail)
+                ? throw new FormatException("Dirección mal formada.")
+                : Task.FromResult(Result.Exito());
     }
 
     private sealed class EmailServiceQueFallaPara(IReadOnlyCollection<string> destinatariosQueFallan) : IEmailService

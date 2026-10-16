@@ -1,0 +1,206 @@
+using Bunit;
+using CaeManager.Application.Contactos;
+using CaeManager.Application.Reclamaciones;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
+using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro;
+using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
+using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
+using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Bandeja.Components;
+using FluentAssertions;
+using MediatR;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace CaeManager.Web.Tests;
+
+/// <summary>
+/// Defectos del flujo «Pedir» / «Reclamar en lote» (piloto Outbound, 2026-10-16). El correo a un tercero no se deshace:
+/// «Enviar» ya no manda nada, abre una confirmación que dice a quién y cuántos documentos, y solo ella envía. Y un envío que
+/// falla no se pinta como enviado: el aviso dice que no salió y el lote sigue ahí; si el fallo es parcial, la parte entregada ya
+/// está registrada y el lote sale de la lista para no reclamar dos veces a quien ya lo recibió.
+/// </summary>
+public class DrawerReclamacionLoteConfirmacionEnvioTests : BunitContext
+{
+    private static readonly Guid TrabajadorId = Guid.NewGuid();
+    private static readonly Guid ClienteTitularId = Guid.NewGuid();
+    private static readonly Guid DocumentoUnoId = Guid.NewGuid();
+    private static readonly Guid DocumentoDosId = Guid.NewGuid();
+    private static readonly Guid ContactoMartaId = Guid.NewGuid();
+    private static readonly Guid ContactoPrlId = Guid.NewGuid();
+
+    private readonly MediatorFalso _mediator = new();
+    private int _reclamacionesEnviadas;
+
+    public DrawerReclamacionLoteConfirmacionEnvioTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+        Services.AddScoped<IMediator>(_ => _mediator);
+        Services.AddScoped<ToastService>();
+    }
+
+    private sealed class MediatorFalso : IMediator
+    {
+        public List<object> Recibidas { get; } = [];
+        public Result<EnvioReclamacionResultado> ResultadoDelEnvio { get; set; } =
+            Result.Exito(new EnvioReclamacionResultado([], ["marta@example.invalid"], 0));
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            Recibidas.Add(request);
+            object respuesta = request switch
+            {
+                ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)[],
+                ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)[new(TrabajadorId, "Ana Ruiz", null, null)],
+                ObtenerLoteReclamacionPorFiltroQuery => (IReadOnlyList<LoteReclamacionAgrupadoDto>)
+                [
+                    new(ClienteTitularId, "Refrielectric S.A.", AmbitoAplicacion.Trabajador, null,
+                        [
+                            new(DocumentoUnoId, TrabajadorId, "Ana Ruiz", Guid.NewGuid(), "Curso de altura", new DateOnly(2026, 11, 2), EstadoDocumento.Urgente),
+                            new(DocumentoDosId, TrabajadorId, "Ana Ruiz", Guid.NewGuid(), "Aptitud médica", new DateOnly(2026, 11, 9), EstadoDocumento.Urgente),
+                        ],
+                        null,
+                        [
+                            new DestinatarioAgendaDto(ContactoMartaId, "Marta Gil", "marta@example.invalid", ["Formación PRL"]),
+                            new DestinatarioAgendaDto(ContactoPrlId, "Pablo Ríos", "prl@example.invalid", ["Aptitud médica"]),
+                        ],
+                        []),
+                ],
+                EnviarReclamacionCommand => ResultadoDelEnvio,
+                EnviarReclamacionEmpresaCommand => ResultadoDelEnvio,
+                _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
+            };
+            return Task.FromResult((TResponse)respuesta);
+        }
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest => Task.CompletedTask;
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) => Task.FromResult<object?>(null);
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification => Task.CompletedTask;
+    }
+
+    private async Task<IRenderedComponent<DrawerReclamacionLote>> AbrirYContinuarAsync()
+    {
+        var cut = Render<DrawerReclamacionLote>(p => p
+            .Add(x => x.Visible, true)
+            .Add(x => x.AmbitosDisponibles, [AmbitoAplicacion.Trabajador])
+            .Add(x => x.AmbitoInicial, AmbitoAplicacion.Trabajador)
+            .Add(x => x.EntidadIdInicial, TrabajadorId)
+            .Add(x => x.OnReclamacionEnviada, EventCallback.Factory.Create(this, () => _reclamacionesEnviadas++)));
+        cut.WaitForAssertion(() => cut.FindAll(".selector-lote-documental input[type=checkbox]").Should().NotBeEmpty());
+        await cut.FindAll(".selector-lote-acciones button").Single(b => b.TextContent.Trim() == "Continuar").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".tabla-datos").Should().NotBeEmpty());
+        return cut;
+    }
+
+    private static AngleSharp.Dom.IElement BotonEnviar(IRenderedComponent<DrawerReclamacionLote> cut) =>
+        cut.FindAll("button").Single(b => b.TextContent.Trim().StartsWith("Enviar ("));
+
+    private static AngleSharp.Dom.IElement BotonDelDialogo(IRenderedComponent<DrawerReclamacionLote> cut, string texto) =>
+        cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == texto);
+
+    private int EnviosRecibidos => _mediator.Recibidas.OfType<EnviarReclamacionCommand>().Count();
+
+    [Fact]
+    public async Task Enviar_no_envia_nada_y_pide_confirmacion_diciendo_a_quien_y_cuantos_documentos()
+    {
+        var cut = await AbrirYContinuarAsync();
+
+        await BotonEnviar(cut).ClickAsync(new MouseEventArgs());
+
+        EnviosRecibidos.Should().Be(0, "pulsar «Enviar» solo abre la confirmación");
+        var dialogo = cut.Find(".modal-contenido");
+        dialogo.TextContent.Should().Contain("¿Enviar la reclamación a Refrielectric S.A.?")
+            .And.Contain("2 documento(s)")
+            .And.Contain("2 contacto(s)")
+            .And.Contain("Marta Gil (marta@example.invalid)")
+            .And.Contain("Pablo Ríos (prl@example.invalid)");
+    }
+
+    [Fact]
+    public async Task La_confirmacion_cuenta_solo_lo_marcado()
+    {
+        var cut = await AbrirYContinuarAsync();
+        await cut.Find($"input[aria-label^='Incluir Aptitud médica']").ChangeAsync(new ChangeEventArgs { Value = false });
+        await cut.FindAll(".reclamacion-destinatarios input[type=checkbox]")[1].ChangeAsync(new ChangeEventArgs { Value = false });
+
+        await BotonEnviar(cut).ClickAsync(new MouseEventArgs());
+
+        var texto = cut.Find(".modal-contenido").TextContent;
+        texto.Should().Contain("1 documento(s)").And.Contain("1 contacto(s)").And.Contain("Marta Gil").And.NotContain("Pablo Ríos");
+    }
+
+    [Fact]
+    public async Task Cancelar_la_confirmacion_no_envia_y_deja_el_lote_como_estaba()
+    {
+        var cut = await AbrirYContinuarAsync();
+        await BotonEnviar(cut).ClickAsync(new MouseEventArgs());
+
+        await BotonDelDialogo(cut, "Cancelar").ClickAsync(new MouseEventArgs());
+
+        EnviosRecibidos.Should().Be(0);
+        cut.FindAll(".modal-pie button").Should().BeEmpty("el diálogo se cerró");
+        BotonEnviar(cut).HasAttribute("disabled").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Confirmar_envia_una_sola_vez_exactamente_lo_anunciado()
+    {
+        var cut = await AbrirYContinuarAsync();
+        await BotonEnviar(cut).ClickAsync(new MouseEventArgs());
+
+        await BotonDelDialogo(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
+
+        var envio = _mediator.Recibidas.OfType<EnviarReclamacionCommand>().Should().ContainSingle().Which;
+        envio.ClienteId.Should().Be(ClienteTitularId);
+        envio.DocumentoIds.Should().BeEquivalentTo([DocumentoUnoId, DocumentoDosId]);
+        envio.ContactoIdsSeleccionados.Should().BeEquivalentTo([ContactoMartaId, ContactoPrlId]);
+        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Exito);
+        _reclamacionesEnviadas.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Si_el_envio_falla_la_pantalla_lo_dice_no_lo_da_por_enviado_y_el_lote_sigue_para_reintentar()
+    {
+        _mediator.ResultadoDelEnvio = Result.Fallo<EnvioReclamacionResultado>(Error.Crear(
+            "Reclamacion.EnvioFallido",
+            "No pudimos enviar el correo de la reclamación, así que no queda registrada. Inténtalo de nuevo en unos minutos."));
+        var cut = await AbrirYContinuarAsync();
+        await BotonEnviar(cut).ClickAsync(new MouseEventArgs());
+
+        await BotonDelDialogo(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
+
+        var mensajes = Services.GetRequiredService<ToastService>().Mensajes;
+        mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Error);
+        mensajes.Should().NotContain(m => m.Tono == TonoToast.Exito, "no salió ningún correo");
+        mensajes.Single().Mensaje.Should().Contain("no queda registrada");
+        _reclamacionesEnviadas.Should().Be(0, "no hay nada nuevo que refrescar");
+        cut.FindAll(".modal-pie button").Should().BeEmpty("el diálogo se cierra para que el aviso se vea");
+        BotonEnviar(cut).HasAttribute("disabled").Should().BeFalse("el lote sigue ahí para reintentar");
+    }
+
+    [Fact]
+    public async Task Si_el_envio_llega_solo_a_una_parte_se_avisa_de_la_que_no_y_el_lote_sale_porque_ya_esta_registrado()
+    {
+        _mediator.ResultadoDelEnvio = Result.Fallo<EnvioReclamacionResultado>(Error.Crear(
+            RegistroEnvioReclamacionService.CodigoEnvioParcial,
+            "La reclamación solo llegó a marta@example.invalid, y así queda registrada. No pudimos enviarla a prl@example.invalid."));
+        var cut = await AbrirYContinuarAsync();
+        await BotonEnviar(cut).ClickAsync(new MouseEventArgs());
+
+        await BotonDelDialogo(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
+
+        var mensajes = Services.GetRequiredService<ToastService>().Mensajes;
+        mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Error).Which.Mensaje.Should().Contain("prl@example.invalid");
+        mensajes.Should().NotContain(m => m.Tono == TonoToast.Exito);
+        _reclamacionesEnviadas.Should().Be(1, "la parte entregada ya está en el historial y la cola se refresca");
+        cut.FindAll(".tabla-datos").Should().BeEmpty("reenviar el lote entero reclamaría otra vez a quien ya lo recibió");
+    }
+}

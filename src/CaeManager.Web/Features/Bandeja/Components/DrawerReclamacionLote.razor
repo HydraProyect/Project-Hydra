@@ -61,7 +61,7 @@
                 <Tarjeta @key="lote.TitularId" Titulo="@lote.TitularNombre" Class="tarjeta-reclamacion">
                     <AccionesHeader>
                         <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(totalSeleccionado == 0 || contactos.Count == 0 || _enviando)"
-                               Cargando="enviandoEste" OnClick="() => EnviarAsync(lote)">
+                               Cargando="enviandoEste" OnClick="() => PedirConfirmacion(lote)">
                             Enviar (@totalSeleccionado)
                         </Boton>
                     </AccionesHeader>
@@ -153,6 +153,17 @@
         }
     </ChildContent>
 </Drawer>
+
+@* Un correo a un tercero no se puede deshacer: «Enviar» no manda nada, abre esta confirmación con lo que va a salir
+   (a cuántos contactos y cuántos documentos), y solo ella envía. Mismo patrón que la pantalla de Alertas. *@
+<DialogoConfirmacion Visible="_envioPendiente is not null"
+                     VisibleChanged="CerrarConfirmacionEnvio"
+                     Titulo="@(TextosMiTrabajo.Formato("ReclamacionConfirmarTitulo", _envioPendiente?.TitularNombre ?? string.Empty))"
+                     Mensaje="@MensajeConfirmacionEnvio"
+                     TextoBotonConfirmar="@TextosMiTrabajo.Texto("ReclamacionConfirmarBoton")"
+                     VarianteConfirmar="VarianteBoton.Primario"
+                     EnProgreso="_enviando"
+                     OnConfirmar="ConfirmarEnvioAsync" />
 
 <AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => CerrarAsync(false)" />
 
@@ -290,7 +301,25 @@
         else marcados.Remove(contactoId);
     }
 
-    private async Task EnviarAsync(LoteReclamacionAgrupadoDto lote)
+    /// <summary>
+    /// Lo que la confirmación anunció, congelado al abrirla: ni un cambio de casillas ni una recarga con el diálogo abierto
+    /// alteran lo que sale. El envío usa esto, no el estado vivo de la tarjeta.
+    /// </summary>
+    private sealed record EnvioPendiente(
+        Guid TitularId, string TitularNombre, AmbitoAplicacion Ambito,
+        IReadOnlyList<Guid> DocumentoIds, IReadOnlyList<PendienteSinFecha> Pendientes,
+        IReadOnlyList<Guid> ContactoIds, IReadOnlyList<string> Destinatarios)
+    {
+        public int TotalDocumentos => DocumentoIds.Count + Pendientes.Count;
+    }
+
+    private EnvioPendiente? _envioPendiente;
+
+    private string MensajeConfirmacionEnvio => _envioPendiente is not { } envio
+        ? string.Empty
+        : TextosMiTrabajo.Formato("ReclamacionConfirmarMensaje", envio.TotalDocumentos, envio.ContactoIds.Count, string.Join(", ", envio.Destinatarios));
+
+    private void PedirConfirmacion(LoteReclamacionAgrupadoDto lote)
     {
         if (_enviando || !Visible || !_lotes.Any(l => l.TitularId == lote.TitularId)) return;
 
@@ -307,8 +336,32 @@
         var contactoIds = _contactosPorTitular.GetValueOrDefault(lote.TitularId, []).ToList();
         if (contactoIds.Count == 0) return;
 
+        var destinatarios = (lote.Destinatarios ?? [])
+            .Where(d => contactoIds.Contains(d.ContactoId))
+            .Select(d => $"{d.Nombre} ({d.Email})")
+            .ToList();
+
+        _envioPendiente = new EnvioPendiente(
+            lote.TitularId, lote.TitularNombre, lote.Ambito, documentoIds, pendientes, contactoIds, destinatarios);
+    }
+
+    private void CerrarConfirmacionEnvio(bool visible)
+    {
+        if (!visible && !_enviando)
+            _envioPendiente = null;
+    }
+
+    private async Task ConfirmarEnvioAsync()
+    {
+        if (_envioPendiente is not { } envio) return;
+        if (_enviando || !Visible || !_lotes.Any(l => l.TitularId == envio.TitularId))
+        {
+            _envioPendiente = null;
+            return;
+        }
+
         _enviando = true;
-        _enviandoTitularId = lote.TitularId;
+        _enviandoTitularId = envio.TitularId;
         try
         {
             // Un comando por ámbito del titular (ver
@@ -316,20 +369,35 @@
             // es el Cliente resuelto vía Centro; con Empresa es la Empresa
             // contraparte dueña de sus propios documentos. Sin CentroId en los
             // dos casos: el selector no acota por Centro.
-            var resultado = lote.Ambito == AmbitoAplicacion.Empresa
+            var resultado = envio.Ambito == AmbitoAplicacion.Empresa
                 ? await Mediator.Send(new EnviarReclamacionEmpresaCommand(
-                    lote.TitularId, documentoIds, ContactoIdsSeleccionados: contactoIds, Pendientes: pendientes))
+                    envio.TitularId, envio.DocumentoIds, ContactoIdsSeleccionados: envio.ContactoIds, Pendientes: envio.Pendientes))
                 : await Mediator.Send(new EnviarReclamacionCommand(
-                    lote.TitularId, documentoIds, CentroId: null, ContactoIdsSeleccionados: contactoIds, Pendientes: pendientes));
+                    envio.TitularId, envio.DocumentoIds, CentroId: null, ContactoIdsSeleccionados: envio.ContactoIds, Pendientes: envio.Pendientes));
 
             if (resultado.EsFallido)
             {
+                // Un fallo es un fallo: el correo no salió (o no salió a todos) y la pantalla lo dice, nunca «enviada».
+                // El diálogo se cierra para que el aviso se vea y el lote sigue ahí para reintentar.
+                _envioPendiente = null;
                 ToastService.MostrarError(resultado.Error);
+
+                // Envío parcial: la parte entregada YA está en el historial. Dejar el lote entero invitaría a reclamar otra vez
+                // a quien ya lo recibió, así que sale de la lista y la cola se refresca.
+                if (resultado.Error.Codigo == RegistroEnvioReclamacionService.CodigoEnvioParcial)
+                {
+                    _lotes = [.. _lotes.Where(l => l.TitularId != envio.TitularId)];
+                    await OnReclamacionEnviada.InvokeAsync();
+                    if (_lotes.Count == 0)
+                        await CerrarAsync(false);
+                }
+
                 return;
             }
 
-            ToastService.Mostrar($"Reclamación enviada a {lote.TitularNombre}.", TonoToast.Exito);
-            _lotes = [.. _lotes.Where(l => l.TitularId != lote.TitularId)];
+            _envioPendiente = null;
+            ToastService.Mostrar($"Reclamación enviada a {envio.TitularNombre}.", TonoToast.Exito);
+            _lotes = [.. _lotes.Where(l => l.TitularId != envio.TitularId)];
             await OnReclamacionEnviada.InvokeAsync();
 
             if (_lotes.Count == 0)
