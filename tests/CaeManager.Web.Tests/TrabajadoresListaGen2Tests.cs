@@ -1464,16 +1464,16 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         cut.FindAll("thead th").Select(th => th.TextContent.Trim())
-            .Should().Equal("Nombre", "DNI", "Empresa / Subcontrata", "Documentación", "");
+            .Should().Equal("Nombre", "DNI", "Empresa / Subcontrata", "Registrados vigentes", "Documentación", "");
         var fila = FilasDeDatos(cut).Single();
         var celdas = fila.QuerySelectorAll("td");
         celdas[0].QuerySelector(".enlace-nombre-fila")!.TextContent.Trim().Should().Be("Javier Salas Moreno");
         celdas[0].QuerySelector(".celda-trabajador-dni").Should().BeNull();
         celdas[1].QuerySelector(".celda-trabajador-dni")!.TextContent.Should().Contain(javier.Dto.Dni);
         celdas[2].TextContent.Trim().Should().Be("Montajes Ebro S.L.");
-        celdas[3].QuerySelector(".badge")!.TextContent.Trim().Should().Be("Por vencer", "Urgente y Próximo se rotulan igual");
-        celdas[3].QuerySelector(".badge")!.ClassList.Should().Contain("badge-advertencia", "y con el mismo tono: lo urgente ya no va en rojo en la pastilla");
-        celdas[3].TextContent.Trim().Should().Be("Por vencer", "sin incidencias en el desglose no hay motivo que pintar: solo la pastilla");
+        celdas[4].QuerySelector(".badge")!.TextContent.Trim().Should().Be("Por vencer", "Urgente y Próximo se rotulan igual");
+        celdas[4].QuerySelector(".badge")!.ClassList.Should().Contain("badge-advertencia", "y con el mismo tono: lo urgente ya no va en rojo en la pastilla");
+        celdas[4].TextContent.Trim().Should().Be("Por vencer", "sin incidencias en el desglose no hay motivo que pintar: solo la pastilla");
         cut.Markup.Should().NotContain("Al día en lo básico").And.NotContain("Documentación base");
         cut.FindAll(".panel-doc-base").Should().BeEmpty();
         mediador.Enviadas.Should().NotContain(e => e.GetType().Name == "ObtenerDocumentacionBaseTrabajadoresQuery",

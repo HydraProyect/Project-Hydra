@@ -83,11 +83,11 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture
         // estado, localizable por su estado de código (data-estado).
         var botonVigentes = page.Locator(".franja-estado-boton[data-estado='Vigente']");
         // En la presentación de maqueta los botones de estado viven en un desplegable «Documentación».
-        await page.Locator(".franja-campo-desplegable > summary").First.ClickAsync();
+        await page.Locator(".franja-campo-desplegable > summary").ClickAsync();
         await botonVigentes.ClickAsync();
         await Expect(botonVigentes).ToHaveAttributeAsync("aria-pressed", "true");
         // Se cierra el desplegable: abierto, su panel tapa la cabecera de la tabla.
-        await page.Locator(".franja-campo-desplegable > summary").First.ClickAsync();
+        await page.Locator(".franja-campo-desplegable > summary").ClickAsync();
         var vigencia = Cabecera(page, "Vigencia");
         await ElegirOpcionDocumentoAsync(vigencia, "Ordenar por emisión");
         await ComprobarOrdenDocumentoAsync(page, vigencia, "emision");
