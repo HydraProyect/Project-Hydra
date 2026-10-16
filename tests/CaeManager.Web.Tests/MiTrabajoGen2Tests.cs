@@ -503,11 +503,6 @@ public class MiTrabajoGen2Tests : BunitContext
         cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas");
     }
 
-    /// <summary>
-    /// Lo que el Gestor CAE despliega vale para su visita a la pantalla y nada más: no se escribe ni se lee ningún
-    /// almacenamiento del navegador, y una instancia nueva de la pantalla (otra carga) vuelve a partir plegada aunque
-    /// la anterior terminara con un Tenant desplegado.
-    /// </summary>
     /// <summary>Decisión de la coordinadora (2026-10-16): el modo Severidad también carga plegado, con cabeceras plegables y «Expandir todas».</summary>
     [Fact]
     public void El_modo_Severidad_carga_con_todas_las_cabeceras_plegadas_y_se_despliegan_una_a_una_o_todas()
@@ -533,6 +528,10 @@ public class MiTrabajoGen2Tests : BunitContext
 
         cut.Find(".mi-trabajo-plegar-todas").Click();
         cut.FindAll(".mi-trabajo-grupo-cabecera-severidad").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "true");
+
+        cut.Find(".mi-trabajo-volver-plegar").Click();
+        cut.FindAll(".mi-trabajo-grupo-cabecera-severidad").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+        cut.FindAll(".mi-trabajo-volver-plegar").Should().BeEmpty();
     }
 
     [Fact]
@@ -554,6 +553,11 @@ public class MiTrabajoGen2Tests : BunitContext
         TitulosVisibles(cut).Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Lo que el Gestor CAE despliega vale para su visita a la pantalla y nada más: no se escribe ni se lee ningún
+    /// almacenamiento del navegador, y una instancia nueva de la pantalla (otra carga) vuelve a partir plegada aunque
+    /// la anterior terminara con un Tenant desplegado.
+    /// </summary>
     [Fact]
     public void Lo_desplegado_en_una_visita_no_se_restaura_en_la_siguiente()
     {

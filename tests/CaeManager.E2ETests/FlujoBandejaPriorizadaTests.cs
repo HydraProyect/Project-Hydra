@@ -122,6 +122,7 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         var chipVencido = page.Locator("button.bandeja-chip", new PageLocatorOptions { HasText = "Vencido" });
 
         await chipUrgente.ClickAsync();
+        await Expect(chipUrgente).ToHaveAttributeAsync("aria-pressed", "true");
         await Ayudas.DesplegarGruposDeBandejaAsync(page);
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
@@ -129,6 +130,7 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
 
         await chipUrgente.ClickAsync();
+        await Expect(chipUrgente).ToHaveAttributeAsync("aria-pressed", "true");
         await Ayudas.DesplegarGruposDeBandejaAsync(page);
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 

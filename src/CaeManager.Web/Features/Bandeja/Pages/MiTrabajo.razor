@@ -315,7 +315,7 @@
                         }
                         <div class="mi-trabajo-pie">
                             <span>@Pie</span>
-                            @if (_abiertos.Count > 0 || _tenantsAbiertos.Count > 0)
+                            @if (_abiertos.Count > 0 || _tenantsAbiertos.Count > 0 || _severidadesAbiertas.Count > 0)
                             {
                                 <button type="button" class="mi-trabajo-volver-plegar" @onclick="VolverAPlegar">@Textos["VolverAPlegar"]</button>
                             }
