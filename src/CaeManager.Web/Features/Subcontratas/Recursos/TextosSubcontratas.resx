@@ -810,6 +810,9 @@
   <data name="ExplicacionSupervisada360" xml:space="preserve">
     <value>Supervisada: la subcontrata sube su documentación a la plataforma del titular del Centro y tu equipo comprueba allí que es válida. La comprobación caduca y hay que repetirla.</value>
   </data>
+  <data name="ToastRestaurada" xml:space="preserve">
+    <value>Subcontrata restaurada.</value>
+  </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
   </data>

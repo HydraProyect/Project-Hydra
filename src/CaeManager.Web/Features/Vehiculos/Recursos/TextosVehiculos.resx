@@ -234,6 +234,24 @@
   <data name="FichaSubirDocumento" xml:space="preserve">
     <value>Subir documento</value>
   </data>
+  <data name="FichaEliminarVehiculo" xml:space="preserve">
+    <value>Eliminar vehículo</value>
+  </data>
+  <data name="FichaConfirmarEliminarTitulo" xml:space="preserve">
+    <value>¿Eliminar {0}?</value>
+  </data>
+  <data name="FichaConfirmarEliminarMensaje" xml:space="preserve">
+    <value>Dejará de aparecer en las listas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarlo desde Auditoría.</value>
+  </data>
+  <data name="ToastVehiculoEliminado" xml:space="preserve">
+    <value>Vehículo eliminado.</value>
+  </data>
+  <data name="ToastVehiculoRestaurado" xml:space="preserve">
+    <value>Vehículo restaurado.</value>
+  </data>
+  <data name="ErrorEliminar" xml:space="preserve">
+    <value>No pudimos eliminar el vehículo. Intenta nuevamente.</value>
+  </data>
   <data name="FichaMasAcciones" xml:space="preserve">
     <value>Más acciones</value>
   </data>

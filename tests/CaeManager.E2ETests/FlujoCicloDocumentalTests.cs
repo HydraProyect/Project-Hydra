@@ -328,12 +328,13 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await filaDocumento.Locator("button.documentos-accion-rapida").ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
-        // Fecha de emisión sin tocar (sigue siendo hoy — evita el diálogo de
-        // "vigencia anterior" de GuardarAsync, que solo dispara si la nueva
-        // fecha de emisión es ANTERIOR a la que ya tenía el documento). Solo
-        // se extiende el vencimiento, muy por encima del umbral ámbar (30
-        // días, ver ParametroSistemaSeedData) para que el badge cambie de
-        // verdad a "Vigente" y no se quede en "Próximo".
+        // Renovar abre la fecha de emisión vacía: se escribe hoy (igual a la
+        // que ya tenía el documento, lo que evita el diálogo de "vigencia
+        // anterior" de GuardarAsync, que solo dispara si la nueva fecha de
+        // emisión es ANTERIOR). Se extiende el vencimiento, muy por encima del
+        // umbral ámbar (30 días, ver ParametroSistemaSeedData) para que el
+        // badge cambie de verdad a "Vigente" y no se quede en "Próximo".
+        await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
         await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(400).ToString("yyyy-MM-dd"));
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });

@@ -217,6 +217,7 @@ public partial class EmpresasListaGen2Tests
         var formulario = cut.FindComponent<DrawerGestionDocumento>();
         // La corrección cambia lo guardado: la Empresa pasa a estar al día.
         mediador.Almacen[mediador.Almacen.FindIndex(e => e.Id == nervion.Id)] = Empresa("Aislamientos Nervión S.L.", estado: EstadoDocumento.Vigente) with { Id = nervion.Id };
+        await EmisionDeRenovacion.EscribirAsync(formulario);
         await formulario.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
 
         var renovacion = mediador.Enviadas.OfType<RenovarDocumentoCommand>().Should().ContainSingle().Subject;
