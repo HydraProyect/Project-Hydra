@@ -43,18 +43,23 @@ public class CrearVehiculoCommandValidator : AbstractValidator<CrearVehiculoComm
 }
 
 public class CrearVehiculoCommandHandler(
-    IVehiculoRepository repositorio, IEmpresasQueryContext empresasContext, IUnitOfWork unitOfWork)
+    IVehiculoRepository repositorio, IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos,
+    IUnitOfWork unitOfWork)
     : IRequestHandler<CrearVehiculoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearVehiculoCommand request, CancellationToken cancellationToken)
     {
-        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md —, y
+        // Asignación de Cartera: un Vehículo nuevo es una escritura sobre su Empresa titular, así que
+        // fuera del alcance de gestión esa Empresa «no existe» (mismo criterio que CrearTrabajador).
         if (request.EmpresaId is { } empresaId
-            && !await empresasContext.Empresas.AnyAsync(e => e.Id == empresaId, cancellationToken))
+            && (!await empresasContext.Empresas.AnyAsync(e => e.Id == empresaId, cancellationToken)
+                || !await alcanceDatos.EmpresaParaGestionVisibleAsync(empresaId, cancellationToken)))
             return Result.Fallo<Guid>(Error.Crear("Vehiculo.EmpresaNoEncontrada", "No encontramos esta empresa."));
 
         if (request.SubcontrataId is { } subcontrataId
-            && !await empresasContext.Empresas.AnyAsync(e => e.Id == subcontrataId, cancellationToken))
+            && (!await empresasContext.Empresas.AnyAsync(e => e.Id == subcontrataId, cancellationToken)
+                || !await alcanceDatos.SubcontrataParaGestionVisibleAsync(subcontrataId, cancellationToken)))
             return Result.Fallo<Guid>(Error.Crear("Vehiculo.SubcontrataNoEncontrada", "No encontramos esta subcontrata."));
 
         if (await repositorio.ExisteConMatriculaAsync(request.NumeroPlaca, cancellationToken: cancellationToken))

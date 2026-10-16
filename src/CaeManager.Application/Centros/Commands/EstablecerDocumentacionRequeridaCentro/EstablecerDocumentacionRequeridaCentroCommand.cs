@@ -48,13 +48,17 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
     ICentrosQueryContext centrosContext,
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
+    IAlcanceDatosService alcanceDatos,
     IUnitOfWork unitOfWork)
     : IRequestHandler<EstablecerDocumentacionRequeridaCentroCommand, Result>
 {
     public async Task<Result> Handle(EstablecerDocumentacionRequeridaCentroCommand request, CancellationToken cancellationToken)
     {
-        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
-        if (!await centrosContext.Centros.AnyAsync(c => c.Id == request.CentroId, cancellationToken))
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md —, y
+        // Asignación de Cartera: fuera del alcance de gestión el Centro «no existe» (mismo criterio
+        // que EditarCentroCommand).
+        if (!await centrosContext.Centros.AnyAsync(c => c.Id == request.CentroId, cancellationToken)
+            || !await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, cancellationToken))
             return Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.CentroNoEncontrado", "No encontramos este centro."));
 
         if (!await tiposDocumentoContext.TiposDocumento.AnyAsync(t => t.Id == request.TipoDocumentoId, cancellationToken))

@@ -75,7 +75,8 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
 
         // La exclusión, dada de alta como lo haría "Requisitos del Centro" (Gestionar en vivo).
         var establecerHandler = new EstablecerDocumentacionRequeridaCentroCommandHandler(
-            new TipoDocumentoCentroRepository(contexto), contexto, contexto, AltaAcreditacionesDePrueba.Con(contexto), contexto);
+            new TipoDocumentoCentroRepository(contexto), contexto, contexto, AltaAcreditacionesDePrueba.Con(contexto),
+            new AlcanceDatosServiceFalso(), contexto);
         var resultadoExclusion = await establecerHandler.Handle(
             new EstablecerDocumentacionRequeridaCentroCommand(
                 centro.Id, tipo.Id, Incluido: false, PeriodicidadEspecialMeses: 6, BloqueaAcceso: true,

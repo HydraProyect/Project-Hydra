@@ -50,7 +50,7 @@ public class CrearEmpresaCommandValidator : AbstractValidator<CrearEmpresaComman
 public class CrearEmpresaCommandHandler(
     IEmpresaRepository repositorio,
     IRelacionEmpresarialRepository relacionEmpresarialRepositorio,
-    IEmpresasQueryContext empresasContext, IUnitOfWork unitOfWork)
+    IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearEmpresaCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearEmpresaCommand request, CancellationToken cancellationToken)
@@ -69,7 +69,10 @@ public class CrearEmpresaCommandHandler(
             .Where(e => clienteIds.Contains(e.Id))
             .CountAsync(cancellationToken);
 
-        if (clientesEncontrados != clienteIds.Count)
+        // Asignación de Cartera: vincular la Empresa nueva a un Cliente empresarial es escribir sobre
+        // él; fuera de la cartera ese Cliente «no existe».
+        if (clientesEncontrados != clienteIds.Count
+            || !await alcanceDatos.TodosLosClientesVisiblesAsync(clienteIds, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Empresa.ClienteNoEncontrado", "Alguno de los Clientes seleccionados no existe."));
 
         var empresa = new Empresa(request.RazonSocial, request.Cif, request.Cnae, request.ConvenioAplicable, request.EsActividadAnexoI);

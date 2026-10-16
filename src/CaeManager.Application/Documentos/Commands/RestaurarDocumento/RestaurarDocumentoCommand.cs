@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -8,7 +9,9 @@ namespace CaeManager.Application.Documentos.Commands.RestaurarDocumento;
 /// <summary>Fase D ("Deshacer al eliminar") — ver RestaurarClienteCommand para el razonamiento completo del IgnoreQueryFilters()+TenantId.</summary>
 public record RestaurarDocumentoCommand(Guid Id) : ICommand;
 
-public class RestaurarDocumentoCommandHandler(IDocumentosQueryContext documentosContext, ITenantActual tenantActual, IUnitOfWork unitOfWork)
+public class RestaurarDocumentoCommandHandler(
+    IDocumentosQueryContext documentosContext, ITenantActual tenantActual, IAlcanceDatosService alcanceDatos,
+    IProyectosQueryContext proyectosContext, IUnitOfWork unitOfWork)
     : IRequestHandler<RestaurarDocumentoCommand, Result>
 {
     public async Task<Result> Handle(RestaurarDocumentoCommand request, CancellationToken cancellationToken)
@@ -17,7 +20,10 @@ public class RestaurarDocumentoCommandHandler(IDocumentosQueryContext documentos
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(d => d.Id == request.Id && d.TenantId == tenantActual.TenantId, cancellationToken);
 
-        if (documento is null || !documento.EstaEliminado)
+        // Asignación de Cartera: fuera de ella el documento eliminado «no existe», igual que en
+        // EliminarDocumentoCommand — deshacer una baja es tan escritura como hacerla.
+        if (documento is null || !documento.EstaEliminado
+            || !await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, cancellationToken))
             return Result.Fallo(Error.Crear("Documento.NoEncontrado", "No encontramos este documento eliminado."));
 
         documento.Restaurar();

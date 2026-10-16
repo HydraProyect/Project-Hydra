@@ -24,11 +24,16 @@ public class EliminarDocumentacionRequeridaCentroCommandValidator : AbstractVali
 }
 
 public class EliminarDocumentacionRequeridaCentroCommandHandler(
-    ITipoDocumentoCentroRepository repositorio, IUnitOfWork unitOfWork)
+    ITipoDocumentoCentroRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarDocumentacionRequeridaCentroCommand, Result>
 {
     public async Task<Result> Handle(EliminarDocumentacionRequeridaCentroCommand request, CancellationToken cancellationToken)
     {
+        // Asignación de Cartera: la Documentación requerida es configuración DEL Centro; fuera del
+        // alcance de gestión el Centro «no existe» (mismo criterio que EditarCentroCommand).
+        if (!await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, cancellationToken))
+            return Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.CentroNoEncontrado", "No encontramos este centro."));
+
         var fila = await repositorio.ObtenerPorParAsync(request.TipoDocumentoId, request.CentroId, cancellationToken);
         if (fila is null)
             return Result.Exito();

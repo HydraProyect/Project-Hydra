@@ -92,7 +92,10 @@ public class EditarEmpresaCommandHandler(
             .Where(e => clienteIdsNuevos.Contains(e.Id))
             .CountAsync(cancellationToken);
 
-        if (clientesNuevosEncontrados != clienteIdsNuevos.Count)
+        // Y Asignación de Cartera: una vinculación nueva a un Cliente empresarial fuera de la cartera
+        // es una escritura sobre él, así que ese Cliente «no existe».
+        if (clientesNuevosEncontrados != clienteIdsNuevos.Count
+            || !await alcanceDatos.TodosLosClientesVisiblesAsync(clienteIdsNuevos, cancellationToken))
             return Result.Fallo(Error.Crear("Empresa.ClienteNoEncontrado", "Alguno de los Clientes seleccionados no existe."));
 
         // Solo el diff de ClienteIds toca la arista. Los campos de identidad
@@ -105,7 +108,14 @@ public class EditarEmpresaCommandHandler(
         // sobre el conjunto — una contraparte opaca no origina baja ni
         // bloqueo (invariante de F4.2c). Aquí aplica la primera condición del
         // guard: la Empresa es la contratista de un centro de ese titular.
-        var bajas = actualesClienteIds.Where(id => !deseados.Contains(id)).ToList();
+        //
+        // Asignación de Cartera (§ 6 de contratos, bajas por ausencia): un Cliente empresarial fuera de
+        // la cartera no aparece en el selector, así que su ausencia en "deseados" no es un desmarcado
+        // y nunca cierra la arista. Las bajas se calculan sobre lo que el usuario pudo desmarcar.
+        var clientesVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        var bajas = actualesClienteIds
+            .Where(id => !deseados.Contains(id) && (clientesVisibles is null || clientesVisibles.Contains(id)))
+            .ToList();
 
         foreach (var clienteId in bajas)
             if (await guardDeCierre.TieneOperacionVivaAsync(empresa.Id, clienteId, cancellationToken))

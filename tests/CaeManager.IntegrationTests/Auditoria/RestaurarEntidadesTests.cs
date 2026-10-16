@@ -407,7 +407,8 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoRestaurar = CrearContexto(_tenant);
         var handler = new RestaurarDocumentoCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, contextoRestaurar);
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(),
+            contextoRestaurar, contextoRestaurar);
 
         var resultado = await handler.Handle(new RestaurarDocumentoCommand(documentoId), CancellationToken.None);
 
@@ -443,7 +444,8 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoAtacante = CrearContexto(_otroTenant);
         var handler = new RestaurarDocumentoCommandHandler(
-            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, contextoAtacante);
+            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, new AlcanceDatosServiceFalso(),
+            contextoAtacante, contextoAtacante);
 
         var resultado = await handler.Handle(new RestaurarDocumentoCommand(documentoId), CancellationToken.None);
 

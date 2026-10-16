@@ -68,7 +68,8 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             var handler = new CrearEmpresaCommandHandler(
-                new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto, contexto);
+                new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
+                CrearAlcanceConAccesoTotal(contexto), contexto);
 
             var resultado = await handler.Handle(
                 new CrearEmpresaCommand("Empresa Fuente Unica Uno S.L.", "B10380186", [cliente]), CancellationToken.None);
@@ -121,6 +122,90 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
             .EstaVigente.Should().BeFalse("la baja debe CERRAR la relación, nunca borrarla");
         (await verificacion.RelacionesEmpresariales.SingleAsync(r => r.ProveedoraId == empresaId && r.ClienteId == clienteDos))
             .EstaVigente.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Asignación de Cartera y bajas por ausencia (§ 6 de contratos): un Gestor CAE cuya cartera
+    /// solo alcanza a clienteDos no ve a clienteUno en el selector, así que no pudo desmarcarlo. Su
+    /// ausencia en el request no es una baja: la relación con clienteUno sobrevive, y la nueva con
+    /// clienteDos (dentro de la cartera) se da de alta.
+    /// </summary>
+    [Fact]
+    public async Task EditarEmpresaCommand_no_cierra_por_ausencia_un_Cliente_fuera_de_la_cartera()
+    {
+        Guid empresaId, clienteUno, clienteDos;
+        await using (var contexto = CrearContexto())
+        {
+            var cli1 = Empresa.CrearComoCliente("Cliente Cartera Uno S.A.", "B10380905", false, null, null);
+            var cli2 = Empresa.CrearComoCliente("Cliente Cartera Dos S.A.", "B10380913", false, null, null);
+            var empresa = new Empresa("Empresa Cartera Uno S.L.", "B10380921");
+            contexto.Empresas.AddRange(cli1, cli2, empresa);
+            await contexto.SaveChangesAsync();
+            clienteUno = cli1.Id; clienteDos = cli2.Id; empresaId = empresa.Id;
+
+            contexto.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(empresaId, clienteUno, DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto())
+        {
+            var handler = new EditarEmpresaCommandHandler(
+                new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
+                new GuardDeCierreDeArista(contexto, contexto, contexto),
+                new AlcanceDatosServiceFalso(clienteIds: [clienteDos], empresaIds: [empresaId]), contexto);
+
+            var resultado = await handler.Handle(
+                new EditarEmpresaCommand(empresaId, "Empresa Cartera Uno S.L.", "B10380921", [clienteDos]),
+                CancellationToken.None);
+
+            resultado.EsExitoso.Should().BeTrue();
+        }
+
+        await using var verificacion = CrearContexto();
+        (await verificacion.RelacionesEmpresariales.SingleAsync(r => r.ProveedoraId == empresaId && r.ClienteId == clienteUno))
+            .EstaVigente.Should().BeTrue("clienteUno está fuera de la cartera: el usuario no pudo desmarcarlo");
+        (await verificacion.RelacionesEmpresariales.SingleAsync(r => r.ProveedoraId == empresaId && r.ClienteId == clienteDos))
+            .EstaVigente.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Gemelo de Subcontrata, en el eje de Empresas: empresaUno queda fuera del alcance de gestión,
+    /// así que una edición que no la menciona no cierra la arista Subcontrata → empresaUno.
+    /// </summary>
+    [Fact]
+    public async Task EditarSubcontrataCommand_no_cierra_por_ausencia_una_Empresa_fuera_de_la_cartera()
+    {
+        Guid subcontrataId, empresaUno;
+        await using (var contexto = CrearContexto())
+        {
+            var e1 = new Empresa("Empresa Cartera Dos S.L.", "B10380939");
+            var subcontrata = Empresa.CrearComoSubcontrata("Subcontrata Cartera Uno S.L.", "B10380947", NivelServicioSubcontrata.Gestionada.ToString());
+            contexto.Empresas.AddRange(e1, subcontrata);
+            await contexto.SaveChangesAsync();
+            empresaUno = e1.Id; subcontrataId = subcontrata.Id;
+
+            contexto.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(subcontrataId, empresaUno, DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto())
+        {
+            var handler = new EditarSubcontrataCommandHandler(
+                new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
+                new GuardDeCierreDeArista(contexto, contexto, contexto),
+                new AlcanceDatosServiceFalso(clienteIds: [], empresaIds: [subcontrataId], subcontrataIds: [subcontrataId]),
+                contexto);
+
+            var resultado = await handler.Handle(
+                new EditarSubcontrataCommand(subcontrataId, "Subcontrata Cartera Uno S.L.", "B10380947", [], []),
+                CancellationToken.None);
+
+            resultado.EsExitoso.Should().BeTrue();
+        }
+
+        await using var verificacion = CrearContexto();
+        (await verificacion.RelacionesEmpresariales.SingleAsync(r => r.ProveedoraId == subcontrataId && r.ClienteId == empresaUno))
+            .EstaVigente.Should().BeTrue("empresaUno está fuera de la cartera: el usuario no pudo desmarcarla");
     }
 
     /// <summary>
@@ -197,7 +282,8 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             var handler = new CrearSubcontrataCommandHandler(
-                new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto, contexto);
+                new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
+                CrearAlcanceConAccesoTotal(contexto), contexto);
 
             var resultado = await handler.Handle(
                 new CrearSubcontrataCommand("Subcontrata Fuente Unica Uno S.L.", "B10380277", [cliente], [empresaPropia]),
