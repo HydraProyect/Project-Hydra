@@ -101,6 +101,28 @@ public class ContactoDeVisitaBajoRlsTests : IAsyncLifetime
         ajena.Should().BeNull();
     }
 
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task Sin_cartera_de_gestion_o_sin_la_politica_de_lectura_la_visita_se_ve_sin_su_contacto(
+        bool conCarteraDeGestion, bool politicaPermite)
+    {
+        await using var runtime = CrearRuntime(Roles.GestorCae);
+        var alcance = conCarteraDeGestion
+            ? new AlcanceDatosServiceFalso()
+            : new AlcanceDatosServiceFalso(centroIdsParaGestion: []);
+        var handler = new ObtenerDetalleVisitaQueryHandler(runtime, runtime, runtime, runtime, alcance, runtime,
+            PoliticaNotaInternaPruebas.Con(politicaPermite ? Roles.GestorCae : Roles.Cliente));
+
+        var detalle = await handler.Handle(new ObtenerDetalleVisitaQuery(_visitaPropia), CancellationToken.None);
+
+        detalle.Should().NotBeNull("la Visita sigue siendo legible; lo que se oculta es solo el contacto");
+        detalle!.ContactoVisible.Should().BeFalse();
+        detalle.ContactoNombre.Should().BeNull();
+        detalle.ContactoTelefono.Should().BeNull();
+        detalle.ContactoCorreo.Should().BeNull();
+    }
+
     [Fact]
     public async Task Editar_el_contacto_de_una_visita_de_otro_Tenant_responde_no_encontrada_y_no_lo_cambia()
     {

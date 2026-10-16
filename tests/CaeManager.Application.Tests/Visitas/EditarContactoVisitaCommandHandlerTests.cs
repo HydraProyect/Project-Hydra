@@ -29,6 +29,36 @@ public class EditarContactoVisitaCommandHandlerTests
         return (new EditarContactoVisitaCommandHandler(repositorio, alcance ?? new AlcanceDatosServiceFalso(), unitOfWork), unitOfWork);
     }
 
+    [Theory]
+    [InlineData("accesos@planta.example", true)]
+    [InlineData("a@b", true)]
+    [InlineData("Pedro accesos@planta.example", false)]
+    [InlineData("@planta.example", false)]
+    [InlineData("accesos@", false)]
+    [InlineData("a@b@planta.example", false)]
+    [InlineData("Pedro Salas", false)]
+    public void El_contacto_copiado_del_Centro_pasa_la_misma_validacion_que_la_edicion(string contactoCentro, bool vaAlCorreo)
+    {
+        var visita = new Visita(Guid.NewGuid(), new DateOnly(2026, 11, 2), new DateOnly(2026, 11, 3), null);
+        visita.RellenarContactoDesdeCentro(contactoCentro);
+
+        (visita.ContactoCorreo is not null).Should().Be(vaAlCorreo);
+        new EditarContactoVisitaCommandValidator()
+            .Validate(new EditarContactoVisitaCommand(visita.Id, visita.Version, visita.ContactoNombre, visita.ContactoTelefono, visita.ContactoCorreo))
+            .IsValid.Should().BeTrue("lo que se copia del Centro tiene que poder volver a guardarse tal cual desde Visita 360");
+    }
+
+    [Theory]
+    [InlineData("Pedro accesos@planta.example")]
+    [InlineData("accesos@")]
+    [InlineData("a@b@planta.example")]
+    public void La_edicion_rechaza_un_correo_que_la_copia_no_aceptaria(string correo)
+    {
+        new EditarContactoVisitaCommandValidator()
+            .Validate(new EditarContactoVisitaCommand(Guid.NewGuid(), Guid.NewGuid(), null, null, correo))
+            .IsValid.Should().BeFalse();
+    }
+
     [Fact]
     public async Task Cambia_el_contacto_por_otra_persona()
     {

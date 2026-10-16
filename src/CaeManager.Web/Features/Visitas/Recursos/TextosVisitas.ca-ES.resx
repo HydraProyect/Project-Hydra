@@ -729,4 +729,10 @@
   <data name="RecomendacionVenceDuranteLaVisita" xml:space="preserve">
     <value>{1} de {0} venç el {2}, abans que acabi la visita.</value>
   </data>
+  <data name="RecomendacionVencidoEnTolerancia" xml:space="preserve">
+    <value>{1} de {0} va vèncer el {2} i en aquest Centre només val per la tolerància.</value>
+  </data>
+  <data name="RecomendacionYaVencido" xml:space="preserve">
+    <value>{1} de {0} va vèncer el {2}.</value>
+  </data>
 </root>

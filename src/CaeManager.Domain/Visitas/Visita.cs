@@ -194,17 +194,24 @@ public class Visita : EntidadBase
         var limpio = string.IsNullOrWhiteSpace(contactoCentro) ? null : contactoCentro.Trim();
         if (limpio is null) return;
 
-        if (EsUnaSolaDireccionDeCorreo(limpio) && limpio.Length <= LongitudMaximaContactoCorreo)
+        if (EsCorreoDeContactoValido(limpio))
             ActualizarContacto(null, null, limpio);
         else
             ActualizarContacto(limpio, null, null);
     }
 
-    private static bool EsUnaSolaDireccionDeCorreo(string texto)
+    /// <summary>
+    /// Regla única de «correo de contacto válido», para la copia desde el Centro y para la edición
+    /// (<c>EditarContactoVisitaCommandValidator</c> la exige además de <c>EmailAddress()</c>): una sola arroba, ni al
+    /// principio ni al final (lo mismo que comprueba <c>EmailAddress()</c> de FluentValidation), sin espacios y dentro
+    /// de <see cref="LongitudMaximaContactoCorreo"/>. Así, un correo copiado del Centro siempre se puede volver a guardar
+    /// desde Visita 360. La migración <c>AnadeContactoVisita</c> aplica la misma regla en SQL a las Visitas existentes.
+    /// </summary>
+    public static bool EsCorreoDeContactoValido(string texto)
     {
         var arroba = texto.IndexOf('@');
         return arroba > 0 && arroba == texto.LastIndexOf('@') && arroba < texto.Length - 1
-            && !texto.Any(char.IsWhiteSpace);
+            && !texto.Any(char.IsWhiteSpace) && texto.Length <= LongitudMaximaContactoCorreo;
     }
 
     private static string? NormalizarCampoContacto(string? valor, int longitudMaxima, string parametro)

@@ -130,6 +130,8 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
         {
             TipoRecomendacionVisita.DocumentacionPendiente => Textos["RecomendacionDocumentacionPendiente", recomendacion.Sujeto, tipos],
             TipoRecomendacionVisita.VenceAntesDeLaEntrada => Textos["RecomendacionVenceAntesDeLaEntrada", recomendacion.Sujeto, tipos, fecha],
+            TipoRecomendacionVisita.VencidoEnTolerancia => Textos["RecomendacionVencidoEnTolerancia", recomendacion.Sujeto, tipos, fecha],
+            TipoRecomendacionVisita.YaVencido => Textos["RecomendacionYaVencido", recomendacion.Sujeto, tipos, fecha],
             _ => Textos["RecomendacionVenceDuranteLaVisita", recomendacion.Sujeto, tipos, fecha],
         };
     }

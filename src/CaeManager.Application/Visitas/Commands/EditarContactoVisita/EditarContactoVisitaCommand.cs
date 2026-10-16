@@ -23,7 +23,9 @@ public class EditarContactoVisitaCommandValidator : AbstractValidator<EditarCont
         RuleFor(c => c.Nombre).MaximumLength(Visita.LongitudMaximaContactoNombre);
         RuleFor(c => c.Telefono).MaximumLength(Visita.LongitudMaximaContactoTelefono);
         RuleFor(c => c.Correo).MaximumLength(Visita.LongitudMaximaContactoCorreo);
-        RuleFor(c => c.Correo).EmailAddress().WithMessage("Introduce un correo electrónico válido.")
+        RuleFor(c => c.Correo).Cascade(CascadeMode.Stop)
+            .EmailAddress().WithMessage("Introduce un correo electrónico válido.")
+            .Must(c => Visita.EsCorreoDeContactoValido(c!.Trim())).WithMessage("Introduce un correo electrónico válido.")
             .When(c => !string.IsNullOrWhiteSpace(c.Correo));
     }
 }

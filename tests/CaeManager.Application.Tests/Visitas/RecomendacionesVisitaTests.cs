@@ -93,6 +93,24 @@ public class RecomendacionesVisitaTests
     }
 
     [Fact]
+    public void Un_documento_en_tolerancia_o_ya_vencido_se_dice_en_pasado_y_nunca_como_que_vence()
+    {
+        var vencioHaceDias = Hoy.AddDays(-5);
+        var vencioAyer = Hoy.AddDays(-1);
+        var documentacion = Documentacion(
+            Seccion(Documento("Seguro RC", EstadoDocumento.EnTolerancia, vencioHaceDias)),
+            ("Homer Simpson", Seccion(Documento("Aptitud médica", EstadoDocumento.SinConfirmar, vencioAyer))));
+
+        var recomendaciones = Calcular(documentacion);
+
+        recomendaciones.Should().BeEquivalentTo(new[]
+        {
+            new RecomendacionVisita(TipoRecomendacionVisita.VencidoEnTolerancia, "Montajes Springfield", ["Seguro RC"], vencioHaceDias),
+            new RecomendacionVisita(TipoRecomendacionVisita.YaVencido, "Homer Simpson", ["Aptitud médica"], vencioAyer),
+        }, o => o.WithStrictOrdering());
+    }
+
+    [Fact]
     public void Una_visita_cancelada_o_ya_terminada_no_recomienda_nada()
     {
         var documentacion = Documentacion(Seccion(Documento("Seguro RC", EstadoDocumento.Faltante)));

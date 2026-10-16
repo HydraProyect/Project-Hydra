@@ -13,6 +13,15 @@ public enum TipoRecomendacionVisita
 
     /// <summary>Un documento en regla el día de entrada vence antes del último día de la Visita.</summary>
     VenceDuranteLaVisita,
+
+    /// <summary>
+    /// Un documento ya vencido que en este Centro sigue valiendo para acceder por la tolerancia que concede
+    /// (<see cref="EstadoDocumento.EnTolerancia"/>): se dice en pasado, porque ya venció.
+    /// </summary>
+    VencidoEnTolerancia,
+
+    /// <summary>Un documento que no es incidencia pero cuya fecha de vencimiento ya pasó: se dice en pasado.</summary>
+    YaVencido,
 }
 
 /// <summary>
@@ -31,7 +40,9 @@ public sealed record RecomendacionVisita(
 /// <item>documentación pendiente (Faltante o Vencido, el mismo criterio de incidencia que la pestaña de
 /// comprobación) de la Empresa o de cada Trabajador, una por sujeto;</item>
 /// <item>documentos hoy en regla cuya fecha de vencimiento cae antes del último día de la Visita, uno por
-/// documento, distinguiendo si vence antes del día de entrada o durante la Visita.</item>
+/// documento, distinguiendo si vence antes del día de entrada o durante la Visita;</item>
+/// <item>documentos que ya vencieron sin ser incidencia (en tolerancia en este Centro, o con la fecha ya pasada),
+/// dichos en pasado y nunca como «vence».</item>
 /// </list>
 /// Sin datos de los que salgan, la lista queda vacía y la página no pinta la sección. Una Visita cancelada o ya
 /// terminada no recomienda nada: no hay entrada que preparar.
@@ -64,7 +75,10 @@ public static class RecomendacionesVisita
                 if (vence >= fechaFin)
                     continue;
 
-                var tipo = vence < fechaInicio ? TipoRecomendacionVisita.VenceAntesDeLaEntrada : TipoRecomendacionVisita.VenceDuranteLaVisita;
+                var tipo = documento.Estado == EstadoDocumento.EnTolerancia ? TipoRecomendacionVisita.VencidoEnTolerancia
+                    : vence < hoy ? TipoRecomendacionVisita.YaVencido
+                    : vence < fechaInicio ? TipoRecomendacionVisita.VenceAntesDeLaEntrada
+                    : TipoRecomendacionVisita.VenceDuranteLaVisita;
                 vencimientos.Add(new RecomendacionVisita(tipo, sujeto, [documento.TipoDocumentoNombre], vence));
             }
         }
