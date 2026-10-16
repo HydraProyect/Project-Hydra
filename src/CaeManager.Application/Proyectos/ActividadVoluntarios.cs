@@ -1,3 +1,4 @@
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Trabajadores;
 
@@ -34,13 +35,16 @@ public static class ActividadVoluntarios
     /// </summary>
     public static IQueryable<RequisitoDeEventoDeVoluntario> RequisitosDeEventosVigentes(
         IQueryable<Trabajador> trabajadores, IProyectosQueryContext proyectos, IQueryable<ProyectoRequisito> requisitos,
-        DateOnly hoy) =>
+        IQueryable<TipoDocumento> tiposDocumento, DateOnly hoy) =>
         from proyecto in proyectos.Proyectos.Where(VigenciaEvento.AportaRequisitosEn(hoy))
         join participante in proyectos.ProyectosTecnicos on proyecto.Id equals participante.ProyectoId
         where participante.FechaBaja == null
         join trabajador in trabajadores on participante.TrabajadorId equals trabajador.Id
         where trabajador.TipoContratacion == TipoContratacion.Voluntario
         join requisito in requisitos on proyecto.Id equals requisito.ProyectoId
+        // Solo lo que se le puede pedir a una persona: un tipo de ámbito Empresa o Vehículo no es un faltante del voluntario.
+        join tipo in tiposDocumento on requisito.TipoDocumentoId equals tipo.Id
+        where tipo.AmbitoAplicacion == AmbitoAplicacion.Trabajador
         select new RequisitoDeEventoDeVoluntario
         {
             TrabajadorId = trabajador.Id,

@@ -120,7 +120,7 @@ public class EvaluacionDeAccesoPorCentroService(
         // solo bloquea un tipo que el Centro marca con BloqueaAcceso; el cruce con cada requisito lo hace
         // CalculoBloqueoDeAccesoDeTrabajadores. Un Centro sin plataforma no devuelve ninguno.
         var pendientes = (await PendientesEnPlataformaDeCentros.CargarAsync(
-                centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext,
+                centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext.Asignaciones,
                 centrosConRequisitos, hoy, cancellationToken))
             .Select(p => new PendienteParaBloqueo(p.CentroId, p.TrabajadorId, p.EmpresaId, p.TipoDocumentoId, p.EstadoAcreditacion))
             .ToList();

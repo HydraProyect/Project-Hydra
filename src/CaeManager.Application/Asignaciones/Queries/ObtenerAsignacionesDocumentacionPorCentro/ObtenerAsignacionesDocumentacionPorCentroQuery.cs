@@ -193,7 +193,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
         // Pendiente en la plataforma (decisión 2026-10-10): la misma carga que el % del Centro (PendientesEnPlataformaDeCentros);
         // solo baja el cumplimiento el de un tipo que el Centro marca «bloquea el acceso».
         var pendientesQueBajanElPorcentaje = (await PendientesEnPlataformaDeCentros.CargarAsync(
-                centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext,
+                centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext.Asignaciones,
                 [request.CentroId], hoy, cancellationToken))
             .Where(p => p.TrabajadorId is not null && p.BloqueaAcceso)
             .Select(p => (TrabajadorId: p.TrabajadorId!.Value, p.TipoDocumentoId))

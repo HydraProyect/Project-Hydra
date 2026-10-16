@@ -210,6 +210,24 @@ public class PendienteEnPlataformaBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task El_pendiente_de_un_voluntario_inactivo_no_cuenta_en_el_estado_del_Centro()
+    {
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var ana = await _propietario.Trabajadores.SingleAsync(t => t.Id == _sesion.Ana);
+            ana.CambiarTipoContratacion(TipoContratacion.Voluntario);
+            await _propietario.SaveChangesAsync();
+        }
+
+        var estado = (await Calculo().CalcularAsync([_sesion.CentroConPlataforma], CancellationToken.None))[_sesion.CentroConPlataforma];
+
+        estado.Causas.Should().NotContain(c => c.TrabajadorId == _sesion.Ana,
+            "voluntaria sin evento vigente ni futuro: inactiva, no cuenta en el Centro, tampoco por su acreditación pendiente (decisión 2026-10-15)");
+        estado.Causas.Should().Contain(c => c.PendienteEnPlataforma && c.TipoDocumentoId == _sesion.TipoEmpresa,
+            "control positivo: el RNT de la Empresa sigue pendiente, Beto y Eva siguen asignados");
+    }
+
+    [Fact]
     public async Task Fuera_del_alcance_de_quien_consulta_no_hay_bloqueo_por_pendiente()
     {
         var evaluacion = await Evaluacion(new AlcanceDatosServiceFalso(centroIds: [_sesion.OtroCentro])).EvaluarAsync(null, CancellationToken.None);

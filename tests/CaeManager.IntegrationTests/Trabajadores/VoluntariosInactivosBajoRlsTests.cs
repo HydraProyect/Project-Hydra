@@ -204,6 +204,48 @@ public class VoluntariosInactivosBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Un_requisito_de_evento_que_no_es_de_ambito_Trabajador_no_cuenta_para_el_voluntario()
+    {
+        Guid rnt;
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            // Sembrado por debajo del comando, que ya lo rechaza: una fila heredada no debe convertirse en un faltante imposible.
+            var tipo = new TipoDocumento("RNT del club", null, false, 3, AmbitoAplicacion.Empresa);
+            _propietario.TiposDocumento.Add(tipo);
+            await _propietario.SaveChangesAsync();
+            _propietario.ProyectosRequisitos.Add(new ProyectoRequisito(_eventoVigente, tipo.Id));
+            await _propietario.SaveChangesAsync();
+            rnt = tipo.Id;
+        }
+        await using var c = CrearRuntime(_tenantSesion);
+        var servicio = new CalculoEstadoCentroService(c, c, c, c, c, c, c, c, c);
+
+        (await Alertas(c)).Should().NotContain(a => a.TipoDocumentoId == rnt, "un documento de Empresa no se le pide a la persona");
+        (await servicio.CalcularAsync([_estadio], CancellationToken.None))[_estadio].Causas.Should().NotContain(x => x.TipoDocumentoId == rnt);
+        var pares = await servicio.ObtenerParesExigidosAsync([_estadio], CancellationToken.None);
+        pares.Should().NotContain(p => p.TipoDocumentoId == rnt);
+        pares.Should().Contain(p => p.TrabajadorId == _vigente && p.TipoDocumentoId == _dni, "control positivo: el DNI del evento sí cuenta");
+    }
+
+    [Fact]
+    public async Task En_un_Centro_sin_gestion_CAE_los_requisitos_del_evento_no_avisan()
+    {
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var estadio = await _propietario.Centros.SingleAsync(x => x.Id == _estadio);
+            estadio.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+            await _propietario.SaveChangesAsync();
+        }
+        await using var c = CrearRuntime(_tenantSesion);
+
+        var alertas = await Alertas(c);
+
+        alertas.Should().NotContain(a => a.TipoDocumentoId == _dni, "P1-X2: un Centro sin gestión CAE no exige nada, tampoco por sus eventos");
+        alertas.Should().Contain(a => a.TrabajadorId == _ajena && a.TipoDocumentoId == _seguro && a.Estado == EstadoDocumento.Vencido,
+            "control positivo: el vencido del propio documento sigue avisando");
+    }
+
+    [Fact]
     public async Task Se_reactiva_al_asignarlo_a_otro_evento()
     {
         using (AmbitoTenantExplicito.Establecer(_tenantSesion))

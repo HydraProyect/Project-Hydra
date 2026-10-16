@@ -58,7 +58,7 @@ internal static class PendientesEnPlataformaDeCentros
         IDocumentosQueryContext documentosContext,
         ITiposDocumentoQueryContext tiposDocumentoContext,
         ITrabajadoresQueryContext trabajadoresContext,
-        IAsignacionesQueryContext asignacionesContext,
+        IQueryable<CaeManager.Domain.Asignaciones.Asignacion> asignaciones,
         IReadOnlyCollection<Guid> centroIds,
         DateOnly hoy,
         CancellationToken cancellationToken)
@@ -99,7 +99,7 @@ internal static class PendientesEnPlataformaDeCentros
 
         // La Empresa del Trabajador, sea cual sea la columna que la guarda (AsignacionParaBloqueo).
         var asignacionesActivas = (await (
-            from asignacion in asignacionesContext.Asignaciones
+            from asignacion in asignaciones
             where asignacion.FechaBaja == null && centroIds.Contains(asignacion.CentroId)
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             select new

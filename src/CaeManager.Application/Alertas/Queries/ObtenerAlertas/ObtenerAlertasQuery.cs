@@ -218,10 +218,15 @@ public class ObtenerAlertasQueryHandler(
     {
         var requisitos = await ActividadVoluntarios
             .RequisitosDeEventosVigentes(
-                trabajadoresContext.Trabajadores, proyectosContext, requisitosEventoContext.ProyectosRequisitos, hoy)
+                trabajadoresContext.Trabajadores, proyectosContext, requisitosEventoContext.ProyectosRequisitos,
+                tiposDocumentoContext.TiposDocumento, hoy)
             .Where(r => trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(r.TrabajadorId))
             .Where(r => centroIdsVisibles == null || centroIdsVisibles.Contains(r.CentroId))
             .ToListAsync(cancellationToken);
+        // P1-X2, como el resto de faltantes de Centro: un Centro sin gestión CAE no exige nada, tampoco por sus eventos.
+        var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(
+            centrosContext, requisitos.Select(r => r.CentroId), cancellationToken);
+        requisitos = requisitos.Where(r => !sinGestionCae.Contains(r.CentroId)).ToList();
         if (requisitos.Count == 0)
             return [];
 

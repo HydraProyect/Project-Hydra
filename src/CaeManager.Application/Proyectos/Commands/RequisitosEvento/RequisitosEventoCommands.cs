@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Proyectos;
 using FluentValidation;
 using MediatR;
@@ -64,8 +65,15 @@ public class AnadirRequisitoEventoCommandHandler(
         var (proyecto, error) = await EventoVisible.ObtenerAsync(proyectos, alcanceDatos, request.ProyectoId, cancellationToken);
         if (proyecto is null) return Result.Fallo(error!);
 
-        if (!await tiposDocumento.TiposDocumento.AnyAsync(t => t.Id == request.TipoDocumentoId, cancellationToken))
+        var ambito = await tiposDocumento.TiposDocumento
+            .Where(t => t.Id == request.TipoDocumentoId)
+            .Select(t => (AmbitoAplicacion?)t.AmbitoAplicacion)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (ambito is null)
             return Result.Fallo(Error.Crear("Proyecto.TipoDocumentoNoEncontrado", "No encontramos este tipo de documento."));
+        // Lo que pide un evento lo aporta cada participante: un documento de Empresa o de Vehículo no lo cumple nadie.
+        if (ambito != AmbitoAplicacion.Trabajador)
+            return Result.Fallo(Error.Crear("Proyecto.RequisitoNoEsDeTrabajador", "Un evento solo puede pedir documentos de trabajador."));
 
         var actuales = await requisitos.ListarDeProyectoAsync(proyecto.Id, cancellationToken);
         if (actuales.Any(r => r.TipoDocumentoId == request.TipoDocumentoId))

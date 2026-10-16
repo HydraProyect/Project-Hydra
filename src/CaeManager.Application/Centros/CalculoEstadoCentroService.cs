@@ -412,7 +412,7 @@ public class CalculoEstadoCentroService(
         Dictionary<Guid, List<CausaEstadoCentro>> causasPorCentro, CancellationToken cancellationToken)
     {
         var pendientes = await PendientesEnPlataformaDeCentros.CargarAsync(
-            centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext,
+            centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, AsignacionesQueCuentan(),
             centroIds, hoy, cancellationToken);
 
         // El nombre de la Empresa dueña del documento (una Subcontrata o la Empresa propia del Trabajador), no un «Empresa» genérico.
@@ -653,7 +653,7 @@ public class CalculoEstadoCentroService(
         conGestionCae.Count == 0
             ? []
             : (await PendientesEnPlataformaDeCentros.CargarAsync(
-                    centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext,
+                    centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, AsignacionesQueCuentan(),
                     conGestionCae, hoy, cancellationToken))
                 .Where(p => p.BloqueaAcceso)
                 .ToList();
@@ -697,7 +697,8 @@ public class CalculoEstadoCentroService(
         conGestionCae.Count == 0
             ? []
             : await ActividadVoluntarios
-                .RequisitosDeEventosVigentes(trabajadoresContext.Trabajadores, proyectosContext, requisitosEventoContext.ProyectosRequisitos, hoy)
+                .RequisitosDeEventosVigentes(
+                    trabajadoresContext.Trabajadores, proyectosContext, requisitosEventoContext.ProyectosRequisitos, tiposDocumentoContext.TiposDocumento, hoy)
                 .Where(r => conGestionCae.Contains(r.CentroId))
                 .Distinct()
                 .ToListAsync(cancellationToken);
