@@ -186,8 +186,12 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador || t.AmbitoAplicacion == AmbitoAplicacion.Empresa)
             .Select(t => new
             {
-                t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si, t.Orden,
-                t.AmbitoAplicacion, t.TiposContratacionDeSerie
+                t.Id,
+                t.Nombre,
+                CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si,
+                t.Orden,
+                t.AmbitoAplicacion,
+                t.TiposContratacionDeSerie
             })
             .OrderBy(t => t.Orden)
             .ToListAsync(cancellationToken);
