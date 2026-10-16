@@ -1,37 +1,54 @@
+/* Tarjeta contenedora (mismo borde, radio y fondo que lista-relaciones-tarjeta): cada evento es una fila con la
+   acción a la izquierda, el autor a continuación y la fecha alineada a la derecha. */
 .workspace-historial-lista {
     list-style: none;
     margin: 0;
     padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
+    min-width: 0;
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
 }
 
 .workspace-historial-item {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    padding-bottom: var(--space-3);
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
     border-bottom: var(--border-default);
 }
 
 .workspace-historial-item:last-child {
     border-bottom: none;
-    padding-bottom: 0;
 }
 
-.workspace-historial-cabecera {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
+.workspace-historial-usuario {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: var(--font-body-md);
+    color: var(--color-text);
 }
 
 .workspace-historial-fecha {
     font: var(--font-body-sm);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    text-align: right;
     color: var(--color-text-muted);
 }
 
-.workspace-historial-usuario {
-    font: var(--font-body-md);
-    color: var(--color-text);
+/* Ancho de panel estrecho: la fecha pasa a su propia línea bajo el autor. */
+@media (max-width: 480px) {
+    .workspace-historial-item {
+        grid-template-columns: auto minmax(0, 1fr);
+        row-gap: var(--space-1);
+    }
+
+    .workspace-historial-fecha {
+        grid-column: 2;
+        text-align: left;
+    }
 }

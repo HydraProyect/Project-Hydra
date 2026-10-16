@@ -112,4 +112,81 @@ public class AcordeonAsignacionesCentroIncidenciaEmpresaSinEstadoTests : BunitCo
             "(hallazgo de Codex, oleada 3 sobre esta misma PR)");
         fila.TextContent.Should().NotContain("Sin caducidad");
     }
+
+    private IRenderedComponent<AcordeonAsignacionesCentro> RenderizarBloqueEmpresa(int incidencias)
+    {
+        Services.AddLocalization();
+        this.ConRolDeEscritura();
+        Services.AddScoped<IMediator>(_ => new MediatorFalso());
+        Services.AddScoped<ToastService>();
+        Services.AddScoped<ContextWorkspaceService>();
+        Services.AddScoped<IFileStorageService, AlmacenArchivosQueNadieDebeTocar>();
+        Services.AddScoped<IConversorWordPdfService, ConversorQueNadieDebeTocar>();
+        Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+
+        var lista = Enumerable.Range(1, incidencias)
+            .Select(i => new IncidenciaCentroDto(
+                $"Seguro {i}", AmbitoCausa.Empresa, CaeManager.Domain.Documentos.EstadoDocumento.Vencido,
+                DocumentoId: Guid.NewGuid(), TipoDocumentoId: Guid.NewGuid(), FechaVencimiento: new DateOnly(2026, 1, 1)))
+            .ToList();
+
+        var cut = Render<AcordeonAsignacionesCentro>(p => p
+            .Add(a => a.CentroId, Guid.NewGuid())
+            .Add(a => a.CentroNombre, "Centro Logístico Norte")
+            .Add(a => a.EmpresaId, Guid.NewGuid())
+            .Add(a => a.EmpresaNombre, "Empresa Recuentos S.L.")
+            .Add(a => a.IncidenciasEmpresa, lista));
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("bloque-empresa-ambito"));
+        return cut;
+    }
+
+    /// <summary>
+    /// Pasada visual de staging (2026-10-17): el bloque Empresa de la pestaña Trabajadores de Centro 360 era una fila suelta con
+    /// una insignia «2» flotando y una tabla con barra vertical propia. Ahora es una tarjeta con la gramática de la lista de
+    /// Trabajadores: fila plegable de la Empresa con su cifra, su estado y «Detalles» en la rejilla, y los documentos con
+    /// incidencia dentro de la fila desplegada.
+    /// </summary>
+    [Fact]
+    public void El_bloque_Empresa_es_una_tarjeta_con_una_fila_plegable_que_lleva_cifra_y_estado()
+    {
+        var cut = RenderizarBloqueEmpresa(incidencias: 2);
+
+        var tarjeta = cut.Find(".bloque-empresa-ambito .lista-relaciones-tarjeta");
+        var fila = tarjeta.QuerySelector("li.fila-relacion.fila-relacion-rejilla");
+        fila.Should().NotBeNull("la Empresa es una fila de la misma lista en tarjeta que los Trabajadores");
+
+        fila!.QuerySelector(".fila-relacion-cifra")!.TextContent.Trim().Should().Be("2 incidencias");
+        fila.QuerySelector(".fila-relacion-estado")!.TextContent.Should().Contain("Con incidencia");
+        fila.QuerySelector(".fila-relacion-acciones")!.TextContent.Should().Contain("Detalles");
+
+        cut.FindAll(".fila-sujeto-ambito").Should().BeEmpty("la fila suelta con indicadores a la derecha ya no existe");
+        cut.FindAll(".badge-solo-recuento").Should().BeEmpty("el contador va dentro de la fila, no como insignia flotante");
+
+        var desplegado = fila.QuerySelector(".fila-relacion-desplegado");
+        desplegado.Should().NotBeNull("las incidencias cuelgan de la fila de la Empresa");
+        desplegado!.QuerySelectorAll(".fila-documento-requerido").Should().HaveCount(2);
+
+        cut.FindAll(".separador-ambito").Select(e => e.TextContent.Trim()).Should().Equal("Empresa", "Trabajadores");
+    }
+
+    [Fact]
+    public void La_fila_de_la_Empresa_se_pliega_y_se_despliega_con_su_chevron()
+    {
+        var cut = RenderizarBloqueEmpresa(incidencias: 1);
+        var chevron = () => cut.Find(".bloque-empresa-ambito .fila-relacion-desplegar");
+
+        cut.FindAll(".bloque-empresa-ambito .fila-documento-requerido").Should().HaveCount(1, "va desplegada de entrada: solo existe si hay algo que resolver");
+        chevron().GetAttribute("aria-expanded").Should().Be("true");
+        cut.Find(".bloque-empresa-ambito .fila-relacion-cifra").TextContent.Trim().Should().Be("1 incidencia");
+
+        chevron().Click();
+
+        cut.FindAll(".bloque-empresa-ambito .fila-documento-requerido").Should().BeEmpty();
+        chevron().GetAttribute("aria-expanded").Should().Be("false");
+
+        chevron().Click();
+
+        cut.FindAll(".bloque-empresa-ambito .fila-documento-requerido").Should().HaveCount(1);
+    }
 }

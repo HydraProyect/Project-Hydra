@@ -46,6 +46,23 @@ else if (_documentos.Count == 0)
 {
     <EstadoVacio Titulo="Sin documentos" Descripcion="Todavía no hay documentos registrados para esta entidad." />
 }
+else if (EnPagina)
+{
+    @* Ficha 360 en página: misma gramática de lista que los documentos de Trabajador 360 (tarjeta, fila con vigencia,
+       pastilla de estado y acreditaciones), sin viñetas. El panel de 520 px conserva la lista de filas-botón de abajo. *@
+    <ListaRelaciones EnTarjeta="true" Etiqueta="@Comunes["ListaDocumentacion"]">
+        @foreach (var documento in _documentos)
+        {
+            <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre"
+                          Tono="@EstadoDocumentoFicha360.TonoFila(documento.Estado)"
+                          OnNombre="() => AbrirDocumentoAsync(documento)">
+                <Detalle><BadgesAcreditacion Acreditaciones="documento.Acreditaciones" /></Detalle>
+                <Cifra><span>@TextoVence(documento)</span></Cifra>
+                <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></Estado>
+            </FilaRelacion>
+        }
+    </ListaRelaciones>
+}
 else
 {
     <ul class="workspace-lista-entidades">
@@ -69,6 +86,12 @@ else
 
     /// <summary>Ofrece «+ Subir documento». Hoy solo Vehículo 360 lo pide (y solo Vehículo lo admite).</summary>
     [Parameter] public bool PermiteSubir { get; set; }
+
+    /// <summary>
+    /// Pinta la lista como la de documentos de Trabajador 360 (tarjeta con filas de rejilla) en vez de la lista de
+    /// filas-botón del panel. Solo para las fichas 360 en página; el panel de 520 px no lo pide.
+    /// </summary>
+    [Parameter] public bool EnPagina { get; set; }
 
     private DrawerGestionDocumento? _drawerGestion;
 
@@ -115,6 +138,15 @@ else
         }
     }
 
+    /// <summary>
+    /// En el panel el Documento se apila sobre la entidad (volver regresa a ella); en la página 360 no hay nada que
+    /// apilar, así que el panel se abre directamente sobre el Documento.
+    /// </summary>
     private Task AbrirDocumentoAsync(DocumentoListaDto documento) =>
-        WorkspaceService.NavegarAAsync(EntidadWorkspace.Documento, documento.Id, documento.TipoDocumentoNombre, "informacion");
+        EnPagina
+            ? WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, documento.Id, documento.TipoDocumentoNombre, "informacion")
+            : WorkspaceService.NavegarAAsync(EntidadWorkspace.Documento, documento.Id, documento.TipoDocumentoNombre, "informacion");
+
+    private static string TextoVence(DocumentoListaDto documento) =>
+        $"Vence: {(documento.FechaVencimiento is null ? "—" : documento.FechaVencimiento.Value.ToString("dd/MM/yyyy"))}";
 }

@@ -67,96 +67,92 @@ else
     @if (IncidenciasEmpresa.Count > 0)
     {
         <div class="separador-ambito">Empresa</div>
-        <div class="fila-sujeto-ambito">
-            <span class="sujeto-ambito-identidad">
-                <span class="sujeto-ambito-nombre">@EmpresaNombre <span class="etiqueta-ambito">Empresa</span></span>
-                <span class="sujeto-ambito-nota">Solo se listan las incidencias; el resto de su documentación está en Detalles.</span>
-            </span>
-            <span class="sujeto-ambito-indicadores">
-                <VentanaContexto Etiqueta="@($"{IncidenciasEmpresa.Count} {(IncidenciasEmpresa.Count == 1 ? "documento de empresa con incidencia" : "documentos de empresa con incidencia")}")"
-                                 Titulo="Documentación de la empresa">
-                    <Disparador>
-                        <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
-                            @IncidenciasEmpresa.Count
-                        </Badge>
-                    </Disparador>
-                    <Detalle>
-                        @foreach (var incidencia in IncidenciasEmpresa)
-                        {
-                            <span class="ventana-linea">@incidencia.Descripcion</span>
-                        }
-                    </Detalle>
-                </VentanaContexto>
-            </span>
-            <span class="sujeto-ambito-accion">
-                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" OnClick="AbrirDetalleEmpresa">
-                    Detalles
-                </Boton>
-            </span>
-        </div>
         @*
-            Tabla de documentos del bloque Empresa (contrato de fidelidad
-            2026-08-09 § 1.5): mismas columnas fijas Documento · Estado ·
-            Vigencia · Acción que la tabla de Trabajador, misma rejilla
-            (tabla-documentos-requeridos). Sin toggle de expandir: a
-            diferencia de Trabajador (muchas filas, una tabla por fila), aquí
-            solo hay un sujeto y el bloque entero ya solo aparece cuando hay
-            incidencias que resolver.
+            Tarjeta con la misma gramática que la lista de Trabajadores: una fila
+            plegable de la Empresa (cifra, estado y «Detalles» en las columnas de la
+            rejilla) y, al desplegarla, sus documentos con incidencia en la misma
+            tabla que usa cada Trabajador. Va desplegada de entrada: el bloque solo
+            existe cuando hay algo que resolver, y un vacío nunca se presenta como éxito.
+            Contrato de fidelidad 2026-08-09 § 1.5: mismas columnas Documento ·
+            Estado · Vigencia · Acción.
         *@
-        <div class="tabla-documentos-requeridos" role="table" aria-label="@($"Documentación con incidencia de {EmpresaNombre}")">
-            <div class="documentos-requeridos-cabecera" role="row">
-                <span role="columnheader">Documento</span>
-                <span role="columnheader">Estado</span>
-                <span role="columnheader">Vigencia</span>
-                <span role="columnheader" class="columna-accion">Acción</span>
-            </div>
-            @foreach (var incidencia in IncidenciasEmpresa)
-            {
-                <div class="fila-documento-requerido" role="row" @key="incidencia.TipoDocumentoId">
-                    <span class="celda-documento-nombre" role="cell">
-                        @* El nombre abre el mismo drawer de gestión que la columna de acción, que Consulta no puede usar:
-                           a Consulta se le pinta como texto (igual que en Trabajador 360). *@
-                        <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionNombreEmpresa">
-                            <Authorized>
-                                <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarEmpresaAsync(incidencia)">
-                                    @incidencia.Descripcion
-                                </button>
-                            </Authorized>
-                            <NotAuthorized>@incidencia.Descripcion</NotAuthorized>
-                        </AuthorizeView>
-                    </span>
-                    @* Estado null: un rechazo en plataforma no tiene vigencia documental que describir (CalculoEstadoCentroService). *@
-                    <span role="cell">
-                        @if (incidencia.Estado is { } estadoIncidencia)
-                        {
-                            <Badge Tono="EstadoDocumentoUi.Tono(estadoIncidencia)" ConIcono Tamano="TamanoBadge.Pequeno">
-                                @EstadoDocumentoUi.Texto(estadoIncidencia)
-                            </Badge>
-                        }
-                        else
-                        {
-                            <Badge Tono="TonoBadge.Peligro" ConIcono Tamano="TamanoBadge.Pequeno">
-                                @Textos["BadgeRechazadoPlataforma"]
-                            </Badge>
-                        }
-                    </span>
-                    <span role="cell">
-                        <TextoFechaCopiable Fecha="incidencia.FechaVencimiento" Class="@EstadoDocumentoUi.ClaseCeldaVigencia(incidencia.Estado)">
-                            @TextoVigenciaEmpresa(incidencia)
-                        </TextoFechaCopiable>
-                    </span>
-                    <span class="columna-accion" role="cell">
-                        @* Como en AcordeonTrabajadoresSubcontrata: DrawerGestionDocumento solo crea o renueva
-                           (ICommand denegados a Consulta), así que a quien solo lee no se le ofrece. *@
-                        <SoloConEscritura>
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                   OnClick="() => GestionarEmpresaAsync(incidencia)">
-                                Gestionar
-                            </Boton>
-                        </SoloConEscritura>
-                    </span>
-                </div>
-            }
+        <div class="lista-trabajadores-acordeon bloque-empresa-ambito" data-bloque-empresa>
+            <ListaRelaciones Etiqueta="@($"Empresa · {EmpresaNombre}")" EnTarjeta="true">
+                <FilaRelacion Nombre="@EmpresaNombre" NombreIcono="empresas" Tono="TonoFila.Peligro"
+                              OnNombre="AbrirDetalleEmpresa"
+                              Desplegada="_empresaDesplegada" DesplegadaChanged="v => _empresaDesplegada = v"
+                              EtiquetaDesplegar="@($"Documentos con incidencia de {EmpresaNombre}")">
+                    <Detalle>Solo se listan las incidencias; el resto de su documentación está en Detalles.</Detalle>
+                    <Cifra>
+                        <span class="fila-trabajador-fraccion">@IncidenciasEmpresa.Count @(IncidenciasEmpresa.Count == 1 ? "incidencia" : "incidencias")</span>
+                    </Cifra>
+                    <Estado>
+                        <Badge Tono="TonoBadge.Peligro" ConIcono>Con incidencia</Badge>
+                    </Estado>
+                    <Acciones>
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" OnClick="AbrirDetalleEmpresa">
+                            Detalles
+                        </Boton>
+                    </Acciones>
+                    <Desplegable>
+                        <div class="tabla-documentos-requeridos documentos-trabajador-ficha" role="table" aria-label="@($"Documentación con incidencia de {EmpresaNombre}")">
+                            <div class="documentos-requeridos-cabecera" role="row">
+                                <span role="columnheader">Documento</span>
+                                <span role="columnheader">Estado</span>
+                                <span role="columnheader">Vigencia</span>
+                                <span role="columnheader" class="columna-accion">Acción</span>
+                            </div>
+                            @foreach (var incidencia in IncidenciasEmpresa)
+                            {
+                                <div class="fila-documento-requerido" role="row" @key="incidencia.TipoDocumentoId">
+                                    <span class="celda-documento-nombre" role="cell">
+                                        @* El nombre abre el mismo drawer de gestión que la columna de acción, que Consulta no puede usar:
+                                           a Consulta se le pinta como texto (igual que en Trabajador 360). *@
+                                        <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionNombreEmpresa">
+                                            <Authorized>
+                                                <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarEmpresaAsync(incidencia)">
+                                                    @incidencia.Descripcion
+                                                </button>
+                                            </Authorized>
+                                            <NotAuthorized>@incidencia.Descripcion</NotAuthorized>
+                                        </AuthorizeView>
+                                    </span>
+                                    @* Estado null: un rechazo en plataforma no tiene vigencia documental que describir (CalculoEstadoCentroService). *@
+                                    <span role="cell">
+                                        @if (incidencia.Estado is { } estadoIncidencia)
+                                        {
+                                            <Badge Tono="EstadoDocumentoUi.Tono(estadoIncidencia)" ConIcono Tamano="TamanoBadge.Pequeno">
+                                                @EstadoDocumentoUi.Texto(estadoIncidencia)
+                                            </Badge>
+                                        }
+                                        else
+                                        {
+                                            <Badge Tono="TonoBadge.Peligro" ConIcono Tamano="TamanoBadge.Pequeno">
+                                                @Textos["BadgeRechazadoPlataforma"]
+                                            </Badge>
+                                        }
+                                    </span>
+                                    <span role="cell">
+                                        <TextoFechaCopiable Fecha="incidencia.FechaVencimiento" Class="@EstadoDocumentoUi.ClaseCeldaVigencia(incidencia.Estado)">
+                                            @TextoVigenciaEmpresa(incidencia)
+                                        </TextoFechaCopiable>
+                                    </span>
+                                    <span class="columna-accion" role="cell">
+                                        @* Como en AcordeonTrabajadoresSubcontrata: DrawerGestionDocumento solo crea o renueva
+                                           (ICommand denegados a Consulta), así que a quien solo lee no se le ofrece. *@
+                                        <SoloConEscritura>
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                                   OnClick="() => GestionarEmpresaAsync(incidencia)">
+                                                Gestionar
+                                            </Boton>
+                                        </SoloConEscritura>
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    </Desplegable>
+                </FilaRelacion>
+            </ListaRelaciones>
         </div>
         <div class="separador-ambito">Trabajadores</div>
     }

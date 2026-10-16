@@ -229,6 +229,9 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// </summary>
     private readonly HashSet<Guid> _expandidosTrabajador = [];
 
+    /// <summary>Fila plegable de la Empresa: desplegada de entrada, porque el bloque solo existe cuando hay incidencias que resolver.</summary>
+    private bool _empresaDesplegada = true;
+
     private IReadOnlyList<TrabajadorSinAsignacionDto> _trabajadoresVisitaSinAsignacion = [];
     private readonly HashSet<Guid> _asignandoDesdeVisita = [];
 
