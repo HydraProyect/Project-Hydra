@@ -41,6 +41,28 @@ public static partial class ValidadorIdentificacion
     private const string LetrasOrganizacionDigitoLetra = "KPQS";
 
     /// <summary>
+    /// Normaliza un documento a mayúsculas invariantes, sin espacios, guiones ni puntos.
+    /// Repone el cero inicial de un DNI de siete dígitos y letra, sin validar su control.
+    /// Devuelve <c>null</c> si no queda ningún carácter.
+    /// </summary>
+    public static string? Normalizar(string? documento)
+    {
+        if (documento is null)
+            return null;
+
+        var limpio = new string(documento.Where(c => !char.IsWhiteSpace(c) && c is not '-' and not '.').ToArray())
+            .ToUpperInvariant();
+        if (limpio.Length == 0)
+            return null;
+
+        if (limpio.Length == 8 && limpio[..7].All(c => c is >= '0' and <= '9')
+            && limpio[7] is >= 'A' and <= 'Z')
+            limpio = "0" + limpio;
+
+        return limpio;
+    }
+
+    /// <summary>
     /// Criterio único de identificación fiscal de una Empresa: DNI, NIE o NIF
     /// de empresa, los tres con dígito de control correcto. Un autónomo se
     /// identifica con su DNI o su NIE, así que restringirlo a
@@ -135,7 +157,7 @@ public static partial class ValidadorIdentificacion
         return new ResultadoIdentificacion(false, TipoIdentificacion.Otros);
     }
 
-    private static bool EsNifEmpresaValido(string limpio)
+    internal static bool EsNifEmpresaValido(string limpio)
     {
         var letraOrganizacion = limpio[0];
         var digitos = limpio[1..8];

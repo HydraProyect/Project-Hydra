@@ -7,6 +7,32 @@ namespace CaeManager.Domain.Tests.Common;
 public class ValidadorIdentificacionTests
 {
     [Theory]
+    [InlineData(" 12.345-678 z\t", "12345678Z")]
+    [InlineData("1 233 443-e", "01233443E")]
+    [InlineData("01233443e", "01233443E")]
+    [InlineData("x\u00a01234567-l", "X1234567L")]
+    [InlineData("b-1234567.4", "B12345674")]
+    [InlineData("12345678a", "12345678A")]
+    [InlineData("otros", "OTROS")]
+    [InlineData(null, null)]
+    [InlineData("", null)]
+    [InlineData(" .-\t", null)]
+    public void Normaliza_sin_validar_el_control(string? documento, string? esperado)
+    {
+        ValidadorIdentificacion.Normalizar(documento).Should().Be(esperado);
+    }
+
+    [Theory]
+    [InlineData("1233443E")]
+    [InlineData("12.345.678-Z")]
+    [InlineData("K1234567D")]
+    public void La_normalizacion_no_amplia_los_validadores_existentes(string documento)
+    {
+        ValidadorIdentificacion.Analizar(documento).EsValido.Should().BeFalse();
+        ValidadorIdentificacion.EsIdentificacionFiscalValida(documento).Should().BeFalse();
+    }
+
+    [Theory]
     [InlineData("12345678Z")]
     [InlineData("77189989B")]
     public void Detecta_un_dni_valido(string dni)
