@@ -872,6 +872,28 @@ public class InicioGen2Tests : BunitContext
         cut.Find(".grupo-cola-contenido").TextContent.Should().Contain("Juan Pérez");
     }
 
+    /// <summary>
+    /// Decisión de producto (2026-10-16): Inicio carga SIEMPRE con todos los grupos plegados, también el primero
+    /// cuando bloquea el acceso de verdad. Esa urgencia la dicen la cabecera y el badge «Bloquea acceso», no un
+    /// grupo abierto de partida.
+    /// </summary>
+    [Fact]
+    public void Todos_los_grupos_cargan_plegados_tambien_el_primero_que_bloquea_acceso()
+    {
+        var cut = Renderizar(new MediadorDeInicio(
+            Item("b1", TipoItemBandeja.RequisitoPendiente, Refrielectric, "Refrielectric S.A.", trabajadorNombre: "Ana López")
+                with
+            { CentroId = CentroNorte, TrabajadorId = Guid.NewGuid() },
+            Item("v1", TipoItemBandeja.Vencido, CervezasDuff, "Cervezas Duff Ibérica",
+                trabajadorId: Guid.NewGuid(), trabajadorNombre: "Juan Pérez")));
+
+        cut.Markup.Should().Contain("Bloquea acceso", "el primer grupo bloquea de verdad: es el caso que antes cargaba abierto");
+        var cabeceras = cut.FindAll(".grupo-cola-cabecera");
+        cabeceras.Should().NotBeEmpty();
+        cabeceras.Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+        cut.FindAll(".grupo-cola-contenido").Should().BeEmpty();
+    }
+
     // -------------------------------------------------------------- carreras
 
     /// <summary>

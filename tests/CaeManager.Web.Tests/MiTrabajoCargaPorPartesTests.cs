@@ -92,6 +92,13 @@ public class MiTrabajoCargaPorPartesTests : BunitContext
 
     private static readonly TimeSpan Espera = TimeSpan.FromSeconds(5);
 
+    /// <summary>La pantalla carga con todo plegado (decisión de producto 2026-10-16): para mirar filas se parte de «Expandir todas».</summary>
+    private static void DesplegarTodos(IRenderedComponent<MiTrabajoPagina> cut)
+    {
+        cut.WaitForAssertion(() => cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas"), Espera);
+        cut.Find(".mi-trabajo-plegar-todas").Click();
+    }
+
     [Fact]
     public void La_primera_Empresa_se_pinta_con_contador_y_barra_antes_de_que_termine_la_segunda()
     {
@@ -101,6 +108,7 @@ public class MiTrabajoCargaPorPartesTests : BunitContext
         var cut = Renderizar(mediador);
 
         mediador.Liberar(0);
+        DesplegarTodos(cut);
 
         cut.WaitForAssertion(() =>
         {
@@ -123,6 +131,8 @@ public class MiTrabajoCargaPorPartesTests : BunitContext
         mediador.Liberar(0);
         cut.WaitForAssertion(() => cut.FindAll(".mi-trabajo-progreso").Should().NotBeEmpty(), Espera);
         mediador.Liberar(1);
+        cut.WaitForAssertion(() => cut.FindAll(".mi-trabajo-progreso").Should().BeEmpty(), Espera);
+        DesplegarTodos(cut);
 
         cut.WaitForAssertion(() =>
         {
@@ -150,6 +160,8 @@ public class MiTrabajoCargaPorPartesTests : BunitContext
         }, Espera);
 
         mediador.Liberar(1);
+        cut.WaitForAssertion(() => cut.FindAll(".mi-trabajo-progreso").Should().BeEmpty(), Espera);
+        DesplegarTodos(cut);
         cut.WaitForAssertion(() => cut.FindAll(".mi-trabajo-fila-titulo").Select(e => e.TextContent).Should().Equal("Formación PRL"), Espera);
     }
 
