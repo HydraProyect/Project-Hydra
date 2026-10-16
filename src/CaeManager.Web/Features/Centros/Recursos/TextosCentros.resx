@@ -508,4 +508,31 @@
   <data name="SubtituloTrabajadorPorEvento" xml:space="preserve">
     <value>{0} · solo por el evento «{1}» · desde {2}</value>
   </data>
+  <data name="FichaEditarTitulo" xml:space="preserve"><value>Editar acceso y prevención</value></data>
+  <data name="FichaAccesoTitulo" xml:space="preserve"><value>Acceso al Centro</value></data>
+  <data name="FichaPrevencionTitulo" xml:space="preserve"><value>Prevención y trabajos especiales del Centro</value></data>
+  <data name="FichaSinInformar" xml:space="preserve"><value>Sin informar</value></data>
+  <data name="FichaSi" xml:space="preserve"><value>Sí</value></data>
+  <data name="FichaNo" xml:space="preserve"><value>No</value></data>
+  <data name="FichaNoDisponible" xml:space="preserve"><value>No pudimos cargar la ficha de este centro.</value></data>
+  <data name="FichaGuardada" xml:space="preserve"><value>Ficha del centro guardada.</value></data>
+  <data name="FichaErrorGuardar" xml:space="preserve"><value>No pudimos guardar la ficha. Inténtalo de nuevo.</value></data>
+  <data name="FichaHorarioAcceso" xml:space="preserve"><value>Horario de acceso</value></data>
+  <data name="FichaControlAccesosNombre" xml:space="preserve"><value>Control de accesos</value></data>
+  <data name="FichaControlAccesosTelefono" xml:space="preserve"><value>Teléfono de control de accesos</value></data>
+  <data name="FichaTecnicoPrevencionNombre" xml:space="preserve"><value>Técnico de prevención</value></data>
+  <data name="FichaTecnicoPrevencionTelefono" xml:space="preserve"><value>Teléfono de prevención</value></data>
+  <data name="FichaTecnicoPrevencionCorreo" xml:space="preserve"><value>Correo de prevención</value></data>
+  <data name="FichaTrabajosEnAltura" xml:space="preserve"><value>Trabajos en altura</value></data>
+  <data name="FichaEspaciosConfinados" xml:space="preserve"><value>Espacios confinados</value></data>
+  <data name="FichaAtmosferasExplosivas" xml:space="preserve"><value>Atmósferas explosivas</value></data>
+  <data name="BotonGuardar" xml:space="preserve"><value>Guardar</value></data>
+  <data name="BotonCancelar" xml:space="preserve"><value>Cancelar</value></data>
+  <data name="FichaCopiarDato" xml:space="preserve"><value>Copiar {0}</value></data>
+  <data name="FichaEditarAccion" xml:space="preserve"><value>Editar</value></data>
+  <data name="FichaConfigurarAccion" xml:space="preserve"><value>Configurar</value></data>
+  <data name="FichaAccesoVacioTitulo" xml:space="preserve"><value>Acceso sin configurar</value></data>
+  <data name="FichaAccesoVacioDescripcion" xml:space="preserve"><value>Todavía no se ha informado el horario ni el contacto de control de accesos de este Centro.</value></data>
+  <data name="FichaPrevencionVacioTitulo" xml:space="preserve"><value>Prevención sin configurar</value></data>
+  <data name="FichaPrevencionVacioDescripcion" xml:space="preserve"><value>Todavía no se ha informado el Técnico de prevención ni los trabajos especiales de este Centro.</value></data>
 </root>
