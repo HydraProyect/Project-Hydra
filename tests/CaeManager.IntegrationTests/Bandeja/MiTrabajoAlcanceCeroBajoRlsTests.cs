@@ -145,6 +145,8 @@ public class MiTrabajoAlcanceCeroBajoRlsTests : IAsyncLifetime
         servicios.AddSingleton<ITenantsQueryContext>(_runtime);
         servicios.AddSingleton<CaeManager.Application.Operaciones.IOperacionesQueryContext>(_runtime);
         servicios.AddSingleton<CaeManager.Application.Empresas.IEmpresasQueryContext>(_runtime);
+        servicios.AddSingleton<CaeManager.Application.Proyectos.IProyectosQueryContext>(_runtime);
+        servicios.AddSingleton<CaeManager.Application.Proyectos.IRequisitosEventoQueryContext>(_runtime);
         servicios.AddSingleton<CaeManager.Application.Centros.ICentrosQueryContext>(_runtime);
         servicios.AddSingleton<CaeManager.Application.Trabajadores.ITrabajadoresQueryContext>(_runtime);
         servicios.AddSingleton<CaeManager.Application.TiposDocumento.ITiposDocumentoQueryContext>(_runtime);
