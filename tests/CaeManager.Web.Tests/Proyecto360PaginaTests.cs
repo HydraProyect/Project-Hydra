@@ -530,6 +530,111 @@ public class Proyecto360PaginaTests : BunitContext
         _mediador.Enviados.OfType<ReabrirProyectoCommand>().Should().ContainSingle().Which.Id.Should().Be(CerradoId);
     }
 
+    private static ProyectoDetalleDto EventoDe(Guid id, DateOnly inicio, DateOnly fin, DateOnly? cierre) => Cerrado with
+    {
+        Id = id,
+        Tipo = TipoProyecto.Evento,
+        FechaInicio = inicio,
+        FechaFinPrevista = fin,
+        FechaCierreReal = cierre,
+        EstaAbierto = cierre is null,
+    };
+
+    /// <summary>
+    /// Un evento cerrado por el proceso programado al pasar su fin (decisión 2026-10-16) se reabre con una fecha de fin
+    /// nueva, de hoy o posterior, pedida en el mismo diálogo: sin ella no se envía nada.
+    /// </summary>
+    [Fact]
+    public async Task Reabrir_un_evento_terminado_pide_la_nueva_fecha_de_fin_y_la_envia()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var eventoId = Guid.NewGuid();
+        _mediador.Detalles[eventoId] = EventoDe(eventoId, hoy.AddDays(-10), hoy.AddDays(-3), hoy.AddDays(-3));
+        var cut = Renderizar(eventoId);
+        await BotonConTexto(cut, "[data-pieza=cabecera-identidad] button", "Reabrir").ClickAsync(new MouseEventArgs());
+
+        CampoNuevaFechaFin(cut).Instance.Type.Should().Be("date");
+
+        await BotonConTexto(cut, "[role=dialog] .modal-pie button", "Reabrir proyecto").ClickAsync(new MouseEventArgs());
+        _mediador.Enviados.OfType<ReabrirProyectoCommand>().Should().BeEmpty("sin fecha de fin nueva no se envía nada");
+        CampoNuevaFechaFin(cut).Instance.MensajeError.Should().Be("Introduce una fecha de fin de hoy o posterior.");
+
+        await CampoNuevaFechaFin(cut).Find("input").InputAsync(new ChangeEventArgs { Value = hoy.AddDays(-1).ToString("yyyy-MM-dd") });
+        await BotonConTexto(cut, "[role=dialog] .modal-pie button", "Reabrir proyecto").ClickAsync(new MouseEventArgs());
+        _mediador.Enviados.OfType<ReabrirProyectoCommand>().Should().BeEmpty("una fecha pasada tampoco vale");
+
+        var nuevoFin = hoy.AddDays(5);
+        await CampoNuevaFechaFin(cut).Find("input").InputAsync(new ChangeEventArgs { Value = nuevoFin.ToString("yyyy-MM-dd") });
+        CampoNuevaFechaFin(cut).Instance.MensajeError.Should().BeNull("escribir limpia el aviso");
+        await BotonConTexto(cut, "[role=dialog] .modal-pie button", "Reabrir proyecto").ClickAsync(new MouseEventArgs());
+
+        _mediador.Enviados.OfType<ReabrirProyectoCommand>().Should().ContainSingle()
+            .Which.Should().Be(new ReabrirProyectoCommand(eventoId, NuevaFechaFinPrevista: nuevoFin));
+    }
+
+    [Fact]
+    public async Task Reabrir_una_obra_cerrada_no_pide_fecha_de_fin()
+    {
+        var cut = Renderizar(CerradoId);
+        await BotonConTexto(cut, "[data-pieza=cabecera-identidad] button", "Reabrir").ClickAsync(new MouseEventArgs());
+
+        cut.FindComponents<CampoTexto>().Should().NotContain(c => c.Instance.Etiqueta == "Nueva fecha de fin");
+        await BotonConTexto(cut, "[role=dialog] .modal-pie button", "Reabrir proyecto").ClickAsync(new MouseEventArgs());
+
+        _mediador.Enviados.OfType<ReabrirProyectoCommand>().Should().ContainSingle()
+            .Which.NuevaFechaFinPrevista.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Reabrir_un_evento_cerrado_a_mano_antes_de_su_fin_no_pide_fecha_de_fin()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var eventoId = Guid.NewGuid();
+        _mediador.Detalles[eventoId] = EventoDe(eventoId, hoy.AddDays(-10), hoy.AddDays(4), hoy.AddDays(-1));
+        var cut = Renderizar(eventoId);
+        await BotonConTexto(cut, "[data-pieza=cabecera-identidad] button", "Reabrir").ClickAsync(new MouseEventArgs());
+
+        cut.FindComponents<CampoTexto>().Should().NotContain(c => c.Instance.Etiqueta == "Nueva fecha de fin");
+        await BotonConTexto(cut, "[role=dialog] .modal-pie button", "Reabrir proyecto").ClickAsync(new MouseEventArgs());
+
+        _mediador.Enviados.OfType<ReabrirProyectoCommand>().Should().ContainSingle()
+            .Which.NuevaFechaFinPrevista.Should().BeNull();
+    }
+
+    private static IRenderedComponent<CampoTexto> CampoNuevaFechaFin(IRenderedComponent<ProyectoDetalle> cut) =>
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nueva fecha de fin");
+
+    /// <summary>
+    /// Un evento abierto cuyo fin ya pasó (el proceso programado aún no lo ha cerrado) se pinta ya como cerrado en su fin:
+    /// «Cerrado el {fin}», sin «fin previsto superado». Una obra en el mismo caso sigue abierta y con retraso.
+    /// </summary>
+    [Fact]
+    public void El_plazo_de_un_evento_abierto_pasado_de_su_fin_dice_cerrado_el_dia_del_fin()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var fin = hoy.AddDays(-3);
+        var eventoId = Guid.NewGuid();
+        _mediador.Detalles[eventoId] = EventoDe(eventoId, hoy.AddDays(-10), fin, cierre: null);
+
+        var cut = Renderizar(eventoId, "?pestana=ficha");
+
+        cut.Find("[data-pieza=cajas-ficha] [data-caja=plazo]").TextContent
+            .Should().Contain($"Cerrado el {fin:dd/MM/yyyy}").And.NotContain("superado");
+    }
+
+    [Fact]
+    public void El_plazo_de_una_obra_abierta_pasada_de_su_fin_sigue_diciendo_fin_superado()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var obraId = Guid.NewGuid();
+        _mediador.Detalles[obraId] = EventoDe(obraId, hoy.AddDays(-10), hoy.AddDays(-3), cierre: null) with { Tipo = TipoProyecto.Obra };
+
+        var cut = Renderizar(obraId, "?pestana=ficha");
+
+        cut.Find("[data-pieza=cajas-ficha] [data-caja=plazo]").TextContent
+            .Should().Contain("superado hace 3 días").And.NotContain("Cerrado el");
+    }
+
     [Fact]
     public async Task Eliminar_pide_confirmacion_y_vuelve_al_listado()
     {

@@ -5,6 +5,7 @@ using CaeManager.Application.Proyectos.Commands.CrearProyecto;
 using CaeManager.Application.Proyectos.Commands.ReabrirProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectos;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Proyectos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Proyectos;
@@ -128,9 +129,134 @@ public partial class ProyectosGen2Tests
     [InlineData("2026-03-12", null, null, "2026-10-08", null)]                 // sin fin previsto
     [InlineData("2026-01-09", "2026-02-01", "2026-03-04", "2026-10-08", null)] // cerrado, aunque cerrara tarde
     public void Dias_de_retraso(string inicio, string? fin, string? cierre, string hoy, int? esperado) =>
-        PlazoProyecto.DiasDeRetraso(DateOnly.Parse(inicio), fin is null ? null : DateOnly.Parse(fin),
+        PlazoProyecto.DiasDeRetraso(TipoProyecto.Obra, DateOnly.Parse(inicio), fin is null ? null : DateOnly.Parse(fin),
                 cierre is null ? null : DateOnly.Parse(cierre), DateOnly.Parse(hoy))
             .Should().Be(esperado);
+
+    /// <summary>
+    /// Un evento nunca muestra retraso (decisión 2026-10-16): pasado su fin previsto se cierra solo, y entre la
+    /// medianoche y el pase del proceso programado la pantalla ya lo trata como cerrado en esa fecha.
+    /// </summary>
+    [Theory]
+    [InlineData("2026-10-01", "2026-10-03", null, "2026-10-08", null, "2026-10-03")] // abierto y pasado: cerrado en su fin
+    [InlineData("2026-10-01", "2026-10-08", null, "2026-10-08", null, null)]         // su último día sigue abierto
+    [InlineData("2026-10-01", "2026-10-03", "2026-10-02", "2026-10-08", null, "2026-10-02")] // cerrado a mano antes
+    public void Un_evento_nunca_tiene_retraso_y_pasado_su_fin_cuenta_como_cerrado(
+        string inicio, string fin, string? cierre, string hoy, int? retraso, string? cierreEfectivo)
+    {
+        var cierreReal = cierre is null ? (DateOnly?)null : DateOnly.Parse(cierre);
+
+        PlazoProyecto.DiasDeRetraso(TipoProyecto.Evento, DateOnly.Parse(inicio), DateOnly.Parse(fin), cierreReal, DateOnly.Parse(hoy))
+            .Should().Be(retraso);
+        PlazoProyecto.CierreEfectivo(TipoProyecto.Evento, DateOnly.Parse(fin), cierreReal, DateOnly.Parse(hoy))
+            .Should().Be(cierreEfectivo is null ? null : DateOnly.Parse(cierreEfectivo));
+    }
+
+    [Fact]
+    public void Una_obra_pasada_de_su_fin_sigue_abierta_y_con_retraso()
+    {
+        PlazoProyecto.CierreEfectivo(TipoProyecto.Obra, new DateOnly(2026, 10, 3), null, new DateOnly(2026, 10, 8))
+            .Should().BeNull();
+        PlazoProyecto.DiasDeRetraso(TipoProyecto.Obra, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 3), null, new DateOnly(2026, 10, 8))
+            .Should().Be(5);
+    }
+
+    /// <summary>
+    /// Un evento abierto cuyo fin ya pasó (entre la medianoche y el pase del proceso programado) no dice «fin previsto
+    /// superado»: la decisión 2026-10-16 es que un evento no tiene retraso, se cierra solo. Una obra igual sí lo dice.
+    /// </summary>
+    [Fact]
+    public async Task Un_evento_abierto_pasado_de_su_fin_no_dice_fin_previsto_superado()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var evento = ProyectoAbierto with { Tipo = TipoProyecto.Evento, FechaInicio = hoy.AddDays(-30), FechaFinPrevista = hoy.AddDays(-3) };
+        var obra = ProyectoAbierto2 with { FechaInicio = hoy.AddDays(-30), FechaFinPrevista = hoy.AddDays(-3) };
+        _mediator.Proyectos = [evento, obra];
+
+        var cut = await RenderizarConClienteAsync();
+
+        FilaDe(cut, obra).QuerySelectorAll(".proyecto-fin-superado").Should().ContainSingle("el instrumento tiene que poder ver el aviso en la obra");
+        FilaDe(cut, evento).QuerySelectorAll(".proyecto-fin-superado").Should().BeEmpty();
+    }
+
+    // ------------------------------------------------------------------ «Reabrir» un evento terminado
+
+    private static ProyectoListaDto EventoCerradoSolo(DateOnly hoy) => ProyectoCerrado with
+    {
+        Tipo = TipoProyecto.Evento,
+        FechaInicio = hoy.AddDays(-10),
+        FechaFinPrevista = hoy.AddDays(-3),
+        FechaCierreReal = hoy.AddDays(-3),
+    };
+
+    private static IRenderedComponent<CampoTexto> CampoNuevaFechaFin(IRenderedComponent<Proyectos> cut) =>
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nueva fecha de fin");
+
+    /// <summary>
+    /// Un evento cerrado con el fin ya pasado pide en el diálogo una nueva fecha de fin (de hoy o posterior): sin ella el
+    /// cierre automático lo volvería a cerrar. Una fecha anterior a hoy o vacía no envía nada y avisa en el campo.
+    /// </summary>
+    [Fact]
+    public async Task Reabrir_un_evento_terminado_pide_la_nueva_fecha_de_fin_y_la_envia()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var evento = EventoCerradoSolo(hoy);
+        _mediator.Proyectos = [evento];
+        var cut = await RenderizarConClienteAsync();
+        await AbrirDetalle(cut, evento);
+        await BotonConTexto(cut, ".pie-panel-proyecto button", "Reabrir proyecto").ClickAsync(new MouseEventArgs());
+
+        CampoNuevaFechaFin(cut).Instance.Type.Should().Be("date");
+
+        await ConfirmarReapertura(cut);
+        _mediator.Enviados.OfType<ReabrirProyectoCommand>().Should().BeEmpty("sin fecha de fin nueva no se envía nada");
+        CampoNuevaFechaFin(cut).Instance.MensajeError.Should().Be("Introduce una fecha de fin de hoy o posterior.");
+
+        await CampoNuevaFechaFin(cut).Find("input").InputAsync(new ChangeEventArgs { Value = hoy.AddDays(-1).ToString("yyyy-MM-dd") });
+        await ConfirmarReapertura(cut);
+        _mediator.Enviados.OfType<ReabrirProyectoCommand>().Should().BeEmpty("una fecha pasada tampoco vale");
+
+        var nuevoFin = hoy.AddDays(5);
+        await CampoNuevaFechaFin(cut).Find("input").InputAsync(new ChangeEventArgs { Value = nuevoFin.ToString("yyyy-MM-dd") });
+        CampoNuevaFechaFin(cut).Instance.MensajeError.Should().BeNull("escribir limpia el aviso");
+        await ConfirmarReapertura(cut);
+
+        _mediator.Enviados.OfType<ReabrirProyectoCommand>().Should().ContainSingle()
+            .Which.Should().Be(new ReabrirProyectoCommand(evento.Id, NuevaFechaFinPrevista: nuevoFin));
+    }
+
+    /// <summary>Una obra cerrada, o un evento cuyo fin aún no llegó, se reabre como siempre: sin campo y sin fecha en el comando.</summary>
+    [Fact]
+    public async Task Reabrir_una_obra_no_pide_fecha_de_fin()
+    {
+        _mediator.Proyectos = [ProyectoCerrado];
+        var cut = await RenderizarConClienteAsync();
+        await AbrirDetalle(cut, ProyectoCerrado);
+        await BotonConTexto(cut, ".pie-panel-proyecto button", "Reabrir proyecto").ClickAsync(new MouseEventArgs());
+
+        cut.FindComponents<CampoTexto>().Should().NotContain(c => c.Instance.Etiqueta == "Nueva fecha de fin");
+        await ConfirmarReapertura(cut);
+
+        _mediator.Enviados.OfType<ReabrirProyectoCommand>().Should().ContainSingle()
+            .Which.NuevaFechaFinPrevista.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Reabrir_un_evento_cerrado_a_mano_antes_de_su_fin_no_pide_fecha_de_fin()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var evento = EventoCerradoSolo(hoy) with { FechaFinPrevista = hoy.AddDays(4), FechaCierreReal = hoy.AddDays(-1) };
+        _mediator.Proyectos = [evento];
+        var cut = await RenderizarConClienteAsync();
+        await AbrirDetalle(cut, evento);
+        await BotonConTexto(cut, ".pie-panel-proyecto button", "Reabrir proyecto").ClickAsync(new MouseEventArgs());
+
+        cut.FindComponents<CampoTexto>().Should().NotContain(c => c.Instance.Etiqueta == "Nueva fecha de fin");
+        await ConfirmarReapertura(cut);
+
+        _mediator.Enviados.OfType<ReabrirProyectoCommand>().Should().ContainSingle()
+            .Which.NuevaFechaFinPrevista.Should().BeNull();
+    }
 
     // ------------------------------------------------------------------ «Reabrir» en la fila
 
