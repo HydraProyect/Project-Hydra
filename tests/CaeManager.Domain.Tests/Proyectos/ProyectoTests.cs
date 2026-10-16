@@ -119,7 +119,7 @@ public class ProyectoTests
         var proyecto = Proyecto.Crear(ClienteIdValido, CentroIdValido, "Obra", new DateOnly(2026, 8, 1), null, null);
         proyecto.Cerrar(new DateOnly(2026, 9, 1));
 
-        proyecto.Reabrir();
+        proyecto.Reabrir(new DateOnly(2026, 9, 2));
 
         proyecto.EstaAbierto.Should().BeTrue();
         proyecto.FechaCierreReal.Should().BeNull();

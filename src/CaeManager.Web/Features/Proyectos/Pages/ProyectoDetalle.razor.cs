@@ -333,7 +333,8 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
 
             var fin = _detalle.FechaFinPrevista;
 
-            if (_detalle.FechaCierreReal is { } cierre)
+            // Un evento pasado de su fin ya está cerrado aunque el proceso programado aún no lo haya persistido.
+            if (PlazoProyecto.CierreEfectivo(_detalle.Tipo, fin, _detalle.FechaCierreReal, Hoy) is { } cierre)
             {
                 var cerrado = Textos["PlazoCerradoEl", cierre].Value;
                 if (fin is not { } previsto || previsto == cierre)
@@ -498,15 +499,29 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         ? string.Empty
         : Textos["ConfirmarReabrirMensaje", _detalle.Nombre, _detalle.FechaCierreReal?.ToString("dd/MM/yyyy") ?? string.Empty];
 
+    /// <summary>
+    /// Un evento con la fecha de fin ya pasada (decisión 2026-10-16) se reabre con una fecha de fin nueva, de hoy o
+    /// posterior, pedida en el mismo diálogo: sin ella el cierre automático lo volvería a cerrar.
+    /// </summary>
+    private bool ReabrirPideFechaFin => _detalle is not null && ReabrirEvento.PideNuevaFechaFin(_detalle.Tipo, _detalle.FechaFinPrevista, Hoy);
+    private string _nuevaFechaFinReabrir = string.Empty;
+    private string? _errorReabrir;
+
     private async Task ConfirmarReabrirAsync()
     {
         if (_reabriendo || _detalle is null) return;
+        if (!ReabrirEvento.LeerNuevaFechaFin(ReabrirPideFechaFin, _nuevaFechaFinReabrir, Hoy, out var nuevaFin))
+        {
+            _errorReabrir = Textos["ErrorNuevaFechaFinReabrir"];
+            return;
+        }
+
         _reabriendo = true;
         var id = _detalle.Id;
 
         try
         {
-            var resultado = await Mediator.Send(new ReabrirProyectoCommand(id));
+            var resultado = await Mediator.Send(new ReabrirProyectoCommand(id, NuevaFechaFinPrevista: nuevaFin));
 
             if (resultado.EsFallido)
             {
@@ -624,6 +639,8 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         if (_detalle is { EstaAbierto: true })
             return AbrirAsignarAsync();
 
+        _nuevaFechaFinReabrir = string.Empty;
+        _errorReabrir = null;
         _confirmarReabrirVisible = true;
         return Task.CompletedTask;
     }

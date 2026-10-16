@@ -139,7 +139,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// de plazo se queda en el 100 % y por sí sola no distingue «acaba hoy» de «lleva un mes de retraso».
     /// </summary>
     private string? TextoFinPrevistoSuperado(ProyectoListaDto proyecto) =>
-        PlazoProyecto.DiasDeRetraso(proyecto.FechaInicio, proyecto.FechaFinPrevista, proyecto.FechaCierreReal, Hoy) is { } dias
+        PlazoProyecto.DiasDeRetraso(proyecto.Tipo, proyecto.FechaInicio, proyecto.FechaFinPrevista, proyecto.FechaCierreReal, Hoy) is { } dias
             ? Textos[dias == 1 ? "PlazoSuperadoUno" : "PlazoSuperadoVarios", dias].Value
             : null;
 
@@ -1280,18 +1280,37 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         _idAReabrir = id;
         _nombreAReabrir = fila?.Nombre ?? _detalle?.Nombre ?? string.Empty;
         _fechaCierreAReabrir = fila?.FechaCierreReal ?? _detalle?.FechaCierreReal;
+        var tipo = fila?.Tipo ?? _detalle?.Tipo;
+        var fin = fila?.FechaFinPrevista ?? _detalle?.FechaFinPrevista;
+        _reabrirPideFechaFin = ReabrirEvento.PideNuevaFechaFin(tipo, fin, Hoy);
+        _nuevaFechaFinReabrir = string.Empty;
+        _errorReabrir = null;
         _confirmarReabrirVisible = true;
     }
+
+    /// <summary>
+    /// Un evento con la fecha de fin ya pasada (decisión 2026-10-16) se reabre con una fecha de fin nueva, de hoy o
+    /// posterior, pedida en el mismo diálogo: sin ella el cierre automático lo volvería a cerrar.
+    /// </summary>
+    private bool _reabrirPideFechaFin;
+    private string _nuevaFechaFinReabrir = string.Empty;
+    private string? _errorReabrir;
 
     private async Task ConfirmarReabrirAsync()
     {
         if (_reabriendo) return;
+        if (!ReabrirEvento.LeerNuevaFechaFin(_reabrirPideFechaFin, _nuevaFechaFinReabrir, Hoy, out var nuevaFin))
+        {
+            _errorReabrir = Textos["ErrorNuevaFechaFinReabrir"];
+            return;
+        }
+
         _reabriendo = true;
         var id = _idAReabrir;
 
         try
         {
-            var resultado = await Mediator.Send(new ReabrirProyectoCommand(id));
+            var resultado = await Mediator.Send(new ReabrirProyectoCommand(id, NuevaFechaFinPrevista: nuevaFin));
 
             if (resultado.EsFallido)
             {

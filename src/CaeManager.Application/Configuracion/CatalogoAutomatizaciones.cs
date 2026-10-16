@@ -33,6 +33,11 @@ namespace CaeManager.Application.Configuracion;
 /// — no aquí), <c>RedaccionPayloadWebhookHostedService</c> (purga de PII por
 /// retención) y <c>ExpiracionAsignacionesHostedService</c> (integridad
 /// interna de datos, requisito de esquema).</description></item>
+/// <item><description><b>Regla de dominio, no automatización opcional:</b>
+/// <c>CierreEventosTerminadosHostedService</c> cierra el Proyecto de tipo Evento
+/// cuando pasa su fecha de fin (decisión 2026-10-16). Apagarlo dejaría eventos
+/// abiertos con «fin previsto superado», que es justo lo que la decisión
+/// prohíbe, así que no tiene interruptor.</description></item>
 /// <item><description><b>Verificación de infraestructura</b> — gates de
 /// arranque que comprueban si un sistema de la propia plataforma (no del
 /// tenant) está operativo, y no corren por tenant: <c>VerificacionKmsHostedService</c>,
