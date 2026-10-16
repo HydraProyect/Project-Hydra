@@ -327,4 +327,13 @@
   <data name="ReclamacionSinFecha" xml:space="preserve">
     <value>Sense data</value>
   </data>
+  <data name="ReclamacionConfirmarTitulo" xml:space="preserve">
+    <value>Voleu enviar la reclamació a {0}?</value>
+  </data>
+  <data name="ReclamacionConfirmarMensaje" xml:space="preserve">
+    <value>Es reclamaran {0} document(s) a {1} contacte(s) de l'agenda: {2}. El correu surt a tercers i no es pot desfer.</value>
+  </data>
+  <data name="ReclamacionConfirmarBoton" xml:space="preserve">
+    <value>Enviar reclamació</value>
+  </data>
 </root>
