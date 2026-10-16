@@ -156,6 +156,15 @@ public class ObtenerVehiculosProyectoTests
     }
 
     [Fact]
+    public async Task La_Empresa_empleadora_directa_no_aporta_sus_vehiculos_por_la_ruta_de_Subcontrata()
+    {
+        // La misma Empresa con un vehículo registrado como de Subcontrata: solo entra si participa como Subcontrata.
+        _vehiculos.Lista.Add(Vehiculo.DeSubcontrata(_empleadora.Id, "Grua de la relacion", "Liebherr", "9999ZZZ"));
+        var filas = await VehiculosAsync(Alcance(vehiculos: [_furgoneta.Id, _vehiculos.Lista[1].Id]));
+        filas.Should().ContainSingle().Which.Id.Should().Be(_furgoneta.Id);
+    }
+
+    [Fact]
     public async Task Se_ordenan_por_nombre()
     {
         _vehiculos.Lista.Add(Vehiculo.DeEmpresa(_empleadora.Id, "Camión", "Iveco", "0001AAA"));

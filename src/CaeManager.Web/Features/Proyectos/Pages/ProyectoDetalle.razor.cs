@@ -21,8 +21,8 @@ using Microsoft.AspNetCore.Components;
 namespace CaeManager.Web.Features.Proyectos.Pages;
 
 /// <summary>
-/// Proyecto 360: conserva los comandos del panel y añade lecturas autorizadas de Empresas empleadoras
-///, Vehículos e Historial a las consultas del panel de detalle del listado de Proyectos
+/// Proyecto 360: conserva los comandos del panel y añade lecturas autorizadas de Empresas empleadoras,
+/// Vehículos, Visitas del periodo e Historial a las consultas del panel de detalle del listado de Proyectos
 /// (<see cref="Proyectos"/>). Empresas deriva sus participantes de los técnicos activos y mide
 /// los documentos que exige el Centro. Vehículos son los de esas mismas Empresas participantes (un Vehículo
 /// no se asigna a un Proyecto en el modelo). Visitas deriva el mismo Centro y el periodo del Proyecto.

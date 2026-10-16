@@ -777,7 +777,7 @@ public class Proyecto360PaginaTests : BunitContext
     // ------------------------------------------------------------------ Vehículos, Historial y lo que no existe
 
     [Fact]
-    public void Las_pestanas_van_en_el_orden_de_la_maqueta_con_Vehiculos_e_Historial()
+    public void Las_pestanas_incluyen_Vehiculos_y_Historial_con_Ficha_justo_antes_del_Historial()
     {
         var cut = Renderizar(AbiertoId);
 
@@ -877,13 +877,22 @@ public class Proyecto360PaginaTests : BunitContext
     [InlineData("")]
     [InlineData("?pestana=empresas")]
     [InlineData("?pestana=vehiculos")]
+    [InlineData("?pestana=documentos")]
+    [InlineData("?pestana=visitas")]
     [InlineData("?pestana=ficha")]
     public void El_Proyecto_no_muestra_porcentaje_global_ni_anillo_de_cumplimiento(string consulta)
     {
+        _mediador.Empresas[AbiertoId] = [new(Guid.NewGuid(), "Empresa empleadora A", 2, true, false)];
+        _mediador.Vehiculos[AbiertoId] = [new(Guid.NewGuid(), "Furgoneta 1", "Ford Transit", "1234 ABC", Guid.NewGuid(), "Empresa A")];
+        _mediador.Visitas[AbiertoId] = [new(Guid.NewGuid(), new(2026, 10, 4), new(2026, 10, 5), 3)];
         var cut = Renderizar(AbiertoId, consulta);
 
         cut.FindAll("[data-pieza=anillo], .anillo").Should().BeEmpty();
         cut.Markup.Should().NotContain("de cumplimiento").And.NotContain("Cumplimiento del proyecto");
+        if (consulta == "?pestana=ficha")
+            cut.FindAll("[data-pieza=cajas-ficha] > [data-caja]").Should().ContainSingle("solo la caja del plazo lleva porcentaje");
+        else
+            cut.Markup.Should().NotContain("%", "fuera de la caja «Plazo» de la ficha no hay ningún porcentaje");
     }
 
     /// <summary>

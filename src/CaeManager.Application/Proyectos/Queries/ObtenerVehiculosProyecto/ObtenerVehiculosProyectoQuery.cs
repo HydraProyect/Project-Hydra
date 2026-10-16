@@ -10,7 +10,7 @@ namespace CaeManager.Application.Proyectos.Queries.ObtenerVehiculosProyecto;
 
 public record ObtenerVehiculosProyectoQuery(Guid ProyectoId) : IRequest<IReadOnlyList<VehiculoProyectoDto>>;
 
-/// <param name="EmpleadorId">Empresa dueña del Vehículo, por la ruta contextual con la que participa en el Proyecto.</param>
+/// <param name="EmpleadorId">Empresa a la que pertenece el Vehículo, por la ruta contextual con la que participa en el Proyecto.</param>
 public record VehiculoProyectoDto(Guid Id, string Nombre, string Modelo, string NumeroPlaca, Guid EmpleadorId, string EmpleadorNombre);
 
 /// <summary>
@@ -61,14 +61,14 @@ public class ObtenerVehiculosProyectoQueryHandler(
             .Where(v => (v.EmpresaId != null && empresaIds.Contains(v.EmpresaId.Value))
                      || (v.SubcontrataId != null && subcontrataIds.Contains(v.SubcontrataId.Value)))
             .Where(v => vehiculoIdsVisibles == null || vehiculoIdsVisibles.Contains(v.Id))
-            .OrderBy(v => v.Nombre).ThenBy(v => v.NumeroPlaca)
+            .OrderBy(v => v.Nombre).ThenBy(v => v.NumeroPlaca).ThenBy(v => v.Id)
             .Select(v => new { v.Id, v.Nombre, v.Modelo, v.NumeroPlaca, v.EmpresaId, v.SubcontrataId })
             .ToListAsync(cancellationToken);
 
         return vehiculos
             .Select(v => (Vehiculo: v, EmpleadorId: v.EmpresaId ?? v.SubcontrataId!.Value))
             .Select(x => new VehiculoProyectoDto(x.Vehiculo.Id, x.Vehiculo.Nombre, x.Vehiculo.Modelo, x.Vehiculo.NumeroPlaca,
-                x.EmpleadorId, nombres[x.EmpleadorId]))
+                x.EmpleadorId, nombres.GetValueOrDefault(x.EmpleadorId, string.Empty)))
             .ToList();
     }
 }
