@@ -315,6 +315,14 @@
 
     private EnvioPendiente? _envioPendiente;
 
+    // Un cajón que el padre cierra (otra navegación, p. ej. /bandeja?pedir=) no deja una confirmación suya flotando ni la
+    // devuelve al reabrir: lo anunciado era de una pantalla que ya no está.
+    protected override void OnParametersSet()
+    {
+        if (!Visible && !_enviando)
+            _envioPendiente = null;
+    }
+
     private string MensajeConfirmacionEnvio => _envioPendiente is not { } envio
         ? string.Empty
         : TextosMiTrabajo.Formato("ReclamacionConfirmarMensaje", envio.TotalDocumentos, envio.ContactoIds.Count, string.Join(", ", envio.Destinatarios));
@@ -414,6 +422,7 @@
     {
         if (!visible)
         {
+            _envioPendiente = null;
             _paso = Paso.Seleccion;
             _lotes = [];
             _filtroElegidoDifiere = false;

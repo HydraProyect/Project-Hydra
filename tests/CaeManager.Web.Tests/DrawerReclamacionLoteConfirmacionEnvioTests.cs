@@ -167,6 +167,34 @@ public class DrawerReclamacionLoteConfirmacionEnvioTests : BunitContext
     }
 
     [Fact]
+    public async Task Lo_anunciado_en_la_confirmacion_es_lo_que_sale_aunque_cambien_las_casillas_con_el_dialogo_abierto()
+    {
+        var cut = await AbrirYContinuarAsync();
+        await BotonEnviar(cut).ClickAsync(new MouseEventArgs());
+
+        await cut.Find("input[aria-label^='Incluir Aptitud médica']").ChangeAsync(new ChangeEventArgs { Value = false });
+        await BotonDelDialogo(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
+
+        _mediator.Recibidas.OfType<EnviarReclamacionCommand>().Should().ContainSingle()
+            .Which.DocumentoIds.Should().BeEquivalentTo([DocumentoUnoId, DocumentoDosId], "el diálogo dijo 2 documentos");
+    }
+
+    [Fact]
+    public async Task Cerrar_el_cajon_con_la_confirmacion_pendiente_no_deja_el_dialogo_flotando()
+    {
+        var cut = await AbrirYContinuarAsync();
+        await BotonEnviar(cut).ClickAsync(new MouseEventArgs());
+        cut.FindAll(".modal-pie button").Should().NotBeEmpty();
+
+        cut.Render(p => p.Add(x => x.Visible, false));
+
+        cut.FindAll(".modal-pie button").Should().BeEmpty();
+        cut.Render(p => p.Add(x => x.Visible, true));
+        cut.FindAll(".modal-pie button").Should().BeEmpty("al reabrir no reaparece una confirmación vieja");
+        EnviosRecibidos.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Si_el_envio_falla_la_pantalla_lo_dice_no_lo_da_por_enviado_y_el_lote_sigue_para_reintentar()
     {
         _mediator.ResultadoDelEnvio = Result.Fallo<EnvioReclamacionResultado>(Error.Crear(
