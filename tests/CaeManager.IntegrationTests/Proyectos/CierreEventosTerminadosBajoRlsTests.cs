@@ -41,7 +41,7 @@ public class CierreEventosTerminadosBajoRlsTests
         tenantSuspendido.Suspender();
 
         Proyecto eventoPasado, eventoQueAcabaHoy, obraPasada, eventoCerradoAMano, eventoPasadoDelSuspendido;
-        ProyectoTecnico participantePasado, participanteYaDeBaja, participanteDeHoy, participanteDeObra;
+        ProyectoTecnico participantePasado, participanteYaDeBaja, participanteDeHoy, participanteDeObra, participanteTardio;
 
         var tenantPorAmbito = new TenantActualPorAmbito();
         await using (var propietarioBd = CrearContextoPropietario(arnes.CadenaPropietario, tenantPorAmbito))
@@ -62,14 +62,17 @@ public class CierreEventosTerminadosBajoRlsTests
 
                 var ana = Trabajador.DeEmpresa(club, "Ana", "Vidal Ruiz", "45678912S");
                 var iker = Trabajador.DeEmpresa(club, "Iker", "Sanz Mora", "12345678Z");
-                propietarioBd.Trabajadores.AddRange(ana, iker);
+                var lola = Trabajador.DeEmpresa(club, "Lola", "Mena Soto", "87654321X");
+                propietarioBd.Trabajadores.AddRange(ana, iker, lola);
                 await propietarioBd.SaveChangesAsync();
                 participantePasado = new ProyectoTecnico(eventoPasado.Id, ana.Id, hoy.AddDays(-4));
                 participanteYaDeBaja = new ProyectoTecnico(eventoPasado.Id, iker.Id, hoy.AddDays(-4));
                 participanteYaDeBaja.DarDeBaja(hoy.AddDays(-3));
+                // Entró después del fin del evento (un alta tardía): su baja no puede ser anterior a su alta.
+                participanteTardio = new ProyectoTecnico(eventoPasado.Id, lola.Id, hoy.AddDays(-1));
                 participanteDeHoy = new ProyectoTecnico(eventoQueAcabaHoy.Id, ana.Id, hoy.AddDays(-1));
                 participanteDeObra = new ProyectoTecnico(obraPasada.Id, iker.Id, hoy.AddDays(-60));
-                propietarioBd.ProyectosTecnicos.AddRange(participantePasado, participanteYaDeBaja, participanteDeHoy, participanteDeObra);
+                propietarioBd.ProyectosTecnicos.AddRange(participantePasado, participanteYaDeBaja, participanteTardio, participanteDeHoy, participanteDeObra);
                 await propietarioBd.SaveChangesAsync();
             }
 
@@ -106,6 +109,8 @@ public class CierreEventosTerminadosBajoRlsTests
         (await LeerParticipante(participantePasado.Id)).FechaBaja.Should().Be(hoy.AddDays(-2),
             "el cierre automático da de baja a los participantes vigentes en la fecha de fin del evento");
         (await LeerParticipante(participanteYaDeBaja.Id)).FechaBaja.Should().Be(hoy.AddDays(-3), "una baja anterior no se reescribe");
+        (await LeerParticipante(participanteTardio.Id)).FechaBaja.Should().Be(hoy.AddDays(-1),
+            "quien entró después del fin se da de baja en su propio alta, sin abortar el cierre del Tenant");
         (await LeerParticipante(participanteDeHoy.Id)).FechaBaja.Should().BeNull("su evento sigue vigente hoy");
         (await LeerParticipante(participanteDeObra.Id)).FechaBaja.Should().BeNull("las obras no se tocan");
 
