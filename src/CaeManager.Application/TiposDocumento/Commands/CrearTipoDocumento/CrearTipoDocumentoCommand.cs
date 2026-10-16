@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Trabajadores;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +23,9 @@ public record CrearTipoDocumentoCommand(
     string? SeSolicitaA,
     string? Observaciones,
     IReadOnlyList<Guid> CentroIds,
-    IReadOnlyList<string>? Aliases = null) : ICommand<Guid>;
+    IReadOnlyList<string>? Aliases = null,
+    // Serie por tipo de contratación (solo Ámbito Trabajador). Null = todos, el comportamiento anterior.
+    TiposContratacion? TiposContratacionDeSerie = null) : ICommand<Guid>;
 
 public class CrearTipoDocumentoCommandValidator : AbstractValidator<CrearTipoDocumentoCommand>
 {
@@ -48,6 +51,10 @@ public class CrearTipoDocumentoCommandValidator : AbstractValidator<CrearTipoDoc
         RuleFor(c => c.Descripcion).MaximumLength(TipoDocumento.LongitudMaximaDescripcion);
         RuleFor(c => c.CriteriosValidacion).MaximumLength(TipoDocumento.LongitudMaximaCriteriosValidacion);
         RuleFor(c => c.SeSolicitaA).MaximumLength(TipoDocumento.LongitudMaximaSeSolicitaA);
+
+        RuleFor(c => c.TiposContratacionDeSerie)
+            .Must(t => t is null || (t.Value & TiposContratacion.Todos) != TiposContratacion.Ninguno)
+            .WithMessage("Marca al menos un tipo de contratación al que se pide de serie este documento.");
         RuleFor(c => c.Observaciones).MaximumLength(TipoDocumento.LongitudMaximaObservaciones);
     }
 }
@@ -89,6 +96,9 @@ public class CrearTipoDocumentoCommandHandler(
             request.Observaciones);
 
         tipoDocumento.EstablecerAliases(request.Aliases ?? []);
+
+        if (request.AmbitoAplicacion == AmbitoAplicacion.Trabajador && request.TiposContratacionDeSerie is { } serie)
+            tipoDocumento.EstablecerTiposContratacionDeSerie(serie);
 
         repositorio.Agregar(tipoDocumento);
 

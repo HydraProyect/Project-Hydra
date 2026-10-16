@@ -68,6 +68,7 @@ public class ObtenerBorradorPedirPrioridadQueryHandler(
             {
                 trabajador.Id,
                 Nombre = trabajador.Nombre + " " + trabajador.Apellidos,
+                trabajador.TipoContratacion,
                 EmpleadorNombre = empresa != null ? empresa.RazonSocial : (subcontrata != null ? subcontrata.RazonSocial : "Sin empleador")
             })
             .Distinct()
@@ -78,7 +79,7 @@ public class ObtenerBorradorPedirPrioridadQueryHandler(
                 "SolicitudPrioridad.SinTrabajadores", "Este centro no tiene trabajadores asignados."));
 
         var parejas = trabajadoresDelCentro
-            .Select(t => new ParejaTrabajadorCentro(t.Id, t.Nombre, centro.Id, centro.Nombre))
+            .Select(t => new ParejaTrabajadorCentro(t.Id, t.Nombre, centro.Id, centro.Nombre, t.TipoContratacion))
             .ToList();
 
         var faltantes = await documentosFaltantesService.CalcularAsync(parejas, cancellationToken);

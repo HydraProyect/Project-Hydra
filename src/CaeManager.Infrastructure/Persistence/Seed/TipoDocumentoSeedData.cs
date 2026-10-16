@@ -573,6 +573,8 @@ public static class TipoDocumentoSeedData
             // activa explícitamente solo donde interesa (ver Issue #19).
             VerificacionIaActiva = false,
             PerfilDocumentoOficial = PerfilesOficiales.GetValueOrDefault(d.Id, PerfilDocumentoOficial.Ninguno),
+            // Serie por tipo de contratación: todos, el comportamiento anterior a la decisión de 2026-10-16.
+            TiposContratacionDeSerie = CaeManager.Domain.Trabajadores.TiposContratacion.Todos,
             // El catálogo semilla pertenece al tenant #1 (ver Etapa 2 de
             // Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md) — un tenant nuevo recibirá su
             // propia copia editable al aprovisionarse (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 7),

@@ -81,13 +81,14 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
 
         var trabajadores = await consultaTrabajadores
             .OrderBy(t => t.Apellidos).ThenBy(t => t.Nombre)
-            .Select(t => new { t.Id, Nombre = t.Nombre + " " + t.Apellidos, t.Dni })
+            .Select(t => new { t.Id, Nombre = t.Nombre + " " + t.Apellidos, t.Dni, t.TipoContratacion })
             .ToListAsync(cancellationToken);
 
         if (trabajadores.Count == 0)
             return [];
 
         var trabajadorIds = trabajadores.Select(t => t.Id).ToList();
+        var tipoContratacionPorTrabajador = trabajadores.ToDictionary(t => t.Id, t => t.TipoContratacion);
         var hoy = DiaDeNegocio.Hoy();
 
         // Mismo universo que CalculoEstadoSubcontrataService: el voluntario inactivo sigue listado, pero no se le exige
@@ -126,7 +127,7 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
 
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
+            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si, t.TiposContratacionDeSerie })
             .ToListAsync(cancellationToken);
 
         var tiposRequeridosPorTrabajador = new Dictionary<Guid, List<Guid>>();
@@ -145,9 +146,11 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
             {
                 var centrosDelTrabajador = centrosPorTrabajador.GetValueOrDefault(trabajadorId, []);
                 var tiposDeEvento = tiposDeEventoPorTrabajador.GetValueOrDefault(trabajadorId);
+                var tipoContratacion = tipoContratacionPorTrabajador[trabajadorId];
                 tiposRequeridosPorTrabajador[trabajadorId] = tiposCandidatos
                     .Where(t => tiposDeEvento?.Contains(t.Id) == true
-                        || centrosDelTrabajador.Any(centroId => !sinGestionCae.Contains(centroId) && ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.CuentaParaCumplimiento)))
+                        || centrosDelTrabajador.Any(centroId => !sinGestionCae.Contains(centroId) && ResolucionTipoDocumentoCentro.Aplica(
+                            filasPorPar, t.Id, centroId, t.CuentaParaCumplimiento, t.TiposContratacionDeSerie, tipoContratacion)))
                     .Select(t => t.Id)
                     .ToList();
             }

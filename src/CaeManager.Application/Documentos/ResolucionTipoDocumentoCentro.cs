@@ -1,4 +1,5 @@
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Trabajadores;
 
 namespace CaeManager.Application.Documentos;
 
@@ -27,4 +28,20 @@ public static class ResolucionTipoDocumentoCentro
         IReadOnlyDictionary<(Guid TipoDocumentoId, Guid CentroId), TipoDocumentoCentro> filaPorPar,
         Guid tipoDocumentoId, Guid centroId, bool esObligatorioPorDefecto) =>
         filaPorPar.TryGetValue((tipoDocumentoId, centroId), out var fila) ? fila.Incluido : esObligatorioPorDefecto;
+
+    /// <summary>
+    /// Igual que la sobrecarga general, pero para un Trabajador concreto: sin fila explícita, el tipo se pide si
+    /// <paramref name="esObligatorioPorDefecto"/> y su serie por tipo de contratación
+    /// (<see cref="TipoDocumento.TiposContratacionDeSerie"/>) incluye el del Trabajador. La fila explícita del
+    /// Centro manda igual que siempre: la serie solo filtra lo que se pide de serie. Úsala en toda superficie que
+    /// decide exigencias de Ámbito Trabajador para un Trabajador (estado del Centro, faltantes, avisos, Subcontrata,
+    /// ficha); <paramref name="tiposContratacionDeSerie"/> debe ser <see cref="TiposContratacion.Todos"/> para tipos
+    /// de otro ámbito, que es su valor persistido.
+    /// </summary>
+    public static bool Aplica(
+        IReadOnlyDictionary<(Guid TipoDocumentoId, Guid CentroId), TipoDocumentoCentro> filaPorPar,
+        Guid tipoDocumentoId, Guid centroId, bool esObligatorioPorDefecto,
+        TiposContratacion tiposContratacionDeSerie, TipoContratacion tipoContratacion) =>
+        Aplica(filaPorPar, tipoDocumentoId, centroId,
+            esObligatorioPorDefecto && tiposContratacionDeSerie.Incluye(tipoContratacion));
 }

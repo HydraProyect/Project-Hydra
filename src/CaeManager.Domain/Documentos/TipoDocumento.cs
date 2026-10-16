@@ -1,4 +1,5 @@
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Trabajadores;
 
 namespace CaeManager.Domain.Documentos;
 
@@ -126,6 +127,41 @@ public class TipoDocumento : EntidadConTenant
     /// bajo el ámbito original, y cambiarlo los dejaría inconsistentes.
     /// </summary>
     public AmbitoAplicacion AmbitoAplicacion { get; private set; }
+
+    /// <summary>
+    /// Serie documental por tipo de contratación (decisión de producto de 2026-10-16): a qué tipos de
+    /// contratación del Trabajador (<see cref="TipoContratacion"/>) se pide <b>de serie</b> este tipo, es decir,
+    /// cuando <see cref="CuentaParaCumplimiento"/> lo pide y el Centro no tiene fila explícita
+    /// (<see cref="TipoDocumentoCentro"/>, «la fila explícita manda»). Solo tiene sentido para Ámbito Trabajador;
+    /// en los demás ámbitos se ignora. Nace en <see cref="TiposContratacion.Todos"/>, que conserva el
+    /// comportamiento anterior a la decisión: el Administrador del Tenant lo restringe explícitamente (p. ej. una
+    /// serie de voluntario sin aptitud médica). Los requisitos del evento y la fila explícita del Centro no pasan
+    /// por este filtro.
+    /// </summary>
+    public TiposContratacion TiposContratacionDeSerie { get; private set; } = TiposContratacion.Todos;
+
+    /// <summary>
+    /// ¿Se pide de serie a un Trabajador con este tipo de contratación? <see cref="CuentaParaCumplimiento"/> y,
+    /// en Ámbito Trabajador, <see cref="TiposContratacionDeSerie"/>. Propiedad sin columna: no usar dentro de una
+    /// consulta EF (mismo aviso que <see cref="CuentaParaCumplimiento"/>).
+    /// </summary>
+    public bool SePideDeSerieA(TipoContratacion tipoContratacion) =>
+        CuentaParaCumplimiento
+        && (AmbitoAplicacion != AmbitoAplicacion.Trabajador || TiposContratacionDeSerie.Incluye(tipoContratacion));
+
+    /// <summary>
+    /// Fija la serie por tipo de contratación. Exige al menos un tipo: un tipo que no se pide de serie a nadie
+    /// se expresa con <see cref="Requerido"/> en No, no con un conjunto vacío que la pantalla no distinguiría.
+    /// </summary>
+    public void EstablecerTiposContratacionDeSerie(TiposContratacion tipos)
+    {
+        var normalizados = tipos & TiposContratacion.Todos;
+        if (normalizados == TiposContratacion.Ninguno)
+            throw new ArgumentException(
+                "Marca al menos un tipo de contratación al que se pide de serie este documento.", nameof(tipos));
+
+        TiposContratacionDeSerie = normalizados;
+    }
 
     /// <summary>
     /// Interruptor global de Administrador: si está en false, la lectura

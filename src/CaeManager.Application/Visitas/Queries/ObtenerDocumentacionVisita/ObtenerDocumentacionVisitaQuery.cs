@@ -7,6 +7,7 @@ using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -95,7 +96,7 @@ public class ObtenerDocumentacionVisitaQueryHandler(
 
         var tipos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa || t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-            .Select(t => new { t.Id, t.Nombre, t.AmbitoAplicacion, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
+            .Select(t => new { t.Id, t.Nombre, t.AmbitoAplicacion, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si, t.TiposContratacionDeSerie })
             .ToListAsync(cancellationToken);
 
         var tipoIdsRelevantes = tipos.Select(t => t.Id).ToHashSet();
@@ -117,9 +118,12 @@ public class ObtenerDocumentacionVisitaQueryHandler(
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa && EnAlcanceDelCentro(t.Id))
             .Select(t => new TipoDocumentoAplicableDto(t.Id, t.Nombre, centroRequiereGestionCae && ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, centro.Id, t.CuentaParaCumplimiento)))
             .ToList();
-        var tiposTrabajador = tipos
+        // Lo que se exige de serie a cada Trabajador depende de su tipo de contratación (serie documental, decisión
+        // 2026-10-16): el alcance de lo que se muestra es el mismo para todos, y solo cambia qué se echa en falta.
+        IReadOnlyList<TipoDocumentoAplicableDto> TiposTrabajadorPara(TipoContratacion tipoContratacion) => tipos
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador && EnAlcanceDelCentro(t.Id))
-            .Select(t => new TipoDocumentoAplicableDto(t.Id, t.Nombre, centroRequiereGestionCae && ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, centro.Id, t.CuentaParaCumplimiento)))
+            .Select(t => new TipoDocumentoAplicableDto(t.Id, t.Nombre, centroRequiereGestionCae && ResolucionTipoDocumentoCentro.Aplica(
+                filasDelCentro, t.Id, centro.Id, t.CuentaParaCumplimiento, t.TiposContratacionDeSerie, tipoContratacion)))
             .ToList();
 
         var seccionEmpresa = await ConstruirSeccionAsync(
@@ -127,7 +131,7 @@ public class ObtenerDocumentacionVisitaQueryHandler(
             tiposEmpresa, trabajadorId: null, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, cancellationToken);
 
         var trabajadores = await ConstruirTrabajadoresAsync(
-            trabajadorIds, tiposTrabajador, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, cancellationToken);
+            trabajadorIds, TiposTrabajadorPara, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, cancellationToken);
 
         return new DocumentacionVisitaDto(centro.EmpresaId, seccionEmpresa, trabajadores);
     }
@@ -179,7 +183,7 @@ public class ObtenerDocumentacionVisitaQueryHandler(
     }
 
     private async Task<IReadOnlyList<TrabajadorDocumentacionDto>> ConstruirTrabajadoresAsync(
-        IReadOnlyList<Guid> trabajadorIds, IReadOnlyList<TipoDocumentoAplicableDto> tiposTrabajador,
+        IReadOnlyList<Guid> trabajadorIds, Func<TipoContratacion, IReadOnlyList<TipoDocumentoAplicableDto>> tiposTrabajadorPara,
         DateOnly hoy, int umbralAmbarDias, int umbralRojoDias, CancellationToken cancellationToken)
     {
         if (trabajadorIds.Count == 0) return [];
@@ -196,6 +200,7 @@ public class ObtenerDocumentacionVisitaQueryHandler(
             {
                 trabajador.Id,
                 Nombre = trabajador.Nombre + " " + trabajador.Apellidos,
+                trabajador.TipoContratacion,
                 EmpleadorNombre = empresa != null ? empresa.RazonSocial : (subcontrata != null ? subcontrata.RazonSocial : "—")
             })
             .ToListAsync(cancellationToken);
@@ -205,7 +210,7 @@ public class ObtenerDocumentacionVisitaQueryHandler(
         {
             var seccion = await ConstruirSeccionAsync(
                 documentosContext.Documentos.Operativos().Where(d => d.TrabajadorId == trabajador.Id),
-                tiposTrabajador, trabajador.Id, hoy, umbralAmbarDias, umbralRojoDias, cancellationToken);
+                tiposTrabajadorPara(trabajador.TipoContratacion), trabajador.Id, hoy, umbralAmbarDias, umbralRojoDias, cancellationToken);
 
             resultado.Add(new TrabajadorDocumentacionDto(trabajador.Id, trabajador.Nombre, trabajador.EmpleadorNombre, seccion));
         }

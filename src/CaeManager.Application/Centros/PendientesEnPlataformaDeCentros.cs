@@ -90,6 +90,7 @@ internal static class PendientesEnPlataformaDeCentros
                 documento.CreadoEnUtc,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
                 CuentaParaCumplimiento = tipoDocumento.Requerido == RequisitoDocumental.Si,
+                tipoDocumento.TiposContratacionDeSerie,
                 EstadoAcreditacion = acreditacion.Estado
             })
             .ToListAsync(cancellationToken);
@@ -108,10 +109,11 @@ internal static class PendientesEnPlataformaDeCentros
                 asignacion.TrabajadorId,
                 trabajador.EmpresaId,
                 trabajador.SubcontrataId,
+                trabajador.TipoContratacion,
                 Nombre = trabajador.Nombre + " " + trabajador.Apellidos
             })
             .ToListAsync(cancellationToken))
-            .Select(a => new { a.CentroId, a.TrabajadorId, EmpresaDelTrabajadorId = a.EmpresaId ?? a.SubcontrataId, a.Nombre })
+            .Select(a => new { a.CentroId, a.TrabajadorId, EmpresaDelTrabajadorId = a.EmpresaId ?? a.SubcontrataId, a.TipoContratacion, a.Nombre })
             .ToList();
         var trabajadoresPorCentro = asignacionesActivas
             .GroupBy(a => a.CentroId)
@@ -123,6 +125,9 @@ internal static class PendientesEnPlataformaDeCentros
         var nombres = asignacionesActivas
             .GroupBy(a => a.TrabajadorId)
             .ToDictionary(g => g.Key, g => g.First().Nombre);
+        var tipoContratacionPorTrabajador = asignacionesActivas
+            .GroupBy(a => a.TrabajadorId)
+            .ToDictionary(g => g.Key, g => g.First().TipoContratacion);
 
         var tipoIds = filas.Select(f => f.TipoDocumentoId).Distinct().ToList();
         var filasPorPar = (await tiposDocumentoContext.TiposDocumentoCentros
@@ -196,7 +201,14 @@ internal static class PendientesEnPlataformaDeCentros
                 continue;
             }
 
-            if (!ResolucionTipoDocumentoCentro.Aplica(filasPorPar, fila.TipoDocumentoId, fila.CentroId, fila.CuentaParaCumplimiento))
+            // Un tipo de serie por tipo de contratación se evalúa con el del Trabajador; el de una Empresa persiste Todos.
+            var aplica = fila.TrabajadorId is { } trabajadorDeLaFila
+                         && tipoContratacionPorTrabajador.TryGetValue(trabajadorDeLaFila, out var tipoContratacion)
+                ? ResolucionTipoDocumentoCentro.Aplica(
+                    filasPorPar, fila.TipoDocumentoId, fila.CentroId, fila.CuentaParaCumplimiento,
+                    fila.TiposContratacionDeSerie, tipoContratacion)
+                : ResolucionTipoDocumentoCentro.Aplica(filasPorPar, fila.TipoDocumentoId, fila.CentroId, fila.CuentaParaCumplimiento);
+            if (!aplica)
                 continue;
 
             if (!yaContados.Add((fila.CentroId, fila.TrabajadorId, empresaSujeto, fila.TipoDocumentoId)))

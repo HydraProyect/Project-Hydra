@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,7 +25,8 @@ public record TipoDocumentoDetalleDto(
     string? Observaciones,
     IReadOnlyList<Guid> CentroIds,
     IReadOnlyList<string> Aliases,
-    IReadOnlyList<Guid> CentroIdsExcluidos);
+    IReadOnlyList<Guid> CentroIdsExcluidos,
+    TiposContratacion TiposContratacionDeSerie = TiposContratacion.Todos);
 
 public class ObtenerTipoDocumentoPorIdQueryHandler(ITiposDocumentoQueryContext dbContext, IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerTipoDocumentoPorIdQuery, TipoDocumentoDetalleDto?>
@@ -47,7 +49,8 @@ public class ObtenerTipoDocumentoPorIdQueryHandler(ITiposDocumentoQueryContext d
                 t.Descripcion,
                 t.CriteriosValidacion,
                 t.SeSolicitaA,
-                t.Observaciones
+                t.Observaciones,
+                t.TiposContratacionDeSerie
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -78,6 +81,7 @@ public class ObtenerTipoDocumentoPorIdQueryHandler(ITiposDocumentoQueryContext d
         return new TipoDocumentoDetalleDto(
             tipoDocumento.Id, tipoDocumento.Nombre, tipoDocumento.VigenciaMeses, tipoDocumento.AplicaVencimientoAutomatico,
             tipoDocumento.Orden, tipoDocumento.AmbitoAplicacion, tipoDocumento.Requerido, tipoDocumento.Naturaleza, notas, tipoDocumento.Descripcion,
-            tipoDocumento.CriteriosValidacion, tipoDocumento.SeSolicitaA, tipoDocumento.Observaciones, centroIds, aliases, centroIdsExcluidos);
+            tipoDocumento.CriteriosValidacion, tipoDocumento.SeSolicitaA, tipoDocumento.Observaciones, centroIds, aliases, centroIdsExcluidos,
+            tipoDocumento.TiposContratacionDeSerie);
     }
 }

@@ -112,6 +112,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
                 AsignacionId = asignacion.Id,
                 TrabajadorId = trabajador.Id,
                 TrabajadorNombre = trabajador.Nombre + " " + trabajador.Apellidos,
+                trabajador.TipoContratacion,
                 asignacion.FechaAlta
             })
             .ToListAsync(cancellationToken);
@@ -121,7 +122,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
 
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
+            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si, t.TiposContratacionDeSerie })
             .ToListAsync(cancellationToken);
 
         // Tipos requeridos por ESTE centro — ver ResolucionTipoDocumentoCentro:
@@ -132,9 +133,23 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             .ToListAsync(cancellationToken))
             .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
 
-        var tiposRequeridosPorCentro = tiposCandidatos
-            .Where(t => ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, request.CentroId, t.CuentaParaCumplimiento))
-            .Select(t => new { t.Id, t.Nombre })
+        //
+        // La serie de cada tipo se filtra por el tipo de contratación de cada Trabajador (decisión 2026-10-16): lo que se
+        // exige es distinto para un Voluntario, un Autónomo y un Trabajador por cuenta ajena del mismo Centro. El
+        // conjunto del Centro es la unión de lo que se exige a alguno de ellos (lo que hay que cargar y tolerar).
+        var tiposRequeridosPorContratacion = asignaciones
+            .Select(a => a.TipoContratacion)
+            .Distinct()
+            .ToDictionary(
+                tipoContratacion => tipoContratacion,
+                tipoContratacion => tiposCandidatos
+                    .Where(t => ResolucionTipoDocumentoCentro.Aplica(
+                        filasDelCentro, t.Id, request.CentroId, t.CuentaParaCumplimiento, t.TiposContratacionDeSerie, tipoContratacion))
+                    .Select(t => new { t.Id, t.Nombre })
+                    .ToList());
+        var tiposRequeridosPorCentro = tiposRequeridosPorContratacion.Values
+            .SelectMany(tipos => tipos)
+            .DistinctBy(t => t.Id)
             .ToList();
 
         // P1-X2: un Centro sin gestión CAE no exige ningún tipo; sus requisitos
@@ -203,7 +218,12 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
 
         foreach (var asignacion in asignaciones)
         {
-            var documentosDelTrabajador = documentosPorTrabajador.GetValueOrDefault(asignacion.TrabajadorId, []);
+            var tiposRequeridosDelTrabajador = tiposRequeridosPorContratacion[asignacion.TipoContratacion];
+            var tipoIdsRequeridosDelTrabajador = tiposRequeridosDelTrabajador.Select(t => t.Id).ToHashSet();
+            var documentosDelTrabajador = documentosPorTrabajador
+                .GetValueOrDefault(asignacion.TrabajadorId, [])
+                .Where(d => tipoIdsRequeridosDelTrabajador.Contains(d.TipoDocumentoId))
+                .ToList();
             var tipoIdsConDocumento = documentosDelTrabajador.Select(d => d.TipoDocumentoId).ToHashSet();
 
             var items = new List<DocumentoRequeridoDto>();
@@ -239,7 +259,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
                     situacion.UltimaReclamacionDe(documento.Id)));
             }
 
-            foreach (var tipo in tiposRequeridosPorCentro)
+            foreach (var tipo in tiposRequeridosDelTrabajador)
             {
                 if (tipoIdsConDocumento.Contains(tipo.Id)) continue;
                 items.Add(new DocumentoRequeridoDto(
@@ -253,7 +273,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             // Los mismos pares y la misma regla que el % del Centro (CalcularCumplimientoAsync): un Pendiente en la
             // plataforma de un tipo que el Centro marca «bloquea el acceso» no cuenta como al día en este contexto.
             var cumplimiento = CumplimientoDocumental.Evaluar(
-                tiposRequeridosPorCentro.Select(tipo => new ParDocumentalExigido(
+                tiposRequeridosDelTrabajador.Select(tipo => new ParDocumentalExigido(
                     request.CentroId, clienteEmpresarialId, EmpresaId: null, asignacion.TrabajadorId, tipo.Id,
                     preferidosPorPar.TryGetValue((asignacion.TrabajadorId, tipo.Id), out var preferido)
                         ? CalculadoraEstadoDocumento.Calcular(

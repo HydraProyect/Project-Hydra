@@ -429,4 +429,19 @@
   <data name="ErrorGuardarFormulario" xml:space="preserve">
     <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
   </data>
+  <data name="EtiquetaSerieContratacion" xml:space="preserve">
+    <value>Se pide de serie a</value>
+  </data>
+  <data name="PistaSerieContratacion" xml:space="preserve">
+    <value>Solo cuenta para lo que se pide de serie: si un centro lo marca expresamente o un evento lo exige, se pide igualmente.</value>
+  </data>
+  <data name="TipoContratacionCuentaAjena" xml:space="preserve">
+    <value>Cuenta ajena</value>
+  </data>
+  <data name="TipoContratacionAutonomo" xml:space="preserve">
+    <value>Autónomo</value>
+  </data>
+  <data name="TipoContratacionVoluntario" xml:space="preserve">
+    <value>Voluntario</value>
+  </data>
 </root>

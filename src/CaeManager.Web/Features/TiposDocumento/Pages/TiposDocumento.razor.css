@@ -295,6 +295,35 @@
     color: var(--color-text-muted);
 }
 
+.bloque-serie-contratacion {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-4);
+}
+
+.bloque-serie-contratacion .etiqueta-campo,
+.bloque-serie-contratacion .pista-campo,
+.bloque-serie-contratacion .campo-mensaje-error {
+    flex-basis: 100%;
+    margin: 0;
+}
+
+.opcion-serie-contratacion {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font: var(--font-body-md);
+    cursor: pointer;
+}
+
+.opcion-serie-contratacion input {
+    width: 1.125rem;
+    height: 1.125rem;
+    margin: 0;
+    accent-color: var(--color-primary-500);
+}
+
 .lista-centros {
     display: flex;
     flex-direction: column;

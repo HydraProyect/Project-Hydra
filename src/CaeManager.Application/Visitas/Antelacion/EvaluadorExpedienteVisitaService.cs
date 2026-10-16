@@ -3,8 +3,10 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -45,6 +47,7 @@ public class EvaluadorExpedienteVisitaService(
     ICentrosQueryContext centrosContext,
     IDocumentosQueryContext documentosContext,
     ITiposDocumentoQueryContext tiposDocumentoContext,
+    ITrabajadoresQueryContext trabajadoresContext,
     IConfiguracionQueryContext configuracionContext,
     IVisitaRepository visitaRepository,
     IUnitOfWork unitOfWork,
@@ -156,7 +159,7 @@ public class EvaluadorExpedienteVisitaService(
 
         var tipos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa || t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-            .Select(t => new { t.Id, t.AmbitoAplicacion, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
+            .Select(t => new { t.Id, t.AmbitoAplicacion, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si, t.TiposContratacionDeSerie })
             .ToListAsync(cancellationToken);
 
         var filasDelCentro = (await tiposDocumentoContext.TiposDocumentoCentros
@@ -166,12 +169,6 @@ public class EvaluadorExpedienteVisitaService(
 
         var tiposRequeridosEmpresa = tipos
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa
-                     && ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, visita.CentroId, t.CuentaParaCumplimiento))
-            .Select(t => t.Id)
-            .ToList();
-
-        var tiposRequeridosTrabajador = tipos
-            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador
                      && ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, visita.CentroId, t.CuentaParaCumplimiento))
             .Select(t => t.Id)
             .ToList();
@@ -198,8 +195,21 @@ public class EvaluadorExpedienteVisitaService(
             .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
             .ToListAsync(cancellationToken);
 
+        var tipoContratacionPorTrabajador = await trabajadoresContext.Trabajadores
+            .Where(t => trabajadorIds.Contains(t.Id))
+            .ToDictionaryAsync(t => t.Id, t => t.TipoContratacion, cancellationToken);
+
         foreach (var trabajadorId in trabajadorIds)
         {
+            // La serie documental de cada tipo se filtra por el tipo de contratación de quien va a la visita.
+            var tipoContratacion = tipoContratacionPorTrabajador.GetValueOrDefault(trabajadorId, TipoContratacion.CuentaAjena);
+            var tiposRequeridosTrabajador = tipos
+                .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador
+                         && ResolucionTipoDocumentoCentro.Aplica(
+                             filasDelCentro, t.Id, visita.CentroId, t.CuentaParaCumplimiento, t.TiposContratacionDeSerie, tipoContratacion))
+                .Select(t => t.Id)
+                .ToList();
+
             var suyos = documentosTrabajadores
                 .Where(d => d.TrabajadorId == trabajadorId)
                 .Select(d => (d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento));

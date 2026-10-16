@@ -63,7 +63,8 @@ public class ObtenerSugerenciasPreventivasQueryHandler(
                 TrabajadorId = trabajador.Id,
                 TrabajadorNombre = trabajador.Nombre + " " + trabajador.Apellidos,
                 CentroId = centro.Id,
-                centro.Nombre
+                centro.Nombre,
+                trabajador.TipoContratacion
             })
             .Distinct()
             .ToListAsync(cancellationToken);
@@ -71,7 +72,7 @@ public class ObtenerSugerenciasPreventivasQueryHandler(
         if (asignacionesActivas.Count == 0) return [];
 
         var parejas = asignacionesActivas
-            .Select(a => new ParejaTrabajadorCentro(a.TrabajadorId, a.TrabajadorNombre, a.CentroId, a.Nombre))
+            .Select(a => new ParejaTrabajadorCentro(a.TrabajadorId, a.TrabajadorNombre, a.CentroId, a.Nombre, a.TipoContratacion))
             .ToList();
 
         var faltantes = await documentosFaltantesService.CalcularAsync(parejas, cancellationToken);

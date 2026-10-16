@@ -329,7 +329,8 @@ public class CalculoEstadoCentroService(
                 documento.TipoDocumentoId,
                 documento.TrabajadorId,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
-                CuentaParaCumplimiento = tipoDocumento.Requerido == RequisitoDocumental.Si
+                CuentaParaCumplimiento = tipoDocumento.Requerido == RequisitoDocumental.Si,
+                tipoDocumento.TiposContratacionDeSerie
             })
             .ToListAsync(cancellationToken);
 
@@ -353,6 +354,9 @@ public class CalculoEstadoCentroService(
         var nombres = await trabajadoresContext.Trabajadores
             .Where(t => trabajadorIds.Contains(t.Id))
             .ToDictionaryAsync(t => t.Id, t => t.Nombre + " " + t.Apellidos, cancellationToken);
+        var tipoContratacionPorTrabajador = await trabajadoresContext.Trabajadores
+            .Where(t => trabajadorIds.Contains(t.Id))
+            .ToDictionaryAsync(t => t.Id, t => t.TipoContratacion, cancellationToken);
 
         foreach (var fila in rechazadas)
         {
@@ -366,7 +370,15 @@ public class CalculoEstadoCentroService(
             // Misma regla de aplicabilidad que el resto del cálculo: una fila explícita del Centro
             // manda; sin ella, solo cuenta un tipo requerido por defecto. Un rechazo de un tipo
             // opcional no bloquea, pero sigue visible como trabajo en la Bandeja.
-            if (!ResolucionTipoDocumentoCentro.Aplica(filasPorPar, fila.TipoDocumentoId, fila.CentroId, fila.CuentaParaCumplimiento))
+            // Un tipo de serie por tipo de contratación se evalúa con el del Trabajador (una Empresa no tiene
+            // serie propia: su tipo persiste Todos).
+            var aplica = fila.TrabajadorId is { } trabajadorDelRechazo
+                         && tipoContratacionPorTrabajador.TryGetValue(trabajadorDelRechazo, out var tipoContratacionDelRechazo)
+                ? ResolucionTipoDocumentoCentro.Aplica(
+                    filasPorPar, fila.TipoDocumentoId, fila.CentroId, fila.CuentaParaCumplimiento,
+                    fila.TiposContratacionDeSerie, tipoContratacionDelRechazo)
+                : ResolucionTipoDocumentoCentro.Aplica(filasPorPar, fila.TipoDocumentoId, fila.CentroId, fila.CuentaParaCumplimiento);
+            if (!aplica)
                 continue;
 
             var propietario = fila.TrabajadorId is { } id && nombres.TryGetValue(id, out var nombre)
@@ -510,7 +522,8 @@ public class CalculoEstadoCentroService(
             {
                 asignacion.CentroId,
                 TrabajadorId = trabajador.Id,
-                TrabajadorNombre = trabajador.Nombre + " " + trabajador.Apellidos
+                TrabajadorNombre = trabajador.Nombre + " " + trabajador.Apellidos,
+                trabajador.TipoContratacion
             })
             .ToListAsync(cancellationToken);
 
@@ -559,7 +572,7 @@ public class CalculoEstadoCentroService(
         // globalmente (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4, TipoDocumentoCentro.Incluido).
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
+            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si, t.TiposContratacionDeSerie })
             .ToListAsync(cancellationToken);
 
         if (tiposCandidatos.Count == 0) return;
@@ -584,7 +597,9 @@ public class CalculoEstadoCentroService(
         {
             foreach (var tipo in tiposCandidatos)
             {
-                if (!ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, asignacion.CentroId, tipo.CuentaParaCumplimiento))
+                if (!ResolucionTipoDocumentoCentro.Aplica(
+                        filasPorPar, tipo.Id, asignacion.CentroId, tipo.CuentaParaCumplimiento,
+                        tipo.TiposContratacionDeSerie, asignacion.TipoContratacion))
                     continue;
 
                 if (parejasConDocumento.Contains((asignacion.TrabajadorId, tipo.Id)))
@@ -893,7 +908,7 @@ public class CalculoEstadoCentroService(
             from asignacion in AsignacionesQueCuentan()
             where asignacion.FechaBaja == null && conGestionCae.Contains(asignacion.CentroId)
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
-            select new { asignacion.CentroId, asignacion.TrabajadorId, trabajador.EmpresaId })
+            select new { asignacion.CentroId, asignacion.TrabajadorId, trabajador.EmpresaId, trabajador.TipoContratacion })
             .ToListAsync(cancellationToken);
 
         if (asignacionesActivas.Count == 0)
@@ -904,7 +919,7 @@ public class CalculoEstadoCentroService(
 
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-            .Select(t => new { t.Id, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
+            .Select(t => new { t.Id, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si, t.TiposContratacionDeSerie })
             .ToListAsync(cancellationToken);
 
         if (tiposCandidatos.Count == 0)
@@ -947,7 +962,9 @@ public class CalculoEstadoCentroService(
         {
             foreach (var tipo in tiposCandidatos)
             {
-                if (!ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, asignacion.CentroId, tipo.CuentaParaCumplimiento))
+                if (!ResolucionTipoDocumentoCentro.Aplica(
+                        filasPorPar, tipo.Id, asignacion.CentroId, tipo.CuentaParaCumplimiento,
+                        tipo.TiposContratacionDeSerie, asignacion.TipoContratacion))
                     continue;
 
                 // Sin documento del par, Faltante. El estado lo cuenta CumplimientoDocumental, no esta clase.

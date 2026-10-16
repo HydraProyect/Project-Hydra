@@ -155,7 +155,7 @@ public class CentroSinGestionCaeTests
         _visitas.ListaVisitasTrabajadores.Add(new VisitaTrabajador(conAna.Id, _ana.Id));
 
         var evaluador = new EvaluadorExpedienteVisitaService(
-            _visitas, _centros, _documentos, _tipos, _configuracion, repositorio, new UnitOfWorkFalso(),
+            _visitas, _centros, _documentos, _tipos, _trabajadores, _configuracion, repositorio, new UnitOfWorkFalso(),
             NullLogger<EvaluadorExpedienteVisitaService>.Instance);
 
         // El sello es irreversible: sin participantes no se puede dar por completo
@@ -224,7 +224,7 @@ public class CentroSinGestionCaeTests
 
         var supervision = await new ObtenerSupervisionSubcontrataQueryHandler(
                 new SubcontratasQueryContextFalso(), _asignaciones, _trabajadores, _centros, _empresas, _tipos, _configuracion,
-                new AlcanceDatosServiceFalso())
+                new AlcanceDatosServiceFalso(), _proyectos)
             .Handle(new ObtenerSupervisionSubcontrataQuery(_subcontrata.Id), CancellationToken.None);
 
         supervision!.CentrosSeleccionables.Select(c => c.CentroId).Should().Contain(_conGestion.Id).And.NotContain(_sinGestion.Id);

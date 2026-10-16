@@ -156,7 +156,7 @@ public class F42bRelacionEmpresarialDiscriminadorTests : IAsyncLifetime
 
         await using var lectura = CrearContexto();
         var handler = new ObtenerSupervisionSubcontrataQueryHandler(
-            lectura, lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso());
+            lectura, lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso(), lectura);
         var resultado = await handler.Handle(new ObtenerSupervisionSubcontrataQuery(subcontrataId), CancellationToken.None);
 
         resultado.Should().NotBeNull();
