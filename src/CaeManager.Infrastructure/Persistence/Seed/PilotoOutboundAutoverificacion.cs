@@ -17,6 +17,8 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Proyectos;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Vehiculos;
 using CaeManager.Domain.Gestiones;
@@ -95,7 +97,9 @@ public static class PilotoOutboundAutoverificacion
         int VisitasEnCurso, int VisitasConAvisoUrgente,
         int TrabajadoresConAltaPosteriorAUnDocumento, int LibrosDeSubcontratacion, int CertificadosRea, int RecibosDeAutonomos,
         int DocumentosRenovados, int AcreditacionesSubidas, int AcreditacionesRechazadas, int AcreditacionesRechazadasSinMotivo,
-        int ReclamacionesSinRespuesta, int ReclamacionesRespondidas);
+        int ReclamacionesSinRespuesta, int ReclamacionesRespondidas,
+        int EventosTerminados, int EventosEnCurso, int EventosFuturos, int Voluntarios, int VoluntariosInactivos,
+        IReadOnlyList<string> RazonesSociales);
 
     /// <summary>
     /// Lo que la comprobación de cartera del Asistente IA (<see cref="ComprobarInstruccionIaCarteraQuery"/>, la que
@@ -105,15 +109,17 @@ public static class PilotoOutboundAutoverificacion
     /// </summary>
     public sealed record CarteraDelAsistenteIa(IReadOnlyList<string> ConInstruccion, IReadOnlyList<string> SinInstruccion);
 
-    /// <summary>La comprobación de cartera del Asistente IA, medida como la Gestora CAE primera y como la Coordinadora CAE.</summary>
-    public sealed record MedicionAsistenteIa(CarteraDelAsistenteIa Gestora, CarteraDelAsistenteIa Coordinadora);
+    /// <summary>La comprobación de cartera del Asistente IA, medida como cada Gestor CAE y como la Coordinadora CAE.</summary>
+    public sealed record MedicionAsistenteIa(
+        CarteraDelAsistenteIa Gestora, CarteraDelAsistenteIa Coordinadora, CarteraDelAsistenteIa GestorSegundo);
 
     /// <summary>
     /// Lo que el Tenant del Operador CAE externo enseña en su pantalla de equipo: las cuentas del equipo de la
     /// Coordinadora CAE pendientes de activación. La solicitud de cartera y la propuesta de apoyo (R14) no se siembran: sus
     /// políticas de seguridad de registros exigen el Tenant de origen de una sesión autenticada.
     /// </summary>
-    public sealed record MedicionOperador(int PendientesActivacionEquipo);
+    /// <param name="DireccionCaeConSuRol">La cuenta de Dirección CAE existe en el Tenant del Operador CAE externo con exactamente ese rol.</param>
+    public sealed record MedicionOperador(int PendientesActivacionEquipo, bool DireccionCaeConSuRol = false);
 
     /// <param name="AsistenteIa">Nulo si no se midió: <see cref="Repartir"/> lo da por discrepancia, no por bueno.</param>
     /// <param name="Operador">Nulo si no se midió: igual que <paramref name="AsistenteIa"/>.</param>
@@ -163,9 +169,30 @@ public static class PilotoOutboundAutoverificacion
         var comoGestora = await ComoCuentaDelPilotoAsync(
             fabricaDeAmbitos, cuentas.GestoraPrimera, Roles.GestorCae,
             async servicios => (
-                Tenants: await MedirComoGestoraAsync(servicios, opciones, tenantsQueNoSeMiden, cancellationToken),
+                Tenants: await MedirComoGestoraAsync(
+                    servicios, opciones, t => t.EnCarteraDeLaGestoraPrimera, tenantsQueNoSeMiden, cancellationToken),
                 AsistenteIa: await MedirCarteraDelAsistenteIaAsync(servicios, cancellationToken)),
             cancellationToken);
+
+        // Los exclusivos del segundo Gestor CAE, con su identidad: la Gestora CAE primera no los tiene en su cartera.
+        var comoGestorSegundo = await ComoCuentaDelPilotoAsync(
+            fabricaDeAmbitos, cuentas.GestorSegundo, Roles.GestorCae,
+            async servicios => (
+                Tenants: await MedirComoGestoraAsync(
+                    servicios, opciones, t => !t.EnCarteraDeLaGestoraPrimera, tenantsQueNoSeMiden, cancellationToken),
+                AsistenteIa: await MedirCarteraDelAsistenteIaAsync(servicios, cancellationToken)),
+            cancellationToken);
+
+        bool direccionCaeConSuRol;
+        try
+        {
+            direccionCaeConSuRol = await ComoCuentaDelPilotoAsync(
+                fabricaDeAmbitos, cuentas.DireccionCae, Roles.DireccionCae, _ => Task.FromResult(true), cancellationToken);
+        }
+        catch (InvalidOperationException)
+        {
+            direccionCaeConSuRol = false;
+        }
 
         var comoCoordinadora = await ComoCuentaDelPilotoAsync(
             fabricaDeAmbitos, cuentas.Coordinadora, Roles.CoordinadorCae,
@@ -180,7 +207,7 @@ public static class PilotoOutboundAutoverificacion
 
         return new Informe(
         [
-            .. comoGestora.Tenants.Select(m => m with
+            .. comoGestora.Tenants.Concat(comoGestorSegundo.Tenants).OrderBy(m => m.Clave, StringComparer.Ordinal).Select(m => m with
             {
                 VisionCarteraPresente = visionCartera.ContainsKey(m.Nombre),
                 VisionCarteraCumplimiento = visionCartera.GetValueOrDefault(m.Nombre)?.TasaCumplimientoDocumental,
@@ -188,8 +215,8 @@ public static class PilotoOutboundAutoverificacion
                 VisionCarteraSinDatos = visionCartera.GetValueOrDefault(m.Nombre)?.SinDatos ?? false
             })
         ],
-        new MedicionAsistenteIa(comoGestora.AsistenteIa, comoCoordinadora.AsistenteIa),
-        new MedicionOperador(comoCoordinadora.PendientesActivacion),
+        new MedicionAsistenteIa(comoGestora.AsistenteIa, comoCoordinadora.AsistenteIa, comoGestorSegundo.AsistenteIa),
+        new MedicionOperador(comoCoordinadora.PendientesActivacion, direccionCaeConSuRol),
         // Pasada la demostración la distancia es negativa y lo que depende del día (las Visitas urgentes) ya no tiene término de
         // comparación en el catálogo: no se compara, como si no se conociera.
         DiasHastaLaDemostracion: opciones.FechaDemostracion.DayNumber - DiaDeNegocio.Hoy().DayNumber is >= 0 and var dias ? dias : null);
@@ -300,8 +327,21 @@ public static class PilotoOutboundAutoverificacion
             Exige("Vehículos · número", e.Vehiculos, tenant.Vehiculos.Count);
             Exige("Vehículos · sin ficha (tipo, titularidad, aseguradora, póliza)", e.VehiculosSinFicha, 0);
             Exige("Vehículos · sin conductor autorizado", e.VehiculosSinConductor, 0);
-            Exige("Proyectos · número", e.Proyectos, tenant.Obras.Count);
-            Exige("Proyectos · abiertos", e.ProyectosAbiertos, tenant.Obras.Count(x => !x.Cerrada));
+            Exige("Proyectos · número", e.Proyectos, tenant.Obras.Count + tenant.Eventos.Count);
+            Exige(
+                "Proyectos · abiertos", e.ProyectosAbiertos,
+                tenant.Obras.Count(x => !x.Cerrada) + tenant.Eventos.Count(x => x.Estado != EstadoEventoPilotoOutbound.Terminado));
+            int EventosEn(EstadoEventoPilotoOutbound estado) => tenant.Eventos.Count(x => x.Estado == estado);
+            Exige("Eventos · terminados", e.EventosTerminados, EventosEn(EstadoEventoPilotoOutbound.Terminado));
+            Exige("Eventos · en curso", e.EventosEnCurso, EventosEn(EstadoEventoPilotoOutbound.EnCurso));
+            Exige("Eventos · futuros", e.EventosFuturos, EventosEn(EstadoEventoPilotoOutbound.Futuro));
+            Exige("Trabajadores · voluntarios", e.Voluntarios, tenant.Voluntarios);
+            Exige("Trabajadores · voluntarios inactivos (sin evento en curso ni futuro)", e.VoluntariosInactivos, tenant.VoluntariosInactivos);
+            // Ningún nombre de Empresa que no salga del catálogo inventado: lo que no está en él no se sabe si es real.
+            var razonesDelCatalogo = CatalogoPilotoOutbound.RazonesSocialesDe(tenant);
+            Exige(
+                "Empresas · razón social que no es del catálogo inventado del piloto",
+                string.Join(" · ", e.RazonesSociales.Where(r => !razonesDelCatalogo.Contains(r)).Order(StringComparer.Ordinal)), string.Empty);
             Exige("Subcontratas · número", e.Subcontratas, tenant.Subcontratas.Count);
             Exige("Subcontratas · sin Trabajadores", e.SubcontratasSinTrabajadores, 0);
             Exige("Subcontratas · Supervisadas", e.SubcontratasSupervisadas, supervisadas);
@@ -365,7 +405,12 @@ public static class PilotoOutboundAutoverificacion
             void ExigeOperador(string contador, int medido) =>
                 delLoteEntero.AddRange(medido == 1 ? [] : [$"Operador CAE externo · {contador}: medido {medido}, esperado 1."]);
             ExigeOperador("cuentas del equipo de la Coordinadora CAE pendientes de activación", operador.PendientesActivacionEquipo);
+            if (!operador.DireccionCaeConSuRol)
+                delLoteEntero.Add("Operador CAE externo · cuenta de Dirección CAE: no existe en el Tenant del Operador CAE externo o no tiene exactamente ese rol.");
         }
+
+        // El reparto de carteras que el catálogo declara: cada Gestor CAE con algún Tenant exclusivo y uno compartido.
+        d.AddRange(CatalogoPilotoOutbound.DiscrepanciasDelRepartoDeCarteras(CatalogoPilotoOutbound.Tenants));
 
         var (asistenteExigidas, asistenteSoloAvisadas) = RepartirAsistenteIa(informe.AsistenteIa, tenantsQueNoSeMiden);
         d.AddRange(asistenteExigidas);
@@ -396,23 +441,34 @@ public static class PilotoOutboundAutoverificacion
 
         var exigidas = new List<string>();
         var soloAvisadas = new List<string>();
-        List<string> esperados =
-        [
-            CatalogoPilotoOutbound.NombreTenantOperador,
-            .. CatalogoPilotoOutbound.Tenants.Select(t => t.Nombre).Where(n => !tenantsQueNoSeMiden.Contains(n))
-        ];
 
-        foreach (var (cuenta, cartera) in new[] { ("Gestora CAE", asistenteIa.Gestora), ("Coordinadora CAE", asistenteIa.Coordinadora) })
+        foreach (var (cuenta, cartera, suya) in new (string, CarteraDelAsistenteIa, Func<TenantPilotoOutbound, bool>)[]
+                 {
+                     ("de la Gestora CAE", asistenteIa.Gestora, t => t.EnCarteraDeLaGestoraPrimera),
+                     ("del segundo Gestor CAE", asistenteIa.GestorSegundo, t => t.EnCarteraDelGestorSegundo),
+                     ("de la Coordinadora CAE", asistenteIa.Coordinadora, _ => true)
+                 })
         {
+            List<string> esperados =
+            [
+                CatalogoPilotoOutbound.NombreTenantOperador,
+                .. CatalogoPilotoOutbound.Tenants.Where(suya).Select(t => t.Nombre).Where(n => !tenantsQueNoSeMiden.Contains(n))
+            ];
+
+            // Exclusividad: un Tenant del lote que no es de su cartera no puede estar en ella, con instrucción o sin ella.
+            foreach (var ajeno in CatalogoPilotoOutbound.Tenants.Where(t => !suya(t)).Select(t => t.Nombre)
+                         .Where(n => cartera.ConInstruccion.Contains(n) || cartera.SinInstruccion.Contains(n)))
+                exigidas.Add($"Asistente IA · cartera {cuenta} · «{ajeno}»: medido en la cartera, esperado fuera (es de otro Gestor CAE).");
+
             foreach (var nombre in esperados.Where(n => !cartera.ConInstruccion.Contains(n)))
                 exigidas.Add(
-                    $"Asistente IA · cartera de la {cuenta} · «{nombre}»: medido " +
+                    $"Asistente IA · cartera {cuenta} · «{nombre}»: medido " +
                     (cartera.SinInstruccion.Contains(nombre) ? "sin instrucción de tratamiento de IA vigente" : "fuera de la cartera") +
                     ", esperado con instrucción de tratamiento de IA vigente.");
 
-            foreach (var nombre in cartera.SinInstruccion.Where(n => !esperados.Contains(n)))
+            foreach (var nombre in cartera.SinInstruccion.Where(n => !esperados.Contains(n) && !CatalogoPilotoOutbound.Tenants.Any(t => t.Nombre == n && !suya(t))))
                 (tenantsQueNoSeMiden.Contains(nombre) ? soloAvisadas : exigidas).Add(
-                    $"Asistente IA · cartera de la {cuenta} · «{nombre}»: está en la cartera sin instrucción de tratamiento de IA " +
+                    $"Asistente IA · cartera {cuenta} · «{nombre}»: está en la cartera sin instrucción de tratamiento de IA " +
                     "vigente, y con eso el asistente no envía ningún mensaje.");
         }
 
@@ -534,8 +590,8 @@ public static class PilotoOutboundAutoverificacion
     private static string Texto<T>(T valor) => valor is null ? "(nada)" : valor.ToString()!;
 
     private static async Task<IReadOnlyList<MedicionTenant>> MedirComoGestoraAsync(
-        IServiceProvider servicios, OpcionesPilotoOutbound opciones, IReadOnlyCollection<string> tenantsQueNoSeMiden,
-        CancellationToken cancellationToken)
+        IServiceProvider servicios, OpcionesPilotoOutbound opciones, Func<TenantPilotoOutbound, bool> seMideConEstaCuenta,
+        IReadOnlyCollection<string> tenantsQueNoSeMiden, CancellationToken cancellationToken)
     {
         var contactos = opciones.Contactos;
         var sender = servicios.GetRequiredService<ISender>();
@@ -552,7 +608,7 @@ public static class PilotoOutboundAutoverificacion
         var miTrabajo = await sender.Send(new ObtenerMiTrabajoAgregadoQuery(), cancellationToken);
 
         var mediciones = new List<MedicionTenant>();
-        foreach (var tenant in CatalogoPilotoOutbound.Tenants)
+        foreach (var tenant in CatalogoPilotoOutbound.Tenants.Where(seMideConEstaCuenta))
         {
             // Ni su ámbito ni ninguna de sus lecturas: lo que lleve no puede hacer lanzar a esta medición.
             if (tenantsQueNoSeMiden.Contains(tenant.Nombre)) continue;
@@ -658,7 +714,17 @@ public static class PilotoOutboundAutoverificacion
         var vehiculos = await dbContext.Vehiculos.AsNoTracking()
             .Select(v => new { v.Id, v.Tipo, v.Titularidad, v.Aseguradora, v.Poliza }).ToListAsync(cancellationToken);
         var conConductor = (await dbContext.Set<VehiculoTrabajador>().AsNoTracking().Select(c => c.VehiculoId).ToListAsync(cancellationToken)).ToHashSet();
-        var proyectos = await dbContext.Proyectos.AsNoTracking().Select(x => x.FechaCierreReal).ToListAsync(cancellationToken);
+        var proyectos = await dbContext.Proyectos.AsNoTracking().ToListAsync(cancellationToken);
+        var eventos = proyectos.Where(p => p.EsEvento).ToList();
+        // La regla de actividad del voluntario, la del dominio: inactivo si no participa (sin baja) en ningún evento sin terminar.
+        var participaciones = await dbContext.ProyectosTecnicos.AsNoTracking()
+            .Where(x => x.FechaBaja == null).Select(x => new { x.TrabajadorId, x.ProyectoId }).ToListAsync(cancellationToken);
+        var voluntarios = await dbContext.Trabajadores.AsNoTracking()
+            .Where(t => t.TipoContratacion == TipoContratacion.Voluntario).Select(t => t.Id).ToListAsync(cancellationToken);
+        var voluntariosInactivos = voluntarios.Count(v => ActividadVoluntario.EstaInactivo(
+            TipoContratacion.Voluntario,
+            eventos.Where(e => participaciones.Any(x => x.TrabajadorId == v && x.ProyectoId == e.Id)), hoy));
+        var razonesSociales = await dbContext.Empresas.AsNoTracking().Select(x => x.RazonSocial).ToListAsync(cancellationToken);
         var visitas = await dbContext.Visitas.AsNoTracking()
             .Select(v => new { v.FechaInicio, v.FechaFin, v.EstaCancelada, v.DocumentacionGestionadaEnUtc }).ToListAsync(cancellationToken);
         var acreditaciones = await dbContext.AcreditacionesDocumentoPlataforma.AsNoTracking()
@@ -717,7 +783,7 @@ public static class PilotoOutboundAutoverificacion
             VehiculosSinFicha: vehiculos.Count(v => v.Tipo is null || v.Titularidad is null || v.Aseguradora is null || v.Poliza is null),
             VehiculosSinConductor: vehiculos.Count(v => !conConductor.Contains(v.Id)),
             Proyectos: proyectos.Count,
-            ProyectosAbiertos: proyectos.Count(cierre => cierre is null),
+            ProyectosAbiertos: proyectos.Count(p => p.FechaCierreReal is null),
             Subcontratas: subcontratas.Count,
             SubcontratasSinTrabajadores: subcontratas.Count(s => trabajadores.All(t => t.SubcontrataId != s.Id)),
             SubcontratasSupervisadas: subcontratas.Count(s => s.NivelServicio == NivelServicioSubcontrata.Supervisada.ToString()),
@@ -740,7 +806,13 @@ public static class PilotoOutboundAutoverificacion
             AcreditacionesRechazadas: acreditaciones.Count(a => a.Estado == EstadoAcreditacion.Rechazada),
             AcreditacionesRechazadasSinMotivo: acreditaciones.Count(a => a.Estado == EstadoAcreditacion.Rechazada && !rechazosConMotivo.Contains(a.Id)),
             ReclamacionesSinRespuesta: reclamaciones.Count(r => !Respondida(r.ConversacionId, r.FechaEnvioUtc)),
-            ReclamacionesRespondidas: reclamaciones.Count(r => Respondida(r.ConversacionId, r.FechaEnvioUtc)));
+            ReclamacionesRespondidas: reclamaciones.Count(r => Respondida(r.ConversacionId, r.FechaEnvioUtc)),
+            EventosTerminados: eventos.Count(e => e.EventoTerminadoEn(hoy)),
+            EventosEnCurso: eventos.Count(e => !e.EventoTerminadoEn(hoy) && e.FechaInicio <= hoy),
+            EventosFuturos: eventos.Count(e => !e.EventoTerminadoEn(hoy) && e.FechaInicio > hoy),
+            Voluntarios: voluntarios.Count,
+            VoluntariosInactivos: voluntariosInactivos,
+            RazonesSociales: razonesSociales);
     }
 
     private static async Task<bool> EmpiezaComoPdfAsync(Stream flujo, CancellationToken cancellationToken)

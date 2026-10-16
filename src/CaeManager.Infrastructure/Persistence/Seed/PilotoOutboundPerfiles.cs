@@ -591,6 +591,26 @@ public static class CatalogoPilotoOutbound
     public static IReadOnlyList<string> NombresTenants { get; } =
         [.. Tenants.Select(t => t.Nombre), .. NombresTenantsDeVersionesAnteriores, NombreTenantOperador];
 
+    /// <summary>Las razones sociales que el catálogo inventado da a las Empresas del Tenant: la propia, sus Clientes empresariales y sus Subcontratas.</summary>
+    public static IReadOnlySet<string> RazonesSocialesDe(TenantPilotoOutbound tenant) =>
+        new HashSet<string>([tenant.Nombre, .. tenant.ClientesEmpresariales.Select(c => c.RazonSocial), .. tenant.Subcontratas.Select(s => s.RazonSocial)]);
+
+    /// <summary>
+    /// El reparto de carteras del Operador CAE externo (decisión del 2026-10-16): cada Gestor CAE con al menos un Tenant
+    /// exclusivo y exactamente un Tenant compartido. Vacía si el catálogo lo cumple.
+    /// </summary>
+    public static IReadOnlyList<string> DiscrepanciasDelRepartoDeCarteras(IReadOnlyList<TenantPilotoOutbound> tenants)
+    {
+        var d = new List<string>();
+        if (!tenants.Any(t => t.Cartera == CarteraPilotoOutbound.GestoraPrimera))
+            d.Add("Carteras · la Gestora CAE primera no tiene ningún Tenant exclusivo.");
+        if (!tenants.Any(t => t.Cartera == CarteraPilotoOutbound.GestorSegundo))
+            d.Add("Carteras · el segundo Gestor CAE no tiene ningún Tenant exclusivo.");
+        if (tenants.Count(t => t.Cartera == CarteraPilotoOutbound.Compartida) != 1)
+            d.Add("Carteras · no hay exactamente un Tenant compartido por los dos Gestores CAE.");
+        return d;
+    }
+
     /// <summary>Cuántos Trabajadores siembra el Tenant: los de su Empresa propia y los de sus Subcontratas.</summary>
     public static int TrabajadoresSembrados(TenantPilotoOutbound tenant) => tenant.TrabajadoresSembrados;
 

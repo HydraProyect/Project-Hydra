@@ -88,7 +88,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         fixture.Resultado.TenantsConDatosNuevos.Should().Equal(
             CatalogoPilotoOutbound.EnOrdenDeSiembra.Select(t => t.Nombre), "MEDIDO: el autónomo primero y el perfil multicliente el último");
         fixture.Resultado.Pdf.Should().Be(fixture.Resultado.Documentos, "MEDIDO: un PDF por documento");
-        fixture.Resultado.Documentos.Should().BeGreaterThan(500, "control: los siete perfiles siembran documentos");
+        fixture.Resultado.Documentos.Should().BeGreaterThan(500, "control: los ocho perfiles siembran documentos");
 
         // La duración del lote y la memoria pico las dice la propia siembra, en su línea de registro.
         var lineaDelLote = fixture.Registro.Informativas.Should()
@@ -104,33 +104,41 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         foreach (var m in fixture.Informe.Tenants)
             salida.WriteLine($"MEDIDO {m.Clave}: {PilotoOutboundTextos.CentrosPorEstado(m)}");
         salida.WriteLine(
-            "MEDIDO Centros «Vigente» en los siete Tenants: " +
+            "MEDIDO Centros «Vigente» en los ocho Tenants: " +
             fixture.Informe.Tenants.Sum(m => m.Centros.Count(c => c.Estado == EstadoCentro.Vigente)));
 
         PilotoOutboundAutoverificacion.Discrepancias(fixture.Informe).Should().BeEmpty();
-        fixture.Informe.Tenants.Should().HaveCount(7);
+        fixture.Informe.Tenants.Should().HaveCount(8);
     }
 
     /// <summary>
     /// Lo que el Asistente IA comprueba antes de enviar nada al proveedor, con la identidad de las dos cuentas que
     /// lo usan en la demostración: el Tenant en pantalla y toda la cartera tienen instrucción de tratamiento de IA
-    /// vigente. Se afirma por nombre contra los siete del catálogo: una cartera vacía también «pasaría».
+    /// vigente. Se afirma por nombre contra el catálogo: una cartera vacía también «pasaría». Cada Gestor CAE tiene su
+    /// cartera (sus exclusivos y el compartido); la Coordinadora CAE, la de los dos.
     /// </summary>
     [Fact]
     public async Task El_asistente_IA_no_falla_cerrado_para_la_Gestora_CAE_ni_para_la_Coordinadora_CAE()
     {
         var asistenteIa = fixture.Informe.AsistenteIa;
         asistenteIa.Should().NotBeNull("control: la autoverificación midió la comprobación de cartera");
-        var vigentes = CatalogoPilotoOutbound.Tenants.Select(t => t.Nombre).Append(CatalogoPilotoOutbound.NombreTenantOperador).ToList();
-        vigentes.Should().HaveCount(8, "control: el Operador CAE externo y los siete Tenants propietarios");
+        List<string> CarteraDe(Func<TenantPilotoOutbound, bool> suya) =>
+            [.. CatalogoPilotoOutbound.Tenants.Where(suya).Select(t => t.Nombre), CatalogoPilotoOutbound.NombreTenantOperador];
 
-        foreach (var (cuenta, cartera) in new[] { ("Gestora CAE", asistenteIa!.Gestora), ("Coordinadora CAE", asistenteIa.Coordinadora) })
+        foreach (var (cuenta, cartera, esperada) in new[]
+                 {
+                     ("Gestora CAE", asistenteIa!.Gestora, CarteraDe(t => t.EnCarteraDeLaGestoraPrimera)),
+                     ("Gestor CAE segundo", asistenteIa.GestorSegundo, CarteraDe(t => t.EnCarteraDelGestorSegundo)),
+                     ("Coordinadora CAE", asistenteIa.Coordinadora, CarteraDe(_ => true))
+                 })
         {
             salida.WriteLine($"MEDIDO cartera de la {cuenta}: con instrucción {cartera.ConInstruccion.Count}, sin instrucción {cartera.SinInstruccion.Count}");
             cartera.SinInstruccion.Should().BeEmpty($"MEDIDO: ningún Tenant de la cartera de la {cuenta} está sin instrucción");
             cartera.ConInstruccion.Should().BeEquivalentTo(
-                vigentes, $"MEDIDO: la cartera de la {cuenta} son los ocho Tenants del piloto, todos con instrucción");
+                esperada, $"MEDIDO: la cartera de la {cuenta} es la que el catálogo le da, toda con instrucción");
         }
+
+        asistenteIa.Coordinadora.ConInstruccion.Should().HaveCount(9, "control: el Operador CAE externo y los ocho Tenants propietarios");
 
         // Las dos condiciones que el modo Preguntar exige antes de llamar al proveedor, con la Gestora CAE dentro de T1.
         var (enPantalla, errorDeCartera) = await fixture.Arnes.ComoGestoraPrimeraEnAsync(C.Nombre, async sp =>
@@ -213,6 +221,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             ("E", 1, 0, 2, 1, 0, 0),
             ("F", 14, 14, 3, 3, 0, 3),
             ("G", 8, 0, 1, 1, 0, 0),
+            ("H", 23, 4, 1, 1, 3, 1),
         ];
 
         foreach (var (clave, propios, deSubcontrata, centros, vehiculos, proyectos, subcontratas) in esperado)
@@ -240,6 +249,10 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             .Should().Match<PilotoOutboundAutoverificacion.MedicionEstructura>(e => e.ExtranjerosConPermiso >= 2 && e.PermisosProximosACaducar >= 1,
                 "C lleva extranjeros con permiso, uno próximo a caducar");
         fixture.Informe.Tenants.Single(t => t.Clave == "G").Estructura.PermisosCaducados.Should().Be(1);
+        var h = fixture.Informe.Tenants.Single(t => t.Clave == "H").Estructura;
+        (h.EventosTerminados, h.EventosEnCurso, h.EventosFuturos).Should().Be((1, 1, 1), "H tiene un evento en cada estado");
+        (h.Voluntarios, h.VoluntariosInactivos).Should().Be((20, 7), "MEDIDO: los siete voluntarios que solo estuvieron en el evento terminado quedan inactivos");
+        fixture.Informe.Tenants.Where(t => t.Clave != "H").Should().OnlyContain(t => t.Estructura.Voluntarios == 0, "solo H tiene voluntarios");
         fixture.Informe.Tenants.Where(t => t.Clave is "A" or "C" or "F" or "G").Should().OnlyContain(
             t => t.Estructura.VisitasFuturas + t.Estructura.VisitasRealizadas + t.Estructura.VisitasVencidas > 0, "las Visitas existen en el perfil");
     }
@@ -420,9 +433,12 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         clienteEmpresarial.Should().Be(C.ClientesEmpresariales[0].RazonSocial);
     }
 
-    /// <summary>El Gestor CAE segundo solo ve los Tenants de su cartera (A, C y F); la Gestora CAE primera, los siete.</summary>
+    /// <summary>
+    /// Cada Gestor CAE ve en Mi trabajo solo su cartera: la Gestora CAE primera, B, D, E y G (exclusivos) y C (compartido);
+    /// el segundo, A, F y H (exclusivos) y C.
+    /// </summary>
     [Fact]
-    public async Task El_Gestor_CAE_segundo_ve_en_Mi_trabajo_solo_A_C_y_F_y_la_Gestora_CAE_primera_los_siete()
+    public async Task Cada_Gestor_CAE_ve_en_Mi_trabajo_sus_Tenants_exclusivos_y_el_compartido()
     {
         var idPorClave = new Dictionary<string, Guid>();
         foreach (var tenant in CatalogoPilotoOutbound.Tenants)
@@ -438,8 +454,52 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             return [.. idPorClave.Where(p => vistos.Contains(p.Value)).Select(p => p.Key).Order()];
         }
 
-        (await ClavesVistasPorAsync(CuentasPilotoOutbound.Locales.GestorSegundo)).Should().Equal("A", "C", "F");
-        (await ClavesVistasPorAsync(CuentasPilotoOutbound.Locales.GestoraPrimera)).Should().Equal("A", "B", "C", "D", "E", "F", "G");
+        (await ClavesVistasPorAsync(CuentasPilotoOutbound.Locales.GestorSegundo)).Should().Equal("A", "C", "F", "H");
+        (await ClavesVistasPorAsync(CuentasPilotoOutbound.Locales.GestoraPrimera)).Should().Equal("B", "C", "D", "E", "G");
+    }
+
+    /// <summary>
+    /// Sensibilidad de las comprobaciones del equipo del Operador CAE externo, del reparto de carteras y del perfil H:
+    /// lo medido en verde, apartado en un solo dato, da exactamente la discrepancia que nombra ese dato.
+    /// </summary>
+    [Fact]
+    public void Las_comprobaciones_del_equipo_las_carteras_y_los_eventos_se_ponen_en_rojo_si_lo_medido_se_aparta()
+    {
+        var informe = fixture.Informe;
+        PilotoOutboundAutoverificacion.Discrepancias(informe).Should().BeEmpty("control: sin apartar nada, en verde");
+
+        var h = informe.De(CatalogoPilotoOutbound.H);
+        PilotoOutboundAutoverificacion.Informe ConH(PilotoOutboundAutoverificacion.MedicionEstructura e) =>
+            informe with { Tenants = [.. informe.Tenants.Select(t => t.Clave == "H" ? h with { Estructura = e } : t)] };
+        void UnaSola(PilotoOutboundAutoverificacion.Informe apartado, string fragmento) =>
+            PilotoOutboundAutoverificacion.Discrepancias(apartado).Should().ContainSingle()
+                .Which.Should().Contain(fragmento);
+
+        UnaSola(ConH(h.Estructura with { VoluntariosInactivos = 0 }), "H «" + CatalogoPilotoOutbound.NombreTenantH + "» · Trabajadores · voluntarios inactivos");
+        UnaSola(ConH(h.Estructura with { EventosEnCurso = 0, Proyectos = h.Estructura.Proyectos }), "Eventos · en curso");
+        UnaSola(ConH(h.Estructura with { EventosTerminados = 0 }), "Eventos · terminados");
+        UnaSola(ConH(h.Estructura with { EventosFuturos = 2 }), "Eventos · futuros");
+        UnaSola(ConH(h.Estructura with { EmpresasPropias = 2 }), "Empresas con EsPropia");
+        UnaSola(
+            ConH(h.Estructura with { RazonesSociales = [.. h.Estructura.RazonesSociales, "Empresa ajena al catálogo, S.L."] }),
+            "razón social que no es del catálogo inventado del piloto: medido Empresa ajena al catálogo, S.L.");
+
+        UnaSola(informe with { Operador = informe.Operador! with { DireccionCaeConSuRol = false } }, "cuenta de Dirección CAE");
+
+        var ia = informe.AsistenteIa!;
+        UnaSola(
+            informe with { AsistenteIa = ia with { Gestora = ia.Gestora with { ConInstruccion = [.. ia.Gestora.ConInstruccion, CatalogoPilotoOutbound.NombreTenantH] } } },
+            $"cartera de la Gestora CAE · «{CatalogoPilotoOutbound.NombreTenantH}»: medido en la cartera, esperado fuera");
+        UnaSola(
+            informe with { AsistenteIa = ia with { GestorSegundo = ia.GestorSegundo with { ConInstruccion = [.. ia.GestorSegundo.ConInstruccion.Where(n => n != CatalogoPilotoOutbound.NombreTenantC)] } } },
+            $"cartera del segundo Gestor CAE · «{CatalogoPilotoOutbound.NombreTenantC}»: medido fuera de la cartera");
+
+        // El reparto del catálogo: sin exclusivos del segundo Gestor CAE ni compartido, dos discrepancias; tal cual, ninguna.
+        CatalogoPilotoOutbound.DiscrepanciasDelRepartoDeCarteras(CatalogoPilotoOutbound.Tenants).Should().BeEmpty();
+        CatalogoPilotoOutbound.DiscrepanciasDelRepartoDeCarteras(
+                [.. CatalogoPilotoOutbound.Tenants.Select(t => t with { Cartera = CarteraPilotoOutbound.GestoraPrimera })])
+            .Should().HaveCount(2).And.Contain(l => l.Contains("segundo Gestor CAE no tiene ningún Tenant exclusivo"))
+            .And.Contain(l => l.Contains("exactamente un Tenant compartido"));
     }
 
     /// <summary>Las tres señales de la IA y de los correos de C, y la cuenta pendiente del Operador CAE externo, tal como las cuenta la base.</summary>
@@ -739,7 +799,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     public async Task Una_segunda_siembra_no_escribe_nada()
     {
         var antes = await fixture.Arnes.RecuentoAsync();
-        antes["Tenants del piloto"].Should().Be(8, "control: el recuento ve los siete Tenants propietarios y el del Operador CAE externo");
+        antes["Tenants del piloto"].Should().Be(9, "control: el recuento ve los ocho Tenants propietarios y el del Operador CAE externo");
         antes["Cuentas del piloto"].Should().Be(6, "MEDIDO: las cinco del equipo y de T1, y el Usuario de Cliente de T1");
         antes["Cuenta pendiente de activación"].Should().Be(1, "MEDIDO: la séptima, fuera de las seis que tienen contraseña");
         (antes["Solicitudes de incorporación a cartera"], antes["Propuestas de apoyo"]).Should().Be((0, 0), "MEDIDO: no se siembran: sus políticas exigen el Tenant de origen de una sesión autenticada");
@@ -1176,7 +1236,7 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
         // 2. Reanudar sin retirar: se completa lo que faltaba y la matriz sale.
         var reanudada = await arnes.SembrarAsync(configuracion);
         reanudada!.TenantsConDatosNuevos.Should().Equal(
-            CatalogoPilotoOutbound.NombreTenantA, CatalogoPilotoOutbound.NombreTenantF,
+            CatalogoPilotoOutbound.NombreTenantA, CatalogoPilotoOutbound.NombreTenantF, CatalogoPilotoOutbound.NombreTenantH,
             CatalogoPilotoOutbound.NombreTenantD, CatalogoPilotoOutbound.NombreTenantC);
         await arnes.BackfillAsync();
         PilotoOutboundAutoverificacion.Exigir(await arnes.MedirAsync(configuracion));
@@ -1263,7 +1323,7 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
             .Where(u => u.Email == CuentasPilotoOutbound.Locales.AdministradorOperador).Select(u => u.Id).SingleAsync());
         var sembradas = await InstruccionesDelPilotoAsync(arnes);
         sembradas.Select(i => i.Tenant).Should().BeEquivalentTo(
-            Vigentes, "MEDIDO: exactamente una por Tenant del piloto, el Operador CAE externo y los siete propietarios");
+            Vigentes, "MEDIDO: exactamente una por Tenant del piloto, el Operador CAE externo y los ocho propietarios");
         sembradas.Should().OnlyContain(i => i.Vigente, "MEDIDO: todas vigentes");
         sembradas.Should().OnlyContain(
             i => i.Dpa == "Draft-2026-09-03" && i.Anexo == "Draft-2026-09-03",
@@ -1276,7 +1336,7 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
         {
             var ids = await IdsDelPilotoAsync(b);
             return await b.InstruccionesTratamientoIaTenantPropietario.IgnoreQueryFilters().Where(i => ids.Contains(i.TenantId)).ExecuteDeleteAsync();
-        })).Should().Be(8, "control: se han quitado las ocho");
+        })).Should().Be(9, "control: se han quitado las nueve");
         (await arnes.RecuentoAsync()).Should().BeEquivalentTo(
             new Dictionary<string, int>(completa) { [Clave] = 0 }, "control: lo único que cambia respecto del lote completo es que no hay instrucciones");
 
@@ -1290,12 +1350,13 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
         var carteraSinInstruccion = await arnes.ComoGestoraPrimeraEnAsync(
             CatalogoPilotoOutbound.NombreTenantC, sp => sp.GetRequiredService<ISender>().Send(new ComprobarInstruccionIaCarteraQuery()));
         carteraSinInstruccion.SinInstruccion.Select(t => t.Nombre).Should().BeEquivalentTo(
-            Vigentes, "MEDIDO: los ocho Tenants de la cartera de la Gestora CAE están sin instrucción");
+            CatalogoPilotoOutbound.Tenants.Where(t => t.EnCarteraDeLaGestoraPrimera).Select(t => t.Nombre).Append(CatalogoPilotoOutbound.NombreTenantOperador),
+            "MEDIDO: los seis Tenants de la cartera de la Gestora CAE están sin instrucción");
         carteraSinInstruccion.ErrorSiFalta()!.Codigo.Should().Be(InstruccionIaCarteraDto.CodigoError);
 
         var discrepancias = PilotoOutboundAutoverificacion.Discrepancias(await arnes.MedirAsync(configuracion));
         foreach (var linea in discrepancias) salida.WriteLine("MEDIDO " + linea);
-        discrepancias.Should().HaveCount(16, "MEDIDO: una por Tenant y por cuenta, ocho de la Gestora CAE y ocho de la Coordinadora CAE");
+        discrepancias.Should().HaveCount(20, "MEDIDO: una por Tenant y por cuenta: seis de la Gestora CAE, cinco del segundo Gestor CAE y nueve de la Coordinadora CAE");
         discrepancias.Should().OnlyContain(l => l.StartsWith("Asistente IA · "), "control: del lote solo falla el Asistente IA");
         discrepancias.Should().Contain(
             $"Asistente IA · cartera de la Coordinadora CAE · «{CatalogoPilotoOutbound.NombreTenantC}»: medido sin instrucción de tratamiento de IA " +
@@ -1305,9 +1366,9 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
         var resiembra = await arnes.SembrarAsync(configuracion);
         resiembra!.Escribio.Should().BeFalse("MEDIDO: añadir la instrucción que faltaba no cuenta como haber escrito el lote");
         resiembra.TenantsConDatosNuevos.Should().BeEmpty();
-        (await arnes.RecuentoAsync()).Should().BeEquivalentTo(completa, "MEDIDO: vuelve a haber ocho instrucciones y nada más ha cambiado");
+        (await arnes.RecuentoAsync()).Should().BeEquivalentTo(completa, "MEDIDO: vuelve a haber nueve instrucciones y nada más ha cambiado");
         (await InstruccionesDelPilotoAsync(arnes)).Select(i => i.Tenant).Should().BeEquivalentTo(
-            Vigentes, "MEDIDO: una por Tenant, no ocho en uno");
+            Vigentes, "MEDIDO: una por Tenant, no nueve en uno");
         PilotoOutboundAutoverificacion.Exigir(await arnes.MedirAsync(configuracion));
 
         var carteraConInstruccion = await arnes.ComoCuentaAsync(
