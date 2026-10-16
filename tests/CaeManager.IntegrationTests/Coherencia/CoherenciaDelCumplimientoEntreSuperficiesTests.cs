@@ -229,7 +229,7 @@ public class CoherenciaDelCumplimientoEntreSuperficiesTests : IAsyncLifetime
         var alcance = new AlcanceDatosServiceFalso();
         var calculoCentro = new CalculoEstadoCentroService(c, c, c, c, c, c, c, c, c);
         var calculoDocumental = new CalculoEstadoDocumentalService(c, c, c);
-        var calculoSubcontrata = new CalculoEstadoSubcontrataService(c, c, c, c, c, c, alcance);
+        var calculoSubcontrata = new CalculoEstadoSubcontrataService(c, c, c, c, c, c, alcance, c, c);
 
         // Oráculos escritos a mano a partir del escenario (ver el resumen de la clase).
         //   A: nueve de P (seis al día) + q1 vencido            = 6/10      B: w6 (vigente) + s1 (vigente)     = 2/2
@@ -300,7 +300,7 @@ public class CoherenciaDelCumplimientoEntreSuperficiesTests : IAsyncLifetime
         var listaSubcontratas = await new ObtenerSubcontratasQueryHandler(c, alcance, calculoSubcontrata, c)
             .Handle(new ObtenerSubcontratasQuery(Busqueda: null), CancellationToken.None);
         ComprobarPorcentaje("Lista de Subcontratas · S", listaSubcontratas.Elementos.Single(s => s.Id == _subcontrataS).CumplimientoPorcentaje, 50);
-        var trabajadoresSubcontrata = await new ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(c, c, c, c, c, c, alcance)
+        var trabajadoresSubcontrata = await new ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(c, c, c, c, c, c, alcance, c, c)
             .Handle(new ObtenerTrabajadoresDocumentacionPorSubcontrataQuery(_subcontrataS), CancellationToken.None);
         Comprobar("Acordeón de la Subcontrata S · suma de Trabajadores",
             FraccionCumplimiento.Sumar(trabajadoresSubcontrata.Select(t => t.Cumplimiento)), 2, 4);

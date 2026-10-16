@@ -285,7 +285,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
         // Quien lee solo las causas (Subcontrata 360, supervisión) sigue sin recibirlo como incidencia.
         await using var lectura = CrearContexto();
         var alcance = new AlcanceDatosServiceFalso();
-        var causas = await new CalculoEstadoSubcontrataService(lectura, lectura, lectura, lectura, lectura, lectura, alcance)
+        var causas = await new CalculoEstadoSubcontrataService(lectura, lectura, lectura, lectura, lectura, lectura, alcance, lectura, lectura)
             .CalcularAsync([_subcontrataId], CancellationToken.None);
         causas[_subcontrataId].Should().BeEmpty();
     }
@@ -407,7 +407,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     {
         alcance ??= new AlcanceDatosServiceFalso();
         await using var contexto = CrearContexto();
-        var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance);
+        var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance, contexto, contexto);
         var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio, contexto);
 
         return await handler.Handle(consulta, CancellationToken.None);

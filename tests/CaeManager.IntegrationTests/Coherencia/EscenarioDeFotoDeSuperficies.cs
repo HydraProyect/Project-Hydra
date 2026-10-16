@@ -226,7 +226,7 @@ internal sealed class EscenarioDeFotoDeSuperficies
 
         var calculoCentro = new CalculoEstadoCentroService(c, c, c, c, c, c, c, c, c);
         var calculoDocumental = new CalculoEstadoDocumentalService(c, c, c);
-        var calculoSubcontrata = new CalculoEstadoSubcontrataService(c, c, c, c, c, c, alcance);
+        var calculoSubcontrata = new CalculoEstadoSubcontrataService(c, c, c, c, c, c, alcance, c, c);
         var centroIds = centros.Keys.ToList();
 
         // 1 y 2. Bloqueo: Mi trabajo y Trabajadores bloqueados por Centro (lo único que depende de la tolerancia).

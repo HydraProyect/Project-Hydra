@@ -73,7 +73,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Alertas.ObtenerAlertasQueryHandler", "IConfiguracionQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "IDocumentosQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "IEmpresasQueryContext"),
-        // Voluntarios inactivos y requisitos de los eventos vigentes (tipo de contratación, 2026-10-16).
+        // Voluntarios inactivos y requisitos de los eventos futuros o vigentes (tipo de contratación, 2026-10-16).
         ("Alertas.ObtenerAlertasQueryHandler", "IProyectosQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "IRequisitosEventoQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "ITiposDocumentoQueryContext"),
@@ -177,7 +177,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "IEmpresasQueryContext"),
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "ISubcontratasQueryContext"),
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "ITrabajadoresQueryContext"),
-        // Quien entra en un Centro por un evento vigente (Proyecto de tipo Evento) figura sin Asignación (2026-10-15).
+        // Quien entra en un Centro por un evento futuro o vigente (Proyecto de tipo Evento) figura sin Asignación (2026-10-15).
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "IProyectosQueryContext"),
         // Documentación por Empresa empleadora en un Centro: Asignaciones activas, titulares visibles,
         // documentos operativos y umbrales. Requisitos y tolerancias reutilizan su lectura autorizada.
@@ -590,6 +590,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "IDocumentosQueryContext"),
         ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "ITiposDocumentoQueryContext"),
         ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "ITrabajadoresQueryContext"),
+        // Mismo universo que CalculoEstadoSubcontrataService: voluntarios inactivos y requisitos de los eventos futuros o vigentes (2026-10-16).
+        ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "IProyectosQueryContext"),
+        ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "IRequisitosEventoQueryContext"),
         ("Subcontratas.RegistrarVerificacionExternaSubcontrataCommandHandler", "ICentrosQueryContext"),
         // Revisión Codex 2026-09-11: el Centro tiene que estar en una RelacionEmpresarial
         // vigente de esta Subcontrata, mismo criterio que CentrosSeleccionables de

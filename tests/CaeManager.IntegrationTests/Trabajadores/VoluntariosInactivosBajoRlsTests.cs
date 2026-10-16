@@ -5,6 +5,8 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Subcontratas;
+using CaeManager.Application.Subcontratas.Queries.ObtenerTrabajadoresDocumentacionPorSubcontrata;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -13,6 +15,7 @@ using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Proyectos;
+using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.Identity;
@@ -147,10 +150,10 @@ public class VoluntariosInactivosBajoRlsTests : IAsyncLifetime
         alertas.Should().NotContain(a => a.TrabajadorId == _inactivo, "ni su vencido ni sus faltantes avisan");
         alertas.Should().Contain(a => a.TrabajadorId == _vigente && a.TipoDocumentoId == _dni && a.Estado == EstadoDocumento.Faltante
             && a.CentroId == _estadio, "el requisito del evento vigente cuenta como faltante en el Centro del evento");
-        alertas.Should().NotContain(a => a.TrabajadorId == _futuro && a.TipoDocumentoId == _dni,
-            "el evento aún no ha empezado: sus requisitos no cuentan todavía (opción A)");
+        alertas.Should().Contain(a => a.TrabajadorId == _futuro && a.TipoDocumentoId == _dni && a.Estado == EstadoDocumento.Faltante
+            && a.CentroId == _estadio, "el evento futuro ya aporta sus requisitos desde la asignación (opción B, 2026-10-16)");
         alertas.Should().NotContain(a => a.TrabajadorId == _ajena && a.TipoDocumentoId == _dni,
-            "los requisitos del evento solo cuentan para los voluntarios asignados");
+            "los requisitos del evento solo cuentan para quien está asignado a él");
     }
 
     [Fact]
@@ -187,8 +190,10 @@ public class VoluntariosInactivosBajoRlsTests : IAsyncLifetime
         var estado = (await servicio.CalcularAsync([_estadio], CancellationToken.None))[_estadio];
         estado.Causas.Should().ContainSingle(x => x.TrabajadorId == _vigente && x.TipoDocumentoId == _dni && x.Estado == EstadoDocumento.Faltante,
             "el DNI que pide el evento vigente le falta a su voluntario y cuenta en el estado del Centro del evento");
-        estado.Causas.Should().NotContain(x => x.TipoDocumentoId == _dni && (x.TrabajadorId == _futuro || x.TrabajadorId == _ajena),
-            "el evento futuro aún no aporta requisitos (opción A) y los del evento solo cuentan para sus voluntarios");
+        estado.Causas.Should().ContainSingle(x => x.TrabajadorId == _futuro && x.TipoDocumentoId == _dni && x.Estado == EstadoDocumento.Faltante,
+            "el evento futuro ya aporta sus requisitos desde la asignación (opción B)");
+        estado.Causas.Should().NotContain(x => x.TipoDocumentoId == _dni && x.TrabajadorId == _ajena,
+            "los del evento solo cuentan para quien está asignado a él");
         estado.Causas.Should().NotContain(x => x.TrabajadorId == sinAsignacion, "su DNI está vigente");
 
         var pares = await servicio.ObtenerParesExigidosAsync([_estadio], CancellationToken.None);
@@ -198,9 +203,78 @@ public class VoluntariosInactivosBajoRlsTests : IAsyncLifetime
             .Which.Estado.Should().Be(EstadoDocumento.Faltante);
 
         var cumplimiento = (await servicio.CalcularCumplimientoAsync([_estadio], CancellationToken.None))[_estadio];
-        cumplimiento.Requeridos.Should().Be(2,
-            "el Centro no incluye ningún tipo, así que solo cuentan los dos requisitos del evento vigente: Iker sin DNI y Nerea con él");
+        cumplimiento.Requeridos.Should().Be(3,
+            "el Centro no incluye ningún tipo, así que solo cuentan los requisitos de los eventos: Iker sin DNI y Nerea con él en el vigente, Raúl sin DNI en el futuro");
         cumplimiento.AlDia.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Decisión 2026-10-16: los requisitos del evento cuentan para todos los asignados, no solo para los voluntarios. Un
+    /// Trabajador de cuenta ajena de una Subcontrata asignado al evento vigente, sin Asignación al Centro, debe su DNI en los
+    /// avisos, en el estado del Centro del evento y en el estado de su Subcontrata.
+    /// </summary>
+    [Fact]
+    public async Task El_requisito_del_evento_cuenta_para_el_Trabajador_de_una_Subcontrata_asignado_a_el()
+    {
+        Guid subcontrataId, deSubcontrata, voluntarioInactivoDeSubcontrata;
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var subcontrata = Empresa.CrearComoSubcontrata("Montajes Gradas S.L.", null, NivelServicioSubcontrata.Gestionada.ToString());
+            _propietario.Empresas.Add(subcontrata);
+            await _propietario.SaveChangesAsync();
+            var operario = Trabajador.DeSubcontrata(subcontrata.Id, "Pablo", "Ferrer Soto", "44444444A");
+            var inactivo = Trabajador.DeSubcontrata(subcontrata.Id, "Eva", "Rey Calvo", "55555555K");
+            inactivo.CambiarTipoContratacion(TipoContratacion.Voluntario);
+            _propietario.Trabajadores.AddRange(operario, inactivo);
+            await _propietario.SaveChangesAsync();
+            var hoy = DiaDeNegocio.Hoy();
+            _propietario.ProyectosTecnicos.Add(new ProyectoTecnico(_eventoVigente, operario.Id, hoy.AddDays(-1)));
+            // Voluntario inactivo de la Subcontrata con un vencido en un Centro que exige el seguro: no debe contar.
+            _propietario.Asignaciones.Add(new Asignacion(inactivo.Id, _estadio, hoy.AddDays(-30)));
+            _propietario.Documentos.Add(Documento.DeTrabajador(inactivo.Id, _seguro, fechaEmision: hoy.AddDays(-400),
+                vigencia: VigenciaDocumento.VenceEl(hoy.AddDays(-5))));
+            await _propietario.SaveChangesAsync();
+            (subcontrataId, deSubcontrata, voluntarioInactivoDeSubcontrata) = (subcontrata.Id, operario.Id, inactivo.Id);
+        }
+        await using var c = CrearRuntime(_tenantSesion);
+
+        (await Alertas(c)).Should().Contain(a => a.TrabajadorId == deSubcontrata && a.TipoDocumentoId == _dni
+            && a.Estado == EstadoDocumento.Faltante && a.CentroId == _estadio, "cuenta ajena de Subcontrata, asignado al evento");
+
+        var centro = (await new CalculoEstadoCentroService(c, c, c, c, c, c, c, c, c).CalcularAsync([_estadio], CancellationToken.None))[_estadio];
+        centro.Causas.Should().ContainSingle(x => x.TrabajadorId == deSubcontrata && x.TipoDocumentoId == _dni && x.Estado == EstadoDocumento.Faltante);
+
+        var subcontratas = new CalculoEstadoSubcontrataService(c, c, c, c, c, c, new AlcanceDatosServiceFalso(), c, c);
+        var resumen = (await subcontratas.CalcularResumenAsync([subcontrataId], CancellationToken.None))[subcontrataId];
+        resumen.Incidencias.Should().ContainSingle(i => i.TrabajadorId == deSubcontrata && i.TipoDocumentoId == _dni && i.Estado == EstadoDocumento.Faltante,
+            "el requisito del evento cuenta en la Subcontrata aunque el Trabajador no tenga Asignación al Centro del evento");
+        resumen.Incidencias.Should().NotContain(i => i.TrabajadorId == voluntarioInactivoDeSubcontrata,
+            "el voluntario inactivo de la Subcontrata no cuenta, igual que en el Centro y en los avisos");
+        resumen.Fraccion.Requeridos.Should().Be(1, "solo el DNI del evento: el voluntario inactivo no suma requeridos");
+
+        // El acordeón de la Subcontrata mide el mismo universo que su fila: Pablo debe el DNI del evento y Eva sigue
+        // listada sin nada exigido.
+        var acordeon = await new ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(c, c, c, c, c, c, new AlcanceDatosServiceFalso(), c, c)
+            .Handle(new ObtenerTrabajadoresDocumentacionPorSubcontrataQuery(subcontrataId), CancellationToken.None);
+        acordeon.Single(t => t.TrabajadorId == deSubcontrata).Cumplimiento.Requeridos.Should().Be(1);
+        acordeon.Single(t => t.TrabajadorId == voluntarioInactivoDeSubcontrata).Cumplimiento.Requeridos.Should().Be(0,
+            "el voluntario inactivo sigue listado, pero no se le exige nada");
+        FraccionCumplimiento.Sumar(acordeon.Select(t => t.Cumplimiento)).Should().Be(resumen.Fraccion);
+    }
+
+    [Fact]
+    public async Task Una_participacion_dada_de_baja_no_aporta_los_requisitos_del_evento()
+    {
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var participacion = await _propietario.ProyectosTecnicos.SingleAsync(p => p.TrabajadorId == _futuro);
+            participacion.DarDeBaja(DiaDeNegocio.Hoy());
+            await _propietario.SaveChangesAsync();
+        }
+        await using var c = CrearRuntime(_tenantSesion);
+
+        (await Alertas(c)).Should().NotContain(a => a.TrabajadorId == _futuro && a.TipoDocumentoId == _dni);
+        (await Alertas(c)).Should().Contain(a => a.TrabajadorId == _vigente && a.TipoDocumentoId == _dni, "control positivo");
     }
 
     [Fact]

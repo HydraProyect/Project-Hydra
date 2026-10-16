@@ -4,6 +4,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Proyectos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
@@ -66,6 +67,10 @@ public record ResumenEstadoSubcontrata(
 /// Trabajador con más de un Centro activo cuenta un TipoDocumento como
 /// exigido si lo exige cualquiera de ellos (el Documento es del Trabajador,
 /// no del Centro, así que un único hecho de cumplimiento vale para todos).
+/// Suma además los requisitos de cada Proyecto de tipo Evento futuro o vigente
+/// al que esté asignado el Trabajador, tenga o no Asignación al Centro del
+/// evento (decisión 2026-10-16, mismo criterio que el Centro), y no cuenta a
+/// los voluntarios inactivos (sin evento vigente ni futuro).
 /// Sin Documentos de "Empresa" ni <c>BloqueaAcceso</c>: esos conceptos son de
 /// Centro y no tienen equivalente a nivel de Subcontrata.
 /// </summary>
@@ -92,7 +97,9 @@ public class CalculoEstadoSubcontrataService(
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IConfiguracionQueryContext configuracionContext,
     ICentrosQueryContext centrosContext,
-    IAlcanceDatosService alcanceDatos)
+    IAlcanceDatosService alcanceDatos,
+    IProyectosQueryContext proyectosContext,
+    IRequisitosEventoQueryContext requisitosEventoContext)
     : ICalculoEstadoSubcontrataService
 {
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<IncidenciaSubcontrataDto>>> CalcularAsync(
@@ -144,6 +151,12 @@ public class CalculoEstadoSubcontrataService(
         if (trabajadorIdsVisibles is not null)
             consultaTrabajadores = consultaTrabajadores.Where(t => trabajadorIdsVisibles.Contains(t.Id));
 
+        var hoy = DiaDeNegocio.Hoy();
+
+        // Un voluntario inactivo, sin evento vigente ni futuro, no cuenta: mismo criterio que el estado del Centro y los avisos.
+        var voluntariosInactivos = ActividadVoluntarios.VoluntariosInactivosIds(trabajadoresContext.Trabajadores, proyectosContext, hoy);
+        consultaTrabajadores = consultaTrabajadores.Where(t => !voluntariosInactivos.Contains(t.Id));
+
         var trabajadores = await consultaTrabajadores
             .Select(t => new { t.Id, SubcontrataId = t.SubcontrataId!.Value, Nombre = t.Nombre + " " + t.Apellidos })
             .ToListAsync(cancellationToken);
@@ -160,16 +173,32 @@ public class CalculoEstadoSubcontrataService(
             .Select(a => new { a.TrabajadorId, a.CentroId })
             .ToListAsync(cancellationToken);
 
-        if (asignacionesActivas.Count == 0)
+        // Lo que pide cada evento futuro o vigente a quien está asignado a él, también al Trabajador de una Subcontrata
+        // (decisión 2026-10-16, mismo criterio que CalculoEstadoCentroService): cuenta aunque no tenga Asignación al
+        // Centro del evento y aunque ese Centro no incluya el tipo.
+        var requisitosDeEvento = await RequisitosDeEventos
+            .DeEventosQueLosAportan(
+                trabajadoresContext.Trabajadores, proyectosContext, requisitosEventoContext.ProyectosRequisitos, tiposDocumentoContext.TiposDocumento, hoy)
+            .Where(r => trabajadorIds.Contains(r.TrabajadorId))
+            .Select(r => new { r.TrabajadorId, r.CentroId, r.TipoDocumentoId })
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        if (asignacionesActivas.Count == 0 && requisitosDeEvento.Count == 0)
             return (fraccionPorSubcontrata, causasPorSubcontrata, sinConfirmarPorSubcontrata);
 
         var centrosPorTrabajador = asignacionesActivas
             .GroupBy(a => a.TrabajadorId)
             .ToDictionary(g => g.Key, g => g.Select(a => a.CentroId).Distinct().ToList());
 
-        // P1-X2: un Centro sin gestión CAE no exige ningún tipo a quien trabaja allí.
+        // P1-X2: un Centro sin gestión CAE no exige ningún tipo a quien trabaja allí, tampoco por sus eventos.
         var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(
-            centrosContext, asignacionesActivas.Select(a => a.CentroId), cancellationToken);
+            centrosContext, asignacionesActivas.Select(a => a.CentroId).Concat(requisitosDeEvento.Select(r => r.CentroId)), cancellationToken);
+
+        var tiposDeEventoPorTrabajador = requisitosDeEvento
+            .Where(r => !sinGestionCae.Contains(r.CentroId))
+            .GroupBy(r => r.TrabajadorId)
+            .ToDictionary(g => g.Key, g => g.Select(r => r.TipoDocumentoId).ToHashSet());
 
         var centroIds = asignacionesActivas.Select(a => a.CentroId).Distinct().ToList();
 
@@ -196,14 +225,11 @@ public class CalculoEstadoSubcontrataService(
         foreach (var trabajadorId in trabajadorIds)
         {
             var centrosDelTrabajador = centrosPorTrabajador.GetValueOrDefault(trabajadorId, []);
-            if (centrosDelTrabajador.Count == 0)
-            {
-                tiposRequeridosPorTrabajador[trabajadorId] = [];
-                continue;
-            }
+            var tiposDeEvento = tiposDeEventoPorTrabajador.GetValueOrDefault(trabajadorId);
 
             tiposRequeridosPorTrabajador[trabajadorId] = tiposCandidatos
-                .Where(t => centrosDelTrabajador.Any(centroId => !sinGestionCae.Contains(centroId) && ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.CuentaParaCumplimiento)))
+                .Where(t => tiposDeEvento?.Contains(t.Id) == true
+                    || centrosDelTrabajador.Any(centroId => !sinGestionCae.Contains(centroId) && ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.CuentaParaCumplimiento)))
                 .Select(t => t.Id)
                 .ToList();
         }
@@ -220,7 +246,6 @@ public class CalculoEstadoSubcontrataService(
             .ToListAsync(cancellationToken);
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-        var hoy = DiaDeNegocio.Hoy();
 
         // Un documento operativo por par en el caso normal; con duplicados sin resolver manda el efectivo.
         var documentosPorPar = DocumentoEfectivo.UnoPorClave(

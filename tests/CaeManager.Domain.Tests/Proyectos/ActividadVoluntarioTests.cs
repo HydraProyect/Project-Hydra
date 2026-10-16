@@ -8,7 +8,8 @@ namespace CaeManager.Domain.Tests.Proyectos;
 /// <summary>
 /// Voluntario inactivo (decisión 2026-10-15): un voluntario sin evento vigente ni futuro asignado pasa a
 /// inactivo, sin borrarse; se reactiva al asignarlo a otro evento. Es un dato derivado, no un flag.
-/// Vigente = ya empezó y no ha terminado (opción A, aislada en <see cref="Proyecto.EventoVigenteEn"/>).
+/// Los requisitos del evento cuentan desde la asignación mientras el evento es futuro o vigente (opción B, decisión
+/// 2026-10-16, <see cref="Proyecto.EventoAportaRequisitosEn"/>).
 /// </summary>
 public class ActividadVoluntarioTests
 {
@@ -71,20 +72,24 @@ public class ActividadVoluntarioTests
     }
 
     [Fact]
-    public void Un_evento_es_vigente_desde_su_inicio_hasta_su_fin_y_no_antes_ni_despues()
+    public void Un_evento_aporta_sus_requisitos_mientras_es_futuro_o_vigente_y_no_despues_de_terminar()
     {
         var evento = Evento(Hoy, Hoy.AddDays(1));
 
-        evento.EventoVigenteEn(Hoy.AddDays(-1)).Should().BeFalse("aún no ha empezado (opción A)");
-        evento.EventoVigenteEn(Hoy).Should().BeTrue();
-        evento.EventoVigenteEn(Hoy.AddDays(1)).Should().BeTrue("el día de fin aún cuenta");
-        evento.EventoVigenteEn(Hoy.AddDays(2)).Should().BeFalse();
-        Obra().EventoVigenteEn(Hoy).Should().BeFalse("una obra no es un evento");
+        evento.EventoAportaRequisitosEn(Hoy.AddDays(-10)).Should().BeTrue("futuro: cuentan desde la asignación (opción B)");
+        evento.EventoAportaRequisitosEn(Hoy).Should().BeTrue();
+        evento.EventoAportaRequisitosEn(Hoy.AddDays(1)).Should().BeTrue("el día de fin aún cuenta");
+        evento.EventoAportaRequisitosEn(Hoy.AddDays(2)).Should().BeFalse("terminado");
+        Obra().EventoAportaRequisitosEn(Hoy).Should().BeFalse("una obra no es un evento");
+
+        var cerrado = Evento(Hoy.AddDays(-2), Hoy.AddDays(6));
+        cerrado.Cerrar(Hoy.AddDays(-1));
+        cerrado.EventoAportaRequisitosEn(Hoy).Should().BeFalse("cerrado antes de su fecha de fin");
     }
 
     /// <summary>
     /// El criterio es uno solo (<see cref="VigenciaEvento"/>): la regla en memoria y el predicado que se traduce a SQL dan lo
-    /// mismo en todos los casos, así que pasar de la opción A a la B no puede dejar uno de los dos atrás.
+    /// mismo en todos los casos, así que cambiar de criterio no puede dejar uno de los dos atrás.
     /// </summary>
     [Fact]
     public void La_regla_en_memoria_y_el_predicado_traducible_a_SQL_coinciden_dia_a_dia()
@@ -100,10 +105,11 @@ public class ActividadVoluntarioTests
             {
                 var dia = Hoy.AddDays(desplazamiento);
                 sinTerminarEn(dia)(proyecto).Should().Be(proyecto.EsEvento && !proyecto.EventoTerminadoEn(dia), $"{proyecto.Nombre} el {dia}");
-                aportaRequisitosEn(dia)(proyecto).Should().Be(proyecto.EventoVigenteEn(dia), $"{proyecto.Nombre} el {dia}");
+                aportaRequisitosEn(dia)(proyecto).Should().Be(proyecto.EventoAportaRequisitosEn(dia), $"{proyecto.Nombre} el {dia}");
+                aportaRequisitosEn(dia)(proyecto).Should().Be(sinTerminarEn(dia)(proyecto), $"opción B: aporta requisitos mientras está sin terminar, {proyecto.Nombre} el {dia}");
             }
 
-        aportaRequisitosEn(Hoy.AddDays(-1))(abierto).Should().BeFalse("opción A: antes de empezar no aporta requisitos");
-        sinTerminarEn(Hoy.AddDays(-1))(abierto).Should().BeTrue("pero el evento futuro sí mantiene activo al voluntario");
+        aportaRequisitosEn(Hoy.AddDays(-1))(abierto).Should().BeTrue("opción B: el evento futuro ya aporta sus requisitos");
+        sinTerminarEn(Hoy.AddDays(-1))(abierto).Should().BeTrue("y mantiene activo al voluntario");
     }
 }

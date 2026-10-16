@@ -197,9 +197,10 @@ public class CentroSinGestionCaeTests
         var pepe = TrabajadorDeSubcontrata();
         _asignaciones.ListaAsignaciones.Add(new Asignacion(pepe.Id, _sinGestion.Id, Hoy.AddDays(-5)));
         var calculo = new CalculoEstadoSubcontrataService(
-            _trabajadores, _asignaciones, _documentos, _tipos, _configuracion, _centros, new AlcanceDatosServiceFalso());
+            _trabajadores, _asignaciones, _documentos, _tipos, _configuracion, _centros, new AlcanceDatosServiceFalso(),
+            _proyectos, _proyectos);
         var documentacion = new ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
-            _trabajadores, _asignaciones, _tipos, _documentos, _configuracion, _centros, new AlcanceDatosServiceFalso());
+            _trabajadores, _asignaciones, _tipos, _documentos, _configuracion, _centros, new AlcanceDatosServiceFalso(), _proyectos, _proyectos);
 
         var soloSinGestion = await calculo.CalcularCumplimientoAsync([_subcontrata.Id], CancellationToken.None);
         (soloSinGestion.TryGetValue(_subcontrata.Id, out var fraccion) ? fraccion.Requeridos : 0).Should().Be(0);
