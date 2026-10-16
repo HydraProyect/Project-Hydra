@@ -24,10 +24,11 @@ public sealed record FiltroMiTrabajo(
     AgruparMiTrabajo Agrupar = AgruparMiTrabajo.Tenant,
     OrdenMiTrabajo Orden = OrdenMiTrabajo.Prioridad,
     IReadOnlySet<string>? Abiertos = null,
-    IReadOnlySet<Guid>? TenantsAbiertos = null);
+    IReadOnlySet<Guid>? TenantsAbiertos = null,
+    IReadOnlySet<SeveridadMiTrabajo>? SeveridadesAbiertas = null);
 
 /// <param name="Clave">TenantId en modo Tenant; nombre de la severidad en modo Severidad.</param>
-/// <param name="Plegado">Solo modo Tenant: la cabecera del Tenant está plegada. Es el estado de partida: solo se despliega si el Gestor CAE la abrió en esta visita a la pantalla (<see cref="FiltroMiTrabajo.TenantsAbiertos"/>) o hay búsqueda.</param>
+/// <param name="Plegado">La cabecera del grupo (Tenant, o severidad en modo Severidad) está plegada. Es el estado de partida: solo se despliega si el Gestor CAE la abrió en esta visita a la pantalla (<see cref="FiltroMiTrabajo.TenantsAbiertos"/> / <see cref="FiltroMiTrabajo.SeveridadesAbiertas"/>) o hay búsqueda.</param>
 /// <param name="ResumenCalendario">Texto del pliegue «N vencimientos y envíos en calendario»; null si no hay nada plegado.</param>
 /// <param name="ResumenCabecera">Recuento que se enseña en la cabecera cuando el grupo está plegado.</param>
 public sealed record GrupoMiTrabajo(
@@ -148,13 +149,14 @@ public sealed class MiTrabajoVista
     {
         var abiertos = filtro.Abiertos ?? new HashSet<string>();
         var tenantsAbiertos = filtro.TenantsAbiertos ?? new HashSet<Guid>();
+        var severidadesAbiertas = filtro.SeveridadesAbiertas ?? new HashSet<SeveridadMiTrabajo>();
         var pliega = PliegaCalendario(filtro);
         var buscando = BusquedaActiva(filtro);
 
         var lista = Alcance(filtro).AsEnumerable();
         lista = filtro.Agrupar == AgruparMiTrabajo.Tenant
             ? lista.Where(f => (buscando || tenantsAbiertos.Contains(f.TenantId)) && (!pliega || EsUrgente(f) || abiertos.Contains(f.TenantId.ToString())))
-            : lista.Where(f => !pliega || EsUrgente(f) || abiertos.Contains(f.Severidad.ToString()));
+            : lista.Where(f => (buscando || severidadesAbiertas.Contains(f.Severidad)) && (!pliega || EsUrgente(f) || abiertos.Contains(f.Severidad.ToString())));
 
         var porCliente = filtro.Orden == OrdenMiTrabajo.Cliente;
         return (filtro.Agrupar == AgruparMiTrabajo.Tenant
@@ -171,6 +173,7 @@ public sealed class MiTrabajoVista
     {
         var abiertos = filtro.Abiertos ?? new HashSet<string>();
         var tenantsAbiertos = filtro.TenantsAbiertos ?? new HashSet<Guid>();
+        var severidadesAbiertas = filtro.SeveridadesAbiertas ?? new HashSet<SeveridadMiTrabajo>();
         var alcance = Alcance(filtro);
         var visibles = Visibles(filtro);
         var grupos = new List<GrupoMiTrabajo>();
@@ -201,6 +204,14 @@ public sealed class MiTrabajoVista
             {
                 var filas = visibles.Where(f => f.Severidad == severidad).ToList();
                 var total = alcance.Count(f => f.Severidad == severidad);
+                if (total == 0) continue;
+
+                if (!BusquedaActiva(filtro) && !severidadesAbiertas.Contains(severidad))
+                {
+                    grupos.Add(new GrupoMiTrabajo(severidad.ToString(), Etiqueta(severidad), null, total, true, [], null, null));
+                    continue;
+                }
+
                 var plegado = PliegaCalendario(filtro) && !EsUrgente(severidad) && !abiertos.Contains(severidad.ToString());
                 if (plegado)
                 {

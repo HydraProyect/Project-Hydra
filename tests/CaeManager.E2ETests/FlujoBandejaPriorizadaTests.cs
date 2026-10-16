@@ -98,6 +98,7 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
 
         // --- Bandeja: el documento aparece como "Urgente" ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/bandeja");
+        await Ayudas.DesplegarGruposDeBandejaAsync(page);
 
         var tarjeta = page.Locator(".panel-resolver-item", new PageLocatorOptions { HasText = apellidosTrabajador });
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
@@ -121,12 +122,14 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         var chipVencido = page.Locator("button.bandeja-chip", new PageLocatorOptions { HasText = "Vencido" });
 
         await chipUrgente.ClickAsync();
+        await Ayudas.DesplegarGruposDeBandejaAsync(page);
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
         await chipVencido.ClickAsync();
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
 
         await chipUrgente.ClickAsync();
+        await Ayudas.DesplegarGruposDeBandejaAsync(page);
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
         // --- Atajos de teclado ---

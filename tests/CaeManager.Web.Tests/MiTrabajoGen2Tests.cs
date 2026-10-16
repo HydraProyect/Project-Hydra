@@ -508,6 +508,33 @@ public class MiTrabajoGen2Tests : BunitContext
     /// almacenamiento del navegador, y una instancia nueva de la pantalla (otra carga) vuelve a partir plegada aunque
     /// la anterior terminara con un Tenant desplegado.
     /// </summary>
+    /// <summary>Decisión de la coordinadora (2026-10-16): el modo Severidad también carga plegado, con cabeceras plegables y «Expandir todas».</summary>
+    [Fact]
+    public void El_modo_Severidad_carga_con_todas_las_cabeceras_plegadas_y_se_despliegan_una_a_una_o_todas()
+    {
+        var cut = RenderizarPlegado(url: "mi-trabajo?agrupar=severidad");
+
+        var cabeceras = cut.FindAll(".mi-trabajo-grupo-cabecera-severidad");
+        cabeceras.Should().NotBeEmpty();
+        cabeceras.Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+        cut.FindAll(".mi-trabajo-fila").Should().BeEmpty();
+        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas");
+
+        cabeceras[0].Click();
+
+        var tras = cut.FindAll(".mi-trabajo-grupo-cabecera-severidad");
+        tras[0].GetAttribute("aria-expanded").Should().Be("true");
+        tras.Skip(1).Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false", "abrir una no abre las demás");
+        TitulosVisibles(cut).Should().NotBeEmpty();
+
+        cut.Find(".mi-trabajo-plegar-todas").Click();
+        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas", "con una abierta y otras plegadas el botón pliega todo");
+        cut.FindAll(".mi-trabajo-grupo-cabecera-severidad").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+
+        cut.Find(".mi-trabajo-plegar-todas").Click();
+        cut.FindAll(".mi-trabajo-grupo-cabecera-severidad").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "true");
+    }
+
     [Fact]
     public void Expandir_todas_despliega_todo_y_cambia_su_rotulo_y_Volver_a_plegar_deja_todo_plegado_otra_vez()
     {
@@ -612,6 +639,7 @@ public class MiTrabajoGen2Tests : BunitContext
         var cut = Renderizar();
 
         cut.FindAll(".mi-trabajo-pestana").Single(b => b.TextContent == "Severidad").Click();
+        ExpandirTodas(cut);
 
         cut.FindAll(".mi-trabajo-grupo-nombre").Select(e => e.TextContent).Should().Equal("Bloqueo", "Requiere actuación", "Próximo", "Seguimiento");
         FilaDe(cut, "Rechazado por la plataforma").QuerySelector(".mi-trabajo-fila-contexto")!.TextContent

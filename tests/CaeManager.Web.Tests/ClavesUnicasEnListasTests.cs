@@ -159,6 +159,13 @@ public class ClavesUnicasEnListasTests : BunitContext
         Pintar().Should().Equal(Pintar());
     }
 
+    /// <summary>La Bandeja carga con todos los grupos plegados (decisión de producto 2026-10-16): para ver filas se despliegan.</summary>
+    private static void DesplegarGruposDeBandeja(IRenderedComponent<Bandeja> cut)
+    {
+        foreach (var cabecera in cut.FindAll(".grupo-cola-cabecera").Where(c => c.GetAttribute("aria-expanded") == "false"))
+            cabecera.Click();
+    }
+
     private (IRenderedComponent<Bandeja> Cut, MediatorDeLaBandeja Mediator) PintarBandeja(params ItemBandejaDto[] items) =>
         PintarBandeja(PerfilVocabularioTenant.ClienteDirecto, items);
 
@@ -187,7 +194,11 @@ public class ClavesUnicasEnListasTests : BunitContext
             Item("suelta", TipoItemBandeja.RevisionIa, Guid.NewGuid(), "x") with { ClienteId = null, ClienteNombre = null },
             Item("suelta", TipoItemBandeja.RevisionIa, Guid.NewGuid(), "x") with { ClienteId = null, ClienteNombre = null });
 
-        cut.WaitForAssertion(() => cut.FindAll(".panel-resolver-item").Count.Should().Be(4));
+        cut.WaitForAssertion(() =>
+        {
+            DesplegarGruposDeBandeja(cut);
+            cut.FindAll(".panel-resolver-item").Count.Should().Be(4);
+        });
 
         ClavesDeRender.Duplicadas(this, cut).Should().BeEmpty();
         ClavesDeRender.ClavesObservadas(this, cut).Should().BeGreaterThanOrEqualTo(4, "se pintan al menos las cuatro filas keyed");
@@ -210,7 +221,11 @@ public class ClavesUnicasEnListasTests : BunitContext
             Item("alerta-repetida", TipoItemBandeja.Vencido, cliente, "Refrielectric S.A.", trabajadorId: Guid.NewGuid(), trabajadorNombre: "Ana") with { EmpresaId = empresaA, EmpresaNombre = "Montajes A" },
             Item("alerta-repetida", TipoItemBandeja.Vencido, cliente, "Refrielectric S.A.", trabajadorId: Guid.NewGuid(), trabajadorNombre: "Luis") with { EmpresaId = empresaB, EmpresaNombre = "Montajes B" });
 
-        cut.WaitForAssertion(() => cut.FindAll(".panel-resolver-item").Count.Should().Be(2));
+        cut.WaitForAssertion(() =>
+        {
+            DesplegarGruposDeBandeja(cut);
+            cut.FindAll(".panel-resolver-item").Count.Should().Be(2);
+        });
         cut.FindAll(".grupo-cola-subcabecera-empresa").Should().HaveCount(2, "el vocabulario Consultora parte el grupo por Empresa contratista");
 
         ClavesDeRender.Duplicadas(this, cut).Should().BeEmpty();

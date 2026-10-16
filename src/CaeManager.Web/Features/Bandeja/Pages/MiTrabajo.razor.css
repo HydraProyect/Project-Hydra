@@ -295,11 +295,13 @@
     text-align: left;
 }
 
-.mi-trabajo-grupo-cabecera-tenant {
+.mi-trabajo-grupo-cabecera-tenant,
+.mi-trabajo-grupo-cabecera-severidad {
     cursor: pointer;
 }
 
-.mi-trabajo-grupo-cabecera-tenant:hover {
+.mi-trabajo-grupo-cabecera-tenant:hover,
+.mi-trabajo-grupo-cabecera-severidad:hover {
     background: var(--color-surface-hover);
 }
 
