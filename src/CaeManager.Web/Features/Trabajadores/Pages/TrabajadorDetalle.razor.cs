@@ -21,6 +21,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroD
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Gestiones;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
@@ -164,7 +165,11 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// (<see cref="RequisitoDocumental.Si"/>). Lo que un Centro exige fuera de
     /// esta lista lo incluyó la configuración de ese Centro. Null hasta cargar.
     /// </summary>
-    private HashSet<Guid>? _tiposGenerales;
+    /// <summary>
+    /// Tipos de Ámbito Trabajador que se piden con carácter general (Requerido = Sí), con su serie por tipo de
+    /// contratación: un tipo es general para este Trabajador solo si la serie incluye su tipo de contratación.
+    /// </summary>
+    private Dictionary<Guid, TiposContratacion>? _tiposGenerales;
     private bool _cargandoDocumentos = true;
     private bool _errorDocumentos;
 
@@ -493,7 +498,8 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
             _documentos = documentos.Elementos;
             _totalDocumentos = documentos.TotalElementos;
-            _tiposGenerales = tipos.Where(t => t.Requerido == RequisitoDocumental.Si).Select(t => t.Id).ToHashSet();
+            _tiposGenerales = tipos.Where(t => t.Requerido == RequisitoDocumental.Si)
+                .ToDictionary(t => t.Id, t => t.TiposContratacionDeSerie);
         }
         catch (Exception) when (!EsVigente(carga))
         {
@@ -553,10 +559,17 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             if (_tiposGenerales is not { } generales)
                 return [];
 
+            // General para este Trabajador = se pide de serie a su tipo de contratación (decisión 2026-10-16). Un
+            // tipo cuya serie no lo incluye y que un Centro exige por fila explícita es exigencia propia del Centro.
+            var tipoContratacion = _detalle?.TipoContratacion;
+            bool EsGeneralParaElTrabajador(Guid tipoId) =>
+                generales.TryGetValue(tipoId, out var serie)
+                && (tipoContratacion is not { } tipo || serie.Incluye(tipo));
+
             var emisionPorDocumento = _documentos.ToDictionary(d => d.Id, d => d.FechaEmision);
             return _centros
                 .SelectMany(c => c.Documentos
-                    .Where(d => !generales.Contains(d.TipoDocumentoId))
+                    .Where(d => !EsGeneralParaElTrabajador(d.TipoDocumentoId))
                     .Select(d => new ExigenciaDeCentro(
                         c.CentroId, c.CentroNombre, c.ClienteRazonSocial, d,
                         d.DocumentoId is { } id && emisionPorDocumento.TryGetValue(id, out var emision) ? emision : null)))

@@ -1378,6 +1378,73 @@ public partial class Trabajador360Gen2Tests : BunitContext
             "lo exige el Centro de trabajo; el Cliente solo lo sitúa");
     }
 
+    // ---- Serie documental por tipo de contratación (decisión 2026-10-16) ----
+
+    /// <summary>
+    /// Un tipo Requerido = Sí cuya serie no incluye el tipo de contratación del Trabajador. Con
+    /// <paramref name="centroLoIncluyePorFila"/>, el Centro lo exige por fila explícita (Incluido = true) y la consulta
+    /// de Application lo devuelve en el Centro; sin ella, la consulta no lo devuelve porque no se pide de serie.
+    /// </summary>
+    private (MediatorFalso Mediador, Guid Id) VoluntarioConTipoSinSerieDeVoluntario(
+        bool centroLoIncluyePorFila,
+        CaeManager.Domain.Trabajadores.TipoContratacion tipoContratacion = CaeManager.Domain.Trabajadores.TipoContratacion.Voluntario)
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Vera", "Voluntaria Ruiz") with { TipoContratacion = tipoContratacion };
+
+        var tipoMedico = Guid.NewGuid();
+        mediador.Tipos.Add(Tipo(tipoMedico, "Aptitud médica", RequisitoDocumental.Si) with
+        {
+            TiposContratacionDeSerie = CaeManager.Domain.Trabajadores.TiposContratacion.CuentaAjena
+                | CaeManager.Domain.Trabajadores.TiposContratacion.Autonomo,
+        });
+
+        mediador.Centros[id] = centroLoIncluyePorFila
+            ? [Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Faltante,
+                new DocumentoRequeridoDto(null, tipoMedico, "Aptitud médica", EstadoDocumento.Faltante, null))]
+            : [Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Vigente)];
+        return (mediador, id);
+    }
+
+    [Fact]
+    public async Task Un_tipo_cuya_serie_excluye_al_voluntario_no_figura_como_exigido_de_serie_en_su_ficha()
+    {
+        var (_, id) = VoluntarioConTipoSinSerieDeVoluntario(centroLoIncluyePorFila: false);
+
+        var cut = Renderizar(id);
+        await AbrirPestanaAsync(cut, "Documentación");
+
+        cut.FindAll(".trabajador360-exigencias").Should().BeEmpty("al voluntario no se le pide de serie y ningún Centro lo exige por fila");
+    }
+
+    [Fact]
+    public async Task Un_tipo_cuya_serie_excluye_al_voluntario_y_que_el_centro_incluye_por_fila_figura_como_exigido_en_ese_centro()
+    {
+        var (_, id) = VoluntarioConTipoSinSerieDeVoluntario(centroLoIncluyePorFila: true);
+
+        var cut = Renderizar(id);
+        await AbrirPestanaAsync(cut, "Documentación");
+
+        Filas(cut, "Exigidos solo en algunos Centros de trabajo").Should().ContainSingle().Which[0].Should().Be(
+            "Aptitud médica",
+            "para un voluntario el tipo no es general (su serie no lo incluye): lo exige la fila explícita del Centro, " +
+            "así que es una exigencia propia de ese Centro y no puede quedar escondida como «general»");
+    }
+
+    [Fact]
+    public async Task El_mismo_tipo_en_la_ficha_de_un_trabajador_por_cuenta_ajena_es_general_y_no_propio_del_centro()
+    {
+        var (_, id) = VoluntarioConTipoSinSerieDeVoluntario(
+            centroLoIncluyePorFila: true, CaeManager.Domain.Trabajadores.TipoContratacion.CuentaAjena);
+
+        var cut = Renderizar(id);
+        await AbrirPestanaAsync(cut, "Documentación");
+
+        cut.FindAll(".trabajador360-exigencias").Should().BeEmpty(
+            "la serie incluye cuenta ajena: el tipo se le pide con carácter general, no es propio del Centro (control)");
+    }
+
     [Fact]
     public async Task Si_la_documentacion_falla_el_resto_de_la_pagina_sigue_y_se_puede_reintentar()
     {

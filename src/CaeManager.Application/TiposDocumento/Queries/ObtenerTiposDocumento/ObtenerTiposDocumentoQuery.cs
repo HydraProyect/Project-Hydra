@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -46,7 +47,10 @@ public record TipoDocumentoListaDto(
     bool DeteccionTrabajadoresActiva,
     bool VerificacionIaActiva,
     PerfilDocumentoOficial PerfilDocumentoOficial,
-    IReadOnlyList<string> Aliases);
+    IReadOnlyList<string> Aliases,
+    // Serie documental por tipo de contratación (decisión 2026-10-16): a qué tipos de contratación se pide de serie.
+    // Opcional con valor Todos para no romper a quien construye el DTO sin ella; la consulta siempre la rellena.
+    TiposContratacion TiposContratacionDeSerie = TiposContratacion.Todos);
 
 public class ObtenerTiposDocumentoQueryHandler(ICentrosQueryContext centrosContext, ITiposDocumentoQueryContext tiposDocumentoContext)
     : IRequestHandler<ObtenerTiposDocumentoQuery, IReadOnlyList<TipoDocumentoListaDto>>
@@ -102,7 +106,7 @@ public class ObtenerTiposDocumentoQueryHandler(ICentrosQueryContext centrosConte
             .Select(t => new TipoDocumentoListaDto(
                 t.Id, t.Nombre, t.VigenciaMeses, t.AplicaVencimientoAutomatico, t.Orden, t.AmbitoAplicacion, t.Requerido, t.Naturaleza,
                 t.Descripcion, t.CriteriosValidacion, t.SeSolicitaA, t.Observaciones, t.LecturaIaActiva, t.DeteccionTrabajadoresActiva,
-                t.VerificacionIaActiva, t.PerfilDocumentoOficial, t.Aliases.Select(a => a.Texto).ToList()))
+                t.VerificacionIaActiva, t.PerfilDocumentoOficial, t.Aliases.Select(a => a.Texto).ToList(), t.TiposContratacionDeSerie))
             .ToListAsync(cancellationToken);
     }
 }

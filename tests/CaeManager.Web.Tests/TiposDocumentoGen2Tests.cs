@@ -227,7 +227,8 @@ public class TiposDocumentoGen2Tests : BunitContext
                 ? new TipoDocumentoDetalleDto(t.Id, t.Nombre, t.VigenciaMeses, t.AplicaVencimientoAutomatico, t.Orden, t.AmbitoAplicacion,
                     t.Requerido, t.Naturaleza, Notas: null, t.Descripcion, t.CriteriosValidacion, t.SeSolicitaA, t.Observaciones,
                     Filas.Where(f => f.TipoDocumentoId == id && f.Incluido).Select(f => f.CentroId).ToList(), t.Aliases,
-                    Filas.Where(f => f.TipoDocumentoId == id && !f.Incluido).Select(f => f.CentroId).ToList())
+                    Filas.Where(f => f.TipoDocumentoId == id && !f.Incluido).Select(f => f.CentroId).ToList(),
+                    t.TiposContratacionDeSerie)
                 : null;
 
         /// <summary>
@@ -355,6 +356,27 @@ public class TiposDocumentoGen2Tests : BunitContext
 
         mediador.Enviados.OfType<EditarTipoDocumentoCommand>().Should().ContainSingle()
             .Which.TiposContratacionDeSerie.Should().Be(TiposContratacion.CuentaAjena);
+    }
+
+    [Fact]
+    public async Task Editar_un_tipo_con_serie_restringida_y_guardar_sin_tocar_nada_envia_la_misma_serie()
+    {
+        var escenario = new Escenario();
+        escenario.Tipos.Add(Tipo("Aptitud médica", AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si) with
+        {
+            TiposContratacionDeSerie = TiposContratacion.CuentaAjena | TiposContratacion.Autonomo,
+        });
+        var (cut, mediador) = Renderizar(escenario);
+
+        await PulsarEditar(cut, "Aptitud médica");
+
+        CasillasSerie(cut).Select(c => c.HasAttribute("checked")).Should().Equal(
+            [true, true, false], "el drawer lee la serie guardada, no la reinicia a Todos");
+        await PulsarGuardar(cut);
+
+        mediador.Enviados.OfType<EditarTipoDocumentoCommand>().Should().ContainSingle()
+            .Which.TiposContratacionDeSerie.Should().Be(TiposContratacion.CuentaAjena | TiposContratacion.Autonomo,
+                "guardar sin tocar la serie no puede volver a pedir el tipo al voluntario");
     }
 
     [Fact]

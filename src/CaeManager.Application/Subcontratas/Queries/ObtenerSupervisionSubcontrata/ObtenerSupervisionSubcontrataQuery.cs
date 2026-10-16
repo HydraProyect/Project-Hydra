@@ -120,14 +120,21 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        var centroIdsConActividad = await (
+        // Personal activo de la Subcontrata por Centro, con su tipo de contratación: decide la serie documental
+        // (decisión 2026-10-16) de los tipos de Ámbito Trabajador en el checklist de cada Centro.
+        var personalPorCentro = await (
             from asignacion in asignacionesContext.Asignaciones
             where asignacion.FechaBaja == null
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             where trabajador.SubcontrataId == request.SubcontrataId
-            select asignacion.CentroId)
+            select new { asignacion.CentroId, trabajador.TipoContratacion })
             .Distinct()
             .ToListAsync(cancellationToken);
+
+        var centroIdsConActividad = personalPorCentro.Select(p => p.CentroId).Distinct().ToList();
+        var tiposContratacionPorCentro = personalPorCentro
+            .GroupBy(p => p.CentroId)
+            .ToDictionary(g => g.Key, g => g.Select(p => p.TipoContratacion).Distinct().ToList());
 
         var verificaciones = await subcontratasContext.VerificacionesExternaSubcontrata
             .Where(v => v.SubcontrataId == request.SubcontrataId)
@@ -165,7 +172,11 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
         // exigencias a una subcontrata.
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador || t.AmbitoAplicacion == AmbitoAplicacion.Empresa)
-            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si, t.Orden })
+            .Select(t => new
+            {
+                t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si, t.Orden,
+                t.AmbitoAplicacion, t.TiposContratacionDeSerie
+            })
             .OrderBy(t => t.Orden)
             .ToListAsync(cancellationToken);
 
@@ -197,8 +208,17 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
             {
                 // P1-X2: sin gestión CAE nada es exigido; las verificaciones ya
                 // registradas se siguen mostrando (se conserva todo).
+                // Serie documental por tipo de contratación: un tipo de Ámbito Trabajador se exige de serie en el
+                // Centro si algún Trabajador activo de la Subcontrata allí tiene un tipo de contratación de su
+                // serie; la fila explícita del Centro manda igual que siempre. Sin personal en el Centro (solo
+                // verificaciones registradas), regla general sin serie: no hay a quién aplicarla.
                 var exigido = centro.GestionCae != ModalidadGestionCae.SinGestionCae
-                    && ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, centro.Id, tipo.CuentaParaCumplimiento);
+                    && (tipo.AmbitoAplicacion == AmbitoAplicacion.Trabajador
+                        && tiposContratacionPorCentro.TryGetValue(centro.Id, out var tiposContratacionDelPersonal)
+                            ? tiposContratacionDelPersonal.Any(tipoContratacion => ResolucionTipoDocumentoCentro.Aplica(
+                                filasPorPar, tipo.Id, centro.Id, tipo.CuentaParaCumplimiento,
+                                tipo.TiposContratacionDeSerie, tipoContratacion))
+                            : ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, centro.Id, tipo.CuentaParaCumplimiento));
                 var tieneVerificacion = ultimaPorPar.TryGetValue((centro.Id, tipo.Id), out var ultima);
 
                 // Un tipo no exigido sin verificaciones no es una fila: el
