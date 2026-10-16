@@ -207,6 +207,12 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         // canal de firma, la custodia del sello, la modalidad preventiva y los
         // nombres de la Organización SPA y de la Mutua son datos de organizaciones
         // y quedan en claro.
+        // La ficha de Centro 360 sigue el criterio de los contactos de Empresa 360.
+        [typeof(Centro)] =
+        [
+            nameof(Centro.ControlAccesosNombre), nameof(Centro.ControlAccesosTelefono),
+            nameof(Centro.TecnicoPrevencionNombre), nameof(Centro.TecnicoPrevencionTelefono), nameof(Centro.TecnicoPrevencionCorreo),
+        ],
         [typeof(Empresa)] =
         [
             nameof(Empresa.FirmanteDocumentos),

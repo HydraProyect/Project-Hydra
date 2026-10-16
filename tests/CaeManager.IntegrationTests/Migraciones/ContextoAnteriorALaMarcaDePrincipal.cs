@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Infrastructure.Persistence;
@@ -36,7 +37,16 @@ internal sealed class ContextoAnteriorALaMarcaDePrincipal(
         // Posterior también (AnadeFichaEmpresa): las clases que usan este contexto siembran Empresas sobre un
         // esquema sin las quince columnas de la ficha de Empresa 360.
         foreach (var campo in CamposDeLaFichaDeEmpresa) builder.Entity<Empresa>().Ignore(campo);
+        // AnadeFichaCentro es posterior a este esquema histórico.
+        foreach (var campo in CamposDeLaFichaDeCentro) builder.Entity<Centro>().Ignore(campo);
     }
+
+    private static readonly string[] CamposDeLaFichaDeCentro =
+    [
+        nameof(Centro.HorarioAcceso), nameof(Centro.ControlAccesosNombre), nameof(Centro.ControlAccesosTelefono),
+        nameof(Centro.TecnicoPrevencionNombre), nameof(Centro.TecnicoPrevencionTelefono), nameof(Centro.TecnicoPrevencionCorreo),
+        nameof(Centro.TrabajosEnAltura), nameof(Centro.EspaciosConfinados), nameof(Centro.AtmosferasExplosivas),
+    ];
 
     private static readonly string[] CamposDeLaFichaDeEmpresa =
     [
