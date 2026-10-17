@@ -98,6 +98,12 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Application/Retencion/EjecucionPurgaService.cs", ".IgnoreQueryFilters()")] = 2,
         [("src/CaeManager.Application/Retencion/DeteccionPurgaService.cs", ".IgnoreQueryFilters()")] = 2,
 
+        // Cuadro de dirección: activos a fecha de corte, altas y bajas del mes de
+        // Trabajadores y Centros necesitan las filas ya eliminadas (una baja ES la
+        // eliminación). Dos apariciones, una por tabla, cada una seguida de la
+        // comparación del TenantId con el Tenant del ámbito (falla cerrado sin él).
+        [("src/CaeManager.Application/Dashboard/Queries/ObtenerCuadroDireccionQuery.cs", ".IgnoreQueryFilters()")] = 2,
+
         // Resolución de tenant a partir de un webhook entrante (Graph/WhatsApp):
         // en ese punto todavía no hay tenant resuelto en el contexto — es
         // precisamente lo que esta consulta calcula — así que no hay filtro
