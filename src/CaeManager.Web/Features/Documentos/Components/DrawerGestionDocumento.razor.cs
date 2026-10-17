@@ -851,10 +851,14 @@ public partial class DrawerGestionDocumento : ComponentBase
 
             // El comando confirmó: el archivo ya tiene Documento propietario y
             // deja de ser candidato a descarte.
+            var conArchivoNuevo = _archivoUrlSubidoSinAdoptar is not null;
             _archivoUrlSubidoSinAdoptar = null;
 
+            // Sin archivo nuevo se corrigio el mismo registro: no se dice "renovado".
             ToastService.Mostrar(
-                _editandoId is null ? "Documento creado correctamente." : "Documento renovado correctamente.",
+                _editandoId is null ? "Documento creado correctamente."
+                : conArchivoNuevo ? "Documento renovado correctamente."
+                : TextosDrawerGestionDocumento.Texto("ToastDocumentoActualizado"),
                 TonoToast.Exito);
 
             var pendientes = _seguirTrasGuardar ? _pasosPendientes : [];

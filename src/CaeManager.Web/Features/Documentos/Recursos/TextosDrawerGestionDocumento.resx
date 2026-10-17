@@ -18,6 +18,9 @@
   <data name="GuardarEsperaSubida" xml:space="preserve">
     <value>Espera a que termine la subida del archivo.</value>
   </data>
+  <data name="ToastDocumentoActualizado" xml:space="preserve">
+    <value>Documento actualizado correctamente.</value>
+  </data>
   <data name="HistorialAbreVigente" xml:space="preserve">
     <value>Ese documento está en el historial: lo sustituyó otro. Abrimos el vigente.</value>
   </data>

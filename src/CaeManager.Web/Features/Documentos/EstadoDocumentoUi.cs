@@ -201,7 +201,8 @@ public static class EstadoDocumentoUi
     };
 
     /// <summary>
-    /// Botones de la franja de estado de los listados de propietarios (Trabajadores, Empresas, Vehículos), de peor
+    /// Botones de la franja de estado de los listados de propietarios (Empresas, Vehículos; Trabajadores usa
+    /// <see cref="FranjaDeTrabajadores"/>, que añade Faltante), de peor
     /// a mejor. «Por vencer» marca Urgente y Próximo a la vez, y «Sin incidencias» Vigente y Sin caducidad: es el
     /// mismo agrupado que hace <see cref="TextoDocumental"/> al rotular la fila, así que cada botón filtra
     /// exactamente las filas que llevan su rótulo. Se construye en cada lectura (textos localizados).
