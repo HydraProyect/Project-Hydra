@@ -685,7 +685,8 @@ if (args.Contains("--migrate-only"))
 // Modo del servicio "migrador" de staging y producción desde P0-2 (plan de
 // madurez 2026-09-24): hace TODO lo que el arranque normal hace con la base
 // —migrar y sembrar, en el mismo orden— y termina sin levantar Kestrel. Existe
-// porque dos seeders del arranque (IdentitySeeder y el backfill de asignaciones,
+// porque los seeders administrativos (IdentitySeeder, el backfill de asignaciones
+// y el catálogo inicial de plantillas de respuesta,
 // ver FabricaContextoDeBootstrap) necesitan la identidad del rol propietario, y
 // mientras la siembra corría en "app" ese contenedor tenía que recibir la
 // credencial del superusuario postgres durante toda su vida. Con este modo, esa
@@ -992,7 +993,7 @@ using (var scope = app.Services.CreateScope())
     // Siembra:AlArrancar=false en "app" de staging y producción desde P0-2: allí
     // siembra el servicio "migrador" con --preparar-arranque (ver el modo, más
     // arriba), que es el único contenedor con la credencial del rol propietario
-    // que piden FabricaContextoDeBootstrap y sus dos seeders. Sin ese apagador,
+    // que piden FabricaContextoDeBootstrap y sus seeders administrativos. Sin ese apagador,
     // "app" intentaría crear el contexto de bootstrap sin CaeManagerDb y el
     // arranque moriría. Por defecto (true) siembra aquí, como siempre: el
     // desarrollo local y el arnés E2E no declaran la variable.
@@ -1006,10 +1007,11 @@ using (var scope = app.Services.CreateScope())
         Fichas360DemoSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
         PilotoOutboundSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
 
-        // Identidad ADMINISTRATIVA para los dos seeders que no son trafico de
+        // Identidad ADMINISTRATIVA para los seeders que no son trafico de
         // aplicacion: IdentitySeeder escribe estado de sistema sin identidad de
-        // usuario, y el backfill de asignaciones es cross-tenant por diseno.
-        // Ninguno de los dos puede ejecutarse bajo un rol sometido a RLS por-tenant
+        // usuario; el backfill de asignaciones y la instalación de plantillas estáticas
+        // recorren los Tenants propietarios existentes, sin una sesión de usuario.
+        // No se ejecutan bajo un rol sometido a RLS por-tenant
         // — ver FabricaContextoDeBootstrap, que explica los dos fallos concretos.
         // Los demas seeders siguen con el contexto inyectado a proposito: operan
         // dentro de un AmbitoTenantExplicito, que es lo que las politicas piden.

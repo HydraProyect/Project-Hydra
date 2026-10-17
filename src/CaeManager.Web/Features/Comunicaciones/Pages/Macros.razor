@@ -1,4 +1,4 @@
-﻿@page "/comunicaciones/macros"
+@page "/comunicaciones/macros"
 @rendermode InteractiveServer
 @* Ver Bandeja.razor: mismo criterio de rol para todo el módulo. *@
 @attribute [Authorize(Roles = RolesComunicaciones.Gestion)]
@@ -217,7 +217,9 @@
                        Placeholder="El texto que se insertará en la respuesta"
                        MensajeError="@ObtenerError(nameof(CrearMacroCommand.CuerpoHtml))" />
         <p class="texto-ayuda-campo">
-            Se copia tal cual en el cuadro de respuesta, con sus saltos de línea; allí puedes retocarlo antes de enviar.
+            Variables disponibles: Empresa, Centro, Cliente empresarial, Trabajador, fecha de la visita y documentos pendientes.
+            Escríbelas entre dobles llaves, por ejemplo @("{{Empresa}}"). Se rellenan con los datos del hilo;
+            completa las pendientes y revisa los adjuntos antes de enviar.
         </p>
     </ChildContent>
     <Pie>

@@ -59,13 +59,13 @@ public class PlantillasRespuestaComposerTests : BunitContext
             .Add(c => c.OnEnviar, () => envios++));
         cut.FindAll("[role=alert] mark").Select(e => e.TextContent).Should().Equal("{{Empresa}}", "{{documentos pendientes}}");
         cut.Find(".composer-acciones button").HasAttribute("disabled").Should().BeTrue();
-        cut.Find(".composer-correo").KeyDown(new() { Key = "Enter", CtrlKey = true });
+        cut.Find(".composer-correo").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Enter", CtrlKey = true });
         envios.Should().Be(0);
 
         cut.Render(p => p.Add(c => c.Texto, "Hola Empresa Norte, falta el A1"));
         cut.FindAll("mark").Should().BeEmpty();
         cut.Find(".composer-acciones button").HasAttribute("disabled").Should().BeFalse();
-        cut.Find(".composer-correo").KeyDown(new() { Key = "Enter", CtrlKey = true });
+        cut.Find(".composer-correo").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Enter", CtrlKey = true });
         envios.Should().Be(1);
     }
 }

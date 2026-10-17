@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Common;
+using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;

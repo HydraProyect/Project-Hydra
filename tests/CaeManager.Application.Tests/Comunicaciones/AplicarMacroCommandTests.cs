@@ -6,6 +6,8 @@ using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Tests.TiposDocumento;
 using CaeManager.Application.Visitas;
+using CaeManager.Application.Reclamaciones;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Visitas;
@@ -22,11 +24,55 @@ public class AplicarMacroCommandTests
     private readonly CentrosQueryContextFalso _centros = new();
     private readonly TrabajadoresQueryContextFalso _trabajadores = new();
     private readonly VisitasVacias _visitas = new();
+    private readonly PendientesFalsos _pendientes = new();
+    private readonly DocumentosQueryContextFalso _documentos = new();
+    private readonly TiposDocumentoQueryContextFalso _tipos = new();
 
     private AplicarMacroCommandHandler Handler(AlcanceDatosServiceFalso? alcance = null) => new(
         _comunicaciones, _empresas, _centros, _trabajadores,
-        _visitas, new DocumentosQueryContextFalso(), new TiposDocumentoQueryContextFalso(),
+        _visitas, _documentos, _tipos, _pendientes,
         alcance ?? new AlcanceDatosServiceFalso(), _eventos, _unidad);
+
+    [Fact]
+    public async Task Solo_incluye_documentos_vencidos_del_sujeto_del_hilo_y_no_de_otra_Empresa()
+    {
+        var empresa = new Empresa("Empresa Norte");
+        _empresas.ListaEmpresas.Add(empresa);
+        var conversacion = new Conversacion("Documentación", empresaId: empresa.Id);
+        var macro = new MacroRespuesta("Vencidos", "{{documentos pendientes}}");
+        _comunicaciones.ListaConversaciones.Add(conversacion);
+        _comunicaciones.ListaMacrosRespuesta.Add(macro);
+        var vencido = new CaeManager.Domain.Documentos.TipoDocumento("Certificado vencido", 12, true, 1, CaeManager.Domain.Documentos.AmbitoAplicacion.Empresa);
+        var vigente = new CaeManager.Domain.Documentos.TipoDocumento("Certificado vigente", 12, true, 2, CaeManager.Domain.Documentos.AmbitoAplicacion.Empresa);
+        var ajeno = new CaeManager.Domain.Documentos.TipoDocumento("Documento ajeno", 12, true, 3, CaeManager.Domain.Documentos.AmbitoAplicacion.Empresa);
+        _tipos.ListaTiposDocumento.AddRange([vencido, vigente, ajeno]);
+        var hoy = DiaDeNegocio.Hoy();
+        _documentos.ListaDocumentos.AddRange([
+            CaeManager.Domain.Documentos.Documento.DeEmpresa(empresa.Id, vencido.Id, hoy.AddYears(-2), CaeManager.Domain.Documentos.VigenciaDocumento.VenceEl(hoy.AddDays(-1))),
+            CaeManager.Domain.Documentos.Documento.DeEmpresa(empresa.Id, vigente.Id, hoy.AddYears(-1), CaeManager.Domain.Documentos.VigenciaDocumento.VenceEl(hoy.AddDays(30))),
+            CaeManager.Domain.Documentos.Documento.DeEmpresa(Guid.NewGuid(), ajeno.Id, hoy.AddYears(-2), CaeManager.Domain.Documentos.VigenciaDocumento.VenceEl(hoy.AddDays(-1)))]);
+
+        var resultado = await Handler().Handle(new(conversacion.Id, macro.Id), CancellationToken.None);
+        resultado.Valor.Should().Be("Certificado vencido");
+    }
+
+    [Fact]
+    public async Task Los_documentos_pendientes_reutilizan_el_calculo_existente_para_la_Empresa_del_hilo()
+    {
+        var empresa = new Empresa("Empresa Norte");
+        _empresas.ListaEmpresas.Add(empresa);
+        var conversacion = new Conversacion("Documentación", empresaId: empresa.Id);
+        var macro = new MacroRespuesta("Pendientes", "Solicitamos {{documentos pendientes}}");
+        _comunicaciones.ListaConversaciones.Add(conversacion);
+        _comunicaciones.ListaMacrosRespuesta.Add(macro);
+        _pendientes.PorEmpresa = [new(empresa.Id, empresa.RazonSocial,
+            [new(null, null, null, Guid.NewGuid(), "Certificado A1", MotivoPendienteDeReclamacion.Ausente)])];
+
+        var resultado = await Handler().Handle(new(conversacion.Id, macro.Id), CancellationToken.None);
+
+        resultado.Valor.Should().Be("Solicitamos Certificado A1");
+        _pendientes.EmpresaConsultada.Should().Be(empresa.Id);
+    }
 
     [Fact]
     public async Task Rellena_la_Empresa_el_Trabajador_el_Centro_y_la_fecha_solo_desde_el_hilo()
@@ -116,5 +162,22 @@ public class AplicarMacroCommandTests
         public List<Visita> Lista { get; } = [];
         public IQueryable<Visita> Visitas => new TestAsyncQueryable<Visita>(Lista.AsQueryable());
         public IQueryable<VisitaTrabajador> VisitasTrabajadores => throw new NotSupportedException();
+    }
+
+    private sealed class PendientesFalsos : IPendientesDeReclamacionService
+    {
+        public IReadOnlyList<PendientesDeUnTitular> PorEmpresa { get; set; } = [];
+        public Guid? EmpresaConsultada { get; private set; }
+        public Task<IReadOnlyList<PendientesDeUnTitular>> ListarParaEmpresasAsync(Guid? empresaId, IReadOnlyList<Guid>? tipos, CancellationToken ct)
+        {
+            EmpresaConsultada = empresaId;
+            return Task.FromResult(PorEmpresa);
+        }
+        public Task<IReadOnlyList<PendientesDeUnTitular>> ListarParaClientesAsync(Guid? centroId, Guid? empresaDestinatariaId,
+            IReadOnlyCollection<Guid>? trabajadorIds, IReadOnlyList<Guid>? tipos, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<PendientesDeUnTitular>>([]);
+        public Task<Result<IReadOnlyList<DocumentoPendienteDto>>> ResolverParaClienteAsync(Guid id, IReadOnlyList<PendienteSinFecha> pedidos, CancellationToken ct) => throw new NotSupportedException();
+        public Task<Result<IReadOnlyList<DocumentoPendienteDto>>> ResolverParaEmpresaAsync(Guid id, IReadOnlyList<PendienteSinFecha> pedidos, CancellationToken ct) => throw new NotSupportedException();
+        public Task<IReadOnlySet<Guid>> DocumentoIdsAunSinConfirmarSinFechaAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) => throw new NotSupportedException();
     }
 }

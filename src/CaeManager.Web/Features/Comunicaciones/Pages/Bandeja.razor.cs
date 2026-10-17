@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Comunicaciones.Commands.AplicarMacro;
+using CaeManager.Application.Comunicaciones.Commands.AplicarMacro;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Web.Features.Documentos.Recursos;
@@ -846,6 +846,11 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private async Task AplicarMacro(string macroIdTexto)
     {
+        if (string.IsNullOrWhiteSpace(macroIdTexto))
+        {
+            _macroSeleccionadaId = string.Empty;
+            return;
+        }
         if (_aplicandoMacro || _conversacionSeleccionadaId is not { } conversacionId ||
             !Guid.TryParse(macroIdTexto, out var macroId)) return;
         _aplicandoMacro = true;

@@ -34,7 +34,7 @@ namespace CaeManager.Architecture.Tests;
 public class FronteraDeSeedersDeBootstrapTests
 {
     /// <summary>
-    /// Los únicos dos, con el motivo por el que no son tráfico de aplicación.
+    /// Seeders administrativos, con el motivo por el que no son tráfico de aplicación.
     /// </summary>
     private static readonly Dictionary<string, string> ConIdentidadAdministrativa = new()
     {
@@ -44,6 +44,9 @@ public class FronteraDeSeedersDeBootstrapTests
         ["AsignacionesOperativasBackfillSeeder"] =
             "es cross-tenant por diseño —lo declara al justificar IgnoreQueryFilters— y escribe una fila " +
             "por cada tenant en un solo SaveChanges",
+        ["PlantillasRespuestaSeeder"] =
+            "instala contenido estático de catálogo en los Tenants propietarios existentes durante el arranque; " +
+            "no lee ni copia datos operativos entre ellos y filtra cada consulta por el Tenant propietario",
     };
 
     /// <summary>
@@ -124,7 +127,7 @@ public class FronteraDeSeedersDeBootstrapTests
     }
 
     [Fact]
-    public void Solo_los_dos_seeders_administrativos_usan_el_contexto_de_bootstrap()
+    public void Solo_los_seeders_administrativos_declarados_usan_el_contexto_de_bootstrap()
     {
         var llamadas = LlamadasDelArranque();
 

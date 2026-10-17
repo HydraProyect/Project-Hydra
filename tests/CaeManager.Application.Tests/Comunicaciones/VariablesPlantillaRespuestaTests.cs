@@ -19,8 +19,12 @@ public class VariablesPlantillaRespuestaTests
         titulo.Should().NotBeEmpty();
         var valores = new Dictionary<string, string?>
         {
-            ["Empresa"] = "Empresa Norte", ["Centro"] = "Centro Sur", ["Cliente empresarial"] = "Empresa destinataria",
-            ["Trabajador"] = "Ana Pérez", ["fecha de la visita"] = "20/10/2026", ["documentos pendientes"] = "Certificado A1"
+            ["Empresa"] = "Empresa Norte",
+            ["Centro"] = "Centro Sur",
+            ["Cliente empresarial"] = "Empresa destinataria",
+            ["Trabajador"] = "Ana Pérez",
+            ["fecha de la visita"] = "20/10/2026",
+            ["documentos pendientes"] = "Certificado A1"
         };
         var resultado = VariablesPlantillaRespuesta.Rellenar(cuerpo, valores);
         VariablesPlantillaRespuesta.Pendientes(resultado).Should().BeEmpty();

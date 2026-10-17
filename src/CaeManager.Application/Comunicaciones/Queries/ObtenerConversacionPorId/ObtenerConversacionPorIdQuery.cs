@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Centros;
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Comunicaciones.Matching;
@@ -529,7 +529,7 @@ public class ObtenerConversacionPorIdQueryHandler(
 
         return eventosCrudos.Select(e => new EventoDetalleDto(e.Id, e.Tipo, e.ReferenciaId, e.FechaUtc,
             e.Tipo == TipoEventoConversacion.PlantillaAplicada
-                ? $"Se aplic? la plantilla {titulosPlantilla.GetValueOrDefault(e.ReferenciaId, "eliminada")} al borrador."
+                ? $"Se aplicó la plantilla {titulosPlantilla.GetValueOrDefault(e.ReferenciaId, "eliminada")} al borrador."
                 : DescribirEvento(
             e.Tipo, e.ReferenciaId, visitas, nombresCentroVisita, documentos, nombresTipoDocumentoEventos,
             nombresTrabajadorDocumentos, nombresEmpresaDocumentos, documentosPorReclamacion))).ToList();

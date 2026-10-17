@@ -5,6 +5,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas;
+using CaeManager.Application.Reclamaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
@@ -22,6 +23,7 @@ public class AplicarMacroCommandHandler(
     IVisitasQueryContext visitas,
     IDocumentosQueryContext documentos,
     ITiposDocumentoQueryContext tiposDocumento,
+    IPendientesDeReclamacionService pendientesDeReclamacion,
     IAlcanceDatosService alcanceDatos,
     IEventoConversacionRepository eventos,
     IUnitOfWork unitOfWork) : IRequestHandler<AplicarMacroCommand, Result<string>>
@@ -60,18 +62,29 @@ public class AplicarMacroCommandHandler(
             centroId = visitasDelHilo[0].CentroId;
         if (centroId is { } centro && !await alcanceDatos.CentroVisibleAsync(centro, cancellationToken)) centroId = null;
 
-        var documentosDelHilo = comunicaciones.EventosConversacion
-            .Where(e => e.ConversacionId == request.ConversacionId && e.Tipo == TipoEventoConversacion.DocumentoActualizado)
-            .Select(e => e.ReferenciaId);
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var nombresPendientes = await (
             from documento in documentos.Documentos
             join tipo in tiposDocumento.TiposDocumento on documento.TipoDocumentoId equals tipo.Id
-            where documentosDelHilo.Contains(documento.Id) && documento.FechaVencimiento < hoy &&
+            where documento.FechaVencimiento < hoy &&
                 ((trabajadorId != null && documento.TrabajadorId == trabajadorId) ||
                  (empresaId != null && documento.EmpresaId == empresaId))
             orderby tipo.Nombre
             select tipo.Nombre).Distinct().ToListAsync(cancellationToken);
+
+        // Reutiliza el cálculo documental existente para los ausentes y sin confirmar.
+        // Sin un Centro o Trabajador inequívoco no se amplía al conjunto de la cartera.
+        if (conversacion.ClienteId is { } empresaDestinatariaId && (centroId != null || trabajadorId != null))
+        {
+            var pendientes = await pendientesDeReclamacion.ListarParaClientesAsync(
+                centroId, empresaDestinatariaId, trabajadorId is { } id ? new[] { id } : null, null, cancellationToken);
+            nombresPendientes.AddRange(pendientes.SelectMany(p => p.Pendientes).Select(p => p.TipoDocumentoNombre));
+        }
+        if (empresaId != null)
+        {
+            var pendientes = await pendientesDeReclamacion.ListarParaEmpresasAsync(empresaId, null, cancellationToken);
+            nombresPendientes.AddRange(pendientes.SelectMany(p => p.Pendientes).Select(p => p.TipoDocumentoNombre));
+        }
 
         // Solo datos vinculados al hilo. Varias visitas o participantes no se eligen al azar.
         var valores = new Dictionary<string, string?>
@@ -80,8 +93,8 @@ public class AplicarMacroCommandHandler(
             ["Cliente empresarial"] = await empresas.Empresas.Where(e => e.Id == conversacion.ClienteId).Select(e => e.RazonSocial).FirstOrDefaultAsync(cancellationToken),
             ["Centro"] = await centros.Centros.Where(c => c.Id == centroId).Select(c => c.Nombre).FirstOrDefaultAsync(cancellationToken),
             ["Trabajador"] = await trabajadores.Trabajadores.Where(t => t.Id == trabajadorId).Select(t => t.Nombre + " " + t.Apellidos).FirstOrDefaultAsync(cancellationToken),
-            ["fecha de la visita"] = visitasDelHilo.Count == 1 && centroId != null ? visitasDelHilo[0].FechaInicio.ToString("dd/MM/yyyy") : null,
-            ["documentos pendientes"] = nombresPendientes.Count > 0 ? string.Join(", ", nombresPendientes) : null
+            ["fecha de la visita"] = visitasDelHilo.Count == 1 && visitasDelHilo[0].CentroId == centroId ? visitasDelHilo[0].FechaInicio.ToString("dd/MM/yyyy") : null,
+            ["documentos pendientes"] = nombresPendientes.Count > 0 ? string.Join(", ", nombresPendientes.Distinct().Order()) : null
         };
 
         var cuerpo = VariablesPlantillaRespuesta.Rellenar(macro.CuerpoHtml, valores);
