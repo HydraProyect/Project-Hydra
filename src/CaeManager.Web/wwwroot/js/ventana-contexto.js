@@ -35,9 +35,38 @@
             disparador.focus();
         }
         ventana.setAttribute(CERRADA, '');
+        sincronizarExpandida(ventana);
         evento.preventDefault();
         evento.stopImmediatePropagation();
     }, true);
+
+    // aria-expanded del disparador de una ventana interactiva: el panel se abre por CSS (puntero o
+    // foco) y Blazor no lo sabe, así que el atributo lo mantiene este script con la misma condición
+    // que el CSS —cursor encima o foco dentro— y descontando el cierre por Esc o por el botón de la hoja.
+    const sincronizarExpandida = function (ventana) {
+        if (!ventana || !ventana.isConnected) return;
+        const disparador = ventana.querySelector(':scope > .ventana-contexto-disparador');
+        if (!disparador) return;
+        const abierta = !ventana.hasAttribute(CERRADA)
+            && (ventana.matches(':hover') || ventana.contains(document.activeElement));
+        disparador.setAttribute('aria-expanded', abierta ? 'true' : 'false');
+    };
+
+    const ventanaDe = function (evento) {
+        return evento.target && evento.target.closest ? evento.target.closest(SELECTOR) : null;
+    };
+
+    // Botón de cierre de la hoja inferior de móvil (data-ventana-cerrar): marca la ventana como cerrada
+    // igual que Esc, y devuelve el foco al disparador para no perderlo al ocultarse el panel.
+    document.addEventListener('click', function (evento) {
+        const boton = evento.target && evento.target.closest ? evento.target.closest('[data-ventana-cerrar]') : null;
+        const ventana = boton ? boton.closest(SELECTOR) : null;
+        if (!ventana) return;
+        const disparador = ventana.querySelector(':scope > .ventana-contexto-disparador') || ventana;
+        disparador.focus();
+        ventana.setAttribute(CERRADA, '');
+        sincronizarExpandida(ventana);
+    });
 
     const reabrirSiAbandonada = function (ventana, destino) {
         if (!ventana || ventana.contains(destino)) return;
@@ -47,6 +76,7 @@
             if (!ventana.isConnected) return;
             if (ventana.matches(':hover') || ventana.contains(document.activeElement)) return;
             ventana.removeAttribute(CERRADA);
+            sincronizarExpandida(ventana);
         });
     };
 
@@ -54,10 +84,22 @@
         return evento.target && evento.target.closest ? evento.target.closest('[' + CERRADA + ']') : null;
     };
 
+    // Tras cada entrada o salida de puntero o foco se recalcula aria-expanded en el siguiente frame:
+    // :hover y document.activeElement aún no reflejan el destino cuando el evento se dispara.
+    const sincronizarTrasEvento = function (evento) {
+        const ventana = ventanaDe(evento);
+        if (!ventana) return;
+        requestAnimationFrame(function () { sincronizarExpandida(ventana); });
+    };
+
+    document.addEventListener('pointerover', sincronizarTrasEvento);
+    document.addEventListener('focusin', sincronizarTrasEvento);
     document.addEventListener('pointerout', function (evento) {
         reabrirSiAbandonada(cerradaDe(evento), evento.relatedTarget);
+        sincronizarTrasEvento(evento);
     });
     document.addEventListener('focusout', function (evento) {
         reabrirSiAbandonada(cerradaDe(evento), evento.relatedTarget);
+        sincronizarTrasEvento(evento);
     });
 })();

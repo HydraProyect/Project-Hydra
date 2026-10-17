@@ -7,24 +7,69 @@
        visible aunque haya un overlay abierto encima. */
     z-index: 1100;
     display: flex;
-    flex-direction: column;
+    /* column-reverse: el DOM sigue en orden de llegada (el lector de pantalla los anuncia así) y
+       a la vista el más reciente queda arriba (revisión de Design, 2026-10-17, §N). */
+    flex-direction: column-reverse;
     gap: var(--space-2);
     max-width: 360px;
 }
 
+/* Fondo inverso y único para todos los tonos (--color-toast-fondo / --color-toast-texto, un par por
+   tema): el tono lo llevan el icono y la barra de tiempo, vía --toast-tono (ver las variantes).
+   Radio --radius-md, como el resto de superposiciones pequeñas. */
 .toast {
+    --toast-tono: var(--color-toast-info);
     position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
-    padding: var(--space-3) var(--space-4);
-    border-radius: var(--radius-card-sm);
+    padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background-color: var(--color-toast-fondo);
     box-shadow: var(--shadow-overlay);
     font: var(--font-body-md);
-    color: var(--color-neutral-0);
+    color: var(--color-toast-texto);
     overflow: hidden;
     animation: entrar-toast var(--motion-slow) var(--ease-standard);
+}
+
+/* Móvil: la pila baja a la parte inferior, a todo el ancho menos 16 px (8 por lado) y por encima de las
+   barras fijas (la de acciones mide 76 px, más 8 de aire). Entra desde abajo, no desde el lado. Va antes
+   del bloque de movimiento reducido para que éste, al ser posterior, siga ganando. */
+@media (max-width: 767px) {
+    .anfitrion-toasts {
+        top: auto;
+        right: var(--space-2);
+        bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+        left: var(--space-2);
+        max-width: none;
+    }
+
+    .toast {
+        animation-name: entrar-toast-movil;
+    }
+
+    /* 44 px de alto táctil para «Deshacer» y para cerrar. */
+    .toast .toast-accion,
+    .toast .toast-cerrar {
+        min-height: 44px;
+    }
+
+    .toast .toast-cerrar {
+        min-width: 44px;
+    }
+}
+
+@keyframes entrar-toast-movil {
+    from {
+        opacity: 0;
+        transform: translateY(24px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @keyframes entrar-toast {
@@ -55,25 +100,30 @@
     line-height: 1;
 }
 
-/* --color-info-600, no -500: el texto del toast es --color-neutral-0 fijo
-   (.toast), así que el fondo no puede aclararse en tema oscuro. El -500 sí lo
-   hace desde esta PR, porque su papel es el contrario —texto informativo sobre
-   fondo claro— y con él aquí el toast caía a 1,99:1. Con el -600: 10,51:1 en
-   los dos temas, igual que .toast-exito y .toast-error. */
+/* El tono ya no pinta el fondo, solo el color de su icono y de su barra de tiempo. Cada color de tono
+   tiene valor propio por tema (tokens.css) para leerse sobre el fondo inverso. */
 .toast-info {
-    background-color: var(--color-info-600);
+    --toast-tono: var(--color-toast-info);
 }
 
 .toast-exito {
-    background-color: var(--color-success-500);
+    --toast-tono: var(--color-toast-exito);
 }
 
 .toast-advertencia {
-    background-color: var(--color-warning-500);
+    --toast-tono: var(--color-toast-aviso);
 }
 
 .toast-error {
-    background-color: var(--color-danger-500);
+    --toast-tono: var(--color-toast-error);
+}
+
+/* Icono del tono (y marca trazada del éxito, que hereda currentColor). El texto se queda en
+   --color-toast-texto: WCAG 1.4.1, el tono no va solo en el color porque cada tono tiene su icono. */
+.toast .toast-icono {
+    flex: none;
+    display: inline-flex;
+    color: var(--toast-tono);
 }
 
 /* El botón de cerrar lleva icono, no glifo: inline-flex centra el svg dentro
@@ -86,19 +136,37 @@
     justify-content: center;
 }
 
-/* La acción ("Deshacer") tiene que distinguirse del botón de cerrar — es la interacción esperable, no un descarte. */
-.toast-accion {
-    font-weight: 600;
-    text-decoration: underline;
-    text-underline-offset: 2px;
+/* La acción ("Deshacer") tiene que distinguirse del botón de cerrar — es la interacción esperable, no un descarte.
+   Lleva su propio color (--color-toast-accion, legible sobre el fondo inverso de cada tema), en negrita y sin
+   subrayado. Doble clase para ganar a ".toast button", que fija color: inherit. */
+.toast .toast-accion {
+    color: var(--color-toast-accion);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1rem;
     white-space: nowrap;
+}
+
+/* El botón de cerrar es un botón de 28 px, no un glifo suelto. */
+.toast .toast-cerrar {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    opacity: 0.8;
+}
+
+.toast .toast-cerrar:hover,
+.toast .toast-cerrar:focus-visible {
+    opacity: 1;
 }
 
 /* Segundos que quedan para «Deshacer»: cifras de ancho fijo para que el aviso no baile al cambiar. */
 .toast-cuenta {
+    font-size: 0.75rem;
+    line-height: 1rem;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
-    opacity: 0.8;
+    opacity: 0.75;
 }
 
 /*
@@ -113,7 +181,9 @@
     bottom: 0;
     height: 3px;
     width: 100%;
-    background-color: rgba(255, 255, 255, 0.55);
+    /* El color del tono, atenuado: sobre el fondo inverso el blanco fijo de antes ya no se ve en oscuro. */
+    background-color: var(--toast-tono);
+    opacity: 0.8;
     transform-origin: left;
     animation-name: vaciar-progreso;
     animation-timing-function: linear;

@@ -44,13 +44,12 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>Deuda declarada, no cerrada: rellenos de color semántico con letra blanca.</b>
-/// <c>--color-danger-500</c> (#ef4444, botón destructivo, toast de error, banda de error del
-/// framework, contador de avisos) da 3,76:1 con blanco en los DOS temas (también en claro);
-/// <c>--color-success-500</c> (toast de éxito) 2,28:1 y <c>--color-warning-500</c> (toast de
-/// advertencia) 2,15:1. Arreglarlos exige otro color de fondo (o letra oscura), y eso cambia el
-/// tema claro: es decisión de producto (sistema de diseño), no de este incremento. Mientras
-/// tanto cada par lleva un mínimo rebajado a su valor de hoy para que no empeore, y el test de
-/// deuda falla en cuanto cumpla AA.
+/// <c>--color-danger-500</c> (#ef4444, botón destructivo, banda de error del framework,
+/// contador de avisos) da 3,76:1 con blanco en los DOS temas (también en claro). Arreglarlo
+/// exige otro color de fondo (o letra oscura), y eso cambia el tema claro: es decisión de
+/// producto (sistema de diseño), no de este incremento. Mientras tanto cada par lleva un mínimo
+/// rebajado a su valor de hoy para que no empeore, y el test de deuda falla en cuanto cumpla AA.
+/// (Los toasts salieron de esta deuda el 2026-10-17: fondo inverso <c>--color-toast-fondo</c>.)
 /// </para>
 ///
 /// <para>
@@ -113,14 +112,10 @@ public class ContrasteDeComponentesPorTemaTests
             FondoSiFalta: "var(--color-surface)"),
         new("Cancelar de la espera", Espera, [".boton-espera-cancelar"], FondoSiFalta: "var(--color-surface)"),
 
-        // ---- Toasts: la letra está en .toast y el fondo en la variante, por eso el barrido no los ve ----
-        new("Toast informativo", Toast, [".toast", ".toast-info"]),
-        // DEUDA (ver resumen): blanco sobre --color-success-500 (#22c55e) = 2,28:1 en los dos temas.
-        new("Toast de éxito (deuda: 2,28:1 en los dos temas)", Toast, [".toast", ".toast-exito"], Minimo: 2.2),
-        // DEUDA: blanco sobre --color-warning-500 (#f59e0b) = 2,15:1 en los dos temas.
-        new("Toast de advertencia (deuda: 2,15:1 en los dos temas)", Toast, [".toast", ".toast-advertencia"], Minimo: 2.1),
-        // DEUDA: blanco sobre --color-danger-500 (#ef4444) = 3,76:1.
-        new("Toast de error (deuda: 3,76:1 en los dos temas)", Toast, [".toast", ".toast-error"], Minimo: 3.7),
+        // ---- Toasts: fondo inverso y único (--color-toast-fondo / -texto, un par por tema) para todos los tonos.
+        // Desde la revisión de Design de 2026-10-17 (§N) ya no hay deuda: antes éxito 2,28:1, aviso 2,15:1 y error 3,76:1. ----
+        new("Toast (texto sobre el fondo inverso, todos los tonos)", Toast, [".toast"]),
+        new("Acción del toast («Deshacer»)", Toast, [".toast .toast-accion"], FondoSiFalta: "var(--color-toast-fondo)"),
 
         // ---- Badges ----
         new("Badge neutro", Badge, [".badge-neutro"]),
@@ -459,6 +454,41 @@ public class ContrasteDeComponentesPorTemaTests
 
         string.Join("\n", fallos).Should().BeEmpty(
             "un relleno gráfico (bolo, conector, pista) tiene que distinguirse >= 3:1 de lo que tiene detrás en los dos temas");
+    }
+
+    /// <summary>
+    /// Los cuatro colores de tono del toast (icono y barra de tiempo) tienen que distinguirse a 3:1 del fondo inverso de
+    /// su tema (WCAG 1.4.11, no son texto), y el texto y la acción a 4,5:1. Los pares de <see cref="Pares"/> miden el texto
+    /// y la acción por su regla; los tonos van por variable local (<c>--toast-tono</c>) y este barrido no los ve.
+    /// </summary>
+    [Theory]
+    [InlineData("oscuro")]
+    [InlineData("claro")]
+    public void Los_colores_de_tono_del_toast_se_leen_sobre_su_fondo_inverso(string tema)
+    {
+        var tokens = Tokens.Desde(File.ReadAllText(RutaTokensCss()));
+        string R(string token) => tokens.IntentarResolver($"var({token})", tema)!;
+        var fondo = R("--color-toast-fondo");
+        fondo.Should().NotBeNull($"--color-toast-fondo debe resolverse en {tema}");
+
+        var insuficientes = new List<string>();
+        foreach (var tono in new[] { "exito", "error", "aviso", "info" })
+        {
+            var ratio = Contraste(R($"--color-toast-{tono}"), fondo);
+            if (ratio < 3.0) insuficientes.Add($"--color-toast-{tono} {ratio:0.00}:1");
+        }
+
+        foreach (var texto in new[] { "texto", "accion" })
+        {
+            var ratio = Contraste(R($"--color-toast-{texto}"), fondo);
+            if (ratio < UmbralAa) insuficientes.Add($"--color-toast-{texto} {ratio:0.00}:1");
+        }
+
+        insuficientes.Should().BeEmpty($"icono y barra (>= 3:1) y texto y acción (>= 4,5:1) del toast sobre su fondo en {tema}");
+
+        // El fondo del toast es el inverso de la superficie: si coincidiera con ella el toast se fundiría con la página.
+        Contraste(fondo, R("--color-surface")).Should().BeGreaterThan(3.0,
+            $"un toast tiene que destacar de la superficie sobre la que flota en {tema}");
     }
 
     [Fact]
