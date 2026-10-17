@@ -33,9 +33,9 @@
             <Badge Tono="EstadoConversacionPresentacion.Tono(Conversacion.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoConversacionPresentacion.Etiqueta(TextosEstados, Conversacion.Estado)</Badge>
             @if (Conversacion.SlaRestante is { } restante)
             {
-                <Badge Tono="@(Conversacion.VencimientoSlaUtc <= DateTime.UtcNow ? TonoBadge.Peligro : TonoBadge.Neutro)" Tamano="TamanoBadge.Pequeno"
+                <Badge Tono="@(SlaVencido ? TonoBadge.Peligro : TonoBadge.Neutro)" Tamano="TamanoBadge.Pequeno"
                        title="@TextosPlazos["AyudaSla"]">
-                    @TextosPlazos["RelojSla", TextosPlazos[Conversacion.Prioridad.ToString()].Value, Conversacion.VencimientoSlaUtc <= DateTime.UtcNow ? TextosPlazos["Vencido"].Value : "", Math.Abs((int)restante.TotalHours), Math.Abs(restante.Minutes)]
+                    @RelojSla(restante)
                 </Badge>
             }
             @if (Conversacion.MensajesRuido > 0)
@@ -52,6 +52,12 @@
 @code {
     [Parameter, EditorRequired] public ConversacionListaDto Conversacion { get; set; } = default!;
     [Parameter] public bool Activa { get; set; }
+
+    private bool SlaVencido => Conversacion.VencimientoSlaUtc <= DateTime.UtcNow;
+
+    private string RelojSla(TimeSpan restante) => TextosPlazos["RelojSla",
+        TextosPlazos[Conversacion.Prioridad.ToString()].Value, SlaVencido ? TextosPlazos["Vencido"].Value : "",
+        Math.Abs((int)restante.TotalHours), Math.Abs(restante.Minutes)];
 
     /// <summary>Fila marcada por j/k (todavía no abierta): lleva la clase que <c>atajos-lista.js</c> usa para darle foco de DOM.</summary>
     [Parameter] public bool Enfocada { get; set; }

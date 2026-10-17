@@ -133,7 +133,7 @@
                     <CampoTexto Placeholder="Buscar conversaciones…" Valor="@_busqueda" ValorChanged="async v => { _busqueda = v; await AplicarFiltrosAsync(); }" />
 
                     <div class="bandeja-toggles">
-                        <button type="button" class="bandeja-toggle @(!_soloAsignadasAMi && !_soloSinAsignar && !_soloEsperandoCliente ? "bandeja-toggle-activo" : null)" @onclick="VerTodasAsync">
+                        <button type="button" class="bandeja-toggle @(!_soloAsignadasAMi && !_soloSinAsignar && !_soloEsperandoCliente && !_soloFueraDeSla ? "bandeja-toggle-activo" : null)" @onclick="VerTodasAsync">
                             Todas
                         </button>
                         <button type="button" class="bandeja-toggle @(_soloAsignadasAMi ? "bandeja-toggle-activo" : null)" @onclick="FiltrarAsignadasAMiAsync">
@@ -145,12 +145,14 @@
                         <button type="button" class="bandeja-toggle @(_soloEsperandoCliente ? "bandeja-toggle-activo" : null)" @onclick="AlternarEsperandoCliente">
                             Esperando respuesta externa
                         </button>
+                        <button type="button" class="bandeja-toggle @(_soloFueraDeSla ? "bandeja-toggle-activo" : null)" aria-pressed="@_soloFueraDeSla" @onclick="AlternarFueraDeSlaAsync">
+                            @TextosPlazos["FueraDeSla"]
+                        </button>
                     </div>
 
                     <details class="bandeja-filtros-avanzados">
                         <summary>Más filtros</summary>
                         <div class="bandeja-filtros-avanzados-campos">
-                            <Boton Variante="@(_soloFueraDeSla ? VarianteBoton.Primario : VarianteBoton.Secundario)" OnClick="AlternarFueraDeSlaAsync" aria-pressed="@_soloFueraDeSla">@TextosPlazos["FueraDeSla"]</Boton>
                             <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="async v => { _estadoFiltro = v; await AplicarFiltrosAsync(); }">
                                 <option value="">Todos los estados</option>
                                 @foreach (var estado in EstadoConversacionPresentacion.EnOrdenDeSelector)
