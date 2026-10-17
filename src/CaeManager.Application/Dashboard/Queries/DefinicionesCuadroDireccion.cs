@@ -17,6 +17,9 @@ public enum EstadoCifraMensual
     /// cierre mensual que la congele (decisión 5 del Cuadro de dirección, 2026-10-17).
     /// </summary>
     Estimado,
+
+    /// <summary>Foto persistida al cierre del mes, sin reconstrucción histórica.</summary>
+    Existe,
 }
 
 /// <summary>
