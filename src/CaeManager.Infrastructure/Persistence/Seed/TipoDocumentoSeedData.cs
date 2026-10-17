@@ -35,8 +35,8 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// <see cref="AliasesPorId"/>) para que nada que busque por el nombre viejo
 /// deje de encontrarlo.
 ///
-/// Revisión del catálogo aprobada el 2026-10-17 (Project-Hydra-Negocio/tecnico/piloto-outbound-2026-10/
-/// CATALOGO-TIPOS-DOCUMENTO-REVISION-2026-10-17.md): cada tipo lleva grupo (<see cref="GrupoPorId"/>); los
+/// Revisión del catálogo aprobada el 2026-10-17 (revisión del catálogo de tipos de documento del piloto Outbound,
+/// en Project-Hydra-Negocio): cada tipo lleva grupo (<see cref="GrupoPorId"/>); los
 /// patrones G (horas en el nombre) y H (artículo en el nombre) se resuelven con nombres funcionales, y el nombre
 /// anterior queda como alias; las horas y el nivel pasan a ser datos del documento
 /// (<see cref="DatosAdicionalesPorId"/>). Las formaciones de convenio de 60 h, 20 h y 6 h siguen siendo tres

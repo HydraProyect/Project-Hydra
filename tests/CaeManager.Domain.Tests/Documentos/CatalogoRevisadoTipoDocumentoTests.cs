@@ -18,7 +18,8 @@ public class CatalogoRevisadoTipoDocumentoTests
         new(nombre, null, false, 1, ambito, requerido, NaturalezaJuridica.RequisitoCliente, null);
 
     private static void SellarTenant(object entidad, Guid tenant) =>
-        entidad.GetType().GetProperty("TenantId")!.SetValue(entidad, tenant);
+        // El setter privado está declarado en EntidadConTenant: reflejarlo desde el tipo derivado no lo devuelve.
+        typeof(EntidadConTenant).GetProperty(nameof(EntidadConTenant.TenantId))!.SetValue(entidad, tenant);
 
     [Fact]
     public void Archivar_con_sustituto_retira_el_tipo_y_deja_de_pedirlo_de_serie()
