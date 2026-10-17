@@ -39,6 +39,15 @@ public partial class MiAvatar : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Lo que se guardaría ahora: <c>null</c> mientras no haya animal elegido.</summary>
     private string? ClaveElegida => _motivo is null ? null : CatalogoAvatares.Clave(_motivo, _tono);
 
+    /// <summary>Hay algo distinto de lo guardado: la clave elegida no es la de la cuenta.</summary>
+    private bool HayCambios => ClaveElegida != _guardada;
+
+    private string TextoDeEstado =>
+        _guardando ? Textos["AvatarGuardando"]
+        : HayCambios ? Textos["AvatarCambiosSinGuardar"]
+        : _guardada is null && _motivo is null ? Textos["AvatarSinAvatarElegido"]
+        : Textos["AvatarSinCambios"];
+
     protected override Task OnInitializedAsync() => CargarAsync();
 
     private async Task CargarAsync()
@@ -94,7 +103,7 @@ public partial class MiAvatar : CaeManager.Web.Components.PaginaInteractiva
             var resultado = await Mediator.Send(new ElegirAvatarPropioCommand(clave));
             if (resultado.EsFallido)
             {
-                Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                AvisarErrorAlGuardar(resultado.Error.Mensaje, clave);
                 return;
             }
 
@@ -106,9 +115,22 @@ public partial class MiAvatar : CaeManager.Web.Components.PaginaInteractiva
             // avatar cuando el servidor pinta la página otra vez.
             Navegacion.Refresh();
         }
+        catch (Exception excepcion) when (excepcion is not OperationCanceledException)
+        {
+            Logger.LogError(excepcion, "No se pudo guardar el avatar de la cuenta");
+            AvisarErrorAlGuardar(Textos["AvatarErrorGuardar"], clave);
+        }
         finally
         {
             _guardando = false;
         }
     }
+
+    /// <summary>Toast de error con «Reintentar»: repite el mismo guardado, sin perder lo elegido.</summary>
+    private void AvisarErrorAlGuardar(string mensaje, string? clave) =>
+        Toasts.Mostrar(mensaje, TonoToast.Error, Textos["AvatarReintentar"], async () =>
+        {
+            await GuardarAsync(clave);
+            await InvokeAsync(StateHasChanged);
+        });
 }

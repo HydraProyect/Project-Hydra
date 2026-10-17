@@ -178,7 +178,7 @@
     <value>Guardar avatar</value>
   </data>
   <data name="AvatarUsarIniciales" xml:space="preserve">
-    <value>Usar mis iniciales</value>
+    <value>Volver a mis iniciales</value>
   </data>
   <data name="AvatarGuardado" xml:space="preserve">
     <value>Avatar guardado.</value>
@@ -194,6 +194,24 @@
   </data>
   <data name="AvatarReintentar" xml:space="preserve">
     <value>Reintentar</value>
+  </data>
+  <data name="AvatarSinCambios" xml:space="preserve">
+    <value>Sin cambios</value>
+  </data>
+  <data name="AvatarCambiosSinGuardar" xml:space="preserve">
+    <value>Cambios sin guardar</value>
+  </data>
+  <data name="AvatarGuardando" xml:space="preserve">
+    <value>Guardando…</value>
+  </data>
+  <data name="AvatarSinAvatarElegido" xml:space="preserve">
+    <value>Aún no has elegido avatar: te ven con tus iniciales.</value>
+  </data>
+  <data name="AvatarErrorGuardar" xml:space="preserve">
+    <value>No pudimos guardar el avatar.</value>
+  </data>
+  <data name="AvatarCargando" xml:space="preserve">
+    <value>Cargando tu avatar</value>
   </data>
   <data name="AvatarTono_azul" xml:space="preserve">
     <value>Azul</value>

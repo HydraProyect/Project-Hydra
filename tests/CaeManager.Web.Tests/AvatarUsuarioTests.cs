@@ -76,6 +76,52 @@ public class AvatarUsuarioTests : BunitContext
         cut.Find("span.avatar-usuario").ClassList.Should().Contain(clase);
     }
 
+    // ---- Variantes «Sistema» y «Usuario eliminado» (revisión de Design, 2026-10-17, §A) ----
+
+    [Fact]
+    public void La_variante_Sistema_pinta_el_rombo_e_ignora_el_nombre_y_el_avatar()
+    {
+        var cut = Render<AvatarUsuario>(p => p
+            .Add(x => x.Variante, VarianteAvatarUsuario.Sistema)
+            .Add(x => x.Nombre, "Marta Ibarra")
+            .Add(x => x.Avatar, "buho-ambar"));
+
+        var avatar = cut.Find("span.avatar-usuario");
+        avatar.ClassList.Should().Contain("avatar-usuario-sistema");
+        avatar.ClassList.Should().NotContain(c => c.StartsWith("avatar-usuario-tono-") || c == "avatar-usuario-emoji");
+        avatar.GetAttribute("aria-hidden").Should().Be("true", "«Sistema» lo dice el texto de al lado");
+        cut.Find(".avatar-usuario-marca").TextContent.Should().Be("◆");
+        avatar.TextContent.Should().NotContain("MI").And.NotContain("🦉");
+    }
+
+    [Fact]
+    public void La_variante_Eliminado_pinta_la_interrogacion_y_no_las_iniciales_de_un_nombre_borrado()
+    {
+        var cut = Render<AvatarUsuario>(p => p
+            .Add(x => x.Variante, VarianteAvatarUsuario.Eliminado)
+            .Add(x => x.Nombre, "Marta Ibarra")
+            .Add(x => x.Tamano, TamanoAvatarUsuario.Pequeno));
+
+        var avatar = cut.Find("span.avatar-usuario");
+        avatar.ClassList.Should().Contain(["avatar-usuario-eliminado", "avatar-usuario-pequeno"]);
+        cut.Find(".avatar-usuario-marca").TextContent.Should().Be("?");
+        avatar.TextContent.Should().NotContain("MI");
+    }
+
+    [Fact]
+    public void El_emoji_lleva_el_anillo_interior_y_el_css_declara_las_dos_variantes_con_sus_tokens()
+    {
+        var emoji = Render<AvatarUsuario>(p => p.Add(x => x.Avatar, "zorro-azul")).Find("span.avatar-usuario");
+        emoji.ClassList.Should().Contain("avatar-usuario-emoji", "el anillo interior es solo del emoji: las iniciales no lo llevan");
+        Render<AvatarUsuario>(p => p.Add(x => x.Nombre, "Marta Ibarra")).Find("span.avatar-usuario")
+            .ClassList.Should().NotContain("avatar-usuario-emoji");
+
+        var css = File.ReadAllText(Path.Combine(RaizWeb(), "Components", "DesignSystem", "AvatarUsuario.razor.css"));
+        css.Should().MatchRegex(@"\.avatar-usuario-emoji\s*\{[^}]*var\(--color-avatar-anillo\)");
+        css.Should().MatchRegex(@"\.avatar-usuario-eliminado\s*\{[^}]*dashed");
+        css.Should().MatchRegex(@"\.avatar-usuario-sistema\s*\{");
+    }
+
     // ---- El catálogo y lo que Web le debe: un tono sin regla o un motivo sin nombre no falla al compilar ----
 
     [Fact]

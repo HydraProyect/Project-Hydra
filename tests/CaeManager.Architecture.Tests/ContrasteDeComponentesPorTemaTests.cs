@@ -599,12 +599,14 @@ public class ContrasteDeComponentesPorTemaTests
     /// con un formato que el instrumento no entiende hace fallar el test en vez de entrar sin medir, y una
     /// que se arregla obliga a bajar la constante (la igualdad es estricta, para que el hueco liberado no lo
     /// ocupe otra regla sin medir). Se cuenta la unión de los dos temas.
-    /// Las 9 de hoy: dos de la caja del editor (color-mix, medidas en <see cref="Pares"/> sobre el papel), cuatro de
+    /// Las 10 de hoy: dos de la caja del editor (color-mix, medidas en <see cref="Pares"/> sobre el papel), cuatro de
     /// AccesoLayout (pantalla de acceso de tema fijo, con rgba), una de Importación (rgba sobre el paso actual,
-    /// medida arriba con la letra de superficie) y dos iconos: uno toma el color de una propiedad local de Razor
-    /// (<c>--estado-vacio-acento</c>) y el otro un tinte que no es #rrggbb (<c>--color-system-tint</c>).
+    /// medida arriba con la letra de superficie) y tres que toman un color que el instrumento no resuelve: el icono de
+    /// un estado vacío (propiedad local de Razor, <c>--estado-vacio-acento</c>) y dos con el tinte de sistema, que no es
+    /// #rrggbb (<c>--color-system-tint</c>): el icono de procedencia y, desde el 2026-10-17 (§A), el avatar «Sistema». De
+    /// este último el par se calculó a mano (ver <c>ContrasteDeAvataresPorTemaTests</c>): ◆ es una marca, no texto.
     /// </summary>
-    private const int OmitidasHoy = 9;
+    private const int OmitidasHoy = 10;
 
     [Fact]
     public void El_barrido_no_omite_en_silencio_mas_reglas_de_las_que_omite_hoy()

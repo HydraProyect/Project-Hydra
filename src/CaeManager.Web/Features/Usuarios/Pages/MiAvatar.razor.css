@@ -71,6 +71,26 @@
     gap: var(--space-2);
 }
 
+/* Rejilla fija de animales: 8 columnas de 52 px (6 en móvil, que se reparten el ancho) en
+   lugar de un flex-wrap cuyo corte de línea dependía del ancho disponible. */
+.mi-emblema-rejilla {
+    display: grid;
+    grid-template-columns: repeat(8, 52px);
+    gap: var(--space-2);
+}
+
+.mi-emblema-rejilla .mi-emblema-opcion {
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    padding: 0;
+}
+
+.mi-emblema-estado {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
 /* La opción es la etiqueta de un radio nativo: flechas, espacio y foco los pone el
    navegador. El radio se oculta a la vista, no al teclado ni al lector de pantalla. */
 .mi-emblema-opcion {
@@ -117,8 +137,123 @@
     transform: scale(1.15) rotate(-8deg);
 }
 
+/* «Volver a mis iniciales»: es la salida, no una acción par de «Guardar avatar». */
+.mi-emblema ::deep .mi-emblema-iniciales {
+    align-self: flex-start;
+}
+
 .mi-emblema-acciones {
     display: flex;
-    flex-wrap: wrap;
     gap: var(--space-3);
+}
+
+/* Esqueleto con la forma de la pantalla (vista previa y rejilla): mismos tokens por tema que
+   Esqueleto, y el brillo se apaga con movimiento reducido. */
+.mi-emblema-esqueleto {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+.mi-emblema-esqueleto-vista {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.mi-emblema-esqueleto-textos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.mi-emblema-esqueleto-rejilla {
+    display: grid;
+    grid-template-columns: repeat(8, 52px);
+    gap: var(--space-2);
+}
+
+.mi-emblema-esqueleto-bloque {
+    display: block;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(90deg, var(--color-esqueleto-base) 25%, var(--color-esqueleto-brillo) 37%, var(--color-esqueleto-base) 63%);
+    background-size: 400% 100%;
+    animation: mi-emblema-esqueleto-brillo 1.4s var(--ease-fluid) infinite;
+}
+
+.mi-emblema-esqueleto-redondo,
+.mi-emblema-esqueleto-celda {
+    border-radius: var(--radius-full);
+}
+
+.mi-emblema-esqueleto-redondo {
+    width: 56px;
+    height: 56px;
+}
+
+.mi-emblema-esqueleto-celda {
+    width: 52px;
+    height: 52px;
+}
+
+.mi-emblema-esqueleto-titulo {
+    width: 120px;
+    height: 12px;
+}
+
+.mi-emblema-esqueleto-detalle {
+    width: 80px;
+    height: 10px;
+}
+
+@keyframes mi-emblema-esqueleto-brillo {
+    0% { background-position: 100% 50%; }
+    100% { background-position: 0 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mi-emblema-esqueleto-bloque {
+        animation: none;
+    }
+}
+
+/* Móvil: rejilla de 6 columnas que se reparten el ancho y «Guardar avatar» en barra fija
+   inferior de 48 px. El relleno inferior de la tarjeta evita que la barra tape el último
+   control, y el toast ya sube por encima de ella (AnfitrionToasts). */
+@media (max-width: 640px) {
+    .mi-emblema {
+        padding-bottom: calc(48px + var(--space-8));
+    }
+
+    .mi-emblema-rejilla,
+    .mi-emblema-esqueleto-rejilla {
+        grid-template-columns: repeat(6, minmax(44px, 1fr));
+    }
+
+    .mi-emblema-rejilla .mi-emblema-opcion {
+        width: auto;
+        aspect-ratio: 1;
+        height: auto;
+        min-height: 44px;
+    }
+
+    .mi-emblema-esqueleto-celda {
+        width: auto;
+        aspect-ratio: 1;
+    }
+
+    .mi-emblema-acciones {
+        position: fixed;
+        inset-inline: 0;
+        bottom: 0;
+        z-index: 1030;
+        padding: var(--space-3) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+        background-color: var(--color-surface);
+        border-top: var(--border-default);
+    }
+
+    .mi-emblema-acciones ::deep .mi-emblema-guardar {
+        width: 100%;
+        height: 48px;
+    }
 }

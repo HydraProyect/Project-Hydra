@@ -79,28 +79,21 @@ else if (_error)
 else if (_grupos.Count > 0)
 {
     var titulo = Textos[_desdeElPropietario ? "GestorCaeTituloPropietario" : "GestorCaeTitulo"].Value;
-    var tramos = TramosALaVista();
-    var total = _grupos.Sum(g => g.Principales.Count + g.Apoyos.Count);
-    var ocultas = total - tramos.Sum(t => t.Piezas.Count(p => p.Persona is not null));
-    // En móvil solo se deja a la vista la primera persona: «+N» cuenta todas las demás.
-    var ocultasEnMovil = total > 1 ? total - 1 : 0;
-    var hayVentana = ocultasEnMovil > 0;
-    var etiquetaMas = Textos["GestorCaeMasEtiqueta", ocultas > 0 ? ocultas : ocultasEnMovil].Value;
-    var secundarias = PiezasSecundarias(tramos);
+    var vista = Vista();
 
     <span class="cabecera-gestor-cae" role="group" aria-label="@Textos["GestorCaeGrupo"]" title="@titulo">
         <span class="cabecera-gestor-cae-rotulo">@Textos["GestorCaeRotulo"]</span>
         <span class="cabecera-gestor-cae-personas" title="@Resumen()">
             @{ var claves = new ClavesDeHermanos(); }
-            @foreach (var tramo in tramos)
+            @foreach (var tramo in vista.Tramos)
             {
-                @if (!ReferenceEquals(tramo, tramos[0]))
+                @if (!ReferenceEquals(tramo, vista.Tramos[0]))
                 {
                     <span class="cabecera-gestor-cae-separador" aria-hidden="true">|</span>
                 }
                 @foreach (var pieza in tramo.Piezas)
                 {
-                    var claseSecundaria = secundarias.Contains(pieza) ? "cabecera-gestor-cae-secundaria" : null;
+                    var claseSecundaria = vista.Secundarias.Contains(pieza) ? "cabecera-gestor-cae-secundaria" : null;
                     @if (!ReferenceEquals(pieza, tramo.Piezas[0]))
                     {
                         <span class="cabecera-gestor-cae-separador @claseSecundaria" aria-hidden="true">·</span>
@@ -141,24 +134,24 @@ else if (_grupos.Count > 0)
                 }
             }
         </span>
-        @if (hayVentana)
+        @if (vista.HayVentana)
         {
             @* Las que no caben en la línea. La ventana las enseña a TODAS, no solo a las agrupadas:
                quien la abre lee la cartera entera sin tener que sumar la línea y la ventana. Interactiva:
                el disparador es un <button> de verdad (borde de control, hover, foco y aria-expanded) y el
                panel un grupo con nombre al que se llega con el tabulador, porque lleva un enlace. En
                escritorio con exactamente dos personas no hay nada que agrupar: el botón solo existe en móvil. *@
-            <VentanaContexto Etiqueta="@etiquetaMas" Titulo="@titulo"
+            <VentanaContexto Etiqueta="@vista.EtiquetaMas" Titulo="@titulo"
                              Interactiva="true" HojaEnMovil="true" EtiquetaCerrar="@Textos["GestorCaeCerrar"]"
                              Colocacion="VentanaContextoColocacion.AbajoCentro"
-                             class="@(ocultas > 0 ? null : "cabecera-gestor-cae-mas-solo-movil")"
-                             data-gestor-cae-mas="@ocultas">
+                             class="@(vista.Ocultas > 0 ? null : "cabecera-gestor-cae-mas-solo-movil")"
+                             data-gestor-cae-mas="@vista.Ocultas">
                 <Disparador>
-                    @if (ocultas > 0)
+                    @if (vista.Ocultas > 0)
                     {
-                        <span class="cabecera-gestor-cae-mas cabecera-gestor-cae-mas-escritorio">@Textos["GestorCaeMas", ocultas]</span>
+                        <span class="cabecera-gestor-cae-mas cabecera-gestor-cae-mas-escritorio">@Textos["GestorCaeMas", vista.Ocultas]</span>
                     }
-                    <span class="cabecera-gestor-cae-mas cabecera-gestor-cae-mas-movil">@Textos["GestorCaeMas", ocultasEnMovil]</span>
+                    <span class="cabecera-gestor-cae-mas cabecera-gestor-cae-mas-movil">@Textos["GestorCaeMas", vista.OcultasEnMovil]</span>
                 </Disparador>
                 <Detalle>
                     @foreach (var grupo in _grupos)
@@ -373,6 +366,29 @@ else if (_grupos.Count > 0)
         partes.AddRange(grupo.Apoyos.Select(a => $"{a.Nombre} ({RotuloApoyo(a)})"));
         return string.Join(" · ", partes);
     }));
+
+    /// <summary>
+    /// Todo lo que la línea calcula antes de pintarse. Vive aquí y no en el marcado para que el marcado sea solo marcado
+    /// (y para que el medidor de textos sin localizar no tome por texto de interfaz el C# que queda entre dos etiquetas).
+    /// </summary>
+    private sealed record VistaLinea(
+        IReadOnlyList<Tramo> Tramos, int Ocultas, int OcultasEnMovil, string EtiquetaMas, HashSet<Pieza> Secundarias)
+    {
+        public bool HayVentana => OcultasEnMovil != 0;
+    }
+
+    private VistaLinea Vista()
+    {
+        var tramos = TramosALaVista();
+        var total = _grupos.Sum(g => g.Principales.Count + g.Apoyos.Count);
+        var ocultas = total - tramos.Sum(t => t.Piezas.Count(p => p.Persona is not null));
+
+        // En móvil solo se deja a la vista la primera persona: «+N» cuenta todas las demás. El nombre accesible del
+        // botón cuenta las que no caben en la línea de escritorio o, si caben todas, las que el móvil deja fuera.
+        var ocultasEnMovil = Math.Max(total - 1, 0);
+        var etiquetaMas = Textos["GestorCaeMasEtiqueta", ocultas > 0 ? ocultas : ocultasEnMovil].Value;
+        return new VistaLinea(tramos, ocultas, ocultasEnMovil, etiquetaMas, PiezasSecundarias(tramos));
+    }
 
     private string RotuloPrincipal(PersonaConCartera principal) =>
         principal.Rol == Roles.CoordinadorCae ? Textos["GestorCaeCoordinadorPrincipal"] : Textos["GestorCaePrincipal"];
