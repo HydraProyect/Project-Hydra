@@ -79,7 +79,7 @@ public class ObtenerEstadoTipoDocumentoQueryTests
         }
 
         public ParDocumentalExigido Par(Centro centro, Trabajador trabajador, EstadoDocumento estado, TipoDocumento? tipo = null) =>
-            new(centro.Id, ClienteEmpresarial.Id, Empresa.Id, trabajador.Id, (tipo ?? Epi).Id, estado, PendienteEnPlataforma: false);
+            new(centro.Id, ClienteEmpresarial.Id, Empresa.Id, trabajador.Id, (tipo ?? Epi).Id, estado, PendienteEnPlataforma: false, EsRenuncia: false);
 
         public ObtenerEstadoTipoDocumentoQueryHandler Handler(
             CalculoFalso calculo, string? rol = "GestorCae", IReadOnlyList<Guid>? centroIdsVisibles = null,
@@ -429,7 +429,7 @@ public class ObtenerEstadoTipoDocumentoQueryTests
             new ToleranciaDocumentoClienteEmpresarial(otroCliente.Id, escenario.OtroTipo.Id, 30)]);
         var calculo = new CalculoFalso(
             escenario.Par(vigo, mateo, EstadoDocumento.Vencido),
-            new ParDocumentalExigido(sevilla.Id, otroCliente.Id, escenario.Empresa.Id, mateo.Id, escenario.Epi.Id, EstadoDocumento.Vencido, PendienteEnPlataforma: false));
+            new ParDocumentalExigido(sevilla.Id, otroCliente.Id, escenario.Empresa.Id, mateo.Id, escenario.Epi.Id, EstadoDocumento.Vencido, PendienteEnPlataforma: false, EsRenuncia: false));
 
         var dto = await escenario.Handler(calculo).Handle(new ObtenerEstadoTipoDocumentoQuery(escenario.Epi.Id), CancellationToken.None);
 

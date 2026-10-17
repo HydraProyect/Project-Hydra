@@ -683,12 +683,18 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             migrationBuilder.Sql(ArchivarCopias);
             migrationBuilder.Sql(InsertarTiposNuevosEnCopias);
             migrationBuilder.Sql(InsertarAliasEnCopias);
+            migrationBuilder.Sql(PasarConfiguracionAlSustituto);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql(ExigirMigradorQueVeTodosLosTenants);
+            // PasarConfiguracionAlSustituto no se deshace, a propósito (mismo criterio que
+            // ConvierteCarterasPorClienteATenantEntero): las filas que pasó al sustituto apuntan a tipos que ya existían
+            // antes de esta migración, así que el estado que deja es válido sin ella; restaurarlo exactamente exigiría
+            // una tabla de respaldo, y una tabla nueva sin RLS sería legible entre Tenants por los privilegios por
+            // defecto de cae_app_runtime y cae_app_soporte.
             migrationBuilder.Sql(RevertirCopias);
 
             migrationBuilder.DropForeignKey(
@@ -1555,6 +1561,112 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             JOIN "TiposDocumento" c
               ON c."AmbitoAplicacion" = a.ambito AND c."Nombre" = a.nombre
              AND c."TenantId" <> '00000000-0000-0000-0000-000000000001'
+            ON CONFLICT DO NOTHING;
+            """;
+
+        /// <summary>
+        /// La configuración que pedía un tipo archivado pasa a pedir su sustituto, en todos los Tenants (también el #1):
+        /// un tipo archivado no admite altas nuevas, así que una fila que lo siguiera pidiendo sería un requisito imposible.
+        /// El sustituto sale siempre de <c>t."SustitutoId"</c>, que la FK compuesta (TenantId, SustitutoId) ya garantiza del
+        /// mismo Tenant, y cada JOIN exige el mismo TenantId: nunca se resuelve por nombre ni cruza de Tenant (la migración
+        /// corre con BYPASSRLS). Varios archivados con el mismo sustituto (las dos variantes de RLC) se agrupan antes de
+        /// escribir, para no violar los índices únicos. Ids deterministas (md5) para lo que se inserta.
+        /// <list type="bullet">
+        /// <item>TiposDocumentoCentros: las filas Incluido de los archivados con sustituto se agrupan por (Tenant, Centro,
+        /// sustituto). Si el Centro no tenía fila del sustituto se crea con los valores de una de ellas (la que bloquea el
+        /// acceso, y si no la de menor Id); si la tenía y la incluía, conserva su periodicidad y su tolerancia, bloquea el
+        /// acceso si alguna lo bloqueaba y recibe la plantilla en blanco si no tenía; si la excluía, la exclusión se respeta.
+        /// Después, toda fila de un tipo archivado (con o sin sustituto) deja de incluirlo y de bloquear.</item>
+        /// <item>ProyectosRequisitos y PlantillasRequisitosEventoTipos: el requisito pasa al sustituto (sin duplicar) y se
+        /// borra el del archivado. Un archivado sin sustituto se queda; RequisitosDeEventos ya no lo cuenta.</item>
+        /// <item>ContactosAgendaTiposDocumento: el contacto también atiende el sustituto; el enlace al archivado se queda,
+        /// porque sigue habiendo documentos de ese tipo que reclamar.</item>
+        /// <item>ToleranciasDocumentoClienteEmpresarial: el Cliente empresarial sin tolerancia propia para el sustituto
+        /// recibe la menor de las de sus archivados; la del archivado se queda para sus documentos.</item>
+        /// </list>
+        /// </summary>
+        private const string PasarConfiguracionAlSustituto = """
+            WITH origen AS (
+                SELECT DISTINCT ON (tc."TenantId", tc."CentroId", t."SustitutoId")
+                       tc."TenantId", tc."CentroId", t."SustitutoId" AS sustituto,
+                       tc."PeriodicidadEspecialMeses", tc."ToleranciaDias", tc."ArchivoUrl", tc."NombreArchivoOriginal"
+                FROM "TiposDocumentoCentros" tc
+                JOIN "TiposDocumento" t ON t."Id" = tc."TipoDocumentoId" AND t."TenantId" = tc."TenantId"
+                WHERE t."Archivado" AND t."SustitutoId" IS NOT NULL AND tc."Incluido"
+                ORDER BY tc."TenantId", tc."CentroId", t."SustitutoId", tc."BloqueaAcceso" DESC, tc."Id"
+            ),
+            bloqueo AS (
+                SELECT tc."TenantId", tc."CentroId", t."SustitutoId" AS sustituto, bool_or(tc."BloqueaAcceso") AS bloquea,
+                       (array_agg(tc."ArchivoUrl" ORDER BY tc."Id") FILTER (WHERE tc."ArchivoUrl" IS NOT NULL))[1] AS archivo,
+                       (array_agg(tc."NombreArchivoOriginal" ORDER BY tc."Id") FILTER (WHERE tc."ArchivoUrl" IS NOT NULL))[1] AS nombre_archivo
+                FROM "TiposDocumentoCentros" tc
+                JOIN "TiposDocumento" t ON t."Id" = tc."TipoDocumentoId" AND t."TenantId" = tc."TenantId"
+                WHERE t."Archivado" AND t."SustitutoId" IS NOT NULL AND tc."Incluido"
+                GROUP BY tc."TenantId", tc."CentroId", t."SustitutoId"
+            )
+            INSERT INTO "TiposDocumentoCentros" (
+                "Id", "TenantId", "TipoDocumentoId", "CentroId", "Incluido", "PeriodicidadEspecialMeses", "BloqueaAcceso",
+                "ToleranciaDias", "ArchivoUrl", "NombreArchivoOriginal")
+            SELECT md5('centro-sustituto-2026-10-17:' || o."TenantId"::text || ':' || o."CentroId"::text || ':' || o.sustituto::text)::uuid,
+                   o."TenantId", o.sustituto, o."CentroId", true, o."PeriodicidadEspecialMeses", b.bloquea,
+                   o."ToleranciaDias", b.archivo, b.nombre_archivo
+            FROM origen o
+            JOIN bloqueo b ON b."TenantId" = o."TenantId" AND b."CentroId" = o."CentroId" AND b.sustituto = o.sustituto
+            ON CONFLICT ("TenantId", "TipoDocumentoId", "CentroId") DO UPDATE
+            SET "BloqueaAcceso" = "TiposDocumentoCentros"."BloqueaAcceso" OR EXCLUDED."BloqueaAcceso",
+                "ArchivoUrl" = CASE WHEN "TiposDocumentoCentros"."ArchivoUrl" IS NULL
+                                    THEN EXCLUDED."ArchivoUrl" ELSE "TiposDocumentoCentros"."ArchivoUrl" END,
+                "NombreArchivoOriginal" = CASE WHEN "TiposDocumentoCentros"."ArchivoUrl" IS NULL
+                                    THEN EXCLUDED."NombreArchivoOriginal" ELSE "TiposDocumentoCentros"."NombreArchivoOriginal" END
+            WHERE "TiposDocumentoCentros"."Incluido";
+
+            UPDATE "TiposDocumentoCentros" tc
+            SET "Incluido" = false, "BloqueaAcceso" = false
+            FROM "TiposDocumento" t
+            WHERE t."Id" = tc."TipoDocumentoId" AND t."TenantId" = tc."TenantId"
+              AND t."Archivado" AND (tc."Incluido" OR tc."BloqueaAcceso");
+
+            INSERT INTO "ProyectosRequisitos" ("Id", "TenantId", "ProyectoId", "TipoDocumentoId")
+            SELECT DISTINCT md5('requisito-sustituto-2026-10-17:' || r."TenantId"::text || ':' || r."ProyectoId"::text || ':' || t."SustitutoId"::text)::uuid,
+                   r."TenantId", r."ProyectoId", t."SustitutoId"
+            FROM "ProyectosRequisitos" r
+            JOIN "TiposDocumento" t ON t."Id" = r."TipoDocumentoId" AND t."TenantId" = r."TenantId"
+            WHERE t."Archivado" AND t."SustitutoId" IS NOT NULL
+            ON CONFLICT DO NOTHING;
+
+            DELETE FROM "ProyectosRequisitos" r
+            USING "TiposDocumento" t
+            WHERE t."Id" = r."TipoDocumentoId" AND t."TenantId" = r."TenantId"
+              AND t."Archivado" AND t."SustitutoId" IS NOT NULL;
+
+            INSERT INTO "PlantillasRequisitosEventoTipos" ("Id", "TenantId", "PlantillaId", "TipoDocumentoId")
+            SELECT DISTINCT md5('plantilla-sustituto-2026-10-17:' || p."TenantId"::text || ':' || p."PlantillaId"::text || ':' || t."SustitutoId"::text)::uuid,
+                   p."TenantId", p."PlantillaId", t."SustitutoId"
+            FROM "PlantillasRequisitosEventoTipos" p
+            JOIN "TiposDocumento" t ON t."Id" = p."TipoDocumentoId" AND t."TenantId" = p."TenantId"
+            WHERE t."Archivado" AND t."SustitutoId" IS NOT NULL
+            ON CONFLICT DO NOTHING;
+
+            DELETE FROM "PlantillasRequisitosEventoTipos" p
+            USING "TiposDocumento" t
+            WHERE t."Id" = p."TipoDocumentoId" AND t."TenantId" = p."TenantId"
+              AND t."Archivado" AND t."SustitutoId" IS NOT NULL;
+
+            INSERT INTO "ContactosAgendaTiposDocumento" ("Id", "TenantId", "ContactoAgendaId", "TipoDocumentoId")
+            SELECT DISTINCT md5('contacto-sustituto-2026-10-17:' || c."TenantId"::text || ':' || c."ContactoAgendaId"::text || ':' || t."SustitutoId"::text)::uuid,
+                   c."TenantId", c."ContactoAgendaId", t."SustitutoId"
+            FROM "ContactosAgendaTiposDocumento" c
+            JOIN "TiposDocumento" t ON t."Id" = c."TipoDocumentoId" AND t."TenantId" = c."TenantId"
+            WHERE t."Archivado" AND t."SustitutoId" IS NOT NULL
+            ON CONFLICT DO NOTHING;
+
+            INSERT INTO "ToleranciasDocumentoClienteEmpresarial" ("Id", "TenantId", "ClienteEmpresarialId", "TipoDocumentoId", "ToleranciaDias")
+            SELECT md5('tolerancia-sustituto-2026-10-17:' || x."TenantId"::text || ':' || x."ClienteEmpresarialId"::text || ':' || t."SustitutoId"::text)::uuid,
+                   x."TenantId", x."ClienteEmpresarialId", t."SustitutoId", min(x."ToleranciaDias")
+            FROM "ToleranciasDocumentoClienteEmpresarial" x
+            JOIN "TiposDocumento" t ON t."Id" = x."TipoDocumentoId" AND t."TenantId" = x."TenantId"
+            WHERE t."Archivado" AND t."SustitutoId" IS NOT NULL
+            GROUP BY x."TenantId", x."ClienteEmpresarialId", t."SustitutoId"
             ON CONFLICT DO NOTHING;
             """;
 

@@ -179,7 +179,7 @@ public class ObtenerEstadoTipoDocumentoQueryHandler(
         return new EstadoTipoDocumentoDto(
             tipo.Id, tipo.Nombre, tipo.VigenciaMeses, tipo.AplicaVencimientoAutomatico, tipo.Requerido, tipo.Naturaleza,
             tipo.SeSolicitaA, aliases,
-            Cumplimiento: CumplimientoDocumental.Evaluar(pares.Select(p => p.Estado)),
+            Cumplimiento: CumplimientoDocumental.Evaluar(pares.Select(p => (p.Estado, p.EsRenuncia))),
             Centros: pares.Select(p => p.CentroId).Distinct().Count(),
             Trabajadores: filas.Count,
             Recuentos: EstadoTipoDocumentoCalculo.Recuentos(filas),
@@ -191,11 +191,11 @@ public class ObtenerEstadoTipoDocumentoQueryHandler(
             // Universo completo antes de filtros/paginación; cada fracción mide pares Centro × Trabajador.
             CentrosExigencia: pares.GroupBy(p => p.CentroId).Select(g => new CentroExigenciaTipoDocumentoDto(
                 g.Key, g.First().CentroNombre, g.First().BloqueaAcceso, g.First().ToleranciaDias,
-                CumplimientoDocumental.Evaluar(g.Select(p => p.Estado)), g.MinBy(p => SeveridadEstadoDocumento.Rango(p.Estado))!.Estado))
+                CumplimientoDocumental.Evaluar(g.Select(p => (p.Estado, p.EsRenuncia))), g.MinBy(p => SeveridadEstadoDocumento.Rango(p.Estado))!.Estado))
                 .OrderBy(c => SeveridadEstadoDocumento.Rango(c.PeorEstado)).ThenBy(c => c.Nombre).ToList(),
             EmpresasEmpleadoras: pares.GroupBy(p => p.EmpresaId).Select(g => new EmpresaExigenciaTipoDocumentoDto(
                 g.Key, g.First().EmpresaNombre, g.Select(p => p.TrabajadorId).Distinct().Count(), g.Select(p => p.CentroId).Distinct().Count(),
-                CumplimientoDocumental.Evaluar(g.Select(p => p.Estado)), g.MinBy(p => SeveridadEstadoDocumento.Rango(p.Estado))!.Estado))
+                CumplimientoDocumental.Evaluar(g.Select(p => (p.Estado, p.EsRenuncia))), g.MinBy(p => SeveridadEstadoDocumento.Rango(p.Estado))!.Estado))
                 .OrderBy(e => SeveridadEstadoDocumento.Rango(e.PeorEstado)).ThenBy(e => e.Nombre).ToList(),
             Descripcion: tipo.Descripcion, CriteriosValidacion: tipo.CriteriosValidacion, Observaciones: tipo.Observaciones);
     }
@@ -240,9 +240,9 @@ public class ObtenerEstadoTipoDocumentoQueryHandler(
         var documentos = DocumentoEfectivo.UnoPorClave(
             await documentosContext.Documentos.Operativos()
                 .Where(d => d.TipoDocumentoId == tipoDocumentoId && d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId!.Value))
-                .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.Id, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc })
+                .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.Id, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc, d.EsRenuncia })
                 .ToListAsync(cancellationToken),
-            d => d.TrabajadorId, d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy);
+            d => d.TrabajadorId, d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, d => d.EsRenuncia, hoy);
 
         // Tolerancia tras vencer, vista desde cada Centro (VigenciaEnCentro): solo distingue «En tolerancia» de «Vencido»;
         // ninguno de los dos cuenta como al día, así que el anillo no cambia.
@@ -284,7 +284,8 @@ public class ObtenerEstadoTipoDocumentoQueryHandler(
                 tieneDocumento ? documento!.Id : null,
                 tieneDocumento ? documento!.FechaEmision : null,
                 tieneDocumento ? documento!.FechaVencimiento : null,
-                filaCentro is { Incluido: true, BloqueaAcceso: true }, condiciones.ToleranciaDias));
+                filaCentro is { Incluido: true, BloqueaAcceso: true }, condiciones.ToleranciaDias,
+                EsRenuncia: par.EsRenuncia));
         }
 
         return pares;

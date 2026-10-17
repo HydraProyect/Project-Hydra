@@ -73,6 +73,8 @@ public class EvaluacionDeAccesoPorCentroService(
             from tc in tiposDocumentoContext.TiposDocumentoCentros
             where tc.Incluido && tc.BloqueaAcceso
             join tipo in tiposDocumentoContext.TiposDocumento on tc.TipoDocumentoId equals tipo.Id
+            // Un tipo archivado no bloquea a nadie: no admite altas nuevas (catálogo del 2026-10-17).
+            where !tipo.Archivado
             select new { tc.TipoDocumentoId, tc.CentroId, tc.PeriodicidadEspecialMeses, tc.ToleranciaDias, tipo.AmbitoAplicacion })
             .ToListAsync(cancellationToken))
             .Where(f => ReglaBloqueoDeAcceso.AmbitoPuedeBloquear(f.AmbitoAplicacion) && EnAlcance(f.CentroId))

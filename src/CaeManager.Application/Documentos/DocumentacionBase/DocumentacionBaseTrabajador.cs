@@ -61,7 +61,8 @@ public record DocumentoParaDocumentacionBase(
     EstadoVigenciaDocumento EstadoVigencia,
     DateOnly? FechaVencimiento,
     DateOnly FechaEmision,
-    DateTime CreadoEnUtc);
+    DateTime CreadoEnUtc,
+    bool EsRenuncia = false);
 
 public static class DocumentacionBaseTrabajador
 {
@@ -90,7 +91,7 @@ public static class DocumentacionBaseTrabajador
             .Where(x => x.Tipo is not null)
             .GroupBy(x => x.Tipo!.Value)
             .ToDictionary(g => g.Key, g => DocumentoEfectivo.Ordenar(
-                g.Select(x => x.Documento), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy).First());
+                g.Select(x => x.Documento), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, d => d.EsRenuncia, hoy).First());
 
         var indicadores = Enum.GetValues<TipoDocumentoBase>()
             .Select(tipo => porTipo.TryGetValue(tipo, out var d)

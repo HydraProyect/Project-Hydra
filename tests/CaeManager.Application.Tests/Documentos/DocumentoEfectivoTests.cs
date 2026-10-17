@@ -18,21 +18,21 @@ public class DocumentoEfectivoTests
     private static readonly DateTime Alta = new(2026, 9, 1, 8, 0, 0, DateTimeKind.Utc);
 
     private sealed record Copia(
-        string Nombre, DateOnly Emision, EstadoVigenciaDocumento Estado, DateOnly? Vencimiento, DateTime Creado, Guid Id, bool Nominativo);
+        string Nombre, DateOnly Emision, EstadoVigenciaDocumento Estado, DateOnly? Vencimiento, DateTime Creado, Guid Id, bool Nominativo, bool Renuncia = false);
 
     private static Copia Nueva(
         string nombre, int emisionHaceDias, EstadoVigenciaDocumento estado = EstadoVigenciaDocumento.VenceEnFecha,
-        int? venceEnDias = 100, int altaMinutos = 0, Guid? id = null, bool nominativo = false) =>
+        int? venceEnDias = 100, int altaMinutos = 0, Guid? id = null, bool nominativo = false, bool renuncia = false) =>
         new(nombre, Hoy.AddDays(-emisionHaceDias), estado,
             estado == EstadoVigenciaDocumento.VenceEnFecha ? Hoy.AddDays(venceEnDias!.Value) : null,
-            Alta.AddMinutes(altaMinutos), id ?? Guid.NewGuid(), nominativo);
+            Alta.AddMinutes(altaMinutos), id ?? Guid.NewGuid(), nominativo, renuncia);
 
     private static List<string> Orden(params Copia[] copias) =>
-        DocumentoEfectivo.Ordenar(copias, c => c.Estado, c => c.Vencimiento, c => c.Emision, c => c.Creado, c => c.Id, Hoy)
+        DocumentoEfectivo.Ordenar(copias, c => c.Estado, c => c.Vencimiento, c => c.Emision, c => c.Creado, c => c.Id, c => c.Renuncia, Hoy)
             .Select(c => c.Nombre).ToList();
 
     private static List<string> OrdenConNominativo(params Copia[] copias) =>
-        DocumentoEfectivo.Ordenar(copias, c => c.Estado, c => c.Vencimiento, c => c.Emision, c => c.Creado, c => c.Id, Hoy,
+        DocumentoEfectivo.Ordenar(copias, c => c.Estado, c => c.Vencimiento, c => c.Emision, c => c.Creado, c => c.Id, c => c.Renuncia, Hoy,
                 esNominativo: c => c.Nominativo)
             .Select(c => c.Nombre).ToList();
 
@@ -51,7 +51,7 @@ public class DocumentoEfectivoTests
     [InlineData(1, true)]
     public void Vence_hoy_todavia_vale_y_ayer_no(int venceEnDias, bool valido)
     {
-        DocumentoEfectivo.ValidoHoy(EstadoVigenciaDocumento.VenceEnFecha, Hoy.AddDays(venceEnDias), Hoy).Should().Be(valido);
+        DocumentoEfectivo.ValidoHoy(EstadoVigenciaDocumento.VenceEnFecha, Hoy.AddDays(venceEnDias), Hoy, esRenuncia: false).Should().Be(valido);
     }
 
     [Theory]
@@ -59,7 +59,7 @@ public class DocumentoEfectivoTests
     [InlineData(EstadoVigenciaDocumento.SinConfirmar)]
     public void Sin_fecha_vale_hoy_sea_No_caduca_o_Sin_confirmar(EstadoVigenciaDocumento estado)
     {
-        DocumentoEfectivo.ValidoHoy(estado, null, Hoy).Should().BeTrue();
+        DocumentoEfectivo.ValidoHoy(estado, null, Hoy, esRenuncia: false).Should().BeTrue();
     }
 
     [Fact]
@@ -185,10 +185,31 @@ public class DocumentoEfectivoTests
         };
 
         var efectivos = DocumentoEfectivo.UnoPorClave(
-            copias, c => clave[c.Nombre], c => c.Estado, c => c.Vencimiento, c => c.Emision, c => c.Creado, c => c.Id, Hoy);
+            copias, c => clave[c.Nombre], c => c.Estado, c => c.Vencimiento, c => c.Emision, c => c.Creado, c => c.Id, c => c.Renuncia, Hoy);
 
         efectivos.Should().HaveCount(2);
         efectivos[1].Nombre.Should().Be("tipo1-valido-antiguo");
         efectivos[2].Nombre.Should().Be("tipo2-unico");
+    }
+
+    // ---------- Renuncia (catálogo del 2026-10-17) ----------
+
+    [Theory]
+    [InlineData(EstadoVigenciaDocumento.NoCaduca)]
+    [InlineData(EstadoVigenciaDocumento.SinConfirmar)]
+    [InlineData(EstadoVigenciaDocumento.VenceEnFecha)]
+    public void Un_documento_en_renuncia_nunca_vale_hoy(EstadoVigenciaDocumento estado)
+    {
+        var vence = estado == EstadoVigenciaDocumento.VenceEnFecha ? Hoy.AddDays(100) : (DateOnly?)null;
+
+        DocumentoEfectivo.ValidoHoy(estado, vence, Hoy, esRenuncia: true).Should().BeFalse();
+        DocumentoEfectivo.ValidoHoy(estado, vence, Hoy, esRenuncia: false).Should().BeTrue("control: sin renuncia vale");
+    }
+
+    [Fact]
+    public void Un_apto_vigente_gana_a_una_renuncia_aunque_la_renuncia_sea_mas_reciente()
+    {
+        Orden(Nueva("renuncia-reciente", 2, renuncia: true), Nueva("apto-antiguo", 300, venceEnDias: 40))
+            .Should().Equal("apto-antiguo", "renuncia-reciente");
     }
 }

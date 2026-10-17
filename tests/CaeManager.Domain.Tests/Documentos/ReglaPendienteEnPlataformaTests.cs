@@ -112,7 +112,7 @@ public class ReglaPendienteEnPlataformaTests
     public void El_Pendiente_en_la_plataforma_de_un_par_es_un_parametro_obligatorio()
     {
         var parametro = typeof(ParDocumentalExigido).GetConstructors()
-            .Single(c => c.GetParameters().Length == 7)
+            .Single(c => c.GetParameters().Length == 8)
             .GetParameters().Single(p => p.Name == nameof(ParDocumentalExigido.PendienteEnPlataforma));
 
         parametro.HasDefaultValue.Should().BeFalse("quien construye un par decide siempre si está pendiente en la plataforma");
@@ -122,7 +122,7 @@ public class ReglaPendienteEnPlataformaTests
     public void Un_par_vigente_pendiente_en_la_plataforma_de_su_Centro_no_esta_al_dia_en_el_porcentaje_del_Centro()
     {
         var centro = Guid.NewGuid();
-        var alDia = new ParDocumentalExigido(centro, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), EstadoDocumento.Vigente, PendienteEnPlataforma: false);
+        var alDia = new ParDocumentalExigido(centro, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), EstadoDocumento.Vigente, PendienteEnPlataforma: false, EsRenuncia: false);
         var pendiente = alDia with { TrabajadorId = Guid.NewGuid(), PendienteEnPlataforma = true };
 
         CumplimientoDocumental.EsConforme(alDia, ContextoCumplimiento.Centro).Should().BeTrue();
@@ -145,8 +145,8 @@ public class ReglaPendienteEnPlataformaTests
         EstadoDocumento estado, bool pendiente, int alDia, int requeridos)
     {
         var centro = Guid.NewGuid();
-        var deTrabajador = new ParDocumentalExigido(centro, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), EstadoDocumento.Vigente, false);
-        var deEmpresa = new ParDocumentalDeEmpresaExigido(centro, Guid.NewGuid(), Guid.NewGuid(), estado, pendiente);
+        var deTrabajador = new ParDocumentalExigido(centro, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), EstadoDocumento.Vigente, false, false);
+        var deEmpresa = new ParDocumentalDeEmpresaExigido(centro, Guid.NewGuid(), Guid.NewGuid(), estado, pendiente, EsRenuncia: false);
 
         CumplimientoDocumental.PorCentro([deTrabajador], [deEmpresa])[centro].Should().Be(new FraccionCumplimiento(alDia, requeridos));
     }
@@ -155,7 +155,7 @@ public class ReglaPendienteEnPlataformaTests
     public void Un_Centro_con_solo_pares_de_Empresa_tambien_tiene_porcentaje_y_los_otros_contextos_no_los_reciben()
     {
         var centro = Guid.NewGuid();
-        var deEmpresa = new ParDocumentalDeEmpresaExigido(centro, Guid.NewGuid(), Guid.NewGuid(), EstadoDocumento.Vencido, false);
+        var deEmpresa = new ParDocumentalDeEmpresaExigido(centro, Guid.NewGuid(), Guid.NewGuid(), EstadoDocumento.Vencido, false, false);
 
         CumplimientoDocumental.PorCentro([], [deEmpresa])[centro].Should().Be(new FraccionCumplimiento(0, 1));
         CumplimientoDocumental.PorCentro([], []).Should().BeEmpty();
@@ -171,7 +171,7 @@ public class ReglaPendienteEnPlataformaTests
     {
         // Cada porcentaje mide su contexto (decisión 2026-10-03): la acreditación en la plataforma es del Centro.
         var par = new ParDocumentalExigido(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-            EstadoDocumento.Vigente, PendienteEnPlataforma: true);
+            EstadoDocumento.Vigente, PendienteEnPlataforma: true, EsRenuncia: false);
 
         CumplimientoDocumental.EsConforme(par, contexto).Should().BeTrue();
         CumplimientoDocumental.EsConforme(par, ContextoCumplimiento.Centro).Should().BeFalse("control positivo");
