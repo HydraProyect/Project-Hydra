@@ -6,6 +6,10 @@
     marcado porque cada uno vive en su propia página, pero es el mismo
     contrato de UX: nunca se envía sin que el gestor vea antes qué y a quién.
 
+    Además de los contactos de la agenda, cada tarjeta deja añadir a mano destinatarios y direcciones en copia (CC) de ESTE envío:
+    no se guardan en la agenda y salen en la confirmación con el resto. La UI comprueba formato y repetidos para avisar al
+    momento, pero quien decide es el comando (DestinatariosExtraDeReclamacion).
+
     El envío es un EnviarReclamacionCommand por titular, secuencial (no
     Task.WhenAll) — mismo motivo que TrabajadorDetalle.razor.cs.
     EnviarReclamacionAClientesAsync: el DbContext de la petición Blazor
@@ -83,6 +87,14 @@
                                         <span class="reclamacion-motivo">@string.Join(", ", destinatario.MotivoTipos)</span>
                                     </label>
                                 }
+                            </fieldset>
+
+                            @* Destinatarios de este envío que no están en la agenda: se añaden a mano y no se guardan en ella. *@
+                            <fieldset class="reclamacion-destinatarios reclamacion-extra">
+                                <legend>@TextosMiTrabajo.Texto("ReclamacionExtraTitulo")</legend>
+                                <p class="reclamacion-motivo">@TextosMiTrabajo.Texto("ReclamacionExtraAviso")</p>
+                                @(CampoExtra(lote, false))
+                                @(CampoExtra(lote, true))
                             </fieldset>
                         }
 
@@ -176,6 +188,7 @@
     private readonly Dictionary<Guid, HashSet<Guid>> _seleccionPorTitular = [];
     private readonly Dictionary<Guid, HashSet<string>> _seleccionPendientesPorTitular = [];
     private readonly Dictionary<Guid, HashSet<Guid>> _contactosPorTitular = [];
+    private readonly Dictionary<Guid, ExtraDeTitular> _extraPorTitular = [];
     private bool _enviando;
     private Guid? _enviandoTitularId;
     private SelectorLoteDocumental? _selector;
@@ -209,7 +222,8 @@
     private string ValoresRevision(Guid titularId) =>
         string.Join(',', _seleccionPorTitular.GetValueOrDefault(titularId, []).Order())
         + ';' + string.Join(',', _contactosPorTitular.GetValueOrDefault(titularId, []).Order())
-        + ';' + string.Join(',', _seleccionPendientesPorTitular.GetValueOrDefault(titularId, []).Order(StringComparer.Ordinal));
+        + ';' + string.Join(',', _seleccionPendientesPorTitular.GetValueOrDefault(titularId, []).Order(StringComparer.Ordinal))
+        + ';' + (_extraPorTitular.TryGetValue(titularId, out var extra) ? extra.ComoValorDeRevision() : string.Empty);
 
     [Parameter] public bool Visible { get; set; }
     [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
@@ -250,6 +264,7 @@
         _seleccionPorTitular.Clear();
         _seleccionPendientesPorTitular.Clear();
         _contactosPorTitular.Clear();
+        _extraPorTitular.Clear();
         foreach (var lote in _lotes)
         {
             _seleccionPorTitular[lote.TitularId] = lote.Documentos.Select(d => d.DocumentoId).ToHashSet();
@@ -308,10 +323,145 @@
     private sealed record EnvioPendiente(
         Guid TitularId, string TitularNombre, AmbitoAplicacion Ambito,
         IReadOnlyList<Guid> DocumentoIds, IReadOnlyList<PendienteSinFecha> Pendientes,
-        IReadOnlyList<Guid> ContactoIds, IReadOnlyList<string> Destinatarios)
+        IReadOnlyList<Guid> ContactoIds, IReadOnlyList<string> Destinatarios,
+        IReadOnlyList<string> CorreosAdicionales, IReadOnlyList<string> CorreosEnCopia)
     {
         public int TotalDocumentos => DocumentoIds.Count + Pendientes.Count;
     }
+
+    /// <summary>Lo que el gestor añade a mano en una tarjeta: los destinatarios, los de copia y lo que lleva tecleado sin añadir aún.</summary>
+    private sealed class ExtraDeTitular
+    {
+        public List<string> Para { get; } = [];
+        public List<string> Copia { get; } = [];
+        public string BorradorPara { get; set; } = string.Empty;
+        public string BorradorCopia { get; set; } = string.Empty;
+        public string? ErrorPara { get; set; }
+        public string? ErrorCopia { get; set; }
+
+        public bool TieneBorrador => !string.IsNullOrWhiteSpace(BorradorPara) || !string.IsNullOrWhiteSpace(BorradorCopia);
+
+        public string ComoValorDeRevision() =>
+            Para.Count == 0 && Copia.Count == 0 && !TieneBorrador
+                ? string.Empty
+                : string.Join(',', Para) + '|' + string.Join(',', Copia) + '|' + BorradorPara.Trim() + '|' + BorradorCopia.Trim();
+    }
+
+    private ExtraDeTitular ExtraDe(Guid titularId)
+    {
+        if (!_extraPorTitular.TryGetValue(titularId, out var extra))
+            _extraPorTitular[titularId] = extra = new ExtraDeTitular();
+        return extra;
+    }
+
+    private RenderFragment CampoExtra(LoteReclamacionAgrupadoDto lote, bool enCopia) => @<div class="reclamacion-extra-campo">
+        @{
+            var extra = ExtraDe(lote.TitularId);
+            var idCampo = $"extra-{(enCopia ? "cc" : "para")}-{lote.TitularId:N}";
+            var lista = enCopia ? extra.Copia : extra.Para;
+            var borrador = enCopia ? extra.BorradorCopia : extra.BorradorPara;
+            var error = enCopia ? extra.ErrorCopia : extra.ErrorPara;
+            var etiqueta = TextosMiTrabajo.Texto(enCopia ? "ReclamacionExtraCopiaEtiqueta" : "ReclamacionExtraParaEtiqueta");
+        }
+        <label for="@idCampo">@etiqueta</label>
+        <div class="reclamacion-extra-entrada">
+            <input id="@idCampo" type="email" class="campo-input @(error is null ? "" : "campo-input-error")" autocomplete="off"
+                   value="@borrador" disabled="@_enviando"
+                   @oninput="e => CambiarBorrador(extra, enCopia, e.Value?.ToString() ?? string.Empty)"
+                   @onkeydown="e => AlPulsarTecla(e, lote, extra, enCopia)" />
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_enviando"
+                   OnClick="() => AnadirExtra(lote, extra, enCopia)">@TextosMiTrabajo.Texto("ReclamacionExtraAnadir")</Boton>
+        </div>
+        @if (error is not null)
+        {
+            <span class="campo-mensaje-error" role="alert">@error</span>
+        }
+        @if (lista.Count > 0)
+        {
+            <ul class="reclamacion-extra-lista" aria-label="@etiqueta">
+                @foreach (var correo in lista)
+                {
+                    <li>
+                        <span>@correo</span>
+                        <button type="button" class="reclamacion-extra-quitar" disabled="@_enviando"
+                                aria-label="@TextosMiTrabajo.Formato("ReclamacionExtraQuitar", correo)"
+                                @onclick="() => QuitarExtra(extra, enCopia, correo)">×</button>
+                    </li>
+                }
+            </ul>
+        }
+    </div>;
+
+    private static void CambiarBorrador(ExtraDeTitular extra, bool enCopia, string valor)
+    {
+        if (enCopia)
+        {
+            extra.BorradorCopia = valor;
+            extra.ErrorCopia = null;
+        }
+        else
+        {
+            extra.BorradorPara = valor;
+            extra.ErrorPara = null;
+        }
+    }
+
+    private void AlPulsarTecla(KeyboardEventArgs e, LoteReclamacionAgrupadoDto lote, ExtraDeTitular extra, bool enCopia)
+    {
+        if (e.Key == "Enter")
+            AnadirExtra(lote, extra, enCopia);
+    }
+
+    /// <summary>
+    /// Añade lo tecleado a la lista, o dice por qué no: formato, repetido (en cualquiera de las dos listas o ya en la agenda de la
+    /// tarjeta) o el tope. El comando lo vuelve a comprobar; aquí es solo para avisar al momento.
+    /// </summary>
+    private void AnadirExtra(LoteReclamacionAgrupadoDto lote, ExtraDeTitular extra, bool enCopia)
+    {
+        if (_enviando) return;
+
+        var correo = (enCopia ? extra.BorradorCopia : extra.BorradorPara).Trim();
+        if (correo.Length == 0) return;
+
+        string? error = null;
+        var lista = enCopia ? extra.Copia : extra.Para;
+        if (!DestinatariosExtraDeReclamacion.EsCorreoUtilizable(correo))
+            error = TextosMiTrabajo.Formato("ReclamacionExtraNoValido", correo);
+        else if ((lote.Destinatarios ?? []).Any(d => string.Equals(d.Email, correo, StringComparison.OrdinalIgnoreCase)))
+            error = TextosMiTrabajo.Formato("ReclamacionExtraEnAgenda", correo);
+        else if (extra.Para.Concat(extra.Copia).Any(e => string.Equals(e, correo, StringComparison.OrdinalIgnoreCase)))
+            error = TextosMiTrabajo.Formato("ReclamacionExtraRepetido", correo);
+        else if (lista.Count >= DestinatariosExtraDeReclamacion.MaximoPorLista)
+            error = TextosMiTrabajo.Formato("ReclamacionExtraTope", DestinatariosExtraDeReclamacion.MaximoPorLista);
+        else if (!CabeEnElRegistro(lote, extra, enCopia ? null : correo, enCopia ? correo : null))
+            error = TextosMiTrabajo.Texto("ReclamacionExtraNoCabe");
+
+        if (error is null)
+        {
+            lista.Add(correo);
+            if (enCopia) extra.BorradorCopia = string.Empty;
+            else extra.BorradorPara = string.Empty;
+        }
+
+        if (enCopia) extra.ErrorCopia = error;
+        else extra.ErrorPara = error;
+    }
+
+    /// <summary>
+    /// Si el envío (contactos de la agenda marcados, más lo añadido a mano y lo que se va a añadir) cabe en el registro. El comando lo
+    /// comprueba antes de enviar; aquí se avisa al añadir y no tras la confirmación.
+    /// </summary>
+    private bool CabeEnElRegistro(LoteReclamacionAgrupadoDto lote, ExtraDeTitular extra, string? nuevoPara, string? nuevaCopia)
+    {
+        var marcados = _contactosPorTitular.GetValueOrDefault(lote.TitularId, []);
+        var agenda = (lote.Destinatarios ?? []).Where(d => marcados.Contains(d.ContactoId)).Select(d => d.Email).Distinct();
+        var para = agenda.Concat(extra.Para).Concat(nuevoPara is null ? [] : [nuevoPara]);
+        var copia = extra.Copia.Concat(nuevaCopia is null ? [] : [nuevaCopia]);
+        return DestinatariosExtraDeReclamacion.CabeEnElRegistro(para, copia);
+    }
+
+    private static void QuitarExtra(ExtraDeTitular extra, bool enCopia, string correo) =>
+        (enCopia ? extra.Copia : extra.Para).Remove(correo);
 
     private EnvioPendiente? _envioPendiente;
 
@@ -325,7 +475,12 @@
 
     private string MensajeConfirmacionEnvio => _envioPendiente is not { } envio
         ? string.Empty
-        : TextosMiTrabajo.Formato("ReclamacionConfirmarMensaje", envio.TotalDocumentos, envio.ContactoIds.Count, string.Join(", ", envio.Destinatarios));
+        : envio.CorreosAdicionales.Count == 0 && envio.CorreosEnCopia.Count == 0
+            ? TextosMiTrabajo.Formato("ReclamacionConfirmarMensaje", envio.TotalDocumentos, envio.ContactoIds.Count, string.Join(", ", envio.Destinatarios))
+            : TextosMiTrabajo.Formato(
+                "ReclamacionConfirmarMensajeConExtras", envio.TotalDocumentos, envio.ContactoIds.Count, string.Join(", ", envio.Destinatarios),
+                envio.CorreosAdicionales.Count == 0 ? string.Empty : TextosMiTrabajo.Formato("ReclamacionConfirmarAdicionales", string.Join(", ", envio.CorreosAdicionales)),
+                envio.CorreosEnCopia.Count == 0 ? string.Empty : TextosMiTrabajo.Formato("ReclamacionConfirmarCopia", string.Join(", ", envio.CorreosEnCopia)));
 
     private void PedirConfirmacion(LoteReclamacionAgrupadoDto lote)
     {
@@ -349,8 +504,25 @@
             .Select(d => $"{d.Nombre} ({d.Email})")
             .ToList();
 
+        // Un correo tecleado y sin añadir no sale ni se descarta en silencio: el gestor decide antes de enviar.
+        var extra = ExtraDe(lote.TitularId);
+        if (extra.TieneBorrador)
+        {
+            if (!string.IsNullOrWhiteSpace(extra.BorradorPara)) extra.ErrorPara = TextosMiTrabajo.Texto("ReclamacionExtraSinAnadir");
+            if (!string.IsNullOrWhiteSpace(extra.BorradorCopia)) extra.ErrorCopia = TextosMiTrabajo.Texto("ReclamacionExtraSinAnadir");
+            return;
+        }
+
+        // Marcar más contactos de la agenda tras añadir los manuales puede pasar el tope del registro: se dice aquí, no tras la confirmación.
+        if (extra.Para.Count + extra.Copia.Count > 0 && !CabeEnElRegistro(lote, extra, null, null))
+        {
+            extra.ErrorPara = TextosMiTrabajo.Texto("ReclamacionExtraNoCabe");
+            return;
+        }
+
         _envioPendiente = new EnvioPendiente(
-            lote.TitularId, lote.TitularNombre, lote.Ambito, documentoIds, pendientes, contactoIds, destinatarios);
+            lote.TitularId, lote.TitularNombre, lote.Ambito, documentoIds, pendientes, contactoIds, destinatarios,
+            [.. extra.Para], [.. extra.Copia]);
     }
 
     private void CerrarConfirmacionEnvio(bool visible)
@@ -379,9 +551,11 @@
             // dos casos: el selector no acota por Centro.
             var resultado = envio.Ambito == AmbitoAplicacion.Empresa
                 ? await Mediator.Send(new EnviarReclamacionEmpresaCommand(
-                    envio.TitularId, envio.DocumentoIds, ContactoIdsSeleccionados: envio.ContactoIds, Pendientes: envio.Pendientes))
+                    envio.TitularId, envio.DocumentoIds, ContactoIdsSeleccionados: envio.ContactoIds, Pendientes: envio.Pendientes,
+                    CorreosAdicionales: envio.CorreosAdicionales, CorreosEnCopia: envio.CorreosEnCopia))
                 : await Mediator.Send(new EnviarReclamacionCommand(
-                    envio.TitularId, envio.DocumentoIds, CentroId: null, ContactoIdsSeleccionados: envio.ContactoIds, Pendientes: envio.Pendientes));
+                    envio.TitularId, envio.DocumentoIds, CentroId: null, ContactoIdsSeleccionados: envio.ContactoIds, Pendientes: envio.Pendientes,
+                    CorreosAdicionales: envio.CorreosAdicionales, CorreosEnCopia: envio.CorreosEnCopia));
 
             if (resultado.EsFallido)
             {

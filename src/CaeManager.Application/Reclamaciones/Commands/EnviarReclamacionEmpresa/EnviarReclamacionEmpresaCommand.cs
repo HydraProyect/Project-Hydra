@@ -47,11 +47,15 @@ namespace CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa
 /// Lo que se pide sin vencimiento en el MISMO correo: documentos de Empresa que faltan y «Sin confirmar» sin fecha. Misma
 /// regla y mismo todo o nada que en <see cref="EnviarReclamacionCommand"/> (ver su docstring): no es otro flujo.
 /// </param>
+/// <param name="CorreosAdicionales">Destinatarios añadidos a mano además de la agenda; ver <see cref="EnviarReclamacionCommand"/>.</param>
+/// <param name="CorreosEnCopia">Direcciones en copia (CC) del mismo envío; ver <see cref="EnviarReclamacionCommand"/>.</param>
 public record EnviarReclamacionEmpresaCommand(
     Guid EmpresaId,
     IReadOnlyList<Guid> DocumentoIds,
     IReadOnlyList<Guid>? ContactoIdsSeleccionados = null,
-    IReadOnlyList<PendienteSinFecha>? Pendientes = null) : ICommand<EnvioReclamacionResultado>;
+    IReadOnlyList<PendienteSinFecha>? Pendientes = null,
+    IReadOnlyList<string>? CorreosAdicionales = null,
+    IReadOnlyList<string>? CorreosEnCopia = null) : ICommand<EnvioReclamacionResultado>;
 
 public class EnviarReclamacionEmpresaCommandHandler(
     IEmpresasQueryContext empresasContext,
@@ -72,11 +76,11 @@ public class EnviarReclamacionEmpresaCommandHandler(
         var p = preparada.Valor;
         var envio = await registroEnvio.EnviarYRegistrarAsync(
             new TitularReclamacion(p.TitularId, p.TitularRazonSocial, AmbitoAplicacion.Empresa),
-            p.DocumentoIds, p.Correos, p.Asunto, p.CuerpoHtml, cancellationToken, p.DocumentosQueFaltan);
+            p.DocumentoIds, p.CorreosParaEnviar, p.Asunto, p.CuerpoHtml, cancellationToken, p.DocumentosQueFaltan, p.EnCopia);
 
         return envio.EsFallido
             ? Result.Fallo<EnvioReclamacionResultado>(envio.Error)
-            : Result.Exito(new EnvioReclamacionResultado(p.DocumentoIds, p.Correos, p.DocumentosQueFaltan.Count));
+            : Result.Exito(new EnvioReclamacionResultado(p.DocumentoIds, p.CorreosParaEnviar, p.DocumentosQueFaltan.Count, p.EnCopia));
     }
 
     /// <summary>Misma idea que <c>EnviarReclamacionCommandHandler.PrepararAsync</c>: decide qué se envía y a quién, sin enviar; el envío y la vista previa comparten esta única implementación.</summary>
@@ -178,13 +182,17 @@ public class EnviarReclamacionEmpresaCommandHandler(
             .Concat(pendientes.Valor.Where(p => p.DocumentoId is not null).Select(p => p.DocumentoId!.Value))
             .Distinct().ToList();
         var destinatarios = resueltos.Select(d => d.Email).Distinct().ToList();
+        var extra = DestinatariosExtraDeReclamacion.Resolver(request.CorreosAdicionales, request.CorreosEnCopia, destinatarios);
+        if (extra.EsFallido)
+            return Result.Fallo<ReclamacionPreparada>(extra.Error);
+
         var asunto = EnviarReclamacionCommandHandler.ConstruirAsunto(empresa.RazonSocial);
         var cuerpoHtml = ConstruirCuerpoHtml(
             empresa.RazonSocial, filas.Select(f => (f.TipoDocumentoNombre, f.FechaVencimiento!.Value)), pendientes.Valor);
 
         return Result.Exito(new ReclamacionPreparada(
             request.EmpresaId, empresa.RazonSocial, documentoIds, destinatarios,
-            [.. resueltos.GroupBy(d => d.Email).Select(g => g.First())], asunto, cuerpoHtml, pendientes.Valor));
+            [.. resueltos.GroupBy(d => d.Email).Select(g => g.First())], asunto, cuerpoHtml, pendientes.Valor, extra.Valor));
     }
 
     /// <summary>

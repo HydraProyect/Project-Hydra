@@ -52,10 +52,17 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
 
     public Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
         string accessToken, string buzonEmail, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
-        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken) =>
-        Task.FromResult(FallaEnvio
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken,
+        IReadOnlyList<string>? copia = null)
+    {
+        UltimaCopia = copia;
+        return Task.FromResult(FallaEnvio
             ? Result.Fallo<MensajeEnviadoGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "fallo simulado"))
             : Result.Exito(MensajeEnviadoADevolver));
+    }
+
+    /// <summary>Las direcciones en copia con las que se llamó por última vez a <see cref="EnviarNuevoMensajeAsync"/>.</summary>
+    public IReadOnlyList<string>? UltimaCopia { get; private set; }
 
     public Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
         string accessToken, string buzonEmail, string mensajeId, CancellationToken cancellationToken) =>

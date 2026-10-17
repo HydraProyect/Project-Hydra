@@ -336,4 +336,49 @@
   <data name="ReclamacionConfirmarBoton" xml:space="preserve">
     <value>Enviar reclamació</value>
   </data>
+  <data name="ReclamacionExtraTitulo" xml:space="preserve">
+    <value>Afegir destinataris a aquest enviament</value>
+  </data>
+  <data name="ReclamacionExtraAviso" xml:space="preserve">
+    <value>No es desen a l'agenda: només reben aquest enviament.</value>
+  </data>
+  <data name="ReclamacionExtraParaEtiqueta" xml:space="preserve">
+    <value>Un altre destinatari</value>
+  </data>
+  <data name="ReclamacionExtraCopiaEtiqueta" xml:space="preserve">
+    <value>En còpia (CC)</value>
+  </data>
+  <data name="ReclamacionExtraAnadir" xml:space="preserve">
+    <value>Afegir</value>
+  </data>
+  <data name="ReclamacionExtraQuitar" xml:space="preserve">
+    <value>Treure {0}</value>
+  </data>
+  <data name="ReclamacionExtraNoValido" xml:space="preserve">
+    <value>«{0}» no és un correu vàlid.</value>
+  </data>
+  <data name="ReclamacionExtraRepetido" xml:space="preserve">
+    <value>«{0}» ja està afegit a aquest enviament.</value>
+  </data>
+  <data name="ReclamacionExtraTope" xml:space="preserve">
+    <value>Podeu afegir fins a {0} correus a cada llista.</value>
+  </data>
+  <data name="ReclamacionExtraSinAnadir" xml:space="preserve">
+    <value>Premeu «Afegir» per incloure aquest correu o esborreu-lo abans d'enviar.</value>
+  </data>
+  <data name="ReclamacionConfirmarMensajeConExtras" xml:space="preserve">
+    <value>Es reclamaran {0} document(s) a {1} contacte(s) de l'agenda: {2}. {3}{4}El correu surt a tercers i no es pot desfer.</value>
+  </data>
+  <data name="ReclamacionConfirmarAdicionales" xml:space="preserve">
+    <value>També a: {0}. </value>
+  </data>
+  <data name="ReclamacionConfirmarCopia" xml:space="preserve">
+    <value>En còpia (CC): {0}. </value>
+  </data>
+  <data name="ReclamacionExtraEnAgenda" xml:space="preserve">
+    <value>«{0}» ja és un contacte de l'agenda: marqueu-lo a «Se sol·licita a».</value>
+  </data>
+  <data name="ReclamacionExtraNoCabe" xml:space="preserve">
+    <value>Hi ha massa destinataris per registrar l'enviament: desmarqueu algun contacte o traieu algun correu afegit.</value>
+  </data>
 </root>

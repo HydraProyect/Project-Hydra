@@ -336,4 +336,49 @@
   <data name="ReclamacionConfirmarBoton" xml:space="preserve">
     <value>Enviar reclamación</value>
   </data>
+  <data name="ReclamacionExtraTitulo" xml:space="preserve">
+    <value>Añadir destinatarios a este envío</value>
+  </data>
+  <data name="ReclamacionExtraAviso" xml:space="preserve">
+    <value>No se guardan en la agenda: solo reciben este envío.</value>
+  </data>
+  <data name="ReclamacionExtraParaEtiqueta" xml:space="preserve">
+    <value>Otro destinatario</value>
+  </data>
+  <data name="ReclamacionExtraCopiaEtiqueta" xml:space="preserve">
+    <value>En copia (CC)</value>
+  </data>
+  <data name="ReclamacionExtraAnadir" xml:space="preserve">
+    <value>Añadir</value>
+  </data>
+  <data name="ReclamacionExtraQuitar" xml:space="preserve">
+    <value>Quitar {0}</value>
+  </data>
+  <data name="ReclamacionExtraNoValido" xml:space="preserve">
+    <value>«{0}» no es un correo válido.</value>
+  </data>
+  <data name="ReclamacionExtraRepetido" xml:space="preserve">
+    <value>«{0}» ya está añadido a este envío.</value>
+  </data>
+  <data name="ReclamacionExtraTope" xml:space="preserve">
+    <value>Puedes añadir hasta {0} correos en cada lista.</value>
+  </data>
+  <data name="ReclamacionExtraSinAnadir" xml:space="preserve">
+    <value>Pulsa «Añadir» para incluir este correo o bórralo antes de enviar.</value>
+  </data>
+  <data name="ReclamacionConfirmarMensajeConExtras" xml:space="preserve">
+    <value>Se reclamarán {0} documento(s) a {1} contacto(s) de la agenda: {2}. {3}{4}El correo sale a terceros y no se puede deshacer.</value>
+  </data>
+  <data name="ReclamacionConfirmarAdicionales" xml:space="preserve">
+    <value>También a: {0}. </value>
+  </data>
+  <data name="ReclamacionConfirmarCopia" xml:space="preserve">
+    <value>En copia (CC): {0}. </value>
+  </data>
+  <data name="ReclamacionExtraEnAgenda" xml:space="preserve">
+    <value>«{0}» ya es un contacto de la agenda: márcalo en «Se solicita a».</value>
+  </data>
+  <data name="ReclamacionExtraNoCabe" xml:space="preserve">
+    <value>Hay demasiados destinatarios para registrar el envío: desmarca algún contacto o quita algún correo añadido.</value>
+  </data>
 </root>
