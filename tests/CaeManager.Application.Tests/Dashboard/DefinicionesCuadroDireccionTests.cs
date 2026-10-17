@@ -44,6 +44,16 @@ public class DefinicionesCuadroDireccionTests
     }
 
     [Fact]
+    public void El_primer_cierre_real_es_octubre_de_2026_y_los_anteriores_se_cierran_estimados()
+    {
+        new MesCuadroDireccion(2026, 9).CierreEsEstimado.Should().BeTrue();
+        new MesCuadroDireccion(2025, 12).CierreEsEstimado.Should().BeTrue();
+        new MesCuadroDireccion(2026, 10).CierreEsEstimado.Should().BeFalse();
+        new MesCuadroDireccion(2026, 11).CierreEsEstimado.Should().BeFalse();
+        MesCuadroDireccion.PrimerCierreReal.FinUtc.Should().Be(Utc(10, 31, 23), "el cierre de octubre es el 1 de noviembre a las 00:00 de Madrid");
+    }
+
+    [Fact]
     public void Un_trabajador_dado_de_alta_y_no_eliminado_es_activo_aunque_no_tenga_asignaciones()
     {
         // La definición no mira Asignaciones ni Visitas: ni una vigente, ni una futura, ni ninguna.
