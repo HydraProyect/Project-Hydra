@@ -29,6 +29,14 @@ public class Gestion : EntidadBase
     /// <summary>Mensaje de correo que originó esta gestión (ver SugerenciaGestionCorreo) — null cuando se crea a mano.</summary>
     public Guid? MensajeOrigenId { get; private set; }
 
+    /// <summary>
+    /// Instante (UTC) en que la Gestión pasó a Completada; null mientras está
+    /// Pendiente y en las completadas antes de que existiera el campo (no se
+    /// reconstruyen). Deliberadamente no se registra quién la completó: el
+    /// Cuadro de dirección mide ritmo y antigüedad, no fiscaliza al Gestor CAE.
+    /// </summary>
+    public DateTime? CompletadaEnUtc { get; private set; }
+
     private Gestion()
     {
     }
@@ -49,9 +57,27 @@ public class Gestion : EntidadBase
         EstablecerNotas(notas);
     }
 
-    public void Completar() => Estado = EstadoGestion.Completada;
+    /// <summary>
+    /// Marca la Gestión como Completada en <paramref name="ahoraUtc"/>.
+    /// Idempotente: completar una ya completada conserva el instante original.
+    /// </summary>
+    public void Completar(DateTime ahoraUtc)
+    {
+        if (ahoraUtc.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("El instante en que se completa la gestión debe estar en UTC.", nameof(ahoraUtc));
+        if (Estado == EstadoGestion.Completada)
+            return;
 
-    public void Reabrir() => Estado = EstadoGestion.Pendiente;
+        Estado = EstadoGestion.Completada;
+        CompletadaEnUtc = ahoraUtc;
+    }
+
+    /// <summary>Vuelve a Pendiente y olvida cuándo se había completado.</summary>
+    public void Reabrir()
+    {
+        Estado = EstadoGestion.Pendiente;
+        CompletadaEnUtc = null;
+    }
 
     public void ActualizarNotas(string? notas) => EstablecerNotas(notas);
 
