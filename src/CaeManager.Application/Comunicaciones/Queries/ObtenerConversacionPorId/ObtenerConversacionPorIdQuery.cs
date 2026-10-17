@@ -462,7 +462,7 @@ public class ObtenerConversacionPorIdQueryHandler(
         DateTime fechaUltimoMensajeUtc, CancellationToken cancellationToken)
     {
         if (canal != CanalConversacion.WhatsApp || clienteId is null) return null;
-        if (estado != EstadoConversacion.Abierta && estado != EstadoConversacion.Pendiente) return null;
+        if (!TransicionesEstadoConversacion.EsVivo(estado)) return null;
 
         var candidato = await motorCoincidencia.ProponerVinculacionAsync(conversacionId, clienteId.Value, fechaUltimoMensajeUtc, cancellationToken);
         return candidato is null ? null : new SugerenciaVinculacionDetalleDto(candidato.ConversacionId, candidato.Asunto, candidato.Desglose);

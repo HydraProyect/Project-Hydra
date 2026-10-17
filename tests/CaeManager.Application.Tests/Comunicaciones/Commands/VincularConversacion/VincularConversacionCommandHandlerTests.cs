@@ -117,6 +117,57 @@ public class VincularConversacionCommandHandlerTests
         unitOfWork.VecesGuardado.Should().Be(0);
     }
 
+    [Theory]
+    [InlineData(EstadoConversacion.EsperandoRespuestaExterna)]
+    [InlineData(EstadoConversacion.EnEsperaDeTercero)]
+    public async Task Acepta_como_destino_una_conversacion_viva_en_espera(EstadoConversacion estadoDestino)
+    {
+        var clienteId = Guid.NewGuid();
+        var conversacionRepositorio = new ConversacionRepositorioFalso();
+
+        var origen = Conversacion.CrearWhatsApp("+34600111222", Guid.NewGuid(), clienteId, Guid.NewGuid());
+        conversacionRepositorio.Agregar(origen);
+
+        var destino = new Conversacion("Consulta por correo", clienteId);
+        destino.CambiarEstado(estadoDestino);
+        conversacionRepositorio.Agregar(destino);
+
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new VincularConversacionCommandHandler(
+            conversacionRepositorio, new EventoConversacionRepositorioFalso(), new AlcanceDatosServiceFalso(), unitOfWork);
+
+        var resultado = await handler.Handle(
+            new VincularConversacionCommand(origen.Id, destino.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        origen.Estado.Should().Be(EstadoConversacion.Cerrada);
+        unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Un_origen_que_ya_estaba_cerrado_se_vincula_sin_fallar_por_cerrarlo_otra_vez()
+    {
+        var clienteId = Guid.NewGuid();
+        var conversacionRepositorio = new ConversacionRepositorioFalso();
+
+        var origen = Conversacion.CrearWhatsApp("+34600111222", Guid.NewGuid(), clienteId, Guid.NewGuid());
+        origen.CambiarEstado(EstadoConversacion.Cerrada);
+        conversacionRepositorio.Agregar(origen);
+        var destino = new Conversacion("Consulta por correo", clienteId);
+        conversacionRepositorio.Agregar(destino);
+
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new VincularConversacionCommandHandler(
+            conversacionRepositorio, new EventoConversacionRepositorioFalso(), new AlcanceDatosServiceFalso(), unitOfWork);
+
+        var resultado = await handler.Handle(
+            new VincularConversacionCommand(origen.Id, destino.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        origen.Estado.Should().Be(EstadoConversacion.Cerrada);
+        origen.CambiosEstado.Should().HaveCount(1, "no se registra un cierre que no ocurrió");
+    }
+
     [Fact]
     public async Task Rechaza_un_destino_ya_cerrado()
     {

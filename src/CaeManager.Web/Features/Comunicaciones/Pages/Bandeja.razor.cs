@@ -1077,6 +1077,28 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private Task RegistrarAccionMedidaAsync() =>
         _medidorTiempo?.RegistrarAccionCompletadaAsync() ?? Task.CompletedTask;
 
+    /// <summary>
+    /// Cambia con cada intento desde el selector «Cambiar estado…» y es su <c>@key</c>: tras un cambio rechazado el valor
+    /// enlazado sigue siendo vacío y Blazor no tocaría el DOM, así que el desplegable se quedaría mostrando el estado
+    /// elegido aunque no se aplicó. Con otra clave se vuelve a pintar desde cero.
+    /// </summary>
+    private int _intentosCambioEstado;
+
+    private async Task CambiarEstadoDesdeSelectorAsync(string valor)
+    {
+        if (!Enum.TryParse<EstadoConversacion>(valor, out var nuevoEstado) || !Enum.IsDefined(nuevoEstado))
+            return;
+
+        try
+        {
+            await CambiarEstadoAsync(nuevoEstado);
+        }
+        finally
+        {
+            _intentosCambioEstado++;
+        }
+    }
+
     private async Task CambiarEstadoAsync(EstadoConversacion nuevoEstado)
     {
         if (_conversacionSeleccionadaId is null) return;
@@ -1413,13 +1435,6 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             _aplicandoDocumento = false;
         }
     }
-
-    private static TonoBadge TonoBadgeDeEstado(EstadoConversacion estado) => estado switch
-    {
-        EstadoConversacion.Abierta => TonoBadge.Info,
-        EstadoConversacion.Pendiente => TonoBadge.Info,
-        _ => TonoBadge.Neutro
-    };
 
     /// <summary>Ver DocumentoCitadoDetalleDto — el tono/etiqueta hace visible el nivel de certeza, no solo agrupa.</summary>
     private static TonoBadge NivelBadgeTono(NivelConfianzaDocumentoCitado nivel) => nivel switch

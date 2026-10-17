@@ -41,7 +41,7 @@ public class ConversacionRepositorioFalso : IConversacionRepository
         IReadOnlyCollection<Guid> ejecutivoIds, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyDictionary<Guid, int>>(Conversaciones
             .Where(c => c.Canal == CanalConversacion.WhatsApp
-                        && (c.Estado == EstadoConversacion.Abierta || c.Estado == EstadoConversacion.Pendiente)
+                        && TransicionesEstadoConversacion.EsVivo(c.Estado)
                         && c.EjecutivoAsignadoId is { } id && ejecutivoIds.Contains(id))
             .GroupBy(c => c.EjecutivoAsignadoId!.Value)
             .ToDictionary(g => g.Key, g => g.Count()));
@@ -50,7 +50,7 @@ public class ConversacionRepositorioFalso : IConversacionRepository
         Guid clienteId, Guid excluirConversacionId, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<Conversacion>>(Conversaciones
             .Where(c => c.ClienteId == clienteId && c.Id != excluirConversacionId
-                        && (c.Estado == EstadoConversacion.Abierta || c.Estado == EstadoConversacion.Pendiente))
+                        && TransicionesEstadoConversacion.EsVivo(c.Estado))
             .OrderByDescending(c => c.FechaUltimoMensajeUtc)
             .ToList());
 
