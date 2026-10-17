@@ -158,6 +158,7 @@ public class EvaluacionDeAccesoPorCentroService(
         var tiposDeEmpresaIds = requisitos.Where(r => r.Ambito == AmbitoAplicacion.Empresa).Select(r => r.TipoDocumentoId).Distinct().ToList();
 
         // La vigencia no se decide en SQL: se traen estado, fechas y emisión y la regla única los evalúa en memoria.
+        // Una renuncia nunca vale para acceder (ni hoy ni con tolerancia): no se trae, y el requisito queda como sin documento.
         var documentos = new List<DocumentoParaBloqueo>();
 
         if (tiposDeTrabajadorIds.Count > 0)
@@ -165,7 +166,8 @@ public class EvaluacionDeAccesoPorCentroService(
             var delTrabajador = await documentosContext.Documentos.Operativos()
                 .Where(d => d.TrabajadorId != null
                     && trabajadorIds.Contains(d.TrabajadorId!.Value)
-                    && tiposDeTrabajadorIds.Contains(d.TipoDocumentoId))
+                    && tiposDeTrabajadorIds.Contains(d.TipoDocumentoId)
+                    && !d.EsRenuncia)
                 .Select(d => new { d.TrabajadorId, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision })
                 .ToListAsync(cancellationToken);
             documentos.AddRange(delTrabajador.Select(d => new DocumentoParaBloqueo(
@@ -178,7 +180,8 @@ public class EvaluacionDeAccesoPorCentroService(
             var delaEmpresa = await documentosContext.Documentos.Operativos()
                 .Where(d => d.EmpresaId != null
                     && empresaIds.Contains(d.EmpresaId!.Value)
-                    && tiposDeEmpresaIds.Contains(d.TipoDocumentoId))
+                    && tiposDeEmpresaIds.Contains(d.TipoDocumentoId)
+                    && !d.EsRenuncia)
                 .Select(d => new { d.EmpresaId, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision })
                 .ToListAsync(cancellationToken);
             documentos.AddRange(delaEmpresa.Select(d => new DocumentoParaBloqueo(

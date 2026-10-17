@@ -93,8 +93,9 @@ public static class DocumentacionBaseTrabajador
             .ToDictionary(g => g.Key, g => DocumentoEfectivo.Ordenar(
                 g.Select(x => x.Documento), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, d => d.EsRenuncia, hoy).First());
 
+        // Una renuncia nunca vale hoy ni cumple: si es lo único que hay del tipo, el indicador es Falta, como sin documento.
         var indicadores = Enum.GetValues<TipoDocumentoBase>()
-            .Select(tipo => porTipo.TryGetValue(tipo, out var d)
+            .Select(tipo => porTipo.TryGetValue(tipo, out var d) && !d.EsRenuncia
                 ? new IndicadorDocumentacionBase(tipo, Traducir(
                     CalculadoraEstadoDocumento.Calcular(d.EstadoVigencia, d.FechaVencimiento, hoy, umbralAmbarDias, umbralRojoDias)), d.Id, d.FechaVencimiento)
                 : new IndicadorDocumentacionBase(tipo, EstadoIndicadorBase.Falta, null, null))

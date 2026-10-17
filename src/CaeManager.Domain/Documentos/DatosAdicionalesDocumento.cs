@@ -18,8 +18,8 @@ public enum DatosAdicionalesDocumento
     Nivel = 2,
 
     /// <summary>
-    /// Recibo de pago como adjunto opcional del mismo documento (<see cref="Documento.ReciboArchivoUrl"/>). El estado
-    /// del documento no depende del recibo.
+    /// Recibo de pago como adjunto opcional del mismo documento. El Documento aún no tiene dónde guardarlo: hoy es solo
+    /// la marca del catálogo. El estado del documento no depende del recibo.
     /// </summary>
     ReciboAdjunto = 4,
 

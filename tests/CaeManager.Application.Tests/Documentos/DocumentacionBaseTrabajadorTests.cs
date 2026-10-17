@@ -33,6 +33,19 @@ public class DocumentacionBaseTrabajadorTests
         d.AlDia.Should().BeFalse();
     }
 
+    [Fact]
+    public void Una_renuncia_sola_no_pone_el_indicador_al_dia()
+    {
+        var renuncia = Doc("Certificado de aptitud médica", EstadoVigenciaDocumento.NoCaduca, null) with { EsRenuncia = true };
+
+        var indicador = Calcular(renuncia).Indicadores.Single(i => i.Tipo == TipoDocumentoBase.AptitudMedica);
+
+        indicador.Estado.Should().Be(EstadoIndicadorBase.Falta, "una renuncia nunca vale hoy ni cumple");
+        indicador.DocumentoId.Should().BeNull();
+        Estado(Calcular(Doc("Certificado de aptitud médica", EstadoVigenciaDocumento.NoCaduca, null)), TipoDocumentoBase.AptitudMedica)
+            .Should().Be(EstadoIndicadorBase.Vigente, "control: el mismo documento sin ser renuncia sí está al día");
+    }
+
     [Theory]
     [InlineData("Certificado de aptitud médica")]
     [InlineData("Reconocimiento médico")]

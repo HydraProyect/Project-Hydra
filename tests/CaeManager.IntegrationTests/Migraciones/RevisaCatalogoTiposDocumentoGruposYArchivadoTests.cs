@@ -131,6 +131,13 @@ public class RevisaCatalogoTiposDocumentoGruposYArchivadoTests : IAsyncLifetime
         rlcB.DatosAdicionales.Should().Be(4);
 
         (await TipoAsync(Guid.Parse(BaseReciclaje))).Nombre.Should().Be("Reciclaje PRL", "el Tenant #1 llega por HasData");
+
+        foreach (var tenant in new[] { _a, _b })
+            (await LeerAsync("""
+                SELECT "Requerido" FROM "TiposDocumento"
+                WHERE "TenantId" = @t AND "Nombre" = 'Procedimiento de Coordinación de Actividades Empresariales'
+                """, l => l.GetString(0), P("t", tenant.Id)))
+                .Should().Equal(["No"], "el procedimiento CAE deja de ser obligatorio también en las copias");
     }
 
     [Fact]
@@ -201,8 +208,8 @@ public class RevisaCatalogoTiposDocumentoGruposYArchivadoTests : IAsyncLifetime
 
         var filas = await FilasCentroAsync(_centroA2);
         filas.Should().HaveCount(3, "no se crea ninguna fila: el sustituto ya estaba excluido y el protocolo no tiene sustituto");
-        filas.Single(f => f.Tipo == entregaEpi).Incluido.Should().BeFalse(
-            "el Centro excluyó «Entrega de EPI» a propósito: el traslado no lo vuelve a incluir");
+        filas.Single(f => f.Tipo == entregaEpi).Should().Be(new FilaCentro(entregaEpi, false, false, null, null, null, null),
+            "el Centro excluyó «Entrega de EPI» a propósito: el traslado no la vuelve a incluir ni le pasa bloqueo ni plantilla");
         filas.Should().OnlyContain(f => !f.Incluido && !f.BloqueaAcceso, "ningún archivado se sigue pidiendo ni bloquea");
     }
 

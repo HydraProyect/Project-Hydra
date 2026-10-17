@@ -279,6 +279,36 @@ public class CaminosDeAltaAcreditacionesTests
         mundo.Agregadas.Should().BeEquivalentTo([(documento.Id, acceso.Id)]);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Un_tipo_archivado_no_se_exige_en_Centros_nuevos_ni_de_serie_desde_su_edicion(bool deSerie)
+    {
+        var mundo = new MundoAcreditaciones();
+        var trabajador = mundo.Trabajador();
+        var centro = mundo.Centro();
+        mundo.AccesoPlataforma(centro);
+        mundo.Asignacion(trabajador, centro);
+        var tipo = mundo.Tipo(RequisitoDocumental.No);
+        mundo.DocumentoDe(trabajador, tipo);
+        tipo.Archivar(null);
+        var tipos = new TipoDocumentoRepositorioFalso();
+        tipos.Agregar(tipo);
+        var filas = new TipoDocumentoCentroRepositorioFalso();
+        var handler = new EditarTipoDocumentoCommandHandler(
+            tipos, filas, mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+
+        var resultado = await handler.Handle(
+            new EditarTipoDocumentoCommand(
+                tipo.Id, tipo.Nombre, 12, true, 1, deSerie ? RequisitoDocumental.Si : RequisitoDocumental.No, NaturalezaJuridica.RequisitoCliente,
+                null, null, null, null, null, deSerie ? [] : [centro.Id]),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeFalse("un tipo archivado no se pide: se pide su sustituto");
+        resultado.Error.Codigo.Should().Be("TipoDocumento.Archivado");
+        mundo.Agregadas.Should().BeEmpty();
+    }
+
     /// <summary>
     /// Trabajador, Centro con un acceso de plataforma y un tipo que ese Centro
     /// exige de forma explícita (el tipo sembrado no es obligatorio por defecto).

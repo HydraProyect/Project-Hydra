@@ -13,6 +13,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // Primero, antes de tocar nada: sin un migrador que vea todos los Tenants, el UpdateData del Tenant #1 y el
+            // SQL de las copias no verían filas bajo RLS.
+            migrationBuilder.Sql(ExigirMigradorQueVeTodosLosTenants);
+
             migrationBuilder.AddColumn<bool>(
                 name: "Archivado",
                 table: "TiposDocumento",
@@ -678,7 +682,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 principalColumns: new[] { "TenantId", "Id" },
                 onDelete: ReferentialAction.Restrict);
 
-            migrationBuilder.Sql(ExigirMigradorQueVeTodosLosTenants);
             migrationBuilder.Sql(ActualizarCopias);
             migrationBuilder.Sql(ArchivarCopias);
             migrationBuilder.Sql(InsertarTiposNuevosEnCopias);
@@ -694,7 +697,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // ConvierteCarterasPorClienteATenantEntero): las filas que pasó al sustituto apuntan a tipos que ya existían
             // antes de esta migración, así que el estado que deja es válido sin ella; restaurarlo exactamente exigiría
             // una tabla de respaldo, y una tabla nueva sin RLS sería legible entre Tenants por los privilegios por
-            // defecto de cae_app_runtime y cae_app_soporte.
+            // defecto de cae_app_runtime y cae_app_soporte. Consecuencias que se aceptan con ello: la fila de Centro del
+            // archivado se queda como exclusión explícita (Incluido=false) aunque el tipo vuelva a pedirse de serie; sus
+            // requisitos de Proyecto y de plantilla de evento siguen en el sustituto; el Requerido de «Formación EPIs» y
+            // del protocolo de acoso en las copias no se restaura (no se guardó el anterior), y «Procedimiento de
+            // Coordinación…» vuelve a Condicional en toda copia que esté en No. Los Documentos con EsRenuncia pierden la
+            // marca al borrar la columna.
             migrationBuilder.Sql(RevertirCopias);
 
             migrationBuilder.DropForeignKey(
