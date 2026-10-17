@@ -76,6 +76,47 @@ public class AsignacionDeCarteraEnEscriturasTests
         documento.EstaEliminado.Should().BeFalse();
     }
 
+    /// <summary>
+    /// Documento de un Proyecto ya eliminado: el Cliente empresarial del Proyecto se resuelve sin el
+    /// filtro de borrado lógico. Con la cartera de OTRO Cliente empresarial, «no existe» y sigue eliminado;
+    /// con la del suyo, se restaura (que la resolución no deje pasar ni bloquee de más).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Restaurar_un_documento_de_un_proyecto_eliminado_respeta_la_cartera_de_su_cliente_empresarial(bool carteraDelCliente)
+    {
+        var clienteEmpresarial = Guid.NewGuid();
+        var proyecto = CaeManager.Domain.Proyectos.Proyecto.Crear(clienteEmpresarial, Guid.NewGuid(), "Obra de la nave", Hoy, null, null);
+        proyecto.MarcarComoEliminado(Guid.NewGuid());
+        var proyectos = new ProyectosQueryContextFalso();
+        proyectos.ListaProyectos.Add(proyecto);
+
+        var documento = Documento.DeProyecto(proyecto.Id, Guid.NewGuid(), Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(1)));
+        documento.MarcarComoEliminado(Guid.NewGuid());
+        var documentos = new DocumentosQueryContextFalso();
+        documentos.ListaDocumentos.Add(documento);
+        var unitOfWork = new UnitOfWorkFalso();
+        var alcance = new AlcanceDatosServiceFalso(
+            tieneAccesoTotal: false, clienteIdsVisibles: [carteraDelCliente ? clienteEmpresarial : Guid.NewGuid()]);
+        var handler = new RestaurarDocumentoCommandHandler(
+            documentos, new TenantActualFijo(documento.TenantId), alcance, proyectos, unitOfWork);
+
+        var resultado = await handler.Handle(new RestaurarDocumentoCommand(documento.Id), CancellationToken.None);
+
+        if (carteraDelCliente)
+        {
+            resultado.EsExitoso.Should().BeTrue();
+            documento.EstaEliminado.Should().BeFalse();
+        }
+        else
+        {
+            resultado.Error.Codigo.Should().Be("Documento.NoEncontrado");
+            documento.EstaEliminado.Should().BeTrue();
+            unitOfWork.VecesGuardado.Should().Be(0);
+        }
+    }
+
     private static (RestaurarDocumentoCommandHandler, Documento, UnitOfWorkFalso) RestaurarDocumento(
         IAlcanceDatosService alcance, Guid? empresaId = null)
     {

@@ -51,8 +51,8 @@ public class EscriturasSobreEntidadesConCarteraTests
             "de Operación; IAlcanceDatosService excluye expresamente los usuarios de sus listas",
         ["EditarUsuarioCommandHandler"] = "mismo motivo que CrearUsuarioCommandHandler",
         ["CrearTarifaClienteCommandHandler"] =
-            "tarifas de facturación: plano Comercial, no Operación; la página /facturacion es solo de Administrador y " +
-            "Dirección CAE, que no tienen restricción de cartera",
+            "tarifas de facturación: plano Comercial, no Operación; el propio comando exige rol Administrador o " +
+            "Dirección CAE (AutorizacionTarifasCliente), que no tienen restricción de cartera",
         ["RegistrarHistorialInformeCommandHandler"] =
             "anota en el historial del propio usuario qué informe generó; no escribe sobre el Cliente empresarial, y " +
             "el informe ya sale filtrado por la cartera",
@@ -65,17 +65,7 @@ public class EscriturasSobreEntidadesConCarteraTests
     /// Deuda conocida: handlers que deberían consultar el alcance y todavía no lo hacen. Solo
     /// puede encoger: una entrada que ya cumple hace fallar el test para que se retire.
     /// </summary>
-    private static readonly HashSet<string> Pendientes =
-    [
-        // Incidencias (CentroId, TrabajadorId, o Id(s) de una Incidencia colgada de ellos): fuera de
-        // este incremento, que cierra documentos, acreditaciones, reclamaciones, Tipos de documento y
-        // las fichas de Empresa, Subcontrata, Centro y Vehículo.
-        "CrearIncidenciaCommandHandler",
-        "EditarIncidenciaCommandHandler",
-        "EliminarIncidenciaCommandHandler",
-        "EliminarIncidenciasCommandHandler",
-        "MarcarResueltaIncidenciaCommandHandler",
-    ];
+    private static readonly HashSet<string> Pendientes = [];
 
     [Fact]
     public void Todo_comando_que_nombra_una_entidad_con_cartera_tiene_un_handler_que_consulta_el_alcance()
@@ -90,6 +80,57 @@ public class EscriturasSobreEntidadesConCarteraTests
 
         string.Join(" | ", Pendientes.Except(infractores)).Should().BeEmpty(
             "estos handlers ya consultan el alcance: retíralos de Pendientes para que no puedan volver a perderlo");
+    }
+
+    /// <summary>
+    /// Comandos de Importación con su motivo. Escriben en bloque Empresas, Clientes empresariales,
+    /// Centros, Trabajadores y Documentos sacados de un fichero, sin nombrar ningún Id en su contrato,
+    /// así que la red de arriba (que decide por los Ids) no los ve. No se acotan por cartera: el
+    /// propio comando exige el acto de un Administrador (<see cref="IAutorizacionEscrituraEfectiva"/>:
+    /// rol Administrador o Sesión Privilegiada de Aprovisionamiento sobre este Tenant), y Administrador
+    /// no tiene restricción de cartera. Con encargo de administración no pleno, el área Importacion
+    /// queda además excluida por <c>ActosExcluidosDelEncargo</c>.
+    /// </summary>
+    private static readonly Dictionary<string, string> ComandosDeImportacion = new()
+    {
+        ["EjecutarImportacionCommandHandler"] =
+            "alta masiva desde una plantilla por entidad; solo Administrador (Importacion.SoloAdministrador)",
+        ["EjecutarImportacionCombinadaCommandHandler"] =
+            "alta masiva combinada (Clientes empresariales, Centros, Empresas, Trabajadores); solo Administrador",
+        ["RegistrarHistorialImportacionCommandHandler"] =
+            "anota la operación de importación ya ejecutada; solo Administrador",
+    };
+
+    /// <summary>
+    /// Red que no depende de los Ids del contrato: todo comando de la carpeta Importacion está
+    /// clasificado en <see cref="ComandosDeImportacion"/> y su handler exige el acto de un
+    /// Administrador. Un comando de importación nuevo, o uno que pierda la dependencia de
+    /// <see cref="IAutorizacionEscrituraEfectiva"/>, hace fallar el test.
+    /// </summary>
+    [Fact]
+    public void Todo_comando_de_importacion_esta_clasificado_y_exige_el_acto_de_un_administrador()
+    {
+        var handlers = typeof(ICommand).Assembly.GetTypes()
+            .Where(t => !t.IsAbstract && !t.IsInterface)
+            .Where(t => t.Namespace?.Split('.') is [_, "Application", "Importacion", ..])
+            .Where(t => t.GetInterfaces().Any(i => i.IsGenericType
+                                                   && i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>)
+                                                   && typeof(ICommandBase).IsAssignableFrom(i.GetGenericArguments()[0])))
+            .ToList();
+
+        handlers.Should().NotBeEmpty("control positivo: la carpeta Importacion tiene comandos");
+
+        string.Join(" | ", handlers.Select(h => h.Name).Except(ComandosDeImportacion.Keys)).Should().BeEmpty(
+            "un comando de importación escribe en bloque entidades con cartera sin nombrarlas en su contrato: " +
+            "clasifícalo en ComandosDeImportacion con su motivo");
+
+        string.Join(" | ", ComandosDeImportacion.Keys.Except(handlers.Select(h => h.Name))).Should().BeEmpty(
+            "estas entradas ya no existen: retíralas de ComandosDeImportacion");
+
+        string.Join(" | ", handlers.Where(h => !Parametros(h).Contains(typeof(IAutorizacionEscrituraEfectiva))).Select(h => h.Name))
+            .Should().BeEmpty(
+                "un comando de importación no se acota por cartera, así que tiene que exigir el acto de un " +
+                "Administrador (IAutorizacionEscrituraEfectiva.EsActoDeAdministradorAsync)");
     }
 
     private static List<string> HandlersQueNoConsultanElAlcance()

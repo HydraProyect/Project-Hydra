@@ -18,7 +18,7 @@ public class EliminarIncidenciaCommandHandlerTests
         var repositorio = new IncidenciaRepositorioFalso();
         repositorio.Agregar(incidencia);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarIncidenciaCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
+        var handler = new EliminarIncidenciaCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()), new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(new EliminarIncidenciaCommand(incidencia.Id), CancellationToken.None);
 
@@ -31,7 +31,7 @@ public class EliminarIncidenciaCommandHandlerTests
     {
         var repositorio = new IncidenciaRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarIncidenciaCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
+        var handler = new EliminarIncidenciaCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()), new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(new EliminarIncidenciaCommand(Guid.NewGuid()), CancellationToken.None);
 
@@ -48,7 +48,7 @@ public class EliminarIncidenciaCommandHandlerTests
         var repositorio = new IncidenciaRepositorioFalso();
         repositorio.Agregar(incidencia);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarIncidenciaCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(usuarioId: null));
+        var handler = new EliminarIncidenciaCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(usuarioId: null), new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(new EliminarIncidenciaCommand(incidencia.Id), CancellationToken.None);
 

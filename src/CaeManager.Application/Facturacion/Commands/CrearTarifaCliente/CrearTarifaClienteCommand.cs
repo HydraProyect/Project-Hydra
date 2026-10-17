@@ -32,11 +32,16 @@ public class CrearTarifaClienteCommandValidator : AbstractValidator<CrearTarifaC
 public class CrearTarifaClienteCommandHandler(
     ITarifaClienteRepository repositorio,
     IEmpresasQueryContext empresasContext,
+    ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)
     : IRequestHandler<CrearTarifaClienteCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearTarifaClienteCommand request, CancellationToken cancellationToken)
     {
+        // Plano Comercial: por rol, no por cartera — ver AutorizacionTarifasCliente.
+        if (!await currentUserService.PuedeGestionarTarifasAsync())
+            return Result.Fallo<Guid>(AutorizacionTarifasCliente.SinPermiso);
+
         // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         // TarifaCliente.ClienteId ya apunta a Empresas (F3).
         if (!await empresasContext.Empresas.AnyAsync(e => e.Id == request.ClienteId, cancellationToken))
