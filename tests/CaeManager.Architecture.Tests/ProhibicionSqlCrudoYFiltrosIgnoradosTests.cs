@@ -324,6 +324,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // privilegiada antes de elevar) y la tercera fija el marcador sobre el
         // Tenant que la propia siembra acaba de crear, por Id.
         [("src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs", "var existentes = await dbContext.Tenants.IgnoreQueryFilters()")] = 1,
+        // Bootstrap administrativo: incluye soft delete para no reponer eliminaciones humanas.
+        // La consulta conserva el filtro explícito m.TenantId == tenantId.
+        [("src/CaeManager.Infrastructure/Persistence/Seed/PlantillasRespuestaSeeder.cs", "var existentes = await contextoBootstrap.MacrosRespuesta.IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs", "var id = await dbContextNoPrivilegiado.Tenants.IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs", "var tenant = await dbContext.Tenants.IgnoreQueryFilters().SingleAsync(t => t.Id == tenantId, cancellationToken);")] = 1,
 

@@ -375,6 +375,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.CredencialVerificadaInmediatamenteAntes, "verificacion.TenantId, tras verificar la firma del webhook de WhatsApp"),
 
         // ── BOOTSTRAP O SIEMBRA ──────────────────────────────────────────────────────
+        ["src/CaeManager.Infrastructure/Persistence/Seed/PlantillasRespuestaSeeder.cs"] =
+            new(Categoria.BootstrapOSiembra, "tenantId procede del catálogo de Tenants propietarios leído con el contexto administrativo; solo instala las nueve Macros estáticas, sin datos de conversaciones"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "tenants[0].Id, de la lista de tenants ya sembrados por el propio arranque"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] =

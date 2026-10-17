@@ -33,6 +33,9 @@ public class MigrarConversacionACorreoCommandValidator : AbstractValidator<Migra
 {
     public MigrarConversacionACorreoCommandValidator()
     {
+        RuleFor(c => c.CuerpoHtml)
+            .Must(texto => texto is null || VariablesPlantillaRespuesta.Pendientes(texto).Count == 0)
+            .WithMessage("Completa las variables de la plantilla antes de enviar.");
         RuleFor(c => c.ConversacionId).NotEmpty().WithMessage("La migración debe indicar una conversación.");
         RuleFor(c => c.EmailDestino).NotEmpty().EmailAddress().WithMessage("Indica un correo de destino válido.");
         RuleFor(c => c.CuerpoHtml).NotEmpty().WithMessage("El mensaje no puede estar vacío.");

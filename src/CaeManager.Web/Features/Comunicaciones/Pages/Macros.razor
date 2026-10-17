@@ -213,15 +213,13 @@
         <CampoTexto Etiqueta="Título" Valor="@_titulo" ValorChanged="v => _titulo = v" Placeholder="Cómo la verás en la lista de macros"
                     MensajeError="@ObtenerError(nameof(CrearMacroCommand.Titulo))" />
 
-        @* El mockup declara el campo de «texto plano» que se escapa al guardar
-           y convierte los saltos: eso no existe. Lo que hace hoy la bandeja
-           (Bandeja.razor.cs, AplicarMacro) es copiar el contenido tal cual en
-           el cuadro de respuesta, y eso es lo que dice la ayuda. *@
         <CampoTextarea Etiqueta="Contenido" Valor="@_cuerpo" ValorChanged="v => _cuerpo = v" Filas="6"
                        Placeholder="El texto que se insertará en la respuesta"
                        MensajeError="@ObtenerError(nameof(CrearMacroCommand.CuerpoHtml))" />
         <p class="texto-ayuda-campo">
-            Se copia tal cual en el cuadro de respuesta, con sus saltos de línea; allí puedes retocarlo antes de enviar.
+            Variables disponibles: Empresa, Centro, Cliente empresarial, Trabajador, fecha de la visita y documentos pendientes.
+            Escríbelas entre dobles llaves, por ejemplo @("{{Empresa}}"). Se rellenan con los datos del hilo;
+            completa las pendientes y revisa los adjuntos antes de enviar.
         </p>
     </ChildContent>
     <Pie>
