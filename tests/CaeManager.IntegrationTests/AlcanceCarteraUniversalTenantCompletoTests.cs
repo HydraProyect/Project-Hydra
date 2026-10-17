@@ -110,20 +110,20 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
     }
 
     private sealed record Alcance(
-        bool AccesoTotal,
+        bool AccesoTotal, bool TenantEntero,
         IReadOnlyList<Guid>? Clientes, IReadOnlyList<Guid>? Centros, IReadOnlyList<Guid>? CentrosGestion,
         IReadOnlyList<Guid>? Empresas, IReadOnlyList<Guid>? EmpresasGestion,
         IReadOnlyList<Guid>? Subcontratas, IReadOnlyList<Guid>? SubcontratasGestion,
         IReadOnlyList<Guid>? Trabajadores, IReadOnlyList<Guid>? Vehiculos);
 
-    private async Task<Alcance> MedirAsync(Guid usuarioId, string rol, Guid tenant, Guid? gestorDeLente = null)
+    private async Task<Alcance> MedirAsync(Guid usuarioId, string? rol, Guid tenant, Guid? gestorDeLente = null)
     {
         await using var contexto = CrearContexto(tenant);
         var s = new AlcanceDatosService(contexto, new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: tenant),
             new TenantActualAmbiental { TenantId = tenant }, new SesionPrivilegiadaAusente(),
             gestorDeLente is { } g ? new LenteGestorFija(g) : null);
         return new Alcance(
-            await s.TieneAccesoTotalAsync(),
+            await s.TieneAccesoTotalAsync(), await s.AlcanzaElTenantEnteroAsync(),
             await s.ObtenerClienteIdsVisiblesAsync(), await s.ObtenerCentroIdsVisiblesAsync(), await s.ObtenerCentroIdsParaGestionAsync(),
             await s.ObtenerEmpresaIdsVisiblesAsync(), await s.ObtenerEmpresaIdsParaGestionAsync(),
             await s.ObtenerSubcontrataIdsVisiblesAsync(), await s.ObtenerSubcontrataIdsParaGestionAsync(),
@@ -135,6 +135,7 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         // AssertionScope: una rama que falle no oculta a las demás (la medición es rama por rama).
         using var _ = new AssertionScope();
         a.AccesoTotal.Should().BeFalse("la cartera es autoridad de Operación, no el alcance total de un rol de Propiedad");
+        a.TenantEntero.Should().BeTrue("la cartera universal alcanza el Tenant entero (Cuadro de dirección)");
         a.Clientes.Should().NotBeNull().And.Contain(e.Cliente)
             .And.NotContain([e.Propia, e.Subcontrata], "la lista de Clientes sigue siendo la de Clientes");
         a.Centros.Should().NotBeNull().And.Contain([e.CentroDelCliente, e.CentroSinClienteEmpresarial]);
@@ -154,6 +155,7 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
     private static void NoDebeAlcanzarNada(Alcance a)
     {
         a.AccesoTotal.Should().BeFalse();
+        a.TenantEntero.Should().BeFalse("sin cartera no se alcanza el Tenant entero");
         foreach (var lista in new[] { a.Clientes, a.Centros, a.CentrosGestion, a.Empresas, a.EmpresasGestion,
                      a.Subcontratas, a.SubcontratasGestion, a.Trabajadores, a.Vehiculos })
             lista.Should().NotBeNull("sin cartera el alcance es [] (falla cerrado), no null").And.BeEmpty();
@@ -305,6 +307,7 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         var a = await MedirAsync(usuarioPortal, "Cliente", _tenant);
 
         a.Clientes.Should().Equal([e.Cliente], "control positivo: el portal ve su Cliente");
+        a.TenantEntero.Should().BeFalse("el rol Cliente nunca alcanza el Tenant entero");
         a.Centros.Should().Contain(e.CentroDelCliente).And.NotContain(e.CentroSinClienteEmpresarial);
         a.Trabajadores.Should().NotContain([e.TrabajadorPropio, e.TrabajadorDeSubcontrata]);
         a.Subcontratas.Should().NotContain(e.Subcontrata);
@@ -321,7 +324,45 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         var a = await MedirAsync(Guid.NewGuid(), "Consulta", _tenant);
 
         a.AccesoTotal.Should().BeTrue();
+        a.TenantEntero.Should().BeTrue("el acceso total de lectura es el Tenant entero");
         a.Trabajadores.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Administrador_alcanza_el_Tenant_entero()
+    {
+        await SembrarAsync(_tenant, "A");
+
+        var a = await MedirAsync(Guid.NewGuid(), "Administrador", _tenant);
+
+        a.AccesoTotal.Should().BeTrue();
+        a.TenantEntero.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Sin_rol_no_alcanza_el_Tenant_entero_ni_con_una_cartera_universal_a_su_nombre()
+    {
+        await SembrarAsync(_tenant, "A");
+        var usuario = Guid.NewGuid();
+        await OtorgarCarteraAsync(_tenant, usuario, AmbitoAsignacion.Universal);
+
+        var a = await MedirAsync(usuario, rol: null, _tenant);
+
+        a.AccesoTotal.Should().BeFalse();
+        a.TenantEntero.Should().BeFalse("sin rol de negocio en la sesión falla cerrado");
+    }
+
+    [Fact]
+    public async Task La_lente_de_demo_que_estrecha_a_un_Gestor_sin_el_Tenant_entero_no_alcanza_el_Tenant_entero()
+    {
+        var e = await SembrarAsync(_tenant, "A");
+        var acotado = Guid.NewGuid();
+        await OtorgarCarteraBajoOperacionAcotadaAsync(_tenant, acotado, operacionSobre: e.Cliente);
+
+        // Un Administrador (Tenant entero) mirando con la lente de un Gestor CAE de cartera acotada, o sin cartera.
+        (await MedirAsync(Guid.NewGuid(), "Administrador", _tenant)).TenantEntero.Should().BeTrue("control positivo sin lente");
+        (await MedirAsync(Guid.NewGuid(), "Administrador", _tenant, gestorDeLente: acotado)).TenantEntero.Should().BeFalse();
+        (await MedirAsync(Guid.NewGuid(), "Administrador", _tenant, gestorDeLente: Guid.NewGuid())).TenantEntero.Should().BeFalse();
     }
 
     [Fact]
@@ -345,6 +386,7 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
 
         using var _ = new AssertionScope();
         a.AccesoTotal.Should().BeFalse();
+        a.TenantEntero.Should().BeFalse("una cartera acotada a un Cliente empresarial no es el Tenant entero");
         a.Clientes.Should().Equal([e.Cliente], "el ámbito efectivo es la intersección con el de la operación que la ampara");
         a.Centros.Should().Contain(e.CentroDelCliente).And.NotContain(e.CentroSinClienteEmpresarial,
             "una operación acotada nunca concede el Tenant entero");

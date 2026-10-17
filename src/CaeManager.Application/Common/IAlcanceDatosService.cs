@@ -47,6 +47,23 @@ public interface IAlcanceDatosService
     /// <summary>True para Administrador/DireccionCae/Consulta — sin restricción de cartera.</summary>
     Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// ¿Alcanza quien mira, en el Tenant actual, el Tenant entero en las ramas operativas? Verdadero con
+    /// acceso total o con una Asignación de Cartera de ámbito universal efectiva (la del Gestor CAE o la
+    /// de un Gestor a cargo del Coordinador CAE), siempre después de la lente de demo, que solo estrecha.
+    /// Falso con una lista explícita de Clientes empresariales, con el rol Cliente o sin nada.
+    ///
+    /// <para>
+    /// No concede nada: es la condición para enseñar un agregado de Tenant (un recuento del Tenant entero,
+    /// sin filas) que no se puede recortar por las listas de este servicio, como las bajas del Cuadro de
+    /// dirección, que cuentan filas eliminadas que ya no están en ninguna lista. Quien no lo cumple no ve
+    /// ese agregado. La implementación por defecto, para los dobles de prueba, se queda en el acceso total:
+    /// falla cerrado.
+    /// </para>
+    /// </summary>
+    Task<bool> AlcanzaElTenantEnteroAsync(CancellationToken cancellationToken = default) =>
+        TieneAccesoTotalAsync(cancellationToken);
+
     Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
