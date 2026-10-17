@@ -148,6 +148,7 @@ public class ObtenerCuadroDireccionQueryHandler(
 {
     public async Task<CuadroDireccionDto> Handle(ObtenerCuadroDireccionQuery request, CancellationToken cancellationToken)
     {
+        await AutorizacionCuadroDireccion.ExigirLecturaAsync(currentUserService);
         var ahoraUtc = reloj.GetUtcNow().UtcDateTime;
         if (!MesCuadroDireccion.EsValido(request.Anyo, request.Mes))
             return SinCifras(request.Anyo, request.Mes, null, ahoraUtc, CuadroDireccionSinCifras.MesNoValido);
