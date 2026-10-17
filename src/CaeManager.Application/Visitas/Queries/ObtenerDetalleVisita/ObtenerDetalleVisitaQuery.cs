@@ -61,7 +61,14 @@ public record DetalleVisitaDto(
     // Estado guardado (Visita.DocumentacionGestionadaEnUtc): null = por gestionar.
     DateTime? DocumentacionGestionadaEnUtc = null,
     // La «Nota interna» la decide la política única; la página obedece esta bandera para pintar la caja.
-    bool NotaInternaVisible = false);
+    bool NotaInternaVisible = false,
+    // Contacto de la Visita (decisión de producto, 2026-10-16): datos personales. Solo llegan con ContactoVisible,
+    // que exige la política de lectura de las fichas 360 y el alcance de gestión del Centro, como la ficha de
+    // Centro 360. Sin ella llegan a null y la página no pinta la caja.
+    bool ContactoVisible = false,
+    string? ContactoNombre = null,
+    string? ContactoTelefono = null,
+    string? ContactoCorreo = null);
 
 public class ObtenerDetalleVisitaQueryHandler(
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
@@ -104,7 +111,10 @@ public class ObtenerDetalleVisitaQueryHandler(
                 v.EstaCancelada,
                 v.MotivoCancelacion,
                 v.Version,
-                v.DocumentacionGestionadaEnUtc
+                v.DocumentacionGestionadaEnUtc,
+                v.ContactoNombre,
+                v.ContactoTelefono,
+                v.ContactoCorreo
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -137,6 +147,9 @@ public class ObtenerDetalleVisitaQueryHandler(
                 visita.FechaInicio, visita.FechaFin, DiaDeNegocio.Hoy(), parametros.HorasAvisoVisita, parametros.HorasCriticasVisita);
 
         var conNotaInterna = await politicaNotaInterna.PuedeLeerAsync(cancellationToken);
+        // Mismo criterio que la ficha de Centro 360 (ObtenerCentroPorIdQuery): política de lectura de las fichas 360
+        // y alcance de GESTIÓN del Centro. Ver el Centro con la cartera de lectura no basta para ver a la persona.
+        var conContacto = conNotaInterna && await alcanceDatos.CentroParaGestionVisibleAsync(visita.CentroId, cancellationToken);
 
         return new DetalleVisitaDto(
             visita.Id, visita.CentroNombre, visita.ClienteRazonSocial, visita.EmpresaId, visita.EmpresaRazonSocial,
@@ -153,6 +166,10 @@ public class ObtenerDetalleVisitaQueryHandler(
             visita.Origen,
             nivelUrgencia,
             visita.DocumentacionGestionadaEnUtc,
-            conNotaInterna);
+            conNotaInterna,
+            conContacto,
+            conContacto ? visita.ContactoNombre : null,
+            conContacto ? visita.ContactoTelefono : null,
+            conContacto ? visita.ContactoCorreo : null);
     }
 }

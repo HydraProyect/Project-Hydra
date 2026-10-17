@@ -681,4 +681,58 @@
   <data name="MotivoTramo" xml:space="preserve">
     <value>Tram {0}</value>
   </data>
+  <data name="Visita360Contacto" xml:space="preserve">
+    <value>Contacte al Centre</value>
+  </data>
+  <data name="ContactoNombre" xml:space="preserve">
+    <value>Nom</value>
+  </data>
+  <data name="ContactoTelefono" xml:space="preserve">
+    <value>Telèfon</value>
+  </data>
+  <data name="ContactoCorreo" xml:space="preserve">
+    <value>Correu</value>
+  </data>
+  <data name="Visita360ContactoSinInformar" xml:space="preserve">
+    <value>Aquesta visita no té contacte.</value>
+  </data>
+  <data name="Visita360ContactoAnadir" xml:space="preserve">
+    <value>Afegir contacte</value>
+  </data>
+  <data name="ContactoEditarTitulo" xml:space="preserve">
+    <value>Contacte de la visita</value>
+  </data>
+  <data name="ContactoAyudaPorDefecto" xml:space="preserve">
+    <value>En crear la visita es copia el contacte del Centre. Canviar-lo aquí no canvia el del Centre.</value>
+  </data>
+  <data name="ContactoNoDisponible" xml:space="preserve">
+    <value>No s'ha pogut carregar el contacte d'aquesta visita.</value>
+  </data>
+  <data name="ContactoGuardado" xml:space="preserve">
+    <value>Contacte de la visita desat.</value>
+  </data>
+  <data name="ContactoErrorGuardar" xml:space="preserve">
+    <value>No s'ha pogut desar el contacte. Torna-ho a provar.</value>
+  </data>
+  <data name="Visita360Recomendaciones" xml:space="preserve">
+    <value>Recomanacions</value>
+  </data>
+  <data name="Visita360RecomendacionesAyuda" xml:space="preserve">
+    <value>Surten de la documentació que exigeix el Centre i de les dates d'aquesta visita.</value>
+  </data>
+  <data name="RecomendacionDocumentacionPendiente" xml:space="preserve">
+    <value>{0} té documentació pendent: {1}.</value>
+  </data>
+  <data name="RecomendacionVenceAntesDeLaEntrada" xml:space="preserve">
+    <value>{1} de {0} venç el {2}, abans del dia d'entrada.</value>
+  </data>
+  <data name="RecomendacionVenceDuranteLaVisita" xml:space="preserve">
+    <value>{1} de {0} venç el {2}, abans que acabi la visita.</value>
+  </data>
+  <data name="RecomendacionVencidoEnTolerancia" xml:space="preserve">
+    <value>{1} de {0} va vèncer el {2} i en aquest Centre només val per la tolerància.</value>
+  </data>
+  <data name="RecomendacionYaVencido" xml:space="preserve">
+    <value>{1} de {0} va vèncer el {2}.</value>
+  </data>
 </root>

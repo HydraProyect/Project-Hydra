@@ -211,6 +211,21 @@
                                 var grupos = Grupos(documentacion);
                                 var visibles = ContarVisibles(grupos);
 
+                                var recomendaciones = Recomendaciones(documentacion);
+                                @* Solo si salen de datos que ya existen (decisión de producto, 2026-10-16): sin ninguna, no hay sección. *@
+                                if (recomendaciones.Count > 0)
+                                {
+                                    <Tarjeta Titulo="@Textos["Visita360Recomendaciones"]" Compacta="true" Class="visita360-caja-recomendaciones">
+                                        <p class="visita360-texto">@Textos["Visita360RecomendacionesAyuda"]</p>
+                                        <ul class="visita360-recomendaciones">
+                                            @foreach (var recomendacion in recomendaciones)
+                                            {
+                                                <li>@TextoRecomendacion(recomendacion)</li>
+                                            }
+                                        </ul>
+                                    </Tarjeta>
+                                }
+
                                 <FiltroEstadosMultiple Opciones="OpcionesEstado(documentacion)" @bind-Seleccion="_estadosMarcados" Total="total" />
 
                                 <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["SubtituloComprobacionPrevia"]">
@@ -312,6 +327,50 @@
                     </ChildContent>
                 </Tarjeta>
 
+                @* Contacto de la Visita (decisión de producto, 2026-10-16): campo propio, rellenado al crearla con el
+                   contacto del Centro. Datos personales: solo con ContactoVisible, que decide ObtenerDetalleVisitaQuery. *@
+                @if (visita.ContactoVisible)
+                {
+                    var conContacto = TieneContacto(visita);
+                    <Tarjeta Titulo="@Textos["Visita360Contacto"]" Class="visita360-contacto">
+                        <AccionesHeader>
+                            @if (_puedeEscribir && !EsCancelada && conContacto)
+                            {
+                                <button type="button" class="visita360-enlace" @onclick="() => _editarContactoVisible = true">@Textos["Visita360EditarEnlace"]</button>
+                            }
+                        </AccionesHeader>
+                        <ChildContent>
+                            @if (conContacto)
+                            {
+                                <dl class="visita360-datos">
+                                    @if (!string.IsNullOrWhiteSpace(visita.ContactoNombre))
+                                    {
+                                        <div class="visita360-dato-ancho"><dt>@Textos["ContactoNombre"]</dt><dd>@visita.ContactoNombre</dd></div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(visita.ContactoTelefono))
+                                    {
+                                        <div class="visita360-dato-ancho"><dt>@Textos["ContactoTelefono"]</dt><dd>@visita.ContactoTelefono</dd></div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(visita.ContactoCorreo))
+                                    {
+                                        <div class="visita360-dato-ancho"><dt>@Textos["ContactoCorreo"]</dt><dd>@visita.ContactoCorreo</dd></div>
+                                    }
+                                </dl>
+                            }
+                            else
+                            {
+                                <p class="visita360-texto">@Textos["Visita360ContactoSinInformar"]</p>
+                                @if (_puedeEscribir && !EsCancelada)
+                                {
+                                    <SoloConEscritura>
+                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => _editarContactoVisible = true">@Textos["Visita360ContactoAnadir"]</Boton>
+                                    </SoloConEscritura>
+                                }
+                            }
+                        </ChildContent>
+                    </Tarjeta>
+                }
+
                 @if (visita.NotaInternaVisible && (!string.IsNullOrWhiteSpace(visita.Notas) || (_puedeEscribir && !EsCancelada)))
                 {
                     <NotaInterna Texto="@visita.Notas">
@@ -342,6 +401,7 @@
 @if (_puedeEscribir)
 {
     <EditarVisitaDrawer @bind-Visible="_editarVisible" VisitaId="VisitaId" OnGuardada="CargarAsync" OnNoEncontrada="CargarAsync" />
+    <EditarContactoVisitaDrawer @bind-Visible="_editarContactoVisible" VisitaId="VisitaId" OnGuardada="CargarAsync" />
 }
 
 <DialogoConfirmacion

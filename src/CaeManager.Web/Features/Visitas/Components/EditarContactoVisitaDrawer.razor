@@ -1,0 +1,119 @@
+@using CaeManager.Application.Visitas.Commands.EditarContactoVisita
+@using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita
+@using CaeManager.Domain.Common
+@using CaeManager.Web.Features.Visitas.Recursos
+@using FluentValidation
+@using MediatR
+@using Microsoft.Extensions.Localization
+@implements IDisposable
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject IStringLocalizer<TextosVisitas> Textos
+
+@* Contacto de la Visita (decisión de producto, 2026-10-16): mismo kit y misma forma que el Drawer de la ficha de
+   Centro 360 (EditarFichaCentroDrawer). Lee con ObtenerDetalleVisitaQuery, que solo trae el contacto con
+   ContactoVisible, y guarda con la versión leída al abrir. *@
+<DrawerFormulario Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Textos["ContactoEditarTitulo"]"
+    Cargando="_cargando" HayCambios="() => Visible && _lista && _instantanea.Difiere(Instantanea())"
+    Guardando="_guardando" MensajeError="@_error" HayErroresDeCampo="@(_errores.Count > 0)"
+    MotivoGuardarDeshabilitado="@(!_lista ? Textos["ContactoNoDisponible"].Value : null)" OnGuardar="GuardarAsync"
+    TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <p class="texto-ayuda-campo">@Textos["ContactoAyudaPorDefecto"]</p>
+    <CampoTexto Etiqueta="@Textos["ContactoNombre"]" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@Error(nameof(EditarContactoVisitaCommand.Nombre))" />
+    <CampoTexto Etiqueta="@Textos["ContactoTelefono"]" Type="tel" Valor="@_telefono" ValorChanged="v => _telefono = v" MensajeError="@Error(nameof(EditarContactoVisitaCommand.Telefono))" />
+    <CampoTexto Etiqueta="@Textos["ContactoCorreo"]" Type="email" Valor="@_correo" ValorChanged="v => _correo = v" MensajeError="@Error(nameof(EditarContactoVisitaCommand.Correo))" />
+</DrawerFormulario>
+
+@code {
+    [Parameter] public Guid VisitaId { get; set; }
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter] public EventCallback OnGuardada { get; set; }
+
+    private bool _abierto, _cargando, _guardando, _lista;
+    private int _generacion;
+    private Guid _id, _version;
+    private string _nombre = "", _telefono = "", _correo = "";
+    private string? _error;
+    private Dictionary<string, string> _errores = [];
+    private readonly InstantaneaFormulario _instantanea = new();
+    private readonly CancellationTokenSource _ciclo = new();
+
+    private string? Error(string campo) => _errores.GetValueOrDefault(campo);
+    private string Instantanea() => System.Text.Json.JsonSerializer.Serialize(new { _nombre, _telefono, _correo });
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Visible)
+        {
+            if (_abierto) ++_generacion;
+            _abierto = false;
+            return;
+        }
+        if (_abierto && _id == VisitaId) return;
+        _abierto = true;
+        _id = VisitaId;
+        var generacion = ++_generacion;
+        _cargando = true;
+        _guardando = _lista = false;
+        _error = null;
+        _errores.Clear();
+        try
+        {
+            var detalle = await Mediator.Send(new ObtenerDetalleVisitaQuery(_id), _ciclo.Token);
+            if (generacion != _generacion) return;
+            if (detalle is null || !detalle.ContactoVisible || detalle.EstaCancelada) { _error = Textos["ContactoNoDisponible"]; return; }
+            _version = detalle.Version;
+            _nombre = detalle.ContactoNombre ?? "";
+            _telefono = detalle.ContactoTelefono ?? "";
+            _correo = detalle.ContactoCorreo ?? "";
+            _instantanea.Fijar(Instantanea());
+            _lista = true;
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
+        catch (Exception) { if (generacion == _generacion) _error = Textos["ContactoNoDisponible"]; }
+        finally { if (generacion == _generacion) _cargando = false; }
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (!_lista || _guardando || !Visible) return;
+        var generacion = _generacion;
+        _guardando = true;
+        _errores.Clear();
+        _error = null;
+        try
+        {
+            var comando = new EditarContactoVisitaCommand(_id, _version, _nombre, _telefono, _correo);
+            var validacion = new EditarContactoVisitaCommandValidator().Validate(comando);
+            if (!validacion.IsValid) throw new ValidationException(validacion.Errors);
+            var resultado = await Mediator.Send(comando, _ciclo.Token);
+            if (generacion != _generacion) return;
+            if (resultado.EsFallido)
+            {
+                // La versión original se conserva: el borrador nunca se reenvía con una versión no revisada.
+                _error = resultado.Error.Mensaje;
+                return;
+            }
+            _instantanea.Fijar(Instantanea());
+            ToastService.Mostrar(Textos["ContactoGuardado"], TonoToast.Exito);
+            await VisibleChanged.InvokeAsync(false);
+            await OnGuardada.InvokeAsync();
+        }
+        catch (ValidationException ex)
+        {
+            if (generacion == _generacion)
+                _errores = ex.Errors.GroupBy(e => e.PropertyName).ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
+        catch (Exception) { if (generacion == _generacion) _error = Textos["ContactoErrorGuardar"]; }
+        finally { if (generacion == _generacion) _guardando = false; }
+    }
+
+    public void Dispose()
+    {
+        ++_generacion;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+}
