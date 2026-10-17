@@ -14,7 +14,7 @@ public class CompletarGestionCommandHandler(
     public async Task<Result> Handle(CompletarGestionCommand request, CancellationToken cancellationToken)
     {
         var gestion = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (gestion is null || !await alcanceDatos.CentroVisibleAsync(gestion.CentroId, cancellationToken))
+        if (gestion is null || !await alcanceDatos.CentroParaGestionVisibleAsync(gestion.CentroId, cancellationToken))
             return Result.Fallo(Error.Crear("Gestion.NoEncontrada", "No encontramos esta gestión o no tienes acceso."));
 
         if (request.Completada) gestion.Completar();
