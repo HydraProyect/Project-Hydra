@@ -97,7 +97,7 @@ public class BuscarGlobalQueryHandler(
                 from trabajador in trabajadoresContext.Trabajadores
                 where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(trabajador.Id)
                 where documentoPersona
-                    ? trabajador.Dni != null && trabajador.Dni.ToUpper() == terminoMayus
+                    ? trabajador.Dni != null && trabajador.Dni == terminoMayus
                     : documento == null && (trabajador.Nombre.ToUpper().Contains(terminoMayus) ||
                       trabajador.Apellidos.ToUpper().Contains(terminoMayus))
                 join empresa in empresasContext.Empresas on trabajador.EmpresaId equals empresa.Id into empresasCoincidentes
@@ -164,7 +164,7 @@ public class BuscarGlobalQueryHandler(
         var esCif = DocumentoBuscado.Analizar(terminoMayus) is { Tipo: CaeManager.Domain.Common.TipoIdentificacion.NifEmpresa, EsValido: true };
         var comoClientes = await empresasContext.Empresas.Where(e => e.EsCritico != null)
             .Where(c => clienteIdsVisibles == null || clienteIdsVisibles.Contains(c.Id))
-            .Where(c => esCif ? c.Cif != null && c.Cif.ToUpper() == terminoMayus : c.RazonSocial.ToUpper().Contains(terminoMayus))
+            .Where(c => esCif ? c.Cif != null && c.Cif == terminoMayus : c.RazonSocial.ToUpper().Contains(terminoMayus))
             .OrderBy(c => c.RazonSocial)
             .Take(MargenPorOrigen)
             .Select(c => new { c.Id, c.RazonSocial })
@@ -172,7 +172,7 @@ public class BuscarGlobalQueryHandler(
 
         var comoSubcontratas = await empresasContext.Empresas.Where(e => e.NivelServicio != null)
             .Where(s => subcontrataIdsVisibles == null || subcontrataIdsVisibles.Contains(s.Id))
-            .Where(s => esCif ? s.Cif != null && s.Cif.ToUpper() == terminoMayus : s.RazonSocial.ToUpper().Contains(terminoMayus))
+            .Where(s => esCif ? s.Cif != null && s.Cif == terminoMayus : s.RazonSocial.ToUpper().Contains(terminoMayus))
             .OrderBy(s => s.RazonSocial)
             .Take(MargenPorOrigen)
             .Select(s => new { s.Id, s.RazonSocial })
@@ -180,7 +180,7 @@ public class BuscarGlobalQueryHandler(
 
         var comoEmpresas = await empresasContext.Empresas
             .Where(e => empresaIdsVisibles == null || empresaIdsVisibles.Contains(e.Id))
-            .Where(e => esCif ? e.Cif != null && e.Cif.ToUpper() == terminoMayus : e.RazonSocial.ToUpper().Contains(terminoMayus))
+            .Where(e => esCif ? e.Cif != null && e.Cif == terminoMayus : e.RazonSocial.ToUpper().Contains(terminoMayus))
             .OrderBy(e => e.RazonSocial)
             .Take(MargenPorOrigen)
             .Select(e => new { e.Id, e.RazonSocial })

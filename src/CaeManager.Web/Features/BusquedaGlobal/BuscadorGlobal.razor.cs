@@ -231,11 +231,11 @@ public partial class BuscadorGlobal
     private const string VerboSubir = "subir";
     private const string VerboIrA = "ir a";
 
-    /// <summary>El verbo de la maqueta con el que empieza el término (el mismo criterio que su <c>porDocumento</c>: prefijo, sin distinguir mayúsculas), o null.</summary>
+    /// <summary>El verbo de la maqueta con el que empieza el término como palabra completa (sin distinguir mayúsculas), o null: «Subirats» no es el verbo «subir».</summary>
     private static string? VerboDeAccion(string termino) =>
         new[] { VerboReclamar, VerboSubir, VerboIrA }
             .FirstOrDefault(v => termino.StartsWith(v, StringComparison.OrdinalIgnoreCase)
-                && (v != VerboIrA || termino.Length == v.Length || termino[v.Length] == ' '));
+                && (termino.Length == v.Length || termino[v.Length] == ' '));
 
     /// <summary>Lo escrito tras el verbo y su preposición («reclamar a Refri» → «Refri»); vacío si solo hay verbo.</summary>
     private static string FiltroTrasElVerbo(string termino, string verbo)
@@ -271,17 +271,17 @@ public partial class BuscadorGlobal
         if (_recientes.FirstOrDefault(r => r.Tipo == "Empresa" && Casa(r)) is { } empresa)
             acciones.Add(new ItemPaleta(
                 new ItemBusquedaDto(Guid.Empty, Texto("ReclamarA", empresa.Titulo), null, "/comunicaciones"),
-                "Accion", "enviar", string.Empty, "Reclamar"));
+                null, "enviar", string.Empty, "Reclamar"));
 
         if (_recientes.FirstOrDefault(r => r.Tipo == "Trabajador" && r.EntidadId is not null && Casa(r)) is { } trabajador)
             acciones.Add(new ItemPaleta(
                 new ItemBusquedaDto(Guid.Empty, Texto("SubirDocumentoPara", trabajador.Titulo), null, RutaSubirDocumentoDeTrabajador(trabajador.EntidadId!.Value)),
-                "Accion", "importar", string.IsNullOrWhiteSpace(trabajador.Subtitulo) ? string.Empty : trabajador.Subtitulo, "Subir"));
+                null, "importar", string.IsNullOrWhiteSpace(trabajador.Subtitulo) ? string.Empty : trabajador.Subtitulo, "Subir"));
 
         if (_recientes.FirstOrDefault(r => r.Tipo == "Centro" && EsRutaLocal(r.UrlDestino) && Casa(r)) is { } centro)
             acciones.Add(new ItemPaleta(
                 new ItemBusquedaDto(Guid.Empty, $"Ir a {centro.Titulo}", null, centro.UrlDestino),
-                "Accion", "centros", string.Empty, "Abrir"));
+                null, "centros", string.Empty, "Abrir"));
 
         return acciones;
     }
@@ -467,12 +467,12 @@ public partial class BuscadorGlobal
         List<ItemPaleta> acciones =
         [
             new(new ItemBusquedaDto(Guid.Empty, Texto("SubirDocumentoPara", primero.Titulo), null, RutaSubirDocumentoDeTrabajador(primero.Id)),
-                "Accion", "importar", Texto("SubirDocumentoParaSub"), "Subir"),
+                null, "importar", Texto("SubirDocumentoParaSub"), "Subir"),
         ];
         // La organización empleadora es el subtítulo del Trabajador; sin ella no hay a quién reclamar.
         if (!string.IsNullOrWhiteSpace(primero.Subtitulo))
             acciones.Add(new(new ItemBusquedaDto(Guid.Empty, Texto("ReclamarA", primero.Subtitulo), null, "/comunicaciones"),
-                "Accion", "enviar", Texto("ReclamarASub", primero.Titulo), "Reclamar"));
+                null, "enviar", Texto("ReclamarASub", primero.Titulo), "Reclamar"));
         grupos.Add(new GrupoPaleta("Acciones", acciones));
 
         return grupos;
