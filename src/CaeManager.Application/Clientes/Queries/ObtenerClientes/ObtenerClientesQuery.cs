@@ -356,7 +356,7 @@ public class ObtenerClientesQueryHandler(
                 .Take(ObtenerClientesQuery.MaximoIncidenciasPorFila)
                 .Select(a => new IncidenciaClienteDto(
                     a.IdDeFila(PrefijoDeClave), a.Estado, a.DocumentoId, a.TipoDocumentoId, a.TipoDocumentoNombre,
-                    a.TrabajadorId, a.TrabajadorNombre, a.FechaVencimiento, a.CentroNombre))
+                    a.TrabajadorId!.Value, a.TrabajadorNombre, a.FechaVencimiento, a.CentroNombre))
                 .ToList()
         };
     }

@@ -101,6 +101,51 @@ public class InicioGen2Tests : BunitContext
 
     // ------------------------------------------------ anillo: sin datos y bloqueos (P2.4)
 
+    [Theory]
+    [InlineData("cola")]
+    [InlineData("centro")]
+    [InlineData("empresa")]
+    [InlineData("plataforma")]
+    [InlineData("rechazada")]
+    [InlineData("bloqueo")]
+    [InlineData("vencimiento")]
+    public void Con_pendientes_el_anillo_no_presenta_un_cien_por_cien(string origen)
+    {
+        var kpis = KpisACero() with
+        {
+            TrabajadoresActivos = origen == "empresa" ? 0 : 1,
+            DocumentosVigentes = origen == "empresa" ? 0 : 1,
+            TasaCumplimientoDocumental = 100,
+            TienePendientesDocumentales = origen is "centro" or "empresa",
+            TrabajadoresBloqueados = origen == "bloqueo" ? 1 : 0,
+            DocumentosProximos = origen == "vencimiento" ? 1 : 0
+        };
+        var mediador = new MediadorDeInicio
+        {
+            Kpis = kpis,
+            Items = origen == "cola" ? [Item("pendiente", TipoItemBandeja.RevisionIa, Guid.NewGuid(), "Empresa")] : [],
+            Plataformas = origen is "plataforma" or "rechazada"
+                ? [new PendientePorPlataformaDto(Guid.NewGuid(), "Dokify", origen == "plataforma" ? 1 : 0, origen == "rechazada" ? 1 : 0)] : []
+        };
+
+        var cut = Renderizar(mediador, rol: origen == "empresa" ? Roles.Consulta : Roles.GestorCae);
+
+        cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("Hay pendientes");
+        cut.Find(".dashboard-resumen").TextContent.Should().NotContain("100%");
+        cut.Find(".dashboard-resumen").InnerHtml.Should().NotContain("100% de cumplimiento");
+    }
+
+    [Fact]
+    public void Sin_pendientes_el_anillo_conserva_el_cien_por_cien_real()
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            Kpis = KpisACero() with { TrabajadoresActivos = 1, DocumentosVigentes = 1, TasaCumplimientoDocumental = 100 }
+        });
+
+        cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("100% de cumplimiento documental");
+    }
+
     /// <summary>
     /// Con trabajadores pero sin documentos de Trabajador ni documentación exigida por
     /// los Centros de Trabajo, la consulta devuelve 100 (nada que medir) y SinDatos: el

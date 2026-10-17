@@ -238,7 +238,7 @@ internal sealed class EscenarioDeFotoDeSuperficies
                 c, c, c, c, c, c, c, new ResolverClientePrincipalService(c, c, c), alcance, new DocumentosFaltantesService(c, c, c), c, c)
             .Handle(new ObtenerAlertasQuery(), CancellationToken.None);
         Seccion("Alertas").AddRange(alertas.Select(a =>
-            $"{Tra(a.TrabajadorId)} | {Tip(a.TipoDocumentoId)} | {a.Estado} | {(a.CentroId is { } ci ? Cen(ci) : "sin centro")} | {a.FechaVencimiento:yyyy-MM-dd}".Replace(_hoy.ToString("yyyy-MM-dd"), "HOY")));
+            $"{(a.TrabajadorId is { } tid ? Tra(tid) : $"(Empresa) {a.EmpresaNombre}")} | {Tip(a.TipoDocumentoId)} | {a.Estado} | {(a.CentroId is { } ci ? Cen(ci) : "sin centro")} | {a.FechaVencimiento:yyyy-MM-dd}".Replace(_hoy.ToString("yyyy-MM-dd"), "HOY")));
 
         // 4. Contexto Centro: estado y % (servicio, lista y acordeón).
         var porCentro = await calculoCentro.CalcularCumplimientoAsync(centroIds, CancellationToken.None);
@@ -276,7 +276,7 @@ internal sealed class EscenarioDeFotoDeSuperficies
             Seccion("Subcontrata").Add($"{Emp(empresa)} | {Fr((await calculoSubcontrata.CalcularCumplimientoAsync([empresa], CancellationToken.None))[empresa])}");
 
         // 9. Tarjeta de Inicio.
-        var kpis = await new ObtenerKpisDashboardQueryHandler(c, c, c, c, c, alcance, calculoCentro, new EvaluacionDeAccesoPorCentroService(c, c, c, c, c, alcance)).Handle(new ObtenerKpisDashboardQuery(), CancellationToken.None);
+        var kpis = await new ObtenerKpisDashboardQueryHandler(c, c, c, c, c, alcance, calculoCentro, new EvaluacionDeAccesoPorCentroService(c, c, c, c, c, alcance), c, c).Handle(new ObtenerKpisDashboardQuery(), CancellationToken.None);
         Seccion("Inicio").Add(
             $"activos={kpis.TrabajadoresActivos} centros={kpis.Centros} vencidos={kpis.DocumentosVencidos} urgentes={kpis.DocumentosUrgentes} " +
             $"proximos={kpis.DocumentosProximos} vigentes={kpis.DocumentosVigentes} tasa={kpis.TasaCumplimientoDocumental} fraccion={Fr(kpis.Fraccion)} " +

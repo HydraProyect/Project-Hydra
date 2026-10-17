@@ -338,6 +338,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Dashboard.ObtenerKpisDashboardQueryHandler", "ICentrosQueryContext"),
         ("Dashboard.ObtenerKpisDashboardQueryHandler", "IConfiguracionQueryContext"),
         ("Dashboard.ObtenerKpisDashboardQueryHandler", "IDocumentosQueryContext"),
+        ("Dashboard.ObtenerKpisDashboardQueryHandler", "IEmpresasQueryContext"),
+        ("Dashboard.ObtenerKpisDashboardQueryHandler", "ITiposDocumentoQueryContext"),
         ("Dashboard.ObtenerKpisDashboardQueryHandler", "ITrabajadoresQueryContext"),
         ("Dashboard.ObtenerKpisDashboardQueryHandler", "IVisitasQueryContext"),
         ("Dashboard.ObtenerPendientePorPlataformaQueryHandler", "ICentrosQueryContext"),
