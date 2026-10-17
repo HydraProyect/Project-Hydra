@@ -87,8 +87,9 @@ public class EscriturasSobreEntidadesConCarteraTests
     /// Centros, Trabajadores y Documentos sacados de un fichero, sin nombrar ningún Id en su contrato,
     /// así que la red de arriba (que decide por los Ids) no los ve. No se acotan por cartera: el
     /// propio comando exige el acto de un Administrador (<see cref="IAutorizacionEscrituraEfectiva"/>:
-    /// rol Administrador, incluido el Operador CAE externo con encargo de administración, o Sesión
-    /// Privilegiada de Aprovisionamiento sobre este Tenant), y Administrador no tiene restricción de cartera.
+    /// rol Administrador o Sesión Privilegiada de Aprovisionamiento sobre este Tenant), y Administrador
+    /// no tiene restricción de cartera. Con encargo de administración no pleno, el área Importacion
+    /// queda además excluida por <c>ActosExcluidosDelEncargo</c>.
     /// </summary>
     private static readonly Dictionary<string, string> ComandosDeImportacion = new()
     {

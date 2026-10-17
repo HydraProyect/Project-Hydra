@@ -12,10 +12,11 @@ namespace CaeManager.Application.Facturacion;
 /// Gestor CAE —con o sin cartera— podía fijar precios. Este guard la repite en
 /// Application con los mismos dos roles.
 ///
-/// El rol es el EFECTIVO (<see cref="ICurrentUserService.ObtenerRolEfectivoAsync"/>): el
-/// Operador CAE externo con encargo de administración opera con rol Administrador y pasa;
-/// una Sesión Privilegiada de plano 3 no tiene rol de negocio y no pasa (tampoco estas
-/// escrituras son de Aprovisionamiento).
+/// El rol es el EFECTIVO (<see cref="ICurrentUserService.ObtenerRolEfectivoAsync"/>). Este
+/// guard no decide sobre el Operador CAE externo con encargo de administración: con encargo
+/// no pleno, <c>ActosExcluidosDelEncargo</c> excluye el área Facturacion entera antes de
+/// llegar aquí; con encargo pleno opera como Administrador y pasa. Una Sesión Privilegiada
+/// de plano 3 no tiene rol de negocio y no pasa (estas escrituras no son de Aprovisionamiento).
 /// </summary>
 public static class AutorizacionTarifasCliente
 {

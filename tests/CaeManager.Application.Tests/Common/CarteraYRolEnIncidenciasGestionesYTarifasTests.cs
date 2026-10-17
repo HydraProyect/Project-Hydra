@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Facturacion;
 using CaeManager.Application.Facturacion.Commands.ActualizarTarifaCliente;
 using CaeManager.Application.Facturacion.Commands.CrearTarifaCliente;
@@ -45,7 +46,79 @@ public class CarteraYRolEnIncidenciasGestionesYTarifasTests
     private static Incidencia IncidenciaEn(Guid centroId) =>
         new(centroId, null, default, default, Hoy, "Caída al mismo nivel en el acceso");
 
+    /// <summary>
+    /// Centro visible para LEER pero fuera del alcance de GESTIÓN (lo que la implementación real
+    /// devuelve a un usuario de portal): distingue CentroParaGestionVisibleAsync de CentroVisibleAsync.
+    /// </summary>
+    private static AlcanceDatosServiceFalso SoloLecturaDe(Guid centro) =>
+        new(tieneAccesoTotal: false, centroIdsVisibles: [centro], centroIdsParaGestion: []);
+
     // ---- Incidencias
+
+    [Theory]
+    [InlineData("crear")]
+    [InlineData("editar")]
+    [InlineData("eliminar")]
+    [InlineData("eliminar-lote")]
+    [InlineData("marcar-resuelta")]
+    public async Task Un_centro_visible_solo_para_leer_no_basta_para_escribir_sus_incidencias(string operacion)
+    {
+        var centro = new Centro(Guid.NewGuid(), Guid.NewGuid(), "Nave 3");
+        var centros = new CentrosQueryContextFalso();
+        centros.ListaCentros.Add(centro);
+        var incidencia = IncidenciaEn(centro.Id);
+        var repositorio = new IncidenciaRepositorioFalso();
+        repositorio.Incidencias.Add(incidencia);
+        var unitOfWork = new UnitOfWorkFalso();
+        var alcance = SoloLecturaDe(centro.Id);
+        var usuario = new CurrentUserServiceFalso(Guid.NewGuid());
+
+        var codigo = operacion switch
+        {
+            "crear" => (await new CrearIncidenciaCommandHandler(repositorio, centros, new TrabajadoresQueryContextFalso(), alcance, unitOfWork)
+                .Handle(new CrearIncidenciaCommand(centro.Id, null, default, default, Hoy, "Caída"), CancellationToken.None)).Error.Codigo,
+            "editar" => (await new EditarIncidenciaCommandHandler(repositorio, new TrabajadoresQueryContextFalso(), alcance, unitOfWork)
+                .Handle(new EditarIncidenciaCommand(incidencia.Id, null, default, default, Hoy, "Texto nuevo"), CancellationToken.None)).Error.Codigo,
+            "eliminar" => (await new EliminarIncidenciaCommandHandler(repositorio, unitOfWork, usuario, alcance)
+                .Handle(new EliminarIncidenciaCommand(incidencia.Id), CancellationToken.None)).Error.Codigo,
+            "eliminar-lote" => (await new EliminarIncidenciasCommandHandler(repositorio, unitOfWork, usuario, alcance)
+                .Handle(new EliminarIncidenciasCommand([incidencia.Id]), CancellationToken.None)).Valor.Eliminados == 0 ? "ninguna" : "alguna",
+            _ => (await new MarcarResueltaIncidenciaCommandHandler(repositorio, alcance, unitOfWork)
+                .Handle(new MarcarResueltaIncidenciaCommand(incidencia.Id, true), CancellationToken.None)).Error.Codigo,
+        };
+
+        codigo.Should().BeOneOf("Incidencia.CentroNoEncontrado", "Incidencia.NoEncontrada", "ninguna");
+        repositorio.Incidencias.Should().ContainSingle();
+        incidencia.EstaEliminado.Should().BeFalse();
+        incidencia.Resuelta.Should().BeFalse();
+        incidencia.Descripcion.Should().NotBe("Texto nuevo");
+    }
+
+    /// <summary>
+    /// Fuera de cartera con una Version obsoleta: «no existe», no un conflicto de concurrencia. La
+    /// cartera va antes de ConcurrenciaOptimista para no confirmar que la Incidencia existe.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Editar_una_incidencia_con_version_obsoleta_solo_da_conflicto_dentro_de_la_cartera(bool enCartera)
+    {
+        var incidencia = IncidenciaEn(Guid.NewGuid());
+        var repositorio = new IncidenciaRepositorioFalso();
+        repositorio.Incidencias.Add(incidencia);
+        var handler = new EditarIncidenciaCommandHandler(
+            repositorio, new TrabajadoresQueryContextFalso(),
+            CarteraDe(enCartera ? incidencia.CentroId : Guid.NewGuid()), new UnitOfWorkFalso());
+
+        var resultado = await handler.Handle(
+            new EditarIncidenciaCommand(incidencia.Id, null, default, default, Hoy, "Texto nuevo", Version: Guid.NewGuid()),
+            CancellationToken.None);
+
+        // Control: dentro de la cartera la misma Version obsoleta sí es un conflicto, así que fuera
+        // de ella el «no existe» lo decide la cartera y no un orden casual de las comprobaciones.
+        resultado.Error.Codigo.Should().Be(enCartera ? ConcurrenciaOptimista.CodigoConflicto : "Incidencia.NoEncontrada");
+        incidencia.Descripcion.Should().NotBe("Texto nuevo");
+    }
 
     [Theory]
     [InlineData(false)]
@@ -209,6 +282,18 @@ public class CarteraYRolEnIncidenciasGestionesYTarifasTests
     }
 
     [Fact]
+    public async Task Crear_gestiones_en_centros_visibles_solo_para_leer_no_crea_ninguna()
+    {
+        var (handler, gestiones, trabajadorId, tipoId, _, unitOfWork) = CrearGestiones(enCartera: true, soloLectura: true);
+
+        var resultado = await handler.Handle(new CrearGestionesParaTrabajadorCommand(trabajadorId, tipoId), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Gestion.SinCentros");
+        gestiones.Gestiones.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Con_acceso_total_crear_gestiones_las_crea_en_todos_los_centros_del_trabajador()
     {
         var (handler, gestiones, trabajadorId, tipoId, _, _) = CrearGestiones(enCartera: true, accesoTotal: true);
@@ -221,7 +306,7 @@ public class CarteraYRolEnIncidenciasGestionesYTarifasTests
 
     /// <summary>Un Trabajador visible asignado a dos Centros, uno de ellos de otro Cliente empresarial fuera de la cartera.</summary>
     private static (CrearGestionesParaTrabajadorCommandHandler, GestionRepositorioFalso, Guid TrabajadorId, Guid TipoId, Guid CentroEnCartera, UnitOfWorkFalso)
-        CrearGestiones(bool enCartera, bool accesoTotal = false)
+        CrearGestiones(bool enCartera, bool accesoTotal = false, bool soloLectura = false)
     {
         var trabajadorId = Guid.NewGuid();
         var centroEnCartera = Guid.NewGuid();
@@ -237,7 +322,8 @@ public class CarteraYRolEnIncidenciasGestionesYTarifasTests
             ? new AlcanceDatosServiceFalso()
             : new AlcanceDatosServiceFalso(
                 tieneAccesoTotal: false, trabajadorIdsVisibles: [trabajadorId],
-                centroIdsVisibles: enCartera ? [centroEnCartera] : [Guid.NewGuid()]);
+                centroIdsVisibles: enCartera ? [centroEnCartera] : [Guid.NewGuid()],
+                centroIdsParaGestion: soloLectura ? [] : null);
         var handler = new CrearGestionesParaTrabajadorCommandHandler(
             asignaciones, tipos, gestiones, new DetallesSugerenciaVacios(), alcance, new CurrentUserServiceFalso(Guid.NewGuid()), unitOfWork);
         return (handler, gestiones, trabajadorId, tipo.Id, centroEnCartera, unitOfWork);
