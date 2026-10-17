@@ -94,10 +94,14 @@ public interface IMicrosoft365GraphClient
         string accessToken, string buzonEmail, string mensajeExternoIdOrigen, string cuerpoHtml,
         IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken);
 
-    /// <summary>Redactar un mensaje nuevo (no una respuesta a un hilo existente) — borrador + envío, devuelve los Ids externos (mensaje e hilo).</summary>
+    /// <summary>
+    /// Redactar un mensaje nuevo (no una respuesta a un hilo existente) — borrador + envío, devuelve los Ids externos (mensaje e hilo).
+    /// <paramref name="copia"/> son las direcciones en copia (<c>ccRecipients</c>); null o vacío = sin copia.
+    /// </summary>
     Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
         string accessToken, string buzonEmail, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
-        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken);
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken,
+        IReadOnlyList<string>? copia = null);
 
     /// <summary>Incluye los adjuntos del mensaje (metadatos, no el contenido — ver <see cref="ObtenerContenidoAdjuntoAsync"/>).</summary>
     Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
