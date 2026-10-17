@@ -9,6 +9,7 @@ using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Commands.CambiarNivelServicioSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarVerificacionExterna;
+using CaeManager.Application.Subcontratas.Commands.RestaurarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.GuardarNotaInternaSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata;
@@ -1052,7 +1053,9 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
                 return;
             }
 
-            ToastService.Mostrar(Textos["ToastEliminada"], TonoToast.Exito);
+            // Con «Deshacer», como el listado y las demás fichas 360: el aviso sobrevive a la vuelta al listado.
+            ToastService.Mostrar(
+                Textos["ToastEliminada"], TonoToast.Exito, Textos["ToastAccionDeshacer"].Value, () => DeshacerEliminarAsync(detalle.Id));
             WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Subcontrata, [detalle.Id]);
             _confirmarEliminarVisible = false;
             NavigationManager.NavigateTo("/subcontratas");
@@ -1064,6 +1067,38 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         finally
         {
             _eliminando = false;
+        }
+    }
+
+    private bool _restaurando;
+
+    /// <summary>
+    /// «Deshacer» del aviso tras eliminar (RestaurarSubcontrataCommand, el mismo del listado). Se pulsa ya desde el
+    /// listado, porque esta página se dejó al eliminar: si restaura, vuelve a la ficha de la subcontrata.
+    /// </summary>
+    private async Task DeshacerEliminarAsync(Guid id)
+    {
+        if (_restaurando) return;
+        _restaurando = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new RestaurarSubcontrataCommand(id));
+
+            ToastService.Mostrar(
+                resultado.EsExitoso ? Textos["ToastRestaurada"].Value : resultado.Error.Mensaje,
+                resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+
+            if (resultado.EsExitoso)
+                NavigationManager.NavigateTo($"/subcontratas/{id}");
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ErrorRestaurar"], TonoToast.Error);
+        }
+        finally
+        {
+            _restaurando = false;
         }
     }
 

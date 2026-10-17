@@ -109,6 +109,8 @@ public partial class Vehiculo360PaginaTests : BunitContext
             ObtenerCentrosConActividadDeEmpresaQuery or ObtenerCentrosConActividadDeSubcontrataQuery when FallaCentros => throw new InvalidOperationException("Fallo de Centros simulado"),
             ObtenerCentrosConActividadDeEmpresaQuery or ObtenerCentrosConActividadDeSubcontrataQuery => Centros,
             GuardarNotaInternaVehiculoCommand => ResponderGuardarNota(),
+            CaeManager.Application.Vehiculos.Commands.EliminarVehiculo.EliminarVehiculoCommand
+                or CaeManager.Application.Vehiculos.Commands.RestaurarVehiculo.RestaurarVehiculoCommand => Result.Exito(),
             ObtenerDocumentosQuery when FallaDocumentos => throw new InvalidOperationException("fallo simulado"),
             ObtenerDocumentosQuery => new ResultadoPaginado<DocumentoListaDto>(
                 Documentos.ToList(), TotalDocumentos ?? Documentos.Count, 1, 50),
@@ -180,6 +182,32 @@ public partial class Vehiculo360PaginaTests : BunitContext
         var cut = Render<VehiculoDetalle>(p => p.Add(x => x.VehiculoId, id));
         cut.WaitForAssertion(() => cut.FindAll(".cabecera-identidad, .estado-vacio").Should().NotBeEmpty());
         return cut;
+    }
+
+    [Fact]
+    public async Task Eliminar_vehiculo_pregunta_antes_vuelve_al_listado_y_su_aviso_ofrece_Deshacer()
+    {
+        var (id, mediador) = CamionGrua(empleadorEsEmpresa: true);
+        Registrar(mediador);
+        var cut = Renderizar(id);
+
+        cut.Find(".cabecera-identidad .menu-acciones-disparador").Click();
+        cut.FindAll(".cabecera-identidad .menu-acciones-item").Single(b => b.TextContent.Trim() == "Eliminar vehículo").Click();
+        mediador.Enviadas.Should().NotContain(p => p is CaeManager.Application.Vehiculos.Commands.EliminarVehiculo.EliminarVehiculoCommand,
+            "eliminar pregunta antes");
+        cut.FindAll("button").Last(b => b.ClassList.Any(c => c.Contains("destructivo"))).Click();
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<CaeManager.Application.Vehiculos.Commands.EliminarVehiculo.EliminarVehiculoCommand>()
+            .Should().ContainSingle().Which.Id.Should().Be(id));
+        new Uri(Services.GetRequiredService<NavigationManager>().Uri).AbsolutePath.Should().Be("/vehiculos");
+
+        var avisos = Services.GetRequiredService<ToastService>();
+        var aviso = avisos.Mensajes.Should().ContainSingle(m => m.TextoAccion == "Deshacer").Subject;
+        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+
+        mediador.Enviadas.OfType<CaeManager.Application.Vehiculos.Commands.RestaurarVehiculo.RestaurarVehiculoCommand>()
+            .Should().ContainSingle().Which.Id.Should().Be(id);
+        new Uri(Services.GetRequiredService<NavigationManager>().Uri).AbsolutePath.Should().Be($"/vehiculos/{id}");
     }
 
     [Theory]

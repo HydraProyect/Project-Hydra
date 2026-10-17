@@ -384,6 +384,7 @@ public partial class VehiculosEstadoDocumentalTests : BunitContext
         mediador.Enviadas.OfType<ObtenerVehiculosParaSelectorQuery>().Should().BeEmpty(
             "en renovación el propietario viene del documento: no se carga el catálogo de Vehículos para elegirlo");
 
+        await EmisionDeRenovacion.EscribirAsync(formulario);
         await formulario.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
 
         var renovacion = mediador.Enviadas.OfType<RenovarDocumentoCommand>().Should().ContainSingle().Subject;

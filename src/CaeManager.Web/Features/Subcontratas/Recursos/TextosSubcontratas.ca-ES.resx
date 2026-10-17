@@ -810,6 +810,9 @@
   <data name="ExplicacionSupervisada360" xml:space="preserve">
     <value>Supervisada: la subcontracta puja la seva documentació a la plataforma del titular del Centre i el teu equip hi comprova que és vàlida. La comprovació caduca i s'ha de repetir.</value>
   </data>
+  <data name="ToastRestaurada" xml:space="preserve">
+    <value>Subcontracta restaurada.</value>
+  </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
   </data>

@@ -43,6 +43,12 @@
     max-width: 480px;
 }
 
+/* `display: flex` de arriba anula el `hidden` del navegador (su regla es solo de agente de usuario): sin esto la barra
+   de Centro 360, que se oculta con `hidden` fuera de la pestaña Trabajadores, se veía en todas. */
+.barra-filtros[hidden] {
+    display: none;
+}
+
 .barra-filtros .campo {
     flex: 1;
 }
@@ -1880,72 +1886,6 @@
     letter-spacing: 0.12em;
     color: var(--color-text-muted);
     padding: var(--space-3) 0 var(--space-1);
-}
-
-.fila-sujeto-ambito {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) 0;
-    border-bottom: var(--border-default);
-}
-
-.sujeto-ambito-identidad {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    flex: 1;
-    min-width: 0;
-}
-
-.sujeto-ambito-nombre {
-    font: var(--font-body-md);
-    font-weight: 600;
-}
-
-/*
-  Distintivo junto al nombre de la fila Empresa (ESPECIFICACION-VISUAL-HYDRA (documento que ya no existe)
-  § 3.7, ".etiqueta-ambito") — el separador "Empresa" de arriba da contexto a
-  todo el bloque, pero al leer solo esta fila (fuera de contexto, p. ej. al
-  volver de un scroll) el nombre por sí solo no dice si es una empresa o un
-  trabajador más.
-*/
-.etiqueta-ambito {
-    font: var(--font-caption);
-    font-size: 0.5625rem; /* 9px */
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--color-text-muted);
-    border: var(--border-default);
-    border-radius: var(--radius-sm);
-    padding: 1px 5px;
-}
-
-/*
-  La nota que exige el blueprint: sin ella, una lista corta se leería como
-  "la empresa casi no tiene documentación" en vez de "esto es lo que falla".
-*/
-.sujeto-ambito-nota {
-    font: var(--font-body-sm);
-    color: var(--color-text-muted);
-}
-
-/*
-  Misma anchura que la zona de indicadores de la fila de Centro (200px,
-  contrato de fidelidad 2026-08-09 § 1.6), para que el recuento de la empresa
-  caiga en la vertical de los recuentos de arriba.
-*/
-.sujeto-ambito-indicadores {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    width: 200px;
-    flex-shrink: 0;
-}
-
-.sujeto-ambito-accion {
-    flex-shrink: 0;
 }
 
 /*

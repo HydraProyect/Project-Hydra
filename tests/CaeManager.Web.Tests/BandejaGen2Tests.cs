@@ -51,7 +51,32 @@ public class BandejaGen2Tests : BunitContext
     private (IRenderedComponent<Bandeja> Cut, MediatorDeLaBandeja Mediator) Renderizar(params ItemBandejaDto[] items) =>
         Renderizar(new MediatorDeLaBandeja(items));
 
+    /// <summary>La pantalla carga con todos los grupos plegados (decisión de producto 2026-10-16): los tests que miran filas parten de desplegarlos.</summary>
+    private static void DesplegarGrupos(IRenderedComponent<Bandeja> cut)
+    {
+        foreach (var cabecera in cut.FindAll(".grupo-cola-cabecera").Where(c => c.GetAttribute("aria-expanded") == "false"))
+            cabecera.Click();
+    }
+
     // --------------------------------------------------------------- cabecera
+
+    [Fact]
+    public void Todos_los_grupos_cargan_plegados_y_se_pueden_desplegar()
+    {
+        var (cut, _) = Renderizar(
+            Item("v1", TipoItemBandeja.Vencido, Refrielectric, "Refrielectric S.A.", trabajadorId: Guid.NewGuid(), trabajadorNombre: "Ana Ruiz"),
+            Item("v2", TipoItemBandeja.Vencido, Guid.NewGuid(), "Cervezas Duff Ibérica", trabajadorId: Guid.NewGuid(), trabajadorNombre: "Juan Pérez"));
+
+        var cabeceras = cut.FindAll(".grupo-cola-cabecera");
+        cabeceras.Should().HaveCount(2);
+        cabeceras.Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+        cut.FindAll(".grupo-cola-contenido").Should().BeEmpty();
+
+        cabeceras[0].Click();
+
+        cut.FindAll(".grupo-cola-cabecera")[0].GetAttribute("aria-expanded").Should().Be("true");
+        cut.FindAll(".grupo-cola-contenido").Should().HaveCount(1, "desplegar uno no despliega el otro");
+    }
 
     [Fact]
     public void La_cabecera_lleva_el_antetitulo_del_grupo_de_menu_y_el_titulo_del_mockup()
@@ -463,6 +488,7 @@ public class BandejaGen2Tests : BunitContext
         var trabajador = Guid.NewGuid();
         var (cut, drawer) = RenderizarConUrl("bandeja", trabajador,
             Item("f1", tipo, Refrielectric, "Refrielectric S.A.", trabajadorId: trabajador, trabajadorNombre: "Ana Ruiz", tipoDocumentoId: Guid.NewGuid()));
+        DesplegarGrupos(cut);
 
         cut.FindAll("button").First(b => b.TextContent.Trim() == "Reclamar").Click();
 

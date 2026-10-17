@@ -50,6 +50,20 @@ public class GrupoColaTests : BunitContext
         enlace.GetAttribute("href").Should().Be($"/centros/{centroId}");
     }
 
+    /// <summary>La Bandeja carga con los grupos plegados: un j/k que enfoca una tarjeta de un grupo plegado lo abre, no deja el foco escondido.</summary>
+    [Fact]
+    public void IdEnfocado_dentro_de_un_grupo_plegado_lo_despliega()
+    {
+        var centroId = Guid.NewGuid();
+        var grupo = new GrupoColaDto("cliente-1", "Cliente X", true, [Item(1, centroId), Item(2, centroId)]);
+        var cut = Render<GrupoCola>(p => p.Add(c => c.Grupo, grupo));
+        cut.Find(".grupo-cola-cabecera").GetAttribute("aria-expanded").Should().Be("false");
+
+        cut.Render(p => p.Add(c => c.IdEnfocado, "item-2"));
+
+        cut.Find(".grupo-cola-cabecera").GetAttribute("aria-expanded").Should().Be("true");
+    }
+
     [Fact]
     public void Sin_centro_comun_entre_los_ocultos_enlaza_a_mi_trabajo()
     {

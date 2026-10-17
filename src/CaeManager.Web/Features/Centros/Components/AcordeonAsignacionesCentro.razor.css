@@ -1,17 +1,22 @@
-.lista-trabajadores-acordeon {
+/* El bloque de la Empresa comparte rejilla con la lista de Trabajadores (mismas columnas, misma vertical) pero lleva su
+   propia clase: los selectores de pruebas y atajos que leen `.lista-trabajadores-acordeon` hablan de Trabajadores. */
+.lista-trabajadores-acordeon,
+.bloque-empresa-ambito {
     --ancho-fraccion-trabajador: 76px;
     --ancho-estado-trabajador: 128px;
     --ancho-acciones-trabajador: 100px;
 }
 
-.lista-trabajadores-acordeon ::deep .fila-relacion-nombre {
+.lista-trabajadores-acordeon ::deep .fila-relacion-nombre,
+.bloque-empresa-ambito ::deep .fila-relacion-nombre {
     white-space: normal;
     overflow: visible;
     text-overflow: clip;
     overflow-wrap: anywhere;
 }
 
-.lista-trabajadores-acordeon ::deep .fila-relacion-rejilla {
+.lista-trabajadores-acordeon ::deep .fila-relacion-rejilla,
+.bloque-empresa-ambito ::deep .fila-relacion-rejilla {
     grid-template-columns: minmax(0, 1fr) var(--ancho-fraccion-trabajador) var(--ancho-estado-trabajador) var(--ancho-acciones-trabajador);
 }
 
@@ -75,11 +80,13 @@
 }
 
 @media (max-width: 700px) {
-    .lista-trabajadores-acordeon ::deep .fila-relacion-rejilla {
+    .lista-trabajadores-acordeon ::deep .fila-relacion-rejilla,
+    .bloque-empresa-ambito ::deep .fila-relacion-rejilla {
         grid-template-columns: minmax(0, 1fr) auto;
     }
 
-    .lista-trabajadores-acordeon ::deep .fila-relacion-identidad {
+    .lista-trabajadores-acordeon ::deep .fila-relacion-identidad,
+    .bloque-empresa-ambito ::deep .fila-relacion-identidad {
         grid-column: 1 / -1;
     }
 
@@ -159,6 +166,40 @@
 }
 
 .lista-trabajadores-acordeon-listado ::deep .fila-relacion-nombre {
+    font-size: 12px;
+    line-height: 18px;
+    font-weight: 700;
+}
+
+/* Aire entre la tarjeta de la Empresa y el rótulo «Trabajadores» que la sigue. */
+.bloque-empresa-ambito {
+    margin-bottom: var(--space-4);
+}
+
+.bloque-empresa-ambito + .separador-ambito {
+    padding-top: var(--space-2);
+}
+
+/* En la fila desplegada de /centros la Empresa sigue el mismo criterio compacto que sus Trabajadores: subcaja plana, 12 px y sin la nota. */
+.bloque-empresa-ambito-listado ::deep .lista-relaciones-tarjeta {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.bloque-empresa-ambito-listado ::deep .fila-relacion-rejilla {
+    min-height: 0;
+    padding-block: 6px;
+    font-size: 12px;
+}
+
+.bloque-empresa-ambito-listado ::deep .fila-relacion-detalle {
+    display: none;
+}
+
+.bloque-empresa-ambito-listado ::deep .fila-relacion-nombre {
     font-size: 12px;
     line-height: 18px;
     font-weight: 700;

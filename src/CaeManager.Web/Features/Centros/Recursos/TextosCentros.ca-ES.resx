@@ -502,6 +502,30 @@
   <data name="SubtituloTrabajadorPorEvento" xml:space="preserve">
     <value>{0} · només per l'esdeveniment «{1}» · des de {2}</value>
   </data>
+  <data name="EmpresaBloqueNota" xml:space="preserve">
+    <value>Només es llisten les incidències; la resta de la seva documentació és a Detalls.</value>
+    <comment>Nota de la fila de l'Empresa a la pestanya Treballadors de Centre 360: sense ella, una llista curta es llegiria com «gairebé no té documentació».</comment>
+  </data>
+  <data name="EmpresaBloqueEstado" xml:space="preserve">
+    <value>Amb incidència</value>
+    <comment>Pastilla d'estat de la fila de l'Empresa a Centre 360.</comment>
+  </data>
+  <data name="EmpresaBloqueCifraUno" xml:space="preserve">
+    <value>{0} document d'empresa amb incidència</value>
+    <comment>Nom complet (title) de la xifra «1 doc.» de la fila de l'Empresa.</comment>
+  </data>
+  <data name="EmpresaBloqueCifraVarios" xml:space="preserve">
+    <value>{0} documents d'empresa amb incidència</value>
+    <comment>Nom complet (title) de la xifra «N doc.» de la fila de l'Empresa.</comment>
+  </data>
+  <data name="EmpresaBloqueDetalles" xml:space="preserve">
+    <value>Detalls de {0}</value>
+    <comment>Nom accessible del botó «Detalles» de la fila de l'Empresa; {0} és la raó social.</comment>
+  </data>
+  <data name="EmpresaBloqueDesplegar" xml:space="preserve">
+    <value>Documents amb incidència de {0}</value>
+    <comment>Nom accessible del xevró que plega la fila de l'Empresa; {0} és la raó social.</comment>
+  </data>
   <data name="FichaEditarTitulo" xml:space="preserve"><value>Editar accés i prevenció</value></data>
   <data name="FichaAccesoTitulo" xml:space="preserve"><value>Accés al Centre</value></data>
   <data name="FichaPrevencionTitulo" xml:space="preserve"><value>Prevenció i treballs especials del Centre</value></data>
