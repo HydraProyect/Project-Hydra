@@ -14,15 +14,19 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // Los dos estados nuevos (EsperandoRespuestaExterna = 4, EnEsperaDeTercero = 5) caben en la columna entera de Estado:
             // no hace falta tocar esa columna. EstadoDesdeUtc de las conversaciones que ya existen es el instante de esta
             // migración: no hay fuente fiable de cuándo entraron en su estado, y para las Resueltas significa que los 4 días
-            // del cierre automático empiezan a contar desde el despliegue, no que se cierren de golpe las antiguas. El
-            // valor por defecto solo sirve para rellenar las filas existentes; se retira al final, porque el modelo no lo
-            // declara y toda conversación nueva lo fija el dominio.
+            // del cierre automático empiezan a contar desde el despliegue, no que se cierren de golpe las antiguas.
+            // El valor por defecto solo sirve para rellenar las filas existentes; se retira al final, porque el modelo no lo
+            // declara y toda conversación nueva lo fija el dominio. Es clock_timestamp() y no now() a propósito: now() es
+            // estable, y PostgreSQL guarda un valor por defecto estable como «valor de columnas añadidas» del catálogo
+            // (atthasmissing/attmissingval) con el instante exacto de cada ejecución, que hace distinta la huella de cada
+            // base migrada (EquivalenciaDelClonConLaBaseMigrada). Uno volátil reescribe la tabla y no deja rastro en el
+            // catálogo, y además rellena las filas con independencia de RLS, que aquí no se toca.
             migrationBuilder.AddColumn<DateTime>(
                 name: "EstadoDesdeUtc",
                 table: "Conversaciones",
                 type: "timestamp with time zone",
                 nullable: false,
-                defaultValueSql: "now()");
+                defaultValueSql: "clock_timestamp()");
 
             migrationBuilder.Sql("""ALTER TABLE public."Conversaciones" ALTER COLUMN "EstadoDesdeUtc" DROP DEFAULT;""");
 
