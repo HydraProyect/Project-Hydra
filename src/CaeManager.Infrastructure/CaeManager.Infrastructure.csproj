@@ -33,7 +33,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.*" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    <PackageReference Include="PDFsharp" Version="6.2.4" />
+    <PackageReference Include="PDFsharp" Version="6.5.0" />
     <!-- Solo el SDK "core" (no Sentry.AspNetCore, que es de CaeManager.Web,
          el composition root que configura el DSN) — lo mínimo para poder
          llamar a SentrySdk.CaptureMessage desde SentryAlertaOperativa
