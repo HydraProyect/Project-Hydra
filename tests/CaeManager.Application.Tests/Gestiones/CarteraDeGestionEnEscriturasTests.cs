@@ -27,7 +27,7 @@ public class CarteraDeGestionEnEscriturasTests
     {
         var gestion = new Gestion(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
         if (operacion == "restaurar") gestion.MarcarComoEliminado(Guid.NewGuid());
-        if (operacion == "reabrir") gestion.Completar();
+        if (operacion == "reabrir") gestion.Completar(DateTime.UtcNow);
         var estadoAnterior = gestion.Estado;
         var eliminadaAntes = gestion.EstaEliminado;
         var repositorio = new GestionRepositorioFalso();
@@ -39,7 +39,7 @@ public class CarteraDeGestionEnEscriturasTests
 
         var resultado = operacion switch
         {
-            "completar" or "reabrir" => await new CompletarGestionCommandHandler(repositorio, alcance, unitOfWork)
+            "completar" or "reabrir" => await new CompletarGestionCommandHandler(repositorio, alcance, unitOfWork, TimeProvider.System)
                 .Handle(new CompletarGestionCommand(gestion.Id, operacion == "completar"), CancellationToken.None),
             "eliminar" => await new EliminarGestionCommandHandler(
                     repositorio, alcance, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae"))
