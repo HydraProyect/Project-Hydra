@@ -25,35 +25,67 @@ public class AplicarMacroCommandTests
     private readonly TrabajadoresQueryContextFalso _trabajadores = new();
     private readonly VisitasVacias _visitas = new();
     private readonly PendientesFalsos _pendientes = new();
-    private readonly DocumentosQueryContextFalso _documentos = new();
-    private readonly TiposDocumentoQueryContextFalso _tipos = new();
 
     private AplicarMacroCommandHandler Handler(AlcanceDatosServiceFalso? alcance = null) => new(
         _comunicaciones, _empresas, _centros, _trabajadores,
-        _visitas, _documentos, _tipos, _pendientes,
+        _visitas, _pendientes,
         alcance ?? new AlcanceDatosServiceFalso(), _eventos, _unidad);
 
     [Fact]
-    public async Task Solo_incluye_documentos_vencidos_del_sujeto_del_hilo_y_no_de_otra_Empresa()
+    public async Task Sin_pendientes_en_la_regla_documental_la_variable_queda_por_rellenar()
     {
+        // El comando no calcula vencidos por su cuenta: un documento sustituido no se pide otra vez.
         var empresa = new Empresa("Empresa Norte");
         _empresas.ListaEmpresas.Add(empresa);
         var conversacion = new Conversacion("Documentación", empresaId: empresa.Id);
         var macro = new MacroRespuesta("Vencidos", "{{documentos pendientes}}");
         _comunicaciones.ListaConversaciones.Add(conversacion);
         _comunicaciones.ListaMacrosRespuesta.Add(macro);
-        var vencido = new CaeManager.Domain.Documentos.TipoDocumento("Certificado vencido", 12, true, 1, CaeManager.Domain.Documentos.AmbitoAplicacion.Empresa);
-        var vigente = new CaeManager.Domain.Documentos.TipoDocumento("Certificado vigente", 12, true, 2, CaeManager.Domain.Documentos.AmbitoAplicacion.Empresa);
-        var ajeno = new CaeManager.Domain.Documentos.TipoDocumento("Documento ajeno", 12, true, 3, CaeManager.Domain.Documentos.AmbitoAplicacion.Empresa);
-        _tipos.ListaTiposDocumento.AddRange([vencido, vigente, ajeno]);
-        var hoy = DiaDeNegocio.Hoy();
-        _documentos.ListaDocumentos.AddRange([
-            CaeManager.Domain.Documentos.Documento.DeEmpresa(empresa.Id, vencido.Id, hoy.AddYears(-2), CaeManager.Domain.Documentos.VigenciaDocumento.VenceEl(hoy.AddDays(-1))),
-            CaeManager.Domain.Documentos.Documento.DeEmpresa(empresa.Id, vigente.Id, hoy.AddYears(-1), CaeManager.Domain.Documentos.VigenciaDocumento.VenceEl(hoy.AddDays(30))),
-            CaeManager.Domain.Documentos.Documento.DeEmpresa(Guid.NewGuid(), ajeno.Id, hoy.AddYears(-2), CaeManager.Domain.Documentos.VigenciaDocumento.VenceEl(hoy.AddDays(-1)))]);
 
         var resultado = await Handler().Handle(new(conversacion.Id, macro.Id), CancellationToken.None);
-        resultado.Valor.Should().Be("Certificado vencido");
+        resultado.Valor.Should().Be("{{documentos pendientes}}");
+    }
+
+    [Fact]
+    public async Task Con_un_Centro_y_sin_Trabajador_no_pide_los_pendientes_de_los_Trabajadores_del_Centro()
+    {
+        var destinataria = new Empresa("Empresa Sur");
+        _empresas.ListaEmpresas.Add(destinataria);
+        var centro = new CaeManager.Domain.Centros.Centro(destinataria.Id, Guid.NewGuid(), "Centro");
+        _centros.ListaCentros.Add(centro);
+        var conversacion = new Conversacion("Visita", clienteId: destinataria.Id);
+        var macro = new MacroRespuesta("Pendientes", "{{documentos pendientes}}");
+        _comunicaciones.ListaConversaciones.Add(conversacion);
+        _comunicaciones.ListaMacrosRespuesta.Add(macro);
+        _comunicaciones.ListaParticipantesConversacion.Add(
+            new(conversacion.Id, "centro@example.com", RolParticipante.Para, TipoParticipanteOrigen.Centro, centro.Id));
+
+        await Handler().Handle(new(conversacion.Id, macro.Id), CancellationToken.None);
+        _pendientes.ConsultasPorCliente.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Un_Trabajador_o_Centro_fuera_de_la_Asignacion_de_Cartera_no_se_rellena()
+    {
+        var empresa = new Empresa("Empresa Norte");
+        var destinataria = new Empresa("Empresa Sur");
+        _empresas.ListaEmpresas.AddRange([empresa, destinataria]);
+        var centro = new CaeManager.Domain.Centros.Centro(destinataria.Id, empresa.Id, "Centro oculto");
+        _centros.ListaCentros.Add(centro);
+        var trabajador = CaeManager.Domain.Trabajadores.Trabajador.DeEmpresa(empresa.Id, "Ana", "Pérez", "12345678Z");
+        _trabajadores.ListaTrabajadores.Add(trabajador);
+        var conversacion = new Conversacion("Visita", clienteId: destinataria.Id);
+        var macro = new MacroRespuesta("Visita", "{{Trabajador}}|{{Centro}}");
+        _comunicaciones.ListaConversaciones.Add(conversacion);
+        _comunicaciones.ListaMacrosRespuesta.Add(macro);
+        _comunicaciones.ListaParticipantesConversacion.AddRange([
+            new(conversacion.Id, "ana@example.com", RolParticipante.De, TipoParticipanteOrigen.Trabajador, trabajador.Id),
+            new(conversacion.Id, "centro@example.com", RolParticipante.Para, TipoParticipanteOrigen.Centro, centro.Id)]);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [destinataria.Id],
+            trabajadorIdsVisibles: [], centroIdsVisibles: [], empresaIdsVisibles: [], empresaIdsParaGestion: [], centroIdsParaGestion: []);
+
+        var resultado = await Handler(alcance).Handle(new(conversacion.Id, macro.Id), CancellationToken.None);
+        resultado.Valor.Should().Be("{{Trabajador}}|{{Centro}}");
     }
 
     [Fact]
@@ -96,7 +128,7 @@ public class AplicarMacroCommandTests
         _comunicaciones.ListaEventosConversacion.Add(new(conversacion.Id, TipoEventoConversacion.VisitaCreada, visita.Id, DateTime.UtcNow));
 
         var resultado = await Handler().Handle(new(conversacion.Id, macro.Id), CancellationToken.None);
-        resultado.Valor.Should().Be("Empresa Norte|Ana P&#233;rez|Centro de trabajo|20/10/2026");
+        resultado.Valor.Should().Be("Empresa Norte|Ana Pérez|Centro de trabajo|20/10/2026");
 
         var otraVisita = new Visita(centro.Id, new(2026, 10, 21), new(2026, 10, 21), null);
         _visitas.Lista.Add(otraVisita);
@@ -173,9 +205,13 @@ public class AplicarMacroCommandTests
             EmpresaConsultada = empresaId;
             return Task.FromResult(PorEmpresa);
         }
+        public int ConsultasPorCliente { get; private set; }
         public Task<IReadOnlyList<PendientesDeUnTitular>> ListarParaClientesAsync(Guid? centroId, Guid? empresaDestinatariaId,
-            IReadOnlyCollection<Guid>? trabajadorIds, IReadOnlyList<Guid>? tipos, CancellationToken ct) =>
-            Task.FromResult<IReadOnlyList<PendientesDeUnTitular>>([]);
+            IReadOnlyCollection<Guid>? trabajadorIds, IReadOnlyList<Guid>? tipos, CancellationToken ct)
+        {
+            ConsultasPorCliente++;
+            return Task.FromResult<IReadOnlyList<PendientesDeUnTitular>>([]);
+        }
         public Task<Result<IReadOnlyList<DocumentoPendienteDto>>> ResolverParaClienteAsync(Guid id, IReadOnlyList<PendienteSinFecha> pedidos, CancellationToken ct) => throw new NotSupportedException();
         public Task<Result<IReadOnlyList<DocumentoPendienteDto>>> ResolverParaEmpresaAsync(Guid id, IReadOnlyList<PendienteSinFecha> pedidos, CancellationToken ct) => throw new NotSupportedException();
         public Task<IReadOnlySet<Guid>> DocumentoIdsAunSinConfirmarSinFechaAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) => throw new NotSupportedException();

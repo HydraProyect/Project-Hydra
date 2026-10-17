@@ -36,7 +36,7 @@ public class PlantillasRespuestaTests : IAsyncLifetime
         contexto.MacrosRespuesta.Add(plantilla);
         await contexto.SaveChangesAsync();
         var alcance = new AlcanceDatosServiceFalso();
-        var aplicar = new AplicarMacroCommandHandler(contexto, contexto, contexto, contexto, contexto, contexto, contexto,
+        var aplicar = new AplicarMacroCommandHandler(contexto, contexto, contexto, contexto, contexto,
             PendientesDeReclamacionFabrica.Crear(contexto, alcance), alcance, new EventoConversacionRepository(contexto), contexto);
 
         var resultado = await aplicar.Handle(new(conversacion.Id, plantilla.Id), CancellationToken.None);

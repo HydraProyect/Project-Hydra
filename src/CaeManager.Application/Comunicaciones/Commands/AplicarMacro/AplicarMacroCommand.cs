@@ -1,8 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
-using CaeManager.Application.Documentos;
-using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas;
 using CaeManager.Application.Reclamaciones;
@@ -21,8 +19,6 @@ public class AplicarMacroCommandHandler(
     ICentrosQueryContext centros,
     ITrabajadoresQueryContext trabajadores,
     IVisitasQueryContext visitas,
-    IDocumentosQueryContext documentos,
-    ITiposDocumentoQueryContext tiposDocumento,
     IPendientesDeReclamacionService pendientesDeReclamacion,
     IAlcanceDatosService alcanceDatos,
     IEventoConversacionRepository eventos,
@@ -62,22 +58,14 @@ public class AplicarMacroCommandHandler(
             centroId = visitasDelHilo[0].CentroId;
         if (centroId is { } centro && !await alcanceDatos.CentroVisibleAsync(centro, cancellationToken)) centroId = null;
 
-        var hoy = DiaDeNegocio.Hoy();
-        var nombresPendientes = await (
-            from documento in documentos.Documentos
-            join tipo in tiposDocumento.TiposDocumento on documento.TipoDocumentoId equals tipo.Id
-            where documento.FechaVencimiento < hoy &&
-                ((trabajadorId != null && documento.TrabajadorId == trabajadorId) ||
-                 (empresaId != null && documento.EmpresaId == empresaId))
-            orderby tipo.Nombre
-            select tipo.Nombre).Distinct().ToListAsync(cancellationToken);
-
-        // Reutiliza el cálculo documental existente para los ausentes y sin confirmar.
-        // Sin un Centro o Trabajador inequívoco no se amplía al conjunto de la cartera.
-        if (conversacion.ClienteId is { } empresaDestinatariaId && (centroId != null || trabajadorId != null))
+        // Regla documental única (vencidos, ausentes y sin confirmar, solo documentos operativos).
+        // Los pendientes de Trabajador solo con un Trabajador inequívoco: sin él, un Centro
+        // traería los de Trabajadores de otras Empresas.
+        var nombresPendientes = new List<string>();
+        if (conversacion.ClienteId is { } empresaDestinatariaId && trabajadorId is { } id)
         {
             var pendientes = await pendientesDeReclamacion.ListarParaClientesAsync(
-                centroId, empresaDestinatariaId, trabajadorId is { } id ? new[] { id } : null, null, cancellationToken);
+                centroId, empresaDestinatariaId, new[] { id }, null, cancellationToken);
             nombresPendientes.AddRange(pendientes.SelectMany(p => p.Pendientes).Select(p => p.TipoDocumentoNombre));
         }
         if (empresaId != null)
