@@ -72,7 +72,7 @@
             </Encabezado>
             <ChildContent>
                 <div class="rejilla-categorias-kpi">
-                    @foreach (var categoria in CatalogoKpis.Todos.GroupBy(k => k.Categoria))
+                    @foreach (var categoria in KpisVisibles.GroupBy(k => k.Categoria))
                     {
                         <div class="categoria-kpi">
                             <h3 class="categoria-kpi-titulo">@EtiquetasCategoriaKpi.De(categoria.Key)</h3>
