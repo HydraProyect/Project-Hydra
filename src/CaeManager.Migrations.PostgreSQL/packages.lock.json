@@ -544,8 +544,8 @@
       },
       "PDFsharp": {
         "type": "Transitive",
-        "resolved": "6.2.4",
-        "contentHash": "GhTr9F1uOYXHCIEOB5PXIgqn5a8WLsJL2m0eewTA0IvY1j6N4HGXHKKmEyB90/N6vrjmYamf41V9zbmdW2HY3g==",
+        "resolved": "6.5.0",
+        "contentHash": "H9PYxFBvbevuYT5Q/d64MX7YxzEUuhl887fFTwN4By9vAKy9m54yBk5/Pm989KmBbtB2i6cUNa3Gve8loPSYkg==",
         "dependencies": {
           "Microsoft.Extensions.Logging.Abstractions": "8.0.3",
           "System.Security.Cryptography.Pkcs": "8.0.1"
@@ -716,7 +716,7 @@
           "Microsoft.AspNetCore.SignalR.StackExchangeRedis": "[10.*, )",
           "Microsoft.Extensions.Http.Resilience": "[10.*, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
-          "PDFsharp": "[6.2.4, )",
+          "PDFsharp": "[6.5.0, )",
           "PDFtoImage": "[5.2.1, )",
           "Sentry": "[6.7.0, )",
           "SkiaSharp": "[3.119.2, )",

@@ -44,9 +44,9 @@
       },
       "Microsoft.AspNetCore.App.Internal.Assets": {
         "type": "Direct",
-        "requested": "[10.0.10, )",
-        "resolved": "10.0.10",
-        "contentHash": "8k0KoYKvNrSqP8E3oDJMBVKavlTEE6BacdLGtEDcxv9Hz0XxWFkD6JdLJsxXUlGeAfZ6YfvWmxKenl73qeCTSA=="
+        "requested": "[10.0.11, )",
+        "resolved": "10.0.11",
+        "contentHash": "tYYYBZsuF2DSz1I3hcfB8qC4nNekIKufkYZOJ2R28fNK3PkS7fJao/mIX5H84NH94UACZQ4dhvt8GDlkrJFwLg=="
       },
       "Microsoft.AspNetCore.Authentication.OpenIdConnect": {
         "type": "Direct",
@@ -151,9 +151,9 @@
       },
       "PDFsharp": {
         "type": "Direct",
-        "requested": "[6.2.4, )",
-        "resolved": "6.2.4",
-        "contentHash": "GhTr9F1uOYXHCIEOB5PXIgqn5a8WLsJL2m0eewTA0IvY1j6N4HGXHKKmEyB90/N6vrjmYamf41V9zbmdW2HY3g==",
+        "requested": "[6.5.0, )",
+        "resolved": "6.5.0",
+        "contentHash": "H9PYxFBvbevuYT5Q/d64MX7YxzEUuhl887fFTwN4By9vAKy9m54yBk5/Pm989KmBbtB2i6cUNa3Gve8loPSYkg==",
         "dependencies": {
           "System.Security.Cryptography.Pkcs": "8.0.1"
         }
@@ -938,7 +938,7 @@
           "Microsoft.AspNetCore.SignalR.StackExchangeRedis": "[10.*, )",
           "Microsoft.Extensions.Http.Resilience": "[10.*, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
-          "PDFsharp": "[6.2.4, )",
+          "PDFsharp": "[6.5.0, )",
           "PDFtoImage": "[5.2.1, )",
           "Sentry": "[6.7.0, )",
           "SkiaSharp": "[3.119.2, )",
