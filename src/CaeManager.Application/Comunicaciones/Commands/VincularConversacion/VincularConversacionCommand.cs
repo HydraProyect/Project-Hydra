@@ -71,11 +71,19 @@ public class VincularConversacionCommandHandler(
             return Result.Fallo(Error.Crear("Conversacion.DestinoNoEncontrado", "No encontramos la conversación de destino."));
         }
 
-        if (destino.Estado != EstadoConversacion.Abierta && destino.Estado != EstadoConversacion.Pendiente)
+        if (!TransicionesEstadoConversacion.EsVivo(destino.Estado))
             return Result.Fallo(Error.Crear("Conversacion.DestinoNoDisponible", "La conversación de destino ya no está abierta."));
 
+        // El origen puede estar ya Cerrada (el motor solo propone destinos vivos, pero el origen lo elige quien llama):
+        // cerrarla otra vez no es una transición, así que solo se cierra si hace falta.
+        if (origen.Estado != EstadoConversacion.Cerrada)
+        {
+            var cierre = origen.CambiarEstado(EstadoConversacion.Cerrada);
+            if (cierre.EsFallido)
+                return cierre;
+        }
+
         destino.AbsorberMensajesDe(origen);
-        origen.CambiarEstado(EstadoConversacion.Cerrada);
 
         eventoRepositorio.Agregar(new EventoConversacion(destino.Id, TipoEventoConversacion.ConversacionVinculada, origen.Id, DateTime.UtcNow));
 

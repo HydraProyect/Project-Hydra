@@ -12,6 +12,50 @@
     overflow-wrap: anywhere;
 }
 
+.reclamacion-extra-campo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-top: var(--space-2);
+}
+
+.reclamacion-extra-entrada {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+.reclamacion-extra-entrada .campo-input {
+    flex: 1;
+    min-width: 0;
+}
+
+.reclamacion-extra-lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.reclamacion-extra-lista li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-2);
+    overflow-wrap: anywhere;
+}
+
+.reclamacion-extra-quitar {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font: var(--font-body);
+    padding: 0 var(--space-1);
+}
+
 .lote-reclamacion-titular {
     display: block;
     font: var(--font-body-sm);

@@ -33,9 +33,11 @@ namespace CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 /// (<c>EnviarReclamacionEmpresaCommand</c>), que no tiene Cliente al que
 /// anclar el hilo y no puede dejarlo caer en la cola de triage compartida.
 /// </param>
+/// <param name="Copia">Direcciones en copia (CC) del mensaje. Hoy solo las usa la reclamación (destinatarios añadidos en «Pedir»).</param>
 public record EnviarMensajeNuevoCommand(
     Guid ConexionIntegracionId, IReadOnlyList<string> Destinatarios, string Asunto, string CuerpoHtml,
-    Guid? ClienteId = null, IReadOnlyList<AdjuntoParaEnviarDto>? Adjuntos = null, Guid? EmpresaId = null) : ICommand<Guid>;
+    Guid? ClienteId = null, IReadOnlyList<AdjuntoParaEnviarDto>? Adjuntos = null, Guid? EmpresaId = null,
+    IReadOnlyList<string>? Copia = null) : ICommand<Guid>;
 
 public class EnviarMensajeNuevoCommandValidator : AbstractValidator<EnviarMensajeNuevoCommand>
 {
@@ -44,6 +46,7 @@ public class EnviarMensajeNuevoCommandValidator : AbstractValidator<EnviarMensaj
         RuleFor(c => c.ConexionIntegracionId).NotEmpty().WithMessage("Selecciona el buzón desde el que enviar.");
         RuleFor(c => c.Destinatarios).NotEmpty().WithMessage("Indica al menos un destinatario.");
         RuleForEach(c => c.Destinatarios).EmailAddress().WithMessage("Alguno de los destinatarios no es un correo válido.");
+        RuleForEach(c => c.Copia).EmailAddress().WithMessage("Alguna de las direcciones en copia no es un correo válido.");
         RuleFor(c => c.Asunto).NotEmpty().WithMessage("El asunto es obligatorio.").MaximumLength(Conversacion.LongitudMaximaAsunto);
         RuleFor(c => c.CuerpoHtml).NotEmpty().WithMessage("El mensaje no puede estar vacío.");
         RuleFor(c => c.Adjuntos)
@@ -103,7 +106,7 @@ public class EnviarMensajeNuevoCommandHandler(
             return Result.Fallo<Guid>(tokenResultado.Error);
 
         var envioResultado = await graphClient.EnviarNuevoMensajeAsync(
-            tokenResultado.Valor, conexion.BuzonEmail, request.Destinatarios, request.Asunto, request.CuerpoHtml, request.Adjuntos, cancellationToken);
+            tokenResultado.Valor, conexion.BuzonEmail, request.Destinatarios, request.Asunto, request.CuerpoHtml, request.Adjuntos, cancellationToken, request.Copia);
         if (envioResultado.EsFallido)
             return Result.Fallo<Guid>(envioResultado.Error);
 
@@ -134,17 +137,19 @@ public class EnviarMensajeNuevoCommandHandler(
         var mensaje = conversacion.AgregarMensaje(
             DireccionMensaje.Saliente, conversacion.Canal, conexion.BuzonEmail, request.CuerpoHtml,
             mensajeExternoId: envioResultado.Valor.MensajeExternoId);
-        foreach (var destinatario in request.Destinatarios)
+        // Los destinatarios (Para) y las copias (Cc) son participantes del hilo igual: cambia solo el rol.
+        foreach (var (destinatario, rol) in request.Destinatarios.Select(d => (d, RolParticipante.Para))
+                     .Concat((request.Copia ?? []).Select(c => (c, RolParticipante.Cc))))
         {
             // Al sumarse a un hilo ya existente el destinatario suele estar ya
             // registrado — no se duplica la fila (no hay índice único que lo
             // impida, así que la guarda va aquí).
-            if (conversacion.Participantes.Any(p => p.Rol == RolParticipante.Para &&
+            if (conversacion.Participantes.Any(p => p.Rol == rol &&
                                                    string.Equals(p.Email, destinatario, StringComparison.OrdinalIgnoreCase)))
                 continue;
 
             var (tipoOrigen, entidadRelacionadaId) = await resolucionParticipante.ResolverAsync(destinatario, clienteId, cancellationToken);
-            conversacion.AgregarParticipante(destinatario, RolParticipante.Para, tipoOrigen, entidadRelacionadaId);
+            conversacion.AgregarParticipante(destinatario, rol, tipoOrigen, entidadRelacionadaId);
         }
 
         if (request.Adjuntos is { Count: > 0 })

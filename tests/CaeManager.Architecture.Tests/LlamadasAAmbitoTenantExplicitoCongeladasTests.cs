@@ -265,6 +265,9 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras cargar y autorizar la Delegación"),
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerDashboardEjecutivoQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "cliente.TenantId, del Cliente resuelto dentro del fan-out ya acotado a la cartera del operador"),
+        ["src/CaeManager.Application/Dashboard/Queries/ObtenerCuadroDireccionQuery.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "cliente.TenantId, mismo fan-out que ObtenerDashboardEjecutivoQuery y solo si AlcanzaElTenantEnteroAsync; y ObtenerTenantOrigenIdAsync() del propio usuario para leer el catálogo de carteras de su organización (mismo criterio que ObtenerOperacionesSinPrincipalQuery)"),
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerKpisGlobalesQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "cliente.TenantId, mismo fan-out que ObtenerDashboardEjecutivoQuery"),
         ["src/CaeManager.Application/Bandeja/Queries/ObtenerMiTrabajoAgregado/ObtenerMiTrabajoAgregadoQuery.cs"] =
@@ -342,6 +345,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants (activos y suspendidos) desde el propio servicio, un CreateScope por Tenant propietario (2026-09-23: sin él, cae_app_runtime veía cero filas de AsignacionesOperacion/AsignacionesCartera)"),
         ["src/CaeManager.Infrastructure/Proyectos/CierreEventosTerminadosHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants (activos y suspendidos) desde el propio servicio, un CreateScope por Tenant propietario, mismo patrón que ExpiracionAsignacionesHostedService (2026-10-16: cierre automático de eventos terminados)"),
+        ["src/CaeManager.Infrastructure/Comunicaciones/CierreConversacionesResueltasHostedService.cs"] =
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants (activos y suspendidos) desde el propio servicio, un CreateScope por Tenant propietario, mismo patrón que CierreEventosTerminadosHostedService (2026-10-17: cierre automático de conversaciones 4 días Resueltas)"),
         ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "4 llamadas — tenantId del EventoWebhook ya persistido con su tenant resuelto por el paso de verificación previo"),
         ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookWhatsAppHostedService.cs"] =
@@ -540,6 +545,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] = 2,
             ["src/CaeManager.Application/Operaciones/IncorporacionCartera/ContextoOperadorCae.cs"] = 2,
+            ["src/CaeManager.Application/Dashboard/Queries/ObtenerCuadroDireccionQuery.cs"] = 2,
         };
 
         foreach (var fichero in conocidos)

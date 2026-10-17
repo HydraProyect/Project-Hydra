@@ -4,6 +4,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Commands.CambiarEstadoConversacion;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Comunicaciones.Queries.DetectarActualizacionDocumentoDesdeAdjunto;
@@ -240,6 +241,7 @@ public class ComunicacionesGen2Tests : BunitContext
                 ObtenerTiempoGestionConversacionQuery => new TiempoGestionConversacionDto(false, 0, 0),
                 ObtenerNotasInternasConversacionQuery => NotasInternas.ToList(),
                 ResponderConversacionCommand c => AlResponder(c),
+                CambiarEstadoConversacionCommand => Result.Exito(),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.")
             });
 
@@ -299,6 +301,10 @@ public class ComunicacionesGen2Tests : BunitContext
 
     private static IElement SelectorDeEstado(IRenderedComponent<Bandeja> cut) =>
         cut.FindAll(".bandeja-filtros-avanzados select")[0];
+
+    /// <summary>El selector «Cambiar estado…» de la cabecera del detalle, no el filtro de la lista.</summary>
+    private static IElement SelectorCambiarEstado(IRenderedComponent<Bandeja> cut) =>
+        cut.FindAll(".bandeja-centro-acciones select").Single(s => s.QuerySelector("option")!.TextContent.Trim() == "Cambiar estado…");
 
     private static IElement SelectorDeCliente(IRenderedComponent<Bandeja> cut) =>
         cut.FindAll(".bandeja-filtros-avanzados select")[1];
@@ -454,6 +460,107 @@ public class ComunicacionesGen2Tests : BunitContext
         navegacion.Uri.Should().Contain("estado=Resuelta", "la URL manda: es lo que se comparte y lo que se recarga");
         mediador.Enviados.OfType<ObtenerConversacionesQuery>().Last().Estado.Should().Be(EstadoConversacion.Resuelta);
         AsuntosVisibles(cut).Should().BeEmpty();
+    }
+
+    // ---------------------------------------------------------------- estados de espera (hueco 2 de Comunicaciones)
+
+    [Fact]
+    public void El_filtro_de_estado_ofrece_los_seis_estados_con_su_texto_de_negocio()
+    {
+        var (cut, _) = Renderizar(new Escenario());
+
+        var opciones = SelectorDeEstado(cut).QuerySelectorAll("option").ToList();
+
+        opciones.Select(o => o.GetAttribute("value")).Should().Equal(
+            "", "Abierta", "Pendiente", "EsperandoRespuestaExterna", "EnEsperaDeTercero", "Resuelta", "Cerrada");
+        opciones.Select(o => o.TextContent.Trim()).Should().Equal(
+            "Todos los estados", "Abierta", "Pendiente", "Esperando respuesta externa", "En espera de tercero", "Resuelta", "Cerrada");
+    }
+
+    [Fact]
+    public async Task Filtrar_por_un_estado_de_espera_manda_ese_estado_al_servidor()
+    {
+        var escenario = new Escenario();
+        escenario.Conversaciones.Add(Conversacion("Esperamos a la mutua", ClienteRefrielectric, estado: EstadoConversacion.EnEsperaDeTercero));
+        var (cut, mediador) = Renderizar(escenario);
+
+        await SelectorDeEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.EnEsperaDeTercero) });
+
+        mediador.Enviados.OfType<ObtenerConversacionesQuery>().Last().Estado.Should().Be(EstadoConversacion.EnEsperaDeTercero);
+        AsuntosVisibles(cut).Should().Equal(["Esperamos a la mutua"]);
+    }
+
+    [Theory]
+    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, "Esperando respuesta externa")]
+    [InlineData(EstadoConversacion.EnEsperaDeTercero, "En espera de tercero")]
+    public async Task El_chip_de_la_fila_y_el_de_la_cabecera_dicen_el_estado_en_castellano_y_con_tono_de_advertencia(
+        EstadoConversacion estado, string texto)
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric, estado: estado);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, _) = Renderizar(escenario);
+
+        var chipFila = cut.Find(".bandeja-fila-linea3 [data-pieza='pastilla']");
+        chipFila.TextContent.Trim().Should().Be(texto, "el nombre del enum («EsperandoRespuestaExterna») no se enseña al Gestor CAE");
+        chipFila.ClassName.Should().Contain("advertencia");
+
+        await SeleccionarFila(cut, "Documentación pendiente");
+        var chipCabecera = cut.Find(".bandeja-centro-meta [data-pieza='pastilla']");
+        chipCabecera.TextContent.Trim().Should().Be(texto);
+        chipCabecera.ClassName.Should().Contain("advertencia");
+    }
+
+    [Fact]
+    public async Task El_selector_de_la_cabecera_solo_ofrece_las_transiciones_que_el_dominio_permite()
+    {
+        var resuelta = Conversacion("Documentación pendiente", ClienteRefrielectric, estado: EstadoConversacion.Resuelta);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(resuelta) };
+        escenario.Conversaciones.Add(resuelta);
+        var (cut, _) = Renderizar(escenario);
+
+        await SeleccionarFila(cut, "Documentación pendiente");
+
+        SelectorCambiarEstado(cut).QuerySelectorAll("option").Select(o => o.TextContent.Trim()).Should().Equal(
+            "Cambiar estado…", "Abierta", "Cerrada");
+    }
+
+    [Fact]
+    public async Task Elegir_Esperando_respuesta_externa_en_el_selector_manda_el_cambio_de_estado()
+    {
+        var abierta = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(abierta) };
+        escenario.Conversaciones.Add(abierta);
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+
+        SelectorCambiarEstado(cut).QuerySelectorAll("option").Select(o => o.TextContent.Trim()).Should().Equal(
+            "Cambiar estado…", "Pendiente", "Esperando respuesta externa", "En espera de tercero", "Resuelta", "Cerrada");
+        await SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.EsperandoRespuestaExterna) });
+
+        mediador.Enviados.OfType<CambiarEstadoConversacionCommand>().Should().ContainSingle()
+            .Which.Should().Be(new CambiarEstadoConversacionCommand(abierta.Id, EstadoConversacion.EsperandoRespuestaExterna));
+    }
+
+    [Fact]
+    public async Task Una_transicion_rechazada_por_el_dominio_se_avisa_y_no_recarga_nada()
+    {
+        var abierta = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario
+        {
+            Detalle = _ => DetalleDe(abierta),
+            Interceptar = peticion => peticion is CambiarEstadoConversacionCommand
+                ? Task.FromResult<object?>(Result.Fallo(Error.Crear("Conversacion.TransicionDeEstadoNoPermitida", "Una conversación Cerrada no puede pasar a Resuelta.")))
+                : null
+        };
+        escenario.Conversaciones.Add(abierta);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+
+        await SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.Resuelta) });
+
+        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle()
+            .Which.Mensaje.Should().Be("Una conversación Cerrada no puede pasar a Resuelta.");
     }
 
     // ---------------------------------------------------------------- notas internas
@@ -689,7 +796,7 @@ public class ComunicacionesGen2Tests : BunitContext
         var (cut, _) = Renderizar(new Escenario());
 
         cut.Markup.Should()
-            .Contain("Esperando al Cliente")
+            .Contain("Esperando respuesta externa")
             .And.Contain("Todos los Clientes")
             .And.Contain("primer correo de un Cliente");
 

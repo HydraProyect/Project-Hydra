@@ -42,6 +42,13 @@ public interface IRegistroEnvioReclamacionService
     /// Documentos que nunca se subieron y se piden en el mismo correo: no hay Documento al que apuntar, así que el registro
     /// guarda su Tipo y a quién le faltan. Cuentan exactamente igual que los demás: misma reclamación, misma «última».
     /// </param>
+    /// <param name="destinatarios">A quién se pide: los contactos de la agenda y los que el gestor añadió a mano (el servicio no distingue).</param>
+    /// <param name="enCopia">
+    /// Direcciones en copia (CC). Por buzón conectado van en el campo CC del mismo mensaje; por SMTP, donde cada destinatario recibe su
+    /// propio correo, cada dirección en copia recibe una copia suelta DESPUÉS de los destinatarios, y solo si a alguno de ellos le llegó.
+    /// La copia suelta lleva arriba una nota que dice que es una copia y a quién se envió (<see cref="CuerpoDeCopia"/>), porque por SMTP
+    /// no existe la cabecera CC compartida. El registro las guarda marcadas «(CC)» (<see cref="DestinatariosExtraDeReclamacion.FormatoDeRegistro"/>).
+    /// </param>
     Task<Result> EnviarYRegistrarAsync(
         TitularReclamacion titular,
         IReadOnlyList<Guid> documentoIds,
@@ -49,7 +56,8 @@ public interface IRegistroEnvioReclamacionService
         string asunto,
         string cuerpoHtml,
         CancellationToken cancellationToken,
-        IReadOnlyList<DocumentoQueFaltaPedido>? documentosQueFaltan = null);
+        IReadOnlyList<DocumentoQueFaltaPedido>? documentosQueFaltan = null,
+        IReadOnlyList<string>? enCopia = null);
 }
 
 public class RegistroEnvioReclamacionService(
@@ -76,9 +84,11 @@ public class RegistroEnvioReclamacionService(
         string asunto,
         string cuerpoHtml,
         CancellationToken cancellationToken,
-        IReadOnlyList<DocumentoQueFaltaPedido>? documentosQueFaltan = null)
+        IReadOnlyList<DocumentoQueFaltaPedido>? documentosQueFaltan = null,
+        IReadOnlyList<string>? enCopia = null)
     {
-        var destinatarioUnico = string.Join("; ", destinatarios);
+        enCopia ??= [];
+        var destinatarioUnico = DestinatariosExtraDeReclamacion.FormatoDeRegistro(destinatarios, enCopia);
         IReadOnlyList<string> destinatariosFallidos = [];
 
         // GestorPropietarioId != null excluido a propósito: un buzón personal
@@ -112,8 +122,8 @@ public class RegistroEnvioReclamacionService(
             // toda la gestión CAE (§ 12.4) — el alcance de cartera de la
             // reclamación se perdería en cuanto alguien abriera Comunicaciones.
             var envio = titular.Ambito == AmbitoAplicacion.Cliente
-                ? new EnviarMensajeNuevoCommand(conexionId.Value, destinatarios, asunto, cuerpoHtml, ClienteId: titular.Id)
-                : new EnviarMensajeNuevoCommand(conexionId.Value, destinatarios, asunto, cuerpoHtml, EmpresaId: titular.Id);
+                ? new EnviarMensajeNuevoCommand(conexionId.Value, destinatarios, asunto, cuerpoHtml, ClienteId: titular.Id, Copia: enCopia)
+                : new EnviarMensajeNuevoCommand(conexionId.Value, destinatarios, asunto, cuerpoHtml, EmpresaId: titular.Id, Copia: enCopia);
 
             var envioResultado = await mediator.Send(envio, cancellationToken);
             if (envioResultado.EsFallido)
@@ -161,9 +171,16 @@ public class RegistroEnvioReclamacionService(
             // siendo un fallo que nombra a quienes no, para que la UI nunca
             // lo pinte como enviado del todo.
             var enviados = new List<string>();
+            var enviadosEnCopia = new List<string>();
             var fallidos = new List<string>();
-            foreach (var destinatario in destinatarios)
+
+            // Los de copia van después y solo si a algún destinatario le llegó: una copia de un correo que no salió a nadie no informa de nada.
+            foreach (var (destinatario, esCopia) in destinatarios.Select(d => (d, false))
+                         .Concat(enCopia.Select(c => (c, true))))
             {
+                if (esCopia && enviados.Count == 0)
+                    break;
+
                 // Una excepción del transporte (una dirección mal formada en la agenda, un servicio SMTP caído de un modo que
                 // el adaptador no contempla) es un destinatario fallido, no un fallo de todo el envío: dejarla subir tras haber
                 // entregado ya a un destinatario anterior dejaba ese correo salido y sin registrar. La cancelación sí sube.
@@ -171,7 +188,8 @@ public class RegistroEnvioReclamacionService(
                 try
                 {
                     resultadoCorreo = await emailService.EnviarAsync(
-                        destinatario, asunto, cuerpoHtml, TipoAvisoCorreo.Requerimiento, responderA, cancellationToken);
+                        destinatario, asunto, esCopia ? CuerpoDeCopia(cuerpoHtml, enviados) : cuerpoHtml,
+                        TipoAvisoCorreo.Requerimiento, responderA, cancellationToken);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -181,7 +199,7 @@ public class RegistroEnvioReclamacionService(
 
                 if (resultadoCorreo.EsExitoso)
                 {
-                    enviados.Add(destinatario);
+                    (esCopia ? enviadosEnCopia : enviados).Add(destinatario);
                 }
                 else
                 {
@@ -199,7 +217,7 @@ public class RegistroEnvioReclamacionService(
                     "No pudimos enviar el correo de la reclamación, así que no queda registrada. Inténtalo de nuevo en unos minutos."));
             }
 
-            destinatarioUnico = string.Join("; ", enviados);
+            destinatarioUnico = DestinatariosExtraDeReclamacion.FormatoDeRegistro(enviados, enviadosEnCopia);
             destinatariosFallidos = fallidos;
         }
 
@@ -227,9 +245,17 @@ public class RegistroEnvioReclamacionService(
                 CodigoEnvioParcial,
                 $"La reclamación solo llegó a {destinatarioUnico}, y así queda registrada. " +
                 $"No pudimos enviarla a {string.Join(", ", destinatariosFallidos)}: " +
-                "revisa esas direcciones y vuelve a reclamar solo a esos contactos."));
+                "revisa esas direcciones y vuelve a enviarla solo a ellas."));
         }
 
         return Result.Exito();
     }
+
+    /// <summary>
+    /// El cuerpo que recibe una dirección en copia por SMTP: el mismo correo, con una nota arriba que dice que es una copia y a quién se
+    /// envió. Sin ella, quien está en copia leería una petición de documentos dirigida a otra persona sin saber por qué le llega.
+    /// </summary>
+    internal static string CuerpoDeCopia(string cuerpoHtml, IEnumerable<string> destinatarios) =>
+        "<p><em>Copia informativa de una reclamación enviada a " +
+        System.Net.WebUtility.HtmlEncode(string.Join(", ", destinatarios)) + ".</em></p>" + cuerpoHtml;
 }

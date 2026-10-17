@@ -46,7 +46,7 @@ public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversaci
         IReadOnlyCollection<Guid> ejecutivoIds, CancellationToken cancellationToken = default) =>
         await dbContext.Conversaciones
             .Where(c => c.Canal == CanalConversacion.WhatsApp
-                        && (c.Estado == EstadoConversacion.Abierta || c.Estado == EstadoConversacion.Pendiente)
+                        && TransicionesEstadoConversacion.EstadosVivos.Contains(c.Estado)
                         && c.EjecutivoAsignadoId != null && ejecutivoIds.Contains(c.EjecutivoAsignadoId.Value))
             .GroupBy(c => c.EjecutivoAsignadoId!.Value)
             .Select(g => new { g.Key, Total = g.Count() })
@@ -56,7 +56,7 @@ public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversaci
         Guid clienteId, Guid excluirConversacionId, CancellationToken cancellationToken = default) =>
         await dbContext.Conversaciones
             .Where(c => c.ClienteId == clienteId && c.Id != excluirConversacionId
-                        && (c.Estado == EstadoConversacion.Abierta || c.Estado == EstadoConversacion.Pendiente))
+                        && TransicionesEstadoConversacion.EstadosVivos.Contains(c.Estado))
             .OrderByDescending(c => c.FechaUltimoMensajeUtc)
             .ToListAsync(cancellationToken);
 

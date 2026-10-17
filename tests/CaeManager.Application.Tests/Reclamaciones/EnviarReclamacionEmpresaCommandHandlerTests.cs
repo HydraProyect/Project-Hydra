@@ -302,4 +302,66 @@ public class EnviarReclamacionEmpresaCommandHandlerTests
         EnviarReclamacionEmpresaCommandHandler.ConstruirCuerpoHtml("Contratista SL", documentos, []).Should().Be(sin);
         sin.Should().NotContain("Situación");
     }
+
+    [Fact]
+    public async Task Los_destinatarios_manuales_y_la_copia_llegan_al_envio_y_al_resultado_sin_tocar_la_agenda()
+    {
+        var escenario = ConstruirEscenario();
+        var documento = AgregarDocumento(escenario, Hoy.AddDays(10));
+        var contacto = Contacto();
+        escenario.Entorno.Agenda.RespuestaResolverParaEmpresaAsync = [contacto];
+        var handler = escenario.Entorno.CrearHandler();
+
+        var resultado = await handler.Handle(
+            new EnviarReclamacionEmpresaCommand(
+                escenario.Contraparte.Id, [documento.Id],
+                CorreosAdicionales: ["jefe.obra@subcontrata.test"], CorreosEnCopia: ["coordinacion@arcosspa.test"]),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        escenario.Entorno.RegistroEnvio.UltimosDestinatarios.Should().Equal(contacto.Email, "jefe.obra@subcontrata.test");
+        escenario.Entorno.RegistroEnvio.UltimosEnCopia.Should().Equal("coordinacion@arcosspa.test");
+        resultado.Valor.Destinatarios.Should().Equal(contacto.Email, "jefe.obra@subcontrata.test");
+        resultado.Valor.EnCopia.Should().Equal("coordinacion@arcosspa.test");
+    }
+
+    [Theory]
+    [InlineData("no-es-un-correo", null, "Reclamacion.CorreoNoValido")]
+    [InlineData(null, "no-es-un-correo", "Reclamacion.CorreoNoValido")]
+    [InlineData("ana@contratista.test", null, "Reclamacion.CorreoRepetido")]
+    [InlineData(null, "ANA@contratista.test", "Reclamacion.CorreoRepetido")]
+    public async Task Un_manual_o_una_copia_invalidos_o_repetidos_hacen_fallar_el_envio_entero_sin_enviar_nada(string? adicional, string? copia, string codigo)
+    {
+        var escenario = ConstruirEscenario();
+        var documento = AgregarDocumento(escenario, Hoy.AddDays(10));
+        escenario.Entorno.Agenda.RespuestaResolverParaEmpresaAsync = [Contacto()];
+        var handler = escenario.Entorno.CrearHandler();
+
+        var resultado = await handler.Handle(
+            new EnviarReclamacionEmpresaCommand(
+                escenario.Contraparte.Id, [documento.Id],
+                CorreosAdicionales: adicional is null ? null : [adicional], CorreosEnCopia: copia is null ? null : [copia]),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(codigo);
+        escenario.Entorno.RegistroEnvio.VecesLlamado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Los_manuales_no_sustituyen_a_la_agenda_sin_contactos_sigue_sin_haber_destinatario()
+    {
+        var escenario = ConstruirEscenario();
+        var documento = AgregarDocumento(escenario, Hoy.AddDays(10));
+        escenario.Entorno.Agenda.RespuestaResolverParaEmpresaAsync = [];
+        var handler = escenario.Entorno.CrearHandler();
+
+        var resultado = await handler.Handle(
+            new EnviarReclamacionEmpresaCommand(escenario.Contraparte.Id, [documento.Id], CorreosAdicionales: ["jefe.obra@subcontrata.test"]),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Reclamacion.SinDestinatario");
+        escenario.Entorno.RegistroEnvio.VecesLlamado.Should().Be(0);
+    }
 }
