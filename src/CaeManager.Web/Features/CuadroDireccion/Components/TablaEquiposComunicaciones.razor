@@ -1,0 +1,107 @@
+@using CaeManager.Web.Features.CuadroDireccion.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosCuadroDireccion> Textos
+
+@*
+    «Por equipo» de la pestaña Comunicaciones (maqueta «Cuadro Direccion TALVEG.dc.html», tarjeta cm-equipos).
+    Siempre por equipo del Operador CAE, nunca por Gestor CAE. Un equipo que no llega al umbral de anonimato
+    (UmbralAnonimatoCuadro: 3 personas y 20 conversaciones) no enseña ninguna cifra: sale la fila con el motivo,
+    al final de la tabla, sin importar el orden elegido.
+*@
+@if (Filas.Count == 0)
+{
+    <p class="cuadro-vacio">@Textos["EquiposSinMedidas"]</p>
+}
+else
+{
+    <div class="cuadro-tabla-envoltorio">
+        <table class="cuadro-tabla">
+            <thead>
+                <tr>
+                    @foreach (var (clave, etiqueta) in Columnas)
+                    {
+                        <th scope="col" aria-sort="@AriaSort(clave)">
+                            <button type="button" @onclick="() => Ordenar(clave)">@etiqueta@FlechaOrden(clave)</button>
+                        </th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var fila in Ordenadas())
+                {
+                    var oculta = !UmbralAnonimatoCuadro.Cumple(fila.Personas, fila.Conversaciones);
+                    <tr class="@(oculta ? "cuadro-fila-oculta" : null)">
+                        <td class="cuadro-texto"><b>@fila.Equipo</b></td>
+                        @if (oculta)
+                        {
+                            <td colspan="7" class="cuadro-suprimida">@Textos["EquipoSuprimido", fila.Personas, fila.Conversaciones, UmbralAnonimatoCuadro.MinimoPersonas, UmbralAnonimatoCuadro.MinimoConversaciones]</td>
+                        }
+                        else
+                        {
+                            <td>@fila.Conversaciones.ToString("N0", CuadroDireccionUi.Castellano)</td>
+                            <td>@fila.PrimeraRespuestaHoras.ToString("N1", CuadroDireccionUi.Castellano) h</td>
+                            <td>@fila.ResolucionDias.ToString("N1", CuadroDireccionUi.Castellano) d</td>
+                            <td>@fila.UnaRespuestaPct %</td>
+                            <td>@fila.ReabiertasPct %</td>
+                            <td>@fila.EnSlaPct %</td>
+                            <td>@fila.CambiosDeManos.ToString("N1", CuadroDireccionUi.Castellano)</td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    [Parameter] public IReadOnlyList<FilaEquipoComunicaciones> Filas { get; set; } = [];
+
+    private string _clave = "conversaciones";
+    private int _sentido = -1;
+
+    private IReadOnlyList<(string Clave, string Etiqueta)> Columnas =>
+    [
+        ("equipo", Textos["ColumnaEquipo"].Value),
+        ("conversaciones", Textos["ColumnaConversaciones"].Value),
+        ("primera", Textos["ColumnaPrimeraRespuesta"].Value),
+        ("resolucion", Textos["ColumnaResolucion"].Value),
+        ("una", Textos["ColumnaUnaRespuesta"].Value),
+        ("reabiertas", Textos["ColumnaReabiertas"].Value),
+        ("sla", Textos["ColumnaEnSla"].Value),
+        ("manos", Textos["ColumnaCambiosDeManos"].Value)
+    ];
+
+    private void Ordenar(string clave)
+    {
+        _sentido = _clave == clave ? -_sentido : (clave == "equipo" ? 1 : -1);
+        _clave = clave;
+    }
+
+    private string AriaSort(string clave) => _clave != clave ? "none" : (_sentido > 0 ? "ascending" : "descending");
+
+    private string FlechaOrden(string clave) => _clave != clave ? string.Empty : (_sentido > 0 ? " ↑" : " ↓");
+
+    private double Valor(FilaEquipoComunicaciones f) => _clave switch
+    {
+        "conversaciones" => f.Conversaciones,
+        "primera" => f.PrimeraRespuestaHoras,
+        "resolucion" => f.ResolucionDias,
+        "una" => f.UnaRespuestaPct,
+        "reabiertas" => f.ReabiertasPct,
+        "sla" => f.EnSlaPct,
+        "manos" => f.CambiosDeManos,
+        _ => 0
+    };
+
+    /// <summary>Las visibles primero, ordenadas; las suprimidas al final, por nombre.</summary>
+    private IEnumerable<FilaEquipoComunicaciones> Ordenadas()
+    {
+        var visibles = Filas.Where(f => UmbralAnonimatoCuadro.Cumple(f.Personas, f.Conversaciones));
+        var ordenadas = _clave == "equipo"
+            ? (_sentido > 0 ? visibles.OrderBy(f => f.Equipo, StringComparer.CurrentCulture) : visibles.OrderByDescending(f => f.Equipo, StringComparer.CurrentCulture))
+            : (_sentido > 0 ? visibles.OrderBy(Valor) : visibles.OrderByDescending(Valor));
+        return ordenadas.Concat(Filas
+            .Where(f => !UmbralAnonimatoCuadro.Cumple(f.Personas, f.Conversaciones))
+            .OrderBy(f => f.Equipo, StringComparer.CurrentCulture));
+    }
+}

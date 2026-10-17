@@ -1,0 +1,293 @@
+@page "/direccion"
+@rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}")]
+@using CaeManager.Application.Dashboard.Queries
+@using CaeManager.Web.Features.CuadroDireccion.Components
+@using CaeManager.Web.Features.CuadroDireccion.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosCuadroDireccion> Textos
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
+
+@*
+    Cuadro de dirección contra su maqueta («Cuadro Direccion TALVEG.dc.html», assets/cuadro-direccion.js).
+    La maqueta es un cuadro de mando con ocho pestañas sobre datos simulados; aquí solo se pinta lo que
+    ObtenerCuadroDireccionQuery sabe medir. Lo que la maqueta enseña y ninguna consulta mide (facturación,
+    contrato y cuota, Gestor CAE por cartera, vacaciones, tiempos de respuesta, comparativa anual) NO se
+    inventa: la pestaña o la tarjeta no existe y queda como divergencia. Nada se mide por persona.
+*@
+<div class="contenedor-pagina cuadro">
+    <CabeceraPagina Titulo="@Textos["TituloCabecera"]">
+        <Descripcion>
+            <p class="cuadro-mes">
+                <span class="cuadro-mes-nombre">@EtiquetaMes</span>
+                @if (HayCifras)
+                {
+                    <span class="cuadro-estado" data-e="@EstadoDato" title="@EstadoTitulo">@EstadoTexto</span>
+                }
+            </p>
+        </Descripcion>
+    </CabeceraPagina>
+
+    <div class="cuadro-barra">
+        <div class="cuadro-mesnav" role="group" aria-label="@Textos["EtiquetaMomento"]">
+            <button type="button" class="cuadro-mesnav-boton" aria-label="@Textos["MesAnterior"]" disabled="@(!PuedeIrAlAnterior)" @onclick="IrAlMesAnteriorAsync">‹</button>
+            <span class="cuadro-mesnav-mes">@EtiquetaMes</span>
+            <button type="button" class="cuadro-mesnav-boton" aria-label="@Textos["MesSiguiente"]" disabled="@(!PuedeIrAlSiguiente)" @onclick="IrAlMesSiguienteAsync">›</button>
+        </div>
+
+        @if (_cuadro is { Tenants.Count: > 0 })
+        {
+            <CampoSelect Etiqueta="@Textos["EtiquetaAmbito"]" Valor="@_ambito" ValorChanged="CambiarAmbito">
+                <option value="">@Textos["AmbitoTodas"]</option>
+                @foreach (var tenant in _cuadro.Tenants)
+                {
+                    <option value="@tenant.TenantId">@tenant.TenantNombre</option>
+                }
+            </CampoSelect>
+        }
+
+        @if (_ambito.Length > 0)
+        {
+            <span class="cuadro-pastilla">
+                <span>@NombreAmbito</span>
+                <button type="button" aria-label="@Textos["QuitarFiltroAmbito"]" @onclick="@(() => CambiarAmbito(string.Empty))">×</button>
+            </span>
+        }
+
+        <span class="cuadro-espaciador"></span>
+
+        @* Reabrir un mes cerrado: solo Dirección CAE (ReabrirMesCuadroDireccionCommand lo exige también en servidor). *@
+        @if (_puedeReabrir)
+        {
+            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="@(EmpresasCerradas.Count == 0)" OnClick="AbrirReaperturaAsync">@Textos["BotonReabrirMes"]</Boton>
+        }
+    </div>
+
+    @if (_error)
+    {
+        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]"
+                     NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
+            <Accion>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cuadro is null)
+    {
+        <EstadoCargando Filas="2" />
+    }
+    else if (_cuadro.SinCifras is { } motivo)
+    {
+        <EstadoVacio Titulo="@(motivo == CuadroDireccionSinCifras.MesFuturo ? Textos["MesFuturoTitulo"] : Textos["MesNoValidoTitulo"])"
+                     Descripcion="@(motivo == CuadroDireccionSinCifras.MesFuturo ? Textos["MesFuturoDescripcion"] : Textos["MesNoValidoDescripcion"])" />
+    }
+    else
+    {
+        @if (_cuadro.Estado == EstadoCifraMensual.Existe && !_avisoCierreVisto)
+        {
+            <div class="cuadro-aviso-cierre" role="status">
+                <span><b>✓</b> @Textos["AvisoCierre", NombreMesLargo, _cuadro.Anyo, DiaCierre]</span>
+                <button type="button" @onclick="@(() => _avisoCierreVisto = true)">@Textos["AvisoCierreEntendido"]</button>
+            </div>
+        }
+
+        @if (_cuadro.TenantsSinAlcanceCompleto > 0)
+        {
+            <p class="cuadro-nota" role="status">@Textos["EmpresasSinAlcance", _cuadro.TenantsSinAlcanceCompleto]</p>
+        }
+
+        @if (_cuadro.Tenants.Count == 0)
+        {
+            <EstadoVacio Titulo="@Textos["SinEmpresasTitulo"]" Descripcion="@Textos["SinEmpresasDescripcion"]" />
+        }
+        else
+        {
+            <Pestanas Definiciones="Definiciones" PestanaActiva="@_pestana" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["EtiquetaVistas"]">
+                @if (_pestana == "general")
+                {
+                    var c = Cifras;
+                    <div class="cuadro-kpis">
+                        <div class="cuadro-kpi" data-kpi="trabajadores">
+                            <div class="cuadro-kpi-etiqueta">@Textos["KpiTrabajadores"]</div>
+                            <div class="cuadro-kpi-valor">@Numero(c.TrabajadoresActivos.Valor)</div>
+                            <div class="cuadro-kpi-sub">@Textos["KpiTrabajadoresSub", Numero(c.AltasTrabajadores.Valor), Numero(c.BajasTrabajadores.Valor)]</div>
+                        </div>
+                        <div class="cuadro-kpi" data-kpi="centros">
+                            <div class="cuadro-kpi-etiqueta">@Textos["KpiCentros"]</div>
+                            <div class="cuadro-kpi-valor">@Numero(c.CentrosActivos.Valor)</div>
+                            <div class="cuadro-kpi-sub">@Textos["KpiCentrosSub", Numero(c.AltasCentros.Valor)]</div>
+                        </div>
+                        <div class="cuadro-kpi" data-kpi="documentos">
+                            <div class="cuadro-kpi-etiqueta">@Textos["KpiDocumentos"]</div>
+                            <div class="cuadro-kpi-valor">@Numero(c.DocumentosGestionados.Valor)</div>
+                            <div class="cuadro-kpi-sub">@Textos["KpiDocumentosSub"]</div>
+                        </div>
+                        <div class="cuadro-kpi" data-kpi="requerimientos">
+                            <div class="cuadro-kpi-etiqueta">@Textos["KpiRequerimientos"]</div>
+                            <div class="cuadro-kpi-valor">@Numero(c.Requerimientos.Valor)</div>
+                            <div class="cuadro-kpi-sub">@Textos["KpiRequerimientosSub"]</div>
+                        </div>
+                        <div class="cuadro-kpi" data-kpi="solicitudes">
+                            <div class="cuadro-kpi-etiqueta">@Textos["KpiSolicitudes"]</div>
+                            <div class="cuadro-kpi-valor">@Numero(c.Solicitudes.Total.Valor)</div>
+                            <div class="cuadro-kpi-sub">@Textos["KpiSolicitudesSub"]</div>
+                        </div>
+                        <div class="cuadro-kpi" data-kpi="cumplimiento">
+                            <div class="cuadro-kpi-etiqueta">@Textos["KpiCumplimiento"]</div>
+                            <div class="cuadro-kpi-valor">@(c.Cumplimiento.SinDatos ? "—" : c.Cumplimiento.Porcentaje + " %")</div>
+                            <div class="cuadro-kpi-sub">@Textos["KpiCumplimientoSub"]</div>
+                        </div>
+                    </div>
+                }
+                else if (_pestana == "empresas")
+                {
+                    <Tarjeta Titulo="@Textos["EmpresasTitulo"]" Class="cuadro-tarjeta">
+                        <p class="cuadro-nota">@Textos["EmpresasNota"]</p>
+                        <div class="cuadro-tabla-envoltorio">
+                            <table class="cuadro-tabla" data-tabla="empresas">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">@Textos["ColumnaEmpresa"]</th>
+                                        <th scope="col">@Textos["ColumnaResponde"]</th>
+                                        <th scope="col">@Textos["ColumnaTrabajadores"]</th>
+                                        <th scope="col">@Textos["ColumnaCentros"]</th>
+                                        <th scope="col">@Textos["ColumnaAltas"]</th>
+                                        <th scope="col">@Textos["ColumnaBajas"]</th>
+                                        <th scope="col">@Textos["ColumnaDocumentos"]</th>
+                                        <th scope="col">@Textos["ColumnaRequerimientos"]</th>
+                                        <th scope="col">@Textos["ColumnaSolicitudes"]</th>
+                                        <th scope="col">@Textos["ColumnaCumplimiento"]</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var empresa in EmpresasVisibles)
+                                    {
+                                        var e = empresa.Cifras;
+                                        <tr data-empresa="@empresa.TenantId">
+                                            <td class="cuadro-texto">
+                                                @empresa.TenantNombre
+                                                @if (e.TrabajadoresActivos.Estado != _cuadro.Estado)
+                                                {
+                                                    <span class="cuadro-estado cuadro-estado-fila" data-e="@DataEstado(e.TrabajadoresActivos.Estado)">@TextoEstado(e.TrabajadoresActivos.Estado)</span>
+                                                }
+                                            </td>
+                                            <td class="cuadro-texto cuadro-apagado">@Responde(empresa.PrincipalDeCartera)</td>
+                                            <td>@Numero(e.TrabajadoresActivos.Valor)</td>
+                                            <td>@Numero(e.CentrosActivos.Valor)</td>
+                                            <td>@Numero(e.AltasTrabajadores.Valor)</td>
+                                            <td>@Numero(e.BajasTrabajadores.Valor)</td>
+                                            <td>@Numero(e.DocumentosGestionados.Valor)</td>
+                                            <td>@Numero(e.Requerimientos.Valor)</td>
+                                            @if (UmbralAnonimatoCuadro.Cumple(null, e.Solicitudes.Total.Valor))
+                                            {
+                                                <td>@Numero(e.Solicitudes.Total.Valor)</td>
+                                            }
+                                            else
+                                            {
+                                                <td class="cuadro-suprimida" title="@Textos["SolicitudesSuprimidasTitulo", UmbralAnonimatoCuadro.MinimoConversaciones]">@Textos["SolicitudesSuprimida"]</td>
+                                            }
+                                            <td>
+                                                @if (e.Cumplimiento.SinDatos)
+                                                {
+                                                    <span class="cuadro-chip cuadro-chip-neutro">—</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="cuadro-chip @ClaseCumplimiento(e.Cumplimiento.Porcentaje)">@(e.Cumplimiento.Porcentaje + " %")</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </Tarjeta>
+                }
+                else if (_pestana == "demanda")
+                {
+                    <Tarjeta Titulo="@Textos["MapaCalorTitulo"]" Class="cuadro-tarjeta">
+                        <p class="cuadro-nota">@Textos["MapaCalorNota"]</p>
+                        @{
+                            var solicitudes = Cifras.Solicitudes;
+                        }
+                        @if (!UmbralAnonimatoCuadro.Cumple(null, solicitudes.Total.Valor))
+                        {
+                            <p class="cuadro-vacio cuadro-suprimida" data-suprimida="mapa-calor">@Textos["MapaCalorSuprimido", solicitudes.Total.Valor, UmbralAnonimatoCuadro.MinimoConversaciones]</p>
+                        }
+                        else
+                        {
+                            var celdas = CuadroDireccionUi.CeldasLaborables(solicitudes.PorFranja);
+                            @if (celdas.Count == 0)
+                            {
+                                <p class="cuadro-vacio">@Textos["MapaCalorSinDatos"]</p>
+                            }
+                            else
+                            {
+                                var horas = HorasDe(celdas);
+                                var maximo = MaximoDe(celdas);
+                                <div class="cuadro-calor" role="table" aria-label="@Textos["MapaCalorTitulo"]" style="--horas:@horas.Count">
+                                    <div class="cuadro-calor-fila" role="row">
+                                        <span class="cuadro-calor-dia" role="columnheader"></span>
+                                        @foreach (var hora in horas)
+                                        {
+                                            <span class="cuadro-calor-hora" role="columnheader">@(hora)h</span>
+                                        }
+                                    </div>
+                                    @foreach (var d in DiasLaborables)
+                                    {
+                                        <div class="cuadro-calor-fila" role="row">
+                                            <span class="cuadro-calor-dia" role="rowheader">@NombreDia(d)</span>
+                                            @foreach (var hora in horas)
+                                            {
+                                                var celda = CeldaDe(celdas, d, hora);
+                                                var intensidad = Intensidad(celda, maximo);
+                                                <span class="cuadro-calor-celda" role="cell"
+                                                      style="--intensidad:@(intensidad)%"
+                                                      title="@(Textos["MapaCalorCelda", NombreDia(d), hora, hora + 1, Porcentaje(celda?.PesoPorcentaje ?? 0), Numero(celda?.Cantidad ?? 0)])">
+                                                    <span class="cuadro-solo-lector">@Porcentaje(celda?.PesoPorcentaje ?? 0)</span>
+                                                </span>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        }
+                    </Tarjeta>
+                }
+                else if (_pestana == "comunicaciones")
+                {
+                    <Tarjeta Titulo="@Textos["EquiposTitulo"]" Class="cuadro-tarjeta">
+                        <p class="cuadro-nota">@Textos["EquiposNota"]</p>
+                        <TablaEquiposComunicaciones Filas="_equipos" />
+                    </Tarjeta>
+                    <Tarjeta Titulo="@Textos["CriterioTitulo"]" Class="cuadro-tarjeta">
+                        <p class="cuadro-nota">@Textos["CriterioTexto"]</p>
+                    </Tarjeta>
+                }
+            </Pestanas>
+        }
+    }
+</div>
+
+@if (_reaperturaAbierta)
+{
+    <ModalFormulario Visible="true" VisibleChanged="CerrarReapertura" Titulo="@Textos["ReabrirTitulo"]" Ancho="AnchoModal.Pequeno"
+                     HayCambios="() => !_reabriendo && !string.IsNullOrWhiteSpace(_motivo)"
+                     Guardando="_reabriendo" MensajeError="@_errorReapertura" OnGuardar="ReabrirAsync"
+                     TextoGuardar="@Textos["ReabrirConfirmar"]" TextoCancelar="@Textos["ReabrirCancelar"]">
+        <p class="cuadro-nota">@Textos["ReabrirAviso", NombreMesLargo, _cuadro?.Anyo ?? 0]</p>
+        <CampoSelect Etiqueta="@Textos["ReabrirEmpresa"]" Valor="@_reabrirEmpresa" ValorChanged="v => _reabrirEmpresa = v">
+            @foreach (var empresa in EmpresasCerradas)
+            {
+                <option value="@empresa.TenantId">@empresa.TenantNombre</option>
+            }
+        </CampoSelect>
+        <CampoTextarea Etiqueta="@Textos["ReabrirMotivo"]" Valor="@_motivo" ValorChanged="v => _motivo = v"
+                       Placeholder="@Textos["ReabrirMotivoAyuda"]" MensajeError="@ErrorMotivo" />
+        <p class="cuadro-nota">@Textos["ReabrirContador", _motivo.Length, LongitudMaximaMotivo]</p>
+    </ModalFormulario>
+}
+</LimiteDeErrores>

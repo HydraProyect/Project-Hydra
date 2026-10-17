@@ -224,7 +224,7 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
     private IReadOnlyList<DefinicionKpi> Seleccionados => _seleccionGuardada is null
         ? []
         : _seleccionGuardada
-            .Select(codigo => CatalogoKpis.Todos.FirstOrDefault(k => k.Codigo == codigo))
+            .Select(codigo => KpisVisibles.FirstOrDefault(k => k.Codigo == codigo))
             .Where(k => k is not null)
             .Select(k => k!)
             .ToList();
@@ -257,7 +257,19 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
     /// como mostrado.
     /// </summary>
     private string ResumenSeleccion =>
-        Textos["ResumenKpisMostrados", Seleccionados.Count, CatalogoKpis.Todos.Count];
+        Textos["ResumenKpisMostrados", Seleccionados.Count, KpisVisibles.Count];
+
+    /// <summary>
+    /// «Indicadores de IA y BPO» (mockup «Indicadores IA BPO TALVEG.dc.html») conserva solo las categorías
+    /// IA, Operativa (BPO) y Fricción (BPO) del catálogo. Lo documental, las incidencias y la facturación
+    /// viven en Inicio, Visión de cartera y el Cuadro de dirección; el indicador de ocupación por Gestor CAE
+    /// se retiró del catálogo (nunca se mide por persona). Un código guardado de otra categoría se
+    /// descarta aquí igual que un código huérfano.
+    /// </summary>
+    private static readonly CategoriaKpi[] CategoriasVisibles = [CategoriaKpi.Ia, CategoriaKpi.Operativa, CategoriaKpi.Friccion];
+
+    private static IReadOnlyList<DefinicionKpi> KpisVisibles { get; } =
+        CatalogoKpis.Todos.Where(k => CategoriasVisibles.Contains(k.Categoria)).ToList();
 
     /// <summary>
     /// Marcar no aplica nada: hasta pulsar Guardar, lo marcado y lo guardado son

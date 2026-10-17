@@ -1,0 +1,56 @@
+.cuadro-vacio {
+    display: grid;
+    place-items: center;
+    text-align: center;
+    min-height: 120px;
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 13px;
+    line-height: 1.5;
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-md);
+    padding: 16px;
+}
+
+.cuadro-tabla-envoltorio { overflow: auto; max-width: 100%; border-radius: var(--radius-md); }
+
+.cuadro-tabla { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 20px; }
+
+.cuadro-tabla th {
+    background: var(--color-surface);
+    text-align: right;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--color-text-muted);
+    padding: 12px;
+    border-bottom: 1px solid var(--color-border-strong);
+    white-space: nowrap;
+}
+
+.cuadro-tabla th button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    padding: 0;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+}
+
+.cuadro-tabla td {
+    padding: 12px;
+    border-bottom: 1px solid var(--color-border);
+    text-align: right;
+    white-space: nowrap;
+}
+
+.cuadro-tabla th:first-child,
+.cuadro-tabla td:first-child,
+.cuadro-tabla td.cuadro-texto { text-align: left; }
+
+.cuadro-tabla tbody tr:hover { background: var(--color-fila-hover); }
+
+.cuadro-tabla td.cuadro-suprimida { color: var(--color-text-muted); text-align: left; white-space: normal; }
