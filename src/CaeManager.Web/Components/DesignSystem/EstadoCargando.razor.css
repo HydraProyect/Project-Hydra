@@ -26,9 +26,9 @@
     border-radius: var(--radius-sm);
     background: linear-gradient(
         90deg,
-        var(--color-neutral-100) 25%,
-        var(--color-neutral-200) 37%,
-        var(--color-neutral-100) 63%
+        var(--color-esqueleto-base) 25%,
+        var(--color-esqueleto-brillo) 37%,
+        var(--color-esqueleto-base) 63%
     );
     background-size: 400% 100%;
     animation: brillo 1.4s ease infinite;

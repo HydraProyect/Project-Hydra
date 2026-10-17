@@ -270,6 +270,24 @@
   <data name="GestorCaeMasEtiqueta" xml:space="preserve">
     <value>{0} més. Llista completa de persones amb Assignació de Cartera</value>
   </data>
+  <data name="GestorCaeReintentar" xml:space="preserve">
+    <value>Torna-ho a provar</value>
+  </data>
+  <data name="GestorCaeCargando" xml:space="preserve">
+    <value>Carregant els Gestors CAE d’aquesta organització</value>
+  </data>
+  <data name="GestorCaeSeccionApoyo" xml:space="preserve">
+    <value>Suport · {0}</value>
+  </data>
+  <data name="GestorCaeFichaAyuda" xml:space="preserve">
+    <value>Donar accés o desassignar-te: des de Sol·licituds de cartera.</value>
+  </data>
+  <data name="GestorCaeFichaEnlace" xml:space="preserve">
+    <value>Obrir Sol·licituds de cartera →</value>
+  </data>
+  <data name="GestorCaeCerrar" xml:space="preserve">
+    <value>Tanca</value>
+  </data>
   <data name="ColDetecciones" xml:space="preserve">
     <value>Deteccions</value>
   </data>
