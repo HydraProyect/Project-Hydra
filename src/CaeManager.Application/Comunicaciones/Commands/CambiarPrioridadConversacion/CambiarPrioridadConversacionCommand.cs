@@ -33,9 +33,9 @@ public class CambiarPrioridadConversacionCommandHandler(IConversacionRepository 
         var operacion = request.Prioridad == PrioridadConversacion.Critica
             ? await contexto.ResolverAsync(conversacion.TenantId, conversacion.ClienteId, conversacion.EmpresaId, cancellationToken)
             : null;
-        if (request.Prioridad == PrioridadConversacion.Critica && operacion is null)
-            return Result.Fallo(Error.Crear("Conversacion.OperacionSinResolver", "No pudimos determinar el Operador CAE de esta conversación."));
 
+        // Marcar Crítica nunca depende de resolver el Operador CAE: sin él, el aviso queda pendiente
+        // (AvisoCriticaPendienteId) y el proceso de fondo lo reintenta.
         conversacion.CambiarPrioridad(request.Prioridad);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         if (operacion is not null && conversacion.AvisoCriticaPendienteId is { } eventoId)

@@ -13,6 +13,7 @@ public class IngestaWebhookServiceTests
 {
     [Theory]
     [InlineData(EstadoConversacion.Cerrada, false)]
+    [InlineData(EstadoConversacion.Cerrada, true)]
     [InlineData(EstadoConversacion.Resuelta, false)]
     [InlineData(EstadoConversacion.Resuelta, true)]
     [InlineData(EstadoConversacion.EsperandoRespuestaExterna, false)]
@@ -41,7 +42,14 @@ public class IngestaWebhookServiceTests
         await CrearServicio(conexiones, conversaciones, graph, credenciales).ProcesarAsync(evento, CancellationToken.None);
 
         evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
-        if (estado == EstadoConversacion.Cerrada)
+        if (estado == EstadoConversacion.Cerrada && automatico)
+        {
+            // El ruido sobre un hilo Cerrado no abre una continuación: se queda en la Cerrada.
+            conversaciones.Conversaciones.Should().ContainSingle();
+            anterior.Estado.Should().Be(EstadoConversacion.Cerrada);
+            anterior.Mensajes.Should().ContainSingle();
+        }
+        else if (estado == EstadoConversacion.Cerrada)
         {
             anterior.Estado.Should().Be(EstadoConversacion.Cerrada);
             anterior.Mensajes.Should().BeEmpty();

@@ -49,7 +49,9 @@ public class ContextoOperativoConversacionService(CaeManagerDbContext db, ITenan
         using (AmbitoTenantExplicito.Establecer(operacion.OperadorCaeTenantId))
         {
             var equipo = new HashSet<Guid>();
-            foreach (var rol in new[] { "GestorCae", "CoordinadorCae", "DireccionCae", "Administrador" })
+            // Decisión del 10-17: el aviso de lo crítico va a la Dirección CAE y al Coordinador CAE, no a todo
+            // Gestor CAE del Operador CAE (muchos no tienen Asignación de Cartera sobre esa Empresa).
+            foreach (var rol in new[] { "CoordinadorCae", "DireccionCae" })
                 equipo.UnionWith(await directorio.ObtenerCuentasActivasConRolAsync(operacion.OperadorCaeTenantId, rol, cancellationToken));
             if (equipo.Count == 0) throw new InvalidOperationException("El Operador CAE no tiene destinatarios activos para el aviso.");
             var avisados = await db.NotificacionesUsuario.Where(n => n.EventoOrigenId == eventoId)

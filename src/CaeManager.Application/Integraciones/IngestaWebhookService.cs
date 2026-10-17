@@ -122,20 +122,27 @@ public class IngestaWebhookService(
         if (await conversacionRepositorio.ExisteMensajeExternoAsync(conexion.Id, mensaje.MensajeExternoId, cancellationToken))
             return; // idempotencia: Graph puede reenviar la misma notificación más de una vez.
 
+        var candidatos = await resolucionPlataforma.ResolverPorDominioCorreoAsync(mensaje.Remitente, cancellationToken);
+        var esCorreoAutomatico = DeteccionCorreoAutomatico.EsAutomatico(mensaje) || candidatos.Count > 0;
+
         var conversacion = await conversacionRepositorio.ObtenerPorHiloExternoAsync(conexion.Id, mensaje.HiloExternoId, cancellationToken);
         if (conversacion is null)
         {
             var anterior = await conversacionRepositorio.ObtenerUltimaCerradaPorHiloExternoAsync(conexion.Id, mensaje.HiloExternoId, cancellationToken);
-            conversacion = anterior is not null
-                ? Conversacion.ContinuarCorreo(anterior, mensaje.Asunto)
-                : new Conversacion(mensaje.Asunto, conexion.ClienteId);
-            if (anterior is null)
-                conversacion.AsociarConexion(conexion.Id, mensaje.HiloExternoId);
-            conversacionRepositorio.Agregar(conversacion);
+            // Un automático (autorrespondedor, aviso de plataforma) sobre un hilo Cerrado se anexa a la Cerrada sin
+            // reabrirla: abrir una continuación solo con ruido llenaría el triage.
+            if (anterior is not null && esCorreoAutomatico)
+                conversacion = anterior;
+            else
+            {
+                conversacion = anterior is not null
+                    ? Conversacion.ContinuarCorreo(anterior, mensaje.Asunto)
+                    : new Conversacion(mensaje.Asunto, conexion.ClienteId);
+                if (anterior is null)
+                    conversacion.AsociarConexion(conexion.Id, mensaje.HiloExternoId);
+                conversacionRepositorio.Agregar(conversacion);
+            }
         }
-
-        var candidatos = await resolucionPlataforma.ResolverPorDominioCorreoAsync(mensaje.Remitente, cancellationToken);
-        var esCorreoAutomatico = DeteccionCorreoAutomatico.EsAutomatico(mensaje) || candidatos.Count > 0;
         var mensajeCreado = conversacion.AgregarMensaje(
             DireccionMensaje.Entrante, conversacion.Canal, mensaje.Remitente, mensaje.CuerpoHtml, mensaje.FechaUtc, mensaje.MensajeExternoId,
             esAutomatico: esCorreoAutomatico);

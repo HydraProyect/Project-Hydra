@@ -103,7 +103,7 @@ public class AvisosCriticosBajoRlsTests
     private sealed class DirectorioDePrueba(Guid personaId) : IDirectorioUsuariosService
     {
         public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<Guid>>(rol == "GestorCae" ? [personaId] : []);
+            Task.FromResult<IReadOnlyList<Guid>>(rol == "CoordinadorCae" ? [personaId] : rol == "GestorCae" ? [Guid.NewGuid()] : []);
         public Task<bool> EsVisibleEnTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyDictionary<Guid, string>> ObtenerNombresVisiblesAsync(IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<Guid?> ObtenerTenantDeUsuarioAsync(Guid usuarioId, CancellationToken cancellationToken = default) => throw new NotSupportedException();

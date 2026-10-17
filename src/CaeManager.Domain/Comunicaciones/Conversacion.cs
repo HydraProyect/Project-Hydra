@@ -262,7 +262,8 @@ public class Conversacion : EntidadBase
         // ClienteId es el ancla legacy de Cliente empresarial: copiarla evita ampliar la visibilidad a triage.
         var nueva = new Conversacion(asunto, anterior.ClienteId, anterior.Etiquetas, anterior.EmpresaId)
         {
-            EjecutivoAsignadoId = anterior.EjecutivoAsignadoId
+            EjecutivoAsignadoId = anterior.EjecutivoAsignadoId,
+            Prioridad = anterior.Prioridad
         };
         nueva.AsociarConexion(anterior.ConexionIntegracionId.Value, anterior.HiloExternoId);
         nueva.EnlazarConversacionAnterior(anterior);
@@ -358,8 +359,9 @@ public class Conversacion : EntidadBase
                 FechaUltimoMensajeEntranteUtc = mensaje.FechaUtc;
 
             // Un mensaje entrante que llega por vinculación vale como cualquier otro entrante: si este hilo esperaba
-            // esa respuesta, se reabre.
-            ReabrirSiLlegaRespuesta(mensaje.Direccion, mensaje.FechaUtc);
+            // esa respuesta, se reabre. Un automático no reabre, igual que al llegar por la ingesta.
+            if (!mensaje.EsAutomatico)
+                ReabrirSiLlegaRespuesta(mensaje.Direccion, mensaje.FechaUtc);
         }
 
         origen._mensajes.Clear();
