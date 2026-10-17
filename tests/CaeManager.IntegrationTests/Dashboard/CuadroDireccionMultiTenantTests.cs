@@ -182,31 +182,29 @@ public class CuadroDireccionMultiTenantTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Sin_rol_de_negocio_en_la_sesion_no_se_ve_el_principal()
+    public async Task Sin_rol_de_negocio_en_la_sesion_no_se_lee_el_cuadro()
     {
         // Soporte TALVEG nunca es Operador CAE: aunque su cuenta tuviera un perfil que asume, sin rol efectivo no lo ve.
         var gestora = Guid.NewGuid();
         await DesignarPrincipalAsync(gestora, "GestorCae");
 
-        var cuadro = await PedirMesEnCursoAsync(ConstruirServicios(
+        var accion = () => PedirMesEnCursoAsync(ConstruirServicios(
             rol: null, perfiles: new() { [_usuario] = "DireccionCae" }, nombres: new() { [gestora] = NombreGestora }));
 
-        cuadro.Tenants.Should().HaveCount(2, "las cifras no dependen del rol: el alcance lo decide IAlcanceDatosService");
-        cuadro.Tenants.Should().OnlyContain(t => t.PrincipalDeCartera == null);
+        await accion.Should().ThrowAsync<UnauthorizedAccessException>();
     }
 
     [Fact]
-    public async Task Un_Gestor_CAE_no_ve_el_principal()
+    public async Task Un_Gestor_CAE_no_lee_el_cuadro()
     {
         // El perfil Gestor CAE no está entre los que asumen (Coordinador CAE, Dirección CAE, Administrador).
         var gestora = Guid.NewGuid();
         await DesignarPrincipalAsync(gestora, "GestorCae");
 
-        var cuadro = await PedirMesEnCursoAsync(ConstruirServicios(
+        var accion = () => PedirMesEnCursoAsync(ConstruirServicios(
             rol: "GestorCae", perfiles: new() { [_usuario] = "GestorCae" }, nombres: new() { [gestora] = NombreGestora }));
 
-        cuadro.Tenants.Should().NotBeEmpty();
-        cuadro.Tenants.Should().OnlyContain(t => t.PrincipalDeCartera == null);
+        await accion.Should().ThrowAsync<UnauthorizedAccessException>();
     }
 
     [Fact]
