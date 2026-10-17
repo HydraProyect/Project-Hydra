@@ -927,6 +927,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("ConexionIntegracionId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ConversacionAnteriorId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -989,7 +992,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "Canal", "Estado");
 
                     b.HasIndex("TenantId", "ConexionIntegracionId", "HiloExternoId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"Estado\" <> 3 AND NOT \"EstaEliminado\"");
 
                     b.HasIndex("TenantId", "ConexionIntegracionId", "TelefonoContacto");
 

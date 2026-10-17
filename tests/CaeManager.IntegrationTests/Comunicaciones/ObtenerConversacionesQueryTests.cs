@@ -18,6 +18,33 @@ namespace CaeManager.IntegrationTests.Comunicaciones;
 /// </summary>
 public class ObtenerConversacionesQueryTests : IAsyncLifetime
 {
+    [Fact]
+    public async Task Un_hilo_cerrado_permite_una_continuacion_y_el_repositorio_solo_devuelve_la_nueva()
+    {
+        await using var contexto = CrearContexto();
+        var conexion = new ConexionIntegracion("buzon@ejemplo.test", "Buzón CAE");
+        contexto.ConexionesIntegracion.Add(conexion);
+        var anterior = new Conversacion("Anterior");
+        anterior.AsociarConexion(conexion.Id, "hilo-cerrado");
+        anterior.CambiarEstado(EstadoConversacion.Cerrada);
+        contexto.Conversaciones.Add(anterior);
+        await contexto.SaveChangesAsync();
+        var repositorio = new CaeManager.Infrastructure.Persistence.Repositories.ConversacionRepository(contexto);
+        (await repositorio.ObtenerPorHiloExternoAsync(conexion.Id, "hilo-cerrado")).Should().BeNull();
+        (await repositorio.ObtenerUltimaCerradaPorHiloExternoAsync(conexion.Id, "hilo-cerrado"))!.Id.Should().Be(anterior.Id);
+
+        var nueva = new Conversacion("Continuación");
+        nueva.AsociarConexion(conexion.Id, "hilo-cerrado");
+        nueva.EnlazarConversacionAnterior(anterior);
+        contexto.Conversaciones.Add(nueva);
+        await contexto.SaveChangesAsync();
+        contexto.ChangeTracker.Clear();
+
+        var encontrada = await repositorio.ObtenerPorHiloExternoAsync(conexion.Id, "hilo-cerrado");
+        encontrada!.Id.Should().Be(nueva.Id);
+        encontrada.ConversacionAnteriorId.Should().Be(anterior.Id);
+    }
+
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenant = Guid.NewGuid();
 
@@ -28,6 +55,28 @@ public class ObtenerConversacionesQueryTests : IAsyncLifetime
     }
 
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
+
+    [Fact]
+    public async Task Esperando_respuesta_externa_se_filtra_por_estado_sin_incluir_terceros_o_resueltas()
+    {
+        await using (var contexto = CrearContexto())
+        {
+            foreach (var estado in new[] { EstadoConversacion.EsperandoRespuestaExterna,
+                         EstadoConversacion.EnEsperaDeTercero, EstadoConversacion.Resuelta, EstadoConversacion.Cerrada })
+            {
+                var conversacion = new Conversacion(estado.ToString());
+                conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "contacto@ejemplo.test", "Texto");
+                conversacion.CambiarEstado(estado);
+                contexto.Conversaciones.Add(conversacion);
+            }
+            await contexto.SaveChangesAsync();
+        }
+
+        var resultado = await EjecutarAsync(new ObtenerConversacionesQuery(SoloEsperandoCliente: true));
+
+        resultado.TotalElementos.Should().Be(1);
+        resultado.Elementos.Should().ContainSingle().Which.Estado.Should().Be(EstadoConversacion.EsperandoRespuestaExterna);
+    }
 
     [Fact]
     public async Task La_busqueda_encuentra_una_conversacion_por_el_cuerpo_de_un_mensaje_aunque_el_asunto_no_coincida()

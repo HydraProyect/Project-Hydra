@@ -51,7 +51,9 @@ public class ConversacionConfiguration : IEntityTypeConfiguration<Conversacion>
         // conversationId los participantes de Exchange Online de la misma
         // organización). Sin ConexionIntegracionId en el índice, el segundo
         // buzón no podría tener su propia fila para ese mismo hilo.
-        builder.HasIndex(c => new { c.TenantId, c.ConexionIntegracionId, c.HiloExternoId }).IsUnique();
+        // Un hilo cerrado conserva su identificador; solo puede haber una conversación no cerrada por hilo.
+        builder.HasIndex(c => new { c.TenantId, c.ConexionIntegracionId, c.HiloExternoId }).IsUnique()
+            .HasFilter("\"Estado\" <> 3 AND NOT \"EstaEliminado\"");
         // Canal WhatsApp: listado del Chat y lookup de hilo por teléfono en la ingesta.
         builder.HasIndex(c => new { c.TenantId, c.Canal, c.Estado });
         builder.HasIndex(c => new { c.TenantId, c.ConexionIntegracionId, c.TelefonoContacto });

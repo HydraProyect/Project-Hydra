@@ -15,6 +15,25 @@ namespace CaeManager.Application.Tests.Comunicaciones.Commands.CambiarEstadoConv
 /// </summary>
 public class CambiarEstadoConversacionCommandHandlerTests
 {
+    [Fact]
+    public async Task No_reabre_un_hilo_cerrado_que_ya_tiene_una_continuacion_activa()
+    {
+        var anterior = new Conversacion("Anterior");
+        anterior.AsociarConexion(Guid.NewGuid(), "hilo");
+        anterior.CambiarEstado(EstadoConversacion.Cerrada);
+        var repositorio = new ConversacionRepositorioFalso();
+        repositorio.Agregar(anterior);
+        repositorio.Agregar(Conversacion.ContinuarCorreo(anterior, "Continuación"));
+        var guardado = new UnitOfWorkFalso();
+        var handler = new CambiarEstadoConversacionCommandHandler(repositorio, new AlcanceDatosServiceFalso(), guardado);
+
+        var resultado = await handler.Handle(new(anterior.Id, EstadoConversacion.Abierta), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Conversacion.TieneContinuacionActiva");
+        anterior.Estado.Should().Be(EstadoConversacion.Cerrada);
+        guardado.VecesGuardado.Should().Be(0);
+    }
+
     private static (Conversacion Conversacion, CambiarEstadoConversacionCommandHandler Handler, UnitOfWorkFalso UnitOfWork) Preparar(
         EstadoConversacion estadoInicial = EstadoConversacion.Abierta)
     {

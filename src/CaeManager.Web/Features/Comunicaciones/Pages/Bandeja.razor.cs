@@ -107,6 +107,45 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private bool _soloAsignadasAMi;
     private bool _soloSinAsignar;
     private bool _soloEsperandoCliente;
+    private bool _soloFueraDeSla;
+    private bool _cambiandoPrioridad;
+    private Task? _refrescoPlazos;
+
+    private async Task RefrescarPlazosAsync()
+    {
+        using var reloj = new PeriodicTimer(TimeSpan.FromMinutes(1));
+        try
+        {
+            while (await reloj.WaitForNextTickAsync(_ciclo.Token))
+                await InvokeAsync(async () =>
+                {
+                    if (_vista != "personal") await CargarListaAsync();
+                    StateHasChanged();
+                });
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
+    }
+
+    private Task AlternarFueraDeSlaAsync()
+    {
+        _soloFueraDeSla = !_soloFueraDeSla;
+        _pagina = 1;
+        return CargarListaAsync();
+    }
+
+    private async Task CambiarPrioridadAsync(string valor)
+    {
+        if (_cambiandoPrioridad || _detalle is null || !Enum.TryParse<PrioridadConversacion>(valor, out var prioridad)) return;
+        _cambiandoPrioridad = true;
+        try
+        {
+            var resultado = await Mediator.Send(new CaeManager.Application.Comunicaciones.Commands.CambiarPrioridadConversacion.CambiarPrioridadConversacionCommand(_detalle.Id, prioridad), _ciclo.Token);
+            if (resultado.EsFallido) { ToastService.MostrarError(resultado.Error); return; }
+            await CargarDetalleAsync();
+            await CargarListaAsync();
+        }
+        finally { _cambiandoPrioridad = false; }
+    }
     private string _busqueda = string.Empty;
 
     private bool _cargandoLista = true;
@@ -273,6 +312,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             await CargarBuzonPersonalAsync();
         else
             await CargarListaAsync();
+        _refrescoPlazos = RefrescarPlazosAsync();
     }
 
     /// <summary>
@@ -306,6 +346,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         // — el componente ya implementa IAsyncDisposable, que es el que Blazor
         // llama, y añadir además IDisposable lo liberaría dos veces.
         await _ciclo.CancelAsync();
+        if (_refrescoPlazos is not null) await _refrescoPlazos;
         _ciclo.Dispose();
 
         if (_moduloClipboard is not null)
@@ -467,6 +508,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 SoloAsignadasAMi: _soloAsignadasAMi,
                 SoloSinAsignar: _soloSinAsignar,
                 SoloEsperandoCliente: _soloEsperandoCliente,
+                SoloFueraDeSla: _soloFueraDeSla,
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 Pagina: _pagina,
                 TamanoPagina: TamanoPaginaBandeja), _ciclo.Token);
@@ -511,7 +553,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private bool HayFiltrosActivos =>
         !string.IsNullOrWhiteSpace(_estadoFiltro) || !string.IsNullOrWhiteSpace(_mesFiltro)
         || !string.IsNullOrWhiteSpace(_clienteIdFiltro) || !string.IsNullOrWhiteSpace(_busqueda)
-        || _soloAsignadasAMi || _soloSinAsignar || _soloEsperandoCliente;
+        || _soloAsignadasAMi || _soloSinAsignar || _soloEsperandoCliente || _soloFueraDeSla;
 
     /// <summary>
     /// Los siete de una vez y una sola recarga, por el mismo motivo que
@@ -527,6 +569,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _soloAsignadasAMi = false;
         _soloSinAsignar = false;
         _soloEsperandoCliente = false;
+        _soloFueraDeSla = false;
         return AplicarFiltrosAsync();
     }
 

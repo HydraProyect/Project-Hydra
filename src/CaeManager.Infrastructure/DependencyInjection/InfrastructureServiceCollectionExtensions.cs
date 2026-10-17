@@ -771,6 +771,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<ComunicacionesOptions>(configuration.GetSection(ComunicacionesOptions.SeccionConfiguracion));
         // Fase G: mismo "Comunicaciones" — ver ComunicacionesRemitenteOptions (Application.Common).
         services.Configure<ComunicacionesRemitenteOptions>(configuration.GetSection(ComunicacionesRemitenteOptions.SeccionConfiguracion));
+        services.Configure<CaeManager.Application.Comunicaciones.CalendariosOperadorCaeOptions>(
+            configuration.GetSection(CaeManager.Application.Comunicaciones.CalendariosOperadorCaeOptions.Seccion));
+        services.AddScoped<CaeManager.Application.Comunicaciones.IContextoOperativoConversacionService, Comunicaciones.ContextoOperativoConversacionService>();
+        services.AddScoped<CaeManager.Application.Comunicaciones.PlazosConversacionService>();
+        services.AddHostedService<Comunicaciones.AvisosConversacionesCriticasHostedService>();
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();

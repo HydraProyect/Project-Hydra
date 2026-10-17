@@ -64,6 +64,21 @@ public class Conversacion : EntidadBase
 
     public string Asunto { get; private set; } = string.Empty;
     public EstadoConversacion Estado { get; private set; }
+    public PrioridadConversacion Prioridad { get; private set; } = PrioridadConversacion.Normal;
+    public Guid? AvisoCriticaPendienteId { get; private set; }
+
+    public void CambiarPrioridad(PrioridadConversacion prioridad)
+    {
+        if (!Enum.IsDefined(prioridad)) throw new ArgumentOutOfRangeException(nameof(prioridad));
+        if (Prioridad == prioridad) return;
+        Prioridad = prioridad;
+        AvisoCriticaPendienteId = prioridad == PrioridadConversacion.Critica ? Guid.NewGuid() : null;
+    }
+
+    public void ConfirmarAvisoCritica(Guid eventoId)
+    {
+        if (AvisoCriticaPendienteId == eventoId) AvisoCriticaPendienteId = null;
+    }
 
     /// <summary>
     /// Instante en que la conversación entró en su <see cref="Estado"/> actual. Es la copia desnormalizada del último
@@ -77,6 +92,7 @@ public class Conversacion : EntidadBase
     public DateTime FechaUltimoMensajeUtc { get; private set; }
     public Guid? ConexionIntegracionId { get; private set; }
     public string? HiloExternoId { get; private set; }
+    public Guid? ConversacionAnteriorId { get; private set; }
     public CanalConversacion Canal { get; private set; }
 
     /// <summary>Teléfono E.164 del contacto — solo canal WhatsApp. El "hilo" WhatsApp es (ConexionIntegracionId, TelefonoContacto) + estado, no HiloExternoId (su índice único impediría reabrir conversación con el mismo teléfono tras cerrar la anterior).</summary>
@@ -157,10 +173,10 @@ public class Conversacion : EntidadBase
     /// </summary>
     public Mensaje AgregarMensaje(
         DireccionMensaje direccion, CanalConversacion canal, string remitente, string cuerpoHtml,
-        DateTime? fechaUtc = null, string? mensajeExternoId = null)
+        DateTime? fechaUtc = null, string? mensajeExternoId = null, bool esAutomatico = false)
     {
         var fecha = fechaUtc ?? DateTime.UtcNow;
-        var mensaje = new Mensaje(Id, direccion, canal, remitente, cuerpoHtml, fecha, mensajeExternoId);
+        var mensaje = new Mensaje(Id, direccion, canal, remitente, cuerpoHtml, fecha, mensajeExternoId, esAutomatico);
         _mensajes.Add(mensaje);
 
         if (fecha > FechaUltimoMensajeUtc)
@@ -170,7 +186,8 @@ public class Conversacion : EntidadBase
             (FechaUltimoMensajeEntranteUtc is null || fecha > FechaUltimoMensajeEntranteUtc))
             FechaUltimoMensajeEntranteUtc = fecha;
 
-        ReabrirSiLlegaRespuesta(direccion, fecha);
+        if (!esAutomatico)
+            ReabrirSiLlegaRespuesta(direccion, fecha);
 
         return mensaje;
     }
@@ -223,6 +240,33 @@ public class Conversacion : EntidadBase
 
         ConexionIntegracionId = conexionIntegracionId;
         HiloExternoId = normalizado;
+    }
+
+    /// <summary>Continúa un hilo cerrado conservando separados sus mensajes e historial.</summary>
+    public void EnlazarConversacionAnterior(Conversacion anterior)
+    {
+        if (anterior.Id == Id || anterior.Estado != EstadoConversacion.Cerrada
+            || anterior.ConexionIntegracionId != ConexionIntegracionId || anterior.HiloExternoId != HiloExternoId)
+            throw new ArgumentException("La conversación anterior debe ser el mismo hilo cerrado.", nameof(anterior));
+
+        ConversacionAnteriorId = anterior.Id;
+    }
+
+    /// <summary>La continuación conserva las coordenadas de acceso del hilo; nunca vuelve a la cola de triage.</summary>
+    public static Conversacion ContinuarCorreo(Conversacion anterior, string asunto)
+    {
+        if (anterior.Canal != CanalConversacion.Correo || anterior.Estado != EstadoConversacion.Cerrada
+            || anterior.ConexionIntegracionId is null || anterior.HiloExternoId is null)
+            throw new ArgumentException("Solo se puede continuar un hilo de correo cerrado.", nameof(anterior));
+
+        // ClienteId es el ancla legacy de Cliente empresarial: copiarla evita ampliar la visibilidad a triage.
+        var nueva = new Conversacion(asunto, anterior.ClienteId, anterior.Etiquetas, anterior.EmpresaId)
+        {
+            EjecutivoAsignadoId = anterior.EjecutivoAsignadoId
+        };
+        nueva.AsociarConexion(anterior.ConexionIntegracionId.Value, anterior.HiloExternoId);
+        nueva.EnlazarConversacionAnterior(anterior);
+        return nueva;
     }
 
     public ParticipanteConversacion AgregarParticipante(

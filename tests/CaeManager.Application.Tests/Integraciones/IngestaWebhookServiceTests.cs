@@ -11,6 +11,52 @@ namespace CaeManager.Application.Tests.Integraciones;
 
 public class IngestaWebhookServiceTests
 {
+    [Theory]
+    [InlineData(EstadoConversacion.Cerrada, false)]
+    [InlineData(EstadoConversacion.Resuelta, false)]
+    [InlineData(EstadoConversacion.Resuelta, true)]
+    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, false)]
+    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, true)]
+    public async Task El_entrante_continua_un_hilo_cerrado_y_solo_una_respuesta_humana_reabre(
+        EstadoConversacion estado, bool automatico)
+    {
+        var conexion = ConexionHabilitada();
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var conversaciones = new ConversacionRepositorioFalso();
+        var anterior = new Conversacion("Hilo anterior");
+        anterior.AsociarConexion(conexion.Id, "hilo");
+        anterior.CambiarEstado(estado, DateTime.UtcNow.AddDays(-1));
+        conversaciones.Agregar(anterior);
+        var graph = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["nuevo"],
+            MensajeADevolver = new MensajeGraphDto("nuevo", "hilo", "Respuesta", "contacto@ejemplo.test", "Texto",
+                DateTime.UtcNow.AddMinutes(-1), [], [], automatico ? [new("Auto-Submitted", "auto-replied")] : [])
+        };
+        var credenciales = new CredencialIntegracionRepositorioFalso();
+        credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh"));
+        var evento = new EventoWebhook(conexion.Id, "{}");
+
+        await CrearServicio(conexiones, conversaciones, graph, credenciales).ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
+        if (estado == EstadoConversacion.Cerrada)
+        {
+            anterior.Estado.Should().Be(EstadoConversacion.Cerrada);
+            anterior.Mensajes.Should().BeEmpty();
+            var nueva = conversaciones.Conversaciones.Should().HaveCount(2).And.Subject.Single(c => c.Id != anterior.Id);
+            nueva.ConversacionAnteriorId.Should().Be(anterior.Id);
+            nueva.Mensajes.Should().ContainSingle();
+        }
+        else
+        {
+            conversaciones.Conversaciones.Should().ContainSingle();
+            anterior.Estado.Should().Be(automatico ? estado : EstadoConversacion.Abierta);
+            anterior.Mensajes.Should().ContainSingle();
+        }
+    }
+
     private static IngestaWebhookService CrearServicio(
         ConexionIntegracionRepositorioFalso conexionRepositorio,
         ConversacionRepositorioFalso conversacionRepositorio,

@@ -30,6 +30,13 @@
         </div>
         <div class="bandeja-fila-linea3">
             <Badge Tono="EstadoConversacionPresentacion.Tono(Conversacion.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoConversacionPresentacion.Etiqueta(TextosEstados, Conversacion.Estado)</Badge>
+            @if (Conversacion.SlaRestante is { } restante)
+            {
+                <Badge Tono="@(Conversacion.VencimientoSlaUtc <= DateTime.UtcNow ? TonoBadge.Peligro : TonoBadge.Neutro)" Tamano="TamanoBadge.Pequeno"
+                       title="Horas laborables restantes para responder al primer mensaje entrante">
+                    @(Conversacion.Prioridad == PrioridadConversacion.Critica ? "Crítica" : Conversacion.Prioridad.ToString()) · SLA @(Conversacion.VencimientoSlaUtc <= DateTime.UtcNow ? "vencido " : "")@Math.Abs((int)restante.TotalHours) h @Math.Abs(restante.Minutes) min
+                </Badge>
+            }
             @if (Conversacion.MensajesRuido > 0)
             {
                 <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno" title="Mensajes ya clasificados como ruido (repetición o sin cambios) — sin novedad que atender">
