@@ -2,7 +2,10 @@
 @using CaeManager.Application.Comunicaciones.Commands.ConfirmarIntencionConversacion
 @using CaeManager.Domain.Comunicaciones
 @using MediatR
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using Microsoft.Extensions.Localization
 @inject IMediator Mediator
+@inject IStringLocalizer<TextosIntencionesCae> Textos
 @inject ILogger<PanelIntencionConversacion> Logger
 
 @if (_intencion is not null)
@@ -16,7 +19,7 @@
 
 @code {
     [Parameter, EditorRequired] public Guid ConversacionId { get; set; }
-    private IntencionConversacion? _intencion;
+    private IntencionConversacionDto? _intencion;
     private bool _guardando;
     private string? _error;
     protected override async Task OnParametersSetAsync()
@@ -25,7 +28,7 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al cargar la intención CAE.");
-            _error = "No se pudo cargar la intención CAE. Vuelve a abrir la conversación.";
+            _error = Textos["ErrorCargar"];
         }
     }
     private async Task ConfirmarAsync(IntencionCae intencion)
@@ -42,7 +45,7 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al confirmar la intención CAE.");
-            _error = "No se pudo guardar la intención CAE. Inténtalo de nuevo.";
+            _error = Textos["ErrorGuardar"];
         }
         finally { _guardando = false; }
     }

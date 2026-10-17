@@ -1,4 +1,4 @@
-﻿using CaeManager.Domain.Common;
+using CaeManager.Domain.Common;
 using CaeManager.Web.Features.Documentos.Recursos;
 using CaeManager.Application.Common;
 using CaeManager.Web.Features.Comunicaciones.Components;
@@ -507,8 +507,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     }
 
     /// <summary>
-    /// Los SIETE filtros de la bandeja: cuatro que viajan en la URL (estado,
-    /// mes, cliente y búsqueda) y tres conmutadores de asignación que no.
+    /// Los ocho filtros de la bandeja: cuatro que viajan en la URL (estado,
+    /// mes, Cliente empresarial y búsqueda), intención CAE y tres conmutadores de asignación.
     /// </summary>
     private bool HayFiltrosActivos =>
         !string.IsNullOrEmpty(_intencionFiltro) ||
@@ -517,7 +517,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         || _soloAsignadasAMi || _soloSinAsignar || _soloEsperandoCliente;
 
     /// <summary>
-    /// Los siete de una vez y una sola recarga, por el mismo motivo que
+    /// Los ocho de una vez y una sola recarga, por el mismo motivo que
     /// documenta <see cref="AplicarFiltrosAsync"/>: encadenar navegaciones
     /// arriesga que cada una lea la URL sin el cambio de la anterior.
     /// </summary>

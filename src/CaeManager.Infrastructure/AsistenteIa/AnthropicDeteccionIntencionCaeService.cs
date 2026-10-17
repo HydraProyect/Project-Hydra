@@ -1,4 +1,4 @@
-﻿using System.Net.Http.Json;
+using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CaeManager.Application.Comunicaciones.Deteccion;
@@ -74,7 +74,7 @@ public class AnthropicDeteccionIntencionCaeService(
                     "DeteccionIntencionCae.RespuestaIncompleta", "No pudimos analizar la conversación automáticamente."));
             }
 
-            var texto = cuerpo?.Content.FirstOrDefault(c => c.Type == "text")?.Text;
+            var texto = cuerpo?.Content?.FirstOrDefault(c => c.Type == "text")?.Text;
 
             if (string.IsNullOrWhiteSpace(texto))
             {
@@ -83,6 +83,16 @@ public class AnthropicDeteccionIntencionCaeService(
             }
 
             return ParsearDeteccion(texto);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return Result.Fallo<PropuestaIntencionCae>(Error.Crear(
+                "DeteccionIntencionCae.TiempoAgotado", "No pudimos analizar el primer mensaje automáticamente."));
+        }
+        catch (JsonException)
+        {
+            return Result.Fallo<PropuestaIntencionCae>(Error.Crear(
+                "DeteccionIntencionCae.RespuestaInvalida", "No pudimos interpretar la propuesta automática."));
         }
         catch (HttpRequestException ex)
         {

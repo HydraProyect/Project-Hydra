@@ -1,4 +1,4 @@
-﻿@page "/comunicaciones"
+@page "/comunicaciones"
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @* Mismos roles que el menú completo de CatalogoMenuLateral: la bandeja es una pantalla de
@@ -22,6 +22,7 @@
 @using CaeManager.Web.Features.Comunicaciones.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosListaConversaciones> TextosLista
+@inject IStringLocalizer<TextosIntencionesCae> TextosIntenciones
 @inject IStringLocalizer<TextosCompanerosGestorCae> TextosCompaneros
 @inject IMediator Mediator
 @inject ToastService ToastService
@@ -156,11 +157,11 @@
                                 <option value="@nameof(EstadoConversacion.Cerrada)">Cerrada</option>
                             </CampoSelect>
 
-                            <CampoSelect Etiqueta="Intención CAE" Valor="@_intencionFiltro" ValorChanged="async v => { _intencionFiltro = v; await AplicarFiltrosAsync(); }">
-                                <option value="">Todas las intenciones</option>
+                            <CampoSelect Etiqueta="@TextosIntenciones["EtiquetaIntencion"]" Valor="@_intencionFiltro" ValorChanged="async v => { _intencionFiltro = v; await AplicarFiltrosAsync(); }">
+                                <option value="">@TextosIntenciones["TodasIntenciones"]</option>
                                 @foreach (var intencion in Enum.GetValues<IntencionCae>())
                                 {
-                                    <option value="@intencion">@RotulosIntencionCae.Nombre(intencion)</option>
+                                    <option value="@intencion">@TextosIntenciones[$"Intencion_{intencion}"]</option>
                                 }
                             </CampoSelect>
                             <CampoTexto Etiqueta="Mes" Type="month" Valor="@_mesFiltro" ValorChanged="async v => { _mesFiltro = v; await AplicarFiltrosAsync(); }" />

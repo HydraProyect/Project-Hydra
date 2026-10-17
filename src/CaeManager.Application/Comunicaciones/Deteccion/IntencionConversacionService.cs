@@ -21,6 +21,11 @@ public interface IDeteccionIntencionCaeService
     Task<Result<PropuestaIntencionCae>> DetectarAsync(string texto, CancellationToken cancellationToken = default);
 }
 
+public interface IIntencionConversacionService
+{
+    Task ProcesarAsync(Conversacion conversacion, CancellationToken cancellationToken = default);
+}
+
 public class IntencionConversacionService(
     IDeteccionIntencionCaeService deteccion,
     IIntencionConversacionRepository repositorio,
@@ -29,10 +34,11 @@ public class IntencionConversacionService(
     ITrabajadoresQueryContext trabajadores,
     IEmpresasQueryContext empresas,
     ICentrosQueryContext centros,
-    ITiposDocumentoQueryContext tiposDocumento)
+    ITiposDocumentoQueryContext tiposDocumento) : IIntencionConversacionService
 {
     public async Task ProcesarAsync(Conversacion conversacion, CancellationToken cancellationToken = default)
     {
+        if (tenantActual.TenantId is not { } tenantId) return;
         var entrantes = conversacion.Mensajes.Where(m => m.Direccion == DireccionMensaje.Entrante).ToList();
         if (entrantes.Count != 1 || await repositorio.ObtenerPorConversacionIdAsync(conversacion.Id, cancellationToken) is not null)
             return;
@@ -43,7 +49,7 @@ public class IntencionConversacionService(
         texto = texto[..Math.Min(texto.Length, 12000)];
         var propuesta = ClasificarPorReglas(texto);
         // El Nivel 0 se comprueba antes de enviar texto al proveedor existente.
-        if (tenantActual.TenantId is { } tenantId && await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))
+        if (await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))
         {
             var resultado = await deteccion.DetectarAsync(texto, cancellationToken);
             if (resultado.EsExitoso) propuesta = resultado.Valor;

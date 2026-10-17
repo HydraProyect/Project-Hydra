@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Common;
+using CaeManager.Application.Common;
 using System.Reflection;
 using CaeManager.Application.ApiKeys;
 using CaeManager.Application.Asignaciones;

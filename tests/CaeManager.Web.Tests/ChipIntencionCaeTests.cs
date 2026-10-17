@@ -1,5 +1,6 @@
 using Bunit;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerIntencionConversacion;
 using CaeManager.Web.Features.Comunicaciones.Components;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,7 +16,7 @@ public class ChipIntencionCaeTests : BunitContext
     {
         var intencion = new IntencionConversacion(Guid.NewGuid(), Guid.NewGuid(), IntencionCae.UrgenciaAcceso, ConfianzaIntencion.Media);
         IntencionCae? confirmada = null;
-        var cut = Render<ChipIntencionCae>(p => p.Add(c => c.Intencion, intencion).Add(c => c.OnConfirmar, i => confirmada = i));
+        var cut = Render<ChipIntencionCae>(p => p.Add(c => c.Intencion, IntencionConversacionDto.Desde(intencion, true)).Add(c => c.OnConfirmar, i => confirmada = i));
         cut.Markup.Should().Contain("Urgencia de acceso").And.Contain("Confianza media");
         cut.Find("button").Click();
         confirmada.Should().Be(IntencionCae.UrgenciaAcceso);
@@ -27,7 +28,7 @@ public class ChipIntencionCaeTests : BunitContext
     {
         var intencion = new IntencionConversacion(Guid.NewGuid(), Guid.NewGuid(), IntencionCae.Otras, ConfianzaIntencion.Baja);
         IntencionCae? confirmada = null;
-        var cut = Render<ChipIntencionCae>(p => p.Add(c => c.Intencion, intencion).Add(c => c.OnConfirmar, i => confirmada = i));
+        var cut = Render<ChipIntencionCae>(p => p.Add(c => c.Intencion, IntencionConversacionDto.Desde(intencion, true)).Add(c => c.OnConfirmar, i => confirmada = i));
         cut.Find("select").Change(nameof(IntencionCae.ConsultaRequisitos));
         confirmada.Should().Be(IntencionCae.ConsultaRequisitos);
         cut.FindAll("option").Should().HaveCount(7);
@@ -39,7 +40,7 @@ public class ChipIntencionCaeTests : BunitContext
         var id = Guid.NewGuid();
         var intencion = new IntencionConversacion(Guid.NewGuid(), Guid.NewGuid(), IntencionCae.Otras, ConfianzaIntencion.Baja, TipoEntidadIntencion.Trabajador, id);
         intencion.Confirmar(IntencionCae.CoordinacionAcceso);
-        var cut = Render<ChipIntencionCae>(p => p.Add(c => c.Intencion, intencion));
+        var cut = Render<ChipIntencionCae>(p => p.Add(c => c.Intencion, IntencionConversacionDto.Desde(intencion, true)));
         cut.Markup.Should().Contain("Cambiada y confirmada");
         cut.FindAll("button").Should().BeEmpty();
         cut.Find("a").GetAttribute("href").Should().Be($"/trabajadores/{id}");

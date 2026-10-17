@@ -1,30 +1,35 @@
 @using CaeManager.Domain.Comunicaciones
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerIntencionConversacion
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosIntencionesCae> Textos
 
-<div aria-label="Intención CAE">
-    <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@RotulosIntencionCae.Nombre(Intencion.IntencionActual) · Confianza @Intencion.Confianza.ToString().ToLowerInvariant()</Badge>
+<div aria-label="@Textos["EtiquetaIntencion"]">
+    <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@Textos["ResumenChip", Textos[$"Intencion_{Intencion.IntencionActual}"], Textos[$"Confianza_{Intencion.Confianza}"]]</Badge>
     @if (Intencion.ConfirmadaPorPersona)
     {
-        <span>@(Intencion.CambiadaPorPersona ? "Cambiada y confirmada" : "Confirmada")</span>
+        <span>@Textos[Intencion.CambiadaPorPersona ? "CambiadaConfirmada" : "Confirmada"]</span>
     }
     else
     {
-        <span>Propuesta pendiente de revisión</span>
-        <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" Deshabilitado="Guardando" OnClick="() => OnConfirmar.InvokeAsync(Intencion.IntencionActual)">Confirmar</Boton>
+        <span>@Textos["PendienteRevision"]</span>
+        <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" Deshabilitado="Guardando" OnClick="() => OnConfirmar.InvokeAsync(Intencion.IntencionActual)">@Textos["Confirmar"]</Boton>
     }
-    <CampoSelect Etiqueta="Cambiar intención CAE" Valor="@Intencion.IntencionActual.ToString()" ValorChanged="CambiarAsync" Deshabilitado="Guardando">
+    <CampoSelect Etiqueta="@Textos["CambiarIntencion"]" Valor="@Intencion.IntencionActual.ToString()" ValorChanged="CambiarAsync" Deshabilitado="Guardando">
         @foreach (var intencion in Enum.GetValues<IntencionCae>())
         {
-            <option value="@intencion">@RotulosIntencionCae.Nombre(intencion)</option>
+            <option value="@intencion">@Textos[$"Intencion_{intencion}"]</option>
         }
     </CampoSelect>
     @if (Intencion.TipoEntidadPropuesta is { } tipo)
     {
-        <span>Entidad propuesta: @tipo. Pendiente de validación humana.</span>
+        <a href="@RutaEntidad(tipo, Intencion.EntidadPropuestaId!.Value)">@Textos["EntidadPropuesta", Textos[$"TipoEntidad_{tipo}"]]</a>
+        <span>@Textos["PendienteEntidad"]</span>
     }
 </div>
 
 @code {
-    [Parameter, EditorRequired] public IntencionConversacion Intencion { get; set; } = default!;
+    [Parameter, EditorRequired] public IntencionConversacionDto Intencion { get; set; } = default!;
     [Parameter] public bool Guardando { get; set; }
     [Parameter] public EventCallback<IntencionCae> OnConfirmar { get; set; }
     private static string RutaEntidad(TipoEntidadIntencion tipo, Guid id) => tipo switch

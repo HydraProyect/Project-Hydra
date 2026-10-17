@@ -60,6 +60,24 @@ public class IntencionConversacionTests
     }
 
     [Fact]
+    public async Task La_intencion_visible_no_expone_una_entidad_fuera_de_cartera()
+    {
+        var empresaId = Guid.NewGuid();
+        var conversacion = new Conversacion("Acceso", empresaId);
+        var conversaciones = new ConversacionRepositorioFalso();
+        conversaciones.Agregar(conversacion);
+        var intencion = new IntencionConversacion(conversacion.Id, Guid.NewGuid(), IntencionCae.CoordinacionAcceso,
+            ConfianzaIntencion.Alta, TipoEntidadIntencion.Trabajador, Guid.NewGuid());
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [empresaId], trabajadorIdsVisibles: []);
+        var resultado = await new ObtenerIntencionConversacionQueryHandler(conversaciones, new RepositorioFalso(intencion), alcance)
+            .Handle(new(conversacion.Id), default);
+        resultado.Should().NotBeNull();
+        resultado!.IntencionActual.Should().Be(IntencionCae.CoordinacionAcceso);
+        resultado.EntidadPropuestaId.Should().BeNull();
+        resultado.TipoEntidadPropuesta.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Con_cartera_confirma_y_persiste_la_correccion()
     {
         var conversacion = new Conversacion("Acceso", Guid.NewGuid());

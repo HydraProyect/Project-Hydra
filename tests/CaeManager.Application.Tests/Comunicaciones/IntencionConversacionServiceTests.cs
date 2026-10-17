@@ -28,6 +28,20 @@ public class IntencionConversacionServiceTests
     }
 
     [Fact]
+    public async Task Sin_Tenant_propietario_no_clasifica_ni_consulta_entidades()
+    {
+        var ia = new DeteccionFalsa(true);
+        var repositorio = new RepositorioFalso();
+        var servicio = new IntencionConversacionService(ia, repositorio, new InstruccionFalsa(true),
+            new TenantActualFijo(null), null!, null!, null!, null!);
+        var conversacion = new Conversacion("Acceso");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cae@example.test", "Acceso bloqueado");
+        await servicio.ProcesarAsync(conversacion);
+        ia.Llamadas.Should().Be(0);
+        repositorio.Intenciones.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Solo_clasifica_el_primer_entrante_y_no_sobrescribe_una_confirmacion()
     {
         var ia = new DeteccionFalsa(true);

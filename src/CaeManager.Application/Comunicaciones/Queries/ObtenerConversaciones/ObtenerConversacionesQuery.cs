@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Common;
+using CaeManager.Application.Common;
 using System.Text.RegularExpressions;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Empresas;

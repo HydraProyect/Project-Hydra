@@ -25,6 +25,8 @@ public class ConfirmarIntencionConversacionCommandHandler(
     public async Task<Result> Handle(ConfirmarIntencionConversacionCommand request, CancellationToken cancellationToken)
     {
         var conversacion = await conversaciones.ObtenerPorIdAsync(request.ConversacionId, cancellationToken);
+        // Deuda terminológica existente: ClienteId es la Empresa en posición de Cliente empresarial.
+        // Se conserva el control de Asignación de Cartera de la conversación sin modificar su modelo.
         if (conversacion is null || !await alcanceDatos.ConversacionVisibleAsync(conversacion.ClienteId,
             conversacion.EmpresaId, conversacion.ConexionIntegracionId, cancellationToken))
             return Result.Fallo(Error.Crear("Conversacion.NoEncontrada", "No encontramos esta conversación."));

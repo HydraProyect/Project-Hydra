@@ -1,5 +1,6 @@
-﻿using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Infrastructure.MultiTenancy;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
@@ -59,6 +60,12 @@ public class IntencionesConversacionRlsPostgresTests : IAsyncLifetime
     {
         await using var conexion = await AbrirComoAsync("cae_app_runtime", _tenantB);
 
+        await using (var esquema = conexion.CreateCommand())
+        {
+            esquema.CommandText = "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'IntencionesConversacion' AND column_name IN ('Id', 'ConversacionId', 'MensajeId', 'IntencionPropuesta', 'IntencionActual', 'Confianza', 'ConfirmadaPorPersona', 'TenantId');";
+            ((long)(await esquema.ExecuteScalarAsync())!).Should().Be(8);
+        }
+
         await using var insercion = conexion.CreateCommand();
         insercion.CommandText = """
             INSERT INTO "IntencionesConversacion" ("Id", "ConversacionId", "MensajeId", "IntencionPropuesta", "IntencionActual", "Confianza", "ConfirmadaPorPersona", "TenantId")
@@ -73,6 +80,32 @@ public class IntencionesConversacionRlsPostgresTests : IAsyncLifetime
 
         excepcion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be(PermisoDenegado,
             "WITH CHECK de aislamiento_tenant rechaza una fila cuyo TenantId no es el de la sesión");
+    }
+
+    [Fact]
+    public async Task El_filtro_de_intencion_se_aplica_antes_de_paginar()
+    {
+        var tenantActual = new TenantActualAmbiental { TenantId = _tenantA };
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>().UseNpgsql(_cadenaConexion)
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual)).Options;
+        await using var db = new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantActual);
+        for (var i = 0; i < 2; i++)
+        {
+            var conversacion = new Conversacion("Otro hilo");
+            var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo,
+                "cae@example.test", "Un mensaje", DateTime.UtcNow.AddMinutes(i + 1));
+            db.Conversaciones.Add(conversacion);
+            db.IntencionesConversacion.Add(new IntencionConversacion(conversacion.Id, mensaje.Id,
+                i == 0 ? IntencionCae.CoordinacionAcceso : IntencionCae.Otras, ConfianzaIntencion.Alta));
+        }
+        await db.SaveChangesAsync();
+        var handler = new ObtenerConversacionesQueryHandler(db, db, db, new AlcanceDatosServiceFalso(),
+            new CurrentUserServiceFalso(rol: "GestorCae"));
+        var resultado = await handler.Handle(new ObtenerConversacionesQuery(Intencion: IntencionCae.CoordinacionAcceso, TamanoPagina: 1), default);
+        resultado.TotalElementos.Should().Be(2);
+        resultado.Elementos.Should().ContainSingle();
+        var intencion = await db.IntencionesConversacion.SingleAsync(i => i.ConversacionId == resultado.Elementos[0].Id);
+        intencion.IntencionActual.Should().Be(IntencionCae.CoordinacionAcceso);
     }
 
     [Fact]
