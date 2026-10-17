@@ -45,7 +45,7 @@ public record CumplimientoActualDto(
 /// <param name="BajasTrabajadores">Trabajadores eliminados dentro del mes (a mano o por la detección de RNT/ITA).</param>
 /// <param name="CentrosActivos">Centros de trabajo existentes en la fecha de corte.</param>
 /// <param name="AltasCentros">Centros de trabajo dados de alta dentro del mes.</param>
-/// <param name="DocumentosGestionados">Documentos registrados en el mes, de cualquier titular, incluidas las versiones que luego se sustituyeron.</param>
+/// <param name="DocumentosGestionados">Documentos registrados en el mes, de cualquier titular, incluidas las versiones que luego se sustituyeron y los que luego se eliminaron.</param>
 /// <param name="Requerimientos">Reclamaciones de documentación enviadas en el mes (decisión 2, 2026-10-17).</param>
 public record CifrasCuadroDireccionDto(
     CifraMensual TrabajadoresActivos,
@@ -66,7 +66,17 @@ public record CifrasCuadroDireccionDto(
 public record PrincipalDeCarteraDto(Guid UsuarioId, string Nombre, string Rol);
 
 public record CuadroDireccionTenantDto(
-    Guid TenantId, string TenantNombre, CifrasCuadroDireccionDto Cifras, PrincipalDeCarteraDto? GestorCaePrincipal);
+    Guid TenantId, string TenantNombre, CifrasCuadroDireccionDto Cifras, PrincipalDeCarteraDto? PrincipalDeCartera);
+
+/// <summary>Por qué un cuadro sale sin cifras: el mes pedido no existe o todavía no ha empezado.</summary>
+public enum CuadroDireccionSinCifras
+{
+    /// <summary>Año fuera de [<see cref="MesCuadroDireccion.AnyoMinimo"/>, <see cref="MesCuadroDireccion.AnyoMaximo"/>] o mes fuera de 1..12.</summary>
+    MesNoValido,
+
+    /// <summary>El mes empieza después de ahora: no hay nada que contar.</summary>
+    MesFuturo,
+}
 
 /// <param name="Estado">Parcial si el mes no ha terminado; estimado si terminó y todavía no hay cierre mensual.</param>
 /// <param name="CorteUtc">Fecha de corte de las cifras «a fecha»: ahora en el mes en curso, el final del mes si ya terminó.</param>
@@ -74,9 +84,14 @@ public record CuadroDireccionTenantDto(
 /// Tenants beneficiarios autorizados en los que quien mira no alcanza el Tenant entero
 /// (<see cref="IAlcanceDatosService.AlcanzaElTenantEnteroAsync"/>): no salen en el cuadro ni en el total.
 /// </param>
+/// <param name="SinCifras">
+/// Null si el cuadro se calculó. Si no, por qué no: el resultado sale vacío (sin Tenants, total a cero) en vez
+/// de lanzar, y con un mes no válido las fechas quedan en <see cref="DateTime.MinValue"/>.
+/// </param>
 public record CuadroDireccionDto(
     int Anyo, int Mes, EstadoCifraMensual Estado, DateTime InicioUtc, DateTime FinUtc, DateTime CorteUtc,
-    IReadOnlyList<CuadroDireccionTenantDto> Tenants, CifrasCuadroDireccionDto Total, int TenantsSinAlcanceCompleto);
+    IReadOnlyList<CuadroDireccionTenantDto> Tenants, CifrasCuadroDireccionDto Total, int TenantsSinAlcanceCompleto,
+    CuadroDireccionSinCifras? SinCifras = null);
 
 /// <summary>Lo medido en un Tenant beneficiario, antes de marcar el estado del mes y fusionar.</summary>
 public record MedicionCuadroDireccion(
@@ -103,7 +118,7 @@ public record MedicionCuadroDireccion(
 /// </para>
 ///
 /// <para>
-/// <b>Filas eliminadas</b>: activos, altas y bajas de Trabajadores y Centros necesitan las filas con borrado
+/// <b>Filas eliminadas</b>: activos, altas y bajas de Trabajadores y Centros, y los Documentos gestionados, necesitan las filas con borrado
 /// lógico, que el filtro global oculta. El filtro combina Tenant y borrado en una condición, así que
 /// <c>IgnoreQueryFilters()</c> obliga a comparar el <c>TenantId</c> a mano con el Tenant del ámbito —falla
 /// cerrado sin Tenant— y la política RLS de la tabla sigue acotando al Tenant de la sesión.
@@ -133,13 +148,13 @@ public class ObtenerCuadroDireccionQueryHandler(
 {
     public async Task<CuadroDireccionDto> Handle(ObtenerCuadroDireccionQuery request, CancellationToken cancellationToken)
     {
-        if (request.Mes is < 1 or > 12)
-            throw new ArgumentOutOfRangeException(nameof(request), "El mes va de 1 a 12.");
-
         var ahoraUtc = reloj.GetUtcNow().UtcDateTime;
+        if (!MesCuadroDireccion.EsValido(request.Anyo, request.Mes))
+            return SinCifras(request.Anyo, request.Mes, null, ahoraUtc, CuadroDireccionSinCifras.MesNoValido);
+
         var mes = new MesCuadroDireccion(request.Anyo, request.Mes);
         if (mes.InicioUtc > ahoraUtc)
-            throw new ArgumentOutOfRangeException(nameof(request), "El Cuadro de dirección no se calcula para un mes que todavía no ha empezado.");
+            return SinCifras(request.Anyo, request.Mes, mes, ahoraUtc, CuadroDireccionSinCifras.MesFuturo);
 
         var corteUtc = mes.CorteA(ahoraUtc);
         var clientes = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
@@ -189,8 +204,12 @@ public class ObtenerCuadroDireccionQueryHandler(
         var centrosActivos = await vidasCentros.CountAsync(DefinicionesCuadroDireccion.VivoAlCorte(corteUtc), cancellationToken);
         var altasCentros = await vidasCentros.CountAsync(DefinicionesCuadroDireccion.AltaEnElMes(inicio, fin), cancellationToken);
 
-        // Actividad, no estado: una versión que después se sustituyó también se registró en el mes.
+        // Actividad, no estado: una versión que después se sustituyó, o un Documento que después se eliminó,
+        // también se registró en el mes. Por eso cuenta las filas eliminadas, como las bajas de Trabajadores, y
+        // un mes estimado no baja porque alguien borre después lo que se gestionó.
         var documentosGestionados = await documentosContext.Documentos
+            .IgnoreQueryFilters()
+            .Where(d => d.TenantId == tenantId)
             .CountAsync(d => d.CreadoEnUtc >= inicio && d.CreadoEnUtc < fin, cancellationToken);
 
         var requerimientos = await reclamacionesContext.ReclamacionesDocumentales
@@ -279,6 +298,19 @@ public class ObtenerCuadroDireccionQueryHandler(
             tenants,
             Cifras(porTenant.Select(p => p.Medicion).ToList(), estado, ahoraUtc),
             tenantsSinAlcanceCompleto);
+    }
+
+    /// <summary>
+    /// El resultado controlado de un mes que no se puede calcular: vacío, sin consultar nada, y con el motivo.
+    /// Con un mes no válido no hay fechas que calcular y quedan en <see cref="DateTime.MinValue"/>.
+    /// </summary>
+    public static CuadroDireccionDto SinCifras(
+        int anyo, int mes, MesCuadroDireccion? calculable, DateTime ahoraUtc, CuadroDireccionSinCifras motivo)
+    {
+        var inicio = calculable?.InicioUtc ?? DateTime.MinValue;
+        return new CuadroDireccionDto(
+            anyo, mes, EstadoCifraMensual.Parcial, inicio, calculable?.FinUtc ?? DateTime.MinValue, inicio,
+            [], Cifras([], EstadoCifraMensual.Parcial, ahoraUtc), 0, motivo);
     }
 
     private static CifrasCuadroDireccionDto Cifras(

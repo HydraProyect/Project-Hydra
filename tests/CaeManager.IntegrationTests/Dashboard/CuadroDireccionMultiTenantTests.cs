@@ -8,6 +8,7 @@ using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Reclamaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
@@ -27,13 +28,16 @@ namespace CaeManager.IntegrationTests.Dashboard;
 
 /// <summary>
 /// <c>ObtenerCuadroDireccionQuery</c> contra PostgreSQL real con dos Tenants beneficiarios: cada fila del
-/// cuadro tiene solo los datos de su Tenant (ninguna consulta cruza el filtro global, tampoco las dos que
+/// cuadro tiene solo los datos de su Tenant (ninguna consulta cruza el filtro global, tampoco las tres que
 /// leen filas eliminadas con <c>IgnoreQueryFilters()</c> y comparan el <c>TenantId</c> a mano), el total es
 /// la suma, y las definiciones (Trabajador activo sin Asignaciones, baja = eliminación, solicitud = primer
-/// entrante de una conversación viva) se traducen a SQL con el mismo resultado que en memoria.
+/// entrante de una conversación viva) se traducen a SQL con el mismo resultado que en memoria. El Operador CAE
+/// de origen es la Consultora, que también es Tenant beneficiario de sí misma; Ibertec le delega.
 /// </summary>
 public class CuadroDireccionMultiTenantTests : IAsyncLifetime
 {
+    private const string NombreGestora = "Gestora de prueba";
+
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _usuario = Guid.NewGuid();
     private CaeManagerDbContext _dbContext = null!;
@@ -77,11 +81,9 @@ public class CuadroDireccionMultiTenantTests : IAsyncLifetime
     [Fact]
     public async Task Cada_Tenant_beneficiario_ve_solo_lo_suyo_y_el_total_es_la_suma()
     {
-        using var servicios = ConstruirServicios(new AlcanceDatosServiceFalso());
-        var hoy = DiaDeNegocio.Hoy();
+        var cuadro = await PedirMesEnCursoAsync(ConstruirServicios());
 
-        var cuadro = await servicios.GetRequiredService<IMediator>().Send(new ObtenerCuadroDireccionQuery(hoy.Year, hoy.Month));
-
+        cuadro.SinCifras.Should().BeNull();
         cuadro.Estado.Should().Be(EstadoCifraMensual.Parcial, "es el mes en curso");
         cuadro.TenantsSinAlcanceCompleto.Should().Be(0);
         cuadro.Tenants.Should().HaveCount(2);
@@ -102,28 +104,49 @@ public class CuadroDireccionMultiTenantTests : IAsyncLifetime
         ibertec.BajasTrabajadores.Valor.Should().Be(1);
         ibertec.CentrosActivos.Valor.Should().Be(2);
         ibertec.AltasCentros.Valor.Should().Be(3);
-        ibertec.DocumentosGestionados.Valor.Should().Be(1);
+        ibertec.DocumentosGestionados.Valor.Should().Be(2, "el Documento eliminado después también se gestionó este mes");
         ibertec.Requerimientos.Valor.Should().Be(1, "la reclamación enviada hace 40 días es de otro mes");
         ibertec.Solicitudes.Total.Valor.Should().Be(1,
             "una conversación con dos entrantes es una solicitud; la que empezó el mes pasado y la eliminada no cuentan");
-        ibertec.Cumplimiento.Porcentaje.Should().Be(100, "su único Documento de Trabajador está vigente");
+        ibertec.Cumplimiento.Porcentaje.Should().Be(100, "su único Documento vivo de Trabajador está vigente");
         ibertec.Cumplimiento.SinDatos.Should().BeFalse();
 
         cuadro.Total.TrabajadoresActivos.Valor.Should().Be(5);
         cuadro.Total.BajasTrabajadores.Valor.Should().Be(1);
         cuadro.Total.CentrosActivos.Valor.Should().Be(3);
+        cuadro.Total.DocumentosGestionados.Valor.Should().Be(2);
         cuadro.Total.Solicitudes.Total.Valor.Should().Be(1);
-        cuadro.Tenants.Should().OnlyContain(t => t.GestorCaePrincipal == null, "ninguna Asignación de Operación lleva principal");
+        cuadro.Tenants.Should().OnlyContain(t => t.PrincipalDeCartera == null, "ninguna Asignación de Cartera es principal");
+    }
+
+    [Fact]
+    public async Task Las_filas_eliminadas_de_un_Tenant_no_se_cuentan_en_el_otro()
+    {
+        // El handler lee Trabajadores, Centros y Documentos con IgnoreQueryFilters y vuelve a acotar con
+        // .Where(TenantId == Tenant del ámbito). Ibertec tiene 4 Trabajadores (1 eliminado), 3 Centros (1
+        // eliminado) y 2 Documentos (1 eliminado); la Consultora, 2, 1 y ninguno. Sin ese Where la Consultora
+        // sumaría las filas de Ibertec: esta base de pruebas conecta con el propietario de las tablas, al que
+        // RLS no le aplica, así que el Where es lo único que lo impide aquí (en ejecución RLS es la segunda red).
+        var cuadro = await PedirMesEnCursoAsync(ConstruirServicios());
+
+        var consultora = cuadro.Tenants.Single(t => t.TenantId == _tenantConsultora).Cifras;
+        consultora.TrabajadoresActivos.Valor.Should().Be(2);
+        consultora.AltasTrabajadores.Valor.Should().Be(2);
+        consultora.BajasTrabajadores.Valor.Should().Be(0, "la baja es de Ibertec");
+        consultora.CentrosActivos.Valor.Should().Be(1);
+        consultora.AltasCentros.Valor.Should().Be(1);
+        consultora.DocumentosGestionados.Valor.Should().Be(0, "los Documentos, vivos y eliminados, son de Ibertec");
+
+        var ibertec = cuadro.Tenants.Single(t => t.TenantId == _tenantIbertec).Cifras;
+        ibertec.AltasTrabajadores.Valor.Should().Be(4);
+        ibertec.AltasCentros.Valor.Should().Be(3);
     }
 
     [Fact]
     public async Task Sin_alcance_del_Tenant_entero_el_Tenant_no_sale_en_el_cuadro()
     {
         // Una lista explícita (vacía) de Clientes: no es acceso total ni cartera universal.
-        using var servicios = ConstruirServicios(new AlcanceDatosServiceFalso(clienteIds: []));
-        var hoy = DiaDeNegocio.Hoy();
-
-        var cuadro = await servicios.GetRequiredService<IMediator>().Send(new ObtenerCuadroDireccionQuery(hoy.Year, hoy.Month));
+        var cuadro = await PedirMesEnCursoAsync(ConstruirServicios(alcance: new AlcanceDatosServiceFalso(clienteIds: [])));
 
         cuadro.Tenants.Should().BeEmpty();
         cuadro.TenantsSinAlcanceCompleto.Should().Be(2);
@@ -131,31 +154,126 @@ public class CuadroDireccionMultiTenantTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Las_filas_eliminadas_de_un_Tenant_no_se_cuentan_en_el_otro()
+    public async Task Direccion_CAE_ve_el_Gestor_CAE_principal_con_su_nombre_en_su_Tenant_beneficiario()
     {
-        // El IgnoreQueryFilters del cuadro compara el TenantId a mano: con el ámbito en la Consultora, la baja
-        // de Ibertec no existe.
-        using (AmbitoTenantExplicito.Establecer(_tenantConsultora))
-        {
-            (await _dbContext.Trabajadores.IgnoreQueryFilters().CountAsync(t => t.TenantId == _tenantConsultora)).Should().Be(2);
-            (await _dbContext.Trabajadores.IgnoreQueryFilters().CountAsync(t => t.TenantId == _tenantConsultora && t.EstaEliminado)).Should().Be(0);
-        }
+        var gestora = Guid.NewGuid();
+        await DesignarPrincipalAsync(gestora, "GestorCae");
 
-        using (AmbitoTenantExplicito.Establecer(_tenantIbertec))
+        var cuadro = await PedirMesEnCursoAsync(ConstruirServicios(
+            perfiles: new() { [_usuario] = "DireccionCae" }, nombres: new() { [gestora] = NombreGestora }));
+
+        cuadro.Tenants.Single(t => t.TenantId == _tenantIbertec).PrincipalDeCartera
+            .Should().Be(new PrincipalDeCarteraDto(gestora, NombreGestora, "GestorCae"));
+        cuadro.Tenants.Single(t => t.TenantId == _tenantConsultora).PrincipalDeCartera
+            .Should().BeNull("el Operador CAE no tiene Asignación de Operación externa sobre sí mismo");
+    }
+
+    [Fact]
+    public async Task En_un_relevo_el_principal_es_el_Coordinador_CAE_y_sale_con_su_rol()
+    {
+        var coordinadora = Guid.NewGuid();
+        await DesignarPrincipalAsync(coordinadora, "CoordinadorCae");
+
+        var cuadro = await PedirMesEnCursoAsync(ConstruirServicios(
+            perfiles: new() { [_usuario] = "CoordinadorCae" }, nombres: new() { [coordinadora] = "Coordinadora de prueba" }));
+
+        cuadro.Tenants.Single(t => t.TenantId == _tenantIbertec).PrincipalDeCartera
+            .Should().Be(new PrincipalDeCarteraDto(coordinadora, "Coordinadora de prueba", "CoordinadorCae"));
+    }
+
+    [Fact]
+    public async Task Sin_rol_de_negocio_en_la_sesion_no_se_ve_el_principal()
+    {
+        // Soporte TALVEG nunca es Operador CAE: aunque su cuenta tuviera un perfil que asume, sin rol efectivo no lo ve.
+        var gestora = Guid.NewGuid();
+        await DesignarPrincipalAsync(gestora, "GestorCae");
+
+        var cuadro = await PedirMesEnCursoAsync(ConstruirServicios(
+            rol: null, perfiles: new() { [_usuario] = "DireccionCae" }, nombres: new() { [gestora] = NombreGestora }));
+
+        cuadro.Tenants.Should().HaveCount(2, "las cifras no dependen del rol: el alcance lo decide IAlcanceDatosService");
+        cuadro.Tenants.Should().OnlyContain(t => t.PrincipalDeCartera == null);
+    }
+
+    [Fact]
+    public async Task Un_Gestor_CAE_no_ve_el_principal()
+    {
+        // El perfil Gestor CAE no está entre los que asumen (Coordinador CAE, Dirección CAE, Administrador).
+        var gestora = Guid.NewGuid();
+        await DesignarPrincipalAsync(gestora, "GestorCae");
+
+        var cuadro = await PedirMesEnCursoAsync(ConstruirServicios(
+            rol: "GestorCae", perfiles: new() { [_usuario] = "GestorCae" }, nombres: new() { [gestora] = NombreGestora }));
+
+        cuadro.Tenants.Should().NotBeEmpty();
+        cuadro.Tenants.Should().OnlyContain(t => t.PrincipalDeCartera == null);
+    }
+
+    [Fact]
+    public async Task Un_mes_futuro_o_no_valido_sale_vacio_con_su_motivo_y_sin_lanzar()
+    {
+        using var servicios = ConstruirServicios();
+        var mediator = servicios.GetRequiredService<IMediator>();
+        var siguiente = DiaDeNegocio.Hoy().AddMonths(1);
+
+        var futuro = await mediator.Send(new ObtenerCuadroDireccionQuery(siguiente.Year, siguiente.Month));
+        futuro.SinCifras.Should().Be(CuadroDireccionSinCifras.MesFuturo);
+        futuro.Tenants.Should().BeEmpty();
+
+        var noValido = await mediator.Send(new ObtenerCuadroDireccionQuery(2026, 13));
+        noValido.SinCifras.Should().Be(CuadroDireccionSinCifras.MesNoValido);
+        noValido.Tenants.Should().BeEmpty();
+
+        var fueraDeRango = await mediator.Send(new ObtenerCuadroDireccionQuery(int.MaxValue, 1));
+        fueraDeRango.SinCifras.Should().Be(CuadroDireccionSinCifras.MesNoValido);
+    }
+
+    [Fact]
+    public async Task Sin_Tenant_en_el_ambito_la_medicion_falla_cerrada()
+    {
+        // Las lecturas con IgnoreQueryFilters no tienen con qué comparar el TenantId: lanza en vez de contar todo.
+        using var servicios = ConstruirServicios(tenantActual: new TenantActualNulo());
+
+        var pedir = () => PedirMesEnCursoAsync(servicios);
+
+        await pedir.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    private static async Task<CuadroDireccionDto> PedirMesEnCursoAsync(ServiceProvider servicios)
+    {
+        using (servicios)
         {
-            (await _dbContext.Trabajadores.CountAsync()).Should().Be(3);
-            (await _dbContext.Trabajadores.IgnoreQueryFilters().CountAsync(t => t.TenantId == _tenantIbertec)).Should().Be(4);
+            var hoy = DiaDeNegocio.Hoy();
+            return await servicios.GetRequiredService<IMediator>().Send(new ObtenerCuadroDireccionQuery(hoy.Year, hoy.Month));
         }
     }
 
-    private ServiceProvider ConstruirServicios(IAlcanceDatosService alcance)
+    /// <summary>La Asignación de Operación externa de la Consultora sobre Ibertec, con su cartera principal.</summary>
+    private async Task DesignarPrincipalAsync(Guid usuarioId, string rol)
     {
-        var tenantActual = new TenantActualPorAmbito();
-        var usuario = new CurrentUserServiceFalso(_usuario, () => _tenantConsultora);
+        using var ambito = AmbitoTenantExplicito.Establecer(_tenantConsultora);
+        var ahora = DateTime.UtcNow;
+        var operacion = AsignacionOperacion.Externa(
+            _tenantIbertec, _tenantConsultora, ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora.AddDays(-2), null, ahora);
+        var cartera = AsignacionCartera.Externa(operacion, usuarioId, rol, AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora);
+        cartera.DesignarPrincipal();
+        _dbContext.AsignacionesOperacion.Add(operacion);
+        _dbContext.AsignacionesCartera.Add(cartera);
+        await _dbContext.SaveChangesAsync();
+    }
+
+    private ServiceProvider ConstruirServicios(
+        IAlcanceDatosService? alcance = null,
+        string? rol = "DireccionCae",
+        Dictionary<Guid, string>? perfiles = null,
+        Dictionary<Guid, string>? nombres = null,
+        ITenantActual? tenantActual = null)
+    {
+        var usuario = new CurrentUserServiceFalso(_usuario, rol, tenantOrigenId: _tenantConsultora);
         var servicios = new ServiceCollection();
         servicios.AddApplication();
         servicios.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
-        servicios.AddSingleton<ITenantActual>(tenantActual);
+        servicios.AddSingleton(tenantActual ?? new TenantActualPorAmbito());
         servicios.AddSingleton<IUnitOfWork>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Empresas.IEmpresasQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Proyectos.IRequisitosEventoQueryContext>(_dbContext);
@@ -174,11 +292,29 @@ public class CuadroDireccionMultiTenantTests : IAsyncLifetime
         servicios.AddSingleton<CaeManager.Application.Reclamaciones.IReclamacionesQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Comunicaciones.IComunicacionesQueryContext>(_dbContext);
         servicios.AddSingleton<ICatalogoIncorporacionCartera>(new CatalogoIncorporacionCartera(_dbContext, usuario));
-        servicios.AddSingleton<IDirectorioUsuariosService>(new DirectorioUsuariosFalso());
+        servicios.AddSingleton<IDirectorioUsuariosService>(new DirectorioUsuariosFalso(perfiles ?? [], nombres ?? []));
         servicios.AddSingleton(TimeProvider.System);
-        servicios.AddSingleton(alcance);
+        servicios.AddSingleton(alcance ?? new AlcanceDatosServiceFalso());
         servicios.AddSingleton<ICurrentUserService>(usuario);
         return servicios.BuildServiceProvider();
+    }
+
+    /// <summary>
+    /// Un instante del mes en curso no posterior a ahora, a la fracción <paramref name="fraccion"/> del tramo ya
+    /// transcurrido: la siembra cae dentro del mes aunque el test corra en su primera hora.
+    /// </summary>
+    private static DateTime EnElMesEnCurso(double fraccion)
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var inicio = new MesCuadroDireccion(hoy.Year, hoy.Month).InicioUtc;
+        var ahora = DateTime.UtcNow;
+        return inicio + TimeSpan.FromTicks((long)((ahora - inicio).Ticks * fraccion));
+    }
+
+    private static DateTime EnElMesAnterior()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        return new MesCuadroDireccion(hoy.Year, hoy.Month).InicioUtc.AddDays(-10);
     }
 
     private async Task SembrarConsultoraAsync()
@@ -211,27 +347,29 @@ public class CuadroDireccionMultiTenantTests : IAsyncLifetime
 
         var hoy = DiaDeNegocio.Hoy();
         var documento = Documento.DeTrabajador(trabajadores[0].Id, tipo.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddMonths(6)));
-        _dbContext.Documentos.Add(documento);
+        var documentoEliminado = Documento.DeTrabajador(trabajadores[1].Id, tipo.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddMonths(6)));
+        _dbContext.Documentos.AddRange(documento, documentoEliminado);
+        await _dbContext.SaveChangesAsync();
+        documentoEliminado.MarcarComoEliminado(Guid.NewGuid());
         await _dbContext.SaveChangesAsync();
 
-        var ahora = DateTime.UtcNow;
-        _dbContext.ReclamacionesDocumentales.Add(ReclamacionDocumental.ParaCliente(cliente.Id, Guid.NewGuid(), "cliente@ibertec.test", ahora, [documento.Id]));
-        _dbContext.ReclamacionesDocumentales.Add(ReclamacionDocumental.ParaCliente(cliente.Id, Guid.NewGuid(), "cliente@ibertec.test", ahora.AddDays(-40), [documento.Id]));
+        _dbContext.ReclamacionesDocumentales.Add(ReclamacionDocumental.ParaCliente(cliente.Id, Guid.NewGuid(), "cliente@ibertec.test", EnElMesEnCurso(0.5), [documento.Id]));
+        _dbContext.ReclamacionesDocumentales.Add(ReclamacionDocumental.ParaCliente(cliente.Id, Guid.NewGuid(), "cliente@ibertec.test", EnElMesAnterior(), [documento.Id]));
 
         // Dos entrantes en la misma conversación: una sola solicitud.
         var conVariosEntrantes = new Conversacion("Alta de trabajadores", cliente.Id);
-        conVariosEntrantes.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ibertec.test", "<p>Primero</p>", ahora.AddMinutes(-30));
-        conVariosEntrantes.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.Correo, "gestora@consultora.test", "<p>Respuesta</p>", ahora.AddMinutes(-20));
-        conVariosEntrantes.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ibertec.test", "<p>Segundo</p>", ahora.AddMinutes(-10));
+        conVariosEntrantes.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ibertec.test", "<p>Primero</p>", EnElMesEnCurso(0.2));
+        conVariosEntrantes.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.Correo, "gestora@consultora.test", "<p>Respuesta</p>", EnElMesEnCurso(0.4));
+        conVariosEntrantes.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ibertec.test", "<p>Segundo</p>", EnElMesEnCurso(0.6));
 
-        // Empezó hace 40 días: su solicitud es de otro mes aunque reciba un entrante hoy.
+        // Empezó el mes anterior: su solicitud es de otro mes aunque reciba un entrante en este.
         var deOtroMes = new Conversacion("Renovación", cliente.Id);
-        deOtroMes.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ibertec.test", "<p>Antiguo</p>", ahora.AddDays(-40));
-        deOtroMes.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ibertec.test", "<p>Nuevo</p>", ahora.AddMinutes(-5));
+        deOtroMes.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ibertec.test", "<p>Antiguo</p>", EnElMesAnterior());
+        deOtroMes.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ibertec.test", "<p>Nuevo</p>", EnElMesEnCurso(0.8));
 
         // Eliminada: no es demanda.
         var eliminada = new Conversacion("Spam", cliente.Id);
-        eliminada.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "spam@spam.test", "<p>Oferta</p>", ahora.AddMinutes(-15));
+        eliminada.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "spam@spam.test", "<p>Oferta</p>", EnElMesEnCurso(0.3));
         eliminada.MarcarComoEliminado(Guid.NewGuid());
 
         _dbContext.Conversaciones.AddRange(conVariosEntrantes, deOtroMes, eliminada);
@@ -259,40 +397,29 @@ public class CuadroDireccionMultiTenantTests : IAsyncLifetime
         public Guid? TenantId => AmbitoTenantExplicito.TenantIdActual;
     }
 
-    /// <summary>Perfil de dirección del Operador CAE para la lectura del principal; sin nombres que resolver.</summary>
-    private sealed class DirectorioUsuariosFalso : IDirectorioUsuariosService
+    private sealed class TenantActualNulo : ITenantActual
+    {
+        public Guid? TenantId => null;
+    }
+
+    /// <summary>Directorio con un perfil por cuenta (el rol activo en el Operador CAE) y los nombres visibles dados.</summary>
+    private sealed class DirectorioUsuariosFalso(Dictionary<Guid, string> perfiles, Dictionary<Guid, string> nombres)
+        : IDirectorioUsuariosService
     {
         public Task<bool> EsVisibleEnTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default) => Task.FromResult(true);
 
         public Task<IReadOnlyDictionary<Guid, string>> ObtenerNombresVisiblesAsync(
             IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
+            Task.FromResult<IReadOnlyDictionary<Guid, string>>(
+                usuarioIds.Where(nombres.ContainsKey).ToDictionary(id => id, id => nombres[id]));
 
         public Task<Guid?> ObtenerTenantDeUsuarioAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
             Task.FromResult<Guid?>(null);
 
         public Task<bool> EsCuentaActivaConRolAsync(Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
-            Task.FromResult(true);
+            Task.FromResult(perfiles.TryGetValue(usuarioId, out var perfil) && perfil == rol);
 
         public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<Guid>>([]);
-    }
-
-    private sealed class CurrentUserServiceFalso(Guid usuarioId, Func<Guid?> tenantOrigenId)
-        : ICurrentUserService, IEncargoDeAdministracionActual
-    {
-        public Task<Guid?> EncargoQueElevaAsync() => Task.FromResult<Guid?>(null);
-        public Guid? EncargoDeLaUltimaResolucion(Guid asignacionOperacionId) => null;
-        public Task<Guid?> EncargoPlenoAsync() => Task.FromResult<Guid?>(null);
-        public bool EncargoPlenoDeLaUltimaResolucion(Guid asignacionOperacionId) => false;
-
-        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId);
-
-        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
-        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("DireccionCae");
-
-        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(tenantOrigenId());
-
-        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+            Task.FromResult<IReadOnlyList<Guid>>(perfiles.Where(p => p.Value == rol).Select(p => p.Key).ToList());
     }
 }

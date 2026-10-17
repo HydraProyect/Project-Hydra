@@ -136,8 +136,8 @@ public class ObtenerCuadroDireccionQueryHandlerTests
             Octubre, EnOctubre, [(ibertec, Medicion()), (ecoPlant, Medicion())],
             new Dictionary<Guid, PrincipalDeCarteraDto> { [ibertec.TenantId] = principal }, 0);
 
-        resultado.Tenants.Single(t => t.TenantId == ibertec.TenantId).GestorCaePrincipal.Should().Be(principal);
-        resultado.Tenants.Single(t => t.TenantId == ecoPlant.TenantId).GestorCaePrincipal.Should().BeNull();
+        resultado.Tenants.Single(t => t.TenantId == ibertec.TenantId).PrincipalDeCartera.Should().Be(principal);
+        resultado.Tenants.Single(t => t.TenantId == ecoPlant.TenantId).PrincipalDeCartera.Should().BeNull();
     }
 
     [Fact]
@@ -149,6 +149,57 @@ public class ObtenerCuadroDireccionQueryHandlerTests
         resultado.TenantsSinAlcanceCompleto.Should().Be(2);
         resultado.Total.TrabajadoresActivos.Valor.Should().Be(7);
     }
+
+    [Theory]
+    [InlineData(2026, 0)]
+    [InlineData(2026, 13)]
+    [InlineData(1999, 10)]
+    [InlineData(9999, 12)]
+    [InlineData(int.MinValue, 1)]
+    public void Un_mes_no_valido_no_se_puede_calcular(int anyo, int mes) =>
+        MesCuadroDireccion.EsValido(anyo, mes).Should().BeFalse();
+
+    [Theory]
+    [InlineData(2000, 1)]
+    [InlineData(2026, 10)]
+    [InlineData(9998, 12)]
+    public void Un_mes_valido_tiene_fechas_calculables(int anyo, int mes)
+    {
+        MesCuadroDireccion.EsValido(anyo, mes).Should().BeTrue();
+        var calculable = new MesCuadroDireccion(anyo, mes);
+        calculable.FinUtc.Should().BeAfter(calculable.InicioUtc);
+    }
+
+    [Fact]
+    public void Un_mes_sin_cifras_sale_vacio_con_su_motivo_y_sin_fechas_si_no_es_valido()
+    {
+        var resultado = ObtenerCuadroDireccionQueryHandler.SinCifras(2026, 13, null, EnOctubre, CuadroDireccionSinCifras.MesNoValido);
+
+        resultado.SinCifras.Should().Be(CuadroDireccionSinCifras.MesNoValido);
+        resultado.Anyo.Should().Be(2026);
+        resultado.Mes.Should().Be(13);
+        resultado.InicioUtc.Should().Be(DateTime.MinValue);
+        resultado.Tenants.Should().BeEmpty();
+        resultado.Total.TrabajadoresActivos.Valor.Should().Be(0);
+        resultado.Total.Cumplimiento.SinDatos.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Un_mes_futuro_sale_vacio_con_sus_fechas()
+    {
+        var noviembre = new MesCuadroDireccion(2026, 11);
+
+        var resultado = ObtenerCuadroDireccionQueryHandler.SinCifras(2026, 11, noviembre, EnOctubre, CuadroDireccionSinCifras.MesFuturo);
+
+        resultado.SinCifras.Should().Be(CuadroDireccionSinCifras.MesFuturo);
+        resultado.InicioUtc.Should().Be(noviembre.InicioUtc);
+        resultado.FinUtc.Should().Be(noviembre.FinUtc);
+        resultado.Tenants.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Un_cuadro_calculado_no_lleva_motivo_sin_cifras() =>
+        Fusionar(EnOctubre).SinCifras.Should().BeNull();
 
     [Fact]
     public void Sin_Tenants_el_total_es_cero_y_no_falla()

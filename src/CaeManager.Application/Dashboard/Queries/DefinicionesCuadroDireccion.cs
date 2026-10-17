@@ -26,6 +26,15 @@ public enum EstadoCifraMensual
 /// </summary>
 public readonly record struct MesCuadroDireccion(int Anyo, int Mes)
 {
+    /// <summary>Años que el cuadro acepta: anteriores a TALVEG no hay datos, y el límite alto evita desbordar las fechas.</summary>
+    public const int AnyoMinimo = 2000;
+
+    public const int AnyoMaximo = 9998;
+
+    /// <summary>Si el año y el mes forman un mes que el cuadro puede calcular (antes de mirar si ya empezó).</summary>
+    public static bool EsValido(int anyo, int mes) =>
+        anyo is >= AnyoMinimo and <= AnyoMaximo && mes is >= 1 and <= 12;
+
     private DateOnly PrimerDia => new(Anyo, Mes, 1);
 
     public DateTime InicioUtc => DiaDeNegocio.InicioEnUtc(PrimerDia);
