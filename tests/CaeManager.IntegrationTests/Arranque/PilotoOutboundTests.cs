@@ -569,7 +569,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
                 var tipos = await db.TiposDocumento.AsNoTracking().ToListAsync();
                 var usados = await db.Documentos.AsNoTracking().Select(x => x.TipoDocumentoId).ToListAsync();
                 return (
-                    tipos.Where(t => t.Nombre is "Certificado de inscripción en el REA" or "Libro de Subcontratación" or "Recibo de cuota de autónomos (RETA)")
+                    tipos.Where(t => t.Nombre is "Certificado de inscripción en el REA" or "Libro de Subcontratación" or "Recibo de cuota de autónomos")
                         .ToDictionary(t => t.Nombre, t => (t.AmbitoAplicacion, t.VigenciaMeses)),
                     tipos.Where(t => usados.Contains(t.Id)).GroupBy(t => t.Nombre).ToDictionary(g => g.Key, g => usados.Count(u => g.Any(t => t.Id == u))),
                     tipos.Any(t => t.Nombre is "Relación de Maquinaria") && usados.Any(u => tipos.Any(t => t.Id == u && t.Nombre == "Relación de Maquinaria")));
@@ -579,7 +579,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             {
                 ["Certificado de inscripción en el REA"] = (AmbitoAplicacion.Empresa, 36),
                 ["Libro de Subcontratación"] = (AmbitoAplicacion.Proyecto, null),
-                ["Recibo de cuota de autónomos (RETA)"] = (AmbitoAplicacion.Empresa, 1),
+                ["Recibo de cuota de autónomos"] = (AmbitoAplicacion.Empresa, 1),
             }, $"MEDIDO {tenant.Clave}: el Tenant recibió los tres tipos por la copia del catálogo");
 
             sustituto.Should().BeFalse($"{tenant.Clave}: ningún documento usa ya «Relación de Maquinaria»");
@@ -588,23 +588,23 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             var pedidos = await fixture.Arnes.EnTenantAsync(await fixture.Arnes.TenantIdAsync(tenant.Nombre), (db, _) =>
                 (from requisito in db.TiposDocumentoCentros.AsNoTracking()
                  join tipo in db.TiposDocumento.AsNoTracking() on requisito.TipoDocumentoId equals tipo.Id
-                 where requisito.Incluido && (tipo.Nombre == "Certificado de inscripción en el REA" || tipo.Nombre == "Recibo de cuota de autónomos (RETA)")
+                 where requisito.Incluido && (tipo.Nombre == "Certificado de inscripción en el REA" || tipo.Nombre == "Recibo de cuota de autónomos")
                  group requisito by tipo.Nombre into g
                  select new { Nombre = g.Key, Centros = g.Count() }).ToDictionaryAsync(x => x.Nombre, x => x.Centros));
             pedidos.Should().BeEquivalentTo(tenant.Clave switch
             {
                 "D" => new Dictionary<string, int> { ["Certificado de inscripción en el REA"] = 3 },
-                "E" => new Dictionary<string, int> { ["Recibo de cuota de autónomos (RETA)"] = 2 },
+                "E" => new Dictionary<string, int> { ["Recibo de cuota de autónomos"] = 2 },
                 _ => []
             }, $"MEDIDO {tenant.Clave}: los Centros que piden el REA o el recibo de RETA");
             (enUso.GetValueOrDefault("Certificado de inscripción en el REA"), enUso.GetValueOrDefault("Libro de Subcontratación"),
-                enUso.GetValueOrDefault("Recibo de cuota de autónomos (RETA)"))
+                enUso.GetValueOrDefault("Recibo de cuota de autónomos"))
                 .Should().Be(tenant.Clave switch { "D" => (1, 5, 0), "E" => (0, 0, 1), _ => (0, 0, 0) }, $"MEDIDO {tenant.Clave}: dónde se usan");
         }
     }
 
     // Los dos tipos de documento que vencen solos al mes, escritos a mano.
-    private static readonly string[] CertificadosMensuales = ["Certificado de estar al corriente con la Seguridad Social", "ITA"];
+    private static readonly string[] CertificadosMensuales = ["Certificado de estar al corriente con la Seguridad Social", "Informe de trabajadores en alta"];
 
     /// <summary>
     /// Lo que la comprobación previa lista de una Empresa propia en regla: cada fila con
@@ -631,7 +631,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         var d = ArnesPilotoOutbound.FechaDemostracion();
         var hoy = DiaDeNegocio.Hoy();
         var primerDiaDeSiembra = d.AddDays(-OpcionesPilotoOutbound.MargenMaximoDias);
-        string[] deFechaManualNombrados = ["Certificado de estar al corriente con Hacienda", "Seguro de Responsabilidad Civil + recibo de pago"];
+        string[] deFechaManualNombrados = ["Certificado de estar al corriente con Hacienda", "Seguro de Responsabilidad Civil"];
         var (conVencimientoAutomatico, sinCaducidadEnTotal) = (0, 0);
 
         foreach (var tenant in CatalogoPilotoOutbound.Tenants)
@@ -976,7 +976,7 @@ public class PilotoOutboundSensibilidadTests(ITestOutputHelper salida)
         // dejaría de tener ningún Centro «Vigente» (el primero pasa a «Próximo»); se retiran (borrado lógico) y se comprueba que A vuelve a su estado.
         var vigentesDeAAntes = informe.De(a).Centros.Count(c => c.Estado == EstadoCentro.Vigente);
         vigentesDeAAntes.Should().BeGreaterThan(0, "control: A tiene Centros «Vigente» antes de tocar nada");
-        var certificados = new[] { "Certificado de estar al corriente con la Seguridad Social", "ITA" };
+        var certificados = new[] { "Certificado de estar al corriente con la Seguridad Social", "Informe de trabajadores en alta" };
         var sembradosParaElDiagnostico = await arnes.EnTenantAsync(idA, async (db, _) =>
         {
             var propia = await db.Empresas.SingleAsync(e => e.EsPropia);

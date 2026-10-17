@@ -60,7 +60,7 @@ public class DocumentacionBaseTrabajadorTests
     [Fact]
     public void Informacion_Art_18_sin_caducidad_esta_presente()
     {
-        Estado(Calcular(Doc("Información Art. 18", EstadoVigenciaDocumento.NoCaduca, null)), TipoDocumentoBase.InformacionArt18)
+        Estado(Calcular(Doc("Información de riesgos del puesto", EstadoVigenciaDocumento.NoCaduca, null)), TipoDocumentoBase.InformacionArt18)
             .Should().Be(EstadoIndicadorBase.Vigente);
     }
 
@@ -69,8 +69,8 @@ public class DocumentacionBaseTrabajadorTests
     {
         // Decisión del propietario (2026-10-01): el documento está; lo pendiente es su fecha.
         var d = Calcular(
-            Vence("Certificado de aptitud médica", 200), Vence("Formación Art. 19", 200),
-            Doc("Información Art. 18", EstadoVigenciaDocumento.NoCaduca, null),
+            Vence("Certificado de aptitud médica", 200), Vence("Formación PRL del puesto", 200),
+            Doc("Información de riesgos del puesto", EstadoVigenciaDocumento.NoCaduca, null),
             Doc("Entrega de EPI", EstadoVigenciaDocumento.SinConfirmar, null));
         Estado(d, TipoDocumentoBase.EntregaEpi).Should().Be(EstadoIndicadorBase.SinConfirmar);
         d.AlDia.Should().BeTrue();
@@ -85,7 +85,7 @@ public class DocumentacionBaseTrabajadorTests
         var d = Calcular(
             Vence("Certificado de aptitud médica", -30),
             Doc("Certificado de aptitud médica", EstadoVigenciaDocumento.SinConfirmar, null),
-            Vence("Formación Art. 19", 200), Doc("Información Art. 18", EstadoVigenciaDocumento.NoCaduca, null),
+            Vence("Formación PRL del puesto", 200), Doc("Información de riesgos del puesto", EstadoVigenciaDocumento.NoCaduca, null),
             Vence("Entrega de EPI", 200));
         Estado(d, TipoDocumentoBase.AptitudMedica).Should().Be(EstadoIndicadorBase.SinConfirmar);
         d.AlDia.Should().BeTrue();
@@ -96,11 +96,11 @@ public class DocumentacionBaseTrabajadorTests
     public void Sin_confirmar_no_tapa_un_vencido_ni_una_falta()
     {
         var conVencido = Calcular(
-            Doc("Certificado de aptitud médica", EstadoVigenciaDocumento.SinConfirmar, null), Vence("Formación Art. 19", -5),
-            Doc("Información Art. 18", EstadoVigenciaDocumento.NoCaduca, null), Vence("Entrega de EPI", 200));
+            Doc("Certificado de aptitud médica", EstadoVigenciaDocumento.SinConfirmar, null), Vence("Formación PRL del puesto", -5),
+            Doc("Información de riesgos del puesto", EstadoVigenciaDocumento.NoCaduca, null), Vence("Entrega de EPI", 200));
         var conFalta = Calcular(
-            Doc("Certificado de aptitud médica", EstadoVigenciaDocumento.SinConfirmar, null), Vence("Formación Art. 19", 200),
-            Doc("Información Art. 18", EstadoVigenciaDocumento.NoCaduca, null));
+            Doc("Certificado de aptitud médica", EstadoVigenciaDocumento.SinConfirmar, null), Vence("Formación PRL del puesto", 200),
+            Doc("Información de riesgos del puesto", EstadoVigenciaDocumento.NoCaduca, null));
         conVencido.AlDia.Should().BeFalse();
         conFalta.AlDia.Should().BeFalse();
         conVencido.TieneVigenciaSinConfirmar.Should().BeTrue();
@@ -110,20 +110,20 @@ public class DocumentacionBaseTrabajadorTests
     public void Al_dia_son_los_cuatro_correctos_y_un_proximo_a_vencer_aun_vale()
     {
         var d = Calcular(
-            Vence("Certificado de aptitud médica", 20), Vence("Formación Art. 19", 200),
-            Doc("Información Art. 18", EstadoVigenciaDocumento.NoCaduca, null), Vence("Entrega de EPI", 200));
+            Vence("Certificado de aptitud médica", 20), Vence("Formación PRL del puesto", 200),
+            Doc("Información de riesgos del puesto", EstadoVigenciaDocumento.NoCaduca, null), Vence("Entrega de EPI", 200));
         d.AlDia.Should().BeTrue();
         d.TieneVigenciaSinConfirmar.Should().BeFalse();
     }
 
     [Theory]
     [InlineData("Certificado de aptitud médica")]
-    [InlineData("Formación Art. 19")]
-    [InlineData("Información Art. 18")]
+    [InlineData("Formación PRL del puesto")]
+    [InlineData("Información de riesgos del puesto")]
     [InlineData("Entrega de EPI")]
     public void Basta_un_indicador_vencido_o_ausente_para_no_estar_al_dia(string malo)
     {
-        var tipos = new[] { "Certificado de aptitud médica", "Formación Art. 19", "Información Art. 18", "Entrega de EPI" };
+        var tipos = new[] { "Certificado de aptitud médica", "Formación PRL del puesto", "Información de riesgos del puesto", "Entrega de EPI" };
         var vencido = tipos.Select(t => Vence(t, t == malo ? -5 : 200)).ToArray();
         var ausente = tipos.Where(t => t != malo).Select(t => Vence(t, 200)).ToArray();
         Calcular(vencido).AlDia.Should().BeFalse();

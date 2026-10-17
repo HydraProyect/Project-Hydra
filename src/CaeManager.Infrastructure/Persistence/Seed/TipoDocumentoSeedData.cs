@@ -344,11 +344,32 @@ public static class TipoDocumentoSeedData
     /// catálogo no tenía nombre contaminado o su patrón (F, G, H) queda fuera
     /// de alcance a propósito (ver el docstring de la clase).
     /// </summary>
-    private static readonly Dictionary<Guid, string[]> AliasesPorId = new()
+    private static readonly Dictionary<Guid, string[]> AliasesOriginalesPorId = new()
+    {
+        // Bloque original de T3 (2026-08-29). Su orden y su contenido fijan los Id 90000000-…-000000000001 a …016 de
+        // AliasesParaMigracion: no se reordena ni se amplía; los alias nuevos van en AliasesNuevosPorId.
+        [new Guid("10000000-0000-0000-0000-000000000001")] = ["Apto médico laboral"],
+        [new Guid("10000000-0000-0000-0000-000000000002")] = ["EPIS (firma)"],
+        [new Guid("50000016-0000-0000-0000-000000000016")] = ["DNI o NIE en vigor", "DNI/NIE/TIE"],
+        [new Guid("20000000-0000-0000-0000-000000000004")] = ["RLC/TC1", "TC1"],
+        [new Guid("20000000-0000-0000-0000-000000000007")] = ["RNT/TC2", "TC2"],
+        [new Guid("2000000A-0000-0000-0000-00000000000A")] = ["SPA (Servicio de Prevención Ajeno)", "SPA"],
+        [new Guid("2000000B-0000-0000-0000-00000000000B")] = ["EVR (Evaluación de Riesgos Laborales)", "EVR"],
+        [new Guid("2000000C-0000-0000-0000-00000000000C")] = ["PAP (Planificación de la Actividad Preventiva)", "PAP"],
+        [new Guid("2000000D-0000-0000-0000-00000000000D")] = ["Tarjeta CIF", "CIF"],
+    };
+
+    /// <summary>
+    /// Alias añadidos con la revisión del catálogo del 2026-10-17: el nombre anterior de cada tipo renombrado y los
+    /// sinónimos habituales. Van en su propio bloque de Id (90000001-…, ver <see cref="AliasesParaMigracion"/>) y la
+    /// migración los inserta con ON CONFLICT DO NOTHING, para no chocar con un alias igual que un Administrador ya
+    /// hubiera añadido a mano.
+    /// </summary>
+    internal static readonly Dictionary<Guid, string[]> AliasesNuevosPorId = new()
     {
         // Trabajador
-        [new Guid("10000000-0000-0000-0000-000000000001")] = ["Apto médico laboral", "Reconocimiento médico", "Apto"],
-        [new Guid("10000000-0000-0000-0000-000000000002")] = ["EPIS (firma)", "EPI"],
+        [new Guid("10000000-0000-0000-0000-000000000001")] = ["Reconocimiento médico", "Apto"],
+        [new Guid("10000000-0000-0000-0000-000000000002")] = ["EPI"],
         [new Guid("10000000-0000-0000-0000-000000000003")] = ["Reciclaje 4h"],
         [new Guid("10000000-0000-0000-0000-000000000004")] = ["Formación Art. 19", "Formación en prevención", "Art. 19"],
         [new Guid("10000000-0000-0000-0000-000000000005")] = ["Formación 60h (base convenio)", "Formación 60h", "Recurso preventivo 60h", "Nivel básico PRL 60h"],
@@ -361,21 +382,16 @@ public static class TipoDocumentoSeedData
         [new Guid("50000000-0000-0000-0000-000000000002")] = ["TA.2", "TA2", "IDC", "Alta TA2", "Informe de datos de cotización"],
         [new Guid("50000000-0000-0000-0000-000000000005")] = ["Carne de conducir"],
         [new Guid("50000015-0000-0000-0000-000000000015")] = ["Certificado A1 de Seguridad Social", "A1", "Formulario A1"],
-        [new Guid("50000016-0000-0000-0000-000000000016")] = ["DNI o NIE en vigor", "DNI/NIE/TIE", "DNI/NIE", "DNI", "NIE"],
+        [new Guid("50000016-0000-0000-0000-000000000016")] = ["DNI/NIE", "DNI", "NIE"],
         [new Guid("60000000-0000-0000-0000-000000000001")] = ["Autorización de uso de equipo de trabajo"],
 
         // Empresa
         [new Guid("20000000-0000-0000-0000-000000000001")] = ["Certificado SS", "Certificado TGSS", "Corriente SS", "Certificado de no deuda SS"],
         [new Guid("20000000-0000-0000-0000-000000000002")] = ["Certificado AEAT", "AEAT", "Corriente Hacienda", "Certificado de contratistas"],
         [new Guid("20000000-0000-0000-0000-000000000003")] = ["ITA", "Trabajadores en alta (CCC)"],
-        [new Guid("20000000-0000-0000-0000-000000000004")] = ["RLC", "RLC/TC1", "TC1", "Recibo de pago RLC/TC1", "RLC/TC1 + Recibo de pago"],
-        [new Guid("20000000-0000-0000-0000-000000000007")] = ["RNT/TC2", "TC2"],
+        [new Guid("20000000-0000-0000-0000-000000000004")] = ["RLC", "Recibo de pago RLC/TC1", "RLC/TC1 + Recibo de pago"],
         [new Guid("20000000-0000-0000-0000-000000000008")] = ["Mutua", "Certificado de mutua", "Mutua AT/EP"],
         [new Guid("20000000-0000-0000-0000-000000000009")] = ["Seguro de Responsabilidad Civil + recibo de pago", "Seguro RC + recibo", "Seguro RC"],
-        [new Guid("2000000A-0000-0000-0000-00000000000A")] = ["SPA (Servicio de Prevención Ajeno)", "SPA"],
-        [new Guid("2000000B-0000-0000-0000-00000000000B")] = ["EVR (Evaluación de Riesgos Laborales)", "EVR"],
-        [new Guid("2000000C-0000-0000-0000-00000000000C")] = ["PAP (Planificación de la Actividad Preventiva)", "PAP"],
-        [new Guid("2000000D-0000-0000-0000-00000000000D")] = ["Tarjeta CIF", "CIF"],
         [new Guid("40000000-0000-0000-0000-000000000006")] = ["Certificado SPA"],
         [new Guid("80000000-0000-0000-0000-000000000001")] = ["REA"],
         [new Guid("80000000-0000-0000-0000-000000000003")] = ["Recibo de cuota de autónomos (RETA)", "RETA"],
@@ -387,6 +403,13 @@ public static class TipoDocumentoSeedData
         [new Guid("30000000-0000-0000-0000-000000000003")] = ["Seguro del vehículo", "Póliza del vehículo"],
     };
 
+    /// <summary>Todos los alias de cada tipo, originales primero: lo que recibe la copia del catálogo de un Tenant nuevo.</summary>
+    internal static readonly Dictionary<Guid, string[]> AliasesPorId = AliasesOriginalesPorId.Keys
+        .Concat(AliasesNuevosPorId.Keys)
+        .Distinct()
+        .ToDictionary(
+            id => id,
+            id => AliasesOriginalesPorId.GetValueOrDefault(id, []).Concat(AliasesNuevosPorId.GetValueOrDefault(id, [])).ToArray());
 
 
     /// <summary>
@@ -767,21 +790,26 @@ public static class TipoDocumentoSeedData
     /// <c>HasData</c> de <see cref="TipoDocumentoAlias"/> — mismo criterio
     /// que <see cref="ComoFilasParaMigracion"/>: el catálogo semilla
     /// pertenece al tenant #1, y estos son los únicos alias que existían
-    /// antes de que el Administrador pueda editar nada. Id deterministas
-    /// (prefijo 90000000, un bloque de 16 no usado por ningún otro seed) para
-    /// que la migración sea reproducible.
+    /// antes de que el Administrador pueda editar nada. Id deterministas para
+    /// que la migración sea reproducible: el bloque original de T3 conserva el
+    /// prefijo 90000000 (16 filas, sin reordenar), y los alias de la revisión
+    /// del 2026-10-17 usan su propio prefijo 90000001, de modo que ningún
+    /// alias ya sembrado cambia de Id.
     /// </summary>
-    public static IEnumerable<object> AliasesParaMigracion()
+    public static IEnumerable<object> AliasesParaMigracion() =>
+        FilasDeAlias(AliasesOriginalesPorId, "90000000").Concat(FilasDeAlias(AliasesNuevosPorId, "90000001"));
+
+    private static IEnumerable<object> FilasDeAlias(Dictionary<Guid, string[]> aliasesPorId, string prefijo)
     {
         var indice = 0;
-        foreach (var (tipoDocumentoId, aliases) in AliasesPorId)
+        foreach (var (tipoDocumentoId, aliases) in aliasesPorId)
         {
             foreach (var texto in aliases)
             {
                 indice++;
                 yield return new
                 {
-                    Id = new Guid($"90000000-0000-0000-0000-{indice:D12}"),
+                    Id = new Guid($"{prefijo}-0000-0000-0000-{indice:D12}"),
                     TipoDocumentoId = tipoDocumentoId,
                     Texto = texto,
                     TenantId = TenantSeedData.IdPorDefecto

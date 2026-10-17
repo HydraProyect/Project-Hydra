@@ -77,7 +77,7 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         await drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync($"{nombreTrabajador} {apellidosTrabajador}");
         await page.WaitForTimeoutAsync(500);
-        await drawer.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = "Formación 60h (base convenio)" });
+        await drawer.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = "Formación PRL de convenio" });
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));

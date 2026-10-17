@@ -107,11 +107,11 @@ public class FlujoCriticoTests(WebAppFixture fixture)
             .FillAsync($"{nombreTrabajador} {apellidosTrabajador}");
         await page.WaitForTimeoutAsync(500);
 
-        // "Formación 60h (base convenio)" no tiene vencimiento automático (ver
+        // "Formación PRL de convenio" no tiene vencimiento automático (ver
         // TipoDocumentoSeedData) — habilita el campo de fecha de vencimiento
         // manual, indispensable para fijar determinísticamente el estado del
         // semáforo en vez de depender del cálculo automático por meses.
-        await drawer.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = "Formación 60h (base convenio)" });
+        await drawer.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = "Formación PRL de convenio" });
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         // Exact: true — sin esto, GetByLabel hace match por substring y también

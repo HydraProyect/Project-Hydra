@@ -240,13 +240,13 @@ public static class CicloDocumentalDatosPruebaSeeder
             "El tipo detectado no coincide con el tipo del documento."));
 
         var resuelta1 = RevisionIaDocumento.Crear(
-            documentos[3].Id, 61, "Formación Art. 19", hoy.AddMonths(-13), hoy.AddDays(-4), true,
+            documentos[3].Id, 61, "Formación PRL del puesto", hoy.AddMonths(-13), hoy.AddDays(-4), true,
             "Confianza baja (61%); la fecha de vencimiento detectada ya pasó.");
         resuelta1.Resolver();
         dbContext.RevisionesIaDocumento.Add(resuelta1);
 
         var resuelta2 = RevisionIaDocumento.Crear(
-            documentos[4].Id, 70, "Reciclaje 4h", hoy.AddMonths(-3), hoy.AddMonths(9), true,
+            documentos[4].Id, 70, "Reciclaje PRL", hoy.AddMonths(-3), hoy.AddMonths(9), true,
             "La fecha de vencimiento introducida no coincide con la detectada.");
         resuelta2.Resolver();
         dbContext.RevisionesIaDocumento.Add(resuelta2);

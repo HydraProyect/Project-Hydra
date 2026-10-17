@@ -151,7 +151,7 @@ public partial class DrawerGestionDocumento : ComponentBase
 
         _ambitoAplicacion = nameof(AmbitoAplicacion.Trabajador);
         _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera));
-        _tiposDisponibles = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador));
+        _tiposDisponibles = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador, ParaAltaNueva: true));
 
         _editandoId = null;
         _trabajadorId = string.Empty;
@@ -409,7 +409,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         else if (ambito == AmbitoAplicacion.Proyecto && _proyectosDisponibles.Count == 0)
             _proyectosDisponibles = await Mediator.Send(new ObtenerProyectosParaSelectorQuery());
 
-        _tiposDisponibles = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: ambito));
+        _tiposDisponibles = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: ambito, ParaAltaNueva: true));
         CambiarTipoDocumento(string.Empty);
     }
 

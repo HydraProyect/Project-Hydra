@@ -24,10 +24,15 @@ namespace CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 /// <see cref="TipoDocumentoAlias"/> — es la razón de ser del campo de alias
 /// (taxonomía documental CAE §2bis): sin él, buscar "TC2" solo encontraba
 /// nada a menos que "TC2" estuviera escrito dentro del nombre.
+///
+/// <paramref name="ParaAltaNueva"/> (catálogo revisado el 2026-10-17): el selector de un alta nueva no ofrece tipos
+/// archivados, que solo conservan los Documentos que ya los usan. <paramref name="TipoActualId"/> mantiene en la lista
+/// el tipo actual de lo que se edita aunque esté archivado, para que editar no lo pierda. Sin <c>ParaAltaNueva</c>
+/// (gestión del catálogo, filtros) la lista incluye los archivados.
 /// </summary>
 public record ObtenerTiposDocumentoQuery(
     Guid? ClienteId = null, Guid? EmpresaId = null, Guid? CentroId = null, AmbitoAplicacion? AmbitoAplicacion = null,
-    string? Texto = null)
+    string? Texto = null, bool ParaAltaNueva = false, Guid? TipoActualId = null)
     : IRequest<IReadOnlyList<TipoDocumentoListaDto>>;
 
 public record TipoDocumentoListaDto(
@@ -62,6 +67,9 @@ public class ObtenerTiposDocumentoQueryHandler(ICentrosQueryContext centrosConte
 
         if (request.AmbitoAplicacion is not null)
             consulta = consulta.Where(t => t.AmbitoAplicacion == request.AmbitoAplicacion);
+
+        if (request.ParaAltaNueva)
+            consulta = consulta.Where(t => !t.Archivado || t.Id == request.TipoActualId);
 
         if (!string.IsNullOrWhiteSpace(request.Texto))
         {

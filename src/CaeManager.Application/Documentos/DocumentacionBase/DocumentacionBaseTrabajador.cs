@@ -74,8 +74,10 @@ public static class DocumentacionBaseTrabajador
         NormalizadorEtiquetaCampo.Normalizar(nombreTipo) switch
         {
             "certificado de aptitud medica" or "reconocimiento medico" or "aptitud medica" => TipoDocumentoBase.AptitudMedica,
-            "formacion art 19" => TipoDocumentoBase.FormacionArt19,
-            "informacion art 18" => TipoDocumentoBase.InformacionArt18,
+            // Nombres del catálogo revisado el 2026-10-17; el anterior sigue valiendo para la copia de un Tenant que
+            // no pudo renombrarse (ya tenía otro tipo con el nombre nuevo).
+            "formacion prl del puesto" or "formacion art 19" => TipoDocumentoBase.FormacionArt19,
+            "informacion de riesgos del puesto" or "informacion art 18" => TipoDocumentoBase.InformacionArt18,
             "entrega de epi" => TipoDocumentoBase.EntregaEpi,
             _ => null
         };
