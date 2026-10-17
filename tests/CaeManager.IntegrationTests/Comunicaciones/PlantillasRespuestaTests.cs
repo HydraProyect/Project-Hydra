@@ -1,0 +1,86 @@
+using CaeManager.Application.Common;
+using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.MultiTenancy;
+using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Repositories;
+using CaeManager.Infrastructure.Persistence.Seed;
+using FluentAssertions;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
+
+namespace CaeManager.IntegrationTests.Comunicaciones;
+
+public class PlantillasRespuestaTests : IAsyncLifetime
+{
+    private readonly string _cadena = BaseDatosPostgresDePruebas.CadenaConexionUnica();
+    public Task InitializeAsync() => Task.CompletedTask;
+    public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadena);
+
+    [Fact]
+    public async Task La_siembra_es_por_Tenant_propietario_y_no_repone_ediciones_ni_eliminaciones()
+    {
+        await using var contexto = CrearContexto();
+        await contexto.Database.MigrateAsync();
+        var tenantA = new Tenant("Plantillas A");
+        var tenantB = new Tenant("Plantillas B");
+        contexto.Tenants.AddRange(tenantA, tenantB);
+        await contexto.SaveChangesAsync();
+        await PlantillasRespuestaSeeder.SeedAsync(contexto);
+
+        using (AmbitoTenantExplicito.Establecer(tenantA.Id))
+        {
+            var plantillas = await contexto.MacrosRespuesta.OrderBy(p => p.Titulo).ToListAsync();
+            plantillas.Should().HaveCount(9);
+            plantillas[0].Actualizar("Contenido propio", "Texto revisado por el equipo", null);
+            plantillas[1].MarcarComoEliminado(Guid.NewGuid());
+            await contexto.SaveChangesAsync();
+        }
+        await PlantillasRespuestaSeeder.SeedAsync(contexto);
+        contexto.ChangeTracker.Clear();
+
+        using (AmbitoTenantExplicito.Establecer(tenantA.Id))
+        {
+            var plantillas = await contexto.MacrosRespuesta.ToListAsync();
+            plantillas.Should().HaveCount(8);
+            plantillas.Should().Contain(p => p.Titulo == "Contenido propio" && p.CuerpoHtml == "Texto revisado por el equipo");
+            plantillas.Should().OnlyContain(p => p.TenantId == tenantA.Id);
+        }
+        using (AmbitoTenantExplicito.Establecer(tenantB.Id))
+        {
+            var plantillas = await contexto.MacrosRespuesta.ToListAsync();
+            plantillas.Should().HaveCount(9).And.OnlyContain(p => p.TenantId == tenantB.Id);
+            plantillas.Should().NotContain(p => p.Titulo == "Contenido propio");
+        }
+    }
+
+    [Fact]
+    public async Task El_alta_de_un_Tenant_propietario_incluye_sus_nueve_plantillas()
+    {
+        await using var contexto = CrearContexto();
+        await contexto.Database.MigrateAsync();
+        var tenant = new Tenant("Alta con plantillas");
+        using (AmbitoTenantExplicito.Establecer(tenant.Id))
+        {
+            new TenantRepository(contexto).Agregar(tenant);
+            await contexto.SaveChangesAsync();
+            var plantillas = await contexto.MacrosRespuesta.ToListAsync();
+            plantillas.Should().HaveCount(9).And.OnlyContain(p => p.TenantId == tenant.Id);
+            plantillas.Select(p => p.Id).Should().BeEquivalentTo(PlantillasRespuestaPredefinidas.Crear(tenant.Id).Select(p => p.Id));
+        }
+    }
+
+    private CaeManagerDbContext CrearContexto()
+    {
+        var tenantActual = new TenantDelAmbito();
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_cadena, n => n.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual)).Options;
+        return new(opciones, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    private sealed class TenantDelAmbito : ITenantActual
+    {
+        public Guid? TenantId => AmbitoTenantExplicito.TenantIdActual;
+    }
+}

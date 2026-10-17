@@ -1,4 +1,6 @@
+﻿using CaeManager.Application.Comunicaciones.Commands.AplicarMacro;
 using CaeManager.Domain.Common;
+using CaeManager.Application.Comunicaciones;
 using CaeManager.Web.Features.Documentos.Recursos;
 using CaeManager.Application.Common;
 using CaeManager.Web.Features.Comunicaciones.Components;
@@ -801,7 +803,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             else
             {
                 _clienteActivo = null;
-                _macrosDisponibles = [];
+                _macrosDisponibles = await Mediator.Send(new ObtenerMacrosQuery(), _ciclo.Token);
+                if (carga != _cargaDetalleVigente) return;
                 _centrosClienteActivo = [];
             }
 
@@ -839,22 +842,35 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         }
     }
 
-    private void AplicarMacro(string macroIdTexto)
+    private bool _aplicandoMacro;
+
+    private async Task AplicarMacro(string macroIdTexto)
     {
-        _macroSeleccionadaId = macroIdTexto;
-        if (Guid.TryParse(macroIdTexto, out var macroId))
+        if (_aplicandoMacro || _conversacionSeleccionadaId is not { } conversacionId ||
+            !Guid.TryParse(macroIdTexto, out var macroId)) return;
+        _aplicandoMacro = true;
+        try
         {
-            var macro = _macrosDisponibles.FirstOrDefault(m => m.Id == macroId);
-            if (macro is not null)
+            var resultado = await Mediator.Send(new AplicarMacroCommand(conversacionId, macroId), _ciclo.Token);
+            if (_conversacionSeleccionadaId != conversacionId) return;
+            if (resultado.EsFallido)
             {
-                // Nunca pisa lo ya escrito: un borrador a medias se pierde sin
-                // remedio (el Composer no tiene deshacer), así que con texto
-                // previo la macro se añade al final, separada por una línea en blanco.
-                _textoRespuesta = string.IsNullOrWhiteSpace(_textoRespuesta)
-                    ? macro.CuerpoHtml
-                    : $"{_textoRespuesta.TrimEnd()}\n\n{macro.CuerpoHtml}";
+                ToastService.MostrarError(resultado.Error);
+                return;
             }
+            _macroSeleccionadaId = macroIdTexto;
+            _textoRespuesta = string.IsNullOrWhiteSpace(_textoRespuesta)
+                ? resultado.Valor
+                : $"{_textoRespuesta.TrimEnd()}\n\n{resultado.Valor}";
+            await CargarDetalleAsync();
         }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al aplicar la plantilla en la conversación {ConversacionId}.", conversacionId);
+            ToastService.Mostrar("No se pudo aplicar la plantilla.", TonoToast.Error);
+        }
+        finally { _aplicandoMacro = false; }
     }
 
     /// <summary>Genera el resumen de documentación exigida por el Centro elegido y lo añade a la respuesta en curso — mismo patrón de prellenado que AplicarMacro.</summary>
@@ -924,7 +940,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         // no se ha vuelto a pintar deshabilitado. Sin esta guarda salen DOS
         // correos idénticos al mismo destinatario, y un correo enviado no se
         // deshace.
-        if (_enviando) return;
+        if (_enviando || _aplicandoMacro || VariablesPlantillaRespuesta.Pendientes(_textoRespuesta).Count > 0) return;
         if (_conversacionSeleccionadaId is null || string.IsNullOrWhiteSpace(_textoRespuesta)) return;
         if (_detalle?.Canal == CanalConversacion.Correo && _errorAdjuntos is not null) return;
 
@@ -979,7 +995,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// <summary>Fallback de canal (§ 16.5): WhatsApp con la ventana de 24h cerrada continúa el MISMO hilo por correo.</summary>
     private async Task EnviarFallbackCorreoAsync()
     {
-        if (_enviando) return;
+        if (_enviando || _aplicandoMacro || VariablesPlantillaRespuesta.Pendientes(_textoRespuesta).Count > 0) return;
         if (_conversacionSeleccionadaId is null || string.IsNullOrWhiteSpace(_textoRespuesta) || string.IsNullOrWhiteSpace(_emailFallback))
             return;
 

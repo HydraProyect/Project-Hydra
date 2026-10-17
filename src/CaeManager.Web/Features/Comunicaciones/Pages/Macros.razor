@@ -1,4 +1,4 @@
-@page "/comunicaciones/macros"
+﻿@page "/comunicaciones/macros"
 @rendermode InteractiveServer
 @* Ver Bandeja.razor: mismo criterio de rol para todo el módulo. *@
 @attribute [Authorize(Roles = RolesComunicaciones.Gestion)]
@@ -213,10 +213,6 @@
         <CampoTexto Etiqueta="Título" Valor="@_titulo" ValorChanged="v => _titulo = v" Placeholder="Cómo la verás en la lista de macros"
                     MensajeError="@ObtenerError(nameof(CrearMacroCommand.Titulo))" />
 
-        @* El mockup declara el campo de «texto plano» que se escapa al guardar
-           y convierte los saltos: eso no existe. Lo que hace hoy la bandeja
-           (Bandeja.razor.cs, AplicarMacro) es copiar el contenido tal cual en
-           el cuadro de respuesta, y eso es lo que dice la ayuda. *@
         <CampoTextarea Etiqueta="Contenido" Valor="@_cuerpo" ValorChanged="v => _cuerpo = v" Filas="6"
                        Placeholder="El texto que se insertará en la respuesta"
                        MensajeError="@ObtenerError(nameof(CrearMacroCommand.CuerpoHtml))" />

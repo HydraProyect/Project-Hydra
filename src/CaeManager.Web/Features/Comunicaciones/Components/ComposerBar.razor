@@ -1,3 +1,4 @@
+﻿@using CaeManager.Application.Comunicaciones
 @*
     Barra de respuesta única del Communication Workspace (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md
     § 12.4/§ 11): antes eran dos composers separados (Bandeja para correo,
@@ -16,6 +17,16 @@
 @inject IStringLocalizer<TextosComposer> TextosAccesibles
 
 <div class="composer">
+    @if (VariablesPendientes.Count > 0)
+    {
+        <div class="composer-variables-pendientes" role="alert">
+            Completa las variables antes de enviar:
+            @foreach (var variable in VariablesPendientes)
+            {
+                <mark>@($"{{{{{variable}}}}}")</mark>
+            }
+        </div>
+    }
     @if (Canal == CanalConversacion.WhatsApp && !VentanaAbierta)
     {
         <div class="composer-banner composer-banner-cerrado">
@@ -28,7 +39,7 @@
             <CampoTexto Etiqueta="Correo del contacto" Placeholder="cliente@empresa.com" Valor="@EmailFallback" ValorChanged="v => EmailFallbackChanged.InvokeAsync(v)" />
             <CampoTextarea Valor="@Texto" ValorChanged="v => TextoChanged.InvokeAsync(v)" Filas="3" Placeholder="Escribe tu mensaje…" />
             <div class="composer-acciones">
-                <Boton Variante="VarianteBoton.Primario" Cargando="Enviando" Deshabilitado="@(string.IsNullOrWhiteSpace(Texto) || string.IsNullOrWhiteSpace(EmailFallback))"
+                <Boton Variante="VarianteBoton.Primario" Cargando="Enviando" Deshabilitado="@((string.IsNullOrWhiteSpace(Texto) || VariablesPendientes.Count > 0) || string.IsNullOrWhiteSpace(EmailFallback))"
                        OnClick="() => OnEnviarFallbackCorreo.InvokeAsync()">
                     Continuar por correo
                 </Boton>
@@ -48,7 +59,7 @@
                       disabled="@Enviando" value="@Texto"
                       @oninput="e => TextoChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)"
                       @onkeydown="ManejarTeclaAsync"></textarea>
-            <Boton Variante="VarianteBoton.Primario" Cargando="Enviando" Deshabilitado="@string.IsNullOrWhiteSpace(Texto)" OnClick="() => OnEnviar.InvokeAsync()" class="composer-boton-enviar-circular" aria-label="@TextosAccesibles["BotonEnviarMensaje"]">
+            <Boton Variante="VarianteBoton.Primario" Cargando="Enviando" Deshabilitado="@(string.IsNullOrWhiteSpace(Texto) || VariablesPendientes.Count > 0)" OnClick="() => OnEnviar.InvokeAsync()" class="composer-boton-enviar-circular" aria-label="@TextosAccesibles["BotonEnviarMensaje"]">
                 <Icono Nombre="enviar" Tamano="TamanoIcono.Pequeno" />
             </Boton>
         </div>
@@ -118,7 +129,7 @@
                     <Icono Nombre="adjunto" Tamano="TamanoIcono.Pequeno" /> Adjuntar
                     <InputFile OnChange="e => OnArchivosSeleccionados.InvokeAsync(e)" multiple />
                 </label>
-                <Boton Variante="VarianteBoton.Primario" Cargando="Enviando" Deshabilitado="@(string.IsNullOrWhiteSpace(Texto) || ErrorAdjuntos is not null)" OnClick="() => OnEnviar.InvokeAsync()">
+                <Boton Variante="VarianteBoton.Primario" Cargando="Enviando" Deshabilitado="@((string.IsNullOrWhiteSpace(Texto) || VariablesPendientes.Count > 0) || ErrorAdjuntos is not null)" OnClick="() => OnEnviar.InvokeAsync()">
                     Enviar
                 </Boton>
             </div>
@@ -135,6 +146,8 @@
     [Parameter] public EventCallback<string> TextoChanged { get; set; }
     [Parameter] public bool Enviando { get; set; }
     [Parameter] public EventCallback OnEnviar { get; set; }
+
+    private IReadOnlyList<string> VariablesPendientes => VariablesPlantillaRespuesta.Pendientes(Texto);
 
     // --- Modo Correo ---
     [Parameter] public IReadOnlyList<MacroListaDto> Macros { get; set; } = [];
@@ -159,11 +172,11 @@
     /// </summary>
     private Task ManejarAtajoCorreoAsync(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
     {
-        var puedeEnviar = !Enviando && !string.IsNullOrWhiteSpace(Texto) && ErrorAdjuntos is null;
+        var puedeEnviar = !Enviando && !(string.IsNullOrWhiteSpace(Texto) || VariablesPendientes.Count > 0) && ErrorAdjuntos is null;
         return e.Key == "Enter" && (e.CtrlKey || e.MetaKey) && puedeEnviar ? OnEnviar.InvokeAsync() : Task.CompletedTask;
     }
 
     /// <summary>Enter envía, Shift+Enter hace salto de línea — convención de chat.</summary>
     private Task ManejarTeclaAsync(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e) =>
-        e.Key == "Enter" && !e.ShiftKey ? OnEnviar.InvokeAsync() : Task.CompletedTask;
+        e.Key == "Enter" && !e.ShiftKey && !Enviando && VariablesPendientes.Count == 0 ? OnEnviar.InvokeAsync() : Task.CompletedTask;
 }

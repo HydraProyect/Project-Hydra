@@ -1,4 +1,4 @@
-using CaeManager.Application.Centros;
+﻿using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Comunicaciones.Matching;
@@ -522,7 +522,15 @@ public class ObtenerConversacionPorIdQueryHandler(
             .Select(g => new { ReclamacionId = g.Key, Total = g.Count() })
             .ToDictionaryAsync(x => x.ReclamacionId, x => x.Total, cancellationToken);
 
-        return eventosCrudos.Select(e => new EventoDetalleDto(e.Id, e.Tipo, e.ReferenciaId, e.FechaUtc, DescribirEvento(
+        var plantillaIds = eventosCrudos.Where(e => e.Tipo == TipoEventoConversacion.PlantillaAplicada).Select(e => e.ReferenciaId).ToList();
+        var titulosPlantilla = await comunicacionesContext.MacrosRespuesta
+            .Where(m => plantillaIds.Contains(m.Id))
+            .ToDictionaryAsync(m => m.Id, m => m.Titulo, cancellationToken);
+
+        return eventosCrudos.Select(e => new EventoDetalleDto(e.Id, e.Tipo, e.ReferenciaId, e.FechaUtc,
+            e.Tipo == TipoEventoConversacion.PlantillaAplicada
+                ? $"Se aplic? la plantilla {titulosPlantilla.GetValueOrDefault(e.ReferenciaId, "eliminada")} al borrador."
+                : DescribirEvento(
             e.Tipo, e.ReferenciaId, visitas, nombresCentroVisita, documentos, nombresTipoDocumentoEventos,
             nombresTrabajadorDocumentos, nombresEmpresaDocumentos, documentosPorReclamacion))).ToList();
     }

@@ -1090,6 +1090,7 @@ using (var scope = app.Services.CreateScope())
         // idempotente y reconciliador, así que se ejecuta en cada arranque hasta
         // que la doble escritura quede establecida (F1 del plan de migración).
         await AsignacionesOperativasBackfillSeeder.SeedAsync(dbContextBootstrap, logger);
+        await PlantillasRespuestaSeeder.SeedAsync(dbContextBootstrap);
 
         // Autoverificación del piloto, después de TODA la siembra: mide con las consultas de las
         // pantallas y compara con la matriz. Si esta ejecución sembró, una discrepancia —o no poder
