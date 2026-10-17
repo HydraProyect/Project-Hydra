@@ -12,7 +12,7 @@ namespace CaeManager.Infrastructure.Persistence;
 /// <c>CaeManagerDbRuntime</c>.
 ///
 /// <para>
-/// <b>Por qué existe.</b> Dos seeders del arranque no son tráfico de aplicación y
+/// <b>Por qué existe.</b> Los seeders administrativos no son tráfico de aplicación y
 /// no pueden ejecutarse bajo una identidad sometida a RLS por-tenant:
 /// </para>
 /// <list type="bullet">
@@ -31,6 +31,11 @@ namespace CaeManager.Infrastructure.Persistence;
 /// catálogos de asignación exige <c>PropietarioTenantId = app.tenant_id</c>, así
 /// que todas las filas salvo las del tenant fijado serían rechazadas.
 /// </description></item>
+/// <item><description>
+/// <c>PlantillasRespuestaSeeder</c> instala el catálogo estático de nueve Macros en los
+/// Tenants propietarios existentes. No existe una sesión de usuario desde la que enumerarlos.
+/// Cada escritura usa su ámbito explícito; nunca copia datos operativos entre Tenants propietarios.
+/// </description></item>
 /// </list>
 ///
 /// <para>
@@ -41,7 +46,7 @@ namespace CaeManager.Infrastructure.Persistence;
 /// </para>
 ///
 /// <para>
-/// <b>Alcance deliberadamente estrecho.</b> Solo esos dos. Los otros siete
+/// <b>Alcance deliberadamente estrecho.</b> Solo los declarados arriba. Los demás
 /// seeders del arranque operan dentro de un <c>AmbitoTenantExplicito</c> que fija
 /// <c>app.tenant_id</c> antes de escribir, que es exactamente lo que las políticas
 /// por-tenant piden, y siguen usando el contexto inyectado. Esa clasificación es

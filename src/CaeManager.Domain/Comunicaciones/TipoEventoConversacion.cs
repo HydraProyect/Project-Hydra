@@ -25,5 +25,8 @@ public enum TipoEventoConversacion
     /// que lo provocó: sirve para distinguir en el timeline un correo redactado
     /// a mano de uno que salió de la operación documental.
     /// </summary>
-    ReclamacionEnviada = 3
+    ReclamacionEnviada = 3,
+
+    /// <summary>ReferenciaId identifica la MacroRespuesta aplicada al borrador; no identifica al Gestor CAE.</summary>
+    PlantillaAplicada = 4
 }

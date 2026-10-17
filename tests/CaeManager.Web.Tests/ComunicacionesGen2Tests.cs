@@ -4,6 +4,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Commands.AplicarMacro;
 using CaeManager.Application.Comunicaciones.Commands.CambiarEstadoConversacion;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
@@ -211,6 +212,7 @@ public class ComunicacionesGen2Tests : BunitContext
         public List<MensajeBuzonPersonalDto> BuzonPersonal { get; } = [];
 
         public List<MacroListaDto> Macros { get; } = [];
+        private readonly List<(Guid ConversacionId, EventoDetalleDto Evento)> _plantillasAplicadas = [];
 
         /// <summary>Lo que devolvería <c>ObtenerCompanerosGestorCaeQuery</c>: ya acotado por Application, la página no filtra.</summary>
         public List<CompaneroGestorCaeDto> Companeros { get; } = [];
@@ -230,10 +232,11 @@ public class ComunicacionesGen2Tests : BunitContext
                 ObtenerClientesParaSelectorQuery => Clientes.ToList(),
                 ObtenerConversacionesQuery q => Pagina(q),
                 ObtenerMensajesBuzonPersonalQuery => BuzonPersonal.ToList(),
-                ObtenerConversacionPorIdQuery q => Detalle(q.Id),
+                ObtenerConversacionPorIdQuery q => DetalleConPlantillas(q.Id),
                 ObtenerClientePorIdQuery q => new ClienteDetalleDto(
                     q.Id, Clientes.First(c => c.Id == q.Id).RazonSocial, "A11111111", false, null, DateTime.UtcNow, null, Guid.NewGuid()),
                 ObtenerMacrosQuery => Macros.ToList(),
+                AplicarMacroCommand c => AplicarPlantilla(c),
                 ObtenerCompanerosGestorCaeQuery => Companeros.ToList(),
                 ObtenerCentrosParaSelectorQuery => new List<CentroSelectorDto>(),
                 ObtenerTiposDocumentoQuery => new List<TipoDocumentoListaDto>(),
@@ -244,6 +247,24 @@ public class ComunicacionesGen2Tests : BunitContext
                 CambiarEstadoConversacionCommand => Result.Exito(),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.")
             });
+
+        private Result<string> AplicarPlantilla(AplicarMacroCommand comando)
+        {
+            var plantilla = Macros.Single(m => m.Id == comando.MacroId);
+            _plantillasAplicadas.Add((comando.ConversacionId,
+                new EventoDetalleDto(Guid.NewGuid(), TipoEventoConversacion.PlantillaAplicada, plantilla.Id,
+                    DateTime.UtcNow, $"Se aplicó la plantilla {plantilla.Titulo} al borrador.")));
+            return Result.Exito(plantilla.CuerpoHtml);
+        }
+
+        private ConversacionDetalleDto? DetalleConPlantillas(Guid id)
+        {
+            var detalle = Detalle(id);
+            return detalle is null ? null : detalle with
+            {
+                Eventos = detalle.Eventos.Concat(_plantillasAplicadas.Where(p => p.ConversacionId == id).Select(p => p.Evento)).ToList()
+            };
+        }
 
         /// <summary>Los filtros que esta pantalla manda de verdad; el resto de la consulta no los usan estos tests.</summary>
         public ResultadoPaginado<ConversacionListaDto> Pagina(ObtenerConversacionesQuery q)
@@ -1241,10 +1262,15 @@ public class ComunicacionesGen2Tests : BunitContext
         escenario.Conversaciones.Add(conversacion);
         var macro = new MacroListaDto(Guid.NewGuid(), null, null, "Acuse", "Gracias, lo revisamos hoy.", Guid.NewGuid());
         escenario.Macros.Add(macro);
-        var (cut, _) = Renderizar(escenario);
+        var (cut, mediador) = Renderizar(escenario);
         await SeleccionarFila(cut, "Documentación pendiente");
 
         await cut.Find(".composer-macro-campo select").ChangeAsync(new ChangeEventArgs { Value = macro.Id.ToString() });
+
+        var aplicada = mediador.Enviados.OfType<AplicarMacroCommand>().Should().ContainSingle().Which;
+        aplicada.ConversacionId.Should().Be(conversacion.Id);
+        aplicada.MacroId.Should().Be(macro.Id);
+        cut.Find(".timeline-evento-fila").TextContent.Should().Contain("Se aplicó la plantilla Acuse al borrador.");
 
         TextareaCorreo(cut).TextContent.Should().Be("Gracias, lo revisamos hoy.");
     }
