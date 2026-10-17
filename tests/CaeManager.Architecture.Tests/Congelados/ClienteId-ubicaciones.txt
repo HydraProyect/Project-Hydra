@@ -519,3 +519,4 @@ src/CaeManager.Web/Services/CurrentUserService.cs :: TenantClienteId = 1
 src/CaeManager.Web/Services/CurrentUserService.cs :: tenantClienteId = 2
 src/CaeManager.Web/Services/RevalidacionClienteActivoMiddleware.cs :: TenantClienteId = 1
 src/CaeManager.Web/Services/TrazaSoporteService.cs :: TenantClienteId = 1
+src/CaeManager.Infrastructure/Dashboard/CierreMensualCuadroDireccionHostedService.cs :: ClienteId = 1
