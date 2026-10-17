@@ -4,9 +4,9 @@
     "net10.0": {
       "AngleSharp": {
         "type": "Direct",
-        "requested": "[1.8.4, )",
-        "resolved": "1.8.4",
-        "contentHash": "lbwt3oqjyxI6x01NT0kRqnudE+gxLqRAs/X49/iVWyguj6OtRfYCanV1mL+jYZgeeAqnGqWzqi7+s5gdtBF1Ag=="
+        "requested": "[1.8.5, )",
+        "resolved": "1.8.5",
+        "contentHash": "BUgFIpmkjwMPi6QneHUHaprjUOGSXoWEF/xi/2seHCpnI8XMHACNiC09rn9qL8jbxrP8jWyJ3DnOjsGvXWNGmw=="
       },
       "bunit": {
         "type": "Direct",
@@ -1342,7 +1342,7 @@
         "dependencies": {
           "AWSSDK.KeyManagementService": "[4.0.100.14, )",
           "AWSSDK.S3": "[4.0.104.2, )",
-          "AngleSharp": "[1.8.4, )",
+          "AngleSharp": "[1.8.5, )",
           "CaeManager.Application": "[1.0.0, )",
           "CaeManager.Domain": "[1.0.0, )",
           "ClosedXML": "[0.105.*, )",
@@ -1364,7 +1364,7 @@
       "caemanager.migrations.postgresql": {
         "type": "Project",
         "dependencies": {
-          "AngleSharp": "[1.8.4, )",
+          "AngleSharp": "[1.8.5, )",
           "CaeManager.Infrastructure": "[1.0.0, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
         }
@@ -1372,7 +1372,7 @@
       "caemanager.web": {
         "type": "Project",
         "dependencies": {
-          "AngleSharp": "[1.8.4, )",
+          "AngleSharp": "[1.8.5, )",
           "AspNetCore.HealthChecks.NpgSql": "[9.0.0, )",
           "Blazor-ApexCharts": "[7.0.0, )",
           "CaeManager.Application": "[1.0.0, )",
