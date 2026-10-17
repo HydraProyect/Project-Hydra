@@ -45,6 +45,7 @@ public partial class SelectorClienteActivo
     [Inject] private ICurrentUserService CurrentUserService { get; set; } = default!;
     [Inject] private IContadorPendientesSelectorTenant ContadorPendientes { get; set; } = default!;
     [Inject] private ILectorRecientesSelectorTenant LectorRecientes { get; set; } = default!;
+    [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
 
     private IReadOnlyList<ClienteAutorizadoDto>? _clientes;
     private ClienteAutorizadoDto? _activo;
@@ -61,6 +62,48 @@ public partial class SelectorClienteActivo
     private bool _pendientesIniciados;
     private bool _desechado;
 
+    // Fijadas (Design, 2026-10-17). Viven en el localStorage del navegador (LIMITACIÓN CONOCIDA: por
+    // usuario y por navegador, no viajan con la cuenta), y el módulo JS las lee y las guarda. Son una
+    // preferencia: aquí se recortan siempre al conjunto que el servidor acaba de autorizar.
+    private readonly List<Guid> _fijadas = [];
+    private IJSObjectReference? _moduloFijadas;
+    private IJSObjectReference? _atajosFijadas;
+    private bool _fijadasIniciadas;
+
+    /// <summary>Cuántas de las fijadas llevan atajo Alt+cifra (Alt+1…Alt+5).</summary>
+    public const int MaximoAtajos = 5;
+
+    /// <summary>Solo se puede fijar con usuario conocido (la clave de almacenamiento) y con el módulo cargado.</summary>
+    private bool PuedeFijar => _usuarioId is not null && _moduloFijadas is not null;
+
+    /// <summary>Clave del almacenamiento local: una por usuario, para que dos cuentas del mismo navegador no se pisen.</summary>
+    private string? ClaveFijadas => _usuarioId?.ToString("N");
+
+    /// <summary>
+    /// Ids de lo que se puede fijar y por tanto lleva atajo (la cartera, sin la organización propia), para el
+    /// JS de Alt+1…5: lo que el servidor ya autorizó, nunca lo que diga el almacenamiento.
+    /// </summary>
+    private string IdsFijables => _clientes is null
+        ? string.Empty
+        : string.Join(",", _clientes.Where(c => !c.EsOrigen).Select(c => c.TenantId));
+
+    /// <summary>
+    /// Las fijadas tal como se pintan: en el orden en que se fijaron, solo las que siguen en la cartera
+    /// autorizada, y ninguna mientras se busca (la búsqueda ve la cartera entera, plana).
+    /// </summary>
+    private IReadOnlyList<ClienteAutorizadoDto> Fijadas => _clientes is null || !string.IsNullOrWhiteSpace(_busqueda)
+        ? []
+        : _fijadas
+            .Select(id => _clientes.FirstOrDefault(c => c.TenantId == id))
+            .OfType<ClienteAutorizadoDto>()
+            .Where(c => !c.EsOrigen)
+            .ToList();
+
+    /// <summary>Hay una sección encima de la lista principal: entonces esta se titula «Resto de la cartera».</summary>
+    private bool HayGruposArriba => Fijadas.Count > 0 || Recientes.Count > 0;
+
+    private bool EsFijada(ClienteAutorizadoDto cliente) => _fijadas.Contains(cliente.TenantId);
+
     /// <summary>Tope de espera del contador: pasado, el selector sigue sin contador (nunca bloquea).</summary>
     public static readonly TimeSpan EsperaMaximaPendientes = TimeSpan.FromSeconds(10);
 
@@ -76,7 +119,7 @@ public partial class SelectorClienteActivo
     /// <see cref="UmbralBusqueda"/> Tenants o más; por debajo, su texto es siempre vacío.
     /// </summary>
     private IEnumerable<ClienteAutorizadoDto> Filtrados => string.IsNullOrWhiteSpace(_busqueda)
-        ? _clientes!.Where(c => !c.EsOrigen && !Recientes.Contains(c))
+        ? _clientes!.Where(c => !c.EsOrigen && !Recientes.Contains(c) && !EsFijada(c))
         : _clientes!.Where(c => !c.EsOrigen && CultureInfo.CurrentCulture.CompareInfo.IndexOf(
             c.Nombre, _busqueda.Trim(), CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0);
 
@@ -123,7 +166,7 @@ public partial class SelectorClienteActivo
         : _recientesIds
             .Select(id => _clientes.FirstOrDefault(c => c.TenantId == id))
             .OfType<ClienteAutorizadoDto>()
-            .Where(c => !c.EsOrigen && c.TenantId != _activo?.TenantId)
+            .Where(c => !c.EsOrigen && c.TenantId != _activo?.TenantId && !EsFijada(c))
             .Take(RecientesSelectorTenant.Maximo)
             .ToList();
 
@@ -157,6 +200,8 @@ public partial class SelectorClienteActivo
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        await IniciarFijadasAsync();
+
         if (!_enfocarBuscador) return;
 
         _enfocarBuscador = false;
@@ -167,6 +212,58 @@ public partial class SelectorClienteActivo
         catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException or TaskCanceledException)
         {
             // Sin buscador en el DOM o circuito cerrado: el foco es una comodidad.
+        }
+    }
+
+    /// <summary>
+    /// Carga las fijadas del navegador y registra Alt+1…5, una sola vez y solo cuando el selector se pinta
+    /// (con una sola empresa no hay selector ni atajos). Todo es comodidad: si el interop falla, el selector
+    /// sigue funcionando sin estrellas.
+    /// </summary>
+    private async Task IniciarFijadasAsync()
+    {
+        if (_fijadasIniciadas || _desechado || _activo is null || _clientes is null || ClaveFijadas is not { } clave
+            || !ClientesAutorizados.SelectorVisible(_clientes, _activo))
+            return;
+
+        _fijadasIniciadas = true;
+        try
+        {
+            _moduloFijadas = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/selector-tenant-fijadas.js");
+            var guardadas = await _moduloFijadas.InvokeAsync<string[]>("leerFijadas", clave);
+            _atajosFijadas = await _moduloFijadas.InvokeAsync<IJSObjectReference>("registrarAtajos", clave);
+
+            var permitidas = _clientes.Where(c => !c.EsOrigen).Select(c => c.TenantId).ToHashSet();
+            foreach (var texto in guardadas ?? []) // null si el interop no responde
+                if (Guid.TryParse(texto, out var id) && permitidas.Contains(id) && !_fijadas.Contains(id))
+                    _fijadas.Add(id);
+
+            StateHasChanged();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException or TaskCanceledException)
+        {
+            // Sin módulo o con el circuito cerrado: sin fijadas.
+            _moduloFijadas = null;
+        }
+    }
+
+    private async Task AlternarFijadaAsync(Guid tenantId)
+    {
+        if (!PuedeFijar || ClaveFijadas is not { } clave
+            || _clientes?.FirstOrDefault(c => c.TenantId == tenantId) is not { EsOrigen: false })
+            return;
+
+        if (!_fijadas.Remove(tenantId))
+            _fijadas.Add(tenantId);
+
+        try
+        {
+            if (_moduloFijadas is not null)
+                await _moduloFijadas.InvokeVoidAsync("guardarFijadas", clave, _fijadas.Select(id => id.ToString()).ToArray());
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException or TaskCanceledException)
+        {
+            // La estrella vale hasta recargar: guardarla es una comodidad.
         }
     }
 
@@ -195,6 +292,27 @@ public partial class SelectorClienteActivo
     {
         _desechado = true;
         NavigationManager.LocationChanged -= AlNavegar;
+    }
+
+    // Con IAsyncDisposable, el renderizador llama solo a esta y no a Dispose(): se repite aquí la baja del evento.
+    public async ValueTask DisposeAsync()
+    {
+        Dispose();
+        try
+        {
+            if (_atajosFijadas is not null)
+            {
+                await _atajosFijadas.InvokeVoidAsync("dispose");
+                await _atajosFijadas.DisposeAsync();
+            }
+
+            if (_moduloFijadas is not null)
+                await _moduloFijadas.DisposeAsync();
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException)
+        {
+            // El circuito puede cerrarse antes de este Dispose (mismo motivo que AtajosGlobales).
+        }
     }
 
     /// <summary>

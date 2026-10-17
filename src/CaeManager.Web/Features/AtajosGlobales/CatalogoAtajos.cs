@@ -72,6 +72,13 @@ public static class CatalogoAtajos
         "clientes", "empresas", "centros", "trabajadores", "documentos"
     ];
 
+    /// <summary>
+    /// Adónde lleva «u» (subir): la pantalla de subida de documentos que ya existe. El atajo solo
+    /// navega: la pantalla autoriza por su cuenta (<c>SubidaMasiva</c>, <c>[Authorize(Roles=…)]</c>), y
+    /// <c>AtajosGlobalesTests</c> comprueba que la ruta sigue siendo la de una página real.
+    /// </summary>
+    public const string RutaSubida = "/documentos/subida-masiva";
+
     public static readonly IReadOnlyList<DefinicionAtajo> Navegacion =
     [
         new("g c", "IrAClientes"),
@@ -89,6 +96,8 @@ public static class CatalogoAtajos
     public static readonly IReadOnlyList<DefinicionAtajo> Acciones =
     [
         new("n", "AccionNuevoAqui"),
+        new("u", "AccionSubir"),
+        new("Alt + 1 – 5", "AccionEmpresaFijada"),
         new("Ctrl/Cmd + K", "AccionBuscadorGlobal"),
         new("?", "AccionMostrarAyuda")
     ];

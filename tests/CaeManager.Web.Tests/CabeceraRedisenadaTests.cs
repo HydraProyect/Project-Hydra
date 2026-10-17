@@ -307,7 +307,45 @@ public class CabeceraRedisenadaTests : BunitContext
     {
         var cut = RenderMigas("/documentos/revision-ia");
 
-        cut.FindAll("li.miga").Select(m => m.TextContent.Trim()).Should().Equal("Negocio", "Documentos");
+        cut.FindAll("li.miga").Select(m => m.TextContent.Trim()).Should().Equal("Negocio", "Documentos", "Revisión IA");
+    }
+
+    [Theory]
+    [InlineData("/incidencias", "Negocio", "Documentos", "Incidencias", "/documentos")]
+    [InlineData("/roles", "Administración", "Equipo", "Roles", "/usuarios")]
+    public void Una_pestana_de_seccion_lleva_su_seccion_en_medio_como_en_el_marco_de_Design(
+        string ruta, string grupo, string seccion, string pestana, string rutaSeccion)
+    {
+        var cut = RenderMigas(ruta);
+
+        cut.FindAll("li.miga").Select(m => m.TextContent.Trim()).Should().Equal(grupo, seccion, pestana);
+        cut.Find("li.miga a").GetAttribute("href").Should().Be(rutaSeccion, "la sección sube a su primera pestaña");
+        cut.Find("li.miga-actual").GetAttribute("aria-current").Should().Be("page");
+    }
+
+    [Fact]
+    public void La_pestana_de_Revision_IA_por_su_parametro_tambien_lleva_la_seccion_en_medio()
+    {
+        var cut = RenderMigas("/documentos?pestana=revision-ia");
+
+        cut.FindAll("li.miga").Select(m => m.TextContent.Trim()).Should().Equal("Negocio", "Documentos", "Revisión IA");
+    }
+
+    [Fact]
+    public void La_primera_pestana_de_una_seccion_es_la_propia_entrada_del_menu()
+    {
+        RenderMigas("/documentos").FindAll("li.miga").Select(m => m.TextContent.Trim()).Should().Equal("Negocio", "Documentos");
+    }
+
+    [Fact]
+    public void Una_ficha_de_Incidencia_sube_a_su_pestana_con_un_enlace()
+    {
+        var id = Guid.NewGuid();
+
+        var cut = RenderMigas($"/incidencias/{id}");
+
+        cut.FindAll("li.miga a").Select(a => a.GetAttribute("href")).Should().Equal("/documentos", "/incidencias");
+        cut.FindAll("li.miga").Select(m => m.TextContent.Trim()).Should().Equal("Negocio", "Documentos", "Incidencias", "Ficha");
     }
 
     [Fact]

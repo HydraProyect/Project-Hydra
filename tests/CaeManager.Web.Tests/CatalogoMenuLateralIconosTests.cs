@@ -43,7 +43,9 @@ public class CatalogoMenuLateralIconosTests
         var usuarios = CatalogoMenuLateral.Enlaces.Single(e => e.Id == "usuarios");
 
         equipo.Ruta.Should().Be(usuarios.Ruta, "es la misma pantalla, ya autorizada por su propio rol");
-        equipo.Rotulo.Should().Be("Mi equipo");
-        usuarios.Rotulo.Should().Be("Usuarios");
+        // Design (2026-10-17): Usuarios, Roles y Carteras se agrupan bajo «Equipo»; el Administrador y el
+        // Coordinador CAE ven la misma entrada, cada una con su propio permiso.
+        equipo.Rotulo.Should().Be("Equipo");
+        usuarios.Rotulo.Should().Be("Equipo");
     }
 }

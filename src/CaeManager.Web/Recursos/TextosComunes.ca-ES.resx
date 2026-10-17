@@ -504,4 +504,37 @@
   <data name="ListaResultadosUnidad" xml:space="preserve"><value>resultats</value></data>
   <data name="ListaDocumentacion" xml:space="preserve"><value>Documentació</value></data>
   <data name="ListaEstado" xml:space="preserve"><value>Estat</value></data>
+  <data name="SeccionAriaEtiqueta" xml:space="preserve">
+    <value>Seccions de {0}</value>
+  </data>
+  <data name="SeccionDocumentos" xml:space="preserve">
+    <value>Documents</value>
+  </data>
+  <data name="SeccionEquipo" xml:space="preserve">
+    <value>Equip</value>
+  </data>
+  <data name="SeccionTodosLosDocumentos" xml:space="preserve">
+    <value>Tots els documents</value>
+  </data>
+  <data name="SeccionIncidencias" xml:space="preserve">
+    <value>Incidències</value>
+  </data>
+  <data name="SeccionUsuarios" xml:space="preserve">
+    <value>Usuaris</value>
+  </data>
+  <data name="SeccionRoles" xml:space="preserve">
+    <value>Rols</value>
+  </data>
+  <data name="SelectorTenantFijadas" xml:space="preserve">
+    <value>Fixades</value>
+  </data>
+  <data name="SelectorTenantResto" xml:space="preserve">
+    <value>Resta de la cartera</value>
+  </data>
+  <data name="SelectorTenantFijar" xml:space="preserve">
+    <value>Fixa a dalt</value>
+  </data>
+  <data name="SelectorTenantQuitarFijada" xml:space="preserve">
+    <value>Treu de les fixades</value>
+  </data>
 </root>

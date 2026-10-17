@@ -332,7 +332,7 @@ public class NavMenuCaracterizacionTests
         var cut = Pintar(new Combinacion(Roles.Administrador, null, comunicaciones, false, PerfilVocabularioTenant.Consultora, 1), null);
 
         cut.FindAll("[data-subopcion='config-macros']").Any().Should().Be(esperada);
-        cut.FindAll("[data-subopcion='config-usuarios']").Should().HaveCount(1, "control positivo: el resto de Configuración sigue");
+        cut.FindAll("[data-subopcion='config-api']").Should().HaveCount(1, "control positivo: el resto de Configuración sigue");
     }
 
     [Fact]
@@ -345,11 +345,11 @@ public class NavMenuCaracterizacionTests
         plantillas.QuerySelector(".nav-resultado-texto")!.TextContent.Trim().Should().Be("Plantillas");
         plantillas.QuerySelector(".nav-resultado-padre")!.TextContent.Trim().Should().Be("Documentos");
 
-        var usuarios = cut.Find("a[data-subopcion='config-usuarios']");
-        usuarios.GetAttribute("href").Should().Be("configuracion/usuarios");
-        usuarios.QuerySelector(".nav-resultado-padre")!.TextContent.Trim().Should().Be("Configuración");
-        usuarios.QuerySelector(".nav-resultado-texto")!.TextContent.Trim().Should().NotBeEmpty();
-        usuarios.HasAttribute("hidden").Should().BeTrue("nacen ocultas: el JS muestra solo las que casan con lo escrito");
+        var api = cut.Find("a[data-subopcion='config-api']");
+        api.GetAttribute("href").Should().Be("configuracion/api");
+        api.QuerySelector(".nav-resultado-padre")!.TextContent.Trim().Should().Be("Configuración");
+        api.QuerySelector(".nav-resultado-texto")!.TextContent.Trim().Should().NotBeEmpty();
+        api.HasAttribute("hidden").Should().BeTrue("nacen ocultas: el JS muestra solo las que casan con lo escrito");
     }
 
     [Fact]
