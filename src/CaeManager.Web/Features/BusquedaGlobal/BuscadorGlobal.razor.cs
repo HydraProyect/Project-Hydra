@@ -108,6 +108,7 @@ public partial class BuscadorGlobal
 
     /// <summary>true mientras la query está vacía (&lt;2 caracteres) — el estado que muestra Recientes + En esta pantalla en vez de resultados de búsqueda.</summary>
     private bool ConsultaVacia => _termino.Trim().Length < 2;
+    private DocumentoBuscado? DocumentoActual => DocumentoBuscado.Analizar(_termino);
 
     /// <summary>
     /// Marcador para "Guardar filtro actual" en <see cref="AccionesContextualesPorPantalla"/> — a
@@ -142,6 +143,8 @@ public partial class BuscadorGlobal
         ("Crear Cliente", "/clientes?accion=crear"),
         ("Alta guiada de Cliente", "/clientes/alta-guiada"),
         ("Crear documento", "/documentos?accion=crear"),
+        ("Reclamar…", "/comunicaciones"),
+        ("Subir…", "/documentos?accion=crear"),
     ];
 
     private IReadOnlyList<ItemBusquedaDto> IrA
@@ -149,6 +152,10 @@ public partial class BuscadorGlobal
         get
         {
             var termino = _termino.Trim();
+            if (termino.StartsWith("ir a", StringComparison.OrdinalIgnoreCase))
+                termino = termino[4..].Trim();
+            if (_termino.Trim().Equals("ir a", StringComparison.OrdinalIgnoreCase))
+                return CoberturaDePaleta.DestinosNavegacion.Select(c => new ItemBusquedaDto(Guid.Empty, c.Nombre, null, c.Ruta)).ToList();
             if (termino.Length < 2) return [];
 
             return CoberturaDePaleta.DestinosNavegacion
@@ -171,13 +178,16 @@ public partial class BuscadorGlobal
         {
             var termino = _termino.Trim();
             if (termino.Length < 2) return [];
+            if (DocumentoActual is not null) return [];
+            if (termino.Equals("ir a", StringComparison.OrdinalIgnoreCase) ||
+                termino.StartsWith("ir a ", StringComparison.OrdinalIgnoreCase)) return [];
 
             var acciones = AccionesFijas
                 .Where(c => c.Nombre.Contains(termino, StringComparison.OrdinalIgnoreCase))
                 .Select(c => new ItemBusquedaDto(Guid.Empty, c.Nombre, null, c.Ruta))
                 .ToList();
 
-            if (_resultado is not null)
+            if (_resultado is not null && !acciones.Any(a => a.Titulo is "Reclamar…" or "Subir…"))
             {
                 var terminoCodificado = Uri.EscapeDataString(termino);
 
@@ -272,6 +282,7 @@ public partial class BuscadorGlobal
         get
         {
             var grupos = new List<GrupoPaleta>();
+            if (DocumentoActual is { EsValido: false }) return grupos;
 
             if (ConsultaVacia)
             {
@@ -320,12 +331,16 @@ public partial class BuscadorGlobal
     private static ItemPaleta ComoAccion(ItemBusquedaDto item) =>
         new(item, "Accion", "editar", string.Empty, "ejecutar");
 
-    private static IEnumerable<ItemPaleta> ComoEntidades(
+    private IEnumerable<ItemPaleta> ComoEntidades(
         IReadOnlyList<ItemBusquedaDto> items, string tipoHistorial, string etiquetaTipo, string icono) =>
-        items.Select(i => new ItemPaleta(i, tipoHistorial, icono, ComponerSubtitulo(etiquetaTipo, i.Subtitulo), "abrir ficha"));
+        items.Select(i => new ItemPaleta(i, tipoHistorial, icono,
+            tipoHistorial == "Trabajador" && DocumentoActual is not null
+                ? ComponerSubtitulo("Coincide con el documento buscado", i.Subtitulo)
+                : ComponerSubtitulo(etiquetaTipo, i.Subtitulo), "abrir ficha"));
 
-    private static IEnumerable<ItemPaleta> ComoEntidadesEmpresa(IReadOnlyList<ItemBusquedaDto> items) =>
-        items.Select(i => new ItemPaleta(i, "Empresa", "empresas", ComponerSubtituloEmpresa(i.Subtitulo), "abrir ficha"));
+    private IEnumerable<ItemPaleta> ComoEntidadesEmpresa(IReadOnlyList<ItemBusquedaDto> items) =>
+        items.Select(i => new ItemPaleta(i, "Empresa", "empresas",
+            DocumentoActual is not null ? "Coincide con el CIF buscado" : ComponerSubtituloEmpresa(i.Subtitulo), "abrir ficha"));
 
     /// <summary>Todas las filas en el orden en que se pintan, para navegar con ↑↓/Tab + Enter.</summary>
     private IReadOnlyList<ItemPaleta> ElementosPlanos => [.. GruposVisibles.SelectMany(g => g.Items)];
@@ -479,6 +494,11 @@ public partial class BuscadorGlobal
     private string TextoAmbitoPie => string.Format(CultureInfo.CurrentUICulture, TextosBusquedaGlobal.Texto("AmbitoPie"), AmbitoRotulo);
 
     private string TextoSinResultados =>
+        DocumentoActual is { } documento
+        ? documento.Tipo == CaeManager.Domain.Common.TipoIdentificacion.NifEmpresa
+            ? "Ninguna Empresa ni Cliente de tu cartera con ese CIF"
+            : "Ningún Trabajador de tu cartera con ese documento"
+        :
         string.Format(CultureInfo.CurrentUICulture, TextosBusquedaGlobal.Texto("SinResultados"), _termino, AmbitoRotulo)
         + (_selectorVisible ? " " + TextosBusquedaGlobal.Texto("SinResultadosPistaSelector") : "");
 
@@ -790,12 +810,13 @@ public partial class BuscadorGlobal
         // es el que disparó esta búsqueda.
         var generacion = ++_generacionBusqueda;
         var termino = _termino;
+        _resultado = null;
 
         _debounceCts?.Cancel();
         _debounceCts?.Dispose();
         _debounceCts = null;
 
-        if (termino.Trim().Length < 2)
+        if (termino.Trim().Length < 2 || DocumentoActual is { EsValido: false })
         {
             _resultado = null;
             _buscando = false;

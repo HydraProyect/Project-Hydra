@@ -44,6 +44,70 @@ public class BuscadorGlobalGen2Tests : BunitContext
 {
     public BuscadorGlobalGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
+    [Theory]
+    [InlineData("12345678A", "12345678Z")]
+    [InlineData("X1234567A", "X1234567L")]
+    public async Task Una_letra_incorrecta_muestra_correccion_y_no_consulta(string valor, string corregido)
+    {
+        var mediador = new MediadorControlado();
+        var cut = await RenderizarYAbrir(mediador);
+        await Input(cut).EscribirAsync(valor);
+        cut.Find("[role=status]").TextContent.Should().Be($"La letra no cuadra: ¿quisiste decir {corregido}?");
+        mediador.Enviados.OfType<BuscarGlobalQuery>().Should().BeEmpty();
+        cut.FindAll("a.buscador-item").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_documento_sin_coincidencia_informa_de_la_cartera_sin_ofrecer_crear_nombres()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado());
+        await Input(cut).EscribirAsync("12345678Z");
+        cut.Find("[role=status]").TextContent.Should().Be("Ningún Trabajador de tu cartera con ese documento");
+        cut.FindAll("a.buscador-item").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_documento_coincidente_abre_la_ficha_sin_mostrar_el_dni()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado { Resultado = UnTrabajador });
+        await Input(cut).EscribirAsync("12345678Z");
+        cut.Find(".buscador-item-subtitulo").TextContent.Should().Contain("Coincide con el documento buscado");
+        cut.Find(".buscador-item-subtitulo").TextContent.Should().NotContain("12345678Z");
+        await cut.Find("a.buscador-item").ClickAsync(new MouseEventArgs());
+        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith($"/trabajadores/{IdTrabajador}");
+    }
+
+    [Theory]
+    [InlineData("B12345674", "Ninguna Empresa ni Cliente de tu cartera con ese CIF")]
+    [InlineData("B12345671", "El dígito de control del CIF no es válido.")]
+    public async Task Un_cif_sin_resultados_o_invalido_da_un_aviso_especifico(string valor, string aviso)
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado());
+        await Input(cut).EscribirAsync(valor);
+        cut.Find("[role=status]").TextContent.Should().Be(aviso);
+        cut.FindAll("a.buscador-item").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task El_resultado_por_cif_identifica_la_coincidencia()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado { Resultado = UnClienteEmpresarial });
+        await Input(cut).EscribirAsync("B12345674");
+        cut.Find(".buscador-item-subtitulo").TextContent.Should().Be("Coincide con el CIF buscado");
+    }
+
+    [Theory]
+    [InlineData("reclamar", "/comunicaciones")]
+    [InlineData("subir", "/documentos?accion=crear")]
+    [InlineData("ir a documentos", "/documentos")]
+    public async Task Los_verbos_ofrecen_destinos_reales(string termino, string destino)
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado());
+        await Input(cut).EscribirAsync(termino);
+        cut.FindAll("a.buscador-item").Should().Contain(a => a.GetAttribute("href") == destino);
+        cut.Find("input").GetAttribute("placeholder").Should().Be("Nombre, DNI, NIE, CIF o acción (reclamar, subir, ir a…)");
+    }
+
     private static readonly Guid IdCliente = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid IdTrabajador = Guid.Parse("22222222-2222-2222-2222-222222222222");
 

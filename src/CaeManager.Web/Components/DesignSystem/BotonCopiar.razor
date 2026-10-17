@@ -2,4 +2,8 @@
         aria-label="@NombreAccesible" title="@(EnLinea ? NombreAccesible : null)"
         @onclick="CopiarAsync" @onclick:stopPropagation="EnLinea">
     <TextoResaltado Texto="@Texto" Termino="@TerminoResaltado" />
+    @if (_copiado)
+    {
+        <span class="boton-copiar-confirmacion" aria-hidden="true"><Icono Nombre="check" Tamano="TamanoIcono.Pequeno" /></span>
+    }
 </button>

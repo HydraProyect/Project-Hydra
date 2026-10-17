@@ -21,6 +21,22 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class BotonCopiarTests : BunitContext
 {
+    [Fact]
+    public async Task El_dni_confirma_la_copia_con_toast_y_check_durante_1600_ms()
+    {
+        var modulo = JSInterop.SetupModule(Modulo);
+        modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
+        var cut = Render<BotonCopiar>(p => p.Add(c => c.Valor, "12345678Z")
+            .Add(c => c.Texto, "12345678Z").Add(c => c.EnLinea, true)
+            .Add(c => c.ConfirmarConIcono, true)
+            .Add(c => c.MensajeExito, "DNI 12345678Z copiado al portapapeles"));
+        await cut.Find("button").ClickAsync(new MouseEventArgs());
+        Toasts().Should().ContainSingle(t => t.Mensaje == "DNI 12345678Z copiado al portapapeles");
+        cut.Find(".boton-copiar-confirmacion svg polyline").GetAttribute("points").Should().Be("20 6 9 17 4 12");
+        await Task.Delay(800);
+        cut.FindAll(".boton-copiar-confirmacion").Should().ContainSingle();
+        cut.WaitForAssertion(() => cut.FindAll(".boton-copiar-confirmacion").Should().BeEmpty(), TimeSpan.FromSeconds(3));
+    }
     private const string Modulo = "./js/clipboard.js";
 
     public BotonCopiarTests()

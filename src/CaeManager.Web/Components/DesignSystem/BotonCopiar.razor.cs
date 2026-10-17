@@ -20,6 +20,8 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
     [Parameter] public Func<Task<string?>>? ValorAsync { get; set; }
 
     [Parameter] public string Etiqueta { get; set; } = "el valor";
+    [Parameter] public string? MensajeExito { get; set; }
+    [Parameter] public bool ConfirmarConIcono { get; set; }
 
     /// <summary>Rótulo del botón. Por defecto «Copiar»; se cambia cuando hay varios en una misma fila y hay que distinguirlos.</summary>
     [Parameter] public string Texto { get; set; } = "Copiar";
@@ -49,6 +51,8 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
     [Inject] private ToastService ToastService { get; set; } = default!;
 
     private IJSObjectReference? _modulo;
+    private bool _copiado;
+    private CancellationTokenSource? _confirmacion;
 
     private bool Deshabilitado => ValorAsync is null && string.IsNullOrEmpty(Valor);
 
@@ -72,7 +76,15 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
             if (string.IsNullOrEmpty(valor)) return;
 
             await _modulo.InvokeVoidAsync("copiarAlPortapapeles", valor);
-            ToastService.Mostrar($"Se copió {Etiqueta} al portapapeles.", TonoToast.Exito);
+            ToastService.Mostrar(MensajeExito ?? $"Se copió {Etiqueta} al portapapeles.", TonoToast.Exito);
+            if (ConfirmarConIcono)
+            {
+                _confirmacion?.Cancel();
+                _confirmacion?.Dispose();
+                _confirmacion = new();
+                _copiado = true;
+                _ = RestablecerConfirmacionAsync(_confirmacion.Token);
+            }
         }
         catch (Exception)
         {
@@ -86,8 +98,26 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
         }
     }
 
+    private async Task RestablecerConfirmacionAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(1600), token);
+            await InvokeAsync(() =>
+            {
+                if (token.IsCancellationRequested) return;
+                _copiado = false;
+                StateHasChanged();
+            });
+        }
+        catch (OperationCanceledException) { }
+    }
+
     public async ValueTask DisposeAsync()
     {
+        _confirmacion?.Cancel();
+        _confirmacion?.Dispose();
+        _confirmacion = null;
         if (_modulo is null) return;
 
         try

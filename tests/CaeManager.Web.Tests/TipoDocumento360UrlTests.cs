@@ -30,6 +30,22 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class TipoDocumento360UrlTests : BunitContext
 {
+    [Fact]
+    public async Task El_dni_de_la_fila_se_copia_con_confirmacion_sin_abrir_la_ficha()
+    {
+        var mediador = Montar();
+        mediador.Filas[0] = mediador.Filas[0] with { Dni = "12345678Z" };
+        var cut = Renderizar();
+        var copiar = cut.FindComponents<BotonCopiar>().Single(c => c.Instance.Valor == "12345678Z");
+        copiar.Instance.EnLinea.Should().BeTrue();
+        copiar.Instance.ConfirmarConIcono.Should().BeTrue();
+        var destino = Navegacion.Uri;
+        await copiar.Find("button").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        Services.GetRequiredService<ToastService>().Mensajes.Should()
+            .Contain(t => t.Mensaje == "DNI 12345678Z copiado al portapapeles");
+        copiar.FindAll(".boton-copiar-confirmacion").Should().ContainSingle();
+        Navegacion.Uri.Should().Be(destino);
+    }
     public TipoDocumento360UrlTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;

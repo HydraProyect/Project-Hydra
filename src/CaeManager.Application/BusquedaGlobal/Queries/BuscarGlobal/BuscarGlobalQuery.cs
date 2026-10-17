@@ -60,7 +60,10 @@ public class BuscarGlobalQueryHandler(
         if (termino.Length < 2)
             return new ResultadoBusquedaGlobalDto([], [], [], []);
 
-        var terminoMayus = termino.ToUpper();
+        var documento = DocumentoBuscado.Analizar(termino);
+        if (documento is { EsValido: false }) return new([], [], [], []);
+        var documentoPersona = documento is { Tipo: CaeManager.Domain.Common.TipoIdentificacion.Dni or CaeManager.Domain.Common.TipoIdentificacion.Nie };
+        var terminoMayus = documento?.Valor ?? termino.ToUpperInvariant();
 
         // Alcance de cartera en las cuatro categorías. El buscador global es una
         // superficie de LISTADO —cada resultado enlaza al listado del módulo con
@@ -75,7 +78,7 @@ public class BuscarGlobalQueryHandler(
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
 
-        var empresas = await BuscarEmpresasAsync(
+        var empresas = documentoPersona ? [] : await BuscarEmpresasAsync(
             terminoMayus, clienteIdsVisibles, empresaIdsVisibles, subcontrataIdsVisibles, cancellationToken);
 
         // Centro y Trabajador SÍ tienen ficha propia (Centro 360, Trabajador
@@ -83,28 +86,20 @@ public class BuscarGlobalQueryHandler(
         // listado con filtro porque no la tienen todavía.
         var centros = await centrosContext.Centros
             .Where(c => centroIdsVisibles == null || centroIdsVisibles.Contains(c.Id))
-            .Where(c => c.Nombre.ToUpper().Contains(terminoMayus))
+            .Where(c => documento == null && c.Nombre.ToUpper().Contains(terminoMayus))
             .OrderBy(c => c.Nombre)
             .Take(LimitePorCategoria)
             .Select(c => new ItemBusquedaDto(c.Id, c.Nombre, "Centro", $"/centros/{c.Id}"))
             .ToListAsync(cancellationToken);
 
-        // Sin DNI, ni como criterio ni como subtítulo (decisión delegada en
-        // Codex por el propietario, 2026-09-24, que extiende P4 «base general
-        // sin DNI» a Ctrl+K): el buscador lo tiene todo usuario autenticado,
-        // incluido un usuario Consulta de un Operador CAE externo con alcance
-        // sobre el Tenant beneficiario entero, y buscar por fragmento de DNI
-        // mostrando el DNI completo al lado permitía enumerarlo tecleando.
-        // Se busca por nombre y apellidos; el subtítulo es la razón social de
-        // la organización empleadora (Empresa o Subcontrata), como en el
-        // mockup del Command Palette y en el desempate de homónimos de los
-        // selectores. Quien necesite el DNI lo tiene en la ficha del
-        // Trabajador y en el listado /trabajadores.
+        // Solo documentos completos y válidos; conserva la cartera y no proyecta el DNI.
         var trabajadores = await (
                 from trabajador in trabajadoresContext.Trabajadores
                 where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(trabajador.Id)
-                where trabajador.Nombre.ToUpper().Contains(terminoMayus) ||
-                      trabajador.Apellidos.ToUpper().Contains(terminoMayus)
+                where documentoPersona
+                    ? trabajador.Dni != null && trabajador.Dni.ToUpper() == terminoMayus
+                    : documento == null && (trabajador.Nombre.ToUpper().Contains(terminoMayus) ||
+                      trabajador.Apellidos.ToUpper().Contains(terminoMayus))
                 join empresa in empresasContext.Empresas on trabajador.EmpresaId equals empresa.Id into empresasCoincidentes
                 from empresa in empresasCoincidentes.DefaultIfEmpty()
                 join subcontrata in empresasContext.Empresas on trabajador.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
@@ -118,7 +113,7 @@ public class BuscarGlobalQueryHandler(
             .Take(LimitePorCategoria)
             .ToListAsync(cancellationToken);
 
-        var documentos = await BuscarDocumentosAsync(terminoMayus, cancellationToken);
+        var documentos = documento is null ? await BuscarDocumentosAsync(terminoMayus, cancellationToken) : [];
 
         return new ResultadoBusquedaGlobalDto(empresas, centros, trabajadores, documentos);
     }
@@ -166,9 +161,10 @@ public class BuscarGlobalQueryHandler(
         IReadOnlyList<Guid>? clienteIdsVisibles, IReadOnlyList<Guid>? empresaIdsVisibles, IReadOnlyList<Guid>? subcontrataIdsVisibles,
         CancellationToken cancellationToken)
     {
+        var esCif = DocumentoBuscado.Analizar(terminoMayus) is { Tipo: CaeManager.Domain.Common.TipoIdentificacion.NifEmpresa, EsValido: true };
         var comoClientes = await empresasContext.Empresas.Where(e => e.EsCritico != null)
             .Where(c => clienteIdsVisibles == null || clienteIdsVisibles.Contains(c.Id))
-            .Where(c => c.RazonSocial.ToUpper().Contains(terminoMayus))
+            .Where(c => esCif ? c.Cif != null && c.Cif.ToUpper() == terminoMayus : c.RazonSocial.ToUpper().Contains(terminoMayus))
             .OrderBy(c => c.RazonSocial)
             .Take(MargenPorOrigen)
             .Select(c => new { c.Id, c.RazonSocial })
@@ -176,7 +172,7 @@ public class BuscarGlobalQueryHandler(
 
         var comoSubcontratas = await empresasContext.Empresas.Where(e => e.NivelServicio != null)
             .Where(s => subcontrataIdsVisibles == null || subcontrataIdsVisibles.Contains(s.Id))
-            .Where(s => s.RazonSocial.ToUpper().Contains(terminoMayus))
+            .Where(s => esCif ? s.Cif != null && s.Cif.ToUpper() == terminoMayus : s.RazonSocial.ToUpper().Contains(terminoMayus))
             .OrderBy(s => s.RazonSocial)
             .Take(MargenPorOrigen)
             .Select(s => new { s.Id, s.RazonSocial })
@@ -184,7 +180,7 @@ public class BuscarGlobalQueryHandler(
 
         var comoEmpresas = await empresasContext.Empresas
             .Where(e => empresaIdsVisibles == null || empresaIdsVisibles.Contains(e.Id))
-            .Where(e => e.RazonSocial.ToUpper().Contains(terminoMayus))
+            .Where(e => esCif ? e.Cif != null && e.Cif.ToUpper() == terminoMayus : e.RazonSocial.ToUpper().Contains(terminoMayus))
             .OrderBy(e => e.RazonSocial)
             .Take(MargenPorOrigen)
             .Select(e => new { e.Id, e.RazonSocial })

@@ -26,7 +26,7 @@
                        aria-expanded="@(grupos.Count > 0 ? "true" : "false")"
                        aria-controls="buscador-lista"
                        aria-activedescendant="@(_indiceSeleccionado >= 0 ? $"buscador-item-{_indiceSeleccionado}" : null)"
-                       placeholder="Buscar o ejecutar… (clientes, trabajadores, documentos, acciones)"
+                       placeholder="Nombre, DNI, NIE, CIF o acción (reclamar, subir, ir a…)"
                        value="@_valorMostrado"
                        @oninput="ManejarEntradaAsync"
                        @onkeydown="ManejarTeclaAsync" />
@@ -34,7 +34,11 @@
             </div>
 
             <div class="buscador-resultados">
-                @if (ConsultaVacia && grupos.Count == 0)
+                @if (DocumentoActual?.Aviso is { } aviso)
+                {
+                    <p class="buscador-mensaje" role="status">@aviso</p>
+                }
+                else if (ConsultaVacia && grupos.Count == 0)
                 {
                     <p class="buscador-mensaje">Escribe al menos 2 caracteres para buscar.</p>
                 }

@@ -18,16 +18,21 @@ public sealed record EtiquetaTrabajador(Guid Id, string Texto);
 /// </list>
 /// Con <paramref name="aliasSiempre"/> el Alias entra en la etiqueta aunque el nombre sea único,
 /// para que escribirlo en un buscador con autocompletado también encuentre al Trabajador.
+/// Con <paramref name="empleadorSiempre"/> la Empresa empleadora aparece también sin homónimos,
+/// como requieren los selectores de subida documental; nunca se incluye el DNI.
 /// </summary>
 public static class EtiquetasSelectorTrabajador
 {
     public static IReadOnlyList<EtiquetaTrabajador> Construir(
-        IEnumerable<TrabajadorSelectorDto> trabajadores, bool aliasSiempre = false)
+        IEnumerable<TrabajadorSelectorDto> trabajadores, bool aliasSiempre = false, bool empleadorSiempre = false)
     {
         var lista = trabajadores.ToList();
         var textos = new Dictionary<Guid, string>(lista.Count);
 
-        foreach (var grupo in lista.GroupBy(t => Base(t, aliasSiempre), StringComparer.Ordinal))
+        string EtiquetaBase(TrabajadorSelectorDto t) => empleadorSiempre
+            ? ConEmpleador(Base(t, aliasSiempre), t) : Base(t, aliasSiempre);
+
+        foreach (var grupo in lista.GroupBy(EtiquetaBase, StringComparer.Ordinal))
         {
             var miembros = grupo.ToList();
             if (miembros.Count == 1)
@@ -39,7 +44,7 @@ public static class EtiquetasSelectorTrabajador
             Func<TrabajadorSelectorDto, string>[] candidatas =
             [
                 t => ConEmpleador(Base(t, aliasSiempre), t),
-                t => ConAlias(t),
+                t => empleadorSiempre ? ConEmpleador(ConAlias(t), t) : ConAlias(t),
                 t => ConEmpleador(ConAlias(t), t),
             ];
 

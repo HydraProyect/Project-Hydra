@@ -1,4 +1,5 @@
 .boton-copiar {
+    position: relative;
     font: var(--font-label-md);
     color: var(--color-primary-500);
     background: none;
@@ -8,6 +9,12 @@
     cursor: pointer;
     white-space: nowrap;
     transition: background-color var(--motion-fast) var(--ease-standard);
+}
+
+.boton-copiar-confirmacion {
+    position: absolute;
+    inset-inline-start: calc(100% + var(--space-1));
+    color: var(--color-primary-500);
 }
 
 .boton-copiar:hover:not(:disabled) {
