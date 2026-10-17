@@ -19,6 +19,45 @@ namespace CaeManager.IntegrationTests.Comunicaciones;
 public class ObtenerConversacionesQueryTests : IAsyncLifetime
 {
     [Fact]
+    public async Task Fuera_de_SLA_filtra_antes_de_paginar_y_excluye_las_no_vencidas()
+    {
+        await using var contexto = CrearContexto();
+        for (var i = 0; i < 22; i++)
+        {
+            var conversacion = new Conversacion($"Vencida {i}");
+            conversacion.CambiarPrioridad(PrioridadConversacion.Critica);
+            conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "contacto@ejemplo.test", "Pendiente",
+                DateTime.UtcNow.AddDays(-14).AddMinutes(i));
+            contexto.Conversaciones.Add(conversacion);
+        }
+        var futura = new Conversacion("Todavía en plazo");
+        futura.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "contacto@ejemplo.test", "Pendiente", DateTime.UtcNow.AddDays(30));
+        contexto.Conversaciones.Add(futura);
+        await contexto.SaveChangesAsync();
+        var plazos = new Application.Comunicaciones.PlazosConversacionService(new OperacionSlaFalsa(),
+            Microsoft.Extensions.Options.Options.Create(new Application.Comunicaciones.CalendariosOperadorCaeOptions()));
+        var handler = new ObtenerConversacionesQueryHandler(contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
+            new CurrentUserServiceFalso(rol: "GestorCae"), plazos);
+
+        var primera = await handler.Handle(new(SoloFueraDeSla: true), CancellationToken.None);
+        var segunda = await handler.Handle(new(SoloFueraDeSla: true, Pagina: 2), CancellationToken.None);
+
+        primera.TotalElementos.Should().Be(22);
+        primera.Elementos.Should().HaveCount(20).And.OnlyContain(c => c.VencimientoSlaUtc < DateTime.UtcNow);
+        segunda.Elementos.Should().HaveCount(2);
+        primera.Elementos.Concat(segunda.Elementos).Select(c => c.Id).Should().OnlyHaveUniqueItems().And.NotContain(futura.Id);
+    }
+
+    private sealed class OperacionSlaFalsa : Application.Comunicaciones.IContextoOperativoConversacionService
+    {
+        public Task<Application.Comunicaciones.OperacionDeConversacion?> ResolverAsync(Guid propietarioTenantId, Guid? clienteEmpresarialId,
+            Guid? empresaId, CancellationToken cancellationToken) =>
+            Task.FromResult<Application.Comunicaciones.OperacionDeConversacion?>(new(propietarioTenantId, Guid.NewGuid()));
+        public Task AvisarCriticaAsync(Application.Comunicaciones.OperacionDeConversacion operacion, Guid eventoId, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Una lectura de SLA nunca genera avisos.");
+    }
+
+    [Fact]
     public async Task Un_hilo_cerrado_permite_una_continuacion_y_el_repositorio_solo_devuelve_la_nueva()
     {
         await using var contexto = CrearContexto();

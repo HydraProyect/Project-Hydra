@@ -38,31 +38,38 @@ public class AvisosConversacionesCriticasHostedService(IServiceScopeFactory scop
                 .Select(t => t.Id).ToListAsync(cancellationToken);
         foreach (var tenantId in tenants)
         {
-            using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
-            List<Guid> pendientes;
-            using (var scope = scopes.CreateScope())
-                pendientes = await scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>().Conversaciones
-                    .Where(c => c.AvisoCriticaPendienteId != null).Select(c => c.Id).ToListAsync(cancellationToken);
-            foreach (var id in pendientes)
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                try
+                using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
+                List<Guid> pendientes;
+                using (var scope = scopes.CreateScope())
+                    pendientes = await scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>().Conversaciones
+                        .Where(c => c.AvisoCriticaPendienteId != null).Select(c => c.Id).ToListAsync(cancellationToken);
+                foreach (var id in pendientes)
                 {
-                    using var scope = scopes.CreateScope();
-                    var db = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-                    var conversacion = await db.Conversaciones.SingleOrDefaultAsync(c => c.Id == id, cancellationToken);
-                    if (conversacion?.AvisoCriticaPendienteId is not { } eventoId) continue;
-                    var contexto = scope.ServiceProvider.GetRequiredService<IContextoOperativoConversacionService>();
-                    var operacion = await contexto.ResolverAsync(tenantId, conversacion.ClienteId, conversacion.EmpresaId, cancellationToken);
-                    if (operacion is null) continue;
-                    await contexto.AvisarCriticaAsync(operacion, eventoId, cancellationToken);
-                    conversacion.ConfirmarAvisoCritica(eventoId);
-                    await db.SaveChangesAsync(cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    try
+                    {
+                        using var scope = scopes.CreateScope();
+                        var db = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+                        var conversacion = await db.Conversaciones.SingleOrDefaultAsync(c => c.Id == id, cancellationToken);
+                        if (conversacion?.AvisoCriticaPendienteId is not { } eventoId) continue;
+                        var contexto = scope.ServiceProvider.GetRequiredService<IContextoOperativoConversacionService>();
+                        var operacion = await contexto.ResolverAsync(tenantId, conversacion.ClienteId, conversacion.EmpresaId, cancellationToken);
+                        if (operacion is null) continue;
+                        await contexto.AvisarCriticaAsync(operacion, eventoId, cancellationToken);
+                        conversacion.ConfirmarAvisoCritica(eventoId);
+                        await db.SaveChangesAsync(cancellationToken);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        logger.LogWarning(ex, "El aviso de la conversación {ConversacionId} sigue pendiente.", id);
+                    }
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    logger.LogWarning(ex, "El aviso de la conversación {ConversacionId} sigue pendiente.", id);
-                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "No se pudieron reintentar los avisos del Tenant propietario {TenantId}.", tenantId);
             }
         }
     }

@@ -1,4 +1,5 @@
 @page "/comunicaciones"
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Comunicaciones.Recursos.TextosPlazosConversacion> TextosPlazos
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @* Mismos roles que el menú completo de CatalogoMenuLateral: la bandeja es una pantalla de
@@ -149,7 +150,7 @@
                     <details class="bandeja-filtros-avanzados">
                         <summary>Más filtros</summary>
                         <div class="bandeja-filtros-avanzados-campos">
-                            <button type="button" class="bandeja-toggle @(_soloFueraDeSla ? "bandeja-toggle-activo" : null)" @onclick="AlternarFueraDeSlaAsync">Fuera de SLA</button>
+                            <Boton Variante="@(_soloFueraDeSla ? VarianteBoton.Primario : VarianteBoton.Secundario)" OnClick="AlternarFueraDeSlaAsync" aria-pressed="@_soloFueraDeSla">@TextosPlazos["FueraDeSla"]</Boton>
                             <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="async v => { _estadoFiltro = v; await AplicarFiltrosAsync(); }">
                                 <option value="">Todos los estados</option>
                                 @foreach (var estado in EstadoConversacionPresentacion.EnOrdenDeSelector)
@@ -379,10 +380,10 @@
                                 </CampoSelect>
                             }
 
-                            <CampoSelect Etiqueta="Prioridad" Valor="@_detalle.Prioridad.ToString()" ValorChanged="CambiarPrioridadAsync" Deshabilitado="_cambiandoPrioridad">
-                                <option value="Normal">Normal</option>
-                                <option value="Urgente">Urgente</option>
-                                <option value="Critica">Crítica</option>
+                            <CampoSelect Etiqueta="@TextosPlazos["Prioridad"]" Valor="@_detalle.Prioridad.ToString()" ValorChanged="CambiarPrioridadAsync" Deshabilitado="_cambiandoPrioridad">
+                                <option value="Normal">@TextosPlazos["Normal"]</option>
+                                <option value="Urgente">@TextosPlazos["Urgente"]</option>
+                                <option value="Critica">@TextosPlazos["Critica"]</option>
                             </CampoSelect>
                             <CampoSelect @key="_intentosCambioEstado" Valor="@string.Empty" ValorChanged="CambiarEstadoDesdeSelectorAsync" Deshabilitado="_cambiandoEstado">
                                 <option value="">@TextosEstados["CambiarEstado"]</option>

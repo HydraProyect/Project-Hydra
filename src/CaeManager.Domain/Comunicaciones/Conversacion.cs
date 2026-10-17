@@ -72,7 +72,7 @@ public class Conversacion : EntidadBase
         if (!Enum.IsDefined(prioridad)) throw new ArgumentOutOfRangeException(nameof(prioridad));
         if (Prioridad == prioridad) return;
         Prioridad = prioridad;
-        AvisoCriticaPendienteId = prioridad == PrioridadConversacion.Critica ? Guid.NewGuid() : null;
+        AvisoCriticaPendienteId = prioridad == PrioridadConversacion.Critica ? IdentificadorEntidad.Nuevo() : null;
     }
 
     public void ConfirmarAvisoCritica(Guid eventoId)

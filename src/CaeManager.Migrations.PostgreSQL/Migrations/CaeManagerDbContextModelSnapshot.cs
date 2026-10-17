@@ -918,6 +918,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<Guid?>("AvisoCriticaPendienteId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("Canal")
                         .HasColumnType("integer");
 
@@ -967,6 +970,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<string>("HiloExternoId")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
+
+                    b.Property<int>("Prioridad")
+                        .HasColumnType("integer");
 
                     b.Property<string>("TelefonoContacto")
                         .HasMaxLength(20)
@@ -1140,6 +1146,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<string>("ErrorEntrega")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("EsAutomatico")
+                        .HasColumnType("boolean");
 
                     b.Property<int?>("EstadoEntrega")
                         .HasColumnType("integer");
@@ -5565,6 +5574,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime>("CreadaEnUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("EventoOrigenId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("Leida")
                         .HasColumnType("boolean");
 
@@ -5593,6 +5605,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("UsuarioDestinatarioId", "Leida");
+
+                    b.HasIndex("TenantId", "UsuarioDestinatarioId", "EventoOrigenId")
+                        .IsUnique()
+                        .HasFilter("\"EventoOrigenId\" IS NOT NULL");
 
                     b.ToTable("NotificacionesUsuario", (string)null);
                 });

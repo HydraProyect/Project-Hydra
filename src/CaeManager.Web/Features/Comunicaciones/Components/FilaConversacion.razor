@@ -8,6 +8,7 @@
 @using CaeManager.Web.Features.Comunicaciones.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosEstadosConversacion> TextosEstados
+@inject IStringLocalizer<TextosPlazosConversacion> TextosPlazos
 
 <li class="bandeja-fila @(Activa ? "bandeja-fila-activa" : null) @(Enfocada ? "fila-enfocada" : null) @(Conversacion.EsperandoCliente ? "bandeja-fila-esperando" : null)" @onclick="() => OnSeleccionar.InvokeAsync(Conversacion.Id)">
     <span class="bandeja-fila-avatar" aria-hidden="true">
@@ -33,8 +34,8 @@
             @if (Conversacion.SlaRestante is { } restante)
             {
                 <Badge Tono="@(Conversacion.VencimientoSlaUtc <= DateTime.UtcNow ? TonoBadge.Peligro : TonoBadge.Neutro)" Tamano="TamanoBadge.Pequeno"
-                       title="Horas laborables restantes para responder al primer mensaje entrante">
-                    @(Conversacion.Prioridad == PrioridadConversacion.Critica ? "Crítica" : Conversacion.Prioridad.ToString()) · SLA @(Conversacion.VencimientoSlaUtc <= DateTime.UtcNow ? "vencido " : "")@Math.Abs((int)restante.TotalHours) h @Math.Abs(restante.Minutes) min
+                       title="@TextosPlazos["AyudaSla"]">
+                    @TextosPlazos["RelojSla", TextosPlazos[Conversacion.Prioridad.ToString()].Value, Conversacion.VencimientoSlaUtc <= DateTime.UtcNow ? TextosPlazos["Vencido"].Value : "", Math.Abs((int)restante.TotalHours), Math.Abs(restante.Minutes)]
                 </Badge>
             }
             @if (Conversacion.MensajesRuido > 0)
