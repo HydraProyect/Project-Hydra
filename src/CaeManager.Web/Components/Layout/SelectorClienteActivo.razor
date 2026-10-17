@@ -25,13 +25,13 @@
 @if (_activo is not null && ClientesAutorizados.SelectorVisible(_clientes!, _activo))
 {
     <div class="selector-tenant" data-selector-tenant @onkeydown="AlPulsarTecla"
-         data-activo="@_activo.TenantId" data-autorizados="@IdsFijables">
-        @* Alt+1…5 (selector-tenant-fijadas.js) cambia a la 1.ª…5.ª empresa fijada con este mismo POST: el
+         data-activo="@_activo.TenantId" data-autorizados="@IdsFijables" data-fijadas="@IdsFijadas">
+        @* Alt+1…5 (selector-tenant-fijadas.js) cambia a la 1.ª…5.ª empresa fijada (data-fijadas) con este mismo POST: el
            formulario existe aunque la lista esté cerrada, con el token antiforgery y la ruta de retorno
            de siempre, y el servidor revalida la Asignación de Cartera y la de Operación como en cualquier
            cambio. El Id que escribe el JS sale de lo ya autorizado (data-autorizados): una fijada es una
            preferencia del navegador, no un permiso. *@
-        <form id="selector-tenant-atajo" method="post" action="/cuenta/cliente-activo" hidden>
+        <form data-selector-atajo method="post" action="/cuenta/cliente-activo" hidden>
             @if (_token is not null)
             {
                 <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />

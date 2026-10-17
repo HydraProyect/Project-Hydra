@@ -359,9 +359,11 @@ public class NavMenuCaracterizacionTests
 
         subs.Select(s => s.Id).Should().OnlyHaveUniqueItems();
         subs.Select(s => s.EnlaceId).Distinct().Should().OnlyContain(id => CatalogoMenuLateral.Enlaces.Any(e => e.Id == id));
-        subs.Should().OnlyContain(s => !s.Ruta.StartsWith('/') && s.Ruta.StartsWith(
-            CatalogoMenuLateral.Enlaces.Single(e => e.Id == s.EnlaceId).Ruta),
-            "la subopción vive bajo la ruta de su enlace padre: es otra vista de la misma página");
+        subs.Should().OnlyContain(s => !s.Ruta.StartsWith('/') && (s.Ruta.StartsWith(
+            CatalogoMenuLateral.Enlaces.Single(e => e.Id == s.EnlaceId).Ruta)
+            // Pestaña de sección sin entrada propia (Incidencias, Roles): su ruta es la de la pestaña, no la del padre.
+            || CatalogoSeccionesMenu.Secciones.Any(sec => sec.EnlaceId == s.EnlaceId && sec.Pestanas.Any(p => p.Ruta == s.Ruta))),
+            "la subopción vive bajo la ruta de su enlace padre (o es una pestaña de su sección): es otra vista de la misma página");
         subs.Should().OnlyContain(s => s.ClaveRotulo.Length > 0);
     }
 

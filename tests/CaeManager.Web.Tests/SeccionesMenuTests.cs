@@ -130,6 +130,15 @@ public class CatalogoSeccionesMenuTests
     }
 
     [Fact]
+    public void Con_la_lente_de_Coordinador_un_Administrador_conserva_Documentos_pero_pierde_Roles()
+    {
+        // Control positivo de la prueba anterior: la lente no oculta todo, solo lo que su rol no tiene.
+        Ids(CatalogoSeccionesMenu.Resolver("documentos", null, Contexto(Roles.Administrador, VistaDemo.CoordinadorCae)))
+            .Should().Equal("documentos-todos", "documentos-revision-ia", "documentos-incidencias");
+        Ids(CatalogoSeccionesMenu.Resolver("usuarios", null, Contexto(Roles.Administrador, VistaDemo.CoordinadorCae))).Should().BeEmpty();
+    }
+
+    [Fact]
     public void Con_la_lente_de_Gestor_Documentos_conserva_sus_tres_pestanas()
     {
         Ids(CatalogoSeccionesMenu.Resolver("documentos", null, Contexto(Roles.GestorCae, VistaDemo.GestorCae)))

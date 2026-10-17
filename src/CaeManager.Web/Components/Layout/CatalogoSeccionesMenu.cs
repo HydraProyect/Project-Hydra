@@ -81,7 +81,9 @@ public static class CatalogoSeccionesMenu
     private static bool EsRevisionIa(string ruta, string? pestana) =>
         ruta.Equals("documentos/revision-ia", StringComparison.OrdinalIgnoreCase)
         || (ruta.Equals("documentos", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(pestana, PestanaRevisionIa, StringComparison.OrdinalIgnoreCase));
+            && (string.Equals(pestana, PestanaRevisionIa, StringComparison.OrdinalIgnoreCase)
+                // Alias que Documentos acepta si se escribe a mano (Documentos.IdDePestanaDeUrl).
+                || string.Equals(pestana, "revision", StringComparison.OrdinalIgnoreCase)));
 
     public static IReadOnlyList<SeccionMenu> Secciones { get; } =
     [

@@ -336,6 +336,17 @@ public static class CatalogoMenuLateral
             Condicion: c => c.TieneAlgunRol(RolesDeGestionDocumental)),
         new("documentos-plantillas", "documentos", "documentos?pestana=plantillas", "MenuSubDocumentosPlantillas", FuenteRotuloSubopcion.TextosComunes,
             Condicion: c => c.TieneAlgunRol(RolesDeGestionDocumental)),
+
+        // Pestañas de sección sin entrada propia en el menú (entrega de Design del 2026-10-17): la lupa sigue
+        // encontrando Incidencias, Usuarios y Roles. Mismos roles que la pestaña y que su pantalla
+        // (CatalogoSeccionesMenu); Roles tampoco se ofrece a quien administra por un Encargo no pleno.
+        new("documentos-incidencias", "documentos", "incidencias", "SeccionIncidencias", FuenteRotuloSubopcion.TextosComunes,
+            Condicion: c => c.TieneAlgunRol(CatalogoSeccionesMenu.RolesDeIncidencias)),
+        new("equipo-usuarios", "usuarios", "usuarios", "SeccionUsuarios", FuenteRotuloSubopcion.TextosComunes,
+            Condicion: c => c.TieneAlgunRol(CatalogoSeccionesMenu.RolesDeUsuarios)),
+        new("equipo-roles", "usuarios", "roles", "SeccionRoles", FuenteRotuloSubopcion.TextosComunes,
+            Condicion: c => c.TieneAlgunRol(CatalogoSeccionesMenu.RolesDeRoles)
+                            && !CaeManager.Web.Services.PaginasExcluidasDelEncargo.RigenLasExclusiones(c.Usuario)),
     ];
 
     /// <summary>Una subopción visible con el enlace padre bajo el que se muestra.</summary>

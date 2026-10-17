@@ -99,11 +99,11 @@
         var consulta = QueryHelpers.ParseQuery(new Uri(uri).Query);
         var pestana = consulta.TryGetValue("pestana", out var valorPestana) ? valorPestana.ToString() : null;
 
-        // Una pestaña de sección que no es la primera (Revisión IA, Incidencias, Roles) va con su sección en
-        // medio, como en el marco de Design: «Negocio › Documentos › Incidencias». La primera pestaña es la
-        // propia entrada del menú y sigue el camino normal.
-        if (CatalogoSeccionesMenu.PestanaDe(ruta, pestana) is { } encontrada
-            && encontrada.Seccion.Pestanas[0] != encontrada.Pestana)
+        // Una pestaña de sección (Revisión IA, Incidencias, Usuarios, Roles) se resuelve por su sección, como en
+        // el marco de Design: «Negocio › Documentos › Incidencias», «Administración › Equipo › Roles». También la
+        // primera pestaña: dos entradas del menú comparten la ruta «usuarios» (Control para el Coordinador CAE,
+        // Administración) y la miga no evalúa condiciones, así que la sección fija el grupo.
+        if (CatalogoSeccionesMenu.PestanaDe(ruta, pestana) is { } encontrada)
             return ResolverPestanaDeSeccion(ruta, encontrada.Seccion, encontrada.Pestana);
 
         Miga? mejor = null;
@@ -159,10 +159,16 @@
         var rutaSeccion = "/" + seccion.Pestanas[0].Ruta;
         var nivelSeccion = new Nivel(Textos[seccion.ClaveRotulo], rutaSeccion);
 
-        return Guid.TryParse(resto, out _)
-            ? new Miga(grupo.Titulo,
-                [nivelSeccion, new Nivel(Textos[pestana.ClaveRotulo], "/" + pestana.Ruta), new Nivel(Textos["CabeceraMigaFicha"], null)])
-            : new Miga(grupo.Titulo, [nivelSeccion, new Nivel(Textos[pestana.ClaveRotulo], null)]);
+        var esPrimera = seccion.Pestanas[0] == pestana;
+        if (Guid.TryParse(resto, out _))
+            return new Miga(grupo.Titulo, esPrimera
+                ? [nivelSeccion, new Nivel(Textos["CabeceraMigaFicha"], null)]
+                : [nivelSeccion, new Nivel(Textos[pestana.ClaveRotulo], "/" + pestana.Ruta), new Nivel(Textos["CabeceraMigaFicha"], null)]);
+
+        // En la primera pestaña la sección es la propia página actual.
+        return new Miga(grupo.Titulo, esPrimera
+            ? [new Nivel(Textos[seccion.ClaveRotulo], null)]
+            : [nivelSeccion, new Nivel(Textos[pestana.ClaveRotulo], null)]);
     }
 
     public void Dispose() => Navigation.LocationChanged -= AlCambiarDeRuta;

@@ -139,13 +139,12 @@ public partial class Configuracion : CaeManager.Web.Components.PaginaInteractiva
     /// Estructura y copy del array GROUPS del mockup. Las pantallas funcionales
     /// existentes se renderizan dentro del hub mediante su modo integrado; sus
     /// rutas históricas continúan disponibles como puntos de entrada directos.
-    /// La entrada "2fa" del mockup se retira (H-4, DEC-3 opción a): no hay
-    /// contrato de obligatoriedad ni pantalla administrativa que la respalde,
-    /// y dejarla apuntando a null solo rendería una promesa navegable sin
-    /// capacidad detrás ("Pantalla pendiente de especificación") en zona
-    /// sensible. Se repone cuando exista esa política — no antes. El enlace
-    /// del menú lateral a /cuenta/configurar-2fa es otra cosa (alta personal
-    /// del propio usuario) y no se ve afectado por esta retirada.
+    /// La entrada administrativa "2fa" del mockup antiguo se retiró (H-4, DEC-3
+    /// opción a): no hay contrato de obligatoriedad ni pantalla administrativa que
+    /// la respalde. La entrega de Design del 2026-10-17 trae otra cosa: «Mi cuenta»
+    /// con «Verificación en dos pasos» (alta personal del propio usuario,
+    /// /cuenta/configurar-2fa) y «Mi firma», como salidas puras a su pantalla, sin
+    /// panel ni política de obligatoriedad detrás.
     /// <para>
     /// Los rótulos salen de <c>TextosConfiguracion</c>, así que el catálogo es
     /// de instancia (necesita el localizador inyectado) y se construye una vez

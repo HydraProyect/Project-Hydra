@@ -332,6 +332,14 @@ public class CabeceraRedisenadaTests : BunitContext
     }
 
     [Fact]
+    public void Equipo_da_el_mismo_grupo_en_sus_dos_pestanas_aunque_haya_dos_entradas_del_menu_con_su_ruta()
+    {
+        // «usuarios» es la ruta de dos entradas (Control para el Coordinador CAE y Administración) y la miga no
+        // evalúa condiciones: la sección fija el grupo, como en el marco de Design.
+        RenderMigas("/usuarios").FindAll("li.miga").Select(m => m.TextContent.Trim()).Should().Equal("Administración", "Equipo");
+    }
+
+    [Fact]
     public void La_primera_pestana_de_una_seccion_es_la_propia_entrada_del_menu()
     {
         RenderMigas("/documentos").FindAll("li.miga").Select(m => m.TextContent.Trim()).Should().Equal("Negocio", "Documentos");

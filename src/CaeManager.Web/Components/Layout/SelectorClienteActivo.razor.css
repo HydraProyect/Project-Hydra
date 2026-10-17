@@ -229,7 +229,7 @@
 /* Fijada: estrella llena en ámbar (--color-warning-500, como el marco de Design). Se pinta con fill y
    stroke y no con color: ese token ya hace de fondo en otras pantallas y TokensDeTexto lo vigila como
    texto. El estado también lo dice aria-pressed, no solo el color. */
-.selector-tenant-fijar[aria-pressed='true'] :deep(svg) {
+.selector-tenant-fijar[aria-pressed='true'] ::deep svg {
     fill: var(--color-warning-500);
     stroke: var(--color-warning-500);
 }

@@ -648,8 +648,12 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         // Deep-link de pestaña: lo usa el timeline de Comunicaciones para llevar
         // desde el evento de reclamación enviada a su pestaña. Se ignora un
         // valor que no exista en vez de dejar la página en blanco.
+        // Sin «?pestana=» la URL pide el listado, que es lo que «Todos los documentos» (barra de sección)
+        // enlaza: desde cualquier otra pestaña de esta misma instancia, ese enlace solo quita el parámetro.
         if (IdDePestanaDeUrl(Pestana) is { } pestanaDeUrl)
             _pestanaActiva = pestanaDeUrl;
+        else if (string.IsNullOrWhiteSpace(Pestana))
+            _pestanaActiva = "listado";
 
         // Los filtros son la fuente de verdad de QUÉ hay en pantalla, y viajan
         // por la URL: cambiarlos desde el selector, desde otra pantalla o

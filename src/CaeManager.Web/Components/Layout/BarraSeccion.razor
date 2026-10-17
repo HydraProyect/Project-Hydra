@@ -50,7 +50,16 @@
         // Misma lente de demo que el menú lateral (MenuPorVista): solo puede ocultar pestañas, nunca
         // mostrar una que la autorización real de la cuenta no mostraría. Opcional a propósito.
         if (Servicios.GetService<IVistaDemoActual>() is { } vistaDemoActual)
-            _vista = (await vistaDemoActual.ObtenerEfectivaAsync())?.Vista;
+        {
+            try
+            {
+                _vista = (await vistaDemoActual.ObtenerEfectivaAsync())?.Vista;
+            }
+            catch (Exception ex) when (ExcepcionDeCircuitoDesconectado.Es(ex))
+            {
+                // Circuito cerrado a mitad de la consulta (mismo caso que MigasPagina): sin lente, la barra sigue.
+            }
+        }
     }
 
     protected override async Task OnParametersSetAsync()

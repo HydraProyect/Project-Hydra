@@ -34,7 +34,7 @@ export function guardarFijadas(clave, ids) {
     }
 }
 
-export function registrarAtajos(clave) {
+export function registrarAtajos() {
     const manejador = (evento) => {
         // Solo Alt + cifra, sin otro modificador. Se mira el código físico: en macOS Alt+1 produce otro carácter.
         if (!evento.altKey || evento.ctrlKey || evento.metaKey || evento.shiftKey) return;
@@ -47,12 +47,15 @@ export function registrarAtajos(clave) {
         if (activo && (activo.tagName === 'INPUT' || activo.tagName === 'TEXTAREA' || activo.tagName === 'SELECT' || activo.isContentEditable)) return;
 
         const raiz = document.querySelector('[data-selector-tenant]');
-        const formulario = document.getElementById('selector-tenant-atajo');
+        const formulario = raiz?.querySelector('[data-selector-atajo]');
         if (!raiz || !formulario) return;
 
-        // Mismo recorte que hace el componente: solo lo que el servidor ya autorizó (sin la organización propia).
+        // Las fijadas son las que el componente pinta ahora (data-fijadas: su orden, ya recortadas a lo que el
+        // servidor autorizó, sin la organización propia), no una nueva lectura del almacenamiento: así Alt+n va a
+        // la empresa que la persona ve en esa posición aunque otra pestaña del navegador haya cambiado la lista.
+        // El recorte a data-autorizados se repite por si alguien tocó el atributo en el DOM.
         const autorizados = (raiz.getAttribute('data-autorizados') ?? '').split(',').filter(Boolean);
-        const fijadas = leer(clave).filter((id, posicion, todas) => autorizados.includes(id) && todas.indexOf(id) === posicion);
+        const fijadas = (raiz.getAttribute('data-fijadas') ?? '').split(',').filter((id, posicion, todas) => autorizados.includes(id) && todas.indexOf(id) === posicion);
         const destino = fijadas[Number(coincidencia[1]) - 1];
         if (!destino || Number(coincidencia[1]) > MAXIMO_ATAJOS) return;
 

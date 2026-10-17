@@ -611,13 +611,19 @@ public class SelectorClienteActivoTests : BunitContext
     {
         _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
         var caducada = Guid.Parse("bbbbbbbb-0000-0000-0000-0000000000ff");
-        ConFijadas(caducada, Origen);
+        var modulo = ConFijadas(caducada, Origen);
         var cut = Renderizar(seleccionado: Norte);
 
         await Abrir(cut);
 
         cut.FindAll("#selector-tenant-fijadas").Should().BeEmpty(
             "lo guardado en el navegador es preferencia: solo cuenta lo que el servidor ya autorizó, y sin la organización propia");
+        cut.Find(".selector-tenant").GetAttribute("data-fijadas").Should().BeNullOrEmpty("Alt+n no tiene a dónde ir");
+
+        // Al fijar otra empresa se guardan las tres (la nueva y las dos ajenas, que no se borran), pero solo la nueva cuenta.
+        await cut.Find("[role=option][value='" + Norte + "']").ParentElement!.QuerySelector(".selector-tenant-fijar")!.ClickAsync(new MouseEventArgs());
+        cut.Find(".selector-tenant").GetAttribute("data-fijadas").Should().Be(Norte.ToString());
+        ((string[])modulo.Invocations["guardarFijadas"].Single().Arguments[1]!).Should().Equal(Norte.ToString(), caducada.ToString(), Origen.ToString());
         cut.Markup.Should().NotContain(caducada.ToString());
         cut.Find(".selector-tenant").GetAttribute("data-autorizados").Should().NotContain(Origen.ToString())
             .And.Contain(Norte.ToString()).And.Contain(Sur.ToString());
@@ -685,7 +691,7 @@ public class SelectorClienteActivoTests : BunitContext
         _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
         var cut = Renderizar(seleccionado: Norte, url: "trabajadores?q=ana");
 
-        var formulario = cut.Find("form#selector-tenant-atajo");
+        var formulario = cut.Find("form[data-selector-atajo]");
         formulario.GetAttribute("method").Should().Be("post");
         formulario.GetAttribute("action").Should().Be("/cuenta/cliente-activo");
         formulario.HasAttribute("hidden").Should().BeTrue("existe aunque la lista esté cerrada, para que Alt+n funcione sin abrirla");

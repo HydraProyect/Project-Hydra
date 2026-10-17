@@ -66,6 +66,10 @@ public partial class SelectorClienteActivo
     // usuario y por navegador, no viajan con la cuenta), y el módulo JS las lee y las guarda. Son una
     // preferencia: aquí se recortan siempre al conjunto que el servidor acaba de autorizar.
     private readonly List<Guid> _fijadas = [];
+
+    // Lo guardado que hoy no está en la cartera autorizada (acceso caducado, otra cartera del mismo navegador):
+    // no se pinta ni cuenta, pero tampoco se borra al guardar, por si la cartera vuelve a incluirlo.
+    private readonly List<string> _guardadasAjenas = [];
     private IJSObjectReference? _moduloFijadas;
     private IJSObjectReference? _atajosFijadas;
     private bool _fijadasIniciadas;
@@ -91,13 +95,21 @@ public partial class SelectorClienteActivo
     /// Las fijadas tal como se pintan: en el orden en que se fijaron, solo las que siguen en la cartera
     /// autorizada, y ninguna mientras se busca (la búsqueda ve la cartera entera, plana).
     /// </summary>
-    private IReadOnlyList<ClienteAutorizadoDto> Fijadas => _clientes is null || !string.IsNullOrWhiteSpace(_busqueda)
+    private IReadOnlyList<ClienteAutorizadoDto> Fijadas => string.IsNullOrWhiteSpace(_busqueda) ? FijadasAutorizadas : [];
+
+    /// <summary>
+    /// Las fijadas en su orden, recortadas a la cartera autorizada (sin la organización propia), con independencia de
+    /// la búsqueda. Es lo que lee Alt+1…5 desde <c>data-fijadas</c>: el mismo orden que ve la persona en pantalla.
+    /// </summary>
+    private IReadOnlyList<ClienteAutorizadoDto> FijadasAutorizadas => _clientes is null
         ? []
         : _fijadas
             .Select(id => _clientes.FirstOrDefault(c => c.TenantId == id))
             .OfType<ClienteAutorizadoDto>()
             .Where(c => !c.EsOrigen)
             .ToList();
+
+    private string IdsFijadas => string.Join(",", FijadasAutorizadas.Select(c => c.TenantId));
 
     /// <summary>Hay una sección encima de la lista principal: entonces esta se titula «Resto de la cartera».</summary>
     private bool HayGruposArriba => Fijadas.Count > 0 || Recientes.Count > 0;
@@ -229,14 +241,39 @@ public partial class SelectorClienteActivo
         _fijadasIniciadas = true;
         try
         {
-            _moduloFijadas = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/selector-tenant-fijadas.js");
-            var guardadas = await _moduloFijadas.InvokeAsync<string[]>("leerFijadas", clave);
-            _atajosFijadas = await _moduloFijadas.InvokeAsync<IJSObjectReference>("registrarAtajos", clave);
+            var modulo = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/selector-tenant-fijadas.js");
+            var guardadas = await modulo.InvokeAsync<string[]>("leerFijadas", clave);
+            var atajos = await modulo.InvokeAsync<IJSObjectReference>("registrarAtajos");
+
+            // El componente pudo desecharse mientras esperaba el interop (cajón móvil que monta y desmonta el
+            // selector): lo recién creado no tiene dueño y el listener de document quedaría sin liberar.
+            if (_desechado)
+            {
+                if (atajos is not null)
+                {
+                    await atajos.InvokeVoidAsync("dispose");
+                    await atajos.DisposeAsync();
+                }
+
+                await modulo.DisposeAsync();
+                return;
+            }
+
+            _moduloFijadas = modulo;
+            _atajosFijadas = atajos;
 
             var permitidas = _clientes.Where(c => !c.EsOrigen).Select(c => c.TenantId).ToHashSet();
             foreach (var texto in guardadas ?? []) // null si el interop no responde
-                if (Guid.TryParse(texto, out var id) && permitidas.Contains(id) && !_fijadas.Contains(id))
-                    _fijadas.Add(id);
+            {
+                if (Guid.TryParse(texto, out var id) && permitidas.Contains(id))
+                {
+                    if (!_fijadas.Contains(id)) _fijadas.Add(id);
+                }
+                else if (!string.IsNullOrWhiteSpace(texto) && !_guardadasAjenas.Contains(texto))
+                {
+                    _guardadasAjenas.Add(texto);
+                }
+            }
 
             StateHasChanged();
         }
@@ -259,7 +296,7 @@ public partial class SelectorClienteActivo
         try
         {
             if (_moduloFijadas is not null)
-                await _moduloFijadas.InvokeVoidAsync("guardarFijadas", clave, _fijadas.Select(id => id.ToString()).ToArray());
+                await _moduloFijadas.InvokeVoidAsync("guardarFijadas", clave, _fijadas.Select(id => id.ToString()).Concat(_guardadasAjenas).ToArray());
         }
         catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException or TaskCanceledException)
         {
