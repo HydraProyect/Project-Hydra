@@ -437,7 +437,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
         _parametrosInicializados = true;
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
-        var estadoDeLaUrl = EstadoDocumentoUi.SeleccionDocumentalValida(EstadoInicial);
+        var estadoDeLaUrl = EstadoDocumentoUi.SeleccionDocumentalValida(EstadoInicial, incluirFaltantes: true);
 
         var subcontrataDeLaUrl = IdDesdeUrl(SubcontrataInicial);
         var empresaDeLaUrl = subcontrataDeLaUrl.Length > 0 ? string.Empty : IdDesdeUrl(EmpresaInicial);
@@ -1431,7 +1431,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _filtroEmpresaId = _filtroSubcontrataId.Length > 0 ? string.Empty : IdDesdeUrl(valores.EmpresaId);
         // Un filtro guardado define el conjunto entero: sin estado guardado, el estado se quita. Un valor que
         // ya no es una opción (catálogo cambiado) se ignora, como uno de la URL.
-        _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(valores.Estado);
+        _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(valores.Estado, incluirFaltantes: true);
         _filtroCentroId = IdDesdeUrl(valores.CentroId);
 
         // Los cinco filtros del filtro guardado se escriben también en la URL, en una sola navegación.
@@ -1469,7 +1469,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
     {
         _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
-        _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"));
+        _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"), incluirFaltantes: true);
         _filtroSubcontrataId = IdDesdeUrl(vista.GetValueOrDefault("subcontrata"));
         _filtroEmpresaId = _filtroSubcontrataId.Length > 0 ? string.Empty : IdDesdeUrl(vista.GetValueOrDefault("empresa"));
         _filtroCentroId = IdDesdeUrl(vista.GetValueOrDefault("centro"));

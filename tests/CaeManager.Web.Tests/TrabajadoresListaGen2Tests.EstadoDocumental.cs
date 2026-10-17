@@ -72,6 +72,26 @@ public partial class TrabajadoresListaGen2Tests
     // --- Estado documental: pastilla y motivo --------------------------------------------------
 
     [Fact]
+    public async Task La_franja_ofrece_Pendiente_y_filtra_los_faltantes_sin_incluirlos_en_Sin_incidencias()
+    {
+        var faltante = Trabajador("Ana", "Falta", estado: EstadoDocumento.Vigente);
+        faltante = faltante with { Dto = faltante.Dto with { DocumentosFaltantes = ["Aptitud médica"] } };
+        var mediador = new MediatorFalso { Almacen = { faltante, Trabajador("Bea", "Completa", estado: EstadoDocumento.Vigente) } };
+        var cut = Renderizar(mediador);
+
+        cut.Find("button[data-estado=Faltante] .franja-estado-recuento").TextContent.Should().Be("1");
+        cut.Find("button[data-estado='Vigente,SinCaducidad'] .franja-estado-recuento").TextContent.Should().Be("1");
+        await AlternarEnLaFranja(cut, "Pendiente");
+        UltimaConsulta(mediador).EstadoDocumental.Should().Be(nameof(EstadoDocumento.Faltante));
+        Columna(cut, 0).Should().Equal("Falta");
+        CeldaDeEstado(cut).QuerySelector(".badge")!.TextContent.Trim().Should().Be("Pendiente");
+
+        await AlternarEnLaFranja(cut, "Pendiente");
+        await AlternarEnLaFranja(cut, "Sin incidencias");
+        Columna(cut, 0).Should().Equal("Completa");
+    }
+
+    [Fact]
     public void Con_una_incidencia_el_motivo_bajo_la_pastilla_dice_el_documento_que_la_causa()
     {
         var javier = ConDesglose(Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Urgente), 6, 6,

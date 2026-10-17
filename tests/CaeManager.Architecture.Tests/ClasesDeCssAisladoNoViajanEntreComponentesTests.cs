@@ -44,20 +44,16 @@ public class ClasesDeCssAisladoNoViajanEntreComponentesTests
     /// arregla. El trinquete no los repara — impide que la lista crezca.
     ///
     /// <para>
-    /// <b>Son 31, y ninguno es de descripción de página.</b> Los once párrafos
+    /// <b>Ninguno es de descripción de página.</b> Los once párrafos
     /// de descripción que motivaron este trinquete se cerraron con
     /// <c>CabeceraPagina</c> y <c>.texto-descriptivo</c>: por eso no hay aquí
-    /// ni una entrada <c>descripcion-*</c>. Lo que queda son otras cinco
+    /// ni una entrada <c>descripcion-*</c>. Lo que queda son otras cuatro
     /// familias del mismo defecto, encontradas al medir por primera vez con un
     /// instrumento que las podía ver:
     /// <list type="bullet">
     /// <item><b>botón a pelo</b> (8) — <c>.boton</c> y sus variantes se
     /// escriben sobre un <c>&lt;button&gt;</c> en vez de usar
     /// <c>&lt;Boton&gt;</c>. Se cierran usando el componente.</item>
-    /// <item><b><c>workspace-lista-entidades</c></b> (9) — la lista de
-    /// entidades relacionadas de los siete workspaces, declarada en
-    /// <c>FilaEntidadRelacionada.razor.css</c>. Su sitio es
-    /// <c>wwwroot/css/workspace.css</c>.</item>
     /// <item><b>avisos</b> (4) — <c>aviso-error</c> y <c>aviso-revocacion</c>
     /// copiados entre features; les corresponde una primitiva de aviso.</item>
     /// <item><b>controles de formulario a pelo</b> (2) —
@@ -78,13 +74,7 @@ public class ClasesDeCssAisladoNoViajanEntreComponentesTests
     private static readonly Dictionary<string, string> DeudaCongelada = new()
     {
         ["ClavesApi.razor::aviso-revocacion"] = "aviso copiado de Delegaciones; la misma primitiva de aviso, pendiente",
-        ["CentroWorkspacePanel.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
-        ["ClienteWorkspacePanel.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
         ["Delegaciones.razor::aviso-error"] = "aviso de error copiado de Facturacion/Proyectos; le corresponde una primitiva de aviso",
-        ["EmpresaWorkspacePanel.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
-        ["Empresas.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
-        ["PestanaBlindaje42.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
-        ["PestanaDocumentacion.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
         ["Plataforma.razor::boton"] = "markup de boton a pelo en vez del componente Boton",
         ["Plataforma.razor::boton-primario"] = "markup de boton a pelo en vez del componente Boton",
         ["Proyectos.razor::enlace-accion"] = "enlace de accion copiado de Facturacion",
@@ -93,17 +83,24 @@ public class ClasesDeCssAisladoNoViajanEntreComponentesTests
         ["RevisionIaTab.razor::revision-ia-confianza-barra"] = "barra de confianza que la pestana comparte con RevisionIa.razor",
         ["RevisionIaTab.razor::revision-ia-confianza-texto"] = "barra de confianza que la pestana comparte con RevisionIa.razor",
         ["SelectorEntidad.razor::campo-input"] = "control de formulario a pelo en vez de CampoTexto o CampoBuscarSelect",
-        ["SubcontrataWorkspacePanel.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
-        ["SugerenciasPreventivasTab.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
-        ["TrabajadorWorkspacePanel.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
         ["Usuarios.razor::pista-documento"] = "pista de validacion copiada de Trabajadores; primitiva de pista pendiente",
         ["Usuarios.razor::pista-documento-error"] = "pista de validacion copiada de Trabajadores; primitiva de pista pendiente",
         ["Usuarios.razor::pista-documento-exito"] = "pista de validacion copiada de Trabajadores; primitiva de pista pendiente",
-        ["Visitas.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
         ["VisorDocumento.razor::boton"] = "markup de boton a pelo en vez del componente Boton",
         ["VisorDocumento.razor::boton-medio"] = "markup de boton a pelo en vez del componente Boton",
         ["VisorDocumento.razor::boton-secundario"] = "markup de boton a pelo en vez del componente Boton",
     };
+
+    [Fact]
+    public void La_lista_de_entidades_comparte_el_reset_y_la_disposicion_desde_el_css_global()
+    {
+        var css = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web", "wwwroot", "css", "workspace.css"));
+        var regla = Regex.Match(css, @"\.workspace-lista-entidades\s*\{([^}]+)\}").Groups[1].Value;
+        regla.Should().NotBeEmpty();
+        foreach (var declaracion in new[] { "list-style: none", "margin: 0", "padding: 0", "display: flex", "flex-direction: column", "gap: var(--space-2)" })
+            regla.Should().Contain(declaracion);
+        ClasesPorComponentePropietario().Should().NotContainKey("workspace-lista-entidades");
+    }
 
     [Fact]
     public void Ninguna_clase_de_css_aislado_se_usa_fuera_de_su_componente()
@@ -159,8 +156,8 @@ public class ClasesDeCssAisladoNoViajanEntreComponentesTests
         ClasesPorComponentePropietario().Should().ContainKey("bandeja-chip",
             "es una clase declarada en Bandeja.razor.css, el caso normal que este trinquete vigila");
 
-        ClasesGlobales().Should().Contain("contenedor-pagina").And.Contain("texto-descriptivo",
-            "ambas viven en wwwroot/css y se usan desde cualquier componente");
+        ClasesGlobales().Should().Contain("workspace-lista-entidades").And.Contain("contenedor-pagina").And.Contain("texto-descriptivo",
+            "las clases compartidas viven en wwwroot/css y se usan desde cualquier componente");
     }
 
     /// <summary>
