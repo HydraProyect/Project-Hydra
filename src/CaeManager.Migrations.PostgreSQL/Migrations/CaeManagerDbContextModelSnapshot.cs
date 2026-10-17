@@ -4603,6 +4603,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("CentroId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("CompletadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
