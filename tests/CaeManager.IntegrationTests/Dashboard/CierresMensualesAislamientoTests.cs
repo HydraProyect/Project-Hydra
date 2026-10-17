@@ -1,0 +1,62 @@
+using CaeManager.Application.Common;
+using CaeManager.Domain.Dashboard;
+using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.MultiTenancy;
+using CaeManager.Infrastructure.Persistence;
+using CaeManager.IntegrationTests.Arranque;
+using FluentAssertions;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Xunit;
+
+namespace CaeManager.IntegrationTests.Dashboard;
+
+public class CierresMensualesAislamientoTests
+{
+    [Fact]
+    public async Task Rls_solo_permite_leer_y_reabrir_el_cierre_del_Tenant_propietario()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+        var tenantA = new Tenant("Operación A");
+        var tenantB = new Tenant("Operación B");
+        var tenantActual = new TenantPorAmbito();
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(arnes.CadenaPropietario, p => p.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual)).Options;
+        await using (var propietario = new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantActual))
+        {
+            propietario.Tenants.AddRange(tenantA, tenantB);
+            await propietario.SaveChangesAsync();
+            foreach (var tenant in new[] { tenantA, tenantB })
+            {
+                using var ambito = AmbitoTenantExplicito.Establecer(tenant.Id);
+                propietario.CierresMensualesTenantBeneficiario.Add(CierreMensualTenantBeneficiario.Crear(2026, 9, "{}", false, DateTime.UtcNow));
+                await propietario.SaveChangesAsync();
+            }
+        }
+        using (AmbitoTenantExplicito.Establecer(tenantA.Id))
+        using (var scope = arnes.Servicios.CreateScope())
+        {
+            var runtime = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            var visibles = await runtime.CierresMensualesTenantBeneficiario.IgnoreQueryFilters().ToListAsync();
+            visibles.Should().ContainSingle().Which.TenantId.Should().Be(tenantA.Id);
+            (await runtime.CierresMensualesTenantBeneficiario.AnyAsync(c => c.TenantId == tenantB.Id)).Should().BeFalse();
+            visibles[0].Reabrir("Corrección del mes", DateTime.UtcNow);
+            await runtime.SaveChangesAsync();
+        }
+        using (AmbitoTenantExplicito.Establecer(tenantB.Id))
+        using (var scope = arnes.Servicios.CreateScope())
+        {
+            var runtime = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            var cierre = await runtime.CierresMensualesTenantBeneficiario.SingleAsync();
+            cierre.TenantId.Should().Be(tenantB.Id);
+            cierre.ReabiertoEnUtc.Should().BeNull();
+        }
+    }
+
+    private sealed class TenantPorAmbito : ITenantActual
+    {
+        public Guid? TenantId => AmbitoTenantExplicito.TenantIdActual;
+    }
+}
