@@ -214,7 +214,8 @@ public class Microsoft365GraphClient(
 
     public async Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
         string accessToken, string buzonEmail, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
-        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken,
+        IReadOnlyList<string>? copia = null)
     {
         using var peticionBorrador = NuevaPeticionGraph(HttpMethod.Post, "https://graph.microsoft.com/v1.0/me/messages", accessToken);
 
@@ -233,7 +234,8 @@ public class Microsoft365GraphClient(
                 asunto,
                 new CuerpoMensajeGraphConTipo("HTML", cuerpoHtml),
                 destinatarios.Select(d => new EmailAddressGraph(new DireccionGraph(d))).ToList(),
-                ConstruirAdjuntosGraph(adjuntos)));
+                ConstruirAdjuntosGraph(adjuntos),
+                copia is { Count: > 0 } ? copia.Select(d => new EmailAddressGraph(new DireccionGraph(d))).ToList() : null));
 
         try
         {
@@ -665,7 +667,8 @@ public class Microsoft365GraphClient(
         [property: JsonPropertyName("subject")] string Subject,
         [property: JsonPropertyName("body")] CuerpoMensajeGraphConTipo Body,
         [property: JsonPropertyName("toRecipients")] IReadOnlyList<EmailAddressGraph> ToRecipients,
-        [property: JsonPropertyName("attachments")] IReadOnlyList<AdjuntoEnvioGraph>? Attachments);
+        [property: JsonPropertyName("attachments")] IReadOnlyList<AdjuntoEnvioGraph>? Attachments,
+        [property: JsonPropertyName("ccRecipients"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<EmailAddressGraph>? CcRecipients = null);
 
     /// <summary>sendMail exige "contentType" explícito en el body (a diferencia de /reply, que no lo pide) — de ahí este envoltorio en vez de reutilizar CuerpoMensajeGraph tal cual.</summary>
     private sealed record CuerpoMensajeGraphConTipo(

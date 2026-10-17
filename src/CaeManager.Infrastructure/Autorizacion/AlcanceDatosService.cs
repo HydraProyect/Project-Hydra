@@ -184,6 +184,13 @@ public class AlcanceDatosService(
         await TieneAccesoTotalRealAsync(cancellationToken)
         && await ObtenerGestorDeLenteAsync(cancellationToken) is null;
 
+    /// <summary>
+    /// El alcance de Clientes efectivo (ya estrechado por la lente de demo) es sin restricción o el Tenant
+    /// entero por cartera universal. Mismo memo por Tenant que el resto de alcances.
+    /// </summary>
+    public async Task<bool> AlcanzaElTenantEnteroAsync(CancellationToken cancellationToken = default) =>
+        await ObtenerAlcanceDeCarteraAsync(cancellationToken) is { SinRestriccion: true } or { TenantEntero: true };
+
     private async Task<bool> TieneAccesoTotalRealAsync(CancellationToken cancellationToken)
     {
         var tenant = ClaveTenantVigente();

@@ -329,6 +329,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Dashboard.ObtenerDesgloseDashboardQueryHandler", "ISubcontratasQueryContext"),
         ("Dashboard.ObtenerDesgloseDashboardQueryHandler", "ITiposDocumentoQueryContext"),
         ("Dashboard.ObtenerDesgloseDashboardQueryHandler", "ITrabajadoresQueryContext"),
+        // Cuadro de dirección (incremento 2): recuentos del mes por Tenant beneficiario.
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "ICentrosQueryContext"),
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IComunicacionesQueryContext"),
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IDocumentosQueryContext"),
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IReclamacionesQueryContext"),
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "ITrabajadoresQueryContext"),
         ("Dashboard.ObtenerEstadisticasAprobacionDocumentoQueryHandler", "IDocumentosQueryContext"),
         ("Dashboard.ObtenerKpisBpoQueryHandler", "IClientesQueryContext"),
         ("Dashboard.ObtenerKpisBpoQueryHandler", "IComunicacionesQueryContext"),

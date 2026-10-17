@@ -16,6 +16,10 @@ namespace CaeManager.Application.Reclamaciones;
 /// Lo pedido sin vencimiento, ya revalidado (<see cref="IPendientesDeReclamacionService"/>): los documentos que faltan y los
 /// «Sin confirmar» sin fecha (estos últimos también van en <paramref name="DocumentoIds"/>). Vacío en una reclamación por vencimiento de siempre.
 /// </param>
+/// <param name="Extra">
+/// Los destinatarios añadidos a mano (ya validados) y las direcciones en copia. Van aparte de <paramref name="Correos"/> y
+/// <paramref name="Destinatarios"/>, que son solo los de la agenda: ninguno de estos se guarda en ella.
+/// </param>
 public sealed record ReclamacionPreparada(
     Guid TitularId,
     string TitularRazonSocial,
@@ -24,8 +28,15 @@ public sealed record ReclamacionPreparada(
     IReadOnlyList<DestinatarioAgendaDto> Destinatarios,
     string Asunto,
     string CuerpoHtml,
-    IReadOnlyList<DocumentoPendienteDto>? Pendientes = null)
+    IReadOnlyList<DocumentoPendienteDto>? Pendientes = null,
+    DestinatariosExtraDeReclamacion? Extra = null)
 {
+    /// <summary>Los correos a los que va el envío: los de la agenda más los añadidos a mano.</summary>
+    public IReadOnlyList<string> CorreosParaEnviar => [.. Correos, .. (Extra ?? DestinatariosExtraDeReclamacion.Ninguno).Adicionales];
+
+    /// <summary>Las direcciones en copia (CC).</summary>
+    public IReadOnlyList<string> EnCopia => (Extra ?? DestinatariosExtraDeReclamacion.Ninguno).EnCopia;
+
     /// <summary>Los documentos que faltan, tal como los guarda el registro (no hay Documento al que apuntar).</summary>
     public IReadOnlyList<DocumentoQueFaltaPedido> DocumentosQueFaltan =>
         [.. (Pendientes ?? []).Where(p => p.Motivo == MotivoPendienteDeReclamacion.Ausente)

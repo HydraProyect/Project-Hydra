@@ -21,6 +21,7 @@ public class RegistroEnvioReclamacionServiceFalso : IRegistroEnvioReclamacionSer
     public string? UltimoAsunto { get; private set; }
     public string? UltimoCuerpoHtml { get; private set; }
     public IReadOnlyList<DocumentoQueFaltaPedido>? UltimosDocumentosQueFaltan { get; private set; }
+    public IReadOnlyList<string>? UltimosEnCopia { get; private set; }
 
     public Task<Result> EnviarYRegistrarAsync(
         TitularReclamacion titular,
@@ -29,9 +30,11 @@ public class RegistroEnvioReclamacionServiceFalso : IRegistroEnvioReclamacionSer
         string asunto,
         string cuerpoHtml,
         CancellationToken cancellationToken,
-        IReadOnlyList<DocumentoQueFaltaPedido>? documentosQueFaltan = null)
+        IReadOnlyList<DocumentoQueFaltaPedido>? documentosQueFaltan = null,
+        IReadOnlyList<string>? enCopia = null)
     {
         VecesLlamado++;
+        UltimosEnCopia = enCopia;
         UltimosDocumentosQueFaltan = documentosQueFaltan;
         UltimoTitular = titular;
         UltimosDocumentoIds = documentoIds;
