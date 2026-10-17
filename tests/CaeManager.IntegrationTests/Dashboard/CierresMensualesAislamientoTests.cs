@@ -1,5 +1,8 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Dashboard.Queries;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Dashboard;
+using CaeManager.Infrastructure.Dashboard;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -52,6 +55,53 @@ public class CierresMensualesAislamientoTests
             var cierre = await runtime.CierresMensualesTenantBeneficiario.SingleAsync();
             cierre.TenantId.Should().Be(tenantB.Id);
             cierre.ReabiertoEnUtc.Should().BeNull();
+        }
+    }
+
+    [Fact]
+    public async Task El_servicio_cierra_el_mes_anterior_una_vez_y_vuelve_a_cerrar_el_mes_reabierto()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+        var tenant = new Tenant("Operación cierre");
+        var tenantActual = new TenantPorAmbito();
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(arnes.CadenaPropietario, p => p.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual)).Options;
+        await using (var propietario = new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantActual))
+        {
+            propietario.Tenants.Add(tenant);
+            await propietario.SaveChangesAsync();
+        }
+
+        var servicio = ActivatorUtilities.CreateInstance<CierreMensualCuadroDireccionHostedService>(arnes.Servicios);
+        await servicio.ProcesarAsync(CancellationToken.None);
+        await servicio.ProcesarAsync(CancellationToken.None);
+
+        var ahora = DiaDeNegocio.De(DateTime.UtcNow);
+        var mesAnterior = new DateOnly(ahora.Year, ahora.Month, 1).AddMonths(-1);
+        DateTime cerradoPrimero;
+        using (AmbitoTenantExplicito.Establecer(tenant.Id))
+        using (var scope = arnes.Servicios.CreateScope())
+        {
+            var runtime = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            var cierre = await runtime.CierresMensualesTenantBeneficiario.SingleAsync();
+            cierre.TenantId.Should().Be(tenant.Id);
+            (cierre.Anyo, cierre.Mes).Should().Be((mesAnterior.Year, mesAnterior.Month));
+            cierre.Estimado.Should().Be(new MesCuadroDireccion(mesAnterior.Year, mesAnterior.Month).CierreEsEstimado);
+            cerradoPrimero = cierre.CerradoEnUtc;
+            cierre.Reabrir("Corrección del mes", DateTime.UtcNow);
+            await runtime.SaveChangesAsync();
+        }
+
+        await servicio.ProcesarAsync(CancellationToken.None);
+
+        using (AmbitoTenantExplicito.Establecer(tenant.Id))
+        using (var scope = arnes.Servicios.CreateScope())
+        {
+            var runtime = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            var cierre = await runtime.CierresMensualesTenantBeneficiario.SingleAsync();
+            cierre.ReabiertoEnUtc.Should().BeNull("el cierre siguiente vuelve a congelar el mes reabierto");
+            cierre.CerradoEnUtc.Should().BeAfter(cerradoPrimero);
         }
     }
 

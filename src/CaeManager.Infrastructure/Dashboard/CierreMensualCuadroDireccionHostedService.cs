@@ -26,6 +26,7 @@ public class CierreMensualCuadroDireccionHostedService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        using var ambitoActor = AmbitoActorAuditoria.EstablecerSistema();
         while (!stoppingToken.IsCancellationRequested)
         {
             var proximoCierre = ProximoCierreUtc(reloj.GetUtcNow().UtcDateTime);
@@ -40,19 +41,21 @@ public class CierreMensualCuadroDireccionHostedService(
                 correcto = false;
                 logger.LogError(ex, "Falló el cierre mensual del Cuadro de dirección; se reintentará.");
             }
-            var espera = correcto ? proximoCierre - reloj.GetUtcNow().UtcDateTime : TimeSpan.FromMinutes(1);
+            var espera = correcto ? proximoCierre - reloj.GetUtcNow().UtcDateTime : TimeSpan.FromMinutes(15);
             await Task.Delay(espera > TimeSpan.Zero ? espera : TimeSpan.FromSeconds(1), reloj, stoppingToken);
         }
     }
 
     internal async Task ProcesarAsync(CancellationToken ct)
     {
-        using var actor = AmbitoActorAuditoria.EstablecerSistema();
-        List<Guid> tenants;
+        using var ambitoActor = AmbitoActorAuditoria.EstablecerSistema();
+        List<(Guid Id, DateTime CreadoEnUtc)> tenants;
         using (var scope = scopes.CreateScope())
-            tenants = await scope.ServiceProvider.GetRequiredService<ITenantsQueryContext>().Tenants.Select(t => t.Id).ToListAsync(ct);
+            tenants = (await scope.ServiceProvider.GetRequiredService<ITenantsQueryContext>().Tenants
+                .Select(t => new { t.Id, t.CreadoEnUtc }).ToListAsync(ct))
+                .Select(t => (t.Id, t.CreadoEnUtc)).ToList();
         List<Exception> errores = [];
-        foreach (var tenantId in tenants)
+        foreach (var (tenantId, creadoEnUtc) in tenants)
         {
             try
             {
@@ -63,26 +66,27 @@ public class CierreMensualCuadroDireccionHostedService(
                 var ahora = reloj.GetUtcNow().UtcDateTime;
                 var hoy = DiaDeNegocio.De(ahora);
                 var mesAnterior = new DateOnly(hoy.Year, hoy.Month, 1).AddMonths(-1);
-                var primeraFecha = await db.Trabajadores.IgnoreQueryFilters().Where(t => t.TenantId == tenantId)
-                    .Select(t => (DateTime?)t.CreadoEnUtc)
-                    .Concat(db.Centros.IgnoreQueryFilters().Where(c => c.TenantId == tenantId).Select(c => (DateTime?)c.CreadoEnUtc))
-                    .Concat(db.Documentos.IgnoreQueryFilters().Where(d => d.TenantId == tenantId).Select(d => (DateTime?)d.CreadoEnUtc))
-                    .Concat(db.Mensajes.IgnoreQueryFilters().Where(m => m.TenantId == tenantId).Select(m => (DateTime?)m.FechaUtc))
-                    .Concat(db.Gestiones.IgnoreQueryFilters().Where(g => g.TenantId == tenantId).Select(g => g.CompletadaEnUtc))
-                    .Concat(db.ReclamacionesDocumentales.IgnoreQueryFilters().Where(r => r.TenantId == tenantId).Select(r => (DateTime?)r.FechaEnvioUtc))
-                    .MinAsync(ct);
-                var primero = primeraFecha is null ? mesAnterior : DiaDeNegocio.De(primeraFecha.Value);
+                // La recuperación arranca en el mes de alta del Tenant: antes no hay nada suyo que cerrar.
+                var primero = DiaDeNegocio.De(DateTime.SpecifyKind(creadoEnUtc, DateTimeKind.Utc));
                 var desde = new DateOnly(primero.Year, primero.Month, 1);
                 if (desde > mesAnterior) desde = mesAnterior;
                 for (var mes = desde; mes <= mesAnterior; mes = mes.AddMonths(1))
                 {
-                    if (await db.CierresMensualesTenantBeneficiario.AnyAsync(c => c.Anyo == mes.Year && c.Mes == mes.Month, ct))
+                    // Un mes reabierto se vuelve a cerrar en la siguiente pasada del cierre: la reapertura dura
+                    // hasta el próximo día 1 y la foto nueva sustituye a la anterior.
+                    var existente = await db.CierresMensualesTenantBeneficiario
+                        .SingleOrDefaultAsync(c => c.Anyo == mes.Year && c.Mes == mes.Month, ct);
+                    if (existente is not null && existente.ReabiertoEnUtc is null)
                         continue;
                     var periodo = new MesCuadroDireccion(mes.Year, mes.Month);
                     var cifras = await medicion.MedirAsync(periodo, periodo.FinUtc, ct, medirDocumental: false);
                     var tarifas = await db.TarifasCliente.Select(t => new TarifaAplicadaCuadro(t.ClienteId, t.Concepto, t.PrecioUnitario, t.MonedaIso)).ToListAsync(ct);
-                    db.CierresMensualesTenantBeneficiario.Add(CierreMensualTenantBeneficiario.Crear(
-                        mes.Year, mes.Month, new FotoCierreMensual(cifras, tarifas).Serializar(), periodo.CierreEsEstimado, ahora));
+                    var foto = new FotoCierreMensual(cifras, tarifas).Serializar();
+                    if (existente is null)
+                        db.CierresMensualesTenantBeneficiario.Add(CierreMensualTenantBeneficiario.Crear(
+                            mes.Year, mes.Month, foto, periodo.CierreEsEstimado, ahora));
+                    else
+                        existente.Recerrar(foto, ahora);
                     await db.SaveChangesAsync(ct);
                 }
             }
