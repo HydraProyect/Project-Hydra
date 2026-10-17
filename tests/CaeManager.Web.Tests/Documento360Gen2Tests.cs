@@ -236,7 +236,7 @@ public partial class Documento360Gen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Renovar_abre_la_fecha_de_emision_vacia_y_no_guarda_hasta_escribirla()
+    public async Task Corregir_sin_archivo_conserva_ambas_fechas_y_las_guarda_sin_reescribirlas()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediadorFalso());
@@ -245,12 +245,16 @@ public partial class Documento360Gen2Tests : BunitContext
 
         await Boton(cut, "Renovar").ClickAsync(new MouseEventArgs());
         cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de emisión").Instance.Valor
-            .Should().BeNullOrEmpty("renovar no hereda la fecha de emisión del documento anterior");
+            .Should().Be("2026-01-10");
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de vencimiento").Instance.Valor
+            .Should().Be("2026-08-10");
 
         await Boton(cut, "Guardar fechas y comentarios (sin sustituir el archivo)").ClickAsync(new MouseEventArgs());
 
-        cut.Find("[role=alert]").TextContent.Should().Be("Introduce una fecha de emisión válida.");
-        mediador.Enviadas.OfType<RenovarDocumentoCommand>().Should().BeEmpty("sin fecha de emisión no hay renovación");
+        var comando = mediador.Enviadas.OfType<RenovarDocumentoCommand>().Should().ContainSingle().Subject;
+        comando.FechaEmision.Should().Be(new DateOnly(2026, 1, 10));
+        comando.FechaVencimientoManual.Should().Be(new DateOnly(2026, 8, 10));
+        comando.ArchivoUrl.Should().BeNull();
     }
 
     /// <summary>
