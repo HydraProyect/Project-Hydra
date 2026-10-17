@@ -163,16 +163,16 @@
     <value>Mi cuenta</value>
   </data>
   <data name="AvatarDescripcion" xml:space="preserve">
-    <value>Elige un animal y un color para que te representen en lugar de tus iniciales. Es opcional: si no eliges ninguno, se siguen mostrando tus iniciales.</value>
+    <value>Elige un animal y un tono para que te reconozcan en listados, historiales y en tu menú de cuenta. Si no eliges ninguno, se muestran tus iniciales.</value>
   </data>
   <data name="AvatarVistaPrevia" xml:space="preserve">
     <value>Así te verán</value>
   </data>
   <data name="AvatarGrupoMotivo" xml:space="preserve">
-    <value>Elige un animal</value>
+    <value>Animal</value>
   </data>
   <data name="AvatarGrupoTono" xml:space="preserve">
-    <value>Elige un color</value>
+    <value>Tono</value>
   </data>
   <data name="AvatarGuardar" xml:space="preserve">
     <value>Guardar avatar</value>
@@ -184,13 +184,13 @@
     <value>Avatar guardado.</value>
   </data>
   <data name="AvatarQuitado" xml:space="preserve">
-    <value>Vuelves a mostrarte con tus iniciales.</value>
+    <value>Vuelves a verte con tus iniciales.</value>
   </data>
   <data name="AvatarErrorCargaTitulo" xml:space="preserve">
     <value>No pudimos cargar tu avatar</value>
   </data>
   <data name="AvatarErrorCargaDescripcion" xml:space="preserve">
-    <value>Inténtalo de nuevo en unos segundos. Tu avatar no se ha modificado.</value>
+    <value>Inténtalo de nuevo en unos segundos.</value>
   </data>
   <data name="AvatarReintentar" xml:space="preserve">
     <value>Reintentar</value>
@@ -212,6 +212,21 @@
   </data>
   <data name="AvatarCargando" xml:space="preserve">
     <value>Cargando tu avatar</value>
+  </data>
+  <data name="AvatarVistaPreviaEtiqueta" xml:space="preserve">
+    <value>Vista previa</value>
+  </data>
+  <data name="AvatarConTusIniciales" xml:space="preserve">
+    <value>Con tus iniciales</value>
+  </data>
+  <data name="AvatarContextoFila" xml:space="preserve">
+    <value>Fila</value>
+  </data>
+  <data name="AvatarContextoHistorial" xml:space="preserve">
+    <value>Historial</value>
+  </data>
+  <data name="AvatarContextoValido" xml:space="preserve">
+    <value>validó un documento</value>
   </data>
   <data name="AvatarTono_azul" xml:space="preserve">
     <value>Azul</value>

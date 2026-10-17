@@ -163,16 +163,16 @@
     <value>El meu compte</value>
   </data>
   <data name="AvatarDescripcion" xml:space="preserve">
-    <value>Tria un animal i un color perquè et representin en lloc de les teves inicials. És opcional: si no en tries cap, es continuen mostrant les teves inicials.</value>
+    <value>Tria un animal i un to perquè et reconeguin en llistats, historials i al teu menú de compte. Si no en tries cap, es mostren les teves inicials.</value>
   </data>
   <data name="AvatarVistaPrevia" xml:space="preserve">
     <value>Així et veuran</value>
   </data>
   <data name="AvatarGrupoMotivo" xml:space="preserve">
-    <value>Tria un animal</value>
+    <value>Animal</value>
   </data>
   <data name="AvatarGrupoTono" xml:space="preserve">
-    <value>Tria un color</value>
+    <value>To</value>
   </data>
   <data name="AvatarGuardar" xml:space="preserve">
     <value>Desa l'avatar</value>
@@ -184,13 +184,13 @@
     <value>Avatar desat.</value>
   </data>
   <data name="AvatarQuitado" xml:space="preserve">
-    <value>Tornes a mostrar-te amb les teves inicials.</value>
+    <value>Tornes a veure't amb les teves inicials.</value>
   </data>
   <data name="AvatarErrorCargaTitulo" xml:space="preserve">
     <value>No hem pogut carregar el teu avatar</value>
   </data>
   <data name="AvatarErrorCargaDescripcion" xml:space="preserve">
-    <value>Torna-ho a provar d'aquí a uns segons. El teu avatar no s'ha modificat.</value>
+    <value>Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="AvatarReintentar" xml:space="preserve">
     <value>Torna-ho a provar</value>
@@ -212,6 +212,21 @@
   </data>
   <data name="AvatarCargando" xml:space="preserve">
     <value>Carregant el teu avatar</value>
+  </data>
+  <data name="AvatarVistaPreviaEtiqueta" xml:space="preserve">
+    <value>Vista prèvia</value>
+  </data>
+  <data name="AvatarConTusIniciales" xml:space="preserve">
+    <value>Amb les teves inicials</value>
+  </data>
+  <data name="AvatarContextoFila" xml:space="preserve">
+    <value>Fila</value>
+  </data>
+  <data name="AvatarContextoHistorial" xml:space="preserve">
+    <value>Historial</value>
+  </data>
+  <data name="AvatarContextoValido" xml:space="preserve">
+    <value>ha validat un document</value>
   </data>
   <data name="AvatarTono_azul" xml:space="preserve">
     <value>Blau</value>

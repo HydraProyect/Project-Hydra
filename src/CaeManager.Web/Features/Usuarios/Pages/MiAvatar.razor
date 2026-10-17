@@ -13,6 +13,13 @@
 @inject IStringLocalizer<TextosUsuarios> Textos
 @inject ILogger<MiAvatar> Logger
 
+@*
+    Pantalla /mi-avatar, 1:1 con «Revisión Interfaz sin Maqueta TALVEG» §B (export vigente de Design, DDL-083).
+    Escritorio: tarjeta de elección (rejilla fija de 8 columnas de 52 px y tonos en píldora) y, a la derecha, la
+    vista previa en contexto (300 px) con Guardar, la línea de estado y «Volver a mis iniciales». Móvil: la vista
+    previa pasa arriba, la rejilla es de 6 columnas, «Volver a mis iniciales» baja a la tarjeta y Guardar queda en una
+    barra fija inferior de 48 px.
+*@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["AvatarTitulo"] — @Marca.Nombre</PageTitle>
 
@@ -23,24 +30,22 @@
 
     @if (_cargando)
     {
-        @* Esqueleto con la forma de la pantalla: vista previa y rejilla de animales. *@
-        <Tarjeta>
-            <div class="mi-emblema-esqueleto" aria-busy="true" aria-label="@Textos["AvatarCargando"]">
-                <div class="mi-emblema-esqueleto-vista">
-                    <span class="mi-emblema-esqueleto-bloque mi-emblema-esqueleto-redondo"></span>
-                    <span class="mi-emblema-esqueleto-textos">
-                        <span class="mi-emblema-esqueleto-bloque mi-emblema-esqueleto-titulo"></span>
-                        <span class="mi-emblema-esqueleto-bloque mi-emblema-esqueleto-detalle"></span>
-                    </span>
-                </div>
-                <div class="mi-emblema-esqueleto-rejilla">
-                    @foreach (var _ in Enumerable.Range(0, 16))
-                    {
-                        <span class="mi-emblema-esqueleto-bloque mi-emblema-esqueleto-celda"></span>
-                    }
-                </div>
+        @* Esqueleto con la forma de la pantalla: avatar con dos líneas y la rejilla de animales. *@
+        <div class="mi-emblema-tarjeta mi-emblema-esqueleto" aria-busy="true" aria-label="@Textos["AvatarCargando"]">
+            <div class="mi-emblema-esqueleto-vista">
+                <span class="mi-emblema-esqueleto-bloque mi-emblema-esqueleto-redondo"></span>
+                <span class="mi-emblema-esqueleto-textos">
+                    <span class="mi-emblema-esqueleto-bloque mi-emblema-esqueleto-titulo"></span>
+                    <span class="mi-emblema-esqueleto-bloque mi-emblema-esqueleto-detalle"></span>
+                </span>
             </div>
-        </Tarjeta>
+            <div class="mi-emblema-esqueleto-rejilla">
+                @foreach (var _ in Enumerable.Range(0, 16))
+                {
+                    <span class="mi-emblema-esqueleto-bloque mi-emblema-esqueleto-celda"></span>
+                }
+            </div>
+        </div>
     }
     else if (_errorCarga)
     {
@@ -58,19 +63,8 @@
     }
     else
     {
-        <Tarjeta>
-            <div class="mi-emblema">
-                <div class="mi-emblema-vista" aria-live="polite">
-                    <span class="mi-emblema-vista-figura @(_recienGuardado ? "mi-emblema-vista-figura-rebota" : null)">
-                        <AvatarUsuario Nombre="@_nombre" Avatar="@ClaveElegida" Tamano="TamanoAvatarUsuario.Grande" />
-                    </span>
-                    <div class="mi-emblema-vista-texto">
-                        <span class="mi-emblema-vista-rotulo">@Textos["AvatarVistaPrevia"]</span>
-                        <span class="mi-emblema-vista-nombre">@_nombre</span>
-                        <span class="mi-emblema-estado">@TextoDeEstado</span>
-                    </div>
-                </div>
-
+        <div class="mi-emblema">
+            <div class="mi-emblema-tarjeta">
                 <fieldset class="mi-emblema-grupo" disabled="@_guardando">
                     <legend class="mi-emblema-leyenda">@Textos["AvatarGrupoMotivo"]</legend>
                     <div class="mi-emblema-opciones mi-emblema-rejilla">
@@ -82,7 +76,7 @@
                                        value="@motivo.Clave" aria-label="@nombreMotivo"
                                        checked="@(_motivo == motivo.Clave)"
                                        @onchange="() => ElegirMotivo(motivo.Clave)" />
-                                <AvatarUsuario Avatar="@CatalogoAvatares.Clave(motivo.Clave, _tono)" Tamano="TamanoAvatarUsuario.Grande" />
+                                <AvatarUsuario Avatar="@CatalogoAvatares.Clave(motivo.Clave, _tono)" />
                             </label>
                         }
                     </div>
@@ -105,24 +99,59 @@
                     </div>
                 </fieldset>
 
-                @* Es la salida, no una acción par de «Guardar avatar»: botón de texto bajo la rejilla. *@
-                <Boton Variante="VarianteBoton.Fantasma" class="mi-emblema-iniciales"
-                       Deshabilitado="@(_guardando || (_guardada is null && _motivo is null))"
+                @* Móvil: la salida vive en la tarjeta, bajo los tonos (en escritorio, bajo la vista previa). *@
+                <Boton Variante="VarianteBoton.Fantasma" class="mi-emblema-iniciales-movil"
+                       Deshabilitado="@(_guardando || SinNadaQueQuitar)"
                        OnClick="() => GuardarAsync(null)">
                     @Textos["AvatarUsarIniciales"]
                 </Boton>
+            </div>
 
-                @* En escritorio va al final de la tarjeta; en móvil, barra fija inferior (48 px). *@
-                <div class="mi-emblema-acciones">
-                    <Boton Variante="VarianteBoton.Primario" class="mi-emblema-guardar"
-                           Cargando="@_guardando"
-                           Deshabilitado="@(_motivo is null || !HayCambios)"
-                           OnClick="() => GuardarAsync(ClaveElegida)">
-                        @(_guardando ? Textos["AvatarGuardando"] : Textos["AvatarGuardar"])
+            <aside class="mi-emblema-vista" aria-label="@Textos["AvatarVistaPreviaEtiqueta"]">
+                <span class="mi-emblema-vista-rotulo">@Textos["AvatarVistaPrevia"]</span>
+                <div class="mi-emblema-vista-cabecera" aria-live="polite">
+                    <span class="mi-emblema-vista-figura @(_recienGuardado ? "mi-emblema-vista-figura-rebota" : null)">
+                        <AvatarUsuario Nombre="@_nombre" Avatar="@ClaveElegida" Tamano="TamanoAvatarUsuario.Grande" />
+                    </span>
+                    <div class="mi-emblema-vista-texto">
+                        <span class="mi-emblema-vista-nombre">@_nombre</span>
+                        <span class="mi-emblema-vista-descripcion">@TextoDeVistaPrevia</span>
+                        <span class="mi-emblema-estado-movil">@TextoDeEstado</span>
+                    </div>
+                </div>
+
+                <div class="mi-emblema-contextos">
+                    <div class="mi-emblema-contexto">
+                        <AvatarUsuario Nombre="@_nombre" Avatar="@ClaveElegida" Tamano="TamanoAvatarUsuario.Pequeno" />
+                        <span class="mi-emblema-contexto-texto">@_nombre</span>
+                        <span class="mi-emblema-contexto-rotulo">@Textos["AvatarContextoFila"]</span>
+                    </div>
+                    <div class="mi-emblema-contexto">
+                        <AvatarUsuario Nombre="@_nombre" Avatar="@ClaveElegida" Tamano="TamanoAvatarUsuario.Medio" />
+                        <span class="mi-emblema-contexto-texto"><strong>@PrimerNombre</strong> @Textos["AvatarContextoValido"]</span>
+                        <span class="mi-emblema-contexto-rotulo">@Textos["AvatarContextoHistorial"]</span>
+                    </div>
+                </div>
+
+                <div class="mi-emblema-pie">
+                    <div class="mi-emblema-acciones">
+                        <Boton Variante="VarianteBoton.Primario" class="mi-emblema-guardar"
+                               Cargando="@_guardando"
+                               Deshabilitado="@(_motivo is null || !HayCambios)"
+                               OnClick="() => GuardarAsync(ClaveElegida)">
+                            @(_guardando ? Textos["AvatarGuardando"] : Textos["AvatarGuardar"])
+                        </Boton>
+                    </div>
+                    <span class="mi-emblema-estado">@TextoDeEstado</span>
+                    @* Es la salida, no una acción par de «Guardar avatar»: botón de texto. *@
+                    <Boton Variante="VarianteBoton.Fantasma" class="mi-emblema-iniciales"
+                           Deshabilitado="@(_guardando || SinNadaQueQuitar)"
+                           OnClick="() => GuardarAsync(null)">
+                        @Textos["AvatarUsarIniciales"]
                     </Boton>
                 </div>
-            </div>
-        </Tarjeta>
+            </aside>
+        </div>
     }
 </div>
 </LimiteDeErrores>

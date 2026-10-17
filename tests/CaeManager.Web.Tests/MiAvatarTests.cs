@@ -115,7 +115,7 @@ public class MiAvatarTests : BunitContext
     {
         var cut = Render<MiAvatar>();
 
-        cut.Find(".mi-emblema-estado").TextContent.Trim().Should().Be("Aún no has elegido avatar: te ven con tus iniciales.");
+        cut.Find(".mi-emblema-vista-descripcion").TextContent.Trim().Should().Be("Aún no has elegido avatar: te ven con tus iniciales.");
         cut.Find(".mi-emblema-guardar").HasAttribute("disabled").Should().BeTrue();
         cut.Find(".mi-emblema-iniciales").HasAttribute("disabled").Should().BeTrue("ya se muestra con sus iniciales");
         cut.FindAll("input[name='mi-emblema-motivo']:checked").Should().BeEmpty("no hay animal marcado");
@@ -226,6 +226,69 @@ public class MiAvatarTests : BunitContext
         aviso.Mensaje.Should().Be("No pudimos guardar el avatar.");
         aviso.TextoAccion.Should().Be("Reintentar");
         cut.FindAll(".mi-emblema-guardar").Should().ContainSingle("la pantalla sigue en pie");
+    }
+
+    // ---------- 1:1 con el export de Design (§B, DDL-083): textos, vista previa en contexto, medidas ----------
+
+    [Fact]
+    public void Los_textos_y_las_leyendas_son_los_del_export_de_Design()
+    {
+        var cut = Render<MiAvatar>();
+
+        cut.FindAll(".mi-emblema-leyenda").Select(l => l.TextContent.Trim()).Should().Equal("Animal", "Tono");
+        cut.Markup.Should().Contain("Elige un animal y un tono para que te reconozcan en listados, historiales y en tu menú de cuenta. Si no eliges ninguno, se muestran tus iniciales.");
+        cut.Find("aside.mi-emblema-vista").GetAttribute("aria-label").Should().Be("Vista previa");
+        cut.Find(".mi-emblema-vista-rotulo").TextContent.Trim().Should().Be("Así te verán");
+        cut.FindAll(".mi-emblema-opcion-tono span:not(.avatar-usuario):not(.avatar-usuario-glifo)").Select(s => s.TextContent.Trim())
+            .Should().Equal("Azul", "Verde", "Ámbar", "Neutro");
+    }
+
+    [Fact]
+    public void La_vista_previa_ensena_el_avatar_donde_se_va_a_ver_en_la_fila_y_en_el_historial()
+    {
+        _mediador.AvatarGuardado = "zorro-verde";
+        var cut = Render<MiAvatar>();
+
+        cut.Find(".mi-emblema-vista-descripcion").TextContent.Trim().Should().Be("Vista previa");
+        var contextos = cut.FindAll(".mi-emblema-contexto");
+        contextos.Select(c => c.QuerySelector(".mi-emblema-contexto-rotulo")!.TextContent.Trim()).Should().Equal("Fila", "Historial");
+        contextos[0].QuerySelector(".avatar-usuario")!.ClassList.Should().Contain("avatar-usuario-pequeno", "24 px en la fila");
+        contextos[1].QuerySelector(".avatar-usuario")!.ClassList.Should().NotContain(c => c == "avatar-usuario-pequeno" || c == "avatar-usuario-grande", "32 px en el historial");
+        contextos[1].TextContent.Should().Contain("validó un documento");
+        contextos.Should().OnlyContain(c => c.QuerySelector(".avatar-usuario-tono-verde") != null, "los dos contextos enseñan lo elegido");
+    }
+
+    [Fact]
+    public void Quitar_el_avatar_avisa_con_el_texto_del_export()
+    {
+        _mediador.AvatarGuardado = "zorro-verde";
+        var cut = Render<MiAvatar>();
+
+        cut.Find(".mi-emblema-iniciales").Click();
+
+        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle().Which.Mensaje.Should().Be("Vuelves a verte con tus iniciales.");
+        cut.Find(".mi-emblema-vista-descripcion").TextContent.Trim().Should().Be("Con tus iniciales");
+    }
+
+    [Fact]
+    public void La_hoja_de_estilos_fija_la_rejilla_de_8_columnas_de_52_px_6_en_movil_y_la_barra_fija_de_48_px()
+    {
+        var css = File.ReadAllText(Path.Combine(RaizWeb(), "Features", "Usuarios", "Pages", "MiAvatar.razor.css"));
+
+        css.Should().Contain("grid-template-columns: repeat(8, 52px)");
+        css.Should().Contain("grid-template-columns: minmax(0, 1fr) 300px", "la vista previa es una columna fija de 300 px");
+        var movil = css[css.IndexOf("@media (max-width: 767px)", StringComparison.Ordinal)..];
+        movil.Should().Contain("repeat(6, minmax(44px, 1fr))");
+        movil.Should().MatchRegex(@"\.mi-emblema-acciones\s*\{[^}]*position:\s*fixed");
+        movil.Should().MatchRegex(@"\.mi-emblema-guardar\s*\{[^}]*height:\s*48px");
+    }
+
+    private static string RaizWeb()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "src", "CaeManager.Web")))
+            dir = dir.Parent;
+        return Path.Combine(dir?.FullName ?? throw new InvalidOperationException("Sin raíz del repositorio."), "src", "CaeManager.Web");
     }
 
     private sealed class MediatorFalso : IMediator

@@ -36,7 +36,7 @@
                     <Icono Nombre="@nombreIcono" Tamano="TamanoIcono.Pequeno" />
                 </span>
             }
-            <span>@toast.Mensaje</span>
+            <span class="toast-mensaje">@toast.Mensaje</span>
             @if (toast.TextoAccion is not null)
             {
                 <button type="button" class="toast-accion" @onclick="() => ToastService.EjecutarAccionAsync(toast.Id)">@toast.TextoAccion</button>
