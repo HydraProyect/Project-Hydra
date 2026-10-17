@@ -1,0 +1,39 @@
+@using CaeManager.Domain.Comunicaciones
+
+<div aria-label="Intención CAE">
+    <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@RotulosIntencionCae.Nombre(Intencion.IntencionActual) · Confianza @Intencion.Confianza.ToString().ToLowerInvariant()</Badge>
+    @if (Intencion.ConfirmadaPorPersona)
+    {
+        <span>@(Intencion.CambiadaPorPersona ? "Cambiada y confirmada" : "Confirmada")</span>
+    }
+    else
+    {
+        <span>Propuesta pendiente de revisión</span>
+        <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" Deshabilitado="Guardando" OnClick="() => OnConfirmar.InvokeAsync(Intencion.IntencionActual)">Confirmar</Boton>
+    }
+    <CampoSelect Etiqueta="Cambiar intención CAE" Valor="@Intencion.IntencionActual.ToString()" ValorChanged="CambiarAsync" Deshabilitado="Guardando">
+        @foreach (var intencion in Enum.GetValues<IntencionCae>())
+        {
+            <option value="@intencion">@RotulosIntencionCae.Nombre(intencion)</option>
+        }
+    </CampoSelect>
+    @if (Intencion.TipoEntidadPropuesta is { } tipo)
+    {
+        <span>Entidad propuesta: @tipo. Pendiente de validación humana.</span>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IntencionConversacion Intencion { get; set; } = default!;
+    [Parameter] public bool Guardando { get; set; }
+    [Parameter] public EventCallback<IntencionCae> OnConfirmar { get; set; }
+    private static string RutaEntidad(TipoEntidadIntencion tipo, Guid id) => tipo switch
+    {
+        TipoEntidadIntencion.Trabajador => $"/trabajadores/{id}",
+        TipoEntidadIntencion.Empresa => $"/empresas/{id}",
+        TipoEntidadIntencion.Centro => $"/centros/{id}",
+        _ => $"/documentos/tipos/{id}"
+    };
+    private Task CambiarAsync(string valor) => Enum.TryParse<IntencionCae>(valor, out var intencion)
+        ? OnConfirmar.InvokeAsync(intencion) : Task.CompletedTask;
+}

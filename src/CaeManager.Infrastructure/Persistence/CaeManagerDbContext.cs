@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using System.Reflection;
 using CaeManager.Application.ApiKeys;
 using CaeManager.Application.Asignaciones;
@@ -352,6 +352,8 @@ public class CaeManagerDbContext(
     IQueryable<PasoTareaAsistente> CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext.PasosTareaAsistente => PasosTareaAsistente;
     public DbSet<ClasificacionRuidoMensaje> ClasificacionesRuidoMensaje => Set<ClasificacionRuidoMensaje>();
     IQueryable<ClasificacionRuidoMensaje> IComunicacionesQueryContext.ClasificacionesRuidoMensaje => ClasificacionesRuidoMensaje;
+    public DbSet<IntencionConversacion> IntencionesConversacion => Set<IntencionConversacion>();
+    IQueryable<IntencionConversacion> IComunicacionesQueryContext.IntencionesConversacion => IntencionesConversacion;
     public DbSet<ClasificacionRelevanciaCae> ClasificacionesRelevanciaCae => Set<ClasificacionRelevanciaCae>();
     IQueryable<ClasificacionRelevanciaCae> IComunicacionesQueryContext.ClasificacionesRelevanciaCae => ClasificacionesRelevanciaCae;
     public DbSet<Gestion> Gestiones => Set<Gestion>();

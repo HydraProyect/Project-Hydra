@@ -1,4 +1,4 @@
-using CaeManager.Domain.Common;
+﻿using CaeManager.Domain.Common;
 using CaeManager.Web.Features.Documentos.Recursos;
 using CaeManager.Application.Common;
 using CaeManager.Web.Features.Comunicaciones.Components;
@@ -101,6 +101,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private IReadOnlyList<MensajeBuzonPersonalDto> _mensajesBuzonPersonal = [];
 
     // --- Filtros ---
+    private string _intencionFiltro = string.Empty;
     private string _estadoFiltro = string.Empty;
     private string _mesFiltro = string.Empty; // input type="month" -> "yyyy-MM"
     private string _clienteIdFiltro = string.Empty;
@@ -460,6 +461,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             }
 
             var resultado = await Mediator.Send(new ObtenerConversacionesQuery(
+                Intencion: Enum.TryParse<IntencionCae>(_intencionFiltro, out var intencion) ? intencion : null,
                 Estado: string.IsNullOrEmpty(_estadoFiltro) ? null : Enum.Parse<EstadoConversacion>(_estadoFiltro),
                 Anio: anio,
                 Mes: mes,
@@ -509,6 +511,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// mes, cliente y búsqueda) y tres conmutadores de asignación que no.
     /// </summary>
     private bool HayFiltrosActivos =>
+        !string.IsNullOrEmpty(_intencionFiltro) ||
         !string.IsNullOrWhiteSpace(_estadoFiltro) || !string.IsNullOrWhiteSpace(_mesFiltro)
         || !string.IsNullOrWhiteSpace(_clienteIdFiltro) || !string.IsNullOrWhiteSpace(_busqueda)
         || _soloAsignadasAMi || _soloSinAsignar || _soloEsperandoCliente;
@@ -520,6 +523,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// </summary>
     private Task LimpiarFiltrosAsync()
     {
+        _intencionFiltro = string.Empty;
         _estadoFiltro = string.Empty;
         _mesFiltro = string.Empty;
         _clienteIdFiltro = string.Empty;

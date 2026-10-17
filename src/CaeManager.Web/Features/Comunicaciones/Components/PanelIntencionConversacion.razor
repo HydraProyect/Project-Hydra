@@ -1,0 +1,49 @@
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerIntencionConversacion
+@using CaeManager.Application.Comunicaciones.Commands.ConfirmarIntencionConversacion
+@using CaeManager.Domain.Comunicaciones
+@using MediatR
+@inject IMediator Mediator
+@inject ILogger<PanelIntencionConversacion> Logger
+
+@if (_intencion is not null)
+{
+    <ChipIntencionCae Intencion="_intencion" Guardando="_guardando" OnConfirmar="ConfirmarAsync" />
+}
+@if (_error is not null)
+{
+    <p role="alert">@_error</p>
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid ConversacionId { get; set; }
+    private IntencionConversacion? _intencion;
+    private bool _guardando;
+    private string? _error;
+    protected override async Task OnParametersSetAsync()
+    {
+        try { _intencion = await Mediator.Send(new ObtenerIntencionConversacionQuery(ConversacionId)); }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al cargar la intención CAE.");
+            _error = "No se pudo cargar la intención CAE. Vuelve a abrir la conversación.";
+        }
+    }
+    private async Task ConfirmarAsync(IntencionCae intencion)
+    {
+        if (_guardando) return;
+        _guardando = true;
+        _error = null;
+        try
+        {
+            var resultado = await Mediator.Send(new ConfirmarIntencionConversacionCommand(ConversacionId, intencion));
+            if (resultado.EsFallido) _error = resultado.Error.Mensaje;
+            else _intencion = await Mediator.Send(new ObtenerIntencionConversacionQuery(ConversacionId));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al confirmar la intención CAE.");
+            _error = "No se pudo guardar la intención CAE. Inténtalo de nuevo.";
+        }
+        finally { _guardando = false; }
+    }
+}

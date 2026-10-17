@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using CaeManager.Application.Comercial.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Deteccion;
@@ -365,6 +365,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Comunicaciones.IClasificacionRuidoMensajeRepository, ClasificacionRuidoMensajeRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IClasificacionRuidoDetalleGestionRepository, ClasificacionRuidoDetalleGestionRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IUltimoResumenNotificacionPlataformaRepository, UltimoResumenNotificacionPlataformaRepository>();
+        services.AddScoped<CaeManager.Domain.Comunicaciones.IIntencionConversacionRepository, IntencionConversacionRepository>();
+        services.AddScoped<CaeManager.Application.Comunicaciones.Deteccion.IntencionConversacionService>();
+        services.AddHttpClient<CaeManager.Application.Comunicaciones.Deteccion.IDeteccionIntencionCaeService, AnthropicDeteccionIntencionCaeService>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IClasificacionRelevanciaCaeRepository, ClasificacionRelevanciaCaeRepository>();
         services.AddScoped<CaeManager.Domain.Gestiones.IGestionRepository, GestionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IConexionIntegracionRepository, ConexionIntegracionRepository>();

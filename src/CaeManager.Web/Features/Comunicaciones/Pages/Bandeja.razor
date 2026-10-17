@@ -1,4 +1,4 @@
-@page "/comunicaciones"
+﻿@page "/comunicaciones"
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @* Mismos roles que el menú completo de CatalogoMenuLateral: la bandeja es una pantalla de
@@ -156,6 +156,13 @@
                                 <option value="@nameof(EstadoConversacion.Cerrada)">Cerrada</option>
                             </CampoSelect>
 
+                            <CampoSelect Etiqueta="Intención CAE" Valor="@_intencionFiltro" ValorChanged="async v => { _intencionFiltro = v; await AplicarFiltrosAsync(); }">
+                                <option value="">Todas las intenciones</option>
+                                @foreach (var intencion in Enum.GetValues<IntencionCae>())
+                                {
+                                    <option value="@intencion">@RotulosIntencionCae.Nombre(intencion)</option>
+                                }
+                            </CampoSelect>
                             <CampoTexto Etiqueta="Mes" Type="month" Valor="@_mesFiltro" ValorChanged="async v => { _mesFiltro = v; await AplicarFiltrosAsync(); }" />
 
                             <CampoSelect Etiqueta="Cliente" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
@@ -347,6 +354,7 @@
                         </div>
                     </div>
                     <div class="bandeja-centro-acciones">
+                        <PanelIntencionConversacion @key="_detalle.Id" ConversacionId="_detalle.Id" />
                         <MedidorTiempoGestion @ref="_medidorTiempo" ConversacionId="_detalle.Id" />
 
                         @if (_vista == "clientes")

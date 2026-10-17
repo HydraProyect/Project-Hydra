@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using System.Text.RegularExpressions;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Empresas;
@@ -42,7 +42,8 @@ public record ObtenerConversacionesQuery(
     string? Busqueda = null,
     CanalConversacion? Canal = null,
     int Pagina = 1,
-    int TamanoPagina = 20)
+    int TamanoPagina = 20,
+    IntencionCae? Intencion = null)
     : IRequest<ResultadoPaginado<ConversacionListaDto>>;
 
 public record ConversacionListaDto(
@@ -181,6 +182,9 @@ public class ObtenerConversacionesQueryHandler(
                 c.Asunto.ToUpper().Contains(busqueda) ||
                 comunicacionesContext.Mensajes.Any(m => m.ConversacionId == c.Id && m.CuerpoHtml.ToUpper().Contains(busqueda)));
         }
+
+        if (request.Intencion is { } intencion)
+            consulta = consulta.Where(c => comunicacionesContext.IntencionesConversacion.Any(i => i.ConversacionId == c.Id && i.IntencionActual == intencion));
 
         var total = await consulta.CountAsync(cancellationToken);
         if (total == 0)
