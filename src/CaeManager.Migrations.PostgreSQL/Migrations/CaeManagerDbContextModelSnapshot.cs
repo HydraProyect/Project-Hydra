@@ -751,6 +751,36 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("AdjuntosMensaje", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.CambioEstadoConversacion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConversacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("EstadoAnterior")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EstadoNuevo")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("FechaUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversacionId");
+
+                    b.HasIndex("TenantId", "ConversacionId", "FechaUtc");
+
+                    b.ToTable("CambiosEstadoConversacion", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.ClasificacionRelevanciaCae", b =>
                 {
                     b.Property<Guid>("Id")
@@ -917,6 +947,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<int>("Estado")
                         .HasColumnType("integer");
+
+                    b.Property<DateTime>("EstadoDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Etiquetas")
                         .HasMaxLength(500)
@@ -8411,6 +8444,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.CambioEstadoConversacion", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Comunicaciones.Conversacion", null)
+                        .WithMany("CambiosEstado")
+                        .HasForeignKey("ConversacionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.Conversacion", b =>
                 {
                     b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
@@ -9194,6 +9236,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.Conversacion", b =>
                 {
+                    b.Navigation("CambiosEstado");
+
                     b.Navigation("Mensajes");
 
                     b.Navigation("Participantes");

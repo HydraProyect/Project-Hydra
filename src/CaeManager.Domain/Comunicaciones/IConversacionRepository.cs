@@ -43,13 +43,13 @@ public interface IConversacionRepository
     /// </summary>
     Task<Mensaje?> ObtenerMensajePorExternoIdAsync(Guid conexionIntegracionId, string mensajeExternoId, CancellationToken cancellationToken = default);
 
-    /// <summary>Reparto equitativo del pool inbound: conversaciones WhatsApp vivas (Abierta/Pendiente) asignadas a cada uno de los ejecutivos dados. Los ejecutivos sin ninguna no aparecen en el diccionario.</summary>
+    /// <summary>Reparto equitativo del pool inbound: conversaciones WhatsApp vivas (<see cref="TransicionesEstadoConversacion.EstadosVivos"/>) asignadas a cada uno de los ejecutivos dados. Los ejecutivos sin ninguna no aparecen en el diccionario.</summary>
     Task<IReadOnlyDictionary<Guid, int>> ContarWhatsAppVivasPorEjecutivoAsync(
         IReadOnlyCollection<Guid> ejecutivoIds, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Candidatas del Conversation Matching Engine (§ 13.2): conversaciones
-    /// Abierta/Pendiente del mismo Cliente, excluyendo <paramref name="excluirConversacionId"/>.
+    /// vivas (<see cref="TransicionesEstadoConversacion.EstadosVivos"/>) del mismo Cliente, excluyendo <paramref name="excluirConversacionId"/>.
     /// Sin Mensajes/Participantes incluidos — el motor de coincidencia de hoy
     /// no los necesita (ver MotorCoincidenciaConversacionesService).
     /// </summary>

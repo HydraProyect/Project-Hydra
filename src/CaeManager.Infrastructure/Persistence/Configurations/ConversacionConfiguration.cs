@@ -87,6 +87,14 @@ public class ConversacionConfiguration : IEntityTypeConfiguration<Conversacion>
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(c => c.Participantes).UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        // Historial de cambios de estado (hueco 2 de Comunicaciones): mismo patrón que Mensajes/Participantes, FK de EF
+        // de una sola columna por el mismo motivo (ver arriba). La migración añade el aislamiento por Tenant de la tabla.
+        builder.HasMany(c => c.CambiosEstado)
+            .WithOne()
+            .HasForeignKey(x => x.ConversacionId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(c => c.CambiosEstado).UsePropertyAccessMode(PropertyAccessMode.Field);
+
         // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
     }
 }
