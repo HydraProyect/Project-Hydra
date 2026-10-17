@@ -82,7 +82,7 @@ public class CierreMensualCuadroDireccionHostedService(
                     var cifras = await medicion.MedirAsync(periodo, periodo.FinUtc, ct, medirDocumental: false);
                     var tarifas = await db.TarifasCliente.Select(t => new TarifaAplicadaCuadro(t.ClienteId, t.Concepto, t.PrecioUnitario, t.MonedaIso)).ToListAsync(ct);
                     db.CierresMensualesTenantBeneficiario.Add(CierreMensualTenantBeneficiario.Crear(
-                        mes.Year, mes.Month, new FotoCierreMensual(cifras, tarifas).Serializar(), mes < mesAnterior, ahora));
+                        mes.Year, mes.Month, new FotoCierreMensual(cifras, tarifas).Serializar(), periodo.CierreEsEstimado, ahora));
                     await db.SaveChangesAsync(ct);
                 }
             }
