@@ -1415,7 +1415,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         /// <summary>
         /// Copias: archivado con el sustituto del MISMO Tenant (la FK compuesta lo exige) y sin requerirse de serie,
         /// igual que TipoDocumento.Archivar. «Procedimiento de Coordinación de Actividades Empresariales» deja de
-        /// ser obligatorio.
+        /// ser obligatorio. Si la copia de «RLC» no se pudo renombrar porque el Tenant ya tenía un tipo propio llamado
+        /// «RLC (TC1)», el sustituto es la copia que sigue llamándose «RLC» (la que desciende del tipo base que sustituye
+        /// en el Tenant #1), no el tipo propio homónimo.
         /// </summary>
         private const string ArchivarCopias = """
             UPDATE "TiposDocumento" t
@@ -1424,13 +1426,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 "SustitutoId" = (
                     SELECT s."Id" FROM "TiposDocumento" s
                     WHERE s."TenantId" = t."TenantId" AND s."AmbitoAplicacion" = a.ambito_sustituto
-                      AND s."Nombre" = a.sustituto AND s."Archivado" = false)
+                      AND s."Nombre" IN (a.sustituto, a.sustituto_sin_renombrar) AND s."Archivado" = false
+                    ORDER BY (s."Nombre" = a.sustituto_sin_renombrar) DESC
+                    LIMIT 1)
             FROM (VALUES
-                ('Empresa', 'Recibo de pago RLC/TC1', 'Empresa', 'RLC (TC1)'),
-                ('Empresa', 'RLC/TC1 + Recibo de pago', 'Empresa', 'RLC (TC1)'),
-                ('Trabajador', 'Formación EPIs', 'Trabajador', 'Entrega de EPI'),
-                ('Empresa', 'Protocolo frente al acoso sexual y por razón de sexo', NULL, NULL)
-            ) AS a(ambito, nombre, ambito_sustituto, sustituto)
+                ('Empresa', 'Recibo de pago RLC/TC1', 'Empresa', 'RLC (TC1)', 'RLC'),
+                ('Empresa', 'RLC/TC1 + Recibo de pago', 'Empresa', 'RLC (TC1)', 'RLC'),
+                ('Trabajador', 'Formación EPIs', 'Trabajador', 'Entrega de EPI', 'Entrega de EPI'),
+                ('Empresa', 'Protocolo frente al acoso sexual y por razón de sexo', NULL, NULL, NULL)
+            ) AS a(ambito, nombre, ambito_sustituto, sustituto, sustituto_sin_renombrar)
             WHERE t."TenantId" <> '00000000-0000-0000-0000-000000000001'
               AND t."AmbitoAplicacion" = a.ambito
               AND t."Nombre" = a.nombre;
