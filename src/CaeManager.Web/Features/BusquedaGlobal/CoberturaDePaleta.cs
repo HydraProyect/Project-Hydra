@@ -80,6 +80,7 @@ public static class CoberturaDePaleta
         // HO-190-01 (REC-190, DEC-75) — las once de "destinos de trabajo".
         ("Ir a Alertas", "/alertas"),
         ("Ir a Dashboard Ejecutivo", "/dashboard-ejecutivo"),
+        ("Ir a Cuadro de dirección", "/direccion"),
         ("Ir a Delegaciones", "/delegaciones"),
         ("Ir a Facturación", "/facturacion"),
         ("Ir a Importación", "/importacion"),

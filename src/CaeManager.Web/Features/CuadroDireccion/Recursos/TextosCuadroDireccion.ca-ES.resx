@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Cuadro de dirección</value>
+  </data>
+  <data name="TituloCabecera" xml:space="preserve">
+    <value>Cuadro de dirección</value>
+  </data>
+  <data name="EstadoParcial" xml:space="preserve">
+    <value>parcial</value>
+  </data>
+  <data name="EstadoEstimado" xml:space="preserve">
+    <value>estimado</value>
+  </data>
+  <data name="EstadoCerrado" xml:space="preserve">
+    <value>cerrado</value>
+  </data>
+  <data name="EstadoParcialTitulo" xml:space="preserve">
+    <value>Parcial hasta el cierre del día 1 a las 00:00, hora de Madrid. Los meses anteriores al primer cierre en TALVEG se marcan «estimado».</value>
+  </data>
+  <data name="EstadoEstimadoTitulo" xml:space="preserve">
+    <value>Estimado: el mes terminó y sus cifras se han reconstruido con los datos de hoy, porque no tiene cierre mensual. El primer cierre real en TALVEG es octubre de 2026, el 1 de noviembre a las 00:00, hora de Madrid.</value>
+  </data>
+  <data name="EstadoCerradoTitulo" xml:space="preserve">
+    <value>Cerrado el día 1 a las 00:00, hora de Madrid: son las cifras que se congelaron al cierre del mes.</value>
+  </data>
+  <data name="EtiquetaMomento" xml:space="preserve">
+    <value>Mes del cuadro</value>
+  </data>
+  <data name="MesAnterior" xml:space="preserve">
+    <value>Mes anterior</value>
+  </data>
+  <data name="MesSiguiente" xml:space="preserve">
+    <value>Mes siguiente</value>
+  </data>
+  <data name="EtiquetaAmbito" xml:space="preserve">
+    <value>Ámbito</value>
+  </data>
+  <data name="AmbitoTodas" xml:space="preserve">
+    <value>Todas las Empresas</value>
+  </data>
+  <data name="QuitarFiltroAmbito" xml:space="preserve">
+    <value>Quitar el filtro de Empresa</value>
+  </data>
+  <data name="EtiquetaVistas" xml:space="preserve">
+    <value>Vistas</value>
+  </data>
+  <data name="BotonReabrirMes" xml:space="preserve">
+    <value>Reabrir un mes cerrado</value>
+  </data>
+  <data name="BotonReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar el Cuadro de dirección</value>
+  </data>
+  <data name="ErrorCargaDescripcion" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="MesFuturoTitulo" xml:space="preserve">
+    <value>Ese mes todavía no ha empezado</value>
+  </data>
+  <data name="MesFuturoDescripcion" xml:space="preserve">
+    <value>No hay nada que contar de un mes futuro. Elige el mes en curso o uno anterior.</value>
+  </data>
+  <data name="MesNoValidoTitulo" xml:space="preserve">
+    <value>Ese mes no existe</value>
+  </data>
+  <data name="MesNoValidoDescripcion" xml:space="preserve">
+    <value>Elige un mes entre enero de 2000 y el mes en curso.</value>
+  </data>
+  <data name="SinEmpresasTitulo" xml:space="preserve">
+    <value>Todavía no hay Empresas que mostrar</value>
+  </data>
+  <data name="SinEmpresasDescripcion" xml:space="preserve">
+    <value>El cuadro enseña las Empresas de las que respondes con acceso a toda la organización.</value>
+  </data>
+  <data name="EmpresasSinAlcance" xml:space="preserve">
+    <value>{0} Empresas no salen en el cuadro ni en el total: no tienes acceso a toda su organización.</value>
+  </data>
+  <data name="AvisoCierre" xml:space="preserve">
+    <value>{0} de {1} se cerró el {2} a las 00:00 (hora de Madrid): sus cifras ya son definitivas.</value>
+  </data>
+  <data name="AvisoCierreEntendido" xml:space="preserve">
+    <value>Entendido</value>
+  </data>
+  <data name="PestanaGeneral" xml:space="preserve">
+    <value>Visión general</value>
+  </data>
+  <data name="PestanaEmpresas" xml:space="preserve">
+    <value>Empresas</value>
+  </data>
+  <data name="PestanaDemanda" xml:space="preserve">
+    <value>Demanda</value>
+  </data>
+  <data name="PestanaComunicaciones" xml:space="preserve">
+    <value>Comunicaciones</value>
+  </data>
+  <data name="KpiTrabajadores" xml:space="preserve">
+    <value>Trabajadores en gestión</value>
+  </data>
+  <data name="KpiTrabajadoresSub" xml:space="preserve">
+    <value>{0} altas y {1} bajas</value>
+  </data>
+  <data name="KpiCentros" xml:space="preserve">
+    <value>Centros en gestión</value>
+  </data>
+  <data name="KpiCentrosSub" xml:space="preserve">
+    <value>{0} altas este mes</value>
+  </data>
+  <data name="KpiDocumentos" xml:space="preserve">
+    <value>Documentos gestionados</value>
+  </data>
+  <data name="KpiDocumentosSub" xml:space="preserve">
+    <value>registrados en el mes</value>
+  </data>
+  <data name="KpiRequerimientos" xml:space="preserve">
+    <value>Requerimientos</value>
+  </data>
+  <data name="KpiRequerimientosSub" xml:space="preserve">
+    <value>reclamaciones de documentación enviadas</value>
+  </data>
+  <data name="KpiSolicitudes" xml:space="preserve">
+    <value>Solicitudes del mes</value>
+  </data>
+  <data name="KpiSolicitudesSub" xml:space="preserve">
+    <value>primer mensaje de cada conversación</value>
+  </data>
+  <data name="KpiCumplimiento" xml:space="preserve">
+    <value>Cumplimiento documental</value>
+  </data>
+  <data name="KpiCumplimientoSub" xml:space="preserve">
+    <value>foto de hoy, no se reconstruye en meses pasados</value>
+  </data>
+  <data name="EmpresasTitulo" xml:space="preserve">
+    <value>Empresas gestionadas</value>
+  </data>
+  <data name="EmpresasNota" xml:space="preserve">
+    <value>«Responde» es quien lleva la marca de principal en la cartera de la Empresa: indica quién responde de ella, no mide la actividad de nadie. Una Empresa con menos de 20 solicitudes en el mes no enseña ese recuento.</value>
+  </data>
+  <data name="ColumnaEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="ColumnaResponde" xml:space="preserve">
+    <value>Responde</value>
+  </data>
+  <data name="ColumnaTrabajadores" xml:space="preserve">
+    <value>Trab.</value>
+  </data>
+  <data name="ColumnaCentros" xml:space="preserve">
+    <value>Centros</value>
+  </data>
+  <data name="ColumnaAltas" xml:space="preserve">
+    <value>Altas trab.</value>
+  </data>
+  <data name="ColumnaBajas" xml:space="preserve">
+    <value>Bajas trab.</value>
+  </data>
+  <data name="ColumnaDocumentos" xml:space="preserve">
+    <value>Documentos</value>
+  </data>
+  <data name="ColumnaRequerimientos" xml:space="preserve">
+    <value>Requerim.</value>
+  </data>
+  <data name="ColumnaSolicitudes" xml:space="preserve">
+    <value>Solicitudes</value>
+  </data>
+  <data name="ColumnaCumplimiento" xml:space="preserve">
+    <value>Cumpl.</value>
+  </data>
+  <data name="RolCoordinadorCae" xml:space="preserve">
+    <value>Coordinador CAE</value>
+  </data>
+  <data name="RolGestorCae" xml:space="preserve">
+    <value>Gestor CAE</value>
+  </data>
+  <data name="SolicitudesSuprimida" xml:space="preserve">
+    <value>No se muestra</value>
+  </data>
+  <data name="SolicitudesSuprimidasTitulo" xml:space="preserve">
+    <value>Menos de {0} conversaciones: la medida no se muestra</value>
+  </data>
+  <data name="MapaCalorTitulo" xml:space="preserve">
+    <value>Cuándo llegan las solicitudes</value>
+  </data>
+  <data name="MapaCalorNota" xml:space="preserve">
+    <value>Peso de cada hora y día laborable en las solicitudes del mes (primer mensaje de cada conversación). Solo Operador CAE o una Empresa; nunca por persona.</value>
+  </data>
+  <data name="MapaCalorSuprimido" xml:space="preserve">
+    <value>No se muestra: {0} conversaciones (mínimo {1})</value>
+  </data>
+  <data name="MapaCalorSinDatos" xml:space="preserve">
+    <value>Sin datos.</value>
+  </data>
+  <data name="MapaCalorCelda" xml:space="preserve">
+    <value>{0} {1}:00–{2}:00 · {3} de las solicitudes · {4} solicitudes al mes</value>
+  </data>
+  <data name="DiaAbreviado1" xml:space="preserve">
+    <value>Lun</value>
+  </data>
+  <data name="DiaAbreviado2" xml:space="preserve">
+    <value>Mar</value>
+  </data>
+  <data name="DiaAbreviado3" xml:space="preserve">
+    <value>Mié</value>
+  </data>
+  <data name="DiaAbreviado4" xml:space="preserve">
+    <value>Jue</value>
+  </data>
+  <data name="DiaAbreviado5" xml:space="preserve">
+    <value>Vie</value>
+  </data>
+  <data name="EquiposTitulo" xml:space="preserve">
+    <value>Por equipo</value>
+  </data>
+  <data name="EquiposNota" xml:space="preserve">
+    <value>Siempre por equipo del Operador CAE, nunca por Gestor CAE. «Cambios de manos»: veces que la conversación pasa de un equipo o persona a otra. Un equipo con menos de 3 personas o 20 conversaciones no se muestra.</value>
+  </data>
+  <data name="EquiposSinMedidas" xml:space="preserve">
+    <value>Todavía no hay medidas de tiempo por equipo (Outbound, Validación y Fincas). Aparecerán cuando existan en Comunicaciones.</value>
+  </data>
+  <data name="EquipoSuprimido" xml:space="preserve">
+    <value>No se muestra: {0} personas y {1} conversaciones (mínimo {2} y {3})</value>
+  </data>
+  <data name="ColumnaEquipo" xml:space="preserve">
+    <value>Equipo</value>
+  </data>
+  <data name="ColumnaConversaciones" xml:space="preserve">
+    <value>Conversaciones</value>
+  </data>
+  <data name="ColumnaPrimeraRespuesta" xml:space="preserve">
+    <value>1.ª respuesta</value>
+  </data>
+  <data name="ColumnaResolucion" xml:space="preserve">
+    <value>Resolución</value>
+  </data>
+  <data name="ColumnaUnaRespuesta" xml:space="preserve">
+    <value>Una respuesta</value>
+  </data>
+  <data name="ColumnaReabiertas" xml:space="preserve">
+    <value>Reabiertas</value>
+  </data>
+  <data name="ColumnaEnSla" xml:space="preserve">
+    <value>En SLA</value>
+  </data>
+  <data name="ColumnaCambiosDeManos" xml:space="preserve">
+    <value>Cambios de manos</value>
+  </data>
+  <data name="CriterioTitulo" xml:space="preserve">
+    <value>Qué mide y qué no mide</value>
+  </data>
+  <data name="CriterioTexto" xml:space="preserve">
+    <value>Mide el servicio que recibe la Empresa: tiempos, cumplimiento del SLA (crítica 1 h, urgente 4 h y normal 1 día laborable; horario laborable de 8 a 17, con jornada intensiva hasta las 15 los viernes, en verano y en vísperas de festivo) y volumen. Una medida de equipo con menos de 3 personas o 20 conversaciones no se muestra. No mide a ninguna persona: no hay ranking, ni tiempo activo, ni puntuación por Gestor CAE. La franja horaria de llegada está en la pestaña Demanda.</value>
+  </data>
+  <data name="ReabrirTitulo" xml:space="preserve">
+    <value>Reabrir un mes cerrado</value>
+  </data>
+  <data name="ReabrirAviso" xml:space="preserve">
+    <value>Al reabrir {0} de {1}, el cuadro vuelve a calcular sus cifras en vivo y las marca como estimadas hasta el siguiente cierre. Solo Dirección CAE puede hacerlo.</value>
+  </data>
+  <data name="ReabrirEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="ReabrirMotivo" xml:space="preserve">
+    <value>Motivo de la reapertura</value>
+  </data>
+  <data name="ReabrirMotivoAyuda" xml:space="preserve">
+    <value>Por qué hay que reabrir este mes</value>
+  </data>
+  <data name="ReabrirMotivoObligatorio" xml:space="preserve">
+    <value>Indica el motivo de la reapertura, de hasta {0} caracteres.</value>
+  </data>
+  <data name="ReabrirContador" xml:space="preserve">
+    <value>{0} de {1} caracteres</value>
+  </data>
+  <data name="ReabrirConfirmar" xml:space="preserve">
+    <value>Reabrir mes</value>
+  </data>
+  <data name="ReabrirCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="ReabrirOk" xml:space="preserve">
+    <value>Mes reabierto.</value>
+  </data>
+  <data name="ReabrirError" xml:space="preserve">
+    <value>No pudimos reabrir el mes. Inténtalo de nuevo.</value>
+  </data>
+</root>
