@@ -182,8 +182,10 @@ public static class ComunicacionesDatosPruebaSeeder
 
             var estado = aleatorio.Next(100) switch
             {
-                < 45 => EstadoConversacion.Abierta,
-                < 75 => EstadoConversacion.Pendiente,
+                < 40 => EstadoConversacion.Abierta,
+                < 55 => EstadoConversacion.Pendiente,
+                < 67 => EstadoConversacion.EsperandoAlCliente,
+                < 75 => EstadoConversacion.EnEsperaDeTercero,
                 < 92 => EstadoConversacion.Resuelta,
                 _ => EstadoConversacion.Cerrada
             };

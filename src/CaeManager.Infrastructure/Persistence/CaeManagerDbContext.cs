@@ -340,6 +340,7 @@ public class CaeManagerDbContext(
     public DbSet<UltimoResumenNotificacionPlataforma> UltimosResumenesNotificacionPlataforma => Set<UltimoResumenNotificacionPlataforma>();
     public DbSet<SolicitudPrioridadDocumento> SolicitudesPrioridadDocumento => Set<SolicitudPrioridadDocumento>();
     IQueryable<SolicitudPrioridadDocumento> IComunicacionesQueryContext.SolicitudesPrioridadDocumento => SolicitudesPrioridadDocumento;
+    public DbSet<CambioEstadoConversacion> CambiosEstadoConversacion => Set<CambioEstadoConversacion>();
     public DbSet<EventoConversacion> EventosConversacion => Set<EventoConversacion>();
     IQueryable<EventoConversacion> IComunicacionesQueryContext.EventosConversacion => EventosConversacion;
     public DbSet<NotaInternaConversacion> NotasInternasConversacion => Set<NotaInternaConversacion>();

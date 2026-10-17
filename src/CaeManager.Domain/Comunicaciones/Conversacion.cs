@@ -34,8 +34,16 @@ public class Conversacion : EntidadBase
     /// <summary>Ventana de servicio de WhatsApp (Meta): fuera de las 24 h desde el último entrante solo se pueden enviar plantillas aprobadas.</summary>
     public static readonly TimeSpan DuracionVentanaServicio = TimeSpan.FromHours(24);
 
+    /// <summary>
+    /// Plazo que una conversación Resuelta espera antes de cerrarse sola (decisión de producto 2026-10-17, hueco 2 de
+    /// Comunicaciones). Son 4 días naturales (96 horas) desde que se resolvió, no laborables: el reloj es el del hilo,
+    /// no el calendario del Gestor CAE. Un mensaje entrante antes de que se cumpla la reabre y reinicia la cuenta.
+    /// </summary>
+    public static readonly TimeSpan PlazoCierreAutomaticoTrasResolucion = TimeSpan.FromDays(4);
+
     private readonly List<Mensaje> _mensajes = [];
     private readonly List<ParticipanteConversacion> _participantes = [];
+    private readonly List<CambioEstadoConversacion> _cambiosEstado = [];
 
     public Guid? ClienteId { get; private set; }
 
@@ -56,6 +64,14 @@ public class Conversacion : EntidadBase
 
     public string Asunto { get; private set; } = string.Empty;
     public EstadoConversacion Estado { get; private set; }
+
+    /// <summary>
+    /// Instante en que la conversación entró en su <see cref="Estado"/> actual. Es la copia desnormalizada del último
+    /// <see cref="CambiosEstado"/> para poder preguntar «Resuelta desde hace más de N días» sin cargar el historial
+    /// (el cierre automático lo usa) y para decidir si un mensaje entrante llegó antes o después del cambio.
+    /// </summary>
+    public DateTime EstadoDesdeUtc { get; private set; }
+
     public Guid? EjecutivoAsignadoId { get; private set; }
     public string? Etiquetas { get; private set; }
     public DateTime FechaUltimoMensajeUtc { get; private set; }
@@ -71,6 +87,13 @@ public class Conversacion : EntidadBase
 
     public IReadOnlyList<Mensaje> Mensajes => _mensajes.AsReadOnly();
     public IReadOnlyList<ParticipanteConversacion> Participantes => _participantes.AsReadOnly();
+
+    /// <summary>
+    /// Historial de cambios de estado, del más antiguo al más reciente. Solo anexado y sin autor (ver
+    /// <see cref="CambioEstadoConversacion"/>). No lo carga <c>ObtenerPorIdAsync</c>: lo que lo necesita (las métricas
+    /// de tiempo) lo consulta aparte.
+    /// </summary>
+    public IReadOnlyList<CambioEstadoConversacion> CambiosEstado => _cambiosEstado.AsReadOnly();
 
     private Conversacion()
     {
@@ -93,6 +116,7 @@ public class Conversacion : EntidadBase
         Estado = EstadoConversacion.Abierta;
         Canal = CanalConversacion.Correo;
         FechaUltimoMensajeUtc = DateTime.UtcNow;
+        EstadoDesdeUtc = FechaUltimoMensajeUtc;
     }
 
     /// <summary>
@@ -146,6 +170,15 @@ public class Conversacion : EntidadBase
             (FechaUltimoMensajeEntranteUtc is null || fecha > FechaUltimoMensajeEntranteUtc))
             FechaUltimoMensajeEntranteUtc = fecha;
 
+        // Una respuesta del interlocutor reabre sola la conversación que dimos por resuelta y la que estaba esperando
+        // precisamente esa respuesta (decisión 2026-10-17). Solo si el mensaje es posterior al cambio de estado: uno
+        // atrasado —ingesta tardía de un correo anterior a la resolución— no deshace lo que el Gestor CAE ya resolvió.
+        // EnEsperaDeTercero no se mueve: un entrante no dice si es del Cliente empresarial o del tercero.
+        if (direccion == DireccionMensaje.Entrante
+            && (Estado is EstadoConversacion.Resuelta or EstadoConversacion.EsperandoAlCliente)
+            && fecha > EstadoDesdeUtc)
+            RegistrarCambioDeEstado(EstadoConversacion.Abierta, fecha);
+
         return mensaje;
     }
 
@@ -187,7 +220,40 @@ public class Conversacion : EntidadBase
         return participante;
     }
 
-    public void CambiarEstado(EstadoConversacion nuevoEstado) => Estado = nuevoEstado;
+    /// <summary>
+    /// Cambia el estado si <see cref="TransicionesEstadoConversacion"/> lo permite; si no, devuelve el fallo de dominio
+    /// y no toca nada. Registra el instante del cambio en <see cref="CambiosEstado"/> — nunca quién lo hizo.
+    /// <paramref name="ahoraUtc"/> existe para que los tests fijen el reloj; en producción es el instante actual.
+    /// </summary>
+    public Result CambiarEstado(EstadoConversacion nuevoEstado, DateTime? ahoraUtc = null)
+    {
+        if (!TransicionesEstadoConversacion.EstaPermitida(Estado, nuevoEstado))
+            return Result.Fallo(TransicionesEstadoConversacion.ErrorTransicionNoPermitida(Estado, nuevoEstado));
+
+        RegistrarCambioDeEstado(nuevoEstado, ahoraUtc ?? DateTime.UtcNow);
+        return Result.Exito();
+    }
+
+    /// <summary>
+    /// Cierra la conversación si lleva Resuelta al menos <see cref="PlazoCierreAutomaticoTrasResolucion"/>. Lo llama el
+    /// proceso programado de cierre (Sistema); devuelve si la cerró. El plazo se cuenta desde <see cref="EstadoDesdeUtc"/>:
+    /// reabrir y volver a resolver lo reinicia.
+    /// </summary>
+    public bool CerrarSiResueltaHaceMasDelPlazo(DateTime ahoraUtc)
+    {
+        if (Estado != EstadoConversacion.Resuelta || ahoraUtc - EstadoDesdeUtc < PlazoCierreAutomaticoTrasResolucion)
+            return false;
+
+        RegistrarCambioDeEstado(EstadoConversacion.Cerrada, ahoraUtc);
+        return true;
+    }
+
+    private void RegistrarCambioDeEstado(EstadoConversacion nuevoEstado, DateTime fechaUtc)
+    {
+        _cambiosEstado.Add(new CambioEstadoConversacion(Id, Estado, nuevoEstado, fechaUtc));
+        Estado = nuevoEstado;
+        EstadoDesdeUtc = fechaUtc;
+    }
 
     public void Asignar(Guid? ejecutivoId) => EjecutivoAsignadoId = ejecutivoId;
 
