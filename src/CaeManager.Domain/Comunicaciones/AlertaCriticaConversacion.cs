@@ -11,7 +11,7 @@ public sealed class AlertaCriticaConversacion : EntidadConTenant, IVersionable
     public Guid MensajeId { get; private set; }
     public string TextoDisparador { get; private set; } = string.Empty;
     public string ExpresionDetectada { get; private set; } = string.Empty;
-    public Guid? OperadorCaeTenantId { get; private set; }
+    public Guid OperadorCaeTenantId { get; private set; }
     public bool? SegundaOpinionIa { get; private set; }
     public int? ConfianzaIa { get; private set; }
     public EstadoAlertaCritica Estado { get; private set; }
@@ -23,7 +23,7 @@ public sealed class AlertaCriticaConversacion : EntidadConTenant, IVersionable
     private AlertaCriticaConversacion() { }
 
     public AlertaCriticaConversacion(Mensaje mensaje, string textoDisparador, string expresionDetectada,
-        Guid? operadorCaeTenantId, DateTime ahora)
+        Guid operadorCaeTenantId, DateTime ahora)
     {
         ArgumentNullException.ThrowIfNull(mensaje);
         if (mensaje.Direccion != DireccionMensaje.Entrante)
@@ -53,8 +53,6 @@ public sealed class AlertaCriticaConversacion : EntidadConTenant, IVersionable
     {
         if (Estado != EstadoAlertaCritica.Pendiente) throw new InvalidOperationException("La alerta ya tiene una decisión.");
         if (decisionPorUsuarioId == Guid.Empty) throw new ArgumentException("La decisión requiere una persona identificada.", nameof(decisionPorUsuarioId));
-        if (confirmarYDerivar && OperadorCaeTenantId is null)
-            throw new InvalidOperationException("Falta identificar al Operador CAE destinatario de la derivación.");
         Estado = confirmarYDerivar ? EstadoAlertaCritica.ConfirmadaYDerivada : EstadoAlertaCritica.Descartada;
         DecisionPorUsuarioId = decisionPorUsuarioId;
         DecisionEnUtc = ahora;

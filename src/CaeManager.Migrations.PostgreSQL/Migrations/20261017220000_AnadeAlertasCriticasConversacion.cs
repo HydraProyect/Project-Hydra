@@ -8,7 +8,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations;
 
 [DbContext(typeof(CaeManagerDbContext))]
 [Migration("20261017220000_AnadeAlertasCriticasConversacion")]
-public class AnadeAlertasCriticasConversacion : Migration
+public partial class AnadeAlertasCriticasConversacion : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
@@ -22,7 +22,7 @@ public class AnadeAlertasCriticasConversacion : Migration
                 MensajeId = table.Column<Guid>(type: "uuid", nullable: false),
                 TextoDisparador = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: false),
                 ExpresionDetectada = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                OperadorCaeTenantId = table.Column<Guid>(type: "uuid", nullable: true),
+                OperadorCaeTenantId = table.Column<Guid>(type: "uuid", nullable: false),
                 SegundaOpinionIa = table.Column<bool>(type: "boolean", nullable: true),
                 ConfianzaIa = table.Column<int>(type: "integer", nullable: true),
                 Estado = table.Column<int>(type: "integer", nullable: false),

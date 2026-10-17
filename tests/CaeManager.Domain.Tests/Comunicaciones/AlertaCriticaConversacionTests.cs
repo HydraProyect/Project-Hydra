@@ -18,6 +18,7 @@ public class AlertaCriticaConversacionTests
     [InlineData("Iniciarem accions legals aquesta setmana.")]
     [InlineData("S'ha notificat una sanció.")]
     [InlineData("<p>INSPECCIÓN&nbsp;DE <b>TRABAJO</b></p>")]
+    [InlineData("⚠️ 📩 Nos notifican una sanción.")]
     public void Detecta_casos_en_espanol_y_catalan(string texto) =>
         DetectorExpresionesCriticas.Detectar(Mensaje(texto)).Should().NotBeNull();
 
@@ -52,5 +53,21 @@ public class AlertaCriticaConversacionTests
         alerta.Estado.Should().Be(EstadoAlertaCritica.ConfirmadaYDerivada);
         Action segundaDecision = () => alerta.Resolver(false, Guid.NewGuid(), DateTime.UtcNow);
         segundaDecision.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Conserva_el_texto_original_incluso_al_final_de_un_mensaje_largo()
+    {
+        var resultado = DetectorExpresionesCriticas.Detectar(Mensaje(new string('x', 6000) + " Nos visitará la Inspección de Trabajo mañana."));
+        resultado.Should().NotBeNull();
+        resultado!.Texto.Should().Contain("Inspección de Trabajo");
+        resultado.Texto.Length.Should().BeLessThanOrEqualTo(4000);
+    }
+
+    [Fact]
+    public void El_dominio_rechaza_alertas_sobre_mensajes_salientes()
+    {
+        Action crear = () => new AlertaCriticaConversacion(Mensaje("denuncia", DireccionMensaje.Saliente), "denuncia", "denuncia", Guid.NewGuid(), DateTime.UtcNow);
+        crear.Should().Throw<ArgumentException>();
     }
 }

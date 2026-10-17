@@ -16,7 +16,7 @@
         @if (Alerta.PuedeResolver)
         {
             <div class="alerta-critica-acciones">
-                <Boton Cargando="Guardando" Deshabilitado="Guardando" OnClick="() => OnResolver.InvokeAsync(true)">@Textos["Confirmar"]</Boton>
+                <Boton Variante="VarianteBoton.Secundario" Cargando="Guardando" Deshabilitado="Guardando" OnClick="() => OnResolver.InvokeAsync(true)">@Textos["Confirmar"]</Boton>
                 <Boton Variante="VarianteBoton.Secundario" Deshabilitado="Guardando" OnClick="() => OnResolver.InvokeAsync(false)">@Textos["Descartar"]</Boton>
             </div>
         }

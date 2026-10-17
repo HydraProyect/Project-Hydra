@@ -1145,7 +1145,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<int>("Estado").HasColumnType("integer");
                     b.Property<string>("ExpresionDetectada").IsRequired().HasMaxLength(200).HasColumnType("character varying(200)");
                     b.Property<Guid>("MensajeId").HasColumnType("uuid");
-                    b.Property<Guid?>("OperadorCaeTenantId").HasColumnType("uuid");
+                    b.Property<Guid>("OperadorCaeTenantId").HasColumnType("uuid");
                     b.Property<bool?>("SegundaOpinionIa").HasColumnType("boolean");
                     b.Property<Guid>("TenantId").HasColumnType("uuid");
                     b.Property<string>("TextoDisparador").IsRequired().HasMaxLength(4000).HasColumnType("character varying(4000)");
