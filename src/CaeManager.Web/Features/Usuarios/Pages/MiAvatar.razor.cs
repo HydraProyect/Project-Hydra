@@ -113,6 +113,10 @@ public partial class MiAvatar : CaeManager.Web.Components.PaginaInteractiva
         _guardando = true;
         _recienGuardado = false;
 
+        // Si el guardado lo lanza el «Reintentar» de un toast, no viene de un evento de esta página: sin repintar,
+        // el botón no mostraría «Guardando…» ni se bloquearía la rejilla mientras responde.
+        await InvokeAsync(StateHasChanged);
+
         try
         {
             var resultado = await Mediator.Send(new ElegirAvatarPropioCommand(clave));

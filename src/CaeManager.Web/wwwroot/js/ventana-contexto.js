@@ -68,6 +68,16 @@
         sincronizarExpandida(ventana);
     });
 
+    // Volver a tocar el disparador de una ventana cerrada con la × (o con Esc) la reabre. En táctil el hover queda
+    // pegado y el foco sigue dentro, así que ni pointerout ni focusout llegan a quitar la marca de cerrada.
+    document.addEventListener('click', function (evento) {
+        const disparador = evento.target && evento.target.closest ? evento.target.closest('.ventana-contexto-disparador') : null;
+        const ventana = disparador ? disparador.closest(SELECTOR) : null;
+        if (!ventana || !ventana.hasAttribute(CERRADA)) return;
+        ventana.removeAttribute(CERRADA);
+        sincronizarExpandida(ventana);
+    });
+
     const reabrirSiAbandonada = function (ventana, destino) {
         if (!ventana || ventana.contains(destino)) return;
         // Se comprueba en el siguiente frame: en focusout el foco aún no ha llegado

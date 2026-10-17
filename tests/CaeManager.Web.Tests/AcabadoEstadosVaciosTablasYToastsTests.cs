@@ -167,6 +167,20 @@ public class AcabadoEstadosVaciosTablasYToastsTests : BunitContext
     }
 
     [Fact]
+    public void Solo_el_error_se_anuncia_como_alerta_y_los_demas_tonos_como_estado()
+    {
+        var servicio = new ToastService();
+        Services.AddSingleton(servicio);
+        var cut = Render<AnfitrionToasts>();
+
+        servicio.Mostrar("Guardado", TonoToast.Exito);
+        servicio.Mostrar("No se pudo guardar", TonoToast.Error);
+
+        cut.WaitForElement(".toast.toast-error").GetAttribute("role").Should().Be("alert");
+        cut.Find(".toast.toast-exito").GetAttribute("role").Should().Be("status");
+    }
+
+    [Fact]
     public void El_exito_lleva_el_trazado_de_confirmacion_como_icono_y_la_accion_Deshacer_a_su_lado()
     {
         var servicio = new ToastService();

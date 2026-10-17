@@ -262,7 +262,8 @@
         right: 0;
         bottom: 0;
         left: 0;
-        z-index: 1000;
+        /* Por encima de la barra de acciones por lotes (1040) y de la cabecera fija (1020); por debajo de Modal (1050) y toasts. */
+        z-index: 1045;
         width: auto;
         min-width: 0;
         max-width: none;

@@ -309,9 +309,27 @@
     }
 }
 
+/* ---------- Tableta: la rejilla fija de 8 × 52 px no cabe junto a la columna de 300 px; una sola columna ---------- */
+
+@media (max-width: 1023px) {
+    .mi-emblema {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .mi-emblema-vista {
+        order: -1;
+    }
+}
+
 /* ---------- Móvil ---------- */
 
 @media (max-width: 767px) {
+    /* La maqueta de móvil lleva 16 px de margen (base.css da 32 px a la página): con 32 la rejilla de 6 columnas
+       de 44 px no cabe a 375 px. */
+    .contenedor-pagina {
+        padding: var(--space-4);
+    }
+
     .mi-emblema {
         grid-template-columns: minmax(0, 1fr);
         gap: var(--space-4);
@@ -383,7 +401,8 @@
         position: fixed;
         inset-inline: 0;
         bottom: 0;
-        z-index: 1030;
+        /* Por debajo de la cabecera fija (1020) y de sus velos: un menú abierto tapa la barra, no al revés. */
+        z-index: 1010;
         padding: var(--space-3) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
         background-color: var(--color-surface);
         border-top: var(--border-default);

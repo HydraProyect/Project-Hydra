@@ -35,7 +35,7 @@
 }
 
 /* Móvil: la pila baja a la parte inferior, a todo el ancho menos 16 px (8 por lado) y por encima de las
-   barras fijas (la de acciones mide 76 px, más 8 de aire). Entra desde abajo, no desde el lado. Va antes
+   barras fijas (la de acciones mide 80 px, más 4 de aire). Entra desde abajo, no desde el lado. Va antes
    del bloque de movimiento reducido para que éste, al ser posterior, siga ganando. */
 @media (max-width: 767px) {
     .anfitrion-toasts {

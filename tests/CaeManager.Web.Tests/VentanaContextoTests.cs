@@ -259,5 +259,6 @@ public class VentanaContextoTests : BunitContext
         var js = File.ReadAllText(Path.Combine(RaizWeb, "wwwroot", "js", "ventana-contexto.js"));
         js.Should().Contain("'Escape'").And.Contain("data-ventana-cerrada").And.Contain("stopImmediatePropagation");
         js.Should().Contain("aria-expanded", "mantiene el estado que anuncia el lector de pantalla").And.Contain("data-ventana-cerrar");
+        js.Should().Contain("closest('.ventana-contexto-disparador')", "volver a tocar el disparador reabre una ventana cerrada con la × (en táctil el hover queda pegado)");
     }
 }
