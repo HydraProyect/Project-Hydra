@@ -53,24 +53,42 @@ public class KpisDashboardConPendientesTests
     {
         var mundo = new MundoAcreditaciones();
         var empresa = new Empresa("Empresa propia");
+        var empresas = new EmpresasQueryContextFalso();
+        empresas.ListaEmpresas.Add(empresa);
         var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa);
         mundo.DocumentosContexto.ListaDocumentos.Add(Documento.DeEmpresa(empresa.Id, tipo.Id,
             DiaDeNegocio.Hoy().AddYears(-1), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddDays(-1))));
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false,
             empresaIdsVisibles: visible ? [empresa.Id] : []);
 
-        var kpis = await Handler(mundo, alcance).Handle(new ObtenerKpisDashboardQuery(), CancellationToken.None);
+        var kpis = await Handler(mundo, alcance, empresas).Handle(new ObtenerKpisDashboardQuery(), CancellationToken.None);
 
         kpis.Centros.Should().Be(0);
         kpis.TrabajadoresActivos.Should().Be(0);
         kpis.TienePendientesDocumentales.Should().Be(visible);
     }
 
-    private static ObtenerKpisDashboardQueryHandler Handler(MundoAcreditaciones mundo, AlcanceDatosServiceFalso alcance)
+    [Fact]
+    public async Task Los_documentos_vencidos_de_una_Empresa_dada_de_baja_no_son_un_pendiente_sin_fila_en_Mi_trabajo()
+    {
+        // La Empresa eliminada no sale en el contexto (filtro global), pero sus Documentos siguen en la base: sin la
+        // misma exigencia que Alertas, un Administrador vería "hay pendientes" sin ninguna fila que lo explique.
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa);
+        mundo.DocumentosContexto.ListaDocumentos.Add(Documento.DeEmpresa(Guid.NewGuid(), tipo.Id,
+            DiaDeNegocio.Hoy().AddYears(-1), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddDays(-1))));
+
+        var kpis = await Handler(mundo, new AlcanceDatosServiceFalso()).Handle(new ObtenerKpisDashboardQuery(), CancellationToken.None);
+
+        kpis.TienePendientesDocumentales.Should().BeFalse();
+    }
+
+    private static ObtenerKpisDashboardQueryHandler Handler(MundoAcreditaciones mundo, AlcanceDatosServiceFalso alcance,
+        EmpresasQueryContextFalso? empresas = null)
     {
         var configuracion = new ConfiguracionQueryContextFalso();
         configuracion.ListaParametrosSistema.Add(new ParametroSistema(30, 7));
-        var empresas = new EmpresasQueryContextFalso();
+        empresas ??= new EmpresasQueryContextFalso();
         var proyectos = new ProyectosQueryContextFalso();
         var calculo = new CalculoEstadoCentroService(mundo.CentrosContexto, mundo.DocumentosContexto,
             mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, mundo.AsignacionesContexto,
@@ -78,7 +96,8 @@ public class KpisDashboardConPendientesTests
         var acceso = new EvaluacionDeAccesoPorCentroService(mundo.CentrosContexto, mundo.TiposDocumentoContexto,
             mundo.TrabajadoresContexto, mundo.AsignacionesContexto, mundo.DocumentosContexto, alcance);
         return new ObtenerKpisDashboardQueryHandler(mundo.CentrosContexto, configuracion,
-            mundo.DocumentosContexto, mundo.TrabajadoresContexto, new VisitasVacias(), alcance, calculo, acceso);
+            mundo.DocumentosContexto, mundo.TrabajadoresContexto, new VisitasVacias(), alcance, calculo, acceso,
+            empresas, mundo.TiposDocumentoContexto);
     }
 
     private sealed class VisitasVacias : IVisitasQueryContext

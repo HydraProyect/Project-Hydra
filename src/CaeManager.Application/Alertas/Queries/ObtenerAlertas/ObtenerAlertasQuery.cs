@@ -102,7 +102,7 @@ public class ObtenerAlertasQueryHandler(
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
 
-        return await CalcularAsync(trabajadorIdsVisibles, centroIdsVisibles, cancellationToken, empresaIdsVisibles);
+        return await CalcularAsync(trabajadorIdsVisibles, centroIdsVisibles, empresaIdsVisibles, cancellationToken);
     }
 
     /// <summary>
@@ -116,8 +116,8 @@ public class ObtenerAlertasQueryHandler(
     /// <c>AmbitoTenantExplicito</c> ya establecido por tenant.
     /// </summary>
     public async Task<IReadOnlyList<AlertaDto>> CalcularAsync(
-        IReadOnlyList<Guid>? trabajadorIdsVisibles, IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken,
-        IReadOnlyList<Guid>? empresaIdsVisibles = null)
+        IReadOnlyList<Guid>? trabajadorIdsVisibles, IReadOnlyList<Guid>? centroIdsVisibles,
+        IReadOnlyList<Guid>? empresaIdsVisibles, CancellationToken cancellationToken)
     {
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DiaDeNegocio.Hoy();
@@ -181,7 +181,7 @@ public class ObtenerAlertasQueryHandler(
         // La vigencia de un documento de Empresa no depende de que tenga personas asignadas a un Centro.
         // Se conserva como sujeto la Empresa; no se inventa un Trabajador ni un Cliente empresarial principal.
         var documentosEmpresa = await (
-            from documento in DocumentosConAlertaDeVigencia.DeEmpresa(documentosContext, empresaIdsVisibles, fechaLimiteAlerta)
+            from documento in DocumentosConAlertaDeVigencia.DeEmpresa(documentosContext, empresasContext, tiposDocumentoContext, empresaIdsVisibles, fechaLimiteAlerta)
             join empresa in empresasContext.Empresas on documento.EmpresaId!.Value equals empresa.Id
             join tipo in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipo.Id
             select new

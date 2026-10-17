@@ -164,7 +164,7 @@ public class EnvioAlertasVencimientoHostedService(
         var handler = new ObtenerAlertasQueryHandler(
             dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, resolverClientePrincipal, alcanceDatos, documentosFaltantesService, dbContext, dbContext);
 
-        var alertas = await handler.CalcularAsync(trabajadorIdsVisibles: null, centroIdsVisibles: null, stoppingToken);
+        var alertas = await handler.CalcularAsync(trabajadorIdsVisibles: null, centroIdsVisibles: null, empresaIdsVisibles: null, stoppingToken);
         if (alertas.Count == 0) return (null, 0);
 
         var directorio = ambito.ServiceProvider.GetRequiredService<DirectorioUsuariosTenant>();

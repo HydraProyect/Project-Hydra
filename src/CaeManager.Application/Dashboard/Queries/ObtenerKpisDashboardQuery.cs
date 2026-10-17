@@ -4,6 +4,8 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas;
 using CaeManager.Domain.Centros;
@@ -133,7 +135,7 @@ public record KpisDashboardDto(
 /// Centros (<c>KpisCentrosBloqueadosBajoRlsTests</c>).
 /// </para>
 /// </summary>
-public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos, ICalculoEstadoCentroService calculoEstadoCentro, IEvaluacionDeAccesoPorCentroService evaluacionDeAcceso)
+public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos, ICalculoEstadoCentroService calculoEstadoCentro, IEvaluacionDeAccesoPorCentroService evaluacionDeAcceso, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext)
     : IRequestHandler<ObtenerKpisDashboardQuery, KpisDashboardDto>
 {
     public async Task<KpisDashboardDto> Handle(ObtenerKpisDashboardQuery request, CancellationToken cancellationToken)
@@ -229,7 +231,7 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
         var (tasa, sinDatos) = KpisDashboardDto.SinDocumentos(fraccion, paresExigidosSinDocumento);
         var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
         var empresasConAlertas = await DocumentosConAlertaDeVigencia.DeEmpresa(
-                documentosContext, empresaIdsVisibles, DocumentosConAlertaDeVigencia.FechaLimite(hoy, parametros))
+                documentosContext, empresasContext, tiposDocumentoContext, empresaIdsVisibles, DocumentosConAlertaDeVigencia.FechaLimite(hoy, parametros))
             .AnyAsync(cancellationToken);
 
         return new KpisDashboardDto(
