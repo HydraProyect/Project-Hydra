@@ -118,7 +118,7 @@ public class VincularConversacionCommandHandlerTests
     }
 
     [Theory]
-    [InlineData(EstadoConversacion.EsperandoAlCliente)]
+    [InlineData(EstadoConversacion.EsperandoRespuestaExterna)]
     [InlineData(EstadoConversacion.EnEsperaDeTercero)]
     public async Task Acepta_como_destino_una_conversacion_viva_en_espera(EstadoConversacion estadoDestino)
     {

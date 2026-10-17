@@ -18,8 +18,8 @@
   <data name="Pendiente" xml:space="preserve">
     <value>Pendent</value>
   </data>
-  <data name="EsperandoAlCliente" xml:space="preserve">
-    <value>Esperant el Client</value>
+  <data name="EsperandoRespuestaExterna" xml:space="preserve">
+    <value>Esperant resposta externa</value>
   </data>
   <data name="EnEsperaDeTercero" xml:space="preserve">
     <value>En espera d'un tercer</value>

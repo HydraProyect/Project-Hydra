@@ -17,7 +17,7 @@ public class ConversacionEstadosTests
     private static readonly EstadoConversacion[] Vivos =
     [
         EstadoConversacion.Abierta, EstadoConversacion.Pendiente,
-        EstadoConversacion.EsperandoAlCliente, EstadoConversacion.EnEsperaDeTercero
+        EstadoConversacion.EsperandoRespuestaExterna, EstadoConversacion.EnEsperaDeTercero
     ];
 
     /// <summary>Las 23 transiciones permitidas, una a una.</summary>
@@ -25,23 +25,23 @@ public class ConversacionEstadosTests
     [
         // Desde cada estado vivo: a cualquier otro estado (los otros tres vivos, Resuelta y Cerrada).
         (EstadoConversacion.Abierta, EstadoConversacion.Pendiente),
-        (EstadoConversacion.Abierta, EstadoConversacion.EsperandoAlCliente),
+        (EstadoConversacion.Abierta, EstadoConversacion.EsperandoRespuestaExterna),
         (EstadoConversacion.Abierta, EstadoConversacion.EnEsperaDeTercero),
         (EstadoConversacion.Abierta, EstadoConversacion.Resuelta),
         (EstadoConversacion.Abierta, EstadoConversacion.Cerrada),
         (EstadoConversacion.Pendiente, EstadoConversacion.Abierta),
-        (EstadoConversacion.Pendiente, EstadoConversacion.EsperandoAlCliente),
+        (EstadoConversacion.Pendiente, EstadoConversacion.EsperandoRespuestaExterna),
         (EstadoConversacion.Pendiente, EstadoConversacion.EnEsperaDeTercero),
         (EstadoConversacion.Pendiente, EstadoConversacion.Resuelta),
         (EstadoConversacion.Pendiente, EstadoConversacion.Cerrada),
-        (EstadoConversacion.EsperandoAlCliente, EstadoConversacion.Abierta),
-        (EstadoConversacion.EsperandoAlCliente, EstadoConversacion.Pendiente),
-        (EstadoConversacion.EsperandoAlCliente, EstadoConversacion.EnEsperaDeTercero),
-        (EstadoConversacion.EsperandoAlCliente, EstadoConversacion.Resuelta),
-        (EstadoConversacion.EsperandoAlCliente, EstadoConversacion.Cerrada),
+        (EstadoConversacion.EsperandoRespuestaExterna, EstadoConversacion.Abierta),
+        (EstadoConversacion.EsperandoRespuestaExterna, EstadoConversacion.Pendiente),
+        (EstadoConversacion.EsperandoRespuestaExterna, EstadoConversacion.EnEsperaDeTercero),
+        (EstadoConversacion.EsperandoRespuestaExterna, EstadoConversacion.Resuelta),
+        (EstadoConversacion.EsperandoRespuestaExterna, EstadoConversacion.Cerrada),
         (EstadoConversacion.EnEsperaDeTercero, EstadoConversacion.Abierta),
         (EstadoConversacion.EnEsperaDeTercero, EstadoConversacion.Pendiente),
-        (EstadoConversacion.EnEsperaDeTercero, EstadoConversacion.EsperandoAlCliente),
+        (EstadoConversacion.EnEsperaDeTercero, EstadoConversacion.EsperandoRespuestaExterna),
         (EstadoConversacion.EnEsperaDeTercero, EstadoConversacion.Resuelta),
         (EstadoConversacion.EnEsperaDeTercero, EstadoConversacion.Cerrada),
         // Resuelta: solo se reabre o se cierra.
@@ -127,13 +127,13 @@ public class ConversacionEstadosTests
     {
         var conversacion = new Conversacion("Consulta", Guid.NewGuid());
 
-        conversacion.CambiarEstado(EstadoConversacion.EsperandoAlCliente, Base);
+        conversacion.CambiarEstado(EstadoConversacion.EsperandoRespuestaExterna, Base);
         conversacion.CambiarEstado(EstadoConversacion.EnEsperaDeTercero, Base.AddHours(5));
         conversacion.CambiarEstado(EstadoConversacion.Resuelta, Base.AddHours(8));
 
         conversacion.CambiosEstado.Select(c => (c.EstadoAnterior, c.EstadoNuevo, c.FechaUtc)).Should().Equal(
-            (EstadoConversacion.Abierta, EstadoConversacion.EsperandoAlCliente, Base),
-            (EstadoConversacion.EsperandoAlCliente, EstadoConversacion.EnEsperaDeTercero, Base.AddHours(5)),
+            (EstadoConversacion.Abierta, EstadoConversacion.EsperandoRespuestaExterna, Base),
+            (EstadoConversacion.EsperandoRespuestaExterna, EstadoConversacion.EnEsperaDeTercero, Base.AddHours(5)),
             (EstadoConversacion.EnEsperaDeTercero, EstadoConversacion.Resuelta, Base.AddHours(8)));
         conversacion.CambiosEstado.Should().OnlyContain(c => c.ConversacionId == conversacion.Id);
     }
@@ -161,7 +161,7 @@ public class ConversacionEstadosTests
         ((int)EstadoConversacion.Pendiente).Should().Be(1);
         ((int)EstadoConversacion.Resuelta).Should().Be(2);
         ((int)EstadoConversacion.Cerrada).Should().Be(3);
-        ((int)EstadoConversacion.EsperandoAlCliente).Should().Be(4);
+        ((int)EstadoConversacion.EsperandoRespuestaExterna).Should().Be(4);
         ((int)EstadoConversacion.EnEsperaDeTercero).Should().Be(5);
     }
 
@@ -190,14 +190,14 @@ public class ConversacionEstadosTests
     }
 
     [Fact]
-    public void Un_mensaje_entrante_reabre_la_conversacion_que_esperaba_al_Cliente()
+    public void Un_mensaje_entrante_reabre_la_conversacion_que_esperaba_respuesta_externa()
     {
-        var conversacion = EnEstado(EstadoConversacion.EsperandoAlCliente, Base);
+        var conversacion = EnEstado(EstadoConversacion.EsperandoRespuestaExterna, Base);
 
         conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "carmen@cliente.es", "<p>Aquí va.</p>", Base.AddHours(3));
 
         conversacion.Estado.Should().Be(EstadoConversacion.Abierta);
-        conversacion.CambiosEstado[^1].EstadoAnterior.Should().Be(EstadoConversacion.EsperandoAlCliente);
+        conversacion.CambiosEstado[^1].EstadoAnterior.Should().Be(EstadoConversacion.EsperandoRespuestaExterna);
     }
 
     [Theory]
@@ -238,6 +238,44 @@ public class ConversacionEstadosTests
         conversacion.EstadoDesdeUtc.Should().Be(Base);
     }
 
+    [Fact]
+    public void Un_entrante_con_fecha_de_futuro_reabre_pero_el_cambio_se_registra_con_la_hora_actual()
+    {
+        var hace = DateTime.UtcNow.AddHours(-1);
+        var conversacion = EnEstado(EstadoConversacion.Resuelta, hace);
+
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "carmen@cliente.es", "<p>Reloj adelantado.</p>", DateTime.UtcNow.AddDays(1));
+
+        conversacion.Estado.Should().Be(EstadoConversacion.Abierta);
+        conversacion.EstadoDesdeUtc.Should().BeOnOrBefore(DateTime.UtcNow, "el historial no puede quedarse en el futuro");
+        conversacion.EstadoDesdeUtc.Should().BeAfter(hace);
+    }
+
+    [Fact]
+    public void Un_entrante_que_llega_por_vinculacion_reabre_el_hilo_que_esperaba_respuesta_externa()
+    {
+        var destino = EnEstado(EstadoConversacion.EsperandoRespuestaExterna, Base);
+        var origen = Conversacion.CrearWhatsApp("+34600111222", Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        origen.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.WhatsApp, "+34600111222", "Hola", Base.AddHours(1));
+
+        destino.AbsorberMensajesDe(origen);
+
+        destino.Estado.Should().Be(EstadoConversacion.Abierta);
+        destino.CambiosEstado[^1].FechaUtc.Should().Be(Base.AddHours(1));
+    }
+
+    [Fact]
+    public void Un_entrante_que_llega_por_vinculacion_no_mueve_un_hilo_en_espera_de_tercero()
+    {
+        var destino = EnEstado(EstadoConversacion.EnEsperaDeTercero, Base);
+        var origen = Conversacion.CrearWhatsApp("+34600111222", Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        origen.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.WhatsApp, "+34600111222", "Hola", Base.AddHours(1));
+
+        destino.AbsorberMensajesDe(origen);
+
+        destino.Estado.Should().Be(EstadoConversacion.EnEsperaDeTercero);
+    }
+
     // ---------------------------------------------------------------- cierre automático
 
     [Fact]
@@ -275,7 +313,7 @@ public class ConversacionEstadosTests
     [Theory]
     [InlineData(EstadoConversacion.Abierta)]
     [InlineData(EstadoConversacion.Pendiente)]
-    [InlineData(EstadoConversacion.EsperandoAlCliente)]
+    [InlineData(EstadoConversacion.EsperandoRespuestaExterna)]
     [InlineData(EstadoConversacion.EnEsperaDeTercero)]
     [InlineData(EstadoConversacion.Cerrada)]
     public void El_cierre_automatico_solo_cierra_conversaciones_resueltas(EstadoConversacion estado)

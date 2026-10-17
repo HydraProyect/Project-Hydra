@@ -62,13 +62,13 @@ public record ConversacionListaDto(
     int MensajesRuido = 0)
 {
     /// <summary>
-    /// "Esperando al Cliente" en la bandeja: el estado explícito <see cref="EstadoConversacion.EsperandoAlCliente"/> que
+    /// "Esperando respuesta externa" en la bandeja: el estado explícito <see cref="EstadoConversacion.EsperandoRespuestaExterna"/> que
     /// fija el Gestor CAE (decisión 2026-10-17, hueco 2 de Comunicaciones) o, como antes (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md
     /// § 16.4), una conversación Abierta cuyo último mensaje fue nuestro, a la espera de que el contacto responda. La
     /// segunda forma sigue derivada y no persistida; el estado explícito no depende de quién escribió el último mensaje.
     /// </summary>
     public bool EsperandoCliente =>
-        Estado == EstadoConversacion.EsperandoAlCliente
+        Estado == EstadoConversacion.EsperandoRespuestaExterna
         || (Estado == EstadoConversacion.Abierta && UltimoMensajeDireccion == DireccionMensaje.Saliente);
 }
 
@@ -169,7 +169,7 @@ public class ObtenerConversacionesQueryHandler(
             // misma lógica que ConversacionListaDto.EsperandoCliente calcula
             // después en memoria para el resto de filas — pero este filtro
             // tiene que decidir ANTES de paginar, no después.
-            consulta = consulta.Where(c => c.Estado == EstadoConversacion.EsperandoAlCliente ||
+            consulta = consulta.Where(c => c.Estado == EstadoConversacion.EsperandoRespuestaExterna ||
                 (c.Estado == EstadoConversacion.Abierta &&
                 comunicacionesContext.Mensajes
                     .Where(m => m.ConversacionId == c.Id)

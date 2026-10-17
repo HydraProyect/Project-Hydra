@@ -40,7 +40,7 @@ public class EstadoConversacionPresentacionTests
     [Theory]
     [InlineData(EstadoConversacion.Abierta, "Abierta", "Oberta")]
     [InlineData(EstadoConversacion.Pendiente, "Pendiente", "Pendent")]
-    [InlineData(EstadoConversacion.EsperandoAlCliente, "Esperando al Cliente", "Esperant el Client")]
+    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, "Esperando respuesta externa", "Esperant resposta externa")]
     [InlineData(EstadoConversacion.EnEsperaDeTercero, "En espera de tercero", "En espera d'un tercer")]
     [InlineData(EstadoConversacion.Resuelta, "Resuelta", "Resolta")]
     [InlineData(EstadoConversacion.Cerrada, "Cerrada", "Tancada")]
@@ -68,7 +68,7 @@ public class EstadoConversacionPresentacionTests
     [Theory]
     [InlineData(EstadoConversacion.Abierta, TonoBadge.Info)]
     [InlineData(EstadoConversacion.Pendiente, TonoBadge.Info)]
-    [InlineData(EstadoConversacion.EsperandoAlCliente, TonoBadge.Advertencia)]
+    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, TonoBadge.Advertencia)]
     [InlineData(EstadoConversacion.EnEsperaDeTercero, TonoBadge.Advertencia)]
     [InlineData(EstadoConversacion.Resuelta, TonoBadge.Neutro)]
     [InlineData(EstadoConversacion.Cerrada, TonoBadge.Neutro)]
@@ -79,9 +79,9 @@ public class EstadoConversacionPresentacionTests
     public void El_selector_ofrece_exactamente_las_transiciones_permitidas_en_el_orden_de_la_bandeja()
     {
         EstadoConversacionPresentacion.Siguientes(EstadoConversacion.Abierta).Should().Equal(
-            EstadoConversacion.Pendiente, EstadoConversacion.EsperandoAlCliente, EstadoConversacion.EnEsperaDeTercero,
+            EstadoConversacion.Pendiente, EstadoConversacion.EsperandoRespuestaExterna, EstadoConversacion.EnEsperaDeTercero,
             EstadoConversacion.Resuelta, EstadoConversacion.Cerrada);
-        EstadoConversacionPresentacion.Siguientes(EstadoConversacion.EsperandoAlCliente).Should().Equal(
+        EstadoConversacionPresentacion.Siguientes(EstadoConversacion.EsperandoRespuestaExterna).Should().Equal(
             EstadoConversacion.Abierta, EstadoConversacion.Pendiente, EstadoConversacion.EnEsperaDeTercero,
             EstadoConversacion.Resuelta, EstadoConversacion.Cerrada);
         EstadoConversacionPresentacion.Siguientes(EstadoConversacion.Resuelta).Should().Equal(

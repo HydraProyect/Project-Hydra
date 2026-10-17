@@ -170,16 +170,29 @@ public class Conversacion : EntidadBase
             (FechaUltimoMensajeEntranteUtc is null || fecha > FechaUltimoMensajeEntranteUtc))
             FechaUltimoMensajeEntranteUtc = fecha;
 
-        // Una respuesta del interlocutor reabre sola la conversación que dimos por resuelta y la que estaba esperando
-        // precisamente esa respuesta (decisión 2026-10-17). Solo si el mensaje es posterior al cambio de estado: uno
-        // atrasado —ingesta tardía de un correo anterior a la resolución— no deshace lo que el Gestor CAE ya resolvió.
-        // EnEsperaDeTercero no se mueve: un entrante no dice si es del Cliente empresarial o del tercero.
-        if (direccion == DireccionMensaje.Entrante
-            && (Estado is EstadoConversacion.Resuelta or EstadoConversacion.EsperandoAlCliente)
-            && fecha > EstadoDesdeUtc)
-            RegistrarCambioDeEstado(EstadoConversacion.Abierta, fecha);
+        ReabrirSiLlegaRespuesta(direccion, fecha);
 
         return mensaje;
+    }
+
+    /// <summary>
+    /// Una respuesta del interlocutor reabre sola la conversación que dimos por resuelta y la que estaba esperando
+    /// precisamente esa respuesta (decisión 2026-10-17). Solo si el mensaje es posterior al cambio de estado: uno
+    /// atrasado —ingesta tardía de un correo anterior a la resolución— no deshace lo que el Gestor CAE ya resolvió.
+    /// <see cref="EstadoConversacion.EnEsperaDeTercero"/> no se mueve: un entrante no dice si es de la Empresa gestionada
+    /// o del tercero. <see cref="EstadoConversacion.Cerrada"/> tampoco: reabrirla es de una persona.
+    /// La fecha del mensaje la pone el proveedor; si viniese del futuro por desfase de reloj, el cambio se registra con
+    /// la hora actual para que el historial no deje de ser monótono.
+    /// </summary>
+    private void ReabrirSiLlegaRespuesta(DireccionMensaje direccion, DateTime fechaMensajeUtc)
+    {
+        if (direccion != DireccionMensaje.Entrante
+            || Estado is not (EstadoConversacion.Resuelta or EstadoConversacion.EsperandoRespuestaExterna)
+            || fechaMensajeUtc <= EstadoDesdeUtc)
+            return;
+
+        var ahora = DateTime.UtcNow;
+        RegistrarCambioDeEstado(EstadoConversacion.Abierta, fechaMensajeUtc > ahora ? ahora : fechaMensajeUtc);
     }
 
     /// <summary>
@@ -299,6 +312,10 @@ public class Conversacion : EntidadBase
             if (mensaje.Direccion == DireccionMensaje.Entrante &&
                 (FechaUltimoMensajeEntranteUtc is null || mensaje.FechaUtc > FechaUltimoMensajeEntranteUtc))
                 FechaUltimoMensajeEntranteUtc = mensaje.FechaUtc;
+
+            // Un mensaje entrante que llega por vinculación vale como cualquier otro entrante: si este hilo esperaba
+            // esa respuesta, se reabre.
+            ReabrirSiLlegaRespuesta(mensaje.Direccion, mensaje.FechaUtc);
         }
 
         origen._mensajes.Clear();

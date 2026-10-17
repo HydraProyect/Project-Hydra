@@ -184,7 +184,7 @@ public static class ComunicacionesDatosPruebaSeeder
             {
                 < 40 => EstadoConversacion.Abierta,
                 < 55 => EstadoConversacion.Pendiente,
-                < 67 => EstadoConversacion.EsperandoAlCliente,
+                < 67 => EstadoConversacion.EsperandoRespuestaExterna,
                 < 75 => EstadoConversacion.EnEsperaDeTercero,
                 < 92 => EstadoConversacion.Resuelta,
                 _ => EstadoConversacion.Cerrada

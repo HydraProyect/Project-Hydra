@@ -8,7 +8,7 @@ namespace CaeManager.Domain.Comunicaciones;
 ///
 /// <list type="bullet">
 /// <item><description>Los cuatro estados <b>vivos</b> (<see cref="EstadoConversacion.Abierta"/>,
-/// <see cref="EstadoConversacion.Pendiente"/>, <see cref="EstadoConversacion.EsperandoAlCliente"/>,
+/// <see cref="EstadoConversacion.Pendiente"/>, <see cref="EstadoConversacion.EsperandoRespuestaExterna"/>,
 /// <see cref="EstadoConversacion.EnEsperaDeTercero"/>) pasan libremente entre sí y a Resuelta o Cerrada: el
 /// Gestor CAE decide en cada momento por qué está esperando. Cerrar directamente desde un estado vivo es
 /// lo que hace la vinculación de conversaciones con la origen.</description></item>
@@ -31,7 +31,7 @@ public static class TransicionesEstadoConversacion
     [
         EstadoConversacion.Abierta,
         EstadoConversacion.Pendiente,
-        EstadoConversacion.EsperandoAlCliente,
+        EstadoConversacion.EsperandoRespuestaExterna,
         EstadoConversacion.EnEsperaDeTercero
     ];
 

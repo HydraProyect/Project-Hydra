@@ -29,9 +29,9 @@ public class CambiarEstadoConversacionCommandHandlerTests
     }
 
     [Theory]
-    [InlineData(EstadoConversacion.Abierta, EstadoConversacion.EsperandoAlCliente)]
+    [InlineData(EstadoConversacion.Abierta, EstadoConversacion.EsperandoRespuestaExterna)]
     [InlineData(EstadoConversacion.Abierta, EstadoConversacion.EnEsperaDeTercero)]
-    [InlineData(EstadoConversacion.EsperandoAlCliente, EstadoConversacion.Resuelta)]
+    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, EstadoConversacion.Resuelta)]
     [InlineData(EstadoConversacion.Resuelta, EstadoConversacion.Abierta)]
     public async Task Una_transicion_valida_se_aplica_se_guarda_y_deja_su_cambio(EstadoConversacion desde, EstadoConversacion hacia)
     {
@@ -47,7 +47,7 @@ public class CambiarEstadoConversacionCommandHandlerTests
     }
 
     [Theory]
-    [InlineData(EstadoConversacion.Cerrada, EstadoConversacion.EsperandoAlCliente)]
+    [InlineData(EstadoConversacion.Cerrada, EstadoConversacion.EsperandoRespuestaExterna)]
     [InlineData(EstadoConversacion.Resuelta, EstadoConversacion.EnEsperaDeTercero)]
     [InlineData(EstadoConversacion.Abierta, EstadoConversacion.Abierta)]
     public async Task Una_transicion_no_permitida_vuelve_como_fallo_y_no_se_guarda(EstadoConversacion desde, EstadoConversacion hacia)
@@ -67,11 +67,11 @@ public class CambiarEstadoConversacionCommandHandlerTests
     [Theory]
     [InlineData(EstadoConversacion.Abierta, DireccionMensaje.Saliente, true)]
     [InlineData(EstadoConversacion.Abierta, DireccionMensaje.Entrante, false)]
-    [InlineData(EstadoConversacion.EsperandoAlCliente, DireccionMensaje.Entrante, true)]
-    [InlineData(EstadoConversacion.EsperandoAlCliente, DireccionMensaje.Saliente, true)]
+    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, DireccionMensaje.Entrante, true)]
+    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, DireccionMensaje.Saliente, true)]
     [InlineData(EstadoConversacion.EnEsperaDeTercero, DireccionMensaje.Saliente, false)]
     [InlineData(EstadoConversacion.Resuelta, DireccionMensaje.Saliente, false)]
-    public void La_bandeja_Esperando_al_Cliente_incluye_el_estado_explicito_y_mantiene_el_derivado(
+    public void La_bandeja_Esperando_respuesta_externa_incluye_el_estado_explicito_y_mantiene_el_derivado(
         EstadoConversacion estado, DireccionMensaje ultimoMensaje, bool esperada)
     {
         // El estado explícito no depende de quién escribió el último mensaje; la forma derivada de antes (Abierta y último

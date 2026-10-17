@@ -11,7 +11,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Los dos estados nuevos (EsperandoAlCliente = 4, EnEsperaDeTercero = 5) caben en la columna entera de Estado:
+            // Los dos estados nuevos (EsperandoRespuestaExterna = 4, EnEsperaDeTercero = 5) caben en la columna entera de Estado:
             // no hace falta tocar esa columna. EstadoDesdeUtc de las conversaciones que ya existen es el instante de esta
             // migración: no hay fuente fiable de cuándo entraron en su estado, y para las Resueltas significa que los 4 días
             // del cierre automático empiezan a contar desde el despliegue, no que se cierren de golpe las antiguas. El
@@ -76,6 +76,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // El código anterior solo conoce los estados 0 a 3: lo que estuviera en espera vuelve a Abierta para no dejar
+            // filas con un entero que ese código no sabe nombrar ni contar como vivas.
+            migrationBuilder.Sql("""UPDATE public."Conversaciones" SET "Estado" = 0 WHERE "Estado" IN (4, 5);""");
+
             migrationBuilder.DropTable(
                 name: "CambiosEstadoConversacion");
 

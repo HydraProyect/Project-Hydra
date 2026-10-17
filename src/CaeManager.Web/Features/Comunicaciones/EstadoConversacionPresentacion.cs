@@ -8,7 +8,7 @@ namespace CaeManager.Web.Features.Comunicaciones;
 /// <summary>
 /// Cómo se ve cada <see cref="EstadoConversacion"/> en la bandeja: el texto del chip y del selector, y el tono del
 /// <see cref="Badge"/>. Una sola fuente para la fila de la lista, la cabecera del detalle y los selectores, para que un estado
-/// nuevo no se quede con el nombre del enum en pantalla («EsperandoAlCliente») en uno de ellos.
+/// nuevo no se quede con el nombre del enum en pantalla («EsperandoRespuestaExterna») en uno de ellos.
 /// Los dos estados de espera usan el tono de advertencia del sistema de diseño: piden atención del Gestor CAE sin ser un error;
 /// se distinguen por el texto, no por un color nuevo.
 /// </summary>
@@ -19,7 +19,7 @@ public static class EstadoConversacionPresentacion
     [
         EstadoConversacion.Abierta,
         EstadoConversacion.Pendiente,
-        EstadoConversacion.EsperandoAlCliente,
+        EstadoConversacion.EsperandoRespuestaExterna,
         EstadoConversacion.EnEsperaDeTercero,
         EstadoConversacion.Resuelta,
         EstadoConversacion.Cerrada
@@ -37,7 +37,7 @@ public static class EstadoConversacionPresentacion
     {
         EstadoConversacion.Abierta => TonoBadge.Info,
         EstadoConversacion.Pendiente => TonoBadge.Info,
-        EstadoConversacion.EsperandoAlCliente => TonoBadge.Advertencia,
+        EstadoConversacion.EsperandoRespuestaExterna => TonoBadge.Advertencia,
         EstadoConversacion.EnEsperaDeTercero => TonoBadge.Advertencia,
         _ => TonoBadge.Neutro
     };

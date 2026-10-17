@@ -142,7 +142,7 @@
                             Sin asignar
                         </button>
                         <button type="button" class="bandeja-toggle @(_soloEsperandoCliente ? "bandeja-toggle-activo" : null)" @onclick="AlternarEsperandoCliente">
-                            Esperando al Cliente
+                            Esperando respuesta externa
                         </button>
                     </div>
 
@@ -378,7 +378,7 @@
                                 </CampoSelect>
                             }
 
-                            <CampoSelect Valor="@string.Empty" ValorChanged="CambiarEstadoDesdeSelectorAsync" Deshabilitado="_cambiandoEstado">
+                            <CampoSelect @key="_intentosCambioEstado" Valor="@string.Empty" ValorChanged="CambiarEstadoDesdeSelectorAsync" Deshabilitado="_cambiandoEstado">
                                 <option value="">@TextosEstados["CambiarEstado"]</option>
                                 @foreach (var siguiente in EstadoConversacionPresentacion.Siguientes(_detalle.Estado))
                                 {

@@ -133,7 +133,7 @@ public class CierreConversacionesResueltasBajoRlsTests
             var cargada = (await repositorio.ObtenerPorIdAsync(resuelta.Id))!;
             cargada.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "carmen@cliente.es", "<p>Una duda más.</p>", ahora);
             var cambio = (await repositorio.ObtenerPorIdAsync(enEspera.Id))!;
-            cambio.CambiarEstado(EstadoConversacion.EsperandoAlCliente, ahora).EsExitoso.Should().BeTrue();
+            cambio.CambiarEstado(EstadoConversacion.EsperandoRespuestaExterna, ahora).EsExitoso.Should().BeTrue();
             await runtime.SaveChangesAsync();
         }
 
@@ -147,7 +147,60 @@ public class CierreConversacionesResueltasBajoRlsTests
         [
             (resuelta.Id, EstadoConversacion.Abierta, EstadoConversacion.Resuelta),
             (resuelta.Id, EstadoConversacion.Resuelta, EstadoConversacion.Abierta),
-            (enEspera.Id, EstadoConversacion.Abierta, EstadoConversacion.EsperandoAlCliente)
+            (enEspera.Id, EstadoConversacion.Abierta, EstadoConversacion.EsperandoRespuestaExterna)
+        ]);
+
+        // El historial no es auditoría de personas: ninguna fila del historial de estados aparece en RegistrosAuditoria
+        // (la auditoría genérica guardaría quién y cuándo, y la decisión es que el historial nunca guarda quién).
+        var idsDeCambios = cambios.Select(c => c.Id).ToList();
+        (await verificacion.RegistrosAuditoria.IgnoreQueryFilters().AsNoTracking()
+            .AnyAsync(r => idsDeCambios.Contains(r.EntidadId))).Should().BeFalse();
+    }
+
+    /// <summary>
+    /// La consulta que alimenta la sugerencia de vinculación, contra PostgreSQL real: <c>EstadosVivos.Contains</c> tiene que
+    /// traducirse a SQL y devolver las conversaciones en espera (los dos estados nuevos) y no las Resueltas ni las Cerradas.
+    /// </summary>
+    [Fact]
+    public async Task Bajo_el_rol_de_runtime_las_abiertas_del_cliente_incluyen_los_estados_de_espera_y_excluyen_resueltas_y_cerradas()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+        var ahora = DateTime.UtcNow;
+        var tenant = new Tenant("Tenant propietario con hilos del mismo Cliente empresarial");
+        var clienteId = Guid.NewGuid();
+        var porEstado = new Dictionary<EstadoConversacion, Conversacion>();
+
+        await using (var propietarioBd = CrearContextoPropietario(arnes.CadenaPropietario, new TenantActualPorAmbito()))
+        {
+            propietarioBd.Tenants.Add(tenant);
+            await propietarioBd.SaveChangesAsync();
+            using (AmbitoTenantExplicito.Establecer(tenant.Id))
+            {
+                foreach (var estado in Enum.GetValues<EstadoConversacion>())
+                {
+                    var conversacion = Sembrar("Hilo " + estado, estado, ahora.AddHours(-2));
+                    conversacion.AsignarCliente(clienteId);
+                    porEstado[estado] = conversacion;
+                    propietarioBd.Conversaciones.Add(conversacion);
+                }
+                await propietarioBd.SaveChangesAsync();
+            }
+        }
+
+        IReadOnlyList<Conversacion> vivas;
+        using (AmbitoTenantExplicito.Establecer(tenant.Id))
+        {
+            using var ambito = arnes.Servicios.CreateScope();
+            var repositorio = new ConversacionRepository(ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>());
+            vivas = await repositorio.ObtenerAbiertasPorClienteAsync(clienteId, Guid.NewGuid());
+        }
+
+        vivas.Select(c => c.Estado).Should().BeEquivalentTo(
+        [
+            EstadoConversacion.Abierta,
+            EstadoConversacion.Pendiente,
+            EstadoConversacion.EsperandoRespuestaExterna,
+            EstadoConversacion.EnEsperaDeTercero
         ]);
     }
 

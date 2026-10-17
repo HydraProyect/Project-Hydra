@@ -17,7 +17,7 @@ public enum EstadoConversacion
     /// <summary>
     /// Estado previo a los dos de espera: el Gestor CAE tiene el hilo en curso y todavía sin resolver. Se
     /// conserva tal cual (sigue contando como hilo vivo); la espera con motivo se expresa con
-    /// <see cref="EsperandoAlCliente"/> y <see cref="EnEsperaDeTercero"/>.
+    /// <see cref="EsperandoRespuestaExterna"/> y <see cref="EnEsperaDeTercero"/>.
     /// </summary>
     Pendiente = 1,
 
@@ -25,10 +25,11 @@ public enum EstadoConversacion
     Cerrada = 3,
 
     /// <summary>
-    /// Esperamos la respuesta del Cliente empresarial (equivale al «Pending» de Zendesk). Un mensaje entrante
-    /// del interlocutor la devuelve a <see cref="Abierta"/>.
+    /// Esperamos la respuesta del interlocutor externo del hilo (equivale al «Pending» de Zendesk). En Outbound quien
+    /// responde es la Empresa gestionada, no el Cliente empresarial, de ahí el nombre «respuesta externa». Un mensaje
+    /// entrante del interlocutor la devuelve a <see cref="Abierta"/>.
     /// </summary>
-    EsperandoAlCliente = 4,
+    EsperandoRespuestaExterna = 4,
 
     /// <summary>
     /// Esperamos a un tercero ajeno al hilo — el Centro, la mutua o el servicio de prevención (equivale al

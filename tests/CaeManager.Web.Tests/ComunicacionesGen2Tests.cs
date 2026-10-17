@@ -472,9 +472,9 @@ public class ComunicacionesGen2Tests : BunitContext
         var opciones = SelectorDeEstado(cut).QuerySelectorAll("option").ToList();
 
         opciones.Select(o => o.GetAttribute("value")).Should().Equal(
-            "", "Abierta", "Pendiente", "EsperandoAlCliente", "EnEsperaDeTercero", "Resuelta", "Cerrada");
+            "", "Abierta", "Pendiente", "EsperandoRespuestaExterna", "EnEsperaDeTercero", "Resuelta", "Cerrada");
         opciones.Select(o => o.TextContent.Trim()).Should().Equal(
-            "Todos los estados", "Abierta", "Pendiente", "Esperando al Cliente", "En espera de tercero", "Resuelta", "Cerrada");
+            "Todos los estados", "Abierta", "Pendiente", "Esperando respuesta externa", "En espera de tercero", "Resuelta", "Cerrada");
     }
 
     [Fact]
@@ -491,7 +491,7 @@ public class ComunicacionesGen2Tests : BunitContext
     }
 
     [Theory]
-    [InlineData(EstadoConversacion.EsperandoAlCliente, "Esperando al Cliente")]
+    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, "Esperando respuesta externa")]
     [InlineData(EstadoConversacion.EnEsperaDeTercero, "En espera de tercero")]
     public async Task El_chip_de_la_fila_y_el_de_la_cabecera_dicen_el_estado_en_castellano_y_con_tono_de_advertencia(
         EstadoConversacion estado, string texto)
@@ -502,7 +502,7 @@ public class ComunicacionesGen2Tests : BunitContext
         var (cut, _) = Renderizar(escenario);
 
         var chipFila = cut.Find(".bandeja-fila-linea3 [data-pieza='pastilla']");
-        chipFila.TextContent.Trim().Should().Be(texto, "el nombre del enum («EsperandoAlCliente») no se enseña al Gestor CAE");
+        chipFila.TextContent.Trim().Should().Be(texto, "el nombre del enum («EsperandoRespuestaExterna») no se enseña al Gestor CAE");
         chipFila.ClassName.Should().Contain("advertencia");
 
         await SeleccionarFila(cut, "Documentación pendiente");
@@ -526,7 +526,7 @@ public class ComunicacionesGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Elegir_Esperando_al_Cliente_en_el_selector_manda_el_cambio_de_estado()
+    public async Task Elegir_Esperando_respuesta_externa_en_el_selector_manda_el_cambio_de_estado()
     {
         var abierta = Conversacion("Documentación pendiente", ClienteRefrielectric);
         var escenario = new Escenario { Detalle = _ => DetalleDe(abierta) };
@@ -535,11 +535,11 @@ public class ComunicacionesGen2Tests : BunitContext
         await SeleccionarFila(cut, "Documentación pendiente");
 
         SelectorCambiarEstado(cut).QuerySelectorAll("option").Select(o => o.TextContent.Trim()).Should().Equal(
-            "Cambiar estado…", "Pendiente", "Esperando al Cliente", "En espera de tercero", "Resuelta", "Cerrada");
-        await SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.EsperandoAlCliente) });
+            "Cambiar estado…", "Pendiente", "Esperando respuesta externa", "En espera de tercero", "Resuelta", "Cerrada");
+        await SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.EsperandoRespuestaExterna) });
 
         mediador.Enviados.OfType<CambiarEstadoConversacionCommand>().Should().ContainSingle()
-            .Which.Should().Be(new CambiarEstadoConversacionCommand(abierta.Id, EstadoConversacion.EsperandoAlCliente));
+            .Which.Should().Be(new CambiarEstadoConversacionCommand(abierta.Id, EstadoConversacion.EsperandoRespuestaExterna));
     }
 
     [Fact]
@@ -796,7 +796,7 @@ public class ComunicacionesGen2Tests : BunitContext
         var (cut, _) = Renderizar(new Escenario());
 
         cut.Markup.Should()
-            .Contain("Esperando al Cliente")
+            .Contain("Esperando respuesta externa")
             .And.Contain("Todos los Clientes")
             .And.Contain("primer correo de un Cliente");
 
