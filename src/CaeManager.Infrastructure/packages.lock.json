@@ -10,11 +10,11 @@
       },
       "AWSSDK.KeyManagementService": {
         "type": "Direct",
-        "requested": "[4.0.100.14, )",
-        "resolved": "4.0.100.14",
-        "contentHash": "PPpD/hu6FcSDyew7fKA/P4TXJf7dURbVS5y7ksm5RUP+jdD0g9M77U0SpGuKB5xXX1A/xoy0ltUKuvA8tzRynA==",
+        "requested": "[4.0.100.18, )",
+        "resolved": "4.0.100.18",
+        "contentHash": "oJg9hMTNQWnseqVhmwImlrKRMaSuGWnmdvy1GutnzfeCeZGDOnPwHb9JGz+y3S8mXf+fM0XEj7uul8IVzgKcJw==",
         "dependencies": {
-          "AWSSDK.Core": "[4.0.102.6, 5.0.0)"
+          "AWSSDK.Core": "[4.0.102.11, 5.0.0)"
         }
       },
       "AWSSDK.S3": {
@@ -191,8 +191,8 @@
       },
       "AWSSDK.Core": {
         "type": "Transitive",
-        "resolved": "4.0.102.9",
-        "contentHash": "VWGkR0QXDTmThusATC6I9IX06YtYeQNF+1/v6vBbfzIC+MaAuNjYn0aSTIyX+abciZvFhuSSi0d6/pC93wROCw=="
+        "resolved": "4.0.102.11",
+        "contentHash": "K9PP9/qHQ7pqSB0lYwStJrpXQ8P1xc7Fbn3CyPg8EX78p4+yz8dhIiwiRc3aVbVrUZxmPAPRvmZm+ey1euIXGg=="
       },
       "bblanchon.PDFium.Linux": {
         "type": "Transitive",
