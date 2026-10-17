@@ -1,4 +1,5 @@
 using CaeManager.Domain.Common;
+using CaeManager.Application.Alertas;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
@@ -78,7 +79,8 @@ public record KpisDashboardDto(
     /// «de cuántos» del 0 de <see cref="TasaCumplimientoDocumental"/>. Vale 0 en cuanto existe algún documento — la tasa
     /// sale entonces de <see cref="Fraccion"/> y esos pares no se consultan.
     /// </summary>
-    int ParesExigidosSinDocumento = 0)
+    int ParesExigidosSinDocumento = 0,
+    bool TienePendientesDocumentales = false)
 {
     /// <summary>La fracción de la tasa, por la única definición de <see cref="CumplimientoDocumental"/>.</summary>
     public FraccionCumplimiento Fraccion => FraccionDe(
@@ -225,6 +227,10 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             ? (await calculoEstadoCentro.ObtenerParesExigidosAsync(centroIds, cancellationToken)).Count
             : 0;
         var (tasa, sinDatos) = KpisDashboardDto.SinDocumentos(fraccion, paresExigidosSinDocumento);
+        var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
+        var empresasConAlertas = await DocumentosConAlertaDeVigencia.DeEmpresa(
+                documentosContext, empresaIdsVisibles, DocumentosConAlertaDeVigencia.FechaLimite(hoy, parametros))
+            .AnyAsync(cancellationToken);
 
         return new KpisDashboardDto(
             TrabajadoresActivos: trabajadoresActivos,
@@ -243,6 +249,8 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             DocumentosSinConfirmar: sinConfirmar,
             DocumentosSinCaducidad: sinCaducidad,
             TrabajadoresBloqueados: trabajadoresBloqueados,
-            ParesExigidosSinDocumento: paresExigidosSinDocumento);
+            ParesExigidosSinDocumento: paresExigidosSinDocumento,
+            TienePendientesDocumentales: empresasConAlertas
+                || estadosCentro.Values.Any(r => r.Estado is not (EstadoCentro.Vigente or EstadoCentro.SinGestionCae)));
     }
 }

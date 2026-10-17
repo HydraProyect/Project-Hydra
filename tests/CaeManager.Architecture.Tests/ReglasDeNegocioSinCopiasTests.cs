@@ -163,7 +163,8 @@ public class ReglasDeNegocioSinCopiasTests
     {
         // Prefiltros de cota superior: nada más allá del umbral ámbar puede ser distinto de Vigente, así que se
         // queda en PostgreSQL. La clasificación la sigue haciendo CalculadoraEstadoDocumento.
-        ["src/CaeManager.Application/Alertas/Queries/ObtenerAlertas/ObtenerAlertasQuery.cs"] = 1,
+        // Alertas e Inicio comparten ahora esta cota para los vencimientos de Empresa; Alertas también la usa para Trabajador.
+        ["src/CaeManager.Application/Alertas/DocumentosConAlertaDeVigencia.cs"] = 1,
         ["src/CaeManager.Application/Centros/CalculoEstadoCentroService.cs"] = 1,
         // Filtros y orden por estado que clasifican EN SQL (limiteRojo y limiteAmbar): la calculadora no cabe en
         // una expresión de EF. Atados a CalculadoraEstadoDocumento por CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests.

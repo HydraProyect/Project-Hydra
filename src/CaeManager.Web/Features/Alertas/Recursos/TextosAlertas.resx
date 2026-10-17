@@ -79,7 +79,7 @@
     <value>Se solicita a</value>
   </data>
   <data name="ColumnaTrabajador" xml:space="preserve">
-    <value>Trabajador</value>
+    <value>Trabajador / Empresa</value>
   </data>
   <data name="ColumnaDocumento" xml:space="preserve">
     <value>Documento</value>

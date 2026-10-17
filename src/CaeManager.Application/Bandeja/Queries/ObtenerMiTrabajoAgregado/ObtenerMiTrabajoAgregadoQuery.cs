@@ -466,7 +466,7 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
             Id: a.IdDeFila("proximo"),
             Tipo: TipoItemBandeja.VencimientoProximo,
             Titulo: a.TipoDocumentoNombre,
-            Subtitulo: a.CentroNombre is null ? a.TrabajadorNombre : $"{a.TrabajadorNombre} — {a.CentroNombre}",
+            Subtitulo: a.CentroNombre is null ? a.PropietarioNombre : $"{a.PropietarioNombre} — {a.CentroNombre}",
             Fecha: a.FechaVencimiento,
             TrabajadorId: a.TrabajadorId,
             CentroId: a.CentroId,
@@ -477,7 +477,7 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
             ClienteNombre: a.ClienteNombre,
             EmpresaId: a.EmpresaId,
             EmpresaNombre: a.EmpresaNombre,
-            TrabajadorNombre: a.TrabajadorNombre))
+            TrabajadorNombre: a.TrabajadorId is null ? null : a.TrabajadorNombre))
         .ToList();
 
     /// <summary>Mismo mapeo de campos que la rama "plataformas" de <see cref="ObtenerBandejaGestorQueryHandler.Fusionar"/>, restringido a <see cref="EstadoAcreditacion.Subida"/> (la única que esa rama descarta).</summary>

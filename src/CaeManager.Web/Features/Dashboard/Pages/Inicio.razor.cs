@@ -90,6 +90,17 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
     /// </summary>
     private const string RutaVisitas = "/visitas";
     private IReadOnlyList<PendientePorPlataformaDto> _pendientePorPlataforma = [];
+    private bool _hayTrabajoPendiente;
+
+    // El porcentaje documental no acredita que se haya terminado el trabajo pendiente (decisión Outbound 3).
+    // Se oculta el 100 %, en vez de inventar un porcentaje, si hay trabajo por atender.
+    private bool CumplimientoCompletoConPendientes => _kpis is { TasaCumplimientoDocumental: 100 } k
+        && (k.TienePendientesDocumentales || k.CentrosBloqueados > 0 || k.TrabajadoresBloqueados > 0
+            || k.DocumentosVencidos > 0 || k.DocumentosUrgentes > 0 || k.DocumentosProximos > 0
+            || k.DocumentosSinConfirmar > 0 || k.VisitasUrgentes > 0
+            || _pendientePorPlataforma.Any(p => p.PendientesDeSubir > 0 || p.Rechazadas > 0)
+            || _hayTrabajoPendiente
+            || _sinRespuesta.Count > 0);
     private IReadOnlyList<ItemBandejaDto> _queLlegoSinVer = [];
     private IReadOnlyList<VisitaListaDto> _proximamente = [];
     private ProximoVencimientoDto? _proximoVencimiento;
@@ -275,6 +286,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
         var token = _ciclo.Token;
         BandejaAgrupadaDto? bandeja = null;
         IReadOnlyList<PendientePorPlataformaDto> plataformas = [];
+        var hayTrabajoPendiente = false;
         IReadOnlyList<ItemBandejaDto> sinVer = [];
         DateTime? sinVerDesde = null;
         IReadOnlyList<VisitaListaDto> proximamente = [];
@@ -320,6 +332,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
                 {
                     bandeja = await Mediator.Send(new ObtenerBandejaAgrupadaQuery(), token);
                     var todosLosItems = bandeja.Grupos.SelectMany(g => g.Items).Concat(bandeja.SinGrupo).ToList();
+                    hayTrabajoPendiente = todosLosItems.Count > 0;
 
                     // Resuelto una única vez por circuito en MainLayout — aquí solo se lee el
                     // resultado ya cacheado (Project-Hydra-Negocio/tecnico/docs/blueprints/OPERATIONAL-HOME.md § 6, DDL-068).
@@ -358,6 +371,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
             _bandejaAgrupada = bandeja;
             _rutaVerTodoMiTrabajo = rutaVerTodoMiTrabajo;
             _pendientePorPlataforma = plataformas;
+            _hayTrabajoPendiente = hayTrabajoPendiente;
             _queLlegoSinVer = sinVer;
             _sinVerDesdeUtc = sinVerDesde;
             _proximamente = proximamente;
@@ -489,6 +503,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
         && k.TrabajadoresActivos == 0 && k.Centros == 0
         && k.DocumentosVigentes == 0 && k.DocumentosVencidos == 0
         && k.DocumentosUrgentes == 0 && k.DocumentosProximos == 0
+        && !k.TienePendientesDocumentales
         && k.VisitasProgramadas == 0 && k.VisitasUrgentes == 0
         && _queLlegoSinVer.Count == 0 && _pendientePorPlataforma.Count == 0
         && _sinRespuesta.Count == 0 && _proximamente.Count == 0

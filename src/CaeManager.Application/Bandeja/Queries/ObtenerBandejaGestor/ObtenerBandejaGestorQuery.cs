@@ -251,7 +251,7 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
                     : a.Estado == EstadoDocumento.Vencido ? TipoItemBandeja.Vencido
                     : TipoItemBandeja.Urgente,
                 Titulo: a.TipoDocumentoNombre,
-                Subtitulo: a.CentroNombre is null ? a.TrabajadorNombre : $"{a.TrabajadorNombre} — {a.CentroNombre}",
+                Subtitulo: a.CentroNombre is null ? a.PropietarioNombre : $"{a.PropietarioNombre} — {a.CentroNombre}",
                 Fecha: a.FechaVencimiento,
                 TrabajadorId: a.TrabajadorId,
                 CentroId: a.CentroId,
@@ -262,7 +262,7 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
                 ClienteNombre: a.ClienteNombre,
                 EmpresaId: a.EmpresaId,
                 EmpresaNombre: a.EmpresaNombre,
-                TrabajadorNombre: a.TrabajadorNombre)));
+                TrabajadorNombre: a.TrabajadorId is null ? null : a.TrabajadorNombre)));
 
         items.AddRange(revisiones.Select(r => new ItemBandejaDto(
             Id: IdDeFilaDeCola.Revision(r.Id),

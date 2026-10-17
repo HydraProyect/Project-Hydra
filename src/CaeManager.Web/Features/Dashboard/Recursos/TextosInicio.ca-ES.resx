@@ -30,6 +30,12 @@
   <data name="EnlaceMiTrabajo" xml:space="preserve">
     <value>Ir a Mi trabajo →</value>
   </data>
+  <data name="AnilloConPendientes" xml:space="preserve">
+    <value>Hi ha pendents</value>
+  </data>
+  <data name="AnilloConPendientesDetalle" xml:space="preserve">
+    <value>La documentació al dia no tanca les gestions ni les validacions pendents.</value>
+  </data>
   <data name="AnilloSinDatos" xml:space="preserve">
     <value>Sense dades de compliment documental</value>
   </data>

@@ -187,10 +187,15 @@
                    bloqueo de la plataforma CAE (CalculoEstadoCentroService, el mismo
                    cálculo que Centro 360) se declaran junto a él para que no se lea
                    como cumplimiento. *@
-                <AnilloCumplimiento Porcentaje="@(_kpis.SinDatos ? null : _kpis.TasaCumplimientoDocumental)" Tamano="TamanoAnillo.Grande" Leyenda="Cumplimiento"
-                                     Etiqueta="@(_kpis.SinDatos ? Textos["AnilloSinDatos"].Value : $"{_kpis.TasaCumplimientoDocumental}% de cumplimiento documental")" />
+                <AnilloCumplimiento Porcentaje="@(_kpis.SinDatos || CumplimientoCompletoConPendientes ? null : _kpis.TasaCumplimientoDocumental)" Tamano="TamanoAnillo.Grande" Leyenda="Cumplimiento"
+                                     Etiqueta="@(CumplimientoCompletoConPendientes ? Textos["AnilloConPendientes"].Value : _kpis.SinDatos ? Textos["AnilloSinDatos"].Value : $"{_kpis.TasaCumplimientoDocumental}% de cumplimiento documental")" />
                 <div>
-                    @if (_kpis.SinDatos)
+                    @if (CumplimientoCompletoConPendientes)
+                    {
+                        <p class="dashboard-resumen-anillo-titulo">@Textos["AnilloConPendientes"]</p>
+                        <p class="dashboard-resumen-anillo-detalle">@Textos["AnilloConPendientesDetalle"]</p>
+                    }
+                    else if (_kpis.SinDatos)
                     {
                         <p class="dashboard-resumen-anillo-titulo">@Textos["AnilloSinDatos"]</p>
                         <p class="dashboard-resumen-anillo-detalle">@Textos["AnilloSinDatosDetalle"]</p>

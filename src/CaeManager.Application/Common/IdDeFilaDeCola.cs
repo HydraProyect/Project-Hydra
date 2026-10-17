@@ -36,7 +36,7 @@ public static class IdDeFilaDeCola
     /// Trabajador-Tipo-Centro: el mismo Trabajador asignado a dos Centros a los que les falta el mismo Tipo da dos
     /// alertas, y con solo Trabajador-Tipo compartían Id (#1064).
     /// </summary>
-    public static string Alerta(string prefijo, Guid? documentoId, Guid trabajadorId, Guid tipoDocumentoId, Guid? centroId) =>
+    public static string Alerta(string prefijo, Guid? documentoId, Guid? trabajadorId, Guid tipoDocumentoId, Guid? centroId) =>
         documentoId is { } documento
             ? $"{prefijo}-{documento}"
             : $"{prefijo}-{trabajadorId}-{tipoDocumentoId}-{centroId?.ToString() ?? "sin-centro"}";

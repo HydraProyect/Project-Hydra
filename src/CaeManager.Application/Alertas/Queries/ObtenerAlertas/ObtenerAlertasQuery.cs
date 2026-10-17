@@ -23,9 +23,8 @@ namespace CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 /// notificación real ya va por <c>NotificacionUsuario</c> y correo. <c>EnvioAlertasVencimientoHostedService</c>
 /// (Infrastructure, Issue #2) sí llama a esto periódicamente para el resumen
 /// por correo, pero sigue siendo cálculo en vivo en cada ejecución — no una
-/// tabla propia. Solo cubre Documentos de Trabajador — los de Cliente/Empresa
-/// (ver Documento.Ambito) no generan alerta todavía; ampliar esta vista queda
-/// fuera de alcance por ahora.
+/// tabla propia. Cubre los vencimientos de documentos de Trabajador y de Empresa.
+/// Las alertas de Empresa conservan ese sujeto, sin atribuirlas a un Trabajador ni a un Centro.
 ///
 /// P1-15 de Project-Hydra-Negocio/MATURITY_REVIEW.md añade el segundo bloque:
 /// "documento faltante" — un Trabajador con Asignación activa a un Centro
@@ -54,7 +53,7 @@ public record ObtenerAlertasQuery : IRequest<IReadOnlyList<AlertaDto>>;
 /// </param>
 public record AlertaDto(
     Guid? DocumentoId,
-    Guid TrabajadorId,
+    Guid? TrabajadorId,
     string TrabajadorNombre,
     Guid TipoDocumentoId,
     string TipoDocumentoNombre,
@@ -68,6 +67,8 @@ public record AlertaDto(
     Guid? EmpresaId = null,
     string? EmpresaNombre = null)
 {
+    public string PropietarioNombre => TrabajadorId is null ? EmpresaNombre ?? string.Empty : TrabajadorNombre;
+
     /// <summary>
     /// Identidad de la fila que una pantalla pinta para esta alerta. Es la clave <c>@key</c> de la
     /// fila y la identidad del detalle abierto, así que tiene que ser única entre filas hermanas.
@@ -99,8 +100,9 @@ public class ObtenerAlertasQueryHandler(
     {
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+        var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
 
-        return await CalcularAsync(trabajadorIdsVisibles, centroIdsVisibles, cancellationToken);
+        return await CalcularAsync(trabajadorIdsVisibles, centroIdsVisibles, cancellationToken, empresaIdsVisibles);
     }
 
     /// <summary>
@@ -114,7 +116,8 @@ public class ObtenerAlertasQueryHandler(
     /// <c>AmbitoTenantExplicito</c> ya establecido por tenant.
     /// </summary>
     public async Task<IReadOnlyList<AlertaDto>> CalcularAsync(
-        IReadOnlyList<Guid>? trabajadorIdsVisibles, IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
+        IReadOnlyList<Guid>? trabajadorIdsVisibles, IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken,
+        IReadOnlyList<Guid>? empresaIdsVisibles = null)
     {
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DiaDeNegocio.Hoy();
@@ -126,7 +129,7 @@ public class ObtenerAlertasQueryHandler(
         // universo que puede alertar (Vencido no tiene límite inferior: un
         // documento caducado hace años debe seguir alertando, por eso el
         // filtro es solo por arriba).
-        var fechaLimiteAlerta = hoy.AddDays(parametros.UmbralAmbarDias);
+        var fechaLimiteAlerta = DocumentosConAlertaDeVigencia.FechaLimite(hoy, parametros);
 
         // Un voluntario inactivo, sin evento vigente ni futuro, no se borra; pero sus vencimientos no avisan.
         var voluntariosInactivos = ActividadVoluntarios.VoluntariosInactivosIds(trabajadoresContext.Trabajadores, proyectosContext, hoy);
@@ -165,18 +168,42 @@ public class ObtenerAlertasQueryHandler(
             .ToList();
 
         var clientePrincipalPorTrabajador = await resolverClientePrincipal.ResolverPorTrabajadorAsync(
-            alertasVigenciaSinCliente.Select(a => a.TrabajadorId).Distinct().ToList(), cancellationToken);
+            alertasVigenciaSinCliente.Select(a => a.TrabajadorId!.Value).Distinct().ToList(), cancellationToken);
 
         var alertasVigencia = alertasVigenciaSinCliente.Select(a =>
-            clientePrincipalPorTrabajador.TryGetValue(a.TrabajadorId, out var principal)
+            clientePrincipalPorTrabajador.TryGetValue(a.TrabajadorId!.Value, out var principal)
                 ? a with { CentroId = principal.CentroId, ClienteId = principal.ClienteId, ClienteNombre = principal.ClienteNombre }
                 : a);
 
         var alertasFaltantes = await ObtenerFaltantesAsync(
             trabajadorIdsVisibles, centroIdsVisibles, voluntariosInactivos, hoy, cancellationToken);
 
+        // La vigencia de un documento de Empresa no depende de que tenga personas asignadas a un Centro.
+        // Se conserva como sujeto la Empresa; no se inventa un Trabajador ni un Cliente empresarial principal.
+        var documentosEmpresa = await (
+            from documento in DocumentosConAlertaDeVigencia.DeEmpresa(documentosContext, empresaIdsVisibles, fechaLimiteAlerta)
+            join empresa in empresasContext.Empresas on documento.EmpresaId!.Value equals empresa.Id
+            join tipo in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipo.Id
+            select new
+            {
+                documento.Id,
+                documento.EmpresaId,
+                empresa.RazonSocial,
+                TipoId = tipo.Id,
+                tipo.Nombre,
+                documento.FechaVencimiento,
+                documento.ArchivoUrl
+            })
+            .ToListAsync(cancellationToken);
+        var alertasEmpresa = documentosEmpresa.Select(d => new AlertaDto(
+            d.Id, null, string.Empty, d.TipoId, d.Nombre, d.FechaVencimiento,
+            CalculadoraEstadoDocumento.Calcular(VigenciaDocumento.VenceEl(d.FechaVencimiento!.Value),
+                hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
+            d.ArchivoUrl, CentroNombre: null, EmpresaId: d.EmpresaId, EmpresaNombre: d.RazonSocial));
+
         var combinadas = alertasVigencia
             .Concat(alertasFaltantes)
+            .Concat(alertasEmpresa)
             .OrderBy(a => SeveridadEstadoDocumento.Rango(a.Estado))
             .ThenBy(a => a.FechaVencimiento)
             .ToList();

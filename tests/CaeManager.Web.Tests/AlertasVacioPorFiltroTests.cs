@@ -91,6 +91,21 @@ public class AlertasVacioPorFiltroTests : BunitContext
     }
 
     [Fact]
+    public void La_alerta_de_Empresa_muestra_su_sujeto_y_abre_el_documento()
+    {
+        var documentoId = Guid.NewGuid();
+        var alerta = new AlertaDto(documentoId, null, "Empresa Norte", Guid.NewGuid(), "Seguro",
+            DateOnly.FromDateTime(DateTime.Today).AddDays(-1), EstadoDocumento.Vencido, null, null,
+            EmpresaId: Guid.NewGuid(), EmpresaNombre: "Empresa Norte");
+        var cut = Renderizar(null, alerta);
+
+        cut.Find(".tabla-datos").TextContent.Should().Contain("Empresa Norte").And.Contain("Trabajador / Empresa");
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Gestionar").Click();
+
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain($"documentoId={documentoId}");
+    }
+
+    [Fact]
     public void Con_vencidos_a_la_vista_filtrar_por_proximo_no_dice_que_todo_esta_vigente()
     {
         var cut = Renderizar(estado: nameof(EstadoDocumento.Proximo),
