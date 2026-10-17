@@ -13,13 +13,11 @@ public sealed record DocumentoBuscado(string Valor, TipoIdentificacion Tipo, boo
         if (resultado.Tipo is not (TipoIdentificacion.Dni or TipoIdentificacion.Nie or TipoIdentificacion.NifEmpresa))
             return null;
 
+        // Solo la letra de DNI/NIE lleva aviso propio (la maqueta lo dibuja así). Un CIF con el
+        // control mal no corrige nada: la paleta lo trata como «ninguna Empresa con ese CIF».
         string? aviso = null;
-        if (!resultado.EsValido)
-        {
-            aviso = resultado.Tipo is TipoIdentificacion.Dni or TipoIdentificacion.Nie
-                ? $"La letra no cuadra: ¿quisiste decir {valor[..^1]}{ValidadorIdentificacion.LetraControlEsperada(valor)}?"
-                : "El dígito de control del CIF no es válido.";
-        }
+        if (!resultado.EsValido && resultado.Tipo is TipoIdentificacion.Dni or TipoIdentificacion.Nie)
+            aviso = $"La letra no cuadra: ¿quisiste decir {valor[..^1]}{ValidadorIdentificacion.LetraControlEsperada(valor)}?";
         return new(valor, resultado.Tipo, resultado.EsValido, aviso);
     }
 }

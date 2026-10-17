@@ -892,4 +892,7 @@
   <data name="GestionVence" xml:space="preserve"><value>Venç: {0}</value></data>
   <data name="GestionSinFecha" xml:space="preserve"><value>Sense data de venciment</value></data>
   <data name="GestionVacio" xml:space="preserve"><value>Sense documents d’empresa registrats visibles.</value></data>
+  <data name="DniCopiado" xml:space="preserve">
+    <value>DNI {0} copiat al porta-retalls</value>
+  </data>
 </root>

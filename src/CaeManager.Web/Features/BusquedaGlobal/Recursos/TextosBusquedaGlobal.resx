@@ -30,4 +30,37 @@
   <data name="SinResultadosPistaSelector" xml:space="preserve">
     <value>La búsqueda cubre solo la empresa activa: cámbiala en el selector para buscar en otra.</value>
   </data>
+  <data name="Placeholder" xml:space="preserve">
+    <value>Nombre, DNI, NIE, CIF o acción (reclamar, subir, ir a…)</value>
+  </data>
+  <data name="SinResultadosTrabajadorDocumento" xml:space="preserve">
+    <value>Ningún Trabajador de tu cartera con ese documento</value>
+  </data>
+  <data name="SinResultadosCif" xml:space="preserve">
+    <value>Ninguna Empresa ni Cliente de tu cartera con ese CIF</value>
+  </data>
+  <data name="CoincideDocumento" xml:space="preserve">
+    <value>Coincide con el documento buscado</value>
+  </data>
+  <data name="CoincideCif" xml:space="preserve">
+    <value>Coincide con el CIF buscado</value>
+  </data>
+  <data name="AbrirTrabajador360" xml:space="preserve">
+    <value>Abrir Trabajador 360</value>
+  </data>
+  <data name="AbrirEmpresa360" xml:space="preserve">
+    <value>Abrir Empresa 360</value>
+  </data>
+  <data name="SubirDocumentoPara" xml:space="preserve">
+    <value>Subir documento para {0}</value>
+  </data>
+  <data name="SubirDocumentoParaSub" xml:space="preserve">
+    <value>Abre la subida con el Trabajador fijado</value>
+  </data>
+  <data name="ReclamarA" xml:space="preserve">
+    <value>Reclamar a {0}</value>
+  </data>
+  <data name="ReclamarASub" xml:space="preserve">
+    <value>Lo que le falta a {0}</value>
+  </data>
 </root>

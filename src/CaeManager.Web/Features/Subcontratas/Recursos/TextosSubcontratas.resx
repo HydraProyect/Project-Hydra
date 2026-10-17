@@ -892,4 +892,7 @@
   <data name="GestionVence" xml:space="preserve"><value>Vence: {0}</value></data>
   <data name="GestionSinFecha" xml:space="preserve"><value>Sin fecha de vencimiento</value></data>
   <data name="GestionVacio" xml:space="preserve"><value>Sin documentos de empresa registrados visibles.</value></data>
+  <data name="DniCopiado" xml:space="preserve">
+    <value>DNI {0} copiado al portapapeles</value>
+  </data>
 </root>

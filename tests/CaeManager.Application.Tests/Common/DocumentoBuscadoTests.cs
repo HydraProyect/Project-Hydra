@@ -37,8 +37,12 @@ public class DocumentoBuscadoTests
     [Theory]
     [InlineData("B12345671")]
     [InlineData("P1234567A")]
-    public void Rechaza_un_cif_con_control_incorrecto(string valor) =>
-        DocumentoBuscado.Analizar(valor)!.EsValido.Should().BeFalse();
+    public void Rechaza_un_cif_con_control_incorrecto_sin_aviso_propio(string valor)
+    {
+        var documento = DocumentoBuscado.Analizar(valor)!;
+        documento.EsValido.Should().BeFalse();
+        documento.Aviso.Should().BeNull("la maqueta solo avisa de la letra de DNI/NIE; un CIF malo es «ninguna Empresa con ese CIF»");
+    }
 
     [Theory]
     [InlineData("5678")]

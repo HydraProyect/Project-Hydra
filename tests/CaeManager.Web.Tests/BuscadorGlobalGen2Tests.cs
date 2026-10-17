@@ -79,8 +79,8 @@ public class BuscadorGlobalGen2Tests : BunitContext
 
     [Theory]
     [InlineData("B12345674", "Ninguna Empresa ni Cliente de tu cartera con ese CIF")]
-    [InlineData("B12345671", "El dígito de control del CIF no es válido.")]
-    public async Task Un_cif_sin_resultados_o_invalido_da_un_aviso_especifico(string valor, string aviso)
+    [InlineData("B12345671", "Ninguna Empresa ni Cliente de tu cartera con ese CIF")]
+    public async Task Un_cif_sin_resultados_o_invalido_da_el_texto_de_sin_resultados_de_cif(string valor, string aviso)
     {
         var cut = await RenderizarYAbrir(new MediadorControlado());
         await Input(cut).EscribirAsync(valor);
@@ -106,6 +106,177 @@ public class BuscadorGlobalGen2Tests : BunitContext
         await Input(cut).EscribirAsync(termino);
         cut.FindAll("a.buscador-item").Should().Contain(a => a.GetAttribute("href") == destino);
         cut.Find("input").GetAttribute("placeholder").Should().Be("Nombre, DNI, NIE, CIF o acción (reclamar, subir, ir a…)");
+    }
+
+    // ---------------------------------------------------------------------
+    // Búsqueda por documento y acciones con sujeto (maqueta Command Palette)
+    // ---------------------------------------------------------------------
+
+    private static readonly ResultadoBusquedaGlobalDto UnTrabajadorSinEmpresa = new(
+        [], [],
+        [new ItemBusquedaDto(IdTrabajador, "Juan Pérez", null, "/trabajadores/22222222-2222-2222-2222-222222222222")],
+        []);
+
+    private static IReadOnlyList<string> TitulosDeGrupo(IRenderedComponent<BuscadorGlobal> cut) =>
+        cut.FindAll(".buscador-grupo-titulo").Select(t => t.TextContent.Trim()).ToList();
+
+    private static IReadOnlyList<(string Titulo, string Subtitulo, string? Href)> Filas(IRenderedComponent<BuscadorGlobal> cut) =>
+        cut.FindAll("a.buscador-item").Select(a => (
+            a.QuerySelector(".buscador-item-titulo")!.TextContent.Trim(),
+            a.QuerySelector(".buscador-item-subtitulo")?.TextContent.Trim() ?? string.Empty,
+            a.GetAttribute("href"))).ToList();
+
+    [Fact]
+    public async Task Un_dni_con_coincidencia_ofrece_trabajador_y_acciones_con_sujeto()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado { Resultado = UnTrabajador });
+        await Input(cut).EscribirAsync("12345678Z");
+
+        TitulosDeGrupo(cut).Should().Equal("Trabajador", "Acciones");
+        Filas(cut).Should().Equal(
+            ("Juan Pérez", "Coincide con el documento buscado · Montajes Ebro S.L.", $"/trabajadores/{IdTrabajador}"),
+            ("Subir documento para Juan Pérez", "Abre la subida con el Trabajador fijado", $"/trabajadores/{IdTrabajador}?pestana=documentacion"),
+            ("Reclamar a Montajes Ebro S.L.", "Lo que le falta a Juan Pérez", "/comunicaciones"));
+        cut.Markup.Should().NotContain("12345678", "el documento buscado nunca se proyecta en la paleta");
+    }
+
+    [Theory]
+    [InlineData(0, "Abrir Trabajador 360")]
+    [InlineData(1, "Subir")]
+    [InlineData(2, "Reclamar")]
+    public async Task Las_filas_de_la_busqueda_por_dni_dicen_su_verbo_en_la_pista(int fila, string pista)
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado { Resultado = UnTrabajador });
+        await Input(cut).EscribirAsync("12345678Z");
+        for (var i = 0; i <= fila; i++) await Input(cut).TeclaAsync("ArrowDown");
+
+        cut.Find(".buscador-item-pista").TextContent.Trim().Should().Be($"↵ {pista}");
+    }
+
+    [Fact]
+    public async Task Un_nie_con_coincidencia_usa_el_mismo_esquema_que_un_dni()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado { Resultado = UnTrabajador });
+        await Input(cut).EscribirAsync("X1234567L");
+
+        TitulosDeGrupo(cut).Should().Equal("Trabajador", "Acciones");
+    }
+
+    [Fact]
+    public async Task Sin_organizacion_empleadora_no_se_ofrece_reclamar()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado { Resultado = UnTrabajadorSinEmpresa });
+        await Input(cut).EscribirAsync("12345678Z");
+
+        Filas(cut).Select(f => f.Titulo).Should().Equal("Juan Pérez", "Subir documento para Juan Pérez");
+    }
+
+    [Fact]
+    public async Task Un_cif_con_coincidencia_ofrece_el_grupo_Empresa_con_su_ficha()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado { Resultado = UnClienteEmpresarial });
+        await Input(cut).EscribirAsync("B12345674");
+
+        TitulosDeGrupo(cut).Should().Equal("Empresa");
+        Filas(cut).Should().Equal(("Refrielectric S.A.", "Coincide con el CIF buscado", $"/clientes/{IdCliente}"));
+        await Input(cut).TeclaAsync("ArrowDown");
+        cut.Find(".buscador-item-pista").TextContent.Trim().Should().Be("↵ Abrir Empresa 360");
+        cut.Markup.Should().NotContain("B12345674");
+    }
+
+    [Theory]
+    [InlineData("Subcontrata", "/subcontratas/")]
+    [InlineData(null, "/empresas/")]
+    public async Task La_ficha_de_empresa_sigue_el_papel_que_trajo_la_fila(string? papel, string prefijo)
+    {
+        var id = Guid.Parse("55555555-5555-5555-5555-555555555555");
+        var cut = await RenderizarYAbrir(new MediadorControlado
+        {
+            Resultado = new ResultadoBusquedaGlobalDto([new ItemBusquedaDto(id, "Andamios Delta S.L.", papel, "/listado?q=x")], [], [], [])
+        });
+        await Input(cut).EscribirAsync("B12345674");
+
+        Filas(cut).Single().Href.Should().Be($"{prefijo}{id}");
+    }
+
+    [Fact]
+    public async Task Un_dni_valido_sin_coincidencia_no_ofrece_acciones_ni_crear()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado());
+        await Input(cut).EscribirAsync("12345678Z");
+
+        cut.FindAll(".buscador-grupo").Should().BeEmpty();
+        cut.Find("[role=status]").TextContent.Should().Be("Ningún Trabajador de tu cartera con ese documento");
+    }
+
+    private static ItemRecienteDto[] RecientesConSujeto =>
+    [
+        new("Empresa", Guid.Parse("66666666-6666-6666-6666-666666666666"), "Obras y Estructuras del Ebro S.L.", "Subcontrata", "/subcontratas/66666666-6666-6666-6666-666666666666"),
+        new("Trabajador", IdTrabajador, "Juan Pérez", "Obras y Estructuras del Ebro S.L.", $"/trabajadores/{IdTrabajador}"),
+        new("Centro", Guid.Parse("33333333-3333-3333-3333-333333333333"), "Centro Norte", "Centro", "/centros/33333333-3333-3333-3333-333333333333"),
+    ];
+
+    [Theory]
+    [InlineData("reclamar")]
+    [InlineData("subir")]
+    [InlineData("ir a")]
+    public async Task Los_verbos_ofrecen_acciones_con_sujeto_de_los_recientes(string verbo)
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado { Recientes = RecientesConSujeto });
+        await Input(cut).EscribirAsync(verbo);
+
+        var filas = Filas(cut).Where(f => f.Titulo.StartsWith("Reclamar a ") || f.Titulo.StartsWith("Subir documento para ") || f.Titulo == "Ir a Centro Norte").ToList();
+        filas.Should().Equal(
+            ("Reclamar a Obras y Estructuras del Ebro S.L.", string.Empty, "/comunicaciones"),
+            ("Subir documento para Juan Pérez", "Obras y Estructuras del Ebro S.L.", $"/trabajadores/{IdTrabajador}?pestana=documentacion"),
+            ("Ir a Centro Norte", string.Empty, "/centros/33333333-3333-3333-3333-333333333333"));
+        Filas(cut).Should().NotContain(f => f.Titulo == "Reclamar…" || f.Titulo == "Subir…",
+            "la acción con sujeto sustituye a la genérica");
+    }
+
+    [Fact]
+    public async Task Lo_escrito_tras_el_verbo_acota_el_sujeto_y_no_ofrece_crear()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado { Recientes = RecientesConSujeto, Resultado = SinNada });
+        await Input(cut).EscribirAsync("subir para juan");
+
+        Filas(cut).Select(f => f.Titulo).Should().Equal("Subir documento para Juan Pérez");
+    }
+
+    [Fact]
+    public async Task Las_pistas_de_las_acciones_con_sujeto_son_Reclamar_Subir_y_Abrir()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado { Recientes = RecientesConSujeto });
+        await Input(cut).EscribirAsync("reclamar");
+        var pistas = new List<string>();
+        for (var i = 0; i < 3; i++)
+        {
+            await Input(cut).TeclaAsync("ArrowDown");
+            pistas.Add(cut.Find(".buscador-item-pista").TextContent.Trim());
+        }
+
+        pistas.Should().Equal("↵ Reclamar", "↵ Subir", "↵ Abrir");
+    }
+
+    [Fact]
+    public async Task Sin_recientes_los_verbos_se_quedan_en_la_accion_generica()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado());
+        await Input(cut).EscribirAsync("reclamar");
+
+        Filas(cut).Should().Contain(f => f.Titulo == "Reclamar…" && f.Href == "/comunicaciones");
+    }
+
+    [Fact]
+    public async Task Un_reciente_con_ruta_no_local_no_ofrece_ir_a()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado
+        {
+            Recientes = [new("Centro", null, "Centro Norte", "Centro", "https://ajeno.example/centros/1")]
+        });
+        await Input(cut).EscribirAsync("ir a");
+
+        Filas(cut).Should().NotContain(f => f.Titulo == "Ir a Centro Norte");
     }
 
     private static readonly Guid IdCliente = Guid.Parse("11111111-1111-1111-1111-111111111111");

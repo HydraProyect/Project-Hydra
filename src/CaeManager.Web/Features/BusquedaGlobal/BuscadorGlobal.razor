@@ -26,7 +26,7 @@
                        aria-expanded="@(grupos.Count > 0 ? "true" : "false")"
                        aria-controls="buscador-lista"
                        aria-activedescendant="@(_indiceSeleccionado >= 0 ? $"buscador-item-{_indiceSeleccionado}" : null)"
-                       placeholder="Nombre, DNI, NIE, CIF o acción (reclamar, subir, ir a…)"
+                       placeholder="@Placeholder"
                        value="@_valorMostrado"
                        @oninput="ManejarEntradaAsync"
                        @onkeydown="ManejarTeclaAsync" />
