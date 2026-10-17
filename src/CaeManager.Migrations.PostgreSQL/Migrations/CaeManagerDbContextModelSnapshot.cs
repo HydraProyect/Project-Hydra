@@ -617,6 +617,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool?>("AtmosferasExplosivas")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid>("ClienteId")
                         .HasColumnType("uuid");
 
@@ -630,6 +633,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<DateOnly?>("ContratoVigenteHasta")
                         .HasColumnType("date");
+
+                    b.Property<string>("ControlAccesosNombre")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ControlAccesosTelefono")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
@@ -647,19 +658,41 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("EmpresaId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool?>("EspaciosConfinados")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("EstaEliminado")
                         .HasColumnType("boolean");
 
                     b.Property<int>("GestionCae")
                         .HasColumnType("integer");
 
+                    b.Property<string>("HorarioAcceso")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("TecnicoPrevencionCorreo")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<string>("TecnicoPrevencionNombre")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("TecnicoPrevencionTelefono")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
+
+                    b.Property<bool?>("TrabajosEnAltura")
+                        .HasColumnType("boolean");
 
                     b.Property<Guid>("Version")
                         .IsConcurrencyToken()

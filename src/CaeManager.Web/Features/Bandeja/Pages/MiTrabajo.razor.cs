@@ -84,7 +84,14 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     private AgruparMiTrabajo _agrupar = AgruparMiTrabajo.Tenant;
     private OrdenMiTrabajo _orden = OrdenMiTrabajo.Prioridad;
     private readonly HashSet<string> _abiertos = [];
-    private readonly HashSet<Guid> _cerrados = [];
+    /// <summary>
+    /// Tenants cuya cabecera el Gestor CAE ha desplegado en esta visita. Parte vacío y no se persiste: la pantalla carga
+    /// siempre con todos los grupos plegados (decisión de producto 2026-10-16).
+    /// </summary>
+    private readonly HashSet<Guid> _tenantsAbiertos = [];
+
+    /// <summary>Lo mismo en modo Severidad: las severidades cuya cabecera se ha desplegado en esta visita. Parte vacío y no se persiste.</summary>
+    private readonly HashSet<SeveridadMiTrabajo> _severidadesAbiertas = [];
     private readonly HashSet<string> _lotesAbiertos = [];
     private string? _idAbierto;
     private string? _idEnfocado;
@@ -103,7 +110,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private bool EsVigente(int carga) => !_desechado && carga == _cargaVigente;
 
-    private FiltroMiTrabajo Filtro => new(_severidad, _tenantFiltro, _busqueda, _agrupar, _orden, _abiertos, _cerrados);
+    private FiltroMiTrabajo Filtro => new(_severidad, _tenantFiltro, _busqueda, _agrupar, _orden, _abiertos, _tenantsAbiertos, _severidadesAbiertas);
 
     private IReadOnlyList<GrupoMiTrabajo> Grupos => _vista?.Grupos(Filtro) ?? [];
 
@@ -122,7 +129,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private FilaMiTrabajo? FilaAbierta => _idAbierto is null ? null : Visibles.FirstOrDefault(f => f.Item.Id == _idAbierto);
 
-    private bool TodoPlegado => _vista is not null && _vista.Cartera.Count > 0 && _vista.Cartera.All(t => _cerrados.Contains(t.TenantId));
+    private bool TodoPlegado => _vista is not null && Grupos is { Count: > 0 } grupos && grupos.All(g => g.Plegado);
 
     private sealed record ChipMiTrabajo(SeveridadMiTrabajo? Severidad, string Etiqueta, int Cantidad);
 
@@ -351,18 +358,30 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
         EscribirFiltrosEnUrl();
     }
 
+    private void AlternarSeveridad(string clave)
+    {
+        var severidad = Enum.Parse<SeveridadMiTrabajo>(clave);
+        if (!_severidadesAbiertas.Remove(severidad))
+            _severidadesAbiertas.Add(severidad);
+    }
+
     private void AlternarTenant(Guid tenantId)
     {
-        if (!_cerrados.Remove(tenantId))
-            _cerrados.Add(tenantId);
+        if (!_tenantsAbiertos.Remove(tenantId))
+            _tenantsAbiertos.Add(tenantId);
     }
 
     private void AlternarTodas()
     {
-        if (TodoPlegado)
-            _cerrados.Clear();
+        if (!TodoPlegado)
+        {
+            _tenantsAbiertos.Clear();
+            _severidadesAbiertas.Clear();
+        }
+        else if (_agrupar == AgruparMiTrabajo.Tenant)
+            _tenantsAbiertos.UnionWith(_vista!.Cartera.Select(t => t.TenantId));
         else
-            _cerrados.UnionWith(_vista!.Cartera.Select(t => t.TenantId));
+            _severidadesAbiertas.UnionWith(Enum.GetValues<SeveridadMiTrabajo>());
     }
 
     /// <summary>Un tramo se enseña entero si se abrió (con clic, o con j/k al entrar en él) o si hay búsqueda, que debe alcanzar cada gestión.</summary>
@@ -397,7 +416,8 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     private void VolverAPlegar()
     {
         _abiertos.Clear();
-        _cerrados.Clear();
+        _tenantsAbiertos.Clear();
+        _severidadesAbiertas.Clear();
         _lotesAbiertos.Clear();
     }
 

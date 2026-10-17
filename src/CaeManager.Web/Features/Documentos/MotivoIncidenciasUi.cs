@@ -52,6 +52,33 @@ public static class MotivoIncidenciasUi
         return string.Join(Separador, partes);
     }
 
+    /// <summary>
+    /// «Falta: Aptitud médica, Formación Art. 19»: los Tipos que un Centro exige y no tienen documento. <c>null</c>
+    /// si no falta ninguno.
+    /// </summary>
+    public static string? FaltanTipos(IReadOnlyList<string> tiposFaltantes) =>
+        tiposFaltantes.Count == 0
+            ? null
+            : tiposFaltantes.Count <= MaximoTiposNombrados
+                ? string.Format(CultureInfo.CurrentCulture, TextosVigenciaDocumento.Texto("MotivoFaltaTipos"), string.Join(", ", tiposFaltantes))
+                : string.Format(
+                    CultureInfo.CurrentCulture, TextosVigenciaDocumento.Texto("MotivoFaltaTiposYMas"),
+                    string.Join(", ", tiposFaltantes.Take(MaximoTiposNombrados)), tiposFaltantes.Count - MaximoTiposNombrados);
+
+    /// <summary>Cuántos Tipos faltantes se nombran antes de resumir el resto («y 2 más»): la celda y la insignia no desbordan.</summary>
+    private const int MaximoTiposNombrados = 3;
+
+    /// <summary>
+    /// El motivo de una fila con lo que falta: primero lo que explica su estado (<see cref="Texto"/>) y después los
+    /// Tipos exigidos sin documento, que ninguna incidencia de un documento registrado puede contar.
+    /// </summary>
+    public static string? Texto(
+        IReadOnlyList<IncidenciaDocumentalDto> incidencias, IReadOnlyList<string> tiposFaltantes, DateOnly hoy)
+    {
+        var partes = new[] { Texto(incidencias, hoy), FaltanTipos(tiposFaltantes) }.OfType<string>().ToList();
+        return partes.Count == 0 ? null : string.Join(Separador, partes);
+    }
+
     /// <summary>Título del desglose: cuántos documentos piden atención.</summary>
     public static string Titulo(int cantidad) =>
         Recuento(cantidad, "VentanaIncidenciasTituloUna", "VentanaIncidenciasTitulo");

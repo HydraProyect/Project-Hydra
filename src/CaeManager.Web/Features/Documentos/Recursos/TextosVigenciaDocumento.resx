@@ -87,6 +87,12 @@
   <data name="Ficha360Desconocido" xml:space="preserve">
     <value>Estado desconocido</value>
   </data>
+  <data name="MotivoFaltaTipos" xml:space="preserve">
+    <value>Falta: {0}</value>
+  </data>
+  <data name="MotivoFaltaTiposYMas" xml:space="preserve">
+    <value>Falta: {0} y {1} más</value>
+  </data>
   <data name="MotivoIncidenciasUnVencido" xml:space="preserve">
     <value>1 vencido</value>
   </data>

@@ -123,6 +123,16 @@ public static class EstadoDocumentoUi
         estado is null ? TonoBadge.Neutro : Tono(estado.Value);
 
     /// <summary>
+    /// El estado que se pinta de un propietario al que un Centro le exige un Tipo de documento que no tiene. El estado
+    /// calculado sobre sus documentos registrados no ve lo que no existe: sin esto, quien no ha subido nada de lo
+    /// exigido se leería como «Sin incidencias». Si ya hay algo más grave (un vencido), manda ese.
+    /// </summary>
+    public static EstadoDocumento? ConFaltantes(EstadoDocumento? estado, bool hayFaltantes) =>
+        hayFaltantes && (estado is null || SeveridadEstadoDocumento.Rango(EstadoDocumento.Faltante) < SeveridadEstadoDocumento.Rango(estado.Value))
+            ? EstadoDocumento.Faltante
+            : estado;
+
+    /// <summary>
     /// Rótulo del peor estado de un propietario. Lo que está bien se dice de una sola forma, «Sin incidencias»:
     /// en un agregado, «Vigente» y «Sin caducidad» responden lo mismo (no hay nada que hacer) y eran dos verdes.
     /// </summary>

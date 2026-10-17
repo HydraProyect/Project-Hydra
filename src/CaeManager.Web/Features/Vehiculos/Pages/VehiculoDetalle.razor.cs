@@ -3,7 +3,9 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEmpresa;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Application.Vehiculos.Commands.EliminarVehiculo;
 using CaeManager.Application.Vehiculos.Commands.GuardarNotaInternaVehiculo;
+using CaeManager.Application.Vehiculos.Commands.RestaurarVehiculo;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculoPorId;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -450,6 +452,76 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     /// <summary>Editar vive en el panel del Vehículo, con su aviso de cambios sin guardar.</summary>
     private Task AbrirInformacionAsync() =>
         WorkspaceService.AbrirAsync(EntidadWorkspace.Vehiculo, VehiculoId, _detalle?.Nombre ?? string.Empty, "informacion");
+
+    // ── Eliminar con «Deshacer» ───────────────────────────────────────────
+
+    private bool _confirmarEliminarVisible;
+    private bool _eliminando;
+    private bool _restaurando;
+
+    /// <summary>
+    /// Baja lógica del Vehículo desde su ficha (el mismo EliminarVehiculoCommand de la baja en lote de /vehiculos). Se
+    /// vuelve al listado, porque la ficha de un Vehículo eliminado ya no existe, y el aviso ofrece «Deshacer»
+    /// (RestaurarVehiculoCommand), como las demás fichas 360.
+    /// </summary>
+    private async Task ConfirmarEliminarAsync()
+    {
+        if (_eliminando) return;
+        _eliminando = true;
+        var id = VehiculoId;
+
+        try
+        {
+            var resultado = await Mediator.Send(new EliminarVehiculoCommand(id));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
+
+            WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Vehiculo, [id]);
+            _confirmarEliminarVisible = false;
+            ToastService.Mostrar(
+                Textos["ToastVehiculoEliminado"], TonoToast.Exito, Textos["ToastAccionDeshacer"].Value, () => DeshacerEliminarAsync(id));
+            NavigationManager.NavigateTo("/vehiculos");
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ErrorEliminar"], TonoToast.Error);
+        }
+        finally
+        {
+            _eliminando = false;
+        }
+    }
+
+    /// <summary>«Deshacer» del aviso: se pulsa ya desde el listado (esta página se dejó al eliminar); si restaura, vuelve a la ficha.</summary>
+    private async Task DeshacerEliminarAsync(Guid id)
+    {
+        if (_restaurando) return;
+        _restaurando = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new RestaurarVehiculoCommand(id));
+
+            ToastService.Mostrar(
+                resultado.EsExitoso ? Textos["ToastVehiculoRestaurado"].Value : resultado.Error.Mensaje,
+                resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+
+            if (resultado.EsExitoso)
+                NavigationManager.NavigateTo($"/vehiculos/{id}");
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ErrorRestaurar"], TonoToast.Error);
+        }
+        finally
+        {
+            _restaurando = false;
+        }
+    }
 
     // ── Nota interna ──────────────────────────────────────────────────────
 

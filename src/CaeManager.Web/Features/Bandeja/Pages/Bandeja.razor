@@ -112,7 +112,7 @@
         <div class="lista-bandeja contenido-entra">
             @foreach (var grupo in GruposOrdenados)
             {
-                <GrupoCola @key="grupo.GrupoId" Grupo="grupo" ExpandidaPorDefecto="true" AgruparPorEmpresa="_agruparPorEmpresa" IdEnfocado="@_idEnfocado" OnReclamar="AbrirReclamacionDeItemAsync" PaginarPorGrupo="true" MarcarBloqueo="true" />
+                <GrupoCola @key="grupo.GrupoId" Grupo="grupo" AgruparPorEmpresa="_agruparPorEmpresa" IdEnfocado="@_idEnfocado" OnReclamar="AbrirReclamacionDeItemAsync" PaginarPorGrupo="true" MarcarBloqueo="true" />
             }
             @{ var claves = new ClavesDeHermanos(); }
             @foreach (var item in _bandeja!.SinGrupo.Where(i => CoincideFiltro(i, _tipoFiltro)))

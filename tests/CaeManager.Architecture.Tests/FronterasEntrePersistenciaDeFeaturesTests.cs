@@ -533,6 +533,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Proyectos.ObtenerEmpresasProyectoQueryHandler", "ITrabajadoresQueryContext"),
         ("Proyectos.ObtenerVisitasProyectoQueryHandler", "ICentrosQueryContext"),
         ("Proyectos.ObtenerVisitasProyectoQueryHandler", "IVisitasQueryContext"),
+        // Vehículos de las Empresas empleadoras del Proyecto (no hay relación Vehículo-Proyecto): misma derivación
+        // que Empresas del Proyecto, más la lectura de Vehículos con el alcance de Vehículos visibles.
+        ("Proyectos.ObtenerVehiculosProyectoQueryHandler", "ICentrosQueryContext"),
+        ("Proyectos.ObtenerVehiculosProyectoQueryHandler", "IEmpresasQueryContext"),
+        ("Proyectos.ObtenerVehiculosProyectoQueryHandler", "ITrabajadoresQueryContext"),
+        ("Proyectos.ObtenerVehiculosProyectoQueryHandler", "IVehiculosQueryContext"),
 
         ("Reclamaciones.EnviarReclamacionCommandHandler", "IAsignacionesQueryContext"),
         ("Reclamaciones.EnviarReclamacionCommandHandler", "ICentrosQueryContext"),

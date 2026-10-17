@@ -1,3 +1,4 @@
+using CaeManager.Application.Alertas;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
@@ -231,7 +232,8 @@ public class OrdenacionTrabajadoresConEstadoDocumentalTests : IAsyncLifetime
 
     private static ObtenerTrabajadoresQueryHandler CrearHandler(CaeManagerDbContext contexto) =>
         new(contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
-            new CalculoEstadoDocumentalService(contexto, contexto, contexto), contexto, contexto);
+            new CalculoEstadoDocumentalService(contexto, contexto, contexto), contexto, contexto,
+            new DocumentosFaltantesService(contexto, contexto, contexto));
 
     private CaeManagerDbContext CrearContexto()
     {

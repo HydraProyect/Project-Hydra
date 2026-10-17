@@ -365,7 +365,7 @@ public class AsignacionDeCarteraEnEscriturasTests
     [Fact]
     public async Task Crear_una_empresa_vinculada_a_un_cliente_fuera_de_la_cartera_responde_como_inexistente()
     {
-        var cliente = Empresa.CrearComoCliente("Industrias del Henares S.A.", null, false, null, null);
+        var cliente = Empresa.CrearComoCliente("Industrias del Henares S.A.", "B12345674", false, null, null);
         var empresas = new EmpresasQueryContextFalso();
         empresas.ListaEmpresas.Add(cliente);
         var repositorio = new EmpresaRepositorioFalso();
@@ -382,7 +382,7 @@ public class AsignacionDeCarteraEnEscriturasTests
     [Fact]
     public async Task Crear_una_empresa_vinculada_a_un_cliente_dentro_de_la_cartera_la_da_de_alta_con_su_relacion()
     {
-        var cliente = Empresa.CrearComoCliente("Industrias del Henares S.A.", null, false, null, null);
+        var cliente = Empresa.CrearComoCliente("Industrias del Henares S.A.", "B12345674", false, null, null);
         var empresas = new EmpresasQueryContextFalso();
         empresas.ListaEmpresas.Add(cliente);
         var repositorio = new EmpresaRepositorioFalso();
@@ -418,7 +418,7 @@ public class AsignacionDeCarteraEnEscriturasTests
     [Fact]
     public async Task Crear_una_subcontrata_vinculada_a_un_cliente_fuera_de_la_cartera_responde_como_inexistente()
     {
-        var cliente = Empresa.CrearComoCliente("Industrias del Henares S.A.", null, false, null, null);
+        var cliente = Empresa.CrearComoCliente("Industrias del Henares S.A.", "B12345674", false, null, null);
         var empresas = new EmpresasQueryContextFalso();
         empresas.ListaEmpresas.Add(cliente);
         var repositorio = new EmpresaRepositorioFalso();

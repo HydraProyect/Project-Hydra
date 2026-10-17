@@ -31,6 +31,16 @@ public class Centro : EntidadBase
 
     public bool RequiereGestionCae => GestionCae == ModalidadGestionCae.ConGestionCae;
 
+    public string? HorarioAcceso { get; private set; }
+    public string? ControlAccesosNombre { get; private set; }
+    public string? ControlAccesosTelefono { get; private set; }
+    public string? TecnicoPrevencionNombre { get; private set; }
+    public string? TecnicoPrevencionTelefono { get; private set; }
+    public string? TecnicoPrevencionCorreo { get; private set; }
+    public bool? TrabajosEnAltura { get; private set; }
+    public bool? EspaciosConfinados { get; private set; }
+    public bool? AtmosferasExplosivas { get; private set; }
+
     private Centro()
     {
     }
@@ -78,6 +88,42 @@ public class Centro : EntidadBase
             throw new ArgumentOutOfRangeException(nameof(modalidad), modalidad, "Modalidad de gestión CAE desconocida.");
 
         GestionCae = modalidad;
+    }
+
+    public void ActualizarFicha(
+        string? horarioAcceso,
+        string? controlAccesosNombre,
+        string? controlAccesosTelefono,
+        string? tecnicoPrevencionNombre,
+        string? tecnicoPrevencionTelefono,
+        string? tecnicoPrevencionCorreo,
+        bool? trabajosEnAltura,
+        bool? espaciosConfinados,
+        bool? atmosferasExplosivas)
+    {
+        var valorHorarioAcceso = NormalizarCampoFicha(horarioAcceso, 500, nameof(horarioAcceso));
+        var valorControlAccesosNombre = NormalizarCampoFicha(controlAccesosNombre, 200, nameof(controlAccesosNombre));
+        var valorControlAccesosTelefono = NormalizarCampoFicha(controlAccesosTelefono, 50, nameof(controlAccesosTelefono));
+        var valorTecnicoPrevencionNombre = NormalizarCampoFicha(tecnicoPrevencionNombre, 200, nameof(tecnicoPrevencionNombre));
+        var valorTecnicoPrevencionTelefono = NormalizarCampoFicha(tecnicoPrevencionTelefono, 50, nameof(tecnicoPrevencionTelefono));
+        var valorTecnicoPrevencionCorreo = NormalizarCampoFicha(tecnicoPrevencionCorreo, 254, nameof(tecnicoPrevencionCorreo));
+        HorarioAcceso = valorHorarioAcceso;
+        ControlAccesosNombre = valorControlAccesosNombre;
+        ControlAccesosTelefono = valorControlAccesosTelefono;
+        TecnicoPrevencionNombre = valorTecnicoPrevencionNombre;
+        TecnicoPrevencionTelefono = valorTecnicoPrevencionTelefono;
+        TecnicoPrevencionCorreo = valorTecnicoPrevencionCorreo;
+        TrabajosEnAltura = trabajosEnAltura;
+        EspaciosConfinados = espaciosConfinados;
+        AtmosferasExplosivas = atmosferasExplosivas;
+    }
+
+    private static string? NormalizarCampoFicha(string? valor, int longitudMaxima, string parametro)
+    {
+        var normalizado = string.IsNullOrWhiteSpace(valor) ? null : valor.Trim();
+        if (normalizado?.Length > longitudMaxima)
+            throw new ArgumentException($"El campo no puede superar {longitudMaxima} caracteres.", parametro);
+        return normalizado;
     }
 
     public bool ContratoCaducado(DateOnly hoy) => ContratoVigenteHasta is not null && ContratoVigenteHasta < hoy;

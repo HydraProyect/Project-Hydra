@@ -33,6 +33,7 @@ public class BucleCorreccionPlataformaTests(WebAppFixture fixture)
         var chipRechazada = page.Locator("button.bandeja-chip", new PageLocatorOptions { HasText = "Rechazada por plataforma" });
         await chipRechazada.ClickAsync();
         await Expect(chipRechazada).ToHaveAttributeAsync("aria-pressed", "true");
+        await Ayudas.DesplegarGruposDeBandejaAsync(page);
 
         // La siembra deja una sola Rechazada; se ancla en el tipo y no en el motivo,
         // porque sus dos rechazos comparten instante y el «último» no es estable.

@@ -138,8 +138,31 @@ public class DrawerGestionDocumentoGuardarYSiguienteTests : BunitContext
     private static IReadOnlyList<string> BotonesDelPie(IRenderedComponent<DrawerGestionDocumento> cut) =>
         cut.FindAll(".drawer-pie button").Select(b => b.TextContent.Trim()).ToList();
 
-    private static Task PulsarAsync(IRenderedComponent<DrawerGestionDocumento> cut, string rotulo) =>
-        cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == rotulo).ClickAsync(new MouseEventArgs());
+    [Fact]
+    public async Task Renovar_abre_la_fecha_de_emision_vacia_y_sin_escribirla_no_renueva()
+    {
+        var cut = Renderizar();
+        PasoSerieDocumento[] serie = [Documento("Ana Ruiz")];
+        await cut.InvokeAsync(() => cut.Instance.AbrirSerieAsync(serie, serie[0]));
+
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de emisión").Instance.Valor
+            .Should().BeNullOrEmpty("renovar no hereda la fecha de emisión del documento anterior");
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        Renovados.Should().BeEmpty("sin fecha de emisión no hay renovación");
+    }
+
+    private static async Task PulsarAsync(IRenderedComponent<DrawerGestionDocumento> cut, string rotulo)
+    {
+        // Renovar abre la fecha de emisión vacía: quien guarda sin haberla escrito la escribe aquí (hoy).
+        if (rotulo.StartsWith("Guardar", StringComparison.Ordinal)
+            && cut.FindComponents<CampoTexto>().SingleOrDefault(c => c.Instance.Etiqueta == "Fecha de emisión") is { } emision
+            && string.IsNullOrEmpty(emision.Instance.Valor))
+            await EmisionDeRenovacion.EscribirAsync(cut);
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == rotulo).ClickAsync(new MouseEventArgs());
+    }
 
     private static string? CampoPrivado(DrawerGestionDocumento instancia, string nombre) =>
         typeof(DrawerGestionDocumento).GetField(nombre, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!

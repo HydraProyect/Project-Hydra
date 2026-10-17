@@ -24,10 +24,11 @@ public sealed record FiltroMiTrabajo(
     AgruparMiTrabajo Agrupar = AgruparMiTrabajo.Tenant,
     OrdenMiTrabajo Orden = OrdenMiTrabajo.Prioridad,
     IReadOnlySet<string>? Abiertos = null,
-    IReadOnlySet<Guid>? Cerrados = null);
+    IReadOnlySet<Guid>? TenantsAbiertos = null,
+    IReadOnlySet<SeveridadMiTrabajo>? SeveridadesAbiertas = null);
 
 /// <param name="Clave">TenantId en modo Tenant; nombre de la severidad en modo Severidad.</param>
-/// <param name="Plegado">Solo modo Tenant: el Gestor CAE plegó la cabecera del Tenant.</param>
+/// <param name="Plegado">La cabecera del grupo (Tenant, o severidad en modo Severidad) está plegada. Es el estado de partida: solo se despliega si el Gestor CAE la abrió en esta visita a la pantalla (<see cref="FiltroMiTrabajo.TenantsAbiertos"/> / <see cref="FiltroMiTrabajo.SeveridadesAbiertas"/>) o hay búsqueda.</param>
 /// <param name="ResumenCalendario">Texto del pliegue «N vencimientos y envíos en calendario»; null si no hay nada plegado.</param>
 /// <param name="ResumenCabecera">Recuento que se enseña en la cabecera cuando el grupo está plegado.</param>
 public sealed record GrupoMiTrabajo(
@@ -138,21 +139,24 @@ public sealed class MiTrabajoVista
     /// Filas que se pintan, en orden de pantalla — la misma secuencia que
     /// recorren j/k. Con «Todas», Próximo y Seguimiento quedan plegados tras el
     /// resumen de calendario hasta que el Gestor CAE lo abre (mockup:
-    /// <c>abiertos</c>). Una búsqueda activa anula todo pliegue: el buscador
+    /// <c>abiertos</c>). En modo Tenant, además, solo se enseñan las filas de los Tenants
+    /// que el Gestor CAE ha desplegado (<see cref="FiltroMiTrabajo.TenantsAbiertos"/>, vacío
+    /// al cargar). Una búsqueda activa anula todo pliegue: el buscador
     /// tiene que alcanzar cada gestión de la cartera (contrato § 5, que corrige
     /// en esto al mockup, donde el pliegue se aplicaba después del filtro).
     /// </summary>
     public IReadOnlyList<FilaMiTrabajo> Visibles(FiltroMiTrabajo filtro)
     {
         var abiertos = filtro.Abiertos ?? new HashSet<string>();
-        var cerrados = filtro.Cerrados ?? new HashSet<Guid>();
+        var tenantsAbiertos = filtro.TenantsAbiertos ?? new HashSet<Guid>();
+        var severidadesAbiertas = filtro.SeveridadesAbiertas ?? new HashSet<SeveridadMiTrabajo>();
         var pliega = PliegaCalendario(filtro);
         var buscando = BusquedaActiva(filtro);
 
         var lista = Alcance(filtro).AsEnumerable();
         lista = filtro.Agrupar == AgruparMiTrabajo.Tenant
-            ? lista.Where(f => (buscando || !cerrados.Contains(f.TenantId)) && (!pliega || EsUrgente(f) || abiertos.Contains(f.TenantId.ToString())))
-            : lista.Where(f => !pliega || EsUrgente(f) || abiertos.Contains(f.Severidad.ToString()));
+            ? lista.Where(f => (buscando || tenantsAbiertos.Contains(f.TenantId)) && (!pliega || EsUrgente(f) || abiertos.Contains(f.TenantId.ToString())))
+            : lista.Where(f => (buscando || severidadesAbiertas.Contains(f.Severidad)) && (!pliega || EsUrgente(f) || abiertos.Contains(f.Severidad.ToString())));
 
         var porCliente = filtro.Orden == OrdenMiTrabajo.Cliente;
         return (filtro.Agrupar == AgruparMiTrabajo.Tenant
@@ -168,7 +172,8 @@ public sealed class MiTrabajoVista
     public IReadOnlyList<GrupoMiTrabajo> Grupos(FiltroMiTrabajo filtro)
     {
         var abiertos = filtro.Abiertos ?? new HashSet<string>();
-        var cerrados = filtro.Cerrados ?? new HashSet<Guid>();
+        var tenantsAbiertos = filtro.TenantsAbiertos ?? new HashSet<Guid>();
+        var severidadesAbiertas = filtro.SeveridadesAbiertas ?? new HashSet<SeveridadMiTrabajo>();
         var alcance = Alcance(filtro);
         var visibles = Visibles(filtro);
         var grupos = new List<GrupoMiTrabajo>();
@@ -180,7 +185,7 @@ public sealed class MiTrabajoVista
                 var delTenant = alcance.Where(f => f.TenantId == tenant.TenantId).ToList();
                 if (delTenant.Count == 0) continue;
 
-                var plegado = !BusquedaActiva(filtro) && cerrados.Contains(tenant.TenantId);
+                var plegado = !BusquedaActiva(filtro) && !tenantsAbiertos.Contains(tenant.TenantId);
                 var bloqueos = delTenant.Count(f => f.Severidad == SeveridadMiTrabajo.Bloqueo);
                 var actuaciones = delTenant.Count(f => f.Severidad == SeveridadMiTrabajo.Actuacion);
                 var resto = delTenant.Count - bloqueos - actuaciones;
@@ -199,6 +204,14 @@ public sealed class MiTrabajoVista
             {
                 var filas = visibles.Where(f => f.Severidad == severidad).ToList();
                 var total = alcance.Count(f => f.Severidad == severidad);
+                if (total == 0) continue;
+
+                if (!BusquedaActiva(filtro) && !severidadesAbiertas.Contains(severidad))
+                {
+                    grupos.Add(new GrupoMiTrabajo(severidad.ToString(), Etiqueta(severidad), null, total, true, [], null, null));
+                    continue;
+                }
+
                 var plegado = PliegaCalendario(filtro) && !EsUrgente(severidad) && !abiertos.Contains(severidad.ToString());
                 if (plegado)
                 {

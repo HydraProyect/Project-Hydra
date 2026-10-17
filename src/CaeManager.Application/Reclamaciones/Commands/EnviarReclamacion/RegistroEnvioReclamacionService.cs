@@ -164,8 +164,20 @@ public class RegistroEnvioReclamacionService(
             var fallidos = new List<string>();
             foreach (var destinatario in destinatarios)
             {
-                var resultadoCorreo = await emailService.EnviarAsync(
-                    destinatario, asunto, cuerpoHtml, TipoAvisoCorreo.Requerimiento, responderA, cancellationToken);
+                // Una excepción del transporte (una dirección mal formada en la agenda, un servicio SMTP caído de un modo que
+                // el adaptador no contempla) es un destinatario fallido, no un fallo de todo el envío: dejarla subir tras haber
+                // entregado ya a un destinatario anterior dejaba ese correo salido y sin registrar. La cancelación sí sube.
+                Result resultadoCorreo;
+                try
+                {
+                    resultadoCorreo = await emailService.EnviarAsync(
+                        destinatario, asunto, cuerpoHtml, TipoAvisoCorreo.Requerimiento, responderA, cancellationToken);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    resultadoCorreo = Result.Fallo(Error.Crear("Email.Excepcion", "No pudimos enviar el correo."));
+                    logger.LogError(ex, "Reclamación por SMTP: excepción no contemplada al enviar a un destinatario.");
+                }
 
                 if (resultadoCorreo.EsExitoso)
                 {
