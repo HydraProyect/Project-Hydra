@@ -239,6 +239,7 @@ public class ComunicacionesGen2Tests : BunitContext
                 ObtenerTrabajadoresParaSelectorQuery => new List<TrabajadorSelectorDto>(),
                 ObtenerTiempoGestionConversacionQuery => new TiempoGestionConversacionDto(false, 0, 0),
                 ObtenerNotasInternasConversacionQuery => NotasInternas.ToList(),
+                CaeManager.Application.Comunicaciones.AlertasCriticas.ObtenerAlertaCriticaQuery => null,
                 ResponderConversacionCommand c => AlResponder(c),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.")
             });

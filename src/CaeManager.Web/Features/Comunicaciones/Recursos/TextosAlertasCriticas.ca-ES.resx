@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="Titulo" xml:space="preserve"><value>Possible cas crític</value></data>
+  <data name="Confirmar" xml:space="preserve"><value>Confirmar i derivar</value></data>
+  <data name="Descartar" xml:space="preserve"><value>Descartar el cas</value></data>
+  <data name="PendienteDireccion" xml:space="preserve"><value>Pendent de revisió per la Direcció CAE o el Coordinador CAE.</value></data>
+  <data name="IaCoincide" xml:space="preserve"><value>La segona opinió d’IA coincideix. Confiança: {0} %.</value></data>
+  <data name="IaNoCoincide" xml:space="preserve"><value>La segona opinió d’IA discrepa. Confiança: {0} %.</value></data>
+  <data name="ErrorResolver" xml:space="preserve"><value>No s’ha pogut resoldre l’alerta. Torna a carregar la conversa i torna-ho a provar.</value></data>
+</root>

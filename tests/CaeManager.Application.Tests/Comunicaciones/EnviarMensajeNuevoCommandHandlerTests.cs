@@ -161,6 +161,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
             new ClasificacionRuidoMensajeRepositorioFalso(),
             new ClasificacionRuidoMensajeServiceFalso(),
             new RelevanciaCaeServiceFalso(),
+            new AlertaCriticaServiceFalso(),
             NullLogger<IngestaWebhookService>.Instance);
 
         var eventoWebhook = new EventoWebhook(conexion.Id, "{\"value\":[{}]}");

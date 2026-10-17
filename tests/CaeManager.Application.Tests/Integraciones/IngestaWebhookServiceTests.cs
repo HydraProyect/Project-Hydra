@@ -28,6 +28,7 @@ public class IngestaWebhookServiceTests
             clasificacionRuidoRepositorio ?? new ClasificacionRuidoMensajeRepositorioFalso(),
             new ClasificacionRuidoMensajeServiceFalso(),
             new RelevanciaCaeServiceFalso(),
+            new AlertaCriticaServiceFalso(),
             NullLogger<IngestaWebhookService>.Instance);
 
     private static ConexionIntegracion ConexionHabilitada(Guid? clienteId = null)

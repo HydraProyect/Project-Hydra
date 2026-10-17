@@ -31,6 +31,7 @@ public class IngestaWebhookService(
     IClasificacionRuidoMensajeRepository clasificacionRuidoRepositorio,
     IClasificacionRuidoMensajeService clasificacionRuidoMensaje,
     IRelevanciaCaeService relevanciaCae,
+    IAlertaCriticaService alertaCritica,
     ILogger<IngestaWebhookService> logger)
 {
     private readonly List<string> _archivosGuardados = [];
@@ -132,6 +133,8 @@ public class IngestaWebhookService(
 
         var mensajeCreado = conversacion.AgregarMensaje(
             DireccionMensaje.Entrante, conversacion.Canal, mensaje.Remitente, mensaje.CuerpoHtml, mensaje.FechaUtc, mensaje.MensajeExternoId);
+
+        await alertaCritica.ProcesarAsync(mensajeCreado, cancellationToken);
 
         foreach (var participante in mensaje.Participantes)
         {
