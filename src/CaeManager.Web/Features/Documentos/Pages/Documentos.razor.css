@@ -91,3 +91,17 @@
     outline: var(--border-focus);
     outline-offset: -2px;
 }
+.documento-grupo { margin-top: 3px; color: var(--color-text-muted); font: var(--font-caption); }
+.documento-tipo-archivado { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border: 1px dashed var(--color-border-strong); border-radius: 9999px; color: var(--color-text-muted); font: 600 11px/16px Inter,sans-serif; cursor: help; }
+.documentos-movil { display: none; }
+@media (max-width: 600px) {
+    .documentos-tabla-desplazable { display: none; }
+    .documentos-movil { display: flex; flex-direction: column; gap: 8px; }
+    .documento-tarjeta-movil { display: flex; flex-direction: column; gap: 4px; padding: 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    .documento-movil-cabecera { display: flex; align-items: center; gap: 8px; }
+    .documento-movil-cabecera a { flex: 1; min-width: 0; color: var(--color-text); font: 600 14px/20px Inter,sans-serif; }
+    .documento-tipo-archivado { align-self: flex-start; }
+}
+.documentos-esqueleto { padding: 16px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+.documentos-esqueleto-fila { display: grid; grid-template-columns: 2fr 1.4fr 1fr 1fr 1fr; gap: 16px; padding: 12px 0; }
+.documentos-esqueleto-fila span { height: 20px; border-radius: var(--radius-sm); background: var(--color-esqueleto-base); }

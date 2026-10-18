@@ -44,7 +44,7 @@ public record ObtenerDocumentosQuery(
     int Pagina = 1, int TamanoPagina = 20, Guid? PropietarioId = null,
     string? OrdenarPor = null, bool Descendente = false, DateOnly? FechaVencimientoHasta = null,
     IReadOnlyCollection<EstadoDocumento>? Estados = null, bool ConRecuentosPorEstado = false,
-    Guid? DocumentoId = null, Guid? TipoDocumentoId = null, Guid? ProveedorPlataformaCaeId = null)
+    Guid? DocumentoId = null, Guid? TipoDocumentoId = null, Guid? ProveedorPlataformaCaeId = null, IReadOnlyCollection<string>? Grupos = null, bool ConRecuentosPorGrupo = false)
     : IRequest<ResultadoPaginado<DocumentoListaDto>>
 {
     /// <summary>
@@ -71,7 +71,13 @@ public record DocumentoListaDto(
     IReadOnlyList<AcreditacionResumenDto> Acreditaciones,
     // Destino del icono 360 de la fila: la página del TIPO de documento (/documentos/tipos/{id}).
     // Opcional y al final: ningún otro productor cambia; sin él (Guid.Empty) la fila no pinta el icono.
-    Guid TipoDocumentoId = default);
+    Guid TipoDocumentoId = default)
+{
+    public string Grupo => CatalogoGruposDocumentales.Grupo(Ambito, TipoDocumentoNombre);
+    public bool TipoArchivado => CatalogoGruposDocumentales.EsArchivado(Ambito, TipoDocumentoNombre);
+}
+
+public record RecuentoGrupoDocumental(AmbitoAplicacion Ambito, string Grupo, int Documentos, int Archivados);
 
 /// <summary>
 /// Une los Documentos de Trabajador/Cliente/Empresa (cada uno vive en la
@@ -257,6 +263,33 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         if (request.FechaVencimientoHasta is { } hasta)
             consulta = consulta.Where(x => x.FechaVencimiento != null && x.FechaVencimiento >= hoy && x.FechaVencimiento <= hasta);
 
+        // La clasificación y los recuentos parten exclusivamente de documentos ya autorizados.
+        // Resolver los tipos en memoria permite usar el catálogo sin funciones no traducibles en SQL.
+        IReadOnlyList<RecuentoGrupoDocumental>? recuentosGrupos = null;
+        if (request.ConRecuentosPorGrupo || request.Grupos is { Count: > 0 })
+        {
+            var tiposVisibles = await consulta
+                .GroupBy(x => new { x.TipoDocumentoId, x.TipoDocumentoNombre, x.Ambito })
+                .Select(g => new { g.Key.TipoDocumentoId, g.Key.TipoDocumentoNombre, g.Key.Ambito, Total = g.Count() })
+                .ToListAsync(cancellationToken);
+            if (request.ConRecuentosPorGrupo)
+                recuentosGrupos = tiposVisibles
+                    .GroupBy(t => new { Ambito = t.Ambito == AmbitoAplicacion.Cliente ? AmbitoAplicacion.Empresa : t.Ambito, Grupo = CatalogoGruposDocumentales.Grupo(t.Ambito, t.TipoDocumentoNombre) })
+                    .Select(g => new RecuentoGrupoDocumental(g.Key.Ambito, g.Key.Grupo,
+                        g.Sum(t => t.Total), g.Where(t => CatalogoGruposDocumentales.EsArchivado(t.Ambito, t.TipoDocumentoNombre)).Sum(t => t.Total)))
+                    .OrderBy(g => g.Ambito).ThenBy(g => g.Grupo).ToList();
+            if (recuentosGrupos is not null)
+                recuentosGrupos = recuentosGrupos.Concat(CatalogoGruposDocumentales.Grupos
+                    .Where(g => !recuentosGrupos.Any(r => r.Ambito == g.Ambito && r.Grupo == g.Grupo))
+                    .Select(g => new RecuentoGrupoDocumental(g.Ambito, g.Grupo, 0, 0)))
+                    .OrderBy(g => g.Ambito).ThenBy(g => g.Grupo).ToList();
+            if (request.Grupos is { Count: > 0 })
+            {
+                var ids = tiposVisibles.Where(t => request.Grupos.Contains(CatalogoGruposDocumentales.Grupo(t.Ambito, t.TipoDocumentoNombre)))
+                    .Select(t => t.TipoDocumentoId).ToArray();
+                consulta = consulta.Where(x => ids.Contains(x.TipoDocumentoId));
+            }
+        }
         // La clave de estado es el mismo CASE de umbrales con el que se ordena más abajo (el orden de
         // EstadoDocumentalFiltro.ClaveOrden: 0 Vencido, 1 Urgente, 2 Próximo, 3 Sin confirmar, 4 Vigente,
         // 5 Sin caducidad). «No caduca» y «sin confirmar» se distinguen por EstadoVigencia, nunca por una fecha
@@ -395,7 +428,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
 
         return new ResultadoPaginado<DocumentoListaDto>(elementos, total, request.Pagina, request.TamanoPagina)
         {
-            RecuentosPorEstado = recuentosPorEstado
+            RecuentosPorEstado = recuentosPorEstado, RecuentosGruposDocumentales = recuentosGrupos
         };
     }
 

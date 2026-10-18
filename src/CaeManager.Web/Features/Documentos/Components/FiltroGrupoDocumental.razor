@@ -1,0 +1,77 @@
+@using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
+@using CaeManager.Domain.Documentos
+@using System.Text
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Documentos.Recursos.TextosDocumentos> Textos
+
+<div class="filtro-grupo" @onkeydown="Tecla">
+    <button type="button" class="grupo-boton @(Seleccion.Count > 0 ? "activo" : null)" aria-expanded="@_abierto" aria-haspopup="menu" @ref="_disparador" @onclick="AlternarMenu">
+        @Textos["GrupoEtiqueta"]
+        @if (Seleccion.Count > 0) { <span class="grupo-contador">@Seleccion.Count</span><span class="grupo-contador-movil" aria-hidden="true">· @Seleccion.Count</span> }
+        <span class="grupo-flecha" aria-hidden="true">▾</span>
+    </button>
+    @if (_abierto)
+    {
+        <button type="button" class="grupo-fondo" aria-label="@Textos["GrupoCerrar"]" @onclick="() => _abierto = false"></button>
+        <div class="grupo-menu" role="menu" aria-label="@Textos["GrupoEtiqueta"]">
+            <div class="grupo-cabecera">
+                <div class="grupo-buscador"><Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" /><input @ref="_entrada" class="grupo-busqueda" placeholder="@Textos["GrupoBuscar"]" aria-label="@Textos["GrupoBuscarAria"]" @bind="_busqueda" @bind:event="oninput" @onkeydown="TeclaBusqueda" /></div>
+                <div class="grupo-acciones">
+                    <span>@(Seleccion.Count == 0 ? Textos["GrupoTodos"] : Textos["GrupoSeleccionados", Seleccion.Count])</span>
+                    <button type="button" @onclick="SeleccionarVisibles">@(Normalizar(_busqueda).Length == 0 ? Textos["GrupoSeleccionarTodos"] : Textos["GrupoSeleccionarResultados", Visibles.Select(x => x.Grupo).Distinct().Count()])</button>
+                    <span aria-hidden="true">·</span>
+                    <button type="button" disabled="@(Seleccion.Count == 0)" @onclick="QuitarVisibles">@Textos["GrupoQuitarSeleccion"]</button>
+                </div>
+            </div>
+            @if (!Visibles.Any()) { <span class="grupo-vacio">@Textos["GrupoSinCoincidencias", _busqueda]</span> }
+            @foreach (var ambito in Visibles.GroupBy(x => x.Ambito))
+            {
+                <span class="grupo-ambito">@NombreAmbito(ambito.Key)</span>
+                @foreach (var opcion in ambito)
+                {
+                    <button type="button" class="grupo-opcion" @ref="_referencias[(opcion.Ambito, opcion.Grupo)]" @onkeydown="e => TeclaOpcion(opcion, e)" role="menuitemcheckbox" aria-checked="@(Seleccion.Contains(opcion.Grupo) ? "true" : "false")" @onclick="() => Alternar(opcion.Grupo)">
+                        <span class="grupo-check @(Seleccion.Contains(opcion.Grupo) ? "marcado" : null)" aria-hidden="true">@(Seleccion.Contains(opcion.Grupo) ? "✓" : "")</span>
+                        <span class="grupo-nombre">@opcion.Grupo</span><span class="grupo-recuento">@opcion.Documentos</span>
+                        @if (opcion.Archivados > 0) { <span class="grupo-recuento">@Textos["GrupoArchivados", opcion.Archivados]</span> }
+                    </button>
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<RecuentoGrupoDocumental> Opciones { get; set; } = [];
+    [Parameter] public IReadOnlyCollection<string> Seleccion { get; set; } = [];
+    [Parameter] public EventCallback<IReadOnlyCollection<string>> SeleccionChanged { get; set; }
+    private ElementReference _disparador;
+    private ElementReference _entrada;
+    private readonly Dictionary<(AmbitoAplicacion, string), ElementReference> _referencias = [];
+    private bool _enfocarBusqueda;
+    private void AlternarMenu() { _abierto = !_abierto; _enfocarBusqueda = _abierto; }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_enfocarBusqueda) { _enfocarBusqueda = false; await _entrada.FocusAsync(); }
+    }
+    private async Task TeclaBusqueda(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "ArrowDown" && Visibles.FirstOrDefault() is { } primera)
+            await _referencias[(primera.Ambito, primera.Grupo)].FocusAsync();
+    }
+    private async Task TeclaOpcion(RecuentoGrupoDocumental opcion, Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        var filas = Visibles.ToList();
+        var indice = filas.IndexOf(opcion);
+        var destino = e.Key switch { "ArrowDown" => (indice + 1) % filas.Count, "ArrowUp" => (indice + filas.Count - 1) % filas.Count, "Home" => 0, "End" => filas.Count - 1, _ => -1 };
+        if (destino >= 0) await _referencias[(filas[destino].Ambito, filas[destino].Grupo)].FocusAsync();
+    }
+    private bool _abierto;
+    private string _busqueda = "";
+    private IEnumerable<RecuentoGrupoDocumental> Visibles => Opciones.Where(o => Coincide(o.Grupo) || Coincide(NombreAmbito(o.Ambito)));
+    private static string Normalizar(string texto) => new(texto.Normalize(NormalizationForm.FormD).ToLowerInvariant().Where(char.IsAsciiLetterOrDigit).ToArray());
+    private bool Coincide(string texto) => Normalizar(texto).Contains(Normalizar(_busqueda), StringComparison.Ordinal);
+    private static string NombreAmbito(AmbitoAplicacion ambito) => ambito switch { AmbitoAplicacion.Cliente => "Empresa", AmbitoAplicacion.Vehiculo => "Vehículo", AmbitoAplicacion.Proyecto => "Obra / Proyecto", _ => ambito.ToString() };
+    private Task Alternar(string grupo) => SeleccionChanged.InvokeAsync(Seleccion.Contains(grupo) ? Seleccion.Where(g => g != grupo).ToArray() : Seleccion.Append(grupo).ToArray());
+    private Task SeleccionarVisibles() => SeleccionChanged.InvokeAsync(Seleccion.Concat(Visibles.Select(o => o.Grupo)).Distinct().ToArray());
+    private Task QuitarVisibles() => SeleccionChanged.InvokeAsync(Normalizar(_busqueda).Length == 0 ? Array.Empty<string>() : Seleccion.Except(Visibles.Select(o => o.Grupo)).ToArray());
+    private async Task Tecla(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e) { if (e.Key == "Escape") { _abierto = false; await _disparador.FocusAsync(); } }
+}

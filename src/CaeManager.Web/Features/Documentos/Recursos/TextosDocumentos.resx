@@ -252,4 +252,21 @@
   <data name="ValDecisionVerificadoAutomaticamente" xml:space="preserve">
     <value>Verificado automáticamente</value>
   </data>
+  <data name="GrupoEtiqueta" xml:space="preserve"><value>Grupo</value></data>
+  <data name="GrupoBuscar" xml:space="preserve"><value>Buscar grupo o ámbito…</value></data>
+  <data name="GrupoBuscarAria" xml:space="preserve"><value>Buscar grupo o ámbito</value></data>
+  <data name="GrupoTodos" xml:space="preserve"><value>Todos los grupos</value></data>
+  <data name="GrupoSeleccionados" xml:space="preserve"><value>{0} seleccionados</value></data>
+  <data name="GrupoSeleccionarTodos" xml:space="preserve"><value>Seleccionar todos</value></data>
+  <data name="GrupoSeleccionarResultados" xml:space="preserve"><value>Seleccionar los {0}</value></data>
+  <data name="GrupoQuitarSeleccion" xml:space="preserve"><value>Quitar selección</value></data>
+  <data name="GrupoCerrar" xml:space="preserve"><value>Cerrar filtro de Grupo</value></data>
+  <data name="GrupoSinCoincidencias" xml:space="preserve"><value>Ningún grupo coincide con «{0}»</value></data>
+  <data name="GrupoArchivados" xml:space="preserve"><value>{0} archivados</value></data>
+  <data name="TipoArchivado" xml:space="preserve"><value>Tipo archivado</value></data>
+  <data name="TipoArchivadoAyuda" xml:space="preserve"><value>Tipo archivado: ya no se ofrece en altas nuevas.</value></data>
+  <data name="GrupoVacioTitulo" xml:space="preserve"><value>Ningún documento de estos grupos</value></data>
+  <data name="GrupoQuitarFiltro" xml:space="preserve"><value>Quitar el filtro</value></data>
+  <data name="ListaVacioFiltrosTitulo" xml:space="preserve"><value>Ningún documento con estos filtros</value></data>
+  <data name="ListaQuitarFiltros" xml:space="preserve"><value>Quitar los filtros</value></data>
 </root>

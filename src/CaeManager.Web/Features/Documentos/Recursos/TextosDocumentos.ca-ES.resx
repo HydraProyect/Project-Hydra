@@ -252,4 +252,21 @@
   <data name="ValDecisionVerificadoAutomaticamente" xml:space="preserve">
     <value>Verificat automàticament</value>
   </data>
+  <data name="GrupoEtiqueta" xml:space="preserve"><value>Grup</value></data>
+  <data name="GrupoBuscar" xml:space="preserve"><value>Cerca un grup o àmbit…</value></data>
+  <data name="GrupoBuscarAria" xml:space="preserve"><value>Cerca un grup o àmbit</value></data>
+  <data name="GrupoTodos" xml:space="preserve"><value>Tots els grups</value></data>
+  <data name="GrupoSeleccionados" xml:space="preserve"><value>{0} seleccionats</value></data>
+  <data name="GrupoSeleccionarTodos" xml:space="preserve"><value>Selecciona-ho tot</value></data>
+  <data name="GrupoSeleccionarResultados" xml:space="preserve"><value>Selecciona els {0}</value></data>
+  <data name="GrupoQuitarSeleccion" xml:space="preserve"><value>Treu la selecció</value></data>
+  <data name="GrupoCerrar" xml:space="preserve"><value>Tanca el filtre de grup</value></data>
+  <data name="GrupoSinCoincidencias" xml:space="preserve"><value>Cap grup coincideix amb «{0}»</value></data>
+  <data name="GrupoArchivados" xml:space="preserve"><value>{0} arxivats</value></data>
+  <data name="TipoArchivado" xml:space="preserve"><value>Tipus arxivat</value></data>
+  <data name="TipoArchivadoAyuda" xml:space="preserve"><value>Tipus arxivat: ja no s’ofereix en altes noves.</value></data>
+  <data name="GrupoVacioTitulo" xml:space="preserve"><value>Cap document d’aquests grups</value></data>
+  <data name="GrupoQuitarFiltro" xml:space="preserve"><value>Treu el filtre</value></data>
+  <data name="ListaVacioFiltrosTitulo" xml:space="preserve"><value>Cap document amb aquests filtres</value></data>
+  <data name="ListaQuitarFiltros" xml:space="preserve"><value>Treu els filtres</value></data>
 </root>

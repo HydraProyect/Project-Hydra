@@ -158,10 +158,10 @@ public class DocumentosVacioPorFiltroTests : BunitContext
     /// <param name="ambito">Filtro de ámbito que llega por la URL (?Ambito=).</param>
     private IRenderedComponent<PaginaDocumentos> Renderizar(string? busqueda = null, string? estado = null,
         string? ambito = null, params DocumentoListaDto[] documentos) =>
-        RenderizarConMediador(busqueda, estado, ambito, documentos).Cut;
+        RenderizarConMediador(busqueda, estado, ambito, documentos: documentos).Cut;
 
     private (IRenderedComponent<PaginaDocumentos> Cut, MediatorPorTipo Mediador) RenderizarConMediador(
-        string? busqueda = null, string? estado = null, string? ambito = null, params DocumentoListaDto[] documentos)
+        string? busqueda = null, string? estado = null, string? ambito = null, string? grupo = null, params DocumentoListaDto[] documentos)
     {
         var mediador = new MediatorPorTipo { Documentos = documentos, AlcanceCero = _alcanceCero };
         Services.AddScoped<IMediator>(_ => mediador);
@@ -179,6 +179,7 @@ public class DocumentosVacioPorFiltroTests : BunitContext
         Services.AddCascadingAuthenticationState();
 
         var partes = new List<string>();
+        if (!string.IsNullOrWhiteSpace(grupo)) partes.Add("Grupo=" + Uri.EscapeDataString(grupo));
         if (!string.IsNullOrWhiteSpace(busqueda)) partes.Add("q=" + Uri.EscapeDataString(busqueda));
         if (!string.IsNullOrWhiteSpace(estado)) partes.Add("Estado=" + Uri.EscapeDataString(estado));
         if (!string.IsNullOrWhiteSpace(ambito)) partes.Add("Ambito=" + Uri.EscapeDataString(ambito));
@@ -188,6 +189,16 @@ public class DocumentosVacioPorFiltroTests : BunitContext
         return (Render<PaginaDocumentos>(), mediador);
     }
 
+    [Fact]
+    public void El_grupo_de_la_url_llega_a_la_consulta_y_su_vacio_permite_quitar_solo_ese_filtro()
+    {
+        var (cut, mediador) = RenderizarConMediador(estado: "Vencido", grupo: "Formación PRL");
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().Grupos.Should().Equal("Formación PRL"));
+        cut.Markup.Should().Contain("Ningún documento de estos grupos");
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Quitar el filtro").Click();
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().Grupos.Should().BeEmpty());
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("Estado=Vencido").And.NotContain("Grupo=");
+    }
     [Fact]
     public void Sin_resultados_y_con_busqueda_no_invita_a_subir_el_primero()
     {

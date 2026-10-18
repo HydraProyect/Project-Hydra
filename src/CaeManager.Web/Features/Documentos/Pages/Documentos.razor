@@ -122,6 +122,7 @@
                           MasFiltrosActivos="@(!string.IsNullOrEmpty(_plataformaFiltro))"
                           VistaRecordada="_vistaRecordada">
                 <Pastillas>
+                    <FiltroGrupoDocumental Opciones="_recuentosGrupos" Seleccion="_grupos" SeleccionChanged="CambiarGruposAsync" />
             <FranjaEstado PresentacionCampo="true" Opciones="EstadoDocumentoUi.FranjaDeDocumentos" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoFiltroAsync"
                           Recuentos="_recuentosPorEstado" />
                     <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["ListaFiltroAmbito"]" TextoTodos="@Textos["ListaTodos"]" Valor="@_ambitoFiltro"
@@ -186,8 +187,19 @@
             }
             else
             {
+                @if (_cargando)
+                {
+                    <div class="documentos-esqueleto" aria-busy="true">
+                        @foreach (var fila in Enumerable.Range(0, 5))
+                        {
+                            <div class="documentos-esqueleto-fila">
+                                @foreach (var celda in Enumerable.Range(0, 5)) { <span></span> }
+                            </div>
+                        }
+                    </div>
+                }
                 @TarjetaListado.RenderizarMaqueta(@<text>
-                <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
+                <div style="display:@(_totalElementos == 0 || _cargando ? "none" : "block")">
                         <div class="documentos-tabla-desplazable" tabindex="0" role="region" aria-label="@Textos["TablaDesplazableEtiqueta"]">
                         <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                             @if (_seleccionMultiple)
@@ -222,6 +234,8 @@
                             <TemplateColumn Title="Tipo de documento" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.TipoDocumentoNombre))"
                                            IsDefaultSortColumn="@_orden.Es("tipo")" InitialSortDirection="_orden.Direccion">
                                 <TextoResaltado Texto="@context.TipoDocumentoNombre" Termino="@_busqueda" />
+                                @if (context.TipoArchivado) { <span class="documento-tipo-archivado" title="@Textos["TipoArchivadoAyuda"]">@Textos["TipoArchivado"]</span> }
+                                <div class="documento-grupo">@context.Grupo</div>
                             </TemplateColumn>
                             <TemplateColumn @ref="_columnaVigencia" Title="@Textos[_ordenVigenciaPorEmision ? "ListaVigenciaPorEmision" : "ListaVigenciaPorVencimiento"]"
                                             Sortable="true" SortBy="@(_ordenVigenciaPorEmision ? OrdenEmisionListado : OrdenVencimientoListado)"
@@ -323,6 +337,26 @@
                             </TemplateColumn>
                         </QuickGrid>
                         </div>
+                        <div class="documentos-movil">
+                            @foreach (var documento in _elementosPagina)
+                            {
+                                <article class="documento-tarjeta-movil" @key="documento.Id">
+                                    <div class="documento-movil-cabecera">
+                                        @if (_seleccionMultiple)
+                                        {
+                                            <input type="checkbox" aria-label="@documento.TipoDocumentoNombre" checked="@_seleccionados.Contains(documento.Id)" @onchange="e => AlternarSeleccion(documento.Id, (bool)e.Value!)" />
+                                        }
+                                        <a href="@($"/documentos/tipos/{documento.TipoDocumentoId}")">@documento.TipoDocumentoNombre</a>
+                                        <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge>
+                                    </div>
+                                    <span class="documento-grupo">@documento.Grupo · @documento.PropietarioNombre</span>
+                                    @if (documento.TipoArchivado)
+                                    {
+                                        <span class="documento-tipo-archivado" title="@Textos["TipoArchivadoAyuda"]">@Textos["TipoArchivado"]</span>
+                                    }
+                                </article>
+                            }
+                        </div>
 
                 </div>
 </text>, PieDelListado)
@@ -336,10 +370,11 @@
                La copia no afirma que HAYA registros dados de alta: el filtrado
                es de servidor y la consulta solo devuelve el total ya filtrado,
                así que la pantalla no sabe cuántos hay sin filtro. *@
-                    <EstadoVacio NombreIcono="vacio" Titulo="Ningún documento con estos filtros"
+                    <EstadoVacio NombreIcono="vacio" Titulo="@Textos[_grupos.Count > 0 ? "GrupoVacioTitulo" : "ListaVacioFiltrosTitulo"]"
                                  Descripcion="Ninguno coincide con la búsqueda ni con los filtros de ámbito y estado.">
                         <Accion>
-                            <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                            @if (_grupos.Count > 0) { <Boton Variante="VarianteBoton.Secundario" OnClick="QuitarFiltroGruposAsync">@Textos["GrupoQuitarFiltro"]</Boton> }
+                            else { <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["ListaQuitarFiltros"]</Boton> }
                         </Accion>
                     </EstadoVacio>
                 }

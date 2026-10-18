@@ -3,3 +3,5 @@
     justify-content: flex-start;
     margin-bottom: var(--space-3);
 }
+.documentacion-grupo { display: flex; align-items: center; gap: 8px; margin: 16px 0 8px; color: var(--color-text); font: var(--font-label); }
+.documentacion-grupo span { color: var(--color-text-muted); font: var(--font-caption); }

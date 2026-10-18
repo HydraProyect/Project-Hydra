@@ -62,7 +62,8 @@ public class PestanaDocumentacionEnPaginaTests : BunitContext
     {
         var cut = Renderizar(enPagina: true);
 
-        cut.FindAll(".lista-relaciones-tarjeta").Should().ContainSingle();
+        cut.FindAll(".lista-relaciones-tarjeta").Should().HaveCount(2);
+        cut.FindAll(".documentacion-grupo").Select(h => h.TextContent.Trim()).Should().Equal("Seguros y mutua 1", "Sin grupo 1");
         cut.FindAll(".workspace-lista-entidades").Should().BeEmpty("esa lista es la de filas-botón del panel y salía con viñetas en la página");
 
         var filas = cut.FindAll("li.fila-relacion");

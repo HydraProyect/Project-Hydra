@@ -50,8 +50,11 @@ else if (EnPagina)
 {
     @* Ficha 360 en página: misma gramática de lista que los documentos de Trabajador 360 (tarjeta, fila con vigencia,
        pastilla de estado y acreditaciones), sin viñetas. El panel de 520 px conserva la lista de filas-botón de abajo. *@
+    @foreach (var grupo in _documentos.GroupBy(d => d.Grupo))
+    {
+    <h3 class="documentacion-grupo">@grupo.Key <span>@grupo.Count()</span></h3>
     <ListaRelaciones EnTarjeta="true" Etiqueta="@Comunes["ListaDocumentacion"]">
-        @foreach (var documento in _documentos)
+        @foreach (var documento in grupo)
         {
             <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre"
                           Tono="@EstadoDocumentoFicha360.TonoFila(documento.Estado)"
@@ -62,6 +65,7 @@ else if (EnPagina)
             </FilaRelacion>
         }
     </ListaRelaciones>
+    }
 }
 else
 {
