@@ -493,7 +493,6 @@ src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: SeccionDelPeriodo = 1
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: SeccionFueraDelPeriodo = 1
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: SeccionPersonalizarTitulo = 1
-src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: TituloCabecera = 1
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: TituloRecuentoUrgentes = 1
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: TituloRecuentoVencidos = 1
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: ToastGuardadoError = 1

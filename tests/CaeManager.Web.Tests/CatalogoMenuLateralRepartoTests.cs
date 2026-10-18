@@ -70,7 +70,7 @@ public class CatalogoMenuLateralRepartoTests
         grupoPorId.Where(p => p.Value is "dashboards" or "administracion" or "plataforma")
             .Select(p => p.Key).Should().BeEquivalentTo(
             [
-                "dashboard", "vision-cartera", "solicitudes-cartera", "dashboard-ejecutivo",
+                "dashboard", "vision-cartera", "solicitudes-cartera", "dashboard-ejecutivo", "indicadores-ia-bpo",
                 "usuarios", "configuracion", "verificacion-dos-pasos",
                 "delegaciones", "estado-comercial", "conectores-cae",
             ]);
@@ -122,7 +122,7 @@ public class CatalogoMenuLateralRepartoTests
         if (rol == Roles.CoordinadorCae) comunes.Add("usuarios-equipo");
         if (rol is Roles.Administrador or Roles.DireccionCae or Roles.CoordinadorCae) comunes.Add("vision-cartera");
         if (rol is Roles.CoordinadorCae or Roles.GestorCae) comunes.Add("solicitudes-cartera");
-        if (rol is Roles.Administrador or Roles.DireccionCae or Roles.Consulta) comunes.Add("dashboard-ejecutivo");
+        if (rol is Roles.Administrador or Roles.DireccionCae or Roles.Consulta) comunes.AddRange(["dashboard-ejecutivo", "indicadores-ia-bpo"]);
         if (rol == Roles.Administrador)
             comunes.AddRange(
                 ["configuracion", "verificacion-dos-pasos", "delegaciones", "estado-comercial", "conectores-cae"]);

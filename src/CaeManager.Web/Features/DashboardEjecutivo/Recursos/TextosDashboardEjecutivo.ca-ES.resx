@@ -13,13 +13,13 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="TituloPagina" xml:space="preserve">
-    <value>Indicadores de IA y BPO</value>
+    <value>Indicadors d'IA i BPO</value>
   </data>
   <data name="Kicker" xml:space="preserve">
-    <value>Indicadores de IA y BPO</value>
+    <value>Indicadors d'IA i BPO</value>
   </data>
   <data name="TituloCabecera" xml:space="preserve">
-    <value>Indicadores de IA y BPO</value>
+    <value>Indicadors d'IA i BPO</value>
   </data>
   <data name="EtiquetaSelectorPeriodo" xml:space="preserve">
     <value>Periodo</value>
@@ -46,7 +46,7 @@
     <value>Personalizado</value>
   </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
-    <value>No pudimos cargar los Indicadores de IA y BPO</value>
+    <value>No hem pogut carregar els Indicadors d'IA i BPO</value>
   </data>
   <data name="ErrorCargaDescripcion" xml:space="preserve">
     <value>Intenta nuevamente en unos segundos.</value>

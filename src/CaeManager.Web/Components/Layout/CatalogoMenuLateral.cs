@@ -209,12 +209,13 @@ public static class CatalogoMenuLateral
             Condicion: c => c.ParticipaEnIncorporacionCartera,
             RotuloPorContexto: _ => TextosIncorporacionCartera.Texto("EnlaceMenu")),
         // Entrega de Design del 2026-10-17: «Dashboard Ejecutivo» pasa a llamarse «Cuadro de dirección»
-        // y su ruta de diseño es /direccion. Esa pantalla nueva aún no existe: el rótulo cambia ya, y el
-        // enlace sigue en la ruta de la pantalla actual (que es la que el Cuadro sustituirá). Mismo Id,
-        // mismos roles: el orden guardado y la autorización no se tocan.
-        // «Indicadores de IA y BPO» (Design) NO tiene enlace todavía: no hay pantalla, y un enlace a una
-        // pantalla que no existe es peor que no tener el enlace (ver el resumen de esta clase).
-        new("dashboard-ejecutivo", "dashboards", "dashboard-ejecutivo", "ejecutivo", "Cuadro de dirección",
+        // y su ruta es /direccion. Conserva el Id y los roles de la entrada anterior: el orden guardado y
+        // la autorización del menú no se tocan.
+        new("dashboard-ejecutivo", "dashboards", "direccion", "tendencia", "Cuadro de dirección",
+            Condicion: c => c.TieneAlgunRol(RolesDeDashboardEjecutivo)),
+        // «Indicadores de IA y BPO» (Design): la pantalla que antes se llamaba Dashboard Ejecutivo,
+        // limitada a las categorías IA, Operativa (BPO) y Fricción (BPO). Mismos roles que su página.
+        new("indicadores-ia-bpo", "dashboards", "dashboard-ejecutivo", "ia", "Indicadores de IA y BPO",
             Condicion: c => c.TieneAlgunRol(RolesDeDashboardEjecutivo)),
 
         // DDL-072 (decisión del propietario 2026-09-28): "Mi empresa" (registro único) solo si el
