@@ -303,7 +303,6 @@
                                                         <ul class="subcontrata360-subfilas" aria-label="@Textos["AriaDocumentacionExigidaA", trabajador.TrabajadorNombre]">
                                                             @foreach (var documento in DocumentosOrdenados(trabajador))
                                                             {
-                                                                var rotuloAccion = RotuloAccion(documento);
                                                                 <li class="subcontrata360-subfila" data-pieza="fila" @key="clavesDocumentos.De(documento.DocumentoId ?? documento.TipoDocumentoId)">
                                                                     <span class="subcontrata360-subfila-texto">
                                                                         <strong>@documento.TipoDocumentoNombre</strong>
@@ -317,10 +316,10 @@
                                                                     <span class="subcontrata360-subfila-accion">
                                                                         @* DrawerGestionDocumento solo crea o renueva (órdenes denegadas a Consulta). *@
                                                                         <SoloConEscritura>
-                                                                            <Boton Variante="@(rotuloAccion is null ? VarianteBoton.Fantasma : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno"
-                                                                                   aria-label="@Textos["AriaAccionDocumento", rotuloAccion ?? Textos["BotonGestionar"], documento.TipoDocumentoNombre, trabajador.TrabajadorNombre]"
+                                                                            <Boton Variante="@(PideTrabajo(documento) ? VarianteBoton.Secundario : VarianteBoton.Fantasma)" Tamano="TamanoBoton.Pequeno"
+                                                                                   aria-label="@Textos["AriaAccionDocumento", EstadoDocumentoFicha360.TextoAccion, documento.TipoDocumentoNombre, trabajador.TrabajadorNombre]"
                                                                                    OnClick="() => GestionarDocumentoAsync(trabajador.TrabajadorId, documento)">
-                                                                                @(rotuloAccion ?? Textos["BotonGestionar"])
+                                                                                @EstadoDocumentoFicha360.TextoAccion
                                                                             </Boton>
                                                                         </SoloConEscritura>
                                                                     </span>

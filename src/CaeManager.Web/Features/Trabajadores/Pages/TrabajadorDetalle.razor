@@ -150,7 +150,7 @@
                                         <Acciones>
                                             @if (accion is not null)
                                             {
-                                                <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => EditarDocumentoAsync(documento.Id)">@TextosDocumentos360[$"Accion{accion}"]</Boton></SoloConEscritura>
+                                                <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)" OnClick="() => EditarDocumentoAsync(documento.Id)">@EstadoDocumentoFicha360.TextoAccion</Boton></SoloConEscritura>
                                             }
                                         </Acciones>
                                     </FilaRelacion>
@@ -300,8 +300,9 @@
                                                                     <Acciones>
                                                                         <SoloConEscritura>
                                                                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                                                                   aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)"
                                                                                    OnClick="() => GestionarDocumentoAsync(documento)">
-                                                                                @(documento.DocumentoId is null ? Textos["AccionSubir"] : documento.Estado == EstadoDocumento.Vigente ? Textos["AccionVer"] : Textos["AccionRenovar"])
+                                                                                @EstadoDocumentoFicha360.TextoAccion
                                                                             </Boton>
                                                                         </SoloConEscritura>
                                                                     </Acciones>
@@ -371,7 +372,7 @@
                                             <Acciones>
                                                 @if (accion is not null)
                                                 {
-                                                    <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => EditarDocumentoAsync(documento.Id)">@TextosDocumentos360[$"Accion{accion}"]</Boton></SoloConEscritura>
+                                                    <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)" OnClick="() => EditarDocumentoAsync(documento.Id)">@EstadoDocumentoFicha360.TextoAccion</Boton></SoloConEscritura>
                                                 }
                                             </Acciones>
                                         </FilaRelacion>

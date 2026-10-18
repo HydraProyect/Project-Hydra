@@ -404,14 +404,9 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
         _ => null
     };
 
-    /// <summary>Rótulo de la acción de corrección según el estado; <c>null</c> si no hay nada que corregir.</summary>
-    private string? TextoAccion(EstadoDocumento estado) => estado switch
-    {
-        EstadoDocumento.Vencido or EstadoDocumento.EnTolerancia or EstadoDocumento.Urgente => Texto("AccionRenovar"),
-        EstadoDocumento.Faltante => Texto("AccionSubir"),
-        EstadoDocumento.SinConfirmar => Texto("AccionConfirmar"),
-        _ => null
-    };
+    /// <summary>«Gestionar» si el estado pide corregir algo (renovar, subir o confirmar van dentro); <c>null</c> si no hay nada que corregir.</summary>
+    private static string? TextoAccion(EstadoDocumento estado) =>
+        EstadoDocumentoFicha360.Accion(estado) is null ? null : EstadoDocumentoFicha360.TextoAccion;
 
     private string Texto(string clave, params object[] argumentos) => Textos[clave, argumentos].Value;
 

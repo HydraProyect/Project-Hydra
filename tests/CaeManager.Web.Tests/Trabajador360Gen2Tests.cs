@@ -450,9 +450,9 @@ public partial class Trabajador360Gen2Tests : BunitContext
     }
 
     [Theory]
-    [InlineData(EstadoIndicadorBase.Vencido, "Renovar")]
-    [InlineData(EstadoIndicadorBase.ProximoAVencer, "Renovar")]
-    [InlineData(EstadoIndicadorBase.SinConfirmar, "Confirmar")]
+    [InlineData(EstadoIndicadorBase.Vencido, "Gestionar")]
+    [InlineData(EstadoIndicadorBase.ProximoAVencer, "Gestionar")]
+    [InlineData(EstadoIndicadorBase.SinConfirmar, "Gestionar")]
     public async Task La_accion_de_Documentacion_base_inicia_el_editor_con_el_ID_del_indicador(EstadoIndicadorBase estado, string accion)
     {
         var id = Guid.NewGuid();
@@ -484,8 +484,8 @@ public partial class Trabajador360Gen2Tests : BunitContext
     }
 
     [Theory]
-    [InlineData(EstadoDocumento.Vencido, "Renovar")]
-    [InlineData(EstadoDocumento.SinConfirmar, "Confirmar")]
+    [InlineData(EstadoDocumento.Vencido, "Gestionar")]
+    [InlineData(EstadoDocumento.SinConfirmar, "Gestionar")]
     public async Task Documentacion_muestra_resumen_fechas_plataforma_y_accion_del_documento_correcto(EstadoDocumento estado, string accion)
     {
         var id = Guid.NewGuid();
@@ -1112,9 +1112,9 @@ public partial class Trabajador360Gen2Tests : BunitContext
         cut.FindAll(".trabajador360-centros .fila-relacion-desplegar")[0].GetAttribute("aria-expanded").Should().Be("true");
         var detalle = cut.Find(".fila-relacion-desplegado");
         detalle.TextContent.Should().Contain("Formación PRL — 20 h").And.Contain("Certificado de aptitud");
-        // Sin documento que renovar la acción es «Subir»; con uno vencido, «Renovar»; vigente, «Ver».
+        // Subir, renovar o ver: la fila ofrece siempre la misma acción, «Gestionar», y abre el mismo flujo.
         detalle.QuerySelectorAll(".fila-relacion-acciones button").Select(b => b.TextContent.Trim())
-            .Should().Equal(["Renovar", "Subir", "Ver"]);
+            .Should().Equal(["Gestionar", "Gestionar", "Gestionar"]);
         detalle.TextContent.Should().NotContain("Nave Berriz", "solo se despliega el centro sobre el que se pulsó");
     }
 
@@ -1281,8 +1281,57 @@ public partial class Trabajador360Gen2Tests : BunitContext
         franja.QuerySelectorAll("li.fila-relacion")
             .Select(f => SinEspaciosDeMas(f.TextContent))
             .Should().Equal(
-                ["Reconocimiento médico Vence: 01/10/2026 Por vencer Renovar", "Entrega de EPI Vence: 20/10/2026 Por vencer"],
+                ["Reconocimiento médico Vence: 01/10/2026 Por vencer Gestionar", "Entrega de EPI Vence: 20/10/2026 Por vencer"],
                 "la franja usa el umbral ámbar del sistema (Q3): Próximo y Urgente (los dos se rotulan «Por vencer»), lo más cercano primero; lo vencido ya es incidencia de Centro y lo vigente no apremia");
+    }
+
+    /// <summary>
+    /// Regla 8 de LEEME-AUTORIDAD (2026-10-18): en Operación (Documentación base y franja «Por vencer») la fila que pide
+    /// trabajo ofrece solo «Gestionar» a quien escribe; Consulta y Cliente no ven acción de escritura; lo vigente no lleva botón.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Administrador, true)]
+    [InlineData(Roles.DireccionCae, true)]
+    [InlineData(Roles.CoordinadorCae, true)]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    [InlineData(Roles.Cliente, false)]
+    public void Operacion_ofrece_solo_Gestionar_a_quien_escribe_y_nada_en_lo_vigente(string rol, bool escribe)
+    {
+        this.ConRolDeEscritura(rol);
+        var id = Guid.NewGuid();
+        var vencidoId = Guid.NewGuid();
+        var urgenteId = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.BaseDocumental[id] = new([
+            new(TipoDocumentoBase.AptitudMedica, EstadoIndicadorBase.Vencido, vencidoId, null),
+            new(TipoDocumentoBase.FormacionArt19, EstadoIndicadorBase.SinConfirmar, Guid.NewGuid(), null),
+            new(TipoDocumentoBase.InformacionArt18, EstadoIndicadorBase.Vigente, Guid.NewGuid(), null)]);
+        mediador.Documentos[id] =
+        [
+            DocumentoDelTrabajador("Reconocimiento médico", EstadoDocumento.Urgente, new(2025, 10, 1), new(2026, 10, 1)) with { Id = urgenteId },
+            DocumentoDelTrabajador("Formación PRL — 20 h", EstadoDocumento.Vigente, new(2025, 3, 1), new(2027, 3, 1)),
+        ];
+
+        var cut = Renderizar(id);
+
+        var filasBase = cut.FindAll(".panel-doc-base-fila");
+        filasBase.Should().HaveCount(3);
+        var botonesBase = filasBase.Select(f => f.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).ToList()).ToList();
+        var botonesFranja = cut.FindAll(".trabajador360-por-vencer li.fila-relacion")
+            .Select(f => f.QuerySelectorAll(".fila-relacion-acciones button").Select(b => b.TextContent.Trim()).ToList()).ToList();
+        if (escribe)
+        {
+            botonesBase.Should().Equal(new List<string>[] { ["Gestionar"], ["Gestionar"], [] },
+                (a, b) => a.SequenceEqual(b), "Vencido y Sin confirmar piden trabajo; lo vigente no lleva botón");
+            botonesFranja.Should().ContainSingle().Which.Should().Equal("Gestionar");
+        }
+        else
+        {
+            botonesBase.Should().OnlyContain(b => b.Count == 0);
+            botonesFranja.Should().ContainSingle().Which.Should().BeEmpty();
+        }
     }
 
     [Fact]

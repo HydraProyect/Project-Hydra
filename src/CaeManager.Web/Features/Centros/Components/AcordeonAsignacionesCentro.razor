@@ -395,7 +395,7 @@ else
                                                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
                                                            class="accion-fila-enlace"
                                                            OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
-                                                        @(AccionDocumento(documento) is { } accion ? Textos[$"AccionDocumento360{accion}"] : Textos["GestionarDocumento360"])
+                                                        @Textos["GestionarDocumento360"]
                                                     </Boton>
                                                 </SoloConEscritura>
                                             </span>

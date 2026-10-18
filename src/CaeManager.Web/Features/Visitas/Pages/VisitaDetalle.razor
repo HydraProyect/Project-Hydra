@@ -20,7 +20,6 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosVisitas> Textos
 @inject IStringLocalizer<TextosComunes> Comunes
-@inject IStringLocalizer<TextosTipoDocumento360> TextosDocumentos360
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@(_detalle is null ? Textos["Visita360TituloPestanaNavegador"] : Textos["Visita360TituloConCentro", _detalle.CentroNombre]) — @Marca.Nombre</PageTitle>
@@ -269,7 +268,8 @@
                                                             {
                                                                 <SoloConEscritura>
                                                                     <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                                                           OnClick="() => CorregirDocumentoAsync(documento)">@TextosDocumentos360[$"Accion{accion}"]</Boton>
+                                                                           aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)"
+                                                                           OnClick="() => CorregirDocumentoAsync(documento)">@EstadoDocumentoFicha360.TextoAccion</Boton>
                                                                 </SoloConEscritura>
                                                             }
                                                         </Acciones>

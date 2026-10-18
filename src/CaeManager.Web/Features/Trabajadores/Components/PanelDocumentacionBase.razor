@@ -17,11 +17,10 @@
 @using CaeManager.Web.Components.DesignSystem
 @using MediatR
 @using CaeManager.Web.Features.Trabajadores.Recursos
-@using CaeManager.Web.Features.Documentos.Recursos
+@using CaeManager.Web.Features.Documentos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosTrabajadores> Textos
 @inject IMediator Mediator
-@inject IStringLocalizer<TextosTipoDocumento360> TextosAcciones
 
 @if (_datos is not null)
 {
@@ -67,8 +66,10 @@
                              indicador.Estado == EstadoIndicadorBase.ProximoAVencer && DocumentosUrgentes.Contains(documentoId)))
                         {
                             <SoloConEscritura>
+                                @* Confirmar o renovar abren el mismo editor: la fila ofrece una sola acción, «Gestionar». *@
                                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                       OnClick="() => OnCorregirDocumento.InvokeAsync(documentoId)">@TextosAcciones[indicador.Estado == EstadoIndicadorBase.SinConfirmar ? "AccionConfirmar" : "AccionRenovar"]</Boton>
+                                       aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(TextoTipo(indicador.Tipo))"
+                                       OnClick="() => OnCorregirDocumento.InvokeAsync(documentoId)">@EstadoDocumentoFicha360.TextoAccion</Boton>
                             </SoloConEscritura>
                         }
                     </li>

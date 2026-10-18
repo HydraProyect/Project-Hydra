@@ -96,7 +96,6 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosTrabajadores> Textos { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
-    [Inject] private IStringLocalizer<TextosTipoDocumento360> TextosDocumentos360 { get; set; } = default!;
 
     private bool _editorFichaVisible;
 

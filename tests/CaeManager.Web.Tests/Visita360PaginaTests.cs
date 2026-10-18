@@ -232,10 +232,10 @@ public partial class Visita360PaginaTests : BunitContext
         cut.FindAll("[data-pieza=fila]").Single(f => f.QuerySelector(".fila-relacion-nombre")?.TextContent.Trim() == tipo);
 
     [Theory]
-    [InlineData(EstadoDocumento.Vencido, "Renovar")]
-    [InlineData(EstadoDocumento.EnTolerancia, "Renovar")]
-    [InlineData(EstadoDocumento.Urgente, "Renovar")]
-    [InlineData(EstadoDocumento.SinConfirmar, "Confirmar")]
+    [InlineData(EstadoDocumento.Vencido, "Gestionar")]
+    [InlineData(EstadoDocumento.EnTolerancia, "Gestionar")]
+    [InlineData(EstadoDocumento.Urgente, "Gestionar")]
+    [InlineData(EstadoDocumento.SinConfirmar, "Gestionar")]
     public async Task Renovar_y_Confirmar_inician_el_editor_del_documento_correcto_sin_abrir_el_visor(EstadoDocumento estado, string accion)
     {
         var documento = Documento("Documento a corregir", estado, Paula);
@@ -251,6 +251,32 @@ public partial class Visita360PaginaTests : BunitContext
         // El falso devuelve null por ID: aquí se observa la entrada al editor, no un guardado completo.
     }
 
+    /// <summary>
+    /// Regla 8 de LEEME-AUTORIDAD (2026-10-18): una sola acción, «Gestionar», en la fila de un documento que pide trabajo;
+    /// Consulta y Cliente no ven acción de escritura y un documento Vigente no lleva botón.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Administrador, EstadoDocumento.Vencido, "Gestionar")]
+    [InlineData(Roles.DireccionCae, EstadoDocumento.Faltante, "Gestionar")]
+    [InlineData(Roles.CoordinadorCae, EstadoDocumento.SinConfirmar, "Gestionar")]
+    [InlineData(Roles.GestorCae, EstadoDocumento.EnTolerancia, "Gestionar")]
+    [InlineData(Roles.GestorCae, EstadoDocumento.Vigente, null)]
+    [InlineData(Roles.Consulta, EstadoDocumento.Vencido, null)]
+    [InlineData(Roles.Cliente, EstadoDocumento.Faltante, null)]
+    public void La_fila_del_documento_ofrece_solo_Gestionar_segun_rol_y_estado(string rol, EstadoDocumento estado, string? esperado)
+    {
+        var documento = Documento("Documento de la visita", estado, Paula);
+        var documentacion = new DocumentacionVisitaDto(Guid.NewGuid(), new(EstadoDocumento.Vigente, []),
+            [new(Paula, "Paula Campos", "Empresa Demo", new(estado, [documento]))]);
+        var (cut, _) = Montar(Detalle(porCorreo: false), rol, documentacion);
+        var botones = FilaDeDocumento(cut, documento.TipoDocumentoNombre)
+            .QuerySelectorAll(".fila-relacion-acciones button").Select(b => b.TextContent.Trim()).ToList();
+        if (esperado is null)
+            botones.Should().BeEmpty();
+        else
+            botones.Should().Equal(esperado);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -263,7 +289,7 @@ public partial class Visita360PaginaTests : BunitContext
             [new(Paula, "Paula Campos", "Empresa Demo", new(deEmpresa ? EstadoDocumento.Vigente : EstadoDocumento.Faltante, deEmpresa ? [] : [documento]))]);
         var (cut, mediador) = Montar(Detalle(porCorreo: false), documentacion: documentacion);
         var fila = FilaDeDocumento(cut, documento.TipoDocumentoNombre);
-        fila.QuerySelector(".fila-relacion-acciones")!.TextContent.Trim().Should().Be("Subir");
+        fila.QuerySelector(".fila-relacion-acciones")!.TextContent.Trim().Should().Be("Gestionar");
 
         await fila.QuerySelector(".fila-relacion-acciones button")!.ClickAsync(new MouseEventArgs());
         cut.FindComponent<SelectorTipoDocumento>().Instance.Valor.Should().Be(documento.TipoDocumentoId.ToString());

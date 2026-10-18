@@ -673,8 +673,8 @@ public partial class Vehiculo360PaginaTests : BunitContext
     }
 
     [Theory]
-    [InlineData(EstadoDocumento.Vencido, "Renovar")]
-    [InlineData(EstadoDocumento.SinConfirmar, "Confirmar")]
+    [InlineData(EstadoDocumento.Vencido, "Gestionar")]
+    [InlineData(EstadoDocumento.SinConfirmar, "Gestionar")]
     public async Task La_accion_del_estado_inicia_el_editor_del_documento_correcto(EstadoDocumento estado, string accion)
     {
         var (id, mediador) = CamionGrua();
@@ -687,6 +687,33 @@ public partial class Vehiculo360PaginaTests : BunitContext
         mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().ContainSingle().Which.Id.Should().Be(documento.Id);
         Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().BeNull("la acción no abre solo el panel de lectura");
         cut.Find(".lista-relaciones-tarjeta .fila-relacion-acciones").TextContent.Trim().Should().Be(accion);
+    }
+
+    /// <summary>
+    /// Regla 8 de LEEME-AUTORIDAD (2026-10-18): la fila de un documento que pide trabajo ofrece una sola acción,
+    /// «Gestionar», a quien escribe; Consulta y Cliente no ven acción de escritura; un documento Vigente no lleva botón.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Administrador, EstadoDocumento.Vencido, "Gestionar")]
+    [InlineData(Roles.DireccionCae, EstadoDocumento.Faltante, "Gestionar")]
+    [InlineData(Roles.CoordinadorCae, EstadoDocumento.SinConfirmar, "Gestionar")]
+    [InlineData(Roles.GestorCae, EstadoDocumento.Urgente, "Gestionar")]
+    [InlineData(Roles.GestorCae, EstadoDocumento.Vigente, null)]
+    [InlineData(Roles.Consulta, EstadoDocumento.Vencido, null)]
+    [InlineData(Roles.Cliente, EstadoDocumento.Vencido, null)]
+    public void La_fila_del_documento_ofrece_solo_Gestionar_segun_rol_y_estado(string rol, EstadoDocumento estado, string? esperado)
+    {
+        var (id, mediador) = CamionGrua();
+        var documento = mediador.Documentos[0] with { Estado = estado };
+        mediador.Documentos.Clear();
+        mediador.Documentos.Add(documento);
+        Registrar(mediador, rol);
+        var cut = Renderizar(id);
+        var botones = cut.FindAll(".lista-relaciones-tarjeta .fila-relacion-acciones button").Select(b => b.TextContent.Trim()).ToList();
+        if (esperado is null)
+            botones.Should().BeEmpty();
+        else
+            botones.Should().Equal(esperado);
     }
 
     [Fact]

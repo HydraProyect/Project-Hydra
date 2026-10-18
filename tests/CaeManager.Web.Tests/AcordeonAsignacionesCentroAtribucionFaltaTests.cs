@@ -155,16 +155,16 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
     }
 
     [Fact]
-    public async Task Subir_se_ofrece_a_quien_escribe_y_no_a_Consulta()
+    public async Task Gestionar_se_ofrece_a_quien_escribe_y_no_a_Consulta()
     {
         var escribe = await RenderizarExpandidoAsync(EstadoDocumento.Faltante);
-        escribe.FindAll(".tabla-documentos-requeridos button").Select(b => b.TextContent.Trim()).Should().Contain("Subir",
+        escribe.FindAll(".tabla-documentos-requeridos button").Select(b => b.TextContent.Trim()).Should().Contain("Gestionar",
             "control positivo: con un rol que escribe el botón está");
 
         // Otro contexto: mismo montaje con Consulta, que no puede ejecutar CrearDocumento/RenovarDocumento.
         using var consulta = new ConsultaSinEscritura();
         var cut = await consulta.RenderizarAsync();
-        cut.FindAll(".tabla-documentos-requeridos button").Select(b => b.TextContent.Trim()).Should().NotContain("Subir");
+        cut.FindAll(".tabla-documentos-requeridos button").Select(b => b.TextContent.Trim()).Should().NotContain("Gestionar");
     }
 
     [Theory]
@@ -183,15 +183,15 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
     }
 
     [Theory]
-    [InlineData(EstadoDocumento.Vencido, "Renovar")]
-    [InlineData(EstadoDocumento.EnTolerancia, "Renovar")]
-    [InlineData(EstadoDocumento.Urgente, "Renovar")]
-    [InlineData(EstadoDocumento.Proximo, "Renovar")]
-    [InlineData(EstadoDocumento.SinConfirmar, "Confirmar")]
-    [InlineData(EstadoDocumento.Faltante, "Subir")]
+    [InlineData(EstadoDocumento.Vencido, "Gestionar")]
+    [InlineData(EstadoDocumento.EnTolerancia, "Gestionar")]
+    [InlineData(EstadoDocumento.Urgente, "Gestionar")]
+    [InlineData(EstadoDocumento.Proximo, "Gestionar")]
+    [InlineData(EstadoDocumento.SinConfirmar, "Gestionar")]
+    [InlineData(EstadoDocumento.Faltante, "Gestionar")]
     [InlineData(EstadoDocumento.SinCaducidad, "Gestionar")]
     [InlineData(EstadoDocumento.Vigente, "Gestionar")]
-    public async Task La_accion_del_documento_depende_de_su_estado_y_no_esta_atenuada(EstadoDocumento estado, string accion)
+    public async Task El_documento_ofrece_una_sola_accion_Gestionar_sea_cual_sea_su_estado_y_no_esta_atenuada(EstadoDocumento estado, string accion)
     {
         var cut = await RenderizarExpandidoAsync(estado);
         var boton = cut.Find(".tabla-documentos-requeridos .columna-accion button");
@@ -205,7 +205,7 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
     {
         var cut = await RenderizarExpandidoAsync(EstadoDocumento.Faltante);
 
-        var boton = cut.FindAll(".tabla-documentos-requeridos button").Single(b => b.TextContent.Trim() == "Subir");
+        var boton = cut.FindAll(".tabla-documentos-requeridos button").Single(b => b.TextContent.Trim() == "Gestionar");
         boton.ClassList.Should().NotContain("accion-atenuada");
         boton.GetAttribute("title").Should().BeNull();
     }

@@ -403,9 +403,34 @@ public class Subcontrata360PaginaTests : BunitContext
 
         var subfilas = cut.FindAll(".subcontrata360-subfila");
         subfilas.Should().HaveCount(2);
-        subfilas[0].QuerySelector(".subcontrata360-subfila-accion button")!.TextContent.Trim().Should().Be("Renovar");
+        subfilas[0].QuerySelector(".subcontrata360-subfila-accion button")!.TextContent.Trim().Should().Be("Gestionar");
         subfilas[1].TextContent.Should().Contain("Pendiente").And.Contain("Se exige y no hay documento");
-        subfilas[1].QuerySelector(".subcontrata360-subfila-accion button")!.TextContent.Trim().Should().Be("Subir");
+        subfilas[1].QuerySelector(".subcontrata360-subfila-accion button")!.TextContent.Trim().Should().Be("Gestionar");
+    }
+
+    /// <summary>
+    /// Regla 8 de LEEME-AUTORIDAD (2026-10-18): quien escribe ve una sola acción, «Gestionar», en cada documento del
+    /// trabajador; Consulta y Cliente no ven ninguna acción de escritura.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Administrador, true)]
+    [InlineData(Roles.DireccionCae, true)]
+    [InlineData(Roles.CoordinadorCae, true)]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    [InlineData(Roles.Cliente, false)]
+    public void El_documento_del_trabajador_ofrece_solo_Gestionar_a_quien_escribe(string rol, bool escribe)
+    {
+        Montar(rol);
+        var cut = Renderizar();
+
+        cut.FindAll(".fila-relacion-desplegar")[0].Click();
+
+        var botones = cut.FindAll(".subcontrata360-subfila-accion button").Select(b => b.TextContent.Trim()).ToList();
+        if (escribe)
+            botones.Should().NotBeEmpty().And.OnlyContain(b => b == "Gestionar");
+        else
+            botones.Should().BeEmpty();
     }
 
     /// <summary>

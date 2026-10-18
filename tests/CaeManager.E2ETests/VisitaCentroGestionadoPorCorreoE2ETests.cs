@@ -126,7 +126,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         var filaDocumento = page.GetByRole(AriaRole.Table,
                 new PageGetByRoleOptions { Name = $"Documentación exigida a {nombreTrabajador} {apellidosTrabajador}" })
             .Locator(".fila-documento-requerido", new LocatorLocatorOptions { HasText = nombreTipoDocumento });
-        await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Subir" }).ClickAsync();
+        await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
