@@ -199,7 +199,7 @@
                     </div>
                 }
                 @TarjetaListado.RenderizarMaqueta(@<text>
-                <div style="display:@(_totalElementos == 0 || _cargando ? "none" : "block")">
+                <div style="display:@(_cargando || (_totalElementos == 0 && !VacioPorGrupo) ? "none" : "block")">
                         <div class="documentos-tabla-desplazable" tabindex="0" role="region" aria-label="@Textos["TablaDesplazableEtiqueta"]">
                         <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                             @if (_seleccionMultiple)
@@ -359,6 +359,15 @@
                         </div>
 
                 </div>
+                @* Vacío del filtro «Grupo» (maqueta «Interfaz Documentos», «Ningún documento de estos grupos»): dentro de la tarjeta de
+                   la tabla, bajo la cabecera de columnas; título y «Quitar el filtro», sin párrafo. *@
+                @if (VacioPorGrupo)
+                {
+                    <div class="documentos-vacio-grupo" data-pieza="vacio-grupo">
+                        <span class="documentos-vacio-grupo-titulo">@Textos["GrupoVacioTitulo"]</span>
+                        <button type="button" class="documentos-vacio-grupo-boton" @onclick="QuitarFiltroGruposAsync">@Textos["GrupoQuitarFiltro"]</button>
+                    </div>
+                }
 </text>, PieDelListado)
 
                 @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
@@ -370,13 +379,15 @@
                La copia no afirma que HAYA registros dados de alta: el filtrado
                es de servidor y la consulta solo devuelve el total ya filtrado,
                así que la pantalla no sabe cuántos hay sin filtro. *@
-                    <EstadoVacio NombreIcono="vacio" Titulo="@Textos[_grupos.Count > 0 ? "GrupoVacioTitulo" : "ListaVacioFiltrosTitulo"]"
+                    @if (!VacioPorGrupo)
+                    {
+                    <EstadoVacio NombreIcono="vacio" Titulo="@Textos["ListaVacioFiltrosTitulo"]"
                                  Descripcion="Ninguno coincide con la búsqueda ni con los filtros de ámbito y estado.">
                         <Accion>
-                            @if (_grupos.Count > 0) { <Boton Variante="VarianteBoton.Secundario" OnClick="QuitarFiltroGruposAsync">@Textos["GrupoQuitarFiltro"]</Boton> }
-                            else { <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["ListaQuitarFiltros"]</Boton> }
+                            <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["ListaQuitarFiltros"]</Boton>
                         </Accion>
                     </EstadoVacio>
+                    }
                 }
                 else                 @if (_totalElementos == 0 && !_cargando)
                 {

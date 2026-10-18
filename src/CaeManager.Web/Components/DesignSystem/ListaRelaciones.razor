@@ -34,7 +34,7 @@
 }
 else
 {
-    <ul class="lista-relaciones" aria-label="@Etiqueta">
+    <ul class="lista-relaciones @(SinCaja ? "lista-relaciones-sin-caja" : null)" aria-label="@Etiqueta">
         @ChildContent
     </ul>
 }
@@ -48,6 +48,12 @@ else
 
     /// <summary>Pinta la lista como contenido de una tarjeta. Falso por defecto: ningún consumidor existente cambia.</summary>
     [Parameter] public bool EnTarjeta { get; set; }
+
+    /// <summary>
+    /// Sin borde, esquinas ni fondo propios: la lista va dentro de una caja que ya los pone (la tarjeta única de la
+    /// pestaña Documentación agrupada, donde cada grupo es una barra de cabecera y sus filas). Sin <see cref="EnTarjeta"/>.
+    /// </summary>
+    [Parameter] public bool SinCaja { get; set; }
 
     /// <summary>Línea sobre las filas. Solo con <see cref="EnTarjeta"/>.</summary>
     [Parameter] public RenderFragment? Encabezado { get; set; }

@@ -944,6 +944,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         await RecargarAsync();
     }
 
+    /// <summary>Sin resultados con el filtro «Grupo» puesto: su vacío vive dentro de la tarjeta de la tabla y quita solo ese filtro.</summary>
+    private bool VacioPorGrupo => _totalElementos == 0 && !_cargando && !_errorCarga && _grupos.Count > 0;
+
     private bool HayFiltrosActivos => _grupos.Count > 0 ||
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
         || !string.IsNullOrWhiteSpace(_ambitoFiltro) || !string.IsNullOrWhiteSpace(_tipoFiltro)

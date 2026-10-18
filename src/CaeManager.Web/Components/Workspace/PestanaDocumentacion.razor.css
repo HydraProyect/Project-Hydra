@@ -3,5 +3,12 @@
     justify-content: flex-start;
     margin-bottom: var(--space-3);
 }
-.documentacion-grupo { display: flex; align-items: center; gap: 8px; margin: 16px 0 8px; color: var(--color-text); font: var(--font-label); }
-.documentacion-grupo span { color: var(--color-text-muted); font: var(--font-caption); }
+/* «Interfaz Documentos TALVEG» (Empresa 360 · Documentación agrupada): UNA tarjeta; cada grupo es una barra de cabecera
+   dentro de ella (padding 9px 16px, fondo subtle, raya inferior, 600 12/16 en mayúsculas, recuento a la derecha) y sus
+   filas van debajo, con el relleno lateral de 16px de la maqueta. */
+.documentacion-tarjeta { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; }
+.documentacion-grupo { display: flex; align-items: center; gap: 8px; margin: 0; padding: 9px 16px; background: var(--color-surface-subtle); border-bottom: 1px solid var(--color-border); font: 600 12px/16px var(--font-family); }
+.documentacion-grupo-titulo { flex: 1; min-width: 0; text-transform: uppercase; letter-spacing: .06em; color: var(--color-text-muted); }
+.documentacion-grupo-recuento { color: var(--color-text-muted); }
+.documentacion-tarjeta ::deep .lista-relaciones:not(:last-child) { border-bottom: 1px solid var(--color-border); }
+.documentacion-tarjeta ::deep .fila-relacion-rejilla { margin-inline: 0; padding: 10px 16px; }

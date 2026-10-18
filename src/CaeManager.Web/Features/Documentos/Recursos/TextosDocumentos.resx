@@ -255,7 +255,8 @@
   <data name="GrupoEtiqueta" xml:space="preserve"><value>Grupo</value></data>
   <data name="GrupoBuscar" xml:space="preserve"><value>Buscar grupo o ámbito…</value></data>
   <data name="GrupoBuscarAria" xml:space="preserve"><value>Buscar grupo o ámbito</value></data>
-  <data name="GrupoTodos" xml:space="preserve"><value>Todos los grupos</value></data>
+  <data name="GrupoNinguno" xml:space="preserve"><value>Ninguno seleccionado</value></data>
+  <data name="GrupoUnoSeleccionado" xml:space="preserve"><value>1 seleccionado</value></data>
   <data name="GrupoSeleccionados" xml:space="preserve"><value>{0} seleccionados</value></data>
   <data name="GrupoSeleccionarTodos" xml:space="preserve"><value>Seleccionar todos</value></data>
   <data name="GrupoSeleccionarResultados" xml:space="preserve"><value>Seleccionar los {0}</value></data>
@@ -267,6 +268,7 @@
   <data name="TipoArchivadoAyuda" xml:space="preserve"><value>Tipo archivado: ya no se ofrece en altas nuevas.</value></data>
   <data name="GrupoVacioTitulo" xml:space="preserve"><value>Ningún documento de estos grupos</value></data>
   <data name="GrupoQuitarFiltro" xml:space="preserve"><value>Quitar el filtro</value></data>
+  <data name="DocumentacionVence" xml:space="preserve"><value>vence {0}</value></data>
   <data name="ListaVacioFiltrosTitulo" xml:space="preserve"><value>Ningún documento con estos filtros</value></data>
   <data name="ListaQuitarFiltros" xml:space="preserve"><value>Quitar los filtros</value></data>
 </root>

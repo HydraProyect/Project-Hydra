@@ -16,6 +16,7 @@
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Documentos.Recursos.TextosDocumentos> Textos
 
 @* «+ Subir documento» (mockup Vehículo 360): abre el mismo DrawerGestionDocumento que
    usan Documentos, Trabajador 360 y Centro 360, con el vehículo preseleccionado.
@@ -50,22 +51,25 @@ else if (EnPagina)
 {
     @* Ficha 360 en página: misma gramática de lista que los documentos de Trabajador 360 (tarjeta, fila con vigencia,
        pastilla de estado y acreditaciones), sin viñetas. El panel de 520 px conserva la lista de filas-botón de abajo. *@
+    @* «Interfaz Documentos TALVEG» (Empresa 360 · Documentación agrupada): UNA tarjeta; cada grupo es una barra de
+       cabecera dentro de ella (título en mayúsculas y recuento a la derecha) y sus filas van debajo. *@
+    <div class="documentacion-tarjeta" data-pieza="tarjeta">
     @foreach (var grupo in _documentos.GroupBy(d => d.Grupo))
     {
-    <h3 class="documentacion-grupo">@grupo.Key <span>@grupo.Count()</span></h3>
-    <ListaRelaciones EnTarjeta="true" Etiqueta="@Comunes["ListaDocumentacion"]">
+    <h3 class="documentacion-grupo"><span class="documentacion-grupo-titulo">@grupo.Key</span><span class="documentacion-grupo-recuento">@grupo.Count()</span></h3>
+    <ListaRelaciones SinCaja="true" Etiqueta="@($"{Comunes["ListaDocumentacion"]} · {grupo.Key}")">
         @foreach (var documento in grupo)
         {
             <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre"
                           Tono="@EstadoDocumentoFicha360.TonoFila(documento.Estado)"
                           OnNombre="() => AbrirDocumentoAsync(documento)">
-                <Detalle><BadgesAcreditacion Acreditaciones="documento.Acreditaciones" /></Detalle>
-                <Cifra><span>@TextoVence(documento)</span></Cifra>
+                <Detalle><span data-pieza="documento-sublinea">@SubLinea(documento)</span><BadgesAcreditacion Acreditaciones="documento.Acreditaciones" /></Detalle>
                 <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></Estado>
             </FilaRelacion>
         }
     </ListaRelaciones>
     }
+    </div>
 }
 else
 {
@@ -151,6 +155,17 @@ else
             ? WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, documento.Id, documento.TipoDocumentoNombre, "informacion")
             : WorkspaceService.NavegarAAsync(EntidadWorkspace.Documento, documento.Id, documento.TipoDocumentoNombre, "informacion");
 
-    private static string TextoVence(DocumentoListaDto documento) =>
-        $"Vence: {(documento.FechaVencimiento is null ? "—" : documento.FechaVencimiento.Value.ToString("dd/MM/yyyy"))}";
+    /// <summary>
+    /// Línea bajo el nombre del tipo (maqueta, «grupos360»: «dato · adjunto · Tipo archivado · vence …»). Hoy el
+    /// Documento no guarda el dato del tipo (horas, periodo) ni si lleva recibo, así que la línea lleva lo que sí
+    /// existe: la marca «Tipo archivado» y el vencimiento.
+    /// </summary>
+    private string SubLinea(DocumentoListaDto documento)
+    {
+        var partes = new List<string>(2);
+        if (documento.TipoArchivado)
+            partes.Add(Textos["TipoArchivado"].Value);
+        partes.Add(Textos["DocumentacionVence", documento.FechaVencimiento is null ? "—" : documento.FechaVencimiento.Value.ToString("dd/MM/yyyy")].Value);
+        return string.Join(" · ", partes);
+    }
 }

@@ -16,10 +16,12 @@
             <div class="grupo-cabecera">
                 <div class="grupo-buscador"><Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" /><input @ref="_entrada" class="grupo-busqueda" placeholder="@Textos["GrupoBuscar"]" aria-label="@Textos["GrupoBuscarAria"]" @bind="_busqueda" @bind:event="oninput" @onkeydown="TeclaBusqueda" /></div>
                 <div class="grupo-acciones">
-                    <span>@(Seleccion.Count == 0 ? Textos["GrupoTodos"] : Textos["GrupoSeleccionados", Seleccion.Count])</span>
+                    <span class="grupo-resumen">@(Seleccion.Count switch { 0 => Textos["GrupoNinguno"], 1 => Textos["GrupoUnoSeleccionado"], _ => Textos["GrupoSeleccionados", Seleccion.Count] })</span>
+                    <span class="grupo-acciones-botones">
                     <button type="button" @onclick="SeleccionarVisibles">@(Normalizar(_busqueda).Length == 0 ? Textos["GrupoSeleccionarTodos"] : Textos["GrupoSeleccionarResultados", Visibles.Select(x => x.Grupo).Distinct().Count()])</button>
                     <span aria-hidden="true">·</span>
                     <button type="button" disabled="@(Seleccion.Count == 0)" @onclick="QuitarVisibles">@Textos["GrupoQuitarSeleccion"]</button>
+                    </span>
                 </div>
             </div>
             @if (!Visibles.Any()) { <span class="grupo-vacio">@Textos["GrupoSinCoincidencias", _busqueda]</span> }

@@ -195,6 +195,13 @@ public class DocumentosVacioPorFiltroTests : BunitContext
         var (cut, mediador) = RenderizarConMediador(estado: "Vencido", grupo: "Formación PRL");
         cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().Grupos.Should().Equal("Formación PRL"));
         cut.Markup.Should().Contain("Ningún documento de estos grupos");
+        // Maqueta: el vacío del filtro «Grupo» va DENTRO de la tarjeta de la tabla, con título y botón y sin párrafo,
+        // no en el EstadoVacio compartido de debajo.
+        var vacio = cut.Find(".tarjeta-listado [data-pieza=vacio-grupo]");
+        vacio.QuerySelector(".documentos-vacio-grupo-titulo")!.TextContent.Trim().Should().Be("Ningún documento de estos grupos");
+        vacio.QuerySelectorAll("p").Should().BeEmpty();
+        vacio.QuerySelectorAll("button").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Quitar el filtro");
+        cut.FindAll(".estado-vacio").Should().BeEmpty();
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Quitar el filtro").Click();
         cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().Grupos.Should().BeEmpty());
         Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("Estado=Vencido").And.NotContain("Grupo=");

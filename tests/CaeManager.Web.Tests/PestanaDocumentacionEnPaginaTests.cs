@@ -35,7 +35,7 @@ public class PestanaDocumentacionEnPaginaTests : BunitContext
         public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification => Task.CompletedTask;
     }
 
-    private IRenderedComponent<PestanaDocumentacion> Renderizar(bool enPagina)
+    private IRenderedComponent<PestanaDocumentacion> Renderizar(bool enPagina, params DocumentoListaDto[] adicionales)
     {
         var documentos = new List<DocumentoListaDto>
         {
@@ -44,6 +44,7 @@ public class PestanaDocumentacionEnPaginaTests : BunitContext
             new(Guid.NewGuid(), AmbitoAplicacion.Empresa, "Ibertec GmbH", "Certificado de la Seguridad Social",
                 new DateOnly(2025, 1, 1), null, EstadoDocumento.Faltante, null, []),
         };
+        documentos.AddRange(adicionales);
         Services.AddScoped<IMediator>(_ => new MediatorFalso(documentos));
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
@@ -53,7 +54,7 @@ public class PestanaDocumentacionEnPaginaTests : BunitContext
             .Add(x => x.Ambito, AmbitoAplicacion.Empresa)
             .Add(x => x.PropietarioId, Guid.NewGuid())
             .Add(x => x.EnPagina, enPagina));
-        cut.WaitForAssertion(() => cut.FindAll("li").Should().HaveCount(2));
+        cut.WaitForAssertion(() => cut.FindAll("li").Should().HaveCount(documentos.Count));
         return cut;
     }
 
@@ -62,16 +63,34 @@ public class PestanaDocumentacionEnPaginaTests : BunitContext
     {
         var cut = Renderizar(enPagina: true);
 
-        cut.FindAll(".lista-relaciones-tarjeta").Should().HaveCount(2);
-        cut.FindAll(".documentacion-grupo").Select(h => h.TextContent.Trim()).Should().Equal("Seguros y mutua 1", "Sin grupo 1");
+        // Maqueta «Documentación agrupada»: UNA tarjeta; cada grupo es una barra de cabecera dentro de ella, no un h3 suelto con una tarjeta por grupo.
+        cut.FindAll(".documentacion-tarjeta").Should().ContainSingle();
+        cut.FindAll(".lista-relaciones-tarjeta").Should().BeEmpty("cada grupo ya no es una tarjeta aparte");
+        var cabeceras = cut.FindAll(".documentacion-tarjeta > h3.documentacion-grupo");
+        cabeceras.Select(h => h.QuerySelector(".documentacion-grupo-titulo")!.TextContent.Trim()).Should().Equal("Seguros y mutua", "Sin grupo");
+        cabeceras.Select(h => h.QuerySelector(".documentacion-grupo-recuento")!.TextContent.Trim()).Should().Equal("1", "1");
         cut.FindAll(".workspace-lista-entidades").Should().BeEmpty("esa lista es la de filas-botón del panel y salía con viñetas en la página");
 
         var filas = cut.FindAll("li.fila-relacion");
         filas.Should().HaveCount(2);
         filas[0].QuerySelector(".fila-relacion-nombre")!.TextContent.Trim().Should().Be("Seguro de responsabilidad civil");
-        filas[0].QuerySelector(".fila-relacion-cifra")!.TextContent.Trim().Should().Be("Vence: 31/12/2026");
+        filas[0].QuerySelector("[data-pieza=documento-sublinea]")!.TextContent.Trim().Should().Be("vence 31/12/2026");
         filas[0].QuerySelector(".fila-relacion-estado [data-pieza=pastilla]")!.TextContent.Trim().Should().Be(EstadoDocumentoUi.Texto(EstadoDocumento.Vigente));
-        filas[1].QuerySelector(".fila-relacion-cifra")!.TextContent.Trim().Should().Be("Vence: —");
+        filas[1].QuerySelector("[data-pieza=documento-sublinea]")!.TextContent.Trim().Should().Be("vence —");
+    }
+
+    [Fact]
+    public void En_pagina_la_sublinea_de_un_tipo_archivado_lo_marca_antes_del_vencimiento()
+    {
+        var archivado = new DocumentoListaDto(Guid.NewGuid(), AmbitoAplicacion.Empresa, "Ibertec GmbH", "Protocolo frente al acoso",
+            new DateOnly(2025, 1, 1), new DateOnly(2027, 3, 4), EstadoDocumento.Vigente, null, []);
+
+        var cut = Renderizar(enPagina: true, archivado);
+
+        var fila = cut.FindAll("li.fila-relacion").Single(f => f.QuerySelector(".fila-relacion-nombre")!.TextContent.Trim() == "Protocolo frente al acoso");
+        fila.QuerySelector("[data-pieza=documento-sublinea]")!.TextContent.Trim().Should().Be("Tipo archivado · vence 04/03/2027");
+        cut.FindAll(".documentacion-tarjeta").Should().ContainSingle("tres grupos, una sola tarjeta");
+        cut.FindAll(".documentacion-tarjeta > h3.documentacion-grupo").Should().HaveCount(3);
     }
 
     /// <summary>En la página 360 el panel se abre sobre el Documento; dentro del panel el Documento se apila sobre la entidad.</summary>

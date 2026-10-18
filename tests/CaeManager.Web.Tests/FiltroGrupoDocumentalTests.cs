@@ -37,6 +37,20 @@ public class FiltroGrupoDocumentalTests : BunitContext
     }
 
     [Fact]
+    public void La_linea_de_recuento_distingue_ninguno_uno_y_varios_y_no_parte_las_acciones()
+    {
+        var cut = Crear();
+        cut.Find(".grupo-boton").Click();
+        cut.Find(".grupo-resumen").TextContent.Trim().Should().Be("Ninguno seleccionado");
+        cut.FindAll("[role=menuitemcheckbox]")[0].Click();
+        cut.Find(".grupo-resumen").TextContent.Trim().Should().Be("1 seleccionado");
+        cut.FindAll("[role=menuitemcheckbox]")[1].Click();
+        cut.Find(".grupo-resumen").TextContent.Trim().Should().Be("2 seleccionados");
+        // El resumen es el primer hijo: es el que cede el sitio; las acciones son botones y el punto, que el CSS no parte.
+        cut.Find(".grupo-acciones").FirstElementChild!.ClassList.Should().Contain("grupo-resumen");
+    }
+
+    [Fact]
     public void Buscar_ambito_y_acciones_solo_sobre_resultados_preservan_la_seleccion_oculta()
     {
         var cut = Crear();

@@ -105,3 +105,18 @@
 .documentos-esqueleto { padding: 16px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
 .documentos-esqueleto-fila { display: grid; grid-template-columns: 2fr 1.4fr 1fr 1fr 1fr; gap: 16px; padding: 12px 0; }
 .documentos-esqueleto-fila span { height: 20px; border-radius: var(--radius-sm); background: var(--color-esqueleto-base); }
+/* Vacío del filtro «Grupo» (maqueta, «Ningún documento de estos grupos»): dentro de la tarjeta de la tabla, relleno 32,
+   título 600 15/20 y «Quitar el filtro» de 34px, sin párrafo. */
+.documentos-vacio-grupo { padding: 32px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.documentos-vacio-grupo-titulo { font: 600 15px/20px var(--font-family); color: var(--color-text); }
+.documentos-vacio-grupo-boton { height: 34px; padding: 0 12px; border: 1px solid var(--color-border-control); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); font: var(--font-label); cursor: pointer; }
+.documentos-vacio-grupo-boton:hover { background: var(--color-surface-hover); }
+.documentos-vacio-grupo-boton:focus-visible { outline: var(--border-focus); outline-offset: 2px; }
+/* Móvil (maqueta): el buscador y «Grupo · N» van en la misma fila, a 44px; el resto de filtros pasa a la siguiente. */
+@media (max-width: 600px) {
+    .contenedor-pagina ::deep .barra-filtros-maqueta .barra-filtros-buscador-pantalla { flex: 1 1 160px; min-width: 0; }
+    .contenedor-pagina ::deep .barra-filtros-maqueta .barra-filtros-buscador-pantalla .campo-input { min-height: 44px; }
+    .contenedor-pagina ::deep .barra-filtros-maqueta .barra-filtros-buscador-icono,
+    .contenedor-pagina ::deep .barra-filtros-maqueta .barra-filtros-tecla { bottom: 14px; }
+    .documentos-vacio-grupo-boton { min-height: 44px; }
+}
