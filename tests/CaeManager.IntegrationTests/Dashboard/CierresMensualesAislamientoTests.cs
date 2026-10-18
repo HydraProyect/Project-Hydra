@@ -61,19 +61,16 @@ public class CierresMensualesAislamientoTests
     [Fact]
     public async Task El_servicio_cierra_el_mes_anterior_una_vez_y_vuelve_a_cerrar_el_mes_reabierto()
     {
-        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
-        var tenant = new Tenant("Operación cierre");
-        var tenantActual = new TenantPorAmbito();
-        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
-            .UseNpgsql(arnes.CadenaPropietario, p => p.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-            .AddInterceptors(new TenantSelladoInterceptor(tenantActual)).Options;
-        await using (var propietario = new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantActual))
-        {
-            propietario.Tenants.Add(tenant);
-            await propietario.SaveChangesAsync();
-        }
+        // Composición real (AddApplication + AddInfrastructure): el cierre resuelve la medición de Application.
+        await using var arnes = await ArnesPilotoOutbound.CrearAsync();
+        Tenant tenant;
+        using (var scope = arnes.Servicios.CreateScope())
+            tenant = await scope.ServiceProvider.GetRequiredService<CaeManager.Application.Tenants.ITenantsQueryContext>()
+                .Tenants.OrderBy(t => t.Id).FirstAsync();
 
-        var servicio = ActivatorUtilities.CreateInstance<CierreMensualCuadroDireccionHostedService>(arnes.Servicios);
+        var servicio = new CierreMensualCuadroDireccionHostedService(
+            arnes.FabricaDeAmbitos, new LiderSiempre(), TimeProvider.System,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<CierreMensualCuadroDireccionHostedService>.Instance);
         await servicio.ProcesarAsync(CancellationToken.None);
         await servicio.ProcesarAsync(CancellationToken.None);
 
@@ -84,7 +81,7 @@ public class CierresMensualesAislamientoTests
         using (var scope = arnes.Servicios.CreateScope())
         {
             var runtime = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-            var cierre = await runtime.CierresMensualesTenantBeneficiario.SingleAsync();
+            var cierre = await runtime.CierresMensualesTenantBeneficiario.SingleAsync(c => c.Anyo == mesAnterior.Year && c.Mes == mesAnterior.Month);
             cierre.TenantId.Should().Be(tenant.Id);
             (cierre.Anyo, cierre.Mes).Should().Be((mesAnterior.Year, mesAnterior.Month));
             cierre.Estimado.Should().Be(new MesCuadroDireccion(mesAnterior.Year, mesAnterior.Month).CierreEsEstimado);
@@ -99,9 +96,18 @@ public class CierresMensualesAislamientoTests
         using (var scope = arnes.Servicios.CreateScope())
         {
             var runtime = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-            var cierre = await runtime.CierresMensualesTenantBeneficiario.SingleAsync();
+            var cierre = await runtime.CierresMensualesTenantBeneficiario.SingleAsync(c => c.Anyo == mesAnterior.Year && c.Mes == mesAnterior.Month);
             cierre.ReabiertoEnUtc.Should().BeNull("el cierre siguiente vuelve a congelar el mes reabierto");
             cierre.CerradoEnUtc.Should().BeAfter(cerradoPrimero);
+        }
+    }
+
+    private sealed class LiderSiempre : CaeManager.Infrastructure.Coordinacion.IEleccionLiderService
+    {
+        public async Task<bool> IntentarEjecutarComoLiderAsync(string clave, Func<CancellationToken, Task> trabajo, CancellationToken cancellationToken)
+        {
+            await trabajo(cancellationToken);
+            return true;
         }
     }
 
