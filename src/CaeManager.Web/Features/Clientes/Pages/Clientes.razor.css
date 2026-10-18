@@ -1,16 +1,110 @@
+/*
+  Lista de Clientes (Lista Clientes TALVEG.dc.html, export de Design 2026-10-18).
+
+  Sin QuickGrid, con el mismo molde que Trabajadores y Empresas: la fila se despliega para mostrar los Centros del
+  Cliente empresarial que piden trabajo y QuickGrid no soporta filas expandibles. La cabecera de columnas y cada fila
+  son rejillas DISTINTAS que solo comparten esta definición, así que ninguna pista se resuelve por contenido.
+
+  Va en CSS aislado y no en list-page.css porque .tarjeta-fila-acordeon-cabecera es compartida con Empresas,
+  Subcontratas, Trabajadores y Centros: cambiarla allí movería varias pantallas en un incremento que solo ha verificado una.
+*/
+.rejilla-clientes {
+    /* chevron · Cliente (razón social y CIF) · Centros · Estado documental · acciones. */
+    display: grid;
+    grid-template-columns: 24px minmax(200px, 2fr) minmax(90px, .7fr) minmax(170px, 1.3fr) 40px;
+    gap: var(--space-4);
+    align-items: center;
+}
+
+/* Con selección múltiple entra una casilla delante y las columnas se corren. */
+.rejilla-clientes-seleccion {
+    grid-template-columns: 28px 24px minmax(200px, 2fr) minmax(90px, .7fr) minmax(170px, 1.3fr) 40px;
+}
+
+/* Marco de la lista (mockup): una tarjeta con la cabecera de columnas en una banda blanca y las filas pegadas. */
+.marco-lista-clientes {
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+.cabecera-columnas-clientes {
+    align-items: end;
+    padding: 14px var(--space-4) 10px;
+    background: var(--color-surface);
+    border-bottom: 1.5px solid var(--color-text);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    font: 600 12px/16px var(--font-family);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--color-text-muted);
+}
+
+.marco-lista-clientes .lista-filas-acordeon {
+    gap: 0;
+}
+
+.marco-lista-clientes .tarjeta-fila-acordeon {
+    border: 0;
+    border-bottom: 1px solid var(--color-fila-divisor);
+    border-radius: 0;
+}
+
+.marco-lista-clientes .tarjeta-fila-acordeon:last-child {
+    border-bottom: 0;
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.marco-lista-clientes .tarjeta-fila-acordeon-cabecera {
+    min-height: 0;
+    padding: 12px var(--space-4);
+    transition: background-color .12s ease, box-shadow .12s ease;
+    border-bottom: 0;
+    border-radius: 0;
+}
+
+.marco-lista-clientes .tarjeta-fila-acordeon-cabecera:hover {
+    background-color: var(--color-primary-50);
+    box-shadow: inset 3px 0 0 var(--color-primary-500);
+}
+
+.marco-lista-clientes .tarjeta-fila-acordeon-contenido {
+    border-top: 0;
+    border-radius: 0;
+    background: color-mix(in srgb, var(--color-surface-subtle) 60%, var(--color-surface));
+    padding: 4px var(--space-4) 4px 56px;
+}
+
+/* Con la casilla delante, los Centros se sangran lo mismo que el nombre: 16 + 44 (casilla) + 40 (chevron). */
+.marco-lista-clientes .tarjeta-fila-acordeon-contenido.contenido-con-seleccion {
+    padding-left: 100px;
+}
+
+/* Rótulos que ordenan: botones sin aspecto de botón, con el orden vigente como flecha. */
+.col-title { border: none; padding: 0; background: none; cursor: pointer; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; text-align: left; }
+.col-sort-asc .col-title { color: var(--color-text); }
+.col-sort-desc .col-title { color: var(--color-text); }
+.col-sort-asc .col-title::after { content: " ↑"; }
+.col-sort-desc .col-title::after { content: " ↓"; }
+
+.seleccion-cliente { display: flex; align-items: center; justify-content: center; }
+.acciones-cliente { display: flex; justify-content: flex-end; }
+.celda-centros-cliente, .celda-estado-cliente { min-width: 0; }
+
 /* Aviso de perfil incompleto en la fila del cliente: no es el semáforo de
    vigencia documental (que se reserva a Documento, 06 § 4) sino una
-   configuración que falta, y por eso es un atajo pulsable a la pestaña que la
-   resuelve, no un badge decorativo. */
+   configuración que falta. La maqueta lo pinta como pastilla ámbar; aquí además es un atajo
+   pulsable a la pestaña que la resuelve. */
 .aviso-sin-agenda {
     display: inline-block;
-    margin-left: var(--space-2);
-    padding: 0 var(--space-2);
-    border: 1px solid var(--color-warning-500);
-    border-radius: var(--radius-sm);
+    padding: 2px 9px;
+    border: 1px solid color-mix(in srgb, var(--color-warning-700) 35%, transparent);
+    border-radius: var(--radius-full);
     background-color: var(--color-warning-50);
     color: var(--color-warning-700);
     font: var(--font-caption);
+    font-weight: 600;
+    white-space: nowrap;
     cursor: pointer;
 }
 
@@ -19,28 +113,30 @@
 }
 
 /* Celda de identidad del Cliente empresarial, en dos líneas: la razón social con sus
-   avisos y, debajo, el CIF en pequeño. Mismas reglas que la celda «Trabajador» de
-   /trabajadores (Trabajadores.razor.css): no hay clase compartida para este patrón. */
+   avisos y, debajo, el CIF en pequeño. Mismas reglas que la celda «Trabajador» de /trabajadores. */
 .celda-cliente-empresarial {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: var(--space-1);
+    gap: 2px;
+    min-width: 0;
+}
+
+.celda-cliente-empresarial-nombre {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
 }
 
 .celda-cliente-empresarial-cif {
     font: var(--font-caption);
     color: var(--color-text-muted);
+    letter-spacing: .02em;
 }
 
-/* La barra de filtros (tarjeta, chips, «Limpiar todo») vive ahora en el
-   componente BarraFiltros y en list-page.css: aquí ya no se copia. */
-
-/* Resumen de la barra de filtros: «3 Clientes con estos filtros». */
-.conteo-clientes {
-    font: var(--font-caption);
-    color: var(--color-text-muted);
-}
+/* La barra de filtros (tarjeta, chips, «Limpiar todo») vive en el
+   componente BarraFiltros y en list-page.css: aquí no se copia. */
 
 /* Aviso de «todos los de esta página seleccionados» — la mitad informativa
    del banner del mockup, mismos tokens que él. */
@@ -65,34 +161,9 @@
     color: var(--color-primary-600);
 }
 
-/* Celda «Gestor CAE» para quien puede reasignar: su contenido (avatar y nombre, o «Sin
-   asignar») es el botón que abre el formulario de edición con el selector de Gestor CAE;
-   el hueco restante de la celda sigue siendo fila. Sin caja: se lee como la celda de
-   texto que ven los demás roles, y solo el puntero y el foco dicen que se pulsa. */
-.celda-gestor-cae-pulsable {
-    border: 0;
-    border-radius: var(--radius-sm);
-    background: none;
-    padding: 0;
-    font: inherit;
-    color: inherit;
-    text-align: left;
-    cursor: pointer;
-}
-
-.celda-gestor-cae-pulsable:hover {
-    color: var(--color-primary-500);
-}
-
-.celda-gestor-cae-pulsable:focus-visible {
-    outline: var(--border-focus);
-    outline-offset: 1px;
-}
-
 /* «⚑ Crítico» junto al nombre (sustituye a la antigua columna «Crítico»). Badge es un
    componente hijo: su <span> no lleva el atributo de ámbito de esta página. */
 .contenedor-pagina ::deep .insignia-critico {
-    margin-left: var(--space-2);
     vertical-align: middle;
 }
 
@@ -109,5 +180,66 @@
    el Centro donde falta, atenuado. */
 .incidencia-cliente-secundario {
     margin-left: var(--space-2);
+    color: var(--color-text-muted);
+}
+
+/* Fila desplegada: los Centros que piden trabajo, cada uno con su «Gestionar» (maqueta de Clientes). */
+.centros-pendientes-cliente {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.centro-pendiente-cliente {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-4);
+    padding: 10px 0;
+    border-top: 1px solid var(--color-border);
+}
+
+.centro-pendiente-cliente:first-child {
+    border-top-color: transparent;
+}
+
+.centro-pendiente-nombre {
+    flex: none;
+    width: 220px;
+    font: 600 13px/18px var(--font-family);
+}
+
+.centro-pendiente-detalle {
+    flex: 1;
+    min-width: 120px;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.centro-pendiente-gestionar {
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--color-primary-500);
+    font: var(--font-label);
+    cursor: pointer;
+}
+
+.centro-pendiente-gestionar:hover {
+    text-decoration: underline;
+}
+
+.centro-pendiente-gestionar:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+.centros-desplegados-aviso {
+    margin: 0;
+    padding: 10px 0;
+    font: var(--font-caption);
     color: var(--color-text-muted);
 }
