@@ -737,4 +737,11 @@
   <data name="AgruparPorEmpresa" xml:space="preserve"><value>Por Empresa</value></data>
   <data name="RecuentoGrupoEnEstaPagina" xml:space="preserve"><value>· {0} en esta página</value></data>
   <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordenar</value></data>
+  <data name="OficioEtiqueta" xml:space="preserve"><value>Oficio</value></data>
+  <data name="OficioPlaceholder" xml:space="preserve"><value>Busca o escribe un oficio</value></data>
+  <data name="OficioCrear" xml:space="preserve"><value>+ Crear oficio «{0}»</value></data>
+  <data name="DelegacionEtiqueta" xml:space="preserve"><value>Delegación</value></data>
+  <data name="DelegacionSinElegir" xml:space="preserve"><value>Sin delegación</value></data>
+  <data name="CatalogoNoCargo" xml:space="preserve"><value>No se pudo cargar el catálogo de la empresa.</value></data>
+  <data name="OficioErrorCrear" xml:space="preserve"><value>No se pudo crear el oficio.</value></data>
 </root>

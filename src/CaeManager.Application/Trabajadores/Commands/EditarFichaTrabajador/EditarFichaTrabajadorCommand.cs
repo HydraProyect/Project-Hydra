@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
 using FluentValidation;
 using MediatR;
@@ -12,7 +13,8 @@ public record EditarFichaTrabajadorCommand(Guid Id, Guid Version,
     string? FiguraEnRnt, string? TipoPermisoTrabajo, DateOnly? CaducidadPermisoTrabajo,
     string? MotivoPermisoTrabajo,
     TipoContratacion? TipoContratacion = null,
-    ContactoEmergenciaTrabajador? ContactoEmergencia = null) : ICommand;
+    ContactoEmergenciaTrabajador? ContactoEmergencia = null,
+    DelegacionYOficioDeTrabajador? DelegacionYOficio = null) : ICommand;
 
 /// <summary>
 /// El contacto de emergencia que se fija con la ficha. En <see cref="EditarFichaTrabajadorCommand"/>, <c>null</c> (el
@@ -53,6 +55,7 @@ public class EditarFichaTrabajadorCommandValidator : AbstractValidator<EditarFic
 }
 
 public class EditarFichaTrabajadorCommandHandler(ITrabajadorRepository repositorio,
+    ICatalogoTrabajadoresEmpresaRepository catalogo,
     IAlcanceDatosService alcanceDatos, IPoliticaNotaInterna politicaNotaInterna, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarFichaTrabajadorCommand, Result>
 {
@@ -80,6 +83,18 @@ public class EditarFichaTrabajadorCommandHandler(ITrabajadorRepository repositor
         // nadie borre ni pise a ciegas un dato que el servidor no le enseña.
         if (request.ContactoEmergencia is { } contacto && await politicaNotaInterna.PuedeLeerAsync(cancellationToken))
             trabajador.FijarContactoEmergencia(contacto.Nombre, contacto.Telefono);
+        // Mismo criterio: null = no se cambian. Va después de ActualizarFicha porque elegir un Oficio copia su nombre en el
+        // Puesto. Solo un Trabajador de Empresa tiene Delegación y Oficio, y quien los fija gestiona esa Empresa.
+        if (request.DelegacionYOficio is { } delegacionYOficio)
+        {
+            if (trabajador.EmpresaId is not { } empresaId)
+                return Result.Fallo(Error.Crear("Trabajador.SinEmpresa", "Solo un trabajador de empresa tiene delegación y oficio."));
+            if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(empresaId, cancellationToken))
+                return Result.Fallo(Error.Crear("Trabajador.NoEncontrado", "No encontramos este trabajador."));
+            if (await AsignacionDelegacionYOficio.FijarAsync(trabajador, delegacionYOficio.DelegacionEmpresaId,
+                    delegacionYOficio.OficioEmpresaId, catalogo, cancellationToken) is { } errorCatalogo)
+                return Result.Fallo(errorCatalogo);
+        }
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();
     }

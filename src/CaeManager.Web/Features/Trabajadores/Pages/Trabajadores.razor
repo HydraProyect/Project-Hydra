@@ -378,7 +378,18 @@
     <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_nombre" ValorChanged="v => _nombre = v" OnBlur="ValidarNombreAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Nombre))" />
     <CampoTexto Etiqueta="@Textos["EtiquetaApellidos"]" Valor="@_apellidos" ValorChanged="v => _apellidos = v" OnBlur="ValidarApellidosAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Apellidos))" />
     <CampoTexto Etiqueta="@Textos["EtiquetaAliasOpcional"]" Placeholder="@Textos["PlaceholderAlias"]" Valor="@_alias" ValorChanged="v => _alias = v" OnBlur="ValidarAliasAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Alias))" />
-    <CampoTexto Etiqueta="@Textos["EtiquetaPuestoOpcional"]" Placeholder="@Textos["PlaceholderPuesto"]" Valor="@_puesto" ValorChanged="v => _puesto = v" OnBlur="ValidarPuestoAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Puesto))" />
+    @* Oficio y Delegación (decisión de Chris, 2026-10-18): el Oficio ocupa el sitio del Puesto y los dos salen del catálogo
+       de la Empresa elegida. El Trabajador de una Subcontrata no los tiene y sigue con el Puesto en texto. *@
+    @if (EmpresaElegidaParaCatalogo is { } empresaDelCatalogo)
+    {
+        <SelectorDelegacionYOficio @key="empresaDelCatalogo" EmpresaId="empresaDelCatalogo"
+                                   OficioId="@_oficioId" OficioIdChanged="v => _oficioId = v"
+                                   DelegacionId="@_delegacionId" DelegacionIdChanged="v => _delegacionId = v" />
+    }
+    else
+    {
+        <CampoTexto Etiqueta="@Textos["EtiquetaPuestoOpcional"]" Placeholder="@Textos["PlaceholderPuesto"]" Valor="@_puesto" ValorChanged="v => _puesto = v" OnBlur="ValidarPuestoAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Puesto))" />
+    }
     <CampoSelect Etiqueta="@Textos["EtiquetaTipoContratacion"]" Valor="@_tipoContratacion" ValorChanged="v => _tipoContratacion = v">
         <option value="CuentaAjena">@Textos["TipoContratacionCuentaAjena"]</option>
         <option value="Autonomo">@Textos["TipoContratacionAutonomo"]</option>

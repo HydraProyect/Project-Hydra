@@ -91,6 +91,12 @@
 
     [Parameter] public EventCallback<string> OnCrearSolicitado { get; set; }
 
+    /// <summary>
+    /// Si borrar el texto y salir del campo deja el valor sin elegir (<c>ValorChanged("")</c>). Sin él (por defecto) el
+    /// campo siempre vuelve al texto de la opción elegida, que es lo que quiere un selector obligatorio.
+    /// </summary>
+    [Parameter] public bool PermiteVaciar { get; set; }
+
     private bool TieneError => !string.IsNullOrWhiteSpace(MensajeError);
 
     private string? IdOpcionResaltada
@@ -127,10 +133,17 @@
     /// <summary>Igual que CampoBuscarSelect: solo se resincroniza el texto visible con el Id recibido cuando ese Id no vino de nuestro propio evento.</summary>
     protected override void OnParametersSet()
     {
-        if (Valor == _ultimoValorNotificado) return;
+        var textoDelValor = Opciones.FirstOrDefault(o => o.Id == Valor)?.Texto;
+        if (Valor == _ultimoValorNotificado)
+        {
+            // Las opciones pueden llegar después del valor (un catálogo que se carga al abrir): se completa el texto.
+            if (!_abierto && _filtro.Length == 0 && textoDelValor is not null)
+                _filtro = textoDelValor;
+            return;
+        }
 
         _ultimoValorNotificado = Valor;
-        _filtro = Opciones.FirstOrDefault(o => o.Id == Valor)?.Texto ?? string.Empty;
+        _filtro = textoDelValor ?? string.Empty;
     }
 
     private Task ManejarEntradaAsync(ChangeEventArgs e)
@@ -154,12 +167,20 @@
     /// foco al hacer clic en ellas — este blur solo ocurre para el resto de
     /// casos (Tab, clic fuera), donde cerrar y resincronizar es lo correcto.
     /// </summary>
-    private Task CerrarAsync()
+    private async Task CerrarAsync()
     {
         _abierto = false;
         _indiceResaltado = -1;
+
+        // Quitar la selección: con PermiteVaciar, salir del campo con el texto borrado la deja sin elegir.
+        if (PermiteVaciar && _filtro.Trim().Length == 0 && Valor.Length > 0)
+        {
+            _ultimoValorNotificado = string.Empty;
+            await ValorChanged.InvokeAsync(string.Empty);
+            return;
+        }
+
         _filtro = Opciones.FirstOrDefault(o => o.Id == Valor)?.Texto ?? string.Empty;
-        return Task.CompletedTask;
     }
 
     private async Task SeleccionarOpcionAsync(OpcionBuscable opcion)

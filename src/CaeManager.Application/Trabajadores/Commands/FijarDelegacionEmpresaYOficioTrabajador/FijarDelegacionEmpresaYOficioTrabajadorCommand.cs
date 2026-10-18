@@ -53,27 +53,10 @@ public class FijarDelegacionEmpresaYOficioTrabajadorCommandHandler(
         if (ConcurrenciaOptimista.Verificar(trabajador, request.Version, "este trabajador") is { } conflicto)
             return Result.Fallo(conflicto);
 
-        DelegacionEmpresa? delegacion = null;
-        if (request.DelegacionEmpresaId is { } delegacionId)
-        {
-            delegacion = await catalogo.ObtenerDelegacionEmpresaAsync(delegacionId, cancellationToken);
-            if (delegacion is null || delegacion.EmpresaId != empresaId)
-                return Result.Fallo(Error.Crear("Delegacion.NoEncontrada", "No encontramos esta delegación en su empresa."));
-        }
+        if (await AsignacionDelegacionYOficio.FijarAsync(
+                trabajador, request.DelegacionEmpresaId, request.OficioEmpresaId, catalogo, cancellationToken) is { } error)
+            return Result.Fallo(error);
 
-        OficioEmpresa? oficio = null;
-        if (request.OficioEmpresaId is { } oficioId)
-        {
-            oficio = await catalogo.ObtenerOficioAsync(oficioId, cancellationToken);
-            if (oficio is null || oficio.EmpresaId != empresaId)
-                return Result.Fallo(Error.Crear("Oficio.NoEncontrado", "No encontramos este oficio en su empresa."));
-        }
-
-        if (oficio is not null && trabajador.EstaAnonimizado)
-            return Result.Fallo(Error.Crear("Trabajador.Anonimizado",
-                "Este trabajador está anonimizado: sus datos personales se suprimieron y no pueden volver a introducirse."));
-
-        trabajador.FijarDelegacionEmpresaYOficio(delegacion, oficio);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();
     }

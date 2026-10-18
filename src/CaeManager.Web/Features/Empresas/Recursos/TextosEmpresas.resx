@@ -490,4 +490,31 @@
   </data>
   <data name="QuitarFiltroCliente" xml:space="preserve">
     <value>Quitar filtro de Cliente</value>
-  </data></root>
+  </data>  <data name="CatalogoTitulo" xml:space="preserve"><value>Delegaciones y oficios</value></data>
+  <data name="CatalogoDelegaciones" xml:space="preserve"><value>Delegaciones</value></data>
+  <data name="CatalogoOficios" xml:space="preserve"><value>Oficios</value></data>
+  <data name="CatalogoAnadir" xml:space="preserve"><value>Añadir</value></data>
+  <data name="CatalogoEditar" xml:space="preserve"><value>Editar</value></data>
+  <data name="CatalogoEliminar" xml:space="preserve"><value>Eliminar</value></data>
+  <data name="CatalogoSinDelegaciones" xml:space="preserve"><value>Esta empresa aún no tiene delegaciones.</value></data>
+  <data name="CatalogoSinOficios" xml:space="preserve"><value>Esta empresa aún no tiene oficios.</value></data>
+  <data name="CatalogoError" xml:space="preserve"><value>No se pudo cargar el catálogo.</value></data>
+  <data name="CatalogoErrorGuardar" xml:space="preserve"><value>No se pudo guardar. Inténtalo de nuevo.</value></data>
+  <data name="CatalogoErrorEliminar" xml:space="preserve"><value>No se pudo eliminar. Inténtalo de nuevo.</value></data>
+  <data name="CatalogoDelegacionNuevaTitulo" xml:space="preserve"><value>Nueva delegación</value></data>
+  <data name="CatalogoDelegacionEditarTitulo" xml:space="preserve"><value>Editar delegación</value></data>
+  <data name="CatalogoOficioNuevoTitulo" xml:space="preserve"><value>Nuevo oficio</value></data>
+  <data name="CatalogoOficioEditarTitulo" xml:space="preserve"><value>Editar oficio</value></data>
+  <data name="CatalogoNombre" xml:space="preserve"><value>Nombre</value></data>
+  <data name="CatalogoContactoNombre" xml:space="preserve"><value>Contacto de reclamación: nombre</value></data>
+  <data name="CatalogoContactoCorreo" xml:space="preserve"><value>Contacto de reclamación: correo</value></data>
+  <data name="CatalogoContactoTelefono" xml:space="preserve"><value>Contacto de reclamación: teléfono</value></data>
+  <data name="CatalogoReclamaciones" xml:space="preserve"><value>Reclamaciones: {0}</value></data>
+  <data name="CatalogoEditarNombre" xml:space="preserve"><value>Editar «{0}»</value></data>
+  <data name="CatalogoEliminarNombre" xml:space="preserve"><value>Eliminar «{0}»</value></data>
+  <data name="CatalogoEliminarDelegacionTitulo" xml:space="preserve"><value>¿Eliminar la delegación «{0}»?</value></data>
+  <data name="CatalogoEliminarOficioTitulo" xml:space="preserve"><value>¿Eliminar el oficio «{0}»?</value></data>
+  <data name="CatalogoEliminarMensaje" xml:space="preserve"><value>Se quitará del catálogo de la empresa.</value></data>
+  <data name="CatalogoGuardado" xml:space="preserve"><value>Guardado.</value></data>
+  <data name="CatalogoEliminado" xml:space="preserve"><value>Eliminado.</value></data>
+</root>

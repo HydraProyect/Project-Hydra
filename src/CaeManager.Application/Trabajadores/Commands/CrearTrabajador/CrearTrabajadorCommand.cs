@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
 using FluentValidation;
 using MediatR;
@@ -29,7 +30,9 @@ public record CrearTrabajadorCommand(
     string? Alias = null,
     string? Telefono = null,
     string? Puesto = null,
-    TipoContratacion TipoContratacion = TipoContratacion.CuentaAjena) : ICommand<Guid>, IComandoDeAprovisionamiento;
+    TipoContratacion TipoContratacion = TipoContratacion.CuentaAjena,
+    Guid? OficioEmpresaId = null,
+    Guid? DelegacionEmpresaId = null) : ICommand<Guid>, IComandoDeAprovisionamiento;
 
 public class CrearTrabajadorCommandValidator : AbstractValidator<CrearTrabajadorCommand>
 {
@@ -65,6 +68,9 @@ public class CrearTrabajadorCommandValidator : AbstractValidator<CrearTrabajador
         RuleFor(c => c.Alias).MaximumLength(Trabajador.LongitudMaximaAlias);
         RuleFor(c => c.Telefono).MaximumLength(Trabajador.LongitudMaximaTelefono);
         RuleFor(c => c.Puesto).MaximumLength(Trabajador.LongitudMaximaPuesto);
+        RuleFor(c => c)
+            .Must(c => c.EmpresaId is not null || (c.OficioEmpresaId is null && c.DelegacionEmpresaId is null))
+            .WithMessage("Solo un trabajador de empresa tiene delegación y oficio.");
     }
 
     private static bool TenerDigitoDeControlValido(string dni)
@@ -77,7 +83,7 @@ public class CrearTrabajadorCommandValidator : AbstractValidator<CrearTrabajador
 
 public class CrearTrabajadorCommandHandler(
     ITrabajadorRepository repositorio, IEmpresasQueryContext empresasContext,
-    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    ICatalogoTrabajadoresEmpresaRepository catalogo, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearTrabajadorCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearTrabajadorCommand request, CancellationToken cancellationToken)
@@ -115,6 +121,14 @@ public class CrearTrabajadorCommandHandler(
                 request.FechaNacimiento, request.Email, request.Observaciones, request.Alias, request.Telefono, request.Puesto);
 
         trabajador.CambiarTipoContratacion(request.TipoContratacion);
+
+        // El alcance de gestión sobre la Empresa se comprobó arriba; el catálogo tiene que ser el de esa Empresa. Elegir un
+        // Oficio copia su nombre en el Puesto (Trabajador.FijarDelegacionEmpresaYOficio).
+        if (request.EmpresaId is not null && (request.OficioEmpresaId is not null || request.DelegacionEmpresaId is not null)
+            && await AsignacionDelegacionYOficio.FijarAsync(
+                trabajador, request.DelegacionEmpresaId, request.OficioEmpresaId, catalogo, cancellationToken) is { } errorCatalogo)
+            return Result.Fallo<Guid>(errorCatalogo);
+
         repositorio.Agregar(trabajador);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

@@ -159,7 +159,7 @@ public class DelegacionYOficioEmpresaTests
     private AlcanceDatosServiceFalso EnCarteraConTrabajador(Trabajador trabajador) =>
         new(tieneAccesoTotal: false, empresaIdsVisibles: [_empresa.Id], trabajadorIdsVisibles: [trabajador.Id]);
 
-    private sealed class CatalogoFalso : ICatalogoTrabajadoresEmpresaRepository
+    internal sealed class CatalogoFalso : ICatalogoTrabajadoresEmpresaRepository
     {
         public List<DelegacionEmpresa> DelegacionesEmpresa { get; } = [];
         public List<OficioEmpresa> Oficios { get; } = [];
