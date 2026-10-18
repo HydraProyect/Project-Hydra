@@ -1,12 +1,10 @@
 using System.Text.Json;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Commands.CrearCliente;
-using CaeManager.Application.Clientes.Commands.EditarCliente;
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 using CaeManager.Application.Clientes.Commands.RestaurarCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerCentrosDeCliente;
-using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
@@ -119,9 +117,6 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private IValidator<CrearClienteCommand> ValidadorCrear { get; set; } = default!;
 
-    private static readonly string[] RolesQuePuedenReasignar =
-        [Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae];
-
     private const int TamanoPaginaMinimo = 20;
     private int _pagina = 1;
     private int _tamanoPagina = TamanoPaginaMinimo;
@@ -133,6 +128,9 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
     /// <summary>Filas desplegadas (maqueta «Lista Clientes TALVEG»): las que enseñan sus Centros con problema.</summary>
     private readonly HashSet<Guid> _expandidos = [];
+
+    /// <summary>La primera fila abierta por defecto ya se decidió (una sola vez por visita de la página).</summary>
+    private bool _primeraFilaDecidida;
 
     /// <summary>
     /// Centros de cada Cliente empresarial desplegado, con su estado (<c>ObtenerCentrosQuery</c> por Cliente: la misma
@@ -165,11 +163,6 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         _tamanoPagina = tamano;
         return RecargarAsync();
     }
-
-    private bool _puedeReasignarEjecutivo;
-    private IReadOnlyList<GestorCaeSelectorDto> _gestoresDisponibles = [];
-    private string _ejecutivoUsuarioId = string.Empty;
-    private string _ejecutivoUsuarioIdOriginal = string.Empty;
 
     private string _busqueda = string.Empty;
     private bool _soloCriticos;
@@ -205,16 +198,9 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// </summary>
     private int _cargaVigente;
 
-    /// <summary>
-    /// Mismo criterio para el formulario de edición: abrir «Editar» sobre A y
-    /// en seguida sobre B no puede acabar con el formulario de B relleno con
-    /// los datos de A porque la consulta de A llegó la última.
-    /// </summary>
-    private int _edicionVigente;
-
+    // El drawer de esta lista solo da de alta: «Editar» vive en el panel del Context Workspace (lápiz, tecla «e») y el Gestor
+    // CAE de referencia, en Cliente 360 (decisión de 2026-10-18).
     private bool _drawerVisible;
-    private Guid? _editandoId;
-    private Guid _versionEditando;
     private string _razonSocial = string.Empty;
     private string _cif = string.Empty;
     private bool _esCritico;
@@ -455,20 +441,13 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         if (_sinEmpresaSeleccionada)
             return;
 
-        // Reasignar el Gestor CAE dueño de un Cliente es una decisión de
-        // rango superior (ver ReasignarEjecutivoClienteCommand) — el propio
-        // Gestor CAE no ve ni puede tocar este campo sobre sus propios
-        // clientes.
         var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        _puedeReasignarEjecutivo = RolesQuePuedenReasignar.Any(estadoAutenticacion.User.IsInRole);
         _puedeEscribir = Roles.ConEscrituraCsv.Split(',').Any(estadoAutenticacion.User.IsInRole);
 
         _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Clientes));
 
-        // Mismo directorio que ya usa el selector de reasignación del Drawer
-        // (ver AbrirEditarAsync) — el filtro "Ejecutivo" del mockup ("Lista
-        // Clientes TALVEG") pregunta lo mismo, así que no hace falta una
-        // segunda consulta ni un query nuevo.
+        // Directorio de Gestores CAE del Tenant: da nombre al chip del filtro «gestor» de la URL, de los filtros guardados y
+        // de la vista recordada (la lista ya no dibuja la columna ni la pastilla «Gestor CAE»).
         var gestores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.GestorCae);
         _ejecutivosParaFiltro = gestores
             .Select(u => new GestorCaeSelectorDto(u.Id, u.NombreCompleto, u.Email ?? string.Empty, u.Avatar))
@@ -641,6 +620,15 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             OlvidarCentrosDeFila();
             OlvidarCentrosConEstado();
             _expandidos.IntersectWith(elementos.Where(PuedeDesplegarse).Select(e => e.Id));
+
+            // Como en la maqueta, la primera fila llega abierta: solo en la primera carga que trae filas (después, lo que
+            // desplegó o recogió quien mira manda) y solo si esa fila existe y tiene Centros que enseñar.
+            if (!_primeraFilaDecidida && elementos.Count > 0)
+            {
+                _primeraFilaDecidida = true;
+                if (PuedeDesplegarse(elementos[0]))
+                    _expandidos.Add(elementos[0].Id);
+            }
 
             if (_pagina > TotalPaginas)
             {
@@ -1034,60 +1022,10 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
     private void AbrirCrear()
     {
-        // Un «Editar» cuya consulta siga en vuelo no puede rellenar este
-        // formulario de alta al volver.
-        _edicionVigente++;
-        _editandoId = null;
         _razonSocial = string.Empty;
         _cif = string.Empty;
         _esCritico = false;
         _notas = string.Empty;
-        _ejecutivoUsuarioId = string.Empty;
-        _ejecutivoUsuarioIdOriginal = string.Empty;
-        _erroresCampo = new Dictionary<string, string>();
-        _mensajeErrorFormulario = null;
-        _drawerVisible = true;
-        FijarInstantaneaFormulario();
-    }
-
-    private async Task AbrirEditarAsync(Guid id)
-    {
-        var edicion = ++_edicionVigente;
-
-        var cliente = await Mediator.Send(new ObtenerClientePorIdQuery(id));
-        if (edicion != _edicionVigente)
-            return;
-
-        if (cliente is null)
-        {
-            ToastService.Mostrar("No encontramos este Cliente. Puede que ya se haya eliminado.", TonoToast.Error);
-            await RecargarAsync();
-            return;
-        }
-
-        if (_puedeReasignarEjecutivo && _gestoresDisponibles.Count == 0)
-        {
-            // Acotado al tenant activo — ver DirectorioUsuariosTenant: sin
-            // esto el selector ofrecía gestores de otras organizaciones.
-            var gestores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.GestorCae);
-            _gestoresDisponibles = gestores
-                .Select(u => new GestorCaeSelectorDto(u.Id, u.NombreCompleto, u.Email ?? string.Empty))
-                .ToList();
-
-            if (edicion != _edicionVigente)
-                return;
-        }
-
-        _editandoId = cliente.Id;
-        // La versión que se está viendo: vuelve en el Command para detectar
-        // que otra persona guardó mientras el formulario estaba abierto.
-        _versionEditando = cliente.Version;
-        _razonSocial = cliente.RazonSocial;
-        _cif = cliente.Cif;
-        _esCritico = cliente.EsCritico;
-        _ejecutivoUsuarioId = cliente.EjecutivoUsuarioId?.ToString() ?? string.Empty;
-        _ejecutivoUsuarioIdOriginal = _ejecutivoUsuarioId;
-        _notas = cliente.Notas ?? string.Empty;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
@@ -1107,7 +1045,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// <summary>El nombre ya escrito en el modal de guardar filtro: lo leen el Modal y el aviso de la página.</summary>
     private bool HayCambiosFiltro => _mostrarGuardarFiltro && !string.IsNullOrWhiteSpace(_nombreFiltroNuevo);
 
-    private object?[] ValoresFormulario() => [_razonSocial, _cif, _esCritico, _notas, _ejecutivoUsuarioId];
+    private object?[] ValoresFormulario() => [_razonSocial, _cif, _esCritico, _notas];
 
     private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
 
@@ -1160,44 +1098,19 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         try
         {
             var notas = string.IsNullOrWhiteSpace(_notas) ? null : _notas;
-            string? mensajeError;
-            Guid? clienteCreadoId = null;
-
-            if (_editandoId is null)
+            var resultado = await Mediator.Send(new CrearClienteCommand(_razonSocial, _cif, _esCritico, notas));
+            if (resultado.EsFallido)
             {
-                var resultado = await Mediator.Send(new CrearClienteCommand(_razonSocial, _cif, _esCritico, notas));
-                mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
-                if (resultado.EsExitoso)
-                    clienteCreadoId = resultado.Valor;
-            }
-            else
-            {
-                var resultado = await Mediator.Send(
-                    new EditarClienteCommand(_editandoId.Value, _razonSocial, _cif, _esCritico, notas, _versionEditando));
-                mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
-            }
-
-            if (mensajeError is not null)
-            {
-                _mensajeErrorFormulario = mensajeError;
+                _mensajeErrorFormulario = resultado.Error.Mensaje;
                 return;
             }
 
-            if (_editandoId is not null && _puedeReasignarEjecutivo && _ejecutivoUsuarioId != _ejecutivoUsuarioIdOriginal)
-            {
-                var nuevoEjecutivoId = Guid.TryParse(_ejecutivoUsuarioId, out var idGestor) ? idGestor : (Guid?)null;
-                var resultadoReasignar = await Mediator.Send(new ReasignarEjecutivoClienteCommand(_editandoId.Value, nuevoEjecutivoId));
-                if (resultadoReasignar.EsFallido)
-                    ToastService.MostrarError(resultadoReasignar.Error);
-            }
-
-            ToastService.Mostrar(
-                _editandoId is null ? "Cliente creado correctamente." : "Cliente actualizado correctamente.",
-                TonoToast.Exito);
+            var clienteCreadoId = resultado.Valor;
+            ToastService.Mostrar("Cliente creado correctamente.", TonoToast.Exito);
 
             _drawerVisible = false;
 
-            if (continuarACrearEmpresa && clienteCreadoId is not null)
+            if (continuarACrearEmpresa)
             {
                 // Guardado: la navegación que sigue es la del propio formulario y no pregunta.
                 NavigationManager.NavigateTo($"/empresas?accion=crear&clienteId={clienteCreadoId}");

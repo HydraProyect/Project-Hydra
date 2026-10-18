@@ -53,9 +53,15 @@ public partial class ClientesListaGen2Tests
     private static IElement Tarjeta(IRenderedComponent<Clientes> cut, string razonSocial) =>
         cut.FindAll(".tarjeta-fila-acordeon").Single(t => t.QuerySelector(".enlace-nombre-fila")?.TextContent.Trim() == razonSocial);
 
+    /// <summary>
+    /// Deja la fila desplegada y devuelve su contenido. La primera fila de la lista llega ya abierta (como en la maqueta):
+    /// solo se pulsa el chevron si está recogida.
+    /// </summary>
     private async Task<IElement> Desplegar(IRenderedComponent<Clientes> cut, string razonSocial)
     {
-        await Tarjeta(cut, razonSocial).QuerySelector("button.boton-expandir-fila")!.ClickAsync(new MouseEventArgs());
+        var chevron = Tarjeta(cut, razonSocial).QuerySelector("button.boton-expandir-fila")!;
+        if (chevron.GetAttribute("aria-expanded") != "true")
+            await chevron.ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => Tarjeta(cut, razonSocial).QuerySelector(".tarjeta-fila-acordeon-contenido")!
             .TextContent.Should().NotContain("Cargando"));
         return Tarjeta(cut, razonSocial).QuerySelector(".tarjeta-fila-acordeon-contenido")!;
@@ -86,8 +92,8 @@ public partial class ClientesListaGen2Tests
     {
         var cut = Renderizar(new MediatorFalso { Almacen = { ClienteConProblemas() } }, rol: rol);
 
-        cut.Find(".cabecera-columnas-clientes").TextContent.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Should().Equal("Cliente", "Centros", "Estado", "documental");
+        cut.FindAll(".cabecera-columnas-clientes > span").Select(c => c.TextContent.Trim()).Where(c => c.Length > 0)
+            .Should().Equal("Cliente", "Centros", "Estado documental");
         cut.Markup.Should().NotContain("celda-gestor-cae-pulsable", "el Gestor CAE de referencia se gestiona en Cliente 360");
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(b => b.GetAttribute("aria-label"))
             .Should().NotContain("Gestor CAE");
@@ -115,10 +121,10 @@ public partial class ClientesListaGen2Tests
         var cut = Renderizar(new MediatorFalso { Almacen = { ClienteConProblemas() } }, rol: rol);
 
         var acciones = cut.Find("header.cabecera-pagina .acciones-cabecera");
-        acciones.QuerySelectorAll("a.cabecera-listado-exportar").Should().ContainSingle();
+        acciones.QuerySelectorAll("a.cabecera-listado-icono").Should().ContainSingle();
         acciones.QuerySelector("button[aria-label=\"Atajos de teclado\"]").Should().NotBeNull();
         cut.Find(".cabecera-pagina button[aria-pressed]").Should().NotBeNull("seleccionar es lectura: el ☑ lo ven todos los roles");
-        cut.Find("header.cabecera-pagina .cabecera-pagina-kicker, header.cabecera-pagina h1").TextContent.Should().NotContain("Negocio");
+        cut.Find("header.cabecera-pagina h1").TextContent.Should().NotContain("Negocio");
     }
 
     // --- Lo que solo es de escritura -----------------------------------------------------------------
@@ -175,13 +181,22 @@ public partial class ClientesListaGen2Tests
 
         var lineas = contenido.QuerySelectorAll("li.centro-pendiente-cliente");
         lineas.Should().ContainSingle("solo se listan los Centros que piden trabajo: ni los vigentes ni los que no requieren gestión CAE");
-        lineas[0].Children.Select(h => h.LocalName).Should().Equal("span", "span", "span", "button");
+        // «Gestionar» solo lo ven los roles con escritura: quien consulta ve el estado y el motivo, sin el verbo.
+        var puedeGestionar = RolesConEscritura.Contains(rol);
+        lineas[0].Children.Select(h => h.LocalName).Should().Equal(puedeGestionar ? ["span", "span", "span", "button"] : ["span", "span", "span"]);
         lineas[0].QuerySelector(".centro-pendiente-nombre")!.TextContent.Trim().Should().Be("Sede Sevilla");
         lineas[0].QuerySelector(".badge")!.TextContent.Trim().Should().Be("Vencido");
         lineas[0].QuerySelector(".centro-pendiente-detalle")!.TextContent.Trim().Should().Be("1 vencido");
-        var gestionar = lineas[0].QuerySelectorAll("button").Should().ContainSingle("un solo verbo por Centro").Subject;
-        gestionar.TextContent.Trim().Should().Be("Gestionar");
-        gestionar.GetAttribute("data-accion").Should().Be("gestionar");
+        if (puedeGestionar)
+        {
+            var gestionar = lineas[0].QuerySelectorAll("button").Should().ContainSingle("un solo verbo por Centro").Subject;
+            gestionar.TextContent.Trim().Should().Be("Gestionar");
+            gestionar.GetAttribute("data-accion").Should().Be("gestionar");
+        }
+        else
+        {
+            lineas[0].QuerySelectorAll("button").Should().BeEmpty("Consulta no ve «Gestionar»");
+        }
         UltimaConsultaDeCentros(mediador).ClienteId.Should().Be(cliente.Id);
     }
 
@@ -209,12 +224,57 @@ public partial class ClientesListaGen2Tests
         mediador.CentrosConEstadoPorCliente[cliente.Id] = [CentroConEstado(cliente.Id, "Sede Sevilla", EstadoCentro.Vencido, vencidos: 1)];
         var cut = Renderizar(mediador);
 
-        await Tarjeta(cut, cliente.RazonSocial).QuerySelector("button.boton-expandir-fila")!.ClickAsync(new MouseEventArgs());
+        // La primera fila llega abierta y su petición es la que falla.
         cut.WaitForAssertion(() => cut.Find(".centros-desplegados-aviso").TextContent.Should().Contain("No pudimos cargar los centros"));
 
         await Tarjeta(cut, cliente.RazonSocial).QuerySelector("button.boton-expandir-fila")!.ClickAsync(new MouseEventArgs());
+        Tarjeta(cut, cliente.RazonSocial).QuerySelector(".tarjeta-fila-acordeon-contenido").Should().BeNull("recoger la fila olvida el fallo");
         var contenido = await Desplegar(cut, cliente.RazonSocial);
         contenido.QuerySelectorAll("li.centro-pendiente-cliente").Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// Como en la maqueta, la primera fila llega abierta (con sus Centros pedidos) y las demás, recogidas. Quien la recoge
+    /// la deja recogida: la regla se decide una sola vez, no en cada pintado.
+    /// </summary>
+    [Fact]
+    public async Task La_primera_fila_llega_abierta_y_las_demas_recogidas()
+    {
+        var primera = ClienteConProblemas();
+        var segunda = Cliente("Wayne Enterprises S.A.", centros: 2, peor: EstadoDocumento.Urgente, cantidad: 1);
+        var mediador = new MediatorFalso { Almacen = { primera, segunda } };
+        mediador.CentrosConEstadoPorCliente[primera.Id] = [CentroConEstado(primera.Id, "Sede Sevilla", EstadoCentro.Vencido, vencidos: 1)];
+        mediador.CentrosConEstadoPorCliente[segunda.Id] = [CentroConEstado(segunda.Id, "Planta Bilbao", EstadoCentro.Vencido, vencidos: 1)];
+        var cut = Renderizar(mediador);
+
+        cut.WaitForAssertion(() => Tarjeta(cut, primera.RazonSocial).QuerySelectorAll("li.centro-pendiente-cliente").Should().ContainSingle());
+        Tarjeta(cut, primera.RazonSocial).QuerySelector("button.boton-expandir-fila")!.GetAttribute("aria-expanded").Should().Be("true");
+        Tarjeta(cut, segunda.RazonSocial).QuerySelector("button.boton-expandir-fila")!.GetAttribute("aria-expanded").Should().Be("false");
+        Tarjeta(cut, segunda.RazonSocial).QuerySelector(".tarjeta-fila-acordeon-contenido").Should().BeNull("solo la primera llega abierta");
+
+        await Tarjeta(cut, primera.RazonSocial).QuerySelector("button.boton-expandir-fila")!.ClickAsync(new MouseEventArgs());
+
+        Tarjeta(cut, primera.RazonSocial).QuerySelector(".tarjeta-fila-acordeon-contenido").Should().BeNull("quien la recoge la deja recogida");
+    }
+
+    [Fact]
+    public void Si_la_primera_fila_no_tiene_Centros_que_enseñar_no_se_abre_ninguna()
+    {
+        var sinCentros = Cliente("Cyberdyne Ibérica S.A.", centros: 0, peor: EstadoDocumento.Vencido, cantidad: 2);
+        var conCentros = Cliente("Stark Industries S.A.", centros: 2, peor: EstadoDocumento.Urgente, cantidad: 1);
+        var cut = Renderizar(new MediatorFalso { Almacen = { sinCentros, conCentros } });
+
+        cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty("la primera fila no tiene qué desplegar y las demás no se abren por defecto");
+    }
+
+    [Fact]
+    public void Con_la_lista_vacia_no_hay_fila_que_abrir_ni_se_pide_ningun_Centro()
+    {
+        var mediador = new MediatorFalso();
+        var cut = Renderizar(mediador);
+
+        cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty();
+        mediador.Enviadas.OfType<ObtenerCentrosQuery>().Should().BeEmpty();
     }
 
     private static ObtenerCentrosQuery UltimaConsultaDeCentros(MediatorFalso mediador) =>

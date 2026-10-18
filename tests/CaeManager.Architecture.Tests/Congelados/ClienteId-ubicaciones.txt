@@ -453,6 +453,7 @@ src/CaeManager.Web/Features/Clientes/Pages/AltaGuiada.razor.cs :: clienteId = 21
 src/CaeManager.Web/Features/Clientes/Pages/AltaGuiada.razor.cs :: clienteIds = 6
 src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor :: ClienteId = 6
 src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor.cs :: ClienteId = 12
+src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor.cs :: ClienteId = 1
 src/CaeManager.Web/Features/Clientes/Pages/ConfiguracionIaCliente.razor :: ClienteId = 1
 src/CaeManager.Web/Features/Clientes/Pages/ConfiguracionIaCliente.razor.cs :: ClienteId = 7
 src/CaeManager.Web/Features/Clientes/Pages/ConfiguracionIaCliente.razor.cs :: clienteId = 15
