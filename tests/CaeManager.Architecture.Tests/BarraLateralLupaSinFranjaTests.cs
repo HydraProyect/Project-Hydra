@@ -57,8 +57,11 @@ public class BarraLateralLupaSinFranjaTests
         activas.Should().Contain(r => r.Cuerpo.Contains("font-weight: 600"), "peso, color y fondo la distinguen");
 
         activas.Where(r => r.Selector.EndsWith(".nav-item.active:hover")).Should().ContainSingle()
-            .Which.Cuerpo.Should().Contain("border-color: transparent",
-                "el hover genérico de .nav-item pinta un marco gris que el seleccionado no debe heredar");
+            .Which.Cuerpo.Should().Contain("background-color: var(--color-primary-50)",
+                "el seleccionado conserva su fondo al pasar el cursor (marco de Design, DDL-083)");
+        Reglas(Css).Where(r => r.Selector.EndsWith(".nav-item")).Should().OnlyContain(
+            r => !r.Cuerpo.Contains("border:") && !r.Cuerpo.Contains("border-color"),
+            "los enlaces del menú no llevan marco; el hover solo cambia el fondo (marco de Design, DDL-083)");
 
         foreach (var (selector, cuerpo) in activas)
         {
@@ -144,7 +147,9 @@ public class BarraLateralLupaSinFranjaTests
         }
 
         // Las entradas con autoridad propia no se ofrecen: no son del rol Administrador del hub.
-        catalogo.Should().NotContain("configuracion/plataforma").And.NotContain("configuracion/orden-menu")
+        // «Administración de plataforma» sí es un ENLACE del menú (solo con capacidad de plataforma), pero no una subopción de la lupa.
+        var subopciones = catalogo[catalogo.IndexOf("Subopciones { get; }", StringComparison.Ordinal)..];
+        subopciones.Should().NotContain("configuracion/plataforma").And.NotContain("configuracion/orden-menu")
             .And.NotContain("configuracion/organizacion").And.NotContain("configuracion/accesos-sensibles");
     }
 

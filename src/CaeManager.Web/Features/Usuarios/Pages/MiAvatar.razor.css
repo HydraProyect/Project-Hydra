@@ -309,6 +309,11 @@
     }
 }
 
+/* Barra de móvil (revisión de Design §B): oculta en escritorio; ahí manda CabeceraPagina. */
+.mi-emblema-barra-movil {
+    display: none;
+}
+
 /* ---------- Tableta: la rejilla fija de 8 × 52 px no cabe junto a la columna de 300 px; una sola columna ---------- */
 
 @media (max-width: 1023px) {
@@ -328,6 +333,37 @@
        de 44 px no cabe a 375 px. */
     .contenedor-pagina {
         padding: var(--space-4);
+    }
+
+    /* «‹ Mi avatar» en lugar de CabeceraPagina: 56 px, relleno 0 8 px, hueco 8 px, fondo de superficie y filete inferior. */
+    .mi-emblema-cabecera-escritorio {
+        display: none;
+    }
+
+    .mi-emblema-barra-movil {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        height: 56px;
+        margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
+        padding: 0 var(--space-2);
+        background-color: var(--color-surface);
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    .mi-emblema-barra-volver {
+        display: inline-grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        color: var(--color-text);
+        font: 400 22px/1 var(--font-family);
+        text-decoration: none;
+    }
+
+    .mi-emblema-barra-titulo {
+        font: var(--font-h4);
+        color: var(--color-text);
     }
 
     .mi-emblema {

@@ -87,9 +87,10 @@ else if (_grupos.Count > 0)
             @{ var claves = new ClavesDeHermanos(); }
             @foreach (var tramo in vista.Tramos)
             {
+                @* Entre tramos, el mismo punto medio que entre piezas (revisión de Design, DDL-083): ya no hay barra «|». *@
                 @if (!ReferenceEquals(tramo, vista.Tramos[0]))
                 {
-                    <span class="cabecera-gestor-cae-separador" aria-hidden="true">|</span>
+                    <span class="cabecera-gestor-cae-separador" aria-hidden="true">·</span>
                 }
                 @foreach (var pieza in tramo.Piezas)
                 {

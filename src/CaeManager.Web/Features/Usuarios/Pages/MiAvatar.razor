@@ -24,9 +24,16 @@
 <PageTitle>@Textos["AvatarTitulo"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <CabeceraPagina Titulo="@Textos["AvatarTitulo"]" Kicker="@Textos["AvatarKicker"]">
-        <Descripcion>@Textos["AvatarDescripcion"]</Descripcion>
-    </CabeceraPagina>
+    @* Móvil (revisión de Design §B): en lugar de la cabecera de página, una barra de 56 px con «‹» y el título. *@
+    <div class="mi-emblema-barra-movil">
+        <a class="mi-emblema-barra-volver" href="/" aria-label="@Textos["AvatarVolver"]"><span aria-hidden="true">‹</span></a>
+        <span class="mi-emblema-barra-titulo">@Textos["AvatarTitulo"]</span>
+    </div>
+    <div class="mi-emblema-cabecera-escritorio">
+        <CabeceraPagina Titulo="@Textos["AvatarTitulo"]" Kicker="@Textos["AvatarKicker"]">
+            <Descripcion>@Textos["AvatarDescripcion"]</Descripcion>
+        </CabeceraPagina>
+    </div>
 
     @if (_cargando)
     {

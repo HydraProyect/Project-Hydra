@@ -2,7 +2,6 @@ using System.Security.Claims;
 using CaeManager.Application.VistaDemo;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
-using CaeManager.Web.Features.IncorporacionCartera.Recursos;
 
 namespace CaeManager.Web.Components.Layout;
 
@@ -174,14 +173,15 @@ public static class CatalogoMenuLateral
         // el 2026-10-17 (entrega de Design): es pestaña de sección de Documentos.
         new("operacion", "Operación", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto)),
 
-        // Colapsado por defecto (informe de consolidación de menú, 2026-09-01 § 6): Control: Alertas,
-        // Facturación, Calendario y Reportes, y por el mandato del propietario del 2026-09-29
-        // cierra con Conectar extensión (Mi trabajo salió a Operación).
-        new("control", "Control", AbiertoPorDefecto: false, c => c.TieneAlgunRol(RolesConMenuCompleto)),
+        // Control: Alertas, Calendario, Reportes y Facturación, y por el mandato del propietario del
+        // 2026-09-29 cierra con Conectar extensión (Mi trabajo salió a Operación). Nace ABIERTO desde el
+        // 2026-10-18: en el marco de Design (marco-talveg.js, DDL-083) solo Administración y Plataforma
+        // llevan «closed»; el colapsado de Control venía del informe de consolidación de 2026-09-01.
+        new("control", "Control", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto)),
 
-        // Un único grupo visual para dos audiencias: DireccionCae solo ve Usuarios; solo
-        // Administrador ve el resto (Condicion de cada enlace).
-        new("administracion", "Administración", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesDeAdministracionAmpliada)),
+        // Un único grupo visual para dos audiencias: DireccionCae solo ve Equipo; solo
+        // Administrador ve el resto (Condicion de cada enlace). Nace colapsado (marco de Design, DDL-083).
+        new("administracion", "Administración", AbiertoPorDefecto: false, c => c.TieneAlgunRol(RolesDeAdministracionAmpliada)),
 
         // Delegaciones y Estado comercial: fuera de "administracion" a propósito (#401/#403,
         // revisión adversarial de Codex). Ambas páginas se autorizan por CAPACIDAD (`[Authorize]`
@@ -192,7 +192,7 @@ public static class CatalogoMenuLateral
         // audiencia y Estado comercial es solo de plataforma (su Query falla cerrado a lista vacía
         // sin la capacidad): comparten el mismo gate aceptando que un Administrador normal vea
         // "Estado comercial" vacío.
-        new("plataforma", "Plataforma", AbiertoPorDefecto: true,
+        new("plataforma", "Plataforma", AbiertoPorDefecto: false,
             c => c.Usuario.Identity?.IsAuthenticated == true
                  && (c.TieneAlgunRol(Roles.Administrador) || c.EsAdministradorPlataforma)),
     ];
@@ -202,12 +202,9 @@ public static class CatalogoMenuLateral
         new("dashboard", "dashboards", "", "inicio", "Inicio", CoincidenciaExacta: true),
         new("vision-cartera", "dashboards", "vision-cartera", "cartera", "Visión de cartera",
             Condicion: c => c.TieneAlgunRol(RolesDeCartera)),
-        // Rótulo localizado (TextosIncorporacionCartera), a diferencia de sus vecinos todavía literales:
-        // lo da RotuloPorContexto, así que el Rotulo fijo queda vacío.
-        new("solicitudes-cartera", "dashboards", "cartera/solicitudes", "solicitud", "",
-            // Por el rol en el tenant de origen, no por IsInRole (ver ParticipaEnIncorporacionCartera).
-            Condicion: c => c.ParticipaEnIncorporacionCartera,
-            RotuloPorContexto: _ => TextosIncorporacionCartera.Texto("EnlaceMenu")),
+        // «Solicitudes de cartera» (/cartera/solicitudes) ya NO tiene enlace en el menú (2026-10-18): el
+        // marco de Design (marco-talveg.js, DDL-083) no lo trae en Dashboards. La ruta sigue funcionando:
+        // CabeceraGestorCae enlaza a ella y RutasIncorporacionCartera.Bandeja la usa para los avisos.
         // Entrega de Design del 2026-10-17: «Dashboard Ejecutivo» pasa a llamarse «Cuadro de dirección»
         // y su ruta de diseño es /direccion. Esa pantalla nueva aún no existe: el rótulo cambia ya, y el
         // enlace sigue en la ruta de la pantalla actual (que es la que el Cuadro sustituirá). Mismo Id,
@@ -289,12 +286,23 @@ public static class CatalogoMenuLateral
         new("usuarios", "administracion", "usuarios", "usuarios", "Equipo"),
         new("configuracion", "administracion", "configuracion", "configuracion", "Configuración",
             Condicion: c => c.TieneAlgunRol(Roles.Administrador)),
-        new("verificacion-dos-pasos", "administracion", "cuenta/configurar-2fa", "seguridad", "Verificación en dos pasos",
+        // «Auditoría» (marco de Design, DDL-083): tercera entrada de Administración. Misma ruta y misma
+        // autorización de siempre (/auditoria es solo del Administrador); también sigue siendo un panel
+        // de Configuración. «Verificación en dos pasos» salió del menú: en el marco es la entrada «Mi cuenta»
+        // de Configuración, que ya lleva a cuenta/configurar-2fa.
+        new("auditoria", "administracion", "auditoria", "auditoria", "Auditoría",
             Condicion: c => c.TieneAlgunRol(Roles.Administrador)),
 
+        // Plataforma, en el orden del marco de Design: Administración de plataforma, Delegaciones, Estado
+        // comercial y Estado del sistema. «Estado del sistema» NO tiene enlace: no hay pantalla que lo respalde
+        // (pantalla por construir). «Conectores CAE» no está en el marco, pero es una función existente: se
+        // conserva al final.
+        // Solo con capacidad de plataforma: la pantalla se autoriza por capacidad y un Administrador normal no tiene nada que hacer allí.
+        new("plataforma-administracion", "plataforma", "configuracion/plataforma", "plataforma", "Administración de plataforma",
+            Condicion: c => c.EsAdministradorPlataforma),
         new("delegaciones", "plataforma", "delegaciones", "delegacion", "Delegaciones"),
         new("estado-comercial", "plataforma", "configuracion/comercial", "etiqueta", "Estado comercial"),
-        new("conectores-cae", "plataforma", "plataforma/conectores-cae", "plataforma", "Conectores CAE"),
+        new("conectores-cae", "plataforma", "plataforma/conectores-cae", "importar", "Conectores CAE"),
     ];
 
     /// <summary>

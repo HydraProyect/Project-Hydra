@@ -60,8 +60,16 @@ html[data-menu-compacto] .marca {
     padding: 0;
 }
 
-html[data-menu-compacto] .marca .marca-wordmark {
+html[data-menu-compacto] .marca .marca-wordmark,
+html[data-menu-compacto] .marca .marca-etiqueta {
     display: none;
+}
+
+/* Marco de Design (html[data-tv-rail] .tvm-logo::after): con la barra compacta solo queda la T. */
+html[data-menu-compacto] .marca::after {
+    content: 'T';
+    font: 500 22px/1 Georgia, 'Times New Roman', serif;
+    color: var(--color-text);
 }
 
 /* El selector de empresa gestionada no cabe en 64px: se ofrece al ensanchar la barra. */
@@ -86,41 +94,16 @@ html[data-menu-compacto] .barra-lateral > ::deep :not(.marca):not(nav) {
 
 .marca-wordmark {
     flex-shrink: 0;
-    display: block;
-    height: 22px;
-    width: auto;
+    /* Marco de Design (.tvm-marca, marco-talveg.js): texto en Georgia 22 px, tracking .06em; la V en verde. */
+    font: 500 22px/1 Georgia, 'Times New Roman', serif;
+    letter-spacing: .06em;
+    color: var(--color-text);
+    white-space: nowrap;
 }
 
-/*
-  .barra-lateral usa --color-surface, que cambia de blanco (tema claro) a
-  #18222E (tema oscuro, ver tokens.css): un solo wordmark estático se
-  volvería invisible en uno de los dos fondos, así que se alterna entre
-  lockup-claro.svg y lockup-oscuro.svg.
-
-  Por defecto (sin data-theme='oscuro' explícito) se ve el claro. Cubre el
-  primer render, antes de que el script de SelectorTema escriba data-theme
-  en <html>, y también "sistema": tokens.css apaga a propósito el
-  seguimiento automático de prefers-color-scheme para sus propios tokens
-  (ver su comentario "Selector de tema manual"), así que --color-surface
-  se queda en blanco en "sistema" con independencia del sistema operativo.
-  Un @media (prefers-color-scheme: dark) aquí mostraría el wordmark claro
-  de tinta marfil/celeste sobre ese fondo blanco — casi invisible; hallazgo
-  de la revisión de Codex sobre la primera versión de este cambio, corregido
-  quitando esa media query en vez de limitarla. El día que se retome el
-  seguimiento automático del sistema (comentario de tokens.css, sección
-  ":root[data-theme='oscuro']"), esta regla necesitará el mismo tratamiento
-  para no repetir el defecto.
-*/
-.marca-wordmark-oscuro {
-    display: none;
-}
-
-:root[data-theme='oscuro'] .marca-wordmark-claro {
-    display: none;
-}
-
-:root[data-theme='oscuro'] .marca-wordmark-oscuro {
-    display: block;
+.marca-wordmark b {
+    font-weight: 500;
+    color: var(--color-success-700);
 }
 
 /* Etiqueta "CAE" junto al wordmark. Texto real, no una imagen, para que un
@@ -137,7 +120,7 @@ html[data-menu-compacto] .barra-lateral > ::deep :not(.marca):not(nav) {
     color: var(--color-text-muted);
     border: var(--border-default);
     border-radius: 4px;
-    padding: 3px 5px;
+    padding: 4px 6px;
 }
 
 .area-principal {

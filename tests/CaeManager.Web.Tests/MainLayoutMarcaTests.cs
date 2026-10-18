@@ -58,38 +58,22 @@ public class MainLayoutMarcaTests : BunitContext
     }
 
     [Fact]
-    public void El_wordmark_sustituye_al_texto_y_la_etiqueta_CAE_va_a_su_lado()
+    public void La_marca_es_texto_real_con_la_V_resaltada_y_la_etiqueta_CAE_va_a_su_lado()
     {
         var cut = Render<MainLayout>();
 
         var marca = cut.Find("div.marca");
 
-        marca.TextContent.Trim().Should().Be("CAE",
-            "el texto \"CAE Manager\" se sustituye por el wordmark: solo debe quedar texto real en la etiqueta");
-        marca.TextContent.Should().NotContain(Marca.PorDefecto,
-            "la opción D reemplaza el nombre en texto por el wordmark, a diferencia de la opción del símbolo");
+        string.Join(' ', marca.TextContent.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Should().Be("TALVEG CAE",
+            "marco de Design (DDL-083): TALVEG en texto real y la etiqueta CAE; ya no hay wordmark en imagen");
+        marca.QuerySelectorAll("img").Should().BeEmpty("la marca no es una imagen");
 
-        var wordmarks = marca.QuerySelectorAll("img.marca-wordmark");
-        wordmarks.Should().HaveCount(2);
-        wordmarks.Should().OnlyContain(img => img.GetAttribute("alt") == "TALVEG",
-            "sin un texto de marca al lado, el wordmark ya no es decorativo: debe anunciarse");
+        var texto = cut.Find("div.marca span.marca-wordmark");
+        texto.TextContent.Should().Be("TALVEG");
+        texto.QuerySelector("b")!.TextContent.Should().Be("V", "la V va resaltada, como en marco-talveg.js");
 
         var etiqueta = cut.Find("span.marca-etiqueta");
         etiqueta.TextContent.Should().Be("CAE", "la etiqueta es texto real, no una imagen");
-    }
-
-    [Fact]
-    public void Las_dos_variantes_del_wordmark_estan_presentes_para_alternar_por_tema()
-    {
-        var cut = Render<MainLayout>();
-
-        var imagenes = cut.FindAll("div.marca img");
-
-        imagenes.Should().HaveCount(2, "una variante para fondo claro y otra para fondo oscuro");
-        imagenes.Should().Contain(img =>
-            img.ClassList.Contains("marca-wordmark-claro") && img.GetAttribute("src") == "img/marca/talveg-lockup-claro.svg");
-        imagenes.Should().Contain(img =>
-            img.ClassList.Contains("marca-wordmark-oscuro") && img.GetAttribute("src") == "img/marca/talveg-lockup-oscuro.svg");
     }
 
     private static UserManager<ApplicationUser> CrearUsuariosSinAlmacen() => new(

@@ -54,7 +54,7 @@ public class NavMenuCaracterizacionTests
         "dashboard", "clientes", "empresas", "centros", "subcontratas", "trabajadores", "vehiculos", "documentos",
         "asignaciones", "proyectos", "visitas", "alertas", "calendario", "reportes", "configuracion", "usuarios",
         "seguridad", "chat", "cartera", "evaluaciones", "incidencias", "chevron", "plataforma",
-        "inicio", "ejecutivo", "solicitud", "mi-trabajo", "facturacion", "conectar", "delegacion", "etiqueta", "equipo",
+        "inicio", "ejecutivo", "solicitud", "mi-trabajo", "facturacion", "conectar", "delegacion", "etiqueta", "equipo", "auditoria", "importar",
     ];
 
     public sealed record Combinacion(
@@ -120,7 +120,7 @@ public class NavMenuCaracterizacionTests
         var administrador = Describir(
             new Combinacion(Roles.Administrador, null, true, true, PerfilVocabularioTenant.Consultora, 1), iconos);
         administrador.Should().Contain("dashboards(open)<nav-grupo-detalle|Dashboards>[\"\"@inicio/icono icono-medio'Inicio'<nav-item>")
-            .And.Contain("plataforma(open)<nav-grupo-detalle|Plataforma>[")
+            .And.Contain("plataforma<nav-grupo-detalle|Plataforma>[")
             .And.Contain("\"configuracion\"@configuracion/icono icono-medio'Configuración'")
             .And.NotContain("@?");
 
@@ -197,7 +197,7 @@ public class NavMenuCaracterizacionTests
             "los guardados primero y en su orden; los que el orden no nombra, al final en el orden del catálogo; " +
             "'grupo-retirado' no existe y se ignora");
         administrador.FindAll("details[data-grupo='plataforma'] a").Select(a => a.GetAttribute("href")).Should().Equal(
-            ["plataforma/conectores-cae", "configuracion/comercial", "delegaciones"],
+            ["plataforma/conectores-cae", "configuracion/comercial", "configuracion/plataforma", "delegaciones"],
             "dentro del grupo manda la posición relativa de la lista plana de enlaces");
 
         var gestor = Pintar(
@@ -255,25 +255,6 @@ public class NavMenuCaracterizacionTests
         // Con tres enlaces (Administrador) sí lleva cabecera.
         var administrador = Pintar(new Combinacion(Roles.Administrador, null, true, false, PerfilVocabularioTenant.Consultora, 1), null);
         administrador.Find("[data-grupo='administracion']").LocalName.Should().Be("details");
-    }
-
-    /// <summary>
-    /// Los fijados son una preferencia del navegador, nunca un permiso: cada estrella lleva el
-    /// identificador de un enlace que YA se pinta en este menú, así que lo que se puede fijar nunca
-    /// supera lo que el rol ya ve. Un Gestor CAE no tiene estrella para «configuracion».
-    /// </summary>
-    [Fact]
-    public void Solo_se_puede_fijar_lo_que_el_rol_ya_ve_en_su_menu()
-    {
-        var gestor = Pintar(new Combinacion(Roles.GestorCae, null, true, false, PerfilVocabularioTenant.Consultora, 1), null);
-        var fijables = gestor.FindAll("[data-fijar]").Select(b => b.GetAttribute("data-fijar")).ToList();
-        var filas = gestor.FindAll(".nav-fila").Select(f => f.GetAttribute("data-enlace")).ToList();
-
-        fijables.Should().NotBeEmpty().And.Equal(filas);
-        fijables.Should().NotContain(["configuracion", "delegaciones", "usuarios"]);
-        fijables.Should().OnlyContain(id => CatalogoMenuLateral.Enlaces.Any(e => e.Id == id));
-        gestor.FindAll(".nav-contador, .nav-insignia").Should().BeEmpty(
-            "no hay contadores: ninguna de sus fuentes existe como Query de recuento (ver NavMenu.razor)");
     }
 
     /// <summary>

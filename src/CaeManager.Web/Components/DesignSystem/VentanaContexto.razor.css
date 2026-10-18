@@ -174,6 +174,22 @@
 .ventana-contexto-interactiva > .ventana-contexto-panel {
     min-width: 220px;
     max-width: 340px;
+    /* Diálogo de la revisión de Design (DDL-083): radio --radius-lg y sin relleno propio; el título, las filas
+       (8/16) y el pie (12/16) lo llevan por su cuenta. */
+    padding: 0;
+    border-radius: var(--radius-lg);
+}
+
+.ventana-contexto-interactiva .ventana-contexto-titulo {
+    margin-bottom: 0;
+    padding: 14px 16px 10px;
+    font-size: 14px;
+}
+
+.ventana-contexto-interactiva .ventana-contexto-pie {
+    margin-top: var(--space-1);
+    padding: 12px 16px;
+    border-top: 1px solid var(--color-border);
 }
 
 /*
