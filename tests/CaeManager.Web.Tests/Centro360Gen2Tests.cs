@@ -537,6 +537,31 @@ public partial class Centro360Gen2Tests : BunitContext
         cut.FindAll(".cabecera-identidad-acciones button").Any(b => b.TextContent.Trim() == "Programar visita").Should().Be(escribe);
     }
 
+    /// <summary>
+    /// Sin las pastillas de motivos, el bloque «Empresa» del acordeón es el único camino de Centro 360 para ver las causas de
+    /// ámbito Empresa, también la de plataforma con Estado null (rechazo en la plataforma). Si la página dejara de pasarle
+    /// <c>IncidenciasEmpresa</c>, esas causas desaparecerían de la pantalla sin aviso.
+    /// </summary>
+    [Fact]
+    public void Las_causas_de_ambito_Empresa_se_ven_en_el_acordeon_tambien_la_de_plataforma_sin_estado()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte", vencidas:
+        [
+            Incidencia("Seguro de responsabilidad civil", AmbitoCausa.Empresa) with { TrabajadorId = null },
+            Incidencia("Rechazo en plataforma: falta la firma", AmbitoCausa.Empresa) with { Estado = null, TrabajadorId = null },
+            Incidencia("Formación de Juan", AmbitoCausa.Trabajador)
+        ]);
+
+        var cut = Renderizar(id);
+
+        var bloque = cut.WaitForElement("[data-bloque-empresa]");
+        bloque.TextContent.Should().Contain("Seguro de responsabilidad civil").And.Contain("Rechazo en plataforma: falta la firma")
+            .And.Contain("2 doc.").And.NotContain("Formación de Juan", "las causas de Trabajador van en la fila de su Trabajador");
+    }
+
     [Fact]
     public void Un_centro_con_gestion_cae_conserva_el_anillo_y_no_se_rotula_sin_gestion()
     {
