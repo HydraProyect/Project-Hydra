@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaVisita;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Domain.Comunicaciones;
@@ -6,17 +7,44 @@ using Xunit;
 
 namespace CaeManager.Application.Tests.Comunicaciones;
 
+/// <summary>
+/// Descartar una sugerencia de Visita exige alcanzar la Conversación del mensaje que la originó: el mismo criterio con
+/// el que ObtenerConversacionPorIdQuery la enseña. Un Gestor CAE con Asignación de Cartera explícita no la retira de la
+/// Bandeja de otra cartera conociendo su Guid, y fuera de alcance recibe lo mismo que si no existiera.
+/// </summary>
 public class DescartarSugerenciaVisitaCorreoCommandHandlerTests
 {
+    private readonly Guid _clienteDeMiCartera = Guid.NewGuid();
+    private readonly Guid _clienteDeOtraCartera = Guid.NewGuid();
+    private readonly ComunicacionesQueryContextFalso _contexto = new();
+    private readonly SugerenciaVisitaCorreoRepositorioFalso _repositorio = new();
+    private readonly UnitOfWorkFalso _unitOfWork = new();
+
+    private SugerenciaVisitaCorreo SembrarEnConversacionDe(Guid clienteId)
+    {
+        var conversacion = new Conversacion("Visita el lunes", clienteId: clienteId);
+        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "obra@contraparte.es", "<p>El lunes vamos.</p>");
+        var sugerencia = new SugerenciaVisitaCorreo(mensaje.Id, null, null, null, "Resumen", 90, 0, 0);
+
+        _contexto.ListaConversaciones.Add(conversacion);
+        _contexto.ListaMensajes.Add(mensaje);
+        _contexto.ListaSugerenciasVisitaCorreo.Add(sugerencia);
+        _repositorio.Agregar(sugerencia);
+        return sugerencia;
+    }
+
+    private DescartarSugerenciaVisitaCorreoCommandHandler Crear(IAlcanceDatosService alcance) =>
+        new(_repositorio, _contexto, alcance, new CurrentUserServiceFalso(), _unitOfWork);
+
+    private AlcanceDatosServiceFalso GestorConCarteraExplicita() =>
+        new(tieneAccesoTotal: false, clienteIdsVisibles: [_clienteDeMiCartera]);
+
     [Fact]
     public async Task Marca_la_sugerencia_como_resuelta()
     {
-        var sugerencia = new SugerenciaVisitaCorreo(Guid.NewGuid(), null, null, null, "Resumen", 90, 0, 0);
-        var repositorio = new SugerenciaVisitaCorreoRepositorioFalso();
-        repositorio.Agregar(sugerencia);
-        var handler = new DescartarSugerenciaVisitaCorreoCommandHandler(repositorio, new CurrentUserServiceFalso(), new UnitOfWorkFalso());
+        var sugerencia = SembrarEnConversacionDe(_clienteDeMiCartera);
 
-        var resultado = await handler.Handle(new DescartarSugerenciaVisitaCorreoCommand(sugerencia.Id), CancellationToken.None);
+        var resultado = await Crear(new AlcanceDatosServiceFalso()).Handle(new DescartarSugerenciaVisitaCorreoCommand(sugerencia.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         sugerencia.Resuelta.Should().BeTrue();
@@ -26,11 +54,59 @@ public class DescartarSugerenciaVisitaCorreoCommandHandlerTests
     [Fact]
     public async Task Falla_si_la_sugerencia_no_existe()
     {
-        var handler = new DescartarSugerenciaVisitaCorreoCommandHandler(new SugerenciaVisitaCorreoRepositorioFalso(), new CurrentUserServiceFalso(), new UnitOfWorkFalso());
-
-        var resultado = await handler.Handle(new DescartarSugerenciaVisitaCorreoCommand(Guid.NewGuid()), CancellationToken.None);
+        var resultado = await Crear(new AlcanceDatosServiceFalso()).Handle(new DescartarSugerenciaVisitaCorreoCommand(Guid.NewGuid()), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("SugerenciaVisitaCorreo.NoEncontrada");
+    }
+
+    [Fact]
+    public async Task Un_Gestor_con_cartera_explicita_no_descarta_la_de_otra_cartera_y_recibe_lo_mismo_que_si_no_existiera()
+    {
+        var ajena = SembrarEnConversacionDe(_clienteDeOtraCartera);
+
+        var resultado = await Crear(GestorConCarteraExplicita()).Handle(new DescartarSugerenciaVisitaCorreoCommand(ajena.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("SugerenciaVisitaCorreo.NoEncontrada", "fuera de cartera no se delata que existe");
+        ajena.Resuelta.Should().BeFalse();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Un_Gestor_con_cartera_explicita_descarta_la_de_su_cartera()
+    {
+        var propia = SembrarEnConversacionDe(_clienteDeMiCartera);
+
+        var resultado = await Crear(GestorConCarteraExplicita()).Handle(new DescartarSugerenciaVisitaCorreoCommand(propia.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        propia.Resolucion.Should().Be(ResolucionSugerencia.Descartada);
+        _unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Sin_restriccion_de_cartera_descarta_la_de_cualquier_Cliente_empresarial()
+    {
+        var ajena = SembrarEnConversacionDe(_clienteDeOtraCartera);
+
+        var resultado = await Crear(new AlcanceDatosServiceFalso(tieneAccesoTotal: true)).Handle(
+            new DescartarSugerenciaVisitaCorreoCommand(ajena.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        ajena.Resolucion.Should().Be(ResolucionSugerencia.Descartada);
+    }
+
+    [Fact]
+    public async Task Sin_mensaje_ni_conversacion_que_la_respalde_falla_cerrado()
+    {
+        var huerfana = new SugerenciaVisitaCorreo(Guid.NewGuid(), null, null, null, "Resumen", 90, 0, 0);
+        _contexto.ListaSugerenciasVisitaCorreo.Add(huerfana);
+        _repositorio.Agregar(huerfana);
+
+        var resultado = await Crear(new AlcanceDatosServiceFalso()).Handle(new DescartarSugerenciaVisitaCorreoCommand(huerfana.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        huerfana.Resuelta.Should().BeFalse();
     }
 }
