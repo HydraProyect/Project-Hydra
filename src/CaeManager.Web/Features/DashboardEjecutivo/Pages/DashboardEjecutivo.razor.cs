@@ -19,12 +19,11 @@ namespace CaeManager.Web.Features.DashboardEjecutivo.Pages;
 /// <b>Dos alcances distintos en la misma pantalla, y se dicen.</b>
 /// <see cref="ObtenerDashboardEjecutivoQuery"/> hace fan-out por organización
 /// autorizada (tenant de origen más los Delegated Workspaces activos) y fusiona
-/// en memoria. Las otras dos consultas —
-/// <see cref="ObtenerEstadisticasAprobacionDocumentoQuery"/> y
-/// <see cref="ObtenerDesgloseDashboardQuery"/>— se piden SIN
-/// <c>AmbitoTenantExplicito</c>, así que responden con el filtro global del
-/// tenant activo: son de UNA organización. Mientras la consulta no recorra las
-/// demás, lo que sale de ellas se rotula como tal
+/// en memoria. La otra consulta —
+/// <see cref="ObtenerEstadisticasAprobacionDocumentoQuery"/>— se pide SIN
+/// <c>AmbitoTenantExplicito</c>, así que responde con el filtro global del
+/// tenant activo: es de UNA organización. Mientras la consulta no recorra las
+/// demás, lo que sale de ella se rotula como tal
 /// (<see cref="AvisoSoloOrganizacionActiva"/>) en vez de presentarse junto a
 /// sumas de varias como si midiera lo mismo.
 /// </para>
@@ -76,7 +75,6 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
     private bool _guardando;
 
     private EstadisticasAprobacionDocumentoDto? _estadisticasAprobacion;
-    private IReadOnlyList<RiesgoEmpresaDto> _empresasEnRiesgo = [];
 
     /// <summary>
     /// El rango que de verdad viajó en la petición cuya respuesta se está
@@ -187,13 +185,11 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
         IReadOnlyList<string> seleccion;
         DashboardEjecutivoDto valores;
         EstadisticasAprobacionDocumentoDto estadisticasAprobacion;
-        DesgloseDashboardDto desglose;
         try
         {
             seleccion = await Mediator.Send(new ObtenerPreferenciaDashboardQuery(), token);
             valores = await Mediator.Send(new ObtenerDashboardEjecutivoQuery(periodo), token);
             estadisticasAprobacion = await Mediator.Send(new ObtenerEstadisticasAprobacionDocumentoQuery(), token);
-            desglose = await Mediator.Send(new ObtenerDesgloseDashboardQuery(), token);
         }
         catch (Exception ex)
         {
@@ -210,7 +206,6 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
         _seleccionEnEdicion = [.. seleccion];
         _valores = valores;
         _estadisticasAprobacion = estadisticasAprobacion;
-        _empresasEnRiesgo = desglose.EmpresasEnRiesgo;
     }
 
     // ---------------------------------------------------------------- selección
@@ -414,15 +409,14 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
     /// misma forma de defecto: una cifra presentada bajo un alcance que no es el suyo.
     /// </summary>
     /// <summary>
-    /// Los dos KPI que NO salen del fan-out: «Empresas con más riesgo» viene de
-    /// <see cref="ObtenerDesgloseDashboardQuery"/> y el reparto automáticas/manuales
-    /// de <see cref="ObtenerEstadisticasAprobacionDocumentoQuery"/>, y la pantalla
-    /// pide las dos sin <c>AmbitoTenantExplicito</c>. El resto sí recorre las
+    /// El KPI que NO sale del fan-out: el reparto automáticas/manuales viene de
+    /// <see cref="ObtenerEstadisticasAprobacionDocumentoQuery"/>, que la pantalla
+    /// pide sin <c>AmbitoTenantExplicito</c>. El resto sí recorre las
     /// organizaciones autorizadas: rotularlas también sería el defecto simétrico,
     /// advertir de un límite que no tienen.
     /// </summary>
     private static bool SaleDeUnaSolaOrganizacion(string codigo) =>
-        codigo is CatalogoKpis.EmpresasConMasRiesgo or CatalogoKpis.AutomaticoVsManual;
+        codigo is CatalogoKpis.AutomaticoVsManual;
 
     private string? AvisoAlcanceKpi(DefinicionKpi kpi)
     {
@@ -764,7 +758,4 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
     private string DetalleCosteIa => TenantsConPresupuestoIaExcedido.Count == 0
         ? Textos["DetalleCosteIaDentro", _valores!.CosteIaMesActual, Organizaciones].Value
         : Textos["DetalleCosteIaExcedido", _valores!.CosteIaMesActual, Organizaciones, TenantsConPresupuestoIaExcedido.Count].Value;
-
-    private string DetalleFacturacion =>
-        Textos["DetalleFacturacionPeriodo", _valores!.FacturacionEstimadaMesActual, Organizaciones];
 }
