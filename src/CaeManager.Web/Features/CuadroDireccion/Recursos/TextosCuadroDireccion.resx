@@ -868,6 +868,9 @@
     <value>mediana {0}</value>
   </data>
   <data name="ExtranjerosTip" xml:space="preserve">
-    <value>Trabajadores con NIE, TIE u otro documento que no es DNI. En la Comparativa, los del último mes del tramo.</value>
+    <value>Trabajadores con NIE, TIE u otro documento que no es DNI.</value>
+  </data>
+  <data name="ColumnaGestionesExtranjeros" xml:space="preserve">
+    <value>Gestiones de extranjeros</value>
   </data>
 </root>

@@ -1147,12 +1147,12 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         return meses.Length == 0 || ImporteAnual(meses) == 0 ? Textos["SinDato"].Value : Importe(ImporteAnual(meses) / (empresas * meses.Length), MonedaAnual);
     }
 
-    /// <summary>
-    /// Trabajadores con documento de extranjero (NIE, TIE u otro que no sea DNI) al final del tramo: es una existencia,
-    /// no un flujo, así que no se suma mes a mes. Sin medida en ese mes (un cierre anterior), sin dato.
-    /// </summary>
-    private string ExtranjerosAcumulados(PuntoSerieCuadroDto[] meses) =>
-        meses.Length > 0 && meses[^1].Cifras.Extranjeros is { } extranjeros ? Numero(extranjeros.Valor) : Textos["SinDato"].Value;
+    /// <summary>Gestiones de extranjeros del tramo (visitas facturables de Trabajador extranjero, la misma medida que el KPI); sin tarifa de visita no hay dato.</summary>
+    private string ExtranjerosAcumulados(PuntoSerieCuadroDto[] meses)
+    {
+        var visitas = meses.Sum(m => m.UnidadesDe(ConceptoFacturable.VisitaTrabajadorExtranjero));
+        return visitas > 0 ? Numero(visitas) : Textos["SinDato"].Value;
+    }
 
     private void CambiarMetrica(string metrica) => _metrica = metrica;
 

@@ -231,7 +231,7 @@ public partial class CuadroDireccionTests
     }
 
     [Fact]
-    public void La_comparativa_anual_cuenta_los_Trabajadores_extranjeros_del_ultimo_mes_del_tramo_y_no_los_suma_mes_a_mes()
+    public void La_comparativa_anual_cuenta_gestiones_de_extranjeros_y_no_Trabajadores_extranjeros()
     {
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _,
             serie: q => q.Meses == 24 ? DosAnyos(true) : SerieDe(i => Cifras(EstadoCifraMensual.Estimado, 25)));
@@ -240,11 +240,11 @@ public partial class CuadroDireccionTests
 
         cut.WaitForAssertion(() =>
         {
-            var celdas = cut.Find("[data-tabla=comparativa] tbody tr").QuerySelectorAll("td").Select(c => c.TextContent.Trim()).ToList();
-            celdas[5].Should().Be("7", "existencia a fin del tramo (7 cada mes), no 7 por los meses del tramo");
+            var tabla = cut.Find("[data-tabla=comparativa]");
+            tabla.QuerySelectorAll("th").Select(h => h.TextContent.Trim()).Should().Contain("Gestiones de extranjeros");
+            tabla.QuerySelector("tbody tr")!.QuerySelectorAll("td")[5].TextContent.Trim().Should().Be("—", "sin tarifa de visita de Trabajador extranjero no hay gestiones que contar; los 7 Trabajadores extranjeros solo van en la Cartera");
         });
     }
-
     [Fact]
     public void El_indice_de_cartera_pinta_una_barra_por_Gestor_CAE_con_la_media_marcada()
     {
