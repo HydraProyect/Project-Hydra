@@ -341,12 +341,6 @@ src/CaeManager.Web/Features/Documentos/Recursos/TextosDocumentos.resx :: Confirm
 src/CaeManager.Web/Features/Documentos/Recursos/TextosDocumentos.resx :: ToastLoteRestaurados = 1
 src/CaeManager.Web/Features/Documentos/Recursos/TextosDocumentos.resx :: ToastLoteRestauradosConErrores = 1
 src/CaeManager.Web/Features/Documentos/Recursos/TextosFirmaEnCampo.resx :: DescripcionSinFirmas = 1
-src/CaeManager.Web/Features/Documentos/Recursos/TextosSubidaMasiva.resx :: ArchivoSuperaLimite = 1
-src/CaeManager.Web/Features/Documentos/Recursos/TextosSubidaMasiva.resx :: IndicacionLimites = 1
-src/CaeManager.Web/Features/Documentos/Recursos/TextosSubidaMasiva.resx :: SalirDescartar = 1
-src/CaeManager.Web/Features/Documentos/Recursos/TextosSubidaMasiva.resx :: SalirMensaje = 1
-src/CaeManager.Web/Features/Documentos/Recursos/TextosSubidaMasiva.resx :: SalirSeguir = 1
-src/CaeManager.Web/Features/Documentos/Recursos/TextosSubidaMasiva.resx :: SalirTitulo = 1
 src/CaeManager.Web/Features/Empresas/Recursos/TextosEmpresas.resx :: ToastLoteRestaurados = 1
 src/CaeManager.Web/Features/Empresas/Recursos/TextosEmpresas.resx :: ToastLoteRestauradosConErrores = 1
 src/CaeManager.Web/Features/Gestiones/Recursos/TextosGestiones.resx :: AccionMarcarCompletada = 1
