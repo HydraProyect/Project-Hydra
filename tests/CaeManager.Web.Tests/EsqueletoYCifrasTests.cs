@@ -50,6 +50,20 @@ public class EsqueletoYCifrasTests : BunitContext
     }
 
     [Fact]
+    public void El_brillo_usa_los_tokens_por_tema_del_esqueleto_y_no_un_neutro_fijo()
+    {
+        var hoja = File.ReadAllText(Ruta("src", "CaeManager.Web", "Components", "DesignSystem", "Esqueleto.razor.css"));
+        var estado = File.ReadAllText(Ruta("src", "CaeManager.Web", "Components", "DesignSystem", "EstadoCargando.razor.css"));
+        var tokens = File.ReadAllText(Ruta("src", "CaeManager.Web", "wwwroot", "css", "tokens.css"));
+
+        hoja.Should().Contain("var(--color-esqueleto-base)").And.Contain("var(--color-esqueleto-brillo)");
+        estado.Should().Contain("var(--color-esqueleto-base)").And.Contain("var(--color-esqueleto-brillo)");
+        // Claro, oscuro por preferencia del sistema y oscuro forzado: un par en cada uno.
+        System.Text.RegularExpressions.Regex.Matches(tokens, @"--color-esqueleto-base:").Count.Should().BeGreaterThanOrEqualTo(3);
+        System.Text.RegularExpressions.Regex.Matches(tokens, @"--color-esqueleto-brillo:").Count.Should().BeGreaterThanOrEqualTo(3);
+    }
+
+    [Fact]
     public void El_fundido_de_entrada_del_contenido_es_global_con_tokens_y_se_apaga_con_movimiento_reducido()
     {
         var css = File.ReadAllText(Ruta("src", "CaeManager.Web", "wwwroot", "css", "base.css"));

@@ -38,7 +38,7 @@
     wwwroot/js/ventana-contexto.js, delegado en window, porque el estado
     abierto vive en CSS y Blazor no lo conoce.
 *@
-<span class="ventana-contexto @(Deshabilitada ? "ventana-contexto-inerte" : null) @(EsInteractiva ? "ventana-contexto-interactiva" : null) @ClaseColocacion @ClaseLlamador"
+<span class="ventana-contexto @(Deshabilitada ? "ventana-contexto-inerte" : null) @(EsInteractiva ? "ventana-contexto-interactiva" : null) @(HojaEnMovil ? "ventana-contexto-hoja" : null) @ClaseColocacion @ClaseLlamador"
       tabindex="@(Deshabilitada || EsInteractiva ? null : "0")"
       role="@(EsInteractiva ? null : "note")"
       aria-label="@(EsInteractiva ? null : Etiqueta)"
@@ -46,7 +46,10 @@
       @attributes="AtributosSinClase">
     @if (EsInteractiva)
     {
-        <button type="button" class="ventana-contexto-disparador" aria-label="@Etiqueta">@Disparador</button>
+        @* aria-expanded nace en «false» y lo mantiene ventana-contexto.js: el panel se abre por CSS
+           (puntero o foco), así que Blazor no sabe cuándo está abierto. Es el estado que anuncia el
+           lector de pantalla al llegar al botón. *@
+        <button type="button" class="ventana-contexto-disparador" aria-label="@Etiqueta" aria-expanded="false">@Disparador</button>
     }
     else
     {
@@ -57,6 +60,15 @@
         <span class="ventana-contexto-panel"
               role="@(EsInteractiva ? "group" : "presentation")"
               aria-label="@(EsInteractiva ? (string.IsNullOrWhiteSpace(Titulo) ? Etiqueta : Titulo) : null)">
+            @if (HojaEnMovil && EsInteractiva && !string.IsNullOrWhiteSpace(EtiquetaCerrar))
+            {
+                @* Solo se ve en móvil, donde el panel es una hoja inferior: tirador y botón de cierre. En
+                   escritorio se cierra como siempre (puntero fuera, foco fuera o Esc). *@
+                <span class="ventana-contexto-tirador" aria-hidden="true"></span>
+                <button type="button" class="ventana-contexto-cerrar" data-ventana-cerrar aria-label="@EtiquetaCerrar">
+                    <span aria-hidden="true">×</span>
+                </button>
+            }
             @if (!string.IsNullOrWhiteSpace(Titulo))
             {
                 <b class="ventana-contexto-titulo @(TituloDeSistema ? "ventana-contexto-titulo-sistema" : null)">@Titulo</b>
@@ -105,6 +117,16 @@
     /// grupo con nombre al que se llega con el tabulador.
     /// </summary>
     [Parameter] public bool Interactiva { get; set; }
+
+    /// <summary>
+    /// Por debajo de 768 px de ancho el panel de una ventana <see cref="Interactiva"/> se abre como hoja
+    /// inferior a todo el ancho (con velo, tirador y botón de cierre) en vez de flotar junto al disparador,
+    /// donde en un móvil se saldría de la pantalla. Revisión de Design, 2026-10-17, §C.
+    /// </summary>
+    [Parameter] public bool HojaEnMovil { get; set; }
+
+    /// <summary>Nombre accesible del botón de cierre de la hoja de móvil. Sin él, la hoja no lleva botón (se cierra tocando fuera).</summary>
+    [Parameter] public string? EtiquetaCerrar { get; set; }
 
     /// <summary>Línea de ayuda al pie del panel («Clic en una para corregirla aquí»).</summary>
     [Parameter] public string? Pie { get; set; }

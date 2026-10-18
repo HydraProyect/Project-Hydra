@@ -14,7 +14,16 @@
     esté en el catálogo (motivo retirado, dato corrupto) pinta iniciales, nunca un hueco.
 *@
 <span class="@Clases" aria-hidden="true">
-    @if (_elegido is not null)
+    @if (Variante == VarianteAvatarUsuario.Sistema)
+    {
+        @* El rombo no es texto que haya que leer: «Sistema» lo dice el texto de al lado. *@
+        <span class="avatar-usuario-marca">◆</span>
+    }
+    else if (Variante == VarianteAvatarUsuario.Eliminado)
+    {
+        <span class="avatar-usuario-marca">?</span>
+    }
+    else if (_elegido is not null)
     {
         <span class="avatar-usuario-glifo">@_elegido.Motivo.Emoji</span>
     }
@@ -35,6 +44,13 @@
 
     [Parameter] public TamanoAvatarUsuario Tamano { get; set; } = TamanoAvatarUsuario.Medio;
 
+    /// <summary>
+    /// <see cref="VarianteAvatarUsuario.Sistema"/> para lo que hizo TALVEG sola y
+    /// <see cref="VarianteAvatarUsuario.Eliminado"/> para un autor cuya cuenta ya no existe; en ambas
+    /// <see cref="Nombre"/> y <see cref="Avatar"/> se ignoran.
+    /// </summary>
+    [Parameter] public VarianteAvatarUsuario Variante { get; set; } = VarianteAvatarUsuario.Persona;
+
     protected override void OnParametersSet() => _elegido = CatalogoAvatares.Resolver(Avatar);
 
     private string Clases
@@ -47,8 +63,18 @@
                 TamanoAvatarUsuario.Grande => " avatar-usuario-grande",
                 _ => string.Empty,
             };
+
+            switch (Variante)
+            {
+                case VarianteAvatarUsuario.Sistema:
+                    return $"avatar-usuario{tamano} avatar-usuario-sistema";
+                case VarianteAvatarUsuario.Eliminado:
+                    return $"avatar-usuario{tamano} avatar-usuario-eliminado";
+            }
+
             // Las iniciales van siempre sobre el par azul, el único medido como texto sobre fondo.
-            var tono = _elegido is null ? string.Empty : $" avatar-usuario-tono-{_elegido.Tono}";
+            // El emoji lleva además el anillo interior (--color-avatar-anillo).
+            var tono = _elegido is null ? string.Empty : $" avatar-usuario-emoji avatar-usuario-tono-{_elegido.Tono}";
             return $"avatar-usuario{tamano}{tono}";
         }
     }

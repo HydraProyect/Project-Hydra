@@ -100,6 +100,15 @@ public class ContrasteDeAvataresPorTemaTests
         "avatar-usuario-tono-verde",  // los tonos solo cambian el fondo y solo acompañan a un emoji:
         "avatar-usuario-tono-ambar",  // las iniciales van siempre sobre el par de .avatar-usuario
         "avatar-usuario-tono-neutro",
+        "avatar-usuario-emoji",    // solo añade el anillo interior (--color-avatar-anillo) al emoji: no hay letras que medir
+        // «Sistema» y «Usuario eliminado» (revisión de Design 2026-10-17, §A) no llevan iniciales sino una marca de
+        // un solo signo (◆, ?): no es texto que haya que leer, que el nombre ya lo dice el texto de al lado. Aun así
+        // su par se calculó: --color-system-text sobre su tinte (5,38:1 en claro sobre Surface, > 8:1 en oscuro) y
+        // --color-text-muted sobre Surface (más de 7:1 en claro, 5,61:1 en oscuro). El tinte es un color-mix, que este
+        // instrumento no entiende, por eso no entran en la lista de avatares.
+        "avatar-usuario-sistema",
+        "avatar-usuario-eliminado",
+        "avatar-usuario-marca",
     };
 
     [Theory]

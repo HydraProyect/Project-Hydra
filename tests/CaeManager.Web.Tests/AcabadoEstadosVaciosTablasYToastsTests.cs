@@ -144,6 +144,73 @@ public class AcabadoEstadosVaciosTablasYToastsTests : BunitContext
         servicio.Mensajes.Should().BeEmpty("al soltar el último evento, la cuenta atrás se reanuda");
     }
 
+    // ---------- Revisión de Design 2026-10-17, §N: fondo inverso, icono por tono, apilado ----------
+
+    [Theory]
+    [InlineData(TonoToast.Error, "toast-error")]
+    [InlineData(TonoToast.Advertencia, "toast-advertencia")]
+    [InlineData(TonoToast.Info, "toast-info")]
+    public void Cada_tono_con_icono_propio_lo_pinta_aparte_del_color(TonoToast tono, string clase)
+    {
+        var servicio = new ToastService();
+        Services.AddSingleton(servicio);
+        var cut = Render<AnfitrionToasts>();
+
+        servicio.Mostrar("Aviso", tono);
+
+        var toast = cut.WaitForElement($".toast.{clase}");
+        var icono = toast.QuerySelector(".toast-icono");
+        icono.Should().NotBeNull("el tono no puede quedar solo en el color (WCAG 1.4.1)");
+        icono!.GetAttribute("aria-hidden").Should().Be("true");
+        icono.QuerySelector("svg").Should().NotBeNull();
+        icono.QuerySelector(".toast-trazado").Should().BeNull("el trazado animado es solo del éxito");
+    }
+
+    [Fact]
+    public void Solo_el_error_se_anuncia_como_alerta_y_los_demas_tonos_como_estado()
+    {
+        var servicio = new ToastService();
+        Services.AddSingleton(servicio);
+        var cut = Render<AnfitrionToasts>();
+
+        servicio.Mostrar("Guardado", TonoToast.Exito);
+        servicio.Mostrar("No se pudo guardar", TonoToast.Error);
+
+        cut.WaitForElement(".toast.toast-error").GetAttribute("role").Should().Be("alert");
+        cut.Find(".toast.toast-exito").GetAttribute("role").Should().Be("status");
+    }
+
+    [Fact]
+    public void El_exito_lleva_el_trazado_de_confirmacion_como_icono_y_la_accion_Deshacer_a_su_lado()
+    {
+        var servicio = new ToastService();
+        Services.AddSingleton(servicio);
+        var cut = Render<AnfitrionToasts>();
+
+        servicio.Mostrar("Eliminado", TonoToast.Exito, "Deshacer", () => Task.CompletedTask);
+
+        var toast = cut.WaitForElement(".toast.toast-exito");
+        toast.QuerySelector(".toast-icono .toast-trazado").Should().NotBeNull();
+        toast.QuerySelectorAll(".toast-icono").Should().ContainSingle("el éxito no duplica su marca con un segundo icono");
+        toast.QuerySelector("button.toast-accion")!.TextContent.Trim().Should().Be("Deshacer");
+    }
+
+    [Fact]
+    public void El_toast_tiene_fondo_inverso_unico_y_un_color_de_icono_por_tono_declarados_en_los_tokens()
+    {
+        var css = Leer("Components", "DesignSystem", "AnfitrionToasts.razor.css");
+        var tokens = Leer("wwwroot", "css", "tokens.css");
+
+        css.Should().Contain("background-color: var(--color-toast-fondo)").And.Contain("color: var(--color-toast-texto)");
+        foreach (var tono in new[] { "exito", "error", "aviso", "info" })
+        {
+            css.Should().Contain($"--toast-tono: var(--color-toast-{tono})", $"el icono de «{tono}» lleva su color");
+            tokens.Should().Contain($"--color-toast-{tono}:", $"el token del tono «{tono}» existe en el tema claro y en el oscuro");
+        }
+
+        css.Should().Contain("flex-direction: column-reverse", "el DOM sigue en orden de llegada y el más reciente queda abajo");
+    }
+
     // ---------- Listados 5/7: cuenta atrás visible de «Deshacer» (decisión del 2026-10-08) ----------
 
     private static readonly TimeSpan DosSegundos = TimeSpan.FromSeconds(2);
