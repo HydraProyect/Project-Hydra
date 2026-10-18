@@ -21,6 +21,8 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMensajesBuzonPersonal;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerNotasInternasConversacion;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerRecordatorioPropuestoConversacion;
+using CaeManager.Web.Features.Comunicaciones.Components;
 using CaeManager.Application.Telemetria.Queries.ObtenerTiempoGestionConversacion;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
@@ -243,6 +245,7 @@ public class ComunicacionesGen2Tests : BunitContext
                 ObtenerTrabajadoresParaSelectorQuery => new List<TrabajadorSelectorDto>(),
                 ObtenerTiempoGestionConversacionQuery => new TiempoGestionConversacionDto(false, 0, 0),
                 ObtenerNotasInternasConversacionQuery => NotasInternas.ToList(),
+                ObtenerRecordatorioPropuestoConversacionQuery => null,
                 ResponderConversacionCommand c => AlResponder(c),
                 CambiarEstadoConversacionCommand => Result.Exito(),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.")
@@ -301,6 +304,7 @@ public class ComunicacionesGen2Tests : BunitContext
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddSingleton<ILogger<Bandeja>>(_ => NullLogger<Bandeja>.Instance);
+        Services.AddSingleton<ILogger<RecordatorioPropuesto>>(_ => NullLogger<RecordatorioPropuesto>.Instance);
         Services.AddScoped<ITenantActual, TenantActualFalso>();
         Services.AddScoped<INotificadorMensajesTiempoReal, NotificadorQueNadieDebeTocar>();
         Services.AddScoped(_ => CrearDirectorio());

@@ -17,6 +17,7 @@ public interface IComunicacionesQueryContext
     IQueryable<SolicitudPrioridadDocumento> SolicitudesPrioridadDocumento { get; }
     IQueryable<EventoConversacion> EventosConversacion { get; }
     IQueryable<NotaInternaConversacion> NotasInternasConversacion { get; }
+    IQueryable<PropuestaRecordatorioConversacion> PropuestasRecordatorioConversacion { get; }
     IQueryable<ClasificacionRuidoMensaje> ClasificacionesRuidoMensaje { get; }
     IQueryable<ClasificacionRelevanciaCae> ClasificacionesRelevanciaCae { get; }
 }
