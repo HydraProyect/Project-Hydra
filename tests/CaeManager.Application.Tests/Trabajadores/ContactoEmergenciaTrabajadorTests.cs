@@ -30,12 +30,13 @@ public class ContactoEmergenciaTrabajadorTests
             ContactoEmergencia: contacto);
 
     private static (EditarFichaTrabajadorCommandHandler Handler, UnitOfWorkFalso UnitOfWork) Montar(
-        Trabajador? trabajador, AlcanceDatosServiceFalso? alcance = null)
+        Trabajador? trabajador, AlcanceDatosServiceFalso? alcance = null, IPoliticaNotaInterna? politica = null)
     {
         var repositorio = new TrabajadorRepositorioFalso();
         if (trabajador is not null) repositorio.Agregar(trabajador);
         var unitOfWork = new UnitOfWorkFalso();
-        return (new EditarFichaTrabajadorCommandHandler(repositorio, alcance ?? new AlcanceDatosServiceFalso(), unitOfWork), unitOfWork);
+        return (new EditarFichaTrabajadorCommandHandler(repositorio, alcance ?? new AlcanceDatosServiceFalso(),
+            politica ?? PoliticaNotaInternaPruebas.Con("GestorCae"), unitOfWork), unitOfWork);
     }
 
     // ── Dominio ───────────────────────────────────────────────────────────
@@ -193,11 +194,74 @@ public class ContactoEmergenciaTrabajadorTests
         validador.Validate(Ficha(t, new(null, null))).IsValid.Should().BeTrue();
         validador.Validate(Ficha(t, new(new string('a', Trabajador.LongitudMaximaContactoEmergenciaNombre), "+34 611 22 33 44")))
             .IsValid.Should().BeTrue();
+        validador.Validate(Ficha(t, new("  " + new string('a', Trabajador.LongitudMaximaContactoEmergenciaNombre) + "  ", null)))
+            .IsValid.Should().BeTrue("la longitud se mide sobre el nombre recortado, como lo guarda el dominio");
 
         var resultado = validador.Validate(Ficha(t, new(new string('a', Trabajador.LongitudMaximaContactoEmergenciaNombre + 1), "llamar a Luis")));
 
         resultado.Errors.Select(e => e.PropertyName).Should().BeEquivalentTo(
             ["ContactoEmergencia.Nombre", "ContactoEmergencia.Telefono"]);
+    }
+
+    /// <summary>
+    /// Defensa en el servidor: si quien guarda la ficha no puede leer el contacto (la misma política que la consulta),
+    /// la orden lo trae pero el handler lo ignora como si fuera null; el resto de la ficha sí se guarda.
+    /// </summary>
+    [Theory]
+    [InlineData("Cliente")]
+    [InlineData("RolQueNoExiste")]
+    [InlineData(null)]
+    public async Task Quien_no_lee_el_contacto_no_lo_cambia_aunque_la_orden_lo_traiga(string? rol)
+    {
+        var t = Paula();
+        t.FijarContactoEmergencia("Luis", "611223344");
+        var (handler, unitOfWork) = Montar(t, politica: PoliticaNotaInternaPruebas.Con(rol));
+
+        var resultado = await handler.Handle(Ficha(t, new("", "")), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        t.ContactoEmergenciaNombre.Should().Be("Luis");
+        t.ContactoEmergenciaTelefono.Should().Be("611223344");
+        t.Puesto.Should().Be("Electricista", "el resto de la ficha sí se guarda");
+        unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task La_impersonacion_no_cambia_el_contacto()
+    {
+        var t = Paula();
+        t.FijarContactoEmergencia("Luis", "611223344");
+        var (handler, _) = Montar(t, politica: PoliticaNotaInternaPruebas.Con("GestorCae",
+            PoliticaNotaInternaPruebas.Sesion(CapacidadPrivilegio.Impersonacion)));
+
+        (await handler.Handle(Ficha(t, new("Otro", "699999999")), CancellationToken.None)).EsExitoso.Should().BeTrue();
+
+        t.ContactoEmergenciaNombre.Should().Be("Luis");
+    }
+
+    /// <summary>
+    /// Paridad lectura/escritura, rol a rol de la lista real de <c>AutorizacionEscrituraBehavior</c> (como
+    /// <c>ObtenerFichaTrabajadorTests</c> con el permiso de trabajo): todo rol que puede guardar la ficha recibe el
+    /// contacto al leer y lo cambia al escribir. Un rol de escritura nuevo fuera de la política pone esto en rojo.
+    /// </summary>
+    [Fact]
+    public async Task Todo_rol_que_puede_guardar_la_ficha_lee_y_escribe_el_contacto()
+    {
+        var rolesConEscritura = AutorizacionEscrituraBehavior<EditarFichaTrabajadorCommand, Result>.RolesConEscritura;
+        rolesConEscritura.Should().NotBeEmpty("con la lista real vacía, el bucle de abajo no mediría nada");
+
+        foreach (var rol in rolesConEscritura)
+        {
+            var (leido, consulta) = ConContacto(PoliticaNotaInternaPruebas.Con(rol));
+            var dto = await consulta.Handle(new(leido.Id), CancellationToken.None);
+            dto!.ContactoEmergenciaVisible.Should().BeTrue($"el rol {rol} puede guardar la ficha");
+            dto.ContactoEmergenciaNombre.Should().Be("Luis Campos", $"el rol {rol} puede guardar la ficha");
+
+            var t = Paula();
+            var (handler, _) = Montar(t, politica: PoliticaNotaInternaPruebas.Con(rol));
+            (await handler.Handle(Ficha(t, new("Luis", "611223344")), CancellationToken.None)).EsExitoso.Should().BeTrue();
+            t.ContactoEmergenciaNombre.Should().Be("Luis", $"el rol {rol} puede guardar la ficha");
+        }
     }
 
     // ── Rol: lo decide AutorizacionEscrituraBehavior, por ser ICommand ────

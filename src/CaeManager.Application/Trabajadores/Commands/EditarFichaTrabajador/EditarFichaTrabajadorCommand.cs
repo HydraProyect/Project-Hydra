@@ -38,7 +38,10 @@ public class EditarFichaTrabajadorCommandValidator : AbstractValidator<EditarFic
         RuleFor(c => c.MotivoPermisoTrabajo).MaximumLength(Trabajador.LongitudMaximaCampoFicha);
         When(c => c.ContactoEmergencia is not null, () =>
         {
-            RuleFor(c => c.ContactoEmergencia!.Nombre).MaximumLength(Trabajador.LongitudMaximaContactoEmergenciaNombre)
+            // Sobre el nombre recortado, como lo guarda Trabajador.FijarContactoEmergencia: los espacios de los
+            // extremos no cuentan.
+            RuleFor(c => c.ContactoEmergencia!.Nombre)
+                .Must(n => n is null || n.Trim().Length <= Trabajador.LongitudMaximaContactoEmergenciaNombre)
                 .WithMessage($"El contacto de emergencia no puede superar {Trabajador.LongitudMaximaContactoEmergenciaNombre} caracteres.");
             RuleFor(c => c.ContactoEmergencia!.Telefono).Must(Trabajador.TelefonoEmergenciaValido)
                 .WithMessage($"Introduce un teléfono de {Trabajador.MinimoDigitosTelefonoEmergencia} a {Trabajador.MaximoDigitosTelefonoEmergencia} dígitos, con «+» delante si es internacional.");
@@ -50,7 +53,7 @@ public class EditarFichaTrabajadorCommandValidator : AbstractValidator<EditarFic
 }
 
 public class EditarFichaTrabajadorCommandHandler(ITrabajadorRepository repositorio,
-    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IPoliticaNotaInterna politicaNotaInterna, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarFichaTrabajadorCommand, Result>
 {
     public async Task<Result> Handle(EditarFichaTrabajadorCommand request, CancellationToken cancellationToken)
@@ -72,8 +75,10 @@ public class EditarFichaTrabajadorCommandHandler(ITrabajadorRepository repositor
         if (request.TipoContratacion is { } tipoContratacion)
             trabajador.CambiarTipoContratacion(tipoContratacion);
         // Mismo criterio: null = no se cambia. El alcance es el de arriba (TrabajadorVisibleAsync); el rol con
-        // escritura lo exige AutorizacionEscrituraBehavior antes de llegar aquí.
-        if (request.ContactoEmergencia is { } contacto)
+        // escritura lo exige AutorizacionEscrituraBehavior antes de llegar aquí. Y quien no puede leer el contacto
+        // (la política de ObtenerTrabajadorPorIdQuery) tampoco lo cambia: se ignora como si viniera null, para que
+        // nadie borre ni pise a ciegas un dato que el servidor no le enseña.
+        if (request.ContactoEmergencia is { } contacto && await politicaNotaInterna.PuedeLeerAsync(cancellationToken))
             trabajador.FijarContactoEmergencia(contacto.Nombre, contacto.Telefono);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();

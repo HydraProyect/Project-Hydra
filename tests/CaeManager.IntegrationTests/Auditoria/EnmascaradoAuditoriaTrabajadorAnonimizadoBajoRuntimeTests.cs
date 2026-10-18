@@ -139,6 +139,9 @@ public class EnmascaradoAuditoriaTrabajadorAnonimizadoBajoRuntimeTests
     {
         const string nombre = "Remedios Quintanilla (madre)";
         const string telefono = "+34611223344";
+        // El historial guarda el JSON de System.Text.Json, que escapa el «+» como +: se busca por los dígitos, que
+        // salen igual escapados o no.
+        const string rastroTelefono = "34611223344";
         await using var arnes = await CrearArnesAsync();
 
         var (manuela, _, centroId) = await SembrarTenantAAsync(arnes);
@@ -146,13 +149,13 @@ public class EnmascaradoAuditoriaTrabajadorAnonimizadoBajoRuntimeTests
         await AsignarConBajaAsync(arnes, manuela, centroId, _hoy.AddYears(-6));
 
         var antes = (await LeerFilasDeTrabajadorAsync(arnes)).Where(f => f.TenantId == _tenantA && f.EntidadId == manuela).ToList();
-        antes.Should().Contain(f => ContieneAlguno(f, new[] { nombre }) && ContieneAlguno(f, new[] { telefono }),
+        antes.Should().Contain(f => ContieneAlguno(f, new[] { nombre }) && ContieneAlguno(f, new[] { rastroTelefono }),
             "control positivo del instrumento: antes de anonimizar, el historial sí tiene el contacto");
 
         (await EjecutarPurgaDeTrabajadoresAsync(arnes)).Should().Be(1);
 
         var despues = (await LeerFilasDeTrabajadorAsync(arnes)).Where(f => f.TenantId == _tenantA && f.EntidadId == manuela).ToList();
-        despues.Should().NotContain(f => ContieneAlguno(f, new[] { nombre, telefono }),
+        despues.Should().NotContain(f => ContieneAlguno(f, new[] { nombre, rastroTelefono }),
             "el contacto de emergencia es dato personal");
 
         foreach (var clave in new[] { nameof(Trabajador.ContactoEmergenciaNombre), nameof(Trabajador.ContactoEmergenciaTelefono) })
