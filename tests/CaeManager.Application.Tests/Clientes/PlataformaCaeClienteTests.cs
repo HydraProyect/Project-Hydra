@@ -85,7 +85,9 @@ public class PlataformaCaeClienteTests
         public GuardarAccesoPlataformaCaeCommandHandler GuardarAcceso(IAlcanceDatosService alcance) =>
             new(Contexto, Plataformas, alcance, new UsuarioActualFalso("GestorCae", UsuarioId), UnitOfWork);
 
-        public ObtenerPlataformaCaeClienteQueryHandler ObtenerPlataforma(IAlcanceDatosService alcance) => new(Contexto, alcance);
+        public ObtenerPlataformaCaeClienteQueryHandler ObtenerPlataforma(
+            IAlcanceDatosService alcance, string? rol = "GestorCae", CapacidadPrivilegio? capacidad = null) =>
+            new(Contexto, alcance, new UsuarioActualFalso(rol, Guid.NewGuid()), Sesion(capacidad));
 
         public ObtenerAccesosPlataformaCaeClienteQueryHandler ObtenerAccesos(IAlcanceDatosService alcance) =>
             new(Contexto, alcance, new DirectorioFalso(new Dictionary<Guid, string> { [UsuarioId] = "Marta Gestora" }), Registro);
@@ -280,6 +282,38 @@ public class PlataformaCaeClienteTests
 
         dto.Should().Be(new PlataformaCaeClienteDto(true, "Nalanda", "https://portal.example", "CLI-01"));
         e.Registro.Registrados.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("Consulta", null)]
+    [InlineData(null, null)]
+    [InlineData("GestorCae", CapacidadPrivilegio.SoporteLectura)]
+    [InlineData("GestorCae", CapacidadPrivilegio.Impersonacion)]
+    public async Task El_codigo_de_cliente_solo_lo_reciben_los_roles_con_escritura_fuera_de_sesion_privilegiada(
+        string? rol, CapacidadPrivilegio? capacidad)
+    {
+        var e = new Escenario();
+        e.RegistrarPlataforma();
+
+        var dto = await e.ObtenerPlataforma(e.EnCartera(), rol, capacidad).Handle(new ObtenerPlataformaCaeClienteQuery(e.Cliente.Id), default);
+
+        dto.Should().Be(new PlataformaCaeClienteDto(true, "Nalanda", "https://portal.example", null),
+            "la pantalla lo oculta con SoloConEscritura, pero el dato tampoco debe viajar en la respuesta");
+    }
+
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    [InlineData("GestorCae")]
+    public async Task Los_roles_con_escritura_reciben_el_codigo_de_cliente(string rol)
+    {
+        var e = new Escenario();
+        e.RegistrarPlataforma();
+
+        var dto = await e.ObtenerPlataforma(e.EnCartera(), rol).Handle(new ObtenerPlataformaCaeClienteQuery(e.Cliente.Id), default);
+
+        dto!.CodigoCliente.Should().Be("CLI-01");
     }
 
     [Fact]
