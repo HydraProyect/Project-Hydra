@@ -901,8 +901,12 @@ public static class Ayudas
         await Assertions.Expect(page.Locator(".cabecera-grupo-centros")).ToHaveCountAsync(0);
     }
 
-    /// <summary>El desplegable «Agrupar» de un listado: el disparador que declara la letra A de KeyTips.</summary>
-    public static ILocator DesplegableAgrupar(IPage page) => page.Locator("[data-keytip='A']");
+    /// <summary>
+    /// El desplegable «Agrupar» de un listado: una pastilla de filtro cuya letra de KeyTips (la A) se deduce de su
+    /// nombre en el navegador, no se declara en <c>data-keytip</c>; se localiza por el nombre que declara en
+    /// <c>data-keytip-nombre</c>.
+    /// </summary>
+    public static ILocator DesplegableAgrupar(IPage page) => page.Locator(".barra-filtros-pastillas [data-keytip-nombre='Agrupar']");
 
     /// <summary>
     /// Elige una opción del desplegable «Agrupar» por su texto («Sin agrupar», «Por Cliente») y espera a que
