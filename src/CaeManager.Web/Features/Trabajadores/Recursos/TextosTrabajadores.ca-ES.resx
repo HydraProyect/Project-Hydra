@@ -675,6 +675,9 @@
   <data name="AccionDarDeBajaDeCentro" xml:space="preserve">
     <value>Donar de baixa d’aquest centre</value>
   </data>
+  <data name="AsignadoDesdeEl" xml:space="preserve"><value>Assignat des del {0}</value></data>
+  <data name="ContadorCentrosUno" xml:space="preserve"><value>centre assignat</value></data>
+  <data name="ContadorCentrosVarios" xml:space="preserve"><value>centres assignats</value></data>
   <data name="SinDocumentoExigido" xml:space="preserve">
     <value>Sense document</value>
   </data>
