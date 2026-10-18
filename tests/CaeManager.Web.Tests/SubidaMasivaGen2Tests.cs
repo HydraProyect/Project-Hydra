@@ -267,7 +267,6 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         var cut = Render<SubidaMasiva>();
         await ProcesarAsync(cut, "sin-fecha.pdf");
 
-        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Confirmar propuesta");
         cut.Find(".item-subida-masiva").TextContent.Should().Contain("sin leer en el archivo");
 
         await cut.FindAll("button").First(b => b.TextContent.Trim() == "Gestionar").ClickAsync(new MouseEventArgs());
@@ -496,7 +495,7 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         var cut = Render<SubidaMasiva>();
 
         cut.Find(".vacio-lote-subida-masiva h2").TextContent.Should().Be("Todavía no has soltado ningún archivo");
-        cut.Find(".vacio-lote-subida-masiva p").TextContent.Should().Contain("Puedes seguir soltando archivos mientras se leen los anteriores.");
+        cut.Find(".vacio-lote-subida-masiva p").TextContent.Should().Be("Cuando sueltes el primero aparecerá aquí la lista con su estado.");
         cut.FindAll(".progreso-subida-masiva").Should().BeEmpty("sin archivos no hay progreso que enseñar");
     }
 
@@ -536,7 +535,7 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         cut.Find(".progreso-subida-masiva-cabecera strong").TextContent.Trim().Should().Be("0 de 3 archivos leídos");
         cut.Find(".pista-lote-subida-masiva").TextContent.Should().Contain("3 en curso");
         cut.Find(".zona-soltar-archivo").ClassList.Should().Contain("zona-soltar-archivo-deshabilitada",
-            "mientras hay bytes por subir no se pueden soltar mas archivos");
+            "mientras hay archivos en curso no se pueden soltar mas archivos");
     }
 
     [Fact]
@@ -670,6 +669,119 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         _almacenamiento.Eliminados.Should().Be(1, "sin Documento que lo posea, el archivo guardado se retira");
         cut.Find(".progreso-subida-masiva").TextContent.Should().Contain("0 creados").And.Contain("1 con error");
         await DisposeComponentsAsync();
+    }
+
+    /// <summary>
+    /// Carrera descartar/confirmar: con la creacion en vuelo, «Descartar» esta deshabilitado y, aunque un
+    /// dialogo de descarte ya abierto llegara a confirmar, el archivo no se descarta: el Documento se crea y
+    /// la fila acaba Creada, no Descartada, con su contenido intacto hasta el final.
+    /// </summary>
+    [Fact]
+    public async Task Descartar_mientras_se_confirma_no_descarta_y_la_fila_acaba_creada()
+    {
+        PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        _mediador.CrearPendiente = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _mediador.ComandoCrearRecibido = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cut = Render<SubidaMasiva>();
+        await ProcesarAsync(cut, "carrera.pdf");
+        await GestionarAsync(cut);
+
+        var clic = cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar y crear").ClickAsync(new MouseEventArgs());
+        var primero = await Task.WhenAny(_mediador.ComandoCrearRecibido.Task, clic).WaitAsync(TimeSpan.FromSeconds(10));
+        primero.Should().BeSameAs(_mediador.ComandoCrearRecibido.Task, "la confirmacion esta en vuelo; excepcion: {0}", clic.Exception?.GetBaseException().Message);
+
+        cut.FindAll(".acciones-formulario button").Single(b => b.TextContent.Trim() == "Descartar")
+            .HasAttribute("disabled").Should().BeTrue("no se puede descartar lo que se esta confirmando");
+
+        var item = ((System.Collections.IList)Campo<object>(cut.Instance, "_items"))[0]!;
+        typeof(SubidaMasiva).GetField("_paraDescartar", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(cut.Instance, item);
+        var descartar = typeof(SubidaMasiva).GetMethod("ConfirmarDescarteAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        await cut.InvokeAsync(() => (Task)descartar.Invoke(cut.Instance, [])!).WaitAsync(TimeSpan.FromSeconds(10));
+        item.GetType().GetProperty("Estado")!.GetValue(item)!.ToString().Should().Be("PendienteConfirmar",
+            "el descarte con la confirmacion en vuelo no hace nada");
+
+        _mediador.CrearPendiente.SetResult(Result.Exito(Guid.NewGuid()));
+        await clic.WaitAsync(TimeSpan.FromSeconds(10));
+
+        FilaDe(cut, "carrera.pdf").QuerySelector(".item-subida-masiva-badges")!.TextContent.Should().Contain("Creado").And.NotContain("Descartado");
+        cut.Find(".progreso-subida-masiva").TextContent.Should().Contain("1 creados").And.Contain("0 descartados");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().NotContain(m => m.Mensaje == "Archivo descartado. El resto del lote sigue igual.");
+        await DisposeComponentsAsync();
+    }
+
+    /// <summary>
+    /// Cota global: no entra un lote nuevo mientras haya archivos en cola, subiendose o leyendose. Se llama
+    /// al manejador con la zona deshabilitada (el navegador no deberia dispararlo, pero es el punto de entrada real).
+    /// </summary>
+    [Fact]
+    public async Task Mientras_hay_archivos_en_curso_no_se_acepta_un_lote_nuevo()
+    {
+        var cut = Render<SubidaMasiva>();
+        AgregarItem(cut, "leyendo.pdf", "Procesando");
+        cut.Render();
+        var manejador = typeof(SubidaMasiva).GetMethod("ManejarArchivosSeleccionadosAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var nuevos = new InputFileChangeEventArgs([new ArchivoFalso("nuevo.pdf"), new ArchivoFalso("otro.pdf")]);
+
+        await cut.InvokeAsync(() => (Task)manejador.Invoke(cut.Instance, [nuevos])!).WaitAsync(TimeSpan.FromSeconds(10));
+
+        cut.FindAll(".item-subida-masiva").Should().ContainSingle("el lote nuevo se ignora mientras otro sigue en curso");
+        cut.Find(".zona-soltar-archivo").ClassList.Should().Contain("zona-soltar-archivo-deshabilitada");
+        await DisposeComponentsAsync();
+    }
+
+    [Fact]
+    public async Task Consulta_no_ve_el_vacio_que_invita_a_soltar_archivos()
+    {
+        Services.AddSingleton<ICurrentUserService>(new UsuarioActualFalso(Roles.Consulta));
+        var cut = Render<SubidaMasiva>();
+
+        cut.Markup.Should().Contain("Solo lectura", "control: la pantalla se abrio de verdad con el rol Consulta");
+        cut.FindAll(".vacio-lote-subida-masiva").Should().BeEmpty("a Consulta no se le invita a soltar archivos");
+        cut.FindAll(".zona-subida-masiva").Should().BeEmpty();
+        await DisposeComponentsAsync();
+    }
+
+    [Fact]
+    public async Task Mas_de_60_archivos_en_un_lote_se_rechazan_enteros_con_el_aviso_del_maximo()
+    {
+        var cut = Render<SubidaMasiva>();
+        var archivos = Enumerable.Range(0, 61)
+            .Select(i => InputFileContent.CreateFromBinary(CrearPdf(), $"f{i}.pdf", contentType: "application/pdf")).ToArray();
+
+        await cut.InvokeAsync(() => cut.FindComponent<InputFile>().UploadFiles(archivos));
+
+        var aviso = cut.Find(".error-lote-subida-masiva");
+        aviso.TextContent.Should().Contain("El lote supera el máximo de 60 archivos por subida")
+            .And.Contain("No se ha guardado ningún archivo de este lote. Suelta menos archivos cada vez.");
+        cut.FindAll(".item-subida-masiva").Should().BeEmpty("ninguno de los 61 llega a la lista");
+        _almacenamiento.Guardados.Should().Be(0);
+        _mediador.Recibidas.Select(r => r.Peticion).OfType<DetectarCamposDocumentoQuery>().Should().BeEmpty();
+        await DisposeComponentsAsync();
+    }
+
+    [Fact]
+    public async Task La_fila_creada_ofrece_Gestionar_como_enlace_a_su_documento()
+    {
+        var cut = Render<SubidaMasiva>();
+        var item = AgregarItem(cut, "hecho.pdf", "Creado");
+        var documentoId = Guid.NewGuid();
+        Poner(item, "DocumentoId", documentoId);
+        cut.Render();
+
+        var enlace = FilaDe(cut, "hecho.pdf").QuerySelectorAll(".item-subida-masiva-acciones a").Should().ContainSingle().Subject;
+        enlace.TextContent.Trim().Should().Be("Gestionar");
+        enlace.GetAttribute("href").Should().Be($"/documentos?documentoId={documentoId}");
+        FilaDe(cut, "hecho.pdf").QuerySelectorAll(".item-subida-masiva-acciones button").Should().BeEmpty();
+        await DisposeComponentsAsync();
+    }
+
+    private sealed class ArchivoFalso(string nombre) : IBrowserFile
+    {
+        public string Name => nombre;
+        public DateTimeOffset LastModified => DateTimeOffset.UnixEpoch;
+        public long Size => 10;
+        public string ContentType => "application/pdf";
+        public Stream OpenReadStream(long maxAllowedSize = 512000, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private static IElement FilaDe<T>(IRenderedComponent<T> cut, string nombre) where T : IComponent =>

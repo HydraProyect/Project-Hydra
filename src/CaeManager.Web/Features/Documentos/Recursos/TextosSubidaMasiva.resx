@@ -84,14 +84,8 @@
   <data name="Reintentar" xml:space="preserve">
     <value>Reintentar</value>
   </data>
-  <data name="ErrorLoteTamano" xml:space="preserve">
-    <value>El lote supera el tamaño máximo admitido para una subida</value>
-  </data>
   <data name="ErrorLoteCantidad" xml:space="preserve">
     <value>El lote supera el máximo de {0} archivos por subida</value>
-  </data>
-  <data name="ErrorLoteDetalleTamano" xml:space="preserve">
-    <value>No se ha guardado ningún archivo de este lote. Quita los más pesados y vuelve a soltarlos.</value>
   </data>
   <data name="ErrorLoteDetalleCantidad" xml:space="preserve">
     <value>No se ha guardado ningún archivo de este lote. Suelta menos archivos cada vez.</value>
@@ -103,7 +97,7 @@
     <value>Todavía no has soltado ningún archivo</value>
   </data>
   <data name="VacioDescripcion" xml:space="preserve">
-    <value>Cuando sueltes el primero aparecerá aquí la lista con su estado. Puedes seguir soltando archivos mientras se leen los anteriores.</value>
+    <value>Cuando sueltes el primero aparecerá aquí la lista con su estado.</value>
   </data>
   <data name="ProgresoEtiqueta" xml:space="preserve">
     <value>Progreso del lote</value>

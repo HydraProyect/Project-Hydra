@@ -213,9 +213,6 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
     private int ArchivosEnCurso => _items.Count(i => i.Estado is EstadoItem.Cola or EstadoItem.Subiendo or EstadoItem.Procesando);
     private bool HayArchivosEnCurso => ArchivosEnCurso > 0;
 
-    /// <summary>Hay bytes por subir: mientras tanto la zona de soltar queda deshabilitada (la referencia del navegador a los archivos aún se usa).</summary>
-    private bool HaySubidasEnCurso => _items.Any(i => i.Estado is EstadoItem.Cola or EstadoItem.Subiendo);
-
     /// <summary>
     /// FS-14: lo que se perdería al salir. En cola, subiéndose, en curso (leyéndose), sin confirmar
     /// (propuesta de la IA a la vista) o confirmándose en este momento: nada de
@@ -282,7 +279,7 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         // cualquier InputFileChangeEventArgs, venga de donde venga.
         if (_esSoloLectura) return;
 
-        if (_desechado || _procesandoLote || HaySubidasEnCurso)
+        if (_desechado || _procesandoLote || HayArchivosEnCurso)
             return;
 
         var carga = _cargaVigente;
@@ -315,12 +312,6 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
             var sueltos = archivosSeleccionados
                 .Where(a => a.Size <= LimitesArchivoSubido.TamanoMaximoBytes && !ExtractorZip.EsZip(a.Name))
                 .Sum(a => a.Size);
-            if (sueltos > PresupuestoLoteBytes)
-            {
-                _errorLote = (Textos["ErrorLoteTamano"], Textos["ErrorLoteDetalleTamano"]);
-                return;
-            }
-
             var presupuesto = new PresupuestoLote(PresupuestoLoteBytes - sueltos);
             var cola = new Queue<ItemLote>();
 
@@ -370,7 +361,7 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
             }
         }
 
-        // Los bytes ya están todos en memoria: la zona de soltar queda libre mientras la IA lee.
+        // Cota global: no entra un lote nuevo mientras haya archivos en cola, subiéndose o leyéndose (HayArchivosEnCurso).
         try
         {
             await Task.WhenAll(lecturas);
@@ -939,7 +930,9 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
     /// <summary>La maqueta pide confirmar el descarte: el archivo se suelta de memoria y habría que volver a soltarlo.</summary>
     private Task ConfirmarDescarteAsync()
     {
-        if (_paraDescartar is { } item)
+        // Solo se descarta lo que sigue pendiente y no se está confirmando: si la confirmación ya está en vuelo,
+        // descartar perdería el contenido del PDF y dejaría un Documento creado marcado como descartado.
+        if (_paraDescartar is { Estado: EstadoItem.PendienteConfirmar, Confirmando: false } item)
         {
             Descartar(item);
             ToastService.Mostrar(Textos["ToastDescartado"], TonoToast.Exito);

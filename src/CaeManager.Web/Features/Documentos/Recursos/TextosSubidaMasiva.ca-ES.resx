@@ -84,14 +84,8 @@
   <data name="Reintentar" xml:space="preserve">
     <value>Reintentar</value>
   </data>
-  <data name="ErrorLoteTamano" xml:space="preserve">
-    <value>El lot supera la mida màxima admesa per a una pujada</value>
-  </data>
   <data name="ErrorLoteCantidad" xml:space="preserve">
     <value>El lot supera el màxim de {0} fitxers per pujada</value>
-  </data>
-  <data name="ErrorLoteDetalleTamano" xml:space="preserve">
-    <value>No s'ha desat cap fitxer d'aquest lot. Treu els més pesats i torna a deixar-los anar.</value>
   </data>
   <data name="ErrorLoteDetalleCantidad" xml:space="preserve">
     <value>No s'ha desat cap fitxer d'aquest lot. Deixa anar menys fitxers cada vegada.</value>
@@ -103,7 +97,7 @@
     <value>Encara no has deixat anar cap fitxer</value>
   </data>
   <data name="VacioDescripcion" xml:space="preserve">
-    <value>Quan deixis anar el primer apareixerà aquí la llista amb el seu estat. Pots continuar deixant anar fitxers mentre es llegeixen els anteriors.</value>
+    <value>Quan deixis anar el primer apareixerà aquí la llista amb el seu estat.</value>
   </data>
   <data name="ProgresoEtiqueta" xml:space="preserve">
     <value>Progrés del lot</value>

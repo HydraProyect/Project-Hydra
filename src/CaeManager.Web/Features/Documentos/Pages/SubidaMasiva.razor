@@ -47,7 +47,7 @@
             <span class="icono-zona-subida-masiva"><Icono Nombre="adjunto" Tamano="TamanoIcono.Grande" /></span>
             <h2>@Textos["ZonaTitulo"]</h2>
             <p>@Textos["IndicacionLimites", MaximoArchivosPorLote, LimitesArchivoSubido.TamanoMaximoMb]</p>
-            <ZonaSoltarArchivo Titulo="@Textos["ZonaEtiqueta"]" OnChange="ManejarArchivosSeleccionadosAsync" Multiple="true" Accept=".pdf,.jpg,.jpeg,.png,.docx,.zip" FormatosTexto="@Textos["ZonaFormatos"]" Cargando="@(_procesandoLote || HaySubidasEnCurso)" />
+            <ZonaSoltarArchivo Titulo="@Textos["ZonaEtiqueta"]" OnChange="ManejarArchivosSeleccionadosAsync" Multiple="true" Accept=".pdf,.jpg,.jpeg,.png,.docx,.zip" FormatosTexto="@Textos["ZonaFormatos"]" Cargando="@(_procesandoLote || HayArchivosEnCurso)" />
             <span class="aviso-memoria-subida"><span class="indicador-sistema" aria-hidden="true"></span>@Textos["ZonaAviso"]</span>
         </section>
     }
@@ -60,7 +60,7 @@
             <Boton Variante="VarianteBoton.Secundario" OnClick="() => _errorLote = null">@Textos["VolverAIntentarlo"]</Boton>
         </section>
     }
-    else if (_items.Count == 0 && !_procesandoLote)
+    else if (_items.Count == 0 && !_procesandoLote && !_esSoloLectura)
     {
         <section class="vacio-lote-subida-masiva">
             <span class="icono-vacio-lote-subida-masiva"><Icono Nombre="vacio" Tamano="TamanoIcono.Grande" /></span>
@@ -159,7 +159,7 @@
                                         <div class="acciones-formulario">
                                             <Boton Variante="VarianteBoton.Primario" Cargando="@item.Confirmando" OnClick="() => ConfirmarAsync(item)">@Textos["ConfirmarYCrear"]</Boton>
                                             <Boton Variante="VarianteBoton.Secundario" OnClick="() => AlternarExpandido(item)">@Textos["CerrarSinConfirmar"]</Boton>
-                                            <Boton Variante="VarianteBoton.Fantasma" OnClick="() => _paraDescartar = item">@Textos["Descartar"]</Boton>
+                                            <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="@item.Confirmando" OnClick="() => _paraDescartar = item">@Textos["Descartar"]</Boton>
                                             <span class="ayuda-fecha-subida">@Textos["ConfirmarAviso"]</span>
                                         </div>
                                     </div>
