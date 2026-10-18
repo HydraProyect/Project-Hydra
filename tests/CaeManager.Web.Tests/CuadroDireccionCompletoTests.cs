@@ -628,6 +628,21 @@ public partial class CuadroDireccionTests
     }
 
     [Fact]
+    public void El_selector_de_metrica_de_la_comparativa_ofrece_Extranjeros_y_no_Documentos_gestionados()
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _,
+            serie: q => q.Meses == 24 ? DosAnyos(true) : SerieDe(i => Cifras(EstadoCifraMensual.Estimado, 25)));
+
+        IrA(cut, "Comparativa anual");
+
+        cut.WaitForAssertion(() => cut.FindAll(".cuadro-seg button").Should().NotBeEmpty());
+        var botones = cut.FindAll(".cuadro-seg button");
+        botones.Select(b => b.TextContent.Trim()).Should().Contain("Extranjeros").And.NotContain("Documentos gestionados");
+        botones.First(b => b.TextContent.Trim() == "Extranjeros").Click();
+        cut.FindAll(".cuadro-seg button").First(b => b.TextContent.Trim() == "Extranjeros").GetAttribute("aria-pressed").Should().Be("true");
+    }
+
+    [Fact]
     public void Sin_un_mismo_mes_en_dos_años_la_comparativa_dice_que_aparece_a_partir_del_mes_trece()
     {
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _,

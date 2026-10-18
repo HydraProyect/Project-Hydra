@@ -1058,7 +1058,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     {
         "facturacion" => punto.Facturacion is null ? null : (double)(punto.ImporteEn(MonedaAnual) ?? 0m),
         "altas" => punto.Cifras.AltasTrabajadores.Valor,
-        "documentos" => punto.Cifras.DocumentosGestionados.Valor,
+        "extranjeros" => punto.UnidadesDe(ConceptoFacturable.VisitaTrabajadorExtranjero),
         _ => punto.Cifras.Gestiones?.Valor,
     };
 

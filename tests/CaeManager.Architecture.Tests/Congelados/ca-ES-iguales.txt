@@ -374,7 +374,6 @@ src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx 
 src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: MesNoValidoTitulo = 1
 src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: MesSiguiente = 1
 src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: MetricaAltasTrabajadores = 1
-src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: MetricaDocumentos = 1
 src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: MetricaFacturacion = 1
 src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: NombreFichero = 1
 src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: ParetoNota = 1

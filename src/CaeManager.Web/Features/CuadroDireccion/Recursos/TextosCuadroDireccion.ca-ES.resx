@@ -705,8 +705,8 @@
   <data name="MetricaAltasTrabajadores" xml:space="preserve">
     <value>Altas de trabajadores</value>
   </data>
-  <data name="MetricaDocumentos" xml:space="preserve">
-    <value>Documentos gestionados</value>
+  <data name="MetricaExtranjeros" xml:space="preserve">
+    <value>Estrangers</value>
   </data>
   <data name="ColumnaAnio" xml:space="preserve">
     <value>Año</value>
