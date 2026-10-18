@@ -655,19 +655,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// «Desde el dd/MM/yyyy» si venció, «Caduca el dd/MM/yyyy» si está por vencer, la falta de fecha si está sin confirmar
     /// y vacío en cualquier otro caso.
     /// </summary>
-    private string DetalleDelDocumento(CaeManager.Application.Documentos.IncidenciaDocumentalDto incidencia)
-    {
-        if (incidencia.Estado == CaeManager.Domain.Documentos.EstadoDocumento.SinConfirmar)
-            return EstadoDocumentoUi.MotivoDeDocumento(incidencia.Estado, incidencia.FechaVencimiento, CaeManager.Domain.Common.DiaDeNegocio.Hoy()) ?? string.Empty;
-        if (incidencia.FechaVencimiento is not { } fecha) return string.Empty;
-        var texto = fecha.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture);
-        return incidencia.Estado switch
-        {
-            CaeManager.Domain.Documentos.EstadoDocumento.Vencido or CaeManager.Domain.Documentos.EstadoDocumento.EnTolerancia => Textos["DocumentoDesdeFecha", texto].Value,
-            CaeManager.Domain.Documentos.EstadoDocumento.Urgente or CaeManager.Domain.Documentos.EstadoDocumento.Proximo => Textos["DocumentoCaducaFecha", texto].Value,
-            _ => string.Empty
-        };
-    }
+    private static string DetalleDelDocumento(CaeManager.Application.Documentos.IncidenciaDocumentalDto incidencia) =>
+        DetalleVigenciaDocumentoUi.DeTrabajador(incidencia);
 
     private bool TodosExpandidos => _elementosPagina.Any(t => t.Incidencias.Count > 0)
         && _elementosPagina.Where(t => t.Incidencias.Count > 0).All(EstaExpandido);

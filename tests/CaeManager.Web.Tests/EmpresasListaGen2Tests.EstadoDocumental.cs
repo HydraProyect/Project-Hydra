@@ -1,3 +1,4 @@
+using System.Globalization;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Documentos;
@@ -304,8 +305,8 @@ public partial class EmpresasListaGen2Tests
         documentos.Select(d => d.QuerySelector(".documento-pendiente-nombre")!.TextContent.Trim())
             .Should().Equal(["Seguro de responsabilidad civil", "Modalidad preventiva"], "los mismos documentos que la ventana del motivo, en su orden");
         documentos.Select(d => d.QuerySelector("[data-pieza='pastilla']")!.TextContent.Trim()).Should().HaveCount(2).And.OnlyContain(t => t.Length > 0);
-        documentos[0].QuerySelector(".documento-pendiente-detalle")!.TextContent.Should().Contain("12", "dice cuánto hace que venció");
-        documentos[1].QuerySelector(".documento-pendiente-detalle")!.TextContent.Trim().Should().NotBeEmpty("dice qué falta para saber su vigencia");
+        documentos[0].QuerySelector(".documento-pendiente-detalle")!.TextContent.Trim().Should().Be("Venció el " + FechaMaqueta(vencida), "dice cuándo venció, con la fecha absoluta de la maqueta");
+        documentos[1].QuerySelector(".documento-pendiente-detalle")!.TextContent.Trim().Should().Be("Falta la fecha de vencimiento", "dice qué falta para saber su vigencia");
         documentos.Should().AllSatisfy(d =>
         {
             d.QuerySelectorAll("button").Should().ContainSingle("una sola acción por documento")
@@ -320,6 +321,48 @@ public partial class EmpresasListaGen2Tests
             "«Gestionar» abre el documento de su línea");
         Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().BeNull("gestionar desde la fila desplegada tampoco abre la vista rápida");
         ConsultasDeClientes(mediador).Should().Be(0);
+    }
+
+    private static string FechaMaqueta(IncidenciaDocumentalDto incidencia) =>
+        incidencia.FechaVencimiento!.Value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// «Empresas TALVEG.dc.html», fila desplegada: lo vencido dice «Venció el dd/MM/yyyy» (fecha absoluta, nunca
+    /// «Hace N días»), lo que está por vencer su plazo («Caduca en N días») y lo sin confirmar qué fecha falta.
+    /// </summary>
+    [Fact]
+    public async Task La_fila_desplegada_dice_la_vigencia_de_cada_estado_como_la_maqueta()
+    {
+        var vencido = IncidenciaDe("Certificado de estar al corriente con la TGSS", EstadoDocumento.Vencido, -80);
+        var enTolerancia = IncidenciaDe("Seguro de responsabilidad civil", EstadoDocumento.EnTolerancia, -3);
+        var urgente = IncidenciaDe("Modalidad preventiva", EstadoDocumento.Urgente, 5);
+        var proximo = IncidenciaDe("Memoria de actividades", EstadoDocumento.Proximo, 20);
+        var sinConfirmar = IncidenciaDe("Póliza de accidentes", EstadoDocumento.SinConfirmar);
+        var nervion = EmpresaCon("Aislamientos Nervión S.L.", EstadoDocumento.Vencido, vencido, enTolerancia, urgente, proximo, sinConfirmar);
+        var cut = RenderizarComo(new MediatorFalso { Almacen = { nervion } });
+
+        await DesplegarAsync(cut, "Aislamientos Nervión S.L.");
+
+        DocumentosPendientes(cut).Select(d => d.QuerySelector(".documento-pendiente-detalle")!.TextContent.Trim()).Should().Equal(
+            "Venció el " + FechaMaqueta(vencido),
+            "Venció el " + FechaMaqueta(enTolerancia),
+            "Caduca en 5 días",
+            "Caduca en 20 días",
+            "Falta la fecha de vencimiento");
+        cut.Find(".tarjeta-fila-acordeon-contenido").TextContent.Should().NotContain("Hace ", "la maqueta no muestra el plazo relativo de lo vencido");
+    }
+
+    /// <summary>Un «sin confirmar» que es el contrato de trabajo pide la fecha de FIN, como en la lista de Trabajadores.</summary>
+    [Fact]
+    public async Task Un_contrato_de_trabajo_sin_confirmar_pide_la_fecha_de_fin()
+    {
+        var nervion = EmpresaCon("Aislamientos Nervión S.L.", EstadoDocumento.SinConfirmar,
+            IncidenciaDe("Contrato de trabajo", EstadoDocumento.SinConfirmar));
+        var cut = RenderizarComo(new MediatorFalso { Almacen = { nervion } });
+
+        await DesplegarAsync(cut, "Aislamientos Nervión S.L.");
+
+        DocumentosPendientes(cut).Single().QuerySelector(".documento-pendiente-detalle")!.TextContent.Trim().Should().Be("Falta la fecha de fin");
     }
 
     [Fact]
@@ -363,14 +406,17 @@ public partial class EmpresasListaGen2Tests
     [InlineData(Roles.Cliente, false)]
     public async Task Gestionar_solo_se_ofrece_al_rol_que_puede_escribir(string rol, bool ofreceGestionar)
     {
+        var vencida = IncidenciaDe("Seguro de responsabilidad civil", EstadoDocumento.Vencido, -12);
         var nervion = EmpresaCon("Aislamientos Nervión S.L.", EstadoDocumento.Vencido,
-            IncidenciaDe("Seguro de responsabilidad civil", EstadoDocumento.Vencido, -12),
+            vencida,
             IncidenciaDe("Modalidad preventiva", EstadoDocumento.SinConfirmar));
         var cut = RenderizarComo(new MediatorFalso { Almacen = { nervion } }, rol: rol);
 
         await DesplegarAsync(cut, "Aislamientos Nervión S.L.");
 
         DocumentosPendientes(cut).Should().HaveCount(2, "control positivo: los documentos se ven con cualquier rol");
+        DocumentosPendientes(cut).Select(d => d.QuerySelector(".documento-pendiente-detalle")!.TextContent.Trim()).Should().Equal(
+            ["Venció el " + FechaMaqueta(vencida), "Falta la fecha de vencimiento"], "el texto de vigencia no depende del rol");
         cut.FindAll(".tarjeta-fila-acordeon-contenido button").Should().HaveCount(ofreceGestionar ? 2 : 0);
         cut.FindAll(".tarjeta-fila-acordeon-contenido button").Where(b => b.TextContent.Trim() != "Gestionar").Should().BeEmpty("el único verbo es «Gestionar»");
     }
