@@ -692,7 +692,7 @@ public static class Ayudas
     /// la clase <c>fila-enfocada</c>. La clase llega con el parche del servidor y el foco pasa a la fila un fotograma después
     /// (<c>enfocarFilaActiva</c> de <c>atajos-lista.js</c>); mientras el foco siga en el control de origen, una tecla como Enter
     /// se descarta por ser la de un elemento interactivo (#1340 y #1345, mismo fallo dos veces). <paramref name="filaEnfocada"/>
-    /// debe resolver a una única fila (<c>tbody tr.fila-enfocada</c>).
+    /// debe resolver a una única fila (<c>.fila-enfocada</c> dentro del marco de la lista).
     /// </summary>
     public static async Task EsperarFocoRealEnFilaAsync(ILocator filaEnfocada)
     {

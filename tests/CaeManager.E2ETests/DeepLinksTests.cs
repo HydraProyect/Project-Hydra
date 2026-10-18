@@ -52,7 +52,7 @@ public class DeepLinksTests(WebAppFixture fixture)
         // la fila (la fila no lleva menú «⋯») lleva a la ficha completa, y
         // desde ahí "⋯ → Editar" abre el Context Workspace — el mismo camino
         // que ya usa TrabajadorDetalle.razor.cs (AbrirInformacion).
-        await page.Locator("tbody a.boton-360-pagina").First.ClickAsync();
+        await page.Locator(".marco-lista-trabajadores a.boton-360-pagina").First.ClickAsync();
         await page.WaitForURLAsync(new Regex(@"/trabajadores/[0-9a-f-]{36}$"));
         // La guarda es el resultado en el DOM: un único
         // ".menu-acciones-disparador" (el de la cabecera de Trabajador 360,

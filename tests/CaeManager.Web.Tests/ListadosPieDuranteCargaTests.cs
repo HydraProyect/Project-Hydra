@@ -35,7 +35,9 @@ public partial class TrabajadoresListaGen2Tests
         var cut = Render<CaeManager.Web.Features.Trabajadores.Pages.Trabajadores>();
         try
         {
-            ComprobacionPieDuranteCarga.SinFranjaVacia(cut);
+            // Como Empresas: mientras llega la primera pagina solo hay el esqueleto, sin tarjeta ni pie.
+            cut.FindAll(".esqueleto-lista").Should().ContainSingle();
+            cut.FindAll(".tarjeta-listado, .tarjeta-listado-pie, .paginador-texto").Should().BeEmpty("el total aun no se conoce y no debe quedar una franja vacia");
         }
         finally
         {
