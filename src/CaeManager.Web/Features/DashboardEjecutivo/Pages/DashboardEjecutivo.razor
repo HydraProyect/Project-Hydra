@@ -252,46 +252,6 @@
                                 </ul>
                             }
                         }
-                        else if (kpi.Codigo == CatalogoKpis.EmpresasConMasRiesgo)
-                        {
-                            @if (_empresasEnRiesgo.Count == 0)
-                            {
-                                <p class="texto-vacio-seccion">@Textos["VacioRiesgoEmpresas"]</p>
-                            }
-                            else
-                            {
-                                <table class="tabla-datos">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">@Textos["ColumnaEmpresa"]</th>
-                                            <th scope="col">@Textos["ColumnaVencidos"]</th>
-                                            <th scope="col">@Textos["ColumnaUrgentes"]</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (var empresa in _empresasEnRiesgo)
-                                        {
-                                            <tr>
-                                                <td>
-                                                    @* El deep link es el mismo de antes —/empresas?q=RazonSocial, por
-                                                       texto y no por Id—, ahora en un enlace: la fila entera clicable
-                                                       no llegaba con el teclado. *@
-                                                    <a class="nombre-empresa-riesgo" href="@($"/empresas?q={Uri.EscapeDataString(empresa.EmpresaRazonSocial)}")">@empresa.EmpresaRazonSocial</a>
-                                                </td>
-                                                <td>
-                                                    <Badge Tono="@(empresa.DocumentosVencidos > 0 ? TonoBadge.Peligro : TonoBadge.Neutro)"
-                                                           title="@Textos["TituloRecuentoVencidos", empresa.EmpresaRazonSocial, empresa.DocumentosVencidos].Value">@empresa.DocumentosVencidos</Badge>
-                                                </td>
-                                                <td>
-                                                    <Badge Tono="@(empresa.DocumentosUrgentes > 0 ? TonoBadge.Advertencia : TonoBadge.Neutro)"
-                                                           title="@Textos["TituloRecuentoUrgentes", empresa.EmpresaRazonSocial, empresa.DocumentosUrgentes].Value">@empresa.DocumentosUrgentes</Badge>
-                                                </td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            }
-                        }
                         else if (kpi.Codigo == CatalogoKpis.HorasPorCliente)
                         {
                             var filasHoras = FilasHorasPorCliente;
@@ -378,15 +338,7 @@
                             <Detalle>@DetalleCosteIa</Detalle>
                         </VentanaContexto>
                     </div>
-                    <div class="pulso-negocio-cifra">
-                        <span class="pulso-negocio-etiqueta">@Textos["PulsoEtiquetaFacturacion"]</span>
-                        <VentanaContexto class="pulso-negocio-valor" Etiqueta="@DetalleFacturacion" Titulo="@Textos["PulsoEtiquetaFacturacion"]">
-                            <Disparador>@($"{_valores.FacturacionEstimadaMesActual:F2} €")</Disparador>
-                            <Detalle>@DetalleFacturacion</Detalle>
-                        </VentanaContexto>
-                    </div>
                 </div>
-                <a class="enlace-facturacion" href="/facturacion">@Textos["EnlaceVerFacturas"]</a>
             </section>
         }
     }

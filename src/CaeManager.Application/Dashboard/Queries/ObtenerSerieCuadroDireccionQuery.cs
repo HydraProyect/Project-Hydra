@@ -56,7 +56,8 @@ public record MesMedidoCuadro(MedicionCuadroDireccion Medicion, IReadOnlyList<Li
 /// con <see cref="AmbitoTenantExplicito"/> fijado a ese Tenant (filtro global y RLS de ese Tenant), solo si quien
 /// mira alcanza el Tenant entero; un mes con cierre mensual vigente sale de su foto y el resto se mide en vivo con
 /// <see cref="MedicionMensualCuadroDireccion"/>. La fusión es pura (<see cref="Construir"/>). La facturación es
-/// estimada por naturaleza: valora con las tarifas de hoy las unidades de cada mes, igual que la pantalla
+/// estimada por naturaleza y solo se devuelve a quien pasa <see cref="AutorizacionTarifasCliente"/> (en el Cuadro,
+/// Dirección CAE; para Coordinador CAE es null): valora con las tarifas de hoy las unidades de cada mes, igual que la pantalla
 /// «Facturación», y por eso no usa las tarifas congeladas de la foto (la foto no guarda las unidades por concepto).
 /// </summary>
 public class ObtenerSerieCuadroDireccionQueryHandler(
@@ -72,6 +73,10 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
     public async Task<SerieCuadroDireccionDto> Handle(ObtenerSerieCuadroDireccionQuery request, CancellationToken cancellationToken)
     {
         await AutorizacionCuadroDireccion.ExigirLecturaAsync(currentUserService);
+
+        // Leer el Cuadro no da derecho a ver importes: las tarifas son plano Comercial y las guarda
+        // AutorizacionTarifasCliente. Sin ese rol efectivo (Coordinador CAE) la facturación sale a null.
+        var conFacturacion = await DevuelveFacturacionAsync(request.ConFacturacion, currentUserService);
         var ahoraUtc = reloj.GetUtcNow().UtcDateTime;
         var meses = MesesDeLaSerie(request.Anyo, request.Mes, request.Meses, ahoraUtc);
         if (meses.Count == 0)
@@ -97,7 +102,7 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
                         .GroupBy(c => (c.Anyo, c.Mes))
                         .ToDictionary(g => g.Key, g => g.First());
 
-                var empresasConTarifa = request.ConFacturacion
+                var empresasConTarifa = conFacturacion
                     ? await facturacionContext.TarifasCliente.Select(t => t.ClienteId).Distinct().ToListAsync(cancellationToken)
                     : [];
 
@@ -114,7 +119,7 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
                         };
 
                     IReadOnlyList<LineaFacturacionCuadroDto>? facturacion = null;
-                    if (request.ConFacturacion)
+                    if (conFacturacion)
                     {
                         var lineas = new List<LineaFacturacionDto>();
                         foreach (var empresaId in empresasConTarifa)
@@ -136,6 +141,10 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
 
         return Construir(meses, ahoraUtc, porTenant, sinAlcance);
     }
+
+    /// <summary>Hay importes solo si se pidieron y el rol efectivo pasa el guard de tarifas (Administrador o Dirección CAE).</summary>
+    public static async Task<bool> DevuelveFacturacionAsync(bool pedida, ICurrentUserService usuario) =>
+        pedida && await usuario.PuedeGestionarTarifasAsync();
 
     /// <summary>
     /// Los meses de la serie, del más antiguo al más reciente: hasta <paramref name="cantidad"/> (1 a

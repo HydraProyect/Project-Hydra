@@ -197,6 +197,39 @@ public class SerieYComunicacionesCuadroDireccionTests
         resultado.TenantsSinAlcanceCompleto.Should().Be(2);
     }
 
+    // ---------------------------------------------------------------- Autoridad sobre los importes
+
+    private sealed class UsuarioConRol(string? rol) : CaeManager.Application.Common.ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult(rol);
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+
+    [Fact]
+    public async Task Direccion_CAE_recibe_los_importes_de_la_serie()
+    {
+        (await ObtenerSerieCuadroDireccionQueryHandler.DevuelveFacturacionAsync(true, new UsuarioConRol("DireccionCae"))).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Coordinador_CAE_lee_el_Cuadro_pero_no_recibe_importes()
+    {
+        await AutorizacionCuadroDireccionComprobar("CoordinadorCae");
+        (await ObtenerSerieCuadroDireccionQueryHandler.DevuelveFacturacionAsync(true, new UsuarioConRol("CoordinadorCae"))).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Sin_pedir_facturacion_no_hay_importes_ni_para_Direccion_CAE()
+    {
+        (await ObtenerSerieCuadroDireccionQueryHandler.DevuelveFacturacionAsync(false, new UsuarioConRol("DireccionCae"))).Should().BeFalse();
+    }
+
+    private static async Task AutorizacionCuadroDireccionComprobar(string rol) =>
+        await CaeManager.Application.Dashboard.AutorizacionCuadroDireccion.ExigirLecturaAsync(new UsuarioConRol(rol));
+
     // ---------------------------------------------------------------- Gestiones por día
 
     [Fact]

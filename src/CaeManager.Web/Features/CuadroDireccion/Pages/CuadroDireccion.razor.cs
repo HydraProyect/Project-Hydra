@@ -566,7 +566,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
             var gestiones = e.Cifras.Gestiones?.Valor;
             return new FilaEmpresa(
                 e, CalculosCuadro.Rotacion(e.Cifras.AltasTrabajadores.Valor, e.Cifras.BajasTrabajadores.Valor, e.Cifras.TrabajadoresActivos.Valor),
-                facturacion, CalculosCuadro.IngresoPorGestion(facturacion, gestiones), gestiones);
+                facturacion, HayTarifas ? CalculosCuadro.IngresoPorGestion(facturacion, gestiones) : null, gestiones);
         }).ToList();
 
         double? Clave(FilaEmpresa f) => _ordenColumna switch
@@ -930,14 +930,17 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
                 Textos["ColumnaIngresoGestion"].Value, Textos["ColumnaCumplimiento"].Value],
         }.Concat(FilasEmpresas().Select(f => (IReadOnlyList<string>)[
             f.Empresa.TenantNombre, Responde(f.Empresa.PrincipalDeCartera), Numero(f.Empresa.Cifras.TrabajadoresActivos.Valor),
-            Numero(f.Empresa.Cifras.CentrosActivos.Valor), f.Rotacion is { } r ? Porcentaje(r) : "—", Importe(f.Facturacion),
+            Numero(f.Empresa.Cifras.CentrosActivos.Valor), f.Rotacion is { } r ? Porcentaje(r) : "—", ImporteOSinDato(f.Facturacion),
             f.IngresoPorGestion is { } i ? Importe((decimal)i) : "—",
             f.Empresa.Cifras.Cumplimiento.SinDatos ? "—" : f.Empresa.Cifras.Cumplimiento.Porcentaje + " %"])));
 
     private Task ExportarBorradorAsync() => DescargarCsvAsync("borrador",
         new[] { (IReadOnlyList<string>)[Textos["ColumnaEmpresa"].Value, Textos["ColumnaFacturable"].Value, Textos["ColumnaAltasCentro"].Value] }
             .Concat(FilasEmpresas().Select(f => (IReadOnlyList<string>)[
-                f.Empresa.TenantNombre, Importe(f.Facturacion), Numero(f.Empresa.Cifras.AltasCentros.Valor)])));
+                f.Empresa.TenantNombre, ImporteOSinDato(f.Facturacion), Numero(f.Empresa.Cifras.AltasCentros.Valor)])));
+
+    /// <summary>Sin tarifas visibles (o sin autoridad sobre ellas) el importe no se inventa: sale «—».</summary>
+    private string ImporteOSinDato(decimal importe) => HayTarifas ? Importe(importe) : Textos["SinDato"].Value;
 
     private Task ExportarComparativaAsync() => DescargarCsvAsync("comparativa",
         new[]

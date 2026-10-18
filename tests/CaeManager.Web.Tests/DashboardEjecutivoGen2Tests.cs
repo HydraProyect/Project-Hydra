@@ -166,12 +166,6 @@ public class DashboardEjecutivoGen2Tests : BunitContext
 
         public EstadisticasAprobacionDocumentoDto Aprobaciones { get; set; } = new(312, 147);
 
-        public IReadOnlyList<RiesgoEmpresaDto> EmpresasEnRiesgo { get; set; } =
-        [
-            new(Guid.NewGuid(), "Instalaciones Beroa", 8, 3),
-            new(Guid.NewGuid(), "Electro Ebro", 0, 1)
-        ];
-
         public Result ResultadoGuardar { get; set; } = Result.Exito();
 
         /// <summary>Si devuelve una tarea, esa petición se resuelve cuando el test lo diga.</summary>
@@ -200,7 +194,6 @@ public class DashboardEjecutivoGen2Tests : BunitContext
                     .Valores,
                 ObtenerPreferenciaDashboardQuery => escenario.Seleccion,
                 ObtenerEstadisticasAprobacionDocumentoQuery => escenario.Aprobaciones,
-                ObtenerDesgloseDashboardQuery => new DesgloseDashboardDto([], [], escenario.EmpresasEnRiesgo),
                 GuardarPreferenciaDashboardCommand => escenario.ResultadoGuardar,
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
             };
@@ -352,7 +345,9 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         enviadas.Where(e => e.Peticion is ObtenerCatalogoKpisQuery).Select(e => e.Ambito).Should().Equal(
             [TenantA, TenantB], "una vuelta por organización autorizada, cada una con su ámbito");
         enviadas.Should().OnlyContain(e => e.Token.CanBeCanceled,
-            "todas las llamadas de la carga llevan el token del ciclo de la página, también las cuatro que lanza la pantalla");
+            "todas las llamadas de la carga llevan el token del ciclo de la página");
+        enviadas.Select(e => e.Peticion.GetType().Name).Should().NotContain(
+            ["ObtenerDesgloseDashboardQuery", "ObtenerKpisBpoQuery"], "lo documental y las incidencias no se pintan en esta pantalla, así que no se piden");
     }
 
     [Fact]
@@ -803,9 +798,10 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         frase.GetAttribute("aria-label").Should().Be(
             "459 decisiones de verificación resueltas: 312 automáticas y 147 manuales. Solo la organización activa, y desde el principio: la consulta no recibe periodo.");
 
-        // Las dos cifras del pulso que SÍ son del periodo lo dicen.
-        cut.FindAll(".pulso-negocio-valor")[0].GetAttribute("aria-label").Should().Contain("en el periodo consultado");
-        cut.FindAll(".pulso-negocio-valor")[1].GetAttribute("aria-label").Should().Contain("del periodo consultado");
+        // La cifra del pulso que SÍ es del periodo lo dice; la facturación estimada ya no está en esta pantalla.
+        cut.FindAll(".pulso-negocio-valor").Should().ContainSingle()
+            .Which.GetAttribute("aria-label").Should().Contain("en el periodo consultado");
+        cut.FindAll(".enlace-facturacion").Should().BeEmpty();
     }
 
     /// <summary>
@@ -869,7 +865,6 @@ public class DashboardEjecutivoGen2Tests : BunitContext
             };
         }
         escenario.Aprobaciones = new EstadisticasAprobacionDocumentoDto(0, 0);
-        escenario.EmpresasEnRiesgo = [];
 
         var cut = Renderizar(escenario).Cut;
 
