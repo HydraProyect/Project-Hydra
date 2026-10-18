@@ -70,7 +70,7 @@ public partial class Trabajador360Gen2Tests
         };
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
 
-        drawer.FindComponents<CampoTexto>().Should().HaveCount(13);
+        drawer.FindComponents<CampoTexto>().Should().HaveCount(12);
         drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Contacto de emergencia").Instance.Valor
             .Should().Be("Lucía Moreno");
         drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Teléfono de emergencia").Instance.Type
@@ -110,7 +110,7 @@ public partial class Trabajador360Gen2Tests
 
         drawer.FindComponents<CampoTexto>().Select(c => c.Instance.Etiqueta)
             .Should().NotContain(["Contacto de emergencia", "Teléfono de emergencia"]);
-        await CambiarCampoFicha(drawer, "Puesto u oficio", "Electricista");
+        await CambiarCampoFicha(drawer, "Nacionalidad", "Colombiana");
         await GuardarFicha(drawer);
 
         m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().ContainSingle().Which.ContactoEmergencia.Should().BeNull();
