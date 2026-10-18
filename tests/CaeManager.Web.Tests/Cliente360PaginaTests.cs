@@ -237,7 +237,7 @@ public class Cliente360PaginaTests : BunitContext
         var cabecera = cut.Find("[data-pieza=cabecera-identidad]");
         cabecera.QuerySelector("h1")!.TextContent.Trim().Should().Be("Refrielectric S.A.");
         cabecera.QuerySelector(".cabecera-identidad-kicker")!.TextContent.Trim().Should().Be("Cliente",
-            "en pantalla el Cliente se rotula «Cliente» (CONTRATO_TERMINOLOGIA § 3.2)");
+            "Cliente 360 TALVEG del 17-10 lleva «Cliente» sobre el nombre (en pantalla el Cliente empresarial se rotula «Cliente»)");
         cabecera.QuerySelector(".cabecera-identidad-datos")!.TextContent.Should()
             .Contain("CIF A-48.220.917").And.Contain("3 centros · 42 trabajadores");
         cabecera.QuerySelector(".cabecera-identidad-datos button")
@@ -303,7 +303,7 @@ public class Cliente360PaginaTests : BunitContext
         cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerSubcontratasDeClienteQuery>().Should().ContainSingle());
         var datos = cut.Find(".cabecera-identidad-datos").TextContent;
         if (cantidad == 1)
-            datos.Should().Contain("Entra como contratista: Ibertec GmbH");
+            datos.Should().Contain("Contratista: Ibertec GmbH");
         else
             datos.Should().NotContain(nombres[0]).And.NotContain(nombres[1]);
     }
@@ -401,7 +401,9 @@ public class Cliente360PaginaTests : BunitContext
         var cut = Renderizar(id);
         Textos(cut.FindAll(".cliente360-indicador-boton")).Should().Contain("1 trabajador bloqueado");
 
-        await cut.InvokeAsync(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "Configurar tolerancias").Click());
+        // Maqueta 17-10: la tolerancia se abre desde «Editar →» de la tarjeta de la pestaña Ficha, o desde el menú «⋯».
+        await cut.InvokeAsync(() => cut.Find(".menu-acciones-disparador").Click());
+        await cut.InvokeAsync(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "Tolerancia de documentos").Click());
         cut.WaitForAssertion(() => cut.FindAll("select").Should().NotBeEmpty());
         cut.FindAll("select")[0].Change("30");
         await cut.InvokeAsync(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar").Click());
@@ -504,7 +506,7 @@ public class Cliente360PaginaTests : BunitContext
 
         cut.Find("[data-pieza=anillo]").GetAttribute("aria-label").Should().Be("1 de 2 centros con gestión CAE sin incidencias");
         cut.Find(".anillo-cumplimiento-detalle").TextContent.Should().Be("1 de 2 centros");
-        cut.Find(".cliente360-sin-gestion-cae").TextContent.Should().Contain("SIN GESTIÓN CAE · no cuentan en el anillo").And.Contain("Sin CAE");
+        cut.Find(".cliente360-sin-gestion-cae").TextContent.Should().Contain("Sin gestión CAE · no cuentan en el anillo").And.Contain("Sin CAE");
         cut.FindAll(".cliente360-sin-gestion-cae .fila-relacion").Should().ContainSingle();
         var sinGestion = cut.Find(".cliente360-sin-gestion-cae");
         sinGestion.HasAttribute("aria-label").Should().BeFalse();
@@ -631,8 +633,8 @@ public class Cliente360PaginaTests : BunitContext
         cut.Find(".pestanas-boton-activa").TextContent.Should().StartWith(visible ? "Empresas" : "Centros");
         if (visible)
             Textos(cut.FindAll("[role=tab]")).Should().Equal([
-                "Centros0 centros", "Empresas2 empresas", "Subcontratas0 subcontratas", "Documentación", "Agenda", "Historial"]);
-        if (!visible) cut.Find(".cabecera-identidad-datos").TextContent.Should().Contain("Entra como contratista: Contratista 0");
+                "Centros0 centros", "Empresas2 empresas", "Subcontratas0 subcontratas", "Documentación", "Agenda", "Ficha", "Historial"]);
+        if (!visible) cut.Find(".cabecera-identidad-datos").TextContent.Should().Contain("Contratista: Contratista 0");
         new Uri(Services.GetRequiredService<NavigationManager>().Uri).Query.Should().Contain("q=vigo").And.Contain("extra=conservar");
     }
 
@@ -668,8 +670,8 @@ public class Cliente360PaginaTests : BunitContext
 
         Textos(cut.FindAll("[role=tab]")).Should().Equal([
             "Centros2 centros", "Subcontratas0 subcontratas", "Documentación",
-            "Agenda", "Historial"]);
-        cut.FindAll("[role=tab]").Should().HaveCount(5);
+            "Agenda", "Ficha", "Historial"]);
+        cut.FindAll("[role=tab]").Should().HaveCount(6);
         cut.FindAll("[role=tab]").Select(t => t.TextContent).Should().NotContain(t => t.Contains("Blindaje"));
         cut.Find(".pestanas-boton-activa").TextContent.Should().StartWith("Centros");
     }
@@ -714,7 +716,7 @@ public class Cliente360PaginaTests : BunitContext
         var cut = Renderizar(id, $"?pestana={pestana}");
 
         cut.Find("[role=tab][aria-selected=true]").TextContent.Trim().Should().Be("Documentación");
-        cut.FindAll("[role=tab]").Should().HaveCount(6);
+        cut.FindAll("[role=tab]").Should().HaveCount(7);
         cut.Find("[role=tab][aria-selected=true]").QuerySelector(".pestanas-contador").Should().BeNull();
         var bloques = cut.Find(".cliente360-documentacion").Children;
         bloques.Should().HaveCount(2);
@@ -841,8 +843,9 @@ public class Cliente360PaginaTests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.WaitForAssertion(() => Textos(cut.FindAll("li.fila-relacion .fila-relacion-detalle")).Should().Equal([
-            "Entra como contratista: Montajes Ebro S.L. · 3 vencidos · 1 próximo",
+        // Maqueta 17-10: una línea por cosa bajo el nombre (contratista; motivos).
+        cut.WaitForAssertion(() => Textos(cut.FindAll("li.fila-relacion .cliente360-linea-detalle")).Should().Equal([
+            "Entra como contratista: Montajes Ebro S.L.", "3 vencidos · 1 próximo",
             "Entra como contratista: Ibertec GmbH"]));
         Textos(cut.FindAll(".cliente360-indicadores .ventana-contexto")[0].QuerySelectorAll(".ventana-linea"))
             .Should().Equal(["Planta Barakaldo · Entra como contratista: Montajes Ebro S.L."]);
@@ -875,12 +878,13 @@ public class Cliente360PaginaTests : BunitContext
         cut.FindAll("li.fila-relacion .fila-relacion-detalle").Should().BeEmpty();
         cut.FindAll("li.fila-relacion").Select(f => f.TextContent)
             .Should().NotContain(t => t.Contains("Entra como contratista"));
-        cut.Find(".cabecera-identidad-datos").TextContent.Should().Contain("Entra como contratista: Montajes Ebro S.L.");
+        cut.Find(".cabecera-identidad-datos").TextContent.Should().Contain("Contratista: Montajes Ebro S.L.");
     }
 
-    // Una sola medida de pastilla en la ficha (13 px): la pequeña de 11 px convivía con la normal.
+    // Medidas de pastilla de la maqueta 17-10: «Crítico» y los indicadores van en la normal; la pastilla de estado de la cabecera y la
+    // de cada fila de Centro, en la pequeña (.badge-pequeno).
     [Fact]
-    public void Ninguna_pastilla_de_la_ficha_usa_la_medida_pequena()
+    public void Las_pastillas_de_estado_son_pequenas_y_el_resto_de_la_ficha_usa_la_normal()
     {
         var (id, mediador) = ClienteBase(critico: true);
         mediador.Centros.AddRange([
@@ -890,8 +894,154 @@ public class Cliente360PaginaTests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.FindAll(".badge").Should().HaveCountGreaterThan(4, "Crítico, tres indicadores y dos estados de Centro");
-        cut.FindAll(".badge-pequeno").Should().BeEmpty();
+        cut.FindAll(".badge").Should().HaveCountGreaterThan(4, "Crítico, tres indicadores, el peor estado y dos estados de Centro");
+        cut.FindAll(".cabecera-identidad-titular .badge-pequeno, .cliente360-indicadores .badge-pequeno").Should().BeEmpty();
+        cut.FindAll("li.fila-relacion .badge").Should().OnlyContain(b => b.ClassList.Contains("badge-pequeno"));
+        cut.Find("[data-peor-estado]").ClassList.Should().Contain("badge-pequeno");
+    }
+
+    // ── Cabecera: peor estado, acción principal y menú (maqueta 17-10) ────
+
+    [Fact]
+    public void La_cabecera_termina_en_la_pastilla_del_peor_estado_de_los_Centros_con_gestion_CAE()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.AddRange([
+            Centro("Vigente", EstadoCentro.Vigente), Centro("Planta Barakaldo", EstadoCentro.Vencido, vencidas: 1),
+            Centro("Sin CAE", EstadoCentro.SinGestionCae)]);
+        mediador.TotalCentros = 3;
+        Registrar(mediador);
+
+        var cut = Renderizar(id);
+
+        var peor = cut.Find(".cabecera-identidad-datos [data-peor-estado]");
+        peor.TextContent.Trim().Should().Be(Features.Centros.EstadoCentroUi.Texto(EstadoCentro.Vencido, null));
+        peor.ClassList.Should().Contain("badge-peligro");
+    }
+
+    // El peor estado sale de la gravedad (CalculadoraEstadoCentro.Gravedad), no del valor numérico del enum, congelado por la API v1:
+    // por número Pendiente (7) ganaría a Bloqueado (5) y Faltante (4) a Vencido (3), al revés que en la lista ordenada por gravedad.
+    [Theory]
+    [InlineData(EstadoCentro.Bloqueado, EstadoCentro.Pendiente, EstadoCentro.Bloqueado)]
+    [InlineData(EstadoCentro.Pendiente, EstadoCentro.Bloqueado, EstadoCentro.Bloqueado)]
+    [InlineData(EstadoCentro.Vencido, EstadoCentro.Faltante, EstadoCentro.Vencido)]
+    [InlineData(EstadoCentro.Faltante, EstadoCentro.Vencido, EstadoCentro.Vencido)]
+    public void El_peor_estado_de_la_cabecera_se_decide_por_gravedad_y_no_por_el_numero_del_enum(
+        EstadoCentro primero, EstadoCentro segundo, EstadoCentro esperado)
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.AddRange([Centro("Primero", primero), Centro("Segundo", segundo)]);
+        mediador.TotalCentros = 2;
+        Registrar(mediador);
+
+        var cut = Renderizar(id);
+
+        cut.Find(".cabecera-identidad-datos [data-peor-estado]").TextContent.Trim()
+            .Should().Be(Features.Centros.EstadoCentroUi.Texto(esperado, null));
+    }
+
+    [Fact]
+    public void El_Usuario_de_Cliente_ve_la_Ficha_con_el_resumen_y_sin_Editar()
+    {
+        var (id, mediador) = ClienteBase();
+        Registrar(mediador, Roles.Cliente);
+
+        var cut = Renderizar(id, "?pestana=ficha");
+
+        var tarjeta = cut.Find(".cliente360-ficha");
+        tarjeta.QuerySelector(".tarjeta-titulo")!.TextContent.Should().Be("Tolerancia de documentos");
+        cut.WaitForAssertion(() => cut.Find("[data-tolerancia-resumen]").TextContent.Should().Be("Ningún tipo con tolerancia"));
+        tarjeta.QuerySelectorAll("button").Should().BeEmpty("sin escritura no hay «Editar →»");
+    }
+
+    [Fact]
+    public void Cambiar_a_Ficha_por_la_URL_en_el_mismo_Cliente_lee_el_resumen_de_tolerancias()
+    {
+        var (id, mediador) = ClienteBase();
+        Registrar(mediador);
+        var cut = Renderizar(id);
+        mediador.Enviadas.OfType<ObtenerToleranciasClienteEmpresarialQuery>().Should().BeEmpty("solo la Ficha las necesita");
+
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"clientes/{id}?pestana=ficha");
+        cut.Render(p => p.Add(x => x.ClienteId, id));
+
+        cut.WaitForAssertion(() => cut.Find("[data-tolerancia-resumen]").TextContent.Should().Be("Ningún tipo con tolerancia"));
+        mediador.Enviadas.OfType<ObtenerToleranciasClienteEmpresarialQuery>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Sin_Centros_con_gestion_CAE_la_cabecera_no_afirma_un_peor_estado()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.Add(Centro("Sin CAE", EstadoCentro.SinGestionCae));
+        mediador.TotalCentros = 1;
+        Registrar(mediador);
+        Renderizar(id).FindAll("[data-peor-estado]").Should().BeEmpty("sin gestión CAE no hay estado documental que resumir");
+    }
+
+    [Fact]
+    public void Con_la_lista_truncada_la_cabecera_no_afirma_un_peor_estado_global()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.Add(Centro("Planta", EstadoCentro.Vencido, vencidas: 1));
+        mediador.TotalCentros = 250;
+        Registrar(mediador);
+        Renderizar(id).FindAll("[data-peor-estado]").Should().BeEmpty("la lista truncada no define el peor estado global");
+    }
+
+    [Theory]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    public void Editar_Cliente_es_la_accion_principal_y_el_menu_lleva_la_tolerancia_solo_con_escritura(string rol, bool puedeEscribir)
+    {
+        var (id, mediador) = ClienteBase();
+        Registrar(mediador, rol);
+
+        var cut = Renderizar(id);
+
+        var acciones = cut.Find(".cabecera-identidad-acciones");
+        Textos(acciones.QuerySelectorAll("button.boton-primario")).Should().Equal(puedeEscribir ? ["Editar Cliente"] : []);
+        acciones.QuerySelectorAll(".menu-acciones-disparador").Should().HaveCount(puedeEscribir ? 1 : 0, "a Consulta no se le deja un menú vacío");
+        if (puedeEscribir)
+        {
+            acciones.QuerySelector(".menu-acciones-disparador")!.Click();
+            Textos(cut.FindAll("[role=menuitem]")).Should().Equal(["Tolerancia de documentos"]);
+        }
+    }
+
+    // ── Pestaña Ficha: tolerancia por defecto (antes, tarjeta del lateral) ─
+
+    [Theory]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    public void La_pestana_Ficha_resume_la_tolerancia_y_su_Editar_solo_se_ofrece_con_escritura(string rol, bool puedeEscribir)
+    {
+        var (id, mediador) = ClienteBase();
+        Registrar(mediador, rol);
+
+        var cut = Renderizar(id, "?pestana=ficha");
+
+        cut.Find("[role=tab][aria-selected=true]").TextContent.Trim().Should().Be("Ficha");
+        var tarjeta = cut.Find(".cliente360-ficha");
+        tarjeta.QuerySelector(".tarjeta-titulo")!.TextContent.Should().Be("Tolerancia de documentos");
+        cut.WaitForAssertion(() => cut.Find("[data-tolerancia-resumen]").TextContent.Should().Be("Ningún tipo con tolerancia"));
+        tarjeta.QuerySelectorAll("button").Should().HaveCount(puedeEscribir ? 1 : 0);
+        if (puedeEscribir)
+            tarjeta.QuerySelector("button")!.TextContent.Trim().Should().Be("Editar →");
+    }
+
+    [Fact]
+    public void El_lateral_ya_no_lleva_la_tarjeta_de_tolerancia_y_Informacion_enseña_el_CIF_copiable()
+    {
+        var (id, mediador) = ClienteBase();
+        Registrar(mediador);
+
+        var cut = Renderizar(id);
+
+        var lateral = cut.Find("aside");
+        lateral.TextContent.Should().NotContain("Configurar tolerancias");
+        Textos(lateral.QuerySelectorAll(".tarjeta-titulo")).Should().Equal(["Información", "Nota interna"]);
+        lateral.TextContent.Should().Contain("Identificación fiscal").And.Contain("A-48.220.917");
     }
 
     [Fact]
@@ -908,15 +1058,19 @@ public class Cliente360PaginaTests : BunitContext
 
         cut.Find(".cliente360-resumen-lista").TextContent.Should().Be("Mostrando 2 de 2 · del peor estado al mejor");
         var filas = cut.FindAll("li.fila-relacion");
-        filas.Select(f => f.QuerySelector("a.fila-relacion-nombre")!.GetAttribute("href"))
+        // Maqueta 17-10: el nombre abre la consulta rápida (botón) y el icono 360 es el enlace a la página del Centro.
+        filas.Select(f => f.QuerySelector("a.boton-360")!.GetAttribute("href"))
             .Should().Equal([$"/centros/{bloqueado.Id}", $"/centros/{vigente.Id}"], "el orden es el de la consulta: peor primero");
+        filas.Should().OnlyContain(f => f.QuerySelector("a.fila-relacion-nombre") == null);
+        filas[0].GetAttribute("data-tono").Should().Be("peligro", "la fila con problema se tiñe, como .fila-tinte-rojo");
+        filas[1].GetAttribute("data-tono").Should().BeNull();
         filas[0].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("3 vencidos · 1 próximo");
         filas[1].QuerySelector(".fila-relacion-detalle").Should().BeNull("sin recuentos ni Empresa que distinguir no hay segunda línea");
         filas[0].QuerySelector(".cliente360-cumplimiento")!.TextContent.Trim().Should().Be("40 %");
         filas[1].QuerySelector(".cliente360-cumplimiento")!.TextContent.Trim().Should().Be("Sin requisitos");
         filas[0].QuerySelector(".badge")!.TextContent.Trim().Should().Be(Features.Centros.EstadoCentroUi.Texto(EstadoCentro.Bloqueado));
 
-        filas[0].QuerySelector("button.boton-360")!.Click();
+        filas[0].QuerySelector("button.fila-relacion-nombre")!.Click();
 
         Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().Be(
             new WorkspaceFrame(EntidadWorkspace.Centro, bloqueado.Id, "Planta Barakaldo", "informacion"));
@@ -949,11 +1103,11 @@ public class Cliente360PaginaTests : BunitContext
         var cut = Renderizar(id, "?pestana=empresas");
 
         var fila = cut.Find("li.fila-relacion");
-        fila.QuerySelector("a.fila-relacion-nombre")!.GetAttribute("href").Should().Be($"/empresas/{empresa.Id}");
-        fila.QuerySelector("a.fila-relacion-nombre")!.GetAttribute("title").Should().Be("Ir a la página de Ibertec GmbH");
+        fila.QuerySelector("a.boton-360")!.GetAttribute("href").Should().Be($"/empresas/{empresa.Id}");
+        fila.QuerySelector("a.fila-relacion-nombre").Should().BeNull("el nombre abre la consulta rápida; el icono 360 lleva a la página");
         fila.QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("B-12345678");
 
-        fila.QuerySelector("button.boton-360")!.Click();
+        fila.QuerySelector("button.fila-relacion-nombre")!.Click();
 
         Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().Be(
             new WorkspaceFrame(EntidadWorkspace.Empresa, empresa.Id, "Ibertec GmbH", "informacion"));
@@ -968,9 +1122,9 @@ public class Cliente360PaginaTests : BunitContext
         Registrar(mediador);
         var cut = Renderizar(id, "?pestana=subcontratas");
 
-        cut.Find("li.fila-relacion a.fila-relacion-nombre").GetAttribute("href").Should().Be($"/subcontratas/{subcontrata.Id}");
+        cut.Find("li.fila-relacion a.boton-360").GetAttribute("href").Should().Be($"/subcontratas/{subcontrata.Id}");
 
-        cut.Find("li.fila-relacion button.boton-360").Click();
+        cut.Find("li.fila-relacion button.fila-relacion-nombre").Click();
 
         Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().Be(
             new WorkspaceFrame(EntidadWorkspace.Subcontrata, subcontrata.Id, "Andamios Cantábrico S.L.", "informacion"));
@@ -986,7 +1140,7 @@ public class Cliente360PaginaTests : BunitContext
         Registrar(mediador);
         var cut = Renderizar(id, "?pestana=subcontratas");
         cut.Find(".fila-relacion-detalle").TextContent.Should().Be("1 centro de este Cliente");
-        cut.FindAll("a.fila-relacion-nombre").Should().ContainSingle();
+        cut.FindAll("button.fila-relacion-nombre").Should().ContainSingle();
         cut.Find(".fila-relacion-desplegar").Click();
         var fila = cut.Find($"a[href='/centros/{centro}']").Closest("li")!;
         fila.TextContent.Should().Contain("50%").And.Contain("1 de 2 al día").And.Contain("Pendiente");
@@ -1100,8 +1254,7 @@ public class Cliente360PaginaTests : BunitContext
         cut.Find(".nota-interna-texto").TextContent.Should().Be("Llamar antes de ir.");
         cut.Find(".nota-interna-pie").TextContent.Should().Be("No la ve el cliente.");
 
-        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar Cliente").ClickAsync(new MouseEventArgs());
+        await cut.Find(".cabecera-identidad-acciones button.boton-primario").ClickAsync(new MouseEventArgs());
         workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Cliente, id, "Refrielectric S.A.", "informacion"));
 
         var editar = cut.FindAll("button").Where(b => b.TextContent.Trim() == "Editar →").ToList();
@@ -1119,6 +1272,7 @@ public class Cliente360PaginaTests : BunitContext
         var cut = Renderizar(id);
 
         cut.FindAll(".menu-acciones").Should().BeEmpty("con su único elemento oculto quedaría un «⋯» vacío");
+        cut.FindAll(".cabecera-identidad-acciones button").Should().BeEmpty("«Editar Cliente» es una escritura");
         cut.FindAll("button").Where(b => b.TextContent.Trim() == "Editar →").Should().BeEmpty();
         cut.Find("[data-pieza=lateral] [data-pieza=nota-interna] [data-vacia=true]").TextContent.Should().Be("Sin nota interna.");
     }

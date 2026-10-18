@@ -517,7 +517,14 @@
     <value>Historial</value>
   </data>
   <data name="OrdenCentros" xml:space="preserve"><value>del pitjor estat al millor</value></data>
-  <data name="SinGestionCaeAnillo" xml:space="preserve"><value>SENSE GESTIÓ CAE · no compten a l'anell</value></data>
+  <data name="SinGestionCaeAnillo" xml:space="preserve"><value>Sense gestió CAE · no compten a l'anell</value></data>
+  <data name="PestanaFicha" xml:space="preserve"><value>Fitxa</value></data>
+  <data name="CentroSinGestionCaeLinea" xml:space="preserve"><value>Sense gestió CAE</value></data>
+  <data name="IdentificacionFiscal" xml:space="preserve"><value>Identificació fiscal</value></data>
+  <data name="CabeceraContratista" xml:space="preserve"><value>Contractista: {0}</value></data>
+  <data name="ToleranciaResumenUno" xml:space="preserve"><value>1 tipus amb tolerància</value></data>
+  <data name="ToleranciaResumenVarios" xml:space="preserve"><value>{0} tipus amb tolerància</value></data>
+  <data name="ToleranciaResumenNinguno" xml:space="preserve"><value>Cap tipus amb tolerància</value></data>
   <data name="FraccionCentros" xml:space="preserve"><value>{0} de {1} centres</value></data>
   <data name="AnilloCentros" xml:space="preserve"><value>{0} de {1} centres amb gestió CAE sense incidències</value></data>
   <data name="DetallePendientes" xml:space="preserve"><value>{0} pendents</value></data>
