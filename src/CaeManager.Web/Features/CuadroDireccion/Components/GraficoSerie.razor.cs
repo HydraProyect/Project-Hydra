@@ -12,9 +12,14 @@ public sealed record PuntoGeometria(double X, double Y);
 
 public sealed record LineaGeometria(string Color, string Texto, IReadOnlyList<PuntoGeometria> Puntos);
 
+/// <summary>Una marca del eje Y: su fracción de la altura (0 abajo, 1 arriba) y el valor ya formateado.</summary>
+public sealed record MarcaEje(double Fraccion, string Texto);
+
 public partial class GraficoSerie : ComponentBase
 {
-    private const double MargenInferior = 22;
+    /// <summary>A partir de cuántos meses el rótulo del eje X se salta de dos en dos o de tres en tres para no apretarse.</summary>
+    private const int MesesParaSaltarUno = 12;
+    private const int MesesParaSaltarDos = 24;
 
     [Parameter] public string Id { get; set; } = string.Empty;
     [Parameter] public string EtiquetaAria { get; set; } = string.Empty;
@@ -40,22 +45,31 @@ public partial class GraficoSerie : ComponentBase
     [Parameter] public Func<double, string> FormatoLinea { get; set; } = v => v.ToString("N0", CuadroDireccionUi.Castellano);
 
     private double Ancho => Compacto ? 120 : 640;
-    private double Alto => Compacto ? 32 : 220;
-    private double AltoUtil => Compacto ? Alto : Alto - MargenInferior;
-    private double Margen => Compacto ? 2 : 8;
+    private double Alto => Compacto ? 32 : 200;
+    private double Margen => Compacto ? 2 : 0;
     private double Hueco => Etiquetas.Count == 0 ? 0 : (Ancho - 2 * Margen) / Etiquetas.Count;
     private string ColorLinea => Linea?.Color ?? "var(--color-warning-500)";
     private double PorcentajeAncho => Etiquetas.Count == 0 ? 0 : Math.Round(100.0 / Etiquetas.Count, 3);
 
     private IReadOnlyList<SerieGrafico> Leyenda => [.. Barras, .. Comparadas, .. (Linea is null ? [] : new[] { Linea })];
 
-    /// <summary>Un &lt;text&gt; de SVG: Razor reserva esa etiqueta y no admite atributos en ella, así que se emite como marcado ya codificado.</summary>
-    private static MarkupString TextoSvg(string clase, double x, double y, string contenido, string ancla = "middle") =>
-        new($"<text class=\"{clase}\" x=\"{Texto(x)}\" y=\"{Texto(y)}\" text-anchor=\"{ancla}\">{System.Net.WebUtility.HtmlEncode(contenido)}</text>");
-
     private static string Texto(double valor) => valor.ToString("0.##", CultureInfo.InvariantCulture);
 
+    /// <summary>Posición CSS (izquierda y abajo, en %) de un punto de coordenadas del plano SVG.</summary>
+    private string Posicion(double x, double y) =>
+        $"left:{Texto(x / Ancho * 100)}%;bottom:{Texto((Alto - y) / Alto * 100)}%";
+
     private IEnumerable<int> Posiciones => Enumerable.Range(0, Etiquetas.Count);
+
+    /// <summary>Con 36 meses se rotula uno de cada tres; con más de 12, uno de cada dos: el texto es de 11 px y no cabe junto.</summary>
+    private IEnumerable<int> PosicionesConEtiqueta
+    {
+        get
+        {
+            var salto = Etiquetas.Count > MesesParaSaltarDos ? 3 : Etiquetas.Count > MesesParaSaltarUno ? 2 : 1;
+            return Posiciones.Where(i => i % salto == (Etiquetas.Count - 1) % salto);
+        }
+    }
 
     private string PorcentajeIzquierda(int i) => Texto(i * PorcentajeAncho);
 
@@ -65,6 +79,51 @@ public partial class GraficoSerie : ComponentBase
 
     private double MaximoBarras => Etiquetas.Count == 0 ? 0 : Enumerable.Range(0, Etiquetas.Count).Max(TotalApilado);
 
+    private double MaximoComparadas =>
+        Comparadas.SelectMany(s => s.Valores).Where(v => v is not null).Select(v => v!.Value).DefaultIfEmpty(0).Max();
+
+    private double MaximoLinea =>
+        Linea is null ? 0 : Linea.Valores.Where(v => v is not null).Select(v => v!.Value).DefaultIfEmpty(0).Max();
+
+    /// <summary>
+    /// El máximo del eje Y, redondeado a 1, 2 o 5 por una potencia de diez: las barras (o las líneas comparadas, o la
+    /// línea sola) llegan como mucho a él, y las marcas caen en cifras redondas.
+    /// </summary>
+    private double EjeMaximo
+    {
+        get
+        {
+            var maximo = MaximoBarras > 0 ? MaximoBarras : MaximoComparadas > 0 ? MaximoComparadas : MaximoLinea;
+            return maximo <= 0 ? 1 : MaximoRedondeado(maximo).Maximo;
+        }
+    }
+
+    private static (double Maximo, int Divisiones) MaximoRedondeado(double maximo)
+    {
+        var potencia = Math.Pow(10, Math.Floor(Math.Log10(maximo)));
+        var fraccion = maximo / potencia;
+        var paso = fraccion <= 1 ? 1 : fraccion <= 2 ? 2 : fraccion <= 5 ? 5 : 10;
+        return (paso * potencia, paso == 2 ? 4 : 5);
+    }
+
+    /// <summary>Las marcas del eje Y, de 0 al máximo, con su rejilla. Sin dato alguno solo queda la línea base.</summary>
+    private IReadOnlyList<MarcaEje> MarcasEjeY
+    {
+        get
+        {
+            if (Compacto) return [];
+
+            var maximo = MaximoBarras > 0 ? MaximoBarras : MaximoComparadas > 0 ? MaximoComparadas : MaximoLinea;
+            if (maximo <= 0) return [new MarcaEje(0, "0")];
+
+            var (eje, divisiones) = MaximoRedondeado(maximo);
+            var formato = Barras.Count > 0 || Comparadas.Count > 0 ? FormatoBarra : FormatoLinea;
+            return Enumerable.Range(0, divisiones + 1)
+                .Select(d => new MarcaEje((double)d / divisiones, formato(eje * d / divisiones)))
+                .ToList();
+        }
+    }
+
     private IReadOnlyList<BarraGeometria> GeometriaBarras
     {
         get
@@ -72,6 +131,7 @@ public partial class GraficoSerie : ComponentBase
             var maximo = MaximoBarras;
             if (Compacto || maximo <= 0) return [];
 
+            var eje = EjeMaximo;
             var ancho = Hueco * 0.6;
             var resultado = new List<BarraGeometria>();
             for (var i = 0; i < Etiquetas.Count; i++)
@@ -82,11 +142,11 @@ public partial class GraficoSerie : ComponentBase
                 {
                     var valor = serie.Valores.ElementAtOrDefault(i) ?? 0;
                     if (valor <= 0) continue;
-                    var alto = valor / maximo * (AltoUtil - 14);
+                    var alto = valor / eje * Alto;
                     acumulado += alto;
                     var resaltada = Resaltar?.Contains(i) == true;
                     resultado.Add(new BarraGeometria(
-                        x, AltoUtil - acumulado, ancho, alto,
+                        x, Alto - acumulado, ancho, alto,
                         resaltada ? ColorResaltado : serie.Color, resaltada,
                         Barras.Count == 1 ? FormatoBarra(valor) : null));
                 }
@@ -109,8 +169,8 @@ public partial class GraficoSerie : ComponentBase
             var maximo = conDato.Max();
             var minimo = Compacto ? conDato.Min() : 0;
             var rango = maximo - minimo;
-            var altoUtil = Compacto ? Alto - 6 : AltoUtil - 14;
-            var basePosicion = Compacto ? Alto - 3 : AltoUtil;
+            var altoUtil = Compacto ? Alto - 6 : Alto - 12;
+            var basePosicion = Compacto ? Alto - 3 : Alto;
             var puntos = new List<PuntoGeometria>();
             for (var i = 0; i < valores.Count; i++)
             {
@@ -131,7 +191,7 @@ public partial class GraficoSerie : ComponentBase
         {
             if (Comparadas.Count == 0) return [];
 
-            var maximo = Comparadas.SelectMany(s => s.Valores).Where(v => v is not null).Select(v => v!.Value).DefaultIfEmpty(0).Max();
+            var eje = EjeMaximo;
             var resultado = new List<LineaGeometria>();
             foreach (var serie in Comparadas)
             {
@@ -139,7 +199,7 @@ public partial class GraficoSerie : ComponentBase
                 for (var i = 0; i < serie.Valores.Count; i++)
                 {
                     if (serie.Valores[i] is not { } valor) continue;
-                    puntos.Add(new PuntoGeometria(CentroDe(i), AltoUtil - (maximo <= 0 ? 0 : valor / maximo) * (AltoUtil - 14)));
+                    puntos.Add(new PuntoGeometria(CentroDe(i), Alto - valor / eje * Alto));
                 }
 
                 resultado.Add(new LineaGeometria(serie.Color, string.Join(' ', puntos.Select(p => $"{Texto(p.X)},{Texto(p.Y)}")), puntos));

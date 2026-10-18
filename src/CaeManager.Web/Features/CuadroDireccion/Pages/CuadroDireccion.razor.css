@@ -5,9 +5,32 @@
 */
 .cuadro {
     display: grid;
+    /* Una sola columna que puede encogerse: sin minmax(0, 1fr) el contenido ancho (tablas, gráficos) ensancha la página. */
+    grid-template-columns: minmax(0, 1fr);
     gap: 20px;
+    min-width: 0;
     font-variant-numeric: tabular-nums;
 }
+
+.cuadro > * { min-width: 0; }
+
+/* Título de la pantalla (maqueta: .tv-hrow .tv-title) 24/32 con interlineado de letra -0,24 px, y h2 de las tarjetas 18/26.
+   Se fija solo aquí: la cabecera y la tarjeta compartidas no cambian para el resto de pantallas. */
+.cuadro :deep(h1) {
+    font-size: 24px;
+    line-height: 32px;
+    letter-spacing: -0.24px;
+}
+
+.cuadro-tarjeta :deep(.tarjeta-titulo) {
+    font-size: 18px;
+    line-height: 26px;
+    font-weight: 600;
+}
+
+.cuadro-tarjeta :deep(.tarjeta-header) { padding: 0; }
+.cuadro-tarjeta :deep(.tarjeta-contenido) { padding: 12px 0 0; display: grid; gap: 12px; min-width: 0; }
+.cuadro-tarjeta { padding: 16px; min-width: 0; }
 
 .cuadro-mes {
     margin: 0;
@@ -44,8 +67,102 @@
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
-    align-items: flex-end;
+    align-items: center;
 }
+
+/* Momento: Mes 1 / Mes 6 / Año 3 (maqueta: .tv-seg). */
+.cuadro-momento {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 3px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.cuadro-momento button {
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.cuadro-momento button small { font-weight: 400; margin-left: 4px; color: inherit; }
+.cuadro-momento button[aria-pressed="true"] { background: var(--color-primario-fondo); color: var(--color-primario-texto); }
+.cuadro-momento button:disabled { opacity: .45; cursor: default; }
+.cuadro-momento button:not([aria-pressed="true"]):not(:disabled):hover { color: var(--color-text); }
+
+/* Ámbito: un select de 36 px, sin etiqueta encima (el nombre accesible va en aria-label). */
+.cuadro-select {
+    height: 36px;
+    min-width: 0;
+    max-width: 100%;
+    padding: 0 32px 0 12px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-md);
+}
+
+/* Más acciones (Reabrir un mes cerrado), fuera de la barra principal. */
+.cuadro-mas { position: relative; }
+.cuadro-mas > summary {
+    list-style: none;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: 700 18px/1 var(--font-family);
+    cursor: pointer;
+}
+.cuadro-mas > summary::-webkit-details-marker { display: none; }
+.cuadro-mas-menu {
+    position: absolute;
+    right: 0;
+    top: 40px;
+    z-index: 5;
+    min-width: 200px;
+    padding: 4px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .12);
+}
+.cuadro-mas-menu button {
+    width: 100%;
+    text-align: left;
+    padding: 8px 12px;
+    font: inherit;
+    font-size: 14px;
+    color: var(--color-text);
+    background: none;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.cuadro-mas-menu button:disabled { color: var(--color-text-muted); cursor: default; }
+.cuadro-mas-menu button:not(:disabled):hover { background: var(--color-fila-hover); }
+
+/* Presentación (maqueta: .tv-presenta): sin controles de edición y con la pantalla para los gráficos. */
+.cuadro-presenta .cuadro-aviso-cierre,
+.cuadro-presenta .cuadro-personalizar,
+.cuadro-presenta .cuadro-interruptor,
+.cuadro-presenta .cuadro-mas,
+.cuadro-presenta .cuadro-pastilla { display: none; }
+.cuadro-presenta { font-size: 110%; }
 
 .cuadro-espaciador { flex: 1 1 0; }
 
@@ -150,17 +267,22 @@
     padding: 16px;
 }
 
+/* La página de cada pestaña es el contenedor: las columnas de los KPI siguen su ancho y no el de la ventana (maqueta: .tv-page). */
+.cuadro-pagina { container-type: inline-size; min-width: 0; }
+
 .cuadro-kpis {
     display: grid;
     gap: 16px;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    container-type: inline-size;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    min-width: 0;
 }
 
-@media (max-width: 1100px) { .cuadro-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 360px) { .cuadro-kpis { grid-template-columns: 1fr; } }
+@container (max-width: 68rem) { .cuadro-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container (max-width: 34rem) { .cuadro-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (max-width: 22rem) { .cuadro-kpis { grid-template-columns: minmax(0, 1fr); } }
 
 .cuadro-kpi {
+    min-height: 196px;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: 12px;
@@ -224,7 +346,6 @@
     background: var(--color-surface);
 }
 
-.cuadro-tabla th:nth-child(2),
 .cuadro-tabla td.cuadro-texto { text-align: left; white-space: normal; }
 
 .cuadro-tabla tbody tr:hover { background: var(--color-fila-hover); }

@@ -10,6 +10,7 @@ using CaeManager.Web.Features.CuadroDireccion.Components;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Features.CuadroDireccion.Pages;
@@ -20,9 +21,9 @@ namespace CaeManager.Web.Features.CuadroDireccion.Pages;
 /// pinta lo que esas consultas miden, por Empresa (Tenant beneficiario) o todas juntas.
 ///
 /// <para>
-/// <b>Qué no hace</b>: no mide a ninguna persona (ni «Ocupación» ni la cartera por persona). El «Responde» de
-/// cada Empresa es quien lleva la marca de principal en la cartera (<see cref="PrincipalDeCarteraDto"/>), no una
-/// medida de actividad. Y no enseña ninguna medida apoyada en menos de 3 personas o 20 conversaciones
+/// <b>Qué no hace</b>: no mide la actividad de ninguna persona: la «Ocupación de Gestores CAE» queda fuera por
+/// decisión de producto. La «Cartera por Gestor CAE» sí está: cuenta las Empresas que cada Gestor CAE lleva como
+/// principal en la cartera (<see cref="PrincipalDeCarteraDto"/>), que es volumen de cartera y no actividad. Y no enseña ninguna medida apoyada en menos de 3 personas o 20 conversaciones
 /// (<see cref="UmbralAnonimatoCuadro"/>). Lo que ningún modelo guarda todavía (contrato y cuota, vacaciones,
 /// tiempos de respuesta, intención CAE, equipos) sale como el estado vacío de la maqueta, sin cifras inventadas.
 /// </para>
@@ -48,7 +49,11 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     /// </summary>
     private string? _clavePreferencias;
     private bool _avisoExportar;
-    private const int MesesSerie = 6;
+    /// <summary>Los gráficos de la serie enseñan hasta 36 meses de historial (el máximo de la consulta) cuando lo hay.</summary>
+    private const int MesesSerie = ObtenerSerieCuadroDireccionQuery.MaximoMeses;
+
+    /// <summary>La ventana corta de la Demanda, el calendario de gestiones y el simulador.</summary>
+    private const int MesesVentana = 6;
     private const int MesesAnual = 24;
 
     private static readonly string[] Paleta =
@@ -59,11 +64,15 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> TarjetasPorPestana = new Dictionary<string, IReadOnlyList<string>>
     {
-        ["general"] = ["k-fact", "k-ext", "k-trab", "k-centros", "k-revisar", "k-sintarifa", "k-cumpl", "k-gestiones", "g-alertas", "g-evolucion"],
+        // Visión general: los seis KPI de la maqueta, «Facturación y gestiones por mes» y «Qué requiere una decisión».
+        // «Gestiones del mes» vive en el gráfico de evolución y «Trabajadores extra sin tarifa» en Facturación.
+        ["general"] = ["k-fact", "k-ext", "k-trab", "k-centros", "k-revisar", "k-cumpl", "g-evolucion", "g-alertas"],
         ["facturacion"] = ["f-apilado", "f-sintarifa", "f-simulador", "f-borrador"],
         ["empresas"] = ["cl-rendimiento", "cl-pareto", "cl-contratos", "cl-tabla"],
+        // Cartera por Gestor CAE: volumen de cartera por persona (Empresas asignadas). La ocupación por persona no se construye.
+        ["carga"] = ["c-tabla", "c-criterio"],
         ["demanda"] = ["p-franja", "p-heatmap", "p-calendario", "p-estacional"],
-        ["vacaciones"] = ["v-cobertura", "v-tabla"],
+        ["vacaciones"] = ["v-cobertura", "v-barras", "v-tabla"],
         ["comunicaciones"] = ["cm-kpis", "cm-equipos", "cm-estados", "cm-intencion", "cm-canal", "cm-criterio"],
         ["comparativa"] = ["cmp-linea", "cmp-tabla"],
     };
@@ -215,7 +224,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
         if (!EsVigente(version)) return;
         _cuadro = cuadro;
-        if (_ambito.Length > 0 && !cuadro.Tenants.Any(t => t.TenantId.ToString() == _ambito))
+        if (_ambito.Length > 0 && EmpresasEnAmbito.Count == 0)
             _ambito = string.Empty;
 
         if (cuadro.SinCifras is null)
@@ -238,6 +247,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
             var serie = await Mediator.Send(new ObtenerSerieCuadroDireccionQuery(_anyo, _mes, MesesSerie, ConFacturacion: true), _ciclo.Token);
             if (!EsVigente(version)) return;
             _serie = serie;
+            FijarInicioHistorico(serie);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -266,7 +276,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
         try
         {
-            var dias = await Mediator.Send(new ObtenerGestionesPorDiaCuadroDireccionQuery(_anyo, _mes, MesesSerie), _ciclo.Token);
+            var dias = await Mediator.Send(new ObtenerGestionesPorDiaCuadroDireccionQuery(_anyo, _mes, MesesVentana), _ciclo.Token);
             if (!EsVigente(version)) return;
             _gestionesDia = dias;
         }
@@ -349,6 +359,100 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     private void CambiarAmbito(string valor) => _ambito = valor;
 
+    // ---------------------------------------------------------------- momento (Mes 1 / Mes 6 / Año 3) y presentación
+
+    /// <summary>El primer mes con actividad de la operación, medido una vez sobre el historial al abrir la pantalla; null si aún no se conoce.</summary>
+    private DateOnly? _inicioHistorico;
+
+    private bool _presentando;
+
+    private sealed record Momento(string Id, string Rotulo, string Mes, int Anyo, int MesNumero, bool Activo, bool Disponible);
+
+    /// <summary>
+    /// Mes 1, Mes 6 y Año 3 de la operación (maqueta), con los meses reales: el primer mes con actividad, cinco meses
+    /// después y treinta y cinco meses después. Un momento que todavía no ha llegado queda deshabilitado.
+    /// </summary>
+    private IReadOnlyList<Momento> Momentos
+    {
+        get
+        {
+            Momento De(string id, string rotulo, int desplazamiento)
+            {
+                if (_inicioHistorico is not { } inicio)
+                    return new Momento(id, rotulo, "—", _anyo, _mes, false, false);
+
+                var destino = inicio.AddMonths(desplazamiento);
+                var hoy = DiaDeNegocio.Hoy();
+                var llegado = destino.Year < hoy.Year || (destino.Year == hoy.Year && destino.Month <= hoy.Month);
+                return new Momento(
+                    id, rotulo, CuadroDireccionUi.EtiquetaMes(destino.Year, destino.Month), destino.Year, destino.Month,
+                    destino.Year == _anyo && destino.Month == _mes, llegado);
+            }
+
+            return [De("mes1", Textos["MomentoMes1"].Value, 0), De("mes6", Textos["MomentoMes6"].Value, 5), De("anio3", Textos["MomentoAnio3"].Value, 35)];
+        }
+    }
+
+    private async Task IrAMomentoAsync(Momento momento)
+    {
+        if (!momento.Disponible || (momento.Anyo == _anyo && momento.MesNumero == _mes)) return;
+
+        _anyo = momento.Anyo;
+        _mes = momento.MesNumero;
+        await CargarAsync();
+        await CargarAnualSiHaceFaltaAsync();
+    }
+
+    /// <summary>El primer mes con actividad, a partir de la serie: solo se fija la primera vez (la serie de otros meses empezaría más tarde).</summary>
+    private void FijarInicioHistorico(SerieCuadroDireccionDto serie)
+    {
+        if (_inicioHistorico is not null) return;
+
+        var primero = serie.Total.FirstOrDefault(HayActividad);
+        if (primero is not null)
+            _inicioHistorico = new DateOnly(primero.Anyo, primero.Mes, 1);
+    }
+
+    private async Task AlternarPresentacionAsync()
+    {
+        _presentando = !_presentando;
+        _personalizando = false;
+        await PantallaCompletaAsync(_presentando);
+    }
+
+    private async Task PantallaCompletaAsync(bool activar)
+    {
+        if (_modulo is null) return;
+
+        try
+        {
+            await _modulo.InvokeVoidAsync("pantallaCompleta", activar);
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException or JSDisconnectedException)
+        {
+            // Sin pantalla completa en este navegador: la presentación sigue en la ventana.
+        }
+    }
+
+    /// <summary>En la presentación, ← y → recorren las pestañas y Escape sale (como en la maqueta).</summary>
+    private async Task TeclaPresentacionAsync(KeyboardEventArgs tecla)
+    {
+        if (!_presentando) return;
+
+        if (tecla.Key == "Escape")
+        {
+            await AlternarPresentacionAsync();
+            return;
+        }
+
+        if (tecla.Key is not ("ArrowRight" or "ArrowLeft")) return;
+
+        var pestanas = Definiciones;
+        var actual = pestanas.ToList().FindIndex(p => p.Id == _pestana);
+        var siguiente = (actual + (tecla.Key == "ArrowRight" ? 1 : pestanas.Count - 1)) % pestanas.Count;
+        await CambiarPestanaAsync(pestanas[siguiente].Id);
+    }
+
     private async Task CambiarPestanaAsync(string id)
     {
         _pestana = id;
@@ -371,13 +475,26 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     /// <summary>El «1/9» del aviso de cierre: el día 1 del mes siguiente.</summary>
     private string DiaCierre => $"1/{(_mes % 12) + 1}";
 
-    private string NombreAmbito => _cuadro?.Tenants.FirstOrDefault(t => t.TenantId.ToString() == _ambito)?.TenantNombre ?? string.Empty;
+    private string NombreAmbito => Equipos.FirstOrDefault(e => e.Valor == _ambito) is { } equipo
+        ? Textos["AmbitoEquipo", equipo.Nombre].Value
+        : string.Empty;
 
+    /// <summary>
+    /// Las pestañas con un recuento de lo que pide mirar: las alertas de «Qué requiere una decisión» en Visión
+    /// general y las Empresas sin Gestor CAE principal en Cartera por Gestor CAE (como los avisos de la maqueta).
+    /// </summary>
     private IReadOnlyList<PestanaDefinicion> Definiciones =>
     [
-        new("general", Textos["PestanaGeneral"].Value),
+        new("general", Textos["PestanaGeneral"].Value)
+        {
+            Contador = HayCifras && Alertas.Count > 0 ? new ContadorPestana(Alertas.Count, Textos["GlosaAlertas", Alertas.Count].Value, EnAlerta: true) : null,
+        },
         new("facturacion", Textos["PestanaFacturacion"].Value),
         new("empresas", Textos["PestanaEmpresas"].Value),
+        new("carga", Textos["PestanaCartera"].Value)
+        {
+            Contador = HayCifras && EmpresasSinPrincipal > 0 ? new ContadorPestana(EmpresasSinPrincipal, Textos["GlosaSinPrincipal", EmpresasSinPrincipal].Value, EnAlerta: true) : null,
+        },
         new("demanda", Textos["PestanaDemanda"].Value),
         new("vacaciones", Textos["PestanaVacaciones"].Value),
         new("comunicaciones", Textos["PestanaComunicaciones"].Value),
@@ -388,14 +505,80 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     private bool HayCifras => _cuadro is { SinCifras: null, Tenants.Count: > 0 };
 
-    private CuadroDireccionTenantDto? EmpresaElegida => _ambito.Length == 0
-        ? null
-        : _cuadro?.Tenants.FirstOrDefault(t => t.TenantId.ToString() == _ambito);
+    private const string PrefijoEquipo = "g:";
 
-    private CifrasCuadroDireccionDto Cifras => EmpresaElegida?.Cifras ?? _cuadro!.Total;
+    /// <summary>Quien lleva la cartera principal de una o más Empresas: una opción «Equipo …» del selector de ámbito.</summary>
+    private sealed record EquipoDeGestor(string Valor, string Nombre);
 
-    private IReadOnlyList<CuadroDireccionTenantDto> EmpresasVisibles =>
-        EmpresaElegida is { } una ? [una] : _cuadro!.Tenants;
+    /// <summary>
+    /// Los equipos del selector de ámbito: un Gestor CAE (o Coordinador CAE en un relevo) por cada persona que lleva la
+    /// marca de principal de alguna Empresa, por orden alfabético. Nunca se listan las Empresas.
+    /// </summary>
+    private IReadOnlyList<EquipoDeGestor> Equipos => _cuadro is null
+        ? []
+        : _cuadro.Tenants
+            .Where(t => t.PrincipalDeCartera is { Nombre.Length: > 0 })
+            .Select(t => t.PrincipalDeCartera!)
+            .DistinctBy(p => p.UsuarioId)
+            .OrderBy(p => p.Nombre, StringComparer.CurrentCulture)
+            .Select(p => new EquipoDeGestor(PrefijoEquipo + p.UsuarioId, p.Nombre))
+            .ToList();
+
+    /// <summary>Las Empresas del ámbito elegido: todas, o las de la cartera principal del Gestor CAE elegido.</summary>
+    private IReadOnlyList<CuadroDireccionTenantDto> EmpresasEnAmbito =>
+        _cuadro is null
+            ? []
+            : _ambito.StartsWith(PrefijoEquipo, StringComparison.Ordinal) && Guid.TryParse(_ambito[PrefijoEquipo.Length..], out var gestor)
+                ? _cuadro.Tenants.Where(t => t.PrincipalDeCartera?.UsuarioId == gestor).ToList()
+                : _cuadro.Tenants;
+
+    private bool HayAmbito => _ambito.Length > 0;
+
+    private CifrasCuadroDireccionDto Cifras => HayAmbito
+        ? AgregadosCuadro.SumarCifras(EmpresasEnAmbito.Select(t => t.Cifras).ToList(), _cuadro!.CorteUtc)
+        : _cuadro!.Total;
+
+    private IReadOnlyList<CuadroDireccionTenantDto> EmpresasVisibles => EmpresasEnAmbito;
+
+    /// <summary>
+    /// Cartera por Gestor CAE: las Empresas (Tenants beneficiarios) que cada persona lleva como principal en la
+    /// Asignación de Cartera, con el volumen que suman (centros, trabajadores). Es volumen de cartera, no actividad
+    /// ni ocupación. Las Empresas sin principal salen juntas en una última fila.
+    /// </summary>
+    private IReadOnlyList<FilaCartera> CarteraPorGestor
+    {
+        get
+        {
+            if (_cuadro is not { SinCifras: null }) return [];
+
+            var filas = _cuadro.Tenants
+                .Where(t => t.PrincipalDeCartera is { Nombre.Length: > 0 })
+                .GroupBy(t => t.PrincipalDeCartera!.UsuarioId)
+                .Select(g => new FilaCartera(
+                    g.Key, g.First().PrincipalDeCartera!.Nombre, RolLegible(g.First().PrincipalDeCartera!.Rol),
+                    g.Select(t => t.TenantNombre).Order(StringComparer.CurrentCulture).ToList(),
+                    g.Sum(t => t.Cifras.CentrosActivos.Valor), g.Sum(t => t.Cifras.TrabajadoresActivos.Valor)))
+                .OrderBy(f => f.Nombre, StringComparer.CurrentCulture)
+                .ToList();
+
+            var sinPrincipal = _cuadro.Tenants.Where(t => t.PrincipalDeCartera is not { Nombre.Length: > 0 }).ToList();
+            if (sinPrincipal.Count > 0)
+                filas.Add(new FilaCartera(
+                    null, Textos["CarteraSinResponsable"].Value, string.Empty,
+                    sinPrincipal.Select(t => t.TenantNombre).Order(StringComparer.CurrentCulture).ToList(),
+                    sinPrincipal.Sum(t => t.Cifras.CentrosActivos.Valor), sinPrincipal.Sum(t => t.Cifras.TrabajadoresActivos.Valor)));
+
+            return filas;
+        }
+    }
+
+    private sealed record FilaCartera(
+        Guid? UsuarioId, string Nombre, string Rol, IReadOnlyList<string> Empresas, int Centros, int Trabajadores);
+
+    /// <summary>Empresas sin Gestor CAE principal en su cartera: lo que «Cartera por Gestor CAE» pide mirar.</summary>
+    private int EmpresasSinPrincipal => _cuadro is { SinCifras: null }
+        ? _cuadro.Tenants.Count(t => t.PrincipalDeCartera is not { Nombre.Length: > 0 })
+        : 0;
 
     private EstadoCifraMensual EstadoVigente => _cuadro is null ? EstadoCifraMensual.Parcial : Cifras.TrabajadoresActivos.Estado;
 
@@ -467,10 +650,6 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     private static string Porcentaje(double valor) => valor.ToString("N1", CuadroDireccionUi.Castellano) + " %";
 
-    private string Responde(PrincipalDeCarteraDto? principal) => principal is null || string.IsNullOrWhiteSpace(principal.Nombre)
-        ? "—"
-        : $"{principal.Nombre} ({RolLegible(principal.Rol)})";
-
     private string RolLegible(string rol) => rol switch
     {
         Roles.CoordinadorCae => Textos["RolCoordinadorCae"].Value,
@@ -487,14 +666,33 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     // ---------------------------------------------------------------- serie (últimos meses, facturación estimada)
 
-    private IReadOnlyList<PuntoSerieCuadroDto> PuntosSerie => PuntosDe(_serie);
+    private IReadOnlyList<PuntoSerieCuadroDto> PuntosSerie => SinMesesVaciosAlPrincipio(PuntosDe(_serie));
 
-    private IReadOnlyList<PuntoSerieCuadroDto> PuntosDe(SerieCuadroDireccionDto? serie) =>
-        serie is null
-            ? []
-            : EmpresaElegida is { } una
-                ? serie.Tenants.FirstOrDefault(t => t.TenantId == una.TenantId)?.Meses ?? []
-                : serie.Total;
+    /// <summary>
+    /// La serie pide 36 meses; los gráficos enseñan desde el primer mes con actividad (o los últimos
+    /// <see cref="MesesVentana"/>, si hay menos historia), para no pintar años vacíos antes de que existiera la operación.
+    /// </summary>
+    private static IReadOnlyList<PuntoSerieCuadroDto> SinMesesVaciosAlPrincipio(IReadOnlyList<PuntoSerieCuadroDto> puntos)
+    {
+        var primero = puntos.ToList().FindIndex(HayActividad);
+        var corte = Math.Min(primero < 0 ? puntos.Count : primero, puntos.Count - MesesVentana);
+        return corte <= 0 ? puntos : puntos.Skip(corte).ToList();
+    }
+
+    private static bool HayActividad(PuntoSerieCuadroDto p) =>
+        p.Cifras.TrabajadoresActivos.Valor > 0 || p.Cifras.CentrosActivos.Valor > 0
+        || p.Cifras.DocumentosGestionados.Valor > 0 || (p.Cifras.Gestiones?.Valor ?? 0) > 0;
+
+    private IReadOnlyList<PuntoSerieCuadroDto> PuntosDe(SerieCuadroDireccionDto? serie)
+    {
+        if (serie is null) return [];
+        if (!HayAmbito) return serie.Total;
+
+        var ids = EmpresasEnAmbito.Select(t => t.TenantId).ToHashSet();
+        return AgregadosCuadro.SumarPuntos(
+            serie.Tenants.Where(t => ids.Contains(t.TenantId)).Select(t => t.Meses).ToList(),
+            _cuadro?.CorteUtc ?? DateTime.UtcNow);
+    }
 
     private PuntoSerieCuadroDto? PuntoActual => PuntosSerie.LastOrDefault(p => p.Anyo == _anyo && p.Mes == _mes);
 
@@ -583,8 +781,6 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         }
     }
 
-    private string ValorGestiones => Cifras.Gestiones is { } g ? Numero(g.Valor) : Textos["SinDato"].Value;
-
     // ---------------------------------------------------------------- simulador
 
     private decimal? PrecioSimulado => decimal.TryParse(_precioSimulado.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var precio) && precio >= 0
@@ -593,7 +789,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     private string ImporteSimuladoMes => Importe((PrecioSimulado ?? 0) * AltasCentroSinTarifa);
 
-    private string ImporteSimuladoVentana => Importe((PrecioSimulado ?? 0) * PuntosSerie.Sum(p => p.Cifras.AltasCentros.Valor));
+    private string ImporteSimuladoVentana => Importe((PrecioSimulado ?? 0) * PuntosVentana.Sum(p => p.Cifras.AltasCentros.Valor));
 
     // ---------------------------------------------------------------- alertas
 
@@ -679,21 +875,29 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     // ---------------------------------------------------------------- Demanda (mapa de calor, franja, calendario, estacionalidad)
 
-    private IReadOnlyList<FranjaSolicitudesDto> FranjasPeriodo => PuntosSerie
+    /// <summary>Los últimos <see cref="MesesVentana"/> meses de la serie: la ventana de la Demanda, del calendario y del simulador (los gráficos de la serie enseñan todo el historial).</summary>
+    private IReadOnlyList<PuntoSerieCuadroDto> PuntosVentana => PuntosSerie.TakeLast(MesesVentana).ToList();
+
+    private IReadOnlyList<FranjaSolicitudesDto> FranjasPeriodo => PuntosVentana
         .SelectMany(p => p.Cifras.Solicitudes.PorFranja)
         .GroupBy(f => (f.Dia, f.Hora))
         .Select(g => new FranjaSolicitudesDto(g.Key.Dia, g.Key.Hora, g.Sum(f => f.Cantidad)))
         .ToList();
 
-    private int SolicitudesPeriodo => PuntosSerie.Sum(p => p.Cifras.Solicitudes.Total.Valor);
+    private int SolicitudesPeriodo => PuntosVentana.Sum(p => p.Cifras.Solicitudes.Total.Valor);
 
     private IReadOnlyList<IReadOnlyList<CeldaDia>> SemanasCalendario()
     {
         if (PuntosSerie.Count == 0) return [];
-        var primero = PuntosSerie[0];
+        var primero = PuntosVentana[0];
         var desde = new DateOnly(primero.Anyo, primero.Mes, 1);
         var hasta = new DateOnly(_anyo, _mes, 1).AddMonths(1).AddDays(-1);
-        var porDia = (_gestionesDia?.Sumar(EmpresaElegida?.TenantId) ?? []).ToDictionary(d => d.Dia, d => d.Cantidad);
+        var dias = _gestionesDia is null
+            ? []
+            : HayAmbito
+                ? AgregadosCuadro.SumarDias(EmpresasEnAmbito.Select(t => _gestionesDia.Sumar(t.TenantId)))
+                : _gestionesDia.Sumar();
+        var porDia = dias.ToDictionary(d => d.Dia, d => d.Cantidad);
         return CalculosCuadro.Semanas(desde, hasta, porDia);
     }
 
@@ -719,13 +923,15 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     private bool HayComunicaciones => _comunicaciones is not null;
 
-    private IReadOnlyList<ConteoPorEstadoDto> EstadosAbiertos => EmpresaElegida is { } una
-        ? _comunicaciones?.Tenants.FirstOrDefault(t => t.TenantId == una.TenantId)?.PorEstado ?? []
-        : _comunicaciones?.TotalPorEstado ?? [];
+    private IReadOnlyList<ConteoPorEstadoDto> EstadosAbiertos => !HayAmbito
+        ? _comunicaciones?.TotalPorEstado ?? []
+        : (_comunicaciones?.Tenants.Where(t => EmpresasEnAmbito.Any(e => e.TenantId == t.TenantId)).SelectMany(t => t.PorEstado) ?? [])
+            .GroupBy(e => e.Estado).Select(g => new ConteoPorEstadoDto(g.Key, g.Sum(e => e.Conversaciones))).ToList();
 
-    private IReadOnlyList<ConteoPorCanalDto> Canales => EmpresaElegida is { } una
-        ? _comunicaciones?.Tenants.FirstOrDefault(t => t.TenantId == una.TenantId)?.PorCanal ?? []
-        : _comunicaciones?.TotalPorCanal ?? [];
+    private IReadOnlyList<ConteoPorCanalDto> Canales => !HayAmbito
+        ? _comunicaciones?.TotalPorCanal ?? []
+        : (_comunicaciones?.Tenants.Where(t => EmpresasEnAmbito.Any(e => e.TenantId == t.TenantId)).SelectMany(t => t.PorCanal) ?? [])
+            .GroupBy(c => c.Canal).Select(g => new ConteoPorCanalDto(g.Key, g.Sum(c => c.Solicitudes))).ToList();
 
     private int ConversacionesAbiertas => EstadosAbiertos.Sum(e => e.Conversaciones);
 
@@ -869,9 +1075,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         "k-trab" => Textos["KpiTrabajadores"].Value,
         "k-centros" => Textos["KpiCentros"].Value,
         "k-revisar" => Textos["KpiRevisar"].Value,
-        "k-sintarifa" => Textos["KpiSinTarifa"].Value,
         "k-cumpl" => Textos["KpiCumplimiento"].Value,
-        "k-gestiones" => Textos["KpiGestiones"].Value,
         "g-alertas" => Textos["AlertasTitulo"].Value,
         "g-evolucion" => Textos["EvolucionTitulo"].Value,
         "f-apilado" => Textos["ApiladoTitulo"].Value,
@@ -886,6 +1090,9 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         "p-heatmap" => Textos["MapaCalorTitulo"].Value,
         "p-calendario" => Textos["CalendarioTitulo"].Value,
         "p-estacional" => Textos["EstacionalTitulo"].Value,
+        "c-tabla" => Textos["CarteraTitulo"].Value,
+        "c-criterio" => Textos["CarteraCriterioTitulo"].Value,
+        "v-barras" => Textos["VacacionesPorGestorTitulo"].Value,
         "v-cobertura" => Textos["VacacionesCoberturaTitulo"].Value,
         "v-tabla" => Textos["VacacionesSaldoTitulo"].Value,
         "cm-kpis" => Textos["CmKpisTitulo"].Value,
@@ -985,11 +1192,11 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         new[]
         {
             (IReadOnlyList<string>)[
-                Textos["ColumnaEmpresa"].Value, Textos["ColumnaResponde"].Value, Textos["ColumnaTrabajadores"].Value,
+                Textos["ColumnaEmpresa"].Value, Textos["ColumnaTrabajadores"].Value,
                 Textos["ColumnaCentros"].Value, Textos["ColumnaRotacion"].Value, Textos["ColumnaFacturaMes"].Value,
                 Textos["ColumnaIngresoGestion"].Value, Textos["ColumnaCumplimiento"].Value],
         }.Concat(FilasEmpresas().Select(f => (IReadOnlyList<string>)[
-            f.Empresa.TenantNombre, Responde(f.Empresa.PrincipalDeCartera), Numero(f.Empresa.Cifras.TrabajadoresActivos.Valor),
+            f.Empresa.TenantNombre, Numero(f.Empresa.Cifras.TrabajadoresActivos.Valor),
             Numero(f.Empresa.Cifras.CentrosActivos.Valor), f.Rotacion is { } r ? Porcentaje(r) : "—", ImporteOSinDato(f.Facturacion),
             f.IngresoPorGestion is { } i ? Importe((decimal)i) : "—",
             f.Empresa.Cifras.Cumplimiento.SinDatos ? "—" : f.Empresa.Cifras.Cumplimiento.Porcentaje + " %"])));
@@ -1027,7 +1234,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     private Task AbrirReaperturaAsync()
     {
         if (!_puedeReabrir) return Task.CompletedTask;
-        _reabrirEmpresa = EmpresaElegida is { } una && EmpresasCerradas.Any(t => t.TenantId == una.TenantId)
+        _reabrirEmpresa = EmpresasEnAmbito is [var una] && EmpresasCerradas.Any(t => t.TenantId == una.TenantId)
             ? una.TenantId.ToString()
             : EmpresasCerradas.FirstOrDefault()?.TenantId.ToString() ?? string.Empty;
         _motivo = string.Empty;

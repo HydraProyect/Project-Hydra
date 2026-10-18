@@ -1,54 +1,75 @@
-@* Gráfico de barras apiladas con una línea opcional sobre su propio eje, o su versión compacta (minigráfico). Sin texto propio: todo llega por parámetros. *@
+@* Gráfico de barras apiladas con una línea opcional sobre su propio eje, o su versión compacta (minigráfico). Sin texto propio: todo llega por parámetros. El texto (eje Y, meses, valores) es HTML sobre el plano y no texto SVG: el SVG se estira sin conservar la proporción y deformaría las letras. *@
 <figure class="gs @(Compacto ? "gs-compacto" : null)" role="img" aria-label="@EtiquetaAria" data-grafico="@Id">
-    <svg viewBox="0 0 @Texto(Ancho) @Texto(Alto)" preserveAspectRatio="none" focusable="false" aria-hidden="true">
-        @if (!Compacto)
-        {
-            <line class="gs-eje" x1="0" y1="@Texto(AltoUtil)" x2="@Texto(Ancho)" y2="@Texto(AltoUtil)" />
-        }
-        @foreach (var barra in GeometriaBarras)
-        {
-            <rect class="gs-barra @(barra.Resaltada ? "gs-resaltada" : null)" x="@Texto(barra.X)" y="@Texto(barra.Y)" width="@Texto(barra.Ancho)" height="@Texto(barra.Alto)" style="fill:@barra.Color" />
-            @if (MostrarValores && barra.Valor is { } valor)
+    @if (Compacto)
+    {
+        <svg viewBox="0 0 @Texto(Ancho) @Texto(Alto)" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+            @if (PuntosLinea.Length > 0)
             {
-                @TextoSvg("gs-valor", barra.X + barra.Ancho / 2, Math.Max(barra.Y - 3, 9), valor)
+                <polyline class="gs-linea" points="@PuntosLinea" style="stroke:@ColorLinea" />
             }
-        }
-        @if (PuntosLinea.Length > 0)
-        {
-            <polyline class="gs-linea" points="@PuntosLinea" style="stroke:@ColorLinea" />
-            @if (!Compacto)
-            {
+        </svg>
+    }
+    else
+    {
+        <div class="gs-cuerpo">
+            <div class="gs-eje-y" aria-hidden="true">
+                @foreach (var marca in MarcasEjeY)
+                {
+                    <span class="gs-marca-y" style="bottom:@Texto(marca.Fraccion * 100)%">@marca.Texto</span>
+                }
+            </div>
+            <div class="gs-plano">
+                <svg viewBox="0 0 @Texto(Ancho) @Texto(Alto)" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+                    @foreach (var marca in MarcasEjeY)
+                    {
+                        <line class="@(marca.Fraccion == 0 ? "gs-eje" : "gs-rejilla")" x1="0" y1="@Texto(Alto - marca.Fraccion * Alto)" x2="@Texto(Ancho)" y2="@Texto(Alto - marca.Fraccion * Alto)" />
+                    }
+                    @foreach (var barra in GeometriaBarras)
+                    {
+                        <rect class="gs-barra @(barra.Resaltada ? "gs-resaltada" : null)" x="@Texto(barra.X)" y="@Texto(barra.Y)" width="@Texto(barra.Ancho)" height="@Texto(barra.Alto)" style="fill:@barra.Color" />
+                    }
+                    @if (PuntosLinea.Length > 0)
+                    {
+                        <polyline class="gs-linea" points="@PuntosLinea" style="stroke:@ColorLinea" />
+                    }
+                    @foreach (var comparada in GeometriaComparadas)
+                    {
+                        <polyline class="gs-linea" points="@comparada.Texto" style="stroke:@comparada.Color" />
+                    }
+                </svg>
                 @foreach (var punto in GeometriaPuntos)
                 {
-                    <circle class="gs-punto" cx="@Texto(punto.X)" cy="@Texto(punto.Y)" r="3" style="fill:@ColorLinea" />
+                    <span class="gs-punto" style="@Posicion(punto.X, punto.Y);background:@ColorLinea"></span>
                 }
-            }
-        }
-        @foreach (var comparada in GeometriaComparadas)
-        {
-            <polyline class="gs-linea" points="@comparada.Texto" style="stroke:@comparada.Color" />
-            @foreach (var punto in comparada.Puntos)
-            {
-                <circle class="gs-punto" cx="@Texto(punto.X)" cy="@Texto(punto.Y)" r="3" style="fill:@comparada.Color" />
-            }
-        }
-        @if (!Compacto)
-        {
-            @foreach (var i in Posiciones)
-            {
-                @TextoSvg("gs-etiqueta", CentroDe(i), Alto - 4, Etiquetas[i])
-            }
-        }
-    </svg>
-    @if (!Compacto)
-    {
-        <div class="gs-zonas">
-            @foreach (var i in Posiciones)
-            {
-                <div class="gs-zona" tabindex="0" style="left:@PorcentajeIzquierda(i)%;width:@Texto(PorcentajeAncho)%" data-zona="@i">
-                    <div class="gs-tip" role="tooltip">@TextoTip(i)</div>
+                @foreach (var comparada in GeometriaComparadas)
+                {
+                    @foreach (var punto in comparada.Puntos)
+                    {
+                        <span class="gs-punto" style="@Posicion(punto.X, punto.Y);background:@comparada.Color"></span>
+                    }
+                }
+                @if (MostrarValores)
+                {
+                    @foreach (var barra in GeometriaBarras.Where(b => b.Valor is not null))
+                    {
+                        <span class="gs-valor" style="@Posicion(barra.X + barra.Ancho / 2, barra.Y)">@barra.Valor</span>
+                    }
+                }
+                <div class="gs-zonas">
+                    @foreach (var i in Posiciones)
+                    {
+                        <div class="gs-zona" tabindex="0" style="left:@PorcentajeIzquierda(i)%;width:@Texto(PorcentajeAncho)%" data-zona="@i">
+                            <div class="gs-tip" role="tooltip">@TextoTip(i)</div>
+                        </div>
+                    }
                 </div>
-            }
+            </div>
+            <div class="gs-eje-x" aria-hidden="true">
+                @foreach (var i in PosicionesConEtiqueta)
+                {
+                    <span class="gs-etiqueta" style="left:@Texto(CentroDe(i) / Ancho * 100)%">@Etiquetas[i]</span>
+                }
+            </div>
         </div>
         @if (Leyenda.Count > 0)
         {

@@ -31,3 +31,16 @@ export function descargar(nombre, texto, tipo) {
     enlace.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+// Presentación (maqueta, «Presentar»): pantalla completa del navegador al entrar y al salir. Sin soporte, no hace nada.
+export function pantallaCompleta(activar) {
+    try {
+        if (activar && document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen();
+        } else if (!activar && document.fullscreenElement) {
+            document.exitFullscreen();
+        }
+    } catch {
+        // Sin pantalla completa: la presentación sigue en la ventana.
+    }
+}

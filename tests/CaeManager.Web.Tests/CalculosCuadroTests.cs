@@ -241,7 +241,7 @@ public class CalculosCuadroTests : BunitContext
             .Add(p => p.Comparadas, [new SerieGrafico("2025", "var(--a)", [10, 20]), new SerieGrafico("2026", "var(--b)", [30, null])]));
 
         cut.FindAll("polyline.gs-linea").Count.Should().Be(2);
-        cut.FindAll("circle.gs-punto").Count.Should().Be(3);
+        cut.FindAll("span.gs-punto").Count.Should().Be(3, "los puntos son HTML sobre el plano para que el SVG estirado no los deforme");
         cut.Find(".gs-zona:last-child .gs-tip").TextContent.Should().Contain("2026: —");
     }
 

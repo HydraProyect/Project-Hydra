@@ -18,9 +18,9 @@
     Lo que la maqueta enseña se pinta con lo que miden ObtenerCuadroDireccionQuery, ObtenerSerieCuadroDireccionQuery,
     ObtenerComunicacionesCuadroDireccionQuery y ObtenerGestionesPorDiaCuadroDireccionQuery. Lo que ningún modelo guarda
     todavía (contrato y cuota, vacaciones, tiempos de respuesta, intención CAE, equipos) sale como el estado vacío de
-    la maqueta, sin cifras inventadas. Nada se mide por persona: ni «Ocupación» ni la cartera por persona.
+    la maqueta, sin cifras inventadas. La actividad de cada persona no se mide («Ocupación de Gestores CAE» queda fuera); la cartera por Gestor CAE es volumen de cartera.
 *@
-<div class="contenedor-pagina cuadro">
+<div class="contenedor-pagina cuadro @(_presentando ? "cuadro-presenta" : null)" @onkeydown="TeclaPresentacionAsync">
     <CabeceraPagina Titulo="@Textos["TituloCabecera"]">
         <Descripcion>
             <p class="cuadro-mes">
@@ -34,21 +34,30 @@
     </CabeceraPagina>
 
     <div class="cuadro-barra">
-        <div class="cuadro-mesnav" role="group" aria-label="@Textos["EtiquetaMomento"]">
+        @* Momento: Mes 1 / Mes 6 / Año 3 de la operación (maqueta), con los meses reales; ‹ › recorren mes a mes. *@
+        <div class="cuadro-momento" role="group" aria-label="@Textos["EtiquetaMomento"]">
+            @foreach (var momento in Momentos)
+            {
+                <button type="button" data-momento="@momento.Id" aria-pressed="@(momento.Activo ? "true" : "false")" disabled="@(!momento.Disponible || Cargando)"
+                        @onclick="@(() => IrAMomentoAsync(momento))">@momento.Rotulo<small>@momento.Mes</small></button>
+            }
+        </div>
+        <div class="cuadro-mesnav" role="group" aria-label="@Textos["EtiquetaMes"]">
             <button type="button" class="cuadro-mesnav-boton" aria-label="@Textos["MesAnterior"]" disabled="@(!PuedeIrAlAnterior || Cargando)" @onclick="IrAlMesAnteriorAsync">‹</button>
             <span class="cuadro-mesnav-mes">@EtiquetaMes</span>
             <button type="button" class="cuadro-mesnav-boton" aria-label="@Textos["MesSiguiente"]" disabled="@(!PuedeIrAlSiguiente || Cargando)" @onclick="IrAlMesSiguienteAsync">›</button>
         </div>
 
-        @if (_cuadro is { Tenants.Count: > 0 })
+        @* Ámbito: todo el Operador CAE o el equipo de un Gestor CAE (las Empresas de su cartera principal). Sin etiqueta encima; nunca una lista de Empresas. *@
+        @if (HayCifras)
         {
-            <CampoSelect Etiqueta="@Textos["EtiquetaAmbito"]" Valor="@_ambito" ValorChanged="CambiarAmbito">
+            <select class="cuadro-select" aria-label="@Textos["EtiquetaAmbito"]" value="@_ambito" @onchange="@(e => CambiarAmbito(e.Value?.ToString() ?? string.Empty))">
                 <option value="">@Textos["AmbitoTodas"]</option>
-                @foreach (var tenant in _cuadro.Tenants)
+                @foreach (var equipo in Equipos)
                 {
-                    <option value="@tenant.TenantId">@tenant.TenantNombre</option>
+                    <option value="@equipo.Valor">@Textos["AmbitoEquipo", equipo.Nombre]</option>
                 }
-            </CampoSelect>
+            </select>
         }
 
         @if (_ambito.Length > 0)
@@ -67,12 +76,18 @@
                 <i aria-hidden="true"></i>@Textos["EtiquetasDatos"]
             </button>
             <Boton Variante="VarianteBoton.Secundario" OnClick="AlternarPersonalizar">@Textos["BotonPersonalizar"]</Boton>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="AlternarPresentacionAsync" aria-pressed="@(_presentando ? "true" : "false")">@(_presentando ? Textos["SalirPresentacion"] : Textos["BotonPresentar"])</Boton>
         }
 
-        @* Reabrir un mes cerrado: solo Dirección CAE (ReabrirMesCuadroDireccionCommand lo exige también en servidor). *@
+        @* Reabrir un mes cerrado: solo Dirección CAE (ReabrirMesCuadroDireccionCommand lo exige también en servidor). Vive en un menú de más acciones, fuera de la barra principal. *@
         @if (_puedeReabrir)
         {
-            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="@(EmpresasCerradas.Count == 0)" OnClick="AbrirReaperturaAsync">@Textos["BotonReabrirMes"]</Boton>
+            <details class="cuadro-mas">
+                <summary aria-label="@Textos["MasAcciones"]" title="@Textos["MasAcciones"]">⋯</summary>
+                <div class="cuadro-mas-menu">
+                    <button type="button" disabled="@(EmpresasCerradas.Count == 0)" @onclick="AbrirReaperturaAsync">@Textos["BotonReabrirMes"]</button>
+                </div>
+            </details>
         }
     </div>
 
@@ -148,7 +163,8 @@
                 </section>
             }
 
-            <Pestanas Definiciones="Definiciones" PestanaActiva="@_pestana" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="@Textos["EtiquetaVistas"]">
+            <Pestanas Definiciones="Definiciones" PestanaActiva="@_pestana" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="@Textos["EtiquetaVistas"]" Envolver="true">
+                <div class="cuadro-pagina">
                 <div class="@(_pestana == "general" ? "cuadro-kpis" : "cuadro-rejilla")">
                 @foreach (var id in TarjetasVisibles)
                 {
@@ -193,26 +209,11 @@
                                 <div class="cuadro-kpi-sub">@Textos["KpiRevisarSub"]</div>
                             </div>
                             break;
-                        case "k-sintarifa":
-                            <div class="cuadro-kpi" data-kpi="sintarifa" data-sin-modelo="contrato">
-                                <div class="cuadro-kpi-etiqueta">@Textos["KpiSinTarifa"]</div>
-                                <div class="cuadro-kpi-valor">@Textos["SinDato"]</div>
-                                <div class="cuadro-kpi-sub">@Textos["KpiSinTarifaSub", Numero(AltasCentroSinTarifa)]</div>
-                            </div>
-                            break;
                         case "k-cumpl":
                             <div class="cuadro-kpi" data-kpi="cumplimiento">
                                 <div class="cuadro-kpi-etiqueta">@Textos["KpiCumplimiento"]</div>
                                 <div class="cuadro-kpi-valor">@(c.Cumplimiento.SinDatos ? "—" : c.Cumplimiento.Porcentaje + " %")</div>
                                 <div class="cuadro-kpi-sub">@Textos["KpiCumplimientoSub"]</div>
-                            </div>
-                            break;
-                        case "k-gestiones":
-                            <div class="cuadro-kpi" data-kpi="gestiones">
-                                <div class="cuadro-kpi-etiqueta">@Textos["KpiGestiones"]</div>
-                                <div class="cuadro-kpi-valor">@ValorGestiones</div>
-                                <div class="cuadro-kpi-sub">@Textos["KpiGestionesSub", Numero(c.DocumentosGestionados.Valor), Numero(c.Requerimientos.Valor)]</div>
-                                <GraficoSerie Compacto="true" Id="spark-gestiones" Linea="@LineaGestiones()" />
                             </div>
                             break;
                         case "g-alertas":
@@ -418,7 +419,6 @@
                                             <thead>
                                                 <tr>
                                                     <th scope="col" aria-sort="@AriaOrden("empresa")"><button type="button" class="cuadro-orden" @onclick='() => Ordenar("empresa")'>@Textos["ColumnaEmpresa"]</button></th>
-                                                    <th scope="col">@Textos["ColumnaResponde"]</th>
                                                     <th scope="col" aria-sort="@AriaOrden("trabajadores")"><button type="button" class="cuadro-orden" @onclick='() => Ordenar("trabajadores")'>@Textos["ColumnaTrabajadores"]</button></th>
                                                     <th scope="col" aria-sort="@AriaOrden("centros")"><button type="button" class="cuadro-orden" @onclick='() => Ordenar("centros")'>@Textos["ColumnaCentros"]</button></th>
                                                     <th scope="col">@Textos["ColumnaEmpresasTitulares"]</th>
@@ -446,7 +446,6 @@
                                                                 <span class="cuadro-estado cuadro-estado-fila" data-e="@DataEstado(e.TrabajadoresActivos.Estado)">@TextoEstado(e.TrabajadoresActivos.Estado)</span>
                                                             }
                                                         </td>
-                                                        <td class="cuadro-texto cuadro-apagado">@Responde(empresa.PrincipalDeCartera)</td>
                                                         <td>@Numero(e.TrabajadoresActivos.Valor)</td>
                                                         <td>@Numero(e.CentrosActivos.Valor)</td>
                                                         <td data-sin-modelo="contrato" title="@Textos["CeldaSinModelo"]">@Textos["SinDato"]</td>
@@ -468,7 +467,7 @@
                                                     @if (abierta)
                                                     {
                                                         <tr class="cuadro-detalle" data-detalle="@empresa.TenantId">
-                                                            <td colspan="10">
+                                                            <td colspan="9">
                                                                 <div class="cuadro-detalle-contenido">
                                                                     <dl>
                                                                         <dt>@Textos["ColumnaAltas"]</dt><dd>@Numero(e.AltasTrabajadores.Valor)</dd>
@@ -662,6 +661,60 @@
                             </div>
                             break;
 
+                        case "c-tabla":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="c-tabla">
+                                <Tarjeta Titulo="@Textos["CarteraTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["CarteraNota"]</p>
+                                    @if (CarteraPorGestor.Count == 0)
+                                    {
+                                        <p class="cuadro-vacio">@Textos["CarteraVacia"]</p>
+                                    }
+                                    else
+                                    {
+                                        <div class="cuadro-tabla-envoltorio">
+                                            <table class="cuadro-tabla" data-tabla="cartera">
+                                                <thead>
+                                                    <tr>
+                                                        <th scope="col">@Textos["ColumnaGestorCae"]</th>
+                                                        <th scope="col">@Textos["ColumnaEmpresas"]</th>
+                                                        <th scope="col">@Textos["ColumnaCentros"]</th>
+                                                        <th scope="col">@Textos["ColumnaTrabajadores"]</th>
+                                                        <th scope="col">@Textos["ColumnaEmpresasAsignadas"]</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var fila in CarteraPorGestor)
+                                                    {
+                                                        <tr data-gestor="@(fila.UsuarioId?.ToString() ?? "sin")">
+                                                            <td class="cuadro-texto">@fila.Nombre @if (fila.Rol.Length > 0) { <span class="cuadro-apagado">(@fila.Rol)</span> }</td>
+                                                            <td>@Numero(fila.Empresas.Count)</td>
+                                                            <td>@Numero(fila.Centros)</td>
+                                                            <td>@Numero(fila.Trabajadores)</td>
+                                                            <td class="cuadro-texto cuadro-apagado">@string.Join(", ", fila.Empresas)</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    }
+                                </Tarjeta>
+                            </div>
+                            break;
+                        case "c-criterio":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="c-criterio">
+                                <Tarjeta Titulo="@Textos["CarteraCriterioTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["CarteraCriterioTexto"]</p>
+                                </Tarjeta>
+                            </div>
+                            break;
+                        case "v-barras":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="v-barras">
+                                <Tarjeta Titulo="@Textos["VacacionesPorGestorTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["VacacionesPorGestorNota"]</p>
+                                    <p class="cuadro-vacio" data-sin-modelo="vacaciones">@Textos["VacacionesVacio"]</p>
+                                </Tarjeta>
+                            </div>
+                            break;
                         case "v-cobertura":
                         case "v-tabla":
                             <div class="cuadro-bloque cuadro-ancha" data-tarjeta="@id">
@@ -861,6 +914,7 @@
                             break;
                     }
                 }
+                </div>
                 </div>
             </Pestanas>
         }

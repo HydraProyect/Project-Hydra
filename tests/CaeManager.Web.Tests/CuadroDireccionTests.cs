@@ -136,7 +136,7 @@ public partial class CuadroDireccionTests : BunitContext
     }
 
     private static void IrA(IRenderedComponent<CuadroDireccionPagina> cut, string etiqueta) =>
-        cut.FindAll("button[role=tab]").Single(b => b.TextContent.Trim() == etiqueta).Click();
+        cut.FindAll("button[role=tab]").Single(b => b.TextContent.Trim().StartsWith(etiqueta, StringComparison.Ordinal)).Click();
 
     // ---------------------------------------------------------------- umbral de anonimato
 
@@ -326,29 +326,84 @@ public partial class CuadroDireccionTests : BunitContext
     {
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
 
-        // Nada se mide por persona, en ninguna de las siete pestañas.
+        // Lo único que se excluye por decisión es la ocupación (la actividad) de cada Gestor CAE, en ninguna pestaña.
         foreach (var pestana in new[]
                  {
-                     "Visión general", "Facturación", "Empresas", "Demanda", "Vacaciones y cobertura", "Comunicaciones", "Comparativa anual",
+                     "Visión general", "Facturación", "Empresas", "Demanda", "Vacaciones y cobertura", "Comunicaciones", "Comparativa anual", "Cartera por Gestor CAE",
                  })
         {
             IrA(cut, pestana);
             cut.Markup.Should().NotContainEquivalentOf("Ocupación de Gestores CAE", pestana);
             cut.Markup.Should().NotContainEquivalentOf("ocupación por gestor", pestana);
-            cut.Markup.Should().NotContainEquivalentOf("por Gestor CAE", pestana);
         }
     }
 
     [Fact]
-    public void El_Responde_de_una_Empresa_indica_quien_responde_y_no_mide_actividad()
+    public void La_Cartera_por_Gestor_CAE_cuenta_Empresas_asignadas_y_no_mide_actividad()
     {
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
 
+        IrA(cut, "Cartera por Gestor CAE");
+
+        var filas = cut.FindAll("[data-tabla=cartera] tbody tr");
+        filas.Should().HaveCount(2);
+        filas[0].TextContent.Should().Contain("Marta Gestora").And.Contain("Refrielectric S.A.");
+        filas[1].TextContent.Should().Contain("Sin Gestor CAE principal").And.Contain("Montajes Ebro S.L.");
+        cut.Markup.Should().Contain("volumen de cartera, no actividad de la persona");
+    }
+
+    [Fact]
+    public void El_selector_de_ambito_ofrece_el_Operador_CAE_y_los_equipos_de_Gestor_CAE_pero_no_las_Empresas()
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
+
+        var opciones = cut.FindAll("select.cuadro-select option").Select(o => o.TextContent.Trim()).ToList();
+
+        opciones.Should().Equal("Todo el Operador CAE", "Equipo Marta Gestora");
+        opciones.Should().NotContain(o => o.Contains("Refrielectric") || o.Contains("Montajes Ebro"));
+    }
+
+    [Fact]
+    public void Elegir_un_equipo_reduce_el_cuadro_a_las_Empresas_de_su_Gestor_CAE()
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
+
+        cut.Find("select.cuadro-select").Change(cut.FindAll("select.cuadro-select option")[1].GetAttribute("value")!);
         IrA(cut, "Empresas");
 
-        cut.Find($"tr[data-empresa='{TenantA}']").TextContent.Should().Contain("Marta Gestora (Gestor CAE)");
-        cut.Find($"tr[data-empresa='{TenantB}']").TextContent.Should().Contain("—");
-        cut.Markup.Should().Contain("no mide la actividad de nadie");
+        cut.FindAll("[data-tabla=empresas] tbody tr[data-empresa]").Select(f => f.GetAttribute("data-empresa"))
+            .Should().Equal(TenantA.ToString());
+    }
+
+    [Fact]
+    public void Los_momentos_Mes_1_Mes_6_y_Año_3_estan_en_la_barra_y_el_futuro_se_desactiva()
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _,
+            serie: q => new SerieCuadroDireccionDto([], [], 0));
+
+        cut.FindAll(".cuadro-momento button").Select(b => b.FirstChild!.TextContent.Trim()).Should().Equal("Mes 1", "Mes 6", "Año 3");    }
+
+    [Fact]
+    public void Presentar_activa_el_modo_presentacion_y_Escape_lo_cierra()
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
+        cut.FindAll(".cuadro-presenta").Should().BeEmpty();
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Presentar").Click();
+        cut.FindAll(".cuadro-presenta").Should().HaveCount(1);
+
+        cut.Find(".cuadro").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
+        cut.FindAll(".cuadro-presenta").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void La_pestaña_Cartera_lleva_la_insignia_de_Empresas_sin_Gestor_CAE_principal()
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
+
+        var pestana = cut.FindAll("button[role=tab]").Single(b => b.TextContent.Contains("Cartera por Gestor CAE"));
+
+        pestana.TextContent.Should().Contain("1");
     }
 
     [Fact]

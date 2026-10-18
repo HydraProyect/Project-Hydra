@@ -49,7 +49,7 @@
     <value>Ámbito</value>
   </data>
   <data name="AmbitoTodas" xml:space="preserve">
-    <value>Todas las Empresas</value>
+    <value>Todo el Operador CAE</value>
   </data>
   <data name="QuitarFiltroAmbito" xml:space="preserve">
     <value>Quitar el filtro de Empresa</value>
@@ -319,7 +319,7 @@
     <value>Etiquetas de datos</value>
   </data>
   <data name="ExportarTabla" xml:space="preserve">
-    <value>Exportar tabla</value>
+    <value>Exportar a Excel</value>
   </data>
   <data name="PersonalizarTitulo" xml:space="preserve">
     <value>Personalizar</value>
@@ -743,5 +743,71 @@
   </data>
   <data name="Cargando" xml:space="preserve">
     <value>Calculando…</value>
+  </data>
+  <data name="EtiquetaMes" xml:space="preserve">
+    <value>Mes</value>
+  </data>
+  <data name="AmbitoEquipo" xml:space="preserve">
+    <value>Equipo {0}</value>
+  </data>
+  <data name="MomentoMes1" xml:space="preserve">
+    <value>Mes 1</value>
+  </data>
+  <data name="MomentoMes6" xml:space="preserve">
+    <value>Mes 6</value>
+  </data>
+  <data name="MomentoAnio3" xml:space="preserve">
+    <value>Año 3</value>
+  </data>
+  <data name="BotonPresentar" xml:space="preserve">
+    <value>Presentar</value>
+  </data>
+  <data name="SalirPresentacion" xml:space="preserve">
+    <value>Salir de la presentación</value>
+  </data>
+  <data name="MasAcciones" xml:space="preserve">
+    <value>Más acciones</value>
+  </data>
+  <data name="PestanaCartera" xml:space="preserve">
+    <value>Cartera por Gestor CAE</value>
+  </data>
+  <data name="GlosaAlertas" xml:space="preserve">
+    <value>{0} alertas que requieren una decisión</value>
+  </data>
+  <data name="GlosaSinPrincipal" xml:space="preserve">
+    <value>{0} Empresas sin Gestor CAE principal</value>
+  </data>
+  <data name="CarteraTitulo" xml:space="preserve">
+    <value>Cartera por Gestor CAE</value>
+  </data>
+  <data name="CarteraNota" xml:space="preserve">
+    <value>Las Empresas que cada Gestor CAE lleva como principal en la cartera, con los centros y trabajadores que suman. Es volumen de cartera, no actividad de la persona.</value>
+  </data>
+  <data name="CarteraVacia" xml:space="preserve">
+    <value>Todavía no hay Empresas en la cartera del Operador CAE.</value>
+  </data>
+  <data name="CarteraSinResponsable" xml:space="preserve">
+    <value>Sin Gestor CAE principal</value>
+  </data>
+  <data name="CarteraCriterioTitulo" xml:space="preserve">
+    <value>Cómo se lee esta cartera</value>
+  </data>
+  <data name="CarteraCriterioTexto" xml:space="preserve">
+    <value>Cada Empresa cuenta una sola vez, para quien lleva la marca de principal en su Asignación de Cartera. Los centros y trabajadores son los de esas Empresas en el mes. TALVEG no mide la ocupación ni el tiempo de nadie.</value>
+  </data>
+  <data name="ColumnaGestorCae" xml:space="preserve">
+    <value>Gestor CAE</value>
+  </data>
+  <data name="ColumnaEmpresas" xml:space="preserve">
+    <value>Empresas</value>
+  </data>
+  <data name="ColumnaEmpresasAsignadas" xml:space="preserve">
+    <value>Empresas asignadas</value>
+  </data>
+  <data name="VacacionesPorGestorTitulo" xml:space="preserve">
+    <value>Vacaciones del año por Gestor CAE</value>
+  </data>
+  <data name="VacacionesPorGestorNota" xml:space="preserve">
+    <value>Días laborables disfrutados hasta el mes, ya planificados y sin planificar. Solo vacaciones.</value>
   </data>
 </root>

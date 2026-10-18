@@ -46,36 +46,24 @@ public partial class CuadroDireccionTests
     // ---------------------------------------------------------------- Gestiones del mes
 
     [Fact]
-    public void El_KPI_Gestiones_del_mes_enseña_las_gestiones_completadas_y_no_inventa_si_faltan()
+    public void La_fila_de_KPI_son_seis_tarjetas_y_las_gestiones_no_son_una_de_ellas()
     {
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
 
-        cut.Find("[data-kpi=gestiones] .cuadro-kpi-valor").TextContent.Trim().Should().Be("42");
-        cut.Find("[data-kpi=gestiones] .cuadro-kpi-sub").TextContent.Should().Contain("410 documentos").And.Contain("37 requerimientos");
+        var kpis = cut.FindAll(".cuadro-kpi").Select(k => k.GetAttribute("data-kpi")).ToList();
+        kpis.Should().Equal("facturacion", "extranjeros", "trabajadores", "centros", "revisar", "cumplimiento");
+        cut.FindAll("[data-kpi=gestiones], [data-kpi=sintarifa]").Should().BeEmpty(
+            "«Gestiones del mes» vive en «Facturación y gestiones por mes» y los trabajadores sin tarifa en la pestaña Facturación");
     }
 
     [Fact]
-    public void Sin_gestiones_en_las_cifras_el_KPI_sale_vacio()
-    {
-        var cuadro = Cuadro(EstadoCifraMensual.Parcial);
-        var sin = cuadro with { Total = cuadro.Total with { Gestiones = null } };
-
-        var cut = Pintar(sin, Roles.DireccionCae, out _);
-
-        cut.Find("[data-kpi=gestiones] .cuadro-kpi-valor").TextContent.Trim().Should().Be("—");
-    }
-
-    [Fact]
-    public void Los_KPI_de_contrato_y_cuota_salen_con_el_estado_vacio_de_la_maqueta()
+    public void El_KPI_de_contrato_y_cuota_sale_con_el_estado_vacio_de_la_maqueta()
     {
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
 
-        foreach (var kpi in new[] { "revisar", "sintarifa" })
-        {
-            var tarjeta = cut.Find($"[data-kpi={kpi}]");
-            tarjeta.GetAttribute("data-sin-modelo").Should().Be("contrato");
-            tarjeta.QuerySelector(".cuadro-kpi-valor")!.TextContent.Trim().Should().Be("—");
-        }
+        var tarjeta = cut.Find("[data-kpi=revisar]");
+        tarjeta.GetAttribute("data-sin-modelo").Should().Be("contrato");
+        tarjeta.QuerySelector(".cuadro-kpi-valor")!.TextContent.Trim().Should().Be("—");
     }
 
     // ---------------------------------------------------------------- Visión general: facturación, serie y alertas
@@ -115,12 +103,23 @@ public partial class CuadroDireccionTests
     public void Las_etiquetas_de_datos_pintan_el_valor_de_cada_barra()
     {
         var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), LineasDeTarifa());
-        cut.Find("[data-grafico=evolucion]").QuerySelectorAll("text.gs-valor").Length.Should().Be(0);
+        cut.Find("[data-grafico=evolucion]").QuerySelectorAll(".gs-valor").Length.Should().Be(0);
 
         cut.Find("#cuadro-etiquetas").Click();
 
         cut.Find("#cuadro-etiquetas").GetAttribute("aria-checked").Should().Be("true");
-        cut.Find("[data-grafico=evolucion]").QuerySelectorAll("text.gs-valor").Length.Should().Be(6);
+        cut.Find("[data-grafico=evolucion]").QuerySelectorAll(".gs-valor").Length.Should().Be(6);
+    }
+
+    [Fact]
+    public void El_grafico_de_la_serie_lleva_eje_Y_con_rejilla_y_las_etiquetas_en_texto_HTML()
+    {
+        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), LineasDeTarifa());
+
+        var grafico = cut.Find("[data-grafico=evolucion]");
+        grafico.QuerySelectorAll(".gs-marca-y").Length.Should().BeGreaterThanOrEqualTo(4, "el eje Y rotula cuatro o cinco divisiones");
+        grafico.QuerySelectorAll("line.gs-rejilla").Length.Should().BeGreaterThanOrEqualTo(4);
+        grafico.QuerySelectorAll("svg text").Length.Should().Be(0, "el texto va en HTML para que no se escale con el SVG");
     }
 
     [Fact]
@@ -177,10 +176,10 @@ public partial class CuadroDireccionTests
         IrA(cut, "Empresas");
 
         var cabeceras = cut.FindAll("[data-tabla=empresas] th").Select(t => t.TextContent.Trim()).ToList();
-        cabeceras.Should().Equal("Empresa", "Responde", "Trab.", "Centros", "Emp. tit.", "Extranj.", "Rotación", "Factura mes", "€ / gestión", "Cumpl.");
+        cabeceras.Should().Equal("Empresa", "Trab.", "Centros", "Emp. tit.", "Extranj.", "Rotación", "Factura mes", "€ / gestión", "Cumpl.");
         var fila = cut.Find($"tr[data-empresa='{TenantA}']");
         fila.QuerySelector("td[data-sin-modelo=contrato]")!.TextContent.Trim().Should().Be("—");
-        fila.TextContent.Should().Contain("Marta Gestora");
+        fila.TextContent.Should().NotContain("Marta Gestora", "la maqueta no lleva la columna «Responde»");
     }
 
     [Fact]
@@ -314,7 +313,7 @@ public partial class CuadroDireccionTests
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out var mediador,
             serie: q => SerieDe(i => Cifras(EstadoCifraMensual.Estimado, 25), null, q.Meses));
 
-        mediador.SeriesPedidas.Should().ContainSingle(q => q.Meses == 6 && q.ConFacturacion);
+        mediador.SeriesPedidas.Should().ContainSingle(q => q.Meses == 36 && q.ConFacturacion);
 
         IrA(cut, "Demanda");
 
@@ -369,9 +368,8 @@ public partial class CuadroDireccionTests
 
         IrA(cut, "Vacaciones y cobertura");
 
-        cut.FindAll("[data-sin-modelo=vacaciones]").Count.Should().Be(2);
-        cut.Markup.Should().Contain("Capacidad del equipo ausente por vacaciones").And.Contain("Saldo de vacaciones");
-        cut.Markup.Should().NotContain("Vacaciones del año por");
+        cut.FindAll("[data-sin-modelo=vacaciones]").Count.Should().Be(3, "cobertura, saldo y «Vacaciones del año por Gestor CAE», las tres sin modelo de vacaciones");
+        cut.Markup.Should().Contain("Capacidad del equipo ausente por vacaciones").And.Contain("Saldo de vacaciones").And.Contain("Vacaciones del año por Gestor CAE");
         cut.Markup.Should().NotContain("Ocupación de Gestores CAE");
     }
 
@@ -458,7 +456,7 @@ public partial class CuadroDireccionTests
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
         IrA(cut, "Empresas");
 
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Exportar tabla").Click();
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Exportar a Excel").Click();
 
         cut.Find("[data-aviso=exportar]").TextContent.Should().Contain("No se pudo exportar");
     }
@@ -484,10 +482,10 @@ public partial class CuadroDireccionTests
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Personalizar").Click();
 
-        cut.Find("[data-tarjeta-lista=k-gestiones]").TriggerEvent("ondragstart", new Microsoft.AspNetCore.Components.Web.DragEventArgs());
+        cut.Find("[data-tarjeta-lista=k-centros]").TriggerEvent("ondragstart", new Microsoft.AspNetCore.Components.Web.DragEventArgs());
         cut.Find("[data-tarjeta-lista=k-fact]").TriggerEvent("ondrop", new Microsoft.AspNetCore.Components.Web.DragEventArgs());
 
-        cut.FindAll("[data-tarjeta-lista]").First().GetAttribute("data-tarjeta-lista").Should().Be("k-gestiones");
+        cut.FindAll("[data-tarjeta-lista]").First().GetAttribute("data-tarjeta-lista").Should().Be("k-centros");
     }
 
     [Fact]
@@ -550,12 +548,12 @@ public partial class CuadroDireccionTests
         var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), LineasDeTarifa());
         IrA(cut, "Empresas");
 
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Exportar tabla").Click();
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Exportar a Excel").Click();
 
         var descarga = modulo.Invocations["descargar"].Single();
         descarga.Arguments[0]!.ToString().Should().StartWith("cuadro-direccion-empresas-").And.EndWith(".csv");
         var csv = descarga.Arguments[1]!.ToString()!;
-        csv.Should().Contain("Empresa;Responde;Trab.").And.Contain("Refrielectric S.A.").And.Contain("Montajes Ebro S.L.");
+        csv.Should().Contain("Empresa;Trab.").And.Contain("Refrielectric S.A.").And.Contain("Montajes Ebro S.L.");
     }
 
     // ---------------------------------------------------------------- tooltips y accesibilidad de los gráficos
