@@ -48,9 +48,12 @@ public static class NombreArchivoDocumento
             : tipo ?? "";
     }
 
+    /// <summary>Clave de agrupación de un tipo: la del componente de fichero, sin mayúsculas.</summary>
+    public static string ClaveDeTipo(string? tipo) => Limpiar(TipoCorto(tipo), "Documento").ToLowerInvariant();
+
     /// <summary>¿Dos nombres de tipo producen el mismo componente de fichero?</summary>
     public static bool MismoTipo(string? a, string? b) =>
-        string.Equals(Limpiar(TipoCorto(a), "Documento"), Limpiar(TipoCorto(b), "Documento"), StringComparison.OrdinalIgnoreCase);
+        ClaveDeTipo(a) == ClaveDeTipo(b);
 
     /// <summary>Sin acentos ni ñ, solo letras, dígitos, espacio y <c>- . ( )</c>; espacios colapsados.</summary>
     public static string Limpiar(string? texto, string alternativa)

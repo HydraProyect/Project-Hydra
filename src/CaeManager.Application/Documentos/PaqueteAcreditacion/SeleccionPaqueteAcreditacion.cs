@@ -10,10 +10,11 @@ public enum MotivoExclusionPaquete
 }
 
 /// <param name="TitularId">Trabajador o Empresa a quien pertenece: la selección es «una por tipo» DENTRO de cada titular.</param>
+/// <param name="TipoClave">Tipo canónico (<see cref="NombreArchivoDocumento.ClaveDeTipo"/>): «Certificado de aptitud médica» y «Reconocimiento médico» son el mismo.</param>
 public record DocumentoCandidatoPaquete(
     Guid Id,
     Guid TitularId,
-    Guid TipoDocumentoId,
+    string TipoClave,
     EstadoVigenciaDocumento EstadoVigencia,
     DateOnly? FechaVencimiento,
     DateOnly FechaEmision,
@@ -49,7 +50,7 @@ public static class SeleccionPaqueteAcreditacion
     {
         var decisiones = new List<DecisionPaquete>();
 
-        foreach (var grupo in documentos.GroupBy(d => (d.TitularId, d.TipoDocumentoId)))
+        foreach (var grupo in documentos.GroupBy(d => (d.TitularId, d.TipoClave)))
         {
             var vigentes = new List<DocumentoCandidatoPaquete>();
             foreach (var d in grupo)

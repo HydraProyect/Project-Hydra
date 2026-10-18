@@ -1,3 +1,4 @@
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.PaqueteAcreditacion;
 using CaeManager.Domain.Documentos;
 using FluentAssertions;
@@ -9,17 +10,17 @@ public class SeleccionPaqueteAcreditacionTests
 {
     private static readonly DateOnly Hoy = new(2026, 10, 1);
     private static readonly Guid Titular = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
-    private static readonly Guid TipoAptitud = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000001");
-    private static readonly Guid TipoFormacion = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000002");
-    private static readonly Guid TipoReciclaje = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000003");
+    private const string TipoAptitud = "aptitud medica";
+    private const string TipoFormacion = "formacion art. 19";
+    private const string TipoReciclaje = "reciclaje 4h";
 
     private static int _n;
 
-    private static DocumentoCandidatoPaquete Vence(Guid tipo, DateOnly emision, int diasHastaVencer, Guid? titular = null, string? archivo = "blob", DateTime? creado = null) =>
+    private static DocumentoCandidatoPaquete Vence(string tipo, DateOnly emision, int diasHastaVencer, Guid? titular = null, string? archivo = "blob", DateTime? creado = null) =>
         new(Guid.Parse($"cccccccc-0000-0000-0000-{++_n:000000000000}"), titular ?? Titular, tipo, EstadoVigenciaDocumento.VenceEnFecha,
             Hoy.AddDays(diasHastaVencer), emision, creado ?? new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(_n), archivo);
 
-    private static DocumentoCandidatoPaquete SinVigencia(Guid tipo, DateOnly emision, EstadoVigenciaDocumento estado = EstadoVigenciaDocumento.NoCaduca, Guid? titular = null) =>
+    private static DocumentoCandidatoPaquete SinVigencia(string tipo, DateOnly emision, EstadoVigenciaDocumento estado = EstadoVigenciaDocumento.NoCaduca, Guid? titular = null) =>
         new(Guid.Parse($"cccccccc-0000-0000-0000-{++_n:000000000000}"), titular ?? Titular, tipo, estado, null, emision,
             new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(_n), "blob");
 
@@ -129,5 +130,13 @@ public class SeleccionPaqueteAcreditacionTests
         var hoyVence = Vence(TipoAptitud, new DateOnly(2025, 10, 1), 0);
         var ayer = Vence(TipoFormacion, new DateOnly(2025, 9, 30), -1);
         Incluidos(SeleccionPaqueteAcreditacion.Seleccionar([hoyVence, ayer], Hoy)).Should().Equal(hoyVence.Id);
+    }
+
+    [Fact]
+    public void Aptitud_medica_y_Reconocimiento_medico_cuentan_como_un_solo_tipo()
+    {
+        var aptitud = Vence(NombreArchivoDocumento.ClaveDeTipo("Certificado de aptitud médica"), new DateOnly(2026, 1, 1), 100);
+        var reconocimiento = Vence(NombreArchivoDocumento.ClaveDeTipo("Reconocimiento médico"), new DateOnly(2026, 6, 1), 100);
+        Incluidos(SeleccionPaqueteAcreditacion.Seleccionar([aptitud, reconocimiento], Hoy)).Should().Equal(reconocimiento.Id);
     }
 }

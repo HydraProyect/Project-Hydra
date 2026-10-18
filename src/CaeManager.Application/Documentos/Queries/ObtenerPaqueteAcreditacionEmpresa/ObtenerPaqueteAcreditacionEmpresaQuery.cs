@@ -110,7 +110,7 @@ public class ObtenerPaqueteAcreditacionEmpresaQueryHandler(
         var candidatos = filas
             .Where(f => tipos.ContainsKey(f.TipoDocumentoId))
             .Select(f => new DocumentoCandidatoPaquete(
-                f.Id, f.TrabajadorId ?? f.EmpresaId!.Value, f.TipoDocumentoId, f.EstadoVigencia,
+                f.Id, f.TrabajadorId ?? f.EmpresaId!.Value, NombreArchivoDocumento.ClaveDeTipo(tipos[f.TipoDocumentoId].Nombre), f.EstadoVigencia,
                 f.FechaVencimiento, f.FechaEmision, f.CreadoEnUtc, f.ArchivoUrl))
             .ToList();
         var porId = filas.ToDictionary(f => f.Id);
@@ -136,13 +136,13 @@ public class ObtenerPaqueteAcreditacionEmpresaQueryHandler(
         foreach (var decision in decisiones
                      .OrderBy(d => porId[d.Documento.Id].TrabajadorId is null ? 0 : 1)
                      .ThenBy(d => porId[d.Documento.Id].TrabajadorId is { } tid ? carpetas[tid] : "", StringComparer.OrdinalIgnoreCase)
-                     .ThenBy(d => tipos[d.Documento.TipoDocumentoId].Orden)
+                     .ThenBy(d => tipos[porId[d.Documento.Id].TipoDocumentoId].Orden)
                      .ThenBy(d => d.Documento.FechaEmision)
                      .ThenBy(d => d.Documento.Id))
         {
             var d = decision.Documento;
             var fila = porId[d.Id];
-            var tipo = tipos[d.TipoDocumentoId];
+            var tipo = tipos[fila.TipoDocumentoId];
             var esTrabajador = fila.TrabajadorId is not null;
             var titular = esTrabajador
                 ? $"{trabajadorPorId[fila.TrabajadorId!.Value].Apellidos} {trabajadorPorId[fila.TrabajadorId!.Value].Nombre}"
