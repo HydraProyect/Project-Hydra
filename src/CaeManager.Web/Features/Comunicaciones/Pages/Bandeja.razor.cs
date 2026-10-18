@@ -104,6 +104,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     // --- Filtros ---
     private string _intencionFiltro = string.Empty;
+    private static readonly IntencionCae[] IntencionesCae = Enum.GetValues<IntencionCae>();
     private string _estadoFiltro = string.Empty;
     private string _mesFiltro = string.Empty; // input type="month" -> "yyyy-MM"
     private string _clienteIdFiltro = string.Empty;

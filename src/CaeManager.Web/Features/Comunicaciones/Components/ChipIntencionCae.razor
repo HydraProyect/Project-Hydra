@@ -5,10 +5,10 @@
 @inject IStringLocalizer<TextosIntencionesCae> Textos
 
 <div aria-label="@Textos["EtiquetaIntencion"]">
-    <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@Textos["ResumenChip", Textos[$"Intencion_{Intencion.IntencionActual}"], Textos[$"Confianza_{Intencion.Confianza}"]]</Badge>
+    <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@(Textos["ResumenChip", Textos[$"Intencion_{Intencion.IntencionActual}"], Textos[$"Confianza_{Intencion.Confianza}"]])</Badge>
     @if (Intencion.ConfirmadaPorPersona)
     {
-        <span>@Textos[Intencion.CambiadaPorPersona ? "CambiadaConfirmada" : "Confirmada"]</span>
+        <span>@Textos[ClaveConfirmacion]</span>
     }
     else
     {
@@ -16,14 +16,14 @@
         <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" Deshabilitado="Guardando" OnClick="() => OnConfirmar.InvokeAsync(Intencion.IntencionActual)">@Textos["Confirmar"]</Boton>
     }
     <CampoSelect Etiqueta="@Textos["CambiarIntencion"]" Valor="@Intencion.IntencionActual.ToString()" ValorChanged="CambiarAsync" Deshabilitado="Guardando">
-        @foreach (var intencion in Enum.GetValues<IntencionCae>())
+        @foreach (var intencion in IntencionesCae)
         {
             <option value="@intencion">@Textos[$"Intencion_{intencion}"]</option>
         }
     </CampoSelect>
     @if (Intencion.TipoEntidadPropuesta is { } tipo)
     {
-        <a href="@RutaEntidad(tipo, Intencion.EntidadPropuestaId!.Value)">@Textos["EntidadPropuesta", Textos[$"TipoEntidad_{tipo}"]]</a>
+        <a href="@RutaEntidad(tipo, Intencion.EntidadPropuestaId!.Value)">@(Textos["EntidadPropuesta", Textos[$"TipoEntidad_{tipo}"]])</a>
         <span>@Textos["PendienteEntidad"]</span>
     }
 </div>
@@ -31,6 +31,10 @@
 @code {
     [Parameter, EditorRequired] public IntencionConversacionDto Intencion { get; set; } = default!;
     [Parameter] public bool Guardando { get; set; }
+    private static readonly IntencionCae[] IntencionesCae = Enum.GetValues<IntencionCae>();
+    // Claves del .resx, no texto de interfaz.
+    private const string ClaveCambiada = "CambiadaConfirmada", ClaveConfirmada = "Confirmada";
+    private string ClaveConfirmacion => Intencion.CambiadaPorPersona ? ClaveCambiada : ClaveConfirmada;
     [Parameter] public EventCallback<IntencionCae> OnConfirmar { get; set; }
     private static string RutaEntidad(TipoEntidadIntencion tipo, Guid id) => tipo switch
     {

@@ -36,4 +36,6 @@ public class ComunicacionesQueryContextFalso : IComunicacionesQueryContext
     public IQueryable<ClasificacionRuidoMensaje> ClasificacionesRuidoMensaje => new TestAsyncQueryable<ClasificacionRuidoMensaje>(ListaClasificacionesRuidoMensaje.AsQueryable());
     public List<ClasificacionRelevanciaCae> ListaClasificacionesRelevanciaCae { get; } = [];
     public IQueryable<ClasificacionRelevanciaCae> ClasificacionesRelevanciaCae => new TestAsyncQueryable<ClasificacionRelevanciaCae>(ListaClasificacionesRelevanciaCae.AsQueryable());
+    public List<IntencionConversacion> ListaIntencionesConversacion { get; } = [];
+    public IQueryable<IntencionConversacion> IntencionesConversacion => new TestAsyncQueryable<IntencionConversacion>(ListaIntencionesConversacion.AsQueryable());
 }
