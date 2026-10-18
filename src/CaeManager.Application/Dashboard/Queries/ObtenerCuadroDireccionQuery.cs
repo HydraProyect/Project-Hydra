@@ -47,6 +47,10 @@ public record CumplimientoActualDto(
 /// <param name="AltasCentros">Centros de trabajo dados de alta dentro del mes.</param>
 /// <param name="DocumentosGestionados">Documentos registrados en el mes, de cualquier titular, incluidas las versiones que luego se sustituyeron y los que luego se eliminaron.</param>
 /// <param name="Requerimientos">Reclamaciones de documentación enviadas en el mes (decisión 2, 2026-10-17).</param>
+/// <param name="Gestiones">
+/// Gestiones completadas dentro del mes (<see cref="MedicionCuadroDireccion.GestionesCompletadas"/>). Null si la
+/// medición no la lleva: un cierre mensual anterior a este campo no la guardó y no se reconstruye ni se inventa.
+/// </param>
 public record CifrasCuadroDireccionDto(
     CifraMensual TrabajadoresActivos,
     CifraMensual AltasTrabajadores,
@@ -56,7 +60,8 @@ public record CifrasCuadroDireccionDto(
     CifraMensual DocumentosGestionados,
     CifraMensual Requerimientos,
     SolicitudesDelMesDto Solicitudes,
-    CumplimientoActualDto Cumplimiento);
+    CumplimientoActualDto Cumplimiento,
+    CifraMensual? Gestiones = null);
 
 /// <summary>
 /// Quien lleva la marca de principal en la Asignación de Cartera bajo la Asignación de Operación del Operador
@@ -146,7 +151,8 @@ public class ObtenerCuadroDireccionQueryHandler(
     IDirectorioUsuariosService directorioUsuarios,
     ICatalogoIncorporacionCartera catalogo,
     TimeProvider reloj,
-    ICierresCuadroDireccion? cierresContext = null)
+    ICierresCuadroDireccion? cierresContext = null,
+    CaeManager.Application.Gestiones.IGestionesQueryContext? gestionesContext = null)
     : IRequestHandler<ObtenerCuadroDireccionQuery, CuadroDireccionDto>
 {
     public async Task<CuadroDireccionDto> Handle(ObtenerCuadroDireccionQuery request, CancellationToken cancellationToken)
@@ -181,7 +187,7 @@ public class ObtenerCuadroDireccionQueryHandler(
                     ? await cierresContext.CierresMensuales.SingleOrDefaultAsync(c => c.Anyo == mes.Anyo && c.Mes == mes.Mes && c.ReabiertoEnUtc == null, cancellationToken)
                     : null;
                 var medicion = cierre is null
-                    ? await new MedicionMensualCuadroDireccion(tenantActual, trabajadoresContext, centrosContext, documentosContext, reclamacionesContext, comunicacionesContext, mediator).MedirAsync(mes, corteUtc, cancellationToken)
+                    ? await new MedicionMensualCuadroDireccion(tenantActual, trabajadoresContext, centrosContext, documentosContext, reclamacionesContext, comunicacionesContext, mediator, gestionesContext).MedirAsync(mes, corteUtc, cancellationToken)
                     : FotoCierreMensual.Leer(cierre.FotoJson).Medicion with
                     {
                         EstadoPersistido = cierre.Estimado ? EstadoCifraMensual.Estimado : EstadoCifraMensual.Existe,
@@ -276,7 +282,8 @@ public class ObtenerCuadroDireccionQueryHandler(
             [], Cifras([], EstadoCifraMensual.Parcial, ahoraUtc), 0, motivo);
     }
 
-    private static CifrasCuadroDireccionDto Cifras(
+    /// <summary>Las cifras de un conjunto de mediciones (un Tenant o la suma de varios); pura, la reutiliza la serie mensual.</summary>
+    public static CifrasCuadroDireccionDto Cifras(
         IReadOnlyList<MedicionCuadroDireccion> mediciones, EstadoCifraMensual estado, DateTime ahoraUtc)
     {
         CifraMensual Suma(Func<MedicionCuadroDireccion, int> valor) => new(mediciones.Sum(valor), estado);
@@ -306,6 +313,9 @@ public class ObtenerCuadroDireccionQueryHandler(
                 new CifraMensual(solicitudes.Count, estado), DefinicionesCuadroDireccion.PorFranja(solicitudes)),
             Cumplimiento: new CumplimientoActualDto(
                 vigentes, proximos, urgentes, vencidos, sinConfirmar, sinCaducidad, paresExigidos,
-                porcentaje, sinDatos, ahoraUtc));
+                porcentaje, sinDatos, ahoraUtc),
+            Gestiones: mediciones.Count > 0 && mediciones.All(m => m.GestionesCompletadas is not null)
+                ? new CifraMensual(mediciones.Sum(m => m.GestionesCompletadas!.Value), estado)
+                : null);
     }
 }

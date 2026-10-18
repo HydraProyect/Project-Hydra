@@ -335,6 +335,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IDocumentosQueryContext"),
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IReclamacionesQueryContext"),
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "ITrabajadoresQueryContext"),
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IGestionesQueryContext"),
+        // Serie y Comunicaciones del Cuadro de dirección: tarifas por Tenant beneficiario y conversaciones del mes.
+        ("Dashboard.ObtenerSerieCuadroDireccionQueryHandler", "IFacturacionQueryContext"),
+        ("Dashboard.ObtenerComunicacionesCuadroDireccionQueryHandler", "IComunicacionesQueryContext"),
+        ("Dashboard.ObtenerGestionesPorDiaCuadroDireccionQueryHandler", "IGestionesQueryContext"),
         ("Dashboard.ObtenerEstadisticasAprobacionDocumentoQueryHandler", "IDocumentosQueryContext"),
         ("Dashboard.ObtenerKpisBpoQueryHandler", "IClientesQueryContext"),
         ("Dashboard.ObtenerKpisBpoQueryHandler", "IComunicacionesQueryContext"),

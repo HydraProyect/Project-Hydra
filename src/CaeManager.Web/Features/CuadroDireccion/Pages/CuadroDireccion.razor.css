@@ -1,4 +1,4 @@
-﻿/*
+/*
     Cuadro de direcciÃ³n. Medidas de la maqueta (assets/cuadro-direccion.js): tarjeta 14, KPI 12, botÃ³n 10,
     chip 6; KPI de 16 de relleno con valor de 28/36; cuadrÃ­cula de 6 columnas que baja a 3, 2 y 1 segÃºn
     el ancho de la pÃ¡gina. Colores solo de tokens.css (la maqueta lleva un :root propio que no manda).
@@ -153,12 +153,11 @@
 .cuadro-kpis {
     display: grid;
     gap: 16px;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     container-type: inline-size;
 }
 
-@media (max-width: 1100px) { .cuadro-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 640px) { .cuadro-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1100px) { .cuadro-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 360px) { .cuadro-kpis { grid-template-columns: 1fr; } }
 
 .cuadro-kpi {
@@ -279,3 +278,91 @@
 @media (prefers-reduced-motion: reduce) {
     .cuadro * { transition: none !important; }
 }
+
+/* Rejilla de tarjetas de las pestañas distintas de Visión general, y tarjetas anchas dentro de cualquiera. */
+.cuadro-rejilla { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 900px) { .cuadro-rejilla { grid-template-columns: 1fr; } }
+.cuadro-ancha { grid-column: 1 / -1; }
+.cuadro-bloque { min-width: 0; }
+.cuadro-acciones { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+
+.cuadro-kpi :deep(.gs) { margin-top: 6px; }
+
+/* Interruptor de etiquetas de datos (maqueta: .tv-switch). */
+.cuadro-interruptor {
+    display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px;
+    font: inherit; font-size: 14px; color: var(--color-text); cursor: pointer;
+    background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px;
+}
+.cuadro-interruptor i { width: 28px; height: 16px; border-radius: 8px; background: var(--color-border-strong); position: relative; }
+.cuadro-interruptor i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--color-surface); transition: left .15s; }
+.cuadro-interruptor[aria-checked="true"] i { background: var(--color-primary-500); }
+.cuadro-interruptor[aria-checked="true"] i::after { left: 14px; }
+
+/* Panel Personalizar. */
+.cuadro-personalizar {
+    margin-bottom: 16px; padding: 16px; display: grid; gap: 8px;
+    background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 14px;
+}
+.cuadro-personalizar h3 { margin: 0; font-size: 16px; }
+.cuadro-pers-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cuadro-pers-lista li {
+    display: grid; grid-template-columns: 24px 1fr auto auto; align-items: center; gap: 8px; padding: 6px 8px;
+    border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface-subtle);
+}
+.cuadro-pers-lista label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.cuadro-asa { cursor: grab; color: var(--color-text-muted); text-align: center; }
+.cuadro-flecha {
+    width: 28px; height: 28px; font: inherit; cursor: pointer; color: var(--color-text);
+    background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px;
+}
+
+/* Tabla de Empresas: cabeceras ordenables y fila de detalle. */
+.cuadro-orden { font: inherit; font-weight: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.cuadro-tabla th[aria-sort="ascending"] .cuadro-orden::after { content: " ▲"; font-size: 10px; }
+.cuadro-tabla th[aria-sort="descending"] .cuadro-orden::after { content: " ▼"; font-size: 10px; }
+.cuadro-expandir { font: inherit; color: var(--color-text-muted); background: none; border: 0; cursor: pointer; padding: 0 6px 0 0; }
+.cuadro-detalle td { background: var(--color-surface-subtle); }
+.cuadro-detalle-contenido { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; text-align: left; }
+.cuadro-detalle-contenido dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; }
+.cuadro-detalle-contenido dt { color: var(--color-text-muted); }
+.cuadro-detalle-contenido dd { margin: 0; }
+@media (max-width: 700px) { .cuadro-detalle-contenido { grid-template-columns: 1fr; } }
+
+/* Alertas de «Qué requiere una decisión». */
+.cuadro-alertas { display: grid; gap: 8px; }
+.cuadro-alerta { display: flex; align-items: center; gap: 10px; }
+.cuadro-alerta p { margin: 0; }
+.cuadro-sev { width: 10px; height: 10px; border-radius: 50%; background: var(--color-warning-500); flex: none; }
+.cuadro-alerta[data-prioridad="1"] .cuadro-sev { background: var(--color-danger-500); }
+
+/* Simulador de tarifa. */
+.cuadro-sim { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); align-items: end; }
+@media (max-width: 700px) { .cuadro-sim { grid-template-columns: 1fr; } }
+.cuadro-sim-importe { font-size: 22px; font-weight: 700; }
+
+/* Recomendación «Si hubiera que reforzar a media jornada». */
+.cuadro-reco-grande { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+.cuadro-reco dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; }
+.cuadro-reco dt { color: var(--color-text-muted); }
+.cuadro-reco dd { margin: 0; }
+
+/* Calendario de gestiones por día: una columna por semana, cinco filas (lunes a viernes). */
+.cuadro-calendario { display: flex; gap: 3px; overflow-x: auto; }
+.cuadro-calendario-semana { display: grid; gap: 3px; }
+.cuadro-calendario-dia {
+    width: 16px; height: 16px; border-radius: 3px;
+    background: color-mix(in srgb, var(--color-primario-fondo) var(--intensidad), var(--color-primary-50));
+}
+.cuadro-calendario-fuera { visibility: hidden; }
+
+/* Barras horizontales de Comunicaciones. */
+.cuadro-barras-h { display: grid; gap: 8px; }
+.cuadro-barra-h { display: grid; grid-template-columns: minmax(120px, 40%) 1fr auto; align-items: center; gap: 10px; font-size: 13px; }
+.cuadro-barra-h-pista { height: 10px; border-radius: 5px; background: var(--color-surface-subtle); overflow: hidden; display: block; }
+.cuadro-barra-h-pista > span { display: block; height: 100%; background: var(--color-primary-500); }
+
+/* Selector de métrica de la Comparativa anual (maqueta: .tv-seg). */
+.cuadro-seg { display: inline-flex; flex-wrap: wrap; gap: 0; margin-bottom: 12px; border: 1px solid var(--color-border); border-radius: 10px; overflow: hidden; }
+.cuadro-seg button { font: inherit; padding: 6px 12px; color: var(--color-text); background: var(--color-surface); border: 0; cursor: pointer; }
+.cuadro-seg button[aria-pressed="true"] { color: var(--color-primary-700); background: var(--color-primary-50); font-weight: 600; }

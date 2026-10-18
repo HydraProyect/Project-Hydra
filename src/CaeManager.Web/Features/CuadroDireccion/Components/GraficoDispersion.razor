@@ -1,0 +1,20 @@
+@* Dispersión de Empresas (Tenants beneficiarios): una burbuja por Empresa. Sin texto propio: los rótulos llegan por parámetros. *@
+<figure class="gd" role="img" aria-label="@EtiquetaAria" data-grafico="@Id">
+    <svg viewBox="0 0 640 260" preserveAspectRatio="none" focusable="false">
+        <line class="gd-eje" x1="40" y1="230" x2="630" y2="230" />
+        <line class="gd-eje" x1="40" y1="10" x2="40" y2="230" />
+        @if (Mediana is { } mediana)
+        {
+            <line class="gd-mediana" x1="40" y1="@Texto(PosicionY(mediana))" x2="630" y2="@Texto(PosicionY(mediana))" />
+        }
+        @foreach (var burbuja in Geometria)
+        {
+            <g class="gd-punto" tabindex="0" data-empresa="@burbuja.Nombre">
+                <circle cx="@Texto(burbuja.X)" cy="@Texto(burbuja.Y)" r="@Texto(burbuja.Radio)" style="fill:@burbuja.Color" />
+                <title>@burbuja.Titulo</title>
+            </g>
+        }
+        @TextoSvg("gd-rotulo", 635, 250, EtiquetaX, "end")
+        @TextoSvg("gd-rotulo", 44, 10, EtiquetaY, "start")
+    </svg>
+</figure>

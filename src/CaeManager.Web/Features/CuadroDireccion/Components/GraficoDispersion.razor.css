@@ -1,0 +1,7 @@
+.gd { margin: 0; }
+.gd svg { display: block; width: 100%; height: 260px; }
+.gd-eje { stroke: var(--color-border); stroke-width: 1; }
+.gd-mediana { stroke: var(--color-neutral-400); stroke-dasharray: 4 4; stroke-width: 1; }
+.gd-punto circle { fill-opacity: .55; stroke: var(--color-surface); stroke-width: 1; }
+.gd-punto:hover circle, .gd-punto:focus circle { fill-opacity: .9; }
+.gd-rotulo { font-size: 11px; fill: var(--color-text-muted); }

@@ -3,6 +3,8 @@
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}")]
 @using CaeManager.Application.Dashboard.Queries
+@using CaeManager.Domain.Comunicaciones
+@using CaeManager.Domain.Facturacion
 @using CaeManager.Web.Features.CuadroDireccion.Components
 @using CaeManager.Web.Features.CuadroDireccion.Recursos
 @using Microsoft.Extensions.Localization
@@ -13,10 +15,10 @@
 
 @*
     Cuadro de dirección contra su maqueta («Cuadro Direccion TALVEG.dc.html», assets/cuadro-direccion.js).
-    La maqueta es un cuadro de mando con ocho pestañas sobre datos simulados; aquí solo se pinta lo que
-    ObtenerCuadroDireccionQuery sabe medir. Lo que la maqueta enseña y ninguna consulta mide (facturación,
-    contrato y cuota, Gestor CAE por cartera, vacaciones, tiempos de respuesta, comparativa anual) NO se
-    inventa: la pestaña o la tarjeta no existe y queda como divergencia. Nada se mide por persona.
+    Lo que la maqueta enseña se pinta con lo que miden ObtenerCuadroDireccionQuery, ObtenerSerieCuadroDireccionQuery,
+    ObtenerComunicacionesCuadroDireccionQuery y ObtenerGestionesPorDiaCuadroDireccionQuery. Lo que ningún modelo guarda
+    todavía (contrato y cuota, vacaciones, tiempos de respuesta, intención CAE, equipos) sale como el estado vacío de
+    la maqueta, sin cifras inventadas. Nada se mide por persona: ni «Ocupación» ni «Cartera por Gestor CAE».
 *@
 <div class="contenedor-pagina cuadro">
     <CabeceraPagina Titulo="@Textos["TituloCabecera"]">
@@ -59,6 +61,14 @@
 
         <span class="cuadro-espaciador"></span>
 
+        @if (HayCifras)
+        {
+            <button type="button" class="cuadro-interruptor" role="switch" aria-checked="@(_preferencias.Etiquetas ? "true" : "false")" id="cuadro-etiquetas" @onclick="AlternarEtiquetasAsync">
+                <i aria-hidden="true"></i>@Textos["EtiquetasDatos"]
+            </button>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="AlternarPersonalizar">@Textos["BotonPersonalizar"]</Boton>
+        }
+
         @* Reabrir un mes cerrado: solo Dirección CAE (ReabrirMesCuadroDireccionCommand lo exige también en servidor). *@
         @if (_puedeReabrir)
         {
@@ -86,11 +96,11 @@
     }
     else
     {
-        @if (_cuadro.Estado == EstadoCifraMensual.Existe && !_avisoCierreVisto)
+        @if (_cuadro.Estado == EstadoCifraMensual.Existe && !AvisoCierreVisto)
         {
             <div class="cuadro-aviso-cierre" role="status">
                 <span><b>✓</b> @Textos["AvisoCierre", NombreMesLargo, _cuadro.Anyo, DiaCierre]</span>
-                <button type="button" @onclick="@(() => _avisoCierreVisto = true)">@Textos["AvisoCierreEntendido"]</button>
+                <button type="button" @onclick="CerrarAvisoAsync">@Textos["AvisoCierreEntendido"]</button>
             </div>
         }
 
@@ -105,168 +115,753 @@
         }
         else
         {
-            <Pestanas Definiciones="Definiciones" PestanaActiva="@_pestana" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["EtiquetaVistas"]">
-                @if (_pestana == "general")
+            @if (_personalizando)
+            {
+                <section class="cuadro-personalizar" aria-labelledby="cuadro-pers-titulo" data-panel="personalizar">
+                    <h3 id="cuadro-pers-titulo">@Textos["PersonalizarTitulo"]</h3>
+                    <p class="cuadro-nota">@Textos["PersonalizarAyuda"]</p>
+                    <ul class="cuadro-pers-lista">
+                        @foreach (var tarjeta in TarjetasOrdenadas)
+                        {
+                            var id = tarjeta;
+                            var titulo = TituloTarjeta(id);
+                            <li draggable="true" data-tarjeta-lista="@id"
+                                @ondragstart="@(() => EmpezarArrastre(id))"
+                                @ondragover:preventDefault
+                                @ondrop="@(() => SoltarArrastreAsync(id))">
+                                <span class="cuadro-asa" aria-label="@Textos["ArrastrarAsa", titulo]" title="@Textos["ArrastrarAsa", titulo]">⠿</span>
+                                <label>
+                                    <input type="checkbox" checked="@_preferencias.EsVisible(id)" aria-label="@Textos["MostrarTarjeta", titulo]" @onchange="@(() => AlternarTarjetaAsync(id))" />
+                                    <span>@titulo</span>
+                                </label>
+                                <button type="button" class="cuadro-flecha" aria-label="@Textos["MoverArriba", titulo]" @onclick="@(() => MoverTarjetaAsync(id, -1))">↑</button>
+                                <button type="button" class="cuadro-flecha" aria-label="@Textos["MoverAbajo", titulo]" @onclick="@(() => MoverTarjetaAsync(id, 1))">↓</button>
+                            </li>
+                        }
+                    </ul>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="RestablecerPestanaAsync">@Textos["PersonalizarRestablecer"]</Boton>
+                </section>
+            }
+
+            <Pestanas Definiciones="Definiciones" PestanaActiva="@_pestana" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="@Textos["EtiquetaVistas"]">
+                <div class="@(_pestana == "general" ? "cuadro-kpis" : "cuadro-rejilla")">
+                @foreach (var id in TarjetasVisibles)
                 {
                     var c = Cifras;
-                    <div class="cuadro-kpis">
-                        <div class="cuadro-kpi" data-kpi="trabajadores">
-                            <div class="cuadro-kpi-etiqueta">@Textos["KpiTrabajadores"]</div>
-                            <div class="cuadro-kpi-valor">@Numero(c.TrabajadoresActivos.Valor)</div>
-                            <div class="cuadro-kpi-sub">@Textos["KpiTrabajadoresSub", Numero(c.AltasTrabajadores.Valor), Numero(c.BajasTrabajadores.Valor)]</div>
-                        </div>
-                        <div class="cuadro-kpi" data-kpi="centros">
-                            <div class="cuadro-kpi-etiqueta">@Textos["KpiCentros"]</div>
-                            <div class="cuadro-kpi-valor">@Numero(c.CentrosActivos.Valor)</div>
-                            <div class="cuadro-kpi-sub">@Textos["KpiCentrosSub", Numero(c.AltasCentros.Valor)]</div>
-                        </div>
-                        <div class="cuadro-kpi" data-kpi="documentos">
-                            <div class="cuadro-kpi-etiqueta">@Textos["KpiDocumentos"]</div>
-                            <div class="cuadro-kpi-valor">@Numero(c.DocumentosGestionados.Valor)</div>
-                            <div class="cuadro-kpi-sub">@Textos["KpiDocumentosSub"]</div>
-                        </div>
-                        <div class="cuadro-kpi" data-kpi="requerimientos">
-                            <div class="cuadro-kpi-etiqueta">@Textos["KpiRequerimientos"]</div>
-                            <div class="cuadro-kpi-valor">@Numero(c.Requerimientos.Valor)</div>
-                            <div class="cuadro-kpi-sub">@Textos["KpiRequerimientosSub"]</div>
-                        </div>
-                        <div class="cuadro-kpi" data-kpi="solicitudes">
-                            <div class="cuadro-kpi-etiqueta">@Textos["KpiSolicitudes"]</div>
-                            <div class="cuadro-kpi-valor">@Numero(c.Solicitudes.Total.Valor)</div>
-                            <div class="cuadro-kpi-sub">@Textos["KpiSolicitudesSub"]</div>
-                        </div>
-                        <div class="cuadro-kpi" data-kpi="cumplimiento">
-                            <div class="cuadro-kpi-etiqueta">@Textos["KpiCumplimiento"]</div>
-                            <div class="cuadro-kpi-valor">@(c.Cumplimiento.SinDatos ? "—" : c.Cumplimiento.Porcentaje + " %")</div>
-                            <div class="cuadro-kpi-sub">@Textos["KpiCumplimientoSub"]</div>
-                        </div>
-                    </div>
-                }
-                else if (_pestana == "empresas")
-                {
-                    <Tarjeta Titulo="@Textos["EmpresasTitulo"]" Class="cuadro-tarjeta">
-                        <p class="cuadro-nota">@Textos["EmpresasNota"]</p>
-                        <div class="cuadro-tabla-envoltorio">
-                            <table class="cuadro-tabla" data-tabla="empresas">
-                                <thead>
-                                    <tr>
-                                        <th scope="col">@Textos["ColumnaEmpresa"]</th>
-                                        <th scope="col">@Textos["ColumnaResponde"]</th>
-                                        <th scope="col">@Textos["ColumnaTrabajadores"]</th>
-                                        <th scope="col">@Textos["ColumnaCentros"]</th>
-                                        <th scope="col">@Textos["ColumnaAltas"]</th>
-                                        <th scope="col">@Textos["ColumnaBajas"]</th>
-                                        <th scope="col">@Textos["ColumnaDocumentos"]</th>
-                                        <th scope="col">@Textos["ColumnaRequerimientos"]</th>
-                                        <th scope="col">@Textos["ColumnaSolicitudes"]</th>
-                                        <th scope="col">@Textos["ColumnaCumplimiento"]</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var empresa in EmpresasVisibles)
+                    @switch (id)
+                    {
+                        case "k-fact":
+                            <div class="cuadro-kpi" data-kpi="facturacion">
+                                <div class="cuadro-kpi-etiqueta">@Textos["KpiFacturacion"]</div>
+                                <div class="cuadro-kpi-valor">@(HayTarifas ? Importe(ImporteDe(PuntoActual)) : Textos["SinDato"].Value)</div>
+                                <div class="cuadro-kpi-sub">@(HayTarifas ? Textos["KpiFacturacionSub", VariacionFacturacion].Value : _cargandoSerie ? Textos["Cargando"].Value : Textos["KpiFacturacionSinTarifas"].Value)</div>
+                                <GraficoSerie Compacto="true" Id="spark-facturacion" Linea="@Minigrafico(p => (double)ImporteDe(p))" />
+                            </div>
+                            break;
+                        case "k-ext":
+                            <div class="cuadro-kpi" data-kpi="extranjeros">
+                                <div class="cuadro-kpi-etiqueta">@Textos["KpiExtranjeros"]</div>
+                                <div class="cuadro-kpi-valor">@ValorExtranjeros</div>
+                                <div class="cuadro-kpi-sub">@Textos["KpiExtranjerosSub"]</div>
+                            </div>
+                            break;
+                        case "k-trab":
+                            <div class="cuadro-kpi" data-kpi="trabajadores">
+                                <div class="cuadro-kpi-etiqueta">@Textos["KpiTrabajadores"]</div>
+                                <div class="cuadro-kpi-valor">@Numero(c.TrabajadoresActivos.Valor)</div>
+                                <div class="cuadro-kpi-sub">@Textos["KpiTrabajadoresSub", Numero(c.AltasTrabajadores.Valor), Numero(c.BajasTrabajadores.Valor)]</div>
+                                <GraficoSerie Compacto="true" Id="spark-trabajadores" Linea="@Minigrafico(p => p.Cifras.TrabajadoresActivos.Valor)" />
+                            </div>
+                            break;
+                        case "k-centros":
+                            <div class="cuadro-kpi" data-kpi="centros">
+                                <div class="cuadro-kpi-etiqueta">@Textos["KpiCentros"]</div>
+                                <div class="cuadro-kpi-valor">@Numero(c.CentrosActivos.Valor)</div>
+                                <div class="cuadro-kpi-sub">@Textos["KpiCentrosSub", Numero(c.AltasCentros.Valor)]</div>
+                                <GraficoSerie Compacto="true" Id="spark-centros" Linea="@Minigrafico(p => p.Cifras.CentrosActivos.Valor)" />
+                            </div>
+                            break;
+                        case "k-revisar":
+                            <div class="cuadro-kpi" data-kpi="revisar" data-sin-modelo="contrato">
+                                <div class="cuadro-kpi-etiqueta">@Textos["KpiRevisar"]</div>
+                                <div class="cuadro-kpi-valor">@Textos["SinDato"]</div>
+                                <div class="cuadro-kpi-sub">@Textos["KpiRevisarSub"]</div>
+                            </div>
+                            break;
+                        case "k-sintarifa":
+                            <div class="cuadro-kpi" data-kpi="sintarifa" data-sin-modelo="contrato">
+                                <div class="cuadro-kpi-etiqueta">@Textos["KpiSinTarifa"]</div>
+                                <div class="cuadro-kpi-valor">@Textos["SinDato"]</div>
+                                <div class="cuadro-kpi-sub">@Textos["KpiSinTarifaSub", Numero(AltasCentroSinTarifa)]</div>
+                            </div>
+                            break;
+                        case "k-cumpl":
+                            <div class="cuadro-kpi" data-kpi="cumplimiento">
+                                <div class="cuadro-kpi-etiqueta">@Textos["KpiCumplimiento"]</div>
+                                <div class="cuadro-kpi-valor">@(c.Cumplimiento.SinDatos ? "—" : c.Cumplimiento.Porcentaje + " %")</div>
+                                <div class="cuadro-kpi-sub">@Textos["KpiCumplimientoSub"]</div>
+                            </div>
+                            break;
+                        case "k-gestiones":
+                            <div class="cuadro-kpi" data-kpi="gestiones">
+                                <div class="cuadro-kpi-etiqueta">@Textos["KpiGestiones"]</div>
+                                <div class="cuadro-kpi-valor">@ValorGestiones</div>
+                                <div class="cuadro-kpi-sub">@Textos["KpiGestionesSub", Numero(c.DocumentosGestionados.Valor), Numero(c.Requerimientos.Valor)]</div>
+                                <GraficoSerie Compacto="true" Id="spark-gestiones" Linea="@LineaGestiones()" />
+                            </div>
+                            break;
+                        case "g-alertas":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="g-alertas">
+                                <Tarjeta Titulo="@Textos["AlertasTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["AlertasNota"]</p>
+                                    @if (Alertas.Count == 0)
                                     {
-                                        var e = empresa.Cifras;
-                                        <tr data-empresa="@empresa.TenantId">
-                                            <td class="cuadro-texto">
-                                                @empresa.TenantNombre
-                                                @if (e.TrabajadoresActivos.Estado != _cuadro.Estado)
-                                                {
-                                                    <span class="cuadro-estado cuadro-estado-fila" data-e="@DataEstado(e.TrabajadoresActivos.Estado)">@TextoEstado(e.TrabajadoresActivos.Estado)</span>
-                                                }
-                                            </td>
-                                            <td class="cuadro-texto cuadro-apagado">@Responde(empresa.PrincipalDeCartera)</td>
-                                            <td>@Numero(e.TrabajadoresActivos.Valor)</td>
-                                            <td>@Numero(e.CentrosActivos.Valor)</td>
-                                            <td>@Numero(e.AltasTrabajadores.Valor)</td>
-                                            <td>@Numero(e.BajasTrabajadores.Valor)</td>
-                                            <td>@Numero(e.DocumentosGestionados.Valor)</td>
-                                            <td>@Numero(e.Requerimientos.Valor)</td>
-                                            @if (UmbralAnonimatoCuadro.Cumple(null, e.Solicitudes.Total.Valor))
-                                            {
-                                                <td>@Numero(e.Solicitudes.Total.Valor)</td>
-                                            }
-                                            else
-                                            {
-                                                <td class="cuadro-suprimida" title="@Textos["SolicitudesSuprimidasTitulo", UmbralAnonimatoCuadro.MinimoConversaciones]">@Textos["SolicitudesSuprimida"]</td>
-                                            }
-                                            <td>
-                                                @if (e.Cumplimiento.SinDatos)
-                                                {
-                                                    <span class="cuadro-chip cuadro-chip-neutro">—</span>
-                                                }
-                                                else
-                                                {
-                                                    <span class="cuadro-chip @ClaseCumplimiento(e.Cumplimiento.Porcentaje)">@(e.Cumplimiento.Porcentaje + " %")</span>
-                                                }
-                                            </td>
-                                        </tr>
+                                        <p class="cuadro-vacio">@Textos["AlertasVacio"]</p>
                                     }
-                                </tbody>
-                            </table>
-                        </div>
-                    </Tarjeta>
-                }
-                else if (_pestana == "demanda")
-                {
-                    <Tarjeta Titulo="@Textos["MapaCalorTitulo"]" Class="cuadro-tarjeta">
-                        <p class="cuadro-nota">@Textos["MapaCalorNota"]</p>
-                        @{
-                            var solicitudes = Cifras.Solicitudes;
-                        }
-                        @if (!UmbralAnonimatoCuadro.Cumple(null, solicitudes.Total.Valor))
-                        {
-                            <p class="cuadro-vacio cuadro-suprimida" data-suprimida="mapa-calor">@Textos["MapaCalorSuprimido", solicitudes.Total.Valor, UmbralAnonimatoCuadro.MinimoConversaciones]</p>
-                        }
-                        else
-                        {
-                            var celdas = CuadroDireccionUi.CeldasLaborables(solicitudes.PorFranja);
-                            @if (celdas.Count == 0)
-                            {
-                                <p class="cuadro-vacio">@Textos["MapaCalorSinDatos"]</p>
-                            }
-                            else
-                            {
-                                var horas = HorasDe(celdas);
-                                var maximo = MaximoDe(celdas);
-                                <div class="cuadro-calor" role="table" aria-label="@Textos["MapaCalorTitulo"]" style="--horas:@horas.Count">
-                                    <div class="cuadro-calor-fila" role="row">
-                                        <span class="cuadro-calor-dia" role="columnheader"></span>
-                                        @foreach (var hora in horas)
-                                        {
-                                            <span class="cuadro-calor-hora" role="columnheader">@(hora)h</span>
-                                        }
-                                    </div>
-                                    @foreach (var d in DiasLaborables)
+                                    else
                                     {
-                                        <div class="cuadro-calor-fila" role="row">
-                                            <span class="cuadro-calor-dia" role="rowheader">@NombreDia(d)</span>
-                                            @foreach (var hora in horas)
+                                        <div class="cuadro-alertas">
+                                            @foreach (var alerta in Alertas)
                                             {
-                                                var celda = CeldaDe(celdas, d, hora);
-                                                var intensidad = Intensidad(celda, maximo);
-                                                <span class="cuadro-calor-celda" role="cell"
-                                                      style="--intensidad:@(intensidad)%"
-                                                      title="@(Textos["MapaCalorCelda", NombreDia(d), hora, hora + 1, Porcentaje(celda?.PesoPorcentaje ?? 0), Numero(celda?.Cantidad ?? 0)])">
-                                                    <span class="cuadro-solo-lector">@Porcentaje(celda?.PesoPorcentaje ?? 0)</span>
-                                                </span>
+                                                <div class="cuadro-alerta" data-prioridad="@alerta.Prioridad">
+                                                    <span class="cuadro-sev" aria-hidden="true"></span>
+                                                    <p><span class="cuadro-apagado">@Textos["AlertaCumplimientoTipo"] · </span>@Textos["AlertaCumplimiento", alerta.Empresa, alerta.Porcentaje]</p>
+                                                </div>
                                             }
                                         </div>
                                     }
-                                </div>
-                            }
-                        }
-                    </Tarjeta>
+                                    <p class="cuadro-nota">@Textos["AlertasLimite"]</p>
+                                </Tarjeta>
+                            </div>
+                            break;
+                        case "g-evolucion":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="g-evolucion">
+                                <Tarjeta Titulo="@Textos["EvolucionTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["EvolucionNota"]</p>
+                                    @if (_errorSerie)
+                                    {
+                                        <p class="cuadro-vacio">@Textos["SerieError"]</p>
+                                    }
+                                    else if (PuntosSerie.Count == 0)
+                                    {
+                                        <p class="cuadro-vacio">@Textos["SerieCargando"]</p>
+                                    }
+                                    else
+                                    {
+                                        <GraficoSerie Id="evolucion" EtiquetaAria="@Textos["EvolucionTitulo"]" Etiquetas="@EtiquetasSerie"
+                                                      Barras="@BarraFacturacion()" Linea="@LineaGestiones()" MostrarValores="@_preferencias.Etiquetas"
+                                                      FormatoBarra="@(v => Importe((decimal)v))" />
+                                    }
+                                </Tarjeta>
+                            </div>
+                            break;
+
+                        case "f-apilado":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="f-apilado">
+                                <Tarjeta Titulo="@Textos["ApiladoTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["ApiladoNota"]</p>
+                                    @if (_errorSerie)
+                                    {
+                                        <p class="cuadro-vacio">@Textos["SerieError"]</p>
+                                    }
+                                    else if (PuntosSerie.Count == 0)
+                                    {
+                                        <p class="cuadro-vacio">@Textos["SerieCargando"]</p>
+                                    }
+                                    else if (!HayTarifas)
+                                    {
+                                        <p class="cuadro-vacio" data-sin-modelo="tarifas">@Textos["FacturacionSinTarifas"]</p>
+                                    }
+                                    else
+                                    {
+                                        <GraficoSerie Id="apilado" EtiquetaAria="@Textos["ApiladoTitulo"]" Etiquetas="@EtiquetasSerie"
+                                                      Barras="@SeriesFacturacionPorConcepto()" MostrarValores="@_preferencias.Etiquetas"
+                                                      FormatoBarra="@(v => Importe((decimal)v))" />
+                                        @if (OtraMoneda is { } otra)
+                                        {
+                                            <p class="cuadro-nota">@Textos["FacturacionOtraMoneda", otra, Moneda]</p>
+                                        }
+                                    }
+                                </Tarjeta>
+                            </div>
+                            break;
+                        case "f-sintarifa":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="f-sintarifa">
+                                <Tarjeta Titulo="@Textos["SinTarifaTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["SinTarifaNota"]</p>
+                                    @if (PuntosSerie.Count == 0)
+                                    {
+                                        <p class="cuadro-vacio">@(_errorSerie ? Textos["SerieError"].Value : Textos["SerieCargando"].Value)</p>
+                                    }
+                                    else if (AltaCentroTieneTarifa)
+                                    {
+                                        <p class="cuadro-vacio">@Textos["SinTarifaConTarifa"]</p>
+                                    }
+                                    else
+                                    {
+                                        <GraficoSerie Id="sintarifa" EtiquetaAria="@Textos["SinTarifaTitulo"]" Etiquetas="@EtiquetasSerie"
+                                                      Barras="@(new[] { new SerieGrafico(Textos["SerieAltasCentro"].Value, "var(--color-neutral-400)", PuntosSerie.Select(p => (double?)p.Cifras.AltasCentros.Valor).ToList()) })"
+                                                      MostrarValores="@_preferencias.Etiquetas" />
+                                    }
+                                    <p class="cuadro-nota" data-sin-modelo="contrato">@Textos["SinTarifaTrabajadoresExtra"]</p>
+                                </Tarjeta>
+                            </div>
+                            break;
+                        case "f-simulador":
+                            <div class="cuadro-bloque" data-tarjeta="f-simulador">
+                                <Tarjeta Titulo="@Textos["SimuladorTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["SimuladorNota"]</p>
+                                    <div class="cuadro-sim">
+                                        <CampoTexto Etiqueta="@Textos["SimuladorAlta"]" Valor="@_precioSimulado" ValorChanged="@(v => _precioSimulado = v)" />
+                                        <div>
+                                            <div class="cuadro-sim-importe" data-sim="mes">@ImporteSimuladoMes</div>
+                                            <div class="cuadro-apagado">@Textos["SimuladorMes", Numero(AltasCentroSinTarifa)]</div>
+                                        </div>
+                                        <div>
+                                            <div class="cuadro-sim-importe" data-sim="ventana">@ImporteSimuladoVentana</div>
+                                            <div class="cuadro-apagado">@Textos["SimuladorVentana"]</div>
+                                        </div>
+                                    </div>
+                                    <p class="cuadro-nota" data-sin-modelo="contrato">@Textos["SimuladorTrabajadoresExtra"]</p>
+                                </Tarjeta>
+                            </div>
+                            break;
+                        case "f-borrador":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="f-borrador">
+                                <Tarjeta Titulo="@Textos["BorradorTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["BorradorNota"]</p>
+                                    <div class="cuadro-acciones"><Boton Variante="VarianteBoton.Secundario" OnClick="ExportarBorradorAsync">@Textos["ExportarTabla"]</Boton></div>
+                                    <div class="cuadro-tabla-envoltorio">
+                                        <table class="cuadro-tabla" data-tabla="borrador">
+                                            <thead>
+                                                <tr>
+                                                    <th scope="col">@Textos["ColumnaEmpresa"]</th>
+                                                    <th scope="col">@Textos["ColumnaFacturable"]</th>
+                                                    <th scope="col">@Textos["ColumnaTrabajadoresExtra"]</th>
+                                                    <th scope="col">@Textos["ColumnaAltasCentro"]</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var fila in FilasEmpresas())
+                                                {
+                                                    <tr data-empresa="@fila.Empresa.TenantId">
+                                                        <td class="cuadro-texto">@fila.Empresa.TenantNombre</td>
+                                                        <td>@(HayTarifas ? Importe(fila.Facturacion) : Textos["SinDato"].Value)</td>
+                                                        <td data-sin-modelo="contrato" title="@Textos["CeldaSinModelo"]">@Textos["SinDato"]</td>
+                                                        <td>@Numero(fila.Empresa.Cifras.AltasCentros.Valor)</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </Tarjeta>
+                            </div>
+                            break;
+
+                        case "cl-rendimiento":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="cl-rendimiento">
+                                <Tarjeta Titulo="@Textos["RendimientoTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["RendimientoNota"]</p>
+                                    @if (PuntosDispersion().Count == 0)
+                                    {
+                                        <p class="cuadro-vacio">@(_cargandoSerie ? Textos["Cargando"].Value : Textos["FacturacionSinTarifas"].Value)</p>
+                                    }
+                                    else
+                                    {
+                                        <GraficoDispersion Id="rendimiento" EtiquetaAria="@Textos["RendimientoTitulo"]" EtiquetaX="@Textos["RendimientoX"]" EtiquetaY="@Textos["RendimientoY"]"
+                                                           Puntos="@PuntosDispersion()" Describir="@DescribirPunto" />
+                                    }
+                                </Tarjeta>
+                            </div>
+                            break;
+                        case "cl-pareto":
+                            <div class="cuadro-bloque" data-tarjeta="cl-pareto">
+                                <Tarjeta Titulo="@Textos["ParetoTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["ParetoNota"]</p>
+                                    @{
+                                        var pareto = Concentracion();
+                                    }
+                                    @if (pareto.Count == 0)
+                                    {
+                                        <p class="cuadro-vacio">@(_cargandoSerie ? Textos["Cargando"].Value : Textos["FacturacionSinTarifas"].Value)</p>
+                                    }
+                                    else
+                                    {
+                                        <GraficoSerie Id="pareto" EtiquetaAria="@Textos["ParetoTitulo"]" Etiquetas="@(pareto.Select(p => p.Nombre).ToList())"
+                                                      Barras="@(new[] { new SerieGrafico(Textos["SeriePeso"].Value, Paleta[0], pareto.Select(p => (double?)p.Porcentaje).ToList()) })"
+                                                      Linea="@(new SerieGrafico(Textos["SerieAcumulado"].Value, Paleta[1], pareto.Select(p => (double?)p.Acumulado).ToList()))"
+                                                      MostrarValores="@_preferencias.Etiquetas" FormatoBarra="@(v => Porcentaje(v))" FormatoLinea="@(v => Porcentaje(v))" />
+                                    }
+                                </Tarjeta>
+                            </div>
+                            break;
+                        case "cl-contratos":
+                            <div class="cuadro-bloque" data-tarjeta="cl-contratos">
+                                <Tarjeta Titulo="@Textos["ContratosTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["ContratosNota"]</p>
+                                    <p class="cuadro-vacio" data-sin-modelo="contrato">@Textos["ContratosVacio"]</p>
+                                </Tarjeta>
+                            </div>
+                            break;
+                        case "cl-tabla":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="cl-tabla">
+                                <Tarjeta Titulo="@Textos["EmpresasTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["EmpresasNota"]</p>
+                                    <div class="cuadro-acciones"><Boton Variante="VarianteBoton.Secundario" OnClick="ExportarEmpresasAsync">@Textos["ExportarTabla"]</Boton></div>
+                                    <div class="cuadro-tabla-envoltorio">
+                                        <table class="cuadro-tabla" data-tabla="empresas">
+                                            <thead>
+                                                <tr>
+                                                    <th scope="col" aria-sort="@AriaOrden("empresa")"><button type="button" class="cuadro-orden" @onclick='() => Ordenar("empresa")'>@Textos["ColumnaEmpresa"]</button></th>
+                                                    <th scope="col">@Textos["ColumnaResponde"]</th>
+                                                    <th scope="col" aria-sort="@AriaOrden("trabajadores")"><button type="button" class="cuadro-orden" @onclick='() => Ordenar("trabajadores")'>@Textos["ColumnaTrabajadores"]</button></th>
+                                                    <th scope="col" aria-sort="@AriaOrden("centros")"><button type="button" class="cuadro-orden" @onclick='() => Ordenar("centros")'>@Textos["ColumnaCentros"]</button></th>
+                                                    <th scope="col">@Textos["ColumnaEmpresasTitulares"]</th>
+                                                    <th scope="col">@Textos["ColumnaExtranjeros"]</th>
+                                                    <th scope="col" aria-sort="@AriaOrden("rotacion")"><button type="button" class="cuadro-orden" @onclick='() => Ordenar("rotacion")'>@Textos["ColumnaRotacion"]</button></th>
+                                                    <th scope="col" aria-sort="@AriaOrden("facturacion")"><button type="button" class="cuadro-orden" @onclick='() => Ordenar("facturacion")'>@Textos["ColumnaFacturaMes"]</button></th>
+                                                    <th scope="col" aria-sort="@AriaOrden("ingreso")"><button type="button" class="cuadro-orden" @onclick='() => Ordenar("ingreso")'>@Textos["ColumnaIngresoGestion"]</button></th>
+                                                    <th scope="col" aria-sort="@AriaOrden("cumplimiento")"><button type="button" class="cuadro-orden" @onclick='() => Ordenar("cumplimiento")'>@Textos["ColumnaCumplimiento"]</button></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var fila in FilasEmpresas())
+                                                {
+                                                    var empresa = fila.Empresa;
+                                                    var e = empresa.Cifras;
+                                                    var abierta = _expandidas.Contains(empresa.TenantId);
+                                                    <tr data-empresa="@empresa.TenantId">
+                                                        <td class="cuadro-texto">
+                                                            <button type="button" class="cuadro-expandir" aria-expanded="@(abierta ? "true" : "false")"
+                                                                    aria-label="@(abierta ? Textos["ContraerFila", empresa.TenantNombre].Value : Textos["ExpandirFila", empresa.TenantNombre].Value)"
+                                                                    @onclick="@(() => AlternarFila(empresa.TenantId))">@(abierta ? "▾" : "▸")</button>
+                                                            @empresa.TenantNombre
+                                                            @if (e.TrabajadoresActivos.Estado != _cuadro.Estado)
+                                                            {
+                                                                <span class="cuadro-estado cuadro-estado-fila" data-e="@DataEstado(e.TrabajadoresActivos.Estado)">@TextoEstado(e.TrabajadoresActivos.Estado)</span>
+                                                            }
+                                                        </td>
+                                                        <td class="cuadro-texto cuadro-apagado">@Responde(empresa.PrincipalDeCartera)</td>
+                                                        <td>@Numero(e.TrabajadoresActivos.Valor)</td>
+                                                        <td>@Numero(e.CentrosActivos.Valor)</td>
+                                                        <td data-sin-modelo="contrato" title="@Textos["CeldaSinModelo"]">@Textos["SinDato"]</td>
+                                                        <td data-sin-modelo="extranjeros">@ExtranjerosDe(empresa.TenantId)</td>
+                                                        <td>@(fila.Rotacion is { } rotacion ? Porcentaje(rotacion) : Textos["SinDato"].Value)</td>
+                                                        <td>@(HayTarifas ? Importe(fila.Facturacion) : Textos["SinDato"].Value)</td>
+                                                        <td>@(fila.IngresoPorGestion is { } ingreso ? Importe((decimal)ingreso) : Textos["SinDato"].Value)</td>
+                                                        <td>
+                                                            @if (e.Cumplimiento.SinDatos)
+                                                            {
+                                                                <span class="cuadro-chip cuadro-chip-neutro">—</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="cuadro-chip @ClaseCumplimiento(e.Cumplimiento.Porcentaje)">@(e.Cumplimiento.Porcentaje + " %")</span>
+                                                            }
+                                                        </td>
+                                                    </tr>
+                                                    @if (abierta)
+                                                    {
+                                                        <tr class="cuadro-detalle" data-detalle="@empresa.TenantId">
+                                                            <td colspan="10">
+                                                                <div class="cuadro-detalle-contenido">
+                                                                    <dl>
+                                                                        <dt>@Textos["ColumnaAltas"]</dt><dd>@Numero(e.AltasTrabajadores.Valor)</dd>
+                                                                        <dt>@Textos["ColumnaBajas"]</dt><dd>@Numero(e.BajasTrabajadores.Valor)</dd>
+                                                                        <dt>@Textos["ColumnaDocumentos"]</dt><dd>@Numero(e.DocumentosGestionados.Valor)</dd>
+                                                                        <dt>@Textos["ColumnaRequerimientos"]</dt><dd>@Numero(e.Requerimientos.Valor)</dd>
+                                                                        <dt>@Textos["ColumnaSolicitudes"]</dt>
+                                                                        <dd>
+                                                                            @if (UmbralAnonimatoCuadro.Cumple(null, e.Solicitudes.Total.Valor))
+                                                                            {
+                                                                                @Numero(e.Solicitudes.Total.Valor)
+                                                                            }
+                                                                            else
+                                                                            {
+                                                                                <span class="cuadro-suprimida" title="@Textos["SolicitudesSuprimidasTitulo", UmbralAnonimatoCuadro.MinimoConversaciones]">@Textos["SolicitudesSuprimida"]</span>
+                                                                            }
+                                                                        </dd>
+                                                                    </dl>
+                                                                    <div>
+                                                                        <div class="cuadro-apagado">@Textos["DetalleEvolucion"]</div>
+                                                                        <GraficoSerie Compacto="true" Id="@($"detalle-{empresa.TenantId}")"
+                                                                                      Linea="@(new SerieGrafico(string.Empty, Paleta[0], (SerieDeEmpresa(empresa.TenantId)).Select(p => (double?)p.Cifras.TrabajadoresActivos.Valor).ToList()))" />
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    }
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </Tarjeta>
+                            </div>
+                            break;
+
+                        case "p-franja":
+                            <div class="cuadro-bloque" data-tarjeta="p-franja">
+                                <Tarjeta Titulo="@Textos["FranjaTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["FranjaNota"]</p>
+                                    @{
+                                        var franja = CalculosCuadro.FranjaDeRefuerzo(CuadroDireccionUi.CeldasLaborables(FranjasPeriodo));
+                                        var cargas = GestionesPorDiaSegunMes();
+                                        var picos = CalculosCuadro.IndicesPico(cargas, 3);
+                                        var valores = cargas.Where(v => v is not null).Select(v => v!.Value).ToList();
+                                    }
+                                    @if (!UmbralAnonimatoCuadro.Cumple(null, SolicitudesPeriodo) && PuntosSerie.Count > 0)
+                                    {
+                                        <p class="cuadro-vacio cuadro-suprimida" data-suprimida="franja">@Textos["MapaCalorSuprimido", SolicitudesPeriodo, UmbralAnonimatoCuadro.MinimoConversaciones]</p>
+                                    }
+                                    else if (franja is null)
+                                    {
+                                        <p class="cuadro-vacio">@(_cargandoSerie ? Textos["Cargando"].Value : Textos["FranjaSinDatos"].Value)</p>
+                                    }
+                                    else
+                                    {
+                                        <div class="cuadro-reco">
+                                            <div class="cuadro-reco-grande" data-franja="texto">@HorasFranja(franja)</div>
+                                            <dl>
+                                                <dt>@Textos["FranjaPeso"]</dt><dd>@Textos["FranjaPesoTexto", Porcentaje(franja.PesoPorcentaje)]</dd>
+                                                @if (valores.Count > 0)
+                                                {
+                                                    <dt>@Textos["FranjaMesesCarga"]</dt><dd>@NombresMesesPico(picos)</dd>
+                                                    <dt>@Textos["FranjaMesTranquilo"]</dt><dd>@NombreMesTranquilo(cargas)</dd>
+                                                    @if (valores.Min() > 0)
+                                                    {
+                                                        <dt>@Textos["FranjaPicoValle"]</dt><dd>@Textos["FranjaPicoValleTexto", ((valores.Max() / valores.Min() - 1) * 100).ToString("N0", CuadroDireccionUi.Castellano)]</dd>
+                                                    }
+                                                    <dt>@Textos["FranjaHistorico"]</dt><dd>@Textos["FranjaHistoricoTexto", MesesTerminadosEnHistorico]</dd>
+                                                }
+                                            </dl>
+                                        </div>
+                                    }
+                                </Tarjeta>
+                            </div>
+                            break;
+                        case "p-heatmap":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="p-heatmap">
+                                <Tarjeta Titulo="@Textos["MapaCalorTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["MapaCalorNota"]</p>
+                                    @if (_errorSerie)
+                                    {
+                                        <p class="cuadro-vacio">@Textos["SerieError"]</p>
+                                    }
+                                    else if (PuntosSerie.Count == 0)
+                                    {
+                                        <p class="cuadro-vacio">@Textos["SerieCargando"]</p>
+                                    }
+                                    else if (!UmbralAnonimatoCuadro.Cumple(null, SolicitudesPeriodo))
+                                    {
+                                        <p class="cuadro-vacio cuadro-suprimida" data-suprimida="mapa-calor">@Textos["MapaCalorSuprimido", SolicitudesPeriodo, UmbralAnonimatoCuadro.MinimoConversaciones]</p>
+                                    }
+                                    else
+                                    {
+                                        var celdas = CuadroDireccionUi.CeldasLaborables(FranjasPeriodo);
+                                        @if (celdas.Count == 0)
+                                        {
+                                            <p class="cuadro-vacio">@Textos["MapaCalorSinDatos"]</p>
+                                        }
+                                        else
+                                        {
+                                            var horas = HorasDe(celdas);
+                                            var maximo = MaximoDe(celdas);
+                                            <div class="cuadro-calor" role="table" aria-label="@Textos["MapaCalorTitulo"]" style="--horas:@horas.Count">
+                                                <div class="cuadro-calor-fila" role="row">
+                                                    <span class="cuadro-calor-dia" role="columnheader"></span>
+                                                    @foreach (var hora in horas)
+                                                    {
+                                                        <span class="cuadro-calor-hora" role="columnheader">@(hora)h</span>
+                                                    }
+                                                </div>
+                                                @foreach (var d in DiasLaborables)
+                                                {
+                                                    <div class="cuadro-calor-fila" role="row">
+                                                        <span class="cuadro-calor-dia" role="rowheader">@NombreDia(d)</span>
+                                                        @foreach (var hora in horas)
+                                                        {
+                                                            var celda = CeldaDe(celdas, d, hora);
+                                                            var intensidad = Intensidad(celda, maximo);
+                                                            <span class="cuadro-calor-celda" role="cell"
+                                                                  style="--intensidad:@(intensidad)%"
+                                                                  title="@(Textos["MapaCalorCelda", NombreDia(d), hora, hora + 1, Porcentaje(celda?.PesoPorcentaje ?? 0), Numero(celda?.Cantidad ?? 0)])">
+                                                                <span class="cuadro-solo-lector">@Porcentaje(celda?.PesoPorcentaje ?? 0)</span>
+                                                            </span>
+                                                        }
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                    }
+                                </Tarjeta>
+                            </div>
+                            break;
+                        case "p-calendario":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="p-calendario">
+                                <Tarjeta Titulo="@Textos["CalendarioTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["CalendarioNota"]</p>
+                                    @{
+                                        var semanas = SemanasCalendario();
+                                        var maximoDia = semanas.SelectMany(s => s).Select(d => d.Cantidad).DefaultIfEmpty(0).Max();
+                                    }
+                                    @if (semanas.Count == 0)
+                                    {
+                                        <p class="cuadro-vacio">@Textos["SerieCargando"]</p>
+                                    }
+                                    else if (maximoDia == 0)
+                                    {
+                                        <p class="cuadro-vacio">@Textos["CalendarioSinDatos"]</p>
+                                    }
+                                    else
+                                    {
+                                        <div class="cuadro-calendario" role="table" aria-label="@Textos["CalendarioTitulo"]">
+                                            @foreach (var semana in semanas)
+                                            {
+                                                <div class="cuadro-calendario-semana" role="row">
+                                                    @foreach (var dia in semana)
+                                                    {
+                                                        <span class="cuadro-calendario-dia @(dia.EnRango ? null : "cuadro-calendario-fuera")" role="cell"
+                                                              style="--intensidad:@(IntensidadCalendario(dia, maximoDia))%"
+                                                              title="@Textos["CalendarioCelda", dia.Dia.ToString("d MMM yyyy", CuadroDireccionUi.Castellano), Numero(dia.Cantidad)]"></span>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </Tarjeta>
+                            </div>
+                            break;
+                        case "p-estacional":
+                            <div class="cuadro-bloque" data-tarjeta="p-estacional">
+                                <Tarjeta Titulo="@Textos["EstacionalTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["EstacionalNota"]</p>
+                                    @{
+                                        var porMes = GestionesPorDiaSegunMes();
+                                    }
+                                    @if (_cargandoAnual || _anual is null)
+                                    {
+                                        <p class="cuadro-vacio">@Textos["Cargando"]</p>
+                                    }
+                                    else if (porMes.All(v => v is null))
+                                    {
+                                        <p class="cuadro-vacio">@Textos["EstacionalSinDatos"]</p>
+                                    }
+                                    else
+                                    {
+                                        <GraficoSerie Id="estacional" EtiquetaAria="@Textos["EstacionalTitulo"]" Etiquetas="@MesesDelAnyo"
+                                                      Barras="@(new[] { new SerieGrafico(Textos["SerieGestionesDia"].Value, Paleta[0], porMes) })"
+                                                      Resaltar="@CalculosCuadro.IndicesPico(porMes, 3)" MostrarValores="@_preferencias.Etiquetas"
+                                                      FormatoBarra="@(v => v.ToString("N1", CuadroDireccionUi.Castellano))" />
+                                    }
+                                </Tarjeta>
+                            </div>
+                            break;
+
+                        case "v-barras":
+                        case "v-cobertura":
+                        case "v-tabla":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="@id">
+                                <Tarjeta Titulo="@TituloTarjeta(id)" Class="cuadro-tarjeta">
+                                    @if (id == "v-barras")
+                                    {
+                                        <p class="cuadro-nota">@Textos["VacacionesBarrasNota"]</p>
+                                    }
+                                    else if (id == "v-cobertura")
+                                    {
+                                        <p class="cuadro-nota">@Textos["VacacionesCoberturaNota"]</p>
+                                    }
+                                    <p class="cuadro-vacio" data-sin-modelo="vacaciones">@Textos["VacacionesVacio"]</p>
+                                </Tarjeta>
+                            </div>
+                            break;
+
+                        case "cm-kpis":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="cm-kpis">
+                                <Tarjeta Titulo="@Textos["CmKpisTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["CmKpisNota"]</p>
+                                    <p class="cuadro-vacio" data-sin-modelo="tiempos">@Textos["CmKpisVacio"]</p>
+                                </Tarjeta>
+                            </div>
+                            break;
+                        case "cm-equipos":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="cm-equipos">
+                                <Tarjeta Titulo="@Textos["EquiposTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["EquiposNota"]</p>
+                                    <TablaEquiposComunicaciones Filas="_equipos" />
+                                </Tarjeta>
+                            </div>
+                            break;
+                        case "cm-estados":
+                            <div class="cuadro-bloque" data-tarjeta="cm-estados">
+                                <Tarjeta Titulo="@Textos["CmEstadosTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["CmEstadosNota"]</p>
+                                    @if (!HayComunicaciones)
+                                    {
+                                        <p class="cuadro-vacio">@(_cargandoComunicaciones ? Textos["CmCargando"].Value : Textos["SerieError"].Value)</p>
+                                    }
+                                    else if (!UmbralAnonimatoCuadro.Cumple(null, ConversacionesAbiertas))
+                                    {
+                                        <p class="cuadro-vacio cuadro-suprimida" data-suprimida="estados">@Textos["MapaCalorSuprimido", ConversacionesAbiertas, UmbralAnonimatoCuadro.MinimoConversaciones]</p>
+                                    }
+                                    else
+                                    {
+                                        var maximoEstado = MaximoEstadoAbierto;
+                                        <div class="cuadro-barras-h" data-barras="estados">
+                                            @foreach (var estado in EstadosAbiertos)
+                                            {
+                                                <div class="cuadro-barra-h">
+                                                    <span>@NombreEstado(estado.Estado)</span>
+                                                    <span class="cuadro-barra-h-pista"><span style="width:@(AnchoBarra(estado.Conversaciones, maximoEstado))%"></span></span>
+                                                    <b>@Numero(estado.Conversaciones)</b>
+                                                </div>
+                                            }
+                                            <div class="cuadro-barra-h" data-sin-modelo="sla">
+                                                <span>@Textos["EstadoFueraSla"]</span>
+                                                <span class="cuadro-barra-h-pista"></span>
+                                                <b title="@Textos["EstadoFueraSlaSinMedida"]">@Textos["SinDato"]</b>
+                                            </div>
+                                        </div>
+                                    }
+                                </Tarjeta>
+                            </div>
+                            break;
+                        case "cm-intencion":
+                            <div class="cuadro-bloque" data-tarjeta="cm-intencion">
+                                <Tarjeta Titulo="@Textos["CmIntencionTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["CmIntencionNota"]</p>
+                                    <p class="cuadro-vacio" data-sin-modelo="intencion">@Textos["CmIntencionVacio"]</p>
+                                </Tarjeta>
+                            </div>
+                            break;
+                        case "cm-canal":
+                            <div class="cuadro-bloque" data-tarjeta="cm-canal">
+                                <Tarjeta Titulo="@Textos["CmCanalTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["CmCanalNota"]</p>
+                                    @if (!HayComunicaciones)
+                                    {
+                                        <p class="cuadro-vacio">@(_cargandoComunicaciones ? Textos["CmCargando"].Value : Textos["SerieError"].Value)</p>
+                                    }
+                                    else if (!UmbralAnonimatoCuadro.Cumple(null, SolicitudesPorCanal))
+                                    {
+                                        <p class="cuadro-vacio cuadro-suprimida" data-suprimida="canal">@Textos["MapaCalorSuprimido", SolicitudesPorCanal, UmbralAnonimatoCuadro.MinimoConversaciones]</p>
+                                    }
+                                    else
+                                    {
+                                        <div class="cuadro-barras-h" data-barras="canal">
+                                            <div class="cuadro-barra-h">
+                                                <span>@Textos["CanalCorreo"]</span>
+                                                <span class="cuadro-barra-h-pista"><span style="width:@AnchoCorreo%"></span></span>
+                                                <b>@Numero(ConteoCorreo)</b>
+                                            </div>
+                                            <div class="cuadro-barra-h">
+                                                <span>@Textos["CanalWhatsApp"]</span>
+                                                <span class="cuadro-barra-h-pista"><span style="width:@AnchoWhatsApp%"></span></span>
+                                                <b>@Numero(ConteoWhatsApp)</b>
+                                            </div>
+                                            <div class="cuadro-barra-h">
+                                                <span>@Textos["CanalLlamada"]</span>
+                                                <span class="cuadro-barra-h-pista"></span>
+                                                <b>0</b>
+                                            </div>
+                                        </div>
+                                    }
+                                </Tarjeta>
+                            </div>
+                            break;
+                        case "cm-criterio":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="cm-criterio">
+                                <Tarjeta Titulo="@Textos["CriterioTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["CriterioTexto"]</p>
+                                </Tarjeta>
+                            </div>
+                            break;
+
+                        case "cmp-linea":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="cmp-linea">
+                                <Tarjeta Titulo="@Textos["CmpLineaTitulo"]" Class="cuadro-tarjeta">
+                                    @if (_cargandoAnualFacturacion || _anualFacturacion is null)
+                                    {
+                                        <p class="cuadro-vacio">@Textos["CmpCargando"]</p>
+                                    }
+                                    else
+                                    {
+                                        <div class="cuadro-seg" role="group" aria-label="@Textos["CmpMetrica"]">
+                                            <button type="button" aria-pressed="@(_metrica == "facturacion" ? "true" : "false")" @onclick='() => CambiarMetrica("facturacion")'>@Textos["MetricaFacturacion"]</button>
+                                            <button type="button" aria-pressed="@(_metrica == "gestiones" ? "true" : "false")" @onclick='() => CambiarMetrica("gestiones")'>@Textos["MetricaGestiones"]</button>
+                                            <button type="button" aria-pressed="@(_metrica == "altas" ? "true" : "false")" @onclick='() => CambiarMetrica("altas")'>@Textos["MetricaAltasTrabajadores"]</button>
+                                            <button type="button" aria-pressed="@(_metrica == "documentos" ? "true" : "false")" @onclick='() => CambiarMetrica("documentos")'>@Textos["MetricaDocumentos"]</button>
+                                        </div>
+                                        @if (!ComparaDosAnyos)
+                                        {
+                                            <p class="cuadro-vacio" data-sin-modelo="historico">@Textos["CmpVacio13"]</p>
+                                        }
+                                        else
+                                        {
+                                            <GraficoSerie Id="comparativa" EtiquetaAria="@Textos["CmpLineaTitulo"]" Etiquetas="@MesesDelAnyo"
+                                                          Comparadas="@LineasAnuales()" FormatoBarra="@(v => _metrica == "facturacion" ? Importe((decimal)v, MonedaAnual) : Numero((int)v))" />
+                                        }
+                                    }
+                                </Tarjeta>
+                            </div>
+                            break;
+                        case "cmp-tabla":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="cmp-tabla">
+                                <Tarjeta Titulo="@TituloAcumulado" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["CmpTablaNota"]</p>
+                                    @if (_cargandoAnualFacturacion || _anualFacturacion is null)
+                                    {
+                                        <p class="cuadro-vacio">@Textos["CmpCargando"]</p>
+                                    }
+                                    else if (!HayAcumuladoComparable)
+                                    {
+                                        <p class="cuadro-vacio" data-sin-modelo="historico">@Textos["CmpTablaVacio", NombreMesLargo.ToLowerInvariant()]</p>
+                                    }
+                                    else
+                                    {
+                                        var acumulado = AcumuladoPorAnyo();
+                                        <div class="cuadro-acciones"><Boton Variante="VarianteBoton.Secundario" OnClick="ExportarComparativaAsync">@Textos["ExportarTabla"]</Boton></div>
+                                        <div class="cuadro-tabla-envoltorio">
+                                            <table class="cuadro-tabla" data-tabla="comparativa">
+                                                <thead>
+                                                    <tr>
+                                                        <th scope="col">@Textos["ColumnaAnio"]</th>
+                                                        <th scope="col">@Textos["MetricaFacturacion"]</th>
+                                                        <th scope="col">@Textos["ColumnaVar"]</th>
+                                                        <th scope="col">@Textos["ColumnaIngresoEmpresaMes"]</th>
+                                                        <th scope="col">@Textos["ColumnaGestiones"]</th>
+                                                        <th scope="col">@Textos["ColumnaExtranjeros"]</th>
+                                                        <th scope="col">@Textos["ColumnaAltasTrab"]</th>
+                                                        <th scope="col">@Textos["ColumnaAltasCentro"]</th>
+                                                        <th scope="col">@Textos["ColumnaEmpresasMas"]</th>
+                                                        <th scope="col">@Textos["ColumnaEmpresasMenos"]</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var (anyo, meses) in acumulado)
+                                                    {
+                                                        <tr data-anyo="@anyo">
+                                                            <td class="cuadro-texto">@anyo</td>
+                                                            <td>@FacturacionAcumulada(meses)</td>
+                                                            <td>@(anyo == _anyo ? VariacionAcumulada(meses, acumulado[1].Meses) : Textos["SinDato"].Value)</td>
+                                                            <td>@IngresoPorEmpresaMes(meses)</td>
+                                                            <td>@SumaGestiones(meses)</td>
+                                                            <td>@ExtranjerosAcumulados(meses)</td>
+                                                            <td>@SumaAltasTrabajadores(meses)</td>
+                                                            <td>@SumaAltasCentros(meses)</td>
+                                                            <td data-sin-modelo="empresas" title="@Textos["CeldaSinModelo"]">@Textos["SinDato"]</td>
+                                                            <td data-sin-modelo="empresas" title="@Textos["CeldaSinModelo"]">@Textos["SinDato"]</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    }
+                                </Tarjeta>
+                            </div>
+                            break;
+                    }
                 }
-                else if (_pestana == "comunicaciones")
-                {
-                    <Tarjeta Titulo="@Textos["EquiposTitulo"]" Class="cuadro-tarjeta">
-                        <p class="cuadro-nota">@Textos["EquiposNota"]</p>
-                        <TablaEquiposComunicaciones Filas="_equipos" />
-                    </Tarjeta>
-                    <Tarjeta Titulo="@Textos["CriterioTitulo"]" Class="cuadro-tarjeta">
-                        <p class="cuadro-nota">@Textos["CriterioTexto"]</p>
-                    </Tarjeta>
-                }
+                </div>
             </Pestanas>
         }
     }
