@@ -14,4 +14,8 @@ public class EmpresasQueryContextFalso : IEmpresasQueryContext
     public IQueryable<Empresa> Empresas => new TestAsyncQueryable<Empresa>(ListaEmpresas.AsQueryable());
     public IQueryable<CredencialAccesoEmpresa> CredencialesAccesoEmpresa => new TestAsyncQueryable<CredencialAccesoEmpresa>(ListaCredencialesAccesoEmpresa.AsQueryable());
     public IQueryable<RelacionEmpresarial> RelacionesEmpresariales => new TestAsyncQueryable<RelacionEmpresarial>(ListaRelacionesEmpresariales.AsQueryable());
+    public List<PlataformaCaeClienteEmpresarial> ListaPlataformasCae { get; } = [];
+    public List<AccesoPlataformaCaeEmpresa> ListaAccesosPlataformaCae { get; } = [];
+    public IQueryable<PlataformaCaeClienteEmpresarial> PlataformasCaeClienteEmpresarial => new TestAsyncQueryable<PlataformaCaeClienteEmpresarial>(ListaPlataformasCae.AsQueryable());
+    public IQueryable<AccesoPlataformaCaeEmpresa> AccesosPlataformaCaeEmpresa => new TestAsyncQueryable<AccesoPlataformaCaeEmpresa>(ListaAccesosPlataformaCae.AsQueryable());
 }

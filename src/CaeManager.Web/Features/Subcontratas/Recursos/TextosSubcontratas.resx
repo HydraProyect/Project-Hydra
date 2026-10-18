@@ -649,7 +649,7 @@
     <value>Las subcontratas se muestran de una empresa cada vez. Elige una en la barra lateral.</value>
   </data>
   <data name="ChipNivelServicio" xml:space="preserve">
-    <value>Nivel de servicio: {0}</value>
+    <value>Nivel: {0}</value>
   </data>
   <data name="BotonQuitarNivelServicio" xml:space="preserve">
     <value>Quitar filtro de nivel de servicio</value>
@@ -896,4 +896,10 @@
     <value>DNI {0} copiado al portapapeles</value>
   </data>
   <data name="TituloCopiarCif" xml:space="preserve"><value>Copiar el CIF</value></data>
+  <data name="RotuloNivel" xml:space="preserve"><value>Nivel</value></data>
+  <data name="DesplegarIncidenciasSubcontrata" xml:space="preserve"><value>Desplegar incidencias de {0}</value></data>
+  <data name="GestionarDocumentoAccesible" xml:space="preserve"><value>Gestionar el documento {0} de {1}</value></data>
+  <data name="DocumentoDesdeFecha" xml:space="preserve"><value>Venció el {0}</value></data>
+  <data name="DocumentoCaducaFecha" xml:space="preserve"><value>Caduca el {0}</value></data>
+  <data name="AriaSeleccionarPagina" xml:space="preserve"><value>Seleccionar las subcontratas de esta página</value></data>
 </root>

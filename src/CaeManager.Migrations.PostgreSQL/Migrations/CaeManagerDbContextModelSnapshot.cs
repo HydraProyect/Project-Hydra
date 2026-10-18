@@ -4636,6 +4636,43 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("TrabajosAnalisisDocumento", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Empresas.AccesoPlataformaCaeEmpresa", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClienteEmpresarialId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Contrasena")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ContrasenaCambiadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ContrasenaCambiadaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("EmpresaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Usuario")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "EmpresaId");
+
+                    b.HasIndex("TenantId", "ClienteEmpresarialId", "EmpresaId")
+                        .IsUnique();
+
+                    b.ToTable("AccesosPlataformaCaeEmpresa", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Empresas.CredencialAccesoEmpresa", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4903,6 +4940,39 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "EmpresaId");
 
                     b.ToTable("OficiosEmpresa", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Empresas.PlataformaCaeClienteEmpresarial", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClienteEmpresarialId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CodigoCliente")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UrlPortal")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ClienteEmpresarialId")
+                        .IsUnique();
+
+                    b.ToTable("PlataformasCaeClienteEmpresarial", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Facturacion.TarifaCliente", b =>
@@ -9072,6 +9142,23 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Empresas.AccesoPlataformaCaeEmpresa", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ClienteEmpresarialId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmpresaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Empresas.DelegacionEmpresa", b =>
                 {
                     b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
@@ -9087,6 +9174,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "EmpresaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Empresas.PlataformaCaeClienteEmpresarial", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ClienteEmpresarialId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
