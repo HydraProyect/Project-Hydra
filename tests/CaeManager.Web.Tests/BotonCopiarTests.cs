@@ -146,6 +146,7 @@ public class BotonCopiarTests : BunitContext
 
         conTermino.TextContent.Should().Be("12345678Z").And.Be(sinTermino.TextContent);
         conTermino.GetAttribute("aria-label").Should().Be("Copiar el DNI 12345678Z").And.Be(sinTermino.GetAttribute("aria-label"));
-        conTermino.GetAttribute("title").Should().Be("Copiar el DNI 12345678Z").And.Be(sinTermino.GetAttribute("title"));
+        conTermino.GetAttribute("title").Should().Be("Copiar 12345678Z", "el title de .copia en las maquetas 360 es «Copiar {valor}»")
+            .And.Be(sinTermino.GetAttribute("title"));
     }
 }

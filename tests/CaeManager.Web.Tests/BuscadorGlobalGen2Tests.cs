@@ -150,7 +150,8 @@ public class BuscadorGlobalGen2Tests : BunitContext
     {
         var cut = await RenderizarYAbrir(new MediadorControlado { Resultado = UnTrabajador });
         await Input(cut).EscribirAsync("12345678Z");
-        for (var i = 0; i <= fila; i++) await Input(cut).TeclaAsync("ArrowDown");
+        // La primera fila ya está activa al escribir: hacen falta «fila» pulsaciones, no una más.
+        for (var i = 0; i < fila; i++) await Input(cut).TeclaAsync("ArrowDown");
 
         cut.Find(".buscador-item-pista").TextContent.Trim().Should().Be($"↵ {pista}");
     }
@@ -388,8 +389,8 @@ public class BuscadorGlobalGen2Tests : BunitContext
         var pistas = new List<string>();
         for (var i = 0; i < 3; i++)
         {
-            await Input(cut).TeclaAsync("ArrowDown");
             pistas.Add(cut.Find(".buscador-item-pista").TextContent.Trim());
+            await Input(cut).TeclaAsync("ArrowDown");
         }
 
         pistas.Should().Equal("↵ Reclamar", "↵ Subir", "↵ Abrir");
@@ -589,7 +590,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
     /// Control del arnés antes de afirmar nada sobre teclado: si bUnit no
     /// entregase el KeyDown al <c>@onkeydown</c> del componente, todos los
     /// tests de navegación de abajo serían verdes vacíos. Aquí la tecla tiene
-    /// que producir un cambio observable (una fila activa donde no la había).
+    /// que producir un cambio observable (la fila activa pasa de la primera a la segunda).
     /// </summary>
     [Fact]
     public async Task El_arnes_entrega_la_pulsacion_al_componente_control_del_instrumento()
@@ -598,12 +599,78 @@ public class BuscadorGlobalGen2Tests : BunitContext
         var cut = await RenderizarYAbrir(mediador);
         await Input(cut).EscribirAsync("refri");
 
-        cut.FindAll("[aria-selected=true]").Should().BeEmpty("antes de pulsar nada no hay fila activa");
+        cut.FindAll("[aria-selected=true]").Should().ContainSingle()
+            .Which.Id.Should().Be("buscador-item-0", "al escribir, la primera fila queda activa (maqueta: focus 0)");
 
         await Input(cut).TeclaAsync("ArrowDown");
 
-        cut.FindAll("[aria-selected=true]").Should().ContainSingle(
-            "si esto queda vacío, bUnit no está entregando el KeyDown y ningún test de teclado de esta clase observa lo que dice observar");
+        cut.FindAll("[aria-selected=true]").Should().ContainSingle().Which.Id.Should().Be("buscador-item-1",
+            "si esto no cambia, bUnit no está entregando el KeyDown y ningún test de teclado de esta clase observa lo que dice observar");
+    }
+
+    /// <summary>
+    /// Ronda 2 de la revisión visual, estado inicial: «En esta pantalla» lleva un icono distinto por acción
+    /// (crear, guardar el filtro, exportar) y de subtítulo la pantalla («Documentos»), y la primera fila está activa.
+    /// </summary>
+    [Fact]
+    public async Task En_esta_pantalla_cada_accion_lleva_su_icono_y_la_pantalla_de_subtitulo()
+    {
+        var cut = Renderizar(new MediadorControlado(), conEscritura: true);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("documentos");
+        await cut.InvokeAsync(() => cut.Instance.AbrirDesdeJs());
+
+        var grupo = cut.FindAll(".buscador-grupo").Single(g => g.GetAttribute("aria-label") == "En esta pantalla");
+        var filas = grupo.QuerySelectorAll("a.buscador-item").ToList();
+        filas.Select(f => f.QuerySelector(".buscador-item-titulo")!.TextContent.Trim()).Should()
+            .Equal("Nuevo documento", "Exportar a Excel", "Guardar filtro actual");
+        filas.Select(f => f.QuerySelector(".buscador-item-subtitulo")?.TextContent.Trim()).Should().OnlyContain(s => s == "Documentos");
+        filas.Select(f => f.QuerySelector(".buscador-item-icono svg")!.InnerHtml).Distinct().Should()
+            .HaveCount(3, "pulso, descargar y filtro: un glifo por acción, no el mismo lápiz en las tres");
+
+        cut.FindAll("[aria-selected=true]").Should().ContainSingle().Which.Id.Should().Be("buscador-item-0");
+    }
+
+    /// <summary>
+    /// Ronda 2 de la revisión visual: tras una búsqueda la primera fila se pinta activa —fondo, borde
+    /// izquierdo y la pista «↵ …»—, como <c>focus: 0</c> de la maqueta al escribir.
+    /// </summary>
+    [Fact]
+    public async Task Tras_buscar_la_primera_fila_esta_activa_con_su_pista()
+    {
+        var mediador = new MediadorControlado { Resultado = UnClienteEmpresarial };
+        var cut = await RenderizarYAbrir(mediador);
+        await Input(cut).EscribirAsync("refri");
+
+        var primera = cut.FindAll("a.buscador-item")[0];
+        primera.ClassList.Should().Contain("buscador-item-seleccionado");
+        primera.QuerySelector(".buscador-item-pista").Should().NotBeNull("la fila activa lleva la pista de Enter");
+        cut.FindAll(".buscador-item-pista").Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// Con la primera fila activa desde que se escribe, Enter no puede ejecutar una fila que no se ve:
+    /// mientras la búsqueda está en vuelo la lista se sustituye por «Buscando…».
+    /// </summary>
+    [Fact]
+    public async Task Enter_mientras_se_busca_no_ejecuta_ninguna_fila_oculta()
+    {
+        var mediador = new MediadorControlado { Resultado = UnClienteEmpresarial };
+        var retenida = mediador.Retener(r => r is BuscarGlobalQuery);
+        var cut = await RenderizarYAbrir(mediador);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        var antes = navegacion.Uri;
+
+        var escritura = Input(cut).EscribirAsync("refri");
+        await EsperarA(() => mediador.Enviados.OfType<BuscarGlobalQuery>().Any(), "que la búsqueda quedase en vuelo");
+        cut.Markup.Should().Contain("Buscando");
+
+        cut.Find("input.buscador-input").HasAttribute("aria-activedescendant")
+            .Should().BeFalse("con la lista oculta el input no apunta a ninguna fila");
+        await Input(cut).TeclaAsync("Enter");
+
+        navegacion.Uri.Should().Be(antes, "Enter no ejecuta lo que no se ve");
+        await cut.InvokeAsync(() => retenida.TrySetResult(UnClienteEmpresarial));
+        await escritura;
     }
 
     // ---------------------------------------------------------------------
@@ -736,13 +803,14 @@ public class BuscadorGlobalGen2Tests : BunitContext
         var cut = await RenderizarYAbrir(mediador);
         await Input(cut).EscribirAsync("refri");
 
-        cut.FindAll(".buscador-item-pista").Should().BeEmpty("sin fila activa no hay pista que dar");
+        var pistas = cut.FindAll(".buscador-item-pista");
+        pistas.Should().ContainSingle("la pista pertenece a la fila activa (la primera, al escribir), no a todas");
+        pistas[0].TextContent.Should().Contain("abrir ficha");
 
         await Input(cut).TeclaAsync("ArrowDown");
 
-        var pistas = cut.FindAll(".buscador-item-pista");
-        pistas.Should().ContainSingle("la pista pertenece a la fila activa, no a todas");
-        pistas[0].TextContent.Should().Contain("abrir ficha");
+        cut.FindAll(".buscador-item-pista").Should().ContainSingle("al moverse, la pista se va con la fila activa");
+        cut.Find("#buscador-item-1 .buscador-item-pista").Should().NotBeNull();
     }
 
     [Fact]
@@ -752,7 +820,6 @@ public class BuscadorGlobalGen2Tests : BunitContext
         var cut = await RenderizarYAbrir(mediador);
 
         await Input(cut).EscribirAsync("veh");
-        await Input(cut).TeclaAsync("ArrowDown");
 
         cut.Find(".buscador-item-pista").TextContent.Should().Contain("ir").And.NotContain("abrir ficha");
     }
@@ -786,10 +853,9 @@ public class BuscadorGlobalGen2Tests : BunitContext
         var cut = await RenderizarYAbrir(mediador);
         await Input(cut).EscribirAsync("refri");
 
-        cut.Find("input.buscador-input").HasAttribute("aria-activedescendant")
-            .Should().BeFalse("sin fila activa el input no puede apuntar a ninguna");
+        cut.Find("input.buscador-input").GetAttribute("aria-activedescendant")
+            .Should().Be("buscador-item-0", "al escribir la primera fila queda activa y el input apunta a ella");
 
-        await Input(cut).TeclaAsync("ArrowDown");
         await Input(cut).TeclaAsync("ArrowDown");
 
         var activa = cut.FindAll("[aria-selected=true]").Should().ContainSingle().Subject;
@@ -808,11 +874,10 @@ public class BuscadorGlobalGen2Tests : BunitContext
         var cut = await RenderizarYAbrir(mediador);
         await Input(cut).EscribirAsync("refri");
 
-        await Input(cut).TeclaAsync("ArrowDown");
         await Input(cut).TeclaAsync("Enter");
 
         Services.GetRequiredService<NavigationManager>().Uri
-            .Should().EndWith("/clientes?q=Refrielectric");
+            .Should().EndWith("/clientes?q=Refrielectric", "la primera fila está activa en cuanto llega el resultado");
     }
 
     [Fact]
@@ -1032,10 +1097,10 @@ public class BuscadorGlobalGen2Tests : BunitContext
 
         await cut.InvokeAsync(() => cut.Instance.AbrirDesdeJs());
 
-        cut.FindAll("a.buscador-item").Should().NotBeEmpty(
-            "control del instrumento: sin filas en el estado inicial, la aserción de abajo se cumpliría sola");
-        cut.FindAll("[aria-selected=true]").Should().BeEmpty(
-            "al reabrir, un Enter inmediato no puede ejecutarse sobre lo que quedó seleccionado en la apertura anterior");
+        cut.FindAll("a.buscador-item").Should().HaveCountGreaterThan(1,
+            "control del instrumento: con una sola fila, «la primera» y «la que quedó» serían la misma");
+        cut.FindAll("[aria-selected=true]").Should().ContainSingle().Which.Id.Should().Be("buscador-item-0",
+            "al reabrir la selección vuelve a la primera fila, no a la que quedó en la apertura anterior");
     }
 
     /// <summary>
@@ -1148,10 +1213,30 @@ public class BuscadorGlobalGen2Tests : BunitContext
         var mediador = new MediadorControlado { Resultado = SinNada };
         var cut = await RenderizarYAbrir(mediador);
 
+        await Input(cut).EscribirAsync("ir a zzzqqq");
+
+        var mensaje = cut.Find(".buscador-vacio-texto").TextContent;
+        mensaje.Should().Contain("zzzqqq").And.Contain("empresa activa").And.NotContain("tu cartera");
+    }
+
+    /// <summary>
+    /// Ronda 2 de la revisión visual: si hay filas que ofrecer («Crear empresa «x»»…) se ven solo las
+    /// filas, sin el aviso «Sin resultados» encima; el bloque con icono y enlace queda para cuando no hay
+    /// ninguna fila.
+    /// </summary>
+    [Fact]
+    public async Task Con_acciones_que_ofrecer_no_se_pinta_el_aviso_sin_resultados()
+    {
+        var mediador = new MediadorControlado { Resultado = SinNada };
+        var cut = await RenderizarYAbrir(mediador);
+
         await Input(cut).EscribirAsync("zzzqqq");
 
-        var mensaje = cut.Find(".buscador-mensaje").TextContent;
-        mensaje.Should().Contain("zzzqqq").And.Contain("empresa activa").And.NotContain("tu cartera");
+        cut.FindAll(".buscador-item-titulo").Select(t => t.TextContent).Should()
+            .Contain(t => t.Contains("Crear empresa «zzzqqq»", StringComparison.Ordinal), "control: hay acciones que ofrecer");
+        cut.FindAll(".buscador-mensaje").Should().BeEmpty();
+        cut.FindAll(".buscador-vacio").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Sin resultados");
     }
 
     /// <summary>D-14: con el nombre de la empresa activa resuelto, el pie y el vacío la nombran.</summary>
@@ -1164,9 +1249,9 @@ public class BuscadorGlobalGen2Tests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find(".buscador-ambito").TextContent.Should().Be("Buscando en: Empresa D"));
 
-        await Input(cut).EscribirAsync("zzzqqq");
+        await Input(cut).EscribirAsync("ir a zzzqqq");
 
-        cut.Find(".buscador-mensaje").TextContent.Should().Contain("«zzzqqq» en Empresa D")
+        cut.Find(".buscador-vacio-texto").TextContent.Should().Contain("«ir a zzzqqq» en Empresa D")
             .And.NotContain("selector", "con un único Tenant no hay selector que aconsejar");
     }
 
@@ -1182,9 +1267,9 @@ public class BuscadorGlobalGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.Find(".buscador-ambito").TextContent.Should().Be("Buscando en: la empresa activa"));
         cut.Markup.Should().NotContain("Operador CAE");
 
-        await Input(cut).EscribirAsync("zzzqqq");
+        await Input(cut).EscribirAsync("ir a zzzqqq");
 
-        cut.Find(".buscador-mensaje").TextContent.Should().Contain("selector");
+        cut.Find(".buscador-vacio-texto").TextContent.Should().Contain("selector");
     }
 
     /// <summary>Un fallo de "Recientes" no puede tumbar el palette: sigue abierto y usable.</summary>
@@ -1222,7 +1307,6 @@ public class BuscadorGlobalGen2Tests : BunitContext
         var mediador = new MediadorControlado { Resultado = UnClienteEmpresarial };
         var cut = await RenderizarYAbrir(mediador);
         await Input(cut).EscribirAsync("refri");
-        await Input(cut).TeclaAsync("ArrowDown");
         await Input(cut).TeclaAsync("Enter");
 
         await EsperarA(() => mediador.Enviados.OfType<RegistrarUsoRecienteCommand>().Any(),

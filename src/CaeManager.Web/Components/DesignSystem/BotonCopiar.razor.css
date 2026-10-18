@@ -27,19 +27,22 @@
     opacity: 0.6;
 }
 
-/* Identificador copiable en una fila de listado: el dato es el botón. */
+/* Identificador copiable en una fila de listado: el dato es el botón. Como `.copia` de las
+   maquetas 360: seminegrita, 2 px a cada lado y sin subrayado al pasar el ratón. */
 .boton-copiar-en-linea {
     font: inherit;
+    font-weight: 600;
     color: inherit;
     border: 0;
     border-radius: var(--radius-sm);
-    padding: 0;
+    padding: 0 2px;
     cursor: copy;
 }
 
 .boton-copiar-en-linea:hover:not(:disabled) {
     background-color: transparent;
     color: var(--color-primary-500);
+    text-decoration: none;
 }
 
 .boton-copiar-en-linea:focus-visible {

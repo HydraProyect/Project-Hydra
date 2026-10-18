@@ -48,6 +48,19 @@ public partial class BuscadorGlobal
     private int _indiceSeleccionado = -1;
 
     /// <summary>
+    /// Fila activa que se pinta y que Enter ejecuta: la seleccionada, pero solo mientras la lista está a la vista.
+    /// Al abrir y al escribir se arranca en la primera (la maqueta pone <c>focus: 0</c>); mientras se busca, ante un
+    /// error o un aviso de documento la lista no se ve y Enter no puede ejecutar una fila oculta ni una ya superada.
+    /// </summary>
+    private int IndiceActivo =>
+        _indiceSeleccionado >= 0
+        && DocumentoActual?.Aviso is null
+        && (ConsultaVacia || (_errorBusqueda is null && !_buscando))
+        && _indiceSeleccionado < ElementosPlanos.Count
+            ? _indiceSeleccionado
+            : -1;
+
+    /// <summary>
     /// Mensaje de fallo de la búsqueda vigente. Existe porque un fallo no
     /// puede presentarse como un vacío: sin él, una excepción del handler
     /// dejaba <see cref="_resultado"/> en null con <see cref="_buscando"/>
@@ -461,7 +474,11 @@ public partial class BuscadorGlobal
                 }
 
                 if (_accionesPantalla.Count > 0)
-                    grupos.Add(new GrupoPaleta("En esta pantalla", [.. _accionesPantalla.Select(ComoAccion)]));
+                {
+                    var pantalla = NombreDePantalla(SegmentoDeRuta(Navigation.Uri));
+                    grupos.Add(new GrupoPaleta("En esta pantalla",
+                        [.. _accionesPantalla.Select(a => ComoAccionDePantalla(a, pantalla))]));
+                }
 
                 return grupos;
             }
@@ -536,6 +553,23 @@ public partial class BuscadorGlobal
 
     private static ItemPaleta ComoAccion(ItemBusquedaDto item) =>
         new(item, "Accion", "editar", string.Empty, "ejecutar");
+
+    /// <summary>
+    /// «En esta pantalla» de la maqueta: cada acción con su icono (crear → pulso, guardar el filtro → filtro,
+    /// exportar → descargar) y, de subtítulo, la pantalla en la que se está («Documentos»).
+    /// </summary>
+    private static ItemPaleta ComoAccionDePantalla(ItemBusquedaDto item, string pantalla) =>
+        new(item, "Accion", IconoDeAccionDePantalla(item.UrlDestino), pantalla, "ejecutar");
+
+    private static string IconoDeAccionDePantalla(string ruta)
+    {
+        if (ruta.Contains("accion=guardar-filtro", StringComparison.Ordinal)) return "filtro";
+        var sinConsulta = ruta.Split('?', 2)[0];
+        return sinConsulta.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) ? "descargar" : "pulso";
+    }
+
+    private static string NombreDePantalla(string? segmento) =>
+        string.IsNullOrEmpty(segmento) ? string.Empty : char.ToUpperInvariant(segmento[0]) + segmento[1..];
 
     private IEnumerable<ItemPaleta> ComoEntidades(
         IReadOnlyList<ItemBusquedaDto> items, string tipoHistorial, string etiquetaTipo, string icono) =>
@@ -838,7 +872,7 @@ public partial class BuscadorGlobal
         _resultado = null;
         _errorBusqueda = null;
         _buscando = false;
-        _indiceSeleccionado = -1;
+        _indiceSeleccionado = 0;
         _navegando = false;
         _recientes = [];
         _vencenEstaSemana.Clear();
@@ -989,8 +1023,8 @@ public partial class BuscadorGlobal
                 _indiceSeleccionado = _indiceSeleccionado <= 0 ? 0 : _indiceSeleccionado - 1;
                 break;
 
-            case "Enter" when _indiceSeleccionado >= 0 && _indiceSeleccionado < elementos.Count:
-                Seleccionar(elementos[_indiceSeleccionado].Item, elementos[_indiceSeleccionado].TipoHistorial);
+            case "Enter" when IndiceActivo >= 0:
+                Seleccionar(elementos[IndiceActivo].Item, elementos[IndiceActivo].TipoHistorial);
                 break;
         }
     }
@@ -1069,7 +1103,7 @@ public partial class BuscadorGlobal
     private async Task ManejarEntradaAsync(ChangeEventArgs e)
     {
         _termino = e.Value?.ToString() ?? string.Empty;
-        _indiceSeleccionado = -1;
+        _indiceSeleccionado = 0;
         _errorBusqueda = null;
 
         // El número de la búsqueda y el término se capturan ANTES de

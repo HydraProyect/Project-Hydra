@@ -111,12 +111,7 @@
     color: var(--color-danger-700);
 }
 
-/* Aviso de "no encontré nada" cuando, aun así, hay acciones de creación que
-   ofrecer debajo: separado del mensaje a pantalla completa. */
-.buscador-mensaje-vacio {
-    padding: var(--space-4) var(--space-5) var(--space-2);
-    text-align: left;
-}
+
 
 .buscador-lista {
     display: flex;
@@ -210,6 +205,12 @@
     color: var(--color-text-muted);
 }
 
+/* Glifo de 14 px dentro de la caja de 28, como la maqueta (`icon(it.icon, 14)`). */
+.buscador-item-icono ::deep .icono {
+    width: 14px;
+    height: 14px;
+}
+
 .buscador-item-texto {
     display: flex;
     flex-direction: column;
@@ -218,7 +219,8 @@
 }
 
 .buscador-item-titulo {
-    font: var(--font-label-md);
+    font: var(--font-body-md);
+    font-weight: 600;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

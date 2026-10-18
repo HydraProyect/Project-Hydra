@@ -41,6 +41,12 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
     [Parameter] public bool EnLinea { get; set; }
 
     /// <summary>
+    /// Rótulo al pasar el ratón por un identificador en línea: «Copiar {valor}», como el <c>title</c> de
+    /// <c>.copia</c> en las maquetas 360. El nombre accesible sigue siendo <see cref="NombreAccesible"/>.
+    /// </summary>
+    private string? TituloEnLinea => EnLinea ? $"Copiar {(string.IsNullOrEmpty(Valor) ? Texto : Valor)}" : null;
+
+    /// <summary>
     /// Lo escrito en el buscador del listado, para marcar en <see cref="Texto"/> la parte que casa
     /// (<c>TextoResaltado</c>). Solo cambia lo que se ve: lo que se copia sigue saliendo de
     /// <see cref="Valor"/> y el nombre accesible de <see cref="NombreAccesible"/>, los dos íntegros.
