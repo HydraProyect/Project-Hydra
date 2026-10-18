@@ -2,12 +2,15 @@ namespace CaeManager.Domain.Comunicaciones;
 
 public interface IConversacionRepository
 {
+    Task<Conversacion?> ObtenerUltimaCerradaPorHiloExternoAsync(
+        Guid conexionIntegracionId, string hiloExternoId, CancellationToken cancellationToken = default);
+
     /// <summary>Incluye Mensajes y Participantes — es lo que necesita la pantalla de detalle/respuesta.</summary>
     Task<Conversacion?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Para la ingesta de webhook (P3-33): encuentra el hilo existente al que
-    /// se suma un mensaje entrante nuevo, o null si es el primero del hilo.
+    /// se suma un mensaje entrante nuevo, o null si es el primero del hilo o el anterior está cerrado.
     /// Acotado por <paramref name="conexionIntegracionId"/> (auditoría módulo
     /// 6) — Graph puede asignar el MISMO conversationId a un hilo que
     /// participan dos buzones conectados distintos del mismo tenant (está
@@ -43,13 +46,13 @@ public interface IConversacionRepository
     /// </summary>
     Task<Mensaje?> ObtenerMensajePorExternoIdAsync(Guid conexionIntegracionId, string mensajeExternoId, CancellationToken cancellationToken = default);
 
-    /// <summary>Reparto equitativo del pool inbound: conversaciones WhatsApp vivas (Abierta/Pendiente) asignadas a cada uno de los ejecutivos dados. Los ejecutivos sin ninguna no aparecen en el diccionario.</summary>
+    /// <summary>Reparto equitativo del pool inbound: conversaciones WhatsApp vivas (<see cref="TransicionesEstadoConversacion.EstadosVivos"/>) asignadas a cada uno de los ejecutivos dados. Los ejecutivos sin ninguna no aparecen en el diccionario.</summary>
     Task<IReadOnlyDictionary<Guid, int>> ContarWhatsAppVivasPorEjecutivoAsync(
         IReadOnlyCollection<Guid> ejecutivoIds, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Candidatas del Conversation Matching Engine (§ 13.2): conversaciones
-    /// Abierta/Pendiente del mismo Cliente, excluyendo <paramref name="excluirConversacionId"/>.
+    /// vivas (<see cref="TransicionesEstadoConversacion.EstadosVivos"/>) del mismo Cliente, excluyendo <paramref name="excluirConversacionId"/>.
     /// Sin Mensajes/Participantes incluidos — el motor de coincidencia de hoy
     /// no los necesita (ver MotorCoincidenciaConversacionesService).
     /// </summary>

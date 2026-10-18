@@ -43,7 +43,8 @@ public record ObtenerConversacionesQuery(
     CanalConversacion? Canal = null,
     int Pagina = 1,
     int TamanoPagina = 20,
-    IntencionCae? Intencion = null)
+    IntencionCae? Intencion = null,
+    bool SoloFueraDeSla = false)
     : IRequest<ResultadoPaginado<ConversacionListaDto>>;
 
 public record ConversacionListaDto(
@@ -60,20 +61,27 @@ public record ConversacionListaDto(
     CanalConversacion Canal,
     string? TelefonoContacto,
     DireccionMensaje? UltimoMensajeDireccion,
-    int MensajesRuido = 0)
+    int MensajesRuido = 0,
+    PrioridadConversacion Prioridad = PrioridadConversacion.Normal,
+    DateTime? VencimientoSlaUtc = null,
+    TimeSpan? SlaRestante = null)
 {
     /// <summary>
-    /// "Esperando cliente" es un estado derivado, no persistido (decisión
-    /// Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 16.4): una conversación Abierta cuyo último
-    /// mensaje fue nuestro, a la espera de que el contacto responda.
+    /// "Esperando respuesta externa" en la bandeja: el estado explícito <see cref="EstadoConversacion.EsperandoRespuestaExterna"/> que
+    /// fija el Gestor CAE (decisión 2026-10-17, hueco 2 de Comunicaciones) o, como antes (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md
+    /// § 16.4), una conversación Abierta cuyo último mensaje fue nuestro, a la espera de que el contacto responda. La
+    /// segunda forma sigue derivada y no persistida; el estado explícito no depende de quién escribió el último mensaje.
     /// </summary>
-    public bool EsperandoCliente => Estado == EstadoConversacion.Abierta && UltimoMensajeDireccion == DireccionMensaje.Saliente;
+    public bool EsperandoCliente =>
+        Estado == EstadoConversacion.EsperandoRespuestaExterna
+        || (Estado == EstadoConversacion.Abierta && UltimoMensajeDireccion == DireccionMensaje.Saliente);
 }
 
 public class ObtenerConversacionesQueryHandler(
     IEmpresasQueryContext empresasContext, IComunicacionesQueryContext comunicacionesContext,
     IIntegracionesQueryContext integracionesContext,
-    IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService)
+    IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService,
+    PlazosConversacionService? plazosService = null)
     : IRequestHandler<ObtenerConversacionesQuery, ResultadoPaginado<ConversacionListaDto>>
 {
     private const int LongitudPreview = 140;
@@ -87,6 +95,7 @@ public class ObtenerConversacionesQueryHandler(
         ObtenerConversacionesQuery request, CancellationToken cancellationToken)
     {
         var consulta = comunicacionesContext.Conversaciones.AsQueryable();
+        var ahoraUtc = DateTime.UtcNow;
 
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
         if (clienteIdsVisibles is not null)
@@ -167,12 +176,13 @@ public class ObtenerConversacionesQueryHandler(
             // misma lógica que ConversacionListaDto.EsperandoCliente calcula
             // después en memoria para el resto de filas — pero este filtro
             // tiene que decidir ANTES de paginar, no después.
-            consulta = consulta.Where(c => c.Estado == EstadoConversacion.Abierta &&
+            consulta = consulta.Where(c => c.Estado == EstadoConversacion.EsperandoRespuestaExterna ||
+                (c.Estado == EstadoConversacion.Abierta &&
                 comunicacionesContext.Mensajes
                     .Where(m => m.ConversacionId == c.Id)
                     .OrderByDescending(m => m.FechaUtc)
                     .Select(m => m.Direccion)
-                    .FirstOrDefault() == DireccionMensaje.Saliente);
+                    .FirstOrDefault() == DireccionMensaje.Saliente));
         }
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
@@ -186,6 +196,14 @@ public class ObtenerConversacionesQueryHandler(
         if (request.Intencion is { } intencion)
             consulta = consulta.Where(c => comunicacionesContext.IntencionesConversacion.Any(i => i.ConversacionId == c.Id && i.IntencionActual == intencion));
 
+        Dictionary<Guid, (DateTime Vence, TimeSpan Restante)>? plazosFiltrados = null;
+        if (request.SoloFueraDeSla)
+        {
+            // Antes de paginar: el calendario del Operador CAE no es una duración constante traducible a SQL.
+            plazosFiltrados = await CalcularPlazosAsync(consulta, ahoraUtc, cancellationToken);
+            var vencidas = plazosFiltrados.Where(p => p.Value.Vence <= ahoraUtc).Select(p => p.Key).ToArray();
+            consulta = consulta.Where(c => vencidas.Contains(c.Id));
+        }
         var total = await consulta.CountAsync(cancellationToken);
         if (total == 0)
             return new ResultadoPaginado<ConversacionListaDto>([], 0, request.Pagina, request.TamanoPagina);
@@ -204,6 +222,7 @@ public class ObtenerConversacionesQueryHandler(
                 ClienteRazonSocial = cliente != null ? cliente.RazonSocial : null,
                 c.Asunto,
                 c.Estado,
+                c.Prioridad,
                 c.EjecutivoAsignadoId,
                 c.FechaUltimoMensajeUtc,
                 c.Canal,
@@ -214,6 +233,7 @@ public class ObtenerConversacionesQueryHandler(
             .ToListAsync(cancellationToken);
 
         var conversacionIds = conversaciones.Select(c => c.Id).ToList();
+        var plazos = plazosFiltrados ?? await CalcularPlazosAsync(consulta.Where(c => conversacionIds.Contains(c.Id)), ahoraUtc, cancellationToken);
 
         var mensajes = await comunicacionesContext.Mensajes
             .Where(m => conversacionIds.Contains(m.ConversacionId))
@@ -241,10 +261,43 @@ public class ObtenerConversacionesQueryHandler(
                 remitentesPorConversacion.GetValueOrDefault(c.Id) ?? c.TelefonoContacto ?? "Remitente desconocido",
                 TruncarParaPreview(ultimoMensaje?.CuerpoHtml),
                 c.FechaUltimoMensajeUtc, mensajesDeConversacion.Count, c.Canal, c.TelefonoContacto,
-                ultimoMensaje?.Direccion, mensajesRuidoPorConversacion.GetValueOrDefault(c.Id));
+                ultimoMensaje?.Direccion, mensajesRuidoPorConversacion.GetValueOrDefault(c.Id), c.Prioridad,
+                plazos.TryGetValue(c.Id, out var plazo) ? plazo.Vence : null,
+                plazos.ContainsKey(c.Id) ? plazo.Restante : null);
         }).ToList();
 
         return new ResultadoPaginado<ConversacionListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
+    }
+
+    private async Task<Dictionary<Guid, (DateTime Vence, TimeSpan Restante)>> CalcularPlazosAsync(
+        IQueryable<Conversacion> consulta, DateTime ahoraUtc, CancellationToken cancellationToken)
+    {
+        var resultado = new Dictionary<Guid, (DateTime, TimeSpan)>();
+        if (plazosService is null) return resultado;
+        var candidatas = await consulta.Where(c => TransicionesEstadoConversacion.EstadosVivos.Contains(c.Estado))
+            .AsNoTracking().ToListAsync(cancellationToken);
+        var ids = candidatas.Select(c => c.Id).ToArray();
+        var fechas = await comunicacionesContext.Mensajes.Where(m => ids.Contains(m.ConversacionId))
+            .Select(m => new { m.ConversacionId, m.Direccion, m.FechaUtc, m.EsAutomatico }).ToListAsync(cancellationToken);
+        var porConversacion = fechas.ToLookup(m => m.ConversacionId);
+        foreach (var conversacion in candidatas)
+        {
+            var mensajes = porConversacion[conversacion.Id];
+            var ultimoSaliente = mensajes.Where(m => m.Direccion == DireccionMensaje.Saliente).Select(m => (DateTime?)m.FechaUtc).Max();
+            var primero = mensajes.Where(m => m.Direccion == DireccionMensaje.Entrante && !m.EsAutomatico
+                                              && (ultimoSaliente == null || m.FechaUtc > ultimoSaliente))
+                .Select(m => (DateTime?)m.FechaUtc).Min();
+            if (primero is null) continue;
+            var calendario = await plazosService.ObtenerCalendarioAsync(conversacion, cancellationToken);
+            if (calendario is null) continue;
+            var vence = PlazosConversacionService.Vencimiento(conversacion.Prioridad,
+                new DateTimeOffset(DateTime.SpecifyKind(primero.Value, DateTimeKind.Utc)), calendario);
+            var ahora = new DateTimeOffset(DateTime.SpecifyKind(ahoraUtc, DateTimeKind.Utc));
+            var restante = vence >= ahora ? calendario.CalcularTiempoLaborable(ahora, vence)
+                : -calendario.CalcularTiempoLaborable(vence, ahora);
+            resultado[conversacion.Id] = (vence.UtcDateTime, restante);
+        }
+        return resultado;
     }
 
     /// <summary>

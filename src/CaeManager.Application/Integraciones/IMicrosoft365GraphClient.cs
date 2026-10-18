@@ -24,7 +24,10 @@ public record AdjuntoParaEnviarDto(string NombreArchivo, string TipoContenido, b
 
 public record MensajeGraphDto(
     string MensajeExternoId, string HiloExternoId, string Asunto, string Remitente, string CuerpoHtml, DateTime FechaUtc,
-    IReadOnlyList<ParticipanteGraphDto> Participantes, IReadOnlyList<AdjuntoGraphDto> Adjuntos);
+    IReadOnlyList<ParticipanteGraphDto> Participantes, IReadOnlyList<AdjuntoGraphDto> Adjuntos,
+    IReadOnlyList<CabeceraCorreoDto>? Cabeceras = null);
+
+public record CabeceraCorreoDto(string Nombre, string Valor);
 
 /// <summary>Fila ligera para el historial de una carpeta — sin cuerpo, para que listar no cargue el HTML completo de cada mensaje.</summary>
 public record MensajeResumenGraphDto(

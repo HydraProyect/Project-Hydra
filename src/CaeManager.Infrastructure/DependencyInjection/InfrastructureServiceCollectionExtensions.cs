@@ -618,6 +618,10 @@ public static class InfrastructureServiceCollectionExtensions
         // evento, no una automatización opcional del Tenant.
         services.AddHostedService<Proyectos.CierreEventosTerminadosHostedService>();
 
+        // Cierre automático de las conversaciones que llevan 4 días Resueltas (decisión de producto 2026-10-17, hueco 2 de
+        // Comunicaciones), auditado como Sistema. Sin interruptor: es la regla de la bandeja, no una automatización opcional.
+        services.AddHostedService<Comunicaciones.CierreConversacionesResueltasHostedService>();
+
         // Tramo 1 bis del MVP-1 de formatos (corte mínimo, 2026-08-14):
         // sondeo del sumario diario del BOE. El cliente HTTP se registra
         // siempre (barato, sin llamadas hasta que alguien lo invoca); el
@@ -770,6 +774,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<ComunicacionesOptions>(configuration.GetSection(ComunicacionesOptions.SeccionConfiguracion));
         // Fase G: mismo "Comunicaciones" — ver ComunicacionesRemitenteOptions (Application.Common).
         services.Configure<ComunicacionesRemitenteOptions>(configuration.GetSection(ComunicacionesRemitenteOptions.SeccionConfiguracion));
+        services.Configure<CaeManager.Application.Comunicaciones.CalendariosOperadorCaeOptions>(
+            configuration.GetSection(CaeManager.Application.Comunicaciones.CalendariosOperadorCaeOptions.Seccion));
+        services.AddScoped<CaeManager.Application.Comunicaciones.IContextoOperativoConversacionService, Comunicaciones.ContextoOperativoConversacionService>();
+        services.AddScoped<CaeManager.Application.Comunicaciones.PlazosConversacionService>();
+        services.AddHostedService<Comunicaciones.AvisosConversacionesCriticasHostedService>();
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();

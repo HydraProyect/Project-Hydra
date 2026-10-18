@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="FueraDeSla" xml:space="preserve">
+    <value>Fora de SLA</value>
+  </data>
+  <data name="Prioridad" xml:space="preserve">
+    <value>Prioritat</value>
+  </data>
+  <data name="Normal" xml:space="preserve">
+    <value>Normal</value>
+  </data>
+  <data name="Urgente" xml:space="preserve">
+    <value>Urgent</value>
+  </data>
+  <data name="Critica" xml:space="preserve">
+    <value>Crítica</value>
+  </data>
+  <data name="AyudaSla" xml:space="preserve">
+    <value>Hores laborables restants per respondre al primer missatge entrant</value>
+  </data>
+  <data name="RelojSla" xml:space="preserve">
+    <value>{0} · SLA {1}{2} h {3} min</value>
+  </data>
+  <data name="Vencido" xml:space="preserve">
+    <value>vençut </value>
+  </data>
+</root>

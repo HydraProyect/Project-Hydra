@@ -39,6 +39,30 @@ public partial class MiAvatar : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Lo que se guardaría ahora: <c>null</c> mientras no haya animal elegido.</summary>
     private string? ClaveElegida => _motivo is null ? null : CatalogoAvatares.Clave(_motivo, _tono);
 
+    /// <summary>Hay algo distinto de lo guardado: la clave elegida no es la de la cuenta.</summary>
+    private bool HayCambios => ClaveElegida != _guardada;
+
+    /// <summary>La línea bajo «Guardar avatar»: «Sin cambios», «Cambios sin guardar» o «Guardando…».</summary>
+    private string TextoDeEstado =>
+        _guardando ? Textos["AvatarGuardando"]
+        : HayCambios ? Textos["AvatarCambiosSinGuardar"]
+        : Textos["AvatarSinCambios"];
+
+    /// <summary>
+    /// Bajo el nombre de la vista previa: «Vista previa» si hay un animal elegido; si no, que se ve con las iniciales
+    /// (con el aviso entero al llegar sin ningún avatar: es el estado vacío de la pantalla).
+    /// </summary>
+    private string TextoDeVistaPrevia =>
+        ClaveElegida is not null ? Textos["AvatarVistaPreviaEtiqueta"]
+        : _guardada is null && !_recienGuardado ? Textos["AvatarSinAvatarElegido"]
+        : Textos["AvatarConTusIniciales"];
+
+    /// <summary>«Volver a mis iniciales» no tiene nada que quitar si no hay avatar guardado ni animal elegido.</summary>
+    private bool SinNadaQueQuitar => _guardada is null && _motivo is null;
+
+    /// <summary>La vista previa «en el historial» nombra a la persona por su nombre de pila.</summary>
+    private string? PrimerNombre => _nombre?.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() ?? _nombre;
+
     protected override Task OnInitializedAsync() => CargarAsync();
 
     private async Task CargarAsync()
@@ -89,12 +113,16 @@ public partial class MiAvatar : CaeManager.Web.Components.PaginaInteractiva
         _guardando = true;
         _recienGuardado = false;
 
+        // Si el guardado lo lanza el «Reintentar» de un toast, no viene de un evento de esta página: sin repintar,
+        // el botón no mostraría «Guardando…» ni se bloquearía la rejilla mientras responde.
+        await InvokeAsync(StateHasChanged);
+
         try
         {
             var resultado = await Mediator.Send(new ElegirAvatarPropioCommand(clave));
             if (resultado.EsFallido)
             {
-                Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                AvisarErrorAlGuardar(resultado.Error.Mensaje, clave);
                 return;
             }
 
@@ -106,9 +134,22 @@ public partial class MiAvatar : CaeManager.Web.Components.PaginaInteractiva
             // avatar cuando el servidor pinta la página otra vez.
             Navegacion.Refresh();
         }
+        catch (Exception excepcion) when (excepcion is not OperationCanceledException)
+        {
+            Logger.LogError(excepcion, "No se pudo guardar el avatar de la cuenta");
+            AvisarErrorAlGuardar(Textos["AvatarErrorGuardar"], clave);
+        }
         finally
         {
             _guardando = false;
         }
     }
+
+    /// <summary>Toast de error con «Reintentar»: repite el mismo guardado, sin perder lo elegido.</summary>
+    private void AvisarErrorAlGuardar(string mensaje, string? clave) =>
+        Toasts.Mostrar(mensaje, TonoToast.Error, Textos["AvatarReintentar"], async () =>
+        {
+            await GuardarAsync(clave);
+            await InvokeAsync(StateHasChanged);
+        });
 }

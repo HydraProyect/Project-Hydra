@@ -23,6 +23,7 @@ public class NotificacionUsuario : EntidadConTenant
     public string Mensaje { get; private set; } = string.Empty;
     public DateTime CreadaEnUtc { get; private set; } = DateTime.UtcNow;
     public bool Leida { get; private set; }
+    public Guid? EventoOrigenId { get; private set; }
 
     /// <summary>Ruta relativa a la que lleva el botón "Gestionar" — null para un aviso puramente informativo (solo "Entendido").</summary>
     public string? UrlAccion { get; private set; }
@@ -33,7 +34,7 @@ public class NotificacionUsuario : EntidadConTenant
     {
     }
 
-    public NotificacionUsuario(Guid usuarioDestinatarioId, string titulo, string mensaje, string? urlAccion = null, string? textoAccion = null)
+    public NotificacionUsuario(Guid usuarioDestinatarioId, string titulo, string mensaje, string? urlAccion = null, string? textoAccion = null, Guid? eventoOrigenId = null)
     {
         if (string.IsNullOrWhiteSpace(titulo))
             throw new ArgumentException("El título de la notificación es obligatorio.", nameof(titulo));
@@ -45,6 +46,7 @@ public class NotificacionUsuario : EntidadConTenant
         Mensaje = mensaje.Length > LongitudMaximaMensaje ? mensaje[..LongitudMaximaMensaje] : mensaje;
         UrlAccion = urlAccion;
         TextoAccion = textoAccion;
+        EventoOrigenId = eventoOrigenId;
     }
 
     public void MarcarComoLeida() => Leida = true;

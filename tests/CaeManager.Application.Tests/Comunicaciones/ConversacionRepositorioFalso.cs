@@ -5,6 +5,13 @@ namespace CaeManager.Application.Tests.Comunicaciones;
 /// <summary>Fake en memoria — los handlers de Application se prueban sin base de datos (ver Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md).</summary>
 public class ConversacionRepositorioFalso : IConversacionRepository
 {
+    public Task<Conversacion?> ObtenerUltimaCerradaPorHiloExternoAsync(
+        Guid conexionIntegracionId, string hiloExternoId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Conversaciones
+            .Where(c => c.ConexionIntegracionId == conexionIntegracionId && c.HiloExternoId == hiloExternoId
+                        && c.Estado == EstadoConversacion.Cerrada)
+            .OrderByDescending(c => c.EstadoDesdeUtc).ThenByDescending(c => c.Id).FirstOrDefault());
+
     public List<Conversacion> Conversaciones { get; } = [];
 
     public Task<Conversacion?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
@@ -13,7 +20,8 @@ public class ConversacionRepositorioFalso : IConversacionRepository
     public Task<Conversacion?> ObtenerPorHiloExternoAsync(
         Guid conexionIntegracionId, string hiloExternoId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Conversaciones.FirstOrDefault(
-            c => c.ConexionIntegracionId == conexionIntegracionId && c.HiloExternoId == hiloExternoId));
+            c => c.ConexionIntegracionId == conexionIntegracionId && c.HiloExternoId == hiloExternoId
+                 && c.Estado != EstadoConversacion.Cerrada));
 
     public Task<bool> ExisteMensajeExternoAsync(Guid conexionIntegracionId, string mensajeExternoId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Conversaciones
@@ -41,7 +49,7 @@ public class ConversacionRepositorioFalso : IConversacionRepository
         IReadOnlyCollection<Guid> ejecutivoIds, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyDictionary<Guid, int>>(Conversaciones
             .Where(c => c.Canal == CanalConversacion.WhatsApp
-                        && (c.Estado == EstadoConversacion.Abierta || c.Estado == EstadoConversacion.Pendiente)
+                        && TransicionesEstadoConversacion.EsVivo(c.Estado)
                         && c.EjecutivoAsignadoId is { } id && ejecutivoIds.Contains(id))
             .GroupBy(c => c.EjecutivoAsignadoId!.Value)
             .ToDictionary(g => g.Key, g => g.Count()));
@@ -50,7 +58,7 @@ public class ConversacionRepositorioFalso : IConversacionRepository
         Guid clienteId, Guid excluirConversacionId, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<Conversacion>>(Conversaciones
             .Where(c => c.ClienteId == clienteId && c.Id != excluirConversacionId
-                        && (c.Estado == EstadoConversacion.Abierta || c.Estado == EstadoConversacion.Pendiente))
+                        && TransicionesEstadoConversacion.EsVivo(c.Estado))
             .OrderByDescending(c => c.FechaUltimoMensajeUtc)
             .ToList());
 

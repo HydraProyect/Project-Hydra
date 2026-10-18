@@ -1,14 +1,11 @@
 using Bunit;
 using CaeManager.Application.Common;
-using CaeManager.Application.Operaciones.ApoyoCartera.Commands;
-using CaeManager.Application.Operaciones.ApoyoCartera.Queries;
 using CaeManager.Application.Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant;
 using CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Empresas.Components;
-using CaeManager.Web.Features.IncorporacionCartera.Components;
 using FluentAssertions;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,12 +25,12 @@ namespace CaeManager.Web.Tests;
 /// </para>
 ///
 /// <para>
-/// Las dos acciones que acompañan al dato —«+ Dar acceso» y «Desasignarme»— las pinta
-/// <see cref="PanelDarAcceso"/> en su forma de cabecera. Qué puede ver cada quien lo deciden
-/// <c>ObtenerPersonasConCarteraQuery</c> (cuenta de gestión CAE del Operador CAE externo),
-/// <c>ObtenerApoyosDeCarteraQuery</c> y <c>ObtenerOperadoresCaeDeMiTenantQuery</c> (Administrador
-/// del Tenant propietario), y quién puede cada cosa, los Commands: eso se prueba en Application.
-/// Aquí, qué se pinta con lo que esas consultas devuelven y qué Command se envía.
+/// Es SOLO LECTURA (revisión de Design, 2026-10-17, §C): las dos acciones que antes acompañaban al dato
+/// —«+ Dar acceso» y «Desasignarme»— salieron de la cabecera. Lo único pulsable es el botón «+N» y lo que
+/// lleva su ventana (cierre de la hoja de móvil y el enlace a /cartera/solicitudes). Qué puede ver cada quien
+/// lo deciden <c>ObtenerPersonasConCarteraQuery</c> (cuenta de gestión CAE del Operador CAE externo) y
+/// <c>ObtenerOperadoresCaeDeMiTenantQuery</c> (Administrador del Tenant propietario): eso se prueba en
+/// Application. Aquí, qué se pinta con lo que esas consultas devuelven y en qué estado queda la cabecera.
 /// </para>
 /// </summary>
 public class CabeceraGestorCaeTests : BunitContext
@@ -53,44 +50,22 @@ public class CabeceraGestorCaeTests : BunitContext
         public Guid? TenantId { get; } = id;
     }
 
-    private sealed class UsuarioFijo(Guid id) : ICurrentUserService
-    {
-        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(id);
-        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
-        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(Roles.GestorCae);
-        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
-        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
-    }
-
-    /// <param name="responder">Lo que devuelve la lectura del Operador CAE (la hacen la cabecera y el panel de acciones).</param>
+    /// <param name="responder">Lo que devuelve la lectura del Operador CAE.</param>
     /// <param name="comoPropietario">Lo que devuelve la lectura del Administrador del Tenant propietario.</param>
-    /// <param name="apoyos">Los apoyos vivos sobre los que quien mira puede hacer algo.</param>
-    /// <param name="rol">Rol de la sesión: decide lo que <c>SoloConEscritura</c> deja ver.</param>
-    /// <param name="otras">Respuesta a los Commands y a las lecturas del formulario; sin ella, cualquier otra petición es un fallo.</param>
-    /// <param name="alDesasignarme">Lo que la página que monta la cabecera hace cuando quien mira se desasigna.</param>
     private IRenderedComponent<CabeceraGestorCae> Renderizar(
         Func<ObtenerPersonasConCarteraQuery, IReadOnlyList<CarterasDeOperacion>> responder, Guid? tenant = null, bool sinTenant = false,
-        Func<IReadOnlyList<CarterasDeOperacion>>? comoPropietario = null,
-        Func<ApoyosDeCarteraDto>? apoyos = null, string rol = Roles.GestorCae, Func<object, object?>? otras = null,
-        Action? alDesasignarme = null)
+        Func<IReadOnlyList<CarterasDeOperacion>>? comoPropietario = null)
     {
-        this.ConRolDeEscritura(rol);
         Services.AddLocalization();
-        Services.AddScoped<ToastService>();
-        Services.AddScoped<ICurrentUserService>(_ => new UsuarioFijo(Yo));
         Services.AddScoped<ITenantActual>(_ => new TenantFijo(sinTenant ? null : tenant ?? Tenant));
         _mediador = new MediadorPorFuncion(p => p switch
         {
             ObtenerPersonasConCarteraQuery q => responder(q),
             ObtenerOperadoresCaeDeMiTenantQuery => (comoPropietario ?? (() => []))(),
-            ObtenerPropuestasApoyoPendientesQuery => PropuestasApoyoPendientesDto.Vacia,
-            ObtenerApoyosDeCarteraQuery => (apoyos ?? (() => ApoyosDeCarteraDto.Vacio))(),
-            _ => otras?.Invoke(p) ?? throw new InvalidOperationException($"Consulta inesperada: {p.GetType().Name}")
+            _ => throw new InvalidOperationException($"Consulta inesperada: {p.GetType().Name}")
         });
         Services.AddScoped<IMediator>(_ => _mediador);
-        return alDesasignarme is null
-            ? Render<CabeceraGestorCae>()
-            : Render<CabeceraGestorCae>(p => p.Add(c => c.AlDesasignarme, alDesasignarme));
+        return Render<CabeceraGestorCae>();
     }
 
     private static PersonaConCartera Persona(string nombre, string rol = Roles.GestorCae, DateTime? hasta = null, string? avatar = null) =>
@@ -105,13 +80,19 @@ public class CabeceraGestorCaeTests : BunitContext
     private static CarterasDeOperacion OperacionDe(string operador, PersonaConCartera? principal, params PersonaConCartera[] apoyos) =>
         new(Guid.NewGuid(), Tenant, string.Empty, principal, apoyos, operador);
 
-    /// <summary>Un apoyo vivo de <paramref name="apoyo"/> sobre <paramref name="operacion"/>, tal y como lo da la Query.</summary>
-    private static ApoyoDeCarteraDto ApoyoVivo(CarterasDeOperacion operacion, PersonaConCartera apoyo, PersonaConCartera proponente) =>
-        new(Guid.NewGuid(), operacion.TenantId, operacion.NombreTenant, operacion.AsignacionOperacionId,
-            apoyo.UsuarioId, apoyo.Nombre, proponente.UsuarioId, proponente.Nombre, null);
 
     private static List<string> LineasDelDetalle(IRenderedComponent<CabeceraGestorCae> cut, string clase) =>
-        cut.FindAll($".ventana-contexto-panel [data-gestor-cae-detalle='{clase}']").Select(l => l.TextContent.Trim()).ToList();
+        cut.FindAll($".ventana-contexto-panel [data-gestor-cae-detalle='{clase}']").Select(TextoDeFila).ToList();
+
+    /// <summary>La fila de la ventana en una línea: «Nombre · rótulo» (el avatar no cuenta), o el texto con los espacios colapsados.</summary>
+    private static string TextoDeFila(AngleSharp.Dom.IElement fila)
+    {
+        var nombre = fila.QuerySelector(".cabecera-gestor-cae-fila-nombre")?.TextContent.Trim();
+        var rotulo = fila.QuerySelector(".cabecera-gestor-cae-fila-rotulo")?.TextContent.Trim();
+        return nombre is null
+            ? System.Text.RegularExpressions.Regex.Replace(fila.TextContent, @"\s+", " ").Trim()
+            : $"{nombre} · {rotulo}";
+    }
 
     private int LecturasDeLaCartera() => _mediador.Enviadas.OfType<ObtenerPersonasConCarteraQuery>().Count();
 
@@ -143,8 +124,12 @@ public class CabeceraGestorCaeTests : BunitContext
         apoyo.TextContent.Should().Contain("Unai Zabala");
         apoyo.QuerySelector(".avatar-usuario")!.TextContent.Trim().Should().Be("UZ", "sin avatar elegido, sus iniciales");
 
-        cut.FindAll("[data-gestor-cae-mas]").Should().BeEmpty("dos personas caben en la línea: no hay nada que agrupar");
-        cut.FindAll("button, a, input").Should().BeEmpty("quien mira no es el principal ni tiene un apoyo propio: no se le ofrece nada");
+        cut.FindAll(".cabecera-gestor-cae-mas-escritorio").Should().BeEmpty("dos personas caben en la línea de escritorio: no hay nada que agrupar");
+        var mas = cut.Find("[data-gestor-cae-mas]");
+        mas.GetAttribute("data-gestor-cae-mas").Should().Be("0");
+        mas.ClassList.Should().Contain("cabecera-gestor-cae-mas-solo-movil", "el botón existe solo para el móvil, donde se ve una persona");
+        mas.QuerySelector(".cabecera-gestor-cae-mas-movil")!.TextContent.Trim().Should().Be("+1");
+        cut.FindAll("input").Should().BeEmpty("la cabecera no ofrece ninguna acción sobre la cartera");
     }
 
     /// <summary>
@@ -171,8 +156,11 @@ public class CabeceraGestorCaeTests : BunitContext
 
         var mas = cut.Find("[data-gestor-cae-mas]");
         mas.GetAttribute("data-gestor-cae-mas").Should().Be("2");
-        mas.QuerySelector(".cabecera-gestor-cae-mas")!.TextContent.Trim().Should().Be("+2");
-        mas.GetAttribute("aria-label").Should().Be("2 más. Lista completa de personas con Asignación de Cartera");
+        mas.QuerySelector(".cabecera-gestor-cae-mas-escritorio")!.TextContent.Trim().Should().Be("+2", "en escritorio, las que no caben en la línea");
+        mas.QuerySelector(".cabecera-gestor-cae-mas-movil")!.TextContent.Trim().Should().Be("+3", "en móvil se ve una sola persona: el resto son tres");
+        var disparador = mas.QuerySelector("button.ventana-contexto-disparador")!;
+        disparador.GetAttribute("aria-label").Should().Be("2 más. Lista completa de personas con Asignación de Cartera");
+        disparador.GetAttribute("aria-expanded").Should().Be("false", "nace cerrada; ventana-contexto.js mantiene el estado");
         mas.Closest(".cabecera-gestor-cae-personas").Should().BeNull("fuera de la caja que recorta: su panel no puede quedar cortado");
 
         LineasDelDetalle(cut, "principal").Should().Equal("Marta Ibarra · Principal");
@@ -182,7 +170,10 @@ public class CabeceraGestorCaeTests : BunitContext
         cut.Find(".cabecera-gestor-cae-personas").GetAttribute("title").Should().Be(
             "Marta Ibarra (Principal) · Ane Larrea (Apoyo) · Jon Etxeberria (Apoyo) · Unai Zabala (Apoyo hasta el 31/12/2026)");
 
-        cut.FindAll("button, a, input").Should().BeEmpty("la ventana de «+N» es de lectura: no añade ninguna acción");
+        cut.FindAll("button").Select(b => b.ClassList.Contains("ventana-contexto-disparador") || b.ClassList.Contains("ventana-contexto-cerrar"))
+            .Should().OnlyContain(esDeLaVentana => esDeLaVentana, "los únicos botones son el «+N» y el cierre de la hoja de móvil: ninguna acción sobre la cartera");
+        cut.FindAll("input").Should().BeEmpty();
+        cut.FindAll("a").Should().ContainSingle().Which.GetAttribute("href").Should().Be("/cartera/solicitudes", "la ventana dice dónde se gestiona la cartera y enlaza");
     }
 
     [Fact]
@@ -281,200 +272,6 @@ public class CabeceraGestorCaeTests : BunitContext
         cut.FindAll("[data-gestor-cae='operador']").Should().BeEmpty("a quien mira desde el Operador CAE no se le nombra su propia organización");
     }
 
-    // ---------- Acciones: «+ Dar acceso» y «Desasignarme» (decisión 2026-10-08) ----------
-
-    /// <summary>
-    /// «+ Dar acceso» se le ofrece a quien es hoy el principal de la operación, y a nadie más. Lo decide
-    /// <see cref="PanelDarAcceso"/> con la misma lectura que en /cartera/solicitudes.
-    /// </summary>
-    [Fact]
-    public void El_principal_de_la_operacion_ve_Dar_acceso_y_no_Desasignarme()
-    {
-        var mia = Operacion(YoComo(), Persona("Ane Larrea"));
-        var cut = Renderizar(_ => [mia]);
-
-        cut.Find("[data-gestor-cae='principal'] strong").TextContent.Trim().Should().Be("Nahia Urrutia", "control: quien mira es el principal");
-        cut.FindAll("[data-dar-acceso-cabecera]").Should().ContainSingle()
-            .Which.GetAttribute("data-dar-acceso-cabecera").Should().Be(mia.AsignacionOperacionId.ToString());
-        cut.Find("[data-dar-acceso-cabecera]").TextContent.Trim().Should().Be("+ Dar acceso");
-        cut.FindAll("[data-desasignarme-cabecera]").Should().BeEmpty("el principal no tiene un apoyo del que desasignarse");
-        cut.Find("[data-dar-acceso-cabecera]").Closest(".cabecera-gestor-cae").Should().BeNull(
-            "los botones van a continuación del dato, no dentro de la caja que recorta los nombres");
-        cut.FindAll("[data-testid='panel-dar-acceso'], [data-testid='panel-mis-apoyos']").Should().BeEmpty(
-            "en la cabecera el panel solo pinta los botones, no sus tarjetas");
-    }
-
-    /// <summary>«Desasignarme» se le ofrece a quien tiene un apoyo propio sobre este Tenant.</summary>
-    [Fact]
-    public void Quien_tiene_un_apoyo_propio_ve_Desasignarme_y_no_Dar_acceso()
-    {
-        var marta = Persona("Marta Ibarra");
-        var ajena = Operacion(marta, YoComo());
-        var mio = ApoyoVivo(ajena, YoComo(), marta);
-        var cut = Renderizar(_ => [ajena], apoyos: () => new ApoyosDeCarteraDto([mio], [], []));
-
-        _mediador.Enviadas.OfType<ObtenerApoyosDeCarteraQuery>().Should().ContainSingle()
-            .Which.TenantId.Should().Be(Tenant, "solo los apoyos sobre el Tenant propietario activo");
-        cut.FindAll("[data-desasignarme-cabecera]").Should().ContainSingle()
-            .Which.GetAttribute("data-desasignarme-cabecera").Should().Be(mio.PropuestaId.ToString());
-        cut.Find("[data-desasignarme-cabecera]").TextContent.Trim().Should().Be("Desasignarme");
-        cut.FindAll("[data-dar-acceso-cabecera]").Should().BeEmpty("no es el principal: no puede dar acceso");
-    }
-
-    /// <summary>
-    /// HUECO DECLARADO, no arreglado aquí: un Coordinador CAE con cartera sobre el Tenant que no es el
-    /// principal no ve «+ Dar acceso» (solo propone el principal: <c>ProponerApoyoCarteraCommand</c>) ni
-    /// «Desasignarme» (su cartera no viene de un apoyo). Los apoyos que puede revocar por su rol siguen en
-    /// /cartera/solicitudes: la cabecera no ofrece «Revocar».
-    /// </summary>
-    [Fact]
-    public void Un_Coordinador_CAE_que_no_es_el_principal_no_ve_ninguna_de_las_dos_acciones()
-    {
-        var marta = Persona("Marta Ibarra");
-        var ane = Persona("Ane Larrea");
-        var ajena = Operacion(marta, ane, YoComo(Roles.CoordinadorCae));
-        var cut = Renderizar(_ => [ajena], rol: Roles.CoordinadorCae,
-            apoyos: () => new ApoyosDeCarteraDto([], [], [ApoyoVivo(ajena, ane, marta)]));
-
-        cut.FindAll("[data-gestor-cae-detalle='apoyo']").Select(l => l.TextContent.Trim())
-            .Should().Contain("Nahia Urrutia · Apoyo", "control: quien mira tiene cartera sobre el Tenant");
-        _mediador.Enviadas.OfType<ObtenerApoyosDeCarteraQuery>().Should().ContainSingle("control: el panel de acciones se montó y leyó");
-        cut.FindAll("button").Should().BeEmpty("ni «+ Dar acceso», ni «Desasignarme», ni «Revocar»");
-    }
-
-    /// <summary>Con un rol que no escribe, «Desasignarme» no se ofrece: el Command lo denegaría igual.</summary>
-    [Fact]
-    public void Con_un_rol_sin_escritura_no_se_ofrece_Desasignarme()
-    {
-        var marta = Persona("Marta Ibarra");
-        var ajena = Operacion(marta, YoComo());
-        var cut = Renderizar(_ => [ajena], rol: Roles.Consulta,
-            apoyos: () => new ApoyosDeCarteraDto([ApoyoVivo(ajena, YoComo(), marta)], [], []));
-
-        cut.FindAll("[data-gestor-cae='apoyo']").Should().ContainSingle("control positivo: el dato se sigue viendo");
-        cut.FindAll("button").Should().BeEmpty();
-    }
-
-    /// <summary>
-    /// Con un rol efectivo que no escribe, tampoco se ofrece «+ Dar acceso» al principal:
-    /// <c>ProponerApoyoCarteraCommand</c> es un Command y <c>AutorizacionEscrituraBehavior</c> lo denegaría.
-    /// El control con un rol que sí escribe es <see cref="El_principal_de_la_operacion_ve_Dar_acceso_y_no_Desasignarme"/>.
-    /// </summary>
-    [Fact]
-    public void Con_un_rol_sin_escritura_no_se_ofrece_Dar_acceso_ni_al_principal()
-    {
-        var mia = Operacion(YoComo(), Persona("Ane Larrea"));
-        var cut = Renderizar(_ => [mia], rol: Roles.Consulta);
-
-        cut.Find("[data-gestor-cae='principal'] strong").TextContent.Trim().Should().Be("Nahia Urrutia", "control positivo: quien mira es el principal y el dato se ve");
-        cut.FindComponents<PanelDarAcceso>().Should().ContainSingle("control positivo: el panel de acciones se montó");
-        cut.FindAll("[data-dar-acceso-cabecera]").Should().BeEmpty("un rol de solo consulta no puede proponer un apoyo: no se le ofrece");
-        cut.FindAll("button").Should().BeEmpty();
-    }
-
-    /// <summary>
-    /// «+ Dar acceso» abre el mismo formulario y envía el mismo Command que en /cartera/solicitudes; al
-    /// terminar, la cabecera vuelve a leer la cartera.
-    /// </summary>
-    [Fact]
-    public async Task Dar_acceso_desde_la_cabecera_propone_el_apoyo_sobre_esa_operacion_y_la_cabecera_se_vuelve_a_leer()
-    {
-        var mia = Operacion(YoComo());
-        var lucia = new DestinatarioDeApoyoDto(Guid.NewGuid(), "Lucía Garmendia");
-        var propuesto = false;
-        var alDesasignarme = 0;
-        // Tras proponer, la lectura trae un apoyo más: solo una cabecera que relee puede pintarlo.
-        var cut = Renderizar(
-            _ => [propuesto ? mia with { Apoyos = [Persona("Lucía Garmendia")] } : mia],
-            otras: p => p switch
-            {
-                ObtenerDestinatariosDeApoyoQuery => (IReadOnlyList<DestinatarioDeApoyoDto>)[lucia],
-                ProponerApoyoCarteraCommand => PropuestaHecha(),
-                _ => null
-            },
-            alDesasignarme: () => alDesasignarme++);
-        Result<Guid> PropuestaHecha()
-        {
-            propuesto = true;
-            return Result.Exito(Guid.NewGuid());
-        }
-
-        cut.FindAll("[data-gestor-cae='apoyo']").Should().BeEmpty("punto de partida: sin apoyos");
-        _mediador.Enviadas.Select(p => p.GetType()).Should().Equal(
-            [typeof(ObtenerPersonasConCarteraQuery), typeof(ObtenerPersonasConCarteraQuery), typeof(ObtenerApoyosDeCarteraQuery)],
-            "al montar: la cartera la leen la cabecera y el panel, y el panel además sus apoyos; las propuestas sin responder no se pintan aquí y no se piden");
-        var lecturasAntes = LecturasDeLaCartera();
-        var enviadasAntes = _mediador.Enviadas.Count;
-
-        await cut.InvokeAsync(() => cut.Find("[data-dar-acceso-cabecera]").Click());
-
-        _mediador.Enviadas.OfType<ObtenerDestinatariosDeApoyoQuery>().Should().ContainSingle()
-            .Which.AsignacionOperacionId.Should().Be(mia.AsignacionOperacionId);
-        _mediador.Enviadas.OfType<ProponerApoyoCarteraCommand>().Should().BeEmpty("abrir el formulario no propone nada");
-
-        cut.Find("select").Change(lucia.UsuarioId.ToString());
-        await cut.InvokeAsync(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "Proponer").Click());
-
-        _mediador.Enviadas.OfType<ProponerApoyoCarteraCommand>().Should().ContainSingle()
-            .Which.Should().Be(new ProponerApoyoCarteraCommand(mia.AsignacionOperacionId, lucia.UsuarioId));
-        cut.FindComponent<DrawerFormulario>().Instance.Visible.Should().BeFalse("propuesta enviada, el formulario se cierra");
-        cut.WaitForAssertion(() => cut.FindAll("[data-gestor-cae='apoyo']").Should().ContainSingle()
-            .Which.TextContent.Should().Contain("Lucía Garmendia", "la cabecera releyó la cartera al terminar la acción"));
-        LecturasDeLaCartera().Should().Be(lecturasAntes + 2, "una relectura del panel y otra de la cabecera, ni más ni menos");
-        _mediador.Enviadas.Skip(enviadasAntes).Select(p => p.GetType()).Should().Equal(
-            [
-                typeof(ObtenerDestinatariosDeApoyoQuery), typeof(ProponerApoyoCarteraCommand),
-                typeof(ObtenerPersonasConCarteraQuery), typeof(ObtenerApoyosDeCarteraQuery), typeof(ObtenerPersonasConCarteraQuery)
-            ],
-            "abrir, proponer, la relectura del panel (cartera y apoyos) y la de la cabecera: ninguna petición más");
-        _mediador.Enviadas.OfType<ObtenerPropuestasApoyoPendientesQuery>().Should().BeEmpty(
-            "la cabecera no pinta las propuestas sin responder: no paga su consulta");
-        alDesasignarme.Should().Be(0, "dar acceso no quita el acceso a quien mira: la página no tiene que recargarse");
-    }
-
-    /// <summary>
-    /// «Desasignarme» pregunta antes (quitarse un Tenant no se deshace), envía su Command con ESE apoyo y,
-    /// al terminar, la cabecera vuelve a leer: quien se desasignó deja de salir.
-    /// </summary>
-    [Fact]
-    public async Task Desasignarme_desde_la_cabecera_pregunta_envia_ese_apoyo_y_la_cabecera_se_vuelve_a_leer()
-    {
-        var marta = Persona("Marta Ibarra");
-        var ajena = Operacion(marta, YoComo());
-        var mio = ApoyoVivo(ajena, YoComo(), marta);
-        var desasignado = false;
-        var alDesasignarme = 0;
-        var cut = Renderizar(
-            _ => [desasignado ? ajena with { Apoyos = [] } : ajena],
-            apoyos: () => desasignado ? ApoyosDeCarteraDto.Vacio : new ApoyosDeCarteraDto([mio], [], []),
-            otras: p => p is DesasignarmeDeApoyoCommand ? Hecho() : null,
-            alDesasignarme: () => alDesasignarme++);
-        Result Hecho()
-        {
-            desasignado = true;
-            return Result.Exito();
-        }
-
-        cut.Find("[data-gestor-cae='apoyo']").TextContent.Should().Contain("Nahia Urrutia", "punto de partida: quien mira sale como apoyo");
-
-        await cut.InvokeAsync(() => cut.Find("[data-desasignarme-cabecera]").Click());
-
-        _mediador.Enviadas.OfType<DesasignarmeDeApoyoCommand>().Should().BeEmpty("quitarse un Tenant no se deshace: pregunta antes");
-        var dialogo = cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Visible);
-        dialogo.Instance.Mensaje.Should().Contain("Talleres Norte");
-        alDesasignarme.Should().Be(0, "preguntar no es desasignarse");
-
-        await cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
-
-        _mediador.Enviadas.OfType<DesasignarmeDeApoyoCommand>().Should().ContainSingle()
-            .Which.Should().Be(new DesasignarmeDeApoyoCommand(mio.PropuestaId));
-        alDesasignarme.Should().Be(1, "quien mira ya no tiene acceso al Tenant: la cabecera se lo dice a la página, una vez");
-        cut.WaitForAssertion(() => cut.FindAll("[data-gestor-cae='apoyo']").Should().BeEmpty(
-            "la cabecera releyó la cartera: quien se desasignó ya no sale"));
-        cut.FindAll("[data-desasignarme-cabecera]").Should().BeEmpty("ya no hay apoyo del que desasignarse");
-        cut.Find("[data-gestor-cae='principal'] strong").TextContent.Trim().Should().Be("Marta Ibarra", "control: el resto del dato sigue ahí");
-    }
-
     // ---------- Desde el Tenant propietario (decisión 2026-10-09) ----------
 
     /// <summary>
@@ -486,7 +283,7 @@ public class CabeceraGestorCaeTests : BunitContext
     public void Al_Administrador_del_Tenant_propietario_le_pinta_el_Operador_CAE_su_principal_y_los_de_apoyo()
     {
         var preguntasComoPropietario = 0;
-        var cut = Renderizar(_ => [], rol: Roles.Administrador, comoPropietario: () =>
+        var cut = Renderizar(_ => [], comoPropietario: () =>
         {
             preguntasComoPropietario++;
             // Aunque la lectura nombrara a quien mira como principal, desde el Tenant propietario no hay acciones.
@@ -506,9 +303,8 @@ public class CabeceraGestorCaeTests : BunitContext
 
         cut.Find(".cabecera-gestor-cae").GetAttribute("title")
             .Should().Be("Operador CAE que gestiona esta organización y sus Gestores CAE con Asignación de Cartera");
-        cut.FindAll("button, a, input").Should().BeEmpty("leer la cartera no concede nada sobre ella");
-        cut.FindComponents<PanelDarAcceso>().Should().BeEmpty("al Administrador del Tenant propietario no se le monta el panel de acciones");
-        _mediador.Enviadas.OfType<ObtenerApoyosDeCarteraQuery>().Should().BeEmpty("ni se pregunta por apoyos en su nombre");
+        cut.FindAll("input").Should().BeEmpty("leer la cartera no concede nada sobre ella");
+        _mediador.Enviadas.Should().OnlyContain(e => e is ObtenerPersonasConCarteraQuery || e is ObtenerOperadoresCaeDeMiTenantQuery, "solo se leen las dos carteras");
     }
 
     /// <summary>
@@ -548,7 +344,7 @@ public class CabeceraGestorCaeTests : BunitContext
         cut.FindAll("[data-gestor-cae='operador'] strong").Select(o => o.TextContent.Trim())
             .Should().Equal("Gestoría Albor", "Prevención Levante");
         cut.Find("[data-gestor-cae-mas]").GetAttribute("data-gestor-cae-mas").Should().Be("1");
-        cut.FindAll(".ventana-contexto-panel [data-gestor-cae-detalle]").Select(l => l.TextContent.Trim()).Should().Equal(
+        cut.FindAll(".ventana-contexto-panel [data-gestor-cae-detalle]").Select(TextoDeFila).Should().Equal(
             "Operador CAE Gestoría Albor", "Marta Ibarra · Principal", "Ane Larrea · Apoyo",
             "Operador CAE Prevención Levante", "Iker Sola · Principal");
     }
@@ -582,7 +378,7 @@ public class CabeceraGestorCaeTests : BunitContext
     {
         var cut = Renderizar(_ => [], comoPropietario: () => throw new InvalidOperationException("Fallo simulado."));
 
-        cut.Find(".cabecera-gestor-cae [role=status]").TextContent.Trim().Should().Be("No pudimos cargarlo");
+        cut.Find(".cabecera-gestor-cae-error .cabecera-gestor-cae-sin-dato").TextContent.Trim().Should().Be("No pudimos cargarlo");
     }
 
     /// <summary>
@@ -622,9 +418,102 @@ public class CabeceraGestorCaeTests : BunitContext
     {
         var cut = Renderizar(_ => throw new InvalidOperationException("Fallo simulado."));
 
-        cut.Find(".cabecera-gestor-cae [role=status]").TextContent.Trim().Should().Be("No pudimos cargarlo");
+        cut.Find(".cabecera-gestor-cae-error .cabecera-gestor-cae-sin-dato").TextContent.Trim().Should().Be("No pudimos cargarlo");
         cut.FindAll("[data-gestor-cae]").Should().BeEmpty();
-        cut.FindAll("button").Should().BeEmpty("sin saber quién gestiona el Tenant no se ofrece ninguna acción");
+        cut.FindAll("[data-gestor-cae-mas]").Should().BeEmpty("sin saber quién gestiona el Tenant no hay nada que agrupar");
+    }
+
+    // ---------- Estados y aviso (revisión de Design, 2026-10-17, §C) ----------
+
+    /// <summary>
+    /// «Sin principal» no es un dato gris que se confunda con un nombre: es una pastilla de aviso (ámbar) con su punto, en la
+    /// línea y en la ventana de «+N».
+    /// </summary>
+    [Fact]
+    public void Sin_principal_se_dice_con_la_pastilla_de_aviso_en_la_linea_y_en_la_ventana()
+    {
+        var cut = Renderizar(_ => [Operacion(null, Persona("Ane Larrea"), Persona("Jon Etxeberria"), Persona("Unai Zabala"))]);
+
+        var aviso = cut.Find(".cabecera-gestor-cae-personas [data-gestor-cae='sin-principal']");
+        aviso.ClassList.Should().Contain("cabecera-gestor-cae-pastilla-aviso");
+        aviso.QuerySelector(".cabecera-gestor-cae-punto-aviso").Should().NotBeNull("el punto ámbar es decoración: el aviso se lee por su texto");
+        aviso.QuerySelector(".cabecera-gestor-cae-punto-aviso")!.GetAttribute("aria-hidden").Should().Be("true");
+        aviso.TextContent.Trim().Should().Be("Sin principal");
+        cut.Find(".ventana-contexto-panel [data-gestor-cae-detalle='sin-principal'] .cabecera-gestor-cae-pastilla-aviso")
+            .TextContent.Trim().Should().Be("Sin principal", "la ventana lo dice igual");
+    }
+
+    /// <summary>Mientras llega la lectura no sale un hueco: el esqueleto reserva la línea y se anuncia como ocupado.</summary>
+    [Fact]
+    public void Mientras_carga_reserva_la_linea_con_un_esqueleto_y_al_llegar_el_dato_lo_sustituye()
+    {
+        var lectura = new TaskCompletionSource<IReadOnlyList<CarterasDeOperacion>>();
+        Services.AddLocalization();
+        Services.AddScoped<ITenantActual>(_ => new TenantFijo(Tenant));
+        Services.AddScoped<IMediator>(_ => new MediadorPendiente(lectura.Task));
+
+        var cut = Render<CabeceraGestorCae>();
+
+        var esqueleto = cut.Find(".cabecera-gestor-cae-cargando");
+        esqueleto.GetAttribute("aria-busy").Should().Be("true");
+        esqueleto.GetAttribute("aria-label").Should().Be("Cargando los Gestores CAE de esta organización");
+        esqueleto.QuerySelector(".cabecera-gestor-cae-rotulo")!.TextContent.Trim().Should().Be("Gestor CAE", "el rótulo no salta al llegar el dato");
+        esqueleto.QuerySelectorAll(".cabecera-gestor-cae-esqueleto-redondo").Should().HaveCount(2, "una persona y la siguiente, como la línea real");
+        cut.FindAll("[data-gestor-cae]").Should().BeEmpty();
+
+        lectura.SetResult([Operacion(Persona("Marta Ibarra"))]);
+        cut.WaitForAssertion(() => cut.Find("[data-gestor-cae='principal']").TextContent.Should().Contain("Marta Ibarra"));
+        cut.FindAll(".cabecera-gestor-cae-cargando").Should().BeEmpty("el esqueleto desaparece al llegar el dato");
+    }
+
+    /// <summary>
+    /// Un fallo se dice con «No pudimos cargarlo» y un «Reintentar» que repite la lectura: sin él, quien lo ve
+    /// tendría que recargar la página entera.
+    /// </summary>
+    [Fact]
+    public void Si_la_consulta_falla_ofrece_Reintentar_y_al_pulsarlo_vuelve_a_leer()
+    {
+        var lecturas = 0;
+        var cut = Renderizar(_ =>
+        {
+            if (lecturas++ == 0) throw new InvalidOperationException("Fallo simulado.");
+            return [Operacion(Persona("Marta Ibarra"))];
+        });
+
+        cut.Find(".cabecera-gestor-cae-error").TextContent.Should().Contain("No pudimos cargarlo");
+        var reintentar = cut.Find("button.cabecera-gestor-cae-reintentar");
+        reintentar.TextContent.Trim().Should().Be("Reintentar");
+        LecturasDeLaCartera().Should().Be(1, "control: hasta ahora una sola lectura, la que falló");
+
+        reintentar.Click();
+
+        LecturasDeLaCartera().Should().Be(2);
+        cut.Find("[data-gestor-cae='principal']").TextContent.Should().Contain("Marta Ibarra");
+        cut.FindAll(".cabecera-gestor-cae-error, .cabecera-gestor-cae-reintentar").Should().BeEmpty("al leer bien desaparece el error");
+    }
+
+    /// <summary>Lectura que no termina hasta que el test lo decide: deja ver el estado de carga.</summary>
+    private sealed class MediadorPendiente(Task<IReadOnlyList<CarterasDeOperacion>> lectura) : IMediator
+    {
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            (Task<TResponse>)(object)lectura;
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            throw new NotSupportedException();
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification => Task.CompletedTask;
     }
 }
 

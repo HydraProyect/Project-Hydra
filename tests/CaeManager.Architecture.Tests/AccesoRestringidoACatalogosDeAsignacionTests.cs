@@ -77,6 +77,8 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
     /// </summary>
     private static readonly HashSet<string> ArchivosAutorizados =
     [
+        // Calendario y aviso de Crítica: exige el Tenant propietario activo y filtra por esa posición y vigencia.
+        "src/CaeManager.Infrastructure/Comunicaciones/ContextoOperativoConversacionService.cs",
         // Encargo de administración (decisión D-8, 2026-10-08): lee la Asignación de Operación a la
         // que se liga el encargo, sin seguimiento y acotada a la posición de PROPIETARIO
         // (Id == el pedido y PropietarioTenantId == el Tenant activo de quien registra). Quién

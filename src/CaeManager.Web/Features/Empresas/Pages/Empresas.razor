@@ -49,10 +49,10 @@
                 <CaeManager.Web.Exportacion.EntradasExportar Ruta="/empresas/exportar.xlsx" />
             </Menu>
             @* «Gestor CAE» es dato de cabecera, no columna: la Asignación de Cartera es sobre el
-               Tenant entero, así que es el mismo para todas las filas. Si quien mira se desasigna
-               desde ahí, quien mira va a Mi trabajo con un aviso (IrAMiTrabajoTrasDesasignarme). *@
+               Tenant entero, así que es el mismo para todas las filas. Es de solo lectura: dar acceso y
+               desasignarse ya no se hacen desde aquí (revisión de Design, 2026-10-17, §C). *@
             <DatoCabecera>
-                <CabeceraGestorCae AlDesasignarme="IrAMiTrabajoTrasDesasignarme" />
+                <CabeceraGestorCae />
             </DatoCabecera>
             <Primaria>
                 @if (!_alcanceCero)

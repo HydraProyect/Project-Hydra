@@ -88,15 +88,6 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, id, NombreDe(id), "informacion");
 
     /// <summary>
-    /// Quien mira acaba de desasignarse, desde la cabecera «Gestor CAE», de su apoyo sobre el Tenant
-    /// propietario activo: todo lo que esta página tiene pintado es de un Tenant al que ya no accede.
-    /// Va a «Mi trabajo» con <c>sinAcceso=true</c> para avisarlo; <c>forceLoad</c> hace que el arranque
-    /// normal de la aplicación vuelva a resolver el Tenant activo y el acceso.
-    /// Tras «+ Dar acceso» no se llama: ahí basta con que la cabecera relea su dato.
-    /// </summary>
-    private void IrAMiTrabajoTrasDesasignarme() => NavigationManager.NavigateTo("/mi-trabajo?sinAcceso=true", forceLoad: true);
-
-    /// <summary>
     /// Tecla «e»: la vista rápida de la fila enfocada, ya en edición (el lápiz de la cabecera
     /// del panel). Si el rol no puede escribir, el panel se abre y se queda en lectura.
     /// </summary>

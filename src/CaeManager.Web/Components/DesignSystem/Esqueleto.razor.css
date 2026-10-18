@@ -1,6 +1,7 @@
 /* Mismo criterio que EstadoCargando: ocupa su sitio desde el primer momento (sin salto) pero es transparente hasta pasados
-   200 ms, y el brillo se apaga con prefers-reduced-motion (aparecer con opacidad no es movimiento). Colores: los neutros del
-   esqueleto existente, sin texto encima. */
+   200 ms, y el brillo se apaga con prefers-reduced-motion (aparecer con opacidad no es movimiento). Colores: los tokens
+   propios por tema --color-esqueleto-base y -brillo (revisión de Design, 2026-10-17, §O): los neutros que se usaban antes no
+   cambian de tema y en oscuro daban un esqueleto gris claro sobre la tarjeta oscura. Sin texto encima. */
 .esqueleto {
     display: flex;
     flex-direction: column;
@@ -27,7 +28,7 @@
 .esqueleto-bloque {
     display: block;
     border-radius: var(--radius-sm);
-    background: linear-gradient(90deg, var(--color-neutral-100) 25%, var(--color-neutral-200) 37%, var(--color-neutral-100) 63%);
+    background: linear-gradient(90deg, var(--color-esqueleto-base) 25%, var(--color-esqueleto-brillo) 37%, var(--color-esqueleto-base) 63%);
     background-size: 400% 100%;
     animation: esqueleto-brillo 1.4s var(--ease-fluid) infinite;
 }

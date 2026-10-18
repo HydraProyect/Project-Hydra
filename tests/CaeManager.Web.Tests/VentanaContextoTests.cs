@@ -81,6 +81,36 @@ public class VentanaContextoTests : BunitContext
     }
 
     [Fact]
+    public void Interactiva_el_disparador_nace_con_aria_expanded_false_y_la_solo_lectura_no_lo_lleva()
+    {
+        Renderizar(interactiva: true).Find("button.ventana-contexto-disparador").GetAttribute("aria-expanded")
+            .Should().Be("false", "el estado abierto vive en CSS: ventana-contexto.js lo mantiene a partir de aquí");
+        Renderizar(interactiva: false).FindAll("[aria-expanded]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void La_hoja_de_movil_lleva_tirador_y_boton_de_cierre_solo_si_se_pide_y_se_da_su_nombre()
+    {
+        IRenderedComponent<VentanaContexto> Con(bool hoja, string? cerrar) => Render<VentanaContexto>(p => p
+            .Add(c => c.Etiqueta, "2 más").Add(c => c.Titulo, "Gestor CAE").Add(c => c.Interactiva, true)
+            .Add(c => c.HojaEnMovil, hoja).Add(c => c.EtiquetaCerrar, cerrar)
+            .Add(c => c.Disparador, (RenderFragment)(b => b.AddContent(0, "+2")))
+            .Add(c => c.Detalle, (RenderFragment)(b => b.AddContent(0, "Detalle"))));
+
+        var conHoja = Con(true, "Cerrar la lista");
+        conHoja.Find(".ventana-contexto").ClassList.Should().Contain("ventana-contexto-hoja");
+        conHoja.Find(".ventana-contexto-tirador").GetAttribute("aria-hidden").Should().Be("true");
+        var cerrar = conHoja.Find("button.ventana-contexto-cerrar");
+        cerrar.GetAttribute("aria-label").Should().Be("Cerrar la lista");
+        cerrar.HasAttribute("data-ventana-cerrar").Should().BeTrue("es lo que ventana-contexto.js escucha");
+
+        Con(true, null).FindAll(".ventana-contexto-cerrar").Should().BeEmpty("sin nombre accesible no hay botón de cierre");
+        var sinHoja = Con(false, "Cerrar la lista");
+        sinHoja.Find(".ventana-contexto").ClassList.Should().NotContain("ventana-contexto-hoja");
+        sinHoja.FindAll(".ventana-contexto-cerrar, .ventana-contexto-tirador").Should().BeEmpty("en escritorio se cierra como siempre");
+    }
+
+    [Fact]
     public void Interactiva_sin_titulo_el_grupo_toma_el_nombre_de_la_etiqueta()
     {
         var cut = Renderizar(interactiva: true, titulo: null);
@@ -228,5 +258,7 @@ public class VentanaContextoTests : BunitContext
 
         var js = File.ReadAllText(Path.Combine(RaizWeb, "wwwroot", "js", "ventana-contexto.js"));
         js.Should().Contain("'Escape'").And.Contain("data-ventana-cerrada").And.Contain("stopImmediatePropagation");
+        js.Should().Contain("aria-expanded", "mantiene el estado que anuncia el lector de pantalla").And.Contain("data-ventana-cerrar");
+        js.Should().Contain("closest('.ventana-contexto-disparador')", "volver a tocar el disparador reabre una ventana cerrada con la × (en táctil el hover queda pegado)");
     }
 }

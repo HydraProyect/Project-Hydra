@@ -116,7 +116,8 @@ public record ConversacionDetalleDto(
     DateTime? FechaUltimoMensajeEntranteUtc = null,
     SugerenciaVinculacionDetalleDto? SugerenciaVinculacion = null,
     bool EsConversacionInformativaPreCae = false,
-    string? ResumenRelevanciaCae = null);
+    string? ResumenRelevanciaCae = null,
+    PrioridadConversacion Prioridad = PrioridadConversacion.Normal);
 
 public class ObtenerConversacionPorIdQueryHandler(
     ICentrosQueryContext centrosContext, IComunicacionesQueryContext comunicacionesContext,
@@ -147,6 +148,7 @@ public class ObtenerConversacionPorIdQueryHandler(
                 ClienteRazonSocial = cliente != null ? cliente.RazonSocial : null,
                 c.Asunto,
                 c.Estado,
+                c.Prioridad,
                 c.EjecutivoAsignadoId,
                 c.Etiquetas,
                 c.FechaUltimoMensajeUtc,
@@ -323,7 +325,7 @@ public class ObtenerConversacionPorIdQueryHandler(
             conversacion.Estado, conversacion.EjecutivoAsignadoId, conversacion.Etiquetas, conversacion.FechaUltimoMensajeUtc,
             mensajes, participantes, eventos, documentosCitados, conversacion.Canal, conversacion.TelefonoContacto,
             conversacion.FechaUltimoMensajeEntranteUtc, sugerenciaVinculacion, esConversacionInformativaPreCae,
-            esConversacionInformativaPreCae ? clasificacionRelevancia!.Resumen : null);
+            esConversacionInformativaPreCae ? clasificacionRelevancia!.Resumen : null, conversacion.Prioridad);
     }
 
     /// <summary>
@@ -462,7 +464,7 @@ public class ObtenerConversacionPorIdQueryHandler(
         DateTime fechaUltimoMensajeUtc, CancellationToken cancellationToken)
     {
         if (canal != CanalConversacion.WhatsApp || clienteId is null) return null;
-        if (estado != EstadoConversacion.Abierta && estado != EstadoConversacion.Pendiente) return null;
+        if (!TransicionesEstadoConversacion.EsVivo(estado)) return null;
 
         var candidato = await motorCoincidencia.ProponerVinculacionAsync(conversacionId, clienteId.Value, fechaUltimoMensajeUtc, cancellationToken);
         return candidato is null ? null : new SugerenciaVinculacionDetalleDto(candidato.ConversacionId, candidato.Asunto, candidato.Desglose);
@@ -522,7 +524,15 @@ public class ObtenerConversacionPorIdQueryHandler(
             .Select(g => new { ReclamacionId = g.Key, Total = g.Count() })
             .ToDictionaryAsync(x => x.ReclamacionId, x => x.Total, cancellationToken);
 
-        return eventosCrudos.Select(e => new EventoDetalleDto(e.Id, e.Tipo, e.ReferenciaId, e.FechaUtc, DescribirEvento(
+        var plantillaIds = eventosCrudos.Where(e => e.Tipo == TipoEventoConversacion.PlantillaAplicada).Select(e => e.ReferenciaId).ToList();
+        var titulosPlantilla = await comunicacionesContext.MacrosRespuesta
+            .Where(m => plantillaIds.Contains(m.Id))
+            .ToDictionaryAsync(m => m.Id, m => m.Titulo, cancellationToken);
+
+        return eventosCrudos.Select(e => new EventoDetalleDto(e.Id, e.Tipo, e.ReferenciaId, e.FechaUtc,
+            e.Tipo == TipoEventoConversacion.PlantillaAplicada
+                ? $"Se aplicó la plantilla {titulosPlantilla.GetValueOrDefault(e.ReferenciaId, "eliminada")} al borrador."
+                : DescribirEvento(
             e.Tipo, e.ReferenciaId, visitas, nombresCentroVisita, documentos, nombresTipoDocumentoEventos,
             nombresTrabajadorDocumentos, nombresEmpresaDocumentos, documentosPorReclamacion))).ToList();
     }

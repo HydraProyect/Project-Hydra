@@ -5,6 +5,10 @@
 *@
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones
 @using CaeManager.Domain.Comunicaciones
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosEstadosConversacion> TextosEstados
+@inject IStringLocalizer<TextosPlazosConversacion> TextosPlazos
 
 <li class="bandeja-fila @(Activa ? "bandeja-fila-activa" : null) @(Enfocada ? "fila-enfocada" : null) @(Conversacion.EsperandoCliente ? "bandeja-fila-esperando" : null)" @onclick="() => OnSeleccionar.InvokeAsync(Conversacion.Id)">
     <span class="bandeja-fila-avatar" aria-hidden="true">
@@ -26,7 +30,14 @@
             <span class="bandeja-fila-asunto" title="@Conversacion.Asunto">@Conversacion.Asunto</span>
         </div>
         <div class="bandeja-fila-linea3">
-            <Badge Tono="TonoBadgeDeEstado(Conversacion.Estado)" Tamano="TamanoBadge.Pequeno">@Conversacion.Estado</Badge>
+            <Badge Tono="EstadoConversacionPresentacion.Tono(Conversacion.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoConversacionPresentacion.Etiqueta(TextosEstados, Conversacion.Estado)</Badge>
+            @if (Conversacion.SlaRestante is { } restante)
+            {
+                <Badge Tono="@(SlaVencido ? TonoBadge.Peligro : TonoBadge.Neutro)" Tamano="TamanoBadge.Pequeno"
+                       title="@TextosPlazos["AyudaSla"]">
+                    @RelojSla(restante)
+                </Badge>
+            }
             @if (Conversacion.MensajesRuido > 0)
             {
                 <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno" title="Mensajes ya clasificados como ruido (repetición o sin cambios) — sin novedad que atender">
@@ -42,16 +53,15 @@
     [Parameter, EditorRequired] public ConversacionListaDto Conversacion { get; set; } = default!;
     [Parameter] public bool Activa { get; set; }
 
+    private bool SlaVencido => Conversacion.VencimientoSlaUtc <= DateTime.UtcNow;
+
+    private string RelojSla(TimeSpan restante) => TextosPlazos["RelojSla",
+        TextosPlazos[Conversacion.Prioridad.ToString()].Value, SlaVencido ? TextosPlazos["Vencido"].Value : "",
+        Math.Abs((int)restante.TotalHours), Math.Abs(restante.Minutes)];
+
     /// <summary>Fila marcada por j/k (todavía no abierta): lleva la clase que <c>atajos-lista.js</c> usa para darle foco de DOM.</summary>
     [Parameter] public bool Enfocada { get; set; }
     [Parameter] public EventCallback<Guid> OnSeleccionar { get; set; }
-
-    private static TonoBadge TonoBadgeDeEstado(EstadoConversacion estado) => estado switch
-    {
-        EstadoConversacion.Abierta => TonoBadge.Info,
-        EstadoConversacion.Pendiente => TonoBadge.Info,
-        _ => TonoBadge.Neutro
-    };
 
     /// <summary>Mismo criterio que UnifiedTimeline.ObtenerIniciales: dos letras del remitente para el avatar, sin depender de un nombre completo que este DTO no siempre trae.</summary>
     private static string ObtenerIniciales(string remitente)

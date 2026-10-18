@@ -338,6 +338,30 @@
     <value>{0} más. Lista completa de personas con Asignación de Cartera</value>
     <comment>Nombre accesible de la pastilla «+N» de la cabecera «Gestor CAE». {0} = número de personas agrupadas.</comment>
   </data>
+  <data name="GestorCaeReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+    <comment>Botón junto al error de la cabecera «Gestor CAE»: vuelve a leer quién gestiona la organización.</comment>
+  </data>
+  <data name="GestorCaeCargando" xml:space="preserve">
+    <value>Cargando los Gestores CAE de esta organización</value>
+    <comment>Nombre accesible de la línea de esqueleto de la cabecera «Gestor CAE» mientras carga.</comment>
+  </data>
+  <data name="GestorCaeSeccionApoyo" xml:space="preserve">
+    <value>Apoyo · {0}</value>
+    <comment>Cabecera de sección de la ventana «+N»: los Gestores CAE de apoyo. {0} = cuántos.</comment>
+  </data>
+  <data name="GestorCaeFichaAyuda" xml:space="preserve">
+    <value>Dar acceso o desasignarte: desde Solicitudes de cartera.</value>
+    <comment>Pie de la ventana «+N»: la cabecera es de solo lectura; las acciones sobre la cartera están fuera de ella. Cuando la ficha de la Empresa las aloje, el texto pasa a «desde la ficha».</comment>
+  </data>
+  <data name="GestorCaeFichaEnlace" xml:space="preserve">
+    <value>Abrir Solicitudes de cartera →</value>
+    <comment>Enlace del pie de la ventana «+N» a la pantalla donde hoy se da o se quita acceso.</comment>
+  </data>
+  <data name="GestorCaeCerrar" xml:space="preserve">
+    <value>Cerrar</value>
+    <comment>Botón de cierre de la hoja inferior de la ventana «+N» en móvil.</comment>
+  </data>
   <data name="ColDetecciones" xml:space="preserve">
     <value>Detecciones</value>
   </data>

@@ -47,6 +47,7 @@ public class Mensaje : EntidadConTenant
 
     public string CuerpoHtml { get; private set; } = string.Empty;
     public DateTime FechaUtc { get; private set; }
+    public bool EsAutomatico { get; private set; }
     public string? MensajeExternoId { get; private set; }
 
     /// <summary>Estado que reporta el webhook statuses[] de WhatsApp — solo mensajes salientes de ese canal; null en el resto.</summary>
@@ -63,7 +64,7 @@ public class Mensaje : EntidadConTenant
 
     public Mensaje(
         Guid conversacionId, DireccionMensaje direccion, CanalConversacion canal, string remitente, string cuerpoHtml,
-        DateTime fechaUtc, string? mensajeExternoId = null)
+        DateTime fechaUtc, string? mensajeExternoId = null, bool esAutomatico = false)
     {
         if (conversacionId == Guid.Empty)
             throw new ArgumentException("El mensaje debe pertenecer a una conversación.", nameof(conversacionId));
@@ -80,6 +81,7 @@ public class Mensaje : EntidadConTenant
         Remitente = remitente.Trim();
         CuerpoHtml = cuerpoHtml.Length > LongitudMaximaCuerpoHtml ? cuerpoHtml[..LongitudMaximaCuerpoHtml] : cuerpoHtml;
         FechaUtc = fechaUtc;
+        EsAutomatico = esAutomatico;
         MensajeExternoId = mensajeExternoId;
     }
 
