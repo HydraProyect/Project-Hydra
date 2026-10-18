@@ -2,6 +2,7 @@ using Bunit;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Features.Empresas.Pages;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
@@ -49,6 +50,31 @@ public partial class EmpresasListaGen2Tests
         var cut = Renderizar(ConClientes().Mediador);
 
         Pastilla(cut, "Cliente").Should().NotBeNull();
+        Pastilla(cut, "Agrupar").Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Un_usuario_de_portal_no_ve_ni_filtro_Cliente_ni_agrupacion_aunque_la_URL_los_pida()
+    {
+        var e = ConClientes();
+        // Aunque tuviera Clientes a su alcance de lectura: el servidor le devuelve «ninguna Empresa» por Cliente.
+        var cut = RenderizarComo(e.Mediador, Roles.Cliente, $"empresas?cliente={e.Cyberdyne.Id}&agrupar=cliente");
+
+        cut.FindAll(".menu-acciones-disparador-pastilla").Select(b => b.GetAttribute("aria-label"))
+            .Should().NotContain(["Cliente", "Agrupar"]);
+        e.Mediador.Enviadas.OfType<ObtenerClientesParaSelectorQuery>().Should().BeEmpty("no se carga lo que no se ofrece");
+        UltimaConsulta(e.Mediador).ClienteEmpresarialId.Should().BeNull("la URL no activa el filtro");
+        UltimaConsulta(e.Mediador).ConClientePrincipal.Should().BeFalse();
+        cut.FindAll(".tarjeta-fila-acordeon").Should().HaveCount(3, "control positivo: la lista de sus Empresas se ve entera");
+        cut.FindAll(".cabecera-grupo-empresas").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Un_rol_de_gestion_si_ve_las_dos_pastillas_con_el_mismo_arnes()
+    {
+        var cut = RenderizarComo(ConClientes().Mediador, Roles.Consulta);
+
+        Pastilla(cut, "Cliente").Should().NotBeNull("control positivo del test del rol Cliente: Consulta opera desde gestión");
         Pastilla(cut, "Agrupar").Should().NotBeNull();
     }
 
@@ -136,7 +162,7 @@ public partial class EmpresasListaGen2Tests
         consulta.ConClientePrincipal.Should().BeTrue();
         ParametroDeUrl(cut, "agrupar").Should().Be("cliente");
         cut.WaitForAssertion(() => cut.FindAll(".cabecera-grupo-empresas").Select(g => g.TextContent.Trim()).Should().Equal(
-            ["Cyberdyne Iberica S.A.· 2", "Sin Cliente· 1"],
+            ["Cyberdyne Iberica S.A.· 2", "Sin Cliente visible· 1"],
             "Aragon sirve a dos Clientes y sale una sola vez, bajo el primero por razón social; las sin Cliente, al final"));
         RazonesSociales(cut).Should().Equal(["Aragon Montajes S.L.", "Basauri Obras S.L.", "Castro Servicios S.L."]);
         cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href").Should().NotContain("agrupar");

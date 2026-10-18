@@ -239,7 +239,7 @@
                     {
                         @* Título del grupo «Por Cliente» (maqueta de Empresas): el Cliente y cuántas Empresas suyas hay en esta página. *@
                         <div class="cabecera-grupo-empresas" data-grupo-cliente="@grupo">
-                            @grupo<span class="cabecera-grupo-empresas-recuento">· @cantidadGrupo</span>
+                            @grupo<span class="cabecera-grupo-empresas-recuento">@RecuentoDeGrupo(cantidadGrupo)</span>
                         </div>
                     }
                     <div class="@ClaseTarjeta(empresa)" @key="empresa.Id">

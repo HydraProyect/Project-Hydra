@@ -239,11 +239,14 @@ public partial class EmpresasListaGen2Tests : BunitContext
     /// <summary>La persona que mira la pantalla: la misma en todas las lecturas, como en una sesión real.</summary>
     private static readonly Guid Yo = Guid.NewGuid();
 
-    private sealed class UsuarioActualFalso : ICurrentUserService
+    /// <summary>El rol efectivo de quien mira, el mismo que <c>ConRolDeEscritura</c> pone en el principal.</summary>
+    private string RolEfectivo { get; set; } = "Administrador";
+
+    private sealed class UsuarioActualFalso(string rol) : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Yo);
         public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
-        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("Administrador");
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(rol);
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
@@ -258,7 +261,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
         // Empresas pinta con IStringLocalizer<TextosEmpresas> (la «Vista rápida» del menú de fila).
         Services.AddLocalization();
         Services.AddScoped<ContextWorkspaceService>();
-        Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
+        Services.AddScoped<ICurrentUserService>(_ => new UsuarioActualFalso(RolEfectivo));
         Services.AddScoped<IValidator<CrearEmpresaCommand>>(_ => new InlineValidator<CrearEmpresaCommand>());
     }
 
