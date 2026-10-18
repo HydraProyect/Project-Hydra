@@ -167,28 +167,33 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
         cut.FindAll(".tabla-documentos-requeridos button").Select(b => b.TextContent.Trim()).Should().NotContain("Gestionar");
     }
 
-    /// <summary>Un documento al día (Vigente o Sin caducidad) no lleva botón, ni siquiera con la Visita en riesgo (regla 8 y maqueta del 17-10).</summary>
+    /// <summary>
+    /// Un documento al día (Vigente o Sin caducidad) lleva «Gestionar» en tono secundario (regla de Chris, 2026-10-18, que
+    /// sustituye a «sin botón» de la regla 8 y la maqueta del 17-10), también con la Visita en riesgo.
+    /// </summary>
     [Theory]
     [InlineData(EstadoDocumento.Vigente, false)]
     [InlineData(EstadoDocumento.Vigente, true)]
     [InlineData(EstadoDocumento.SinCaducidad, false)]
-    public async Task Documento_al_dia_no_lleva_boton_aunque_se_pueda_escribir(EstadoDocumento estado, bool riesgoEnVisita)
+    public async Task Documento_al_dia_lleva_Gestionar_en_tono_secundario_si_se_puede_escribir(EstadoDocumento estado, bool riesgoEnVisita)
     {
         var cut = await RenderizarExpandidoAsync(estado, riesgoEnVisita: riesgoEnVisita);
-        cut.FindAll(".tabla-documentos-requeridos .columna-accion button").Should().BeEmpty();
+        var boton = cut.Find(".tabla-documentos-requeridos .columna-accion button");
+        boton.TextContent.Trim().Should().Be("Gestionar");
+        boton.ClassList.Should().Contain("accion-fila-enlace").And.Contain("gestionar-discreto").And.NotContain("accion-atenuada");
         cut.Find(".tabla-documentos-requeridos").TextContent.Should().Contain("Reconocimiento médico");
     }
 
     /// <summary>
-    /// Sin botón en la fila de un documento al día, el nombre del documento sigue siendo la vía para quien escribe: con la
-    /// Visita en riesgo (Vigente que caduca dentro de ella) abre la misma gestión que abría el botón.
+    /// El nombre del documento sigue siendo una vía más para quien escribe: con la Visita en riesgo (Vigente que caduca
+    /// dentro de ella) abre la misma gestión que «Gestionar».
     /// </summary>
     [Fact]
     public async Task El_nombre_del_documento_Vigente_con_riesgo_en_Visita_abre_la_gestion()
     {
         var cut = await RenderizarExpandidoAsync(EstadoDocumento.Vigente, riesgoEnVisita: true);
 
-        cut.FindAll(".tabla-documentos-requeridos .columna-accion button").Should().BeEmpty();
+        cut.FindAll(".tabla-documentos-requeridos .columna-accion button").Should().ContainSingle();
         var enlace = cut.Find(".tabla-documentos-requeridos .celda-documento-nombre button.enlace-nombre-fila");
         enlace.TextContent.Trim().Should().Be("Reconocimiento médico");
         await enlace.ClickAsync(new MouseEventArgs());
@@ -222,7 +227,8 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
         var cut = await RenderizarExpandidoAsync(estado);
         var boton = cut.Find(".tabla-documentos-requeridos .columna-accion button");
         boton.TextContent.Trim().Should().Be(accion);
-        boton.ClassList.Should().NotContain("accion-atenuada");
+        boton.ClassList.Should().NotContain("accion-atenuada")
+            .And.NotContain("gestionar-discreto", "solo el documento al día lleva el tono secundario; el resto, el normal");
         boton.HasAttribute("disabled").Should().BeFalse();
     }
 

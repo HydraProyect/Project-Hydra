@@ -171,7 +171,7 @@
                                                     @if (EstadoDocumentoFicha360.PideGestionar(documento.Estado))
                                                     {
                                                         <SoloConEscritura>
-                                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="@EstadoDocumentoFicha360.ClaseGestionar(documento.Estado, "accion-fila-enlace")"
                                                                    aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)"
                                                                    OnClick="() => EditarDocumentoAsync(documento)">@EstadoDocumentoFicha360.TextoAccion</Boton>
                                                         </SoloConEscritura>

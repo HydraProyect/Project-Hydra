@@ -308,7 +308,7 @@
 .mi-trabajo-chevron {
     display: flex;
     color: var(--color-text-muted);
-    transition: transform 0.15s ease;
+    transition: transform var(--motion-transition) var(--ease-fluid);
 }
 
 .mi-trabajo-chevron-plegado {
