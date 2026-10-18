@@ -195,7 +195,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private string _alias = string.Empty;
     private string _puesto = string.Empty;
     private string _tipoContratacion = nameof(CaeManager.Domain.Trabajadores.TipoContratacion.CuentaAjena);
-    private string _filtroActividad = string.Empty;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
@@ -263,6 +262,21 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// <summary>Centro elegido en el filtro (<c>?centro=</c>). Se compone con el empleador: no se excluyen.</summary>
     [SupplyParameterFromQuery(Name = "centro")]
     public string? CentroInicial { get; set; }
+
+    /// <summary>Agrupación de la URL (<c>?agrupar=empresa</c>): «Por Empresa» de la maqueta.</summary>
+    [SupplyParameterFromQuery(Name = "agrupar")]
+    public string? AgruparInicial { get; set; }
+
+    private const string ValorAgruparPorEmpresa = "empresa";
+
+    /// <summary>
+    /// Agrupada «Por Empresa», la consulta ordena por empleador (los de una misma Empresa, seguidos) y manda sobre el orden de columna,
+    /// que no se toca ni se escribe en la URL: al quitar la agrupación vuelve el orden de antes.
+    /// </summary>
+    private bool _agruparPorEmpresa;
+
+    private bool AgruparDesdeUrl() =>
+        string.Equals(AgruparInicial, ValorAgruparPorEmpresa, StringComparison.OrdinalIgnoreCase);
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosTrabajadores> Textos { get; set; } = default!;
@@ -444,9 +458,12 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
         var centroDeLaUrl = IdDesdeUrl(CentroInicial);
 
+        var agruparDeLaUrl = AgruparDesdeUrl();
+
         var cambiaronLosFiltros = deLaUrl != _busqueda || estadoDeLaUrl != _estadoFiltro
             || empresaDeLaUrl != _filtroEmpresaId || subcontrataDeLaUrl != _filtroSubcontrataId
-            || centroDeLaUrl != _filtroCentroId;
+            || centroDeLaUrl != _filtroCentroId || agruparDeLaUrl != _agruparPorEmpresa;
+        _agruparPorEmpresa = agruparDeLaUrl;
         _busqueda = deLaUrl;
         _estadoFiltro = estadoDeLaUrl;
         _filtroEmpresaId = empresaDeLaUrl;
@@ -498,9 +515,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         var anterior = _peticionActiva;
         _peticionActiva = cancelacion;
         anterior?.Cancel();
-        var ordenarPor = _orden.Propiedad;
-        var descendente = _orden.Direccion == SortDirection.Descending;
-        if (_orden.Anotar(ordenarPor, descendente))
+        var ordenarPor = _agruparPorEmpresa ? nameof(TrabajadorListaDto.EmpleadorNombre) : _orden.Propiedad;
+        var descendente = !_agruparPorEmpresa && _orden.Direccion == SortDirection.Descending;
+        if (!_agruparPorEmpresa && _orden.Anotar(ordenarPor, descendente))
             NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
         (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
         var consulta = new ObtenerTrabajadoresQuery(
@@ -515,8 +532,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             OrdenarPor: ordenarPor,
             Descendente: descendente,
             EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
-            ConRecuentosPorEstado: true,
-            VoluntarioInactivo: _filtroActividad switch { "inactivos" => true, "activos" => false, _ => null });
+            ConRecuentosPorEstado: true);
         var conservarSeleccion = consulta == _consultaQueConservaSeleccion;
         _consultaQueConservaSeleccion = null;
         _ultimaConsulta = consulta;
@@ -578,11 +594,67 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             nameof(TrabajadorListaDto.EmpleadorNombre) => "empleador",
             _ => "documentacion"
         };
-        var descendente = _orden.Propiedad == propiedad && _orden.Direccion != SortDirection.Descending;
+        var descendente = !_agruparPorEmpresa && _orden.Propiedad == propiedad && _orden.Direccion != SortDirection.Descending;
         _orden.Leer(clave + (descendente ? "-desc" : string.Empty));
-        NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
+        // Ordenar por una columna es dejar de agrupar: las dos cosas piden orden y la última pulsada manda. Una sola navegación.
+        _agruparPorEmpresa = false;
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["orden"] = _orden.EnUrl,
+            ["agrupar"] = null,
+        });
         await RecargarAsync();
     }
+
+    private async Task CambiarAgrupacionAsync(string? valor)
+    {
+        _agruparPorEmpresa = valor == ValorAgruparPorEmpresa;
+        NavigationManager.ActualizarFiltroEnUrl("agrupar", _agruparPorEmpresa ? ValorAgruparPorEmpresa : null);
+        await RecargarAsync();
+    }
+
+    private string ValorAgrupacion => _agruparPorEmpresa ? ValorAgruparPorEmpresa : string.Empty;
+
+    private IReadOnlyList<OpcionEstado> OpcionesAgrupacion =>
+        [new OpcionEstado(ValorAgruparPorEmpresa, Textos["AgruparPorEmpresa"].Value)];
+
+    /// <summary>
+    /// Las filas de la página con el título del grupo en la primera de cada uno cuando se agrupa «Por Empresa»
+    /// (el orden ya viene del servidor: los de un mismo empleador, seguidos). <c>Cantidad</c> es cuántas filas
+    /// tiene el grupo EN ESTA PÁGINA. Sin agrupar, ninguna fila lleva título.
+    /// </summary>
+    private IEnumerable<(TrabajadorListaDto Trabajador, string? Grupo, int Cantidad)> FilasConGrupo()
+    {
+        if (!_agruparPorEmpresa)
+        {
+            foreach (var trabajador in _elementosPagina)
+                yield return (trabajador, null, 0);
+            yield break;
+        }
+
+        var cantidades = _elementosPagina.GroupBy(t => t.EmpleadorNombre).ToDictionary(g => g.Key, g => g.Count());
+        string? anterior = null;
+        foreach (var trabajador in _elementosPagina)
+        {
+            var empiezaGrupo = anterior is null || trabajador.EmpleadorNombre != anterior;
+            anterior = trabajador.EmpleadorNombre;
+            yield return empiezaGrupo
+                ? (trabajador, trabajador.EmpleadorNombre, cantidades[trabajador.EmpleadorNombre])
+                : (trabajador, null, 0);
+        }
+    }
+
+    /// <summary>Hay alguna fila con documentos que piden trabajo: solo entonces «Expandir todo» tiene algo que abrir.</summary>
+    private bool HayFilasDesplegables => _elementosPagina.Any(t => t.Incidencias.Count > 0);
+
+    /// <summary>
+    /// El texto de vigencia de un documento de la fila desplegada, literal de la maqueta («Lista Trabajadores TALVEG»):
+    /// la fecha absoluta y nada de «hace N días» (ese plazo relativo ya lo dice el motivo de la fila de arriba).
+    /// «Desde el dd/MM/yyyy» si venció, «Caduca el dd/MM/yyyy» si está por vencer, la falta de fecha si está sin confirmar
+    /// y vacío en cualquier otro caso.
+    /// </summary>
+    private static string DetalleDelDocumento(CaeManager.Application.Documentos.IncidenciaDocumentalDto incidencia) =>
+        DetalleVigenciaDocumentoUi.DeTrabajador(incidencia);
 
     private bool TodosExpandidos => _elementosPagina.Any(t => t.Incidencias.Count > 0)
         && _elementosPagina.Where(t => t.Incidencias.Count > 0).All(EstaExpandido);
@@ -646,18 +718,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         await RecargarAsync();
     }
 
-    private IReadOnlyList<OpcionEstado> OpcionesFiltroActividad =>
-    [
-        new("activos", Textos["OpcionSinVoluntariosInactivos"].Value),
-        new("inactivos", Textos["OpcionSoloVoluntariosInactivos"].Value),
-    ];
-
-    private async Task FiltrarPorActividadAsync(string valor)
-    {
-        _filtroActividad = valor;
-        await RecargarAsync();
-    }
-
     private async Task FiltrarPorCentroAsync(string valor)
     {
         _filtroCentroId = IdDesdeUrl(valor);
@@ -712,7 +772,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private bool HayFiltrosActivos =>
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
         || !string.IsNullOrWhiteSpace(_filtroEmpresaId) || !string.IsNullOrWhiteSpace(_filtroSubcontrataId)
-        || !string.IsNullOrWhiteSpace(_filtroCentroId) || !string.IsNullOrWhiteSpace(_filtroActividad);
+        || !string.IsNullOrWhiteSpace(_filtroCentroId);
 
     // ── Corrección de una incidencia desde la subcaja del motivo ────────────────────────────────
 
@@ -826,7 +886,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _filtroEmpresaId = string.Empty;
         _filtroSubcontrataId = string.Empty;
         _filtroCentroId = string.Empty;
-        _filtroActividad = string.Empty;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = null,
@@ -1355,18 +1414,22 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// listados, fase 1, mismos tokens que Clientes empresariales, Empresas y Centros). El foco de
     /// teclado (j/k) se suma al tinte, no lo sustituye (list-page.css combina las dos clases).
     /// </summary>
-    private string ObtenerClaseFila(TrabajadorListaDto item)
+    private string ClaseTarjeta(TrabajadorListaDto item)
     {
+        // Mismo criterio que Empresas y la maqueta: rojo para lo que falta o vence, ámbar para lo que está por vencer o en
+        // tolerancia; «Sin confirmar» no tiñe.
         var tinte = EstadoDocumentoUi.ConFaltantes(item.EstadoDocumental, item.DocumentosFaltantes.Count > 0) switch
         {
-            EstadoDocumento.Faltante or EstadoDocumento.Vencido => "fila-tintada-peligro",
-            EstadoDocumento.Urgente => "fila-tintada-aviso",
-            _ => null
+            EstadoDocumento.Faltante or EstadoDocumento.Vencido => " fila-tintada-peligro",
+            EstadoDocumento.Urgente or EstadoDocumento.Proximo or EstadoDocumento.EnTolerancia => " fila-tintada-aviso",
+            _ => string.Empty
         };
-        var foco = item.Id == _idEnfocado ? "fila-enfocada" : null;
-        // «fila-pulsable»: el clic en la fila abre la vista rápida (atajos-lista.js).
-        return string.Join(' ', new[] { "fila-pulsable", foco, tinte }.Where(c => c is not null));
+        return "tarjeta-fila-acordeon" + (item.Id == _idEnfocado ? " fila-enfocada" : string.Empty) + tinte;
     }
+
+    /// <summary>La cabecera de columnas y cada fila comparten esta rejilla; con la selección múltiple entra una casilla delante.</summary>
+    private string ClaseRejilla(string claseBase) =>
+        $"{claseBase} rejilla-trabajadores" + (_seleccionMultiple ? " rejilla-trabajadores-seleccion" : string.Empty);
 
     private async Task ManejarAtajoAsync(string tecla)
     {
@@ -1456,7 +1519,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// no se recuerda. Los filtros guardados de esta pantalla son anteriores a la pieza compartida y
     /// conservan su propio JSON, sin el orden de columna.
     /// </summary>
-    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "empresa", "subcontrata", "centro", "orden"];
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "empresa", "subcontrata", "centro", "orden", "agrupar"];
 
     private readonly ConexionVistaRecordada _vistaRecordada = new();
 
@@ -1474,6 +1537,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _filtroEmpresaId = _filtroSubcontrataId.Length > 0 ? string.Empty : IdDesdeUrl(vista.GetValueOrDefault("empresa"));
         _filtroCentroId = IdDesdeUrl(vista.GetValueOrDefault("centro"));
         _orden.Leer(vista.GetValueOrDefault("orden"));
+        // Una agrupación desconocida se ignora como un estado que ya no existe.
+        _agruparPorEmpresa = vista.GetValueOrDefault("agrupar") == ValorAgruparPorEmpresa;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = _busqueda,
@@ -1482,6 +1547,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             ["subcontrata"] = _filtroSubcontrataId,
             ["centro"] = _filtroCentroId,
             ["orden"] = _orden.EnUrl,
+            ["agrupar"] = _agruparPorEmpresa ? ValorAgruparPorEmpresa : null,
         });
 
         await RecargarAsync();

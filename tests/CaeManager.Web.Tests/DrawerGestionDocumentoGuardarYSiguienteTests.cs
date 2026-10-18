@@ -229,16 +229,21 @@ public class DrawerGestionDocumentoGuardarYSiguienteTests : BunitContext
     }
 
     [Fact]
-    public async Task Una_fila_sin_problema_sigue_por_el_primero_de_la_serie()
+    public async Task Una_fila_fuera_de_la_serie_abre_solo_ese_documento_sin_encadenar_el_resto()
     {
         var cut = Renderizar();
-        var vigente = Documento("Dora Gil");
+        var fuera = Documento("Dora Gil");
         PasoSerieDocumento[] serie = [Documento("Ana Ruiz"), Documento("Blas Soto")];
-        await cut.InvokeAsync(() => cut.Instance.AbrirSerieAsync(serie, vigente));
+        await cut.InvokeAsync(() => cut.Instance.AbrirSerieAsync(serie, fuera));
 
-        await PulsarAsync(cut, "Guardar y siguiente");
+        cut.Markup.Should().Contain("Dora Gil");
+        BotonesDelPie(cut).Should().Equal(["Cancelar", "Guardar"], "fuera de la serie no hay «Guardar y siguiente»");
 
-        cut.Markup.Should().Contain("Ana Ruiz");
+        await PulsarAsync(cut, "Guardar");
+
+        Renovados.Should().Equal(fuera.DocumentoId!.Value);
+        EstaAbierto(cut).Should().BeFalse("no se encadena el resto de la serie");
+        cut.Markup.Should().NotContain("Ana Ruiz");
     }
 
     [Fact]

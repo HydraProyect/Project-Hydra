@@ -24,15 +24,38 @@ public class TrabajadorApiDtosTests
             "Nora", "Vidal", "12345678Z", new(1988, 3, 14), "nora@example.test", "Observación", "Nor",
             "+34600111222", "Electricista", Guid.NewGuid(), NumeroAfiliacionSeguridadSocial: "41123456789",
             Nacionalidad: "Colombiana", TipoVinculo: "Plantilla", FiguraEnRnt: "Sí",
-            TipoPermisoTrabajo: "Residencia y trabajo", MotivoPermisoTrabajo: "NIE");
+            TipoPermisoTrabajo: "Residencia y trabajo", MotivoPermisoTrabajo: "NIE",
+            // Una clave de API entra con rol Consulta, que en la aplicación sí lee la nota interna: la API no la publica.
+            Notas: "Nota interna del equipo", NotaInternaVisible: true,
+            // Lo mismo con el contacto de emergencia (decisión de Chris, 2026-10-18): dato personal que la API no publica.
+            ContactoEmergenciaNombre: "Luis Vidal (padre)", ContactoEmergenciaTelefono: "+34611223344",
+            ContactoEmergenciaVisible: true);
         var opciones = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-        JsonSerializer.Serialize(dto, opciones).Should().Contain("numeroAfiliacionSeguridadSocial");
+        JsonSerializer.Serialize(dto, opciones).Should().Contain("numeroAfiliacionSeguridadSocial").And.Contain("Nota interna del equipo")
+            .And.Contain("Luis Vidal (padre)").And.Contain("611223344", "el «+» sale escapado en el JSON");
+        JsonSerializer.Serialize(TrabajadorApiDetalleDto.DesdeInterno(dto), opciones)
+            .Should().NotContain("Nota interna del equipo").And.NotContainEquivalentOf("notaInterna")
+            .And.NotContain("Luis Vidal").And.NotContain("611223344").And.NotContainEquivalentOf("emergencia");
         using var json = JsonDocument.Parse(JsonSerializer.Serialize(TrabajadorApiDetalleDto.DesdeInterno(dto), opciones));
         json.RootElement.EnumerateObject().Select(p => p.Name).Should().Equal(
             "id", "empresaId", "subcontrataId", "empleadorNombre", "nombre", "apellidos", "dni",
             "fechaNacimiento", "email", "observaciones", "alias", "telefono", "puesto", "version");
         json.RootElement.GetProperty("nombre").GetString().Should().Be(dto.Nombre);
         json.RootElement.GetProperty("version").GetGuid().Should().Be(dto.Version);
+    }
+
+    /// <summary>
+    /// El contacto de emergencia solo vive en el detalle interno (<see cref="TrabajadorDetalleDto"/>): ni la fila del
+    /// listado, ni la fila de la exportación, ni las proyecciones de la API v1 tienen dónde llevarlo.
+    /// </summary>
+    [Fact]
+    public void Ni_listados_ni_exportacion_ni_API_tienen_el_contacto_de_emergencia()
+    {
+        typeof(TrabajadorDetalleDto).GetProperties().Select(p => p.Name)
+            .Should().Contain(nameof(TrabajadorDetalleDto.ContactoEmergenciaNombre), "control positivo del instrumento");
+        foreach (var tipo in new[] { typeof(TrabajadorListaDto), typeof(CaeManager.Web.Features.Trabajadores.FilaExportacionTrabajador),
+                     typeof(TrabajadorApiListaDto), typeof(TrabajadorApiDetalleDto) })
+            tipo.GetProperties().Select(p => p.Name).Should().NotContain(n => n.Contains("Emergencia"), tipo.Name);
     }
 
     private static readonly string[] CamposPublicos = ["id", "nombre", "apellidos", "dni", "empleadorNombre", "estadoDocumental"];

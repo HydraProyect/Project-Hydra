@@ -21,7 +21,16 @@ namespace CaeManager.Application.Documentos;
 /// </param>
 public sealed record IncidenciaDocumentalDto(
     Guid DocumentoId, Guid TipoDocumentoId, string TipoDocumentoNombre, EstadoDocumento Estado,
-    DateOnly? FechaVencimiento);
+    DateOnly? FechaVencimiento)
+{
+    /// <summary>
+    /// ¿Es el Tipo «Contrato de trabajo» del catálogo? Su «sin confirmar» pide la fecha de FIN del contrato y no un
+    /// «vencimiento» (maqueta de Trabajadores). Se reconoce por el nombre del catálogo porque el Tipo no lleva
+    /// clave estable: es deuda conocida, no una regla de dominio.
+    /// </summary>
+    public bool EsContratoDeTrabajo =>
+        string.Equals(TipoDocumentoNombre?.Trim(), "Contrato de trabajo", StringComparison.OrdinalIgnoreCase);
+}
 
 /// <summary>
 /// Desglose documental de un propietario para la fila de un listado: sus incidencias, de la más grave a la

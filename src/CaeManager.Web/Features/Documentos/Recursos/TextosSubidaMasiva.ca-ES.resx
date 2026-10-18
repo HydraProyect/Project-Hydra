@@ -13,21 +13,372 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="IndicacionLimites" xml:space="preserve">
-    <value>PDF · JPG · PNG · DOCX · ZIP — hasta {0} archivos, {1} MB cada uno</value>
+    <value>PDF · JPG · PNG · DOCX · ZIP — fins a {0} fitxers, {1} MB cada un</value>
   </data>
   <data name="ArchivoSuperaLimite" xml:space="preserve">
-    <value>«{0}» supera el límite de {1} MB por archivo y no se ha subido.</value>
+    <value>«{0}» supera el límit de {1} MB per fitxer i no s'ha pujat.</value>
   </data>
   <data name="SalirTitulo" xml:space="preserve">
-    <value>¿Salir sin terminar el lote?</value>
+    <value>Sortir sense acabar el lot?</value>
   </data>
   <data name="SalirMensaje" xml:space="preserve">
-    <value>{0} archivo(s) siguen sin confirmar o leyéndose. Nada se ha guardado todavía: si sales, se pierden y tendrás que volver a subirlos.</value>
+    <value>{0} fitxer(s) continuen sense confirmar o llegint-se. Encara no s'ha desat res: si surts, es perden i hauràs de tornar a pujar-los.</value>
   </data>
   <data name="SalirSeguir" xml:space="preserve">
-    <value>Seguir con el lote</value>
+    <value>Continuar amb el lot</value>
   </data>
   <data name="SalirDescartar" xml:space="preserve">
-    <value>Salir y descartar</value>
+    <value>Sortir i descartar</value>
+  </data>
+  <data name="TituloPestana" xml:space="preserve">
+    <value>Pujada múltiple</value>
+  </data>
+  <data name="MigaDocumentos" xml:space="preserve">
+    <value>Documents</value>
+  </data>
+  <data name="MigaSubida" xml:space="preserve">
+    <value>Pujada múltiple</value>
+  </data>
+  <data name="MigaEtiqueta" xml:space="preserve">
+    <value>Fil d'Ariadna</value>
+  </data>
+  <data name="Titulo" xml:space="preserve">
+    <value>Pujada múltiple de documents</value>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Cicle documental</value>
+  </data>
+  <data name="Descripcion" xml:space="preserve">
+    <value>Arrossega o selecciona diversos fitxers (PDF, JPG, PNG, Word) o un únic .zip amb diversos a dins. Només documents de Treballador. La IA proposa el treballador, el tipus i les dates que llegeix de cada fitxer; el document no existeix fins que tu confirmes o corregeixes cada un.</value>
+  </data>
+  <data name="EnlaceImportar" xml:space="preserve">
+    <value>Importar des d'Excel</value>
+  </data>
+  <data name="EnlaceRevisionIa" xml:space="preserve">
+    <value>Revisió IA →</value>
+  </data>
+  <data name="SoloLecturaTitulo" xml:space="preserve">
+    <value>Només lectura</value>
+  </data>
+  <data name="SoloLecturaDescripcion" xml:space="preserve">
+    <value>El teu rol de Consulta permet veure aquest flux, però no crear documents des d'aquí.</value>
+  </data>
+  <data name="ZonaEtiqueta" xml:space="preserve">
+    <value>Seleccionar fitxers</value>
+  </data>
+  <data name="ZonaTitulo" xml:space="preserve">
+    <value>Arrossega aquí els documents de treballador</value>
+  </data>
+  <data name="ZonaFormatos" xml:space="preserve">
+    <value>PDF · JPG · PNG · DOCX · ZIP</value>
+  </data>
+  <data name="ZonaAviso" xml:space="preserve">
+    <value>No es desa res fins que confirmes cada fitxer.</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No hem pogut carregar la pujada</value>
+  </data>
+  <data name="ErrorCargaDescripcion" xml:space="preserve">
+    <value>Torna-ho a provar d'aquí a uns segons.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="ErrorLoteCantidad" xml:space="preserve">
+    <value>El lot supera el màxim de {0} fitxers per pujada</value>
+  </data>
+  <data name="ErrorLoteDetalleCantidad" xml:space="preserve">
+    <value>No s'ha desat cap fitxer d'aquest lot. Deixa anar menys fitxers cada vegada.</value>
+  </data>
+  <data name="VolverAIntentarlo" xml:space="preserve">
+    <value>Tornar-ho a provar</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Encara no has deixat anar cap fitxer</value>
+  </data>
+  <data name="VacioDescripcion" xml:space="preserve">
+    <value>Quan deixis anar el primer apareixerà aquí la llista amb el seu estat.</value>
+  </data>
+  <data name="ProgresoEtiqueta" xml:space="preserve">
+    <value>Progrés del lot</value>
+  </data>
+  <data name="ProgresoTitulo" xml:space="preserve">
+    <value>{0} de {1} fitxers llegits</value>
+  </data>
+  <data name="ContadorCreados" xml:space="preserve">
+    <value>{0} creats</value>
+  </data>
+  <data name="ContadorPorConfirmar" xml:space="preserve">
+    <value>{0} per confirmar</value>
+  </data>
+  <data name="ContadorDescartados" xml:space="preserve">
+    <value>{0} descartats</value>
+  </data>
+  <data name="ContadorErrores" xml:space="preserve">
+    <value>{0} amb error</value>
+  </data>
+  <data name="ContadorCreadosAyuda" xml:space="preserve">
+    <value>{0} de {1} fitxers ja creats després de la teva confirmació</value>
+  </data>
+  <data name="ContadorPorConfirmarAyuda" xml:space="preserve">
+    <value>{0} de {1} fitxers esperen que confirmis treballador, tipus i dates</value>
+  </data>
+  <data name="ContadorDescartadosAyuda" xml:space="preserve">
+    <value>{0} de {1} fitxers descartats, no es van desar</value>
+  </data>
+  <data name="ContadorErroresAyuda" xml:space="preserve">
+    <value>{0} de {1} fitxers amb error, no es van desar</value>
+  </data>
+  <data name="LimpiarResueltos" xml:space="preserve">
+    <value>Netejar creats i descartats</value>
+  </data>
+  <data name="SoloPropone" xml:space="preserve">
+    <value>La IA només proposa: cap document es crea sense que confirmis aquest fitxer.</value>
+  </data>
+  <data name="EnCurso" xml:space="preserve">
+    <value>{0} en curs — pots confirmar els ja llegits mentrestant</value>
+  </data>
+  <data name="LoteTerminado" xml:space="preserve">
+    <value>Lot acabat</value>
+  </data>
+  <data name="PanelEtiqueta" xml:space="preserve">
+    <value>Fitxers del lot</value>
+  </data>
+  <data name="FiltroTodos" xml:space="preserve">
+    <value>Tots</value>
+  </data>
+  <data name="FiltroPendientes" xml:space="preserve">
+    <value>Ambigus</value>
+  </data>
+  <data name="FiltroErrores" xml:space="preserve">
+    <value>Errors</value>
+  </data>
+  <data name="FiltroCreados" xml:space="preserve">
+    <value>Creats</value>
+  </data>
+  <data name="FiltroVacioTitulo" xml:space="preserve">
+    <value>Cap fitxer amb aquest filtre</value>
+  </data>
+  <data name="FiltroVacioDescripcion" xml:space="preserve">
+    <value>El lot té fitxers, però cap en aquest estat.</value>
+  </data>
+  <data name="VerTodos" xml:space="preserve">
+    <value>Veure tots</value>
+  </data>
+  <data name="EstadoCola" xml:space="preserve">
+    <value>En cua</value>
+  </data>
+  <data name="EstadoSubiendo" xml:space="preserve">
+    <value>Pujant…</value>
+  </data>
+  <data name="EstadoLeyendo" xml:space="preserve">
+    <value>Llegint…</value>
+  </data>
+  <data name="EstadoPendiente" xml:space="preserve">
+    <value>Pendent de confirmar</value>
+  </data>
+  <data name="EstadoCreado" xml:space="preserve">
+    <value>Creat després de confirmar</value>
+  </data>
+  <data name="EstadoDescartado" xml:space="preserve">
+    <value>Descartat</value>
+  </data>
+  <data name="EstadoError" xml:space="preserve">
+    <value>Error</value>
+  </data>
+  <data name="DetalleCola" xml:space="preserve">
+    <value>A l'espera que acabi l'anterior</value>
+  </data>
+  <data name="DetalleSubiendo" xml:space="preserve">
+    <value>Pujant al servidor</value>
+  </data>
+  <data name="DetalleLeyendo" xml:space="preserve">
+    <value>Convertint a PDF i llegint…</value>
+  </data>
+  <data name="DetalleOrigen" xml:space="preserve">
+    <value>Va sortir de {0}</value>
+  </data>
+  <data name="Confianza" xml:space="preserve">
+    <value>{0} % de confiança IA</value>
+  </data>
+  <data name="MiniaturaAlt" xml:space="preserve">
+    <value>Miniatura del fitxer {0}</value>
+  </data>
+  <data name="BarraSubida" xml:space="preserve">
+    <value>Pujada de {0}</value>
+  </data>
+  <data name="BarraLectura" xml:space="preserve">
+    <value>Llegint {0}</value>
+  </data>
+  <data name="BytesSubidos" xml:space="preserve">
+    <value>{0} de {1} MB</value>
+  </data>
+  <data name="SubidoLeyendo" xml:space="preserve">
+    <value>100 % pujat · llegint amb IA</value>
+  </data>
+  <data name="PropuestaSinDatos" xml:space="preserve">
+    <value>La IA no ha proposat dades per a aquest fitxer: indica-les tu.</value>
+  </data>
+  <data name="PropuestaIntacta" xml:space="preserve">
+    <value>Proposta de la IA</value>
+  </data>
+  <data name="PropuestaCorregida" xml:space="preserve">
+    <value>Proposta de la IA amb les teves correccions</value>
+  </data>
+  <data name="PropuestaResumen" xml:space="preserve">
+    <value>{0} — treballador: {1} · tipus: {2} · emissió: {3}</value>
+  </data>
+  <data name="PropuestaVencimiento" xml:space="preserve">
+    <value> · venciment: {0}</value>
+  </data>
+  <data name="SinDeterminar" xml:space="preserve">
+    <value>sense determinar</value>
+  </data>
+  <data name="SinLeer" xml:space="preserve">
+    <value>sense llegir al fitxer</value>
+  </data>
+  <data name="SinIndicar" xml:space="preserve">
+    <value>sense indicar</value>
+  </data>
+  <data name="Gestionar" xml:space="preserve">
+    <value>Gestionar</value>
+  </data>
+  <data name="QuitarDeLaLista" xml:space="preserve">
+    <value>Treure de la llista</value>
+  </data>
+  <data name="Descartar" xml:space="preserve">
+    <value>Descartar</value>
+  </data>
+  <data name="VistaPreviaTitulo" xml:space="preserve">
+    <value>Vista prèvia de {0}</value>
+  </data>
+  <data name="VistaPreviaPie" xml:space="preserve">
+    <value>Vista prèvia del PDF convertit, encara sense desar</value>
+  </data>
+  <data name="Trabajador" xml:space="preserve">
+    <value>Treballador</value>
+  </data>
+  <data name="TrabajadorMarcador" xml:space="preserve">
+    <value>Escriu un nom o àlies per cercar…</value>
+  </data>
+  <data name="TrabajadorFalta" xml:space="preserve">
+    <value>Selecciona un treballador abans de confirmar.</value>
+  </data>
+  <data name="TrabajadorPropuesto" xml:space="preserve">
+    <value>Proposat per la IA amb el DNI llegit al document</value>
+  </data>
+  <data name="TipoDocumento" xml:space="preserve">
+    <value>Tipus de document</value>
+  </data>
+  <data name="TipoDocumentoMarcador" xml:space="preserve">
+    <value>Selecciona un tipus de document…</value>
+  </data>
+  <data name="TipoDocumentoAyuda" xml:space="preserve">
+    <value>Només tipus d'àmbit Treballador.</value>
+  </data>
+  <data name="FechaEmision" xml:space="preserve">
+    <value>Data d'emissió</value>
+  </data>
+  <data name="FechaEmisionLeida" xml:space="preserve">
+    <value>Llegida del fitxer per la IA: compara-la amb el PDF abans de confirmar.</value>
+  </data>
+  <data name="FechaEmisionNoLeida" xml:space="preserve">
+    <value>La IA no ha llegit cap data d'emissió al fitxer: indica-la tu.</value>
+  </data>
+  <data name="Vencimiento" xml:space="preserve">
+    <value>Venciment</value>
+  </data>
+  <data name="VencimientoAyuda" xml:space="preserve">
+    <value>Es calcula amb la vigència del tipus. El camp de data de venciment només apareix si el tipus no calcula vigència automàtica.</value>
+  </data>
+  <data name="VencimientoCalculado" xml:space="preserve">
+    <value>{0} (emissió + {1} mesos)</value>
+  </data>
+  <data name="VencimientoSinVigencia" xml:space="preserve">
+    <value>Sense venciment</value>
+  </data>
+  <data name="VencimientoDependeDelTipo" xml:space="preserve">
+    <value>Depèn del tipus que triïs</value>
+  </data>
+  <data name="VencimientoSinEmision" xml:space="preserve">
+    <value>Depèn de la data d'emissió</value>
+  </data>
+  <data name="FechaVencimiento" xml:space="preserve">
+    <value>Data de venciment</value>
+  </data>
+  <data name="VencimientoPropuesto" xml:space="preserve">
+    <value>Proposada per la IA; pot haver-la calculada a partir de la vigència del document en lloc de llegir-la. Compara-la amb el PDF abans de confirmar.</value>
+  </data>
+  <data name="ConfirmarYCrear" xml:space="preserve">
+    <value>Confirmar i crear</value>
+  </data>
+  <data name="CerrarSinConfirmar" xml:space="preserve">
+    <value>Tancar sense confirmar</value>
+  </data>
+  <data name="ConfirmarAviso" xml:space="preserve">
+    <value>Confirmar aquest fitxer no toca els altres.</value>
+  </data>
+  <data name="DescartarTitulo" xml:space="preserve">
+    <value>Descartar aquest fitxer</value>
+  </data>
+  <data name="DescartarMensaje" xml:space="preserve">
+    <value>S'allibera de la memòria i no arriba a desar-se. Caldria tornar a deixar-lo anar per recuperar-lo. La resta del lot continua igual.</value>
+  </data>
+  <data name="Cancelar" xml:space="preserve">
+    <value>Cancel·lar</value>
+  </data>
+  <data name="CargandoLote" xml:space="preserve">
+    <value>Convertint a PDF i llegint cada fitxer…</value>
+  </data>
+  <data name="ProcesandoLote" xml:space="preserve">
+    <value>Processant el lot</value>
+  </data>
+  <data name="ToastCreado" xml:space="preserve">
+    <value>Document creat a partir de {0}.</value>
+  </data>
+  <data name="ToastDescartado" xml:space="preserve">
+    <value>Fitxer descartat. La resta del lot continua igual.</value>
+  </data>
+  <data name="ToastQuitado" xml:space="preserve">
+    <value>Fitxer tret de la llista.</value>
+  </data>
+  <data name="ToastLimpiado" xml:space="preserve">
+    <value>Creats i descartats fora de la llista.</value>
+  </data>
+  <data name="FaltaTipo" xml:space="preserve">
+    <value>Selecciona un tipus de document abans de confirmar.</value>
+  </data>
+  <data name="FaltaFecha" xml:space="preserve">
+    <value>Indica la data d'emissió abans de confirmar.</value>
+  </data>
+  <data name="FechaFutura" xml:space="preserve">
+    <value>La data d'emissió no pot ser futura.</value>
+  </data>
+  <data name="ErrorGuardar" xml:space="preserve">
+    <value>No hem pogut desar aquest document. Torna-ho a provar.</value>
+  </data>
+  <data name="ErrorConsulta" xml:space="preserve">
+    <value>El teu rol de Consulta no permet crear documents.</value>
+  </data>
+  <data name="ErrorSinArchivo" xml:space="preserve">
+    <value>No hi ha cap fitxer per desar.</value>
+  </data>
+  <data name="ErrorFormato" xml:space="preserve">
+    <value>No és un PDF, JPG, PNG ni Word (.docx) — s'ha omès.</value>
+  </data>
+  <data name="ErrorContenido" xml:space="preserve">
+    <value>El contingut real no coincideix amb l'extensió — s'ha omès.</value>
+  </data>
+  <data name="ErrorConvertir" xml:space="preserve">
+    <value>No hem pogut convertir aquest fitxer a PDF.</value>
+  </data>
+  <data name="ErrorZipInvalido" xml:space="preserve">
+    <value>El fitxer no és realment un .zip vàlid.</value>
+  </data>
+  <data name="ErrorZipIlegible" xml:space="preserve">
+    <value>No hem pogut obrir aquest fitxer .zip.</value>
+  </data>
+  <data name="ErrorSubida" xml:space="preserve">
+    <value>No hem pogut pujar aquest fitxer.</value>
   </data>
 </root>

@@ -32,6 +32,7 @@ public class ConfirmarPlantillaDocumentoVersionCommandHandler(
     ICurrentUserService usuarioActual,
     IFileStorageService almacenamiento,
     IExtractorCamposAcroFormService extractorAcroForm,
+    IAlcanceDatosService alcanceDatos,
     IUnitOfWork unitOfWork)
     : IRequestHandler<ConfirmarPlantillaDocumentoVersionCommand, Result>
 {
@@ -39,7 +40,14 @@ public class ConfirmarPlantillaDocumentoVersionCommandHandler(
     {
         var version = await versionRepositorio.ObtenerPorIdAsync(request.PlantillaDocumentoVersionId, cancellationToken);
         if (version is null)
-            return Result.Fallo(Error.Crear("Plantilla.VersionNoEncontrada", "No encontramos esta versión de plantilla."));
+            return VersionNoEncontrada();
+
+        // Asignación de Cartera, antes que cualquier otra comprobación para no delatar el estado de la
+        // versión: una plantilla atada a un Centro o a un Cliente empresarial fuera del alcance responde
+        // igual que una versión que no existe (ver AlcanceDePlantillas).
+        var documento = await documentoRepositorio.ObtenerPorIdAsync(version.PlantillaDocumentoId, cancellationToken);
+        if (documento is not null && !await alcanceDatos.PlantillaDentroDeAlcanceAsync(documento, cancellationToken))
+            return VersionNoEncontrada();
 
         if (version.EstadoConfiguracion == EstadoConfiguracionPlantilla.Confirmada)
             return Result.Fallo(Error.Crear("Plantilla.VersionYaConfirmada", "Esta versión ya está confirmada."));
@@ -52,7 +60,6 @@ public class ConfirmarPlantillaDocumentoVersionCommandHandler(
         if (usuarioId is not { } idUsuario)
             return Result.Fallo(Error.Crear("Plantilla.SinUsuarioActual", "No pudimos identificar quién confirma esta plantilla."));
 
-        var documento = await documentoRepositorio.ObtenerPorIdAsync(version.PlantillaDocumentoId, cancellationToken);
         if (documento is null)
             return Result.Fallo(Error.Crear("Plantilla.NoEncontrada", "No encontramos la plantilla de esta versión."));
 
@@ -69,6 +76,9 @@ public class ConfirmarPlantillaDocumentoVersionCommandHandler(
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();
     }
+
+    private static Result VersionNoEncontrada() =>
+        Result.Fallo(Error.Crear("Plantilla.VersionNoEncontrada", "No encontramos esta versión de plantilla."));
 
     /// <summary>
     /// Cotejo por nombre de campo (no por página/posición: para

@@ -91,8 +91,11 @@ public class CaeManagerDbContext(
         CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext,
         CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext,
         IDesenganchadorDeEntidadesRastreadas,
-        IDescarteCambiosPendientes
+        IDescarteCambiosPendientes, CaeManager.Application.Dashboard.ICierresCuadroDireccion
 {
+    public DbSet<CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario> CierresMensualesTenantBeneficiario => Set<CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario>();
+    IQueryable<CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario> CaeManager.Application.Dashboard.ICierresCuadroDireccion.CierresMensuales => CierresMensualesTenantBeneficiario;
+    void CaeManager.Application.Dashboard.ICierresCuadroDireccion.Agregar(CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario cierre) => CierresMensualesTenantBeneficiario.Add(cierre);
     void IDesenganchadorDeEntidadesRastreadas.Desenganchar<TEntidad>(TEntidad entidad) =>
         Entry(entidad).State = EntityState.Detached;
 
@@ -104,6 +107,11 @@ public class CaeManagerDbContext(
         dataProtectionProvider.CreateProtector("CaeManager.CredencialAccesoEmpresa.Credenciales.v1");
     private readonly IDataProtector _protectorCredencialesSubcontrata =
         dataProtectionProvider.CreateProtector("CaeManager.CredencialAccesoSubcontrata.Credenciales.v1");
+    // Protector propio para los accesos de cada Empresa a la Plataforma CAE de un Cliente
+    // empresarial (caja «Plataforma CAE» de Cliente 360): un compromiso de otro protector de
+    // credenciales no abre estos, y viceversa.
+    private readonly IDataProtector _protectorAccesosPlataformaCae =
+        dataProtectionProvider.CreateProtector("CaeManager.AccesoPlataformaCaeEmpresa.Credenciales.v1");
     private readonly IDataProtector _protectorCredencialesIntegracion =
         dataProtectionProvider.CreateProtector("CaeManager.CredencialIntegracion.Credenciales.v1");
     // Protector propio, separado del de credenciales (auditoría módulo 6):
@@ -152,6 +160,10 @@ public class CaeManagerDbContext(
     IQueryable<Empresa> IEmpresasQueryContext.Empresas => Empresas;
     public DbSet<CredencialAccesoEmpresa> CredencialesAccesoEmpresa => Set<CredencialAccesoEmpresa>();
     IQueryable<CredencialAccesoEmpresa> IEmpresasQueryContext.CredencialesAccesoEmpresa => CredencialesAccesoEmpresa;
+    public DbSet<PlataformaCaeClienteEmpresarial> PlataformasCaeClienteEmpresarial => Set<PlataformaCaeClienteEmpresarial>();
+    IQueryable<PlataformaCaeClienteEmpresarial> IEmpresasQueryContext.PlataformasCaeClienteEmpresarial => PlataformasCaeClienteEmpresarial;
+    public DbSet<AccesoPlataformaCaeEmpresa> AccesosPlataformaCaeEmpresa => Set<AccesoPlataformaCaeEmpresa>();
+    IQueryable<AccesoPlataformaCaeEmpresa> IEmpresasQueryContext.AccesosPlataformaCaeEmpresa => AccesosPlataformaCaeEmpresa;
     public DbSet<CredencialAccesoSubcontrata> CredencialesAccesoSubcontrata => Set<CredencialAccesoSubcontrata>();
     IQueryable<CredencialAccesoSubcontrata> ISubcontratasQueryContext.CredencialesAccesoSubcontrata => CredencialesAccesoSubcontrata;
     public DbSet<VerificacionExternaSubcontrata> VerificacionesExternaSubcontrata => Set<VerificacionExternaSubcontrata>();
@@ -343,8 +355,11 @@ public class CaeManagerDbContext(
     public DbSet<CambioEstadoConversacion> CambiosEstadoConversacion => Set<CambioEstadoConversacion>();
     public DbSet<EventoConversacion> EventosConversacion => Set<EventoConversacion>();
     IQueryable<EventoConversacion> IComunicacionesQueryContext.EventosConversacion => EventosConversacion;
+    public DbSet<AlertaCriticaConversacion> AlertasCriticasConversacion => Set<AlertaCriticaConversacion>();
     public DbSet<NotaInternaConversacion> NotasInternasConversacion => Set<NotaInternaConversacion>();
     IQueryable<NotaInternaConversacion> IComunicacionesQueryContext.NotasInternasConversacion => NotasInternasConversacion;
+    public DbSet<PropuestaRecordatorioConversacion> PropuestasRecordatorioConversacion => Set<PropuestaRecordatorioConversacion>();
+    IQueryable<PropuestaRecordatorioConversacion> IComunicacionesQueryContext.PropuestasRecordatorioConversacion => PropuestasRecordatorioConversacion;
     public DbSet<TareaAsistente> TareasAsistente => Set<TareaAsistente>();
     IQueryable<TareaAsistente> CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext.TareasAsistente => TareasAsistente;
     public DbSet<TurnoTareaAsistente> TurnosTareaAsistente => Set<TurnoTareaAsistente>();
@@ -353,6 +368,8 @@ public class CaeManagerDbContext(
     IQueryable<PasoTareaAsistente> CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext.PasosTareaAsistente => PasosTareaAsistente;
     public DbSet<ClasificacionRuidoMensaje> ClasificacionesRuidoMensaje => Set<ClasificacionRuidoMensaje>();
     IQueryable<ClasificacionRuidoMensaje> IComunicacionesQueryContext.ClasificacionesRuidoMensaje => ClasificacionesRuidoMensaje;
+    public DbSet<IntencionConversacion> IntencionesConversacion => Set<IntencionConversacion>();
+    IQueryable<IntencionConversacion> IComunicacionesQueryContext.IntencionesConversacion => IntencionesConversacion;
     public DbSet<ClasificacionRelevanciaCae> ClasificacionesRelevanciaCae => Set<ClasificacionRelevanciaCae>();
     IQueryable<ClasificacionRelevanciaCae> IComunicacionesQueryContext.ClasificacionesRelevanciaCae => ClasificacionesRelevanciaCae;
     public DbSet<Gestion> Gestiones => Set<Gestion>();
@@ -416,6 +433,13 @@ public class CaeManagerDbContext(
 
         builder.Entity<CredencialAccesoEmpresa>().Property(c => c.Usuario).HasConversion(conversorCredencialesEmpresa);
         builder.Entity<CredencialAccesoEmpresa>().Property(c => c.Contrasena).HasConversion(conversorCredencialesEmpresa);
+
+        var conversorAccesosPlataformaCae = new ValueConverter<string?, string?>(
+            valorPlano => valorPlano == null ? null : _protectorAccesosPlataformaCae.Protect(valorPlano),
+            valorCifrado => valorCifrado == null ? null : _protectorAccesosPlataformaCae.Unprotect(valorCifrado));
+
+        builder.Entity<AccesoPlataformaCaeEmpresa>().Property(a => a.Usuario).HasConversion(conversorAccesosPlataformaCae);
+        builder.Entity<AccesoPlataformaCaeEmpresa>().Property(a => a.Contrasena).HasConversion(conversorAccesosPlataformaCae);
 
         var conversorCredencialesSubcontrata = new ValueConverter<string?, string?>(
             valorPlano => valorPlano == null ? null : _protectorCredencialesSubcontrata.Protect(valorPlano),

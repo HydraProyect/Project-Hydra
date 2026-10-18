@@ -58,6 +58,11 @@
     white-space: nowrap;
 }
 
+/* El nombre del principal, en <strong>, pesa 600 (el 700 por defecto de <strong> no es el de Design). */
+strong.cabecera-gestor-cae-nombre {
+    font-weight: 600;
+}
+
 .cabecera-gestor-cae-persona ::deep .avatar-usuario {
     flex: none;
 }
@@ -69,12 +74,33 @@
     white-space: nowrap;
 }
 
-/* Un aviso largo («Otra Asignación de Operación, sin principal») también cede antes de desbordar. */
-.cabecera-gestor-cae-aviso {
+/* «Sin principal» y «Otra Asignación de Operación, sin principal»: pastilla de aviso (ámbar), para que no
+   se lea como un dato más. Punto de aviso + texto: el color no es el único portador (02 § 8). Un aviso
+   largo también cede antes de desbordar. */
+.cabecera-gestor-cae-pastilla-aviso {
+    display: inline-flex;
+    align-items: center;
     flex: 0 1 auto;
+    gap: var(--space-2);
     min-width: 0;
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-full);
+    background-color: var(--color-warning-50);
+    color: var(--color-warning-700);
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1rem;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cabecera-gestor-cae-punto-aviso {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-warning-500);
 }
 
 .cabecera-gestor-cae-pastilla {
@@ -87,19 +113,354 @@
     white-space: nowrap;
 }
 
+/* Pastilla «Principal» de 18 px (revisión de Design: padding 1/8, sin borde, 700 12/16): con el borde de 1 px de la
+   pastilla de apoyo medía 20. */
 .cabecera-gestor-cae-principal {
-    border-color: transparent;
+    border: 0;
     background-color: var(--color-primary-50);
     color: var(--color-primary-700);
-    font-weight: 700;
+    font: 700 0.75rem/1rem var(--font-family);
 }
 
-/* «+N»: las personas que no caben en la línea. Abre la ventana con la cartera entera. */
+/* «+N»: las personas que no caben en la línea. Es un botón de verdad (el disparador de VentanaContexto
+   interactiva): borde de control (3:1), hover, foco visible (el de VentanaContexto) y aria-expanded, que
+   mantiene ventana-contexto.js. Abre la ventana con la cartera entera. */
 .cabecera-gestor-cae-mas {
-    cursor: default;
     font-variant-numeric: tabular-nums;
 }
 
 .cabecera-gestor-cae ::deep .ventana-contexto {
     flex: none;
+}
+
+.cabecera-gestor-cae ::deep .ventana-contexto-disparador {
+    height: 26px;
+    padding: 0 10px;
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-full);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1rem;
+    cursor: pointer;
+}
+
+.cabecera-gestor-cae ::deep .ventana-contexto-disparador:hover,
+.cabecera-gestor-cae ::deep .ventana-contexto-disparador[aria-expanded="true"] {
+    border-color: var(--color-primary-500);
+    background-color: var(--color-surface-hover);
+}
+
+/* El número de personas fuera de la línea depende del ancho: en escritorio cuenta las que no caben junto
+   al título (hay dos a la vista) y en móvil las que hay además de la primera. */
+.cabecera-gestor-cae-mas-movil {
+    display: none;
+}
+
+/* Con exactamente dos personas no hay nada que agrupar en escritorio: el botón solo existe en móvil. */
+.cabecera-gestor-cae ::deep .cabecera-gestor-cae-mas-solo-movil {
+    display: none;
+}
+
+/* ---- Ventana «+N» ---- */
+
+/* Valores literales de la revisión de Design (Revision Interfaz sin Maqueta, §C, ventana de escritorio): el panel no
+   lleva relleno propio (VentanaContexto, interactiva), así que el título, los rótulos «PRINCIPAL»/«APOYO», las filas
+   y el pie llevan cada uno sus 16 px laterales. En la hoja de móvil, el panel ya pone esos 16 px y aquí valen 0. */
+.cabecera-gestor-cae-seccion {
+    display: block;
+    padding: 0 16px 4px;
+    color: var(--color-text-muted);
+    font: 600 11px/16px var(--font-family);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+/* El rótulo que sigue a una fila (Apoyo tras Principal) se separa con una raya. */
+.cabecera-gestor-cae-fila + .cabecera-gestor-cae-seccion {
+    margin-top: 4px;
+    padding-top: 10px;
+    border-top: 1px solid var(--color-border);
+}
+
+/* Fila de 40 px: avatar de 24 + 8 arriba y 8 abajo, hueco de 10 entre avatar, nombre y rótulo. */
+.cabecera-gestor-cae-fila {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 8px 16px;
+}
+
+.cabecera-gestor-cae-fila-operador {
+    display: block;
+}
+
+/* Nombre: regular en los de apoyo y 600 en el principal (<strong>), con puntos suspensivos. */
+.cabecera-gestor-cae-fila-nombre {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: var(--font-body-md);
+}
+
+strong.cabecera-gestor-cae-fila-nombre {
+    font-weight: 600;
+}
+
+/* El rótulo va alineado a la derecha, tras el nombre. */
+.cabecera-gestor-cae-fila-rotulo {
+    flex: none;
+    margin-left: auto;
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+    white-space: nowrap;
+}
+
+.cabecera-gestor-cae-fila-rotulo-principal {
+    color: var(--color-primary-700);
+}
+
+/* Pie: dónde se da o se quita acceso. Escritorio, texto con enlace; en móvil, botón de 44 px. Mismo estilo que
+   .ventana-contexto-pie de la ventana interactiva (VentanaContexto.razor.css): margen 4, relleno 12/16 y raya arriba. */
+.cabecera-gestor-cae-pie {
+    display: block;
+    margin-top: var(--space-1);
+    padding: 12px 16px;
+    border-top: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+}
+
+.cabecera-gestor-cae-pie-enlace {
+    font: 600 12px/16px var(--font-family);
+    white-space: nowrap;
+}
+
+/* El texto del enlace de móvil («…en la ficha») solo existe en la hoja inferior. */
+.cabecera-gestor-cae-pie-enlace-movil {
+    display: none;
+}
+
+/* ---- Cargando y error ---- */
+
+/* Invisible los primeros 200 ms (como Esqueleto y EstadoCargando): una carga corta no debe destellar. */
+.cabecera-gestor-cae-cargando {
+    animation: cabecera-gestor-cae-aparece 0s linear 200ms both;
+}
+
+@keyframes cabecera-gestor-cae-aparece {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.cabecera-gestor-cae-esqueleto {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.cabecera-gestor-cae-esqueleto-redondo,
+.cabecera-gestor-cae-esqueleto-linea {
+    display: block;
+    flex: none;
+    background: linear-gradient(90deg, var(--color-esqueleto-base) 25%, var(--color-esqueleto-brillo) 37%, var(--color-esqueleto-base) 63%);
+    background-size: 400% 100%;
+    animation: cabecera-gestor-cae-brillo 1.4s var(--ease-fluid) infinite;
+}
+
+.cabecera-gestor-cae-esqueleto-redondo {
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-full);
+}
+
+.cabecera-gestor-cae-esqueleto-linea {
+    height: 10px;
+    border-radius: 6px;
+}
+
+.cabecera-gestor-cae-esqueleto-larga {
+    width: 96px;
+}
+
+.cabecera-gestor-cae-esqueleto-corta {
+    width: 72px;
+}
+
+@keyframes cabecera-gestor-cae-brillo {
+    0% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0 50%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cabecera-gestor-cae-esqueleto-redondo,
+    .cabecera-gestor-cae-esqueleto-linea {
+        animation: none;
+    }
+}
+
+.cabecera-gestor-cae-error {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.cabecera-gestor-cae-reintentar {
+    height: 28px;
+    padding: 0 var(--space-2);
+    border: 0;
+    background: none;
+    color: var(--color-primary-500);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1rem;
+    cursor: pointer;
+}
+
+.cabecera-gestor-cae-reintentar:hover {
+    background-color: var(--color-surface-hover);
+    border-radius: var(--radius-md);
+}
+
+.cabecera-gestor-cae-reintentar:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-md);
+}
+
+/* ---- Escritorio: ancho de la ventana ---- */
+@media (min-width: 768px) {
+    .cabecera-gestor-cae ::deep .ventana-contexto-panel {
+        width: 360px;
+        max-width: 360px;
+    }
+}
+
+/* ---- Móvil ---- */
+@media (max-width: 767px) {
+    /* La línea baja bajo el título (ocupa el ancho entero del renglón) y deja una persona a la vista. */
+    .cabecera-gestor-cae {
+        flex: 1 1 100%;
+        margin-left: 0;
+        padding-left: 0;
+        border-left: 0;
+    }
+
+    .cabecera-gestor-cae-secundaria,
+    .cabecera-gestor-cae-esqueleto-secundaria {
+        display: none;
+    }
+
+    .cabecera-gestor-cae-mas-escritorio {
+        display: none;
+    }
+
+    .cabecera-gestor-cae-mas-movil {
+        display: inline;
+    }
+
+    /* «+N» solo existe en móvil cuando la línea de escritorio no lo necesita: aquí sí se ve. */
+    .cabecera-gestor-cae ::deep .cabecera-gestor-cae-mas-solo-movil {
+        display: inline-flex;
+    }
+
+    /* Táctil: 44 px de ancho mínimo y 32 de alto. */
+    .cabecera-gestor-cae ::deep .ventana-contexto-disparador {
+        min-width: 44px;
+        height: 32px;
+        justify-content: center;
+    }
+
+    .cabecera-gestor-cae-reintentar {
+        min-height: 44px;
+    }
+
+    /* En la hoja (el panel ya pone 16 px a los lados): rótulos de sección sin raya, avatares de 32 y filas de 48 px. */
+    .cabecera-gestor-cae-seccion {
+        padding: 4px 0;
+    }
+
+    .cabecera-gestor-cae-fila + .cabecera-gestor-cae-seccion {
+        margin-top: 0;
+        padding: 10px 0 4px;
+        border-top: 0;
+    }
+
+    .cabecera-gestor-cae-fila {
+        min-height: 48px;
+        padding: 0;
+    }
+
+    .cabecera-gestor-cae-fila ::deep .avatar-usuario {
+        --avatar-usuario-lado: 32px;
+    }
+
+    /* Principal y apoyos: el rótulo («Coordinador CAE principal», «Apoyo») va BAJO el nombre, no a la derecha. */
+    .cabecera-gestor-cae-fila[data-gestor-cae-detalle="principal"],
+    .cabecera-gestor-cae-fila[data-gestor-cae-detalle="apoyo"] {
+        display: grid;
+        grid-template-columns: 32px minmax(0, 1fr);
+        column-gap: 10px;
+        align-content: center;
+        align-items: center;
+    }
+
+    .cabecera-gestor-cae-fila[data-gestor-cae-detalle] ::deep .avatar-usuario {
+        grid-row: 1 / span 2;
+    }
+
+    .cabecera-gestor-cae-fila[data-gestor-cae-detalle="principal"] .cabecera-gestor-cae-fila-nombre,
+    .cabecera-gestor-cae-fila[data-gestor-cae-detalle="apoyo"] .cabecera-gestor-cae-fila-nombre {
+        grid-column: 2;
+        flex: none;
+    }
+
+    .cabecera-gestor-cae-fila[data-gestor-cae-detalle="principal"] .cabecera-gestor-cae-fila-rotulo,
+    .cabecera-gestor-cae-fila[data-gestor-cae-detalle="apoyo"] .cabecera-gestor-cae-fila-rotulo {
+        grid-column: 2;
+        margin-left: 0;
+        white-space: normal;
+    }
+
+    /* Pie de la hoja: solo el botón de 44 px («Dar acceso o desasignarte en la ficha»), sin el texto de escritorio. */
+    .cabecera-gestor-cae-pie {
+        margin-top: var(--space-3);
+        padding: 0;
+        border-top: 0;
+    }
+
+    .cabecera-gestor-cae-pie-ayuda,
+    .cabecera-gestor-cae-pie-enlace-escritorio {
+        display: none;
+    }
+
+    .cabecera-gestor-cae-pie-enlace-movil {
+        display: inline;
+    }
+
+    .cabecera-gestor-cae-pie-enlace {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        border: 1px solid var(--color-border-control);
+        border-radius: var(--radius-md);
+        color: var(--color-text);
+        font: var(--font-label);
+        white-space: normal;
+    }
 }

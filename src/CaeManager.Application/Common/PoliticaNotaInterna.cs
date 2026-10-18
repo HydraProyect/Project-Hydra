@@ -6,7 +6,8 @@ namespace CaeManager.Application.Common;
 /// <summary>
 /// Decide quién lee la «Nota interna» de una ficha 360 (Cliente, Subcontrata, Vehículo, Tipo de documento). Es la única
 /// regla de lectura: ninguna consulta la repite. Desde el 2026-10-15 decide también, con el mismo criterio, quién recibe
-/// el permiso de trabajo del Trabajador (tipo, caducidad y motivo) en <c>ObtenerTrabajadorPorIdQuery</c>.
+/// el permiso de trabajo del Trabajador (tipo, caducidad y motivo) en <c>ObtenerTrabajadorPorIdQuery</c>, y desde el
+/// 2026-10-18 su contacto de emergencia (nombre y teléfono).
 ///
 /// <para>
 /// <b>La regla.</b> La nota la lee quien pertenece al equipo del Tenant propietario, es decir, quien tiene uno de los

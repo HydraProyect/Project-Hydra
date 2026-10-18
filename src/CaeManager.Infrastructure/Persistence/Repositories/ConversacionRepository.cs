@@ -5,6 +5,15 @@ namespace CaeManager.Infrastructure.Persistence.Repositories;
 
 public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversacionRepository
 {
+    public Task<Conversacion?> ObtenerUltimaCerradaPorHiloExternoAsync(
+        Guid conexionIntegracionId, string hiloExternoId, CancellationToken cancellationToken = default) =>
+        dbContext.Conversaciones
+            .Where(c => c.ConexionIntegracionId == conexionIntegracionId && c.HiloExternoId == hiloExternoId
+                        && c.Estado == EstadoConversacion.Cerrada)
+            .OrderByDescending(c => c.EstadoDesdeUtc)
+            .ThenByDescending(c => c.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
     public Task<Conversacion?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         dbContext.Conversaciones
             .Include(c => c.Mensajes).ThenInclude(m => m.Adjuntos)
@@ -16,7 +25,8 @@ public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversaci
         dbContext.Conversaciones
             .Include(c => c.Mensajes).ThenInclude(m => m.Adjuntos)
             .Include(c => c.Participantes)
-            .FirstOrDefaultAsync(c => c.ConexionIntegracionId == conexionIntegracionId && c.HiloExternoId == hiloExternoId, cancellationToken);
+            .FirstOrDefaultAsync(c => c.ConexionIntegracionId == conexionIntegracionId && c.HiloExternoId == hiloExternoId
+                                     && c.Estado != EstadoConversacion.Cerrada, cancellationToken);
 
     public Task<bool> ExisteMensajeExternoAsync(Guid conexionIntegracionId, string mensajeExternoId, CancellationToken cancellationToken = default) =>
         (from m in dbContext.Mensajes

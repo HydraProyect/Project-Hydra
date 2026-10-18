@@ -265,6 +265,19 @@ public class ConversacionEstadosTests
     }
 
     [Fact]
+    public void Un_automatico_que_llega_por_vinculacion_no_reabre_el_hilo()
+    {
+        var destino = EnEstado(EstadoConversacion.EsperandoRespuestaExterna, Base);
+        var origen = Conversacion.CrearWhatsApp("+34600111222", Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        origen.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.WhatsApp, "+34600111222", "Fuera de la oficina",
+            Base.AddHours(1), esAutomatico: true);
+
+        destino.AbsorberMensajesDe(origen);
+
+        destino.Estado.Should().Be(EstadoConversacion.EsperandoRespuestaExterna);
+    }
+
+    [Fact]
     public void Un_entrante_que_llega_por_vinculacion_no_mueve_un_hilo_en_espera_de_tercero()
     {
         var destino = EnEstado(EstadoConversacion.EnEsperaDeTercero, Base);

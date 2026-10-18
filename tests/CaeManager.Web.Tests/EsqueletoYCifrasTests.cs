@@ -50,6 +50,20 @@ public class EsqueletoYCifrasTests : BunitContext
     }
 
     [Fact]
+    public void El_brillo_usa_los_tokens_por_tema_del_esqueleto_y_no_un_neutro_fijo()
+    {
+        var hoja = File.ReadAllText(Ruta("src", "CaeManager.Web", "Components", "DesignSystem", "Esqueleto.razor.css"));
+        var estado = File.ReadAllText(Ruta("src", "CaeManager.Web", "Components", "DesignSystem", "EstadoCargando.razor.css"));
+        var tokens = File.ReadAllText(Ruta("src", "CaeManager.Web", "wwwroot", "css", "tokens.css"));
+
+        hoja.Should().Contain("var(--color-esqueleto-base)").And.Contain("var(--color-esqueleto-brillo)");
+        estado.Should().Contain("var(--color-esqueleto-base)").And.Contain("var(--color-esqueleto-brillo)");
+        // Claro, oscuro por preferencia del sistema y oscuro forzado: un par en cada uno.
+        System.Text.RegularExpressions.Regex.Matches(tokens, @"--color-esqueleto-base:").Count.Should().BeGreaterThanOrEqualTo(3);
+        System.Text.RegularExpressions.Regex.Matches(tokens, @"--color-esqueleto-brillo:").Count.Should().BeGreaterThanOrEqualTo(3);
+    }
+
+    [Fact]
     public void El_fundido_de_entrada_del_contenido_es_global_con_tokens_y_se_apaga_con_movimiento_reducido()
     {
         var css = File.ReadAllText(Ruta("src", "CaeManager.Web", "wwwroot", "css", "base.css"));
@@ -113,9 +127,9 @@ public class EsqueletoYCifrasTests : BunitContext
     [Theory]
     [InlineData("Features/Bandeja/Pages/MiTrabajo.razor", "<Esqueleto Forma=\"FormaEsqueleto.Lista\"")]
     [InlineData("Features/Bandeja/Pages/Bandeja.razor", "<Esqueleto Forma=\"FormaEsqueleto.Lista\"")]
-    [InlineData("Features/Trabajadores/Pages/Trabajadores.razor", "<Esqueleto Forma=\"FormaEsqueleto.Tabla\"")]
+    // Trabajadores ya no está aquí: como Empresas, la lista 1:1 con la maqueta pinta EstadoCargando (el esqueleto del kit) y la tarjeta real.
     [InlineData("Features/Dashboard/Pages/Inicio.razor", "<Esqueleto Forma=\"FormaEsqueleto.Metricas\"")]
-    public void Las_cuatro_pantallas_de_lista_mas_visitadas_pintan_la_forma_de_su_contenido_y_lo_hacen_entrar_con_fundido(string pantalla, string esqueleto)
+    public void Las_tres_pantallas_de_lista_mas_visitadas_pintan_la_forma_de_su_contenido_y_lo_hacen_entrar_con_fundido(string pantalla, string esqueleto)
     {
         var razor = File.ReadAllText(Ruta(new[] { "src", "CaeManager.Web" }.Concat(pantalla.Split('/')).ToArray()));
 

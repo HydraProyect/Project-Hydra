@@ -12,7 +12,7 @@ public class ComparadorFidelidad360Tests(NavegadorFidelidadFixture navegador) : 
 {
     /// <summary>Página construida con los valores decididos para las fichas 360.</summary>
     private sealed record Hoja(
-        string TamanoPastilla = "13px", string BordeTarjeta = "#cfd8e3", string AnchoLateral = "300px", string Anillo = "84px",
+        string TamanoPastilla = "13px", string BordeTarjeta = "#cfd8e3", string AnchoLateral = "300px", string Anillo = "88px",
         string ColumnaEstado = "138px", string DegradadoProblema = "linear-gradient(90deg, transparent 50%, #ffffff 100%)",
         string BordeVencido = "color-mix(in srgb, #b42318 35%, transparent)", string Divisor = "#a9b4c2",
         string Sombra = "none", bool ConTarjetas = true, bool ConFilaProblema = true, bool ConClasesPropias = false, string Cabecera = "envuelta", bool FilasEnvueltas = false);
@@ -106,7 +106,7 @@ public class ComparadorFidelidad360Tests(NavegadorFidelidadFixture navegador) : 
         Assert.Equal("20", informe.Ficha.Magnitudes["pastilla-de-fila.line-height"].Valor);
         Assert.Equal("#cfd8e3ff", informe.Ficha.Magnitudes["tarjeta.border-top-color"].Valor);
         Assert.Equal("300", informe.Ficha.Magnitudes["lateral.width"].Valor);
-        Assert.Equal("84", informe.Ficha.Magnitudes["anillo.width"].Valor);
+        Assert.Equal("88", informe.Ficha.Magnitudes["anillo.width"].Valor);
         Assert.Equal("#e9eef4ff", informe.Ficha.Magnitudes["fondo-pagina.background-color"].Valor);
         Assert.Equal("#a9b4c2ff", informe.Ficha.Magnitudes["fila.border-top-color"].Valor);
         Assert.Equal("#46566cff", informe.Ficha.Magnitudes["fila-detalle.color"].Valor);
@@ -122,7 +122,7 @@ public class ComparadorFidelidad360Tests(NavegadorFidelidadFixture navegador) : 
         { "pastilla", ["pastilla-de-fila.font-size", "pastilla.font-size"], "14" },
         { "borde-tarjeta", ["tarjeta.border-top-color"], "#cfd8e8ff" },
         { "lateral", ["lateral.width"], "320" },
-        { "anillo", ["anillo.height", "anillo.width"], "88" },
+        { "anillo", ["anillo.height", "anillo.width"], "84" },
         { "divisor", ["fila.border-top-color"], "#cfd8e3ff" },
         { "sombra", ["tarjeta.box-shadow"], "rgba(0, 0, 0, 0.1) 0px 1px 2px 0px" },
         { "sin-degradado", ["fila-con-problema[peligro].degradado"], "no" },
@@ -139,7 +139,7 @@ public class ComparadorFidelidad360Tests(NavegadorFidelidadFixture navegador) : 
             // Cinco niveles en un canal: por encima de la tolerancia de dos.
             "borde-tarjeta" => new Hoja(BordeTarjeta: "#cfd8e8"),
             "lateral" => new Hoja(AnchoLateral: "320px"),
-            "anillo" => new Hoja(Anillo: "88px"),
+            "anillo" => new Hoja(Anillo: "84px"),
             "divisor" => new Hoja(Divisor: "#cfd8e3"),
             "sombra" => new Hoja(Sombra: "0 1px 2px rgba(0,0,0,.1)"),
             "sin-degradado" => new Hoja(DegradadoProblema: "none"),
@@ -334,7 +334,7 @@ public class ComparadorFidelidad360Tests(NavegadorFidelidadFixture navegador) : 
             Norma360.ATablaMarkdown("referencia", referencia)));
         Assert.Null(Assert.Single(referencia, f => f.Clave == "fila-con-problema[advertencia].degradado").Cumple);
 
-        var mutada = Norma360.Evaluar(await MedirAsync("ficha", new Hoja(Anillo: "88px", TamanoPastilla: "12px")), "claro");
+        var mutada = Norma360.Evaluar(await MedirAsync("ficha", new Hoja(Anillo: "84px", TamanoPastilla: "12px")), "claro");
         Assert.Equal(
             ["anillo.height", "anillo.width", "pastilla-de-fila.font-size", "pastilla.font-size"],
             mutada.Where(f => f.Cumple == false).Select(f => f.Clave).Order(StringComparer.Ordinal));

@@ -1,3 +1,4 @@
+using System.Globalization;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.ConfirmarDocumentoPropuestoPorIa;
@@ -30,17 +31,26 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 /// que el alta individual) y se le ejecuta la detección de la Fase 54. La IA
 /// solo PROPONE —Trabajador, tipo y fechas leídas del archivo— y todo archivo
 /// queda pendiente de confirmar: el Documento no existe hasta que una persona
-/// lo confirma o lo corrige (decisión del propietario, 2026-09-19). La fecha
-/// de emisión propuesta es la leída del archivo y, si no se leyó, el campo
-/// queda vacío: nunca "hoy" por defecto. La confianza autorreportada se
-/// muestra como dato, nunca como permiso: ninguna ruta de este fichero crea
-/// un Documento sin pasar por <see cref="ConfirmarAsync"/>.
+/// lo confirma o lo corrige (decisión del propietario, 2026-09-19; riesgo R-1
+/// del inventario de funciones de IA). La fecha de emisión propuesta es la
+/// leída del archivo y, si no se leyó, el campo queda vacío: nunca "hoy" por
+/// defecto. La confianza autorreportada se muestra como dato, nunca como
+/// permiso: ninguna ruta de este fichero crea un Documento sin pasar por
+/// <see cref="ConfirmarAsync"/>. La maqueta de Design (2026-10-18) enseña un
+/// estado «creado solo» con confianza ≥ 95 %: es el comportamiento que R-1
+/// retiró y no se reintroduce sin una decisión nueva del propietario.
+///
+/// Flujo por archivo (maqueta «Subida Masiva TALVEG», 2026-10-18): En cola →
+/// Subiendo (barra de bytes leídos, como mucho <see cref="SubidasSimultaneas"/> a
+/// la vez) → Leyendo (conversión a PDF y detección, de una en una porque cada
+/// lectura es una llamada a la IA) → pendiente de confirmar. Mientras el lote
+/// se lee se pueden soltar más archivos; mientras sube, no.
 ///
 /// Visor: miniatura (primera página rasterizada a PNG con el mismo
 /// <see cref="IRasterizadorPaginasPdfService"/> que ya usa el Caso Mixto de
 /// IA documental) para poder reconocer cada archivo de un vistazo en la
 /// lista sin abrir nada — cargar N PDFs completos a la vez sería
-/// notablemente más lento. Al confirmar uno, el PDF completo se ve en un
+/// notablemente más lento. Al gestionar uno, el PDF completo se ve en un
 /// &lt;iframe&gt; con el propio contenido en base64: los archivos pendientes
 /// de confirmar deliberadamente no se guardan en <see cref="IFileStorageService"/>
 /// todavía (evita huérfanos si se descartan, y evita abrir un endpoint que
@@ -58,11 +68,17 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 /// Consulta podía dejar el PDF ya escrito en almacenamiento aunque el
 /// Command fuera a fallar siempre, con el mismo huérfano de mejor esfuerzo
 /// que <see cref="DescartarArchivoHuerfanoAsync"/> ya documenta para el
-/// caso general.
+/// caso general. El alcance de la Asignación de Cartera no se decide aquí: el
+/// selector de Trabajador ya viene acotado a la cartera, y el alta
+/// (<c>CrearDocumentoCommand</c>, que <see cref="ConfirmarDocumentoPropuestoPorIaCommand"/>
+/// hereda) rechaza como «no existe» un Trabajador fuera de ella.
 /// </summary>
 public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     private const int MaximoArchivosPorLote = 60;
+
+    /// <summary>Subidas de bytes a la vez; el resto de archivos espera en cola (maqueta, 2026-10-17).</summary>
+    private const int SubidasSimultaneas = 2;
 
     /// <summary>
     /// Bytes descomprimidos que puede llegar a retener el circuito por lote,
@@ -93,12 +109,22 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosSubidaMasiva> Textos { get; set; } = default!;
 
-    private enum EstadoItem { Procesando, PendienteConfirmar, Creado, Descartado, Error }
+    private enum EstadoItem { Cola, Subiendo, Procesando, PendienteConfirmar, Creado, Descartado, Error }
 
     private sealed class ItemLote
     {
         public Guid ClaveLocal { get; } = Guid.NewGuid();
         public required string NombreArchivo { get; init; }
+        public int LoteId { get; set; }
+
+        /// <summary>Referencia del navegador mientras el archivo espera o sube; se suelta en cuanto sus bytes están en memoria.</summary>
+        public IBrowserFile? Archivo { get; set; }
+        public long TamanoBytes { get; set; }
+        public long BytesSubidos { get; set; }
+
+        /// <summary>Nombre del .zip del que salió el archivo, si salió de uno.</summary>
+        public string? Origen { get; set; }
+        public Guid? DocumentoId { get; set; }
         public byte[]? ContenidoPdf { get; set; }
         public string? MiniaturaBase64 { get; set; }
         public EstadoItem Estado { get; set; } = EstadoItem.Procesando;
@@ -128,13 +154,27 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         public bool Confirmando { get; set; }
     }
 
+    /// <summary>Lo que queda por gastar del tamaño máximo de un lote; lo comparten los dos hilos de subida.</summary>
+    private sealed class PresupuestoLote(long restante)
+    {
+        public long Restante { get; set; } = restante;
+    }
+
     private readonly List<ItemLote> _items = [];
     private bool _procesandoLote;
+    private bool _cargando = true;
+    private bool _errorCarga;
     private readonly CancellationTokenSource _ciclo = new();
     private bool _desechado;
     private int _cargaVigente;
+    private int _ultimoLote;
+
+    /// <summary>Una sola lectura (conversión + IA) a la vez en toda la pantalla, aunque se suelten lotes seguidos.</summary>
+    private readonly SemaphoreSlim _turnoLectura = new(1, 1);
     private const string FiltroTodos = "todos";
     private string _filtro = FiltroTodos;
+    private (string Titulo, string Detalle)? _errorLote;
+    private ItemLote? _paraDescartar;
     private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresDisponibles = [];
     private IReadOnlyList<TipoDocumentoListaDto> _tiposDisponibles = [];
 
@@ -153,15 +193,15 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
     private int _totalDescartados;
     private int _totalErrores;
 
-    private static readonly (string Valor, string Etiqueta)[] Filtros =
+    private static readonly (string Valor, string Clave)[] Filtros =
     [
-        (FiltroTodos, "Todos"),
-        ("pendientes", "Ambiguos"),
-        ("errores", "Errores"),
-        ("creados", "Creados")
+        (FiltroTodos, "FiltroTodos"),
+        ("pendientes", "FiltroPendientes"),
+        ("errores", "FiltroErrores"),
+        ("creados", "FiltroCreados")
     ];
 
-    private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles, aliasSiempre: true)
+    private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles, aliasSiempre: true, empleadorSiempre: true)
         .Select(e => new OpcionBuscable(e.Id.ToString(), e.Texto))
         .ToList();
 
@@ -170,16 +210,16 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
     private int TotalDescartados => _totalDescartados;
     private int TotalErrores => _totalErrores;
     private int TotalRecibidos => _totalRecibidos;
-    private int ArchivosEnCurso => _items.Count(i => i.Estado == EstadoItem.Procesando);
+    private int ArchivosEnCurso => _items.Count(i => i.Estado is EstadoItem.Cola or EstadoItem.Subiendo or EstadoItem.Procesando);
     private bool HayArchivosEnCurso => ArchivosEnCurso > 0;
 
     /// <summary>
-    /// FS-14: lo que se perdería al salir. En curso (leyéndose), sin confirmar
+    /// FS-14: lo que se perdería al salir. En cola, subiéndose, en curso (leyéndose), sin confirmar
     /// (propuesta de la IA a la vista) o confirmándose en este momento: nada de
     /// eso existe todavía fuera de la memoria del circuito.
     /// </summary>
     private int ArchivosSinGuardar => _items.Count(i =>
-        i.Estado is EstadoItem.Procesando or EstadoItem.PendienteConfirmar || i.Confirmando);
+        i.Estado is EstadoItem.Cola or EstadoItem.Subiendo or EstadoItem.Procesando or EstadoItem.PendienteConfirmar || i.Confirmando);
 
     private bool HayTrabajoSinGuardar => ArchivosSinGuardar > 0;
     private int ArchivosLeidos => TotalRecibidos - ArchivosEnCurso;
@@ -200,14 +240,36 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         // lanzaba «A second operation was started on this context instance» (HTTP 500).
         _esSoloLectura = await PuertaAccesoDatos.EjecutarAsync(
             () => CurrentUserService.ObtenerRolEfectivoAsync()) == Roles.Consulta;
+        await CargarCatalogosAsync();
+    }
+
+    /// <summary>Trabajadores de la cartera y tipos de ámbito Trabajador; si falla, la pantalla enseña «No pudimos cargar la subida» con Reintentar.</summary>
+    private async Task CargarCatalogosAsync()
+    {
         var carga = ++_cargaVigente;
         var token = _ciclo.Token;
-        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), token);
-        if (!EsVigente(carga)) return;
-        var tipos = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador, ParaAltaNueva: true), token);
-        if (!EsVigente(carga)) return;
-        _trabajadoresDisponibles = trabajadores;
-        _tiposDisponibles = tipos;
+        _errorCarga = false;
+        _cargando = true;
+        try
+        {
+            var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), token);
+            if (!EsVigente(carga)) return;
+            var tipos = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador, ParaAltaNueva: true), token);
+            if (!EsVigente(carga)) return;
+            _trabajadoresDisponibles = trabajadores;
+            _tiposDisponibles = tipos;
+            _cargando = false;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "No se pudieron cargar los datos de la subida múltiple.");
+            if (!EsVigente(carga)) return;
+            _cargando = false;
+            _errorCarga = true;
+        }
     }
 
     private async Task ManejarArchivosSeleccionadosAsync(InputFileChangeEventArgs e)
@@ -217,26 +279,41 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         // cualquier InputFileChangeEventArgs, venga de donde venga.
         if (_esSoloLectura) return;
 
-        if (_desechado || _procesandoLote)
+        if (_desechado || _procesandoLote || HayArchivosEnCurso)
             return;
 
-        var carga = ++_cargaVigente;
+        var carga = _cargaVigente;
         var token = _ciclo.Token;
+        _errorLote = null;
+
+        if (e.FileCount > MaximoArchivosPorLote)
+        {
+            _errorLote = (Textos["ErrorLoteCantidad", MaximoArchivosPorLote], Textos["ErrorLoteDetalleCantidad"]);
+            StateHasChanged();
+            return;
+        }
+
         var archivosSeleccionados = e.GetMultipleFiles(MaximoArchivosPorLote);
+        var lote = ++_ultimoLote;
+        var lecturas = new List<Task>();
 
         _procesandoLote = true;
         StateHasChanged();
 
         try
         {
-            var entradas = new List<(byte[] Contenido, string NombreArchivo)>();
-
             // Presupuesto compartido por todo el lote: cada archivo que entra
             // —suelto o salido de un .zip— descuenta de aquí. Sin esto, el
             // tope de 10 MB acotaba el .zip comprimido pero no lo que salía
             // de él (factor 1027 medido sobre ceros: 10 MB de entrada podían
-            // volverse más de 10 GB en memoria del proceso web).
-            var presupuestoRestante = PresupuestoLoteBytes;
+            // volverse más de 10 GB en memoria del proceso web). Los sueltos
+            // se descuentan ya, con el tamaño que declara el navegador; lo que
+            // sale de un .zip, al abrirlo.
+            var sueltos = archivosSeleccionados
+                .Where(a => a.Size <= LimitesArchivoSubido.TamanoMaximoBytes && !ExtractorZip.EsZip(a.Name))
+                .Sum(a => a.Size);
+            var presupuesto = new PresupuestoLote(PresupuestoLoteBytes - sueltos);
+            var cola = new Queue<ItemLote>();
 
             foreach (var archivo in archivosSeleccionados)
             {
@@ -249,83 +326,28 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
                 // el lote sigue.
                 if (archivo.Size > LimitesArchivoSubido.TamanoMaximoBytes)
                 {
-                    AgregarItem(NuevoItemError(archivo.Name, TextoArchivoSuperaLimite(archivo.Name)));
+                    var excedido = NuevoItemError(archivo.Name, TextoArchivoSuperaLimite(archivo.Name));
+                    excedido.LoteId = lote;
+                    AgregarItem(excedido);
                     continue;
                 }
 
-                await using var flujo = archivo.OpenReadStream(LimitesArchivoSubido.TamanoMaximoBytes);
-                using var memoria = new MemoryStream();
-                await flujo.CopyToAsync(memoria, token);
-                if (!EsVigente(carga)) return;
-                var contenido = memoria.ToArray();
-
-                if (ExtractorZip.EsZip(archivo.Name))
+                var item = new ItemLote
                 {
-                    if (!ValidadorFirmaArchivo.TieneFirmaValida(contenido, archivo.Name))
-                    {
-                        AgregarItem(NuevoItemError(archivo.Name, "El archivo no es realmente un .zip válido."));
-                        continue;
-                    }
-
-                    IReadOnlyList<(byte[] Contenido, string NombreArchivo)> entradasZip;
-                    try
-                    {
-                        entradasZip = ExtractorZip.Extraer(
-                            contenido,
-                            // Lo que quepa aún en el lote: un .zip no puede
-                            // traer más archivos de los que faltan para el
-                            // tope, y ese recuento ya no se hace después de
-                            // haberlos expandido en memoria.
-                            MaximoArchivosPorLote - entradas.Count,
-                            LimitesArchivoSubido.TamanoMaximoBytes,
-                            presupuestoRestante);
-                    }
-                    catch (LimiteDeZipSuperadoException ex)
-                    {
-                        // Límite superado: es el caso previsto, no un fallo.
-                        // El .zip se descarta entero y el lote continúa con
-                        // el resto de archivos. Solo el mensaje de ESTE tipo se
-                        // enseña: un .zip dañado lanza InvalidDataException con
-                        // texto técnico del framework, que va al bloque de abajo.
-                        Logger.LogWarning(
-                            "Se descartó un .zip que supera los límites de descompresión en la subida múltiple: {Motivo}",
-                            ex.Message);
-                        AgregarItem(NuevoItemError(archivo.Name, ex.Message));
-                        continue;
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.LogWarning(ex, "No se pudo leer un .zip en la subida múltiple.");
-                        AgregarItem(NuevoItemError(archivo.Name, "No pudimos abrir este archivo .zip."));
-                        continue;
-                    }
-
-                    presupuestoRestante -= entradasZip.Sum(e => (long)e.Contenido.Length);
-                    entradas.AddRange(entradasZip);
-                }
-                else
-                {
-                    presupuestoRestante -= contenido.Length;
-                    entradas.Add((contenido, archivo.Name));
-                }
-
-                if (entradas.Count > MaximoArchivosPorLote)
-                {
-                    ToastService.Mostrar(
-                        $"El lote supera el máximo de {MaximoArchivosPorLote} archivos por subida.", TonoToast.Error);
-                    return;
-                }
-
-                if (presupuestoRestante < 0)
-                {
-                    ToastService.Mostrar(
-                        "El lote supera el tamaño máximo admitido para una subida.", TonoToast.Error);
-                    return;
-                }
+                    NombreArchivo = archivo.Name,
+                    Estado = EstadoItem.Cola,
+                    Archivo = archivo,
+                    TamanoBytes = archivo.Size,
+                    LoteId = lote
+                };
+                AgregarItem(item);
+                cola.Enqueue(item);
             }
 
-            foreach (var (contenido, nombreArchivo) in entradas)
-                await ProcesarEntradaAsync(contenido, nombreArchivo, carga, token);
+            StateHasChanged();
+
+            await Task.WhenAll(Enumerable.Range(0, SubidasSimultaneas)
+                .Select(_ => SubirDeLaColaAsync(cola, presupuesto, lecturas, lote, carga, token)));
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -338,34 +360,212 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
                 StateHasChanged();
             }
         }
+
+        // Cota global: no entra un lote nuevo mientras haya archivos en cola, subiéndose o leyéndose (HayArchivosEnCurso).
+        try
+        {
+            await Task.WhenAll(lecturas);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
     }
 
-    private async Task ProcesarEntradaAsync(byte[] contenido, string nombreArchivo, int carga, CancellationToken token)
+    private async Task SubirDeLaColaAsync(
+        Queue<ItemLote> cola, PresupuestoLote presupuesto, List<Task> lecturas, int lote, int carga, CancellationToken token)
     {
+        while (EsVigente(carga) && cola.TryDequeue(out var item))
+            await SubirAsync(item, presupuesto, lecturas, lote, carga, token);
+    }
+
+    private async Task SubirAsync(
+        ItemLote item, PresupuestoLote presupuesto, List<Task> lecturas, int lote, int carga, CancellationToken token)
+    {
+        if (item.Archivo is not { } archivo)
+            return;
+
+        item.Estado = EstadoItem.Subiendo;
+        StateHasChanged();
+
+        byte[] contenido;
+        try
+        {
+            contenido = await LeerBytesAsync(item, archivo, carga, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "No se pudo leer {ReferenciaArchivo} del navegador en la subida múltiple.",
+                ReferenciaArchivoTraza.De(item.NombreArchivo));
+            if (!EsVigente(carga)) return;
+            MarcarError(item, Textos["ErrorSubida"]);
+            StateHasChanged();
+            return;
+        }
+
+        if (!EsVigente(carga)) return;
+        item.Archivo = null;
+
+        if (ExtractorZip.EsZip(item.NombreArchivo))
+        {
+            AbrirZip(item, contenido, presupuesto, lecturas, lote, carga, token);
+            return;
+        }
+
+        item.Estado = EstadoItem.Procesando;
+        StateHasChanged();
+        lecturas.Add(LeerEnSerieAsync(item, contenido, carga, token));
+    }
+
+    /// <summary>
+    /// Copia el archivo del navegador a memoria en trozos y deja en el item los bytes ya leídos:
+    /// es la barra de «MB de MB» de la maqueta (el evento de progreso de la subida).
+    /// </summary>
+    private async Task<byte[]> LeerBytesAsync(ItemLote item, IBrowserFile archivo, int carga, CancellationToken token)
+    {
+        await using var flujo = archivo.OpenReadStream(LimitesArchivoSubido.TamanoMaximoBytes);
+        using var memoria = new MemoryStream();
+        var trozo = new byte[64 * 1024];
+        var ultimoPorcentaje = PorcentajeSubida(item);
+        int leidos;
+        while ((leidos = await flujo.ReadAsync(trozo.AsMemory(), token)) > 0)
+        {
+            memoria.Write(trozo, 0, leidos);
+            item.BytesSubidos = memoria.Length;
+            var porcentaje = PorcentajeSubida(item);
+            if (porcentaje != ultimoPorcentaje && EsVigente(carga))
+            {
+                ultimoPorcentaje = porcentaje;
+                StateHasChanged();
+            }
+        }
+
+        return memoria.ToArray();
+    }
+
+    /// <summary>
+    /// Un .zip no es un documento: se abre y su fila se sustituye por una por cada archivo de dentro
+    /// («Salió de lote.zip»). Si no cabe en lo que queda del lote, o está dañado, la fila del .zip
+    /// se queda en Error y el resto del lote sigue.
+    /// </summary>
+    private void AbrirZip(ItemLote zip, byte[] contenido, PresupuestoLote presupuesto, List<Task> lecturas, int lote, int carga, CancellationToken token)
+    {
+        if (!ValidadorFirmaArchivo.TieneFirmaValida(contenido, zip.NombreArchivo))
+        {
+            MarcarError(zip, Textos["ErrorZipInvalido"]);
+            StateHasChanged();
+            return;
+        }
+
+        zip.Estado = EstadoItem.Procesando;
+        IReadOnlyList<(byte[] Contenido, string NombreArchivo)> entradasZip;
+        try
+        {
+            entradasZip = ExtractorZip.Extraer(
+                contenido,
+                // Lo que quepa aún en el lote: un .zip no puede traer más
+                // archivos de los que faltan para el tope, y ese recuento no
+                // se hace después de haberlos expandido en memoria. La fila
+                // del propio .zip se va a sustituir, por eso no cuenta.
+                MaximoArchivosPorLote - (_items.Count(i => i.LoteId == lote) - 1),
+                LimitesArchivoSubido.TamanoMaximoBytes,
+                presupuesto.Restante);
+        }
+        catch (LimiteDeZipSuperadoException ex)
+        {
+            // Límite superado: es el caso previsto, no un fallo. El .zip se
+            // descarta entero y el lote continúa con el resto de archivos. Solo
+            // el mensaje de ESTE tipo se enseña: un .zip dañado lanza
+            // InvalidDataException con texto técnico del framework, que va al
+            // bloque de abajo.
+            Logger.LogWarning(
+                "Se descartó un .zip que supera los límites de descompresión en la subida múltiple: {Motivo}",
+                ex.Message);
+            MarcarError(zip, ex.Message);
+            StateHasChanged();
+            return;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "No se pudo leer un .zip en la subida múltiple.");
+            MarcarError(zip, Textos["ErrorZipIlegible"]);
+            StateHasChanged();
+            return;
+        }
+
+        presupuesto.Restante -= entradasZip.Sum(e => (long)e.Contenido.Length);
+
+        var posicion = _items.IndexOf(zip);
+        _items.RemoveAt(posicion);
+        _totalRecibidos--;
+        foreach (var (contenidoEntrada, nombreEntrada) in entradasZip)
+        {
+            var entrada = new ItemLote
+            {
+                NombreArchivo = nombreEntrada,
+                Estado = EstadoItem.Procesando,
+                LoteId = lote,
+                Origen = zip.NombreArchivo
+            };
+            _items.Insert(posicion++, entrada);
+            _totalRecibidos++;
+            lecturas.Add(LeerEnSerieAsync(entrada, contenidoEntrada, carga, token));
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task LeerEnSerieAsync(ItemLote item, byte[] contenido, int carga, CancellationToken token)
+    {
+        try
+        {
+            await _turnoLectura.WaitAsync(token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            return;
+        }
+
+        try
+        {
+            await LeerItemAsync(item, contenido, carga, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            _turnoLectura.Release();
+        }
+    }
+
+    /// <summary>Valida el archivo, lo convierte a PDF y le pide a la IA su propuesta; el item acaba pendiente de confirmar o en Error.</summary>
+    private async Task LeerItemAsync(ItemLote item, byte[] contenido, int carga, CancellationToken token)
+    {
+        var nombreArchivo = item.NombreArchivo;
         if (!ConversorArchivosPdf.EsPdf(nombreArchivo) && !ConversorArchivosPdf.EsImagen(nombreArchivo) && !ConversorArchivosPdf.EsWord(nombreArchivo))
         {
-            AgregarItem(NuevoItemError(nombreArchivo, "No es un PDF, JPG, PNG ni Word (.docx) — se omitió."));
+            MarcarError(item, Textos["ErrorFormato"]);
             StateHasChanged();
             return;
         }
 
         if (contenido.Length > LimitesArchivoSubido.TamanoMaximoBytes)
         {
-            AgregarItem(NuevoItemError(nombreArchivo, TextoArchivoSuperaLimite(nombreArchivo)));
+            MarcarError(item, TextoArchivoSuperaLimite(nombreArchivo));
             StateHasChanged();
             return;
         }
 
         if (!ValidadorFirmaArchivo.TieneFirmaValida(contenido, nombreArchivo))
         {
-            AgregarItem(NuevoItemError(nombreArchivo, "El contenido real no coincide con la extensión — se omitió."));
+            MarcarError(item, Textos["ErrorContenido"]);
             StateHasChanged();
             return;
         }
-
-        var item = new ItemLote { NombreArchivo = nombreArchivo };
-        AgregarItem(item);
-        StateHasChanged();
 
         byte[] contenidoPdf;
         try
@@ -378,7 +578,7 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
             if (!EsVigente(carga)) return;
             Logger.LogWarning(ex, "No se pudo convertir {ReferenciaArchivo} a PDF en la subida múltiple.",
                 ReferenciaArchivoTraza.De(nombreArchivo));
-            MarcarError(item, "No pudimos convertir este archivo a PDF.");
+            MarcarError(item, Textos["ErrorConvertir"]);
             StateHasChanged();
             return;
         }
@@ -406,7 +606,7 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
 
         // Feedback incremental: con un lote de varios archivos, esperar al
         // StateHasChanged de después del foreach entero dejaría la lista
-        // congelada en "Procesando…" hasta que termina el último.
+        // congelada en "Leyendo…" hasta que termina el último.
         if (EsVigente(carga))
             StateHasChanged();
     }
@@ -478,13 +678,13 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         var carga = _cargaVigente;
         if (!Guid.TryParse(item.TrabajadorId, out var trabajadorId))
         {
-            ToastService.Mostrar("Selecciona un trabajador antes de confirmar.", TonoToast.Error);
+            ToastService.Mostrar(Textos["TrabajadorFalta"], TonoToast.Error);
             return;
         }
 
         if (!Guid.TryParse(item.TipoDocumentoId, out var tipoDocumentoId))
         {
-            ToastService.Mostrar("Selecciona un tipo de documento antes de confirmar.", TonoToast.Error);
+            ToastService.Mostrar(Textos["FaltaTipo"], TonoToast.Error);
             return;
         }
 
@@ -492,13 +692,13 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         // en el campo, no hay Documento.
         if (!DateOnly.TryParseExact(item.FechaEmision, "yyyy-MM-dd", out var fechaEmision))
         {
-            ToastService.Mostrar("Indica la fecha de emisión antes de confirmar.", TonoToast.Error);
+            ToastService.Mostrar(Textos["FaltaFecha"], TonoToast.Error);
             return;
         }
 
         if (fechaEmision > DiaDeNegocio.Hoy())
         {
-            ToastService.Mostrar("La fecha de emisión no puede ser futura.", TonoToast.Error);
+            ToastService.Mostrar(Textos["FechaFutura"], TonoToast.Error);
             return;
         }
 
@@ -525,7 +725,7 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
     {
         if (item.ContenidoPdf is null)
         {
-            MarcarError(item, "No hay archivo que guardar.");
+            MarcarError(item, Textos["ErrorSinArchivo"]);
             return;
         }
 
@@ -536,7 +736,7 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         // que no hace falta escribir el PDF para descubrirlo.
         if (_esSoloLectura)
         {
-            MarcarError(item, "Tu rol de Consulta no permite crear documentos.");
+            MarcarError(item, Textos["ErrorConsulta"]);
             return;
         }
 
@@ -586,9 +786,10 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
                 return;
             }
 
-            ToastService.Mostrar("Documento creado correctamente.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastCreado", item.NombreArchivo], TonoToast.Exito);
             if (!EsVigente(carga)) return;
             item.Estado = EstadoItem.Creado;
+            item.DocumentoId = resultado.Valor;
             _totalCreados++;
         }
         catch (Exception ex)
@@ -596,9 +797,9 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
             await DescartarArchivoHuerfanoAsync(archivoUrl);
             Logger.LogError(ex, "Fallo al crear el Documento de {ReferenciaArchivo} desde la subida múltiple.",
                 ReferenciaArchivoTraza.De(item.NombreArchivo));
-            ToastService.Mostrar("No pudimos guardar este documento. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ErrorGuardar"], TonoToast.Error);
             if (!EsVigente(carga)) return;
-            MarcarError(item, "No pudimos guardar este documento. Intenta nuevamente.");
+            MarcarError(item, Textos["ErrorGuardar"]);
         }
         finally
         {
@@ -638,20 +839,25 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         Guid.TryParse(item.TipoDocumentoId, out var id) ? _tiposDisponibles.FirstOrDefault(t => t.Id == id)?.Nombre : null;
 
     /// <summary>
-    /// Con Trabajador, tipo y una fecha de emisión ya a la vista, la propia
-    /// fila ofrece confirmar. Sigue siendo un clic por archivo sobre valores
-    /// que la fila muestra; no hay "confirmar todos".
+    /// La línea de propuesta de la fila: lo que la persona tiene ahora en los controles, no la
+    /// propuesta intacta; si ya difiere de ella, el rótulo lo dice para no presentar una
+    /// corrección humana como si fuera lo que propuso la IA.
     /// </summary>
-    private bool PropuestaCompleta(ItemLote item) =>
-        NombreTrabajadorElegido(item) is not null
-        && NombreTipoElegido(item) is not null
-        && DateOnly.TryParseExact(item.FechaEmision, "yyyy-MM-dd", out _);
+    private string ResumenPropuesta(ItemLote item)
+    {
+        string etiqueta = CorregidaPorPersona(item) ? Textos["PropuestaCorregida"] : Textos["PropuestaIntacta"];
+        string sinDeterminar = Textos["SinDeterminar"];
+        string emision = item.FechaEmision.Length > 0 ? FechaLegible(item.FechaEmision) : Textos["SinLeer"];
+        string resumen = Textos["PropuestaResumen", etiqueta, NombreTrabajadorElegido(item) ?? sinDeterminar, NombreTipoElegido(item) ?? sinDeterminar, emision];
+        if (RequiereVencimientoManual(item))
+        {
+            string vencimiento = item.FechaVencimientoManual.Length > 0 ? FechaLegible(item.FechaVencimientoManual) : Textos["SinIndicar"];
+            resumen += Textos["PropuestaVencimiento", vencimiento];
+        }
 
-    /// <summary>
-    /// La fila muestra los valores que la persona tiene ahora en los controles,
-    /// no la propuesta intacta; si ya difieren de ella, el rótulo lo dice para no
-    /// presentar una corrección humana como si fuera lo que propuso la IA.
-    /// </summary>
+        return resumen;
+    }
+
     private bool CorregidaPorPersona(ItemLote item)
     {
         var propuesta = item.Propuesta;
@@ -684,17 +890,69 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         Guid.TryParse(item.TipoDocumentoId, out var tipoId)
         && _tiposDisponibles.FirstOrDefault(t => t.Id == tipoId) is { AplicaVencimientoAutomatico: false };
 
+    /// <summary>
+    /// El vencimiento que el alta va a calcular con la vigencia del tipo (la misma regla de
+    /// <c>CalculadoraEstadoDocumento</c> que usa <c>CrearDocumentoCommand</c>), o nada si aún no hay
+    /// tipo de vencimiento automático, fecha de emisión o vigencia con que calcularlo.
+    /// </summary>
+    private (DateOnly Fecha, string Texto)? VencimientoCalculado(ItemLote item)
+    {
+        if (!Guid.TryParse(item.TipoDocumentoId, out var tipoId)
+            || _tiposDisponibles.FirstOrDefault(t => t.Id == tipoId) is not { AplicaVencimientoAutomatico: true } tipo
+            || !DateOnly.TryParseExact(item.FechaEmision, "yyyy-MM-dd", out var emision)
+            || tipo.VigenciaMeses is not { } meses
+            || CalculadoraEstadoDocumento.CalcularFechaVencimiento(emision, meses) is not { } vencimiento)
+            return null;
+
+        return (vencimiento, Textos["VencimientoCalculado", vencimiento.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture), meses]);
+    }
+
+    private string TextoVencimientoSinFecha(ItemLote item)
+    {
+        if (!Guid.TryParse(item.TipoDocumentoId, out var tipoId)
+            || _tiposDisponibles.All(t => t.Id != tipoId))
+            return Textos["VencimientoDependeDelTipo"];
+
+        return DateOnly.TryParseExact(item.FechaEmision, "yyyy-MM-dd", out _)
+            ? Textos["VencimientoSinVigencia"]
+            : Textos["VencimientoSinEmision"];
+    }
+
     private void Descartar(ItemLote item)
     {
         item.Estado = EstadoItem.Descartado;
         _totalDescartados++;
         item.ContenidoPdf = null;
         item.MiniaturaBase64 = null;
+        item.Expandido = false;
     }
 
-    private void QuitarDeLaLista(ItemLote item) => _items.Remove(item);
+    /// <summary>La maqueta pide confirmar el descarte: el archivo se suelta de memoria y habría que volver a soltarlo.</summary>
+    private Task ConfirmarDescarteAsync()
+    {
+        // Solo se descarta lo que sigue pendiente y no se está confirmando: si la confirmación ya está en vuelo,
+        // descartar perdería el contenido del PDF y dejaría un Documento creado marcado como descartado.
+        if (_paraDescartar is { Estado: EstadoItem.PendienteConfirmar, Confirmando: false } item)
+        {
+            Descartar(item);
+            ToastService.Mostrar(Textos["ToastDescartado"], TonoToast.Exito);
+        }
 
-    private void LimpiarResueltos() => _items.RemoveAll(i => i.Estado is EstadoItem.Creado or EstadoItem.Descartado);
+        _paraDescartar = null;
+        return Task.CompletedTask;
+    }
+
+    private void QuitarDeLaLista(ItemLote item)
+    {
+        _items.Remove(item);
+        ToastService.Mostrar(Textos["ToastQuitado"], TonoToast.Exito);
+    }
+
+    private void LimpiarResueltos()
+    {
+        _items.RemoveAll(i => i.Estado is EstadoItem.Creado or EstadoItem.Descartado);
+        ToastService.Mostrar(Textos["ToastLimpiado"], TonoToast.Exito);
+    }
 
     private void AgregarItem(ItemLote item)
     {
@@ -718,6 +976,7 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
     {
         item.Estado = EstadoItem.Error;
         item.MensajeError = mensaje;
+        item.Archivo = null;
         _totalErrores++;
     }
 
@@ -733,15 +992,33 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
 
     private bool EsVigente(int carga) => !_desechado && carga == _cargaVigente;
 
-    private static string ObtenerEtiquetaEstado(ItemLote item) => item.Estado switch
+    private string ObtenerEtiquetaEstado(ItemLote item) => item.Estado switch
     {
-        EstadoItem.Procesando => "Procesando…",
-        EstadoItem.PendienteConfirmar => "Pendiente de confirmar",
-        EstadoItem.Creado => "Creado tras confirmar",
-        EstadoItem.Descartado => "Descartado",
-        EstadoItem.Error => "Error",
+        EstadoItem.Cola => Textos["EstadoCola"],
+        EstadoItem.Subiendo => Textos["EstadoSubiendo"],
+        EstadoItem.Procesando => Textos["EstadoLeyendo"],
+        EstadoItem.PendienteConfirmar => Textos["EstadoPendiente"],
+        EstadoItem.Creado => Textos["EstadoCreado"],
+        EstadoItem.Descartado => Textos["EstadoDescartado"],
+        EstadoItem.Error => Textos["EstadoError"],
         _ => string.Empty
     };
+
+    /// <summary>La línea gris de la fila: qué le pasa al archivo ahora, o de qué .zip salió.</summary>
+    private string? DetalleItem(ItemLote item) => item.Estado switch
+    {
+        EstadoItem.Cola => Textos["DetalleCola"],
+        EstadoItem.Subiendo => Textos["DetalleSubiendo"],
+        EstadoItem.Procesando => Textos["DetalleLeyendo"],
+        _ => item.Origen is { } origen ? Textos["DetalleOrigen", origen].Value : null
+    };
+
+    private static int PorcentajeSubida(ItemLote item) =>
+        item.TamanoBytes <= 0 ? 100 : (int)Math.Min(100, item.BytesSubidos * 100 / item.TamanoBytes);
+
+    /// <summary>Megabytes con una decimal y coma (la misma escritura en español y catalán), p. ej. «3,3».</summary>
+    private static string Megas(long bytes) =>
+        (bytes / 1048576d).ToString("0.0", CultureInfo.InvariantCulture).Replace('.', ',');
 
     private static TonoBadge ObtenerTonoEstado(EstadoItem estado) => estado switch
     {
@@ -749,13 +1026,6 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         EstadoItem.PendienteConfirmar => TonoBadge.Advertencia,
         EstadoItem.Error => TonoBadge.Peligro,
         _ => TonoBadge.Neutro
-    };
-
-    private static TonoBadge TonoConfianza(int confianza) => confianza switch
-    {
-        >= 95 => TonoBadge.Exito,
-        >= 70 => TonoBadge.Advertencia,
-        _ => TonoBadge.Peligro
     };
 
     private static string ConstruirDataUriPdf(byte[] contenidoPdf) =>

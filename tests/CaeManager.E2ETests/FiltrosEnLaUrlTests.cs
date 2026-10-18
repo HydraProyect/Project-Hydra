@@ -30,7 +30,7 @@ public partial class FiltrosEnLaUrlTests(WebAppFixtureListados fixture)
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
-        await page.Locator("table.tabla-datos").WaitForAsync();
+        await page.Locator(".marco-lista-trabajadores .lista-filas-acordeon").WaitForAsync();
 
         var pastillas = page.Locator(".barra-filtros-pastillas");
         await pastillas.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex(@"^Empresa(?::|$)") }).ClickAsync();

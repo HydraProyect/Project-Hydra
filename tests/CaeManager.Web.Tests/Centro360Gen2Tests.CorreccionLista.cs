@@ -44,7 +44,7 @@ public partial class Centro360Gen2Tests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void El_modo_listado_conserva_Bloqueado_pero_no_ofrece_Pedir(bool modoListado)
+    public void El_modo_listado_conserva_Bloqueado_y_no_ofrece_la_accion_de_pedir_de_la_fila(bool modoListado)
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -62,12 +62,14 @@ public partial class Centro360Gen2Tests
         {
             pastillas.Should().Contain("Bloqueado");
             cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Pedir");
+            cut.FindAll(".fila-relacion-acciones button").Should().OnlyContain(b => b.ClassList.Contains("fila-trabajador-gestionar"),
+                "en el listado la única acción de la fila es «Gestionar», que despliega; «Pedir» ya no existe como verbo propio");
             cut.FindAll("input, .acordeon-asignaciones-cabecera, .aviso-visita-sin-asignacion").Should().BeEmpty();
         }
         else
         {
             pastillas.Should().Contain("Bloqueado");
-            cut.FindAll(".fila-relacion-acciones button").Should().ContainSingle(b => b.TextContent.Trim() == "Pedir");
+            cut.FindAll(".fila-relacion-acciones button").Should().ContainSingle(b => b.TextContent.Trim() == "Gestionar");
             cut.FindAll(".motivo-bloqueo-pedir").Should().HaveCount(2);
         }
         cut.Find(".motivo-bloqueo").TextContent.Should().Contain("Formación PRL");

@@ -1011,7 +1011,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
 
         var (cut, mediador, logger, _) = Renderizar(escenario);
 
-        Texto(cut.Find(".estado-vacio h3")).Should().Be("No pudimos cargar el Dashboard Ejecutivo");
+        Texto(cut.Find(".estado-vacio h3")).Should().Be("No pudimos cargar el Cuadro de dirección");
         cut.FindAll(".tarjeta-metrica").Should().BeEmpty();
         logger.Errores.Should().ContainSingle();
 

@@ -32,7 +32,9 @@ public record CentroDetalleDto(
     bool? TrabajosEnAltura = null,
     bool? EspaciosConfinados = null,
     bool? AtmosferasExplosivas = null,
-    bool FichaVisible = false);
+    bool FichaVisible = false,
+    string? Notas = null,
+    bool NotaInternaVisible = false);
 
 public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos, IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerCentroPorIdQuery, CentroDetalleDto?>
@@ -44,7 +46,11 @@ public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext,
         // Los contactos personales de la ficha siguen la misma política que Empresa 360.
         // El Drawer lee y escribe con el mismo ámbito de gestión. Una clave de la API pública entra con rol
         // Consulta y pasaría esta política: por eso la API v1 publica CentroApiDetalleDto, sin la ficha.
-        var conFicha = await politicaNotaInterna.PuedeLeerAsync(cancellationToken)
+        // La «Nota interna» (Centro.Notas) sigue el mismo criterio que la de Empresa 360 (ObtenerEmpresaPorIdQuery): solo
+        // viaja a quien la lee según IPoliticaNotaInterna; al usuario de Cliente le llegan Notas = null y
+        // NotaInternaVisible = false. La API v1 tampoco la publica (CentroApiDetalleDto).
+        var conNotaInterna = await politicaNotaInterna.PuedeLeerAsync(cancellationToken);
+        var conFicha = conNotaInterna
             && await alcanceDatos.CentroParaGestionVisibleAsync(request.Id, cancellationToken);
 
         return await (
@@ -66,7 +72,8 @@ public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext,
                 conFicha ? centro.TecnicoPrevencionCorreo : null,
                 conFicha ? centro.TrabajosEnAltura : null,
                 conFicha ? centro.EspaciosConfinados : null,
-                conFicha ? centro.AtmosferasExplosivas : null, conFicha))
+                conFicha ? centro.AtmosferasExplosivas : null, conFicha,
+                conNotaInterna ? centro.Notas : null, conNotaInterna))
             .FirstOrDefaultAsync(cancellationToken);
     }
 }

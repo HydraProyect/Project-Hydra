@@ -26,6 +26,7 @@ public class CentroConfiguration : IEntityTypeConfiguration<Centro>
         builder.Property(c => c.TecnicoPrevencionNombre).HasMaxLength(200);
         builder.Property(c => c.TecnicoPrevencionTelefono).HasMaxLength(50);
         builder.Property(c => c.TecnicoPrevencionCorreo).HasMaxLength(254);
+        builder.Property(c => c.Notas).HasMaxLength(Centro.LongitudMaximaNotas);
 
         // P1-X2: GestionCae se guarda como entero (convención); la migración que
         // la añade rellena 0 (ConGestionCae), así que los Centros que ya

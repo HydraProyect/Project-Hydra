@@ -5,6 +5,13 @@ namespace CaeManager.Application.Tests.Comunicaciones;
 /// <summary>Fake en memoria — los handlers de Application se prueban sin base de datos (ver Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md).</summary>
 public class ConversacionRepositorioFalso : IConversacionRepository
 {
+    public Task<Conversacion?> ObtenerUltimaCerradaPorHiloExternoAsync(
+        Guid conexionIntegracionId, string hiloExternoId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Conversaciones
+            .Where(c => c.ConexionIntegracionId == conexionIntegracionId && c.HiloExternoId == hiloExternoId
+                        && c.Estado == EstadoConversacion.Cerrada)
+            .OrderByDescending(c => c.EstadoDesdeUtc).ThenByDescending(c => c.Id).FirstOrDefault());
+
     public List<Conversacion> Conversaciones { get; } = [];
 
     public Task<Conversacion?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
@@ -13,7 +20,8 @@ public class ConversacionRepositorioFalso : IConversacionRepository
     public Task<Conversacion?> ObtenerPorHiloExternoAsync(
         Guid conexionIntegracionId, string hiloExternoId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Conversaciones.FirstOrDefault(
-            c => c.ConexionIntegracionId == conexionIntegracionId && c.HiloExternoId == hiloExternoId));
+            c => c.ConexionIntegracionId == conexionIntegracionId && c.HiloExternoId == hiloExternoId
+                 && c.Estado != EstadoConversacion.Cerrada));
 
     public Task<bool> ExisteMensajeExternoAsync(Guid conexionIntegracionId, string mensajeExternoId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Conversaciones

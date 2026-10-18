@@ -22,7 +22,7 @@ namespace CaeManager.Web.Tests;
 /// <para>
 /// <b>Qué observa.</b> El marco del hub, no las páginas que embebe: una sola
 /// cabecera con un solo h1; la navegación agrupada tal como la declara el
-/// catálogo (catorce entradas, cuatro listas nombradas por su grupo, sin
+/// catálogo (dieciséis entradas, cinco listas nombradas por su grupo, sin
 /// Delegaciones ni Estado comercial); qué entrada lleva
 /// <c>aria-current="page"</c> y que se mueve con la ruta; el nombre accesible
 /// de cada entrada y de las migas (lo que queda fuera de <c>aria-hidden</c>);
@@ -58,18 +58,21 @@ public class ConfiguracionHubGen2Tests : BunitContext
     /// </summary>
     private static readonly (string Grupo, string Nombre, string Descripcion, string Ruta)[] CatalogoEsperado =
     [
-        ("Acceso e identidad", "Usuarios", "Cuentas y carteras asignadas", "/configuracion/usuarios"),
-        ("Acceso e identidad", "Roles", "Permisos por perfil", "/configuracion/roles"),
-        ("Acceso e identidad", "Organización", "Logo de la organización", "/configuracion/organizacion"),
+        ("Mi cuenta", "Verificación en dos pasos", "Segundo factor de tu cuenta", "/cuenta/configurar-2fa"),
+        ("Mi cuenta", "Mi firma", "Firma y sello personales", "/mi-firma"),
+        // Orden del marco de Design (marco-talveg.js, DDL-083); «Organización» y «Administración de plataforma»
+        // son extras de la aplicación que el marco no trae y van al final de su grupo.
         ("Plataforma y conexiones", "Claves API", "Acceso programático", "/configuracion/api"),
         ("Plataforma y conexiones", "Conexiones de integración", "M365, portales, webhooks", "/configuracion/integraciones"),
         ("Plataforma y conexiones", "Importar datos", "Cuadro de Control CAE (Excel)", "/configuracion/importar"),
+        ("Plataforma y conexiones", "Organización", "Logo de la organización", "/configuracion/organizacion"),
         ("Plataforma y conexiones", "Administración de plataforma", "Inicialización e identidad raíz", "/configuracion/plataforma"),
-        ("Catálogos y datos", "Tipos de documento", "Catálogo y vigencias", "/configuracion/tipos"),
-        ("Catálogos y datos", "Lectura IA por Cliente", "Restricción por tipo de documento", "/configuracion/ia"),
-        ("Catálogos y datos", "Macros de respuesta", "Plantillas de comunicación", "/configuracion/macros"),
         ("Catálogos y datos", "Parámetros del sistema", "Umbrales del semáforo", "/configuracion/params"),
+        ("Catálogos y datos", "Tipos de documento", "Catálogo y vigencias", "/configuracion/tipos"),
+        ("Catálogos y datos", "Plantillas", "Documentos que se generan", "/plantillas"),
+        ("Catálogos y datos", "Lectura IA por Cliente", "Restricción por tipo de documento", "/configuracion/ia"),
         ("Catálogos y datos", "Retención de datos", "Plazos de borrado", "/configuracion/retencion"),
+        ("Comunicaciones", "Macros de respuesta", "Plantillas de comunicación", "/configuracion/macros"),
         ("Auditoría", "Auditoría", "Quién hizo qué y cuándo", "/configuracion/auditoria"),
         ("Auditoría", "Auditoría IA", "Lecturas y decisiones automáticas", "/configuracion/auditoria-ia"),
         ("Auditoría", "Automatizaciones", "Trabajos del sistema", "/configuracion/automatizaciones")
@@ -160,7 +163,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
 
     private static readonly string[] RutasExcluidasDelEncargo =
     [
-        "/configuracion/roles", "/configuracion/api", "/configuracion/integraciones", "/configuracion/importar",
+        "/configuracion/api", "/configuracion/integraciones", "/configuracion/importar",
         "/configuracion/ia", "/configuracion/retencion", "/configuracion/auditoria", "/configuracion/auditoria-ia",
         "/configuracion/accesos-sensibles",
     ];
@@ -174,7 +177,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
 
         rutas.Should().NotIntersectWith(RutasExcluidasDelEncargo);
         rutas.Should().Contain(
-            ["/configuracion/usuarios", "/configuracion/tipos", "/configuracion/macros", "/configuracion/params",
+            ["/configuracion/tipos", "/configuracion/macros", "/configuracion/params",
              "/configuracion/automatizaciones"],
             "control positivo: lo que el encargo sí abre sigue en el hub");
     }
@@ -201,7 +204,6 @@ public class ConfiguracionHubGen2Tests : BunitContext
 
     [Theory]
     [InlineData("api")]
-    [InlineData("roles")]
     [InlineData("integraciones")]
     [InlineData("importar")]
     [InlineData("retencion")]
@@ -214,6 +216,21 @@ public class ConfiguracionHubGen2Tests : BunitContext
         var cut = RenderizarHub(entrada, porEncargo: true);
 
         Navegacion(cut).QuerySelector("[aria-current='page']")!.GetAttribute("href").Should().Be("/configuracion/params");
+    }
+
+    /// <summary>
+    /// Usuarios y Roles salieron del hub (Design, 2026-10-17): viven en la sección Equipo. Un enlace guardado a
+    /// <c>/configuracion/usuarios</c> o <c>/configuracion/roles</c> llega a su pantalla, que se autoriza por su
+    /// cuenta; el hub no las embebe ni las lista.
+    /// </summary>
+    [Theory]
+    [InlineData("usuarios", "/usuarios")]
+    [InlineData("roles", "/roles")]
+    public void Un_enlace_antiguo_a_Usuarios_o_Roles_dentro_del_hub_lleva_a_su_pantalla_de_Equipo(string entrada, string destino)
+    {
+        RenderizarHub(entrada);
+
+        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith(destino);
     }
 
     /// <summary>
@@ -256,13 +273,13 @@ public class ConfiguracionHubGen2Tests : BunitContext
     // ---------------------------------------------------------------- navegación
 
     [Fact]
-    public void La_navegacion_agrupa_las_catorce_entradas_en_listas_nombradas_por_su_grupo()
+    public void La_navegacion_agrupa_las_dieciseis_entradas_en_listas_nombradas_por_su_grupo()
     {
         var cut = RenderizarHub("plataforma");
 
         var leidas = new List<(string Grupo, string Nombre, string Descripcion, string Ruta)>();
         var listas = Navegacion(cut).QuerySelectorAll("ul");
-        listas.Should().HaveCount(4, "un grupo del mockup, una lista");
+        listas.Should().HaveCount(5, "un grupo del mockup, una lista");
 
         foreach (var lista in listas)
         {
@@ -290,12 +307,12 @@ public class ConfiguracionHubGen2Tests : BunitContext
     }
 
     [Fact]
-    public void Cada_entrada_es_un_enlace_que_el_teclado_alcanza_y_su_nombre_no_lee_la_abreviatura()
+    public void Cada_entrada_es_un_enlace_que_el_teclado_alcanza_y_no_lleva_chip_de_iniciales()
     {
         var cut = RenderizarHub("plataforma");
 
         var enlaces = Navegacion(cut).QuerySelectorAll("a");
-        enlaces.Should().HaveCount(15);
+        enlaces.Should().HaveCount(16);
 
         foreach (var enlace in enlaces)
         {
@@ -304,9 +321,8 @@ public class ConfiguracionHubGen2Tests : BunitContext
             enlace.GetAttribute("role").Should().BeNull("sigue siendo un enlace: Intro abre, no una pestaña falsa");
 
             var nombre = enlace.QuerySelector(".nombre-entrada-subnav")!.TextContent.Trim();
-            var abreviatura = enlace.QuerySelector(".icono-entrada-subnav")!.TextContent.Trim();
-            TextoAccesible(enlace).Should().StartWith(nombre,
-                $"«{abreviatura}» es decoración: el nombre accesible empieza por la entrada, no por la abreviatura");
+            enlace.QuerySelector(".icono-entrada-subnav").Should().BeNull("el marco de Design no pinta chip de iniciales");
+            TextoAccesible(enlace).Should().StartWith(nombre, "el nombre accesible empieza por la entrada");
         }
     }
 
@@ -439,7 +455,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
 
         rutas.Should().Contain("/configuracion/auditoria", "control positivo: el grupo se pintó");
         rutas.Contains("/configuracion/accesos-sensibles").Should().Be(conPermiso);
-        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(conPermiso ? 16 : 15);
+        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(conPermiso ? 17 : 16);
     }
 
     [Fact]
@@ -457,19 +473,20 @@ public class ConfiguracionHubGen2Tests : BunitContext
     {
         var cut = RenderizarHub("plataforma", esAdministradorPlataforma: false);
 
-        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(15);
+        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(16);
         PlataformaYConexiones(cut).Select(e => e.Ruta).Should().NotContain("/configuracion/orden-menu",
             "un Administrador de Tenant no ordena el menú global: la entrada ni existe para él");
     }
 
     [Fact]
-    public void El_Actor_de_Plataforma_TALVEG_ve_la_entrada_Orden_del_menu_al_final_de_Plataforma_y_conexiones()
+    public void El_Actor_de_Plataforma_TALVEG_ve_la_entrada_Orden_del_menu_tras_Importar_datos_en_Plataforma_y_conexiones()
     {
         var cut = RenderizarHub("plataforma", esAdministradorPlataforma: true);
 
-        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(16);
-        PlataformaYConexiones(cut).Last().Should().Be(
-            ("Orden del menú", "Solo Actor de Plataforma TALVEG", "/configuracion/orden-menu"));
+        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(17);
+        // Orden del marco de Design: Claves API, Conexiones, Importar datos y Orden del menú; los extras van detrás.
+        PlataformaYConexiones(cut)[3].Should().Be(
+            ("Orden del menú", "Solo Actor de Plataforma", "/configuracion/orden-menu"));
     }
 
     [Fact]

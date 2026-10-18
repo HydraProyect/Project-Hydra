@@ -329,6 +329,10 @@
   <data name="CabeceraMigaFicha" xml:space="preserve">
     <value>Ficha</value>
   </data>
+  <data name="CabeceraMigaMiAvatar" xml:space="preserve">
+    <value>Mi avatar</value>
+    <comment>Última miga de /mi-avatar: «Mi cuenta / Mi avatar» (revisión de Design §B).</comment>
+  </data>
   <data name="CabeceraDescartar" xml:space="preserve">
     <value>Descartar</value>
   </data>
@@ -356,20 +360,26 @@
   <data name="MenuSubDocumentosPlantillas" xml:space="preserve">
     <value>Plantillas</value>
   </data>
+  <data name="SelectorTenantSolicitar" xml:space="preserve">
+    <value>+ Solicitar</value>
+  </data>
+  <data name="SelectorTenantSolicitarTitulo" xml:space="preserve">
+    <value>Solicitar acceso a otra empresa de la organización</value>
+  </data>
+  <data name="SelectorTenantTrabajandoEn" xml:space="preserve">
+    <value>Trabajando en {0}</value>
+  </data>
+  <data name="MenuAuditoria" xml:space="preserve">
+    <value>Auditoría</value>
+  </data>
+  <data name="MenuAdministracionPlataforma" xml:space="preserve">
+    <value>Administración de plataforma</value>
+  </data>
   <data name="MenuCompactar" xml:space="preserve">
     <value>Compactar la barra lateral</value>
   </data>
   <data name="MenuAmpliar" xml:space="preserve">
     <value>Ampliar la barra lateral</value>
-  </data>
-  <data name="MenuFijar" xml:space="preserve">
-    <value>Fijar «{0}»</value>
-  </data>
-  <data name="MenuQuitarFijado" xml:space="preserve">
-    <value>Quitar «{0}» de los fijados</value>
-  </data>
-  <data name="MenuFijados" xml:space="preserve">
-    <value>Fijados</value>
   </data>
   <data name="MenuGrupoContieneActual" xml:space="preserve">
     <value>Contiene la página actual</value>
@@ -476,6 +486,22 @@
     <value>No la ve el cliente.</value>
     <comment>Pie de la tarjeta NotaInterna: la nota no la ve el usuario de un Cliente. La ven el equipo y el Gestor CAE de un Operador CAE externo.</comment>
   </data>
+  <data name="NotaInternaEditar" xml:space="preserve">
+    <value>Editar →</value>
+    <comment>Botón de la tarjeta Nota interna (NotaInternaEditable) que abre su editor. Solo lo ve un rol con escritura.</comment>
+  </data>
+  <data name="NotaInternaGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="NotaInternaCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="NotaInternaGuardada" xml:space="preserve">
+    <value>Nota interna guardada.</value>
+  </data>
+  <data name="NotaInternaErrorGuardar" xml:space="preserve">
+    <value>No pudimos guardar la nota interna. Intenta nuevamente en unos segundos.</value>
+  </data>
   <data name="RestablecerVista" xml:space="preserve">
     <value>Restablecer vista</value>
   </data>
@@ -513,4 +539,37 @@
   <data name="ListaResultadosUnidad" xml:space="preserve"><value>resultados</value></data>
   <data name="ListaDocumentacion" xml:space="preserve"><value>Documentación</value></data>
   <data name="ListaEstado" xml:space="preserve"><value>Estado</value></data>
+  <data name="SeccionAriaEtiqueta" xml:space="preserve">
+    <value>Secciones de {0}</value>
+  </data>
+  <data name="SeccionDocumentos" xml:space="preserve">
+    <value>Documentos</value>
+  </data>
+  <data name="SeccionEquipo" xml:space="preserve">
+    <value>Equipo</value>
+  </data>
+  <data name="SeccionTodosLosDocumentos" xml:space="preserve">
+    <value>Todos los documentos</value>
+  </data>
+  <data name="SeccionIncidencias" xml:space="preserve">
+    <value>Incidencias</value>
+  </data>
+  <data name="SeccionUsuarios" xml:space="preserve">
+    <value>Usuarios</value>
+  </data>
+  <data name="SeccionRoles" xml:space="preserve">
+    <value>Roles</value>
+  </data>
+  <data name="SelectorTenantFijadas" xml:space="preserve">
+    <value>Fijadas</value>
+  </data>
+  <data name="SelectorTenantResto" xml:space="preserve">
+    <value>Resto de la cartera</value>
+  </data>
+  <data name="SelectorTenantFijar" xml:space="preserve">
+    <value>Fijar arriba</value>
+  </data>
+  <data name="SelectorTenantQuitarFijada" xml:space="preserve">
+    <value>Quitar de fijadas</value>
+  </data>
 </root>

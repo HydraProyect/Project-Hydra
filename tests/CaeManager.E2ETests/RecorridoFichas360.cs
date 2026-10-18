@@ -47,7 +47,7 @@ internal static class RecorridoFichas360
         await page.WaitForTimeoutAsync(6_000);
         await ComprobarQueElTenantSigueActivoAsync(page, tenantEsperado, "la lista de Trabajadores tras la revalidación del circuito");
 
-        var enlace = page.Locator("tbody a.boton-360-pagina").First;
+        var enlace = page.Locator(".marco-lista-trabajadores a.boton-360-pagina").First;
         await Expect(enlace).ToBeVisibleAsync(EsperaEnFrio);
         await enlace.ClickAsync();
         await page.WaitForURLAsync(new Regex(@"/trabajadores/[0-9a-f-]{36}"));

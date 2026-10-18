@@ -546,9 +546,6 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         (VentanaReclamacion.EsReclamable(d.FechaVencimiento, DiaDeNegocio.Hoy()) ||
          (d.Estado == EstadoDocumento.SinConfirmar && d.FechaVencimiento is null))));
 
-    private static AccionDocumentoFicha360? AccionDocumento(DocumentoRequeridoDto documento) =>
-        documento.Estado == EstadoDocumento.Proximo ? AccionDocumentoFicha360.Renovar : EstadoDocumentoFicha360.Accion(documento.Estado);
-
     /// <summary>
     /// Por qué no se ve ningún trabajador. El vacío por filtro y el vacío por
     /// ausencia de registros no son el mismo hecho y no pueden contarse igual.

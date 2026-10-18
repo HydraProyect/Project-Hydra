@@ -100,13 +100,13 @@ public partial class Centro360Gen2Tests
     [InlineData(EstadoDocumento.SinConfirmar, 1)]
     [InlineData(EstadoDocumento.Vigente, 0)]
     [InlineData(EstadoDocumento.SinCaducidad, 0)]
-    public void La_fila_ofrece_Pedir_solo_si_hay_documentacion_que_el_flujo_puede_pedir(EstadoDocumento estado, int acciones)
+    public void La_fila_ofrece_Gestionar_solo_si_hay_documentacion_que_el_flujo_puede_pedir(EstadoDocumento estado, int acciones)
     {
         var id = Guid.NewGuid();
         Registrar(new MediatorFalso()).Asignaciones[id] = [Asignado("Ana Alba", estado, Documento("Aptitud médica", estado))];
         var cut = RenderizarAcordeon(id);
         cut.FindAll(".fila-relacion-acciones button:not(.boton-360)").Should().HaveCount(acciones);
         if (acciones > 0)
-            cut.Find(".fila-relacion-acciones button:not(.boton-360)").TextContent.Trim().Should().Be("Pedir");
+            cut.Find(".fila-relacion-acciones button:not(.boton-360)").TextContent.Trim().Should().Be("Gestionar");
     }
 }

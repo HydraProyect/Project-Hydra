@@ -2,12 +2,15 @@ namespace CaeManager.Domain.Comunicaciones;
 
 public interface IConversacionRepository
 {
+    Task<Conversacion?> ObtenerUltimaCerradaPorHiloExternoAsync(
+        Guid conexionIntegracionId, string hiloExternoId, CancellationToken cancellationToken = default);
+
     /// <summary>Incluye Mensajes y Participantes — es lo que necesita la pantalla de detalle/respuesta.</summary>
     Task<Conversacion?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Para la ingesta de webhook (P3-33): encuentra el hilo existente al que
-    /// se suma un mensaje entrante nuevo, o null si es el primero del hilo.
+    /// se suma un mensaje entrante nuevo, o null si es el primero del hilo o el anterior está cerrado.
     /// Acotado por <paramref name="conexionIntegracionId"/> (auditoría módulo
     /// 6) — Graph puede asignar el MISMO conversationId a un hilo que
     /// participan dos buzones conectados distintos del mismo tenant (está

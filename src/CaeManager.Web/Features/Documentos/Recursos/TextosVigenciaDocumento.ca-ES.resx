@@ -57,6 +57,18 @@
   <data name="MotivoCaducaEnDias" xml:space="preserve">
     <value>Caduca en {0} dies</value>
   </data>
+  <data name="MotivoFaltaFechaFin" xml:space="preserve">
+    <value>Falta la data de fi</value>
+  </data>
+  <data name="DetalleDesdeFecha" xml:space="preserve">
+    <value>Des del {0}</value>
+  </data>
+  <data name="DetalleVencioFecha" xml:space="preserve">
+    <value>Va vèncer el {0}</value>
+  </data>
+  <data name="DetalleCaducaFecha" xml:space="preserve">
+    <value>Caduca el {0}</value>
+  </data>
   <data name="FranjaVencidos" xml:space="preserve">
     <value>Vençuts</value>
   </data>
@@ -86,6 +98,15 @@
   </data>
   <data name="Ficha360Desconocido" xml:space="preserve">
     <value>Estat desconegut</value>
+  </data>
+  <data name="Ficha360Gestionar" xml:space="preserve">
+    <value>Gestionar</value>
+  </data>
+  <data name="Ficha360GestionarAccesibleDe" xml:space="preserve">
+    <value>Gestionar el document «{0}» de {1}</value>
+  </data>
+  <data name="Ficha360GestionarAccesible" xml:space="preserve">
+    <value>Gestionar el document «{0}»</value>
   </data>
   <data name="MotivoFaltaTipos" xml:space="preserve">
     <value>Falta: {0}</value>

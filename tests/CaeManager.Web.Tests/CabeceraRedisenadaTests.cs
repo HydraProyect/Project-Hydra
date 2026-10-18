@@ -303,11 +303,67 @@ public class CabeceraRedisenadaTests : BunitContext
     }
 
     [Fact]
+    public void Mi_avatar_lleva_la_miga_Mi_cuenta_barra_Mi_avatar()
+    {
+        var cut = RenderMigas("/mi-avatar");
+
+        var migas = cut.FindAll("li.miga");
+        migas.Select(m => m.TextContent.Trim()).Should().Equal("Mi cuenta", "Mi avatar");
+        migas[^1].GetAttribute("aria-current").Should().Be("page");
+    }
+
+    [Fact]
     public void Una_subpantalla_que_no_es_una_ficha_no_inventa_un_nombre()
     {
         var cut = RenderMigas("/documentos/revision-ia");
 
-        cut.FindAll("li.miga").Select(m => m.TextContent.Trim()).Should().Equal("Negocio", "Documentos");
+        cut.FindAll("li.miga").Select(m => m.TextContent.Trim()).Should().Equal("Negocio", "Documentos", "Revisión IA");
+    }
+
+    [Theory]
+    [InlineData("/incidencias", "Negocio", "Documentos", "Incidencias", "/documentos")]
+    [InlineData("/roles", "Administración", "Equipo", "Roles", "/usuarios")]
+    public void Una_pestana_de_seccion_lleva_su_seccion_en_medio_como_en_el_marco_de_Design(
+        string ruta, string grupo, string seccion, string pestana, string rutaSeccion)
+    {
+        var cut = RenderMigas(ruta);
+
+        cut.FindAll("li.miga").Select(m => m.TextContent.Trim()).Should().Equal(grupo, seccion, pestana);
+        cut.Find("li.miga a").GetAttribute("href").Should().Be(rutaSeccion, "la sección sube a su primera pestaña");
+        cut.Find("li.miga-actual").GetAttribute("aria-current").Should().Be("page");
+    }
+
+    [Fact]
+    public void La_pestana_de_Revision_IA_por_su_parametro_tambien_lleva_la_seccion_en_medio()
+    {
+        var cut = RenderMigas("/documentos?pestana=revision-ia");
+
+        cut.FindAll("li.miga").Select(m => m.TextContent.Trim()).Should().Equal("Negocio", "Documentos", "Revisión IA");
+    }
+
+    [Fact]
+    public void Equipo_da_el_mismo_grupo_en_sus_dos_pestanas_aunque_haya_dos_entradas_del_menu_con_su_ruta()
+    {
+        // «usuarios» es la ruta de dos entradas (Control para el Coordinador CAE y Administración) y la miga no
+        // evalúa condiciones: la sección fija el grupo, como en el marco de Design.
+        RenderMigas("/usuarios").FindAll("li.miga").Select(m => m.TextContent.Trim()).Should().Equal("Administración", "Equipo");
+    }
+
+    [Fact]
+    public void La_primera_pestana_de_una_seccion_es_la_propia_entrada_del_menu()
+    {
+        RenderMigas("/documentos").FindAll("li.miga").Select(m => m.TextContent.Trim()).Should().Equal("Negocio", "Documentos");
+    }
+
+    [Fact]
+    public void Una_ficha_de_Incidencia_sube_a_su_pestana_con_un_enlace()
+    {
+        var id = Guid.NewGuid();
+
+        var cut = RenderMigas($"/incidencias/{id}");
+
+        cut.FindAll("li.miga a").Select(a => a.GetAttribute("href")).Should().Equal("/documentos", "/incidencias");
+        cut.FindAll("li.miga").Select(m => m.TextContent.Trim()).Should().Equal("Negocio", "Documentos", "Incidencias", "Ficha");
     }
 
     [Fact]

@@ -139,8 +139,10 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         // el menú (grupo "Plataforma", CatalogoMenuLateral — resuelve la tensión
         // AdminPlataforma de #401/#403: su autoridad es de capacidad, no del
         // rol Administrador que gateaba el hub de Configuración donde vivía
-        // antes), así que se entra directamente, sin pasar por el hub.
-        await page.Locator(".nav-item", new PageLocatorOptions { HasText = "Delegaciones" }).ClickAsync();
+        // antes), así que se entra directamente, sin pasar por el hub. Como en el
+        // marco de Design (marco-talveg.js), el grupo «Plataforma» nace plegado:
+        // se abre antes, como haría la persona.
+        await Ayudas.AbrirGrupoYClickAsync(page, "plataforma", page.Locator("a.nav-item[href='delegaciones']"));
         await page.WaitForURLAsync($"{fixture.BaseUrl}/delegaciones");
 
         tarjeta = TarjetaSoporte(page, Ayudas.NombreClienteDelegadoDemo);

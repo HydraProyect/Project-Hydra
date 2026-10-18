@@ -21,6 +21,16 @@ public class Trabajador : EntidadBase
     public const int LongitudMaximaTelefono = 20;
 
     public const int LongitudMaximaObservaciones = 1000;
+
+    /// <summary>Mismo límite que la «Nota interna» de Empresa 360 (<c>Empresa.LongitudMaximaNotas</c>).</summary>
+    public const int LongitudMaximaNotas = 2000;
+
+    /// <summary>Mismo límite que <see cref="LongitudMaximaApellidos"/>: cabe un nombre con dos apellidos y el parentesco.</summary>
+    public const int LongitudMaximaContactoEmergenciaNombre = 150;
+
+    /// <summary>Un E.164 tiene como mucho 15 dígitos; menos de 6 no es un teléfono al que se pueda llamar.</summary>
+    public const int MinimoDigitosTelefonoEmergencia = 6;
+    public const int MaximoDigitosTelefonoEmergencia = 15;
     public const int LongitudMinimaDni = 5;
     public const int LongitudMaximaDni = 20;
 
@@ -71,6 +81,34 @@ public class Trabajador : EntidadBase
     public string? Telefono { get; private set; }
 
     public string? Observaciones { get; private set; }
+
+    /// <summary>
+    /// La «Nota interna» de la ficha Trabajador 360: texto libre del equipo sobre el Trabajador. NULL = sin nota.
+    /// Solo la escribe <see cref="FijarNotaInterna"/>; <see cref="Actualizar"/> y <see cref="ActualizarFicha"/> no la
+    /// tocan. No es <see cref="Observaciones"/>: aquella viaja a la API pública v1 y esta no sale del equipo.
+    ///
+    /// Texto libre sobre una persona física: dato personal. Está en <see cref="CamposDeDatosPersonales"/> y
+    /// <see cref="Anonimizar"/> la vacía.
+    /// </summary>
+    public string? Notas { get; private set; }
+
+    /// <summary>
+    /// A quién avisar si al Trabajador le pasa algo (decisión de Chris, 2026-10-18: del bloque de contacto de la
+    /// maqueta Trabajador 360 solo se construye el contacto de emergencia; ni dirección ni firma de documentos).
+    /// NULL = sin contacto. Solo lo escribe <see cref="FijarContactoEmergencia"/>.
+    ///
+    /// Dato personal de dos personas físicas: está en <see cref="CamposDeDatosPersonales"/> y
+    /// <see cref="Anonimizar"/> lo vacía. No viaja a la API pública v1, a listados ni a exportaciones, y en
+    /// <c>ObtenerTrabajadorPorIdQuery</c> sigue la política de la nota interna (no llega al Usuario de Cliente).
+    /// </summary>
+    public string? ContactoEmergenciaNombre { get; private set; }
+
+    /// <summary>
+    /// Teléfono del contacto de emergencia, normalizado como <see cref="Telefono"/> (sin separadores, "00" → "+") y
+    /// con formato comprobado (<see cref="NormalizarTelefonoEmergencia"/>). Mismo tratamiento de dato personal que
+    /// <see cref="ContactoEmergenciaNombre"/>.
+    /// </summary>
+    public string? ContactoEmergenciaTelefono { get; private set; }
 
     public string? NumeroAfiliacionSeguridadSocial { get; private set; }
     public string? Nacionalidad { get; private set; }
@@ -172,12 +210,15 @@ public class Trabajador : EntidadBase
     /// <c>app_enmascarar_auditoria_de_trabajador_anonimizado</c> (migración
     /// <c>EnmascaraAuditoriaDeTrabajadorAnonimizado</c>) reescribe con "***" estas mismas
     /// claves en las entradas anteriores. La función repite la lista en SQL: una propiedad
-    /// personal nueva se añade aquí, en <see cref="Anonimizar"/> y en la función.
+    /// personal nueva se añade aquí, en <see cref="Anonimizar"/> y en la función, redefinida con
+    /// CREATE OR REPLACE en una migración nueva (la última, <c>AnadeContactoEmergenciaATrabajador</c>,
+    /// añadió <see cref="ContactoEmergenciaNombre"/> y <see cref="ContactoEmergenciaTelefono"/>).
     /// </summary>
     public static readonly IReadOnlyList<string> CamposDeDatosPersonales =
     [
         nameof(Nombre), nameof(Apellidos), nameof(Alias), nameof(Dni), nameof(FechaNacimiento),
-        nameof(Email), nameof(Telefono), nameof(Observaciones), nameof(Puesto),
+        nameof(Email), nameof(Telefono), nameof(Observaciones), nameof(Notas),
+        nameof(ContactoEmergenciaNombre), nameof(ContactoEmergenciaTelefono), nameof(Puesto),
         nameof(NumeroAfiliacionSeguridadSocial), nameof(Nacionalidad), nameof(TipoVinculo),
         nameof(FechaAltaEmpresa), nameof(FechaBajaEmpresa), nameof(FiguraEnRnt),
         nameof(TipoPermisoTrabajo), nameof(CaducidadPermisoTrabajo), nameof(MotivoPermisoTrabajo),
@@ -217,6 +258,9 @@ public class Trabajador : EntidadBase
         Email = null;
         Telefono = null;
         Observaciones = null;
+        Notas = null;
+        ContactoEmergenciaNombre = null;
+        ContactoEmergenciaTelefono = null;
         Puesto = null;
         NumeroAfiliacionSeguridadSocial = null;
         Nacionalidad = null;
@@ -229,6 +273,77 @@ public class Trabajador : EntidadBase
         MotivoPermisoTrabajo = null;
 
         AnonimizadoEnUtc = ahoraUtc;
+    }
+
+    /// <summary>
+    /// Fija solo la nota interna (<see cref="Notas"/>), sin tocar identidad, contacto ni ficha: quien edita la nota
+    /// desde la ficha 360 no reenvía los datos del Trabajador. Vacía o solo espacios equivale a no tener nota
+    /// (<c>null</c>). Un Trabajador anonimizado no la admite: es dato personal y reintroducirlo dejaría la supresión
+    /// sin efecto.
+    /// </summary>
+    public void FijarNotaInterna(string? notas)
+    {
+        if (EstaAnonimizado)
+            throw new InvalidOperationException(
+                "Este trabajador está anonimizado: sus datos personales se suprimieron y no pueden volver a introducirse.");
+
+        var normalizada = string.IsNullOrWhiteSpace(notas) ? null : notas.Trim();
+
+        if (normalizada is { Length: > LongitudMaximaNotas })
+            throw new ArgumentException($"La nota interna no puede superar {LongitudMaximaNotas} caracteres.", nameof(notas));
+
+        Notas = normalizada;
+    }
+
+    /// <summary>
+    /// Fija el contacto de emergencia (<see cref="ContactoEmergenciaNombre"/> y <see cref="ContactoEmergenciaTelefono"/>).
+    /// Vacío o solo espacios equivale a no tenerlo (<c>null</c>); los dos campos son independientes. Valida todo antes
+    /// de mutar. Un Trabajador anonimizado no lo admite: es dato personal y reintroducirlo dejaría la supresión sin efecto.
+    /// </summary>
+    public void FijarContactoEmergencia(string? nombre, string? telefono)
+    {
+        if (EstaAnonimizado)
+            throw new InvalidOperationException(
+                "Este trabajador está anonimizado: sus datos personales se suprimieron y no pueden volver a introducirse.");
+
+        var nombreNormalizado = string.IsNullOrWhiteSpace(nombre) ? null : nombre.Trim();
+        if (nombreNormalizado is { Length: > LongitudMaximaContactoEmergenciaNombre })
+            throw new ArgumentException(
+                $"El contacto de emergencia no puede superar {LongitudMaximaContactoEmergenciaNombre} caracteres.", nameof(nombre));
+
+        var telefonoNormalizado = NormalizarTelefonoEmergencia(telefono);
+
+        ContactoEmergenciaNombre = nombreNormalizado;
+        ContactoEmergenciaTelefono = telefonoNormalizado;
+    }
+
+    /// <summary>
+    /// Quita los separadores de escritura (espacios, guiones, paréntesis, puntos), convierte el prefijo "00" en "+" y
+    /// exige lo que queda: un "+" opcional seguido de entre <see cref="MinimoDigitosTelefonoEmergencia"/> y
+    /// <see cref="MaximoDigitosTelefonoEmergencia"/> dígitos ASCII. No inventa prefijo de país.
+    /// </summary>
+    public static string? NormalizarTelefonoEmergencia(string? valor)
+    {
+        if (string.IsNullOrWhiteSpace(valor)) return null;
+
+        var normalizado = new string(valor.Where(c => !char.IsWhiteSpace(c) && c is not ('-' or '(' or ')' or '.')).ToArray());
+        if (normalizado.StartsWith("00", StringComparison.Ordinal))
+            normalizado = "+" + normalizado[2..];
+
+        var digitos = normalizado.StartsWith('+') ? normalizado[1..] : normalizado;
+        if (digitos.Length is < MinimoDigitosTelefonoEmergencia or > MaximoDigitosTelefonoEmergencia
+            || digitos.Any(c => c is < '0' or > '9'))
+            throw new ArgumentException(
+                $"Introduce un teléfono de {MinimoDigitosTelefonoEmergencia} a {MaximoDigitosTelefonoEmergencia} dígitos, con «+» delante si es internacional.",
+                nameof(valor));
+
+        return normalizado;
+    }
+
+    public static bool TelefonoEmergenciaValido(string? valor)
+    {
+        try { NormalizarTelefonoEmergencia(valor); return true; }
+        catch (ArgumentException) { return false; }
     }
 
     /// <summary>

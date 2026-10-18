@@ -256,10 +256,10 @@
     <value>Per què està bloquejat en aquest Centre</value>
   </data>
   <data name="MotivoBloqueoPedir" xml:space="preserve">
-    <value>Demanar</value>
+    <value>Gestionar</value>
   </data>
   <data name="MotivoBloqueoPedirDe" xml:space="preserve">
-    <value>Demanar {0}</value>
+    <value>Gestionar {0}</value>
   </data>
   <data name="MotivoBloqueoNoSePuedePedir" xml:space="preserve">
     <value>no es pot demanar des d’aquí</value>
@@ -391,7 +391,7 @@
     <value>{0} de {1}</value>
   </data>
   <data name="PedirDocumentacion360" xml:space="preserve">
-    <value>Demanar</value>
+    <value>Gestionar</value>
   </data>
   <data name="TotalesListaCompleta360" xml:space="preserve">
     <value>Es calcula sobre la llista completa, no sobre la filtrada.</value>
@@ -433,6 +433,9 @@
   <data name="CabeceraEmpresa" xml:space="preserve">
     <value>Empresa:</value>
     <comment>Empresa que treballa al Centre.</comment>
+  </data>
+  <data name="AriaGestionarDocumentosTrabajador" xml:space="preserve">
+    <value>Gestiona els documents de {0}</value>
   </data>
   <data name="GestionarDocumento360" xml:space="preserve">
     <value>Gestionar</value>
@@ -553,4 +556,10 @@
   <data name="FichaAccesoVacioDescripcion" xml:space="preserve"><value>Encara no s'ha informat l'horari ni el contacte de control d'accessos d'aquest Centre.</value></data>
   <data name="FichaPrevencionVacioTitulo" xml:space="preserve"><value>Prevenció sense configurar</value></data>
   <data name="FichaPrevencionVacioDescripcion" xml:space="preserve"><value>Encara no s'ha informat el Tècnic de prevenció ni els treballs especials d'aquest Centre.</value></data>
+  <data name="InformacionTitulo360" xml:space="preserve"><value>Informació</value></data>
+  <data name="InformacionCodigo360" xml:space="preserve"><value>Codi</value></data>
+  <data name="InformacionCliente360" xml:space="preserve"><value>Client</value></data>
+  <data name="EditarFlecha360" xml:space="preserve"><value>Editar →</value></data>
+  <data name="ConsultaRapida360" xml:space="preserve"><value>Consulta ràpida</value></data>
+  <data name="InformacionEmpresa360" xml:space="preserve"><value>Empresa</value></data>
 </root>

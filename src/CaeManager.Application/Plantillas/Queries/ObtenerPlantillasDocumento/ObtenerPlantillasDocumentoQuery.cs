@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
 using MediatR;
@@ -19,15 +20,27 @@ public record PlantillaDocumentoListaDto(
     Guid UltimaVersionId,
     EstadoConfiguracionPlantilla UltimaVersionEstado);
 
-public class ObtenerPlantillasDocumentoQueryHandler(IPlantillasQueryContext plantillasContext)
+/// <remarks>
+/// Asignación de Cartera: solo se listan las plantillas que alcanza quien mira (<see cref="AlcanceDePlantillas"/>), el
+/// mismo criterio con el que se crean y se modifican. Una plantilla atada a un Centro o a un Cliente empresarial de otra
+/// cartera no aparece; las generales del Tenant, sí.
+/// </remarks>
+public class ObtenerPlantillasDocumentoQueryHandler(IPlantillasQueryContext plantillasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerPlantillasDocumentoQuery, IReadOnlyList<PlantillaDocumentoListaDto>>
 {
     public async Task<IReadOnlyList<PlantillaDocumentoListaDto>> Handle(
         ObtenerPlantillasDocumentoQuery request, CancellationToken cancellationToken)
     {
-        var documentos = await plantillasContext.PlantillasDocumento
+        var delTenant = await plantillasContext.PlantillasDocumento
             .Where(d => d.Origen == OrigenPlantilla.Externa)
             .ToListAsync(cancellationToken);
+
+        var documentos = new List<PlantillaDocumento>(delTenant.Count);
+        foreach (var documento in delTenant)
+        {
+            if (await alcanceDatos.PlantillaDentroDeAlcanceAsync(documento, cancellationToken))
+                documentos.Add(documento);
+        }
 
         if (documentos.Count == 0)
             return [];

@@ -141,10 +141,22 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("BusquedaGlobal.BuscarGlobalQueryHandler", "ITiposDocumentoQueryContext"),
         ("BusquedaGlobal.BuscarGlobalQueryHandler", "ITrabajadoresQueryContext"),
         ("BusquedaGlobal.BuscarGlobalQueryHandler", "IVehiculosQueryContext"),
+        // «N documentos vencen esta semana» de «Reclamar a {Empresa}» en la paleta: Documentos de la Empresa y de sus
+        // Trabajadores en cartera, sin voluntarios inactivos (Proyectos), con las reglas de Documentos.Operativos().
+        ("BusquedaGlobal.ContarVencenEstaSemanaDeEmpresaQueryHandler", "IDocumentosQueryContext"),
+        ("BusquedaGlobal.ContarVencenEstaSemanaDeEmpresaQueryHandler", "IProyectosQueryContext"),
+        ("BusquedaGlobal.ContarVencenEstaSemanaDeEmpresaQueryHandler", "ITrabajadoresQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "IConfiguracionQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "IDocumentosQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "ITiposDocumentoQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "ITrabajadoresQueryContext"),
+        // Semana por Empresa compone vencimientos visibles y el historial de envío; no escribe fuera de Calendario.
+        ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "IDocumentosQueryContext"),
+        ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "IEmpresasQueryContext"),
+        ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "ITrabajadoresQueryContext"),
+        ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "IProyectosQueryContext"),
+        ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "IReclamacionesQueryContext"),
+        ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "ITiposDocumentoQueryContext"),
         ("Centros.CrearCanalGestionCommandHandler", "IProveedoresPlataformaCaeQueryContext"),
         ("Centros.CrearCentroCommandHandler", "IClientesQueryContext"),
         ("Centros.CrearCentroCommandHandler", "IEmpresasQueryContext"),
@@ -217,6 +229,17 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // F4.2b: repuntado a RelacionesEmpresariales — ya no depende de
         // ISubcontratasQueryContext en absoluto.
         ("Clientes.ObtenerSubcontratasDeClienteQueryHandler", "IEmpresasQueryContext"),
+        // Plataforma CAE de Cliente 360 (2026-10-18): la plataforma es del Cliente empresarial y el acceso
+        // de cada Empresa proveedora, las dos tablas viven en Empresas; el Cliente empresarial es una Empresa.
+        ("Clientes.GuardarAccesoPlataformaCaeCommandHandler", "IEmpresasQueryContext"),
+        ("Clientes.GuardarAccesoPlataformaCaeCommandHandler", "IPlataformaCaeClienteEmpresarialRepository"),
+        ("Clientes.GuardarPlataformaCaeClienteCommandHandler", "IEmpresaRepository"),
+        // Comprueba que la Empresa es hoy Cliente empresarial (Relación Empresarial vigente).
+        ("Clientes.GuardarPlataformaCaeClienteCommandHandler", "IEmpresasQueryContext"),
+        ("Clientes.GuardarPlataformaCaeClienteCommandHandler", "IPlataformaCaeClienteEmpresarialRepository"),
+        ("Clientes.ObtenerAccesosPlataformaCaeClienteQueryHandler", "IEmpresasQueryContext"),
+        ("Clientes.ObtenerPlataformaCaeClienteQueryHandler", "IEmpresasQueryContext"),
+        ("Clientes.RevelarContrasenaAccesoPlataformaCaeQueryHandler", "IEmpresasQueryContext"),
         ("Clientes.ReasignarEjecutivoClienteCommandHandler", "IConfiguracionIaDocumentoClienteRepository"),
         ("Clientes.ReasignarEjecutivoClienteCommandHandler", "INotificacionUsuarioRepository"),
         // F3b-Subcontrata: mismo motivo que Cliente arriba — "Subcontrata" es
@@ -255,6 +278,13 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comercial.ObtenerEstadoComercialTenantsQueryHandler", "ITenantsQueryContext"),
         ("Comercial.RegistrarSuscripcionTenantCommandHandler", "ITenantsQueryContext"),
         ("Comunicaciones.ActualizarDocumentoDesdeAdjuntoCommandHandler", "IDocumentosQueryContext"),
+        // Rellena variables con los sujetos y la visita del hilo; solo lee otras features.
+        ("Comunicaciones.AplicarMacroCommandHandler", "ICentrosQueryContext"),
+        ("Comunicaciones.AplicarMacroCommandHandler", "IDocumentosQueryContext"),
+        ("Comunicaciones.AplicarMacroCommandHandler", "IEmpresasQueryContext"),
+        ("Comunicaciones.AplicarMacroCommandHandler", "ITiposDocumentoQueryContext"),
+        ("Comunicaciones.AplicarMacroCommandHandler", "ITrabajadoresQueryContext"),
+        ("Comunicaciones.AplicarMacroCommandHandler", "IVisitasQueryContext"),
         ("Comunicaciones.AsignarClienteConversacionCommandHandler", "IEmpresaRepository"),
         ("Comunicaciones.CrearMacroCommandHandler", "IEmpresaRepository"),
         ("Comunicaciones.DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler", "IEmpresasQueryContext"),
@@ -462,6 +492,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Facturacion.ObtenerResumenFacturacionQueryHandler", "IVisitasQueryContext"),
         ("Facturacion.ObtenerTarifasClienteQueryHandler", "IClientesQueryContext"),
         ("Gestiones.CrearGestionesParaTrabajadorCommandHandler", "IAsignacionesQueryContext"),
+        // Asignación de Cartera: el ítem sugerido y el mensaje de origen solo se enlazan si la Conversación es visible.
+        ("Gestiones.CrearGestionesParaTrabajadorCommandHandler", "IComunicacionesQueryContext"),
         ("Gestiones.CrearGestionesParaTrabajadorCommandHandler", "IDetalleSugerenciaGestionCorreoRepository"),
         ("Gestiones.CrearGestionesParaTrabajadorCommandHandler", "ITipoDocumentoRepository"),
         ("Gestiones.ObtenerGestionesQueryHandler", "ICentrosQueryContext"),

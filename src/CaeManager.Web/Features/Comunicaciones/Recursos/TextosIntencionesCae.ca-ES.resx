@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="EtiquetaIntencion" xml:space="preserve"><value>Intenció CAE</value></data>
+  <data name="TodasIntenciones" xml:space="preserve"><value>Totes les intencions</value></data>
+  <data name="ResumenChip" xml:space="preserve"><value>{0} · Confiança {1}</value></data>
+  <data name="Confirmar" xml:space="preserve"><value>Confirmar</value></data>
+  <data name="Confirmada" xml:space="preserve"><value>Confirmada</value></data>
+  <data name="CambiadaConfirmada" xml:space="preserve"><value>Canviada i confirmada</value></data>
+  <data name="PendienteRevision" xml:space="preserve"><value>Proposta pendent de revisió</value></data>
+  <data name="CambiarIntencion" xml:space="preserve"><value>Canviar la intenció CAE</value></data>
+  <data name="EntidadPropuesta" xml:space="preserve"><value>Proposta: {0}</value></data>
+  <data name="PendienteEntidad" xml:space="preserve"><value>Pendent de validació humana.</value></data>
+  <data name="ErrorCargar" xml:space="preserve"><value>No s'ha pogut carregar la intenció CAE. Torna a obrir la conversa.</value></data>
+  <data name="ErrorGuardar" xml:space="preserve"><value>No s'ha pogut desar la intenció CAE. Torna-ho a provar.</value></data>
+  <data name="Confianza_Alta" xml:space="preserve"><value>alta</value></data>
+  <data name="Confianza_Media" xml:space="preserve"><value>mitjana</value></data>
+  <data name="Confianza_Baja" xml:space="preserve"><value>baixa</value></data>
+  <data name="TipoEntidad_Trabajador" xml:space="preserve"><value>Treballador</value></data>
+  <data name="TipoEntidad_Empresa" xml:space="preserve"><value>Empresa</value></data>
+  <data name="TipoEntidad_Centro" xml:space="preserve"><value>Centre</value></data>
+  <data name="TipoEntidad_TipoDocumento" xml:space="preserve"><value>Tipus de document</value></data>
+  <data name="Intencion_CoordinacionAcceso" xml:space="preserve"><value>Coordinació d'accés</value></data>
+  <data name="Intencion_DocumentacionMensual" xml:space="preserve"><value>Documentació mensual</value></data>
+  <data name="Intencion_AltaContratoAccesoCentro" xml:space="preserve"><value>Alta de contracte i accés a un Centre</value></data>
+  <data name="Intencion_CopiaProyectoObra" xml:space="preserve"><value>Còpia en projecte o obra</value></data>
+  <data name="Intencion_UrgenciaAcceso" xml:space="preserve"><value>Urgència d'accés</value></data>
+  <data name="Intencion_ConsultaRequisitos" xml:space="preserve"><value>Consulta de requisits</value></data>
+  <data name="Intencion_Otras" xml:space="preserve"><value>Altres</value></data>
+</root>

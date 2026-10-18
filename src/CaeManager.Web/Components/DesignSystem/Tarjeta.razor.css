@@ -33,6 +33,29 @@
     border-bottom: none;
 }
 
+/*
+   «Editar →» de la cabecera del lateral: en los mockups 360 es .boton-fantasma
+   boton-pequeno, un enlace sin borde ni relleno en azul primario (13/16, peso
+   600, relleno 0 4 px). El Boton Fantasma del repo es el botón con borde de
+   las barras de herramientas, y aquí no es esa pieza.
+*/
+.tarjeta-compacta .tarjeta-acciones ::deep .boton-fantasma {
+    min-height: 0;
+    height: auto;
+    padding: 0 var(--space-1);
+    border: 0;
+    background: none;
+    color: var(--color-primary-500);
+    font: var(--font-label);
+    font-weight: 600;
+}
+
+.tarjeta-compacta .tarjeta-acciones ::deep .boton-fantasma:not(:disabled):hover {
+    background: none;
+    color: var(--color-primary-600);
+    transform: none;
+}
+
 .tarjeta-compacta .tarjeta-titulo {
     font: var(--font-heading-sm);
     margin: 0;

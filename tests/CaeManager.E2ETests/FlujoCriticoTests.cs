@@ -104,7 +104,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         // se escribe el texto exacto de la opción y se espera su debounce de
         // 150ms más el viaje de ida y vuelta a Blazor Server antes de seguir.
         await drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
-            .FillAsync($"{nombreTrabajador} {apellidosTrabajador}");
+            .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
         await page.WaitForTimeoutAsync(500);
 
         // "Formación PRL de convenio" no tiene vencimiento automático (ver

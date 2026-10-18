@@ -31,7 +31,9 @@ public class IngestaWebhookService(
     IClasificacionRuidoMensajeRepository clasificacionRuidoRepositorio,
     IClasificacionRuidoMensajeService clasificacionRuidoMensaje,
     IRelevanciaCaeService relevanciaCae,
-    ILogger<IngestaWebhookService> logger)
+    IAlertaCriticaService alertaCritica,
+    ILogger<IngestaWebhookService> logger,
+    IIntencionConversacionService intenciones)
 {
     private readonly List<string> _archivosGuardados = [];
 
@@ -122,16 +124,34 @@ public class IngestaWebhookService(
         if (await conversacionRepositorio.ExisteMensajeExternoAsync(conexion.Id, mensaje.MensajeExternoId, cancellationToken))
             return; // idempotencia: Graph puede reenviar la misma notificación más de una vez.
 
+        var candidatos = await resolucionPlataforma.ResolverPorDominioCorreoAsync(mensaje.Remitente, cancellationToken);
+        var esCorreoAutomatico = DeteccionCorreoAutomatico.EsAutomatico(mensaje) || candidatos.Count > 0;
+
         var conversacion = await conversacionRepositorio.ObtenerPorHiloExternoAsync(conexion.Id, mensaje.HiloExternoId, cancellationToken);
         if (conversacion is null)
         {
-            conversacion = new Conversacion(mensaje.Asunto, conexion.ClienteId);
-            conversacion.AsociarConexion(conexion.Id, mensaje.HiloExternoId);
-            conversacionRepositorio.Agregar(conversacion);
+            var anterior = await conversacionRepositorio.ObtenerUltimaCerradaPorHiloExternoAsync(conexion.Id, mensaje.HiloExternoId, cancellationToken);
+            // Un automático (autorrespondedor, aviso de plataforma) sobre un hilo Cerrado se anexa a la Cerrada sin
+            // reabrirla: abrir una continuación solo con ruido llenaría el triage.
+            if (anterior is not null && esCorreoAutomatico)
+                conversacion = anterior;
+            else
+            {
+                conversacion = anterior is not null
+                    ? Conversacion.ContinuarCorreo(anterior, mensaje.Asunto)
+                    : new Conversacion(mensaje.Asunto, conexion.ClienteId);
+                if (anterior is null)
+                    conversacion.AsociarConexion(conexion.Id, mensaje.HiloExternoId);
+                conversacionRepositorio.Agregar(conversacion);
+            }
         }
-
         var mensajeCreado = conversacion.AgregarMensaje(
-            DireccionMensaje.Entrante, conversacion.Canal, mensaje.Remitente, mensaje.CuerpoHtml, mensaje.FechaUtc, mensaje.MensajeExternoId);
+            DireccionMensaje.Entrante, conversacion.Canal, mensaje.Remitente, mensaje.CuerpoHtml, mensaje.FechaUtc, mensaje.MensajeExternoId,
+            esAutomatico: esCorreoAutomatico);
+
+        await intenciones.ProcesarAsync(conversacion, cancellationToken);
+
+        await alertaCritica.ProcesarAsync(mensajeCreado, cancellationToken);
 
         foreach (var participante in mensaje.Participantes)
         {
@@ -151,7 +171,6 @@ public class IngestaWebhookService(
         Guid? proveedorPlataformaCaeId = null;
         if (conversacion.Canal == CanalConversacion.Correo)
         {
-            var candidatos = await resolucionPlataforma.ResolverPorDominioCorreoAsync(mensaje.Remitente, cancellationToken);
             esNotificacionAutomatica = candidatos.Count > 0;
             proveedorPlataformaCaeId = esNotificacionAutomatica ? candidatos[0].Id : null;
             clasificacionMensaje = new ClasificacionRuidoMensaje(mensajeCreado.Id, esNotificacionAutomatica, proveedorPlataformaCaeId);

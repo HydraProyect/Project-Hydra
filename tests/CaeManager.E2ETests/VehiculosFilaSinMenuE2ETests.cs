@@ -53,14 +53,8 @@ public class VehiculosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     /// </summary>
     private static async Task EnfocarLaFilaConJAsync(IPage page)
     {
-        await Expect(page.Locator("table.vehiculos-rejilla-propia")).ToHaveAttributeAsync("aria-busy", "false");
-        await page.Locator("thead th.col-estado button.col-title").FocusAsync();
-        await page.Keyboard.PressAsync("j");
-        await Expect(page.Locator("tbody tr.fila-enfocada")).ToHaveCountAsync(1);
-        // La clase llega con el parche del servidor; el foco del DOM pasa a la fila un fotograma después
-        // (enfocarFilaActiva de atajos-lista.js). Mientras el foco siga en el botón de la cabecera,
-        // Enter se descarta como tecla de un elemento interactivo: se espera al foco real de la fila.
-        await Expect(page.Locator("tbody tr.fila-enfocada")).ToBeFocusedAsync();
+        await Ayudas.EsperarListaListaAsync(page.Locator("table.vehiculos-rejilla-propia"));
+        await Ayudas.EnfocarFilaAsync(page, page.Locator("thead th.col-estado button.col-title"), page.Locator("tbody tr.fila-enfocada"));
     }
 
     [Fact]
@@ -71,7 +65,7 @@ public class VehiculosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await page.SetViewportSizeAsync(1280, 800);
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/vehiculos");
-        await Expect(page.Locator("table.vehiculos-rejilla-propia")).ToHaveAttributeAsync("aria-busy", "false");
+        await Ayudas.EsperarListaListaAsync(page.Locator("table.vehiculos-rejilla-propia"));
 
         // Control positivo: la siembra de esta fixture debe ofrecer una incidencia corregible.
         // El nombre se observa en el navegador; no se fija un vehículo ni una posición de la siembra.

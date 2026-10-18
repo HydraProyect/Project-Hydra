@@ -129,7 +129,7 @@ public class F3bSubcontrataSmokeTests(WebAppFixture fixture)
         // — la columna "Empresa" del listado muestra su razón
         // social exactamente porque el FK se resolvió contra Empresas.
         await page.GetByPlaceholder("Filtrar esta pantalla: nombre, DNI o alias").FillAsync(apellidosTrabajador);
-        var filaTrabajador = page.Locator(".tabla-datos tr", new PageLocatorOptions { HasText = apellidosTrabajador });
+        var filaTrabajador = page.Locator(".marco-lista-trabajadores .tarjeta-fila-acordeon", new PageLocatorOptions { HasText = apellidosTrabajador });
         await filaTrabajador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Expect(filaTrabajador).ToContainTextAsync(razonSocialSubcontrata);
     }

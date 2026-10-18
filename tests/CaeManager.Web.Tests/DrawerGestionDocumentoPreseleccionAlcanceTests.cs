@@ -242,6 +242,17 @@ public class DrawerGestionDocumentoPreseleccionAlcanceTests : BunitContext
         cut.Markup.Should().Contain("Ana Ruiz Peña — Anita").And.NotContain(TrabajadorSelectorFalso.DniSembrado);
     }
 
+    [Fact]
+    public async Task Un_nombre_unico_tambien_muestra_la_Empresa_sin_DNI()
+    {
+        var trabajador = TrabajadorSelectorFalso.Crear(Guid.NewGuid(), "Ana Ruiz Peña", empleador: "Montajes Ebro S.L.");
+        var cut = Renderizar(new MediatorFalso { Trabajadores = [trabajador], Empresas = [] });
+        await cut.InvokeAsync(() => cut.Instance.AbrirCrearAsync());
+        var buscador = cut.FindComponents<CampoBuscarSelect>().Single(c => c.Instance.Etiqueta == "Trabajador");
+        buscador.Instance.Opciones.Select(o => o.Texto).Should().Equal("Ana Ruiz Peña (Montajes Ebro S.L.)");
+        cut.Markup.Should().NotContain(TrabajadorSelectorFalso.DniSembrado);
+    }
+
     /// <summary>
     /// Sin DNI, dos homónimos de la cartera tienen que seguir siendo elegibles por separado: la
     /// etiqueta los desempata por el empleador y escribir la del segundo resuelve el Id del segundo,

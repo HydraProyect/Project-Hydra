@@ -45,7 +45,7 @@ public record ObtenerTrabajadoresQuery(
     string? Busqueda, Guid? EmpresaId = null, Guid? SubcontrataId = null, int Pagina = 1, int TamanoPagina = 20,
     Guid? CentroId = null, bool ConDesgloseDocumental = false,
     string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null,
-    bool ConRecuentosPorEstado = false, Guid? TrabajadorId = null, bool? VoluntarioInactivo = null)
+    bool ConRecuentosPorEstado = false, Guid? TrabajadorId = null)
     : IRequest<ResultadoPaginado<TrabajadorListaDto>>;
 
 public record TrabajadorListaDto(
@@ -150,16 +150,6 @@ public class ObtenerTrabajadoresQueryHandler(
 
             consulta = consulta.Where(x => centroVisible && asignacionesContext.Asignaciones
                 .Any(a => a.TrabajadorId == x.trabajador.Id && a.CentroId == centroId && a.FechaBaja == null));
-        }
-
-        // Filtro de actividad: true = solo los voluntarios inactivos; false = todos menos ellos. Solo estrecha.
-        if (request.VoluntarioInactivo is { } soloInactivos)
-        {
-            var inactivos = ActividadVoluntarios.VoluntariosInactivosIds(
-                trabajadoresContext.Trabajadores, proyectosContext, DiaDeNegocio.Hoy());
-            consulta = soloInactivos
-                ? consulta.Where(x => inactivos.Contains(x.trabajador.Id))
-                : consulta.Where(x => !inactivos.Contains(x.trabajador.Id));
         }
 
         // Lista blanca de columnas ordenables — ver ObtenerClientesQuery. Este

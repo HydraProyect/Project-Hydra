@@ -13,10 +13,10 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="TituloPagina" xml:space="preserve">
-    <value>Dashboard Ejecutivo</value>
+    <value>Cuadro de dirección</value>
   </data>
   <data name="Kicker" xml:space="preserve">
-    <value>Dashboard Ejecutivo</value>
+    <value>Cuadro de dirección</value>
   </data>
   <data name="TituloCabecera" xml:space="preserve">
     <value>Tu cartera, con los KPI que elijas</value>
@@ -46,7 +46,7 @@
     <value>Personalizado</value>
   </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
-    <value>No pudimos cargar el Dashboard Ejecutivo</value>
+    <value>No pudimos cargar el Cuadro de dirección</value>
   </data>
   <data name="ErrorCargaDescripcion" xml:space="preserve">
     <value>Intenta nuevamente en unos segundos.</value>

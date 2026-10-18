@@ -30,8 +30,8 @@
   <data name="EnlaceIrAEntrada" xml:space="preserve">
     <value>Ir a {0}</value>
   </data>
-  <data name="GrupoAccesoIdentidad" xml:space="preserve">
-    <value>Acceso e identidad</value>
+  <data name="GrupoMiCuenta" xml:space="preserve">
+    <value>El meu compte</value>
   </data>
   <data name="GrupoPlataformaConexiones" xml:space="preserve">
     <value>Plataforma y conexiones</value>
@@ -39,20 +39,29 @@
   <data name="GrupoCatalogosDatos" xml:space="preserve">
     <value>Catálogos y datos</value>
   </data>
+  <data name="GrupoComunicaciones" xml:space="preserve">
+    <value>Comunicacions</value>
+  </data>
+  <data name="EntradaPlantillasNombre" xml:space="preserve">
+    <value>Plantilles</value>
+  </data>
+  <data name="EntradaPlantillasResumen" xml:space="preserve">
+    <value>Documents que es generen</value>
+  </data>
   <data name="GrupoAuditoria" xml:space="preserve">
     <value>Auditoría</value>
   </data>
-  <data name="EntradaUsuariosNombre" xml:space="preserve">
-    <value>Usuarios</value>
+  <data name="EntradaDosPasosNombre" xml:space="preserve">
+    <value>Verificació en dos passos</value>
   </data>
-  <data name="EntradaUsuariosResumen" xml:space="preserve">
-    <value>Cuentas y carteras asignadas</value>
+  <data name="EntradaDosPasosResumen" xml:space="preserve">
+    <value>Segon factor del teu compte</value>
   </data>
-  <data name="EntradaRolesNombre" xml:space="preserve">
-    <value>Roles</value>
+  <data name="EntradaMiFirmaNombre" xml:space="preserve">
+    <value>La meva signatura</value>
   </data>
-  <data name="EntradaRolesResumen" xml:space="preserve">
-    <value>Permisos por perfil</value>
+  <data name="EntradaMiFirmaResumen" xml:space="preserve">
+    <value>Signatura i segell personals</value>
   </data>
   <data name="EntradaApiNombre" xml:space="preserve">
     <value>Claves API</value>
@@ -310,7 +319,7 @@
     <value>Orden del menú</value>
   </data>
   <data name="EntradaOrdenMenuResumen" xml:space="preserve">
-    <value>Solo Actor de Plataforma TALVEG</value>
+    <value>Solo Actor de Plataforma</value>
   </data>
   <data name="OrdenMenuTituloDocumento" xml:space="preserve">
     <value>Orden del menú — Configuración</value>

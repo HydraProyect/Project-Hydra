@@ -76,11 +76,11 @@ public partial class TrabajadoresListaGen2Tests
             mediador.Almacen.Add(Trabajador("Nombre", $"Apellido {i:00}"));
         var editado = mediador.Almacen.Single(f => f.Dto.Apellidos == "Apellido 23").Dto.Id;
         var cut = Renderizar(mediador);
-        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".paginador-pie-listado button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().HaveCount(5).And.StartWith("Nombre Apellido 21"));
         await AlternarSeleccionMultiple(cut);
-        await cut.Find("tbody input[aria-label='Seleccionar a Nombre Apellido 22']").ChangeAsync(new ChangeEventArgs { Value = true });
-        await cut.Find("tbody input[aria-label='Seleccionar a Nombre Apellido 23']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find(".lista-filas-acordeon input[aria-label='Seleccionar a Nombre Apellido 22']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find(".lista-filas-acordeon input[aria-label='Seleccionar a Nombre Apellido 23']").ChangeAsync(new ChangeEventArgs { Value = true });
         var atajos = cut.FindComponent<AtajosListaTeclado>();
         await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("j"));
         ClasesDeLasFilas(cut)[0].Should().Contain("fila-enfocada", "punto de partida: la j enfocó la primera fila");
@@ -93,11 +93,11 @@ public partial class TrabajadoresListaGen2Tests
             "Nombre Apellido 21", "Nombre Apellido 22", "Renombrado Apellido 23", "Nombre Apellido 24", "Nombre Apellido 25"));
         ComprobacionPieListado.Pagina(cut, 2, 2);
         cut.Find(".paginador-texto").TextContent.Should().EndWith("Mostrando 5 de 25");
-        cut.Find("tbody input[aria-label='Seleccionar a Nombre Apellido 22']").HasAttribute("checked").Should().BeTrue(
+        cut.Find(".lista-filas-acordeon input[aria-label='Seleccionar a Nombre Apellido 22']").HasAttribute("checked").Should().BeTrue(
             "la selección de otra fila sigue marcada");
-        cut.Find("tbody input[aria-label='Seleccionar a Renombrado Apellido 23']").HasAttribute("checked").Should().BeTrue(
+        cut.Find(".lista-filas-acordeon input[aria-label='Seleccionar a Renombrado Apellido 23']").HasAttribute("checked").Should().BeTrue(
             "la fila sustituida sigue seleccionada");
-        cut.FindAll("tbody input[type=checkbox]").Count(c => c.HasAttribute("checked")).Should().Be(2);
+        cut.FindAll(".lista-filas-acordeon input[type=checkbox]").Count(c => c.HasAttribute("checked")).Should().Be(2);
         ClasesDeLasFilas(cut).Select(c => c.Contains("fila-enfocada")).Should().Equal(true, false, false, false, false);
         ConsultasDeLista(mediador).Should().Be(consultasAntes + 1, "una carga de página habría limpiado selección y foco");
         UltimaConsulta(mediador).TrabajadorId.Should().Be(editado);
@@ -140,7 +140,7 @@ public partial class TrabajadoresListaGen2Tests
         var dePagina1 = mediador.Almacen.Single(f => f.Dto.Apellidos == "Apellido 01").Dto.Id;
         var dePagina2 = mediador.Almacen.Single(f => f.Dto.Apellidos == "Apellido 21").Dto.Id;
         var cut = Renderizar(mediador);
-        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".paginador-pie-listado button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().HaveCount(5).And.StartWith("Nombre Apellido 21"));
         var enviadasAntes = mediador.Enviadas.Count;
         Renombrar(mediador, dePagina1, nombre: "Renombrado");

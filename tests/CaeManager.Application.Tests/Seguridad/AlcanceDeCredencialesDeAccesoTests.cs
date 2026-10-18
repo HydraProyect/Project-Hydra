@@ -297,6 +297,8 @@ public class AlcanceDeCredencialesDeAccesoTests
 
 
         public IQueryable<CredencialAccesoEmpresa> CredencialesAccesoEmpresa => Explota<CredencialAccesoEmpresa>();
+        public IQueryable<PlataformaCaeClienteEmpresarial> PlataformasCaeClienteEmpresarial => Explota<PlataformaCaeClienteEmpresarial>();
+        public IQueryable<AccesoPlataformaCaeEmpresa> AccesosPlataformaCaeEmpresa => Explota<AccesoPlataformaCaeEmpresa>();
 
         public IQueryable<RelacionEmpresarial> RelacionesEmpresariales => Explota<RelacionEmpresarial>();
     }

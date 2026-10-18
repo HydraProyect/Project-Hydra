@@ -128,7 +128,7 @@ src/CaeManager.Web/Features/Comunicaciones/Components/FilaConversacion.razor :: 
 src/CaeManager.Web/Features/Comunicaciones/Components/FilaMensajeBuzonPersonal.razor :: bandeja = 11
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: (nombre de fichero) = 1
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: CambiarPaginaBandejaAsync = 1
-src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: bandeja = 72
+src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: bandeja = 74
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor.cs :: (nombre de fichero) = 1
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor.cs :: Bandeja = 2
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor.cs :: CambiarPaginaBandejaAsync = 1
@@ -158,3 +158,6 @@ src/CaeManager.Web/Features/IncorporacionCartera/Pages/SolicitudesCartera.razor.
 src/CaeManager.Web/Features/Integraciones/Pages/Conexiones.razor :: bandeja = 1
 src/CaeManager.Web/Features/Notificaciones/CampanaAvisos.razor :: Bandeja = 1
 src/CaeManager.Web/Services/ContadorPendientesSelectorTenant.cs :: Bandeja = 1
+
+# Calendario reutiliza el Drawer de reclamaciones existente: referencia técnica a su namespace legacy, sin rótulo nuevo ni nueva ruta.
+src/CaeManager.Web/Features/Calendario/Pages/Calendario.razor :: Bandeja = 1

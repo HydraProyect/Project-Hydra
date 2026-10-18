@@ -198,7 +198,7 @@ public class ProyectosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await page.Locator("h1").ClickAsync();
         await page.Keyboard.PressAsync("j");
         var enfocada = page.Locator("table.tabla-proyectos tbody tr.fila-enfocada");
-        await Expect(enfocada).ToHaveCountAsync(1);
+        await Ayudas.EsperarFocoRealEnFilaAsync(enfocada);
         var nombre = (await enfocada.Locator("button.nombre-proyecto").InnerTextAsync()).Trim();
 
         await page.Keyboard.PressAsync("e");

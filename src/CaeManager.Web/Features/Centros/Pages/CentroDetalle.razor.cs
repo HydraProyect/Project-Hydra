@@ -531,9 +531,6 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private void AbrirClienteEmpresarial() =>
         WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, _detalle!.ClienteId, _detalle.ClienteRazonSocial, "informacion");
 
-    private void AbrirEmpresa() =>
-        WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, _detalle!.EmpresaId, _detalle.EmpresaRazonSocial, "informacion");
-
     private void ProgramarVisita() =>
         NavigationManager.NavigateTo($"/visitas?centroId={CentroId}");
 
@@ -546,24 +543,6 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     private void GenerarInformeDelCentro() =>
         NavigationManager.NavigateTo($"/reportes?clienteId={_detalle!.ClienteId}&centroId={CentroId}");
-
-    private static string EtiquetaDeMotivo(string textoVisible, IReadOnlyList<IncidenciaCentroDto> incidencias, string calificativo) =>
-        $"{textoVisible}. {DescribirRecuento(incidencias, calificativo)}";
-
-    private static string DescribirRecuento(IReadOnlyList<IncidenciaCentroDto> incidencias, string calificativo)
-    {
-        var deEmpresa = incidencias.Count(i => i.Ambito == AmbitoCausa.Empresa);
-        var deTrabajadores = incidencias.Count - deEmpresa;
-        var cabeza = incidencias.Count == 1
-            ? $"1 documento {calificativo}"
-            : $"{incidencias.Count} documentos {(calificativo.EndsWith('o') || calificativo.EndsWith('e') ? calificativo + "s" : calificativo)}";
-
-        var partes = new List<string>();
-        if (deEmpresa > 0) partes.Add(deEmpresa == 1 ? "1 de empresa" : $"{deEmpresa} de empresa");
-        if (deTrabajadores > 0) partes.Add(deTrabajadores == 1 ? "1 de trabajadores" : $"{deTrabajadores} de trabajadores");
-
-        return partes.Count == 0 ? cabeza : $"{cabeza}: {string.Join(" y ", partes)}";
-    }
 
     private IReadOnlyList<DocumentacionEmpresaCentroDto> _documentacionEmpresas = [];
     private IReadOnlyList<DocumentacionRequeridaCentroDto> _requisitosCentro = [];
@@ -633,4 +612,33 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private IReadOnlyDictionary<string, int> RecuentosDocumentacionCentro => _documentacionEmpresas
         .SelectMany(DocumentosQueCoinciden).GroupBy(d => EstadoDocumentoFicha360.Clave(d.Estado))
         .ToDictionary(g => g.Key, g => g.Count());
+
+    // ---------- Nota interna (mismo patrón que Empresa 360, editor en NotaInternaEditable) ----------
+
+    /// <summary>Manda solo la nota y la <c>Version</c> que la ficha leyó.</summary>
+    private Task<CaeManager.Domain.Common.Result> GuardarNotaInternaAsync(string nota) =>
+        Mediator.Send(new CaeManager.Application.Centros.Commands.GuardarNotaInternaCentro
+            .GuardarNotaInternaCentroCommand(_detalle!.Id, nota, _detalle.Version));
+
+    /// <summary>
+    /// Relee solo la cabecera (nota y Version) sin el spinner de CargarAsync, que rehará la ficha y perdería el
+    /// borrador del editor. Si falla, la ficha se queda con lo que ya enseñaba: el siguiente guardado dará conflicto.
+    /// </summary>
+    private async Task RecargarTrasNotaInternaAsync()
+    {
+        var generacion = _generacion;
+        var centroId = _detalle?.Id;
+        if (centroId is null) return;
+
+        try
+        {
+            var detalle = await Mediator.Send(new ObtenerCentroPorIdQuery(centroId.Value), _cancelacion);
+            if (generacion == _generacion && detalle is not null && detalle.Id == _detalle?.Id)
+                _detalle = detalle;
+        }
+        catch (Exception)
+        {
+            // Sin relectura la Version queda vieja: el siguiente guardado dará conflicto y releerá.
+        }
+    }
 }

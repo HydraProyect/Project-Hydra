@@ -13,8 +13,17 @@ public static class EmpresasEndpoints
 {
     public static IEndpointRouteBuilder MapEmpresasEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/empresas/exportar.xlsx", async (IMediator mediator, CancellationToken cancellationToken, string? q = null, string? estado = null) =>
+        endpoints.MapGet("/empresas/exportar.xlsx", async (IMediator mediator, CancellationToken cancellationToken, string? q = null, string? estado = null, string? cliente = null) =>
         {
+            // Un Cliente que no es un Id es una petición mal formada: exportar TODO por ignorarlo engañaría a quien exporta la vista filtrada.
+            Guid? clienteEmpresarialId = null;
+            if (!string.IsNullOrWhiteSpace(cliente))
+            {
+                if (!Guid.TryParse(cliente, out var id))
+                    return Results.BadRequest();
+                clienteEmpresarialId = id;
+            }
+
             using var libro = new XLWorkbook();
             var hoja = libro.Worksheets.Add("Empresas");
 
@@ -35,7 +44,9 @@ public static class EmpresasEndpoints
                         Busqueda: string.IsNullOrWhiteSpace(q) ? null : q,
                         Pagina: pagina,
                         TamanoPagina: tamanoPagina,
-                        EstadoDocumental: string.IsNullOrWhiteSpace(estado) ? null : estado),
+                        EstadoDocumental: string.IsNullOrWhiteSpace(estado) ? null : estado,
+                        // El mismo filtro «Cliente» de la pantalla, con su mismo recorte por alcance.
+                        ClienteEmpresarialId: clienteEmpresarialId),
                     cancellationToken)))
             {
                 hoja.Cell(fila, 1).Value = empresa.RazonSocial;

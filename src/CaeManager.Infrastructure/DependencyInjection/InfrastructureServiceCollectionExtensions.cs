@@ -269,6 +269,7 @@ public static class InfrastructureServiceCollectionExtensions
         // dominio: ya no existe ninguna fuente legacy que registrar aquí.
         services.AddScoped<IEmpresaRepository, EmpresaRepository>();
         services.AddScoped<ICredencialAccesoEmpresaRepository, CredencialAccesoEmpresaRepository>();
+        services.AddScoped<IPlataformaCaeClienteEmpresarialRepository, PlataformaCaeClienteEmpresarialRepository>();
         services.AddScoped<IVerificacionExternaSubcontrataRepository, VerificacionExternaSubcontrataRepository>();
         services.AddScoped<IRelacionEmpresarialRepository, RelacionEmpresarialRepository>();
         services.AddScoped<CaeManager.Application.RelacionesEmpresariales.IGuardDeCierreDeArista,
@@ -350,6 +351,15 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ISugerenciaVisitaCorreoRepository, SugerenciaVisitaCorreoRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IEventoConversacionRepository, EventoConversacionRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.INotaInternaConversacionRepository, NotaInternaConversacionRepository>();
+        services.AddScoped<CaeManager.Application.Comunicaciones.Deteccion.IAlertaCriticaRepository, AlertaCriticaRepository>();
+        services.AddScoped<CaeManager.Application.Comunicaciones.Deteccion.AlertaCriticaService>();
+        services.AddScoped<CaeManager.Application.Comunicaciones.Deteccion.IAlertaCriticaService>(sp => sp.GetRequiredService<CaeManager.Application.Comunicaciones.Deteccion.AlertaCriticaService>());
+        services.AddScoped<CaeManager.Application.Comunicaciones.AlertasCriticas.AccesoAlertaCritica>();
+        services.Configure<CaeManager.Application.Comunicaciones.Deteccion.AlertasCriticasOptions>(configuration.GetSection(CaeManager.Application.Comunicaciones.Deteccion.AlertasCriticasOptions.Seccion));
+        services.AddHttpClient<CaeManager.Application.Comunicaciones.Deteccion.ISegundaOpinionCriticaIa, AnthropicSegundaOpinionCriticaIa>(
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(60));
+        services.AddScoped<CaeManager.Domain.Comunicaciones.IPropuestaRecordatorioConversacionRepository, PropuestaRecordatorioConversacionRepository>();
         services.AddScoped<CaeManager.Domain.AsistenteIa.ITareaAsistenteRepository, TareaAsistenteRepository>();
         services.AddScoped<CaeManager.Domain.Telemetria.IRegistroTiempoGestionRepository, RegistroTiempoGestionRepository>();
         services.AddScoped<CaeManager.Domain.Documentos.IAcreditacionDocumentoPlataformaRepository, AcreditacionDocumentoPlataformaRepository>();
@@ -365,6 +375,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Comunicaciones.IClasificacionRuidoMensajeRepository, ClasificacionRuidoMensajeRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IClasificacionRuidoDetalleGestionRepository, ClasificacionRuidoDetalleGestionRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IUltimoResumenNotificacionPlataformaRepository, UltimoResumenNotificacionPlataformaRepository>();
+        services.AddScoped<CaeManager.Domain.Comunicaciones.IIntencionConversacionRepository, IntencionConversacionRepository>();
+        services.AddScoped<CaeManager.Application.Comunicaciones.Deteccion.IIntencionConversacionService, CaeManager.Application.Comunicaciones.Deteccion.IntencionConversacionService>();
+        services.AddHttpClient<CaeManager.Application.Comunicaciones.Deteccion.IDeteccionIntencionCaeService, AnthropicDeteccionIntencionCaeService>(
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(30));
         services.AddScoped<CaeManager.Domain.Comunicaciones.IClasificacionRelevanciaCaeRepository, ClasificacionRelevanciaCaeRepository>();
         services.AddScoped<CaeManager.Domain.Gestiones.IGestionRepository, GestionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IConexionIntegracionRepository, ConexionIntegracionRepository>();
@@ -409,6 +424,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Auditoria.IAuditoriaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Tenants.ITenantsQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Facturacion.IFacturacionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Dashboard.ICierresCuadroDireccion>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Proyectos.IProyectosQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Proyectos.IRequisitosEventoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Retencion.IRetencionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -614,6 +630,7 @@ public static class InfrastructureServiceCollectionExtensions
         // 2026-10-16), auditado como Sistema. Sin interruptor: es la regla del
         // evento, no una automatización opcional del Tenant.
         services.AddHostedService<Proyectos.CierreEventosTerminadosHostedService>();
+        services.AddHostedService<Dashboard.CierreMensualCuadroDireccionHostedService>();
 
         // Cierre automático de las conversaciones que llevan 4 días Resueltas (decisión de producto 2026-10-17, hueco 2 de
         // Comunicaciones), auditado como Sistema. Sin interruptor: es la regla de la bandeja, no una automatización opcional.
@@ -771,6 +788,14 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<ComunicacionesOptions>(configuration.GetSection(ComunicacionesOptions.SeccionConfiguracion));
         // Fase G: mismo "Comunicaciones" — ver ComunicacionesRemitenteOptions (Application.Common).
         services.Configure<ComunicacionesRemitenteOptions>(configuration.GetSection(ComunicacionesRemitenteOptions.SeccionConfiguracion));
+        services.Configure<CaeManager.Application.Comunicaciones.CalendariosOperadorCaeOptions>(
+            configuration.GetSection(CaeManager.Application.Comunicaciones.CalendariosOperadorCaeOptions.Seccion));
+        services.AddScoped<CaeManager.Application.Comunicaciones.IContextoOperativoConversacionService, Comunicaciones.ContextoOperativoConversacionService>();
+        services.AddScoped<CaeManager.Application.Comunicaciones.PlazosConversacionService>();
+        services.AddHostedService<Comunicaciones.AvisosConversacionesCriticasHostedService>();
+        // Propone (nunca envía) un recordatorio a los 2 días laborables de espera de respuesta externa (decisión de producto
+        // 2026-10-17); el Gestor CAE lo aprueba o lo descarta. Auditado como Sistema; sin interruptor por Tenant.
+        services.AddHostedService<Comunicaciones.PropuestaRecordatoriosConversacionHostedService>();
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();

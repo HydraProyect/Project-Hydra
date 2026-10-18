@@ -28,6 +28,14 @@ public class CambiarEstadoConversacionCommandHandler(
         if (conversacion is null || !await alcanceDatos.ConversacionVisibleAsync(conversacion.ClienteId, conversacion.EmpresaId, conversacion.ConexionIntegracionId, cancellationToken))
             return Result.Fallo(Error.Crear("Conversacion.NoEncontrada", "No encontramos esta conversación."));
 
+        if (conversacion.Estado == EstadoConversacion.Cerrada && request.NuevoEstado == EstadoConversacion.Abierta
+            && conversacion.ConexionIntegracionId is { } conexionId && conversacion.HiloExternoId is { } hiloId)
+        {
+            var activa = await repositorio.ObtenerPorHiloExternoAsync(conexionId, hiloId, cancellationToken);
+            if (activa is not null)
+                return Result.Fallo(Error.Crear("Conversacion.TieneContinuacionActiva", "Este hilo ya tiene una continuación activa."));
+        }
+
         // La máquina de estados vive en el dominio (TransicionesEstadoConversacion): una transición no permitida vuelve
         // como fallo legible y no llega a guardarse.
         var cambio = conversacion.CambiarEstado(request.NuevoEstado);

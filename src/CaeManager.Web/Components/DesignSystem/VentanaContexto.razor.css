@@ -174,6 +174,22 @@
 .ventana-contexto-interactiva > .ventana-contexto-panel {
     min-width: 220px;
     max-width: 340px;
+    /* Diálogo de la revisión de Design (DDL-083): radio --radius-lg y sin relleno propio; el título, las filas
+       (8/16) y el pie (12/16) lo llevan por su cuenta. */
+    padding: 0;
+    border-radius: var(--radius-lg);
+}
+
+.ventana-contexto-interactiva .ventana-contexto-titulo {
+    margin-bottom: 0;
+    padding: 14px 16px 10px;
+    font-size: 14px;
+}
+
+.ventana-contexto-interactiva .ventana-contexto-pie {
+    margin-top: var(--space-1);
+    padding: 12px 16px;
+    border-top: 1px solid var(--color-border);
 }
 
 /*
@@ -240,4 +256,93 @@
     margin-top: var(--space-1);
     color: var(--color-text-muted);
     font: var(--font-body-sm);
+}
+
+/*
+    Hoja inferior en móvil (HojaEnMovil, revisión de Design 2026-10-17, §C). Por debajo de 768 px el panel
+    de una ventana interactiva deja de flotar junto al disparador (en un móvil se saldría de la pantalla) y
+    se abre como hoja a todo el ancho, con un velo detrás y un botón de cierre de 44 px. El velo es el
+    propio box-shadow del panel con un radio enorme: no captura clics, y tocar fuera quita el foco del
+    disparador, que es lo que cierra la ventana. Va al final del fichero para ganar, a igual especificidad,
+    a las reglas de colocación de arriba. El tirador y el botón de cierre no existen en escritorio.
+*/
+.ventana-contexto-tirador,
+.ventana-contexto-cerrar {
+    display: none;
+}
+
+@media (max-width: 767px) {
+    .ventana-contexto-hoja > .ventana-contexto-panel {
+        position: fixed;
+        top: auto;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        /* Por encima de la barra de acciones por lotes (1040) y de la cabecera fija (1020); por debajo de Modal (1050) y toasts. */
+        z-index: 1045;
+        width: auto;
+        min-width: 0;
+        max-width: none;
+        max-height: 70vh;
+        padding: var(--space-1) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+        border-width: 1px 0 0;
+        border-radius: 20px 20px 0 0;
+        transform: none;
+        box-shadow: var(--shadow-overlay), 0 0 0 100vmax var(--color-scrim);
+
+        @starting-style {
+            opacity: 0;
+            transform: translateY(24px);
+        }
+    }
+
+    .ventana-contexto-hoja .ventana-contexto-tirador {
+        display: block;
+        width: 36px;
+        height: 4px;
+        margin: var(--space-2) auto var(--space-1);
+        border-radius: var(--radius-full);
+        background-color: var(--color-border-strong);
+    }
+
+    .ventana-contexto-hoja .ventana-contexto-cerrar {
+        position: absolute;
+        top: var(--space-1);
+        right: var(--space-1);
+        display: inline-grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: var(--color-text);
+        font-size: 1.25rem;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .ventana-contexto-hoja .ventana-contexto-cerrar:focus-visible {
+        outline: var(--border-focus);
+        outline-offset: -2px;
+        border-radius: var(--radius-md);
+    }
+
+    /* El título deja sitio al botón de cierre. En la hoja el panel ya pone los 16 px laterales (el relleno de 16 del
+       título de escritorio los duplicaría: 32 px frente a los 16 de las filas) y el título se alinea con el botón de
+       44 px, a 15 px (revisión de Design, §C, hoja de móvil). */
+    .ventana-contexto-hoja .ventana-contexto-titulo {
+        display: flex;
+        align-items: center;
+        min-height: 44px;
+        padding: 0 44px 0 0;
+        font-size: 15px;
+    }
+}
+
+@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+    .ventana-contexto-hoja > .ventana-contexto-panel {
+        transition: none;
+    }
 }

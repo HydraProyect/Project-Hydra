@@ -75,8 +75,29 @@
   <data name="SubtituloVisitas" xml:space="preserve">
     <value>Visitas programadas</value>
   </data>
-  <data name="Gestionar" xml:space="preserve">
-    <value>Gestionar</value>
+  <data name="Renovar" xml:space="preserve">
+    <value>Renovar</value>
+  </data>
+  <data name="Reclamar" xml:space="preserve">
+    <value>Reclamar</value>
+  </data>
+  <data name="ReclamarLosN" xml:space="preserve">
+    <value>Reclamar els {0}</value>
+  </data>
+  <data name="ReclamarElDocumento" xml:space="preserve">
+    <value>Reclamar el document</value>
+  </data>
+  <data name="AccionesSinSalir" xml:space="preserve">
+    <value>Les accions s'executen sense sortir del calendari.</value>
+  </data>
+  <data name="EstadoVencido" xml:space="preserve">
+    <value>Vençut</value>
+  </data>
+  <data name="EstadoVenceHoy" xml:space="preserve">
+    <value>Venç avui</value>
+  </data>
+  <data name="EstadoVenceEl" xml:space="preserve">
+    <value>Venç el {0}</value>
   </data>
   <data name="IrAVisitas" xml:space="preserve">
     <value>Ir a Visitas</value>
@@ -132,4 +153,23 @@
   <data name="FormatoFechaLarga" xml:space="preserve">
     <value>d MMMM 'de' yyyy</value>
   </data>
+  <data name="Acciones" xml:space="preserve"><value>Accions</value></data>
+  <data name="BloqueaAccesoUno" xml:space="preserve"><value>{0} bloqueja accés</value></data>
+  <data name="BloqueaAccesoVarios" xml:space="preserve"><value>{0} bloquegen accés</value></data>
+  <data name="DocumentosSemana" xml:space="preserve"><value>{0} documents aquesta setmana</value></data>
+  <data name="DocumentosSemanaUno" xml:space="preserve"><value>{0} document aquesta setmana</value></data>
+  <data name="DocumentosVencen" xml:space="preserve"><value>{0} documents vencen · {1} · {2}</value></data>
+  <data name="DocumentosVencenUno" xml:space="preserve"><value>{0} document venç · {1} · {2}</value></data>
+  <data name="EmpresaSemana" xml:space="preserve"><value>Empresa · setmana del {0} al {1}</value></data>
+  <data name="Mes" xml:space="preserve"><value>Mes</value></data>
+  <data name="NadaVence" xml:space="preserve"><value>No venç res</value></data>
+  <data name="ReclamadoHoy" xml:space="preserve"><value>reclamat avui</value></data>
+  <data name="ReclamarDeNuevo" xml:space="preserve"><value>Reclamar de nou</value></data>
+  <data name="ReclamarTodos" xml:space="preserve"><value>Reclamar tots ({0})</value></data>
+  <data name="SemanaAnterior" xml:space="preserve"><value>Setmana anterior</value></data>
+  <data name="SemanaPorEmpresa" xml:space="preserve"><value>Setmana per Empresa</value></data>
+  <data name="SemanaSiguiente" xml:space="preserve"><value>Setmana següent</value></data>
+  <data name="SemanaVaciaDetalle" xml:space="preserve"><value>No hi ha documents amb venciment de dilluns a divendres a les Empreses que pots veure.</value></data>
+  <data name="SemanaVaciaTitulo" xml:space="preserve"><value>No venç res aquesta setmana</value></data>
+  <data name="Vista" xml:space="preserve"><value>Vista</value></data>
 </root>

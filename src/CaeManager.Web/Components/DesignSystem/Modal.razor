@@ -6,7 +6,25 @@
     <div class="modal-superposicion" @onclick="ManejarClicSuperposicionAsync">
         <div class="modal-contenido modal-contenido-@Ancho.ToString().ToLowerInvariant()" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="@_tituloId" tabindex="-1" @ref="_referenciaContenedor" @onkeydown="ManejarTeclaAsync">
             <div class="modal-header">
-                <h2 id="@_tituloId">@Titulo</h2>
+                @if (Sobretitulo is null && Subtitulo is null)
+                {
+                    <h2 id="@_tituloId">@Titulo</h2>
+                }
+                else
+                {
+                    @* Cabecera con antetítulo y/o línea de resumen (Detalle del día de Calendario): el h2 sigue siendo el nombre del diálogo. *@
+                    <div class="modal-titulos">
+                        @if (Sobretitulo is not null)
+                        {
+                            <span class="modal-sobretitulo">@Sobretitulo</span>
+                        }
+                        <h2 id="@_tituloId">@Titulo</h2>
+                        @if (Subtitulo is not null)
+                        {
+                            <span class="modal-subtitulo">@Subtitulo</span>
+                        }
+                    </div>
+                }
                 @if (!Bloqueante)
                 {
                     <button type="button" class="modal-cerrar" aria-label="Cerrar" @onclick="SolicitarCierreAsync"><Icono Nombre="cerrar" /></button>
@@ -42,6 +60,12 @@
     [Parameter] public bool Visible { get; set; }
     [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
     [Parameter] public string Titulo { get; set; } = string.Empty;
+
+    /// <summary>Antetítulo sobre el título (en mayúsculas atenuadas). Opcional: sin valor la cabecera no cambia.</summary>
+    [Parameter] public string? Sobretitulo { get; set; }
+
+    /// <summary>Línea de resumen bajo el título. Opcional: sin valor la cabecera no cambia.</summary>
+    [Parameter] public string? Subtitulo { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public RenderFragment? Pie { get; set; }
 
