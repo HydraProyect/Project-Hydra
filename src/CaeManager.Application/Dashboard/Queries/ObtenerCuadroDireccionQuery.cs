@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Centros;
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Documentos;
@@ -51,6 +51,11 @@ public record CumplimientoActualDto(
 /// Gestiones completadas dentro del mes (<see cref="MedicionCuadroDireccion.GestionesCompletadas"/>). Null si la
 /// medición no la lleva: un cierre mensual anterior a este campo no la guardó y no se reconstruye ni se inventa.
 /// </param>
+/// <param name="Extranjeros">
+/// Trabajadores activos en el corte cuyo documento de identidad es de extranjero (NIE, TIE u otro que no sea DNI;
+/// <see cref="CaeManager.Domain.Common.ValidadorIdentificacion.EsDocumentoDeExtranjero"/>): personas, no visitas. Null si la
+/// medición no lo lleva (un cierre anterior).
+/// </param>
 public record CifrasCuadroDireccionDto(
     CifraMensual TrabajadoresActivos,
     CifraMensual AltasTrabajadores,
@@ -61,7 +66,8 @@ public record CifrasCuadroDireccionDto(
     CifraMensual Requerimientos,
     SolicitudesDelMesDto Solicitudes,
     CumplimientoActualDto Cumplimiento,
-    CifraMensual? Gestiones = null);
+    CifraMensual? Gestiones = null,
+    CifraMensual? Extranjeros = null);
 
 /// <summary>
 /// Quien lleva la marca de principal en la Asignación de Cartera bajo la Asignación de Operación del Operador
@@ -106,7 +112,8 @@ public record MedicionCuadroDireccion(
     IReadOnlyList<DateTime> SolicitudesUtc,
     KpisDashboardDto Documental,
     int? GestionesCompletadas = null,
-    EstadoCifraMensual? EstadoPersistido = null);
+    EstadoCifraMensual? EstadoPersistido = null,
+    int? ExtranjerosActivos = null);
 
 /// <summary>
 /// Cuadro de dirección (incremento 2; sustituirá al Dashboard ejecutivo). Mismo patrón que
@@ -316,6 +323,9 @@ public class ObtenerCuadroDireccionQueryHandler(
                 porcentaje, sinDatos, ahoraUtc),
             Gestiones: mediciones.Count > 0 && mediciones.All(m => m.GestionesCompletadas is not null)
                 ? new CifraMensual(mediciones.Sum(m => m.GestionesCompletadas!.Value), estado)
+                : null,
+            Extranjeros: mediciones.Count > 0 && mediciones.All(m => m.ExtranjerosActivos is not null)
+                ? new CifraMensual(mediciones.Sum(m => m.ExtranjerosActivos!.Value), estado)
                 : null);
     }
 }

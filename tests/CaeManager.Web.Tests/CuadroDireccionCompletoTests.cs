@@ -210,12 +210,39 @@ public partial class CuadroDireccionTests
         fila[3].Should().Be("—", "no hay modelo de contrato");
         fila[4].Should().Be("30");
         fila[5].Should().Be("300");
-        fila[6].Should().Be("—", "sin tarifa de visita no hay recuento de extranjeros");
+        fila[6].Should().Be("7", "Trabajadores con documento de extranjero, no visitas facturables");
         fila[7].Should().Be("42");
         fila[8].Should().Contain("100");
         fila[9].Should().Be("100", "una sola cartera es la media");
         cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Exportar a Excel");
         cut.Markup.Should().Contain("Qué mide y qué no mide");
+    }
+
+    [Fact]
+    public void Sin_medida_de_extranjeros_en_alguna_Empresa_de_la_cartera_la_celda_sale_con_guion()
+    {
+        var cuadro = Cuadro(EstadoCifraMensual.Parcial);
+        var sinMedida = cuadro.Tenants[0] with { Cifras = cuadro.Tenants[0].Cifras with { Extranjeros = null } };
+        var cut = Pintar(cuadro with { Tenants = [sinMedida, cuadro.Tenants[1]] }, Roles.DireccionCae, out _);
+
+        IrA(cut, "Cartera por Gestor CAE");
+
+        cut.Find("[data-tabla=cartera] tr[data-gestor]:not([data-gestor=sin])").QuerySelectorAll("td")[6].TextContent.Trim().Should().Be("—");
+    }
+
+    [Fact]
+    public void La_comparativa_anual_cuenta_los_Trabajadores_extranjeros_del_ultimo_mes_del_tramo_y_no_los_suma_mes_a_mes()
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _,
+            serie: q => q.Meses == 24 ? DosAnyos(true) : SerieDe(i => Cifras(EstadoCifraMensual.Estimado, 25)));
+
+        IrA(cut, "Comparativa anual");
+
+        cut.WaitForAssertion(() =>
+        {
+            var celdas = cut.Find("[data-tabla=comparativa] tbody tr").QuerySelectorAll("td").Select(c => c.TextContent.Trim()).ToList();
+            celdas[5].Should().Be("7", "existencia a fin del tramo (7 cada mes), no 7 por los meses del tramo");
+        });
     }
 
     [Fact]

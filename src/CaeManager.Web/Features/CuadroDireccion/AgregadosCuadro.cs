@@ -56,6 +56,9 @@ public static class AgregadosCuadro
                 cifras.Count == 0 ? ahoraUtc : cifras.Max(c => c.Cumplimiento.MedidoEnUtc)),
             Gestiones: cifras.Count > 0 && cifras.All(c => c.Gestiones is not null)
                 ? new CifraMensual(cifras.Sum(c => c.Gestiones!.Valor), estado)
+                : null,
+            Extranjeros: cifras.Count > 0 && cifras.All(c => c.Extranjeros is not null)
+                ? new CifraMensual(cifras.Sum(c => c.Extranjeros!.Valor), estado)
                 : null);
     }
 

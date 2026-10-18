@@ -195,8 +195,7 @@ public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asi
 
         // Trabajadores con NIE, TIE o documento extranjero (no DNI español).
         // Un Dni null (trabajador anonimizado) no tiene tipo que clasificar.
-        return dnis.Count(dni =>
-            dni is not null && ValidadorIdentificacion.Analizar(dni).Tipo != TipoIdentificacion.Dni);
+        return dnis.Count(ValidadorIdentificacion.EsDocumentoDeExtranjero);
     }
 
     private async Task<int> ContarDocumentosGestionadosAsync(

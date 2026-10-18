@@ -585,13 +585,14 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
             FilaCartera Fila(Guid? usuarioId, string nombre, string rol, IReadOnlyList<CuadroDireccionTenantDto> empresas)
             {
                 var trabajadores = empresas.Sum(t => t.Cifras.TrabajadoresActivos.Valor);
-                var extranjeros = empresas.Sum(t => PuntoDeEmpresa(t.TenantId)?.UnidadesDe(ConceptoFacturable.VisitaTrabajadorExtranjero) ?? 0);
+                // Personas con documento de extranjero (NIE, TIE u otro que no sea DNI) en las Empresas de la cartera; sin medida en alguna, sin dato.
+                int? extranjeros = empresas.Count > 0 && empresas.All(t => t.Cifras.Extranjeros is not null) ? empresas.Sum(t => t.Cifras.Extranjeros!.Valor) : null;
                 return new FilaCartera(
                     usuarioId, nombre, rol,
                     empresas.Select(t => t.TenantNombre).Order(StringComparer.CurrentCulture).ToList(),
                     empresas.Sum(t => t.Cifras.CentrosActivos.Valor), trabajadores,
                     empresas.Count > 0 && empresas.All(t => t.Cifras.Gestiones is not null) ? empresas.Sum(t => t.Cifras.Gestiones!.Valor) : null,
-                    extranjeros > 0 ? extranjeros : null,
+                    extranjeros,
                     trabajadores > 0 ? empresas.Max(t => t.Cifras.TrabajadoresActivos.Valor) * 100d / trabajadores : null,
                     null);
             }
@@ -616,8 +617,8 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     /// <summary>
     /// Una fila de la cartera: volumen que lleva un Gestor CAE como principal. «Gestiones» e «Índice» son null si no hay
-    /// medida (un cierre anterior a las gestiones no las guardó); «Extranjeros» cuenta las visitas de Trabajadores
-    /// extranjeros facturables y es null sin tarifa de visita; «MayorEmpresa» es el peso de la Empresa con más
+    /// medida (un cierre anterior a las gestiones no las guardó); «Extranjeros» cuenta los Trabajadores
+    /// con documento de extranjero (NIE, TIE u otro que no sea DNI) y es null si alguna Empresa no lo midió; «MayorEmpresa» es el peso de la Empresa con más
     /// Trabajadores en los de la cartera.
     /// </summary>
     private sealed record FilaCartera(
@@ -1146,11 +1147,12 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         return meses.Length == 0 || ImporteAnual(meses) == 0 ? Textos["SinDato"].Value : Importe(ImporteAnual(meses) / (empresas * meses.Length), MonedaAnual);
     }
 
-    private string ExtranjerosAcumulados(PuntoSerieCuadroDto[] meses)
-    {
-        var visitas = meses.Sum(m => m.UnidadesDe(ConceptoFacturable.VisitaTrabajadorExtranjero));
-        return visitas > 0 ? Numero(visitas) : Textos["SinDato"].Value;
-    }
+    /// <summary>
+    /// Trabajadores con documento de extranjero (NIE, TIE u otro que no sea DNI) al final del tramo: es una existencia,
+    /// no un flujo, así que no se suma mes a mes. Sin medida en ese mes (un cierre anterior), sin dato.
+    /// </summary>
+    private string ExtranjerosAcumulados(PuntoSerieCuadroDto[] meses) =>
+        meses.Length > 0 && meses[^1].Cifras.Extranjeros is { } extranjeros ? Numero(extranjeros.Valor) : Textos["SinDato"].Value;
 
     private void CambiarMetrica(string metrica) => _metrica = metrica;
 

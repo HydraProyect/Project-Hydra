@@ -92,7 +92,8 @@ public partial class CuadroDireccionTests : BunitContext
                 c(solicitudes),
                 franjas ?? [new FranjaSolicitudesDto(DayOfWeek.Monday, 9, 30), new FranjaSolicitudesDto(DayOfWeek.Tuesday, 10, 90)]),
             Cumplimiento: new CumplimientoActualDto(90, 5, 3, 2, 0, 0, 0, 92, false, DateTime.UtcNow),
-            Gestiones: c(42));
+            Gestiones: c(42),
+            Extranjeros: c(7));
     }
 
     private static CuadroDireccionDto Cuadro(

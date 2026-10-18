@@ -867,4 +867,7 @@
   <data name="RendimientoMediana" xml:space="preserve">
     <value>mediana {0}</value>
   </data>
+  <data name="ExtranjerosTip" xml:space="preserve">
+    <value>Trabajadores con NIE, TIE u otro documento que no es DNI. En la Comparativa, los del último mes del tramo.</value>
+  </data>
 </root>
