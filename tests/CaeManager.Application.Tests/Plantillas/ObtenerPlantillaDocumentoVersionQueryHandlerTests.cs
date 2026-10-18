@@ -1,4 +1,5 @@
 using CaeManager.Application.Plantillas.Queries.ObtenerPlantillaDocumentoVersion;
+using CaeManager.Application.Tests.Clientes;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
 using FluentAssertions;
@@ -20,7 +21,7 @@ public class ObtenerPlantillaDocumentoVersionQueryHandlerTests
         contexto.ListaPlantillasDocumento.Add(documento);
         contexto.ListaPlantillasDocumentoVersion.Add(version);
         contexto.ListaPlantillasElemento.Add(elemento);
-        var handler = new ObtenerPlantillaDocumentoVersionQueryHandler(contexto);
+        var handler = new ObtenerPlantillaDocumentoVersionQueryHandler(contexto, new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(new ObtenerPlantillaDocumentoVersionQuery(version.Id), CancellationToken.None);
 
@@ -33,7 +34,7 @@ public class ObtenerPlantillaDocumentoVersionQueryHandlerTests
     [Fact]
     public async Task Devuelve_fallo_si_la_version_no_existe()
     {
-        var handler = new ObtenerPlantillaDocumentoVersionQueryHandler(new PlantillasQueryContextFalso());
+        var handler = new ObtenerPlantillaDocumentoVersionQueryHandler(new PlantillasQueryContextFalso(), new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(new ObtenerPlantillaDocumentoVersionQuery(Guid.NewGuid()), CancellationToken.None);
 
