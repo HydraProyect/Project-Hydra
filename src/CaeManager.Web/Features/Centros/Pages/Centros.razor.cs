@@ -192,8 +192,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     public string? EmpresaFiltroInicial { get; set; }
 
     /// <summary>
-    /// Agrupación de la lista, como la lee <see cref="Agrupacion"/>: ausente, la de fábrica (por Cliente
-    /// empresarial); <c>no</c>, sin agrupar; <c>cliente</c>, por Cliente empresarial; otro valor, la de fábrica.
+    /// Agrupación de la lista, como la lee <see cref="Agrupacion"/>: ausente, la de fábrica (sin agrupar);
+    /// <c>cliente</c>, por Cliente empresarial; <c>no</c> u otro valor, sin agrupar.
     /// </summary>
     [SupplyParameterFromQuery(Name = AgrupacionDeLista.Parametro)]
     public string? AgruparInicial { get; set; }

@@ -122,15 +122,16 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
                     };
                 }
                 """);
-            Assert.Equal(22, medida.GetProperty("fuente").GetDouble());
+            // lista-design.css: título 700 26px/32px.
+            Assert.Equal(26, medida.GetProperty("fuente").GetDouble());
             // Cabecera de columnas de la maqueta: 14 px arriba, 16 de línea, 10 abajo y 1,5 de filete.
             Assert.InRange(medida.GetProperty("cabecera").GetDouble(), 41, 42);
             // La cabecera de la página lleva cuatro controles de icono o menú (selección múltiple, exportar, atajos
-            // y «⋯»), y ninguno es más estrecho que el icono compacto de 34 px.
+            // y «⋯»), y ninguno es más estrecho que los 36 px de lista-design.css.
             Assert.Equal(4, medida.GetProperty("iconos").GetArrayLength());
             foreach (var icono in medida.GetProperty("iconos").EnumerateArray())
-                Assert.True(icono.GetDouble() >= 34, $"ancho {icono.GetDouble()}");
-            Assert.InRange(medida.GetProperty("primaria").GetDouble(), 33.5, 34.5);
+                Assert.True(icono.GetDouble() >= 36, $"ancho {icono.GetDouble()}");
+            Assert.InRange(medida.GetProperty("primaria").GetDouble(), 35.5, 36.5); // lista-design.css: botón primario de cabecera de 36
             Assert.InRange(medida.GetProperty("espacioRotulos").GetDouble(), 0.9, 1);
             foreach (var accion in medida.GetProperty("acciones").EnumerateArray())
             {

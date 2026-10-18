@@ -433,7 +433,7 @@ public partial class CentrosListaGen2Tests : BunitContext
             .Which.Id.Should().Be(documentoId);
         // No navega ni recarga: la lista no se vuelve a pedir por pulsar, y el acordeón de la fila no se abre.
         _mediador.Enviadas.OfType<ObtenerCentrosQuery>().Should().HaveCount(consultasDeListaAntes);
-        cut.FindAll(".tarjeta-fila-acordeon-cuerpo").Should().BeEmpty();
+        cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty();
     }
 
     [Fact]

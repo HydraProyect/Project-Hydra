@@ -1977,22 +1977,6 @@
     border-radius: 0;
 }
 
-.tarjeta-listado-contenido > .cabecera-columnas-centros.cabecera-columnas-centros {
-    border: 0;
-    border-bottom: 1px solid var(--color-fila-divisor);
-    margin-bottom: 0;
-}
-
-.tarjeta-listado-contenido > .lista-filas-acordeon {
-    gap: 0;
-}
-
-.tarjeta-listado-contenido > .lista-filas-acordeon > .tarjeta-fila-acordeon {
-    border: 0;
-    border-bottom: 1px solid var(--color-fila-divisor);
-    border-radius: 0;
-}
-
 .tarjeta-listado-pie {
     padding: 9px 16px;
     border-top: 1px solid var(--color-fila-divisor);
