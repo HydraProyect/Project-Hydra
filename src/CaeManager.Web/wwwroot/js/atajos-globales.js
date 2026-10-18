@@ -1,5 +1,5 @@
 // Atajos globales tipo Linear (Fase D): "g" + letra navega, "n" crea aquí,
-// "?" abre el chuleta. Blazor no puede capturar keydown a nivel de document
+// "u" sube documentos, "?" abre el chuleta. Blazor no puede capturar keydown a nivel de document
 // sin interop porque el foco puede estar en cualquier elemento — mismo
 // motivo que atajos-lista.js y buscador-global.js. Registrado una sola vez
 // en MainLayout, no por página.
@@ -62,6 +62,14 @@ export function registrarAtajosGlobales(dotNetRef) {
         if (tecla === 'n') {
             evento.preventDefault();
             dotNetRef.invokeMethodAsync('CrearAqui');
+            return;
+        }
+
+        // «u» abre la subida de documentos (Design, 2026-10-17). Como el resto de teclas sueltas, no actúa
+        // con foco en un campo editable ni con un diálogo modal abierto (los dos casos salen más arriba).
+        if (tecla === 'u') {
+            evento.preventDefault();
+            dotNetRef.invokeMethodAsync('IrASubir');
             return;
         }
 

@@ -39,7 +39,7 @@
                         {
                             var activa = entrada.Id == actual.Id;
                             <li>
-                                <a href="@RutaDe(entrada.Id)"
+                                <a href="@RutaDe(entrada)"
                                    class="@($"entrada-subnav {(activa ? "entrada-subnav-activa" : "")}")"
                                    aria-current="@(activa ? "page" : null)">
                                     @* La abreviatura es decoración: sin aria-hidden el
@@ -90,7 +90,7 @@
                              NombreIcono="configuracion"
                              Descripcion="@Textos["SalidaPropiaDescripcion"]">
                     <Accion>
-                        <a href="@RutaDe(actual.Id)">@Textos["EnlaceIrAEntrada", actual.Nombre]</a>
+                        <a href="@RutaDe(actual)">@Textos["EnlaceIrAEntrada", actual.Nombre]</a>
                     </Accion>
                 </EstadoVacio>
             }

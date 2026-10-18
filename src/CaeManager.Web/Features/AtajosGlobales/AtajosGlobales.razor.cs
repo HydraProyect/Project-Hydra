@@ -80,6 +80,9 @@ public partial class AtajosGlobales : IAsyncDisposable
     }
 
     [JSInvokable]
+    public void IrASubir() => NavigationManager.NavigateTo(CatalogoAtajos.RutaSubida);
+
+    [JSInvokable]
     public void AlternarAyuda()
     {
         _ayudaVisible = !_ayudaVisible;

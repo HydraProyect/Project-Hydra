@@ -50,6 +50,7 @@
 @inject IMediator Mediator
 @inject IServiceProvider Servicios
 @inject IStringLocalizer<TextosComunes> Textos
+@inject NavigationManager Navigation
 @inject IStringLocalizer<CaeManager.Web.Features.Configuracion.Recursos.TextosConfiguracion> TextosConfiguracion
 <nav class="nav-principal" aria-label="@Textos["MenuNavegacionPrincipal"]">
     <div class="nav-herramientas">
@@ -164,7 +165,7 @@
 
 @code {
     private RenderFragment FilaEnlace(EnlaceMenuLateral enlace) => @<div class="nav-fila" data-enlace="@enlace.Id">
-        <NavLink class="nav-item" href="@enlace.RutaPara(_contexto!)"
+        <NavLink class="@ClaseDeEnlace(enlace)" href="@enlace.RutaPara(_contexto!)"
                  Match="@(enlace.CoincidenciaExacta ? NavLinkMatch.All : NavLinkMatch.Prefix)">
             <Icono Nombre="@enlace.Icono" /> <span class="nav-item-texto">@enlace.RotuloPara(_contexto!)</span>
         </NavLink>
@@ -175,6 +176,25 @@
             <Icono Nombre="estrella" Tamano="TamanoIcono.Pequeno" />
         </button>
     </div>;
+
+    /// <summary>
+    /// Incidencias, Revisión IA y Roles ya no tienen entrada propia: son pestañas de sección (Documentos, Equipo).
+    /// Estando en una de ellas, la entrada de la que cuelga su sección queda marcada y abre su grupo, como en el
+    /// marco de Design (mapa PADRE). NavLink solo sabe de prefijos de ruta, así que se añade aquí.
+    /// </summary>
+    private string ClaseDeEnlace(EnlaceMenuLateral enlace)
+    {
+        var uri = new Uri(Navigation.Uri);
+        var ruta = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
+        var pestana = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query).TryGetValue("pestana", out var valor)
+            ? valor.ToString() : null;
+        var seccion = CatalogoSeccionesMenu.PestanaDe(ruta, pestana)?.Seccion;
+
+        return seccion is not null && seccion.Pestanas[0].Ruta.Split('?')[0].Trim('/')
+                .Equals(enlace.RutaPara(_contexto!).Trim('/'), StringComparison.OrdinalIgnoreCase)
+            ? "nav-item active"
+            : "nav-item";
+    }
 
     [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
 

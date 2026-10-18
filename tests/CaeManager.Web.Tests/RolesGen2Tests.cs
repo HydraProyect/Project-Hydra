@@ -453,7 +453,7 @@ public class RolesGen2Tests : BunitContext
         texto.Should().Contain("ni se conceden desde esta pantalla");
 
         bloque.QuerySelectorAll("a").Select(a => a.GetAttribute("href")).Should().Equal(
-            ["/configuracion/usuarios"],
+            ["/usuarios"],
             "no hay pantalla donde se concedan soporte de lectura, impersonación ni break-glass: enlazar una " +
             "sería prometerle a un Administrador del tenant una autoridad que no tiene");
     }

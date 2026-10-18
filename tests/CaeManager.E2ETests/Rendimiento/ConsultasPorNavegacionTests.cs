@@ -82,9 +82,22 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
         await medidor.EsperarSilencioAsync(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(30));
         var consultasDelPrerender = MedidorConsultasSql.Contar(medidor.ComandosDesde(marcaPrerender), fragmentoSql);
 
+        // Incidencias ya no es entrada del menú (Design, 2026-10-17): es pestaña de la sección Documentos, en la
+        // barra de 48 px bajo la cabecera. Se llega a Documentos antes de medir, para medir solo la navegación a la pestaña.
+        var esPestanaDeDocumentos = ruta == "incidencias";
+        if (esPestanaDeDocumentos)
+        {
+            await page.Locator("a.nav-item[href='documentos']").ClickAsync();
+            await Assertions.Expect(page).ToHaveURLAsync(
+                new Regex("/documentos$"), new PageAssertionsToHaveURLOptions { Timeout = 15_000 });
+            await medidor.EsperarSilencioAsync(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(30));
+        }
+
         // Navegación mejorada (NavLink): prerender + circuito.
         var marcaNavegacion = medidor.MarcarAhora();
-        var enlace = page.Locator($"a.nav-item[href='{ruta}']").First;
+        var enlace = (esPestanaDeDocumentos
+            ? page.Locator($"a.barra-seccion-enlace[href='{ruta}']")
+            : page.Locator($"a.nav-item[href='{ruta}']")).First;
         await Assertions.Expect(enlace).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         await enlace.ClickAsync();
         await Assertions.Expect(page).ToHaveURLAsync(
