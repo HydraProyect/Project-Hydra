@@ -169,6 +169,7 @@ src/CaeManager.Application/Integraciones/Queries/ObtenerConexionesIntegracion/Ob
 src/CaeManager.Application/Integraciones/Queries/ObtenerEstructuraBuzon/ObtenerEstructuraBuzonQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Integraciones/Queries/ObtenerLineasWhatsApp/ObtenerLineasWhatsAppQuery.cs :: ClienteId = 4
 src/CaeManager.Application/Integraciones/Queries/ObtenerMensajesCarpeta/ObtenerMensajesCarpetaQuery.cs :: ClienteId = 1
+src/CaeManager.Application/Plantillas/AlcanceDePlantillas.cs :: ClienteId = 1
 src/CaeManager.Application/Plantillas/Commands/CrearPlantillaDocumento/CrearPlantillaDocumentoCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Plantillas/Commands/CrearPlantillaDocumento/CrearPlantillaDocumentoCommandHandler.cs :: ClienteId = 2
 src/CaeManager.Application/Plantillas/Commands/CrearPlantillaDocumento/CrearPlantillaDocumentoCommandHandler.cs :: ObtenerClienteIdsVisiblesAsync = 1
