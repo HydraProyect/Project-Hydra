@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -40,6 +41,11 @@ internal sealed class ContextoAnteriorALaMarcaDePrincipal(
         // AnadeFichaCentro es posterior a este esquema histórico.
         // AnadeNotaInternaATrabajadorYCentro (Centro.Notas) también lo es.
         foreach (var campo in CamposDeLaFichaDeCentro) builder.Entity<Centro>().Ignore(campo);
+        // AnadeDelegacionYOficioEmpresa también es posterior: ni las dos tablas ni sus dos columnas en Trabajadores.
+        builder.Ignore<DelegacionEmpresa>();
+        builder.Ignore<OficioEmpresa>();
+        builder.Entity<Trabajador>().Ignore(t => t.DelegacionEmpresaId);
+        builder.Entity<Trabajador>().Ignore(t => t.OficioEmpresaId);
     }
 
     private static readonly string[] CamposDeLaFichaDeCentro =
