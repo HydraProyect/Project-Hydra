@@ -1,0 +1,91 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="f30190f7-7021-46e7-a1bb-00a831dd0ba8" name="chris@CHRIS 2026-10-12 19:08:52" runUser="CHRIS\chris" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-12T19:08:52.9823125+02:00" queuing="2026-10-12T19:08:52.9823130+02:00" start="2026-10-12T19:08:50.8545536+02:00" finish="2026-10-12T19:08:52.9873091+02:00" />
+  <TestSettings name="default" id="d67264d4-41cc-4e0e-9f1e-dc68fe7fc381">
+    <Deployment runDeploymentRoot="chris_CHRIS_2026-10-12_19_08_52" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="61fb125e-d81f-4baf-8173-5838c83cf0ce" testId="ddec4d0c-bfb1-0848-a074-26acfb42b9f2" testName="CaeManager.Web.Tests.CentrosListaPatronTests.La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes(estado: Bloqueado, tinte: &quot;fila-tintada-peligro&quot;, resumen: &quot;1 bloqueo cae&quot;)" computerName="CHRIS" duration="00:00:00.0315640" startTime="2026-10-12T19:08:52.7936463+02:00" endTime="2026-10-12T19:08:52.8154275+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="61fb125e-d81f-4baf-8173-5838c83cf0ce" />
+    <UnitTestResult executionId="8bbec439-dc1a-434d-a23f-bff4421c1fdc" testId="02e24365-3cad-c957-0263-01ad9ad98282" testName="CaeManager.Web.Tests.CentrosListaPatronTests.La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes(estado: Vencido, tinte: &quot;fila-tintada-peligro&quot;, resumen: &quot;1 vencido&quot;)" computerName="CHRIS" duration="00:00:00.0081109" startTime="2026-10-12T19:08:52.8160531+02:00" endTime="2026-10-12T19:08:52.8235790+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8bbec439-dc1a-434d-a23f-bff4421c1fdc" />
+    <UnitTestResult executionId="2c687dfa-19bc-4a3a-9002-21bedf9c2a87" testId="0c8bfe65-8355-3cf2-63bd-a329bc89e2cb" testName="CaeManager.Web.Tests.CentrosListaPatronTests.La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes(estado: Vigente, tinte: null, resumen: null)" computerName="CHRIS" duration="00:00:00.6138301" startTime="2026-10-12T19:08:52.1633639+02:00" endTime="2026-10-12T19:08:52.7833538+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2c687dfa-19bc-4a3a-9002-21bedf9c2a87" />
+    <UnitTestResult executionId="e0f7b96f-d4f2-4777-9b4e-cc41ed65d5c5" testId="41f1d7db-3a98-4186-077e-d5f4cfa548b6" testName="CaeManager.Web.Tests.CentrosListaPatronTests.La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes(estado: Proximo, tinte: &quot;fila-tintada-aviso&quot;, resumen: &quot;1 por vencer&quot;)" computerName="CHRIS" duration="00:00:00.0664821" startTime="2026-10-12T19:08:52.8237431+02:00" endTime="2026-10-12T19:08:52.8925737+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e0f7b96f-d4f2-4777-9b4e-cc41ed65d5c5">
+      <Output>
+        <ErrorInfo>
+          <Message>Expected grupo.ClassList {"grupo-lista", "grupo-lista-destacado"} to contain "fila-tintada-aviso".</Message>
+          <StackTrace>   at FluentAssertions.Execution.LateBoundTestFramework.Throw(String message)&#xD;
+   at FluentAssertions.Execution.TestFrameworkProvider.Throw(String message)&#xD;
+   at FluentAssertions.Execution.DefaultAssertionStrategy.HandleFailure(String message)&#xD;
+   at FluentAssertions.Execution.AssertionScope.FailWith(Func`1 failReasonFunc)&#xD;
+   at FluentAssertions.Execution.AssertionScope.FailWith(Func`1 failReasonFunc)&#xD;
+   at FluentAssertions.Execution.AssertionScope.FailWith(String message, Object[] args)&#xD;
+   at FluentAssertions.Collections.GenericCollectionAssertions`3.Contain(T expected, String because, Object[] becauseArgs)&#xD;
+   at CaeManager.Web.Tests.CentrosListaPatronTests.La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes(EstadoCentro estado, String tinte, String resumen) in C:\Users\chris\Project-Hydra\.claude\worktrees\centros-a-rehecha\tests\CaeManager.Web.Tests\CentrosListaPatronTests.EntregaA.cs:line 76&#xD;
+   at InvokeStub_CentrosListaPatronTests.La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes(Object, Span`1)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeWithFewArgs(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="98789d0e-db54-4a0b-99ce-7846d65a229b" testId="90f32d6d-e843-09e9-bbee-32f3614ab481" testName="CaeManager.Web.Tests.CentrosListaPatronTests.La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes(estado: Urgente, tinte: &quot;fila-tintada-aviso&quot;, resumen: &quot;1 por vencer&quot;)" computerName="CHRIS" duration="00:00:00.0084947" startTime="2026-10-12T19:08:52.8977280+02:00" endTime="2026-10-12T19:08:52.9005821+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="98789d0e-db54-4a0b-99ce-7846d65a229b" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="CaeManager.Web.Tests.CentrosListaPatronTests.La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes(estado: Proximo, tinte: &quot;fila-tintada-aviso&quot;, resumen: &quot;1 por vencer&quot;)" storage="c:\users\chris\project-hydra\.claude\worktrees\centros-a-rehecha\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="41f1d7db-3a98-4186-077e-d5f4cfa548b6">
+      <Execution id="e0f7b96f-d4f2-4777-9b4e-cc41ed65d5c5" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\centros-a-rehecha\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.CentrosListaPatronTests" name="La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.CentrosListaPatronTests.La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes(estado: Urgente, tinte: &quot;fila-tintada-aviso&quot;, resumen: &quot;1 por vencer&quot;)" storage="c:\users\chris\project-hydra\.claude\worktrees\centros-a-rehecha\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="90f32d6d-e843-09e9-bbee-32f3614ab481">
+      <Execution id="98789d0e-db54-4a0b-99ce-7846d65a229b" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\centros-a-rehecha\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.CentrosListaPatronTests" name="La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.CentrosListaPatronTests.La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes(estado: Bloqueado, tinte: &quot;fila-tintada-peligro&quot;, resumen: &quot;1 bloqueo cae&quot;)" storage="c:\users\chris\project-hydra\.claude\worktrees\centros-a-rehecha\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="ddec4d0c-bfb1-0848-a074-26acfb42b9f2">
+      <Execution id="61fb125e-d81f-4baf-8173-5838c83cf0ce" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\centros-a-rehecha\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.CentrosListaPatronTests" name="La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.CentrosListaPatronTests.La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes(estado: Vigente, tinte: null, resumen: null)" storage="c:\users\chris\project-hydra\.claude\worktrees\centros-a-rehecha\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="0c8bfe65-8355-3cf2-63bd-a329bc89e2cb">
+      <Execution id="2c687dfa-19bc-4a3a-9002-21bedf9c2a87" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\centros-a-rehecha\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.CentrosListaPatronTests" name="La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.CentrosListaPatronTests.La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes(estado: Vencido, tinte: &quot;fila-tintada-peligro&quot;, resumen: &quot;1 vencido&quot;)" storage="c:\users\chris\project-hydra\.claude\worktrees\centros-a-rehecha\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="02e24365-3cad-c957-0263-01ad9ad98282">
+      <Execution id="8bbec439-dc1a-434d-a23f-bff4421c1fdc" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\centros-a-rehecha\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.CentrosListaPatronTests" name="La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="ddec4d0c-bfb1-0848-a074-26acfb42b9f2" executionId="61fb125e-d81f-4baf-8173-5838c83cf0ce" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="02e24365-3cad-c957-0263-01ad9ad98282" executionId="8bbec439-dc1a-434d-a23f-bff4421c1fdc" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="0c8bfe65-8355-3cf2-63bd-a329bc89e2cb" executionId="2c687dfa-19bc-4a3a-9002-21bedf9c2a87" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="41f1d7db-3a98-4186-077e-d5f4cfa548b6" executionId="e0f7b96f-d4f2-4777-9b4e-cc41ed65d5c5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="90f32d6d-e843-09e9-bbee-32f3614ab481" executionId="98789d0e-db54-4a0b-99ce-7846d65a229b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Resultados sin formato de lista" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="Todos los resultados cargados" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="5" executed="5" passed="4" failed="1" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.5+1b188a7b0a (64-bit .NET 10.0.10)&#xD;
+[xUnit.net 00:00:00.30]   Discovering: CaeManager.Web.Tests&#xD;
+[xUnit.net 00:00:00.89]   Discovered:  CaeManager.Web.Tests&#xD;
+[xUnit.net 00:00:00.92]   Starting:    CaeManager.Web.Tests&#xD;
+[xUnit.net 00:00:01.68]       Expected grupo.ClassList {"grupo-lista", "grupo-lista-destacado"} to contain "fila-tintada-aviso".&#xD;
+[xUnit.net 00:00:01.68]       Stack Trace:&#xD;
+[xUnit.net 00:00:01.68]            at FluentAssertions.Execution.LateBoundTestFramework.Throw(String message)&#xD;
+[xUnit.net 00:00:01.68]            at FluentAssertions.Execution.TestFrameworkProvider.Throw(String message)&#xD;
+[xUnit.net 00:00:01.68]            at FluentAssertions.Execution.DefaultAssertionStrategy.HandleFailure(String message)&#xD;
+[xUnit.net 00:00:01.68]            at FluentAssertions.Execution.AssertionScope.FailWith(Func`1 failReasonFunc)&#xD;
+[xUnit.net 00:00:01.68]            at FluentAssertions.Execution.AssertionScope.FailWith(Func`1 failReasonFunc)&#xD;
+[xUnit.net 00:00:01.68]            at FluentAssertions.Execution.AssertionScope.FailWith(String message, Object[] args)&#xD;
+[xUnit.net 00:00:01.68]            at FluentAssertions.Collections.GenericCollectionAssertions`3.Contain(T expected, String because, Object[] becauseArgs)&#xD;
+[xUnit.net 00:00:01.68]         C:\Users\chris\Project-Hydra\.claude\worktrees\centros-a-rehecha\tests\CaeManager.Web.Tests\CentrosListaPatronTests.EntregaA.cs(76,0): at CaeManager.Web.Tests.CentrosListaPatronTests.La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes(EstadoCentro estado, String tinte, String resumen)&#xD;
+[xUnit.net 00:00:01.68]            at InvokeStub_CentrosListaPatronTests.La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes(Object, Span`1)&#xD;
+[xUnit.net 00:00:01.68]            at System.Reflection.MethodBaseInvoker.InvokeWithFewArgs(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)&#xD;
+[xUnit.net 00:00:01.69]   Finished:    CaeManager.Web.Tests&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="CHRIS" outcome="Error" timestamp="2026-10-12T19:08:52.8953829+02:00">
+        <Text>[xUnit.net 00:00:01.68]     CaeManager.Web.Tests.CentrosListaPatronTests.La_cabecera_de_grupo_destaca_recuento_y_resume_solo_estados_presentes(estado: Proximo, tinte: "fila-tintada-aviso", resumen: "1 por vencer") [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>
