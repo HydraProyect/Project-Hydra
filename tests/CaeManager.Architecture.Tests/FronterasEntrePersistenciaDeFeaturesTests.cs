@@ -58,6 +58,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Trabajadores.FijarDelegacionEmpresaYOficioTrabajadorCommandHandler", "ICatalogoTrabajadoresEmpresaRepository"),
         ("Trabajadores.CrearTrabajadorCommandHandler", "ICatalogoTrabajadoresEmpresaRepository"),
         ("Trabajadores.EditarFichaTrabajadorCommandHandler", "ICatalogoTrabajadoresEmpresaRepository"),
+        // Al restaurar, quita la Delegación o el Oficio que se eliminaron mientras el Trabajador estaba eliminado.
+        ("Trabajadores.RestaurarTrabajadorCommandHandler", "ICatalogoTrabajadoresEmpresaRepository"),
         // La lista de Tenants beneficiarios autorizados incluye la vía de
         // Operación (lote 0 del selector de Tenant beneficiario): lee los
         // catálogos de asignación a través del predicado único

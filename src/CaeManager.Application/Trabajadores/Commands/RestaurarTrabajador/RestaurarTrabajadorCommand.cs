@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Empresas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,7 +11,7 @@ public record RestaurarTrabajadorCommand(Guid Id) : ICommand;
 
 public class RestaurarTrabajadorCommandHandler(
     ITrabajadoresQueryContext trabajadoresContext, ITenantActual tenantActual,
-    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, ICatalogoTrabajadoresEmpresaRepository catalogo, IUnitOfWork unitOfWork)
     : IRequestHandler<RestaurarTrabajadorCommand, Result>
 {
     public async Task<Result> Handle(RestaurarTrabajadorCommand request, CancellationToken cancellationToken)
@@ -32,6 +33,15 @@ public class RestaurarTrabajadorCommandHandler(
             return Result.Fallo(Error.Crear("Trabajador.NoEncontrado", "No encontramos este trabajador eliminado."));
 
         trabajador.Restaurar();
+
+        // Eliminar una Delegación o un Oficio solo cuenta a los Trabajadores vivos: si se eliminó mientras este lo
+        // estaba, vuelve sin él en vez de quedar apuntando a una fila eliminada. Los repositorios filtran lo eliminado.
+        var delegacionEliminada = trabajador.DelegacionEmpresaId is { } delegacionId
+                                  && await catalogo.ObtenerDelegacionEmpresaAsync(delegacionId, cancellationToken) is null;
+        var oficioEliminado = trabajador.OficioEmpresaId is { } oficioId
+                              && await catalogo.ObtenerOficioAsync(oficioId, cancellationToken) is null;
+        trabajador.QuitarCatalogoEliminado(delegacionEliminada, oficioEliminado);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

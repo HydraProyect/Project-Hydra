@@ -33,8 +33,7 @@ public class GuardarOficioEmpresaCommandValidator : AbstractValidator<GuardarOfi
 public class GuardarOficioEmpresaCommandHandler(
     IEmpresaRepository empresas,
     ICatalogoTrabajadoresEmpresaRepository catalogo,
-    IAlcanceDatosService alcanceDatos,
-    IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos)
     : IRequestHandler<GuardarOficioEmpresaCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(GuardarOficioEmpresaCommand request, CancellationToken cancellationToken)
@@ -54,7 +53,12 @@ public class GuardarOficioEmpresaCommandHandler(
 
             var nuevo = new OficioEmpresa(empresa.Id, request.Nombre);
             catalogo.Agregar(nuevo);
-            await unitOfWork.SaveChangesAsync(cancellationToken);
+            // Otro alta simultánea con el mismo nombre ganó la carrera del índice único: se devuelve ese Oficio, igual
+            // que si ya hubiera existido al leer.
+            if (!await catalogo.GuardarCambiosAsync(cancellationToken))
+                return await OficioConElMismoNombreAsync(empresa.Id, clave, cancellationToken) is { } ganador
+                    ? ganador
+                    : Result.Fallo<Guid>(Error.Crear("Oficio.Duplicado", "Esta empresa ya tiene un oficio con ese nombre."));
             return nuevo.Id;
         }
 
@@ -67,7 +71,12 @@ public class GuardarOficioEmpresaCommandHandler(
             return Result.Fallo<Guid>(Error.Crear("Oficio.Duplicado", "Esta empresa ya tiene un oficio con ese nombre."));
 
         oficio.Renombrar(request.Nombre);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        if (!await catalogo.GuardarCambiosAsync(cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Oficio.Duplicado", "Esta empresa ya tiene un oficio con ese nombre."));
         return oficio.Id;
     }
+
+    private async Task<Guid?> OficioConElMismoNombreAsync(Guid empresaId, string clave, CancellationToken cancellationToken) =>
+        (await catalogo.ListarOficiosAsync(empresaId, cancellationToken))
+            .FirstOrDefault(o => NombreDeCatalogo.Clave(o.Nombre) == clave)?.Id;
 }

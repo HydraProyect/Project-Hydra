@@ -16,6 +16,14 @@ public enum CatalogoTrabajadoresEmpresa
 /// Elimina (borrado lógico) una Delegación o un Oficio de la Empresa desde Empresa 360. Se rechaza mientras algún
 /// Trabajador lo tenga asignado: quitarlo antes es decisión de quien gestiona a esos Trabajadores, no un efecto
 /// secundario de borrar el catálogo. Autorización y concurrencia como <c>GuardarNotaInternaEmpresaCommand</c>.
+///
+/// <para>
+/// <b>Trabajadores eliminados.</b> El recuento solo ve a los Trabajadores vivos: uno eliminado no bloquea, y si se
+/// restaura, <c>RestaurarTrabajadorCommand</c> le quita la Delegación o el Oficio que se eliminó mientras tanto.
+/// <b>Carrera con una asignación.</b> Asignar renueva la versión de la Delegación o el Oficio
+/// (<c>RegistrarAsignacion</c>), así que una asignación que entre entre el recuento y el guardado hace fallar este por
+/// concurrencia, y al revés.
+/// </para>
 /// </summary>
 public record EliminarDelegacionEmpresaUOficioCommand(
     Guid EmpresaId, CatalogoTrabajadoresEmpresa Catalogo, Guid Id, Guid Version) : ICommand;
@@ -75,6 +83,10 @@ public class EliminarDelegacionEmpresaUOficioCommandHandler(
         if (usuarioId is null)
             return Result.Fallo(Error.Crear("Catalogo.SinIdentidad", "No se pudo confirmar tu identidad. Vuelve a iniciar sesión e inténtalo de nuevo."));
 
+        // El contacto de reclamación es un dato personal de un tercero: una Delegación eliminada ya no lo necesita, así
+        // que se suprime con ella en vez de quedarse en una fila que nadie ve ni corrige.
+        if (entidad is DelegacionEmpresa delegacionEliminada)
+            delegacionEliminada.Anonimizar();
         entidad.MarcarComoEliminado(usuarioId.Value);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();
