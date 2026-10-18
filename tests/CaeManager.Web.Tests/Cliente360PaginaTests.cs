@@ -45,8 +45,7 @@ namespace CaeManager.Web.Tests;
 ///
 /// <para>
 /// Centros, Empresas y Subcontratas conservan sus listas. Documentación
-/// compone la certificación TGSS y los documentos con los mismos componentes
-/// del panel; sus acciones conservan los permisos de escritura.
+/// (los documentos que el Cliente exige) se prueba en <c>Cliente360DocumentacionTests</c>.
 /// </para>
 /// </summary>
 public class Cliente360PaginaTests : BunitContext
@@ -685,68 +684,6 @@ public class Cliente360PaginaTests : BunitContext
             var parametros = cut.FindComponent<Stub<PestanaHistorial>>().Instance.Parameters;
             parametros.Get(p => p.EntidadId).Should().Be(id);
             parametros.Get(p => p.EntidadTipo).Should().Be("Cliente");
-        }
-    }
-
-    [Theory]
-    [InlineData("documentacion")]
-    [InlineData("blindaje42")]
-    public void Documentacion_y_el_enlace_antiguo_abren_el_certificado_como_primer_bloque(string pestana)
-    {
-        var (id, mediador) = ClienteBase();
-        mediador.Certificaciones.Add(new BlindajeEmpresaDto(Guid.NewGuid(), "Ibertec GmbH", null, 0, null));
-        Registrar(mediador);
-        ComponentFactories.AddStub<PestanaDocumentacion>("<div data-testid='documentacion-original'></div>");
-
-        var cut = Renderizar(id, $"?pestana={pestana}");
-
-        cut.Find("[role=tab][aria-selected=true]").TextContent.Trim().Should().Be("Documentación");
-        cut.FindAll("[role=tab]").Should().HaveCount(7);
-        cut.Find("[role=tab][aria-selected=true]").QuerySelector(".pestanas-contador").Should().BeNull();
-        var bloques = cut.Find(".cliente360-documentacion").Children;
-        bloques.Should().HaveCount(2);
-        bloques[0].QuerySelector(".tarjeta-titulo")!.TextContent.Should()
-            .Be("Certificado de estar al corriente con la Seguridad Social");
-        bloques[0].TextContent.Should().Contain("Ibertec GmbH").And.Contain("Sin solicitar");
-        bloques[1].GetAttribute("data-testid").Should().Be("documentacion-original");
-        cut.FindComponent<PestanaBlindaje42>().Instance.EntidadId.Should().Be(id);
-        mediador.Enviadas.OfType<ObtenerBlindajeEmpresasDeClienteQuery>().Should()
-            .ContainSingle(q => q.ClienteId == id);
-    }
-
-    [Theory]
-    [InlineData(Roles.GestorCae, true)]
-    [InlineData(Roles.Consulta, false)]
-    public async Task El_certificado_en_Documentacion_conserva_solicitar_solo_con_escritura(string rol, bool puedeEscribir)
-    {
-        var (id, mediador) = ClienteBase();
-        var empresaId = Guid.NewGuid();
-        mediador.Certificaciones.Add(new BlindajeEmpresaDto(empresaId, "Ibertec GmbH", null, 0, null));
-        mediador.HistorialCertificaciones.Add(new SolicitudCertificacionTgssDto(Guid.NewGuid(),
-            new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), null, null,
-            CaeManager.Domain.Blindaje42.EstadoBlindaje42.PendienteRespuesta, null, false, null));
-        Registrar(mediador, rol);
-        ComponentFactories.AddStub<PestanaDocumentacion>("<div data-testid='documentacion-original'></div>");
-        var cut = Renderizar(id, "?pestana=documentacion");
-
-        await cut.Find(".cliente360-documentacion .workspace-fila-entidad").ClickAsync(new MouseEventArgs());
-
-        var drawer = cut.FindComponent<DrawerBlindaje42>();
-        drawer.Instance.Visible.Should().BeTrue();
-        var solicitar = drawer.FindAll("button").Where(b => b.TextContent.Trim() == "Registrar solicitud").ToList();
-        solicitar.Should().HaveCount(puedeEscribir ? 1 : 0);
-        drawer.FindAll("button").Where(b => b.TextContent.Trim() == "Registrar respuesta")
-            .Should().HaveCount(puedeEscribir ? 1 : 0);
-        mediador.Enviadas.OfType<ObtenerHistorialCertificacionesTgssQuery>().Should().ContainSingle();
-        if (puedeEscribir)
-        {
-            await solicitar.Single().ClickAsync(new MouseEventArgs());
-            mediador.Enviadas.OfType<SolicitarCertificacionTgssCommand>().Should()
-                .ContainSingle(c => c.ClienteId == id && c.EmpresaId == empresaId);
-        }
-        else
-        {
-            mediador.Enviadas.OfType<SolicitarCertificacionTgssCommand>().Should().BeEmpty();
         }
     }
 

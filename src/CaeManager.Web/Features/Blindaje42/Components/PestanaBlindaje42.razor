@@ -108,7 +108,8 @@ else if (_empresas is not null)
         var n => $"{n} solicitudes registradas"
     };
 
-    private static string Etiqueta(EstadoBlindaje42? estado) => estado switch
+    // internal: la fila del certificado TGSS en la pestaña «Documentación» de Cliente 360 pinta el mismo estado.
+    internal static string Etiqueta(EstadoBlindaje42? estado) => estado switch
     {
         null => "Sin solicitar",
         EstadoBlindaje42.PendienteRespuesta => "Pendiente TGSS",
@@ -118,7 +119,7 @@ else if (_empresas is not null)
         _ => "—"
     };
 
-    private static TonoBadge Tono(EstadoBlindaje42? estado) => estado switch
+    internal static TonoBadge Tono(EstadoBlindaje42? estado) => estado switch
     {
         null => TonoBadge.Neutro,
         EstadoBlindaje42.PendienteRespuesta => TonoBadge.Info,

@@ -1,0 +1,213 @@
+@*
+    Pestaña «Documentación» de Cliente 360 (página): solo lo que el Cliente empresarial exige para acceder a sus
+    Centros, es decir, sus requisitos documentales. Sin texto explicativo del art. 42.1/42.2 ET: los Gestores CAE lo
+    saben (Chris, 2026-10-18).
+
+    Universo: el mismo que la pestaña «Requisitos» de Centro 360, ObtenerDocumentacionRequeridaDeCentroQuery con
+    Aplica (lo que el Centro pide hoy, con la exclusión por Centro y el criterio global del tipo), unido por tipo
+    sobre los Centros con gestión CAE del Cliente. Un Centro sin gestión CAE no exige nada (como en Centro 360).
+    No es un universo nuevo ni una lista de documentos registrados.
+
+    El certificado de la Seguridad Social (TGSS) es una fila más, siempre la primera: se pide por Empresa, así que su
+    estado es el peor de las Empresas del Cliente y la fila se despliega con una por Empresa. «Gestionar» (única acción
+    verbal, sin escritura no se pinta) abre el drawer de solicitudes de esa Empresa.
+*@
+@using CaeManager.Application.Blindaje42.Queries.ObtenerBlindajeEmpresasDeCliente
+@using CaeManager.Application.Centros.Queries.ObtenerCentros
+@using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro
+@using CaeManager.Domain.Blindaje42
+@using CaeManager.Domain.Centros
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Blindaje42.Components
+@using CaeManager.Web.Features.Centros.Recursos
+@using CaeManager.Web.Features.Clientes.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosClientes> Textos
+@inject IStringLocalizer<TextosCentros> TextosDeCentros
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="3" />
+}
+else if (_error)
+{
+    <EstadoVacio Titulo="@Textos["DocumentosExigidosError"]" Descripcion="@Textos["DocumentosExigidosErrorDescripcion"]">
+        <Accion>
+            <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["Reintentar"]</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else if (_empresas.Count == 0 && _requisitos.Count == 0)
+{
+    <EstadoVacio Titulo="@Textos["DocumentosExigidosVacio"]" />
+}
+else
+{
+    <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["ListaDocumentosExigidos"]">
+        @if (_empresas.Count > 0)
+        {
+            <FilaRelacion Nombre="@Textos["CertificadoSeguridadSocialTitulo"]"
+                          Tono="@TonoCertificado"
+                          Desplegada="_certificadoDesplegado" DesplegadaChanged="v => _certificadoDesplegado = v">
+                <Detalle>@Textos[_empresas.Count == 1 ? "CertificadoEmpresasUna" : "CertificadoEmpresasVarias", _empresas.Count]</Detalle>
+                <Cifra><span>@TextoSolicitudes(TotalSolicitudes)</span></Cifra>
+                <Estado><Badge Tono="PestanaBlindaje42.Tono(PeorEstado)" Tamano="TamanoBadge.Pequeno">@PestanaBlindaje42.Etiqueta(PeorEstado)</Badge></Estado>
+                <Desplegable>
+                    <ListaRelaciones Etiqueta="@Textos["ListaEmpresasCertificado"]">
+                        @foreach (var empresa in _empresas)
+                        {
+                            <FilaRelacion @key="empresa.EmpresaId" Nombre="@empresa.EmpresaRazonSocial" NombreIcono="empresas">
+                                <Cifra><span>@TextoSolicitudes(empresa.TotalSolicitudes)</span></Cifra>
+                                <Estado><Badge Tono="PestanaBlindaje42.Tono(empresa.UltimaSolicitud?.Estado)" Tamano="TamanoBadge.Pequeno">@PestanaBlindaje42.Etiqueta(empresa.UltimaSolicitud?.Estado)</Badge></Estado>
+                                <Acciones>
+                                    <SoloConEscritura>
+                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirDrawer(empresa)">@Textos["Gestionar"]</Boton>
+                                    </SoloConEscritura>
+                                </Acciones>
+                            </FilaRelacion>
+                        }
+                    </ListaRelaciones>
+                </Desplegable>
+            </FilaRelacion>
+        }
+
+        @foreach (var requisito in _requisitos)
+        {
+            <FilaRelacion @key="requisito.TipoDocumentoId" Nombre="@requisito.Nombre">
+                <Detalle>@TextosDeCentros[requisito.Ambito == AmbitoAplicacion.Empresa ? "RequisitoCentroEmpresa360" : "RequisitoCentroTrabajador360"]</Detalle>
+                <Cifra><span>@TextoCentros(requisito.Centros)</span></Cifra>
+                <Estado>
+                    @if (requisito.BloqueaAcceso)
+                    {
+                        <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@TextosDeCentros["RequisitoCentroBloquea360"]</Badge>
+                    }
+                </Estado>
+            </FilaRelacion>
+        }
+    </ListaRelaciones>
+}
+
+<DrawerBlindaje42 Visible="_drawerVisible" VisibleChanged="v => _drawerVisible = v"
+                  ClienteId="_cliente" EmpresaId="_empresaId" EmpresaRazonSocial="_empresaNombre"
+                  OnCambio="CargarAsync" />
+
+@code {
+    private sealed record RequisitoDelCliente(Guid TipoDocumentoId, string Nombre, AmbitoAplicacion Ambito, int Centros, bool BloqueaAcceso);
+
+    /// <summary>Tope de Centros que lee la pestaña de Centros del Cliente (ClienteDetalle.MaximoCentros).</summary>
+    private const int MaximoCentros = 200;
+
+    [Parameter, EditorRequired] public Guid ClienteId { get; set; }
+
+    private IReadOnlyList<BlindajeEmpresaDto> _empresas = [];
+    private IReadOnlyList<RequisitoDelCliente> _requisitos = [];
+    private int _centrosConGestion;
+    private bool _cargando = true;
+    private bool _error;
+    private bool _certificadoDesplegado;
+    private Guid _cliente;
+
+    private bool _drawerVisible;
+    private Guid _empresaId;
+    private string _empresaNombre = string.Empty;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ClienteId == _cliente) return;
+        _cliente = ClienteId;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = false;
+
+        try
+        {
+            _empresas = await Mediator.Send(new ObtenerBlindajeEmpresasDeClienteQuery(_cliente));
+
+            var centros = await Mediator.Send(new ObtenerCentrosQuery(
+                null, _cliente,
+                OrdenarPor: nameof(CentroListaDto.Estado), Descendente: true,
+                Pagina: 1, TamanoPagina: MaximoCentros));
+
+            // Lecturas una tras otra: comparten el DbContext del circuito.
+            var porTipo = new Dictionary<Guid, RequisitoDelCliente>();
+            var ordenados = new List<Guid>();
+            var conGestion = 0;
+            foreach (var centro in centros.Elementos.Where(c => c.Estado != EstadoCentro.SinGestionCae))
+            {
+                conGestion++;
+                var requeridos = await Mediator.Send(new ObtenerDocumentacionRequeridaDeCentroQuery(centro.Id));
+                foreach (var r in (requeridos ?? []).Where(r => r.Aplica))
+                {
+                    if (porTipo.TryGetValue(r.TipoDocumentoId, out var previo))
+                        porTipo[r.TipoDocumentoId] = previo with { Centros = previo.Centros + 1, BloqueaAcceso = previo.BloqueaAcceso || r.BloqueaAcceso };
+                    else
+                    {
+                        porTipo[r.TipoDocumentoId] = new RequisitoDelCliente(r.TipoDocumentoId, r.Nombre, r.AmbitoAplicacion, 1, r.BloqueaAcceso);
+                        ordenados.Add(r.TipoDocumentoId);
+                    }
+                }
+            }
+
+            _centrosConGestion = conGestion;
+            // Primero lo que se exige a la Empresa, después lo de sus Trabajadores; dentro de cada grupo, el orden del catálogo.
+            _requisitos = ordenados.Select(id => porTipo[id])
+                .OrderBy(r => r.Ambito == AmbitoAplicacion.Empresa ? 0 : 1)
+                .ToList();
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private int TotalSolicitudes => _empresas.Sum(e => e.TotalSolicitudes);
+
+    /// <summary>El peor estado entre las Empresas: con descubiertos, sin solicitar, en trámite, silencio, certificación.</summary>
+    private EstadoBlindaje42? PeorEstado => _empresas
+        .Select(e => e.UltimaSolicitud?.Estado)
+        .OrderBy(Gravedad)
+        .FirstOrDefault();
+
+    private static int Gravedad(EstadoBlindaje42? estado) => estado switch
+    {
+        EstadoBlindaje42.NoExonerada => 0,
+        null => 1,
+        EstadoBlindaje42.PendienteRespuesta => 2,
+        EstadoBlindaje42.ExoneradaPorSilencio => 3,
+        _ => 4
+    };
+
+    private TonoFila? TonoCertificado => PeorEstado switch
+    {
+        EstadoBlindaje42.NoExonerada => TonoFila.Peligro,
+        null => TonoFila.Advertencia,
+        _ => null
+    };
+
+    private string TextoSolicitudes(int total) => total switch
+    {
+        0 => Textos["SolicitudesCero"],
+        1 => Textos["SolicitudesUna"],
+        var n => Textos["SolicitudesVarias", n]
+    };
+
+    private string TextoCentros(int centros) =>
+        _centrosConGestion == 1 ? Textos["ExigidoEnCentroUnico"] : Textos["ExigidoEnCentros", centros, _centrosConGestion];
+
+    private void AbrirDrawer(BlindajeEmpresaDto empresa)
+    {
+        _empresaId = empresa.EmpresaId;
+        _empresaNombre = empresa.EmpresaRazonSocial;
+        _drawerVisible = true;
+    }
+}
