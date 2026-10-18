@@ -341,7 +341,9 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task El_POST_aceptado_invalida_los_pendientes_del_usuario_y_el_rechazado_no()
     {
-        var contador = new ContadorPendientesSelectorTenant(TimeProvider.System);
+        // Reloj parado: la clave de la caché lleva el cubo de 10 s de la vigencia, y con el reloj del sistema
+        // cruzar ese borde entre dos lecturas recalcula sin que nada haya invalidado (fallo intermitente).
+        var contador = new ContadorPendientesSelectorTenant(new RelojParado(DateTimeOffset.UtcNow));
         var alcance = new[] { new ClienteAutorizadoDto(_a, "A", false, true, EsCarteraGestorCae: true) };
         var calculos = 0;
         Task<CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado.MiTrabajoAgregadoDto> Calcular(CancellationToken _)
@@ -845,5 +847,10 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
             get => contexto;
             set => throw new NotSupportedException();
         }
+    }
+
+    private sealed class RelojParado(DateTimeOffset ahora) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => ahora;
     }
 }

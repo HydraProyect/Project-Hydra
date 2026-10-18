@@ -41,7 +41,7 @@ namespace CaeManager.IntegrationTests.Migraciones;
 /// </summary>
 public class RevisaCatalogoTiposDocumentoGruposYArchivadoTests : IAsyncLifetime
 {
-    private const string MigracionDelCambio = "20261017223540_RevisaCatalogoTiposDocumentoGruposYArchivado";
+    private const string MigracionDelCambio = "20261018224221_RevisaCatalogoTiposDocumentoGruposYArchivado";
     private const string TenantBase = "00000000-0000-0000-0000-000000000001";
 
     private const string BaseReciclaje = "10000000-0000-0000-0000-000000000003";

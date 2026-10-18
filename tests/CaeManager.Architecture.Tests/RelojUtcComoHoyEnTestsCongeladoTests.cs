@@ -54,7 +54,6 @@ public class RelojUtcComoHoyEnTestsCongeladoTests
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new(StringComparer.Ordinal)
     {
-        ["tests/CaeManager.E2ETests/BucleCorreccionPlataformaTests.cs"] = 1,
         ["tests/CaeManager.E2ETests/CentrosGestionarEnVivoE2ETests.cs"] = 1,
         ["tests/CaeManager.E2ETests/FlujoBandejaPriorizadaTests.cs"] = 1,
         ["tests/CaeManager.E2ETests/FlujoCicloDocumentalTests.cs"] = 1,
