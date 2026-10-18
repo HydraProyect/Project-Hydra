@@ -514,4 +514,12 @@
   <data name="ExigidoEnCentroUnico" xml:space="preserve"><value>En su Centro</value></data>
   <data name="ExigidoEnCentros" xml:space="preserve"><value>En {0} de {1} Centros</value></data>
   <data name="Gestionar" xml:space="preserve"><value>Gestionar</value></data>
+  <data name="RequisitoAmbitoEmpresa" xml:space="preserve"><value>Empresa empleadora</value></data>
+  <data name="RequisitoAmbitoTrabajador" xml:space="preserve"><value>Trabajador</value></data>
+  <data name="RequisitoBloqueaAcceso" xml:space="preserve"><value>Bloquea el acceso</value></data>
+  <data name="CertificadoSinSolicitar" xml:space="preserve"><value>Sin solicitar</value></data>
+  <data name="CertificadoPendienteTgss" xml:space="preserve"><value>Pendiente TGSS</value></data>
+  <data name="CertificadoExoneradaSilencio" xml:space="preserve"><value>Exonerada (silencio)</value></data>
+  <data name="CertificadoExoneradaCertificacion" xml:space="preserve"><value>Exonerada (certificación)</value></data>
+  <data name="CertificadoConDescubiertos" xml:space="preserve"><value>Con descubiertos</value></data>
 </root>

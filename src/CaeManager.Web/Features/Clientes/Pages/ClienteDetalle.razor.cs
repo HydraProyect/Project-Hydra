@@ -141,6 +141,12 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     private bool _gestorCaeHabilitado;
 
     /// <summary>
+    /// Habilita la lectura de la pestaña «Documentación» (<c>DocumentosExigidosCliente</c>) cuando terminaron la cadena
+    /// de <see cref="CargarTodoAsync"/> y la primera lectura de la fila «Gestor CAE»: comparten el DbContext del circuito.
+    /// </summary>
+    private bool _documentacionHabilitada;
+
+    /// <summary>
     /// Pendiente mientras la fila «Gestor CAE» (y su panel de acciones) hace su primera lectura: las lecturas de
     /// pestaña esperan a que termine, por el mismo DbContext compartido. Sin valor o completada, no se espera.
     /// </summary>
@@ -397,6 +403,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _subcontratas = null;
         _datosInicialesCargados = false;
         _gestorCaeHabilitado = false;
+        _documentacionHabilitada = false;
         _gestorCaeEnVuelo?.TrySetResult();
         _gestorCaeEnVuelo = null;
         _centrosSubcontratasLeidos = false;
@@ -437,6 +444,11 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         if (generacion != _generacion) return;
         _gestorCaeEnVuelo = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _gestorCaeHabilitado = true;
+        StateHasChanged();
+
+        await EsperarGestorCaeAsync();
+        if (generacion != _generacion) return;
+        _documentacionHabilitada = true;
         StateHasChanged();
     }
 

@@ -185,6 +185,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Centros.ObtenerDocumentacionBloqueantePendienteQueryHandler", "ITiposDocumentoQueryContext"),
         ("Centros.ObtenerDocumentacionBloqueantePendienteQueryHandler", "ITrabajadoresQueryContext"),
         ("Centros.ObtenerDocumentacionRequeridaDeCentroQueryHandler", "ITiposDocumentoQueryContext"),
+        // La misma lectura que la de arriba, sobre todos los Centros del Cliente empresarial (Cliente 360, «Documentación»).
+        ("Centros.ObtenerDocumentacionExigidaDeClienteQueryHandler", "ITiposDocumentoQueryContext"),
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "IAsignacionesQueryContext"),
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "IEmpresasQueryContext"),
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "ISubcontratasQueryContext"),

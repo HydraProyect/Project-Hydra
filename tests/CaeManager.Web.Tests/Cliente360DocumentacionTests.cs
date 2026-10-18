@@ -6,6 +6,7 @@ using CaeManager.Application.Blindaje42.Queries.ObtenerHistorialCertificacionesT
 using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionExigidaDeCliente;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
@@ -24,6 +25,7 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Blindaje42.Components;
+using CaeManager.Web.Features.Clientes.Components;
 using CaeManager.Web.Features.Clientes.Pages;
 using FluentAssertions;
 using MediatR;
@@ -57,13 +59,18 @@ public class Cliente360DocumentacionTests : BunitContext
         public List<CentroListaDto> Centros { get; } = [];
         public List<BlindajeEmpresaDto> Certificaciones { get; } = [];
         public List<SolicitudCertificacionTgssDto> Historial { get; } = [];
-        public Dictionary<Guid, IReadOnlyList<DocumentacionRequeridaCentroDto>> RequisitosPorCentro { get; } = [];
-        public bool FallaRequisitos { get; set; }
+        public DocumentacionExigidaClienteDto? Documentacion { get; set; } = new(0, []);
+        public int FallosDeDocumentacion { get; set; }
+        public bool Colgar { get; set; }
+        public List<CancellationToken> Tokens { get; } = [];
         public List<object> Enviadas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+            Tokens.Add(cancellationToken);
+            if (Colgar)
+                return new TaskCompletionSource<TResponse>().Task;
             return Task.FromResult((TResponse)Responder(request)!);
         }
 
@@ -78,9 +85,9 @@ public class Cliente360DocumentacionTests : BunitContext
             ObtenerBlindajeEmpresasDeClienteQuery => Certificaciones,
             ObtenerHistorialCertificacionesTgssQuery => Historial,
             SolicitarCertificacionTgssCommand => Result.Exito(Guid.NewGuid()),
-            ObtenerDocumentacionRequeridaDeCentroQuery q => FallaRequisitos
-                ? throw new InvalidOperationException("Fallo de lectura de requisitos")
-                : RequisitosPorCentro.GetValueOrDefault(q.CentroId) ?? (IReadOnlyList<DocumentacionRequeridaCentroDto>)[],
+            ObtenerDocumentacionExigidaDeClienteQuery => FallosDeDocumentacion-- > 0
+                ? throw new InvalidOperationException("Fallo de lectura de los documentos exigidos")
+                : Documentacion,
             ObtenerDocumentacionBloqueantePendienteQuery => (IReadOnlyList<DocumentacionBloqueantePendienteDto>)[],
             ObtenerToleranciasClienteEmpresarialQuery => (IReadOnlyList<ToleranciaTipoDocumentoDto>)[],
             ObtenerPersonasConCarteraQuery => (IReadOnlyList<CarterasDeOperacion>)[],
@@ -153,10 +160,9 @@ public class Cliente360DocumentacionTests : BunitContext
         new(Guid.NewGuid(), nombre, null, Guid.NewGuid(), "Refrielectric S.A.", Guid.NewGuid(), "Ibertec GmbH",
             estado, 80, new RecuentosCentroDto([], []));
 
-    private static DocumentacionRequeridaCentroDto Requisito(
-        Guid tipoId, string nombre, AmbitoAplicacion ambito, bool aplica = true, bool bloquea = false) =>
-        new(tipoId, nombre, ambito, EsObligatorioGlobal: aplica, Aplica: aplica, Incluido: null,
-            PeriodicidadEspecialMeses: null, BloqueaAcceso: bloquea, ArchivoUrl: null, NombreArchivoOriginal: null);
+    private static RequisitoExigidoClienteDto Requisito(
+        string nombre, AmbitoAplicacion ambito, int centros, bool bloquea = false) =>
+        new(Guid.NewGuid(), nombre, ambito, centros, bloquea);
 
     private static BlindajeEmpresaDto Empresa(Guid id, string nombre, EstadoBlindaje42? estado, int solicitudes) =>
         new(id, nombre, null, solicitudes, estado is null ? null : new UltimaSolicitudCertificacionTgssDto(
@@ -186,9 +192,8 @@ public class Cliente360DocumentacionTests : BunitContext
 
     private static void Preparar_centro_con_requisitos(MediatorFalso mediador)
     {
-        var centro = Centro("Planta Barakaldo");
-        mediador.Centros.Add(centro);
-        mediador.RequisitosPorCentro[centro.Id] = [Requisito(Guid.NewGuid(), "Evaluación de riesgos", AmbitoAplicacion.Empresa)];
+        mediador.Centros.Add(Centro("Planta Barakaldo"));
+        mediador.Documentacion = new(1, [Requisito("Evaluación de riesgos", AmbitoAplicacion.Empresa, 1)]);
     }
 
     [Fact]
@@ -197,25 +202,16 @@ public class Cliente360DocumentacionTests : BunitContext
         var (id, mediador) = Preparar();
         mediador.Certificaciones.Add(Empresa(Guid.NewGuid(), "Ibertec GmbH", EstadoBlindaje42.ExoneradaPorCertificacion, 2));
         mediador.Certificaciones.Add(Empresa(Guid.NewGuid(), "Grúas Aldapa S.L.", null, 0));
-        var seguro = Guid.NewGuid();
-        var formacion = Guid.NewGuid();
-        var epi = Guid.NewGuid();
-        var riesgos = Guid.NewGuid();
-        var barakaldo = Centro("Planta Barakaldo");
-        var getafe = Centro("Almacén Getafe");
-        var cerrado = Centro("Nave sin gestión", EstadoCentro.SinGestionCae);
-        mediador.Centros.AddRange([barakaldo, getafe, cerrado]);
-        mediador.RequisitosPorCentro[barakaldo.Id] = [
-            Requisito(formacion, "Formación PRL", AmbitoAplicacion.Trabajador),
-            Requisito(seguro, "Seguro RC", AmbitoAplicacion.Empresa, bloquea: true),
-            Requisito(epi, "EPI entregado", AmbitoAplicacion.Trabajador, aplica: false)];
-        mediador.RequisitosPorCentro[getafe.Id] = [Requisito(seguro, "Seguro RC", AmbitoAplicacion.Empresa)];
-        mediador.RequisitosPorCentro[cerrado.Id] = [Requisito(riesgos, "Evaluación de riesgos", AmbitoAplicacion.Empresa)];
+        mediador.Centros.AddRange([Centro("Planta Barakaldo"), Centro("Almacén Getafe"), Centro("Nave sin gestión", EstadoCentro.SinGestionCae)]);
+        // La agregación por tipo (qué aplica, en cuántos Centros, si alguno bloquea) es del servidor:
+        // ObtenerDocumentacionExigidaDeClienteQueryTests. Aquí, cómo se pinta lo que devuelve.
+        mediador.Documentacion = new(2, [
+            Requisito("Seguro RC", AmbitoAplicacion.Empresa, 2, bloquea: true),
+            Requisito("Formación PRL", AmbitoAplicacion.Trabajador, 1)]);
 
         var cut = Renderizar(id);
 
-        // TGSS primero; después lo que se exige a la Empresa y, a continuación, lo de sus Trabajadores. Lo que el Centro
-        // no aplica y lo de un Centro sin gestión CAE no entran.
+        // TGSS primero; después, en el orden del servidor, lo que se exige a la Empresa y lo de sus Trabajadores.
         Nombres(cut).Should().Equal("Certificado de estar al corriente con la Seguridad Social", "Seguro RC", "Formación PRL");
         var filas = cut.FindAll(".cliente360-documentacion .fila-relacion");
         var tgss = filas[0];
@@ -223,8 +219,67 @@ public class Cliente360DocumentacionTests : BunitContext
         var seguroFila = filas[1];
         seguroFila.TextContent.Should().Contain("Empresa empleadora").And.Contain("En 2 de 2 Centros").And.Contain("Bloquea el acceso");
         filas[2].TextContent.Should().Contain("Trabajador").And.Contain("En 1 de 2 Centros").And.NotContain("Bloquea");
-        mediador.Enviadas.OfType<ObtenerDocumentacionRequeridaDeCentroQuery>().Select(q => q.CentroId).Should()
-            .BeEquivalentTo([barakaldo.Id, getafe.Id], "un Centro sin gestión CAE no exige nada");
+        mediador.Enviadas.OfType<ObtenerDocumentacionExigidaDeClienteQuery>().Should()
+            .ContainSingle(q => q.ClienteEmpresarialId == id, "una sola consulta de servidor, no una por Centro");
+        mediador.Enviadas.OfType<ObtenerDocumentacionRequeridaDeCentroQuery>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Con_un_unico_Centro_la_cifra_dice_en_su_Centro()
+    {
+        var (id, mediador) = Preparar();
+        Preparar_centro_con_requisitos(mediador);
+
+        var cut = Renderizar(id);
+
+        cut.Find(".cliente360-documentacion .fila-relacion").TextContent.Should().Contain("En su Centro");
+    }
+
+    [Fact]
+    public void La_pestana_no_consulta_hasta_que_la_pagina_termina_su_cadena()
+    {
+        var (id, mediador) = Preparar();
+        Preparar_centro_con_requisitos(mediador);
+
+        var cut = Renderizar(id);
+
+        // La lectura de la pestaña llega después de todo lo de la página (cabecera, Centros, Empresas, Gestor CAE).
+        var orden = mediador.Enviadas.Select(e => e.GetType()).ToList();
+        orden.IndexOf(typeof(ObtenerBlindajeEmpresasDeClienteQuery)).Should()
+            .BeGreaterThan(orden.IndexOf(typeof(ObtenerCentrosQuery)))
+            .And.BeGreaterThan(orden.IndexOf(typeof(ObtenerPersonasConCarteraQuery)));
+        cut.FindComponent<DocumentosExigidosCliente>().Instance.Cargar.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Sin_Cargar_el_componente_no_consulta_nada()
+    {
+        var (id, mediador) = Preparar();
+
+        var cut = Render<DocumentosExigidosCliente>(p => p.Add(x => x.ClienteId, id).Add(x => x.Cargar, false));
+
+        mediador.Enviadas.Should().BeEmpty();
+        cut.FindAll(".estado-cargando, [aria-busy=true]").Should().NotBeEmpty("sin lectura se queda en «cargando»");
+
+        cut.Render(p => p.Add(x => x.ClienteId, id).Add(x => x.Cargar, true));
+
+        mediador.Enviadas.Select(e => e.GetType()).Should()
+            .Equal(typeof(ObtenerBlindajeEmpresasDeClienteQuery), typeof(ObtenerDocumentacionExigidaDeClienteQuery));
+    }
+
+    [Fact]
+    public async Task Al_desmontarse_cancela_la_lectura_en_vuelo()
+    {
+        var (id, mediador) = Preparar();
+        mediador.Colgar = true;
+
+        Render<DocumentosExigidosCliente>(p => p.Add(x => x.ClienteId, id).Add(x => x.Cargar, true));
+        var token = mediador.Tokens.Should().ContainSingle().Subject;
+        token.IsCancellationRequested.Should().BeFalse();
+
+        await DisposeComponentsAsync();
+
+        token.IsCancellationRequested.Should().BeTrue();
     }
 
     [Fact]
@@ -281,16 +336,41 @@ public class Cliente360DocumentacionTests : BunitContext
     }
 
     [Fact]
-    public void Si_falla_la_lectura_de_requisitos_la_pestana_ofrece_reintentar()
+    public async Task Si_falla_la_lectura_de_requisitos_Reintentar_la_repite_y_pinta_las_filas()
     {
         var (id, mediador) = Preparar();
         Preparar_centro_con_requisitos(mediador);
-        mediador.FallaRequisitos = true;
+        mediador.FallosDeDocumentacion = 1;
 
         var cut = Renderizar(id);
 
         cut.Find(".cliente360-documentacion .estado-vacio").TextContent.Should().Contain("No pudimos cargar los documentos exigidos");
-        cut.FindAll(".cliente360-documentacion button").Should().ContainSingle(b => b.TextContent.Trim() == "Reintentar");
+        await cut.FindAll(".cliente360-documentacion button").Single(b => b.TextContent.Trim() == "Reintentar")
+            .ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => Nombres(cut).Should().Equal("Evaluación de riesgos"));
+        mediador.Enviadas.OfType<ObtenerDocumentacionExigidaDeClienteQuery>().Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Consulta_abre_el_historial_de_una_Empresa_en_lectura_al_pulsar_su_fila()
+    {
+        var (id, mediador) = Preparar(Roles.Consulta);
+        var empresaId = Guid.NewGuid();
+        mediador.Certificaciones.Add(Empresa(empresaId, "Ibertec GmbH", EstadoBlindaje42.PendienteRespuesta, 1));
+        mediador.Historial.Add(new SolicitudCertificacionTgssDto(Guid.NewGuid(),
+            new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), null, null,
+            EstadoBlindaje42.PendienteRespuesta, null, false, null));
+        var cut = Renderizar(id);
+
+        await cut.Find(".cliente360-documentacion .fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".cliente360-documentacion .fila-relacion-desplegado .fila-relacion-nombre-boton").ClickAsync(new MouseEventArgs());
+
+        var drawer = cut.FindComponent<DrawerBlindaje42>();
+        drawer.Instance.Visible.Should().BeTrue("como en la antigua pestaña Blindaje 42.1, cualquier rol ve el historial");
+        drawer.Instance.EmpresaId.Should().Be(empresaId);
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerHistorialCertificacionesTgssQuery>().Should().NotBeEmpty());
+        drawer.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Registrar solicitud", "sin escritura no hay acciones");
     }
 
     [Theory]
@@ -312,17 +392,14 @@ public class Cliente360DocumentacionTests : BunitContext
         cut.Find(".cliente360-documentacion .fila-relacion-desplegado").TextContent
             .Should().Contain("Ibertec GmbH").And.Contain("Pendiente TGSS");
 
+        // Sin contar el chevron y el nombre de la Empresa (abre el historial, ver la prueba de Consulta).
         var botones = cut.FindAll(".cliente360-documentacion button")
-            .Where(b => !b.ClassList.Contains("fila-relacion-desplegar"))
+            .Where(b => !b.ClassList.Contains("fila-relacion-desplegar") && !b.ClassList.Contains("fila-relacion-nombre-boton"))
             .Select(b => b.TextContent.Trim()).ToList();
         botones.Should().Equal(puedeEscribir ? ["Gestionar"] : []);
 
         if (!puedeEscribir)
-        {
-            cut.FindComponent<DrawerBlindaje42>().Instance.Visible.Should().BeFalse();
-            mediador.Enviadas.OfType<ObtenerHistorialCertificacionesTgssQuery>().Should().BeEmpty();
             return;
-        }
 
         await cut.FindAll(".cliente360-documentacion button").Single(b => b.TextContent.Trim() == "Gestionar")
             .ClickAsync(new MouseEventArgs());
@@ -334,5 +411,10 @@ public class Cliente360DocumentacionTests : BunitContext
             .ClickAsync(new MouseEventArgs());
         mediador.Enviadas.OfType<SolicitarCertificacionTgssCommand>().Should()
             .ContainSingle(c => c.ClienteId == id && c.EmpresaId == empresaId);
+
+        // Tras la solicitud solo se relee el certificado; los requisitos no cambian.
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerBlindajeEmpresasDeClienteQuery>().Should().HaveCount(2));
+        mediador.Enviadas.OfType<ObtenerDocumentacionExigidaDeClienteQuery>().Should().ContainSingle();
     }
 }
+
