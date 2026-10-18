@@ -42,7 +42,7 @@ public class IntencionConversacionService(
     public async Task ProcesarAsync(Conversacion conversacion, CancellationToken cancellationToken = default)
     {
         try { await ProcesarSinAislarAsync(conversacion, cancellationToken); }
-        catch (Exception ex) when (!(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning(ex, "La detección de intención CAE de la conversación {ConversacionId} falló; la ingesta sigue.", conversacion.Id);
         }
@@ -66,10 +66,7 @@ public class IntencionConversacionService(
         // Fallo cerrado: sin Nivel 0 o sin respuesta del proveedor no se propone nada. Las reglas por palabras
         // no sustituyen a la IA: con confianza Alta contaminarían las métricas sin que nadie las confirmara.
         if (!await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))
-        {
-            logger.LogInformation("Detección de intención CAE omitida para {ConversacionId}: Nivel 0 no habilitado.", conversacion.Id);
             return;
-        }
         var resultado = await deteccion.DetectarAsync(texto, cancellationToken);
         if (resultado.EsFallido) return;
         var propuesta = resultado.Valor;

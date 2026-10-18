@@ -45,6 +45,36 @@ public class IntencionConversacionServiceTests
         repositorio.Intenciones.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Un_primer_entrante_automatico_no_sale_al_proveedor()
+    {
+        var ia = new DeteccionFalsa(true);
+        var repositorio = new RepositorioFalso();
+        var conversacion = new Conversacion("Respuesta automática");
+        conversacion.AsignarCliente(Guid.NewGuid());
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cae@example.test", "Fuera de la oficina", esAutomatico: true);
+        await Crear(ia, repositorio, true).ProcesarAsync(conversacion);
+        ia.Llamadas.Should().Be(0);
+        repositorio.Intenciones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_fallo_de_la_deteccion_no_rompe_la_ingesta_pero_la_cancelacion_si_se_propaga()
+    {
+        var ia = new DeteccionFalsa(true) { Lanza = true };
+        var repositorio = new RepositorioFalso();
+        var servicio = Crear(ia, repositorio, true);
+        await servicio.Invoking(s => s.ProcesarAsync(ConversacionConEntrante("Acceso"))).Should().NotThrowAsync();
+        repositorio.Intenciones.Should().BeEmpty();
+
+        using var cancelado = new CancellationTokenSource();
+        await cancelado.CancelAsync();
+        ia.Lanza = false;
+        ia.Cancela = true;
+        await servicio.Invoking(s => s.ProcesarAsync(ConversacionConEntrante("Acceso"), cancelado.Token))
+            .Should().ThrowAsync<OperationCanceledException>();
+    }
+
     private static Conversacion ConversacionConEntrante(string cuerpo)
     {
         var conversacion = new Conversacion("Coordinación de acceso");
@@ -102,9 +132,13 @@ public class IntencionConversacionServiceTests
     private sealed class DeteccionFalsa(bool disponible) : IDeteccionIntencionCaeService
     {
         public int Llamadas { get; private set; }
+        public bool Lanza { get; set; }
+        public bool Cancela { get; set; }
         public Task<Result<PropuestaIntencionCae>> DetectarAsync(string texto, CancellationToken cancellationToken = default)
         {
             Llamadas++;
+            if (Lanza) throw new HttpRequestException("Proveedor caído");
+            if (Cancela) cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(disponible
                 ? Result.Exito(new PropuestaIntencionCae(IntencionCae.UrgenciaAcceso, ConfianzaIntencion.Media))
                 : Result.Fallo<PropuestaIntencionCae>(Error.Crear("IA.NoConfigurada", "Sin configuración IA.")));
