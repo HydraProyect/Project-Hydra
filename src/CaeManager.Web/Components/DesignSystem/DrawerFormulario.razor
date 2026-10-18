@@ -53,23 +53,13 @@
     <Pie>
         @* Una sola «primaria» por pie: «Guardar» (o «Siguiente», en un paso que no es el último). El modo pasos (Pasos) solo cambia
            qué botones hay y cómo se ordenan en móvil; sin él, el pie es el de siempre. *@
-        @{
-            RenderFragment primaria = @<BotonConEspera Variante="VarianteBoton.Primario" Guardando="Guardando && !PasoIntermedio" Progreso="ProgresoGuardado"
-                                                       Fallido="@GuardadoFallido" Deshabilitado="PrimariaDeshabilitada" title="@MotivoPrimaria"
-                                                       OnClick="PrimariaAsync" OnCancelarEspera="OnCancelarGuardado" OnReintentar="OnReintentarGuardado">
-                @(PasoIntermedio ? (TextoSiguiente ?? Comunes["PasosSiguiente"].Value) : TextoGuardar)
-            </BotonConEspera>;
-            RenderFragment cancelar = @<Boton Variante="VarianteBoton.Secundario" Deshabilitado="Guardando" OnClick="CancelarOAtrasAsync">
-                @(EnPasos && !PrimerPaso ? (TextoAtras ?? Comunes["PasosAtras"].Value) : TextoCancelar)
-            </Boton>;
-        }
         @if (EnPasos)
         {
-            <span class="@(PasoIntermedio ? "formulario-drawer-accion formulario-drawer-atras formulario-drawer-atras-intermedio" : "formulario-drawer-accion formulario-drawer-atras")">@cancelar</span>
+            <span class="@(PasoIntermedio ? "formulario-drawer-accion formulario-drawer-atras formulario-drawer-atras-intermedio" : "formulario-drawer-accion formulario-drawer-atras")">@Cancelar</span>
         }
         else
         {
-            @cancelar
+            @Cancelar
         }
         @if (PieExtra is not null)
         {
@@ -86,15 +76,15 @@
                     @(TextoGuardarYTerminar ?? Comunes["PasosGuardarYTerminar"].Value)
                 </BotonConEspera>
             </span>
-            <span class="formulario-drawer-accion formulario-drawer-siguiente">@primaria</span>
+            <span class="formulario-drawer-accion formulario-drawer-siguiente">@Primaria</span>
         }
         else if (EnPasos)
         {
-            <span class="formulario-drawer-accion">@primaria</span>
+            <span class="formulario-drawer-accion">@Primaria</span>
         }
         else
         {
-            @primaria
+            @Primaria
         }
     </Pie>
 </Drawer>
@@ -246,7 +236,19 @@
 
     private Task PrimariaAsync() => PasoIntermedio ? OnSiguiente.InvokeAsync() : GuardarAsync();
 
-    private Task CancelarOAtrasAsync() => EnPasos && !PrimerPaso ? OnAtras.InvokeAsync() : CancelarAsync();
+    // «Primaria» y «Cancelar» van en el bloque de código (no en el marcado) para que las dos variantes del pie compartan una sola definición.
+    private RenderFragment Primaria => @<BotonConEspera Variante="VarianteBoton.Primario" Guardando="Guardando && !PasoIntermedio" Progreso="ProgresoGuardado"
+                                                       Fallido="@GuardadoFallido" Deshabilitado="PrimariaDeshabilitada" title="@MotivoPrimaria"
+                                                       OnClick="PrimariaAsync" OnCancelarEspera="OnCancelarGuardado" OnReintentar="OnReintentarGuardado">
+        @(PasoIntermedio ? (TextoSiguiente ?? Comunes["PasosSiguiente"].Value) : TextoGuardar)
+    </BotonConEspera>;
+
+    private RenderFragment Cancelar => @<Boton Variante="VarianteBoton.Secundario" Deshabilitado="Guardando" OnClick="CancelarOAtrasAsync">
+        @(EnPasos && !PrimerPaso ? (TextoAtras ?? Comunes["PasosAtras"].Value) : TextoCancelar)
+    </Boton>;
+    // «Cancelar» sale como la X (SolicitarCierreAsync, con su pregunta de descartar); «Atrás» solo cambia de paso.
+    private Task CancelarOAtrasAsync() =>
+        EnPasos && !PrimerPaso ? OnAtras.InvokeAsync() : _drawer is { } drawer ? drawer.SolicitarCierreAsync() : VisibleChanged.InvokeAsync(false);
 
     private RenderFragment PasosRender => builder =>
     {

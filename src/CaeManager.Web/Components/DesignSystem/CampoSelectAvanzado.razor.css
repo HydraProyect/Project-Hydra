@@ -266,7 +266,7 @@
     }
 }
 
-/* Fila fija de alta en línea («+ Crear "X"»): al final del panel, con su propia franja y el azul de acción. */
+/* Fila fija de alta en lÃ­nea (Â«+ Crear "X"Â»): al final del panel, con su propia franja y el azul de acciÃ³n. */
 .csa-crear {
     display: flex;
     align-items: center;
@@ -298,4 +298,8 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.csa-crear-mas::before {
+    content: "+";
 }

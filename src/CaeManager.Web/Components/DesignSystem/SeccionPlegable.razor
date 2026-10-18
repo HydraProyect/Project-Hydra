@@ -39,7 +39,8 @@
 </section>
 
 @code {
-    private readonly string _panelId = $"seccion-plegable-{Guid.NewGuid():N}";
+    private static int _contador;
+    private readonly string _panelId = $"seccion-plegable-{Interlocked.Increment(ref _contador)}";
     private bool _abierta;
     private int _erroresPrevios;
 

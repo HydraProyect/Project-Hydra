@@ -37,19 +37,21 @@
 @if (EnPanel && Pasos.Count > 0)
 {
     @* Móvil (≤640 px): el indicador se resume en «Paso N de M · título» con una barra por paso; el CSS elige cuál de los dos se ve. *@
-    var posicion = Math.Max(0, Pasos.ToList().FindIndex(p => p.Clave == PasoActual));
     <div class="indicador-pasos-movil" role="group" aria-label="@EtiquetaGrupo">
-        <span class="indicador-pasos-movil-texto">@string.Format(Comunes["PasosPasoDeTotal"].Value, posicion + 1, Pasos.Count) · @Pasos[posicion].Titulo</span>
+        <span class="indicador-pasos-movil-texto">@string.Format(Comunes["PasosPasoDeTotal"].Value, Posicion + 1, Pasos.Count)<span class="indicador-pasos-movil-titulo">@TituloActual</span></span>
         <div class="indicador-pasos-barras" aria-hidden="true">
-            @for (var i = 0; i < Pasos.Count; i++)
+            @foreach (var i in Enumerable.Range(0, Pasos.Count))
             {
-                <span class="@(PasosCompletados.Contains(Pasos[i].Clave) && i != posicion ? "indicador-pasos-barra indicador-pasos-barra-hecha" : i <= posicion ? "indicador-pasos-barra indicador-pasos-barra-activa" : "indicador-pasos-barra")"></span>
+                <span class="@(PasosCompletados.Contains(Pasos[i].Clave) && i != Posicion ? "indicador-pasos-barra indicador-pasos-barra-hecha" : i <= Posicion ? "indicador-pasos-barra indicador-pasos-barra-activa" : "indicador-pasos-barra")"></span>
             }
         </div>
     </div>
 }
 
 @code {
+    private int Posicion => Math.Max(0, Pasos.Select((paso, indice) => (paso, indice)).FirstOrDefault(par => par.paso.Clave == PasoActual).indice);
+    private string TituloActual => Pasos[Posicion].Titulo;
+
     [Parameter, EditorRequired] public IReadOnlyList<PasoDefinicion> Pasos { get; set; } = [];
     [Parameter, EditorRequired] public string PasoActual { get; set; } = string.Empty;
     [Parameter] public IReadOnlySet<string> PasosCompletados { get; set; } = new HashSet<string>();

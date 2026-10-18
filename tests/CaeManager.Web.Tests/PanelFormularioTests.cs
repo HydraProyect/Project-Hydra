@@ -159,7 +159,8 @@ public class PanelFormularioTests : BunitContext
         _vistos.Add("basico");
         var cut = RenderizarPasos();
 
-        cut.Find(".indicador-pasos-movil-texto").TextContent.Trim().Should().Be("Paso 2 de 3 · Trabajo");
+        cut.Find(".indicador-pasos-movil-texto").TextContent.Trim().Should().Be("Paso 2 de 3Trabajo", "el « · » entre el recuento y el título lo pone el CSS");
+        cut.Find(".indicador-pasos-movil-titulo").TextContent.Trim().Should().Be("Trabajo");
         cut.FindAll(".indicador-pasos-barra").Should().HaveCount(3);
         cut.FindAll(".indicador-pasos-barra-hecha").Should().ContainSingle();
     }

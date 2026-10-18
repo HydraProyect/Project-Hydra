@@ -191,3 +191,8 @@ button.indicador-pasos-boton:focus-visible {
 .indicador-pasos-barra-hecha {
     background: var(--color-success-700);
 }
+
+/* «Paso 2 de 3 · Trabajo»: el separador es de presentación y no es texto de la pantalla. */
+.indicador-pasos-movil-titulo::before {
+    content: " \00B7 ";
+}
