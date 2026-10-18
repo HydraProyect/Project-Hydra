@@ -274,7 +274,7 @@
     <value>Editar</value>
   </data>
   <data name="AccionReclamarFaltantes" xml:space="preserve">
-    <value>Reclamar faltantes</value>
+    <value>Gestionar</value>
   </data>
   <data name="AccionCrearGestion" xml:space="preserve">
     <value>Crear gestión</value>
@@ -720,6 +720,7 @@
   <data name="FichaCopiarAltaEmpresa" xml:space="preserve"><value>la data d’alta a l’empresa</value></data>
   <data name="FichaCopiarBajaEmpresa" xml:space="preserve"><value>la data de baixa a l’empresa</value></data>
   <data name="FichaCopiarCaducidadPermiso" xml:space="preserve"><value>la caducitat del permís de treball</value></data>
+  <data name="FichaRotuloDni" xml:space="preserve"><value>DNI</value></data>
   <data name="FichaCopiarDni" xml:space="preserve"><value>el DNI</value></data>
   <data name="FichaCopiarTelefono" xml:space="preserve"><value>el telèfon</value></data>
   <data name="FichaCopiarCorreo" xml:space="preserve"><value>el correu electrònic</value></data>

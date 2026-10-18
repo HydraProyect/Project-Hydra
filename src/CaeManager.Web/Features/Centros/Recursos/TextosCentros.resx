@@ -397,7 +397,7 @@
     <value>{0} de {1}</value>
   </data>
   <data name="PedirDocumentacion360" xml:space="preserve">
-    <value>Pedir</value>
+    <value>Gestionar</value>
   </data>
   <data name="TotalesListaCompleta360" xml:space="preserve">
     <value>Se calcula sobre la lista completa, no sobre la filtrada.</value>

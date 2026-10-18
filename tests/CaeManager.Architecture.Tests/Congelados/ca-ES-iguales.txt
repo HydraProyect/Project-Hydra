@@ -928,7 +928,6 @@ src/CaeManager.Web/Features/TiposDocumento/Recursos/TextosTiposDocumento.resx ::
 src/CaeManager.Web/Features/TiposDocumento/Recursos/TextosTiposDocumento.resx :: VacioFiltrosTitulo = 1
 src/CaeManager.Web/Features/TiposDocumento/Recursos/TextosTiposDocumento.resx :: VistaPreviaExigencia = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AccionCrearGestion = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AccionReclamarFaltantes = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AnilloCumplimiento = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaDocumentacionExigida = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaEditarInformacion = 1

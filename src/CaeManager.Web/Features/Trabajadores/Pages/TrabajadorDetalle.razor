@@ -56,13 +56,13 @@
                     <span class="trabajador360-alias">(@_detalle.Alias)</span>
                 }
             </JuntoAlTitulo>
-            @* Maqueta 17-10: dos líneas bajo el nombre (DNI · empleador, y debajo las pastillas de estado); sin «Trabajador» sobre el nombre. *@
+            @* Maqueta 17-10: dos líneas bajo el nombre («DNI» y el DNI copiable sin dos puntos · empleador, y debajo las pastillas de estado); sin «Trabajador» sobre el nombre. *@
             <Datos>
               <div class="trabajador360-datos">
                <div class="trabajador360-meta">
                 <span>
-                    DNI: <b>@_detalle.Dni</b>
-                    <BotonCopiar Valor="@_detalle.Dni" Etiqueta="@Textos["FichaCopiarDni"]" NombreAccesible="@Textos["FichaCopiarNombreAccesible", Textos["FichaCopiarDni"]]" />
+                    @Textos["FichaRotuloDni"]
+                    <BotonCopiar EnLinea="true" ConfirmarConIcono="true" Valor="@_detalle.Dni" Texto="@_detalle.Dni" Etiqueta="@Textos["FichaCopiarDni"]" NombreAccesible="@Textos["FichaCopiarNombreAccesibleConValor", Textos["FichaCopiarDni"], _detalle.Dni]" />
                 </span>
                 <span aria-hidden="true">·</span>
                 <span>

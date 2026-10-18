@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using Xunit;
 
@@ -143,7 +143,7 @@ public class TextosSinLocalizarCongeladosTests
         // «0 ? Textos["BotonAsignarIgualmente"]» en Trabajadores.razor), cuyo
         // «>» de comparación toma por texto lo que sigue. No se reformatea para esquivar la heurística.
         // 12 → 11 el 2026-10-16: la alineación del listado con la maqueta retira un literal del markup.
-        ["Trabajadores"] = 11,
+        ["Trabajadores"] = 10,
         // 147 → 146 el 2026-09-26 (P1-E2b): el toast de reenvío de activación fallido va a TextosUsuarios.resx.
         ["Usuarios"] = 145, // 146 → 145 el 2026-10-09 (rótulo «Cliente») SIN migrar: «Cliente empresarial» pasa a «Cliente» y un literal de una sola palabra es invisible a la heurística; el texto sigue sin localizar. 147 → 146 el 2026-10-09 (H9): «El correo identifica la cuenta…» del formulario de edición pasa a TextosUsuarios («EditarCorreoNoSeCambiaAqui»). Antes: 146 → 147 el 2026-10-02 (resto D-07/D-27) SIN migrar: «1 Cliente empresarial» (recuento de la cartera) antes «1 cliente».
         // 112 → 10 el 2026-09-23: Visitas.razor(.cs) migrados a TextosVisitas.resx. Los 10

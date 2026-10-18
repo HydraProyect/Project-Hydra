@@ -12,7 +12,7 @@
     min-width: 260px;
 }
 
-/* Línea de datos en dos filas: la de la maqueta (CIF · recuentos · estado) y, debajo, los indicadores por Centro que se conservan. */
+/* Línea de datos de la maqueta: CIF · recuentos · estado. */
 .cliente360-datos {
     display: flex;
     flex-direction: column;
@@ -20,28 +20,12 @@
     min-width: 0;
 }
 
-.cliente360-meta,
-.cliente360-indicadores {
+.cliente360-meta {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     min-width: 0;
-}
-
-.cliente360-meta {
     gap: 6px 10px;
-}
-
-.cliente360-indicadores {
-    gap: var(--space-2);
-    margin-top: 2px;
-}
-
-/* A 375 px una pastilla larga («Bloqueo de la plataforma CAE en 2 de 5 centros») parte en dos en vez de salirse de la tarjeta. */
-.cliente360-indicadores ::deep .badge {
-    max-width: 100%;
-    white-space: normal;
-    text-align: left;
 }
 
 /* Líneas bajo el nombre del Centro (contratista, motivos): una por línea, como los dos .fila-rel-sub de la maqueta. */
@@ -60,24 +44,6 @@
     margin: 0 0 var(--space-2);
     font: var(--font-body-md);
     color: var(--color-text);
-}
-
-/* El indicador es un botón que lleva a la pestaña Centros; se ve como el
-   badge que contiene (.badge-boton del mockup). */
-.cliente360-indicador-boton {
-    display: inline-flex;
-    padding: 0;
-    margin: 0;
-    border: 0;
-    background: none;
-    font: inherit;
-    cursor: pointer;
-    border-radius: var(--radius-full);
-}
-
-.cliente360-indicador-boton:focus-visible {
-    outline: var(--border-focus);
-    outline-offset: calc(var(--space-1) / 2);
 }
 
 /* .barra-lista de la maqueta 17-10: filtros de estado a la izquierda, buscador (260 px mínimo, 36 px de alto) a la derecha. */
@@ -108,7 +74,7 @@
     }
 }
 
-/* «Mostrando 5 de 5 · del peor estado al mejor», sobre la lista. No está en la maqueta del 17-10: se conserva. */
+/* Salida «Quitar filtros» cuando el filtro no deja ningún Centro. */
 .cliente360-resumen-lista {
     margin: 0 0 var(--space-3);
     font: var(--font-body-md);

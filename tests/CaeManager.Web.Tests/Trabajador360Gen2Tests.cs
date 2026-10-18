@@ -361,7 +361,9 @@ public partial class Trabajador360Gen2Tests : BunitContext
             string DeRotuloCopiar(string valor) => cut.FindAll("button.boton-copiar")
                 .Where(b => b.TextContent.Trim() == "Copiar" && b.ParentElement!.TextContent.Contains(valor))
                 .Should().ContainSingle().Subject.GetAttribute("aria-label")!;
-            DeRotuloCopiar("12345678Z").Should().Be($"{verbo} {dni}");
+            // El DNI lleva su valor como rótulo, como las fechas: «DNI 12345678Z», sin dos puntos ni negrita (maqueta 17-10).
+            cut.Find(".trabajador360-meta").TextContent.Should().Contain("DNI").And.Contain("12345678Z").And.NotContain("DNI:");
+            cut.FindAll("button.boton-copiar").Select(b => b.GetAttribute("aria-label")!).Should().Contain($"{verbo} {dni}: 12345678Z");
             DeRotuloCopiar("600111222").Should().Be($"{verbo} {telefono}");
             DeRotuloCopiar("javier@ejemplo.com").Should().Be($"{verbo} {correo}");
             var enOperacion = Nombres(cut);
@@ -1704,7 +1706,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         cut.FindAll(".fila-relacion-desplegado .fila-relacion-nombre-boton").Should().BeEmpty(
             "el nombre del documento abre el mismo drawer de gestión: a Consulta se le pinta como texto");
         cut.FindAll(".menu-acciones-disparador").Should().BeEmpty(
-            "Editar, Reclamar faltantes y Crear gestión son escrituras: sin ellas el «⋯» abriría un menú vacío");
+            "Editar, Gestionar y Crear gestión son escrituras: sin ellas el «⋯» abriría un menú vacío");
     }
 
     /// <summary>
@@ -1728,7 +1730,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
 
         cut.FindAll("[role=menuitem]").Select(i => i.TextContent.Trim())
-            .Should().Equal(["Editar", "Reclamar faltantes", "Crear gestión"]);
+            .Should().Equal(["Editar", "Gestionar", "Crear gestión"]);
         cut.FindAll("[role=dialog]").Should().BeEmpty();
     }
 
@@ -2288,7 +2290,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Reclamar faltantes")
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Gestionar")
             .ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty("el envío rechazaría un documento sin fecha");
@@ -2310,7 +2312,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Reclamar faltantes")
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Gestionar")
             .ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle()
@@ -2330,7 +2332,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Reclamar faltantes")
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Gestionar")
             .ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle()
@@ -2352,7 +2354,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     private static async Task AbrirModalReclamarAsync(IRenderedComponent<TrabajadorDetalle> cut)
     {
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Reclamar faltantes")
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Gestionar")
             .ClickAsync(new MouseEventArgs());
         cut.FindAll(".reclamacion-destinatarios input[type=checkbox]").Should().HaveCount(2,
             "el test necesita la modal con dos Clientes");
