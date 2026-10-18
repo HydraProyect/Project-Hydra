@@ -4,6 +4,7 @@ using CaeManager.Application.Centros.Commands.CrearCentro;
 using CaeManager.Application.Centros.Commands.EliminarCentros;
 using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Application.Centros.Queries.ObtenerOpcionesFiltroCentros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
@@ -363,22 +364,35 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private static Guid? IdDeFiltro(string valor) => Guid.TryParse(valor, out var id) ? id : null;
 
     /// <summary>
-    /// Opciones de las pastillas «Cliente empresarial» y «Empresa»: los mismos selectores que el alta
-    /// (ya acotados al alcance). Si fallan, la lista se pinta igual, sin opciones que elegir.
+    /// Opciones de las pastillas «Cliente empresarial» y «Empresa»: las Empresas de los Centros visibles,
+    /// con el mismo alcance de visibilidad que la lista (no los selectores del alta, que usan el de
+    /// gestión y dejan sin opciones a quien solo lee). Cada una por separado: si una falla, la otra
+    /// sigue, y la lista se pinta igual.
     /// </summary>
     private async Task CargarOpcionesDeFiltroAsync()
     {
+        _opcionesCliente = await CargarOpcionesAsync(CampoFiltroCentros.ClienteEmpresarial);
+        _opcionesEmpresa = await CargarOpcionesAsync(CampoFiltroCentros.Empresa);
+        _opcionesCargadas = true;
+    }
+
+    /// <summary>
+    /// Los chips de Cliente empresarial y Empresa esperan a las opciones: antes no hay nombre que
+    /// poner y saldría «—». Con las opciones ya cargadas, un Id que no está entre ellas (enlace viejo,
+    /// fuera del alcance) sí muestra «—», para que el filtro se pueda quitar.
+    /// </summary>
+    private bool _opcionesCargadas;
+
+    private async Task<IReadOnlyList<OpcionEstado>> CargarOpcionesAsync(CampoFiltroCentros campo)
+    {
         try
         {
-            var clientes = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
-            var empresas = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(null));
-            _opcionesCliente = clientes.Select(c => new OpcionEstado(c.Id.ToString(), c.RazonSocial)).ToList();
-            _opcionesEmpresa = empresas.Select(e => new OpcionEstado(e.Id.ToString(), e.RazonSocial)).ToList();
+            var opciones = await Mediator.Send(new ObtenerOpcionesFiltroCentrosQuery(campo));
+            return opciones.Select(o => new OpcionEstado(o.Id.ToString(), o.RazonSocial)).ToList();
         }
         catch (Exception)
         {
-            _opcionesCliente = [];
-            _opcionesEmpresa = [];
+            return [];
         }
     }
 
@@ -559,9 +573,29 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             .Select(g => new GrupoCentros(g.Key, g.First().ClienteRazonSocial, g.ToList()))
             .ToList();
 
+    /// <summary>
+    /// Se agrupa solo con el orden por defecto (Cliente empresarial y nombre), en el que los Centros de
+    /// un Cliente empresarial ya llegan seguidos. Con un orden pedido (Cumplimiento) agrupar reordenaría
+    /// las filas y escondería ese orden, así que la lista sale sin agrupar mientras dure.
+    /// </summary>
+    private bool Agrupando => _agruparPorCliente && _ordenarPor is null;
+
+    /// <summary>La página no trae todos los Centros: los recuentos del grupo son solo de esta página.</summary>
+    private bool HayMasPaginas => _totalElementos > _elementosPagina.Count;
+
+    /// <summary>
+    /// Contador de la cabecera de grupo. La agrupación es de la página, no de todo el Cliente
+    /// empresarial: con más páginas el contador lo dice («3 en esta página») y los avisos que lo
+    /// siguen («1 con problema») se leen en ese mismo ámbito.
+    /// </summary>
+    private string TextoContadorGrupo(GrupoCentros grupo) =>
+        HayMasPaginas
+            ? Textos["GrupoEnEstaPagina", grupo.Centros.Count].Value
+            : grupo.Centros.Count.ToString(System.Globalization.CultureInfo.CurrentCulture);
+
     /// <summary>Filas en el orden en que se pintan: agrupadas, las de cada grupo seguidas.</summary>
     private IEnumerable<CentroListaDto> FilasEnOrden(IReadOnlyList<GrupoCentros> grupos) =>
-        _agruparPorCliente ? grupos.SelectMany(g => g.Centros) : _elementosPagina;
+        Agrupando ? grupos.SelectMany(g => g.Centros) : _elementosPagina;
 
     /// <summary>Filas que se ven (fuera de los grupos contraídos): las que recorren j/k.</summary>
     private List<CentroListaDto> FilasVisibles() =>
@@ -573,26 +607,49 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// esté activa: «Seleccionar los de esta página» y la barra de lote actúan sobre filas que se ven.
     /// </summary>
     private bool GrupoAbierto(Guid clienteEmpresarialId) =>
-        !_agruparPorCliente
-        || !string.IsNullOrWhiteSpace(_busqueda)
-        || _centroIdFiltro is not null
-        || _seleccionMultiple
-        || _gruposAbiertos.Contains(clienteEmpresarialId);
+        !Agrupando || GruposForzadosAbiertos || _gruposAbiertos.Contains(clienteEmpresarialId);
+
+    /// <summary>Búsqueda, Centro concreto o selección múltiple: la cabecera de grupo no puede contraerlo.</summary>
+    private bool GruposForzadosAbiertos =>
+        !string.IsNullOrWhiteSpace(_busqueda) || _centroIdFiltro is not null || _seleccionMultiple;
 
     private void AlternarGrupo(Guid clienteEmpresarialId)
     {
+        if (GruposForzadosAbiertos)
+            return;
+
         if (!_gruposAbiertos.Add(clienteEmpresarialId))
             _gruposAbiertos.Remove(clienteEmpresarialId);
+
+        SoltarFocoOculto();
     }
 
-    private void CambiarAgrupacion(bool agrupar)
+    /// <summary>
+    /// Si la fila enfocada queda dentro de un grupo contraído, deja de estar enfocada: x y Enter
+    /// actuarían sobre una fila que no se ve (y x la dejaría marcada para el lote).
+    /// </summary>
+    private void SoltarFocoOculto()
     {
-        if (_agruparPorCliente == agrupar)
+        if (_idEnfocado is { } id && !FilasVisibles().Exists(c => c.Id == id))
+            _idEnfocado = null;
+    }
+
+    private async Task CambiarAgrupacionAsync(bool agrupar)
+    {
+        if (Agrupando == agrupar)
             return;
 
         _agruparPorCliente = agrupar;
         _gruposAbiertos.Clear();
         _idEnfocado = null;
+
+        if (agrupar && _ordenarPor is not null)
+        {
+            // Los grupos van con el orden por defecto: pedirlos lo restablece.
+            _ordenarPor = null;
+            _ordenDescendente = false;
+            await CargarAsync(resetPagina: true);
+        }
     }
 
     private string ClaseTarjeta(CentroListaDto centro) =>
@@ -892,7 +949,10 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     {
         _seleccionMultiple = activa;
         if (!activa)
+        {
             _seleccionados.Clear();
+            SoltarFocoOculto(); // los grupos vuelven a contraerse
+        }
     }
 
     /// <summary>Todo abierto: los grupos (si se agrupa) y el desplegable de cada fila.</summary>
@@ -920,6 +980,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         {
             _expandidos.Clear();
             _gruposAbiertos.Clear();
+            SoltarFocoOculto();
         }
     }
 
@@ -1035,12 +1096,13 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
                     _idEnfocado = filas[Math.Max(indiceActual - 1, 0)].Id;
                     break;
                 }
+            // x y Enter, solo sobre una fila que se ve: nunca sobre una de un grupo contraído.
             case "x":
-                if (_idEnfocado is { } idAlternar)
+                if (_idEnfocado is { } idAlternar && filas.Exists(e => e.Id == idAlternar))
                     AlternarSeleccion(idAlternar, !_seleccionados.Contains(idAlternar));
                 break;
             case "Enter":
-                if (_idEnfocado is { } idAbrir)
+                if (_idEnfocado is { } idAbrir && filas.Exists(e => e.Id == idAbrir))
                 {
                     // Enter abre la vista previa (el panel del centro), como el nombre de la fila.
                     await AbrirPanelAsync(idAbrir);

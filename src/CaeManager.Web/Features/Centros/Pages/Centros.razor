@@ -104,10 +104,10 @@
             @if (_elementosPagina.Count > 0)
             {
                 <span class="segmentado-lista" role="group" aria-label="@Textos["AgruparEtiqueta"]">
-                    <button type="button" class="segmentado-lista-opcion" aria-pressed="@(_agruparPorCliente ? "false" : "true")"
-                            @onclick="() => CambiarAgrupacion(false)">@Textos["AgruparNo"]</button>
-                    <button type="button" class="segmentado-lista-opcion" aria-pressed="@(_agruparPorCliente ? "true" : "false")"
-                            @onclick="() => CambiarAgrupacion(true)">@Textos["AgruparPorCliente"]</button>
+                    <button type="button" class="segmentado-lista-opcion" aria-pressed="@(Agrupando ? "false" : "true")"
+                            @onclick="() => CambiarAgrupacionAsync(false)">@Textos["AgruparNo"]</button>
+                    <button type="button" class="segmentado-lista-opcion" aria-pressed="@(Agrupando ? "true" : "false")"
+                            @onclick="() => CambiarAgrupacionAsync(true)">@Textos["AgruparPorCliente"]</button>
                 </span>
                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
                        OnClick="() => CambiarOrdenAsync(nameof(CentroListaDto.CumplimientoPorcentaje))"
@@ -129,7 +129,7 @@
             {
                 <ChipFiltro Etiqueta="@EtiquetaFiltroBusqueda" EtiquetaAccesible="@Textos["QuitarFiltroBusqueda"]" OnQuitar="() => BuscarAsync(string.Empty)" />
             }
-            @if (!string.IsNullOrWhiteSpace(_clienteFiltro))
+            @if (!string.IsNullOrWhiteSpace(_clienteFiltro) && _opcionesCargadas)
             {
                 <ChipFiltro Etiqueta="@Textos["ChipClienteEmpresarial", TextoOpcion(_opcionesCliente, _clienteFiltro)]" EtiquetaAccesible="@Textos["QuitarFiltroClienteEmpresarial"]" OnQuitar="() => CambiarClienteFiltroAsync(string.Empty)" />
             }
@@ -137,7 +137,7 @@
             {
                 <ChipFiltro Etiqueta="@EtiquetaFiltroEstado" EtiquetaAccesible="@Textos["QuitarFiltroEstado"]" OnQuitar="() => CambiarEstadoAsync(string.Empty)" />
             }
-            @if (!string.IsNullOrWhiteSpace(_empresaFiltro))
+            @if (!string.IsNullOrWhiteSpace(_empresaFiltro) && _opcionesCargadas)
             {
                 <ChipFiltro Etiqueta="@Textos["ChipEmpresa", TextoOpcion(_opcionesEmpresa, _empresaFiltro)]" EtiquetaAccesible="@Textos["QuitarFiltroEmpresa"]" OnQuitar="() => CambiarEmpresaFiltroAsync(string.Empty)" />
             }
@@ -240,15 +240,15 @@
         <div class="lista-filas-acordeon">
             @foreach (var centro in FilasEnOrden(grupos))
             {
-                @if (_agruparPorCliente && cabecerasDeGrupo.TryGetValue(centro.Id, out var grupo))
+                @if (Agrupando && cabecerasDeGrupo.TryGetValue(centro.Id, out var grupo))
                 {
                     var abierto = GrupoAbierto(grupo.ClienteEmpresarialId);
                     <div class="@("grupo-lista" + ClaseTinteGrupo(grupo))" @key="clavesDeGrupo.De(grupo.ClienteEmpresarialId)">
                         <button type="button" class="@("grupo-lista-cabecera" + (abierto ? " grupo-lista-cabecera-abierta" : ""))"
-                                aria-expanded="@(abierto ? "true" : "false")" @onclick="() => AlternarGrupo(grupo.ClienteEmpresarialId)">
+                                aria-expanded="@(abierto ? "true" : "false")" aria-disabled="@(GruposForzadosAbiertos ? "true" : null)" @onclick="() => AlternarGrupo(grupo.ClienteEmpresarialId)">
                             <span class="grupo-lista-chevron" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
                             <span class="grupo-lista-nombre">@grupo.Nombre</span>
-                            <span class="grupo-lista-contador">@grupo.Centros.Count</span>
+                            <span class="grupo-lista-contador">@TextoContadorGrupo(grupo)</span>
                             <span class="grupo-lista-resumen">
                                 @if (grupo.ConProblema > 0)
                                 {

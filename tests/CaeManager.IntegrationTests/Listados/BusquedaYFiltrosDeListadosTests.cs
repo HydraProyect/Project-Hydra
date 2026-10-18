@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Application.Centros.Queries.ObtenerOpcionesFiltroCentros;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 using CaeManager.Application.Subcontratas;
@@ -26,6 +27,8 @@ namespace CaeManager.IntegrationTests.Listados;
 /// - /centros busca por nombre, código, Cliente empresarial o Empresa (antes solo nombre)
 ///   y filtra por Empresa.
 /// - /subcontratas filtra por nivel de servicio.
+/// - Con alcance restringido, ni la búsqueda por Cliente empresarial o Empresa ni las opciones de
+///   sus filtros dejan ver lo que queda fuera de los Centros visibles.
 ///
 /// Cada caso lleva su control positivo: el mismo término o filtro que debe excluir algo
 /// devuelve también lo que debe incluir, así un filtro que no casa con nada no pasa por bueno.
@@ -40,6 +43,7 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
 
     private Guid _empresaNorteId;
     private Guid _empresaSurId;
+    private Guid _almacenVigoId;
 
     public async Task InitializeAsync()
     {
@@ -60,10 +64,10 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
         _empresaNorteId = empresaNorte.Id;
         _empresaSurId = empresaSur.Id;
 
-        contexto.Centros.AddRange(
-            new Centro(clienteOrion.Id, empresaNorte.Id, "Almacén Vigo", "DIR-513"),
-            new Centro(clientePegaso.Id, empresaSur.Id, "Planta Bilbao", "DIR-211"));
+        var almacenVigo = new Centro(clienteOrion.Id, empresaNorte.Id, "Almacén Vigo", "DIR-513");
+        contexto.Centros.AddRange(almacenVigo, new Centro(clientePegaso.Id, empresaSur.Id, "Planta Bilbao", "DIR-211"));
         await contexto.SaveChangesAsync();
+        _almacenVigoId = almacenVigo.Id;
     }
 
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
@@ -115,6 +119,36 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
     }
 
     [Theory]
+    [InlineData("pegaso")]        // Cliente empresarial de un Centro fuera del alcance
+    [InlineData("limpiezas sur")] // Empresa de un Centro fuera del alcance
+    public async Task Centros_con_alcance_restringido_no_busca_fuera_de_los_Centros_visibles(string termino)
+    {
+        var alcance = new AlcanceDatosServiceFalso(centroIds: [_almacenVigoId]);
+
+        var restringido = await ObtenerCentrosAsync(new ObtenerCentrosQuery(termino, null), alcance);
+        var sinRestriccion = await ObtenerCentrosAsync(new ObtenerCentrosQuery(termino, null));
+        var dentroDelAlcance = await ObtenerCentrosAsync(new ObtenerCentrosQuery("orion", null), alcance);
+
+        restringido.Should().BeEmpty();
+        sinRestriccion.Should().Equal("Planta Bilbao");
+        dentroDelAlcance.Should().Equal("Almacén Vigo");
+    }
+
+    [Theory]
+    [InlineData(CampoFiltroCentros.ClienteEmpresarial, "Orion Cliente S.L.", "Pegaso Cliente S.L.")]
+    [InlineData(CampoFiltroCentros.Empresa, "Montajes Norte S.L.", "Limpiezas Sur S.L.")]
+    public async Task Opciones_de_filtro_de_Centros_salen_de_los_Centros_visibles(
+        CampoFiltroCentros campo, string dentroDelAlcance, string fueraDelAlcance)
+    {
+        var restringidas = await ObtenerOpcionesAsync(campo, new AlcanceDatosServiceFalso(centroIds: [_almacenVigoId]));
+        var sinRestriccion = await ObtenerOpcionesAsync(campo, new AlcanceDatosServiceFalso());
+
+        restringidas.Should().Equal(dentroDelAlcance);
+        // Sin restricción salen las dos, y solo ellas: las Subcontratas sembradas no están en ningún Centro.
+        sinRestriccion.Should().BeEquivalentTo(dentroDelAlcance, fueraDelAlcance);
+    }
+
+    [Theory]
     [InlineData(NivelServicioSubcontrata.Gestionada, "Subcontrata Gestionada S.L.")]
     [InlineData(NivelServicioSubcontrata.Supervisada, "Subcontrata Supervisada S.L.")]
     public async Task Subcontratas_filtra_por_nivel_de_servicio(NivelServicioSubcontrata nivel, string esperada)
@@ -139,11 +173,21 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
         return resultado.Elementos.Select(e => e.RazonSocial).ToList();
     }
 
-    private async Task<IReadOnlyList<string>> ObtenerCentrosAsync(ObtenerCentrosQuery consulta)
+    private async Task<IReadOnlyList<string>> ObtenerOpcionesAsync(CampoFiltroCentros campo, AlcanceDatosServiceFalso alcance)
+    {
+        await using var contexto = CrearContexto();
+        var handler = new ObtenerOpcionesFiltroCentrosQueryHandler(contexto, contexto, alcance);
+
+        var resultado = await handler.Handle(new ObtenerOpcionesFiltroCentrosQuery(campo), CancellationToken.None);
+        return resultado.Select(o => o.RazonSocial).ToList();
+    }
+
+    private async Task<IReadOnlyList<string>> ObtenerCentrosAsync(
+        ObtenerCentrosQuery consulta, AlcanceDatosServiceFalso? alcance = null)
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerCentrosQueryHandler(
-            contexto, contexto, new AlcanceDatosServiceFalso(),
+            contexto, contexto, alcance ?? new AlcanceDatosServiceFalso(),
             new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto));
 
         var resultado = await handler.Handle(consulta, CancellationToken.None);

@@ -28,6 +28,7 @@ src/CaeManager.Application/Centros/Queries/ObtenerCentros/ObtenerCentrosQuery.cs
 src/CaeManager.Application/Centros/Queries/ObtenerCentrosParaSelector/ObtenerCentrosParaSelectorQuery.cs :: ClienteId = 5
 src/CaeManager.Application/Centros/Queries/ObtenerDocumentacionBloqueantePendiente/ObtenerDocumentacionBloqueantePendienteQuery.cs :: ClienteId = 5
 src/CaeManager.Application/Centros/Queries/ObtenerDocumentacionRequeridaDeCentro/ObtenerDocumentacionRequeridaDeCentroQuery.cs :: ClienteId = 1
+src/CaeManager.Application/Centros/Queries/ObtenerOpcionesFiltroCentros/ObtenerOpcionesFiltroCentrosQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Clientes/Commands/ReasignarEjecutivoCliente/ReasignarEjecutivoClienteCommand.cs :: ClienteId = 2
 src/CaeManager.Application/Clientes/Queries/ObtenerCentrosDeCliente/ObtenerCentrosDeClienteQuery.cs :: ClienteId = 4
 src/CaeManager.Application/Clientes/Queries/ObtenerClientes/ObtenerClientesQuery.cs :: ClienteId = 9

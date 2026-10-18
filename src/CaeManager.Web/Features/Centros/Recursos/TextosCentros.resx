@@ -300,4 +300,7 @@
   <data name="VacioFiltrosQuitar" xml:space="preserve">
     <value>Quitar los filtros</value>
   </data>
+  <data name="GrupoEnEstaPagina" xml:space="preserve">
+    <value>{0} en esta página</value>
+  </data>
 </root>
