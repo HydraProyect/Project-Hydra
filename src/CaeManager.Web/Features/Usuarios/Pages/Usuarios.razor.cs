@@ -986,6 +986,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
         _reenvioEnCurso = false;
         _enlaceActivacion = await GenerarEnlaceActivacionAsync(usuario);
+        await RegistrarIntentoActivacionAsync(usuario);
 
         // La cuenta ya quedó creada en Identity —CreateAsync sí tuvo éxito—,
         // así que un fallo aquí no deshace el alta: se dice tal cual, nunca
@@ -1018,6 +1019,22 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         return NavigationManager
             .ToAbsoluteUri($"/cuenta/restablecer-contrasena?userId={usuario.Id}&code={tokenCodificado}")
             .ToString();
+    }
+
+    /// <summary>
+    /// Registro durable del intento (PD-A8): cada vez que se genera un enlace
+    /// —alta o reintento— se cuenta y se marca cuándo, para que TALVEG y quien
+    /// administra puedan saber que una cuenta sigue sin activarse sin tener
+    /// que inferirlo cada vez de <c>PasswordHash</c>/<c>AspNetUserLogins</c>
+    /// (ver <see cref="EsPendienteActivacionAsync"/>). Best-effort igual que
+    /// el envío del correo: un fallo aquí no debe impedir que el alta o el
+    /// reenvío ya ocurridos se den por buenos.
+    /// </summary>
+    private async Task RegistrarIntentoActivacionAsync(ApplicationUser usuario)
+    {
+        usuario.IntentosActivacion++;
+        usuario.UltimoIntentoActivacionUtc = DateTime.UtcNow;
+        await PuertaAccesoDatos.EjecutarAsync(() => UserManager.UpdateAsync(usuario));
     }
 
     /// <summary>
@@ -1108,6 +1125,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             }
 
             var enlace = await GenerarEnlaceActivacionAsync(usuario);
+            await RegistrarIntentoActivacionAsync(usuario);
             var resultado = await EnviarCorreoActivacionAsync(usuario.Id, usuarioLista.Email, usuarioLista.NombreCompleto, enlace);
 
             if (resultado.EsFallido)

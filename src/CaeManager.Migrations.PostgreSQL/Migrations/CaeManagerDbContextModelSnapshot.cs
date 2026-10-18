@@ -7111,6 +7111,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<int>("Idioma")
                         .HasColumnType("integer");
 
+                    b.Property<int>("IntentosActivacion")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
 
@@ -7154,6 +7157,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<DateTime?>("UltimaActividadUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("UltimoIntentoActivacionUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("UserName")

@@ -152,4 +152,22 @@ public class ApplicationUser : IdentityUser<Guid>
 
     /// <summary>Un bloqueo más largo que esto no es un castigo temporal: es una desactivación.</summary>
     public static readonly TimeSpan UmbralDeCuentaDesactivada = TimeSpan.FromDays(365);
+
+    /// <summary>
+    /// Cuántas veces se ha generado y (re)enviado el enlace de activación de esta
+    /// cuenta —incluida la primera vez, en el alta— desde que PD-A8 exige un
+    /// registro durable en vez de inferir el estado solo de PasswordHash/Logins
+    /// (ver <c>EsPendienteActivacionAsync</c> en Usuarios.razor.cs). Nunca decrece:
+    /// una cuenta ya activada conserva el número de intentos que le costó.
+    /// </summary>
+    public int IntentosActivacion { get; set; }
+
+    /// <summary>
+    /// Cuándo se generó el último enlace de activación (alta o reintento). Null
+    /// para cuentas que nunca pasaron por este flujo (SSO, o creadas antes de que
+    /// existiera este registro). Junto con <see cref="IntentosActivacion"/> es el
+    /// estado durable que PD-A8 pide, para no depender de abrir cada Tenant uno a
+    /// uno para saber si su Administrador inicial sigue sin activarse.
+    /// </summary>
+    public DateTime? UltimoIntentoActivacionUtc { get; set; }
 }
