@@ -715,12 +715,6 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
                 : documento.Estado == EstadoDocumento.SinConfirmar ? Textos["VigenciaFaltaLaFecha"] : Textos["VigenciaNoCaduca"];
 
     /// <summary>
-    /// Si el estado pide trabajo (el botón «Gestionar» va en relieve); un documento al día conserva el botón, en tono discreto.
-    /// El rótulo es siempre «Gestionar»: renovar, subir o confirmar son lo que hay dentro.
-    /// </summary>
-    private static bool PideTrabajo(DocumentoRequeridoDto documento) => EstadoDocumentoFicha360.Accion(documento.Estado) is not null;
-
-    /// <summary>
     /// Edita el documento si existe y lo crea para el que falta: lo mismo que «Gestionar» en la fila desplegada del
     /// listado. Crear y renovar son órdenes denegadas a Consulta en Application; aquí solo se ofrecen con escritura.
     /// </summary>

@@ -128,7 +128,7 @@
             @switch (_pestanaActiva)
             {
                 case PestanaOperacion:
-                    <PanelDocumentacionBase TrabajadorId="TrabajadorId" OnCorregirDocumento="EditarDocumentoAsync" DocumentosUrgentes="DocumentosUrgentes" />
+                    <PanelDocumentacionBase TrabajadorId="TrabajadorId" OnCorregirDocumento="EditarDocumentoAsync" />
                     @*
                         Franja «Por vencer» (decisión del propietario 2026-09-24,
                         Q3 = (a)): los documentos del trabajador en Próximo o
@@ -143,12 +143,12 @@
                             <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["SeparadorPorVencer"]">
                                 @foreach (var documento in porVencer)
                                 {
-                                    var accion = EstadoDocumentoFicha360.Accion(documento.Estado);
+                                    var pideGestionar = EstadoDocumentoFicha360.PideGestionar(documento.Estado);
                                     <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre" Tono="@EstadoDocumentoFicha360.TonoFila(documento.Estado)">
                                         <Detalle>@(" ")@Textos["VenceEl", TextoVence(documento.FechaVencimiento, documento.Estado)]</Detalle>
                                         <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></Estado>
                                         <Acciones>
-                                            @if (accion is not null)
+                                            @if (pideGestionar)
                                             {
                                                 <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)" OnClick="() => EditarDocumentoAsync(documento.Id)">@EstadoDocumentoFicha360.TextoAccion</Boton></SoloConEscritura>
                                             }
@@ -298,13 +298,17 @@
                                                                     </Cifra>
                                                                     <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado, documento.EnToleranciaHasta)</Badge></Estado>
                                                                     <Acciones>
-                                                                        <SoloConEscritura>
-                                                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                                                                   aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)"
-                                                                                   OnClick="() => GestionarDocumentoAsync(documento)">
-                                                                                @EstadoDocumentoFicha360.TextoAccion
-                                                                            </Boton>
-                                                                        </SoloConEscritura>
+                                                                        @* Vigente y Sin caducidad no llevan botón; lo que pide trabajo, «Gestionar». *@
+                                                                        @if (EstadoDocumentoFicha360.PideGestionar(documento.Estado))
+                                                                        {
+                                                                            <SoloConEscritura>
+                                                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                                                                       aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)"
+                                                                                       OnClick="() => GestionarDocumentoAsync(documento)">
+                                                                                    @EstadoDocumentoFicha360.TextoAccion
+                                                                                </Boton>
+                                                                            </SoloConEscritura>
+                                                                        }
                                                                     </Acciones>
                                                                 </FilaRelacion>
                                                             </ChildContent>
@@ -361,7 +365,7 @@
                                     <ChildContent>
                                     @foreach (var documento in DocumentosOrdenados)
                                     {
-                                        var accion = EstadoDocumentoFicha360.Accion(documento.Estado);
+                                        var pideGestionar = EstadoDocumentoFicha360.PideGestionar(documento.Estado);
                                         <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre" Tono="@EstadoDocumentoFicha360.TonoFila(documento.Estado)">
                                             <Cifra><span>@Textos["ColumnaVence"]: </span><span class="trabajador360-vigencia @EstadoDocumentoUi.ClaseAvisoVigenciaSinConfirmar(documento.Estado)">@TextoVence(documento.FechaVencimiento, documento.Estado)</span></Cifra>
                                             <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></Estado>
@@ -370,7 +374,7 @@
                                                 <LineaPlataformaYReclamacion Acreditaciones="documento.Acreditaciones" Estado="documento.Estado" />
                                             </Detalle>
                                             <Acciones>
-                                                @if (accion is not null)
+                                                @if (pideGestionar)
                                                 {
                                                     <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)" OnClick="() => EditarDocumentoAsync(documento.Id)">@EstadoDocumentoFicha360.TextoAccion</Boton></SoloConEscritura>
                                                 }

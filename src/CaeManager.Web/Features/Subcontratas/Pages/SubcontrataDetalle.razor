@@ -315,13 +315,16 @@
                                                                     </span>
                                                                     <span class="subcontrata360-subfila-accion">
                                                                         @* DrawerGestionDocumento solo crea o renueva (órdenes denegadas a Consulta). *@
-                                                                        <SoloConEscritura>
-                                                                            <Boton Variante="@(PideTrabajo(documento) ? VarianteBoton.Secundario : VarianteBoton.Fantasma)" Tamano="TamanoBoton.Pequeno"
-                                                                                   aria-label="@Textos["AriaAccionDocumento", EstadoDocumentoFicha360.TextoAccion, documento.TipoDocumentoNombre, trabajador.TrabajadorNombre]"
-                                                                                   OnClick="() => GestionarDocumentoAsync(trabajador.TrabajadorId, documento)">
-                                                                                @EstadoDocumentoFicha360.TextoAccion
-                                                                            </Boton>
-                                                                        </SoloConEscritura>
+                                                                        @if (EstadoDocumentoFicha360.PideGestionar(documento.Estado))
+                                                                        {
+                                                                            <SoloConEscritura>
+                                                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                                                       aria-label="@Textos["AriaAccionDocumento", EstadoDocumentoFicha360.TextoAccion, documento.TipoDocumentoNombre, trabajador.TrabajadorNombre]"
+                                                                                       OnClick="() => GestionarDocumentoAsync(trabajador.TrabajadorId, documento)">
+                                                                                    @EstadoDocumentoFicha360.TextoAccion
+                                                                                </Boton>
+                                                                            </SoloConEscritura>
+                                                                        }
                                                                     </span>
                                                                 </li>
                                                             }

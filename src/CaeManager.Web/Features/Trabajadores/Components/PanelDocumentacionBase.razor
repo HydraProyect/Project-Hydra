@@ -62,8 +62,7 @@
                             <span class="panel-doc-base-fecha">@vence.ToString("dd/MM/yyyy")</span>
                         }
                         @if (OnCorregirDocumento.HasDelegate && indicador.DocumentoId is { } documentoId &&
-                            (indicador.Estado is EstadoIndicadorBase.Vencido or EstadoIndicadorBase.SinConfirmar ||
-                             indicador.Estado == EstadoIndicadorBase.ProximoAVencer && DocumentosUrgentes.Contains(documentoId)))
+                            indicador.Estado is EstadoIndicadorBase.Vencido or EstadoIndicadorBase.SinConfirmar or EstadoIndicadorBase.ProximoAVencer)
                         {
                             <SoloConEscritura>
                                 @* Confirmar o renovar abren el mismo editor: la fila ofrece una sola acción, «Gestionar». *@
@@ -97,9 +96,6 @@
 
     /// <summary>La ficha puede abrir su editor existente; los hosts que no lo ofrecen conservan el panel de lectura.</summary>
     [Parameter] public EventCallback<Guid> OnCorregirDocumento { get; set; }
-
-    /// <summary>El indicador reúne Próximo y Urgente; solo un Documento ya cargado con estado Urgente permite distinguirlos.</summary>
-    [Parameter] public IReadOnlySet<Guid> DocumentosUrgentes { get; set; } = new HashSet<Guid>();
 
     protected override async Task OnParametersSetAsync()
     {

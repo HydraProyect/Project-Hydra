@@ -167,12 +167,22 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
         cut.FindAll(".tabla-documentos-requeridos button").Select(b => b.TextContent.Trim()).Should().NotContain("Gestionar");
     }
 
+    /// <summary>Un documento al día (Vigente o Sin caducidad) no lleva botón, ni siquiera con la Visita en riesgo (regla 8 y maqueta del 17-10).</summary>
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Documento_vigente_conserva_Gestionar_y_su_clic_abre_la_gestion_incluso_en_Visita(bool riesgoEnVisita)
+    [InlineData(EstadoDocumento.Vigente, false)]
+    [InlineData(EstadoDocumento.Vigente, true)]
+    [InlineData(EstadoDocumento.SinCaducidad, false)]
+    public async Task Documento_al_dia_no_lleva_boton_aunque_se_pueda_escribir(EstadoDocumento estado, bool riesgoEnVisita)
     {
-        var cut = await RenderizarExpandidoAsync(EstadoDocumento.Vigente, riesgoEnVisita: riesgoEnVisita);
+        var cut = await RenderizarExpandidoAsync(estado, riesgoEnVisita: riesgoEnVisita);
+        cut.FindAll(".tabla-documentos-requeridos .columna-accion button").Should().BeEmpty();
+        cut.Find(".tabla-documentos-requeridos").TextContent.Should().Contain("Reconocimiento médico");
+    }
+
+    [Fact]
+    public async Task El_clic_en_Gestionar_abre_la_gestion_del_documento()
+    {
+        var cut = await RenderizarExpandidoAsync(EstadoDocumento.Vencido);
         var boton = cut.Find(".tabla-documentos-requeridos .columna-accion button");
         boton.TextContent.Trim().Should().Be("Gestionar");
         boton.ClassList.Should().Contain("accion-fila-enlace").And.NotContain("accion-atenuada");
@@ -189,8 +199,6 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
     [InlineData(EstadoDocumento.Proximo, "Gestionar")]
     [InlineData(EstadoDocumento.SinConfirmar, "Gestionar")]
     [InlineData(EstadoDocumento.Faltante, "Gestionar")]
-    [InlineData(EstadoDocumento.SinCaducidad, "Gestionar")]
-    [InlineData(EstadoDocumento.Vigente, "Gestionar")]
     public async Task El_documento_ofrece_una_sola_accion_Gestionar_sea_cual_sea_su_estado_y_no_esta_atenuada(EstadoDocumento estado, string accion)
     {
         var cut = await RenderizarExpandidoAsync(estado);

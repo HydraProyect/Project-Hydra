@@ -472,7 +472,6 @@ public partial class Trabajador360Gen2Tests : BunitContext
     [InlineData(EstadoIndicadorBase.Vigente, true)]
     [InlineData(EstadoIndicadorBase.Falta, false)]
     [InlineData(EstadoIndicadorBase.Vencido, false)]
-    [InlineData(EstadoIndicadorBase.ProximoAVencer, true)]
     public void Documentacion_base_no_ofrece_una_accion_sin_Documento_o_sin_estado_que_la_pida(EstadoIndicadorBase estado, bool existe)
     {
         var id = Guid.NewGuid();
@@ -1112,9 +1111,9 @@ public partial class Trabajador360Gen2Tests : BunitContext
         cut.FindAll(".trabajador360-centros .fila-relacion-desplegar")[0].GetAttribute("aria-expanded").Should().Be("true");
         var detalle = cut.Find(".fila-relacion-desplegado");
         detalle.TextContent.Should().Contain("Formación PRL — 20 h").And.Contain("Certificado de aptitud");
-        // Subir, renovar o ver: la fila ofrece siempre la misma acción, «Gestionar», y abre el mismo flujo.
+        // Subir o renovar: la fila ofrece siempre la misma acción, «Gestionar», y abre el mismo flujo; lo vigente no lleva botón.
         detalle.QuerySelectorAll(".fila-relacion-acciones button").Select(b => b.TextContent.Trim())
-            .Should().Equal(["Gestionar", "Gestionar", "Gestionar"]);
+            .Should().Equal(["Gestionar", "Gestionar"]);
         detalle.TextContent.Should().NotContain("Nave Berriz", "solo se despliega el centro sobre el que se pulsó");
     }
 
@@ -1281,7 +1280,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         franja.QuerySelectorAll("li.fila-relacion")
             .Select(f => SinEspaciosDeMas(f.TextContent))
             .Should().Equal(
-                ["Reconocimiento médico Vence: 01/10/2026 Por vencer Gestionar", "Entrega de EPI Vence: 20/10/2026 Por vencer"],
+                ["Reconocimiento médico Vence: 01/10/2026 Por vencer Gestionar", "Entrega de EPI Vence: 20/10/2026 Por vencer Gestionar"],
                 "la franja usa el umbral ámbar del sistema (Q3): Próximo y Urgente (los dos se rotulan «Por vencer»), lo más cercano primero; lo vencido ya es incidencia de Centro y lo vigente no apremia");
     }
 
@@ -1311,6 +1310,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         mediador.Documentos[id] =
         [
             DocumentoDelTrabajador("Reconocimiento médico", EstadoDocumento.Urgente, new(2025, 10, 1), new(2026, 10, 1)) with { Id = urgenteId },
+            DocumentoDelTrabajador("Entrega de EPI", EstadoDocumento.Proximo, new(2025, 10, 20), new(2026, 10, 20)),
             DocumentoDelTrabajador("Formación PRL — 20 h", EstadoDocumento.Vigente, new(2025, 3, 1), new(2027, 3, 1)),
         ];
 
@@ -1325,12 +1325,13 @@ public partial class Trabajador360Gen2Tests : BunitContext
         {
             botonesBase.Should().Equal(new List<string>[] { ["Gestionar"], ["Gestionar"], [] },
                 (a, b) => a.SequenceEqual(b), "Vencido y Sin confirmar piden trabajo; lo vigente no lleva botón");
-            botonesFranja.Should().ContainSingle().Which.Should().Equal("Gestionar");
+            botonesFranja.Should().HaveCount(2).And.OnlyContain(b => b.SequenceEqual(new[] { "Gestionar" }),
+                "Por vencer, urgente o no, lleva «Gestionar»");
         }
         else
         {
             botonesBase.Should().OnlyContain(b => b.Count == 0);
-            botonesFranja.Should().ContainSingle().Which.Should().BeEmpty();
+            botonesFranja.Should().HaveCount(2).And.OnlyContain(b => b.Count == 0);
         }
     }
 

@@ -390,14 +390,17 @@ else
                                                 </TextoFechaCopiable>
                                             </span>
                                             <span class="columna-accion" role="cell">
-                                                @* La acción existe siempre para quien puede escribir, también con documentos al día. *@
-                                                <SoloConEscritura>
-                                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                                           class="accion-fila-enlace"
-                                                           OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
-                                                        @Textos["GestionarDocumento360"]
-                                                    </Boton>
-                                                </SoloConEscritura>
+                                                @* Solo lo que pide trabajo lleva «Gestionar» (y solo a quien puede escribir): un documento al día no lleva botón. *@
+                                                @if (EstadoDocumentoFicha360.PideGestionar(documento.Estado))
+                                                {
+                                                    <SoloConEscritura>
+                                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                                               class="accion-fila-enlace"
+                                                               OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
+                                                            @Textos["GestionarDocumento360"]
+                                                        </Boton>
+                                                    </SoloConEscritura>
+                                                }
                                             </span>
                                         </div>
                                     }

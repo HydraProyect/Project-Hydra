@@ -698,8 +698,11 @@ public partial class Vehiculo360PaginaTests : BunitContext
     [InlineData(Roles.DireccionCae, EstadoDocumento.Faltante, "Gestionar")]
     [InlineData(Roles.CoordinadorCae, EstadoDocumento.SinConfirmar, "Gestionar")]
     [InlineData(Roles.GestorCae, EstadoDocumento.Urgente, "Gestionar")]
+    [InlineData(Roles.GestorCae, EstadoDocumento.Proximo, "Gestionar")]
     [InlineData(Roles.GestorCae, EstadoDocumento.Vigente, null)]
+    [InlineData(Roles.GestorCae, EstadoDocumento.SinCaducidad, null)]
     [InlineData(Roles.Consulta, EstadoDocumento.Vencido, null)]
+    [InlineData(Roles.Consulta, EstadoDocumento.Proximo, null)]
     [InlineData(Roles.Cliente, EstadoDocumento.Vencido, null)]
     public void La_fila_del_documento_ofrece_solo_Gestionar_segun_rol_y_estado(string rol, EstadoDocumento estado, string? esperado)
     {

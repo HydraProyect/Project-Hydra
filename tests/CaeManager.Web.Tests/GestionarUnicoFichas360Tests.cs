@@ -40,20 +40,18 @@ public class GestionarUnicoFichas360Tests : BunitContext
     private static readonly Guid Vencido = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
     private static readonly Guid SinConfirmar = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000002");
     private static readonly Guid Proximo = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000003");
-    private static readonly Guid ProximoUrgente = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000004");
     private static readonly Guid Vigente = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000005");
 
     private static DocumentacionBaseTrabajadorDto Base() => new(
     [
         new(TipoDocumentoBase.AptitudMedica, EstadoIndicadorBase.Vencido, Vencido, null),
         new(TipoDocumentoBase.FormacionArt19, EstadoIndicadorBase.SinConfirmar, SinConfirmar, null),
-        new(TipoDocumentoBase.EntregaEpi, EstadoIndicadorBase.ProximoAVencer, ProximoUrgente, null),
+        new(TipoDocumentoBase.EntregaEpi, EstadoIndicadorBase.ProximoAVencer, Proximo, null),
         new(TipoDocumentoBase.InformacionArt18, EstadoIndicadorBase.Vigente, Vigente, null),
     ]);
 
     private IRenderedComponent<PanelDocumentacionBase> Panel(List<Guid> corregidos) => Render<PanelDocumentacionBase>(p => p
         .Add(c => c.Datos, Base())
-        .Add(c => c.DocumentosUrgentes, new HashSet<Guid> { ProximoUrgente })
         .Add(c => c.OnCorregirDocumento, EventCallback.Factory.Create<Guid>(this, corregidos.Add)));
 
     private static List<string> Botones(AngleSharp.Dom.IElement fila) => fila.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).ToList();
@@ -73,7 +71,7 @@ public class GestionarUnicoFichas360Tests : BunitContext
         filas.Select(Botones).Should().Equal(
             new List<string>[] { ["Gestionar"], ["Gestionar"], ["Gestionar"], [] },
             (a, b) => a.SequenceEqual(b),
-            "Vencido, Sin confirmar y Por vencer urgente piden trabajo; Vigente no lleva botón");
+            "Vencido, Sin confirmar y Por vencer piden trabajo; Vigente no lleva botón");
 
         var total = cut.FindAll(".panel-doc-base-fila button").Count;
         for (var i = 0; i < total; i++)
@@ -86,7 +84,7 @@ public class GestionarUnicoFichas360Tests : BunitContext
         }
 
         corregidos.Should().Equal(
-            [Vencido, SinConfirmar, ProximoUrgente],
+            [Vencido, SinConfirmar, Proximo],
             "«Gestionar» abre el mismo editor que abría el verbo de antes, para el documento de su fila");
     }
 
@@ -104,7 +102,7 @@ public class GestionarUnicoFichas360Tests : BunitContext
     }
 
     [Fact]
-    public void Un_Proximo_que_no_es_urgente_no_gana_boton_con_el_cambio_de_rotulo()
+    public void Un_Proximo_que_no_es_urgente_lleva_Gestionar_solo_para_roles_con_escritura()
     {
         this.ConRolDeEscritura(Roles.GestorCae);
         var cut = Render<PanelDocumentacionBase>(p => p
@@ -112,7 +110,7 @@ public class GestionarUnicoFichas360Tests : BunitContext
                 [new(TipoDocumentoBase.EntregaEpi, EstadoIndicadorBase.ProximoAVencer, Proximo, null)]))
             .Add(c => c.OnCorregirDocumento, EventCallback.Factory.Create<Guid>(this, _ => { })));
 
-        cut.FindAll(".panel-doc-base-fila button").Should().BeEmpty();
+        cut.FindAll(".panel-doc-base-fila button").Select(b => b.TextContent.Trim()).Should().Equal("Gestionar");
     }
 
     [Theory]
@@ -139,11 +137,11 @@ public class GestionarUnicoFichas360Tests : BunitContext
     [InlineData(EstadoDocumento.Urgente, true)]
     [InlineData(EstadoDocumento.Faltante, true)]
     [InlineData(EstadoDocumento.SinConfirmar, true)]
-    [InlineData(EstadoDocumento.Proximo, false)]
+    [InlineData(EstadoDocumento.Proximo, true)]
     [InlineData(EstadoDocumento.Vigente, false)]
     [InlineData(EstadoDocumento.SinCaducidad, false)]
     public void Solo_los_estados_que_piden_trabajo_tienen_accion(EstadoDocumento estado, bool pide)
     {
-        (EstadoDocumentoFicha360.Accion(estado) is not null).Should().Be(pide);
+        EstadoDocumentoFicha360.PideGestionar(estado).Should().Be(pide);
     }
 }

@@ -168,7 +168,7 @@
                                                     <BadgesAcreditacion Acreditaciones="documento.Acreditaciones" />
                                                 </Estado>
                                                 <Acciones>
-                                                    @if (EstadoDocumentoFicha360.Accion(documento.Estado) is not null)
+                                                    @if (EstadoDocumentoFicha360.PideGestionar(documento.Estado))
                                                     {
                                                         <SoloConEscritura>
                                                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"

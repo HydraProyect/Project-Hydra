@@ -171,7 +171,6 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// ObtenerDocumentosQuery que la pestaña del panel, con su alcance.
     /// </summary>
     private IReadOnlyList<DocumentoListaDto> _documentos = [];
-    private IReadOnlySet<Guid> DocumentosUrgentes => _documentos.Where(d => d.Estado == EstadoDocumento.Urgente).Select(d => d.Id).ToHashSet();
     private int _totalDocumentos;
 
     /// <summary>

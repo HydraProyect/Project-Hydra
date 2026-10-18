@@ -102,6 +102,12 @@ public static class EstadoDocumentoFicha360
     public static string TextoAccionAccesible(string documento) =>
         string.Format(CultureInfo.CurrentUICulture, TextosVigenciaDocumento.Texto("Ficha360GestionarAccesible"), documento);
 
+    /// <summary>
+    /// Si la fila de un documento en este estado lleva el botón «Gestionar»: lo que pide acción (<see cref="Accion"/>) y también
+    /// «Por vencer» aunque aún no sea urgente (maqueta «… 360 TALVEG» del 2026-10-17). Vigente y Sin caducidad no llevan botón.
+    /// </summary>
+    public static bool PideGestionar(EstadoDocumento estado) => estado == EstadoDocumento.Proximo || Accion(estado) is not null;
+
     /// <summary>La acción que pide el estado; <c>null</c> si no pide ninguna.</summary>
     public static AccionDocumentoFicha360? Accion(EstadoDocumento estado) => estado switch
     {
