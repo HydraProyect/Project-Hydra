@@ -371,4 +371,32 @@
   <data name="FichaCopiarTelefonoFormacion" xml:space="preserve"><value>el telèfon del contacte de formació</value></data>
   <data name="FichaCopiarNombreAccesible" xml:space="preserve"><value>Copiar {0}</value></data>
   <data name="FichaNotaTecnico" xml:space="preserve"><value>Al Tècnic de PRL se li envia el que necessita la seva signatura o la seva gestió.</value></data>
-</root>
+  <data name="NadaPendiente" xml:space="preserve">
+    <value>Res pendent. Tot el que s'exigeix és al dia.</value>
+  </data>
+  <data name="Gestionar" xml:space="preserve">
+    <value>Gestionar</value>
+  </data>
+  <data name="GestionarDocumentoAccesible" xml:space="preserve">
+    <value>Gestionar el document «{0}» de {1}</value>
+  </data>  <data name="EtiquetaCliente" xml:space="preserve">
+    <value>Client</value>
+  </data>
+  <data name="EtiquetaAgrupar" xml:space="preserve">
+    <value>Agrupar</value>
+  </data>
+  <data name="AgruparPorCliente" xml:space="preserve">
+    <value>Per Client</value>
+  </data>
+  <data name="OpcionSinAgrupar" xml:space="preserve">
+    <value>Sense agrupar</value>
+  </data>
+  <data name="GrupoSinCliente" xml:space="preserve">
+    <value>Sense Client</value>
+  </data>
+  <data name="ChipCliente" xml:space="preserve">
+    <value>Client: {0}</value>
+  </data>
+  <data name="QuitarFiltroCliente" xml:space="preserve">
+    <value>Treure el filtre de Client</value>
+  </data></root>
