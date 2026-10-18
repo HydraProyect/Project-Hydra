@@ -356,6 +356,21 @@
   <data name="MenuSubDocumentosPlantillas" xml:space="preserve">
     <value>Plantillas</value>
   </data>
+  <data name="SelectorTenantSolicitar" xml:space="preserve">
+    <value>+ Solicitar</value>
+  </data>
+  <data name="SelectorTenantSolicitarTitulo" xml:space="preserve">
+    <value>Solicitar acceso a otra empresa de la organización</value>
+  </data>
+  <data name="SelectorTenantTrabajandoEn" xml:space="preserve">
+    <value>Trabajando en {0}</value>
+  </data>
+  <data name="MenuAuditoria" xml:space="preserve">
+    <value>Auditoría</value>
+  </data>
+  <data name="MenuAdministracionPlataforma" xml:space="preserve">
+    <value>Administración de plataforma</value>
+  </data>
   <data name="MenuCompactar" xml:space="preserve">
     <value>Compactar la barra lateral</value>
   </data>

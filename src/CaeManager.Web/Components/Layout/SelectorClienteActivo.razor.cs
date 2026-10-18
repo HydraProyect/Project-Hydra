@@ -46,6 +46,7 @@ public partial class SelectorClienteActivo
     [Inject] private IContadorPendientesSelectorTenant ContadorPendientes { get; set; } = default!;
     [Inject] private ILectorRecientesSelectorTenant LectorRecientes { get; set; } = default!;
     [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
+    [Inject] private CaeManager.Web.Components.DesignSystem.ToastService Toasts { get; set; } = default!;
 
     private IReadOnlyList<ClienteAutorizadoDto>? _clientes;
     private ClienteAutorizadoDto? _activo;
@@ -61,6 +62,7 @@ public partial class SelectorClienteActivo
     private Guid? _usuarioId;
     private bool _pendientesIniciados;
     private bool _desechado;
+    private bool _puedeSolicitar;
 
     // Fijadas (Design, 2026-10-17). Viven en el localStorage del navegador (LIMITACIÓN CONOCIDA: por
     // usuario y por navegador, no viajan con la cuenta), y el módulo JS las lee y las guarda. Son una
@@ -113,6 +115,8 @@ public partial class SelectorClienteActivo
 
     /// <summary>Hay una sección encima de la lista principal: entonces esta se titula «Resto de la cartera».</summary>
     private bool HayGruposArriba => Fijadas.Count > 0 || Recientes.Count > 0;
+
+    private bool Buscando => !string.IsNullOrWhiteSpace(_busqueda);
 
     private bool EsFijada(ClienteAutorizadoDto cliente) => _fijadas.Contains(cliente.TenantId);
 
@@ -261,6 +265,11 @@ public partial class SelectorClienteActivo
 
             _moduloFijadas = modulo;
             _atajosFijadas = atajos;
+
+            // «Trabajando en …» (marco de Design): cambiar de empresa es un POST con recarga completa, así que el
+            // aviso lo da la página nueva al ver que la empresa activa ya no es la de la última carga de esta pestaña.
+            if (await modulo.InvokeAsync<bool>("cambioDeContexto", clave, _activo.TenantId.ToString()))
+                Toasts.Mostrar(Textos["SelectorTenantTrabajandoEn", _activo.Nombre].Value);
 
             var permitidas = _clientes.Where(c => !c.EsOrigen).Select(c => c.TenantId).ToHashSet();
             foreach (var texto in guardadas ?? []) // null si el interop no responde
@@ -411,6 +420,15 @@ public partial class SelectorClienteActivo
         _totalCartera = ClientesAutorizados.TotalCartera(_clientes);
 
         _token = AntiforgeryStateProvider.GetAntiforgeryToken();
+
+        try
+        {
+            _puedeSolicitar = await Mediator.Send(new CaeManager.Application.Operaciones.IncorporacionCartera.Queries.ParticipaEnIncorporacionCarteraQuery());
+        }
+        catch (Exception ex) when (ExcepcionDeCircuitoDesconectado.Es(ex))
+        {
+            // Sin la respuesta no se ofrece «+ Solicitar»: el selector sigue funcionando.
+        }
 
         try
         {

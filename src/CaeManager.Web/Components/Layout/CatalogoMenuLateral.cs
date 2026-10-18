@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CaeManager.Application.VistaDemo;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Components.Layout;
 
@@ -54,6 +55,10 @@ public sealed record GrupoMenuLateral(
 /// <param name="CoincidenciaExacta">NavLinkMatch.All en vez de prefijo (el Dashboard, cuya ruta vacía casaría con todo).</param>
 /// <param name="RotuloPorContexto">Rótulo que depende del contexto (perfil de vocabulario); si es null, <paramref name="Rotulo"/>.</param>
 /// <param name="RutaPorContexto">Ruta que depende del contexto; si es null, <paramref name="Ruta"/>.</param>
+/// <param name="ClaveRotulo">Clave del rótulo en <c>TextosComunes</c> cuando el rótulo se localiza (ratchet
+/// de textos sin localizar: un rótulo de varias palabras no puede vivir como literal). Si no es null,
+/// <paramref name="Rotulo"/> solo repite esa clave y el texto lo resuelve
+/// <see cref="RotuloPara(ContextoMenuLateral, IStringLocalizer)"/>.</param>
 public sealed record EnlaceMenuLateral(
     string Id,
     string GrupoId,
@@ -63,9 +68,17 @@ public sealed record EnlaceMenuLateral(
     Func<ContextoMenuLateral, bool>? Condicion = null,
     bool CoincidenciaExacta = false,
     Func<ContextoMenuLateral, string>? RotuloPorContexto = null,
-    Func<ContextoMenuLateral, string>? RutaPorContexto = null)
+    Func<ContextoMenuLateral, string>? RutaPorContexto = null,
+    string? ClaveRotulo = null)
 {
     public string RotuloPara(ContextoMenuLateral contexto) => RotuloPorContexto?.Invoke(contexto) ?? Rotulo;
+
+    /// <summary>Como <see cref="RotuloPara(ContextoMenuLateral)"/>, pero con el idioma activo cuando el rótulo lleva clave.</summary>
+    public string RotuloPara(ContextoMenuLateral contexto, IStringLocalizer textos) =>
+        RotuloPorContexto?.Invoke(contexto) ?? (ClaveRotulo is null ? Rotulo : textos[ClaveRotulo].Value);
+
+    /// <summary>El rótulo sin contexto, con el idioma activo cuando lleva clave.</summary>
+    public string RotuloEn(IStringLocalizer textos) => ClaveRotulo is null ? Rotulo : textos[ClaveRotulo].Value;
     public string RutaPara(ContextoMenuLateral contexto) => RutaPorContexto?.Invoke(contexto) ?? Ruta;
 }
 
@@ -290,16 +303,16 @@ public static class CatalogoMenuLateral
         // autorización de siempre (/auditoria es solo del Administrador); también sigue siendo un panel
         // de Configuración. «Verificación en dos pasos» salió del menú: en el marco es la entrada «Mi cuenta»
         // de Configuración, que ya lleva a cuenta/configurar-2fa.
-        new("auditoria", "administracion", "auditoria", "auditoria", "Auditoría",
-            Condicion: c => c.TieneAlgunRol(Roles.Administrador)),
+        new("auditoria", "administracion", "auditoria", "auditoria", "MenuAuditoria",
+            Condicion: c => c.TieneAlgunRol(Roles.Administrador), ClaveRotulo: "MenuAuditoria"),
 
         // Plataforma, en el orden del marco de Design: Administración de plataforma, Delegaciones, Estado
         // comercial y Estado del sistema. «Estado del sistema» NO tiene enlace: no hay pantalla que lo respalde
         // (pantalla por construir). «Conectores CAE» no está en el marco, pero es una función existente: se
         // conserva al final.
         // Solo con capacidad de plataforma: la pantalla se autoriza por capacidad y un Administrador normal no tiene nada que hacer allí.
-        new("plataforma-administracion", "plataforma", "configuracion/plataforma", "plataforma", "Administración de plataforma",
-            Condicion: c => c.EsAdministradorPlataforma),
+        new("plataforma-administracion", "plataforma", "configuracion/plataforma", "plataforma", "MenuAdministracionPlataforma",
+            Condicion: c => c.EsAdministradorPlataforma, ClaveRotulo: "MenuAdministracionPlataforma"),
         new("delegaciones", "plataforma", "delegaciones", "delegacion", "Delegaciones"),
         new("estado-comercial", "plataforma", "configuracion/comercial", "etiqueta", "Estado comercial"),
         new("conectores-cae", "plataforma", "plataforma/conectores-cae", "importar", "Conectores CAE"),

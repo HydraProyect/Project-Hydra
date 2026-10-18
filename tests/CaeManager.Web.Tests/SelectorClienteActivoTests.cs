@@ -44,11 +44,14 @@ public class SelectorClienteActivoTests : BunitContext
     }
 
     private sealed class Mediador(
-        Func<IReadOnlyList<ClienteAutorizadoDto>> lista, Func<Task<MiTrabajoAgregadoDto>> miTrabajo, Action alCalcularMiTrabajo) : IMediator
+        Func<IReadOnlyList<ClienteAutorizadoDto>> lista, Func<Task<MiTrabajoAgregadoDto>> miTrabajo, Action alCalcularMiTrabajo,
+        Func<bool> participaEnIncorporacion) : IMediator
     {
         public async Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)
         {
             if (request is ObtenerClientesAutorizadosQuery) return (T)(object)lista();
+            if (request is CaeManager.Application.Operaciones.IncorporacionCartera.Queries.ParticipaEnIncorporacionCarteraQuery)
+                return (T)(object)participaEnIncorporacion();
             if (request is ObtenerMiTrabajoAgregadoQuery)
             {
                 alCalcularMiTrabajo();
@@ -85,12 +88,14 @@ public class SelectorClienteActivoTests : BunitContext
     private IReadOnlyList<Guid> _recientes = [];
     private Func<Task<MiTrabajoAgregadoDto>> _miTrabajo = () => Task.FromResult(new MiTrabajoAgregadoDto([]));
     private int _cuantasVecesSeCalculoMiTrabajo;
+    private bool _participaEnIncorporacion;
 
     public SelectorClienteActivoTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
-        Services.AddScoped<IMediator>(_ => new Mediador(() => _lista, () => _miTrabajo(), () => _cuantasVecesSeCalculoMiTrabajo++));
+        Services.AddScoped<IMediator>(_ => new Mediador(() => _lista, () => _miTrabajo(), () => _cuantasVecesSeCalculoMiTrabajo++, () => _participaEnIncorporacion));
+        Services.AddScoped<CaeManager.Web.Components.DesignSystem.ToastService>();
         Services.AddScoped<ICurrentUserService, UsuarioFalso>();
         Services.AddSingleton<IContadorPendientesSelectorTenant>(new ContadorPendientesSelectorTenant(TimeProvider.System));
         Services.AddScoped<ILectorRecientesSelectorTenant>(_ => new RecientesFalsos(() => _recientes));
@@ -636,8 +641,9 @@ public class SelectorClienteActivoTests : BunitContext
         var modulo = ConFijadas();
         var cut = Renderizar(seleccionado: Norte);
         await Abrir(cut);
-        cut.FindAll("#selector-tenant-fijadas").Should().BeEmpty("sin fijadas no hay sección ni cabecera de resto");
-        cut.FindAll("#selector-tenant-resto").Should().BeEmpty();
+        cut.FindAll("#selector-tenant-fijadas").Should().BeEmpty("sin fijadas no hay sección Fijadas");
+        cut.Find("#selector-tenant-resto").TextContent.Trim().Should().Be("Recientes",
+            "como en el marco de Design, sin fijadas la lista principal se titula «Recientes»");
 
         var estrellaDeSur = cut.Find("[role=option][value='" + Sur + "']").ParentElement!.QuerySelector(".selector-tenant-fijar")!;
         estrellaDeSur.GetAttribute("aria-label").Should().Be("Fijar arriba");
@@ -699,6 +705,59 @@ public class SelectorClienteActivoTests : BunitContext
         formulario.QuerySelector("input[name=returnUrl]")!.GetAttribute("value").Should().Be("/trabajadores");
         formulario.QuerySelector("input[name=tenantId]")!.GetAttribute("value").Should().BeNullOrEmpty(
             "el Id lo escribe selector-tenant-fijadas.js solo al pulsar el atajo");
+    }
+
+    [Fact]
+    public async Task Quien_participa_en_la_incorporacion_a_cartera_ve_Solicitar_y_va_a_su_flujo()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        _participaEnIncorporacion = true;
+        var cut = Renderizar(seleccionado: Norte);
+        await Abrir(cut);
+
+        var solicitar = cut.Find(".selector-tenant-cabecera a.selector-tenant-solicitar");
+        solicitar.TextContent.Trim().Should().Be("+ Solicitar");
+        solicitar.GetAttribute("href").Should().Be("/cartera/solicitudes");
+        solicitar.GetAttribute("title").Should().Be("Solicitar acceso a otra empresa de la organización");
+        cut.Find(".selector-tenant-cabecera-titulo").TextContent.Trim().Should().StartWith("Mi cartera");
+    }
+
+    [Fact]
+    public async Task Quien_no_participa_en_la_incorporacion_a_cartera_no_ve_Solicitar()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        _participaEnIncorporacion = false;
+        var cut = Renderizar(seleccionado: Norte);
+        await Abrir(cut);
+
+        cut.FindAll(".selector-tenant-solicitar").Should().BeEmpty("la página de destino le negaría el acceso");
+    }
+
+    [Fact]
+    public void Al_cambiar_de_empresa_la_pagina_nueva_avisa_Trabajando_en_la_empresa_activa()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        var modulo = ConFijadas();
+        modulo.Setup<bool>("cambioDeContexto", _ => true).SetResult(true);
+        var cut = Renderizar(seleccionado: Norte);
+        var toasts = Services.GetRequiredService<CaeManager.Web.Components.DesignSystem.ToastService>();
+
+        cut.WaitForAssertion(() =>
+            toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Be("Trabajando en Empresa Norte"));
+        ((string)modulo.Invocations["cambioDeContexto"].Single().Arguments[1]!).Should().Be(Norte.ToString());
+    }
+
+    [Fact]
+    public void Sin_cambio_de_empresa_no_hay_aviso()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        var modulo = ConFijadas();
+        modulo.Setup<bool>("cambioDeContexto", _ => true).SetResult(false);
+        var cut = Renderizar(seleccionado: Norte);
+        var toasts = Services.GetRequiredService<CaeManager.Web.Components.DesignSystem.ToastService>();
+
+        cut.WaitForAssertion(() => modulo.Invocations["cambioDeContexto"].Should().ContainSingle());
+        toasts.Mensajes.Should().BeEmpty("la primera carga de la pestaña o recargar la misma empresa no avisan");
     }
 
     [Fact]

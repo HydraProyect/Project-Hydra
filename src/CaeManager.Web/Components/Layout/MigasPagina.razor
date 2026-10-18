@@ -130,7 +130,7 @@
                 // Solo un identificador (Guid) cuenta como ficha; «importar», «revision-ia»… son
                 // pantallas de la sección y no se les inventa un rótulo.
                 var esFicha = Guid.TryParse(resto, out _);
-                var seccion = enlace.RotuloPara(contexto);
+                var seccion = enlace.RotuloPara(contexto, Textos);
                 mejor = new Miga(grupo.Titulo,
                     esFicha
                         ? [new Nivel(seccion, "/" + rutaEnlace), new Nivel(Textos["CabeceraMigaFicha"], null)]

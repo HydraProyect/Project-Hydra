@@ -39,6 +39,15 @@
   <data name="GrupoCatalogosDatos" xml:space="preserve">
     <value>Catálogos y datos</value>
   </data>
+  <data name="GrupoComunicaciones" xml:space="preserve">
+    <value>Comunicacions</value>
+  </data>
+  <data name="EntradaPlantillasNombre" xml:space="preserve">
+    <value>Plantilles</value>
+  </data>
+  <data name="EntradaPlantillasResumen" xml:space="preserve">
+    <value>Documents que es generen</value>
+  </data>
   <data name="GrupoAuditoria" xml:space="preserve">
     <value>Auditoría</value>
   </data>
@@ -310,7 +319,7 @@
     <value>Orden del menú</value>
   </data>
   <data name="EntradaOrdenMenuResumen" xml:space="preserve">
-    <value>Solo Actor de Plataforma TALVEG</value>
+    <value>Solo Actor de Plataforma</value>
   </data>
   <data name="OrdenMenuTituloDocumento" xml:space="preserve">
     <value>Orden del menú — Configuración</value>

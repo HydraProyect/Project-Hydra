@@ -85,7 +85,7 @@
                 {
                     <a class="nav-resultado" href="@sub.Subopcion.Ruta" data-subopcion="@sub.Subopcion.Id" hidden>
                         <span class="nav-resultado-texto">@RotuloDe(sub.Subopcion)</span>
-                        <small class="nav-resultado-padre">@sub.Enlace.RotuloPara(_contexto!)</small>
+                        <small class="nav-resultado-padre">@sub.Enlace.RotuloPara(_contexto!, Textos)</small>
                     </a>
                 }
             </div>
@@ -158,7 +158,7 @@
     private RenderFragment FilaEnlace(EnlaceMenuLateral enlace) => @<div class="nav-fila" data-enlace="@enlace.Id">
         <NavLink class="@ClaseDeEnlace(enlace)" href="@enlace.RutaPara(_contexto!)"
                  Match="@(enlace.CoincidenciaExacta ? NavLinkMatch.All : NavLinkMatch.Prefix)">
-            <Icono Nombre="@enlace.Icono" /> <span class="nav-item-texto">@enlace.RotuloPara(_contexto!)</span>
+            <Icono Nombre="@enlace.Icono" /> <span class="nav-item-texto">@enlace.RotuloPara(_contexto!, Textos)</span>
         </NavLink>
     </div>;
 
