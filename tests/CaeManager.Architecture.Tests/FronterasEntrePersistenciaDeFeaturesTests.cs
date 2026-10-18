@@ -150,6 +150,13 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Calendario.ObtenerVencimientosMesQueryHandler", "IDocumentosQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "ITiposDocumentoQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "ITrabajadoresQueryContext"),
+        // Semana por Empresa compone vencimientos visibles y el historial de envío; no escribe fuera de Calendario.
+        ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "IDocumentosQueryContext"),
+        ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "IEmpresasQueryContext"),
+        ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "ITrabajadoresQueryContext"),
+        ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "IProyectosQueryContext"),
+        ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "IReclamacionesQueryContext"),
+        ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "ITiposDocumentoQueryContext"),
         ("Centros.CrearCanalGestionCommandHandler", "IProveedoresPlataformaCaeQueryContext"),
         ("Centros.CrearCentroCommandHandler", "IClientesQueryContext"),
         ("Centros.CrearCentroCommandHandler", "IEmpresasQueryContext"),

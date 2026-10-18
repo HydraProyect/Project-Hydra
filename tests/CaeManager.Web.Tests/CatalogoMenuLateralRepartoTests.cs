@@ -70,9 +70,9 @@ public class CatalogoMenuLateralRepartoTests
         grupoPorId.Where(p => p.Value is "dashboards" or "administracion" or "plataforma")
             .Select(p => p.Key).Should().BeEquivalentTo(
             [
-                "dashboard", "vision-cartera", "solicitudes-cartera", "dashboard-ejecutivo", "indicadores-ia-bpo",
-                "usuarios", "configuracion", "verificacion-dos-pasos",
-                "delegaciones", "estado-comercial", "conectores-cae",
+                "dashboard", "vision-cartera", "dashboard-ejecutivo", "indicadores-ia-bpo",
+                "usuarios", "configuracion", "auditoria",
+                "plataforma-administracion", "delegaciones", "estado-comercial", "conectores-cae",
             ]);
     }
 
@@ -121,13 +121,14 @@ public class CatalogoMenuLateralRepartoTests
         // D-12: el Coordinador CAE llega a /usuarios (ya autorizado por rol) desde Control; no es un permiso nuevo.
         if (rol == Roles.CoordinadorCae) comunes.Add("usuarios-equipo");
         if (rol is Roles.Administrador or Roles.DireccionCae or Roles.CoordinadorCae) comunes.Add("vision-cartera");
-        if (rol is Roles.CoordinadorCae or Roles.GestorCae) comunes.Add("solicitudes-cartera");
         // «Cuadro de dirección» (id dashboard-ejecutivo): los roles que admite /direccion. «Indicadores de IA y BPO»: los de su página.
         if (rol is Roles.DireccionCae or Roles.CoordinadorCae) comunes.Add("dashboard-ejecutivo");
         if (rol is Roles.Administrador or Roles.DireccionCae or Roles.Consulta) comunes.Add("indicadores-ia-bpo");
         if (rol == Roles.Administrador)
             comunes.AddRange(
-                ["configuracion", "verificacion-dos-pasos", "delegaciones", "estado-comercial", "conectores-cae"]);
+                ["configuracion", "auditoria", "delegaciones", "estado-comercial", "conectores-cae"]);
+        // La fila de Administrador del test lleva capacidad de plataforma (el enlace la exige).
+        if (rol == Roles.Administrador) comunes.Add("plataforma-administracion");
         return [.. comunes];
     }
 

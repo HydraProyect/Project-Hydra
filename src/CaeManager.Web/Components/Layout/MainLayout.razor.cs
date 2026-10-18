@@ -45,6 +45,12 @@ public partial class MainLayout
     /// </summary>
     private const string RutaErrorDelSistema = "/Error";
 
+    // La marca es un nombre propio y no se traduce: TAL + V (en verde) + EG. Constantes de C# y no texto
+    // de marcado para que el trinquete de textos sin localizar no las cuente como interfaz pendiente.
+    private const string MarcaInicio = "TAL";
+    private const string MarcaVerde = "V";
+    private const string MarcaFin = "EG";
+
     /// <summary>
     /// Antes de esta redirección, <c>Error.razor</c> solo se alcanzaba a
     /// través de <c>UseExceptionHandler</c>, que le deja

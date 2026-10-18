@@ -237,11 +237,11 @@ public class IncorporacionCarteraComponentesTests : BunitContext
     }
 
     [Theory]
-    [InlineData("CoordinadorCae", false, false)]
-    [InlineData("GestorCae", false, false)]
-    [InlineData("Consulta", true, true)]
-    [InlineData("Administrador", true, true)]
-    public void El_enlace_del_menu_sigue_a_la_Query_no_al_claim(string claim, bool participa, bool visible)
+    [InlineData("CoordinadorCae", false)]
+    [InlineData("GestorCae", false)]
+    [InlineData("Consulta", true)]
+    [InlineData("Administrador", true)]
+    public void El_menu_ya_no_ofrece_Solicitudes_de_cartera_con_independencia_del_claim_y_de_la_Query(string claim, bool participa)
     {
         var usuario = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, claim)], "Prueba"));
         var contexto = new ContextoMenuLateral(usuario, null, true, false, PerfilVocabularioTenant.Consultora, true,
@@ -250,7 +250,8 @@ public class IncorporacionCarteraComponentesTests : BunitContext
         var enlaces = CatalogoMenuLateral.Visibles(contexto).SelectMany(g => g.Enlaces).Select(e => e.Id).ToList();
 
         enlaces.Should().Contain("dashboard", "el grupo del enlace debe verse para que el caso diga algo");
-        enlaces.Contains("solicitudes-cartera").Should().Be(visible);
+        // Marco de Design (DDL-083): Dashboards no trae «Solicitudes de cartera». La ruta sigue viva (CabeceraGestorCae enlaza a ella).
+        enlaces.Should().NotContain("solicitudes-cartera");
     }
 
     [Fact]

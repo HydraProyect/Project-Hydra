@@ -34,6 +34,22 @@ export function guardarFijadas(clave, ids) {
     }
 }
 
+// «Trabajando en …»: cambiar de empresa recarga la página entera, así que lo único que sobrevive es el
+// sessionStorage de la pestaña. Devuelve true si la empresa activa difiere de la de la última carga de esta
+// pestaña (y nunca en la primera). Es solo para avisar: no decide nada ni concede acceso.
+const PREFIJO_ULTIMO = 'talveg.selector-tenant.ultimo.';
+
+export function cambioDeContexto(clave, tenantId) {
+    try {
+        const anterior = sessionStorage.getItem(PREFIJO_ULTIMO + clave);
+        sessionStorage.setItem(PREFIJO_ULTIMO + clave, tenantId);
+        return anterior !== null && anterior !== tenantId;
+    } catch {
+        // Almacenamiento bloqueado: sin aviso, no un error.
+        return false;
+    }
+}
+
 export function registrarAtajos() {
     const manejador = (evento) => {
         // Solo Alt + cifra, sin otro modificador. Se mira el código físico: en macOS Alt+1 produce otro carácter.

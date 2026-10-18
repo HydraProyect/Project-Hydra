@@ -20,43 +20,41 @@
     <CabeceraPagina Kicker="@Textos["HubKicker"]" Titulo="@Textos["HubTitulo"]" />
     <CaeManager.Web.Features.EncargoDeAdministracion.AvisoAdministraPorEncargo />
 
-    <div class="hub-configuracion">
+    @* Panel de sección del marco de Design (marco-talveg.js, .tvm-cfg, DDL-083): fijo a la izquierda, de 248 px y a
+       toda la altura, junto al menú lateral. La página se aparta con .configuracion-pagina. *@
+    <nav class="subnav-configuracion" aria-label="@Textos["AriaSeccionesHub"]">
         @* Patrón WAI-ARIA de navegación, no de pestañas: cada entrada es un
            enlace de verdad a /configuracion/{id} (deep link, historial, abrir
            en pestaña nueva) y la vigente se marca con aria-current="page". El
            teclado es el nativo de los enlaces: Tab entre entradas, Intro para
            abrir. Cada grupo es una lista nombrada por su título, para que el
            lector de pantalla anuncie «Catálogos y datos, lista, 5 elementos». *@
-        <nav class="subnav-configuracion" aria-label="@Textos["AriaSeccionesHub"]">
-            @for (var indice = 0; indice < Grupos.Count; indice++)
-            {
-                var grupo = Grupos[indice];
-                var idTitulo = $"configuracion-grupo-{indice}";
-                <div class="grupo-subnav">
-                    <span class="titulo-grupo-subnav" id="@idTitulo">@grupo.Titulo</span>
-                    <ul class="lista-subnav" aria-labelledby="@idTitulo">
-                        @foreach (var entrada in grupo.Entradas)
-                        {
-                            var activa = entrada.Id == actual.Id;
-                            <li>
-                                <a href="@RutaDe(entrada)"
-                                   class="@($"entrada-subnav {(activa ? "entrada-subnav-activa" : "")}")"
-                                   aria-current="@(activa ? "page" : null)">
-                                    @* La abreviatura es decoración: sin aria-hidden el
-                                       nombre accesible sería «US Usuarios …». *@
-                                    <span class="icono-entrada-subnav" aria-hidden="true">@entrada.Icono</span>
-                                    <span class="texto-entrada-subnav">
-                                        <span class="nombre-entrada-subnav">@entrada.Nombre</span>
-                                        <span class="descripcion-entrada-subnav">@entrada.Descripcion</span>
-                                    </span>
-                                </a>
-                            </li>
-                        }
-                    </ul>
-                </div>
-            }
-        </nav>
+        <p class="titulo-subnav-configuracion">@Textos["HubTitulo"]</p>
+        @for (var indice = 0; indice < Grupos.Count; indice++)
+        {
+            var grupo = Grupos[indice];
+            var idTitulo = $"configuracion-grupo-{indice}";
+            <div class="grupo-subnav">
+                <span class="titulo-grupo-subnav" id="@idTitulo">@grupo.Titulo</span>
+                <ul class="lista-subnav" aria-labelledby="@idTitulo">
+                    @foreach (var entrada in grupo.Entradas)
+                    {
+                        var activa = entrada.Id == actual.Id;
+                        <li>
+                            <a href="@RutaDe(entrada)"
+                               class="@($"entrada-subnav {(activa ? "entrada-subnav-activa" : "")}")"
+                               aria-current="@(activa ? "page" : null)">
+                                <span class="nombre-entrada-subnav">@entrada.Nombre</span>
+                                <span class="descripcion-entrada-subnav">@entrada.Descripcion</span>
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+    </nav>
 
+    <div class="hub-configuracion">
         <div class="contenido-configuracion">
             <p class="migas-configuracion">
                 @Textos["HubTitulo"] <span class="separador-migas" aria-hidden="true">→</span>

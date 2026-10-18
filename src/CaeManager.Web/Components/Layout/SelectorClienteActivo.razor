@@ -41,7 +41,7 @@
         </form>
         <button type="button" class="selector-tenant-disparador @(_abierto ? "selector-tenant-disparador-abierto" : null)"
                 aria-haspopup="listbox" aria-expanded="@(_abierto ? "true" : "false")"
-                aria-label="@Textos["SelectorTenantEtiqueta"]: @_activo.Nombre"
+                aria-label="@Textos["SelectorTenantEtiqueta"]: @_activo.Nombre" title="@_activo.Nombre"
                 data-tenant-id="@_activo.TenantId" @onclick="Alternar">
             <AvatarTenant Nombre="@_activo.Nombre" LogoUrl="@UrlLogo(_activo)" Tamano="TamanoAvatarTenant.Pequeno" />
             <span class="selector-tenant-texto">
@@ -57,7 +57,17 @@
         {
             <button type="button" class="selector-tenant-velo" tabindex="-1" aria-hidden="true" @onclick="Cerrar"></button>
             <div class="selector-tenant-panel">
-                <div class="selector-tenant-cabecera">@Textos["SelectorTenantCartera", Empresas(_totalCartera)]</div>
+                @* Marco de Design (marco-talveg.js, DDL-083): título de la cartera y, al lado, «+ Solicitar», que lleva al flujo
+                   existente de solicitud de incorporación a la cartera (/cartera/solicitudes); solo se ofrece a quien participa
+                   en él (ParticipaEnIncorporacionCarteraQuery), el mismo criterio que la página, que a los demás les niega el acceso. *@
+                <div class="selector-tenant-cabecera">
+                    <h6 class="selector-tenant-cabecera-titulo">@Textos["SelectorTenantCartera", Empresas(_totalCartera)]</h6>
+                    @if (_puedeSolicitar)
+                    {
+                        <a class="selector-tenant-solicitar" href="/cartera/solicitudes"
+                           title="@Textos["SelectorTenantSolicitarTitulo"]">@Textos["SelectorTenantSolicitar"]</a>
+                    }
+                </div>
 
                 @if (_totalCartera >= UmbralBusqueda)
                 {
@@ -78,7 +88,7 @@
                        el resto de la cartera. Mientras se busca, la búsqueda ve la cartera entera y plana. *@
                     @if (Fijadas.Count > 0)
                     {
-                        <div class="selector-tenant-grupo" id="selector-tenant-fijadas">@Textos["SelectorTenantFijadas"]</div>
+                        <h6 class="selector-tenant-grupo" id="selector-tenant-fijadas">@Textos["SelectorTenantFijadas"]</h6>
                         <div role="listbox" aria-labelledby="selector-tenant-fijadas" aria-orientation="vertical" class="selector-tenant-lista">
                             @for (var i = 0; i < Fijadas.Count; i++)
                             {
@@ -89,7 +99,7 @@
 
                     @if (Recientes.Count > 0)
                     {
-                        <div class="selector-tenant-grupo" id="selector-tenant-recientes">@Textos["SelectorTenantRecientes"]</div>
+                        <h6 class="selector-tenant-grupo" id="selector-tenant-recientes">@Textos["SelectorTenantRecientes"]</h6>
                         <div role="listbox" aria-labelledby="selector-tenant-recientes" aria-orientation="vertical" class="selector-tenant-lista">
                             @foreach (var reciente in Recientes)
                             {
@@ -98,20 +108,28 @@
                         </div>
                     }
 
-                    @if (HayGruposArriba)
+                    @* Como en el marco de Design, la lista principal siempre lleva cabecera: «Resto de la cartera» si hay
+                       fijadas (o recientes) encima y «Recientes» si no las hay. Mientras se busca no hay cabecera: la búsqueda
+                       ve la cartera entera y plana. *@
+                    @* Si todas las empresas ya están en Fijadas o Recientes la lista principal queda vacía: sin cabecera ni lista
+                       y sin «Sin resultados», que solo tiene sentido al buscar. *@
+                    @if (Buscando || Filtrados.Any())
                     {
-                        <div class="selector-tenant-grupo" id="selector-tenant-resto">@Textos["SelectorTenantResto"]</div>
-                    }
-                    <div role="listbox" aria-orientation="vertical" class="selector-tenant-lista"
-                         aria-label="@(HayGruposArriba ? null : Textos["SelectorTenantLista"].Value)"
-                         aria-labelledby="@(HayGruposArriba ? "selector-tenant-resto" : null)">
-                        @foreach (var cliente in Filtrados)
+                        @if (!Buscando)
                         {
-                            @Opcion(cliente, false)
+                            <h6 class="selector-tenant-grupo" id="selector-tenant-resto">@(HayGruposArriba ? Textos["SelectorTenantResto"] : Textos["SelectorTenantRecientes"])</h6>
                         }
-                    </div>
+                        <div role="listbox" aria-orientation="vertical" class="selector-tenant-lista"
+                             aria-label="@(Buscando ? Textos["SelectorTenantLista"].Value : null)"
+                             aria-labelledby="@(Buscando ? null : "selector-tenant-resto")">
+                            @foreach (var cliente in Filtrados)
+                            {
+                                @Opcion(cliente, false)
+                            }
+                        </div>
+                    }
 
-                    @if (!Filtrados.Any())
+                    @if (Buscando && !Filtrados.Any())
                     {
                         <p class="selector-tenant-vacio" role="status">@Textos["SelectorTenantSinResultados"]</p>
                     }
