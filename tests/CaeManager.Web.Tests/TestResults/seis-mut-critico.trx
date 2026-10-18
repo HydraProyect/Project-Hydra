@@ -1,0 +1,219 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="08a50af3-1db3-49af-9e8e-d6ad0785183d" name="chris@CHRIS 2026-10-13 09:52:53" runUser="CHRIS\chris" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-13T09:52:53.5989357+02:00" queuing="2026-10-13T09:52:53.5989361+02:00" start="2026-10-13T09:52:51.7492836+02:00" finish="2026-10-13T09:52:54.7143461+02:00" />
+  <TestSettings name="default" id="6d71b444-91e6-4274-ab77-a72dc6c07ccd">
+    <Deployment runDeploymentRoot="chris_CHRIS_2026-10-13_09_52_53" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="97020ff3-d93e-4163-acdb-9fb39d3a6d62" testId="f43b730b-6df6-3fb6-56c9-bc529a491cf1" testName="CaeManager.Web.Tests.TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True, esSubcontrata: True)" computerName="CHRIS" duration="00:00:00.0098171" startTime="2026-10-13T09:52:53.5930061+02:00" endTime="2026-10-13T09:52:53.6027698+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="97020ff3-d93e-4163-acdb-9fb39d3a6d62" />
+    <UnitTestResult executionId="6d46fd7d-df8f-4d2a-975c-ffd8e40c3bd4" testId="8c6333af-5491-f910-cae0-4615d3fb71d2" testName="CaeManager.Web.Tests.TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True, esSubcontrata: False)" computerName="CHRIS" duration="00:00:00.5627544" startTime="2026-10-13T09:52:52.9881661+02:00" endTime="2026-10-13T09:52:53.5594651+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6d46fd7d-df8f-4d2a-975c-ffd8e40c3bd4" />
+    <UnitTestResult executionId="c29292a3-9e34-4491-9c3b-65c0d0318a2b" testId="c4bcff09-5222-933a-da8a-0cebef0013f9" testName="CaeManager.Web.Tests.EmpresasListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" computerName="CHRIS" duration="00:00:00.0094487" startTime="2026-10-13T09:52:53.5859929+02:00" endTime="2026-10-13T09:52:53.5861614+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c29292a3-9e34-4491-9c3b-65c0d0318a2b" />
+    <UnitTestResult executionId="0811ac04-b7b3-451b-9a5c-cace6e352d1b" testId="8a42bf45-3ff6-8a9c-d3a5-84bd78196dfa" testName="CaeManager.Web.Tests.DocumentosGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" computerName="CHRIS" duration="00:00:00.5600288" startTime="2026-10-13T09:52:52.9881859+02:00" endTime="2026-10-13T09:52:53.5594479+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0811ac04-b7b3-451b-9a5c-cace6e352d1b" />
+    <UnitTestResult executionId="922c34e5-2c9a-46a3-a6ed-e2937d11d9f3" testId="422bf094-03ea-2f6e-4de7-dd021fc8894f" testName="CaeManager.Web.Tests.SubcontratasListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" computerName="CHRIS" duration="00:00:00.0093722" startTime="2026-10-13T09:52:53.6160285+02:00" endTime="2026-10-13T09:52:53.6253462+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="922c34e5-2c9a-46a3-a6ed-e2937d11d9f3" />
+    <UnitTestResult executionId="bea581f0-419a-498c-8892-bb475f010985" testId="85cc234f-c8ef-7400-0a2b-e5e0feda37f1" testName="CaeManager.Web.Tests.ClientesListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" computerName="CHRIS" duration="00:00:01.0714638" startTime="2026-10-13T09:52:53.5859433+02:00" endTime="2026-10-13T09:52:54.6298601+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="bea581f0-419a-498c-8892-bb475f010985">
+      <Output>
+        <ErrorInfo>
+          <Message>Bunit.Extensions.WaitForHelpers.WaitForFailedException : The assertion did not pass within the timeout period.
+
+If this test does not fail consistently, the reason may be that
+the wait timeout is too short, and the runtime did not have enough
+time to complete the necessary number of renders of the component under test.
+This can happen on highly utilized or slower hardware, for example.
+
+To determine if this is the cause, compare the check and render count(s) below
+and see if they match what is expected. If they do not,
+consider increasing the timeout, either at the individual
+method call level, e.g. WaitForElement("div", TimeSpan.FromSeconds(15)),
+or via the static TestContext.DefaultWaitTimeout property.
+
+Check count: 1.
+Component render count: 3.
+Total render count across all components: 0.&#xD;
+---- Expected criterios.Keys to be a collection with 6 item(s) because el endpoint recibe exactamente los criterios activos, sin paginación, but {"q", "ejecutivo", "estado", "orden", "desc"}&#xD;
+contains 1 item(s) less than&#xD;
+{"q", "critico", "ejecutivo", "estado", "orden", "desc"}.&#xD;
+
+With configuration:
+- Use declared types and members&#xD;
+- Compare enums by value&#xD;
+- Compare tuples by their properties&#xD;
+- Compare anonymous types by their properties&#xD;
+- Compare records by their members&#xD;
+- Include non-browsable members&#xD;
+- Include all non-private properties&#xD;
+- Include all non-private fields&#xD;
+- Match member by name (or throw)&#xD;
+- Be strict about the order of items in byte arrays&#xD;
+- Without automatic conversion.&#xD;
+</Message>
+          <StackTrace>   at Bunit.RenderedComponentWaitForHelperExtensions.WaitForAssertion[TComponent](IRenderedComponent`1 renderedComponent, Action assertion, Nullable`1 timeout) in /_/src/bunit/Extensions/WaitForHelpers/RenderedComponentWaitForHelperExtensions.WaitForState.cs:line 102&#xD;
+   at CaeManager.Web.Tests.ComprobacionIconoExportar.Criterios[T](IRenderedComponent`1 cut, String ruta, Type endpoint, IReadOnlyDictionary`2 esperados) in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs:line 14&#xD;
+   at CaeManager.Web.Tests.ClientesListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(Boolean activos) in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs:line 236&#xD;
+   at InvokeStub_ClientesListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(Object, Span`1)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeWithOneArg(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)&#xD;
+----- Inner Stack Trace -----&#xD;
+   at FluentAssertions.Execution.LateBoundTestFramework.Throw(String message)&#xD;
+   at FluentAssertions.Execution.TestFrameworkProvider.Throw(String message)&#xD;
+   at FluentAssertions.Execution.CollectingAssertionStrategy.ThrowIfAny(IDictionary`2 context)&#xD;
+   at FluentAssertions.Execution.AssertionScope.Dispose()&#xD;
+   at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+   at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+   at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, Func`2 config, String because, Object[] becauseArgs)&#xD;
+   at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, String because, Object[] becauseArgs)&#xD;
+   at CaeManager.Web.Tests.ComprobacionIconoExportar.&lt;&gt;c__DisplayClass0_0`1.&lt;Criterios&gt;b__0() in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs:line 20&#xD;
+   at Bunit.Extensions.WaitForHelpers.WaitForAssertionHelper`1.&lt;&gt;c__DisplayClass6_0.&lt;.ctor&gt;b__0() in /_/src/bunit/Extensions/WaitForHelpers/WaitForAssertionHelper.cs:line 35&#xD;
+   at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.&lt;&gt;c__DisplayClass32_0.&lt;WrapSynchronousChecker&gt;b__0() in /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs:line 297&#xD;
+   at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.RunCheckAsync() in /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs:line 226</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="83234333-018a-4791-988f-0375a1a400f4" testId="77a1ee55-b366-1123-ebbd-3940582828d6" testName="CaeManager.Web.Tests.SubcontratasListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" computerName="CHRIS" duration="00:00:00.6259780" startTime="2026-10-13T09:52:52.9882175+02:00" endTime="2026-10-13T09:52:53.6158884+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="83234333-018a-4791-988f-0375a1a400f4" />
+    <UnitTestResult executionId="16b31b4f-df89-4535-a10a-6e5949bb271b" testId="9ef792d1-ec49-d502-7830-071def270dbc" testName="CaeManager.Web.Tests.EmpresasListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" computerName="CHRIS" duration="00:00:00.5627048" startTime="2026-10-13T09:52:52.9881282+02:00" endTime="2026-10-13T09:52:53.5552229+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="16b31b4f-df89-4535-a10a-6e5949bb271b" />
+    <UnitTestResult executionId="fcf08f0c-ee6c-4039-aa69-adbd13335c65" testId="02d3a169-3137-3eb0-7953-47d0ecc38a96" testName="CaeManager.Web.Tests.ClientesListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" computerName="CHRIS" duration="00:00:00.5600522" startTime="2026-10-13T09:52:52.9867713+02:00" endTime="2026-10-13T09:52:53.5593225+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="fcf08f0c-ee6c-4039-aa69-adbd13335c65" />
+    <UnitTestResult executionId="2384d53b-bd87-44aa-b8e4-36500349088f" testId="316c8431-520d-693c-29ba-814bd09c8cc6" testName="CaeManager.Web.Tests.DocumentosGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" computerName="CHRIS" duration="00:00:00.0312962" startTime="2026-10-13T09:52:53.5860067+02:00" endTime="2026-10-13T09:52:53.5894431+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2384d53b-bd87-44aa-b8e4-36500349088f" />
+    <UnitTestResult executionId="79839a9c-2ac9-4f74-b92d-130f8ebc44d0" testId="16f68e86-78de-aad6-3ebe-f213f8b6c372" testName="CaeManager.Web.Tests.CentrosListaPatronTests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" computerName="CHRIS" duration="00:00:00.0113057" startTime="2026-10-13T09:52:53.5859767+02:00" endTime="2026-10-13T09:52:53.5884293+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="79839a9c-2ac9-4f74-b92d-130f8ebc44d0" />
+    <UnitTestResult executionId="269b13a6-1ae1-401c-9499-453ad8974506" testId="10e42900-f9d2-c2e2-4af2-a3df3d6b8c66" testName="CaeManager.Web.Tests.TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False, esSubcontrata: False)" computerName="CHRIS" duration="00:00:00.0374274" startTime="2026-10-13T09:52:53.5860224+02:00" endTime="2026-10-13T09:52:53.5928716+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="269b13a6-1ae1-401c-9499-453ad8974506" />
+    <UnitTestResult executionId="3272ad78-8197-427c-92e2-6c9f2d4aa69d" testId="a51a012d-5ee5-7859-f8a3-866331e670ff" testName="CaeManager.Web.Tests.CentrosListaPatronTests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" computerName="CHRIS" duration="00:00:00.5627003" startTime="2026-10-13T09:52:52.9882019+02:00" endTime="2026-10-13T09:52:53.5594251+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3272ad78-8197-427c-92e2-6c9f2d4aa69d" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="CaeManager.Web.Tests.ClientesListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="02d3a169-3137-3eb0-7953-47d0ecc38a96">
+      <Execution id="fcf08f0c-ee6c-4039-aa69-adbd13335c65" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.ClientesListaGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.SubcontratasListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="77a1ee55-b366-1123-ebbd-3940582828d6">
+      <Execution id="83234333-018a-4791-988f-0375a1a400f4" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.SubcontratasListaGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False, esSubcontrata: False)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="10e42900-f9d2-c2e2-4af2-a3df3d6b8c66">
+      <Execution id="269b13a6-1ae1-401c-9499-453ad8974506" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.TrabajadoresListaGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.EmpresasListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="9ef792d1-ec49-d502-7830-071def270dbc">
+      <Execution id="16b31b4f-df89-4535-a10a-6e5949bb271b" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.EmpresasListaGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.CentrosListaPatronTests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="16f68e86-78de-aad6-3ebe-f213f8b6c372">
+      <Execution id="79839a9c-2ac9-4f74-b92d-130f8ebc44d0" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.CentrosListaPatronTests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True, esSubcontrata: False)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="8c6333af-5491-f910-cae0-4615d3fb71d2">
+      <Execution id="6d46fd7d-df8f-4d2a-975c-ffd8e40c3bd4" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.TrabajadoresListaGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.DocumentosGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="316c8431-520d-693c-29ba-814bd09c8cc6">
+      <Execution id="2384d53b-bd87-44aa-b8e4-36500349088f" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.DocumentosGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.ClientesListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="85cc234f-c8ef-7400-0a2b-e5e0feda37f1">
+      <Execution id="bea581f0-419a-498c-8892-bb475f010985" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.ClientesListaGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.EmpresasListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="c4bcff09-5222-933a-da8a-0cebef0013f9">
+      <Execution id="c29292a3-9e34-4491-9c3b-65c0d0318a2b" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.EmpresasListaGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.CentrosListaPatronTests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="a51a012d-5ee5-7859-f8a3-866331e670ff">
+      <Execution id="3272ad78-8197-427c-92e2-6c9f2d4aa69d" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.CentrosListaPatronTests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.DocumentosGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="8a42bf45-3ff6-8a9c-d3a5-84bd78196dfa">
+      <Execution id="0811ac04-b7b3-451b-9a5c-cace6e352d1b" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.DocumentosGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.SubcontratasListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="422bf094-03ea-2f6e-4de7-dd021fc8894f">
+      <Execution id="922c34e5-2c9a-46a3-a6ed-e2937d11d9f3" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.SubcontratasListaGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True, esSubcontrata: True)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="f43b730b-6df6-3fb6-56c9-bc529a491cf1">
+      <Execution id="97020ff3-d93e-4163-acdb-9fb39d3a6d62" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.TrabajadoresListaGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="f43b730b-6df6-3fb6-56c9-bc529a491cf1" executionId="97020ff3-d93e-4163-acdb-9fb39d3a6d62" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8c6333af-5491-f910-cae0-4615d3fb71d2" executionId="6d46fd7d-df8f-4d2a-975c-ffd8e40c3bd4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c4bcff09-5222-933a-da8a-0cebef0013f9" executionId="c29292a3-9e34-4491-9c3b-65c0d0318a2b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8a42bf45-3ff6-8a9c-d3a5-84bd78196dfa" executionId="0811ac04-b7b3-451b-9a5c-cace6e352d1b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="422bf094-03ea-2f6e-4de7-dd021fc8894f" executionId="922c34e5-2c9a-46a3-a6ed-e2937d11d9f3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="85cc234f-c8ef-7400-0a2b-e5e0feda37f1" executionId="bea581f0-419a-498c-8892-bb475f010985" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="77a1ee55-b366-1123-ebbd-3940582828d6" executionId="83234333-018a-4791-988f-0375a1a400f4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9ef792d1-ec49-d502-7830-071def270dbc" executionId="16b31b4f-df89-4535-a10a-6e5949bb271b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="02d3a169-3137-3eb0-7953-47d0ecc38a96" executionId="fcf08f0c-ee6c-4039-aa69-adbd13335c65" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="316c8431-520d-693c-29ba-814bd09c8cc6" executionId="2384d53b-bd87-44aa-b8e4-36500349088f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="16f68e86-78de-aad6-3ebe-f213f8b6c372" executionId="79839a9c-2ac9-4f74-b92d-130f8ebc44d0" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="10e42900-f9d2-c2e2-4af2-a3df3d6b8c66" executionId="269b13a6-1ae1-401c-9499-453ad8974506" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a51a012d-5ee5-7859-f8a3-866331e670ff" executionId="3272ad78-8197-427c-92e2-6c9f2d4aa69d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Resultados sin formato de lista" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="Todos los resultados cargados" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="13" executed="13" passed="12" failed="1" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.5+1b188a7b0a (64-bit .NET 10.0.10)&#xD;
+[xUnit.net 00:00:00.26]   Discovering: CaeManager.Web.Tests&#xD;
+[xUnit.net 00:00:00.85]   Discovered:  CaeManager.Web.Tests&#xD;
+[xUnit.net 00:00:00.88]   Starting:    CaeManager.Web.Tests&#xD;
+[xUnit.net 00:00:02.55]       Bunit.Extensions.WaitForHelpers.WaitForFailedException : The assertion did not pass within the timeout period.
+
+If this test does not fail consistently, the reason may be that
+the wait timeout is too short, and the runtime did not have enough
+time to complete the necessary number of renders of the component under test.
+This can happen on highly utilized or slower hardware, for example.
+
+To determine if this is the cause, compare the check and render count(s) below
+and see if they match what is expected. If they do not,
+consider increasing the timeout, either at the individual
+method call level, e.g. WaitForElement("div", TimeSpan.FromSeconds(15)),
+or via the static TestContext.DefaultWaitTimeout property.
+
+Check count: 1.
+Component render count: 3.
+Total render count across all components: 0.&#xD;
+[xUnit.net 00:00:02.55]       ---- Expected criterios.Keys to be a collection with 6 item(s) because el endpoint recibe exactamente los criterios activos, sin paginación, but {"q", "ejecutivo", "estado", "orden", "desc"}&#xD;
+[xUnit.net 00:00:02.55]       contains 1 item(s) less than&#xD;
+[xUnit.net 00:00:02.55]       {"q", "critico", "ejecutivo", "estado", "orden", "desc"}.&#xD;
+[xUnit.net 00:00:02.55]       
+With configuration:
+- Use declared types and members&#xD;
+[xUnit.net 00:00:02.55]       - Compare enums by value&#xD;
+[xUnit.net 00:00:02.55]       - Compare tuples by their properties&#xD;
+[xUnit.net 00:00:02.55]       - Compare anonymous types by their properties&#xD;
+[xUnit.net 00:00:02.55]       - Compare records by their members&#xD;
+[xUnit.net 00:00:02.55]       - Include non-browsable members&#xD;
+[xUnit.net 00:00:02.55]       - Include all non-private properties&#xD;
+[xUnit.net 00:00:02.55]       - Include all non-private fields&#xD;
+[xUnit.net 00:00:02.55]       - Match member by name (or throw)&#xD;
+[xUnit.net 00:00:02.55]       - Be strict about the order of items in byte arrays&#xD;
+[xUnit.net 00:00:02.55]       - Without automatic conversion.&#xD;
+[xUnit.net 00:00:02.55]       &#xD;
+[xUnit.net 00:00:02.55]       Stack Trace:&#xD;
+[xUnit.net 00:00:02.55]         /_/src/bunit/Extensions/WaitForHelpers/RenderedComponentWaitForHelperExtensions.WaitForState.cs(102,0): at Bunit.RenderedComponentWaitForHelperExtensions.WaitForAssertion[TComponent](IRenderedComponent`1 renderedComponent, Action assertion, Nullable`1 timeout)&#xD;
+[xUnit.net 00:00:02.55]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs(14,0): at CaeManager.Web.Tests.ComprobacionIconoExportar.Criterios[T](IRenderedComponent`1 cut, String ruta, Type endpoint, IReadOnlyDictionary`2 esperados)&#xD;
+[xUnit.net 00:00:02.55]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs(236,0): at CaeManager.Web.Tests.ClientesListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(Boolean activos)&#xD;
+[xUnit.net 00:00:02.55]            at InvokeStub_ClientesListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(Object, Span`1)&#xD;
+[xUnit.net 00:00:02.55]            at System.Reflection.MethodBaseInvoker.InvokeWithOneArg(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)&#xD;
+[xUnit.net 00:00:02.55]         ----- Inner Stack Trace -----&#xD;
+[xUnit.net 00:00:02.55]            at FluentAssertions.Execution.LateBoundTestFramework.Throw(String message)&#xD;
+[xUnit.net 00:00:02.55]            at FluentAssertions.Execution.TestFrameworkProvider.Throw(String message)&#xD;
+[xUnit.net 00:00:02.55]            at FluentAssertions.Execution.CollectingAssertionStrategy.ThrowIfAny(IDictionary`2 context)&#xD;
+[xUnit.net 00:00:02.55]            at FluentAssertions.Execution.AssertionScope.Dispose()&#xD;
+[xUnit.net 00:00:02.55]            at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+[xUnit.net 00:00:02.55]            at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+[xUnit.net 00:00:02.55]            at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, Func`2 config, String because, Object[] becauseArgs)&#xD;
+[xUnit.net 00:00:02.55]            at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, String because, Object[] becauseArgs)&#xD;
+[xUnit.net 00:00:02.55]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs(20,0): at CaeManager.Web.Tests.ComprobacionIconoExportar.&lt;&gt;c__DisplayClass0_0`1.&lt;Criterios&gt;b__0()&#xD;
+[xUnit.net 00:00:02.55]         /_/src/bunit/Extensions/WaitForHelpers/WaitForAssertionHelper.cs(35,0): at Bunit.Extensions.WaitForHelpers.WaitForAssertionHelper`1.&lt;&gt;c__DisplayClass6_0.&lt;.ctor&gt;b__0()&#xD;
+[xUnit.net 00:00:02.55]         /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs(297,0): at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.&lt;&gt;c__DisplayClass32_0.&lt;WrapSynchronousChecker&gt;b__0()&#xD;
+[xUnit.net 00:00:02.55]         /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs(226,0): at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.RunCheckAsync()&#xD;
+[xUnit.net 00:00:02.55]   Finished:    CaeManager.Web.Tests&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="CHRIS" outcome="Error" timestamp="2026-10-13T09:52:54.6324428+02:00">
+        <Text>[xUnit.net 00:00:02.55]     CaeManager.Web.Tests.ClientesListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True) [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

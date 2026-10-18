@@ -1,0 +1,663 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="2c47eb1d-437e-4c8f-a4e9-95a313923253" name="chris@CHRIS 2026-10-13 09:52:34" runUser="CHRIS\chris" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-13T09:52:34.7571491+02:00" queuing="2026-10-13T09:52:34.7571495+02:00" start="2026-10-13T09:52:31.8319539+02:00" finish="2026-10-13T09:52:35.8557461+02:00" />
+  <TestSettings name="default" id="f77ed76c-89d4-4bc2-9512-37b72b9202f9">
+    <Deployment runDeploymentRoot="chris_CHRIS_2026-10-13_09_52_34" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="0bd7eb30-a11d-4d20-a768-b3967d487ee7" testId="422bf094-03ea-2f6e-4de7-dd021fc8894f" testName="CaeManager.Web.Tests.SubcontratasListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" computerName="CHRIS" duration="00:00:00.0248779" startTime="2026-10-13T09:52:33.6845913+02:00" endTime="2026-10-13T09:52:33.7094856+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0bd7eb30-a11d-4d20-a768-b3967d487ee7" />
+    <UnitTestResult executionId="89bb86c3-0afa-4d53-80df-7cfa31177e51" testId="10e42900-f9d2-c2e2-4af2-a3df3d6b8c66" testName="CaeManager.Web.Tests.TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False, esSubcontrata: False)" computerName="CHRIS" duration="00:00:00.0296887" startTime="2026-10-13T09:52:34.7332400+02:00" endTime="2026-10-13T09:52:34.7473471+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="89bb86c3-0afa-4d53-80df-7cfa31177e51" />
+    <UnitTestResult executionId="07904a35-8955-49cd-8b04-1833850c93eb" testId="16f68e86-78de-aad6-3ebe-f213f8b6c372" testName="CaeManager.Web.Tests.CentrosListaPatronTests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" computerName="CHRIS" duration="00:00:00.0153551" startTime="2026-10-13T09:52:34.7332908+02:00" endTime="2026-10-13T09:52:34.7334512+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="07904a35-8955-49cd-8b04-1833850c93eb" />
+    <UnitTestResult executionId="beacccec-4fd7-4b36-a35a-c7985e175330" testId="a51a012d-5ee5-7859-f8a3-866331e670ff" testName="CaeManager.Web.Tests.CentrosListaPatronTests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" computerName="CHRIS" duration="00:00:01.6313486" startTime="2026-10-13T09:52:33.0826483+02:00" endTime="2026-10-13T09:52:34.7261418+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="beacccec-4fd7-4b36-a35a-c7985e175330">
+      <Output>
+        <ErrorInfo>
+          <Message>Bunit.Extensions.WaitForHelpers.WaitForFailedException : The assertion did not pass within the timeout period.
+
+If this test does not fail consistently, the reason may be that
+the wait timeout is too short, and the runtime did not have enough
+time to complete the necessary number of renders of the component under test.
+This can happen on highly utilized or slower hardware, for example.
+
+To determine if this is the cause, compare the check and render count(s) below
+and see if they match what is expected. If they do not,
+consider increasing the timeout, either at the individual
+method call level, e.g. WaitForElement("div", TimeSpan.FromSeconds(15)),
+or via the static TestContext.DefaultWaitTimeout property.
+
+Check count: 1.
+Component render count: 2.
+Total render count across all components: 0.&#xD;
+---- Expected criterios.Keys to be a collection with 7 item(s) because el endpoint recibe exactamente los criterios activos, sin paginación, but {"q", "estado", "cliente", "empresa", "centro", "orden"}&#xD;
+contains 1 item(s) less than&#xD;
+{"q", "estado", "cliente", "empresa", "centro", "orden", "desc"}.&#xD;
+
+With configuration:
+- Use declared types and members&#xD;
+- Compare enums by value&#xD;
+- Compare tuples by their properties&#xD;
+- Compare anonymous types by their properties&#xD;
+- Compare records by their members&#xD;
+- Include non-browsable members&#xD;
+- Include all non-private properties&#xD;
+- Include all non-private fields&#xD;
+- Match member by name (or throw)&#xD;
+- Be strict about the order of items in byte arrays&#xD;
+- Without automatic conversion.&#xD;
+</Message>
+          <StackTrace>   at Bunit.RenderedComponentWaitForHelperExtensions.WaitForAssertion[TComponent](IRenderedComponent`1 renderedComponent, Action assertion, Nullable`1 timeout) in /_/src/bunit/Extensions/WaitForHelpers/RenderedComponentWaitForHelperExtensions.WaitForState.cs:line 102&#xD;
+   at CaeManager.Web.Tests.ComprobacionIconoExportar.Criterios[T](IRenderedComponent`1 cut, String ruta, Type endpoint, IReadOnlyDictionary`2 esperados) in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs:line 14&#xD;
+   at CaeManager.Web.Tests.CentrosListaPatronTests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(Boolean activos) in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs:line 282&#xD;
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)&#xD;
+----- Inner Stack Trace -----&#xD;
+   at FluentAssertions.Execution.LateBoundTestFramework.Throw(String message)&#xD;
+   at FluentAssertions.Execution.TestFrameworkProvider.Throw(String message)&#xD;
+   at FluentAssertions.Execution.CollectingAssertionStrategy.ThrowIfAny(IDictionary`2 context)&#xD;
+   at FluentAssertions.Execution.AssertionScope.Dispose()&#xD;
+   at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+   at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+   at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, Func`2 config, String because, Object[] becauseArgs)&#xD;
+   at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, String because, Object[] becauseArgs)&#xD;
+   at CaeManager.Web.Tests.ComprobacionIconoExportar.&lt;&gt;c__DisplayClass0_0`1.&lt;Criterios&gt;b__0() in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs:line 20&#xD;
+   at Bunit.Extensions.WaitForHelpers.WaitForAssertionHelper`1.&lt;&gt;c__DisplayClass6_0.&lt;.ctor&gt;b__0() in /_/src/bunit/Extensions/WaitForHelpers/WaitForAssertionHelper.cs:line 35&#xD;
+   at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.&lt;&gt;c__DisplayClass32_0.&lt;WrapSynchronousChecker&gt;b__0() in /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs:line 297&#xD;
+   at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.RunCheckAsync() in /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs:line 226</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="5952ae3c-4942-44cf-a902-f41a0213627e" testId="c4bcff09-5222-933a-da8a-0cebef0013f9" testName="CaeManager.Web.Tests.EmpresasListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" computerName="CHRIS" duration="00:00:00.0093632" startTime="2026-10-13T09:52:33.6570187+02:00" endTime="2026-10-13T09:52:33.6571206+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5952ae3c-4942-44cf-a902-f41a0213627e" />
+    <UnitTestResult executionId="e0136eb6-a5bb-40cb-ad7d-ca8524903cb3" testId="8c6333af-5491-f910-cae0-4615d3fb71d2" testName="CaeManager.Web.Tests.TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True, esSubcontrata: False)" computerName="CHRIS" duration="00:00:01.6313629" startTime="2026-10-13T09:52:33.0826065+02:00" endTime="2026-10-13T09:52:34.7246469+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e0136eb6-a5bb-40cb-ad7d-ca8524903cb3">
+      <Output>
+        <ErrorInfo>
+          <Message>Bunit.Extensions.WaitForHelpers.WaitForFailedException : The assertion did not pass within the timeout period.
+
+If this test does not fail consistently, the reason may be that
+the wait timeout is too short, and the runtime did not have enough
+time to complete the necessary number of renders of the component under test.
+This can happen on highly utilized or slower hardware, for example.
+
+To determine if this is the cause, compare the check and render count(s) below
+and see if they match what is expected. If they do not,
+consider increasing the timeout, either at the individual
+method call level, e.g. WaitForElement("div", TimeSpan.FromSeconds(15)),
+or via the static TestContext.DefaultWaitTimeout property.
+
+Check count: 1.
+Component render count: 3.
+Total render count across all components: 0.&#xD;
+---- Expected criterios.Keys to be a collection with 6 item(s) because el endpoint recibe exactamente los criterios activos, sin paginación, but {"q", "estado", "empresa", "centro", "orden"}&#xD;
+contains 1 item(s) less than&#xD;
+{"q", "estado", "empresa", "centro", "orden", "desc"}.&#xD;
+
+With configuration:
+- Use declared types and members&#xD;
+- Compare enums by value&#xD;
+- Compare tuples by their properties&#xD;
+- Compare anonymous types by their properties&#xD;
+- Compare records by their members&#xD;
+- Include non-browsable members&#xD;
+- Include all non-private properties&#xD;
+- Include all non-private fields&#xD;
+- Match member by name (or throw)&#xD;
+- Be strict about the order of items in byte arrays&#xD;
+- Without automatic conversion.&#xD;
+</Message>
+          <StackTrace>   at Bunit.RenderedComponentWaitForHelperExtensions.WaitForAssertion[TComponent](IRenderedComponent`1 renderedComponent, Action assertion, Nullable`1 timeout) in /_/src/bunit/Extensions/WaitForHelpers/RenderedComponentWaitForHelperExtensions.WaitForState.cs:line 102&#xD;
+   at CaeManager.Web.Tests.ComprobacionIconoExportar.Criterios[T](IRenderedComponent`1 cut, String ruta, Type endpoint, IReadOnlyDictionary`2 esperados) in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs:line 14&#xD;
+   at CaeManager.Web.Tests.TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(Boolean activos, Boolean esSubcontrata) in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs:line 79&#xD;
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)&#xD;
+----- Inner Stack Trace -----&#xD;
+   at FluentAssertions.Execution.LateBoundTestFramework.Throw(String message)&#xD;
+   at FluentAssertions.Execution.TestFrameworkProvider.Throw(String message)&#xD;
+   at FluentAssertions.Execution.CollectingAssertionStrategy.ThrowIfAny(IDictionary`2 context)&#xD;
+   at FluentAssertions.Execution.AssertionScope.Dispose()&#xD;
+   at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+   at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+   at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, Func`2 config, String because, Object[] becauseArgs)&#xD;
+   at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, String because, Object[] becauseArgs)&#xD;
+   at CaeManager.Web.Tests.ComprobacionIconoExportar.&lt;&gt;c__DisplayClass0_0`1.&lt;Criterios&gt;b__0() in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs:line 20&#xD;
+   at Bunit.Extensions.WaitForHelpers.WaitForAssertionHelper`1.&lt;&gt;c__DisplayClass6_0.&lt;.ctor&gt;b__0() in /_/src/bunit/Extensions/WaitForHelpers/WaitForAssertionHelper.cs:line 35&#xD;
+   at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.&lt;&gt;c__DisplayClass32_0.&lt;WrapSynchronousChecker&gt;b__0() in /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs:line 297&#xD;
+   at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.RunCheckAsync() in /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs:line 226</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="c59fb9ef-ce0d-48bc-bab3-d0d93257980a" testId="02d3a169-3137-3eb0-7953-47d0ecc38a96" testName="CaeManager.Web.Tests.ClientesListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" computerName="CHRIS" duration="00:00:00.5581997" startTime="2026-10-13T09:52:33.0825590+02:00" endTime="2026-10-13T09:52:33.6502705+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c59fb9ef-ce0d-48bc-bab3-d0d93257980a" />
+    <UnitTestResult executionId="d53dfcbd-a90f-4351-bdc3-e81b6fe5fa47" testId="f43b730b-6df6-3fb6-56c9-bc529a491cf1" testName="CaeManager.Web.Tests.TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True, esSubcontrata: True)" computerName="CHRIS" duration="00:00:01.0251517" startTime="2026-10-13T09:52:34.7475922+02:00" endTime="2026-10-13T09:52:35.7729418+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d53dfcbd-a90f-4351-bdc3-e81b6fe5fa47">
+      <Output>
+        <ErrorInfo>
+          <Message>Bunit.Extensions.WaitForHelpers.WaitForFailedException : The assertion did not pass within the timeout period.
+
+If this test does not fail consistently, the reason may be that
+the wait timeout is too short, and the runtime did not have enough
+time to complete the necessary number of renders of the component under test.
+This can happen on highly utilized or slower hardware, for example.
+
+To determine if this is the cause, compare the check and render count(s) below
+and see if they match what is expected. If they do not,
+consider increasing the timeout, either at the individual
+method call level, e.g. WaitForElement("div", TimeSpan.FromSeconds(15)),
+or via the static TestContext.DefaultWaitTimeout property.
+
+Check count: 1.
+Component render count: 3.
+Total render count across all components: 0.&#xD;
+---- Expected criterios.Keys to be a collection with 6 item(s) because el endpoint recibe exactamente los criterios activos, sin paginación, but {"q", "estado", "subcontrata", "centro", "orden"}&#xD;
+contains 1 item(s) less than&#xD;
+{"q", "estado", "subcontrata", "centro", "orden", "desc"}.&#xD;
+
+With configuration:
+- Use declared types and members&#xD;
+- Compare enums by value&#xD;
+- Compare tuples by their properties&#xD;
+- Compare anonymous types by their properties&#xD;
+- Compare records by their members&#xD;
+- Include non-browsable members&#xD;
+- Include all non-private properties&#xD;
+- Include all non-private fields&#xD;
+- Match member by name (or throw)&#xD;
+- Be strict about the order of items in byte arrays&#xD;
+- Without automatic conversion.&#xD;
+</Message>
+          <StackTrace>   at Bunit.RenderedComponentWaitForHelperExtensions.WaitForAssertion[TComponent](IRenderedComponent`1 renderedComponent, Action assertion, Nullable`1 timeout) in /_/src/bunit/Extensions/WaitForHelpers/RenderedComponentWaitForHelperExtensions.WaitForState.cs:line 102&#xD;
+   at CaeManager.Web.Tests.ComprobacionIconoExportar.Criterios[T](IRenderedComponent`1 cut, String ruta, Type endpoint, IReadOnlyDictionary`2 esperados) in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs:line 14&#xD;
+   at CaeManager.Web.Tests.TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(Boolean activos, Boolean esSubcontrata) in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs:line 79&#xD;
+   at InvokeStub_TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(Object, Span`1)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeWithFewArgs(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)&#xD;
+----- Inner Stack Trace -----&#xD;
+   at FluentAssertions.Execution.LateBoundTestFramework.Throw(String message)&#xD;
+   at FluentAssertions.Execution.TestFrameworkProvider.Throw(String message)&#xD;
+   at FluentAssertions.Execution.CollectingAssertionStrategy.ThrowIfAny(IDictionary`2 context)&#xD;
+   at FluentAssertions.Execution.AssertionScope.Dispose()&#xD;
+   at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+   at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+   at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, Func`2 config, String because, Object[] becauseArgs)&#xD;
+   at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, String because, Object[] becauseArgs)&#xD;
+   at CaeManager.Web.Tests.ComprobacionIconoExportar.&lt;&gt;c__DisplayClass0_0`1.&lt;Criterios&gt;b__0() in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs:line 20&#xD;
+   at Bunit.Extensions.WaitForHelpers.WaitForAssertionHelper`1.&lt;&gt;c__DisplayClass6_0.&lt;.ctor&gt;b__0() in /_/src/bunit/Extensions/WaitForHelpers/WaitForAssertionHelper.cs:line 35&#xD;
+   at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.&lt;&gt;c__DisplayClass32_0.&lt;WrapSynchronousChecker&gt;b__0() in /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs:line 297&#xD;
+   at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.RunCheckAsync() in /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs:line 226</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="6fb4fb56-c0cd-4026-b11d-bf1d76ded4d6" testId="85cc234f-c8ef-7400-0a2b-e5e0feda37f1" testName="CaeManager.Web.Tests.ClientesListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" computerName="CHRIS" duration="00:00:01.0681263" startTime="2026-10-13T09:52:33.6570396+02:00" endTime="2026-10-13T09:52:34.7182101+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6fb4fb56-c0cd-4026-b11d-bf1d76ded4d6">
+      <Output>
+        <ErrorInfo>
+          <Message>Bunit.Extensions.WaitForHelpers.WaitForFailedException : The assertion did not pass within the timeout period.
+
+If this test does not fail consistently, the reason may be that
+the wait timeout is too short, and the runtime did not have enough
+time to complete the necessary number of renders of the component under test.
+This can happen on highly utilized or slower hardware, for example.
+
+To determine if this is the cause, compare the check and render count(s) below
+and see if they match what is expected. If they do not,
+consider increasing the timeout, either at the individual
+method call level, e.g. WaitForElement("div", TimeSpan.FromSeconds(15)),
+or via the static TestContext.DefaultWaitTimeout property.
+
+Check count: 1.
+Component render count: 3.
+Total render count across all components: 0.&#xD;
+---- Expected criterios.Keys to be a collection with 6 item(s) because el endpoint recibe exactamente los criterios activos, sin paginación, but {"q", "critico", "ejecutivo", "estado", "orden"}&#xD;
+contains 1 item(s) less than&#xD;
+{"q", "critico", "ejecutivo", "estado", "orden", "desc"}.&#xD;
+
+With configuration:
+- Use declared types and members&#xD;
+- Compare enums by value&#xD;
+- Compare tuples by their properties&#xD;
+- Compare anonymous types by their properties&#xD;
+- Compare records by their members&#xD;
+- Include non-browsable members&#xD;
+- Include all non-private properties&#xD;
+- Include all non-private fields&#xD;
+- Match member by name (or throw)&#xD;
+- Be strict about the order of items in byte arrays&#xD;
+- Without automatic conversion.&#xD;
+</Message>
+          <StackTrace>   at Bunit.RenderedComponentWaitForHelperExtensions.WaitForAssertion[TComponent](IRenderedComponent`1 renderedComponent, Action assertion, Nullable`1 timeout) in /_/src/bunit/Extensions/WaitForHelpers/RenderedComponentWaitForHelperExtensions.WaitForState.cs:line 102&#xD;
+   at CaeManager.Web.Tests.ComprobacionIconoExportar.Criterios[T](IRenderedComponent`1 cut, String ruta, Type endpoint, IReadOnlyDictionary`2 esperados) in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs:line 14&#xD;
+   at CaeManager.Web.Tests.ClientesListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(Boolean activos) in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs:line 236&#xD;
+   at InvokeStub_ClientesListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(Object, Span`1)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeWithOneArg(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)&#xD;
+----- Inner Stack Trace -----&#xD;
+   at FluentAssertions.Execution.LateBoundTestFramework.Throw(String message)&#xD;
+   at FluentAssertions.Execution.TestFrameworkProvider.Throw(String message)&#xD;
+   at FluentAssertions.Execution.CollectingAssertionStrategy.ThrowIfAny(IDictionary`2 context)&#xD;
+   at FluentAssertions.Execution.AssertionScope.Dispose()&#xD;
+   at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+   at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+   at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, Func`2 config, String because, Object[] becauseArgs)&#xD;
+   at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, String because, Object[] becauseArgs)&#xD;
+   at CaeManager.Web.Tests.ComprobacionIconoExportar.&lt;&gt;c__DisplayClass0_0`1.&lt;Criterios&gt;b__0() in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs:line 20&#xD;
+   at Bunit.Extensions.WaitForHelpers.WaitForAssertionHelper`1.&lt;&gt;c__DisplayClass6_0.&lt;.ctor&gt;b__0() in /_/src/bunit/Extensions/WaitForHelpers/WaitForAssertionHelper.cs:line 35&#xD;
+   at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.&lt;&gt;c__DisplayClass32_0.&lt;WrapSynchronousChecker&gt;b__0() in /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs:line 297&#xD;
+   at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.RunCheckAsync() in /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs:line 226</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="82a35c71-6ecc-463f-8b27-bb3b6dc6b005" testId="8a42bf45-3ff6-8a9c-d3a5-84bd78196dfa" testName="CaeManager.Web.Tests.DocumentosGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" computerName="CHRIS" duration="00:00:01.6286521" startTime="2026-10-13T09:52:33.0826648+02:00" endTime="2026-10-13T09:52:34.7275630+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="82a35c71-6ecc-463f-8b27-bb3b6dc6b005">
+      <Output>
+        <ErrorInfo>
+          <Message>Bunit.Extensions.WaitForHelpers.WaitForFailedException : The assertion did not pass within the timeout period.
+
+If this test does not fail consistently, the reason may be that
+the wait timeout is too short, and the runtime did not have enough
+time to complete the necessary number of renders of the component under test.
+This can happen on highly utilized or slower hardware, for example.
+
+To determine if this is the cause, compare the check and render count(s) below
+and see if they match what is expected. If they do not,
+consider increasing the timeout, either at the individual
+method call level, e.g. WaitForElement("div", TimeSpan.FromSeconds(15)),
+or via the static TestContext.DefaultWaitTimeout property.
+
+Check count: 1.
+Component render count: 3.
+Total render count across all components: 0.&#xD;
+---- Expected criterios.Keys to be a collection with 7 item(s) because el endpoint recibe exactamente los criterios activos, sin paginación, but {"q", "ambito", "estado", "tipo", "plataforma", "orden"}&#xD;
+contains 1 item(s) less than&#xD;
+{"q", "ambito", "estado", "tipo", "plataforma", "orden", "desc"}.&#xD;
+
+With configuration:
+- Use declared types and members&#xD;
+- Compare enums by value&#xD;
+- Compare tuples by their properties&#xD;
+- Compare anonymous types by their properties&#xD;
+- Compare records by their members&#xD;
+- Include non-browsable members&#xD;
+- Include all non-private properties&#xD;
+- Include all non-private fields&#xD;
+- Match member by name (or throw)&#xD;
+- Be strict about the order of items in byte arrays&#xD;
+- Without automatic conversion.&#xD;
+</Message>
+          <StackTrace>   at Bunit.RenderedComponentWaitForHelperExtensions.WaitForAssertion[TComponent](IRenderedComponent`1 renderedComponent, Action assertion, Nullable`1 timeout) in /_/src/bunit/Extensions/WaitForHelpers/RenderedComponentWaitForHelperExtensions.WaitForState.cs:line 102&#xD;
+   at CaeManager.Web.Tests.ComprobacionIconoExportar.Criterios[T](IRenderedComponent`1 cut, String ruta, Type endpoint, IReadOnlyDictionary`2 esperados) in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs:line 14&#xD;
+   at CaeManager.Web.Tests.DocumentosGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(Boolean activos) in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs:line 258&#xD;
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)&#xD;
+----- Inner Stack Trace -----&#xD;
+   at FluentAssertions.Execution.LateBoundTestFramework.Throw(String message)&#xD;
+   at FluentAssertions.Execution.TestFrameworkProvider.Throw(String message)&#xD;
+   at FluentAssertions.Execution.CollectingAssertionStrategy.ThrowIfAny(IDictionary`2 context)&#xD;
+   at FluentAssertions.Execution.AssertionScope.Dispose()&#xD;
+   at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+   at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+   at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, Func`2 config, String because, Object[] becauseArgs)&#xD;
+   at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, String because, Object[] becauseArgs)&#xD;
+   at CaeManager.Web.Tests.ComprobacionIconoExportar.&lt;&gt;c__DisplayClass0_0`1.&lt;Criterios&gt;b__0() in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs:line 20&#xD;
+   at Bunit.Extensions.WaitForHelpers.WaitForAssertionHelper`1.&lt;&gt;c__DisplayClass6_0.&lt;.ctor&gt;b__0() in /_/src/bunit/Extensions/WaitForHelpers/WaitForAssertionHelper.cs:line 35&#xD;
+   at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.&lt;&gt;c__DisplayClass32_0.&lt;WrapSynchronousChecker&gt;b__0() in /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs:line 297&#xD;
+   at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.RunCheckAsync() in /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs:line 226</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="265d5033-7536-425b-8932-60ec9c8c90c6" testId="316c8431-520d-693c-29ba-814bd09c8cc6" testName="CaeManager.Web.Tests.DocumentosGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" computerName="CHRIS" duration="00:00:00.0211520" startTime="2026-10-13T09:52:34.7332647+02:00" endTime="2026-10-13T09:52:34.7387812+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="265d5033-7536-425b-8932-60ec9c8c90c6" />
+    <UnitTestResult executionId="aef11508-b7cc-40ea-b8ea-16bb42c0ffcc" testId="9ef792d1-ec49-d502-7830-071def270dbc" testName="CaeManager.Web.Tests.EmpresasListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" computerName="CHRIS" duration="00:00:00.5602401" startTime="2026-10-13T09:52:33.0810722+02:00" endTime="2026-10-13T09:52:33.6463162+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="aef11508-b7cc-40ea-b8ea-16bb42c0ffcc" />
+    <UnitTestResult executionId="917c66d9-968a-41e5-82a7-cea38b413b78" testId="77a1ee55-b366-1123-ebbd-3940582828d6" testName="CaeManager.Web.Tests.SubcontratasListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" computerName="CHRIS" duration="00:00:00.6009818" startTime="2026-10-13T09:52:33.0826307+02:00" endTime="2026-10-13T09:52:33.6844694+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="917c66d9-968a-41e5-82a7-cea38b413b78" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="CaeManager.Web.Tests.ClientesListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="02d3a169-3137-3eb0-7953-47d0ecc38a96">
+      <Execution id="c59fb9ef-ce0d-48bc-bab3-d0d93257980a" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.ClientesListaGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.SubcontratasListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="77a1ee55-b366-1123-ebbd-3940582828d6">
+      <Execution id="917c66d9-968a-41e5-82a7-cea38b413b78" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.SubcontratasListaGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False, esSubcontrata: False)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="10e42900-f9d2-c2e2-4af2-a3df3d6b8c66">
+      <Execution id="89bb86c3-0afa-4d53-80df-7cfa31177e51" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.TrabajadoresListaGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.EmpresasListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="9ef792d1-ec49-d502-7830-071def270dbc">
+      <Execution id="aef11508-b7cc-40ea-b8ea-16bb42c0ffcc" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.EmpresasListaGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.CentrosListaPatronTests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="16f68e86-78de-aad6-3ebe-f213f8b6c372">
+      <Execution id="07904a35-8955-49cd-8b04-1833850c93eb" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.CentrosListaPatronTests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True, esSubcontrata: False)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="8c6333af-5491-f910-cae0-4615d3fb71d2">
+      <Execution id="e0136eb6-a5bb-40cb-ad7d-ca8524903cb3" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.TrabajadoresListaGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.DocumentosGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="316c8431-520d-693c-29ba-814bd09c8cc6">
+      <Execution id="265d5033-7536-425b-8932-60ec9c8c90c6" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.DocumentosGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.ClientesListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="85cc234f-c8ef-7400-0a2b-e5e0feda37f1">
+      <Execution id="6fb4fb56-c0cd-4026-b11d-bf1d76ded4d6" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.ClientesListaGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.EmpresasListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="c4bcff09-5222-933a-da8a-0cebef0013f9">
+      <Execution id="5952ae3c-4942-44cf-a902-f41a0213627e" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.EmpresasListaGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.CentrosListaPatronTests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="a51a012d-5ee5-7859-f8a3-866331e670ff">
+      <Execution id="beacccec-4fd7-4b36-a35a-c7985e175330" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.CentrosListaPatronTests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.DocumentosGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="8a42bf45-3ff6-8a9c-d3a5-84bd78196dfa">
+      <Execution id="82a35c71-6ecc-463f-8b27-bb3b6dc6b005" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.DocumentosGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.SubcontratasListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: False)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="422bf094-03ea-2f6e-4de7-dd021fc8894f">
+      <Execution id="0bd7eb30-a11d-4d20-a768-b3967d487ee7" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.SubcontratasListaGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True, esSubcontrata: True)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-exportar-seis\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="f43b730b-6df6-3fb6-56c9-bc529a491cf1">
+      <Execution id="d53dfcbd-a90f-4351-bdc3-e81b6fe5fa47" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.TrabajadoresListaGen2Tests" name="El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="422bf094-03ea-2f6e-4de7-dd021fc8894f" executionId="0bd7eb30-a11d-4d20-a768-b3967d487ee7" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="10e42900-f9d2-c2e2-4af2-a3df3d6b8c66" executionId="89bb86c3-0afa-4d53-80df-7cfa31177e51" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="16f68e86-78de-aad6-3ebe-f213f8b6c372" executionId="07904a35-8955-49cd-8b04-1833850c93eb" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a51a012d-5ee5-7859-f8a3-866331e670ff" executionId="beacccec-4fd7-4b36-a35a-c7985e175330" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c4bcff09-5222-933a-da8a-0cebef0013f9" executionId="5952ae3c-4942-44cf-a902-f41a0213627e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8c6333af-5491-f910-cae0-4615d3fb71d2" executionId="e0136eb6-a5bb-40cb-ad7d-ca8524903cb3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="02d3a169-3137-3eb0-7953-47d0ecc38a96" executionId="c59fb9ef-ce0d-48bc-bab3-d0d93257980a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f43b730b-6df6-3fb6-56c9-bc529a491cf1" executionId="d53dfcbd-a90f-4351-bdc3-e81b6fe5fa47" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="85cc234f-c8ef-7400-0a2b-e5e0feda37f1" executionId="6fb4fb56-c0cd-4026-b11d-bf1d76ded4d6" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8a42bf45-3ff6-8a9c-d3a5-84bd78196dfa" executionId="82a35c71-6ecc-463f-8b27-bb3b6dc6b005" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="316c8431-520d-693c-29ba-814bd09c8cc6" executionId="265d5033-7536-425b-8932-60ec9c8c90c6" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9ef792d1-ec49-d502-7830-071def270dbc" executionId="aef11508-b7cc-40ea-b8ea-16bb42c0ffcc" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="77a1ee55-b366-1123-ebbd-3940582828d6" executionId="917c66d9-968a-41e5-82a7-cea38b413b78" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Resultados sin formato de lista" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="Todos los resultados cargados" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="13" executed="13" passed="8" failed="5" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.5+1b188a7b0a (64-bit .NET 10.0.10)&#xD;
+[xUnit.net 00:00:00.29]   Discovering: CaeManager.Web.Tests&#xD;
+[xUnit.net 00:00:00.86]   Discovered:  CaeManager.Web.Tests&#xD;
+[xUnit.net 00:00:00.89]   Starting:    CaeManager.Web.Tests&#xD;
+[xUnit.net 00:00:02.56]       Bunit.Extensions.WaitForHelpers.WaitForFailedException : The assertion did not pass within the timeout period.
+
+If this test does not fail consistently, the reason may be that
+the wait timeout is too short, and the runtime did not have enough
+time to complete the necessary number of renders of the component under test.
+This can happen on highly utilized or slower hardware, for example.
+
+To determine if this is the cause, compare the check and render count(s) below
+and see if they match what is expected. If they do not,
+consider increasing the timeout, either at the individual
+method call level, e.g. WaitForElement("div", TimeSpan.FromSeconds(15)),
+or via the static TestContext.DefaultWaitTimeout property.
+
+Check count: 1.
+Component render count: 3.
+Total render count across all components: 0.&#xD;
+[xUnit.net 00:00:02.56]       ---- Expected criterios.Keys to be a collection with 6 item(s) because el endpoint recibe exactamente los criterios activos, sin paginación, but {"q", "critico", "ejecutivo", "estado", "orden"}&#xD;
+[xUnit.net 00:00:02.56]       contains 1 item(s) less than&#xD;
+[xUnit.net 00:00:02.56]       {"q", "critico", "ejecutivo", "estado", "orden", "desc"}.&#xD;
+[xUnit.net 00:00:02.56]       
+With configuration:
+- Use declared types and members&#xD;
+[xUnit.net 00:00:02.56]       - Compare enums by value&#xD;
+[xUnit.net 00:00:02.56]       - Compare tuples by their properties&#xD;
+[xUnit.net 00:00:02.56]       - Compare anonymous types by their properties&#xD;
+[xUnit.net 00:00:02.56]       - Compare records by their members&#xD;
+[xUnit.net 00:00:02.56]       - Include non-browsable members&#xD;
+[xUnit.net 00:00:02.56]       - Include all non-private properties&#xD;
+[xUnit.net 00:00:02.56]       - Include all non-private fields&#xD;
+[xUnit.net 00:00:02.56]       - Match member by name (or throw)&#xD;
+[xUnit.net 00:00:02.56]       - Be strict about the order of items in byte arrays&#xD;
+[xUnit.net 00:00:02.56]       - Without automatic conversion.&#xD;
+[xUnit.net 00:00:02.56]       &#xD;
+[xUnit.net 00:00:02.56]       Stack Trace:&#xD;
+[xUnit.net 00:00:02.56]         /_/src/bunit/Extensions/WaitForHelpers/RenderedComponentWaitForHelperExtensions.WaitForState.cs(102,0): at Bunit.RenderedComponentWaitForHelperExtensions.WaitForAssertion[TComponent](IRenderedComponent`1 renderedComponent, Action assertion, Nullable`1 timeout)&#xD;
+[xUnit.net 00:00:02.56]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs(14,0): at CaeManager.Web.Tests.ComprobacionIconoExportar.Criterios[T](IRenderedComponent`1 cut, String ruta, Type endpoint, IReadOnlyDictionary`2 esperados)&#xD;
+[xUnit.net 00:00:02.56]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs(236,0): at CaeManager.Web.Tests.ClientesListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(Boolean activos)&#xD;
+[xUnit.net 00:00:02.56]            at InvokeStub_ClientesListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(Object, Span`1)&#xD;
+[xUnit.net 00:00:02.56]            at System.Reflection.MethodBaseInvoker.InvokeWithOneArg(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)&#xD;
+[xUnit.net 00:00:02.56]         ----- Inner Stack Trace -----&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Execution.LateBoundTestFramework.Throw(String message)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Execution.TestFrameworkProvider.Throw(String message)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Execution.CollectingAssertionStrategy.ThrowIfAny(IDictionary`2 context)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Execution.AssertionScope.Dispose()&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, Func`2 config, String because, Object[] becauseArgs)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, String because, Object[] becauseArgs)&#xD;
+[xUnit.net 00:00:02.56]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs(20,0): at CaeManager.Web.Tests.ComprobacionIconoExportar.&lt;&gt;c__DisplayClass0_0`1.&lt;Criterios&gt;b__0()&#xD;
+[xUnit.net 00:00:02.56]         /_/src/bunit/Extensions/WaitForHelpers/WaitForAssertionHelper.cs(35,0): at Bunit.Extensions.WaitForHelpers.WaitForAssertionHelper`1.&lt;&gt;c__DisplayClass6_0.&lt;.ctor&gt;b__0()&#xD;
+[xUnit.net 00:00:02.56]         /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs(297,0): at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.&lt;&gt;c__DisplayClass32_0.&lt;WrapSynchronousChecker&gt;b__0()&#xD;
+[xUnit.net 00:00:02.56]         /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs(226,0): at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.RunCheckAsync()&#xD;
+[xUnit.net 00:00:02.56]       Bunit.Extensions.WaitForHelpers.WaitForFailedException : The assertion did not pass within the timeout period.
+
+If this test does not fail consistently, the reason may be that
+the wait timeout is too short, and the runtime did not have enough
+time to complete the necessary number of renders of the component under test.
+This can happen on highly utilized or slower hardware, for example.
+
+To determine if this is the cause, compare the check and render count(s) below
+and see if they match what is expected. If they do not,
+consider increasing the timeout, either at the individual
+method call level, e.g. WaitForElement("div", TimeSpan.FromSeconds(15)),
+or via the static TestContext.DefaultWaitTimeout property.
+
+Check count: 1.
+Component render count: 3.
+Total render count across all components: 0.&#xD;
+[xUnit.net 00:00:02.56]       ---- Expected criterios.Keys to be a collection with 6 item(s) because el endpoint recibe exactamente los criterios activos, sin paginación, but {"q", "estado", "empresa", "centro", "orden"}&#xD;
+[xUnit.net 00:00:02.56]       contains 1 item(s) less than&#xD;
+[xUnit.net 00:00:02.56]       {"q", "estado", "empresa", "centro", "orden", "desc"}.&#xD;
+[xUnit.net 00:00:02.56]       
+With configuration:
+- Use declared types and members&#xD;
+[xUnit.net 00:00:02.56]       - Compare enums by value&#xD;
+[xUnit.net 00:00:02.56]       - Compare tuples by their properties&#xD;
+[xUnit.net 00:00:02.56]       - Compare anonymous types by their properties&#xD;
+[xUnit.net 00:00:02.56]       - Compare records by their members&#xD;
+[xUnit.net 00:00:02.56]       - Include non-browsable members&#xD;
+[xUnit.net 00:00:02.56]       - Include all non-private properties&#xD;
+[xUnit.net 00:00:02.56]       - Include all non-private fields&#xD;
+[xUnit.net 00:00:02.56]       - Match member by name (or throw)&#xD;
+[xUnit.net 00:00:02.56]       - Be strict about the order of items in byte arrays&#xD;
+[xUnit.net 00:00:02.56]       - Without automatic conversion.&#xD;
+[xUnit.net 00:00:02.56]       &#xD;
+[xUnit.net 00:00:02.56]       Stack Trace:&#xD;
+[xUnit.net 00:00:02.56]         /_/src/bunit/Extensions/WaitForHelpers/RenderedComponentWaitForHelperExtensions.WaitForState.cs(102,0): at Bunit.RenderedComponentWaitForHelperExtensions.WaitForAssertion[TComponent](IRenderedComponent`1 renderedComponent, Action assertion, Nullable`1 timeout)&#xD;
+[xUnit.net 00:00:02.56]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs(14,0): at CaeManager.Web.Tests.ComprobacionIconoExportar.Criterios[T](IRenderedComponent`1 cut, String ruta, Type endpoint, IReadOnlyDictionary`2 esperados)&#xD;
+[xUnit.net 00:00:02.56]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs(79,0): at CaeManager.Web.Tests.TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(Boolean activos, Boolean esSubcontrata)&#xD;
+[xUnit.net 00:00:02.56]            at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+[xUnit.net 00:00:02.56]            at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)&#xD;
+[xUnit.net 00:00:02.56]         ----- Inner Stack Trace -----&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Execution.LateBoundTestFramework.Throw(String message)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Execution.TestFrameworkProvider.Throw(String message)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Execution.CollectingAssertionStrategy.ThrowIfAny(IDictionary`2 context)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Execution.AssertionScope.Dispose()&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, Func`2 config, String because, Object[] becauseArgs)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, String because, Object[] becauseArgs)&#xD;
+[xUnit.net 00:00:02.56]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs(20,0): at CaeManager.Web.Tests.ComprobacionIconoExportar.&lt;&gt;c__DisplayClass0_0`1.&lt;Criterios&gt;b__0()&#xD;
+[xUnit.net 00:00:02.56]         /_/src/bunit/Extensions/WaitForHelpers/WaitForAssertionHelper.cs(35,0): at Bunit.Extensions.WaitForHelpers.WaitForAssertionHelper`1.&lt;&gt;c__DisplayClass6_0.&lt;.ctor&gt;b__0()&#xD;
+[xUnit.net 00:00:02.56]         /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs(297,0): at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.&lt;&gt;c__DisplayClass32_0.&lt;WrapSynchronousChecker&gt;b__0()&#xD;
+[xUnit.net 00:00:02.56]         /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs(226,0): at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.RunCheckAsync()&#xD;
+[xUnit.net 00:00:02.56]       Bunit.Extensions.WaitForHelpers.WaitForFailedException : The assertion did not pass within the timeout period.
+
+If this test does not fail consistently, the reason may be that
+the wait timeout is too short, and the runtime did not have enough
+time to complete the necessary number of renders of the component under test.
+This can happen on highly utilized or slower hardware, for example.
+
+To determine if this is the cause, compare the check and render count(s) below
+and see if they match what is expected. If they do not,
+consider increasing the timeout, either at the individual
+method call level, e.g. WaitForElement("div", TimeSpan.FromSeconds(15)),
+or via the static TestContext.DefaultWaitTimeout property.
+
+Check count: 1.
+Component render count: 2.
+Total render count across all components: 0.&#xD;
+[xUnit.net 00:00:02.56]       ---- Expected criterios.Keys to be a collection with 7 item(s) because el endpoint recibe exactamente los criterios activos, sin paginación, but {"q", "estado", "cliente", "empresa", "centro", "orden"}&#xD;
+[xUnit.net 00:00:02.56]       contains 1 item(s) less than&#xD;
+[xUnit.net 00:00:02.56]       {"q", "estado", "cliente", "empresa", "centro", "orden", "desc"}.&#xD;
+[xUnit.net 00:00:02.56]       
+With configuration:
+- Use declared types and members&#xD;
+[xUnit.net 00:00:02.56]       - Compare enums by value&#xD;
+[xUnit.net 00:00:02.56]       - Compare tuples by their properties&#xD;
+[xUnit.net 00:00:02.56]       - Compare anonymous types by their properties&#xD;
+[xUnit.net 00:00:02.56]       - Compare records by their members&#xD;
+[xUnit.net 00:00:02.56]       - Include non-browsable members&#xD;
+[xUnit.net 00:00:02.56]       - Include all non-private properties&#xD;
+[xUnit.net 00:00:02.56]       - Include all non-private fields&#xD;
+[xUnit.net 00:00:02.56]       - Match member by name (or throw)&#xD;
+[xUnit.net 00:00:02.56]       - Be strict about the order of items in byte arrays&#xD;
+[xUnit.net 00:00:02.56]       - Without automatic conversion.&#xD;
+[xUnit.net 00:00:02.56]       &#xD;
+[xUnit.net 00:00:02.56]       Stack Trace:&#xD;
+[xUnit.net 00:00:02.56]         /_/src/bunit/Extensions/WaitForHelpers/RenderedComponentWaitForHelperExtensions.WaitForState.cs(102,0): at Bunit.RenderedComponentWaitForHelperExtensions.WaitForAssertion[TComponent](IRenderedComponent`1 renderedComponent, Action assertion, Nullable`1 timeout)&#xD;
+[xUnit.net 00:00:02.56]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs(14,0): at CaeManager.Web.Tests.ComprobacionIconoExportar.Criterios[T](IRenderedComponent`1 cut, String ruta, Type endpoint, IReadOnlyDictionary`2 esperados)&#xD;
+[xUnit.net 00:00:02.56]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs(282,0): at CaeManager.Web.Tests.CentrosListaPatronTests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(Boolean activos)&#xD;
+[xUnit.net 00:00:02.56]            at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+[xUnit.net 00:00:02.56]            at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)&#xD;
+[xUnit.net 00:00:02.56]         ----- Inner Stack Trace -----&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Execution.LateBoundTestFramework.Throw(String message)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Execution.TestFrameworkProvider.Throw(String message)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Execution.CollectingAssertionStrategy.ThrowIfAny(IDictionary`2 context)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Execution.AssertionScope.Dispose()&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, Func`2 config, String because, Object[] becauseArgs)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, String because, Object[] becauseArgs)&#xD;
+[xUnit.net 00:00:02.56]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs(20,0): at CaeManager.Web.Tests.ComprobacionIconoExportar.&lt;&gt;c__DisplayClass0_0`1.&lt;Criterios&gt;b__0()&#xD;
+[xUnit.net 00:00:02.56]         /_/src/bunit/Extensions/WaitForHelpers/WaitForAssertionHelper.cs(35,0): at Bunit.Extensions.WaitForHelpers.WaitForAssertionHelper`1.&lt;&gt;c__DisplayClass6_0.&lt;.ctor&gt;b__0()&#xD;
+[xUnit.net 00:00:02.56]         /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs(297,0): at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.&lt;&gt;c__DisplayClass32_0.&lt;WrapSynchronousChecker&gt;b__0()&#xD;
+[xUnit.net 00:00:02.56]         /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs(226,0): at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.RunCheckAsync()&#xD;
+[xUnit.net 00:00:02.56]       Bunit.Extensions.WaitForHelpers.WaitForFailedException : The assertion did not pass within the timeout period.
+
+If this test does not fail consistently, the reason may be that
+the wait timeout is too short, and the runtime did not have enough
+time to complete the necessary number of renders of the component under test.
+This can happen on highly utilized or slower hardware, for example.
+
+To determine if this is the cause, compare the check and render count(s) below
+and see if they match what is expected. If they do not,
+consider increasing the timeout, either at the individual
+method call level, e.g. WaitForElement("div", TimeSpan.FromSeconds(15)),
+or via the static TestContext.DefaultWaitTimeout property.
+
+Check count: 1.
+Component render count: 3.
+Total render count across all components: 0.&#xD;
+[xUnit.net 00:00:02.56]       ---- Expected criterios.Keys to be a collection with 7 item(s) because el endpoint recibe exactamente los criterios activos, sin paginación, but {"q", "ambito", "estado", "tipo", "plataforma", "orden"}&#xD;
+[xUnit.net 00:00:02.56]       contains 1 item(s) less than&#xD;
+[xUnit.net 00:00:02.56]       {"q", "ambito", "estado", "tipo", "plataforma", "orden", "desc"}.&#xD;
+[xUnit.net 00:00:02.56]       
+With configuration:
+- Use declared types and members&#xD;
+[xUnit.net 00:00:02.56]       - Compare enums by value&#xD;
+[xUnit.net 00:00:02.56]       - Compare tuples by their properties&#xD;
+[xUnit.net 00:00:02.56]       - Compare anonymous types by their properties&#xD;
+[xUnit.net 00:00:02.56]       - Compare records by their members&#xD;
+[xUnit.net 00:00:02.56]       - Include non-browsable members&#xD;
+[xUnit.net 00:00:02.56]       - Include all non-private properties&#xD;
+[xUnit.net 00:00:02.56]       - Include all non-private fields&#xD;
+[xUnit.net 00:00:02.56]       - Match member by name (or throw)&#xD;
+[xUnit.net 00:00:02.56]       - Be strict about the order of items in byte arrays&#xD;
+[xUnit.net 00:00:02.56]       - Without automatic conversion.&#xD;
+[xUnit.net 00:00:02.56]       &#xD;
+[xUnit.net 00:00:02.56]       Stack Trace:&#xD;
+[xUnit.net 00:00:02.56]         /_/src/bunit/Extensions/WaitForHelpers/RenderedComponentWaitForHelperExtensions.WaitForState.cs(102,0): at Bunit.RenderedComponentWaitForHelperExtensions.WaitForAssertion[TComponent](IRenderedComponent`1 renderedComponent, Action assertion, Nullable`1 timeout)&#xD;
+[xUnit.net 00:00:02.56]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs(14,0): at CaeManager.Web.Tests.ComprobacionIconoExportar.Criterios[T](IRenderedComponent`1 cut, String ruta, Type endpoint, IReadOnlyDictionary`2 esperados)&#xD;
+[xUnit.net 00:00:02.56]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs(258,0): at CaeManager.Web.Tests.DocumentosGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(Boolean activos)&#xD;
+[xUnit.net 00:00:02.56]            at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+[xUnit.net 00:00:02.56]            at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)&#xD;
+[xUnit.net 00:00:02.56]         ----- Inner Stack Trace -----&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Execution.LateBoundTestFramework.Throw(String message)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Execution.TestFrameworkProvider.Throw(String message)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Execution.CollectingAssertionStrategy.ThrowIfAny(IDictionary`2 context)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Execution.AssertionScope.Dispose()&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, Func`2 config, String because, Object[] becauseArgs)&#xD;
+[xUnit.net 00:00:02.56]            at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, String because, Object[] becauseArgs)&#xD;
+[xUnit.net 00:00:02.56]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs(20,0): at CaeManager.Web.Tests.ComprobacionIconoExportar.&lt;&gt;c__DisplayClass0_0`1.&lt;Criterios&gt;b__0()&#xD;
+[xUnit.net 00:00:02.56]         /_/src/bunit/Extensions/WaitForHelpers/WaitForAssertionHelper.cs(35,0): at Bunit.Extensions.WaitForHelpers.WaitForAssertionHelper`1.&lt;&gt;c__DisplayClass6_0.&lt;.ctor&gt;b__0()&#xD;
+[xUnit.net 00:00:02.56]         /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs(297,0): at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.&lt;&gt;c__DisplayClass32_0.&lt;WrapSynchronousChecker&gt;b__0()&#xD;
+[xUnit.net 00:00:02.56]         /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs(226,0): at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.RunCheckAsync()&#xD;
+[xUnit.net 00:00:03.61]       Bunit.Extensions.WaitForHelpers.WaitForFailedException : The assertion did not pass within the timeout period.
+
+If this test does not fail consistently, the reason may be that
+the wait timeout is too short, and the runtime did not have enough
+time to complete the necessary number of renders of the component under test.
+This can happen on highly utilized or slower hardware, for example.
+
+To determine if this is the cause, compare the check and render count(s) below
+and see if they match what is expected. If they do not,
+consider increasing the timeout, either at the individual
+method call level, e.g. WaitForElement("div", TimeSpan.FromSeconds(15)),
+or via the static TestContext.DefaultWaitTimeout property.
+
+Check count: 1.
+Component render count: 3.
+Total render count across all components: 0.&#xD;
+[xUnit.net 00:00:03.61]       ---- Expected criterios.Keys to be a collection with 6 item(s) because el endpoint recibe exactamente los criterios activos, sin paginación, but {"q", "estado", "subcontrata", "centro", "orden"}&#xD;
+[xUnit.net 00:00:03.61]       contains 1 item(s) less than&#xD;
+[xUnit.net 00:00:03.61]       {"q", "estado", "subcontrata", "centro", "orden", "desc"}.&#xD;
+[xUnit.net 00:00:03.61]       
+With configuration:
+- Use declared types and members&#xD;
+[xUnit.net 00:00:03.61]       - Compare enums by value&#xD;
+[xUnit.net 00:00:03.61]       - Compare tuples by their properties&#xD;
+[xUnit.net 00:00:03.61]       - Compare anonymous types by their properties&#xD;
+[xUnit.net 00:00:03.61]       - Compare records by their members&#xD;
+[xUnit.net 00:00:03.61]       - Include non-browsable members&#xD;
+[xUnit.net 00:00:03.61]       - Include all non-private properties&#xD;
+[xUnit.net 00:00:03.61]       - Include all non-private fields&#xD;
+[xUnit.net 00:00:03.61]       - Match member by name (or throw)&#xD;
+[xUnit.net 00:00:03.61]       - Be strict about the order of items in byte arrays&#xD;
+[xUnit.net 00:00:03.61]       - Without automatic conversion.&#xD;
+[xUnit.net 00:00:03.61]       &#xD;
+[xUnit.net 00:00:03.61]       Stack Trace:&#xD;
+[xUnit.net 00:00:03.61]         /_/src/bunit/Extensions/WaitForHelpers/RenderedComponentWaitForHelperExtensions.WaitForState.cs(102,0): at Bunit.RenderedComponentWaitForHelperExtensions.WaitForAssertion[TComponent](IRenderedComponent`1 renderedComponent, Action assertion, Nullable`1 timeout)&#xD;
+[xUnit.net 00:00:03.61]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs(14,0): at CaeManager.Web.Tests.ComprobacionIconoExportar.Criterios[T](IRenderedComponent`1 cut, String ruta, Type endpoint, IReadOnlyDictionary`2 esperados)&#xD;
+[xUnit.net 00:00:03.61]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs(79,0): at CaeManager.Web.Tests.TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(Boolean activos, Boolean esSubcontrata)&#xD;
+[xUnit.net 00:00:03.61]            at InvokeStub_TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(Object, Span`1)&#xD;
+[xUnit.net 00:00:03.61]            at System.Reflection.MethodBaseInvoker.InvokeWithFewArgs(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)&#xD;
+[xUnit.net 00:00:03.61]         ----- Inner Stack Trace -----&#xD;
+[xUnit.net 00:00:03.61]            at FluentAssertions.Execution.LateBoundTestFramework.Throw(String message)&#xD;
+[xUnit.net 00:00:03.61]            at FluentAssertions.Execution.TestFrameworkProvider.Throw(String message)&#xD;
+[xUnit.net 00:00:03.61]            at FluentAssertions.Execution.CollectingAssertionStrategy.ThrowIfAny(IDictionary`2 context)&#xD;
+[xUnit.net 00:00:03.61]            at FluentAssertions.Execution.AssertionScope.Dispose()&#xD;
+[xUnit.net 00:00:03.61]            at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+[xUnit.net 00:00:03.61]            at FluentAssertions.Equivalency.EquivalencyValidator.AssertEquality(Comparands comparands, EquivalencyValidationContext context)&#xD;
+[xUnit.net 00:00:03.61]            at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, Func`2 config, String because, Object[] becauseArgs)&#xD;
+[xUnit.net 00:00:03.61]            at FluentAssertions.Collections.StringCollectionAssertions`2.BeEquivalentTo(IEnumerable`1 expectation, String because, Object[] becauseArgs)&#xD;
+[xUnit.net 00:00:03.61]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-exportar-seis\tests\CaeManager.Web.Tests\ListadosIconoExportarTests.cs(20,0): at CaeManager.Web.Tests.ComprobacionIconoExportar.&lt;&gt;c__DisplayClass0_0`1.&lt;Criterios&gt;b__0()&#xD;
+[xUnit.net 00:00:03.61]         /_/src/bunit/Extensions/WaitForHelpers/WaitForAssertionHelper.cs(35,0): at Bunit.Extensions.WaitForHelpers.WaitForAssertionHelper`1.&lt;&gt;c__DisplayClass6_0.&lt;.ctor&gt;b__0()&#xD;
+[xUnit.net 00:00:03.61]         /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs(297,0): at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.&lt;&gt;c__DisplayClass32_0.&lt;WrapSynchronousChecker&gt;b__0()&#xD;
+[xUnit.net 00:00:03.61]         /_/src/bunit/Extensions/WaitForHelpers/WaitForHelper.cs(226,0): at Bunit.Extensions.WaitForHelpers.WaitForHelper`2.RunCheckAsync()&#xD;
+[xUnit.net 00:00:03.61]   Finished:    CaeManager.Web.Tests&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="CHRIS" outcome="Error" timestamp="2026-10-13T09:52:34.7209011+02:00">
+        <Text>[xUnit.net 00:00:02.56]     CaeManager.Web.Tests.ClientesListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True) [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="CHRIS" outcome="Error" timestamp="2026-10-13T09:52:34.7249632+02:00">
+        <Text>[xUnit.net 00:00:02.56]     CaeManager.Web.Tests.TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True, esSubcontrata: False) [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="CHRIS" outcome="Error" timestamp="2026-10-13T09:52:34.7267634+02:00">
+        <Text>[xUnit.net 00:00:02.56]     CaeManager.Web.Tests.CentrosListaPatronTests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True) [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="CHRIS" outcome="Error" timestamp="2026-10-13T09:52:34.7281656+02:00">
+        <Text>[xUnit.net 00:00:02.56]     CaeManager.Web.Tests.DocumentosGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True) [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="CHRIS" outcome="Error" timestamp="2026-10-13T09:52:35.7738061+02:00">
+        <Text>[xUnit.net 00:00:03.61]     CaeManager.Web.Tests.TrabajadoresListaGen2Tests.El_icono_de_los_seis_exporta_criterios_reales_sin_parametros_vacios(activos: True, esSubcontrata: True) [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>
