@@ -230,12 +230,12 @@ public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixtureListados fixtu
     /// </summary>
     private static async Task EnfocarLaFilaConJAsync(IPage page)
     {
-        var enfocada = page.Locator(".marco-lista-trabajadores .fila-enfocada");
+        var enfocada = page.Locator("tbody tr.fila-enfocada");
         for (var intento = 0; intento < 5; intento++)
         {
             if (await enfocada.CountAsync() == 0)
             {
-                await page.Locator(".cabecera-columnas-trabajadores .col-estado button.col-title").FocusAsync();
+                await page.Locator("thead th.col-estado button.col-title").FocusAsync();
                 await page.Keyboard.PressAsync("j");
             }
 
