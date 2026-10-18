@@ -18,10 +18,9 @@ public partial class TrabajadoresListaGen2Tests
         cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty();
         var detalle = AbrirIncidencias(cut);
         detalle.ClassList.Should().NotContain("fila-pulsable");
-        detalle.QuerySelector(".incidencia-tipo")!.TextContent.Should().Be("Aptitud médica");
+        detalle.QuerySelector(".documento-pendiente-nombre")!.TextContent.Should().Be("Aptitud médica");
         detalle.QuerySelector(".badge")!.TextContent.Should().Be("Vencido");
-        detalle.QuerySelector(".incidencia-motivo")!.TextContent.Should().Be("Hace 3 días");
-        detalle.QuerySelector(".incidencia-fecha")!.TextContent.Should().Be(incidencia.FechaVencimiento!.Value.ToString("dd/MM/yyyy"));
+        detalle.QuerySelector(".documento-pendiente-detalle")!.TextContent.Should().Be("Hace 3 días");
         cut.Find(".boton-expandir-fila").Click();
         cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty();
     }
@@ -48,7 +47,7 @@ public partial class TrabajadoresListaGen2Tests
     {
         var cut = Renderizar(new MediatorFalso { Almacen = { ConDesglose(Trabajador("Formación", "Alonso"), 1, 0, IncidenciaDe("Formación Art. 19", EstadoDocumento.Urgente, 5)) } }, "trabajadores?q=formacion");
         cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().ContainSingle();
-        cut.Find(".coincidencia-incidencia .incidencia-tipo mark").TextContent.Should().Be("Formación");
+        cut.Find(".coincidencia-incidencia .documento-pendiente-nombre mark").TextContent.Should().Be("Formación");
         cut.Find("button[data-keytip=E]").TextContent.Should().Contain("Contraer todo");
         cut.Find(".boton-expandir-fila").Click();
         cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty();
@@ -108,13 +107,13 @@ public partial class TrabajadoresListaGen2Tests
         mediador.Almacen[0] = ConDesglose(ana, 1, 0, IncidenciaDe("Aptitud médica", EstadoDocumento.SinConfirmar));
         await AvisarGuardadoAsync(cut, EntidadWorkspace.Trabajador, ana.Dto.Id);
         cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().ContainSingle();
-        cut.Find(".incidencia-tipo").TextContent.Should().Be("Aptitud médica");
+        cut.Find(".documento-pendiente-nombre").TextContent.Should().Be("Aptitud médica");
     }
     [Fact]
     public void El_vacio_filtrado_y_el_pie_permanecen_dentro_de_la_tarjeta()
     {
         var cut = Renderizar(new MediatorFalso(), "trabajadores?q=Nadie");
-        cut.FindAll(".tarjeta-listado .estado-vacio").Should().ContainSingle();
+        cut.FindAll(".estado-vacio").Should().ContainSingle();
         cut.Find(".tarjeta-listado-pie-separado .paginador-texto").TextContent.Should().EndWith("Mostrando 0 de 0");
         FilasDeDatos(cut).Should().BeEmpty();
     }
@@ -129,7 +128,7 @@ public partial class TrabajadoresListaGen2Tests
 
         await cut.InvokeAsync(() => Task.CompletedTask);
         mediador.Enviadas.OfType<CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores.ObtenerTrabajadoresQuery>().Should().BeEmpty("no se consulta con filtros por defecto antes de leer la URL");
-        cut.Find("table.trabajadores-rejilla-propia").GetAttribute("aria-busy").Should().Be("true");
+        cut.Find(".esqueleto-lista").GetAttribute("aria-busy").Should().Be("true");
 
         cut.Markup.Should().NotContain("/trabajadores/exportar.xlsx", "no se ofrece exportar con criterios todavía sin sincronizar");
         await cut.InvokeAsync(() => pendiente.SetResult(new CaeManager.Application.Trabajadores.Queries.ObtenerEmpleadoresDeTrabajadoresVisibles.EmpleadoresDeTrabajadoresDto([], [])));

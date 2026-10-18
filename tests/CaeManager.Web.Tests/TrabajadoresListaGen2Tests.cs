@@ -369,7 +369,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
     [Fact]
     public void Un_usuario_mono_Tenant_no_ve_cabecera_de_empresa_gestionada()
     {
-        var cut = Renderizar(new MediatorFalso());
+        var cut = Renderizar(new MediatorFalso { Almacen = { Trabajador("Ana", "Alonso") } });
 
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
         cut.FindAll(".lista-filas-acordeon").Should().NotBeEmpty("la lista se pinta como siempre");
@@ -952,7 +952,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(b => b.GetAttribute("aria-label"))
-            .Should().Equal("Empresa: Todas", "Centro: Todos", "Actividad: Todos", "Filtros guardados");
+            .Should().Equal("Empresa", "Centro", "Actividad", "Filtros guardados", "Agrupar");
         cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Por vencer", "Sin confirmar", "Sin incidencias");
         cut.MarcadosEnFranja().Should().Equal(["Todos"], "sin filtro de estado, el marcado es «Todos»");
         UltimaConsulta(mediador).ConRecuentosPorEstado.Should().BeTrue("sin pedirlos, la franja no tendría cifras");
@@ -1401,7 +1401,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("j"));
         await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("x"));
 
-        ClasesDeLasFilas(cut).Should().Equal(["fila-pulsable fila-enfocada"], "control positivo: la j sí enfocó la fila");
+        ClasesDeLasFilas(cut).Should().Equal(["tarjeta-fila-acordeon fila-enfocada"], "control positivo: la j sí enfocó la fila");
         cut.FindAll(".lista-filas-acordeon input[type=checkbox]").Should().BeEmpty();
     }
 
@@ -1529,10 +1529,10 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var atajos = cut.FindComponent<AtajosListaTeclado>();
 
         await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("j"));
-        ClasesDeLasFilas(cut).Should().Equal("fila-pulsable fila-enfocada fila-tintada-peligro", "fila-pulsable");
+        ClasesDeLasFilas(cut).Should().Equal("tarjeta-fila-acordeon fila-enfocada fila-tintada-peligro", "tarjeta-fila-acordeon");
 
         await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("j"));
-        ClasesDeLasFilas(cut).Should().Equal("fila-pulsable fila-tintada-peligro", "fila-pulsable fila-enfocada");
+        ClasesDeLasFilas(cut).Should().Equal("tarjeta-fila-acordeon fila-tintada-peligro", "tarjeta-fila-acordeon fila-enfocada");
     }
 
     /// <summary>Con 20 o menos al tamaño mínimo no hay nada que paginar: sin paginador.</summary>
