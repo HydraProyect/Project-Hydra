@@ -262,7 +262,15 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
                     TotalConIncidencia == 1 ? Textos["ContadorIncidenciasUno"] : Textos["ContadorIncidenciasVarios"],
                     EnAlerta: true)
         },
-        new(PestanaCentros, Textos["PestanaCentros"]),
+        // Maqueta 17-10: «Centros» lleva el recuento de Centros asignados, en neutro (no es una alerta).
+        new(PestanaCentros, Textos["PestanaCentros"])
+        {
+            Contador = _centros.Count == 0
+                ? null
+                : new ContadorPestana(
+                    _centros.Count,
+                    _centros.Count == 1 ? Textos["ContadorCentrosUno"] : Textos["ContadorCentrosVarios"])
+        },
         new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
         new(PestanaFicha, Comunes["PestanaFicha"]),
         new(PestanaHistorial, Textos["PestanaHistorial"])

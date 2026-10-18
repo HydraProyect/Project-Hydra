@@ -675,6 +675,9 @@
   <data name="AccionDarDeBajaDeCentro" xml:space="preserve">
     <value>Dar de baja de este centro</value>
   </data>
+  <data name="AsignadoDesdeEl" xml:space="preserve"><value>Asignado desde el {0}</value></data>
+  <data name="ContadorCentrosUno" xml:space="preserve"><value>centro asignado</value></data>
+  <data name="ContadorCentrosVarios" xml:space="preserve"><value>centros asignados</value></data>
   <data name="SinDocumentoExigido" xml:space="preserve">
     <value>Sin documento</value>
   </data>

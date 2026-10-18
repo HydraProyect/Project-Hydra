@@ -278,7 +278,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     }
 
     private static void AbrirCentros(IRenderedComponent<TrabajadorDetalle> cut) =>
-        cut.FindAll("[role=tab]").Single(t => t.TextContent.Trim() == "Centros").Click();
+        cut.FindAll("[role=tab]").Single(t => t.FirstChild!.TextContent.Trim() == "Centros").Click();
 
     private IRenderedComponent<TrabajadorDetalle> Renderizar(Guid id) =>
         Render<TrabajadorDetalle>(p => p.Add(x => x.TrabajadorId, id));
@@ -569,7 +569,10 @@ public partial class Trabajador360Gen2Tests : BunitContext
 
         var cabecera = cut.Find(".cabecera-identidad");
         cabecera.QuerySelector("h1")!.TextContent.Trim().Should().StartWith("Javier Salas Moreno");
-        cabecera.QuerySelector(".cabecera-identidad-kicker")!.TextContent.Trim().Should().Be("Trabajador");
+        cabecera.QuerySelector(".cabecera-identidad-kicker").Should().BeNull("la maqueta 17-10 no rotula «Trabajador» sobre el nombre");
+        cabecera.QuerySelectorAll(".trabajador360-datos > div").Should().HaveCount(2, "DNI · empleador arriba y las pastillas de estado en su propia fila");
+        cabecera.QuerySelector(".trabajador360-meta")!.TextContent.Should().Contain("12345678Z").And.Contain("Refrielectric S.L.");
+        cabecera.QuerySelector(".trabajador360-indicadores")!.TextContent.Should().Contain("2 incidencias — Centro Norte");
         cabecera.TextContent.Should().Contain("12345678Z").And.Contain("Refrielectric S.L.");
         // 3 de 5 documentos exigidos entre todos los centros están al día. El anillo va a la
         // izquierda de la identidad, como en las otras páginas 360, y no entre las acciones.
@@ -640,11 +643,45 @@ public partial class Trabajador360Gen2Tests : BunitContext
             : t.FirstChild!.TextContent.Trim()).Should().Equal(["Operación", "Centros", "Documentación", "Ficha", "Historial"],
             "«Contactos» pasó al lateral y «Documentación» es la del trabajador a día de hoy (decisiones del propietario 2026-09-24); «Vehículos» nunca existió en esta página");
 
+        // Maqueta «Trabajador 360 TALVEG» (17-10): Operación (en alerta) y Centros (en neutro) llevan recuento; el resto, no.
         var contadores = cut.FindAll(".pestanas-contador");
-        contadores.Should().ContainSingle("solo Operación cuenta algo");
+        contadores.Should().HaveCount(2, "solo Operación y Centros cuentan algo");
         SinEspaciosDeMas(contadores[0].TextContent).Should().Be("2 documentos con incidencia",
             "el número sin unidad no dice qué cuenta: la glosa existe para el nombre accesible del botón");
         contadores[0].ClassList.Should().Contain("pestanas-contador-alerta");
+        SinEspaciosDeMas(contadores[1].TextContent).Should().Be("2 centros asignados");
+        contadores[1].ClassList.Should().NotContain("pestanas-contador-alerta", "los Centros asignados no son una incidencia");
+        cut.Find(".pestanas-lista").ClassList.Should().Contain("pestanas-lista-pagina360",
+            "las pestañas de la columna principal llevan las medidas de las páginas 360 del export de Design");
+    }
+
+    /// <summary>
+    /// Maqueta 17-10: la línea secundaria de cada Centro dice «{Cliente} · Asignado desde el {fecha} · {resumen}» y, en esa misma
+    /// línea, «Dar de baja de este centro» (antes iba en una columna de acciones que lo cortaba). Quien solo consulta lee la línea
+    /// entera sin el enlace; el icono 360 sigue siendo la única acción de la columna.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void El_Centro_dice_desde_cuando_esta_asignado_y_la_baja_va_en_su_misma_linea_solo_con_escritura(bool consulta)
+    {
+        if (consulta) this.ConRolDeEscritura(Roles.Consulta);
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        var (norte, berriz) = Escena();
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] = [norte, berriz];
+
+        var cut = Renderizar(id);
+        AbrirCentros(cut);
+
+        var fila = cut.FindAll(".trabajador360-centros > div > ul > .fila-relacion")[0];
+        var detalle = fila.QuerySelector(".fila-relacion-detalle")!;
+        SinEspaciosDeMas(detalle.TextContent).Should().Contain("Refrielectric S.A. · Asignado desde el 02/07/2026 · 1 de 3 exigidos correctos");
+        fila.QuerySelector(".fila-relacion-cifra")!.TextContent.Trim().Should().BeEmpty("la fecha de alta ya va en la línea secundaria");
+        detalle.QuerySelectorAll(".trabajador360-centro-baja").Should().HaveCount(consulta ? 0 : 1);
+        fila.QuerySelectorAll(".fila-relacion-acciones button").Should().BeEmpty("la baja ya no vive en la columna de acciones");
+        fila.QuerySelectorAll(".fila-relacion-acciones .boton-360-pagina").Should().ContainSingle();
     }
 
     /// <summary>
@@ -723,7 +760,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
         AbrirCentros(cut);
 
-        cut.FindAll(".pestanas-contador").Should().BeEmpty("sin incidencias no hay píldora de alerta");
+        cut.FindAll(".pestanas-contador-alerta").Should().BeEmpty("sin incidencias no hay píldora de alerta");
         cut.Find(".cabecera-identidad").TextContent.Should().NotContain("incidencia —",
             "el badge rojo de incidencias del centro no aparece");
         var tarjeta = cut.Find(".trabajador360-centros > div > ul > .fila-relacion");
@@ -877,8 +914,8 @@ public partial class Trabajador360Gen2Tests : BunitContext
             if (nombre == "Centros")
             {
                 cut.FindAll(".trabajador360-centros > div > ul > .fila-relacion").Should().NotBeEmpty();
-                cut.FindAll("[role=tab]").Single(t => t.TextContent.Trim() == "Centros")
-                    .QuerySelector(".pestanas-contador").Should().BeNull();
+                cut.FindAll("[role=tab]").Single(t => t.FirstChild!.TextContent.Trim() == "Centros")
+                    .QuerySelector(".pestanas-contador-alerta").Should().BeNull("el recuento de Centros es neutro: la incidencia se cuenta solo en Operación");
                 cut.FindAll("[aria-label='Gestiones pendientes']").Should().BeEmpty();
             }
             else
@@ -1017,7 +1054,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.FindAll(".pestanas-contador").Should().BeEmpty("un cero no se pinta como si fuera un dato que atender");
+        cut.FindAll(".pestanas-contador-alerta").Should().BeEmpty("un cero no se pinta como si fuera un dato que atender");
         cut.FindAll("[role=tab]").Should().HaveCount(5);
     }
 
