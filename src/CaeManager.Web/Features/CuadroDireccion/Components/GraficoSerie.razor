@@ -1,0 +1,63 @@
+@* Gráfico de barras apiladas con una línea opcional sobre su propio eje, o su versión compacta (minigráfico). Sin texto propio: todo llega por parámetros. *@
+<figure class="gs @(Compacto ? "gs-compacto" : null)" role="img" aria-label="@EtiquetaAria" data-grafico="@Id">
+    <svg viewBox="0 0 @Texto(Ancho) @Texto(Alto)" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+        @if (!Compacto)
+        {
+            <line class="gs-eje" x1="0" y1="@Texto(AltoUtil)" x2="@Texto(Ancho)" y2="@Texto(AltoUtil)" />
+        }
+        @foreach (var barra in GeometriaBarras)
+        {
+            <rect class="gs-barra @(barra.Resaltada ? "gs-resaltada" : null)" x="@Texto(barra.X)" y="@Texto(barra.Y)" width="@Texto(barra.Ancho)" height="@Texto(barra.Alto)" style="fill:@barra.Color" />
+            @if (MostrarValores && barra.Valor is { } valor)
+            {
+                @TextoSvg("gs-valor", barra.X + barra.Ancho / 2, Math.Max(barra.Y - 3, 9), valor)
+            }
+        }
+        @if (PuntosLinea.Length > 0)
+        {
+            <polyline class="gs-linea" points="@PuntosLinea" style="stroke:@ColorLinea" />
+            @if (!Compacto)
+            {
+                @foreach (var punto in GeometriaPuntos)
+                {
+                    <circle class="gs-punto" cx="@Texto(punto.X)" cy="@Texto(punto.Y)" r="3" style="fill:@ColorLinea" />
+                }
+            }
+        }
+        @foreach (var comparada in GeometriaComparadas)
+        {
+            <polyline class="gs-linea" points="@comparada.Texto" style="stroke:@comparada.Color" />
+            @foreach (var punto in comparada.Puntos)
+            {
+                <circle class="gs-punto" cx="@Texto(punto.X)" cy="@Texto(punto.Y)" r="3" style="fill:@comparada.Color" />
+            }
+        }
+        @if (!Compacto)
+        {
+            @foreach (var i in Posiciones)
+            {
+                @TextoSvg("gs-etiqueta", CentroDe(i), Alto - 4, Etiquetas[i])
+            }
+        }
+    </svg>
+    @if (!Compacto)
+    {
+        <div class="gs-zonas">
+            @foreach (var i in Posiciones)
+            {
+                <div class="gs-zona" tabindex="0" style="left:@PorcentajeIzquierda(i)%;width:@Texto(PorcentajeAncho)%" data-zona="@i">
+                    <div class="gs-tip" role="tooltip">@TextoTip(i)</div>
+                </div>
+            }
+        </div>
+        @if (Leyenda.Count > 0)
+        {
+            <figcaption class="gs-leyenda">
+                @foreach (var item in Leyenda)
+                {
+                    <span><i style="background:@item.Color"></i>@item.Nombre</span>
+                }
+            </figcaption>
+        }
+    }
+</figure>

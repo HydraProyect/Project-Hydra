@@ -1,0 +1,21 @@
+.gs { position: relative; margin: 0; }
+.gs svg { display: block; width: 100%; height: 220px; overflow: visible; }
+.gs-compacto svg { height: 32px; }
+.gs-eje { stroke: var(--color-border); stroke-width: 1; }
+.gs-barra { shape-rendering: crispEdges; }
+.gs-linea { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.gs-punto { stroke: var(--color-surface); stroke-width: 1; }
+.gs-etiqueta { font-size: 11px; fill: var(--color-text-muted); }
+.gs-valor { font-size: 10px; fill: var(--color-text-muted); }
+.gs-zonas { position: absolute; inset: 0 0 auto 0; height: 220px; pointer-events: none; }
+.gs-zona { position: absolute; top: 0; bottom: 0; pointer-events: auto; outline-offset: -2px; }
+.gs-zona:hover, .gs-zona:focus { outline: 1px solid var(--color-primary-200); }
+.gs-tip {
+    display: none; position: absolute; left: 50%; top: 4px; transform: translateX(-50%); z-index: 3;
+    min-width: 160px; max-width: 280px; padding: 6px 10px; font-size: 12px; line-height: 16px;
+    color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-border);
+    border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, .12); white-space: normal; pointer-events: none;
+}
+.gs-zona:hover .gs-tip, .gs-zona:focus .gs-tip { display: block; }
+.gs-leyenda { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; font-size: 12px; color: var(--color-text-muted); }
+.gs-leyenda i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }

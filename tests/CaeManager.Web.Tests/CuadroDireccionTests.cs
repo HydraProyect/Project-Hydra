@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Bunit;
 using CaeManager.Application.Dashboard;
 using CaeManager.Application.Dashboard.Queries;
@@ -24,7 +24,7 @@ namespace CaeManager.Web.Tests;
 /// no las cifras, que prueba la consulta contra PostgreSQL. Los rótulos salen de
 /// <c>IStringLocalizer&lt;TextosCuadroDireccion&gt;</c>.
 /// </summary>
-public class CuadroDireccionTests : BunitContext
+public partial class CuadroDireccionTests : BunitContext
 {
     private static readonly Guid TenantA = Guid.Parse("a1a1a1a1-0000-0000-0000-000000000001");
     private static readonly Guid TenantB = Guid.Parse("b2b2b2b2-0000-0000-0000-000000000002");
@@ -40,16 +40,30 @@ public class CuadroDireccionTests : BunitContext
     private sealed class MediatorFalso(Func<CuadroDireccionDto> cuadro) : IMediator
     {
         public List<ReabrirMesCuadroDireccionCommand> Reaperturas { get; } = [];
+        public Func<ObtenerSerieCuadroDireccionQuery, SerieCuadroDireccionDto>? Serie { get; init; }
+        public Func<ComunicacionesCuadroDireccionDto>? Comunicaciones { get; init; }
+        public Func<GestionesPorDiaCuadroDireccionDto>? GestionesDia { get; init; }
+        public List<ObtenerSerieCuadroDireccionQuery> SeriesPedidas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             object? respuesta = request switch
             {
                 ObtenerCuadroDireccionQuery => cuadro(),
+                ObtenerSerieCuadroDireccionQuery q => PedirSerie(q),
+                ObtenerComunicacionesCuadroDireccionQuery q => Comunicaciones?.Invoke()
+                    ?? ObtenerComunicacionesCuadroDireccionQueryHandler.Fusionar(q.Anyo, q.Mes, [], 0),
+                ObtenerGestionesPorDiaCuadroDireccionQuery => GestionesDia?.Invoke() ?? new GestionesPorDiaCuadroDireccionDto([], 0),
                 ReabrirMesCuadroDireccionCommand c => Registrar(c),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             };
             return Task.FromResult((TResponse)respuesta!);
+        }
+
+        private SerieCuadroDireccionDto PedirSerie(ObtenerSerieCuadroDireccionQuery q)
+        {
+            SeriesPedidas.Add(q);
+            return Serie?.Invoke(q) ?? new SerieCuadroDireccionDto([], [], 0);
         }
 
         private Result Registrar(ReabrirMesCuadroDireccionCommand c)
@@ -76,7 +90,8 @@ public class CuadroDireccionTests : BunitContext
             Solicitudes: new SolicitudesDelMesDto(
                 c(solicitudes),
                 franjas ?? [new FranjaSolicitudesDto(DayOfWeek.Monday, 9, 30), new FranjaSolicitudesDto(DayOfWeek.Tuesday, 10, 90)]),
-            Cumplimiento: new CumplimientoActualDto(90, 5, 3, 2, 0, 0, 0, 92, false, DateTime.UtcNow));
+            Cumplimiento: new CumplimientoActualDto(90, 5, 3, 2, 0, 0, 0, 92, false, DateTime.UtcNow),
+            Gestiones: c(42));
     }
 
     private static CuadroDireccionDto Cuadro(
@@ -95,9 +110,18 @@ public class CuadroDireccionTests : BunitContext
             cifrasA, 0);
     }
 
-    private IRenderedComponent<CuadroDireccionPagina> Pintar(CuadroDireccionDto cuadro, string rol, out MediatorFalso mediador)
+    private IRenderedComponent<CuadroDireccionPagina> Pintar(
+        CuadroDireccionDto cuadro, string rol, out MediatorFalso mediador,
+        Func<ObtenerSerieCuadroDireccionQuery, SerieCuadroDireccionDto>? serie = null,
+        ComunicacionesCuadroDireccionDto? comunicaciones = null,
+        GestionesPorDiaCuadroDireccionDto? gestionesDia = null)
     {
-        var falso = new MediatorFalso(() => cuadro);
+        var falso = new MediatorFalso(() => cuadro)
+        {
+            Serie = serie,
+            Comunicaciones = comunicaciones is null ? null : () => comunicaciones,
+            GestionesDia = gestionesDia is null ? null : () => gestionesDia,
+        };
         mediador = falso;
         Services.AddScoped<IMediator>(_ => falso);
         Services.AddScoped<ToastService>();
@@ -165,7 +189,7 @@ public class CuadroDireccionTests : BunitContext
     [Fact]
     public void El_mapa_de_calor_de_una_Empresa_con_menos_de_veinte_conversaciones_no_se_muestra()
     {
-        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial, solicitudes: 19), Roles.DireccionCae, out _);
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial, solicitudes: 19), Roles.DireccionCae, out _, serie: _ => SerieDe(i => Cifras(EstadoCifraMensual.Estimado, i == 5 ? 19 : 0)));
 
         IrA(cut, "Demanda");
 
@@ -176,7 +200,7 @@ public class CuadroDireccionTests : BunitContext
     [Fact]
     public void El_mapa_de_calor_con_veinte_conversaciones_se_pinta()
     {
-        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial, solicitudes: 20), Roles.DireccionCae, out _);
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial, solicitudes: 20), Roles.DireccionCae, out _, serie: _ => SerieDe(i => Cifras(EstadoCifraMensual.Estimado, i == 5 ? 20 : 0)));
 
         IrA(cut, "Demanda");
 
@@ -191,10 +215,11 @@ public class CuadroDireccionTests : BunitContext
 
         IrA(cut, "Empresas");
 
-        var ebro = cut.Find($"tr[data-empresa='{TenantB}']");
-        ebro.TextContent.Should().Contain("No se muestra");
-        var refrielectric = cut.Find($"tr[data-empresa='{TenantA}']");
-        refrielectric.TextContent.Should().Contain("120");
+        cut.Find($"tr[data-empresa='{TenantB}'] .cuadro-expandir").Click();
+        cut.Find($"tr[data-empresa='{TenantA}'] .cuadro-expandir").Click();
+
+        cut.Find($"tr[data-detalle='{TenantB}']").TextContent.Should().Contain("No se muestra");
+        cut.Find($"tr[data-detalle='{TenantA}']").TextContent.Should().Contain("120");
     }
 
     // ---------------------------------------------------------------- parcial y estimado
