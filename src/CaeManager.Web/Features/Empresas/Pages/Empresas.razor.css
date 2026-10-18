@@ -1,4 +1,4 @@
-/*
+﻿/*
   Lista de Empresas (Empresas TALVEG.dc.html).
 
   NO se usa QuickGrid, y no es un olvido: la fila de Empresas se despliega para
@@ -36,26 +36,14 @@
       el ancho que necesita el motivo bajo la pastilla.
     */
     display: grid;
-    grid-template-columns: 28px minmax(0, 1fr) 116px 132px 200px 44px;
-    gap: var(--space-2);
+    grid-template-columns: 24px minmax(200px, 2fr) minmax(150px, 1.4fr) minmax(130px, 1fr) minmax(170px, 1.3fr) 40px;
+    gap: var(--space-4);
     align-items: center;
 }
 
 /* Con selección múltiple entra una casilla delante y las columnas se corren. */
 .rejilla-empresas-seleccion {
-    grid-template-columns: 24px 28px minmax(0, 1fr) 116px 132px 200px 44px;
-}
-
-/* Estrecho: la barra oculta su pista y la columna de cumplimiento se queda en el ancho de la cifra; la
-   de estado vuelve a su ancho mínimo, y el motivo se recorta antes. */
-@media (max-width: 767px) {
-    .rejilla-empresas {
-        grid-template-columns: 28px minmax(0, 1fr) 116px 48px 132px 44px;
-    }
-
-    .rejilla-empresas-seleccion {
-        grid-template-columns: 24px 28px minmax(0, 1fr) 116px 48px 132px 44px;
-    }
+    grid-template-columns: 28px 24px minmax(200px, 2fr) minmax(150px, 1.4fr) minmax(130px, 1fr) minmax(170px, 1.3fr) 40px;
 }
 
 /* La celda de estado no desborda su pista: el motivo se recorta dentro (MotivoIncidenciasDocumentales). */
@@ -103,15 +91,14 @@
 }
 
 .cabecera-columnas-empresas {
-    min-height: 40px;
-    padding: 0 var(--space-4);
+    align-items: end;
+    padding: 14px var(--space-4) 10px;
     background: var(--color-surface);
-    border-bottom: 1px solid var(--color-fila-divisor);
+    border-bottom: 1.5px solid var(--color-text);
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    font: var(--font-label);
-    font-size: 11px;
+    font: 600 12px/16px var(--font-family);
     text-transform: uppercase;
-    letter-spacing: .06em;
+    letter-spacing: .08em;
     color: var(--color-text-muted);
 }
 
@@ -131,14 +118,23 @@
 }
 
 .marco-lista-empresas .tarjeta-fila-acordeon-cabecera {
-    min-height: 48px;
+    min-height: 0;
+    padding: 12px var(--space-4);
+    transition: background-color .12s ease, box-shadow .12s ease;
     border-bottom: 0;
     border-radius: 0;
 }
 
+.marco-lista-empresas .tarjeta-fila-acordeon-cabecera:hover {
+    background-color: var(--color-primary-50);
+    box-shadow: inset 3px 0 0 var(--color-primary-500);
+}
+
 .marco-lista-empresas .tarjeta-fila-acordeon-contenido {
-    border-top: var(--border-default);
+    border-top: 0;
     border-radius: 0;
+    background: color-mix(in srgb, var(--color-surface-subtle) 60%, var(--color-surface));
+    padding: 4px var(--space-4) 4px 56px;
 }
 
 /* Cada celda recorta por su cuenta: sin esto, una razón social larga estira su
@@ -160,6 +156,8 @@
 
 /* La columna de detecciones se reserva aunque no haya ninguna — es lo que
    mantiene la rejilla cuadrada de fila en fila. */
+.celda-identidad-empresa .tarjeta-fila-acordeon-meta { font: var(--font-body-sm); color: var(--color-text-muted); letter-spacing: .02em; }
+
 .celda-sin-deteccion {
     color: var(--color-text-muted);
 }

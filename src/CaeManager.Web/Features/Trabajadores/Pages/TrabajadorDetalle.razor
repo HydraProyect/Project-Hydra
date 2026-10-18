@@ -45,7 +45,7 @@
             El nombre del empleador abre su consulta rápida; el icono 360,
             su página.
         *@
-        <CabeceraIdentidad Titulo="@(NombreCompleto ?? string.Empty)" Kicker="@Textos["Kicker"]">
+        <CabeceraIdentidad Titulo="@(NombreCompleto ?? string.Empty)">
             <Anillo>
                 <AnilloCumplimiento Porcentaje="Cumplimiento" Tamano="TamanoAnillo.Cabecera"
                                      Etiqueta="@(Textos["AnilloCumplimiento", Cumplimiento?.ToString() ?? string.Empty])" />
@@ -56,7 +56,10 @@
                     <span class="trabajador360-alias">(@_detalle.Alias)</span>
                 }
             </JuntoAlTitulo>
+            @* Maqueta 17-10: dos líneas bajo el nombre (DNI · empleador, y debajo las pastillas de estado); sin «Trabajador» sobre el nombre. *@
             <Datos>
+              <div class="trabajador360-datos">
+               <div class="trabajador360-meta">
                 <span>
                     DNI: <b>@_detalle.Dni</b>
                     <BotonCopiar Valor="@_detalle.Dni" Etiqueta="@Textos["FichaCopiarDni"]" NombreAccesible="@Textos["FichaCopiarNombreAccesible", Textos["FichaCopiarDni"]]" />
@@ -69,9 +72,10 @@
                         <Boton360 Nombre="@_detalle.EmpleadorNombre" Href="@paginaEmpleador" />
                     }
                 </span>
+               </div>
+               <div class="trabajador360-indicadores">
                 @if (PeorEstadoGlobal is { } peorEstado)
                 {
-                    <span aria-hidden="true">·</span>
                     <Badge Tono="EstadoDocumentoUi.Tono(peorEstado)">@EstadoDocumentoUi.Texto(peorEstado)</Badge>
                 }
                 @* El estado de arriba puede ser otro más grave (un vencido): lo exigido y sin documento se nombra aparte,
@@ -102,6 +106,8 @@
                 {
                     <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Textos["AvisoVigenciaSinConfirmar", TotalSinConfirmar]</Badge>
                 }
+               </div>
+              </div>
             </Datos>
             <Acciones>
                 <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="SubirDocumentoAsync">@Textos["BotonSubirDocumento"]</Boton></SoloConEscritura>
@@ -118,7 +124,7 @@
 
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
             <ChildContent>
-        <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["AriaSeccionesTrabajador360"]">
+        <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["AriaSeccionesTrabajador360"]" Pagina360="true">
             @switch (_pestanaActiva)
             {
                 case PestanaOperacion:
@@ -239,13 +245,22 @@
                                                   Tono="@TonoDocumentoEnCentro(centro.PeorEstado)"
                                                   Desplegada="@_expandidosCentro.Contains(centro.CentroId)"
                                                   DesplegadaChanged="_ => AlternarExpansionCentro(centro.CentroId)">
+                                        @* Maqueta 17-10: la línea secundaria dice el Cliente empresarial, «Asignado desde el …», el resumen y,
+                                           al final y en la misma línea, «Dar de baja de este centro» (antes, una columna de acciones que lo cortaba). *@
                                         <Detalle>
                                             @centro.ClienteRazonSocial ·
+                                            <span class="trabajador360-centro-alta">@Textos["AsignadoDesdeEl", centro.FechaAlta.ToString("dd/MM/yyyy")]</span> ·
                                             @(centro.Cumplimiento.Requeridos == 0
                                                 ? Textos["ResumenSinExigencia"]
                                                 : Textos["ResumenExigidosCorrectos", centro.Cumplimiento.AlDia, centro.Cumplimiento.Requeridos])
+                                            <SoloConEscritura>
+                                                <span aria-hidden="true"> · </span>
+                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="trabajador360-centro-baja accion-fila-enlace"
+                                                       OnClick="() => AbrirBajaAsignacionConfirm(centro.AsignacionId, centro.CentroNombre)">
+                                                    @Textos["AccionDarDeBajaDeCentro"]
+                                                </Boton>
+                                            </SoloConEscritura>
                                         </Detalle>
-                                        <Cifra><span class="trabajador360-centro-alta">@Textos["ColumnaDesde"] @centro.FechaAlta.ToString("dd/MM/yyyy")</span></Cifra>
                                         <Estado>
                                             <Badge Tono="EstadoDocumentoUi.Tono(centro.PeorEstado)" Tamano="TamanoBadge.Pequeno">
                                                 @(incidencias == 0
@@ -254,12 +269,6 @@
                                             </Badge>
                                         </Estado>
                                         <Acciones>
-                                            <SoloConEscritura>
-                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="trabajador360-centro-baja accion-fila-enlace"
-                                                       OnClick="() => AbrirBajaAsignacionConfirm(centro.AsignacionId, centro.CentroNombre)">
-                                                    @Textos["AccionDarDeBajaDeCentro"]
-                                                </Boton>
-                                            </SoloConEscritura>
                                             <Boton360 Nombre="@centro.CentroNombre" Href="@($"/centros/{centro.CentroId}")" />
                                         </Acciones>
                                         <Desplegable>
