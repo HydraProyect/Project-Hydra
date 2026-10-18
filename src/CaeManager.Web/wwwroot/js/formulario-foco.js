@@ -25,3 +25,11 @@ export function enfocarPrimerError(contenedor) {
     marca.scrollIntoView?.({ block: 'center' });
     return false;
 }
+
+// Un paso nuevo del modo pasos empieza arriba del cuerpo desplazable del panel.
+export function reiniciarDesplazamiento(contenedor) {
+    const cuerpo = contenedor?.closest('.drawer-cuerpo');
+    if (cuerpo) {
+        cuerpo.scrollTop = 0;
+    }
+}

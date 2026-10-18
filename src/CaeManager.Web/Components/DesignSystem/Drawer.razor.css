@@ -169,12 +169,14 @@
     display: none;
 }
 
-/* En móvil los botones del pie pasan a una rejilla de dos columnas del mismo ancho (antes, una columna con width: 100% que
-   estiraba «Cancelar»); un primario que debe destacar (Siguiente) ocupa las dos. */
+/* En móvil, como siempre, los botones del pie se apilan a todo el ancho (acción principal + «Cancelar», en el orden del marcado de
+   cada pantalla). Solo el modo pasos (.drawer-pie-pasos) usa la rejilla de dos columnas de la maqueta: ahí el pie tiene una forma
+   conocida (Atrás | Guardar y terminar, y Siguiente arriba a todo el ancho). Una rejilla para cualquier pie dejaba botones sueltos a
+   media anchura (un solo «Cerrar», un pie con tres botones extra). */
 @media (max-width: 640px) {
     .drawer-pie {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
+        flex-direction: column;
+        align-items: stretch;
         gap: var(--space-2);
     }
 
@@ -186,6 +188,16 @@
 
     .drawer-pie ::deep .boton-espera-boton {
         min-width: 0;
+    }
+
+    .drawer-pie.drawer-pie-pasos {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    /* Si el número de acciones del pie en pasos es impar, la última no queda a media anchura. */
+    .drawer-pie.drawer-pie-pasos > :last-child:nth-child(odd) {
+        grid-column: 1 / -1;
     }
 }
 /* Ficha 16: desenfoque ligero tras el velo, detrás de @supports y bajo el token

@@ -325,10 +325,10 @@
 
 <DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]"
                  HayCambios="() => HayCambiosAlta" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
-                 HayErroresDeCampo="@(_erroresCampo.Count > 0)" OnGuardar="GuardarAsync"
+                 HayErroresDeCampo="@HayErroresDelPasoVisible" OnGuardar="GuardarAsync"
                  TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]"
                  Pasos="PasosAlta" PasoActual="@_pasoAlta" PasosCompletados="_pasosAltaVistos" EtiquetaPasos="@Textos["EtiquetaPasosAlta"]"
-                 OnPasoSeleccionado="AltaIrAPaso" OnSiguiente="AltaSiguiente" OnAtras="AltaAtras">
+                 OnPasoSeleccionado="AltaIrAPaso" OnSiguiente="AltaSiguienteAsync" OnAtras="AltaAtras">
     @if (_pasoAlta == PasoAltaBasico)
     {
     <div class="campo">

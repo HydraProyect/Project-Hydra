@@ -87,6 +87,44 @@ public class PanelFormularioTests : BunitContext
     // ------------------------------------------------------------ modo pasos
 
     [Fact]
+    public void La_rejilla_de_dos_columnas_del_pie_en_movil_es_solo_del_modo_pasos()
+    {
+        Renderizar().Find(".drawer-pie").ClassList.Should().NotContain("drawer-pie-pasos",
+            "un pie con un solo «Cerrar» o con tres botones extra dejaría botones sueltos a media anchura");
+        RenderizarPasos().Find(".drawer-pie").ClassList.Should().Contain("drawer-pie-pasos");
+    }
+
+    [Fact]
+    public void La_primaria_va_siempre_en_el_mismo_envoltorio_de_ultimo_a_intermedio_y_solo_cambia_su_modificador()
+    {
+        // El envoltorio es una sola rama del marcado en todos los pasos: si «Siguiente» y «Guardar» fueran ramas distintas, Blazor
+        // recrearía el botón al pasar de uno a otro y el foco, que estaba en él, se perdería (nodo fijo no medible en bUnit: se fija la forma).
+        _paso = "contacto";
+        var cut = RenderizarPasos();
+        var ultimo = cut.Find(".drawer-pie .boton-primario").Closest(".formulario-drawer-accion")!;
+        ultimo.ClassList.Should().Contain("formulario-drawer-accion").And.NotContain("formulario-drawer-siguiente");
+
+        cut.Render(p => p.Add(x => x.PasoActual, "trabajo"));
+
+        var intermedio = cut.Find(".drawer-pie .boton-primario").Closest(".formulario-drawer-accion")!;
+        intermedio.TagName.Should().Be(ultimo.TagName);
+        intermedio.ClassList.Should().Contain("formulario-drawer-accion").And.Contain("formulario-drawer-siguiente");
+        cut.FindAll(".drawer-pie .formulario-drawer-accion").Count(e => e.QuerySelector(".boton-primario") is not null).Should().Be(1);
+    }
+    [Fact]
+    public void Mientras_carga_Siguiente_y_el_indicador_no_responden()
+    {
+        _vistos.Add("basico");
+        _paso = "trabajo";
+        var cut = RenderizarPasos();
+        cut.FindAll(".drawer-pasos button").Should().NotBeEmpty("con el paso 1 visto, el indicador deja volver");
+        cut.Render(p => p.Add(x => x.Cargando, true));
+
+        cut.FindAll(".drawer-pasos button").Should().BeEmpty();
+        cut.Find(".drawer-pie .boton-primario").HasAttribute("disabled").Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Primer_paso_ofrece_Cancelar_Guardar_y_terminar_y_Siguiente_con_un_solo_primario()
     {
         var cut = RenderizarPasos();
@@ -185,12 +223,15 @@ public class PanelFormularioTests : BunitContext
             .AddChildContent("<input class=\"campo-input\" />"));
 
         cut.Find("button.seccion-plegable-cabecera").GetAttribute("aria-expanded").Should().Be("false");
+        cut.Find("button.seccion-plegable-cabecera").HasAttribute("aria-controls").Should().BeFalse("plegada no hay panel al que apuntar");
         cut.Find(".seccion-plegable-resumen").TextContent.Trim().Should().Be("Montajes Levante S.L. · B46218753");
         cut.FindAll(".seccion-plegable-contenido input").Should().BeEmpty();
 
         await cut.Find("button.seccion-plegable-cabecera").ClickAsync(new MouseEventArgs());
 
         cut.Find("button.seccion-plegable-cabecera").GetAttribute("aria-expanded").Should().Be("true");
+        cut.Find("button.seccion-plegable-cabecera").GetAttribute("aria-controls").Should().Be(cut.Find(".seccion-plegable-contenido").Id,
+            "abierta, aria-controls apunta al id del panel que existe");
         cut.FindAll(".seccion-plegable-resumen").Should().BeEmpty("abierta, el resumen sobra");
         cut.FindAll(".seccion-plegable-contenido input").Should().ContainSingle();
     }

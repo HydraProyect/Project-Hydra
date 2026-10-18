@@ -1,8 +1,11 @@
 using Bunit;
 using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
+using CaeManager.Domain.Common;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Trabajadores.Pages;
 using FluentAssertions;
+using FluentValidation;
+using FluentValidation.Results;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -43,7 +46,9 @@ public partial class TrabajadoresListaGen2Tests
         PanelDeAlta(cut).FindComponents<CampoTexto>().Should().HaveCount(5);
         BotonesDelPanel(cut).Should().Equal("Cancelar", "Guardar y terminar", "Siguiente");
 
-        // Paso 2, Trabajo: puesto, tipo de contratación y observaciones.
+        // Paso 2, Trabajo: puesto, tipo de contratación y observaciones (se llega con el paso 1 completo).
+        await cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = EmpresaEbro.ToString() });
+        await EscribirDatosCompletosDelAltaAsync(cut);
         await PulsarEnElPanelAsync(cut, "Siguiente");
         PanelDeAlta(cut).FindComponents<CampoTexto>().Should().ContainSingle();
         PanelDeAlta(cut).FindComponents<CampoSelect>().Should().ContainSingle();
@@ -100,16 +105,136 @@ public partial class TrabajadoresListaGen2Tests
         cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().BeEmpty());
     }
 
+    private static async Task LlegarAlUltimoPasoAsync(IRenderedComponent<Trabajadores> cut)
+    {
+        await cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = EmpresaEbro.ToString() });
+        await EscribirDatosCompletosDelAltaAsync(cut);
+        await PulsarEnElPanelAsync(cut, "Siguiente");
+        await PulsarEnElPanelAsync(cut, "Siguiente");
+        PasosDelPanel(cut).Should().HaveCount(3);
+        BotonesDelPanel(cut).Should().Equal("Atrás", "Guardar");
+    }
+
+    private static Func<object, Task<object>?> FallaConErrores(params (string Campo, string Mensaje)[] errores) =>
+        p => p is CrearTrabajadorCommand
+            ? Task.FromException<object>(new ValidationException(errores.Select(e => new ValidationFailure(e.Campo, e.Mensaje))))
+            : null;
+
     [Fact]
-    public async Task Guardar_sin_empleador_desde_un_paso_posterior_devuelve_al_paso_donde_se_elige()
+    public async Task Siguiente_sin_empleador_no_avanza_ni_marca_el_paso_como_visto()
     {
         var cut = Renderizar(new MediatorFalso());
         await AbrirAltaAsync(cut);
+        await EscribirDatosCompletosDelAltaAsync(cut);
+
         await PulsarEnElPanelAsync(cut, "Siguiente");
 
-        await PulsarEnElPanelAsync(cut, "Guardar y terminar");
-
         cut.Find(".drawer-panel .alerta-formulario").TextContent.Trim().Should().Be("Selecciona una empresa.");
-        cut.FindAll(".drawer-panel input[name='tipo-empleador']").Should().HaveCount(2, "vuelve a Lo básico, donde está el empleador");
+        cut.FindAll(".drawer-panel input[name='tipo-empleador']").Should().HaveCount(2, "sigue en Lo básico, donde está el empleador");
+        cut.FindAll(".indicador-pasos-completado").Should().BeEmpty("el paso no se da por visto mientras no está bien");
+    }
+
+    [Fact]
+    public async Task Siguiente_con_un_campo_obligatorio_del_paso_vacio_no_avanza_y_enseña_el_error_en_el_campo()
+    {
+        _validadorReal = true;
+        var cut = Renderizar(new MediatorFalso());
+        await AbrirAltaAsync(cut);
+        await cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = EmpresaEbro.ToString() });
+
+        await PulsarEnElPanelAsync(cut, "Siguiente");
+
+        cut.FindAll(".drawer-panel input[name='tipo-empleador']").Should().HaveCount(2, "no pasa a Trabajo con el documento, el nombre y los apellidos en blanco");
+        cut.FindAll(".drawer-panel .campo-mensaje-error").Should().NotBeEmpty("cada campo del paso en error lo dice junto a sí");
+        PanelDeAlta(cut).Instance.HayErroresDeCampo.Should().BeTrue();
+        BotonesDelPanel(cut).Should().Equal("Cancelar", "Guardar y terminar", "Siguiente");
+    }
+
+    [Fact]
+    public async Task Un_error_de_validacion_del_servidor_devuelve_al_primer_paso_con_error()
+    {
+        var mediador = new MediatorFalso { Retener = FallaConErrores(("Dni", "El documento no es válido."), ("Email", "El correo no es válido.")) };
+        var cut = Renderizar(mediador);
+        await AbrirAltaAsync(cut);
+        await LlegarAlUltimoPasoAsync(cut);
+
+        await PulsarEnElPanelAsync(cut, "Guardar");
+
+        cut.FindAll(".drawer-panel input[name='tipo-empleador']").Should().HaveCount(2, "el documento está en Lo básico, que es el primer paso con error");
+        cut.FindAll(".drawer-panel .campo-mensaje-error").Select(e => e.TextContent.Trim()).Should().Contain("El documento no es válido.");
+    }
+
+    [Fact]
+    public async Task Un_error_de_un_paso_oculto_no_bloquea_el_cierre_por_fuera_hasta_que_se_ve()
+    {
+        var mediador = new MediatorFalso { Retener = FallaConErrores(("Email", "El correo no es válido.")) };
+        var cut = Renderizar(mediador);
+        await AbrirAltaAsync(cut);
+        await LlegarAlUltimoPasoAsync(cut);
+
+        await PulsarEnElPanelAsync(cut, "Guardar");
+        PanelDeAlta(cut).Instance.HayErroresDeCampo.Should().BeTrue("el error es del paso que se está viendo");
+
+        await PulsarEnElPanelAsync(cut, "Atrás");
+        PanelDeAlta(cut).Instance.HayErroresDeCampo.Should().BeFalse(
+            "en Trabajo no se ve ningún error: Escape y el clic fuera no pueden quedar bloqueados por uno que nadie ve");
+
+        await PulsarEnElPanelAsync(cut, "Siguiente");
+        PanelDeAlta(cut).Instance.HayErroresDeCampo.Should().BeTrue("al volver a Contacto el error sigue ahí, a la vista");
+    }
+
+    [Fact]
+    public async Task Un_fallo_de_regla_de_negocio_como_el_documento_duplicado_devuelve_al_primer_paso()
+    {
+        var mediador = new MediatorFalso
+        {
+            Retener = p => p is CrearTrabajadorCommand
+                ? Task.FromResult<object>(Result.Fallo<Guid>(Error.Crear("Trabajador.DniDuplicado", "Ya existe un trabajador con este DNI.")))
+                : null,
+        };
+        var cut = Renderizar(mediador);
+        await AbrirAltaAsync(cut);
+        await LlegarAlUltimoPasoAsync(cut);
+
+        await PulsarEnElPanelAsync(cut, "Guardar");
+
+        cut.Find(".drawer-panel .alerta-formulario").TextContent.Trim().Should().Be("Ya existe un trabajador con este DNI.");
+        cut.FindAll(".drawer-panel input[name='tipo-empleador']").Should().HaveCount(2, "el documento se corrige en Lo básico");
+    }
+
+    [Fact]
+    public async Task Mientras_se_guarda_ni_el_indicador_ni_el_pie_dejan_cambiar_de_paso()
+    {
+        var respuesta = new TaskCompletionSource<object>();
+        var mediador = new MediatorFalso { Retener = p => p is CrearTrabajadorCommand ? respuesta.Task : null };
+        var cut = Renderizar(mediador);
+        await AbrirAltaAsync(cut);
+        await cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = EmpresaEbro.ToString() });
+        await EscribirDatosCompletosDelAltaAsync(cut);
+        await PulsarEnElPanelAsync(cut, "Siguiente");
+
+        var guardado = cut.InvokeAsync(() => PanelDeAlta(cut).Instance.OnGuardar.InvokeAsync());
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.FindAll(".drawer-pie button").Should().OnlyContain(b => b.HasAttribute("disabled"), "Atrás, Guardar y terminar y Siguiente esperan al guardado");
+            cut.FindAll(".drawer-pasos button").Should().BeEmpty("el indicador no ofrece volver a un paso con el alta en vuelo");
+        });
+
+        await cut.InvokeAsync(() => respuesta.SetResult(Result.Exito(Guid.NewGuid())));
+        await guardado;
+    }
+
+    [Fact]
+    public async Task Cancelar_en_el_primer_paso_con_datos_pregunta_si_descartar()
+    {
+        var cut = Renderizar(new MediatorFalso());
+        await AbrirAltaAsync(cut);
+        await EscribirDocumentoAsync(cut, "12345678Z");
+
+        await PulsarEnElPanelAsync(cut, "Cancelar");
+
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+        cut.FindAll(".drawer-panel").Should().NotBeEmpty("el panel sigue abierto hasta que se confirme");
     }
 }

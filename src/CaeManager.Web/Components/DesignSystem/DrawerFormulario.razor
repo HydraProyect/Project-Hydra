@@ -76,11 +76,12 @@
                     @(TextoGuardarYTerminar ?? Comunes["PasosGuardarYTerminar"].Value)
                 </BotonConEspera>
             </span>
-            <span class="formulario-drawer-accion formulario-drawer-siguiente">@Primaria</span>
         }
-        else if (EnPasos)
+        @* La primaria va siempre en el mismo sitio del árbol (también al pasar de «Siguiente» a «Guardar»): si el envoltorio cambiara,
+           Blazor recrearía el botón y el foco, que estaba en él, se perdería. *@
+        @if (EnPasos)
         {
-            <span class="formulario-drawer-accion">@Primaria</span>
+            <span class="@(PasoIntermedio ? "formulario-drawer-accion formulario-drawer-siguiente" : "formulario-drawer-accion")">@Primaria</span>
         }
         else
         {
@@ -231,14 +232,26 @@
     private bool PasoIntermedio => EnPasos && IndicePaso < Pasos!.Count - 1;
 
     // «Siguiente» no guarda: se deshabilita mientras se guarda y con el motivo de la pantalla; «Guardar», con los de siempre.
-    private bool PrimariaDeshabilitada => PasoIntermedio ? Guardando || !string.IsNullOrWhiteSpace(MotivoSiguienteDeshabilitado) : TieneMotivoDeshabilitado;
-    private string? MotivoPrimaria => PasoIntermedio ? MotivoSiguienteDeshabilitado : MotivoEfectivo;
+    private bool PrimariaDeshabilitada => PasoIntermedio ? Guardando || Cargando || !string.IsNullOrWhiteSpace(MotivoSiguienteDeshabilitado) : TieneMotivoDeshabilitado;
+    private string? MotivoPrimaria => PasoIntermedio ? (Cargando ? MotivoEfectivo : MotivoSiguienteDeshabilitado) : MotivoEfectivo;
 
-    private Task PrimariaAsync() => PasoIntermedio ? OnSiguiente.InvokeAsync() : GuardarAsync();
+    private async Task PrimariaAsync()
+    {
+        if (!PasoIntermedio)
+        {
+            await GuardarAsync();
+            return;
+        }
+
+        // «Siguiente» que no avanza porque el paso tiene errores: el foco va al primero, como tras un «Guardar» fallido.
+        await OnSiguiente.InvokeAsync();
+        _enfocarTrasGuardar = true;
+        StateHasChanged();
+    }
 
     // «Primaria» y «Cancelar» van en el bloque de código (no en el marcado) para que las dos variantes del pie compartan una sola definición.
     private RenderFragment Primaria => @<BotonConEspera Variante="VarianteBoton.Primario" Guardando="Guardando && !PasoIntermedio" Progreso="ProgresoGuardado"
-                                                       Fallido="@GuardadoFallido" Deshabilitado="PrimariaDeshabilitada" title="@MotivoPrimaria"
+                                                       Fallido="@(GuardadoFallido && !PasoIntermedio)" Deshabilitado="PrimariaDeshabilitada" title="@MotivoPrimaria"
                                                        OnClick="PrimariaAsync" OnCancelarEspera="OnCancelarGuardado" OnReintentar="OnReintentarGuardado">
         @(PasoIntermedio ? (TextoSiguiente ?? Comunes["PasosSiguiente"].Value) : TextoGuardar)
     </BotonConEspera>;
@@ -256,7 +269,7 @@
         builder.AddAttribute(1, nameof(IndicadorPasos.Pasos), Pasos);
         builder.AddAttribute(2, nameof(IndicadorPasos.PasoActual), PasoActual);
         builder.AddAttribute(3, nameof(IndicadorPasos.PasosCompletados), PasosCompletados);
-        builder.AddAttribute(4, nameof(IndicadorPasos.PermitirVolver), true);
+        builder.AddAttribute(4, nameof(IndicadorPasos.PermitirVolver), !Guardando && !Cargando);
         builder.AddAttribute(5, nameof(IndicadorPasos.OnPasoSeleccionado), OnPasoSeleccionado);
         builder.AddAttribute(6, nameof(IndicadorPasos.EtiquetaGrupo), EtiquetaPasos ?? Comunes["PasosGrupoEtiqueta"].Value);
         builder.AddAttribute(7, nameof(IndicadorPasos.EnPanel), true);
@@ -277,8 +290,15 @@
 
     private bool _guardandoPrevio;
 
+    private string? _pasoPrevio;
+    private bool _reiniciarDesplazamiento;
+
     protected override void OnParametersSet()
     {
+        // Un paso nuevo empieza arriba del cuerpo: con el desplazamiento del paso anterior, el primer campo quedaría fuera de la vista.
+        if (EnPasos && _pasoPrevio is not null && _pasoPrevio != PasoActual) _reiniciarDesplazamiento = true;
+        _pasoPrevio = PasoActual;
+
         if (!Cargando && SinContenido is not null && string.IsNullOrWhiteSpace(MotivoGuardarDeshabilitado))
             throw new InvalidOperationException(
                 "DrawerFormulario con SinContenido exige MotivoGuardarDeshabilitado: «Guardar» queda deshabilitado y un botón mudo no existe (D-02, D-06).");
@@ -328,10 +348,13 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!_enfocarTrasGuardar) return;
+        var reiniciar = _reiniciarDesplazamiento;
+        _reiniciarDesplazamiento = false;
+        if (!_enfocarTrasGuardar && !reiniciar) return;
+        var enfocar = _enfocarTrasGuardar;
         _enfocarTrasGuardar = false;
 
-        if (!Visible || !HayErroresDeCampo) return;
+        if (!Visible || (!reiniciar && !HayErroresDeCampo)) return;
 
         // Mejor esfuerzo, como el focus trap del Drawer: sin módulo JS (tests de componente, circuito cerrándose) el formulario
         // sigue siendo usable, solo sin el salto al primer error.
@@ -342,7 +365,8 @@
 
             await using (modulo)
             {
-                await modulo.InvokeVoidAsync("enfocarPrimerError", _contenido);
+                if (reiniciar) await modulo.InvokeVoidAsync("reiniciarDesplazamiento", _contenido);
+                if (enfocar && HayErroresDeCampo) await modulo.InvokeVoidAsync("enfocarPrimerError", _contenido);
             }
         }
         catch (Exception)

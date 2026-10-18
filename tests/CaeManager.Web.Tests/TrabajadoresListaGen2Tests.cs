@@ -569,6 +569,8 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".barra-filtros-pastillas").Should().NotBeEmpty());
     }
 
+    private bool _validadorReal;
+
     private void Registrar(MediatorFalso mediador, string url)
     {
         Services.AddScoped<IMediator>(_ => mediador);
@@ -576,7 +578,9 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         Services.AddScoped<ITenantActual>(_ => Seleccion);
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
-        Services.AddScoped<IValidator<CrearTrabajadorCommand>>(_ => new InlineValidator<CrearTrabajadorCommand>());
+        // Sin más, el validador no opina (InlineValidator vacío); las pruebas del alta en pasos piden las reglas reales del comando.
+        if (_validadorReal) Services.AddScoped<IValidator<CrearTrabajadorCommand>>(_ => new CrearTrabajadorCommandValidator());
+        else Services.AddScoped<IValidator<CrearTrabajadorCommand>>(_ => new InlineValidator<CrearTrabajadorCommand>());
 
         // Los filtros de URL son [SupplyParameterFromQuery]: se llega a ellos
         // navegando, no pasándolos como parámetros de componente.

@@ -14,7 +14,7 @@
 
 <section class="@ClaseRaiz">
     <button type="button" class="seccion-plegable-cabecera" aria-expanded="@(_abierta ? "true" : "false")"
-            aria-controls="@_panelId" @onclick="AlternarAsync">
+            aria-controls="@(_abierta ? _panelId : null)" @onclick="AlternarAsync">
         <span class="@(_abierta ? "seccion-plegable-chevron" : "seccion-plegable-chevron seccion-plegable-chevron-plegada")" aria-hidden="true">
             <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
         </span>

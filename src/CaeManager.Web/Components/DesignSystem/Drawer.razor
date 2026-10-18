@@ -37,7 +37,7 @@
             </div>
             @if (Pie is not null)
             {
-                <div class="drawer-pie">@Pie</div>
+                <div class="@(Pasos is not null ? "drawer-pie drawer-pie-pasos" : "drawer-pie")">@Pie</div>
             }
         </div>
     </div>
