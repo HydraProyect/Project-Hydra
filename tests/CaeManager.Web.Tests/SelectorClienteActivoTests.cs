@@ -723,6 +723,23 @@ public class SelectorClienteActivoTests : BunitContext
     }
 
     [Fact]
+    public async Task Si_todas_las_empresas_ya_estan_en_Fijadas_la_lista_principal_no_pinta_cabecera_vacia_ni_Sin_resultados()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        ConFijadas(Sur);
+        var cut = Renderizar(seleccionado: Norte);
+
+        await Abrir(cut);
+
+        cut.WaitForAssertion(() => cut.Find("#selector-tenant-fijadas").TextContent.Trim().Should().Be("Fijadas"));
+        // Norte (la activa) queda en la lista principal; fijando Norte también, la lista principal se vacía.
+        await cut.Find("[role=option][value='" + Norte + "']").ParentElement!.QuerySelector(".selector-tenant-fijar")!.ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("#selector-tenant-resto").Should().BeEmpty("sin filas no hay cabecera de «Resto de la cartera»");
+        cut.FindAll(".selector-tenant-vacio").Should().BeEmpty("«Sin resultados» solo tiene sentido al buscar");
+    }
+
+    [Fact]
     public async Task Quien_no_participa_en_la_incorporacion_a_cartera_no_ve_Solicitar()
     {
         _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];

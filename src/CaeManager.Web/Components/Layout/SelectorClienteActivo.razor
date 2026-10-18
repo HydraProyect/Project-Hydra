@@ -111,20 +111,25 @@
                     @* Como en el marco de Design, la lista principal siempre lleva cabecera: «Resto de la cartera» si hay
                        fijadas (o recientes) encima y «Recientes» si no las hay. Mientras se busca no hay cabecera: la búsqueda
                        ve la cartera entera y plana. *@
-                    @if (!Buscando)
+                    @* Si todas las empresas ya están en Fijadas o Recientes la lista principal queda vacía: sin cabecera ni lista
+                       y sin «Sin resultados», que solo tiene sentido al buscar. *@
+                    @if (Buscando || Filtrados.Any())
                     {
-                        <h6 class="selector-tenant-grupo" id="selector-tenant-resto">@(HayGruposArriba ? Textos["SelectorTenantResto"] : Textos["SelectorTenantRecientes"])</h6>
-                    }
-                    <div role="listbox" aria-orientation="vertical" class="selector-tenant-lista"
-                         aria-label="@(Buscando ? Textos["SelectorTenantLista"].Value : null)"
-                         aria-labelledby="@(Buscando ? null : "selector-tenant-resto")">
-                        @foreach (var cliente in Filtrados)
+                        @if (!Buscando)
                         {
-                            @Opcion(cliente, false)
+                            <h6 class="selector-tenant-grupo" id="selector-tenant-resto">@(HayGruposArriba ? Textos["SelectorTenantResto"] : Textos["SelectorTenantRecientes"])</h6>
                         }
-                    </div>
+                        <div role="listbox" aria-orientation="vertical" class="selector-tenant-lista"
+                             aria-label="@(Buscando ? Textos["SelectorTenantLista"].Value : null)"
+                             aria-labelledby="@(Buscando ? null : "selector-tenant-resto")">
+                            @foreach (var cliente in Filtrados)
+                            {
+                                @Opcion(cliente, false)
+                            }
+                        </div>
+                    }
 
-                    @if (!Filtrados.Any())
+                    @if (Buscando && !Filtrados.Any())
                     {
                         <p class="selector-tenant-vacio" role="status">@Textos["SelectorTenantSinResultados"]</p>
                     }

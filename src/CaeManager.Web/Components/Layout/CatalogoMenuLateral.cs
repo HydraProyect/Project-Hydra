@@ -71,6 +71,10 @@ public sealed record EnlaceMenuLateral(
     Func<ContextoMenuLateral, string>? RutaPorContexto = null,
     string? ClaveRotulo = null)
 {
+    /// <summary>
+    /// Rótulo sin idioma: solo para quien no tiene localizador. Un enlace con <see cref="ClaveRotulo"/> devuelve aquí su
+    /// clave cruda; todo lo que se pinta usa <see cref="RotuloPara(ContextoMenuLateral, IStringLocalizer)"/> o <see cref="RotuloEn"/>.
+    /// </summary>
     public string RotuloPara(ContextoMenuLateral contexto) => RotuloPorContexto?.Invoke(contexto) ?? Rotulo;
 
     /// <summary>Como <see cref="RotuloPara(ContextoMenuLateral)"/>, pero con el idioma activo cuando el rótulo lleva clave.</summary>

@@ -268,8 +268,7 @@ public partial class SelectorClienteActivo
 
             // «Trabajando en …» (marco de Design): cambiar de empresa es un POST con recarga completa, así que el
             // aviso lo da la página nueva al ver que la empresa activa ya no es la de la última carga de esta pestaña.
-            if (await modulo.InvokeAsync<bool>("cambioDeContexto", clave, _activo.TenantId.ToString()))
-                Toasts.Mostrar(Textos["SelectorTenantTrabajandoEn", _activo.Nombre].Value);
+            await AvisarSiCambioDeEmpresaAsync(modulo, clave);
 
             var permitidas = _clientes.Where(c => !c.EsOrigen).Select(c => c.TenantId).ToHashSet();
             foreach (var texto in guardadas ?? []) // null si el interop no responde
@@ -290,6 +289,23 @@ public partial class SelectorClienteActivo
         {
             // Sin módulo o con el circuito cerrado: sin fijadas.
             _moduloFijadas = null;
+        }
+    }
+
+    /// <summary>
+    /// Aparte de la carga de fijadas: es un aviso cosmético y, si el navegador tuviera en caché una versión del módulo sin
+    /// esta función, no debe llevarse por delante las estrellas ni los atajos.
+    /// </summary>
+    private async Task AvisarSiCambioDeEmpresaAsync(IJSObjectReference modulo, string clave)
+    {
+        try
+        {
+            if (_activo is not null && await modulo.InvokeAsync<bool>("cambioDeContexto", clave, _activo.TenantId.ToString()))
+                Toasts.Mostrar(Textos["SelectorTenantTrabajandoEn", _activo.Nombre].Value);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException or TaskCanceledException)
+        {
+            // Sin aviso: no es una función del selector, solo una cortesía.
         }
     }
 
@@ -425,9 +441,10 @@ public partial class SelectorClienteActivo
         {
             _puedeSolicitar = await Mediator.Send(new CaeManager.Application.Operaciones.IncorporacionCartera.Queries.ParticipaEnIncorporacionCarteraQuery());
         }
-        catch (Exception ex) when (ExcepcionDeCircuitoDesconectado.Es(ex))
+        catch (Exception ex)
         {
-            // Sin la respuesta no se ofrece «+ Solicitar»: el selector sigue funcionando.
+            // «+ Solicitar» es una comodidad: sin la respuesta no se ofrece y el selector sigue funcionando.
+            Logger.LogWarning(ex, "SelectorClienteActivo descartó la consulta de participación en la incorporación a cartera: {TipoExcepcion}", ex.GetType().Name);
         }
 
         try
