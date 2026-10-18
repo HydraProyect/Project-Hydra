@@ -411,6 +411,9 @@
   <data name="AccionRenovar" xml:space="preserve">
     <value>Renovar</value>
   </data>
+  <data name="NotaReclamarUno" xml:space="preserve">
+    <value>{0} té documentació pendent a {1}. S’enviarà una reclamació a aquest Client en confirmar.</value>
+  </data>
   <data name="NotaReclamarVarios" xml:space="preserve">
     <value>{0} tiene documentación pendiente en varios Clientes a la vez. Elige a cuáles reclamar.</value>
   </data>

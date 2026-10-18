@@ -514,9 +514,8 @@
     </CampoSelect>
 </ModalFormulario>
 
-@* Solo aparece cuando el trabajador tiene asignaciones activas en Centros de
-   más de un Cliente empresarial a la vez — con uno solo, ReclamarFaltantesAsync
-   envía directo. *@
+@* Confirmación de «Gestionar» (reclamar): se abre siempre, con uno o con varios Clientes empresariales, y no se envía
+   nada hasta pulsar «Reclamar» (es un correo a un tercero). *@
 @* FS-13: la baja de una asignación se confirma y se puede deshacer desde el aviso. *@
 <DialogoConfirmacion
     Visible="_confirmarBajaAsignacionVisible"
@@ -532,7 +531,14 @@
                  MotivoGuardarDeshabilitado="@(_clientesSeleccionadosReclamar.Count == 0 ? Textos["MotivoReclamarSinCliente"].Value : null)"
                  OnGuardar="ConfirmarReclamarFaltantesAsync" TextoGuardar="@Textos["BotonReclamar"]" TextoCancelar="@Textos["BotonCancelar"]">
     <p class="workspace-nota-contextual">
-        @Textos["NotaReclamarVarios", NombreCompleto ?? string.Empty]
+        @if (_clientesReclamables.Count == 1)
+        {
+            @Textos["NotaReclamarUno", NombreCompleto ?? string.Empty, _clientesReclamables[0].ClienteRazonSocial]
+        }
+        else
+        {
+            @Textos["NotaReclamarVarios", NombreCompleto ?? string.Empty]
+        }
     </p>
     <fieldset class="reclamacion-destinatarios" disabled="@_reclamandoFaltantes">
         <legend>@Textos["LeyendaClientesEmpresariales"]</legend>

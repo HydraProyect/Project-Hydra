@@ -33,16 +33,15 @@ public partial class TrabajadoresListaGen2Tests
 
     /// <summary>
     /// Decisión de Chris (2026-10-18): la pastilla «Actividad» se retira. La lista sigue mostrando a todos (el voluntario inactivo
-    /// conserva su indicador en la fila) y la consulta nunca filtra por actividad.
+    /// conserva su indicador en la fila); la consulta ya no tiene parámetro de actividad.
     /// </summary>
     [Fact]
-    public void La_lista_no_ofrece_la_pastilla_Actividad_y_la_consulta_no_filtra_por_actividad()
+    public void La_lista_no_ofrece_la_pastilla_Actividad()
     {
         var mediador = new MediatorFalso { Almacen = { Trabajador("Bea", "Alonso") } };
         var cut = Renderizar(mediador);
 
         cut.FindComponents<PastillaFiltro>().Select(p => p.Instance.Etiqueta).Should().NotContain("Actividad");
-        UltimaConsulta(mediador).VoluntarioInactivo.Should().BeNull("sin pastilla no se filtra por actividad");
     }
 
     [Fact]

@@ -914,7 +914,7 @@ public partial class Centro360Gen2Tests : BunitContext
         botones.Count(b => b == "+ Asignar trabajador").Should().Be(esperados);
         botones.Count(b => b == "Dar de baja seleccionados").Should().Be(esperados);
         menu.Count(i => i == "Reclamar documentación (1)").Should().Be(esperados);
-        cut.FindAll(".motivo-bloqueo-pedir").Should().HaveCount(esperados, "«Pedir» acaba en un envío de reclamación");
+        cut.FindAll(".motivo-bloqueo-pedir").Should().HaveCount(esperados, "«Gestionar» (antes «Pedir») abre el flujo que acaba en un envío de reclamación");
         cut.FindAll(".celda-documento-nombre button").Should().HaveCount(esperados,
             "el nombre del documento abre el Drawer que crea o renueva: a Consulta se le pinta como texto");
     }

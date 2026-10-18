@@ -67,7 +67,8 @@ public class AcordeonAsignacionesCentroTecladoTests(WebAppFixture fixture)
         await Assertions.Expect(page.Locator(".lista-trabajadores-acordeon .lista-relaciones-tarjeta")).ToHaveCountAsync(1);
         await Assertions.Expect(page.Locator(".lista-trabajadores-acordeon .lista-relaciones")).ToHaveAttributeAsync("aria-label", new System.Text.RegularExpressions.Regex("^Trabajadores · .+$"));
         var accionesFila = page.Locator(".fila-relacion-acciones");
-        var conGestionar = filas.Filter(new() { Has = accionesFila.GetByRole(AriaRole.Button, new() { Name = "Gestionar", Exact = true }) });
+        // El nombre accesible del «Gestionar» de la fila es «Gestionar los documentos de …», distinto del de cada documento.
+        var conGestionar = filas.Filter(new() { Has = accionesFila.GetByRole(AriaRole.Button, new() { NameRegex = new System.Text.RegularExpressions.Regex("^Gestionar los documentos de ") }) });
         if (await conGestionar.CountAsync() > 0)
         {
             var nombreConGestionar = await conGestionar.EvaluateAllAsync<string>("elementos => elementos.find(e => e.getBoundingClientRect().height > 0).querySelector('.fila-relacion-nombre').textContent.trim()");

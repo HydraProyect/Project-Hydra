@@ -2315,6 +2315,12 @@ public partial class Trabajador360Gen2Tests : BunitContext
         await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Gestionar")
             .ClickAsync(new MouseEventArgs());
 
+        // Un clic en «Gestionar» solo abre la confirmación (es un correo a un tercero): nada sale hasta «Reclamar».
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty("un clic no envía la reclamación");
+        cut.Find(".modal-contenido .workspace-nota-contextual").TextContent.Should().Contain("Refrielectric S.A.").And.Contain("al confirmar");
+
+        await BotonDelPie(cut, "Reclamar").ClickAsync(new MouseEventArgs());
+
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle()
             .Which.DocumentoIds.Should().Equal([vencido.DocumentoId!.Value]);
     }
@@ -2335,9 +2341,32 @@ public partial class Trabajador360Gen2Tests : BunitContext
         await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Gestionar")
             .ClickAsync(new MouseEventArgs());
 
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty("un clic no envía la reclamación");
+
+        await BotonDelPie(cut, "Reclamar").ClickAsync(new MouseEventArgs());
+
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle()
             .Which.DocumentoIds.Should().Equal([dentro.DocumentoId!.Value],
                 "el límite es inclusivo y un día más allá el envío lo rechazaría");
+    }
+
+    [Fact]
+    public async Task Gestionar_con_un_solo_Cliente_empresarial_cancelar_no_envia_nada()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        mediador.Centros[id] =
+        [
+            Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Vencido, Documento("Formación PRL — 20 h", EstadoDocumento.Vencido))
+        ];
+        var cut = Renderizar(id);
+
+        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Gestionar")
+            .ClickAsync(new MouseEventArgs());
+        await BotonDelPie(cut, "Cancelar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty("cancelar la confirmación no envía el correo al Cliente empresarial");
     }
 
     private MediatorFalso ConDosClientesEmpresarialesQueReclamar(Guid id)
