@@ -1025,8 +1025,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private string? AvisoDeEmpleadorFaltante() =>
         _tipoEmpleador == "empresa"
-            ? (Guid.TryParse(_empresaId, out _) ? null : Textos["ErrorSeleccionaEmpresa"])
-            : (Guid.TryParse(_subcontrataId, out _) ? null : Textos["ErrorSeleccionaSubcontrata"]);
+            ? (Guid.TryParse(_empresaId, out _) ? null : Textos["ErrorSeleccionaEmpresa"].Value)
+            : (Guid.TryParse(_subcontrataId, out _) ? null : Textos["ErrorSeleccionaSubcontrata"].Value);
 
     private static string[] CamposDelPasoAlta(string paso) => paso switch
     {
