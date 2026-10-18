@@ -105,7 +105,7 @@
             @if (_elementosPagina.Count > 0)
             {
                 <PastillaFiltro Etiqueta="@Textos["EtiquetaAgrupar"]" TextoTodos="@Textos["OpcionSinAgrupar"]" Valor="@ValorAgrupacion"
-                                ValorChanged="CambiarAgrupacionAsync" Opciones="OpcionesAgrupacion" />
+                                ValorChanged="CambiarAgrupacionAsync" Opciones="OpcionesAgrupacion" Keytip="A" />
                 @if (HayFilasDesplegables)
                 {
                     <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" />

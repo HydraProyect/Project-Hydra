@@ -1,4 +1,4 @@
-﻿using Microsoft.Playwright;
+using Microsoft.Playwright;
 
 namespace CaeManager.E2ETests;
 
@@ -10,7 +10,8 @@ namespace CaeManager.E2ETests;
 /// subir, ejecutar una letra y salir.
 /// </summary>
 /// <remarks>
-/// «Agrupar» es un desplegable (<c>DesplegableAgrupar</c>, letra A): un menú que abre Blazor, cuyas
+/// «Agrupar» es una pastilla (<c>PastillaFiltro</c> con <c>Keytip="A"</c>, la letra estable que anuncia la
+/// chuleta; una pastilla sin letra declarada la deduce del nombre y nunca recibe una estable): un menú que abre Blazor, cuyas
 /// opciones reciben letra al llegar el panel y que apaga el modo al elegir. Ningún control del código
 /// se declara hoy como grupo (<c>data-keytip-grupo</c>): ese nivel, en el que elegir no apaga, lo
 /// cubre <see cref="KeyTipsSuperficieTests"/> con HTML estático.
@@ -46,19 +47,11 @@ public class KeyTipsEnListadoTests(WebAppFixtureListados fixture)
         // Las letras se pintan en el mismo paso que el atributo: se leen de la capa, sin
         // localizar por texto.
         var pintadas = (await letras.AllTextContentsAsync()).Select(l => l.Trim()).ToList();
-        foreach (var letra in new[] { "K", "F", "G" })
+        foreach (var letra in new[] { "K", "F", "G", "A" })
             Assert.Single(pintadas, l => l == letra);
-        // «Agrupar» es ahora una pastilla de la barra: su letra se deduce del nombre y depende de las
-        // pastillas que la preceden. Se lee la etiqueta pintada sobre su caja, sin fijarla.
-        var caja = await agrupar.BoundingBoxAsync();
-        Assert.NotNull(caja);
-        var letraAgrupar = await page.EvaluateAsync<string?>(
-            "([izq, der]) => [...document.querySelectorAll('.keytip')].find(k => { const x = parseFloat(k.style.left); return x >= izq && x <= der; })?.textContent ?? null",
-            new[] { caja!.X, caja.X + caja.Width });
-        Assert.False(string.IsNullOrEmpty(letraAgrupar));
 
         // --- A abre el desplegable «Agrupar» por el circuito: las letras pasan a sus dos opciones. ---
-        await page.Keyboard.PressAsync(letraAgrupar!.Trim().ToLowerInvariant());
+        await page.Keyboard.PressAsync("a");
         await Assertions.Expect(agrupar).ToHaveAttributeAsync("aria-expanded", "true");
         await Assertions.Expect(html).ToHaveAttributeAsync("data-keytips", "menu");
         await Assertions.Expect(letras).ToHaveCountAsync(2);

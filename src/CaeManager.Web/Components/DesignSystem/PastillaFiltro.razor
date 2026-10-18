@@ -20,7 +20,7 @@
 @* KeyTips: la letra se deduce del nombre del filtro, no del texto con el valor aplicado. *@
 <div class="@(PresentacionCampo ? "filtro-campo-lista" : "filtro-pastilla-lista")">
 @if (PresentacionCampo) { <span class="filtro-campo-etiqueta">@Etiqueta</span> }
-<MenuAcciones @ref="_menu" Etiqueta="@(PresentacionCampo ? TextoValor : TextoDisparador)" EtiquetaAccesible="@(PresentacionCampo ? $"{Etiqueta}: {TextoValor}" : TextoDisparador)" Pastilla="true" Activa="@Activa" Keytip="" KeytipNombre="@Etiqueta">
+<MenuAcciones @ref="_menu" Etiqueta="@(PresentacionCampo ? TextoValor : TextoDisparador)" EtiquetaAccesible="@(PresentacionCampo ? $"{Etiqueta}: {TextoValor}" : TextoDisparador)" Pastilla="true" Activa="@Activa" Keytip="@Keytip" KeytipNombre="@Etiqueta">
     @if (OfrecerTodos)
     {
         <ItemMenuAccion Marcado="@(!Activa)" OnClick="() => ElegirAsync(string.Empty)">@(TextoTodos ?? Comunes["OpcionTodos"].Value)</ItemMenuAccion>
@@ -55,6 +55,14 @@
 
     /// <summary>Ofrecer la opción que quita el filtro. Por defecto sí.</summary>
     [Parameter] public bool OfrecerTodos { get; set; } = true;
+
+    /// <summary>
+    /// Letra estable de KeyTips (una de <c>CatalogoAtajos.KeyTips</c>, p. ej. «A» para la pastilla
+    /// «Agrupar» que la chuleta anuncia). Vacía por defecto: la letra se deduce del nombre del filtro y
+    /// <c>keytips.js</c> nunca le da una estable, así que una pastilla que la chuleta nombra con letra
+    /// fija tiene que declararla aquí.
+    /// </summary>
+    [Parameter] public string Keytip { get; set; } = string.Empty;
 
     private bool Activa => !string.IsNullOrEmpty(Valor);
 
