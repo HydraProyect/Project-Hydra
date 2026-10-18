@@ -564,4 +564,5 @@
   <data name="InformacionCliente360" xml:space="preserve"><value>Cliente</value></data>
   <data name="EditarFlecha360" xml:space="preserve"><value>Editar →</value></data>
   <data name="ConsultaRapida360" xml:space="preserve"><value>Consulta rápida</value></data>
+  <data name="InformacionEmpresa360" xml:space="preserve"><value>Empresa</value></data>
 </root>
