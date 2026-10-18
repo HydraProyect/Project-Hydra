@@ -61,8 +61,8 @@
       },
       "AngleSharp": {
         "type": "Transitive",
-        "resolved": "1.7.2",
-        "contentHash": "r1rb5Qo/0KPzmP0nbSiXPDVfh4Ctu0B+y1RyyUq73g4sgAmEW7q10RDyTq2ZsILwtO9O2LAvMrUles7eD4zz1g=="
+        "resolved": "1.7.3",
+        "contentHash": "I8TpSvgOPAVQHjVvXaROZOkIGZdX0tn+e9CUix6mv5pMqfyKO+/zm/dofsXgsxVTJl/sSTnEMFwrdnqxTt2axQ=="
       },
       "AngleSharp.Css": {
         "type": "Transitive",
@@ -83,8 +83,8 @@
       },
       "AWSSDK.Core": {
         "type": "Transitive",
-        "resolved": "4.0.102.1",
-        "contentHash": "vsf+/o+S/euH/wG7bO1cha+OWaHvjgvpDeGFO6l3Vcdio9GlSfXkZDD2BogMuAJ+/jDyqqSgqmYVolPKV9ie/A=="
+        "resolved": "4.0.102.3",
+        "contentHash": "hGysXQOtru5CQmROaDLQURs5HK3W385ClLodTKZcLnd6o64YDOwvBaQrjYlfU9BEVLv7sdDR/ZRaATjpdBJ5Xw=="
       },
       "AWSSDK.KeyManagementService": {
         "type": "Transitive",
@@ -96,10 +96,10 @@
       },
       "AWSSDK.S3": {
         "type": "Transitive",
-        "resolved": "4.0.102",
-        "contentHash": "+5ToRNfpNnu1/oEbb1P+4AnHpknda1+eybYkhT6viFC4v772ZONeFYGR1pHgm7Zum0nvLDpSEJl/4y+wggpIpg==",
+        "resolved": "4.0.102.5",
+        "contentHash": "eMGywCE5J932OFTjjynQRjinkz4p8WQqrX0+VHtwhAE0BBIZWy07W64lloPwKvgVtumqszOiFo5Mbj6VKRZ/mw==",
         "dependencies": {
-          "AWSSDK.Core": "[4.0.100.9, 5.0.0)"
+          "AWSSDK.Core": "[4.0.102.3, 5.0.0)"
         }
       },
       "bblanchon.PDFium.Linux": {
@@ -865,10 +865,10 @@
       },
       "OpenTelemetry.Instrumentation.AspNetCore": {
         "type": "Transitive",
-        "resolved": "1.17.0",
-        "contentHash": "rGbmk1vuy1kvgZmE0ps7Vb99YZvDap6AalrrF60FwnNit1uW/PbeFZj1cpb0T8MPkYmjhBrRJ1/JB6QqXkRjHA==",
+        "resolved": "1.18.0",
+        "contentHash": "hBiMXE/CGIAHUOpi0gScNkjHB0L9XbCin5lZObL+dMBl4OmpndnHgxP3JZDnnGtU6qOzdeh8TYUV9f6Jgmmhlw==",
         "dependencies": {
-          "OpenTelemetry.Api.ProviderBuilderExtensions": "[1.17.0, 2.0.0)"
+          "OpenTelemetry.Api.ProviderBuilderExtensions": "[1.18.0, 2.0.0)"
         }
       },
       "OpenTelemetry.Instrumentation.EntityFrameworkCore": {
@@ -1236,7 +1236,8 @@
         "type": "Project",
         "dependencies": {
           "AWSSDK.KeyManagementService": "[4.0.100.11, )",
-          "AWSSDK.S3": "[4.0.102, )",
+          "AWSSDK.S3": "[4.0.102.5, )",
+          "AngleSharp": "[1.7.3, )",
           "CaeManager.Application": "[1.0.0, )",
           "CaeManager.Domain": "[1.0.0, )",
           "ClosedXML": "[0.105.*, )",
@@ -1256,6 +1257,7 @@
       "caemanager.migrations.postgresql": {
         "type": "Project",
         "dependencies": {
+          "AngleSharp": "[1.7.3, )",
           "CaeManager.Infrastructure": "[1.0.0, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
         }
@@ -1263,6 +1265,7 @@
       "caemanager.web": {
         "type": "Project",
         "dependencies": {
+          "AngleSharp": "[1.7.3, )",
           "AspNetCore.HealthChecks.NpgSql": "[9.0.0, )",
           "Blazor-ApexCharts": "[7.0.0, )",
           "CaeManager.Application": "[1.0.0, )",
@@ -1277,7 +1280,7 @@
           "Microsoft.OpenApi": "[2.12.2, )",
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.18.0, )",
           "OpenTelemetry.Extensions.Hosting": "[1.18.0, )",
-          "OpenTelemetry.Instrumentation.AspNetCore": "[1.17.0, )",
+          "OpenTelemetry.Instrumentation.AspNetCore": "[1.18.0, )",
           "OpenTelemetry.Instrumentation.EntityFrameworkCore": "[1.17.0-beta.1, )",
           "OpenTelemetry.Instrumentation.Http": "[1.17.0, )",
           "PDFsharp": "[6.2.4, )",

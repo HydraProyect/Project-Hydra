@@ -109,4 +109,158 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         await Assertions.Expect(page.GetByText("Aún no hay empresas")).Not.ToBeVisibleAsync(
             new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
     }
+
+    /// <summary>
+    /// CONTROL NEGATIVO de HO-136-06, temporal — NO forma parte del contrato
+    /// entregado, no se commitea. Reproduce el mismo escenario que el test de
+    /// arriba pero SIN la guarda de <see cref="MarcaDeCircuito"/> y navegando
+    /// por HTTP completo (<c>page.GotoAsync</c>) en vez de clicar el enlace
+    /// del circuito. Objetivo de la medición: demostrar si, sin la guarda,
+    /// esta forma de "recuperar la selección" (que no ejercita el circuito en
+    /// absoluto) produce un VERDE en la aserción final — es decir, si el test
+    /// PUEDE pasar sin haber conservado la selección por el mecanismo que dice
+    /// investigar (el circuito de Blazor).
+    /// </summary>
+    [Fact]
+    public async Task CONTROL_HO136_06_pasa_sin_ejercitar_el_circuito_si_se_quita_la_guarda()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+
+        await Ayudas.IniciarSesionAsync(
+            page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.DescartarNotificacionesPendientesAsync(page);
+
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
+        await Assertions.Expect(page.GetByText("Aún no hay empresas"))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+
+        await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
+        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
+
+        await Assertions.Expect(page.Locator(".selector-cliente-activo option:checked"))
+            .ToHaveTextAsync(Ayudas.NombreClienteDelegadoDemo,
+                new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
+
+        // MUTACIÓN: sin marca de circuito, y navegación por GotoAsync (HTTP
+        // completo) en vez de clic en el enlace del router de Blazor. Si esto
+        // da verde en la aserción de abajo, el verde no dice nada sobre el
+        // circuito — exactamente el falso positivo que la guarda existe para
+        // impedir.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
+
+        // DIAGNÓSTICO (HO-136-06): en esta MISMA página final, qué muestra el
+        // propio selector — para separar "la selección revirtió al origen" de
+        // "la selección se mantuvo y aun así la lista salió vacía".
+        var textoSelectorFinal = await page.Locator(".selector-cliente-activo option:checked").InnerTextAsync();
+        var vacioVisibleEnEstaMismaPagina = await page.GetByText("Aún no hay empresas").CountAsync() > 0;
+        throw new Exception(
+            $"DIAGNOSTICO_HO136_06 selector_final='{textoSelectorFinal}' " +
+            $"vacioVisible={vacioVisibleEnEstaMismaPagina} url='{page.Url}'");
+    }
+
+    /// <summary>
+    /// CONTROL POSITIVO DE LA GUARDA, HO-136-06, temporal — NO se commitea.
+    /// Mismo cuerpo que el test real, pero sustituyendo el clic en el enlace
+    /// del router de Blazor por una recarga completa (<c>page.GotoAsync</c>) —
+    /// justo lo que <see cref="MarcaDeCircuito"/> dice detectar. Si la guarda
+    /// es real (no decorativa), este test debe fallar EN LA GUARDA (con su
+    /// mensaje "recargó el documento entero…"), nunca en la aserción de
+    /// contenido de más abajo.
+    /// </summary>
+    [Fact]
+    public async Task CONTROL_HO136_06_la_guarda_dispara_si_hay_recarga_completa()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+
+        await Ayudas.IniciarSesionAsync(
+            page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.DescartarNotificacionesPendientesAsync(page);
+
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
+        await Assertions.Expect(page.GetByText("Aún no hay empresas"))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+
+        await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
+        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
+
+        await Assertions.Expect(page.Locator(".selector-cliente-activo option:checked"))
+            .ToHaveTextAsync(Ayudas.NombreClienteDelegadoDemo,
+                new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
+
+        await page.EvaluateAsync($"window.{MarcaDeCircuito} = true;");
+
+        // MUTACIÓN: recarga completa en vez de clic — debe borrar la marca.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
+
+        var marcaSobrevive = await page.EvaluateAsync<bool?>($"window.{MarcaDeCircuito} ?? null");
+        Assert.True(
+            marcaSobrevive is true,
+            "el clic en el menú recargó el documento entero, así que esta ejecución NO ha ejercitado la " +
+            "navegación dentro del circuito. El test no ha medido lo que dice medir: hay que encontrar otra " +
+            "vía de navegación que no recargue antes de creerse su resultado.");
+
+        await Assertions.Expect(page.GetByText("Aún no hay empresas")).Not.ToBeVisibleAsync(
+            new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+    }
+
+    /// <summary>
+    /// DIAGNÓSTICO DE RED, HO-136-06, temporal — NO se commitea. Mismo cuerpo
+    /// EXACTO que el test real (incluido el clic en el enlace del router),
+    /// pero con un listener de red que registra toda petición HTTP disparada
+    /// durante y después del clic. Objetivo: comprobar con hechos si el clic
+    /// en "Empresas" genera una petición HTTP nueva a /empresas (navegación
+    /// mejorada / "enhanced navigation" de blazor.web.js, que NO es circuito
+    /// SignalR aunque no recargue el documento) o si no genera ninguna
+    /// petición HTTP en absoluto (navegación de circuito genuina, solo
+    /// tráfico de WebSocket).
+    /// </summary>
+    [Fact]
+    public async Task DIAGNOSTICO_HO136_06_que_trafico_genera_el_clic()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+
+        await Ayudas.IniciarSesionAsync(
+            page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.DescartarNotificacionesPendientesAsync(page);
+
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
+        await Assertions.Expect(page.GetByText("Aún no hay empresas"))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+
+        await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
+        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
+
+        await Assertions.Expect(page.Locator(".selector-cliente-activo option:checked"))
+            .ToHaveTextAsync(Ayudas.NombreClienteDelegadoDemo,
+                new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
+
+        await page.EvaluateAsync($"window.{MarcaDeCircuito} = true;");
+
+        var peticiones = new List<string>();
+        page.Request += (_, request) => peticiones.Add($"{request.Method} {request.Url} (resourceType={request.ResourceType})");
+
+        var enlaceEmpresas = page.Locator("a.nav-item[href='empresas']").First;
+        await Assertions.Expect(enlaceEmpresas).ToBeVisibleAsync(
+            new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await enlaceEmpresas.ClickAsync();
+
+        await Assertions.Expect(page).ToHaveURLAsync(
+            new System.Text.RegularExpressions.Regex("/empresas$"),
+            new PageAssertionsToHaveURLOptions { Timeout = 15_000 });
+
+        // Damos un margen tras el clic para capturar cualquier petición
+        // diferida (p. ej. la propia consulta de datos si viajara por fetch).
+        await page.WaitForTimeoutAsync(2_000);
+
+        var marcaSobrevive = await page.EvaluateAsync<bool?>($"window.{MarcaDeCircuito} ?? null");
+        var textoVacio = await page.GetByText("Aún no hay empresas").CountAsync();
+
+        var resumen = string.Join(" | ", peticiones);
+        throw new Exception(
+            $"DIAGNOSTICO_HO136_06_TRAFICO marcaSobrevive={marcaSobrevive} vacioVisible={textoVacio > 0} " +
+            $"numPeticiones={peticiones.Count} peticiones=[{resumen}]");
+    }
 }
