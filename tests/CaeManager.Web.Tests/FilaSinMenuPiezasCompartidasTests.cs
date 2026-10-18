@@ -143,7 +143,7 @@ public class FilaSinMenuPiezasCompartidasTests : BunitContext
         var boton = cut.Find("button.boton-copiar.boton-copiar-en-linea");
         boton.TextContent.Trim().Should().Be("B-48.220.917");
         boton.GetAttribute("aria-label").Should().Be("Copiar el CIF B-48.220.917");
-        boton.GetAttribute("title").Should().Be("Copiar el CIF B-48.220.917", "con el ratón encima dice qué hace el clic");
+        boton.GetAttribute("title").Should().Be("Copiar B-48.220.917", "con el ratón encima dice qué hace el clic (maquetas 360: «Copiar {valor}»)");
 
         await boton.ClickAsync(new MouseEventArgs());
 

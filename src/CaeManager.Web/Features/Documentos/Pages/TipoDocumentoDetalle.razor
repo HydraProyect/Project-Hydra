@@ -187,7 +187,7 @@
                                                 @if (!string.IsNullOrWhiteSpace(fila.Dni))
                                                 {
                                                     <span>@Textos["FilaDni"]</span>
-                                                    <BotonCopiar Valor="@fila.Dni" Texto="@fila.Dni" Etiqueta="@Textos["CopiarElDni"]" />
+                                                    <BotonCopiar EnLinea="true" ConfirmarConIcono="true" NombreAccesible="@Textos["AriaCopiarElDni", fila.Dni]" MensajeExito="@Textos["DniCopiado", fila.Dni]" Valor="@fila.Dni" Texto="@fila.Dni" Etiqueta="@Textos["CopiarElDni"]" />
                                                 }
                                                 @if (!string.IsNullOrWhiteSpace(fila.EmpresaNombre))
                                                 {

@@ -810,6 +810,45 @@ public partial class Trabajador360Gen2Tests : BunitContext
         mediador.Enviadas.OfType<ObtenerTrabajadoresParaSelectorQuery>().Should().ContainSingle();
     }
 
+    /// <summary>
+    /// «Subir documento para {Trabajador}» del palette: <c>?accion=subir</c> abre la misma subida que el botón de la
+    /// cabecera, con el Trabajador fijado, y se quita de la URL para no reabrirse al recargar.
+    /// </summary>
+    [Fact]
+    public void El_enlace_accion_subir_abre_la_subida_con_el_trabajador_fijado()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] = [];
+        mediador.Selector.Add(new TrabajadorSelectorDto(id, "Salas Moreno, Javier", null, null));
+
+        var cut = RenderizarEn(id, "?pestana=documentacion&accion=subir");
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Nuevo documento"));
+        Navegacion.Uri.Should().NotContain("accion=", "la acción se consume una vez");
+        Navegacion.Uri.Should().Contain("pestana=documentacion");
+    }
+
+    /// <summary>Sin escritura el enlace se queda en la ficha: la misma comprobación que oculta el botón «Subir documento».</summary>
+    [Fact]
+    public void Sin_escritura_el_enlace_accion_subir_no_abre_nada()
+    {
+        this.ConRolDeEscritura(Roles.Consulta);
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] = [];
+        mediador.Selector.Add(new TrabajadorSelectorDto(id, "Salas Moreno, Javier", null, null));
+
+        var cut = RenderizarEn(id, "?pestana=documentacion&accion=subir");
+
+        cut.WaitForAssertion(() => Navegacion.Uri.Should().NotContain("accion="));
+        cut.Markup.Should().NotContain("Nuevo documento");
+        mediador.Enviadas.OfType<ObtenerTrabajadoresParaSelectorQuery>().Should().BeEmpty(
+            "el drawer de alta no llega a abrirse");
+    }
+
     [Fact]
     public async Task Las_pestanas_separan_Operacion_y_Centros_y_la_base_va_primero()
     {

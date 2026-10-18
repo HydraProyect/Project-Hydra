@@ -129,13 +129,14 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
     public async Task El_selector_de_Trabajador_de_la_propuesta_no_muestra_el_DNI()
     {
         PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        _mediador.Trabajadores = [TrabajadorSelectorFalso.Crear(Guid.NewGuid(), "Persona CAE", empleador: "Montajes Ebro S.L.")];
         var cut = Render<SubidaMasiva>();
 
         await ProcesarAsync(cut, "propuesta.pdf");
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Confirmar…").ClickAsync(new MouseEventArgs());
 
         var buscador = cut.FindComponents<CampoBuscarSelect>().Single(c => c.Instance.Etiqueta == "Trabajador");
-        buscador.Instance.Opciones.Select(o => o.Texto).Should().Equal("Persona CAE");
+        buscador.Instance.Opciones.Select(o => o.Texto).Should().Equal("Persona CAE (Montajes Ebro S.L.)");
         cut.Markup.Should().Contain("Persona CAE").And.NotContain(TrabajadorSelectorFalso.DniSembrado);
         await DisposeComponentsAsync();
     }

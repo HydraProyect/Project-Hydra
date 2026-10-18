@@ -1,0 +1,39 @@
+@using CaeManager.Application.Comunicaciones.AlertasCriticas
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosAlertasCriticas> Textos
+
+<BannerAlertaCritica Alerta="_alerta" Guardando="_guardando" Error="_error" OnResolver="ResolverAsync" />
+
+@code {
+    [Parameter] public Guid ConversacionId { get; set; }
+    private AlertaCriticaDto? _alerta;
+    private bool _guardando;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var id = ConversacionId;
+        _alerta = null;
+        _error = null;
+        var alerta = await Mediator.Send(new ObtenerAlertaCriticaQuery(id));
+        if (ConversacionId == id) _alerta = alerta;
+    }
+
+    private async Task ResolverAsync(bool confirmar)
+    {
+        if (_guardando || _alerta?.PuedeResolver != true) return;
+        _guardando = true;
+        var id = ConversacionId;
+        try
+        {
+            var resultado = await Mediator.Send(new ResolverAlertaCriticaCommand(id, confirmar));
+            if (ConversacionId != id) return;
+            _error = resultado.EsFallido ? Textos["ErrorResolver"].Value : null;
+            _alerta = await Mediator.Send(new ObtenerAlertaCriticaQuery(id));
+        }
+        finally { _guardando = false; }
+    }
+}

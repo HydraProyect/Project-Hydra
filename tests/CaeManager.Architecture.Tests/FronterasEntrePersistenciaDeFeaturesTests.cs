@@ -141,6 +141,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("BusquedaGlobal.BuscarGlobalQueryHandler", "ITiposDocumentoQueryContext"),
         ("BusquedaGlobal.BuscarGlobalQueryHandler", "ITrabajadoresQueryContext"),
         ("BusquedaGlobal.BuscarGlobalQueryHandler", "IVehiculosQueryContext"),
+        // «N documentos vencen esta semana» de «Reclamar a {Empresa}» en la paleta: Documentos de la Empresa y de sus
+        // Trabajadores en cartera, sin voluntarios inactivos (Proyectos), con las reglas de Documentos.Operativos().
+        ("BusquedaGlobal.ContarVencenEstaSemanaDeEmpresaQueryHandler", "IDocumentosQueryContext"),
+        ("BusquedaGlobal.ContarVencenEstaSemanaDeEmpresaQueryHandler", "IProyectosQueryContext"),
+        ("BusquedaGlobal.ContarVencenEstaSemanaDeEmpresaQueryHandler", "ITrabajadoresQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "IConfiguracionQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "IDocumentosQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "ITiposDocumentoQueryContext"),

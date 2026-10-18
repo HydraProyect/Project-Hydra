@@ -10,19 +10,7 @@ using Xunit;
 
 namespace CaeManager.IntegrationTests.BusquedaGlobal;
 
-/// <summary>
-/// El buscador global (Ctrl/Cmd+K) ni busca por DNI ni lo muestra (decisión
-/// delegada en Codex por el propietario, 2026-09-24, que extiende P4 «base
-/// general sin DNI» a Ctrl+K). Lo tiene todo usuario autenticado —también un
-/// usuario Consulta de un Operador CAE externo, con alcance sobre el Tenant
-/// beneficiario entero—, y buscar por fragmento de DNI con el DNI completo al
-/// lado permitía enumerarlo tecleando. El subtítulo pasa a ser la razón social
-/// de la organización empleadora.
-///
-/// Todo se mide con alcance total (<see cref="AlcanceDatosServiceFalso"/> sin
-/// listas = Administrador/DireccionCae/Consulta), que es el caso más amplio: si
-/// ahí no sale el DNI, con cartera tampoco.
-/// </summary>
+/// <summary>El documento completo encuentra dentro de cartera; los fragmentos no enumeran DNI.</summary>
 public class BuscarGlobalSinDniTests : IAsyncLifetime
 {
     private const string DniDeEmpresa = "12345678Z";
@@ -33,13 +21,14 @@ public class BuscarGlobalSinDniTests : IAsyncLifetime
 
     private Guid _trabajadorDeEmpresa;
     private Guid _trabajadorDeSubcontrata;
+    private Guid _empresa;
 
     public async Task InitializeAsync()
     {
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
-        var empresa = new Empresa("Montajes Ebro S.L.");
+        var empresa = new Empresa("Montajes Ebro S.L.", "B12345674");
         var subcontrata = Empresa.CrearComoSubcontrata("Andamios Delta S.L.", null, "Gestionada");
         contexto.Empresas.AddRange(empresa, subcontrata);
         await contexto.SaveChangesAsync();
@@ -51,22 +40,56 @@ public class BuscarGlobalSinDniTests : IAsyncLifetime
 
         _trabajadorDeEmpresa = deEmpresa.Id;
         _trabajadorDeSubcontrata = deSubcontrata.Id;
+        _empresa = empresa.Id;
     }
 
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
 
+    [Fact]
+    public async Task El_cif_completo_encuentra_solo_dentro_de_cartera()
+    {
+        var resultado = await BuscarAsync("B12345674");
+        resultado.Empresas.Should().ContainSingle().Which.Id.Should().Be(_empresa);
+
+        await using var contexto = CrearContexto();
+        var handler = new BuscarGlobalQueryHandler(contexto, contexto, contexto, contexto, contexto, contexto, contexto,
+            new AlcanceDatosServiceFalso(empresaIds: [], clienteIds: [], subcontrataIds: []), new MediadorSinEstadoDocumental());
+        var fuera = await handler.Handle(new BuscarGlobalQuery("B12345674"), CancellationToken.None);
+        fuera.Empresas.Should().BeEmpty();
+    }
+
     [Theory]
     [InlineData(DniDeEmpresa)]
     [InlineData("12345678z")]
+    [InlineData("12.345.678-Z")]
+    public async Task El_documento_completo_encuentra_al_trabajador_sin_exponer_el_dni(string termino)
+    {
+        var resultado = await BuscarAsync(termino);
+        resultado.Trabajadores.Should().ContainSingle().Which.Id.Should().Be(_trabajadorDeEmpresa);
+        resultado.Trabajadores.Single().Subtitulo.Should().Be("Montajes Ebro S.L.");
+    }
+
+    [Fact]
+    public async Task El_documento_completo_no_encuentra_fuera_de_cartera()
+    {
+        await using var contexto = CrearContexto();
+        var mediador = new MediadorSinEstadoDocumental();
+        var handler = new BuscarGlobalQueryHandler(contexto, contexto, contexto, contexto, contexto, contexto, contexto,
+            new AlcanceDatosServiceFalso(trabajadorIds: []), mediador);
+        var resultado = await handler.Handle(new BuscarGlobalQuery(DniDeEmpresa), CancellationToken.None);
+        resultado.Trabajadores.Should().BeEmpty();
+        mediador.Enviados.Should().BeEmpty("fuera de cartera no se calcula el estado del Trabajador");
+    }
+    [Theory]
     [InlineData("5678")]
     [InlineData("78Z")]
     [InlineData("12")]
-    public async Task Un_dni_completo_o_un_fragmento_no_encuentra_ningun_trabajador(string termino)
+    public async Task Un_fragmento_no_encuentra_ningun_trabajador(string termino)
     {
         var resultado = await BuscarAsync(termino);
 
         resultado.Trabajadores.Should().BeEmpty(
-            $"«{termino}» solo casa con el DNI, y Ctrl+K ya no busca por DNI");
+            $"«{termino}» solo casa con el DNI, y Ctrl+K no busca por fragmentos de DNI");
     }
 
     [Fact]
@@ -102,7 +125,7 @@ public class BuscarGlobalSinDniTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new BuscarGlobalQueryHandler(
-            contexto, contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso());
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(), new MediadorSinEstadoDocumental());
 
         return await handler.Handle(new BuscarGlobalQuery(termino), CancellationToken.None);
     }

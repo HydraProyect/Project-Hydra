@@ -161,7 +161,7 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         ("creados", "Creados")
     ];
 
-    private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles, aliasSiempre: true)
+    private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles, aliasSiempre: true, empleadorSiempre: true)
         .Select(e => new OpcionBuscable(e.Id.ToString(), e.Texto))
         .ToList();
 
