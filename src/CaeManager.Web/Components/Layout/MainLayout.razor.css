@@ -60,8 +60,8 @@ html[data-menu-compacto] .marca {
     padding: 0;
 }
 
-html[data-menu-compacto] .marca .marca-wordmark,
-html[data-menu-compacto] .marca .marca-etiqueta {
+/* El enlace entero se va (ni parada de Tab vacía ni hueco de 10 px que descentre la T), como los .tvm-marca y .tvm-cae. */
+html[data-menu-compacto] .marca .marca-enlace {
     display: none;
 }
 

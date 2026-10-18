@@ -238,6 +238,8 @@
     align-items: center;
     /* Marco de Design (.tvm-buscam): gap 6 y margin 12 8 4 sobre la fila del campo. */
     gap: 6px;
+    /* Sin campo (menú fijo del rol Cliente) el botón de compactar queda a la derecha; con campo, este lo llena. */
+    justify-content: flex-end;
     margin-top: calc(-1 * var(--space-1));
     padding: var(--space-3) 0 var(--space-1);
     background-color: var(--color-surface);
@@ -253,7 +255,8 @@
 .nav-buscador {
     display: flex;
     align-items: center;
-    flex: 1 1 auto;
+    /* Base 0 (flex:1 del marco): el ancho intrínseco del input no empuja el botón de compactar a otra fila. */
+    flex: 1 1 0;
     gap: 8px;
     min-width: 0;
     height: 34px;

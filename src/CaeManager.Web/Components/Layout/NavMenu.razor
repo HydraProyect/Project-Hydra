@@ -53,7 +53,7 @@
 @inject NavigationManager Navigation
 @inject IStringLocalizer<CaeManager.Web.Features.Configuracion.Recursos.TextosConfiguracion> TextosConfiguracion
 <nav class="nav-principal" aria-label="@Textos["MenuNavegacionPrincipal"]">
-    <div class="nav-herramientas">
+    <div class="nav-herramientas" role="search">
         @if (_grupos.Count > 0)
         {
             @* Marco de Design (marco-talveg.js, .tvm-buscam): el campo «Buscar en el menú» está SIEMPRE a la vista, de

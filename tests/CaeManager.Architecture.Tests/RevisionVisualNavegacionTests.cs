@@ -53,9 +53,12 @@ public class RevisionVisualNavegacionTests
             "la regla que oculta lo demás en la barra compacta no puede ocultar el selector de empresa");
 
         var selector = Leer("Components", "Layout", "SelectorClienteActivo.razor.css");
-        Cuerpo(selector, "html[data-menu-compacto] .selector-tenant-disparador").Should().Contain("justify-content: center").And.Contain("padding: 8px 0");
-        Reglas(selector).Should().Contain(r => r.Selector.Contains("html[data-menu-compacto] .selector-tenant-disparador .selector-tenant-texto")
+        // Con .barra-lateral: el selector del cajón móvil va completo aunque <html> lleve data-menu-compacto.
+        Cuerpo(selector, "html[data-menu-compacto] .barra-lateral .selector-tenant-disparador").Should().Contain("justify-content: center").And.Contain("padding: 8px 0");
+        Reglas(selector).Should().Contain(r => r.Selector.Contains("html[data-menu-compacto] .barra-lateral .selector-tenant-disparador .selector-tenant-texto")
                                                && r.Cuerpo.Contains("display: none"));
+        Reglas(selector).Should().OnlyContain(r => !r.Selector.StartsWith("html[data-menu-compacto] .selector-tenant"),
+            "ninguna regla compacta sin .barra-lateral: alcanzaría al cajón móvil");
 
         var menu = Leer("Components", "Layout", "NavMenu.razor.css");
         Cuerpo(menu, "html[data-menu-compacto] .barra-lateral .nav-herramientas").Should().Contain("justify-content: center");
@@ -87,7 +90,8 @@ public class RevisionVisualNavegacionTests
 
         var iniciales = Reglas(css).Where(r => r.Selector.StartsWith(".mi-emblema ::deep .mi-emblema-iniciales,")).ToList();
         iniciales.Should().ContainSingle().Which.Cuerpo.Should().Contain("border: 0").And.Contain("background: transparent");
-        Cuerpo(css, ".mi-emblema ::deep .mi-emblema-iniciales").Should().Contain("height: 36px");
+        Cuerpo(css, ".mi-emblema ::deep .mi-emblema-iniciales").Should().Contain("height: 36px").And.Contain("min-height: 36px",
+            "Boton medio trae min-height: 40 y ganaría a la altura");
         Reglas(css).Should().Contain(r => r.Selector.Contains(".mi-emblema-guardar:disabled") && r.Cuerpo.Contains("opacity: 0.45"));
 
         var texto = Cuerpo(css, ".mi-emblema-contexto-texto");

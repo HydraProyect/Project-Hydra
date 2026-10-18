@@ -79,13 +79,15 @@
 
 /* Barra compacta (<html data-menu-compacto>; marco de Design: html[data-tv-rail] .tvm-ctxb, .tvm-ctxt y .tvm-ctxb>svg
    ocultos y padding 8px 0): solo queda el avatar de la empresa gestionada, centrado en el disparador. */
-html[data-menu-compacto] .selector-tenant-disparador {
+/* Solo en la barra lateral (.barra-lateral): el selector del cajón móvil va siempre completo, aunque <html> lleve
+   data-menu-compacto de una sesión de escritorio. */
+html[data-menu-compacto] .barra-lateral .selector-tenant-disparador {
     justify-content: center;
     padding: 8px 0;
 }
 
-html[data-menu-compacto] .selector-tenant-disparador .selector-tenant-texto,
-html[data-menu-compacto] .selector-tenant-disparador .selector-tenant-chevron {
+html[data-menu-compacto] .barra-lateral .selector-tenant-disparador .selector-tenant-texto,
+html[data-menu-compacto] .barra-lateral .selector-tenant-disparador .selector-tenant-chevron {
     display: none;
 }
 

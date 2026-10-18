@@ -27,7 +27,7 @@ namespace CaeManager.Web.Tests;
 /// <para>
 /// Es SOLO LECTURA (revisión de Design, 2026-10-17, §C): las dos acciones que antes acompañaban al dato
 /// —«+ Dar acceso» y «Desasignarme»— salieron de la cabecera. Lo único pulsable es el botón «+N» y lo que
-/// lleva su ventana (cierre de la hoja de móvil y el enlace a /cartera/solicitudes). Qué puede ver cada quien
+/// lleva su ventana (cierre de la hoja de móvil y el enlace del pie a /empresas, «Abrir Empresa 360 →»). Qué puede ver cada quien
 /// lo deciden <c>ObtenerPersonasConCarteraQuery</c> (cuenta de gestión CAE del Operador CAE externo) y
 /// <c>ObtenerOperadoresCaeDeMiTenantQuery</c> (Administrador del Tenant propietario): eso se prueba en
 /// Application. Aquí, qué se pinta con lo que esas consultas devuelven y en qué estado queda la cabecera.

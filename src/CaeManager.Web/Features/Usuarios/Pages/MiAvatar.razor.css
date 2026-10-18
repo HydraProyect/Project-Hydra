@@ -165,8 +165,10 @@
     transform: none;
 }
 
+/* 36 px (Boton medio trae min-height: 40, que ganaría a la altura). */
 .mi-emblema ::deep .mi-emblema-iniciales {
     height: 36px;
+    min-height: 36px;
 }
 
 .mi-emblema ::deep .mi-emblema-iniciales-movil {

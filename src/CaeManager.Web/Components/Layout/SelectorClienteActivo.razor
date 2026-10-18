@@ -41,7 +41,7 @@
         </form>
         <button type="button" class="selector-tenant-disparador @(_abierto ? "selector-tenant-disparador-abierto" : null)"
                 aria-haspopup="listbox" aria-expanded="@(_abierto ? "true" : "false")"
-                aria-label="@Textos["SelectorTenantEtiqueta"]: @_activo.Nombre"
+                aria-label="@Textos["SelectorTenantEtiqueta"]: @_activo.Nombre" title="@_activo.Nombre"
                 data-tenant-id="@_activo.TenantId" @onclick="Alternar">
             <AvatarTenant Nombre="@_activo.Nombre" LogoUrl="@UrlLogo(_activo)" Tamano="TamanoAvatarTenant.Pequeno" />
             <span class="selector-tenant-texto">
