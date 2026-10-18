@@ -1,20 +1,55 @@
-@* Dispersión de Empresas (Tenants beneficiarios): una burbuja por Empresa. Sin texto propio: los rótulos llegan por parámetros. *@
+@* Dispersión de Empresas (Tenants beneficiarios): una burbuja por Empresa sobre un plano con rejilla, eje Y en euros, eje X con su título y la mediana marcada. Sin texto propio: los rótulos llegan por parámetros. El texto y las burbujas son HTML sobre el plano: el SVG se estira sin conservar la proporción y deformaría las letras y los círculos. *@
 <figure class="gd" role="img" aria-label="@EtiquetaAria" data-grafico="@Id">
-    <svg viewBox="0 0 640 260" preserveAspectRatio="none" focusable="false">
-        <line class="gd-eje" x1="40" y1="230" x2="630" y2="230" />
-        <line class="gd-eje" x1="40" y1="10" x2="40" y2="230" />
-        @if (Mediana is { } mediana)
-        {
-            <line class="gd-mediana" x1="40" y1="@Texto(PosicionY(mediana))" x2="630" y2="@Texto(PosicionY(mediana))" />
-        }
-        @foreach (var burbuja in Geometria)
-        {
-            <g class="gd-punto" tabindex="0" data-empresa="@burbuja.Nombre">
-                <circle cx="@Texto(burbuja.X)" cy="@Texto(burbuja.Y)" r="@Texto(burbuja.Radio)" style="fill:@burbuja.Color" />
-                <title>@burbuja.Titulo</title>
-            </g>
-        }
-        @TextoSvg("gd-rotulo", 635, 250, EtiquetaX, "end")
-        @TextoSvg("gd-rotulo", 44, 10, EtiquetaY, "start")
-    </svg>
+    @if (Leyenda.Count > 0)
+    {
+        <figcaption class="gd-leyenda">
+            @foreach (var item in Leyenda)
+            {
+                <span><i style="background:@item.Color"></i>@item.Nombre</span>
+            }
+        </figcaption>
+    }
+    <div class="gd-cuerpo">
+        <div class="gd-eje-y" aria-hidden="true">
+            @foreach (var marca in MarcasY)
+            {
+                <span class="gd-marca-y" style="bottom:@Texto(marca.Fraccion * 100)%">@marca.Texto</span>
+            }
+        </div>
+        <div class="gd-plano">
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+                @foreach (var marca in MarcasY)
+                {
+                    <line class="@(marca.Fraccion == 0 ? "gd-eje" : "gd-rejilla")" x1="0" y1="@Texto(100 - marca.Fraccion * 100)" x2="100" y2="@Texto(100 - marca.Fraccion * 100)" />
+                }
+                @if (Mediana is { } mediana)
+                {
+                    <line class="gd-mediana" x1="0" y1="@Texto(100 - mediana / MaximoY * 100)" x2="100" y2="@Texto(100 - mediana / MaximoY * 100)" />
+                }
+            </svg>
+            @if (Mediana is { } rotuloMediana)
+            {
+                <span class="gd-mediana-rotulo" style="bottom:@Texto(rotuloMediana / MaximoY * 100)%">@FormatoMediana(rotuloMediana)</span>
+            }
+            @foreach (var burbuja in Geometria)
+            {
+                <span class="gd-punto @(burbuja.Destacado ? "gd-bajo" : null)" tabindex="0" data-empresa="@burbuja.Nombre" title="@burbuja.Titulo"
+                      style="left:@Texto(burbuja.X)%;bottom:@Texto(burbuja.Y)%;width:@Texto(burbuja.Radio * 2)px;height:@Texto(burbuja.Radio * 2)px"></span>
+                @if (burbuja.Destacado)
+                {
+                    <span class="gd-nombre" style="left:@Texto(burbuja.X)%;bottom:@Texto(burbuja.Y)%;margin-bottom:-@Texto(burbuja.Radio + 14)px">@burbuja.Nombre</span>
+                }
+            }
+        </div>
+        <div class="gd-eje-x" aria-hidden="true">
+            @foreach (var marca in MarcasX)
+            {
+                <span class="gd-marca-x" style="left:@Texto(marca.Fraccion * 100)%">@marca.Texto</span>
+            }
+        </div>
+    </div>
+    <div class="gd-titulos">
+        <span class="gd-titulo-y">@EtiquetaY</span>
+        <span class="gd-titulo-x">@EtiquetaX</span>
+    </div>
 </figure>

@@ -136,6 +136,117 @@ public partial class CuadroDireccionTests
         alerta.GetAttribute("data-prioridad").Should().Be("1");
     }
 
+    private static SerieCuadroDireccionDto SoloElUltimoMes(SerieCuadroDireccionDto serie)
+    {
+        CifrasCuadroDireccionDto Vacias(CifrasCuadroDireccionDto c) => c with
+        {
+            TrabajadoresActivos = c.TrabajadoresActivos with { Valor = 0 },
+            CentrosActivos = c.CentrosActivos with { Valor = 0 },
+            DocumentosGestionados = c.DocumentosGestionados with { Valor = 0 },
+            Gestiones = new CifraMensual(0, EstadoCifraMensual.Estimado),
+        };
+        var puntos = serie.Total.Select((p, i) => i == serie.Total.Count - 1 ? p : p with { Cifras = Vacias(p.Cifras), Facturacion = null }).ToList();
+        return serie with { Total = puntos };
+    }
+
+    [Fact]
+    public void El_grafico_con_barras_y_linea_lleva_la_leyenda_arriba_y_el_eje_de_la_linea_a_la_derecha()
+    {
+        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), LineasDeTarifa());
+
+        var grafico = cut.Find("[data-grafico=evolucion]");
+        grafico.QuerySelectorAll(".gs-eje-derecho .gs-marca-y").Length.Should().BeGreaterThanOrEqualTo(4, "el eje derecho rotula las gestiones");
+        grafico.InnerHtml.IndexOf("gs-leyenda", StringComparison.Ordinal).Should().BeLessThan(
+            grafico.InnerHtml.IndexOf("gs-cuerpo", StringComparison.Ordinal), "la leyenda va encima del gráfico");
+    }
+
+    [Fact]
+    public void Con_mas_de_seis_meses_el_eje_X_rotula_uno_de_cada_dos_con_el_rotulo_corto()
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _,
+            serie: _ => SerieDe(i => Cifras(EstadoCifraMensual.Estimado, 30), LineasDeTarifa(), 12));
+
+        var etiquetas = cut.Find("[data-grafico=evolucion]").QuerySelectorAll(".gs-etiqueta").Select(e => e.TextContent.Trim()).ToList();
+
+        etiquetas.Should().HaveCount(6);
+        etiquetas.Should().OnlyContain(e => System.Text.RegularExpressions.Regex.IsMatch(e, @"^\S+ \d{2}$"));
+    }
+
+    [Fact]
+    public void Un_minigrafico_con_un_solo_mes_con_actividad_dice_que_no_hay_tendencia_en_vez_de_pintar_una_raya()
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _,
+            serie: _ => SoloElUltimoMes(SerieDe(i => Cifras(EstadoCifraMensual.Estimado, 30), LineasDeTarifa())));
+
+        cut.Find("[data-kpi=trabajadores] .gs-sin-tendencia").TextContent.Trim().Should().Be("no hay tendencia; aparece desde el segundo mes");
+        cut.FindAll("[data-kpi=trabajadores] polyline").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void El_subtexto_de_la_facturacion_del_primer_mes_no_dice_sin_mes_anterior_vs_mes_anterior()
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _,
+            serie: _ => SoloElUltimoMes(SerieDe(i => Cifras(EstadoCifraMensual.Estimado, 30), LineasDeTarifa())));
+
+        var sub = cut.Find("[data-kpi=facturacion] .cuadro-kpi-sub").TextContent;
+
+        sub.Trim().Should().Be("tarifas de hoy");
+        sub.Should().NotContain("sin mes anterior");
+    }
+
+    [Fact]
+    public void La_Cartera_trae_las_columnas_de_la_maqueta_con_guion_donde_no_hay_dato()
+    {
+        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), LineasDeTarifa());
+
+        IrA(cut, "Cartera por Gestor CAE");
+
+        cut.FindAll("[data-tabla=cartera] th").Select(t => t.TextContent.Trim()).Should().Equal(
+            "Gestor CAE", "Equipo", "Empresas", "Emp. tit.", "Centros", "Trab.", "Extranj.", "Gestiones", "Mayor Empresa", "Índice");
+        var fila = cut.Find("[data-tabla=cartera] tr[data-gestor]:not([data-gestor=sin])").QuerySelectorAll("td").Select(c => c.TextContent.Trim()).ToList();
+        fila[0].Should().Be("Marta Gestora");
+        fila[1].Should().Be("—", "no hay modelo de equipos");
+        fila[2].Should().Be("1");
+        fila[3].Should().Be("—", "no hay modelo de contrato");
+        fila[4].Should().Be("30");
+        fila[5].Should().Be("300");
+        fila[6].Should().Be("—", "sin tarifa de visita no hay recuento de extranjeros");
+        fila[7].Should().Be("42");
+        fila[8].Should().Contain("100");
+        fila[9].Should().Be("100", "una sola cartera es la media");
+        cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Exportar a Excel");
+        cut.Markup.Should().Contain("Qué mide y qué no mide");
+    }
+
+    [Fact]
+    public void El_indice_de_cartera_pinta_una_barra_por_Gestor_CAE_con_la_media_marcada()
+    {
+        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), LineasDeTarifa());
+
+        IrA(cut, "Cartera por Gestor CAE");
+
+        var indice = cut.Find("[data-grafico=indice]");
+        indice.QuerySelectorAll(".cuadro-indice-fila").Length.Should().Be(1, "solo el Gestor CAE con cartera principal; las Empresas sin principal no entran");
+        indice.QuerySelector(".cuadro-indice-barra")!.GetAttribute("data-nivel").Should().Be("medio");
+        indice.TextContent.Should().Contain("media = 100");
+    }
+
+    [Fact]
+    public void El_simulador_trae_precios_de_ejemplo_y_el_selector_de_como_se_factura_la_gestion_de_extranjero()
+    {
+        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), []);
+        IrA(cut, "Facturación");
+
+        cut.FindAll("[data-chips=alta] button").Select(b => b.TextContent.Trim().Replace(' ', ' ')).Should().Equal("15 €", "20 €", "25 €", "30 €", "40 €");
+        cut.FindAll("[data-chips=extranjero]").Should().BeEmpty();
+
+        cut.FindAll("[data-chips=alta] button")[2].Click();
+        cut.Find("[data-sim=mes]").TextContent.Should().Contain("50", "25 € por las 2 altas de centro del mes");
+
+        cut.Find("select[data-sim=como]").Change("individual");
+        cut.FindAll("[data-chips=extranjero] button").Should().HaveCount(5);
+    }
+
     // ---------------------------------------------------------------- Facturación
 
     [Fact]
@@ -176,10 +287,12 @@ public partial class CuadroDireccionTests
         IrA(cut, "Empresas");
 
         var cabeceras = cut.FindAll("[data-tabla=empresas] th").Select(t => t.TextContent.Trim()).ToList();
-        cabeceras.Should().Equal("Empresa", "Trab.", "Centros", "Emp. tit.", "Extranj.", "Rotación", "Factura mes", "€ / gestión", "Cumpl.");
+        cabeceras.Should().Equal("Empresa", "Gestor CAE", "Trab.", "Centros", "Emp. tit.", "Extranj.", "Rotación", "Factura mes", "€ / gestión", "Cumpl.");
         var fila = cut.Find($"tr[data-empresa='{TenantA}']");
         fila.QuerySelector("td[data-sin-modelo=contrato]")!.TextContent.Trim().Should().Be("—");
-        fila.TextContent.Should().NotContain("Marta Gestora", "la maqueta no lleva la columna «Responde»");
+        fila.TextContent.Should().Contain("Marta Gestora");
+        cut.Markup.Should().NotContain("Responde", "la maqueta no lleva la columna ni la nota «Responde»");
+        fila.QuerySelectorAll("td.cuadro-delta")[0].TextContent.Trim().Should().Be("300 = /300", "valor, diferencia con el mes anterior y ese mes anterior");
     }
 
     [Fact]
@@ -216,9 +329,40 @@ public partial class CuadroDireccionTests
 
         IrA(cut, "Empresas");
 
-        cut.FindAll("[data-grafico=rendimiento] g.gd-punto").Count.Should().Be(2);
+        cut.FindAll("[data-grafico=rendimiento] .gd-punto").Count.Should().Be(2);
         cut.Find("[data-grafico=pareto]").QuerySelectorAll("polyline.gs-linea").Length.Should().Be(1);
         cut.Find("[data-tarjeta=cl-contratos] [data-sin-modelo=contrato]").TextContent.Should().Contain("Todavía no hay contrato");
+    }
+
+    [Fact]
+    public void La_dispersion_lleva_ejes_con_rotulos_la_mediana_y_la_leyenda_de_la_maqueta()
+    {
+        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), LineasDeTarifa());
+        IrA(cut, "Empresas");
+
+        var grafico = cut.Find("[data-grafico=rendimiento]");
+
+        grafico.QuerySelectorAll(".gd-eje-y .gd-marca-y").Length.Should().BeGreaterThanOrEqualTo(4);
+        grafico.QuerySelectorAll(".gd-eje-x .gd-marca-x").Length.Should().BeGreaterThanOrEqualTo(4);
+        grafico.QuerySelector(".gd-mediana-rotulo")!.TextContent.Should().StartWith("mediana ").And.Contain("€");
+        grafico.QuerySelectorAll(".gd-leyenda span").Select(s => s.TextContent.Trim()).Should().Equal("Resto de Empresas", "Por debajo del 80 % de la mediana");
+        grafico.QuerySelector(".gd-titulo-x")!.TextContent.Should().Be("Gestiones del mes");
+        grafico.QuerySelectorAll("svg text").Length.Should().Be(0, "el texto va en HTML");
+    }
+
+    [Fact]
+    public void La_concentracion_lleva_leyenda_de_la_maqueta_eje_doble_y_la_marca_del_ochenta_por_ciento()
+    {
+        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), LineasDeTarifa());
+        IrA(cut, "Empresas");
+
+        var grafico = cut.Find("[data-grafico=pareto]");
+
+        grafico.QuerySelectorAll(".gs-leyenda span").Select(s => s.TextContent.Trim()).Should().Equal("Primer 50 %", "Resto", "Acumulado");
+        grafico.QuerySelectorAll(".gs-eje-derecho .gs-marca-y").Select(s => s.TextContent.Trim()).Should().Equal("0,0 %", "50,0 %", "80,0 %", "100,0 %");
+        grafico.QuerySelectorAll("line.gs-referencia").Length.Should().Be(1);
+        grafico.QuerySelectorAll(".gs-etiqueta").Select(e => e.TextContent.Trim()).Should().Equal("1", "2");
+        grafico.QuerySelectorAll(".gs-tip").First().TextContent.Should().StartWith("1. ");
     }
 
     // ---------------------------------------------------------------- Demanda
@@ -418,6 +562,19 @@ public partial class CuadroDireccionTests
         cut.WaitForAssertion(() => cut.Find("[data-tarjeta=cmp-linea] [data-sin-modelo=historico]").TextContent.Should().Contain("trece meses"));
     }
 
+    [Fact]
+    public void Con_menos_de_trece_meses_de_operacion_la_comparativa_solo_dice_que_falta_historia_sin_fila_de_ceros()
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _,
+            serie: q => q.Meses == 24 ? SerieDe(i => Cifras(EstadoCifraMensual.Estimado, 25), LineasDeTarifa(), 8) : SerieDe(i => Cifras(EstadoCifraMensual.Estimado, 25)));
+
+        IrA(cut, "Comparativa anual");
+
+        cut.WaitForAssertion(() => cut.Find("[data-tarjeta=cmp-linea] [data-sin-modelo=historico]").TextContent.Should().Contain("trece meses"));
+        cut.Find("[data-tarjeta=cmp-tabla] [data-sin-modelo=historico]").Should().NotBeNull();
+        cut.FindAll("[data-tabla=comparativa]").Should().BeEmpty("sin un mes igual de otro año no hay fila que comparar");
+        cut.FindAll("[data-grafico=comparativa]").Should().BeEmpty();
+    }
     // ---------------------------------------------------------------- preferencias
 
     private BunitJSModuleInterop ModuloPreferencias(string? guardado = null)
@@ -435,7 +592,7 @@ public partial class CuadroDireccionTests
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
         cut.FindAll("[data-kpi=extranjeros]").Should().HaveCount(1);
 
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Personalizar").Click();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Personalizar esta pestaña").Click();
         cut.Find("[data-tarjeta-lista=k-ext] input[type=checkbox]").Change(false);
 
         cut.FindAll("[data-kpi=extranjeros]").Should().BeEmpty();
@@ -466,7 +623,7 @@ public partial class CuadroDireccionTests
     {
         ModuloPreferencias();
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Personalizar").Click();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Personalizar esta pestaña").Click();
         var antes = cut.FindAll("[data-tarjeta-lista]").Select(l => l.GetAttribute("data-tarjeta-lista")).ToList();
         antes.Take(2).Should().Equal("k-fact", "k-ext");
 
@@ -480,7 +637,7 @@ public partial class CuadroDireccionTests
     {
         ModuloPreferencias();
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Personalizar").Click();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Personalizar esta pestaña").Click();
 
         cut.Find("[data-tarjeta-lista=k-centros]").TriggerEvent("ondragstart", new Microsoft.AspNetCore.Components.Web.DragEventArgs());
         cut.Find("[data-tarjeta-lista=k-fact]").TriggerEvent("ondrop", new Microsoft.AspNetCore.Components.Web.DragEventArgs());
@@ -495,7 +652,7 @@ public partial class CuadroDireccionTests
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
         cut.WaitForAssertion(() => cut.FindAll("[data-kpi=extranjeros]").Should().BeEmpty());
 
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Personalizar").Click();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Personalizar esta pestaña").Click();
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Restablecer esta pestaña").Click();
 
         cut.FindAll("[data-kpi=extranjeros]").Should().HaveCount(1);

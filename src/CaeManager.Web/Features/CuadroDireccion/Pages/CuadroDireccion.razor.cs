@@ -70,7 +70,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         ["facturacion"] = ["f-apilado", "f-sintarifa", "f-simulador", "f-borrador"],
         ["empresas"] = ["cl-rendimiento", "cl-pareto", "cl-contratos", "cl-tabla"],
         // Cartera por Gestor CAE: volumen de cartera por persona (Empresas asignadas). La ocupación por persona no se construye.
-        ["carga"] = ["c-tabla", "c-criterio"],
+        ["carga"] = ["c-indice", "c-tabla", "c-criterio"],
         ["demanda"] = ["p-franja", "p-heatmap", "p-calendario", "p-estacional"],
         ["vacaciones"] = ["v-cobertura", "v-barras", "v-tabla"],
         ["comunicaciones"] = ["cm-kpis", "cm-equipos", "cm-estados", "cm-intencion", "cm-canal", "cm-criterio"],
@@ -113,6 +113,34 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     private bool _ordenAscendente;
     private readonly HashSet<Guid> _expandidas = [];
     private string _precioSimulado = "50";
+    private string _precioExtranjero = "10";
+    private string _comoSeFactura = "extra";
+
+    /// <summary>Los precios de ejemplo de la maqueta para el simulador: por alta de centro y por gestión de extranjero.</summary>
+    private const string ColorPrimer50 = "var(--color-primary-500)";
+    private const string ColorResto = "var(--color-primary-300)";
+    private static readonly IReadOnlyList<double> MarcasAcumulado = [0, 50, 80, 100];
+
+    /// <summary>El primer 50 % de la factura en el color primario y el resto en el claro (maqueta).</summary>
+    private static IReadOnlyList<string> ColoresPareto(IReadOnlyList<ItemPareto> pareto) =>
+        pareto.Select(ColorDePareto).ToList();
+
+    private static string ColorDePareto(ItemPareto item) => item.Acumulado - item.Porcentaje < 50 ? ColorPrimer50 : ColorResto;
+
+    /// <summary>El máximo del eje del índice de cartera: 150 como mínimo, o el mayor índice con un 10 % de holgura.</summary>
+    private double EjeMaximoIndice => Math.Max(150, CarteraConIndice.Max(f => f.Indice!.Value) * 1.1);
+
+    private string DeltaTrabajadores(CuadroDireccionTenantDto empresa) =>
+        Delta(empresa.Cifras.TrabajadoresActivos.Valor, PrevioDeEmpresa(empresa.TenantId, TrabajadoresDe));
+
+    private string DeltaCentros(CuadroDireccionTenantDto empresa) =>
+        Delta(empresa.Cifras.CentrosActivos.Valor, PrevioDeEmpresa(empresa.TenantId, CentrosDe));
+
+    private static int TrabajadoresDe(PuntoSerieCuadroDto p) => p.Cifras.TrabajadoresActivos.Valor;
+
+    private static int CentrosDe(PuntoSerieCuadroDto p) => p.Cifras.CentrosActivos.Valor;
+    private static readonly int[] PreciosAlta = [15, 20, 25, 30, 40];
+    private static readonly int[] PreciosExtranjero = [5, 8, 10, 12, 15];
 
     /// <summary>Las medidas por equipo (Outbound, Validación, Fincas) aún no existen en el servidor: ver <see cref="TablaEquiposComunicaciones"/>.</summary>
     private readonly IReadOnlyList<FilaEquipoComunicaciones> _equipos = [];
@@ -510,6 +538,9 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     /// <summary>Quien lleva la cartera principal de una o más Empresas: una opción «Equipo …» del selector de ámbito.</summary>
     private sealed record EquipoDeGestor(string Valor, string Nombre);
 
+    /// <summary>El directorio devuelve «Nombre (Rol)»: el rol ya va en el encabezado de cada columna, así que aquí solo el nombre.</summary>
+    private static string NombreDePersona(string nombre) => System.Text.RegularExpressions.Regex.Replace(nombre, @"\s*\([^)]*\)\s*$", string.Empty);
+
     /// <summary>
     /// Los equipos del selector de ámbito: un Gestor CAE (o Coordinador CAE en un relevo) por cada persona que lleva la
     /// marca de principal de alguna Empresa, por orden alfabético. Nunca se listan las Empresas.
@@ -521,7 +552,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
             .Select(t => t.PrincipalDeCartera!)
             .DistinctBy(p => p.UsuarioId)
             .OrderBy(p => p.Nombre, StringComparer.CurrentCulture)
-            .Select(p => new EquipoDeGestor(PrefijoEquipo + p.UsuarioId, p.Nombre))
+            .Select(p => new EquipoDeGestor(PrefijoEquipo + p.UsuarioId, NombreDePersona(p.Nombre)))
             .ToList();
 
     /// <summary>Las Empresas del ámbito elegido: todas, o las de la cartera principal del Gestor CAE elegido.</summary>
@@ -551,29 +582,52 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         {
             if (_cuadro is not { SinCifras: null }) return [];
 
+            FilaCartera Fila(Guid? usuarioId, string nombre, string rol, IReadOnlyList<CuadroDireccionTenantDto> empresas)
+            {
+                var trabajadores = empresas.Sum(t => t.Cifras.TrabajadoresActivos.Valor);
+                var extranjeros = empresas.Sum(t => PuntoDeEmpresa(t.TenantId)?.UnidadesDe(ConceptoFacturable.VisitaTrabajadorExtranjero) ?? 0);
+                return new FilaCartera(
+                    usuarioId, nombre, rol,
+                    empresas.Select(t => t.TenantNombre).Order(StringComparer.CurrentCulture).ToList(),
+                    empresas.Sum(t => t.Cifras.CentrosActivos.Valor), trabajadores,
+                    empresas.Count > 0 && empresas.All(t => t.Cifras.Gestiones is not null) ? empresas.Sum(t => t.Cifras.Gestiones!.Valor) : null,
+                    extranjeros > 0 ? extranjeros : null,
+                    trabajadores > 0 ? empresas.Max(t => t.Cifras.TrabajadoresActivos.Valor) * 100d / trabajadores : null,
+                    null);
+            }
+
             var filas = _cuadro.Tenants
                 .Where(t => t.PrincipalDeCartera is { Nombre.Length: > 0 })
                 .GroupBy(t => t.PrincipalDeCartera!.UsuarioId)
-                .Select(g => new FilaCartera(
-                    g.Key, g.First().PrincipalDeCartera!.Nombre, RolLegible(g.First().PrincipalDeCartera!.Rol),
-                    g.Select(t => t.TenantNombre).Order(StringComparer.CurrentCulture).ToList(),
-                    g.Sum(t => t.Cifras.CentrosActivos.Valor), g.Sum(t => t.Cifras.TrabajadoresActivos.Valor)))
+                .Select(g => Fila(g.Key, NombreDePersona(g.First().PrincipalDeCartera!.Nombre), RolLegible(g.First().PrincipalDeCartera!.Rol), g.ToList()))
                 .OrderBy(f => f.Nombre, StringComparer.CurrentCulture)
                 .ToList();
 
+            var indices = CalculosCuadro.IndiceDeCartera(filas.Select(f => (f.Trabajadores, f.Centros, f.Gestiones)).ToList());
+            filas = filas.Select((f, i) => f with { Indice = indices[i] }).ToList();
+
             var sinPrincipal = _cuadro.Tenants.Where(t => t.PrincipalDeCartera is not { Nombre.Length: > 0 }).ToList();
             if (sinPrincipal.Count > 0)
-                filas.Add(new FilaCartera(
-                    null, Textos["CarteraSinResponsable"].Value, string.Empty,
-                    sinPrincipal.Select(t => t.TenantNombre).Order(StringComparer.CurrentCulture).ToList(),
-                    sinPrincipal.Sum(t => t.Cifras.CentrosActivos.Valor), sinPrincipal.Sum(t => t.Cifras.TrabajadoresActivos.Valor)));
+                filas.Add(Fila(null, Textos["CarteraSinResponsable"].Value, string.Empty, sinPrincipal));
 
             return filas;
         }
     }
 
+    /// <summary>
+    /// Una fila de la cartera: volumen que lleva un Gestor CAE como principal. «Gestiones» e «Índice» son null si no hay
+    /// medida (un cierre anterior a las gestiones no las guardó); «Extranjeros» cuenta las visitas de Trabajadores
+    /// extranjeros facturables y es null sin tarifa de visita; «MayorEmpresa» es el peso de la Empresa con más
+    /// Trabajadores en los de la cartera.
+    /// </summary>
     private sealed record FilaCartera(
-        Guid? UsuarioId, string Nombre, string Rol, IReadOnlyList<string> Empresas, int Centros, int Trabajadores);
+        Guid? UsuarioId, string Nombre, string Rol, IReadOnlyList<string> Empresas, int Centros, int Trabajadores,
+        int? Gestiones, int? Extranjeros, double? MayorEmpresa, int? Indice);
+    /// <summary>Las carteras con Gestor CAE principal y un índice calculable, de mayor a menor índice (como la maqueta).</summary>
+    private IReadOnlyList<FilaCartera> CarteraConIndice => CarteraPorGestor.Where(f => f.UsuarioId is not null && f.Indice is not null).OrderByDescending(f => f.Indice).ThenBy(f => f.Nombre, StringComparer.CurrentCulture).ToList();
+
+    /// <summary>El nivel del índice: alto desde 125, bajo hasta 75 (maqueta).</summary>
+    private static string NivelIndice(int indice) => indice >= 125 ? "alto" : indice <= 75 ? "bajo" : "medio";
 
     /// <summary>Empresas sin Gestor CAE principal en su cartera: lo que «Cartera por Gestor CAE» pide mirar.</summary>
     private int EmpresasSinPrincipal => _cuadro is { SinCifras: null }
@@ -702,6 +756,23 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     private IReadOnlyList<PuntoSerieCuadroDto> SerieDeEmpresa(Guid tenantId) =>
         _serie?.Tenants.FirstOrDefault(t => t.TenantId == tenantId)?.Meses ?? [];
 
+    /// <summary>El valor de una Empresa en el mes anterior al visible; null si la serie no lo trae.</summary>
+    private int? PrevioDeEmpresa(Guid tenantId, Func<PuntoSerieCuadroDto, int> valor)
+    {
+        var anterior = new DateOnly(_anyo, _mes, 1).AddMonths(-1);
+        var punto = SerieDeEmpresa(tenantId).LastOrDefault(p => p.Anyo == anterior.Year && p.Mes == anterior.Month);
+        return punto is null ? null : valor(punto);
+    }
+
+    /// <summary>Celda de variación de la maqueta: «99 +13 /86» (valor, diferencia con el mes anterior y ese mes anterior); «=» si no cambia.</summary>
+    private string Delta(int actual, int? previo)
+    {
+        if (previo is not { } anterior) return Numero(actual);
+        var diferencia = actual - anterior;
+        var signo = diferencia == 0 ? "=" : (diferencia > 0 ? "+" : "-") + Numero(Math.Abs(diferencia));
+        return $"{Numero(actual)} {signo} /{Numero(anterior)}";
+    }
+
     private PuntoSerieCuadroDto? PuntoPrevio => PuntoActual is null || PuntosSerie.Count < 2 ? null : PuntosSerie[^2];
 
     private IReadOnlyList<string> EtiquetasSerie => PuntosSerie.Select(p => CuadroDireccionUi.EtiquetaMes(p.Anyo, p.Mes)).ToList();
@@ -754,20 +825,23 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     private SerieGrafico LineaGestiones() =>
         new(Textos["SerieGestiones"].Value, Paleta_(1), PuntosSerie.Select(p => p.Cifras.Gestiones is { } g ? (double?)g.Valor : null).ToList());
 
-    private SerieGrafico Minigrafico(Func<PuntoSerieCuadroDto, double?> valor) =>
-        new(string.Empty, Paleta_(0), PuntosSerie.Select(valor).ToList());
+    /// <summary>El minigráfico de un KPI: la serie desde el primer mes con actividad (antes de él no hay nada que dibujar).</summary>
+    private SerieGrafico Minigrafico(Func<PuntoSerieCuadroDto, double?> valor)
+    {
+        var puntos = PuntosSerie;
+        var primero = puntos.ToList().FindIndex(HayActividad);
+        return new(string.Empty, Paleta_(0), puntos.Select((p, i) => primero < 0 || i < primero ? null : valor(p)).ToList());
+    }
 
-    private string VariacionFacturacion
+    /// <summary>La variación de la facturación frente al mes anterior; null si no hay mes anterior con importe con el que compararla.</summary>
+    private string? VariacionFacturacion
     {
         get
         {
             var variacion = PuntoPrevio is null ? null : CalculosCuadro.Variacion((double)ImporteDe(PuntoActual), (double)ImporteDe(PuntoPrevio));
-            return variacion is { } v
-                ? (v >= 0 ? "+" : string.Empty) + v.ToString("N1", CuadroDireccionUi.Castellano) + " %"
-                : Textos["VariacionSinPrevio"].Value;
+            return variacion is { } v ? (v >= 0 ? "+" : string.Empty) + v.ToString("N1", CuadroDireccionUi.Castellano) + " %" : null;
         }
     }
-
     private int AltasCentroSinTarifa => PuntoActual?.Cifras.AltasCentros.Valor ?? Cifras.AltasCentros.Valor;
 
     private bool AltaCentroTieneTarifa => PuntosSerie.Any(p => p.UnidadesDe(ConceptoFacturable.AltaCentro) > 0 || (p.Facturacion?.Any(l => l.Concepto == ConceptoFacturable.AltaCentro) ?? false));
@@ -786,6 +860,14 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     private decimal? PrecioSimulado => decimal.TryParse(_precioSimulado.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var precio) && precio >= 0
         ? precio
         : null;
+
+    private decimal? PrecioExtranjero => decimal.TryParse(_precioExtranjero.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var precio) && precio >= 0 ? precio : null;
+
+    private int ExtranjerosMes => PuntoActual?.UnidadesDe(ConceptoFacturable.VisitaTrabajadorExtranjero) ?? 0;
+
+    private string ImporteExtranjeroMes => Importe((PrecioExtranjero ?? 0) * ExtranjerosMes);
+
+    private string ImporteExtranjeroVentana => Importe((PrecioExtranjero ?? 0) * PuntosVentana.Sum(p => p.UnidadesDe(ConceptoFacturable.VisitaTrabajadorExtranjero)));
 
     private string ImporteSimuladoMes => Importe((PrecioSimulado ?? 0) * AltasCentroSinTarifa);
 
@@ -985,7 +1067,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     }
 
     /// <summary>Hay un mismo mes en dos años distintos con algo medido: sin eso no hay nada que comparar.</summary>
-    private bool ComparaDosAnyos => LineasAnuales().Count >= 2
+    private bool ComparaDosAnyos => HistoricoParaComparar && LineasAnuales().Count >= 2
         && Enumerable.Range(0, 12).Any(i => LineasAnuales().Count(l => l.Valores[i] is > 0) >= 2);
 
     private IReadOnlyList<(int Anyo, PuntoSerieCuadroDto[] Meses)> AcumuladoPorAnyo()
@@ -996,7 +1078,21 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
             .ToList();
     }
 
-    private bool HayAcumuladoComparable => AcumuladoPorAnyo() is [{ Meses.Length: > 0 }, { Meses.Length: > 0 }];
+    private bool HayAcumuladoComparable => HistoricoParaComparar && AcumuladoPorAnyo() is [{ Meses.Length: > 0 }, { Meses.Length: > 0 }];
+
+    /// <summary>
+    /// Hay al menos 13 meses de operación (del primer mes con actividad al mes visible): sin ellos no hay un mes igual de
+    /// otro año con el que comparar y la Comparativa dice que falta historia, sin una fila de ceros.
+    /// </summary>
+    private bool HistoricoParaComparar
+    {
+        get
+        {
+            var puntos = PuntosDe(FuenteAnual);
+            var primero = puntos.ToList().FindIndex(HayActividad);
+            return primero >= 0 && puntos.Count - primero >= 13;
+        }
+    }
 
     private string TituloAcumulado => Textos["CmpTablaTitulo", NombreMesLargo.ToLowerInvariant()].Value;
 
@@ -1090,6 +1186,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         "p-heatmap" => Textos["MapaCalorTitulo"].Value,
         "p-calendario" => Textos["CalendarioTitulo"].Value,
         "p-estacional" => Textos["EstacionalTitulo"].Value,
+        "c-indice" => Textos["CarteraIndiceTitulo"].Value,
         "c-tabla" => Textos["CarteraTitulo"].Value,
         "c-criterio" => Textos["CarteraCriterioTitulo"].Value,
         "v-barras" => Textos["VacacionesPorGestorTitulo"].Value,
@@ -1200,6 +1297,16 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
             Numero(f.Empresa.Cifras.CentrosActivos.Valor), f.Rotacion is { } r ? Porcentaje(r) : "—", ImporteOSinDato(f.Facturacion),
             f.IngresoPorGestion is { } i ? Importe((decimal)i) : "—",
             f.Empresa.Cifras.Cumplimiento.SinDatos ? "—" : f.Empresa.Cifras.Cumplimiento.Porcentaje + " %"])));
+
+    private Task ExportarCarteraAsync() => DescargarCsvAsync("cartera",
+        new[] { (IReadOnlyList<string>)[Textos["ColumnaGestorCae"].Value, Textos["ColumnaEquipo"].Value, Textos["ColumnaEmpresas"].Value, Textos["ColumnaEmpresasTitulares"].Value, Textos["ColumnaCentros"].Value, Textos["ColumnaTrabajadores"].Value, Textos["ColumnaExtranjeros"].Value, Textos["ColumnaGestiones"].Value, Textos["ColumnaMayorEmpresa"].Value, Textos["ColumnaIndice"].Value] }
+            .Concat(CarteraPorGestor.Select(f => (IReadOnlyList<string>)[
+                f.Nombre, SinDato, Numero(f.Empresas.Count), SinDato, Numero(f.Centros), Numero(f.Trabajadores),
+                CeldaNumero(f.Extranjeros), CeldaNumero(f.Gestiones), f.MayorEmpresa is { } m ? Porcentaje(m) : SinDato, CeldaNumero(f.Indice)])));
+
+    private string SinDato => Textos["SinDato"].Value;
+
+    private string CeldaNumero(int? valor) => valor is { } v ? Numero(v) : SinDato;
 
     private Task ExportarBorradorAsync() => DescargarCsvAsync("borrador",
         new[] { (IReadOnlyList<string>)[Textos["ColumnaEmpresa"].Value, Textos["ColumnaFacturable"].Value, Textos["ColumnaAltasCentro"].Value] }

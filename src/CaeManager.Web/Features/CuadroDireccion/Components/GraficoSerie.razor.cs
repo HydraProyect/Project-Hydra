@@ -17,9 +17,8 @@ public sealed record MarcaEje(double Fraccion, string Texto);
 
 public partial class GraficoSerie : ComponentBase
 {
-    /// <summary>A partir de cuántos meses el rótulo del eje X se salta de dos en dos o de tres en tres para no apretarse.</summary>
-    private const int MesesParaSaltarUno = 12;
-    private const int MesesParaSaltarDos = 24;
+    /// <summary>A partir de cuántas posiciones el rótulo del eje X se salta de dos en dos para no apretarse.</summary>
+    private const int PosicionesParaSaltarUna = 6;
 
     [Parameter] public string Id { get; set; } = string.Empty;
     [Parameter] public string EtiquetaAria { get; set; } = string.Empty;
@@ -33,6 +32,25 @@ public partial class GraficoSerie : ComponentBase
 
     /// <summary>Varias líneas que comparten el mismo eje (una por año en la Comparativa anual).</summary>
     [Parameter] public IReadOnlyList<SerieGrafico> Comparadas { get; set; } = [];
+
+    /// <summary>Lo que dice el minigráfico con menos de dos puntos: una línea de un solo punto no es una tendencia.</summary>
+    [Parameter] public string? TextoSinTendencia { get; set; }
+
+    /// <summary>Color de cada barra por posición (la concentración pinta distinto el primer 50 %); sin él, el de la serie.</summary>
+    [Parameter] public IReadOnlyList<string>? ColoresBarra { get; set; }
+
+    /// <summary>Leyenda propia cuando los colores no son los de las series (p. ej. «Primer 50 %» y «Resto»).</summary>
+    [Parameter] public IReadOnlyList<SerieGrafico>? LeyendaPropia { get; set; }
+
+    /// <summary>Descripción de cada posición para el tooltip cuando el rótulo del eje es solo un número de orden.</summary>
+    [Parameter] public IReadOnlyList<string>? Descripciones { get; set; }
+
+    /// <summary>Máximo fijo del eje de la línea (100 % en un acumulado) y las marcas que se rotulan en él.</summary>
+    [Parameter] public double? MaximoFijoLinea { get; set; }
+    [Parameter] public IReadOnlyList<double>? MarcasFijasLinea { get; set; }
+
+    /// <summary>Línea de referencia discontinua sobre el eje de la línea (el 80 % de la concentración).</summary>
+    [Parameter] public double? ReferenciaLinea { get; set; }
 
     [Parameter] public bool MostrarValores { get; set; }
     [Parameter] public bool Compacto { get; set; }
@@ -51,7 +69,7 @@ public partial class GraficoSerie : ComponentBase
     private string ColorLinea => Linea?.Color ?? "var(--color-warning-500)";
     private double PorcentajeAncho => Etiquetas.Count == 0 ? 0 : Math.Round(100.0 / Etiquetas.Count, 3);
 
-    private IReadOnlyList<SerieGrafico> Leyenda => [.. Barras, .. Comparadas, .. (Linea is null ? [] : new[] { Linea })];
+    private IReadOnlyList<SerieGrafico> Leyenda => LeyendaPropia ?? [.. Barras, .. Comparadas, .. (Linea is null ? [] : new[] { Linea })];
 
     private static string Texto(double valor) => valor.ToString("0.##", CultureInfo.InvariantCulture);
 
@@ -61,16 +79,47 @@ public partial class GraficoSerie : ComponentBase
 
     private IEnumerable<int> Posiciones => Enumerable.Range(0, Etiquetas.Count);
 
-    /// <summary>Con 36 meses se rotula uno de cada tres; con más de 12, uno de cada dos: el texto es de 11 px y no cabe junto.</summary>
+    /// <summary>Con más de seis posiciones se rotula una de cada dos, con el rótulo corto: el texto es de 11 px y no cabe junto.</summary>
     private IEnumerable<int> PosicionesConEtiqueta
     {
         get
         {
-            var salto = Etiquetas.Count > MesesParaSaltarDos ? 3 : Etiquetas.Count > MesesParaSaltarUno ? 2 : 1;
+            var salto = Etiquetas.Count > PosicionesParaSaltarUna ? 2 : 1;
             return Posiciones.Where(i => i % salto == (Etiquetas.Count - 1) % salto);
         }
     }
 
+    /// <summary>«Oct 2026» sale como «Oct 26» en el eje cuando hay muchos meses; el resto de rótulos no cambia.</summary>
+    private string EtiquetaEje(int i)
+    {
+        var etiqueta = Etiquetas[i];
+        if (Etiquetas.Count <= PosicionesParaSaltarUna) return etiqueta;
+        var partes = etiqueta.Split(' ');
+        return partes.Length == 2 && partes[1].Length == 4 && int.TryParse(partes[1], out _) ? $"{partes[0]} {partes[1][2..]}" : etiqueta;
+    }
+
+    /// <summary>Un minigráfico con menos de dos puntos con dato no dibuja una línea.</summary>
+    private bool SinTendencia => Compacto && (Linea is null || Linea.Valores.Count(v => v is not null) < 2);
+
+    /// <summary>Con barras y línea a la vez, la línea lleva su propio eje a la derecha (gestiones frente a euros).</summary>
+    private bool HayEjeDerecho => !Compacto && Barras.Count > 0 && Linea is not null && MaximoLinea > 0;
+
+    private IReadOnlyList<MarcaEje> MarcasEjeDerecho
+    {
+        get
+        {
+            if (!HayEjeDerecho) return [];
+            if (MarcasFijasLinea is { Count: > 0 } fijas)
+                return fijas.Select(m => new MarcaEje(m / EjeMaximoLinea, FormatoLinea(m))).ToList();
+            var (eje, divisiones) = MaximoRedondeado(MaximoLinea);
+            return Enumerable.Range(0, divisiones + 1)
+                .Select(d => new MarcaEje((double)d / divisiones, FormatoLinea(eje * d / divisiones)))
+                .ToList();
+        }
+    }
+
+    /// <summary>El máximo del eje de la línea: el suyo propio con barras, el único del gráfico sin ellas.</summary>
+    private double EjeMaximoLinea => MaximoFijoLinea ?? (Barras.Count > 0 ? (MaximoLinea > 0 ? MaximoRedondeado(MaximoLinea).Maximo : 1) : EjeMaximo);
     private string PorcentajeIzquierda(int i) => Texto(i * PorcentajeAncho);
 
     private double CentroDe(int i) => Margen + Hueco * (i + 0.5);
@@ -147,7 +196,7 @@ public partial class GraficoSerie : ComponentBase
                     var resaltada = Resaltar?.Contains(i) == true;
                     resultado.Add(new BarraGeometria(
                         x, Alto - acumulado, ancho, alto,
-                        resaltada ? ColorResaltado : serie.Color, resaltada,
+                        resaltada ? ColorResaltado : Barras.Count == 1 && ColoresBarra?.ElementAtOrDefault(i) is { } colorBarra ? colorBarra : serie.Color, resaltada,
                         Barras.Count == 1 ? FormatoBarra(valor) : null));
                 }
             }
@@ -166,19 +215,29 @@ public partial class GraficoSerie : ComponentBase
             var conDato = valores.Where(v => v is not null).Select(v => v!.Value).ToList();
             if (conDato.Count == 0) return [];
 
-            var maximo = conDato.Max();
-            var minimo = Compacto ? conDato.Min() : 0;
-            var rango = maximo - minimo;
-            var altoUtil = Compacto ? Alto - 6 : Alto - 12;
-            var basePosicion = Compacto ? Alto - 3 : Alto;
             var puntos = new List<PuntoGeometria>();
-            for (var i = 0; i < valores.Count; i++)
+            if (Compacto)
             {
-                if (valores[i] is not { } valor) continue;
-                var fraccion = rango <= 0 ? 0.5 : (valor - minimo) / rango;
-                puntos.Add(new PuntoGeometria(CentroDe(i), basePosicion - fraccion * altoUtil));
+                var maximo = conDato.Max();
+                var minimo = conDato.Min();
+                var rango = maximo - minimo;
+                for (var i = 0; i < valores.Count; i++)
+                {
+                    if (valores[i] is not { } valor) continue;
+                    var fraccion = rango <= 0 ? 0.5 : (valor - minimo) / rango;
+                    var x = Margen + (Ancho - 2 * Margen) * i / Math.Max(valores.Count - 1, 1);
+                    puntos.Add(new PuntoGeometria(x, Alto - 3 - fraccion * (Alto - 6)));
+                }
             }
-
+            else
+            {
+                var eje = EjeMaximoLinea;
+                for (var i = 0; i < valores.Count; i++)
+                {
+                    if (valores[i] is not { } valor) continue;
+                    puntos.Add(new PuntoGeometria(CentroDe(i), Alto - valor / eje * Alto));
+                }
+            }
             return puntos;
         }
     }
@@ -215,6 +274,6 @@ public partial class GraficoSerie : ComponentBase
         partes.AddRange(Comparadas.Select(s => $"{s.Nombre}: {(s.Valores.ElementAtOrDefault(i) is { } c ? FormatoBarra(c) : "—")}"));
         if (Linea is not null)
             partes.Add($"{Linea.Nombre}: {(Linea.Valores.ElementAtOrDefault(i) is { } l ? FormatoLinea(l) : "—")}");
-        return $"{Etiquetas[i]} · {string.Join(" · ", partes)}";
+        return $"{Descripciones?.ElementAtOrDefault(i) ?? Etiquetas[i]} · {string.Join(" · ", partes)}";
     }
 }

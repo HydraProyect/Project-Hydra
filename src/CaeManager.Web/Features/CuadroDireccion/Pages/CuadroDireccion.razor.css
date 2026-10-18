@@ -16,20 +16,20 @@
 
 /* Título de la pantalla (maqueta: .tv-hrow .tv-title) 24/32 con interlineado de letra -0,24 px, y h2 de las tarjetas 18/26.
    Se fija solo aquí: la cabecera y la tarjeta compartidas no cambian para el resto de pantallas. */
-.cuadro :deep(h1) {
+.cuadro ::deep h1 {
     font-size: 24px;
     line-height: 32px;
     letter-spacing: -0.24px;
 }
 
-.cuadro-tarjeta :deep(.tarjeta-titulo) {
+.cuadro-tarjeta ::deep .tarjeta-titulo {
     font-size: 18px;
     line-height: 26px;
     font-weight: 600;
 }
 
-.cuadro-tarjeta :deep(.tarjeta-header) { padding: 0; }
-.cuadro-tarjeta :deep(.tarjeta-contenido) { padding: 12px 0 0; display: grid; gap: 12px; min-width: 0; }
+.cuadro-tarjeta ::deep .tarjeta-header { padding: 0; }
+.cuadro-tarjeta ::deep .tarjeta-contenido { padding: 12px 0 0; display: grid; gap: 12px; min-width: 0; }
 .cuadro-tarjeta { padding: 16px; min-width: 0; }
 
 .cuadro-mes {
@@ -70,22 +70,30 @@
     align-items: center;
 }
 
-/* Momento: Mes 1 / Mes 6 / Año 3 (maqueta: .tv-seg). */
+/* Periodo: ‹ [Mes 1 / Mes 6 / Año 3] › en un solo grupo de 38 px (maqueta: .tv-seg con las flechas). */
+.cuadro-periodo {
+    display: inline-flex;
+    align-items: stretch;
+    gap: 4px;
+    height: 38px;
+    max-width: 100%;
+}
+
 .cuadro-momento {
     display: inline-flex;
-    flex-wrap: wrap;
     gap: 2px;
     padding: 3px;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
+    min-width: 0;
 }
 
 .cuadro-momento button {
     font: inherit;
     font-size: 13px;
     font-weight: 600;
-    padding: 6px 12px;
+    padding: 0 12px;
     border: 0;
     border-radius: 8px;
     background: transparent;
@@ -99,9 +107,11 @@
 .cuadro-momento button:disabled { opacity: .45; cursor: default; }
 .cuadro-momento button:not([aria-pressed="true"]):not(:disabled):hover { color: var(--color-text); }
 
-/* Ámbito: un select de 36 px, sin etiqueta encima (el nombre accesible va en aria-label). */
+/* Los botones de la barra miden 38 px, como en la maqueta. */
+.cuadro-barra ::deep .boton { height: 38px; min-height: 38px; padding-block: 0; }
+/* Ámbito: un select de 38 px, sin etiqueta encima (el nombre accesible va en aria-label). */
 .cuadro-select {
-    height: 36px;
+    height: 38px;
     min-width: 0;
     max-width: 100%;
     padding: 0 32px 0 12px;
@@ -119,8 +129,8 @@
     list-style: none;
     display: grid;
     place-items: center;
-    width: 36px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
     border: 1px solid var(--color-border-control);
     border-radius: var(--radius-md);
     background: var(--color-surface);
@@ -162,6 +172,23 @@
 .cuadro-presenta .cuadro-interruptor,
 .cuadro-presenta .cuadro-mas,
 .cuadro-presenta .cuadro-pastilla { display: none; }
+.cuadro-presenta { font-size: 110%; }
+
+.cuadro-espaciador { flex: 1 1 0; }
+
+.cuadro-mesnav-boton {
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: 600 16px/1 var(--font-family);
+    cursor: pointer;
+}
+
+.cuadro-mesnav-boton:disabled { opacity: .4; cursor: default; }
+.cuadro-pastilla { display: none; }
 .cuadro-presenta { font-size: 110%; }
 
 .cuadro-espaciador { flex: 1 1 0; }
@@ -347,6 +374,7 @@
 }
 
 .cuadro-tabla td.cuadro-texto { text-align: left; white-space: normal; }
+.cuadro-tabla th.cuadro-texto { text-align: left; }
 
 .cuadro-tabla tbody tr:hover { background: var(--color-fila-hover); }
 
@@ -407,11 +435,11 @@
 .cuadro-bloque { min-width: 0; }
 .cuadro-acciones { display: flex; justify-content: flex-end; margin-bottom: 8px; }
 
-.cuadro-kpi :deep(.gs) { margin-top: 6px; }
+.cuadro-kpi ::deep .gs { margin-top: 6px; }
 
 /* Interruptor de etiquetas de datos (maqueta: .tv-switch). */
 .cuadro-interruptor {
-    display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px;
+    display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 12px;
     font: inherit; font-size: 14px; color: var(--color-text); cursor: pointer;
     background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px;
 }
@@ -487,3 +515,48 @@
 .cuadro-seg { display: inline-flex; flex-wrap: wrap; gap: 0; margin-bottom: 12px; border: 1px solid var(--color-border); border-radius: 10px; overflow: hidden; }
 .cuadro-seg button { font: inherit; padding: 6px 12px; color: var(--color-text); background: var(--color-surface); border: 0; cursor: pointer; }
 .cuadro-seg button[aria-pressed="true"] { color: var(--color-primary-700); background: var(--color-primary-50); font-weight: 600; }
+
+/* Móvil (375 px): pestañas en una sola fila con desplazamiento y controles apilados a todo el ancho. */
+@media (max-width: 640px) {
+    .cuadro ::deep .pestanas-lista-envuelta { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+    .cuadro-barra { flex-direction: column; align-items: stretch; gap: 8px; }
+    .cuadro-barra > * { width: 100%; min-width: 0; }
+    .cuadro-periodo { display: flex; }
+    .cuadro-momento { flex: 1 1 auto; justify-content: space-between; }
+    .cuadro-momento button { padding: 0 8px; }
+    .cuadro-momento button small { display: none; }
+    .cuadro-select { width: 100%; }
+    .cuadro-espaciador { display: none; }
+    .cuadro-barra ::deep .boton { width: 100%; }
+    .cuadro-barra-acciones { flex-direction: row; flex-wrap: wrap; }
+    .cuadro-barra-acciones > * { width: auto; flex: 1 1 auto; }
+}
+/* Índice de cartera por Gestor CAE (maqueta: chartCarga): barras horizontales con la media (100) punteada. */
+.cuadro-indice { display: grid; }
+.cuadro-indice-fila,
+.cuadro-indice-media {
+    display: grid;
+    grid-template-columns: minmax(64px, 120px) minmax(0, 1fr) 40px;
+    align-items: center;
+    column-gap: 8px;
+    font-size: 12px;
+}
+.cuadro-indice-fila { min-height: 28px; }
+.cuadro-indice-nombre { text-align: right; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cuadro-indice-pista { position: relative; display: block; height: 20px; align-self: stretch; margin-block: 4px; }
+.cuadro-indice-pista::after { content: ""; position: absolute; top: -4px; bottom: -4px; left: var(--media); border-left: 1px dashed var(--color-text-muted); }
+.cuadro-indice-barra { display: block; height: 100%; border-radius: 4px; background: var(--color-primary-500); }
+.cuadro-indice-barra[data-nivel="alto"] { background: var(--color-tolerancia-500); }
+.cuadro-indice-barra[data-nivel="bajo"] { background: var(--color-primary-300); }
+.cuadro-indice-valor { font-weight: 600; text-align: left; }
+.cuadro-indice-media { height: 22px; color: var(--color-text-muted); }
+.cuadro-indice-media > span { grid-column: 2; position: relative; left: var(--media); transform: translateX(-50%); width: max-content; }
+/* Simulador: precios de ejemplo en chips y el selector «se factura como» (maqueta). */
+.cuadro-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cuadro-chips button {
+    font: inherit; font-size: 13px; padding: 4px 12px; cursor: pointer; color: var(--color-text);
+    background: var(--color-surface); border: 1px solid var(--color-border-control); border-radius: 6px;
+}
+.cuadro-chips button[aria-pressed="true"] { color: var(--color-primario-texto); background: var(--color-primario-fondo); border-color: var(--color-primario-fondo); }
+.cuadro-sim-como { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--color-border); }
+.cuadro-sim-como-etiqueta { display: grid; gap: 4px; font-size: 13px; font-weight: 600; max-width: 320px; }

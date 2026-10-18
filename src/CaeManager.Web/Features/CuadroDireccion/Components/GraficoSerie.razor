@@ -1,6 +1,13 @@
 @* Gráfico de barras apiladas con una línea opcional sobre su propio eje, o su versión compacta (minigráfico). Sin texto propio: todo llega por parámetros. El texto (eje Y, meses, valores) es HTML sobre el plano y no texto SVG: el SVG se estira sin conservar la proporción y deformaría las letras. *@
 <figure class="gs @(Compacto ? "gs-compacto" : null)" role="img" aria-label="@EtiquetaAria" data-grafico="@Id">
-    @if (Compacto)
+    @if (Compacto && SinTendencia)
+    {
+        @if (!string.IsNullOrEmpty(TextoSinTendencia))
+        {
+            <p class="gs-sin-tendencia">@TextoSinTendencia</p>
+        }
+    }
+    else if (Compacto)
     {
         <svg viewBox="0 0 @Texto(Ancho) @Texto(Alto)" preserveAspectRatio="none" focusable="false" aria-hidden="true">
             @if (PuntosLinea.Length > 0)
@@ -11,7 +18,16 @@
     }
     else
     {
-        <div class="gs-cuerpo">
+        @if (Leyenda.Count > 0)
+        {
+            <figcaption class="gs-leyenda">
+                @foreach (var item in Leyenda)
+                {
+                    <span><i style="background:@item.Color"></i>@item.Nombre</span>
+                }
+            </figcaption>
+        }
+        <div class="gs-cuerpo @(HayEjeDerecho ? "gs-con-eje-derecho" : null)">
             <div class="gs-eje-y" aria-hidden="true">
                 @foreach (var marca in MarcasEjeY)
                 {
@@ -23,6 +39,10 @@
                     @foreach (var marca in MarcasEjeY)
                     {
                         <line class="@(marca.Fraccion == 0 ? "gs-eje" : "gs-rejilla")" x1="0" y1="@Texto(Alto - marca.Fraccion * Alto)" x2="@Texto(Ancho)" y2="@Texto(Alto - marca.Fraccion * Alto)" />
+                    }
+                    @if (ReferenciaLinea is { } referencia && HayEjeDerecho)
+                    {
+                        <line class="gs-referencia" x1="0" y1="@Texto(Alto - referencia / EjeMaximoLinea * Alto)" x2="@Texto(Ancho)" y2="@Texto(Alto - referencia / EjeMaximoLinea * Alto)" />
                     }
                     @foreach (var barra in GeometriaBarras)
                     {
@@ -64,21 +84,21 @@
                     }
                 </div>
             </div>
+            @if (HayEjeDerecho)
+            {
+                <div class="gs-eje-y gs-eje-derecho" aria-hidden="true">
+                    @foreach (var marca in MarcasEjeDerecho)
+                    {
+                        <span class="gs-marca-y" style="bottom:@Texto(marca.Fraccion * 100)%">@marca.Texto</span>
+                    }
+                </div>
+            }
             <div class="gs-eje-x" aria-hidden="true">
                 @foreach (var i in PosicionesConEtiqueta)
                 {
-                    <span class="gs-etiqueta" style="left:@Texto(CentroDe(i) / Ancho * 100)%">@Etiquetas[i]</span>
+                    <span class="gs-etiqueta" style="left:@Texto(CentroDe(i) / Ancho * 100)%">@EtiquetaEje(i)</span>
                 }
             </div>
         </div>
-        @if (Leyenda.Count > 0)
-        {
-            <figcaption class="gs-leyenda">
-                @foreach (var item in Leyenda)
-                {
-                    <span><i style="background:@item.Color"></i>@item.Nombre</span>
-                }
-            </figcaption>
-        }
     }
 </figure>

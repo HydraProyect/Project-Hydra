@@ -1,7 +1,40 @@
-.gd { margin: 0; }
-.gd svg { display: block; width: 100%; height: 260px; }
-.gd-eje { stroke: var(--color-border); stroke-width: 1; }
-.gd-mediana { stroke: var(--color-neutral-400); stroke-dasharray: 4 4; stroke-width: 1; }
-.gd-punto circle { fill-opacity: .55; stroke: var(--color-surface); stroke-width: 1; }
-.gd-punto:hover circle, .gd-punto:focus circle { fill-opacity: .9; }
-.gd-rotulo { font-size: 11px; fill: var(--color-text-muted); }
+.gd { position: relative; margin: 0; min-width: 0; }
+
+/* Cuerpo: eje Y a la izquierda, plano a la derecha y el eje X debajo. El texto es HTML a 11 px, atenuado. */
+.gd-cuerpo { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: 260px auto; column-gap: 8px; padding-top: 10px; }
+.gd-eje-y { position: relative; min-width: 48px; }
+.gd-marca-y {
+    position: absolute; right: 0; transform: translateY(50%);
+    font-size: 11px; line-height: 16px; color: var(--color-text-muted); white-space: nowrap;
+}
+.gd-plano { position: relative; }
+.gd-plano svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.gd-eje-x { grid-column: 2; position: relative; height: 20px; margin-top: 6px; }
+.gd-marca-x {
+    position: absolute; transform: translateX(-50%);
+    font-size: 11px; line-height: 16px; color: var(--color-text-muted); white-space: nowrap;
+}
+.gd-eje { stroke: var(--color-border-strong); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.gd-rejilla { stroke: var(--color-border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.gd-mediana { stroke: var(--color-text-muted); stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
+.gd-mediana-rotulo {
+    position: absolute; right: 0; margin-bottom: 4px;
+    font-size: 11px; line-height: 14px; color: var(--color-text-muted); white-space: nowrap; pointer-events: none;
+}
+
+/* Las burbujas son HTML: un círculo SVG estirado por el plano sería una elipse. */
+.gd-punto {
+    position: absolute; transform: translate(-50%, 50%); border-radius: 50%;
+    background: var(--color-primary-500); opacity: .75; box-shadow: 0 0 0 1px var(--color-surface);
+}
+.gd-bajo { background: var(--color-tolerancia-500); }
+.gd-punto:hover, .gd-punto:focus { opacity: 1; outline: 2px solid var(--color-primary-200); outline-offset: 1px; }
+.gd-nombre {
+    position: absolute; transform: translateX(-50%);
+    font-size: 11px; line-height: 14px; color: var(--color-tolerancia-700); white-space: nowrap; pointer-events: none;
+}
+
+.gd-titulos { display: flex; justify-content: space-between; gap: 12px; margin-top: 2px; font-size: 11px; line-height: 16px; color: var(--color-text-muted); }
+.gd-titulo-x { text-align: right; }
+.gd-leyenda { display: flex; flex-wrap: wrap; gap: 14px; margin: 0 0 8px; font-size: 12px; color: var(--color-text-muted); }
+.gd-leyenda i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }

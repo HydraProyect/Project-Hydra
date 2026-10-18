@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}")]
+@using System.Globalization
 @using CaeManager.Application.Dashboard.Queries
 @using CaeManager.Domain.Comunicaciones
 @using CaeManager.Domain.Facturacion
@@ -34,17 +35,16 @@
     </CabeceraPagina>
 
     <div class="cuadro-barra">
-        @* Momento: Mes 1 / Mes 6 / Año 3 de la operación (maqueta), con los meses reales; ‹ › recorren mes a mes. *@
-        <div class="cuadro-momento" role="group" aria-label="@Textos["EtiquetaMomento"]">
-            @foreach (var momento in Momentos)
-            {
-                <button type="button" data-momento="@momento.Id" aria-pressed="@(momento.Activo ? "true" : "false")" disabled="@(!momento.Disponible || Cargando)"
-                        @onclick="@(() => IrAMomentoAsync(momento))">@momento.Rotulo<small>@momento.Mes</small></button>
-            }
-        </div>
-        <div class="cuadro-mesnav" role="group" aria-label="@Textos["EtiquetaMes"]">
+        @* Periodo: un solo grupo ‹ [Mes 1 / Mes 6 / Año 3] › (maqueta). Los momentos llevan los meses reales; ‹ › recorren mes a mes. *@
+        <div class="cuadro-periodo" role="group" aria-label="@Textos["EtiquetaMes"]">
             <button type="button" class="cuadro-mesnav-boton" aria-label="@Textos["MesAnterior"]" disabled="@(!PuedeIrAlAnterior || Cargando)" @onclick="IrAlMesAnteriorAsync">‹</button>
-            <span class="cuadro-mesnav-mes">@EtiquetaMes</span>
+            <div class="cuadro-momento" role="group" aria-label="@Textos["EtiquetaMomento"]">
+                @foreach (var momento in Momentos)
+                {
+                    <button type="button" data-momento="@momento.Id" aria-pressed="@(momento.Activo ? "true" : "false")" disabled="@(!momento.Disponible || Cargando)"
+                            @onclick="@(() => IrAMomentoAsync(momento))">@momento.Rotulo<small>@momento.Mes</small></button>
+                }
+            </div>
             <button type="button" class="cuadro-mesnav-boton" aria-label="@Textos["MesSiguiente"]" disabled="@(!PuedeIrAlSiguiente || Cargando)" @onclick="IrAlMesSiguienteAsync">›</button>
         </div>
 
@@ -72,25 +72,30 @@
 
         @if (HayCifras)
         {
-            <button type="button" class="cuadro-interruptor" role="switch" aria-checked="@(_preferencias.Etiquetas ? "true" : "false")" id="cuadro-etiquetas" @onclick="AlternarEtiquetasAsync">
-                <i aria-hidden="true"></i>@Textos["EtiquetasDatos"]
-            </button>
             <Boton Variante="VarianteBoton.Secundario" OnClick="AlternarPersonalizar">@Textos["BotonPersonalizar"]</Boton>
-            <Boton Variante="VarianteBoton.Secundario" OnClick="AlternarPresentacionAsync" aria-pressed="@(_presentando ? "true" : "false")">@(_presentando ? Textos["SalirPresentacion"] : Textos["BotonPresentar"])</Boton>
-        }
-
-        @* Reabrir un mes cerrado: solo Dirección CAE (ReabrirMesCuadroDireccionCommand lo exige también en servidor). Vive en un menú de más acciones, fuera de la barra principal. *@
-        @if (_puedeReabrir)
-        {
-            <details class="cuadro-mas">
-                <summary aria-label="@Textos["MasAcciones"]" title="@Textos["MasAcciones"]">⋯</summary>
-                <div class="cuadro-mas-menu">
-                    <button type="button" disabled="@(EmpresasCerradas.Count == 0)" @onclick="AbrirReaperturaAsync">@Textos["BotonReabrirMes"]</button>
-                </div>
-            </details>
         }
     </div>
 
+    @if (HayCifras)
+    {
+        <div class="cuadro-barra cuadro-barra-acciones">
+            <button type="button" class="cuadro-interruptor" role="switch" aria-checked="@(_preferencias.Etiquetas ? "true" : "false")" id="cuadro-etiquetas" @onclick="AlternarEtiquetasAsync">
+                <i aria-hidden="true"></i>@Textos["EtiquetasDatos"]
+            </button>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="AlternarPresentacionAsync" aria-pressed="@(_presentando ? "true" : "false")">@(_presentando ? Textos["SalirPresentacion"] : Textos["BotonPresentar"])</Boton>
+
+            @* Reabrir un mes cerrado: solo Dirección CAE (ReabrirMesCuadroDireccionCommand lo exige también en servidor). Vive en un menú de más acciones, fuera de la barra principal. *@
+            @if (_puedeReabrir)
+            {
+                <details class="cuadro-mas">
+                    <summary aria-label="@Textos["MasAcciones"]" title="@Textos["MasAcciones"]">⋯</summary>
+                    <div class="cuadro-mas-menu">
+                        <button type="button" disabled="@(EmpresasCerradas.Count == 0)" @onclick="AbrirReaperturaAsync">@Textos["BotonReabrirMes"]</button>
+                    </div>
+                </details>
+            }
+        </div>
+    }
     @if (_avisoExportar)
     {
         <p class="cuadro-nota" role="status" data-aviso="exportar">@Textos["ExportarNoDisponible"]</p>
@@ -175,8 +180,8 @@
                             <div class="cuadro-kpi" data-kpi="facturacion">
                                 <div class="cuadro-kpi-etiqueta">@Textos["KpiFacturacion"]</div>
                                 <div class="cuadro-kpi-valor">@(HayTarifas ? Importe(ImporteDe(PuntoActual)) : Textos["SinDato"].Value)</div>
-                                <div class="cuadro-kpi-sub">@(HayTarifas ? Textos["KpiFacturacionSub", VariacionFacturacion].Value : _cargandoSerie ? Textos["Cargando"].Value : Textos["KpiFacturacionSinTarifas"].Value)</div>
-                                <GraficoSerie Compacto="true" Id="spark-facturacion" Linea="@Minigrafico(p => (double)ImporteDe(p))" />
+                                <div class="cuadro-kpi-sub">@(HayTarifas ? (VariacionFacturacion is { } variacion ? Textos["KpiFacturacionSub", variacion].Value : Textos["KpiFacturacionSubSinPrevio"].Value) : _cargandoSerie ? Textos["Cargando"].Value : Textos["KpiFacturacionSinTarifas"].Value)</div>
+                                <GraficoSerie Compacto="true" Id="spark-facturacion" Linea="@Minigrafico(p => (double)ImporteDe(p))" TextoSinTendencia="@Textos["SinTendencia"]" />
                             </div>
                             break;
                         case "k-ext":
@@ -191,7 +196,7 @@
                                 <div class="cuadro-kpi-etiqueta">@Textos["KpiTrabajadores"]</div>
                                 <div class="cuadro-kpi-valor">@Numero(c.TrabajadoresActivos.Valor)</div>
                                 <div class="cuadro-kpi-sub">@Textos["KpiTrabajadoresSub", Numero(c.AltasTrabajadores.Valor), Numero(c.BajasTrabajadores.Valor)]</div>
-                                <GraficoSerie Compacto="true" Id="spark-trabajadores" Linea="@Minigrafico(p => p.Cifras.TrabajadoresActivos.Valor)" />
+                                <GraficoSerie Compacto="true" Id="spark-trabajadores" Linea="@Minigrafico(p => p.Cifras.TrabajadoresActivos.Valor)" TextoSinTendencia="@Textos["SinTendencia"]" />
                             </div>
                             break;
                         case "k-centros":
@@ -199,7 +204,7 @@
                                 <div class="cuadro-kpi-etiqueta">@Textos["KpiCentros"]</div>
                                 <div class="cuadro-kpi-valor">@Numero(c.CentrosActivos.Valor)</div>
                                 <div class="cuadro-kpi-sub">@Textos["KpiCentrosSub", Numero(c.AltasCentros.Valor)]</div>
-                                <GraficoSerie Compacto="true" Id="spark-centros" Linea="@Minigrafico(p => p.Cifras.CentrosActivos.Valor)" />
+                                <GraficoSerie Compacto="true" Id="spark-centros" Linea="@Minigrafico(p => p.Cifras.CentrosActivos.Valor)" TextoSinTendencia="@Textos["SinTendencia"]" />
                             </div>
                             break;
                         case "k-revisar":
@@ -328,6 +333,43 @@
                                             <div class="cuadro-apagado">@Textos["SimuladorVentana"]</div>
                                         </div>
                                     </div>
+                                    <div class="cuadro-chips" role="group" aria-label="@Textos["SimuladorAlta"]" data-chips="alta">
+                                        @foreach (var precio in PreciosAlta)
+                                        {
+                                            var valor = precio;
+                                            <button type="button" aria-pressed="@(PrecioSimulado == valor ? "true" : "false")" @onclick="@(() => _precioSimulado = valor.ToString(CultureInfo.InvariantCulture))">@Importe(valor)</button>
+                                        }
+                                    </div>
+                                    <div class="cuadro-sim-como">
+                                        <label class="cuadro-sim-como-etiqueta">
+                                            <span>@Textos["SimuladorComoTitulo"]</span>
+                                            <select class="cuadro-select" data-sim="como" value="@_comoSeFactura" @onchange="@(e => _comoSeFactura = e.Value?.ToString() ?? "extra")">
+                                                <option value="extra">@Textos["SimuladorComoExtra"]</option>
+                                                <option value="individual">@Textos["SimuladorComoIndividual"]</option>
+                                            </select>
+                                        </label>
+                                        <p class="cuadro-nota">@Textos["SimuladorComoNota"]</p>
+                                        @if (_comoSeFactura == "individual")
+                                        {
+                                            <div class="cuadro-chips" role="group" aria-label="@Textos["SimuladorExtranjeroEtiqueta"]" data-chips="extranjero">
+                                                @foreach (var precio in PreciosExtranjero)
+                                                {
+                                                    var valor = precio;
+                                                    <button type="button" aria-pressed="@(PrecioExtranjero == valor ? "true" : "false")" @onclick="@(() => _precioExtranjero = valor.ToString(CultureInfo.InvariantCulture))">@Importe(valor)</button>
+                                                }
+                                            </div>
+                                            <div class="cuadro-sim">
+                                                <div>
+                                                    <div class="cuadro-sim-importe" data-sim="extranjero-mes">@ImporteExtranjeroMes</div>
+                                                    <div class="cuadro-apagado">@Textos["SimuladorExtranjeroMes", Numero(ExtranjerosMes)]</div>
+                                                </div>
+                                                <div>
+                                                    <div class="cuadro-sim-importe" data-sim="extranjero-ventana">@ImporteExtranjeroVentana</div>
+                                                    <div class="cuadro-apagado">@Textos["SimuladorVentana"]</div>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
                                     <p class="cuadro-nota" data-sin-modelo="contrato">@Textos["SimuladorTrabajadoresExtra"]</p>
                                 </Tarjeta>
                             </div>
@@ -375,7 +417,10 @@
                                     else
                                     {
                                         <GraficoDispersion Id="rendimiento" EtiquetaAria="@Textos["RendimientoTitulo"]" EtiquetaX="@Textos["RendimientoX"]" EtiquetaY="@Textos["RendimientoY"]"
-                                                           Puntos="@PuntosDispersion()" Describir="@DescribirPunto" />
+                                                           Puntos="@PuntosDispersion()" Describir="@DescribirPunto"
+                                                           FormatoX="@(v => Numero((int)Math.Round(v)))" FormatoY="@(v => Importe((decimal)v))"
+                                                           FormatoMediana="@(v => Textos["RendimientoMediana", Importe((decimal)v)].Value)"
+                                                           Leyenda="@(new[] { new SerieGrafico(Textos["RendimientoNormal"].Value, "var(--color-primary-500)", []), new SerieGrafico(Textos["RendimientoBajo"].Value, "var(--color-tolerancia-500)", []) })" />
                                     }
                                 </Tarjeta>
                             </div>
@@ -393,9 +438,13 @@
                                     }
                                     else
                                     {
-                                        <GraficoSerie Id="pareto" EtiquetaAria="@Textos["ParetoTitulo"]" Etiquetas="@(pareto.Select(p => p.Nombre).ToList())"
-                                                      Barras="@(new[] { new SerieGrafico(Textos["SeriePeso"].Value, Paleta[0], pareto.Select(p => (double?)p.Porcentaje).ToList()) })"
+                                        <GraficoSerie Id="pareto" EtiquetaAria="@Textos["ParetoTitulo"]" Etiquetas="@(pareto.Select((p, i) => (i + 1).ToString(CultureInfo.InvariantCulture)).ToList())"
+                                                      Descripciones="@(pareto.Select((p, i) => $"{i + 1}. {p.Nombre}").ToList())"
+                                                      Barras="@(new[] { new SerieGrafico(Textos["SeriePeso"].Value, ColorPrimer50, pareto.Select(p => (double?)p.Porcentaje).ToList()) })"
+                                                      ColoresBarra="@ColoresPareto(pareto)"
+                                                      LeyendaPropia="@(new[] { new SerieGrafico(Textos["ParetoPrimer50"].Value, ColorPrimer50, []), new SerieGrafico(Textos["ParetoResto"].Value, ColorResto, []), new SerieGrafico(Textos["SerieAcumulado"].Value, Paleta[1], []) })"
                                                       Linea="@(new SerieGrafico(Textos["SerieAcumulado"].Value, Paleta[1], pareto.Select(p => (double?)p.Acumulado).ToList()))"
+                                                      MaximoFijoLinea="100" MarcasFijasLinea="@MarcasAcumulado" ReferenciaLinea="80"
                                                       MostrarValores="@_preferencias.Etiquetas" FormatoBarra="@(v => Porcentaje(v))" FormatoLinea="@(v => Porcentaje(v))" />
                                     }
                                 </Tarjeta>
@@ -419,6 +468,7 @@
                                             <thead>
                                                 <tr>
                                                     <th scope="col" aria-sort="@AriaOrden("empresa")"><button type="button" class="cuadro-orden" @onclick='() => Ordenar("empresa")'>@Textos["ColumnaEmpresa"]</button></th>
+                                                    <th scope="col" class="cuadro-texto">@Textos["ColumnaGestorCae"]</th>
                                                     <th scope="col" aria-sort="@AriaOrden("trabajadores")"><button type="button" class="cuadro-orden" @onclick='() => Ordenar("trabajadores")'>@Textos["ColumnaTrabajadores"]</button></th>
                                                     <th scope="col" aria-sort="@AriaOrden("centros")"><button type="button" class="cuadro-orden" @onclick='() => Ordenar("centros")'>@Textos["ColumnaCentros"]</button></th>
                                                     <th scope="col">@Textos["ColumnaEmpresasTitulares"]</th>
@@ -446,8 +496,9 @@
                                                                 <span class="cuadro-estado cuadro-estado-fila" data-e="@DataEstado(e.TrabajadoresActivos.Estado)">@TextoEstado(e.TrabajadoresActivos.Estado)</span>
                                                             }
                                                         </td>
-                                                        <td>@Numero(e.TrabajadoresActivos.Valor)</td>
-                                                        <td>@Numero(e.CentrosActivos.Valor)</td>
+                                                        <td class="cuadro-texto">@(empresa.PrincipalDeCartera is { Nombre.Length: > 0 } principal ? NombreDePersona(principal.Nombre) : Textos["SinDato"].Value)</td>
+                                                        <td class="cuadro-delta">@DeltaTrabajadores(empresa)</td>
+                                                        <td class="cuadro-delta">@DeltaCentros(empresa)</td>
                                                         <td data-sin-modelo="contrato" title="@Textos["CeldaSinModelo"]">@Textos["SinDato"]</td>
                                                         <td data-sin-modelo="extranjeros">@ExtranjerosDe(empresa.TenantId)</td>
                                                         <td>@(fila.Rotacion is { } rotacion ? Porcentaje(rotacion) : Textos["SinDato"].Value)</td>
@@ -467,7 +518,7 @@
                                                     @if (abierta)
                                                     {
                                                         <tr class="cuadro-detalle" data-detalle="@empresa.TenantId">
-                                                            <td colspan="9">
+                                                            <td colspan="10">
                                                                 <div class="cuadro-detalle-contenido">
                                                                     <dl>
                                                                         <dt>@Textos["ColumnaAltas"]</dt><dd>@Numero(e.AltasTrabajadores.Valor)</dd>
@@ -661,6 +712,37 @@
                             </div>
                             break;
 
+                        case "c-indice":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="c-indice">
+                                <Tarjeta Titulo="@Textos["CarteraIndiceTitulo"]" Class="cuadro-tarjeta">
+                                    <p class="cuadro-nota">@Textos["CarteraIndiceNota"]</p>
+                                    @{
+                                        var indiceFilas = CarteraConIndice;
+                                    }
+                                    @if (indiceFilas.Count == 0)
+                                    {
+                                        <p class="cuadro-vacio">@Textos["CarteraVacia"]</p>
+                                    }
+                                    else
+                                    {
+                                        var ejeMaximo = EjeMaximoIndice;
+                                        <div class="cuadro-indice" data-grafico="indice" role="img" aria-label="@Textos["CarteraIndiceTitulo"]" style="--media:@(Math.Round(100 / ejeMaximo * 100, 2).ToString("0.##", CultureInfo.InvariantCulture))%">
+                                            @foreach (var fila in indiceFilas)
+                                            {
+                                                <div class="cuadro-indice-fila" data-gestor="@fila.UsuarioId" title="@Textos["CarteraIndiceTip", fila.Indice!.Value, fila.Empresas.Count, fila.Centros, fila.Trabajadores]">
+                                                    <span class="cuadro-indice-nombre">@fila.Nombre</span>
+                                                    <span class="cuadro-indice-pista">
+                                                        <span class="cuadro-indice-barra" data-nivel="@NivelIndice(fila.Indice!.Value)" style="width:@((fila.Indice!.Value / ejeMaximo * 100).ToString("0.##", CultureInfo.InvariantCulture))%"></span>
+                                                    </span>
+                                                    <b class="cuadro-indice-valor">@fila.Indice</b>
+                                                </div>
+                                            }
+                                            <div class="cuadro-indice-media"><span>@Textos["CarteraMedia"]</span></div>
+                                        </div>
+                                    }
+                                </Tarjeta>
+                            </div>
+                            break;
                         case "c-tabla":
                             <div class="cuadro-bloque cuadro-ancha" data-tarjeta="c-tabla">
                                 <Tarjeta Titulo="@Textos["CarteraTitulo"]" Class="cuadro-tarjeta">
@@ -671,26 +753,37 @@
                                     }
                                     else
                                     {
+                                        <div class="cuadro-acciones"><Boton Variante="VarianteBoton.Secundario" OnClick="ExportarCarteraAsync">@Textos["ExportarTabla"]</Boton></div>
                                         <div class="cuadro-tabla-envoltorio">
                                             <table class="cuadro-tabla" data-tabla="cartera">
                                                 <thead>
                                                     <tr>
-                                                        <th scope="col">@Textos["ColumnaGestorCae"]</th>
+                                                        <th scope="col" class="cuadro-texto">@Textos["ColumnaGestorCae"]</th>
+                                                        <th scope="col">@Textos["ColumnaEquipo"]</th>
                                                         <th scope="col">@Textos["ColumnaEmpresas"]</th>
+                                                        <th scope="col">@Textos["ColumnaEmpresasTitulares"]</th>
                                                         <th scope="col">@Textos["ColumnaCentros"]</th>
                                                         <th scope="col">@Textos["ColumnaTrabajadores"]</th>
-                                                        <th scope="col">@Textos["ColumnaEmpresasAsignadas"]</th>
+                                                        <th scope="col">@Textos["ColumnaExtranjeros"]</th>
+                                                        <th scope="col">@Textos["ColumnaGestiones"]</th>
+                                                        <th scope="col">@Textos["ColumnaMayorEmpresa"]</th>
+                                                        <th scope="col">@Textos["ColumnaIndice"]</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     @foreach (var fila in CarteraPorGestor)
                                                     {
                                                         <tr data-gestor="@(fila.UsuarioId?.ToString() ?? "sin")">
-                                                            <td class="cuadro-texto">@fila.Nombre @if (fila.Rol.Length > 0) { <span class="cuadro-apagado">(@fila.Rol)</span> }</td>
-                                                            <td>@Numero(fila.Empresas.Count)</td>
+                                                            <td class="cuadro-texto">@fila.Nombre</td>
+                                                            <td data-sin-modelo="equipos" title="@Textos["CeldaSinModelo"]">@Textos["SinDato"]</td>
+                                                            <td title="@string.Join(", ", fila.Empresas)">@Numero(fila.Empresas.Count)</td>
+                                                            <td data-sin-modelo="contrato" title="@Textos["CeldaSinModelo"]">@Textos["SinDato"]</td>
                                                             <td>@Numero(fila.Centros)</td>
                                                             <td>@Numero(fila.Trabajadores)</td>
-                                                            <td class="cuadro-texto cuadro-apagado">@string.Join(", ", fila.Empresas)</td>
+                                                            <td>@(fila.Extranjeros is { } extranjeros ? Numero(extranjeros) : Textos["SinDato"].Value)</td>
+                                                            <td>@(fila.Gestiones is { } gestiones ? Numero(gestiones) : Textos["SinDato"].Value)</td>
+                                                            <td>@(fila.MayorEmpresa is { } mayor ? Porcentaje(mayor) : Textos["SinDato"].Value)</td>
+                                                            <td>@(fila.Indice is { } indice ? Numero(indice) : Textos["SinDato"].Value)</td>
                                                         </tr>
                                                     }
                                                 </tbody>

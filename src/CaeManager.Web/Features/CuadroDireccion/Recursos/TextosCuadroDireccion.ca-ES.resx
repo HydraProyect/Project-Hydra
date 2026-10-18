@@ -148,7 +148,7 @@
     <value>Contratado frente a real por Empresa</value>
   </data>
   <data name="EmpresasNota" xml:space="preserve">
-    <value>Pulsa una cabecera para ordenar. «€ / gestión» = facturación estimada ÷ gestiones del mes. «Rotación» = altas y bajas de Trabajadores frente a la plantilla media: más rotación, más trabajo documental. «Responde» es quien lleva la marca de principal en la cartera de la Empresa: indica quién responde de ella, no mide la actividad de nadie. Una Empresa con menos de 20 solicitudes en el mes no enseña ese recuento.</value>
+    <value>Prem una capçalera per ordenar. «€ / gestió» = facturació estimada ÷ gestions del mes. «Rotació» = altes i baixes de Treballadors respecte de la plantilla mitjana: més rotació, més feina documental. Una Empresa amb menys de 20 sol·licituds al mes no ensenya aquest recompte.</value>
   </data>
   <data name="ColumnaEmpresa" xml:space="preserve">
     <value>Empresa</value>
@@ -241,7 +241,7 @@
     <value>No se muestra: menos de {0} personas o menos de {1} conversaciones</value>
   </data>
   <data name="ColumnaEquipo" xml:space="preserve">
-    <value>Equipo</value>
+    <value>Equip</value>
   </data>
   <data name="ColumnaConversaciones" xml:space="preserve">
     <value>Conversaciones</value>
@@ -313,7 +313,7 @@
     <value>Comparativa anual</value>
   </data>
   <data name="BotonPersonalizar" xml:space="preserve">
-    <value>Personalizar</value>
+    <value>Personalitza aquesta pestanya</value>
   </data>
   <data name="EtiquetasDatos" xml:space="preserve">
     <value>Etiquetas de datos</value>
@@ -781,7 +781,7 @@
     <value>Cartera per Gestor CAE</value>
   </data>
   <data name="CarteraNota" xml:space="preserve">
-    <value>Les Empreses que cada Gestor CAE porta com a principal a la cartera, amb els centres i treballadors que sumen. És volum de cartera, no activitat de la persona.</value>
+    <value>«Major Empresa» és el pes de l&apos;Empresa més gran en els treballadors de la cartera: per sobre del 50 %, aquesta Empresa depèn d&apos;una sola persona si el Gestor CAE s&apos;absenta.</value>
   </data>
   <data name="CarteraVacia" xml:space="preserve">
     <value>Encara no hi ha Empreses a la cartera de l'Operador CAE.</value>
@@ -790,10 +790,10 @@
     <value>Sense Gestor CAE principal</value>
   </data>
   <data name="CarteraCriterioTitulo" xml:space="preserve">
-    <value>Com es llegeix aquesta cartera</value>
+    <value>Què mesura i què no mesura</value>
   </data>
   <data name="CarteraCriterioTexto" xml:space="preserve">
-    <value>Cada Empresa compta una sola vegada, per a qui porta la marca de principal a la seva Assignació de Cartera. Els centres i treballadors són els d'aquestes Empreses al mes. TALVEG no mesura l'ocupació ni el temps de ningú.</value>
+    <value>Mesura el volum de l&apos;Assignació de Cartera de cada Gestor CAE per repartir millor. No mesura hores, connexions, velocitat ni errors de ningú, i no ordena les persones. Les gestions s&apos;atribueixen al Gestor CAE principal de l&apos;Empresa, no a qui les va fer.</value>
   </data>
   <data name="ColumnaGestorCae" xml:space="preserve">
     <value>Gestor CAE</value>
@@ -809,5 +809,62 @@
   </data>
   <data name="VacacionesPorGestorNota" xml:space="preserve">
     <value>Dies laborables gaudits fins al mes, ja planificats i sense planificar. Només vacances.</value>
+  </data>
+  <data name="CarteraMedia" xml:space="preserve">
+    <value>mitjana = 100</value>
+  </data>
+  <data name="CarteraIndiceNota" xml:space="preserve">
+    <value>Mitjana de tres proporcions respecte de la mitjana: treballadors, centres i gestions que genera la cartera. 100 = mitjana. Mesura cartera, no rendiment.</value>
+  </data>
+  <data name="ColumnaIndice" xml:space="preserve">
+    <value>Índex</value>
+  </data>
+  <data name="ColumnaMayorEmpresa" xml:space="preserve">
+    <value>Major Empresa</value>
+  </data>
+  <data name="CarteraIndiceTip" xml:space="preserve">
+    <value>Índex {0} · {1} Empreses · {2} centres · {3} treballadors</value>
+  </data>
+  <data name="CarteraIndiceTitulo" xml:space="preserve">
+    <value>Índex de cartera per Gestor CAE</value>
+  </data>
+  <data name="SinTendencia" xml:space="preserve">
+    <value>no hi ha tendència; apareix des del segon mes</value>
+  </data>
+  <data name="KpiFacturacionSubSinPrevio" xml:space="preserve">
+    <value>tarifes d&apos;avui</value>
+  </data>
+  <data name="SimuladorComoTitulo" xml:space="preserve">
+    <value>Gestió d&apos;estranger es factura com</value>
+  </data>
+  <data name="SimuladorComoNota" xml:space="preserve">
+    <value>En un estranger també es gestiona la documentació de la seva empresa estrangera; per això pot dur preu propi. Ara: cada gestió duu la tarifa d&apos;estranger de la seva Empresa.</value>
+  </data>
+  <data name="SimuladorExtranjeroMes" xml:space="preserve">
+    <value>{0} gestions d&apos;estranger aquest mes</value>
+  </data>
+  <data name="SimuladorExtranjeroEtiqueta" xml:space="preserve">
+    <value>Per gestió d&apos;estranger</value>
+  </data>
+  <data name="SimuladorComoExtra" xml:space="preserve">
+    <value>Treballador extra</value>
+  </data>
+  <data name="SimuladorComoIndividual" xml:space="preserve">
+    <value>Preu individual</value>
+  </data>
+  <data name="ParetoResto" xml:space="preserve">
+    <value>Resta</value>
+  </data>
+  <data name="ParetoPrimer50" xml:space="preserve">
+    <value>Fins al 50 %</value>
+  </data>
+  <data name="RendimientoNormal" xml:space="preserve">
+    <value>Resta d&apos;Empreses</value>
+  </data>
+  <data name="RendimientoBajo" xml:space="preserve">
+    <value>Per sota del 80 % de la mediana</value>
+  </data>
+  <data name="RendimientoMediana" xml:space="preserve">
+    <value>mediana: {0}</value>
   </data>
 </root>

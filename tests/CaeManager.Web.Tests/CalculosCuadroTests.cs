@@ -254,8 +254,35 @@ public class CalculosCuadroTests : BunitContext
             .Add(p => p.Puntos, [new PuntoDispersion("Ebro", 10, 5, 100, true), new PuntoDispersion("Refri", 30, 20, 400, false)])
             .Add(p => p.Describir, p => $"{p.Nombre} importa"));
 
-        cut.FindAll("g.gd-punto").Count.Should().Be(2);
-        cut.Find("g[data-empresa=Ebro] title").TextContent.Should().Be("Ebro importa");
+        cut.FindAll(".gd-punto").Count.Should().Be(2);
+        cut.Find("[data-empresa=Ebro]").GetAttribute("title").Should().Be("Ebro importa");
         cut.Markup.Should().Contain("Gestiones").And.Contain("Euros");
+    }
+
+    [Fact]
+    public void El_indice_de_cartera_es_cien_en_la_media_y_se_reparte_por_proporciones()
+    {
+        var indices = CalculosCuadro.IndiceDeCartera([(300, 30, 40), (100, 10, 20)]);
+
+        // Medias: 200 trabajadores, 20 centros, 30 gestiones. Primera: (1,5 + 1,5 + 1,333) / 3 = 1,444; segunda: (0,5 + 0,5 + 0,667) / 3 = 0,556.
+        indices.Should().Equal(144, 56);
+    }
+
+    [Fact]
+    public void El_indice_de_cartera_deja_fuera_la_magnitud_sin_dato_en_alguna_cartera_y_es_null_si_no_queda_ninguna()
+    {
+        CalculosCuadro.IndiceDeCartera([(300, 30, null), (100, 10, 20)]).Should().Equal(150, 50);
+        CalculosCuadro.IndiceDeCartera([(0, 0, null)]).Should().Equal((int?)null);
+        CalculosCuadro.IndiceDeCartera([]).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void El_minigrafico_reparte_los_puntos_a_lo_ancho_aunque_no_lleve_etiquetas()
+    {
+        var cut = Render<GraficoSerie>(ps => ps
+            .Add(p => p.Compacto, true)
+            .Add(p => p.Linea, new SerieGrafico("", "var(--a)", [1, 2, 3])));
+
+        cut.Find("polyline.gs-linea").GetAttribute("points")!.Split(' ').Should().Equal("2,29", "60,16", "118,3");
     }
 }

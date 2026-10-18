@@ -140,6 +140,35 @@ public static class CalculosCuadro
         return semanas;
     }
 
+    /// <summary>
+    /// Índice de cartera por Gestor CAE (maqueta): media de las proporciones de trabajadores, centros y gestiones de cada
+    /// cartera frente a la media de todas, por cien (100 = media). Mide el volumen de la cartera, no el rendimiento de nadie.
+    /// Una magnitud sin dato en alguna cartera (gestiones de un cierre antiguo) o con media cero no entra en la media de
+    /// proporciones; si no queda ninguna, el índice es null.
+    /// </summary>
+    public static IReadOnlyList<int?> IndiceDeCartera(IReadOnlyList<(int Trabajadores, int Centros, int? Gestiones)> carteras)
+    {
+        if (carteras.Count == 0) return [];
+
+        var magnitudes = new List<(Func<(int Trabajadores, int Centros, int? Gestiones), double?> Valor, double Media)>();
+        void Anadir(Func<(int Trabajadores, int Centros, int? Gestiones), double?> valor)
+        {
+            if (carteras.Any(c => valor(c) is null)) return;
+            var media = carteras.Average(c => valor(c)!.Value);
+            if (media > 0) magnitudes.Add((valor, media));
+        }
+
+        Anadir(c => c.Trabajadores);
+        Anadir(c => c.Centros);
+        Anadir(c => c.Gestiones);
+
+        return carteras
+            .Select(c => magnitudes.Count == 0
+                ? (int?)null
+                : (int)Math.Round(magnitudes.Average(m => m.Valor(c)!.Value / m.Media) * 100, MidpointRounding.AwayFromZero))
+            .ToList();
+    }
+
     /// <summary>Variación porcentual frente a un valor previo; null si el previo es cero.</summary>
     public static double? Variacion(double actual, double previo) => previo == 0 ? null : (actual - previo) * 100 / previo;
 

@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using Bunit;
 using CaeManager.Application.Dashboard;
 using CaeManager.Application.Dashboard.Queries;
@@ -347,9 +347,11 @@ public partial class CuadroDireccionTests : BunitContext
 
         var filas = cut.FindAll("[data-tabla=cartera] tbody tr");
         filas.Should().HaveCount(2);
-        filas[0].TextContent.Should().Contain("Marta Gestora").And.Contain("Refrielectric S.A.");
-        filas[1].TextContent.Should().Contain("Sin Gestor CAE principal").And.Contain("Montajes Ebro S.L.");
-        cut.Markup.Should().Contain("volumen de cartera, no actividad de la persona");
+        filas[0].TextContent.Should().Contain("Marta Gestora");
+        filas[0].InnerHtml.Should().Contain("Refrielectric S.A.", "las Empresas de la cartera salen como ayuda de la celda");
+        filas[1].TextContent.Should().Contain("Sin Gestor CAE principal");
+        filas[1].InnerHtml.Should().Contain("Montajes Ebro S.L.");
+        cut.Markup.Should().Contain("No mide horas, conexiones, velocidad ni errores de nadie");
     }
 
     [Fact]
