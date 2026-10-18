@@ -189,6 +189,19 @@ public partial class TrabajadoresListaGen2Tests
     }
 
     [Fact]
+    public void Con_mas_de_una_pagina_el_recuento_del_grupo_dice_que_es_de_esta_pagina()
+    {
+        // El agrupado es por página: con 21 Trabajadores en dos páginas, el recuento del grupo no es el total de la Empresa.
+        var mediador = new MediatorFalso();
+        for (var i = 0; i < 21; i++) mediador.Almacen.Add(Trabajador($"Persona{i:00}", "Alonso"));
+
+        var cut = Renderizar(mediador, "trabajadores?agrupar=empresa");
+
+        cut.Find(".cabecera-grupo-trabajadores .cabecera-grupo-trabajadores-recuento").TextContent.Trim()
+            .Should().Be("· 20 en esta página");
+    }
+
+    [Fact]
     public async Task Ordenar_por_una_columna_desactiva_la_agrupacion_y_lo_escribe_en_la_URL()
     {
         var cut = Renderizar(ConTresEmpresas(), "trabajadores?agrupar=empresa");

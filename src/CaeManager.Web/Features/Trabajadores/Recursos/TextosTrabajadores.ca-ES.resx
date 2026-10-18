@@ -93,9 +93,6 @@
   <data name="VacioFiltrosTitulo" xml:space="preserve">
     <value>Cap resultat amb aquests filtres</value>
   </data>
-  <data name="VacioFiltrosDescripcion" xml:space="preserve">
-    <value>Ninguno coincide con la búsqueda ni con los filtros de documentación, empresa o subcontrata.</value>
-  </data>
   <data name="BotonQuitarFiltros" xml:space="preserve">
     <value>Treu els filtres</value>
   </data>
@@ -736,5 +733,6 @@
   <data name="EtiquetaAgrupar" xml:space="preserve"><value>Agrupa</value></data>
   <data name="OpcionSinAgrupar" xml:space="preserve"><value>Sense agrupar</value></data>
   <data name="AgruparPorEmpresa" xml:space="preserve"><value>Per Empresa</value></data>
+  <data name="RecuentoGrupoEnEstaPagina" xml:space="preserve"><value>· {0} en aquesta pàgina</value></data>
   <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordena</value></data>
 </root>

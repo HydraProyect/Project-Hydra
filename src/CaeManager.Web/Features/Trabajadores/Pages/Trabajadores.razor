@@ -35,7 +35,7 @@
        de exportación de la vista filtrada, ⌨, el menú ⋯ y UNA acción primaria. El título lo sigue decidiendo el perfil
        de vocabulario del Tenant y si el usuario es del Tenant propietario («Mis trabajadores» solo en Cliente Directo propio).
 
-       Con antetítulo de grupo y sin el rótulo de la empresa gestionada: el selector de la barra lateral ya
+       Sin antetítulo de grupo ni rótulo de la empresa gestionada: el selector de la barra lateral ya
        dice cuál es. El estado vacío sin empresa elegida (4a) sigue más abajo.
 
        D-15: con alcance cero la lista no puede existir, así que ni se exporta (daría un fichero
@@ -218,7 +218,7 @@
                     {
                         @* Título del grupo «Por Empresa» (maqueta de Trabajadores): la Empresa y cuántos Trabajadores suyos hay en esta página. *@
                         <div class="cabecera-grupo-trabajadores" data-grupo-empresa="@grupo">
-                            @grupo<span class="cabecera-grupo-trabajadores-recuento">· @cantidadGrupo</span>
+                            @grupo<span class="cabecera-grupo-trabajadores-recuento">@(TotalPaginas > 1 ? Textos["RecuentoGrupoEnEstaPagina", cantidadGrupo].Value : $"· {cantidadGrupo}")</span>
                         </div>
                     }
                     <div class="@ClaseTarjeta(context)" @key="context.Id">

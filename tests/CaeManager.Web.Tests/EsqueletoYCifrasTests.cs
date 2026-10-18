@@ -129,7 +129,7 @@ public class EsqueletoYCifrasTests : BunitContext
     [InlineData("Features/Bandeja/Pages/Bandeja.razor", "<Esqueleto Forma=\"FormaEsqueleto.Lista\"")]
     // Trabajadores ya no está aquí: como Empresas, la lista 1:1 con la maqueta pinta EstadoCargando (el esqueleto del kit) y la tarjeta real.
     [InlineData("Features/Dashboard/Pages/Inicio.razor", "<Esqueleto Forma=\"FormaEsqueleto.Metricas\"")]
-    public void Las_cuatro_pantallas_de_lista_mas_visitadas_pintan_la_forma_de_su_contenido_y_lo_hacen_entrar_con_fundido(string pantalla, string esqueleto)
+    public void Las_tres_pantallas_de_lista_mas_visitadas_pintan_la_forma_de_su_contenido_y_lo_hacen_entrar_con_fundido(string pantalla, string esqueleto)
     {
         var razor = File.ReadAllText(Ruta(new[] { "src", "CaeManager.Web" }.Concat(pantalla.Split('/')).ToArray()));
 

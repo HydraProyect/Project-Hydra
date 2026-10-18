@@ -20,9 +20,9 @@ public class TrabajadoresFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
     // La lista sembrada no tiene un trabajador de nombre estable que sirva de ancla: el
     // recorrido vale para cualquier fila, así que se toma la primera, y su celda «Empresa» (la
-    // segunda) como punto de la fila que no es ningún control.
+    // tercera) como punto de la fila que no es ningún control.
     private static ILocator PrimeraFila(IPage page) => page.Locator(".marco-lista-trabajadores .fila-pulsable").First;
-    private static ILocator CeldaSinControles(ILocator fila) => fila.Locator("td:nth-child(3)");
+    private static ILocator CeldaSinControles(ILocator fila) => fila.Locator(":scope > :nth-child(3)");
 
     private async Task<IPage> AbrirTrabajadoresAsync(IBrowserContext contexto)
     {
@@ -64,7 +64,8 @@ public class TrabajadoresFilaSinMenuE2ETests(WebAppFixtureListados fixture)
             Assert.NotEmpty(acciones);
             foreach (var accion in acciones)
             {
-                var nombre = (await accion.InnerTextAsync()).Trim();
+                var nombre = await accion.GetAttributeAsync("aria-label");
+                Assert.NotNull(nombre); // El botón se localiza por su propio nombre accesible («Gestionar {documento} de {trabajador}»), no por el texto «Gestionar».
                 var corregir = detalle.GetByRole(AriaRole.Button, new() { Name = nombre, Exact = true });
                 if (await corregir.CountAsync() != 1) continue;
                 await corregir.ClickAsync();

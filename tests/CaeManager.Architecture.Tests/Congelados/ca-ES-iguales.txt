@@ -1039,7 +1039,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Toa
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ToastSinPendientesReclamar = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VacioAsignacionesDescripcion = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VacioAsignacionesTitulo = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VacioFiltrosDescripcion = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VacioVehiculosDescripcion = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VacioVehiculosTitulo = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VentanaIncidenciasUno = 1
