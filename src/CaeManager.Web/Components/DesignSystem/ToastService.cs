@@ -10,7 +10,8 @@ public enum TonoToast
     Error
 }
 
-public record ToastMensaje(Guid Id, string Mensaje, TonoToast Tono, string? TextoAccion = null, Func<Task>? OnAccion = null);
+public record ToastMensaje(Guid Id, string Mensaje, TonoToast Tono, string? TextoAccion = null, Func<Task>? OnAccion = null,
+    Func<Task>? AlAgotarTiempo = null, Action? AlCancelar = null);
 
 /// <summary>
 /// Servicio de avisos de la interfaz (P1-E1): el único canal para comunicar al
@@ -100,16 +101,17 @@ public class ToastService
 
     public IReadOnlyList<ToastMensaje> Mensajes => _mensajes;
 
-    public void Mostrar(string mensaje, TonoToast tono = TonoToast.Info, string? textoAccion = null, Func<Task>? onAccion = null)
+    public void Mostrar(string mensaje, TonoToast tono = TonoToast.Info, string? textoAccion = null, Func<Task>? onAccion = null,
+        Func<Task>? alAgotarTiempo = null, Action? alCancelar = null)
     {
         // El más antiguo cede el sitio, incluido uno de error: la regla de
         // Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md no hace excepción por tono, y un error silenciado
         // por descarte automático (no ocurre aquí) sería peor que uno
         // desplazado por una acción del propio usuario.
         while (_mensajes.Count >= MaximoVisibles)
-            _mensajes.RemoveAt(0);
+            Descartar(_mensajes[0].Id);
 
-        var toast = new ToastMensaje(Guid.NewGuid(), mensaje, tono, textoAccion, onAccion);
+        var toast = new ToastMensaje(Guid.NewGuid(), mensaje, tono, textoAccion, onAccion, alAgotarTiempo, alCancelar);
         _mensajes.Add(toast);
 
         // Antes de avisar a la interfaz: el primer pintado ya tiene que encontrar la cuenta atrás
@@ -172,7 +174,9 @@ public class ToastService
 
     public void Descartar(Guid id)
     {
+        var toast = _mensajes.FirstOrDefault(m => m.Id == id);
         Cancelar(id);
+        toast?.AlCancelar?.Invoke();
         if (_mensajes.RemoveAll(m => m.Id == id) > 0)
             OnCambio?.Invoke();
     }
@@ -241,7 +245,13 @@ public class ToastService
             return;
         }
 
-        Descartar(id);
+        var toast = _mensajes.FirstOrDefault(m => m.Id == id);
+        if (toast is null) return;
+        Cancelar(id);
+        _mensajes.Remove(toast);
+        OnCambio?.Invoke();
+        if (toast.AlAgotarTiempo is not null)
+            await toast.AlAgotarTiempo();
     }
 
     private static TimeSpan HastaElCambioDeSegundo(TimeSpan restante)

@@ -86,6 +86,7 @@ public class MiTrabajoCargaPorPartesTests : BunitContext
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<AntiforgeryStateProvider, AntiforgeryFalso>();
         Services.AddSingleton<ToastService>();
+        Services.AddScoped<CaeManager.Application.Common.PuertaAccesoDatos>();
         Services.AddLocalization();
         return Render<MiTrabajoPagina>();
     }

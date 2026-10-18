@@ -1,0 +1,22 @@
+.propagaciones { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; }
+.propagaciones header { padding: 12px 16px; border-bottom: 1px solid var(--color-border); }
+.propagaciones h2 { margin: 0; font: var(--font-h4); font-size: 16px; }
+.propagaciones p { margin: 0; font: var(--font-caption); color: var(--color-text-muted); }
+.propagacion { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--color-border); }
+.propagacion:last-child { border-bottom: 0; }
+.propagacion-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.propagacion-texto span { font: var(--font-caption); color: var(--color-text-muted); overflow-wrap: anywhere; }
+.propagacion-texto .propagacion-bloqueo { color: var(--color-danger-700); }
+.propagacion-texto .propagacion-hecha { color: var(--color-success-700); }
+.propagacion-documento, .propagacion-enlace { border: 0; padding: 0; background: none; text-align: left; cursor: pointer; color: var(--color-text); font: var(--font-body-md); font-weight: 600; overflow-wrap: anywhere; }
+.propagacion-enlace { color: var(--color-link); font: var(--font-caption); text-decoration: underline; }
+.propagacion-acciones { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex: none; }
+.propagacion-acciones button, .propagacion-acciones a { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--color-border-control); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); font: var(--font-label); cursor: pointer; text-decoration: none; }
+.propagacion-acciones button:disabled { opacity: .6; cursor: wait; }
+.propagaciones button:focus-visible, .propagaciones a:focus-visible { outline: 2px solid var(--color-primario-fondo); outline-offset: 2px; }
+.propagaciones-estado { padding: 16px; font: var(--font-body-md); color: var(--color-text-muted); }
+@media (max-width: 600px) {
+    .propagacion { align-items: flex-start; flex-wrap: wrap; }
+    .propagacion-acciones { flex: 1 1 100%; justify-content: flex-start; }
+    .propagacion-acciones button, .propagacion-acciones a { min-height: 44px; }
+}

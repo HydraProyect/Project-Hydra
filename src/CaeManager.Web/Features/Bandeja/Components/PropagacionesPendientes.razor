@@ -1,0 +1,212 @@
+@using CaeManager.Application.Common
+@using CaeManager.Application.Documentos.Commands.GestionarPropagacion
+@using CaeManager.Application.Documentos.Queries.ObtenerPropagacionesPendientes
+@using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados
+@using CaeManager.Domain.Centros
+@using CaeManager.Domain.Common
+@using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Features.Bandeja.Recursos
+@using CaeManager.Web.Features.Centros.Components
+@using Microsoft.AspNetCore.Components.Forms
+@using MediatR
+@implements IDisposable
+@inject IMediator Mediator
+@inject ToastService Toasts
+@inject PuertaAccesoDatos Puerta
+@inject ILogger<PropagacionesPendientes> Logger
+
+<section class="propagaciones" aria-label="@T("PropagacionesTitulo")" aria-busy="@(Cargando ? "true" : "false")">
+    <header>
+        <h2>@T("PropagacionesTitulo") · @Pendientes</h2>
+        <p>@T("PropagacionesSubtitulo")</p>
+    </header>
+    @foreach (var fila in Visibles)
+    {
+        var clave = Clave(fila);
+        var hecha = _hechas.ContainsKey(clave);
+        var programada = _programadas.Contains(clave);
+        var ocupada = _ocupadas.Contains(clave);
+        <div class="propagacion" @key="clave">
+            <div class="propagacion-texto">
+                <form method="post" action="/cuenta/cliente-activo">
+                    @if (Token is not null)
+                    {
+                        <input type="hidden" name="@Token.FormFieldName" value="@Token.Value" />
+                    }
+                    <input type="hidden" name="tenantId" value="@fila.TenantId" />
+                    <input type="hidden" name="returnUrl" value="@($"/documentos?documentoId={fila.Destino.DocumentoId}")" />
+                    <button type="submit" class="propagacion-documento">@fila.Destino.Documento</button>
+                </form>
+                <span>@fila.Empresa · @fila.Destino.Centro</span>
+                <span class="@(hecha ? "propagacion-hecha" : fila.Destino.BloqueaAcceso ? "propagacion-bloqueo" : "")">
+                    @(hecha ? T("PropagacionHechaAhora") : programada ? T("PropagacionEnvioProgramado") : fila.Destino.BloqueaAcceso ? T("PropagacionBloquea") : fila.Destino.Via == TipoCanalGestion.Email ? T("PropagacionViaCorreo") : T("PropagacionViaExtension"))
+                </span>
+                @if (_sinBuzon.Contains(clave))
+                {
+                    <span role="status">@T("PropagacionConectarBuzon")</span>
+                    <form method="post" action="/cuenta/cliente-activo">
+                        @if (Token is not null)
+                        {
+                            <input type="hidden" name="@Token.FormFieldName" value="@Token.Value" />
+                        }
+                        <input type="hidden" name="tenantId" value="@fila.TenantId" />
+                        <input type="hidden" name="returnUrl" value="/integraciones" />
+                        <button type="submit" class="propagacion-enlace">@T("PropagacionConectar")</button>
+                    </form>
+                }
+                @if (_errores.TryGetValue(clave, out var error))
+                {
+                    <span role="alert">@error</span>
+                }
+            </div>
+            <div class="propagacion-acciones">
+                @if (programada)
+                {
+                    <button type="button" @onclick="() => CancelarEnvio(fila)">@T("PropagacionDeshacer")</button>
+                }
+                else if (hecha)
+                {
+                    <button type="button" disabled="@ocupada" @onclick="() => DeshacerAsync(fila)">@T("PropagacionDeshacer")</button>
+                }
+                else if (fila.Destino.Via == TipoCanalGestion.Email)
+                {
+                    <button type="button" disabled="@ocupada" @onclick="() => ProgramarAvisoAsync(fila)">@T("PropagacionEnviarAviso")</button>
+                }
+                else
+                {
+                    @if (UrlPortalCae.Normalizar(fila.Destino.UrlPortal) is { } portal)
+                    {
+                        <a href="@portal" target="_blank" rel="noopener noreferrer" @onclick="() => _abiertas.Add(clave)">@T("PropagacionAbrirExtension")</a>
+                    }
+                    @if (_abiertas.Contains(clave) || UrlPortalCae.Normalizar(fila.Destino.UrlPortal) is null)
+                    {
+                        <button type="button" disabled="@ocupada" @onclick="() => ComprobarEntregaAsync(fila)">@T("PropagacionReintentar")</button>
+                        <button type="button" disabled="@ocupada" @onclick="() => MarcarHechaAsync(fila)">@T("PropagacionHechoManual")</button>
+                    }
+                }
+            </div>
+        </div>
+    }
+    @if (Cargando)
+    {
+        <div class="propagaciones-estado" role="status">@T("PropagacionesCargando")</div>
+    }
+    else if (Visibles.Count == 0)
+    {
+        <div class="propagaciones-estado">@(Incompleta ? T("PropagacionesIncompleta") : T("PropagacionesVacio"))</div>
+    }
+</section>
+
+@code {
+    public sealed record Fila(Guid TenantId, string Empresa, PropagacionPendienteDto Destino);
+    [Parameter] public IReadOnlyList<Fila> Filas { get; set; } = [];
+    [Parameter] public Guid? EmpresaSeleccionada { get; set; }
+    [Parameter] public string Busqueda { get; set; } = "";
+    [Parameter] public bool Cargando { get; set; }
+    [Parameter] public bool Incompleta { get; set; }
+    [Parameter] public AntiforgeryRequestToken? Token { get; set; }
+    private readonly Dictionary<string, Guid> _hechas = [];
+    private readonly HashSet<string> _enviadas = [];
+    private readonly HashSet<string> _programadas = [];
+    private readonly HashSet<string> _ocupadas = [];
+    private readonly HashSet<string> _sinBuzon = [];
+    private readonly HashSet<string> _abiertas = [];
+    private readonly Dictionary<string, string> _errores = [];
+    private readonly Dictionary<string, Guid> _toasts = [];
+    private readonly CancellationTokenSource _ciclo = new();
+    private bool _desechado;
+    private static string T(string clave) => TextosMiTrabajo.Texto(clave);
+    private static string Clave(Fila f) => $"{f.TenantId}:{f.Destino.DocumentoId}:{f.Destino.CanalId}";
+    private IReadOnlyList<Fila> Visibles => Filas.Where(f => !_enviadas.Contains(Clave(f))
+        && (EmpresaSeleccionada is null || f.TenantId == EmpresaSeleccionada)
+        && (string.IsNullOrWhiteSpace(Busqueda) || (f.Empresa + " " + f.Destino.Documento + " " + f.Destino.Centro).Contains(Busqueda, StringComparison.CurrentCultureIgnoreCase)))
+        .OrderByDescending(f => f.Destino.BloqueaAcceso).ThenBy(f => f.Destino.Vencimiento ?? DateOnly.MaxValue).ToList();
+    private int Pendientes => Visibles.Count(f => !_hechas.ContainsKey(Clave(f)));
+
+    private async Task EjecutarAsync(Fila fila, Func<Task> accion)
+    {
+        var clave = Clave(fila);
+        if (!_ocupadas.Add(clave)) return;
+        _errores.Remove(clave);
+        try { await accion(); }
+        catch (OperationCanceledException) when (_desechado) { }
+        catch (UnauthorizedAccessException) { _errores[clave] = T("PropagacionSinAcceso"); }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "No se pudo actualizar una propagación de documento.");
+            _errores[clave] = T("PropagacionError");
+        }
+        finally
+        {
+            _ocupadas.Remove(clave);
+            if (!_desechado) StateHasChanged();
+        }
+    }
+
+    private Task ProgramarAvisoAsync(Fila fila) => EjecutarAsync(fila, async () =>
+    {
+        var clave = Clave(fila);
+        if (_programadas.Contains(clave)) return;
+        var buzon = await EnTenantAsync(fila, () => Mediator.Send(new ComprobarBuzonAvisoPropagacionQuery(fila.Destino.ClienteEmpresarialId), _ciclo.Token));
+        if (buzon is null) { _sinBuzon.Add(clave); return; }
+        _sinBuzon.Remove(clave);
+        _programadas.Add(clave);
+        Toasts.Mostrar(T("PropagacionEnvioProgramado"), TonoToast.Info, T("PropagacionDeshacer"),
+            () => InvokeAsync(() => CancelarEnvio(fila)),
+            alAgotarTiempo: () => InvokeAsync(async () =>
+            {
+                if (_desechado || !_programadas.Remove(clave)) return;
+                _toasts.Remove(clave);
+                await EjecutarAsync(fila, async () =>
+                {
+                    var resultado = await EnTenantAsync(fila, () => Mediator.Send(new GestionarPropagacionCommand(fila.Destino.DocumentoId, fila.Destino.CanalId, EnviarAviso: true), _ciclo.Token));
+                    if (resultado.EsFallido)
+                    {
+                        _errores[clave] = resultado.Error.Mensaje;
+                        if (resultado.Error.Codigo == "Propagacion.ConectarBuzon") _sinBuzon.Add(clave);
+                    }
+                    else { _enviadas.Add(clave); Toasts.Mostrar(T("PropagacionAvisoEnviado"), TonoToast.Exito); }
+                });
+            }),
+            alCancelar: () => { _programadas.Remove(clave); if (!_desechado) _ = InvokeAsync(StateHasChanged); });
+        _toasts[clave] = Toasts.Mensajes.Last().Id;
+    });
+
+    private void CancelarEnvio(Fila fila)
+    {
+        var clave = Clave(fila);
+        _programadas.Remove(clave);
+        if (_toasts.Remove(clave, out var id)) Toasts.Descartar(id);
+    }
+
+    private Task MarcarHechaAsync(Fila fila) => EjecutarAsync(fila, async () =>
+    {
+        var resultado = await EnTenantAsync(fila, () => Mediator.Send(new GestionarPropagacionCommand(fila.Destino.DocumentoId, fila.Destino.CanalId), _ciclo.Token));
+        if (resultado.EsFallido) _errores[Clave(fila)] = resultado.Error.Mensaje;
+        else _hechas[Clave(fila)] = resultado.Valor;
+    });
+
+    private Task ComprobarEntregaAsync(Fila fila) => EjecutarAsync(fila, async () =>
+    {
+        var pendientes = await EnTenantAsync(fila, () => Mediator.Send(new ObtenerPropagacionesPendientesQuery(), _ciclo.Token));
+        if (!pendientes.Any(p => p.DocumentoId == fila.Destino.DocumentoId && p.CanalId == fila.Destino.CanalId)) _enviadas.Add(Clave(fila));
+        else _errores[Clave(fila)] = T("PropagacionSiguePendiente");
+    });
+
+    private Task DeshacerAsync(Fila fila) => EjecutarAsync(fila, async () =>
+    {
+        var clave = Clave(fila);
+        var resultado = await EnTenantAsync(fila, () => Mediator.Send(new DeshacerPropagacionCommand(fila.Destino.DocumentoId, fila.Destino.CanalId, _hechas[clave]), _ciclo.Token));
+        if (resultado.EsFallido) _errores[clave] = resultado.Error.Mensaje;
+        else _hechas.Remove(clave);
+    });
+
+    public void Dispose()
+    {
+        _desechado = true;
+        _ciclo.Cancel();
+        foreach (var id in _toasts.Values) Toasts.Descartar(id);
+        _programadas.Clear();
+        _ciclo.Dispose();
+    }
+}

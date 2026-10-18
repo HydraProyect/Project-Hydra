@@ -121,7 +121,8 @@ public record MiTrabajoTenantDto(
     IReadOnlyList<ItemBandejaDto> Proximos,
     IReadOnlyList<ItemBandejaDto> Seguimiento,
     ResumenMiTrabajoTenantDto Resumen,
-    bool AlcanceCero);
+    bool AlcanceCero,
+    IReadOnlyList<CaeManager.Application.Documentos.Queries.ObtenerPropagacionesPendientes.PropagacionPendienteDto>? Propagaciones = null);
 
 /// <param name="Tenants">
 /// En el mismo orden que <see cref="ObtenerClientesAutorizadosQuery"/> — el
@@ -320,7 +321,8 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
 
         return new MiTrabajoTenantDto(
             tenant.TenantId, tenant.Nombre, tenant.EsOrigen, bloqueoActuacion, proximos, seguimiento, resumen,
-            AlcanceCero: await EsAlcanceCeroAsync(alcanceDatos, cancellationToken));
+            AlcanceCero: await EsAlcanceCeroAsync(alcanceDatos, cancellationToken),
+            Propagaciones: await mediator.Send(new CaeManager.Application.Documentos.Queries.ObtenerPropagacionesPendientes.ObtenerPropagacionesPendientesQuery(), cancellationToken));
     }
 
     /// <summary>

@@ -276,6 +276,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.DelegacionOClienteYaValidado, "cliente.TenantId, mismo fan-out que ObtenerDashboardEjecutivoQuery"),
         ["src/CaeManager.Application/Bandeja/Queries/ObtenerMiTrabajoAgregado/ObtenerMiTrabajoAgregadoQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "tenant.TenantId, de ObtenerClientesAutorizadosQuery (cartera o delegación ya autorizadas), mismo fan-out que ObtenerKpisGlobalesQuery"),
+        ["src/CaeManager.Web/Features/Bandeja/Components/PropagacionesPendientes.razor.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado, "fila.TenantId se contrasta con ObtenerClientesAutorizadosQuery inmediatamente antes de cada acción, también al vencer el envío diferido; la puerta serializa y los behaviors autorizan la escritura dentro del Tenant propietario"),
         ["src/CaeManager.Application/AsistenteIa/Candidatos/ObtenerCandidatosAsistenteQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "tenant.TenantId, de ObtenerClientesAutorizadosQuery, mismo fan-out que ObtenerMiTrabajoAgregadoQuery; nunca el Tenant que nombre el texto de la orden"),
         ["src/CaeManager.Application/AsistenteIa/Candidatos/ComprobarInstruccionIaCarteraQuery.cs"] =

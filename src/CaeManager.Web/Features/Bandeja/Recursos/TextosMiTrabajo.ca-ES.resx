@@ -381,4 +381,25 @@
   <data name="ReclamacionExtraNoCabe" xml:space="preserve">
     <value>Hi ha massa destinataris per registrar l'enviament: desmarqueu algun contacte o traieu algun correu afegit.</value>
   </data>
+  <data name="PropagacionesTitulo" xml:space="preserve"><value>Propagacions pendents</value></data>
+  <data name="PropagacionesSubtitulo" xml:space="preserve"><value>Documents aprovats que falta actualitzar en un Centre o plataforma de l’Empresa</value></data>
+  <data name="PropagacionesVacio" xml:space="preserve"><value>Tot actualitzat als Centres i plataformes.</value></data>
+  <data name="PropagacionesCargando" xml:space="preserve"><value>Consultant les propagacions de les Empreses…</value></data>
+  <data name="PropagacionesIncompleta" xml:space="preserve"><value>No s’han pogut consultar totes les Empreses. Torna-ho a provar.</value></data>
+  <data name="PropagacionHechaAhora" xml:space="preserve"><value>Fet per tu · ara</value></data>
+  <data name="PropagacionEnvioProgramado" xml:space="preserve"><value>Avís pendent d’enviament. Pots desfer-lo.</value></data>
+  <data name="PropagacionBloquea" xml:space="preserve"><value>Bloqueja l’accés</value></data>
+  <data name="PropagacionViaCorreo" xml:space="preserve"><value>Enviar avís per correu</value></data>
+  <data name="PropagacionViaExtension" xml:space="preserve"><value>Obrir amb l’extensió</value></data>
+  <data name="PropagacionConectarBuzon" xml:space="preserve"><value>Connecta la bústia per enviar l’avís. La propagació continua pendent.</value></data>
+  <data name="PropagacionConectar" xml:space="preserve"><value>Connectar bústia</value></data>
+  <data name="PropagacionDeshacer" xml:space="preserve"><value>Desfer</value></data>
+  <data name="PropagacionEnviarAviso" xml:space="preserve"><value>Enviar avís</value></data>
+  <data name="PropagacionAbrirExtension" xml:space="preserve"><value>Obrir amb l’extensió</value></data>
+  <data name="PropagacionReintentar" xml:space="preserve"><value>Tornar-ho a provar</value></data>
+  <data name="PropagacionHechoManual" xml:space="preserve"><value>Marcar fet a mà</value></data>
+  <data name="PropagacionSinAcceso" xml:space="preserve"><value>Ja no tens accés a aquesta Empresa. Actualitza La meva feina.</value></data>
+  <data name="PropagacionError" xml:space="preserve"><value>No hem pogut actualitzar la propagació. Torna-ho a provar.</value></data>
+  <data name="PropagacionAvisoEnviado" xml:space="preserve"><value>Avís enviat.</value></data>
+  <data name="PropagacionSiguePendiente" xml:space="preserve"><value>El lliurament continua pendent. Torna-ho a provar amb l’extensió o marca fet a mà quan l’hagis completat.</value></data>
 </root>

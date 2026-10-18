@@ -381,4 +381,25 @@
   <data name="ReclamacionExtraNoCabe" xml:space="preserve">
     <value>Hay demasiados destinatarios para registrar el envío: desmarca algún contacto o quita algún correo añadido.</value>
   </data>
+  <data name="PropagacionesTitulo" xml:space="preserve"><value>Propagaciones pendientes</value></data>
+  <data name="PropagacionesSubtitulo" xml:space="preserve"><value>Documentos aprobados que falta actualizar en un Centro o plataforma de la Empresa</value></data>
+  <data name="PropagacionesVacio" xml:space="preserve"><value>Todo actualizado en los Centros y plataformas.</value></data>
+  <data name="PropagacionesCargando" xml:space="preserve"><value>Consultando las propagaciones de las Empresas…</value></data>
+  <data name="PropagacionesIncompleta" xml:space="preserve"><value>No se pudieron consultar todas las Empresas. Reintenta la consulta.</value></data>
+  <data name="PropagacionHechaAhora" xml:space="preserve"><value>Hecho por ti · ahora</value></data>
+  <data name="PropagacionEnvioProgramado" xml:space="preserve"><value>Aviso pendiente de envío. Puedes deshacerlo.</value></data>
+  <data name="PropagacionBloquea" xml:space="preserve"><value>Bloquea el acceso</value></data>
+  <data name="PropagacionViaCorreo" xml:space="preserve"><value>Enviar aviso por correo</value></data>
+  <data name="PropagacionViaExtension" xml:space="preserve"><value>Abrir con la extensión</value></data>
+  <data name="PropagacionConectarBuzon" xml:space="preserve"><value>Conecta el buzón para enviar el aviso. La propagación sigue pendiente.</value></data>
+  <data name="PropagacionConectar" xml:space="preserve"><value>Conectar buzón</value></data>
+  <data name="PropagacionDeshacer" xml:space="preserve"><value>Deshacer</value></data>
+  <data name="PropagacionEnviarAviso" xml:space="preserve"><value>Enviar aviso</value></data>
+  <data name="PropagacionAbrirExtension" xml:space="preserve"><value>Abrir con la extensión</value></data>
+  <data name="PropagacionReintentar" xml:space="preserve"><value>Reintentar</value></data>
+  <data name="PropagacionHechoManual" xml:space="preserve"><value>Marcar hecho a mano</value></data>
+  <data name="PropagacionSinAcceso" xml:space="preserve"><value>Ya no tienes acceso a esta Empresa. Actualiza Mi trabajo.</value></data>
+  <data name="PropagacionError" xml:space="preserve"><value>No pudimos actualizar la propagación. Reinténtalo.</value></data>
+  <data name="PropagacionAvisoEnviado" xml:space="preserve"><value>Aviso enviado.</value></data>
+  <data name="PropagacionSiguePendiente" xml:space="preserve"><value>La entrega sigue pendiente. Reintenta con la extensión o marca hecho a mano cuando la hayas completado.</value></data>
 </root>

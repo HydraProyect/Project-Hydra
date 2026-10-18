@@ -83,6 +83,9 @@
             </div>
         }
 
+        <PropagacionesPendientes Filas="_propagaciones" EmpresaSeleccionada="_tenantFiltro" Busqueda="_busqueda"
+                                Cargando="_cargando" Incompleta="@(_vista.NoConsultados.Count > 0)" Token="_token" />
+
         <div class="mi-trabajo-chips contenido-entra" role="group" aria-label="@Textos["FiltrarPorSeveridad"]" data-lista-con-filtros>
             @foreach (var chip in Chips)
             {

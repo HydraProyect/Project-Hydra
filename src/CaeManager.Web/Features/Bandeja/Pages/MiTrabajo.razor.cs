@@ -58,6 +58,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     private bool _esCoordinadorCae;
 
     private MiTrabajoVista? _vista;
+    private readonly List<CaeManager.Web.Features.Bandeja.Components.PropagacionesPendientes.Fila> _propagaciones = [];
     private AntiforgeryRequestToken? _token;
     private bool _cargando = true;
     private bool _errorCarga;
@@ -272,6 +273,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
         _cargando = true;
         _errorCarga = false;
         _vista = null;
+        _propagaciones.Clear();
         _completados = 0;
         _totalPorCargar = 0;
         StateHasChanged();
@@ -287,7 +289,12 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
                 if (!EsVigente(carga)) return;
                 _completados = parte.Completados;
                 _totalPorCargar = parte.Total;
-                if (parte.Tenant is not null) tenants.Add(parte.Tenant);
+                if (parte.Tenant is not null)
+                {
+                    tenants.Add(parte.Tenant);
+                    _propagaciones.AddRange((parte.Tenant.Propagaciones ?? []).Select(p =>
+                        new CaeManager.Web.Features.Bandeja.Components.PropagacionesPendientes.Fila(parte.Tenant.TenantId, parte.Tenant.TenantNombre, p)));
+                }
                 if (parte.NoConsultado is not null) noConsultados.Add(parte.NoConsultado);
                 _vista = new MiTrabajoVista(new MiTrabajoAgregadoDto(tenants.ToList(), noConsultados.ToList()));
                 StateHasChanged();

@@ -100,6 +100,7 @@ public class MiTrabajoClavesUnicasTests : BunitContext
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<AntiforgeryStateProvider, AntiforgeryFalso>();
         Services.AddSingleton<ToastService>();
+        Services.AddScoped<CaeManager.Application.Common.PuertaAccesoDatos>();
         Services.AddLocalization();
         var estado = Task.FromResult(new Microsoft.AspNetCore.Components.Authorization.AuthenticationState(
             new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(

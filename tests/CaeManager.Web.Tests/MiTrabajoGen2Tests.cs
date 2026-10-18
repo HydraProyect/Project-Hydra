@@ -148,6 +148,7 @@ public class MiTrabajoGen2Tests : BunitContext
         Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<AntiforgeryStateProvider, AntiforgeryFalso>();
         Services.AddSingleton<ToastService>();
+        Services.AddScoped<CaeManager.Application.Common.PuertaAccesoDatos>();
         Services.AddLocalization();
         if (url is not null) Services.GetRequiredService<NavigationManager>().NavigateTo(url);
         // El aviso de «sin acceso» necesita el renderizado interactivo que pinta la pila de toasts.

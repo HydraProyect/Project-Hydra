@@ -76,7 +76,7 @@ public class CaeManagerDbContext(
     ITenantActual tenantActual)
     : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options), IUnitOfWork,
         IEmpresasQueryContext, ISubcontratasQueryContext, ICentrosQueryContext,
-        ITrabajadoresQueryContext, ITiposDocumentoQueryContext, IDocumentosQueryContext, IDocumentosIaQueryContext,
+        ITrabajadoresQueryContext, ITiposDocumentoQueryContext, IDocumentosQueryContext, IPropagacionesDocumentoQueryContext, IDocumentosIaQueryContext,
         INotificacionesQueryContext, IAsignacionesQueryContext, IVisitasQueryContext, IVehiculosQueryContext,
         IConfiguracionQueryContext, IAuditoriaQueryContext, ITenantsQueryContext,
         IFacturacionQueryContext, IProyectosQueryContext, IRequisitosEventoQueryContext, IRetencionQueryContext,
@@ -197,6 +197,7 @@ public class CaeManagerDbContext(
     IQueryable<SelloEmpresa> IDocumentosQueryContext.SellosEmpresa => SellosEmpresa;
     public DbSet<VerificacionDocumentoOficial> VerificacionesDocumentoOficial => Set<VerificacionDocumentoOficial>();
     IQueryable<VerificacionDocumentoOficial> IDocumentosQueryContext.VerificacionesDocumentoOficial => VerificacionesDocumentoOficial;
+    IQueryable<PropagacionDocumento> IPropagacionesDocumentoQueryContext.Propagaciones => Set<PropagacionDocumento>();
     public DbSet<AcreditacionDocumentoPlataforma> AcreditacionesDocumentoPlataforma => Set<AcreditacionDocumentoPlataforma>();
     IQueryable<AcreditacionDocumentoPlataforma> IDocumentosQueryContext.AcreditacionesDocumentoPlataforma => AcreditacionesDocumentoPlataforma;
     public DbSet<RechazoAcreditacionDocumentoPlataforma> RechazosAcreditacionDocumentoPlataforma => Set<RechazoAcreditacionDocumentoPlataforma>();

@@ -223,6 +223,7 @@ public class IdsDeFilaUnicosTests
                 ObtenerVisitasQuery => new ResultadoPaginado<VisitaListaDto>([], 0, 1, 200),
                 ObtenerSugerenciasVisitaCorreoPendientesQuery => new List<SugerenciaVisitaCorreoPendienteDto>(),
                 ObtenerDeteccionesPendientesQuery => new List<DeteccionPendienteDto>(),
+                CaeManager.Application.Documentos.Queries.ObtenerPropagacionesPendientes.ObtenerPropagacionesPendientesQuery => new List<CaeManager.Application.Documentos.Queries.ObtenerPropagacionesPendientes.PropagacionPendienteDto>(),
                 ObtenerAcreditacionesPorProveedorQuery => new List<ProveedorAcreditacionesDto>(),
                 _ => throw new NotSupportedException(request.GetType().Name),
             };
