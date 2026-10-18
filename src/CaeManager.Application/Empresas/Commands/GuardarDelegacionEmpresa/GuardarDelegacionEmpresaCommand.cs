@@ -45,8 +45,7 @@ public class GuardarDelegacionEmpresaCommandValidator : AbstractValidator<Guarda
 public class GuardarDelegacionEmpresaCommandHandler(
     IEmpresaRepository empresas,
     ICatalogoTrabajadoresEmpresaRepository catalogo,
-    IAlcanceDatosService alcanceDatos,
-    IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos)
     : IRequestHandler<GuardarDelegacionEmpresaCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(GuardarDelegacionEmpresaCommand request, CancellationToken cancellationToken)
@@ -80,7 +79,9 @@ public class GuardarDelegacionEmpresaCommandHandler(
         delegacion.FijarContactoReclamacion(
             request.ContactoReclamacionNombre, request.ContactoReclamacionCorreo, request.ContactoReclamacionTelefono);
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        // El índice único de nombre por Empresa es la red de la comprobación de arriba cuando dos guardados entran a la vez.
+        if (!await catalogo.GuardarCambiosAsync(cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Delegacion.Duplicada", "Esta empresa ya tiene una delegación con ese nombre."));
 
         return delegacion.Id;
     }

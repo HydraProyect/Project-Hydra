@@ -23,4 +23,11 @@ public interface ICatalogoTrabajadoresEmpresaRepository
     void Agregar(DelegacionEmpresa delegacion);
 
     void Agregar(OficioEmpresa oficio);
+
+    /// <summary>
+    /// Guarda los cambios pendientes. Devuelve <c>false</c> si chocan con el índice único de nombre por Empresa (dos
+    /// altas o renombres simultáneos con el mismo nombre); en ese caso deja sin efecto en el contexto el alta o el
+    /// cambio que perdió la carrera, para que el siguiente guardado del circuito no lo arrastre.
+    /// </summary>
+    Task<bool> GuardarCambiosAsync(CancellationToken cancellationToken = default);
 }

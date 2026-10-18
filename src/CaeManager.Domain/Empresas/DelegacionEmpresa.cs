@@ -86,6 +86,13 @@ public class DelegacionEmpresa : EntidadBase
         ContactoReclamacionTelefono = null;
     }
 
+    /// <summary>
+    /// Se llama al asignar esta Delegación a un Trabajador: renueva la <see cref="EntidadBase.Version"/> para que la
+    /// asignación y una eliminación simultánea choquen por concurrencia optimista (ver
+    /// <see cref="OficioEmpresa.RegistrarAsignacion"/>).
+    /// </summary>
+    public void RegistrarAsignacion() => RenovarVersion();
+
     private static string? Opcional(string? valor, int longitudMaxima, string campo, string parametro)
     {
         var normalizado = string.IsNullOrWhiteSpace(valor) ? null : valor.Trim();

@@ -27,4 +27,12 @@ public class OficioEmpresa : EntidadBase
     }
 
     public void Renombrar(string nombre) => Nombre = NombreDeCatalogo.Normalizar(nombre, LongitudMaximaNombre, "el oficio");
+
+    /// <summary>
+    /// Se llama al asignar este Oficio a un Trabajador. Renueva la <see cref="EntidadBase.Version"/> para que la
+    /// asignación y una eliminación simultánea choquen por concurrencia optimista: la eliminación cuenta los
+    /// Trabajadores que lo tienen y después lo marca, y sin este toque una asignación que entrara entre medias dejaría
+    /// a un Trabajador con un Oficio eliminado. La auditoría no registra un cambio que solo toca la versión.
+    /// </summary>
+    public void RegistrarAsignacion() => RenovarVersion();
 }

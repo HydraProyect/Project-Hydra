@@ -27,7 +27,9 @@ public class DelegacionYOficioEmpresaRlsTests : IAsyncLifetime
     private readonly string _cadena = BaseDatosPostgresDePruebas.CadenaConexionDeBaseVacia();
     private readonly Guid _tenantA = Guid.NewGuid();
     private readonly Guid _tenantB = Guid.NewGuid();
+    private readonly Guid _tenantC = Guid.NewGuid();
     private Guid _empresaA;
+    private Guid _empresaC;
     private Guid _otraEmpresaA;
     private Guid _subcontrataA;
     private Guid _empresaB;
@@ -55,6 +57,32 @@ public class DelegacionYOficioEmpresaRlsTests : IAsyncLifetime
             await anterior.SaveChangesAsync();
             (_empresaA, _otraEmpresaA, _subcontrataA) = (empresa.Id, otra.Id, subcontrata.Id);
         }
+
+        // Tenant C: el mismo Puesto que en el Tenant A (cada Tenant tiene su Oficio), mayúsculas con tilde, un
+        // eliminado y un anonimizado (fuera de la migración) y un Puesto con tabuladores escrito por debajo del dominio.
+        await using (var anterior = CrearContextoAnterior(_tenantC))
+        {
+            var empresa = new Empresa("Montajes C S.L.", "B12345674");
+            anterior.Empresas.Add(empresa);
+            await anterior.SaveChangesAsync();
+            var eliminado = Trabajador.DeEmpresa(empresa.Id, "Elio", "Borrado", "44444444A", puesto: "Gruista");
+            anterior.Trabajadores.AddRange(
+                Trabajador.DeEmpresa(empresa.Id, "Carla", "Uno", "12345678Z", puesto: "Soldador"),
+                Trabajador.DeEmpresa(empresa.Id, "Pedro", "Dos", "22222222J", puesto: "Peón"),
+                Trabajador.DeEmpresa(empresa.Id, "Pablo", "Tres", "33333333P", puesto: "PEÓN"),
+                Trabajador.DeEmpresa(empresa.Id, "Tania", "Cuatro", "55555555K", puesto: "Peón"),
+                Trabajador.DeEmpresa(empresa.Id, "Ane", "Cinco", "66666666Q", puesto: "Encofrador"),
+                eliminado);
+            await anterior.SaveChangesAsync();
+            eliminado.MarcarComoEliminado(Guid.NewGuid());
+            await anterior.SaveChangesAsync();
+            _empresaC = empresa.Id;
+        }
+
+        await EjecutarComoMigradorAsync("""
+            UPDATE "Trabajadores" SET "Puesto" = E'\t peón \t' WHERE "Dni" = '55555555K';
+            UPDATE "Trabajadores" SET "AnonimizadoEnUtc" = now() WHERE "Dni" = '66666666Q';
+            """);
 
         await using (var real = CrearContexto(_tenantA))
             await real.Database.MigrateAsync();
@@ -90,6 +118,165 @@ public class DelegacionYOficioEmpresaRlsTests : IAsyncLifetime
         trabajadores.Single(t => t.Dni == "77189989B").Puesto.Should().Be("SOLDADOR", "la migración no toca el Puesto (el dominio ya lo guardó sin espacios en los extremos)");
         trabajadores.Single(t => t.SubcontrataId == _subcontrataA).OficioEmpresaId.Should().BeNull();
         (await db.OficiosEmpresa.CountAsync(o => o.EmpresaId == _otraEmpresaA)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task La_migracion_separa_tenants_ignora_mayusculas_y_tabuladores_y_deja_fuera_eliminados_y_anonimizados()
+    {
+        await using var c = CrearContexto(_tenantC);
+
+        var oficios = await c.OficiosEmpresa.Where(o => o.EmpresaId == _empresaC).ToListAsync();
+        oficios.Select(o => o.Nombre.ToLowerInvariant()).Should().BeEquivalentTo(["soldador", "peón"],
+            "«Peón», «PEÓN» y «\\t peón \\t» son el mismo Oficio; el eliminado (Gruista) y el anonimizado (Encofrador) no crean ninguno");
+        oficios.Should().OnlyContain(o => o.TenantId == _tenantC);
+
+        await using var a = CrearContexto(_tenantA);
+        var soldadorA = await a.OficiosEmpresa.SingleAsync(o => o.EmpresaId == _empresaA && o.Nombre.ToLower() == "soldador");
+        soldadorA.Id.Should().NotBe(oficios.Single(o => o.Nombre == "Soldador").Id, "el mismo Puesto en dos Tenants da dos Oficios");
+
+        var trabajadores = await c.Trabajadores.IgnoreQueryFilters().Where(t => t.TenantId == _tenantC).ToListAsync();
+        var peon = oficios.Single(o => o.Nombre.ToLowerInvariant() == "peón").Id;
+        trabajadores.Where(t => t.Dni is "22222222J" or "33333333P" or "55555555K").Should().OnlyContain(t => t.OficioEmpresaId == peon);
+        trabajadores.Single(t => t.Dni == "44444444A").OficioEmpresaId.Should().BeNull("un Trabajador eliminado no recibe Oficio");
+        trabajadores.Single(t => t.Dni == "66666666Q").OficioEmpresaId.Should().BeNull("un Trabajador anonimizado no recibe Oficio");
+    }
+
+    [Theory]
+    [InlineData("DelegacionesEmpresa")]
+    [InlineData("OficiosEmpresa")]
+    public async Task El_indice_unico_rechaza_el_mismo_nombre_vivo_en_la_empresa_y_admite_uno_eliminado(string tabla)
+    {
+        await using var conexion = await AbrirComoRuntimeAsync();
+        await FijarTenantAsync(conexion, _tenantB);
+
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText =
+            $"INSERT INTO \"{tabla}\" (\"Id\", \"TenantId\", \"EmpresaId\", \"Nombre\", \"Version\", \"CreadoEnUtc\", \"EstaEliminado\") " +
+            "VALUES (gen_random_uuid(), @tenant, @empresa, @nombre, gen_random_uuid(), now(), @eliminado);";
+        comando.Parameters.AddWithValue("tenant", _tenantB);
+        comando.Parameters.AddWithValue("empresa", _empresaB);
+        var nombre = comando.Parameters.AddWithValue("nombre", "Repetido");
+        var eliminado = comando.Parameters.AddWithValue("eliminado", false);
+        await comando.ExecuteNonQueryAsync();
+
+        nombre.Value = "REPETIDO";
+        (await FluentActions.Awaiting(() => comando.ExecuteNonQueryAsync()).Should().ThrowAsync<PostgresException>())
+            .Which.Should().Match<PostgresException>(e =>
+                e.SqlState == PostgresErrorCodes.UniqueViolation && e.ConstraintName == $"UX_{tabla}_TenantId_EmpresaId_Clave");
+
+        // Control positivo: un nombre eliminado no bloquea volver a crearlo.
+        eliminado.Value = true;
+        (await comando.ExecuteNonQueryAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task El_repositorio_traduce_la_carrera_del_indice_unico_a_false_y_descarta_el_alta()
+    {
+        await using var b = CrearContexto(_tenantB);
+        var repositorio = new Infrastructure.Persistence.Repositories.CatalogoTrabajadoresEmpresaRepository(b);
+        repositorio.Agregar(new OficioEmpresa(_empresaB, "  ELECTRICISTA "));
+
+        (await repositorio.GuardarCambiosAsync()).Should().BeFalse();
+        b.ChangeTracker.Entries<OficioEmpresa>().Should().NotContain(e => e.State == EntityState.Added);
+
+        repositorio.Agregar(new OficioEmpresa(_empresaB, "Fontanero"));
+        (await repositorio.GuardarCambiosAsync()).Should().BeTrue("el contexto quedó limpio tras el choque");
+    }
+
+    [Fact]
+    public async Task Asignar_un_oficio_mientras_otro_lo_elimina_choca_por_concurrencia()
+    {
+        Guid trabajadorId;
+        await using (var siembra = CrearContexto(_tenantA))
+        {
+            var trabajador = Trabajador.DeEmpresa(_empresaA, "Rosa", "Carrera", "88888888Y");
+            siembra.Trabajadores.Add(trabajador);
+            await siembra.SaveChangesAsync();
+            trabajadorId = trabajador.Id;
+        }
+
+        // Quien elimina ya leyó el Oficio y contó cero Trabajadores con él.
+        await using var eliminador = CrearContexto(_tenantA);
+        var oficioLeido = await eliminador.OficiosEmpresa.SingleAsync(o => o.EmpresaId == _empresaA && o.Nombre == "Pintor");
+
+        // Entre medias, otra persona se lo asigna a un Trabajador.
+        await using (var asignador = CrearContexto(_tenantA))
+        {
+            var oficio = await asignador.OficiosEmpresa.SingleAsync(o => o.Id == oficioLeido.Id);
+            var trabajador = await asignador.Trabajadores.SingleAsync(t => t.Id == trabajadorId);
+            oficio.RegistrarAsignacion();
+            trabajador.FijarDelegacionEmpresaYOficio(null, oficio);
+            await asignador.SaveChangesAsync();
+        }
+
+        oficioLeido.MarcarComoEliminado(Guid.NewGuid());
+        await FluentActions.Awaiting(() => eliminador.SaveChangesAsync()).Should().ThrowAsync<DbUpdateConcurrencyException>();
+    }
+
+    [Fact]
+    public async Task Restaurar_un_trabajador_le_quita_el_oficio_y_la_delegacion_eliminados_mientras_tanto()
+    {
+        Guid trabajadorId;
+        await using (var siembra = CrearContexto(_tenantA))
+        {
+            var delegacion = await siembra.DelegacionesEmpresa.SingleAsync(d => d.EmpresaId == _empresaA);
+            var oficio = new OficioEmpresa(_empresaA, "Andamiero");
+            siembra.OficiosEmpresa.Add(oficio);
+            var trabajador = Trabajador.DeEmpresa(_empresaA, "Iker", "Vuelta", "88888888Y");
+            siembra.Trabajadores.Add(trabajador);
+            await siembra.SaveChangesAsync();
+            trabajador.FijarDelegacionEmpresaYOficio(delegacion, oficio);
+            await siembra.SaveChangesAsync();
+
+            // El Trabajador se elimina y, ya sin Trabajadores vivos, se eliminan su Delegación y su Oficio.
+            trabajador.MarcarComoEliminado(Guid.NewGuid());
+            await siembra.SaveChangesAsync();
+            delegacion.MarcarComoEliminado(Guid.NewGuid());
+            oficio.MarcarComoEliminado(Guid.NewGuid());
+            await siembra.SaveChangesAsync();
+            trabajadorId = trabajador.Id;
+        }
+
+        await using var contexto = CrearContexto(_tenantA);
+        var handler = new Application.Trabajadores.Commands.RestaurarTrabajador.RestaurarTrabajadorCommandHandler(
+            contexto, new TenantActualAmbiental { TenantId = _tenantA }, new AlcanceDatosServiceFalso(),
+            new Infrastructure.Persistence.Repositories.CatalogoTrabajadoresEmpresaRepository(contexto), contexto);
+
+        (await handler.Handle(new(trabajadorId), CancellationToken.None)).EsExitoso.Should().BeTrue();
+
+        var restaurado = await contexto.Trabajadores.AsNoTracking().SingleAsync(t => t.Id == trabajadorId);
+        restaurado.DelegacionEmpresaId.Should().BeNull();
+        restaurado.OficioEmpresaId.Should().BeNull();
+        restaurado.Puesto.Should().Be("Andamiero", "quitar el Oficio no borra el Puesto");
+    }
+
+    [Theory]
+    [InlineData("cae_app_soporte")]
+    [InlineData("cae_app_aprovisionamiento")]
+    public async Task Soporte_y_aprovisionamiento_leen_el_catalogo_de_su_tenant_y_no_escriben(string rol)
+    {
+        // Aprovisionamiento: CrearTrabajadorCommand corre elevado a este rol y lee el catálogo para validar lo elegido.
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using var transaccion = await conexion.BeginTransactionAsync();
+        await using (var preparar = conexion.CreateCommand())
+        {
+            preparar.CommandText = $"SELECT set_config('app.tenant_id', @tenant, true); SET LOCAL ROLE {rol};";
+            preparar.Parameters.AddWithValue("tenant", _tenantB.ToString());
+            await preparar.ExecuteNonQueryAsync();
+        }
+
+        foreach (var tabla in new[] { "DelegacionesEmpresa", "OficiosEmpresa" })
+        {
+            await using var leer = conexion.CreateCommand();
+            leer.CommandText = $"SELECT count(*) FROM \"{tabla}\";";
+            ((long)(await leer.ExecuteScalarAsync())!).Should().Be(1, $"{rol} lee la fila del Tenant B en {tabla}");
+        }
+
+        await using var escribir = conexion.CreateCommand();
+        escribir.CommandText = "UPDATE \"OficiosEmpresa\" SET \"Nombre\" = 'Cambiado';";
+        (await FluentActions.Awaiting(() => escribir.ExecuteNonQueryAsync()).Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege, $"{rol} no escribe en el catálogo");
     }
 
     [Theory]
@@ -195,6 +382,15 @@ public class DelegacionYOficioEmpresaRlsTests : IAsyncLifetime
         setRol.CommandText = "SET ROLE cae_app_runtime;";
         await setRol.ExecuteNonQueryAsync();
         return conexion;
+    }
+
+    private async Task EjecutarComoMigradorAsync(string sql)
+    {
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = sql;
+        await comando.ExecuteNonQueryAsync();
     }
 
     private static async Task FijarTenantAsync(NpgsqlConnection conexion, Guid tenantId)

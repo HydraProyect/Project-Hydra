@@ -73,6 +73,13 @@ public class FijarDelegacionEmpresaYOficioTrabajadorCommandHandler(
             return Result.Fallo(Error.Crear("Trabajador.Anonimizado",
                 "Este trabajador está anonimizado: sus datos personales se suprimieron y no pueden volver a introducirse."));
 
+        // Una Delegación o un Oficio que pasa a estar asignado renueva su versión: si alguien lo elimina a la vez, uno de
+        // los dos guardados choca por concurrencia en vez de dejar al Trabajador con un catálogo eliminado.
+        if (delegacion is not null && trabajador.DelegacionEmpresaId != delegacion.Id)
+            delegacion.RegistrarAsignacion();
+        if (oficio is not null && trabajador.OficioEmpresaId != oficio.Id)
+            oficio.RegistrarAsignacion();
+
         trabajador.FijarDelegacionEmpresaYOficio(delegacion, oficio);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();
