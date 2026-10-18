@@ -1,4 +1,5 @@
 @page "/comunicaciones"
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Comunicaciones.Recursos.TextosPlazosConversacion> TextosPlazos
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @* Mismos roles que el menú completo de CatalogoMenuLateral: la bandeja es una pantalla de
@@ -132,7 +133,7 @@
                     <CampoTexto Placeholder="Buscar conversaciones…" Valor="@_busqueda" ValorChanged="async v => { _busqueda = v; await AplicarFiltrosAsync(); }" />
 
                     <div class="bandeja-toggles">
-                        <button type="button" class="bandeja-toggle @(!_soloAsignadasAMi && !_soloSinAsignar && !_soloEsperandoCliente ? "bandeja-toggle-activo" : null)" @onclick="VerTodasAsync">
+                        <button type="button" class="bandeja-toggle @(!_soloAsignadasAMi && !_soloSinAsignar && !_soloEsperandoCliente && !_soloFueraDeSla ? "bandeja-toggle-activo" : null)" @onclick="VerTodasAsync">
                             Todas
                         </button>
                         <button type="button" class="bandeja-toggle @(_soloAsignadasAMi ? "bandeja-toggle-activo" : null)" @onclick="FiltrarAsignadasAMiAsync">
@@ -143,6 +144,9 @@
                         </button>
                         <button type="button" class="bandeja-toggle @(_soloEsperandoCliente ? "bandeja-toggle-activo" : null)" @onclick="AlternarEsperandoCliente">
                             Esperando respuesta externa
+                        </button>
+                        <button type="button" class="bandeja-toggle @(_soloFueraDeSla ? "bandeja-toggle-activo" : null)" aria-pressed="@_soloFueraDeSla" @onclick="AlternarFueraDeSlaAsync">
+                            @TextosPlazos["FueraDeSla"]
                         </button>
                     </div>
 
@@ -378,6 +382,11 @@
                                 </CampoSelect>
                             }
 
+                            <CampoSelect Etiqueta="@TextosPlazos["Prioridad"]" Valor="@_detalle.Prioridad.ToString()" ValorChanged="CambiarPrioridadAsync" Deshabilitado="_cambiandoPrioridad">
+                                <option value="Normal">@TextosPlazos["Normal"]</option>
+                                <option value="Urgente">@TextosPlazos["Urgente"]</option>
+                                <option value="Critica">@TextosPlazos["Critica"]</option>
+                            </CampoSelect>
                             <CampoSelect @key="_intentosCambioEstado" Valor="@string.Empty" ValorChanged="CambiarEstadoDesdeSelectorAsync" Deshabilitado="_cambiandoEstado">
                                 <option value="">@TextosEstados["CambiarEstado"]</option>
                                 @foreach (var siguiente in EstadoConversacionPresentacion.Siguientes(_detalle.Estado))
