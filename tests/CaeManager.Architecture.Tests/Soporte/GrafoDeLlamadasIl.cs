@@ -30,7 +30,9 @@ namespace CaeManager.Architecture.Tests.Soporte;
 /// <b>Lo que no ve.</b> Una petición enviada por <c>IMediator.Send</c>: el destino depende del
 /// tipo del objeto en tiempo de ejecución y el IL solo nombra <c>ISender.Send&lt;T&gt;</c>. Tampoco
 /// una llamada por reflexión ni por un delegado recibido desde fuera del ensamblado analizado. Un
-/// handler que delega así no figura como «llama» y tiene que declararse con su motivo.
+/// handler que delega así no figura como «llama» y tiene que declararse con su motivo. Un tipo
+/// que no carga hace fallar la construcción del grafo; una referencia que no se resuelve queda en
+/// <see cref="Irresolubles"/> para que quien lo usa decida cuántas tolera.
 /// </para>
 /// </summary>
 internal sealed class GrafoDeLlamadasIl
@@ -55,7 +57,7 @@ internal sealed class GrafoDeLlamadasIl
         var lista = ensamblados.Distinct().ToList();
         _modulos = lista.SelectMany(a => a.GetModules()).ToHashSet();
 
-        foreach (var tipo in lista.SelectMany(ReflexionArquitecturaHelper.TiposDe))
+        foreach (var tipo in lista.SelectMany(TiposSinPerderNinguno))
         {
             foreach (var metodo in tipo.GetMethods(Declarados).Cast<MethodBase>().Concat(tipo.GetConstructors(Declarados)))
             {
@@ -87,8 +89,11 @@ internal sealed class GrafoDeLlamadasIl
             {
                 if (alcanzan.Contains(metodo)) continue;
 
-                var llega = _sinCuerpo.Contains(metodo)
-                    ? _implementaciones.TryGetValue(metodo, out var impls) && impls.Count > 0 && impls.All(alcanzan.Contains)
+                // Sin implementaciones, All sería verdadero por vacío: una interfaz que nadie implementa
+                // en los ensamblados analizados no garantiza nada (control en los tests del grafo).
+                var impls = _sinCuerpo.Contains(metodo) ? _implementaciones.GetValueOrDefault(metodo) ?? [] : null;
+                var llega = impls is not null
+                    ? impls.Count > 0 && impls.All(alcanzan.Contains)
                     : referencias.Any(alcanzan.Contains);
 
                 if (!llega) continue;
@@ -188,7 +193,36 @@ internal sealed class GrafoDeLlamadasIl
         }
     }
 
-    private static List<ClaveMetodo> ReferenciasDelCuerpo(MethodBase metodo)
+    /// <summary>
+    /// Referencias a métodos que no se pudieron resolver, como <c>Tipo.Método -> 0xTOKEN (excepción)</c>.
+    /// Una arista perdida puede esconder una llamada (falso «no llama», que se ve en rojo) o, a través
+    /// de una interfaz, una implementación que no llama (falso «llama», que no se ve): quien usa el
+    /// grafo decide cuántas tolera y en qué ensamblados.
+    /// </summary>
+    public IReadOnlyList<(Module Modulo, string Detalle)> Irresolubles => _irresolubles;
+
+    private readonly List<(Module Modulo, string Detalle)> _irresolubles = new();
+
+    /// <summary>
+    /// A diferencia de <see cref="ReflexionArquitecturaHelper.TiposDe"/>, que se queda con los tipos que
+    /// cargan, aquí un tipo que no carga es una implementación o un llamador que el grafo no vería: falla.
+    /// </summary>
+    private static Type[] TiposSinPerderNinguno(Assembly ensamblado)
+    {
+        try
+        {
+            return ensamblado.GetTypes();
+        }
+        catch (ReflectionTypeLoadException e)
+        {
+            var causas = e.LoaderExceptions.Where(x => x is not null).Select(x => x!.Message).Distinct().Take(5);
+            throw new InvalidOperationException(
+                $"{ensamblado.GetName().Name}: {e.Types.Count(t => t is null)} tipos no cargan y el grafo de llamadas " +
+                $"quedaría incompleto sin avisar. Causas: {string.Join(" | ", causas)}", e);
+        }
+    }
+
+    private List<ClaveMetodo> ReferenciasDelCuerpo(MethodBase metodo)
     {
         var resultado = new List<ClaveMetodo>();
 
@@ -207,6 +241,7 @@ internal sealed class GrafoDeLlamadasIl
         }
         catch (Exception e) when (e is InvalidOperationException or BadImageFormatException or NotSupportedException)
         {
+            _irresolubles.Add((metodo.Module, $"{metodo.DeclaringType?.FullName}.{metodo.Name}: cuerpo ilegible ({e.GetType().Name})"));
             return resultado;
         }
 
@@ -237,8 +272,8 @@ internal sealed class GrafoDeLlamadasIl
                 catch (Exception e) when (e is ArgumentException or BadImageFormatException or TypeLoadException
                                               or FileNotFoundException or MissingMemberException)
                 {
-                    // Un miembro de un ensamblado que no carga fuera del host (componentes de Blazor):
-                    // no puede ser un objetivo de este grafo.
+                    _irresolubles.Add((metodo.Module,
+                        $"{metodo.DeclaringType?.FullName}.{metodo.Name} -> 0x{token:X8} ({e.GetType().Name})"));
                 }
 
                 if (miembro is MethodBase referenciado)
