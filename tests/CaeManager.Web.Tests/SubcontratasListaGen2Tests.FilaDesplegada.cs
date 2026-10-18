@@ -49,7 +49,7 @@ public partial class SubcontratasListaGen2Tests
             botones[0].TextContent.Trim().Should().Be("Gestionar");
             botones[0].GetAttribute("data-accion").Should().Be("gestionar");
         }
-        lineas[0].QuerySelector("button")!.GetAttribute("aria-label").Should().Be("Gestionar Aptitud médica — Sonia Cano de Andamios Bidasoa S.L.");
+        lineas[0].QuerySelector("button")!.GetAttribute("aria-label").Should().Be("Gestionar el documento Aptitud médica — Sonia Cano de Andamios Bidasoa S.L.");
         detalle.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().OnlyContain(t => t == "Gestionar");
     }
 

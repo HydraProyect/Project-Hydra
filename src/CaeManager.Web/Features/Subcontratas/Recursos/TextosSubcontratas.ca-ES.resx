@@ -898,7 +898,7 @@
   <data name="TituloCopiarCif" xml:space="preserve"><value>Copia el CIF</value></data>
   <data name="RotuloNivel" xml:space="preserve"><value>Nivell</value></data>
   <data name="DesplegarIncidenciasSubcontrata" xml:space="preserve"><value>Desplega incidències de {0}</value></data>
-  <data name="GestionarDocumentoAccesible" xml:space="preserve"><value>Gestionar {0} de {1}</value></data>
+  <data name="GestionarDocumentoAccesible" xml:space="preserve"><value>Gestionar el document {0} de {1}</value></data>
   <data name="DocumentoDesdeFecha" xml:space="preserve"><value>Va vèncer el {0}</value></data>
   <data name="DocumentoCaducaFecha" xml:space="preserve"><value>Caduca el {0}</value></data>
   <data name="AriaSeleccionarPagina" xml:space="preserve"><value>Selecciona les subcontractes d'aquesta pàgina</value></data>

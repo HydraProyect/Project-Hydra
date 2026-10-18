@@ -172,7 +172,7 @@
                 @foreach (var subcontrata in _elementosPagina)
                 {
                     var incidencias = Incidencias(subcontrata.Recuentos);
-                    var expandido = incidencias.Count > 0 && _expandidos.Contains(subcontrata.Id);
+                    var expandido = _expandidos.Contains(subcontrata.Id) && incidencias.Count != 0;
                     <div class="@ClaseTarjeta(subcontrata)" @key="subcontrata.Id">
                         @* La fila no lleva menú «⋯». Un clic en cualquier punto de la fila abre la vista rápida (el panel del
                            Context Workspace), igual que Enter sobre la fila enfocada; los controles de dentro —casilla,

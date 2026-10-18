@@ -52,15 +52,15 @@ public class SubcontratasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await Expect(page.Locator(".lista-filas-acordeon .menu-acciones-disparador")).ToHaveCountAsync(0);
 
         // Un control de dentro (el desplegable de incidencias) hace lo suyo y NO abre el panel. Solo las filas con
-        // documentos que piden trabajo lo llevan (maqueta de Subcontratas): se prueba en la primera que lo tenga.
-        var filaDesplegable = page.Locator(".lista-filas-acordeon .fila-pulsable:has(.boton-expandir-fila)").First;
-        if (await filaDesplegable.CountAsync() > 0)
+        // documentos que piden trabajo lo llevan (maqueta de Subcontratas): se prueba si esta fila lo tiene.
+        var desplegar = fila.Locator(".boton-expandir-fila");
+        if (await desplegar.CountAsync() > 0)
         {
-            await filaDesplegable.Locator(".boton-expandir-fila").ClickAsync();
-            await Expect(filaDesplegable.Locator(".boton-expandir-fila")).ToHaveAttributeAsync("aria-expanded", "true");
+            await desplegar.ClickAsync();
+            await Expect(desplegar).ToHaveAttributeAsync("aria-expanded", "true");
             await Expect(panel).ToHaveCountAsync(0);
-            await filaDesplegable.Locator(".boton-expandir-fila").ClickAsync();
-            await Expect(filaDesplegable.Locator(".boton-expandir-fila")).ToHaveAttributeAsync("aria-expanded", "false");
+            await desplegar.ClickAsync();
+            await Expect(desplegar).ToHaveAttributeAsync("aria-expanded", "false");
             await Expect(panel).ToHaveCountAsync(0);
         }
 
