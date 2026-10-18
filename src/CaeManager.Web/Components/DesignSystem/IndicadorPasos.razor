@@ -1,10 +1,13 @@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
 @* Stepper genérico (Fase 85/A1) — primer consumidor del componente
    "Wizard/Stepper" que el Design System no tenía todavía (los 3 flujos de
    importación lo hacen hoy a mano con @if sobre estado local; se migran
    cuando toque, no en esta entrega — YAGNI). Solo indica progreso: no es
    responsable de qué contenido se muestra por paso, eso lo decide la página
    que lo usa con su propio @if/switch sobre PasoActual. *@
-<ol class="indicador-pasos" aria-label="@EtiquetaGrupo">
+<ol class="@(EnPanel ? "indicador-pasos indicador-pasos-panel" : "indicador-pasos")" aria-label="@EtiquetaGrupo">
     @for (var i = 0; i < Pasos.Count; i++)
     {
         var indice = i;
@@ -31,6 +34,20 @@
         </li>
     }
 </ol>
+@if (EnPanel && Pasos.Count > 0)
+{
+    @* Móvil (≤640 px): el indicador se resume en «Paso N de M · título» con una barra por paso; el CSS elige cuál de los dos se ve. *@
+    var posicion = Math.Max(0, Pasos.ToList().FindIndex(p => p.Clave == PasoActual));
+    <div class="indicador-pasos-movil" role="group" aria-label="@EtiquetaGrupo">
+        <span class="indicador-pasos-movil-texto">@string.Format(Comunes["PasosPasoDeTotal"].Value, posicion + 1, Pasos.Count) · @Pasos[posicion].Titulo</span>
+        <div class="indicador-pasos-barras" aria-hidden="true">
+            @for (var i = 0; i < Pasos.Count; i++)
+            {
+                <span class="@(PasosCompletados.Contains(Pasos[i].Clave) && i != posicion ? "indicador-pasos-barra indicador-pasos-barra-hecha" : i <= posicion ? "indicador-pasos-barra indicador-pasos-barra-activa" : "indicador-pasos-barra")"></span>
+            }
+        </div>
+    </div>
+}
 
 @code {
     [Parameter, EditorRequired] public IReadOnlyList<PasoDefinicion> Pasos { get; set; } = [];
@@ -39,6 +56,12 @@
     [Parameter] public bool PermitirVolver { get; set; }
     [Parameter] public EventCallback<string> OnPasoSeleccionado { get; set; }
     [Parameter] public string EtiquetaGrupo { get; set; } = "Pasos";
+
+    /// <summary>
+    /// Variante del panel lateral («Panel Formulario TALVEG»): círculos de 24 px (activo relleno, completado en verde, futuro
+    /// vacío) y, en móvil, «Paso N de M · título» con una barra por paso en lugar de los círculos sin título.
+    /// </summary>
+    [Parameter] public bool EnPanel { get; set; }
 
     private Task PasoSeleccionadoAsync(string clave) => OnPasoSeleccionado.InvokeAsync(clave);
 

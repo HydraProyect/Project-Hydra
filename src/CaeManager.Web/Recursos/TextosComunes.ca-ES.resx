@@ -561,4 +561,28 @@
   <data name="SelectorTenantQuitarFijada" xml:space="preserve">
     <value>Treu de les fixades</value>
   </data>
+  <data name="SelectorCrear" xml:space="preserve">
+    <value>Crea «{0}»</value>
+  </data>
+  <data name="PasosSiguiente" xml:space="preserve">
+    <value>Següent</value>
+  </data>
+  <data name="PasosAtras" xml:space="preserve">
+    <value>Enrere</value>
+  </data>
+  <data name="PasosGuardarYTerminar" xml:space="preserve">
+    <value>Desa i acaba</value>
+  </data>
+  <data name="PasosPasoDeTotal" xml:space="preserve">
+    <value>Pas {0} de {1}</value>
+  </data>
+  <data name="PasosGrupoEtiqueta" xml:space="preserve">
+    <value>Passos del formulari</value>
+  </data>
+  <data name="SeccionErrorSingular" xml:space="preserve">
+    <value>Un error</value>
+  </data>
+  <data name="SeccionErroresPlural" xml:space="preserve">
+    <value>{0} errors</value>
+  </data>
 </root>

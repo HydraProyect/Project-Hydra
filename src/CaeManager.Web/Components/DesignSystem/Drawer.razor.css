@@ -22,16 +22,29 @@
     }
 }
 
-/* Nivel Overlay (06 § 3). */
+/* Nivel Overlay (06 § 3). Panel lateral «Panel Formulario TALVEG»: ancho estándar de 480 px (una columna) o ancho de 640 px
+   (dos columnas, AnchoDrawer.Ancho); en móvil ocupa la pantalla entera. Relleno único de 24 px en cabecera, cuerpo y pie. */
 .drawer-panel {
     background-color: var(--color-overlay);
     box-shadow: var(--shadow-overlay);
     width: 100%;
-    max-width: 420px;
+    max-width: 480px;
     height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     animation: entrar-desde-derecha var(--motion-transition) var(--ease-fluid);
+}
+
+.drawer-panel-ancho {
+    max-width: 640px;
+}
+
+@media (max-width: 640px) {
+    .drawer-panel,
+    .drawer-panel-ancho {
+        max-width: 100%;
+    }
 }
 
 @keyframes entrar-desde-derecha {
@@ -52,18 +65,38 @@
 }
 
 .drawer-header {
+    flex: none;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    padding: var(--space-5);
+    gap: var(--space-3);
+    padding: var(--space-5) var(--space-6);
     border-bottom: var(--border-default);
 }
 
-.drawer-header h2 {
-    font: var(--font-heading-md);
+.drawer-titulos {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
+.drawer-header h2 {
+    font: var(--font-heading-sm);
+}
+
+.drawer-subtitulo {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+/* Botón de icono de 40 px (44 táctil, como los botones del pie), alineado con la primera línea del título. */
 .drawer-cerrar {
+    flex: none;
+    width: var(--space-10);
+    height: var(--space-10);
+    margin: -6px -8px 0 0;
     background: none;
     border: none;
     display: inline-flex;
@@ -71,7 +104,7 @@
     justify-content: center;
     color: var(--color-text-muted);
     cursor: pointer;
-    padding: var(--space-1);
+    padding: 0;
     border-radius: var(--radius-full);
     transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard),
         transform var(--motion-fast) var(--ease-standard);
@@ -86,8 +119,16 @@
     transform: scale(0.9);
 }
 
+/* Indicador de pasos (DrawerFormulario en modo pasos): fijo, bajo la cabecera. */
+.drawer-pasos {
+    flex: none;
+    padding: var(--space-4) var(--space-6);
+    border-bottom: var(--border-default);
+}
+
 .drawer-aviso {
-    padding: var(--space-4) var(--space-5) 0;
+    flex: none;
+    padding: var(--space-4) var(--space-6) 0;
 }
 
 .drawer-aviso:empty {
@@ -95,35 +136,58 @@
 }
 
 .drawer-cuerpo {
-    padding: var(--space-5);
+    padding: var(--space-6);
     overflow-y: auto;
     flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
+    gap: var(--space-5);
 }
 
+/* Pie fijo. Los botones no se encogen ni se estiran (flex: none) y miden lo mismo (40 px, 44 táctil): antes el pie era un flex
+   que estiraba «Cancelar» a la altura del botón con espera (su línea de estado reservada), y quedaba deforme. Las reglas sobre
+   .boton llevan ::deep: el botón es de otro componente y sin él el atributo de ámbito de Drawer nunca le llega. */
 .drawer-pie {
+    flex: none;
     display: flex;
+    align-items: flex-start;
     justify-content: flex-end;
     gap: var(--space-3);
-    padding: var(--space-4) var(--space-5);
+    padding: var(--space-4) var(--space-6);
     border-top: var(--border-default);
+    background-color: var(--color-overlay);
 }
 
-/* Mismo criterio que .modal-pie en Modal.razor.css: en móvil los botones
-   del pie (acción principal + "Cancelar", en ese orden en el marcado de
-   cada página) ocupan todo el ancho y se apilan en vez de compartir fila. */
+.drawer-pie ::deep .boton,
+.drawer-pie ::deep .boton-espera {
+    flex: none;
+}
+
+/* Sin aviso de espera, la línea de estado del botón no ocupa sitio: el pie mide lo que miden sus botones. */
+.drawer-pie ::deep .boton-espera-mensaje:empty {
+    display: none;
+}
+
+/* En móvil los botones del pie pasan a una rejilla de dos columnas del mismo ancho (antes, una columna con width: 100% que
+   estiraba «Cancelar»); un primario que debe destacar (Siguiente) ocupa las dos. */
 @media (max-width: 640px) {
     .drawer-pie {
-        flex-direction: column;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--space-2);
     }
 
-    .drawer-pie .boton {
+    .drawer-pie ::deep .boton,
+    .drawer-pie ::deep .boton-espera,
+    .drawer-pie ::deep .boton-espera-fila {
         width: 100%;
     }
-}
 
+    .drawer-pie ::deep .boton-espera-boton {
+        min-width: 0;
+    }
+}
 /* Ficha 16: desenfoque ligero tras el velo, detrás de @supports y bajo el token
    --scrim-filtro (tokens.css; "none" lo apaga). Con transparencia o movimiento
    reducidos, el velo vuelve a ser un color plano. */

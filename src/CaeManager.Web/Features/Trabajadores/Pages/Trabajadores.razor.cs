@@ -975,8 +975,62 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _observaciones = string.Empty;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
+        _pasoAlta = PasoAltaBasico;
+        _pasosAltaVistos.Clear();
         _drawerVisible = true;
         FijarInstantaneaFormulario();
+    }
+
+    // Alta en pasos («Panel Formulario TALVEG»): Lo básico, Trabajo y Contacto ordenan los mismos campos de siempre; no hay
+    // un comando por paso. «Guardar» (o «Guardar y terminar» desde un paso intermedio) envía el CrearTrabajadorCommand único con
+    // todo lo escrito, y un error de campo del servidor lleva al paso donde está el campo.
+    private const string PasoAltaBasico = "basico";
+    private const string PasoAltaTrabajo = "trabajo";
+    private const string PasoAltaContacto = "contacto";
+
+    private string _pasoAlta = PasoAltaBasico;
+    private readonly HashSet<string> _pasosAltaVistos = [];
+
+    private IReadOnlyList<PasoDefinicion> PasosAlta =>
+    [
+        new(PasoAltaBasico, Textos["PasoAltaBasico"]),
+        new(PasoAltaTrabajo, Textos["PasoAltaTrabajo"]),
+        new(PasoAltaContacto, Textos["PasoAltaContacto"]),
+    ];
+
+    private int IndicePasoAlta => Math.Max(0, PasosAlta.ToList().FindIndex(p => p.Clave == _pasoAlta));
+
+    private void AltaSiguiente()
+    {
+        var pasos = PasosAlta;
+        var indice = IndicePasoAlta;
+        if (indice >= pasos.Count - 1) return;
+
+        _pasosAltaVistos.Add(_pasoAlta);
+        _pasoAlta = pasos[indice + 1].Clave;
+    }
+
+    private void AltaAtras()
+    {
+        var indice = IndicePasoAlta;
+        if (indice > 0) _pasoAlta = PasosAlta[indice - 1].Clave;
+    }
+
+    private void AltaIrAPaso(string clave) => _pasoAlta = clave;
+
+    /// <summary>El paso de cada campo del comando: el primero con error es el que se enseña tras un guardado que no pasó.</summary>
+    private static int OrdenPasoDeCampo(string campo) => campo switch
+    {
+        "Puesto" or "TipoContratacion" or "Observaciones" => 1,
+        "Email" or "Telefono" => 2,
+        _ => 0,
+    };
+
+    private void IrAlPrimerPasoConError(IEnumerable<string> campos)
+    {
+        var pasos = PasosAlta;
+        var primero = campos.Select(OrdenPasoDeCampo).DefaultIfEmpty(0).Min();
+        _pasoAlta = pasos[Math.Min(primero, pasos.Count - 1)].Clave;
     }
 
     private readonly InstantaneaFormulario _instantanea = new();
@@ -1084,6 +1138,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 if (!Guid.TryParse(_empresaId, out var empresaIdValor))
                 {
                     _mensajeErrorFormulario = Textos["ErrorSeleccionaEmpresa"];
+                    _pasoAlta = PasoAltaBasico;
                     return;
                 }
                 empresaId = empresaIdValor;
@@ -1093,6 +1148,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 if (!Guid.TryParse(_subcontrataId, out var subcontrataIdValor))
                 {
                     _mensajeErrorFormulario = Textos["ErrorSeleccionaSubcontrata"];
+                    _pasoAlta = PasoAltaBasico;
                     return;
                 }
                 subcontrataId = subcontrataIdValor;
@@ -1117,6 +1173,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             _erroresCampo = ex.Errors
                 .GroupBy(e => e.PropertyName)
                 .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+            IrAlPrimerPasoConError(_erroresCampo.Keys);
         }
         catch (Exception)
         {

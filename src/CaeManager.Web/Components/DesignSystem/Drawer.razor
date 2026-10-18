@@ -12,11 +12,21 @@
 @if (Visible)
 {
     <div class="drawer-superposicion" @onmousedown="() => _mouseDownEnSuperposicion = true" @onclick="ManejarClicSuperposicionAsync">
-        <div class="drawer-panel" @onmousedown="() => _mouseDownEnSuperposicion = false" @onmousedown:stopPropagation="true" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="@_tituloId" tabindex="-1" @ref="_referenciaContenedor" @onkeydown="ManejarTeclaAsync">
+        <div class="@ClasePanel" @onmousedown="() => _mouseDownEnSuperposicion = false" @onmousedown:stopPropagation="true" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="@_tituloId" tabindex="-1" @ref="_referenciaContenedor" @onkeydown="ManejarTeclaAsync">
             <div class="drawer-header">
-                <h2 id="@_tituloId">@Titulo</h2>
+                <div class="drawer-titulos">
+                    <h2 id="@_tituloId">@Titulo</h2>
+                    @if (!string.IsNullOrWhiteSpace(Subtitulo))
+                    {
+                        <span class="drawer-subtitulo">@Subtitulo</span>
+                    }
+                </div>
                 <button type="button" class="drawer-cerrar" aria-label="Cerrar" @onclick="SolicitarCierreAsync"><Icono Nombre="cerrar" /></button>
             </div>
+            @if (Pasos is not null)
+            {
+                <div class="drawer-pasos">@Pasos</div>
+            }
             @if (Aviso is not null)
             {
                 @* Fuera del cuerpo desplazable: un aviso del formulario no puede quedar fuera de la vista (D-20). *@
@@ -49,6 +59,17 @@
     [Parameter] public string Titulo { get; set; } = string.Empty;
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public RenderFragment? Pie { get; set; }
+
+    /// <summary>Contexto bajo el título (p. ej. «Empresa: Montajes Levante S.L.»): font-body-sm en color atenuado. Opcional.</summary>
+    [Parameter] public string? Subtitulo { get; set; }
+
+    /// <summary>Estandar (480 px, por defecto) o Ancho (640 px, dos columnas). En móvil (≤640 px) el panel ocupa la pantalla entera.</summary>
+    [Parameter] public AnchoDrawer Ancho { get; set; } = AnchoDrawer.Estandar;
+
+    /// <summary>Indicador de pasos, entre la cabecera y el aviso y fuera del desplazamiento (lo rellena <c>DrawerFormulario</c> en modo pasos).</summary>
+    [Parameter] public RenderFragment? Pasos { get; set; }
+
+    private string ClasePanel => Ancho == AnchoDrawer.Ancho ? "drawer-panel drawer-panel-ancho" : "drawer-panel";
 
     /// <summary>
     /// Aviso del formulario (p. ej. <c>AvisoFormulario</c>), entre la cabecera y el cuerpo y fuera de su desplazamiento: se ve

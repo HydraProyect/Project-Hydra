@@ -62,7 +62,7 @@
                 aria-label="@(string.IsNullOrWhiteSpace(Etiqueta) ? EtiquetaAccesible : null)">
                 @foreach (var (posicion, indice) in _visibles.Index())
                 {
-                    var opcion = Opciones[indice];
+                    var opcion = _todas[indice];
                     var elegida = opcion.Valor == Valor;
                     <li id="@IdOpcion(indice)" role="option" data-valor="@opcion.Valor" aria-selected="@(elegida ? "true" : "false")"
                         aria-disabled="@(opcion.Deshabilitada ? "true" : null)"
@@ -85,6 +85,14 @@
                                 <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" />
                             }
                         </span>
+                    </li>
+                }
+                @if (MostrarCrear)
+                {
+                    <li id="@IdCrear" role="option" aria-selected="false" class="@(_activo == _visibles.Count ? "csa-crear csa-activa" : "csa-crear")"
+                        @onclick="CrearAsync">
+                        <span class="csa-crear-mas" aria-hidden="true">+</span>
+                        <span class="csa-texto">@TextoFilaCrear</span>
                     </li>
                 }
             </ul>
@@ -158,6 +166,60 @@
 
     [Parameter, EditorRequired] public IReadOnlyList<OpcionSelect> Opciones { get; set; } = [];
 
+    /// <summary>
+    /// Alta en línea («Panel Formulario TALVEG»): con <see cref="OnCrear"/>, y mientras se busca un texto que no coincide
+    /// exactamente con ninguna opción, el panel termina en una fila fija «+ Crear "X"». Pulsarla, o Intro cuando no hay otra opción
+    /// resaltada, llama a <see cref="OnCrear"/>; la opción que devuelve queda elegida sin salir del panel. Sin <see cref="OnCrear"/>
+    /// (p. ej. un rol sin permiso sobre el catálogo) la fila no aparece. La pantalla decide si el alta es real o diferida al guardar.
+    /// </summary>
+    [Parameter] public bool PermitirCrear { get; set; }
+
+    /// <summary>Crea la opción con el texto escrito y devuelve la opción nueva (nulo: no se creó). Obligatorio para que haya fila de alta.</summary>
+    [Parameter] public Func<string, Task<OpcionSelect?>>? OnCrear { get; set; }
+
+    /// <summary>Texto de la fila de alta a partir de lo escrito (p. ej. <c>t =&gt; $"Crear oficio «{t}»"</c>). Sin valor, «Crear «X»» localizado.</summary>
+    [Parameter] public Func<string, string>? TextoCrear { get; set; }
+
+    // Opciones + las creadas aquí que la pantalla aún no ha incorporado a Opciones: la opción recién creada se puede elegir y
+    // mostrar aunque el padre tarde en devolverla (o la guarde al final).
+    private readonly List<OpcionSelect> _creadas = [];
+    private IReadOnlyList<OpcionSelect> _todas = [];
+
+    protected override void OnParametersSet() => RecalcularTodas();
+
+    private void RecalcularTodas() =>
+        _todas = _creadas.Count == 0 ? Opciones : [.. Opciones, .. _creadas.Where(c => Opciones.All(o => o.Valor != c.Valor))];
+
+    private bool PuedeCrear => PermitirCrear && OnCrear is not null;
+
+    private bool MostrarCrear =>
+        PuedeCrear && HayBusqueda && !_todas.Any(o => string.Equals(o.Texto.Trim(), _consulta.Trim(), StringComparison.CurrentCultureIgnoreCase)
+            || CultureInfo.CurrentCulture.CompareInfo.Compare(o.Texto.Trim(), _consulta.Trim(), SinMayusculasNiTildes) == 0);
+
+    private int TotalFilas => _visibles.Count + (MostrarCrear ? 1 : 0);
+
+    private string IdCrear => $"{IdCampo}-crear";
+
+    private string TextoFilaCrear => TextoCrear is { } f ? f(_consulta.Trim()) : string.Format(Comunes["SelectorCrear"].Value, _consulta.Trim());
+
+    private async Task CrearAsync()
+    {
+        var texto = _consulta.Trim();
+        if (OnCrear is null || texto.Length == 0) return;
+
+        var nueva = await OnCrear(texto);
+        Cerrar(devolverFoco: true);
+        if (nueva is null) return;
+
+        if (_todas.All(o => o.Valor != nueva.Valor))
+        {
+            _creadas.Add(nueva);
+            RecalcularTodas();
+        }
+
+        if (nueva.Valor != Valor) await ValorChanged.InvokeAsync(nueva.Valor);
+    }
+
     private bool HayBusqueda => _consulta.Trim().Length > 0;
 
     private string AnuncioResultados => !HayBusqueda ? string.Empty : Comunes[_visibles.Count == 1 ? "SelectorResultadoSingular" : "SelectorResultados", _visibles.Count].Value;
@@ -165,10 +227,11 @@
     private string IdCampo => string.IsNullOrWhiteSpace(Id) ? _idAuto : Id;
     private string _idEtiqueta => $"{IdCampo}-etiqueta";
     private string _idLista => $"{IdCampo}-lista";
-    private bool EsBuscable => Buscable ?? Opciones.Count > UmbralBuscador;
-    private OpcionSelect? Actual => Opciones.FirstOrDefault(o => o.Valor == Valor);
+    private bool EsBuscable => Buscable ?? (_todas.Count > UmbralBuscador || PuedeCrear);
+    private OpcionSelect? Actual => _todas.FirstOrDefault(o => o.Valor == Valor);
     private string TextoMarcador => Marcador ?? Comunes["SelectorMarcador"].Value;
-    private string? IdActivo => _activo >= 0 && _activo < _visibles.Count ? IdOpcion(_visibles[_activo]) : null;
+    private string? IdActivo =>
+        _activo >= 0 && _activo < _visibles.Count ? IdOpcion(_visibles[_activo]) : _activo == _visibles.Count && MostrarCrear ? IdCrear : null;
 
     private string ClaseRaiz => string.Join(' ', new[]
     {
@@ -208,8 +271,8 @@
         _consulta = string.Empty;
         _escrito = string.Empty;
         Recalcular();
-        _activo = _visibles.FindIndex(i => Opciones[i].Valor == Valor && !Opciones[i].Deshabilitada);
-        if (_activo < 0) _activo = _visibles.FindIndex(i => !Opciones[i].Deshabilitada);
+        _activo = _visibles.FindIndex(i => _todas[i].Valor == Valor && !_todas[i].Deshabilitada);
+        if (_activo < 0) _activo = _visibles.FindIndex(i => !_todas[i].Deshabilitada);
         _anclarPendiente = true;
         _enfocarBuscadorPendiente = EsBuscable;
         _desplazarPendiente = true;
@@ -219,9 +282,9 @@
     {
         var buscado = _consulta.Trim();
         _visibles.Clear();
-        for (var i = 0; i < Opciones.Count; i++)
+        for (var i = 0; i < _todas.Count; i++)
         {
-            if (buscado.Length == 0 || Coincide(Opciones[i], buscado)) _visibles.Add(i);
+            if (buscado.Length == 0 || Coincide(_todas[i], buscado)) _visibles.Add(i);
         }
     }
 
@@ -236,7 +299,9 @@
     {
         _consulta = e.Value?.ToString() ?? string.Empty;
         Recalcular();
-        _activo = _visibles.FindIndex(i => !Opciones[i].Deshabilitada);
+        _activo = _visibles.FindIndex(i => !_todas[i].Deshabilitada);
+        // Sin ninguna coincidencia, Intro ejecuta el alta (la fila de alta es la única que queda).
+        if (_activo < 0 && MostrarCrear) _activo = _visibles.Count;
         _desplazarPendiente = true;
     }
 
@@ -277,14 +342,15 @@
 
     private void Mover(int paso)
     {
-        var destino = _activo < 0 ? (paso > 0 ? -1 : _visibles.Count) : _activo;
+        var total = TotalFilas;
+        var destino = _activo < 0 ? (paso > 0 ? -1 : total) : _activo;
         do
         {
             destino += paso;
         }
-        while (destino >= 0 && destino < _visibles.Count && Opciones[_visibles[destino]].Deshabilitada);
+        while (destino >= 0 && destino < _visibles.Count && _todas[_visibles[destino]].Deshabilitada);
 
-        if (destino < 0 || destino >= _visibles.Count) return;
+        if (destino < 0 || destino >= total) return;
 
         _activo = destino;
         _desplazarPendiente = true;
@@ -293,8 +359,8 @@
     private void IrAlExtremo(bool primero)
     {
         var posicion = primero
-            ? _visibles.FindIndex(i => !Opciones[i].Deshabilitada)
-            : _visibles.FindLastIndex(i => !Opciones[i].Deshabilitada);
+            ? _visibles.FindIndex(i => !_todas[i].Deshabilitada)
+            : _visibles.FindLastIndex(i => !_todas[i].Deshabilitada);
         if (posicion < 0) return;
 
         _activo = posicion;
@@ -319,7 +385,7 @@
         for (var paso = 0; paso < _visibles.Count; paso++)
         {
             var posicion = (desde + paso) % _visibles.Count;
-            var opcion = Opciones[_visibles[posicion]];
+            var opcion = _todas[_visibles[posicion]];
             if (opcion.Deshabilitada || !comparador.IsPrefix(opcion.Texto, buscado, SinMayusculasNiTildes)) continue;
 
             _activo = posicion;
@@ -330,9 +396,15 @@
 
     private async Task ElegirAsync(int posicion)
     {
+        if (posicion == _visibles.Count && MostrarCrear)
+        {
+            await CrearAsync();
+            return;
+        }
+
         if (posicion < 0 || posicion >= _visibles.Count) return;
 
-        var opcion = Opciones[_visibles[posicion]];
+        var opcion = _todas[_visibles[posicion]];
         if (opcion.Deshabilitada) return;
 
         Cerrar(devolverFoco: true);

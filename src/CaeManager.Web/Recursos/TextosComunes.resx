@@ -572,4 +572,28 @@
   <data name="SelectorTenantQuitarFijada" xml:space="preserve">
     <value>Quitar de fijadas</value>
   </data>
+  <data name="SelectorCrear" xml:space="preserve">
+    <value>Crear «{0}»</value>
+  </data>
+  <data name="PasosSiguiente" xml:space="preserve">
+    <value>Siguiente</value>
+  </data>
+  <data name="PasosAtras" xml:space="preserve">
+    <value>Atrás</value>
+  </data>
+  <data name="PasosGuardarYTerminar" xml:space="preserve">
+    <value>Guardar y terminar</value>
+  </data>
+  <data name="PasosPasoDeTotal" xml:space="preserve">
+    <value>Paso {0} de {1}</value>
+  </data>
+  <data name="PasosGrupoEtiqueta" xml:space="preserve">
+    <value>Pasos del formulario</value>
+  </data>
+  <data name="SeccionErrorSingular" xml:space="preserve">
+    <value>1 error</value>
+  </data>
+  <data name="SeccionErroresPlural" xml:space="preserve">
+    <value>{0} errores</value>
+  </data>
 </root>
