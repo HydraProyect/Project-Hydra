@@ -161,9 +161,11 @@ public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixtureListados fixtu
 
         // Un nombre que no esté contenido en el de otro Centro a la vista: el filtro es por «contiene».
         var nombres = (await filas.Locator(".enlace-nombre-fila").AllInnerTextsAsync()).Select(n => n.Trim()).ToArray();
-        var nombre = Array.Find(nombres, n => nombres.Count(otro => otro.Contains(n, StringComparison.OrdinalIgnoreCase)) == 1);
+        // Solo los Centros con incidencias llevan chevron (maqueta: «tieneHijos»), y el recorrido necesita desplegar la fila.
+        var conChevron = (await filas.Filter(new() { Has = page.Locator(".boton-expandir-fila") }).Locator(".enlace-nombre-fila").AllInnerTextsAsync()).Select(n => n.Trim()).ToArray();
+        var nombre = Array.Find(conChevron, n => nombres.Count(otro => otro.Contains(n, StringComparison.OrdinalIgnoreCase)) == 1);
         Assert.NotNull(nombre);
-        var filtro = page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente o empresa");
+        var filtro = page.GetByPlaceholder("Filtrar esta pantalla: Centro, código, Cliente o Empresa");
         await filtro.FillAsync(nombre);
         await Expect(filas).ToHaveCountAsync(1);
         // Todo se busca en la cabecera de la fila: el acordeón desplegado trae sus propios botones.
@@ -209,7 +211,7 @@ public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixtureListados fixtu
                 {
                     await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
                     await Ayudas.MostrarCentrosSinAgruparAsync(page);
-                    await page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente o empresa").FillAsync(nombre);
+                    await page.GetByPlaceholder("Filtrar esta pantalla: Centro, código, Cliente o Empresa").FillAsync(nombre);
                     await Expect(filas).ToHaveCountAsync(1);
                     await filas.Locator(".nombre-abre-vista-rapida").ClickAsync();
                     await GuardarCampoEnElPanelAsync(page.Locator(".workspace-panel"), lapiz, campo, codigoOriginal);

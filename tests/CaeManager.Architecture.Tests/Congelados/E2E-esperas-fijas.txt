@@ -27,7 +27,7 @@ tests/CaeManager.E2ETests/GestionesFilaSinMenuE2ETests.cs :: WaitForTimeoutAsync
 tests/CaeManager.E2ETests/ImportacionTests.cs :: WaitForTimeoutAsync = 2
 tests/CaeManager.E2ETests/ImportarClientesTests.cs :: WaitForTimeoutAsync = 1
 tests/CaeManager.E2ETests/P331TecladoLoteFiltrosGuardadosTests.cs :: WaitForTimeoutAsync = 7
-tests/CaeManager.E2ETests/RecorridoFichas360.cs :: WaitForTimeoutAsync = 2
+tests/CaeManager.E2ETests/RecorridoFichas360.cs :: WaitForTimeoutAsync = 1
 tests/CaeManager.E2ETests/Rendimiento/MedidorConsultasSql.cs :: Task.Delay = 1
 tests/CaeManager.E2ETests/SubidaMasivaTests.cs :: WaitForTimeoutAsync = 1
 tests/CaeManager.E2ETests/VisitaCentroGestionadoPorCorreoE2ETests.cs :: WaitForTimeoutAsync = 5
