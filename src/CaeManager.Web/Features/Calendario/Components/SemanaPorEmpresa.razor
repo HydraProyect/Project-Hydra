@@ -23,11 +23,12 @@ else
             @foreach (var empresa in Empresas)
             {
                 var bloqueantes = Bloqueantes(empresa);
+                var reclamables = Reclamables(empresa);
                 <div class="semana-fila" role="row" @key="empresa.EmpresaId">
                     <span class="semana-empresa" role="rowheader">
-                        <a href="@($"/empresas/{empresa.EmpresaId}")">@empresa.EmpresaNombre</a>
+                        <a href="@RutaFicha(empresa)">@empresa.EmpresaNombre</a>
                         <span class="semana-subtitulo">
-                            @Textos["DocumentosSemana", empresa.Documentos.Count]@if (bloqueantes > 0){<text> · @Textos[bloqueantes == 1 ? "BloqueaAccesoUno" : "BloqueaAccesoVarios", bloqueantes]</text>}@if (empresa.ReclamadoHoy){<text> · @Textos["ReclamadoHoy"]</text>}
+                            @Textos[empresa.Documentos.Count == 1 ? "DocumentosSemanaUno" : "DocumentosSemana", empresa.Documentos.Count]@if (bloqueantes > 0){<text> · @Textos[bloqueantes == 1 ? "BloqueaAccesoUno" : "BloqueaAccesoVarios", bloqueantes]</text>}@if (empresa.ReclamadoHoy){<text> · @Textos["ReclamadoHoy"]</text>}
                         </span>
                     </span>
                     @foreach (var celda in Celdas(empresa))
@@ -35,7 +36,7 @@ else
                         <span role="cell">
                             @if (celda.Documentos.Count > 0)
                             {
-                                <button type="button" class="semana-celda @(celda.Fecha <= Hoy ? "semana-vencido" : "semana-proximo")"
+                                <button type="button" class="semana-celda @(EsVencido(celda.Fecha) ? "semana-vencido" : "semana-proximo")"
                                         aria-label="@EtiquetaCelda(empresa, celda)"
                                         @onclick="() => AbrirDia(empresa, celda.Fecha)">@celda.Documentos.Count</button>
                             }
@@ -46,12 +47,16 @@ else
                         </span>
                     }
                     <span class="semana-acciones" role="cell">
-                        <AuthorizeView Roles="@($"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae},{Roles.GestorCae}")">
-                            <button type="button" class="semana-reclamar @(empresa.ReclamadoHoy ? "semana-reclamado" : null)"
-                                    @onclick="() => OnReclamar.InvokeAsync(empresa)">
-                                @(empresa.ReclamadoHoy ? Textos["ReclamarDeNuevo"] : Textos["ReclamarTodos", empresa.Documentos.Count])
-                            </button>
-                        </AuthorizeView>
+                        @* Solo lo que se puede pedir a los contactos de esta Empresa: sin nada reclamable no hay botón. *@
+                        @if (reclamables.Count > 0)
+                        {
+                            <AuthorizeView Roles="@($"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae},{Roles.GestorCae}")">
+                                <button type="button" class="semana-reclamar @(empresa.ReclamadoHoy ? "semana-reclamado" : null)"
+                                        @onclick="() => OnReclamar.InvokeAsync(empresa with { Documentos = reclamables })">
+                                    @(empresa.ReclamadoHoy ? Textos["ReclamarDeNuevo"] : Textos["ReclamarTodos", reclamables.Count])
+                                </button>
+                            </AuthorizeView>
+                        }
                     </span>
                 </div>
             }

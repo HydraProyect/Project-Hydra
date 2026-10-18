@@ -11,7 +11,7 @@
 <div class="detalle-dia">
     <Modal Visible="@(Fecha is not null)" VisibleChanged="AlCambiarVisible"
            Sobretitulo="@Antetitulo" Titulo="@TituloFecha" Subtitulo="@Resumen"
-           Pie="@(MostrarReclamar ? PieReclamar : null)">
+           Pie="@(MostrarPie ? PieReclamar : null)">
         @if (Fecha is not null)
         {
             @if (Vencimientos.Count > 0)
@@ -29,7 +29,7 @@
                                 <Badge Tono="fila.Tono">@fila.Estado</Badge>
                                 <span class="detalle-dia-acciones">
                                     <a class="detalle-dia-renovar" href="@($"/documentos?documentoId={fila.DocumentoId}")">@Textos["Renovar"]</a>
-                                    @if (MostrarReclamar)
+                                    @if (PuedeReclamar && fila.Reclamable)
                                     {
                                         <button type="button" class="detalle-dia-reclamar" @onclick="() => Reclamar(new[] { fila.DocumentoId })">@Textos["Reclamar"]</button>
                                     }
@@ -75,8 +75,8 @@
     private RenderFragment PieReclamar => __builder =>
     {
         <span class="detalle-dia-pie-texto">@Textos["AccionesSinSalir"]</span>
-        <Boton Variante="VarianteBoton.Primario" OnClick="() => Reclamar(Vencimientos.Select(v => v.DocumentoId).ToArray())">
-            @(Vencimientos.Count == 1 ? Textos["ReclamarElDocumento"] : Textos["ReclamarLosN", Vencimientos.Count])
+        <Boton Variante="VarianteBoton.Primario" OnClick="() => Reclamar(ReclamablesIds)">
+            @(ReclamablesIds.Count == 1 ? Textos["ReclamarElDocumento"] : Textos["ReclamarLosN", ReclamablesIds.Count])
         </Boton>
     };
 }

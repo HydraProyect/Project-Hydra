@@ -23,7 +23,19 @@ public partial class SemanaPorEmpresa
     private IEnumerable<CeldaSemana> Celdas(SemanaEmpresaDto empresa) =>
         DiasSemana.Select(dia => new CeldaSemana(dia, DocumentosDelDia(empresa, dia)));
     private string EtiquetaCelda(SemanaEmpresaDto empresa, CeldaSemana celda) =>
-        Textos["DocumentosVencen", celda.Documentos.Count, empresa.EmpresaNombre, celda.Fecha.ToString("d", Cultura)];
+        Textos[celda.Documentos.Count == 1 ? "DocumentosVencenUno" : "DocumentosVencen", celda.Documentos.Count, empresa.EmpresaNombre, celda.Fecha.ToString("d", Cultura)];
+
+    // Solo lo que «Reclamar» puede pedir a los contactos de ESTA Empresa (ver DocumentoSemanaDto.Reclamable).
+    private static IReadOnlyList<DocumentoSemanaDto> Reclamables(SemanaEmpresaDto empresa) =>
+        empresa.Documentos.Where(d => d.Reclamable).ToArray();
+
+    // Una Empresa que solo emplea Trabajadores de subcontrata tiene su ficha en Subcontrata 360.
+    private static string RutaFicha(SemanaEmpresaDto empresa) =>
+        empresa.EsSubcontrata ? $"/subcontratas/{empresa.EmpresaId}" : $"/empresas/{empresa.EmpresaId}";
+
+    // Un solo criterio para el color de la celda y el estado de la fila del detalle: rojo si ya venció (antes de hoy),
+    // ámbar si vence hoy o después, como en la maqueta («Vence hoy» es ámbar).
+    private bool EsVencido(DateOnly fecha) => fecha < Hoy;
     private sealed record CeldaSemana(DateOnly Fecha, IReadOnlyList<DocumentoSemanaDto> Documentos);
     private SemanaEmpresaDto? _empresa;
     private DateOnly? _dia;
@@ -32,17 +44,17 @@ public partial class SemanaPorEmpresa
 
     private IReadOnlyList<FilaDetalleDia> FilasDelDia => _empresa is { } empresa && _dia is { } dia
         ? DocumentosDelDia(empresa, dia).Select(d => new FilaDetalleDia(
-            d.DocumentoId, d.SujetoNombre, d.TipoDocumentoNombre, TextoEstado(d.Fecha), TonoEstado(d.Fecha))).ToArray()
+            d.DocumentoId, d.SujetoNombre, d.TipoDocumentoNombre, TextoEstado(d.Fecha), TonoEstado(d.Fecha), d.Reclamable)).ToArray()
         : [];
 
-    // El estado de la celda sale de la fecha frente a hoy, igual que su color (rojo hasta hoy, ámbar después); no hay un
-    // segundo semáforo: la Semana por Empresa no calcula umbrales.
+    // El estado de la fila sale de la fecha frente a hoy, igual que el color de la celda (EsVencido); no hay un segundo
+    // semáforo: la Semana por Empresa no calcula umbrales.
     private string TextoEstado(DateOnly fecha) =>
-        fecha < Hoy ? Textos["EstadoVencido"]
+        EsVencido(fecha) ? Textos["EstadoVencido"]
         : fecha == Hoy ? Textos["EstadoVenceHoy"]
         : Textos["EstadoVenceEl", fecha.ToString(Textos["FormatoDiaMes"], Cultura)];
 
-    private TonoBadge TonoEstado(DateOnly fecha) => fecha < Hoy ? TonoBadge.Peligro : TonoBadge.Advertencia;
+    private TonoBadge TonoEstado(DateOnly fecha) => EsVencido(fecha) ? TonoBadge.Peligro : TonoBadge.Advertencia;
 
     /// <summary>Sin manejador en quien aloja la vista no hay Reclamar en el detalle del día.</summary>
     private EventCallback<IReadOnlyList<Guid>> ReclamarDelDiaCallback =>
@@ -52,8 +64,10 @@ public partial class SemanaPorEmpresa
     private async Task ReclamarDelDiaAsync(IReadOnlyList<Guid> documentoIds)
     {
         if (_empresa is not { } empresa) return;
-        var acotada = empresa with { Documentos = [.. empresa.Documentos.Where(d => documentoIds.Contains(d.DocumentoId))] };
+        // Solo lo reclamable: nunca se pasa al cajón un documento que no se puede pedir a esta Empresa.
+        var acotada = empresa with { Documentos = [.. empresa.Documentos.Where(d => d.Reclamable && documentoIds.Contains(d.DocumentoId))] };
         _dia = null;
+        if (acotada.Documentos.Count == 0) return;
         await OnReclamar.InvokeAsync(acotada);
     }
 }

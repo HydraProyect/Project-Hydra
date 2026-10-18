@@ -8,7 +8,8 @@ using Microsoft.AspNetCore.Components.Authorization;
 namespace CaeManager.Web.Features.Calendario.Components;
 
 /// <summary>Un vencimiento del día tal como lo pinta «Detalle del día»: Estado y Tono ya resueltos por quien lo abre.</summary>
-public sealed record FilaDetalleDia(Guid DocumentoId, string Sujeto, string Documento, string Estado, TonoBadge Tono);
+/// <param name="Reclamable">Solo las filas reclamables llevan «Reclamar» y cuentan en «Reclamar los N».</param>
+public sealed record FilaDetalleDia(Guid DocumentoId, string Sujeto, string Documento, string Estado, TonoBadge Tono, bool Reclamable);
 
 public partial class DetalleDia
 {
@@ -34,7 +35,9 @@ public partial class DetalleDia
     private static CultureInfo Cultura => CultureInfo.CurrentCulture;
     private bool _puedeReclamar;
 
-    private bool MostrarReclamar => OnReclamar.HasDelegate && _puedeReclamar && Vencimientos.Count > 0;
+    private bool PuedeReclamar => OnReclamar.HasDelegate && _puedeReclamar;
+    private IReadOnlyList<Guid> ReclamablesIds => [.. Vencimientos.Where(v => v.Reclamable).Select(v => v.DocumentoId)];
+    private bool MostrarPie => PuedeReclamar && ReclamablesIds.Count > 0;
 
     protected override async Task OnParametersSetAsync()
     {

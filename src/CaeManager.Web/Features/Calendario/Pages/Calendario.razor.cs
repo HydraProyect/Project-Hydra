@@ -184,7 +184,7 @@ public partial class Calendario : CaeManager.Web.Components.PaginaInteractiva
     private IReadOnlyList<FilaDetalleDia> FilasDelDiaSeleccionado => _diaSeleccionado is { } dia
         ? VencimientosDelDia(dia).Select(v => new FilaDetalleDia(
             v.DocumentoId, v.TrabajadorNombre, v.TipoDocumentoNombre,
-            EstadoDocumentoUi.Texto(v.Estado), EstadoDocumentoUi.Tono(v.Estado))).ToArray()
+            EstadoDocumentoUi.Texto(v.Estado), EstadoDocumentoUi.Tono(v.Estado), false)).ToArray()
         : [];
 
     private IReadOnlyList<VisitaCalendarioDto> VisitasDelDiaSeleccionado => _diaSeleccionado is { } dia ? VisitasDelDia(dia) : [];

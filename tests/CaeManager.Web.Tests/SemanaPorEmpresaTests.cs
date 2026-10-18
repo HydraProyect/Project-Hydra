@@ -21,9 +21,9 @@ public class SemanaPorEmpresaTests : BunitContext
     private static readonly DateOnly Lunes = new(2026, 10, 19);
     private readonly Mediador _mediador = new();
     private readonly SemanaEmpresaDto _empresa = new(Guid.NewGuid(), "Montajes Ebro",
-        [new(Guid.NewGuid(), Lunes, true, "Aptitud médica", "Ana Gil"),
-         new(Guid.NewGuid(), Lunes, false, "Formación PRL", "Ana Gil"),
-         new(Guid.NewGuid(), Lunes.AddDays(4), false, "Seguro RC", "Montajes Ebro")], false);
+        [new(Guid.NewGuid(), Lunes, true, "Aptitud médica", "Ana Gil", DeTrabajador: true, Reclamable: false),
+         new(Guid.NewGuid(), Lunes, false, "Formación PRL", "Montajes Ebro", DeTrabajador: false, Reclamable: true),
+         new(Guid.NewGuid(), Lunes.AddDays(4), false, "Seguro RC", "Montajes Ebro", DeTrabajador: false, Reclamable: true)], false);
 
     public SemanaPorEmpresaTests()
     {
@@ -44,11 +44,12 @@ public class SemanaPorEmpresaTests : BunitContext
         var cut = Semana();
         cut.FindAll("[role=columnheader]").Should().HaveCount(7);
         cut.FindAll("button.semana-celda").Select(e => e.TextContent).Should().Equal("2", "1");
-        cut.Find(".semana-vencido").TextContent.Should().Be("2");
-        cut.Find(".semana-proximo").TextContent.Should().Be("1");
+        // Hoy es el lunes: vence hoy, así que es ámbar (como la pastilla «Vence hoy»); rojo solo lo anterior a hoy.
+        cut.FindAll(".semana-vencido").Should().BeEmpty();
+        cut.FindAll(".semana-proximo").Select(e => e.TextContent).Should().Equal("2", "1");
         cut.Find(".semana-subtitulo").TextContent.Should().Contain("3 documentos esta semana").And.Contain("1 bloquea acceso");
         cut.Find(".semana-empresa a").GetAttribute("href").Should().Be($"/empresas/{_empresa.EmpresaId}");
-        cut.Find(".semana-reclamar").TextContent.Should().Contain("Reclamar todos (3)");
+        cut.Find(".semana-reclamar").TextContent.Should().Contain("Reclamar todos (2)", "cuenta solo lo reclamable a los contactos de la Empresa: el documento del Trabajador no");
     }
 
     [Fact]
@@ -83,8 +84,9 @@ public class SemanaPorEmpresaTests : BunitContext
         filas[0].QuerySelector(".detalle-dia-secundaria")!.TextContent.Should().Be("Aptitud médica");
         filas[0].QuerySelector(".badge")!.TextContent.Should().Be("Vence hoy");
         filas[0].QuerySelector(".detalle-dia-renovar")!.TextContent.Should().Be("Renovar");
-        filas[0].QuerySelector(".detalle-dia-reclamar")!.TextContent.Should().Be("Reclamar");
-        dialogo.QuerySelector(".modal-pie")!.TextContent.Should().Contain("Las acciones se ejecutan sin salir del calendario.").And.Contain("Reclamar los 2");
+        filas[0].QuerySelector(".detalle-dia-reclamar").Should().BeNull("el documento de un Trabajador no se reclama a la Empresa");
+        filas[1].QuerySelector(".detalle-dia-reclamar")!.TextContent.Should().Be("Reclamar");
+        dialogo.QuerySelector(".modal-pie")!.TextContent.Should().Contain("Las acciones se ejecutan sin salir del calendario.").And.Contain("Reclamar el documento");
     }
 
     [Fact]
@@ -92,6 +94,7 @@ public class SemanaPorEmpresaTests : BunitContext
     {
         var cut = Render<SemanaPorEmpresa>(p => p.Add(c => c.Lunes, Lunes).Add(c => c.Hoy, Lunes.AddDays(1))
             .Add(c => c.Empresas, [_empresa]));
+        cut.Find(".semana-vencido").TextContent.Should().Be("2", "el lunes ya es pasado: rojo, igual que la pastilla");
         cut.Find("button.semana-celda").Click();
         cut.Find(".detalle-dia-fila .badge").TextContent.Should().Be("Vencido");
 
@@ -107,7 +110,7 @@ public class SemanaPorEmpresaTests : BunitContext
             .Add(c => c.Empresas, [_empresa])
             .Add(c => c.OnReclamar, (SemanaEmpresaDto e) => recibido.Add(e)));
         cut.Find("button.semana-celda").Click();
-        cut.FindAll(".detalle-dia-reclamar")[1].Click();
+        cut.Find(".detalle-dia-reclamar").Click();
 
         recibido.Should().ContainSingle().Which.Should().BeEquivalentTo(
             _empresa with { Documentos = [_empresa.Documentos[1]] });
@@ -115,16 +118,18 @@ public class SemanaPorEmpresaTests : BunitContext
     }
 
     [Fact]
-    public void El_pie_Reclamar_los_N_pide_todos_los_documentos_del_dia()
+    public void El_pie_Reclamar_los_N_pide_todos_los_reclamables_del_dia_y_no_los_de_trabajador()
     {
         var recibido = new List<SemanaEmpresaDto>();
+        var empresa = _empresa with { Documentos = [.. _empresa.Documentos, new(Guid.NewGuid(), Lunes, false, "TC2", "Montajes Ebro", false, true)] };
         var cut = Render<SemanaPorEmpresa>(p => p.Add(c => c.Lunes, Lunes).Add(c => c.Hoy, Lunes)
-            .Add(c => c.Empresas, [_empresa])
+            .Add(c => c.Empresas, [empresa])
             .Add(c => c.OnReclamar, (SemanaEmpresaDto e) => recibido.Add(e)));
         cut.Find("button.semana-celda").Click();
+        cut.Find(".modal-pie").TextContent.Should().Contain("Reclamar los 2");
         cut.Find(".modal-pie button").Click();
 
-        recibido.Single().Documentos.Select(d => d.DocumentoId).Should().Equal(_empresa.Documentos.Take(2).Select(d => d.DocumentoId));
+        recibido.Single().Documentos.Select(d => d.DocumentoId).Should().Equal(empresa.Documentos[1].DocumentoId, empresa.Documentos[3].DocumentoId);
     }
 
     [Fact]
@@ -272,6 +277,7 @@ public class SemanaPorEmpresaTests : BunitContext
             : throw new NotSupportedException();
         var cut = Render<DrawerReclamacionLote>(p => p.Add(c => c.Visible, true)
             .Add(c => c.AmbitosDisponibles, [AmbitoAplicacion.Empresa, AmbitoAplicacion.Trabajador])
+            .Add(c => c.TitularIdInicial, _empresa.EmpresaId)
             .Add(c => c.DocumentoIdsIniciales, _empresa.Documentos.Select(d => d.DocumentoId).ToArray()));
 
         cut.FindAll(".tabla-lote-reclamacion tbody tr").Should().HaveCount(2);
@@ -288,14 +294,15 @@ public class SemanaPorEmpresaTests : BunitContext
     /// Hallazgo de revisión visual: desde la fila «Construcciones Gargamel 08 S.A.» el cajón abría la tarjeta «LexCorp Iberia S.A.»
     /// con un contacto de otra compañía. Causa: la revisión pedía los lotes de cada ámbito sin acotar y solo intersectaba los
     /// Documentos, y el lote de ámbito Trabajador tiene por titular al Cliente del Centro (LexCorp) con los contactos de ese
-    /// Cliente. Una reclamación sale a los contactos de la Empresa de la fila, no a los de otro titular.
+    /// Cliente. Una reclamación sale a los contactos de la Empresa de la fila, no a los de otro titular. La fila, además, solo
+    /// ofrece (y cuenta) lo reclamable a esa Empresa: el documento del Trabajador no.
     /// </summary>
     [Fact]
     public void Reclamar_desde_la_fila_solo_ofrece_la_Empresa_de_la_fila_y_nunca_el_Cliente_del_Centro()
     {
         var gargamel = new SemanaEmpresaDto(Guid.NewGuid(), "Construcciones Gargamel 08 S.A.",
-            [new(Guid.NewGuid(), Lunes, false, "Seguro RC", "Construcciones Gargamel 08 S.A."),
-             new(Guid.NewGuid(), Lunes, false, "Aptitud médica", "Ana Gil")], false);
+            [new(Guid.NewGuid(), Lunes, false, "Seguro RC", "Construcciones Gargamel 08 S.A.", DeTrabajador: false, Reclamable: true),
+             new(Guid.NewGuid(), Lunes, false, "Aptitud médica", "Ana Gil", DeTrabajador: true, Reclamable: false)], false);
         var lexcorp = Guid.NewGuid();
         var contactoGargamel = new DestinatarioAgendaDto(Guid.NewGuid(), "Gerencia Gargamel", "gerencia@gargamel.example", ["RLC/TC1"]);
         var contactoLexcorp = new DestinatarioAgendaDto(Guid.NewGuid(), "Compras LexCorp", "compras@lexcorp.example", ["Contacto predeterminado"]);
@@ -313,26 +320,70 @@ public class SemanaPorEmpresaTests : BunitContext
             ObtenerLoteReclamacionPorFiltroQuery => new[]
             {
                 new LoteReclamacionAgrupadoDto(lexcorp, "LexCorp Iberia S.A.", AmbitoAplicacion.Trabajador, null,
-                    [new(gargamel.Documentos[1].DocumentoId, Guid.NewGuid(), "Ana Gil", Guid.NewGuid(), "Aptitud médica", Lunes, EstadoDocumento.Proximo)],
+                    [new(gargamel.Documentos[0].DocumentoId, Guid.NewGuid(), "Ana Gil", Guid.NewGuid(), "Aptitud médica", Lunes, EstadoDocumento.Proximo),
+                     new(gargamel.Documentos[1].DocumentoId, Guid.NewGuid(), "Ana Gil", Guid.NewGuid(), "Aptitud médica", Lunes, EstadoDocumento.Proximo)],
                     null, [contactoLexcorp])
             },
             _ => throw new NotSupportedException()
         };
         var cut = Render<Calendario>(p => p.Add(c => c.Hoy, Lunes));
         cut.FindAll("[role=tab]")[1].Click();
+        cut.Find(".semana-reclamar").TextContent.Should().Contain("Reclamar todos (1)");
         cut.Find(".semana-reclamar").Click();
 
         cut.WaitForAssertion(() => cut.FindAll(".tarjeta-reclamacion").Should().ContainSingle());
         cut.Markup.Should().Contain("Construcciones Gargamel 08 S.A.").And.Contain("gerencia@gargamel.example");
         cut.Markup.Should().NotContain("LexCorp Iberia S.A.").And.NotContain("compras@lexcorp.example");
-        cut.Find("[role=note]").TextContent.Should().Contain("Quedan fuera 1 de 2 documentos");
         // La Empresa se pide acotada a sí misma: el cajón no carga las demás Empresas del Tenant para filtrar después.
         _mediador.Recibidas.OfType<ObtenerLoteReclamacionPorFiltroQuery>()
             .Single(q => q.Filtro.Ambito == AmbitoAplicacion.Empresa).Filtro.EntidadId.Should().Be(gargamel.EmpresaId);
     }
 
     [Fact]
-    public void Si_ningun_lote_es_de_la_Empresa_de_la_fila_no_se_ofrece_ningun_destinatario_ajeno()
+    public void Una_fila_sin_nada_reclamable_no_ofrece_Reclamar()
+    {
+        var soloTrabajador = _empresa with { Documentos = [_empresa.Documentos[0]] };
+        var cut = Semana(soloTrabajador);
+        cut.FindAll("button.semana-celda").Should().ContainSingle();
+        cut.FindAll(".semana-reclamar").Should().BeEmpty();
+        cut.Find(".semana-subtitulo").TextContent.Should().Contain("1 documento esta semana");
+    }
+
+    [Fact]
+    public void Un_solo_documento_se_dice_en_singular_en_la_fila_y_en_la_celda()
+    {
+        var cut = Semana(_empresa with { Documentos = [_empresa.Documentos[2]] });
+        cut.Find(".semana-subtitulo").TextContent.Should().Contain("1 documento esta semana").And.NotContain("documentos esta semana");
+        cut.Find("button.semana-celda").GetAttribute("aria-label").Should().StartWith("1 documento vence ");
+    }
+
+    /// <summary>El cajón dice POR QUÉ deja fuera cada documento, y el callejón sin salida no manda a «probar otro ámbito».</summary>
+    [Fact]
+    public void El_cajon_distingue_los_de_trabajadores_de_los_fuera_de_ventana()
+    {
+        var empresa = Guid.NewGuid();
+        var propio = Guid.NewGuid();
+        var deTrabajador = Guid.NewGuid();
+        var fueraDeVentana = Guid.NewGuid();
+        _mediador.Responder = r => r is ObtenerLoteReclamacionPorFiltroQuery { Filtro.Ambito: AmbitoAplicacion.Empresa }
+            ? new[] { new LoteReclamacionAgrupadoDto(empresa, "Montajes Ebro", AmbitoAplicacion.Empresa, null,
+                [new(propio, null, null, Guid.NewGuid(), "Seguro RC", Lunes, EstadoDocumento.Proximo)], null, []) }
+            : new[] { new LoteReclamacionAgrupadoDto(Guid.NewGuid(), "LexCorp Iberia S.A.", AmbitoAplicacion.Trabajador, null,
+                [new(deTrabajador, Guid.NewGuid(), "Ana", Guid.NewGuid(), "Aptitud médica", Lunes, EstadoDocumento.Proximo)], null, []) };
+        var cut = Render<DrawerReclamacionLote>(p => p.Add(c => c.Visible, true)
+            .Add(c => c.AmbitosDisponibles, [AmbitoAplicacion.Empresa, AmbitoAplicacion.Trabajador])
+            .Add(c => c.TitularIdInicial, empresa)
+            .Add(c => c.DocumentoIdsIniciales, new[] { propio, deTrabajador, fueraDeVentana }));
+
+        cut.FindAll(".tarjeta-reclamacion").Should().ContainSingle();
+        var notas = cut.FindAll("[role=note]").Select(n => n.TextContent).ToArray();
+        notas.Should().Contain("1 de 3 documentos son de Trabajadores y se reclaman al Cliente del Centro, no a esta Empresa.");
+        notas.Should().Contain("1 de 3 documentos están fuera de la ventana de reclamación o ya no son reclamables.");
+        cut.Markup.Should().NotContain("LexCorp");
+    }
+
+    [Fact]
+    public void Si_ningun_lote_es_de_la_Empresa_de_la_fila_no_se_ofrece_ningun_destinatario_ajeno_ni_se_manda_a_probar_otro_ambito()
     {
         var empresa = Guid.NewGuid();
         var otro = Guid.NewGuid();
@@ -348,9 +399,19 @@ public class SemanaPorEmpresaTests : BunitContext
 
         cut.FindAll(".tarjeta-reclamacion").Should().BeEmpty();
         cut.Markup.Should().NotContain("compras@lexcorp.example").And.NotContain("LexCorp");
-        cut.Find("[role=note]").TextContent.Should().Contain("Quedan fuera 1 de 1 documentos");
+        cut.Find("[role=note]").TextContent.Should().Contain("1 de 1 documentos son de Trabajadores");
+        cut.Markup.Should().Contain("Nada que reclamar a esta Empresa").And.NotContain("Prueba con otro tipo de documento o ámbito");
     }
 
+    [Fact]
+    public void Abrir_el_cajon_con_documentos_exige_titular()
+    {
+        var abrir = () => Render<DrawerReclamacionLote>(p => p.Add(c => c.Visible, true)
+            .Add(c => c.AmbitosDisponibles, [AmbitoAplicacion.Empresa])
+            .Add(c => c.DocumentoIdsIniciales, new[] { Guid.NewGuid() }));
+
+        abrir.Should().Throw<Exception>().Where(e => e.ToString().Contains("TitularIdInicial"));
+    }
     private LoteReclamacionAgrupadoDto Lote(AmbitoAplicacion ambito, Guid documento, Guid ajeno) =>
         new(_empresa.EmpresaId, _empresa.EmpresaNombre, ambito, null,
             [new(documento, null, "Ana", Guid.NewGuid(), "Documento de la semana", Lunes, EstadoDocumento.Proximo),

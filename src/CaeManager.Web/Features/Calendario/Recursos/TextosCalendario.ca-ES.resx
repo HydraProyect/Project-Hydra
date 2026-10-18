@@ -157,7 +157,9 @@
   <data name="BloqueaAccesoUno" xml:space="preserve"><value>{0} bloqueja accés</value></data>
   <data name="BloqueaAccesoVarios" xml:space="preserve"><value>{0} bloquegen accés</value></data>
   <data name="DocumentosSemana" xml:space="preserve"><value>{0} documents aquesta setmana</value></data>
+  <data name="DocumentosSemanaUno" xml:space="preserve"><value>{0} document aquesta setmana</value></data>
   <data name="DocumentosVencen" xml:space="preserve"><value>{0} documents vencen · {1} · {2}</value></data>
+  <data name="DocumentosVencenUno" xml:space="preserve"><value>{0} document venç · {1} · {2}</value></data>
   <data name="EmpresaSemana" xml:space="preserve"><value>Empresa · setmana del {0} al {1}</value></data>
   <data name="Mes" xml:space="preserve"><value>Mes</value></data>
   <data name="NadaVence" xml:space="preserve"><value>No venç res</value></data>
