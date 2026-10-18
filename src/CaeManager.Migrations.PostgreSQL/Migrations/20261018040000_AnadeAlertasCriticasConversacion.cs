@@ -6,8 +6,6 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace CaeManager.Migrations.PostgreSQL.Migrations;
 
-[DbContext(typeof(CaeManagerDbContext))]
-[Migration("20261018040000_AnadeAlertasCriticasConversacion")]
 public partial class AnadeAlertasCriticasConversacion : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
@@ -34,6 +32,12 @@ public partial class AnadeAlertasCriticasConversacion : Migration
             constraints: table => table.PrimaryKey("PK_AlertasCriticasConversacion", a => a.Id));
         migrationBuilder.CreateIndex("IX_AlertasCriticasConversacion_TenantId_ConversacionId", "AlertasCriticasConversacion",
             new[] { "TenantId", "ConversacionId" }, unique: true);
+        migrationBuilder.CreateIndex("IX_AlertasCriticasConversacion_ConversacionId", "AlertasCriticasConversacion", "ConversacionId");
+        migrationBuilder.CreateIndex("IX_AlertasCriticasConversacion_MensajeId", "AlertasCriticasConversacion", "MensajeId");
+        migrationBuilder.AddForeignKey("FK_AlertasCriticasConversacion_Conversaciones_ConversacionId", "AlertasCriticasConversacion",
+            "ConversacionId", "Conversaciones", principalColumn: "Id", onDelete: ReferentialAction.Cascade);
+        migrationBuilder.AddForeignKey("FK_AlertasCriticasConversacion_Mensajes_MensajeId", "AlertasCriticasConversacion",
+            "MensajeId", "Mensajes", principalColumn: "Id", onDelete: ReferentialAction.Cascade);
         migrationBuilder.Sql("""
             ALTER TABLE "AlertasCriticasConversacion"
                 ADD CONSTRAINT "FK_AlertasCriticas_Conversaciones_Tenant" FOREIGN KEY ("ConversacionId", "TenantId")

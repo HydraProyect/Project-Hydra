@@ -66,6 +66,7 @@ src/CaeManager.Application/Comunicaciones/Deteccion/ClasificacionRuidoMensajeSer
 src/CaeManager.Application/Comunicaciones/Deteccion/ClasificacionRuidoMensajeService.cs :: clienteId = 7
 src/CaeManager.Application/Comunicaciones/Deteccion/ISugerenciaVisitaCorreoService.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Deteccion/IntencionConversacionService.cs :: ClienteId = 1
+src/CaeManager.Application/Comunicaciones/AlertasCriticas/AlertasCriticasRequests.cs :: ClienteId = 2
 src/CaeManager.Application/Comunicaciones/Deteccion/ISugerenciaVisitaCorreoService.cs :: clienteId = 3
 src/CaeManager.Application/Comunicaciones/Deteccion/SugerenciaGestionCorreoService.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Deteccion/SugerenciaGestionCorreoService.cs :: clienteId = 3

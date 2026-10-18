@@ -153,7 +153,7 @@ public class AlertasCriticasConversacionTests : IAsyncLifetime
         var acceso = new AccesoAlertaCritica(new CurrentUserServiceFalso(_persona, rol, tenantId), new Sesion(), tenant,
             db, alcance ?? new AlcanceDatosServiceFalso(), directorio);
         var avisos = new AlertaCriticaService(repositorio, new NotificacionUsuarioRepository(db), directorio, tenant,
-            new Opciones(), new Opinion(), NullLogger<AlertaCriticaService>.Instance);
+            new Opciones(), new Opinion(), new InstruccionHabilitada(), NullLogger<AlertaCriticaService>.Instance);
         return new(repositorio, acceso, avisos, db);
     }
 
@@ -178,6 +178,11 @@ public class AlertasCriticasConversacionTests : IAsyncLifetime
         public Task<bool> EsCuentaActivaConRolAsync(Guid id, Guid tenant, string rol, CancellationToken ct = default) => Task.FromResult(true);
         public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(Guid tenant, string rol, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Guid>>([]);
     }
+    private sealed class InstruccionHabilitada : CaeManager.Application.Cumplimiento.IInstruccionTratamientoIaService
+    {
+        public Task<bool> EstaHabilitadaAsync(Guid tenantId, CancellationToken cancellationToken = default) => Task.FromResult(true);
+    }
+
     private sealed class Opinion : ISegundaOpinionCriticaIa
     {
         public Task<SegundaOpinionCritica?> EvaluarAsync(string texto, CancellationToken ct) => Task.FromResult<SegundaOpinionCritica?>(null);

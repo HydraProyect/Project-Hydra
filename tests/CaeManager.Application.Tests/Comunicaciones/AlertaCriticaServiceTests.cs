@@ -21,8 +21,47 @@ public class AlertaCriticaServiceTests
     private readonly Opciones _opciones = new();
     private readonly Opinion _opinion = new();
 
+    private bool _nivel0 = true;
+
     private AlertaCriticaService Crear() => new(_repositorio, _avisos, new Directorio(_direccion, _coordinador),
-        new Tenant(_tenant), _opciones, _opinion, NullLogger<AlertaCriticaService>.Instance);
+        new Tenant(_tenant), _opciones, _opinion, new Instruccion(_nivel0), NullLogger<AlertaCriticaService>.Instance);
+
+    [Fact]
+    public async Task Sin_Nivel_0_la_alerta_determinista_sale_pero_el_texto_no_va_a_la_IA()
+    {
+        _nivel0 = false;
+        var mensaje = new Mensaje(Guid.NewGuid(), DireccionMensaje.Entrante, CanalConversacion.Correo, "empresa@example.test", "Inspección de Trabajo", DateTime.UtcNow);
+        await Crear().ProcesarAsync(mensaje, default);
+        _opinion.Llamadas.Should().Be(0);
+        _repositorio.Alertas.Should().ContainSingle().Which.ConfianzaIa.Should().BeNull();
+        _avisos.Notificaciones.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Un_entrante_automatico_no_alerta()
+    {
+        var conversacion = new Conversacion("Fuera de la oficina");
+        await Crear().ProcesarAsync(conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo,
+            "empresa@example.test", "Podrá dar lugar a acciones legales", DateTime.UtcNow, esAutomatico: true), default);
+        _repositorio.Alertas.Should().BeEmpty();
+        _avisos.Notificaciones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_fallo_del_repositorio_no_rompe_la_ingesta_pero_la_cancelacion_si_se_propaga()
+    {
+        _repositorio.Lanza = true;
+        var mensaje = new Mensaje(Guid.NewGuid(), DireccionMensaje.Entrante, CanalConversacion.Correo, "empresa@example.test", "Inspección de Trabajo", DateTime.UtcNow);
+        await Crear().Invoking(s => s.ProcesarAsync(mensaje, default)).Should().NotThrowAsync();
+        using var cancelado = new CancellationTokenSource();
+        await cancelado.CancelAsync();
+        await Crear().Invoking(s => s.ProcesarAsync(mensaje, cancelado.Token)).Should().ThrowAsync<Exception>();
+    }
+
+    private sealed class Instruccion(bool habilitada) : CaeManager.Application.Cumplimiento.IInstruccionTratamientoIaService
+    {
+        public Task<bool> EstaHabilitadaAsync(Guid tenantId, CancellationToken cancellationToken = default) => Task.FromResult(habilitada);
+    }
 
     [Fact]
     public async Task En_triaje_hay_una_sola_alerta_y_solo_avisa_a_los_dos_perfiles_de_direccion()
@@ -99,8 +138,10 @@ public class AlertaCriticaServiceTests
     private sealed class Repositorio : IAlertaCriticaRepository
     {
         public List<AlertaCriticaConversacion> Alertas { get; } = [];
+        public bool Lanza { get; set; }
         public void Agregar(AlertaCriticaConversacion alerta) => Alertas.Add(alerta);
-        public Task<AlertaCriticaConversacion?> ObtenerPorConversacionAsync(Guid id, CancellationToken ct) => Task.FromResult(Alertas.FirstOrDefault(a => a.ConversacionId == id));
+        public Task<AlertaCriticaConversacion?> ObtenerPorConversacionAsync(Guid id, CancellationToken ct) =>
+            Lanza ? throw new InvalidOperationException("Base de datos caída") : Task.FromResult(Alertas.FirstOrDefault(a => a.ConversacionId == id));
     }
     private sealed class Tenant(Guid id) : ITenantActual { public Guid? TenantId => id; }
     private sealed class Opinion : ISegundaOpinionCriticaIa

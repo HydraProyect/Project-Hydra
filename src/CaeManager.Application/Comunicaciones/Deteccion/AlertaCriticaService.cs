@@ -39,20 +39,34 @@ public class AlertaCriticaService(
     ITenantActual tenantActual,
     IOptionsMonitor<AlertasCriticasOptions> opciones,
     ISegundaOpinionCriticaIa segundaOpinion,
+    CaeManager.Application.Cumplimiento.IInstruccionTratamientoIaService instruccionTratamientoIa,
     ILogger<AlertaCriticaService> logger) : IAlertaCriticaService
 {
+    // Nunca rompe la ingesta: un fallo del detector, del directorio o del repositorio se registra y el mensaje entra igual.
     public async Task ProcesarAsync(Mensaje mensaje, CancellationToken cancellationToken)
     {
-        if (mensaje.Direccion != DireccionMensaje.Entrante || tenantActual.TenantId is not { } tenantId) return;
+        try { await ProcesarSinAislarAsync(mensaje, cancellationToken); }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning(ex, "La detección de alerta crítica del mensaje {MensajeId} falló; la ingesta sigue.", mensaje.Id);
+        }
+    }
+
+    private async Task ProcesarSinAislarAsync(Mensaje mensaje, CancellationToken cancellationToken)
+    {
+        // Un autorrespondedor o un aviso de plataforma no es un caso crítico aunque cite expresiones legales.
+        if (mensaje.Direccion != DireccionMensaje.Entrante || mensaje.EsAutomatico || tenantActual.TenantId is not { } tenantId) return;
         var reglas = opciones.CurrentValue.ExpresionesPorOperadorCae.GetValueOrDefault(tenantId);
         var coincidencia = DetectorExpresionesCriticas.Detectar(mensaje, reglas);
         if (coincidencia is null || await repositorio.ObtenerPorConversacionAsync(mensaje.ConversacionId, cancellationToken) is not null) return;
 
         var alerta = new AlertaCriticaConversacion(mensaje, coincidencia.Texto, coincidencia.Expresion, tenantId, DateTime.UtcNow);
-        // La indisponibilidad de la segunda opinión nunca impide la alerta determinista.
+        // La indisponibilidad de la segunda opinión nunca impide la alerta determinista. Sin Nivel 0
+        // el texto no sale al proveedor de IA.
         try
         {
-            if (await segundaOpinion.EvaluarAsync(coincidencia.Texto, cancellationToken) is { Confianza: >= 0 and <= 100 } opinion)
+            if (await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken)
+                && await segundaOpinion.EvaluarAsync(coincidencia.Texto, cancellationToken) is { Confianza: >= 0 and <= 100 } opinion)
                 alerta.AnotarSegundaOpinion(opinion.EsCritica, opinion.Confianza);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
