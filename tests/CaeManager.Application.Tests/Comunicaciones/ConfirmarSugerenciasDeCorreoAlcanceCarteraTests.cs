@@ -34,11 +34,14 @@ public class ConfirmarSugerenciasDeCorreoAlcanceCarteraTests
 
     private readonly Guid _clienteDeMiCartera = Guid.NewGuid();
     private readonly Guid _clienteDeOtraCartera = Guid.NewGuid();
+    private readonly Guid _conexionDeOtroGestor = Guid.NewGuid();
     private readonly ComunicacionesQueryContextFalso _comunicaciones = new();
 
-    private Mensaje SembrarMensajeEnConversacionDe(Guid clienteId)
+    private Mensaje SembrarMensajeEnConversacionDe(Guid clienteId, Guid? conexionIntegracionId = null)
     {
         var conversacion = new Conversacion("Pide visita el lunes", clienteId: clienteId);
+        if (conexionIntegracionId is { } conexion)
+            conversacion.AsociarConexion(conexion, "hilo-1");
         var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "obra@contraparte.es", "<p>El lunes.</p>");
         _comunicaciones.ListaConversaciones.Add(conversacion);
         _comunicaciones.ListaMensajes.Add(mensaje);
@@ -104,6 +107,7 @@ public class ConfirmarSugerenciasDeCorreoAlcanceCarteraTests
         resultado.EsExitoso.Should().BeTrue("la Visita sobre un Centro de la cartera sigue naciendo, como con un Id que no existe");
         e.Sugerencia.Resuelta.Should().BeFalse();
         e.Visitas.Visitas.Single().ConversacionOrigenId.Should().BeNull();
+        e.Visitas.Visitas.Single().Origen.Should().Be(OrigenVisita.Manual, "una sugerencia fuera de alcance no cuenta la Visita como «desde correo»");
         e.Paquetes.Conversaciones.Should().BeEmpty("no se envía el paquete documental a un hilo de otra cartera");
     }
 
@@ -118,6 +122,7 @@ public class ConfirmarSugerenciasDeCorreoAlcanceCarteraTests
         e.Sugerencia.Resolucion.Should().Be(ResolucionSugerencia.Confirmada);
         var conversacionId = _comunicaciones.ListaConversaciones.Single().Id;
         e.Visitas.Visitas.Single().ConversacionOrigenId.Should().Be(conversacionId);
+        e.Visitas.Visitas.Single().Origen.Should().Be(OrigenVisita.Correo);
         e.Paquetes.Conversaciones.Should().Equal(conversacionId);
     }
 
@@ -136,7 +141,7 @@ public class ConfirmarSugerenciasDeCorreoAlcanceCarteraTests
     // ---- CrearGestionesParaTrabajadorCommand (DetalleSugerenciaGestionCorreoId y MensajeOrigenId)
 
     private (CrearGestionesParaTrabajadorCommandHandler Handler, GestionRepositorioFalso Gestiones, CrearGestionesParaTrabajadorCommand Comando, DetalleSugerenciaGestionCorreo Detalle)
-        PrepararGestiones(Guid clienteDeLaConversacion, IAlcanceDatosService? alcance = null)
+        PrepararGestiones(Guid clienteDeLaConversacion, IAlcanceDatosService? alcance = null, Guid? conexionIntegracionId = null)
     {
         var trabajadorId = Guid.NewGuid();
         var centroId = Guid.NewGuid();
@@ -146,7 +151,7 @@ public class ConfirmarSugerenciasDeCorreoAlcanceCarteraTests
         var tipos = new TipoDocumentoRepositorioFalso();
         tipos.Tipos.Add(tipo);
 
-        var mensaje = SembrarMensajeEnConversacionDe(clienteDeLaConversacion);
+        var mensaje = SembrarMensajeEnConversacionDe(clienteDeLaConversacion, conexionIntegracionId);
         var sugerencia = new SugerenciaGestionCorreo(mensaje.Id, "Os mando el TC2", 90);
         var detalle = sugerencia.AgregarDetalle(trabajadorId, tipo.Id, 90, 90);
         _comunicaciones.ListaSugerenciasGestionCorreo.Add(sugerencia);
@@ -158,7 +163,8 @@ public class ConfirmarSugerenciasDeCorreoAlcanceCarteraTests
         var handler = new CrearGestionesParaTrabajadorCommandHandler(
             asignaciones, tipos, gestiones, detalles, _comunicaciones,
             alcance ?? new AlcanceDatosServiceFalso(
-                tieneAccesoTotal: false, clienteIdsVisibles: [_clienteDeMiCartera], trabajadorIdsVisibles: [trabajadorId], centroIdsVisibles: [centroId]),
+                tieneAccesoTotal: false, clienteIdsVisibles: [_clienteDeMiCartera], trabajadorIdsVisibles: [trabajadorId], centroIdsVisibles: [centroId],
+                conexionesIntegracionAjenas: [_conexionDeOtroGestor]),
             new CurrentUserServiceFalso(Guid.NewGuid()), new UnitOfWorkFalso());
 
         return (handler, gestiones, new CrearGestionesParaTrabajadorCommand(trabajadorId, tipo.Id, detalle.Id, mensaje.Id), detalle);
@@ -186,6 +192,56 @@ public class ConfirmarSugerenciasDeCorreoAlcanceCarteraTests
         resultado.EsExitoso.Should().BeTrue();
         detalle.Resolucion.Should().Be(ResolucionSugerencia.Confirmada);
         gestiones.Gestiones.Should().ContainSingle().Which.MensajeOrigenId.Should().Be(comando.MensajeOrigenId);
+    }
+
+    [Fact]
+    public async Task CrearGestiones_con_un_item_de_su_cartera_y_un_mensaje_de_otra_resuelve_el_item_pero_no_enlaza_el_mensaje()
+    {
+        var (handler, gestiones, comando, detalle) = PrepararGestiones(_clienteDeMiCartera);
+        var mensajeDeOtraCartera = SembrarMensajeEnConversacionDe(_clienteDeOtraCartera);
+
+        var resultado = await handler.Handle(comando with { MensajeOrigenId = mensajeDeOtraCartera.Id }, CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        detalle.Resolucion.Should().Be(ResolucionSugerencia.Confirmada, "el ítem y el mensaje se comprueban cada uno por su cuenta");
+        gestiones.Gestiones.Should().ContainSingle().Which.MensajeOrigenId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CrearGestiones_con_un_item_de_otra_cartera_y_un_mensaje_de_la_suya_enlaza_el_mensaje_pero_no_resuelve_el_item()
+    {
+        var (handler, gestiones, comando, detalle) = PrepararGestiones(_clienteDeOtraCartera);
+        var mensajeDeMiCartera = SembrarMensajeEnConversacionDe(_clienteDeMiCartera);
+
+        var resultado = await handler.Handle(comando with { MensajeOrigenId = mensajeDeMiCartera.Id }, CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        detalle.Resuelta.Should().BeFalse();
+        gestiones.Gestiones.Should().ContainSingle().Which.MensajeOrigenId.Should().Be(mensajeDeMiCartera.Id);
+    }
+
+    [Fact]
+    public async Task CrearGestiones_con_un_mensaje_que_no_existe_no_lo_enlaza()
+    {
+        var (handler, gestiones, comando, detalle) = PrepararGestiones(_clienteDeMiCartera);
+
+        var resultado = await handler.Handle(comando with { MensajeOrigenId = Guid.NewGuid() }, CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        detalle.Resolucion.Should().Be(ResolucionSugerencia.Confirmada);
+        gestiones.Gestiones.Should().ContainSingle().Which.MensajeOrigenId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CrearGestiones_con_un_item_del_buzon_personal_de_otro_Gestor_no_lo_resuelve_ni_enlaza_su_mensaje()
+    {
+        var (handler, gestiones, comando, detalle) = PrepararGestiones(_clienteDeMiCartera, conexionIntegracionId: _conexionDeOtroGestor);
+
+        var resultado = await handler.Handle(comando, CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        detalle.Resuelta.Should().BeFalse("el buzón personal de otro Gestor CAE no es visible aunque el Cliente empresarial esté en la cartera");
+        gestiones.Gestiones.Should().ContainSingle().Which.MensajeOrigenId.Should().BeNull();
     }
 
     [Fact]

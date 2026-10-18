@@ -113,7 +113,7 @@ public class CrearVisitaCommandHandler(
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
-        var origen = Visita.OrigenAlCrear(request.SugerenciaVisitaCorreoId is not null, canalDelMensaje);
+        var origen = Visita.OrigenAlCrear(sugerencia is not null, canalDelMensaje);
         var visita = new Visita(request.CentroId, request.FechaInicio, request.FechaFin, request.Notas, origen, request.HoraEstimadaAcceso);
         visita.RellenarContactoDesdeCentro(centro.Contacto);
         repositorio.Agregar(visita);

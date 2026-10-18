@@ -108,6 +108,21 @@ public class AlcanceDeCarteraEnEscriturasDePlantillaTests
     }
 
     [Theory]
+    [InlineData(Escritura.GuardarElementos)]
+    [InlineData(Escritura.Confirmar)]
+    public async Task La_cartera_se_comprueba_antes_que_el_estado_de_la_version_para_no_delatar_una_version_ya_confirmada(Escritura escritura)
+    {
+        var (plantilla, version) = Sembrar(Guid.NewGuid(), clienteId: null);
+        version.Confirmar(Guid.NewGuid(), DateTime.UtcNow);
+
+        var resultado = await EjecutarAsync(escritura, GestorConCarteraExplicita(), plantilla, version);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Plantilla.VersionNoEncontrada", "«ya confirmada» confirmaría que la versión existe");
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Theory]
     [InlineData(Escritura.AgregarVersion)]
     [InlineData(Escritura.GuardarElementos)]
     [InlineData(Escritura.Confirmar)]
