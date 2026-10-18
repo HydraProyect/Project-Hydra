@@ -183,6 +183,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         if (_clienteCargado == ClienteId)
         {
             await CargarCentrosSubcontratasSiProcedeAsync();
+            await CargarToleranciasSiProcedeAsync();
             return;
         }
 
@@ -725,7 +726,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// </summary>
     private CentroListaDto? PeorCentroConGestionCae =>
         _centros is not null && !_errorCentros && !_cargandoCentros && _centros.Count == _totalCentros
-            ? CentrosConGestionCae.MaxBy(c => (int)c.Estado)
+            ? CentrosConGestionCae.MaxBy(c => CalculadoraEstadoCentro.Gravedad(c.Estado))
             : null;
 
     // ── Tolerancia por defecto (pestaña Ficha) ───────────────────────────

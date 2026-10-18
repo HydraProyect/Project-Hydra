@@ -236,8 +236,8 @@ public class Cliente360PaginaTests : BunitContext
 
         var cabecera = cut.Find("[data-pieza=cabecera-identidad]");
         cabecera.QuerySelector("h1")!.TextContent.Trim().Should().Be("Refrielectric S.A.");
-        cabecera.QuerySelector(".cabecera-identidad-kicker").Should().BeNull(
-            "Cliente 360 TALVEG del 17-10: sin «Cliente» sobre el nombre (en pantalla el Cliente empresarial se rotula «Cliente»)");
+        cabecera.QuerySelector(".cabecera-identidad-kicker")!.TextContent.Trim().Should().Be("Cliente",
+            "Cliente 360 TALVEG del 17-10 lleva «Cliente» sobre el nombre (en pantalla el Cliente empresarial se rotula «Cliente»)");
         cabecera.QuerySelector(".cabecera-identidad-datos")!.TextContent.Should()
             .Contain("CIF A-48.220.917").And.Contain("3 centros · 42 trabajadores");
         cabecera.QuerySelector(".cabecera-identidad-datos button")
@@ -917,6 +917,56 @@ public class Cliente360PaginaTests : BunitContext
         var peor = cut.Find(".cabecera-identidad-datos [data-peor-estado]");
         peor.TextContent.Trim().Should().Be(Features.Centros.EstadoCentroUi.Texto(EstadoCentro.Vencido, null));
         peor.ClassList.Should().Contain("badge-peligro");
+    }
+
+    // El peor estado sale de la gravedad (CalculadoraEstadoCentro.Gravedad), no del valor numérico del enum, congelado por la API v1:
+    // por número Pendiente (7) ganaría a Bloqueado (5) y Faltante (4) a Vencido (3), al revés que en la lista ordenada por gravedad.
+    [Theory]
+    [InlineData(EstadoCentro.Bloqueado, EstadoCentro.Pendiente, EstadoCentro.Bloqueado)]
+    [InlineData(EstadoCentro.Pendiente, EstadoCentro.Bloqueado, EstadoCentro.Bloqueado)]
+    [InlineData(EstadoCentro.Vencido, EstadoCentro.Faltante, EstadoCentro.Vencido)]
+    [InlineData(EstadoCentro.Faltante, EstadoCentro.Vencido, EstadoCentro.Vencido)]
+    public void El_peor_estado_de_la_cabecera_se_decide_por_gravedad_y_no_por_el_numero_del_enum(
+        EstadoCentro primero, EstadoCentro segundo, EstadoCentro esperado)
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.AddRange([Centro("Primero", primero), Centro("Segundo", segundo)]);
+        mediador.TotalCentros = 2;
+        Registrar(mediador);
+
+        var cut = Renderizar(id);
+
+        cut.Find(".cabecera-identidad-datos [data-peor-estado]").TextContent.Trim()
+            .Should().Be(Features.Centros.EstadoCentroUi.Texto(esperado, null));
+    }
+
+    [Fact]
+    public void El_Usuario_de_Cliente_ve_la_Ficha_con_el_resumen_y_sin_Editar()
+    {
+        var (id, mediador) = ClienteBase();
+        Registrar(mediador, Roles.Cliente);
+
+        var cut = Renderizar(id, "?pestana=ficha");
+
+        var tarjeta = cut.Find(".cliente360-ficha");
+        tarjeta.QuerySelector(".tarjeta-titulo")!.TextContent.Should().Be("Tolerancia de documentos");
+        cut.WaitForAssertion(() => cut.Find("[data-tolerancia-resumen]").TextContent.Should().Be("Ningún tipo con tolerancia"));
+        tarjeta.QuerySelectorAll("button").Should().BeEmpty("sin escritura no hay «Editar →»");
+    }
+
+    [Fact]
+    public void Cambiar_a_Ficha_por_la_URL_en_el_mismo_Cliente_lee_el_resumen_de_tolerancias()
+    {
+        var (id, mediador) = ClienteBase();
+        Registrar(mediador);
+        var cut = Renderizar(id);
+        mediador.Enviadas.OfType<ObtenerToleranciasClienteEmpresarialQuery>().Should().BeEmpty("solo la Ficha las necesita");
+
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"clientes/{id}?pestana=ficha");
+        cut.Render(p => p.Add(x => x.ClienteId, id));
+
+        cut.WaitForAssertion(() => cut.Find("[data-tolerancia-resumen]").TextContent.Should().Be("Ningún tipo con tolerancia"));
+        mediador.Enviadas.OfType<ObtenerToleranciasClienteEmpresarialQuery>().Should().ContainSingle();
     }
 
     [Fact]

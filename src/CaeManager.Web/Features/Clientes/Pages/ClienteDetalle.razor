@@ -52,8 +52,9 @@
             con todos los Centros cargados y la lectura de bloqueos completada.
             Excluye los Centros sin gestión CAE y cuenta los que no tienen incidencias.
         *@
-        @* Maqueta 17-10: sin «Cliente» sobre el nombre; la línea de datos termina en la pastilla con el peor estado de sus Centros con gestión CAE. *@
-        <CabeceraIdentidad Titulo="@_detalle.RazonSocial" Anillo="@(MostrarAnillo ? AnilloDeCentros : null)">
+        @* Maqueta 17-10: «Cliente» sobre el nombre (Cliente 360 TALVEG.dc.html:315); la línea de datos termina en la pastilla con el peor
+           estado de sus Centros con gestión CAE, por gravedad (CalculadoraEstadoCentro.Gravedad), no por el valor numérico del enum. *@
+        <CabeceraIdentidad Titulo="@_detalle.RazonSocial" Kicker="@Textos["Kicker"]" Anillo="@(MostrarAnillo ? AnilloDeCentros : null)">
             <JuntoAlTitulo>
                 @if (_detalle.EsCritico)
                 {
