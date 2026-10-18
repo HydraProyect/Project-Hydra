@@ -53,7 +53,7 @@ public class BuscarGlobalSinDniTests : IAsyncLifetime
 
         await using var contexto = CrearContexto();
         var handler = new BuscarGlobalQueryHandler(contexto, contexto, contexto, contexto, contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso(empresaIds: [], clienteIds: [], subcontrataIds: []));
+            new AlcanceDatosServiceFalso(empresaIds: [], clienteIds: [], subcontrataIds: []), new MediadorSinEstadoDocumental());
         var fuera = await handler.Handle(new BuscarGlobalQuery("B12345674"), CancellationToken.None);
         fuera.Empresas.Should().BeEmpty();
     }
@@ -73,10 +73,12 @@ public class BuscarGlobalSinDniTests : IAsyncLifetime
     public async Task El_documento_completo_no_encuentra_fuera_de_cartera()
     {
         await using var contexto = CrearContexto();
+        var mediador = new MediadorSinEstadoDocumental();
         var handler = new BuscarGlobalQueryHandler(contexto, contexto, contexto, contexto, contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso(trabajadorIds: []));
+            new AlcanceDatosServiceFalso(trabajadorIds: []), mediador);
         var resultado = await handler.Handle(new BuscarGlobalQuery(DniDeEmpresa), CancellationToken.None);
         resultado.Trabajadores.Should().BeEmpty();
+        mediador.Enviados.Should().BeEmpty("fuera de cartera no se calcula el estado del Trabajador");
     }
     [Theory]
     [InlineData("5678")]
@@ -123,7 +125,7 @@ public class BuscarGlobalSinDniTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new BuscarGlobalQueryHandler(
-            contexto, contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso());
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(), new MediadorSinEstadoDocumental());
 
         return await handler.Handle(new BuscarGlobalQuery(termino), CancellationToken.None);
     }
