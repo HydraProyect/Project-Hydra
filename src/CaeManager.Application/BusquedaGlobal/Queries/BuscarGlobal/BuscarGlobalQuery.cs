@@ -5,6 +5,8 @@ using CaeManager.Application.Empresas;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
+using CaeManager.Domain.Documentos;
 using CaeManager.Application.Vehiculos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +23,22 @@ namespace CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal;
 /// </summary>
 public record BuscarGlobalQuery(string Termino) : IRequest<ResultadoBusquedaGlobalDto>;
 
-public record ItemBusquedaDto(Guid Id, string Titulo, string? Subtitulo, string UrlDestino);
+public record ItemBusquedaDto(Guid Id, string Titulo, string? Subtitulo, string UrlDestino)
+{
+    /// <summary>
+    /// Estado documental del Trabajador, solo en una búsqueda por DNI/NIE completo (el subtítulo «Coincide con el
+    /// documento buscado · {empresa} · {estado}» de la maqueta). Null en cualquier otra fila.
+    /// </summary>
+    public EstadoTrabajadorBuscadoDto? EstadoTrabajador { get; init; }
+}
+
+/// <summary>
+/// El estado del Trabajador tal y como lo pinta el listado de Trabajadores: el peor estado de sus documentos
+/// registrados (<see cref="Documentos.ICalculoEstadoDocumentalService"/>), cuántos de ellos están vencidos y si le
+/// falta algún documento que le exige un Centro con Asignación activa (<c>IDocumentosFaltantesService</c>). Sale de
+/// <see cref="ObtenerTrabajadoresQuery"/> con su desglose: la misma regla, no una copia.
+/// </summary>
+public record EstadoTrabajadorBuscadoDto(EstadoDocumento? PeorEstado, int DocumentosVencidos, bool HayFaltantes);
 
 /// <param name="Empresas">
 /// Una fila por Empresa, sin importar cuántos papeles contextuales tenga
@@ -40,6 +57,12 @@ public record ResultadoBusquedaGlobalDto(
     IReadOnlyList<ItemBusquedaDto> Trabajadores,
     IReadOnlyList<ItemBusquedaDto> Documentos)
 {
+    /// <summary>La categoría tiene más coincidencias de las que caben en el palette («Ver más →» de la maqueta).</summary>
+    public bool HayMasEmpresas { get; init; }
+    public bool HayMasCentros { get; init; }
+    public bool HayMasTrabajadores { get; init; }
+    public bool HayMasDocumentos { get; init; }
+
     public bool TieneResultados =>
         Empresas.Count > 0 || Centros.Count > 0 || Trabajadores.Count > 0 || Documentos.Count > 0;
 }
@@ -49,7 +72,7 @@ public class BuscarGlobalQueryHandler(
     ITrabajadoresQueryContext trabajadoresContext,
     IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext,
     IVehiculosQueryContext vehiculosContext, IProyectosQueryContext proyectosContext,
-    IAlcanceDatosService alcanceDatos) : IRequestHandler<BuscarGlobalQuery, ResultadoBusquedaGlobalDto>
+    IAlcanceDatosService alcanceDatos, ISender sender) : IRequestHandler<BuscarGlobalQuery, ResultadoBusquedaGlobalDto>
 {
     private const int LimitePorCategoria = 5;
 
@@ -78,7 +101,7 @@ public class BuscarGlobalQueryHandler(
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
 
-        var empresas = documentoPersona ? [] : await BuscarEmpresasAsync(
+        var (empresas, hayMasEmpresas) = documentoPersona ? ([], false) : await BuscarEmpresasAsync(
             terminoMayus, clienteIdsVisibles, empresaIdsVisibles, subcontrataIdsVisibles, cancellationToken);
 
         // Centro y Trabajador SÍ tienen ficha propia (Centro 360, Trabajador
@@ -88,7 +111,7 @@ public class BuscarGlobalQueryHandler(
             .Where(c => centroIdsVisibles == null || centroIdsVisibles.Contains(c.Id))
             .Where(c => documento == null && c.Nombre.ToUpper().Contains(terminoMayus))
             .OrderBy(c => c.Nombre)
-            .Take(LimitePorCategoria)
+            .Take(LimitePorCategoria + 1)
             .Select(c => new ItemBusquedaDto(c.Id, c.Nombre, "Centro", $"/centros/{c.Id}"))
             .ToListAsync(cancellationToken);
 
@@ -110,12 +133,51 @@ public class BuscarGlobalQueryHandler(
                     trabajador.Nombre + " " + trabajador.Apellidos,
                     empresa != null ? empresa.RazonSocial : subcontrata != null ? subcontrata.RazonSocial : null,
                     $"/trabajadores/{trabajador.Id}"))
-            .Take(LimitePorCategoria)
+            .Take(LimitePorCategoria + 1)
             .ToListAsync(cancellationToken);
 
         var documentos = documento is null ? await BuscarDocumentosAsync(terminoMayus, cancellationToken) : [];
 
-        return new ResultadoBusquedaGlobalDto(empresas, centros, trabajadores, documentos);
+        // Cada categoría pide una fila de más solo para saber si hay «Ver más»; esa fila nunca se devuelve.
+        IReadOnlyList<ItemBusquedaDto> trabajadoresDevueltos = [.. trabajadores.Take(LimitePorCategoria)];
+        if (documentoPersona)
+            trabajadoresDevueltos = await ConEstadoDocumentalAsync(trabajadoresDevueltos, cancellationToken);
+
+        return new ResultadoBusquedaGlobalDto(
+            empresas, [.. centros.Take(LimitePorCategoria)], trabajadoresDevueltos, [.. documentos.Take(LimitePorCategoria)])
+        {
+            HayMasEmpresas = hayMasEmpresas,
+            HayMasCentros = centros.Count > LimitePorCategoria,
+            HayMasTrabajadores = trabajadores.Count > LimitePorCategoria,
+            HayMasDocumentos = documentos.Count > LimitePorCategoria,
+        };
+    }
+
+    /// <summary>
+    /// Estado documental de los Trabajadores que ya devolvió una búsqueda por DNI/NIE (como mucho
+    /// <see cref="LimitePorCategoria"/>; en la práctica, uno). Lo calcula <see cref="ObtenerTrabajadoresQuery"/> por
+    /// Id con su desglose, que vuelve a aplicar el alcance de cartera: un Trabajador fuera de la cartera no llega aquí,
+    /// y si saliera de ella entre las dos consultas se queda sin estado en vez de revelarlo.
+    /// </summary>
+    private async Task<IReadOnlyList<ItemBusquedaDto>> ConEstadoDocumentalAsync(
+        IReadOnlyList<ItemBusquedaDto> trabajadores, CancellationToken cancellationToken)
+    {
+        var conEstado = new List<ItemBusquedaDto>(trabajadores.Count);
+        foreach (var trabajador in trabajadores)
+        {
+            var pagina = await sender.Send(new ObtenerTrabajadoresQuery(
+                Busqueda: null, TamanoPagina: 1, ConDesgloseDocumental: true, TrabajadorId: trabajador.Id), cancellationToken);
+            var fila = pagina.Elementos.FirstOrDefault(t => t.Id == trabajador.Id);
+            conEstado.Add(fila is null ? trabajador : trabajador with
+            {
+                EstadoTrabajador = new EstadoTrabajadorBuscadoDto(
+                    fila.EstadoDocumental,
+                    fila.Incidencias.Count(i => i.Estado == EstadoDocumento.Vencido),
+                    fila.DocumentosFaltantes.Count > 0)
+            });
+        }
+
+        return conEstado;
     }
 
     /// <summary>
@@ -156,7 +218,7 @@ public class BuscarGlobalQueryHandler(
     /// </summary>
     private const int MargenPorOrigen = LimitePorCategoria * 10;
 
-    private async Task<IReadOnlyList<ItemBusquedaDto>> BuscarEmpresasAsync(
+    private async Task<(IReadOnlyList<ItemBusquedaDto> Empresas, bool HayMas)> BuscarEmpresasAsync(
         string terminoMayus,
         IReadOnlyList<Guid>? clienteIdsVisibles, IReadOnlyList<Guid>? empresaIdsVisibles, IReadOnlyList<Guid>? subcontrataIdsVisibles,
         CancellationToken cancellationToken)
@@ -219,7 +281,7 @@ public class BuscarGlobalQueryHandler(
         Registrar(comoSubcontratas.Select(s => (s.Id, s.RazonSocial)), "Subcontrata", rs => $"/subcontratas?q={Uri.EscapeDataString(rs)}");
         Registrar(comoEmpresas.Select(e => (e.Id, e.RazonSocial)), null, rs => $"/empresas?q={Uri.EscapeDataString(rs)}");
 
-        return papelesPorEmpresa
+        var empresas = papelesPorEmpresa
             .OrderBy(kv => kv.Value.RazonSocial, StringComparer.Ordinal)
             .Take(LimitePorCategoria)
             .Select(kv => new ItemBusquedaDto(
@@ -227,6 +289,7 @@ public class BuscarGlobalQueryHandler(
                 kv.Value.Papeles.Count > 0 ? string.Join(",", kv.Value.Papeles) : null,
                 kv.Value.UrlDestino))
             .ToList();
+        return (empresas, papelesPorEmpresa.Count > LimitePorCategoria);
     }
 
     /// <summary>
@@ -294,7 +357,7 @@ public class BuscarGlobalQueryHandler(
 
         var filas = await union
             .OrderBy(x => x.TipoNombre)
-            .Take(LimitePorCategoria)
+            .Take(LimitePorCategoria + 1)
             .ToListAsync(cancellationToken);
 
         // Sin ficha propia: abre el listado de Documentos filtrado por el

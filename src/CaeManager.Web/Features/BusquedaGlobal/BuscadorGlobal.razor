@@ -30,13 +30,13 @@
                        value="@_valorMostrado"
                        @oninput="ManejarEntradaAsync"
                        @onkeydown="ManejarTeclaAsync" />
-                <span class="buscador-tecla-escape" aria-hidden="true">esc</span>
+                <button type="button" class="buscador-tecla-escape" aria-label="@Texto("Cerrar")" @onclick="Cerrar">esc</button>
             </div>
 
             <div class="buscador-resultados">
                 @if (DocumentoActual?.Aviso is { } aviso)
                 {
-                    <p class="buscador-mensaje" role="status">@aviso</p>
+                    @BloqueSinResultados(aviso)
                 }
                 else if (ConsultaVacia && grupos.Count == 0)
                 {
@@ -52,7 +52,7 @@
                 }
                 else if (!ConsultaVacia && grupos.Count == 0)
                 {
-                    <p class="buscador-mensaje" role="status">@TextoSinResultados</p>
+                    @BloqueSinResultados(TextoSinResultados)
                 }
                 else
                 {
@@ -99,6 +99,11 @@
                                         }
                                     </a>
                                 }
+                                @if (grupo.UrlVerMas is { } urlVerMas)
+                                {
+                                    <a class="buscador-ver-mas" href="@urlVerMas"
+                                       @onclick="() => NavegarFueraDeLista(urlVerMas)" @onclick:preventDefault="true">@Texto("VerMas")</a>
+                                }
                             </div>
                         }
                     </div>
@@ -108,13 +113,27 @@
             <div class="buscador-pie">
                 <span class="buscador-ambito">@TextoAmbitoPie</span>
                 <span class="buscador-leyenda">
-                    <span><kbd>↑</kbd><kbd>↓</kbd> navegar</span>
+                    <span><kbd>↑↓</kbd> navegar</span>
                     <span><kbd>Tab</kbd> grupo</span>
                     <span><kbd>↵</kbd> abrir</span>
-                    <span><kbd>Esc</kbd> cerrar</span>
+                    <span><kbd>esc</kbd> cerrar</span>
                 </span>
             </div>
         </div>
     </div>
 }
 </LimiteDeErrores>
+
+@code {
+    /// <summary>
+    /// Bloque «Sin resultados» de la maqueta: icono, el motivo en seminegrita y el atajo a Documentos por
+    /// identificador. Lo usan el aviso de documento (letra que no cuadra, ninguna coincidencia) y la búsqueda vacía.
+    /// </summary>
+    private RenderFragment BloqueSinResultados(string texto) =>
+        @<div class="buscador-vacio">
+            <span class="buscador-vacio-icono" aria-hidden="true"><Icono Nombre="vacio" Tamano="TamanoIcono.Grande" /></span>
+            <span class="buscador-vacio-texto" role="status">@texto</span>
+            <a class="buscador-vacio-enlace" href="@UrlBuscarEnDocumentos"
+               @onclick="() => NavegarFueraDeLista(UrlBuscarEnDocumentos)" @onclick:preventDefault="true">@Texto("BuscarEnDocumentos")</a>
+        </div>;
+}

@@ -22,7 +22,7 @@
     <value>la empresa activa</value>
   </data>
   <data name="AmbitoPie" xml:space="preserve">
-    <value>Buscando en {0}</value>
+    <value>Buscando en: {0}</value>
   </data>
   <data name="SinResultados" xml:space="preserve">
     <value>Sin resultados para «{0}» en {1}.</value>
@@ -62,5 +62,32 @@
   </data>
   <data name="ReclamarASub" xml:space="preserve">
     <value>Lo que le falta a {0}</value>
+  </data>
+  <data name="BuscarEnDocumentos" xml:space="preserve">
+    <value>Buscar en documentos por identificador →</value>
+  </data>
+  <data name="Cerrar" xml:space="preserve">
+    <value>Cerrar</value>
+  </data>
+  <data name="EstadoAlDia" xml:space="preserve">
+    <value>Al día</value>
+  </data>
+  <data name="EstadoPendiente" xml:space="preserve">
+    <value>Pendiente</value>
+  </data>
+  <data name="EstadoVencidosUno" xml:space="preserve">
+    <value>1 documento vencido</value>
+  </data>
+  <data name="EstadoVencidosVarios" xml:space="preserve">
+    <value>{0} documentos vencidos</value>
+  </data>
+  <data name="VencenEstaSemanaUno" xml:space="preserve">
+    <value>1 documento vence esta semana</value>
+  </data>
+  <data name="VencenEstaSemanaVarios" xml:space="preserve">
+    <value>{0} documentos vencen esta semana</value>
+  </data>
+  <data name="VerMas" xml:space="preserve">
+    <value>Ver más →</value>
   </data>
 </root>

@@ -3,6 +3,8 @@ using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.BusquedaGlobal.Commands.RegistrarUsoReciente;
 using CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal;
+using CaeManager.Application.BusquedaGlobal.Queries.ContarVencenEstaSemana;
+using CaeManager.Domain.Documentos;
 using CaeManager.Application.BusquedaGlobal.Queries.ObtenerRecientes;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Web.Features.BusquedaGlobal;
@@ -135,7 +137,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
         TitulosDeGrupo(cut).Should().Equal("Trabajador", "Acciones");
         Filas(cut).Should().Equal(
             ("Juan Pérez", "Coincide con el documento buscado · Montajes Ebro S.L.", $"/trabajadores/{IdTrabajador}"),
-            ("Subir documento para Juan Pérez", "Abre la subida con el Trabajador fijado", $"/trabajadores/{IdTrabajador}?pestana=documentacion"),
+            ("Subir documento para Juan Pérez", "Abre la subida con el Trabajador fijado", $"/trabajadores/{IdTrabajador}?pestana=documentacion&accion=subir"),
             ("Reclamar a Montajes Ebro S.L.", "Lo que le falta a Juan Pérez", "/comunicaciones"));
         cut.Markup.Should().NotContain("12345678", "el documento buscado nunca se proyecta en la paleta");
     }
@@ -209,6 +211,117 @@ public class BuscadorGlobalGen2Tests : BunitContext
         cut.Find("[role=status]").TextContent.Should().Be("Ningún Trabajador de tu cartera con ese documento");
     }
 
+    [Theory]
+    [InlineData(EstadoDocumento.Vencido, 2, false, "2 documentos vencidos")]
+    [InlineData(EstadoDocumento.Vencido, 1, false, "1 documento vencido")]
+    [InlineData(EstadoDocumento.Vigente, 0, false, "Al día")]
+    [InlineData(EstadoDocumento.SinCaducidad, 0, false, "Al día")]
+    [InlineData(EstadoDocumento.Vigente, 0, true, "Pendiente")]
+    [InlineData(EstadoDocumento.Urgente, 0, false, "Por vencer")]
+    public async Task Un_dni_coincidente_muestra_el_estado_del_trabajador_como_la_maqueta(
+        EstadoDocumento peor, int vencidos, bool faltantes, string esperado)
+    {
+        var conEstado = UnTrabajador with
+        {
+            Trabajadores = [UnTrabajador.Trabajadores[0] with { EstadoTrabajador = new(peor, vencidos, faltantes) }]
+        };
+        var cut = await RenderizarYAbrir(new MediadorControlado { Resultado = conEstado });
+        await Input(cut).EscribirAsync("12345678Z");
+
+        Filas(cut)[0].Subtitulo.Should().Be($"Coincide con el documento buscado · Montajes Ebro S.L. · {esperado}");
+    }
+
+    [Fact]
+    public async Task Sin_escritura_no_se_ofrece_subir_documento_para_el_trabajador()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado { Resultado = UnTrabajador, Recientes = RecientesConSujeto }, conEscritura: false);
+        await Input(cut).EscribirAsync("12345678Z");
+        Filas(cut).Should().NotContain(f => f.Titulo.StartsWith("Subir documento para "));
+        Filas(cut).Should().Contain(f => f.Titulo == "Reclamar a Montajes Ebro S.L.");
+
+        await Input(cut).EscribirAsync("subir");
+        Filas(cut).Should().NotContain(f => f.Titulo.StartsWith("Subir documento para "),
+            "sin escritura el enlace no abriría la subida: no se ofrece");
+    }
+
+    [Fact]
+    public async Task Reclamar_a_la_empresa_lleva_los_documentos_que_vencen_esta_semana()
+    {
+        var mediador = new MediadorControlado { Recientes = RecientesConSujeto, VencenEstaSemana = 6 };
+        var cut = await RenderizarYAbrir(mediador);
+        await Input(cut).EscribirAsync("reclamar");
+
+        cut.WaitForAssertion(() => Filas(cut).Should().Contain(
+            ("Reclamar a Obras y Estructuras del Ebro S.L.", "6 documentos vencen esta semana", "/comunicaciones")));
+        mediador.Enviados.OfType<ContarVencenEstaSemanaDeEmpresaQuery>().Should().ContainSingle()
+            .Which.EmpresaId.Should().Be(Guid.Parse("66666666-6666-6666-6666-666666666666"));
+
+        await Input(cut).EscribirAsync("reclamar a obras");
+        mediador.Enviados.OfType<ContarVencenEstaSemanaDeEmpresaQuery>().Should().ContainSingle(
+            "el recuento es por sujeto y apertura, no por tecla");
+    }
+
+    [Fact]
+    public async Task Sin_recuento_la_accion_de_reclamar_va_sin_subtitulo()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado { Recientes = RecientesConSujeto, VencenEstaSemana = null });
+        await Input(cut).EscribirAsync("reclamar");
+
+        Filas(cut).Should().Contain(("Reclamar a Obras y Estructuras del Ebro S.L.", string.Empty, "/comunicaciones"),
+            "null es «no calculado» (fuera de cartera): no se inventa un 0");
+    }
+
+    [Fact]
+    public async Task Ver_mas_lleva_al_listado_filtrado_del_modulo_que_se_quedo_corto()
+    {
+        var conMas = UnTrabajador with { HayMasTrabajadores = true };
+        var cut = await RenderizarYAbrir(new MediadorControlado { Resultado = conMas });
+        await Input(cut).EscribirAsync("juan");
+
+        var verMas = cut.Find(".buscador-grupo a.buscador-ver-mas");
+        verMas.TextContent.Should().Be("Ver más →");
+        verMas.GetAttribute("href").Should().Be("/trabajadores?q=juan");
+    }
+
+    [Fact]
+    public async Task Sin_categoria_corta_no_hay_ver_mas()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado { Resultado = UnTrabajador });
+        await Input(cut).EscribirAsync("juan");
+        cut.FindAll("a.buscador-ver-mas").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Sin_resultados_ofrece_buscar_en_documentos_por_identificador()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado());
+        await Input(cut).EscribirAsync("12345678Z");
+
+        var vacio = cut.Find(".buscador-vacio");
+        vacio.QuerySelector(".buscador-vacio-texto")!.TextContent.Should().Be("Ningún Trabajador de tu cartera con ese documento");
+        var enlace = vacio.QuerySelector("a.buscador-vacio-enlace")!;
+        enlace.TextContent.Should().Be("Buscar en documentos por identificador →");
+        enlace.GetAttribute("href").Should().Be("/documentos?q=12345678Z");
+    }
+
+    [Fact]
+    public async Task El_chip_esc_es_un_boton_cerrar()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado());
+        var esc = cut.Find("button.buscador-tecla-escape");
+        esc.GetAttribute("aria-label").Should().Be("Cerrar");
+        esc.Click();
+        cut.FindAll(".buscador-panel").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task El_pie_dice_buscando_en_con_dos_puntos()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado());
+        cut.Find(".buscador-ambito").TextContent.Should().StartWith("Buscando en: ");
+        cut.FindAll(".buscador-leyenda kbd").Select(k => k.TextContent).Should().Equal("↑↓", "Tab", "↵", "esc");
+    }
+
     private static ItemRecienteDto[] RecientesConSujeto =>
     [
         new("Empresa", Guid.Parse("66666666-6666-6666-6666-666666666666"), "Obras y Estructuras del Ebro S.L.", "Subcontrata", "/subcontratas/66666666-6666-6666-6666-666666666666"),
@@ -228,7 +341,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
         var filas = Filas(cut).Where(f => f.Titulo.StartsWith("Reclamar a ") || f.Titulo.StartsWith("Subir documento para ") || f.Titulo == "Ir a Centro Norte").ToList();
         filas.Should().Equal(
             ("Reclamar a Obras y Estructuras del Ebro S.L.", string.Empty, "/comunicaciones"),
-            ("Subir documento para Juan Pérez", "Obras y Estructuras del Ebro S.L.", $"/trabajadores/{IdTrabajador}?pestana=documentacion"),
+            ("Subir documento para Juan Pérez", "Obras y Estructuras del Ebro S.L.", $"/trabajadores/{IdTrabajador}?pestana=documentacion&accion=subir"),
             ("Ir a Centro Norte", string.Empty, "/centros/33333333-3333-3333-3333-333333333333"));
         Filas(cut).Should().NotContain(f => f.Titulo == "Reclamar…" || f.Titulo == "Subir…",
             "la acción con sujeto sustituye a la genérica");
@@ -336,6 +449,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
         public ResultadoBusquedaGlobalDto Resultado { get; set; } = SinNada;
         public IReadOnlyList<ItemRecienteDto> Recientes { get; set; } = [];
         public IReadOnlyList<ClienteAutorizadoDto> Autorizados { get; set; } = [];
+        public int? VencenEstaSemana { get; set; }
         public Exception? FalloDeBusqueda { get; set; }
 
         public TaskCompletionSource<object> Retener(Func<object, bool> criterio)
@@ -365,6 +479,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
                 ObtenerRecientesQuery => (object)Recientes,
                 ObtenerClientesAutorizadosQuery => Autorizados,
                 BuscarGlobalQuery => Resultado,
+                ContarVencenEstaSemanaDeEmpresaQuery => VencenEstaSemana,
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
             })!;
         }
@@ -394,17 +509,19 @@ public class BuscadorGlobalGen2Tests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    private IRenderedComponent<BuscadorGlobal> Renderizar(MediadorControlado mediador)
+    private IRenderedComponent<BuscadorGlobal> Renderizar(MediadorControlado mediador, bool conEscritura = true)
     {
+        // «Subir documento para…» solo se ofrece con escritura (SoloConEscritura): por defecto, un rol que escribe.
+        if (conEscritura) this.ConRolDeEscritura(); else this.ConRolDeEscritura(CaeManager.Infrastructure.Identity.Roles.Consulta);
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<BusquedaGlobalService>();
         Services.AddScoped<CaeManager.Application.Common.ITenantActual, TenantActualDePaletaFalso>();
         return Render<BuscadorGlobal>();
     }
 
-    private async Task<IRenderedComponent<BuscadorGlobal>> RenderizarYAbrir(MediadorControlado mediador)
+    private async Task<IRenderedComponent<BuscadorGlobal>> RenderizarYAbrir(MediadorControlado mediador, bool conEscritura = true)
     {
-        var cut = Renderizar(mediador);
+        var cut = Renderizar(mediador, conEscritura);
         await cut.InvokeAsync(() => cut.Instance.AbrirDesdeJs());
         return cut;
     }
@@ -1021,7 +1138,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
         var mediador = new MediadorControlado { Resultado = SinNada, Autorizados = [activa] };
         var cut = await RenderizarYAbrir(mediador);
 
-        cut.WaitForAssertion(() => cut.Find(".buscador-ambito").TextContent.Should().Be("Buscando en Empresa D"));
+        cut.WaitForAssertion(() => cut.Find(".buscador-ambito").TextContent.Should().Be("Buscando en: Empresa D"));
 
         await Input(cut).EscribirAsync("zzzqqq");
 
@@ -1038,7 +1155,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
         var mediador = new MediadorControlado { Resultado = SinNada, Autorizados = [origen, cartera] };
         var cut = await RenderizarYAbrir(mediador);
 
-        cut.WaitForAssertion(() => cut.Find(".buscador-ambito").TextContent.Should().Be("Buscando en la empresa activa"));
+        cut.WaitForAssertion(() => cut.Find(".buscador-ambito").TextContent.Should().Be("Buscando en: la empresa activa"));
         cut.Markup.Should().NotContain("Operador CAE");
 
         await Input(cut).EscribirAsync("zzzqqq");
