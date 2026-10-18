@@ -101,7 +101,8 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
 
     /// <summary>La fila de la lista de Trabajadores que nombra a ese Trabajador (por rol, no por texto libre).</summary>
     private static ILocator FilaDeTrabajador(IPage page, string apellidos) =>
-        page.Locator(".tabla-datos").GetByRole(AriaRole.Row, new() { Name = apellidos });
+        page.Locator(".marco-lista-trabajadores").GetByRole(AriaRole.Button,
+            new() { NameRegex = new System.Text.RegularExpressions.Regex("^Abrir la vista rápida de .*" + System.Text.RegularExpressions.Regex.Escape(apellidos)) });
 
     /// <summary>
     /// El buscador de la lista de Trabajadores: solo se pinta con la lista montada, no en el estado

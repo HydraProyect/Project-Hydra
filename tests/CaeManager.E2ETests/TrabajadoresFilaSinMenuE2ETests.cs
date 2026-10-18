@@ -20,9 +20,9 @@ public class TrabajadoresFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
     // La lista sembrada no tiene un trabajador de nombre estable que sirva de ancla: el
     // recorrido vale para cualquier fila, así que se toma la primera, y su celda «Empresa» (la
-    // segunda) como punto de la fila que no es ningún control.
-    private static ILocator PrimeraFila(IPage page) => page.Locator("tbody tr.fila-pulsable").First;
-    private static ILocator CeldaSinControles(ILocator fila) => fila.Locator("td:nth-child(3)");
+    // tercera) como punto de la fila que no es ningún control.
+    private static ILocator PrimeraFila(IPage page) => page.Locator(".marco-lista-trabajadores .fila-pulsable").First;
+    private static ILocator CeldaSinControles(ILocator fila) => fila.Locator(":scope > :nth-child(3)");
 
     private async Task<IPage> AbrirTrabajadoresAsync(IBrowserContext contexto)
     {
@@ -30,15 +30,15 @@ public class TrabajadoresFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await page.SetViewportSizeAsync(1280, 800);
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
-        await Expect(page.Locator("tbody tr.fila-pulsable")).Not.ToHaveCountAsync(0);
+        await Expect(page.Locator(".marco-lista-trabajadores .fila-pulsable")).Not.ToHaveCountAsync(0);
         return page;
     }
 
     /// <summary>La carga observada termina antes de enfocar la cabecera y recorrer los propietarios.</summary>
     private static async Task EnfocarPrimeraFilaConJAsync(IPage page)
     {
-        await Ayudas.EsperarListaListaAsync(page.Locator("table.trabajadores-rejilla-propia"));
-        await Ayudas.EnfocarFilaAsync(page, page.Locator("thead th.col-estado button.col-title"), page.Locator("tbody tr.fila-enfocada"));
+        await Ayudas.EsperarListaListaAsync(page.Locator(".marco-lista-trabajadores .lista-filas-acordeon"));
+        await Ayudas.EnfocarFilaAsync(page, page.Locator(".cabecera-columnas-trabajadores .col-estado button.col-title"), page.Locator(".marco-lista-trabajadores .fila-enfocada"));
     }
 
     [Fact]
@@ -46,7 +46,7 @@ public class TrabajadoresFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await AbrirTrabajadoresAsync(contexto);
-        await Ayudas.EsperarListaListaAsync(page.Locator("table.trabajadores-rejilla-propia"));
+        await Ayudas.EsperarListaListaAsync(page.Locator(".marco-lista-trabajadores .lista-filas-acordeon"));
         var candidatos = await page.GetByRole(AriaRole.Button, new() { NameRegex = new Regex("^Desplegar incidencias de ") }).AllAsync();
         Assert.NotEmpty(candidatos); // La fixture debe ofrecer incidencias; no se convierte su ausencia en éxito.
         foreach (var candidato in candidatos)
@@ -57,14 +57,15 @@ public class TrabajadoresFilaSinMenuE2ETests(WebAppFixtureListados fixture)
             if (await chevron.CountAsync() != 1) continue; // Puede haber dos Trabajadores con el mismo nombre.
             await chevron.ClickAsync();
             await Expect(chevron).ToHaveAttributeAsync("aria-expanded", "true");
-            var detalle = page.Locator(".trabajador-detalle-incidencias");
+            var detalle = page.Locator(".marco-lista-trabajadores .tarjeta-fila-acordeon-contenido");
             await Expect(detalle).ToHaveCountAsync(1);
             await Expect(detalle).Not.ToHaveClassAsync(new Regex(@"\bfila-pulsable\b"));
             var acciones = await detalle.GetByRole(AriaRole.Button).AllAsync();
             Assert.NotEmpty(acciones);
             foreach (var accion in acciones)
             {
-                var nombre = (await accion.InnerTextAsync()).Trim();
+                var nombre = await accion.GetAttributeAsync("aria-label");
+                Assert.NotNull(nombre); // El botón se localiza por su propio nombre accesible («Gestionar {documento} de {trabajador}»), no por el texto «Gestionar».
                 var corregir = detalle.GetByRole(AriaRole.Button, new() { Name = nombre, Exact = true });
                 if (await corregir.CountAsync() != 1) continue;
                 await corregir.ClickAsync();
@@ -87,7 +88,7 @@ public class TrabajadoresFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         var nombre = (await fila.Locator(".nombre-abre-vista-rapida").InnerTextAsync()).Trim();
         var panel = page.Locator(".workspace-panel");
 
-        await Expect(page.Locator("tbody .menu-acciones-disparador")).ToHaveCountAsync(0);
+        await Expect(page.Locator(".marco-lista-trabajadores .menu-acciones-disparador")).ToHaveCountAsync(0);
 
         // El DNI se copia y NO abre el panel: es un control de dentro de la fila.
         var dni = fila.Locator(".boton-copiar-en-linea");
@@ -124,7 +125,7 @@ public class TrabajadoresFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         var panel = page.Locator(".workspace-panel");
 
         await EnfocarPrimeraFilaConJAsync(page);
-        var nombre = (await page.Locator("tbody tr.fila-enfocada .nombre-abre-vista-rapida").InnerTextAsync()).Trim();
+        var nombre = (await page.Locator(".marco-lista-trabajadores .fila-enfocada .nombre-abre-vista-rapida").InnerTextAsync()).Trim();
 
         await page.Keyboard.PressAsync("Enter");
         await Expect(panel.Locator(".workspace-titulo-entidad")).ToHaveTextAsync(nombre);

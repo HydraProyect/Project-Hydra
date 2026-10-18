@@ -36,7 +36,10 @@ public record TrabajadorDetalleDto(
     bool PermisoTrabajoVisible = false,
     TipoContratacion TipoContratacion = TipoContratacion.CuentaAjena,
     string? Notas = null,
-    bool NotaInternaVisible = false);
+    bool NotaInternaVisible = false,
+    string? ContactoEmergenciaNombre = null,
+    string? ContactoEmergenciaTelefono = null,
+    bool ContactoEmergenciaVisible = false);
 
 /// <summary>
 /// Detalle de Trabajador 360.
@@ -57,6 +60,14 @@ public record TrabajadorDetalleDto(
 /// <b>Nota interna.</b> <c>Notas</c> (la «Nota interna» de Trabajador 360) sigue la misma política y el mismo criterio
 /// que la de Empresa 360: solo viaja a quien la lee según <see cref="IPoliticaNotaInterna"/>; los demás reciben
 /// <c>null</c> y <c>NotaInternaVisible</c> en <c>false</c>. La API pública v1 no la publica (<c>TrabajadorApiDetalleDto</c>).
+/// </para>
+///
+/// <para>
+/// <b>Contacto de emergencia (decisión de Chris, 2026-10-18).</b> <c>ContactoEmergenciaNombre</c> y
+/// <c>ContactoEmergenciaTelefono</c> siguen la misma política: solo viajan a quien lee la nota interna; el Usuario de
+/// Cliente recibe <c>null</c> y <c>ContactoEmergenciaVisible</c> en <c>false</c>. Tampoco los publica la API v1 ni
+/// salen en listados o exportaciones. Todo rol con escritura los lee, así que el editor de la ficha nunca reenvía como
+/// vacío un contacto que no pudo ver.
 /// </para>
 /// </summary>
 public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
@@ -94,7 +105,9 @@ public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasCo
                 t.CaducidadPermisoTrabajo,
                 t.MotivoPermisoTrabajo,
                 t.TipoContratacion,
-                t.Notas
+                t.Notas,
+                t.ContactoEmergenciaNombre,
+                t.ContactoEmergenciaTelefono
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -104,9 +117,11 @@ public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasCo
             ? await empresasContext.Empresas.Where(e => e.Id == trabajador.EmpresaId).Select(e => e.RazonSocial).FirstAsync(cancellationToken)
             : await empresasContext.Empresas.Where(e => e.Id == trabajador.SubcontrataId).Select(e => e.RazonSocial).FirstAsync(cancellationToken);
 
-        // Ver el comentario de la clase: sin la política, ni los tres campos del permiso ni la nota interna salen del servidor.
+        // Ver el comentario de la clase: sin la política, ni los tres campos del permiso, ni la nota interna, ni el
+        // contacto de emergencia salen del servidor.
         var conPermisoTrabajo = await politicaNotaInterna.PuedeLeerAsync(cancellationToken);
         var conNotaInterna = conPermisoTrabajo;
+        var conContactoEmergencia = conPermisoTrabajo;
 
         return new TrabajadorDetalleDto(
             trabajador.Id, trabajador.EmpresaId, trabajador.SubcontrataId, empleadorNombre, trabajador.Nombre, trabajador.Apellidos,
@@ -120,6 +135,9 @@ public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasCo
             conPermisoTrabajo,
             trabajador.TipoContratacion,
             conNotaInterna ? trabajador.Notas : null,
-            conNotaInterna);
+            conNotaInterna,
+            conContactoEmergencia ? trabajador.ContactoEmergenciaNombre : null,
+            conContactoEmergencia ? trabajador.ContactoEmergenciaTelefono : null,
+            conContactoEmergencia);
     }
 }

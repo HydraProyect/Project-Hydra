@@ -1,4 +1,4 @@
-using CaeManager.Application.Centros.Queries.ObtenerCentros;
+﻿using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
@@ -327,9 +327,6 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     }
 
     private void GestorCaeCargado() => _gestorCaeEnVuelo?.TrySetResult();
-
-    /// <summary>Los indicadores de la cabecera cuentan centros: al pulsarlos se ven esos centros.</summary>
-    private Task IrACentros() => CambiarPestana(PestanaPorDefecto);
 
     /// <summary>Invalida cualquier carga en vuelo: su respuesta ya no escribirá nada.</summary>
     private void InvalidarCargas()
@@ -665,24 +662,6 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             : $"{Plural(_resumen.TotalCentros, "RecuentoCentrosUno", "RecuentoCentrosVarios")} · " +
               Plural(_resumen.TotalTrabajadores, "RecuentoTrabajadoresUno", "RecuentoTrabajadoresVarios");
 
-    private string ResumenCentros
-    {
-        get
-        {
-            var mostrados = _centros?.Count ?? 0;
-            // El buscador filtra lo cargado: con la lista cortada en MaximoCentros hay que seguir diciéndolo, o «0 de 200»
-            // se leería como «este Cliente no tiene ese Centro».
-            if (HayBusqueda || !string.IsNullOrEmpty(_estado))
-                return _totalCentros > mostrados
-                    ? Textos["ResumenCentrosBuscadosTruncado", CentrosVisibles.Count, mostrados, _totalCentros]
-                    : Textos["ResumenCentrosBuscados", CentrosVisibles.Count, mostrados];
-
-            return _totalCentros > mostrados
-                ? Textos["ResumenCentrosTruncado", mostrados, _totalCentros]
-                : Textos["ResumenCentrosBuscados", CentrosVisibles.Count, mostrados];
-        }
-    }
-
     /// <summary>
     /// El Centro es del Cliente empresarial de esta ficha, que es su titular: la fila nunca rotula una Empresa como si
     /// fuera la dueña. La Empresa del Tenant solo «entra como contratista», y solo se dice cuando el usuario ve más de
@@ -828,76 +807,6 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
                 _ => definicion
             };
         }).ToList();
-
-    /// <summary>Un indicador de la cabecera y el desglose literal de su ventana de contexto.</summary>
-    private sealed record Indicador(
-        string Clave, string Texto, string Titulo, string Etiqueta, IReadOnlyList<string> Lineas,
-        TonoBadge Tono);
-
-    /// <summary>
-    /// Los centros de este cliente, no documentos sumados: un documento de
-    /// Empresa exigido en varios centros no se cuenta varias veces. Un
-    /// indicador en cero no se pinta. «Vencidos» incluye Faltante, como en
-    /// RecuentosCentroDto.
-    /// </summary>
-    private IReadOnlyList<Indicador> Indicadores
-    {
-        get
-        {
-            if (_centros is null) return [];
-
-            var indicadores = new List<Indicador>();
-
-            // Trabajadores bloqueados: un Trabajador bloqueado en dos Centros cuenta una vez, y la ventana lo lista por Centro.
-            var trabajadoresBloqueados = _bloqueos.Select(b => b.TrabajadorId).Distinct().Count();
-            if (trabajadoresBloqueados > 0)
-            {
-                indicadores.Add(Crear("trabajadores-bloqueados",
-                    Plural(trabajadoresBloqueados, "IndicadorTrabajadoresBloqueadosUno", "IndicadorTrabajadoresBloqueadosVarios"),
-                    Plural(trabajadoresBloqueados, "VentanaTrabajadoresBloqueadosUno", "VentanaTrabajadoresBloqueadosVarios"),
-                    _bloqueos.Select(b => $"{b.TrabajadorNombre} · {b.CentroNombre}").Distinct().ToList(),
-                    TonoBadge.Peligro));
-            }
-
-            // El Centro solo está «Bloqueado» por la plataforma del Cliente empresarial (D-7), no por documentos.
-            var bloqueados = _centros.Where(c => c.Estado == EstadoCentro.Bloqueado).ToList();
-            if (bloqueados.Count > 0)
-            {
-                var texto = _totalCentros == 1
-                    ? Textos["IndicadorBloqueadosUnico"]
-                    : Textos["IndicadorBloqueados", bloqueados.Count, _totalCentros];
-                indicadores.Add(Crear("bloqueados", texto,
-                    Plural(bloqueados.Count, "VentanaBloqueadosUno", "VentanaBloqueadosVarios"),
-                    bloqueados.Select(c => EntraComoContratista(c) is { } contratista ? $"{c.Nombre} · {contratista}" : c.Nombre).ToList(),
-                    TonoBadge.Peligro));
-            }
-
-            var conVencidos = _centros.Where(c => c.Recuentos.TotalVencidas > 0).ToList();
-            if (conVencidos.Count > 0)
-            {
-                indicadores.Add(Crear("vencidos",
-                    Plural(conVencidos.Count, "IndicadorVencidosUno", "IndicadorVencidosVarios"),
-                    Plural(conVencidos.Count, "VentanaVencidosUno", "VentanaVencidosVarios"),
-                    conVencidos.Select(c => $"{c.Nombre} · {Plural(c.Recuentos.TotalVencidas, "DetalleVencidosUno", "DetalleVencidosVarios")}").ToList(),
-                    TonoBadge.Peligro));
-            }
-
-            var conProximos = _centros.Where(c => c.Recuentos.TotalProximas > 0).ToList();
-            if (conProximos.Count > 0)
-            {
-                indicadores.Add(Crear("proximos",
-                    Plural(conProximos.Count, "IndicadorProximosUno", "IndicadorProximosVarios"),
-                    Plural(conProximos.Count, "VentanaProximosUno", "VentanaProximosVarios"),
-                    conProximos.Select(c => $"{c.Nombre} · {Plural(c.Recuentos.TotalProximas, "DetalleProximosUno", "DetalleProximosVarios")}").ToList(),
-                    TonoBadge.Advertencia));
-            }
-
-            return indicadores;
-        }
-    }
-
-    private Indicador Crear(string clave, string texto, string titulo, IReadOnlyList<string> lineas, TonoBadge tono) =>
-        new(clave, texto, titulo, Textos["AriaIndicador", texto, string.Join("; ", lineas)], lineas, tono);
 
     // ── Navegación ────────────────────────────────────────────────────────
 

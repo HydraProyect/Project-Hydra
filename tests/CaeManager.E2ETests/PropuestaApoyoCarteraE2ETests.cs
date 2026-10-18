@@ -163,6 +163,10 @@ public class PropuestaApoyoCarteraE2ETests(WebAppFixtureGestorCaeCarteraMultiTen
         // En la petición siguiente la sesión ya no está en ese Tenant, no lo ofrece y no lee sus datos.
         await Ayudas.NavegarYEsperarAsync(pagina, $"{fixture.BaseUrl}/trabajadores?q={TrabajadorDelTenantPropuesto}");
         await Expect(Ayudas.DisparadorSelectorTenant(pagina)).Not.ToHaveAttributeAsync("data-tenant-id", tenantPropuesto, new() { Timeout = 30_000 });
+        // Control positivo: sin su acceso a ese Tenant, la sesión vuelve a su organización principal y Trabajadores no
+        // pinta lista alguna, sino el estado «Selecciona una empresa de tu cartera» (4a): la página llegó a pintarse y
+        // no ofrece datos. Sin esto, la ausencia de la fila pasaría también con la página sin pintar.
+        await Expect(pagina.GetByRole(AriaRole.Heading, new() { Name = "Selecciona una empresa de tu cartera" })).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await Expect(FilaDeTrabajador(pagina, TrabajadorDelTenantPropuesto)).ToHaveCountAsync(0);
         await Ayudas.AbrirSelectorTenantAsync(pagina);
         // Control positivo de la lista: sigue teniendo opciones (si estuviera vacía, la ausencia no diría nada).
@@ -171,6 +175,8 @@ public class PropuestaApoyoCarteraE2ETests(WebAppFixtureGestorCaeCarteraMultiTen
         await Ayudas.CerrarSelectorTenantAsync(pagina);
     }
 
+    /// <summary>La fila de la lista de Trabajadores que nombra a ese Trabajador: su botón de nombre, uno por fila.</summary>
     private static ILocator FilaDeTrabajador(IPage page, string apellidos) =>
-        page.Locator(".tabla-datos").GetByRole(AriaRole.Row, new() { Name = apellidos });
+        page.Locator(".marco-lista-trabajadores").GetByRole(AriaRole.Button,
+            new() { NameRegex = new System.Text.RegularExpressions.Regex("^Abrir la vista rápida de .*" + System.Text.RegularExpressions.Regex.Escape(apellidos)) });
 }
