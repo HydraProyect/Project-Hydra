@@ -109,7 +109,7 @@ public partial class Trabajador360Gen2Tests
         c.FiguraEnRnt.Should().Be("Sí, desde mayo de 2023"); c.TipoPermisoTrabajo.Should().Be("Residencia y trabajo por cuenta ajena");
         c.CaducidadPermisoTrabajo.Should().Be(new DateOnly(2027, 2, 18)); c.MotivoPermisoTrabajo.Should().Be("Se identifica con NIE");
         cut.FindAll("[role=dialog]").Should().BeEmpty();
-        cut.Find("[data-caja='altas-plataforma']").TextContent.Should().Contain("Plantilla");
+        cut.Find("[data-caja='altas-plataforma']").TextContent.Should().Contain("Oficial de 1.ª — montaje");
         m.Enviadas.OfType<ObtenerTrabajadorPorIdQuery>().Should().HaveCount(3, "carga de página, apertura y refresco");
     }
 

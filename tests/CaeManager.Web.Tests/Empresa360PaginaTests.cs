@@ -88,6 +88,7 @@ public partial class Empresa360PaginaTests : BunitContext
                 : null,
             ObtenerCredencialAccesoEmpresaQuery q => Credenciales.GetValueOrDefault(q.EmpresaId),
             CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.ObtenerCatalogoTrabajadoresEmpresaQuery => CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.CatalogoTrabajadoresEmpresaDto.Vacio,
+            GuardarNotaInternaEmpresaCommand c => GuardarNota(c),
             EditarFichaEmpresaCommand c => GuardarFicha(c),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
