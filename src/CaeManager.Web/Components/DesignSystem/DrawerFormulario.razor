@@ -21,15 +21,17 @@
     HayErroresDeCampo), HayCambios (normalmente InstantaneaFormulario) y el comando que guarda.
 
     Los diálogos que el formulario abre van en Dialogos (siempre debajo del aviso de salida).
-    No cubre: el diálogo de confirmación como cuerpo, los formularios en Modal (ModalFormulario) ni a página completa, ni los de varias secciones
-    o pasos (esos son página). Una acción secundaria que no cierra («Añadir otro…») va en PieExtra.
+    No cubre: el diálogo de confirmación como cuerpo, ni los formularios en Modal (ModalFormulario) ni a página completa.
+    Altas largas: el modo pasos (Pasos, PasoActual, OnSiguiente, OnAtras…) y SeccionPlegable en el cuerpo, ambos opcionales
+    («Panel Formulario TALVEG»); un solo OnGuardar, una sola transacción. Una acción secundaria que no cierra («Añadir otro…») va en PieExtra.
 *@
 @using CaeManager.Web.Recursos
 @using Microsoft.Extensions.Localization
 @inject IJSRuntime JS
 @inject IStringLocalizer<TextosComunes> Comunes
 
-<Drawer @ref="_drawer" Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Titulo" HayCambios="HayCambios"
+<Drawer @ref="_drawer" Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Titulo" Subtitulo="@Subtitulo" Ancho="Ancho" HayCambios="HayCambios"
+        Pasos="@(EnPasos ? PasosRender : null)"
         CerrarAlHacerClicFuera="@(!Guardando && string.IsNullOrWhiteSpace(MensajeError) && !HayErroresDeCampo)"
         Aviso="@(string.IsNullOrWhiteSpace(MensajeError) ? null : AvisoRender)">
     <ChildContent>
@@ -49,19 +51,42 @@
         </div>
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="Guardando" OnClick="CancelarAsync">
-            @TextoCancelar
-        </Boton>
+        @* Una sola «primaria» por pie: «Guardar» (o «Siguiente», en un paso que no es el último). El modo pasos (Pasos) solo cambia
+           qué botones hay y cómo se ordenan en móvil; sin él, el pie es el de siempre. *@
+        @if (EnPasos)
+        {
+            <span class="@(PasoIntermedio ? "formulario-drawer-accion formulario-drawer-atras formulario-drawer-atras-intermedio" : "formulario-drawer-accion formulario-drawer-atras")">@Cancelar</span>
+        }
+        else
+        {
+            @Cancelar
+        }
         @if (PieExtra is not null)
         {
             @* Mientras se guarda, las acciones extra se deshabilitan solas (fieldset): la pantalla no puede olvidarlo. *@
             <fieldset class="formulario-drawer-pie-extra" disabled="@Guardando">@PieExtra</fieldset>
         }
-        <BotonConEspera Variante="VarianteBoton.Primario" Guardando="Guardando" Progreso="ProgresoGuardado" Fallido="@GuardadoFallido"
-                        Deshabilitado="TieneMotivoDeshabilitado" title="@MotivoEfectivo" OnClick="GuardarAsync"
-                        OnCancelarEspera="OnCancelarGuardado" OnReintentar="OnReintentarGuardado">
-            @TextoGuardar
-        </BotonConEspera>
+        @if (PasoIntermedio)
+        {
+            @* «Guardar y terminar»: guarda lo escrito hasta aquí (el mismo comando que «Guardar») sin pasar por los pasos que faltan. *@
+            <span class="formulario-drawer-accion formulario-drawer-terminar">
+                <BotonConEspera Variante="VarianteBoton.Secundario" Guardando="Guardando" Progreso="ProgresoGuardado" Fallido="@GuardadoFallido"
+                                Deshabilitado="TieneMotivoDeshabilitado" title="@MotivoEfectivo" OnClick="GuardarAsync"
+                                OnCancelarEspera="OnCancelarGuardado" OnReintentar="OnReintentarGuardado">
+                    @(TextoGuardarYTerminar ?? Comunes["PasosGuardarYTerminar"].Value)
+                </BotonConEspera>
+            </span>
+        }
+        @* La primaria va siempre en el mismo sitio del árbol (también al pasar de «Siguiente» a «Guardar»): si el envoltorio cambiara,
+           Blazor recrearía el botón y el foco, que estaba en él, se perdería. *@
+        @if (EnPasos)
+        {
+            <span class="@(PasoIntermedio ? "formulario-drawer-accion formulario-drawer-siguiente" : "formulario-drawer-accion")">@Primaria</span>
+        }
+        else
+        {
+            @Primaria
+        }
     </Pie>
 </Drawer>
 
@@ -161,6 +186,96 @@
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
+    /// <summary>Contexto bajo el título (p. ej. «Empresa: Montajes Levante S.L.»). Opcional.</summary>
+    [Parameter] public string? Subtitulo { get; set; }
+
+    /// <summary>Estandar (480 px, por defecto) o Ancho (640 px, para dos columnas de campos). En móvil el panel ocupa la pantalla.</summary>
+    [Parameter] public AnchoDrawer Ancho { get; set; } = AnchoDrawer.Estandar;
+
+    // ---- Modo pasos (altas largas): todo opcional; sin Pasos, el kit es el de siempre. -------------------------------------
+    // El kit solo pinta el indicador y los botones del paso; qué campos se ven en cada paso (@if sobre PasoActual) y qué hace
+    // «Siguiente» lo decide la pantalla. «Guardar y terminar» y el «Guardar» del último paso llaman al MISMO OnGuardar: los pasos
+    // ordenan el formulario, no lo parten en varias transacciones.
+
+    /// <summary>Los pasos del formulario, en orden. Con menos de dos no hay modo pasos.</summary>
+    [Parameter] public IReadOnlyList<PasoDefinicion>? Pasos { get; set; }
+
+    /// <summary>Clave del paso que se está viendo (una de <see cref="Pasos"/>).</summary>
+    [Parameter] public string PasoActual { get; set; } = string.Empty;
+
+    /// <summary>Pasos ya vistos: se pintan con su marca y se puede volver a ellos desde el indicador.</summary>
+    [Parameter] public IReadOnlySet<string> PasosCompletados { get; set; } = new HashSet<string>();
+
+    /// <summary>La persona ha pulsado un paso completado del indicador.</summary>
+    [Parameter] public EventCallback<string> OnPasoSeleccionado { get; set; }
+
+    /// <summary>«Siguiente»: la pantalla cambia <see cref="PasoActual"/>.</summary>
+    [Parameter] public EventCallback OnSiguiente { get; set; }
+
+    /// <summary>«Atrás»: la pantalla cambia <see cref="PasoActual"/> al paso anterior (el primer paso ofrece «Cancelar» en su lugar).</summary>
+    [Parameter] public EventCallback OnAtras { get; set; }
+
+    /// <summary>Deshabilita «Siguiente» y dice por qué (title). Vacío, está habilitado.</summary>
+    [Parameter] public string? MotivoSiguienteDeshabilitado { get; set; }
+
+    /// <summary>Textos del modo pasos; sin valor, los localizados de TextosComunes («Siguiente», «Atrás», «Guardar y terminar»).</summary>
+    [Parameter] public string? TextoSiguiente { get; set; }
+    [Parameter] public string? TextoAtras { get; set; }
+    [Parameter] public string? TextoGuardarYTerminar { get; set; }
+
+    /// <summary>Nombre accesible del indicador de pasos (p. ej. «Alta de trabajador»). Sin valor, «Pasos del formulario».</summary>
+    [Parameter] public string? EtiquetaPasos { get; set; }
+
+    private bool EnPasos => Pasos is { Count: > 1 };
+    private int IndicePaso => Pasos is null ? 0 : Math.Max(0, Pasos.ToList().FindIndex(p => p.Clave == PasoActual));
+    private bool PrimerPaso => IndicePaso == 0;
+    private bool PasoIntermedio => EnPasos && IndicePaso < Pasos!.Count - 1;
+
+    // «Siguiente» no guarda: se deshabilita mientras se guarda y con el motivo de la pantalla; «Guardar», con los de siempre.
+    private bool PrimariaDeshabilitada => PasoIntermedio ? Guardando || Cargando || !string.IsNullOrWhiteSpace(MotivoSiguienteDeshabilitado) : TieneMotivoDeshabilitado;
+    private string? MotivoPrimaria => PasoIntermedio ? (Cargando ? MotivoEfectivo : MotivoSiguienteDeshabilitado) : MotivoEfectivo;
+
+    private async Task PrimariaAsync()
+    {
+        if (!PasoIntermedio)
+        {
+            await GuardarAsync();
+            return;
+        }
+
+        // «Siguiente» que no avanza porque el paso tiene errores: el foco va al primero, como tras un «Guardar» fallido.
+        await OnSiguiente.InvokeAsync();
+        _enfocarTrasGuardar = true;
+        StateHasChanged();
+    }
+
+    // «Primaria» y «Cancelar» van en el bloque de código (no en el marcado) para que las dos variantes del pie compartan una sola definición.
+    private RenderFragment Primaria => @<BotonConEspera Variante="VarianteBoton.Primario" Guardando="Guardando && !PasoIntermedio" Progreso="ProgresoGuardado"
+                                                       Fallido="@(GuardadoFallido && !PasoIntermedio)" Deshabilitado="PrimariaDeshabilitada" title="@MotivoPrimaria"
+                                                       OnClick="PrimariaAsync" OnCancelarEspera="OnCancelarGuardado" OnReintentar="OnReintentarGuardado">
+        @(PasoIntermedio ? (TextoSiguiente ?? Comunes["PasosSiguiente"].Value) : TextoGuardar)
+    </BotonConEspera>;
+
+    private RenderFragment Cancelar => @<Boton Variante="VarianteBoton.Secundario" Deshabilitado="Guardando" OnClick="CancelarOAtrasAsync">
+        @(EnPasos && !PrimerPaso ? (TextoAtras ?? Comunes["PasosAtras"].Value) : TextoCancelar)
+    </Boton>;
+    // «Cancelar» sale como la X (SolicitarCierreAsync, con su pregunta de descartar); «Atrás» solo cambia de paso.
+    private Task CancelarOAtrasAsync() =>
+        EnPasos && !PrimerPaso ? OnAtras.InvokeAsync() : _drawer is { } drawer ? drawer.SolicitarCierreAsync() : VisibleChanged.InvokeAsync(false);
+
+    private RenderFragment PasosRender => builder =>
+    {
+        builder.OpenComponent<IndicadorPasos>(0);
+        builder.AddAttribute(1, nameof(IndicadorPasos.Pasos), Pasos);
+        builder.AddAttribute(2, nameof(IndicadorPasos.PasoActual), PasoActual);
+        builder.AddAttribute(3, nameof(IndicadorPasos.PasosCompletados), PasosCompletados);
+        builder.AddAttribute(4, nameof(IndicadorPasos.PermitirVolver), !Guardando && !Cargando);
+        builder.AddAttribute(5, nameof(IndicadorPasos.OnPasoSeleccionado), OnPasoSeleccionado);
+        builder.AddAttribute(6, nameof(IndicadorPasos.EtiquetaGrupo), EtiquetaPasos ?? Comunes["PasosGrupoEtiqueta"].Value);
+        builder.AddAttribute(7, nameof(IndicadorPasos.EnPanel), true);
+        builder.CloseComponent();
+    };
+
     /// <summary>
     /// Por qué «Guardar» no se puede pulsar: primero el cuerpo que no está listo (carga, sin contenido), después el motivo propio
     /// de la pantalla. Nulo = habilitado.
@@ -175,8 +290,15 @@
 
     private bool _guardandoPrevio;
 
+    private string? _pasoPrevio;
+    private bool _reiniciarDesplazamiento;
+
     protected override void OnParametersSet()
     {
+        // Un paso nuevo empieza arriba del cuerpo: con el desplazamiento del paso anterior, el primer campo quedaría fuera de la vista.
+        if (EnPasos && _pasoPrevio is not null && _pasoPrevio != PasoActual) _reiniciarDesplazamiento = true;
+        _pasoPrevio = PasoActual;
+
         if (!Cargando && SinContenido is not null && string.IsNullOrWhiteSpace(MotivoGuardarDeshabilitado))
             throw new InvalidOperationException(
                 "DrawerFormulario con SinContenido exige MotivoGuardarDeshabilitado: «Guardar» queda deshabilitado y un botón mudo no existe (D-02, D-06).");
@@ -226,10 +348,13 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!_enfocarTrasGuardar) return;
+        var reiniciar = _reiniciarDesplazamiento;
+        _reiniciarDesplazamiento = false;
+        if (!_enfocarTrasGuardar && !reiniciar) return;
+        var enfocar = _enfocarTrasGuardar;
         _enfocarTrasGuardar = false;
 
-        if (!Visible || !HayErroresDeCampo) return;
+        if (!Visible || (!reiniciar && !HayErroresDeCampo)) return;
 
         // Mejor esfuerzo, como el focus trap del Drawer: sin módulo JS (tests de componente, circuito cerrándose) el formulario
         // sigue siendo usable, solo sin el salto al primer error.
@@ -240,7 +365,8 @@
 
             await using (modulo)
             {
-                await modulo.InvokeVoidAsync("enfocarPrimerError", _contenido);
+                if (reiniciar) await modulo.InvokeVoidAsync("reiniciarDesplazamiento", _contenido);
+                if (enfocar && HayErroresDeCampo) await modulo.InvokeVoidAsync("enfocarPrimerError", _contenido);
             }
         }
         catch (Exception)

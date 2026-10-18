@@ -1,76 +1,147 @@
-/* La barra de filtros (tarjeta, chips, «Limpiar todo») vive ahora en el componente BarraFiltros y en
-   list-page.css: la superficie de .barra-trabajo-centros que había aquí ya no se usa. */
+/*
+  Lista de Centros 1:1 con «Lista Centros TALVEG.dc.html» (DDL-083, 2026-10-18), con el mismo molde que Empresas y
+  Trabajadores: una rejilla de columnas compartida por la cabecera y por cada fila, sin QuickGrid (la fila se
+  despliega y QuickGrid no soporta filas expandibles).
 
-/* Recuento «N centros» de la barra de herramientas. */
-.conteo-centros {
-    font: var(--font-caption);
-    color: var(--color-text-muted);
+  Va en CSS aislado y no en list-page.css porque .tarjeta-fila-acordeon-cabecera es compartida con otros listados:
+  cambiarla allí a grid movería varias pantallas en un incremento que solo ha verificado una.
+*/
+.rejilla-centros {
+    /*
+      chevron · Centro (nombre y código) · Empresa · Cumplimiento · Estado documental · icono 360
+      (orden de la maqueta). Ninguna pista se resuelve por contenido: la cabecera y cada fila son rejillas
+      DISTINTAS que solo comparten esta definición, y con una pista «auto» las columnas dejarían de caer
+      bajo su rótulo (lo fija CentrosCabeceraAlineadaE2ETests).
+    */
+    display: grid;
+    grid-template-columns: 24px minmax(200px, 2fr) minmax(180px, 1.5fr) minmax(130px, 1fr) minmax(170px, 1.3fr) 40px;
+    gap: var(--space-4);
+    align-items: center;
+}
+
+/* Con selección múltiple entra una casilla delante y las columnas se corren. */
+.rejilla-centros-seleccion {
+    grid-template-columns: 28px 24px minmax(200px, 2fr) minmax(180px, 1.5fr) minmax(130px, 1fr) minmax(170px, 1.3fr) 40px;
+}
+
+/* Casilla de selección: misma caja en la cabecera y en la fila (16 px). */
+.seleccion-centro {
+    display: inline-flex;
+    align-items: center;
+}
+
+.seleccion-centro input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
 }
 
 /*
-  Cabecera de columnas (pieza 4). Mismo esqueleto que la cabecera de la fila
-  (.tarjeta-fila-acordeon-cabecera, list-page.css): huecos fijos para lo de
-  tamaño fijo (casilla, chevron, cumplimiento, indicadores de 320 px, icono 360)
-  y dos columnas elásticas, la identidad y la Empresa (en Centros la identidad
-  deja de ser la única zona elástica de la fila). Versalitas, como el resto de
-  listas del patrón. Los anchos de casilla y chevron son los de sus
-  componentes; si cambian, cambia aquí.
+  Marco de la lista (maqueta): una tarjeta con la cabecera de columnas en una banda blanca y las filas pegadas,
+  separadas por una línea. Las reglas de .tarjeta-fila-acordeon* de list-page.css las comparten otros listados;
+  aquí solo se anulan DENTRO del marco, con el atributo de ámbito de esta página.
 */
-.cabecera-columnas-centros {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    min-height: 38px;
-    padding: 0 var(--space-4);
-    margin-bottom: var(--space-2);
+.marco-lista-centros {
     background: var(--color-surface);
     border: var(--border-default);
     border-radius: var(--radius-lg);
-    font: var(--font-label);
-    font-size: 12px;
-    font-weight: 700;
+}
+
+.cabecera-columnas-centros {
+    align-items: end;
+    padding: 14px var(--space-4) 10px;
+    background: var(--color-surface);
+    border-bottom: 1.5px solid var(--color-text);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    font: 600 12px/16px var(--font-family);
     text-transform: uppercase;
     letter-spacing: .08em;
     color: var(--color-text-muted);
 }
 
-.cabecera-columnas-centros-seleccion {
-    width: 16px;
-    flex-shrink: 0;
+.marco-lista-centros .lista-filas-acordeon {
+    gap: 0;
 }
 
-/*
-  Casilla de selección de la fila, con la misma caja que su hueco de la cabecera (16 px, regla de
-  arriba). Sin esto la casilla medía lo que diga el navegador —en Chromium, 13 px más 4 y 3 de
-  margen: 20 px—, y con la selección múltiple puesta «Centro» quedaba 4 px a la izquierda de sus
-  celdas y «Empresa» 1,6 px (medido a 1266 px, 2026-10-09; sin selección la cabecera y las filas ya
-  coincidían). Lo fija CentrosCabeceraAlineadaE2ETests.
-*/
-.tarjeta-fila-acordeon-cabecera > input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    margin: 0;
-    flex-shrink: 0;
+.marco-lista-centros .tarjeta-fila-acordeon {
+    border: 0;
+    border-bottom: 1px solid var(--color-fila-divisor);
+    border-radius: 0;
 }
 
-/* chevron (24 px); la barra de cumplimiento tiene su propia columna */
-.cabecera-columnas-centros-inicio {
-    width: 24px;
-    flex-shrink: 0;
+.marco-lista-centros .tarjeta-fila-acordeon:last-child {
+    border-bottom: 0;
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
-.cabecera-columnas-centros-centro {
-    flex: 1.4;
+.marco-lista-centros .tarjeta-fila-acordeon-cabecera {
+    min-height: 0;
+    padding: 12px var(--space-4);
+    transition: background-color .12s ease, box-shadow .12s ease;
+    border-bottom: 0;
+    border-radius: 0;
+}
+
+.marco-lista-centros .tarjeta-fila-acordeon-cabecera:hover {
+    background-color: var(--color-primary-50);
+    box-shadow: inset 3px 0 0 var(--color-primary-500);
+}
+
+.marco-lista-centros .tarjeta-fila-acordeon-contenido {
+    border-top: 0;
+    border-radius: 0;
+    background: color-mix(in srgb, var(--color-surface-subtle) 60%, var(--color-surface));
+    padding: 4px var(--space-4) 4px 56px;
+}
+
+.marco-lista-centros .tarjeta-fila-acordeon-contenido.contenido-con-seleccion {
+    padding-left: 100px;
+}
+
+/* El icono 360 ocupa su pista de 40 px, alineado a la derecha. */
+.rejilla-centros .tarjeta-fila-acordeon-acciones {
+    width: auto;
+    justify-content: flex-end;
+}
+
+/* Título de cada grupo «Por Cliente» (maqueta de Centros): nombre del Cliente en mayúsculas y recuento. */
+.cabecera-grupo-centros {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 10px var(--space-4);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-fila-divisor);
+    font: 600 12px/16px var(--font-family);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--color-text);
+}
+
+.cabecera-grupo-centros-recuento {
+    color: var(--color-text-muted);
+}
+
+/* Celda «Centro»: nombre encima, código (y Visita) debajo. */
+.celda-identidad-centro {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     min-width: 0;
 }
 
-/*
-  Columnas Empresa y Cumplimiento (maqueta aprobada de la fase 1). Empresa es elástica, como la
-  identidad, pero con menos peso; Cumplimiento es fija, con el ancho de su rótulo en versalitas.
-  Las mismas clases en la cabecera y en la fila: cada valor cae bajo su rótulo.
-*/
+.celda-identidad-centro .celda-meta-centro {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    letter-spacing: .02em;
+}
+
+/* Cada celda recorta por su cuenta: sin esto, un nombre largo estira su columna y desalinea la fila respecto a la cabecera. */
 .columna-empresa-centro {
-    flex: 1;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -80,8 +151,7 @@
 .columna-cumplimiento-centro {
     display: flex;
     align-items: center;
-    width: 132px;
-    flex-shrink: 0;
+    min-width: 0;
 }
 
 /* «Cumplimiento» ordena: un botón con el aspecto del rótulo (versalitas heredadas de la cabecera). */
@@ -106,75 +176,16 @@
     outline-offset: 2px;
 }
 
-/* La identidad pesa lo mismo que su rótulo «Centro». */
-.tarjeta-fila-acordeon-identidad {
-    flex: 1.4;
-}
-
-/* La Empresa solo va en la segunda línea cuando su columna no cabe. */
-.meta-empresa-movil {
-    display: none;
-}
-
 /*
-  En pantallas estrechas solo caben los anchos fijos imprescindibles: la columna Empresa se oculta
-  y la de Cumplimiento se queda en el ancho de la cifra (la barra oculta su pista), con su rótulo recortado (el nombre accesible
-  del botón no cambia). Sin esto la fila desbordaba ~100 px en un móvil de 375 px y la identidad
-  quedaba sin sitio.
+  Celda de estado: no desborda su pista. El motivo de EstadoFila recorta lo que no cabe (una línea con puntos
+  suspensivos); aquí contiene las ventanas de contexto de las incidencias, cuyo panel sale de la caja:
+  recortado no se vería.
 */
-@media (max-width: 767px) {
-    .columna-empresa-centro {
-        display: none;
-    }
-
-    .columna-cumplimiento-centro {
-        width: 44px;
-    }
-
-    .cabecera-columna-orden {
-        max-width: 100%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .meta-empresa-movil {
-        display: inline;
-    }
-}
-
-/*
-  Dos ranuras: estado (pastilla y, debajo, el motivo «N vencidos · M por vencer») y visita. La fila usa
-  las mismas columnas y el mismo ancho (regla de abajo), para que cada una caiga bajo su rótulo.
-  320 px: la ranura de estado queda en 200, lo que mide la pastilla más larga («Bloqueo de la
-  plataforma CAE», 193 px medidos el 2026-10-09); con menos se metía en la ranura de la visita.
-*/
-.cabecera-columnas-centros-indicadores {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 112px;
-    gap: var(--space-2);
-    width: 320px;
-    flex-shrink: 0;
-    white-space: nowrap;
-    letter-spacing: .03em;
-}
-
-.cabecera-columnas-centros-indicadores > span {
+.celda-estado-centro {
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
-.tarjeta-fila-acordeon-indicadores {
-    grid-template-columns: minmax(0, 1fr) 112px;
-    gap: var(--space-2);
-    width: 320px;
-}
-
-/*
-  El motivo de EstadoFila recorta lo que no cabe (una línea con puntos suspensivos). Aquí contiene
-  las ventanas de contexto de las incidencias, cuyo panel sale de la caja: recortado no se vería.
-*/
-.tarjeta-fila-acordeon-indicadores ::deep .estado-fila-motivo {
+.celda-estado-centro ::deep .estado-fila-motivo {
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
@@ -198,98 +209,4 @@
 
 .motivo-recuento-proximos {
     color: var(--color-warning-700);
-}
-
-/*
-  En pantallas estrechas la zona de indicadores no cabe junto al nombre: en un móvil de 375 px la
-  identidad se quedaba en 0 px de ancho (medido el 2026-10-09, también con los 200 px de antes). Baja
-  a una segunda línea de la fila, sangrada hasta el nombre (chevron de 24 px más la separación), y la
-  cabecera de columnas deja de rotularla porque ya no hay vertical que compartir.
-*/
-@media (max-width: 767px) {
-    .tarjeta-fila-acordeon-cabecera {
-        flex-wrap: wrap;
-    }
-
-    .tarjeta-fila-acordeon-indicadores {
-        order: 1;
-        flex-basis: 100%;
-        width: auto;
-        padding-left: calc(24px + var(--space-2));
-        grid-template-columns: minmax(0, 1fr) auto;
-    }
-
-    .cabecera-columnas-centros-indicadores {
-        display: none;
-    }
-}
-
-.cabecera-columnas-centros-acciones,
-.tarjeta-fila-acordeon-acciones {
-    width: 44px;
-    flex-shrink: 0;
-    justify-content: flex-end;
-}
-
-/* Título del contenido expandido de la fila de Centro. */
-.acordeon-centro-titulo {
-    margin: 0 0 var(--space-3);
-    font: var(--font-label-md);
-    color: var(--color-text);
-}
-
-/* Pie del contenido expandido: el camino a Centro 360, siempre presente. */
-.acordeon-centro-pie {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    margin-top: var(--space-3);
-    padding-top: var(--space-3);
-    border-top: var(--border-default);
-}
-
-.acordeon-centro-enlace-360 {
-    font: var(--font-label-md);
-    color: var(--color-primary-500);
-}
-
-/* Variante del listado: v29, .top/.tool. No cambia las cabeceras de otras pantallas. */
-.listado-centros-fidelidad ::deep .cabecera-pagina {
-    min-height: 48px;
-    margin-bottom: 6px;
-}
-
-.listado-centros-fidelidad ::deep .titulo-pagina {
-    font-size: 22px;
-    line-height: 28px;
-}
-
-.listado-centros-fidelidad ::deep .barra-filtros-pastillas {
-    margin-bottom: 10px;
-}
-
-.listado-centros-fidelidad ::deep .barra-filtros-buscador-pantalla {
-    max-width: 340px;
-}
-
-.listado-centros-fidelidad ::deep .acciones-cabecera {
-    gap: 8px;
-}
-
-@media (hover: hover) and (pointer: fine) {
-    .listado-centros-fidelidad ::deep .cabecera-listado-icono,
-    .listado-centros-fidelidad ::deep .acciones-cabecera .menu-acciones-disparador {
-        width: 34px;
-        height: 34px;
-        border-radius: 6px;
-    }
-
-    .listado-centros-fidelidad ::deep .acciones-cabecera .boton {
-        min-height: 34px;
-        padding: 8px 14px;
-        border: 0;
-        border-radius: 6px;
-        font-size: 13px;
-        line-height: 18px;
-    }
 }

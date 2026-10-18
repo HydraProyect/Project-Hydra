@@ -1,0 +1,85 @@
+@*
+    Sección plegable de un formulario largo en un panel («Panel Formulario TALVEG», edición por secciones): una tarjeta cuya
+    cabecera es un botón con chevron, título y, plegada, un resumen de una línea con elipsis («Montajes Levante S.L. · B46218753»).
+    Con NumeroErrores > 0 se abre sola, el borde pasa a danger-500 y la cabecera lleva la pastilla «N errores»: un error dentro de
+    una sección plegada no puede quedar fuera de la vista. Todas las secciones de un panel se guardan con un único «Guardar»
+    (DrawerFormulario): aquí sí es una transacción, a diferencia del modo pasos.
+
+    Hermana de SeccionColapsable (la de listas largas de un detalle, sin tarjeta ni errores), no su evolución. Abierta se puede
+    enlazar (@bind-Abierta) o dejarse a la sección, que recuerda lo que el usuario abrió y cerró.
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<section class="@ClaseRaiz">
+    <button type="button" class="seccion-plegable-cabecera" aria-expanded="@(_abierta ? "true" : "false")"
+            aria-controls="@(_abierta ? _panelId : null)" @onclick="AlternarAsync">
+        <span class="@(_abierta ? "seccion-plegable-chevron" : "seccion-plegable-chevron seccion-plegable-chevron-plegada")" aria-hidden="true">
+            <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+        </span>
+        <span class="seccion-plegable-textos">
+            <span class="seccion-plegable-titulo">@Titulo</span>
+            @if (!_abierta && !string.IsNullOrWhiteSpace(Resumen))
+            {
+                <span class="seccion-plegable-resumen">@Resumen</span>
+            }
+        </span>
+        @if (NumeroErrores > 0)
+        {
+            <span class="seccion-plegable-errores">@TextoErrores</span>
+        }
+    </button>
+    @if (_abierta)
+    {
+        <div class="seccion-plegable-contenido" id="@_panelId">
+            @ChildContent
+        </div>
+    }
+</section>
+
+@code {
+    private static int _contador;
+    private readonly string _panelId = $"seccion-plegable-{Interlocked.Increment(ref _contador)}";
+    private bool _abierta;
+    private int _erroresPrevios;
+
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+
+    /// <summary>Una línea con lo esencial de la sección, visible mientras está plegada (elipsis si no cabe).</summary>
+    [Parameter] public string? Resumen { get; set; }
+
+    /// <summary>Estado inicial; con <see cref="AbiertaChanged"/> se puede enlazar y el padre lo controla.</summary>
+    [Parameter] public bool Abierta { get; set; }
+
+    [Parameter] public EventCallback<bool> AbiertaChanged { get; set; }
+
+    /// <summary>Errores de campo dentro de la sección: con más de cero se abre sola (al aparecer) y se marca en danger-500.</summary>
+    [Parameter] public int NumeroErrores { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string ClaseRaiz => NumeroErrores > 0 ? "seccion-plegable seccion-plegable-con-errores" : "seccion-plegable";
+
+    private string TextoErrores => NumeroErrores == 1
+        ? Comunes["SeccionErrorSingular"].Value
+        : string.Format(Comunes["SeccionErroresPlural"].Value, NumeroErrores);
+
+    protected override void OnInitialized() => _abierta = Abierta || NumeroErrores > 0;
+
+    protected override void OnParametersSet()
+    {
+        // Un padre que enlaza Abierta manda; si no, la sección recuerda lo que el usuario abrió.
+        if (AbiertaChanged.HasDelegate) _abierta = Abierta;
+
+        // Los errores que aparecen abren la sección (también tras un guardado fallido); no se vuelve a cerrar sola.
+        if (NumeroErrores > 0 && _erroresPrevios == 0) _abierta = true;
+        _erroresPrevios = NumeroErrores;
+    }
+
+    private async Task AlternarAsync()
+    {
+        _abierta = !_abierta;
+        await AbiertaChanged.InvokeAsync(_abierta);
+    }
+}

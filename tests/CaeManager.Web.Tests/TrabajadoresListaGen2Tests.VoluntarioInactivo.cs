@@ -55,6 +55,7 @@ public partial class TrabajadoresListaGen2Tests
         await AbrirAltaAsync(cut);
         await SelectorDeEmpleadorDelAlta(cut).Find("select").ChangeAsync(new ChangeEventArgs { Value = EmpresaEbro.ToString() });
         await EscribirDatosCompletosDelAltaAsync(cut);
+        await PulsarEnElPanelAsync(cut, "Siguiente");
         var selector = cut.FindComponents<CampoSelect>().Single(c => c.Instance.Etiqueta == "Tipo de contratación");
         selector.Instance.Valor.Should().Be("CuentaAjena", "el alta propone cuenta ajena por defecto");
 

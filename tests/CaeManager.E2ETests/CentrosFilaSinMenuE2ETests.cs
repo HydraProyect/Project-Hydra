@@ -23,8 +23,10 @@ public class CentrosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
     // La lista sembrada no tiene un Centro de nombre estable que sirva de ancla: el recorrido vale
     // para cualquier fila, así que se toma la primera, y su celda de Empresa como punto de la fila
-    // que no es ningún control.
-    private static ILocator PrimeraFila(IPage page) => page.Locator(".lista-filas-acordeon .fila-pulsable").First;
+    // que no es ningún control. Solo los Centros con incidencias llevan chevron (maqueta: «tieneHijos») y el
+    // recorrido pulsa el desplegable: se toma la primera fila que lo tenga.
+    private static ILocator PrimeraFila(IPage page) =>
+        page.Locator(".lista-filas-acordeon .fila-pulsable").Filter(new() { Has = page.Locator(".boton-expandir-fila") }).First;
     private static ILocator CeldaSinControles(ILocator fila) => fila.Locator(".columna-empresa-centro");
 
     private async Task<IPage> AbrirCentrosAsync(IBrowserContext contexto)

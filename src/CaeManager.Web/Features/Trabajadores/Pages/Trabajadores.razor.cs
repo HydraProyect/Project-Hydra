@@ -983,8 +983,114 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _observaciones = string.Empty;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
+        _pasoAlta = PasoAltaBasico;
+        _pasosAltaVistos.Clear();
         _drawerVisible = true;
         FijarInstantaneaFormulario();
+    }
+
+    // Alta en pasos («Panel Formulario TALVEG»): Lo básico, Trabajo y Contacto ordenan los mismos campos de siempre; no hay
+    // un comando por paso. «Guardar» (o «Guardar y terminar» desde un paso intermedio) envía el CrearTrabajadorCommand único con
+    // todo lo escrito, y un error de campo del servidor lleva al paso donde está el campo.
+    private const string PasoAltaBasico = "basico";
+    private const string PasoAltaTrabajo = "trabajo";
+    private const string PasoAltaContacto = "contacto";
+
+    private string _pasoAlta = PasoAltaBasico;
+    private readonly HashSet<string> _pasosAltaVistos = [];
+
+    private IReadOnlyList<PasoDefinicion> PasosAlta =>
+    [
+        new(PasoAltaBasico, Textos["PasoAltaBasico"]),
+        new(PasoAltaTrabajo, Textos["PasoAltaTrabajo"]),
+        new(PasoAltaContacto, Textos["PasoAltaContacto"]),
+    ];
+
+    private int IndicePasoAlta => Math.Max(0, PasosAlta.ToList().FindIndex(p => p.Clave == _pasoAlta));
+
+    /// <summary>
+    /// «Siguiente» no avanza con campos del paso en error: valida los campos del paso con las reglas del comando (las mismas que
+    /// «Guardar»; el empleador, en el primero) y el paso no se da por visto hasta que está bien.
+    /// </summary>
+    private async Task AltaSiguienteAsync()
+    {
+        var pasos = PasosAlta;
+        var indice = IndicePasoAlta;
+        if (indice >= pasos.Count - 1) return;
+
+        LimpiarAvisoDeEmpleadorFaltante();
+        if (_pasoAlta == PasoAltaBasico && AvisoDeEmpleadorFaltante() is { } aviso)
+        {
+            _mensajeErrorFormulario = aviso;
+            return;
+        }
+
+        if (!await PasoAltaEsValidoAsync(_pasoAlta)) return;
+
+        _pasosAltaVistos.Add(_pasoAlta);
+        _pasoAlta = pasos[indice + 1].Clave;
+    }
+
+    private string? AvisoDeEmpleadorFaltante() =>
+        _tipoEmpleador == "empresa"
+            ? (Guid.TryParse(_empresaId, out _) ? null : Textos["ErrorSeleccionaEmpresa"].Value)
+            : (Guid.TryParse(_subcontrataId, out _) ? null : Textos["ErrorSeleccionaSubcontrata"].Value);
+
+    private static string[] CamposDelPasoAlta(string paso) => paso switch
+    {
+        PasoAltaBasico =>
+        [
+            nameof(CrearTrabajadorCommand.Dni), nameof(CrearTrabajadorCommand.Nombre), nameof(CrearTrabajadorCommand.Apellidos),
+            nameof(CrearTrabajadorCommand.Alias), nameof(CrearTrabajadorCommand.FechaNacimiento),
+        ],
+        PasoAltaTrabajo =>
+        [
+            nameof(CrearTrabajadorCommand.Puesto), nameof(CrearTrabajadorCommand.Observaciones), nameof(CrearTrabajadorCommand.TipoContratacion),
+        ],
+        _ => [nameof(CrearTrabajadorCommand.Email), nameof(CrearTrabajadorCommand.Telefono)],
+    };
+
+    /// <summary>Errores de los campos que se ven ahora: los de otro paso no bloquean Escape ni el clic fuera sin que nadie los vea.</summary>
+    private bool HayErroresDelPasoVisible =>
+        _erroresCampo.Keys.Any(campo => PasosAlta[Math.Min(OrdenPasoDeCampo(campo), PasosAlta.Count - 1)].Clave == _pasoAlta);
+
+    private async Task<bool> PasoAltaEsValidoAsync(string paso)
+    {
+        var campos = CamposDelPasoAlta(paso);
+        var resultado = await ValidadorCrear.ValidateAsync(ComandoParaValidar(), opciones => opciones.IncludeProperties(campos));
+        foreach (var campo in campos) _erroresCampo.Remove(campo);
+        foreach (var grupo in resultado.Errors.GroupBy(e => e.PropertyName))
+            _erroresCampo[grupo.Key] = grupo.First().ErrorMessage;
+        return resultado.IsValid;
+    }
+
+    private CrearTrabajadorCommand ComandoParaValidar() => new(
+        null, null, _nombre, _apellidos, _dni, DateOnly.TryParse(_fechaNacimiento, out var fecha) ? fecha : null,
+        string.IsNullOrWhiteSpace(_email) ? null : _email, string.IsNullOrWhiteSpace(_observaciones) ? null : _observaciones,
+        string.IsNullOrWhiteSpace(_alias) ? null : _alias, string.IsNullOrWhiteSpace(_telefono) ? null : _telefono,
+        string.IsNullOrWhiteSpace(_puesto) ? null : _puesto);
+
+    private void AltaAtras()
+    {
+        var indice = IndicePasoAlta;
+        if (indice > 0) _pasoAlta = PasosAlta[indice - 1].Clave;
+    }
+
+    private void AltaIrAPaso(string clave) => _pasoAlta = clave;
+
+    /// <summary>El paso de cada campo del comando: el primero con error es el que se enseña tras un guardado que no pasó.</summary>
+    private static int OrdenPasoDeCampo(string campo) => campo switch
+    {
+        "Puesto" or "TipoContratacion" or "Observaciones" => 1,
+        "Email" or "Telefono" => 2,
+        _ => 0,
+    };
+
+    private void IrAlPrimerPasoConError(IEnumerable<string> campos)
+    {
+        var pasos = PasosAlta;
+        var primero = campos.Select(OrdenPasoDeCampo).DefaultIfEmpty(0).Min();
+        _pasoAlta = pasos[Math.Min(primero, pasos.Count - 1)].Clave;
     }
 
     private readonly InstantaneaFormulario _instantanea = new();
@@ -1008,7 +1114,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private bool HayCambiosFiltro => _mostrarGuardarFiltro && !string.IsNullOrWhiteSpace(_nombreFiltroNuevo);
 
     private object?[] ValoresFormulario() =>
-        [_tipoEmpleador, _empresaId, _subcontrataId, _dni, _nombre, _apellidos, _alias, _puesto, _oficioId, _delegacionId, _fechaNacimiento, _email, _telefono, _observaciones];
+        [_tipoEmpleador, _empresaId, _subcontrataId, _dni, _nombre, _apellidos, _alias, _puesto, _oficioId, _delegacionId, _tipoContratacion, _fechaNacimiento, _email, _telefono, _observaciones];
 
     private object?[] ValoresAsignarCentro() => [_centroIdParaAsignar, _fechaAltaParaAsignar];
 
@@ -1100,6 +1206,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 if (!Guid.TryParse(_empresaId, out var empresaIdValor))
                 {
                     _mensajeErrorFormulario = Textos["ErrorSeleccionaEmpresa"];
+                    _pasoAlta = PasoAltaBasico;
                     return;
                 }
                 empresaId = empresaIdValor;
@@ -1109,6 +1216,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 if (!Guid.TryParse(_subcontrataId, out var subcontrataIdValor))
                 {
                     _mensajeErrorFormulario = Textos["ErrorSeleccionaSubcontrata"];
+                    _pasoAlta = PasoAltaBasico;
                     return;
                 }
                 subcontrataId = subcontrataIdValor;
@@ -1127,6 +1235,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             if (resultado.EsFallido)
             {
                 _mensajeErrorFormulario = resultado.Error.Mensaje;
+                // Un fallo de regla de negocio sin ValidationException (DNI duplicado, empresa o subcontrata que ya no existe) es de
+                // lo que se escribió en el primer paso: se enseña ahí, no en el último.
+                if (resultado.Error.Codigo is "Trabajador.DniDuplicado" or "Trabajador.EmpresaNoEncontrada" or "Trabajador.SubcontrataNoEncontrada")
+                    _pasoAlta = PasoAltaBasico;
                 return;
             }
 
@@ -1139,6 +1251,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             _erroresCampo = ex.Errors
                 .GroupBy(e => e.PropertyName)
                 .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+            IrAlPrimerPasoConError(_erroresCampo.Keys);
         }
         catch (Exception)
         {
@@ -1175,16 +1288,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private async Task ValidarCampoAsync(string campo)
     {
-        var email = string.IsNullOrWhiteSpace(_email) ? null : _email;
-        var telefono = string.IsNullOrWhiteSpace(_telefono) ? null : _telefono;
-        var observaciones = string.IsNullOrWhiteSpace(_observaciones) ? null : _observaciones;
-        var alias = string.IsNullOrWhiteSpace(_alias) ? null : _alias;
-        var puesto = string.IsNullOrWhiteSpace(_puesto) ? null : _puesto;
-        var fechaNacimiento = DateOnly.TryParse(_fechaNacimiento, out var fecha) ? fecha : (DateOnly?)null;
-
-        var resultado = await ValidadorCrear.ValidateAsync(
-            new CrearTrabajadorCommand(null, null, _nombre, _apellidos, _dni, fechaNacimiento, email, observaciones, alias, telefono, puesto),
-            opciones => opciones.IncludeProperties(campo));
+        var resultado = await ValidadorCrear.ValidateAsync(ComandoParaValidar(), opciones => opciones.IncludeProperties(campo));
 
         if (resultado.IsValid)
             _erroresCampo.Remove(campo);

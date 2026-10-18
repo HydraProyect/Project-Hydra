@@ -434,7 +434,7 @@ public class TerminologiaCanonicaTests
         // argumentos por posición (un árbol de expresión no admite los opcionales del record), y
         // el «EjecutivoUsuarioId: c.EjecutivoUsuarioId» nombrado pasó a ser un solo uso. Baja
         // mecánica: la deuda (Gestor CAE de referencia del Cliente empresarial) sigue entera.
-        ["EjecutivoUsuarioId"] = 31,
+        ["EjecutivoUsuarioId"] = 28, // 31 → 28 el 2026-10-18: la lista de Clientes ya no reasigna el Gestor CAE (vive en Cliente 360)
         // 337 → 340 (2026-09-28, «Asignar empresas» a un Gestor CAE existente): tres usos de
         // identificadores legacy que ya existen y no se renombran aquí —DelegacionesTenant,
         // DelegacionTenantId y PropositoDelegacion— en la retirada de la fila heredada de

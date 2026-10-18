@@ -744,4 +744,16 @@
   <data name="DelegacionEmpresaSinElegir" xml:space="preserve"><value>Sense delegació</value></data>
   <data name="CatalogoNoCargo" xml:space="preserve"><value>No s'ha pogut carregar el catàleg de l'empresa.</value></data>
   <data name="OficioErrorCrear" xml:space="preserve"><value>No s'ha pogut crear l'ofici.</value></data>
+  <data name="PasoAltaBasico" xml:space="preserve">
+    <value>Allò bàsic</value>
+  </data>
+  <data name="PasoAltaTrabajo" xml:space="preserve">
+    <value>Feina</value>
+  </data>
+  <data name="PasoAltaContacto" xml:space="preserve">
+    <value>Contacte</value>
+  </data>
+  <data name="EtiquetaPasosAlta" xml:space="preserve">
+    <value>Alta de treballador</value>
+  </data>
 </root>

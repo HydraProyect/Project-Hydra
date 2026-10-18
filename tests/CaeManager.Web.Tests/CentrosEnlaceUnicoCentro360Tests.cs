@@ -8,6 +8,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Centros.Components;
@@ -156,10 +157,11 @@ public class CentrosEnlaceUnicoCentro360Tests : BunitContext
         _ => throw new ArgumentOutOfRangeException(nameof(escenario))
     };
 
+    /// <summary>Un Centro vencido: solo la fila con algo que desplegar lleva chevron (maqueta: «tieneHijos»).</summary>
     private static CentroListaDto Centro(string nombre) => new(
         Guid.NewGuid(), nombre, "C-001", Guid.NewGuid(), "Refrielectric S.A.",
-        Guid.NewGuid(), "Montajes Ebro S.L.", EstadoCentro.Vigente,
-        CumplimientoPorcentaje: 100, RecuentosCentroDto.Vacio);
+        Guid.NewGuid(), "Montajes Ebro S.L.", EstadoCentro.Vencido,
+        CumplimientoPorcentaje: 60, RecuentosCentroDto.Vacio);
 
     private void RegistrarServicios(MediatorPorTipo mediator)
     {
@@ -191,7 +193,7 @@ public class CentrosEnlaceUnicoCentro360Tests : BunitContext
         var centro = Centro("Centro Logístico Norte");
         RegistrarServicios(new MediatorPorTipo { Centros = [centro], Trabajadores = Trabajadores(escenario) });
         Services.GetRequiredService<NavigationManager>().NavigateTo("centros");
-        var cut = Render<Centros>().AbrirGruposDeCentros();
+        var cut = Render<Centros>();
 
         await cut.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
 
@@ -199,9 +201,12 @@ public class CentrosEnlaceUnicoCentro360Tests : BunitContext
             .Should().Contain(escenario == Escenario.IncidenciasSinOcultos ? "Javier Salas Moreno" : MarcaDelEscenario(escenario)));
 
         var contenido = cut.Find(".tarjeta-fila-acordeon-contenido");
-        CaminosACentro360(contenido, centro.Id).Should().Be(1,
-            "la página pinta su enlace único y el acordeón no debe añadir otro al mismo destino");
-        contenido.QuerySelector("a.acordeon-centro-enlace-360")!.GetAttribute("href")
+        CaminosACentro360(contenido, centro.Id).Should().Be(0,
+            "la lista no pinta «Ver el centro completo» (retirado en la maqueta) y el acordeón no añade ningún camino propio");
+        cut.FindAll("a.acordeon-centro-enlace-360").Should().BeEmpty();
+        var fila = cut.Find(".tarjeta-fila-acordeon");
+        CaminosACentro360(fila, centro.Id).Should().Be(1, "el único camino de la fila es el icono 360 de su última columna");
+        fila.QuerySelector(".tarjeta-fila-acordeon-acciones a.boton-360-pagina")!.GetAttribute("href")
             .Should().Be($"/centros/{centro.Id}", "el camino que queda es el de la página");
     }
 
@@ -246,7 +251,7 @@ public class CentrosEnlaceUnicoCentro360Tests : BunitContext
         var centro = Centro("Centro Logístico Norte");
         RegistrarServicios(new MediatorPorTipo { Centros = [centro], Trabajadores = Trabajadores(Escenario.TodosAlDia) });
         Services.GetRequiredService<NavigationManager>().NavigateTo("centros");
-        var lista = Render<Centros>().AbrirGruposDeCentros();
+        var lista = Render<Centros>();
         await lista.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
         lista.WaitForAssertion(() => lista.Find(".tarjeta-fila-acordeon-contenido").TextContent.Should().Contain("Todos al día"));
 
@@ -289,6 +294,33 @@ public class CentrosEnlaceUnicoCentro360Tests : BunitContext
         cut.FindAll("input").Should().BeEmpty("sin buscador «Buscar trabajador…» ni casillas por trabajador");
         cut.FindAll(".lista-trabajadores-acordeon .fila-relacion").Should().ContainSingle("solo la fila con incidencia");
         cut.Markup.Should().Contain("Javier Salas Moreno");
+    }
+
+    /// <summary>
+    /// «Gestionar», la única acción de la fila de Trabajador en la fila desplegada de /centros: solo con
+    /// escritura. Quien solo consulta ve las mismas filas con su estado y su motivo, sin el botón. El acordeón
+    /// es el real (la lista de <see cref="CentrosListaGen2Tests"/> lo sustituye por un stub).
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Administrador, true)]
+    [InlineData(Roles.DireccionCae, true)]
+    [InlineData(Roles.CoordinadorCae, true)]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    [InlineData(Roles.Cliente, false)]
+    public async Task Gestionar_en_la_fila_desplegada_solo_se_ofrece_con_escritura(string rol, bool escribe)
+    {
+        this.ConRolDeEscritura(rol);
+        var centro = Centro("Centro Logístico Norte");
+        RegistrarServicios(new MediatorPorTipo { Centros = [centro], Trabajadores = Trabajadores(Escenario.IncidenciasSinOcultos) });
+        Services.GetRequiredService<NavigationManager>().NavigateTo("centros");
+        var cut = Render<Centros>();
+
+        await cut.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Find(".tarjeta-fila-acordeon-contenido").TextContent.Should().Contain("Javier Salas Moreno"));
+        var gestionar = cut.Find(".tarjeta-fila-acordeon-contenido").QuerySelectorAll("button.fila-trabajador-gestionar");
+        gestionar.Select(b => b.TextContent.Trim()).Should().Equal(escribe ? ["Gestionar"] : []);
     }
 
     /// <summary>

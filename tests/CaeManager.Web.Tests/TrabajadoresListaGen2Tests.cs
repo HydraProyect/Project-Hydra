@@ -569,6 +569,8 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".barra-filtros-pastillas").Should().NotBeEmpty());
     }
 
+    private bool _validadorReal;
+
     private void Registrar(MediatorFalso mediador, string url)
     {
         Services.AddScoped<IMediator>(_ => mediador);
@@ -576,7 +578,9 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         Services.AddScoped<ITenantActual>(_ => Seleccion);
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
-        Services.AddScoped<IValidator<CrearTrabajadorCommand>>(_ => new InlineValidator<CrearTrabajadorCommand>());
+        // Sin más, el validador no opina (InlineValidator vacío); las pruebas del alta en pasos piden las reglas reales del comando.
+        if (_validadorReal) Services.AddScoped<IValidator<CrearTrabajadorCommand>>(_ => new CrearTrabajadorCommandValidator());
+        else Services.AddScoped<IValidator<CrearTrabajadorCommand>>(_ => new InlineValidator<CrearTrabajadorCommand>());
 
         // Los filtros de URL son [SupplyParameterFromQuery]: se llega a ellos
         // navegando, no pasándolos como parámetros de componente.
@@ -1134,7 +1138,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         cut.FindComponents<CampoSelect>().Single(c => c.Instance.Etiqueta is "Empresa" or "Subcontrata");
 
     private static IElement GuardarAlta(IRenderedComponent<Trabajadores> cut) =>
-        cut.Find(".drawer-panel").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Guardar");
+        cut.Find(".drawer-panel").QuerySelectorAll("button").Single(b => b.TextContent.Trim() is "Guardar" or "Guardar y terminar");
 
     private static async Task EscribirDatosCompletosDelAltaAsync(IRenderedComponent<Trabajadores> cut)
     {
@@ -2059,7 +2063,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         await AbrirAltaAsync(cut);
-        var guardar = cut.FindComponents<Boton>().Single(b => b.Find("button").TextContent.Trim() == "Guardar");
+        var guardar = cut.FindComponents<Boton>().Single(b => b.Find("button").TextContent.Trim() is "Guardar" or "Guardar y terminar");
 
         var primero = cut.InvokeAsync(() => guardar.Instance.OnClick.InvokeAsync());
         var segundo = cut.InvokeAsync(() => guardar.Instance.OnClick.InvokeAsync());
@@ -2390,7 +2394,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
     {
         var cut = Renderizar(new MediatorFalso());
         await AbrirAltaAsync(cut);
-        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() is "Guardar" or "Guardar y terminar").ClickAsync(new MouseEventArgs());
         cut.Find(".drawer-panel .alerta-formulario").TextContent.Trim().Should().Be("Selecciona una empresa.",
             "control positivo: el aviso existe antes de elegir");
 
@@ -2431,7 +2435,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         await cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = EmpresaEbro.ToString() });
         await EscribirDocumentoAsync(cut, "12345678Z");
 
-        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() is "Guardar" or "Guardar y terminar").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<CrearTrabajadorCommand>().Should().ContainSingle("el caso solo vale si el alta se guardó");
         await SalirYComprobarQueNoPreguntaAsync(cut, "lo escrito ya está guardado");

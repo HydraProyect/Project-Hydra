@@ -6,76 +6,162 @@
 @using Microsoft.AspNetCore.Components.Forms
 
 <LimiteDeErrores Pagina="this">
-<PageTitle>Subida múltiple — @Marca.Nombre</PageTitle>
+<PageTitle>@Textos["TituloPestana"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina subida-masiva">
-    <nav class="miga-subida-masiva" aria-label="Miga de pan">
-        <a href="/documentos">Documentos</a><span aria-hidden="true">/</span><span aria-current="page">Subida múltiple</span>
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]">
+            <Accion>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarCatalogosAsync">@Textos["Reintentar"]</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <div class="esqueleto-pagina-subida-masiva" aria-busy="true" aria-label="@Textos["ProcesandoLote"]">
+            <div class="bloque-esqueleto-subida-masiva titulo-esqueleto-subida-masiva"></div>
+            @for (var i = 0; i < 5; i++) { <div class="bloque-esqueleto-subida-masiva fila-esqueleto-subida-masiva"></div> }
+        </div>
+    }
+    else
+    {
+    <nav class="miga-subida-masiva" aria-label="@Textos["MigaEtiqueta"]">
+        <a href="/documentos">@Textos["MigaDocumentos"]</a><span aria-hidden="true">/</span><span aria-current="page">@Textos["MigaSubida"]</span>
     </nav>
-    <CabeceraPagina Titulo="Subida múltiple de documentos" Kicker="Ciclo documental">
-        <Descripcion>Arrastra o selecciona varios archivos (PDF, JPG, PNG, Word) o un único .zip con varios dentro. Solo documentos de Trabajador. La IA propone el trabajador, el tipo y las fechas que lee de cada archivo; el documento no existe hasta que tú confirmas o corriges cada uno.</Descripcion>
-        <Acciones><a class="enlace-exportar" href="/documentos/importar">Importar desde Excel</a><a class="enlace-exportar" href="/documentos/revision-ia">Revisión IA →</a></Acciones>
+    <CabeceraPagina Titulo="@Textos["Titulo"]" Kicker="@Textos["Kicker"]">
+        <Descripcion>@Textos["Descripcion"]</Descripcion>
+        <Acciones><a class="enlace-exportar" href="/documentos/importar">@Textos["EnlaceImportar"]</a><a class="enlace-exportar" href="/documentos/revision-ia">@Textos["EnlaceRevisionIa"]</a></Acciones>
     </CabeceraPagina>
 
     @if (_esSoloLectura)
     {
         <EstadoVacio
-            Titulo="Solo lectura"
-            Descripcion="Tu rol de Consulta permite ver este flujo, pero no crear documentos desde aquí."
+            Titulo="@Textos["SoloLecturaTitulo"]"
+            Descripcion="@Textos["SoloLecturaDescripcion"]"
             NombreIcono="seguridad" />
     }
     else
     {
-        <section class="zona-subida-masiva" aria-label="Seleccionar archivos">
-            <Icono Nombre="adjunto" Tamano="TamanoIcono.Grande" />
-            <h2>Arrastra aquí los documentos de trabajador</h2>
+        <section class="@(_items.Count > 0 ? "zona-subida-masiva zona-subida-masiva-con-lote" : "zona-subida-masiva")" aria-label="@Textos["ZonaEtiqueta"]">
+            <span class="icono-zona-subida-masiva"><Icono Nombre="adjunto" Tamano="TamanoIcono.Grande" /></span>
+            <h2>@Textos["ZonaTitulo"]</h2>
             <p>@Textos["IndicacionLimites", MaximoArchivosPorLote, LimitesArchivoSubido.TamanoMaximoMb]</p>
-            <ZonaSoltarArchivo Titulo="Seleccionar archivos" OnChange="ManejarArchivosSeleccionadosAsync" Multiple="true" Accept=".pdf,.jpg,.jpeg,.png,.docx,.zip" FormatosTexto="PDF · JPG · PNG · DOCX · ZIP" Cargando="_procesandoLote" />
-            <span class="aviso-memoria-subida">Nada se guarda hasta que confirmas cada archivo.</span>
+            <ZonaSoltarArchivo Titulo="@Textos["ZonaEtiqueta"]" OnChange="ManejarArchivosSeleccionadosAsync" Multiple="true" Accept=".pdf,.jpg,.jpeg,.png,.docx,.zip" FormatosTexto="@Textos["ZonaFormatos"]" Cargando="@(_procesandoLote || HayArchivosEnCurso)" />
+            <span class="aviso-memoria-subida"><span class="indicador-sistema" aria-hidden="true"></span>@Textos["ZonaAviso"]</span>
+        </section>
+    }
+
+    @if (_errorLote is { } errorLote)
+    {
+        <section class="error-lote-subida-masiva" role="alert">
+            <span class="icono-error-lote-subida-masiva"><Icono Nombre="error-circulo" /></span>
+            <div class="texto-error-lote-subida-masiva"><h2>@errorLote.Titulo</h2><p>@errorLote.Detalle</p></div>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _errorLote = null">@Textos["VolverAIntentarlo"]</Boton>
+        </section>
+    }
+    else if (_items.Count == 0 && !_procesandoLote && !_esSoloLectura)
+    {
+        <section class="vacio-lote-subida-masiva">
+            <span class="icono-vacio-lote-subida-masiva"><Icono Nombre="vacio" Tamano="TamanoIcono.Grande" /></span>
+            <h2>@Textos["VacioTitulo"]</h2>
+            <p>@Textos["VacioDescripcion"]</p>
         </section>
     }
 
     @if (_items.Count > 0)
     {
-        <section class="progreso-subida-masiva" aria-label="Progreso del lote">
-            <div class="progreso-subida-masiva-cabecera"><strong>@ArchivosLeidos de @TotalRecibidos archivos leídos</strong><span>@(HayArchivosEnCurso ? $"{ArchivosEnCurso} en curso — puedes resolver los ambiguos mientras tanto" : "Lote terminado")</span></div>
+        <section class="progreso-subida-masiva" aria-label="@Textos["ProgresoEtiqueta"]">
+            <div class="progreso-subida-masiva-cabecera">
+                <strong>@Textos["ProgresoTitulo", ArchivosLeidos, TotalRecibidos]</strong>
+                <Badge Tono="TonoBadge.Exito" title="@Textos["ContadorCreadosAyuda", TotalCreados, TotalRecibidos]">@Textos["ContadorCreados", TotalCreados]</Badge>
+                <Badge Tono="TonoBadge.Advertencia" title="@Textos["ContadorPorConfirmarAyuda", TotalPendientes, TotalRecibidos]">@Textos["ContadorPorConfirmar", TotalPendientes]</Badge>
+                <Badge Tono="TonoBadge.Neutro" title="@Textos["ContadorDescartadosAyuda", TotalDescartados, TotalRecibidos]">@Textos["ContadorDescartados", TotalDescartados]</Badge>
+                <Badge Tono="TonoBadge.Peligro" title="@Textos["ContadorErroresAyuda", TotalErrores, TotalRecibidos]">@Textos["ContadorErrores", TotalErrores]</Badge>
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="LimpiarResueltos">@Textos["LimpiarResueltos"]</Boton>
+            </div>
             <div class="barra-progreso-subida" role="progressbar" aria-valuemin="0" aria-valuemax="@TotalRecibidos" aria-valuenow="@ArchivosLeidos"><span style="width: @PorcentajeProgreso%"></span></div>
             <div class="resumen-subida-masiva">
-                <Badge Tono="TonoBadge.Exito">@TotalCreados creados</Badge><Badge Tono="TonoBadge.Advertencia">@TotalPendientes pendiente(s) por confirmar</Badge><Badge Tono="TonoBadge.Neutro">@TotalDescartados descartados</Badge><Badge Tono="TonoBadge.Peligro">@TotalErrores con error</Badge>
-                <span class="ayuda-solo-propone">La IA solo propone: ningún documento se crea sin que confirmes ese archivo.</span>
-                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="LimpiarResueltos">Limpiar creados y descartados</Boton>
+                <span class="ayuda-solo-propone"><span class="indicador-sistema" aria-hidden="true"></span>@Textos["SoloPropone"]</span>
+                <span class="pista-lote-subida-masiva">@(HayArchivosEnCurso ? Textos["EnCurso", ArchivosEnCurso] : Textos["LoteTerminado"])</span>
             </div>
         </section>
-        <section class="panel-lote-subida-masiva" aria-label="Archivos del lote">
-            <header><span>Archivos del lote</span>@foreach (var filtro in Filtros) { <button type="button" class="@(filtro.Valor == _filtro ? "filtro-lote activo" : "filtro-lote")" aria-pressed="@(filtro.Valor == _filtro)" @onclick="() => _filtro = filtro.Valor">@filtro.Etiqueta</button> }</header>
+        <section class="panel-lote-subida-masiva" aria-label="@Textos["PanelEtiqueta"]">
+            <header><span>@Textos["PanelEtiqueta"]</span>@foreach (var filtro in Filtros) { <button type="button" class="@(filtro.Valor == _filtro ? "filtro-lote activo" : "filtro-lote")" aria-pressed="@(filtro.Valor == _filtro)" @onclick="() => _filtro = filtro.Valor">@Textos[filtro.Clave]</button> }</header>
             @if (ItemsFiltrados.Count == 0)
-            { <div class="estado-vacio-lote"><h2>Ningún archivo con este filtro</h2><p>El lote tiene archivos, pero ninguno en ese estado.</p><Boton Variante="VarianteBoton.Secundario" OnClick="() => _filtro = FiltroTodos">Ver todos</Boton></div> }
+            { <div class="estado-vacio-lote"><h2>@Textos["FiltroVacioTitulo"]</h2><p>@Textos["FiltroVacioDescripcion"]</p><Boton Variante="VarianteBoton.Secundario" OnClick="() => _filtro = FiltroTodos">@Textos["VerTodos"]</Boton></div> }
             else
             {
                 <ul class="lista-items-subida-masiva">
                     @foreach (var item in ItemsFiltrados)
                     {
-                        <li @key="item.ClaveLocal" class="item-subida-masiva">
+                        <li @key="item.ClaveLocal" class="@(item.Expandido ? "item-subida-masiva item-subida-masiva-abierto" : "item-subida-masiva")">
                             <div class="item-subida-masiva-fila">
-                                @if (item.MiniaturaBase64 is not null) { <img class="miniatura-subida-masiva" src="@($"data:image/png;base64,{item.MiniaturaBase64}")" alt="Miniatura de @item.NombreArchivo" /> }
+                                @if (item.MiniaturaBase64 is not null) { <img class="miniatura-subida-masiva" src="@($"data:image/png;base64,{item.MiniaturaBase64}")" alt="@Textos["MiniaturaAlt", item.NombreArchivo]" /> }
                                 else { <div class="miniatura-subida-masiva miniatura-subida-masiva-vacia"><Icono Nombre="documentos" /></div> }
-                                <div class="item-subida-masiva-info"><span class="item-subida-masiva-nombre">@item.NombreArchivo</span><div class="item-subida-masiva-badges"><Badge Tono="@ObtenerTonoEstado(item.Estado)">@ObtenerEtiquetaEstado(item)</Badge>@if (item.Confianza is { } confianza) { <Badge Tono="@TonoConfianza(confianza)">@confianza% confianza IA</Badge> }</div>@if (item.Estado == EstadoItem.PendienteConfirmar && item.Propuesta.EstaVacia) { <span class="item-subida-masiva-propuesta">La IA no propuso datos para este archivo: indícalos tú.</span> }@if (item.Estado == EstadoItem.PendienteConfirmar && !item.Propuesta.EstaVacia) { <span class="item-subida-masiva-propuesta">@(CorregidaPorPersona(item) ? "Propuesta de la IA con tus correcciones" : "Propuesta de la IA") — trabajador: @(NombreTrabajadorElegido(item) ?? "sin determinar") · tipo: @(NombreTipoElegido(item) ?? "sin determinar") · emisión: @(item.FechaEmision.Length > 0 ? FechaLegible(item.FechaEmision) : "sin leer en el archivo")@if (RequiereVencimientoManual(item)) { <text> · vencimiento: @(item.FechaVencimientoManual.Length > 0 ? FechaLegible(item.FechaVencimientoManual) : "sin indicar")</text> }</span> }@if (item.MensajeError is not null) { <span class="item-subida-masiva-error">@item.MensajeError</span> }</div>
+                                <div class="item-subida-masiva-info">
+                                    <span class="item-subida-masiva-nombre">@item.NombreArchivo</span>
+                                    <div class="item-subida-masiva-badges">
+                                        <Badge Tono="@ObtenerTonoEstado(item.Estado)">@ObtenerEtiquetaEstado(item)</Badge>
+                                        @if (item.Confianza is { } confianza) { <span class="confianza-ia-subida"><span class="indicador-sistema" aria-hidden="true"></span>@Textos["Confianza", confianza]</span> }
+                                        @if (DetalleItem(item) is { } detalle) { <span class="detalle-item-subida-masiva">@detalle</span> }
+                                    </div>
+                                    @if (item.Estado == EstadoItem.PendienteConfirmar && item.Propuesta.EstaVacia) { <span class="item-subida-masiva-propuesta">@Textos["PropuestaSinDatos"]</span> }
+                                    @if (item.Estado == EstadoItem.PendienteConfirmar && !item.Propuesta.EstaVacia) { <span class="item-subida-masiva-propuesta">@ResumenPropuesta(item)</span> }
+                                    @if (item.Estado == EstadoItem.Subiendo)
+                                    {
+                                        <div class="barra-archivo-subida" role="progressbar" aria-label="@Textos["BarraSubida", item.NombreArchivo]" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@PorcentajeSubida(item)">
+                                            <span class="pista-barra-archivo"><span style="width: @PorcentajeSubida(item)%"></span></span>
+                                            <span class="cifra-barra-archivo">@PorcentajeSubida(item) %</span>
+                                            <span class="bytes-barra-archivo">@Textos["BytesSubidos", Megas(item.BytesSubidos), Megas(item.TamanoBytes)]</span>
+                                        </div>
+                                    }
+                                    @if (item.Estado == EstadoItem.Procesando)
+                                    {
+                                        <div class="barra-archivo-subida" role="progressbar" aria-label="@Textos["BarraLectura", item.NombreArchivo]">
+                                            <span class="pista-barra-archivo pista-barra-archivo-leyendo"></span>
+                                            <span class="bytes-barra-archivo texto-sistema-subida">@Textos["SubidoLeyendo"]</span>
+                                        </div>
+                                    }
+                                    @if (item.MensajeError is not null) { <span class="item-subida-masiva-error">@item.MensajeError</span> }
+                                </div>
                                 <div class="item-subida-masiva-acciones">
-                                    @if (!_esSoloLectura && item.Estado == EstadoItem.PendienteConfirmar) { @if (PropuestaCompleta(item)) { <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Cargando="@item.Confirmando" OnClick="() => ConfirmarAsync(item)">@(CorregidaPorPersona(item) ? "Confirmar con mis correcciones" : "Confirmar propuesta")</Boton> }<Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AlternarExpandido(item)">@(item.Expandido ? "Ocultar" : "Confirmar…")</Boton><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => Descartar(item)">Descartar</Boton> }
-                                    else if (item.Estado is EstadoItem.Error or EstadoItem.Descartado) { <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => QuitarDeLaLista(item)">Quitar de la lista</Boton> }
+                                    @if (!_esSoloLectura && item.Estado == EstadoItem.PendienteConfirmar) { <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-expanded="@(item.Expandido ? "true" : "false")" OnClick="() => AlternarExpandido(item)">@Textos["Gestionar"]</Boton> }
+                                    else if (item.Estado is EstadoItem.Error or EstadoItem.Descartado) { <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => QuitarDeLaLista(item)">@Textos["QuitarDeLaLista"]</Boton> }
+                                    else if (item.Estado == EstadoItem.Creado && item.DocumentoId is { } documentoId) { <a class="enlace-gestionar-subida" href="@($"/documentos?documentoId={documentoId}")">@Textos["Gestionar"]</a> }
                                 </div>
                             </div>
                             @if (!_esSoloLectura && item.Expandido && item.Estado == EstadoItem.PendienteConfirmar)
                             {
                                 <div class="item-subida-masiva-confirmacion">
-                                    @if (item.ContenidoPdf is not null) { <iframe class="previsualizacion-documento" src="@ConstruirDataUriPdf(item.ContenidoPdf)" title="Vista previa de @item.NombreArchivo"></iframe> }
+                                    <div class="item-subida-masiva-vista">
+                                        @if (item.ContenidoPdf is not null) { <iframe class="previsualizacion-documento" src="@ConstruirDataUriPdf(item.ContenidoPdf)" title="@Textos["VistaPreviaTitulo", item.NombreArchivo]"></iframe> }
+                                        <span class="ayuda-vista-subida">@Textos["VistaPreviaPie"]</span>
+                                    </div>
                                     <div class="item-subida-masiva-formulario">
-                                        <CampoBuscarSelect Etiqueta="Trabajador" Marcador="Escribe un nombre o alias para buscar…" Valor="@item.TrabajadorId" ValorChanged="v => item.TrabajadorId = v" Opciones="@OpcionesTrabajadores" />
-                                        <CampoSelect Etiqueta="Tipo de documento" Valor="@item.TipoDocumentoId" ValorChanged="v => item.TipoDocumentoId = v"><option value="">Selecciona un tipo de documento…</option>@foreach (var tipo in _tiposDisponibles) { <option value="@tipo.Id">@tipo.Nombre</option> }</CampoSelect>
-                                        <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@item.FechaEmision" ValorChanged="v => item.FechaEmision = v" />
-                                        <span class="ayuda-fecha-subida">@(item.Propuesta.FechaEmision is not null ? "Leída del archivo por la IA: compárala con el PDF antes de confirmar." : "La IA no leyó una fecha de emisión en el archivo: indícala tú.")</span>
-                                        @if (RequiereVencimientoManual(item)) { <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@item.FechaVencimientoManual" ValorChanged="v => item.FechaVencimientoManual = v" /><label class="campo-checkbox"><input type="checkbox" checked="@item.NoCaduca" @onchange="e => item.NoCaduca = e.Value is bool m && m" /> @TextosVigenciaDocumento.Texto("NoCaduca")</label>@if (item.Propuesta.FechaVencimiento is not null) { <span class="ayuda-fecha-subida">Propuesta por la IA; puede haberla calculado a partir de la vigencia del documento en lugar de leerla. Compárala con el PDF antes de confirmar.</span> } }
-                                        <div class="acciones-formulario"><Boton Variante="VarianteBoton.Primario" Cargando="@item.Confirmando" OnClick="() => ConfirmarAsync(item)">Confirmar y crear</Boton></div>
+                                        <CampoBuscarSelect Etiqueta="@Textos["Trabajador"]" Marcador="@Textos["TrabajadorMarcador"]" Valor="@item.TrabajadorId" ValorChanged="v => item.TrabajadorId = v" Opciones="@OpcionesTrabajadores" />
+                                        @if (item.TrabajadorId.Length == 0) { <span class="error-campo-subida">@Textos["TrabajadorFalta"]</span> }
+                                        else if (item.Propuesta.TrabajadorId?.ToString() == item.TrabajadorId) { <span class="texto-sistema-subida"><span class="indicador-sistema" aria-hidden="true"></span>@Textos["TrabajadorPropuesto"]</span> }
+                                        <CampoSelect Etiqueta="@Textos["TipoDocumento"]" Valor="@item.TipoDocumentoId" ValorChanged="v => item.TipoDocumentoId = v"><option value="">@Textos["TipoDocumentoMarcador"]</option>@foreach (var tipo in _tiposDisponibles) { <option value="@tipo.Id">@tipo.Nombre</option> }</CampoSelect>
+                                        <span class="ayuda-tipo-subida">@Textos["TipoDocumentoAyuda"]</span>
+                                        <CampoTexto Etiqueta="@Textos["FechaEmision"]" Type="date" Valor="@item.FechaEmision" ValorChanged="v => item.FechaEmision = v" />
+                                        <span class="ayuda-fecha-subida">@(item.Propuesta.FechaEmision is not null ? Textos["FechaEmisionLeida"] : Textos["FechaEmisionNoLeida"])</span>
+                                        @if (RequiereVencimientoManual(item)) { <CampoTexto Etiqueta="@Textos["FechaVencimiento"]" Type="date" Valor="@item.FechaVencimientoManual" ValorChanged="v => item.FechaVencimientoManual = v" /><label class="campo-checkbox"><input type="checkbox" checked="@item.NoCaduca" @onchange="e => item.NoCaduca = e.Value is bool m && m" /> @TextosVigenciaDocumento.Texto("NoCaduca")</label>@if (item.Propuesta.FechaVencimiento is not null) { <span class="ayuda-fecha-subida">@Textos["VencimientoPropuesto"]</span> } }
+                                        else
+                                        {
+                                            <div class="vencimiento-subida-masiva">
+                                                <span class="etiqueta-vencimiento-subida">@Textos["Vencimiento"]</span>
+                                                @if (VencimientoCalculado(item) is { } vence) { <TextoFechaCopiable Fecha="@vence.Fecha">@vence.Texto</TextoFechaCopiable> }
+                                                else { <span>@TextoVencimientoSinFecha(item)</span> }
+                                                <span class="ayuda-fecha-subida">@Textos["VencimientoAyuda"]</span>
+                                            </div>
+                                        }
+                                        <div class="acciones-formulario">
+                                            <Boton Variante="VarianteBoton.Primario" Cargando="@item.Confirmando" OnClick="() => ConfirmarAsync(item)">@Textos["ConfirmarYCrear"]</Boton>
+                                            <Boton Variante="VarianteBoton.Secundario" OnClick="() => AlternarExpandido(item)">@Textos["CerrarSinConfirmar"]</Boton>
+                                            <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="@item.Confirmando" OnClick="() => _paraDescartar = item">@Textos["Descartar"]</Boton>
+                                            <span class="ayuda-fecha-subida">@Textos["ConfirmarAviso"]</span>
+                                        </div>
                                     </div>
                                 </div>
                             }
@@ -86,14 +172,25 @@
         </section>
     }
     else if (_procesandoLote)
-    { <section class="esqueleto-lote-subida-masiva" aria-busy="true" aria-label="Procesando el lote"><span>Convirtiendo a PDF y leyendo cada archivo…</span>@for (var i = 0; i < 5; i++) { <div></div> }</section> }
+    { <section class="esqueleto-lote-subida-masiva" aria-busy="true" aria-label="@Textos["ProcesandoLote"]"><span>@Textos["CargandoLote"]</span>@for (var i = 0; i < 5; i++) { <div></div> }</section> }
+    }
 </div>
+
+<DialogoConfirmacion Visible="@(_paraDescartar is not null)"
+                     VisibleChanged="v => { if (!v) _paraDescartar = null; }"
+                     Titulo="@Textos["DescartarTitulo"]"
+                     Mensaje="@(_paraDescartar?.NombreArchivo ?? string.Empty)"
+                     TextoBotonConfirmar="@Textos["Descartar"]"
+                     TextoBotonDescartar="@Textos["Cancelar"]"
+                     OnConfirmar="ConfirmarDescarteAsync">
+    <p>@Textos["DescartarMensaje"]</p>
+</DialogoConfirmacion>
 
 @* FS-14 (auditoría UX de flujos sin salida, 2026-09-24): el lote vive solo en la
    memoria del circuito —nada se guarda hasta confirmar cada archivo—, y salir lo
-   perdía sin aviso. Mientras quedan archivos en curso o sin confirmar, salir por la
-   aplicación pide confirmación y ofrece seguir con el lote; recargar o cerrar la
-   pestaña dispara el aviso del propio navegador. *@
+   perdía sin aviso. Mientras quedan archivos en cola, subiéndose, en curso o sin
+   confirmar, salir por la aplicación pide confirmación y ofrece seguir con el lote;
+   recargar o cerrar la pestaña dispara el aviso del propio navegador. *@
 <AvisoCambiosSinGuardar HayCambios="() => HayTrabajoSinGuardar"
                         Titulo="@Textos["SalirTitulo"]"
                         Mensaje="@Textos["SalirMensaje", ArchivosSinGuardar]"

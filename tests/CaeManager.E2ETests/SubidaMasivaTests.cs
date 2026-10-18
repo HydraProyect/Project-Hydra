@@ -91,9 +91,9 @@ public class SubidaMasivaTests(WebAppFixture fixture)
             var item = page.Locator(".item-subida-masiva");
             await item.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
             await Expect(item).ToContainTextAsync("Pendiente de confirmar", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
-            await Expect(page.Locator(".resumen-subida-masiva")).ToContainTextAsync("1 pendiente(s)");
+            await Expect(page.Locator(".progreso-subida-masiva")).ToContainTextAsync("1 por confirmar");
 
-            await item.GetByText("Confirmar…").ClickAsync();
+            await item.GetByText("Gestionar", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
 
             var confirmacion = item.Locator(".item-subida-masiva-confirmacion");
             await confirmacion.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
@@ -161,7 +161,7 @@ public class SubidaMasivaTests(WebAppFixture fixture)
 
             var filaValida = items.Filter(new LocatorFilterOptions { HasText = Path.GetFileName(rutaPdf) });
             await Expect(filaValida).ToContainTextAsync("Pendiente de confirmar", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
-            await Expect(page.Locator(".resumen-subida-masiva")).ToContainTextAsync("1 con error");
+            await Expect(page.Locator(".progreso-subida-masiva")).ToContainTextAsync("1 con error");
         }
         finally
         {

@@ -68,24 +68,19 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         // acotar por el sufijo compartido hace el test robusto aunque se
         // reintente sin limpiar el estado anterior.
         await page.GetByPlaceholder("Filtrar esta pantalla: nombre").FillAsync("P331 ");
-        var filaA = page.Locator("tr", new PageLocatorOptions { HasText = razonSocialA });
-        var filaB = page.Locator("tr", new PageLocatorOptions { HasText = razonSocialB });
+        var filaA = page.Locator(".lista-filas-acordeon .tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialA });
+        var filaB = page.Locator(".lista-filas-acordeon .tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialB });
         await filaA.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await filaB.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // --- Atajos de teclado: j/k mueven el foco, x alterna selección ---
-        // El primer Tab desde el buscador llega a la primera pastilla de filtro
-        // («Gestor CAE»): es un botón, y los botones no consumen j/k/x, así que
-        // desde ahí j/k sí deben recorrer la lista. No suponemos más que eso.
+        // El primer Tab desde el buscador llega a la primera pastilla de filtro («Criticidad»: la lista ya no
+        // ofrece la de «Gestor CAE»): es un botón, y los botones no consumen j/k/x, así que desde ahí j/k sí
+        // deben recorrer la lista. No suponemos más que eso.
         await page.Keyboard.PressAsync("Tab");
-        // En la presentación de maqueta el desplegable de Documentación precede a las pastillas: se sigue con Tab
-        // hasta la de «Gestor CAE» (como mucho dos pasos más).
-        var pastillaGestor = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex(@"^Gestor CAE(?::|$)") });
-        for (var paso = 0; paso < 2 && !await pastillaGestor.EvaluateAsync<bool>("e => e === document.activeElement"); paso++)
-            await page.Keyboard.PressAsync("Tab");
-        await Expect(pastillaGestor).ToBeFocusedAsync();
-        await Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex(@"^Criticidad(?::|$)") })).ToBeVisibleAsync();
-
+        var pastillaCriticidad = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex(@"^Criticidad(?::|$)") });
+        await Expect(pastillaCriticidad).ToBeFocusedAsync();
+        await Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex(@"^Gestor CAE(?::|$)") })).ToHaveCountAsync(0);
         // Salir del buscador dispara ManejarBlurAsync (CampoTexto.razor),
         // que reinvoca ValorChanged aunque el valor no haya cambiado — eso
         // vuelve a llamar a BuscarAsync -> RecargarAsync, que resetea
@@ -204,7 +199,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
-        var buscador = page.GetByRole(AriaRole.Textbox, new PageGetByRoleOptions { Name = "Buscar", Exact = true });
+        var buscador = page.GetByPlaceholder("Filtrar esta pantalla: nombre");
         await Expect(buscador).Not.ToBeFocusedAsync();
 
         // Un botón con el foco no consume la «f» (mismo criterio que j/k).
@@ -228,7 +223,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
-        var buscador = page.GetByRole(AriaRole.Textbox, new PageGetByRoleOptions { Name = "Buscar", Exact = true });
+        var buscador = page.GetByPlaceholder("Filtrar esta pantalla: nombre");
 
         // Menú abierto: la pastilla «Criticidad» enfoca su opción vigente («Todos»). Hasta el 2026-10-08 se
         // usaba la pastilla «Estado», que pasó a ser la franja de estado (botones, sin menú).

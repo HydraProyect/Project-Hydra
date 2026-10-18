@@ -296,28 +296,28 @@ public partial class FiltrosGuardadosEnListadosTests : BunitContext
     public async Task Centros_guardar_envia_filtros_agrupacion_y_orden_pero_no_el_Centro_ni_las_precargas_del_alta()
     {
         var cut = Renderizar<Centros>(
-            $"centros?q=Nave&estado=Vencido&cliente={ClienteA}&empresa={EmpresaE}&agrupar=no&orden=cumplimiento-desc"
+            $"centros?q=Nave&estado=Vencido&cliente={ClienteA}&empresa={EmpresaE}&agrupar=cliente&orden=cumplimiento-desc"
             + $"&CentroId={Guid.NewGuid()}&ClienteId={ClienteB}&EmpresaId={EmpresaE}&Nombre=Nuevo");
 
         var comando = await GuardarFiltroAsync(cut, "Nave vencida");
 
         comando.Pantalla.Should().Be(PantallasConFiltrosGuardados.Centros);
         comando.ValoresJson.Should().Be(
-            $"{{\"q\":\"Nave\",\"estado\":\"Vencido\",\"cliente\":\"{ClienteA}\",\"empresa\":\"{EmpresaE}\",\"agrupar\":\"no\",\"orden\":\"cumplimiento-desc\"}}");
+            $"{{\"q\":\"Nave\",\"estado\":\"Vencido\",\"cliente\":\"{ClienteA}\",\"empresa\":\"{EmpresaE}\",\"agrupar\":\"cliente\",\"orden\":\"cumplimiento-desc\"}}");
     }
 
     [Fact]
     public async Task Centros_aplicar_deja_url_y_consulta_con_el_filtro_y_quita_lo_que_no_trae()
     {
         ConFiltroGuardado("Peores de A", $"{{\"cliente\":\"{ClienteA}\",\"orden\":\"cumplimiento-desc\"}}");
-        var cut = Renderizar<Centros>($"centros?q=Nave&estado=Vencido&empresa={EmpresaE}&agrupar=no&orden=cumplimiento");
+        var cut = Renderizar<Centros>($"centros?q=Nave&estado=Vencido&empresa={EmpresaE}&agrupar=cliente&orden=cumplimiento");
         var consultasAntes = Consultas<ObtenerCentrosQuery>();
 
         var url = await AplicarAsync(cut, "Peores de A");
 
         url.Should().BeEquivalentTo(
             new Dictionary<string, string> { ["cliente"] = ClienteA.ToString(), ["orden"] = "cumplimiento-desc" },
-            "búsqueda, estado, Empresa y «agrupar=no» no están en el filtro guardado: se quitan y vuelve la agrupación de fábrica");
+            "búsqueda, estado, Empresa y «agrupar=cliente» no están en el filtro guardado: se quitan y vuelve la agrupación de fábrica (sin agrupar)");
         (Consultas<ObtenerCentrosQuery>() - consultasAntes).Should().Be(1, "una recarga, no dos");
         Ultima<ObtenerCentrosQuery>().Should().Match<ObtenerCentrosQuery>(q =>
             q.Busqueda == null && q.ClienteId == ClienteA && q.EmpresaId == null && q.Estados == null
@@ -325,16 +325,16 @@ public partial class FiltrosGuardadosEnListadosTests : BunitContext
     }
 
     [Fact]
-    public async Task Centros_aplicar_conserva_agrupar_no_y_el_orden_ascendente_cuando_el_filtro_los_trae()
+    public async Task Centros_aplicar_conserva_agrupar_cliente_y_el_orden_ascendente_cuando_el_filtro_los_trae()
     {
-        ConFiltroGuardado("Sin agrupar", "{\"estado\":\"Vencido,Urgente\",\"agrupar\":\"no\",\"orden\":\"cumplimiento\"}");
+        ConFiltroGuardado("Por Cliente", "{\"estado\":\"Vencido,Urgente\",\"agrupar\":\"cliente\",\"orden\":\"cumplimiento\"}");
         var cut = Renderizar<Centros>("centros?q=Nave");
 
-        var url = await AplicarAsync(cut, "Sin agrupar");
+        var url = await AplicarAsync(cut, "Por Cliente");
 
         url.Keys.Should().BeEquivalentTo(["estado", "agrupar", "orden"]);
         url["estado"].Split(',').Should().BeEquivalentTo(["Vencido", "Urgente"]);
-        url["agrupar"].Should().Be("no");
+        url["agrupar"].Should().Be("cliente");
         url["orden"].Should().Be("cumplimiento");
         Ultima<ObtenerCentrosQuery>().Should().Match<ObtenerCentrosQuery>(q =>
             q.Busqueda == null && q.OrdenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) && !q.Descendente);
@@ -350,53 +350,59 @@ public partial class FiltrosGuardadosEnListadosTests : BunitContext
         var url = await AplicarAsync(cut, "Antiguo");
 
         url.Should().BeEquivalentTo(new Dictionary<string, string> { ["q"] = "Nave" },
-            "un Id que no es Guid, un estado y un orden desconocidos no filtran; «agrupar» solo viaja cuando es «no»");
+            "un Id que no es Guid, un estado y un orden desconocidos no filtran; «agrupar» solo viaja cuando es «cliente»");
         Ultima<ObtenerCentrosQuery>().Should().Match<ObtenerCentrosQuery>(q =>
             q.Busqueda == "Nave" && q.ClienteId == null && q.EmpresaId == null && q.Estados == null && q.OrdenarPor == null);
     }
 
     /// <summary>
-    /// La agrupación de un filtro guardado se lee como la de la URL (AgrupacionDeLista): «no» la quita; la
-    /// clave explícita, la ausencia y un valor desconocido dan la de fábrica de Centros, por Cliente
-    /// empresarial. La página parte de la vista contraria, así que lo que se ve lo decide el filtro aplicado.
+    /// La agrupación de un filtro guardado se lee como la de la URL (AgrupacionDeLista): «cliente» agrupa por
+    /// Cliente empresarial; «no», la ausencia y un valor desconocido dan la de fábrica de Centros, sin agrupar
+    /// (la maqueta). La página parte de la vista contraria, así que lo que se ve lo decide el filtro aplicado.
     /// </summary>
     [Theory]
     [InlineData("{\"agrupar\":\"no\"}", false)]
     [InlineData("{\"agrupar\":\"cliente\"}", true)]
-    [InlineData("{}", true)]
-    [InlineData("{\"agrupar\":\"inventada\"}", true)]
+    [InlineData("{}", false)]
+    [InlineData("{\"agrupar\":\"inventada\"}", false)]
     public async Task Centros_aplicar_lee_la_agrupacion_guardada_como_la_de_la_url(string valoresJson, bool agrupada)
     {
         ConCentrosDeDosClientesEmpresariales();
         ConFiltroGuardado("Vista", valoresJson);
-        var cut = Renderizar<Centros>(agrupada ? "centros?agrupar=no" : "centros");
-        cut.FindAll(".grupo-lista").Should().HaveCount(agrupada ? 0 : 2, "control positivo: la página parte de la vista contraria");
+        var cut = Renderizar<Centros>(agrupada ? "centros" : "centros?agrupar=cliente");
+        cut.FindAll(".cabecera-grupo-centros").Should().HaveCount(agrupada ? 0 : 2, "control positivo: la página parte de la vista contraria");
 
         var url = await AplicarAsync(cut, "Vista");
 
-        cut.FindAll(".grupo-lista").Should().HaveCount(agrupada ? 2 : 0);
-        cut.Find("[data-keytip='A']").TextContent.Trim().Should().Be(agrupada ? "Agrupar: Cliente" : "Agrupar: no");
+        cut.FindAll(".cabecera-grupo-centros").Should().HaveCount(agrupada ? 2 : 0);
+        PastillaAgrupar(cut).TextContent.Trim().Should().Be(agrupada ? "Agrupar: Por Cliente" : "Agrupar");
         url.Should().BeEquivalentTo(
-            agrupada ? [] : new Dictionary<string, string> { ["agrupar"] = "no" },
+            agrupada ? new Dictionary<string, string> { ["agrupar"] = "cliente" } : [],
             "la agrupación de fábrica no deja rastro en la URL, tampoco cuando el filtro guardado la nombra");
     }
 
     /// <summary>
-    /// Lo que se guarda es la URL, y «sin agrupar» llega a ella por el desplegable. La búsqueda está para
-    /// que «Guardar filtro» se ofrezca: la barra solo lo habilita con algún filtro aplicado.
+    /// Lo que se guarda es la URL, y «Por Cliente» llega a ella por la pastilla «Agrupar» (sin agrupar es la vista
+    /// de fábrica y no deja rastro). La búsqueda está para que «Guardar filtro» se ofrezca: la barra solo lo
+    /// habilita con algún filtro aplicado.
     /// </summary>
     [Fact]
-    public async Task Centros_guardar_tras_quitar_la_agrupacion_con_el_desplegable_envia_agrupar_no()
+    public async Task Centros_guardar_tras_agrupar_con_la_pastilla_envia_agrupar_cliente()
     {
         ConCentrosDeDosClientesEmpresariales();
         var cut = Renderizar<Centros>("centros?q=Planta");
 
-        await cut.Find("[data-keytip='A']").ClickAsync(new MouseEventArgs());
-        await cut.FindAll("[role=menuitemradio]").Single(i => i.TextContent.Trim() == "Sin agrupar").ClickAsync(new MouseEventArgs());
-        var comando = await GuardarFiltroAsync(cut, "Sin agrupar");
+        await PastillaAgrupar(cut).ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=menuitemradio]").Single(i => i.TextContent.Trim() == "Por Cliente").ClickAsync(new MouseEventArgs());
+        var comando = await GuardarFiltroAsync(cut, "Por Cliente");
 
-        comando.ValoresJson.Should().Be("{\"q\":\"Planta\",\"agrupar\":\"no\"}");
+        comando.ValoresJson.Should().Be("{\"q\":\"Planta\",\"agrupar\":\"cliente\"}");
     }
+
+    /// <summary>La pastilla «Agrupar» de la barra de Centros: «Agrupar» sin agrupar, «Agrupar: Por Cliente» agrupada.</summary>
+    private static AngleSharp.Dom.IElement PastillaAgrupar(IRenderedComponent<Centros> cut) =>
+        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla")
+            .Single(p => p.GetAttribute("aria-label")!.StartsWith("Agrupar", StringComparison.Ordinal));
 
     /// <summary>Dos Centros de <see cref="ClienteA"/> y uno de <see cref="ClienteB"/>: agrupada, la lista pinta dos grupos.</summary>
     private void ConCentrosDeDosClientesEmpresariales() => _mediador.Centros.AddRange(
