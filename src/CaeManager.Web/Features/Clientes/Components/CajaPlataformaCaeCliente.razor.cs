@@ -19,13 +19,14 @@ namespace CaeManager.Web.Features.Clientes.Components;
 public partial class CajaPlataformaCaeCliente : IDisposable
 {
     /// <summary>La contraseña revelada con «Mostrar» se vuelve a ocultar sola (decisión del 18-10: 30 s).</summary>
-    internal static readonly TimeSpan TiempoContrasenaVisible = TimeSpan.FromSeconds(30);
+    public static readonly TimeSpan TiempoContrasenaVisible = TimeSpan.FromSeconds(30);
 
     [Parameter, EditorRequired] public Guid ClienteEmpresarialId { get; set; }
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
+    [Inject] private TimeProvider Reloj { get; set; } = default!;
 
     private readonly CancellationTokenSource _ciclo = new();
     private readonly Dictionary<Guid, string> _reveladas = [];
@@ -167,7 +168,7 @@ public partial class CajaPlataformaCaeCliente : IDisposable
     {
         try
         {
-            await Task.Delay(TiempoContrasenaVisible, token);
+            await Task.Delay(TiempoContrasenaVisible, Reloj, token);
         }
         catch (OperationCanceledException)
         {

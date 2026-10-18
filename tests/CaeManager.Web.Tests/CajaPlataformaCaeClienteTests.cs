@@ -1,0 +1,207 @@
+using Bunit;
+using CaeManager.Application.Clientes.Queries.ObtenerAccesosPlataformaCaeCliente;
+using CaeManager.Application.Clientes.Queries.ObtenerPlataformaCaeCliente;
+using CaeManager.Application.Clientes.Queries.RevelarContrasenaAccesoPlataformaCae;
+using CaeManager.Application.Common;
+using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Clientes.Components;
+using FluentAssertions;
+using MediatR;
+using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace CaeManager.Web.Tests;
+
+/// <summary>
+/// Caja «Plataforma CAE» de Cliente 360 (maqueta del 17-10, decisión del 2026-10-18). Por rol: el Gestor CAE ve la
+/// plataforma, el código de cliente y los accesos de cada Empresa; Consulta solo la plataforma y «Abrir portal» (el
+/// servidor no le entrega los accesos); al Usuario de Cliente no se le pinta. La contraseña nunca llega al abrir la
+/// ficha: «Mostrar» y «Copiar» la piden con un clic, y la mostrada se vuelve a ocultar sola a los 30 s.
+/// </summary>
+public class CajaPlataformaCaeClienteTests : BunitContext
+{
+    private static readonly Guid ClienteEmpresarialId = Guid.NewGuid();
+    private static readonly Guid EmpresaId = Guid.NewGuid();
+    private readonly RelojManual _reloj = new();
+
+    public CajaPlataformaCaeClienteTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+    }
+
+    private sealed class MediatorFalso : IMediator
+    {
+        public PlataformaCaeClienteDto? Plataforma { get; set; } =
+            new(true, "Nalanda", "https://portal.example/acceso", "CLI-01");
+
+        /// <summary>null = lo que el servidor devuelve a Consulta (AutorizacionSecretosDeTenantBehavior).</summary>
+        public IReadOnlyList<AccesoPlataformaCaeDto>? Accesos { get; set; } =
+        [
+            new(EmpresaId, "Empresa Propia S.L.", "b12345678", true, new DateTime(2026, 10, 1, 10, 0, 0, DateTimeKind.Utc), "Marta Gestora"),
+        ];
+
+        public bool AccesosPidenSegundoFactor { get; set; }
+        public List<object> Enviadas { get; } = [];
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            Enviadas.Add(request);
+            object? respuesta = request switch
+            {
+                ObtenerPlataformaCaeClienteQuery => Plataforma,
+                ObtenerAccesosPlataformaCaeClienteQuery when AccesosPidenSegundoFactor =>
+                    throw new SegundoFactorRequeridoParaCredencialesException(),
+                ObtenerAccesosPlataformaCaeClienteQuery => Accesos,
+                RevelarContrasenaAccesoPlataformaCaeQuery => new ContrasenaAccesoPlataformaCaeDto("s3cr3ta-del-portal"),
+                _ => throw new NotSupportedException($"Consulta no prevista: {request.GetType().Name}."),
+            };
+            return Task.FromResult((TResponse)respuesta!);
+        }
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            Task.CompletedTask;
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) => Task.FromResult<object?>(null);
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification => Task.CompletedTask;
+    }
+
+    private IRenderedComponent<CajaPlataformaCaeCliente> Montar(MediatorFalso mediador, string rol = Roles.GestorCae)
+    {
+        Services.AddScoped<IMediator>(_ => mediador);
+        Services.AddScoped<ToastService>();
+        Services.AddSingleton<TimeProvider>(_reloj);
+        Services.AddLocalization();
+        this.ConRolDeEscritura(rol);
+        SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        return Render<CajaPlataformaCaeCliente>(p => p.Add(c => c.ClienteEmpresarialId, ClienteEmpresarialId));
+    }
+
+    [Fact]
+    public void El_Gestor_CAE_ve_plataforma_portal_codigo_y_accesos_sin_que_viaje_la_contrasena()
+    {
+        var mediador = new MediatorFalso();
+
+        var cut = Montar(mediador);
+
+        cut.Find("[data-plataforma-nombre]").TextContent.Should().Be("Nalanda");
+        var portal = cut.Find("[data-abrir-portal]");
+        portal.GetAttribute("href").Should().Be("https://portal.example/acceso");
+        portal.GetAttribute("rel").Should().Contain("noopener");
+        cut.Find("[data-codigo-cliente]").TextContent.Should().Contain("CLI-01");
+        var acceso = cut.Find($"[data-acceso-empresa='{EmpresaId}']");
+        acceso.TextContent.Should().Contain("Empresa Propia S.L.").And.Contain("b12345678").And.Contain("Marta Gestora");
+        cut.Find("[data-contrasena-valor]").TextContent.Should().Be("••••••••••");
+        cut.Markup.Should().NotContain("s3cr3ta-del-portal");
+        mediador.Enviadas.OfType<RevelarContrasenaAccesoPlataformaCaeQuery>().Should().BeEmpty(
+            "abrir la ficha no descifra ninguna contraseña ni deja rastro en la auditoría");
+    }
+
+    [Fact]
+    public void Consulta_ve_solo_la_plataforma_y_abrir_portal()
+    {
+        var mediador = new MediatorFalso { Accesos = null };
+
+        var cut = Montar(mediador, Roles.Consulta);
+
+        cut.Find("[data-plataforma-nombre]").TextContent.Should().Be("Nalanda");
+        cut.FindAll("[data-abrir-portal]").Should().ContainSingle();
+        cut.FindAll("[data-codigo-cliente]").Should().BeEmpty();
+        cut.FindAll("[data-acceso-empresa]").Should().BeEmpty();
+        cut.FindAll("[data-editar-plataforma]").Should().BeEmpty();
+        cut.Markup.Should().NotContain("CLI-01");
+    }
+
+    [Fact]
+    public void Al_Usuario_de_Cliente_no_se_le_pinta_la_caja()
+    {
+        var mediador = new MediatorFalso { Plataforma = null, Accesos = null };
+
+        var cut = Montar(mediador, Roles.Cliente);
+
+        cut.FindAll(".tarjeta-titulo").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Plataforma CAE");
+        mediador.Enviadas.OfType<ObtenerAccesosPlataformaCaeClienteQuery>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Sin_plataforma_registrada_el_Gestor_CAE_ve_el_vacio_y_registrar()
+    {
+        var mediador = new MediatorFalso { Plataforma = new PlataformaCaeClienteDto(false, null, null, null) };
+
+        var cut = Montar(mediador);
+
+        cut.FindAll("[data-plataforma-sin-registrar]").Should().ContainSingle();
+        cut.Find("[data-editar-plataforma]").TextContent.Should().Contain("Registrar");
+        mediador.Enviadas.OfType<ObtenerAccesosPlataformaCaeClienteQuery>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Sin_segundo_factor_los_accesos_invitan_a_activarlo()
+    {
+        var mediador = new MediatorFalso { AccesosPidenSegundoFactor = true };
+
+        var cut = Montar(mediador);
+
+        cut.FindAll("[data-accesos-requieren-2fa]").Should().ContainSingle();
+        cut.FindAll("[data-acceso-empresa]").Should().BeEmpty();
+        cut.Find("[data-plataforma-nombre]").TextContent.Should().Be("Nalanda");
+    }
+
+    [Fact]
+    public void Mostrar_pide_la_contrasena_una_vez_y_se_oculta_sola_a_los_30_segundos()
+    {
+        var mediador = new MediatorFalso();
+        var cut = Montar(mediador);
+
+        cut.Find("[data-mostrar-contrasena]").Click();
+
+        cut.WaitForAssertion(() => cut.Find("[data-contrasena-valor]").TextContent.Should().Be("s3cr3ta-del-portal"));
+        mediador.Enviadas.OfType<RevelarContrasenaAccesoPlataformaCaeQuery>().Should().ContainSingle()
+            .Which.Should().Be(new RevelarContrasenaAccesoPlataformaCaeQuery(ClienteEmpresarialId, EmpresaId));
+
+        _reloj.Avanzar(CajaPlataformaCaeCliente.TiempoContrasenaVisible - TimeSpan.FromSeconds(1));
+        cut.Find("[data-contrasena-valor]").TextContent.Should().Be("s3cr3ta-del-portal");
+
+        _reloj.Avanzar(TimeSpan.FromSeconds(1));
+        cut.WaitForAssertion(() => cut.Find("[data-contrasena-valor]").TextContent.Should().Be("••••••••••"));
+        cut.Markup.Should().NotContain("s3cr3ta-del-portal");
+    }
+
+    [Fact]
+    public void Ocultar_antes_de_tiempo_no_vuelve_a_pedir_la_contrasena()
+    {
+        var mediador = new MediatorFalso();
+        var cut = Montar(mediador);
+
+        cut.Find("[data-mostrar-contrasena]").Click();
+        cut.WaitForAssertion(() => cut.Find("[data-contrasena-valor]").TextContent.Should().Be("s3cr3ta-del-portal"));
+        cut.Find("[data-mostrar-contrasena]").Click();
+
+        cut.Find("[data-contrasena-valor]").TextContent.Should().Be("••••••••••");
+        mediador.Enviadas.OfType<RevelarContrasenaAccesoPlataformaCaeQuery>().Should().ContainSingle();
+        _reloj.TemporizadoresVivos.Should().Be(0, "al ocultar se suelta el temporizador");
+    }
+
+    [Fact]
+    public void Copiar_la_contrasena_usa_la_misma_peticion_auditada()
+    {
+        var mediador = new MediatorFalso();
+        var cut = Montar(mediador);
+
+        cut.Find("[data-contrasena] .boton-copiar").Click();
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<RevelarContrasenaAccesoPlataformaCaeQuery>().Should().ContainSingle());
+        cut.Find("[data-contrasena-valor]").TextContent.Should().Be("••••••••••", "copiar no la deja a la vista");
+    }
+}

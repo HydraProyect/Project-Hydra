@@ -11,6 +11,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
+using CaeManager.Application.Clientes.Queries.ObtenerPlataformaCaeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerResumenCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasConCentrosDeCliente;
@@ -117,6 +118,8 @@ public class Cliente360PaginaTests : BunitContext
             ObtenerToleranciasClienteEmpresarialQuery => (IReadOnlyList<ToleranciaTipoDocumentoDto>)
                 [new ToleranciaTipoDocumentoDto(Guid.NewGuid(), "Formación PRL", AmbitoAplicacion.Trabajador, 0)],
             EstablecerToleranciaClienteEmpresarialCommand => GuardarTolerancia(),
+            // La caja «Plataforma CAE» del lateral (CajaPlataformaCaeClienteTests la prueba aparte): sin registrar.
+            ObtenerPlataformaCaeClienteQuery => new PlataformaCaeClienteDto(false, null, null, null),
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
 
