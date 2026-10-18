@@ -65,7 +65,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
 {
     /// <summary>
     /// Handlers cuyo <c>Handle</c> alcanza la comprobación de cartera. Medido sobre
-    /// <c>origin/main</c> <c>0a6b318c3</c> (2026-10-18): 144 de 183.
+    /// <c>origin/main</c> <c>af72f7ad3</c> (2026-10-18): 182 de 215.
     /// </summary>
     private static readonly HashSet<string> Llaman =
     [
@@ -92,6 +92,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Centros.EliminarDocumentacionRequeridaCentroCommandHandler",
         "Centros.EstablecerDocumentacionRequeridaCentroCommandHandler",
         "Centros.EstablecerGestionCaeCentroCommandHandler",
+        "Centros.GuardarNotaInternaCentroCommandHandler",
         "Centros.MarcarCanalGestionPrincipalCommandHandler",
         "Centros.RestaurarCentroCommandHandler",
 
@@ -115,6 +116,8 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Comunicaciones.CrearMacroCommandHandler",
         "Comunicaciones.CrearNotaInternaConversacionCommandHandler",
         "Comunicaciones.DescartarRecordatorioConversacionCommandHandler",
+        "Comunicaciones.DescartarSugerenciaGestionCorreoCommandHandler",
+        "Comunicaciones.DescartarSugerenciaVisitaCorreoCommandHandler",
         "Comunicaciones.EditarMacroCommandHandler",
         "Comunicaciones.EliminarMacroCommandHandler",
         "Comunicaciones.EnviarMensajeNuevoCommandHandler",
@@ -177,8 +180,12 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Integraciones.ReactivarConexionCommandHandler",
 
         // Plantillas
+        "Plantillas.AgregarVersionPlantillaCommandHandler",
+        "Plantillas.ConfirmarPlantillaDocumentoVersionCommandHandler",
         "Plantillas.CrearPlantillaDocumentoCommandHandler",
         "Plantillas.GenerarDocumentoIndividualCommandHandler",
+        "Plantillas.GuardarElementosPlantillaCommandHandler",
+        "Plantillas.IniciarLoteGeneracionDocumentosCommandHandler",
 
         // Proyectos
         "Proyectos.ActualizarProyectoCommandHandler",
@@ -226,6 +233,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Trabajadores.EditarTrabajadorCommandHandler",
         "Trabajadores.EliminarTrabajadorCommandHandler",
         "Trabajadores.EliminarTrabajadoresCommandHandler",
+        "Trabajadores.GuardarNotaInternaTrabajadorCommandHandler",
         "Trabajadores.ResolverDeteccionAusenteCommandHandler",
         "Trabajadores.ResolverDeteccionNuevoCommandHandler",
         "Trabajadores.RestaurarTrabajadorCommandHandler",
@@ -473,39 +481,15 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
     /// Deuda conocida: handlers que <b>deberían</b> comprobar la cartera y hoy no lo hacen. No se
     /// corrigen aquí (cada uno es un incremento con su test de Application); solo se congelan para
     /// que no crezcan. Una entrada que ya llama hace fallar el test para que pase a <see cref="Llaman"/>.
+    /// Hoy está vacía: los seis que nacieron aquí (los dos descartes de sugerencias de correo y las cuatro
+    /// escrituras de Plantillas) se corrigieron en #1424, #1425 y #1430 y están en <see cref="Llaman"/>.
     /// </summary>
-    private static readonly Dictionary<string, string> PendientesDeCorregir = new()
-    {
-        ["Comunicaciones.DescartarSugerenciaGestionCorreoCommandHandler"] =
-            "descarta un ítem de sugerencia de Gestión (con TrabajadorId) cargado solo por Id: un Gestor CAE con " +
-            "cartera explícita puede retirarlo de la Bandeja de otro conociendo su Guid; la lectura de esa " +
-            "sugerencia sí sale acotada por la cartera",
-        ["Comunicaciones.DescartarSugerenciaVisitaCorreoCommandHandler"] =
-            "descarta una sugerencia de Visita cargada solo por Id; su lectura (ObtenerSugerenciaVisitaCorreoQuery, " +
-            "ObtenerSugerenciasVisitaCorreoPendientesQuery) se acota por Cliente empresarial y Centro visibles, el " +
-            "descarte no",
-
-        // Revisión puente de esta red (2026-10-18): estaban en Exentos como «catálogo del Tenant», y no lo son.
-        ["Plantillas.AgregarVersionPlantillaCommandHandler"] =
-            "añade una versión a una PlantillaDocumento cargada solo por Id; la Plantilla puede estar acotada a un " +
-            "Centro o a un Cliente empresarial (PlantillaDocumento.CentroId/ClienteId), y su alta " +
-            "(CrearPlantillaDocumentoCommandHandler) sí comprueba que estén en la cartera",
-        ["Plantillas.ConfirmarPlantillaDocumentoVersionCommandHandler"] =
-            "mismo defecto que AgregarVersionPlantillaCommandHandler: confirma la versión de una Plantilla acotada " +
-            "a un Centro o Cliente empresarial sin mirar la cartera",
-        ["Plantillas.GuardarElementosPlantillaCommandHandler"] =
-            "mismo defecto que AgregarVersionPlantillaCommandHandler: guarda los elementos de la versión sin mirar " +
-            "la cartera del Centro o Cliente empresarial de la Plantilla",
-        ["Plantillas.IniciarLoteGeneracionDocumentosCommandHandler"] =
-            "crea el lote con los TrabajadorIds y el CentroId recibidos sin comprobar que estén en la cartera; cada " +
-            "ítem se comprueba después en GenerarDocumentoIndividualCommandHandler, pero el lote y sus ítems ya " +
-            "quedan escritos con Ids ajenos",
-    };
+    private static readonly Dictionary<string, string> PendientesDeCorregir = new();
 
     /// <summary>
     /// Tope de <see cref="PendientesDeCorregir"/>: solo baja. Subirlo exige que el diff lo enseñe.
     /// </summary>
-    private const int MaximoDePendientes = 6;
+    private const int MaximoDePendientes = 0;
 
     private static readonly Lazy<Medida> MedidaActual = new(Medir);
 
@@ -520,7 +504,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
             new[] { "Centros", "Clientes", "Documentos", "Empresas", "Gestiones", "Subcontratas", "Trabajadores", "Vehiculos" },
             "son las carpetas cuyo agregado tiene cartera definida en IAlcanceDatosService");
         medida.Handlers.Should().HaveCountGreaterThan(100,
-            "hoy hay 183 comandos de escritura en las características con cartera; muy pocos significa que la medida ya no los ve");
+            "hoy hay 215 comandos de escritura en las características con cartera; muy pocos significa que la medida ya no los ve");
     }
 
     [Fact]
