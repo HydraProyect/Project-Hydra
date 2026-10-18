@@ -76,6 +76,17 @@ public class MainLayoutMarcaTests : BunitContext
         etiqueta.TextContent.Should().Be("CAE", "la etiqueta es texto real, no una imagen");
     }
 
+    [Fact]
+    public void La_marca_es_un_enlace_a_Inicio_con_el_wordmark_y_la_etiqueta_dentro()
+    {
+        var cut = Render<MainLayout>();
+
+        var enlace = cut.Find("div.marca > a.marca-enlace");
+        enlace.GetAttribute("href").Should().Be("/", "marco de Design: la marca lleva a Inicio");
+        enlace.QuerySelector("span.marca-wordmark").Should().NotBeNull();
+        enlace.QuerySelector("span.marca-etiqueta").Should().NotBeNull();
+    }
+
     private static UserManager<ApplicationUser> CrearUsuariosSinAlmacen() => new(
         new AlmacenSinUso(), Opciones.Create(new IdentityOptions()), new PasswordHasher<ApplicationUser>(),
         [], [], new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), null!,

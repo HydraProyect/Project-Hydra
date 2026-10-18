@@ -72,8 +72,9 @@ html[data-menu-compacto] .marca::after {
     color: var(--color-text);
 }
 
-/* El selector de empresa gestionada no cabe en 64px: se ofrece al ensanchar la barra. */
-html[data-menu-compacto] .barra-lateral > ::deep :not(.marca):not(nav) {
+/* Marco de Design (html[data-tv-rail] .tvm-ctxb): el selector de empresa gestionada se queda como su avatar
+   centrado (SelectorClienteActivo oculta el texto y el chevron); lo demás que no sea la marca ni el menú se oculta. */
+html[data-menu-compacto] .barra-lateral > ::deep :not(.marca):not(nav):not(.selector-tenant) {
     display: none;
 }
 
@@ -83,13 +84,25 @@ html[data-menu-compacto] .barra-lateral > ::deep :not(.marca):not(nav) {
     }
 }
 
+/* Marco de Design (.tvm-logo, marco-talveg.js): TOP_H = 64 px, flex:none, gap 10, padding 0 18 y borde inferior.
+   `flex: none` es lo que impide que la marca encoja cuando el selector y el menú no caben en la barra. */
 .marca {
     height: var(--navbar-height);
+    flex: none;
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    padding: 0 var(--space-5);
+    gap: 10px;
+    padding: 0 18px;
     border-bottom: var(--border-default);
+}
+
+/* La marca es un enlace a Inicio (<a style="display:flex;align-items:center;gap:10px;text-decoration:none">). */
+.marca-enlace {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: inherit;
+    text-decoration: none;
 }
 
 .marca-wordmark {
@@ -114,11 +127,11 @@ html[data-menu-compacto] .barra-lateral > ::deep :not(.marca):not(nav) {
    encaja. El color y el borde sí son tokens del producto, nunca hex. */
 .marca-etiqueta {
     flex-shrink: 0;
-    font: var(--font-label-md);
-    font-size: 11px;
+    /* .tvm-cae: 600 11px/1 Inter, borde --color-border-strong: 11 + 4 + 4 + 1 + 1 = 21 px de alto. */
+    font: 600 11px/1 var(--font-family);
     letter-spacing: .08em;
     color: var(--color-text-muted);
-    border: var(--border-default);
+    border: 1px solid var(--color-border-strong);
     border-radius: 4px;
     padding: 4px 6px;
 }
@@ -298,6 +311,20 @@ html[data-menu-compacto] .barra-lateral > ::deep :not(.marca):not(nav) {
     .barra-superior-derecha,
     .menu-usuario {
         gap: var(--space-2);
+    }
+}
+
+/* Revisión de Design §B (móvil de /mi-avatar): la pantalla trae su propia barra «‹ Mi avatar» de 56 px
+   (.mi-emblema-barra-movil) y el dibujo no lleva cabecera global encima: sin esto salían dos barras apiladas.
+   Solo se oculta la barra; los avisos del sistema (.cabecera-bandas) siguen a la vista. La barra de la pantalla
+   ya trae su filete inferior, así que el de la cabecera fija sobra. */
+@media (max-width: 767px) {
+    .area-principal:has(.mi-emblema-barra-movil) .barra-superior {
+        display: none;
+    }
+
+    .area-principal:has(.mi-emblema-barra-movil) > .cabecera-fija {
+        border-bottom: 0;
     }
 }
 

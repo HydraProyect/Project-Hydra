@@ -45,8 +45,30 @@ public class BarraLateralLupaSinFranjaTests
         js.Should().NotContain("evento.key !== '/'", "el atajo «/» se retiró");
         Regex.IsMatch(js, @"key\s*[=!]==?\s*'/'").Should().BeFalse();
         razor.Should().NotContain("<kbd");
-        razor.Should().Contain("data-menu-lupa", "control positivo: la lupa sí está");
-        js.Should().Contain("Escape", "Esc sigue cerrando el campo");
+        razor.Should().Contain("data-menu-filtro", "control positivo: el campo «Buscar en el menú» está");
+        razor.Should().NotContain("<button type=\"button\" class=\"nav-lupa\"", "el campo está siempre visible: ya no hay lupa que lo despliegue");
+        js.Should().Contain("Escape", "Esc sigue vaciando el campo");
+        Css.Should().Contain("height: 34px", "el campo y el botón de compactar miden 34 px (.tvm-buscam, marco de Design)");
+    }
+
+    /// <summary>
+    /// Revisión visual de la PR 1413 (marco-talveg.js, <c>.tvm-logo</c> y <c>.tvm-cae</c>): la marca mide los 64 px de la
+    /// cabecera SIN encoger (<c>flex: none</c>), con padding 0 18 y gap 10, y la etiqueta «CAE» mide 21 px
+    /// (<c>line-height: 1</c> + padding 4 + borde 1).
+    /// </summary>
+    [Fact]
+    public void La_marca_mide_64px_sin_encoger_y_la_etiqueta_CAE_21px()
+    {
+        var reglas = Reglas(Leer("Components", "Layout", "MainLayout.razor.css"));
+
+        var marca = reglas.Where(r => r.Selector == ".marca").Should().ContainSingle().Which.Cuerpo;
+        marca.Should().Contain("height: var(--navbar-height)").And.Contain("flex: none")
+            .And.Contain("padding: 0 18px").And.Contain("gap: 10px");
+
+        var etiqueta = reglas.Where(r => r.Selector == ".marca-etiqueta").Should().ContainSingle().Which.Cuerpo;
+        etiqueta.Should().Contain("/1 ").And.Contain("padding: 4px 6px").And.Contain("border: 1px solid var(--color-border-strong)");
+
+        Leer("wwwroot", "css", "tokens.css").Should().Contain("--navbar-height: 64px", "la regla de la marca iguala la cabecera de 64 px");
     }
 
     [Fact]

@@ -329,6 +329,10 @@
   <data name="CabeceraMigaFicha" xml:space="preserve">
     <value>Ficha</value>
   </data>
+  <data name="CabeceraMigaMiAvatar" xml:space="preserve">
+    <value>Mi avatar</value>
+    <comment>Última miga de /mi-avatar: «Mi cuenta / Mi avatar» (revisión de Design §B).</comment>
+  </data>
   <data name="CabeceraDescartar" xml:space="preserve">
     <value>Descartar</value>
   </data>

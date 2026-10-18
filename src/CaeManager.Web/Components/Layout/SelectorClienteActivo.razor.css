@@ -77,6 +77,18 @@
     transform: rotate(180deg);
 }
 
+/* Barra compacta (<html data-menu-compacto>; marco de Design: html[data-tv-rail] .tvm-ctxb, .tvm-ctxt y .tvm-ctxb>svg
+   ocultos y padding 8px 0): solo queda el avatar de la empresa gestionada, centrado en el disparador. */
+html[data-menu-compacto] .selector-tenant-disparador {
+    justify-content: center;
+    padding: 8px 0;
+}
+
+html[data-menu-compacto] .selector-tenant-disparador .selector-tenant-texto,
+html[data-menu-compacto] .selector-tenant-disparador .selector-tenant-chevron {
+    display: none;
+}
+
 /* Cierra al pulsar fuera sin JS: un velo transparente bajo el panel. */
 .selector-tenant-velo {
     position: fixed;

@@ -21,8 +21,8 @@
     servidor lo hace wwwroot/js/menu-lateral.js, por navegador (localStorage, no
     viaja con la cuenta como el tema): qué grupos quedaron abiertos o cerrados,
     el modo compacto (los enlaces ya no se fijan: el marco de Design, DDL-083, solo fija Empresas
-    gestionadas en el selector de Empresa, no entradas del menú), la lupa de
-    la cabecera (despliega el campo de búsqueda: filtra los enlaces y encuentra opciones dentro de
+    gestionadas en el selector de Empresa, no entradas del menú), el campo «Buscar en el menú» de
+    la cabecera (siempre visible: filtra los enlaces y encuentra opciones dentro de
     las páginas, ver CatalogoMenuLateral.Subopciones) y abrir solo el grupo de la página activa. Se reaplica tras
     cada navegación "enhanced" de Blazor, mismo mecanismo que tema.js.
 
@@ -56,16 +56,16 @@
     <div class="nav-herramientas">
         @if (_grupos.Count > 0)
         {
-            @* La lupa ES el campo: recogida es un botón de 32 px; al pulsarla se expande en la misma fila
-               hasta el botón de compactar (menu-lateral.js pone data-abierta) y se contrae al cerrar. *@
-            <div class="nav-buscador" data-menu-busqueda role="search">
-                <button type="button" class="nav-lupa" data-menu-lupa aria-expanded="false"
-                        aria-label="@Textos["MenuBuscar"]" title="@Textos["MenuBuscar"]">
+            @* Marco de Design (marco-talveg.js, .tvm-buscam): el campo «Buscar en el menú» está SIEMPRE a la vista, de
+               34 px, con el botón de compactar de 34 px a su lado; ya no hay lupa que despliegue nada. En la barra
+               compacta el campo se oculta y queda solo el botón. *@
+            <label class="nav-buscador" data-menu-busqueda>
+                <span class="nav-lupa" data-menu-lupa aria-hidden="true">
                     <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" />
-                </button>
-                <input type="text" class="nav-filtro-campo" data-menu-filtro autocomplete="off" inert
+                </span>
+                <input type="search" class="nav-filtro-campo" data-menu-filtro autocomplete="off"
                        placeholder="@Textos["MenuBuscar"]" aria-label="@Textos["MenuBuscar"]" />
-            </div>
+            </label>
         }
         <button type="button" class="nav-compactar" data-menu-compactar
                 aria-label="@Textos["MenuCompactar"]"

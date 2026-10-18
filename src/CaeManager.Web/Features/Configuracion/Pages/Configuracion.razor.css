@@ -98,16 +98,16 @@ html[data-menu-compacto] .subnav-configuracion {
     }
 }
 
-/* Por debajo de 1024 px el menú lateral desaparece y el panel pasa a tira horizontal bajo la cabecera (marco de Design). */
-@media (max-width: 1023px) {
+/* Hasta 1100 px (marco de Design, marco-talveg.js: @media (max-width:1100px) .tvm-cfg) el panel pasa a tira horizontal
+   de 52 px bajo la cabecera. Entre 1024 y 1100 px la barra lateral sigue ahí y la tira empieza donde acaba ella
+   (left de la regla base); por debajo de 1024 px la barra desaparece y la tira ocupa todo el ancho (bloque siguiente). */
+@media (max-width: 1100px) {
     .configuracion-pagina {
         margin-left: 0;
         margin-top: 52px;
     }
 
     .subnav-configuracion {
-        top: 56px;
-        left: 0;
         right: 0;
         bottom: auto;
         width: auto;
@@ -121,10 +121,6 @@ html[data-menu-compacto] .subnav-configuracion {
         border-right: 0;
         border-bottom: 1px solid var(--color-border);
         background: var(--color-surface);
-    }
-
-    html[data-menu-compacto] .subnav-configuracion {
-        left: 0;
     }
 
     .titulo-subnav-configuracion,
@@ -143,6 +139,15 @@ html[data-menu-compacto] .subnav-configuracion {
     .entrada-subnav {
         flex: none;
         white-space: nowrap;
+    }
+}
+
+/* Sin barra lateral (cajón, cabecera de 56 px): la tira ocupa todo el ancho bajo la cabecera. */
+@media (max-width: 1023px) {
+    .subnav-configuracion,
+    html[data-menu-compacto] .subnav-configuracion {
+        top: 56px;
+        left: 0;
     }
 }
 

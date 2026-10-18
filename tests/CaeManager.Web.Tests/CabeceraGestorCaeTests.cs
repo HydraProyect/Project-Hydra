@@ -173,7 +173,12 @@ public class CabeceraGestorCaeTests : BunitContext
         cut.FindAll("button").Select(b => b.ClassList.Contains("ventana-contexto-disparador") || b.ClassList.Contains("ventana-contexto-cerrar"))
             .Should().OnlyContain(esDeLaVentana => esDeLaVentana, "los únicos botones son el «+N» y el cierre de la hoja de móvil: ninguna acción sobre la cartera");
         cut.FindAll("input").Should().BeEmpty();
-        cut.FindAll("a").Should().ContainSingle().Which.GetAttribute("href").Should().Be("/cartera/solicitudes", "la ventana dice dónde se gestiona la cartera y enlaza");
+        var enlace = cut.FindAll("a").Should().ContainSingle().Which;
+        enlace.GetAttribute("href").Should().Be("/empresas", "la ventana remite a la ficha (revisión de Design §C): enlaza a Empresas, de donde se abre la ficha");
+        enlace.QuerySelector(".cabecera-gestor-cae-pie-enlace-escritorio")!.TextContent.Trim().Should().Be("Abrir Empresa 360 →");
+        enlace.QuerySelector(".cabecera-gestor-cae-pie-enlace-movil")!.TextContent.Trim().Should().Be("Dar acceso o desasignarte en la ficha", "botón de la hoja de móvil");
+        cut.Find(".cabecera-gestor-cae-pie-ayuda").TextContent.Trim().Should().Be("Dar acceso o desasignarte: desde la ficha.");
+        cut.Find("[data-gestor-cae-mas] .ventana-contexto-titulo").TextContent.Trim().Should().Be("Gestores CAE con Asignación de Cartera");
     }
 
     [Fact]

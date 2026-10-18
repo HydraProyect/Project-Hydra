@@ -34,7 +34,9 @@
 .nav-principal {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    /* Sin hueco entre hijos: la separación entre grupos es solo el margin-top de 12 px del grupo (.tvm-g del marco
+       de Design); con un gap además se sumaban 8 + 12 = 20 px. */
+    gap: 0;
     /* Marco de Design (marco-talveg.js, .tvm-nav): padding 4/8/16. */
     padding: var(--space-1) var(--space-2) var(--space-4);
     /* Scroll propio: la marca de MainLayout queda fija arriba y la barra no se estira con la página. */
@@ -42,6 +44,11 @@
     min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
+}
+
+/* El menú fijo del rol Cliente (enlaces sueltos, sin grupo) conserva 4 px entre filas, como .tvm-items. */
+.nav-principal > ::deep .nav-item + .nav-item {
+    margin-top: var(--space-1);
 }
 
 /*
@@ -222,16 +229,16 @@
     }
 }
 
-/* ---- Cabecera de herramientas: lupa de búsqueda y modo compacto ---- */
+/* ---- Cabecera de herramientas: campo «Buscar en el menú» y modo compacto ---- */
 .nav-herramientas {
     position: sticky;
     top: calc(-1 * var(--space-1));
     z-index: 2;
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    /* Marco de Design (.tvm-buscam): gap 6 y margin 12 8 4 sobre la fila del campo. */
+    gap: 6px;
     margin-top: calc(-1 * var(--space-1));
-    /* Marco de Design (.tvm-buscam): margin 12 8 4 sobre la fila de la lupa. */
     padding: var(--space-3) 0 var(--space-1);
     background-color: var(--color-surface);
     /* Los resultados de la búsqueda (.nav-resultados) ocupan su propia fila y solo existen con coincidencias. */
@@ -240,31 +247,27 @@
 }
 
 /*
-    La lupa es el campo: un único recuadro de 32 px que, al abrirse, crece en la misma fila (flex-grow
-    0 → 1) hasta el botón de compactar y descubre el input; al cerrar vuelve a ser el botón. Sin fila
-    nueva ni salto de altura. Recogido, el input va inert y transparente.
+    El campo «Buscar en el menú» está siempre a la vista (marco de Design, .tvm-buscam label): 34 px de alto,
+    borde --color-border, padding 0 10, gap 8 y un icono de 15 px; ocupa la fila hasta el botón de compactar.
 */
 .nav-buscador {
     display: flex;
     align-items: center;
-    flex: 0 0 32px;
-    min-width: 32px;
-    height: 32px;
-    overflow: hidden;
+    flex: 1 1 auto;
+    gap: 8px;
+    min-width: 0;
+    height: 34px;
+    padding: 0 10px;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     background-color: var(--color-surface);
     color: var(--color-text-muted);
-    transition: flex-grow var(--motion-transition) var(--ease-fluid),
-        border-color var(--motion-fast) var(--ease-standard),
+    cursor: text;
+    transition: border-color var(--motion-fast) var(--ease-standard),
         box-shadow var(--motion-fast) var(--ease-standard);
 }
 
-.nav-buscador[data-abierta] {
-    flex-grow: 1;
-}
-
-.nav-buscador:focus-within[data-abierta] {
+.nav-buscador:focus-within {
     border-color: var(--color-primary-500);
     box-shadow: 0 0 0 3px var(--color-primary-100);
 }
@@ -272,37 +275,23 @@
 .nav-lupa {
     display: grid;
     place-items: center;
-    flex-shrink: 0;
-    width: 30px;
-    height: 30px;
-    border: 0;
-    border-radius: var(--radius-md);
-    background: none;
-    color: inherit;
-    cursor: pointer;
+    flex: none;
 }
 
-.nav-buscador:not([data-abierta]):hover {
-    background-color: var(--color-surface-hover);
-    color: var(--color-text);
+.nav-lupa ::deep .icono {
+    width: 15px;
+    height: 15px;
 }
 
 .nav-filtro-campo {
     flex: 1;
     min-width: 0;
-    height: 100%;
-    padding: 0 var(--space-2) 0 0;
+    padding: 0;
     border: 0;
     outline: 0;
     background: none;
     color: var(--color-text);
-    font: var(--font-body-sm);
-    opacity: 0;
-    transition: opacity var(--motion-transition) var(--ease-fluid);
-}
-
-.nav-buscador[data-abierta] .nav-filtro-campo {
-    opacity: 1;
+    font: 400 13px/18px var(--font-family);
 }
 
 /* Resultados dentro de las páginas (opciones de Configuración, pestañas de Documentos). */
@@ -349,19 +338,18 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .nav-buscador,
-    .nav-filtro-campo {
+    .nav-buscador {
         transition: none;
     }
 }
 
+/* .tvm-ib: 34 x 34 px. Sin el campo (barra compacta) no hace falta empujarlo a la derecha. */
 .nav-compactar {
     display: grid;
     place-items: center;
-    flex-shrink: 0;
-    width: 32px;
-    height: 32px;
-    margin-left: auto;
+    flex: none;
+    width: 34px;
+    height: 34px;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     background-color: var(--color-surface);
@@ -444,7 +432,6 @@
 .nav-principal ::deep .nav-item:focus-visible,
 .nav-grupo-titulo:focus-visible,
 .nav-compactar:focus-visible,
-.nav-lupa:focus-visible,
 .nav-resultado:focus-visible {
     outline: 2px solid var(--color-primary-500);
     outline-offset: -2px;
@@ -474,10 +461,6 @@ html[data-menu-compacto] .barra-lateral .nav-grupo-titulo {
 
 html[data-menu-compacto] .barra-lateral .nav-herramientas {
     justify-content: center;
-}
-
-html[data-menu-compacto] .barra-lateral .nav-compactar {
-    margin-left: 0;
 }
 
 html[data-menu-compacto] .barra-lateral .nav-compactar ::deep .icono {

@@ -329,9 +329,15 @@
         border-radius: var(--radius-md);
     }
 
-    /* El título deja sitio al botón de cierre. */
+    /* El título deja sitio al botón de cierre. En la hoja el panel ya pone los 16 px laterales (el relleno de 16 del
+       título de escritorio los duplicaría: 32 px frente a los 16 de las filas) y el título se alinea con el botón de
+       44 px, a 15 px (revisión de Design, §C, hoja de móvil). */
     .ventana-contexto-hoja .ventana-contexto-titulo {
-        padding-right: 44px;
+        display: flex;
+        align-items: center;
+        min-height: 44px;
+        padding: 0 44px 0 0;
+        font-size: 15px;
     }
 }
 

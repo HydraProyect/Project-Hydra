@@ -98,10 +98,20 @@
     border-bottom: var(--border-default);
 }
 
+/* Un nombre largo o un correo (lo que sale cuando la cuenta no tiene nombre) se recorta con puntos suspensivos y
+   nunca pisa el rótulo «Fila»/«Historial» de la derecha: el texto cede (min-width: 0) y el rótulo no encoge. */
 .mi-emblema-contexto-texto {
+    flex: 0 1 auto;
     min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font: var(--font-body-md);
     color: var(--color-text);
+}
+
+.mi-emblema-contexto ::deep .avatar-usuario {
+    flex: none;
 }
 
 .mi-emblema-contexto-texto strong {
@@ -109,7 +119,9 @@
 }
 
 .mi-emblema-contexto-rotulo {
+    flex: none;
     margin-left: auto;
+    white-space: nowrap;
 }
 
 .mi-emblema-pie {
@@ -128,10 +140,29 @@
     font-size: 0.875rem;
 }
 
-/* «Volver a mis iniciales»: es la salida, no una acción par de «Guardar avatar». Botón de texto. */
+/* Sin cambios que guardar o sin nada que quitar los botones se atenúan al 45 % (opacity de la revisión de Design,
+   §B: .45), no al 55 % genérico de Boton. */
+.mi-emblema-pie ::deep .mi-emblema-guardar:disabled,
+.mi-emblema ::deep .mi-emblema-iniciales:disabled,
+.mi-emblema ::deep .mi-emblema-iniciales-movil:disabled {
+    opacity: 0.45;
+}
+
+/* «Volver a mis iniciales»: es la salida, no una acción par de «Guardar avatar». Botón de TEXTO: sin borde ni fondo
+   (Boton Fantasma trae los dos), color primario, font-label y subrayado al pasar el cursor (revisión de Design, §B). */
 .mi-emblema ::deep .mi-emblema-iniciales,
 .mi-emblema ::deep .mi-emblema-iniciales-movil {
+    border: 0;
+    background: transparent;
     color: var(--color-primary-500);
+    font: var(--font-label);
+}
+
+.mi-emblema ::deep .mi-emblema-iniciales:not(:disabled):hover,
+.mi-emblema ::deep .mi-emblema-iniciales-movil:not(:disabled):hover {
+    background: transparent;
+    text-decoration: underline;
+    transform: none;
 }
 
 .mi-emblema ::deep .mi-emblema-iniciales {

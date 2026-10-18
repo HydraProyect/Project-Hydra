@@ -326,6 +326,9 @@
   <data name="CabeceraMigaFicha" xml:space="preserve">
     <value>Fitxa</value>
   </data>
+  <data name="CabeceraMigaMiAvatar" xml:space="preserve">
+    <value>El meu avatar</value>
+  </data>
   <data name="CabeceraDescartar" xml:space="preserve">
     <value>Descarta</value>
   </data>

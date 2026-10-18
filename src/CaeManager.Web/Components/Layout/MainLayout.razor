@@ -10,8 +10,11 @@
             @* Marco de Design (marco-talveg.js, DDL-083, 2026-10-18): la marca es texto real en Georgia, con la V en verde,
                y la etiqueta "CAE" al lado; sustituye al wordmark en imagen de la opción D (2026-09-19). Marca.Nombre NO se
                toca: sigue siendo el nombre de títulos de pestaña y correos, esto solo cambia lo que se pinta aquí. *@
-            <span class="marca-wordmark">@MarcaInicio<b>@MarcaVerde</b>@MarcaFin</span>
-            <span class="marca-etiqueta">CAE</span>
+            @* La marca lleva a Inicio (marco-talveg.js: <a href="Inicio TALVEG.dc.html"> con ambas piezas dentro). *@
+            <a class="marca-enlace" href="/">
+                <span class="marca-wordmark">@MarcaInicio<b>@MarcaVerde</b>@MarcaFin</span>
+                <span class="marca-etiqueta">CAE</span>
+            </a>
         </div>
         @* Selector de Tenant beneficiario (mockup «Selector Empresa Gestionada», decisión 7 ter):
            bajo la marca y encima del menú, solo para quien alcanza varias empresas gestionadas.
