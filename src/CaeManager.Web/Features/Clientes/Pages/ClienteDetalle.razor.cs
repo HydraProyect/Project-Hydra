@@ -147,6 +147,13 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     private bool _documentacionHabilitada;
 
     /// <summary>
+    /// Turno de las lecturas que no van en la cadena de <see cref="CargarTodoAsync"/>: las de pestaña (Centros de
+    /// Subcontratas, tolerancias), la fila «Gestor CAE» y la pestaña «Documentación». La cadena espera a que quede libre
+    /// antes de empezar, así que una lectura cancelada sale del DbContext del circuito antes de la siguiente.
+    /// </summary>
+    private readonly SerieDeLecturas _serie = new();
+
+    /// <summary>
     /// Pendiente mientras la fila «Gestor CAE» (y su panel de acciones) hace su primera lectura: las lecturas de
     /// pestaña esperan a que termine, por el mismo DbContext compartido. Sin valor o completada, no se espera.
     /// </summary>
@@ -332,7 +339,13 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             await Task.WhenAny(enVuelo.Task, Task.Delay(EsperaMaximaGestorCae));
     }
 
-    private void GestorCaeCargado() => _gestorCaeEnVuelo?.TrySetResult();
+    private void GestorCaeCargado()
+    {
+        _gestorCaeEnVuelo?.TrySetResult();
+        // Terminaron la cadena (que es quien habilita la fila) y la primera lectura de la fila: ya lee la pestaña.
+        if (_gestorCaeHabilitado)
+            _documentacionHabilitada = true;
+    }
 
     /// <summary>Invalida cualquier carga en vuelo: su respuesta ya no escribirá nada.</summary>
     private void InvalidarCargas()
@@ -422,6 +435,18 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     private async Task CargarTodoAsync()
     {
         var generacion = _generacion;
+        // Si una lectura de la serie sigue en vuelo (p. ej. la pestaña «Documentación» del Cliente empresarial anterior,
+        // ya cancelada), la cadena espera a que salga del DbContext antes de empezar.
+        try
+        {
+            using (await _serie.TomarAsync(_cancelacion)) { }
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        if (generacion != _generacion) return;
+
         await CargarCabeceraAsync();
         if (generacion != _generacion || _detalle is null) return;
 
@@ -442,14 +467,16 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         await CargarCentrosSubcontratasSiProcedeAsync();
         await CargarToleranciasSiProcedeAsync();
         if (generacion != _generacion) return;
-        _gestorCaeEnVuelo = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        _gestorCaeHabilitado = true;
+        // Solo la primera vez por Cliente empresarial: GestorCaeCliente avisa cuando Cargar pasa de false a true, así que
+        // en una segunda cadena (Reintentar) con la fila ya habilitada no llegaría nadie a completar un aviso nuevo.
+        if (!_gestorCaeHabilitado)
+        {
+            _gestorCaeEnVuelo = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _gestorCaeHabilitado = true;
+        }
         StateHasChanged();
-
-        await EsperarGestorCaeAsync();
-        if (generacion != _generacion) return;
-        _documentacionHabilitada = true;
-        StateHasChanged();
+        // La pestaña «Documentación» se habilita cuando la fila «Gestor CAE» avisa de su primera lectura
+        // (GestorCaeCargado), no esperándola aquí: la cadena termina como antes, sin un render tardío de la página.
     }
 
     /// <summary>Un doble clic en «Reintentar» no lanza una segunda cadena: la primera ya puso _cargando.</summary>
@@ -631,6 +658,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _cargandoSubcontratas = true;
         try
         {
+            using var turno = await _serie.TomarAsync(_cancelacion);
             var filas = await Mediator.Send(new ObtenerSubcontratasConCentrosDeClienteQuery(id), _cancelacion);
             if (carga != _cargaCentrosSubcontratas) return;
             _centrosSubcontratas = filas.ToDictionary(s => s.Subcontrata.Id, s => s.Centros);
@@ -781,6 +809,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         var generacion = _generacion;
         try
         {
+            using var turno = await _serie.TomarAsync(_cancelacion);
             var tolerancias = await Mediator.Send(new ObtenerToleranciasClienteEmpresarialQuery(detalle.Id), _cancelacion);
             if (generacion != _generacion) return;
             _tiposConTolerancia = tolerancias.Count(t => t.ToleranciaDias > 0);

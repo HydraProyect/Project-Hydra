@@ -106,7 +106,20 @@ else
     /// </summary>
     [Parameter] public bool Cargar { get; set; }
 
+    /// <summary>
+    /// Turno de lectura de la página: cada lectura de la pestaña lo toma y lo suelta al salir del DbContext, también si
+    /// se canceló, así que ni choca con otra lectura de la página ni la siguiente empieza antes de que esta termine.
+    /// </summary>
+    [Parameter] public SerieDeLecturas? Serie { get; set; }
+
     private readonly CancellationTokenSource _ciclo = new();
+
+    /// <summary>Copia de <c>_ciclo.Token</c>: se lee sin tocar la fuente, que puede estar ya liberada al desmontarse.</summary>
+    private CancellationToken _cancelacion;
+
+    /// <summary>Lecturas del Cliente empresarial actual (enlazada a <c>_ciclo</c>): se cancela al cambiar de Cliente.</summary>
+    private CancellationTokenSource? _lectura;
+
     private IReadOnlyList<BlindajeEmpresaDto> _empresas = [];
     private DocumentacionExigidaClienteDto _documentacion = SinDocumentacion;
     private bool _cargando = true;
@@ -122,10 +135,14 @@ else
     private Guid _empresaId;
     private string _empresaNombre = string.Empty;
 
+    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+
     protected override async Task OnParametersSetAsync()
     {
         if (ClienteId != _cliente)
         {
+            // Lo que siga en vuelo del Cliente anterior se corta ya: la página va a releer sobre el mismo DbContext.
+            CancelarLectura();
             _cliente = ClienteId;
             _generacion++;
             _leido = false;
@@ -149,21 +166,23 @@ else
     private async Task CargarAsync()
     {
         var generacion = ++_generacion;
+        var token = TokenDeLectura();
         _cargando = true;
         _error = false;
 
         try
         {
-            // Una tras otra: comparten el DbContext del circuito.
-            var empresas = await Mediator.Send(new ObtenerBlindajeEmpresasDeClienteQuery(_cliente), _ciclo.Token);
-            var documentacion = await Mediator.Send(new ObtenerDocumentacionExigidaDeClienteQuery(_cliente), _ciclo.Token);
+            // Una tras otra y con el turno de la página: comparten el DbContext del circuito.
+            using var turno = await SerieDeLecturas.TomarSiHayAsync(Serie, token);
+            var empresas = await Mediator.Send(new ObtenerBlindajeEmpresasDeClienteQuery(_cliente), token);
+            var documentacion = await Mediator.Send(new ObtenerDocumentacionExigidaDeClienteQuery(_cliente), token);
             if (generacion != _generacion) return;
             _empresas = empresas;
             _documentacion = documentacion ?? SinDocumentacion;
         }
-        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
-            // Desmontado: nadie va a pintar el resultado.
+            // Desmontado o de otro Cliente empresarial: nadie va a pintar el resultado.
         }
         catch (Exception)
         {
@@ -181,13 +200,15 @@ else
     private async Task RecargarEmpresasAsync()
     {
         var generacion = _generacion;
+        var token = TokenDeLectura();
         try
         {
-            var empresas = await Mediator.Send(new ObtenerBlindajeEmpresasDeClienteQuery(_cliente), _ciclo.Token);
+            using var turno = await SerieDeLecturas.TomarSiHayAsync(Serie, token);
+            var empresas = await Mediator.Send(new ObtenerBlindajeEmpresasDeClienteQuery(_cliente), token);
             if (generacion == _generacion)
                 _empresas = empresas;
         }
-        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
         }
         catch (Exception)
@@ -250,8 +271,22 @@ else
         _drawerVisible = true;
     }
 
+    private CancellationToken TokenDeLectura()
+    {
+        _lectura ??= CancellationTokenSource.CreateLinkedTokenSource(_cancelacion);
+        return _lectura.Token;
+    }
+
+    private void CancelarLectura()
+    {
+        _lectura?.Cancel();
+        _lectura?.Dispose();
+        _lectura = null;
+    }
+
     public void Dispose()
     {
+        CancelarLectura();
         _ciclo.Cancel();
         _ciclo.Dispose();
     }

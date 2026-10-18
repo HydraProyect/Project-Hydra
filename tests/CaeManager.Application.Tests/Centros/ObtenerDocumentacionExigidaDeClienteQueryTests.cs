@@ -51,8 +51,8 @@ public class ObtenerDocumentacionExigidaDeClienteQueryTests
         _tipos.ListaTiposDocumentoCentros.AddRange([
             // Formación: sin criterio global, la pide solo Barakaldo.
             new TipoDocumentoCentro(_formacion.Id, _barakaldo.Id, incluido: true),
-            // EPI: global, pero Getafe lo excluye.
-            new TipoDocumentoCentro(_epi.Id, _getafe.Id, incluido: false),
+            // EPI: global, pero Getafe lo excluye. Su BloqueaAcceso no cuenta: un tipo que el Centro no pide no bloquea.
+            new TipoDocumentoCentro(_epi.Id, _getafe.Id, incluido: false, bloqueaAcceso: true),
             // Seguro: global en los dos; solo el segundo Centro bloquea el acceso.
             new TipoDocumentoCentro(_seguro.Id, _getafe.Id, incluido: true, bloqueaAcceso: true),
             // Mutua: solo la pide el Centro sin gestión CAE, que no exige nada; y el de otro Cliente, que no cuenta.
@@ -85,6 +85,18 @@ public class ObtenerDocumentacionExigidaDeClienteQueryTests
                 new RequisitoExigidoClienteDto(_epi.Id, "EPI entregado", AmbitoAplicacion.Trabajador, 1, BloqueaAcceso: false)
             ],
             "primero lo de la Empresa y después lo de sus Trabajadores, en el orden del catálogo; la Mutua no la pide ningún Centro con gestión CAE");
+    }
+
+    [Fact]
+    public async Task Una_fila_excluida_que_marca_bloqueo_no_bloquea_ni_cuenta_el_Centro()
+    {
+        var resultado = await Obtener(new AlcanceDatosServiceFalso());
+
+        var epi = resultado!.Requisitos.Where(r => r.TipoDocumentoId == _epi.Id).Should().ContainSingle().Subject;
+        epi.Centros.Should().Be(1, "Getafe lo excluye: solo lo pide Barakaldo");
+        epi.BloqueaAcceso.Should().BeFalse("el BloqueaAcceso de una fila con Incluido = false no rige");
+        resultado.Requisitos.Select(r => r.TipoDocumentoId).Should()
+            .BeEquivalentTo([_seguro.Id, _formacion.Id, _epi.Id], "ningún tipo de más");
     }
 
     [Fact]

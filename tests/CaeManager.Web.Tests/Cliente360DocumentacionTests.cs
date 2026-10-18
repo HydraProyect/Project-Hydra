@@ -25,6 +25,7 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Blindaje42.Components;
+using CaeManager.Web.Features.Clientes;
 using CaeManager.Web.Features.Clientes.Components;
 using CaeManager.Web.Features.Clientes.Pages;
 using FluentAssertions;
@@ -280,6 +281,35 @@ public class Cliente360DocumentacionTests : BunitContext
         await DisposeComponentsAsync();
 
         token.IsCancellationRequested.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Al_cambiar_de_Cliente_empresarial_cancela_la_lectura_del_anterior()
+    {
+        var (id, mediador) = Preparar();
+        mediador.Colgar = true;
+
+        var cut = Render<DocumentosExigidosCliente>(p => p.Add(x => x.ClienteId, id).Add(x => x.Cargar, true));
+        var token = mediador.Tokens.Should().ContainSingle().Subject;
+
+        cut.Render(p => p.Add(x => x.ClienteId, Guid.NewGuid()).Add(x => x.Cargar, false));
+
+        token.IsCancellationRequested.Should().BeTrue("la página va a releer sobre el mismo DbContext");
+    }
+
+    [Fact]
+    public async Task Espera_el_turno_de_la_pagina_antes_de_consultar()
+    {
+        var (id, mediador) = Preparar();
+        var serie = new SerieDeLecturas();
+        var turno = await serie.TomarAsync(CancellationToken.None);
+
+        var cut = Render<DocumentosExigidosCliente>(p => p.Add(x => x.ClienteId, id).Add(x => x.Cargar, true).Add(x => x.Serie, serie));
+        mediador.Enviadas.Should().BeEmpty("otra lectura de la página tiene el DbContext");
+
+        turno.Dispose();
+
+        cut.WaitForAssertion(() => mediador.Enviadas.Should().HaveCount(2));
     }
 
     [Fact]

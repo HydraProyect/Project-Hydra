@@ -41,8 +41,12 @@ internal static class DocumentacionRequeridaDeCentros
         IReadOnlyDictionary<(Guid TipoDocumentoId, Guid CentroId), TipoDocumentoCentro> filas, TipoDelCatalogo tipo, Guid centroId) =>
         ResolucionTipoDocumentoCentro.Aplica(filas, tipo.Id, centroId, tipo.CuentaParaCumplimiento);
 
-    /// <summary>Si el Centro bloquea el acceso por ese tipo: solo una fila explícita lo hace.</summary>
+    /// <summary>
+    /// Si el Centro tiene marcado ese tipo como bloqueante: solo una fila explícita lo hace. Es la configuración que las
+    /// pestañas pintan («Bloquea el acceso»), no la decisión de si un Trabajador o una Empresa entra hoy: esa es de
+    /// <c>ReglaBloqueoDeAcceso</c> (ver <c>ReglasDeNegocioSinCopiasTests</c>), y aquí no se evalúa ningún documento.
+    /// </summary>
     internal static bool BloqueaAcceso(
         IReadOnlyDictionary<(Guid TipoDocumentoId, Guid CentroId), TipoDocumentoCentro> filas, Guid tipoDocumentoId, Guid centroId) =>
-        filas.TryGetValue((tipoDocumentoId, centroId), out var fila) && fila.BloqueaAcceso;
+        filas.GetValueOrDefault((tipoDocumentoId, centroId))?.BloqueaAcceso == true;
 }
