@@ -1749,7 +1749,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         rejilla.TextContent.Should().Contain("644 902 118").And.Contain("javier.salas@refrielectric.example");
         rejilla.QuerySelectorAll("dt").Select(d => d.TextContent.Trim())
             .Should().Equal(["Teléfono", "Correo electrónico"],
-                "ni la dirección ni el contacto de emergencia del mockup existen en TrabajadorDetalleDto");
+                "la dirección no se construye y sin contacto de emergencia no se pintan sus filas");
         rejilla.QuerySelectorAll(".boton-copiar").Should().HaveCount(2, "los dos son datos para pegar en otro sitio");
     }
 
