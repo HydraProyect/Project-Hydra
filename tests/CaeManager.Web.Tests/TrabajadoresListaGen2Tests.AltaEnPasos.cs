@@ -2,6 +2,7 @@ using Bunit;
 using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
 using CaeManager.Domain.Common;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Trabajadores.Components;
 using CaeManager.Web.Features.Trabajadores.Pages;
 using FluentAssertions;
 using FluentValidation;
@@ -46,12 +47,14 @@ public partial class TrabajadoresListaGen2Tests
         PanelDeAlta(cut).FindComponents<CampoTexto>().Should().HaveCount(5);
         BotonesDelPanel(cut).Should().Equal("Cancelar", "Guardar y terminar", "Siguiente");
 
-        // Paso 2, Trabajo: puesto, tipo de contratación y observaciones (se llega con el paso 1 completo).
+        // Paso 2, Trabajo: Oficio y Delegación (en el sitio del Puesto, para un Trabajador de Empresa), tipo de contratación y
+        // observaciones (se llega con el paso 1 completo).
         await cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = EmpresaEbro.ToString() });
         await EscribirDatosCompletosDelAltaAsync(cut);
         await PulsarEnElPanelAsync(cut, "Siguiente");
-        PanelDeAlta(cut).FindComponents<CampoTexto>().Should().ContainSingle();
-        PanelDeAlta(cut).FindComponents<CampoSelect>().Should().ContainSingle();
+        PanelDeAlta(cut).FindComponents<SelectorDelegacionEmpresaYOficio>().Should().ContainSingle();
+        PanelDeAlta(cut).FindComponents<CampoTexto>().Should().BeEmpty("el Puesto en texto es solo del Trabajador de Subcontrata");
+        PanelDeAlta(cut).FindComponents<CampoSelect>().Should().HaveCount(2, "la Delegación y el tipo de contratación");
         PanelDeAlta(cut).FindComponents<CampoTextarea>().Should().ContainSingle();
         BotonesDelPanel(cut).Should().Equal("Atrás", "Guardar y terminar", "Siguiente");
 
@@ -76,7 +79,7 @@ public partial class TrabajadoresListaGen2Tests
         await cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = EmpresaEbro.ToString() });
         await EscribirDatosCompletosDelAltaAsync(cut);
         await PulsarEnElPanelAsync(cut, "Siguiente");
-        await PanelDeAlta(cut).FindComponents<CampoTexto>().Single().Find("input").InputAsync(new ChangeEventArgs { Value = "Soldador" });
+        await PanelDeAlta(cut).FindComponents<CampoTextarea>().Single().Find("textarea").InputAsync(new ChangeEventArgs { Value = "Turno de noche" });
         await PulsarEnElPanelAsync(cut, "Siguiente");
         await PanelDeAlta(cut).FindComponents<CampoTexto>().Single(c => c.Instance.Type == "email").Find("input")
             .InputAsync(new ChangeEventArgs { Value = "carla@ebro.example" });
@@ -86,7 +89,7 @@ public partial class TrabajadoresListaGen2Tests
 
         var enviada = mediador.Enviadas.OfType<CrearTrabajadorCommand>().Should().ContainSingle("el alta sigue siendo un solo comando").Subject;
         enviada.Nombre.Should().Be("Carla");
-        enviada.Puesto.Should().Be("Soldador", "lo escrito en el paso 2 viaja en el mismo comando");
+        enviada.Observaciones.Should().Be("Turno de noche", "lo escrito en el paso 2 viaja en el mismo comando");
         enviada.Email.Should().Be("carla@ebro.example", "lo escrito en el paso 3 también");
     }
 

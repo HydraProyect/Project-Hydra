@@ -279,6 +279,57 @@ public class DelegacionYOficioEmpresaRlsTests : IAsyncLifetime
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege, $"{rol} no escribe en el catálogo");
     }
 
+    [Fact]
+    public async Task El_alta_de_un_trabajador_con_oficio_y_delegacion_funciona_como_aprovisionamiento()
+    {
+        // CrearTrabajadorCommand es IComandoDeAprovisionamiento: puede correr como cae_app_aprovisionamiento, que solo lee
+        // el catálogo. El alta no renueva la versión del Oficio ni de la Delegación (eso sería un UPDATE con 42501).
+        Guid oficioId, delegacionId, versionOficio, versionDelegacion;
+        await using (var b = CrearContexto(_tenantB))
+        {
+            var oficio = await b.OficiosEmpresa.AsNoTracking().SingleAsync(o => o.EmpresaId == _empresaB);
+            var delegacion = await b.DelegacionesEmpresa.AsNoTracking().SingleAsync(d => d.EmpresaId == _empresaB);
+            (oficioId, versionOficio, delegacionId, versionDelegacion) = (oficio.Id, oficio.Version, delegacion.Id, delegacion.Version);
+        }
+
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using (var preparar = conexion.CreateCommand())
+        {
+            preparar.CommandText = "SELECT set_config('app.tenant_id', @tenant, false); SET ROLE cae_app_aprovisionamiento;";
+            preparar.Parameters.AddWithValue("tenant", _tenantB.ToString());
+            await preparar.ExecuteNonQueryAsync();
+        }
+
+        var tenant = new TenantActualAmbiental { TenantId = _tenantB };
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(conexion, p => p.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(new TenantSelladoInterceptor(tenant), new ConcurrenciaOptimistaInterceptor())
+            .Options;
+        Guid trabajadorId;
+        await using (var contexto = new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenant))
+        {
+            var handler = new Application.Trabajadores.Commands.CrearTrabajador.CrearTrabajadorCommandHandler(
+                new Infrastructure.Persistence.Repositories.TrabajadorRepository(contexto), contexto,
+                new Infrastructure.Persistence.Repositories.CatalogoTrabajadoresEmpresaRepository(contexto),
+                new AlcanceDatosServiceFalso(empresaIds: [_empresaB]), contexto);
+
+            var resultado = await handler.Handle(new(_empresaB, null, "Olga", "Alta", "99999999R", null, null, null,
+                OficioEmpresaId: oficioId, DelegacionEmpresaId: delegacionId), CancellationToken.None);
+
+            resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : null);
+            trabajadorId = resultado.Valor;
+        }
+
+        await using var verificar = CrearContexto(_tenantB);
+        var creado = await verificar.Trabajadores.AsNoTracking().SingleAsync(t => t.Id == trabajadorId);
+        creado.OficioEmpresaId.Should().Be(oficioId);
+        creado.DelegacionEmpresaId.Should().Be(delegacionId);
+        creado.Puesto.Should().Be("Electricista");
+        (await verificar.OficiosEmpresa.AsNoTracking().SingleAsync(o => o.Id == oficioId)).Version.Should().Be(versionOficio);
+        (await verificar.DelegacionesEmpresa.AsNoTracking().SingleAsync(d => d.Id == delegacionId)).Version.Should().Be(versionDelegacion);
+    }
+
     [Theory]
     [MemberData(nameof(Tablas))]
     public async Task Sin_tenant_de_sesion_no_se_ve_nada_y_cada_tenant_solo_ve_lo_suyo(string tabla)

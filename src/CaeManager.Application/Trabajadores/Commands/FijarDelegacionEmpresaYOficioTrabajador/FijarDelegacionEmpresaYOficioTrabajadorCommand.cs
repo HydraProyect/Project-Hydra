@@ -53,9 +53,11 @@ public class FijarDelegacionEmpresaYOficioTrabajadorCommandHandler(
         if (ConcurrenciaOptimista.Verificar(trabajador, request.Version, "este trabajador") is { } conflicto)
             return Result.Fallo(conflicto);
 
-        if (await AsignacionDelegacionEmpresaYOficio.FijarAsync(
-                trabajador, request.DelegacionEmpresaId, request.OficioEmpresaId, catalogo, cancellationToken) is { } error)
+        var (asignacion, error) = await AsignacionDelegacionEmpresaYOficio.ResolverAsync(
+            trabajador, request.DelegacionEmpresaId, request.OficioEmpresaId, catalogo, cancellationToken);
+        if (error is not null)
             return Result.Fallo(error);
+        AsignacionDelegacionEmpresaYOficio.Aplicar(trabajador, asignacion!, renovarVersionDelCatalogo: true);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();

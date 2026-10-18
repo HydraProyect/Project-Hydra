@@ -124,10 +124,16 @@ public class CrearTrabajadorCommandHandler(
 
         // El alcance de gestión sobre la Empresa se comprobó arriba; el catálogo tiene que ser el de esa Empresa. Elegir un
         // Oficio copia su nombre en el Puesto (Trabajador.FijarDelegacionEmpresaYOficio).
-        if (request.EmpresaId is not null && (request.OficioEmpresaId is not null || request.DelegacionEmpresaId is not null)
-            && await AsignacionDelegacionEmpresaYOficio.FijarAsync(
-                trabajador, request.DelegacionEmpresaId, request.OficioEmpresaId, catalogo, cancellationToken) is { } errorCatalogo)
-            return Result.Fallo<Guid>(errorCatalogo);
+        // Sin renovar la versión del catálogo: este comando puede correr como cae_app_aprovisionamiento, que solo lo lee
+        // (ver AsignacionDelegacionEmpresaYOficio.Aplicar).
+        if (request.EmpresaId is not null && (request.OficioEmpresaId is not null || request.DelegacionEmpresaId is not null))
+        {
+            var (asignacion, errorCatalogo) = await AsignacionDelegacionEmpresaYOficio.ResolverAsync(
+                trabajador, request.DelegacionEmpresaId, request.OficioEmpresaId, catalogo, cancellationToken);
+            if (errorCatalogo is not null)
+                return Result.Fallo<Guid>(errorCatalogo);
+            AsignacionDelegacionEmpresaYOficio.Aplicar(trabajador, asignacion!, renovarVersionDelCatalogo: false);
+        }
 
         repositorio.Agregar(trabajador);
         await unitOfWork.SaveChangesAsync(cancellationToken);

@@ -70,6 +70,23 @@ public class EditarFichaTrabajadorCommandHandler(ITrabajadorRepository repositor
         if (ConcurrenciaOptimista.Verificar(trabajador, request.Version, "este trabajador") is { } conflicto)
             return Result.Fallo(conflicto);
 
+        // La Delegación y el Oficio se validan antes de tocar la entidad: si fallan, el comando responde el error sin dejar
+        // el Trabajador rastreado a medio cambiar (el DbContext del circuito lo guardaría con el siguiente comando).
+        // null = no se cambian. Solo un Trabajador de Empresa tiene Delegación y Oficio, y quien los fija gestiona esa
+        // Empresa.
+        AsignacionDelegacionEmpresaYOficio.Resuelta? asignacion = null;
+        if (request.DelegacionEmpresaYOficio is { } delegacionYOficio)
+        {
+            if (trabajador.EmpresaId is not { } empresaId)
+                return Result.Fallo(Error.Crear("Trabajador.SinEmpresa", "Solo un trabajador de empresa tiene delegación y oficio."));
+            if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(empresaId, cancellationToken))
+                return Result.Fallo(Error.Crear("Trabajador.NoEncontrado", "No encontramos este trabajador."));
+            (asignacion, var errorCatalogo) = await AsignacionDelegacionEmpresaYOficio.ResolverAsync(trabajador,
+                delegacionYOficio.DelegacionEmpresaId, delegacionYOficio.OficioEmpresaId, catalogo, cancellationToken);
+            if (errorCatalogo is not null)
+                return Result.Fallo(errorCatalogo);
+        }
+
         trabajador.ActualizarFicha(request.NumeroAfiliacionSeguridadSocial, request.Puesto,
             request.FechaNacimiento, request.Nacionalidad, request.TipoVinculo, request.FechaAltaEmpresa,
             request.FechaBajaEmpresa, request.FiguraEnRnt, request.TipoPermisoTrabajo,
@@ -83,18 +100,9 @@ public class EditarFichaTrabajadorCommandHandler(ITrabajadorRepository repositor
         // nadie borre ni pise a ciegas un dato que el servidor no le enseña.
         if (request.ContactoEmergencia is { } contacto && await politicaNotaInterna.PuedeLeerAsync(cancellationToken))
             trabajador.FijarContactoEmergencia(contacto.Nombre, contacto.Telefono);
-        // Mismo criterio: null = no se cambian. Va después de ActualizarFicha porque elegir un Oficio copia su nombre en el
-        // Puesto. Solo un Trabajador de Empresa tiene Delegación y Oficio, y quien los fija gestiona esa Empresa.
-        if (request.DelegacionEmpresaYOficio is { } delegacionYOficio)
-        {
-            if (trabajador.EmpresaId is not { } empresaId)
-                return Result.Fallo(Error.Crear("Trabajador.SinEmpresa", "Solo un trabajador de empresa tiene delegación y oficio."));
-            if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(empresaId, cancellationToken))
-                return Result.Fallo(Error.Crear("Trabajador.NoEncontrado", "No encontramos este trabajador."));
-            if (await AsignacionDelegacionEmpresaYOficio.FijarAsync(trabajador, delegacionYOficio.DelegacionEmpresaId,
-                    delegacionYOficio.OficioEmpresaId, catalogo, cancellationToken) is { } errorCatalogo)
-                return Result.Fallo(errorCatalogo);
-        }
+        // Se aplica después de ActualizarFicha porque elegir un Oficio copia su nombre en el Puesto.
+        if (asignacion is not null)
+            AsignacionDelegacionEmpresaYOficio.Aplicar(trabajador, asignacion, renovarVersionDelCatalogo: true);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();
     }

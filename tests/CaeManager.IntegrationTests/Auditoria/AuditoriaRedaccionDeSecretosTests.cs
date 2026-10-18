@@ -787,6 +787,52 @@ public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Punto 11 del comentario de <see cref="AuditoriaInterceptor"/>: el contacto de reclamación de una Delegación de
+    /// Empresa (persona física de un tercero) se enmascara en el alta y en cada cambio; el nombre de la Delegación, no.
+    /// </summary>
+    [Fact]
+    public async Task El_contacto_de_reclamacion_de_la_delegacion_no_aparece_en_claro_ni_al_crearla_ni_al_cambiarlo()
+    {
+        const string nombre = "RECLAMACION-no-debe-aparecer";
+        const string correo = "reclamacion@no-debe-aparecer.example";
+        const string telefono = "600999111";
+        const string nuevoNombre = "RECLAMACION-NUEVA-no-debe-aparecer";
+        string[] personales = [nombre, correo, telefono, nuevoNombre];
+        Guid delegacionId;
+        await using (var contexto = CrearContexto())
+        {
+            var empresa = new Empresa("Empresa de la delegación", "B10380194");
+            contexto.Empresas.Add(empresa);
+            await contexto.SaveChangesAsync();
+            var delegacion = new DelegacionEmpresa(empresa.Id, "Sevilla Norte");
+            delegacion.FijarContactoReclamacion(nombre, correo, telefono);
+            contexto.DelegacionesEmpresa.Add(delegacion);
+            await contexto.SaveChangesAsync();
+            delegacionId = delegacion.Id;
+        }
+
+        var alta = await ObtenerRegistroAsync(nameof(DelegacionEmpresa));
+        foreach (var dato in personales) alta.DatosDespues.Should().NotContain(dato);
+        alta.DatosDespues.Should().Contain("\"ContactoReclamacionCorreo\":\"***\"");
+        alta.DatosDespues.Should().Contain("Sevilla Norte", "el nombre de la Delegación es de la organización");
+
+        await using (var contexto = CrearContexto())
+        {
+            var delegacion = await contexto.DelegacionesEmpresa.SingleAsync(d => d.Id == delegacionId);
+            delegacion.FijarContactoReclamacion(nuevoNombre, null, null);
+            await contexto.SaveChangesAsync();
+        }
+
+        var cambio = await ObtenerRegistroDeModificacionAsync(nameof(DelegacionEmpresa));
+        foreach (var dato in personales)
+        {
+            cambio.DatosAntes.Should().NotContain(dato);
+            cambio.DatosDespues.Should().NotContain(dato);
+        }
+        cambio.DatosDespues.Should().Contain("\"ContactoReclamacionNombre\":\"***\"");
+    }
+
+    /// <summary>
     /// Punto 10 del comentario de <see cref="AuditoriaInterceptor"/>: el contacto de la Visita 360 se enmascara en toda
     /// entrada de Visita, también en el alta, cuando se rellena copiando el contacto del Centro.
     /// </summary>
