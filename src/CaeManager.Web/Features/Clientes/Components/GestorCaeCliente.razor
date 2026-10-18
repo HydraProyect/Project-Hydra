@@ -18,28 +18,37 @@
     Con las dos vacías (Consulta, Usuario de Cliente, un Tenant de operación interna, Soporte TALVEG)
     la fila no se pinta.
 
-    ACCIONES. Solo desde el Operador CAE, dentro de SoloConEscritura (un rol de solo consulta no las
-    ve), y son PanelDarAcceso en su forma compacta con TenantId = el Tenant activo: «+ Dar acceso»
-    solo si quien mira es hoy el principal de esa Asignación de Operación, «Desasignarme» solo por un
-    apoyo suyo. Quién puede, a quién y sobre qué lo vuelven a decidir ProponerApoyoCarteraCommand y
-    DesasignarmeDeApoyoCommand: este componente no autoriza nada. «Dar acceso» da acceso al Tenant
-    entero, no solo a este Cliente empresarial (D-7); el formulario lo nombra por el Tenant.
+    ACCIONES. Solo desde el Operador CAE, solo con un rol que escribe (SoloConEscritura.PuedeEscribirAsync:
+    un rol de solo consulta no las ve) y solo si quien mira es una de las personas de la fila: «+ Dar
+    acceso» es del principal y «Desasignarme» de un apoyo, así que a cualquier otro (p. ej. el
+    Administrador o la Dirección CAE del Operador CAE sin cartera propia) no se le monta un hueco de
+    acciones vacío. Son PanelDarAcceso en su forma compacta con TenantId = el Tenant activo: «+ Dar
+    acceso» solo si quien mira es hoy el principal de esa Asignación de Operación, «Desasignarme» solo
+    por un apoyo suyo y nunca sobre una operación de la que es el principal. Quién puede, a quién y
+    sobre qué lo vuelven a decidir ProponerApoyoCarteraCommand y DesasignarmeDeApoyoCommand: este
+    componente no autoriza nada. «Dar acceso» da acceso al Tenant entero, no solo a este Cliente
+    empresarial (D-7); el formulario y la confirmación lo nombran por el Tenant.
     El principal no se desasigna por aquí: soltar la marca es un relevo, no un fin de apoyo.
 
     CARGA. Las consultas comparten el DbContext del circuito: la página pone Cargar cuando su cadena
     de lecturas terminó, y solo entonces se pregunta. PanelDarAcceso se monta después, con el dato ya
-    leído, y tras una acción suya (AlCambiar) se relee la fila.
+    leído, y AlCargar avisa a la página cuando la fila y, si lo hay, el panel terminaron su primera
+    lectura: hasta entonces la página no lanza las de sus pestañas. Tras una acción del panel
+    (AlCambiar) se relee la fila. Un fallo se dice en la fila; nunca sube a LimiteDeErrores.
 *@
 @using CaeManager.Application.Common
 @using CaeManager.Application.Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant
 @using CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera
+@using CaeManager.Web.Components.DesignSystem
 @using CaeManager.Web.Features.Clientes.Recursos
 @using CaeManager.Web.Features.IncorporacionCartera.Components
 @using MediatR
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.Extensions.Localization
 @implements IDisposable
 @inject IMediator Mediator
 @inject ITenantActual TenantActual
+@inject ICurrentUserService UsuarioActual
 @inject IStringLocalizer<TextosClientes> Textos
 
 @if (_error || _personas.Count > 0)
@@ -57,13 +66,12 @@
                 }
             </DatoRejilla>
         </RejillaDatos>
-        @if (!_error && _desdeElOperador && _tenantId is { } tenantId)
+        @if (_conAcciones && _tenantId is { } tenantId)
         {
-            <SoloConEscritura>
-                <div class="gestor-cae-cliente-acciones" data-gestor-cae-cliente-acciones>
-                    <PanelDarAcceso TenantId="tenantId" EnCabecera="true" AlCambiar="CargarAsync" AlDesasignarme="AlDesasignarme" />
-                </div>
-            </SoloConEscritura>
+            <div class="gestor-cae-cliente-acciones" data-gestor-cae-cliente-acciones>
+                <PanelDarAcceso TenantId="tenantId" EnCabecera="true" AlCargar="PanelCargadoAsync"
+                                AlCambiar="CargarAsync" AlDesasignarme="AlDesasignarme" />
+            </div>
         }
     </div>
 }
@@ -76,27 +84,60 @@
     [Parameter] public bool Cargar { get; set; }
 
     /// <summary>
+    /// Cada vez que <see cref="Cargar"/> pasa a true, llega una sola vez cuando la fila y, si se montó, el panel de
+    /// acciones terminaron su primera lectura (bien o con error). La página espera a esto para lanzar las lecturas
+    /// de sus pestañas.
+    /// </summary>
+    [Parameter] public EventCallback AlCargar { get; set; }
+
+    /// <summary>
     /// Quien mira se desasignó de su apoyo sobre el Tenant activo y el Command lo aceptó: ya no accede a los datos
     /// que pinta la página. Nunca llega tras «+ Dar acceso» ni si el Command lo rechazó.
     /// </summary>
     [Parameter] public EventCallback AlDesasignarme { get; set; }
 
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
     private readonly CancellationTokenSource _ciclo = new();
     private IReadOnlyList<PersonaConCartera> _personas = [];
     private bool _desdeElOperador;
+    private bool _conAcciones;
     private bool _error;
     private bool _cargado;
+    private bool _cargarAnterior;
+    private bool _esperandoAlPanel;
     private Guid? _tenantId;
 
     private string Nombres => string.Join(", ", _personas.Select(p => p.Nombre));
 
     protected override async Task OnParametersSetAsync()
     {
-        if (!Cargar || _cargado)
+        var recienHabilitado = Cargar && !_cargarAnterior;
+        _cargarAnterior = Cargar;
+        if (!recienHabilitado)
             return;
+
+        if (_cargado)
+        {
+            // Ya leído en este circuito (p. ej. la página pasó a otro Cliente empresarial del mismo Tenant).
+            await AlCargar.InvokeAsync();
+            return;
+        }
 
         _cargado = true;
         await CargarAsync();
+        _esperandoAlPanel = _conAcciones;
+        if (!_esperandoAlPanel)
+            await AlCargar.InvokeAsync();
+    }
+
+    private async Task PanelCargadoAsync()
+    {
+        if (!_esperandoAlPanel)
+            return;
+
+        _esperandoAlPanel = false;
+        await AlCargar.InvokeAsync();
     }
 
     /// <summary>Lee quién tiene cartera sobre el Tenant activo: al habilitarse y tras cada acción de PanelDarAcceso.</summary>
@@ -109,6 +150,7 @@
             if (_tenantId is not { } tenantId)
             {
                 _personas = [];
+                _conAcciones = false;
                 return;
             }
 
@@ -124,15 +166,20 @@
             }
 
             _personas = Ordenar(operaciones);
+            _conAcciones = _desdeElOperador && await SoyDeLaFilaAsync() && await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
         }
         catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
         catch (Exception)
         {
             // Un fallo no es «nadie lo gestiona»: se dice, en vez de esconder la fila.
             _personas = [];
+            _conAcciones = false;
             _error = true;
         }
     }
+
+    private async Task<bool> SoyDeLaFilaAsync() =>
+        await UsuarioActual.ObtenerUsuarioActualIdAsync() is { } yo && _personas.Any(p => p.UsuarioId == yo);
 
     /// <summary>
     /// Los principales primero y después los de apoyo, cada grupo por nombre. Quien es principal de una Asignación

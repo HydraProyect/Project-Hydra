@@ -85,6 +85,7 @@ public class Cliente360PaginaTests : BunitContext
         /// <summary>Los bloqueos de acceso visibles (la consulta sin Centro): la página se queda con los de su Cliente empresarial.</summary>
         public List<DocumentacionBloqueantePendienteDto> Bloqueos { get; } = [];
         public bool FallaLecturaBloqueos { get; set; }
+        public bool FallaLecturaGestorCae { get; set; }
         public List<object> Enviadas { get; } = [];
 
         /// <summary>Lo que ocurre en el servidor al guardar una tolerancia (p. ej. que los bloqueos cambien).</summary>
@@ -120,7 +121,9 @@ public class Cliente360PaginaTests : BunitContext
                 [new ToleranciaTipoDocumentoDto(Guid.NewGuid(), "Formación PRL", AmbitoAplicacion.Trabajador, 0)],
             EstablecerToleranciaClienteEmpresarialCommand => GuardarTolerancia(),
             // Fila «Gestor CAE»: sin carteras, no se pinta (la prueban GestorCaeClienteTests).
-            ObtenerPersonasConCarteraQuery => (IReadOnlyList<CarterasDeOperacion>)[],
+            ObtenerPersonasConCarteraQuery => FallaLecturaGestorCae
+                ? throw new InvalidOperationException("Simula la colisión sobre el DbContext del circuito.")
+                : (IReadOnlyList<CarterasDeOperacion>)[],
             ObtenerOperadoresCaeDeMiTenantQuery => (IReadOnlyList<CarterasDeOperacion>)[],
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
@@ -149,6 +152,15 @@ public class Cliente360PaginaTests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
+    private sealed class UsuarioActualFalso : ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(Roles.GestorCae);
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(Roles.GestorCae);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+
     private sealed class TenantActivo : ITenantActual
     {
         public Guid? TenantId { get; } = Guid.NewGuid();
@@ -161,6 +173,7 @@ public class Cliente360PaginaTests : BunitContext
         Services.AddSingleton(TimeProvider.System);
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ITenantActual>(_ => new TenantActivo());
+        Services.AddScoped<ICurrentUserService>(_ => new UsuarioActualFalso());
         Services.AddLocalization();
         this.ConRolDeEscritura(rol);
         SetRendererInfo(new RendererInfo("Server", isInteractive: true));
@@ -435,6 +448,27 @@ public class Cliente360PaginaTests : BunitContext
 
         cut.FindAll(".cliente360-indicador-boton").Select(i => i.GetAttribute("data-indicador"))
             .Should().Equal(["proximos"], "sin bloqueados ni vencidos solo queda el de próximos");
+    }
+
+    [Fact]
+    public void Si_falla_la_lectura_del_Gestor_CAE_la_pagina_sigue_viva_y_cambia_de_pestana()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.Add(Centro("Planta Barakaldo", EstadoCentro.Bloqueado));
+        mediador.Empresas.Add(new EmpresaDeClienteDto(Guid.NewGuid(), "Ibertec GmbH", "B-12345678"));
+        mediador.Empresas.Add(new EmpresaDeClienteDto(Guid.NewGuid(), "Otra contratista", null));
+        mediador.FallaLecturaGestorCae = true;
+        Registrar(mediador);
+
+        var cut = Renderizar(id, "?pestana=empresas");
+
+        cut.WaitForAssertion(() => cut.Find(".gestor-cae-cliente-error").TextContent.Should().Be("No pudimos cargarlo"));
+        mediador.Enviadas.OfType<ObtenerPersonasConCarteraQuery>().Should().ContainSingle("control: la lectura que falla se lanzó");
+        cut.Find("h1").TextContent.Should().Contain("Refrielectric S.A.", "el fallo se queda en la fila: no sube a LimiteDeErrores");
+
+        cut.Find(".cliente360-indicador-boton").Click();
+
+        cut.WaitForAssertion(() => cut.Find(".pestanas-boton-activa").TextContent.Should().Contain("Centros"));
     }
 
     [Fact]

@@ -406,7 +406,7 @@
                             <DatoRejilla Etiqueta="@Textos["Critico"]" Valor="@(_detalle.EsCritico ? Textos["Si"] : Textos["No"])" />
                             <DatoRejilla Etiqueta="@Textos["DatoAlta"]" Valor="@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")" />
                         </RejillaDatos>
-                        <GestorCaeCliente Cargar="_gestorCaeHabilitado" AlDesasignarme="IrAMiTrabajoTrasDesasignarme" />
+                        <GestorCaeCliente Cargar="_gestorCaeHabilitado" AlCargar="GestorCaeCargado" AlDesasignarme="IrAMiTrabajoTrasDesasignarme" />
                     </ChildContent>
                 </Tarjeta>
 

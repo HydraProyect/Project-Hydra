@@ -140,6 +140,15 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// </summary>
     private bool _gestorCaeHabilitado;
 
+    /// <summary>
+    /// Pendiente mientras la fila «Gestor CAE» (y su panel de acciones) hace su primera lectura: las lecturas de
+    /// pestaña esperan a que termine, por el mismo DbContext compartido. Sin valor o completada, no se espera.
+    /// </summary>
+    private TaskCompletionSource? _gestorCaeEnVuelo;
+
+    /// <summary>Tope de esa espera: si la fila no avisara nunca, la pestaña no se queda colgada.</summary>
+    private static readonly TimeSpan EsperaMaximaGestorCae = TimeSpan.FromSeconds(10);
+
     private string _pestanaActiva = PestanaPorDefecto;
     private string? _pestanaDeLaUrl;
     private string _busqueda = string.Empty;
@@ -302,9 +311,22 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _pestanaActiva = Normalizar(pestana);
         _pestanaDeLaUrl = _pestanaActiva == PestanaPorDefecto ? null : _pestanaActiva;
         NavigationManager.ActualizarFiltroEnUrl("pestana", _pestanaDeLaUrl);
+        await EsperarGestorCaeAsync();
         await CargarCentrosSubcontratasSiProcedeAsync();
         await CargarToleranciasSiProcedeAsync();
     }
+
+    /// <summary>
+    /// Si la fila «Gestor CAE» sigue con su primera lectura, se espera a que avise (con tope): una pestaña que lee
+    /// en paralelo chocaría con ella en el DbContext del circuito. Es la misma serie que sigue la carga inicial.
+    /// </summary>
+    private async Task EsperarGestorCaeAsync()
+    {
+        if (_gestorCaeEnVuelo is { Task.IsCompleted: false } enVuelo)
+            await Task.WhenAny(enVuelo.Task, Task.Delay(EsperaMaximaGestorCae));
+    }
+
+    private void GestorCaeCargado() => _gestorCaeEnVuelo?.TrySetResult();
 
     /// <summary>Los indicadores de la cabecera cuentan centros: al pulsarlos se ven esos centros.</summary>
     private Task IrACentros() => CambiarPestana(PestanaPorDefecto);
@@ -378,6 +400,8 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _subcontratas = null;
         _datosInicialesCargados = false;
         _gestorCaeHabilitado = false;
+        _gestorCaeEnVuelo?.TrySetResult();
+        _gestorCaeEnVuelo = null;
         _centrosSubcontratasLeidos = false;
         _cargandoCentrosSubcontratas = false;
         _centrosSubcontratas = new Dictionary<Guid, IReadOnlyList<CentroCumplimientoSubcontrataDto>>();
@@ -414,6 +438,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         await CargarCentrosSubcontratasSiProcedeAsync();
         await CargarToleranciasSiProcedeAsync();
         if (generacion != _generacion) return;
+        _gestorCaeEnVuelo = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _gestorCaeHabilitado = true;
         StateHasChanged();
     }

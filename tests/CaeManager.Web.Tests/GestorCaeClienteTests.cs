@@ -53,11 +53,14 @@ public class GestorCaeClienteTests : BunitContext
         new(Guid.NewGuid(), operacion.TenantId, operacion.NombreTenant, operacion.AsignacionOperacionId,
             Yo, "Yo", operacion.Principal!.UsuarioId, operacion.Principal.Nombre, null);
 
+    private int _avisosDeCarga;
+
     private IRenderedComponent<GestorCaeCliente> Renderizar(string rol, bool cargar = true, Action? alDesasignarme = null)
     {
         this.ConRolDeEscritura(rol);
         return Render<GestorCaeCliente>(p => p
             .Add(c => c.Cargar, cargar)
+            .Add(c => c.AlCargar, () => _avisosDeCarga++)
             .Add(c => c.AlDesasignarme, alDesasignarme ?? (() => { })));
     }
 
@@ -195,6 +198,71 @@ public class GestorCaeClienteTests : BunitContext
         cut.FindComponents<PanelDarAcceso>().Should().BeEmpty();
     }
 
+    [Fact]
+    public void El_Administrador_del_Operador_CAE_sin_cartera_propia_no_recibe_un_hueco_de_acciones_vacio()
+    {
+        _mediador.Operaciones = [Operacion(Persona(Guid.NewGuid(), "Laura P."), Persona(Guid.NewGuid(), "Andrés M."))];
+
+        var cut = Renderizar(Roles.Administrador);
+
+        Personas(cut).Should().Be("Laura P., Andrés M.", "control: ve quién lo gestiona");
+        cut.FindAll("[data-gestor-cae-cliente-acciones]").Should().BeEmpty("no es el principal ni un apoyo: no hay acciones que ofrecerle");
+        cut.FindComponents<PanelDarAcceso>().Should().BeEmpty();
+        _avisosDeCarga.Should().Be(1, "sin panel, la fila avisa a la página nada más leer");
+    }
+
+    [Fact]
+    public void Quien_hoy_es_el_principal_no_ve_Desasignarme_aunque_le_quede_un_apoyo_de_esa_operacion()
+    {
+        // Entró como apoyo y luego recibió la marca: soltarla es un relevo, no un fin de apoyo.
+        var operacion = Operacion(Persona(Yo, "Laura P."));
+        _mediador.Operaciones = [operacion];
+        _mediador.Apoyos = new ApoyosDeCarteraDto([ApoyoMio(operacion)], [], []);
+
+        var cut = Renderizar(Roles.GestorCae);
+
+        Botones(cut).Should().Equal(["+ Dar acceso"]);
+        cut.FindAll("[data-desasignarme-cabecera]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void La_mirada_del_Tenant_propietario_tambien_se_filtra_por_el_Tenant_activo()
+    {
+        _mediador.OperacionesDelPropietario = [new CarterasDeOperacion(Guid.NewGuid(), Guid.NewGuid(), "Otro Tenant", Persona(Guid.NewGuid(), "Laura P."), [])];
+
+        var cut = Renderizar(Roles.Administrador);
+
+        _mediador.Enviadas.OfType<ObtenerOperadoresCaeDeMiTenantQuery>().Should().ContainSingle("control: llegó a la segunda consulta");
+        cut.Markup.Trim().Should().BeEmpty("las carteras de otro Tenant no se pintan aunque la consulta las devolviera");
+    }
+
+    [Fact]
+    public void Si_falla_la_lectura_del_panel_la_fila_sigue_dice_el_error_y_avisa_a_la_pagina()
+    {
+        _mediador.Operaciones = [Operacion(Persona(Yo, "Laura P."))];
+        _mediador.FallaLecturaDelPanel = true;
+
+        var cut = Renderizar(Roles.GestorCae);
+
+        Personas(cut).Should().Be("Laura P.", "el fallo del panel no tumba la fila");
+        cut.Find("[data-dar-acceso-error]").TextContent.Should().Be("No pudimos cargar los accesos.");
+        Botones(cut).Should().BeEmpty("sin lectura, el panel no ofrece acciones");
+        _avisosDeCarga.Should().Be(1, "también con error el panel termina su primera lectura y la página puede seguir");
+    }
+
+    [Fact]
+    public void Con_acciones_la_pagina_recibe_un_solo_aviso_y_despues_de_la_lectura_del_panel()
+    {
+        _mediador.Operaciones = [Operacion(Persona(Yo, "Laura P."))];
+
+        var cut = Renderizar(Roles.GestorCae);
+
+        _avisosDeCarga.Should().Be(1);
+        _mediador.Enviadas.OfType<ObtenerApoyosDeCarteraQuery>().Should().ContainSingle("control: el panel leyó antes del aviso");
+        cut.Render(p => p.Add(c => c.Cargar, true));
+        _avisosDeCarga.Should().Be(1, "volver a pasar el mismo parámetro no es una nueva habilitación");
+    }
+
     private sealed class TenantFijo(Guid? id) : ITenantActual
     {
         public Guid? TenantId => id;
@@ -216,12 +284,15 @@ public class GestorCaeClienteTests : BunitContext
         public IReadOnlyList<CarterasDeOperacion> OperacionesDelPropietario { get; set; } = [];
         public ApoyosDeCarteraDto Apoyos { get; set; } = ApoyosDeCarteraDto.Vacio;
         public bool FallaLectura { get; set; }
+        public bool FallaLecturaDelPanel { get; set; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
             if (FallaLectura && request is ObtenerPersonasConCarteraQuery)
                 throw new InvalidOperationException("Fallo simulado de lectura.");
+            if (FallaLecturaDelPanel && request is ObtenerApoyosDeCarteraQuery)
+                throw new InvalidOperationException("Simula la colisión sobre el DbContext del circuito.");
 
             object respuesta = request switch
             {

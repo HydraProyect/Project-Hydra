@@ -35,6 +35,11 @@
 @using CaeManager.Web.Components.DesignSystem
 @using CaeManager.Web.Features.IncorporacionCartera.Recursos
 
+@if (_errorDeCarga)
+{
+    <span class="dar-acceso-error" role="status" data-dar-acceso-error>@Textos["ErrorDeCarga"]</span>
+}
+
 @if (_operaciones.Count > 0)
 {
     @if (EnCabecera)
@@ -116,7 +121,7 @@
                       SinContenido="@(_destinatarios is { Count: 0 } ? SinDestinatarios : null)"
                       OnGuardar="ProponerAsync"
                       TextoGuardar="@Textos["BotonProponer"]" TextoCancelar="@Textos["BotonCancelar"]">
-        <p class="dar-acceso-intro">@Textos["DrawerIntro"]</p>
+        <p class="dar-acceso-intro">@Textos["DrawerIntro", _operacionDelDrawer?.NombreTenant ?? string.Empty]</p>
         <CampoSelect Etiqueta="@Textos["EtiquetaDestinatario"]" Valor="@_destinatarioId" ValorChanged="AlElegirDestinatario">
             <option value="">@Textos["OpcionElige"]</option>
             @foreach (var destinatario in _destinatarios ?? [])
@@ -141,7 +146,7 @@
 
 @if (EnCabecera)
 {
-    @foreach (var apoyo in _apoyos.Mios)
+    @foreach (var apoyo in MisApoyos)
     {
         <SoloConEscritura @key="apoyo.PropuestaId">
             <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
@@ -151,12 +156,12 @@
         </SoloConEscritura>
     }
 }
-else if (_apoyos.Mios.Count > 0)
+else if (MisApoyos.Count > 0)
 {
     <Tarjeta Titulo="@Textos["MisApoyosTitulo"]" NivelTitulo="2">
         <p class="dar-acceso-descripcion">@Textos["MisApoyosDescripcion"]</p>
         <ul class="dar-acceso-lista" data-testid="panel-mis-apoyos">
-            @foreach (var apoyo in _apoyos.Mios)
+            @foreach (var apoyo in MisApoyos)
             {
                 <li @key="apoyo.PropuestaId" class="dar-acceso-fila" data-mi-apoyo="@apoyo.PropuestaId">
                     <div class="dar-acceso-empresa">

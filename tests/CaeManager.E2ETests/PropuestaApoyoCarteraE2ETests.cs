@@ -131,7 +131,7 @@ public class PropuestaApoyoCarteraE2ETests(WebAppFixtureGestorCaeCarteraMultiTen
         await Expect(miApoyo).ToContainTextAsync("Apoyo, a propuesta de", new() { Timeout = 30_000 });
         await desasignarme.ClickAsync();
 
-        var confirmacion = pagina.GetByRole(AriaRole.Dialog, new() { Name = "¿Desasignarte de esta Empresa?", Exact = true });
+        var confirmacion = pagina.GetByRole(AriaRole.Dialog, new() { Name = $"¿Desasignarte de {TenantPropuesto}?", Exact = true });
         await Expect(confirmacion).ToBeVisibleAsync(EsperaEnFrio);
         await confirmacion.GetByRole(AriaRole.Button, new() { Name = "Desasignarme", Exact = true }).ClickAsync();
         await Expect(pagina.Locator("[data-mi-apoyo]")).ToHaveCountAsync(0, new() { Timeout = 30_000 });
