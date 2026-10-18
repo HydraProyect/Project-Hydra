@@ -69,6 +69,10 @@
                             <a href="@SegundoFactorParaCredenciales.RutaConfigurarVolviendoA(SegundoFactorParaCredenciales.RutaActual(NavigationManager))" data-enhance-nav="false">@Textos["PlataformaCaeActivarDosFactores"]</a>
                         </p>
                     }
+                    else if (_errorAccesos)
+                    {
+                        <p class="texto-vacio-seccion" data-accesos-error>@Textos["PlataformaCaeErrorAccesos"]</p>
+                    }
                     else if (_accesos is not null)
                     {
                         <span class="plataforma-cae-subtitulo">@Textos["PlataformaCaeAccesosTitulo"]</span>

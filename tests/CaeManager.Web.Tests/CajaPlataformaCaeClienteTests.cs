@@ -42,6 +42,7 @@ public class CajaPlataformaCaeClienteTests : BunitContext
         ];
 
         public bool AccesosPidenSegundoFactor { get; set; }
+        public bool AccesosFallan { get; set; }
         public List<object> Enviadas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
@@ -52,6 +53,8 @@ public class CajaPlataformaCaeClienteTests : BunitContext
                 ObtenerPlataformaCaeClienteQuery => Plataforma,
                 ObtenerAccesosPlataformaCaeClienteQuery when AccesosPidenSegundoFactor =>
                     throw new SegundoFactorRequeridoParaCredencialesException(),
+                ObtenerAccesosPlataformaCaeClienteQuery when AccesosFallan =>
+                    throw new InvalidOperationException("Fallo simulado de los accesos."),
                 ObtenerAccesosPlataformaCaeClienteQuery => Accesos,
                 RevelarContrasenaAccesoPlataformaCaeQuery => new ContrasenaAccesoPlataformaCaeDto("s3cr3ta-del-portal"),
                 _ => throw new NotSupportedException($"Consulta no prevista: {request.GetType().Name}."),
@@ -76,15 +79,39 @@ public class CajaPlataformaCaeClienteTests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    private IRenderedComponent<CajaPlataformaCaeCliente> Montar(MediatorFalso mediador, string rol = Roles.GestorCae)
+    private IRenderedComponent<CajaPlataformaCaeCliente> Montar(MediatorFalso mediador, string rol = Roles.GestorCae, bool interactivo = true)
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddSingleton<TimeProvider>(_reloj);
         Services.AddLocalization();
         this.ConRolDeEscritura(rol);
-        SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        SetRendererInfo(new RendererInfo(interactivo ? "Server" : "Static", isInteractive: interactivo));
         return Render<CajaPlataformaCaeCliente>(p => p.Add(c => c.ClienteEmpresarialId, ClienteEmpresarialId));
+    }
+
+    [Fact]
+    public void En_el_prerender_estatico_no_carga_nada_ni_deja_el_usuario_en_el_HTML()
+    {
+        var mediador = new MediatorFalso();
+
+        var cut = Montar(mediador, interactivo: false);
+
+        mediador.Enviadas.Should().BeEmpty("cargar en el prerender auditaría dos veces la lectura de los usuarios");
+        cut.Markup.Should().NotContain("b12345678");
+    }
+
+    [Fact]
+    public void Si_fallan_los_accesos_se_conservan_la_plataforma_y_abrir_portal()
+    {
+        var mediador = new MediatorFalso { AccesosFallan = true };
+
+        var cut = Montar(mediador);
+
+        cut.Find("[data-plataforma-nombre]").TextContent.Should().Be("Nalanda");
+        cut.FindAll("[data-abrir-portal]").Should().ContainSingle();
+        cut.FindAll("[data-accesos-error]").Should().ContainSingle();
+        cut.FindAll("[data-acceso-empresa]").Should().BeEmpty();
     }
 
     [Fact]

@@ -43,7 +43,7 @@ public class PlataformaCaeClienteTests
 
         public Escenario()
         {
-            Plataformas = new PlataformaRepositorioFalso(Contexto);
+            Plataformas = new PlataformaRepositorioFalso(Contexto, UnitOfWork);
             foreach (var e in new[] { Cliente, Empresa, OtraEmpresa })
             {
                 Contexto.ListaEmpresas.Add(e);
@@ -80,10 +80,10 @@ public class PlataformaCaeClienteTests
         }
 
         public GuardarPlataformaCaeClienteCommandHandler GuardarPlataforma(IAlcanceDatosService alcance) =>
-            new(Empresas, Plataformas, alcance, UnitOfWork);
+            new(Empresas, Contexto, Plataformas, alcance);
 
         public GuardarAccesoPlataformaCaeCommandHandler GuardarAcceso(IAlcanceDatosService alcance) =>
-            new(Contexto, Plataformas, alcance, new UsuarioActualFalso("GestorCae", UsuarioId), UnitOfWork);
+            new(Contexto, Plataformas, alcance, new UsuarioActualFalso("GestorCae", UsuarioId));
 
         public ObtenerPlataformaCaeClienteQueryHandler ObtenerPlataforma(
             IAlcanceDatosService alcance, string? rol = "GestorCae", CapacidadPrivilegio? capacidad = null) =>
@@ -186,9 +186,70 @@ public class PlataformaCaeClienteTests
         e.UnitOfWork.VecesGuardado.Should().Be(1);
     }
 
+    [Fact]
+    public async Task Guardar_plataforma_de_una_Empresa_que_no_es_hoy_Cliente_empresarial_falla()
+    {
+        var e = new Escenario();
+        foreach (var relacion in e.Contexto.ListaRelacionesEmpresariales)
+            relacion.Cerrar(Ahora);
+
+        var resultado = await e.GuardarPlataforma(e.EnCartera()).Handle(
+            new GuardarPlataformaCaeClienteCommand(e.Cliente.Id, "Nalanda", null, null), default);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("PlataformaCae.SinRelacionVigente");
+        e.Contexto.ListaPlataformasCae.Should().BeEmpty();
+        e.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Guardar_plataforma_que_pierde_la_carrera_del_indice_unico_devuelve_conflicto()
+    {
+        var e = new Escenario();
+        e.Plataformas.PierdeLaCarrera = true;
+
+        var resultado = await e.GuardarPlataforma(e.EnCartera()).Handle(
+            new GuardarPlataformaCaeClienteCommand(e.Cliente.Id, "Nalanda", null, null), default);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("PlataformaCae.Conflicto");
+    }
+
+    [Fact]
+    public async Task Guardar_acceso_que_pierde_la_carrera_del_indice_unico_devuelve_conflicto()
+    {
+        var e = new Escenario();
+        e.RegistrarPlataforma();
+        e.Plataformas.PierdeLaCarrera = true;
+
+        var resultado = await e.GuardarAcceso(e.EnCartera()).Handle(
+            new GuardarAccesoPlataformaCaeCommand(e.Cliente.Id, e.Empresa.Id, "u", "p"), default);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("AccesoPlataformaCae.Conflicto");
+    }
+
+    [Fact]
+    public async Task Guardar_acceso_con_el_usuario_null_conserva_el_guardado_y_vacio_lo_quita()
+    {
+        var e = new Escenario();
+        e.RegistrarPlataforma();
+        var acceso = e.RegistrarAcceso(e.Empresa, "usuario-guardado", "secreta-guardada");
+
+        (await e.GuardarAcceso(e.EnCartera()).Handle(
+            new GuardarAccesoPlataformaCaeCommand(e.Cliente.Id, e.Empresa.Id, null, null), default)).EsExitoso.Should().BeTrue();
+        acceso.Usuario.Should().Be("usuario-guardado", "null en una llamada directa no significa «bórralo»");
+
+        (await e.GuardarAcceso(e.EnCartera()).Handle(
+            new GuardarAccesoPlataformaCaeCommand(e.Cliente.Id, e.Empresa.Id, "", null), default)).EsExitoso.Should().BeTrue();
+        acceso.Usuario.Should().BeNull("el modal envía el campo vacío cuando se quiere quitar");
+        acceso.Contrasena.Should().Be("secreta-guardada");
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
+    [InlineData("   ")]
     public async Task Guardar_acceso_con_la_contrasena_vacia_conserva_la_guardada(string? contrasenaEnviada)
     {
         var e = new Escenario();
@@ -281,7 +342,6 @@ public class PlataformaCaeClienteTests
         var dto = await e.ObtenerPlataforma(e.EnCartera()).Handle(new ObtenerPlataformaCaeClienteQuery(e.Cliente.Id), default);
 
         dto.Should().Be(new PlataformaCaeClienteDto(true, "Nalanda", "https://portal.example", "CLI-01"));
-        e.Registro.Registrados.Should().BeEmpty();
     }
 
     [Theory]
@@ -361,7 +421,8 @@ public class PlataformaCaeClienteTests
             new AccesoPlataformaCaeDto(e.Empresa.Id, "Empresa Propia S.L.", "b12345678", true, Ahora, "Marta Gestora"),
             new AccesoPlataformaCaeDto(e.OtraEmpresa.Id, "Otra Propia S.L.", null, false, null, null),
         ]);
-        e.Registro.Registrados.Should().Equal((nameof(AccesoPlataformaCaeEmpresa), acceso.Id));
+        e.Registro.Lecturas.Should().Equal(
+            (nameof(AccesoPlataformaCaeEmpresa), acceso.Id, nameof(AccesoPlataformaCaeEmpresa.Usuario)));
     }
 
     [Fact]
@@ -405,7 +466,24 @@ public class PlataformaCaeClienteTests
             new RevelarContrasenaAccesoPlataformaCaeQuery(e.Cliente.Id, e.Empresa.Id), default);
 
         dto!.Contrasena.Should().Be("s3cr3ta");
-        e.Registro.Registrados.Should().Equal((nameof(AccesoPlataformaCaeEmpresa), acceso.Id));
+        e.Registro.Lecturas.Should().Equal(
+            [(nameof(AccesoPlataformaCaeEmpresa), acceso.Id, nameof(AccesoPlataformaCaeEmpresa.Contrasena))],
+            "revelar la contraseña se distingue en la auditoría de listar el usuario");
+    }
+
+    [Fact]
+    public async Task Revelar_de_una_Empresa_que_ya_no_presta_servicio_al_Cliente_no_devuelve_nada_ni_audita()
+    {
+        var e = new Escenario();
+        e.RegistrarPlataforma();
+        e.RegistrarAcceso(e.Empresa, "b12345678", "s3cr3ta");
+        e.Contexto.ListaRelacionesEmpresariales.Single(r => r.ProveedoraId == e.Empresa.Id).Cerrar(Ahora);
+
+        var dto = await e.Revelar(e.EnCartera()).Handle(
+            new RevelarContrasenaAccesoPlataformaCaeQuery(e.Cliente.Id, e.Empresa.Id), default);
+
+        dto.Should().BeNull("misma regla que listar y guardar: relación vigente y Empresa propia");
+        e.Registro.Registrados.Should().BeEmpty();
     }
 
     [Fact]
@@ -545,8 +623,19 @@ public class PlataformaCaeClienteTests
 
     // ── Dobles ──
 
-    private sealed class PlataformaRepositorioFalso(EmpresasQueryContextFalso contexto) : IPlataformaCaeClienteEmpresarialRepository
+    private sealed class PlataformaRepositorioFalso(EmpresasQueryContextFalso contexto, UnitOfWorkFalso unitOfWork) : IPlataformaCaeClienteEmpresarialRepository
     {
+        /// <summary>Simula que otra petición dio de alta la misma fila a la vez (índice único).</summary>
+        public bool PierdeLaCarrera { get; set; }
+
+        public async Task<bool> GuardarCambiosAsync(CancellationToken cancellationToken = default)
+        {
+            if (PierdeLaCarrera)
+                return false;
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+
         public Task<PlataformaCaeClienteEmpresarial?> ObtenerPlataformaAsync(Guid clienteEmpresarialId, CancellationToken cancellationToken = default) =>
             Task.FromResult(contexto.ListaPlataformasCae.SingleOrDefault(p => p.ClienteEmpresarialId == clienteEmpresarialId));
 

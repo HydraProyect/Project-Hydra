@@ -37,6 +37,7 @@ public partial class CajaPlataformaCaeCliente : IDisposable
     private IReadOnlyList<AccesoPlataformaCaeDto>? _accesos;
     private bool _accesosRequierenDosFactores;
     private bool _error;
+    private bool _errorAccesos;
 
     private bool _modalPlataformaVisible;
     private bool _modalAccesoVisible;
@@ -60,7 +61,10 @@ public partial class CajaPlataformaCaeCliente : IDisposable
 
     protected override async Task OnParametersSetAsync()
     {
-        if (ClienteEmpresarialId == _clienteCargado)
+        // Solo en el render interactivo (mismo patrón que CentroDetalle): ClienteDetalle es
+        // InteractiveServer, así que este método corre también en el prerender estático. Cargar
+        // ahí auditaría dos veces la lectura de los usuarios y los dejaría en el HTML inicial.
+        if (!RendererInfo.IsInteractive || ClienteEmpresarialId == _clienteCargado)
             return;
 
         _clienteCargado = ClienteEmpresarialId;
@@ -72,6 +76,7 @@ public partial class CajaPlataformaCaeCliente : IDisposable
     {
         var clienteEmpresarialId = ClienteEmpresarialId;
         _error = false;
+        _errorAccesos = false;
         _accesosRequierenDosFactores = false;
         _accesos = null;
 
@@ -93,6 +98,12 @@ public partial class CajaPlataformaCaeCliente : IDisposable
                 {
                     if (clienteEmpresarialId == ClienteEmpresarialId)
                         _accesosRequierenDosFactores = true;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // Un fallo de los accesos no se lleva la plataforma ni «Abrir portal».
+                    if (clienteEmpresarialId == ClienteEmpresarialId)
+                        _errorAccesos = true;
                 }
             }
         }
@@ -264,8 +275,9 @@ public partial class CajaPlataformaCaeCliente : IDisposable
         try
         {
             var empresaId = _accesoEnEdicion.EmpresaId;
+            // El usuario va tal cual: vacío lo quita (null lo conservaría). La contraseña vacía conserva la guardada.
             var resultado = await Mediator.Send(
-                new GuardarAccesoPlataformaCaeCommand(ClienteEmpresarialId, empresaId, NuloSiVacio(_bUsuario), NuloSiVacio(_bContrasena)), _ciclo.Token);
+                new GuardarAccesoPlataformaCaeCommand(ClienteEmpresarialId, empresaId, _bUsuario, NuloSiVacio(_bContrasena)), _ciclo.Token);
             if (resultado.EsFallido)
             {
                 _errorModal = resultado.Error.Mensaje;

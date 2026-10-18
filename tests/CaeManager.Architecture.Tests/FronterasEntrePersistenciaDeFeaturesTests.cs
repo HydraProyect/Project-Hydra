@@ -234,6 +234,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Clientes.GuardarAccesoPlataformaCaeCommandHandler", "IEmpresasQueryContext"),
         ("Clientes.GuardarAccesoPlataformaCaeCommandHandler", "IPlataformaCaeClienteEmpresarialRepository"),
         ("Clientes.GuardarPlataformaCaeClienteCommandHandler", "IEmpresaRepository"),
+        // Comprueba que la Empresa es hoy Cliente empresarial (Relación Empresarial vigente).
+        ("Clientes.GuardarPlataformaCaeClienteCommandHandler", "IEmpresasQueryContext"),
         ("Clientes.GuardarPlataformaCaeClienteCommandHandler", "IPlataformaCaeClienteEmpresarialRepository"),
         ("Clientes.ObtenerAccesosPlataformaCaeClienteQueryHandler", "IEmpresasQueryContext"),
         ("Clientes.ObtenerPlataformaCaeClienteQueryHandler", "IEmpresasQueryContext"),

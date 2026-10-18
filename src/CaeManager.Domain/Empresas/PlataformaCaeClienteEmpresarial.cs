@@ -19,8 +19,9 @@ namespace CaeManager.Domain.Empresas;
 /// <para>
 /// <see cref="ClienteEmpresarialId"/> es el <c>Empresa.Id</c> de la contraparte en
 /// posición cliente de la Relación Empresarial, el mismo que referencia el Centro
-/// (<c>Centro.ClienteId</c>, nombre heredado). Nada de esta fila es secreto: el rol
-/// Consulta ve la plataforma y «Abrir portal».
+/// (<c>Centro.ClienteId</c>, nombre heredado). Nada de esta fila es secreto ni va cifrado:
+/// el rol Consulta ve la plataforma y «Abrir portal». El código de cliente, aunque tampoco
+/// es secreto, solo lo reciben los roles con escritura (<c>ObtenerPlataformaCaeClienteQuery</c>).
 /// </para>
 /// </summary>
 public class PlataformaCaeClienteEmpresarial : EntidadConTenant

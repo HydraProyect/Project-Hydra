@@ -14,8 +14,10 @@ namespace CaeManager.Application.Clientes.Commands.GuardarAccesoPlataformaCae;
 /// Cliente 360 (maqueta del 17-10).
 ///
 /// <para>
-/// <see cref="Contrasena"/> vacía o null conserva la guardada (mismo criterio que DEC-62):
-/// el formulario nunca la precarga, así que un campo vacío no puede significar «bórrala».
+/// <see cref="Contrasena"/> null, vacía o solo con espacios conserva la guardada (mismo criterio
+/// que DEC-62): el formulario nunca la precarga, así que un campo vacío no puede significar
+/// «bórrala». <see cref="Usuario"/> null también conserva el guardado; para quitarlo se envía
+/// una cadena vacía (el modal envía siempre lo que hay en el campo).
 /// La contraseña anterior no se conserva; el cambio queda en la auditoría con los valores
 /// enmascarados (<c>AuditoriaInterceptor</c>), y la fila guarda cuándo y quién la cambió.
 /// </para>
@@ -48,11 +50,13 @@ public class GuardarAccesoPlataformaCaeCommandHandler(
     IEmpresasQueryContext empresasContext,
     IPlataformaCaeClienteEmpresarialRepository plataformaRepositorio,
     IAlcanceDatosService alcanceDatos,
-    ICurrentUserService usuarioActual,
-    IUnitOfWork unitOfWork)
+    ICurrentUserService usuarioActual)
     : IRequestHandler<GuardarAccesoPlataformaCaeCommand, Result>
 {
     private static readonly Error NoEncontrado = Error.Crear("AccesoPlataformaCae.NoEncontrado", "No encontramos esta Empresa en este Cliente.");
+
+    private static readonly Error Conflicto = Error.Crear(
+        "AccesoPlataformaCae.Conflicto", "Otra persona acaba de dar de alta este acceso. Cierra y vuelve a abrirlo para ver lo guardado.");
 
     public async Task<Result> Handle(GuardarAccesoPlataformaCaeCommand request, CancellationToken cancellationToken)
     {
@@ -83,11 +87,11 @@ public class GuardarAccesoPlataformaCaeCommandHandler(
             plataformaRepositorio.AgregarAcceso(acceso);
         }
 
-        acceso.CambiarUsuario(request.Usuario);
-        if (!string.IsNullOrEmpty(request.Contrasena))
+        if (request.Usuario is not null)
+            acceso.CambiarUsuario(request.Usuario);
+        if (!string.IsNullOrWhiteSpace(request.Contrasena))
             acceso.CambiarContrasena(request.Contrasena, await usuarioActual.ObtenerUsuarioActualIdAsync(), DateTime.UtcNow);
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return Result.Exito();
+        return await plataformaRepositorio.GuardarCambiosAsync(cancellationToken) ? Result.Exito() : Result.Fallo(Conflicto);
     }
 }

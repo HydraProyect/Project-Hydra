@@ -82,9 +82,11 @@ public class ObtenerAccesosPlataformaCaeClienteQueryHandler(
             ? new Dictionary<Guid, string>()
             : await directorioUsuarios.ObtenerNombresVisiblesAsync(autores, cancellationToken);
 
-        // Lectura efectiva del usuario descifrado: queda en la auditoría ANTES de entregarlo.
+        // Lectura efectiva del usuario descifrado: queda en la auditoría ANTES de entregarlo, marcada
+        // como lectura del usuario para no confundirla con «Mostrar» o «Copiar» la contraseña.
         foreach (var acceso in accesos.Where(a => a.Usuario is not null))
-            await registroAcceso.RegistrarAsync(nameof(AccesoPlataformaCaeEmpresa), acceso.Id, cancellationToken);
+            await registroAcceso.RegistrarLecturaAsync(
+                nameof(AccesoPlataformaCaeEmpresa), acceso.Id, nameof(AccesoPlataformaCaeEmpresa.Usuario), cancellationToken);
 
         return empresas.Select(e =>
         {

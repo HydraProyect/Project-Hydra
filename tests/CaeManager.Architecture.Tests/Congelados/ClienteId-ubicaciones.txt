@@ -454,7 +454,9 @@ src/CaeManager.Web/Features/Clientes/Pages/AltaGuiada.razor.cs :: clienteIds = 6
 # Plataforma CAE de Cliente 360 (2026-10-18): las tablas nuevas usan ClienteEmpresarialId; quedan el join
 # con RelacionEmpresarial.ClienteId (columna legacy) y el parámetro de ruta de la ficha que se pasa a la caja.
 src/CaeManager.Application/Clientes/Commands/GuardarAccesoPlataformaCae/GuardarAccesoPlataformaCaeCommand.cs :: ClienteId = 1
+src/CaeManager.Application/Clientes/Commands/GuardarPlataformaCaeCliente/GuardarPlataformaCaeClienteCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Clientes/Queries/ObtenerAccesosPlataformaCaeCliente/ObtenerAccesosPlataformaCaeClienteQuery.cs :: ClienteId = 1
+src/CaeManager.Application/Clientes/Queries/RevelarContrasenaAccesoPlataformaCae/RevelarContrasenaAccesoPlataformaCaeQuery.cs :: ClienteId = 1
 src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor :: ClienteId = 7
 src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor.cs :: ClienteId = 12
 src/CaeManager.Web/Features/Clientes/Pages/ConfiguracionIaCliente.razor :: ClienteId = 1

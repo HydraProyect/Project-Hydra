@@ -680,6 +680,9 @@
   <data name="PlataformaCaeError" xml:space="preserve">
     <value>No se pudo cargar la plataforma CAE.</value>
   </data>
+  <data name="PlataformaCaeErrorAccesos" xml:space="preserve">
+    <value>No se pudieron cargar los accesos de cada Empresa.</value>
+  </data>
   <data name="PlataformaCaeSinContrasenaAviso" xml:space="preserve">
     <value>No hay ninguna contraseña guardada.</value>
   </data>

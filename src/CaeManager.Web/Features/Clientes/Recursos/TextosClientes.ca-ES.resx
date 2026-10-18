@@ -656,6 +656,9 @@
   <data name="PlataformaCaeError" xml:space="preserve">
     <value>No s&apos;ha pogut carregar la plataforma CAE.</value>
   </data>
+  <data name="PlataformaCaeErrorAccesos" xml:space="preserve">
+    <value>No s&apos;han pogut carregar els accessos de cada Empresa.</value>
+  </data>
   <data name="PlataformaCaeSinContrasenaAviso" xml:space="preserve">
     <value>No hi ha cap contrasenya desada.</value>
   </data>

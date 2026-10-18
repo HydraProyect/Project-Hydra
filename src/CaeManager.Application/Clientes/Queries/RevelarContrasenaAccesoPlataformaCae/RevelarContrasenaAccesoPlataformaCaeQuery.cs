@@ -24,7 +24,8 @@ namespace CaeManager.Application.Clientes.Queries.RevelarContrasenaAccesoPlatafo
 /// factor y fuera de toda Sesión Privilegiada (<see cref="IConsultaDeSecretosDeTenant"/>,
 /// <see cref="AutorizacionSecretosDeTenantBehavior{TRequest,TResponse}"/>: Consulta, Usuario
 /// de Cliente, soporte e impersonación reciben <c>null</c>); y solo sobre un Cliente
-/// empresarial y una Empresa de su cartera de gestión (este handler).
+/// empresarial y una Empresa de su cartera de gestión, y solo mientras esa Empresa propia le
+/// preste servicio (Relación Empresarial vigente, la misma lista que pinta la caja) (este handler).
 /// </para>
 /// </summary>
 public record RevelarContrasenaAccesoPlataformaCaeQuery(Guid ClienteEmpresarialId, Guid EmpresaId)
@@ -46,6 +47,16 @@ public class RevelarContrasenaAccesoPlataformaCaeQueryHandler(
             || !await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaId, cancellationToken))
             return null;
 
+        // La misma lista que pinta la caja y que exige el guardado: Empresa propia que presta
+        // servicio hoy al Cliente empresarial. Cerrada la relación, la contraseña ya no se revela.
+        var prestaServicio = await (
+            from r in dbContext.RelacionesEmpresariales
+            where r.ClienteId == request.ClienteEmpresarialId && r.ProveedoraId == request.EmpresaId && r.VigenciaHasta == null
+            join empresa in dbContext.Empresas.Where(e => e.EsPropia) on r.ProveedoraId equals empresa.Id
+            select r.Id).AnyAsync(cancellationToken);
+        if (!prestaServicio)
+            return null;
+
         var fila = await dbContext.AccesosPlataformaCaeEmpresa
             .Where(a => a.ClienteEmpresarialId == request.ClienteEmpresarialId && a.EmpresaId == request.EmpresaId)
             .Select(a => new { a.Id, Dto = new ContrasenaAccesoPlataformaCaeDto(a.Contrasena) })
@@ -54,7 +65,8 @@ public class RevelarContrasenaAccesoPlataformaCaeQueryHandler(
         if (fila?.Dto.Contrasena is null)
             return null;
 
-        await registroAcceso.RegistrarAsync(nameof(AccesoPlataformaCaeEmpresa), fila.Id, cancellationToken);
+        await registroAcceso.RegistrarLecturaAsync(
+            nameof(AccesoPlataformaCaeEmpresa), fila.Id, nameof(AccesoPlataformaCaeEmpresa.Contrasena), cancellationToken);
         return fila.Dto;
     }
 }

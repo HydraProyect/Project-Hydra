@@ -1,8 +1,10 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Clientes.Commands.GuardarPlataformaCaeCliente;
 
@@ -16,7 +18,9 @@ namespace CaeManager.Application.Clientes.Commands.GuardarPlataformaCaeCliente;
 /// Roles: <see cref="AutorizacionEscrituraBehavior{TRequest,TResponse}"/> deniega a Consulta,
 /// al Usuario de Cliente y a toda Sesión Privilegiada (impersonación incluida). El handler
 /// añade la cartera: el Cliente empresarial tiene que estar en el ámbito efectivo del usuario
-/// y quien escribe tiene que operar desde el lado de gestión.
+/// y quien escribe tiene que operar desde el lado de gestión. Y la Empresa tiene que ser hoy
+/// Cliente empresarial: posición cliente de al menos una Relación Empresarial vigente. Sin
+/// eso no hay a quién acreditar en la plataforma.
 /// </para>
 /// </summary>
 public record GuardarPlataformaCaeClienteCommand(Guid ClienteEmpresarialId, string Nombre, string? UrlPortal, string? CodigoCliente) : ICommand;
@@ -37,11 +41,13 @@ public class GuardarPlataformaCaeClienteCommandValidator : AbstractValidator<Gua
 
 public class GuardarPlataformaCaeClienteCommandHandler(
     IEmpresaRepository empresaRepositorio,
+    IEmpresasQueryContext empresasContext,
     IPlataformaCaeClienteEmpresarialRepository plataformaRepositorio,
-    IAlcanceDatosService alcanceDatos,
-    IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos)
     : IRequestHandler<GuardarPlataformaCaeClienteCommand, Result>
 {
+    private static readonly Error NoEncontrado = Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente.");
+
     public async Task<Result> Handle(GuardarPlataformaCaeClienteCommand request, CancellationToken cancellationToken)
     {
         // Fuera de la cartera se responde como si no existiera (Issue #18).
@@ -49,7 +55,12 @@ public class GuardarPlataformaCaeClienteCommandHandler(
         if (cliente is null
             || !await alcanceDatos.ClienteVisibleAsync(cliente.Id, cancellationToken)
             || !await alcanceDatos.OperaDesdeElLadoDeGestionAsync(cancellationToken))
-            return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente."));
+            return Result.Fallo(NoEncontrado);
+
+        if (!await empresasContext.RelacionesEmpresariales.AnyAsync(
+                r => r.ClienteId == cliente.Id && r.VigenciaHasta == null, cancellationToken))
+            return Result.Fallo(Error.Crear(
+                "PlataformaCae.SinRelacionVigente", "Esta Empresa no es hoy Cliente de ninguna Empresa propia."));
 
         var plataforma = await plataformaRepositorio.ObtenerPlataformaAsync(cliente.Id, cancellationToken);
         if (plataforma is null)
@@ -62,7 +73,9 @@ public class GuardarPlataformaCaeClienteCommandHandler(
             plataforma.Actualizar(request.Nombre, request.UrlPortal, request.CodigoCliente);
         }
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return Result.Exito();
+        return await plataformaRepositorio.GuardarCambiosAsync(cancellationToken)
+            ? Result.Exito()
+            : Result.Fallo(Error.Crear(
+                "PlataformaCae.Conflicto", "Otra persona acaba de registrar la plataforma de este Cliente. Cierra y vuelve a abrirla para ver lo guardado."));
     }
 }

@@ -38,11 +38,6 @@ public class ObtenerPlataformaCaeClienteQueryHandler(
     ISesionPrivilegiadaActual sesionPrivilegiadaActual)
     : IRequestHandler<ObtenerPlataformaCaeClienteQuery, PlataformaCaeClienteDto?>
 {
-    // Mismos literales que AutorizacionEscrituraBehavior.RolesConEscritura, mismo motivo:
-    // Application no puede referenciar Infrastructure.Identity.Roles.
-    private static readonly string[] RolesQueVenElCodigoDeCliente =
-        ["Administrador", "DireccionCae", "CoordinadorCae", "GestorCae"];
-
     public async Task<PlataformaCaeClienteDto?> Handle(ObtenerPlataformaCaeClienteQuery request, CancellationToken cancellationToken)
     {
         if (!await alcanceDatos.ClienteVisibleAsync(request.ClienteEmpresarialId, cancellationToken)
@@ -66,5 +61,5 @@ public class ObtenerPlataformaCaeClienteQueryHandler(
     private async Task<bool> VeElCodigoDeClienteAsync(CancellationToken cancellationToken) =>
         await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is null
         && await currentUserService.ObtenerRolEfectivoAsync() is { } rol
-        && RolesQueVenElCodigoDeCliente.Contains(rol);
+        && AutorizacionEscrituraBehavior<object, object>.RolesConEscritura.Contains(rol);
 }
