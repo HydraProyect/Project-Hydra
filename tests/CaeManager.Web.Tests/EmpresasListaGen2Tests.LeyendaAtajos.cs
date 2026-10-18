@@ -1,4 +1,4 @@
-using Bunit;
+﻿using Bunit;
 using FluentAssertions;
 
 namespace CaeManager.Web.Tests;
@@ -15,8 +15,8 @@ public partial class EmpresasListaGen2Tests
         var cut = Renderizar(new MediatorFalso { Almacen = { Empresa("Montajes Ebro S.L.") } });
 
         cut.TeclasDeLaLeyenda().Should().Equal("j", "k", "Enter", "e", "x", "f", "Alt", "?");
-        cut.FindAll(".pie-lista-maqueta").Should().ContainSingle("el pie permanece visible con una sola página");
-        cut.FindAll(".pie-lista-maqueta button").Should().OnlyContain(b => b.HasAttribute("disabled"));
+        cut.FindAll(".paginador-pie-listado").Should().ContainSingle("el pie permanece visible con una sola página");
+        cut.FindAll(".paginador-inicio button").Should().BeEmpty("con una sola página no hay navegación");
     }
 
     [Fact]
@@ -24,7 +24,7 @@ public partial class EmpresasListaGen2Tests
     {
         var cut = Renderizar(new MediatorFalso());
 
-        cut.Markup.Should().Contain("Aún no hay empresas", "es el estado vacío: no hay filas que recorrer");
+        cut.Markup.Should().Contain("Todavía no hay empresas", "es el estado vacío: no hay filas que recorrer");
         cut.FindAll(LeyendaAtajosEnPagina.Selector).Should().ContainSingle("el pie conserva la leyenda también sin resultados");
     }
 }

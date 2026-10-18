@@ -1,4 +1,4 @@
-using CaeManager.Domain.Common;
+﻿using CaeManager.Domain.Common;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using Bunit;
 using CaeManager.Application.Common;
@@ -129,9 +129,9 @@ public class EmpresasVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(busqueda: "Refrielectric");
 
-        cut.Markup.Should().Contain("Ninguna empresa con este filtro");
-        cut.Markup.Should().Contain("Quitar los filtros");
-        cut.Markup.Should().NotContain("Aún no hay empresas",
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros");
+        cut.Markup.Should().Contain("Quitar filtros");
+        cut.Markup.Should().NotContain("Todavía no hay empresas",
             "decir «crea la primera» a quien busca algo que no aparece lo manda a duplicar una empresa existente");
     }
 
@@ -140,8 +140,8 @@ public class EmpresasVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(estado: nameof(CaeManager.Domain.Documentos.EstadoDocumento.Vencido));
 
-        cut.Markup.Should().Contain("Ninguna empresa con este filtro");
-        cut.Markup.Should().NotContain("Aún no hay empresas");
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros");
+        cut.Markup.Should().NotContain("Todavía no hay empresas");
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public class EmpresasVacioPorFiltroTests : BunitContext
         // pasa aunque la rama no se active nunca —una aserción de ausencia sin
         // barrera es verde vacío—, y se descubrió justo así: al anular la rama
         // por mutación, este test siguió en verde cuando debía caer.
-        cut.Markup.Should().Contain("Ninguna empresa con este filtro");
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros");
 
         // El filtrado es de servidor: la consulta devuelve el total YA filtrado,
         // así que la pantalla no sabe cuántas empresas hay sin filtro. Afirmarlo
@@ -166,9 +166,9 @@ public class EmpresasVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("Aún no hay empresas");
-        cut.Markup.Should().Contain("Crea la primera para poder dar de alta trabajadores.");
-        cut.Markup.Should().NotContain("Ninguna empresa con este filtro");
+        cut.Markup.Should().Contain("Todavía no hay empresas");
+        cut.Markup.Should().Contain("Da de alta la primera o impórtalas desde una hoja de cálculo.");
+        cut.Markup.Should().NotContain("Ningún resultado con estos filtros");
     }
 
     /// <summary>
@@ -249,7 +249,7 @@ public class EmpresasVacioPorFiltroTests : BunitContext
             id, "Aislamientos Nervión S.L.", "B-48.111.222", DateTime.UtcNow, null, null, 3));
 
         var pastilla = cut.Find(".lista-filas-acordeon button.badge-deteccion");
-        pastilla.TextContent.Should().Contain("3 detecciones");
+        pastilla.TextContent.Should().Contain("3 altas/bajas ›");
 
         await pastilla.ClickAsync(new MouseEventArgs());
 
@@ -268,7 +268,7 @@ public class EmpresasVacioPorFiltroTests : BunitContext
     }
 
     // P0-9a (FS-03 a FS-06): con alcance cero —sin ninguna Asignación de Cartera
-    // vigente en este Tenant— el vacío no es «Aún no hay empresas»: la pantalla dice que
+    // vigente en este Tenant— el vacío no es «Todavía no hay empresas»: la pantalla dice que
     // falta la Asignación de Cartera y a quién pedirla.
     private bool _alcanceCero;
 
@@ -281,7 +281,7 @@ public class EmpresasVacioPorFiltroTests : BunitContext
 
         cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
             .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
-        cut.Markup.Should().NotContain("Aún no hay empresas");
+        cut.Markup.Should().NotContain("Todavía no hay empresas");
         cut.Markup.Should().NotContain("+ Nueva empresa", "invitar a crear con alcance cero termina en un duplicado");
     }
 
@@ -292,7 +292,7 @@ public class EmpresasVacioPorFiltroTests : BunitContext
 
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("Aún no hay empresas");
+        cut.Markup.Should().Contain("Todavía no hay empresas");
         cut.Markup.Should().Contain("+ Nueva empresa");
         cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
     }

@@ -1,4 +1,4 @@
-using Bunit;
+﻿using Bunit;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
@@ -336,5 +336,45 @@ public class BarraFiltrosTests : BunitContext
         chips.TextContent.Should().Contain("Estado: Vencido");
         await chips.QuerySelector("button.limpiar-filtros-barra")!.ClickAsync(new MouseEventArgs());
         limpiezas.Should().Be(1);
+    }
+
+    private static RenderFragment Marca(string clase) => builder => builder.AddMarkupContent(0, $"<div class=\"{clase}\">x</div>");
+
+    [Fact]
+    public void Estados_en_modo_pastillas_va_entre_la_fila_de_filtros_y_los_chips_activos()
+    {
+        var cut = Render<BarraFiltros>(p =>
+        {
+            p.Add(b => b.Pastillas, Marca("pastillas-prueba"));
+            p.Add(b => b.Estados, Marca("estados-prueba"));
+            p.Add(b => b.HayFiltrosActivos, true);
+            p.Add(b => b.Chips, Marca("chip-prueba"));
+        });
+
+        var hijos = cut.Find(".barra-filtros-pastillas").Children.Select(h => h.ClassList.First()).ToList();
+        hijos.Should().Equal("barra-filtros-pastillas-fila", "estados-prueba", "chips-filtros");
+    }
+
+    [Fact]
+    public void Estados_tambien_se_pinta_sin_Pastillas_en_el_modo_clasico()
+    {
+        var cut = Render<BarraFiltros>(p =>
+        {
+            p.Add(b => b.Estados, Marca("estados-prueba"));
+            p.Add(b => b.HayFiltrosActivos, true);
+            p.Add(b => b.Chips, Marca("chip-prueba"));
+        });
+
+        var hijos = cut.Find(".barra-filtros-lista").Children.Select(h => h.ClassList.First()).ToList();
+        hijos.Should().Equal("barra-filtros-lista-fila", "estados-prueba", "barra-filtros-lista-activos");
+    }
+
+    [Fact]
+    public void Sin_Estados_no_pinta_nada_extra()
+    {
+        var cut = Render<BarraFiltros>(p => p.Add(b => b.Pastillas, Marca("pastillas-prueba")));
+
+        cut.FindAll(".estados-prueba").Should().BeEmpty();
+        cut.Find(".barra-filtros-pastillas").Children.Should().ContainSingle();
     }
 }

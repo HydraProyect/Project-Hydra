@@ -1,4 +1,4 @@
-@page "/empresas"
+﻿@page "/empresas"
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
@@ -31,7 +31,7 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@_tituloPagina — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina lista-design">
     @* Rediseño de listados, fase 1: cabecera de una línea (CabeceraListado) con el contador, el
        conmutador ☑ de selección múltiple —la única vía para eliminar: la fila no lleva menú—,
        el icono ⤓ de exportación de la vista filtrada (lectura: cualquier rol) y UNA acción primaria. El título lo sigue decidiendo el perfil de vocabulario del
@@ -42,7 +42,7 @@
        sigue más abajo. *@
     @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
     {
-        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@_tituloPagina" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
+        <CabeceraListado Titulo="@_tituloPagina" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
                          RutaExportar="/empresas/exportar.xlsx" CriteriosExportar="CriteriosExportar">
             <Menu>
@@ -64,7 +64,7 @@
     }
     else
     {
-        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@_tituloPagina" />
+        <CabeceraListado Titulo="@_tituloPagina" />
     }
 
     @if (_resolviendoEmpresa)
@@ -88,29 +88,23 @@
          dice los dos.
        - El estado documental es el peor estado de vigencia de los documentos de la Empresa; viaja
          en la URL como «estado». *@
-    <BarraFiltros PresentacionMaqueta="true" Contador="@(_cargando || _errorCarga ? null : _totalElementos)" SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
                   OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
                   VistaRecordada="_vistaRecordada">
         @* Sin pastillas desde que el estado se filtra en la franja; el fragmento vacío mantiene la barra en modo pastillas. *@
-        <Pastillas>
-            <FranjaEstado PresentacionCampo="true" Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
-                  Recuentos="_recuentosPorEstado" TextoTodos="@Textos["ListaFiltroTodas"]" /></Pastillas>
+        <Pastillas></Pastillas>
+        <Estados>
+            <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                  Recuentos="_recuentosPorEstado" />
+        </Estados>
         <Herramientas>
             @if (_elementosPagina.Count > 0)
             {
                 <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidosAsync" />
             }
         </Herramientas>
-        <Resumen>
-            @if (!_errorCarga && _totalElementos > 0)
-            {
-                @* El total lo da la consulta ya filtrada: es el número de coincidencias, no el
-                   de la cartera entera. *@
-                <span class="conteo-empresas">@TextoConteo</span>
-            }
-        </Resumen>
         @* Lo que está filtrando se ve y se quita de uno en uno (#497). El valor del FiltroEstado vive
            dentro de un desplegable cerrado, así que sin esto una lista corta parece una lista corta,
            y no una recortada. «Limpiar todo» es el mismo LimpiarFiltrosAsync que «Quitar los filtros»
@@ -156,10 +150,9 @@
            que no sabemos cuántas hay sin filtro. Con cero empresas y un filtro
            escrito, "no coincide ninguna" sigue siendo cierto. Por eso no se
            copia el «Hay empresas dadas de alta, pero…» del mockup. *@
-        <EstadoVacio NombreIcono="vacio" Titulo="Ninguna empresa con este filtro"
-                     Descripcion="Ninguna coincide con la búsqueda ni con el estado de documentación seleccionado.">
+        <EstadoVacio NombreIcono="vacio" Titulo="Ningún resultado con estos filtros">
             <Accion>
-                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar filtros</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -167,7 +160,7 @@
     {
         @* Con alcance cero no se invita a crear lo que quizá ya existe fuera de la cartera (P0-9a, FS-05). *@
         <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
-            <EstadoVacio NombreIcono="empresas" Titulo="Aún no hay empresas" Descripcion="Crea la primera para poder dar de alta trabajadores.">
+            <EstadoVacio NombreIcono="empresas" Titulo="Todavía no hay empresas" Descripcion="Da de alta la primera o impórtalas desde una hoja de cálculo.">
                 <Accion>
                     <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">+ Nueva empresa</Boton></SoloConEscritura>
                 </Accion>
@@ -202,7 +195,7 @@
         @* Marco de la lista del mockup: una sola tarjeta con la cabecera de
            columnas arriba y las filas separadas por una línea, en vez de una
            tarjeta suelta por Empresa. *@
-        @TarjetaListado.RenderizarMaqueta(@<text>
+        @TarjetaListado.Renderizar(@<text>
             <div class="marco-lista-empresas">
             @* Cabecera de columnas (#498). Sin roles de tabla a propósito: esto no
                es una tabla —la fila se despliega— y anunciarlo como tal prometería
@@ -284,8 +277,7 @@
                                     <button type="button" class="badge-deteccion"
                                             @onclick='() => NavigationManager.NavigateTo($"/empresas/{empresa.Id}/deteccion-trabajadores")'
                                             @onclick:stopPropagation="true">
-                                        <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" />
-                                        @(empresa.DeteccionesPendientes == 1 ? "1 detección" : $"{empresa.DeteccionesPendientes} detecciones")
+                                        @(empresa.DeteccionesPendientes == 1 ? "1 alta/baja ›" : $"{empresa.DeteccionesPendientes} altas/bajas ›")
                                     </button>
                                 }
                                 else
@@ -403,7 +395,7 @@
     }
     @if (!_errorCarga && !_cargando && _elementosPagina.Count == 0)
     {
-        @TarjetaListado.RenderizarMaqueta(null, PieDelListado)
+        @TarjetaListado.RenderizarMaqueta(null, PieDelListadoVacio)
     }
     }
 </div>
@@ -452,10 +444,17 @@
 
 
 @code {
-    private RenderFragment PieDelListado => @<text>
+    private RenderFragment PieDelListado => PieSegun(false);
+
+    // Sin empresas el pie sigue visible debajo de la tarjeta, con la presentación de la maqueta anterior
+    // (regla compartida de los listados, ListadosPieSiempreVisibleTests).
+    private RenderFragment PieDelListadoVacio => PieSegun(true);
+
+    // Un solo montaje de la leyenda de atajos (LeyendaAtajosListaAdopcionTests): lo único que cambia es la presentación del pie.
+    private RenderFragment PieSegun(bool presentacionMaqueta) => @<text>
         @if (!_errorCarga && (!_cargando || _totalElementos > 0))
         {
-            <PaginadorSimple PresentacionMaqueta="true" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+            <PaginadorSimple PresentacionMaqueta="presentacionMaqueta" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
                                   TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
                     <Centro><LeyendaAtajosLista /></Centro>

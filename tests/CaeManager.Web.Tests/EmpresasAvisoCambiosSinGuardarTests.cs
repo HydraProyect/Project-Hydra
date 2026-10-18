@@ -1,4 +1,4 @@
-using Bunit;
+﻿using Bunit;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
