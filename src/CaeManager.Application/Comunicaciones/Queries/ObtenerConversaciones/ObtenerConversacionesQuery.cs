@@ -43,6 +43,7 @@ public record ObtenerConversacionesQuery(
     CanalConversacion? Canal = null,
     int Pagina = 1,
     int TamanoPagina = 20,
+    IntencionCae? Intencion = null,
     bool SoloFueraDeSla = false)
     : IRequest<ResultadoPaginado<ConversacionListaDto>>;
 
@@ -191,6 +192,9 @@ public class ObtenerConversacionesQueryHandler(
                 c.Asunto.ToUpper().Contains(busqueda) ||
                 comunicacionesContext.Mensajes.Any(m => m.ConversacionId == c.Id && m.CuerpoHtml.ToUpper().Contains(busqueda)));
         }
+
+        if (request.Intencion is { } intencion)
+            consulta = consulta.Where(c => comunicacionesContext.IntencionesConversacion.Any(i => i.ConversacionId == c.Id && i.IntencionActual == intencion));
 
         Dictionary<Guid, (DateTime Vence, TimeSpan Restante)>? plazosFiltrados = null;
         if (request.SoloFueraDeSla)

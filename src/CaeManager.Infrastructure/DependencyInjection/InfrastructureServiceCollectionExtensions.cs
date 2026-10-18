@@ -365,6 +365,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Comunicaciones.IClasificacionRuidoMensajeRepository, ClasificacionRuidoMensajeRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IClasificacionRuidoDetalleGestionRepository, ClasificacionRuidoDetalleGestionRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IUltimoResumenNotificacionPlataformaRepository, UltimoResumenNotificacionPlataformaRepository>();
+        services.AddScoped<CaeManager.Domain.Comunicaciones.IIntencionConversacionRepository, IntencionConversacionRepository>();
+        services.AddScoped<CaeManager.Application.Comunicaciones.Deteccion.IIntencionConversacionService, CaeManager.Application.Comunicaciones.Deteccion.IntencionConversacionService>();
+        services.AddHttpClient<CaeManager.Application.Comunicaciones.Deteccion.IDeteccionIntencionCaeService, AnthropicDeteccionIntencionCaeService>(
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(30));
         services.AddScoped<CaeManager.Domain.Comunicaciones.IClasificacionRelevanciaCaeRepository, ClasificacionRelevanciaCaeRepository>();
         services.AddScoped<CaeManager.Domain.Gestiones.IGestionRepository, GestionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IConexionIntegracionRepository, ConexionIntegracionRepository>();

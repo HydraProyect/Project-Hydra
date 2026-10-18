@@ -103,6 +103,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private IReadOnlyList<MensajeBuzonPersonalDto> _mensajesBuzonPersonal = [];
 
     // --- Filtros ---
+    private string _intencionFiltro = string.Empty;
+    private static readonly IntencionCae[] IntencionesCae = Enum.GetValues<IntencionCae>();
     private string _estadoFiltro = string.Empty;
     private string _mesFiltro = string.Empty; // input type="month" -> "yyyy-MM"
     private string _clienteIdFiltro = string.Empty;
@@ -503,6 +505,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             }
 
             var resultado = await Mediator.Send(new ObtenerConversacionesQuery(
+                Intencion: Enum.TryParse<IntencionCae>(_intencionFiltro, out var intencion) ? intencion : null,
                 Estado: string.IsNullOrEmpty(_estadoFiltro) ? null : Enum.Parse<EstadoConversacion>(_estadoFiltro),
                 Anio: anio,
                 Mes: mes,
@@ -549,21 +552,23 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     }
 
     /// <summary>
-    /// Los SIETE filtros de la bandeja: cuatro que viajan en la URL (estado,
-    /// mes, cliente y búsqueda) y tres conmutadores de asignación que no.
+    /// Los ocho filtros de la bandeja: cuatro que viajan en la URL (estado,
+    /// mes, Cliente empresarial y búsqueda), intención CAE y tres conmutadores de asignación.
     /// </summary>
     private bool HayFiltrosActivos =>
+        !string.IsNullOrEmpty(_intencionFiltro) ||
         !string.IsNullOrWhiteSpace(_estadoFiltro) || !string.IsNullOrWhiteSpace(_mesFiltro)
         || !string.IsNullOrWhiteSpace(_clienteIdFiltro) || !string.IsNullOrWhiteSpace(_busqueda)
         || _soloAsignadasAMi || _soloSinAsignar || _soloEsperandoCliente || _soloFueraDeSla;
 
     /// <summary>
-    /// Los siete de una vez y una sola recarga, por el mismo motivo que
+    /// Los ocho de una vez y una sola recarga, por el mismo motivo que
     /// documenta <see cref="AplicarFiltrosAsync"/>: encadenar navegaciones
     /// arriesga que cada una lea la URL sin el cambio de la anterior.
     /// </summary>
     private Task LimpiarFiltrosAsync()
     {
+        _intencionFiltro = string.Empty;
         _estadoFiltro = string.Empty;
         _mesFiltro = string.Empty;
         _clienteIdFiltro = string.Empty;

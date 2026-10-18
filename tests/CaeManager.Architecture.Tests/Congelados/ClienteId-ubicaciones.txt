@@ -65,6 +65,7 @@ src/CaeManager.Application/Comunicaciones/Commands/VincularConversacion/Vincular
 src/CaeManager.Application/Comunicaciones/Deteccion/ClasificacionRuidoMensajeService.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Deteccion/ClasificacionRuidoMensajeService.cs :: clienteId = 7
 src/CaeManager.Application/Comunicaciones/Deteccion/ISugerenciaVisitaCorreoService.cs :: ClienteId = 1
+src/CaeManager.Application/Comunicaciones/Deteccion/IntencionConversacionService.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Deteccion/ISugerenciaVisitaCorreoService.cs :: clienteId = 3
 src/CaeManager.Application/Comunicaciones/Deteccion/SugerenciaGestionCorreoService.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Deteccion/SugerenciaGestionCorreoService.cs :: clienteId = 3
@@ -519,4 +520,9 @@ src/CaeManager.Web/Services/CurrentUserService.cs :: TenantClienteId = 1
 src/CaeManager.Web/Services/CurrentUserService.cs :: tenantClienteId = 2
 src/CaeManager.Web/Services/RevalidacionClienteActivoMiddleware.cs :: TenantClienteId = 1
 src/CaeManager.Web/Services/TrazaSoporteService.cs :: TenantClienteId = 1
+
+# Intenciones CAE: referencias inevitables al ancla legacy de Empresa en posicion de Cliente empresarial.
+# Conservan la autorizacion de Asignacion de Cartera de Conversacion, cuyo modelo no se modifica.
+src/CaeManager.Application/Comunicaciones/Commands/ConfirmarIntencionConversacion/ConfirmarIntencionConversacionCommand.cs :: ClienteId = 1
+src/CaeManager.Application/Comunicaciones/Queries/ObtenerIntencionConversacion/ObtenerIntencionConversacionQuery.cs :: ClienteId = 1
 src/CaeManager.Infrastructure/Dashboard/CierreMensualCuadroDireccionHostedService.cs :: ClienteId = 1

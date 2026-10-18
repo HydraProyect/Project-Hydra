@@ -328,7 +328,8 @@ public class ComunicacionesGen2Tests : BunitContext
         cut.FindAll(".bandeja-centro-acciones select").Single(s => s.QuerySelector("option")!.TextContent.Trim() == "Cambiar estado…");
 
     private static IElement SelectorDeCliente(IRenderedComponent<Bandeja> cut) =>
-        cut.FindAll(".bandeja-filtros-avanzados select")[1];
+        cut.FindAll(".bandeja-filtros-avanzados select")
+            .Single(s => s.QuerySelector($"option[value='{ClienteEbroId}']") is not null);
 
     private static IReadOnlyList<IElement> CabecerasGrupo(IRenderedComponent<Bandeja> cut) =>
         cut.FindAll(".bandeja-grupo-cabecera");
@@ -787,9 +788,9 @@ public class ComunicacionesGen2Tests : BunitContext
         };
         var (cut, _) = Renderizar(escenario);
 
-        var seleccion = cut.FindAll(".bandeja-filtros-avanzados select")[1];
+        var seleccion = SelectorDeCliente(cut);
         var filtroRefrielectric = seleccion.ChangeAsync(new ChangeEventArgs { Value = ClienteRefrielectricId.ToString() });
-        var filtroEbro = cut.FindAll(".bandeja-filtros-avanzados select")[1]
+        var filtroEbro = SelectorDeCliente(cut)
             .ChangeAsync(new ChangeEventArgs { Value = ClienteEbroId.ToString() });
 
         await cut.InvokeAsync(() => listaEbro.SetResult(
