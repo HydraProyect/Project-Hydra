@@ -36,3 +36,8 @@
     gap: var(--space-2);
     flex-wrap: wrap;
 }
+
+/* Centro 360 TALVEG (17-10): la tarjeta de la cabecera mide 20 px de relleno (la compartida, 18/22 de Empresa 360). */
+.contenedor-pagina ::deep .cabecera-identidad {
+    padding: var(--space-5);
+}

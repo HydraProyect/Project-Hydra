@@ -43,6 +43,7 @@ src/CaeManager.Application/Clientes/ReasignadorCarteraCliente.cs :: clienteId = 
 src/CaeManager.Application/Common/AlcanceDatosServiceExtensions.cs :: ObtenerClienteIdsVisiblesAsync = 2
 src/CaeManager.Application/Common/AlcanceDatosServiceExtensions.cs :: clienteId = 7
 src/CaeManager.Application/Common/IAlcanceDatosService.cs :: ObtenerClienteIdsVisiblesAsync = 1
+src/CaeManager.Application/Comunicaciones/AlcanceDeMensajesDeConversacion.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Commands/ActualizarDocumentoDesdeAdjunto/ActualizarDocumentoDesdeAdjuntoCommand.cs :: ClienteId = 2
 src/CaeManager.Application/Comunicaciones/Commands/AplicarMacro/AplicarMacroCommand.cs :: ClienteId = 6
 src/CaeManager.Application/Comunicaciones/Commands/AprobarRecordatorioConversacion/AprobarRecordatorioConversacionCommand.cs :: ClienteId = 1
