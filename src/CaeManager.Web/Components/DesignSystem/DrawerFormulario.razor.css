@@ -11,3 +11,28 @@
     padding: 0;
     min-width: 0;
 }
+
+/* Botones del pie del modo pasos. En escritorio el envoltorio no es una caja: «Atrás/Cancelar» queda a la izquierda del pie y
+   el resto a la derecha. En móvil el pie es una rejilla de dos columnas y «Siguiente» ocupa una fila entera debajo. */
+.formulario-drawer-accion {
+    display: contents;
+}
+
+.formulario-drawer-atras ::deep .boton {
+    margin-right: auto;
+}
+
+@media (max-width: 640px) {
+    .formulario-drawer-accion {
+        display: block;
+    }
+
+    .formulario-drawer-atras ::deep .boton {
+        margin-right: 0;
+    }
+
+    /* Sin «order»: el orden visual es el del marcado (Atrás, Guardar y terminar, Siguiente) y el de tabulación. */
+    .formulario-drawer-siguiente {
+        grid-column: span 2;
+    }
+}

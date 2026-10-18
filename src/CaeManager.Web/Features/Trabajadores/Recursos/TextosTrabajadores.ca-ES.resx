@@ -737,4 +737,16 @@
   <data name="AgruparPorEmpresa" xml:space="preserve"><value>Per Empresa</value></data>
   <data name="RecuentoGrupoEnEstaPagina" xml:space="preserve"><value>· {0} en aquesta pàgina</value></data>
   <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordena</value></data>
+  <data name="PasoAltaBasico" xml:space="preserve">
+    <value>Allò bàsic</value>
+  </data>
+  <data name="PasoAltaTrabajo" xml:space="preserve">
+    <value>Feina</value>
+  </data>
+  <data name="PasoAltaContacto" xml:space="preserve">
+    <value>Contacte</value>
+  </data>
+  <data name="EtiquetaPasosAlta" xml:space="preserve">
+    <value>Alta de treballador</value>
+  </data>
 </root>
