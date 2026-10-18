@@ -58,49 +58,6 @@
     <value>Crítico</value>
     <comment>Cliente empresarial marcado como crítico.</comment>
   </data>
-  <data name="IndicadorBloqueados" xml:space="preserve">
-    <value>Bloqueo de la plataforma CAE en {0} de {1} centros</value>
-    <comment>{0} centros con EstadoCentro.Bloqueado de los {1} centros del cliente.</comment>
-  </data>
-  <data name="IndicadorBloqueadosUnico" xml:space="preserve">
-    <value>Bloqueo de la plataforma CAE en su único centro</value>
-  </data>
-  <data name="VentanaBloqueadosUno" xml:space="preserve">
-    <value>1 centro con bloqueo de la plataforma CAE</value>
-  </data>
-  <data name="VentanaBloqueadosVarios" xml:space="preserve">
-    <value>{0} centros con bloqueo de la plataforma CAE</value>
-  </data>
-  <data name="IndicadorVencidosUno" xml:space="preserve">
-    <value>1 centro con vencidos</value>
-    <comment>Centros con Recuentos.Vencidas &gt; 0 (Faltante cuenta como vencido).</comment>
-  </data>
-  <data name="IndicadorVencidosVarios" xml:space="preserve">
-    <value>{0} centros con vencidos</value>
-  </data>
-  <data name="VentanaVencidosUno" xml:space="preserve">
-    <value>1 centro con documentos vencidos</value>
-  </data>
-  <data name="VentanaVencidosVarios" xml:space="preserve">
-    <value>{0} centros con documentos vencidos</value>
-  </data>
-  <data name="IndicadorProximosUno" xml:space="preserve">
-    <value>1 centro con próximos</value>
-    <comment>Centros con Recuentos.Proximas &gt; 0.</comment>
-  </data>
-  <data name="IndicadorProximosVarios" xml:space="preserve">
-    <value>{0} centros con próximos</value>
-  </data>
-  <data name="VentanaProximosUno" xml:space="preserve">
-    <value>1 centro con documentos próximos a vencer</value>
-  </data>
-  <data name="VentanaProximosVarios" xml:space="preserve">
-    <value>{0} centros con documentos próximos a vencer</value>
-  </data>
-  <data name="AriaIndicador" xml:space="preserve">
-    <value>{0}: {1}. Pulsa para ver los centros</value>
-    <comment>Nombre accesible de un indicador: el recuento, la lista de centros y qué hace al pulsarlo.</comment>
-  </data>
   <data name="EditarCliente" xml:space="preserve">
     <value>Editar Cliente</value>
     <comment>Menú de acciones: abre el panel en Información.</comment>
@@ -140,10 +97,6 @@
   </data>
   <data name="GlosaSubcontrataVarios" xml:space="preserve">
     <value>subcontratas</value>
-  </data>
-  <data name="ResumenCentrosTruncado" xml:space="preserve">
-    <value>Se muestran los {0} centros con peor estado de {1}</value>
-    <comment>La lista se corta en MaximoCentros; los indicadores se cuentan sobre lo mostrado.</comment>
   </data>
   <data name="DetalleEntraComoContratista" xml:space="preserve">
     <value>Entra como contratista: {0}</value>
@@ -212,13 +165,6 @@
   </data>
   <data name="BuscadorCentros" xml:space="preserve">
     <value>Buscar centro de este cliente…</value>
-  </data>
-  <data name="ResumenCentrosBuscados" xml:space="preserve">
-    <value>Mostrando {0} de {1}</value>
-  </data>
-  <data name="ResumenCentrosBuscadosTruncado" xml:space="preserve">
-    <value>Mostrando {0} de los {1} centros con peor estado; este Cliente tiene {2} y el buscador solo mira esos {1}</value>
-    <comment>Buscador activo con la lista cortada en MaximoCentros.</comment>
   </data>
   <data name="QuitarFiltros" xml:space="preserve">
     <value>Quitar filtros</value>
@@ -371,18 +317,6 @@
   </data>
   <data name="ListaCriticoTitulo" xml:space="preserve">
     <value>Crítico: bloquea acceso a un centro</value>
-  </data>
-  <data name="IndicadorTrabajadoresBloqueadosUno" xml:space="preserve">
-    <value>1 trabajador bloqueado</value>
-  </data>
-  <data name="IndicadorTrabajadoresBloqueadosVarios" xml:space="preserve">
-    <value>{0} trabajadores bloqueados</value>
-  </data>
-  <data name="VentanaTrabajadoresBloqueadosUno" xml:space="preserve">
-    <value>1 trabajador bloqueado en sus centros</value>
-  </data>
-  <data name="VentanaTrabajadoresBloqueadosVarios" xml:space="preserve">
-    <value>{0} trabajadores bloqueados en sus centros</value>
   </data>
   <data name="ToleranciaMenu" xml:space="preserve">
     <value>Tolerancia de documentos</value>
@@ -540,7 +474,6 @@
   <data name="PestanaHistorial" xml:space="preserve">
     <value>Historial</value>
   </data>
-  <data name="OrdenCentros" xml:space="preserve"><value>del peor estado al mejor</value></data>
   <data name="SinGestionCaeAnillo" xml:space="preserve"><value>Sin gestión CAE · no cuentan en el anillo</value></data>
   <data name="PestanaFicha" xml:space="preserve"><value>Ficha</value></data>
   <data name="CentroSinGestionCaeLinea" xml:space="preserve"><value>Sin gestión CAE</value></data>
@@ -686,4 +619,6 @@
   <data name="PlataformaCaeSinContrasenaAviso" xml:space="preserve">
     <value>No hay ninguna contraseña guardada.</value>
   </data>
+  <data name="GestorCaeDato" xml:space="preserve"><value>Gestor CAE</value></data>
+  <data name="GestorCaeError" xml:space="preserve"><value>No pudimos cargarlo</value></data>
 </root>

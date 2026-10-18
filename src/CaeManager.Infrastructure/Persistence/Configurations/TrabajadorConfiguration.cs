@@ -38,6 +38,9 @@ public class TrabajadorConfiguration : IEntityTypeConfiguration<Trabajador>
         builder.Property(t => t.Telefono).HasMaxLength(Trabajador.LongitudMaximaTelefono);
         builder.Property(t => t.Observaciones).HasMaxLength(Trabajador.LongitudMaximaObservaciones);
         builder.Property(t => t.Notas).HasMaxLength(Trabajador.LongitudMaximaNotas);
+        builder.Property(t => t.ContactoEmergenciaNombre).HasMaxLength(Trabajador.LongitudMaximaContactoEmergenciaNombre);
+        // "+" y 15 dígitos como mucho tras normalizar: cabe en el mismo límite que Telefono.
+        builder.Property(t => t.ContactoEmergenciaTelefono).HasMaxLength(Trabajador.LongitudMaximaTelefono);
 
         // Parcial, no total (auditoría Módulo 5, hallazgo crítico 9/9): un
         // trabajador anonimizado tiene Dni null, y sin excluir los nulos el

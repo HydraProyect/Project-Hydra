@@ -407,6 +407,46 @@ public class PropuestaApoyoCarteraTests
     }
 
     [Fact]
+    public async Task Un_Gestor_CAE_del_mismo_Operador_CAE_sin_el_Tenant_en_su_cartera_no_da_acceso()
+    {
+        // «Dar acceso» de Cliente 360: llevar el rol GestorCae en el Operador CAE no basta; hace falta la marca.
+        var e = new Escenario();
+
+        var resultado = await e.Proponer(GestorD, GestorB);
+
+        resultado.Error.Should().Be(ErroresPropuestaApoyo.NoEresElPrincipal);
+        e.Repositorio.Propuestas.Should().BeEmpty();
+        e.NoSeEmitioNada();
+    }
+
+    [Fact]
+    public async Task El_principal_de_un_Tenant_no_da_acceso_sobre_otro_Tenant_del_mismo_Operador_CAE()
+    {
+        var e = new Escenario();
+        var otroTenant = new Tenant("Montajes Sur Demo");
+        var otraOperacion = AsignacionOperacion.Externa(
+            otroTenant.Id, Operador, ServicioCae.Outbound, AmbitoAsignacion.Universal,
+            DateTime.UtcNow.AddDays(-30), null, DateTime.UtcNow);
+        e.Tenants.ListaTenants.Add(otroTenant);
+        e.Catalogo.RegistrarAsignable(Operador, otraOperacion, otroTenant.Nombre);
+        e.Catalogo.RegistrarCandidato(Operador, GestorB, otraOperacion, otroTenant.Nombre);
+        e.Catalogo.CarterasVivas.Add((Operador, new CarteraVivaDeOperacion(
+            otraOperacion.Id, otroTenant.Id, otroTenant.Nombre, GestorC, "GestorCae", true, null)));
+
+        var cruzado = await e.Proponer(GestorA, GestorB, operacion: otraOperacion.Id);
+
+        cruzado.Error.Should().Be(ErroresPropuestaApoyo.NoEresElPrincipal,
+            "ser el principal de Talleres Norte no da nada sobre Montajes Sur");
+        e.Repositorio.Propuestas.Should().BeEmpty();
+
+        // Control: el principal de ese otro Tenant sí propone sobre él.
+        var control = await e.Proponer(GestorC, GestorB, operacion: otraOperacion.Id);
+        control.EsExitoso.Should().BeTrue(control.EsFallido ? control.Error.Codigo : null);
+        e.Repositorio.Propuestas.Should().ContainSingle()
+            .Which.PropietarioTenantId.Should().Be(otroTenant.Id);
+    }
+
+    [Fact]
     public void Ni_el_rol_ni_el_ambito_ni_la_marca_son_parametros_de_los_comandos()
     {
         typeof(ProponerApoyoCarteraCommand).GetProperties().Select(p => p.Name)

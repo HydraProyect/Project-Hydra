@@ -274,7 +274,7 @@
     <value>Editar</value>
   </data>
   <data name="AccionReclamarFaltantes" xml:space="preserve">
-    <value>Reclamar faltantes</value>
+    <value>Gestionar</value>
   </data>
   <data name="AccionCrearGestion" xml:space="preserve">
     <value>Crear gestión</value>
@@ -410,6 +410,9 @@
   </data>
   <data name="AccionRenovar" xml:space="preserve">
     <value>Renovar</value>
+  </data>
+  <data name="NotaReclamarUno" xml:space="preserve">
+    <value>{0} tiene documentación pendiente en {1}. Se enviará una reclamación a ese Cliente al confirmar.</value>
   </data>
   <data name="NotaReclamarVarios" xml:space="preserve">
     <value>{0} tiene documentación pendiente en varios Clientes a la vez. Elige a cuáles reclamar.</value>
@@ -712,29 +715,26 @@
   <data name="TipoContratacionVoluntario" xml:space="preserve"><value>Voluntario</value></data>
   <data name="VoluntarioInactivo" xml:space="preserve"><value>Voluntario inactivo</value></data>
   <data name="VoluntarioInactivoAyuda" xml:space="preserve"><value>Sin evento vigente ni futuro: sus vencimientos no avisan ni cuentan en el Centro. Se reactiva al asignarlo a otro evento.</value></data>
-  <data name="EtiquetaActividad" xml:space="preserve"><value>Actividad</value></data>
-  <data name="OpcionActividadTodos" xml:space="preserve"><value>Todos</value></data>
-  <data name="OpcionSinVoluntariosInactivos" xml:space="preserve"><value>Sin voluntarios inactivos</value></data>
-  <data name="OpcionSoloVoluntariosInactivos" xml:space="preserve"><value>Solo voluntarios inactivos</value></data>
   <data name="FichaCopiarAfiliacion" xml:space="preserve"><value>el número de afiliación a la Seguridad Social</value></data>
   <data name="FichaCopiarAltaEmpresa" xml:space="preserve"><value>la fecha de alta en la empresa</value></data>
   <data name="FichaCopiarBajaEmpresa" xml:space="preserve"><value>la fecha de baja en la empresa</value></data>
   <data name="FichaCopiarCaducidadPermiso" xml:space="preserve"><value>la caducidad del permiso de trabajo</value></data>
+  <data name="FichaRotuloDni" xml:space="preserve"><value>DNI</value></data>
   <data name="FichaCopiarDni" xml:space="preserve"><value>el DNI</value></data>
   <data name="FichaCopiarTelefono" xml:space="preserve"><value>el teléfono</value></data>
+  <data name="FichaContactoEmergencia" xml:space="preserve"><value>Contacto de emergencia</value></data>
+  <data name="FichaTelefonoEmergencia" xml:space="preserve"><value>Teléfono de emergencia</value></data>
+  <data name="FichaCopiarTelefonoEmergencia" xml:space="preserve"><value>el teléfono de emergencia</value></data>
   <data name="FichaCopiarCorreo" xml:space="preserve"><value>el correo electrónico</value></data>
   <data name="FichaCopiarNacimiento" xml:space="preserve"><value>la fecha de nacimiento</value></data>
   <data name="FichaCopiarNombreAccesible" xml:space="preserve"><value>Copiar {0}</value></data>
   <data name="FichaCopiarNombreAccesibleConValor" xml:space="preserve"><value>Copiar {0}: {1}</value></data>
-  <data name="ListaColumnaDni" xml:space="preserve"><value>DNI</value></data>
   <data name="ListaColumnaEmpleador" xml:space="preserve"><value>Empresa</value></data>
   <data name="Gestionar" xml:space="preserve"><value>Gestionar</value></data>
   <data name="GestionarDocumentoAccesible" xml:space="preserve"><value>Gestionar {0} de {1}</value></data>
   <data name="EtiquetaAgrupar" xml:space="preserve"><value>Agrupar</value></data>
   <data name="OpcionSinAgrupar" xml:space="preserve"><value>Sin agrupar</value></data>
   <data name="AgruparPorEmpresa" xml:space="preserve"><value>Por Empresa</value></data>
-  <data name="DocumentoDesdeFecha" xml:space="preserve"><value>Desde el {0}</value></data>
-  <data name="DocumentoCaducaFecha" xml:space="preserve"><value>Caduca el {0}</value></data>
   <data name="RecuentoGrupoEnEstaPagina" xml:space="preserve"><value>· {0} en esta página</value></data>
   <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordenar</value></data>
 </root>

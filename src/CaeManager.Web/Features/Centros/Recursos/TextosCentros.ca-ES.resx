@@ -256,10 +256,10 @@
     <value>Per què està bloquejat en aquest Centre</value>
   </data>
   <data name="MotivoBloqueoPedir" xml:space="preserve">
-    <value>Demanar</value>
+    <value>Gestionar</value>
   </data>
   <data name="MotivoBloqueoPedirDe" xml:space="preserve">
-    <value>Demanar {0}</value>
+    <value>Gestionar {0}</value>
   </data>
   <data name="MotivoBloqueoNoSePuedePedir" xml:space="preserve">
     <value>no es pot demanar des d’aquí</value>
@@ -391,7 +391,7 @@
     <value>{0} de {1}</value>
   </data>
   <data name="PedirDocumentacion360" xml:space="preserve">
-    <value>Demanar</value>
+    <value>Gestionar</value>
   </data>
   <data name="TotalesListaCompleta360" xml:space="preserve">
     <value>Es calcula sobre la llista completa, no sobre la filtrada.</value>
@@ -433,6 +433,9 @@
   <data name="CabeceraEmpresa" xml:space="preserve">
     <value>Empresa:</value>
     <comment>Empresa que treballa al Centre.</comment>
+  </data>
+  <data name="AriaGestionarDocumentosTrabajador" xml:space="preserve">
+    <value>Gestiona els documents de {0}</value>
   </data>
   <data name="GestionarDocumento360" xml:space="preserve">
     <value>Gestionar</value>

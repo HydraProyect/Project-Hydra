@@ -7948,6 +7948,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateOnly?>("CaducidadPermisoTrabajo")
                         .HasColumnType("date");
 
+                    b.Property<string>("ContactoEmergenciaNombre")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("ContactoEmergenciaTelefono")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 

@@ -1,4 +1,4 @@
-using CaeManager.Application.Centros.Queries.ObtenerCentros;
+﻿using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
@@ -49,7 +49,9 @@ namespace CaeManager.Web.Features.Clientes.Pages;
 /// <para>
 /// Qué NO enseña, igual que el panel: porcentaje de cumplimiento del Cliente
 /// empresarial (no existe), Alias, Domicilio, Portal
-/// principal, Gestor CAE e historial de notas. Editar la identidad y la nota
+/// principal, el «Gestor CAE de referencia» (<c>EjecutivoUsuarioId</c>) e historial de notas. La fila
+/// «Gestor CAE» de la tarjeta Información sí está (<c>GestorCaeCliente</c>): enseña quién tiene Asignación de
+/// Cartera sobre el Tenant y aloja «Dar acceso» y «Desasignarme». Editar la identidad y la nota
 /// se hace en el panel: los «Editar» de esta página lo abren en su pestaña.
 /// El anillo cuenta Centros sin incidencias sobre Centros con gestión CAE; se omite si la lista está truncada
 /// o no se han podido leer los bloqueos, para no presentar una fracción global incompleta.
@@ -131,6 +133,21 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     private bool _cargandoCentrosSubcontratas;
     private bool _datosInicialesCargados;
     private int _cargaCentrosSubcontratas;
+
+    /// <summary>
+    /// Habilita la lectura de la fila «Gestor CAE» (<c>GestorCaeCliente</c>) cuando la cadena de
+    /// <see cref="CargarTodoAsync"/> terminó: sus consultas comparten el DbContext del circuito.
+    /// </summary>
+    private bool _gestorCaeHabilitado;
+
+    /// <summary>
+    /// Pendiente mientras la fila «Gestor CAE» (y su panel de acciones) hace su primera lectura: las lecturas de
+    /// pestaña esperan a que termine, por el mismo DbContext compartido. Sin valor o completada, no se espera.
+    /// </summary>
+    private TaskCompletionSource? _gestorCaeEnVuelo;
+
+    /// <summary>Tope de esa espera: si la fila no avisara nunca, la pestaña no se queda colgada.</summary>
+    private static readonly TimeSpan EsperaMaximaGestorCae = TimeSpan.FromSeconds(10);
 
     private string _pestanaActiva = PestanaPorDefecto;
     private string? _pestanaDeLaUrl;
@@ -294,12 +311,22 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _pestanaActiva = Normalizar(pestana);
         _pestanaDeLaUrl = _pestanaActiva == PestanaPorDefecto ? null : _pestanaActiva;
         NavigationManager.ActualizarFiltroEnUrl("pestana", _pestanaDeLaUrl);
+        await EsperarGestorCaeAsync();
         await CargarCentrosSubcontratasSiProcedeAsync();
         await CargarToleranciasSiProcedeAsync();
     }
 
-    /// <summary>Los indicadores de la cabecera cuentan centros: al pulsarlos se ven esos centros.</summary>
-    private Task IrACentros() => CambiarPestana(PestanaPorDefecto);
+    /// <summary>
+    /// Si la fila «Gestor CAE» sigue con su primera lectura, se espera a que avise (con tope): una pestaña que lee
+    /// en paralelo chocaría con ella en el DbContext del circuito. Es la misma serie que sigue la carga inicial.
+    /// </summary>
+    private async Task EsperarGestorCaeAsync()
+    {
+        if (_gestorCaeEnVuelo is { Task.IsCompleted: false } enVuelo)
+            await Task.WhenAny(enVuelo.Task, Task.Delay(EsperaMaximaGestorCae));
+    }
+
+    private void GestorCaeCargado() => _gestorCaeEnVuelo?.TrySetResult();
 
     /// <summary>Invalida cualquier carga en vuelo: su respuesta ya no escribirá nada.</summary>
     private void InvalidarCargas()
@@ -369,6 +396,9 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _cargandoEmpresas = false;
         _subcontratas = null;
         _datosInicialesCargados = false;
+        _gestorCaeHabilitado = false;
+        _gestorCaeEnVuelo?.TrySetResult();
+        _gestorCaeEnVuelo = null;
         _centrosSubcontratasLeidos = false;
         _cargandoCentrosSubcontratas = false;
         _centrosSubcontratas = new Dictionary<Guid, IReadOnlyList<CentroCumplimientoSubcontrataDto>>();
@@ -404,6 +434,10 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _datosInicialesCargados = true;
         await CargarCentrosSubcontratasSiProcedeAsync();
         await CargarToleranciasSiProcedeAsync();
+        if (generacion != _generacion) return;
+        _gestorCaeEnVuelo = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _gestorCaeHabilitado = true;
+        StateHasChanged();
     }
 
     /// <summary>Un doble clic en «Reintentar» no lanza una segunda cadena: la primera ya puso _cargando.</summary>
@@ -628,24 +662,6 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             : $"{Plural(_resumen.TotalCentros, "RecuentoCentrosUno", "RecuentoCentrosVarios")} · " +
               Plural(_resumen.TotalTrabajadores, "RecuentoTrabajadoresUno", "RecuentoTrabajadoresVarios");
 
-    private string ResumenCentros
-    {
-        get
-        {
-            var mostrados = _centros?.Count ?? 0;
-            // El buscador filtra lo cargado: con la lista cortada en MaximoCentros hay que seguir diciéndolo, o «0 de 200»
-            // se leería como «este Cliente no tiene ese Centro».
-            if (HayBusqueda || !string.IsNullOrEmpty(_estado))
-                return _totalCentros > mostrados
-                    ? Textos["ResumenCentrosBuscadosTruncado", CentrosVisibles.Count, mostrados, _totalCentros]
-                    : Textos["ResumenCentrosBuscados", CentrosVisibles.Count, mostrados];
-
-            return _totalCentros > mostrados
-                ? Textos["ResumenCentrosTruncado", mostrados, _totalCentros]
-                : Textos["ResumenCentrosBuscados", CentrosVisibles.Count, mostrados];
-        }
-    }
-
     /// <summary>
     /// El Centro es del Cliente empresarial de esta ficha, que es su titular: la fila nunca rotula una Empresa como si
     /// fuera la dueña. La Empresa del Tenant solo «entra como contratista», y solo se dice cuando el usuario ve más de
@@ -792,76 +808,6 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             };
         }).ToList();
 
-    /// <summary>Un indicador de la cabecera y el desglose literal de su ventana de contexto.</summary>
-    private sealed record Indicador(
-        string Clave, string Texto, string Titulo, string Etiqueta, IReadOnlyList<string> Lineas,
-        TonoBadge Tono);
-
-    /// <summary>
-    /// Los centros de este cliente, no documentos sumados: un documento de
-    /// Empresa exigido en varios centros no se cuenta varias veces. Un
-    /// indicador en cero no se pinta. «Vencidos» incluye Faltante, como en
-    /// RecuentosCentroDto.
-    /// </summary>
-    private IReadOnlyList<Indicador> Indicadores
-    {
-        get
-        {
-            if (_centros is null) return [];
-
-            var indicadores = new List<Indicador>();
-
-            // Trabajadores bloqueados: un Trabajador bloqueado en dos Centros cuenta una vez, y la ventana lo lista por Centro.
-            var trabajadoresBloqueados = _bloqueos.Select(b => b.TrabajadorId).Distinct().Count();
-            if (trabajadoresBloqueados > 0)
-            {
-                indicadores.Add(Crear("trabajadores-bloqueados",
-                    Plural(trabajadoresBloqueados, "IndicadorTrabajadoresBloqueadosUno", "IndicadorTrabajadoresBloqueadosVarios"),
-                    Plural(trabajadoresBloqueados, "VentanaTrabajadoresBloqueadosUno", "VentanaTrabajadoresBloqueadosVarios"),
-                    _bloqueos.Select(b => $"{b.TrabajadorNombre} · {b.CentroNombre}").Distinct().ToList(),
-                    TonoBadge.Peligro));
-            }
-
-            // El Centro solo está «Bloqueado» por la plataforma del Cliente empresarial (D-7), no por documentos.
-            var bloqueados = _centros.Where(c => c.Estado == EstadoCentro.Bloqueado).ToList();
-            if (bloqueados.Count > 0)
-            {
-                var texto = _totalCentros == 1
-                    ? Textos["IndicadorBloqueadosUnico"]
-                    : Textos["IndicadorBloqueados", bloqueados.Count, _totalCentros];
-                indicadores.Add(Crear("bloqueados", texto,
-                    Plural(bloqueados.Count, "VentanaBloqueadosUno", "VentanaBloqueadosVarios"),
-                    bloqueados.Select(c => EntraComoContratista(c) is { } contratista ? $"{c.Nombre} · {contratista}" : c.Nombre).ToList(),
-                    TonoBadge.Peligro));
-            }
-
-            var conVencidos = _centros.Where(c => c.Recuentos.TotalVencidas > 0).ToList();
-            if (conVencidos.Count > 0)
-            {
-                indicadores.Add(Crear("vencidos",
-                    Plural(conVencidos.Count, "IndicadorVencidosUno", "IndicadorVencidosVarios"),
-                    Plural(conVencidos.Count, "VentanaVencidosUno", "VentanaVencidosVarios"),
-                    conVencidos.Select(c => $"{c.Nombre} · {Plural(c.Recuentos.TotalVencidas, "DetalleVencidosUno", "DetalleVencidosVarios")}").ToList(),
-                    TonoBadge.Peligro));
-            }
-
-            var conProximos = _centros.Where(c => c.Recuentos.TotalProximas > 0).ToList();
-            if (conProximos.Count > 0)
-            {
-                indicadores.Add(Crear("proximos",
-                    Plural(conProximos.Count, "IndicadorProximosUno", "IndicadorProximosVarios"),
-                    Plural(conProximos.Count, "VentanaProximosUno", "VentanaProximosVarios"),
-                    conProximos.Select(c => $"{c.Nombre} · {Plural(c.Recuentos.TotalProximas, "DetalleProximosUno", "DetalleProximosVarios")}").ToList(),
-                    TonoBadge.Advertencia));
-            }
-
-            return indicadores;
-        }
-    }
-
-    private Indicador Crear(string clave, string texto, string titulo, IReadOnlyList<string> lineas, TonoBadge tono) =>
-        new(clave, texto, titulo, Textos["AriaIndicador", texto, string.Join("; ", lineas)], lineas, tono);
-
     // ── Navegación ────────────────────────────────────────────────────────
 
     private void IrABreadcrumb(int indice)
@@ -869,6 +815,13 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         if (indice == 0)
             NavigationManager.NavigateTo("/clientes");
     }
+
+    /// <summary>
+    /// Quien mira acaba de desasignarse, desde la fila «Gestor CAE», de su apoyo sobre el Tenant activo: todo lo que
+    /// esta página tiene pintado es de un Tenant al que ya no accede. Va a «Mi trabajo» con <c>sinAcceso=true</c>
+    /// para avisarlo; <c>forceLoad</c> hace que el arranque normal vuelva a resolver el Tenant activo y el acceso.
+    /// </summary>
+    private void IrAMiTrabajoTrasDesasignarme() => NavigationManager.NavigateTo("/mi-trabajo?sinAcceso=true", forceLoad: true);
 
     private Task AbrirInformacionAsync() =>
         WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, ClienteId, _detalle?.RazonSocial ?? string.Empty, "informacion");

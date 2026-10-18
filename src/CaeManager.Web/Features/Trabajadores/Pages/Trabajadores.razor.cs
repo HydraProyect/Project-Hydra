@@ -195,7 +195,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private string _alias = string.Empty;
     private string _puesto = string.Empty;
     private string _tipoContratacion = nameof(CaeManager.Domain.Trabajadores.TipoContratacion.CuentaAjena);
-    private string _filtroActividad = string.Empty;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
@@ -533,8 +532,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             OrdenarPor: ordenarPor,
             Descendente: descendente,
             EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
-            ConRecuentosPorEstado: true,
-            VoluntarioInactivo: _filtroActividad switch { "inactivos" => true, "activos" => false, _ => null });
+            ConRecuentosPorEstado: true);
         var conservarSeleccion = consulta == _consultaQueConservaSeleccion;
         _consultaQueConservaSeleccion = null;
         _ultimaConsulta = consulta;
@@ -655,19 +653,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// «Desde el dd/MM/yyyy» si venció, «Caduca el dd/MM/yyyy» si está por vencer, la falta de fecha si está sin confirmar
     /// y vacío en cualquier otro caso.
     /// </summary>
-    private string DetalleDelDocumento(CaeManager.Application.Documentos.IncidenciaDocumentalDto incidencia)
-    {
-        if (incidencia.Estado == CaeManager.Domain.Documentos.EstadoDocumento.SinConfirmar)
-            return EstadoDocumentoUi.MotivoDeDocumento(incidencia.Estado, incidencia.FechaVencimiento, CaeManager.Domain.Common.DiaDeNegocio.Hoy()) ?? string.Empty;
-        if (incidencia.FechaVencimiento is not { } fecha) return string.Empty;
-        var texto = fecha.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture);
-        return incidencia.Estado switch
-        {
-            CaeManager.Domain.Documentos.EstadoDocumento.Vencido or CaeManager.Domain.Documentos.EstadoDocumento.EnTolerancia => Textos["DocumentoDesdeFecha", texto].Value,
-            CaeManager.Domain.Documentos.EstadoDocumento.Urgente or CaeManager.Domain.Documentos.EstadoDocumento.Proximo => Textos["DocumentoCaducaFecha", texto].Value,
-            _ => string.Empty
-        };
-    }
+    private static string DetalleDelDocumento(CaeManager.Application.Documentos.IncidenciaDocumentalDto incidencia) =>
+        DetalleVigenciaDocumentoUi.DeTrabajador(incidencia);
 
     private bool TodosExpandidos => _elementosPagina.Any(t => t.Incidencias.Count > 0)
         && _elementosPagina.Where(t => t.Incidencias.Count > 0).All(EstaExpandido);
@@ -731,18 +718,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         await RecargarAsync();
     }
 
-    private IReadOnlyList<OpcionEstado> OpcionesFiltroActividad =>
-    [
-        new("activos", Textos["OpcionSinVoluntariosInactivos"].Value),
-        new("inactivos", Textos["OpcionSoloVoluntariosInactivos"].Value),
-    ];
-
-    private async Task FiltrarPorActividadAsync(string valor)
-    {
-        _filtroActividad = valor;
-        await RecargarAsync();
-    }
-
     private async Task FiltrarPorCentroAsync(string valor)
     {
         _filtroCentroId = IdDesdeUrl(valor);
@@ -797,7 +772,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private bool HayFiltrosActivos =>
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
         || !string.IsNullOrWhiteSpace(_filtroEmpresaId) || !string.IsNullOrWhiteSpace(_filtroSubcontrataId)
-        || !string.IsNullOrWhiteSpace(_filtroCentroId) || !string.IsNullOrWhiteSpace(_filtroActividad);
+        || !string.IsNullOrWhiteSpace(_filtroCentroId);
 
     // ── Corrección de una incidencia desde la subcaja del motivo ────────────────────────────────
 
@@ -911,7 +886,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _filtroEmpresaId = string.Empty;
         _filtroSubcontrataId = string.Empty;
         _filtroCentroId = string.Empty;
-        _filtroActividad = string.Empty;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = null,

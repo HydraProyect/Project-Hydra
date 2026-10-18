@@ -34,7 +34,8 @@
     overflow-wrap: anywhere;
 }
 
-.dar-acceso-nota {
+.dar-acceso-nota,
+.dar-acceso-error {
     color: var(--color-text-muted);
     font: var(--font-body-sm);
 }

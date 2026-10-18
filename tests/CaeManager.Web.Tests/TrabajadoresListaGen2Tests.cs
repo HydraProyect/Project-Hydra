@@ -941,7 +941,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Pastillas «Empresa», «Centro» y «Actividad» (voluntarios inactivos), y «Más filtros»; la documentación va en la franja de estado. La maqueta
+    /// Pastillas «Empresa» y «Centro», y «Más filtros»; la documentación va en la franja de estado. La maqueta
     /// dibuja también «Cliente» como pastilla: ObtenerTrabajadoresQuery no sabe filtrar por él, y una pastilla
     /// que no filtra nada no se pinta. Subcontrata no tiene pastilla propia: va dentro de «Empresa».
     /// </summary>
@@ -952,7 +952,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(b => b.GetAttribute("aria-label"))
-            .Should().Equal("Empresa", "Centro", "Actividad", "Filtros guardados", "Agrupar");
+            .Should().Equal("Empresa", "Centro", "Filtros guardados", "Agrupar");
         cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Por vencer", "Sin confirmar", "Sin incidencias");
         cut.MarcadosEnFranja().Should().Equal(["Todos"], "sin filtro de estado, el marcado es «Todos»");
         UltimaConsulta(mediador).ConRecuentosPorEstado.Should().BeTrue("sin pedirlos, la franja no tendría cifras");
@@ -1470,7 +1470,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var celdas = fila.QuerySelector(".tarjeta-fila-acordeon-cabecera")!.Children;
         celdas.Should().HaveCount(6, "chevron, Trabajador, Empresa, Registrados vigentes, Estado documental y acciones: la misma rejilla que la cabecera");
         celdas[1].QuerySelector(".enlace-nombre-fila")!.TextContent.Trim().Should().Be("Javier Salas Moreno");
-        celdas[1].QuerySelector(".celda-trabajador-dni")!.TextContent.Should().Contain("DNI").And.Contain(javier.Dto.Dni);
+        celdas[1].QuerySelector(".celda-trabajador-dni")!.TextContent.Trim().Should().Be(javier.Dto.Dni, "el DNI va solo, sin prefijo «DNI» (Chris, 2026-10-18; la maqueta lo rotula en la columna)");
         celdas[2].TextContent.Trim().Should().Be("Montajes Ebro S.L.");
         celdas[4].QuerySelector(".badge")!.TextContent.Trim().Should().Be("Por vencer", "Urgente y Próximo se rotulan igual");
         celdas[4].QuerySelector(".badge")!.ClassList.Should().Contain("badge-advertencia", "y con el mismo tono: lo urgente ya no va en rojo en la pastilla");

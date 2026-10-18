@@ -102,29 +102,8 @@
                     <Badge Tono="EstadoCentroUi.Tono(peorCentro.Estado, peorCentro.CumplimientoPorcentaje)" Tamano="TamanoBadge.Pequeno" data-peor-estado>@EstadoCentroUi.Texto(peorCentro.Estado, peorCentro.CumplimientoPorcentaje)</Badge>
                 }
                </div>
-               @* Los indicadores por Centro (bloqueados, vencidos, próximos) no están en la maqueta del 17-10: se conservan en una
-                  segunda línea hasta que producto decida si se retiran. *@
-               @if (Indicadores.Count > 0)
-               {
-                    <div class="cliente360-indicadores">
-                        @foreach (var indicador in Indicadores)
-                        {
-                            <VentanaContexto Etiqueta="@indicador.Etiqueta" Titulo="@indicador.Titulo">
-                                <Disparador>
-                                    <button type="button" class="cliente360-indicador-boton" data-indicador="@indicador.Clave" @onclick="IrACentros">
-                                        <Badge Tono="indicador.Tono">@indicador.Texto</Badge>
-                                    </button>
-                                </Disparador>
-                                <Detalle>
-                                    @foreach (var linea in indicador.Lineas)
-                                    {
-                                        <span class="ventana-linea">@linea</span>
-                                    }
-                                </Detalle>
-                            </VentanaContexto>
-                        }
-                    </div>
-               }
+               @* Decisión de Chris (2026-10-18): sin fila de indicadores por Centro en la cabecera; el motivo de cada Centro
+                  se lee en su propia fila. *@
               </div>
             </Datos>
             <Acciones>
@@ -177,13 +156,14 @@
                                 {
                                     <p class="texto-descriptivo" data-recuentos-parciales>@Textos["AvisoFranjaCentrosParcial", _centros.Count, _totalCentros]</p>
                                 }
-                                <p class="cliente360-resumen-lista">
-                                    @ResumenCentros · @Textos["OrdenCentros"]
-                                    @if (centrosVisibles.Count == 0)
-                                    {
+                                @* Decisión de Chris (2026-10-18): sin la línea «Mostrando N de M · del peor estado al mejor». Con el filtro
+                                   sin resultados queda la salida: quitar los filtros. *@
+                                @if (centrosVisibles.Count == 0)
+                                {
+                                    <p class="cliente360-resumen-lista">
                                         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="QuitarFiltros">@Textos["QuitarFiltros"]</Boton>
-                                    }
-                                </p>
+                                    </p>
+                                }
                                 @* Maqueta 17-10: el nombre del Centro abre su consulta rápida (panel de 520 px) y el icono 360 lleva a su página;
                                    rejilla identidad | cumplimiento | estado | icono, con la fila teñida si el Centro tiene un problema. *@
                                 <ListaRelaciones Etiqueta="@Textos["ListaCentros"]">
@@ -381,9 +361,11 @@
                     La razón social ya está en la cabecera; el CIF se repite aquí como «Identificación fiscal» copiable (maqueta del 17-10).
                     Del mockup de panel no entran, igual que en el panel, Alias y
                     Domicilio (sin columna), Portal principal (el portal es del
-                    Centro), el Gestor CAE (deuda terminológica congelada por
-                    TerminologiaCanonicaTests) ni Cumplimiento (sin dato por
-                    Cliente empresarial).
+                    Centro), el «Gestor CAE de referencia» (deuda terminológica
+                    congelada por TerminologiaCanonicaTests) ni Cumplimiento (sin dato por
+                    Cliente empresarial). La fila «Gestor CAE» de la maqueta del 17-10 sí entra, con
+                    «Dar acceso» y «Desasignarme» debajo (GestorCaeCliente): son las personas con
+                    Asignación de Cartera sobre el Tenant, no esa referencia.
                 *@
                 <Tarjeta Compacta="true" Titulo="@Textos["TarjetaInformacion"]">
                     <AccionesHeader>
@@ -404,15 +386,12 @@
                             <DatoRejilla Etiqueta="@Textos["Critico"]" Valor="@(_detalle.EsCritico ? Textos["Si"] : Textos["No"])" />
                             <DatoRejilla Etiqueta="@Textos["DatoAlta"]" Valor="@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")" />
                         </RejillaDatos>
+                        <GestorCaeCliente Cargar="_gestorCaeHabilitado" AlCargar="GestorCaeCargado" AlDesasignarme="IrAMiTrabajoTrasDesasignarme" />
                     </ChildContent>
                 </Tarjeta>
 
                 @* «Plataforma CAE»: carga aparte; al Usuario de Cliente no se le pinta. *@
                 <CaeManager.Web.Features.Clientes.Components.CajaPlataformaCaeCliente ClienteEmpresarialId="ClienteId" />
-
-                @*
-                    Sin dibujar (no hay modelo, ver el .razor.cs): el «Gestor CAE» con «Dar acceso» y «Desasignarme».
-                *@
 
                 @*
                     «Notas» es una sola columna (ClienteDetalleDto.Notas): la

@@ -20,9 +20,9 @@
     SOLO LECTURA, para las dos miradas (revisión de Design, 2026-10-17, §C; decisión del 16-10). Las dos
     acciones que antes acompañaban al dato —«+ Dar acceso» y «Desasignarme», que pintaba
     PanelDarAcceso en su forma de cabecera— salieron de aquí: este componente ya no monta ningún
-    botón de acción sobre la cartera y no ofrece nada que cambie datos. Siguen en /cartera/solicitudes
-    (PanelDarAcceso completo) hasta que la ficha de la Empresa las aloje; la ventana ya remite a la ficha, como el
-    dibujo de Design (§C), y enlaza a Empresas (ver RutaEmpresa360).
+    botón de acción sobre la cartera y no ofrece nada que cambie datos. Están en /cartera/solicitudes
+    (PanelDarAcceso completo) y en la fila «Gestor CAE» de Cliente 360 (GestorCaeCliente); la ventana remite a
+    la ficha, como el dibujo de Design (§C), y enlaza a Empresas (ver RutaEmpresa360).
 
     Estados: cargando (esqueleto que reserva la línea, invisible los primeros 200 ms para no destellar
     en cargas cortas), error («No pudimos cargarlo» con «Reintentar»), vacío (si las dos consultas
@@ -224,7 +224,7 @@ else if (_grupos.Count > 0)
     /// Destino del enlace «Abrir Empresa 360 →» del pie de la ventana (revisión de Design, §C: «Dar acceso o desasignarte:
     /// desde la ficha»). Es la pantalla de Empresas, desde la que se abre la ficha: la Asignación de Cartera cuelga del
     /// Tenant propietario, no de una Empresa, así que no hay un Id de Empresa que enlazar. DECISIÓN NECESARIA (producto):
-    /// a qué ficha lleva y cuándo la ficha aloja «Dar acceso» y «Desasignarme»; hoy esas acciones siguen en /cartera/solicitudes.
+    /// a qué ficha lleva; hoy esas acciones están en /cartera/solicitudes y en la fila «Gestor CAE» de Cliente 360.
     /// </summary>
     private const string RutaEmpresa360 = "/empresas";
 
