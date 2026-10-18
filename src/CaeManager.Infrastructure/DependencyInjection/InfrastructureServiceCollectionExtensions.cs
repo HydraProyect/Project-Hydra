@@ -350,6 +350,14 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ISugerenciaVisitaCorreoRepository, SugerenciaVisitaCorreoRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IEventoConversacionRepository, EventoConversacionRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.INotaInternaConversacionRepository, NotaInternaConversacionRepository>();
+        services.AddScoped<CaeManager.Application.Comunicaciones.Deteccion.IAlertaCriticaRepository, AlertaCriticaRepository>();
+        services.AddScoped<CaeManager.Application.Comunicaciones.Deteccion.AlertaCriticaService>();
+        services.AddScoped<CaeManager.Application.Comunicaciones.Deteccion.IAlertaCriticaService>(sp => sp.GetRequiredService<CaeManager.Application.Comunicaciones.Deteccion.AlertaCriticaService>());
+        services.AddScoped<CaeManager.Application.Comunicaciones.AlertasCriticas.AccesoAlertaCritica>();
+        services.Configure<CaeManager.Application.Comunicaciones.Deteccion.AlertasCriticasOptions>(configuration.GetSection(CaeManager.Application.Comunicaciones.Deteccion.AlertasCriticasOptions.Seccion));
+        services.AddHttpClient<CaeManager.Application.Comunicaciones.Deteccion.ISegundaOpinionCriticaIa, AnthropicSegundaOpinionCriticaIa>(
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(60));
         services.AddScoped<CaeManager.Domain.Comunicaciones.IPropuestaRecordatorioConversacionRepository, PropuestaRecordatorioConversacionRepository>();
         services.AddScoped<CaeManager.Domain.AsistenteIa.ITareaAsistenteRepository, TareaAsistenteRepository>();
         services.AddScoped<CaeManager.Domain.Telemetria.IRegistroTiempoGestionRepository, RegistroTiempoGestionRepository>();

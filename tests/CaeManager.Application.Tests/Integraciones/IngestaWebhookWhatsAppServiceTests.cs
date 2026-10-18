@@ -27,7 +27,7 @@ public class IngestaWebhookWhatsAppServiceTests
 
     private IngestaWebhookWhatsAppService CrearServicio(IUnitOfWork? unitOfWork = null) =>
         new(_conexiones, _lineas, _conversaciones, _contactos, _clientes, _whatsApp,
-            new FileStorageServiceFalso(), unitOfWork ?? _unitOfWork, NullLogger<IngestaWebhookWhatsAppService>.Instance, new CaeManager.Application.Tests.Comunicaciones.IntencionConversacionServiceFalso());
+            new FileStorageServiceFalso(), unitOfWork ?? _unitOfWork, new CaeManager.Application.Tests.Comunicaciones.AlertaCriticaServiceFalso(), NullLogger<IngestaWebhookWhatsAppService>.Instance, new CaeManager.Application.Tests.Comunicaciones.IntencionConversacionServiceFalso());
 
     private ConexionIntegracion CrearLinea(
         ModoAsignacionLinea modo, Guid? comercialId = null, IReadOnlyList<Guid>? pool = null,

@@ -751,6 +751,68 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("AdjuntosMensaje", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.AlertaCriticaConversacion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("ConfianzaIa")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ConversacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DecisionEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DecisionPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("DetectadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ExpresionDetectada")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("MensajeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OperadorCaeTenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool?>("SegundaOpinionIa")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TextoDisparador")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversacionId");
+
+                    b.HasIndex("MensajeId");
+
+                    b.HasIndex("TenantId", "ConversacionId")
+                        .IsUnique();
+
+                    b.ToTable("AlertasCriticasConversacion", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.CambioEstadoConversacion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8616,6 +8678,21 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 {
                     b.HasOne("CaeManager.Domain.Comunicaciones.Mensaje", null)
                         .WithMany("Adjuntos")
+                        .HasForeignKey("MensajeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.AlertaCriticaConversacion", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Comunicaciones.Conversacion", null)
+                        .WithMany()
+                        .HasForeignKey("ConversacionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Comunicaciones.Mensaje", null)
+                        .WithMany()
                         .HasForeignKey("MensajeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

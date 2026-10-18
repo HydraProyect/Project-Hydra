@@ -31,6 +31,7 @@ public class IngestaWebhookService(
     IClasificacionRuidoMensajeRepository clasificacionRuidoRepositorio,
     IClasificacionRuidoMensajeService clasificacionRuidoMensaje,
     IRelevanciaCaeService relevanciaCae,
+    IAlertaCriticaService alertaCritica,
     ILogger<IngestaWebhookService> logger,
     IIntencionConversacionService intenciones)
 {
@@ -149,6 +150,8 @@ public class IngestaWebhookService(
             esAutomatico: esCorreoAutomatico);
 
         await intenciones.ProcesarAsync(conversacion, cancellationToken);
+
+        await alertaCritica.ProcesarAsync(mensajeCreado, cancellationToken);
 
         foreach (var participante in mensaje.Participantes)
         {

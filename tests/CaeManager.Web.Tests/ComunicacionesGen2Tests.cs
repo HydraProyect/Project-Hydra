@@ -245,6 +245,7 @@ public class ComunicacionesGen2Tests : BunitContext
                 ObtenerTrabajadoresParaSelectorQuery => new List<TrabajadorSelectorDto>(),
                 ObtenerTiempoGestionConversacionQuery => new TiempoGestionConversacionDto(false, 0, 0),
                 ObtenerNotasInternasConversacionQuery => NotasInternas.ToList(),
+                CaeManager.Application.Comunicaciones.AlertasCriticas.ObtenerAlertaCriticaQuery => null,
                 ObtenerRecordatorioPropuestoConversacionQuery => null,
                 ResponderConversacionCommand c => AlResponder(c),
                 CambiarEstadoConversacionCommand => Result.Exito(),
