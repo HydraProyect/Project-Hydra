@@ -134,7 +134,8 @@ public class BarraLateralLupaSinFranjaTests
         var configuradas = Regex.Matches(catalogo,
                 @"new\(""config-[\w-]+"", ""configuracion"", ""configuracion/([\w-]+)"", ""(\w+)"", FuenteRotuloSubopcion\.TextosConfiguracion\)")
             .Select(m => (Id: m.Groups[1].Value, Clave: m.Groups[2].Value)).ToList();
-        configuradas.Should().HaveCountGreaterThan(10, "control positivo: el patrón encuentra las entradas");
+        // Usuarios y Roles salieron del hub (sección Equipo, 2026-10-17): quedan diez que el patrón reconoce.
+        configuradas.Should().HaveCountGreaterThanOrEqualTo(10, "control positivo: el patrón encuentra las entradas");
 
         foreach (var (id, clave) in configuradas)
         {

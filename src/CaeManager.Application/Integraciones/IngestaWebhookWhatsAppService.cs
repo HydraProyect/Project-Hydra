@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Application.Comunicaciones.Eventos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Comunicaciones;
@@ -37,7 +38,8 @@ public class IngestaWebhookWhatsAppService(
     IWhatsAppCloudApiClient whatsAppClient,
     IFileStorageService almacenamiento,
     IUnitOfWork unitOfWork,
-    ILogger<IngestaWebhookWhatsAppService> logger)
+    ILogger<IngestaWebhookWhatsAppService> logger,
+    IIntencionConversacionService intenciones)
 {
     private readonly List<string> _archivosGuardados = [];
 
@@ -118,6 +120,8 @@ public class IngestaWebhookWhatsAppService(
 
         var mensajeCreado = conversacion.AgregarMensaje(
             DireccionMensaje.Entrante, conversacion.Canal, mensaje.Telefono, CuerpoParaPersistir(mensaje), mensaje.FechaUtc, mensaje.Wamid);
+
+        await intenciones.ProcesarAsync(conversacion, cancellationToken);
 
         if (mensaje.MediaId is not null)
             await DescargarYGuardarMediaAsync(linea, mensajeCreado, mensaje, cancellationToken);

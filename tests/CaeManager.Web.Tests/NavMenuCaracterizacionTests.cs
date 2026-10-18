@@ -332,7 +332,7 @@ public class NavMenuCaracterizacionTests
         var cut = Pintar(new Combinacion(Roles.Administrador, null, comunicaciones, false, PerfilVocabularioTenant.Consultora, 1), null);
 
         cut.FindAll("[data-subopcion='config-macros']").Any().Should().Be(esperada);
-        cut.FindAll("[data-subopcion='config-usuarios']").Should().HaveCount(1, "control positivo: el resto de Configuración sigue");
+        cut.FindAll("[data-subopcion='config-api']").Should().HaveCount(1, "control positivo: el resto de Configuración sigue");
     }
 
     [Fact]
@@ -345,11 +345,11 @@ public class NavMenuCaracterizacionTests
         plantillas.QuerySelector(".nav-resultado-texto")!.TextContent.Trim().Should().Be("Plantillas");
         plantillas.QuerySelector(".nav-resultado-padre")!.TextContent.Trim().Should().Be("Documentos");
 
-        var usuarios = cut.Find("a[data-subopcion='config-usuarios']");
-        usuarios.GetAttribute("href").Should().Be("configuracion/usuarios");
-        usuarios.QuerySelector(".nav-resultado-padre")!.TextContent.Trim().Should().Be("Configuración");
-        usuarios.QuerySelector(".nav-resultado-texto")!.TextContent.Trim().Should().NotBeEmpty();
-        usuarios.HasAttribute("hidden").Should().BeTrue("nacen ocultas: el JS muestra solo las que casan con lo escrito");
+        var api = cut.Find("a[data-subopcion='config-api']");
+        api.GetAttribute("href").Should().Be("configuracion/api");
+        api.QuerySelector(".nav-resultado-padre")!.TextContent.Trim().Should().Be("Configuración");
+        api.QuerySelector(".nav-resultado-texto")!.TextContent.Trim().Should().NotBeEmpty();
+        api.HasAttribute("hidden").Should().BeTrue("nacen ocultas: el JS muestra solo las que casan con lo escrito");
     }
 
     [Fact]
@@ -359,9 +359,11 @@ public class NavMenuCaracterizacionTests
 
         subs.Select(s => s.Id).Should().OnlyHaveUniqueItems();
         subs.Select(s => s.EnlaceId).Distinct().Should().OnlyContain(id => CatalogoMenuLateral.Enlaces.Any(e => e.Id == id));
-        subs.Should().OnlyContain(s => !s.Ruta.StartsWith('/') && s.Ruta.StartsWith(
-            CatalogoMenuLateral.Enlaces.Single(e => e.Id == s.EnlaceId).Ruta),
-            "la subopción vive bajo la ruta de su enlace padre: es otra vista de la misma página");
+        subs.Should().OnlyContain(s => !s.Ruta.StartsWith('/') && (s.Ruta.StartsWith(
+            CatalogoMenuLateral.Enlaces.Single(e => e.Id == s.EnlaceId).Ruta)
+            // Pestaña de sección sin entrada propia (Incidencias, Roles): su ruta es la de la pestaña, no la del padre.
+            || CatalogoSeccionesMenu.Secciones.Any(sec => sec.EnlaceId == s.EnlaceId && sec.Pestanas.Any(p => p.Ruta == s.Ruta))),
+            "la subopción vive bajo la ruta de su enlace padre (o es una pestaña de su sección): es otra vista de la misma página");
         subs.Should().OnlyContain(s => s.ClaveRotulo.Length > 0);
     }
 

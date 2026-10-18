@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="EtiquetaIntencion" xml:space="preserve"><value>Intención CAE</value></data>
+  <data name="TodasIntenciones" xml:space="preserve"><value>Todas las intenciones</value></data>
+  <data name="ResumenChip" xml:space="preserve"><value>{0} · Confianza {1}</value></data>
+  <data name="Confirmar" xml:space="preserve"><value>Confirmar</value></data>
+  <data name="Confirmada" xml:space="preserve"><value>Confirmada</value></data>
+  <data name="CambiadaConfirmada" xml:space="preserve"><value>Cambiada y confirmada</value></data>
+  <data name="PendienteRevision" xml:space="preserve"><value>Propuesta pendiente de revisión</value></data>
+  <data name="CambiarIntencion" xml:space="preserve"><value>Cambiar intención CAE</value></data>
+  <data name="EntidadPropuesta" xml:space="preserve"><value>Propuesta: {0}</value></data>
+  <data name="PendienteEntidad" xml:space="preserve"><value>Pendiente de validación humana.</value></data>
+  <data name="ErrorCargar" xml:space="preserve"><value>No se pudo cargar la intención CAE. Vuelve a abrir la conversación.</value></data>
+  <data name="ErrorGuardar" xml:space="preserve"><value>No se pudo guardar la intención CAE. Inténtalo de nuevo.</value></data>
+  <data name="Confianza_Alta" xml:space="preserve"><value>alta</value></data>
+  <data name="Confianza_Media" xml:space="preserve"><value>media</value></data>
+  <data name="Confianza_Baja" xml:space="preserve"><value>baja</value></data>
+  <data name="TipoEntidad_Trabajador" xml:space="preserve"><value>Trabajador</value></data>
+  <data name="TipoEntidad_Empresa" xml:space="preserve"><value>Empresa</value></data>
+  <data name="TipoEntidad_Centro" xml:space="preserve"><value>Centro</value></data>
+  <data name="TipoEntidad_TipoDocumento" xml:space="preserve"><value>Tipo de documento</value></data>
+  <data name="Intencion_CoordinacionAcceso" xml:space="preserve"><value>Coordinación de acceso</value></data>
+  <data name="Intencion_DocumentacionMensual" xml:space="preserve"><value>Documentación mensual</value></data>
+  <data name="Intencion_AltaContratoAccesoCentro" xml:space="preserve"><value>Alta de contrato y acceso a un Centro</value></data>
+  <data name="Intencion_CopiaProyectoObra" xml:space="preserve"><value>Copia en proyecto u obra</value></data>
+  <data name="Intencion_UrgenciaAcceso" xml:space="preserve"><value>Urgencia de acceso</value></data>
+  <data name="Intencion_ConsultaRequisitos" xml:space="preserve"><value>Consulta de requisitos</value></data>
+  <data name="Intencion_Otras" xml:space="preserve"><value>Otras</value></data>
+</root>

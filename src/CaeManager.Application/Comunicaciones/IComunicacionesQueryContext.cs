@@ -4,6 +4,7 @@ namespace CaeManager.Application.Comunicaciones;
 
 public interface IComunicacionesQueryContext
 {
+    IQueryable<IntencionConversacion> IntencionesConversacion { get; }
     IQueryable<Conversacion> Conversaciones { get; }
     IQueryable<Mensaje> Mensajes { get; }
     IQueryable<ParticipanteConversacion> ParticipantesConversacion { get; }

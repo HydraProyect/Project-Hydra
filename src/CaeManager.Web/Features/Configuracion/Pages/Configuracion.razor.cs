@@ -89,15 +89,32 @@ public partial class Configuracion : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     protected override void OnParametersSet()
     {
+        // Usuarios y Roles dejaron de ser entradas del hub (entrega de Design del 2026-10-17: viven en la
+        // sección Equipo). Los enlaces guardados a /configuracion/usuarios y /configuracion/roles siguen
+        // llegando a su pantalla, que se autoriza por su cuenta.
+        if (RutasMovidasAEquipo.TryGetValue(EntradaRuta ?? EntradaActual ?? string.Empty, out var rutaDeEquipo))
+        {
+            Navigation.NavigateTo(rutaDeEquipo);
+            return;
+        }
+
         var actual = Buscar(EntradaEfectiva);
         if (actual is { TipoPanel: null, EsPaginaIntegrable: false })
-            Navigation.NavigateTo(RutaDe(actual.Id));
+            Navigation.NavigateTo(RutaDe(actual));
     }
+
+    private static readonly IReadOnlyDictionary<string, string> RutasMovidasAEquipo =
+        new Dictionary<string, string>(StringComparer.Ordinal) { ["usuarios"] = "/usuarios", ["roles"] = "/roles" };
 
     private string TituloDocumento => Buscar(EntradaEfectiva) is { } entrada
         ? Textos["TituloDocumentoConEntrada", entrada.Nombre].Value
         : Textos["HubTitulo"].Value;
 
+    /// <param name="RutaPropia">
+    /// Ruta absoluta de la pantalla de una salida pura que no cuelga de <c>/configuracion/{id}</c> (las de
+    /// «Mi cuenta»: la verificación en dos pasos y la firma son pantallas de cuenta de cualquier usuario).
+    /// Null: <c>/configuracion/{id}</c>.
+    /// </param>
     /// <param name="Entradilla">
     /// Solo para paneles propios del hub que no pintan cabecera: el hub les
     /// pone el h2 (su Nombre) y esta entradilla. Las páginas integrables y
@@ -113,7 +130,8 @@ public partial class Configuracion : CaeManager.Web.Components.PaginaInteractiva
         bool EsPaginaIntegrable = true,
         string? Entradilla = null,
         bool SoloActorPlataforma = false,
-        string? Politica = null);
+        string? Politica = null,
+        string? RutaPropia = null);
 
     private sealed record GrupoConfiguracion(string Titulo, IReadOnlyList<EntradaConfiguracion> Entradas);
 
@@ -121,13 +139,12 @@ public partial class Configuracion : CaeManager.Web.Components.PaginaInteractiva
     /// Estructura y copy del array GROUPS del mockup. Las pantallas funcionales
     /// existentes se renderizan dentro del hub mediante su modo integrado; sus
     /// rutas históricas continúan disponibles como puntos de entrada directos.
-    /// La entrada "2fa" del mockup se retira (H-4, DEC-3 opción a): no hay
-    /// contrato de obligatoriedad ni pantalla administrativa que la respalde,
-    /// y dejarla apuntando a null solo rendería una promesa navegable sin
-    /// capacidad detrás ("Pantalla pendiente de especificación") en zona
-    /// sensible. Se repone cuando exista esa política — no antes. El enlace
-    /// del menú lateral a /cuenta/configurar-2fa es otra cosa (alta personal
-    /// del propio usuario) y no se ve afectado por esta retirada.
+    /// La entrada administrativa "2fa" del mockup antiguo se retiró (H-4, DEC-3
+    /// opción a): no hay contrato de obligatoriedad ni pantalla administrativa que
+    /// la respalde. La entrega de Design del 2026-10-17 trae otra cosa: «Mi cuenta»
+    /// con «Verificación en dos pasos» (alta personal del propio usuario,
+    /// /cuenta/configurar-2fa) y «Mi firma», como salidas puras a su pantalla, sin
+    /// panel ni política de obligatoriedad detrás.
     /// <para>
     /// Los rótulos salen de <c>TextosConfiguracion</c>, así que el catálogo es
     /// de instancia (necesita el localizador inyectado) y se construye una vez
@@ -152,15 +169,16 @@ public partial class Configuracion : CaeManager.Web.Components.PaginaInteractiva
 
     private IReadOnlyList<GrupoConfiguracion> ConstruirGrupos() =>
     [
-        new(Textos["GrupoAccesoIdentidad"],
+        // «Mi cuenta» (entrega de Design del 2026-10-17) sustituye a «Acceso e identidad»: son las dos
+        // cosas personales de quien está dentro. Usuarios y Roles ya no son del hub: viven en la sección
+        // Equipo (/usuarios, /roles). Las dos son salidas puras con ruta propia: pantallas de cuenta de
+        // cualquier usuario, que se autorizan por su cuenta, nunca embebidas en este hub.
+        new(Textos["GrupoMiCuenta"],
         [
-            new("usuarios", "US", Textos["EntradaUsuariosNombre"], Textos["EntradaUsuariosResumen"], typeof(Features.Usuarios.Pages.Usuarios)),
-            new("roles", "RL", Textos["EntradaRolesNombre"], Textos["EntradaRolesResumen"], typeof(Features.GestionRoles.Pages.Roles)),
-            // "organizacion" es una salida pura, como "plataforma": Soporte TALVEG en Sesión Privilegiada no
-            // lleva rol de negocio y no puede abrir este hub ([Authorize(Roles=Administrador)]), así que
-            // la pantalla vive en su ruta literal /configuracion/organizacion, sin gate de rol; quién
-            // escribe el logo lo decide Application (IAutorizacionLogoTenant), no la ruta.
-            new("organizacion", "OR", Textos["EntradaOrganizacionNombre"], Textos["EntradaOrganizacionResumen"], null, false)
+            new("dos-pasos", "2F", Textos["EntradaDosPasosNombre"], Textos["EntradaDosPasosResumen"], null, false,
+                RutaPropia: "/cuenta/configurar-2fa"),
+            new("mi-firma", "MF", Textos["EntradaMiFirmaNombre"], Textos["EntradaMiFirmaResumen"], null, false,
+                RutaPropia: "/mi-firma")
         ]),
         // Delegaciones y Estado comercial NO viven aquí (ver CatalogoMenuLateral,
         // grupo "Plataforma"): su autoridad real es de CAPACIDAD
@@ -173,6 +191,13 @@ public partial class Configuracion : CaeManager.Web.Components.PaginaInteractiva
         // /configuracion/comercial) siguen funcionando en modo standalone.
         new(Textos["GrupoPlataformaConexiones"],
         [
+            // "organizacion" es una salida pura, como "plataforma": Soporte TALVEG en Sesión Privilegiada no
+            // lleva rol de negocio y no puede abrir este hub ([Authorize(Roles=Administrador)]), así que
+            // la pantalla vive en su ruta literal /configuracion/organizacion, sin gate de rol; quién
+            // escribe el logo lo decide Application (IAutorizacionLogoTenant), no la ruta. Pasó de «Acceso
+            // e identidad» a este bloque al desaparecer ese (el diseño no la dibuja: se mantiene porque un
+            // mockup omite comportamiento, no lo deroga).
+            new("organizacion", "OR", Textos["EntradaOrganizacionNombre"], Textos["EntradaOrganizacionResumen"], null, false),
             new("api", "AP", Textos["EntradaApiNombre"], Textos["EntradaApiResumen"], typeof(Features.ApiKeys.Pages.ClavesApi)),
             new("integraciones", "IN", Textos["EntradaIntegracionesNombre"], Textos["EntradaIntegracionesResumen"], typeof(Features.Integraciones.Pages.Conexiones)),
             new("importar", "IM", Textos["EntradaImportarNombre"], Textos["EntradaImportarResumen"], typeof(Features.Importacion.Pages.Importacion)),
@@ -243,7 +268,7 @@ public partial class Configuracion : CaeManager.Web.Components.PaginaInteractiva
     private EntradaConfiguracion? Buscar(string id) =>
         Grupos.SelectMany(g => g.Entradas).FirstOrDefault(e => e.Id == id);
 
-    private static string RutaDe(string id) => $"/configuracion/{id}";
+    private static string RutaDe(EntradaConfiguracion entrada) => entrada.RutaPropia ?? $"/configuracion/{entrada.Id}";
 
     private static IDictionary<string, object>? ParametrosDelPanel(EntradaConfiguracion entrada) =>
         entrada.EsPaginaIntegrable

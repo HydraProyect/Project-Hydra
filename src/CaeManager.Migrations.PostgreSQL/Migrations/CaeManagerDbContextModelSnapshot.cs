@@ -1080,6 +1080,53 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("EventosConversacion", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.IntencionConversacion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Confianza")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("ConfirmadaPorPersona")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("ConversacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("EntidadPropuestaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("IntencionActual")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("IntencionPropuesta")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("MensajeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("TipoEntidadPropuesta")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversacionId");
+
+                    b.HasIndex("MensajeId");
+
+                    b.HasIndex("TenantId", "ConversacionId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "IntencionActual");
+
+                    b.ToTable("IntencionesConversacion", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.MacroRespuesta", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1865,6 +1912,62 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         {
                             t.HasCheckConstraint("CK_InstruccionesTratamientoIa_EncargoSoloPorEncargo", "(\"OrigenInstruccion\" = 'EncargoAdministracion') = (\"EncargoAdministracionId\" IS NOT NULL AND \"ClausulaContrato\" IS NOT NULL)");
                         });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Anyo")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CerradoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("Estimado")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("FotoJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("Mes")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MotivoReapertura")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("ReabiertoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Anyo", "Mes")
+                        .IsUnique();
+
+                    b.ToTable("CierresMensualesTenantBeneficiario", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", b =>
@@ -8541,6 +8644,21 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasOne("CaeManager.Domain.Comunicaciones.SugerenciaGestionCorreo", null)
                         .WithMany("Detalles")
                         .HasForeignKey("SugerenciaGestionCorreoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.IntencionConversacion", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Comunicaciones.Conversacion", null)
+                        .WithMany()
+                        .HasForeignKey("ConversacionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Comunicaciones.Mensaje", null)
+                        .WithMany()
+                        .HasForeignKey("MensajeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

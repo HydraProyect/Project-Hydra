@@ -349,6 +349,10 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants (activos y suspendidos) desde el propio servicio, un CreateScope por Tenant propietario (2026-09-23: sin él, cae_app_runtime veía cero filas de AsignacionesOperacion/AsignacionesCartera)"),
         ["src/CaeManager.Infrastructure/Proyectos/CierreEventosTerminadosHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants (activos y suspendidos) desde el propio servicio, un CreateScope por Tenant propietario, mismo patrón que ExpiracionAsignacionesHostedService (2026-10-16: cierre automático de eventos terminados)"),
+        ["src/CaeManager.Infrastructure/Dashboard/CierreMensualCuadroDireccionHostedService.cs"] =
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants desde el propio servicio, un CreateScope por Tenant beneficiario, mismo patrón que CierreEventosTerminadosHostedService (2026-10-18: cierre mensual del Cuadro de dirección)"),
+        ["src/CaeManager.Application/Dashboard/ReabrirMesCuadroDireccionCommand.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado, "request.TenantBeneficiarioId, solo tras comprobar que está en ObtenerClientesAutorizadosQuery; después exige AlcanzaElTenantEnteroAsync"),
         ["src/CaeManager.Infrastructure/Comunicaciones/CierreConversacionesResueltasHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants (activos y suspendidos) desde el propio servicio, un CreateScope por Tenant propietario, mismo patrón que CierreEventosTerminadosHostedService (2026-10-17: cierre automático de conversaciones 4 días Resueltas)"),
         ["src/CaeManager.Infrastructure/Comunicaciones/PropuestaRecordatoriosConversacionHostedService.cs"] =

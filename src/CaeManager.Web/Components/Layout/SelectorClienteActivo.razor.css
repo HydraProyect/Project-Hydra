@@ -88,7 +88,9 @@
     position: absolute;
     top: calc(100% - var(--space-2));
     left: var(--space-3);
-    right: var(--space-3);
+    /* 300 px (Design, 2026-10-17): más ancha que la barra lateral (260 px), así que MainLayout.razor.css deja
+       que la barra la desborde mientras está abierta. En pantallas estrechas no pasa del ancho disponible. */
+    width: min(300px, calc(100vw - 2 * var(--space-3)));
     z-index: 30;
     display: flex;
     flex-direction: column;
@@ -184,4 +186,61 @@
     color: var(--color-primary-600);
     font: var(--font-caption);
     text-align: center;
+}
+
+/* Fila con su estrella de fijar (Design, 2026-10-17): el botón de envío ocupa el ancho y la estrella va al lado. */
+.selector-tenant-fila-envoltorio {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.selector-tenant-fila-envoltorio .selector-tenant-fila {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+}
+
+.selector-tenant-fijar {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: var(--radius-sm);
+    color: var(--color-border-strong);
+    cursor: pointer;
+}
+
+.selector-tenant-fijar:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text-muted);
+}
+
+.selector-tenant-fijar:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 1px;
+}
+
+/* Fijada: estrella llena en ámbar (--color-warning-500, como el marco de Design). Se pinta con fill y
+   stroke y no con color: ese token ya hace de fondo en otras pantallas y TokensDeTexto lo vigila como
+   texto. El estado también lo dice aria-pressed, no solo el color. */
+.selector-tenant-fijar[aria-pressed='true'] ::deep svg {
+    fill: var(--color-warning-500);
+    stroke: var(--color-warning-500);
+}
+
+/* Atajo de las cinco primeras fijadas, en lugar de dato de apoyo: el nombre sigue mandando. */
+.selector-tenant-atajo {
+    flex-shrink: 0;
+    padding: 1px 5px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+    font-weight: 600;
 }

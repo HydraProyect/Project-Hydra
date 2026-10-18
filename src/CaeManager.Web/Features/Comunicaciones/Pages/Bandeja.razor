@@ -23,6 +23,7 @@
 @using CaeManager.Web.Features.Comunicaciones.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosListaConversaciones> TextosLista
+@inject IStringLocalizer<TextosIntencionesCae> TextosIntenciones
 @inject IStringLocalizer<TextosEstadosConversacion> TextosEstados
 @inject IStringLocalizer<TextosCompanerosGestorCae> TextosCompaneros
 @inject IMediator Mediator
@@ -161,6 +162,13 @@
                                 }
                             </CampoSelect>
 
+                            <CampoSelect Etiqueta="@TextosIntenciones["EtiquetaIntencion"]" Valor="@_intencionFiltro" ValorChanged="async v => { _intencionFiltro = v; await AplicarFiltrosAsync(); }">
+                                <option value="">@TextosIntenciones["TodasIntenciones"]</option>
+                                @foreach (var intencion in IntencionesCae)
+                                {
+                                    <option value="@intencion">@TextosIntenciones[$"Intencion_{intencion}"]</option>
+                                }
+                            </CampoSelect>
                             <CampoTexto Etiqueta="Mes" Type="month" Valor="@_mesFiltro" ValorChanged="async v => { _mesFiltro = v; await AplicarFiltrosAsync(); }" />
 
                             <CampoSelect Etiqueta="Cliente" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
@@ -352,6 +360,7 @@
                         </div>
                     </div>
                     <div class="bandeja-centro-acciones">
+                        <PanelIntencionConversacion @key="_detalle.Id" ConversacionId="_detalle.Id" />
                         <MedidorTiempoGestion @ref="_medidorTiempo" ConversacionId="_detalle.Id" />
 
                         @if (_vista == "clientes")

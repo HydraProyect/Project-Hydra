@@ -68,6 +68,14 @@
                     <AvisoSoloConsulta />
                 </div>
             </div>
+
+            @* Pestañas de sección (Documentos, Equipo): 48 px bajo la cabecera y sus avisos, dentro del
+               mismo bloque fijo. Sin sección en la ruta actual no pinta nada y no ocupa sitio. *@
+            <AuthorizeView>
+                <Authorized>
+                    <BarraSeccion @rendermode="InteractiveServer" />
+                </Authorized>
+            </AuthorizeView>
         </div>
 
         <SesionDelCircuito @rendermode="InteractiveServer" />
