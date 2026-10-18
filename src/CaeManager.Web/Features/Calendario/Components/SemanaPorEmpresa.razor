@@ -1,0 +1,74 @@
+@using CaeManager.Application.Calendario.Queries
+@using CaeManager.Infrastructure.Identity
+@using CaeManager.Web.Features.Calendario.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosCalendario> Textos
+
+@if (Empresas.Count == 0)
+{
+    <EstadoVacio Titulo="@Textos["SemanaVaciaTitulo"]" Descripcion="@Textos["SemanaVaciaDetalle"]" />
+}
+else
+{
+    <div class="semana-desplazamiento" role="region" aria-label="@Textos["SemanaPorEmpresa"]" tabindex="0">
+        <div class="semana-tabla" role="table" aria-label="@Textos["SemanaPorEmpresa"]">
+            <div class="semana-fila semana-cabecera" role="row">
+                <span role="columnheader">@TituloSemana</span>
+                @foreach (var dia in DiasSemana)
+                {
+                    <span role="columnheader" class="@(dia == Hoy ? "semana-hoy" : null)">@NombreDia(dia)</span>
+                }
+                <span role="columnheader" aria-label="@Textos["Acciones"]"></span>
+            </div>
+            @foreach (var empresa in Empresas)
+            {
+                var bloqueantes = Bloqueantes(empresa);
+                <div class="semana-fila" role="row" @key="empresa.EmpresaId">
+                    <span class="semana-empresa" role="rowheader">
+                        <a href="@($"/empresas/{empresa.EmpresaId}")">@empresa.EmpresaNombre</a>
+                        <span class="semana-subtitulo">
+                            @Textos["DocumentosSemana", empresa.Documentos.Count]@if (bloqueantes > 0){<text> · @Textos[bloqueantes == 1 ? "BloqueaAccesoUno" : "BloqueaAccesoVarios", bloqueantes]</text>}@if (empresa.ReclamadoHoy){<text> · @Textos["ReclamadoHoy"]</text>}
+                        </span>
+                    </span>
+                    @foreach (var celda in Celdas(empresa))
+                    {
+                        <span role="cell">
+                            @if (celda.Documentos.Count > 0)
+                            {
+                                <button type="button" class="semana-celda @(celda.Fecha <= Hoy ? "semana-vencido" : "semana-proximo")"
+                                        aria-label="@EtiquetaCelda(empresa, celda)"
+                                        @onclick="() => AbrirDia(empresa, celda.Fecha)">@celda.Documentos.Count</button>
+                            }
+                            else
+                            {
+                                <span class="semana-celda" aria-label="@Textos["NadaVence"]"></span>
+                            }
+                        </span>
+                    }
+                    <span class="semana-acciones" role="cell">
+                        <AuthorizeView Roles="@($"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae},{Roles.GestorCae}")">
+                            <button type="button" class="semana-reclamar @(empresa.ReclamadoHoy ? "semana-reclamado" : null)"
+                                    @onclick="() => OnReclamar.InvokeAsync(empresa)">
+                                @(empresa.ReclamadoHoy ? Textos["ReclamarDeNuevo"] : Textos["ReclamarTodos", empresa.Documentos.Count])
+                            </button>
+                        </AuthorizeView>
+                    </span>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<Modal Visible="@(_dia is not null)" VisibleChanged="v => { if (!v) _dia = null; }"
+       Titulo="@(_dia is { } fecha ? $"{_empresa?.EmpresaNombre} · {fecha.ToString("d MMMM", Cultura)}" : string.Empty)">
+    @if (_empresa is { } seleccionada && _dia is { } diaSeleccionado)
+    {
+        <ul class="semana-documentos">
+            @foreach (var documento in DocumentosDelDia(seleccionada, diaSeleccionado))
+            {
+                <li><a href="@($"/documentos?documentoId={documento.DocumentoId}")">@documento.TipoDocumentoNombre</a><span>@documento.SujetoNombre</span></li>
+            }
+        </ul>
+    }
+</Modal>
+

@@ -7,6 +7,7 @@ using CaeManager.Web.Features.Calendario.Recursos;
 using CaeManager.Web.Features.Documentos;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Calendario.Pages;
@@ -44,6 +45,12 @@ public partial class Calendario : CaeManager.Web.Components.PaginaInteractiva
     private DateOnly HoyEfectivo => Hoy ?? DiaDeNegocio.Hoy();
 
     private DateOnly _mesActual;
+    private DateOnly _semanaActual;
+    private bool _vistaSemana;
+    private ElementReference _tabMes;
+    private ElementReference _tabSemana;
+    private IReadOnlyList<SemanaEmpresaDto> _empresasSemana = [];
+    private SemanaEmpresaDto? _empresaReclamacion;
     private IReadOnlyList<VencimientoCalendarioDto> _vencimientos = [];
     private IReadOnlyList<VisitaCalendarioDto> _visitas = [];
     private bool _cargando = true;
@@ -60,11 +67,12 @@ public partial class Calendario : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Una celda de la rejilla: los días de relleno de la primera y última semana llevan <see cref="DelMes"/> a false.</summary>
     private readonly record struct CeldaCalendario(DateOnly Fecha, bool DelMes);
 
-    private string TituloMes => Capitalizar(_mesActual.ToString("MMMM yyyy", Cultura));
+    private string TituloMes => Capitalizar((_vistaSemana ? _semanaActual : _mesActual).ToString("MMMM yyyy", Cultura));
 
     protected override Task OnInitializedAsync()
     {
         _mesActual = PrimeroDeMes(HoyEfectivo);
+        _semanaActual = Lunes(HoyEfectivo);
         return CargarAsync();
     }
 
@@ -77,6 +85,8 @@ public partial class Calendario : CaeManager.Web.Components.PaginaInteractiva
     {
         var version = ++_versionCarga;
         var mes = _mesActual;
+        var semana = _semanaActual;
+        var vistaSemana = _vistaSemana;
 
         _cargando = true;
         _error = false;
@@ -86,6 +96,14 @@ public partial class Calendario : CaeManager.Web.Components.PaginaInteractiva
         IReadOnlyList<VisitaCalendarioDto> visitas;
         try
         {
+            if (vistaSemana)
+            {
+                var empresas = await Mediator.Send(new ObtenerSemanaPorEmpresaQuery(semana));
+                if (version != _versionCarga) return;
+                _empresasSemana = empresas;
+                _cargando = false;
+                return;
+            }
             vencimientos = await Mediator.Send(new ObtenerVencimientosMesQuery(mes.Year, mes.Month));
             visitas = await Mediator.Send(new ObtenerVisitasParaCalendarioQuery(mes.Year, mes.Month));
         }
@@ -104,17 +122,42 @@ public partial class Calendario : CaeManager.Web.Components.PaginaInteractiva
     }
 
     private static DateOnly PrimeroDeMes(DateOnly fecha) => new(fecha.Year, fecha.Month, 1);
+    private static DateOnly Lunes(DateOnly fecha) => fecha.AddDays(-((int)fecha.DayOfWeek + 6) % 7);
+
+    private Task CambiarVistaAsync(bool semana)
+    {
+        _vistaSemana = semana;
+        _diaSeleccionado = null;
+        return CargarAsync();
+    }
+
+    private async Task CambiarVistaTecladoAsync(KeyboardEventArgs e, bool semana)
+    {
+        bool? destino = e.Key switch
+        {
+            "ArrowLeft" or "ArrowRight" => !semana,
+            "Home" => false,
+            "End" => true,
+            _ => null
+        };
+        if (destino is not { } nuevaVista) return;
+        var carga = CambiarVistaAsync(nuevaVista);
+        await (nuevaVista ? _tabSemana : _tabMes).FocusAsync();
+        await carga;
+    }
 
     private Task MesAnteriorAsync()
     {
-        _mesActual = _mesActual.AddMonths(-1);
+        if (_vistaSemana) _semanaActual = _semanaActual.AddDays(-7);
+        else _mesActual = _mesActual.AddMonths(-1);
         _diaSeleccionado = null;
         return CargarAsync();
     }
 
     private Task MesSiguienteAsync()
     {
-        _mesActual = _mesActual.AddMonths(1);
+        if (_vistaSemana) _semanaActual = _semanaActual.AddDays(7);
+        else _mesActual = _mesActual.AddMonths(1);
         _diaSeleccionado = null;
         return CargarAsync();
     }
@@ -122,6 +165,7 @@ public partial class Calendario : CaeManager.Web.Components.PaginaInteractiva
     private Task MesActualAsync()
     {
         _mesActual = PrimeroDeMes(HoyEfectivo);
+        _semanaActual = Lunes(HoyEfectivo);
         _diaSeleccionado = null;
         return CargarAsync();
     }

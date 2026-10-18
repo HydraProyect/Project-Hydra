@@ -1,3 +1,12 @@
+.contenedor-pagina { max-width: 1180px; }
+.contenedor-pagina ::deep .cabecera-pagina { align-items: flex-end; }
+.contenedor-pagina ::deep .titulo-pagina { font: 700 26px/32px var(--font-family); letter-spacing: -.01em; }
+
+.calendario-vistas { display: inline-flex; padding: 3px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-subtle); }
+.calendario-vistas button { padding: 6px 12px; border: 0; border-radius: 7px; background: transparent; color: var(--color-text); font: var(--font-label); cursor: pointer; }
+.calendario-vistas button[aria-selected="true"] { background: var(--color-surface); box-shadow: 0 0 0 1px var(--color-border); }
+.calendario-vistas button:focus-visible { outline: var(--border-focus); outline-offset: 2px; }
+
 .calendario-navegacion {
     display: flex;
     align-items: center;

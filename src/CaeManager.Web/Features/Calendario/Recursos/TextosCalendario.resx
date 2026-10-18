@@ -132,4 +132,21 @@
   <data name="FormatoFechaLarga" xml:space="preserve">
     <value>d 'de' MMMM 'de' yyyy</value>
   </data>
+  <data name="Acciones" xml:space="preserve"><value>Acciones</value></data>
+  <data name="BloqueaAccesoUno" xml:space="preserve"><value>{0} bloquea acceso</value></data>
+  <data name="BloqueaAccesoVarios" xml:space="preserve"><value>{0} bloquean acceso</value></data>
+  <data name="DocumentosSemana" xml:space="preserve"><value>{0} documentos esta semana</value></data>
+  <data name="DocumentosVencen" xml:space="preserve"><value>{0} documentos vencen · {1} · {2}</value></data>
+  <data name="EmpresaSemana" xml:space="preserve"><value>Empresa · semana del {0} al {1}</value></data>
+  <data name="Mes" xml:space="preserve"><value>Mes</value></data>
+  <data name="NadaVence" xml:space="preserve"><value>Nada vence</value></data>
+  <data name="ReclamadoHoy" xml:space="preserve"><value>reclamado hoy</value></data>
+  <data name="ReclamarDeNuevo" xml:space="preserve"><value>Reclamar de nuevo</value></data>
+  <data name="ReclamarTodos" xml:space="preserve"><value>Reclamar todos ({0})</value></data>
+  <data name="SemanaAnterior" xml:space="preserve"><value>Semana anterior</value></data>
+  <data name="SemanaPorEmpresa" xml:space="preserve"><value>Semana por Empresa</value></data>
+  <data name="SemanaSiguiente" xml:space="preserve"><value>Semana siguiente</value></data>
+  <data name="SemanaVaciaDetalle" xml:space="preserve"><value>No hay documentos con vencimiento de lunes a viernes en las Empresas que puedes ver.</value></data>
+  <data name="SemanaVaciaTitulo" xml:space="preserve"><value>Nada vence esta semana</value></data>
+  <data name="Vista" xml:space="preserve"><value>Vista</value></data>
 </root>

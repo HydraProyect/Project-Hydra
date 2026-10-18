@@ -7,6 +7,9 @@
 @using CaeManager.Web.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
+@using CaeManager.Web.Features.Calendario.Components
+@using CaeManager.Web.Features.Bandeja.Components
+@using CaeManager.Domain.Documentos
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
@@ -16,12 +19,18 @@
         <Acciones>
             @if (!_error)
             {
+                <div class="calendario-vistas" role="tablist" aria-label="@Textos["Vista"]">
+                    <button @ref="_tabMes" id="calendario-tab-mes" type="button" role="tab" aria-controls="calendario-panel" tabindex="@(_vistaSemana ? -1 : 0)" aria-selected="@(!_vistaSemana)"
+                            @onkeydown="e => CambiarVistaTecladoAsync(e, false)" @onclick="() => CambiarVistaAsync(false)">@Textos["Mes"]</button>
+                    <button @ref="_tabSemana" id="calendario-tab-semana" type="button" role="tab" aria-controls="calendario-panel" tabindex="@(_vistaSemana ? 0 : -1)" aria-selected="@_vistaSemana"
+                            @onkeydown="e => CambiarVistaTecladoAsync(e, true)" @onclick="() => CambiarVistaAsync(true)">@Textos["SemanaPorEmpresa"]</button>
+                </div>
                 <div class="calendario-navegacion">
-                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MesAnteriorAsync" aria-label="@Textos["MesAnterior"]">
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MesAnteriorAsync" aria-label="@Textos[_vistaSemana ? "SemanaAnterior" : "MesAnterior"]">
                         <span class="calendario-flecha-anterior"><Icono Nombre="siguiente" Tamano="TamanoIcono.Pequeno" /></span>
                     </Boton>
                     <span class="calendario-titulo-mes" aria-live="polite">@TituloMes</span>
-                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MesSiguienteAsync" aria-label="@Textos["MesSiguiente"]">
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MesSiguienteAsync" aria-label="@Textos[_vistaSemana ? "SemanaSiguiente" : "MesSiguiente"]">
                         <Icono Nombre="siguiente" Tamano="TamanoIcono.Pequeno" />
                     </Boton>
                 </div>
@@ -30,6 +39,7 @@
         </Acciones>
     </CabeceraPagina>
 
+    <div id="calendario-panel" role="tabpanel" aria-labelledby="@(_vistaSemana ? "calendario-tab-semana" : "calendario-tab-mes")">
     @if (_error)
     {
         <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
@@ -40,7 +50,12 @@
     }
     else if (_cargando)
     {
-        <EstadoCargando Filas="4" />
+        <EstadoCargando Filas="@(_vistaSemana ? 5 : 4)" />
+    }
+    else if (_vistaSemana)
+    {
+        <SemanaPorEmpresa Lunes="_semanaActual" Hoy="HoyEfectivo" Empresas="_empresasSemana"
+                          OnReclamar="empresa => _empresaReclamacion = empresa" />
     }
     else
     {
@@ -118,6 +133,7 @@
             <span>@Textos["LeyendaExplicacion"]</span>
         </div>
     }
+    </div>
 </div>
 
 <Modal Visible="@(_diaSeleccionado is not null)"
@@ -183,4 +199,12 @@
         }
     }
 </Modal>
+@if (_empresaReclamacion is { } empresa)
+{
+    <DrawerReclamacionLote @key="empresa.EmpresaId" Visible="true"
+                          VisibleChanged="v => { if (!v) _empresaReclamacion = null; }"
+                          AmbitosDisponibles="@(new[] { AmbitoAplicacion.Empresa, AmbitoAplicacion.Trabajador })"
+                          DocumentoIdsIniciales="@(empresa.Documentos.Select(d => d.DocumentoId).ToArray())"
+                          OnReclamacionEnviada="CargarAsync" />
+}
 </LimiteDeErrores>

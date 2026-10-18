@@ -381,4 +381,7 @@
   <data name="ReclamacionExtraNoCabe" xml:space="preserve">
     <value>Hi ha massa destinataris per registrar l'enviament: desmarqueu algun contacte o traieu algun correu afegit.</value>
   </data>
+  <data name="ReclamacionErrorPreparar" xml:space="preserve"><value>No hem pogut preparar la reclamació</value></data>
+  <data name="ReclamacionErrorPrepararDetalle" xml:space="preserve"><value>Torna-ho a provar en uns segons.</value></data>
+  <data name="ReclamacionReintentar" xml:space="preserve"><value>Torna-ho a provar</value></data>
 </root>
