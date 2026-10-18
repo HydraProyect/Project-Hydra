@@ -782,7 +782,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private IReadOnlyList<OpcionEstado> OpcionesFiltrosGuardados =>
         _filtrosGuardados.Select(f => new OpcionEstado(f.Id.ToString(), f.Nombre)).ToList();
 
-    /// <summary>«Guardar filtro» de «Más filtros»: abre el modal sin el error de un intento anterior.</summary>
+    /// <summary>«Guardar filtro» de la pastilla «Filtros guardados»: abre el modal sin el error de un intento anterior.</summary>
     private void AbrirGuardarFiltro()
     {
         _mensajeErrorFiltro = null;

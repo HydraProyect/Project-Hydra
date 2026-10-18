@@ -208,7 +208,7 @@
     {
         if (e.Key == "ArrowDown") Abrir(primerItem: true);
         else if (e.Key == "ArrowUp") Abrir(primerItem: false);
-        // Abierto sin ningún ítem habilitado (p. ej. «Más filtros» solo con «Guardar filtro»
+        // Abierto sin ningún ítem habilitado (p. ej. «Filtros guardados» solo con «Guardar filtro»
         // deshabilitado) el foco se queda en el disparador: Esc también cierra desde ahí.
         else if (e.Key == "Escape" && _abierto) Cerrar();
         return Task.CompletedTask;

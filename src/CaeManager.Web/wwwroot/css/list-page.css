@@ -232,7 +232,7 @@
     color: var(--color-text-muted);
 }
 
-/* «Más filtros»: rótulo de grupo y fila de un filtro guardado con su ✕. */
+/* «Filtros guardados»: rótulo de grupo y fila de un filtro guardado con su ✕. */
 .menu-filtros-titulo {
     padding: var(--space-1) var(--space-3);
     font: var(--font-caption);

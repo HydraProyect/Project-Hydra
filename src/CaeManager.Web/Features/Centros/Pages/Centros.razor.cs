@@ -44,7 +44,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Pastilla «Cliente»: Id del Cliente empresarial o vacío. Viaja en la URL como <c>cliente</c>.</summary>
     private string _clienteFiltro = string.Empty;
 
-    /// <summary>«Empresa» de «Más filtros»: Id de la Empresa o vacío. Viaja en la URL como <c>empresa</c>.</summary>
+    /// <summary>Pastilla «Empresa»: Id de la Empresa o vacío. Viaja en la URL como <c>empresa</c>.</summary>
     private string _empresaFiltro = string.Empty;
 
     private IReadOnlyList<OpcionEstado> _opcionesCliente = [];

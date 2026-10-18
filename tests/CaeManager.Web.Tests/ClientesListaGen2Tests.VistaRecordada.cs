@@ -154,7 +154,7 @@ public partial class ClientesListaGen2Tests
             q.OrdenarPor == nameof(ClienteListaDto.RazonSocial) && q.Descendente));
         NombresDeLasFilas(cut).Should().Equal("Refrielectric S.A.", "Frigoríficos Arcos S.A.");
 
-        // «Exportar esta vista» sale en el mismo orden que se ve, venga de un clic o de la URL.
+        // El icono de exportación conserva el mismo orden que se ve, venga de un clic o de la URL.
         cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href")
             .Should().StartWith("/clientes/exportar.xlsx?")
             .And.Contain($"orden={nameof(ClienteListaDto.RazonSocial)}").And.Contain("desc=true");

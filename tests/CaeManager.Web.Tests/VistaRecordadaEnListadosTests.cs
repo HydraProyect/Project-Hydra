@@ -652,7 +652,7 @@ public class VistaRecordadaEnListadosTests : BunitContext
         cut.WaitForAssertion(() => Ultima<ObtenerTrabajadoresQuery>().Should().Match<ObtenerTrabajadoresQuery>(q =>
             q.OrdenarPor == nameof(TrabajadorListaDto.Apellidos) && q.Descendente));
 
-        // «Exportar esta vista» sale en el mismo orden que se ve, venga de un clic o de la URL.
+        // El icono de exportación conserva el mismo orden que se ve, venga de un clic o de la URL.
         cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href")
             .Should().StartWith("/trabajadores/exportar.xlsx?")
             .And.Contain($"orden={nameof(TrabajadorListaDto.Apellidos)}").And.Contain("desc=true");

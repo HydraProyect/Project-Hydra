@@ -337,4 +337,26 @@ public class BarraFiltrosTests : BunitContext
         await chips.QuerySelector("button.limpiar-filtros-barra")!.ClickAsync(new MouseEventArgs());
         limpiezas.Should().Be(1);
     }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Guardar_filtro_en_pastilla_solo_se_habilita_con_delegado(bool tieneDelegado)
+    {
+        var guardados = 0;
+        var cut = RenderizarConPastillas(p =>
+        {
+            p.Add(b => b.HayFiltrosActivos, true);
+            if (tieneDelegado)
+                p.Add(b => b.OnGuardarFiltro, () => guardados++);
+        });
+
+        var pastilla = cut.Find("button[aria-label='Filtros guardados']");
+        await pastilla.ClickAsync(new MouseEventArgs());
+        var guardar = cut.FindAll("[role=menu] [role=menuitem]")
+            .Single(i => i.TextContent.Trim() == "Guardar filtro");
+        guardar.HasAttribute("disabled").Should().Be(!tieneDelegado);
+        await guardar.ClickAsync(new MouseEventArgs());
+        guardados.Should().Be(tieneDelegado ? 1 : 0);
+    }
+
 }

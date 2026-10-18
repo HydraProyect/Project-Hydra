@@ -141,6 +141,7 @@ public partial class VisitasGen2Tests
         }
         finally
         {
+            cut.WaitForAssertion(() => mediador.CargasPendientes.Should().ContainSingle());
             await cut.InvokeAsync(() => mediador.CargasPendientes.Single().Respuesta.SetResult(Pagina()));
         }
         ComprobacionPieListado.Vacio(cut);

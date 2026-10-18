@@ -139,7 +139,7 @@ public partial class DocumentosGen2Tests
         cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().Contain("orden", "tipo-desc"));
     }
 
-    /// <summary>«Exportar esta vista» sale en el mismo orden que se ve, venga de un clic o de la URL.</summary>
+    /// <summary>El icono de exportación conserva el mismo orden que se ve, venga de un clic o de la URL.</summary>
     [Fact]
     public void El_orden_de_la_url_viaja_tambien_en_exportar_esta_vista()
     {

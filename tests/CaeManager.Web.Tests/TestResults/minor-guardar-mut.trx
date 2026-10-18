@@ -1,0 +1,71 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="7760e9cf-d807-4a90-a8da-69b3b1746a9f" name="chris@CHRIS 2026-10-14 17:15:33" runUser="CHRIS\chris" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-14T17:15:33.6618616+02:00" queuing="2026-10-14T17:15:33.6618619+02:00" start="2026-10-14T17:15:31.8044244+02:00" finish="2026-10-14T17:15:33.7543434+02:00" />
+  <TestSettings name="default" id="e88599fa-2e61-4045-9014-a01d88b18abb">
+    <Deployment runDeploymentRoot="chris_CHRIS_2026-10-14_17_15_33" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="e1279c74-644e-4d48-a112-f763ace7189e" testId="b1383c76-2f55-e2c5-ee99-67be3351e82b" testName="CaeManager.Web.Tests.BarraFiltrosTests.Guardar_filtro_en_pastilla_solo_se_habilita_con_delegado(tieneDelegado: False)" computerName="CHRIS" duration="00:00:00.0803135" startTime="2026-10-14T17:15:33.6034474+02:00" endTime="2026-10-14T17:15:33.6770872+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e1279c74-644e-4d48-a112-f763ace7189e">
+      <Output>
+        <ErrorInfo>
+          <Message>Expected guardar.HasAttribute("disabled") to be True, but found False.</Message>
+          <StackTrace>   at FluentAssertions.Execution.LateBoundTestFramework.Throw(String message)&#xD;
+   at FluentAssertions.Execution.TestFrameworkProvider.Throw(String message)&#xD;
+   at FluentAssertions.Execution.DefaultAssertionStrategy.HandleFailure(String message)&#xD;
+   at FluentAssertions.Execution.AssertionScope.FailWith(Func`1 failReasonFunc)&#xD;
+   at FluentAssertions.Execution.AssertionScope.FailWith(Func`1 failReasonFunc)&#xD;
+   at FluentAssertions.Execution.AssertionScope.FailWith(String message, Object[] args)&#xD;
+   at FluentAssertions.Primitives.BooleanAssertions`1.Be(Boolean expected, String because, Object[] becauseArgs)&#xD;
+   at CaeManager.Web.Tests.BarraFiltrosTests.Guardar_filtro_en_pastilla_solo_se_habilita_con_delegado(Boolean tieneDelegado) in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-limpieza-menor\tests\CaeManager.Web.Tests\BarraFiltrosTests.cs:line 357&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="91c7f6e1-aa51-4c80-b261-5a74c15c6d62" testId="cebdb339-dc5a-df13-c15b-04a90fe98723" testName="CaeManager.Web.Tests.BarraFiltrosTests.Guardar_filtro_en_pastilla_solo_se_habilita_con_delegado(tieneDelegado: True)" computerName="CHRIS" duration="00:00:00.4417206" startTime="2026-10-14T17:15:33.1460640+02:00" endTime="2026-10-14T17:15:33.5941790+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="91c7f6e1-aa51-4c80-b261-5a74c15c6d62" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="CaeManager.Web.Tests.BarraFiltrosTests.Guardar_filtro_en_pastilla_solo_se_habilita_con_delegado(tieneDelegado: False)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-limpieza-menor\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="b1383c76-2f55-e2c5-ee99-67be3351e82b">
+      <Execution id="e1279c74-644e-4d48-a112-f763ace7189e" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-limpieza-menor\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.BarraFiltrosTests" name="Guardar_filtro_en_pastilla_solo_se_habilita_con_delegado" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.BarraFiltrosTests.Guardar_filtro_en_pastilla_solo_se_habilita_con_delegado(tieneDelegado: True)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-limpieza-menor\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="cebdb339-dc5a-df13-c15b-04a90fe98723">
+      <Execution id="91c7f6e1-aa51-4c80-b261-5a74c15c6d62" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-limpieza-menor\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.BarraFiltrosTests" name="Guardar_filtro_en_pastilla_solo_se_habilita_con_delegado" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="b1383c76-2f55-e2c5-ee99-67be3351e82b" executionId="e1279c74-644e-4d48-a112-f763ace7189e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="cebdb339-dc5a-df13-c15b-04a90fe98723" executionId="91c7f6e1-aa51-4c80-b261-5a74c15c6d62" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Resultados sin formato de lista" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="Todos los resultados cargados" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="2" executed="2" passed="1" failed="1" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.5+1b188a7b0a (64-bit .NET 10.0.10)&#xD;
+[xUnit.net 00:00:00.28]   Discovering: CaeManager.Web.Tests&#xD;
+[xUnit.net 00:00:00.92]   Discovered:  CaeManager.Web.Tests&#xD;
+[xUnit.net 00:00:00.96]   Starting:    CaeManager.Web.Tests&#xD;
+[xUnit.net 00:00:01.51]       Expected guardar.HasAttribute("disabled") to be True, but found False.&#xD;
+[xUnit.net 00:00:01.51]       Stack Trace:&#xD;
+[xUnit.net 00:00:01.51]            at FluentAssertions.Execution.LateBoundTestFramework.Throw(String message)&#xD;
+[xUnit.net 00:00:01.51]            at FluentAssertions.Execution.TestFrameworkProvider.Throw(String message)&#xD;
+[xUnit.net 00:00:01.51]            at FluentAssertions.Execution.DefaultAssertionStrategy.HandleFailure(String message)&#xD;
+[xUnit.net 00:00:01.51]            at FluentAssertions.Execution.AssertionScope.FailWith(Func`1 failReasonFunc)&#xD;
+[xUnit.net 00:00:01.51]            at FluentAssertions.Execution.AssertionScope.FailWith(Func`1 failReasonFunc)&#xD;
+[xUnit.net 00:00:01.51]            at FluentAssertions.Execution.AssertionScope.FailWith(String message, Object[] args)&#xD;
+[xUnit.net 00:00:01.51]            at FluentAssertions.Primitives.BooleanAssertions`1.Be(Boolean expected, String because, Object[] becauseArgs)&#xD;
+[xUnit.net 00:00:01.51]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-limpieza-menor\tests\CaeManager.Web.Tests\BarraFiltrosTests.cs(357,0): at CaeManager.Web.Tests.BarraFiltrosTests.Guardar_filtro_en_pastilla_solo_se_habilita_con_delegado(Boolean tieneDelegado)&#xD;
+[xUnit.net 00:00:01.51]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.51]   Finished:    CaeManager.Web.Tests&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="CHRIS" outcome="Error" timestamp="2026-10-14T17:15:33.6794850+02:00">
+        <Text>[xUnit.net 00:00:01.51]     CaeManager.Web.Tests.BarraFiltrosTests.Guardar_filtro_en_pastilla_solo_se_habilita_con_delegado(tieneDelegado: False) [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

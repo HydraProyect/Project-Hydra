@@ -4,10 +4,10 @@ using Microsoft.Playwright;
 namespace CaeManager.E2ETests;
 
 /// <summary>
-/// Las dos entradas de exportación de los listados (decisión D2 del 2026-10-08),
+/// El icono de exportación de la vista y la entrada «Exportar todo» de los listados,
 /// con la aplicación real: routing, enlace de los parámetros de consulta,
 /// autorización y Tenant de la sesión. «Exportar todo» va sin criterios;
-/// «Exportar esta vista» lleva al endpoint los de la pantalla, y el endpoint los
+/// El icono lleva al endpoint los de la pantalla, y el endpoint los
 /// pasa a la misma consulta del listado.
 ///
 /// <para>
