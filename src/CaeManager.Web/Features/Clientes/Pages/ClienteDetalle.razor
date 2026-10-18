@@ -390,10 +390,9 @@
                     </ChildContent>
                 </Tarjeta>
 
-                @*
-                    Sin dibujar (no hay modelo, ver el .razor.cs): «Plataforma CAE» (plataforma del Cliente empresarial, código de
-                    cliente y credenciales cifradas de cada Empresa).
-                *@
+                @* «Plataforma CAE»: lee después de la fila «Gestor CAE» (mismo DbContext); al Usuario de Cliente no se le pinta. *@
+                <CaeManager.Web.Features.Clientes.Components.CajaPlataformaCaeCliente ClienteEmpresarialId="ClienteId"
+                    Cargar="_plataformaCaeHabilitada" AlCargar="PlataformaCaeCargada" />
 
                 @*
                     «Notas» es una sola columna (ClienteDetalleDto.Notas): la

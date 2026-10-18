@@ -270,6 +270,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IEmpresaRepository, EmpresaRepository>();
         services.AddScoped<ICredencialAccesoEmpresaRepository, CredencialAccesoEmpresaRepository>();
         services.AddScoped<ICatalogoTrabajadoresEmpresaRepository, CatalogoTrabajadoresEmpresaRepository>();
+        services.AddScoped<IPlataformaCaeClienteEmpresarialRepository, PlataformaCaeClienteEmpresarialRepository>();
         services.AddScoped<IVerificacionExternaSubcontrataRepository, VerificacionExternaSubcontrataRepository>();
         services.AddScoped<IRelacionEmpresarialRepository, RelacionEmpresarialRepository>();
         services.AddScoped<CaeManager.Application.RelacionesEmpresariales.IGuardDeCierreDeArista,

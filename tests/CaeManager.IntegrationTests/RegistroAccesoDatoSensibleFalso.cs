@@ -15,4 +15,7 @@ public class RegistroAccesoDatoSensibleFalso : IRegistroAccesoDatoSensibleServic
         Registrados.Add((entidadTipo, entidadId));
         return Task.CompletedTask;
     }
+
+    public Task RegistrarLecturaAsync(string entidadTipo, Guid entidadId, string datoLeido, CancellationToken cancellationToken = default) =>
+        RegistrarAsync(entidadTipo, entidadId, cancellationToken);
 }

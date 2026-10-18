@@ -32,4 +32,13 @@ public interface IRegistroAccesoDatoSensibleService
     /// <param name="entidadId">Id de la fila leída, para que la lectura aparezca junto a sus altas y cambios.</param>
     /// <param name="cancellationToken">Cancelación.</param>
     Task RegistrarAsync(string entidadTipo, Guid entidadId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Como <see cref="RegistrarAsync"/>, cuando una misma fila guarda más de un dato sensible y la
+    /// auditoría tiene que distinguir cuál se leyó (por ejemplo, listar el usuario de un acceso
+    /// frente a revelar su contraseña). El nombre del dato va en <c>DatosDespues</c>
+    /// (<c>{"DatoLeido":"…"}</c>); nunca su valor.
+    /// </summary>
+    /// <param name="datoLeido">Nombre de la propiedad leída, p. ej. <c>nameof(AccesoPlataformaCaeEmpresa.Usuario)</c>.</param>
+    Task RegistrarLecturaAsync(string entidadTipo, Guid entidadId, string datoLeido, CancellationToken cancellationToken = default);
 }

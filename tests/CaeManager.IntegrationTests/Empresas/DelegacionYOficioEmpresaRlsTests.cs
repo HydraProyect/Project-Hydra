@@ -24,7 +24,7 @@ public class DelegacionYOficioEmpresaRlsTests : IAsyncLifetime
 {
     private const string MigracionAnterior = "20261018182902_AnadeContactoEmergenciaATrabajador";
 
-    private readonly string _cadena = BaseDatosPostgresDePruebas.CadenaConexionUnica();
+    private readonly string _cadena = BaseDatosPostgresDePruebas.CadenaConexionDeBaseVacia();
     private readonly Guid _tenantA = Guid.NewGuid();
     private readonly Guid _tenantB = Guid.NewGuid();
     private Guid _empresaA;

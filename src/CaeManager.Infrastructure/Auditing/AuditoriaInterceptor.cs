@@ -35,8 +35,8 @@ namespace CaeManager.Infrastructure.Auditing;
 ///
 /// 1. Secretos cifrados por ValueConverter en CaeManagerDbContext
 ///    (CanalGestionDocumental, CredencialAccesoEmpresa,
-///    CredencialAccesoSubcontrata, CredencialIntegracion, SuscripcionWebhook,
-///    LineaWhatsApp): nunca deben quedar en texto plano en el historial (ver
+///    CredencialAccesoSubcontrata, AccesoPlataformaCaeEmpresa,
+///    CredencialIntegracion, SuscripcionWebhook, LineaWhatsApp): nunca deben quedar en texto plano en el historial (ver
 ///    Project-Hydra-Negocio/tecnico/DATABASE.md). Esta lista debe crecer junto con cualquier propiedad
 ///    nueva que se cifre en reposo — el cifrado en la BD no protege el
 ///    historial de auditoría, que lee el valor plano directamente del
@@ -132,6 +132,7 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         [typeof(CanalGestionDocumental)] = [nameof(CanalGestionDocumental.Usuario), nameof(CanalGestionDocumental.Contrasena)],
         [typeof(CredencialAccesoEmpresa)] = [nameof(CredencialAccesoEmpresa.Usuario), nameof(CredencialAccesoEmpresa.Contrasena)],
         [typeof(CredencialAccesoSubcontrata)] = [nameof(CredencialAccesoSubcontrata.Usuario), nameof(CredencialAccesoSubcontrata.Contrasena)],
+        [typeof(AccesoPlataformaCaeEmpresa)] = [nameof(AccesoPlataformaCaeEmpresa.Usuario), nameof(AccesoPlataformaCaeEmpresa.Contrasena)],
         [typeof(CredencialIntegracion)] = [nameof(CredencialIntegracion.RefreshToken), nameof(CredencialIntegracion.AccessToken)],
         [typeof(SuscripcionWebhook)] = [nameof(SuscripcionWebhook.ClientState)],
         [typeof(LineaWhatsApp)] = [nameof(LineaWhatsApp.TokenAcceso)],
