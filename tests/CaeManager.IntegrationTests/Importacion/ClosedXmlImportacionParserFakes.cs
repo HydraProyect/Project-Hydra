@@ -32,6 +32,8 @@ internal sealed class EmpresasQueryContextFalso : IEmpresasQueryContext
 
     public IQueryable<Empresa> Empresas => new TestAsyncQueryable<Empresa>(ListaEmpresas.AsQueryable());
     public IQueryable<CredencialAccesoEmpresa> CredencialesAccesoEmpresa => new TestAsyncQueryable<CredencialAccesoEmpresa>(Enumerable.Empty<CredencialAccesoEmpresa>().AsQueryable());
+    public IQueryable<PlataformaCaeClienteEmpresarial> PlataformasCaeClienteEmpresarial => new TestAsyncQueryable<PlataformaCaeClienteEmpresarial>(Enumerable.Empty<PlataformaCaeClienteEmpresarial>().AsQueryable());
+    public IQueryable<AccesoPlataformaCaeEmpresa> AccesosPlataformaCaeEmpresa => new TestAsyncQueryable<AccesoPlataformaCaeEmpresa>(Enumerable.Empty<AccesoPlataformaCaeEmpresa>().AsQueryable());
     public IQueryable<RelacionEmpresarial> RelacionesEmpresariales => new TestAsyncQueryable<RelacionEmpresarial>(Enumerable.Empty<RelacionEmpresarial>().AsQueryable());
 }
 

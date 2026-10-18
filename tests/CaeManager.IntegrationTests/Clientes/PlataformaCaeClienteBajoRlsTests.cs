@@ -1,0 +1,354 @@
+using CaeManager.Application.Auditoria;
+using CaeManager.Application.Clientes.Queries.RevelarContrasenaAccesoPlataformaCae;
+using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma;
+using CaeManager.Domain.Auditoria;
+using CaeManager.Domain.Empresas;
+using CaeManager.Domain.RelacionesEmpresariales;
+using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Auditing;
+using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.MultiTenancy;
+using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Interceptors;
+using CaeManager.Infrastructure.Persistence.Repositories;
+using FluentAssertions;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
+using Xunit;
+
+namespace CaeManager.IntegrationTests.Clientes;
+
+/// <summary>
+/// Caja «Plataforma CAE» de Cliente 360 bajo la base real (decisión del 2026-10-18): la plataforma de cada Cliente
+/// empresarial y el acceso de cada Empresa a ella, leídos y escritos <b>como <c>cae_app_runtime</c></b> con los
+/// interceptores de auditoría, sellado y sesión RLS de producción (mismo arnés que
+/// <c>NotaInternaDeEmpresaBajoRlsTests</c>). Dos Tenants propietarios, cada uno con su Cliente empresarial, su Empresa
+/// propia que trabaja para él (Relación Empresarial vigente), su plataforma y su acceso; la sesión es del primero.
+/// Lo que se mide: RLS oculta las filas del Tenant ajeno aunque se ignore el filtro global de EF; usuario y contraseña
+/// se guardan cifrados en la columna y la auditoría de un cambio los enmascara; «Revelar» entrega la propia y deja la
+/// fila <c>AccesoDatoSensible</c>, y sobre los identificadores del Tenant ajeno no entrega nada ni deja rastro; y el
+/// rol de soporte no tiene SELECT sobre los accesos. La siembra va como propietario de la base, porque no es lo que se
+/// mide. Un único proveedor de Data Protection para todos los contextos, para que lo cifrado por uno lo descifre otro.
+/// </summary>
+public class PlataformaCaeClienteBajoRlsTests : IAsyncLifetime
+{
+    private const string UsuarioPropio = "b12345674-propio";
+    private const string ContrasenaPropia = "s3cr3ta-del-portal-propio";
+    private const string ContrasenaAjena = "s3cr3ta-del-portal-ajeno";
+
+    private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
+    private readonly IDataProtectionProvider _proteccion = new EphemeralDataProtectionProvider();
+    private readonly ActorAuditoriaFalso _actor = new(ActorAuditoria.Normal(Guid.NewGuid()));
+    private CaeManagerDbContext _propietario = null!;
+    private TenantActualDeLaPeticion _tenantDeLaPeticion = null!;
+    private Guid _tenantSesion;
+    private Guid _tenantAjeno;
+    private Sembrado _propio = null!;
+    private Sembrado _ajeno = null!;
+
+    public async Task InitializeAsync()
+    {
+        var tenantPorAmbito = new TenantActualPorAmbito();
+        var opcionesPropietario = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(new TenantSelladoInterceptor(tenantPorAmbito))
+            .Options;
+        _propietario = new CaeManagerDbContext(opcionesPropietario, _proteccion, tenantPorAmbito);
+        await _propietario.Database.MigrateAsync();
+
+        var tenantSesion = new Tenant("Tenant propietario de la sesión");
+        var tenantAjeno = new Tenant("Tenant propietario ajeno");
+        _propietario.Tenants.AddRange(tenantSesion, tenantAjeno);
+        await _propietario.SaveChangesAsync();
+        _tenantSesion = tenantSesion.Id;
+        _tenantAjeno = tenantAjeno.Id;
+
+        _propio = await SembrarAsync(_tenantSesion, "Springfield", UsuarioPropio, ContrasenaPropia);
+        _ajeno = await SembrarAsync(_tenantAjeno, "Shelbyville", "usuario-ajeno", ContrasenaAjena);
+
+        _tenantDeLaPeticion = new TenantActualDeLaPeticion(_tenantSesion);
+    }
+
+    public async Task DisposeAsync()
+    {
+        await _propietario.DisposeAsync();
+        await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
+    }
+
+    /// <summary>Control del instrumento y de RLS: sin filtro global de EF, solo RLS puede ocultar las filas ajenas.</summary>
+    [Fact]
+    public async Task Bajo_RLS_el_Tenant_de_la_sesion_ve_su_plataforma_y_su_acceso_y_no_los_del_Tenant_ajeno()
+    {
+        await using var runtime = CrearRuntime(Roles.GestorCae);
+
+        (await runtime.PlataformasCaeClienteEmpresarial.IgnoreQueryFilters().CountAsync(p => p.ClienteEmpresarialId == _ajeno.ClienteEmpresarialId))
+            .Should().Be(0, "la plataforma del Tenant ajeno no la ve RLS");
+        (await runtime.AccesosPlataformaCaeEmpresa.IgnoreQueryFilters().CountAsync(a => a.EmpresaId == _ajeno.EmpresaId))
+            .Should().Be(0, "el acceso del Tenant ajeno no lo ve RLS");
+
+        (await runtime.PlataformasCaeClienteEmpresarial.IgnoreQueryFilters().CountAsync(p => p.ClienteEmpresarialId == _propio.ClienteEmpresarialId))
+            .Should().Be(1, "control positivo: la plataforma del Tenant de la sesión sí se ve");
+        (await runtime.AccesosPlataformaCaeEmpresa.IgnoreQueryFilters().CountAsync(a => a.EmpresaId == _propio.EmpresaId))
+            .Should().Be(1, "control positivo: el acceso del Tenant de la sesión sí se ve");
+        (await _propietario.AccesosPlataformaCaeEmpresa.IgnoreQueryFilters().CountAsync(a => a.EmpresaId == _ajeno.EmpresaId))
+            .Should().Be(1, "las filas ajenas existen: el cero de arriba no es una base vacía");
+    }
+
+    [Fact]
+    public async Task Usuario_y_contrasena_se_guardan_cifrados_y_el_contexto_los_descifra()
+    {
+        var columnas = await _propietario.Database
+            .SqlQueryRaw<ColumnasCifradas>(
+                """SELECT "Usuario" AS "Usuario", "Contrasena" AS "Contrasena" FROM "AccesosPlataformaCaeEmpresa" WHERE "EmpresaId" = {0}""",
+                _propio.EmpresaId)
+            .SingleAsync();
+
+        columnas.Contrasena.Should().NotBeNullOrEmpty();
+        columnas.Contrasena.Should().NotContain(ContrasenaPropia, "la contraseña no puede quedar en claro en la base");
+        columnas.Usuario.Should().NotBeNullOrEmpty();
+        columnas.Usuario.Should().NotContain(UsuarioPropio, "el usuario del portal tampoco");
+
+        await using var runtime = CrearRuntime(Roles.GestorCae);
+        var acceso = await runtime.AccesosPlataformaCaeEmpresa.SingleAsync(a => a.EmpresaId == _propio.EmpresaId);
+        acceso.Contrasena.Should().Be(ContrasenaPropia, "control positivo: la aplicación sí la descifra");
+        acceso.Usuario.Should().Be(UsuarioPropio);
+    }
+
+    [Fact]
+    public async Task La_auditoria_de_un_cambio_de_acceso_enmascara_usuario_y_contrasena()
+    {
+        const string ContrasenaNueva = "otra-s3cr3ta-nueva";
+        const string UsuarioNuevo = "usuario-nuevo-del-portal";
+
+        await using (var runtime = CrearRuntime(Roles.GestorCae))
+        {
+            var acceso = await runtime.AccesosPlataformaCaeEmpresa.SingleAsync(a => a.Id == _propio.AccesoId);
+            acceso.CambiarUsuario(UsuarioNuevo);
+            acceso.CambiarContrasena(ContrasenaNueva, Guid.NewGuid(), DateTime.UtcNow);
+            await runtime.SaveChangesAsync();
+        }
+
+        var registro = await _propietario.RegistrosAuditoria.IgnoreQueryFilters()
+            .Where(r => r.EntidadTipo == nameof(AccesoPlataformaCaeEmpresa) && r.EntidadId == _propio.AccesoId && r.Accion == "Modificado")
+            .OrderByDescending(r => r.FechaUtc)
+            .FirstAsync();
+
+        registro.DatosDespues.Should().Contain("Contrasena").And.Contain("***");
+        registro.DatosDespues.Should().NotContain(ContrasenaNueva, "la auditoría no puede ser una copia en claro del secreto");
+        registro.DatosDespues.Should().NotContain(UsuarioNuevo);
+        (registro.DatosAntes ?? string.Empty).Should().NotContain(ContrasenaPropia).And.NotContain(UsuarioPropio);
+    }
+
+    [Fact]
+    public async Task Revelar_la_contrasena_propia_la_entrega_y_deja_la_fila_AccesoDatoSensible()
+    {
+        await using (var runtime = CrearRuntime(Roles.Administrador))
+        {
+            var revelada = await CrearRevelar(runtime, Roles.Administrador).Handle(
+                new RevelarContrasenaAccesoPlataformaCaeQuery(_propio.ClienteEmpresarialId, _propio.EmpresaId), CancellationToken.None);
+
+            revelada.Should().Be(new ContrasenaAccesoPlataformaCaeDto(ContrasenaPropia),
+                "control positivo: sin él, el null de la ajena no probaría nada");
+        }
+
+        var registros = await _propietario.RegistrosAuditoria.IgnoreQueryFilters()
+            .Where(r => r.EntidadId == _propio.AccesoId && r.Accion == RegistroAuditoria.AccionAccesoDatoSensible)
+            .ToListAsync();
+        registros.Should().ContainSingle().Which.EntidadTipo.Should().Be(nameof(AccesoPlataformaCaeEmpresa));
+        registros[0].TenantId.Should().Be(_tenantSesion, "el acceso se audita en el Tenant propietario");
+        (registros[0].DatosDespues ?? string.Empty).Should().NotContain(ContrasenaPropia);
+    }
+
+    /// <summary>
+    /// El contexto lleva el filtro global de EF abierto al Tenant ajeno, mientras la sesión RLS de la conexión es la del
+    /// Tenant de la sesión: si la contraseña ajena no sale, no es por el filtro de EF, sino porque RLS oculta las filas.
+    /// </summary>
+    [Fact]
+    public async Task Revelar_con_el_filtro_de_EF_abierto_al_Tenant_ajeno_no_entrega_nada_ni_audita_porque_RLS_oculta_las_filas()
+    {
+        await using (var runtime = CrearRuntime(Roles.Administrador, tenantDelFiltroDeEf: _tenantAjeno))
+        {
+            (await runtime.AccesosPlataformaCaeEmpresa.CountAsync(a => a.Id == _ajeno.AccesoId)).Should().Be(0,
+                "con el filtro de EF apuntando al Tenant ajeno, solo RLS puede ocultar su acceso");
+            (await runtime.AccesosPlataformaCaeEmpresa.IgnoreQueryFilters().CountAsync(a => a.Id == _propio.AccesoId)).Should().Be(1,
+                "control del instrumento: la conexión responde y ve las filas del Tenant de la sesión");
+
+            var ajena = await CrearRevelar(runtime, Roles.Administrador).Handle(
+                new RevelarContrasenaAccesoPlataformaCaeQuery(_ajeno.ClienteEmpresarialId, _ajeno.EmpresaId), CancellationToken.None);
+
+            ajena.Should().BeNull();
+        }
+
+        (await _propietario.RegistrosAuditoria.IgnoreQueryFilters()
+                .CountAsync(r => r.EntidadId == _ajeno.AccesoId && r.Accion == RegistroAuditoria.AccionAccesoDatoSensible))
+            .Should().Be(0, "lo que no se entrega no se audita como leído");
+    }
+
+    [Fact]
+    public async Task El_rol_de_soporte_no_tiene_SELECT_sobre_los_accesos_y_si_sobre_la_plataforma()
+    {
+        var sobreAccesos = await _propietario.Database
+            .SqlQueryRaw<bool>("""SELECT has_table_privilege('cae_app_soporte', '"AccesosPlataformaCaeEmpresa"', 'SELECT') AS "Value" """)
+            .SingleAsync();
+        var sobrePlataforma = await _propietario.Database
+            .SqlQueryRaw<bool>("""SELECT has_table_privilege('cae_app_soporte', '"PlataformasCaeClienteEmpresarial"', 'SELECT') AS "Value" """)
+            .SingleAsync();
+
+        sobreAccesos.Should().BeFalse("las credenciales de portal de un Tenant no las lee Soporte TALVEG");
+        sobrePlataforma.Should().BeTrue("control positivo: la plataforma (sin secretos) sí entra en la lectura de soporte");
+    }
+
+    private RevelarContrasenaAccesoPlataformaCaeQueryHandler CrearRevelar(CaeManagerDbContext runtime, string rol) => new(
+        runtime,
+        Alcance(runtime, rol),
+        new RegistroAccesoDatoSensibleService(
+            _actor, new RegistroAccesoDatoSensibleRepository(runtime, NullLogger<RegistroAccesoDatoSensibleRepository>.Instance)));
+
+    private AlcanceDatosService Alcance(CaeManagerDbContext contexto, string rol) => new(
+        contexto, new CurrentUserServiceFalso(Guid.NewGuid(), rol, tenantOrigenId: _tenantSesion),
+        _tenantDeLaPeticion, new SesionPrivilegiadaAusente());
+
+    private async Task<Sembrado> SembrarAsync(Guid tenantId, string sufijo, string usuario, string contrasena)
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
+        var cliente = Empresa.CrearComoCliente($"Cliente empresarial {sufijo}", "B10380392", false, null, null);
+        var empresa = new Empresa($"Montajes {sufijo}", "B12345674");
+        _propietario.Empresas.AddRange(cliente, empresa);
+        _propietario.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(empresa.Id, cliente.Id, DateTime.UtcNow));
+        await _propietario.SaveChangesAsync();
+
+        var acceso = new AccesoPlataformaCaeEmpresa(cliente.Id, empresa.Id);
+        acceso.CambiarUsuario(usuario);
+        acceso.CambiarContrasena(contrasena, null, new DateTime(2026, 10, 18, 9, 0, 0, DateTimeKind.Utc));
+        _propietario.PlataformasCaeClienteEmpresarial.Add(
+            new PlataformaCaeClienteEmpresarial(cliente.Id, "Nalanda", "https://portal.example/acceso", "CLI-" + sufijo));
+        _propietario.AccesosPlataformaCaeEmpresa.Add(acceso);
+        await _propietario.SaveChangesAsync();
+        return new Sembrado(cliente.Id, empresa.Id, acceso.Id);
+    }
+
+    [Fact]
+    public async Task Escribir_bajo_RLS_una_fila_con_el_TenantId_ajeno_falla_por_WITH_CHECK()
+    {
+        await using var runtime = CrearRuntime(Roles.GestorCae);
+        const string Insertar =
+            """INSERT INTO "AccesosPlataformaCaeEmpresa" ("Id", "ClienteEmpresarialId", "EmpresaId", "TenantId") VALUES ({0}, {1}, {2}, {3})""";
+
+        var ajena = () => runtime.Database.ExecuteSqlRawAsync(
+            Insertar, Guid.NewGuid(), _ajeno.EmpresaId, _ajeno.ClienteEmpresarialId, _tenantAjeno);
+
+        (await ajena.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+
+        // Control positivo: la misma sentencia con el Tenant de la sesión y sus Empresas sí entra.
+        (await runtime.Database.ExecuteSqlRawAsync(
+            Insertar, Guid.NewGuid(), _propio.EmpresaId, _propio.ClienteEmpresarialId, _tenantSesion)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Un_acceso_que_apunta_a_una_Empresa_de_otro_Tenant_falla_por_la_FK_compuesta()
+    {
+        await using var runtime = CrearRuntime(Roles.GestorCae);
+
+        var cruzada = () => runtime.Database.ExecuteSqlRawAsync(
+            """INSERT INTO "AccesosPlataformaCaeEmpresa" ("Id", "ClienteEmpresarialId", "EmpresaId", "TenantId") VALUES ({0}, {1}, {2}, {3})""",
+            Guid.NewGuid(), _ajeno.ClienteEmpresarialId, _propio.EmpresaId, _tenantSesion);
+
+        (await cruzada.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.ForeignKeyViolation,
+            "la FK (TenantId, ClienteEmpresarialId) no admite un Cliente empresarial de otro Tenant aunque el TenantId sea el propio");
+    }
+
+    [Fact]
+    public async Task La_auditoria_del_alta_de_un_acceso_enmascara_usuario_y_contrasena()
+    {
+        const string UsuarioAlta = "usuario-del-alta";
+        const string ContrasenaAlta = "s3cr3ta-del-alta";
+        Guid accesoId;
+
+        await using (var runtime = CrearRuntime(Roles.GestorCae))
+        {
+            // Las dos Empresas del Tenant de la sesión con los papeles cruzados: una combinación nueva, sin chocar con el índice único.
+            var acceso = new AccesoPlataformaCaeEmpresa(_propio.EmpresaId, _propio.ClienteEmpresarialId);
+            acceso.CambiarUsuario(UsuarioAlta);
+            acceso.CambiarContrasena(ContrasenaAlta, Guid.NewGuid(), DateTime.UtcNow);
+            runtime.AccesosPlataformaCaeEmpresa.Add(acceso);
+            await runtime.SaveChangesAsync();
+            accesoId = acceso.Id;
+        }
+
+        var registro = await _propietario.RegistrosAuditoria.IgnoreQueryFilters()
+            .Where(r => r.EntidadId == accesoId && r.Accion != RegistroAuditoria.AccionAccesoDatoSensible)
+            .SingleAsync();
+        registro.DatosDespues.Should().Contain("Contrasena").And.Contain("***");
+        registro.DatosDespues.Should().NotContain(ContrasenaAlta, "el alta tampoco deja el secreto en claro");
+        registro.DatosDespues.Should().NotContain(UsuarioAlta);
+    }
+
+    [Fact]
+    public async Task Una_segunda_plataforma_para_el_mismo_Cliente_empresarial_se_traduce_en_conflicto_y_no_queda_pendiente()
+    {
+        await using var runtime = CrearRuntime(Roles.GestorCae);
+        var repositorio = new PlataformaCaeClienteEmpresarialRepository(runtime);
+
+        repositorio.AgregarPlataforma(new PlataformaCaeClienteEmpresarial(_propio.ClienteEmpresarialId, "Dokify", null, null));
+
+        (await repositorio.GuardarCambiosAsync()).Should().BeFalse("el índice único por (Tenant, Cliente empresarial) gana la carrera");
+        runtime.ChangeTracker.Entries().Should().NotContain(e => e.State == EntityState.Added);
+    }
+
+    private CaeManagerDbContext CrearRuntime(string rol, Guid? tenantDelFiltroDeEf = null)
+    {
+        var usuario = new CurrentUserServiceFalso(Guid.NewGuid(), rol, tenantOrigenId: _tenantSesion);
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion))
+            .AddInterceptors(
+                new AuditoriaInterceptor(_actor),
+                new TenantSelladoInterceptor(_tenantDeLaPeticion),
+                new TenantRlsConnectionInterceptor(_tenantDeLaPeticion, new SinClienteActivo(), usuario, BaseDatosPostgresDePruebas.FirmanteContextoRls))
+            .Options;
+        // El filtro global de EF puede apuntar a otro Tenant que la sesión RLS de la conexión, para medir RLS a solas.
+        ITenantActual filtroDeEf = tenantDelFiltroDeEf is { } t ? new TenantActualDeLaPeticion(t) : _tenantDeLaPeticion;
+        return new CaeManagerDbContext(opciones, _proteccion, filtroDeEf);
+    }
+
+    private sealed record Sembrado(Guid ClienteEmpresarialId, Guid EmpresaId, Guid AccesoId);
+
+    private sealed record ColumnasCifradas(string? Usuario, string? Contrasena);
+
+    private sealed class ActorAuditoriaFalso(ActorAuditoria actor) : IActorAuditoria
+    {
+        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(actor);
+
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => actor;
+    }
+
+    private sealed class TenantActualPorAmbito : ITenantActual
+    {
+        public Guid? TenantId => AmbitoTenantExplicito.TenantIdActual;
+    }
+
+    /// <summary>Como el <c>TenantActual</c> real: primero el ámbito explícito, luego el Tenant de la sesión.</summary>
+    private sealed class TenantActualDeLaPeticion(Guid tenantDeLaSesion) : ITenantActual
+    {
+        public Guid? TenantId => AmbitoTenantExplicito.TenantIdActual ?? tenantDeLaSesion;
+    }
+
+    private sealed class SinClienteActivo : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => null;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => null;
+    }
+
+    private sealed class SesionPrivilegiadaAusente : ISesionPrivilegiadaActual
+    {
+        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(null);
+
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(null);
+    }
+}

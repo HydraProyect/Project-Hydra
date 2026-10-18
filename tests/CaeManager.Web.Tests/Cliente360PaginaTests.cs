@@ -11,6 +11,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
+using CaeManager.Application.Clientes.Queries.ObtenerPlataformaCaeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerResumenCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasConCentrosDeCliente;
@@ -85,6 +86,10 @@ public class Cliente360PaginaTests : BunitContext
         public List<DocumentacionBloqueantePendienteDto> Bloqueos { get; } = [];
         public bool FallaLecturaBloqueos { get; set; }
         public bool FallaLecturaGestorCae { get; set; }
+
+        /// <summary>Si tiene valor, la lectura de la fila «Gestor CAE» no responde hasta que se complete.</summary>
+        public Task? GestorCaePendiente { get; set; }
+
         public List<object> Enviadas { get; } = [];
 
         /// <summary>Lo que ocurre en el servidor al guardar una tolerancia (p. ej. que los bloqueos cambien).</summary>
@@ -95,6 +100,8 @@ public class Cliente360PaginaTests : BunitContext
             Enviadas.Add(request);
             if (request is ObtenerSubcontratasConCentrosDeClienteQuery q && SubcontratasPendientes.TryGetValue(q.Id, out var pendiente))
                 return (TResponse)(object)await pendiente;
+            if (request is ObtenerPersonasConCarteraQuery && GestorCaePendiente is { } gestor)
+                await gestor;
             return (TResponse)Responder(request)!;
         }
 
@@ -119,6 +126,8 @@ public class Cliente360PaginaTests : BunitContext
             ObtenerToleranciasClienteEmpresarialQuery => (IReadOnlyList<ToleranciaTipoDocumentoDto>)
                 [new ToleranciaTipoDocumentoDto(Guid.NewGuid(), "Formación PRL", AmbitoAplicacion.Trabajador, 0)],
             EstablecerToleranciaClienteEmpresarialCommand => GuardarTolerancia(),
+            // La caja «Plataforma CAE» del lateral (CajaPlataformaCaeClienteTests la prueba aparte): sin registrar.
+            ObtenerPlataformaCaeClienteQuery => new PlataformaCaeClienteDto(false, null, null, null),
             // Fila «Gestor CAE»: sin carteras, no se pinta (la prueban GestorCaeClienteTests).
             ObtenerPersonasConCarteraQuery => FallaLecturaGestorCae
                 ? throw new InvalidOperationException("Simula la colisión sobre el DbContext del circuito.")
@@ -428,6 +437,37 @@ public class Cliente360PaginaTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find(".pestanas-boton-activa").TextContent.Should().Contain("Centros"));
     }
+
+    /// <summary>
+    /// La caja «Plataforma CAE» comparte el DbContext del circuito con la página: no lee hasta que terminan la cadena
+    /// de la página y, detrás, la fila «Gestor CAE». En paralelo fallaría con «A second operation was started on this
+    /// context», de forma intermitente.
+    /// </summary>
+    [Fact]
+    public async Task La_caja_Plataforma_CAE_lee_despues_de_la_cadena_y_de_la_fila_Gestor_CAE()
+    {
+        var (id, mediador) = ClienteBase();
+        var gestor = new TaskCompletionSource();
+        mediador.GestorCaePendiente = gestor.Task;
+        Registrar(mediador);
+
+        var cut = Renderizar(id);
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerPersonasConCarteraQuery>().Should().ContainSingle());
+        mediador.Enviadas.OfType<ObtenerPlataformaCaeClienteQuery>().Should().BeEmpty(
+            "la fila «Gestor CAE» sigue leyendo: la caja espera su turno");
+
+        await cut.InvokeAsync(gestor.SetResult);
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerPlataformaCaeClienteQuery>().Should().ContainSingle());
+        var orden = mediador.Enviadas.Select(e => e.GetType()).ToList();
+        var plataforma = orden.IndexOf(typeof(ObtenerPlataformaCaeClienteQuery));
+        plataforma.Should().BeGreaterThan(orden.IndexOf(typeof(ObtenerPersonasConCarteraQuery)));
+        plataforma.Should().BeGreaterThan(orden.LastIndexOf(typeof(ObtenerSubcontratasDeClienteQuery)),
+            "la cadena de la página ya terminó");
+        plataforma.Should().BeGreaterThan(orden.LastIndexOf(typeof(ObtenerCentrosQuery)));
+    }
+
     /// <summary>
     /// Navegar de /clientes/A a /clientes/B reutiliza el componente (Blazor
     /// solo cambia el parámetro): cabecera, centros y relaciones deben ser los
@@ -960,7 +1000,8 @@ public class Cliente360PaginaTests : BunitContext
 
         var lateral = cut.Find("aside");
         lateral.TextContent.Should().NotContain("Configurar tolerancias");
-        Textos(lateral.QuerySelectorAll(".tarjeta-titulo")).Should().Equal(["Información", "Nota interna"]);
+        // Maqueta 17-10: «Plataforma CAE» va entre «Información» y «Nota interna» (caja propia desde el 2026-10-18).
+        Textos(lateral.QuerySelectorAll(".tarjeta-titulo")).Should().Equal(["Información", "Plataforma CAE", "Nota interna"]);
         lateral.TextContent.Should().Contain("Identificación fiscal").And.Contain("A-48.220.917");
     }
 
