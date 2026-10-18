@@ -36,7 +36,7 @@ public class AgregarVersionPlantillaCommandHandlerTests
     {
         var (plantillas, versiones, plantilla) = ConstruirPlantillaConVersionConfirmada([1, 2, 3]);
         var handler = new AgregarVersionPlantillaCommandHandler(
-            plantillas, versiones, new FileStorageServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
+            plantillas, versiones, new FileStorageServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         var resultado = await handler.Handle(
             new AgregarVersionPlantillaCommand(plantilla.Id, [4, 5, 6], "nueva.pdf"), CancellationToken.None);
@@ -53,7 +53,7 @@ public class AgregarVersionPlantillaCommandHandlerTests
     {
         var (plantillas, versiones, plantilla) = ConstruirPlantillaConVersionConfirmada([1, 2, 3]);
         var handler = new AgregarVersionPlantillaCommandHandler(
-            plantillas, versiones, new FileStorageServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
+            plantillas, versiones, new FileStorageServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         var resultado = await handler.Handle(
             new AgregarVersionPlantillaCommand(plantilla.Id, [4, 5, 6], "nueva.pdf"), CancellationToken.None);
@@ -68,7 +68,7 @@ public class AgregarVersionPlantillaCommandHandlerTests
         var contenido = new byte[] { 1, 2, 3 };
         var (plantillas, versiones, plantilla) = ConstruirPlantillaConVersionConfirmada(contenido);
         var handler = new AgregarVersionPlantillaCommandHandler(
-            plantillas, versiones, new FileStorageServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
+            plantillas, versiones, new FileStorageServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         var resultado = await handler.Handle(
             new AgregarVersionPlantillaCommand(plantilla.Id, contenido, "identico.pdf"), CancellationToken.None);
@@ -82,7 +82,7 @@ public class AgregarVersionPlantillaCommandHandlerTests
     {
         var (plantillas, versiones, plantilla) = ConstruirPlantillaConVersionConfirmada([1, 2, 3]);
         var handler = new AgregarVersionPlantillaCommandHandler(
-            plantillas, versiones, new FileStorageServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
+            plantillas, versiones, new FileStorageServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         var resultado = await handler.Handle(
             new AgregarVersionPlantillaCommand(plantilla.Id, [9, 9, 9], "distinto.pdf"), CancellationToken.None);
@@ -95,7 +95,7 @@ public class AgregarVersionPlantillaCommandHandlerTests
     {
         var handler = new AgregarVersionPlantillaCommandHandler(
             new PlantillaDocumentoRepositorioFalso(), new PlantillaDocumentoVersionRepositorioFalso(),
-            new FileStorageServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
+            new FileStorageServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         var resultado = await handler.Handle(
             new AgregarVersionPlantillaCommand(Guid.NewGuid(), [1], "nueva.pdf"), CancellationToken.None);
@@ -117,7 +117,7 @@ public class AgregarVersionPlantillaCommandHandlerTests
         var (plantillas, versiones, plantilla) = ConstruirPlantillaConVersionConfirmada([1, 2, 3]);
         var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = new DbUpdateException("índice único violado") };
         var handler = new AgregarVersionPlantillaCommandHandler(
-            plantillas, versiones, new FileStorageServiceFalso(), unitOfWork, NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
+            plantillas, versiones, new FileStorageServiceFalso(), new AlcanceDatosServiceFalso(), unitOfWork, NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         var resultado = await handler.Handle(
             new AgregarVersionPlantillaCommand(plantilla.Id, [4, 5, 6], "nueva.pdf"), CancellationToken.None);
@@ -134,7 +134,7 @@ public class AgregarVersionPlantillaCommandHandlerTests
         var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = new DbUpdateException("índice único violado") };
         var almacenamiento = new FileStorageServiceFalso();
         var handler = new AgregarVersionPlantillaCommandHandler(
-            plantillas, versiones, almacenamiento, unitOfWork, NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
+            plantillas, versiones, almacenamiento, new AlcanceDatosServiceFalso(), unitOfWork, NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         await handler.Handle(
             new AgregarVersionPlantillaCommand(plantilla.Id, [4, 5, 6], "nueva.pdf"), CancellationToken.None);
@@ -149,7 +149,7 @@ public class AgregarVersionPlantillaCommandHandlerTests
         var (plantillas, versiones, plantilla) = ConstruirPlantillaConVersionConfirmada([1, 2, 3]);
         var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = new DbUpdateConcurrencyException("token de versión distinto") };
         var handler = new AgregarVersionPlantillaCommandHandler(
-            plantillas, versiones, new FileStorageServiceFalso(), unitOfWork, NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
+            plantillas, versiones, new FileStorageServiceFalso(), new AlcanceDatosServiceFalso(), unitOfWork, NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => handler.Handle(
             new AgregarVersionPlantillaCommand(plantilla.Id, [4, 5, 6], "nueva.pdf"), CancellationToken.None));

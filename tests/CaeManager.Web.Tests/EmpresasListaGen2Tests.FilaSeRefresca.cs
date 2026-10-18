@@ -1,4 +1,3 @@
-﻿using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
@@ -85,9 +84,8 @@ public partial class EmpresasListaGen2Tests
     }
 
     /// <summary>
-    /// Además de página, selección y foco, la fila desplegada sigue desplegada. Su contenido —los
-    /// Clientes empresariales de la Empresa— se vuelve a pedir, porque el formulario del panel
-    /// también los edita y lo cargado antes de guardar ya no vale.
+    /// Además de página, selección y foco, la fila desplegada sigue desplegada. Su contenido —los documentos
+    /// pendientes— viene en la propia fila refrescada: no hay consulta aparte que repetir.
     /// </summary>
     [Fact]
     public async Task El_aviso_de_guardado_conserva_la_pagina_la_seleccion_multiple_la_fila_enfocada_y_la_fila_desplegada()
@@ -120,9 +118,7 @@ public partial class EmpresasListaGen2Tests
         cut.Find(".fila-enfocada .enlace-nombre-fila").TextContent.Trim().Should().Be("Empresa 21");
         cut.FindAll(".boton-expandir-fila").Select(b => b.GetAttribute("aria-expanded")).Should().Equal(
             ["false", "false", "true", "false", "false"], "la fila sustituida sigue desplegada");
-        cut.WaitForAssertion(() => mediador.Enviadas.Skip(enviadasAntes).OfType<ObtenerClientesDeEmpresaQuery>()
-            .Select(c => c.EmpresaId).Should().Equal([editada], "el acordeón desplegado de esa fila vuelve a pedir sus Clientes empresariales"));
-        mediador.Enviadas.Should().HaveCount(enviadasAntes + 2, "la consulta de esa fila y la de su acordeón: ninguna de página");
+        mediador.Enviadas.Should().HaveCount(enviadasAntes + 1, "solo la consulta de esa fila: ni de página ni de Clientes");
         UltimaConsulta(mediador).EmpresaId.Should().Be(editada);
     }
 

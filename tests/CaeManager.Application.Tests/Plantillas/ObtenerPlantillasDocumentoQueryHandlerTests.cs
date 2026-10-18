@@ -1,4 +1,5 @@
 using CaeManager.Application.Plantillas.Queries.ObtenerPlantillasDocumento;
+using CaeManager.Application.Tests.Clientes;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
 using FluentAssertions;
@@ -18,7 +19,7 @@ public class ObtenerPlantillasDocumentoQueryHandlerTests
         var v2 = new PlantillaDocumentoVersion(documento.Id, 2, "url2.pdf", new string('b', 64));
         contexto.ListaPlantillasDocumento.Add(documento);
         contexto.ListaPlantillasDocumentoVersion.AddRange([v1, v2]);
-        var handler = new ObtenerPlantillasDocumentoQueryHandler(contexto);
+        var handler = new ObtenerPlantillasDocumentoQueryHandler(contexto, new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(new ObtenerPlantillasDocumentoQuery(), CancellationToken.None);
 
@@ -36,7 +37,7 @@ public class ObtenerPlantillasDocumentoQueryHandlerTests
             OrigenPlantilla.TalvegPropio, "Propia", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.HtmlCss, Guid.NewGuid(), codigoFormato: "F-01");
         contexto.ListaPlantillasDocumento.AddRange([externa, propia]);
         contexto.ListaPlantillasDocumentoVersion.Add(new PlantillaDocumentoVersion(externa.Id, 1, "url.pdf", new string('a', 64)));
-        var handler = new ObtenerPlantillasDocumentoQueryHandler(contexto);
+        var handler = new ObtenerPlantillasDocumentoQueryHandler(contexto, new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(new ObtenerPlantillasDocumentoQuery(), CancellationToken.None);
 

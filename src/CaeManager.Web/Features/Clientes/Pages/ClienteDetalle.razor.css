@@ -5,13 +5,61 @@
   CabeceraIdentidad y de las tarjetas.
 */
 
-/* Indicadores conservados en una segunda línea hasta que las listas tengan chips de estado. */
+/* .centro360-identidad{flex:1 1 300px;min-width:260px} de la maqueta: a 375 px la identidad pasa a su propia fila bajo el anillo
+   en vez de quedarse en una columna de 157 px. */
+.contenedor-pagina ::deep .cabecera-identidad-texto {
+    flex: 1 1 300px;
+    min-width: 260px;
+}
+
+/* Línea de datos en dos filas: la de la maqueta (CIF · recuentos · estado) y, debajo, los indicadores por Centro que se conservan. */
+.cliente360-datos {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.cliente360-meta,
 .cliente360-indicadores {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
     flex-wrap: wrap;
-    flex-basis: 100%;
+    min-width: 0;
+}
+
+.cliente360-meta {
+    gap: 6px 10px;
+}
+
+.cliente360-indicadores {
+    gap: var(--space-2);
+    margin-top: 2px;
+}
+
+/* A 375 px una pastilla larga («Bloqueo de la plataforma CAE en 2 de 5 centros») parte en dos en vez de salirse de la tarjeta. */
+.cliente360-indicadores ::deep .badge {
+    max-width: 100%;
+    white-space: normal;
+    text-align: left;
+}
+
+/* Líneas bajo el nombre del Centro (contratista, motivos): una por línea, como los dos .fila-rel-sub de la maqueta. */
+.contenedor-pagina ::deep .cliente360-linea-detalle {
+    display: block;
+}
+
+.cliente360-ficha {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+/* .nota-texto de la maqueta: body-md en el color del texto. */
+.cliente360-tolerancia-resumen {
+    margin: 0 0 var(--space-2);
+    font: var(--font-body-md);
+    color: var(--color-text);
 }
 
 /* El indicador es un botón que lleva a la pestaña Centros; se ve como el
@@ -32,26 +80,63 @@
     outline-offset: calc(var(--space-1) / 2);
 }
 
-/* «3 centros de este cliente, del peor estado al mejor.» sobre la lista
-   (.texto-apoyo del mockup, body-md). */
-/* Buscador de la pestaña Centros, sobre el resumen de la lista. */
-.cliente360-buscador {
+/* .barra-lista de la maqueta 17-10: filtros de estado a la izquierda, buscador (260 px mínimo, 36 px de alto) a la derecha. */
+.cliente360-barra {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
     margin-bottom: var(--space-3);
 }
 
+.cliente360-buscador {
+    min-width: 260px;
+}
+
+.cliente360-buscador ::deep .campo-input {
+    height: 36px;
+    min-height: 36px;
+    padding-block: 0;
+    padding-inline: 10px;
+}
+
+@media (max-width: 480px) {
+    .cliente360-buscador {
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+}
+
+/* «Mostrando 5 de 5 · del peor estado al mejor», sobre la lista. No está en la maqueta del 17-10: se conserva. */
 .cliente360-resumen-lista {
     margin: 0 0 var(--space-3);
     font: var(--font-body-md);
     color: var(--color-text-muted);
 }
 
-/* .fila-rel-pct del mockup: label, ancho mínimo y a la derecha, para que
-   los porcentajes de la lista queden en columna. */
+/* .cifra-fila de la maqueta: body-md, tabular, a la izquierda de su columna de 104 px. */
 .cliente360-cumplimiento {
-    min-width: calc(var(--space-10) + var(--space-1) / 2);
-    text-align: right;
-    font: var(--font-label);
+    font: var(--font-body-md);
     font-variant-numeric: tabular-nums;
+    color: var(--color-text-muted);
+}
+
+/* .texto-apoyo / .fila-rel-sub de la maqueta: 13 px en la línea secundaria de las filas. */
+.contenedor-pagina ::deep .fila-relacion-detalle {
+    font-size: 13px;
+}
+
+/* «Sin gestión CAE · no cuentan en el anillo» (.texto-apoyo en 600, 13 px) sobre su lista. */
+.cliente360-sin-gestion-cae {
+    margin-top: var(--space-5);
+}
+
+.cliente360-sin-gestion-cae h3 {
+    margin: 0 0 var(--space-3);
+    font: var(--font-body-md);
+    font-size: 13px;
+    font-weight: 600;
     color: var(--color-text-muted);
 }
 

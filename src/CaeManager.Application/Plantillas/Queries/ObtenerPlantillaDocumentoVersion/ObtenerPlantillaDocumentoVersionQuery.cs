@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
@@ -36,23 +37,33 @@ public record PlantillaElementoDetalleDto(
     RolFirmantePlantilla? RolFirmante,
     string? NombreCampoAcroForm);
 
-public class ObtenerPlantillaDocumentoVersionQueryHandler(IPlantillasQueryContext plantillasContext)
+/// <remarks>
+/// Asignación de Cartera: una versión de una plantilla fuera del alcance de quien mira (<see cref="AlcanceDePlantillas"/>)
+/// responde igual que una versión que no existe, para no delatarla.
+/// </remarks>
+public class ObtenerPlantillaDocumentoVersionQueryHandler(IPlantillasQueryContext plantillasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerPlantillaDocumentoVersionQuery, Result<PlantillaDocumentoVersionDetalleDto>>
 {
+    private static Result<PlantillaDocumentoVersionDetalleDto> VersionNoEncontrada() =>
+        Result.Fallo<PlantillaDocumentoVersionDetalleDto>(
+            Error.Crear("Plantilla.VersionNoEncontrada", "No encontramos esta versión de plantilla."));
+
     public async Task<Result<PlantillaDocumentoVersionDetalleDto>> Handle(
         ObtenerPlantillaDocumentoVersionQuery request, CancellationToken cancellationToken)
     {
         var version = await plantillasContext.PlantillasDocumentoVersion
             .FirstOrDefaultAsync(v => v.Id == request.PlantillaDocumentoVersionId, cancellationToken);
         if (version is null)
-            return Result.Fallo<PlantillaDocumentoVersionDetalleDto>(
-                Error.Crear("Plantilla.VersionNoEncontrada", "No encontramos esta versión de plantilla."));
+            return VersionNoEncontrada();
 
         var documento = await plantillasContext.PlantillasDocumento
             .FirstOrDefaultAsync(d => d.Id == version.PlantillaDocumentoId, cancellationToken);
         if (documento is null)
             return Result.Fallo<PlantillaDocumentoVersionDetalleDto>(
                 Error.Crear("Plantilla.NoEncontrada", "No encontramos la plantilla de esta versión."));
+
+        if (!await alcanceDatos.PlantillaDentroDeAlcanceAsync(documento, cancellationToken))
+            return VersionNoEncontrada();
 
         var elementos = await plantillasContext.PlantillasElemento
             .Where(e => e.PlantillaDocumentoVersionId == version.Id)

@@ -12,6 +12,7 @@ public class AgregarVersionPlantillaCommandHandler(
     IPlantillaDocumentoRepository plantillaRepositorio,
     IPlantillaDocumentoVersionRepository versionRepositorio,
     IFileStorageService almacenamientoArchivos,
+    IAlcanceDatosService alcanceDatos,
     IUnitOfWork unitOfWork,
     ILogger<AgregarVersionPlantillaCommandHandler> logger)
     : IRequestHandler<AgregarVersionPlantillaCommand, Result<AgregarVersionPlantillaResultadoDto>>
@@ -19,8 +20,10 @@ public class AgregarVersionPlantillaCommandHandler(
     public async Task<Result<AgregarVersionPlantillaResultadoDto>> Handle(
         AgregarVersionPlantillaCommand request, CancellationToken cancellationToken)
     {
+        // Asignación de Cartera: una plantilla atada a un Centro o a un Cliente empresarial fuera del
+        // alcance responde igual que una que no existe (ver AlcanceDePlantillas).
         var plantilla = await plantillaRepositorio.ObtenerPorIdAsync(request.PlantillaDocumentoId, cancellationToken);
-        if (plantilla is null)
+        if (plantilla is null || !await alcanceDatos.PlantillaDentroDeAlcanceAsync(plantilla, cancellationToken))
             return Result.Fallo<AgregarVersionPlantillaResultadoDto>(Error.Crear("Plantilla.NoEncontrada", "No encontramos esta plantilla."));
 
         var todasLasVersiones = await versionRepositorio.ObtenerPorPlantillaAsync(plantilla.Id, cancellationToken);

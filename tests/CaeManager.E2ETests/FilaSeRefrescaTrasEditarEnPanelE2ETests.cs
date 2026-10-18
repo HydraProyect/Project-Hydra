@@ -47,7 +47,7 @@ public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixtureListados fixtu
         const string lapiz = "button[aria-label='Editar información del trabajador']";
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await AbrirAsync(contexto, "trabajadores");
-        var filas = page.Locator("tbody tr.fila-pulsable");
+        var filas = page.Locator(".marco-lista-trabajadores .fila-pulsable");
         await Expect(filas).Not.ToHaveCountAsync(0);
 
         // Se aísla un trabajador sembrado por su DNI, que la edición no toca: la fila sigue
@@ -95,8 +95,8 @@ public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixtureListados fixtu
                 {
                     await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
                     await page.GetByPlaceholder("Filtrar esta pantalla: nombre, DNI o alias").FillAsync(dni);
-                    await Expect(page.Locator("tbody tr.fila-pulsable")).ToHaveCountAsync(1);
-                    await page.Locator("tbody tr.fila-pulsable .nombre-abre-vista-rapida").ClickAsync();
+                    await Expect(page.Locator(".marco-lista-trabajadores .fila-pulsable")).ToHaveCountAsync(1);
+                    await page.Locator(".marco-lista-trabajadores .fila-pulsable .nombre-abre-vista-rapida").ClickAsync();
                     await GuardarNombreEnElPanelAsync(page.Locator(".workspace-panel"), lapiz, nombreOriginal);
                 }
                 catch (Exception)

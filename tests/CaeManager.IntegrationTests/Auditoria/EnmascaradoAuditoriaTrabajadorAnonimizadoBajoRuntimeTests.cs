@@ -95,6 +95,40 @@ public class EnmascaradoAuditoriaTrabajadorAnonimizadoBajoRuntimeTests
         antes.Should().Contain(f => f.EntidadId == casilda && ContieneAlguno(f, new[] { "Casilda" }));
     }
 
+    /// <summary>
+    /// La «Nota interna» de Trabajador 360 (<c>Trabajador.Notas</c>) es dato personal: tras anonimizar, ninguna
+    /// entrada del historial de ese Trabajador conserva su texto, y la clave <c>Notas</c> queda en "***"
+    /// (migración <c>AnadeNotaInternaATrabajadorYCentro</c>, que la añade a la función).
+    /// </summary>
+    [Fact]
+    public async Task La_purga_enmascara_la_nota_interna_del_trabajador_anonimizado()
+    {
+        const string nota = "Prefiere turno de tarde por cuidado de su madre";
+        await using var arnes = await CrearArnesAsync();
+
+        var (manuela, _, centroId) = await SembrarTenantAAsync(arnes);
+        await FijarNotaInternaAsync(arnes, manuela, nota);
+        await AsignarConBajaAsync(arnes, manuela, centroId, _hoy.AddYears(-6));
+
+        var antes = (await LeerFilasDeTrabajadorAsync(arnes)).Where(f => f.TenantId == _tenantA && f.EntidadId == manuela).ToList();
+        antes.Should().Contain(f => ContieneAlguno(f, new[] { nota }),
+            "control positivo del instrumento: antes de anonimizar, el historial sí tiene la nota");
+
+        (await EjecutarPurgaDeTrabajadoresAsync(arnes)).Should().Be(1);
+
+        var despues = (await LeerFilasDeTrabajadorAsync(arnes)).Where(f => f.TenantId == _tenantA && f.EntidadId == manuela).ToList();
+        despues.Should().NotContain(f => ContieneAlguno(f, new[] { nota }), "la nota interna es dato personal del Trabajador");
+
+        var conNota = despues
+            .SelectMany(f => new[] { f.DatosAntes, f.DatosDespues })
+            .Where(d => d is not null && JsonNode.Parse(d)!.AsObject().ContainsKey(nameof(Trabajador.Notas)))
+            .Select(d => JsonNode.Parse(d!)![nameof(Trabajador.Notas)])
+            .ToList();
+        conNota.Should().NotBeEmpty("la entrada que fijó la nota la nombra");
+        conNota.Where(v => v is not null).Should().OnlyContain(v => v!.GetValue<string>() == "***");
+        conNota.Should().Contain(v => v != null && v.GetValue<string>() == "***");
+    }
+
     [Fact]
     public async Task La_funcion_bajo_runtime_solo_alcanza_al_trabajador_anonimizado_del_tenant_de_la_sesion()
     {
@@ -284,6 +318,17 @@ public class EnmascaradoAuditoriaTrabajadorAnonimizadoBajoRuntimeTests
         var asignacion = new Asignacion(trabajadorId, centroId, fechaBaja.AddYears(-1));
         asignacion.DarDeBaja(fechaBaja);
         contexto.Asignaciones.Add(asignacion);
+        await contexto.SaveChangesAsync();
+    }
+
+    private async Task FijarNotaInternaAsync(ArnesDeArranqueRuntime arnes, Guid trabajadorId, string nota)
+    {
+        using var ambito = arnes.Servicios.CreateScope();
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantA);
+
+        var trabajador = await contexto.Trabajadores.SingleAsync(t => t.Id == trabajadorId);
+        trabajador.FijarNotaInterna(nota);
         await contexto.SaveChangesAsync();
     }
 

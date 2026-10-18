@@ -42,6 +42,7 @@ public class CamposDeDatosPersonalesTests
             "manuela@ejemplo.test", "Observación", "Manu", "+34600111222", "Soldadora");
         trabajador.ActualizarFicha("281234567890", "Soldadora", new DateOnly(1985, 3, 4), "Española", "Indefinido",
             new DateOnly(2020, 1, 1), new DateOnly(2024, 1, 1), "Sí", "Cuenta ajena", new DateOnly(2030, 1, 1), "Arraigo");
+        trabajador.FijarNotaInterna("Manuela prefiere que la llamen por la tarde.");
 
         trabajador.Anonimizar(DateTime.UtcNow);
 

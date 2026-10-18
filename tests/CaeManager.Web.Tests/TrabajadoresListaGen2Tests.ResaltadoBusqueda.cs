@@ -17,20 +17,20 @@ public partial class TrabajadoresListaGen2Tests
         var dni = inaki.Dto.Dni!;
         var cut = Renderizar(new MediatorFalso { Almacen = { inaki, Trabajador("Bea", "Alonso") } });
         cut.FindAll("mark").Should().BeEmpty("sin búsqueda no hay marcas");
-        var antes = cut.FilaDeNombre("tbody tr", "Iñaki Montajes").Foto();
+        var antes = cut.FilaDeNombre(".lista-filas-acordeon > .tarjeta-fila-acordeon", "Iñaki Montajes").Foto();
         antes.Texto.Should().Contain("Montajes Ebro S.L.", "control: la columna Empresa también contiene «Montajes»");
         antes.Atributos.Should().Contain("Iñaki Montajes").And.Contain(dni, "control: la fila tiene nombres accesibles que comparar");
 
         await cut.BuscarEnLaBarraAsync("montajes");
-        cut.WaitForAssertion(() => cut.FilaDeNombre("tbody tr", "Iñaki Montajes").DebeMarcarSolo(antes, "Montajes"));
+        cut.WaitForAssertion(() => cut.FilaDeNombre(".lista-filas-acordeon > .tarjeta-fila-acordeon", "Iñaki Montajes").DebeMarcarSolo(antes, "Montajes"));
         cut.DebeConservarElIdentificadorCopiable(dni, conMarca: false);
 
         // Escrito sin virgulilla y en mayúsculas: la marca lleva el texto original de la celda.
         await cut.BuscarEnLaBarraAsync("INAKI");
-        cut.WaitForAssertion(() => cut.FilaDeNombre("tbody tr", "Iñaki Montajes").DebeMarcarSolo(antes, "Iñaki"));
+        cut.WaitForAssertion(() => cut.FilaDeNombre(".lista-filas-acordeon > .tarjeta-fila-acordeon", "Iñaki Montajes").DebeMarcarSolo(antes, "Iñaki"));
 
         await cut.BuscarEnLaBarraAsync(dni.ToLowerInvariant());
-        cut.WaitForAssertion(() => cut.FilaDeNombre("tbody tr", "Iñaki Montajes").DebeMarcarSolo(antes, dni));
+        cut.WaitForAssertion(() => cut.FilaDeNombre(".lista-filas-acordeon > .tarjeta-fila-acordeon", "Iñaki Montajes").DebeMarcarSolo(antes, dni));
         cut.DebeConservarElIdentificadorCopiable(dni, conMarca: true);
     }
 }

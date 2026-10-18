@@ -124,9 +124,9 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(busqueda: "Salas Moreno");
 
-        cut.Markup.Should().Contain("Ningún trabajador con estos filtros");
-        cut.Markup.Should().Contain("Quitar los filtros");
-        cut.Markup.Should().NotContain("Aún no hay trabajadores",
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros");
+        cut.Markup.Should().Contain("Quitar filtros");
+        cut.Markup.Should().NotContain("Todavía no hay trabajadores",
             "mandar a crear a quien acaba de buscar termina en un DNI duplicado");
     }
 
@@ -135,8 +135,8 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(estado: nameof(CaeManager.Domain.Documentos.EstadoDocumento.Vencido));
 
-        cut.Markup.Should().Contain("Ningún trabajador con estos filtros");
-        cut.Markup.Should().NotContain("Aún no hay trabajadores");
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros");
+        cut.Markup.Should().NotContain("Todavía no hay trabajadores");
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
 
         // Barrera primero: sin ella, esta comprobación de ausencia pasaría
         // aunque la rama no se activara nunca.
-        cut.Markup.Should().Contain("Ningún trabajador con estos filtros");
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros");
         cut.Markup.Should().NotContain("Hay trabajadores dados de alta");
     }
 
@@ -155,8 +155,8 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("Aún no hay trabajadores");
-        cut.Markup.Should().NotContain("Ningún trabajador con estos filtros");
+        cut.Markup.Should().Contain("Todavía no hay trabajadores");
+        cut.Markup.Should().NotContain("Ningún resultado con estos filtros");
     }
 
     /// <summary>
@@ -194,13 +194,13 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
         var cut = Renderizar(trabajadores: new TrabajadorListaDto(
             id, "Javier", "Salas Moreno", "12345678Z", "Montajes Ebro S.L."));
 
-        cut.Find("tbody a.boton-360-pagina").GetAttribute("href").Should().Be($"/trabajadores/{id}");
-        cut.Find("tbody button.nombre-abre-vista-rapida").TextContent.Trim().Should().Be("Javier Salas Moreno",
+        cut.Find(".lista-filas-acordeon a.boton-360-pagina").GetAttribute("href").Should().Be($"/trabajadores/{id}");
+        cut.Find(".lista-filas-acordeon button.nombre-abre-vista-rapida").TextContent.Trim().Should().Be("Javier Salas Moreno",
             "el destino nuevo se suma, no sustituye a la vista rápida");
     }
 
     // P0-9a (FS-03 a FS-06): con alcance cero —sin ninguna Asignación de Cartera
-    // vigente en este Tenant— el vacío no es «Aún no hay trabajadores»: la pantalla dice que
+    // vigente en este Tenant— el vacío no es «Todavía no hay trabajadores»: la pantalla dice que
     // falta la Asignación de Cartera y a quién pedirla.
     private bool _alcanceCero;
 
@@ -213,12 +213,12 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
 
         cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
             .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
-        cut.Markup.Should().NotContain("Aún no hay trabajadores");
+        cut.Markup.Should().NotContain("Todavía no hay trabajadores");
         cut.Markup.Should().NotContain("+ Nuevo trabajador", "invitar a crear con alcance cero termina en un duplicado");
         // D-15: sin alcance no hay lista que filtrar, guardar ni exportar.
         cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty("filtros y «Guardar filtro» sobre una lista que no puede existir");
         cut.FindAll("header.cabecera-pagina a[data-keytip=X]").Should().BeEmpty("sin alcance no se ofrece exportar una lista que no puede existir");
-        cut.FindAll(".lista-herramientas-maqueta button[aria-pressed]").Should().BeEmpty("sin lista no hay nada que seleccionar");
+        cut.FindAll(".cabecera-pagina button[aria-pressed]").Should().BeEmpty("sin lista no hay nada que seleccionar");
     }
 
     [Fact]
@@ -228,7 +228,7 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
 
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("Aún no hay trabajadores");
+        cut.Markup.Should().Contain("Todavía no hay trabajadores");
         cut.Markup.Should().Contain("+ Nuevo trabajador");
         cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
         cut.FindAll(".barra-filtros-pastillas").Should().NotBeEmpty();

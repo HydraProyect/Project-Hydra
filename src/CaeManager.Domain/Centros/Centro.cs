@@ -41,6 +41,15 @@ public class Centro : EntidadBase
     public bool? EspaciosConfinados { get; private set; }
     public bool? AtmosferasExplosivas { get; private set; }
 
+    /// <summary>Mismo límite que la «Nota interna» de Empresa 360 (<c>Empresa.LongitudMaximaNotas</c>).</summary>
+    public const int LongitudMaximaNotas = 2000;
+
+    /// <summary>
+    /// La «Nota interna» de la ficha Centro 360: texto libre del equipo sobre el Centro. NULL = sin nota. Solo la
+    /// escribe <see cref="FijarNotaInterna"/>; <see cref="Actualizar"/> y <see cref="ActualizarFicha"/> no la tocan.
+    /// </summary>
+    public string? Notas { get; private set; }
+
     private Centro()
     {
     }
@@ -80,6 +89,21 @@ public class Centro : EntidadBase
         Direccion = direccion;
         Contacto = contacto;
         ContratoVigenteHasta = contratoVigenteHasta;
+    }
+
+    /// <summary>
+    /// Fija solo la nota interna (<see cref="Notas"/>), sin tocar nombre, dirección ni ficha: quien edita la nota
+    /// desde la ficha 360 no reenvía los datos del Centro. Vacía o solo espacios equivale a no tener nota
+    /// (<c>null</c>).
+    /// </summary>
+    public void FijarNotaInterna(string? notas)
+    {
+        var normalizada = string.IsNullOrWhiteSpace(notas) ? null : notas.Trim();
+
+        if (normalizada is { Length: > LongitudMaximaNotas })
+            throw new ArgumentException($"La nota interna no puede superar {LongitudMaximaNotas} caracteres.", nameof(notas));
+
+        Notas = normalizada;
     }
 
     public void EstablecerGestionCae(ModalidadGestionCae modalidad)

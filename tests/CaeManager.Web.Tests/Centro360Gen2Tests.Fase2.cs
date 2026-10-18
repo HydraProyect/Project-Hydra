@@ -85,7 +85,7 @@ public partial class Centro360Gen2Tests
         Services.GetRequiredService<NavigationManager>().NavigateTo($"centros/{id}?pestana=ficha");
         var cut = Renderizar(id);
         cut.Find("[data-caja=datos-centro]").TextContent.Should().Contain("Contrato vigente hasta").And.Contain("14/03/2027");
-        cut.FindComponents<DatoRejilla>().Should().ContainSingle();
+        cut.FindComponent<CajasFicha>().FindComponents<DatoRejilla>().Should().ContainSingle();
     }
 
     [Theory]

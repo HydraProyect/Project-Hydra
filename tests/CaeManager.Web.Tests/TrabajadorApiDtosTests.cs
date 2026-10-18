@@ -24,9 +24,13 @@ public class TrabajadorApiDtosTests
             "Nora", "Vidal", "12345678Z", new(1988, 3, 14), "nora@example.test", "Observación", "Nor",
             "+34600111222", "Electricista", Guid.NewGuid(), NumeroAfiliacionSeguridadSocial: "41123456789",
             Nacionalidad: "Colombiana", TipoVinculo: "Plantilla", FiguraEnRnt: "Sí",
-            TipoPermisoTrabajo: "Residencia y trabajo", MotivoPermisoTrabajo: "NIE");
+            TipoPermisoTrabajo: "Residencia y trabajo", MotivoPermisoTrabajo: "NIE",
+            // Una clave de API entra con rol Consulta, que en la aplicación sí lee la nota interna: la API no la publica.
+            Notas: "Nota interna del equipo", NotaInternaVisible: true);
         var opciones = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-        JsonSerializer.Serialize(dto, opciones).Should().Contain("numeroAfiliacionSeguridadSocial");
+        JsonSerializer.Serialize(dto, opciones).Should().Contain("numeroAfiliacionSeguridadSocial").And.Contain("Nota interna del equipo");
+        JsonSerializer.Serialize(TrabajadorApiDetalleDto.DesdeInterno(dto), opciones)
+            .Should().NotContain("Nota interna del equipo").And.NotContainEquivalentOf("notaInterna");
         using var json = JsonDocument.Parse(JsonSerializer.Serialize(TrabajadorApiDetalleDto.DesdeInterno(dto), opciones));
         json.RootElement.EnumerateObject().Select(p => p.Name).Should().Equal(
             "id", "empresaId", "subcontrataId", "empleadorNombre", "nombre", "apellidos", "dni",

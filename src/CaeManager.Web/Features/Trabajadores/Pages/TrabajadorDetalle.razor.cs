@@ -96,7 +96,6 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosTrabajadores> Textos { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
-    [Inject] private IStringLocalizer<TextosTipoDocumento360> TextosDocumentos360 { get; set; } = default!;
 
     private bool _editorFichaVisible;
 
@@ -172,7 +171,6 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// ObtenerDocumentosQuery que la pestaña del panel, con su alcance.
     /// </summary>
     private IReadOnlyList<DocumentoListaDto> _documentos = [];
-    private IReadOnlySet<Guid> DocumentosUrgentes => _documentos.Where(d => d.Estado == EstadoDocumento.Urgente).Select(d => d.Id).ToHashSet();
     private int _totalDocumentos;
 
     /// <summary>
@@ -262,7 +260,15 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
                     TotalConIncidencia == 1 ? Textos["ContadorIncidenciasUno"] : Textos["ContadorIncidenciasVarios"],
                     EnAlerta: true)
         },
-        new(PestanaCentros, Textos["PestanaCentros"]),
+        // Maqueta 17-10: «Centros» lleva el recuento de Centros asignados, en neutro (no es una alerta).
+        new(PestanaCentros, Textos["PestanaCentros"])
+        {
+            Contador = _centros.Count == 0
+                ? null
+                : new ContadorPestana(
+                    _centros.Count,
+                    _centros.Count == 1 ? Textos["ContadorCentrosUno"] : Textos["ContadorCentrosVarios"])
+        },
         new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
         new(PestanaFicha, Comunes["PestanaFicha"]),
         new(PestanaHistorial, Textos["PestanaHistorial"])
@@ -672,6 +678,12 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
     private Task EditarDocumentoAsync(Guid documentoId) => _drawerGestion.AbrirEditarAsync(documentoId);
 
+    /// <summary>
+    /// «Gestionar» de un indicador de Documentación base que falta: no hay Documento que renovar ni Tipo de documento
+    /// concreto, así que abre el mismo Nuevo documento con el Trabajador ya elegido que usa «Subir documento» sin incidencia.
+    /// </summary>
+    private Task SubirFaltanteAsync() => _drawerGestion.AbrirCrearParaTrabajadorAsync(TrabajadorId);
+
     private PasoSerieDocumento PasoDe(DocumentoRequeridoDto documento) =>
         PasoSerieDocumento.DeFilaDeTrabajador(documento.DocumentoId, TrabajadorId, documento.TipoDocumentoId);
 
@@ -1002,5 +1014,33 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         _asignacionABajar = null;
         _clientesReclamables = [];
         _clientesSeleccionadosReclamar.Clear();
+    }
+
+    // ---------- Nota interna (mismo patrón que Empresa 360, editor en NotaInternaEditable) ----------
+
+    /// <summary>Manda solo la nota y la <c>Version</c> que la ficha leyó.</summary>
+    private Task<CaeManager.Domain.Common.Result> GuardarNotaInternaAsync(string nota) =>
+        Mediator.Send(new CaeManager.Application.Trabajadores.Commands.GuardarNotaInternaTrabajador
+            .GuardarNotaInternaTrabajadorCommand(_detalle!.Id, nota, _detalle.Version));
+
+    /// <summary>
+    /// Relee solo la cabecera (nota y Version) sin el spinner de CargarAsync, que rehará la ficha y perdería el
+    /// borrador del editor. Si falla, la ficha se queda con lo que ya enseñaba: el siguiente guardado dará conflicto.
+    /// </summary>
+    private async Task RecargarTrasNotaInternaAsync()
+    {
+        var trabajadorId = _detalle?.Id;
+        if (trabajadorId is null) return;
+
+        try
+        {
+            var detalle = await Mediator.Send(new ObtenerTrabajadorPorIdQuery(trabajadorId.Value), _ciclo.Token);
+            if (detalle is not null && detalle.Id == _detalle?.Id)
+                _detalle = detalle;
+        }
+        catch (Exception)
+        {
+            // Sin relectura la Version queda vieja: el siguiente guardado dará conflicto y releerá.
+        }
     }
 }

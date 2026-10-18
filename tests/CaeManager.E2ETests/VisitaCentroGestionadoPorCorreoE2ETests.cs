@@ -90,8 +90,11 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await CrearTrabajadorAsync(nombreTrabajador, apellidosTrabajador, 88_100_971);
 
         await page.GetByPlaceholder("Filtrar esta pantalla: nombre, DNI o alias").FillAsync(apellidosTrabajador);
-        var filaTrabajador = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
+        var filaTrabajador = page.Locator(".marco-lista-trabajadores .tarjeta-fila-acordeon", new PageLocatorOptions { HasText = apellidosTrabajador });
         await filaTrabajador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        // La fila ya estaba en la lista sin filtrar, así que verla no dice que el filtro haya llegado, y la recarga del
+        // filtro limpia la selección y rehace la barra de lote. La barrera es la lista filtrada: queda solo esa fila.
+        await Expect(page.Locator(".marco-lista-trabajadores .fila-pulsable")).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
         // El ☑ de la cabecera de la lista (rediseño de listados, fase 1): un icono con nombre accesible, sin texto visible.
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true }).ClickAsync();
         await filaTrabajador.Locator("input[type=\"checkbox\"]").CheckAsync();
@@ -126,7 +129,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         var filaDocumento = page.GetByRole(AriaRole.Table,
                 new PageGetByRoleOptions { Name = $"Documentación exigida a {nombreTrabajador} {apellidosTrabajador}" })
             .Locator(".fila-documento-requerido", new LocatorLocatorOptions { HasText = nombreTipoDocumento });
-        await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Subir" }).ClickAsync();
+        await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);

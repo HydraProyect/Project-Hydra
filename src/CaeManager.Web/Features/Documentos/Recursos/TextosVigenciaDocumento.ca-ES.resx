@@ -87,6 +87,15 @@
   <data name="Ficha360Desconocido" xml:space="preserve">
     <value>Estat desconegut</value>
   </data>
+  <data name="Ficha360Gestionar" xml:space="preserve">
+    <value>Gestionar</value>
+  </data>
+  <data name="Ficha360GestionarAccesibleDe" xml:space="preserve">
+    <value>Gestionar el document «{0}» de {1}</value>
+  </data>
+  <data name="Ficha360GestionarAccesible" xml:space="preserve">
+    <value>Gestionar el document «{0}»</value>
+  </data>
   <data name="MotivoFaltaTipos" xml:space="preserve">
     <value>Falta: {0}</value>
   </data>

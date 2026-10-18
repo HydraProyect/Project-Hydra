@@ -21,6 +21,9 @@ public class Trabajador : EntidadBase
     public const int LongitudMaximaTelefono = 20;
 
     public const int LongitudMaximaObservaciones = 1000;
+
+    /// <summary>Mismo límite que la «Nota interna» de Empresa 360 (<c>Empresa.LongitudMaximaNotas</c>).</summary>
+    public const int LongitudMaximaNotas = 2000;
     public const int LongitudMinimaDni = 5;
     public const int LongitudMaximaDni = 20;
 
@@ -71,6 +74,16 @@ public class Trabajador : EntidadBase
     public string? Telefono { get; private set; }
 
     public string? Observaciones { get; private set; }
+
+    /// <summary>
+    /// La «Nota interna» de la ficha Trabajador 360: texto libre del equipo sobre el Trabajador. NULL = sin nota.
+    /// Solo la escribe <see cref="FijarNotaInterna"/>; <see cref="Actualizar"/> y <see cref="ActualizarFicha"/> no la
+    /// tocan. No es <see cref="Observaciones"/>: aquella viaja a la API pública v1 y esta no sale del equipo.
+    ///
+    /// Texto libre sobre una persona física: dato personal. Está en <see cref="CamposDeDatosPersonales"/> y
+    /// <see cref="Anonimizar"/> la vacía.
+    /// </summary>
+    public string? Notas { get; private set; }
 
     public string? NumeroAfiliacionSeguridadSocial { get; private set; }
     public string? Nacionalidad { get; private set; }
@@ -172,12 +185,14 @@ public class Trabajador : EntidadBase
     /// <c>app_enmascarar_auditoria_de_trabajador_anonimizado</c> (migración
     /// <c>EnmascaraAuditoriaDeTrabajadorAnonimizado</c>) reescribe con "***" estas mismas
     /// claves en las entradas anteriores. La función repite la lista en SQL: una propiedad
-    /// personal nueva se añade aquí, en <see cref="Anonimizar"/> y en la función.
+    /// personal nueva se añade aquí, en <see cref="Anonimizar"/> y en la función, redefinida con
+    /// CREATE OR REPLACE en una migración nueva (la última, <c>AnadeNotaInternaATrabajadorYCentro</c>,
+    /// añadió <see cref="Notas"/>).
     /// </summary>
     public static readonly IReadOnlyList<string> CamposDeDatosPersonales =
     [
         nameof(Nombre), nameof(Apellidos), nameof(Alias), nameof(Dni), nameof(FechaNacimiento),
-        nameof(Email), nameof(Telefono), nameof(Observaciones), nameof(Puesto),
+        nameof(Email), nameof(Telefono), nameof(Observaciones), nameof(Notas), nameof(Puesto),
         nameof(NumeroAfiliacionSeguridadSocial), nameof(Nacionalidad), nameof(TipoVinculo),
         nameof(FechaAltaEmpresa), nameof(FechaBajaEmpresa), nameof(FiguraEnRnt),
         nameof(TipoPermisoTrabajo), nameof(CaducidadPermisoTrabajo), nameof(MotivoPermisoTrabajo),
@@ -217,6 +232,7 @@ public class Trabajador : EntidadBase
         Email = null;
         Telefono = null;
         Observaciones = null;
+        Notas = null;
         Puesto = null;
         NumeroAfiliacionSeguridadSocial = null;
         Nacionalidad = null;
@@ -229,6 +245,26 @@ public class Trabajador : EntidadBase
         MotivoPermisoTrabajo = null;
 
         AnonimizadoEnUtc = ahoraUtc;
+    }
+
+    /// <summary>
+    /// Fija solo la nota interna (<see cref="Notas"/>), sin tocar identidad, contacto ni ficha: quien edita la nota
+    /// desde la ficha 360 no reenvía los datos del Trabajador. Vacía o solo espacios equivale a no tener nota
+    /// (<c>null</c>). Un Trabajador anonimizado no la admite: es dato personal y reintroducirlo dejaría la supresión
+    /// sin efecto.
+    /// </summary>
+    public void FijarNotaInterna(string? notas)
+    {
+        if (EstaAnonimizado)
+            throw new InvalidOperationException(
+                "Este trabajador está anonimizado: sus datos personales se suprimieron y no pueden volver a introducirse.");
+
+        var normalizada = string.IsNullOrWhiteSpace(notas) ? null : notas.Trim();
+
+        if (normalizada is { Length: > LongitudMaximaNotas })
+            throw new ArgumentException($"La nota interna no puede superar {LongitudMaximaNotas} caracteres.", nameof(notas));
+
+        Notas = normalizada;
     }
 
     /// <summary>

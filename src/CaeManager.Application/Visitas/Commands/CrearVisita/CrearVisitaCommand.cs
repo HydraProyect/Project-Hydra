@@ -93,19 +93,27 @@ public class CrearVisitaCommandHandler(
         if (encontrados != trabajadorIds.Count)
             return Result.Fallo<Guid>(Error.Crear("Visita.TrabajadorNoEncontrado", "Alguno de los trabajadores seleccionados no existe."));
 
+        // Asignación de Cartera de la sugerencia: solo cuenta si quien mira alcanza la Conversación
+        // del mensaje que la originó, el mismo criterio con el que ObtenerConversacionPorIdQuery la
+        // enseña. Fuera de alcance se trata igual que un Id que no existe: la Visita nace, pero la
+        // sugerencia de otra cartera no se resuelve, su Conversación no se enlaza y no se le envía
+        // ningún paquete documental.
+        var sugerencia = request.SugerenciaVisitaCorreoId is { } sugerenciaId
+            ? await ObtenerSugerenciaDentroDeAlcanceAsync(sugerenciaId, cancellationToken)
+            : null;
+
         // El origen sale del canal del mensaje del que nació la sugerencia, no de que exista una:
         // una sugerencia detectada por WhatsApp crea una Visita de origen WhatsApp.
         CanalConversacion? canalDelMensaje = null;
-        if (request.SugerenciaVisitaCorreoId is { } sugerenciaDelOrigen
-            && await sugerenciaRepositorio.ObtenerPorIdAsync(sugerenciaDelOrigen, cancellationToken) is { } sugerenciaOrigen)
+        if (sugerencia is not null)
         {
             canalDelMensaje = await comunicacionesContext.Mensajes
-                .Where(m => m.Id == sugerenciaOrigen.MensajeId)
+                .Where(m => m.Id == sugerencia.MensajeId)
                 .Select(m => (CanalConversacion?)m.Canal)
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
-        var origen = Visita.OrigenAlCrear(request.SugerenciaVisitaCorreoId is not null, canalDelMensaje);
+        var origen = Visita.OrigenAlCrear(sugerencia is not null, canalDelMensaje);
         var visita = new Visita(request.CentroId, request.FechaInicio, request.FechaFin, request.Notas, origen, request.HoraEstimadaAcceso);
         visita.RellenarContactoDesdeCentro(centro.Contacto);
         repositorio.Agregar(visita);
@@ -114,42 +122,38 @@ public class CrearVisitaCommandHandler(
             visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, trabajadorId));
 
         Guid? conversacionParaPaquete = null;
-        if (request.SugerenciaVisitaCorreoId is { } sugerenciaId)
+        if (sugerencia is not null)
         {
-            var sugerencia = await sugerenciaRepositorio.ObtenerPorIdAsync(sugerenciaId, cancellationToken);
-            if (sugerencia is not null)
-            {
-                // Si el Gestor tuvo que corregir centro o fechas antes de confirmar, la
-                // sugerencia ahorró menos trabajo que una aceptada de un clic. No hace
-                // falta que la UI lo declare: los propios datos lo dicen.
-                var huboEdicion =
-                    sugerencia.CentroId != request.CentroId
-                    || (sugerencia.FechaInicioSugerida is { } inicio && inicio != request.FechaInicio)
-                    || (sugerencia.FechaFinSugerida is { } fin && fin != request.FechaFin);
+            // Si el Gestor tuvo que corregir centro o fechas antes de confirmar, la
+            // sugerencia ahorró menos trabajo que una aceptada de un clic. No hace
+            // falta que la UI lo declare: los propios datos lo dicen.
+            var huboEdicion =
+                sugerencia.CentroId != request.CentroId
+                || (sugerencia.FechaInicioSugerida is { } inicio && inicio != request.FechaInicio)
+                || (sugerencia.FechaFinSugerida is { } fin && fin != request.FechaFin);
 
-                sugerencia.Resolver(
-                    huboEdicion ? ResolucionSugerencia.ConfirmadaConEdicion : ResolucionSugerencia.Confirmada,
-                    await currentUserService.ObtenerUsuarioActualIdAsync());
-                conversacionParaPaquete = await comunicacionesContext.Mensajes
-                    .Where(m => m.Id == sugerencia.MensajeId)
-                    .Select(m => (Guid?)m.ConversacionId)
+            sugerencia.Resolver(
+                huboEdicion ? ResolucionSugerencia.ConfirmadaConEdicion : ResolucionSugerencia.Confirmada,
+                await currentUserService.ObtenerUsuarioActualIdAsync());
+            conversacionParaPaquete = await comunicacionesContext.Mensajes
+                .Where(m => m.Id == sugerencia.MensajeId)
+                .Select(m => (Guid?)m.ConversacionId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            // Instante que el cliente considera "yo avisé": el primer mensaje entrante
+            // del hilo, no el mensaje del que la IA sacó la sugerencia — si el hilo
+            // arrancó pidiendo la visita y luego hubo idas y venidas, el margen se
+            // cuenta desde el principio, a favor del cliente.
+            if (conversacionParaPaquete is { } conversacionOrigenId)
+            {
+                var solicitudUtc = await comunicacionesContext.Mensajes
+                    .Where(m => m.ConversacionId == conversacionOrigenId && m.Direccion == DireccionMensaje.Entrante)
+                    .OrderBy(m => m.FechaUtc)
+                    .Select(m => (DateTime?)m.FechaUtc)
                     .FirstOrDefaultAsync(cancellationToken);
 
-                // Instante que el cliente considera "yo avisé": el primer mensaje entrante
-                // del hilo, no el mensaje del que la IA sacó la sugerencia — si el hilo
-                // arrancó pidiendo la visita y luego hubo idas y venidas, el margen se
-                // cuenta desde el principio, a favor del cliente.
-                if (conversacionParaPaquete is { } conversacionOrigenId)
-                {
-                    var solicitudUtc = await comunicacionesContext.Mensajes
-                        .Where(m => m.ConversacionId == conversacionOrigenId && m.Direccion == DireccionMensaje.Entrante)
-                        .OrderBy(m => m.FechaUtc)
-                        .Select(m => (DateTime?)m.FechaUtc)
-                        .FirstOrDefaultAsync(cancellationToken);
-
-                    if (solicitudUtc is not null)
-                        visita.RegistrarOrigenSolicitud(conversacionOrigenId, solicitudUtc.Value);
-                }
+                if (solicitudUtc is not null)
+                    visita.RegistrarOrigenSolicitud(conversacionOrigenId, solicitudUtc.Value);
             }
         }
 
@@ -196,6 +200,19 @@ public class CrearVisitaCommandHandler(
         }
 
         return Result.Exito(visita.Id);
+    }
+
+    private async Task<SugerenciaVisitaCorreo?> ObtenerSugerenciaDentroDeAlcanceAsync(Guid sugerenciaId, CancellationToken cancellationToken)
+    {
+        var mensajeId = await comunicacionesContext.SugerenciasVisitaCorreo
+            .Where(s => s.Id == sugerenciaId)
+            .Select(s => (Guid?)s.MensajeId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (mensajeId is not { } id || !await alcanceDatos.MensajeVisibleAsync(comunicacionesContext, id, cancellationToken))
+            return null;
+
+        return await sugerenciaRepositorio.ObtenerPorIdAsync(sugerenciaId, cancellationToken);
     }
 
     private static Result<Guid> CentroNoEncontrado() =>
