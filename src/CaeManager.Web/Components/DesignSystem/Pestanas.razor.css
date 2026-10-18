@@ -85,6 +85,31 @@
     white-space: nowrap;
 }
 
+/*
+   Variante de página 360 (parámetro Pagina360): .pestanas / .pestana /
+   .pestana-contador de los «… 360 página» del export de Design.
+*/
+.pestanas-lista-pagina360 {
+    gap: 2px;
+}
+
+.pestanas-lista-pagina360 .pestanas-boton {
+    height: 38px;
+    padding: 0 10px;
+    gap: 6px;
+    font: var(--font-label);
+    font-weight: 600;
+}
+
+.pestanas-lista-pagina360 .pestanas-boton.pestanas-boton-activa {
+    color: var(--color-text);
+}
+
+.pestanas-lista-pagina360 .pestanas-contador {
+    padding: 1px 6px;
+    font: 500 11px/14px var(--font-family);
+}
+
 .pestanas-panel {
     padding-top: var(--space-4);
     flex: 1;

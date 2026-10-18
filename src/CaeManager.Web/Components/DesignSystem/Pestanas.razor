@@ -6,7 +6,7 @@
     Context Workspace — reutilizable en cualquier pantalla con secciones.
 *@
 <div class="pestanas">
-    <div class="@("pestanas-lista" + (Envolver ? " pestanas-lista-envuelta" : ""))" role="tablist" aria-label="@EtiquetaGrupo">
+    <div class="@("pestanas-lista" + (Envolver ? " pestanas-lista-envuelta" : "") + (Pagina360 ? " pestanas-lista-pagina360" : ""))" role="tablist" aria-label="@EtiquetaGrupo">
         @for (var i = 0; i < Definiciones.Count; i++)
         {
             var indice = i;
@@ -69,6 +69,14 @@
     /// estrechos con pocas pestañas; por defecto, una sola fila con desplazamiento.
     /// </summary>
     [Parameter] public bool Envolver { get; set; }
+
+    /// <summary>
+    /// Pestañas de la columna principal de una página 360 con las medidas del export de Design
+    /// (<c>.pestana</c> de «… 360 página»): 38 px de alto, 13/16, 2 px entre pestañas, la activa en
+    /// el color de texto con subrayado primario y píldora de recuento 11/14. Falso por defecto:
+    /// ningún consumidor existente cambia.
+    /// </summary>
+    [Parameter] public bool Pagina360 { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
     /// <summary>Las pestañas que contienen a estas, si las hay: su ámbito encadena este.</summary>

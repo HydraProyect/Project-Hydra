@@ -60,3 +60,18 @@
     align-items: center;
     gap: var(--space-2);
 }
+
+/*
+   Móvil y tableta (@media (max-width:900px) de los «… 360 página»: .centro360-cabecera{flex-wrap:wrap}
+   y .centro360-acciones{align-items:flex-start}): las acciones pasan a su propia fila bajo el anillo
+   y la identidad, en vez de apretar el nombre hasta una letra por línea.
+*/
+@media (max-width: 900px) {
+    .cabecera-identidad {
+        flex-wrap: wrap;
+    }
+
+    .cabecera-identidad-acciones {
+        align-items: flex-start;
+    }
+}
