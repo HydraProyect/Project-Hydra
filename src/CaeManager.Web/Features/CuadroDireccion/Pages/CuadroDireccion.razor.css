@@ -22,15 +22,29 @@
     letter-spacing: -0.24px;
 }
 
-.cuadro-tarjeta ::deep .tarjeta-titulo {
-    font-size: 18px;
-    line-height: 26px;
-    font-weight: 600;
-}
+/* Título y su fila de acciones en una línea (h1 + mes + chip «parcial»: gap 10, alto 32). */
+.cuadro ::deep .cabecera-pagina-titular { gap: 10px; min-height: 32px; align-items: center; }
+/* El hueco bajo el título lo pone el gap de la pantalla (20): la barra queda a 52 px del borde superior del h1 (32 + 20). */
+.cuadro ::deep .cabecera-pagina { margin-bottom: 0; }
 
-.cuadro-tarjeta ::deep .tarjeta-header { padding: 0; }
-.cuadro-tarjeta ::deep .tarjeta-contenido { padding: 12px 0 0; display: grid; gap: 12px; min-width: 0; }
-.cuadro-tarjeta { padding: 16px; min-width: 0; }
+/* Tarjetas (maqueta: .tv-card). El componente Tarjeta solo pone el atributo de ámbito de este componente en su raíz,
+   así que las reglas cuelgan del envoltorio .cuadro-bloque, que sí es de este componente, y llegan por ::deep. */
+.cuadro-bloque ::deep .tarjeta { padding: 20px; min-width: 0; }
+.cuadro-bloque ::deep .tarjeta-header { padding: 0; border-bottom: 0; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
+.cuadro-bloque ::deep .tarjeta-titulo { margin: 0; font-size: 18px; line-height: 26px; font-weight: 600; text-wrap: balance; min-width: 0; flex: 1; }
+.cuadro-bloque ::deep .tarjeta-acciones { flex: none; }
+.cuadro-bloque ::deep .tarjeta-contenido { padding: 0; display: grid; gap: 12px; min-width: 0; align-content: start; }
+
+/* «Exportar a Excel» en la fila de cabecera de la tarjeta (maqueta: 30 de alto, 12/16, relleno 10, radio 8). */
+.cuadro-bloque ::deep .cuadro-exportar {
+    min-height: 30px;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 16px;
+    white-space: nowrap;
+}
 
 .cuadro-mes {
     margin: 0;
@@ -70,12 +84,15 @@
     align-items: center;
 }
 
+/* Las dos filas de la barra de herramientas van a 12 px entre sí (el hueco de la pantalla es 20). */
+.cuadro-barra + .cuadro-barra { margin-top: -8px; }
+
 /* Periodo: ‹ [Mes 1 / Mes 6 / Año 3] › en un solo grupo de 38 px (maqueta: .tv-seg con las flechas). */
 .cuadro-periodo {
     display: inline-flex;
     align-items: stretch;
     gap: 4px;
-    height: 38px;
+    height: 42px;
     max-width: 100%;
 }
 
@@ -111,12 +128,13 @@
 .cuadro-barra ::deep .boton { height: 38px; min-height: 38px; padding-block: 0; }
 /* Ámbito: un select de 38 px, sin etiqueta encima (el nombre accesible va en aria-label). */
 .cuadro-select {
-    height: 38px;
+    box-sizing: border-box;
     min-width: 0;
     max-width: 100%;
-    padding: 0 32px 0 12px;
+    padding: 8px 12px;
     font: inherit;
     font-size: 13px;
+    line-height: 20px;
     color: var(--color-text);
     background-color: var(--color-surface);
     border: 1px solid var(--color-border-control);
@@ -176,23 +194,6 @@
 
 .cuadro-espaciador { flex: 1 1 0; }
 
-.cuadro-mesnav-boton {
-    width: 38px;
-    height: 38px;
-    border: 1px solid var(--color-border-control);
-    border-radius: var(--radius-md);
-    background: var(--color-surface);
-    color: var(--color-text);
-    font: 600 16px/1 var(--font-family);
-    cursor: pointer;
-}
-
-.cuadro-mesnav-boton:disabled { opacity: .4; cursor: default; }
-.cuadro-pastilla { display: none; }
-.cuadro-presenta { font-size: 110%; }
-
-.cuadro-espaciador { flex: 1 1 0; }
-
 .cuadro-mesnav {
     display: inline-flex;
     align-items: center;
@@ -200,8 +201,8 @@
 }
 
 .cuadro-mesnav-boton {
-    width: 36px;
-    height: 36px;
+    width: 42px;
+    height: 42px;
     border: 1px solid var(--color-border-control);
     border-radius: var(--radius-md);
     background: var(--color-surface);
@@ -295,7 +296,7 @@
 }
 
 /* La página de cada pestaña es el contenedor: las columnas de los KPI siguen su ancho y no el de la ventana (maqueta: .tv-page). */
-.cuadro-pagina { container-type: inline-size; min-width: 0; }
+.cuadro-pagina { container-type: inline-size; min-width: 0; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
 
 .cuadro-kpis {
     display: grid;
@@ -335,7 +336,19 @@
 
 .cuadro-kpi-sub { font-size: 12px; color: var(--color-text-muted); line-height: 16px; }
 
-@media (max-width: 640px) { .cuadro-kpi-valor { font-size: 24px; } }
+/* Móvil: los KPI en una fila con desplazamiento horizontal y encaje (maqueta: .tv-kpis a 375). */
+@media (max-width: 640px) {
+    .cuadro-kpi-valor { font-size: 24px; }
+    .cuadro-kpis {
+        display: flex;
+        align-items: flex-start;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        gap: 10px;
+        padding-bottom: 4px;
+    }
+    .cuadro-kpis > .cuadro-kpi { flex: 0 0 193px; scroll-snap-align: start; }
+}
 
 .cuadro-tabla-envoltorio { overflow: auto; max-width: 100%; max-height: 560px; border-radius: var(--radius-md); }
 
@@ -440,7 +453,7 @@
 /* Interruptor de etiquetas de datos (maqueta: .tv-switch). */
 .cuadro-interruptor {
     display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 12px;
-    font: inherit; font-size: 14px; color: var(--color-text); cursor: pointer;
+    font: inherit; font-size: 13px; line-height: 20px; font-weight: 500; color: var(--color-text); cursor: pointer;
     background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px;
 }
 .cuadro-interruptor i { width: 28px; height: 16px; border-radius: 8px; background: var(--color-border-strong); position: relative; }
@@ -488,7 +501,9 @@
 /* Simulador de tarifa. */
 .cuadro-sim { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); align-items: end; }
 @media (max-width: 700px) { .cuadro-sim { grid-template-columns: 1fr; } }
-.cuadro-sim-importe { font-size: 22px; font-weight: 700; }
+.cuadro-sim-importe { font-size: 18px; line-height: 20px; font-weight: 700; }
+/* Controles del simulador de 38 px (maqueta). */
+.cuadro-sim ::deep input, .cuadro-sim ::deep select, .cuadro-sim-como .cuadro-select { min-height: 38px; box-sizing: border-box; }
 
 /* Recomendación «Si hubiera que reforzar a media jornada». */
 .cuadro-reco-grande { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
@@ -518,6 +533,9 @@
 
 /* Móvil (375 px): pestañas en una sola fila con desplazamiento y controles apilados a todo el ancho. */
 @media (max-width: 640px) {
+    /* Margen lateral de 16 px (el contenedor de página compartido da 32). */
+    .cuadro { padding: 16px; }
+    .cuadro-bloque ::deep .tarjeta { padding: 16px; }
     .cuadro ::deep .pestanas-lista-envuelta { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
     .cuadro-barra { flex-direction: column; align-items: stretch; gap: 8px; }
     .cuadro-barra > * { width: 100%; min-width: 0; }
@@ -530,6 +548,19 @@
     .cuadro-barra ::deep .boton { width: 100%; }
     .cuadro-barra-acciones { flex-direction: row; flex-wrap: wrap; }
     .cuadro-barra-acciones > * { width: auto; flex: 1 1 auto; }
+}
+/* Insignia de aviso de las pestañas: ámbar, 20 x 20, 11 px en negrita (maqueta: .tv-tabs .tv-badge). */
+.cuadro ::deep .pestanas-contador-alerta {
+    box-sizing: border-box;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    font-size: 11px;
+    line-height: 20px;
+    font-weight: 700;
+    background: var(--color-warning-700);
+    color: var(--color-warning-50);
 }
 /* Índice de cartera por Gestor CAE (maqueta: chartCarga): barras horizontales con la media (100) punteada. */
 .cuadro-indice { display: grid; }

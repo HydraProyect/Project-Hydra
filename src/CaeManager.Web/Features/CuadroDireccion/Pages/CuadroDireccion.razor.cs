@@ -71,7 +71,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         ["empresas"] = ["cl-rendimiento", "cl-pareto", "cl-contratos", "cl-tabla"],
         // Cartera por Gestor CAE: volumen de cartera por persona (Empresas asignadas). La ocupación por persona no se construye.
         ["carga"] = ["c-indice", "c-tabla", "c-criterio"],
-        ["demanda"] = ["p-franja", "p-heatmap", "p-calendario", "p-estacional"],
+        ["demanda"] = ["p-franja", "p-estacional", "p-heatmap", "p-calendario"],
         ["vacaciones"] = ["v-cobertura", "v-barras", "v-tabla"],
         ["comunicaciones"] = ["cm-kpis", "cm-equipos", "cm-estados", "cm-intencion", "cm-canal", "cm-criterio"],
         ["comparativa"] = ["cmp-linea", "cmp-tabla"],
@@ -413,7 +413,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
                 var hoy = DiaDeNegocio.Hoy();
                 var llegado = destino.Year < hoy.Year || (destino.Year == hoy.Year && destino.Month <= hoy.Month);
                 return new Momento(
-                    id, rotulo, CuadroDireccionUi.EtiquetaMes(destino.Year, destino.Month), destino.Year, destino.Month,
+                    id, rotulo, CuadroDireccionUi.EtiquetaMes(destino.Year, destino.Month).ToLower(CuadroDireccionUi.Castellano), destino.Year, destino.Month,
                     destino.Year == _anyo && destino.Month == _mes, llegado);
             }
 
@@ -799,6 +799,22 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     private string Importe(decimal valor) => Importe(valor, Moneda);
 
+    /// <summary>Rótulo corto del eje Y de un importe (maqueta): «10 mil €», «500 €», «0 €».</summary>
+    private string EjeImporteEn(double valor, string moneda)
+    {
+        var simbolo = moneda == "EUR" ? "€" : moneda;
+        return valor >= 1000
+            ? Textos["EjeMiles", (valor / 1000).ToString("0.#", CuadroDireccionUi.Castellano), simbolo].Value
+            : valor.ToString("0.#", CuadroDireccionUi.Castellano) + " " + simbolo;
+    }
+
+    private string EjeImporte(double valor) => EjeImporteEn(valor, Moneda);
+
+    private string EjeImporteAnual(double valor) => _metrica == "facturacion" ? EjeImporteEn(valor, MonedaAnual) : Numero((int)valor);
+
+    /// <summary>Rótulo corto del eje Y de un porcentaje (maqueta): «0 %», «80 %».</summary>
+    private static string EjePorcentaje(double valor) => valor.ToString("0.#", CuadroDireccionUi.Castellano) + " %";
+
     private decimal ImporteDe(PuntoSerieCuadroDto? punto) => punto?.ImporteEn(Moneda) ?? 0m;
 
     private static string Paleta_(int i) => Paleta[i % Paleta.Length];
@@ -1165,6 +1181,36 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     private IReadOnlyList<string> TarjetasOrdenadas => _preferencias.Ordenar(_pestana, TarjetasDe(_pestana));
 
     private static bool EsKpi(string id) => id.StartsWith("k-", StringComparison.Ordinal);
+
+    private sealed record GrupoTarjetas(bool EsKpi, IReadOnlyList<string> Ids);
+
+    /// <summary>
+    /// Las tarjetas visibles en rachas: los KPI seguidos van en su propia fila (en móvil, con desplazamiento horizontal) y el resto
+    /// en la rejilla de tarjetas. Si Personalizar mezcla el orden, cada racha conserva su sitio.
+    /// </summary>
+    private IReadOnlyList<GrupoTarjetas> GruposVisibles
+    {
+        get
+        {
+            var grupos = new List<GrupoTarjetas>();
+            var actual = new List<string>();
+            var actualEsKpi = false;
+            foreach (var id in TarjetasVisibles)
+            {
+                if (actual.Count > 0 && EsKpi(id) != actualEsKpi)
+                {
+                    grupos.Add(new GrupoTarjetas(actualEsKpi, actual));
+                    actual = [];
+                }
+
+                actualEsKpi = EsKpi(id);
+                actual.Add(id);
+            }
+
+            if (actual.Count > 0) grupos.Add(new GrupoTarjetas(actualEsKpi, actual));
+            return grupos;
+        }
+    }
 
     private string TituloTarjeta(string id) => id switch
     {

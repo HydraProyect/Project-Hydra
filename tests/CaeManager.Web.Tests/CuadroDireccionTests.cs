@@ -384,7 +384,21 @@ public partial class CuadroDireccionTests : BunitContext
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _,
             serie: q => new SerieCuadroDireccionDto([], [], 0));
 
-        cut.FindAll(".cuadro-momento button").Select(b => b.FirstChild!.TextContent.Trim()).Should().Equal("Mes 1", "Mes 6", "Año 3");    }
+        cut.FindAll(".cuadro-momento button").Select(b => b.FirstChild!.TextContent.Trim()).Should().Equal("Mes 1", "Mes 6", "Año 3");
+        cut.FindAll(".cuadro-momento button small").Select(s => s.TextContent.Trim())
+            .Should().OnlyContain(m => m == m.ToLowerInvariant(), "los rótulos de segmento van en minúsculas («oct 2026»)");
+    }
+
+    [Fact]
+    public void El_mes_y_el_chip_de_estado_van_en_la_misma_fila_que_el_titulo()
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
+
+        var titular = cut.Find(".cabecera-pagina-titular");
+        titular.QuerySelector("h1")!.Should().NotBeNull();
+        titular.QuerySelector(".cuadro-mes .cuadro-estado").Should().NotBeNull("el chip «parcial» va junto al mes y al título");
+        cut.FindAll(".cabecera-pagina-descripcion").Should().BeEmpty();
+    }
 
     [Fact]
     public void Presentar_activa_el_modo_presentacion_y_Escape_lo_cierra()

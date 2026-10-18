@@ -40,7 +40,7 @@ public static class CuadroDireccionUi
 {
     public static readonly CultureInfo Castellano = CultureInfo.GetCultureInfo("es-ES");
 
-    private static readonly string[] MesesCortos = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+    public static readonly string[] MesesCortos = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
     /// <summary>«Oct 2026»: el rótulo de mes de la maqueta (mes abreviado y año, con la primera en mayúscula).</summary>
     public static string EtiquetaMes(int anyo, int mes) =>

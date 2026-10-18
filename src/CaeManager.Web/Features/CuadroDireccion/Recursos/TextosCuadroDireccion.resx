@@ -873,4 +873,13 @@
   <data name="ColumnaGestionesExtranjeros" xml:space="preserve">
     <value>Gestiones de extranjeros</value>
   </data>
+  <data name="EjeMiles" xml:space="preserve">
+    <value>{0} mil {1}</value>
+  </data>
+  <data name="ColumnaTrabajadoresCartera" xml:space="preserve">
+    <value>Trabajadores</value>
+  </data>
+  <data name="ColumnaExtranjerosCartera" xml:space="preserve">
+    <value>Extranjeros</value>
+  </data>
 </root>

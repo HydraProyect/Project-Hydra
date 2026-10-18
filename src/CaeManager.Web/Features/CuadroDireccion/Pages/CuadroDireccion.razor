@@ -23,7 +23,7 @@
 *@
 <div class="contenedor-pagina cuadro @(_presentando ? "cuadro-presenta" : null)" @onkeydown="TeclaPresentacionAsync">
     <CabeceraPagina Titulo="@Textos["TituloCabecera"]">
-        <Descripcion>
+        <JuntoAlTitulo>
             <p class="cuadro-mes">
                 <span class="cuadro-mes-nombre">@EtiquetaMes</span>
                 @if (HayCifras)
@@ -31,7 +31,7 @@
                     <span class="cuadro-estado" data-e="@EstadoDato" title="@EstadoTitulo">@EstadoTexto</span>
                 }
             </p>
-        </Descripcion>
+        </JuntoAlTitulo>
     </CabeceraPagina>
 
     <div class="cuadro-barra">
@@ -170,8 +170,10 @@
 
             <Pestanas Definiciones="Definiciones" PestanaActiva="@_pestana" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="@Textos["EtiquetaVistas"]" Envolver="true">
                 <div class="cuadro-pagina">
-                <div class="@(_pestana == "general" ? "cuadro-kpis" : "cuadro-rejilla")">
-                @foreach (var id in TarjetasVisibles)
+                @foreach (var grupo in GruposVisibles)
+                {
+                <div class="@(grupo.EsKpi ? "cuadro-kpis" : "cuadro-rejilla")">
+                @foreach (var id in grupo.Ids)
                 {
                     var c = Cifras;
                     @switch (id)
@@ -261,7 +263,7 @@
                                     {
                                         <GraficoSerie Id="evolucion" EtiquetaAria="@Textos["EvolucionTitulo"]" Etiquetas="@EtiquetasSerie"
                                                       Barras="@BarraFacturacion()" Linea="@LineaGestiones()" MostrarValores="@_preferencias.Etiquetas"
-                                                      FormatoBarra="@(v => Importe((decimal)v))" />
+                                                      FormatoBarra="@(v => Importe((decimal)v))" FormatoEjeBarra="@EjeImporte" />
                                     }
                                 </Tarjeta>
                             </div>
@@ -287,7 +289,7 @@
                                     {
                                         <GraficoSerie Id="apilado" EtiquetaAria="@Textos["ApiladoTitulo"]" Etiquetas="@EtiquetasSerie"
                                                       Barras="@SeriesFacturacionPorConcepto()" MostrarValores="@_preferencias.Etiquetas"
-                                                      FormatoBarra="@(v => Importe((decimal)v))" />
+                                                      FormatoBarra="@(v => Importe((decimal)v))" FormatoEjeBarra="@EjeImporte" />
                                         @if (OtraMoneda is { } otra)
                                         {
                                             <p class="cuadro-nota">@Textos["FacturacionOtraMoneda", otra, Moneda]</p>
@@ -377,8 +379,9 @@
                         case "f-borrador":
                             <div class="cuadro-bloque cuadro-ancha" data-tarjeta="f-borrador">
                                 <Tarjeta Titulo="@Textos["BorradorTitulo"]" Class="cuadro-tarjeta">
+                                    <AccionesHeader><Boton Variante="VarianteBoton.Secundario" Class="cuadro-exportar" OnClick="ExportarBorradorAsync">@Textos["ExportarTabla"]</Boton></AccionesHeader>
+                                    <ChildContent>
                                     <p class="cuadro-nota">@Textos["BorradorNota"]</p>
-                                    <div class="cuadro-acciones"><Boton Variante="VarianteBoton.Secundario" OnClick="ExportarBorradorAsync">@Textos["ExportarTabla"]</Boton></div>
                                     <div class="cuadro-tabla-envoltorio">
                                         <table class="cuadro-tabla" data-tabla="borrador">
                                             <thead>
@@ -402,6 +405,7 @@
                                             </tbody>
                                         </table>
                                     </div>
+                                    </ChildContent>
                                 </Tarjeta>
                             </div>
                             break;
@@ -418,7 +422,7 @@
                                     {
                                         <GraficoDispersion Id="rendimiento" EtiquetaAria="@Textos["RendimientoTitulo"]" EtiquetaX="@Textos["RendimientoX"]" EtiquetaY="@Textos["RendimientoY"]"
                                                            Puntos="@PuntosDispersion()" Describir="@DescribirPunto"
-                                                           FormatoX="@(v => Numero((int)Math.Round(v)))" FormatoY="@(v => Importe((decimal)v))"
+                                                           FormatoX="@(v => Numero((int)Math.Round(v)))" FormatoY="@EjeImporte"
                                                            FormatoMediana="@(v => Textos["RendimientoMediana", Importe((decimal)v)].Value)"
                                                            Leyenda="@(new[] { new SerieGrafico(Textos["RendimientoNormal"].Value, "var(--color-primary-500)", []), new SerieGrafico(Textos["RendimientoBajo"].Value, "var(--color-tolerancia-500)", []) })" />
                                     }
@@ -445,7 +449,8 @@
                                                       LeyendaPropia="@(new[] { new SerieGrafico(Textos["ParetoPrimer50"].Value, ColorPrimer50, []), new SerieGrafico(Textos["ParetoResto"].Value, ColorResto, []), new SerieGrafico(Textos["SerieAcumulado"].Value, Paleta[1], []) })"
                                                       Linea="@(new SerieGrafico(Textos["SerieAcumulado"].Value, Paleta[1], pareto.Select(p => (double?)p.Acumulado).ToList()))"
                                                       MaximoFijoLinea="100" MarcasFijasLinea="@MarcasAcumulado" ReferenciaLinea="80"
-                                                      MostrarValores="@_preferencias.Etiquetas" FormatoBarra="@(v => Porcentaje(v))" FormatoLinea="@(v => Porcentaje(v))" />
+                                                      MostrarValores="@_preferencias.Etiquetas" FormatoBarra="@(v => Porcentaje(v))" FormatoLinea="@(v => Porcentaje(v))"
+                                                      FormatoEjeBarra="@EjePorcentaje" FormatoEjeLinea="@EjePorcentaje" />
                                     }
                                 </Tarjeta>
                             </div>
@@ -461,8 +466,9 @@
                         case "cl-tabla":
                             <div class="cuadro-bloque cuadro-ancha" data-tarjeta="cl-tabla">
                                 <Tarjeta Titulo="@Textos["EmpresasTitulo"]" Class="cuadro-tarjeta">
+                                    <AccionesHeader><Boton Variante="VarianteBoton.Secundario" Class="cuadro-exportar" OnClick="ExportarEmpresasAsync">@Textos["ExportarTabla"]</Boton></AccionesHeader>
+                                    <ChildContent>
                                     <p class="cuadro-nota">@Textos["EmpresasNota"]</p>
-                                    <div class="cuadro-acciones"><Boton Variante="VarianteBoton.Secundario" OnClick="ExportarEmpresasAsync">@Textos["ExportarTabla"]</Boton></div>
                                     <div class="cuadro-tabla-envoltorio">
                                         <table class="cuadro-tabla" data-tabla="empresas">
                                             <thead>
@@ -550,6 +556,7 @@
                                             </tbody>
                                         </table>
                                     </div>
+                                    </ChildContent>
                                 </Tarjeta>
                             </div>
                             break;
@@ -746,6 +753,13 @@
                         case "c-tabla":
                             <div class="cuadro-bloque cuadro-ancha" data-tarjeta="c-tabla">
                                 <Tarjeta Titulo="@Textos["CarteraTitulo"]" Class="cuadro-tarjeta">
+                                    <AccionesHeader>
+                                        @if (CarteraPorGestor.Count > 0)
+                                        {
+                                            <Boton Variante="VarianteBoton.Secundario" Class="cuadro-exportar" OnClick="ExportarCarteraAsync">@Textos["ExportarTabla"]</Boton>
+                                        }
+                                    </AccionesHeader>
+                                    <ChildContent>
                                     <p class="cuadro-nota">@Textos["CarteraNota"]</p>
                                     @if (CarteraPorGestor.Count == 0)
                                     {
@@ -753,7 +767,6 @@
                                     }
                                     else
                                     {
-                                        <div class="cuadro-acciones"><Boton Variante="VarianteBoton.Secundario" OnClick="ExportarCarteraAsync">@Textos["ExportarTabla"]</Boton></div>
                                         <div class="cuadro-tabla-envoltorio">
                                             <table class="cuadro-tabla" data-tabla="cartera">
                                                 <thead>
@@ -763,8 +776,8 @@
                                                         <th scope="col">@Textos["ColumnaEmpresas"]</th>
                                                         <th scope="col">@Textos["ColumnaEmpresasTitulares"]</th>
                                                         <th scope="col">@Textos["ColumnaCentros"]</th>
-                                                        <th scope="col">@Textos["ColumnaTrabajadores"]</th>
-                                                        <th scope="col" title="@Textos["ExtranjerosTip"]">@Textos["ColumnaExtranjeros"]</th>
+                                                        <th scope="col">@Textos["ColumnaTrabajadoresCartera"]</th>
+                                                        <th scope="col" title="@Textos["ExtranjerosTip"]">@Textos["ColumnaExtranjerosCartera"]</th>
                                                         <th scope="col">@Textos["ColumnaGestiones"]</th>
                                                         <th scope="col">@Textos["ColumnaMayorEmpresa"]</th>
                                                         <th scope="col">@Textos["ColumnaIndice"]</th>
@@ -790,6 +803,7 @@
                                             </table>
                                         </div>
                                     }
+                                    </ChildContent>
                                 </Tarjeta>
                             </div>
                             break;
@@ -944,7 +958,7 @@
                                         else
                                         {
                                             <GraficoSerie Id="comparativa" EtiquetaAria="@Textos["CmpLineaTitulo"]" Etiquetas="@MesesDelAnyo"
-                                                          Comparadas="@LineasAnuales()" FormatoBarra="@(v => _metrica == "facturacion" ? Importe((decimal)v, MonedaAnual) : Numero((int)v))" />
+                                                          Comparadas="@LineasAnuales()" FormatoBarra="@(v => _metrica == "facturacion" ? Importe((decimal)v, MonedaAnual) : Numero((int)v))" FormatoEjeBarra="@EjeImporteAnual" />
                                         }
                                     }
                                 </Tarjeta>
@@ -953,6 +967,13 @@
                         case "cmp-tabla":
                             <div class="cuadro-bloque cuadro-ancha" data-tarjeta="cmp-tabla">
                                 <Tarjeta Titulo="@TituloAcumulado" Class="cuadro-tarjeta">
+                                    <AccionesHeader>
+                                        @if (HayAcumuladoComparable && !_cargandoAnualFacturacion && _anualFacturacion is not null)
+                                        {
+                                            <Boton Variante="VarianteBoton.Secundario" Class="cuadro-exportar" OnClick="ExportarComparativaAsync">@Textos["ExportarTabla"]</Boton>
+                                        }
+                                    </AccionesHeader>
+                                    <ChildContent>
                                     <p class="cuadro-nota">@Textos["CmpTablaNota"]</p>
                                     @if (_cargandoAnualFacturacion || _anualFacturacion is null)
                                     {
@@ -965,7 +986,6 @@
                                     else
                                     {
                                         var acumulado = AcumuladoPorAnyo();
-                                        <div class="cuadro-acciones"><Boton Variante="VarianteBoton.Secundario" OnClick="ExportarComparativaAsync">@Textos["ExportarTabla"]</Boton></div>
                                         <div class="cuadro-tabla-envoltorio">
                                             <table class="cuadro-tabla" data-tabla="comparativa">
                                                 <thead>
@@ -1002,12 +1022,14 @@
                                             </table>
                                         </div>
                                     }
+                                    </ChildContent>
                                 </Tarjeta>
                             </div>
                             break;
                     }
                 }
                 </div>
+                }
                 </div>
             </Pestanas>
         }

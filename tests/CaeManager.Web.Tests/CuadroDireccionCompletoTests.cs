@@ -169,7 +169,7 @@ public partial class CuadroDireccionTests
         var etiquetas = cut.Find("[data-grafico=evolucion]").QuerySelectorAll(".gs-etiqueta").Select(e => e.TextContent.Trim()).ToList();
 
         etiquetas.Should().HaveCount(6);
-        etiquetas.Should().OnlyContain(e => System.Text.RegularExpressions.Regex.IsMatch(e, @"^\S+ \d{2}$"));
+        etiquetas.Should().OnlyContain(e => System.Text.RegularExpressions.Regex.IsMatch(e, @"^[a-z]{3}( \d{2})?$"), "el rótulo es «oct» y solo enero lleva el año («ene 24»)");
     }
 
     [Fact]
@@ -202,7 +202,7 @@ public partial class CuadroDireccionTests
         IrA(cut, "Cartera por Gestor CAE");
 
         cut.FindAll("[data-tabla=cartera] th").Select(t => t.TextContent.Trim()).Should().Equal(
-            "Gestor CAE", "Equipo", "Empresas", "Emp. tit.", "Centros", "Trab.", "Extranj.", "Gestiones", "Mayor Empresa", "Índice");
+            "Gestor CAE", "Equipo", "Empresas", "Emp. tit.", "Centros", "Trabajadores", "Extranjeros", "Gestiones", "Mayor Empresa", "Índice");
         var fila = cut.Find("[data-tabla=cartera] tr[data-gestor]:not([data-gestor=sin])").QuerySelectorAll("td").Select(c => c.TextContent.Trim()).ToList();
         fila[0].Should().Be("Marta Gestora");
         fila[1].Should().Be("—", "no hay modelo de equipos");
@@ -216,6 +216,55 @@ public partial class CuadroDireccionTests
         fila[9].Should().Be("100", "una sola cartera es la media");
         cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Exportar a Excel");
         cut.Markup.Should().Contain("Qué mide y qué no mide");
+    }
+
+    [Fact]
+    public void Exportar_a_Excel_va_en_la_fila_de_cabecera_de_la_tarjeta_a_la_derecha_del_titulo()
+    {
+        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), LineasDeTarifa());
+
+        IrA(cut, "Cartera por Gestor CAE");
+
+        var exportar = cut.Find("[data-tarjeta=c-tabla] .tarjeta-header .tarjeta-acciones button.cuadro-exportar");
+        exportar.TextContent.Trim().Should().Be("Exportar a Excel");
+        cut.FindAll("[data-tarjeta=c-tabla] .tarjeta-contenido .cuadro-exportar").Should().BeEmpty("el botón ya no cuelga del contenido de la tarjeta");
+    }
+
+    [Fact]
+    public void Las_tarjetas_cuelgan_de_un_envoltorio_del_propio_Cuadro_para_que_el_CSS_aislado_llegue_a_Tarjeta()
+    {
+        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), LineasDeTarifa());
+
+        IrA(cut, "Cartera por Gestor CAE");
+
+        var tarjeta = cut.Find("[data-tarjeta=c-tabla]");
+        tarjeta.ClassList.Should().Contain("cuadro-bloque");
+        tarjeta.QuerySelector(".tarjeta-titulo")!.ParentElement!.ClassList.Should().Contain("tarjeta-header");
+        tarjeta.Attributes.Select(a => a.Name).Should().Contain(n => n.StartsWith("b-", StringComparison.Ordinal), "el envoltorio lleva el atributo de ámbito de CuadroDireccion");
+    }
+
+    [Fact]
+    public void Los_KPI_van_en_su_propia_fila_y_las_tarjetas_anchas_fuera_de_ella()
+    {
+        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), LineasDeTarifa());
+
+        cut.FindAll(".cuadro-kpis > .cuadro-kpi").Should().HaveCount(6);
+        cut.FindAll(".cuadro-kpis [data-tarjeta]").Should().BeEmpty("en móvil la fila de KPI se desplaza y no debe arrastrar a las tarjetas");
+        cut.FindAll(".cuadro-rejilla > [data-tarjeta]").Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public void La_Demanda_pone_los_meses_de_mas_y_menos_carga_junto_a_la_recomendacion_y_despues_las_dos_tarjetas_anchas()
+    {
+        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), LineasDeTarifa());
+
+        IrA(cut, "Demanda");
+
+        cut.FindAll("[data-tarjeta]").Select(t => t.GetAttribute("data-tarjeta")).Should().Equal("p-franja", "p-estacional", "p-heatmap", "p-calendario");
+        cut.Find("[data-tarjeta=p-franja]").ClassList.Should().NotContain("cuadro-ancha");
+        cut.Find("[data-tarjeta=p-estacional]").ClassList.Should().NotContain("cuadro-ancha");
+        cut.Find("[data-tarjeta=p-heatmap]").ClassList.Should().Contain("cuadro-ancha");
+        cut.Find("[data-tarjeta=p-calendario]").ClassList.Should().Contain("cuadro-ancha");
     }
 
     [Fact]
@@ -386,7 +435,7 @@ public partial class CuadroDireccionTests
         var grafico = cut.Find("[data-grafico=pareto]");
 
         grafico.QuerySelectorAll(".gs-leyenda span").Select(s => s.TextContent.Trim()).Should().Equal("Primer 50 %", "Resto", "Acumulado");
-        grafico.QuerySelectorAll(".gs-eje-derecho .gs-marca-y").Select(s => s.TextContent.Trim()).Should().Equal("0,0 %", "50,0 %", "80,0 %", "100,0 %");
+        grafico.QuerySelectorAll(".gs-eje-derecho .gs-marca-y").Select(s => s.TextContent.Trim()).Should().Equal("0 %", "50 %", "80 %", "100 %");
         grafico.QuerySelectorAll("line.gs-referencia").Length.Should().Be(1);
         grafico.QuerySelectorAll(".gs-etiqueta").Select(e => e.TextContent.Trim()).Should().Equal("1", "2");
         grafico.QuerySelectorAll(".gs-tip").First().TextContent.Should().StartWith("1. ");

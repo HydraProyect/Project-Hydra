@@ -62,6 +62,10 @@ public partial class GraficoSerie : ComponentBase
     [Parameter] public Func<double, string> FormatoBarra { get; set; } = v => v.ToString("N0", CuadroDireccionUi.Castellano);
     [Parameter] public Func<double, string> FormatoLinea { get; set; } = v => v.ToString("N0", CuadroDireccionUi.Castellano);
 
+    /// <summary>Rótulos del eje Y, más cortos que los de los valores («10 mil €», «0 %»); sin ellos, los mismos formatos de los valores.</summary>
+    [Parameter] public Func<double, string>? FormatoEjeBarra { get; set; }
+    [Parameter] public Func<double, string>? FormatoEjeLinea { get; set; }
+
     private double Ancho => Compacto ? 120 : 640;
     private double Alto => Compacto ? 32 : 200;
     private double Margen => Compacto ? 2 : 0;
@@ -79,23 +83,48 @@ public partial class GraficoSerie : ComponentBase
 
     private IEnumerable<int> Posiciones => Enumerable.Range(0, Etiquetas.Count);
 
-    /// <summary>Con más de seis posiciones se rotula una de cada dos, con el rótulo corto: el texto es de 11 px y no cabe junto.</summary>
+    private static string[] MesesCortos => CuadroDireccionUi.MesesCortos;
+
+    /// <summary>El mes (1 a 12) de un rótulo «Oct 2026», o nulo si el rótulo no es de un mes con año.</summary>
+    private static int? MesDeRotulo(string etiqueta)
+    {
+        var partes = etiqueta.Split(' ');
+        if (partes.Length != 2 || partes[1].Length != 4 || !int.TryParse(partes[1], out _)) return null;
+        var indice = Array.IndexOf(MesesCortos, partes[0].ToLowerInvariant());
+        return indice < 0 ? null : indice + 1;
+    }
+
+    private bool SerieMensual => Etiquetas.Count > 0 && Etiquetas.All(e => MesDeRotulo(e) is not null);
+
+    /// <summary>
+    /// Serie mensual: cada dos meses (con más de doce, cada tres) y siempre en los meses «redondos» (ene, mar, may…; ene, abr, jul, oct),
+    /// de modo que enero, que lleva el año, cae en un rótulo. Otras series con más de seis posiciones: una de cada dos.
+    /// </summary>
     private IEnumerable<int> PosicionesConEtiqueta
     {
         get
         {
-            var salto = Etiquetas.Count > PosicionesParaSaltarUna ? 2 : 1;
-            return Posiciones.Where(i => i % salto == (Etiquetas.Count - 1) % salto);
+            if (Etiquetas.Count <= PosicionesParaSaltarUna) return Posiciones;
+            if (SerieMensual)
+            {
+                var saltoMeses = Etiquetas.Count > 12 ? 3 : 2;
+                return Posiciones.Where(i => (MesDeRotulo(Etiquetas[i])!.Value - 1) % saltoMeses == 0);
+            }
+
+            return Posiciones.Where(i => i % 2 == (Etiquetas.Count - 1) % 2);
         }
     }
 
-    /// <summary>«Oct 2026» sale como «Oct 26» en el eje cuando hay muchos meses; el resto de rótulos no cambia.</summary>
+    /// <summary>
+    /// «Oct 2026» sale como «oct» en el eje, y como «ene 24» en enero, que es donde cambia el año (maqueta); los rótulos que no
+    /// son de un mes con año (un número de orden, «Ene» a secas) no cambian.
+    /// </summary>
     private string EtiquetaEje(int i)
     {
         var etiqueta = Etiquetas[i];
-        if (Etiquetas.Count <= PosicionesParaSaltarUna) return etiqueta;
-        var partes = etiqueta.Split(' ');
-        return partes.Length == 2 && partes[1].Length == 4 && int.TryParse(partes[1], out _) ? $"{partes[0]} {partes[1][2..]}" : etiqueta;
+        if (MesDeRotulo(etiqueta) is not { } mes) return etiqueta;
+        var corto = MesesCortos[mes - 1];
+        return mes == 1 ? $"{corto} {etiqueta.Split(' ')[1][2..]}" : corto;
     }
 
     /// <summary>Un minigráfico con menos de dos puntos con dato no dibuja una línea.</summary>
@@ -110,10 +139,10 @@ public partial class GraficoSerie : ComponentBase
         {
             if (!HayEjeDerecho) return [];
             if (MarcasFijasLinea is { Count: > 0 } fijas)
-                return fijas.Select(m => new MarcaEje(m / EjeMaximoLinea, FormatoLinea(m))).ToList();
+                return fijas.Select(m => new MarcaEje(m / EjeMaximoLinea, (FormatoEjeLinea ?? FormatoLinea)(m))).ToList();
             var (eje, divisiones) = MaximoRedondeado(MaximoLinea);
             return Enumerable.Range(0, divisiones + 1)
-                .Select(d => new MarcaEje((double)d / divisiones, FormatoLinea(eje * d / divisiones)))
+                .Select(d => new MarcaEje((double)d / divisiones, (FormatoEjeLinea ?? FormatoLinea)(eje * d / divisiones)))
                 .ToList();
         }
     }
@@ -166,7 +195,7 @@ public partial class GraficoSerie : ComponentBase
             if (maximo <= 0) return [new MarcaEje(0, "0")];
 
             var (eje, divisiones) = MaximoRedondeado(maximo);
-            var formato = Barras.Count > 0 || Comparadas.Count > 0 ? FormatoBarra : FormatoLinea;
+            var formato = Barras.Count > 0 || Comparadas.Count > 0 ? FormatoEjeBarra ?? FormatoBarra : FormatoEjeLinea ?? FormatoLinea;
             return Enumerable.Range(0, divisiones + 1)
                 .Select(d => new MarcaEje((double)d / divisiones, formato(eje * d / divisiones)))
                 .ToList();
