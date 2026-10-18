@@ -1,0 +1,25 @@
+.alerta-critica {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    border: var(--border-default);
+    color: var(--color-text);
+    background: var(--color-surface);
+}
+
+.alerta-critica blockquote {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 12rem;
+    overflow: auto;
+}
+
+.alerta-critica p { margin: 0; }
+
+.alerta-critica-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}

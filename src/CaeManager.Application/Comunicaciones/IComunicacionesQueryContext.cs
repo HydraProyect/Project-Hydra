@@ -4,6 +4,7 @@ namespace CaeManager.Application.Comunicaciones;
 
 public interface IComunicacionesQueryContext
 {
+    IQueryable<IntencionConversacion> IntencionesConversacion { get; }
     IQueryable<Conversacion> Conversaciones { get; }
     IQueryable<Mensaje> Mensajes { get; }
     IQueryable<ParticipanteConversacion> ParticipantesConversacion { get; }
@@ -17,6 +18,7 @@ public interface IComunicacionesQueryContext
     IQueryable<SolicitudPrioridadDocumento> SolicitudesPrioridadDocumento { get; }
     IQueryable<EventoConversacion> EventosConversacion { get; }
     IQueryable<NotaInternaConversacion> NotasInternasConversacion { get; }
+    IQueryable<PropuestaRecordatorioConversacion> PropuestasRecordatorioConversacion { get; }
     IQueryable<ClasificacionRuidoMensaje> ClasificacionesRuidoMensaje { get; }
     IQueryable<ClasificacionRelevanciaCae> ClasificacionesRelevanciaCae { get; }
 }

@@ -21,6 +21,8 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMensajesBuzonPersonal;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerNotasInternasConversacion;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerRecordatorioPropuestoConversacion;
+using CaeManager.Web.Features.Comunicaciones.Components;
 using CaeManager.Application.Telemetria.Queries.ObtenerTiempoGestionConversacion;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
@@ -243,6 +245,8 @@ public class ComunicacionesGen2Tests : BunitContext
                 ObtenerTrabajadoresParaSelectorQuery => new List<TrabajadorSelectorDto>(),
                 ObtenerTiempoGestionConversacionQuery => new TiempoGestionConversacionDto(false, 0, 0),
                 ObtenerNotasInternasConversacionQuery => NotasInternas.ToList(),
+                CaeManager.Application.Comunicaciones.AlertasCriticas.ObtenerAlertaCriticaQuery => null,
+                ObtenerRecordatorioPropuestoConversacionQuery => null,
                 ResponderConversacionCommand c => AlResponder(c),
                 CambiarEstadoConversacionCommand => Result.Exito(),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.")
@@ -301,6 +305,7 @@ public class ComunicacionesGen2Tests : BunitContext
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddSingleton<ILogger<Bandeja>>(_ => NullLogger<Bandeja>.Instance);
+        Services.AddSingleton<ILogger<RecordatorioPropuesto>>(_ => NullLogger<RecordatorioPropuesto>.Instance);
         Services.AddScoped<ITenantActual, TenantActualFalso>();
         Services.AddScoped<INotificadorMensajesTiempoReal, NotificadorQueNadieDebeTocar>();
         Services.AddScoped(_ => CrearDirectorio());
@@ -328,7 +333,8 @@ public class ComunicacionesGen2Tests : BunitContext
         cut.FindAll(".bandeja-centro-acciones select").Single(s => s.QuerySelector("option")!.TextContent.Trim() == "Cambiar estado…");
 
     private static IElement SelectorDeCliente(IRenderedComponent<Bandeja> cut) =>
-        cut.FindAll(".bandeja-filtros-avanzados select")[1];
+        cut.FindAll(".bandeja-filtros-avanzados select")
+            .Single(s => s.QuerySelector($"option[value='{ClienteEbroId}']") is not null);
 
     private static IReadOnlyList<IElement> CabecerasGrupo(IRenderedComponent<Bandeja> cut) =>
         cut.FindAll(".bandeja-grupo-cabecera");
@@ -787,9 +793,9 @@ public class ComunicacionesGen2Tests : BunitContext
         };
         var (cut, _) = Renderizar(escenario);
 
-        var seleccion = cut.FindAll(".bandeja-filtros-avanzados select")[1];
+        var seleccion = SelectorDeCliente(cut);
         var filtroRefrielectric = seleccion.ChangeAsync(new ChangeEventArgs { Value = ClienteRefrielectricId.ToString() });
-        var filtroEbro = cut.FindAll(".bandeja-filtros-avanzados select")[1]
+        var filtroEbro = SelectorDeCliente(cut)
             .ChangeAsync(new ChangeEventArgs { Value = ClienteEbroId.ToString() });
 
         await cut.InvokeAsync(() => listaEbro.SetResult(

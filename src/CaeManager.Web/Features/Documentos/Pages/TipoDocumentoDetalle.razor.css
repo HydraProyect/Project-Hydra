@@ -77,22 +77,10 @@
     justify-content: flex-end;
 }
 
-/* El identificador es su propio botón de copia: se lee como dato de la línea, no como un botón aparte. */
+/* El identificador es su propio botón de copia (BotonCopiar EnLinea, el `.copia` de la maqueta:
+   seminegrita y 0 2px): se lee como dato de la línea, no como un botón aparte. */
 .tipo360-linea ::deep .boton-copiar {
     height: auto;
-    padding: 0;
-    border: 0;
-    background: none;
-    font: var(--font-label-md);
-    font-size: inherit;
-    line-height: inherit;
-    color: inherit;
-    cursor: copy;
-}
-
-.tipo360-linea ::deep .boton-copiar:hover:not(:disabled) {
-    background: none;
-    color: var(--color-primary-500);
 }
 
 .tipo360-filtros-pagina {

@@ -1,0 +1,39 @@
+@using CaeManager.Application.Comunicaciones.AlertasCriticas
+@using CaeManager.Domain.Comunicaciones
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosAlertasCriticas> Textos
+
+@if (Alerta is { Estado: EstadoAlertaCritica.Pendiente })
+{
+    <section class="alerta-critica" role="alert" aria-label="@Textos["Titulo"]">
+        <strong>@Textos["Titulo"]</strong>
+        <blockquote>@Alerta.Texto</blockquote>
+        @if (Alerta.ConfianzaIa is { } confianza)
+        {
+            <p>@Textos[Alerta.SegundaOpinionIa == true ? "IaCoincide" : "IaNoCoincide", confianza]</p>
+        }
+        @if (Alerta.PuedeResolver)
+        {
+            <div class="alerta-critica-acciones">
+                <Boton Variante="VarianteBoton.Secundario" Cargando="Guardando" Deshabilitado="Guardando" OnClick="() => OnResolver.InvokeAsync(true)">@Textos["Confirmar"]</Boton>
+                <Boton Variante="VarianteBoton.Secundario" Deshabilitado="Guardando" OnClick="() => OnResolver.InvokeAsync(false)">@Textos["Descartar"]</Boton>
+            </div>
+        }
+        else
+        {
+            <p>@Textos["PendienteDireccion"]</p>
+        }
+        @if (!string.IsNullOrEmpty(Error))
+        {
+            <p role="status">@Error</p>
+        }
+    </section>
+}
+
+@code {
+    [Parameter] public AlertaCriticaDto? Alerta { get; set; }
+    [Parameter] public bool Guardando { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public EventCallback<bool> OnResolver { get; set; }
+}

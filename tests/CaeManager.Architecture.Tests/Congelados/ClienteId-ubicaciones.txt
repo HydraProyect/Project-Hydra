@@ -45,6 +45,7 @@ src/CaeManager.Application/Common/AlcanceDatosServiceExtensions.cs :: clienteId 
 src/CaeManager.Application/Common/IAlcanceDatosService.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Comunicaciones/Commands/ActualizarDocumentoDesdeAdjunto/ActualizarDocumentoDesdeAdjuntoCommand.cs :: ClienteId = 2
 src/CaeManager.Application/Comunicaciones/Commands/AplicarMacro/AplicarMacroCommand.cs :: ClienteId = 6
+src/CaeManager.Application/Comunicaciones/Commands/AprobarRecordatorioConversacion/AprobarRecordatorioConversacionCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Commands/AsignarClienteConversacion/AsignarClienteConversacionCommand.cs :: ClienteId = 4
 src/CaeManager.Application/Comunicaciones/Commands/AsignarEjecutivoConversacion/AsignarEjecutivoConversacionCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Commands/CambiarEstadoConversacion/CambiarEstadoConversacionCommand.cs :: ClienteId = 1
@@ -52,6 +53,7 @@ src/CaeManager.Application/Comunicaciones/Commands/CambiarPrioridadConversacion/
 src/CaeManager.Application/Comunicaciones/Commands/ConfirmarClasificacionRuidoMensaje/ConfirmarClasificacionRuidoMensajeCommand.cs :: ClienteId = 2
 src/CaeManager.Application/Comunicaciones/Commands/CrearMacro/CrearMacroCommand.cs :: ClienteId = 4
 src/CaeManager.Application/Comunicaciones/Commands/CrearNotaInternaConversacion/CrearNotaInternaConversacionCommand.cs :: ClienteId = 2
+src/CaeManager.Application/Comunicaciones/Commands/DescartarRecordatorioConversacion/DescartarRecordatorioConversacionCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Commands/EditarMacro/EditarMacroCommand.cs :: ClienteId = 5
 src/CaeManager.Application/Comunicaciones/Commands/EliminarMacro/EliminarMacroCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Commands/EnviarMensajeNuevo/EnviarMensajeNuevoCommand.cs :: ClienteId = 7
@@ -65,6 +67,8 @@ src/CaeManager.Application/Comunicaciones/Commands/VincularConversacion/Vincular
 src/CaeManager.Application/Comunicaciones/Deteccion/ClasificacionRuidoMensajeService.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Deteccion/ClasificacionRuidoMensajeService.cs :: clienteId = 7
 src/CaeManager.Application/Comunicaciones/Deteccion/ISugerenciaVisitaCorreoService.cs :: ClienteId = 1
+src/CaeManager.Application/Comunicaciones/Deteccion/IntencionConversacionService.cs :: ClienteId = 1
+src/CaeManager.Application/Comunicaciones/AlertasCriticas/AlertasCriticasRequests.cs :: ClienteId = 2
 src/CaeManager.Application/Comunicaciones/Deteccion/ISugerenciaVisitaCorreoService.cs :: clienteId = 3
 src/CaeManager.Application/Comunicaciones/Deteccion/SugerenciaGestionCorreoService.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Deteccion/SugerenciaGestionCorreoService.cs :: clienteId = 3
@@ -82,6 +86,7 @@ src/CaeManager.Application/Comunicaciones/Queries/ObtenerConversaciones/ObtenerC
 src/CaeManager.Application/Comunicaciones/Queries/ObtenerMacros/ObtenerMacrosQuery.cs :: ClienteId = 9
 src/CaeManager.Application/Comunicaciones/Queries/ObtenerMacros/ObtenerMacrosQuery.cs :: clienteId = 3
 src/CaeManager.Application/Comunicaciones/Queries/ObtenerNotasInternasConversacion/ObtenerNotasInternasConversacionQuery.cs :: ClienteId = 2
+src/CaeManager.Application/Comunicaciones/Queries/ObtenerRecordatorioPropuestoConversacion/ObtenerRecordatorioPropuestoConversacionQuery.cs :: ClienteId = 2
 src/CaeManager.Application/Comunicaciones/Queries/ObtenerSugerenciaVisitaCorreo/ObtenerSugerenciaVisitaCorreoQuery.cs :: ClienteId = 3
 src/CaeManager.Application/Comunicaciones/Queries/ObtenerSugerenciasVisitaCorreoPendientes/ObtenerSugerenciasVisitaCorreoPendientesQuery.cs :: ClienteId = 5
 src/CaeManager.Application/Comunicaciones/ResolucionParticipanteConversacion.cs :: ClienteId = 1
@@ -520,4 +525,9 @@ src/CaeManager.Web/Services/CurrentUserService.cs :: TenantClienteId = 1
 src/CaeManager.Web/Services/CurrentUserService.cs :: tenantClienteId = 2
 src/CaeManager.Web/Services/RevalidacionClienteActivoMiddleware.cs :: TenantClienteId = 1
 src/CaeManager.Web/Services/TrazaSoporteService.cs :: TenantClienteId = 1
+
+# Intenciones CAE: referencias inevitables al ancla legacy de Empresa en posicion de Cliente empresarial.
+# Conservan la autorizacion de Asignacion de Cartera de Conversacion, cuyo modelo no se modifica.
+src/CaeManager.Application/Comunicaciones/Commands/ConfirmarIntencionConversacion/ConfirmarIntencionConversacionCommand.cs :: ClienteId = 1
+src/CaeManager.Application/Comunicaciones/Queries/ObtenerIntencionConversacion/ObtenerIntencionConversacionQuery.cs :: ClienteId = 1
 src/CaeManager.Infrastructure/Dashboard/CierreMensualCuadroDireccionHostedService.cs :: ClienteId = 1

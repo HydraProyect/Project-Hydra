@@ -82,7 +82,8 @@ public class IngestaWebhookServiceTests
             clasificacionRuidoRepositorio ?? new ClasificacionRuidoMensajeRepositorioFalso(),
             new ClasificacionRuidoMensajeServiceFalso(),
             new RelevanciaCaeServiceFalso(),
-            NullLogger<IngestaWebhookService>.Instance);
+            new AlertaCriticaServiceFalso(),
+            NullLogger<IngestaWebhookService>.Instance, new CaeManager.Application.Tests.Comunicaciones.IntencionConversacionServiceFalso());
 
     private static ConexionIntegracion ConexionHabilitada(Guid? clienteId = null)
     {
