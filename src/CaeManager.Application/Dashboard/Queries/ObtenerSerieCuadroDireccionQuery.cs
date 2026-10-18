@@ -124,7 +124,7 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
                         var lineas = new List<LineaFacturacionDto>();
                         foreach (var empresaId in empresasConTarifa)
                         {
-                            var resumen = await mediator.Send(new ObtenerResumenFacturacionQuery(empresaId, mes.Anyo, mes.Mes), cancellationToken);
+                            var resumen = await mediator.Send(new ObtenerResumenFacturacionQuery(empresaId, mes.Anyo, mes.Mes, corteUtc), cancellationToken);
                             if (resumen is not null)
                                 lineas.AddRange(resumen.Lineas);
                         }

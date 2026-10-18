@@ -16,7 +16,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Facturacion.Queries.ObtenerResumenFacturacion;
 
-public record ObtenerResumenFacturacionQuery(Guid ClienteId, int Anyo, int Mes)
+/// <param name="ExistenteHastaUtc">
+/// Si se indica, solo cuentan los registros que ya existían en esa fecha (<c>CreadoEnUtc</c> menor o igual). La
+/// pantalla «Facturación» no lo usa (valora el mes con lo que hay hoy). La serie histórica del Cuadro de dirección sí:
+/// las fechas de negocio (alta de una asignación, inicio de una obra, fecha de una visita) pueden ser anteriores al
+/// momento en que se registró el dato, y sin este corte un mes anterior a la existencia de los registros se facturaba
+/// con unidades que el resto de la serie (que mide por fecha de creación) todavía no contaba.
+/// </param>
+public record ObtenerResumenFacturacionQuery(Guid ClienteId, int Anyo, int Mes, DateTime? ExistenteHastaUtc = null)
     : IRequest<ResumenFacturacionDto?>;
 
 public record ResumenFacturacionDto(
@@ -85,8 +92,13 @@ public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asi
         if (tarifas.Count == 0)
             return new ResumenFacturacionDto(clienteNombre, [], []);
 
+        // Sin corte, un instante lejano y en UTC (Npgsql rechaza un DateTime sin Kind=Utc para timestamptz).
+        var corte = request.ExistenteHastaUtc is { } existente
+            ? DateTime.SpecifyKind(existente, DateTimeKind.Utc)
+            : new DateTime(9999, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
         var centroIds = await centrosContext.Centros
-            .Where(c => c.ClienteId == request.ClienteId)
+            .Where(c => c.ClienteId == request.ClienteId && c.CreadoEnUtc <= corte)
             .Select(c => c.Id)
             .ToListAsync(cancellationToken);
 
@@ -97,19 +109,19 @@ public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asi
             var unidades = tarifa.Concepto switch
             {
                 ConceptoFacturable.TrabajadorActivo =>
-                    await ContarTrabajadoresActivosAsync(centroIds, periodoInicioFecha, periodoFinFecha, cancellationToken),
+                    await ContarTrabajadoresActivosAsync(centroIds, periodoInicioFecha, periodoFinFecha, corte, cancellationToken),
                 ConceptoFacturable.AltaCentro =>
-                    await ContarAltasCentroAsync(request.ClienteId, periodoInicio, periodoFin, cancellationToken),
+                    await ContarAltasCentroAsync(request.ClienteId, periodoInicio, periodoFin, corte, cancellationToken),
                 ConceptoFacturable.VisitaTrabajadorExtranjero =>
-                    await ContarVisitasExtranjeroAsync(centroIds, periodoInicioFecha, periodoFinFecha, cancellationToken),
+                    await ContarVisitasExtranjeroAsync(centroIds, periodoInicioFecha, periodoFinFecha, corte, cancellationToken),
                 ConceptoFacturable.DocumentoGestionado =>
-                    await ContarDocumentosGestionadosAsync(centroIds, periodoInicioFecha, periodoFinFecha, periodoInicio, periodoFin, cancellationToken),
+                    await ContarDocumentosGestionadosAsync(centroIds, periodoInicioFecha, periodoFinFecha, periodoInicio, periodoFin, corte, cancellationToken),
                 ConceptoFacturable.TecnicoAsignadoProyecto =>
-                    await ContarTecnicosAsignadosProyectoAsync(request.ClienteId, periodoInicioFecha, periodoFinFecha, cancellationToken),
+                    await ContarTecnicosAsignadosProyectoAsync(request.ClienteId, periodoInicioFecha, periodoFinFecha, corte, cancellationToken),
                 ConceptoFacturable.GestionProyectoRealizada =>
-                    await ContarGestionesProyectoAsync(request.ClienteId, periodoInicio, periodoFin, cancellationToken),
+                    await ContarGestionesProyectoAsync(request.ClienteId, periodoInicio, periodoFin, corte, cancellationToken),
                 ConceptoFacturable.DiaProyectoAbierto =>
-                    await ContarDiasProyectoAbiertoAsync(request.ClienteId, periodoInicioFecha, periodoFinFecha, cancellationToken),
+                    await ContarDiasProyectoAbiertoAsync(request.ClienteId, periodoInicioFecha, periodoFinFecha, corte, cancellationToken),
                 _ => 0
             };
 
@@ -126,35 +138,50 @@ public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asi
     }
 
     private async Task<int> ContarTrabajadoresActivosAsync(
-        IList<Guid> centroIds, DateOnly inicio, DateOnly fin, CancellationToken ct)
+        IList<Guid> centroIds, DateOnly inicio, DateOnly fin, DateTime corte, CancellationToken ct)
     {
         if (centroIds.Count == 0) return 0;
 
-        return await asignacionesContext.Asignaciones
+        var ids = await asignacionesContext.Asignaciones
             .Where(a => centroIds.Contains(a.CentroId)
                      && a.FechaAlta <= fin
                      && (a.FechaBaja == null || a.FechaBaja >= inicio))
             .Select(a => a.TrabajadorId)
             .Distinct()
-            .CountAsync(ct);
+            .ToListAsync(ct);
+
+        return (await TrabajadoresExistentesAsync(ids, corte, ct)).Count;
+    }
+
+    /// <summary>Entre los trabajadores dados, los que ya existían (fecha de creación del registro) en el instante de corte.</summary>
+    private async Task<List<Guid>> TrabajadoresExistentesAsync(List<Guid> ids, DateTime corte, CancellationToken ct)
+    {
+        // Sin corte (el resumen de Facturación de hoy) no hay nada que filtrar: se evita la consulta.
+        if (ids.Count == 0 || corte.Year >= 9999) return ids;
+
+        return await trabajadoresContext.Trabajadores
+            .Where(t => ids.Contains(t.Id) && t.CreadoEnUtc <= corte)
+            .Select(t => t.Id)
+            .ToListAsync(ct);
     }
 
     private async Task<int> ContarAltasCentroAsync(
-        Guid clienteId, DateTime inicio, DateTime fin, CancellationToken ct)
+        Guid clienteId, DateTime inicio, DateTime fin, DateTime corte, CancellationToken ct)
     {
         return await centrosContext.Centros
-            .Where(c => c.ClienteId == clienteId && c.CreadoEnUtc >= inicio && c.CreadoEnUtc < fin)
+            .Where(c => c.ClienteId == clienteId && c.CreadoEnUtc >= inicio && c.CreadoEnUtc < fin && c.CreadoEnUtc <= corte)
             .CountAsync(ct);
     }
 
     private async Task<int> ContarVisitasExtranjeroAsync(
-        IList<Guid> centroIds, DateOnly inicio, DateOnly fin, CancellationToken ct)
+        IList<Guid> centroIds, DateOnly inicio, DateOnly fin, DateTime corte, CancellationToken ct)
     {
         if (centroIds.Count == 0) return 0;
 
         var visitaIds = await visitasContext.Visitas
             // FS-11: una Visita cancelada no se factura, igual que cuando cancelar era borrarla.
-            .Where(v => centroIds.Contains(v.CentroId) && !v.EstaCancelada && v.FechaInicio >= inicio && v.FechaInicio <= fin)
+            .Where(v => centroIds.Contains(v.CentroId) && !v.EstaCancelada && v.CreadoEnUtc <= corte
+                     && v.FechaInicio >= inicio && v.FechaInicio <= fin)
             .Select(v => v.Id)
             .ToListAsync(ct);
 
@@ -174,7 +201,7 @@ public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asi
 
     private async Task<int> ContarDocumentosGestionadosAsync(
         IList<Guid> centroIds, DateOnly inicioFecha, DateOnly finFecha,
-        DateTime inicio, DateTime fin, CancellationToken ct)
+        DateTime inicio, DateTime fin, DateTime corte, CancellationToken ct)
     {
         if (centroIds.Count == 0) return 0;
 
@@ -186,39 +213,44 @@ public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asi
             .Distinct()
             .ToListAsync(ct);
 
+        trabajadorIds = await TrabajadoresExistentesAsync(trabajadorIds, corte, ct);
+
         if (trabajadorIds.Count == 0) return 0;
 
         return await documentosContext.Documentos
             .Where(d => d.TrabajadorId != null
                      && trabajadorIds.Contains(d.TrabajadorId!.Value)
                      && d.CreadoEnUtc >= inicio
-                     && d.CreadoEnUtc < fin)
+                     && d.CreadoEnUtc < fin
+                     && d.CreadoEnUtc <= corte)
             .CountAsync(ct);
     }
 
     /// <summary>Técnicos únicos con alta en alguna obra del cliente (no en un evento), activa en algún punto del período — factura la obra, no la gestión CAE tradicional.</summary>
-    private async Task<int> ContarTecnicosAsignadosProyectoAsync(Guid clienteId, DateOnly inicio, DateOnly fin, CancellationToken ct)
+    private async Task<int> ContarTecnicosAsignadosProyectoAsync(Guid clienteId, DateOnly inicio, DateOnly fin, DateTime corte, CancellationToken ct)
     {
         var proyectoIds = await proyectosContext.Proyectos
-            .Where(p => p.ClienteId == clienteId && p.Tipo != TipoProyecto.Evento)
+            .Where(p => p.ClienteId == clienteId && p.Tipo != TipoProyecto.Evento && p.CreadoEnUtc <= corte)
             .Select(p => p.Id)
             .ToListAsync(ct);
 
         if (proyectoIds.Count == 0) return 0;
 
-        return await proyectosContext.ProyectosTecnicos
+        var tecnicoIds = await proyectosContext.ProyectosTecnicos
             .Where(pt => proyectoIds.Contains(pt.ProyectoId)
                       && pt.FechaAlta <= fin
                       && (pt.FechaBaja == null || pt.FechaBaja >= inicio))
             .Select(pt => pt.TrabajadorId)
             .Distinct()
-            .CountAsync(ct);
+            .ToListAsync(ct);
+
+        return (await TrabajadoresExistentesAsync(tecnicoIds, corte, ct)).Count;
     }
 
-    private async Task<int> ContarGestionesProyectoAsync(Guid clienteId, DateTime inicio, DateTime fin, CancellationToken ct)
+    private async Task<int> ContarGestionesProyectoAsync(Guid clienteId, DateTime inicio, DateTime fin, DateTime corte, CancellationToken ct)
     {
         var proyectoIds = await proyectosContext.Proyectos
-            .Where(p => p.ClienteId == clienteId && p.Tipo != TipoProyecto.Evento)
+            .Where(p => p.ClienteId == clienteId && p.Tipo != TipoProyecto.Evento && p.CreadoEnUtc <= corte)
             .Select(p => p.Id)
             .ToListAsync(ct);
 
@@ -228,7 +260,8 @@ public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asi
             .Where(d => d.ProyectoId != null
                      && proyectoIds.Contains(d.ProyectoId!.Value)
                      && d.CreadoEnUtc >= inicio
-                     && d.CreadoEnUtc < fin)
+                     && d.CreadoEnUtc < fin
+                     && d.CreadoEnUtc <= corte)
             .CountAsync(ct);
     }
 
@@ -237,10 +270,10 @@ public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asi
     /// su periodo abierto (FechaInicio–FechaCierreReal, o "hoy" si sigue
     /// abierto) y el período de facturación consultado.
     /// </summary>
-    private async Task<int> ContarDiasProyectoAbiertoAsync(Guid clienteId, DateOnly inicio, DateOnly fin, CancellationToken ct)
+    private async Task<int> ContarDiasProyectoAbiertoAsync(Guid clienteId, DateOnly inicio, DateOnly fin, DateTime corte, CancellationToken ct)
     {
         var proyectos = await proyectosContext.Proyectos
-            .Where(p => p.ClienteId == clienteId && p.Tipo != TipoProyecto.Evento)
+            .Where(p => p.ClienteId == clienteId && p.Tipo != TipoProyecto.Evento && p.CreadoEnUtc <= corte)
             .Select(p => new { p.FechaInicio, p.FechaCierreReal })
             .ToListAsync(ct);
 
