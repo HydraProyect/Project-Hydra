@@ -355,6 +355,16 @@ public class Trabajador : EntidadBase
     }
 
     /// <summary>
+    /// Al restaurar un Trabajador eliminado: quita la Delegación o el Oficio que se eliminaron mientras él lo estaba
+    /// (eliminar el catálogo solo cuenta a los Trabajadores vivos). El Puesto se conserva, como al quitar el Oficio.
+    /// </summary>
+    public void QuitarCatalogoEliminado(bool delegacionEliminada, bool oficioEliminado)
+    {
+        if (delegacionEliminada) DelegacionEmpresaId = null;
+        if (oficioEliminado) OficioEmpresaId = null;
+    }
+
+    /// <summary>
     /// Quita los separadores de escritura (espacios, guiones, paréntesis, puntos), convierte el prefijo "00" en "+" y
     /// exige lo que queda: un "+" opcional seguido de entre <see cref="MinimoDigitosTelefonoEmergencia"/> y
     /// <see cref="MaximoDigitosTelefonoEmergencia"/> dígitos ASCII. No inventa prefijo de país.

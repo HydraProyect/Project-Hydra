@@ -56,6 +56,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // La Delegación y el Oficio del Trabajador son el catálogo de su Empresa (2026-10-18): el handler lee ese
         // catálogo para comprobar que lo elegido es de la Empresa del Trabajador.
         ("Trabajadores.FijarDelegacionEmpresaYOficioTrabajadorCommandHandler", "ICatalogoTrabajadoresEmpresaRepository"),
+        // Al restaurar, quita la Delegación o el Oficio que se eliminaron mientras el Trabajador estaba eliminado.
+        ("Trabajadores.RestaurarTrabajadorCommandHandler", "ICatalogoTrabajadoresEmpresaRepository"),
         // La lista de Tenants beneficiarios autorizados incluye la vía de
         // Operación (lote 0 del selector de Tenant beneficiario): lee los
         // catálogos de asignación a través del predicado único

@@ -8167,6 +8167,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.ToTable("Trabajadores", null, t =>
                         {
+                            t.HasCheckConstraint("CK_Trabajadores_CatalogoSoloDeEmpresa", "(\"DelegacionEmpresaId\" IS NULL AND \"OficioEmpresaId\" IS NULL) OR \"EmpresaId\" IS NOT NULL");
+
                             t.HasCheckConstraint("CK_Trabajadores_EmpresaXorSubcontrata", "(\"EmpresaId\" IS NULL) <> (\"SubcontrataId\" IS NULL)");
                         });
                 });

@@ -3,9 +3,11 @@ using CaeManager.Application.Empresas.Commands.GuardarDelegacionEmpresa;
 using CaeManager.Application.Empresas.Commands.GuardarOficioEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Trabajadores;
 using CaeManager.Application.Trabajadores.Commands.FijarDelegacionEmpresaYOficioTrabajador;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
 using Xunit;
@@ -37,10 +39,10 @@ public class DelegacionYOficioEmpresaTests
     private static AlcanceDatosServiceFalso FueraDeCartera() => new(tieneAccesoTotal: false, empresaIdsVisibles: []);
 
     private GuardarDelegacionEmpresaCommandHandler Delegaciones(AlcanceDatosServiceFalso alcance) =>
-        new(_empresas, _catalogo, alcance, _unitOfWork);
+        new(_empresas, _catalogo, alcance);
 
     private GuardarOficioEmpresaCommandHandler Oficios(AlcanceDatosServiceFalso alcance) =>
-        new(_empresas, _catalogo, alcance, _unitOfWork);
+        new(_empresas, _catalogo, alcance);
 
     [Fact]
     public async Task Crea_la_delegacion_con_su_contacto_de_reclamacion()
@@ -52,7 +54,7 @@ public class DelegacionYOficioEmpresaTests
         var delegacion = _catalogo.DelegacionesEmpresa.Single();
         delegacion.Nombre.Should().Be("Sevilla");
         delegacion.ContactoReclamacionCorreo.Should().Be("ana@example.test");
-        _unitOfWork.VecesGuardado.Should().Be(1);
+        _catalogo.VecesGuardado.Should().Be(1);
     }
 
     [Fact]
@@ -76,11 +78,12 @@ public class DelegacionYOficioEmpresaTests
         (await new FijarDelegacionEmpresaYOficioTrabajadorCommandHandler(_trabajadores, _catalogo, fuera, _unitOfWork)
                 .Handle(new(trabajador.Id, delegacion.Id, oficio.Id, trabajador.Version), default))
             .Error.Codigo.Should().Be("Trabajador.NoEncontrado");
-        (await new ObtenerCatalogoTrabajadoresEmpresaQueryHandler(_catalogo, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: []))
+        (await new ObtenerCatalogoTrabajadoresEmpresaQueryHandler(_catalogo, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: []), PoliticaNotaInternaPruebas.Con("GestorCae"))
                 .Handle(new(_empresa.Id), default))
             .Should().Be(CatalogoTrabajadoresEmpresaDto.Vacio);
 
         _unitOfWork.VecesGuardado.Should().Be(0);
+        _catalogo.VecesGuardado.Should().Be(0);
         _catalogo.DelegacionesEmpresa.Should().ContainSingle();
         _catalogo.Oficios.Should().ContainSingle();
         trabajador.DelegacionEmpresaId.Should().BeNull();
@@ -156,6 +159,97 @@ public class DelegacionYOficioEmpresaTests
         trabajador.Puesto.Should().Be("Soldador");
     }
 
+    [Theory]
+    [InlineData("GestorCae", null, true, true)]
+    [InlineData("Cliente", null, true, false)]
+    [InlineData("GestorCae", CapacidadPrivilegio.Impersonacion, true, false)]
+    [InlineData("GestorCae", null, false, false)]
+    public async Task El_contacto_de_reclamacion_solo_viaja_a_quien_lee_la_nota_interna_y_gestiona_la_empresa(
+        string rol, CapacidadPrivilegio? capacidad, bool conGestion, bool veContacto)
+    {
+        var delegacion = new DelegacionEmpresa(_empresa.Id, "Sevilla");
+        delegacion.FijarContactoReclamacion("Ana Ruiz", "ana@example.test", "600 000 000");
+        _catalogo.Agregar(delegacion);
+        // Lectura siempre; gestión según el caso (el Usuario de Cliente ve la Empresa por el portal sin gestionarla).
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [_empresa.Id],
+            empresaIdsParaGestion: conGestion ? [_empresa.Id] : []);
+        var politica = PoliticaNotaInternaPruebas.Con(rol, capacidad is { } c ? PoliticaNotaInternaPruebas.Sesion(c) : null);
+
+        var catalogo = await new ObtenerCatalogoTrabajadoresEmpresaQueryHandler(_catalogo, alcance, politica)
+            .Handle(new(_empresa.Id), default);
+
+        var dto = catalogo.DelegacionesEmpresa.Should().ContainSingle().Subject;
+        dto.Id.Should().Be(delegacion.Id);
+        dto.Nombre.Should().Be("Sevilla", "el nombre lo necesitan los desplegables de cualquiera que vea la Empresa");
+        if (veContacto)
+        {
+            dto.ContactoReclamacionNombre.Should().Be("Ana Ruiz");
+            dto.ContactoReclamacionCorreo.Should().Be("ana@example.test");
+            dto.ContactoReclamacionTelefono.Should().Be("600 000 000");
+        }
+        else
+        {
+            new[] { dto.ContactoReclamacionNombre, dto.ContactoReclamacionCorreo, dto.ContactoReclamacionTelefono }
+                .Should().AllSatisfy(v => v.Should().BeNull());
+        }
+    }
+
+    [Fact]
+    public async Task Eliminar_una_delegacion_suprime_su_contacto_de_reclamacion()
+    {
+        var delegacion = new DelegacionEmpresa(_empresa.Id, "Sevilla");
+        delegacion.FijarContactoReclamacion("Ana Ruiz", "ana@example.test", "600 000 000");
+        _catalogo.Agregar(delegacion);
+
+        var resultado = await new EliminarDelegacionEmpresaUOficioCommandHandler(
+                _empresas, _catalogo, EnCartera(), new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae"), _unitOfWork)
+            .Handle(new(_empresa.Id, CatalogoTrabajadoresEmpresa.DelegacionEmpresa, delegacion.Id, delegacion.Version), default);
+
+        resultado.EsExitoso.Should().BeTrue();
+        delegacion.EstaEliminado.Should().BeTrue();
+        delegacion.ContactoReclamacionNombre.Should().BeNull();
+        delegacion.ContactoReclamacionCorreo.Should().BeNull();
+        delegacion.ContactoReclamacionTelefono.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Asignar_renueva_la_version_del_catalogo_para_chocar_con_una_eliminacion_simultanea()
+    {
+        var trabajador = Trabajador.DeEmpresa(_empresa.Id, "Ana", "Ruiz", "12345678Z");
+        _trabajadores.Agregar(trabajador);
+        var delegacion = new DelegacionEmpresa(_empresa.Id, "Sevilla");
+        var oficio = new OficioEmpresa(_empresa.Id, "Soldador");
+        _catalogo.Agregar(delegacion);
+        _catalogo.Agregar(oficio);
+        var (versionDelegacion, versionOficio) = (delegacion.Version, oficio.Version);
+
+        (await new FijarDelegacionEmpresaYOficioTrabajadorCommandHandler(_trabajadores, _catalogo, EnCarteraConTrabajador(trabajador), _unitOfWork)
+            .Handle(new(trabajador.Id, delegacion.Id, oficio.Id, trabajador.Version), default)).EsExitoso.Should().BeTrue();
+
+        // Una eliminación que contó cero Trabajadores con la versión anterior ya no puede guardar.
+        delegacion.Version.Should().NotBe(versionDelegacion);
+        oficio.Version.Should().NotBe(versionOficio);
+        (await new EliminarDelegacionEmpresaUOficioCommandHandler(
+                _empresas, _catalogo, EnCartera(), new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae"), _unitOfWork)
+            .Handle(new(_empresa.Id, CatalogoTrabajadoresEmpresa.OficioEmpresa, oficio.Id, versionOficio), default))
+            .EsExitoso.Should().BeFalse();
+        oficio.EstaEliminado.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Si_otro_guardado_gana_la_carrera_del_indice_unico_es_un_fallo_y_no_una_excepcion()
+    {
+        _catalogo.ChocaConElIndiceUnico = true;
+
+        var delegacion = await Delegaciones(EnCartera()).Handle(new(_empresa.Id, null, "Sevilla", null, null, null, null), default);
+        delegacion.Error.Codigo.Should().Be("Delegacion.Duplicada");
+
+        var existente = new OficioEmpresa(_empresa.Id, "Pintor");
+        _catalogo.Agregar(existente);
+        var renombrado = await Oficios(EnCartera()).Handle(new(_empresa.Id, existente.Id, "Soldador", existente.Version), default);
+        renombrado.Error.Codigo.Should().Be("Oficio.Duplicado");
+    }
+
     private AlcanceDatosServiceFalso EnCarteraConTrabajador(Trabajador trabajador) =>
         new(tieneAccesoTotal: false, empresaIdsVisibles: [_empresa.Id], trabajadorIdsVisibles: [trabajador.Id]);
 
@@ -186,5 +280,17 @@ public class DelegacionYOficioEmpresaTests
         public void Agregar(DelegacionEmpresa delegacion) => DelegacionesEmpresa.Add(delegacion);
 
         public void Agregar(OficioEmpresa oficio) => Oficios.Add(oficio);
+
+        public int VecesGuardado { get; private set; }
+
+        /// <summary>Simula que otro guardado simultáneo ganó la carrera del índice único de nombre por Empresa.</summary>
+        public bool ChocaConElIndiceUnico { get; set; }
+
+        public Task<bool> GuardarCambiosAsync(CancellationToken cancellationToken = default)
+        {
+            if (ChocaConElIndiceUnico) return Task.FromResult(false);
+            VecesGuardado++;
+            return Task.FromResult(true);
+        }
     }
 }

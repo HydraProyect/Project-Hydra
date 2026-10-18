@@ -262,7 +262,10 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
     /// </summary>
     private static readonly Dictionary<Type, HashSet<string>> PropiedadesSilenciosasPorTipo = new()
     {
-        [typeof(ApplicationUser)] = [nameof(ApplicationUser.UltimaActividadUtc), nameof(ApplicationUser.ConcurrencyStamp)]
+        [typeof(ApplicationUser)] = [nameof(ApplicationUser.UltimaActividadUtc), nameof(ApplicationUser.ConcurrencyStamp)],
+        // RegistrarAsignacion solo renueva la Version (para que asignar y eliminar choquen): no es un cambio del catálogo.
+        [typeof(DelegacionEmpresa)] = [nameof(DelegacionEmpresa.Version)],
+        [typeof(OficioEmpresa)] = [nameof(OficioEmpresa.Version)],
     };
 
     /// <summary>
