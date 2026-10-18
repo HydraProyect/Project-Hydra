@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -642,4 +642,9 @@
   <data name="CertificadoExoneradaSilencio" xml:space="preserve"><value>Exonerada (silencio)</value></data>
   <data name="CertificadoExoneradaCertificacion" xml:space="preserve"><value>Exonerada (certificación)</value></data>
   <data name="CertificadoConDescubiertos" xml:space="preserve"><value>Con descubiertos</value></data>
+  <data name="GestionarCentroAccesible" xml:space="preserve"><value>Gestionar {0} de {1}</value></data>
+  <data name="DesplegarCentrosDe" xml:space="preserve"><value>Desplegar los centros de {0}</value></data>
+  <data name="CentrosDesplegadosError" xml:space="preserve"><value>No pudimos cargar los centros. Vuelve a desplegar la fila para reintentarlo.</value></data>
+  <data name="CentrosDesplegadosNinguno" xml:space="preserve"><value>Ningún centro con incidencias.</value></data>
+  <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordenar</value></data>
 </root>

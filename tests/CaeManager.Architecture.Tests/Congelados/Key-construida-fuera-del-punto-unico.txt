@@ -13,7 +13,6 @@
 src/CaeManager.Web/Components/DesignSystem/CampoTexto.razor :: _generacionValor = 1
 src/CaeManager.Web/Components/Workspace/ContextWorkspace.razor :: (frame.Tipo, frame.EntidadId) = 1
 src/CaeManager.Web/Features/Alertas/Pages/Alertas.razor :: grupo.Clave = 1
-src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor :: _orden.Version = 1
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: _intentosCambioEstado = 1
 src/CaeManager.Web/Features/Configuracion/Pages/OrdenMenuLateral.razor :: enlace.Fila.Clave = 1
 src/CaeManager.Web/Features/Configuracion/Pages/OrdenMenuLateral.razor :: grupo.Cabecera.Fila.Clave = 1

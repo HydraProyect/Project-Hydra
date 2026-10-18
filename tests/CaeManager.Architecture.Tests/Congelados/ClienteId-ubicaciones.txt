@@ -461,6 +461,7 @@ src/CaeManager.Application/Clientes/Queries/ObtenerAccesosPlataformaCaeCliente/O
 src/CaeManager.Application/Clientes/Queries/RevelarContrasenaAccesoPlataformaCae/RevelarContrasenaAccesoPlataformaCaeQuery.cs :: ClienteId = 1
 src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor :: ClienteId = 7
 src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor.cs :: ClienteId = 12
+src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor.cs :: ClienteId = 1
 src/CaeManager.Web/Features/Clientes/Pages/ConfiguracionIaCliente.razor :: ClienteId = 1
 src/CaeManager.Web/Features/Clientes/Pages/ConfiguracionIaCliente.razor.cs :: ClienteId = 7
 src/CaeManager.Web/Features/Clientes/Pages/ConfiguracionIaCliente.razor.cs :: clienteId = 15
