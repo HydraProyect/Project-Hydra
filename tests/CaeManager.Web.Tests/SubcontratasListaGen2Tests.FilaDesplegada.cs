@@ -6,9 +6,6 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Web.Components.Workspace;
 using Microsoft.Extensions.DependencyInjection;
-using CaeManager.Domain.Subcontratas;
-using CaeManager.Web.Components.Workspace;
-using Microsoft.Extensions.DependencyInjection;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -98,7 +95,7 @@ public partial class SubcontratasListaGen2Tests
         string Texto(int i, string clase) => lineas[i].QuerySelector("." + clase)!.TextContent.Trim();
         Texto(0, "documento-pendiente-nombre").Should().Be("Aptitud médica — Sonia Cano");
         Texto(0, "badge").Should().Be("Vencido");
-        Texto(0, "documento-pendiente-detalle").Should().Be("Desde el 30/09/2026");
+        Texto(0, "documento-pendiente-detalle").Should().Be("Venció el 30/09/2026");
         Texto(1, "badge").Should().Be("Por vencer");
         Texto(1, "documento-pendiente-detalle").Should().Be("Caduca el 28/10/2026");
         Texto(2, "badge").Should().Be("Sin confirmar");

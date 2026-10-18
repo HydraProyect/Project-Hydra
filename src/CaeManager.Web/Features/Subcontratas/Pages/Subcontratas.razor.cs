@@ -252,7 +252,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
     /// <summary>
     /// El rol efectivo puede escribir (misma pregunta que <see cref="SoloConEscritura"/>). Decide si
-    /// las incidencias de las ventanas del motivo de la fila se ofrecen como pulsables.
+    /// el «Gestionar» de cada documento de la fila desplegada se ofrece.
     /// </summary>
     private bool _puedeEscribir;
 
@@ -288,7 +288,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
     /// <summary>
     /// El texto de vigencia de un documento de la fila desplegada, literal de la maqueta: la fecha absoluta y nada de «hace N
-    /// días». «Desde el dd/MM/yyyy» si venció, «Caduca el dd/MM/yyyy» si está por vencer, la falta de fecha si está sin
+    /// días». «Venció el dd/MM/yyyy» si venció, «Caduca el dd/MM/yyyy» si está por vencer, la falta de fecha si está sin
     /// confirmar y vacío en cualquier otro caso (mismo criterio que la lista de Trabajadores).
     /// </summary>
     private string DetalleDelDocumento(IncidenciaSubcontrataDto incidencia)
@@ -311,7 +311,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _correccion.AbrirAsync(incidencia.DocumentoId, incidencia.TipoDocumentoId, incidencia.TrabajadorId, empresaId: null);
 
     /// <summary>
-    /// Tras corregir una incidencia desde la ventana de contexto: el documento corregido puede
+    /// Tras corregir un documento con «Gestionar» en la fila desplegada: el documento corregido puede
     /// contar en más de una fila, así que se vuelve a pedir la página tal como está y se sustituye
     /// en sitio, conservando la selección. Los acordeones se cierran porque su contenido ya no es
     /// el de antes de corregir (mismo criterio que Centros).

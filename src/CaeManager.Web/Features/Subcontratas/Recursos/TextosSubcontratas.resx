@@ -899,7 +899,7 @@
   <data name="RotuloNivel" xml:space="preserve"><value>Nivel</value></data>
   <data name="DesplegarIncidenciasSubcontrata" xml:space="preserve"><value>Desplegar incidencias de {0}</value></data>
   <data name="GestionarDocumentoAccesible" xml:space="preserve"><value>Gestionar {0} de {1}</value></data>
-  <data name="DocumentoDesdeFecha" xml:space="preserve"><value>Desde el {0}</value></data>
+  <data name="DocumentoDesdeFecha" xml:space="preserve"><value>Venció el {0}</value></data>
   <data name="DocumentoCaducaFecha" xml:space="preserve"><value>Caduca el {0}</value></data>
   <data name="AriaSeleccionarPagina" xml:space="preserve"><value>Seleccionar las subcontratas de esta página</value></data>
 </root>
