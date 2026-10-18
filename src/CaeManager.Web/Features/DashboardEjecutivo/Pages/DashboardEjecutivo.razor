@@ -338,7 +338,18 @@
                             <Detalle>@DetalleCosteIa</Detalle>
                         </VentanaContexto>
                     </div>
+                    <div class="pulso-negocio-cifra">
+                        <span class="pulso-negocio-etiqueta">@Textos["PulsoEtiquetaFacturacion"]</span>
+                        <VentanaContexto class="pulso-negocio-valor" Etiqueta="@DetalleFacturacion" Titulo="@Textos["PulsoEtiquetaFacturacion"]">
+                            <Disparador>@ValorFacturacion</Disparador>
+                            <Detalle>@DetalleFacturacion</Detalle>
+                        </VentanaContexto>
+                    </div>
                 </div>
+                @if (VeImportesDeFacturacion)
+                {
+                    <a class="enlace-facturacion" href="/facturacion">@Textos["EnlaceVerFacturas"]</a>
+                }
             </section>
         }
     }

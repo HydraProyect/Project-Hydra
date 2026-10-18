@@ -164,6 +164,9 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         /// <summary>Lo que devuelve la preferencia guardada. Por defecto, el catálogo entero: así una cifra mal puesta no se esconde detrás de un KPI no seleccionado.</summary>
         public IReadOnlyList<string> Seleccion { get; set; } = CatalogoKpis.Todos.Select(k => k.Codigo).ToList();
 
+        /// <summary>El rol efectivo de quien mira el panel: decide si el servidor devuelve la facturación estimada.</summary>
+        public string Rol { get; set; } = "DireccionCae";
+
         public EstadisticasAprobacionDocumentoDto Aprobaciones { get; set; } = new(312, 147);
 
         public Result ResultadoGuardar { get; set; } = Result.Exito();
@@ -186,7 +189,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
 
             object respuesta = request switch
             {
-                ObtenerDashboardEjecutivoQuery q => await new ObtenerDashboardEjecutivoQueryHandler(this).Handle(q, cancellationToken),
+                ObtenerDashboardEjecutivoQuery q => await new ObtenerDashboardEjecutivoQueryHandler(this, new UsuarioConRol(escenario.Rol)).Handle(q, cancellationToken),
                 ObtenerClientesAutorizadosQuery => escenario.Organizaciones
                     .Select(o => new ClienteAutorizadoDto(o.TenantId, o.Nombre, o.EsOrigen)).ToList(),
                 ObtenerCatalogoKpisQuery => escenario[ambito
@@ -218,7 +221,16 @@ public class DashboardEjecutivoGen2Tests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    private sealed class LoggerQueGuarda : ILogger<DashboardEjecutivoPagina>
+    private sealed class UsuarioConRol(string rol) : ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(rol);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+
+    private sealed class LoggerQueGuarda: ILogger<DashboardEjecutivoPagina>
     {
         public List<string> Errores { get; } = [];
 
@@ -798,10 +810,45 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         frase.GetAttribute("aria-label").Should().Be(
             "459 decisiones de verificación resueltas: 312 automáticas y 147 manuales. Solo la organización activa, y desde el principio: la consulta no recibe periodo.");
 
-        // La cifra del pulso que SÍ es del periodo lo dice; la facturación estimada ya no está en esta pantalla.
-        cut.FindAll(".pulso-negocio-valor").Should().ContainSingle()
-            .Which.GetAttribute("aria-label").Should().Contain("en el periodo consultado");
+        // Las cifras del pulso que SÍ son del periodo lo dicen: el coste de IA y la facturación estimada.
+        var cifras = cut.FindAll(".pulso-negocio-valor");
+        cifras.Should().HaveCount(2);
+        cifras[0].GetAttribute("aria-label").Should().Contain("en el periodo consultado");
+        cifras[1].GetAttribute("aria-label").Should().Contain("facturación estimada del periodo consultado");
+    }
+
+    /// <summary>
+    /// El pulso enseña la facturación estimada y el enlace «Ver facturación» (mockup). El importe sale solo del
+    /// servidor para quien pasa <c>AutorizacionTarifasCliente</c> (Administrador o Dirección CAE).
+    /// </summary>
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    public void El_pulso_enseña_la_facturacion_estimada_y_el_enlace_a_quien_gestiona_tarifas(string rol)
+    {
+        var cut = Renderizar(new Escenario { Rol = rol }).Cut;
+
+        var facturacion = cut.FindAll(".pulso-negocio-cifra").Single(c => TextoNormalizado(c).Contains("Facturación estimada"));
+        Disparador(facturacion.QuerySelector(".pulso-negocio-valor")!).Should().Be("1480,00 €");
+        cut.Find(".enlace-facturacion").GetAttribute("href").Should().Be("/facturacion");
+        TextoNormalizado(cut.Find(".enlace-facturacion")).Should().Be("Ver facturación →");
+    }
+
+    /// <summary>
+    /// Quien mira el panel sin gestionar tarifas (Consulta, Coordinador CAE) ve «—» donde iría el importe, y ni la
+    /// cifra ni el enlace a una pantalla que no puede abrir: el importe no llega siquiera al navegador.
+    /// </summary>
+    [Theory]
+    [InlineData("Consulta")]
+    [InlineData("CoordinadorCae")]
+    public void Sin_autoridad_sobre_tarifas_el_pulso_no_enseña_ningun_importe_de_facturacion(string rol)
+    {
+        var cut = Renderizar(new Escenario { Rol = rol }).Cut;
+
+        var facturacion = cut.FindAll(".pulso-negocio-cifra").Single(c => TextoNormalizado(c).Contains("Facturación estimada"));
+        Disparador(facturacion.QuerySelector(".pulso-negocio-valor")!).Should().Be("—");
         cut.FindAll(".enlace-facturacion").Should().BeEmpty();
+        cut.Markup.Should().NotContain("1480").And.NotContain("1000,00").And.NotContain("480,00");
     }
 
     /// <summary>

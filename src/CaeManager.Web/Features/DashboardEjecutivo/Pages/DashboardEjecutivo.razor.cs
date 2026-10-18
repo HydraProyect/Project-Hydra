@@ -256,8 +256,9 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
 
     /// <summary>
     /// «Indicadores de IA y BPO» (mockup «Indicadores IA BPO TALVEG.dc.html») conserva solo las categorías
-    /// IA, Operativa (BPO) y Fricción (BPO) del catálogo. Lo documental, las incidencias y la facturación
-    /// viven en Inicio, Visión de cartera y el Cuadro de dirección; el indicador de ocupación por Gestor CAE
+    /// IA, Operativa (BPO) y Fricción (BPO) del catálogo. Lo documental y las incidencias viven en Inicio,
+    /// Visión de cartera y el Cuadro de dirección; la facturación estimada solo aparece en el pulso del
+    /// negocio (con importe para quien pasa AutorizacionTarifasCliente); el indicador de ocupación por Gestor CAE
     /// se retiró del catálogo (nunca se mide por persona). Un código guardado de otra categoría se
     /// descarta aquí igual que un código huérfano.
     /// </summary>
@@ -451,7 +452,7 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
         CatalogoKpis.ConfianzaMediaIa => _valores!.ConfianzaMediaIa is { } c ? $"{c:F0}%" : "—",
         CatalogoKpis.CosteMesActualIa => $"{_valores!.CosteIaMesActual:F2} €",
         CatalogoKpis.TiempoMedioProcesamientoIa => _valores!.TiempoMedioProcesamientoIaMs is { } t ? $"{t:F0} ms" : "—",
-        CatalogoKpis.FacturacionEstimadaMesActual => $"{_valores!.FacturacionEstimadaMesActual:F2} €",
+        CatalogoKpis.FacturacionEstimadaMesActual => ValorFacturacion,
         CatalogoKpis.PalancaIa => PorcentajePalancaIa is { } pi ? $"{pi}%" : "—",
         CatalogoKpis.FalsosAvisos => PorcentajeFalsosAvisos is { } fa ? $"{fa}%" : "—",
         CatalogoKpis.TiempoBloqueadoCliente => HorasBloqueadasMedia is { } hb ? $"{hb:F1} h" : "—",
@@ -755,7 +756,19 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
         ? Textos["DetallePulsoSinDecisiones"].Value
         : Textos["DetallePulsoConDecisiones", TotalAprobaciones, _estadisticasAprobacion!.Automaticas, _estadisticasAprobacion.Manuales].Value;
 
-    private string DetalleCosteIa => TenantsConPresupuestoIaExcedido.Count == 0
+    /// <summary>
+    /// El importe estimado llega solo a quien pasa <c>AutorizacionTarifasCliente</c> (el servidor devuelve null al
+    /// resto): sin importe no hay cifra que enseñar ni enlace a una pantalla a la que no se puede entrar.
+    /// </summary>
+    private bool VeImportesDeFacturacion => _valores?.FacturacionEstimadaMesActual is not null;
+
+    private string ValorFacturacion => _valores!.FacturacionEstimadaMesActual is { } f ? $"{f:F2} €" : "—";
+
+    private string DetalleFacturacion => _valores!.FacturacionEstimadaMesActual is { } f
+        ? Textos["DetalleFacturacionPeriodo", f, Organizaciones].Value
+        : Textos["DetalleFacturacionSinPermiso"].Value;
+
+    private string DetalleCosteIa =>TenantsConPresupuestoIaExcedido.Count == 0
         ? Textos["DetalleCosteIaDentro", _valores!.CosteIaMesActual, Organizaciones].Value
         : Textos["DetalleCosteIaExcedido", _valores!.CosteIaMesActual, Organizaciones, TenantsConPresupuestoIaExcedido.Count].Value;
 }

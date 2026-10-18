@@ -61,6 +61,22 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
     }
 
     [Fact]
+    public void Sin_autoridad_sobre_tarifas_la_facturacion_estimada_sale_a_null_y_el_resto_no_cambia()
+    {
+        var porTenant = new List<(ClienteAutorizadoDto, CatalogoKpisValoresDto)>
+        {
+            (Cliente("Ibertec"), Valores(centros: 10, costeIaMes: 12.5m, facturacionEstimada: 1000m)),
+            (Cliente("EcoPlant"), Valores(centros: 4, costeIaMes: 5m, facturacionEstimada: 300m)),
+        };
+
+        var resultado = ObtenerDashboardEjecutivoQueryHandler.Fusionar(porTenant, conImporteDeFacturacion: false);
+
+        resultado.FacturacionEstimadaMesActual.Should().BeNull();
+        resultado.Centros.Should().Be(14);
+        resultado.CosteIaMesActual.Should().Be(17.5m);
+    }
+
+    [Fact]
     public void La_tasa_de_cumplimiento_se_recalcula_sobre_los_totales_fusionados_no_como_promedio_de_porcentajes()
     {
         // Tenant A: 9/10 vigentes (90%). Tenant B: 1/100 vigentes (1%).

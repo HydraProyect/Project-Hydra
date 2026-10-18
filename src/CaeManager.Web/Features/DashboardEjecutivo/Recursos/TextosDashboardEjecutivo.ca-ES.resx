@@ -291,6 +291,9 @@
   <data name="DetalleFacturacionPeriodo" xml:space="preserve">
     <value>{0:F2} € de facturación estimada del periodo consultado, sumando solo los Clientes con tarifas configuradas de las {1} de este panel.</value>
   </data>
+  <data name="DetalleFacturacionSinPermiso" xml:space="preserve">
+    <value>Els imports de facturació només els veuen Administrador i Direcció CAE.</value>
+  </data>
   <data name="EnlaceVerFacturas" xml:space="preserve">
     <value>Ver facturación →</value>
   </data>
