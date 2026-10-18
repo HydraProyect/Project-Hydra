@@ -1,3 +1,4 @@
+using System.Globalization;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Documentos.Recursos;
@@ -5,7 +6,7 @@ using TonoDeFila = CaeManager.Web.Components.DesignSystem.TonoFila;
 
 namespace CaeManager.Web.Features.Documentos;
 
-/// <summary>Lo que el botón de una fila de documento ofrece hacer en una página 360 nueva.</summary>
+/// <summary>Lo que abre el botón de una fila de documento en una página 360 nueva (el rótulo es siempre <see cref="EstadoDocumentoFicha360.TextoAccion"/>).</summary>
 public enum AccionDocumentoFicha360
 {
     Renovar,
@@ -89,6 +90,27 @@ public static class EstadoDocumentoFicha360
     /// <summary>La selección de contadores tal como viaja en <c>?estado=</c>, en el orden de gravedad; <c>null</c> si no hay ninguno.</summary>
     public static string? ClavesEnUrl(IReadOnlySet<string> claves) =>
         SeleccionEstados.Unir(ClavesDeContador.Where(claves.Contains).Select(ValorDeUrl));
+
+    /// <summary>
+    /// Rótulo del botón de toda fila o documento que pide trabajo del Gestor CAE: siempre «Gestionar», aunque por dentro
+    /// sea renovar, subir o confirmar (regla 8 de LEEME-AUTORIDAD, 2026-10-18). <see cref="AccionDocumentoFicha360"/> dice
+    /// qué abre el botón, no cómo se llama.
+    /// </summary>
+    public static string TextoAccion => TextosVigenciaDocumento.Texto("Ficha360Gestionar");
+
+    /// <summary>Nombre accesible del botón «Gestionar»: dice sobre qué documento actúa y empieza por el texto visible.</summary>
+    public static string TextoAccionAccesible(string documento) =>
+        string.Format(CultureInfo.CurrentUICulture, TextosVigenciaDocumento.Texto("Ficha360GestionarAccesible"), documento);
+
+    /// <summary>
+    /// Si la fila de un documento en este estado lleva el botón «Gestionar»: lo que pide acción (<see cref="Accion"/>) y también
+    /// «Por vencer» aunque aún no sea urgente (maqueta «… 360 TALVEG» del 2026-10-17). Vigente y Sin caducidad no llevan botón.
+    /// </summary>
+    public static bool PideGestionar(EstadoDocumento estado) => estado == EstadoDocumento.Proximo || Accion(estado) is not null;
+
+    /// <summary>Como <see cref="TextoAccionAccesible(string)"/>, para filas donde el mismo documento se repite por propietario o Centro.</summary>
+    public static string TextoAccionAccesible(string documento, string deQuien) =>
+        string.Format(CultureInfo.CurrentUICulture, TextosVigenciaDocumento.Texto("Ficha360GestionarAccesibleDe"), documento, deQuien);
 
     /// <summary>La acción que pide el estado; <c>null</c> si no pide ninguna.</summary>
     public static AccionDocumentoFicha360? Accion(EstadoDocumento estado) => estado switch

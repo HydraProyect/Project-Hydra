@@ -96,7 +96,6 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosTrabajadores> Textos { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
-    [Inject] private IStringLocalizer<TextosTipoDocumento360> TextosDocumentos360 { get; set; } = default!;
 
     private bool _editorFichaVisible;
 
@@ -172,7 +171,6 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// ObtenerDocumentosQuery que la pestaña del panel, con su alcance.
     /// </summary>
     private IReadOnlyList<DocumentoListaDto> _documentos = [];
-    private IReadOnlySet<Guid> DocumentosUrgentes => _documentos.Where(d => d.Estado == EstadoDocumento.Urgente).Select(d => d.Id).ToHashSet();
     private int _totalDocumentos;
 
     /// <summary>
@@ -679,6 +677,12 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         _drawerGestion.AbrirSerieAsync(SerieDeDocumentos, PasoDe(documento));
 
     private Task EditarDocumentoAsync(Guid documentoId) => _drawerGestion.AbrirEditarAsync(documentoId);
+
+    /// <summary>
+    /// «Gestionar» de un indicador de Documentación base que falta: no hay Documento que renovar ni Tipo de documento
+    /// concreto, así que abre el mismo Nuevo documento con el Trabajador ya elegido que usa «Subir documento» sin incidencia.
+    /// </summary>
+    private Task SubirFaltanteAsync() => _drawerGestion.AbrirCrearParaTrabajadorAsync(TrabajadorId);
 
     private PasoSerieDocumento PasoDe(DocumentoRequeridoDto documento) =>
         PasoSerieDocumento.DeFilaDeTrabajador(documento.DocumentoId, TrabajadorId, documento.TipoDocumentoId);

@@ -143,6 +143,7 @@ else
                                            (ICommand denegados a Consulta), así que a quien solo lee no se le ofrece. *@
                                         <SoloConEscritura>
                                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                                   aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(incidencia.Descripcion, EmpresaNombre)"
                                                    OnClick="() => GestionarEmpresaAsync(incidencia)">
                                                 Gestionar
                                             </Boton>
@@ -390,14 +391,18 @@ else
                                                 </TextoFechaCopiable>
                                             </span>
                                             <span class="columna-accion" role="cell">
-                                                @* La acción existe siempre para quien puede escribir, también con documentos al día. *@
-                                                <SoloConEscritura>
-                                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                                           class="accion-fila-enlace"
-                                                           OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
-                                                        @(AccionDocumento(documento) is { } accion ? Textos[$"AccionDocumento360{accion}"] : Textos["GestionarDocumento360"])
-                                                    </Boton>
-                                                </SoloConEscritura>
+                                                @* Solo lo que pide trabajo lleva «Gestionar» (y solo a quien puede escribir): un documento al día no lleva botón. *@
+                                                @if (EstadoDocumentoFicha360.PideGestionar(documento.Estado))
+                                                {
+                                                    <SoloConEscritura>
+                                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                                               class="accion-fila-enlace"
+                                                               aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre, trabajador.TrabajadorNombre)"
+                                                               OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
+                                                            @Textos["GestionarDocumento360"]
+                                                        </Boton>
+                                                    </SoloConEscritura>
+                                                }
                                             </span>
                                         </div>
                                     }
