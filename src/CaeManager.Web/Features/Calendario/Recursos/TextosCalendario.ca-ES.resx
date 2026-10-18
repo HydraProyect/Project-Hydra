@@ -75,8 +75,29 @@
   <data name="SubtituloVisitas" xml:space="preserve">
     <value>Visitas programadas</value>
   </data>
-  <data name="Gestionar" xml:space="preserve">
-    <value>Gestionar</value>
+  <data name="Renovar" xml:space="preserve">
+    <value>Renovar</value>
+  </data>
+  <data name="Reclamar" xml:space="preserve">
+    <value>Reclamar</value>
+  </data>
+  <data name="ReclamarLosN" xml:space="preserve">
+    <value>Reclamar els {0}</value>
+  </data>
+  <data name="ReclamarElDocumento" xml:space="preserve">
+    <value>Reclamar el document</value>
+  </data>
+  <data name="AccionesSinSalir" xml:space="preserve">
+    <value>Les accions s'executen sense sortir del calendari.</value>
+  </data>
+  <data name="EstadoVencido" xml:space="preserve">
+    <value>Vençut</value>
+  </data>
+  <data name="EstadoVenceHoy" xml:space="preserve">
+    <value>Venç avui</value>
+  </data>
+  <data name="EstadoVenceEl" xml:space="preserve">
+    <value>Venç el {0}</value>
   </data>
   <data name="IrAVisitas" xml:space="preserve">
     <value>Ir a Visitas</value>

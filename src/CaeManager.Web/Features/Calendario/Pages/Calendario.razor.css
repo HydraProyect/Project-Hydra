@@ -1,9 +1,12 @@
 .contenedor-pagina { max-width: 1180px; }
-.contenedor-pagina ::deep .cabecera-pagina { align-items: flex-end; }
+.contenedor-pagina ::deep .cabecera-pagina { align-items: flex-end; gap: var(--space-6); }
+/* Controles de la cabecera (mockup): 12px entre ellos y a otra línea cuando no caben, sin recortar nada en 375. Solo
+   esta página: ni Boton ni CabeceraPagina cambian para el resto. */
+.contenedor-pagina ::deep .acciones-cabecera { flex-wrap: wrap; gap: var(--space-3); }
 .contenedor-pagina ::deep .titulo-pagina { font: 700 26px/32px var(--font-family); letter-spacing: -.01em; }
 
-.calendario-vistas { display: inline-flex; padding: 3px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-subtle); }
-.calendario-vistas button { padding: 6px 12px; border: 0; border-radius: 7px; background: transparent; color: var(--color-text); font: var(--font-label); cursor: pointer; }
+.calendario-vistas { display: inline-flex; max-width: 100%; padding: 3px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-subtle); }
+.calendario-vistas button { padding: 6px 12px; border: 0; border-radius: 7px; background: transparent; color: var(--color-text); font: var(--font-label); white-space: nowrap; cursor: pointer; }
 .calendario-vistas button[aria-selected="true"] { background: var(--color-surface); box-shadow: 0 0 0 1px var(--color-border); }
 .calendario-vistas button:focus-visible { outline: var(--border-focus); outline-offset: 2px; }
 
@@ -12,6 +15,13 @@
     align-items: center;
     gap: var(--space-1);
 }
+
+/* Anterior, siguiente y «Hoy»: texto y flecha en primary-500, 36px de alto (también en táctil, como el mockup); las
+   flechas son cuadradas de 36×36 y «Hoy» lleva relleno 0 14. */
+.contenedor-pagina ::deep .calendario-control { height: 36px; min-height: 36px; color: var(--color-primary-500); }
+.contenedor-pagina ::deep .calendario-control:not(:disabled):hover { border-color: var(--color-primary-500); background: var(--color-surface-hover); transform: none; }
+.calendario-navegacion ::deep .calendario-control { width: 36px; padding: 0; }
+.contenedor-pagina ::deep .calendario-hoy-boton { padding: 0 14px; }
 
 .calendario-titulo-mes {
     font: var(--font-heading-sm);
@@ -131,12 +141,6 @@
     width: 24px;
 }
 
-.calendario-barra-visita-fila {
-    flex: none;
-    width: 4px;
-    height: 28px;
-}
-
 .calendario-leyenda {
     display: flex;
     flex-wrap: wrap;
@@ -151,61 +155,4 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
-}
-
-.calendario-resumen-dia {
-    margin: 0 0 var(--space-5);
-    font: var(--font-body-sm);
-    color: var(--color-text-muted);
-}
-
-.calendario-seccion-modal + .calendario-seccion-modal {
-    margin-top: var(--space-5);
-}
-
-.calendario-subtitulo-modal {
-    margin: 0 0 var(--space-2);
-    font: var(--font-label-md);
-    text-transform: uppercase;
-    letter-spacing: .06em;
-    color: var(--color-text-muted);
-}
-
-.calendario-lista-modal {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    border: var(--border-default);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-}
-
-.calendario-fila-modal {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-3);
-    min-height: 44px;
-    padding: var(--space-2) var(--space-4);
-}
-
-.calendario-fila-modal + .calendario-fila-modal {
-    border-top: var(--border-default);
-}
-
-.calendario-fila-texto {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    min-width: 0;
-}
-
-.calendario-fila-principal {
-    font: var(--font-body-md);
-    font-weight: 600;
-}
-
-.calendario-fila-secundaria {
-    font: var(--font-body-sm);
-    color: var(--color-text-muted);
 }

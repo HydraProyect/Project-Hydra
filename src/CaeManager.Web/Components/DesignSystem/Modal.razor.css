@@ -67,6 +67,29 @@
     font: var(--font-heading-md);
 }
 
+.modal-titulos {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.modal-titulos h2 {
+    margin: 0;
+}
+
+.modal-sobretitulo {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.modal-subtitulo {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
 .modal-cerrar {
     background: none;
     border: none;

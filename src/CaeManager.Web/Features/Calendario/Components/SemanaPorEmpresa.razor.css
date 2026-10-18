@@ -18,6 +18,3 @@ button.semana-celda { cursor: pointer; }
 .semana-reclamar:hover { filter: brightness(.95); }
 button.semana-celda:hover { box-shadow: inset 0 0 0 1px currentColor; }
 .semana-desplazamiento:focus-visible, button:focus-visible, a:focus-visible { outline: var(--border-focus); outline-offset: 2px; }
-.semana-documentos { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-4); }
-.semana-documentos li { display: flex; flex-direction: column; }
-.semana-documentos span { font: var(--font-caption); color: var(--color-text-muted); }

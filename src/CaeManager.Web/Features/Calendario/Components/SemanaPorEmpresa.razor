@@ -59,16 +59,7 @@ else
     </div>
 }
 
-<Modal Visible="@(_dia is not null)" VisibleChanged="v => { if (!v) _dia = null; }"
-       Titulo="@(_dia is { } fecha ? $"{_empresa?.EmpresaNombre} · {fecha.ToString("d MMMM", Cultura)}" : string.Empty)">
-    @if (_empresa is { } seleccionada && _dia is { } diaSeleccionado)
-    {
-        <ul class="semana-documentos">
-            @foreach (var documento in DocumentosDelDia(seleccionada, diaSeleccionado))
-            {
-                <li><a href="@($"/documentos?documentoId={documento.DocumentoId}")">@documento.TipoDocumentoNombre</a><span>@documento.SujetoNombre</span></li>
-            }
-        </ul>
-    }
-</Modal>
+@* Misma pieza que el día del Mes. Esta vista no trae Visitas (la consulta es de Documentos), así que no lleva su sección. *@
+<DetalleDia Fecha="_dia" Contexto="@_empresa?.EmpresaNombre" Vencimientos="@FilasDelDia"
+            OnCerrar="CerrarDia" OnReclamar="ReclamarDelDiaCallback" />
 

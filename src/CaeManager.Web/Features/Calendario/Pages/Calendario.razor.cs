@@ -3,6 +3,7 @@ using System.Globalization;
 using CaeManager.Application.Calendario.Queries;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitasParaCalendario;
 using CaeManager.Domain.Documentos;
+using CaeManager.Web.Features.Calendario.Components;
 using CaeManager.Web.Features.Calendario.Recursos;
 using CaeManager.Web.Features.Documentos;
 using MediatR;
@@ -21,7 +22,6 @@ public partial class Calendario : CaeManager.Web.Components.PaginaInteractiva
         ["DiaLunes", "DiaMartes", "DiaMiercoles", "DiaJueves", "DiaViernes", "DiaSabado", "DiaDomingo"];
 
     [Inject] private IMediator Mediator { get; set; } = default!;
-    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosCalendario> Textos { get; set; } = default!;
 
     /// <summary>
@@ -178,14 +178,16 @@ public partial class Calendario : CaeManager.Web.Components.PaginaInteractiva
 
     private void CerrarDetalle() => _diaSeleccionado = null;
 
-    private void GestionarDocumento(Guid documentoId) =>
-        NavigationManager.NavigateTo($"/documentos?documentoId={documentoId}");
+    // Detalle del día (DetalleDia): Renovar lleva a Documentos con el documento abierto. /visitas no admite hoy un
+    // parámetro que abra una visita concreta, así que el destino es la lista; por eso el enlace dice «Ir a Visitas» y
+    // no el «Abrir visita» del mockup, que prometería algo que no ocurre.
+    private IReadOnlyList<FilaDetalleDia> FilasDelDiaSeleccionado => _diaSeleccionado is { } dia
+        ? VencimientosDelDia(dia).Select(v => new FilaDetalleDia(
+            v.DocumentoId, v.TrabajadorNombre, v.TipoDocumentoNombre,
+            EstadoDocumentoUi.Texto(v.Estado), EstadoDocumentoUi.Tono(v.Estado))).ToArray()
+        : [];
 
-    // /visitas no admite hoy un parámetro que abra una visita concreta, así
-    // que el destino es la lista; por eso el botón dice «Ir a Visitas» y no
-    // el «Abrir visita» del mockup, que prometería algo que no ocurre.
-    private void GestionarVisita(Guid visitaId) =>
-        NavigationManager.NavigateTo("/visitas");
+    private IReadOnlyList<VisitaCalendarioDto> VisitasDelDiaSeleccionado => _diaSeleccionado is { } dia ? VisitasDelDia(dia) : [];
 
     private List<VencimientoCalendarioDto> VencimientosDelDia(DateOnly dia) =>
         _vencimientos.Where(v => v.FechaVencimiento == dia).ToList();
@@ -226,26 +228,6 @@ public partial class Calendario : CaeManager.Web.Components.PaginaInteractiva
 
         return Textos["EtiquetaDia", dia.ToString(Textos["FormatoDiaMes"], Cultura),
             string.Join($" {Textos["ConjuncionY"]} ", partes)];
-    }
-
-    private string FechaLarga(DateOnly dia) => dia.ToString(Textos["FormatoFechaLarga"], Cultura);
-
-    private string ResumenDia(DateOnly dia, int vencimientos, int visitas)
-    {
-        var partes = new List<string> { Capitalizar(dia.ToString("dddd", Cultura)) };
-        if (vencimientos > 0)
-            partes.Add(Contar(vencimientos, "VencimientoUno", "VencimientoVarios"));
-        if (visitas > 0)
-            partes.Add(Contar(visitas, "VisitaUna", "VisitaVarias"));
-        return string.Join(" · ", partes);
-    }
-
-    private string DetalleVisita(VisitaCalendarioDto visita)
-    {
-        var fechas = visita.FechaInicio == visita.FechaFin
-            ? visita.FechaInicio.ToString("dd/MM", Cultura)
-            : $"{visita.FechaInicio.ToString("dd/MM", Cultura)}–{visita.FechaFin.ToString("dd/MM", Cultura)}";
-        return $"{visita.ClienteRazonSocial} · {fechas} · {Contar(visita.TotalTrabajadores, "TrabajadorUno", "TrabajadorVarios")}";
     }
 
     /// <summary>

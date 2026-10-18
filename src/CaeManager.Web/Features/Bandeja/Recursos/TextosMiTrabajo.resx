@@ -384,4 +384,5 @@
   <data name="ReclamacionErrorPreparar" xml:space="preserve"><value>No pudimos preparar la reclamación</value></data>
   <data name="ReclamacionErrorPrepararDetalle" xml:space="preserve"><value>Intenta nuevamente en unos segundos.</value></data>
   <data name="ReclamacionReintentar" xml:space="preserve"><value>Reintentar</value></data>
+  <data name="ReclamacionFueraDeTitular" xml:space="preserve"><value>Quedan fuera {0} de {1} documentos: no se pueden reclamar a los contactos de esta Empresa.</value></data>
 </root>
