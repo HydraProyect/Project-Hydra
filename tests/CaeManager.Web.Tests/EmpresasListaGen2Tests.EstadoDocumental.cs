@@ -328,10 +328,11 @@ public partial class EmpresasListaGen2Tests
 
     /// <summary>
     /// «Empresas TALVEG.dc.html», fila desplegada: lo vencido dice «Venció el dd/MM/yyyy» (fecha absoluta, nunca
-    /// «Hace N días»), lo que está por vencer su plazo («Caduca en N días») y lo sin confirmar qué fecha falta.
+    /// «Hace N días»), literal de esa maqueta. «Caduca en N días» (por vencer) y «Falta la fecha de vencimiento»
+    /// (sin confirmar) son una extrapolación de la maqueta de Trabajadores: la de Empresas solo trae «Venció el».
     /// </summary>
     [Fact]
-    public async Task La_fila_desplegada_dice_la_vigencia_de_cada_estado_como_la_maqueta()
+    public async Task La_fila_desplegada_dice_Vencio_el_de_la_maqueta_y_extrapola_el_resto_de_Trabajadores()
     {
         var vencido = IncidenciaDe("Certificado de estar al corriente con la TGSS", EstadoDocumento.Vencido, -80);
         var enTolerancia = IncidenciaDe("Seguro de responsabilidad civil", EstadoDocumento.EnTolerancia, -3);

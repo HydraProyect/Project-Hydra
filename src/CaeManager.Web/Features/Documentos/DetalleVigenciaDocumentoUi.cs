@@ -17,8 +17,10 @@ namespace CaeManager.Web.Features.Documentos;
 /// </para>
 ///
 /// <para>
-/// Cada lista usa su propio texto según su maqueta: Trabajadores dice «Desde el …» (vencido) y «Caduca el …»
-/// (por vencer); Empresas dice «Venció el …» (vencido) y el plazo «Caduca en N días» (por vencer).
+/// Trabajadores dice «Desde el …» (vencido), «Caduca el …» (por vencer) y la falta de fecha (sin confirmar),
+/// literal de su maqueta. De la maqueta de Empresas solo es literal «Venció el …» (vencido): «Caduca en N días»
+/// (por vencer) y «Falta la fecha de vencimiento» (sin confirmar) son una extrapolación de la maqueta de
+/// Trabajadores, porque la de Empresas no trae esos casos para un documento de la propia Empresa.
 /// </para>
 /// </summary>
 public static class DetalleVigenciaDocumentoUi
