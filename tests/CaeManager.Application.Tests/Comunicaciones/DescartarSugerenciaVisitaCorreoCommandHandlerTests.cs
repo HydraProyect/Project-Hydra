@@ -20,9 +20,13 @@ public class DescartarSugerenciaVisitaCorreoCommandHandlerTests
     private readonly SugerenciaVisitaCorreoRepositorioFalso _repositorio = new();
     private readonly UnitOfWorkFalso _unitOfWork = new();
 
-    private SugerenciaVisitaCorreo SembrarEnConversacionDe(Guid clienteId)
+    private readonly Guid _buzonPersonalDeOtroGestor = Guid.NewGuid();
+
+    private SugerenciaVisitaCorreo SembrarEnConversacionDe(Guid clienteId) =>
+        SembrarEn(new Conversacion("Visita el lunes", clienteId: clienteId));
+
+    private SugerenciaVisitaCorreo SembrarEn(Conversacion conversacion)
     {
-        var conversacion = new Conversacion("Visita el lunes", clienteId: clienteId);
         var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "obra@contraparte.es", "<p>El lunes vamos.</p>");
         var sugerencia = new SugerenciaVisitaCorreo(mensaje.Id, null, null, null, "Resumen", 90, 0, 0);
 
@@ -37,7 +41,42 @@ public class DescartarSugerenciaVisitaCorreoCommandHandlerTests
         new(_repositorio, _contexto, alcance, new CurrentUserServiceFalso(), _unitOfWork);
 
     private AlcanceDatosServiceFalso GestorConCarteraExplicita() =>
-        new(tieneAccesoTotal: false, clienteIdsVisibles: [_clienteDeMiCartera]);
+        new(tieneAccesoTotal: false, clienteIdsVisibles: [_clienteDeMiCartera], conexionesIntegracionAjenas: [_buzonPersonalDeOtroGestor]);
+
+    [Fact]
+    public async Task Un_Gestor_con_cartera_explicita_no_descarta_la_de_un_hilo_anclado_a_una_Empresa_fuera_de_su_cartera()
+    {
+        var ajena = SembrarEn(new Conversacion("Reclamación de TC2", empresaId: Guid.NewGuid()));
+
+        var resultado = await Crear(GestorConCarteraExplicita()).Handle(new DescartarSugerenciaVisitaCorreoCommand(ajena.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("SugerenciaVisitaCorreo.NoEncontrada");
+        ajena.Resuelta.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Un_Gestor_no_descarta_la_de_un_hilo_del_buzon_personal_de_otro_Gestor_aunque_el_Cliente_sea_de_su_cartera()
+    {
+        var conversacion = new Conversacion("Visita el lunes", clienteId: _clienteDeMiCartera);
+        conversacion.AsociarConexion(_buzonPersonalDeOtroGestor, "hilo-1");
+        var ajena = SembrarEn(conversacion);
+
+        var resultado = await Crear(GestorConCarteraExplicita()).Handle(new DescartarSugerenciaVisitaCorreoCommand(ajena.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("SugerenciaVisitaCorreo.NoEncontrada");
+        ajena.Resuelta.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Un_Gestor_con_cartera_explicita_descarta_la_de_un_hilo_de_triage_sin_ancla()
+    {
+        var deTriage = SembrarEn(new Conversacion("Sin Cliente todavía"));
+
+        var resultado = await Crear(GestorConCarteraExplicita()).Handle(new DescartarSugerenciaVisitaCorreoCommand(deTriage.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("la cola de triage es compartida: se lee y se descarta desde el lado de gestión");
+        deTriage.Resolucion.Should().Be(ResolucionSugerencia.Descartada);
+    }
 
     [Fact]
     public async Task Marca_la_sugerencia_como_resuelta()
