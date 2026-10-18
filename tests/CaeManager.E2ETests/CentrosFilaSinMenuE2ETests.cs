@@ -57,7 +57,8 @@ public class CentrosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         // Un control de dentro (el desplegable de asignaciones) hace lo suyo y NO abre el panel.
         // Barrera de la ausencia: el panel se abriría en el mismo viaje al servidor que despliega
         // la fila, así que tras un segundo viaje completo (plegarla) ya estaría pintado.
-        var desplegable = fila.Locator(".boton-expandir-fila");
+        // Solo los Centros con incidencias llevan chevron (maqueta: «tieneHijos»): se toma el primero que lo tenga.
+        var desplegable = page.Locator(".lista-filas-acordeon .boton-expandir-fila").First;
         await desplegable.ClickAsync();
         await Expect(desplegable).ToHaveAttributeAsync("aria-expanded", "true");
         await desplegable.ClickAsync();

@@ -13,8 +13,8 @@ namespace CaeManager.E2ETests;
 /// y «Empresa» no caían sobre sus celdas. Un test de bUnit no puede verlo: no hay maquetación.
 /// <para>
 /// <b>Qué mira y qué no.</b> Los dos casos de alineación comparan el borde izquierdo de cada hueco de la cabecera con el de la celda que
-/// ocupa su mismo lugar en la fila, sin afirmar ningún ancho en píxeles. Los dos indicadores («Estado» y
-/// «Visita») se comparan uno a uno, no como bloque. No mira dónde empieza el contenido
+/// ocupa su mismo lugar en la fila, sin afirmar ningún ancho en píxeles. La Visita no es columna (cierra la
+/// segunda línea del Centro) y «Estado» es una sola columna. No mira dónde empieza el contenido
 /// DENTRO de cada celda.
 /// </para>
 /// </summary>
@@ -24,8 +24,7 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
     /// <summary>Medio píxel de tolerancia de redondeo: el desvío del defecto medía 4 px.</summary>
     private const string MedirDesalineacion = """
         () => {
-            const indicadores = '.cabecera-columnas-centros-indicadores, .tarjeta-fila-acordeon-indicadores';
-            const huecos = el => Array.from(el.children).flatMap(h => h.matches(indicadores) ? Array.from(h.children) : [h]);
+            const huecos = el => Array.from(el.children);
             const cabecera = huecos(document.querySelector('.cabecera-columnas-centros'));
             const filas = Array.from(document.querySelectorAll('.lista-filas-acordeon .tarjeta-fila-acordeon-cabecera'));
             const desvios = [];
@@ -55,11 +54,11 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await AbrirCentrosAsync(contexto);
-        // Los grupos por Cliente empresarial arrancan contraídos: sin agrupar se ven todas las filas.
+        // De serie la lista no se agrupa: se asegura por si la vista recordada trajera «Por Cliente».
         await Ayudas.MostrarCentrosSinAgruparAsync(page);
 
-        // chevron · Centro · Empresa · Cumplimiento · Estado · Visita · acciones
-        await AfirmarAlineadoEnLosDosTemasAsync(page, columnas: 7, "sin selección");
+        // chevron · Centro · Empresa · Cumplimiento · Estado · acciones
+        await AfirmarAlineadoEnLosDosTemasAsync(page, columnas: 6, "sin selección");
     }
 
     [Fact]
@@ -70,7 +69,6 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
 
         // El conmutador llega con el prerender antes que el circuito y un clic en esa ventana se pierde: se
         // repite, una vez por segundo, hasta que el propio botón dice que está pulsado (aria-pressed).
-        // Con la selección puesta los grupos se muestran abiertos, así que las filas se ven sin desagrupar.
         await page.WaitForFunctionAsync("""
             () => {
                 const conmutador = document.querySelector("button[aria-label='Selección múltiple']");
@@ -81,10 +79,10 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
             }
             """, null, new PageWaitForFunctionOptions { PollingInterval = 1_000, Timeout = 30_000 });
         // El hueco de la casilla en la cabecera está vacío y no tiene alto: se afirma que existe, no que se ve.
-        await Expect(page.Locator(".cabecera-columnas-centros-seleccion")).ToHaveCountAsync(1);
+        await Expect(page.Locator(".cabecera-columnas-centros .seleccion-centro")).ToHaveCountAsync(1);
 
-        // casilla · chevron · Centro · Empresa · Cumplimiento · Estado · Visita · acciones
-        await AfirmarAlineadoEnLosDosTemasAsync(page, columnas: 8, "con selección múltiple");
+        // casilla · chevron · Centro · Empresa · Cumplimiento · Estado · acciones
+        await AfirmarAlineadoEnLosDosTemasAsync(page, columnas: 7, "con selección múltiple");
     }
 
     [Fact]
@@ -125,10 +123,11 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
                 }
                 """);
             Assert.Equal(22, medida.GetProperty("fuente").GetDouble());
-            Assert.InRange(medida.GetProperty("cabecera").GetDouble(), 37.5, 38.5);
-            // La maqueta rotula el menú «Más» y pasa la selección múltiple a la barra de herramientas: en la cabecera
-            // quedan dos controles de icono o menú y ninguno es más estrecho que el icono compacto de 34 px.
-            Assert.Equal(2, medida.GetProperty("iconos").GetArrayLength());
+            // Cabecera de columnas de la maqueta: 14 px arriba, 16 de línea, 10 abajo y 1,5 de filete.
+            Assert.InRange(medida.GetProperty("cabecera").GetDouble(), 41, 42);
+            // La cabecera de la página lleva cuatro controles de icono o menú (selección múltiple, exportar, atajos
+            // y «⋯»), y ninguno es más estrecho que el icono compacto de 34 px.
+            Assert.Equal(4, medida.GetProperty("iconos").GetArrayLength());
             foreach (var icono in medida.GetProperty("iconos").EnumerateArray())
                 Assert.True(icono.GetDouble() >= 34, $"ancho {icono.GetDouble()}");
             Assert.InRange(medida.GetProperty("primaria").GetDouble(), 33.5, 34.5);
@@ -174,7 +173,7 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
             // Sin filas, sin rótulos o con otra cabecera no habría nada que comparar y el test pasaría en vacío.
             Assert.True(medicion.GetProperty("filas").GetInt32() > 0, $"[{contexto}] la lista sembrada no tiene filas a la vista: no hay nada que medir.");
             Assert.Equal(columnas, medicion.GetProperty("columnas").GetInt32());
-            Assert.Equal(5, medicion.GetProperty("rotulos").GetInt32());
+            Assert.Equal(4, medicion.GetProperty("rotulos").GetInt32());
 
             var desvios = medicion.GetProperty("desvios").EnumerateArray().Select(d => d.GetString()).ToList();
             Assert.True(desvios.Count == 0, $"[{contexto}] la cabecera no coincide con sus celdas:{Environment.NewLine}{string.Join(Environment.NewLine, desvios.Take(12))}");

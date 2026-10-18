@@ -132,7 +132,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
 
         // --- Paso 4: /centros — buscar, dejar que el buscador asiente y expandir ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
-        var buscador = page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente o empresa");
+        var buscador = page.GetByPlaceholder("Filtrar esta pantalla: Centro, código, Cliente o Empresa");
         await buscador.FillAsync(nombreCentro);
 
         var botonExpandir = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Asignaciones de {nombreCentro}" });
