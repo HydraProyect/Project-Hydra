@@ -44,7 +44,10 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
     /// Rótulo al pasar el ratón por un identificador en línea: «Copiar {valor}», como el <c>title</c> de
     /// <c>.copia</c> en las maquetas 360. El nombre accesible sigue siendo <see cref="NombreAccesible"/>.
     /// </summary>
-    private string? TituloEnLinea => EnLinea ? $"Copiar {(string.IsNullOrEmpty(Valor) ? Texto : Valor)}" : null;
+    private string? TituloEnLinea => EnLinea ? Titulo ?? $"Copiar {(string.IsNullOrEmpty(Valor) ? Texto : Valor)}" : null;
+
+    /// <summary>Rótulo en línea fijo cuando la maqueta nombra el dato en vez del valor (p. ej. «Copiar el CIF»).</summary>
+    [Parameter] public string? Titulo { get; set; }
 
     /// <summary>
     /// Lo escrito en el buscador del listado, para marcar en <see cref="Texto"/> la parte que casa

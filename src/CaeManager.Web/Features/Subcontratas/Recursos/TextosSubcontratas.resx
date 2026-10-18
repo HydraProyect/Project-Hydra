@@ -895,4 +895,5 @@
   <data name="DniCopiado" xml:space="preserve">
     <value>DNI {0} copiado al portapapeles</value>
   </data>
+  <data name="TituloCopiarCif" xml:space="preserve"><value>Copiar el CIF</value></data>
 </root>

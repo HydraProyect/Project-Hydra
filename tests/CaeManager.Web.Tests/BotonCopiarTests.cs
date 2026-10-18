@@ -149,4 +149,19 @@ public class BotonCopiarTests : BunitContext
         conTermino.GetAttribute("title").Should().Be("Copiar 12345678Z", "el title de .copia en las maquetas 360 es «Copiar {valor}»")
             .And.Be(sinTermino.GetAttribute("title"));
     }
+
+    [Fact]
+    public void Con_titulo_fijo_el_title_nombra_el_dato_y_el_texto_sigue_siendo_el_valor()
+    {
+        JSInterop.SetupModule(Modulo);
+
+        var boton = Render<BotonCopiar>(p => p
+            .Add(c => c.EnLinea, true)
+            .Add(c => c.Valor, "B12345678")
+            .Add(c => c.Texto, "B12345678")
+            .Add(c => c.Titulo, "Copiar el CIF")).Find("button");
+
+        boton.GetAttribute("title").Should().Be("Copiar el CIF", "la maqueta de Subcontrata 360 nombra el dato en el CIF");
+        boton.TextContent.Should().Be("B12345678");
+    }
 }
