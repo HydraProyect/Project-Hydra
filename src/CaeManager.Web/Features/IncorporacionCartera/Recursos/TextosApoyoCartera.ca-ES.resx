@@ -76,7 +76,7 @@
     <value>Donar accés a {0}</value>
   </data>
   <data name="DrawerIntro" xml:space="preserve">
-    <value>Proposa a un Gestor CAE de la teva organització que et doni suport en aquesta Empresa. Quan accepti tindrà accés a aquesta Empresa com a Gestor CAE de suport; tu continues sent el principal. Si hi poses data, l'accés es tanca sol en acabar aquell dia.</value>
+    <value>Proposa a un Gestor CAE de la teva organització que et doni suport a {0}. Quan accepti tindrà accés a {0} i a tots els seus Clients, Centres i Empreses com a Gestor CAE de suport; tu continues sent el principal. Si hi poses data, l'accés es tanca sol en acabar aquell dia.</value>
   </data>
   <data name="EtiquetaDestinatario" xml:space="preserve">
     <value>Gestor CAE a qui ho proposes</value>
@@ -196,10 +196,10 @@
     <value>Revocar l'accés de suport de {0} a {1}</value>
   </data>
   <data name="ConfirmarDesasignarmeTitulo" xml:space="preserve">
-    <value>Vols desassignar-te d'aquesta Empresa?</value>
+    <value>Vols desassignar-te de {0}?</value>
   </data>
   <data name="ConfirmarDesasignarmeMensaje" xml:space="preserve">
-    <value>Deixaràs de tenir accés a {0}. Per tornar-hi a entrar, qui en sigui el principal t'ho haurà de proposar de nou.</value>
+    <value>Deixaràs de tenir accés a {0} i a tots els seus Clients, Centres i Empreses. Per tornar-hi a entrar, qui en sigui el principal t'ho haurà de proposar de nou.</value>
   </data>
   <data name="ConfirmarRetirarApoyoTitulo" xml:space="preserve">
     <value>Vols retirar aquest accés de suport?</value>
@@ -245,5 +245,8 @@
   </data>
   <data name="ErrorApoyoFueraDeTuEquipo" xml:space="preserve">
     <value>Ni aquesta persona ni qui li va donar l'accés són al teu equip: no pots revocar aquest suport.</value>
+  </data>
+  <data name="ErrorDeCarga" xml:space="preserve">
+    <value>No hem pogut carregar els accessos.</value>
   </data>
 </root>

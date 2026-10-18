@@ -76,7 +76,7 @@
     <value>Dar acceso a {0}</value>
   </data>
   <data name="DrawerIntro" xml:space="preserve">
-    <value>Propón a un Gestor CAE de tu organización que te apoye en esta Empresa. Cuando acepte tendrá acceso a esta Empresa como Gestor CAE de apoyo; tú sigues siendo el principal. Si le pones fecha, el acceso se cierra solo al terminar ese día.</value>
+    <value>Propón a un Gestor CAE de tu organización que te apoye en {0}. Cuando acepte tendrá acceso a {0} y a todos sus Clientes, Centros y Empresas como Gestor CAE de apoyo; tú sigues siendo el principal. Si le pones fecha, el acceso se cierra solo al terminar ese día.</value>
   </data>
   <data name="EtiquetaDestinatario" xml:space="preserve">
     <value>Gestor CAE al que se lo propones</value>
@@ -196,10 +196,10 @@
     <value>Revocar el acceso de apoyo de {0} a {1}</value>
   </data>
   <data name="ConfirmarDesasignarmeTitulo" xml:space="preserve">
-    <value>¿Desasignarte de esta Empresa?</value>
+    <value>¿Desasignarte de {0}?</value>
   </data>
   <data name="ConfirmarDesasignarmeMensaje" xml:space="preserve">
-    <value>Dejarás de tener acceso a {0}. Para volver a entrar, quien sea su principal tendrá que proponértelo de nuevo.</value>
+    <value>Dejarás de tener acceso a {0} y a todos sus Clientes, Centros y Empresas. Para volver a entrar, quien sea su principal tendrá que proponértelo de nuevo.</value>
   </data>
   <data name="ConfirmarRetirarApoyoTitulo" xml:space="preserve">
     <value>¿Retirar este acceso de apoyo?</value>
@@ -245,5 +245,8 @@
   </data>
   <data name="ErrorApoyoFueraDeTuEquipo" xml:space="preserve">
     <value>Ni esa persona ni quien le dio el acceso están en tu equipo: no puedes revocar ese apoyo.</value>
+  </data>
+  <data name="ErrorDeCarga" xml:space="preserve">
+    <value>No pudimos cargar los accesos.</value>
   </data>
 </root>
