@@ -26,6 +26,7 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public partial class CuadroDireccionTests : BunitContext
 {
+    private static readonly Guid UsuarioPrueba = Guid.Parse("c3c3c3c3-0000-0000-0000-000000000003");
     private static readonly Guid TenantA = Guid.Parse("a1a1a1a1-0000-0000-0000-000000000001");
     private static readonly Guid TenantB = Guid.Parse("b2b2b2b2-0000-0000-0000-000000000002");
 
@@ -127,7 +128,7 @@ public partial class CuadroDireccionTests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
 
-        var usuario = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "dir@talveg.test"), new Claim(ClaimTypes.Role, rol)], "prueba"));
+        var usuario = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, UsuarioPrueba.ToString()), new Claim(ClaimTypes.Name, "dir@talveg.test"), new Claim(ClaimTypes.Role, rol)], "prueba"));
         var cut = Render<CuadroDireccionPagina>(ps => ps.AddCascadingValue(Task.FromResult(new AuthenticationState(usuario))));
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("cuadro-barra").And.NotContain("Cargando"));
         cut.WaitForAssertion(() => cut.FindAll(".cuadro-kpi").Should().NotBeEmpty());
@@ -167,7 +168,7 @@ public partial class CuadroDireccionTests : BunitContext
 
         var fincas = filas[2];
         fincas.TextContent.Should().Contain("Fincas");
-        fincas.TextContent.Should().Contain("No se muestra: 2 personas y 14 conversaciones (mínimo 3 y 20)");
+        fincas.TextContent.Should().Contain("No se muestra: menos de 3 personas o menos de 20 conversaciones");
         fincas.TextContent.Should().NotContain("89 %", "ninguna cifra de un equipo bajo el umbral llega a la pantalla");
         fincas.TextContent.Should().NotContain("2,0 h");
     }
@@ -193,7 +194,7 @@ public partial class CuadroDireccionTests : BunitContext
 
         IrA(cut, "Demanda");
 
-        cut.Find("[data-suprimida=mapa-calor]").TextContent.Should().Be("No se muestra: 19 conversaciones (mínimo 20)");
+        cut.Find("[data-suprimida=mapa-calor]").TextContent.Should().Be("No se muestra: menos de 20 conversaciones");
         cut.FindAll(".cuadro-calor-celda").Should().BeEmpty("la medida suprimida no pinta ninguna celda con su peso");
     }
 
@@ -325,11 +326,16 @@ public partial class CuadroDireccionTests : BunitContext
     {
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
 
-        foreach (var pestana in new[] { "Visión general", "Empresas", "Demanda", "Comunicaciones" })
+        // Nada se mide por persona, en ninguna de las siete pestañas.
+        foreach (var pestana in new[]
+                 {
+                     "Visión general", "Facturación", "Empresas", "Demanda", "Vacaciones y cobertura", "Comunicaciones", "Comparativa anual",
+                 })
         {
             IrA(cut, pestana);
             cut.Markup.Should().NotContainEquivalentOf("Ocupación de Gestores CAE", pestana);
             cut.Markup.Should().NotContainEquivalentOf("ocupación por gestor", pestana);
+            cut.Markup.Should().NotContainEquivalentOf("por Gestor CAE", pestana);
         }
     }
 

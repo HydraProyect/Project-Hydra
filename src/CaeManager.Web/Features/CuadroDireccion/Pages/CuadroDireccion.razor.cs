@@ -20,7 +20,7 @@ namespace CaeManager.Web.Features.CuadroDireccion.Pages;
 /// pinta lo que esas consultas miden, por Empresa (Tenant beneficiario) o todas juntas.
 ///
 /// <para>
-/// <b>Qué no hace</b>: no mide a ninguna persona (ni «Ocupación» ni «Cartera por Gestor CAE»). El «Responde» de
+/// <b>Qué no hace</b>: no mide a ninguna persona (ni «Ocupación» ni la cartera por persona). El «Responde» de
 /// cada Empresa es quien lleva la marca de principal en la cartera (<see cref="PrincipalDeCarteraDto"/>), no una
 /// medida de actividad. Y no enseña ninguna medida apoyada en menos de 3 personas o 20 conversaciones
 /// (<see cref="UmbralAnonimatoCuadro"/>). Lo que ningún modelo guarda todavía (contrato y cuota, vacaciones,
@@ -37,10 +37,17 @@ namespace CaeManager.Web.Features.CuadroDireccion.Pages;
 /// navegador (<see cref="PreferenciasCuadro"/>); son presentación y la pantalla funciona igual sin ellas.
 /// </para>
 /// </summary>
-public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteractiva, IDisposable
+public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteractiva, IDisposable, IAsyncDisposable
 {
     private const int LongitudMaximaMotivo = 500;
-    private const string ClavePreferencias = "cuadro-direccion:preferencias";
+    private const string PrefijoClavePreferencias = "cuadro-direccion:preferencias";
+
+    /// <summary>
+    /// La clave de las preferencias lleva el identificador del usuario: dos personas en el mismo navegador no se
+    /// pisan las tarjetas ni los avisos vistos. Sin usuario identificado no se recuerda nada.
+    /// </summary>
+    private string? _clavePreferencias;
+    private bool _avisoExportar;
     private const int MesesSerie = 6;
     private const int MesesAnual = 24;
 
@@ -56,7 +63,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         ["facturacion"] = ["f-apilado", "f-sintarifa", "f-simulador", "f-borrador"],
         ["empresas"] = ["cl-rendimiento", "cl-pareto", "cl-contratos", "cl-tabla"],
         ["demanda"] = ["p-franja", "p-heatmap", "p-calendario", "p-estacional"],
-        ["vacaciones"] = ["v-barras", "v-cobertura", "v-tabla"],
+        ["vacaciones"] = ["v-cobertura", "v-tabla"],
         ["comunicaciones"] = ["cm-kpis", "cm-equipos", "cm-estados", "cm-intencion", "cm-canal", "cm-criterio"],
         ["comparativa"] = ["cmp-linea", "cmp-tabla"],
     };
@@ -118,7 +125,13 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         _anyo = hoy.Year;
         _mes = hoy.Month;
         if (EstadoAutenticacion is not null)
-            _puedeReabrir = (await EstadoAutenticacion).User.IsInRole(Roles.DireccionCae);
+        {
+            var usuario = (await EstadoAutenticacion).User;
+            _puedeReabrir = usuario.IsInRole(Roles.DireccionCae);
+            if (usuario.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value is { Length: > 0 } usuarioId)
+                _clavePreferencias = $"{PrefijoClavePreferencias}:{usuarioId}";
+        }
+
         await CargarAsync();
     }
 
@@ -129,7 +142,8 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         try
         {
             _modulo = await Js.InvokeAsync<IJSObjectReference>("import", "./js/cuadro-direccion.js");
-            _preferencias = PreferenciasCuadro.Leer(await _modulo.InvokeAsync<string?>("leer", ClavePreferencias));
+            if (_clavePreferencias is not null)
+                _preferencias = PreferenciasCuadro.Leer(await _modulo.InvokeAsync<string?>("leer", _clavePreferencias));
             StateHasChanged();
         }
         catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException or JSDisconnectedException)
@@ -146,6 +160,29 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         _ciclo.Cancel();
         _ciclo.Dispose();
     }
+
+    /// <summary>Blazor llama solo a esta cuando existe: cierra la página como <see cref="Dispose"/> y suelta el módulo de JavaScript.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        Dispose();
+        if (_modulo is null) return;
+
+        try
+        {
+            await _modulo.DisposeAsync();
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException or TaskCanceledException)
+        {
+            // El circuito ya se cerró: no hay nada que soltar.
+        }
+        finally
+        {
+            _modulo = null;
+        }
+    }
+
+    /// <summary>Mientras el mes se calcula (el cuadro o su serie), no se cambia de mes: dos cargas a la vez se pisarían.</summary>
+    private bool Cargando => (_cuadro is null && !_error) || _cargandoSerie;
 
     private bool EsVigente(int version) => !_desechado && version == _versionCarga;
 
@@ -401,13 +438,30 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     private static IReadOnlyList<int> HorasDe(IReadOnlyList<CeldaSolicitudes> celdas) =>
         Enumerable.Range(celdas.Min(x => x.Hora), celdas.Max(x => x.Hora) - celdas.Min(x => x.Hora) + 1).ToList();
 
-    private static double MaximoDe(IReadOnlyList<CeldaSolicitudes> celdas) => celdas.Max(x => x.PesoPorcentaje);
+    private static double MaximoDe(IReadOnlyList<CeldaSolicitudes> celdas) =>
+        celdas.Where(x => !Pocas(x)).Select(x => x.PesoPorcentaje).DefaultIfEmpty(1).Max();
 
     private static CeldaSolicitudes? CeldaDe(IReadOnlyList<CeldaSolicitudes> celdas, int dia, int hora) =>
         celdas.FirstOrDefault(x => x.Dia == dia && x.Hora == hora);
 
+    /// <summary>Una celda con 1 a 4 solicitudes no enseña su recuento, ni su peso, ni su color: con tan pocas, la celda es de alguien.</summary>
+    private static bool Pocas(CeldaSolicitudes? celda) => celda is not null && UmbralAnonimatoCuadro.EsPoco(celda.Cantidad);
+
     private static int Intensidad(CeldaSolicitudes? celda, double maximo) =>
-        celda is null ? 0 : (int)Math.Round(celda.PesoPorcentaje / maximo * 100);
+        celda is null || Pocas(celda) ? 0 : (int)Math.Round(celda.PesoPorcentaje / maximo * 100);
+
+    private string TituloCeldaCalor(int dia, int hora, CeldaSolicitudes? celda) => Pocas(celda)
+        ? Textos["MapaCalorCeldaPocas", NombreDia(dia), hora, hora + 1, UmbralAnonimatoCuadro.MinimoPorCelda].Value
+        : Textos["MapaCalorCelda", NombreDia(dia), hora, hora + 1, Porcentaje(celda?.PesoPorcentaje ?? 0), Numero(celda?.Cantidad ?? 0)].Value;
+
+    private static string TextoLectorCelda(CeldaSolicitudes? celda) => Pocas(celda) ? Pocos : Porcentaje(celda?.PesoPorcentaje ?? 0);
+
+    private const string Pocos = "<5";
+
+    /// <summary>Recuento de una barra de estado o de canal: por debajo del mínimo por celda sale «&lt;5», nunca la cifra.</summary>
+    private static string Recuento(int valor) => UmbralAnonimatoCuadro.EsPoco(valor) ? Pocos : Numero(valor);
+
+    private static int AnchoReservado(int valor, int maximo) => UmbralAnonimatoCuadro.EsPoco(valor) ? 0 : AnchoBarra(valor, maximo);
 
     private static string Numero(int valor) => valor.ToString("N0", CuadroDireccionUi.Castellano);
 
@@ -767,9 +821,9 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     private int MaximoCanal => Math.Max(ConteoCorreo, ConteoWhatsApp);
 
-    private int AnchoCorreo => AnchoBarra(ConteoCorreo, MaximoCanal);
+    private int AnchoCorreo => AnchoReservado(ConteoCorreo, MaximoCanal);
 
-    private int AnchoWhatsApp => AnchoBarra(ConteoWhatsApp, MaximoCanal);
+    private int AnchoWhatsApp => AnchoReservado(ConteoWhatsApp, MaximoCanal);
 
     private decimal ImporteAnual(PuntoSerieCuadroDto[] meses) => meses.Sum(m => m.ImporteEn(MonedaAnual) ?? 0m);
 
@@ -832,7 +886,6 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         "p-heatmap" => Textos["MapaCalorTitulo"].Value,
         "p-calendario" => Textos["CalendarioTitulo"].Value,
         "p-estacional" => Textos["EstacionalTitulo"].Value,
-        "v-barras" => Textos["VacacionesBarrasTitulo"].Value,
         "v-cobertura" => Textos["VacacionesCoberturaTitulo"].Value,
         "v-tabla" => Textos["VacacionesSaldoTitulo"].Value,
         "cm-kpis" => Textos["CmKpisTitulo"].Value,
@@ -847,10 +900,10 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     private async Task GuardarPreferenciasAsync()
     {
-        if (_modulo is null) return;
+        if (_modulo is null || _clavePreferencias is null) return;
         try
         {
-            await _modulo.InvokeVoidAsync("guardar", ClavePreferencias, _preferencias.Serializar());
+            await _modulo.InvokeVoidAsync("guardar", _clavePreferencias, _preferencias.Serializar());
         }
         catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException or JSDisconnectedException)
         {
@@ -910,7 +963,13 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     private async Task DescargarCsvAsync(string tabla, IEnumerable<IReadOnlyList<string>> filas)
     {
-        if (_modulo is null) return;
+        _avisoExportar = false;
+        if (_modulo is null)
+        {
+            _avisoExportar = true;
+            return;
+        }
+
         try
         {
             await _modulo.InvokeVoidAsync("descargar", Textos["NombreFichero", tabla, $"{_anyo}-{_mes:00}"].Value, CalculosCuadro.Csv(filas), "text/csv;charset=utf-8");
@@ -918,6 +977,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException or JSDisconnectedException)
         {
             Logger.LogWarning(ex, "No se pudo descargar la tabla {Tabla} del Cuadro de dirección.", tabla);
+            _avisoExportar = true;
         }
     }
 

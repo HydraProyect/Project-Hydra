@@ -199,10 +199,16 @@
     <value>Peso de cada hora y día laborable en las solicitudes de las Empresas (correo y mensajería) de los últimos 6 meses. Solo Operador CAE o Empresa; nunca por persona.</value>
   </data>
   <data name="MapaCalorSuprimido" xml:space="preserve">
-    <value>No se muestra: {0} conversaciones (mínimo {1})</value>
+    <value>No se muestra: menos de {0} conversaciones</value>
   </data>
   <data name="MapaCalorSinDatos" xml:space="preserve">
     <value>Sin datos.</value>
+  </data>
+  <data name="ExportarNoDisponible" xml:space="preserve">
+    <value>No se pudo exportar la tabla: este navegador no permite la descarga.</value>
+  </data>
+  <data name="MapaCalorCeldaPocas" xml:space="preserve">
+    <value>{0} {1}:00–{2}:00 · menos de {3} solicitudes al mes</value>
   </data>
   <data name="MapaCalorCelda" xml:space="preserve">
     <value>{0} {1}:00–{2}:00 · {3} de las solicitudes · {4} solicitudes al mes</value>
@@ -226,13 +232,13 @@
     <value>Por equipo</value>
   </data>
   <data name="EquiposNota" xml:space="preserve">
-    <value>Siempre por equipo del Operador CAE, nunca por Gestor CAE. «Cambios de manos»: veces que la conversación pasa de un equipo o persona a otra. Un equipo con menos de 3 personas o 20 conversaciones no se muestra.</value>
+    <value>Siempre por equipo del Operador CAE, nunca por persona. «Cambios de manos»: veces que la conversación pasa de un equipo o persona a otra. Un equipo con menos de 3 personas o 20 conversaciones no se muestra.</value>
   </data>
   <data name="EquiposSinMedidas" xml:space="preserve">
     <value>Todavía no hay medidas de tiempo por equipo (Outbound, Validación y Fincas). Aparecerán cuando existan en Comunicaciones.</value>
   </data>
   <data name="EquipoSuprimido" xml:space="preserve">
-    <value>No se muestra: {0} personas y {1} conversaciones (mínimo {2} y {3})</value>
+    <value>No se muestra: menos de {0} personas o menos de {1} conversaciones</value>
   </data>
   <data name="ColumnaEquipo" xml:space="preserve">
     <value>Equipo</value>
@@ -262,7 +268,7 @@
     <value>Qué mide y qué no mide</value>
   </data>
   <data name="CriterioTexto" xml:space="preserve">
-    <value>Mide el servicio que recibe la Empresa: tiempos, cumplimiento del SLA (crítica 1 h, urgente 4 h y normal 1 día laborable; horario laborable de 8 a 17, con jornada intensiva hasta las 15 los viernes, en verano y en vísperas de festivo) y volumen. Una medida de equipo con menos de 3 personas o 20 conversaciones no se muestra. No mide a ninguna persona: no hay ranking, ni tiempo activo, ni puntuación por Gestor CAE. La franja horaria de llegada está en la pestaña Demanda.</value>
+    <value>Mide el servicio que recibe la Empresa: tiempos, cumplimiento del SLA (crítica 1 h, urgente 4 h y normal 1 día laborable; horario laborable de 8 a 17, con jornada intensiva hasta las 15 los viernes, en verano y en vísperas de festivo) y volumen. Una medida de equipo con menos de 3 personas o 20 conversaciones no se muestra. No mide a ninguna persona: no hay ranking, ni tiempo activo, ni puntuación por persona. La franja horaria de llegada está en la pestaña Demanda.</value>
   </data>
   <data name="ReabrirTitulo" xml:space="preserve">
     <value>Reabrir un mes cerrado</value>
@@ -656,12 +662,6 @@
   </data>
   <data name="CmCargando" xml:space="preserve">
     <value>Calculando las conversaciones…</value>
-  </data>
-  <data name="VacacionesBarrasTitulo" xml:space="preserve">
-    <value>Vacaciones del año por Gestor CAE</value>
-  </data>
-  <data name="VacacionesBarrasNota" xml:space="preserve">
-    <value>Días laborables disfrutados hasta el mes, ya planificados y sin planificar. Solo vacaciones.</value>
   </data>
   <data name="VacacionesCoberturaTitulo" xml:space="preserve">
     <value>Capacidad del equipo ausente por vacaciones</value>

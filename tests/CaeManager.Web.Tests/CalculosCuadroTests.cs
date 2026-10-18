@@ -125,7 +125,34 @@ public class CalculosCuadroTests : BunitContext
         csv.Should().Be("Empresa;Nota\r\n\"Ebro; S.L.\";\"dice \"\"hola\"\"\"\r\nSin;—\r\n");
     }
 
+    [Theory]
+    [InlineData("=SUMA(A1:A2)", "'=SUMA(A1:A2)")]
+    [InlineData("+34600111222", "'+34600111222")]
+    [InlineData("-5 %", "'-5 %")]
+    [InlineData("@cmd", "'@cmd")]
+    [InlineData("Ebro", "Ebro")]
+    public void El_CSV_neutraliza_los_campos_que_una_hoja_de_calculo_leeria_como_formula(string campo, string esperado)
+    {
+        CalculosCuadro.Csv([["Empresa"], [campo]]).Should().Be($"Empresa\r\n{esperado}\r\n");
+    }
+
     // ---------------------------------------------------------------- preferencias
+
+    [Theory]
+    [InlineData("{\"Ocultas\":null,\"Orden\":null,\"AvisosVistos\":null,\"Etiquetas\":true}")]
+    [InlineData("{\"Ocultas\":[null],\"Orden\":{\"general\":null,\"otra\":[null,\"a\"]},\"AvisosVistos\":[null]}")]
+    [InlineData("null")]
+    public void Un_JSON_valido_con_propiedades_a_null_se_lee_sin_romper_nada(string json)
+    {
+        var leidas = PreferenciasCuadro.Leer(json);
+
+        leidas.Ocultas.Should().NotBeNull().And.NotContainNulls();
+        leidas.AvisosVistos.Should().NotBeNull().And.NotContainNulls();
+        leidas.Orden.Should().NotBeNull();
+        leidas.Ordenar("general", ["a", "b"]).Should().Equal("a", "b");
+        leidas.Ordenar("otra", ["a", "b"]).Should().Equal("a", "b");
+        leidas.EsVisible("a").Should().BeTrue();
+    }
 
     [Fact]
     public void Las_preferencias_se_serializan_y_un_JSON_roto_deja_los_valores_por_defecto()

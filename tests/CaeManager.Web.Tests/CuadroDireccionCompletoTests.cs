@@ -244,7 +244,37 @@ public partial class CuadroDireccionTests
 
         IrA(cut, "Demanda");
 
-        cut.Find("[data-suprimida=mapa-calor]").TextContent.Should().Be("No se muestra: 18 conversaciones (mínimo 20)");
+        cut.Find("[data-suprimida=mapa-calor]").TextContent.Should().Be("No se muestra: menos de 20 conversaciones");
+    }
+
+    [Fact]
+    public void El_mapa_de_calor_no_enseña_el_recuento_de_una_celda_con_menos_de_cinco_solicitudes()
+    {
+        var muchas = new[] { new FranjaSolicitudesDto(DayOfWeek.Monday, 9, 40) };
+        var pocas = new[] { new FranjaSolicitudesDto(DayOfWeek.Monday, 9, 40), new FranjaSolicitudesDto(DayOfWeek.Wednesday, 11, 3) };
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _,
+            serie: _ => SerieDe(i => Cifras(EstadoCifraMensual.Estimado, 25, i == 0 ? pocas : muchas)));
+
+        IrA(cut, "Demanda");
+
+        var titulos = cut.FindAll(".cuadro-calor-celda").Select(c => c.GetAttribute("title")!).ToList();
+        titulos.Should().ContainSingle(t => t.Contains("menos de 5 solicitudes"));
+        titulos.Should().NotContain(t => t.Contains(" 3 solicitudes"), "la cifra real de una celda pequeña no sale ni en el tooltip");
+        titulos.Should().Contain(t => t.Contains("240 solicitudes"));
+        cut.FindAll(".cuadro-calor-celda .cuadro-solo-lector").Select(s => s.TextContent).Should().Contain("<5");
+    }
+
+    [Fact]
+    public void Las_barras_de_estados_y_canales_ponen_menor_que_cinco_en_vez_de_un_recuento_pequeño()
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _, comunicaciones: Conversaciones(40, 30, 3));
+
+        IrA(cut, "Comunicaciones");
+
+        static string Compacto(string texto) => System.Text.RegularExpressions.Regex.Replace(texto, "\\s+", " ");
+        var canal = Compacto(cut.Find("[data-barras=canal]").TextContent);
+        canal.Should().Contain("WhatsApp <5").And.Contain("Correo 30");
+        Compacto(cut.Find("[data-barras=estados]").TextContent).Should().Contain("En espera de tercero <5").And.Contain("Abierta 40");
     }
 
     [Fact]
@@ -325,22 +355,23 @@ public partial class CuadroDireccionTests
 
         IrA(cut, "Comunicaciones");
 
-        cut.Find("[data-suprimida=estados]").TextContent.Should().Be("No se muestra: 13 conversaciones (mínimo 20)");
-        cut.Find("[data-suprimida=canal]").TextContent.Should().Be("No se muestra: 13 conversaciones (mínimo 20)");
+        cut.Find("[data-suprimida=estados]").TextContent.Should().Be("No se muestra: menos de 20 conversaciones");
+        cut.Find("[data-suprimida=canal]").TextContent.Should().Be("No se muestra: menos de 20 conversaciones");
         cut.FindAll("[data-barras]").Should().BeEmpty();
     }
 
     // ---------------------------------------------------------------- Vacaciones
 
     [Fact]
-    public void Vacaciones_y_cobertura_sale_con_las_tres_tarjetas_de_la_maqueta_en_estado_vacio()
+    public void Vacaciones_y_cobertura_sale_con_sus_dos_tarjetas_agregadas_en_estado_vacio()
     {
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
 
         IrA(cut, "Vacaciones y cobertura");
 
-        cut.FindAll("[data-sin-modelo=vacaciones]").Count.Should().Be(3);
-        cut.Markup.Should().Contain("Vacaciones del año por Gestor CAE").And.Contain("Saldo de vacaciones");
+        cut.FindAll("[data-sin-modelo=vacaciones]").Count.Should().Be(2);
+        cut.Markup.Should().Contain("Capacidad del equipo ausente por vacaciones").And.Contain("Saldo de vacaciones");
+        cut.Markup.Should().NotContain("Vacaciones del año por");
         cut.Markup.Should().NotContain("Ocupación de Gestores CAE");
     }
 
@@ -412,6 +443,24 @@ public partial class CuadroDireccionTests
         cut.FindAll("[data-kpi=extranjeros]").Should().BeEmpty();
         var guardado = modulo.Invocations["guardar"].Last().Arguments[1]!.ToString()!;
         guardado.Should().Contain("k-ext");
+        modulo.Invocations["guardar"].Last().Arguments[0].Should().Be($"cuadro-direccion:preferencias:{UsuarioPrueba}",
+            "la clave lleva el usuario: dos personas en el mismo navegador no comparten preferencias");
+        modulo.Invocations["leer"].Single().Arguments[0].Should().Be($"cuadro-direccion:preferencias:{UsuarioPrueba}");
+    }
+
+    [Fact]
+    public void Sin_modulo_de_navegador_exportar_avisa_en_vez_de_no_hacer_nada()
+    {
+        var modulo = JSInterop.SetupModule("./js/cuadro-direccion.js");
+        modulo.Mode = JSRuntimeMode.Loose;
+        modulo.Setup<string?>("leer", _ => true).SetResult(null);
+        modulo.SetupVoid("descargar", _ => true).SetException(new Microsoft.JSInterop.JSException("bloqueado"));
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
+        IrA(cut, "Empresas");
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Exportar tabla").Click();
+
+        cut.Find("[data-aviso=exportar]").TextContent.Should().Contain("No se pudo exportar");
     }
 
     [Fact]

@@ -4,7 +4,7 @@
 
 @*
     «Por equipo» de la pestaña Comunicaciones (maqueta «Cuadro Direccion TALVEG.dc.html», tarjeta cm-equipos).
-    Siempre por equipo del Operador CAE, nunca por Gestor CAE. Un equipo que no llega al umbral de anonimato
+    Siempre por equipo del Operador CAE, nunca por persona. Un equipo que no llega al umbral de anonimato
     (UmbralAnonimatoCuadro: 3 personas y 20 conversaciones) no enseña ninguna cifra: sale la fila con el motivo,
     al final de la tabla, sin importar el orden elegido.
 *@
@@ -34,7 +34,7 @@ else
                         <td class="cuadro-texto"><b>@fila.Equipo</b></td>
                         @if (oculta)
                         {
-                            <td colspan="7" class="cuadro-suprimida">@Textos["EquipoSuprimido", fila.Personas, fila.Conversaciones, UmbralAnonimatoCuadro.MinimoPersonas, UmbralAnonimatoCuadro.MinimoConversaciones]</td>
+                            <td colspan="7" class="cuadro-suprimida">@Textos["EquipoSuprimido", UmbralAnonimatoCuadro.MinimoPersonas, UmbralAnonimatoCuadro.MinimoConversaciones]</td>
                         }
                         else
                         {

@@ -17,7 +17,7 @@ public class MedicionMensualCuadroDireccion(
     IMediator mediator,
     CaeManager.Application.Gestiones.IGestionesQueryContext? gestionesContext = null)
 {
-    public async Task<MedicionCuadroDireccion> MedirAsync(MesCuadroDireccion mes, DateTime corteUtc, CancellationToken cancellationToken, bool medirDocumental = true)
+    public virtual async Task<MedicionCuadroDireccion> MedirAsync(MesCuadroDireccion mes, DateTime corteUtc, CancellationToken cancellationToken, bool medirDocumental = true)
     {
         // Falla cerrado: sin Tenant en el ámbito no hay con qué comparar las filas sin filtro.
         var tenantId = tenantActual.TenantId
