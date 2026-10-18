@@ -449,7 +449,7 @@
   <data name="FichaCopiarNombreAccesible" xml:space="preserve"><value>Copiar {0}</value></data>
   <data name="FichaNotaTecnico" xml:space="preserve"><value>Al Técnico de PRL se le envía lo que necesita su firma o su gestión.</value></data>
   <data name="NadaPendiente" xml:space="preserve">
-    <value>Nada pendiente. Todo lo exigido está al día.</value>
+    <value>Sin documentos pendientes de gestionar</value>
     <comment>Fila desplegada de /empresas sin ningún documento que pida trabajo (maqueta de Empresas).</comment>
   </data>
   <data name="Gestionar" xml:space="preserve">
@@ -475,8 +475,14 @@
     <value>Sin agrupar</value>
   </data>
   <data name="GrupoSinCliente" xml:space="preserve">
-    <value>Sin Cliente</value>
+    <value>Sin Cliente visible</value>
     <comment>Título del grupo de /empresas con las Empresas que no tienen ningún Cliente a su alcance.</comment>
+  </data>
+  <data name="RecuentoGrupo" xml:space="preserve">
+    <value>· {0}</value>
+  </data>
+  <data name="RecuentoGrupoEnPagina" xml:space="preserve">
+    <value>· {0} en esta página</value>
   </data>
   <data name="ChipCliente" xml:space="preserve">
     <value>Cliente: {0}</value>

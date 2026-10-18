@@ -372,7 +372,7 @@
   <data name="FichaCopiarNombreAccesible" xml:space="preserve"><value>Copiar {0}</value></data>
   <data name="FichaNotaTecnico" xml:space="preserve"><value>Al Tècnic de PRL se li envia el que necessita la seva signatura o la seva gestió.</value></data>
   <data name="NadaPendiente" xml:space="preserve">
-    <value>Res pendent. Tot el que s'exigeix és al dia.</value>
+    <value>Sense documents pendents de gestionar</value>
   </data>
   <data name="Gestionar" xml:space="preserve">
     <value>Gestionar</value>
@@ -392,7 +392,13 @@
     <value>Sense agrupar</value>
   </data>
   <data name="GrupoSinCliente" xml:space="preserve">
-    <value>Sense Client</value>
+    <value>Sense Client visible</value>
+  </data>
+  <data name="RecuentoGrupo" xml:space="preserve">
+    <value>· {0}</value>
+  </data>
+  <data name="RecuentoGrupoEnPagina" xml:space="preserve">
+    <value>· {0} en aquesta pàgina</value>
   </data>
   <data name="ChipCliente" xml:space="preserve">
     <value>Client: {0}</value>

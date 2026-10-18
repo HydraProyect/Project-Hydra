@@ -26,6 +26,9 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
 
     [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
 
+    /// <summary>Falso para el rol Cliente (usuario de portal): no se le ofrece el filtro ni la agrupación por Cliente.</summary>
+    private bool _operaDesdeGestion = true;
+
     /// <summary>
     /// El rol de quien mira puede escribir: las incidencias del motivo y de la fila desplegada son botones
     /// que abren su corrección. Mismo criterio que el listado de Vehículos. No es la autorización: quién
@@ -70,10 +73,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// del <c>await</c> y, al volver, solo escribe estado si sigue siendo la
     /// vigente: si mientras tanto cambió un filtro, la página o el tamaño, su
     /// respuesta es de otra pregunta. Sin esto, una respuesta lenta del filtro
-    /// anterior pisaba las filas, el total y el estado vacío del nuevo. Las
-    /// cargas de «Clientes de la Empresa» de la fila desplegada comparten el
-    /// mismo número: una respuesta de antes de recargar la lista ya no
-    /// pertenece a lo que se ve.
+    /// anterior pisaba las filas, el total y el estado vacío del nuevo.
     /// </summary>
     private int _cargaVigente;
 
@@ -221,6 +221,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             var usuario = (await EstadoAutenticacion).User;
             if (_desechado) return;
             _puedeEscribir = Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole);
+            _operaDesdeGestion = !usuario.IsInRole(Roles.Cliente);
         }
 
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
@@ -311,6 +312,16 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
 
     private async Task CargarClientesDelFiltroAsync()
     {
+        // Solo quien opera desde el lado de gestión CAE: a un usuario de portal (rol Cliente) el servidor le
+        // devuelve siempre «ninguna Empresa» por Cliente, así que ofrecerle el filtro sería prometer lo que no hay
+        // (REC-153). Misma frontera que IAlcanceDatosService.OperaDesdeElLadoDeGestionAsync, leída del principal
+        // como el resto de la página (el rol efectivo consulta el DbContext y esto corre en paralelo con el layout).
+        if (!_operaDesdeGestion)
+        {
+            _clientesFiltro = [];
+            return;
+        }
+
         try
         {
             _clientesFiltro = await Mediator.Send(new ObtenerClientesParaSelectorQuery(), _ciclo.Token);
@@ -599,6 +610,13 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// (el orden ya viene del servidor: los de un mismo Cliente, seguidos). <c>Cantidad</c> es cuántas filas
     /// tiene el grupo EN ESTA PÁGINA. Sin agrupar, ninguna fila lleva título.
     /// </summary>
+    /// <summary>
+    /// El recuento del título de grupo cuenta las filas de esta página (agrupar es ordenar en servidor): con más de una
+    /// página no es el total del grupo y lo dice, para que no se lea como tal.
+    /// </summary>
+    private string RecuentoDeGrupo(int cantidad) =>
+        Textos[TotalPaginas > 1 ? "RecuentoGrupoEnPagina" : "RecuentoGrupo", cantidad].Value;
+
     private IEnumerable<(EmpresaListaDto Empresa, string? Grupo, int Cantidad)> FilasConGrupo()
     {
         if (!_agruparPorCliente)

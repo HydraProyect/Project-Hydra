@@ -49,6 +49,7 @@ public partial class EmpresasListaGen2Tests
     private IRenderedComponent<Empresas> RenderizarComo(MediatorFalso mediador, string rol = Roles.GestorCae, string url = "empresas")
     {
         this.ConRolDeEscritura(rol);
+        RolEfectivo = rol;
         this.ConServiciosDelFormularioDeDocumento();
         return Renderizar(mediador, url);
     }
@@ -207,7 +208,7 @@ public partial class EmpresasListaGen2Tests
         await AlternarSeleccionMultiple(cut);
         await CasillaDe(cut, "Montajes Ebro S.L.").ChangeAsync(new ChangeEventArgs { Value = true });
         await DesplegarAsync(cut, "Montajes Ebro S.L.");
-        cut.WaitForAssertion(() => Tarjeta(cut, "Montajes Ebro S.L.").TextContent.Should().Contain("Nada pendiente"));
+        cut.WaitForAssertion(() => Tarjeta(cut, "Montajes Ebro S.L.").TextContent.Should().Contain("Sin documentos pendientes de gestionar"));
         var pregunta = UltimaConsulta(mediador);
         var consultasAntes = ConsultasDeLista(mediador);
 
@@ -228,7 +229,7 @@ public partial class EmpresasListaGen2Tests
         CasillaDe(cut, "Montajes Ebro S.L.").HasAttribute("checked").Should().BeTrue(
             "corregir un documento no es cambiar de lista: lo marcado sigue marcado");
         Tarjeta(cut, "Montajes Ebro S.L.").QuerySelector(".tarjeta-fila-acordeon-contenido")!.TextContent
-            .Should().Contain("Nada pendiente", "y lo desplegado sigue desplegado");
+            .Should().Contain("Sin documentos pendientes de gestionar", "y lo desplegado sigue desplegado");
         ConsultasDeClientes(mediador).Should().Be(0, "ni antes ni después se pregunta por Clientes");
     }
 
@@ -343,7 +344,7 @@ public partial class EmpresasListaGen2Tests
         await DesplegarAsync(cut, "Montajes Ebro S.L.");
 
         var contenido = cut.Find(".tarjeta-fila-acordeon-contenido");
-        contenido.TextContent.Trim().Should().Be("Nada pendiente. Todo lo exigido está al día.");
+        contenido.TextContent.Trim().Should().Be("Sin documentos pendientes de gestionar");
         cut.FindAll("[data-pieza='documentos-pendientes']").Should().BeEmpty();
         contenido.QuerySelectorAll("button").Should().BeEmpty("sin documentos no hay nada que gestionar");
     }
