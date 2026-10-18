@@ -21,9 +21,9 @@
        Puesto. El de una Subcontrata sigue con el Puesto en texto. *@
     @if (_empresaId is { } empresaDelCatalogo)
     {
-        <SelectorDelegacionYOficio @key="empresaDelCatalogo" EmpresaId="empresaDelCatalogo"
+        <SelectorDelegacionEmpresaYOficio EmpresaId="empresaDelCatalogo"
                                    OficioId="@_oficioId" OficioIdChanged="v => _oficioId = v"
-                                   DelegacionId="@_delegacionId" DelegacionIdChanged="v => _delegacionId = v" />
+                                   DelegacionEmpresaId="@_delegacionId" DelegacionEmpresaIdChanged="v => _delegacionId = v" />
     }
     else
     {
@@ -164,7 +164,7 @@
                 _conContactoEmergencia ? new ContactoEmergenciaTrabajador(_emergenciaNombre, _emergenciaTelefono) : null,
                 // Con Empresa se envían siempre los dos Ids tal como los muestra el formulario (vacío = quitarlos); el
                 // servidor copia el nombre del Oficio en el Puesto. Con Subcontrata, null: no se tocan.
-                _empresaId is null ? null : new DelegacionYOficioDeTrabajador(
+                _empresaId is null ? null : new DelegacionEmpresaYOficioDeTrabajador(
                     Guid.TryParse(_delegacionId, out var delegacion) ? delegacion : null,
                     Guid.TryParse(_oficioId, out var oficio) ? oficio : null));
             var validacion = new EditarFichaTrabajadorCommandValidator().Validate(comando);

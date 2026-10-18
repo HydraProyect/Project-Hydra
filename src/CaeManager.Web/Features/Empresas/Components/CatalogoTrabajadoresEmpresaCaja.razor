@@ -1,5 +1,5 @@
 @*
-    Delegaciones y Oficios de la Empresa en Empresa 360 (decisión de Chris, 2026-10-18): el catálogo del que salen los dos
+    DelegacionesEmpresa y Oficios de la Empresa en Empresa 360 (decisión de Chris, 2026-10-18): el catálogo del que salen los dos
     desplegables de la ficha del Trabajador. Cualquiera que vea la Ficha lo lee; crear, editar y eliminar están tras
     SoloConEscritura (Consulta no ve ninguna acción de escritura), y la decisión de verdad es de los comandos
     (AutorizacionEscrituraBehavior y alcance de gestión sobre la Empresa). Eliminar algo con Trabajadores asignados lo
@@ -30,16 +30,16 @@
         else
         {
             <div class="catalogo-empresa">
-                <section class="catalogo-empresa-bloque" aria-labelledby="@IdDelegaciones">
+                <section class="catalogo-empresa-bloque" aria-labelledby="@IdDelegacionesEmpresa">
                     <div class="catalogo-empresa-cabecera">
-                        <h3 id="@IdDelegaciones" class="catalogo-empresa-titulo">@Textos["CatalogoDelegaciones"]</h3>
+                        <h3 id="@IdDelegacionesEmpresa" class="catalogo-empresa-titulo">@Textos["CatalogoDelegacionesEmpresa"]</h3>
                         <SoloConEscritura>
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirNuevaDelegacion">@Textos["CatalogoAnadir"]</Boton>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirNuevaDelegacionEmpresa">@Textos["CatalogoAnadir"]</Boton>
                         </SoloConEscritura>
                     </div>
                     @if (_catalogo.DelegacionesEmpresa.Count == 0)
                     {
-                        <p class="texto-vacio-seccion">@Textos["CatalogoSinDelegaciones"]</p>
+                        <p class="texto-vacio-seccion">@Textos["CatalogoSinDelegacionesEmpresa"]</p>
                     }
                     else
                     {
@@ -57,7 +57,7 @@
                                     <SoloConEscritura>
                                         <div class="catalogo-empresa-acciones">
                                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" aria-label="@Textos["CatalogoEditarNombre", delegacion.Nombre]"
-                                                   OnClick="() => AbrirEditarDelegacion(delegacion)">@Textos["CatalogoEditar"]</Boton>
+                                                   OnClick="() => AbrirEditarDelegacionEmpresa(delegacion)">@Textos["CatalogoEditar"]</Boton>
                                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" aria-label="@Textos["CatalogoEliminarNombre", delegacion.Nombre]"
                                                    OnClick="() => PedirEliminar(CatalogoTrabajadoresEmpresa.DelegacionEmpresa, delegacion.Id, delegacion.Nombre, delegacion.Version)">@Textos["CatalogoEliminar"]</Boton>
                                         </div>
@@ -108,10 +108,10 @@
 
 <SoloConEscritura>
     <DrawerFormulario Visible="_delegacionVisible" VisibleChanged="v => _delegacionVisible = v"
-                      Titulo="@(_delegacionId is null ? Textos["CatalogoDelegacionNuevaTitulo"] : Textos["CatalogoDelegacionEditarTitulo"])"
-                      HayCambios="() => _delegacionVisible && _instantaneaDelegacion.Difiere(ValoresDelegacion())"
+                      Titulo="@(_delegacionId is null ? Textos["CatalogoDelegacionEmpresaNuevaTitulo"] : Textos["CatalogoDelegacionEmpresaEditarTitulo"])"
+                      HayCambios="() => _delegacionVisible && _instantaneaDelegacionEmpresa.Difiere(ValoresDelegacionEmpresa())"
                       Guardando="_guardando" MensajeError="@_errorFormulario" HayErroresDeCampo="@(_erroresCampo.Count > 0)"
-                      OnGuardar="GuardarDelegacionAsync" TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+                      OnGuardar="GuardarDelegacionEmpresaAsync" TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
         <CampoTexto Etiqueta="@Textos["CatalogoNombre"]" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@Error(nameof(GuardarDelegacionEmpresaCommand.Nombre))" />
         <CampoTexto Etiqueta="@Textos["CatalogoContactoNombre"]" Valor="@_contactoNombre" ValorChanged="v => _contactoNombre = v" MensajeError="@Error(nameof(GuardarDelegacionEmpresaCommand.ContactoReclamacionNombre))" />
         <CampoTexto Etiqueta="@Textos["CatalogoContactoCorreo"]" Type="email" Valor="@_contactoCorreo" ValorChanged="v => _contactoCorreo = v" MensajeError="@Error(nameof(GuardarDelegacionEmpresaCommand.ContactoReclamacionCorreo))" />
@@ -128,7 +128,7 @@
 
     <DialogoConfirmacion Visible="_eliminar is not null" VisibleChanged="v => { if (!v) _eliminar = null; }"
                          Titulo="@(_eliminar is null ? "" : _eliminar.Catalogo == CatalogoTrabajadoresEmpresa.DelegacionEmpresa
-                             ? Textos["CatalogoEliminarDelegacionTitulo", _eliminar.Nombre].Value
+                             ? Textos["CatalogoEliminarDelegacionEmpresaTitulo", _eliminar.Nombre].Value
                              : Textos["CatalogoEliminarOficioTitulo", _eliminar.Nombre].Value)"
                          Mensaje="@Textos["CatalogoEliminarMensaje"]" TextoBotonConfirmar="@Textos["CatalogoEliminar"]"
                          TextoBotonDescartar="@Textos["BotonCancelar"]" EnProgreso="_guardando" OnConfirmar="EliminarAsync">
@@ -144,9 +144,9 @@
 
     [Parameter, EditorRequired] public Guid EmpresaId { get; set; }
 
-    private readonly string IdDelegaciones = $"catalogo-delegaciones-{Guid.NewGuid():N}";
-    private readonly string IdOficios = $"catalogo-oficios-{Guid.NewGuid():N}";
-    private readonly InstantaneaFormulario _instantaneaDelegacion = new();
+    private string IdDelegacionesEmpresa => $"catalogo-delegaciones-{EmpresaId:N}";
+    private string IdOficios => $"catalogo-oficios-{EmpresaId:N}";
+    private readonly InstantaneaFormulario _instantaneaDelegacionEmpresa = new();
     private readonly InstantaneaFormulario _instantaneaOficio = new();
 
     private CatalogoTrabajadoresEmpresaDto? _catalogo;
@@ -161,7 +161,7 @@
 
     private string? Error(string campo) => _erroresCampo.GetValueOrDefault(campo);
 
-    private object?[] ValoresDelegacion() => [_nombre, _contactoNombre, _contactoCorreo, _contactoTelefono];
+    private object?[] ValoresDelegacionEmpresa() => [_nombre, _contactoNombre, _contactoCorreo, _contactoTelefono];
     private object?[] ValoresOficio() => [_nombre];
 
     private static string? Reclamaciones(DelegacionEmpresaDto d)
@@ -205,20 +205,20 @@
         _errorFormulario = null;
     }
 
-    private void AbrirNuevaDelegacion()
+    private void AbrirNuevaDelegacionEmpresa()
     {
         _delegacionId = null;
         ReiniciarFormulario("");
-        _instantaneaDelegacion.Fijar(ValoresDelegacion());
+        _instantaneaDelegacionEmpresa.Fijar(ValoresDelegacionEmpresa());
         _delegacionVisible = true;
     }
 
-    private void AbrirEditarDelegacion(DelegacionEmpresaDto d)
+    private void AbrirEditarDelegacionEmpresa(DelegacionEmpresaDto d)
     {
         _delegacionId = d.Id;
         _versionEnEdicion = d.Version;
         ReiniciarFormulario(d.Nombre, d.ContactoReclamacionNombre ?? "", d.ContactoReclamacionCorreo ?? "", d.ContactoReclamacionTelefono ?? "");
-        _instantaneaDelegacion.Fijar(ValoresDelegacion());
+        _instantaneaDelegacionEmpresa.Fijar(ValoresDelegacionEmpresa());
         _delegacionVisible = true;
     }
 
@@ -241,7 +241,7 @@
 
     private static string? Vacio(string valor) => string.IsNullOrWhiteSpace(valor) ? null : valor;
 
-    private Task GuardarDelegacionAsync() => GuardarAsync(
+    private Task GuardarDelegacionEmpresaAsync() => GuardarAsync(
         () => Mediator.Send(new GuardarDelegacionEmpresaCommand(EmpresaId, _delegacionId, _nombre, Vacio(_contactoNombre),
             Vacio(_contactoCorreo), Vacio(_contactoTelefono), _delegacionId is null ? null : _versionEnEdicion)),
         () => _delegacionVisible = false);

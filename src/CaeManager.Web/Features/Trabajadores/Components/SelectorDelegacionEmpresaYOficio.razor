@@ -22,8 +22,8 @@
                  PermiteCrear="_puedeCrear" TextoCrear="@Textos["OficioCrear"]" OnCrearSolicitado="CrearOficioAsync"
                  Deshabilitado="_cargando" MensajeError="@(_errorOficio ?? MensajeErrorOficio)" />
 
-<CampoSelect Etiqueta="@Textos["DelegacionEtiqueta"]" Valor="@DelegacionId" ValorChanged="DelegacionIdChanged" Deshabilitado="_cargando">
-    <option value="">@Textos["DelegacionSinElegir"]</option>
+<CampoSelect Etiqueta="@Textos["DelegacionEmpresaEtiqueta"]" Valor="@DelegacionEmpresaId" ValorChanged="DelegacionEmpresaIdChanged" Deshabilitado="_cargando">
+    <option value="">@Textos["DelegacionEmpresaSinElegir"]</option>
     @foreach (var delegacion in _delegaciones)
     {
         <option value="@delegacion.Id">@delegacion.Nombre</option>
@@ -43,8 +43,8 @@
 
     [Parameter] public string OficioId { get; set; } = string.Empty;
     [Parameter] public EventCallback<string> OficioIdChanged { get; set; }
-    [Parameter] public string DelegacionId { get; set; } = string.Empty;
-    [Parameter] public EventCallback<string> DelegacionIdChanged { get; set; }
+    [Parameter] public string DelegacionEmpresaId { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> DelegacionEmpresaIdChanged { get; set; }
 
     /// <summary>Error por campo del formulario padre (por ejemplo, el del servidor al guardar).</summary>
     [Parameter] public string? MensajeErrorOficio { get; set; }

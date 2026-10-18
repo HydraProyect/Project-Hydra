@@ -125,7 +125,7 @@ public class CrearTrabajadorCommandHandler(
         // El alcance de gestión sobre la Empresa se comprobó arriba; el catálogo tiene que ser el de esa Empresa. Elegir un
         // Oficio copia su nombre en el Puesto (Trabajador.FijarDelegacionEmpresaYOficio).
         if (request.EmpresaId is not null && (request.OficioEmpresaId is not null || request.DelegacionEmpresaId is not null)
-            && await AsignacionDelegacionYOficio.FijarAsync(
+            && await AsignacionDelegacionEmpresaYOficio.FijarAsync(
                 trabajador, request.DelegacionEmpresaId, request.OficioEmpresaId, catalogo, cancellationToken) is { } errorCatalogo)
             return Result.Fallo<Guid>(errorCatalogo);
 

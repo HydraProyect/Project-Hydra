@@ -14,7 +14,7 @@ public record EditarFichaTrabajadorCommand(Guid Id, Guid Version,
     string? MotivoPermisoTrabajo,
     TipoContratacion? TipoContratacion = null,
     ContactoEmergenciaTrabajador? ContactoEmergencia = null,
-    DelegacionYOficioDeTrabajador? DelegacionYOficio = null) : ICommand;
+    DelegacionEmpresaYOficioDeTrabajador? DelegacionEmpresaYOficio = null) : ICommand;
 
 /// <summary>
 /// El contacto de emergencia que se fija con la ficha. En <see cref="EditarFichaTrabajadorCommand"/>, <c>null</c> (el
@@ -85,13 +85,13 @@ public class EditarFichaTrabajadorCommandHandler(ITrabajadorRepository repositor
             trabajador.FijarContactoEmergencia(contacto.Nombre, contacto.Telefono);
         // Mismo criterio: null = no se cambian. Va después de ActualizarFicha porque elegir un Oficio copia su nombre en el
         // Puesto. Solo un Trabajador de Empresa tiene Delegación y Oficio, y quien los fija gestiona esa Empresa.
-        if (request.DelegacionYOficio is { } delegacionYOficio)
+        if (request.DelegacionEmpresaYOficio is { } delegacionYOficio)
         {
             if (trabajador.EmpresaId is not { } empresaId)
                 return Result.Fallo(Error.Crear("Trabajador.SinEmpresa", "Solo un trabajador de empresa tiene delegación y oficio."));
             if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(empresaId, cancellationToken))
                 return Result.Fallo(Error.Crear("Trabajador.NoEncontrado", "No encontramos este trabajador."));
-            if (await AsignacionDelegacionYOficio.FijarAsync(trabajador, delegacionYOficio.DelegacionEmpresaId,
+            if (await AsignacionDelegacionEmpresaYOficio.FijarAsync(trabajador, delegacionYOficio.DelegacionEmpresaId,
                     delegacionYOficio.OficioEmpresaId, catalogo, cancellationToken) is { } errorCatalogo)
                 return Result.Fallo(errorCatalogo);
         }

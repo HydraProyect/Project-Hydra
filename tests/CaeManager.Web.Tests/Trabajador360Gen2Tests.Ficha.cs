@@ -92,7 +92,7 @@ public partial class Trabajador360Gen2Tests
         drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nacionalidad").Instance.Valor.Should().Be("Colombiana");
         drawer.FindComponent<DrawerFormulario>().Instance.HayCambios().Should().BeFalse();
         await CambiarCampoFicha(drawer, "N.º de afiliación a la Seguridad Social", "41 1234567 89");
-       await CambiarCampoFicha(drawer, "Fecha de nacimiento", "1988-03-14");
+        await CambiarCampoFicha(drawer, "Fecha de nacimiento", "1988-03-14");
         await CambiarCampoFicha(drawer, "Tipo de vínculo", "Plantilla");
         await CambiarCampoFicha(drawer, "Alta en la empresa", "2023-05-02");
         await CambiarCampoFicha(drawer, "Baja", "2026-10-15");
@@ -103,7 +103,7 @@ public partial class Trabajador360Gen2Tests
         await GuardarFicha(drawer);
         var c = m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().ContainSingle().Subject;
         c.Id.Should().Be(id); c.Version.Should().Be(version); c.NumeroAfiliacionSeguridadSocial.Should().Be("41 1234567 89");
-        c.Puesto.Should().Be("Oficial de 1.ª — montaje"); c.DelegacionYOficio.Should().Be(new CaeManager.Application.Trabajadores.DelegacionYOficioDeTrabajador(null, null)); c.FechaNacimiento.Should().Be(new DateOnly(1988, 3, 14));
+        c.Puesto.Should().Be("Oficial de 1.ª — montaje"); c.DelegacionEmpresaYOficio.Should().Be(new CaeManager.Application.Trabajadores.DelegacionEmpresaYOficioDeTrabajador(null, null)); c.FechaNacimiento.Should().Be(new DateOnly(1988, 3, 14));
         c.Nacionalidad.Should().Be("Colombiana"); c.TipoVinculo.Should().Be("Plantilla");
         c.FechaAltaEmpresa.Should().Be(new DateOnly(2023, 5, 2)); c.FechaBajaEmpresa.Should().Be(new DateOnly(2026, 10, 15));
         c.FiguraEnRnt.Should().Be("Sí, desde mayo de 2023"); c.TipoPermisoTrabajo.Should().Be("Residencia y trabajo por cuenta ajena");

@@ -16,7 +16,7 @@ namespace CaeManager.Application.Tests.Empresas;
 /// Delegación y Oficio de Empresa (decisión de Chris, 2026-10-18): CRUD desde Empresa 360 con alcance de gestión sobre
 /// la Empresa, y asignación al Trabajador solo con el catálogo de su propia Empresa.
 /// </summary>
-public class DelegacionYOficioEmpresaTests
+public class DelegacionEmpresaYOficioEmpresaTests
 {
     private readonly Empresa _empresa = Empresa.CrearComoCliente("Montajes Repro S.L.", "B10380392", false, null, null);
     private readonly Empresa _otraEmpresa = new("Otra S.L.", "B87654323");
@@ -25,7 +25,7 @@ public class DelegacionYOficioEmpresaTests
     private readonly TrabajadorRepositorioFalso _trabajadores = new();
     private readonly UnitOfWorkFalso _unitOfWork = new();
 
-    public DelegacionYOficioEmpresaTests()
+    public DelegacionEmpresaYOficioEmpresaTests()
     {
         _empresas.Agregar(_empresa);
         _empresas.Agregar(_otraEmpresa);
@@ -36,7 +36,7 @@ public class DelegacionYOficioEmpresaTests
     // Fuera de cartera: no gestiona la Empresa aunque tenga un rol con escritura.
     private static AlcanceDatosServiceFalso FueraDeCartera() => new(tieneAccesoTotal: false, empresaIdsVisibles: []);
 
-    private GuardarDelegacionEmpresaCommandHandler Delegaciones(AlcanceDatosServiceFalso alcance) =>
+    private GuardarDelegacionEmpresaCommandHandler DelegacionesEmpresa(AlcanceDatosServiceFalso alcance) =>
         new(_empresas, _catalogo, alcance, _unitOfWork);
 
     private GuardarOficioEmpresaCommandHandler Oficios(AlcanceDatosServiceFalso alcance) =>
@@ -45,7 +45,7 @@ public class DelegacionYOficioEmpresaTests
     [Fact]
     public async Task Crea_la_delegacion_con_su_contacto_de_reclamacion()
     {
-        var resultado = await Delegaciones(EnCartera()).Handle(
+        var resultado = await DelegacionesEmpresa(EnCartera()).Handle(
             new(_empresa.Id, null, "  Sevilla  ", "Ana Ruiz", "ana@example.test", "600 000 000", null), default);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -66,7 +66,7 @@ public class DelegacionYOficioEmpresaTests
         _trabajadores.Agregar(trabajador);
         var fuera = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [], trabajadorIdsVisibles: [trabajador.Id]);
 
-        (await Delegaciones(FueraDeCartera()).Handle(new(_empresa.Id, null, "Bilbao", null, null, null, null), default))
+        (await DelegacionesEmpresa(FueraDeCartera()).Handle(new(_empresa.Id, null, "Bilbao", null, null, null, null), default))
             .Error.Codigo.Should().Be("Empresa.NoEncontrada");
         (await Oficios(FueraDeCartera()).Handle(new(_empresa.Id, null, "Pintor", null), default))
             .Error.Codigo.Should().Be("Empresa.NoEncontrada");
@@ -115,7 +115,7 @@ public class DelegacionYOficioEmpresaTests
         var delegacion = new DelegacionEmpresa(_empresa.Id, "Sevilla");
         _catalogo.Agregar(delegacion);
 
-        var resultado = await Delegaciones(EnCartera()).Handle(
+        var resultado = await DelegacionesEmpresa(EnCartera()).Handle(
             new(_empresa.Id, delegacion.Id, "Sevilla Norte", null, null, null, Guid.NewGuid()), default);
 
         resultado.EsExitoso.Should().BeFalse();

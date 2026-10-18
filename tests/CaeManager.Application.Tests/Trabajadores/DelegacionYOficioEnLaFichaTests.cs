@@ -14,16 +14,16 @@ namespace CaeManager.Application.Tests.Trabajadores;
 /// El Oficio y la Delegación que la edición de la ficha fija junto con el resto (decisión de Chris, 2026-10-18): atómico con
 /// el guardado de la ficha, solo con el catálogo de la Empresa del Trabajador, y <c>null</c> = no se cambian.
 /// </summary>
-public class DelegacionYOficioEnLaFichaTests
+public class DelegacionEmpresaYOficioEnLaFichaTests
 {
     private readonly Empresa _empresa = Empresa.CrearComoCliente("Montajes Repro S.L.", "B10380392", false, null, null);
     private readonly Empresa _otraEmpresa = new("Otra S.L.", "B87654323");
-    private readonly DelegacionYOficioEmpresaTests.CatalogoFalso _catalogo = new();
+    private readonly DelegacionEmpresaYOficioEmpresaTests.CatalogoFalso _catalogo = new();
     private readonly TrabajadorRepositorioFalso _trabajadores = new();
     private readonly UnitOfWorkFalso _unitOfWork = new();
     private readonly Trabajador _trabajador;
 
-    public DelegacionYOficioEnLaFichaTests()
+    public DelegacionEmpresaYOficioEnLaFichaTests()
     {
         _trabajador = Trabajador.DeEmpresa(_empresa.Id, "Ana", "Ruiz", "12345678Z");
         _trabajadores.Agregar(_trabajador);
@@ -33,9 +33,9 @@ public class DelegacionYOficioEnLaFichaTests
         new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [_empresa.Id], trabajadorIdsVisibles: [_trabajador.Id]),
         PoliticaNotaInternaPruebas.Con("GestorCae"), _unitOfWork);
 
-    private EditarFichaTrabajadorCommand Orden(DelegacionYOficioDeTrabajador? delegacionYOficio) =>
+    private EditarFichaTrabajadorCommand Orden(DelegacionEmpresaYOficioDeTrabajador? delegacionYOficio) =>
         new(_trabajador.Id, _trabajador.Version, null, "Puesto antiguo", null, null, null, null, null, null, null, null, null,
-            DelegacionYOficio: delegacionYOficio);
+            DelegacionEmpresaYOficio: delegacionYOficio);
 
     [Fact]
     public async Task Fija_la_delegacion_y_el_oficio_y_el_oficio_pasa_a_ser_el_puesto()

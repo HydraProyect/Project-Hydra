@@ -382,9 +382,9 @@
        de la Empresa elegida. El Trabajador de una Subcontrata no los tiene y sigue con el Puesto en texto. *@
     @if (EmpresaElegidaParaCatalogo is { } empresaDelCatalogo)
     {
-        <SelectorDelegacionYOficio @key="empresaDelCatalogo" EmpresaId="empresaDelCatalogo"
+        <SelectorDelegacionEmpresaYOficio EmpresaId="empresaDelCatalogo"
                                    OficioId="@_oficioId" OficioIdChanged="v => _oficioId = v"
-                                   DelegacionId="@_delegacionId" DelegacionIdChanged="v => _delegacionId = v" />
+                                   DelegacionEmpresaId="@_delegacionId" DelegacionEmpresaIdChanged="v => _delegacionId = v" />
     }
     else
     {

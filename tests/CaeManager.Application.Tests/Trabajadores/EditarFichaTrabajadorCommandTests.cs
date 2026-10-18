@@ -24,7 +24,7 @@ public class EditarFichaTrabajadorCommandTests
         var repo = new TrabajadorRepositorioFalso();
         if (t is not null) repo.Agregar(t);
         var uow = new UnitOfWorkFalso();
-        return (new(repo, new Empresas.DelegacionYOficioEmpresaTests.CatalogoFalso(), alcance ?? new(), PoliticaNotaInternaPruebas.Con("GestorCae"), uow), uow);
+        return (new(repo, new Empresas.DelegacionEmpresaYOficioEmpresaTests.CatalogoFalso(), alcance ?? new(), PoliticaNotaInternaPruebas.Con("GestorCae"), uow), uow);
     }
 
     [Fact]

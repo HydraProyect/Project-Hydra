@@ -406,18 +406,18 @@
   <data name="QuitarFiltroCliente" xml:space="preserve">
     <value>Treure el filtre de Client</value>
   </data>  <data name="CatalogoTitulo" xml:space="preserve"><value>Delegacions i oficis</value></data>
-  <data name="CatalogoDelegaciones" xml:space="preserve"><value>Delegacions</value></data>
+  <data name="CatalogoDelegacionesEmpresa" xml:space="preserve"><value>Delegacions</value></data>
   <data name="CatalogoOficios" xml:space="preserve"><value>Oficis</value></data>
   <data name="CatalogoAnadir" xml:space="preserve"><value>Afegir</value></data>
   <data name="CatalogoEditar" xml:space="preserve"><value>Editar</value></data>
   <data name="CatalogoEliminar" xml:space="preserve"><value>Eliminar</value></data>
-  <data name="CatalogoSinDelegaciones" xml:space="preserve"><value>Aquesta empresa encara no té delegacions.</value></data>
+  <data name="CatalogoSinDelegacionesEmpresa" xml:space="preserve"><value>Aquesta empresa encara no té delegacions.</value></data>
   <data name="CatalogoSinOficios" xml:space="preserve"><value>Aquesta empresa encara no té oficis.</value></data>
   <data name="CatalogoError" xml:space="preserve"><value>No s'ha pogut carregar el catàleg.</value></data>
   <data name="CatalogoErrorGuardar" xml:space="preserve"><value>No s'ha pogut desar. Torna-ho a provar.</value></data>
   <data name="CatalogoErrorEliminar" xml:space="preserve"><value>No s'ha pogut eliminar. Torna-ho a provar.</value></data>
-  <data name="CatalogoDelegacionNuevaTitulo" xml:space="preserve"><value>Nova delegació</value></data>
-  <data name="CatalogoDelegacionEditarTitulo" xml:space="preserve"><value>Editar delegació</value></data>
+  <data name="CatalogoDelegacionEmpresaNuevaTitulo" xml:space="preserve"><value>Nova delegació</value></data>
+  <data name="CatalogoDelegacionEmpresaEditarTitulo" xml:space="preserve"><value>Editar delegació</value></data>
   <data name="CatalogoOficioNuevoTitulo" xml:space="preserve"><value>Nou ofici</value></data>
   <data name="CatalogoOficioEditarTitulo" xml:space="preserve"><value>Editar ofici</value></data>
   <data name="CatalogoNombre" xml:space="preserve"><value>Nom</value></data>
@@ -427,7 +427,7 @@
   <data name="CatalogoReclamaciones" xml:space="preserve"><value>Reclamacions: {0}</value></data>
   <data name="CatalogoEditarNombre" xml:space="preserve"><value>Editar «{0}»</value></data>
   <data name="CatalogoEliminarNombre" xml:space="preserve"><value>Eliminar «{0}»</value></data>
-  <data name="CatalogoEliminarDelegacionTitulo" xml:space="preserve"><value>Eliminar la delegació «{0}»?</value></data>
+  <data name="CatalogoEliminarDelegacionEmpresaTitulo" xml:space="preserve"><value>Eliminar la delegació «{0}»?</value></data>
   <data name="CatalogoEliminarOficioTitulo" xml:space="preserve"><value>Eliminar l'ofici «{0}»?</value></data>
   <data name="CatalogoEliminarMensaje" xml:space="preserve"><value>Es traurà del catàleg de l'empresa.</value></data>
   <data name="CatalogoGuardado" xml:space="preserve"><value>Desat.</value></data>

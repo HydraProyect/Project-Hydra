@@ -19,14 +19,14 @@ namespace CaeManager.Web.Tests;
 /// añadir, editar y eliminar y el «+ Crear oficio»; Consulta lee el catálogo y no ve ninguna acción de escritura. Eliminar
 /// algo con Trabajadores asignados enseña el rechazo del comando sin cerrar el diálogo.
 /// </summary>
-public class DelegacionYOficioEmpresaUiTests : BunitContext
+public class DelegacionEmpresaYOficioEmpresaUiTests : BunitContext
 {
     private static readonly Guid EmpresaId = Guid.NewGuid();
     private static readonly Guid OficioId = Guid.NewGuid();
 
     private readonly MediatorFalso _mediador = new();
 
-    public DelegacionYOficioEmpresaUiTests()
+    public DelegacionEmpresaYOficioEmpresaUiTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         _mediador.Catalogo = new CatalogoTrabajadoresEmpresaDto(
@@ -127,7 +127,7 @@ public class DelegacionYOficioEmpresaUiTests : BunitContext
     {
         Registrar(Roles.GestorCae);
         string? elegido = null;
-        var cut = Render<SelectorDelegacionYOficio>(p => p
+        var cut = Render<SelectorDelegacionEmpresaYOficio>(p => p
             .Add(x => x.EmpresaId, EmpresaId)
             .Add(x => x.OficioIdChanged, v => elegido = v));
         cut.WaitForAssertion(() => cut.FindAll("option").Select(o => o.TextContent).Should().Contain("Sevilla"));
@@ -145,7 +145,7 @@ public class DelegacionYOficioEmpresaUiTests : BunitContext
     public void Consulta_no_ve_la_opcion_de_crear_oficio_en_el_selector()
     {
         Registrar(Roles.Consulta);
-        var cut = Render<SelectorDelegacionYOficio>(p => p.Add(x => x.EmpresaId, EmpresaId));
+        var cut = Render<SelectorDelegacionEmpresaYOficio>(p => p.Add(x => x.EmpresaId, EmpresaId));
         cut.WaitForAssertion(() => cut.FindAll("option").Select(o => o.TextContent).Should().Contain("Sevilla"));
 
         cut.Find("input[role=combobox]").Input("Electricista");
@@ -157,7 +157,7 @@ public class DelegacionYOficioEmpresaUiTests : BunitContext
     public void El_selector_ofrece_los_oficios_del_catalogo_y_la_delegacion()
     {
         Registrar(Roles.GestorCae);
-        var cut = Render<SelectorDelegacionYOficio>(p => p
+        var cut = Render<SelectorDelegacionEmpresaYOficio>(p => p
             .Add(x => x.EmpresaId, EmpresaId)
             .Add(x => x.OficioId, OficioId.ToString()));
 

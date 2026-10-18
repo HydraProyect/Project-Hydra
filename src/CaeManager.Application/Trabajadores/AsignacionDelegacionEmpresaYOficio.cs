@@ -9,7 +9,7 @@ namespace CaeManager.Application.Trabajadores;
 /// ficha). En <c>EditarFichaTrabajadorCommand</c>, <c>null</c> (el objeto entero) = no se cambian; dentro, un Id
 /// <c>null</c> = sin Delegación o sin Oficio.
 /// </summary>
-public record DelegacionYOficioDeTrabajador(Guid? DelegacionEmpresaId, Guid? OficioEmpresaId);
+public record DelegacionEmpresaYOficioDeTrabajador(Guid? DelegacionEmpresaId, Guid? OficioEmpresaId);
 
 /// <summary>
 /// Resuelve la Delegación y el Oficio contra el catálogo de la Empresa del Trabajador y los fija. Quien llama ya ha
@@ -17,7 +17,7 @@ public record DelegacionYOficioDeTrabajador(Guid? DelegacionEmpresaId, Guid? Ofi
 /// comprueba que los dos Ids son del catálogo de esa misma Empresa (un Id ajeno responde «no encontrada»; por debajo,
 /// la FK compuesta lo rechazaría igual).
 /// </summary>
-internal static class AsignacionDelegacionYOficio
+internal static class AsignacionDelegacionEmpresaYOficio
 {
     public static async Task<Error?> FijarAsync(
         Trabajador trabajador, Guid? delegacionId, Guid? oficioId,
@@ -27,9 +27,9 @@ internal static class AsignacionDelegacionYOficio
             ?? throw new InvalidOperationException("Solo un trabajador de empresa tiene delegación y oficio.");
 
         DelegacionEmpresa? delegacion = null;
-        if (delegacionId is { } idDelegacion)
+        if (delegacionId is { } idDelegacionEmpresa)
         {
-            delegacion = await catalogo.ObtenerDelegacionEmpresaAsync(idDelegacion, cancellationToken);
+            delegacion = await catalogo.ObtenerDelegacionEmpresaAsync(idDelegacionEmpresa, cancellationToken);
             if (delegacion is null || delegacion.EmpresaId != empresaId)
                 return Error.Crear("Delegacion.NoEncontrada", "No encontramos esta delegación en su empresa.");
         }
