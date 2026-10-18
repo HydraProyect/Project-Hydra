@@ -258,13 +258,13 @@
                                                 }
                                                 @foreach (var documento in grupo.Visibles)
                                                 {
-                                                    var accion = EstadoDocumentoFicha360.Accion(documento.Estado);
+                                                    var pideGestionar = EstadoDocumentoFicha360.PideGestionar(documento.Estado);
                                                     <FilaRelacion @key="claves.De((grupo.Id, documento.TipoDocumentoId))" Nombre="@documento.TipoDocumentoNombre"
                                                                   OnNombre="() => AbrirDocumento(documento)" Tono="EstadoDocumentoVisitaUi.TonoDeFila(documento.Estado)">
                                                         <Detalle>@DetalleDocumento(documento)</Detalle>
                                                         <Estado><Badge Tono="EstadoDocumentoVisitaUi.Tono(documento.Estado)">@EstadoDocumentoVisitaUi.Texto(documento.Estado, Textos)</Badge></Estado>
                                                         <Acciones>
-                                                            @if (accion is not null)
+                                                            @if (pideGestionar)
                                                             {
                                                                 <SoloConEscritura>
                                                                     <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"

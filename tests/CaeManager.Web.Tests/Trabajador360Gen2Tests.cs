@@ -470,7 +470,6 @@ public partial class Trabajador360Gen2Tests : BunitContext
 
     [Theory]
     [InlineData(EstadoIndicadorBase.Vigente, true)]
-    [InlineData(EstadoIndicadorBase.Falta, false)]
     [InlineData(EstadoIndicadorBase.Vencido, false)]
     public void Documentacion_base_no_ofrece_una_accion_sin_Documento_o_sin_estado_que_la_pida(EstadoIndicadorBase estado, bool existe)
     {
@@ -825,6 +824,23 @@ public partial class Trabajador360Gen2Tests : BunitContext
     /// D-06/D-22: el botón primario no puede quedar deshabilitado y sin salida en un trabajador
     /// recién creado; abre el drawer de Nuevo documento con el trabajador elegido y el tipo por elegir allí.
     /// </summary>
+    [Fact]
+    public async Task Gestionar_en_un_indicador_de_Documentacion_base_que_falta_abre_Nuevo_documento_con_el_trabajador_elegido()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        mediador.BaseDocumental[id] = new([new(TipoDocumentoBase.AptitudMedica, EstadoIndicadorBase.Falta, null, null)]);
+        mediador.Selector.Add(new TrabajadorSelectorDto(id, "Salas Moreno, Javier", null, null));
+        var cut = Renderizar(id);
+
+        var boton = cut.Find(".panel-doc-base-fila button");
+        boton.TextContent.Trim().Should().Be("Gestionar");
+        await boton.ClickAsync(new MouseEventArgs());
+
+        cut.Markup.Should().Contain("Nuevo documento");
+        mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().BeEmpty("no hay documento que abrir");
+    }
+
     [Fact]
     public async Task Subir_documento_en_un_trabajador_sin_documentos_esta_habilitado_y_abre_Nuevo_documento_con_el_trabajador_elegido()
     {

@@ -101,6 +101,45 @@ public class GestionarUnicoFichas360Tests : BunitContext
         cut.Markup.Should().NotContain("Gestionar");
     }
 
+    private IRenderedComponent<PanelDocumentacionBase> PanelConFaltante(List<string> subidas) => Render<PanelDocumentacionBase>(p => p
+        .Add(c => c.Datos, new DocumentacionBaseTrabajadorDto(
+        [
+            new(TipoDocumentoBase.AptitudMedica, EstadoIndicadorBase.Falta, null, null),
+            new(TipoDocumentoBase.FormacionArt19, EstadoIndicadorBase.Vigente, Vigente, null),
+        ]))
+        .Add(c => c.OnCorregirDocumento, EventCallback.Factory.Create<Guid>(this, _ => subidas.Add("corregir")))
+        .Add(c => c.OnSubirFaltante, EventCallback.Factory.Create(this, () => subidas.Add("subir"))));
+
+    [Theory]
+    [InlineData(Roles.Administrador)]
+    [InlineData(Roles.DireccionCae)]
+    [InlineData(Roles.CoordinadorCae)]
+    [InlineData(Roles.GestorCae)]
+    public async Task Un_indicador_que_falta_lleva_Gestionar_a_quien_escribe_y_abre_la_subida(string rol)
+    {
+        this.ConRolDeEscritura(rol);
+        var llamadas = new List<string>();
+        var cut = PanelConFaltante(llamadas);
+
+        cut.FindAll(".panel-doc-base-fila").Select(Botones).Should().Equal(
+            new List<string>[] { ["Gestionar"], [] }, (a, b) => a.SequenceEqual(b), "Falta pide trabajo; Vigente no lleva botón");
+
+        await cut.Find(".panel-doc-base-fila button").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        llamadas.Should().Equal("subir");
+    }
+
+    [Theory]
+    [InlineData(Roles.Consulta)]
+    [InlineData(Roles.Cliente)]
+    public void Un_indicador_que_falta_no_lleva_accion_a_Consulta_ni_a_Cliente(string rol)
+    {
+        this.ConRolDeEscritura(rol);
+        var cut = PanelConFaltante([]);
+
+        cut.FindAll(".panel-doc-base-fila button").Should().BeEmpty();
+    }
+
     [Fact]
     public void Un_Proximo_que_no_es_urgente_lleva_Gestionar_solo_para_roles_con_escritura()
     {

@@ -262,6 +262,7 @@ public partial class Visita360PaginaTests : BunitContext
     [InlineData(Roles.GestorCae, EstadoDocumento.EnTolerancia, "Gestionar")]
     [InlineData(Roles.GestorCae, EstadoDocumento.Vigente, null)]
     [InlineData(Roles.Consulta, EstadoDocumento.Vencido, null)]
+    [InlineData(Roles.Consulta, EstadoDocumento.Proximo, null)]
     [InlineData(Roles.Cliente, EstadoDocumento.Faltante, null)]
     public void La_fila_del_documento_ofrece_solo_Gestionar_segun_rol_y_estado(string rol, EstadoDocumento estado, string? esperado)
     {
@@ -303,7 +304,6 @@ public partial class Visita360PaginaTests : BunitContext
     }
 
     [Theory]
-    [InlineData(EstadoDocumento.Proximo)]
     [InlineData(EstadoDocumento.Vigente)]
     [InlineData(EstadoDocumento.SinCaducidad)]
     public void Un_documento_que_no_pide_accion_conserva_la_fila_sin_boton(EstadoDocumento estado)
@@ -313,6 +313,20 @@ public partial class Visita360PaginaTests : BunitContext
             [new(Paula, "Paula Campos", "Empresa Demo", new(estado, [documento]))]);
         var (cut, _) = Montar(Detalle(porCorreo: false), documentacion: documentacion);
         FilaDeDocumento(cut, documento.TipoDocumentoNombre).QuerySelectorAll(".fila-relacion-acciones button").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_documento_Por_vencer_aunque_no_sea_urgente_lleva_Gestionar_y_abre_su_editor()
+    {
+        var documento = Documento("Documento por vencer", EstadoDocumento.Proximo, Paula);
+        var documentacion = new DocumentacionVisitaDto(Guid.NewGuid(), new(EstadoDocumento.Vigente, []),
+            [new(Paula, "Paula Campos", "Empresa Demo", new(EstadoDocumento.Proximo, [documento]))]);
+        var (cut, mediador) = Montar(Detalle(porCorreo: false), documentacion: documentacion);
+        var fila = FilaDeDocumento(cut, documento.TipoDocumentoNombre);
+        fila.QuerySelectorAll(".fila-relacion-acciones button").Select(b => b.TextContent.Trim()).Should().Equal("Gestionar");
+
+        await fila.QuerySelector(".fila-relacion-acciones button")!.ClickAsync(new MouseEventArgs());
+        mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().ContainSingle().Which.Id.Should().Be(documento.DocumentoId!.Value);
     }
 
     [Fact]

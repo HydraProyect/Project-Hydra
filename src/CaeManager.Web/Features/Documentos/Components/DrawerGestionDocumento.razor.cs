@@ -283,7 +283,8 @@ public partial class DrawerGestionDocumento : ComponentBase
     /// problema de esa lista, en el orden en que la lista los muestra— para ofrecer «Guardar y
     /// siguiente». El siguiente es el que va detrás de <paramref name="actual"/>; al llegar al final
     /// se sigue por los de delante, porque también siguen con problema. Si <paramref name="actual"/>
-    /// no es de la serie (una fila sin problema), el siguiente es el primero.
+    /// no es de la serie (una fila que no pide «Renovar» ni «Subir», como un «Por vencer» que aún no es urgente), se abre
+    /// solo ese documento: sin «Guardar y siguiente» ni encadenar el resto.
     /// <para>
     /// La serie es la foto de la lista al abrir: guardar un documento recarga la ficha, pero no
     /// reordena lo que queda por recorrer.
@@ -293,7 +294,9 @@ public partial class DrawerGestionDocumento : ComponentBase
     {
         var unicos = serie.Distinct().ToList();
         var posicion = unicos.IndexOf(actual);
-        var resto = unicos.Skip(posicion + 1).Concat(unicos.Take(Math.Max(posicion, 0))).ToList();
+        var resto = posicion < 0
+            ? []
+            : unicos.Skip(posicion + 1).Concat(unicos.Take(posicion)).ToList();
 
         if (await AbrirPasoAsync(actual, alAvanzar: false))
             _pasosPendientes = resto;

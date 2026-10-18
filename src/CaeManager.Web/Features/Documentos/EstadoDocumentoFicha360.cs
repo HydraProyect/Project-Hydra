@@ -108,6 +108,10 @@ public static class EstadoDocumentoFicha360
     /// </summary>
     public static bool PideGestionar(EstadoDocumento estado) => estado == EstadoDocumento.Proximo || Accion(estado) is not null;
 
+    /// <summary>Como <see cref="TextoAccionAccesible(string)"/>, para filas donde el mismo documento se repite por propietario o Centro.</summary>
+    public static string TextoAccionAccesible(string documento, string deQuien) =>
+        string.Format(CultureInfo.CurrentUICulture, TextosVigenciaDocumento.Texto("Ficha360GestionarAccesibleDe"), documento, deQuien);
+
     /// <summary>La acción que pide el estado; <c>null</c> si no pide ninguna.</summary>
     public static AccionDocumentoFicha360? Accion(EstadoDocumento estado) => estado switch
     {

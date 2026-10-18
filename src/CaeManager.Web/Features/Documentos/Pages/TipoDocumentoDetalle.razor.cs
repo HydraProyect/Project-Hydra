@@ -406,7 +406,7 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
 
     /// <summary>«Gestionar» si el estado pide corregir algo (renovar, subir o confirmar van dentro); <c>null</c> si no hay nada que corregir.</summary>
     private static string? TextoAccion(EstadoDocumento estado) =>
-        EstadoDocumentoFicha360.Accion(estado) is null ? null : EstadoDocumentoFicha360.TextoAccion;
+        EstadoDocumentoFicha360.PideGestionar(estado) ? EstadoDocumentoFicha360.TextoAccion : null;
 
     private string Texto(string clave, params object[] argumentos) => Textos[clave, argumentos].Value;
 

@@ -179,6 +179,24 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
         cut.Find(".tabla-documentos-requeridos").TextContent.Should().Contain("Reconocimiento médico");
     }
 
+    /// <summary>
+    /// Sin botón en la fila de un documento al día, el nombre del documento sigue siendo la vía para quien escribe: con la
+    /// Visita en riesgo (Vigente que caduca dentro de ella) abre la misma gestión que abría el botón.
+    /// </summary>
+    [Fact]
+    public async Task El_nombre_del_documento_Vigente_con_riesgo_en_Visita_abre_la_gestion()
+    {
+        var cut = await RenderizarExpandidoAsync(EstadoDocumento.Vigente, riesgoEnVisita: true);
+
+        cut.FindAll(".tabla-documentos-requeridos .columna-accion button").Should().BeEmpty();
+        var enlace = cut.Find(".tabla-documentos-requeridos .celda-documento-nombre button.enlace-nombre-fila");
+        enlace.TextContent.Trim().Should().Be("Reconocimiento médico");
+        await enlace.ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Find(".drawer-panel").TextContent.Should().Contain("Renovar documento")
+            .And.Contain("Reconocimiento médico").And.Contain("Ruiz Peña, Ana"));
+    }
+
     [Fact]
     public async Task El_clic_en_Gestionar_abre_la_gestion_del_documento()
     {
