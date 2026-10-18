@@ -1,0 +1,85 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="f46d3763-1033-47eb-9262-34aed88963e2" name="chris@CHRIS 2026-10-12 22:36:59" runUser="CHRIS\chris" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-12T22:36:59.1871580+02:00" queuing="2026-10-12T22:36:59.1871587+02:00" start="2026-10-12T22:36:56.5832583+02:00" finish="2026-10-12T22:36:59.1961277+02:00" />
+  <TestSettings name="default" id="97abb3e4-9cd7-40ee-a3a7-407ac9129980">
+    <Deployment runDeploymentRoot="chris_CHRIS_2026-10-12_22_36_59" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="55538148-1a4c-4cf6-8b36-295456134392" testId="4a3bf9e0-2b92-6ed0-52d2-ec11d3f00f74" testName="CaeManager.Web.Tests.CabeceraListadoExportacionTests.El_nombre_accesible_de_exportacion_esta_localizado(idioma: &quot;es-ES&quot;)" computerName="CHRIS" duration="00:00:00.0152577" startTime="2026-10-12T22:36:59.0460811+02:00" endTime="2026-10-12T22:36:59.0589829+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="55538148-1a4c-4cf6-8b36-295456134392" />
+    <UnitTestResult executionId="db912c7c-95c4-4459-94a8-cad284a25774" testId="1747cd0b-6ff5-e326-7745-553d83d6e04a" testName="CaeManager.Web.Tests.CabeceraListadoExportacionTests.El_nombre_accesible_de_exportacion_esta_localizado(idioma: &quot;ca-ES&quot;)" computerName="CHRIS" duration="00:00:00.0046623" startTime="2026-10-12T22:36:59.0592331+02:00" endTime="2026-10-12T22:36:59.0635493+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="db912c7c-95c4-4459-94a8-cad284a25774" />
+    <UnitTestResult executionId="47a412cc-947e-4c80-a607-c3b6ed4ea528" testId="9ea4d7f7-bb17-1cb6-8fb3-bc4c7abd489a" testName="CaeManager.Web.Tests.CabeceraListadoExportacionTests.Icono_y_menu_exportan_los_mismos_criterios_codificados_y_omiten_los_vacios" computerName="CHRIS" duration="00:00:00.5782793" startTime="2026-10-12T22:36:58.4314132+02:00" endTime="2026-10-12T22:36:59.0246810+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="47a412cc-947e-4c80-a607-c3b6ed4ea528">
+      <Output>
+        <ErrorInfo>
+          <Message>System.Collections.Generic.KeyNotFoundException : The given key 'q' was not present in the dictionary.</Message>
+          <StackTrace>   at System.Collections.Generic.Dictionary`2.get_Item(TKey key)&#xD;
+   at CaeManager.Web.Tests.CabeceraListadoExportacionTests.Icono_y_menu_exportan_los_mismos_criterios_codificados_y_omiten_los_vacios() in C:\Users\chris\Project-Hydra\.claude\worktrees\listados-2-exportar\tests\CaeManager.Web.Tests\CabeceraListadoExportacionTests.cs:line 82&#xD;
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="cd3a3754-8d12-4edf-95f3-e16a823a17f2" testId="49497494-4aa9-a096-bf51-2689ebc79fbd" testName="CaeManager.Web.Tests.CabeceraListadoExportacionTests.Admite_la_ruta_ya_filtrada_de_Centros_A_sin_duplicar_el_enlace" computerName="CHRIS" duration="00:00:00.0114861" startTime="2026-10-12T22:36:59.0438790+02:00" endTime="2026-10-12T22:36:59.0444265+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="cd3a3754-8d12-4edf-95f3-e16a823a17f2" />
+    <UnitTestResult executionId="02bb8d9b-21b1-4fdd-810c-a2da571c8749" testId="21ded4cd-66cd-d88f-0c7d-440df2997ef5" testName="CaeManager.Web.Tests.CabeceraListadoExportacionTests.El_icono_descarga_la_vista_y_ocupa_su_sitio_entre_seleccion_y_teclado" computerName="CHRIS" duration="00:00:00.0217791" startTime="2026-10-12T22:36:59.0639147+02:00" endTime="2026-10-12T22:36:59.0854400+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="02bb8d9b-21b1-4fdd-810c-a2da571c8749" />
+    <UnitTestResult executionId="e5d1d9d1-fdca-424a-93bf-4280cf35df4d" testId="5dcff02c-8dc0-27a8-533c-13bdcd7db86e" testName="CaeManager.Web.Tests.CabeceraListadoExportacionTests.Sin_ruta_de_exportacion_no_hay_enlace_aunque_se_hayan_pasado_criterios" computerName="CHRIS" duration="00:00:00.0067627" startTime="2026-10-12T22:36:59.0457571+02:00" endTime="2026-10-12T22:36:59.0458428+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e5d1d9d1-fdca-424a-93bf-4280cf35df4d" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="CaeManager.Web.Tests.CabeceraListadoExportacionTests.El_icono_descarga_la_vista_y_ocupa_su_sitio_entre_seleccion_y_teclado" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-2-exportar\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="21ded4cd-66cd-d88f-0c7d-440df2997ef5">
+      <Execution id="02bb8d9b-21b1-4fdd-810c-a2da571c8749" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-2-exportar\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.CabeceraListadoExportacionTests" name="El_icono_descarga_la_vista_y_ocupa_su_sitio_entre_seleccion_y_teclado" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.CabeceraListadoExportacionTests.El_nombre_accesible_de_exportacion_esta_localizado(idioma: &quot;ca-ES&quot;)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-2-exportar\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="1747cd0b-6ff5-e326-7745-553d83d6e04a">
+      <Execution id="db912c7c-95c4-4459-94a8-cad284a25774" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-2-exportar\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.CabeceraListadoExportacionTests" name="El_nombre_accesible_de_exportacion_esta_localizado" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.CabeceraListadoExportacionTests.Icono_y_menu_exportan_los_mismos_criterios_codificados_y_omiten_los_vacios" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-2-exportar\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="9ea4d7f7-bb17-1cb6-8fb3-bc4c7abd489a">
+      <Execution id="47a412cc-947e-4c80-a607-c3b6ed4ea528" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-2-exportar\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.CabeceraListadoExportacionTests" name="Icono_y_menu_exportan_los_mismos_criterios_codificados_y_omiten_los_vacios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.CabeceraListadoExportacionTests.Sin_ruta_de_exportacion_no_hay_enlace_aunque_se_hayan_pasado_criterios" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-2-exportar\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="5dcff02c-8dc0-27a8-533c-13bdcd7db86e">
+      <Execution id="e5d1d9d1-fdca-424a-93bf-4280cf35df4d" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-2-exportar\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.CabeceraListadoExportacionTests" name="Sin_ruta_de_exportacion_no_hay_enlace_aunque_se_hayan_pasado_criterios" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.CabeceraListadoExportacionTests.El_nombre_accesible_de_exportacion_esta_localizado(idioma: &quot;es-ES&quot;)" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-2-exportar\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="4a3bf9e0-2b92-6ed0-52d2-ec11d3f00f74">
+      <Execution id="55538148-1a4c-4cf6-8b36-295456134392" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-2-exportar\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.CabeceraListadoExportacionTests" name="El_nombre_accesible_de_exportacion_esta_localizado" />
+    </UnitTest>
+    <UnitTest name="CaeManager.Web.Tests.CabeceraListadoExportacionTests.Admite_la_ruta_ya_filtrada_de_Centros_A_sin_duplicar_el_enlace" storage="c:\users\chris\project-hydra\.claude\worktrees\listados-2-exportar\tests\caemanager.web.tests\bin\debug\net10.0\caemanager.web.tests.dll" id="49497494-4aa9-a096-bf51-2689ebc79fbd">
+      <Execution id="cd3a3754-8d12-4edf-95f3-e16a823a17f2" />
+      <TestMethod codeBase="C:\Users\chris\Project-Hydra\.claude\worktrees\listados-2-exportar\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.Web.Tests.CabeceraListadoExportacionTests" name="Admite_la_ruta_ya_filtrada_de_Centros_A_sin_duplicar_el_enlace" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="4a3bf9e0-2b92-6ed0-52d2-ec11d3f00f74" executionId="55538148-1a4c-4cf6-8b36-295456134392" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1747cd0b-6ff5-e326-7745-553d83d6e04a" executionId="db912c7c-95c4-4459-94a8-cad284a25774" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9ea4d7f7-bb17-1cb6-8fb3-bc4c7abd489a" executionId="47a412cc-947e-4c80-a607-c3b6ed4ea528" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="49497494-4aa9-a096-bf51-2689ebc79fbd" executionId="cd3a3754-8d12-4edf-95f3-e16a823a17f2" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="21ded4cd-66cd-d88f-0c7d-440df2997ef5" executionId="02bb8d9b-21b1-4fdd-810c-a2da571c8749" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5dcff02c-8dc0-27a8-533c-13bdcd7db86e" executionId="e5d1d9d1-fdca-424a-93bf-4280cf35df4d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Resultados sin formato de lista" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="Todos los resultados cargados" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="6" executed="6" passed="5" failed="1" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.5+1b188a7b0a (64-bit .NET 10.0.10)&#xD;
+[xUnit.net 00:00:00.40]   Discovering: CaeManager.Web.Tests&#xD;
+[xUnit.net 00:00:01.27]   Discovered:  CaeManager.Web.Tests&#xD;
+[xUnit.net 00:00:01.31]   Starting:    CaeManager.Web.Tests&#xD;
+[xUnit.net 00:00:01.94]       System.Collections.Generic.KeyNotFoundException : The given key 'q' was not present in the dictionary.&#xD;
+[xUnit.net 00:00:01.94]       Stack Trace:&#xD;
+[xUnit.net 00:00:01.94]            at System.Collections.Generic.Dictionary`2.get_Item(TKey key)&#xD;
+[xUnit.net 00:00:01.94]         C:\Users\chris\Project-Hydra\.claude\worktrees\listados-2-exportar\tests\CaeManager.Web.Tests\CabeceraListadoExportacionTests.cs(82,0): at CaeManager.Web.Tests.CabeceraListadoExportacionTests.Icono_y_menu_exportan_los_mismos_criterios_codificados_y_omiten_los_vacios()&#xD;
+[xUnit.net 00:00:01.94]            at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+[xUnit.net 00:00:01.94]            at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)&#xD;
+[xUnit.net 00:00:02.00]   Finished:    CaeManager.Web.Tests&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="CHRIS" outcome="Error" timestamp="2026-10-12T22:36:59.0278256+02:00">
+        <Text>[xUnit.net 00:00:01.94]     CaeManager.Web.Tests.CabeceraListadoExportacionTests.Icono_y_menu_exportan_los_mismos_criterios_codificados_y_omiten_los_vacios [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>
