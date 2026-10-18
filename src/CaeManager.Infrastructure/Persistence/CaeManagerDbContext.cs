@@ -348,6 +348,8 @@ public class CaeManagerDbContext(
     IQueryable<EventoConversacion> IComunicacionesQueryContext.EventosConversacion => EventosConversacion;
     public DbSet<NotaInternaConversacion> NotasInternasConversacion => Set<NotaInternaConversacion>();
     IQueryable<NotaInternaConversacion> IComunicacionesQueryContext.NotasInternasConversacion => NotasInternasConversacion;
+    public DbSet<PropuestaRecordatorioConversacion> PropuestasRecordatorioConversacion => Set<PropuestaRecordatorioConversacion>();
+    IQueryable<PropuestaRecordatorioConversacion> IComunicacionesQueryContext.PropuestasRecordatorioConversacion => PropuestasRecordatorioConversacion;
     public DbSet<TareaAsistente> TareasAsistente => Set<TareaAsistente>();
     IQueryable<TareaAsistente> CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext.TareasAsistente => TareasAsistente;
     public DbSet<TurnoTareaAsistente> TurnosTareaAsistente => Set<TurnoTareaAsistente>();

@@ -1290,6 +1290,60 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("ParticipantesConversacion", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.PropuestaRecordatorioConversacion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConversacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("EsperaDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("PropuestaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ResueltaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ConversacionId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PropuestasRecordatorioConversacion_Pendiente_Unica")
+                        .HasFilter("\"Estado\" = 0");
+
+                    b.HasIndex("TenantId", "ConversacionId", "EsperaDesdeUtc")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PropuestasRecordatorioConversacion_Espera_Unica");
+
+                    b.ToTable("PropuestasRecordatorioConversacion", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.SolicitudPrioridadDocumento", b =>
                 {
                     b.Property<Guid>("Id")

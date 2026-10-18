@@ -424,6 +424,9 @@
                 @if (_vista == "clientes")
                 {
                   <SoloConEscritura>
+                    <RecordatorioPropuesto ConversacionId="_detalle.Id" Asunto="@_detalle.Asunto" Estado="_detalle.Estado"
+                                           FechaUltimoMensajeUtc="_detalle.FechaUltimoMensajeUtc" OnEnviado="CargarDetalleAsync" />
+
                     <ComposerBar Canal="_detalle.Canal" VentanaAbierta="VentanaAbierta" CierreVentanaLocal="@CierreVentanaLocal"
                                  Texto="@_textoRespuesta" TextoChanged="v => _textoRespuesta = v" Enviando="_enviando" OnEnviar="EnviarAsync"
                                  Macros="_macrosDisponibles" MacroSeleccionadaId="@_macroSeleccionadaId" OnAplicarMacro="AplicarMacro"
