@@ -292,6 +292,8 @@
                             {
                                 <DatoRejilla Etiqueta="@Textos["FichaHorarioAcceso"]" Valor="@_detalle.HorarioAcceso" />
                             }
+                            @* Empresa del Centro: la cabecera ya no la nombra (Centro 360 del 17-10); aquí queda, al final y solo lectura, para todo rol y para Centros sin gestión CAE. *@
+                            <DatoRejilla Etiqueta="@Textos["InformacionEmpresa360"]" Valor="@_detalle.EmpresaRazonSocial" />
                         </RejillaDatos>
                     </ChildContent>
                 </Tarjeta>

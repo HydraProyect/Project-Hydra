@@ -1,5 +1,6 @@
 using CaeManager.Application.Plantillas.Commands.GuardarElementosPlantilla;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
 using FluentAssertions;
 using Xunit;
@@ -8,8 +9,20 @@ namespace CaeManager.Application.Tests.Plantillas;
 
 public class GuardarElementosPlantillaCommandHandlerTests
 {
+    private static readonly PlantillaDocumento Plantilla = new(
+        OrigenPlantilla.Externa, "Ficha de riesgos", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfVisual, Guid.NewGuid());
+
     private static PlantillaDocumentoVersion VersionBorrador() =>
-        new(Guid.NewGuid(), 1, "url-falsa.pdf", new string('a', 64));
+        new(Plantilla.Id, 1, "url-falsa.pdf", new string('a', 64));
+
+    /// <summary>La plantilla general (sin Centro ni Cliente empresarial) de las versiones de estos tests.</summary>
+    private static PlantillaDocumentoRepositorioFalso PlantillasDe(PlantillaDocumentoVersionRepositorioFalso versiones)
+    {
+        var plantillas = new PlantillaDocumentoRepositorioFalso();
+        if (versiones.Lista.Any(v => v.PlantillaDocumentoId == Plantilla.Id))
+            plantillas.Agregar(Plantilla);
+        return plantillas;
+    }
 
     private static readonly ElementoPlantillaEntradaDto ElementoDto =
         new(TipoElementoPlantilla.Texto, 1, 10, 20, 100, 15, "CIF", FuenteDatoPlantilla.EmpresaCif, null, null, false, null, "campoCif");
@@ -20,7 +33,7 @@ public class GuardarElementosPlantillaCommandHandlerTests
         var version = VersionBorrador();
         var versiones = new PlantillaDocumentoVersionRepositorioFalso();
         versiones.Agregar(version);
-        var handler = new GuardarElementosPlantillaCommandHandler(versiones, new UnitOfWorkFalso());
+        var handler = new GuardarElementosPlantillaCommandHandler(versiones, PlantillasDe(versiones), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(
             new GuardarElementosPlantillaCommand(version.Id, [ElementoDto]), CancellationToken.None);
@@ -37,7 +50,7 @@ public class GuardarElementosPlantillaCommandHandlerTests
         var version = VersionBorrador();
         var versiones = new PlantillaDocumentoVersionRepositorioFalso();
         versiones.Agregar(version);
-        var handler = new GuardarElementosPlantillaCommandHandler(versiones, new UnitOfWorkFalso());
+        var handler = new GuardarElementosPlantillaCommandHandler(versiones, PlantillasDe(versiones), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
         await handler.Handle(new GuardarElementosPlantillaCommand(version.Id, [ElementoDto]), CancellationToken.None);
 
         var otroElemento = ElementoDto with { EtiquetaVisible = "Nombre" };
@@ -53,7 +66,7 @@ public class GuardarElementosPlantillaCommandHandlerTests
     public async Task Devuelve_fallo_si_la_version_no_existe()
     {
         var handler = new GuardarElementosPlantillaCommandHandler(
-            new PlantillaDocumentoVersionRepositorioFalso(), new UnitOfWorkFalso());
+            new PlantillaDocumentoVersionRepositorioFalso(), new PlantillaDocumentoRepositorioFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(
             new GuardarElementosPlantillaCommand(Guid.NewGuid(), [ElementoDto]), CancellationToken.None);
@@ -71,7 +84,7 @@ public class GuardarElementosPlantillaCommandHandlerTests
         version.Confirmar(Guid.NewGuid(), DateTime.UtcNow);
         var versiones = new PlantillaDocumentoVersionRepositorioFalso();
         versiones.Agregar(version);
-        var handler = new GuardarElementosPlantillaCommandHandler(versiones, new UnitOfWorkFalso());
+        var handler = new GuardarElementosPlantillaCommandHandler(versiones, PlantillasDe(versiones), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(
             new GuardarElementosPlantillaCommand(version.Id, [ElementoDto]), CancellationToken.None);

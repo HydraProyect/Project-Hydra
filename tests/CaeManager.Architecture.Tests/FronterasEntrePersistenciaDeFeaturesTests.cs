@@ -481,6 +481,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Facturacion.ObtenerResumenFacturacionQueryHandler", "IVisitasQueryContext"),
         ("Facturacion.ObtenerTarifasClienteQueryHandler", "IClientesQueryContext"),
         ("Gestiones.CrearGestionesParaTrabajadorCommandHandler", "IAsignacionesQueryContext"),
+        // Asignación de Cartera: el ítem sugerido y el mensaje de origen solo se enlazan si la Conversación es visible.
+        ("Gestiones.CrearGestionesParaTrabajadorCommandHandler", "IComunicacionesQueryContext"),
         ("Gestiones.CrearGestionesParaTrabajadorCommandHandler", "IDetalleSugerenciaGestionCorreoRepository"),
         ("Gestiones.CrearGestionesParaTrabajadorCommandHandler", "ITipoDocumentoRepository"),
         ("Gestiones.ObtenerGestionesQueryHandler", "ICentrosQueryContext"),
