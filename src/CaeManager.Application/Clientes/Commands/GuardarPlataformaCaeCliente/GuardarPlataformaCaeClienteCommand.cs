@@ -19,11 +19,15 @@ namespace CaeManager.Application.Clientes.Commands.GuardarPlataformaCaeCliente;
 /// al Usuario de Cliente y a toda Sesión Privilegiada (impersonación incluida). El handler
 /// añade la cartera: el Cliente empresarial tiene que estar en el ámbito efectivo del usuario
 /// y quien escribe tiene que operar desde el lado de gestión. Y la Empresa tiene que ser hoy
-/// Cliente empresarial: posición cliente de al menos una Relación Empresarial vigente. Sin
-/// eso no hay a quién acreditar en la plataforma.
+/// Cliente empresarial de una Empresa propia: posición cliente de al menos una Relación
+/// Empresarial vigente cuya proveedora sea propia. Sin eso no hay a quién acreditar en la plataforma.
 /// </para>
 /// </summary>
-public record GuardarPlataformaCaeClienteCommand(Guid ClienteEmpresarialId, string Nombre, string? UrlPortal, string? CodigoCliente) : ICommand;
+public record GuardarPlataformaCaeClienteCommand(Guid ClienteEmpresarialId, string Nombre, string? UrlPortal, string? CodigoCliente) : ICommand
+{
+    /// <summary>Otra persona registró la plataforma a la vez (índice único): la caja vuelve a leer lo guardado.</summary>
+    public const string CodigoConflicto = "PlataformaCae.Conflicto";
+}
 
 public class GuardarPlataformaCaeClienteCommandValidator : AbstractValidator<GuardarPlataformaCaeClienteCommand>
 {
@@ -57,8 +61,14 @@ public class GuardarPlataformaCaeClienteCommandHandler(
             || !await alcanceDatos.OperaDesdeElLadoDeGestionAsync(cancellationToken))
             return Result.Fallo(NoEncontrado);
 
-        if (!await empresasContext.RelacionesEmpresariales.AnyAsync(
-                r => r.ClienteId == cliente.Id && r.VigenciaHasta == null, cancellationToken))
+        // Relación vigente cuya proveedora es una Empresa propia: la misma condición que el mensaje
+        // de error, y la que aplican los accesos (una relación entre dos Empresas ajenas no cuenta).
+        var esClienteDeUnaPropia = await (
+            from r in empresasContext.RelacionesEmpresariales
+            where r.ClienteId == cliente.Id && r.VigenciaHasta == null
+            join proveedora in empresasContext.Empresas.Where(e => e.EsPropia) on r.ProveedoraId equals proveedora.Id
+            select r.Id).AnyAsync(cancellationToken);
+        if (!esClienteDeUnaPropia)
             return Result.Fallo(Error.Crear(
                 "PlataformaCae.SinRelacionVigente", "Esta Empresa no es hoy Cliente de ninguna Empresa propia."));
 
@@ -76,6 +86,6 @@ public class GuardarPlataformaCaeClienteCommandHandler(
         return await plataformaRepositorio.GuardarCambiosAsync(cancellationToken)
             ? Result.Exito()
             : Result.Fallo(Error.Crear(
-                "PlataformaCae.Conflicto", "Otra persona acaba de registrar la plataforma de este Cliente. Cierra y vuelve a abrirla para ver lo guardado."));
+                GuardarPlataformaCaeClienteCommand.CodigoConflicto, "Otra persona acaba de registrar la plataforma de este Cliente. Cierra y vuelve a abrirla para ver lo guardado."));
     }
 }

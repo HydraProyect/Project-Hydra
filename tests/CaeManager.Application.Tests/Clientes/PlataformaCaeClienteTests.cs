@@ -1,3 +1,4 @@
+using CaeManager.Application.Auditoria;
 using CaeManager.Application.Clientes.Commands.GuardarAccesoPlataformaCae;
 using CaeManager.Application.Clientes.Commands.GuardarPlataformaCaeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerAccesosPlataformaCaeCliente;
@@ -7,6 +8,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tests.Auditoria;
 using CaeManager.Application.Tests.Documentos;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Plataforma;
@@ -58,6 +60,20 @@ public class PlataformaCaeClienteTests
         public AlcanceDatosServiceFalso EnCartera(bool ladoDeGestion = true, IReadOnlyList<Guid>? empresasParaGestion = null) =>
             new(tieneAccesoTotal: false, clienteIdsVisibles: [Cliente.Id], empresaIdsVisibles: [Empresa.Id, OtraEmpresa.Id],
                 empresaIdsParaGestion: empresasParaGestion, ladoDeGestion: ladoDeGestion);
+
+        /// <summary>
+        /// Una Empresa que no es propia (una Subcontrata) prestando hoy servicio al Cliente empresarial, con un acceso
+        /// guardado. Devuelve un alcance que la incluye en la cartera, para que lo único que la deje fuera sea EsPropia.
+        /// </summary>
+        public (Empresa Ajena, AlcanceDatosServiceFalso Alcance) ConEmpresaNoPropia()
+        {
+            var ajena = Empresa.CrearComoSubcontrata("Subcontrata Ajena S.L.", null, "Completo");
+            Contexto.ListaEmpresas.Add(ajena);
+            Empresas.Agregar(ajena);
+            Contexto.ListaRelacionesEmpresariales.Add(RelacionEmpresarial.Crear(ajena.Id, Cliente.Id, Ahora.AddYears(-1)));
+            return (ajena, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [Cliente.Id],
+                empresaIdsVisibles: [Empresa.Id, OtraEmpresa.Id, ajena.Id], ladoDeGestion: true));
+        }
 
         public static AlcanceDatosServiceFalso FueraDeCartera() =>
             new(tieneAccesoTotal: false, clienteIdsVisibles: [], empresaIdsVisibles: []);
@@ -525,6 +541,113 @@ public class PlataformaCaeClienteTests
 
         dto.Should().BeNull();
         e.Registro.Registrados.Should().BeEmpty();
+    }
+
+    // ── Solo Empresas propias: una Empresa ajena que presta servicio no tiene acceso en la caja ──
+
+    [Fact]
+    public async Task Revelar_el_acceso_de_una_Empresa_no_propia_no_devuelve_nada_ni_audita()
+    {
+        var e = new Escenario();
+        e.RegistrarPlataforma();
+        var (ajena, alcance) = e.ConEmpresaNoPropia();
+        e.RegistrarAcceso(ajena, "ajeno", "s3cr3ta-ajena");
+
+        var dto = await e.Revelar(alcance).Handle(new RevelarContrasenaAccesoPlataformaCaeQuery(e.Cliente.Id, ajena.Id), default);
+
+        dto.Should().BeNull();
+        e.Registro.Registrados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Guardar_el_acceso_de_una_Empresa_no_propia_se_deniega()
+    {
+        var e = new Escenario();
+        e.RegistrarPlataforma();
+        var (ajena, alcance) = e.ConEmpresaNoPropia();
+
+        var resultado = await e.GuardarAcceso(alcance).Handle(
+            new GuardarAccesoPlataformaCaeCommand(e.Cliente.Id, ajena.Id, "u", "p"), default);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("AccesoPlataformaCae.NoEncontrado");
+        e.Contexto.ListaAccesosPlataformaCae.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Obtener_accesos_omite_las_Empresas_no_propias_y_no_audita_su_usuario()
+    {
+        var e = new Escenario();
+        e.RegistrarPlataforma();
+        var (ajena, alcance) = e.ConEmpresaNoPropia();
+        e.RegistrarAcceso(ajena, "ajeno", "s3cr3ta-ajena");
+
+        var accesos = await e.ObtenerAccesos(alcance).Handle(new ObtenerAccesosPlataformaCaeClienteQuery(e.Cliente.Id), default);
+
+        accesos!.Select(a => a.EmpresaId).Should().BeEquivalentTo([e.Empresa.Id, e.OtraEmpresa.Id]);
+        e.Registro.Registrados.Should().BeEmpty("el usuario de la Empresa ajena no se ha leído");
+    }
+
+    [Fact]
+    public async Task Guardar_plataforma_de_un_Cliente_empresarial_solo_de_Empresas_no_propias_falla()
+    {
+        var e = new Escenario();
+        var (ajena, alcance) = e.ConEmpresaNoPropia();
+        foreach (var relacion in e.Contexto.ListaRelacionesEmpresariales.Where(r => r.ProveedoraId != ajena.Id))
+            relacion.Cerrar(Ahora);
+
+        var resultado = await e.GuardarPlataforma(alcance).Handle(
+            new GuardarPlataformaCaeClienteCommand(e.Cliente.Id, "Nalanda", null, null), default);
+
+        resultado.EsFallido.Should().BeTrue("la única relación vigente es con una Empresa ajena, no con una propia");
+        resultado.Error.Codigo.Should().Be("PlataformaCae.SinRelacionVigente");
+        e.Contexto.ListaPlataformasCae.Should().BeEmpty();
+    }
+
+    // ── Auditoría: qué dato se leyó, nunca su valor ──
+
+    [Fact]
+    public async Task La_auditoria_nombra_el_dato_leido_al_listar_y_al_revelar_y_nunca_lleva_su_valor()
+    {
+        var e = new Escenario();
+        e.RegistrarPlataforma();
+        e.RegistrarAcceso(e.Empresa, "b12345678", "s3cr3ta");
+        var repositorio = new RepositorioAuditoriaQueCaptura();
+        var registro = new RegistroAccesoDatoSensibleService(
+            new ActorFijo(new ActorAuditoria(e.UsuarioId, null, TipoViaAcceso.Normal, null)), repositorio);
+
+        await new ObtenerAccesosPlataformaCaeClienteQueryHandler(
+                e.Contexto, e.EnCartera(), new DirectorioFalso(new Dictionary<Guid, string>()), registro)
+            .Handle(new ObtenerAccesosPlataformaCaeClienteQuery(e.Cliente.Id), default);
+        await new RevelarContrasenaAccesoPlataformaCaeQueryHandler(e.Contexto, e.EnCartera(), registro)
+            .Handle(new RevelarContrasenaAccesoPlataformaCaeQuery(e.Cliente.Id, e.Empresa.Id), default);
+
+        repositorio.Guardados.Select(r => r.DatosDespues).Should().Equal(
+            """{"DatoLeido":"Usuario"}""",
+            """{"DatoLeido":"Contrasena"}""");
+        repositorio.Guardados.Should().AllSatisfy(r =>
+        {
+            r.Accion.Should().Be(RegistroAuditoria.AccionAccesoDatoSensible);
+            r.DatosAntes.Should().BeNull();
+            r.DatosDespues.Should().NotContain("b12345678").And.NotContain("s3cr3ta");
+        });
+    }
+
+    private sealed class ActorFijo(ActorAuditoria actor) : IActorAuditoria
+    {
+        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(actor);
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => actor;
+    }
+
+    private sealed class RepositorioAuditoriaQueCaptura : IRegistroAccesoDatoSensibleRepository
+    {
+        public List<RegistroAuditoria> Guardados { get; } = [];
+
+        public Task GuardarAsync(RegistroAuditoria registro, CancellationToken cancellationToken = default)
+        {
+            Guardados.Add(registro);
+            return Task.CompletedTask;
+        }
     }
 
     // ── Pipeline: roles, segundo factor y Sesión Privilegiada ──

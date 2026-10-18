@@ -390,8 +390,9 @@
                     </ChildContent>
                 </Tarjeta>
 
-                @* «Plataforma CAE»: carga aparte; al Usuario de Cliente no se le pinta. *@
-                <CaeManager.Web.Features.Clientes.Components.CajaPlataformaCaeCliente ClienteEmpresarialId="ClienteId" />
+                @* «Plataforma CAE»: lee después de la fila «Gestor CAE» (mismo DbContext); al Usuario de Cliente no se le pinta. *@
+                <CaeManager.Web.Features.Clientes.Components.CajaPlataformaCaeCliente ClienteEmpresarialId="ClienteId"
+                    Cargar="_plataformaCaeHabilitada" AlCargar="PlataformaCaeCargada" />
 
                 @*
                     «Notas» es una sola columna (ClienteDetalleDto.Notas): la

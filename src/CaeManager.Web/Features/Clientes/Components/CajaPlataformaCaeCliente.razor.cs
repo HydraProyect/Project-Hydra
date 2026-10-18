@@ -13,8 +13,9 @@ using Microsoft.AspNetCore.Components;
 namespace CaeManager.Web.Features.Clientes.Components;
 
 /// <summary>
-/// Caja «Plataforma CAE» de Cliente 360. Carga sola, aparte del resto de la ficha: es contexto del lateral
-/// y no debe bloquear la cabecera ni el cuerpo si tarda o falla.
+/// Caja «Plataforma CAE» de Cliente 360. Es contexto del lateral: no bloquea la cabecera ni el cuerpo si tarda o
+/// falla. Sus consultas comparten el DbContext del circuito con las de la página, así que no lee hasta que la página
+/// pone <see cref="Cargar"/> (mismo patrón que <c>GestorCaeCliente</c>).
 /// </summary>
 public partial class CajaPlataformaCaeCliente : IDisposable
 {
@@ -22,6 +23,20 @@ public partial class CajaPlataformaCaeCliente : IDisposable
     public static readonly TimeSpan TiempoContrasenaVisible = TimeSpan.FromSeconds(30);
 
     [Parameter, EditorRequired] public Guid ClienteEmpresarialId { get; set; }
+
+    /// <summary>
+    /// La página lo pone cuando terminó su cadena de lecturas y la fila «Gestor CAE» avisó: hasta entonces la caja no
+    /// pregunta nada, porque dos consultas en paralelo sobre el DbContext del circuito fallan
+    /// («A second operation was started on this context»).
+    /// </summary>
+    [Parameter] public bool Cargar { get; set; }
+
+    /// <summary>
+    /// Cada vez que <see cref="Cargar"/> pasa a true (o cambia el Cliente empresarial con la carga habilitada), llega
+    /// una sola vez cuando la caja terminó su lectura, bien o con error. La página espera a esto para lanzar las
+    /// lecturas de sus pestañas.
+    /// </summary>
+    [Parameter] public EventCallback AlCargar { get; set; }
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -33,6 +48,7 @@ public partial class CajaPlataformaCaeCliente : IDisposable
     private readonly Dictionary<Guid, CancellationTokenSource> _ocultados = [];
 
     private Guid _clienteCargado;
+    private bool _cargarAnterior;
     private PlataformaCaeClienteDto? _plataforma;
     private IReadOnlyList<AccesoPlataformaCaeDto>? _accesos;
     private bool _accesosRequierenDosFactores;
@@ -61,15 +77,34 @@ public partial class CajaPlataformaCaeCliente : IDisposable
 
     protected override async Task OnParametersSetAsync()
     {
+        var recienHabilitado = Cargar && !_cargarAnterior;
+        _cargarAnterior = Cargar;
+        var otroCliente = ClienteEmpresarialId != _clienteCargado;
+
+        if (otroCliente)
+        {
+            // Lo del Cliente empresarial anterior no se queda a la vista mientras se espera el turno de lectura.
+            OcultarTodas();
+            _plataforma = null;
+            _accesos = null;
+            _error = false;
+            _errorAccesos = false;
+            _accesosRequierenDosFactores = false;
+        }
+
         // Solo en el render interactivo (mismo patrón que CentroDetalle): ClienteDetalle es
         // InteractiveServer, así que este método corre también en el prerender estático. Cargar
         // ahí auditaría dos veces la lectura de los usuarios y los dejaría en el HTML inicial.
-        if (!RendererInfo.IsInteractive || ClienteEmpresarialId == _clienteCargado)
+        if (!Cargar || !otroCliente || !RendererInfo.IsInteractive)
+        {
+            if (recienHabilitado)
+                await AlCargar.InvokeAsync();
             return;
+        }
 
         _clienteCargado = ClienteEmpresarialId;
-        OcultarTodas();
         await CargarAsync();
+        await AlCargar.InvokeAsync();
     }
 
     private async Task CargarAsync()
@@ -234,6 +269,7 @@ public partial class CajaPlataformaCaeCliente : IDisposable
             if (resultado.EsFallido)
             {
                 _errorModal = resultado.Error.Mensaje;
+                await RecargarTrasConflictoAsync(resultado.Error);
                 return;
             }
 
@@ -281,6 +317,7 @@ public partial class CajaPlataformaCaeCliente : IDisposable
             if (resultado.EsFallido)
             {
                 _errorModal = resultado.Error.Mensaje;
+                await RecargarTrasConflictoAsync(resultado.Error);
                 return;
             }
 
@@ -297,6 +334,17 @@ public partial class CajaPlataformaCaeCliente : IDisposable
         {
             _guardando = false;
         }
+    }
+
+    /// <summary>
+    /// Otra persona ganó la carrera del índice único: el mensaje pide cerrar y volver a abrir, y para que al reabrir
+    /// el modal parta de lo guardado (no del DTO de antes) se vuelve a leer la caja.
+    /// </summary>
+    private async Task RecargarTrasConflictoAsync(Error error)
+    {
+        if (error.Codigo is GuardarPlataformaCaeClienteCommand.CodigoConflicto
+            or GuardarAccesoPlataformaCaeCommand.CodigoConflicto)
+            await CargarAsync();
     }
 
     private static string? NuloSiVacio(string valor) => string.IsNullOrWhiteSpace(valor) ? null : valor;

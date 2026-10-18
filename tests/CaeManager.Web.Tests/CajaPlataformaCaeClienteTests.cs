@@ -1,8 +1,11 @@
 using Bunit;
+using CaeManager.Application.Clientes.Commands.GuardarAccesoPlataformaCae;
+using CaeManager.Application.Clientes.Commands.GuardarPlataformaCaeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerAccesosPlataformaCaeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerPlataformaCaeCliente;
 using CaeManager.Application.Clientes.Queries.RevelarContrasenaAccesoPlataformaCae;
 using CaeManager.Application.Common;
+using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Clientes.Components;
@@ -43,6 +46,10 @@ public class CajaPlataformaCaeClienteTests : BunitContext
 
         public bool AccesosPidenSegundoFactor { get; set; }
         public bool AccesosFallan { get; set; }
+
+        /// <summary>Otra persona ganó la carrera del índice único: el guardado devuelve el conflicto del Command.</summary>
+        public bool GuardadoEnConflicto { get; set; }
+
         public List<object> Enviadas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
@@ -50,6 +57,12 @@ public class CajaPlataformaCaeClienteTests : BunitContext
             Enviadas.Add(request);
             object? respuesta = request switch
             {
+                GuardarPlataformaCaeClienteCommand => GuardadoEnConflicto
+                    ? Result.Fallo(Error.Crear(GuardarPlataformaCaeClienteCommand.CodigoConflicto, "Otra persona acaba de registrar la plataforma."))
+                    : Result.Exito(),
+                GuardarAccesoPlataformaCaeCommand => GuardadoEnConflicto
+                    ? Result.Fallo(Error.Crear(GuardarAccesoPlataformaCaeCommand.CodigoConflicto, "Otra persona acaba de dar de alta este acceso."))
+                    : Result.Exito(),
                 ObtenerPlataformaCaeClienteQuery => Plataforma,
                 ObtenerAccesosPlataformaCaeClienteQuery when AccesosPidenSegundoFactor =>
                     throw new SegundoFactorRequeridoParaCredencialesException(),
@@ -79,7 +92,10 @@ public class CajaPlataformaCaeClienteTests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    private IRenderedComponent<CajaPlataformaCaeCliente> Montar(MediatorFalso mediador, string rol = Roles.GestorCae, bool interactivo = true)
+    private int _avisosDeCarga;
+
+    private IRenderedComponent<CajaPlataformaCaeCliente> Montar(
+        MediatorFalso mediador, string rol = Roles.GestorCae, bool interactivo = true, bool cargar = true)
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
@@ -87,7 +103,83 @@ public class CajaPlataformaCaeClienteTests : BunitContext
         Services.AddLocalization();
         this.ConRolDeEscritura(rol);
         SetRendererInfo(new RendererInfo(interactivo ? "Server" : "Static", isInteractive: interactivo));
-        return Render<CajaPlataformaCaeCliente>(p => p.Add(c => c.ClienteEmpresarialId, ClienteEmpresarialId));
+        return Render<CajaPlataformaCaeCliente>(p => p
+            .Add(c => c.ClienteEmpresarialId, ClienteEmpresarialId)
+            .Add(c => c.Cargar, cargar)
+            .Add(c => c.AlCargar, () => _avisosDeCarga++));
+    }
+
+    private static void Guardar(IRenderedComponent<CajaPlataformaCaeCliente> cut) =>
+        cut.FindAll("button").Last(b => b.TextContent.Contains("Guardar", StringComparison.Ordinal)).Click();
+
+    [Fact]
+    public void Mientras_la_pagina_no_habilita_la_carga_no_consulta_nada()
+    {
+        var mediador = new MediatorFalso();
+
+        var cut = Montar(mediador, cargar: false);
+
+        mediador.Enviadas.Should().BeEmpty(
+            "la página aún lee su cadena sobre el mismo DbContext del circuito: dos consultas a la vez fallan");
+        cut.Markup.Should().NotContain("Nalanda");
+        _avisosDeCarga.Should().Be(0);
+
+        cut.Render(p => p.Add(c => c.Cargar, true));
+
+        cut.WaitForAssertion(() => cut.Find("[data-plataforma-nombre]").TextContent.Should().Be("Nalanda"));
+        mediador.Enviadas.Select(e => e.GetType()).Should().Equal(
+            typeof(ObtenerPlataformaCaeClienteQuery), typeof(ObtenerAccesosPlataformaCaeClienteQuery));
+        _avisosDeCarga.Should().Be(1, "la caja avisa una sola vez, al terminar su lectura");
+    }
+
+    [Fact]
+    public void Volver_a_habilitar_la_carga_del_mismo_Cliente_avisa_sin_volver_a_consultar()
+    {
+        var mediador = new MediatorFalso();
+        var cut = Montar(mediador);
+        var consultas = mediador.Enviadas.Count;
+
+        cut.Render(p => p.Add(c => c.Cargar, false));
+        cut.Render(p => p.Add(c => c.Cargar, true));
+
+        mediador.Enviadas.Should().HaveCount(consultas);
+        _avisosDeCarga.Should().Be(2, "la página espera el aviso aunque no haya nada nuevo que leer");
+    }
+
+    [Fact]
+    public void Tras_un_conflicto_al_guardar_la_plataforma_se_vuelve_a_leer_la_caja()
+    {
+        var mediador = new MediatorFalso { GuardadoEnConflicto = true };
+        var cut = Montar(mediador);
+        var lecturas = mediador.Enviadas.OfType<ObtenerPlataformaCaeClienteQuery>().Count();
+        mediador.Plataforma = new PlataformaCaeClienteDto(true, "Dokify", "https://dokify.example", "CLI-02");
+
+        cut.Find("[data-editar-plataforma]").Click();
+        cut.Find("input").Input("Nalanda Pro");
+        Guardar(cut);
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerPlataformaCaeClienteQuery>().Should().HaveCount(lecturas + 1));
+        cut.Find("[data-plataforma-nombre]").TextContent.Should().Be("Dokify", "al reabrir, el modal parte de lo que guardó la otra persona");
+        cut.Markup.Should().Contain("Otra persona acaba de registrar la plataforma.");
+    }
+
+    [Fact]
+    public void Tras_un_conflicto_al_guardar_un_acceso_se_vuelven_a_leer_los_accesos()
+    {
+        var mediador = new MediatorFalso { GuardadoEnConflicto = true };
+        var cut = Montar(mediador);
+        var lecturas = mediador.Enviadas.OfType<ObtenerAccesosPlataformaCaeClienteQuery>().Count();
+        mediador.Accesos =
+        [
+            new(EmpresaId, "Empresa Propia S.L.", "otro-usuario", true, new DateTime(2026, 10, 18, 9, 0, 0, DateTimeKind.Utc), "Otra Gestora"),
+        ];
+
+        cut.Find($"[data-acceso-empresa='{EmpresaId}'] [data-editar-acceso]").Click();
+        cut.Find("input").Input("nuevo-usuario");
+        Guardar(cut);
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerAccesosPlataformaCaeClienteQuery>().Should().HaveCount(lecturas + 1));
+        cut.Find($"[data-acceso-empresa='{EmpresaId}']").TextContent.Should().Contain("otro-usuario");
     }
 
     [Fact]

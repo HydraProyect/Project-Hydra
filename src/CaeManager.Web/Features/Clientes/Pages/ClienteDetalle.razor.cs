@@ -141,8 +141,15 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     private bool _gestorCaeHabilitado;
 
     /// <summary>
-    /// Pendiente mientras la fila «Gestor CAE» (y su panel de acciones) hace su primera lectura: las lecturas de
-    /// pestaña esperan a que termine, por el mismo DbContext compartido. Sin valor o completada, no se espera.
+    /// Habilita la caja «Plataforma CAE» (<c>CajaPlataformaCaeCliente</c>) cuando la fila «Gestor CAE» avisó: va
+    /// detrás de ella en la misma serie, por el DbContext compartido.
+    /// </summary>
+    private bool _plataformaCaeHabilitada;
+
+    /// <summary>
+    /// Pendiente mientras la fila «Gestor CAE» (y su panel de acciones) y, detrás, la caja «Plataforma CAE» hacen su
+    /// primera lectura: las lecturas de pestaña esperan a que terminen, por el mismo DbContext compartido. Sin valor o
+    /// completada, no se espera.
     /// </summary>
     private TaskCompletionSource? _gestorCaeEnVuelo;
 
@@ -326,7 +333,10 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             await Task.WhenAny(enVuelo.Task, Task.Delay(EsperaMaximaGestorCae));
     }
 
-    private void GestorCaeCargado() => _gestorCaeEnVuelo?.TrySetResult();
+    /// <summary>La fila «Gestor CAE» terminó: le toca a la caja «Plataforma CAE», que cierra la serie al avisar.</summary>
+    private void GestorCaeCargado() => _plataformaCaeHabilitada = true;
+
+    private void PlataformaCaeCargada() => _gestorCaeEnVuelo?.TrySetResult();
 
     /// <summary>Invalida cualquier carga en vuelo: su respuesta ya no escribirá nada.</summary>
     private void InvalidarCargas()
@@ -397,6 +407,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _subcontratas = null;
         _datosInicialesCargados = false;
         _gestorCaeHabilitado = false;
+        _plataformaCaeHabilitada = false;
         _gestorCaeEnVuelo?.TrySetResult();
         _gestorCaeEnVuelo = null;
         _centrosSubcontratasLeidos = false;

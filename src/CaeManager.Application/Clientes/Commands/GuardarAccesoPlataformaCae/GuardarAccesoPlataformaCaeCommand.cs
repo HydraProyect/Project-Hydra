@@ -33,7 +33,11 @@ namespace CaeManager.Application.Clientes.Commands.GuardarAccesoPlataformaCae;
 /// </para>
 /// </summary>
 public record GuardarAccesoPlataformaCaeCommand(Guid ClienteEmpresarialId, Guid EmpresaId, string? Usuario, string? Contrasena)
-    : ICommand, IEscrituraDeDatosDeCredencial;
+    : ICommand, IEscrituraDeDatosDeCredencial
+{
+    /// <summary>Otra persona dio de alta el acceso a la vez (índice único): la caja vuelve a leer lo guardado.</summary>
+    public const string CodigoConflicto = "AccesoPlataformaCae.Conflicto";
+}
 
 public class GuardarAccesoPlataformaCaeCommandValidator : AbstractValidator<GuardarAccesoPlataformaCaeCommand>
 {
@@ -56,7 +60,7 @@ public class GuardarAccesoPlataformaCaeCommandHandler(
     private static readonly Error NoEncontrado = Error.Crear("AccesoPlataformaCae.NoEncontrado", "No encontramos esta Empresa en este Cliente.");
 
     private static readonly Error Conflicto = Error.Crear(
-        "AccesoPlataformaCae.Conflicto", "Otra persona acaba de dar de alta este acceso. Cierra y vuelve a abrirlo para ver lo guardado.");
+        GuardarAccesoPlataformaCaeCommand.CodigoConflicto, "Otra persona acaba de dar de alta este acceso. Cierra y vuelve a abrirlo para ver lo guardado.");
 
     public async Task<Result> Handle(GuardarAccesoPlataformaCaeCommand request, CancellationToken cancellationToken)
     {
