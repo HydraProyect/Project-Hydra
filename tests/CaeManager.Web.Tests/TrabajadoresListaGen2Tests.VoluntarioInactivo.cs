@@ -11,8 +11,8 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// Tipo de contratación y voluntario inactivo en el listado de Trabajadores: el indicador se pinta
-/// solo cuando la consulta lo marca, la pastilla «Actividad» traduce su opción al filtro de la
-/// consulta, y el alta envía el tipo elegido en el selector.
+/// solo cuando la consulta lo marca, no hay pastilla «Actividad» (Chris, 2026-10-18) y el alta envía el
+/// tipo elegido en el selector.
 /// </summary>
 public partial class TrabajadoresListaGen2Tests
 {
@@ -31,22 +31,18 @@ public partial class TrabajadoresListaGen2Tests
         conIndicador.Single().TextContent.Should().Contain("Pardo").And.Contain("Voluntario inactivo");
     }
 
-    [Theory]
-    [InlineData("inactivos", true)]
-    [InlineData("activos", false)]
-    [InlineData("", null)]
-    public async Task La_pastilla_Actividad_traduce_su_opcion_al_filtro_de_la_consulta(string opcion, bool? esperado)
+    /// <summary>
+    /// Decisión de Chris (2026-10-18): la pastilla «Actividad» se retira. La lista sigue mostrando a todos (el voluntario inactivo
+    /// conserva su indicador en la fila) y la consulta nunca filtra por actividad.
+    /// </summary>
+    [Fact]
+    public void La_lista_no_ofrece_la_pastilla_Actividad_y_la_consulta_no_filtra_por_actividad()
     {
         var mediador = new MediatorFalso { Almacen = { Trabajador("Bea", "Alonso") } };
         var cut = Renderizar(mediador);
-        UltimaConsulta(mediador).VoluntarioInactivo.Should().BeNull("sin elegir nada, no se filtra por actividad");
-        var pastilla = cut.FindComponents<PastillaFiltro>().Single(p => p.Instance.Etiqueta == "Actividad");
 
-        if (opcion.Length > 0)
-            await cut.InvokeAsync(() => pastilla.Instance.ValorChanged.InvokeAsync("activos"));
-        await cut.InvokeAsync(() => pastilla.Instance.ValorChanged.InvokeAsync(opcion));
-
-        cut.WaitForAssertion(() => UltimaConsulta(mediador).VoluntarioInactivo.Should().Be(esperado));
+        cut.FindComponents<PastillaFiltro>().Select(p => p.Instance.Etiqueta).Should().NotContain("Actividad");
+        UltimaConsulta(mediador).VoluntarioInactivo.Should().BeNull("sin pastilla no se filtra por actividad");
     }
 
     [Fact]

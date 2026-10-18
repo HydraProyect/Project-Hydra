@@ -86,8 +86,7 @@
        - «Centro» viaja en la URL como «centro» y deja a quienes tienen una Asignación activa en
          ese Centro. Ofrece los Centros que el usuario ya puede ver (ObtenerCentrosParaSelectorQuery,
          el mismo alcance que la consulta comprueba: un Centro fuera de él no devuelve a nadie).
-       - «Actividad» (voluntarios inactivos) no está en la maqueta: se conserva porque quita un
-         filtro de producto que ya existe (divergencia registrada en la PR).
+       - Sin pastilla «Actividad» (Chris, 2026-10-18): el voluntario inactivo sigue marcado en su fila, pero ya no se filtra.
        - La maqueta dibuja además el filtro por «Cliente»: la consulta no sabe filtrar
          por él, y una pastilla que no filtra nada mentiría. *@
     @* D-15: sin alcance (Asignación de Cartera) no hay lista que filtrar, guardar ni seleccionar. *@
@@ -104,8 +103,6 @@
                             ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
             <PastillaFiltro Etiqueta="@Textos["EtiquetaCentro"]" TextoTodos="@Textos["OpcionTodosLosCentros"]" Valor="@_filtroCentroId"
                             ValorChanged="FiltrarPorCentroAsync" Opciones="OpcionesFiltroCentro" />
-            <PastillaFiltro Etiqueta="@Textos["EtiquetaActividad"]" TextoTodos="@Textos["OpcionActividadTodos"]" Valor="@_filtroActividad"
-                            ValorChanged="FiltrarPorActividadAsync" Opciones="OpcionesFiltroActividad" />
         </Pastillas>
         <Estados>
             <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
@@ -246,7 +243,7 @@
                                 <span></span>
                             }
                             @* Celda «Trabajador»: «Nombre Apellidos» (abre la vista rápida) con, si es voluntario sin evento, su pastilla, y
-                               debajo «DNI» y el documento copiable con un clic, sin abrir la fila. *@
+                               debajo el DNI, sin prefijo, copiable con un clic, sin abrir la fila. *@
                             <span class="celda-identidad-trabajador">
                                 <span class="celda-trabajador">
                                     <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida"
@@ -260,7 +257,6 @@
                                 @if (!string.IsNullOrWhiteSpace(context.Dni))
                                 {
                                     <span class="celda-trabajador-dni">
-                                        <span>@Textos["ListaColumnaDni"]</span>
                                         <BotonCopiar EnLinea="true" Valor="@context.Dni" Texto="@context.Dni" TerminoResaltado="@_busqueda" Etiqueta="@Textos["EtiquetaCopiarDni"]"
                                                      NombreAccesible="@Textos["CopiarDni", context.Dni]" />
                                     </span>

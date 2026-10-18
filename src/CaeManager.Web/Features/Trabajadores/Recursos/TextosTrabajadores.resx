@@ -712,10 +712,6 @@
   <data name="TipoContratacionVoluntario" xml:space="preserve"><value>Voluntario</value></data>
   <data name="VoluntarioInactivo" xml:space="preserve"><value>Voluntario inactivo</value></data>
   <data name="VoluntarioInactivoAyuda" xml:space="preserve"><value>Sin evento vigente ni futuro: sus vencimientos no avisan ni cuentan en el Centro. Se reactiva al asignarlo a otro evento.</value></data>
-  <data name="EtiquetaActividad" xml:space="preserve"><value>Actividad</value></data>
-  <data name="OpcionActividadTodos" xml:space="preserve"><value>Todos</value></data>
-  <data name="OpcionSinVoluntariosInactivos" xml:space="preserve"><value>Sin voluntarios inactivos</value></data>
-  <data name="OpcionSoloVoluntariosInactivos" xml:space="preserve"><value>Solo voluntarios inactivos</value></data>
   <data name="FichaCopiarAfiliacion" xml:space="preserve"><value>el número de afiliación a la Seguridad Social</value></data>
   <data name="FichaCopiarAltaEmpresa" xml:space="preserve"><value>la fecha de alta en la empresa</value></data>
   <data name="FichaCopiarBajaEmpresa" xml:space="preserve"><value>la fecha de baja en la empresa</value></data>
@@ -727,7 +723,6 @@
   <data name="FichaCopiarNacimiento" xml:space="preserve"><value>la fecha de nacimiento</value></data>
   <data name="FichaCopiarNombreAccesible" xml:space="preserve"><value>Copiar {0}</value></data>
   <data name="FichaCopiarNombreAccesibleConValor" xml:space="preserve"><value>Copiar {0}: {1}</value></data>
-  <data name="ListaColumnaDni" xml:space="preserve"><value>DNI</value></data>
   <data name="ListaColumnaEmpleador" xml:space="preserve"><value>Empresa</value></data>
   <data name="Gestionar" xml:space="preserve"><value>Gestionar</value></data>
   <data name="GestionarDocumentoAccesible" xml:space="preserve"><value>Gestionar {0} de {1}</value></data>
