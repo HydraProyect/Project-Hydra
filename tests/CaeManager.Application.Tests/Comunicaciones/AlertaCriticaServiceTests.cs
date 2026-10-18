@@ -175,7 +175,9 @@ public class AlertaCriticaServiceTests
         public Task<bool> EsCuentaActivaConRolAsync(Guid id, Guid tenant, string rol, CancellationToken ct = default) => Task.FromResult(true);
         public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(Guid tenant, string rol, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Guid>>(rol switch
         {
-            "DireccionCae" => [direccion], "CoordinadorCae" => [coordinador], _ => throw new InvalidOperationException("No se debe avisar a otros perfiles.")
+            "DireccionCae" => [direccion],
+            "CoordinadorCae" => [coordinador],
+            _ => throw new InvalidOperationException("No se debe avisar a otros perfiles.")
         });
     }
 }
