@@ -1,4 +1,4 @@
-@*
+﻿@*
     Barra de filtros de una lista — pieza 2 del patrón único de pantalla de
     lista (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md § 3).
 
@@ -113,6 +113,8 @@
         }
     </div>
 
+    @Estados
+
     @if (HayFiltrosActivos)
     {
         <div class="chips-filtros barra-filtros-lista-chips">
@@ -147,6 +149,8 @@ else
             <button type="button" class="restablecer-vista-barra" title="@Comunes["RestablecerVistaTitulo"]" @onclick="VistaRecordada.RestablecerAsync">@Comunes["RestablecerVista"]</button>
         }
     </div>
+
+    @Estados
 
     @if (HayFiltrosActivos)
     {
@@ -238,6 +242,9 @@ else
 
     /// <summary>Modo pastillas: texto a la derecha de la fila («3 Clientes con estos filtros»).</summary>
     [Parameter] public RenderFragment? Resumen { get; set; }
+
+    /// <summary>Franja de estados (<see cref="FranjaEstado"/>) en su propia fila, entre los filtros y los chips activos. Patrón de listado del export de Design (2026-10-18).</summary>
+    [Parameter] public RenderFragment? Estados { get; set; }
 
     private bool HayMasFiltros => MasFiltros is not null;
 }

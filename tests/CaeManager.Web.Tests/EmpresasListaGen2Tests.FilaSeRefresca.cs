@@ -1,4 +1,4 @@
-using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
+﻿using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
@@ -53,7 +53,7 @@ public partial class EmpresasListaGen2Tests
 
     private static async Task IrALaPagina2Async(IRenderedComponent<Empresas> cut)
     {
-        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".paginador-pie-listado button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => RazonesSociales(cut).Should().HaveCount(5).And.StartWith("Empresa 21"));
     }
 
