@@ -57,6 +57,18 @@
   <data name="MotivoCaducaEnDias" xml:space="preserve">
     <value>Caduca en {0} días</value>
   </data>
+  <data name="MotivoFaltaFechaFin" xml:space="preserve">
+    <value>Falta la fecha de fin</value>
+  </data>
+  <data name="DetalleDesdeFecha" xml:space="preserve">
+    <value>Desde el {0}</value>
+  </data>
+  <data name="DetalleVencioFecha" xml:space="preserve">
+    <value>Venció el {0}</value>
+  </data>
+  <data name="DetalleCaducaFecha" xml:space="preserve">
+    <value>Caduca el {0}</value>
+  </data>
   <data name="FranjaVencidos" xml:space="preserve">
     <value>Vencidos</value>
   </data>
