@@ -12,9 +12,17 @@ namespace CaeManager.Application.BusquedaGlobal.Queries.ContarVencenEstaSemana;
 /// <summary>
 /// Subtítulo de «Reclamar a {Empresa}» en el palette: «N documentos vencen esta semana». Cuenta los documentos
 /// operativos con fecha de vencimiento entre hoy y el domingo de la semana en curso (semana de lunes a domingo, la de
-/// <c>ObtenerPulsoEquipoQuery</c>), de la propia Empresa y de sus Trabajadores (empleados o de subcontrata) visibles
-/// en la cartera. Los vencidos antes de hoy no entran: ya no «vencen», están vencidos. Un voluntario inactivo no
-/// cuenta: sus vencimientos no avisan (<see cref="ActividadVoluntarios"/>).
+/// <c>ObtenerPulsoEquipoQuery</c>) que el usuario también ve en /documentos (<c>ObtenerDocumentosQuery</c>):
+/// <list type="bullet">
+/// <item>los de ámbito Empresa de esa Empresa, solo si la Empresa está en su alcance de Empresa (el mismo filtro
+/// <c>empresaIdsVisibles</c> del listado); una Empresa visible solo como Cliente empresarial o como Subcontrata no
+/// aporta sus documentos de Empresa;</item>
+/// <item>los de sus Trabajadores (empleados o de subcontrata) visibles en la cartera.</item>
+/// </list>
+/// Los de ámbito Cliente (la Empresa como Cliente empresarial que exige documentación) no cuentan: no son
+/// documentación que se le reclame a la Empresa, y el listado los separa en su propio ámbito. Los vencidos antes de
+/// hoy no entran: ya no «vencen», están vencidos. Un voluntario inactivo no cuenta: sus vencimientos no avisan
+/// (<see cref="ActividadVoluntarios"/>).
 ///
 /// <para>
 /// Devuelve <c>null</c> —no 0— si la Empresa no está en ninguno de los alcances de cartera del usuario (Empresa,
@@ -33,13 +41,10 @@ public class ContarVencenEstaSemanaDeEmpresaQueryHandler(
     {
         var empresaId = request.EmpresaId;
 
-        var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
-        var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
-        var subcontrataIdsVisibles = await alcanceDatos.ObtenerSubcontrataIdsVisiblesAsync(cancellationToken);
-
-        static bool EnAlcance(IReadOnlyList<Guid>? ids, Guid id) => ids is null || ids.Contains(id);
-        if (!EnAlcance(empresaIdsVisibles, empresaId) && !EnAlcance(clienteIdsVisibles, empresaId) &&
-            !EnAlcance(subcontrataIdsVisibles, empresaId))
+        var documentosDeEmpresaVisibles = await alcanceDatos.EmpresaVisibleAsync(empresaId, cancellationToken);
+        if (!documentosDeEmpresaVisibles &&
+            !await alcanceDatos.ClienteVisibleAsync(empresaId, cancellationToken) &&
+            !await alcanceDatos.SubcontrataVisibleAsync(empresaId, cancellationToken))
             return null;
 
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
@@ -56,7 +61,7 @@ public class ContarVencenEstaSemanaDeEmpresaQueryHandler(
 
         return await documentosContext.Documentos.Operativos()
             .Where(d => d.FechaVencimiento != null && d.FechaVencimiento >= hoy && d.FechaVencimiento <= domingo)
-            .Where(d => d.EmpresaId == empresaId ||
+            .Where(d => (documentosDeEmpresaVisibles && d.EmpresaId == empresaId) ||
                         (d.TrabajadorId != null && trabajadoresDeLaEmpresa.Contains(d.TrabajadorId.Value)))
             .CountAsync(cancellationToken);
     }

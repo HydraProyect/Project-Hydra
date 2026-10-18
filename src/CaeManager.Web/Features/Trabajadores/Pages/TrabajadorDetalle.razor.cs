@@ -376,7 +376,9 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         if (!await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion))
             return;
 
-        await SubirDocumentoAsync();
+        // Alta de un documento nuevo con el Trabajador fijado: el enlace dice «Subir documento para…», no
+        // «gestionar el más urgente» (eso es el botón de la cabecera).
+        await _drawerGestion.AbrirCrearParaTrabajadorAsync(TrabajadorId);
     }
 
     private async Task CargarAsync()
@@ -469,6 +471,9 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             if (EsVigente(carga))
             {
                 _cargando = false;
+                // Sin ficha no hay subida que abrir: la acción del enlace no queda esperando a una recarga.
+                if (_error)
+                    _subidaDeLaUrlPendiente = false;
                 StateHasChanged();
             }
         }

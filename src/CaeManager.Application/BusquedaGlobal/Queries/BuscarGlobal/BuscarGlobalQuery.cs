@@ -58,7 +58,14 @@ public record ResultadoBusquedaGlobalDto(
     IReadOnlyList<ItemBusquedaDto> Documentos)
 {
     /// <summary>La categoría tiene más coincidencias de las que caben en el palette («Ver más →» de la maqueta).</summary>
-    public bool HayMasEmpresas { get; init; }
+    public bool HayMasEmpresas => ListadoVerMasEmpresas is not null;
+
+    /// <summary>
+    /// Listado donde siguen las Empresas que no cupieron («Ver más →»): el de la primera que se quedó fuera, con el
+    /// mismo criterio de destino que cada fila (clientes, subcontratas o empresas, según el alcance que la trajo).
+    /// Null si cupieron todas.
+    /// </summary>
+    public string? ListadoVerMasEmpresas { get; init; }
     public bool HayMasCentros { get; init; }
     public bool HayMasTrabajadores { get; init; }
     public bool HayMasDocumentos { get; init; }
@@ -101,7 +108,7 @@ public class BuscarGlobalQueryHandler(
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
 
-        var (empresas, hayMasEmpresas) = documentoPersona ? ([], false) : await BuscarEmpresasAsync(
+        var (empresas, listadoVerMasEmpresas) = documentoPersona ? ([], null) : await BuscarEmpresasAsync(
             terminoMayus, clienteIdsVisibles, empresaIdsVisibles, subcontrataIdsVisibles, cancellationToken);
 
         // Centro y Trabajador SÍ tienen ficha propia (Centro 360, Trabajador
@@ -146,7 +153,7 @@ public class BuscarGlobalQueryHandler(
         return new ResultadoBusquedaGlobalDto(
             empresas, [.. centros.Take(LimitePorCategoria)], trabajadoresDevueltos, [.. documentos.Take(LimitePorCategoria)])
         {
-            HayMasEmpresas = hayMasEmpresas,
+            ListadoVerMasEmpresas = listadoVerMasEmpresas,
             HayMasCentros = centros.Count > LimitePorCategoria,
             HayMasTrabajadores = trabajadores.Count > LimitePorCategoria,
             HayMasDocumentos = documentos.Count > LimitePorCategoria,
@@ -218,7 +225,7 @@ public class BuscarGlobalQueryHandler(
     /// </summary>
     private const int MargenPorOrigen = LimitePorCategoria * 10;
 
-    private async Task<(IReadOnlyList<ItemBusquedaDto> Empresas, bool HayMas)> BuscarEmpresasAsync(
+    private async Task<(IReadOnlyList<ItemBusquedaDto> Empresas, string? ListadoVerMas)> BuscarEmpresasAsync(
         string terminoMayus,
         IReadOnlyList<Guid>? clienteIdsVisibles, IReadOnlyList<Guid>? empresaIdsVisibles, IReadOnlyList<Guid>? subcontrataIdsVisibles,
         CancellationToken cancellationToken)
@@ -248,7 +255,7 @@ public class BuscarGlobalQueryHandler(
             .Select(e => new { e.Id, e.RazonSocial })
             .ToListAsync(cancellationToken);
 
-        var papelesPorEmpresa = new Dictionary<Guid, (string RazonSocial, List<string> Papeles, string UrlDestino)>();
+        var papelesPorEmpresa = new Dictionary<Guid, (string RazonSocial, List<string> Papeles, string Listado)>();
 
         // El destino tiene que ser un listado donde la fila SEA visible: cada
         // listado (/clientes, /subcontratas, /empresas) filtra por su propio
@@ -262,13 +269,13 @@ public class BuscarGlobalQueryHandler(
         // gana el destino) el papel con nombre: Cliente, luego Subcontrata,
         // luego la visibilidad "sin papel" — cada uno garantizado por el
         // WHERE que ya lo trajo aquí.
-        void Registrar(IEnumerable<(Guid Id, string RazonSocial)> filas, string? papel, Func<string, string> construirUrl)
+        void Registrar(IEnumerable<(Guid Id, string RazonSocial)> filas, string? papel, string listado)
         {
             foreach (var (id, razonSocial) in filas)
             {
                 if (!papelesPorEmpresa.TryGetValue(id, out var entrada))
                 {
-                    entrada = (razonSocial, [], construirUrl(razonSocial));
+                    entrada = (razonSocial, [], listado);
                     papelesPorEmpresa[id] = entrada;
                 }
 
@@ -277,9 +284,9 @@ public class BuscarGlobalQueryHandler(
             }
         }
 
-        Registrar(comoClientes.Select(c => (c.Id, c.RazonSocial)), "Cliente", rs => $"/clientes?q={Uri.EscapeDataString(rs)}");
-        Registrar(comoSubcontratas.Select(s => (s.Id, s.RazonSocial)), "Subcontrata", rs => $"/subcontratas?q={Uri.EscapeDataString(rs)}");
-        Registrar(comoEmpresas.Select(e => (e.Id, e.RazonSocial)), null, rs => $"/empresas?q={Uri.EscapeDataString(rs)}");
+        Registrar(comoClientes.Select(c => (c.Id, c.RazonSocial)), "Cliente", "clientes");
+        Registrar(comoSubcontratas.Select(s => (s.Id, s.RazonSocial)), "Subcontrata", "subcontratas");
+        Registrar(comoEmpresas.Select(e => (e.Id, e.RazonSocial)), null, "empresas");
 
         var empresas = papelesPorEmpresa
             .OrderBy(kv => kv.Value.RazonSocial, StringComparer.Ordinal)
@@ -287,9 +294,16 @@ public class BuscarGlobalQueryHandler(
             .Select(kv => new ItemBusquedaDto(
                 kv.Key, kv.Value.RazonSocial,
                 kv.Value.Papeles.Count > 0 ? string.Join(",", kv.Value.Papeles) : null,
-                kv.Value.UrlDestino))
+                $"/{kv.Value.Listado}?q={Uri.EscapeDataString(kv.Value.RazonSocial)}"))
             .ToList();
-        return (empresas, papelesPorEmpresa.Count > LimitePorCategoria);
+
+        // «Ver más →»: el listado de la primera Empresa que no cupo, con el mismo criterio de destino que su fila.
+        var listadoVerMas = papelesPorEmpresa.Values
+            .OrderBy(v => v.RazonSocial, StringComparer.Ordinal)
+            .Skip(LimitePorCategoria)
+            .Select(v => v.Listado)
+            .FirstOrDefault();
+        return (empresas, listadoVerMas);
     }
 
     /// <summary>

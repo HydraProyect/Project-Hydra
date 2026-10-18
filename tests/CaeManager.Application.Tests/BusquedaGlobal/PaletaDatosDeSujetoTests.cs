@@ -11,6 +11,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Application.Vehiculos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
 using FluentAssertions;
@@ -164,6 +165,84 @@ public class PaletaDatosDeSujetoTests
 
         recuento.Should().BeNull("null es «no calculado», no un 0 que confirme que la Empresa existe");
     }
+
+    [Fact]
+    public async Task Vencen_esta_semana_cuenta_los_trabajadores_de_la_empresa_como_subcontrata()
+    {
+        var deSubcontrata = Trabajador.DeSubcontrata(_empresaId, "Ana", "Garcia", OtroDni());
+        _trabajadores.ListaTrabajadores.Add(deSubcontrata);
+        _documentos.ListaDocumentos.Add(VenceHoy(deSubcontrata.Id));
+
+        var recuento = await Contador(new AlcanceDatosServiceFalso(
+                tieneAccesoTotal: false, subcontrataIdsVisibles: [_empresaId], trabajadorIdsVisibles: [deSubcontrata.Id]))
+            .Handle(new ContarVencenEstaSemanaDeEmpresaQuery(_empresaId), CancellationToken.None);
+
+        recuento.Should().Be(1, "el Trabajador de subcontrata de la Empresa es suyo para reclamar");
+    }
+
+    [Fact]
+    public async Task Vencen_esta_semana_no_cuenta_un_voluntario_inactivo()
+    {
+        var cuentaAjena = Trabajador.DeEmpresa(_empresaId, "Ana", "Garcia", OtroDni());
+        var voluntario = Trabajador.DeEmpresa(_empresaId, "Vic", "Voluntario", OtroDni());
+        voluntario.CambiarTipoContratacion(TipoContratacion.Voluntario);
+        _trabajadores.ListaTrabajadores.AddRange([cuentaAjena, voluntario]);
+        _documentos.ListaDocumentos.AddRange([VenceHoy(cuentaAjena.Id), VenceHoy(voluntario.Id)]);
+
+        var recuento = await Contador(new AlcanceDatosServiceFalso(
+                tieneAccesoTotal: false, empresaIdsVisibles: [_empresaId], trabajadorIdsVisibles: [cuentaAjena.Id, voluntario.Id]))
+            .Handle(new ContarVencenEstaSemanaDeEmpresaQuery(_empresaId), CancellationToken.None);
+
+        recuento.Should().Be(1, "un voluntario sin evento en curso no avisa de sus vencimientos");
+    }
+
+    [Fact]
+    public async Task Vencen_esta_semana_de_una_empresa_visible_solo_como_subcontrata_si_se_calcula()
+    {
+        var recuento = await Contador(new AlcanceDatosServiceFalso(
+                tieneAccesoTotal: false, empresaIdsVisibles: [], clienteIdsVisibles: [], subcontrataIdsVisibles: [_empresaId]))
+            .Handle(new ContarVencenEstaSemanaDeEmpresaQuery(_empresaId), CancellationToken.None);
+
+        recuento.Should().Be(0, "visible como Subcontrata está en cartera: se calcula, aunque no haya nada");
+    }
+
+    [Fact]
+    public async Task Vencen_esta_semana_no_cuenta_documentos_de_empresa_fuera_del_alcance_de_empresa()
+    {
+        var trabajador = Trabajador.DeEmpresa(_empresaId, "Ana", "Garcia", OtroDni());
+        _trabajadores.ListaTrabajadores.Add(trabajador);
+        _documentos.ListaDocumentos.AddRange(
+        [
+            Documento.DeEmpresa(_empresaId, Guid.NewGuid(), DiaDeNegocio.Hoy().AddYears(-1), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy())),
+            VenceHoy(trabajador.Id),
+        ]);
+
+        // Visible como Cliente empresarial y como Subcontrata, pero no en el alcance de Empresa: /documentos no le
+        // enseña sus documentos de Empresa, así que el recuento tampoco.
+        var recuento = await Contador(new AlcanceDatosServiceFalso(
+                tieneAccesoTotal: false, empresaIdsVisibles: [], clienteIdsVisibles: [_empresaId],
+                subcontrataIdsVisibles: [_empresaId], trabajadorIdsVisibles: [trabajador.Id]))
+            .Handle(new ContarVencenEstaSemanaDeEmpresaQuery(_empresaId), CancellationToken.None);
+
+        recuento.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Ver_mas_de_empresas_lleva_al_listado_de_la_primera_que_no_cupo()
+    {
+        for (var i = 0; i < 6; i++)
+            _empresas.ListaEmpresas.Add(new Empresa($"Ebro {i}"));
+
+        var resultado = await Buscador(new AlcanceDatosServiceFalso())
+            .Handle(new BuscarGlobalQuery("Ebro"), CancellationToken.None);
+
+        resultado.Empresas.Should().HaveCount(5);
+        resultado.ListadoVerMasEmpresas.Should().Be("empresas");
+        resultado.Empresas.Should().OnlyContain(e => e.UrlDestino.StartsWith("/empresas?q="));
+    }
+
+    private Documento VenceHoy(Guid trabajadorId) => Documento.DeTrabajador(
+        trabajadorId, Guid.NewGuid(), DiaDeNegocio.Hoy().AddYears(-1), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy()));
 
     [Fact]
     public async Task Vencen_esta_semana_de_un_cliente_empresarial_en_cartera_si_se_calcula()

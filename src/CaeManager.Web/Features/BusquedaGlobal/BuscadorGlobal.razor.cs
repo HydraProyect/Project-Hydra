@@ -505,16 +505,25 @@ public partial class BuscadorGlobal
     /// </summary>
     private static string? UrlVerMas(ResultadoBusquedaGlobalDto resultado, string termino)
     {
-        var modulo = resultado.HayMasEmpresas ? "empresas"
-            : resultado.HayMasCentros ? "centros"
-            : resultado.HayMasTrabajadores ? "trabajadores"
-            : resultado.HayMasDocumentos ? "documentos"
-            : null;
+        // Empresas: el listado lo decide la consulta con el mismo criterio que cada fila (clientes, subcontratas o
+        // empresas según el alcance que la trajo), para no aterrizar en un listado donde no se ven.
+        var modulo = resultado.ListadoVerMasEmpresas
+            ?? (resultado.HayMasCentros ? "centros"
+                : resultado.HayMasTrabajadores ? "trabajadores"
+                : resultado.HayMasDocumentos ? "documentos"
+                : null);
         return modulo is null ? null : $"/{modulo}?q={Uri.EscapeDataString(termino)}";
     }
 
-    /// <summary>«Buscar en documentos por identificador →» del bloque «Sin resultados»: Documentos con lo escrito en su filtro.</summary>
-    private string UrlBuscarEnDocumentos => $"/documentos?q={Uri.EscapeDataString(_termino.Trim())}";
+    /// <summary>
+    /// «Buscar en documentos por identificador →» del bloque «Sin resultados»: Documentos con lo escrito en su
+    /// filtro, salvo un DNI/NIE, que nunca viaja en la URL (historial, registros, Referer): entonces Documentos sin
+    /// filtro.
+    /// </summary>
+    private string UrlBuscarEnDocumentos =>
+        DocumentoActual is { Tipo: CaeManager.Domain.Common.TipoIdentificacion.Dni or CaeManager.Domain.Common.TipoIdentificacion.Nie }
+            ? "/documentos"
+            : $"/documentos?q={Uri.EscapeDataString(_termino.Trim())}";
 
     /// <summary>Enlace fuera de la lista navegable («Ver más →», «Buscar en documentos…»): cierra y navega, sin registrar uso.</summary>
     private void NavegarFueraDeLista(string url)

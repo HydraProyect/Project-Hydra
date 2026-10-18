@@ -301,7 +301,31 @@ public class BuscadorGlobalGen2Tests : BunitContext
         vacio.QuerySelector(".buscador-vacio-texto")!.TextContent.Should().Be("Ningún Trabajador de tu cartera con ese documento");
         var enlace = vacio.QuerySelector("a.buscador-vacio-enlace")!;
         enlace.TextContent.Should().Be("Buscar en documentos por identificador →");
-        enlace.GetAttribute("href").Should().Be("/documentos?q=12345678Z");
+        enlace.GetAttribute("href").Should().Be("/documentos", "un DNI/NIE nunca viaja en la URL");
+        cut.Markup.Should().NotContain("q=12345678Z");
+    }
+
+    [Fact]
+    public async Task Sin_resultados_por_cif_lleva_el_cif_al_filtro_de_documentos()
+    {
+        var cut = await RenderizarYAbrir(new MediadorControlado());
+        await Input(cut).EscribirAsync("B12345674");
+
+        cut.Find("a.buscador-vacio-enlace").GetAttribute("href").Should().Be("/documentos?q=B12345674",
+            "un CIF no es un dato personal: el filtro sí lo lleva");
+    }
+
+    [Theory]
+    [InlineData("clientes")]
+    [InlineData("subcontratas")]
+    [InlineData("empresas")]
+    public async Task Ver_mas_de_empresas_va_al_listado_que_decidio_la_consulta(string listado)
+    {
+        var conMas = UnTrabajador with { ListadoVerMasEmpresas = listado };
+        var cut = await RenderizarYAbrir(new MediadorControlado { Resultado = conMas });
+        await Input(cut).EscribirAsync("ebro");
+
+        cut.Find("a.buscador-ver-mas").GetAttribute("href").Should().Be($"/{listado}?q=ebro");
     }
 
     [Fact]
