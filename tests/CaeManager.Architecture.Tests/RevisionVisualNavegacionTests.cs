@@ -59,8 +59,9 @@ public class RevisionVisualNavegacionTests
 
         var menu = Leer("Components", "Layout", "NavMenu.razor.css");
         Cuerpo(menu, "html[data-menu-compacto] .barra-lateral .nav-herramientas").Should().Contain("justify-content: center");
-        Reglas(menu).Where(r => r.Selector == "html[data-menu-compacto] .barra-lateral .nav-buscador")
-            .Should().ContainSingle().Which.Cuerpo.Should().Contain("display: none");
+        Reglas(menu).Should().Contain(r => r.Selector.StartsWith("html[data-menu-compacto] .barra-lateral .nav-buscador")
+                                           && r.Cuerpo.Contains("display: none"),
+            "con la barra compacta se oculta el campo y queda solo el botón de contraer");
     }
 
     [Fact]
