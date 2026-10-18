@@ -154,7 +154,7 @@ public class EstadoEnToleranciaDocumentoTests : BunitContext
 
         var fila = cut.Find(".tabla-documentos-requeridos .fila-documento-requerido");
         fila.TextContent.Should().Contain("Vencido · en tolerancia hasta 15/10");
-        fila.TextContent.Should().Contain("Vencio 03/10/2026", "la fecha de vencimiento del Documento no cambia: la tolerancia no lo alarga");
+        fila.TextContent.Should().Contain("Desde el 03/10/2026", "la fecha de vencimiento del Documento no cambia: la tolerancia no lo alarga");
     }
 
     [Fact]
