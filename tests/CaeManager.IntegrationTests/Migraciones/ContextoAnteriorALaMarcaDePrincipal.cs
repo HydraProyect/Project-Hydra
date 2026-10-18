@@ -38,6 +38,7 @@ internal sealed class ContextoAnteriorALaMarcaDePrincipal(
         // esquema sin las quince columnas de la ficha de Empresa 360.
         foreach (var campo in CamposDeLaFichaDeEmpresa) builder.Entity<Empresa>().Ignore(campo);
         // AnadeFichaCentro es posterior a este esquema histórico.
+        // AnadeNotaInternaATrabajadorYCentro (Centro.Notas) también lo es.
         foreach (var campo in CamposDeLaFichaDeCentro) builder.Entity<Centro>().Ignore(campo);
     }
 
@@ -46,6 +47,7 @@ internal sealed class ContextoAnteriorALaMarcaDePrincipal(
         nameof(Centro.HorarioAcceso), nameof(Centro.ControlAccesosNombre), nameof(Centro.ControlAccesosTelefono),
         nameof(Centro.TecnicoPrevencionNombre), nameof(Centro.TecnicoPrevencionTelefono), nameof(Centro.TecnicoPrevencionCorreo),
         nameof(Centro.TrabajosEnAltura), nameof(Centro.EspaciosConfinados), nameof(Centro.AtmosferasExplosivas),
+        nameof(Centro.Notas),
     ];
 
     private static readonly string[] CamposDeLaFichaDeEmpresa =

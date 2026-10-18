@@ -476,6 +476,21 @@
     <value>No la veu el client.</value>
     <comment>Peu de la targeta NotaInterna: la nota no la veu l'usuari d'un Client. La veuen l'equip i el Gestor CAE d'un Operador CAE extern.</comment>
   </data>
+  <data name="NotaInternaEditar" xml:space="preserve">
+    <value>Edita →</value>
+  </data>
+  <data name="NotaInternaGuardar" xml:space="preserve">
+    <value>Desa</value>
+  </data>
+  <data name="NotaInternaCancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="NotaInternaGuardada" xml:space="preserve">
+    <value>Nota interna desada.</value>
+  </data>
+  <data name="NotaInternaErrorGuardar" xml:space="preserve">
+    <value>No hem pogut desar la nota interna. Torna-ho a provar d'aquí a uns segons.</value>
+  </data>
   <data name="RestablecerVista" xml:space="preserve">
     <value>Restableix la vista</value>
   </data>

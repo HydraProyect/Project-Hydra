@@ -129,6 +129,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         {
             ObtenerTrabajadorPorIdQuery q => Detalles.GetValueOrDefault(q.Id),
             EditarFichaTrabajadorCommand c => GuardarFicha(c),
+            CaeManager.Application.Trabajadores.Commands.GuardarNotaInternaTrabajador.GuardarNotaInternaTrabajadorCommand c => GuardarNota(c.Id, c.Notas),
             ObtenerDocumentacionPorCentroDeTrabajadorQuery q =>
                 (IReadOnlyList<CentroDocumentacionTrabajadorDto>)(Centros.GetValueOrDefault(q.TrabajadorId) ?? []),
             ObtenerGestionesQuery q => Paginar(q),
@@ -170,6 +171,16 @@ public partial class Trabajador360Gen2Tests : BunitContext
                 MotivoPermisoTrabajo = c.MotivoPermisoTrabajo
             };
             return ResultadoFicha;
+        }
+
+        /// <summary>Lo que responde el servidor al guardar la nota interna; con éxito, la relectura trae la nota y otra Version.</summary>
+        public Result ResultadoNota { get; set; } = Result.Exito();
+
+        private Result GuardarNota(Guid id, string? notas)
+        {
+            if (ResultadoNota.EsFallido) return ResultadoNota;
+            Detalles[id] = Detalles[id] with { Notas = notas, Version = Guid.NewGuid() };
+            return ResultadoNota;
         }
 
         private Result Completar(CompletarGestionCommand comando)

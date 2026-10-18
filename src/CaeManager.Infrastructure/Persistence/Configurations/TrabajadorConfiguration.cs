@@ -37,6 +37,7 @@ public class TrabajadorConfiguration : IEntityTypeConfiguration<Trabajador>
         builder.Property(t => t.Email).HasMaxLength(Trabajador.LongitudMaximaEmail);
         builder.Property(t => t.Telefono).HasMaxLength(Trabajador.LongitudMaximaTelefono);
         builder.Property(t => t.Observaciones).HasMaxLength(Trabajador.LongitudMaximaObservaciones);
+        builder.Property(t => t.Notas).HasMaxLength(Trabajador.LongitudMaximaNotas);
 
         // Parcial, no total (auditoría Módulo 5, hallazgo crítico 9/9): un
         // trabajador anonimizado tiene Dni null, y sin excluir los nulos el

@@ -400,6 +400,12 @@
                     </ChildContent>
                 </Tarjeta>
 
+                @* Nota interna: el servidor decide si el lector es del equipo (NotaInternaVisible); a un usuario de
+                   Cliente no le llega ni la tarjeta vacía. *@
+                @if (_detalle.NotaInternaVisible)
+                {
+                    <NotaInternaEditable @key="_detalle.Id" Texto="@_detalle.Notas" Guardar="GuardarNotaInternaAsync" OnGuardada="RecargarTrasNotaInternaAsync" />
+                }
             </Lateral>
         </CuerpoConLateral>
     }
