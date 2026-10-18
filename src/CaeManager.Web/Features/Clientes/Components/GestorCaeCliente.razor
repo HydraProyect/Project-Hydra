@@ -1,0 +1,160 @@
+@*
+    Fila «Gestor CAE» de la tarjeta «Información» de Cliente 360, con «Dar acceso» y «Desasignarme»
+    debajo (maqueta del 17-10; decisión del 16-10: esas dos acciones se hacen desde la ficha, no desde
+    el listado; decisión de Chris del 2026-10-18 de construirla).
+
+    QUÉ ENSEÑA. Las personas —Gestor CAE o Coordinador CAE— con una Asignación de Cartera viva que
+    cubre este Cliente empresarial: el principal primero y después los de apoyo. La cartera de un
+    Gestor CAE es siempre el Tenant entero (ADR-011 § 2.7, D-7) y ningún productor escribe hoy una
+    Asignación de Operación acotada, así que las que cubren este Cliente empresarial son las del
+    Tenant propietario activo. No es el «Gestor CAE de referencia» de la Empresa (que
+    no concede alcance y sigue congelado como deuda terminológica): aquí no se lee.
+
+    QUIÉN RECIBE DATOS lo deciden las consultas, como en CabeceraGestorCae:
+    - ObtenerPersonasConCarteraQuery: cuenta activa del Operador CAE externo que gestiona este Tenant
+      con rol Administrador, Dirección CAE, Coordinador CAE o Gestor CAE, leído en Identity sobre su
+      Tenant de origen.
+    - ObtenerOperadoresCaeDeMiTenantQuery: el Administrador del Tenant propietario.
+    Con las dos vacías (Consulta, Usuario de Cliente, un Tenant de operación interna, Soporte TALVEG)
+    la fila no se pinta.
+
+    ACCIONES. Solo desde el Operador CAE, dentro de SoloConEscritura (un rol de solo consulta no las
+    ve), y son PanelDarAcceso en su forma compacta con TenantId = el Tenant activo: «+ Dar acceso»
+    solo si quien mira es hoy el principal de esa Asignación de Operación, «Desasignarme» solo por un
+    apoyo suyo. Quién puede, a quién y sobre qué lo vuelven a decidir ProponerApoyoCarteraCommand y
+    DesasignarmeDeApoyoCommand: este componente no autoriza nada. «Dar acceso» da acceso al Tenant
+    entero, no solo a este Cliente empresarial (D-7); el formulario lo nombra por el Tenant.
+    El principal no se desasigna por aquí: soltar la marca es un relevo, no un fin de apoyo.
+
+    CARGA. Las consultas comparten el DbContext del circuito: la página pone Cargar cuando su cadena
+    de lecturas terminó, y solo entonces se pregunta. PanelDarAcceso se monta después, con el dato ya
+    leído, y tras una acción suya (AlCambiar) se relee la fila.
+*@
+@using CaeManager.Application.Common
+@using CaeManager.Application.Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant
+@using CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera
+@using CaeManager.Web.Features.Clientes.Recursos
+@using CaeManager.Web.Features.IncorporacionCartera.Components
+@using MediatR
+@using Microsoft.Extensions.Localization
+@implements IDisposable
+@inject IMediator Mediator
+@inject ITenantActual TenantActual
+@inject IStringLocalizer<TextosClientes> Textos
+
+@if (_error || _personas.Count > 0)
+{
+    <div class="gestor-cae-cliente" data-gestor-cae-cliente>
+        <RejillaDatos>
+            <DatoRejilla Etiqueta="@Textos["GestorCaeDato"]" Ancho="true">
+                @if (_error)
+                {
+                    <span class="gestor-cae-cliente-error" role="status">@Textos["GestorCaeError"]</span>
+                }
+                else
+                {
+                    <span class="gestor-cae-cliente-personas" title="@Nombres" data-gestor-cae-cliente-personas>@Nombres</span>
+                }
+            </DatoRejilla>
+        </RejillaDatos>
+        @if (!_error && _desdeElOperador && _tenantId is { } tenantId)
+        {
+            <SoloConEscritura>
+                <div class="gestor-cae-cliente-acciones" data-gestor-cae-cliente-acciones>
+                    <PanelDarAcceso TenantId="tenantId" EnCabecera="true" AlCambiar="CargarAsync" AlDesasignarme="AlDesasignarme" />
+                </div>
+            </SoloConEscritura>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// La página lo pone cuando terminó su cadena de lecturas: hasta entonces no se pregunta nada, porque las
+    /// consultas comparten el DbContext del circuito y no deben ir en paralelo.
+    /// </summary>
+    [Parameter] public bool Cargar { get; set; }
+
+    /// <summary>
+    /// Quien mira se desasignó de su apoyo sobre el Tenant activo y el Command lo aceptó: ya no accede a los datos
+    /// que pinta la página. Nunca llega tras «+ Dar acceso» ni si el Command lo rechazó.
+    /// </summary>
+    [Parameter] public EventCallback AlDesasignarme { get; set; }
+
+    private readonly CancellationTokenSource _ciclo = new();
+    private IReadOnlyList<PersonaConCartera> _personas = [];
+    private bool _desdeElOperador;
+    private bool _error;
+    private bool _cargado;
+    private Guid? _tenantId;
+
+    private string Nombres => string.Join(", ", _personas.Select(p => p.Nombre));
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Cargar || _cargado)
+            return;
+
+        _cargado = true;
+        await CargarAsync();
+    }
+
+    /// <summary>Lee quién tiene cartera sobre el Tenant activo: al habilitarse y tras cada acción de PanelDarAcceso.</summary>
+    private async Task CargarAsync()
+    {
+        _error = false;
+        try
+        {
+            _tenantId = TenantActual.TenantId;
+            if (_tenantId is not { } tenantId)
+            {
+                _personas = [];
+                return;
+            }
+
+            var operaciones = (await Mediator.Send(new ObtenerPersonasConCarteraQuery(tenantId), _ciclo.Token))
+                .Where(o => o.TenantId == tenantId)
+                .ToList();
+            _desdeElOperador = operaciones.Count > 0;
+            if (!_desdeElOperador)
+            {
+                operaciones = (await Mediator.Send(new ObtenerOperadoresCaeDeMiTenantQuery(), _ciclo.Token))
+                    .Where(o => o.TenantId == tenantId)
+                    .ToList();
+            }
+
+            _personas = Ordenar(operaciones);
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
+        catch (Exception)
+        {
+            // Un fallo no es «nadie lo gestiona»: se dice, en vez de esconder la fila.
+            _personas = [];
+            _error = true;
+        }
+    }
+
+    /// <summary>
+    /// Los principales primero y después los de apoyo, cada grupo por nombre. Quien es principal de una Asignación
+    /// de Operación no se repite como apoyo de otra.
+    /// </summary>
+    private static IReadOnlyList<PersonaConCartera> Ordenar(IReadOnlyList<CarterasDeOperacion> operaciones)
+    {
+        var principales = operaciones.Select(o => o.Principal).OfType<PersonaConCartera>()
+            .DistinctBy(p => p.UsuarioId)
+            .OrderBy(p => p.Nombre, StringComparer.CurrentCulture)
+            .ToList();
+        var idsPrincipales = principales.Select(p => p.UsuarioId).ToHashSet();
+        var apoyos = operaciones.SelectMany(o => o.Apoyos)
+            .Where(p => !idsPrincipales.Contains(p.UsuarioId))
+            .DistinctBy(p => p.UsuarioId)
+            .OrderBy(p => p.Nombre, StringComparer.CurrentCulture);
+        return [.. principales, .. apoyos];
+    }
+
+    public void Dispose()
+    {
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+}

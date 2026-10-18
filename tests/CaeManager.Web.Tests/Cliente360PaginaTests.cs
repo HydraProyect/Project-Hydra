@@ -18,6 +18,8 @@ using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConCumplimientoD
 using CaeManager.Application.Common;
 using CaeManager.Application.TiposDocumento.Commands.EstablecerToleranciaClienteEmpresarial;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerToleranciasClienteEmpresarial;
+using CaeManager.Application.Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant;
+using CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
@@ -117,6 +119,9 @@ public class Cliente360PaginaTests : BunitContext
             ObtenerToleranciasClienteEmpresarialQuery => (IReadOnlyList<ToleranciaTipoDocumentoDto>)
                 [new ToleranciaTipoDocumentoDto(Guid.NewGuid(), "Formación PRL", AmbitoAplicacion.Trabajador, 0)],
             EstablecerToleranciaClienteEmpresarialCommand => GuardarTolerancia(),
+            // Fila «Gestor CAE»: sin carteras, no se pinta (la prueban GestorCaeClienteTests).
+            ObtenerPersonasConCarteraQuery => (IReadOnlyList<CarterasDeOperacion>)[],
+            ObtenerOperadoresCaeDeMiTenantQuery => (IReadOnlyList<CarterasDeOperacion>)[],
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -144,12 +149,18 @@ public class Cliente360PaginaTests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
+    private sealed class TenantActivo : ITenantActual
+    {
+        public Guid? TenantId { get; } = Guid.NewGuid();
+    }
+
     private MediatorFalso Registrar(MediatorFalso mediador, string rol = Roles.GestorCae)
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddSingleton(TimeProvider.System);
         Services.AddScoped<ContextWorkspaceService>();
+        Services.AddScoped<ITenantActual>(_ => new TenantActivo());
         Services.AddLocalization();
         this.ConRolDeEscritura(rol);
         SetRendererInfo(new RendererInfo("Server", isInteractive: true));

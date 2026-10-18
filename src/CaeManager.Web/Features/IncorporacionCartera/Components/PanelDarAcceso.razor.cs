@@ -38,7 +38,7 @@ public partial class PanelDarAcceso
     [Parameter] public Guid? TenantId { get; set; }
 
     /// <summary>
-    /// Forma compacta para la cabecera «Gestor CAE» de la pantalla Empresas: solo los botones
+    /// Forma compacta para la fila «Gestor CAE» de Cliente 360 (<c>GestorCaeCliente</c>): solo los botones
     /// «+ Dar acceso» (uno por operación de la que quien mira es el principal) y «Desasignarme»
     /// (uno por apoyo suyo), sin las tarjetas. Qué botón se pinta sale de las mismas lecturas que
     /// la forma completa —menos la de propuestas sin responder, que aquí no se pintan—, y lo que
@@ -56,7 +56,7 @@ public partial class PanelDarAcceso
     /// Quien mira se desasignó de un apoyo suyo y el Command lo aceptó: acaba de perder ese acceso al
     /// Tenant propietario. Llega después de <see cref="AlCambiar"/> y solo por «Desasignarme»: nunca
     /// al proponer, retirar o revocar, ni si el Command lo rechazó. Es para quien tenga pintados
-    /// datos de ese Tenant (la pantalla Empresas); quien no lo pasa no nota nada.
+    /// datos de ese Tenant (Cliente 360); quien no lo pasa no nota nada.
     /// </summary>
     [Parameter] public EventCallback AlDesasignarme { get; set; }
 
