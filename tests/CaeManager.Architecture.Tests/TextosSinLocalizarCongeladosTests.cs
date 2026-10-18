@@ -51,7 +51,7 @@ public class TextosSinLocalizarCongeladosTests
         ["AuditoriaIa"] = 50,
         ["Bandeja"] = 104, // 105 → 104 el 2026-10-09 (lote 1 de defectos de recorrido del piloto, L1): la tabla del lote de reclamación deja de llevar la cabecera «Trabajador»; el nombre va bajo el tipo de documento, sin texto fijo. Antes: 106 → 105 el 2026-10-04 (CampoSelectAvanzado): el selector de orden deja de llevar «Impacto» y «Fecha límite» como marcado; ahora son datos de la lista de opciones, que el detector no cuenta (SIN migrar a .resx). Antes: 108 → 106 el 2026-10-03 (bloqueo por Centro): desaparecen «Alta pendiente» y «Adjuntar» de TipoItemBandejaUi. Antes: 107 → 108 el 2026-10-02 (resto D-07/D-27) SIN migrar: «Clientes empresariales» (SelectorLoteDocumental) pasa a mayúscula inicial como manda CONTRATO_TERMINOLOGIA § 3.2 y la heurística lo empieza a ver.
         ["Blindaje42"] = 46,
-        ["BusquedaGlobal"] = 70,
+        ["BusquedaGlobal"] = 68, // 69 → 68 el 2026-10-18 (paleta 1:1 con la maqueta): la tecla «Esc» de la leyenda pasa a «esc», como la maqueta, y el detector la cuenta una sola vez con el «esc» del chip de cierre (los textos iguales de una superficie se deduplican). 70 → 69 el 2026-10-18 (paleta por DNI/NIE/CIF): el placeholder del buscador y los textos nuevos de la búsqueda por documento van a TextosBusquedaGlobal.resx; el placeholder anterior, escrito a mano, desaparece.
         // 312 → 313 el 2026-09-25 (P1-X2): la rama «No requiere gestión CAE» de
         // EstadoCentroUi.Texto. Es un switch estático sin localizar entero; migrar
         // solo la rama nueva lo dejaría a medias. Los demás textos de P1-X2 van a

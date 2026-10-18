@@ -149,7 +149,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await page.GetByText("+ Nuevo documento").First.ClickAsync();
 
         await drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
-            .FillAsync($"{nombreTrabajador} {apellidosTrabajador}");
+            .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
         await page.WaitForTimeoutAsync(500);
         await drawer.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = nombreTipoDocumento });
 

@@ -10,6 +10,14 @@ namespace CaeManager.Application.Tests.Trabajadores;
 /// </summary>
 public class EtiquetasSelectorTrabajadorTests
 {
+    [Fact]
+    public void La_subida_muestra_el_empleador_incluso_sin_homonimos()
+    {
+        var etiquetas = EtiquetasSelectorTrabajador.Construir(
+            [new TrabajadorSelectorDto(Guid.NewGuid(), "Ana Ruiz", null, "Montajes Ebro S.L.")],
+            aliasSiempre: true, empleadorSiempre: true);
+        etiquetas.Should().ContainSingle().Which.Texto.Should().Be("Ana Ruiz (Montajes Ebro S.L.)");
+    }
     private static readonly Guid IdA = Guid.Parse("00000000-0000-0000-0000-00000000000a");
     private static readonly Guid IdB = Guid.Parse("00000000-0000-0000-0000-00000000000b");
     private static readonly Guid IdC = Guid.Parse("00000000-0000-0000-0000-00000000000c");

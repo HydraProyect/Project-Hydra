@@ -358,6 +358,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<CaeManager.Application.Comunicaciones.Deteccion.ISegundaOpinionCriticaIa, AnthropicSegundaOpinionCriticaIa>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(60));
+        services.AddScoped<CaeManager.Domain.Comunicaciones.IPropuestaRecordatorioConversacionRepository, PropuestaRecordatorioConversacionRepository>();
         services.AddScoped<CaeManager.Domain.AsistenteIa.ITareaAsistenteRepository, TareaAsistenteRepository>();
         services.AddScoped<CaeManager.Domain.Telemetria.IRegistroTiempoGestionRepository, RegistroTiempoGestionRepository>();
         services.AddScoped<CaeManager.Domain.Documentos.IAcreditacionDocumentoPlataformaRepository, AcreditacionDocumentoPlataformaRepository>();
@@ -791,6 +792,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Comunicaciones.IContextoOperativoConversacionService, Comunicaciones.ContextoOperativoConversacionService>();
         services.AddScoped<CaeManager.Application.Comunicaciones.PlazosConversacionService>();
         services.AddHostedService<Comunicaciones.AvisosConversacionesCriticasHostedService>();
+        // Propone (nunca envía) un recordatorio a los 2 días laborables de espera de respuesta externa (decisión de producto
+        // 2026-10-17); el Gestor CAE lo aprueba o lo descarta. Auditado como Sistema; sin interruptor por Tenant.
+        services.AddHostedService<Comunicaciones.PropuestaRecordatoriosConversacionHostedService>();
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();
