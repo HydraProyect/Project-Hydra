@@ -14,6 +14,27 @@
     border-top: none;
 }
 
+/* Subfilas documentales: la leyenda de plataforma permanece bajo el nombre. */
+.fila-relacion.fila-relacion-compacta {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+    gap: var(--space-3);
+    min-height: 0;
+    margin-inline: 0;
+    padding: 7px 0;
+}
+
+.fila-relacion-compacta > .fila-relacion-estado { grid-column: 2; grid-row: 1; }
+.fila-relacion-compacta > .fila-relacion-cifra { grid-column: 3; grid-row: 1; white-space: normal; }
+.fila-relacion-compacta > .fila-relacion-acciones { grid-column: 4; grid-row: 1; }
+
+@media (max-width: 700px) {
+    .fila-relacion.fila-relacion-compacta { grid-template-columns: auto minmax(0, 1fr) auto; }
+    .fila-relacion-compacta > .fila-relacion-identidad { grid-column: 1 / -1; }
+    .fila-relacion-compacta > .fila-relacion-estado { grid-column: 1; grid-row: 2; }
+    .fila-relacion-compacta > .fila-relacion-cifra { grid-column: 2; grid-row: 2; }
+    .fila-relacion-compacta > .fila-relacion-acciones { grid-column: 3; grid-row: 2; }
+}
+
 /*
   Toda fila responde al cursor, también la que no lleva tinte (defecto del
   2026-10-09: solo reaccionaba la fila con problema). Va ANTES de las reglas
@@ -263,7 +284,7 @@ a.fila-relacion-nombre:focus-visible,
         grid-template-columns: auto minmax(0, 1fr) auto;
     }
 
-    .fila-relacion-rejilla > .fila-relacion-identidad {
+    .fila-relacion-rejilla:not(.fila-relacion-compacta) > .fila-relacion-identidad {
         grid-column: 1 / -1;
     }
 }

@@ -18,6 +18,35 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class PestanaDocumentacionEnPaginaTests : BunitContext
 {
+    [Theory]
+    [InlineData("GestorCae", EstadoDocumento.Vencido, "Venció el 06/11/2026", true)]
+    [InlineData("GestorCae", EstadoDocumento.Proximo, "Caduca el 06/11/2026", true)]
+    [InlineData("GestorCae", EstadoDocumento.SinConfirmar, "Falta la fecha de fin", true)]
+    [InlineData("GestorCae", EstadoDocumento.Vigente, "Caduca el 06/11/2026", false)]
+    [InlineData("GestorCae", EstadoDocumento.SinCaducidad, "Sin caducidad", false)]
+    [InlineData("Consulta", EstadoDocumento.Vencido, "Venció el 06/11/2026", false)]
+    [InlineData("Consulta", EstadoDocumento.SinConfirmar, "Falta la fecha de fin", false)]
+    public async Task Empresa_conserva_la_fila_compacta_y_la_consulta_del_documento_por_rol(
+        string rol, EstadoDocumento estado, string vigencia, bool gestionar)
+    {
+        this.ConRolDeEscritura(rol);
+        var documento = new DocumentoListaDto(Guid.NewGuid(), AmbitoAplicacion.Empresa, "Ibertec GmbH",
+            "Contrato de trabajo", new(2025, 1, 1), new(2026, 11, 6), estado, null, []);
+        Services.AddScoped<IMediator>(_ => new MediatorFalso([documento]));
+        Services.AddScoped<ContextWorkspaceService>();
+        Services.AddLocalization();
+        var cut = Render<PestanaDocumentacion>(p => p.Add(x => x.Ambito, AmbitoAplicacion.Empresa)
+            .Add(x => x.PropietarioId, Guid.NewGuid()).Add(x => x.EnPagina, true));
+        var fila = cut.Find(".fila-relacion-compacta");
+        fila.Children.Should().HaveCount(4);
+        fila.QuerySelector(".fila-relacion-cifra")!.TextContent.Should().Be(vigencia);
+        var acciones = fila.QuerySelectorAll(".fila-relacion-acciones button");
+        acciones.Should().HaveCount(gestionar ? 1 : 0);
+        if (gestionar) acciones[0].TextContent.Trim().Should().Be("Gestionar");
+        await cut.Find(".fila-relacion-nombre").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual!.EntidadId.Should().Be(documento.Id);
+    }
+
     private sealed class MediatorFalso(IReadOnlyList<DocumentoListaDto> documentos) : IMediator
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
@@ -37,6 +66,7 @@ public class PestanaDocumentacionEnPaginaTests : BunitContext
 
     private IRenderedComponent<PestanaDocumentacion> Renderizar(bool enPagina)
     {
+        this.ConRolDeEscritura();
         var documentos = new List<DocumentoListaDto>
         {
             new(Guid.NewGuid(), AmbitoAplicacion.Empresa, "Ibertec GmbH", "Seguro de responsabilidad civil",
@@ -68,9 +98,12 @@ public class PestanaDocumentacionEnPaginaTests : BunitContext
         var filas = cut.FindAll("li.fila-relacion");
         filas.Should().HaveCount(2);
         filas[0].QuerySelector(".fila-relacion-nombre")!.TextContent.Trim().Should().Be("Seguro de responsabilidad civil");
-        filas[0].QuerySelector(".fila-relacion-cifra")!.TextContent.Trim().Should().Be("Vence: 31/12/2026");
+        filas[0].QuerySelector(".fila-relacion-cifra")!.TextContent.Trim().Should().Be("Caduca el 31/12/2026");
         filas[0].QuerySelector(".fila-relacion-estado [data-pieza=pastilla]")!.TextContent.Trim().Should().Be(EstadoDocumentoUi.Texto(EstadoDocumento.Vigente));
-        filas[1].QuerySelector(".fila-relacion-cifra")!.TextContent.Trim().Should().Be("Vence: —");
+        filas[1].QuerySelector(".fila-relacion-cifra")!.TextContent.Trim().Should().Be("Falta la fecha de vencimiento");
+        filas.Should().OnlyContain(f => f.ClassList.Contains("fila-relacion-compacta"));
+        filas[0].QuerySelector(".fila-relacion-acciones button").Should().BeNull();
+        filas[1].QuerySelector(".fila-relacion-acciones button")!.TextContent.Trim().Should().Be("Gestionar");
     }
 
     /// <summary>En la página 360 el panel se abre sobre el Documento; dentro del panel el Documento se apila sobre la entidad.</summary>

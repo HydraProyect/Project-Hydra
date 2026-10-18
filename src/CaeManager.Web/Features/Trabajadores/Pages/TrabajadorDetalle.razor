@@ -284,7 +284,7 @@
                                                     {
                                                         <AuthorizeView Context="autorizacionDocumento">
                                                             <ChildContent Context="autorizacion">
-                                                                <FilaRelacion Nombre="@documento.TipoDocumentoNombre"
+                                                                <FilaRelacion Compacta="true" Nombre="@documento.TipoDocumentoNombre"
                                                                               Tono="@TonoDocumentoEnCentro(documento.Estado)"
                                                                               OnNombre="@(CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv.Split(',').Any(autorizacion.User.IsInRole) ? EventCallback.Factory.Create(this, () => GestionarDocumentoAsync(documento)) : default)">
                                                                     <Detalle>
@@ -294,7 +294,7 @@
                                                                     <Cifra>
                                                                         <span class="trabajador360-solo-lectores">@Textos["ColumnaVigencia"]: </span>
                                                                         <TextoFechaCopiable Fecha="documento.FechaVencimiento" Class="@EstadoDocumentoUi.ClaseCeldaVigencia(documento.Estado)">
-                                                                            @TextoVence(documento.FechaVencimiento, documento.Estado)
+                                                                            @DetalleVigenciaDocumentoUi.DeFicha360(documento.Estado, documento.FechaVencimiento, documento.TipoDocumentoNombre)
                                                                         </TextoFechaCopiable>
                                                                     </Cifra>
                                                                     <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado, documento.EnToleranciaHasta)</Badge></Estado>

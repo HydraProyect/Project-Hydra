@@ -665,11 +665,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         if (incidencia.Estado is null)
             return Textos["VigenciaNoAplica"];
 
-        if (incidencia.FechaVencimiento is not { } fecha)
-            return EstadoDocumentoUi.TextoSinFechaDeVencimiento(incidencia.Estado);
-
-        var texto = fecha.ToString("dd/MM/yyyy");
-        return incidencia.Estado == EstadoDocumento.Vencido ? $"Vencio {texto}" : $"Caduca {texto}";
+        return DetalleVigenciaDocumentoUi.DeFicha360(incidencia.Estado.Value, incidencia.FechaVencimiento, incidencia.Descripcion, deEmpresa: true);
     }
 
     private void AbrirConfirmarBajaLoteAsync()
@@ -815,22 +811,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// segun el estado porque una fecha suelta no dice si ya paso o esta por
     /// llegar, y esa es justo la pregunta del gestor.
     /// </summary>
-    private static string TextoVigencia(DocumentoRequeridoDto documento)
-    {
-        if (documento.DocumentoId is null)
-        {
-            return "—";
-        }
-
-        if (documento.FechaVencimiento is not { } fecha)
-        {
-            // Sin fecha NO es «no caduca»: «Sin caducidad» solo si está confirmado; si nadie ha anotado hasta
-            // cuándo vale, «Sin confirmar» (el modelo eliminó el «nulo = no caduca»).
-            return EstadoDocumentoUi.TextoSinFechaDeVencimiento(documento.Estado);
-        }
-
-        var texto = fecha.ToString("dd/MM/yyyy");
-        return EstadoDocumentoUi.HaVencido(documento.Estado) ? $"Vencio {texto}" : $"Caduca {texto}";
-    }
+    private static string TextoVigencia(DocumentoRequeridoDto documento) =>
+        DetalleVigenciaDocumentoUi.DeFicha360(documento.Estado, documento.FechaVencimiento, documento.TipoDocumentoNombre);
 
 }

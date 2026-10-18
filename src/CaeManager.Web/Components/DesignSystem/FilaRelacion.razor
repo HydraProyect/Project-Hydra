@@ -29,7 +29,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
 
-<li class="fila-relacion @(EnRejilla ? "fila-relacion-rejilla" : null)" data-pieza="fila" data-tono="@TonoPieza">
+<li class="fila-relacion @(EnRejilla ? "fila-relacion-rejilla" : null) @(Compacta ? "fila-relacion-compacta" : null)" data-pieza="fila" data-tono="@TonoPieza">
     <span class="fila-relacion-identidad">
     @if (Desplegable is not null)
     {
@@ -108,6 +108,9 @@
 </li>
 
 @code {
+    /// <summary>Subfila documental: nombre, estado, vigencia y acción en una línea.</summary>
+    [Parameter] public bool Compacta { get; set; }
+
     private bool EnRejilla => Cifra is not null || Estado is not null || Acciones is not null;
 
     private string? TonoPieza => Tono switch

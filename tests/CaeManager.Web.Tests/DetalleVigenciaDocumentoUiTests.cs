@@ -13,6 +13,17 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class DetalleVigenciaDocumentoUiTests
 {
+    [Theory]
+    [InlineData(EstadoDocumento.Vencido, false, "Desde el 06/11/2026")]
+    [InlineData(EstadoDocumento.Vencido, true, "Venció el 06/11/2026")]
+    [InlineData(EstadoDocumento.Proximo, true, "Caduca el 06/11/2026")]
+    [InlineData(EstadoDocumento.SinConfirmar, false, "Falta la fecha de fin")]
+    [InlineData(EstadoDocumento.Faltante, false, "Falta la fecha de fin")]
+    public void Las_fichas_comparten_el_texto_de_vigencia_sin_cambiar_el_de_los_listados(
+        EstadoDocumento estado, bool deEmpresa, string esperado) =>
+        DetalleVigenciaDocumentoUi.DeFicha360(estado, new(2026, 11, 6), "Contrato de trabajo", deEmpresa)
+            .Should().Be(esperado);
+
     private static readonly DateOnly Hoy = new(2026, 10, 18);
 
     private static IncidenciaDocumentalDto Incidencia(EstadoDocumento estado, DateOnly? fecha, string tipo = "Aptitud médica") =>
