@@ -1,4 +1,4 @@
-using Bunit;
+﻿using Bunit;
 using FluentAssertions;
 
 namespace CaeManager.Web.Tests;

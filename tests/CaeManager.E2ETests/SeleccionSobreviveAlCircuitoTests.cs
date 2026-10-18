@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 using Microsoft.Playwright;
 
@@ -55,9 +55,9 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         //
         // Tras #1002, en el origen activo y sin gestionar, con algún Tenant externo
         // gestionado en su cartera, Empresas muestra el estado 4a («Selecciona una
-        // empresa de tu cartera») y no monta ni la lista ni «Aún no hay empresas».
+        // empresa de tu cartera») y no monta ni la lista ni «Todavía no hay empresas».
         // Que en el origen no se muestran datos se comprueba, pues, con ese estado 4a
-        // visible y con la lista de filas y «Aún no hay empresas» ausentes.
+        // visible y con la lista de filas y «Todavía no hay empresas» ausentes.
         //
         // Su cartera tiene un único Tenant beneficiario externo, pero de rol Consulta: el Tenant
         // por defecto (decisión 5) solo se aplica a una cartera de rol Gestor CAE (decisión 7
@@ -67,7 +67,7 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await Assertions.Expect(page.GetByText("Selecciona una empresa de tu cartera"))
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
-        await Assertions.Expect(page.GetByText("Aún no hay empresas"))
+        await Assertions.Expect(page.GetByText("Todavía no hay empresas"))
             .Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         await Assertions.Expect(page.Locator(".lista-filas-acordeon"))
             .Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
@@ -90,7 +90,7 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         // SembrarOperadoresConsultoraAsync), y Consulta tiene acceso total sin
         // depender de cartera (AlcanceDatosService.TieneAccesoTotalAsync) — así
         // que si la selección de workspace se pierde en el circuito, la única
-        // explicación de un "Aún no hay empresas" en la aserción final vuelve a
+        // explicación de un "Todavía no hay empresas" en la aserción final vuelve a
         // ser el propio circuito, no un alcance vacío por delegación. Y si la
         // selección se perdiera, el origen volvería a mostrar el estado 4a de la
         // línea base, no la lista de filas.
@@ -154,11 +154,11 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         // podía dar verde sin que el contenido real hubiera llegado a
         // decidirse. Antes de leerlo, se espera a que la página alcance
         // alguno de sus tres estados terminales y mutuamente excluyentes
-        // (lista con filas, "Aún no hay empresas" o el estado de error): solo
+        // (lista con filas, "Todavía no hay empresas" o el estado de error): solo
         // entonces "no está visible" significa "la carga terminó y no es
         // este", no "todavía no ha cargado nada".
         var estadoAsentado = page.Locator(".lista-filas-acordeon")
-            .Or(page.GetByText("Aún no hay empresas"))
+            .Or(page.GetByText("Todavía no hay empresas"))
             .Or(page.GetByText("No pudimos cargar las empresas"));
         await Assertions.Expect(estadoAsentado).ToBeVisibleAsync(
             new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
@@ -229,7 +229,7 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
             + ". Si esto falla, la ventana que se medía ya no es de circuito puro y el resto de esta prueba no "
             + "mide lo que dice medir.");
 
-        await Assertions.Expect(page.GetByText("Aún no hay empresas")).Not.ToBeVisibleAsync(
+        await Assertions.Expect(page.GetByText("Todavía no hay empresas")).Not.ToBeVisibleAsync(
             new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         await Assertions.Expect(page.GetByText("Selecciona una empresa de tu cartera")).Not.ToBeVisibleAsync(
             new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });

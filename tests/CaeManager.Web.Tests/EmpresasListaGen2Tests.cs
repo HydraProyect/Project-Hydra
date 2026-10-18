@@ -1,4 +1,4 @@
-using AngleSharp.Dom;
+﻿using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
@@ -290,7 +290,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
 
     /// <summary>El conmutador ☑ de la cabecera (nombre accesible «Selección múltiple»).</summary>
     private static Task AlternarSeleccionMultiple(IRenderedComponent<Empresas> cut) =>
-        cut.Find(".lista-herramientas-maqueta button[aria-pressed]").ClickAsync(new MouseEventArgs());
+        cut.Find(".cabecera-pagina button[aria-pressed]").ClickAsync(new MouseEventArgs());
 
     // ------------------------------------- Clientes empresariales: solo en la fila desplegada (#810)
 
@@ -386,16 +386,15 @@ public partial class EmpresasListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso { Almacen = { Empresa("Refrielectric S.A."), Empresa("Montajes Ebro S.L.") } });
 
         var cabecera = cut.Find("header.cabecera-pagina");
-        cabecera.QuerySelector(".cabecera-pagina-kicker")!.TextContent.Trim().Should().Be("Negocio");
-        cabecera.QuerySelector("h1.titulo-pagina")!.TextContent.Trim().Should().Be("Empresas");
-        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("2");
-        cut.Find(".lista-herramientas-maqueta button[aria-pressed]").GetAttribute("aria-label").Should().Be("Selección múltiple");
+       cabecera.QuerySelector("h1.titulo-pagina")!.TextContent.Trim().Should().Be("Empresas");
+        cut.Find(".cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("2");
+        cut.Find(".cabecera-pagina button[aria-pressed]").GetAttribute("aria-label").Should().Be("Selección múltiple");
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
 
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
-        acciones.QuerySelectorAll("a.cabecera-listado-exportar").Should().ContainSingle().Which.GetAttribute("aria-label").Should().Be("Exportar a Excel");
+        acciones.QuerySelectorAll("a.cabecera-listado-icono").Should().ContainSingle().Which.GetAttribute("aria-label").Should().Be("Exportar a Excel");
         acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
-            .Should().Equal("Atajos de teclado", "Más acciones", "+ Nueva empresa");
+            .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nueva empresa");
 
         cut.FindAll("header.cabecera-pagina .menu-acciones").Should().ContainSingle();
         cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href").Should().Be("/empresas/exportar.xlsx");
@@ -409,7 +408,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
         var buscador = cut.Find(".barra-filtros-pastillas input[type=text]");
         buscador.GetAttribute("placeholder").Should().Be("Filtrar esta pantalla: razón social o CIF",
             "ObtenerEmpresasQuery busca en los dos; los E2E usan este texto");
-        buscador.GetAttribute("aria-label").Should().Be("Buscar");
+        buscador.GetAttribute("aria-label").Should().Be("Filtrar esta pantalla");
         buscador.HasAttribute("data-filtro-pantalla").Should().BeTrue("es lo que enfoca la tecla f (atajos-lista.js)");
     }
 
@@ -472,8 +471,8 @@ public partial class EmpresasListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(p => p.GetAttribute("aria-label"))
             .Should().NotContain("Documentación", "el estado documental se filtra en la franja, no en una pastilla");
-        cut.RotulosDeFranja().Should().Equal("Todas", "Vencidos", "Por vencer", "Sin confirmar", "Sin incidencias");
-        cut.MarcadosEnFranja().Should().Equal("Todas");
+        cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Por vencer", "Sin confirmar", "Sin incidencias");
+        cut.MarcadosEnFranja().Should().Equal("Todos");
         UltimaConsulta(mediador).ConRecuentosPorEstado.Should().BeTrue("sin pedirlos, la franja no tendría cifras");
 
         await AlternarEnLaFranja(cut, "Vencidos");
@@ -525,7 +524,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
 
         Navegacion.Uri.Should().NotContain("estado=");
         UltimaConsulta(mediador).EstadoDocumental.Should().BeNull();
-        cut.WaitForAssertion(() => cut.MarcadosEnFranja().Should().Equal("Todas"));
+        cut.WaitForAssertion(() => cut.MarcadosEnFranja().Should().Equal("Todos"));
     }
 
     /// <summary>
@@ -555,8 +554,8 @@ public partial class EmpresasListaGen2Tests : BunitContext
         consulta.Busqueda.Should().BeNull();
         consulta.EstadoDocumental.Should().BeNull();
         cut.WaitForAssertion(() => cut.FindAll(".chip-filtro").Should().BeEmpty());
-        cut.MarcadosEnFranja().Should().Equal("Todas");
-        cut.Find(".conteo-empresas").TextContent.Trim().Should().Be("2 de 2 empresas");
+        cut.MarcadosEnFranja().Should().Equal("Todos");
+        cut.Find(".paginador-pie-listado .paginador-texto").TextContent.Trim().Should().Be("Mostrando 2 de 2");
     }
 
     // ------------------------------------------------------------------ Conteo
@@ -566,7 +565,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
     {
         var cut = Renderizar(new MediatorFalso { Almacen = { Empresa("Refrielectric S.A."), Empresa("Montajes Ebro S.L.") } });
 
-        cut.Find(".barra-filtros-resumen .conteo-empresas").TextContent.Trim().Should().Be("2 de 2 empresas");
+        cut.Find(".paginador-pie-listado .paginador-texto").TextContent.Trim().Should().Be("Mostrando 2 de 2");
     }
 
     /// <summary>25 empresas con 20 por página: se ven 20 de 25. Si el conteo usara el total en los dos lados diría «25 de 25».</summary>
@@ -578,7 +577,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
             mediador.Almacen.Add(Empresa($"Empresa {i:00}"));
         var cut = Renderizar(mediador);
 
-        cut.Find(".conteo-empresas").TextContent.Trim().Should().Be("20 de 25 empresas");
+        cut.Find(".paginador-pie-listado .paginador-texto").TextContent.Trim().Should().Be("Mostrando 20 de 25");
     }
 
     [Fact]
@@ -587,7 +586,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso { Almacen = { Empresa("Refrielectric S.A."), Empresa("Montajes Ebro S.L.") } },
             "empresas?q=Refri");
 
-        cut.Find(".conteo-empresas").TextContent.Trim().Should().Be("1 de 1 empresa con estos filtros");
+        cut.Find(".paginador-pie-listado .paginador-texto").TextContent.Trim().Should().Be("Mostrando 1 de 1");
     }
 
     [Fact]
@@ -620,12 +619,11 @@ public partial class EmpresasListaGen2Tests : BunitContext
 
         var cut = Renderizar(mediador);
 
-        cut.Find(".pie-lista-inicio button").HasAttribute("disabled").Should().BeTrue();
-        cut.Find(".pie-lista-opciones button").HasAttribute("disabled").Should().Be(!conPaginador);
-        cut.Find(".pie-lista-opciones select").Should().NotBeNull();
+        cut.FindAll(".paginador-inicio button").Should().HaveCount(conPaginador ? 2 : 0, "la navegación solo existe con más de una página");
+        cut.Find(".paginador-opciones-tamano").Should().NotBeNull();
         var tarjeta = cut.Find(".tarjeta-listado");
         tarjeta.QuerySelector(".tarjeta-listado-contenido .marco-lista-empresas").Should().NotBeNull();
-        cut.Find(".pie-lista-atajos .leyenda-atajos-lista").Should().NotBeNull();
+        cut.Find(".paginador-centro .leyenda-atajos-lista").Should().NotBeNull();
     }
 
     // ------------------------------------------------------------------- Filas
@@ -669,10 +667,9 @@ public partial class EmpresasListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso { Almacen = { Empresa("Refrielectric S.A."), Empresa("Montajes Ebro S.L.") } });
         cut.FindAll(".boton-expandir-fila").Select(b => b.GetAttribute("aria-expanded")).Should().Equal("false", "false");
 
-        var boton = cut.FindAll(".lista-herramientas-maqueta .barra-herramientas-lista button").Single(b => b.TextContent.Contains("todo", StringComparison.Ordinal));
+        var boton = cut.FindAll(".barra-filtros-pastillas .barra-herramientas-lista button").Single(b => b.TextContent.Contains("todo", StringComparison.Ordinal));
         boton.TextContent.Trim().Should().Be("Expandir todo");
-        cut.FindAll(".barra-herramientas-lista button").Should().Contain(b => b.TextContent.Contains("Selección múltiple"),
-            "la selección múltiple vive en la barra de herramientas, como en la maqueta");
+        cut.FindAll(".cabecera-pagina button[aria-pressed]").Should().ContainSingle("la selección múltiple vive en la cabecera, como en la maqueta de Design de 2026-10-18");
 
         await boton.ClickAsync(new MouseEventArgs());
 
@@ -1081,7 +1078,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
         var cut = Render<Empresas>();
 
         await AlternarEnLaFranja(cut, "Vencidos");
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ninguna empresa con este filtro"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ningún resultado con estos filtros"));
 
         await cut.InvokeAsync(() => respuestaVieja.SetResult(mediador.Filtrar(new ObtenerEmpresasQuery(null))));
 
@@ -1089,7 +1086,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
         // vieja; se fuerza uno para no depender de cuál llegue.
         cut.Render();
 
-        cut.Markup.Should().Contain("Ninguna empresa con este filtro",
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros",
             "la respuesta vieja era de la lista sin filtrar, no de la pregunta vigente");
         cut.FindAll(".tarjeta-fila-acordeon").Should().BeEmpty();
     }
@@ -1460,7 +1457,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
         var cut = Renderizar(ConCartera(origenGestionado: false));
 
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
-        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("1");
+        cut.Find(".cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("1");
         cut.Markup.Should().Contain("Refrielectric S.A.");
     }
 
@@ -1484,7 +1481,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
         cut.Markup.Should().NotContain("Refrielectric S.A.");
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty("no hay empresa activa que nombrar en el estado 4a");
         cut.FindAll("header.cabecera-pagina a[data-keytip=X]").Should().BeEmpty("el icono exportaría datos del origen sin Empresa elegida");
-        cut.FindAll(".lista-herramientas-maqueta .cabecera-listado-contador").Should().BeEmpty();
+        cut.FindAll(".cabecera-pagina .cabecera-listado-contador").Should().BeEmpty();
         ConsultasDeLista(mediador).Should().Be(0, "no se piden las empresas de la organización de origen");
     }
 

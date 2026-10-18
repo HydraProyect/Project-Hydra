@@ -616,7 +616,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     private static string ClaseTinte(EstadoDocumento? estado) => estado switch
     {
         EstadoDocumento.Faltante or EstadoDocumento.Vencido => " fila-tintada-peligro",
-        EstadoDocumento.Urgente => " fila-tintada-aviso",
+        EstadoDocumento.Urgente or EstadoDocumento.Proximo or EstadoDocumento.EnTolerancia => " fila-tintada-aviso",
         _ => string.Empty
     };
 

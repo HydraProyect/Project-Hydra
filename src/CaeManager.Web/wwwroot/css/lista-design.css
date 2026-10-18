@@ -1,0 +1,209 @@
+/*
+  Patrón de pantalla de lista del export de Design (2026-10-18, DDL-083): cabecera de una línea,
+  barra de filtros en pastillas, franja de estados, tarjeta con cabecera de columnas y pie.
+  Se activa por pantalla con la clase «lista-design» en su contenedor; las listas que no la llevan
+  no cambian. Los valores salen de «Empresas TALVEG.dc.html» (y sus tres hermanas, mismo molde),
+  medidos con getComputedStyle; los colores son los tokens del repo, que mandan sobre el :root de la maqueta.
+*/
+
+/* La clase va doblada a propósito: así cada regla gana (0,3,0) a las del CSS aislado de los componentes ([b-xxxx], 0,2,0).
+   Cabecera: título + contador + iconos 36x36 + acción primaria 36 de alto */
+.lista-design.lista-design .cabecera-pagina { margin-bottom: var(--space-3); gap: var(--space-3); }
+.lista-design.lista-design .cabecera-pagina .titulo-pagina { font: 700 26px/32px var(--font-family); letter-spacing: -.01em; margin: 0; }
+.lista-design.lista-design .cabecera-pagina-titular { gap: var(--space-3); }
+.lista-design.lista-design .cabecera-listado-contador {
+    padding: 2px 9px;
+    border-radius: var(--radius-full);
+    background: var(--color-primary-50);
+    color: var(--color-primary-700);
+    font: 700 12px/16px var(--font-family);
+}
+.lista-design.lista-design .acciones-cabecera { gap: var(--space-2); }
+.lista-design.lista-design .acciones-cabecera .cabecera-listado-icono,
+.lista-design.lista-design .acciones-cabecera .menu-acciones-disparador-borde {
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+.lista-design.lista-design .cabecera-listado-primaria button {
+    height: 36px;
+    min-height: 36px;
+    padding: 0 var(--space-4);
+    border-radius: var(--radius-md);
+    font: 600 14px/16px var(--font-family);
+}
+
+/* Barra de filtros: buscador 340, pastillas de 36, herramientas a la derecha */
+.lista-design.lista-design .barra-filtros-pastillas { gap: var(--space-3); margin-bottom: var(--space-3); }
+.lista-design.lista-design .barra-filtros-pastillas-fila { gap: var(--space-2); }
+.lista-design.lista-design .barra-filtros-buscador-pantalla { flex: 0 1 340px; max-width: none; min-width: 220px; }
+.lista-design.lista-design .barra-filtros-buscador-pantalla .campo .campo-input {
+    min-height: var(--space-10);
+    height: var(--space-10);
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-md);
+    padding-left: 34px;
+    padding-right: 36px;
+}
+.lista-design.lista-design .barra-filtros-buscador-icono { left: 10px; }
+.lista-design.lista-design .barra-filtros-tecla {
+    right: 10px;
+    padding: 1px 5px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-subtle);
+    color: var(--color-text);
+    font: 600 10px/14px var(--font-family);
+}
+.lista-design.lista-design .barra-filtros-pastillas-fila .menu-acciones-disparador-pastilla {
+    height: 36px;
+    min-height: 36px;
+    padding: 0 14px;
+    gap: 6px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: 600 14px/16px var(--font-family);
+}
+.lista-design.lista-design .barra-filtros-pastillas-fila .barra-herramientas-lista { margin: 0 0 0 auto; gap: var(--space-2); }
+.lista-design.lista-design .barra-herramientas-lista button {
+    height: 32px;
+    min-height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: 600 13px/16px var(--font-family);
+}
+
+/* Franja de estados: botones de 36, punto de 8, cifra en negrita; sin los estados vacíos */
+.lista-design.lista-design .franja-estado { gap: var(--space-2); margin: 0; }
+.lista-design.lista-design .franja-estado .franja-estado-boton {
+    height: 36px;
+    min-height: 36px;
+    padding: 0 12px;
+    gap: 6px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-body-md);
+    font-weight: 400;
+}
+.lista-design.lista-design .franja-estado .franja-estado-boton:first-child { font-weight: 600; }
+.lista-design.lista-design .franja-estado .franja-estado-boton .franja-estado-recuento { font-weight: 700; color: var(--color-text); }
+.lista-design.lista-design .franja-estado .franja-estado-boton:first-child .franja-estado-recuento { margin-left: 0; }
+.lista-design.lista-design .franja-estado .franja-estado-boton[aria-pressed="true"] {
+    border-color: var(--color-primary-500);
+    background: var(--color-primary-50);
+    color: var(--color-text);
+    font-weight: 400;
+}
+.lista-design.lista-design .franja-estado .franja-estado-boton:first-child[aria-pressed="true"] { font-weight: 600; }
+.lista-design.lista-design .franja-estado .franja-estado-boton-vacio:not([aria-pressed="true"]) { display: none; }
+
+/* Filtros activos: pastillas de 28 y «Limpiar todo» como enlace */
+.lista-design.lista-design .chips-filtros-indicador { display: none; }
+.lista-design.lista-design .chips-filtros { gap: var(--space-2); margin: 0; align-items: center; }
+.lista-design.lista-design .chip-filtro {
+    height: 28px;
+    padding: 0 6px 0 10px;
+    gap: 6px;
+    border: 1px solid var(--color-primary-100);
+    border-radius: var(--radius-full);
+    background: var(--color-primary-50);
+    color: var(--color-primary-700);
+    font: 600 12px/16px var(--font-family);
+}
+.lista-design.lista-design .limpiar-filtros-barra,
+.lista-design.lista-design .guardar-filtro-barra {
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--color-primary-500);
+    font: 600 14px/16px var(--font-family);
+    cursor: pointer;
+}
+
+/* Tarjeta: borde #b9c4d2, radio 14, sombra; cabecera de columnas con filete de 1,5 px; filas con divisor #d3dbe5 */
+.lista-design.lista-design .tarjeta-listado {
+    --radio-tarjeta-listado: 14px;
+    border-color: #b9c4d2;
+    box-shadow: 0 1px 3px rgb(22 30 39 / .10);
+}
+.lista-design.lista-design .tarjeta-listado::after { border-color: #b9c4d2; }
+.lista-design.lista-design .tarjeta-listado-pie { border-top: 0; padding: 12px var(--space-4); }
+.lista-design.lista-design .paginador-pie-listado { gap: var(--space-4); }
+.lista-design.lista-design .paginador-opciones-tamano { gap: 6px; }
+.lista-design.lista-design .paginador-opciones-tamano > [aria-hidden="true"] { display: none; }
+.lista-design.lista-design .paginador-opciones-tamano button { padding: 0 2px; font-weight: 400; }
+.lista-design.lista-design .paginador-opciones-tamano button[aria-pressed="true"] { color: var(--color-text); font-weight: 700; }
+
+/* Estados vacío y error: tarjeta centrada de 48/24 */
+.lista-design.lista-design .estado-vacio {
+    border: 1px solid #b9c4d2;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 1px 3px rgb(22 30 39 / .10);
+    background: var(--color-surface);
+    padding: var(--space-12) var(--space-6);
+    gap: var(--space-3);
+}
+
+/* Pastilla de estado, indicador «correcto» y barra de cumplimiento, al valor de la maqueta */
+.lista-design.lista-design .estado-fila-correcto { font: var(--font-body-sm); gap: 6px; min-height: 0; }
+.lista-design.lista-design .estado-fila-punto { width: 7px; height: 7px; }
+.lista-design.lista-design .estado-fila-motivo { font: var(--font-body-sm); }
+.lista-design.lista-design .barra-cumplimiento { gap: 10px; }
+.lista-design.lista-design .barra-cumplimiento-pista { width: 64px; height: 6px; border-radius: 3px; background: var(--color-border); }
+.lista-design.lista-design .barra-cumplimiento-relleno { border-radius: 0; }
+.lista-design.lista-design .barra-cumplimiento-cifra { font: 600 13px/16px var(--font-family); font-variant-numeric: tabular-nums; }
+
+/* Icono 360: 32x32, borde fuerte, radio 10, gira media vuelta al pasar */
+.lista-design.lista-design .boton-360 { width: 32px; height: 32px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); color: var(--color-text); }
+.lista-design.lista-design .boton-360:hover { border-color: var(--color-primary-500); color: var(--color-primary-500); }
+
+/* Estrecho: la tarjeta desplaza en horizontal con 860 px mínimos, como la maqueta */
+@media (max-width: 900px) {
+    .lista-design.lista-design .tarjeta-listado-contenido { overflow-x: auto; }
+    .lista-design.lista-design .tarjeta-listado-contenido > * { min-width: 860px; }
+}
+
+/* Pastilla de detecciones: «N altas/bajas ›» en ámbar, como la columna Detecciones de la maqueta */
+.lista-design.lista-design .badge-deteccion {
+    align-self: flex-start;
+    height: auto;
+    padding: 2px 10px;
+    gap: 0;
+    border: 1px solid color-mix(in srgb, var(--color-warning-700) 40%, transparent);
+    border-radius: var(--radius-full);
+    background: var(--color-warning-50);
+    color: var(--color-warning-700);
+    font: var(--font-caption);
+    font-weight: 600;
+}
+
+/* Leyenda de teclado del pie: kbd de la maqueta (Inter 600 10/14, fondo subtle, borde fuerte) */
+.lista-design.lista-design .paginador-pie-listado .paginador-centro .leyenda-atajos-lista .leyenda-atajos-lista-entrada kbd {
+    padding: 1px 5px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-subtle);
+    color: var(--color-text);
+    font: 600 10px/14px var(--font-family);
+}
+/* Filas: tinte de estado (rojo y ámbar, no «Sin confirmar»), nombre en 600 y pastilla de estado de 22 de alto */
+.lista-design.lista-design .fila-tintada-peligro > .tarjeta-fila-acordeon-cabecera { background-image: linear-gradient(90deg, var(--color-danger-50) 0, transparent 60%); }
+.lista-design.lista-design .fila-tintada-aviso > .tarjeta-fila-acordeon-cabecera { background-image: linear-gradient(90deg, var(--color-warning-50) 0, transparent 60%); }
+.lista-design.lista-design .tarjeta-fila-acordeon-cabecera .nombre-abre-vista-rapida { font: var(--font-body-md); font-weight: 600; color: var(--color-text); }
+.lista-design.lista-design .tarjeta-fila-acordeon-cabecera .nombre-abre-vista-rapida:hover { color: var(--color-primary-500); }
+.lista-design.lista-design .estado-fila .badge {
+    padding: 2px 9px;
+    border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+    font: 600 12px/16px var(--font-family);
+}
