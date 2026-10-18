@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 using Microsoft.Playwright;
@@ -649,13 +649,13 @@ public static class Ayudas
     {
         var grupo = page.Locator($".nav-principal details.nav-grupo-detalle[data-grupo='{idGrupo}']");
         var abierto = page.Locator($".nav-principal details.nav-grupo-detalle[data-grupo='{idGrupo}'][open]");
-        await grupo.First.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Attached, Timeout = 15_000 });
+        await grupo.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Attached, Timeout = 15_000 });
         if (await abierto.CountAsync() == 0)
         {
-            await grupo.First.Locator("> summary").ClickAsync();
+            await grupo.Locator("> summary").ClickAsync();
         }
 
-        await Assertions.Expect(abierto.First).ToBeAttachedAsync(new LocatorAssertionsToBeAttachedOptions { Timeout = 15_000 });
+        await Assertions.Expect(abierto).ToBeAttachedAsync(new LocatorAssertionsToBeAttachedOptions { Timeout = 15_000 });
     }
 
     /// <summary>
