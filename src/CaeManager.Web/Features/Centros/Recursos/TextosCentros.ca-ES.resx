@@ -553,4 +553,9 @@
   <data name="FichaAccesoVacioDescripcion" xml:space="preserve"><value>Encara no s'ha informat l'horari ni el contacte de control d'accessos d'aquest Centre.</value></data>
   <data name="FichaPrevencionVacioTitulo" xml:space="preserve"><value>Prevenció sense configurar</value></data>
   <data name="FichaPrevencionVacioDescripcion" xml:space="preserve"><value>Encara no s'ha informat el Tècnic de prevenció ni els treballs especials d'aquest Centre.</value></data>
+  <data name="InformacionTitulo360" xml:space="preserve"><value>Informació</value></data>
+  <data name="InformacionCodigo360" xml:space="preserve"><value>Codi</value></data>
+  <data name="InformacionCliente360" xml:space="preserve"><value>Client</value></data>
+  <data name="EditarFlecha360" xml:space="preserve"><value>Editar →</value></data>
+  <data name="ConsultaRapida360" xml:space="preserve"><value>Consulta ràpida</value></data>
 </root>

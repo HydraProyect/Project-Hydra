@@ -46,132 +46,34 @@
     else if (_detalle is not null)
     {
         @*
-            Cabecera de identidad en tarjeta (CabeceraIdentidad, la pieza de
-            las fichas 360): el anillo a la izquierda, qué es («Centro»), el
-            nombre, lo que califica al centro «junto al título», la identidad
-            de sus contrapartes en la línea de datos y a la derecha la acción
-            principal con el resto en un menú.
-
-            Contrapartes (decisión del propietario 2026-09-22: cada 360 tiene
-            página propia además del panel): el NOMBRE es un enlace real a la
-            página 360 del Cliente empresarial (/clientes/{id}) y de la Empresa
-            (/empresas/{id}), y el botón 360 de al lado abre su panel de 520 px
-            como antes lo hacía el nombre. En pantalla el Cliente empresarial
-            se rotula «Cliente» (CONTRATO_TERMINOLOGIA § 3.2; decisión de rótulo del 2026-10-09); en código sigue siendo
-            ClienteEmpresarial.
+            Cabecera de identidad en tarjeta (Centro 360 TALVEG del 17-10): el anillo a la izquierda, el nombre y, bajo él, SOLO el
+            Cliente empresarial (rotulado «Cliente», CONTRATO_TERMINOLOGIA § 3.2), el número de Trabajadores y la pastilla con el
+            estado del Centro. Fuera, por maqueta: el rótulo «Centro» sobre el nombre, la Empresa, la visita siguiente y las
+            pastillas de motivos (vencidos, pendientes, bloqueos, por vencer).
+            El NOMBRE del Cliente abre su consulta rápida (panel de 520 px) y el icono 360 de al lado lleva a su página
+            (/clientes/{id}): decisión del propietario 2026-09-22, con el orden de la maqueta del 17-10.
         *@
         @* P1-X2: un Centro sin gestión CAE no tiene cumplimiento que medir; el anillo vacío se leería como 0 %.
            Sin anillo la ranura va a null, para que la tarjeta no reserve su hueco. *@
-        <CabeceraIdentidad Titulo="@_detalle.Nombre" Kicker="@Textos["KickerCentro360"]"
+        <CabeceraIdentidad Titulo="@_detalle.Nombre"
                            Anillo="@(_detalle.GestionCae != ModalidadGestionCae.SinGestionCae ? AnilloDeCabecera : null)">
             <Datos>
-                @* Cada contraparte es un bloque: la línea de datos es flex y separaría el rótulo de su nombre. *@
                 <span>
-                    @Textos["CabeceraCliente"] <a class="enlace-nombre-fila centro360-contraparte" href="@($"/clientes/{_detalle.ClienteId}")">@_detalle.ClienteRazonSocial</a>
-                    <Boton360 Nombre="@_detalle.ClienteRazonSocial" OnClick="AbrirClienteEmpresarial" />
-                </span>
-                <span>
-                    @Textos["CabeceraEmpresa"] <a class="enlace-nombre-fila centro360-contraparte" href="@($"/empresas/{_detalle.EmpresaId}")">@_detalle.EmpresaRazonSocial</a>
-                    <Boton360 Nombre="@_detalle.EmpresaRazonSocial" OnClick="AbrirEmpresa" />
+                    <button type="button" class="enlace-nombre-fila centro360-contraparte" title="@Textos["ConsultaRapida360"]" @onclick="AbrirClienteEmpresarial">@_detalle.ClienteRazonSocial</button>
+                    <Boton360 Nombre="@_detalle.ClienteRazonSocial" Href="@($"/clientes/{_detalle.ClienteId}")" />
                 </span>
                 @if (_numeroTrabajadores is { } numero)
                 {
-                    <span>· @Textos[numero == 1 ? "TrabajadorAsignado360" : "TrabajadoresAsignados360", numero]</span>
+                    <span>· @Textos[numero == 1 ? "TrabajadorAsignado360" : "TrabajadoresAsignados360", numero] ·</span>
                 }
-            </Datos>
-            <JuntoAlTitulo>
                 @if (_resumen is not null)
                 {
+                    @* Una sola pastilla con el estado del Centro (la maqueta no lleva las de motivos). P1-X2: SinGestionCae es neutro, nunca un verde falso. *@
                     <span class="centro360-indicadores">
-                        @if (_resumen.Estado == EstadoCentro.Bloqueado)
-                        {
-                            @* Solo lo causa la plataforma del Cliente empresarial (D-7): el bloqueo de un documento es del Trabajador. *@
-                            <Badge Tono="TonoBadge.Peligro">@EstadoCentroUi.Texto(EstadoCentro.Bloqueado)</Badge>
-                        }
-                        @if (_bloqueos.Count > 0)
-                        {
-                            var trabajadoresBloqueados = TextoBloqueoDeAcceso.TrabajadoresBloqueados(_bloqueos);
-                            var tituloBloqueados = TextoBloqueoDeAcceso.Titulo(Textos, trabajadoresBloqueados);
-                            <VentanaContexto Etiqueta="@tituloBloqueados" Titulo="@Textos["BloqueadosEncabezado"].Value">
-                                <Disparador>
-                                    <Badge Tono="TonoBadge.Peligro" ConIcono="true">@tituloBloqueados</Badge>
-                                </Disparador>
-                                <Detalle>
-                                    @foreach (var bloqueo in _bloqueos)
-                                    {
-                                        <span class="ventana-linea">@TextoBloqueoDeAcceso.Linea(Textos, bloqueo)</span>
-                                    }
-                                </Detalle>
-                            </VentanaContexto>
-                        }
-                        @if (_resumen.Estado == EstadoCentro.SinGestionCae)
-                        {
-                            @* P1-X2: estado propio y tono neutro — nunca un verde falso. *@
-                            <Badge Tono="EstadoCentroUi.Tono(EstadoCentro.SinGestionCae)">@EstadoCentroUi.Texto(EstadoCentro.SinGestionCae)</Badge>
-                        }
-                        @if (_resumen.Recuentos.VencidasPorFecha.Count > 0)
-                        {
-                            <VentanaContexto Etiqueta="@EtiquetaDeMotivo((_resumen.Recuentos.VencidasPorFecha.Count == 1 ? Textos["MotivoUnVencido"] : Textos["MotivoVencidos", _resumen.Recuentos.VencidasPorFecha.Count]).Value, _resumen.Recuentos.VencidasPorFecha, "vencido")"
-                                             Titulo="@($"{_resumen.Recuentos.VencidasPorFecha.Count} {(_resumen.Recuentos.VencidasPorFecha.Count == 1 ? "documento vencido" : "documentos vencidos")}")">
-                                <Disparador>
-                                    <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">@(_resumen.Recuentos.VencidasPorFecha.Count == 1 ? Textos["MotivoUnVencido"] : Textos["MotivoVencidos", _resumen.Recuentos.VencidasPorFecha.Count])</Badge>
-                                </Disparador>
-                                <Detalle>
-                                    @foreach (var incidencia in _resumen.Recuentos.VencidasPorFecha)
-                                    {
-                                        <span class="ventana-linea">@incidencia.Descripcion</span>
-                                    }
-                                </Detalle>
-                            </VentanaContexto>
-                        }
-                        @if (_resumen.Recuentos.Pendientes.Count > 0)
-                        {
-                            <VentanaContexto Etiqueta="@EtiquetaDeMotivo((_resumen.Recuentos.Pendientes.Count == 1 ? Textos["MotivoUnPendiente"] : Textos["MotivoPendientes", _resumen.Recuentos.Pendientes.Count]).Value, _resumen.Recuentos.Pendientes, Textos["CalificativoPendiente"].Value)"
-                                             Titulo="@(_resumen.Recuentos.Pendientes.Count == 1 ? Textos["TituloUnPendiente"].Value : Textos["TituloPendientes", _resumen.Recuentos.Pendientes.Count].Value)">
-                                <Disparador>
-                                    <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">@(_resumen.Recuentos.Pendientes.Count == 1 ? Textos["MotivoUnPendiente"] : Textos["MotivoPendientes", _resumen.Recuentos.Pendientes.Count])</Badge>
-                                </Disparador>
-                                <Detalle>
-                                    @foreach (var incidencia in _resumen.Recuentos.Pendientes)
-                                    {
-                                        <span class="ventana-linea">@incidencia.Descripcion</span>
-                                    }
-                                </Detalle>
-                            </VentanaContexto>
-                        }
-                        @if (_resumen.Recuentos.Bloqueos.Count > 0)
-                        {
-                            <VentanaContexto Etiqueta="@EtiquetaDeMotivo((_resumen.Recuentos.Bloqueos.Count == 1 ? Textos["MotivoUnBloqueo"] : Textos["MotivoBloqueos", _resumen.Recuentos.Bloqueos.Count]).Value, _resumen.Recuentos.Bloqueos, Textos["CalificativoBloqueo"].Value)"
-                                             Titulo="@(_resumen.Recuentos.Bloqueos.Count == 1 ? Textos["TituloUnBloqueo"].Value : Textos["TituloBloqueos", _resumen.Recuentos.Bloqueos.Count].Value)">
-                                <Disparador>
-                                    <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">@(_resumen.Recuentos.Bloqueos.Count == 1 ? Textos["MotivoUnBloqueo"] : Textos["MotivoBloqueos", _resumen.Recuentos.Bloqueos.Count])</Badge>
-                                </Disparador>
-                                <Detalle>
-                                    @foreach (var incidencia in _resumen.Recuentos.Bloqueos)
-                                    {
-                                        <span class="ventana-linea">@incidencia.Descripcion</span>
-                                    }
-                                </Detalle>
-                            </VentanaContexto>
-                        }
-                        @if (_resumen.Recuentos.TotalProximas > 0)
-                        {
-                            <VentanaContexto Etiqueta="@EtiquetaDeMotivo((_resumen.Recuentos.TotalProximas == 1 ? Textos["MotivoUnProximo"] : Textos["MotivoProximos", _resumen.Recuentos.TotalProximas]).Value, _resumen.Recuentos.Proximas, "próximo a vencer")"
-                                             Titulo="@($"{_resumen.Recuentos.TotalProximas} {(_resumen.Recuentos.TotalProximas == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
-                                <Disparador>
-                                    <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@(_resumen.Recuentos.TotalProximas == 1 ? Textos["MotivoUnProximo"] : Textos["MotivoProximos", _resumen.Recuentos.TotalProximas])</Badge>
-                                </Disparador>
-                                <Detalle>
-                                    @foreach (var incidencia in _resumen.Recuentos.Proximas)
-                                    {
-                                        <span class="ventana-linea">@incidencia.Descripcion</span>
-                                    }
-                                </Detalle>
-                            </VentanaContexto>
-                        }
+                        <Badge Tono="EstadoCentroUi.Tono(_resumen.Estado, _resumen.CumplimientoPorcentaje)" Tamano="TamanoBadge.Pequeno">@EstadoCentroUi.Texto(_resumen.Estado, _resumen.CumplimientoPorcentaje)</Badge>
                     </span>
                 }
-            </JuntoAlTitulo>
+            </Datos>
             <Acciones>
                 @* Lleva a /visitas con el Drawer de alta abierto (CrearVisitaCommand, denegado a Consulta). *@
                 <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" OnClick="ProgramarVisita">Programar visita</Boton></SoloConEscritura>
@@ -371,6 +273,28 @@
                 </Pestanas>
             </ChildContent>
             <Lateral>
+                <Tarjeta Compacta="true" Titulo="@Textos["InformacionTitulo360"]">
+                    <AccionesHeader>
+                        <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirInformacion">@Textos["EditarFlecha360"]</Boton></SoloConEscritura>
+                    </AccionesHeader>
+                    <ChildContent>
+                        <RejillaDatos>
+                            @if (!string.IsNullOrWhiteSpace(_detalle.CodigoCentro))
+                            {
+                                <DatoRejilla Etiqueta="@Textos["InformacionCodigo360"]" Valor="@_detalle.CodigoCentro" />
+                            }
+                            <DatoRejilla Etiqueta="@Textos["InformacionCliente360"]" Valor="@_detalle.ClienteRazonSocial" />
+                            @if (!string.IsNullOrWhiteSpace(_detalle.Direccion))
+                            {
+                                <DatoRejilla Etiqueta="@Textos["FichaDireccionCentro"]" Valor="@_detalle.Direccion" />
+                            }
+                            @if (_detalle.FichaVisible && _detalle.HorarioAcceso is not null)
+                            {
+                                <DatoRejilla Etiqueta="@Textos["FichaHorarioAcceso"]" Valor="@_detalle.HorarioAcceso" />
+                            }
+                        </RejillaDatos>
+                    </ChildContent>
+                </Tarjeta>
                 <Tarjeta Compacta="true" Titulo="Canales de gestión">
                     <AccionesHeader>
                         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPlataforma">Gestionar →</Boton>
