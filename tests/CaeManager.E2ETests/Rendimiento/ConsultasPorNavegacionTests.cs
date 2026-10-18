@@ -87,7 +87,7 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
         var esPestanaDeDocumentos = ruta == "incidencias";
         if (esPestanaDeDocumentos)
         {
-            await page.Locator("a.nav-item[href='documentos']").First.ClickAsync();
+            await page.Locator("a.nav-item[href='documentos']").ClickAsync();
             await Assertions.Expect(page).ToHaveURLAsync(
                 new Regex("/documentos$"), new PageAssertionsToHaveURLOptions { Timeout = 15_000 });
             await medidor.EsperarSilencioAsync(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(30));
