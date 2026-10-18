@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using AngleSharp.Dom;
 using Bunit;
+using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Commands.CrearCliente;
 using CaeManager.Application.Clientes.Commands.EditarCliente;
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
@@ -15,6 +16,7 @@ using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Tenants;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Soporte;
@@ -182,10 +184,25 @@ public partial class ClientesListaGen2Tests : BunitContext
                         throw new InvalidOperationException("Fallo simulado de la consulta de centros.");
                     return (IReadOnlyList<CentroDeClienteDto>)(CentrosPorCliente.GetValueOrDefault(centros.ClienteId) ?? []);
 
+                case ObtenerCentrosQuery porCliente:
+                    {
+                        // Los Centros con estado de la fila desplegada (la misma consulta de Cliente 360).
+                        if (CentrosConEstadoQueFallan-- > 0)
+                            throw new InvalidOperationException("Fallo simulado de la consulta de Centros.");
+                        var deEste = (porCliente.ClienteId is { } clienteId ? CentrosConEstadoPorCliente.GetValueOrDefault(clienteId) : null) ?? [];
+                        return new ResultadoPaginado<CentroListaDto>(deEste, deEste.Count, porCliente.Pagina, porCliente.TamanoPagina);
+                    }
+
                 default:
                     throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.");
             }
         }
+
+        /// <summary>Centros con estado por Cliente empresarial, para la fila desplegada.</summary>
+        public Dictionary<Guid, List<CentroListaDto>> CentrosConEstadoPorCliente { get; } = [];
+
+        /// <summary>Cuántas consultas de Centros con estado fallan antes de responder (la fila lo dice y deja reintentar).</summary>
+        public int CentrosConEstadoQueFallan { get; set; }
 
         /// <summary>Mismo tope que <c>limiteCandidatosConFiltroCalculado</c> del handler.</summary>
         public const int LimiteCandidatosConFiltroDeEstado = 2000;
@@ -555,7 +572,7 @@ public partial class ClientesListaGen2Tests : BunitContext
             Centros: centros, EstadoDocumentalPeor: peor, EstadoDocumentalCantidad: cantidad);
 
     private static List<string> NombresDeLasFilas(IRenderedComponent<Clientes> cut) =>
-        cut.FindAll("tbody tr td .enlace-nombre-fila").Select(b => b.TextContent.Trim()).ToList();
+        cut.FindAll(".tarjeta-fila-acordeon-cabecera .enlace-nombre-fila").Select(b => b.TextContent.Trim()).ToList();
 
     private static ObtenerClientesQuery UltimaConsulta(MediatorFalso mediador) =>
         mediador.Enviadas.OfType<ObtenerClientesQuery>().Last();
@@ -592,7 +609,7 @@ public partial class ClientesListaGen2Tests : BunitContext
     }
 
     private static Task AlternarSeleccionMultiple(IRenderedComponent<Clientes> cut) =>
-        cut.Find(".lista-herramientas-maqueta button[aria-pressed]").ClickAsync(new MouseEventArgs());
+        cut.Find(".cabecera-pagina button[aria-pressed]").ClickAsync(new MouseEventArgs());
 
     private static IElement Buscador(IRenderedComponent<Clientes> cut) =>
         cut.Find(".barra-filtros-pastillas input[type=text]");
@@ -606,9 +623,9 @@ public partial class ClientesListaGen2Tests : BunitContext
     private static IElement BotonDelDialogo(IRenderedComponent<Clientes> cut, string texto) =>
         cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == texto);
 
-    /// <summary>La fila (tr) de ese Cliente empresarial.</summary>
+    /// <summary>La cabecera de la fila (la rejilla de celdas) de ese Cliente empresarial.</summary>
     private static IElement Fila(IRenderedComponent<Clientes> cut, string razonSocial) =>
-        cut.FindAll("tbody tr").Single(tr => tr.QuerySelector(".enlace-nombre-fila")?.TextContent.Trim() == razonSocial);
+        cut.FindAll(".tarjeta-fila-acordeon-cabecera").Single(f => f.QuerySelector(".enlace-nombre-fila")?.TextContent.Trim() == razonSocial);
 
     /// <summary>
     /// «Editar» ya no cuelga de un menú de fila: lo abre la celda «Gestor CAE», y solo para
@@ -1371,7 +1388,7 @@ public partial class ClientesListaGen2Tests : BunitContext
         });
 
         // Peor estado primero (orden por defecto): los dos vencidos, por razón social, y después el resto.
-        var celdas = cut.FindAll("tbody .estado-fila");
+        var celdas = cut.FindAll(".estado-fila");
         celdas.Select(c => (
                 Pastilla: c.QuerySelector(".badge")?.TextContent.Trim(),
                 Motivo: c.QuerySelector(".estado-fila-motivo .motivo-incidencias-cliente")?.TextContent.Trim(),
@@ -1396,8 +1413,8 @@ public partial class ClientesListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso { Almacen = { Cliente("Montajes Ebro S.L."), Cliente("Refrielectric S.A.", critico: true) } });
 
         cut.FindAll("thead th").Select(th => th.TextContent.Trim()).Should().NotContain("Crítico");
-        cut.FindAll("tbody tr")[0].QuerySelector(".insignia-critico").Should().BeNull();
-        var insignia = cut.FindAll("tbody tr")[1].QuerySelector(".insignia-critico")!;
+        cut.FindAll(".tarjeta-fila-acordeon-cabecera")[0].QuerySelector(".insignia-critico").Should().BeNull();
+        var insignia = cut.FindAll(".tarjeta-fila-acordeon-cabecera")[1].QuerySelector(".insignia-critico")!;
         insignia.TextContent.Trim().Should().Be("Crítico");
         insignia.QuerySelector("svg").Should().NotBeNull("lleva el banderín");
         insignia.ParentElement!.QuerySelector(".enlace-nombre-fila")!.TextContent.Trim().Should().Be("Refrielectric S.A.",
@@ -1431,7 +1448,7 @@ public partial class ClientesListaGen2Tests : BunitContext
         // Orden de gravedad (decisión del 2026-10-03): Vencido antes que Faltante.
         NombresDeLasFilas(cut).Should().Equal(["Zeta Talleres Coop.", "Gamma Grúas S.L.", "Beta Frío S.A.", "Alfa Montajes S.L."]);
         // QuickGrid rellena la página con filas vacías: solo cuentan las que pintan un Cliente empresarial.
-        cut.FindAll("tbody tr").Where(tr => tr.QuerySelector(".enlace-nombre-fila") is not null)
+        cut.FindAll(".tarjeta-fila-acordeon-cabecera").Where(tr => tr.QuerySelector(".enlace-nombre-fila") is not null)
             .Select(tr => tr.ClassName ?? string.Empty).Should().Equal(
             "fila-pulsable fila-tintada-peligro", "fila-pulsable fila-tintada-peligro", "fila-pulsable fila-tintada-aviso", "fila-pulsable");
     }
@@ -1448,7 +1465,7 @@ public partial class ClientesListaGen2Tests : BunitContext
             Almacen = { Cliente("Alfa Montajes S.L."), Cliente("Zeta Talleres Coop.", peor: EstadoDocumento.Vencido, cantidad: 1) }
         });
         var atajos = cut.FindComponent<AtajosListaTeclado>();
-        IEnumerable<string> Clases() => cut.FindAll("tbody tr").Where(tr => tr.QuerySelector(".enlace-nombre-fila") is not null)
+        IEnumerable<string> Clases() => cut.FindAll(".tarjeta-fila-acordeon-cabecera").Where(tr => tr.QuerySelector(".enlace-nombre-fila") is not null)
             .Select(tr => tr.ClassName ?? string.Empty);
 
         await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("j"));
@@ -1506,7 +1523,7 @@ public partial class ClientesListaGen2Tests : BunitContext
             Almacen = { Cliente("Montajes Ebro S.L."), Cliente("Refrielectric S.A.") with { EjecutivoUsuarioId = marta.Id } }
         }, gestores: [marta]);
 
-        var iniciales = cut.FindAll("tbody .persona-identidad .avatar-usuario").Should().ContainSingle().Subject;
+        var iniciales = cut.FindAll(".persona-identidad .avatar-usuario").Should().ContainSingle().Subject;
         iniciales.TextContent.Trim().Should().Be("MI");
         iniciales.ParentElement!.TextContent.Should().Contain("Marta Ibarra");
     }
@@ -1522,7 +1539,7 @@ public partial class ClientesListaGen2Tests : BunitContext
             Almacen = { Cliente("Refrielectric S.A.") with { EjecutivoUsuarioId = marta.Id } }
         }, gestores: [marta]);
 
-        var avatar = cut.FindAll("tbody .persona-identidad .avatar-usuario").Should().ContainSingle().Subject;
+        var avatar = cut.FindAll(".persona-identidad .avatar-usuario").Should().ContainSingle().Subject;
         avatar.TextContent.Trim().Should().Be("🦉");
         avatar.ClassList.Should().Contain("avatar-usuario-tono-ambar");
         avatar.ParentElement!.TextContent.Should().Contain("Marta Ibarra");
@@ -1611,22 +1628,22 @@ public partial class ClientesListaGen2Tests : BunitContext
 
         cut.FindAll("tbody a[href^='/centros']").Should().BeEmpty(
             "/centros no filtra por Cliente: un enlace llevaría a todos los centros");
-        cut.FindAll("tbody .ranura-centros-cliente").Should().ContainSingle("solo una fila tiene centros que enseñar");
-        cut.Find("tbody button.ventana-contexto-disparador").GetAttribute("aria-label").Should().Be("Ver los 2 centros de Refrielectric S.A.");
-        cut.Find("tbody .ventana-contexto-titulo").TextContent.Trim().Should().Be("2 centros");
+        cut.FindAll(".ranura-centros-cliente").Should().ContainSingle("solo una fila tiene centros que enseñar");
+        cut.Find("button.ventana-contexto-disparador").GetAttribute("aria-label").Should().Be("Ver los 2 centros de Refrielectric S.A.");
+        cut.Find(".ventana-contexto-titulo").TextContent.Trim().Should().Be("2 centros");
         mediador.Enviadas.OfType<ObtenerCentrosDeClienteQuery>().Should().BeEmpty("la lista no pide los centros de cada fila al cargar");
-        cut.Find("tbody .ventana-linea").TextContent.Trim().Should().Be("Cargando centros…");
+        cut.Find(".ventana-linea").TextContent.Trim().Should().Be("Cargando centros…");
 
-        await cut.Find("tbody .ranura-centros-cliente").TriggerEventAsync("onfocusin", new FocusEventArgs());
-        await cut.Find("tbody .ranura-centros-cliente").TriggerEventAsync("onmouseenter", new MouseEventArgs());
+        await cut.Find(".ranura-centros-cliente").TriggerEventAsync("onfocusin", new FocusEventArgs());
+        await cut.Find(".ranura-centros-cliente").TriggerEventAsync("onmouseenter", new MouseEventArgs());
 
         mediador.Enviadas.OfType<ObtenerCentrosDeClienteQuery>().Should().ContainSingle("lo ya pedido no se vuelve a pedir")
             .Which.ClienteId.Should().Be(cliente.Id);
-        cut.FindAll("tbody button.ventana-contexto-elemento .ventana-contexto-elemento-texto").Select(e => e.TextContent.Trim())
+        cut.FindAll("button.ventana-contexto-elemento .ventana-contexto-elemento-texto").Select(e => e.TextContent.Trim())
             .Should().Equal("Planta de Zaragoza", "Almacén de Tudela");
         FrameAbierto.Should().BeNull("mirar la ventana no abre nada");
 
-        await cut.FindAll("tbody button.ventana-contexto-elemento")[1].ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button.ventana-contexto-elemento")[1].ClickAsync(new MouseEventArgs());
 
         FrameAbierto.Should().Be(new WorkspaceFrame(EntidadWorkspace.Cliente, cliente.Id, "Refrielectric S.A.", "centros"));
     }
@@ -1640,12 +1657,12 @@ public partial class ClientesListaGen2Tests : BunitContext
         mediador.CentrosPorCliente[cliente.Id] =
             Enumerable.Range(1, 11).Select(i => new CentroDeClienteDto(Guid.NewGuid(), $"Centro {i:00}", "Ibertec S.A.")).ToList();
         var cut = Renderizar(mediador);
-        cut.FindAll("tbody .ventana-contexto-pie").Should().BeEmpty("sin los centros pedidos no hay nada que resumir");
+        cut.FindAll(".ventana-contexto-pie").Should().BeEmpty("sin los centros pedidos no hay nada que resumir");
 
-        await cut.Find("tbody .ranura-centros-cliente").TriggerEventAsync("onfocusin", new FocusEventArgs());
+        await cut.Find(".ranura-centros-cliente").TriggerEventAsync("onfocusin", new FocusEventArgs());
 
-        cut.FindAll("tbody button.ventana-contexto-elemento").Should().HaveCount(8);
-        cut.Find("tbody .ventana-contexto-pie").TextContent.Trim().Should().Be("Y 3 más en la pestaña Centros.");
+        cut.FindAll("button.ventana-contexto-elemento").Should().HaveCount(8);
+        cut.Find(".ventana-contexto-pie").TextContent.Trim().Should().Be("Y 3 más en la pestaña Centros.");
     }
 
     /// <summary>Si los centros no se pueden leer, la ventana lo dice (callarlo se leería como «cargando» para siempre) y deja reintentar.</summary>
@@ -1656,17 +1673,17 @@ public partial class ClientesListaGen2Tests : BunitContext
         var mediador = new MediatorFalso { Almacen = { cliente }, CentrosQueFallan = 1 };
         mediador.CentrosPorCliente[cliente.Id] = [new CentroDeClienteDto(Guid.NewGuid(), "Planta de Zaragoza", "Ibertec S.A.")];
         var cut = Renderizar(mediador);
-        cut.Find("tbody button.ventana-contexto-disparador").GetAttribute("aria-label").Should().Be("Ver el centro de Refrielectric S.A.");
+        cut.Find("button.ventana-contexto-disparador").GetAttribute("aria-label").Should().Be("Ver el centro de Refrielectric S.A.");
 
-        await cut.Find("tbody .ranura-centros-cliente").TriggerEventAsync("onfocusin", new FocusEventArgs());
+        await cut.Find(".ranura-centros-cliente").TriggerEventAsync("onfocusin", new FocusEventArgs());
 
-        cut.Find("tbody .ventana-linea").TextContent.Trim()
+        cut.Find(".ventana-linea").TextContent.Trim()
             .Should().Be("No pudimos cargar los centros. Vuelve a pasar por el recuento para reintentarlo.");
-        cut.FindAll("tbody button.ventana-contexto-elemento").Should().BeEmpty();
+        cut.FindAll("button.ventana-contexto-elemento").Should().BeEmpty();
 
-        await cut.Find("tbody .ranura-centros-cliente").TriggerEventAsync("onfocusin", new FocusEventArgs());
+        await cut.Find(".ranura-centros-cliente").TriggerEventAsync("onfocusin", new FocusEventArgs());
 
-        cut.FindAll("tbody button.ventana-contexto-elemento").Should().ContainSingle();
+        cut.FindAll("button.ventana-contexto-elemento").Should().ContainSingle();
         mediador.Enviadas.OfType<ObtenerCentrosDeClienteQuery>().Should().HaveCount(2);
     }
 
@@ -1711,7 +1728,7 @@ public partial class ClientesListaGen2Tests : BunitContext
             Almacen = { Cliente("Aislamientos Nervión S.L.", peor: EstadoDocumento.Vencido, cantidad: 2), Cliente("Montajes Ebro S.L.", centros: 3) }
         });
 
-        var filas = cut.FindAll("tbody tr").Where(tr => tr.QuerySelector(".enlace-nombre-fila") is not null).ToList();
+        var filas = cut.FindAll(".tarjeta-fila-acordeon-cabecera").Where(tr => tr.QuerySelector(".enlace-nombre-fila") is not null).ToList();
         filas.Should().HaveCount(2);
         filas.Should().OnlyContain(tr => tr.ClassList.Contains("fila-pulsable"));
         filas.Should().OnlyContain(tr => tr.QuerySelectorAll(".nombre-abre-vista-rapida").Length == 1);
@@ -1732,7 +1749,7 @@ public partial class ClientesListaGen2Tests : BunitContext
         mediador.CentrosPorCliente[cliente.Id] = [new CentroDeClienteDto(Guid.NewGuid(), "Planta de Zaragoza", "Ibertec S.A.")];
         var cut = Renderizar(mediador, gestores: [marta]);
         await AlternarSeleccionMultiple(cut);
-        await cut.Find("tbody .ranura-centros-cliente").TriggerEventAsync("onfocusin", new FocusEventArgs());
+        await cut.Find(".ranura-centros-cliente").TriggerEventAsync("onfocusin", new FocusEventArgs());
 
         var fila = Fila(cut, cliente.RazonSocial);
         var conManejadorDeClic = fila.QuerySelectorAll("*").Where(e => e.HasAttribute("blazor:onclick")).ToList();
@@ -1758,7 +1775,7 @@ public partial class ClientesListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso { Almacen = { Cliente("Aislamientos Nervión S.L."), abierto } });
 
         cut.FindAll("header.cabecera-pagina .menu-acciones-disparador").Should().NotBeEmpty("control positivo: el menú «⋯» de la cabecera sigue");
-        cut.FindAll("tbody .menu-acciones, tbody .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
+        cut.FindAll(".menu-acciones, tbody .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
         Fila(cut, abierto.RazonSocial).QuerySelector("a.boton-360-pagina")!.GetAttribute("href").Should().Be($"/clientes/{abierto.Id}");
         cut.FindAll("tbody button").Select(b => b.TextContent.Trim())
             .Should().NotContain("Editar").And.NotContain("Dar de baja").And.NotContain("Abrir ficha 360");
@@ -1772,7 +1789,7 @@ public partial class ClientesListaGen2Tests : BunitContext
         var sinCif = Cliente("Refrielectric S.A.", cif: "");
         var cut = Renderizar(new MediatorFalso { Almacen = { conCif, sinCif } });
 
-        var copiables = cut.FindAll("tbody .boton-copiar-en-linea");
+        var copiables = cut.FindAll(".boton-copiar-en-linea");
         copiables.Should().ContainSingle("solo hay un CIF que copiar");
         copiables[0].TextContent.Trim().Should().Be("B-50.123.456");
         copiables[0].GetAttribute("aria-label").Should().Be("Copiar el CIF B-50.123.456");

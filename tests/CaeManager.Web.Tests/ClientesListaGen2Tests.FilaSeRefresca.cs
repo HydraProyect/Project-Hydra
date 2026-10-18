@@ -49,7 +49,7 @@ public partial class ClientesListaGen2Tests
     }
 
     private static List<IElement> FilasConDatos(IRenderedComponent<Clientes> cut) =>
-        cut.FindAll("tbody tr").Where(tr => tr.QuerySelector(".enlace-nombre-fila") is not null).ToList();
+        cut.FindAll(".tarjeta-fila-acordeon-cabecera").Where(tr => tr.QuerySelector(".enlace-nombre-fila") is not null).ToList();
 
     /// <summary>
     /// La razón social nueva mandaría la fila al final con el orden de la lista: que siga la
