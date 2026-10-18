@@ -73,7 +73,7 @@ public class GestionesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
             }
         }
 
-        await Expect(enfocada).ToHaveCountAsync(1);
+        await Ayudas.EsperarFocoRealEnFilaAsync(enfocada);
         var (trabajadorEnfocado, centroEnfocado, _) = await IdentidadAsync(enfocada);
         await page.Keyboard.PressAsync("Enter");
         await Expect(vista.Locator(".nombre-vista-rapida-gestion")).ToHaveTextAsync(trabajadorEnfocado);

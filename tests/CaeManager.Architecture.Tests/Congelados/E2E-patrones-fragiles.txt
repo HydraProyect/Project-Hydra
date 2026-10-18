@@ -1,0 +1,12 @@
+# Patrones frágiles de la suite E2E (PatronesFragilesDeE2ECongeladosTests, 2026-10-18): 6 FocoSoloPorClase, 0 ClicEnGrupoPlegado.
+# Solo baja: un patrón nuevo se sustituye por el ayudante de Ayudas.cs (EsperarFocoRealEnFilaAsync / EnfocarFilaAsync para el foco,
+# AbrirGrupoYClickAsync para un enlace de un grupo plegado del menú); retirar uno baja o borra su línea.
+# Medida: 'fichero :: patrón = n' con n sentencias en código (comentarios y cadenas no cuentan).
+# FocoSoloPorClase: espera la clase fila-enfocada y pulsa una tecla sin esperar antes el foco real del DOM (ToBeFocusedAsync).
+# Pendientes de migrar al ayudante; las listas en acordeón (Centros, Empresas, Subcontratas) y Visitas conviene migrarlas con
+# el job E2E a mano, porque su estructura de fila no es la de tbody tr de Trabajadores y Vehículos, donde el arreglo ya está probado.
+tests/CaeManager.E2ETests/AtajosFicha360Tests.cs :: FocoSoloPorClase = 1
+tests/CaeManager.E2ETests/CentrosFilaSinMenuE2ETests.cs :: FocoSoloPorClase = 1
+tests/CaeManager.E2ETests/EmpresasFilaSinMenuE2ETests.cs :: FocoSoloPorClase = 2
+tests/CaeManager.E2ETests/SubcontratasFilaSinMenuE2ETests.cs :: FocoSoloPorClase = 1
+tests/CaeManager.E2ETests/VisitasFilaSinMenuE2ETests.cs :: FocoSoloPorClase = 1
