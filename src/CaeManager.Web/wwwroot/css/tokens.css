@@ -332,6 +332,7 @@
      (ficha 14 del acabado). Es la única sombra fuera del nivel Overlay y existe
      porque la cabecera fija SÍ tiene una relación espacial real sobre las filas. */
   --shadow-cabecera-tabla: 0 6px 8px -6px rgba(22, 30, 39, 0.35);
+  --shadow-tarjeta-lista: 0 1px 3px rgba(22, 30, 39, 0.1);
 
   /* Velo detras de Modal/Drawer/AsistenteIa/BuscadorGlobal (ODM-08): valor
      unico, no varia por tema — un velo oscuro funciona igual sobre claro
@@ -540,6 +541,7 @@
 
   --shadow-overlay: 0 20px 50px rgba(0, 0, 0, 0.5);
   --shadow-cabecera-tabla: 0 6px 8px -6px rgba(0, 0, 0, 0.7);
+  --shadow-tarjeta-lista: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 :root[data-theme='claro'] {
@@ -593,4 +595,5 @@
 
   --shadow-overlay: 0 20px 50px rgba(22, 30, 39, 0.16);
   --shadow-cabecera-tabla: 0 6px 8px -6px rgba(22, 30, 39, 0.35);
+  --shadow-tarjeta-lista: 0 1px 3px rgba(22, 30, 39, 0.1);
 }

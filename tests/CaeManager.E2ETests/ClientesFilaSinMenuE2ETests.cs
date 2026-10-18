@@ -81,7 +81,7 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
             }
         }
 
-        await Expect(enfocada).ToHaveCountAsync(1);
+        await Ayudas.EsperarFocoRealEnFilaAsync(enfocada);
     }
 
     [Fact]

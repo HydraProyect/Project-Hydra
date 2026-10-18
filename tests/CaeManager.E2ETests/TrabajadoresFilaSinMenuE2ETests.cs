@@ -37,14 +37,8 @@ public class TrabajadoresFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     /// <summary>La carga observada termina antes de enfocar la cabecera y recorrer los propietarios.</summary>
     private static async Task EnfocarPrimeraFilaConJAsync(IPage page)
     {
-        await Expect(page.Locator("table.trabajadores-rejilla-propia")).ToHaveAttributeAsync("aria-busy", "false");
-        await page.Locator("thead th.col-estado button.col-title").FocusAsync();
-        await page.Keyboard.PressAsync("j");
-        await Expect(page.Locator("tbody tr.fila-enfocada")).ToHaveCountAsync(1);
-        // La clase llega con el parche del servidor; el foco del DOM pasa a la fila un fotograma después
-        // (enfocarFilaActiva de atajos-lista.js). Mientras el foco siga en el botón de la cabecera,
-        // Enter se descarta como tecla de un elemento interactivo: se espera al foco real de la fila.
-        await Expect(page.Locator("tbody tr.fila-enfocada")).ToBeFocusedAsync();
+        await Ayudas.EsperarListaListaAsync(page.Locator("table.trabajadores-rejilla-propia"));
+        await Ayudas.EnfocarFilaAsync(page, page.Locator("thead th.col-estado button.col-title"), page.Locator("tbody tr.fila-enfocada"));
     }
 
     [Fact]
@@ -52,7 +46,7 @@ public class TrabajadoresFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await AbrirTrabajadoresAsync(contexto);
-        await Expect(page.Locator("table.trabajadores-rejilla-propia")).ToHaveAttributeAsync("aria-busy", "false");
+        await Ayudas.EsperarListaListaAsync(page.Locator("table.trabajadores-rejilla-propia"));
         var candidatos = await page.GetByRole(AriaRole.Button, new() { NameRegex = new Regex("^Desplegar incidencias de ") }).AllAsync();
         Assert.NotEmpty(candidatos); // La fixture debe ofrecer incidencias; no se convierte su ausencia en éxito.
         foreach (var candidato in candidatos)
