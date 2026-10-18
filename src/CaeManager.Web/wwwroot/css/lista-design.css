@@ -131,13 +131,13 @@
     cursor: pointer;
 }
 
-/* Tarjeta: borde #b9c4d2, radio 14, sombra; cabecera de columnas con filete de 1,5 px; filas con divisor #d3dbe5 */
+/* Tarjeta: borde var(--color-border-strong), radio 14, sombra; cabecera de columnas con filete de 1,5 px; filas con divisor #d3dbe5 */
 .lista-design.lista-design .tarjeta-listado {
     --radio-tarjeta-listado: 14px;
-    border-color: #b9c4d2;
-    box-shadow: 0 1px 3px rgb(22 30 39 / .10);
+    border-color: var(--color-border-strong);
+    box-shadow: var(--shadow-tarjeta-lista);
 }
-.lista-design.lista-design .tarjeta-listado::after { border-color: #b9c4d2; }
+.lista-design.lista-design .tarjeta-listado::after { border-color: var(--color-border-strong); }
 .lista-design.lista-design .tarjeta-listado-pie { border-top: 0; padding: 12px var(--space-4); }
 .lista-design.lista-design .paginador-pie-listado { gap: var(--space-4); }
 .lista-design.lista-design .paginador-opciones-tamano { gap: 6px; }
@@ -147,9 +147,9 @@
 
 /* Estados vacío y error: tarjeta centrada de 48/24 */
 .lista-design.lista-design .estado-vacio {
-    border: 1px solid #b9c4d2;
+    border: 1px solid var(--color-border-strong);
     border-radius: var(--radius-lg);
-    box-shadow: 0 1px 3px rgb(22 30 39 / .10);
+    box-shadow: var(--shadow-tarjeta-lista);
     background: var(--color-surface);
     padding: var(--space-12) var(--space-6);
     gap: var(--space-3);
@@ -206,4 +206,23 @@
     padding: 2px 9px;
     border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
     font: 600 12px/16px var(--font-family);
+}
+/* Respuesta al puntero: las reglas de arriba fijan fondo y borde con más especificidad que el :hover de cada componente, así que se repone aquí con tokens */
+.lista-design.lista-design .acciones-cabecera .cabecera-listado-icono:hover,
+.lista-design.lista-design .acciones-cabecera .menu-acciones-disparador-borde:hover,
+.lista-design.lista-design .barra-filtros-pastillas-fila .menu-acciones-disparador-pastilla:hover,
+.lista-design.lista-design .barra-herramientas-lista button:hover {
+    background: var(--color-surface-hover);
+    border-color: var(--color-border-strong);
+}
+.lista-design.lista-design .franja-estado .franja-estado-boton:not([aria-pressed="true"]):hover {
+    background: var(--color-surface-hover);
+}
+.lista-design.lista-design .franja-estado .franja-estado-boton[aria-pressed="true"]:hover {
+    border-color: var(--color-primary-600);
+}
+.lista-design.lista-design .limpiar-filtros-barra:hover,
+.lista-design.lista-design .guardar-filtro-barra:hover {
+    color: var(--color-primary-600);
+    text-decoration: underline;
 }

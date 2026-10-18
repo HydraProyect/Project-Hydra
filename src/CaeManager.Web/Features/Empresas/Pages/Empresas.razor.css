@@ -108,7 +108,7 @@
 
 .marco-lista-empresas .tarjeta-fila-acordeon {
     border: 0;
-    border-bottom: 1px solid #d3dbe5;
+    border-bottom: 1px solid var(--color-fila-divisor);
     border-radius: 0;
 }
 
@@ -126,7 +126,7 @@
 }
 
 .marco-lista-empresas .tarjeta-fila-acordeon-cabecera:hover {
-    background-color: #eef4fd;
+    background-color: var(--color-primary-50);
     box-shadow: inset 3px 0 0 var(--color-primary-500);
 }
 

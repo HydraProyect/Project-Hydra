@@ -444,18 +444,17 @@
 
 
 @code {
-    // Sin empresas el pie sigue visible debajo de la tarjeta (regla compartida de los listados, ListadosPieSiempreVisibleTests).
-    private RenderFragment PieDelListadoVacio => @<text>
-        <PaginadorSimple PresentacionMaqueta="true" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                              PaginaActualChanged="CambiarPaginaAsync"
-                              TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
-            <Centro><LeyendaAtajosLista /></Centro>
-        </PaginadorSimple>
-    </text>;
-    private RenderFragment PieDelListado => @<text>
+    private RenderFragment PieDelListado => PieSegun(false);
+
+    // Sin empresas el pie sigue visible debajo de la tarjeta, con la presentación de la maqueta anterior
+    // (regla compartida de los listados, ListadosPieSiempreVisibleTests).
+    private RenderFragment PieDelListadoVacio => PieSegun(true);
+
+    // Un solo montaje de la leyenda de atajos (LeyendaAtajosListaAdopcionTests): lo único que cambia es la presentación del pie.
+    private RenderFragment PieSegun(bool presentacionMaqueta) => @<text>
         @if (!_errorCarga && (!_cargando || _totalElementos > 0))
         {
-            <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+            <PaginadorSimple PresentacionMaqueta="presentacionMaqueta" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
                                   TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
                     <Centro><LeyendaAtajosLista /></Centro>

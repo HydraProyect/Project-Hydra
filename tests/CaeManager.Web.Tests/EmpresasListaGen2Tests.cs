@@ -386,7 +386,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso { Almacen = { Empresa("Refrielectric S.A."), Empresa("Montajes Ebro S.L.") } });
 
         var cabecera = cut.Find("header.cabecera-pagina");
-       cabecera.QuerySelector("h1.titulo-pagina")!.TextContent.Trim().Should().Be("Empresas");
+        cabecera.QuerySelector("h1.titulo-pagina")!.TextContent.Trim().Should().Be("Empresas");
         cut.Find(".cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("2");
         cut.Find(".cabecera-pagina button[aria-pressed]").GetAttribute("aria-label").Should().Be("Selección múltiple");
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
