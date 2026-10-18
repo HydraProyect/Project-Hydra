@@ -1,0 +1,31 @@
+## Qué hace
+Lote 3 del selector de Tenant, pantalla Clientes (solo selector; el patrón de lista ya entró con #989).
+
+- `CabeceraEmpresaActiva` con la empresa gestionada activa; no se pinta en el estado 4a.
+- Estado 4a (`EstadoVacio`) cuando hay que elegir empresa: sin exportación, sin acciones, sin lista ni filtros guardados del Tenant de origen.
+- `_resolviendoEmpresa` con try/finally y `EstadoCargando`; `OnParametersSetAsync` no actúa mientras resuelve ni en 4a (una `?accion=crear` no abre el alta contra el origen).
+- La resolución se cancela al desmontar la página (`_ciclo`, mismo patrón que Empresas), según el aviso de la coordinación sobre Codex.
+- I14: el selector cambia de Tenant con POST y `LocalRedirect` a la ruta sin query; los filtros viven en el estado del componente. Los filtros guardados son del usuario y no del Tenant, y el Gestor CAE de uno guardado con otra empresa no se repone (ya lo hacía el código; ahora hay test).
+- I5: la pantalla no invoca ninguna consulta multi-Tenant; solo `ObtenerClientesAutorizadosQuery`.
+
+## Tests
+- Web.Tests: 3172 correctos, 3 omitidos sobre main al 2026-09-29. `ClientesListaGen2Tests`: 60 correctos. Mediador asíncrono con `RetenerAutorizados` que respeta el token.
+- Architecture.Tests: 357. Application.Tests: 1811 (sin cambios en Application).
+- `dotnet build -warnaserror` y `dotnet format --verify-no-changes` limpios.
+- Sin E2E nuevos: no existe E2E de la lista `/clientes`.
+
+## Mutaciones (aplicadas sobre el árbol commiteado y revertidas con `git restore`)
+1. Reponer el Gestor CAE del filtro guardado sin comprobar el directorio: rojo (`Un_filtro_guardado_con_un_Gestor_CAE_de_otra_empresa_no_lo_repone`).
+2. Quitar el `return` de 4a en `OnInitializedAsync`: rojo (`Sin_empresa_elegida_...`).
+3. Quitar la guarda de `OnParametersSetAsync`: sobrevivió a la primera batería (el QuickGrid no está montado); se añadió `Sin_empresa_elegida_la_accion_crear_de_la_url_no_abre_el_alta` y la segunda pasada, rojo.
+4. No pasar `_ciclo.Token`: rojo.
+5. Pintar la cabecera también en 4a: rojo.
+6. Quitar `if (_desechado) return;` tras resolver (aviso de coordinación: una resolución que vuelve como «Ninguno» tras retirarse la página no es 4a): rojo (`Una_resolucion_que_vuelve_sin_lanzar_tras_retirar_la_pagina_...`, con mediador que ignora el token).
+
+## Fuera de esta PR
+`PideElegirEmpresa` (#1001) y la firma nueva de `ContextoEmpresaActiva` (#1000) no están en main; no se usan aquí. `ResolverAsync` ya acepta el token en main y se le pasa.
+
+## Revisión Codex
+Pasada 1 (alta, 1 P2 corregido): tras retirarse la página con la resolución en vuelo, `OnParametersSetAsync` seguía procesando la URL; la guarda incluye ahora `_desechado`. Test `Retirada_la_pagina_..._no_se_procesan_los_parametros_de_la_url` y mutación (sin `_desechado`: rojo). Main (#1000) integrada por merge; `ResolverAsync` devuelve `Ninguno` al cancelar y la guarda `_desechado` tras resolver lo cubre (mutación: 2 tests rojos).
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)

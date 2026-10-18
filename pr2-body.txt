@@ -1,0 +1,25 @@
+## Qué hace
+Lote 3 del selector de Tenant, § 4.5 (enlaces profundos) e invariante I15.
+
+- Nuevo `EnlaceProfundoOtraEmpresa` (`Components/Layout`), pintado dentro del estado de error de las cuatro fichas 360 (Trabajador, Cliente, Centro, Empresa). Ese estado ya era el mismo para «no existe», «es de otro Tenant» y «no tienes acceso» (la consulta por Id devuelve null en los tres casos); el componente no consulta la entidad ni la busca en otros Tenants.
+- Aviso «Puede pertenecer a otra empresa de tu cartera. Cambia de empresa en el selector.» solo si el usuario tiene selector (depende de quien mira, no de la entidad).
+- Pista opcional `?tenant={id}`: si esa empresa está en el conjunto autorizado del usuario y no es la ya activa, botón «Abrir en {empresa}» que hace **POST** con antiforgery a `/cuenta/cliente-activo` y vuelve a la misma ruta sin la pista. El nombre sale de la lista autorizada, no de la URL. Una pista no autorizada, inválida o de la empresa ya activa se ignora con la misma salida que sin pista. Nunca hay cambio de contexto por GET.
+- Desviación deliberada del mockup (lienzo 5, «Este registro pertenece a {empresa}»): nombrar la empresa dueña sin pista sería un oráculo de existencia. Se sigue el contrato § 4.5 (texto genérico + botón solo con pista autorizada). El endpoint `/cuenta/cliente-activo` sigue decidiendo la autorización (I1) y no se ha tocado.
+- Texto en «empresa» (vocabulario del selector) en lugar de «Tenant» del contrato, y catalán en `TextosComunes.ca-ES.resx`.
+
+## Tests
+- Web.Tests: `EnlaceProfundoOtraEmpresaTests` (8): aviso sin pista; botón POST con antiforgery y `returnUrl` sin pista ni otros parámetros; la pista no navega ni escribe; pista ajena/inválida/activa = misma salida que sin pista (comparación de marcado); sin selector no hay nada; fallo de la lista no revienta. Tres pruebas de error de fichas 360 existentes registran los servicios nuevos (`Cliente360PaginaTests` filtra además la consulta de autorizados del «no pide nada más» de la ficha).
+- Architecture.Tests: `EnlaceProfundoNoCambiaDeEmpresaPorGetTests` (ratchet por fuente con control positivo del detector; las cuatro fichas pintan el componente).
+- Integration: `Un_Id_de_otro_tenant_y_un_Id_inexistente_dan_la_misma_respuesta_en_las_tres_fichas` (Postgres real, RLS).
+- E2E: `GestorCaeCarteraMultiTenantTests.Un_enlace_profundo_a_un_Centro_de_otra_empresa_...`: inexistente = de B (cartera) = de un Tenant fuera de cartera (mismo `EstadoVacio`); pista de la cartera añade el botón y no cambia la activa por GET ni tras recargar; pista de fuera de cartera o desconocida = misma salida; el clic hace POST y aterriza en el mismo enlace, ya en B.
+
+## Mutaciones (sobre el árbol commiteado, revertidas con `git restore`)
+1. Botón sin comprobar la lista autorizada: rojo en 3 pruebas de bUnit (pista ajena, botón, sin selector).
+2. `returnUrl` con la query: rojo (botón vuelve sin la pista).
+3. Quitar el componente de `CentroDetalle`: rojo en el ratchet de Architecture.
+No mutada: cambiar el botón a enlace GET (lo cubre el detector con control positivo, no una mutación real). Hueco: el E2E solo recorre Centro; Trabajador, Cliente y Empresa se cubren por bUnit de componente y ratchet de fuente.
+
+## Revisión Codex
+Pasada 1 (alta, 1 P2 corregido): el componente reutilizado no recalculaba pista ni ruta de retorno al cambiar solo la URL; ahora se suscribe a `LocationChanged` (con `Dispose`) y recalcula con la lista ya leída. Test `Si_solo_cambia_la_URL_con_la_instancia_montada...` y mutación (sin suscripción: rojo).
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
