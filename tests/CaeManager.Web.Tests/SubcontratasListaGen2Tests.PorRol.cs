@@ -1,4 +1,4 @@
-﻿using Bunit;
+using Bunit;
 using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 using CaeManager.Domain.Documentos;
@@ -61,11 +61,12 @@ public partial class SubcontratasListaGen2Tests
         var trabajadores = cut.FindComponents<VentanaContexto>().Single(v => v.Instance.Titulo == "Trabajadores");
         trabajadores.Find(".ventana-contexto-disparador").TextContent.Should().Be("2 trabajadores");
         trabajadores.FindAll(".ventana-contexto-panel button").Select(b => b.TextContent.Trim()).Should().Equal("Sonia Cano", "Luis Sanz");
-        fila.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Supervisada");
-        fila.QuerySelector("[title^='Supervisada:']").Should().NotBeNull("el nivel se explica sin atribuir la gestion a TALVEG");
+        // Rediseño 1:1 (DDL-083): la maqueta pinta el nivel como texto plano, no como pastilla; la explicación pasa al título.
+        fila.QuerySelector(".celda-nivel-subcontrata")!.TextContent.Trim().Should().Be("Supervisada");
+        fila.QuerySelector(".celda-nivel-subcontrata[title^='Supervisada:']").Should().NotBeNull("el nivel se explica sin atribuir la gestion a TALVEG");
         fila.QuerySelector("[role=progressbar], .barra-cumplimiento")!.TextContent.Should().Contain("60");
         fila.QuerySelector(".estado-fila .badge")!.TextContent.Trim().Should().Be("Vencido");
-        fila.QuerySelector(".estado-fila-motivo .motivo-subcontrata")!.TextContent.Trim().Should().Be("1 vencido");
+        fila.QuerySelector(".estado-fila-motivo")!.TextContent.Trim().Should().Be("1 vencido");
         fila.QuerySelector("a.boton-360-pagina")!.GetAttribute("href").Should().Be($"/subcontratas/{id}");
     }
 
@@ -143,43 +144,52 @@ public partial class SubcontratasListaGen2Tests
 
         cut.Find(".barra-filtros-pastillas input[type=text]").GetAttribute("placeholder").Should().Be("Filtrar esta pantalla: razón social o CIF");
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(b => b.GetAttribute("aria-label")!)
-            .Should().Contain(l => l.StartsWith("Nivel de servicio:", StringComparison.Ordinal));
+            .Should().Contain("Nivel");
         cut.FindAll(".franja-estado .franja-estado-boton").Select(b => b.GetAttribute("data-estado") ?? "todas")
             .Should().Contain("Vencido", "la franja ofrece los estados documentales");
     }
 
-    /// <summary>Corregir una incidencia (el formulario de siempre) solo se ofrece con escritura: el comando se lo denegaria a Consulta.</summary>
+    /// <summary>
+    /// Corregir una incidencia (el formulario de siempre) solo se ofrece con escritura: el comando se lo denegaria a Consulta.
+    /// En la maqueta el documento vive en la fila desplegada, con su unico verbo «Gestionar».
+    /// </summary>
     [Theory]
     [MemberData(nameof(RolesDeEscritura))]
-    public async Task Con_escritura_la_incidencia_del_desglose_abre_la_correccion(string rol)
+    public async Task Con_escritura_el_documento_del_desglose_abre_la_correccion_con_Gestionar(string rol)
     {
         this.ConRolDeEscritura(rol);
         this.ConServiciosDelFormularioDeDocumento();
         var mediador = new MediatorFalso { Subcontratas = [Completa(Guid.NewGuid())] };
         var cut = Renderizar(mediador);
+        cut.Find(".boton-expandir-fila").Click();
 
-        await cut.Find(".celda-estado-subcontrata button.ventana-contexto-elemento").ClickAsync(new MouseEventArgs());
+        await cut.Find("button.documento-pendiente-gestionar").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId.ObtenerDocumentoPorIdQuery>().Should().ContainSingle();
     }
 
     [Theory]
     [MemberData(nameof(RolesDeLectura))]
-    public void Sin_escritura_la_incidencia_del_desglose_se_lee_pero_no_se_corrige(string rol)
+    public void Sin_escritura_el_documento_del_desglose_se_lee_pero_no_se_corrige(string rol)
     {
         this.ConRolDeEscritura(rol);
         var cut = Renderizar(new MediatorFalso { Subcontratas = [Completa(Guid.NewGuid())] });
+        cut.Find(".boton-expandir-fila").Click();
 
-        cut.Find(".celda-estado-subcontrata").TextContent.Should().Contain("Aptitud médica — Sonia Cano", "control positivo: el desglose se ve");
-        cut.FindAll(".celda-estado-subcontrata button.ventana-contexto-elemento").Should().BeEmpty();
+        cut.Find(".tarjeta-fila-acordeon-contenido").TextContent.Should().Contain("Aptitud médica — Sonia Cano", "control positivo: el desglose se ve");
+        cut.FindAll(".tarjeta-fila-acordeon-contenido button").Should().BeEmpty();
     }
 
-    /// <summary>Pieza vigente de main que la maqueta no tiene: se fija para que su retirada sea una decision registrada, no un olvido.</summary>
+    /// <summary>
+    /// Pieza de main que la maqueta no tiene y se retira (DDL-083): la linea «N de M subcontratas» de la barra de filtros. El
+    /// recuento ya lo dan el contador de la cabecera y el pie «Mostrando N de M».
+    /// </summary>
     [Fact]
-    public void Main_enseñaba_el_conteo_N_de_M_en_la_barra_de_filtros()
+    public void La_barra_de_filtros_ya_no_lleva_la_linea_de_conteo()
     {
         var cut = Renderizar(new MediatorFalso { Subcontratas = [Completa(Guid.NewGuid())] });
 
-        cut.Find(".conteo-subcontratas").TextContent.Trim().Should().Be("1 de 1 subcontrata");
+        cut.FindAll(".conteo-subcontratas").Should().BeEmpty();
+        cut.Find(".paginador-pie-listado .paginador-texto").TextContent.Trim().Should().EndWith("Mostrando 1 de 1");
     }
 }
