@@ -482,16 +482,18 @@ public partial class Trabajador360Gen2Tests : BunitContext
     }
 
     [Theory]
-    [InlineData(EstadoIndicadorBase.Vigente, true)]
-    [InlineData(EstadoIndicadorBase.Vencido, false)]
-    public void Documentacion_base_no_ofrece_una_accion_sin_Documento_o_sin_estado_que_la_pida(EstadoIndicadorBase estado, bool existe)
+    [InlineData(EstadoIndicadorBase.Vigente, true, 1)]
+    [InlineData(EstadoIndicadorBase.Vencido, false, 0)]
+    public void Documentacion_base_ofrece_Gestionar_con_Documento_y_no_sin_el(EstadoIndicadorBase estado, bool existe, int botones)
     {
         var id = Guid.NewGuid();
         var mediador = ConTrabajador(id);
         mediador.BaseDocumental[id] = new([new(TipoDocumentoBase.AptitudMedica, estado, existe ? Guid.NewGuid() : null, null)]);
         var cut = Renderizar(id);
         cut.FindAll(".panel-doc-base-fila").Should().ContainSingle();
-        cut.FindAll(".panel-doc-base-fila button").Should().BeEmpty();
+        cut.FindAll(".panel-doc-base-fila button").Should().HaveCount(botones);
+        if (estado == EstadoIndicadorBase.Vigente)
+            cut.Find(".panel-doc-base-fila button").ClassList.Should().Contain("gestionar-discreto");
     }
 
     [Theory]
@@ -1140,9 +1142,11 @@ public partial class Trabajador360Gen2Tests : BunitContext
         cut.FindAll(".trabajador360-centros .fila-relacion-desplegar")[0].GetAttribute("aria-expanded").Should().Be("true");
         var detalle = cut.Find(".fila-relacion-desplegado");
         detalle.TextContent.Should().Contain("Formación PRL — 20 h").And.Contain("Certificado de aptitud");
-        // Subir o renovar: la fila ofrece siempre la misma acción, «Gestionar», y abre el mismo flujo; lo vigente no lleva botón.
-        detalle.QuerySelectorAll(".fila-relacion-acciones button").Select(b => b.TextContent.Trim())
-            .Should().Equal(["Gestionar", "Gestionar"]);
+        // Subir o renovar: la fila ofrece siempre la misma acción, «Gestionar», y abre el mismo flujo; lo vigente también la
+        // lleva, en tono secundario (regla de Chris, 2026-10-18).
+        var botones = detalle.QuerySelectorAll(".fila-relacion-acciones button");
+        botones.Select(b => b.TextContent.Trim()).Should().Equal(["Gestionar", "Gestionar", "Gestionar"]);
+        botones.Select(b => b.ClassList.Contains("gestionar-discreto")).Should().Equal([false, false, true]);
         detalle.TextContent.Should().NotContain("Nave Berriz", "solo se despliega el centro sobre el que se pulsó");
     }
 
@@ -1315,7 +1319,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
 
     /// <summary>
     /// Regla 8 de LEEME-AUTORIDAD (2026-10-18): en Operación (Documentación base y franja «Por vencer») la fila que pide
-    /// trabajo ofrece solo «Gestionar» a quien escribe; Consulta y Cliente no ven acción de escritura; lo vigente no lleva botón.
+    /// trabajo ofrece solo «Gestionar» a quien escribe; Consulta y Cliente no ven acción de escritura; lo vigente también la lleva, en tono secundario.
     /// </summary>
     [Theory]
     [InlineData(Roles.Administrador, true)]
@@ -1324,7 +1328,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     [InlineData(Roles.GestorCae, true)]
     [InlineData(Roles.Consulta, false)]
     [InlineData(Roles.Cliente, false)]
-    public void Operacion_ofrece_solo_Gestionar_a_quien_escribe_y_nada_en_lo_vigente(string rol, bool escribe)
+    public void Operacion_ofrece_solo_Gestionar_a_quien_escribe_tambien_en_lo_vigente(string rol, bool escribe)
     {
         this.ConRolDeEscritura(rol);
         var id = Guid.NewGuid();
@@ -1352,8 +1356,8 @@ public partial class Trabajador360Gen2Tests : BunitContext
             .Select(f => f.QuerySelectorAll(".fila-relacion-acciones button").Select(b => b.TextContent.Trim()).ToList()).ToList();
         if (escribe)
         {
-            botonesBase.Should().Equal(new List<string>[] { ["Gestionar"], ["Gestionar"], [] },
-                (a, b) => a.SequenceEqual(b), "Vencido y Sin confirmar piden trabajo; lo vigente no lleva botón");
+            botonesBase.Should().Equal(new List<string>[] { ["Gestionar"], ["Gestionar"], ["Gestionar"] },
+                (a, b) => a.SequenceEqual(b), "Vencido y Sin confirmar piden trabajo; lo vigente también lleva «Gestionar», en tono secundario");
             botonesFranja.Should().HaveCount(2).And.OnlyContain(b => b.SequenceEqual(new[] { "Gestionar" }),
                 "Por vencer, urgente o no, lleva «Gestionar»");
         }

@@ -389,11 +389,11 @@
 .grupo-lista-chevron {
     display: inline-flex;
     transform: rotate(-90deg);
-    transition: transform 0.15s ease;
+    transition: transform var(--motion-transition) var(--ease-fluid);
 }
 
 .grupo-lista-cabecera-abierta .grupo-lista-chevron {
-    transform: none;
+    transform: rotate(0deg);
 }
 
 .grupo-lista-contador {
@@ -1323,6 +1323,21 @@
 .accion-fila-enlace.accion-atenuada:hover,
 .accion-fila-enlace.accion-atenuada:focus-visible {
     color: var(--color-primary-500) !important;
+}
+
+/*
+  «Gestionar» de un documento al día (Vigente o Sin caducidad; regla de Chris, 2026-10-18): la misma acción y el mismo
+  flujo que en el resto de estados, pero con el texto atenuado y sin color de acento para que no meta ruido. Lo pone
+  EstadoDocumentoFicha360.ClaseGestionar sobre el Boton (Fantasma con .accion-fila-enlace o Secundario). Al pasar el
+  puntero o enfocar con teclado el texto recupera --color-text, y el anillo de foco es el del propio Boton.
+*/
+.gestionar-discreto {
+    color: var(--color-text-muted) !important;
+}
+
+.gestionar-discreto:not(:disabled):hover,
+.gestionar-discreto:focus-visible {
+    color: var(--color-text) !important;
 }
 
 /*
