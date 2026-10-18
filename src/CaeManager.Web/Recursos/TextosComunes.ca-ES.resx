@@ -537,4 +537,5 @@
   <data name="SelectorTenantQuitarFijada" xml:space="preserve">
     <value>Treu de les fixades</value>
   </data>
+  <data name="SeccionCarterasGestores" xml:space="preserve"><value>Carteres de gestors</value></data>
 </root>

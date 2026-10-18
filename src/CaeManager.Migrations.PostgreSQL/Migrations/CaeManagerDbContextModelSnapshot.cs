@@ -5853,6 +5853,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("AsignacionOperacionId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("CoberturaAusenciaId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -6019,6 +6022,53 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasFilter("\"Estado\" = 'Vigente' AND \"AmbitoRelacionClienteId\" IS NOT NULL AND \"AmbitoCentroId\" IS NULL AND \"AmbitoTrabajadorId\" IS NULL AND \"AmbitoProyectoId\" IS NULL");
 
                     b.ToTable("AsignacionesOperacion", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Operaciones.AusenciaGestorCae", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CerradaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Coberturas")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateOnly>("Desde")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("GestorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("Hasta")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("RegistradaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("RegistradaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "GestorUsuarioId")
+                        .IsUnique()
+                        .HasFilter("\"CerradaEnUtc\" IS NULL");
+
+                    b.ToTable("AusenciasGestorCae", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Operaciones.PropuestaApoyoCartera", b =>

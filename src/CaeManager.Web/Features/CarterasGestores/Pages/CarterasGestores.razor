@@ -1,0 +1,146 @@
+@page "/equipo/carteras"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Administrador,DireccionCae,CoordinadorCae")]
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@using CaeManager.Application.Operaciones
+@using CaeManager.Application.Operaciones.Traspasos
+@using CaeManager.Domain.Operaciones
+@using CaeManager.Web.Features.CarterasGestores.Components
+@inject MediatR.IMediator Mediator
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>Carteras de gestores — @Marca.Nombre</PageTitle>
+<div class="contenedor-pagina carteras">
+    <CabeceraPagina Titulo="Carteras de gestores" />
+    @if (_cargando) { <p role="status">Cargando carteras…</p> }
+    else if (_datos is null)
+    {
+        <p role="alert">@_error</p>
+        <button type="button" @onclick="Cargar">Reintentar</button>
+    }
+    else
+    {
+        @if (_aviso is not null) { <p role="status">@_aviso</p> }
+        @foreach (var ausencia in _datos.Ausencias)
+        {
+            var afectadas = Empresas(ausencia.GestorUsuarioId);
+            var pendientes = afectadas.Where(c => ausencia.Coberturas.All(x => x.AsignacionOperacionId != c.AsignacionOperacionId)).ToList();
+            <section class="ausencia" @key="ausencia.Id">
+                <header>
+                    <div><strong>@Nombre(ausencia.GestorUsuarioId) · @Tipo(ausencia.Tipo)</strong><p>@ausencia.Desde.ToString("dd/MM/yyyy") @if (ausencia.Hasta is { } hasta) { <span>al @hasta.ToString("dd/MM/yyyy")</span> } · @pendientes.Count Empresas sin cubrir</p></div>
+                    @if (ausencia.Tipo != TipoAusenciaGestorCae.BajaDefinitiva)
+                    { <button type="button" disabled="@_guardando" @onclick="() => _aCerrar = ausencia">Ha vuelto · cerrar ausencia</button> }
+                </header>
+                <p class="nota">@(ausencia.Tipo == TipoAusenciaGestorCae.BajaDefinitiva ? "Quien elijas conserva la condición principal o de apoyo de la asignación de origen." : "Quien elijas entra como apoyo hasta la vuelta; al cerrar la ausencia se retira.")</p>
+                @foreach (var empresa in pendientes)
+                {
+                    <div class="cobertura"><span>@empresa.NombreTenant</span><button type="button" disabled="@_guardando" @onclick="() => AbrirTraspaso(ausencia.GestorUsuarioId, [empresa], ausencia.Id)">Elegir quién cubre…</button></div>
+                }
+                @if (pendientes.Count > 1) { <button class="cubrir-todas" type="button" @onclick="() => AbrirTraspaso(ausencia.GestorUsuarioId, pendientes, ausencia.Id)">Cubrir todas…</button> }
+                @foreach (var cubierta in ausencia.Coberturas)
+                {
+                    <div class="cobertura"><span>@NombreEmpresa(cubierta.AsignacionOperacionId)</span><span>Cubierta por @Nombre(cubierta.DestinatarioUsuarioId)</span></div>
+                }
+            </section>
+        }
+        @if (_datos.Gestores.Count == 0) { <p>No hay Gestores CAE en tu equipo.</p> }
+        else
+        {
+            <div class="reparto">
+                <nav aria-label="Gestores CAE">
+                    @foreach (var gestor in _datos.Gestores)
+                    {
+                        <button type="button" aria-pressed="@(gestor.UsuarioId == _seleccionado)" @onclick="() => _seleccionado = gestor.UsuarioId"><strong>@gestor.Nombre</strong><span>Gestor CAE · @Empresas(gestor.UsuarioId).Count Empresas</span></button>
+                    }
+                </nav>
+                <section class="cartera">
+                    <header><div><h2>@Nombre(_seleccionado)</h2><span>@Empresas(_seleccionado).Count Empresas</span></div>
+                        <button type="button" disabled="@_guardando" @onclick="AbrirAusencia">Registrar ausencia…</button>
+                        <button type="button" disabled="@(_guardando || Empresas(_seleccionado).Count == 0)" @onclick="() => AbrirTraspaso(_seleccionado, Empresas(_seleccionado))">Transferir cartera…</button>
+                    </header>
+                    <div class="fila cabecera"><span>Empresa</span><span>Rol</span><span></span></div>
+                    @foreach (var empresa in Empresas(_seleccionado))
+                    {
+                        <div class="fila" @key="empresa.AsignacionOperacionId"><strong>@empresa.NombreTenant</strong><span>@(empresa.EsPrincipal ? "Principal" : "Apoyo")</span><button type="button" @onclick="() => AbrirTraspaso(_seleccionado, [empresa])">Traspasar…</button></div>
+                    }
+                    @if (Empresas(_seleccionado).Count == 0) { <p class="nota">Sin Empresas en su cartera.</p> }
+                </section>
+            </div>
+        }
+    }
+</div>
+<DialogoTraspasarCartera Visible="_traspaso" VisibleChanged="v => _traspaso = v" GestorUsuarioId="_origen" Nombre="@Nombre(_origen)"
+    Empresas="_empresasTraspaso" Destinatarios="Destinatarios" AusenciaId="_ausenciaTraspaso" PermitirMantenerApoyo="@(_ausenciaTraspaso is null)"
+    Guardando="_guardando" Error="_errorDialogo" AlConfirmar="Traspasar" />
+<div class="modal-ausencia">
+<Modal Visible="_registrar" VisibleChanged="v => { if (!_guardando) _registrar = v; }" Titulo="Registrar ausencia" CerrarAlHacerClicFuera="@(!_guardando)">
+    <ChildContent>
+        <h3>@Nombre(_seleccionado)</h3>
+        @if (_errorDialogo is not null) { <p role="alert">@_errorDialogo</p> }
+        @foreach (var tipo in Enum.GetValues<TipoAusenciaGestorCae>())
+        {
+            <label class="tipo"><input type="radio" name="tipo-ausencia" checked="@(_tipo == tipo)" disabled="@_guardando" @onchange="() => _tipo = tipo" /><span><strong>@Tipo(tipo)</strong><small>@Descripcion(tipo)</small></span></label>
+        }
+        <div class="fechas"><label>Desde<input type="date" @bind="_desde" disabled="@_guardando" /></label>
+            @if (_tipo != TipoAusenciaGestorCae.BajaDefinitiva) { <label>Hasta<input type="date" @bind="_hasta" disabled="@_guardando" /></label> }
+        </div>
+        <p class="nota">Elige después quién cubre cada Empresa. No se enviará nada sin confirmar.</p>
+    </ChildContent>
+    <Pie><button type="button" disabled="@_guardando" @onclick="() => _registrar = false">Cancelar</button><button type="button" class="primario" disabled="@_guardando" @onclick="Registrar">@(_guardando ? "Registrando…" : "Registrar")</button></Pie>
+</Modal>
+</div>
+<Modal Visible="@(_aCerrar is not null)" VisibleChanged="v => { if (!v && !_guardando) _aCerrar = null; }" Titulo="Cerrar ausencia" CerrarAlHacerClicFuera="@(!_guardando)">
+    <ChildContent><p>Se retirarán solo las asignaciones creadas para esta cobertura. Las asignaciones anteriores se conservan.</p>@if (_errorDialogo is not null) { <p role="alert">@_errorDialogo</p> }</ChildContent>
+    <Pie><button type="button" disabled="@_guardando" @onclick="() => _aCerrar = null">Cancelar</button><button type="button" disabled="@_guardando" @onclick="CerrarAusencia">Cerrar ausencia</button></Pie>
+</Modal>
+</LimiteDeErrores>
+
+@code {
+    private CarterasGestoresDto? _datos;
+    private bool _cargando = true, _guardando, _traspaso, _registrar;
+    private Guid _seleccionado, _origen;
+    private Guid? _ausenciaTraspaso;
+    private IReadOnlyList<CarteraVivaDeOperacion> _empresasTraspaso = [];
+    private AusenciaDeGestor? _aCerrar;
+    private string? _error, _errorDialogo, _aviso;
+    private TipoAusenciaGestorCae _tipo;
+    private DateOnly _desde = CaeManager.Domain.Common.DiaDeNegocio.Hoy(), _hasta = CaeManager.Domain.Common.DiaDeNegocio.Hoy();
+    private IReadOnlyList<GestorDeCartera> Destinatarios => _datos?.Gestores.Where(g => g.UsuarioId != _origen && g.Disponible).ToList() ?? [];
+    protected override Task OnInitializedAsync() => Cargar();
+    private async Task Cargar()
+    {
+        _cargando = true;
+        try
+        {
+            var r = await Mediator.Send(new ObtenerCarterasGestoresQuery());
+            _datos = r.EsExitoso ? r.Valor : null;
+            _error = r.EsFallido ? r.Error.Mensaje : null;
+            if (_datos is not null && _datos.Gestores.All(g => g.UsuarioId != _seleccionado)) _seleccionado = _datos.Gestores.FirstOrDefault()?.UsuarioId ?? Guid.Empty;
+        }
+        finally { _cargando = false; }
+    }
+    private string Nombre(Guid id) => _datos?.Gestores.FirstOrDefault(g => g.UsuarioId == id)?.Nombre ?? "Gestor CAE";
+    private string NombreEmpresa(Guid id) => _datos?.Carteras.FirstOrDefault(c => c.AsignacionOperacionId == id)?.NombreTenant ?? "Empresa";
+    private List<CarteraVivaDeOperacion> Empresas(Guid id) => _datos?.Carteras.Where(c => c.UsuarioId == id).OrderBy(c => c.NombreTenant).ToList() ?? [];
+    private void AbrirTraspaso(Guid origen, IReadOnlyList<CarteraVivaDeOperacion> empresas, Guid? ausenciaId = null)
+    { _origen = origen; _empresasTraspaso = empresas; _ausenciaTraspaso = ausenciaId; _errorDialogo = null; _traspaso = true; }
+    private void AbrirAusencia() { _tipo = TipoAusenciaGestorCae.Vacaciones; _errorDialogo = null; _registrar = true; }
+    private Task Traspasar(TraspasarCarteraCommand command) => Ejecutar(command, "Cartera traspasada");
+    private Task Registrar() => Ejecutar(new RegistrarAusenciaGestorCaeCommand(_seleccionado, _tipo, _desde, _tipo == TipoAusenciaGestorCae.BajaDefinitiva ? null : _hasta), "Ausencia registrada");
+    private Task CerrarAusencia() => _aCerrar is null ? Task.CompletedTask : Ejecutar(new CerrarAusenciaGestorCaeCommand(_aCerrar.GestorUsuarioId, _aCerrar.Id), "Ausencia cerrada");
+    private async Task Ejecutar(CaeManager.Application.Common.ICommand command, string aviso)
+    {
+        if (_guardando) return;
+        _guardando = true; _errorDialogo = null;
+        try
+        {
+            var resultado = await Mediator.Send(command);
+            if (resultado.EsFallido) { _errorDialogo = resultado.Error.Mensaje; return; }
+            _traspaso = false; _registrar = false; _aCerrar = null; _aviso = aviso;
+            await Cargar();
+        }
+        finally { _guardando = false; }
+    }
+    private static string Tipo(TipoAusenciaGestorCae tipo) => tipo switch { TipoAusenciaGestorCae.Vacaciones => "Vacaciones", TipoAusenciaGestorCae.BajaTemporal => "Baja temporal", _ => "Baja definitiva" };
+    private static string Descripcion(TipoAusenciaGestorCae tipo) => tipo switch { TipoAusenciaGestorCae.Vacaciones => "Sus empresas pasan a un compañero como apoyo y vuelven al terminar.", TipoAusenciaGestorCae.BajaTemporal => "Igual que vacaciones, con fecha de vuelta prevista.", _ => "Sus Empresas pasan a otro Gestor CAE conservando la condición principal o de apoyo." };
+}

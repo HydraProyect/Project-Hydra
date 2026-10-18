@@ -546,4 +546,5 @@
   <data name="SelectorTenantQuitarFijada" xml:space="preserve">
     <value>Quitar de fijadas</value>
   </data>
+  <data name="SeccionCarterasGestores" xml:space="preserve"><value>Carteras de gestores</value></data>
 </root>

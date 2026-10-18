@@ -1,0 +1,15 @@
+.dialogo-traspaso ::deep .modal-contenido { max-width: 480px; border-radius: 14px; background: var(--color-surface); }
+.dialogo-traspaso ::deep .modal-header { padding: 16px 18px; }
+.dialogo-traspaso ::deep .modal-cuerpo { padding: 0; }
+.dialogo-traspaso ::deep .modal-pie { padding: 14px 18px; flex-wrap: wrap; gap: 8px; }
+.resumen { margin: 0; padding: 8px 18px; font: var(--font-caption); color: var(--color-text-muted); }
+.todas, .empresa { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 10px; align-items: center; padding: 10px 18px; border-bottom: 1px solid var(--color-border); font: var(--font-label); }
+.todas { padding-block: 12px; }
+select { width: 100%; min-width: 0; height: 38px; padding: 0 10px; border: 1px solid var(--color-border-control); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); font: var(--font-body-md); }
+.mantener { display: flex; align-items: center; gap: 8px; padding: 16px 18px; font: var(--font-body-md); }
+.faltan { flex: 1; font: var(--font-caption); color: var(--color-warning-700); }
+button { height: 40px; padding: 0 14px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); font: var(--font-label); cursor: pointer; }
+.confirmar { background: var(--color-primario-fondo); border-color: var(--color-primario-fondo); color: var(--color-primario-texto, #fff); }
+button:disabled { opacity: .45; cursor: default; }
+[role=alert] { padding: 12px 18px; margin: 0; color: var(--color-danger-700); }
+@media (max-width: 540px) { .empresa, .todas { grid-template-columns: 1fr; } .faltan { flex-basis: 100%; } }

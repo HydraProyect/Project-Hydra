@@ -46,10 +46,7 @@ public sealed record SeccionVisible(SeccionMenu Seccion, IReadOnlyList<PestanaVi
 public sealed record PestanaVisible(PestanaSeccionMenu Pestana, bool Activa);
 
 /// <summary>
-/// Catálogo de las secciones con pestañas. Solo lista pantallas que existen: una pestaña a una pantalla
-/// que no existe es peor que no tener la pestaña. Por eso <b>«Carteras de gestores»</b> (pestaña de Equipo en
-/// el diseño) no está todavía: hoy la Asignación de Cartera se gestiona dentro de Usuarios y no hay
-/// pantalla propia. Se añade aquí cuando exista.
+/// Catálogo de las secciones con pestañas. Solo lista pantallas que existen.
 /// </summary>
 public static class CatalogoSeccionesMenu
 {
@@ -109,6 +106,8 @@ public static class CatalogoSeccionesMenu
                 (ruta, _) => EsRuta(ruta, "usuarios")),
             new("equipo-roles", "SeccionRoles", "roles", RolesDeRoles,
                 (ruta, _) => EsRuta(ruta, "roles"), typeof(Features.GestionRoles.Pages.Roles)),
+            new("equipo-carteras", "SeccionCarterasGestores", "equipo/carteras", RolesDeUsuarios,
+                (ruta, _) => EsRuta(ruta, "equipo/carteras"), typeof(Features.CarterasGestores.Pages.CarterasGestores)),
         ]),
     ];
 

@@ -14,7 +14,7 @@ namespace CaeManager.Infrastructure.Operaciones;
 public class CatalogoIncorporacionCartera(
     CaeManagerDbContext dbContext,
     ICurrentUserService currentUserService)
-    : ICatalogoIncorporacionCartera
+    : ICatalogoIncorporacionCartera, CaeManager.Application.Operaciones.Traspasos.ITraspasosCarteraWriter
 {
     /// <summary>
     /// El rol con el que entra quien se incorpora. Fijo: la solicitud es de un
@@ -22,6 +22,50 @@ public class CatalogoIncorporacionCartera(
     /// como Gestor CAE adicional, no con el rol que tenga en su propio Tenant.
     /// </summary>
     private const string RolIncorporado = Roles.GestorCae;
+
+    public async Task<bool> TraspasarAsync(Guid operacionId, Guid propietarioTenantId, Guid operadorTenantId,
+        Guid origenUsuarioId, Guid destinoUsuarioId, Guid actorUsuarioId, bool mantenerApoyo,
+        Guid? coberturaAusenciaId, CancellationToken ct)
+    {
+        var operacion = await ObtenerOperacionVigenteAsync(operacionId, ct);
+        if (operacion is null || operacion.EsRaiz || !operacion.Ambito.EsUniversal
+            || operacion.PropietarioTenantId != propietarioTenantId || operacion.OperadorTenantId != operadorTenantId
+            || origenUsuarioId == destinoUsuarioId)
+            return false;
+        var origen = await CarterasVivasDelOperador(operadorTenantId)
+            .SingleOrDefaultAsync(c => c.AsignacionOperacionId == operacionId && c.UsuarioId == origenUsuarioId, ct);
+        if (origen is null || origen.Rol != RolIncorporado || !origen.Ambito.EsUniversal)
+            return false;
+        var vinculo = await VinculoVivoConElOperadorAsync(propietarioTenantId, operadorTenantId, DateTime.UtcNow, ct);
+        if (vinculo is null) return false;
+
+        // Cualquier asignación previa impide emitir otra: ni se amplía ni se cambia su condición.
+        var existentes = await PropietariosEnCarteraAsync([propietarioTenantId], operadorTenantId, destinoUsuarioId, ct);
+        var nueva = existentes.Count == 0
+            ? origen.CrearRelevo(operacion, destinoUsuarioId, coberturaAusenciaId, DateTime.UtcNow, actorUsuarioId)
+            : null;
+        if (coberturaAusenciaId is null)
+        {
+            if (mantenerApoyo) origen.DejarDeSerPrincipal();
+            else await CerrarPorRetiradaAsync([origen], propietarioTenantId, operadorTenantId, origenUsuarioId, actorUsuarioId, ct);
+            // El índice de principal no es diferible. El Command envuelve todos los guardados en una transacción.
+            if (!await GuardarDetectandoCarreraAsync(ct)) return false;
+        }
+        if (nueva is null) return true;
+        dbContext.AsignacionesCartera.Add(nueva);
+        dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(vinculo.Value, destinoUsuarioId, RolIncorporado));
+        return true;
+    }
+
+    public async Task RetirarCoberturaAsync(Guid ausenciaId, Guid operacionId, Guid propietarioTenantId,
+        Guid operadorTenantId, Guid actorUsuarioId, CancellationToken ct)
+    {
+        var creadas = await dbContext.AsignacionesCartera.Where(c => c.CoberturaAusenciaId == ausenciaId
+            && c.AsignacionOperacionId == operacionId && c.PropietarioTenantId == propietarioTenantId
+            && c.OperadorTenantId == operadorTenantId && c.Estado != EstadoAsignacion.Cerrada).ToListAsync(ct);
+        foreach (var grupo in creadas.GroupBy(c => c.UsuarioId))
+            await CerrarPorRetiradaAsync(grupo.ToList(), propietarioTenantId, operadorTenantId, grupo.Key, actorUsuarioId, ct);
+    }
 
     /// <summary>
     /// El rol de la cartera que el relevo automático del principal emite al Coordinador CAE

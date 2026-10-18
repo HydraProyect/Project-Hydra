@@ -1,0 +1,72 @@
+@using CaeManager.Application.Operaciones
+@using CaeManager.Application.Operaciones.Traspasos
+@using CaeManager.Web.Features.CarterasGestores.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosCarterasGestores> Textos
+
+<div class="dialogo-traspaso">
+<ModalFormulario Visible="Visible" VisibleChanged="Cerrar" Titulo="@Textos["TraspasarCarteraDe", Nombre]"
+    HayCambios="() => _destinos.Count > 0 || (PermitirMantenerApoyo && !_mantener)" Guardando="Guardando" MensajeError="Error"
+    MotivoGuardarDeshabilitado="@(Faltan > 0 ? Textos["Faltan", Faltan].Value : Empresas.Count == 0 ? Textos["SinEmpresas"].Value : null)"
+    TextoGuardar="@Textos["Traspasar"]" TextoCancelar="@Textos["Cancelar"]" OnGuardar="Confirmar">
+    <ChildContent>
+        <p class="resumen">@Textos["NumeroEmpresas", Empresas.Count]</p>
+        <label class="todas">@Textos["TodasA"]
+            <select aria-label="@Textos["TodasA"]" disabled="@Guardando" @onchange="ElegirTodas">
+                <option value="">@Textos["ElegirGestor"]</option>
+                @foreach (var gestor in Destinatarios) { <option value="@gestor.UsuarioId">@gestor.Nombre</option> }
+            </select>
+        </label>
+        @foreach (var empresa in Empresas)
+        {
+            <label class="empresa" @key="empresa.AsignacionOperacionId">
+                <span>@empresa.NombreTenant</span>
+                <select aria-label="@Textos["GestorPara", empresa.NombreTenant]" value="@Destino(empresa.AsignacionOperacionId)" disabled="@Guardando"
+                        @onchange="e => Elegir(empresa.AsignacionOperacionId, e)">
+                    <option value="">@Textos["ElegirGestor"]</option>
+                    @foreach (var gestor in Destinatarios) { <option value="@gestor.UsuarioId">@gestor.Nombre</option> }
+                </select>
+            </label>
+        }
+        @if (PermitirMantenerApoyo)
+        {
+            <label class="mantener"><input type="checkbox" @bind="_mantener" disabled="@Guardando" /> @Textos["MantenerApoyo", Nombre]</label>
+        }
+    </ChildContent>
+    <Aviso>@if (Faltan > 0) { <span class="faltan">@Textos["Faltan", Faltan]</span> }</Aviso>
+</ModalFormulario>
+</div>
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter] public Guid GestorUsuarioId { get; set; }
+    [Parameter] public string Nombre { get; set; } = "";
+    [Parameter] public IReadOnlyList<CarteraVivaDeOperacion> Empresas { get; set; } = [];
+    [Parameter] public IReadOnlyList<GestorDeCartera> Destinatarios { get; set; } = [];
+    [Parameter] public Guid? AusenciaId { get; set; }
+    [Parameter] public bool PermitirMantenerApoyo { get; set; }
+    [Parameter] public bool Guardando { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public EventCallback<TraspasarCarteraCommand> AlConfirmar { get; set; }
+    private readonly Dictionary<Guid, Guid> _destinos = [];
+    private bool _mantener;
+    private bool _abierto;
+    private int Faltan => Empresas.Count(e => !_destinos.ContainsKey(e.AsignacionOperacionId));
+    protected override void OnParametersSet()
+    {
+        if (Visible && !_abierto) { _destinos.Clear(); _mantener = true; }
+        _abierto = Visible;
+    }
+    private string Destino(Guid id) => _destinos.TryGetValue(id, out var g) ? g.ToString() : "";
+    private void Elegir(Guid id, ChangeEventArgs e)
+    {
+        if (Guardando) return;
+        if (Guid.TryParse(e.Value?.ToString(), out var g) && Destinatarios.Any(d => d.UsuarioId == g)) _destinos[id] = g;
+        else _destinos.Remove(id);
+    }
+    private void ElegirTodas(ChangeEventArgs e) { foreach (var empresa in Empresas) Elegir(empresa.AsignacionOperacionId, e); }
+    private Task Cerrar(bool visible) => Guardando ? Task.CompletedTask : VisibleChanged.InvokeAsync(visible);
+    private Task Confirmar() => Guardando || Faltan > 0 || Empresas.Count == 0 ? Task.CompletedTask
+        : AlConfirmar.InvokeAsync(new(GestorUsuarioId, Empresas.Select(e => new DestinoTraspaso(e.AsignacionOperacionId, _destinos[e.AsignacionOperacionId])).ToList(), PermitirMantenerApoyo && _mantener, AusenciaId));
+}

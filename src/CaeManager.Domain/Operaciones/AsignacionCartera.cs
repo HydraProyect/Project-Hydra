@@ -84,6 +84,30 @@ public class AsignacionCartera : AsignacionResponsabilidad
     /// </summary>
     public bool EsPrincipal { get; private set; }
 
+    /// <summary>Identifica exclusivamente las asignaciones creadas para cubrir una ausencia temporal.</summary>
+    public Guid? CoberturaAusenciaId { get; private set; }
+
+    private void MarcarCobertura(Guid ausenciaId)
+    {
+        if (ausenciaId == Guid.Empty || EsPrincipal || Estado == EstadoAsignacion.Cerrada || CoberturaAusenciaId is not null)
+            throw new InvalidOperationException("Solo una nueva asignación de apoyo puede marcarse como cobertura.");
+        CoberturaAusenciaId = ausenciaId;
+    }
+
+    /// <summary>Emite el relevo en la misma operación: permanente conserva principal/apoyo; cobertura siempre es apoyo.</summary>
+    public AsignacionCartera CrearRelevo(AsignacionOperacion operacion, Guid destinatarioUsuarioId,
+        Guid? ausenciaTemporalId, DateTime ahora, Guid actorUsuarioId)
+    {
+        if (Estado != EstadoAsignacion.Vigente || Rol != "GestorCae" || !Ambito.EsUniversal
+            || operacion.Id != AsignacionOperacionId || operacion.PropietarioTenantId != PropietarioTenantId
+            || operacion.OperadorTenantId != OperadorTenantId || destinatarioUsuarioId == UsuarioId)
+            throw new InvalidOperationException("El relevo exige una asignación vigente del mismo Operador CAE y Tenant propietario.");
+        var nueva = Externa(operacion, destinatarioUsuarioId, "GestorCae", AmbitoAsignacion.Universal, ahora, null, ahora, actorUsuarioId);
+        if (ausenciaTemporalId is { } ausenciaId) nueva.MarcarCobertura(ausenciaId);
+        else if (EsPrincipal) nueva.DesignarPrincipal();
+        return nueva;
+    }
+
     private AsignacionCartera()
     {
         // Requerido por EF Core.

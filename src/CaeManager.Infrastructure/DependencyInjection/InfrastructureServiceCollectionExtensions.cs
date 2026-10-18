@@ -333,6 +333,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Operaciones.ISolicitudIncorporacionCarteraRepository, SolicitudIncorporacionCarteraRepository>();
         services.AddScoped<CaeManager.Domain.Tenants.IEncargoAdministracionRepository, EncargoAdministracionRepository>();
         services.AddScoped<CaeManager.Domain.Operaciones.IPropuestaApoyoCarteraRepository, PropuestaApoyoCarteraRepository>();
+        services.AddScoped<CaeManager.Application.Operaciones.Traspasos.IAusenciasGestorCae, AusenciasGestorCaeRepository>();
+        services.AddScoped<CaeManager.Application.Operaciones.Traspasos.ITraspasosCarteraWriter, CaeManager.Infrastructure.Operaciones.CatalogoIncorporacionCartera>();
         services.AddScoped<IPreferenciaDashboardUsuarioRepository, PreferenciaDashboardUsuarioRepository>();
         services.AddScoped<IFiltroGuardadoRepository, FiltroGuardadoRepository>();
         services.AddScoped<IOrdenCajasFichaRepository, OrdenCajasFichaRepository>();
