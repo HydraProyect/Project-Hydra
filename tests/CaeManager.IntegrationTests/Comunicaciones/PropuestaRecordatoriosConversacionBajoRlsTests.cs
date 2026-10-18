@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Tenants;
@@ -12,7 +13,8 @@ using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Comunicaciones;
@@ -30,7 +32,7 @@ public class PropuestaRecordatoriosConversacionBajoRlsTests
     [Fact]
     public async Task Bajo_el_rol_de_runtime_propone_una_vez_por_espera_en_cada_Tenant_y_descarta_la_que_ya_no_aplica()
     {
-        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false, serviciosAdicionales: ConPlazos);
         var ahora = DateTime.UtcNow;
 
         var tenantA = new Tenant("Tenant propietario con conversaciones en espera");
@@ -63,10 +65,11 @@ public class PropuestaRecordatoriosConversacionBajoRlsTests
         var job = new PropuestaRecordatoriosConversacionHostedService(
             arnes.Servicios.GetRequiredService<IServiceScopeFactory>(),
             new LiderSiempre(),
-            NullLogger<PropuestaRecordatoriosConversacionHostedService>.Instance);
+            _registro);
 
         await job.ProcesarAsync(ahora, CancellationToken.None);
         await job.ProcesarAsync(ahora.AddHours(1), CancellationToken.None);
+        _registro.Errores.Should().BeEmpty("un fallo por Tenant se registra y se sigue; aquí no debe haber ninguno");
 
         await using (var verificacion = CrearContextoPropietario(arnes.CadenaPropietario, new TenantActualPorAmbito()))
         {
@@ -118,7 +121,7 @@ public class PropuestaRecordatoriosConversacionBajoRlsTests
     [Fact]
     public async Task La_propuesta_no_cruza_Tenants_ni_por_la_FK_ni_por_la_RLS()
     {
-        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false, serviciosAdicionales: ConPlazos);
         var ahora = DateTime.UtcNow;
         var tenantA = new Tenant("Tenant propietario A de la propuesta");
         var tenantB = new Tenant("Tenant propietario B ajeno");
@@ -138,8 +141,9 @@ public class PropuestaRecordatoriosConversacionBajoRlsTests
 
         await new PropuestaRecordatoriosConversacionHostedService(
                 arnes.Servicios.GetRequiredService<IServiceScopeFactory>(), new LiderSiempre(),
-                NullLogger<PropuestaRecordatoriosConversacionHostedService>.Instance)
+                _registro)
             .ProcesarAsync(ahora, CancellationToken.None);
+        _registro.Errores.Should().BeEmpty();
 
         using (AmbitoTenantExplicito.Establecer(tenantB.Id))
         {
@@ -190,5 +194,39 @@ public class PropuestaRecordatoriosConversacionBajoRlsTests
             await trabajo(cancellationToken);
             return true;
         }
+    }
+    private readonly RegistroDeErrores _registro = new();
+
+    /// <summary>El proceso registra el fallo de un Tenant y sigue: sin esto el test solo vería «no hay propuestas».</summary>
+    private sealed class RegistroDeErrores : ILogger<PropuestaRecordatoriosConversacionHostedService>
+    {
+        public List<string> Errores { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel >= LogLevel.Error) Errores.Add(formatter(state, exception) + " " + exception);
+        }
+    }
+    /// <summary>
+    /// El arnés no registra el servicio de plazos (en producción lo hace InfrastructureServiceCollectionExtensions). Aquí el
+    /// Operador CAE no se resuelve y el proceso cae al calendario por defecto, que es justo la rama que cubre este test;
+    /// la resolución del Operador CAE la prueban los tests del SLA.
+    /// </summary>
+    private static void ConPlazos(IServiceCollection servicios)
+    {
+        servicios.AddScoped<IContextoOperativoConversacionService, ContextoOperativoSinOperador>();
+        servicios.AddSingleton(Options.Create(new CalendariosOperadorCaeOptions()));
+        servicios.AddScoped<PlazosConversacionService>();
+    }
+
+    private sealed class ContextoOperativoSinOperador : IContextoOperativoConversacionService
+    {
+        public Task<OperacionDeConversacion?> ResolverAsync(Guid propietarioTenantId, Guid? clienteEmpresarialId, Guid? empresaId,
+            CancellationToken cancellationToken) => Task.FromResult<OperacionDeConversacion?>(null);
+
+        public Task AvisarCriticaAsync(OperacionDeConversacion operacion, Guid eventoId, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 }
