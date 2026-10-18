@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Commands.CrearCliente;
 using CaeManager.Application.Clientes.Commands.EditarCliente;
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
@@ -11,6 +12,7 @@ using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Documentos;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Application.Common;
@@ -49,14 +51,6 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     // cambio la saque del filtro activo, hasta la siguiente carga. Los recuentos de la franja
     // tampoco se recalculan hasta entonces.
 
-    /// <summary>
-    /// La siguiente petición de QuickGrid se sirve de <see cref="_elementosPagina"/> sin consultar:
-    /// QuickGrid solo repinta sus filas cuando su proveedor le entrega una página, y una carga
-    /// de verdad limpiaría la selección y la fila enfocada. El total no cambia, así que no hay
-    /// segunda petición (ver RecargarAsync).
-    /// </summary>
-    private bool _servirPaginaEnMemoria;
-
     private void AlGuardarEntidad(EntidadWorkspace tipo, Guid id)
     {
         if (tipo == EntidadWorkspace.Cliente)
@@ -68,7 +62,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         // Con una carga en vuelo no se sustituye nada: la sustitución caería sobre una página que
         // está a punto de cambiar. Hueco conocido: si esa carga leyó antes de que el guardado
         // fuera firme, la fila conserva el dato anterior hasta la siguiente carga.
-        if (_desechado || _grid is null || _cargando || !_elementosPagina.Any(e => e.Id == id))
+        if (_desechado || _cargando || !_elementosPagina.Any(e => e.Id == id))
             return;
 
         var carga = _cargaVigente;
@@ -78,22 +72,23 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             var resultado = await Mediator.Send(
                 new ObtenerClientesQuery(Busqueda: null, SoloCriticos: null, Id: id, ConDesgloseDocumental: true), _ciclo.Token);
             var indice = _elementosPagina.FindIndex(e => e.Id == id);
-            if (_desechado || _grid is null || _cargando || carga != _cargaVigente || indice < 0
+            if (_desechado || _cargando || carga != _cargaVigente || indice < 0
                 || resultado.Elementos.FirstOrDefault() is not { } actualizada)
                 return;
 
+            // Sustitución en sitio: filtros, orden, página, selección, filas desplegadas y foco no se tocan. Los
+            // Centros ya pedidos de esa fila se olvidan: su estado puede haber cambiado con el guardado.
             _elementosPagina[indice] = actualizada;
-            _servirPaginaEnMemoria = true;
-            await _grid.RefreshDataAsync();
+            _centrosConEstado.Remove(id);
+            _centrosConEstadoConError.Remove(id);
+            StateHasChanged();
+            if (_expandidos.Contains(id))
+                await CargarCentrosConEstadoAsync(id);
         }
         catch (Exception)
         {
             // El guardado ya es firme: que falle la relectura no es un error que enseñar. La
             // fila conserva el dato anterior hasta la siguiente carga, como antes de este aviso.
-        }
-        finally
-        {
-            _servirPaginaEnMemoria = false;
         }
     }
 
@@ -128,17 +123,38 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         [Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae];
 
     private const int TamanoPaginaMinimo = 20;
-    private readonly PaginationState _paginacion = new() { ItemsPerPage = TamanoPaginaMinimo };
-    private QuickGrid<ClienteListaDto>? _grid;
+    private int _pagina = 1;
+    private int _tamanoPagina = TamanoPaginaMinimo;
+
+    /// <summary>La primera carga espera a que los parámetros de la URL estén leídos (OnAfterRenderAsync).</summary>
+    private bool _cargaPendiente = true;
+    private bool _parametrosInicializados;
+    private CancellationTokenSource? _peticionActiva;
+
+    /// <summary>Filas desplegadas (maqueta «Lista Clientes TALVEG»): las que enseñan sus Centros con problema.</summary>
+    private readonly HashSet<Guid> _expandidos = [];
+
+    /// <summary>
+    /// Centros de cada Cliente empresarial desplegado, con su estado (<c>ObtenerCentrosQuery</c> por Cliente: la misma
+    /// consulta de las filas de Centro de Cliente 360). Se piden al desplegar la fila y se olvidan con cada carga.
+    /// </summary>
+    private readonly Dictionary<Guid, IReadOnlyList<CentroListaDto>> _centrosConEstado = [];
+    private readonly HashSet<Guid> _centrosConEstadoEnVuelo = [];
+    private readonly HashSet<Guid> _centrosConEstadoConError = [];
 
     // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): el `Paginator` de QuickGrid no está
     // localizado — `PaginadorSimple` (mismo componente que el resto de listas
     // sin QuickGrid) cubre el copy en español; sigue delegando el movimiento
     // real de página en `_paginacion.SetCurrentPageIndexAsync` para que
     // QuickGrid pida los datos.
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_paginacion.ItemsPerPage));
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
 
-    private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
+    private Task CambiarPaginaAsync(int pagina)
+    {
+        _pagina = pagina;
+        _expandidos.Clear();
+        return CargarListaAsync();
+    }
 
     // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
     // Una sola petición: SetCurrentPageIndexAsync ya avisa a QuickGrid aunque la
@@ -146,8 +162,8 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     // veces (ver RecargarAsync).
     private Task CambiarTamanoPaginaAsync(int tamano)
     {
-        _paginacion.ItemsPerPage = tamano;
-        return _paginacion.SetCurrentPageIndexAsync(0);
+        _tamanoPagina = tamano;
+        return RecargarAsync();
     }
 
     private bool _puedeReasignarEjecutivo;
@@ -354,8 +370,6 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// </summary>
     private string? _accionAtendida;
 
-    private GridItemsProvider<ClienteListaDto>? _proveedorElementos;
-
     // --- P3-31: selección múltiple, atajos j/k, filtros guardados ---
     private readonly HashSet<Guid> _seleccionados = [];
 
@@ -441,13 +455,6 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         if (_sinEmpresaSeleccionada)
             return;
 
-        // Delegado estable: pasar el grupo de método directamente en el
-        // markup crea un delegado nuevo en cada render, QuickGrid lo trata
-        // como "fuente de datos distinta" y recarga — combinado con el
-        // StateHasChanged del proveedor, bucle infinito de recargas (visto
-        // con PostgreSQL, donde el proveedor es asíncrono de verdad).
-        _proveedorElementos = ProveerElementosAsync;
-
         // Reasignar el Gestor CAE dueño de un Cliente es una decisión de
         // rango superior (ver ReasignarEjecutivoClienteCommand) — el propio
         // Gestor CAE no ve ni puede tocar este campo sobre sus propios
@@ -482,12 +489,10 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// reutiliza esta instancia de componente entre URLs (no la recrea desde
     /// cero), así que un cambio de filtro que llega solo por la URL —abrir
     /// un enlace compartido, "atrás/adelante"— actualizaba estos campos pero
-    /// nunca refrescaba el QuickGrid ya montado (que solo vuelve a pedir
-    /// datos cuando algo llama a RefreshDataAsync explícitamente). `_grid`
-    /// es null únicamente en el primer render, cuando QuickGrid todavía va a
-    /// hacer su propia primera carga con estos campos ya al día — por eso el
-    /// refresco explícito solo hace falta, y solo se dispara, en los
-    /// siguientes.
+    /// nunca recargaba la lista ya montada. La primera carga la hace
+    /// <see cref="OnAfterRenderAsync"/> con estos campos ya al día (mientras
+    /// <c>_cargaPendiente</c>); la recarga explícita solo hace falta en los
+    /// siguientes pasos.
     /// </summary>
     protected override Task OnParametersSetAsync()
     {
@@ -527,12 +532,31 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
                 _mostrarGuardarFiltro = true;
         }
 
-        // Con otro orden la rejilla se remonta ya ordenada y pide ella los datos: refrescar además la
-        // saliente sería pedirlos dos veces.
+        // Una navegación externa cambia la pregunta; los cambios propios ya han escrito los campos.
+        _parametrosInicializados = true;
         var cambiaElOrden = _orden.Leer(OrdenInicial);
-        return cambio && _grid is not null && !(cambiaElOrden && _paginacion.CurrentPageIndex == 0)
+        return (cambio || cambiaElOrden) && !_cargaPendiente
             ? RecargarAsync()
             : Task.CompletedTask;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_cargaPendiente && _parametrosInicializados && !_resolviendoEmpresa && !_sinEmpresaSeleccionada && !_desechado)
+            await CargarListaAsync();
+    }
+
+    /// <summary>
+    /// Rótulo de columna que ordena («Cliente» y «Estado documental»; la consulta no ordena por recuento de Centros). El
+    /// orden vive en la URL. Sin QuickGrid: el sentido lo dice la flecha de la clase.
+    /// </summary>
+    private async Task OrdenarAsync(string propiedad)
+    {
+        var clave = propiedad == nameof(ClienteListaDto.RazonSocial) ? "cliente" : "documentacion";
+        var descendente = _orden.Propiedad == propiedad && _orden.Direccion != SortDirection.Descending;
+        _orden.Leer(clave + (descendente ? "-desc" : string.Empty));
+        NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
+        await RecargarAsync();
     }
 
     /// <summary>
@@ -547,22 +571,23 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             NavigationManager.ActualizarFiltroEnUrl("accion", null);
     }
 
-    private async ValueTask<GridItemsProviderResult<ClienteListaDto>> ProveerElementosAsync(
-        GridItemsProviderRequest<ClienteListaDto> request)
+    private async Task CargarListaAsync()
     {
-        if (_servirPaginaEnMemoria)
-        {
-            // Refresco de una fila tras guardar en la vista rápida (ver RefrescarFilaAsync).
-            _servirPaginaEnMemoria = false;
-            return GridItemsProviderResult.From(_elementosPagina.ToList(), _totalElementos);
-        }
+        if (_desechado || !_parametrosInicializados) return;
+        _cargaPendiente = false;
 
         // Todo lo que define la pregunta se lee ANTES del await.
         var carga = ++_cargaVigente;
+        // Cada carga cancela la anterior: su respuesta ya no es de la pregunta vigente.
+        using var cancelacion = CancellationTokenSource.CreateLinkedTokenSource(_ciclo.Token);
+        var anterior = _peticionActiva;
+        _peticionActiva = cancelacion;
+        anterior?.Cancel();
         // Vale para UNA carga, la que pidió la corrección: cualquier otra recarga suelta la selección.
         var conservarSeleccion = _conservarSeleccionEnLaProximaCarga;
         _conservarSeleccionEnLaProximaCarga = false;
-        var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+        var ordenarPor = _orden.Propiedad;
+        var descendente = _orden.Direccion == SortDirection.Descending;
         if (_orden.Anotar(ordenarPor, descendente))
             NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
         (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
@@ -572,8 +597,8 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             SoloCriticos: _soloCriticos ? true : null,
             EjecutivoUsuarioId: Guid.TryParse(_ejecutivoFiltro, out var ejecutivoId) ? ejecutivoId : null,
             EstadoDocumental: null,
-            Pagina: (request.StartIndex / _paginacion.ItemsPerPage) + 1,
-            TamanoPagina: _paginacion.ItemsPerPage,
+            Pagina: _pagina,
+            TamanoPagina: _tamanoPagina,
             OrdenarPor: ordenarPor,
             Descendente: descendente,
             EstadosDocumentales: estadosFiltro.Count == 0 ? null : estadosFiltro,
@@ -584,13 +609,14 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
         _cargando = true;
         _errorCarga = false;
+        StateHasChanged();
 
         try
         {
-            var resultado = await Mediator.Send(consulta, request.CancellationToken);
+            var resultado = await Mediator.Send(consulta, cancelacion.Token);
 
-            if (carga != _cargaVigente)
-                return GridItemsProviderResult.From(new List<ClienteListaDto>(), 0);
+            if (_desechado || carga != _cargaVigente)
+                return;
 
             _totalElementos = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
@@ -613,28 +639,37 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             }
 
             OlvidarCentrosDeFila();
+            OlvidarCentrosConEstado();
+            _expandidos.IntersectWith(elementos.Where(PuedeDesplegarse).Select(e => e.Id));
 
-            return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
+            if (_pagina > TotalPaginas)
+            {
+                _pagina = TotalPaginas;
+                await CargarListaAsync();
+            }
         }
-        catch (Exception) when (carga != _cargaVigente)
+        catch (Exception) when (_desechado || carga != _cargaVigente)
         {
-            // Una carga superada que falla (o que QuickGrid canceló) no es un
-            // error de la vigente: no puede tapar su resultado.
-            return GridItemsProviderResult.From(new List<ClienteListaDto>(), 0);
+            // Una carga superada que falla (o que se canceló) no es un error de la vigente: no puede tapar su resultado.
         }
         catch (Exception)
         {
             _errorCarga = true;
-            return GridItemsProviderResult.From(new List<ClienteListaDto>(), 0);
         }
         finally
         {
-            if (carga == _cargaVigente)
+            if (ReferenceEquals(_peticionActiva, cancelacion))
+                _peticionActiva = null;
+            if (!_desechado && carga == _cargaVigente)
             {
                 _cargando = false;
                 StateHasChanged();
             }
         }
+        // Lo desplegado que sobrevive a la carga (p. ej. tras corregir un documento) vuelve a pedir sus Centros.
+        if (!_desechado && carga == _cargaVigente && !_errorCarga)
+            foreach (var id in _expandidos.ToList())
+                await CargarCentrosConEstadoAsync(id);
     }
 
     private async Task BuscarAsync(string valor)
@@ -682,27 +717,6 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
     private string EtiquetaFiltroEjecutivo =>
         "Gestor CAE: " + (_ejecutivosParaFiltro.FirstOrDefault(g => g.Id.ToString() == _ejecutivoFiltro)?.NombreCompleto ?? "—");
-
-    /// <summary>
-    /// Gestor CAE de referencia de la fila (columna «Gestor CAE», con su avatar o sus iniciales
-    /// delante) — mismo directorio que ya resuelve el filtro, sin consulta nueva por fila. Null
-    /// sin Gestor CAE asignado o si no está en el directorio visible: la celda pinta «—».
-    /// </summary>
-    private GestorCaeSelectorDto? GestorCaeDeLaFila(Guid? ejecutivoUsuarioId) =>
-        ejecutivoUsuarioId is null
-            ? null
-            : _ejecutivosParaFiltro.FirstOrDefault(g => g.Id == ejecutivoUsuarioId);
-
-    /// <summary>
-    /// Nombre accesible del botón de la celda «Gestor CAE»: empieza por lo que se ve en ella
-    /// (el Gestor CAE o «Sin asignar») y después dice qué hace y sobre qué Cliente empresarial.
-    /// </summary>
-    private string NombreAccesibleCambiarGestorCae(string razonSocial, GestorCaeSelectorDto? asignado) =>
-        Textos["CambiarGestorCaeDe", razonSocial, asignado?.NombreCompleto ?? Textos["GestorCaeSinAsignar"].Value];
-
-    /// <summary>Opciones de la pastilla «Gestor CAE»: el mismo directorio que la columna.</summary>
-    private IReadOnlyList<OpcionEstado> OpcionesGestorCae =>
-        _ejecutivosParaFiltro.Select(g => new OpcionEstado(g.Id.ToString(), g.NombreCompleto)).ToList();
 
     /// <summary>
     /// Botones de la franja de estado, de peor a mejor. Viajan como nombre de <see cref="EstadoDocumento"/>;
@@ -827,12 +841,11 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// </summary>
     private async Task RefrescarTrasCorreccionAsync()
     {
-        if (_desechado || _grid is null)
+        if (_desechado)
             return;
 
         _conservarSeleccionEnLaProximaCarga = true;
-        await _grid.RefreshDataAsync();
-        StateHasChanged();
+        await CargarListaAsync();
     }
 
     /// <summary>
@@ -905,13 +918,119 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// </summary>
     private async Task RecargarAsync()
     {
-        if (_grid is not null && _paginacion.CurrentPageIndex == 0)
-            await _grid.RefreshDataAsync();
-        else
-            await _paginacion.SetCurrentPageIndexAsync(0);
-
-        StateHasChanged();
+        _pagina = 1;
+        _expandidos.Clear();
+        await CargarListaAsync();
     }
+
+    // ── Filas desplegadas: los Centros del Cliente empresarial con problema ───────────────────────────────
+
+    /// <summary>
+    /// Solo se despliega un Cliente empresarial que tiene alertas y Centros (maqueta: «Sin incidencias» no lleva chevron):
+    /// la fila enseña sus Centros con problema, cada uno con su estado y el motivo.
+    /// </summary>
+    private static bool PuedeDesplegarse(ClienteListaDto cliente) =>
+        cliente.Centros > 0 && cliente.EstadoDocumentalPeor is not null;
+
+    private bool HayFilasDesplegables => _elementosPagina.Any(PuedeDesplegarse);
+
+    private bool TodosExpandidos => HayFilasDesplegables
+        && _elementosPagina.Where(PuedeDesplegarse).All(c => _expandidos.Contains(c.Id));
+
+    private bool EstaExpandido(ClienteListaDto cliente) => PuedeDesplegarse(cliente) && _expandidos.Contains(cliente.Id);
+
+    private Task AlternarExpansionAsync(Guid id)
+    {
+        if (!_expandidos.Remove(id))
+        {
+            _expandidos.Add(id);
+            return CargarCentrosConEstadoAsync(id);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task AlternarTodosExpandidosAsync(bool expandir)
+    {
+        _expandidos.Clear();
+        if (!expandir) return;
+
+        var ids = _elementosPagina.Where(PuedeDesplegarse).Select(c => c.Id).ToList();
+        _expandidos.UnionWith(ids);
+        foreach (var id in ids)
+            await CargarCentrosConEstadoAsync(id);
+    }
+
+    private async Task CargarCentrosConEstadoAsync(Guid id)
+    {
+        if (_desechado || _centrosConEstado.ContainsKey(id) || !_centrosConEstadoEnVuelo.Add(id))
+            return;
+
+        var generacion = _generacionCentrosConEstado;
+        _centrosConEstadoConError.Remove(id);
+        StateHasChanged();
+        try
+        {
+            // La misma consulta que las filas de Centro de Cliente 360: peor estado primero, con sus recuentos.
+            var pagina = await Mediator.Send(new ObtenerCentrosQuery(
+                Busqueda: null, ClienteId: id,
+                OrdenarPor: nameof(CentroListaDto.Estado), Descendente: true,
+                Pagina: 1, TamanoPagina: MaximoCentrosDesplegados), _ciclo.Token);
+            if (generacion == _generacionCentrosConEstado)
+                _centrosConEstado[id] = pagina.Elementos
+                    .Where(c => c.Estado is not (EstadoCentro.Vigente or EstadoCentro.SinGestionCae))
+                    .ToList();
+        }
+        catch (Exception)
+        {
+            // Un fallo se dice en la fila y deja reintentar al volver a desplegarla.
+            if (generacion == _generacionCentrosConEstado)
+                _centrosConEstadoConError.Add(id);
+        }
+        finally
+        {
+            if (generacion == _generacionCentrosConEstado)
+            {
+                _centrosConEstadoEnVuelo.Remove(id);
+                if (!_desechado) StateHasChanged();
+            }
+        }
+    }
+
+    /// <summary>Tope de Centros que se piden por Cliente empresarial desplegado.</summary>
+    private const int MaximoCentrosDesplegados = 50;
+
+    private int _generacionCentrosConEstado;
+
+    private void OlvidarCentrosConEstado()
+    {
+        _generacionCentrosConEstado++;
+        _centrosConEstado.Clear();
+        _centrosConEstadoEnVuelo.Clear();
+        _centrosConEstadoConError.Clear();
+    }
+
+    /// <summary>Motivos del estado de un Centro, sin partes en cero ni confundir pendientes con vencidos (los de Centro de Cliente 360).</summary>
+    private string MotivosCentro(CentroListaDto centro)
+    {
+        var partes = new List<string>();
+        if (centro.Recuentos.VencidasPorFecha.Count > 0)
+            partes.Add(Plural(centro.Recuentos.VencidasPorFecha.Count, "DetalleVencidosUno", "DetalleVencidosVarios"));
+        if (centro.Recuentos.Pendientes.Count > 0)
+            partes.Add(Textos[centro.Recuentos.Pendientes.Count == 1 ? "DetallePendienteUno" : "DetallePendientes", centro.Recuentos.Pendientes.Count]);
+        if (centro.Recuentos.Bloqueos.Count > 0)
+            partes.Add(Plural(centro.Recuentos.Bloqueos.Count, "DetalleBloqueoPlataformaUno", "DetalleBloqueosPlataformaVarios"));
+        if (centro.Recuentos.TotalProximas > 0)
+            partes.Add(Plural(centro.Recuentos.TotalProximas, "DetalleProximosUno", "DetalleProximosVarios"));
+        return string.Join(" · ", partes);
+    }
+
+    private string Plural(int n, string claveUno, string claveVarios) =>
+        n == 1 ? Textos[claveUno] : Textos[claveVarios, n];
+
+    /// <summary>«Gestionar» un Centro del Cliente empresarial: su vista rápida, donde se trabaja lo que le falta.</summary>
+    private Task GestionarCentroAsync(CentroListaDto centro) =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion");
 
     private void AbrirCrear()
     {
@@ -1229,14 +1348,16 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         var tinte = item.EstadoDocumentalPeor switch
         {
             EstadoDocumento.Faltante or EstadoDocumento.Vencido => "fila-tintada-peligro",
-            EstadoDocumento.Urgente => "fila-tintada-aviso",
+            EstadoDocumento.Urgente or EstadoDocumento.Proximo => "fila-tintada-aviso",
             _ => null
         };
         var foco = item.Id == _idEnfocado ? "fila-enfocada" : null;
-        // «fila-pulsable»: contrato con el oyente delegado de atajos-lista.js (QuickGrid no
-        // expone el clic de la fila), que pulsa por ella el botón «nombre-abre-vista-rapida».
-        return string.Join(' ', new[] { "fila-pulsable", foco, tinte }.Where(c => c is not null));
+        return string.Join(' ', new[] { "tarjeta-fila-acordeon", foco, tinte }.Where(c => c is not null));
     }
+
+    /// <summary>La cabecera de columnas y cada fila comparten esta rejilla; con la selección múltiple entra una casilla delante.</summary>
+    private string ClaseRejilla(string claseBase) =>
+        $"{claseBase} rejilla-clientes" + (_seleccionMultiple ? " rejilla-clientes-seleccion" : string.Empty);
 
     private async Task ManejarAtajoAsync(string tecla)
     {
@@ -1455,7 +1576,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         _soloCriticos = bool.TryParse(vista.GetValueOrDefault("critico"), out var soloCriticos) && soloCriticos;
         _ejecutivoFiltro = GestorVisible(vista.GetValueOrDefault("gestor"));
         _estadoDocumentalFiltro = EstadosValidos(vista.GetValueOrDefault("estado"));
-        var cambiaElOrden = _orden.Leer(vista.GetValueOrDefault("orden"));
+        _orden.Leer(vista.GetValueOrDefault("orden"));
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = _busqueda,
@@ -1465,12 +1586,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             ["orden"] = _orden.EnUrl,
         });
 
-        // Con otro orden la rejilla se remonta en el siguiente render y pide ella los datos:
-        // refrescar además la saliente sería pedirlos dos veces.
-        if (cambiaElOrden && _paginacion.CurrentPageIndex == 0)
-            StateHasChanged();
-        else
-            await RecargarAsync();
+        await RecargarAsync();
     }
 
     /// <summary>El Id de Gestor CAE que llega de fuera, si el directorio visible de este usuario lo ofrece; si no, vacío.</summary>
