@@ -407,9 +407,11 @@
                     </ChildContent>
                 </Tarjeta>
 
+                @* «Plataforma CAE»: carga aparte; al Usuario de Cliente no se le pinta. *@
+                <CaeManager.Web.Features.Clientes.Components.CajaPlataformaCaeCliente ClienteEmpresarialId="ClienteId" />
+
                 @*
-                    Sin dibujar (no hay modelo, ver el .razor.cs): «Plataforma CAE» (plataforma del Cliente empresarial, código de
-                    cliente y credenciales cifradas de cada Empresa), y el «Gestor CAE» con «Dar acceso» y «Desasignarme».
+                    Sin dibujar (no hay modelo, ver el .razor.cs): el «Gestor CAE» con «Dar acceso» y «Desasignarme».
                 *@
 
                 @*

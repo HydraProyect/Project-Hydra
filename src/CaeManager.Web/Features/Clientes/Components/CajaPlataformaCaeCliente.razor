@@ -1,0 +1,156 @@
+﻿@using CaeManager.Application.Clientes.Queries.ObtenerAccesosPlataformaCaeCliente
+@using CaeManager.Web.Features.Centros.Components
+@using CaeManager.Web.Features.Clientes.Recursos
+@using CaeManager.Web.Services
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosClientes> Textos
+@*
+    Caja «Plataforma CAE» del lateral de Cliente 360 (maqueta del 17-10; decisión del propietario del 2026-10-18).
+    La plataforma, su portal y el código de cliente son del Cliente empresarial; el usuario y la contraseña, de cada
+    Empresa. Consulta ve solo la plataforma y «Abrir portal»; el código y los accesos, los roles con escritura (los
+    accesos además con segundo factor, decidido en servidor). La contraseña no viaja nunca al abrir la pantalla: «Mostrar»
+    y «Copiar» la piden con un clic, y cada petición queda en Auditoría. Al Usuario de Cliente no se le pinta la caja.
+*@
+@if (_plataforma is not null || _error)
+{
+    <Tarjeta Compacta="true" Titulo="@Textos["PlataformaCaeTitulo"]">
+        <AccionesHeader>
+            @if (_plataforma is not null)
+            {
+                <SoloConEscritura>
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirModalPlataforma" data-editar-plataforma>
+                        @(_plataforma.Registrada ? Textos["EditarEnlace"] : Textos["PlataformaCaeRegistrar"])
+                    </Boton>
+                </SoloConEscritura>
+            }
+        </AccionesHeader>
+        <ChildContent>
+            @if (_error)
+            {
+                <p class="texto-vacio-seccion">@Textos["PlataformaCaeError"]</p>
+            }
+            else if (_plataforma is { Registrada: false })
+            {
+                <p class="texto-vacio-seccion" data-plataforma-sin-registrar>@Textos["PlataformaCaeSinRegistrar"]</p>
+            }
+            else if (_plataforma is not null)
+            {
+                <div class="plataforma-cae">
+                    <div class="plataforma-cae-cabecera">
+                        <span class="plataforma-cae-nombre">
+                            <strong data-plataforma-nombre>@_plataforma.Nombre</strong>
+                            <span class="plataforma-cae-alcance">@Textos["PlataformaCaeAlcance"]</span>
+                        </span>
+                        @if (UrlPortalCae.Normalizar(_plataforma.UrlPortal) is { } destino)
+                        {
+                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Href="@destino" target="_blank" rel="noopener noreferrer" data-abrir-portal>
+                                @Textos["PlataformaCaeAbrirPortal"]
+                            </Boton>
+                        }
+                    </div>
+
+                    <SoloConEscritura>
+                        @if (!string.IsNullOrWhiteSpace(_plataforma.CodigoCliente))
+                        {
+                            <div class="plataforma-cae-fila" data-codigo-cliente>
+                                <span class="plataforma-cae-dato">
+                                    <span class="plataforma-cae-etiqueta">@Textos["PlataformaCaeCodigoCliente"]</span>
+                                    <span class="plataforma-cae-valor">@_plataforma.CodigoCliente</span>
+                                </span>
+                                <BotonCopiar Valor="@_plataforma.CodigoCliente" Etiqueta="@Textos["PlataformaCaeCopiarCodigo"]" ConfirmarConIcono="true" />
+                            </div>
+                        }
+                    </SoloConEscritura>
+
+                    @if (_accesosRequierenDosFactores)
+                    {
+                        <p class="texto-vacio-seccion" data-accesos-requieren-2fa>
+                            @Textos["PlataformaCaeRequiereDosFactores"]
+                            <a href="@SegundoFactorParaCredenciales.RutaConfigurarVolviendoA(SegundoFactorParaCredenciales.RutaActual(NavigationManager))" data-enhance-nav="false">@Textos["PlataformaCaeActivarDosFactores"]</a>
+                        </p>
+                    }
+                    else if (_accesos is not null)
+                    {
+                        <span class="plataforma-cae-subtitulo">@Textos["PlataformaCaeAccesosTitulo"]</span>
+                        @if (_accesos.Count == 0)
+                        {
+                            <p class="texto-vacio-seccion">@Textos["PlataformaCaeSinEmpresas"]</p>
+                        }
+                        <div class="plataforma-cae-accesos">
+                            @foreach (var acceso in _accesos)
+                            {
+                                var revelada = _reveladas.GetValueOrDefault(acceso.EmpresaId);
+                                <div class="plataforma-cae-acceso" data-acceso-empresa="@acceso.EmpresaId">
+                                    <span class="plataforma-cae-acceso-cabecera">
+                                        <span class="plataforma-cae-nombre">
+                                            <span class="plataforma-cae-empresa">@acceso.RazonSocial</span>
+                                            <span class="plataforma-cae-estado">@EstadoDe(acceso)</span>
+                                        </span>
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirModalAcceso(acceso)" data-editar-acceso>
+                                            @Textos["PlataformaCaeEditarAcceso"]
+                                        </Boton>
+                                    </span>
+                                    <span class="plataforma-cae-fila">
+                                        <span class="plataforma-cae-dato">
+                                            <span class="plataforma-cae-etiqueta">@Textos["PlataformaCaeUsuario"]</span>
+                                            <span class="plataforma-cae-valor">@(acceso.Usuario ?? Textos["PlataformaCaeSinUsuario"])</span>
+                                        </span>
+                                        @if (!string.IsNullOrEmpty(acceso.Usuario))
+                                        {
+                                            <BotonCopiar Valor="@acceso.Usuario" Etiqueta="@Textos["PlataformaCaeCopiarUsuarioDe", acceso.RazonSocial]" ConfirmarConIcono="true" />
+                                        }
+                                    </span>
+                                    @if (acceso.TieneContrasena)
+                                    {
+                                        <span class="plataforma-cae-fila" data-contrasena>
+                                            <span class="plataforma-cae-dato">
+                                                <span class="plataforma-cae-etiqueta">@Textos["PlataformaCaeContrasena"]</span>
+                                                <span class="plataforma-cae-valor @(revelada is null ? "plataforma-cae-oculta" : null)" data-contrasena-valor>@(revelada ?? "••••••••••")</span>
+                                            </span>
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AlternarContrasenaAsync(acceso.EmpresaId)" data-mostrar-contrasena>
+                                                @(revelada is null ? Textos["PlataformaCaeMostrar"] : Textos["PlataformaCaeOcultar"])
+                                            </Boton>
+                                            <BotonCopiar ValorAsync="CopiarContrasena(acceso.EmpresaId)" Etiqueta="@Textos["PlataformaCaeCopiarContrasenaDe", acceso.RazonSocial]" ConfirmarConIcono="true" />
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="plataforma-cae-fila">
+                                            <span class="plataforma-cae-dato">
+                                                <span class="plataforma-cae-etiqueta">@Textos["PlataformaCaeContrasena"]</span>
+                                                <span class="plataforma-cae-valor">@Textos["PlataformaCaeSinContrasena"]</span>
+                                            </span>
+                                        </span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </ChildContent>
+    </Tarjeta>
+}
+
+<ModalFormulario Visible="_modalPlataformaVisible" VisibleChanged="(bool v) => _modalPlataformaVisible = v"
+                 Titulo="@Textos["PlataformaCaeModalPlataforma"]" HayCambios="() => HayCambiosPlataforma"
+                 Guardando="_guardando" MensajeError="@_errorModal" OnGuardar="GuardarPlataformaAsync"
+                 TextoGuardar="@Textos["PlataformaCaeGuardar"]" TextoCancelar="@Textos["PlataformaCaeCancelar"]">
+    <CampoTexto Etiqueta="@Textos["PlataformaCaeCampoPlataforma"]" Valor="@_bNombre" ValorChanged="v => { _bNombre = v; _errorModal = null; }"
+                Placeholder="@Textos["PlataformaCaeCampoPlataformaPlaceholder"]" />
+    <CampoTexto Etiqueta="@Textos["PlataformaCaeCampoUrl"]" Valor="@_bUrl" ValorChanged="v => { _bUrl = v; _errorModal = null; }" Type="url" />
+    <CampoTexto Etiqueta="@Textos["PlataformaCaeCodigoCliente"]" Valor="@_bCodigo" ValorChanged="v => { _bCodigo = v; _errorModal = null; }"
+                Placeholder="@Textos["PlataformaCaeCampoCodigoPlaceholder"]" />
+    <p class="texto-ayuda-campo">@Textos["PlataformaCaeAyudaPlataforma"]</p>
+</ModalFormulario>
+
+<ModalFormulario Visible="_modalAccesoVisible" VisibleChanged="(bool v) => CerrarModalAcceso(v)"
+                 Titulo="@Textos["PlataformaCaeModalAcceso", _accesoEnEdicion?.RazonSocial ?? string.Empty]" HayCambios="() => HayCambiosAcceso"
+                 Guardando="_guardando" MensajeError="@_errorModal" OnGuardar="GuardarAccesoAsync"
+                 TextoGuardar="@Textos["PlataformaCaeGuardar"]" TextoCancelar="@Textos["PlataformaCaeCancelar"]">
+    <CampoTexto Etiqueta="@Textos["PlataformaCaeUsuario"]" Valor="@_bUsuario" ValorChanged="v => { _bUsuario = v; _errorModal = null; }"
+                Placeholder="@Textos["PlataformaCaeCampoUsuarioPlaceholder"]" autocomplete="off" />
+    <CampoTexto Etiqueta="@Textos["PlataformaCaeCampoContrasenaNueva"]" Valor="@_bContrasena" ValorChanged="v => { _bContrasena = v; _errorModal = null; }"
+                Type="password" Placeholder="@Textos["PlataformaCaeCampoContrasenaPlaceholder"]" autocomplete="new-password" />
+    <p class="texto-ayuda-campo">@Textos["PlataformaCaeAyudaAcceso"]</p>
+</ModalFormulario>

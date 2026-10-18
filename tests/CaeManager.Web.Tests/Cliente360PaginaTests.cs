@@ -1040,7 +1040,8 @@ public class Cliente360PaginaTests : BunitContext
 
         var lateral = cut.Find("aside");
         lateral.TextContent.Should().NotContain("Configurar tolerancias");
-        Textos(lateral.QuerySelectorAll(".tarjeta-titulo")).Should().Equal(["Información", "Nota interna"]);
+        // Maqueta 17-10: «Plataforma CAE» va entre «Información» y «Nota interna» (caja propia desde el 2026-10-18).
+        Textos(lateral.QuerySelectorAll(".tarjeta-titulo")).Should().Equal(["Información", "Plataforma CAE", "Nota interna"]);
         lateral.TextContent.Should().Contain("Identificación fiscal").And.Contain("A-48.220.917");
     }
 
