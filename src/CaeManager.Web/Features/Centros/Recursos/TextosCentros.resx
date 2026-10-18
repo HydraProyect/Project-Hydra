@@ -559,4 +559,9 @@
   <data name="FichaAccesoVacioDescripcion" xml:space="preserve"><value>Todavía no se ha informado el horario ni el contacto de control de accesos de este Centro.</value></data>
   <data name="FichaPrevencionVacioTitulo" xml:space="preserve"><value>Prevención sin configurar</value></data>
   <data name="FichaPrevencionVacioDescripcion" xml:space="preserve"><value>Todavía no se ha informado el Técnico de prevención ni los trabajos especiales de este Centro.</value></data>
+  <data name="InformacionTitulo360" xml:space="preserve"><value>Información</value></data>
+  <data name="InformacionCodigo360" xml:space="preserve"><value>Código</value></data>
+  <data name="InformacionCliente360" xml:space="preserve"><value>Cliente</value></data>
+  <data name="EditarFlecha360" xml:space="preserve"><value>Editar →</value></data>
+  <data name="ConsultaRapida360" xml:space="preserve"><value>Consulta rápida</value></data>
 </root>

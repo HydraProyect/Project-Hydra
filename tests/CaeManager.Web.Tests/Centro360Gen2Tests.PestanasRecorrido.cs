@@ -52,7 +52,7 @@ public partial class Centro360Gen2Tests
         var cut = Renderizar(id);
         cut.FindComponent<CajasFicha>().Instance.Cajas.Should().ContainSingle();
         cut.Find(direccion is null ? "[data-caja=datos-centro]" : "[data-caja=acceso-centro]").TextContent.Should().Contain(etiqueta).And.Contain(codigo ?? direccion ?? contacto!);
-        cut.FindComponents<DatoRejilla>().Should().ContainSingle();
+        cut.FindComponent<CajasFicha>().FindComponents<DatoRejilla>().Should().ContainSingle();
     }
 
     [Fact]

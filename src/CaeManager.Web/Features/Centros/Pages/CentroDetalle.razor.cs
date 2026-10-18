@@ -531,9 +531,6 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private void AbrirClienteEmpresarial() =>
         WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, _detalle!.ClienteId, _detalle.ClienteRazonSocial, "informacion");
 
-    private void AbrirEmpresa() =>
-        WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, _detalle!.EmpresaId, _detalle.EmpresaRazonSocial, "informacion");
-
     private void ProgramarVisita() =>
         NavigationManager.NavigateTo($"/visitas?centroId={CentroId}");
 
