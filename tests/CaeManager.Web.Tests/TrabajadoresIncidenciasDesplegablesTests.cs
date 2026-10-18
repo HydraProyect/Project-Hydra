@@ -20,7 +20,7 @@ public partial class TrabajadoresListaGen2Tests
         detalle.ClassList.Should().NotContain("fila-pulsable");
         detalle.QuerySelector(".documento-pendiente-nombre")!.TextContent.Should().Be("Aptitud médica");
         detalle.QuerySelector(".badge")!.TextContent.Should().Be("Vencido");
-        detalle.QuerySelector(".documento-pendiente-detalle")!.TextContent.Should().Be("Hace 3 días");
+        detalle.QuerySelector(".documento-pendiente-detalle")!.TextContent.Should().Be("Desde el " + incidencia.FechaVencimiento!.Value.ToString("dd/MM/yyyy"));
         cut.Find(".boton-expandir-fila").Click();
         cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty();
     }

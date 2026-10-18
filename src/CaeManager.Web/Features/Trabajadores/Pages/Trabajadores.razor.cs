@@ -649,9 +649,25 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// <summary>Hay alguna fila con documentos que piden trabajo: solo entonces «Expandir todo» tiene algo que abrir.</summary>
     private bool HayFilasDesplegables => _elementosPagina.Any(t => t.Incidencias.Count > 0);
 
-    /// <summary>El detalle de vigencia de un documento de la fila desplegada: cuánto hace que venció o cuánto le queda.</summary>
-    private static string DetalleDelDocumento(CaeManager.Application.Documentos.IncidenciaDocumentalDto incidencia) =>
-        EstadoDocumentoUi.MotivoDeDocumento(incidencia.Estado, incidencia.FechaVencimiento, CaeManager.Domain.Common.DiaDeNegocio.Hoy()) ?? string.Empty;
+    /// <summary>
+    /// El texto de vigencia de un documento de la fila desplegada, literal de la maqueta («Lista Trabajadores TALVEG»):
+    /// la fecha absoluta y nada de «hace N días» (ese plazo relativo ya lo dice el motivo de la fila de arriba).
+    /// «Desde el dd/MM/yyyy» si venció, «Caduca el dd/MM/yyyy» si está por vencer, la falta de fecha si está sin confirmar
+    /// y vacío en cualquier otro caso.
+    /// </summary>
+    private string DetalleDelDocumento(CaeManager.Application.Documentos.IncidenciaDocumentalDto incidencia)
+    {
+        if (incidencia.Estado == CaeManager.Domain.Documentos.EstadoDocumento.SinConfirmar)
+            return EstadoDocumentoUi.MotivoDeDocumento(incidencia.Estado, incidencia.FechaVencimiento, CaeManager.Domain.Common.DiaDeNegocio.Hoy()) ?? string.Empty;
+        if (incidencia.FechaVencimiento is not { } fecha) return string.Empty;
+        var texto = fecha.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture);
+        return incidencia.Estado switch
+        {
+            CaeManager.Domain.Documentos.EstadoDocumento.Vencido or CaeManager.Domain.Documentos.EstadoDocumento.EnTolerancia => Textos["DocumentoDesdeFecha", texto].Value,
+            CaeManager.Domain.Documentos.EstadoDocumento.Urgente or CaeManager.Domain.Documentos.EstadoDocumento.Proximo => Textos["DocumentoCaducaFecha", texto].Value,
+            _ => string.Empty
+        };
+    }
 
     private bool TodosExpandidos => _elementosPagina.Any(t => t.Incidencias.Count > 0)
         && _elementosPagina.Where(t => t.Incidencias.Count > 0).All(EstaExpandido);

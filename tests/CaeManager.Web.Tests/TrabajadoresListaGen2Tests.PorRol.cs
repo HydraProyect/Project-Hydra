@@ -74,6 +74,54 @@ public partial class TrabajadoresListaGen2Tests
         cut.Markup.Should().NotContain("Gestionar");
     }
 
+    // --- Fila expandida 1:1 con «Lista Trabajadores TALVEG.dc.html» --------------------------------
+
+    /// <summary>
+    /// La maqueta pinta cada documento en UNA línea flex: nombre (220 px), pastilla de estado, el texto de vigencia
+    /// (la fecha absoluta, nunca «hace N días») que ocupa el resto y, solo con escritura, el «Gestionar». Sin fecha
+    /// aparte debajo, sin segunda línea y sin más acción.
+    /// </summary>
+    [Fact]
+    public void La_fila_expandida_pinta_cada_documento_en_una_linea_con_nombre_pastilla_fecha_y_Gestionar()
+    {
+        var vencido = IncidenciaDe("Aptitud médica", EstadoDocumento.Vencido, -80);
+        var porVencer = IncidenciaDe("Formación Art. 19", EstadoDocumento.Urgente, 5);
+        var sinConfirmar = IncidenciaDe("Contrato de trabajo", EstadoDocumento.SinConfirmar);
+        var cut = Renderizar(new MediatorFalso { Almacen = { ConDesglose(Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Vencido), 6, 3, vencido, porVencer, sinConfirmar) } });
+
+        var detalle = AbrirIncidencias(cut);
+
+        detalle.QuerySelectorAll("ul.documentos-pendientes-trabajador").Should().ContainSingle();
+        var lineas = detalle.QuerySelectorAll("li.documento-pendiente-trabajador");
+        lineas.Should().HaveCount(3);
+        foreach (var linea in lineas)
+        {
+            // Hijos directos y en este orden: nombre, pastilla, texto de vigencia y acción.
+            linea.Children.Select(h => h.LocalName + (h.ClassList.FirstOrDefault(c => c.StartsWith("documento-pendiente") || c == "badge") is { } c ? "." + c : ""))
+                .Should().Equal("span.documento-pendiente-nombre", "span.badge", "span.documento-pendiente-detalle", "button.documento-pendiente-gestionar");
+        }
+        string Texto(int i, string clase) => lineas[i].QuerySelector("." + clase)!.TextContent.Trim();
+        Texto(0, "documento-pendiente-nombre").Should().Be("Aptitud médica");
+        Texto(0, "badge").Should().Be("Vencido");
+        Texto(0, "documento-pendiente-detalle").Should().Be("Desde el " + vencido.FechaVencimiento!.Value.ToString("dd/MM/yyyy"));
+        Texto(1, "badge").Should().Be("Por vencer");
+        Texto(1, "documento-pendiente-detalle").Should().Be("Caduca el " + porVencer.FechaVencimiento!.Value.ToString("dd/MM/yyyy"));
+        Texto(2, "badge").Should().Be("Sin confirmar");
+        Texto(2, "documento-pendiente-detalle").Should().Be("Falta la fecha de vencimiento");
+        detalle.TextContent.Should().NotContain("Hace ", "la maqueta no muestra el plazo relativo en la fila expandida");
+    }
+
+    [Theory]
+    [MemberData(nameof(RolesDeLectura))]
+    public void Sin_escritura_la_fila_expandida_deja_la_linea_de_tres_celdas_sin_Gestionar(string rol)
+    {
+        this.ConRolDeEscritura(rol);
+        var cut = Renderizar(new MediatorFalso { Almacen = { ConIncidencias() } });
+
+        foreach (var linea in AbrirIncidencias(cut).QuerySelectorAll("li.documento-pendiente-trabajador"))
+            linea.Children.Select(h => h.LocalName).Should().Equal("span", "span", "span");
+    }
+
     // --- Lo que sobrevive del markup de main, por rol ---------------------------------------------
 
     [Theory]
