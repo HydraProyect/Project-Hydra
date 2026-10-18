@@ -289,7 +289,10 @@ else
                         @if (!ModoListado && !EstaBloqueado(trabajador.TrabajadorId) && PuedePedir(trabajador))
                         {
                             <SoloConEscritura>
+                                @* Texto visible «Gestionar»; el nombre accesible dice que reclama los documentos del Trabajador, para no
+                                   confundirlo con el «Gestionar» de cada documento. *@
                                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                       aria-label="@Textos["AriaGestionarDocumentosTrabajador", trabajador.TrabajadorNombre]"
                                        OnClick="() => PedirAsync(new(AmbitoAplicacion.Trabajador, trabajador.TrabajadorId))">@Textos["PedirDocumentacion360"]</Boton>
                             </SoloConEscritura>
                         }

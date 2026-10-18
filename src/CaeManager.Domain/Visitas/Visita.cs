@@ -186,7 +186,7 @@ public class Visita : EntidadBase
     /// Valor por defecto del contacto al crear la Visita: el contacto del Centro (<see cref="Centro.Contacto"/>).
     /// Ese campo es texto libre, sin teléfono ni correo separados, así que se copia tal cual al nombre, salvo
     /// cuando el texto entero es una sola dirección de correo, que va al correo (el borrador de «Pedir
-    /// prioridad» también reconoce como dirección un contacto de Centro con arroba). No se parte ni se
+    /// prioridad» (acción de Comunicaciones, que conserva ese rótulo) también reconoce como dirección un contacto de Centro con arroba). No se parte ni se
     /// interpreta nada más. Sin contacto en el Centro, la Visita queda sin contacto.
     /// </summary>
     public void RellenarContactoDesdeCentro(string? contactoCentro)

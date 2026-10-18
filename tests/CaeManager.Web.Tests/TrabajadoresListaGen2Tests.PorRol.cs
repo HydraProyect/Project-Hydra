@@ -135,7 +135,7 @@ public partial class TrabajadoresListaGen2Tests
 
         var fila = FilasDeDatos(cut).Should().ContainSingle().Subject;
         fila.QuerySelector(".enlace-nombre-fila")!.TextContent.Trim().Should().Be("Javier Salas Moreno", "el nombre abre la vista rápida");
-        fila.QuerySelector(".celda-trabajador-dni")!.TextContent.Should().Contain("DNI");
+        fila.QuerySelector(".celda-trabajador-dni")!.TextContent.Trim().Should().NotStartWith("DNI", "el DNI va sin prefijo");
         fila.QuerySelector(".celda-trabajador-dni .boton-copiar-en-linea").Should().NotBeNull("el documento se copia con un clic");
         fila.QuerySelector(".celda-empresa-trabajador")!.TextContent.Trim().Should().Be("Montajes Ebro S.L.");
         fila.QuerySelector(".col-registrados-vigentes").Should().NotBeNull();

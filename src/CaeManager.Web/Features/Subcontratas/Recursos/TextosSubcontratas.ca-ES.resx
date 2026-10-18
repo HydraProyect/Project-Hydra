@@ -673,7 +673,7 @@
     <value>Puja</value>
   </data>
   <data name="AccionVerificar" xml:space="preserve">
-    <value>Verifica</value>
+    <value>Gestionar</value>
   </data>
   <data name="AccionRegistrarVerificacion" xml:space="preserve">
     <value>Registra una verificació</value>
@@ -700,7 +700,7 @@
     <value>Veure l'evidència de {0} a {1}</value>
   </data>
   <data name="AriaVerificar" xml:space="preserve">
-    <value>Verifica {0} a {1}</value>
+    <value>Gestionar {0} a {1}</value>
   </data>
   <data name="BotonCopiarContrasena" xml:space="preserve">
     <value>Copia la contrasenya</value>

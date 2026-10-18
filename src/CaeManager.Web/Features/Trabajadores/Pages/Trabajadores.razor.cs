@@ -195,7 +195,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private string _alias = string.Empty;
     private string _puesto = string.Empty;
     private string _tipoContratacion = nameof(CaeManager.Domain.Trabajadores.TipoContratacion.CuentaAjena);
-    private string _filtroActividad = string.Empty;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
@@ -533,8 +532,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             OrdenarPor: ordenarPor,
             Descendente: descendente,
             EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
-            ConRecuentosPorEstado: true,
-            VoluntarioInactivo: _filtroActividad switch { "inactivos" => true, "activos" => false, _ => null });
+            ConRecuentosPorEstado: true);
         var conservarSeleccion = consulta == _consultaQueConservaSeleccion;
         _consultaQueConservaSeleccion = null;
         _ultimaConsulta = consulta;
@@ -731,18 +729,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         await RecargarAsync();
     }
 
-    private IReadOnlyList<OpcionEstado> OpcionesFiltroActividad =>
-    [
-        new("activos", Textos["OpcionSinVoluntariosInactivos"].Value),
-        new("inactivos", Textos["OpcionSoloVoluntariosInactivos"].Value),
-    ];
-
-    private async Task FiltrarPorActividadAsync(string valor)
-    {
-        _filtroActividad = valor;
-        await RecargarAsync();
-    }
-
     private async Task FiltrarPorCentroAsync(string valor)
     {
         _filtroCentroId = IdDesdeUrl(valor);
@@ -797,7 +783,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private bool HayFiltrosActivos =>
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
         || !string.IsNullOrWhiteSpace(_filtroEmpresaId) || !string.IsNullOrWhiteSpace(_filtroSubcontrataId)
-        || !string.IsNullOrWhiteSpace(_filtroCentroId) || !string.IsNullOrWhiteSpace(_filtroActividad);
+        || !string.IsNullOrWhiteSpace(_filtroCentroId);
 
     // ── Corrección de una incidencia desde la subcaja del motivo ────────────────────────────────
 
@@ -911,7 +897,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _filtroEmpresaId = string.Empty;
         _filtroSubcontrataId = string.Empty;
         _filtroCentroId = string.Empty;
-        _filtroActividad = string.Empty;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = null,
