@@ -4,27 +4,53 @@ using CaeManager.Application.Tests.Configuracion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CaeManager.Application.Tests.Comunicaciones;
 
 public class IntencionConversacionServiceTests
 {
     [Theory]
-    [InlineData(false, false, 0, IntencionCae.CoordinacionAcceso)]
-    [InlineData(true, false, 1, IntencionCae.CoordinacionAcceso)]
-    [InlineData(true, true, 1, IntencionCae.UrgenciaAcceso)]
-    public async Task Usa_IA_con_instruccion_vigente_y_reglas_si_no_esta_disponible(
-        bool instruccion, bool iaDisponible, int llamadas, IntencionCae esperada)
+    [InlineData(false, false, 0)]
+    [InlineData(true, false, 1)]
+    public async Task Sin_Nivel_0_o_sin_respuesta_de_la_IA_no_propone_nada(bool instruccion, bool iaDisponible, int llamadas)
     {
         var ia = new DeteccionFalsa(iaDisponible);
         var repositorio = new RepositorioFalso();
         var servicio = Crear(ia, repositorio, instruccion);
-        var conversacion = new Conversacion("Coordinación de acceso");
-        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cae@example.test", "Coordinar acceso");
-        await servicio.ProcesarAsync(conversacion);
+        await servicio.ProcesarAsync(ConversacionConEntrante("Coordinar acceso"));
         ia.Llamadas.Should().Be(llamadas);
-        repositorio.Intenciones.Should().ContainSingle().Which.IntencionActual.Should().Be(esperada);
+        repositorio.Intenciones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Con_Nivel_0_y_IA_propone_sin_confirmar()
+    {
+        var ia = new DeteccionFalsa(true);
+        var repositorio = new RepositorioFalso();
+        await Crear(ia, repositorio, true).ProcesarAsync(ConversacionConEntrante("Coordinar acceso"));
+        repositorio.Intenciones.Should().ContainSingle().Which.IntencionActual.Should().Be(IntencionCae.UrgenciaAcceso);
         repositorio.Intenciones[0].ConfirmadaPorPersona.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Sin_Cliente_empresarial_ni_Empresa_no_sale_al_proveedor()
+    {
+        var ia = new DeteccionFalsa(true);
+        var repositorio = new RepositorioFalso();
+        var conversacion = new Conversacion("Acceso");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cae@example.test", "Acceso bloqueado");
+        await Crear(ia, repositorio, true).ProcesarAsync(conversacion);
+        ia.Llamadas.Should().Be(0);
+        repositorio.Intenciones.Should().BeEmpty();
+    }
+
+    private static Conversacion ConversacionConEntrante(string cuerpo)
+    {
+        var conversacion = new Conversacion("Coordinación de acceso");
+        conversacion.AsignarCliente(Guid.NewGuid());
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cae@example.test", cuerpo);
+        return conversacion;
     }
 
     [Fact]
@@ -33,7 +59,7 @@ public class IntencionConversacionServiceTests
         var ia = new DeteccionFalsa(true);
         var repositorio = new RepositorioFalso();
         var servicio = new IntencionConversacionService(ia, repositorio, new InstruccionFalsa(true),
-            new TenantActualFijo(null), null!, null!, null!, null!);
+            new TenantActualFijo(null), null!, null!, null!, null!, NullLogger<IntencionConversacionService>.Instance);
         var conversacion = new Conversacion("Acceso");
         conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cae@example.test", "Acceso bloqueado");
         await servicio.ProcesarAsync(conversacion);
@@ -48,6 +74,7 @@ public class IntencionConversacionServiceTests
         var repositorio = new RepositorioFalso();
         var servicio = Crear(ia, repositorio, true);
         var conversacion = new Conversacion("Hilo");
+        conversacion.AsignarCliente(Guid.NewGuid());
         conversacion.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.Correo, "cae@example.test", "Hola");
         await servicio.ProcesarAsync(conversacion);
         ia.Llamadas.Should().Be(0);
@@ -64,7 +91,8 @@ public class IntencionConversacionServiceTests
     private static IntencionConversacionService Crear(DeteccionFalsa ia, RepositorioFalso repositorio, bool instruccion) =>
         new(ia, repositorio, new InstruccionFalsa(instruccion), new TenantActualFijo(Guid.NewGuid()),
             new Plantillas.TrabajadoresQueryContextFalso(), new Documentos.EmpresasQueryContextFalso(),
-            new Plantillas.CentrosQueryContextFalso(), new TiposDocumento.TiposDocumentoQueryContextFalso());
+            new Plantillas.CentrosQueryContextFalso(), new TiposDocumento.TiposDocumentoQueryContextFalso(),
+            NullLogger<IntencionConversacionService>.Instance);
 
     private sealed class InstruccionFalsa(bool habilitada) : IInstruccionTratamientoIaService
     {
