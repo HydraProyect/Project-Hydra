@@ -674,14 +674,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         await RecargarAsync();
     }
 
-    /// <summary>Filtros «Gestor CAE» y «Estado documental» del mockup "Lista Clientes TALVEG" — mismo patrón que SoloCriticos: estado local, URL (<c>?gestor=</c>, <c>?estado=</c>) y recarga.</summary>
-    private async Task CambiarEjecutivoFiltroAsync(string valor)
-    {
-        _ejecutivoFiltro = valor;
-        NavigationManager.ActualizarFiltroEnUrl("gestor", valor);
-        await RecargarAsync();
-    }
-
+    /// <summary>Filtro «Estado documental» de la franja — mismo patrón que SoloCriticos: estado local, URL (<c>?estado=</c>) y recarga.</summary>
     private async Task CambiarEstadoDocumentalFiltroAsync(string? valor)
     {
         _estadoDocumentalFiltro = valor ?? string.Empty;
@@ -699,7 +692,16 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
     private Task QuitarFiltroCriticosAsync() => CambiarSoloCriticosAsync(false);
 
-    private Task QuitarFiltroEjecutivoAsync() => CambiarEjecutivoFiltroAsync(string.Empty);
+    /// <summary>
+    /// Quita el chip del Gestor CAE. La lista no ofrece elegirlo (se gestiona en Cliente 360): el filtro <c>gestor</c> solo
+    /// llega por la URL, un filtro guardado o la vista recordada, y aquí solo se quita.
+    /// </summary>
+    private async Task QuitarFiltroEjecutivoAsync()
+    {
+        _ejecutivoFiltro = string.Empty;
+        NavigationManager.ActualizarFiltroEnUrl("gestor", string.Empty);
+        await RecargarAsync();
+    }
 
     private string EtiquetaFiltroBusqueda => "Búsqueda: \"" + _busqueda + "\"";
 
@@ -1490,6 +1492,9 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         _ejecutivoFiltro = GestorVisible(vista.GetValueOrDefault("gestor"));
         _estadoDocumentalFiltro = EstadosValidos(vista.GetValueOrDefault("estado"));
         _orden.Leer(vista.GetValueOrDefault("orden"));
+        // La vista recordada sustituye a la de la primera carga (que ya había decidido la fila abierta): la primera fila
+        // se decide de nuevo sobre la vista que de verdad se queda.
+        _primeraFilaDecidida = false;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = _busqueda,

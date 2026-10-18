@@ -24,7 +24,8 @@ namespace CaeManager.Web.Tests;
 public partial class ClientesListaGen2Tests
 {
     private static readonly string[] RolesConEscritura = [Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae, Roles.GestorCae];
-    private static readonly string[] RolesSoloLectura = [Roles.Consulta, Roles.Cliente];
+    // El rol Cliente no entra en /clientes (la página exige un rol de gestión): solo lectura es Consulta.
+    private static readonly string[] RolesSoloLectura = [Roles.Consulta];
 
     public static TheoryData<string> TodosLosRoles => Datos(RolesConEscritura.Concat(RolesSoloLectura));
     public static TheoryData<string> RolesDeEscritura => Datos(RolesConEscritura);
@@ -277,6 +278,59 @@ public partial class ClientesListaGen2Tests
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Should().BeEmpty();
     }
 
+    /// <summary>
+    /// La primera fila se abre una sola vez: quien la recoge no la ve reabrirse al filtrar, ordenar ni paginar.
+    /// </summary>
+    [Fact]
+    public async Task Despues_de_la_primera_carga_filtrar_ordenar_o_paginar_no_reabre_ninguna_fila()
+    {
+        var mediador = new MediatorFalso();
+        for (var i = 1; i <= 22; i++)
+        {
+            var cliente = Cliente($"Cliente {i:00}", critico: i <= 21, centros: 2, peor: EstadoDocumento.Urgente, cantidad: 1);
+            mediador.Almacen.Add(cliente);
+            mediador.CentrosConEstadoPorCliente[cliente.Id] = [CentroConEstado(cliente.Id, "Sede", EstadoCentro.Vencido, vencidos: 1)];
+        }
+        var cut = Renderizar(mediador);
+        cut.WaitForAssertion(() => cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().ContainSingle("la primera fila llega abierta"));
+
+        await cut.FindAll("button.boton-expandir-fila").First().ClickAsync(new MouseEventArgs());
+        cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty("punto de partida: recogida");
+
+        await cut.FindAll(".cabecera-columnas-clientes button.col-title").Single(b => b.TextContent.Trim() == "Cliente").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(ClienteListaDto.RazonSocial)));
+        cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty("ordenar no reabre la primera fila");
+
+        await cut.FindAll(".paginador-pie-listado button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => UltimaConsulta(mediador).Pagina.Should().Be(2));
+        cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty("paginar no abre la primera fila de la página nueva");
+
+        await ElegirEnLaPastilla(cut, "Criticidad", "Solo críticos");
+        cut.WaitForAssertion(() => UltimaConsulta(mediador).SoloCriticos.Should().BeTrue());
+        cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty("filtrar no reabre la primera fila");
+    }
+
+    /// <summary>
+    /// La vista recordada sustituye a la de la primera carga: la primera fila se abre sobre la vista que de verdad se
+    /// queda, no sobre la que la restauración reemplaza.
+    /// </summary>
+    [Fact]
+    public void Al_restaurar_la_vista_recordada_se_abre_la_primera_fila_de_la_vista_restaurada()
+    {
+        var sinFiltrar = Cliente("Alfa Montajes S.L.", critico: false, centros: 2, peor: EstadoDocumento.Vencido, cantidad: 1);
+        var critico = Cliente("Beta Frío S.A.", critico: true, centros: 2, peor: EstadoDocumento.Urgente, cantidad: 1);
+        var mediador = ConVistaRecordada("{\"critico\":\"true\"}");
+        mediador.Almacen.Add(sinFiltrar);
+        mediador.Almacen.Add(critico);
+        mediador.CentrosConEstadoPorCliente[sinFiltrar.Id] = [CentroConEstado(sinFiltrar.Id, "Sede A", EstadoCentro.Vencido, vencidos: 1)];
+        mediador.CentrosConEstadoPorCliente[critico.Id] = [CentroConEstado(critico.Id, "Sede B", EstadoCentro.Vencido, vencidos: 1)];
+
+        var cut = Renderizar(mediador);
+
+        cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Beta Frío S.A."], "la vista recordada filtra por críticos"));
+        cut.WaitForAssertion(() => Tarjeta(cut, critico.RazonSocial).QuerySelectorAll("li.centro-pendiente-cliente").Should().ContainSingle(
+            "la primera fila de la vista restaurada llega abierta"));
+    }
     private static ObtenerCentrosQuery UltimaConsultaDeCentros(MediatorFalso mediador) =>
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last();
 }

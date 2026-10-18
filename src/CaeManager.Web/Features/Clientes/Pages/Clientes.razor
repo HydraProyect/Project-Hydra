@@ -159,7 +159,7 @@
            La copia no afirma que HAYA registros dados de alta: el filtrado es de servidor y la consulta solo devuelve
            el total ya filtrado, así que la pantalla no sabe cuántos hay sin filtro. *@
         <EstadoVacio NombreIcono="vacio" Titulo="Ningún Cliente con estos filtros"
-                     Descripcion="Ninguno coincide con la búsqueda ni con los filtros de criticidad, gestor o documentación.">
+                     Descripcion="Ninguno coincide con la búsqueda ni con los filtros aplicados.">
             <Accion>
                 <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
             </Accion>
@@ -421,12 +421,11 @@
                                                 <span class="centro-pendiente-detalle">@MotivosCentro(centro)</span>
                                                 @* Solo con escritura: «Gestionar» abre la vista rápida del Centro, donde se trabaja lo que le
                                                    falta; quien solo consulta ve el estado y el motivo, sin el verbo (decisión de 2026-10-18). *@
-                                                @if (_puedeEscribir)
-                                                {
+                                                <SoloConEscritura>
                                                     <button type="button" class="centro-pendiente-gestionar" data-accion="gestionar"
                                                             aria-label="@Textos["GestionarCentroAccesible", centro.Nombre, context.RazonSocial]"
                                                             @onclick="() => GestionarCentroAsync(centro)">@Textos["Gestionar"]</button>
-                                                }
+                                                </SoloConEscritura>
                                             </li>
                                         }
                                     </ul>
