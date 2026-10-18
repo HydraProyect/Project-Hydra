@@ -57,16 +57,24 @@ internal sealed class ClienteVigenteDeEmpresa
 /// <summary>
 /// Predicado de «a quién presta servicio esta Empresa»: Relación Empresarial vigente en la que la
 /// Empresa es la proveedora y la contraparte es un Cliente empresarial real (<c>EsCritico != null</c>; ver
-/// el comentario del handler de arriba). Hoy su único llamador es el handler de arriba (la fila desplegada
-/// de /empresas y la pestaña «Clientes» de Empresa 360). NO aplica alcance: el llamador acota
-/// antes los Ids con el alcance de GESTIÓN (REC-153). Proyecta a una clase con inicializador, no a un record
+/// el comentario del handler de arriba). Lo llaman el handler de arriba (la pestaña «Clientes» de Empresa 360) y
+/// el filtro y la agrupación «Por Cliente» de /empresas (<c>ObtenerEmpresasQueryHandler</c>). NO aplica alcance:
+/// el llamador acota antes con el alcance de GESTIÓN de las Empresas (REC-153). Proyecta a una clase con inicializador, no a un record
 /// con constructor, para que EF pueda ordenar después de la proyección.
 /// </summary>
 internal static class ClientesVigentesDeEmpresas
 {
     public static IQueryable<ClienteVigenteDeEmpresa> De(IEmpresasQueryContext empresasContext, IReadOnlyCollection<Guid> empresaIds) =>
+        Todas(empresasContext).Where(c => empresaIds.Contains(c.EmpresaId));
+
+    /// <summary>
+    /// El mismo predicado sin acotar las Empresas, para quien lo usa como subconsulta correlacionada (el filtro y
+    /// la agrupación por Cliente del listado de Empresas). Con más razón que <see cref="De"/>: NO aplica alcance,
+    /// y el llamador lo acota antes con el de GESTIÓN de las Empresas y el de lectura de los Clientes.
+    /// </summary>
+    public static IQueryable<ClienteVigenteDeEmpresa> Todas(IEmpresasQueryContext empresasContext) =>
         from r in empresasContext.RelacionesEmpresariales
-        where empresaIds.Contains(r.ProveedoraId) && r.VigenciaHasta == null
+        where r.VigenciaHasta == null
         join cliente in empresasContext.Empresas.Where(e => e.EsCritico != null)
             on r.ClienteId equals cliente.Id
         select new ClienteVigenteDeEmpresa

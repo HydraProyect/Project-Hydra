@@ -1,4 +1,4 @@
-﻿/*
+/*
   Lista de Empresas (Empresas TALVEG.dc.html).
 
   NO se usa QuickGrid, y no es un olvido: la fila de Empresas se despliega para
@@ -169,22 +169,73 @@
     outline-offset: -2px;
 }
 
-/* Incidencias documentales de la fila desplegada, antes de sus Clientes: una línea por documento. */
-.incidencias-fila-empresa {
+/* Fila desplegada: los documentos que piden trabajo, cada uno con su «Gestionar» (maqueta de Empresas). */
+.documentos-pendientes-empresa {
     display: flex;
     flex-direction: column;
-    max-width: 480px;
-    margin-bottom: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
-/* Rótulos de la fila desplegada: cuántas incidencias hay y «Clientes», sin recuento. */
-.titulo-incidencias-empresa,
-.titulo-clientes-empresa {
-    display: block;
-    margin-bottom: var(--space-2);
+.documento-pendiente-empresa {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-4);
+    padding: 10px 0;
+    border-top: 1px solid var(--color-border);
+}
+
+.documento-pendiente-empresa:first-child {
+    border-top-color: transparent;
+}
+
+.documento-pendiente-nombre {
+    flex: none;
+    width: 220px;
+    font: 600 13px/18px var(--font-family);
+}
+
+.documento-pendiente-detalle {
+    flex: 1;
+    min-width: 120px;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.documento-pendiente-gestionar {
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--color-primary-500);
     font: var(--font-label);
-    font-size: 11px;
+    cursor: pointer;
+}
+
+.documento-pendiente-gestionar:hover {
+    text-decoration: underline;
+}
+
+.documento-pendiente-gestionar:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+/* Título de cada grupo «Por Cliente» (maqueta de Empresas): nombre del Cliente en mayúsculas y recuento. */
+.cabecera-grupo-empresas {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 10px var(--space-4);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-fila-divisor);
+    font: 600 12px/16px var(--font-family);
     text-transform: uppercase;
-    letter-spacing: .06em;
+    letter-spacing: .08em;
+    color: var(--color-text);
+}
+
+.cabecera-grupo-empresas-recuento {
     color: var(--color-text-muted);
 }
