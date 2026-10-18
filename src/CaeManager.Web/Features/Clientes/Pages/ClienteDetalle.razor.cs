@@ -6,6 +6,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerResumenCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasConCentrosDeCliente;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConCumplimientoDeSubcontrata;
+using CaeManager.Application.TiposDocumento.Queries.ObtenerToleranciasClienteEmpresarial;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Centros;
 using CaeManager.Web.Components;
@@ -63,7 +64,8 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     /// <summary>
     /// Orden de la tira: Centros primera y por defecto porque es la única que
-    /// trae estado; después Empresas, Subcontratas, Documentación, Agenda e Historial.
+    /// trae estado; después Empresas, Subcontratas, Documentación, Agenda, Ficha (tolerancia
+    /// de documentos por defecto) e Historial, como la maqueta del 17-10.
     /// La certificación TGSS es el primer bloque de Documentación.
     /// </summary>
     private static readonly (string Id, string Clave)[] _pestanas =
@@ -73,6 +75,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         ("subcontratas", "PestanaSubcontratas"),
         ("documentacion", "PestanaDocumentacion"),
         ("agenda", "PestanaAgenda"),
+        ("ficha", "PestanaFicha"),
         ("historial", "PestanaHistorial")
     ];
 
@@ -291,6 +294,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _pestanaDeLaUrl = _pestanaActiva == PestanaPorDefecto ? null : _pestanaActiva;
         NavigationManager.ActualizarFiltroEnUrl("pestana", _pestanaDeLaUrl);
         await CargarCentrosSubcontratasSiProcedeAsync();
+        await CargarToleranciasSiProcedeAsync();
     }
 
     /// <summary>Los indicadores de la cabecera cuentan centros: al pulsarlos se ven esos centros.</summary>
@@ -354,6 +358,9 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _bloqueos = [];
         _bloqueosLeidos = false;
         _drawerToleranciasVisible = false;
+        _tiposConTolerancia = null;
+        _toleranciasLeidas = false;
+        _cargandoTolerancias = false;
         _errorCentros = false;
         _cargandoCentros = false;
         _empresas = null;
@@ -395,6 +402,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         if (generacion != _generacion) return;
         _datosInicialesCargados = true;
         await CargarCentrosSubcontratasSiProcedeAsync();
+        await CargarToleranciasSiProcedeAsync();
     }
 
     /// <summary>Un doble clic en «Reintentar» no lanza una segunda cadena: la primera ya puso _cargando.</summary>
@@ -649,12 +657,10 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             ? Textos["DetalleEntraComoContratista", centro.EmpresaRazonSocial].Value
             : null;
 
-    /// <summary>Empresa contratista, motivos documentales, bloqueos de plataforma y Trabajadores bloqueados, sin partes en cero ni confundir pendientes con vencidos.</summary>
-    private string DetalleCentro(CentroListaDto centro)
+    /// <summary>Motivos documentales, bloqueos de plataforma y Trabajadores bloqueados, sin partes en cero ni confundir pendientes con vencidos.</summary>
+    private string MotivosCentro(CentroListaDto centro)
     {
         var partes = new List<string>();
-        if (EntraComoContratista(centro) is { } contratista)
-            partes.Add(contratista);
         if (centro.Recuentos.VencidasPorFecha.Count > 0)
             partes.Add(Plural(centro.Recuentos.VencidasPorFecha.Count, "DetalleVencidosUno", "DetalleVencidosVarios"));
         if (centro.Recuentos.Pendientes.Count > 0)
@@ -669,11 +675,104 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         return string.Join(" · ", partes);
     }
 
-    /// <summary>Sin partes no se pasa la ranura: FilaRelacion pintaría una segunda línea vacía.</summary>
+    /// <summary>
+    /// Maqueta 17-10: bajo el nombre, una línea por cosa — «Entra como contratista: …» (solo con varias Empresas contratistas) y
+    /// los motivos del estado—; un Centro sin gestión CAE lo dice en la primera. El bloqueo de la plataforma CAE va como
+    /// parte de los motivos, no como rótulo junto al nombre: FilaRelacion no tiene ranura en esa posición.
+    /// </summary>
+    private IReadOnlyList<string> LineasDetalleCentro(CentroListaDto centro)
+    {
+        var lineas = new List<string>();
+        if (centro.Estado == EstadoCentro.SinGestionCae)
+            lineas.Add(Textos["CentroSinGestionCaeLinea"].Value);
+        if (EntraComoContratista(centro) is { } contratista)
+            lineas.Add(contratista);
+        var motivos = MotivosCentro(centro);
+        if (motivos.Length > 0)
+            lineas.Add(motivos);
+        return lineas;
+    }
+
+    /// <summary>Sin líneas no se pasa la ranura: FilaRelacion pintaría una segunda línea vacía.</summary>
     private RenderFragment? FragmentoDetalleCentro(CentroListaDto centro)
     {
-        var detalle = DetalleCentro(centro);
-        return detalle.Length == 0 ? null : builder => builder.AddContent(0, detalle);
+        var lineas = LineasDetalleCentro(centro);
+        if (lineas.Count == 0) return null;
+        return builder =>
+        {
+            foreach (var linea in lineas)
+            {
+                builder.OpenElement(0, "span");
+                builder.AddAttribute(1, "class", "cliente360-linea-detalle");
+                builder.AddContent(2, linea);
+                builder.CloseElement();
+            }
+        };
+    }
+
+    /// <summary>Maqueta 17-10 (.fila-tinte-rojo / .fila-tinte-ambar): la fila se tiñe con el tono de su estado cuando hay problema.</summary>
+    private static TonoFila? TonoDeFilaCentro(CentroListaDto centro) =>
+        EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje) switch
+        {
+            TonoBadge.Peligro => TonoFila.Peligro,
+            TonoBadge.Advertencia => TonoFila.Advertencia,
+            _ => null
+        };
+
+    /// <summary>
+    /// El peor estado de los Centros con gestión CAE, para la pastilla de la cabecera (maqueta 17-10). Con la lista truncada
+    /// en <see cref="MaximoCentros"/> no se afirma nada global, igual que el anillo.
+    /// </summary>
+    private CentroListaDto? PeorCentroConGestionCae =>
+        _centros is not null && !_errorCentros && !_cargandoCentros && _centros.Count == _totalCentros
+            ? CentrosConGestionCae.MaxBy(c => (int)c.Estado)
+            : null;
+
+    // ── Tolerancia por defecto (pestaña Ficha) ───────────────────────────
+
+    private int? _tiposConTolerancia;
+    private bool _toleranciasLeidas;
+    private bool _cargandoTolerancias;
+
+    private string? ResumenTolerancias => _tiposConTolerancia switch
+    {
+        null => null,
+        0 => Textos["ToleranciaResumenNinguno"].Value,
+        var n => Plural(n.Value, "ToleranciaResumenUno", "ToleranciaResumenVarios")
+    };
+
+    private Task CargarToleranciasSiProcedeAsync() =>
+        _pestanaActiva == "ficha" && !_toleranciasLeidas ? CargarToleranciasAsync() : Task.CompletedTask;
+
+    /// <summary>Informativo: si la lectura falla la tarjeta se queda con su descripción, sin resumen.</summary>
+    private async Task CargarToleranciasAsync()
+    {
+        if (_cargandoTolerancias || _detalle is not { } detalle) return;
+        _cargandoTolerancias = true;
+        var generacion = _generacion;
+        try
+        {
+            var tolerancias = await Mediator.Send(new ObtenerToleranciasClienteEmpresarialQuery(detalle.Id), _cancelacion);
+            if (generacion != _generacion) return;
+            _tiposConTolerancia = tolerancias.Count(t => t.ToleranciaDias > 0);
+            _toleranciasLeidas = true;
+        }
+        catch (Exception)
+        {
+            _tiposConTolerancia = null;
+        }
+        finally
+        {
+            _cargandoTolerancias = false;
+        }
+    }
+
+    /// <summary>Tras guardar el cajón: bloqueos de la cabecera y resumen de la ficha al día.</summary>
+    private async Task TrasGuardarToleranciasAsync()
+    {
+        await RefrescarBloqueosAsync();
+        _toleranciasLeidas = false;
+        await CargarToleranciasSiProcedeAsync();
     }
 
     private IReadOnlyList<PestanaDefinicion> PestanasConRecuento =>

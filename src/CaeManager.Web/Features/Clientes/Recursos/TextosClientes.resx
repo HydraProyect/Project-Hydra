@@ -541,7 +541,14 @@
     <value>Historial</value>
   </data>
   <data name="OrdenCentros" xml:space="preserve"><value>del peor estado al mejor</value></data>
-  <data name="SinGestionCaeAnillo" xml:space="preserve"><value>SIN GESTIÓN CAE · no cuentan en el anillo</value></data>
+  <data name="SinGestionCaeAnillo" xml:space="preserve"><value>Sin gestión CAE · no cuentan en el anillo</value></data>
+  <data name="PestanaFicha" xml:space="preserve"><value>Ficha</value></data>
+  <data name="CentroSinGestionCaeLinea" xml:space="preserve"><value>Sin gestión CAE</value></data>
+  <data name="IdentificacionFiscal" xml:space="preserve"><value>Identificación fiscal</value></data>
+  <data name="CabeceraContratista" xml:space="preserve"><value>Contratista: {0}</value></data>
+  <data name="ToleranciaResumenUno" xml:space="preserve"><value>1 tipo con tolerancia</value></data>
+  <data name="ToleranciaResumenVarios" xml:space="preserve"><value>{0} tipos con tolerancia</value></data>
+  <data name="ToleranciaResumenNinguno" xml:space="preserve"><value>Ningún tipo con tolerancia</value></data>
   <data name="FraccionCentros" xml:space="preserve"><value>{0} de {1} centros</value></data>
   <data name="AnilloCentros" xml:space="preserve"><value>{0} de {1} centros con gestión CAE sin incidencias</value></data>
   <data name="DetallePendientes" xml:space="preserve"><value>{0} pendientes</value></data>
