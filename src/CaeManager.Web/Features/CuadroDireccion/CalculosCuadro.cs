@@ -146,8 +146,14 @@ public static class CalculosCuadro
     /// <summary>CSV de una tabla visible: separador «;» (el que abre Excel en castellano), comillas dobles solo si hacen falta.</summary>
     public static string Csv(IEnumerable<IReadOnlyList<string>> filas)
     {
-        static string Campo(string valor) =>
-            valor.IndexOfAny([';', '"', '\n', '\r']) >= 0 ? "\"" + valor.Replace("\"", "\"\"") + "\"" : valor;
+        // Un campo que empieza por = + - @ (o por tabulador o retorno) lo interpreta la hoja de cálculo como fórmula:
+        // se antepone un apóstrofo para que se abra como texto.
+        static string Campo(string valor)
+        {
+            if (valor.Length > 0 && valor[0] is '=' or '+' or '-' or '@' or '\t' or '\r')
+                valor = "'" + valor;
+            return valor.IndexOfAny([';', '"', '\n', '\r']) >= 0 ? "\"" + valor.Replace("\"", "\"\"") + "\"" : valor;
+        }
 
         var texto = new StringBuilder();
         foreach (var fila in filas)
@@ -173,9 +179,17 @@ public sealed class PreferenciasCuadro
         if (string.IsNullOrWhiteSpace(json)) return new PreferenciasCuadro();
         try
         {
-            return JsonSerializer.Deserialize<PreferenciasCuadro>(json) ?? new PreferenciasCuadro();
+            var leidas = JsonSerializer.Deserialize<PreferenciasCuadro>(json) ?? new PreferenciasCuadro();
+
+            // Un JSON válido puede traer propiedades o elementos a null ({"Ocultas":null}): se normaliza en vez de fallar luego.
+            leidas.Ocultas = leidas.Ocultas?.Where(id => id is not null).ToList() ?? [];
+            leidas.AvisosVistos = leidas.AvisosVistos?.Where(id => id is not null).ToList() ?? [];
+            leidas.Orden = (leidas.Orden ?? [])
+                .Where(par => par.Key is not null && par.Value is not null)
+                .ToDictionary(par => par.Key, par => par.Value.Where(id => id is not null).ToList());
+            return leidas;
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or ArgumentException)
         {
             return new PreferenciasCuadro();
         }

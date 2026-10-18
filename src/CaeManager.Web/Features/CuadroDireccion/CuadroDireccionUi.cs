@@ -14,6 +14,11 @@ public static class UmbralAnonimatoCuadro
     public const int MinimoPersonas = 3;
     public const int MinimoConversaciones = 20;
 
+    /// <summary>Una celda o una barra con 1 a <c>MinimoPorCelda - 1</c> conversaciones no enseña su recuento.</summary>
+    public const int MinimoPorCelda = 5;
+
+    public static bool EsPoco(int cantidad) => cantidad > 0 && cantidad < MinimoPorCelda;
+
     /// <summary>
     /// Si la medida se puede mostrar. <paramref name="personas"/> es null cuando la medida no se calcula sobre
     /// la actividad de personas (volumen de solicitudes de una Empresa): entonces solo cuenta el mínimo de

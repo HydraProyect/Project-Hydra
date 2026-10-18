@@ -894,7 +894,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
 
         var (cut, mediador, logger, _) = Renderizar(escenario);
 
-        Texto(cut.Find(".estado-vacio h3")).Should().Be("No pudimos cargar el Indicadores de IA y BPO");
+        Texto(cut.Find(".estado-vacio h3")).Should().Be("No pudimos cargar los Indicadores de IA y BPO");
         cut.FindAll(".tarjeta-metrica").Should().BeEmpty();
         logger.Errores.Should().ContainSingle();
 

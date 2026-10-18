@@ -18,7 +18,7 @@
     Lo que la maqueta enseña se pinta con lo que miden ObtenerCuadroDireccionQuery, ObtenerSerieCuadroDireccionQuery,
     ObtenerComunicacionesCuadroDireccionQuery y ObtenerGestionesPorDiaCuadroDireccionQuery. Lo que ningún modelo guarda
     todavía (contrato y cuota, vacaciones, tiempos de respuesta, intención CAE, equipos) sale como el estado vacío de
-    la maqueta, sin cifras inventadas. Nada se mide por persona: ni «Ocupación» ni «Cartera por Gestor CAE».
+    la maqueta, sin cifras inventadas. Nada se mide por persona: ni «Ocupación» ni la cartera por persona.
 *@
 <div class="contenedor-pagina cuadro">
     <CabeceraPagina Titulo="@Textos["TituloCabecera"]">
@@ -35,9 +35,9 @@
 
     <div class="cuadro-barra">
         <div class="cuadro-mesnav" role="group" aria-label="@Textos["EtiquetaMomento"]">
-            <button type="button" class="cuadro-mesnav-boton" aria-label="@Textos["MesAnterior"]" disabled="@(!PuedeIrAlAnterior)" @onclick="IrAlMesAnteriorAsync">‹</button>
+            <button type="button" class="cuadro-mesnav-boton" aria-label="@Textos["MesAnterior"]" disabled="@(!PuedeIrAlAnterior || Cargando)" @onclick="IrAlMesAnteriorAsync">‹</button>
             <span class="cuadro-mesnav-mes">@EtiquetaMes</span>
-            <button type="button" class="cuadro-mesnav-boton" aria-label="@Textos["MesSiguiente"]" disabled="@(!PuedeIrAlSiguiente)" @onclick="IrAlMesSiguienteAsync">›</button>
+            <button type="button" class="cuadro-mesnav-boton" aria-label="@Textos["MesSiguiente"]" disabled="@(!PuedeIrAlSiguiente || Cargando)" @onclick="IrAlMesSiguienteAsync">›</button>
         </div>
 
         @if (_cuadro is { Tenants.Count: > 0 })
@@ -75,6 +75,11 @@
             <Boton Variante="VarianteBoton.Secundario" Deshabilitado="@(EmpresasCerradas.Count == 0)" OnClick="AbrirReaperturaAsync">@Textos["BotonReabrirMes"]</Boton>
         }
     </div>
+
+    @if (_avisoExportar)
+    {
+        <p class="cuadro-nota" role="status" data-aviso="exportar">@Textos["ExportarNoDisponible"]</p>
+    }
 
     @if (_error)
     {
@@ -511,7 +516,7 @@
                                     }
                                     @if (!UmbralAnonimatoCuadro.Cumple(null, SolicitudesPeriodo) && PuntosSerie.Count > 0)
                                     {
-                                        <p class="cuadro-vacio cuadro-suprimida" data-suprimida="franja">@Textos["MapaCalorSuprimido", SolicitudesPeriodo, UmbralAnonimatoCuadro.MinimoConversaciones]</p>
+                                        <p class="cuadro-vacio cuadro-suprimida" data-suprimida="franja">@Textos["MapaCalorSuprimido", UmbralAnonimatoCuadro.MinimoConversaciones]</p>
                                     }
                                     else if (franja is null)
                                     {
@@ -553,7 +558,7 @@
                                     }
                                     else if (!UmbralAnonimatoCuadro.Cumple(null, SolicitudesPeriodo))
                                     {
-                                        <p class="cuadro-vacio cuadro-suprimida" data-suprimida="mapa-calor">@Textos["MapaCalorSuprimido", SolicitudesPeriodo, UmbralAnonimatoCuadro.MinimoConversaciones]</p>
+                                        <p class="cuadro-vacio cuadro-suprimida" data-suprimida="mapa-calor">@Textos["MapaCalorSuprimido", UmbralAnonimatoCuadro.MinimoConversaciones]</p>
                                     }
                                     else
                                     {
@@ -584,8 +589,8 @@
                                                             var intensidad = Intensidad(celda, maximo);
                                                             <span class="cuadro-calor-celda" role="cell"
                                                                   style="--intensidad:@(intensidad)%"
-                                                                  title="@(Textos["MapaCalorCelda", NombreDia(d), hora, hora + 1, Porcentaje(celda?.PesoPorcentaje ?? 0), Numero(celda?.Cantidad ?? 0)])">
-                                                                <span class="cuadro-solo-lector">@Porcentaje(celda?.PesoPorcentaje ?? 0)</span>
+                                                                  title="@TituloCeldaCalor(d, hora, celda)">
+                                                                <span class="cuadro-solo-lector">@TextoLectorCelda(celda)</span>
                                                             </span>
                                                         }
                                                     </div>
@@ -657,16 +662,11 @@
                             </div>
                             break;
 
-                        case "v-barras":
                         case "v-cobertura":
                         case "v-tabla":
                             <div class="cuadro-bloque cuadro-ancha" data-tarjeta="@id">
                                 <Tarjeta Titulo="@TituloTarjeta(id)" Class="cuadro-tarjeta">
-                                    @if (id == "v-barras")
-                                    {
-                                        <p class="cuadro-nota">@Textos["VacacionesBarrasNota"]</p>
-                                    }
-                                    else if (id == "v-cobertura")
+                                    @if (id == "v-cobertura")
                                     {
                                         <p class="cuadro-nota">@Textos["VacacionesCoberturaNota"]</p>
                                     }
@@ -701,7 +701,7 @@
                                     }
                                     else if (!UmbralAnonimatoCuadro.Cumple(null, ConversacionesAbiertas))
                                     {
-                                        <p class="cuadro-vacio cuadro-suprimida" data-suprimida="estados">@Textos["MapaCalorSuprimido", ConversacionesAbiertas, UmbralAnonimatoCuadro.MinimoConversaciones]</p>
+                                        <p class="cuadro-vacio cuadro-suprimida" data-suprimida="estados">@Textos["MapaCalorSuprimido", UmbralAnonimatoCuadro.MinimoConversaciones]</p>
                                     }
                                     else
                                     {
@@ -711,8 +711,8 @@
                                             {
                                                 <div class="cuadro-barra-h">
                                                     <span>@NombreEstado(estado.Estado)</span>
-                                                    <span class="cuadro-barra-h-pista"><span style="width:@(AnchoBarra(estado.Conversaciones, maximoEstado))%"></span></span>
-                                                    <b>@Numero(estado.Conversaciones)</b>
+                                                    <span class="cuadro-barra-h-pista"><span style="width:@(AnchoReservado(estado.Conversaciones, maximoEstado))%"></span></span>
+                                                    <b>@Recuento(estado.Conversaciones)</b>
                                                 </div>
                                             }
                                             <div class="cuadro-barra-h" data-sin-modelo="sla">
@@ -743,7 +743,7 @@
                                     }
                                     else if (!UmbralAnonimatoCuadro.Cumple(null, SolicitudesPorCanal))
                                     {
-                                        <p class="cuadro-vacio cuadro-suprimida" data-suprimida="canal">@Textos["MapaCalorSuprimido", SolicitudesPorCanal, UmbralAnonimatoCuadro.MinimoConversaciones]</p>
+                                        <p class="cuadro-vacio cuadro-suprimida" data-suprimida="canal">@Textos["MapaCalorSuprimido", UmbralAnonimatoCuadro.MinimoConversaciones]</p>
                                     }
                                     else
                                     {
@@ -751,12 +751,12 @@
                                             <div class="cuadro-barra-h">
                                                 <span>@Textos["CanalCorreo"]</span>
                                                 <span class="cuadro-barra-h-pista"><span style="width:@AnchoCorreo%"></span></span>
-                                                <b>@Numero(ConteoCorreo)</b>
+                                                <b>@Recuento(ConteoCorreo)</b>
                                             </div>
                                             <div class="cuadro-barra-h">
                                                 <span>@Textos["CanalWhatsApp"]</span>
                                                 <span class="cuadro-barra-h-pista"><span style="width:@AnchoWhatsApp%"></span></span>
-                                                <b>@Numero(ConteoWhatsApp)</b>
+                                                <b>@Recuento(ConteoWhatsApp)</b>
                                             </div>
                                             <div class="cuadro-barra-h">
                                                 <span>@Textos["CanalLlamada"]</span>
