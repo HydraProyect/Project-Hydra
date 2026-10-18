@@ -640,6 +640,25 @@ public static class Ayudas
     }
 
     /// <summary>
+    /// Abre un grupo plegable del menú lateral (<c>details.nav-grupo-detalle[data-grupo]</c>) si sigue plegado. Como en
+    /// el marco de Design (<c>marco-talveg.js</c>), «Plataforma» y «Administración» nacen cerrados: sus enlaces existen
+    /// en el DOM pero no son visibles hasta que se abre el grupo, y Playwright no hace clic en lo oculto. No toca
+    /// nada de producto: solo hace lo que haría la persona, pulsar la cabecera del grupo. Espera a que quede abierto.
+    /// </summary>
+    public static async Task AbrirGrupoDelMenuAsync(IPage page, string idGrupo)
+    {
+        var grupo = page.Locator($".nav-principal details.nav-grupo-detalle[data-grupo='{idGrupo}']");
+        var abierto = page.Locator($".nav-principal details.nav-grupo-detalle[data-grupo='{idGrupo}'][open]");
+        await grupo.First.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Attached, Timeout = 15_000 });
+        if (await abierto.CountAsync() == 0)
+        {
+            await grupo.First.Locator("> summary").ClickAsync();
+        }
+
+        await Assertions.Expect(abierto.First).ToBeAttachedAsync(new LocatorAssertionsToBeAttachedOptions { Timeout = 15_000 });
+    }
+
+    /// <summary>
     /// Selecciona una fila de la bandeja unificada de <c>/comunicaciones</c>
     /// (<c>FilaConversacion.razor</c>) confirmando que el clic llegó de verdad
     /// al circuito de Blazor antes de devolver el control.
