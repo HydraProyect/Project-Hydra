@@ -229,6 +229,17 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // F4.2b: repuntado a RelacionesEmpresariales — ya no depende de
         // ISubcontratasQueryContext en absoluto.
         ("Clientes.ObtenerSubcontratasDeClienteQueryHandler", "IEmpresasQueryContext"),
+        // Plataforma CAE de Cliente 360 (2026-10-18): la plataforma es del Cliente empresarial y el acceso
+        // de cada Empresa proveedora, las dos tablas viven en Empresas; el Cliente empresarial es una Empresa.
+        ("Clientes.GuardarAccesoPlataformaCaeCommandHandler", "IEmpresasQueryContext"),
+        ("Clientes.GuardarAccesoPlataformaCaeCommandHandler", "IPlataformaCaeClienteEmpresarialRepository"),
+        ("Clientes.GuardarPlataformaCaeClienteCommandHandler", "IEmpresaRepository"),
+        // Comprueba que la Empresa es hoy Cliente empresarial (Relación Empresarial vigente).
+        ("Clientes.GuardarPlataformaCaeClienteCommandHandler", "IEmpresasQueryContext"),
+        ("Clientes.GuardarPlataformaCaeClienteCommandHandler", "IPlataformaCaeClienteEmpresarialRepository"),
+        ("Clientes.ObtenerAccesosPlataformaCaeClienteQueryHandler", "IEmpresasQueryContext"),
+        ("Clientes.ObtenerPlataformaCaeClienteQueryHandler", "IEmpresasQueryContext"),
+        ("Clientes.RevelarContrasenaAccesoPlataformaCaeQueryHandler", "IEmpresasQueryContext"),
         ("Clientes.ReasignarEjecutivoClienteCommandHandler", "IConfiguracionIaDocumentoClienteRepository"),
         ("Clientes.ReasignarEjecutivoClienteCommandHandler", "INotificacionUsuarioRepository"),
         // F3b-Subcontrata: mismo motivo que Cliente arriba — "Subcontrata" es

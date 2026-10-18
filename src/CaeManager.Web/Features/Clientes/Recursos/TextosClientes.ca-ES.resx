@@ -481,6 +481,126 @@
   <data name="SinCentrosSubcontrata360" xml:space="preserve"><value>Sense activitat en Centres visibles del Client</value></data>
   <data name="FraccionSubcontrata360" xml:space="preserve"><value>{0} de {1} al dia</value></data>
   <data name="CentroSubcontrata360" xml:space="preserve"><value>1 centre del Client</value></data>
+  <data name="PlataformaCaeTitulo" xml:space="preserve">
+    <value>Plataforma de CAE</value>
+  </data>
+  <data name="PlataformaCaeRegistrar" xml:space="preserve">
+    <value>Registrar →</value>
+  </data>
+  <data name="PlataformaCaeSinRegistrar" xml:space="preserve">
+    <value>Sense plataforma CAE registrada.</value>
+  </data>
+  <data name="PlataformaCaeAlcance" xml:space="preserve">
+    <value>La comparteixen tots els seus Centres.</value>
+  </data>
+  <data name="PlataformaCaeAbrirPortal" xml:space="preserve">
+    <value>Obrir el portal ↗</value>
+  </data>
+  <data name="PlataformaCaeCodigoCliente" xml:space="preserve">
+    <value>Codi de client</value>
+  </data>
+  <data name="PlataformaCaeCopiarCodigo" xml:space="preserve">
+    <value>el codi de client</value>
+  </data>
+  <data name="PlataformaCaeAccesosTitulo" xml:space="preserve">
+    <value>Accessos de cada Empresa</value>
+  </data>
+  <data name="PlataformaCaeSinEmpresas" xml:space="preserve">
+    <value>Cap Empresa de la teva cartera presta servei avui a aquest Client.</value>
+  </data>
+  <data name="PlataformaCaeUsuario" xml:space="preserve">
+    <value>Usuari</value>
+  </data>
+  <data name="PlataformaCaeContrasena" xml:space="preserve">
+    <value>Contrasenya</value>
+  </data>
+  <data name="PlataformaCaeMostrar" xml:space="preserve">
+    <value>Mostra</value>
+  </data>
+  <data name="PlataformaCaeOcultar" xml:space="preserve">
+    <value>Amaga</value>
+  </data>
+  <data name="PlataformaCaeCopiarUsuarioDe" xml:space="preserve">
+    <value>l&apos;usuari de {0}</value>
+  </data>
+  <data name="PlataformaCaeCopiarContrasenaDe" xml:space="preserve">
+    <value>la contrasenya de {0}</value>
+  </data>
+  <data name="PlataformaCaeCambiadaPor" xml:space="preserve">
+    <value>Canviada el {0} per {1}</value>
+  </data>
+  <data name="PlataformaCaeCambiada" xml:space="preserve">
+    <value>Canviada el {0}</value>
+  </data>
+  <data name="PlataformaCaeSinContrasena" xml:space="preserve">
+    <value>Sense contrasenya desada</value>
+  </data>
+  <data name="PlataformaCaeSinUsuario" xml:space="preserve">
+    <value>Sense usuari</value>
+  </data>
+  <data name="PlataformaCaeEditarAcceso" xml:space="preserve">
+    <value>Edita</value>
+  </data>
+  <data name="PlataformaCaeModalPlataforma" xml:space="preserve">
+    <value>Edita la plataforma CAE</value>
+  </data>
+  <data name="PlataformaCaeModalAcceso" xml:space="preserve">
+    <value>Accés de {0}</value>
+  </data>
+  <data name="PlataformaCaeCampoPlataforma" xml:space="preserve">
+    <value>Plataforma</value>
+  </data>
+  <data name="PlataformaCaeCampoPlataformaPlaceholder" xml:space="preserve">
+    <value>Nalanda, Dokify, CTAIMA, etc.</value>
+  </data>
+  <data name="PlataformaCaeCampoUrl" xml:space="preserve">
+    <value>Adreça del portal</value>
+  </data>
+  <data name="PlataformaCaeCampoCodigoPlaceholder" xml:space="preserve">
+    <value>Sigles o nom del Client a la plataforma</value>
+  </data>
+  <data name="PlataformaCaeAyudaPlataforma" xml:space="preserve">
+    <value>La comparteixen tots els Centres del Client.</value>
+  </data>
+  <data name="PlataformaCaeCampoUsuarioPlaceholder" xml:space="preserve">
+    <value>Correu o CIF de l&apos;Empresa</value>
+  </data>
+  <data name="PlataformaCaeCampoContrasenaNueva" xml:space="preserve">
+    <value>Contrasenya nova</value>
+  </data>
+  <data name="PlataformaCaeCampoContrasenaPlaceholder" xml:space="preserve">
+    <value>Buida: es conserva l&apos;actual</value>
+  </data>
+  <data name="PlataformaCaeAyudaAcceso" xml:space="preserve">
+    <value>El canvi queda a Auditoria. La contrasenya anterior no es conserva.</value>
+  </data>
+  <data name="PlataformaCaeGuardar" xml:space="preserve">
+    <value>Desa</value>
+  </data>
+  <data name="PlataformaCaeCancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="PlataformaCaeGuardada" xml:space="preserve">
+    <value>Plataforma CAE desada</value>
+  </data>
+  <data name="PlataformaCaeAccesoGuardado" xml:space="preserve">
+    <value>Accés desat</value>
+  </data>
+  <data name="PlataformaCaeRequiereDosFactores" xml:space="preserve">
+    <value>Per veure els accessos de cada Empresa, activa la verificació en dos passos.</value>
+  </data>
+  <data name="PlataformaCaeActivarDosFactores" xml:space="preserve">
+    <value>Activa-la ara</value>
+  </data>
+  <data name="PlataformaCaeError" xml:space="preserve">
+    <value>No s&apos;ha pogut carregar la plataforma CAE.</value>
+  </data>
+  <data name="PlataformaCaeErrorAccesos" xml:space="preserve">
+    <value>No s&apos;han pogut carregar els accessos de cada Empresa.</value>
+  </data>
+  <data name="PlataformaCaeSinContrasenaAviso" xml:space="preserve">
+    <value>No hi ha cap contrasenya desada.</value>
+  </data>
   <data name="GestorCaeDato" xml:space="preserve"><value>Gestor CAE</value></data>
   <data name="GestorCaeError" xml:space="preserve"><value>No l'hem pogut carregar</value></data>
 </root>

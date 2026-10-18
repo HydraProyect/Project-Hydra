@@ -14,9 +14,11 @@ public class RegistroAuditoria : EntidadConTenant
     /// Acción de una <b>lectura</b> de un dato cifrado en reposo (credenciales de
     /// plataformas externas), no de un cambio: Project-Hydra-Negocio/tecnico/ARCHITECTURE.md § Datos sensibles
     /// — «queda registrado en auditoría como acceso a dato sensible». La fila
-    /// nunca lleva el dato: <see cref="DatosAntes"/> y <see cref="DatosDespues"/>
-    /// van vacíos. La escribe <c>IRegistroAccesoDatoSensibleService</c>, no el
-    /// interceptor, que solo ve cambios.
+    /// nunca lleva el dato: <see cref="DatosAntes"/> va vacío y <see cref="DatosDespues"/>
+    /// también, salvo cuando una misma fila guarda más de un dato sensible y hay que
+    /// distinguir cuál se leyó: entonces lleva solo su nombre, <c>{"DatoLeido":"Usuario"}</c>
+    /// o <c>{"DatoLeido":"Contrasena"}</c>, nunca su valor. La escribe
+    /// <c>IRegistroAccesoDatoSensibleService</c>, no el interceptor, que solo ve cambios.
     /// </summary>
     public const string AccionAccesoDatoSensible = "AccesoDatoSensible";
 
