@@ -159,6 +159,9 @@
   <data name="AvatarTitulo" xml:space="preserve">
     <value>El meu avatar</value>
   </data>
+  <data name="AvatarVolver" xml:space="preserve">
+    <value>Tornar</value>
+  </data>
   <data name="AvatarKicker" xml:space="preserve">
     <value>El meu compte</value>
   </data>

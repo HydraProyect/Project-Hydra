@@ -20,9 +20,9 @@
     ni se pliega: se pinta plano. Todo lo demás que es del navegador y no del
     servidor lo hace wwwroot/js/menu-lateral.js, por navegador (localStorage, no
     viaja con la cuenta como el tema): qué grupos quedaron abiertos o cerrados,
-    el modo compacto, los enlaces fijados (preferencia personal que solo puede
-    señalar enlaces que ya están en este menú: nunca concede nada), la lupa de
-    la cabecera (despliega el campo de búsqueda: filtra los enlaces y encuentra opciones dentro de
+    el modo compacto (los enlaces ya no se fijan: el marco de Design, DDL-083, solo fija Empresas
+    gestionadas en el selector de Empresa, no entradas del menú), el campo «Buscar en el menú» de
+    la cabecera (siempre visible: filtra los enlaces y encuentra opciones dentro de
     las páginas, ver CatalogoMenuLateral.Subopciones) y abrir solo el grupo de la página activa. Se reaplica tras
     cada navegación "enhanced" de Blazor, mismo mecanismo que tema.js.
 
@@ -53,19 +53,19 @@
 @inject NavigationManager Navigation
 @inject IStringLocalizer<CaeManager.Web.Features.Configuracion.Recursos.TextosConfiguracion> TextosConfiguracion
 <nav class="nav-principal" aria-label="@Textos["MenuNavegacionPrincipal"]">
-    <div class="nav-herramientas">
+    <div class="nav-herramientas" role="search">
         @if (_grupos.Count > 0)
         {
-            @* La lupa ES el campo: recogida es un botón de 32 px; al pulsarla se expande en la misma fila
-               hasta el botón de compactar (menu-lateral.js pone data-abierta) y se contrae al cerrar. *@
-            <div class="nav-buscador" data-menu-busqueda role="search">
-                <button type="button" class="nav-lupa" data-menu-lupa aria-expanded="false"
-                        aria-label="@Textos["MenuBuscar"]" title="@Textos["MenuBuscar"]">
+            @* Marco de Design (marco-talveg.js, .tvm-buscam): el campo «Buscar en el menú» está SIEMPRE a la vista, de
+               34 px, con el botón de compactar de 34 px a su lado; ya no hay lupa que despliegue nada. En la barra
+               compacta el campo se oculta y queda solo el botón. *@
+            <label class="nav-buscador" data-menu-busqueda>
+                <span class="nav-lupa" data-menu-lupa aria-hidden="true">
                     <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" />
-                </button>
-                <input type="text" class="nav-filtro-campo" data-menu-filtro autocomplete="off" inert
+                </span>
+                <input type="search" class="nav-filtro-campo" data-menu-filtro autocomplete="off"
                        placeholder="@Textos["MenuBuscar"]" aria-label="@Textos["MenuBuscar"]" />
-            </div>
+            </label>
         }
         <button type="button" class="nav-compactar" data-menu-compactar
                 aria-label="@Textos["MenuCompactar"]"
@@ -85,7 +85,7 @@
                 {
                     <a class="nav-resultado" href="@sub.Subopcion.Ruta" data-subopcion="@sub.Subopcion.Id" hidden>
                         <span class="nav-resultado-texto">@RotuloDe(sub.Subopcion)</span>
-                        <small class="nav-resultado-padre">@sub.Enlace.RotuloPara(_contexto!)</small>
+                        <small class="nav-resultado-padre">@sub.Enlace.RotuloPara(_contexto!, Textos)</small>
                     </a>
                 }
             </div>
@@ -112,15 +112,6 @@
             <Icono Nombre="documentos" /> <span class="nav-item-texto">Documentos</span>
         </NavLink>
     </AuthorizeView>
-
-    @if (_grupos.Count > 0)
-    {
-        @* Lo rellena menu-lateral.js con copias de las filas fijadas; vacío, no se ve. *@
-        <div class="nav-fijados" data-menu-fijados hidden>
-            <div class="nav-grupo-titulo nav-fijados-titulo">@Textos["MenuFijados"]</div>
-            <div class="nav-grupo-items" data-menu-fijados-lista></div>
-        </div>
-    }
 
     @foreach (var (grupo, enlaces) in _grupos)
     {
@@ -167,14 +158,8 @@
     private RenderFragment FilaEnlace(EnlaceMenuLateral enlace) => @<div class="nav-fila" data-enlace="@enlace.Id">
         <NavLink class="@ClaseDeEnlace(enlace)" href="@enlace.RutaPara(_contexto!)"
                  Match="@(enlace.CoincidenciaExacta ? NavLinkMatch.All : NavLinkMatch.Prefix)">
-            <Icono Nombre="@enlace.Icono" /> <span class="nav-item-texto">@enlace.RotuloPara(_contexto!)</span>
+            <Icono Nombre="@enlace.Icono" /> <span class="nav-item-texto">@enlace.RotuloPara(_contexto!, Textos)</span>
         </NavLink>
-        <button type="button" class="nav-fijar" data-fijar="@enlace.Id" aria-pressed="false"
-                aria-label="@Textos["MenuFijar", enlace.RotuloPara(_contexto!)]"
-                data-etiqueta-fijar="@Textos["MenuFijar", enlace.RotuloPara(_contexto!)]"
-                data-etiqueta-quitar="@Textos["MenuQuitarFijado", enlace.RotuloPara(_contexto!)]">
-            <Icono Nombre="estrella" Tamano="TamanoIcono.Pequeno" />
-        </button>
     </div>;
 
     /// <summary>

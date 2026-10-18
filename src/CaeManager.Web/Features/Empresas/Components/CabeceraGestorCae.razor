@@ -21,7 +21,8 @@
     acciones que antes acompañaban al dato —«+ Dar acceso» y «Desasignarme», que pintaba
     PanelDarAcceso en su forma de cabecera— salieron de aquí: este componente ya no monta ningún
     botón de acción sobre la cartera y no ofrece nada que cambie datos. Siguen en /cartera/solicitudes
-    (PanelDarAcceso completo) hasta que la ficha de la Empresa las aloje; la ventana lo dice y enlaza.
+    (PanelDarAcceso completo) hasta que la ficha de la Empresa las aloje; la ventana ya remite a la ficha, como el
+    dibujo de Design (§C), y enlaza a Empresas (ver RutaEmpresa360).
 
     Estados: cargando (esqueleto que reserva la línea, invisible los primeros 200 ms para no destellar
     en cargas cortas), error («No pudimos cargarlo» con «Reintentar»), vacío (si las dos consultas
@@ -87,9 +88,10 @@ else if (_grupos.Count > 0)
             @{ var claves = new ClavesDeHermanos(); }
             @foreach (var tramo in vista.Tramos)
             {
+                @* Entre tramos, el mismo punto medio que entre piezas (revisión de Design, DDL-083): ya no hay barra «|». *@
                 @if (!ReferenceEquals(tramo, vista.Tramos[0]))
                 {
-                    <span class="cabecera-gestor-cae-separador" aria-hidden="true">|</span>
+                    <span class="cabecera-gestor-cae-separador" aria-hidden="true">·</span>
                 }
                 @foreach (var pieza in tramo.Piezas)
                 {
@@ -141,7 +143,7 @@ else if (_grupos.Count > 0)
                el disparador es un <button> de verdad (borde de control, hover, foco y aria-expanded) y el
                panel un grupo con nombre al que se llega con el tabulador, porque lleva un enlace. En
                escritorio con exactamente dos personas no hay nada que agrupar: el botón solo existe en móvil. *@
-            <VentanaContexto Etiqueta="@vista.EtiquetaMas" Titulo="@titulo"
+            <VentanaContexto Etiqueta="@vista.EtiquetaMas" Titulo="@Textos["GestorCaeVentanaTitulo"].Value"
                              Interactiva="true" HojaEnMovil="true" EtiquetaCerrar="@Textos["GestorCaeCerrar"]"
                              Colocacion="VentanaContextoColocacion.AbajoCentro"
                              class="@(vista.Ocultas > 0 ? null : "cabecera-gestor-cae-mas-solo-movil")"
@@ -195,9 +197,15 @@ else if (_grupos.Count > 0)
                             </span>
                         }
                     }
+                    @* Pie de la revisión de Design (§C): «Dar acceso o desasignarte: desde la ficha.» + «Abrir Empresa 360 →»;
+                       en la hoja de móvil, un solo botón «Dar acceso o desasignarte en la ficha». Un único <a>: los dos
+                       rótulos son la misma acción y CSS enseña el que toca. *@
                     <span class="cabecera-gestor-cae-pie">
-                        @Textos["GestorCaeFichaAyuda"]
-                        <a class="cabecera-gestor-cae-pie-enlace" href="/cartera/solicitudes">@Textos["GestorCaeFichaEnlace"]</a>
+                        <span class="cabecera-gestor-cae-pie-ayuda">@Textos["GestorCaeFichaAyuda"]</span>
+                        <a class="cabecera-gestor-cae-pie-enlace" href="@RutaEmpresa360">
+                            <span class="cabecera-gestor-cae-pie-enlace-escritorio">@Textos["GestorCaeFichaEnlace"]</span>
+                            <span class="cabecera-gestor-cae-pie-enlace-movil">@Textos["GestorCaeFichaEnlaceMovil"]</span>
+                        </a>
                     </span>
                 </Detalle>
             </VentanaContexto>
@@ -211,6 +219,14 @@ else if (_grupos.Count > 0)
     /// que cabe junto al título, con sus rótulos, a 1280 px de ancho.
     /// </summary>
     public const int PersonasALaVista = 2;
+
+    /// <summary>
+    /// Destino del enlace «Abrir Empresa 360 →» del pie de la ventana (revisión de Design, §C: «Dar acceso o desasignarte:
+    /// desde la ficha»). Es la pantalla de Empresas, desde la que se abre la ficha: la Asignación de Cartera cuelga del
+    /// Tenant propietario, no de una Empresa, así que no hay un Id de Empresa que enlazar. DECISIÓN NECESARIA (producto):
+    /// a qué ficha lleva y cuándo la ficha aloja «Dar acceso» y «Desasignarme»; hoy esas acciones siguen en /cartera/solicitudes.
+    /// </summary>
+    private const string RutaEmpresa360 = "/empresas";
 
     private readonly CancellationTokenSource _ciclo = new();
     private IReadOnlyList<Grupo> _grupos = [];

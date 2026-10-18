@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 using Microsoft.Playwright;
@@ -637,6 +637,25 @@ public static class Ayudas
         var cabeceras = page.Locator(".grupo-cola-cabecera");
         await Assertions.Expect(cabeceras).Not.ToHaveCountAsync(0, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
         await cabeceras.EvaluateAllAsync<bool>("els => { els.filter(e => e.getAttribute('aria-expanded') === 'false').forEach(e => e.click()); return true; }");
+    }
+
+    /// <summary>
+    /// Abre un grupo plegable del menú lateral (<c>details.nav-grupo-detalle[data-grupo]</c>) si sigue plegado. Como en
+    /// el marco de Design (<c>marco-talveg.js</c>), «Plataforma» y «Administración» nacen cerrados: sus enlaces existen
+    /// en el DOM pero no son visibles hasta que se abre el grupo, y Playwright no hace clic en lo oculto. No toca
+    /// nada de producto: solo hace lo que haría la persona, pulsar la cabecera del grupo. Espera a que quede abierto.
+    /// </summary>
+    public static async Task AbrirGrupoDelMenuAsync(IPage page, string idGrupo)
+    {
+        var grupo = page.Locator($".nav-principal details.nav-grupo-detalle[data-grupo='{idGrupo}']");
+        var abierto = page.Locator($".nav-principal details.nav-grupo-detalle[data-grupo='{idGrupo}'][open]");
+        await grupo.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Attached, Timeout = 15_000 });
+        if (await abierto.CountAsync() == 0)
+        {
+            await grupo.Locator("> summary").ClickAsync();
+        }
+
+        await Assertions.Expect(abierto).ToBeAttachedAsync(new LocatorAssertionsToBeAttachedOptions { Timeout = 15_000 });
     }
 
     /// <summary>

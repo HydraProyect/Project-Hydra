@@ -280,10 +280,16 @@
     <value>Suport · {0}</value>
   </data>
   <data name="GestorCaeFichaAyuda" xml:space="preserve">
-    <value>Donar accés o desassignar-te: des de Sol·licituds de cartera.</value>
+    <value>Donar accés o desassignar-te: des de la fitxa.</value>
   </data>
   <data name="GestorCaeFichaEnlace" xml:space="preserve">
-    <value>Obrir Sol·licituds de cartera →</value>
+    <value>Obrir Empresa 360 →</value>
+  </data>
+  <data name="GestorCaeFichaEnlaceMovil" xml:space="preserve">
+    <value>Donar accés o desassignar-te a la fitxa</value>
+  </data>
+  <data name="GestorCaeVentanaTitulo" xml:space="preserve">
+    <value>Gestors CAE amb Assignació de Cartera</value>
   </data>
   <data name="GestorCaeCerrar" xml:space="preserve">
     <value>Tanca</value>

@@ -303,6 +303,16 @@ public class CabeceraRedisenadaTests : BunitContext
     }
 
     [Fact]
+    public void Mi_avatar_lleva_la_miga_Mi_cuenta_barra_Mi_avatar()
+    {
+        var cut = RenderMigas("/mi-avatar");
+
+        var migas = cut.FindAll("li.miga");
+        migas.Select(m => m.TextContent.Trim()).Should().Equal("Mi cuenta", "Mi avatar");
+        migas[^1].GetAttribute("aria-current").Should().Be("page");
+    }
+
+    [Fact]
     public void Una_subpantalla_que_no_es_una_ficha_no_inventa_un_nombre()
     {
         var cut = RenderMigas("/documentos/revision-ia");

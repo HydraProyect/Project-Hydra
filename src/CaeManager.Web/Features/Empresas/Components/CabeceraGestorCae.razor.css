@@ -58,6 +58,11 @@
     white-space: nowrap;
 }
 
+/* El nombre del principal, en <strong>, pesa 600 (el 700 por defecto de <strong> no es el de Design). */
+strong.cabecera-gestor-cae-nombre {
+    font-weight: 600;
+}
+
 .cabecera-gestor-cae-persona ::deep .avatar-usuario {
     flex: none;
 }
@@ -108,11 +113,13 @@
     white-space: nowrap;
 }
 
+/* Pastilla «Principal» de 18 px (revisión de Design: padding 1/8, sin borde, 700 12/16): con el borde de 1 px de la
+   pastilla de apoyo medía 20. */
 .cabecera-gestor-cae-principal {
-    border-color: transparent;
+    border: 0;
     background-color: var(--color-primary-50);
     color: var(--color-primary-700);
-    font-weight: 700;
+    font: 700 0.75rem/1rem var(--font-family);
 }
 
 /* «+N»: las personas que no caben en la línea. Es un botón de verdad (el disparador de VentanaContexto
@@ -128,7 +135,7 @@
 
 .cabecera-gestor-cae ::deep .ventana-contexto-disparador {
     height: 26px;
-    padding: 0 var(--space-3);
+    padding: 0 10px;
     border: 1px solid var(--color-border-control);
     border-radius: var(--radius-full);
     background-color: var(--color-surface);
@@ -158,36 +165,50 @@
 
 /* ---- Ventana «+N» ---- */
 
+/* Valores literales de la revisión de Design (Revision Interfaz sin Maqueta, §C, ventana de escritorio): el panel no
+   lleva relleno propio (VentanaContexto, interactiva), así que el título, los rótulos «PRINCIPAL»/«APOYO», las filas
+   y el pie llevan cada uno sus 16 px laterales. En la hoja de móvil, el panel ya pone esos 16 px y aquí valen 0. */
 .cabecera-gestor-cae-seccion {
     display: block;
-    margin: var(--space-2) 0 var(--space-1);
+    padding: 0 16px 4px;
     color: var(--color-text-muted);
-    font-size: 0.6875rem;
-    font-weight: 600;
-    line-height: 1rem;
+    font: 600 11px/16px var(--font-family);
     letter-spacing: 0.06em;
     text-transform: uppercase;
 }
 
+/* El rótulo que sigue a una fila (Apoyo tras Principal) se separa con una raya. */
+.cabecera-gestor-cae-fila + .cabecera-gestor-cae-seccion {
+    margin-top: 4px;
+    padding-top: 10px;
+    border-top: 1px solid var(--color-border);
+}
+
+/* Fila de 40 px: avatar de 24 + 8 arriba y 8 abajo, hueco de 10 entre avatar, nombre y rótulo. */
 .cabecera-gestor-cae-fila {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: 10px;
     min-width: 0;
-    padding: var(--space-1) 0;
+    padding: 8px 16px;
 }
 
 .cabecera-gestor-cae-fila-operador {
     display: block;
-    margin-top: var(--space-1);
 }
 
+/* Nombre: regular en los de apoyo y 600 en el principal (<strong>), con puntos suspensivos. */
 .cabecera-gestor-cae-fila-nombre {
     flex: 1;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font: var(--font-body-md);
+}
+
+strong.cabecera-gestor-cae-fila-nombre {
+    font-weight: 600;
 }
 
 /* El rótulo va alineado a la derecha, tras el nombre. */
@@ -203,19 +224,25 @@
     color: var(--color-primary-700);
 }
 
-/* Pie: dónde se da o se quita acceso. Escritorio, texto con enlace; en móvil, botón de 44 px. */
+/* Pie: dónde se da o se quita acceso. Escritorio, texto con enlace; en móvil, botón de 44 px. Mismo estilo que
+   .ventana-contexto-pie de la ventana interactiva (VentanaContexto.razor.css): margen 4, relleno 12/16 y raya arriba. */
 .cabecera-gestor-cae-pie {
     display: block;
-    margin-top: var(--space-2);
-    padding-top: var(--space-2);
-    border-top: var(--border-default);
+    margin-top: var(--space-1);
+    padding: 12px 16px;
+    border-top: 1px solid var(--color-border);
     color: var(--color-text-muted);
     font: var(--font-caption);
 }
 
 .cabecera-gestor-cae-pie-enlace {
-    font-weight: 600;
+    font: 600 12px/16px var(--font-family);
     white-space: nowrap;
+}
+
+/* El texto del enlace de móvil («…en la ficha») solo existe en la hoja inferior. */
+.cabecera-gestor-cae-pie-enlace-movil {
+    display: none;
 }
 
 /* ---- Cargando y error ---- */
@@ -362,7 +389,17 @@
         min-height: 44px;
     }
 
-    /* En la hoja, avatares de 32 y filas de 48 px. */
+    /* En la hoja (el panel ya pone 16 px a los lados): rótulos de sección sin raya, avatares de 32 y filas de 48 px. */
+    .cabecera-gestor-cae-seccion {
+        padding: 4px 0;
+    }
+
+    .cabecera-gestor-cae-fila + .cabecera-gestor-cae-seccion {
+        margin-top: 0;
+        padding: 10px 0 4px;
+        border-top: 0;
+    }
+
     .cabecera-gestor-cae-fila {
         min-height: 48px;
         padding: 0;
@@ -372,10 +409,47 @@
         --avatar-usuario-lado: 32px;
     }
 
+    /* Principal y apoyos: el rótulo («Coordinador CAE principal», «Apoyo») va BAJO el nombre, no a la derecha. */
+    .cabecera-gestor-cae-fila[data-gestor-cae-detalle="principal"],
+    .cabecera-gestor-cae-fila[data-gestor-cae-detalle="apoyo"] {
+        display: grid;
+        grid-template-columns: 32px minmax(0, 1fr);
+        column-gap: 10px;
+        align-content: center;
+        align-items: center;
+    }
+
+    .cabecera-gestor-cae-fila[data-gestor-cae-detalle] ::deep .avatar-usuario {
+        grid-row: 1 / span 2;
+    }
+
+    .cabecera-gestor-cae-fila[data-gestor-cae-detalle="principal"] .cabecera-gestor-cae-fila-nombre,
+    .cabecera-gestor-cae-fila[data-gestor-cae-detalle="apoyo"] .cabecera-gestor-cae-fila-nombre {
+        grid-column: 2;
+        flex: none;
+    }
+
+    .cabecera-gestor-cae-fila[data-gestor-cae-detalle="principal"] .cabecera-gestor-cae-fila-rotulo,
+    .cabecera-gestor-cae-fila[data-gestor-cae-detalle="apoyo"] .cabecera-gestor-cae-fila-rotulo {
+        grid-column: 2;
+        margin-left: 0;
+        white-space: normal;
+    }
+
+    /* Pie de la hoja: solo el botón de 44 px («Dar acceso o desasignarte en la ficha»), sin el texto de escritorio. */
     .cabecera-gestor-cae-pie {
         margin-top: var(--space-3);
-        padding-top: 0;
+        padding: 0;
         border-top: 0;
+    }
+
+    .cabecera-gestor-cae-pie-ayuda,
+    .cabecera-gestor-cae-pie-enlace-escritorio {
+        display: none;
+    }
+
+    .cabecera-gestor-cae-pie-enlace-movil {
+        display: inline;
     }
 
     .cabecera-gestor-cae-pie-enlace {
@@ -383,9 +457,10 @@
         align-items: center;
         justify-content: center;
         min-height: 44px;
-        margin-top: var(--space-2);
         border: 1px solid var(--color-border-control);
         border-radius: var(--radius-md);
         color: var(--color-text);
+        font: var(--font-label);
+        white-space: normal;
     }
 }

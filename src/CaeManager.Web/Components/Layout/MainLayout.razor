@@ -7,17 +7,14 @@
 <div class="shell">
     <aside class="barra-lateral">
         <div class="marca">
-            @* Opción D elegida por el propietario (2026-09-19): wordmark oficial en vez del
-               nombre en texto, con la etiqueta "CAE" al lado. Marca.Nombre NO se toca: sigue
-               siendo el nombre de títulos de pestaña y correos, esto solo cambia lo que se
-               pinta aquí. lockup-claro.svg/lockup-oscuro.svg alterna solo por data-theme='oscuro'
-               explícito (SelectorTema); en "sistema" y en el primer render, antes de que el
-               script del selector escriba data-theme, se ve el claro a propósito, porque
-               tokens.css tiene el seguimiento automático de prefers-color-scheme apagado y
-               --color-surface se queda en blanco en esos casos (ver MainLayout.razor.css). *@
-            <img src="img/marca/talveg-lockup-claro.svg" alt="TALVEG" class="marca-wordmark marca-wordmark-claro" width="106" height="22" />
-            <img src="img/marca/talveg-lockup-oscuro.svg" alt="TALVEG" class="marca-wordmark marca-wordmark-oscuro" width="106" height="22" />
-            <span class="marca-etiqueta">CAE</span>
+            @* Marco de Design (marco-talveg.js, DDL-083, 2026-10-18): la marca es texto real en Georgia, con la V en verde,
+               y la etiqueta "CAE" al lado; sustituye al wordmark en imagen de la opción D (2026-09-19). Marca.Nombre NO se
+               toca: sigue siendo el nombre de títulos de pestaña y correos, esto solo cambia lo que se pinta aquí. *@
+            @* La marca lleva a Inicio (marco-talveg.js: <a href="Inicio TALVEG.dc.html"> con ambas piezas dentro). *@
+            <a class="marca-enlace" href="/" aria-label="@($"{MarcaInicio}{MarcaVerde}{MarcaFin} CAE")">
+                <span class="marca-wordmark">@MarcaInicio<b>@MarcaVerde</b>@MarcaFin</span>
+                <span class="marca-etiqueta">CAE</span>
+            </a>
         </div>
         @* Selector de Tenant beneficiario (mockup «Selector Empresa Gestionada», decisión 7 ter):
            bajo la marca y encima del menú, solo para quien alcanza varias empresas gestionadas.

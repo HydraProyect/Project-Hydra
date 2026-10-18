@@ -45,8 +45,30 @@ public class BarraLateralLupaSinFranjaTests
         js.Should().NotContain("evento.key !== '/'", "el atajo «/» se retiró");
         Regex.IsMatch(js, @"key\s*[=!]==?\s*'/'").Should().BeFalse();
         razor.Should().NotContain("<kbd");
-        razor.Should().Contain("data-menu-lupa", "control positivo: la lupa sí está");
-        js.Should().Contain("Escape", "Esc sigue cerrando el campo");
+        razor.Should().Contain("data-menu-filtro", "control positivo: el campo «Buscar en el menú» está");
+        razor.Should().NotContain("<button type=\"button\" class=\"nav-lupa\"", "el campo está siempre visible: ya no hay lupa que lo despliegue");
+        js.Should().Contain("Escape", "Esc sigue vaciando el campo");
+        Css.Should().Contain("height: 34px", "el campo y el botón de compactar miden 34 px (.tvm-buscam, marco de Design)");
+    }
+
+    /// <summary>
+    /// Revisión visual de la PR 1413 (marco-talveg.js, <c>.tvm-logo</c> y <c>.tvm-cae</c>): la marca mide los 64 px de la
+    /// cabecera SIN encoger (<c>flex: none</c>), con padding 0 18 y gap 10, y la etiqueta «CAE» mide 21 px
+    /// (<c>line-height: 1</c> + padding 4 + borde 1).
+    /// </summary>
+    [Fact]
+    public void La_marca_mide_64px_sin_encoger_y_la_etiqueta_CAE_21px()
+    {
+        var reglas = Reglas(Leer("Components", "Layout", "MainLayout.razor.css"));
+
+        var marca = reglas.Where(r => r.Selector == ".marca").Should().ContainSingle().Which.Cuerpo;
+        marca.Should().Contain("height: var(--navbar-height)").And.Contain("flex: none")
+            .And.Contain("padding: 0 18px").And.Contain("gap: 10px");
+
+        var etiqueta = reglas.Where(r => r.Selector == ".marca-etiqueta").Should().ContainSingle().Which.Cuerpo;
+        etiqueta.Should().Contain("/1 ").And.Contain("padding: 4px 6px").And.Contain("border: 1px solid var(--color-border-strong)");
+
+        Leer("wwwroot", "css", "tokens.css").Should().Contain("--navbar-height: 64px", "la regla de la marca iguala la cabecera de 64 px");
     }
 
     [Fact]
@@ -57,8 +79,11 @@ public class BarraLateralLupaSinFranjaTests
         activas.Should().Contain(r => r.Cuerpo.Contains("font-weight: 600"), "peso, color y fondo la distinguen");
 
         activas.Where(r => r.Selector.EndsWith(".nav-item.active:hover")).Should().ContainSingle()
-            .Which.Cuerpo.Should().Contain("border-color: transparent",
-                "el hover genérico de .nav-item pinta un marco gris que el seleccionado no debe heredar");
+            .Which.Cuerpo.Should().Contain("background-color: var(--color-primary-50)",
+                "el seleccionado conserva su fondo al pasar el cursor (marco de Design, DDL-083)");
+        Reglas(Css).Where(r => r.Selector.EndsWith(".nav-item")).Should().OnlyContain(
+            r => !r.Cuerpo.Contains("border:") && !r.Cuerpo.Contains("border-color"),
+            "los enlaces del menú no llevan marco; el hover solo cambia el fondo (marco de Design, DDL-083)");
 
         foreach (var (selector, cuerpo) in activas)
         {
@@ -144,7 +169,9 @@ public class BarraLateralLupaSinFranjaTests
         }
 
         // Las entradas con autoridad propia no se ofrecen: no son del rol Administrador del hub.
-        catalogo.Should().NotContain("configuracion/plataforma").And.NotContain("configuracion/orden-menu")
+        // «Administración de plataforma» sí es un ENLACE del menú (solo con capacidad de plataforma), pero no una subopción de la lupa.
+        var subopciones = catalogo[catalogo.IndexOf("Subopciones { get; }", StringComparison.Ordinal)..];
+        subopciones.Should().NotContain("configuracion/plataforma").And.NotContain("configuracion/orden-menu")
             .And.NotContain("configuracion/organizacion").And.NotContain("configuracion/accesos-sensibles");
     }
 

@@ -27,7 +27,7 @@ namespace CaeManager.Web.Tests;
 /// <para>
 /// Es SOLO LECTURA (revisión de Design, 2026-10-17, §C): las dos acciones que antes acompañaban al dato
 /// —«+ Dar acceso» y «Desasignarme»— salieron de la cabecera. Lo único pulsable es el botón «+N» y lo que
-/// lleva su ventana (cierre de la hoja de móvil y el enlace a /cartera/solicitudes). Qué puede ver cada quien
+/// lleva su ventana (cierre de la hoja de móvil y el enlace del pie a /empresas, «Abrir Empresa 360 →»). Qué puede ver cada quien
 /// lo deciden <c>ObtenerPersonasConCarteraQuery</c> (cuenta de gestión CAE del Operador CAE externo) y
 /// <c>ObtenerOperadoresCaeDeMiTenantQuery</c> (Administrador del Tenant propietario): eso se prueba en
 /// Application. Aquí, qué se pinta con lo que esas consultas devuelven y en qué estado queda la cabecera.
@@ -173,7 +173,12 @@ public class CabeceraGestorCaeTests : BunitContext
         cut.FindAll("button").Select(b => b.ClassList.Contains("ventana-contexto-disparador") || b.ClassList.Contains("ventana-contexto-cerrar"))
             .Should().OnlyContain(esDeLaVentana => esDeLaVentana, "los únicos botones son el «+N» y el cierre de la hoja de móvil: ninguna acción sobre la cartera");
         cut.FindAll("input").Should().BeEmpty();
-        cut.FindAll("a").Should().ContainSingle().Which.GetAttribute("href").Should().Be("/cartera/solicitudes", "la ventana dice dónde se gestiona la cartera y enlaza");
+        var enlace = cut.FindAll("a").Should().ContainSingle().Which;
+        enlace.GetAttribute("href").Should().Be("/empresas", "la ventana remite a la ficha (revisión de Design §C): enlaza a Empresas, de donde se abre la ficha");
+        enlace.QuerySelector(".cabecera-gestor-cae-pie-enlace-escritorio")!.TextContent.Trim().Should().Be("Abrir Empresa 360 →");
+        enlace.QuerySelector(".cabecera-gestor-cae-pie-enlace-movil")!.TextContent.Trim().Should().Be("Dar acceso o desasignarte en la ficha", "botón de la hoja de móvil");
+        cut.Find(".cabecera-gestor-cae-pie-ayuda").TextContent.Trim().Should().Be("Dar acceso o desasignarte: desde la ficha.");
+        cut.Find("[data-gestor-cae-mas] .ventana-contexto-titulo").TextContent.Trim().Should().Be("Gestores CAE con Asignación de Cartera");
     }
 
     [Fact]

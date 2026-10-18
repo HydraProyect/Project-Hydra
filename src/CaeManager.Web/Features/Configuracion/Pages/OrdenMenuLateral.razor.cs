@@ -41,6 +41,7 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosConfiguracion> Textos { get; set; } = default!;
+    [Inject] private IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> TextosComunes { get; set; } = default!;
     [Inject] private IOptions<ComunicacionesOptions> OpcionesComunicaciones { get; set; } = default!;
     [Inject] private ILogger<OrdenMenuLateral> Logger { get; set; } = default!;
 
@@ -217,7 +218,7 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
                 enlaces.Select((idEnlace, j) =>
                 {
                     var enlace = CatalogoMenuLateral.Enlaces.First(e => e.Id == idEnlace);
-                    return new FilaEditable(new Fila(TipoFila.Enlace, id, idEnlace), j, enlaces.Count, enlace.Rotulo,
+                    return new FilaEditable(new Fila(TipoFila.Enlace, id, idEnlace), j, enlaces.Count, enlace.RotuloEn(TextosComunes),
                         enlace.Icono, "/" + enlace.Ruta, false, _enlacesNuevos.Contains(idEnlace), null);
                 }).ToList());
         })
@@ -229,7 +230,7 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
     private string Nombre(Fila fila) =>
         fila.Tipo == TipoFila.Grupo
             ? CatalogoMenuLateral.Grupos.First(g => g.Id == fila.Id).Titulo
-            : CatalogoMenuLateral.Enlaces.First(e => e.Id == fila.Id).Rotulo;
+            : CatalogoMenuLateral.Enlaces.First(e => e.Id == fila.Id).RotuloEn(TextosComunes);
 
     private bool EsCogida(Fila fila) => _cogida == fila;
 
@@ -488,7 +489,7 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
             var grupos = CatalogoMenuLateral
                 .Visibles(contexto, _grupos, _grupos.SelectMany(g => _enlaces[g]).ToList())
                 .Select(v => new GrupoPrevio(v.Grupo.Id, v.Grupo.Titulo,
-                    v.Enlaces.Select(e => new EnlacePrevio(e.Id, e.Icono, e.RotuloPara(contexto))).ToList()))
+                    v.Enlaces.Select(e => new EnlacePrevio(e.Id, e.Icono, e.RotuloPara(contexto, TextosComunes))).ToList()))
                 .ToList();
             var vistos = grupos.Sum(g => g.Enlaces.Count);
             return new Previa(grupos, Textos["OrdenMenuPreviaTexto", vistos, CatalogoMenuLateral.Enlaces.Count].Value);

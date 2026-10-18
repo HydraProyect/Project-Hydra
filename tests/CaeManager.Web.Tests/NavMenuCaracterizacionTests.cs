@@ -54,7 +54,7 @@ public class NavMenuCaracterizacionTests
         "dashboard", "clientes", "empresas", "centros", "subcontratas", "trabajadores", "vehiculos", "documentos",
         "asignaciones", "proyectos", "visitas", "alertas", "calendario", "reportes", "configuracion", "usuarios",
         "seguridad", "chat", "cartera", "evaluaciones", "incidencias", "chevron", "plataforma",
-        "inicio", "ejecutivo", "solicitud", "mi-trabajo", "facturacion", "conectar", "delegacion", "etiqueta", "equipo",
+        "inicio", "ejecutivo", "solicitud", "mi-trabajo", "facturacion", "conectar", "delegacion", "etiqueta", "equipo", "auditoria", "importar",
     ];
 
     public sealed record Combinacion(
@@ -120,7 +120,7 @@ public class NavMenuCaracterizacionTests
         var administrador = Describir(
             new Combinacion(Roles.Administrador, null, true, true, PerfilVocabularioTenant.Consultora, 1), iconos);
         administrador.Should().Contain("dashboards(open)<nav-grupo-detalle|Dashboards>[\"\"@inicio/icono icono-medio'Inicio'<nav-item>")
-            .And.Contain("plataforma(open)<nav-grupo-detalle|Plataforma>[")
+            .And.Contain("plataforma<nav-grupo-detalle|Plataforma>[")
             .And.Contain("\"configuracion\"@configuracion/icono icono-medio'Configuración'")
             .And.NotContain("@?");
 
@@ -197,7 +197,7 @@ public class NavMenuCaracterizacionTests
             "los guardados primero y en su orden; los que el orden no nombra, al final en el orden del catálogo; " +
             "'grupo-retirado' no existe y se ignora");
         administrador.FindAll("details[data-grupo='plataforma'] a").Select(a => a.GetAttribute("href")).Should().Equal(
-            ["plataforma/conectores-cae", "configuracion/comercial", "delegaciones"],
+            ["plataforma/conectores-cae", "configuracion/comercial", "configuracion/plataforma", "delegaciones"],
             "dentro del grupo manda la posición relativa de la lista plana de enlaces");
 
         var gestor = Pintar(
@@ -258,43 +258,24 @@ public class NavMenuCaracterizacionTests
     }
 
     /// <summary>
-    /// Los fijados son una preferencia del navegador, nunca un permiso: cada estrella lleva el
-    /// identificador de un enlace que YA se pinta en este menú, así que lo que se puede fijar nunca
-    /// supera lo que el rol ya ve. Un Gestor CAE no tiene estrella para «configuracion».
+    /// Barra lateral, revisión visual de la PR 1413 (marco de Design, <c>.tvm-buscam</c>): el campo «Buscar en el
+    /// menú» está SIEMPRE a la vista (ya no hay una lupa que lo despliegue), con su icono decorativo dentro del
+    /// recuadro y el botón de compactar al lado. Sin <c>kbd</c>, y sin <c>inert</c>: se enfoca con el teclado.
     /// </summary>
     [Fact]
-    public void Solo_se_puede_fijar_lo_que_el_rol_ya_ve_en_su_menu()
-    {
-        var gestor = Pintar(new Combinacion(Roles.GestorCae, null, true, false, PerfilVocabularioTenant.Consultora, 1), null);
-        var fijables = gestor.FindAll("[data-fijar]").Select(b => b.GetAttribute("data-fijar")).ToList();
-        var filas = gestor.FindAll(".nav-fila").Select(f => f.GetAttribute("data-enlace")).ToList();
-
-        fijables.Should().NotBeEmpty().And.Equal(filas);
-        fijables.Should().NotContain(["configuracion", "delegaciones", "usuarios"]);
-        fijables.Should().OnlyContain(id => CatalogoMenuLateral.Enlaces.Any(e => e.Id == id));
-        gestor.FindAll(".nav-contador, .nav-insignia").Should().BeEmpty(
-            "no hay contadores: ninguna de sus fuentes existe como Query de recuento (ver NavMenu.razor)");
-    }
-
-    /// <summary>
-    /// Barra lateral, ajuste del 2026-10-08: el filtro deja de ser un campo siempre visible con atajo «/»
-    /// y pasa a ser solo una lupa en la cabecera que despliega el campo. Sin <c>kbd</c>, y el campo
-    /// recogido va <c>inert</c> (ni foco por teclado ni lectura de pantalla).
-    /// </summary>
-    [Fact]
-    public void El_filtro_es_una_lupa_que_despliega_el_campo_sin_insignia_de_atajo()
+    public void El_campo_Buscar_en_el_menu_esta_siempre_visible_sin_insignia_de_atajo()
     {
         var cut = Pintar(new Combinacion(Roles.Administrador, null, true, false, PerfilVocabularioTenant.Consultora, 1), null);
 
-        var lupa = cut.Find("button[data-menu-lupa]");
-        lupa.GetAttribute("aria-expanded").Should().Be("false");
-        lupa.GetAttribute("aria-label").Should().NotBeNullOrWhiteSpace();
-
         var campo = cut.Find("input[data-menu-filtro]");
-        campo.HasAttribute("inert").Should().BeTrue("recogido, el campo no puede recibir foco");
-        campo.Closest("[data-menu-busqueda]")!.QuerySelector("[data-menu-lupa]").Should().NotBeNull(
-            "lupa y campo son un solo elemento que se expande en la misma fila: no hay fila nueva");
-        cut.Find("[data-menu-busqueda]").HasAttribute("data-abierta").Should().BeFalse("nace recogida");
+        campo.HasAttribute("inert").Should().BeFalse("siempre visible, el campo recibe foco por teclado");
+        campo.GetAttribute("aria-label").Should().NotBeNullOrWhiteSpace();
+        campo.GetAttribute("placeholder").Should().NotBeNullOrWhiteSpace();
+        var recuadro = campo.Closest("[data-menu-busqueda]")!;
+        recuadro.QuerySelector("[data-menu-lupa]").Should().NotBeNull("el icono va dentro del recuadro del campo");
+        cut.FindAll("button[data-menu-lupa]").Should().BeEmpty("ya no hay botón de lupa que despliegue el campo");
+        recuadro.HasAttribute("data-abierta").Should().BeFalse("no hay estado abierto/recogido");
+        cut.Find("button[data-menu-compactar]").Should().NotBeNull("el botón de compactar acompaña al campo");
         cut.FindAll("kbd, .nav-filtro-tecla").Should().BeEmpty("el atajo «/» y su insignia se retiraron");
     }
 

@@ -170,6 +170,7 @@
 .toast-cuenta {
     font-size: 0.75rem;
     line-height: 1rem;
+    font-weight: 500;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     opacity: 0.75;

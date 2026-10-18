@@ -351,12 +351,20 @@
     <comment>Cabecera de sección de la ventana «+N»: los Gestores CAE de apoyo. {0} = cuántos.</comment>
   </data>
   <data name="GestorCaeFichaAyuda" xml:space="preserve">
-    <value>Dar acceso o desasignarte: desde Solicitudes de cartera.</value>
-    <comment>Pie de la ventana «+N»: la cabecera es de solo lectura; las acciones sobre la cartera están fuera de ella. Cuando la ficha de la Empresa las aloje, el texto pasa a «desde la ficha».</comment>
+    <value>Dar acceso o desasignarte: desde la ficha.</value>
+    <comment>Pie de la ventana «+N» (revisión de Design, §C): la cabecera es de solo lectura; las acciones sobre la cartera están fuera de ella y el dibujo las remite a la ficha. Hoy siguen en Solicitudes de cartera: la ficha de la Empresa aún no las aloja.</comment>
   </data>
   <data name="GestorCaeFichaEnlace" xml:space="preserve">
-    <value>Abrir Solicitudes de cartera →</value>
-    <comment>Enlace del pie de la ventana «+N» a la pantalla donde hoy se da o se quita acceso.</comment>
+    <value>Abrir Empresa 360 →</value>
+    <comment>Enlace del pie de la ventana «+N» a la ficha (Empresa 360), en escritorio.</comment>
+  </data>
+  <data name="GestorCaeFichaEnlaceMovil" xml:space="preserve">
+    <value>Dar acceso o desasignarte en la ficha</value>
+    <comment>Botón del pie de la hoja inferior de la ventana «+N» en móvil: sustituye al texto y al enlace de escritorio.</comment>
+  </data>
+  <data name="GestorCaeVentanaTitulo" xml:space="preserve">
+    <value>Gestores CAE con Asignación de Cartera</value>
+    <comment>Título de la ventana «+N» (revisión de Design, §C). El title de la línea sigue usando GestorCaeTitulo.</comment>
   </data>
   <data name="GestorCaeCerrar" xml:space="preserve">
     <value>Cerrar</value>

@@ -47,12 +47,6 @@
     border-bottom-color: var(--color-primary-500);
 }
 
-@media (max-width: 1023px) {
-    .barra-seccion {
-        padding: 0 var(--space-4);
-    }
-}
-
 @media (prefers-reduced-motion: reduce) {
     .barra-seccion-enlace {
         transition: none;
