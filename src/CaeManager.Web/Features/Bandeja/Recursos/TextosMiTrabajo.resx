@@ -381,4 +381,11 @@
   <data name="ReclamacionExtraNoCabe" xml:space="preserve">
     <value>Hay demasiados destinatarios para registrar el envío: desmarca algún contacto o quita algún correo añadido.</value>
   </data>
+  <data name="ReclamacionErrorPreparar" xml:space="preserve"><value>No pudimos preparar la reclamación</value></data>
+  <data name="ReclamacionErrorPrepararDetalle" xml:space="preserve"><value>Intenta nuevamente en unos segundos.</value></data>
+  <data name="ReclamacionReintentar" xml:space="preserve"><value>Reintentar</value></data>
+  <data name="ReclamacionFueraTrabajadores" xml:space="preserve"><value>{0} de {1} documentos son de Trabajadores y se reclaman al Cliente del Centro, no a esta Empresa.</value></data>
+  <data name="ReclamacionFueraVentana" xml:space="preserve"><value>{0} de {1} documentos están fuera de la ventana de reclamación o ya no son reclamables.</value></data>
+  <data name="ReclamacionNadaTitulo" xml:space="preserve"><value>Nada que reclamar a esta Empresa</value></data>
+  <data name="ReclamacionNadaDetalle" xml:space="preserve"><value>Ninguno de estos documentos se puede reclamar a los contactos de esta Empresa desde aquí.</value></data>
 </root>
