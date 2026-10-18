@@ -595,9 +595,12 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     private IReadOnlyList<OpcionEstado> OpcionesFiltroCliente =>
         _clientesFiltro.OrderBy(c => c.RazonSocial).Select(c => new OpcionEstado(c.Id.ToString(), c.RazonSocial)).ToList();
 
-    /// <summary>El detalle de vigencia de un documento de la fila desplegada: cuánto hace que venció o cuánto le queda.</summary>
-    private static string? DetalleDelDocumento(CaeManager.Application.Documentos.IncidenciaDocumentalDto incidencia) =>
-        EstadoDocumentoUi.MotivoDeDocumento(incidencia.Estado, incidencia.FechaVencimiento, CaeManager.Domain.Common.DiaDeNegocio.Hoy());
+    /// <summary>
+    /// El detalle de vigencia de un documento de la fila desplegada, literal de la maqueta («Empresas TALVEG.dc.html»):
+    /// «Venció el dd/MM/yyyy» si venció, el plazo si está por vencer y la falta de fecha si está sin confirmar.
+    /// </summary>
+    private static string DetalleDelDocumento(CaeManager.Application.Documentos.IncidenciaDocumentalDto incidencia) =>
+        DetalleVigenciaDocumentoUi.DeEmpresa(incidencia, CaeManager.Domain.Common.DiaDeNegocio.Hoy());
 
     private IReadOnlyList<OpcionEstado> OpcionesAgrupacion =>
         [new OpcionEstado(ValorAgruparPorCliente, Textos["AgruparPorCliente"].Value)];

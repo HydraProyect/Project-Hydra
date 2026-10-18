@@ -735,8 +735,6 @@
   <data name="EtiquetaAgrupar" xml:space="preserve"><value>Agrupa</value></data>
   <data name="OpcionSinAgrupar" xml:space="preserve"><value>Sense agrupar</value></data>
   <data name="AgruparPorEmpresa" xml:space="preserve"><value>Per Empresa</value></data>
-  <data name="DocumentoDesdeFecha" xml:space="preserve"><value>Des del {0}</value></data>
-  <data name="DocumentoCaducaFecha" xml:space="preserve"><value>Caduca el {0}</value></data>
   <data name="RecuentoGrupoEnEstaPagina" xml:space="preserve"><value>· {0} en aquesta pàgina</value></data>
   <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordena</value></data>
 </root>

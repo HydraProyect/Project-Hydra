@@ -49,7 +49,9 @@ namespace CaeManager.Web.Features.Clientes.Pages;
 /// <para>
 /// Qué NO enseña, igual que el panel: porcentaje de cumplimiento del Cliente
 /// empresarial (no existe), Alias, Domicilio, Portal
-/// principal, Gestor CAE e historial de notas. Editar la identidad y la nota
+/// principal, el «Gestor CAE de referencia» (<c>EjecutivoUsuarioId</c>) e historial de notas. La fila
+/// «Gestor CAE» de la tarjeta Información sí está (<c>GestorCaeCliente</c>): enseña quién tiene Asignación de
+/// Cartera sobre el Tenant y aloja «Dar acceso» y «Desasignarme». Editar la identidad y la nota
 /// se hace en el panel: los «Editar» de esta página lo abren en su pestaña.
 /// El anillo cuenta Centros sin incidencias sobre Centros con gestión CAE; se omite si la lista está truncada
 /// o no se han podido leer los bloqueos, para no presentar una fracción global incompleta.
@@ -131,6 +133,21 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     private bool _cargandoCentrosSubcontratas;
     private bool _datosInicialesCargados;
     private int _cargaCentrosSubcontratas;
+
+    /// <summary>
+    /// Habilita la lectura de la fila «Gestor CAE» (<c>GestorCaeCliente</c>) cuando la cadena de
+    /// <see cref="CargarTodoAsync"/> terminó: sus consultas comparten el DbContext del circuito.
+    /// </summary>
+    private bool _gestorCaeHabilitado;
+
+    /// <summary>
+    /// Pendiente mientras la fila «Gestor CAE» (y su panel de acciones) hace su primera lectura: las lecturas de
+    /// pestaña esperan a que termine, por el mismo DbContext compartido. Sin valor o completada, no se espera.
+    /// </summary>
+    private TaskCompletionSource? _gestorCaeEnVuelo;
+
+    /// <summary>Tope de esa espera: si la fila no avisara nunca, la pestaña no se queda colgada.</summary>
+    private static readonly TimeSpan EsperaMaximaGestorCae = TimeSpan.FromSeconds(10);
 
     private string _pestanaActiva = PestanaPorDefecto;
     private string? _pestanaDeLaUrl;
@@ -294,9 +311,22 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _pestanaActiva = Normalizar(pestana);
         _pestanaDeLaUrl = _pestanaActiva == PestanaPorDefecto ? null : _pestanaActiva;
         NavigationManager.ActualizarFiltroEnUrl("pestana", _pestanaDeLaUrl);
+        await EsperarGestorCaeAsync();
         await CargarCentrosSubcontratasSiProcedeAsync();
         await CargarToleranciasSiProcedeAsync();
     }
+
+    /// <summary>
+    /// Si la fila «Gestor CAE» sigue con su primera lectura, se espera a que avise (con tope): una pestaña que lee
+    /// en paralelo chocaría con ella en el DbContext del circuito. Es la misma serie que sigue la carga inicial.
+    /// </summary>
+    private async Task EsperarGestorCaeAsync()
+    {
+        if (_gestorCaeEnVuelo is { Task.IsCompleted: false } enVuelo)
+            await Task.WhenAny(enVuelo.Task, Task.Delay(EsperaMaximaGestorCae));
+    }
+
+    private void GestorCaeCargado() => _gestorCaeEnVuelo?.TrySetResult();
 
     /// <summary>Invalida cualquier carga en vuelo: su respuesta ya no escribirá nada.</summary>
     private void InvalidarCargas()
@@ -366,6 +396,9 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _cargandoEmpresas = false;
         _subcontratas = null;
         _datosInicialesCargados = false;
+        _gestorCaeHabilitado = false;
+        _gestorCaeEnVuelo?.TrySetResult();
+        _gestorCaeEnVuelo = null;
         _centrosSubcontratasLeidos = false;
         _cargandoCentrosSubcontratas = false;
         _centrosSubcontratas = new Dictionary<Guid, IReadOnlyList<CentroCumplimientoSubcontrataDto>>();
@@ -401,6 +434,10 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _datosInicialesCargados = true;
         await CargarCentrosSubcontratasSiProcedeAsync();
         await CargarToleranciasSiProcedeAsync();
+        if (generacion != _generacion) return;
+        _gestorCaeEnVuelo = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _gestorCaeHabilitado = true;
+        StateHasChanged();
     }
 
     /// <summary>Un doble clic en «Reintentar» no lanza una segunda cadena: la primera ya puso _cargando.</summary>
@@ -778,6 +815,13 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         if (indice == 0)
             NavigationManager.NavigateTo("/clientes");
     }
+
+    /// <summary>
+    /// Quien mira acaba de desasignarse, desde la fila «Gestor CAE», de su apoyo sobre el Tenant activo: todo lo que
+    /// esta página tiene pintado es de un Tenant al que ya no accede. Va a «Mi trabajo» con <c>sinAcceso=true</c>
+    /// para avisarlo; <c>forceLoad</c> hace que el arranque normal vuelva a resolver el Tenant activo y el acceso.
+    /// </summary>
+    private void IrAMiTrabajoTrasDesasignarme() => NavigationManager.NavigateTo("/mi-trabajo?sinAcceso=true", forceLoad: true);
 
     private Task AbrirInformacionAsync() =>
         WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, ClienteId, _detalle?.RazonSocial ?? string.Empty, "informacion");
