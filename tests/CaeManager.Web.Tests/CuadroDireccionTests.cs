@@ -390,6 +390,17 @@ public partial class CuadroDireccionTests : BunitContext
     }
 
     [Fact]
+    public void Etiquetas_de_datos_va_en_la_primera_fila_tras_Personalizar_y_Presentar_en_la_segunda()
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
+
+        var filas = cut.FindAll(".cuadro-barra");
+        var primera = filas[0].QuerySelectorAll("button").Select(b => b.TextContent.Trim()).ToList();
+        primera.Should().EndWith(["Personalizar esta pestaña", "Etiquetas de datos"]);
+        filas[1].QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Presentar").And.NotContain("Etiquetas de datos");
+    }
+
+    [Fact]
     public void El_mes_y_el_chip_de_estado_van_en_la_misma_fila_que_el_titulo()
     {
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);

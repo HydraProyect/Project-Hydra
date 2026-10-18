@@ -43,6 +43,7 @@
     border-radius: 8px;
     font-size: 12px;
     line-height: 16px;
+    font-weight: 600;
     white-space: nowrap;
 }
 
@@ -90,7 +91,7 @@
 /* Periodo: ‹ [Mes 1 / Mes 6 / Año 3] › en un solo grupo de 38 px (maqueta: .tv-seg con las flechas). */
 .cuadro-periodo {
     display: inline-flex;
-    align-items: stretch;
+    align-items: center;
     gap: 4px;
     height: 42px;
     max-width: 100%;
@@ -104,13 +105,15 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     min-width: 0;
+    height: 42px;
+    box-sizing: border-box;
 }
 
 .cuadro-momento button {
     font: inherit;
     font-size: 13px;
     font-weight: 600;
-    padding: 0 12px;
+    padding: 6px 12px;
     border: 0;
     border-radius: 8px;
     background: transparent;
@@ -125,10 +128,12 @@
 .cuadro-momento button:not([aria-pressed="true"]):not(:disabled):hover { color: var(--color-text); }
 
 /* Los botones de la barra miden 38 px, como en la maqueta. */
-.cuadro-barra ::deep .boton { height: 38px; min-height: 38px; padding-block: 0; }
+.cuadro-barra ::deep .boton { height: auto; min-height: 0; padding: 8px 12px; font-size: 14px; line-height: 20px; }
 /* Ámbito: un select de 38 px, sin etiqueta encima (el nombre accesible va en aria-label). */
 .cuadro-select {
     box-sizing: border-box;
+    height: 38px;
+    font-weight: 400;
     min-width: 0;
     max-width: 100%;
     padding: 8px 12px;
@@ -201,8 +206,8 @@
 }
 
 .cuadro-mesnav-boton {
-    width: 42px;
-    height: 42px;
+    width: 36px;
+    height: 36px;
     border: 1px solid var(--color-border-control);
     border-radius: var(--radius-md);
     background: var(--color-surface);
@@ -296,7 +301,7 @@
 }
 
 /* La página de cada pestaña es el contenedor: las columnas de los KPI siguen su ancho y no el de la ventana (maqueta: .tv-page). */
-.cuadro-pagina { container-type: inline-size; min-width: 0; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+.cuadro-pagina { container-type: inline-size; min-width: 0; display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); }
 
 .cuadro-kpis {
     display: grid;
@@ -452,8 +457,8 @@
 
 /* Interruptor de etiquetas de datos (maqueta: .tv-switch). */
 .cuadro-interruptor {
-    display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 12px;
-    font: inherit; font-size: 13px; line-height: 20px; font-weight: 500; color: var(--color-text); cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px;
+    font: inherit; font-size: 14px; line-height: 20px; font-weight: 500; color: var(--color-text); cursor: pointer;
     background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px;
 }
 .cuadro-interruptor i { width: 28px; height: 16px; border-radius: 8px; background: var(--color-border-strong); position: relative; }
@@ -480,10 +485,14 @@
 }
 
 /* Tabla de Empresas: cabeceras ordenables y fila de detalle. */
-.cuadro-orden { font: inherit; font-weight: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.cuadro-orden { font: inherit; font-weight: inherit; text-transform: inherit; letter-spacing: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 .cuadro-tabla th[aria-sort="ascending"] .cuadro-orden::after { content: " ▲"; font-size: 10px; }
 .cuadro-tabla th[aria-sort="descending"] .cuadro-orden::after { content: " ▼"; font-size: 10px; }
-.cuadro-expandir { font: inherit; color: var(--color-text-muted); background: none; border: 0; cursor: pointer; padding: 0 6px 0 0; }
+.cuadro-expandir {
+    display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; margin-right: 6px; vertical-align: middle;
+    font: inherit; font-size: 12px; line-height: 12px; font-weight: 600;
+    color: var(--color-text-muted); background: none; border: 0; cursor: pointer;
+}
 .cuadro-detalle td { background: var(--color-surface-subtle); }
 .cuadro-detalle-contenido { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; text-align: left; }
 .cuadro-detalle-contenido dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; }
@@ -528,8 +537,8 @@
 
 /* Selector de métrica de la Comparativa anual (maqueta: .tv-seg). */
 .cuadro-seg { display: inline-flex; flex-wrap: wrap; gap: 0; margin-bottom: 12px; border: 1px solid var(--color-border); border-radius: 10px; overflow: hidden; }
-.cuadro-seg button { font: inherit; padding: 6px 12px; color: var(--color-text); background: var(--color-surface); border: 0; cursor: pointer; }
-.cuadro-seg button[aria-pressed="true"] { color: var(--color-primary-700); background: var(--color-primary-50); font-weight: 600; }
+.cuadro-seg button { font: inherit; font-size: 13px; line-height: 20px; font-weight: 600; padding: 6px 12px; color: var(--color-text); background: var(--color-surface); border: 0; cursor: pointer; }
+.cuadro-seg button[aria-pressed="true"] { color: var(--color-primary-700); background: var(--color-primary-50); }
 
 /* Móvil (375 px): pestañas en una sola fila con desplazamiento y controles apilados a todo el ancho. */
 @media (max-width: 640px) {
@@ -559,9 +568,24 @@
     font-size: 11px;
     line-height: 20px;
     font-weight: 700;
-    background: var(--color-warning-700);
-    color: var(--color-warning-50);
+    background: var(--color-warning-50);
+    color: var(--color-warning-700);
 }
+/* Rótulo accesible de la insignia («documentos con incidencia»): oculto a la vista y sin desbordar. */
+.cuadro ::deep .pestanas-contador-glosa {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+/* Pestañas con el relleno de la maqueta (12 / 16). */
+.cuadro ::deep .pestanas-boton { padding: 12px 16px; }
 /* Índice de cartera por Gestor CAE (maqueta: chartCarga): barras horizontales con la media (100) punteada. */
 .cuadro-indice { display: grid; }
 .cuadro-indice-fila,

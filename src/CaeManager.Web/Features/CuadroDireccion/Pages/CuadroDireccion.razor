@@ -73,15 +73,15 @@
         @if (HayCifras)
         {
             <Boton Variante="VarianteBoton.Secundario" OnClick="AlternarPersonalizar">@Textos["BotonPersonalizar"]</Boton>
+            <button type="button" class="cuadro-interruptor" role="switch" aria-checked="@(_preferencias.Etiquetas ? "true" : "false")" id="cuadro-etiquetas" @onclick="AlternarEtiquetasAsync">
+                <i aria-hidden="true"></i>@Textos["EtiquetasDatos"]
+            </button>
         }
     </div>
 
     @if (HayCifras)
     {
         <div class="cuadro-barra cuadro-barra-acciones">
-            <button type="button" class="cuadro-interruptor" role="switch" aria-checked="@(_preferencias.Etiquetas ? "true" : "false")" id="cuadro-etiquetas" @onclick="AlternarEtiquetasAsync">
-                <i aria-hidden="true"></i>@Textos["EtiquetasDatos"]
-            </button>
             <Boton Variante="VarianteBoton.Secundario" OnClick="AlternarPresentacionAsync" aria-pressed="@(_presentando ? "true" : "false")">@(_presentando ? Textos["SalirPresentacion"] : Textos["BotonPresentar"])</Boton>
 
             @* Reabrir un mes cerrado: solo Dirección CAE (ReabrirMesCuadroDireccionCommand lo exige también en servidor). Vive en un menú de más acciones, fuera de la barra principal. *@
