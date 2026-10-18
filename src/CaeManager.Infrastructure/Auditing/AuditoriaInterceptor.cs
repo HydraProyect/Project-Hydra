@@ -365,6 +365,11 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             // para acotar. Codex lo detectó antes de abrir la PR.
             if (entrada.Entity is RegistroAccesoDocumentoSensible) continue;
 
+            // Hueco 2 de Comunicaciones (2026-10-17): el historial de cambios de estado guarda el instante y NUNCA quién lo
+            // hizo (no se fiscaliza al Gestor CAE). Sin esta exclusión, su alta generaría una fila «Creado» con el
+            // UsuarioId del Gestor CAE y la transición entera, visible en /auditoria — el autor por la puerta de atrás.
+            if (entrada.Entity is CambioEstadoConversacion) continue;
+
             var esDominio = entrada.Entity.GetType().Namespace?.StartsWith("CaeManager.Domain", StringComparison.Ordinal) == true;
             var esIdentidadAuditada = TiposDeIdentidadAuditados.ContainsKey(entrada.Entity.GetType());
             if (!esDominio && !esIdentidadAuditada) continue;

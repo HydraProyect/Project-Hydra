@@ -53,6 +53,8 @@ public class EscriturasSobreEntidadesConCarteraTests
         ["CrearTarifaClienteCommandHandler"] =
             "tarifas de facturación: plano Comercial, no Operación; el propio comando exige rol Administrador o " +
             "Dirección CAE (AutorizacionTarifasCliente), que no tienen restricción de cartera",
+        ["ActualizarTarifaClienteCommandHandler"] = "mismo motivo que CrearTarifaClienteCommandHandler",
+        ["EliminarTarifaClienteCommandHandler"] = "mismo motivo que CrearTarifaClienteCommandHandler",
         ["RegistrarHistorialInformeCommandHandler"] =
             "anota en el historial del propio usuario qué informe generó; no escribe sobre el Cliente empresarial, y " +
             "el informe ya sale filtrado por la cartera",
@@ -66,6 +68,48 @@ public class EscriturasSobreEntidadesConCarteraTests
     /// puede encoger: una entrada que ya cumple hace fallar el test para que se retire.
     /// </summary>
     private static readonly HashSet<string> Pendientes = [];
+
+    // Red por carpeta: estos comandos pueden identificar solo la Gestión o Tarifa por Id, sin
+    // nombrar el Centro o Cliente empresarial. La dependencia permite comprobar la autorización;
+    // los tests de Application comprueban que se ejerce antes de escribir (incluida lectura ≠ gestión).
+    private static readonly Dictionary<string, (string Carpeta, Type Dependencia)> ComandosDeGestionesYFacturacion = new()
+    {
+        ["CompletarGestionCommandHandler"] = ("Gestiones", typeof(IAlcanceDatosService)),
+        ["CrearGestionesParaTrabajadorCommandHandler"] = ("Gestiones", typeof(IAlcanceDatosService)),
+        ["EliminarGestionCommandHandler"] = ("Gestiones", typeof(IAlcanceDatosService)),
+        ["RestaurarGestionCommandHandler"] = ("Gestiones", typeof(IAlcanceDatosService)),
+        // Plano Comercial: AutorizacionTarifasCliente exige el rol efectivo Administrador o
+        // Dirección CAE mediante ICurrentUserService; no corresponde recortarlo por cartera.
+        ["CrearTarifaClienteCommandHandler"] = ("Facturacion", typeof(ICurrentUserService)),
+        ["ActualizarTarifaClienteCommandHandler"] = ("Facturacion", typeof(ICurrentUserService)),
+        ["EliminarTarifaClienteCommandHandler"] = ("Facturacion", typeof(ICurrentUserService)),
+    };
+
+    [Theory]
+    [InlineData("Gestiones")]
+    [InlineData("Facturacion")]
+    public void Todo_comando_de_gestiones_o_facturacion_esta_clasificado_y_puede_comprobar_cartera_o_rol(string carpeta)
+    {
+        var handlers = typeof(ICommand).Assembly.GetTypes()
+            .Where(t => !t.IsAbstract && !t.IsInterface)
+            .Where(t => t.Namespace?.Split('.') is [_, "Application", var area, ..] && area == carpeta)
+            .Where(t => t.GetInterfaces().Any(i => i.IsGenericType
+                                                   && i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>)
+                                                   && typeof(ICommandBase).IsAssignableFrom(i.GetGenericArguments()[0])))
+            .ToList();
+        var clasificados = ComandosDeGestionesYFacturacion
+            .Where(c => c.Value.Carpeta == carpeta)
+            .ToDictionary(c => c.Key, c => c.Value.Dependencia);
+
+        handlers.Should().NotBeEmpty("control positivo: la carpeta tiene comandos de escritura");
+        string.Join(" | ", handlers.Select(h => h.Name).Except(clasificados.Keys)).Should().BeEmpty(
+            "todo comando de Gestiones o Facturación debe clasificarse por su comprobación de cartera o rol");
+        string.Join(" | ", clasificados.Keys.Except(handlers.Select(h => h.Name))).Should().BeEmpty(
+            "las clasificaciones de comandos retirados deben eliminarse");
+        string.Join(" | ", handlers.Where(h => clasificados.TryGetValue(h.Name, out var dependencia)
+                                                && !Parametros(h).Contains(dependencia)).Select(h => h.Name))
+            .Should().BeEmpty("cada handler debe conservar la dependencia que comprueba su cartera o rol efectivo");
+    }
 
     [Fact]
     public void Todo_comando_que_nombra_una_entidad_con_cartera_tiene_un_handler_que_consulta_el_alcance()
@@ -169,11 +213,12 @@ public class EscriturasSobreEntidadesConCarteraTests
                                              || (p.Name is "Id" or "Ids" && EstaEnUnaCarpetaConCartera(comando))));
 
     /// <summary>
-    /// Carpetas de Application cuyo agregado raíz tiene cartera, más Incidencias: una Incidencia
-    /// cuelga de un Centro o un Trabajador, así que su <c>Id</c> también alcanza filas con cartera.
+    /// Carpetas de Application cuyo agregado raíz tiene cartera, más Incidencias y Gestiones:
+    /// cuelgan de un Centro o un Trabajador. Facturación escribe Tarifas del plano Comercial,
+    /// clasificadas en Exentos y en la red por carpeta que exige comprobar el rol efectivo.
     /// </summary>
     private static readonly string[] CarpetasConCartera =
-        ["Documentos", "Empresas", "Clientes", "Subcontratas", "Centros", "Trabajadores", "Vehiculos", "Incidencias"];
+        ["Documentos", "Empresas", "Clientes", "Subcontratas", "Centros", "Trabajadores", "Vehiculos", "Incidencias", "Gestiones", "Facturacion"];
 
     private static bool EstaEnUnaCarpetaConCartera(Type comando) =>
         comando.Namespace?.Split('.') is [_, "Application", var carpeta, ..] && CarpetasConCartera.Contains(carpeta);

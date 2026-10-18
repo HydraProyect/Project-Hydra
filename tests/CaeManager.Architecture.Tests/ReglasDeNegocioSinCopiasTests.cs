@@ -409,7 +409,7 @@ public class ReglasDeNegocioSinCopiasTests
         ["src/CaeManager.Application/Proyectos/Queries/ObtenerProyectoPorId/ObtenerProyectoPorIdQuery.cs"] = 1,
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerCatalogoKpisQuery.cs"] = 2,
         // Cuadro de dirección: documentos gestionados en el mes (registrados en él), historial incluido.
-        ["src/CaeManager.Application/Dashboard/Queries/ObtenerCuadroDireccionQuery.cs"] = 1,
+        ["src/CaeManager.Application/Dashboard/Queries/MedicionMensualCuadroDireccion.cs"] = 1,
         ["src/CaeManager.Application/Facturacion/Queries/ObtenerResumenFacturacion/ObtenerResumenFacturacionQuery.cs"] = 2,
 
         // --- Estadística de aprobación por revisor: pasaron por su mano aunque luego se sustituyeran. ---

@@ -111,6 +111,10 @@ public class EnviarMensajeNuevoCommandHandler(
             return Result.Fallo<Guid>(envioResultado.Error);
 
         var conversacion = await conversacionRepositorio.ObtenerPorHiloExternoAsync(conexion.Id, envioResultado.Valor.HiloExternoId, cancellationToken);
+        var anterior = conversacion is null
+            ? await conversacionRepositorio.ObtenerUltimaCerradaPorHiloExternoAsync(conexion.Id, envioResultado.Valor.HiloExternoId, cancellationToken)
+            : null;
+        var hiloExistente = conversacion ?? anterior;
 
         // El hilo que devuelve Graph puede existir ya y estar anclado a OTRO
         // titular (mismo asunto y destinatario agrupan en Outlook). Sumar el
@@ -118,9 +122,9 @@ public class EnviarMensajeNuevoCommandHandler(
         // cartera y lo escondería de quien tiene el nuestro — el alcance
         // comprobado arriba se perdería justo en el último paso. Un hilo sin
         // ancla (triage) sí puede recibirlo: no es de nadie todavía.
-        if (conversacion is not null &&
-            ((conversacion.ClienteId is not null && conversacion.ClienteId != clienteId) ||
-             (conversacion.EmpresaId is not null && conversacion.EmpresaId != request.EmpresaId)))
+        if (hiloExistente is not null &&
+            ((hiloExistente.ClienteId is not null && hiloExistente.ClienteId != clienteId) ||
+             (hiloExistente.EmpresaId is not null && hiloExistente.EmpresaId != request.EmpresaId)))
         {
             return Result.Fallo<Guid>(Error.Crear(
                 "Conversacion.HiloDeOtroTitular",
@@ -131,6 +135,8 @@ public class EnviarMensajeNuevoCommandHandler(
         {
             conversacion = new Conversacion(request.Asunto, clienteId, empresaId: request.EmpresaId);
             conversacion.AsociarConexion(conexion.Id, envioResultado.Valor.HiloExternoId);
+            if (anterior is not null)
+                conversacion.EnlazarConversacionAnterior(anterior);
             conversacionRepositorio.Agregar(conversacion);
         }
 

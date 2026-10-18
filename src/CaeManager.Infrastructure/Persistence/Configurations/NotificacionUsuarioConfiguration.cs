@@ -15,5 +15,7 @@ public class NotificacionUsuarioConfiguration : IEntityTypeConfiguration<Notific
         builder.Property(n => n.Mensaje).IsRequired().HasMaxLength(NotificacionUsuario.LongitudMaximaMensaje);
 
         builder.HasIndex(n => new { n.UsuarioDestinatarioId, n.Leida });
+        builder.HasIndex(n => new { n.TenantId, n.UsuarioDestinatarioId, n.EventoOrigenId }).IsUnique()
+            .HasFilter("\"EventoOrigenId\" IS NOT NULL");
     }
 }

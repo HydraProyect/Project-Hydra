@@ -255,6 +255,13 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comercial.ObtenerEstadoComercialTenantsQueryHandler", "ITenantsQueryContext"),
         ("Comercial.RegistrarSuscripcionTenantCommandHandler", "ITenantsQueryContext"),
         ("Comunicaciones.ActualizarDocumentoDesdeAdjuntoCommandHandler", "IDocumentosQueryContext"),
+        // Rellena variables con los sujetos y la visita del hilo; solo lee otras features.
+        ("Comunicaciones.AplicarMacroCommandHandler", "ICentrosQueryContext"),
+        ("Comunicaciones.AplicarMacroCommandHandler", "IDocumentosQueryContext"),
+        ("Comunicaciones.AplicarMacroCommandHandler", "IEmpresasQueryContext"),
+        ("Comunicaciones.AplicarMacroCommandHandler", "ITiposDocumentoQueryContext"),
+        ("Comunicaciones.AplicarMacroCommandHandler", "ITrabajadoresQueryContext"),
+        ("Comunicaciones.AplicarMacroCommandHandler", "IVisitasQueryContext"),
         ("Comunicaciones.AsignarClienteConversacionCommandHandler", "IEmpresaRepository"),
         ("Comunicaciones.CrearMacroCommandHandler", "IEmpresaRepository"),
         ("Comunicaciones.DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler", "IEmpresasQueryContext"),

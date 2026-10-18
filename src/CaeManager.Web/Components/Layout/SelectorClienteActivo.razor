@@ -1,5 +1,6 @@
 @inherits CaeManager.Web.Components.IsloteInteractivo
 @implements IDisposable
+@implements IAsyncDisposable
 @using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados
 @*
     Mockup «Selector Empresa Gestionada TALVEG» y contrato del selector de Tenant
@@ -23,7 +24,21 @@
 <LimiteDeErrores Islote="this">
 @if (_activo is not null && ClientesAutorizados.SelectorVisible(_clientes!, _activo))
 {
-    <div class="selector-tenant" data-selector-tenant @onkeydown="AlPulsarTecla">
+    <div class="selector-tenant" data-selector-tenant @onkeydown="AlPulsarTecla"
+         data-activo="@_activo.TenantId" data-autorizados="@IdsFijables" data-fijadas="@IdsFijadas">
+        @* Alt+1…5 (selector-tenant-fijadas.js) cambia a la 1.ª…5.ª empresa fijada (data-fijadas) con este mismo POST: el
+           formulario existe aunque la lista esté cerrada, con el token antiforgery y la ruta de retorno
+           de siempre, y el servidor revalida la Asignación de Cartera y la de Operación como en cualquier
+           cambio. El Id que escribe el JS sale de lo ya autorizado (data-autorizados): una fijada es una
+           preferencia del navegador, no un permiso. *@
+        <form data-selector-atajo method="post" action="/cuenta/cliente-activo" hidden>
+            @if (_token is not null)
+            {
+                <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
+            }
+            <input type="hidden" name="returnUrl" value="@RutaDeRetorno" />
+            <input type="hidden" name="tenantId" value="" />
+        </form>
         <button type="button" class="selector-tenant-disparador @(_abierto ? "selector-tenant-disparador-abierto" : null)"
                 aria-haspopup="listbox" aria-expanded="@(_abierto ? "true" : "false")"
                 aria-label="@Textos["SelectorTenantEtiqueta"]: @_activo.Nombre"
@@ -59,6 +74,19 @@
                     }
                     <input type="hidden" name="returnUrl" value="@RutaDeRetorno" />
 
+                    @* Fijadas (estrella; Alt+1…5 para las cinco primeras) arriba, después las recientes y
+                       el resto de la cartera. Mientras se busca, la búsqueda ve la cartera entera y plana. *@
+                    @if (Fijadas.Count > 0)
+                    {
+                        <div class="selector-tenant-grupo" id="selector-tenant-fijadas">@Textos["SelectorTenantFijadas"]</div>
+                        <div role="listbox" aria-labelledby="selector-tenant-fijadas" aria-orientation="vertical" class="selector-tenant-lista">
+                            @for (var i = 0; i < Fijadas.Count; i++)
+                            {
+                                @Opcion(Fijadas[i], false, i < MaximoAtajos ? i + 1 : 0)
+                            }
+                        </div>
+                    }
+
                     @if (Recientes.Count > 0)
                     {
                         <div class="selector-tenant-grupo" id="selector-tenant-recientes">@Textos["SelectorTenantRecientes"]</div>
@@ -70,7 +98,13 @@
                         </div>
                     }
 
-                    <div role="listbox" aria-label="@Textos["SelectorTenantLista"]" aria-orientation="vertical" class="selector-tenant-lista">
+                    @if (HayGruposArriba)
+                    {
+                        <div class="selector-tenant-grupo" id="selector-tenant-resto">@Textos["SelectorTenantResto"]</div>
+                    }
+                    <div role="listbox" aria-orientation="vertical" class="selector-tenant-lista"
+                         aria-label="@(HayGruposArriba ? null : Textos["SelectorTenantLista"].Value)"
+                         aria-labelledby="@(HayGruposArriba ? "selector-tenant-resto" : null)">
                         @foreach (var cliente in Filtrados)
                         {
                             @Opcion(cliente, false)
@@ -98,30 +132,51 @@
 </LimiteDeErrores>
 
 @code {
-    private RenderFragment Opcion(ClienteAutorizadoDto cliente, bool esOrigen) => __builder =>
+    /// <param name="atajo">1…5 si la empresa está entre las cinco primeras fijadas (Alt + ese número); 0 si no.</param>
+    private RenderFragment Opcion(ClienteAutorizadoDto cliente, bool esOrigen, int atajo = 0) => __builder =>
     {
         var esActivo = cliente.TenantId == _activo!.TenantId;
         var pendientes = Pendientes(cliente);
         var etiqueta = pendientes is { } n ? $"{cliente.Nombre}, {(n == 1 ? Textos["SelectorTenantPendientesUno"].Value : Textos["SelectorTenantPendientes", n].Value)}" : cliente.Nombre;
-        <button type="submit" name="tenantId" value="@cliente.TenantId" role="option" aria-selected="@(esActivo ? "true" : "false")"
-                class="selector-tenant-fila @(esActivo ? "selector-tenant-fila-activa" : null)"
-                title="@cliente.Nombre" aria-label="@etiqueta">
-            <AvatarTenant Nombre="@cliente.Nombre" LogoUrl="@UrlLogo(cliente)" Tamano="TamanoAvatarTenant.Pequeno" />
-            <span class="selector-tenant-texto">
-                <span class="selector-tenant-nombre">@cliente.Nombre</span>
-                @if (esOrigen)
+        var fijable = PuedeFijar && !esOrigen;
+        var fijada = fijable && _fijadas.Contains(cliente.TenantId);
+        var etiquetaFijar = fijada
+            ? Textos["SelectorTenantQuitarFijada"].Value
+            : Textos["SelectorTenantFijar"].Value;
+        <div class="selector-tenant-fila-envoltorio" role="presentation">
+            <button type="submit" name="tenantId" value="@cliente.TenantId" role="option" aria-selected="@(esActivo ? "true" : "false")"
+                    class="selector-tenant-fila @(esActivo ? "selector-tenant-fila-activa" : null)"
+                    title="@cliente.Nombre" aria-label="@etiqueta" aria-keyshortcuts="@(atajo > 0 ? $"Alt+{atajo}" : null)">
+                <AvatarTenant Nombre="@cliente.Nombre" LogoUrl="@UrlLogo(cliente)" Tamano="TamanoAvatarTenant.Pequeno" />
+                <span class="selector-tenant-texto">
+                    <span class="selector-tenant-nombre">@cliente.Nombre</span>
+                    @if (esOrigen)
+                    {
+                        <span class="selector-tenant-sub">@Textos["SelectorTenantOrigen"]</span>
+                    }
+                </span>
+                @if (atajo > 0)
                 {
-                    <span class="selector-tenant-sub">@Textos["SelectorTenantOrigen"]</span>
+                    <kbd class="selector-tenant-atajo" aria-hidden="true">Alt @atajo</kbd>
                 }
-            </span>
-            @if (pendientes is { } total)
+                @if (pendientes is { } total)
+                {
+                    <span class="selector-tenant-contador" aria-hidden="true">@total</span>
+                }
+                @if (esActivo)
+                {
+                    <span class="selector-tenant-marca" aria-hidden="true"><Icono Nombre="check" Tamano="TamanoIcono.Pequeno" /></span>
+                }
+            </button>
+            @if (fijable)
             {
-                <span class="selector-tenant-contador" aria-hidden="true">@total</span>
+                @* Fuera del botón de envío (un botón dentro de otro no es válido) y de tipo «button»: no envía el formulario. *@
+                <button type="button" class="selector-tenant-fijar" aria-pressed="@(fijada ? "true" : "false")"
+                        aria-label="@etiquetaFijar" title="@etiquetaFijar"
+                        @onclick="() => AlternarFijadaAsync(cliente.TenantId)">
+                    <Icono Nombre="estrella" Tamano="TamanoIcono.Pequeno" />
+                </button>
             }
-            @if (esActivo)
-            {
-                <span class="selector-tenant-marca" aria-hidden="true"><Icono Nombre="check" Tamano="TamanoIcono.Pequeno" /></span>
-            }
-        </button>
+        </div>
     };
 }

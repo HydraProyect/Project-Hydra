@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace CaeManager.Migrations.PostgreSQL.Migrations;
 
 [DbContext(typeof(CaeManagerDbContext))]
-[Migration("20261017220000_AnadeAlertasCriticasConversacion")]
+[Migration("20261018040000_AnadeAlertasCriticasConversacion")]
 public partial class AnadeAlertasCriticasConversacion : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)

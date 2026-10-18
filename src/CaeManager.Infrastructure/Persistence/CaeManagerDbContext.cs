@@ -91,8 +91,11 @@ public class CaeManagerDbContext(
         CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext,
         CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext,
         IDesenganchadorDeEntidadesRastreadas,
-        IDescarteCambiosPendientes
+        IDescarteCambiosPendientes, CaeManager.Application.Dashboard.ICierresCuadroDireccion
 {
+    public DbSet<CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario> CierresMensualesTenantBeneficiario => Set<CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario>();
+    IQueryable<CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario> CaeManager.Application.Dashboard.ICierresCuadroDireccion.CierresMensuales => CierresMensualesTenantBeneficiario;
+    void CaeManager.Application.Dashboard.ICierresCuadroDireccion.Agregar(CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario cierre) => CierresMensualesTenantBeneficiario.Add(cierre);
     void IDesenganchadorDeEntidadesRastreadas.Desenganchar<TEntidad>(TEntidad entidad) =>
         Entry(entidad).State = EntityState.Detached;
 
@@ -340,6 +343,7 @@ public class CaeManagerDbContext(
     public DbSet<UltimoResumenNotificacionPlataforma> UltimosResumenesNotificacionPlataforma => Set<UltimoResumenNotificacionPlataforma>();
     public DbSet<SolicitudPrioridadDocumento> SolicitudesPrioridadDocumento => Set<SolicitudPrioridadDocumento>();
     IQueryable<SolicitudPrioridadDocumento> IComunicacionesQueryContext.SolicitudesPrioridadDocumento => SolicitudesPrioridadDocumento;
+    public DbSet<CambioEstadoConversacion> CambiosEstadoConversacion => Set<CambioEstadoConversacion>();
     public DbSet<EventoConversacion> EventosConversacion => Set<EventoConversacion>();
     IQueryable<EventoConversacion> IComunicacionesQueryContext.EventosConversacion => EventosConversacion;
     public DbSet<AlertaCriticaConversacion> AlertasCriticasConversacion => Set<AlertaCriticaConversacion>();
@@ -353,6 +357,8 @@ public class CaeManagerDbContext(
     IQueryable<PasoTareaAsistente> CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext.PasosTareaAsistente => PasosTareaAsistente;
     public DbSet<ClasificacionRuidoMensaje> ClasificacionesRuidoMensaje => Set<ClasificacionRuidoMensaje>();
     IQueryable<ClasificacionRuidoMensaje> IComunicacionesQueryContext.ClasificacionesRuidoMensaje => ClasificacionesRuidoMensaje;
+    public DbSet<IntencionConversacion> IntencionesConversacion => Set<IntencionConversacion>();
+    IQueryable<IntencionConversacion> IComunicacionesQueryContext.IntencionesConversacion => IntencionesConversacion;
     public DbSet<ClasificacionRelevanciaCae> ClasificacionesRelevanciaCae => Set<ClasificacionRelevanciaCae>();
     IQueryable<ClasificacionRelevanciaCae> IComunicacionesQueryContext.ClasificacionesRelevanciaCae => ClasificacionesRelevanciaCae;
     public DbSet<Gestion> Gestiones => Set<Gestion>();

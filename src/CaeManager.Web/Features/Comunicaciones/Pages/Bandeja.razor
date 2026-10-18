@@ -1,4 +1,5 @@
 @page "/comunicaciones"
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Comunicaciones.Recursos.TextosPlazosConversacion> TextosPlazos
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @* Mismos roles que el menú completo de CatalogoMenuLateral: la bandeja es una pantalla de
@@ -22,6 +23,8 @@
 @using CaeManager.Web.Features.Comunicaciones.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosListaConversaciones> TextosLista
+@inject IStringLocalizer<TextosIntencionesCae> TextosIntenciones
+@inject IStringLocalizer<TextosEstadosConversacion> TextosEstados
 @inject IStringLocalizer<TextosCompanerosGestorCae> TextosCompaneros
 @inject IMediator Mediator
 @inject ToastService ToastService
@@ -131,7 +134,7 @@
                     <CampoTexto Placeholder="Buscar conversaciones…" Valor="@_busqueda" ValorChanged="async v => { _busqueda = v; await AplicarFiltrosAsync(); }" />
 
                     <div class="bandeja-toggles">
-                        <button type="button" class="bandeja-toggle @(!_soloAsignadasAMi && !_soloSinAsignar && !_soloEsperandoCliente ? "bandeja-toggle-activo" : null)" @onclick="VerTodasAsync">
+                        <button type="button" class="bandeja-toggle @(!_soloAsignadasAMi && !_soloSinAsignar && !_soloEsperandoCliente && !_soloFueraDeSla ? "bandeja-toggle-activo" : null)" @onclick="VerTodasAsync">
                             Todas
                         </button>
                         <button type="button" class="bandeja-toggle @(_soloAsignadasAMi ? "bandeja-toggle-activo" : null)" @onclick="FiltrarAsignadasAMiAsync">
@@ -141,7 +144,10 @@
                             Sin asignar
                         </button>
                         <button type="button" class="bandeja-toggle @(_soloEsperandoCliente ? "bandeja-toggle-activo" : null)" @onclick="AlternarEsperandoCliente">
-                            Esperando al Cliente
+                            Esperando respuesta externa
+                        </button>
+                        <button type="button" class="bandeja-toggle @(_soloFueraDeSla ? "bandeja-toggle-activo" : null)" aria-pressed="@_soloFueraDeSla" @onclick="AlternarFueraDeSlaAsync">
+                            @TextosPlazos["FueraDeSla"]
                         </button>
                     </div>
 
@@ -150,12 +156,19 @@
                         <div class="bandeja-filtros-avanzados-campos">
                             <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="async v => { _estadoFiltro = v; await AplicarFiltrosAsync(); }">
                                 <option value="">Todos los estados</option>
-                                <option value="@nameof(EstadoConversacion.Abierta)">Abierta</option>
-                                <option value="@nameof(EstadoConversacion.Pendiente)">Pendiente</option>
-                                <option value="@nameof(EstadoConversacion.Resuelta)">Resuelta</option>
-                                <option value="@nameof(EstadoConversacion.Cerrada)">Cerrada</option>
+                                @foreach (var estado in EstadoConversacionPresentacion.EnOrdenDeSelector)
+                                {
+                                    <option value="@estado.ToString()">@EstadoConversacionPresentacion.Etiqueta(TextosEstados, estado)</option>
+                                }
                             </CampoSelect>
 
+                            <CampoSelect Etiqueta="@TextosIntenciones["EtiquetaIntencion"]" Valor="@_intencionFiltro" ValorChanged="async v => { _intencionFiltro = v; await AplicarFiltrosAsync(); }">
+                                <option value="">@TextosIntenciones["TodasIntenciones"]</option>
+                                @foreach (var intencion in IntencionesCae)
+                                {
+                                    <option value="@intencion">@TextosIntenciones[$"Intencion_{intencion}"]</option>
+                                }
+                            </CampoSelect>
                             <CampoTexto Etiqueta="Mes" Type="month" Valor="@_mesFiltro" ValorChanged="async v => { _mesFiltro = v; await AplicarFiltrosAsync(); }" />
 
                             <CampoSelect Etiqueta="Cliente" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
@@ -336,7 +349,7 @@
                                 <Icono Nombre="@(_detalle.Canal == CanalConversacion.WhatsApp ? "chat" : "correo")" Tamano="TamanoIcono.Pequeno" />
                                 @(_detalle.Canal == CanalConversacion.WhatsApp ? "WhatsApp" : "Correo")
                             </span>
-                            <Badge Tono="TonoBadgeDeEstado(_detalle.Estado)">@_detalle.Estado</Badge>
+                            <Badge Tono="EstadoConversacionPresentacion.Tono(_detalle.Estado)">@EstadoConversacionPresentacion.Etiqueta(TextosEstados, _detalle.Estado)</Badge>
                             @if (_detalle.EsConversacionInformativaPreCae)
                             {
                                 <Badge Tono="TonoBadge.Neutro" title="@(_detalle.ResumenRelevanciaCae ?? "Todavía no se ha pedido ni mencionado ninguna gestión CAE en esta conversación.")">
@@ -347,6 +360,7 @@
                         </div>
                     </div>
                     <div class="bandeja-centro-acciones">
+                        <PanelIntencionConversacion @key="_detalle.Id" ConversacionId="_detalle.Id" />
                         <MedidorTiempoGestion @ref="_medidorTiempo" ConversacionId="_detalle.Id" />
 
                         @if (_vista == "clientes")
@@ -377,7 +391,20 @@
                                 </CampoSelect>
                             }
 
-                            @if (_detalle.Estado is EstadoConversacion.Abierta or EstadoConversacion.Pendiente)
+                            <CampoSelect Etiqueta="@TextosPlazos["Prioridad"]" Valor="@_detalle.Prioridad.ToString()" ValorChanged="CambiarPrioridadAsync" Deshabilitado="_cambiandoPrioridad">
+                                <option value="Normal">@TextosPlazos["Normal"]</option>
+                                <option value="Urgente">@TextosPlazos["Urgente"]</option>
+                                <option value="Critica">@TextosPlazos["Critica"]</option>
+                            </CampoSelect>
+                            <CampoSelect @key="_intentosCambioEstado" Valor="@string.Empty" ValorChanged="CambiarEstadoDesdeSelectorAsync" Deshabilitado="_cambiandoEstado">
+                                <option value="">@TextosEstados["CambiarEstado"]</option>
+                                @foreach (var siguiente in EstadoConversacionPresentacion.Siguientes(_detalle.Estado))
+                                {
+                                    <option value="@siguiente.ToString()">@EstadoConversacionPresentacion.Etiqueta(TextosEstados, siguiente)</option>
+                                }
+                            </CampoSelect>
+
+                            @if (TransicionesEstadoConversacion.EsVivo(_detalle.Estado))
                             {
                                 <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Cargando="_cambiandoEstado" OnClick="() => CambiarEstadoAsync(EstadoConversacion.Resuelta)">Resolver</Boton>
                             }

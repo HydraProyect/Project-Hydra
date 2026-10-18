@@ -1,4 +1,6 @@
+using CaeManager.Application.Comunicaciones.Commands.AplicarMacro;
 using CaeManager.Domain.Common;
+using CaeManager.Application.Comunicaciones;
 using CaeManager.Web.Features.Documentos.Recursos;
 using CaeManager.Application.Common;
 using CaeManager.Web.Features.Comunicaciones.Components;
@@ -101,12 +103,53 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private IReadOnlyList<MensajeBuzonPersonalDto> _mensajesBuzonPersonal = [];
 
     // --- Filtros ---
+    private string _intencionFiltro = string.Empty;
+    private static readonly IntencionCae[] IntencionesCae = Enum.GetValues<IntencionCae>();
     private string _estadoFiltro = string.Empty;
     private string _mesFiltro = string.Empty; // input type="month" -> "yyyy-MM"
     private string _clienteIdFiltro = string.Empty;
     private bool _soloAsignadasAMi;
     private bool _soloSinAsignar;
     private bool _soloEsperandoCliente;
+    private bool _soloFueraDeSla;
+    private bool _cambiandoPrioridad;
+    private Task? _refrescoPlazos;
+
+    private async Task RefrescarPlazosAsync()
+    {
+        using var reloj = new PeriodicTimer(TimeSpan.FromMinutes(1));
+        try
+        {
+            while (await reloj.WaitForNextTickAsync(_ciclo.Token))
+                await InvokeAsync(async () =>
+                {
+                    if (_vista != "personal") await CargarListaAsync();
+                    StateHasChanged();
+                });
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
+    }
+
+    private Task AlternarFueraDeSlaAsync()
+    {
+        _soloFueraDeSla = !_soloFueraDeSla;
+        _pagina = 1;
+        return CargarListaAsync();
+    }
+
+    private async Task CambiarPrioridadAsync(string valor)
+    {
+        if (_cambiandoPrioridad || _detalle is null || !Enum.TryParse<PrioridadConversacion>(valor, out var prioridad)) return;
+        _cambiandoPrioridad = true;
+        try
+        {
+            var resultado = await Mediator.Send(new CaeManager.Application.Comunicaciones.Commands.CambiarPrioridadConversacion.CambiarPrioridadConversacionCommand(_detalle.Id, prioridad), _ciclo.Token);
+            if (resultado.EsFallido) { ToastService.MostrarError(resultado.Error); return; }
+            await CargarDetalleAsync();
+            await CargarListaAsync();
+        }
+        finally { _cambiandoPrioridad = false; }
+    }
     private string _busqueda = string.Empty;
 
     private bool _cargandoLista = true;
@@ -273,6 +316,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             await CargarBuzonPersonalAsync();
         else
             await CargarListaAsync();
+        _refrescoPlazos = RefrescarPlazosAsync();
     }
 
     /// <summary>
@@ -306,6 +350,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         // — el componente ya implementa IAsyncDisposable, que es el que Blazor
         // llama, y añadir además IDisposable lo liberaría dos veces.
         await _ciclo.CancelAsync();
+        if (_refrescoPlazos is not null) await _refrescoPlazos;
         _ciclo.Dispose();
 
         if (_moduloClipboard is not null)
@@ -460,6 +505,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             }
 
             var resultado = await Mediator.Send(new ObtenerConversacionesQuery(
+                Intencion: Enum.TryParse<IntencionCae>(_intencionFiltro, out var intencion) ? intencion : null,
                 Estado: string.IsNullOrEmpty(_estadoFiltro) ? null : Enum.Parse<EstadoConversacion>(_estadoFiltro),
                 Anio: anio,
                 Mes: mes,
@@ -467,6 +513,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 SoloAsignadasAMi: _soloAsignadasAMi,
                 SoloSinAsignar: _soloSinAsignar,
                 SoloEsperandoCliente: _soloEsperandoCliente,
+                SoloFueraDeSla: _soloFueraDeSla,
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 Pagina: _pagina,
                 TamanoPagina: TamanoPaginaBandeja), _ciclo.Token);
@@ -505,21 +552,23 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     }
 
     /// <summary>
-    /// Los SIETE filtros de la bandeja: cuatro que viajan en la URL (estado,
-    /// mes, cliente y búsqueda) y tres conmutadores de asignación que no.
+    /// Los ocho filtros de la bandeja: cuatro que viajan en la URL (estado,
+    /// mes, Cliente empresarial y búsqueda), intención CAE y tres conmutadores de asignación.
     /// </summary>
     private bool HayFiltrosActivos =>
+        !string.IsNullOrEmpty(_intencionFiltro) ||
         !string.IsNullOrWhiteSpace(_estadoFiltro) || !string.IsNullOrWhiteSpace(_mesFiltro)
         || !string.IsNullOrWhiteSpace(_clienteIdFiltro) || !string.IsNullOrWhiteSpace(_busqueda)
-        || _soloAsignadasAMi || _soloSinAsignar || _soloEsperandoCliente;
+        || _soloAsignadasAMi || _soloSinAsignar || _soloEsperandoCliente || _soloFueraDeSla;
 
     /// <summary>
-    /// Los siete de una vez y una sola recarga, por el mismo motivo que
+    /// Los ocho de una vez y una sola recarga, por el mismo motivo que
     /// documenta <see cref="AplicarFiltrosAsync"/>: encadenar navegaciones
     /// arriesga que cada una lea la URL sin el cambio de la anterior.
     /// </summary>
     private Task LimpiarFiltrosAsync()
     {
+        _intencionFiltro = string.Empty;
         _estadoFiltro = string.Empty;
         _mesFiltro = string.Empty;
         _clienteIdFiltro = string.Empty;
@@ -527,6 +576,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _soloAsignadasAMi = false;
         _soloSinAsignar = false;
         _soloEsperandoCliente = false;
+        _soloFueraDeSla = false;
         return AplicarFiltrosAsync();
     }
 
@@ -801,7 +851,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             else
             {
                 _clienteActivo = null;
-                _macrosDisponibles = [];
+                _macrosDisponibles = await Mediator.Send(new ObtenerMacrosQuery(), _ciclo.Token);
+                if (carga != _cargaDetalleVigente) return;
                 _centrosClienteActivo = [];
             }
 
@@ -839,22 +890,40 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         }
     }
 
-    private void AplicarMacro(string macroIdTexto)
+    private bool _aplicandoMacro;
+
+    private async Task AplicarMacro(string macroIdTexto)
     {
-        _macroSeleccionadaId = macroIdTexto;
-        if (Guid.TryParse(macroIdTexto, out var macroId))
+        if (string.IsNullOrWhiteSpace(macroIdTexto))
         {
-            var macro = _macrosDisponibles.FirstOrDefault(m => m.Id == macroId);
-            if (macro is not null)
-            {
-                // Nunca pisa lo ya escrito: un borrador a medias se pierde sin
-                // remedio (el Composer no tiene deshacer), así que con texto
-                // previo la macro se añade al final, separada por una línea en blanco.
-                _textoRespuesta = string.IsNullOrWhiteSpace(_textoRespuesta)
-                    ? macro.CuerpoHtml
-                    : $"{_textoRespuesta.TrimEnd()}\n\n{macro.CuerpoHtml}";
-            }
+            _macroSeleccionadaId = string.Empty;
+            return;
         }
+        if (_aplicandoMacro || _conversacionSeleccionadaId is not { } conversacionId ||
+            !Guid.TryParse(macroIdTexto, out var macroId)) return;
+        _aplicandoMacro = true;
+        try
+        {
+            var resultado = await Mediator.Send(new AplicarMacroCommand(conversacionId, macroId), _ciclo.Token);
+            if (_conversacionSeleccionadaId != conversacionId) return;
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
+            _macroSeleccionadaId = macroIdTexto;
+            _textoRespuesta = string.IsNullOrWhiteSpace(_textoRespuesta)
+                ? resultado.Valor
+                : $"{_textoRespuesta.TrimEnd()}\n\n{resultado.Valor}";
+            await CargarDetalleAsync();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al aplicar la plantilla en la conversación {ConversacionId}.", conversacionId);
+            ToastService.Mostrar("No se pudo aplicar la plantilla.", TonoToast.Error);
+        }
+        finally { _aplicandoMacro = false; }
     }
 
     /// <summary>Genera el resumen de documentación exigida por el Centro elegido y lo añade a la respuesta en curso — mismo patrón de prellenado que AplicarMacro.</summary>
@@ -924,7 +993,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         // no se ha vuelto a pintar deshabilitado. Sin esta guarda salen DOS
         // correos idénticos al mismo destinatario, y un correo enviado no se
         // deshace.
-        if (_enviando) return;
+        if (_enviando || _aplicandoMacro || VariablesPlantillaRespuesta.Pendientes(_textoRespuesta).Count > 0) return;
         if (_conversacionSeleccionadaId is null || string.IsNullOrWhiteSpace(_textoRespuesta)) return;
         if (_detalle?.Canal == CanalConversacion.Correo && _errorAdjuntos is not null) return;
 
@@ -979,7 +1048,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// <summary>Fallback de canal (§ 16.5): WhatsApp con la ventana de 24h cerrada continúa el MISMO hilo por correo.</summary>
     private async Task EnviarFallbackCorreoAsync()
     {
-        if (_enviando) return;
+        if (_enviando || _aplicandoMacro || VariablesPlantillaRespuesta.Pendientes(_textoRespuesta).Count > 0) return;
         if (_conversacionSeleccionadaId is null || string.IsNullOrWhiteSpace(_textoRespuesta) || string.IsNullOrWhiteSpace(_emailFallback))
             return;
 
@@ -1055,6 +1124,28 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// </summary>
     private Task RegistrarAccionMedidaAsync() =>
         _medidorTiempo?.RegistrarAccionCompletadaAsync() ?? Task.CompletedTask;
+
+    /// <summary>
+    /// Cambia con cada intento desde el selector «Cambiar estado…» y es su <c>@key</c>: tras un cambio rechazado el valor
+    /// enlazado sigue siendo vacío y Blazor no tocaría el DOM, así que el desplegable se quedaría mostrando el estado
+    /// elegido aunque no se aplicó. Con otra clave se vuelve a pintar desde cero.
+    /// </summary>
+    private int _intentosCambioEstado;
+
+    private async Task CambiarEstadoDesdeSelectorAsync(string valor)
+    {
+        if (!Enum.TryParse<EstadoConversacion>(valor, out var nuevoEstado) || !Enum.IsDefined(nuevoEstado))
+            return;
+
+        try
+        {
+            await CambiarEstadoAsync(nuevoEstado);
+        }
+        finally
+        {
+            _intentosCambioEstado++;
+        }
+    }
 
     private async Task CambiarEstadoAsync(EstadoConversacion nuevoEstado)
     {
@@ -1392,13 +1483,6 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             _aplicandoDocumento = false;
         }
     }
-
-    private static TonoBadge TonoBadgeDeEstado(EstadoConversacion estado) => estado switch
-    {
-        EstadoConversacion.Abierta => TonoBadge.Info,
-        EstadoConversacion.Pendiente => TonoBadge.Info,
-        _ => TonoBadge.Neutro
-    };
 
     /// <summary>Ver DocumentoCitadoDetalleDto — el tono/etiqueta hace visible el nivel de certeza, no solo agrupa.</summary>
     private static TonoBadge NivelBadgeTono(NivelConfianzaDocumentoCitado nivel) => nivel switch

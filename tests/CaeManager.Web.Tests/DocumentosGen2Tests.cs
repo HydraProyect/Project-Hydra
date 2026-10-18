@@ -431,6 +431,25 @@ public partial class DocumentosGen2Tests : BunitContext
             "una sola primaria visible por vista");
     }
 
+    /// <summary>
+    /// «Todos los documentos» de la barra de sección enlaza a «documentos» sin parámetro: desde otra pestaña, la misma
+    /// instancia de la página solo ve desaparecer «?pestana=» y tiene que volver al listado (la barra la marca activa).
+    /// </summary>
+    [Fact]
+    public void Quitar_el_parametro_pestana_de_la_URL_devuelve_el_listado()
+    {
+        var (cut, _) = Renderizar(url: "documentos?pestana=plantillas");
+        Pestana(cut, "Plantillas").GetAttribute("aria-selected").Should().Be("true", "barrera: partimos de otra pestaña");
+
+        Services.GetRequiredService<NavigationManager>().NavigateTo("documentos");
+
+        cut.WaitForAssertion(() =>
+        {
+            Pestana(cut, "Estado").GetAttribute("aria-selected").Should().Be("true");
+            Pestana(cut, "Plantillas").GetAttribute("aria-selected").Should().Be("false");
+        });
+    }
+
     [Fact]
     public void Fuera_de_Plantillas_Nuevo_documento_sigue_siendo_la_primaria()
     {

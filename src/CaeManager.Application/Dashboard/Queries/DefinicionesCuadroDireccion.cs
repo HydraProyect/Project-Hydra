@@ -17,6 +17,9 @@ public enum EstadoCifraMensual
     /// cierre mensual que la congele (decisión 5 del Cuadro de dirección, 2026-10-17).
     /// </summary>
     Estimado,
+
+    /// <summary>Foto persistida al cierre del mes, sin reconstrucción histórica.</summary>
+    Existe,
 }
 
 /// <summary>
@@ -30,6 +33,15 @@ public readonly record struct MesCuadroDireccion(int Anyo, int Mes)
     public const int AnyoMinimo = 2000;
 
     public const int AnyoMaximo = 9998;
+
+    /// <summary>
+    /// El primer mes con cierre real: octubre de 2026, que se cierra el 1 de noviembre a las 00:00 de Madrid.
+    /// Los meses anteriores se cierran reconstruidos y quedan marcados como estimados, aunque el cierre llegue tarde.
+    /// </summary>
+    public static readonly MesCuadroDireccion PrimerCierreReal = new(2026, 10);
+
+    /// <summary>Si el cierre de este mes es real (desde <see cref="PrimerCierreReal"/>) o una reconstrucción estimada.</summary>
+    public bool CierreEsEstimado => new DateOnly(Anyo, Mes, 1) < new DateOnly(PrimerCierreReal.Anyo, PrimerCierreReal.Mes, 1);
 
     /// <summary>Si el año y el mes forman un mes que el cuadro puede calcular (antes de mirar si ya empezó).</summary>
     public static bool EsValido(int anyo, int mes) =>

@@ -3,6 +3,7 @@
 @using CaeManager.Web.Recursos
 @using MediatR
 @using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.WebUtilities
 @using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Logging
 @implements IDisposable
@@ -30,14 +31,21 @@
     <nav class="migas" aria-label="@Textos["CabeceraRuta"]" data-testid="migas-pagina">
         <ol class="migas-lista">
             <li class="miga miga-grupo">@miga.Grupo</li>
-            @if (miga.EsFicha)
+            @for (var i = 0; i < miga.Niveles.Count; i++)
             {
-                <li class="miga"><a href="@miga.RutaSeccion">@miga.Seccion</a></li>
-                <li class="miga miga-actual" aria-current="page">@Textos["CabeceraMigaFicha"]</li>
-            }
-            else
-            {
-                <li class="miga miga-actual" aria-current="page">@miga.Seccion</li>
+                var nivel = miga.Niveles[i];
+                if (i == miga.Niveles.Count - 1)
+                {
+                    <li class="miga miga-actual" aria-current="page">@nivel.Texto</li>
+                }
+                else if (nivel.Ruta is not null)
+                {
+                    <li class="miga"><a href="@nivel.Ruta">@nivel.Texto</a></li>
+                }
+                else
+                {
+                    <li class="miga">@nivel.Texto</li>
+                }
             }
         </ol>
     </nav>
@@ -45,8 +53,11 @@
 </LimiteDeErrores>
 
 @code {
-    /// <param name="RutaSeccion">Ruta absoluta de la sección, a la que sube la miga intermedia de una ficha.</param>
-    private sealed record Miga(string Grupo, string Seccion, string RutaSeccion, bool EsFicha);
+    /// <param name="Ruta">Ruta absoluta a la que sube el nivel cuando no es el último; null si no es un enlace.</param>
+    private sealed record Nivel(string Texto, string? Ruta);
+
+    /// <param name="Niveles">Todo lo que cuelga del grupo; el último es la página actual.</param>
+    private sealed record Miga(string Grupo, IReadOnlyList<Nivel> Niveles);
 
     private Miga? _miga;
     private bool _rotulosPrimeraPersona;
@@ -85,6 +96,16 @@
     private Miga? Resolver(string uri)
     {
         var ruta = Navigation.ToBaseRelativePath(uri).Split('?', '#')[0].Trim('/');
+        var consulta = QueryHelpers.ParseQuery(new Uri(uri).Query);
+        var pestana = consulta.TryGetValue("pestana", out var valorPestana) ? valorPestana.ToString() : null;
+
+        // Una pestaña de sección (Revisión IA, Incidencias, Usuarios, Roles) se resuelve por su sección, como en
+        // el marco de Design: «Negocio › Documentos › Incidencias», «Administración › Equipo › Roles». También la
+        // primera pestaña: dos entradas del menú comparten la ruta «usuarios» (Control para el Coordinador CAE,
+        // Administración) y la miga no evalúa condiciones, así que la sección fija el grupo.
+        if (CatalogoSeccionesMenu.PestanaDe(ruta, pestana) is { } encontrada)
+            return ResolverPestanaDeSeccion(ruta, encontrada.Seccion, encontrada.Pestana);
+
         Miga? mejor = null;
         var longitudMejor = -1;
 
@@ -109,12 +130,45 @@
                 // Solo un identificador (Guid) cuenta como ficha; «importar», «revision-ia»… son
                 // pantallas de la sección y no se les inventa un rótulo.
                 var esFicha = Guid.TryParse(resto, out _);
-                mejor = new Miga(grupo.Titulo, enlace.RotuloPara(contexto), "/" + rutaEnlace, esFicha);
+                var seccion = enlace.RotuloPara(contexto);
+                mejor = new Miga(grupo.Titulo,
+                    esFicha
+                        ? [new Nivel(seccion, "/" + rutaEnlace), new Nivel(Textos["CabeceraMigaFicha"], null)]
+                        : [new Nivel(seccion, null)]);
                 longitudMejor = rutaEnlace.Length;
             }
         }
 
         return mejor;
+    }
+
+    /// <summary>
+    /// Una pantalla que ya no tiene enlace propio en el menú (Incidencias, Revisión IA, Roles) es pestaña de una
+    /// sección (<see cref="CatalogoSeccionesMenu"/>). Migas del marco de Design: el grupo de la entrada de la
+    /// que cuelga la sección, la sección (que sube a su primera pestaña) y la pestaña; y, en una ficha de la
+    /// pestaña, esta pasa a ser un enlace y la ficha el nivel actual.
+    /// </summary>
+    private Miga? ResolverPestanaDeSeccion(string ruta, SeccionMenu seccion, PestanaSeccionMenu pestana)
+    {
+        var enlace = CatalogoMenuLateral.Enlaces.FirstOrDefault(e => e.Id == seccion.EnlaceId);
+        var grupo = enlace is null ? null : CatalogoMenuLateral.Grupos.FirstOrDefault(g => g.Id == enlace.GrupoId);
+        if (enlace is null || grupo is null) return null;
+
+        var rutaPestana = pestana.Ruta.Split('?')[0].Trim('/');
+        var resto = ruta.Length > rutaPestana.Length ? ruta[rutaPestana.Length..].Trim('/') : string.Empty;
+        var rutaSeccion = "/" + seccion.Pestanas[0].Ruta;
+        var nivelSeccion = new Nivel(Textos[seccion.ClaveRotulo], rutaSeccion);
+
+        var esPrimera = seccion.Pestanas[0] == pestana;
+        if (Guid.TryParse(resto, out _))
+            return new Miga(grupo.Titulo, esPrimera
+                ? [nivelSeccion, new Nivel(Textos["CabeceraMigaFicha"], null)]
+                : [nivelSeccion, new Nivel(Textos[pestana.ClaveRotulo], "/" + pestana.Ruta), new Nivel(Textos["CabeceraMigaFicha"], null)]);
+
+        // En la primera pestaña la sección es la propia página actual.
+        return new Miga(grupo.Titulo, esPrimera
+            ? [new Nivel(Textos[seccion.ClaveRotulo], null)]
+            : [nivelSeccion, new Nivel(Textos[pestana.ClaveRotulo], null)]);
     }
 
     public void Dispose() => Navigation.LocationChanged -= AlCambiarDeRuta;

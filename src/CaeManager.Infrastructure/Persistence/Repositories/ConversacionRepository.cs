@@ -5,6 +5,15 @@ namespace CaeManager.Infrastructure.Persistence.Repositories;
 
 public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversacionRepository
 {
+    public Task<Conversacion?> ObtenerUltimaCerradaPorHiloExternoAsync(
+        Guid conexionIntegracionId, string hiloExternoId, CancellationToken cancellationToken = default) =>
+        dbContext.Conversaciones
+            .Where(c => c.ConexionIntegracionId == conexionIntegracionId && c.HiloExternoId == hiloExternoId
+                        && c.Estado == EstadoConversacion.Cerrada)
+            .OrderByDescending(c => c.EstadoDesdeUtc)
+            .ThenByDescending(c => c.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
     public Task<Conversacion?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         dbContext.Conversaciones
             .Include(c => c.Mensajes).ThenInclude(m => m.Adjuntos)
@@ -16,7 +25,8 @@ public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversaci
         dbContext.Conversaciones
             .Include(c => c.Mensajes).ThenInclude(m => m.Adjuntos)
             .Include(c => c.Participantes)
-            .FirstOrDefaultAsync(c => c.ConexionIntegracionId == conexionIntegracionId && c.HiloExternoId == hiloExternoId, cancellationToken);
+            .FirstOrDefaultAsync(c => c.ConexionIntegracionId == conexionIntegracionId && c.HiloExternoId == hiloExternoId
+                                     && c.Estado != EstadoConversacion.Cerrada, cancellationToken);
 
     public Task<bool> ExisteMensajeExternoAsync(Guid conexionIntegracionId, string mensajeExternoId, CancellationToken cancellationToken = default) =>
         (from m in dbContext.Mensajes
@@ -46,7 +56,7 @@ public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversaci
         IReadOnlyCollection<Guid> ejecutivoIds, CancellationToken cancellationToken = default) =>
         await dbContext.Conversaciones
             .Where(c => c.Canal == CanalConversacion.WhatsApp
-                        && (c.Estado == EstadoConversacion.Abierta || c.Estado == EstadoConversacion.Pendiente)
+                        && TransicionesEstadoConversacion.EstadosVivos.Contains(c.Estado)
                         && c.EjecutivoAsignadoId != null && ejecutivoIds.Contains(c.EjecutivoAsignadoId.Value))
             .GroupBy(c => c.EjecutivoAsignadoId!.Value)
             .Select(g => new { g.Key, Total = g.Count() })
@@ -56,7 +66,7 @@ public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversaci
         Guid clienteId, Guid excluirConversacionId, CancellationToken cancellationToken = default) =>
         await dbContext.Conversaciones
             .Where(c => c.ClienteId == clienteId && c.Id != excluirConversacionId
-                        && (c.Estado == EstadoConversacion.Abierta || c.Estado == EstadoConversacion.Pendiente))
+                        && TransicionesEstadoConversacion.EstadosVivos.Contains(c.Estado))
             .OrderByDescending(c => c.FechaUltimoMensajeUtc)
             .ToListAsync(cancellationToken);
 
