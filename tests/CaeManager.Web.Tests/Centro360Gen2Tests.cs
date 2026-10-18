@@ -144,6 +144,7 @@ public partial class Centro360Gen2Tests : BunitContext
             EliminarCentroCommand => Result.Exito(),
             RestaurarCentroCommand => Result.Exito(),
             CaeManager.Application.Centros.Commands.EditarFichaCentro.EditarFichaCentroCommand c => GuardarFicha(c),
+            CaeManager.Application.Centros.Commands.GuardarNotaInternaCentro.GuardarNotaInternaCentroCommand c => GuardarNota(c.Id, c.Notas),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -151,6 +152,16 @@ public partial class Centro360Gen2Tests : BunitContext
         {
             if (ResultadoFicha.EsExitoso && DetalleTrasGuardarFicha is { } detalle) Detalles[comando.Id] = detalle;
             return ResultadoFicha;
+        }
+
+        /// <summary>Lo que responde el servidor al guardar la nota interna; con éxito, la relectura trae la nota y otra Version.</summary>
+        public Result ResultadoNota { get; set; } = Result.Exito();
+
+        private Result GuardarNota(Guid id, string? notas)
+        {
+            if (ResultadoNota.EsFallido) return ResultadoNota;
+            Detalles[id] = Detalles[id] with { Notas = notas, Version = Guid.NewGuid() };
+            return ResultadoNota;
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>

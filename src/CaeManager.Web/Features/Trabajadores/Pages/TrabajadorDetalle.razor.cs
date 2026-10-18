@@ -1011,4 +1011,32 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         _clientesReclamables = [];
         _clientesSeleccionadosReclamar.Clear();
     }
+
+    // ---------- Nota interna (mismo patrón que Empresa 360, editor en NotaInternaEditable) ----------
+
+    /// <summary>Manda solo la nota y la <c>Version</c> que la ficha leyó.</summary>
+    private Task<CaeManager.Domain.Common.Result> GuardarNotaInternaAsync(string nota) =>
+        Mediator.Send(new CaeManager.Application.Trabajadores.Commands.GuardarNotaInternaTrabajador
+            .GuardarNotaInternaTrabajadorCommand(_detalle!.Id, nota, _detalle.Version));
+
+    /// <summary>
+    /// Relee solo la cabecera (nota y Version) sin el spinner de CargarAsync, que rehará la ficha y perdería el
+    /// borrador del editor. Si falla, la ficha se queda con lo que ya enseñaba: el siguiente guardado dará conflicto.
+    /// </summary>
+    private async Task RecargarTrasNotaInternaAsync()
+    {
+        var trabajadorId = _detalle?.Id;
+        if (trabajadorId is null) return;
+
+        try
+        {
+            var detalle = await Mediator.Send(new ObtenerTrabajadorPorIdQuery(trabajadorId.Value), _ciclo.Token);
+            if (detalle is not null && detalle.Id == _detalle?.Id)
+                _detalle = detalle;
+        }
+        catch (Exception)
+        {
+            // Sin relectura la Version queda vieja: el siguiente guardado dará conflicto y releerá.
+        }
+    }
 }

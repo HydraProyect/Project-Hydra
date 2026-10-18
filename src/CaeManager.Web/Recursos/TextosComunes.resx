@@ -486,6 +486,22 @@
     <value>No la ve el cliente.</value>
     <comment>Pie de la tarjeta NotaInterna: la nota no la ve el usuario de un Cliente. La ven el equipo y el Gestor CAE de un Operador CAE externo.</comment>
   </data>
+  <data name="NotaInternaEditar" xml:space="preserve">
+    <value>Editar →</value>
+    <comment>Botón de la tarjeta Nota interna (NotaInternaEditable) que abre su editor. Solo lo ve un rol con escritura.</comment>
+  </data>
+  <data name="NotaInternaGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="NotaInternaCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="NotaInternaGuardada" xml:space="preserve">
+    <value>Nota interna guardada.</value>
+  </data>
+  <data name="NotaInternaErrorGuardar" xml:space="preserve">
+    <value>No pudimos guardar la nota interna. Intenta nuevamente en unos segundos.</value>
+  </data>
   <data name="RestablecerVista" xml:space="preserve">
     <value>Restablecer vista</value>
   </data>

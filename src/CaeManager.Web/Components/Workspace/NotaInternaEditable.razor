@@ -1,0 +1,142 @@
+@*
+    «Nota interna» editable del lateral de una ficha 360: la tarjeta NotaInterna con su «Editar →» tras
+    SoloConEscritura y el DrawerFormulario que la edita. Es el mismo comportamiento que Empresa 360 (EmpresaDetalle:
+    AbrirEditorNota / GuardarNotaAsync) empaquetado en una pieza, para que Trabajador 360 y Centro 360 la inserten en su
+    lateral con una sola línea y sin repetir el editor.
+
+    Lo que NO decide esta pieza:
+      - quién la ve. Quien la usa solo la pinta si el servidor le dijo que el lector es del equipo
+        (NotaInternaVisible del DTO de detalle, que decide IPoliticaNotaInterna). Pintarla vacía a un usuario de
+        Cliente ya le diría que existe una nota que no puede leer;
+      - quién la guarda. «Editar →» solo se ofrece a un rol con escritura (SoloConEscritura), pero la decisión de
+        verdad es del servidor: AutorizacionEscrituraBehavior y el alcance de cada handler (Asignación de Cartera);
+      - qué orden se envía. Guardar la manda quien la usa, con el Id y la Version que leyó la ficha.
+
+    Tras guardar (o ante un conflicto) avisa con OnGuardada para que la página relea su cabecera sin rehacerse: así
+    la Version que la página guarda deja de estar vieja y esta pieza conserva el borrador. Ante un conflicto el editor
+    se cierra, la tarjeta enseña la nota de la otra persona y el texto propio vuelve al reabrir; nunca se reenvía solo.
+*@
+@using CaeManager.Application.Common
+@using CaeManager.Domain.Common
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+@inject ToastService ToastService
+
+<NotaInterna Texto="@TextoMostrado">
+    <Acciones>
+        <SoloConEscritura>
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirEditor">@Comunes["NotaInternaEditar"]</Boton>
+        </SoloConEscritura>
+    </Acciones>
+</NotaInterna>
+
+@* Solo se abre desde «Editar →», que ya está tras SoloConEscritura. *@
+<DrawerFormulario Visible="_editorVisible" VisibleChanged="v => _editorVisible = v" Titulo="@Comunes["NotaInternaTitulo"]"
+                  HayCambios="() => HayCambios" Guardando="_guardando" MensajeError="@_mensajeError"
+                  HayErroresDeCampo="@(_errorCampo is not null)" OnGuardar="GuardarAsync"
+                  TextoGuardar="@Comunes["NotaInternaGuardar"]" TextoCancelar="@Comunes["NotaInternaCancelar"]">
+    <CampoTextarea Etiqueta="@Comunes["NotaInternaTitulo"]" Valor="@_enEdicion" ValorChanged="v => _enEdicion = v"
+                   Filas="8" MensajeError="@_errorCampo" />
+    <p class="texto-descriptivo">@Comunes["NotaInternaNoLaVeCliente"]</p>
+</DrawerFormulario>
+
+@code {
+    /// <summary>La nota que trae el DTO de detalle de la ficha.</summary>
+    [Parameter] public string? Texto { get; set; }
+
+    /// <summary>
+    /// Manda la orden de guardar con el texto escrito, el Id del registro y la Version que leyó la ficha. Un fallo de
+    /// validación llega como <see cref="FluentValidation.ValidationException"/> (lo lanza el pipeline de MediatR).
+    /// </summary>
+    [Parameter, EditorRequired] public Func<string, Task<Result>> Guardar { get; set; } = default!;
+
+    /// <summary>Tras guardar o ante un conflicto: la página relee su cabecera (nota y Version).</summary>
+    [Parameter] public EventCallback OnGuardada { get; set; }
+
+    private bool _editorVisible;
+    private bool _guardando;
+    private string _enEdicion = string.Empty;
+    /// <summary>Lo que el usuario escribió cuando otra persona guardó antes: se recupera al reabrir el editor.</summary>
+    private string? _borradorTrasConflicto;
+    private string? _mensajeError;
+    private string? _errorCampo;
+    private readonly InstantaneaFormulario _instantanea = new();
+
+    // Lo guardado se enseña aunque la relectura de la página falle; en cuanto llega otro Texto, manda el servidor.
+    private string? _textoGuardado;
+    private bool _hayTextoGuardado;
+    private string? _textoRecibido;
+
+    private string? TextoMostrado => _hayTextoGuardado ? _textoGuardado : Texto;
+
+    private bool HayCambios => _editorVisible && _instantanea.Difiere(_enEdicion);
+
+    protected override void OnParametersSet()
+    {
+        if (_textoRecibido != Texto)
+        {
+            _textoRecibido = Texto;
+            _hayTextoGuardado = false;
+            _textoGuardado = null;
+        }
+    }
+
+    private void AbrirEditor()
+    {
+        _enEdicion = _borradorTrasConflicto ?? TextoMostrado ?? string.Empty;
+        _borradorTrasConflicto = null;
+        _mensajeError = null;
+        _errorCampo = null;
+        _instantanea.Fijar(_enEdicion);
+        _editorVisible = true;
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (_guardando) return;
+
+        _guardando = true;
+        _mensajeError = null;
+        _errorCampo = null;
+
+        try
+        {
+            var resultado = await Guardar(_enEdicion);
+
+            if (resultado.EsFallido)
+            {
+                if (resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto)
+                {
+                    _borradorTrasConflicto = _enEdicion;
+                    ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                    _editorVisible = false;
+                    await OnGuardada.InvokeAsync();
+                }
+                else
+                {
+                    _mensajeError = resultado.Error.Mensaje;
+                }
+                return;
+            }
+
+            ToastService.Mostrar(Comunes["NotaInternaGuardada"], TonoToast.Exito);
+            _editorVisible = false;
+            _textoGuardado = string.IsNullOrWhiteSpace(_enEdicion) ? null : _enEdicion.Trim();
+            _hayTextoGuardado = true;
+            await OnGuardada.InvokeAsync();
+        }
+        catch (FluentValidation.ValidationException ex)
+        {
+            _errorCampo = ex.Errors.FirstOrDefault()?.ErrorMessage ?? Comunes["NotaInternaErrorGuardar"];
+        }
+        catch (Exception)
+        {
+            _mensajeError = Comunes["NotaInternaErrorGuardar"];
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

@@ -24,7 +24,9 @@ public class CentroApiDetalleEndpointTests
         HorarioAcceso: "7 a 19", ControlAccesosNombre: "Persona accesos", ControlAccesosTelefono: "600111222",
         TecnicoPrevencionNombre: "Persona prevencion", TecnicoPrevencionTelefono: "600333444",
         TecnicoPrevencionCorreo: "prl@example.test", TrabajosEnAltura: true, EspaciosConfinados: false,
-        AtmosferasExplosivas: true, FichaVisible: true);
+        AtmosferasExplosivas: true, FichaVisible: true,
+        // Una clave de API entra con rol Consulta, que en la aplicación sí lee la nota interna: la API no la publica.
+        Notas: "Nota interna del equipo", NotaInternaVisible: true);
 
     [Fact]
     public async Task El_endpoint_de_detalle_no_publica_la_ficha_de_acceso_y_prevencion()
@@ -47,7 +49,8 @@ public class CentroApiDetalleEndpointTests
         using var lector = new StreamReader(contexto.Response.Body);
         var cuerpo = await lector.ReadToEndAsync();
         cuerpo.Should().NotContain("Persona accesos").And.NotContain("600111222").And.NotContain("Persona prevencion")
-            .And.NotContain("600333444").And.NotContain("prl@example.test").And.NotContain("7 a 19");
+            .And.NotContain("600333444").And.NotContain("prl@example.test").And.NotContain("7 a 19")
+            .And.NotContain("Nota interna del equipo").And.NotContainEquivalentOf("notas");
         using var json = JsonDocument.Parse(cuerpo);
         json.RootElement.EnumerateObject().Select(p => p.Name).Should().Equal(
             "id", "clienteId", "clienteRazonSocial", "empresaId", "empresaRazonSocial", "nombre", "codigoCentro",
