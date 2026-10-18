@@ -1,4 +1,4 @@
-using CaeManager.Application.Centros;
+﻿using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Documentos;
@@ -99,7 +99,9 @@ public record MedicionCuadroDireccion(
     int CentrosActivos, int AltasCentros,
     int DocumentosGestionados, int Requerimientos,
     IReadOnlyList<DateTime> SolicitudesUtc,
-    KpisDashboardDto Documental);
+    KpisDashboardDto Documental,
+    int? GestionesCompletadas = null,
+    EstadoCifraMensual? EstadoPersistido = null);
 
 /// <summary>
 /// Cuadro de dirección (incremento 2; sustituirá al Dashboard ejecutivo). Mismo patrón que
@@ -143,11 +145,13 @@ public class ObtenerCuadroDireccionQueryHandler(
     ICurrentUserService currentUserService,
     IDirectorioUsuariosService directorioUsuarios,
     ICatalogoIncorporacionCartera catalogo,
-    TimeProvider reloj)
+    TimeProvider reloj,
+    ICierresCuadroDireccion? cierresContext = null)
     : IRequestHandler<ObtenerCuadroDireccionQuery, CuadroDireccionDto>
 {
     public async Task<CuadroDireccionDto> Handle(ObtenerCuadroDireccionQuery request, CancellationToken cancellationToken)
     {
+        await AutorizacionCuadroDireccion.ExigirLecturaAsync(currentUserService);
         var ahoraUtc = reloj.GetUtcNow().UtcDateTime;
         if (!MesCuadroDireccion.EsValido(request.Anyo, request.Mes))
             return SinCifras(request.Anyo, request.Mes, null, ahoraUtc, CuadroDireccionSinCifras.MesNoValido);
@@ -173,64 +177,21 @@ public class ObtenerCuadroDireccionQueryHandler(
                     continue;
                 }
 
-                porTenant.Add((cliente, await MedirAsync(mes, corteUtc, cancellationToken)));
+                var cierre = mes.FinUtc <= ahoraUtc && cierresContext is not null
+                    ? await cierresContext.CierresMensuales.SingleOrDefaultAsync(c => c.Anyo == mes.Anyo && c.Mes == mes.Mes && c.ReabiertoEnUtc == null, cancellationToken)
+                    : null;
+                var medicion = cierre is null
+                    ? await new MedicionMensualCuadroDireccion(tenantActual, trabajadoresContext, centrosContext, documentosContext, reclamacionesContext, comunicacionesContext, mediator).MedirAsync(mes, corteUtc, cancellationToken)
+                    : FotoCierreMensual.Leer(cierre.FotoJson).Medicion with
+                    {
+                        EstadoPersistido = cierre.Estimado ? EstadoCifraMensual.Estimado : EstadoCifraMensual.Existe,
+                        Documental = await mediator.Send(new ObtenerKpisDashboardQuery(), cancellationToken)
+                    };
+                porTenant.Add((cliente, medicion));
             }
         }
 
         return Fusionar(mes, ahoraUtc, porTenant, principales, sinAlcanceCompleto);
-    }
-
-    private async Task<MedicionCuadroDireccion> MedirAsync(MesCuadroDireccion mes, DateTime corteUtc, CancellationToken cancellationToken)
-    {
-        // Falla cerrado: sin Tenant en el ámbito no hay con qué comparar las filas sin filtro.
-        var tenantId = tenantActual.TenantId
-            ?? throw new InvalidOperationException("El Cuadro de dirección se mide con un Tenant en el ámbito.");
-        var inicio = mes.InicioUtc;
-        var fin = mes.FinUtc;
-
-        var vidasTrabajadores = trabajadoresContext.Trabajadores
-            .IgnoreQueryFilters()
-            .Where(t => t.TenantId == tenantId)
-            .Select(t => new VidaDeRegistro { CreadoEnUtc = t.CreadoEnUtc, EstaEliminado = t.EstaEliminado, EliminadoEnUtc = t.EliminadoEnUtc });
-
-        var vidasCentros = centrosContext.Centros
-            .IgnoreQueryFilters()
-            .Where(c => c.TenantId == tenantId)
-            .Select(c => new VidaDeRegistro { CreadoEnUtc = c.CreadoEnUtc, EstaEliminado = c.EstaEliminado, EliminadoEnUtc = c.EliminadoEnUtc });
-
-        var trabajadoresActivos = await vidasTrabajadores.CountAsync(DefinicionesCuadroDireccion.VivoAlCorte(corteUtc), cancellationToken);
-        var altasTrabajadores = await vidasTrabajadores.CountAsync(DefinicionesCuadroDireccion.AltaEnElMes(inicio, fin), cancellationToken);
-        var bajasTrabajadores = await vidasTrabajadores.CountAsync(DefinicionesCuadroDireccion.BajaEnElMes(inicio, fin), cancellationToken);
-        var centrosActivos = await vidasCentros.CountAsync(DefinicionesCuadroDireccion.VivoAlCorte(corteUtc), cancellationToken);
-        var altasCentros = await vidasCentros.CountAsync(DefinicionesCuadroDireccion.AltaEnElMes(inicio, fin), cancellationToken);
-
-        // Actividad, no estado: una versión que después se sustituyó, o un Documento que después se eliminó,
-        // también se registró en el mes. Por eso cuenta las filas eliminadas, como las bajas de Trabajadores, y
-        // un mes estimado no baja porque alguien borre después lo que se gestionó.
-        var documentosGestionados = await documentosContext.Documentos
-            .IgnoreQueryFilters()
-            .Where(d => d.TenantId == tenantId)
-            .CountAsync(d => d.CreadoEnUtc >= inicio && d.CreadoEnUtc < fin, cancellationToken);
-
-        var requerimientos = await reclamacionesContext.ReclamacionesDocumentales
-            .CountAsync(r => r.FechaEnvioUtc >= inicio && r.FechaEnvioUtc < fin, cancellationToken);
-
-        // Solo conversaciones vivas (la eliminada no es demanda); el primer entrante decide el mes.
-        var conversacionesVivas = comunicacionesContext.Conversaciones.Select(c => c.Id);
-        var solicitudes = await comunicacionesContext.Mensajes
-            .Where(m => conversacionesVivas.Contains(m.ConversacionId))
-            .PrimerosEntrantes()
-            .Where(primero => primero >= inicio && primero < fin)
-            .ToListAsync(cancellationToken);
-
-        // El cumplimiento de hoy, con la consulta y las definiciones de Inicio, sin copiar la regla.
-        var documental = await mediator.Send(new ObtenerKpisDashboardQuery(), cancellationToken);
-
-        return new MedicionCuadroDireccion(
-            trabajadoresActivos, altasTrabajadores, bajasTrabajadores,
-            centrosActivos, altasCentros,
-            documentosGestionados, requerimientos,
-            solicitudes, documental);
     }
 
     private async Task<IReadOnlyDictionary<Guid, PrincipalDeCarteraDto>> ObtenerPrincipalesAsync(CancellationToken cancellationToken)
@@ -283,12 +244,14 @@ public class ObtenerCuadroDireccionQueryHandler(
         int tenantsSinAlcanceCompleto)
     {
         var estado = mes.EstadoA(ahoraUtc);
+        if (estado != EstadoCifraMensual.Parcial && porTenant.Count > 0 && porTenant.All(p => p.Medicion.EstadoPersistido == EstadoCifraMensual.Existe))
+            estado = EstadoCifraMensual.Existe;
 
         var tenants = porTenant
             .Select(p => new CuadroDireccionTenantDto(
                 p.Cliente.TenantId,
                 p.Cliente.Nombre,
-                Cifras([p.Medicion], estado, ahoraUtc),
+                Cifras([p.Medicion], p.Medicion.EstadoPersistido ?? mes.EstadoA(ahoraUtc), ahoraUtc),
                 principales.GetValueOrDefault(p.Cliente.TenantId)))
             .OrderBy(t => t.TenantNombre, StringComparer.CurrentCulture)
             .ToList();

@@ -42,6 +42,14 @@
     transition: width var(--motion-transition) var(--ease-fluid);
 }
 
+/* El panel del selector de empresa gestionada mide 300 px y la barra 260: mientras está abierto, la barra deja
+   que lo desborde y sube por encima de la cabecera fija (1020) —también del bloque de pestañas de sección—,
+   pero por debajo de los Drawer (1040) y Modal (1050). */
+.barra-lateral:has(.selector-tenant-panel) {
+    overflow: visible;
+    z-index: 1030;
+}
+
 /* Modo compacto del menú lateral (<html data-menu-compacto>, lo escribe menu-lateral.js): solo iconos. */
 html[data-menu-compacto] .barra-lateral {
     width: var(--sidebar-width-compacto);

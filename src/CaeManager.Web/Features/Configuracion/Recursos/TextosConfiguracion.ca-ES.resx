@@ -30,8 +30,8 @@
   <data name="EnlaceIrAEntrada" xml:space="preserve">
     <value>Ir a {0}</value>
   </data>
-  <data name="GrupoAccesoIdentidad" xml:space="preserve">
-    <value>Acceso e identidad</value>
+  <data name="GrupoMiCuenta" xml:space="preserve">
+    <value>El meu compte</value>
   </data>
   <data name="GrupoPlataformaConexiones" xml:space="preserve">
     <value>Plataforma y conexiones</value>
@@ -42,17 +42,17 @@
   <data name="GrupoAuditoria" xml:space="preserve">
     <value>Auditoría</value>
   </data>
-  <data name="EntradaUsuariosNombre" xml:space="preserve">
-    <value>Usuarios</value>
+  <data name="EntradaDosPasosNombre" xml:space="preserve">
+    <value>Verificació en dos passos</value>
   </data>
-  <data name="EntradaUsuariosResumen" xml:space="preserve">
-    <value>Cuentas y carteras asignadas</value>
+  <data name="EntradaDosPasosResumen" xml:space="preserve">
+    <value>Segon factor del teu compte</value>
   </data>
-  <data name="EntradaRolesNombre" xml:space="preserve">
-    <value>Roles</value>
+  <data name="EntradaMiFirmaNombre" xml:space="preserve">
+    <value>La meva signatura</value>
   </data>
-  <data name="EntradaRolesResumen" xml:space="preserve">
-    <value>Permisos por perfil</value>
+  <data name="EntradaMiFirmaResumen" xml:space="preserve">
+    <value>Signatura i segell personals</value>
   </data>
   <data name="EntradaApiNombre" xml:space="preserve">
     <value>Claves API</value>

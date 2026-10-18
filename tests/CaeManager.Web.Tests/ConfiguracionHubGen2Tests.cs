@@ -58,9 +58,9 @@ public class ConfiguracionHubGen2Tests : BunitContext
     /// </summary>
     private static readonly (string Grupo, string Nombre, string Descripcion, string Ruta)[] CatalogoEsperado =
     [
-        ("Acceso e identidad", "Usuarios", "Cuentas y carteras asignadas", "/configuracion/usuarios"),
-        ("Acceso e identidad", "Roles", "Permisos por perfil", "/configuracion/roles"),
-        ("Acceso e identidad", "Organización", "Logo de la organización", "/configuracion/organizacion"),
+        ("Mi cuenta", "Verificación en dos pasos", "Segundo factor de tu cuenta", "/cuenta/configurar-2fa"),
+        ("Mi cuenta", "Mi firma", "Firma y sello personales", "/mi-firma"),
+        ("Plataforma y conexiones", "Organización", "Logo de la organización", "/configuracion/organizacion"),
         ("Plataforma y conexiones", "Claves API", "Acceso programático", "/configuracion/api"),
         ("Plataforma y conexiones", "Conexiones de integración", "M365, portales, webhooks", "/configuracion/integraciones"),
         ("Plataforma y conexiones", "Importar datos", "Cuadro de Control CAE (Excel)", "/configuracion/importar"),
@@ -160,7 +160,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
 
     private static readonly string[] RutasExcluidasDelEncargo =
     [
-        "/configuracion/roles", "/configuracion/api", "/configuracion/integraciones", "/configuracion/importar",
+        "/configuracion/api", "/configuracion/integraciones", "/configuracion/importar",
         "/configuracion/ia", "/configuracion/retencion", "/configuracion/auditoria", "/configuracion/auditoria-ia",
         "/configuracion/accesos-sensibles",
     ];
@@ -174,7 +174,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
 
         rutas.Should().NotIntersectWith(RutasExcluidasDelEncargo);
         rutas.Should().Contain(
-            ["/configuracion/usuarios", "/configuracion/tipos", "/configuracion/macros", "/configuracion/params",
+            ["/configuracion/tipos", "/configuracion/macros", "/configuracion/params",
              "/configuracion/automatizaciones"],
             "control positivo: lo que el encargo sí abre sigue en el hub");
     }
@@ -201,7 +201,6 @@ public class ConfiguracionHubGen2Tests : BunitContext
 
     [Theory]
     [InlineData("api")]
-    [InlineData("roles")]
     [InlineData("integraciones")]
     [InlineData("importar")]
     [InlineData("retencion")]
@@ -214,6 +213,21 @@ public class ConfiguracionHubGen2Tests : BunitContext
         var cut = RenderizarHub(entrada, porEncargo: true);
 
         Navegacion(cut).QuerySelector("[aria-current='page']")!.GetAttribute("href").Should().Be("/configuracion/params");
+    }
+
+    /// <summary>
+    /// Usuarios y Roles salieron del hub (Design, 2026-10-17): viven en la sección Equipo. Un enlace guardado a
+    /// <c>/configuracion/usuarios</c> o <c>/configuracion/roles</c> llega a su pantalla, que se autoriza por su
+    /// cuenta; el hub no las embebe ni las lista.
+    /// </summary>
+    [Theory]
+    [InlineData("usuarios", "/usuarios")]
+    [InlineData("roles", "/roles")]
+    public void Un_enlace_antiguo_a_Usuarios_o_Roles_dentro_del_hub_lleva_a_su_pantalla_de_Equipo(string entrada, string destino)
+    {
+        RenderizarHub(entrada);
+
+        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith(destino);
     }
 
     /// <summary>

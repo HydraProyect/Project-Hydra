@@ -7,8 +7,8 @@ using FluentAssertions;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Reparto y orden por defecto de Negocio, Operación y Control (mandato del propietario del
-/// 2026-09-29), sobre <see cref="CatalogoMenuLateral.Visibles"/> directamente, sin pintar el menú:
+/// Reparto y orden por defecto de Negocio, Operación y Control (reparto del propietario del 2026-09-29;
+/// el orden de Negocio y de Control es, desde el 2026-10-18, el del marco de Design, DDL-083), sobre <see cref="CatalogoMenuLateral.Visibles"/> directamente, sin pintar el menú:
 /// el orden de los tres grupos, que el reagrupado no cambió qué enlaces ve cada rol y que un orden
 /// global guardado ANTES del cambio no puede devolver un enlace a su grupo anterior.
 /// </summary>
@@ -24,18 +24,18 @@ public class CatalogoMenuLateralRepartoTests
         visibles.Single(g => g.Grupo.Id == grupo).Enlaces.Select(e => e.Id).ToList();
 
     [Fact]
-    public void El_orden_por_defecto_de_Negocio_Operacion_y_Control_es_el_del_mandato_del_propietario()
+    public void El_orden_por_defecto_de_Negocio_Operacion_y_Control_es_el_del_marco_de_Design()
     {
         var visibles = CatalogoMenuLateral.Visibles(Contexto(Roles.Administrador));
 
         visibles.Select(g => g.Grupo.Id).Should().Equal(
             ["dashboards", "negocio", "operacion", "control", "administracion", "plataforma"]);
         Ids(visibles, "negocio").Should().Equal(
-            ["empresas", "trabajadores", "documentos", "clientes", "centros", "vehiculos", "proyectos", "subcontratas"]);
+            ["empresas", "subcontratas", "trabajadores", "clientes", "centros", "documentos", "vehiculos", "proyectos"]);
         Ids(visibles, "operacion").Should().Equal(
-            ["mi-trabajo", "comunicaciones", "gestiones", "visitas", "incidencias"]);
+            ["mi-trabajo", "comunicaciones", "gestiones", "visitas"]);
         Ids(visibles, "control").Should().Equal(
-            ["alertas", "facturacion", "calendario", "reportes", "conectar-extension"]);
+            ["alertas", "calendario", "reportes", "facturacion", "conectar-extension"]);
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class CatalogoMenuLateralRepartoTests
     {
         var visibles = CatalogoMenuLateral.Visibles(Contexto(Roles.Administrador, comunicaciones: false));
 
-        Ids(visibles, "operacion").Should().Equal(["mi-trabajo", "gestiones", "visitas", "incidencias"]);
+        Ids(visibles, "operacion").Should().Equal(["mi-trabajo", "gestiones", "visitas"]);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class CatalogoMenuLateralRepartoTests
     /// antes (lista literal, escrita a partir de las Condicion y las Visible previas al cambio),
     /// con independencia de en qué grupo esté cada miTrabajo. Decisión posterior (defecto C1 del
     /// piloto Outbound, 2026-10-08): el rol Consulta deja de ver «Mi trabajo», porque las dos
-    /// páginas a las que lleva le deniegan el acceso.
+    /// páginas a las que lleva le deniegan el acceso. Y Design (2026-10-17) sacó «Incidencias» del menú: es una pestaña de\r\n    /// sección de Documentos (<see cref="CatalogoSeccionesMenu"/>), así que ningún rol la ve ya como enlace.
     /// </summary>
     [Theory]
     [InlineData(Roles.Administrador, true)]
@@ -112,7 +112,7 @@ public class CatalogoMenuLateralRepartoTests
         {
             "dashboard",
             "empresas", "subcontratas", "trabajadores", "clientes", "centros", "documentos", "conectar-extension",
-            "comunicaciones", "gestiones", "incidencias", "visitas", "vehiculos", "proyectos",
+            "comunicaciones", "gestiones", "visitas", "vehiculos", "proyectos",
             "alertas", "calendario", "reportes",
         };
         if (rol != Roles.Consulta) comunes.Add("mi-trabajo");
@@ -154,7 +154,7 @@ public class CatalogoMenuLateralRepartoTests
         Ids(visibles, "negocio").Should().Equal(
             ["empresas", "subcontratas", "trabajadores", "clientes", "centros", "documentos", "vehiculos", "proyectos"]);
         Ids(visibles, "operacion").Should().Equal(
-            ["comunicaciones", "gestiones", "incidencias", "visitas", "mi-trabajo"]);
+            ["comunicaciones", "gestiones", "visitas", "mi-trabajo"]);
         Ids(visibles, "control").Should().Equal(
             ["conectar-extension", "alertas", "facturacion", "calendario", "reportes"]);
 

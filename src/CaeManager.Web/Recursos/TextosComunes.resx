@@ -513,4 +513,37 @@
   <data name="ListaResultadosUnidad" xml:space="preserve"><value>resultados</value></data>
   <data name="ListaDocumentacion" xml:space="preserve"><value>Documentación</value></data>
   <data name="ListaEstado" xml:space="preserve"><value>Estado</value></data>
+  <data name="SeccionAriaEtiqueta" xml:space="preserve">
+    <value>Secciones de {0}</value>
+  </data>
+  <data name="SeccionDocumentos" xml:space="preserve">
+    <value>Documentos</value>
+  </data>
+  <data name="SeccionEquipo" xml:space="preserve">
+    <value>Equipo</value>
+  </data>
+  <data name="SeccionTodosLosDocumentos" xml:space="preserve">
+    <value>Todos los documentos</value>
+  </data>
+  <data name="SeccionIncidencias" xml:space="preserve">
+    <value>Incidencias</value>
+  </data>
+  <data name="SeccionUsuarios" xml:space="preserve">
+    <value>Usuarios</value>
+  </data>
+  <data name="SeccionRoles" xml:space="preserve">
+    <value>Roles</value>
+  </data>
+  <data name="SelectorTenantFijadas" xml:space="preserve">
+    <value>Fijadas</value>
+  </data>
+  <data name="SelectorTenantResto" xml:space="preserve">
+    <value>Resto de la cartera</value>
+  </data>
+  <data name="SelectorTenantFijar" xml:space="preserve">
+    <value>Fijar arriba</value>
+  </data>
+  <data name="SelectorTenantQuitarFijada" xml:space="preserve">
+    <value>Quitar de fijadas</value>
+  </data>
 </root>

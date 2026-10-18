@@ -525,3 +525,4 @@ src/CaeManager.Web/Services/TrazaSoporteService.cs :: TenantClienteId = 1
 # Conservan la autorizacion de Asignacion de Cartera de Conversacion, cuyo modelo no se modifica.
 src/CaeManager.Application/Comunicaciones/Commands/ConfirmarIntencionConversacion/ConfirmarIntencionConversacionCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Queries/ObtenerIntencionConversacion/ObtenerIntencionConversacionQuery.cs :: ClienteId = 1
+src/CaeManager.Infrastructure/Dashboard/CierreMensualCuadroDireccionHostedService.cs :: ClienteId = 1

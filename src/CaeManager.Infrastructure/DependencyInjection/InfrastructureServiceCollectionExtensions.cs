@@ -414,6 +414,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Auditoria.IAuditoriaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Tenants.ITenantsQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Facturacion.IFacturacionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Dashboard.ICierresCuadroDireccion>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Proyectos.IProyectosQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Proyectos.IRequisitosEventoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Retencion.IRetencionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -619,6 +620,7 @@ public static class InfrastructureServiceCollectionExtensions
         // 2026-10-16), auditado como Sistema. Sin interruptor: es la regla del
         // evento, no una automatización opcional del Tenant.
         services.AddHostedService<Proyectos.CierreEventosTerminadosHostedService>();
+        services.AddHostedService<Dashboard.CierreMensualCuadroDireccionHostedService>();
 
         // Cierre automático de las conversaciones que llevan 4 días Resueltas (decisión de producto 2026-10-17, hueco 2 de
         // Comunicaciones), auditado como Sistema. Sin interruptor: es la regla de la bandeja, no una automatización opcional.

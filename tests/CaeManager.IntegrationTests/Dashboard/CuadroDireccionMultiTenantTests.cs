@@ -182,31 +182,29 @@ public class CuadroDireccionMultiTenantTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Sin_rol_de_negocio_en_la_sesion_no_se_ve_el_principal()
+    public async Task Sin_rol_de_negocio_en_la_sesion_no_se_lee_el_cuadro()
     {
         // Soporte TALVEG nunca es Operador CAE: aunque su cuenta tuviera un perfil que asume, sin rol efectivo no lo ve.
         var gestora = Guid.NewGuid();
         await DesignarPrincipalAsync(gestora, "GestorCae");
 
-        var cuadro = await PedirMesEnCursoAsync(ConstruirServicios(
+        var accion = () => PedirMesEnCursoAsync(ConstruirServicios(
             rol: null, perfiles: new() { [_usuario] = "DireccionCae" }, nombres: new() { [gestora] = NombreGestora }));
 
-        cuadro.Tenants.Should().HaveCount(2, "las cifras no dependen del rol: el alcance lo decide IAlcanceDatosService");
-        cuadro.Tenants.Should().OnlyContain(t => t.PrincipalDeCartera == null);
+        await accion.Should().ThrowAsync<UnauthorizedAccessException>();
     }
 
     [Fact]
-    public async Task Un_Gestor_CAE_no_ve_el_principal()
+    public async Task Un_Gestor_CAE_no_lee_el_cuadro()
     {
         // El perfil Gestor CAE no está entre los que asumen (Coordinador CAE, Dirección CAE, Administrador).
         var gestora = Guid.NewGuid();
         await DesignarPrincipalAsync(gestora, "GestorCae");
 
-        var cuadro = await PedirMesEnCursoAsync(ConstruirServicios(
+        var accion = () => PedirMesEnCursoAsync(ConstruirServicios(
             rol: "GestorCae", perfiles: new() { [_usuario] = "GestorCae" }, nombres: new() { [gestora] = NombreGestora }));
 
-        cuadro.Tenants.Should().NotBeEmpty();
-        cuadro.Tenants.Should().OnlyContain(t => t.PrincipalDeCartera == null);
+        await accion.Should().ThrowAsync<UnauthorizedAccessException>();
     }
 
     [Fact]
@@ -248,6 +246,37 @@ public class CuadroDireccionMultiTenantTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task La_foto_cerrada_prevalece_sobre_los_datos_vivos_y_la_direccion_puede_reabrirla()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var anterior = new DateOnly(hoy.Year, hoy.Month, 1).AddMonths(-1);
+        var foto = new CaeManager.Application.Dashboard.FotoCierreMensual(
+            new(17, 3, 1, 2, 0, 12, 4, [], new(0, 0, 0, 0, 0, 0, 0, 0)), []);
+        CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario cierre;
+        using (AmbitoTenantExplicito.Establecer(_tenantIbertec))
+        {
+            cierre = CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario.Crear(
+                anterior.Year, anterior.Month, foto.Serializar(), false, DateTime.UtcNow);
+            _dbContext.CierresMensualesTenantBeneficiario.Add(cierre);
+            await _dbContext.SaveChangesAsync();
+        }
+        using var servicios = ConstruirServicios();
+        var mediator = servicios.GetRequiredService<IMediator>();
+        var cuadro = await mediator.Send(new ObtenerCuadroDireccionQuery(anterior.Year, anterior.Month));
+        var cifras = cuadro.Tenants.Single(t => t.TenantId == _tenantIbertec).Cifras;
+        cifras.TrabajadoresActivos.Valor.Should().Be(17);
+        cifras.TrabajadoresActivos.Estado.Should().Be(EstadoCifraMensual.Existe);
+
+        var handler = new CaeManager.Application.Dashboard.ReabrirMesCuadroDireccionCommandHandler(
+            new CurrentUserServiceFalso(_usuario, "DireccionCae", _tenantConsultora),
+            _dbContext, _dbContext, new AlcanceDatosServiceFalso(), mediator, TimeProvider.System);
+        var resultado = await handler.Handle(new(_tenantIbertec, anterior.Year, anterior.Month, "Corregir la foto mensual"), CancellationToken.None);
+        resultado.EsExitoso.Should().BeTrue();
+        cierre.ReabiertoEnUtc.Should().NotBeNull();
+        cierre.MotivoReapertura.Should().Be("Corregir la foto mensual");
+    }
+
     /// <summary>La Asignación de Operación externa de la Consultora sobre Ibertec, con su cartera principal.</summary>
     private async Task DesignarPrincipalAsync(Guid usuarioId, string rol)
     {
@@ -275,6 +304,7 @@ public class CuadroDireccionMultiTenantTests : IAsyncLifetime
         servicios.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         servicios.AddSingleton(tenantActual ?? new TenantActualPorAmbito());
         servicios.AddSingleton<IUnitOfWork>(_dbContext);
+        servicios.AddSingleton<CaeManager.Application.Dashboard.ICierresCuadroDireccion>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Empresas.IEmpresasQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Proyectos.IRequisitosEventoQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Subcontratas.ISubcontratasQueryContext>(_dbContext);
