@@ -48,7 +48,7 @@ public partial class TrabajadoresListaGen2Tests
     private static AngleSharp.Dom.IElement AbrirIncidencias(IRenderedComponent<Trabajadores> cut, int fila = 0)
     {
         var propietario = FilasDeDatos(cut)[fila];
-        var chevron = propietario.QuerySelector(".boton-expandir-incidencias")!;
+        var chevron = propietario.QuerySelector(".boton-expandir-fila")!;
         if (chevron.GetAttribute("aria-expanded") != "true") chevron.Click();
         var detalle = FilasDeDatos(cut)[fila].NextElementSibling!;
         detalle.ClassList.Should().Contain("trabajador-detalle-incidencias");
@@ -165,7 +165,7 @@ public partial class TrabajadoresListaGen2Tests
 
         FilasDeDatos(cut).Should().HaveCount(2);
         cut.Find("button[data-keytip=E]").Click();
-        cut.FindAll(".trabajador-detalle-incidencias button.incidencia-corregir").Should().HaveCount(4);
+        cut.FindAll(".tarjeta-fila-acordeon-contenido button.incidencia-corregir").Should().HaveCount(4);
     }
 
     [Fact]
@@ -215,7 +215,7 @@ public partial class TrabajadoresListaGen2Tests
         var mediador = new MediatorFalso { Almacen = { Trabajador("Bea", "Alonso"), Trabajador("Ana", "Moreno") } };
         var cut = Renderizar(mediador, "trabajadores?estado=Vigente");
         await AlternarSeleccionMultiple(cut);
-        await cut.Find("tbody input[aria-label='Seleccionar a Bea Alonso']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find(".lista-filas-acordeon input[aria-label='Seleccionar a Bea Alonso']").ChangeAsync(new ChangeEventArgs { Value = true });
         var antes = UltimaConsulta(mediador);
         var consultasDeListaAntes = mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Count();
 
@@ -226,7 +226,7 @@ public partial class TrabajadoresListaGen2Tests
             "el estado y el desglose de la fila cambian al corregir: la página se relee en sitio");
         UltimaConsulta(mediador).Should().Be(antes, "con los mismos filtros, orden y página");
         cut.WaitForAssertion(() =>
-            cut.Find("tbody input[aria-label='Seleccionar a Bea Alonso']").HasAttribute("checked").Should().BeTrue(
+            cut.Find(".lista-filas-acordeon input[aria-label='Seleccionar a Bea Alonso']").HasAttribute("checked").Should().BeTrue(
                 "corregir un documento no es cambiar de lista: lo marcado sigue marcado"));
         cut.Find(".barra-acciones-lote-cantidad").TextContent.Trim().Should().Be("1 seleccionado en esta página");
     }
@@ -238,7 +238,7 @@ public partial class TrabajadoresListaGen2Tests
         var mediador = new MediatorFalso { Almacen = { Trabajador("Bea", "Alonso"), Trabajador("Ana", "Moreno") } };
         var cut = Renderizar(mediador);
         await AlternarSeleccionMultiple(cut);
-        await cut.Find("tbody input[aria-label='Seleccionar a Bea Alonso']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find(".lista-filas-acordeon input[aria-label='Seleccionar a Bea Alonso']").ChangeAsync(new ChangeEventArgs { Value = true });
         cut.Find(".barra-acciones-lote-cantidad").TextContent.Trim().Should().Be("1 seleccionado en esta página");
 
         await ElegirEnLaPastilla(cut, "Empresa", "Montajes Ebro S.L.");
@@ -257,13 +257,13 @@ public partial class TrabajadoresListaGen2Tests
         var mediador = new MediatorFalso { Almacen = { Trabajador("Bea", "Alonso"), Trabajador("Ana", "Moreno") } };
         var cut = Renderizar(mediador);
         await AlternarSeleccionMultiple(cut);
-        await cut.Find("tbody input[aria-label='Seleccionar a Bea Alonso']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find(".lista-filas-acordeon input[aria-label='Seleccionar a Bea Alonso']").ChangeAsync(new ChangeEventArgs { Value = true });
         var pregunta = UltimaConsulta(mediador);
 
         var correccion = cut.FindComponent<CorreccionIncidenciaDocumental>();
         await cut.InvokeAsync(() => correccion.Instance.OnCorregida.InvokeAsync());
         cut.WaitForAssertion(() =>
-            cut.Find("tbody input[aria-label='Seleccionar a Bea Alonso']").HasAttribute("checked").Should().BeTrue(
+            cut.Find(".lista-filas-acordeon input[aria-label='Seleccionar a Bea Alonso']").HasAttribute("checked").Should().BeTrue(
                 "control positivo: la recarga tras corregir conserva lo marcado"));
         var consultasTrasCorregir = ConsultasDeLista(mediador);
 
@@ -278,7 +278,7 @@ public partial class TrabajadoresListaGen2Tests
         UltimaConsulta(mediador).Should().Be(pregunta, "control: con la misma pregunta que el refresco tras corregir");
         cut.WaitForAssertion(() => cut.FindAll(".barra-acciones-lote").Should().BeEmpty(
             "una recarga que no viene de corregir limpia la selección aunque repita la pregunta"));
-        cut.Find("tbody input[aria-label='Seleccionar a Bea Alonso']").HasAttribute("checked").Should().BeFalse();
+        cut.Find(".lista-filas-acordeon input[aria-label='Seleccionar a Bea Alonso']").HasAttribute("checked").Should().BeFalse();
     }
 
     /// <summary>
@@ -293,7 +293,7 @@ public partial class TrabajadoresListaGen2Tests
         var cut = Renderizar(mediador, "trabajadores?estado=Vencido");
         FilasDeDatos(cut).Should().HaveCount(2, "punto de partida: las dos filas están en el filtro");
         await AlternarSeleccionMultiple(cut);
-        await cut.Find("tbody input[aria-label='Seleccionar a Ana Moreno']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find(".lista-filas-acordeon input[aria-label='Seleccionar a Ana Moreno']").ChangeAsync(new ChangeEventArgs { Value = true });
         var pregunta = UltimaConsulta(mediador);
         var consultasAntes = ConsultasDeLista(mediador);
 
@@ -307,7 +307,7 @@ public partial class TrabajadoresListaGen2Tests
         mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Skip(consultasAntes).Should().HaveCount(1,
             "la tabla nativa pide una página, aunque cambie el total")
             .And.OnlyContain(q => q == pregunta);
-        cut.Find("tbody input[aria-label='Seleccionar a Ana Moreno']").HasAttribute("checked").Should().BeTrue(
+        cut.Find(".lista-filas-acordeon input[aria-label='Seleccionar a Ana Moreno']").HasAttribute("checked").Should().BeTrue(
             "el refresco conserva la selección de quien sigue en la página");
         cut.Find(".barra-acciones-lote-cantidad").TextContent.Trim().Should().Be("1 seleccionado en esta página");
     }

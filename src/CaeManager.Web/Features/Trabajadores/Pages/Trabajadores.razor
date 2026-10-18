@@ -29,11 +29,11 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@TituloPagina — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
-    @* Rediseño de listados, fase 1: cabecera de una línea (CabeceraListado) con el contador, el
-       conmutador ☑ de selección múltiple, el icono ⤓ de exportación de la vista filtrada y UNA acción
-       primaria. El título lo sigue decidiendo el perfil de vocabulario del Tenant y si el usuario
-       es del Tenant propietario («Mis trabajadores» solo en Cliente Directo propio).
+<div class="contenedor-pagina lista-design">
+    @* Lista 1:1 con «Lista Trabajadores TALVEG.dc.html» del export de Design (DDL-083, 2026-10-18), con el mismo molde que
+       Empresas: cabecera de una línea (CabeceraListado) con el contador, el conmutador ☑ de selección múltiple, el icono ⤓
+       de exportación de la vista filtrada, ⌨, el menú ⋯ y UNA acción primaria. El título lo sigue decidiendo el perfil
+       de vocabulario del Tenant y si el usuario es del Tenant propietario («Mis trabajadores» solo en Cliente Directo propio).
 
        Con antetítulo de grupo y sin el rótulo de la empresa gestionada: el selector de la barra lateral ya
        dice cuál es. El estado vacío sin empresa elegida (4a) sigue más abajo.
@@ -43,7 +43,7 @@
        (eliminar, asignar a centro), toda ella escritura: Consulta no ve el ☑. *@
     @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa && _parametrosInicializados)
     {
-        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@TituloPagina" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
+        <CabeceraListado Titulo="@TituloPagina" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple"
                          SeleccionMultipleChanged="@(_puedeEscribir && !_alcanceCero ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)"
                          RutaExportar="@(_alcanceCero ? null : "/trabajadores/exportar.xlsx")" CriteriosExportar="CriteriosExportar" Menu="@(!_alcanceCero ? MenuExportarTodo : null)">
@@ -57,7 +57,7 @@
     }
     else
     {
-        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@TituloPagina" />
+        <CabeceraListado Titulo="@TituloPagina" />
     }
 
     @if (_resolviendoEmpresa)
@@ -75,7 +75,8 @@
     {
     @* Barra de filtros en modo pastillas: el buscador «Filtrar esta pantalla» (tecla f), las
        pastillas «Empresa» y «Centro», y «Filtros guardados» con la lista guardada y
-       «Guardar filtro». Debajo, los chips y «Limpiar todo».
+       «Guardar filtro». Debajo, la franja de estados, los chips y «Limpiar todo». A la derecha, la agrupación
+       «Por Empresa» y «Expandir todo».
 
        - El buscador busca en nombre, apellidos, DNI y alias (ObtenerTrabajadoresQuery).
        - «Documentación» viaja en la URL como «estado».
@@ -85,28 +86,39 @@
        - «Centro» viaja en la URL como «centro» y deja a quienes tienen una Asignación activa en
          ese Centro. Ofrece los Centros que el usuario ya puede ver (ObtenerCentrosParaSelectorQuery,
          el mismo alcance que la consulta comprueba: un Centro fuera de él no devuelve a nadie).
+       - «Actividad» (voluntarios inactivos) no está en la maqueta: se conserva porque quita un
+         filtro de producto que ya existe (divergencia registrada en la PR).
        - La maqueta dibuja además el filtro por «Cliente»: la consulta no sabe filtrar
          por él, y una pastilla que no filtra nada mentiría. *@
     @* D-15: sin alcance (Asignación de Cartera) no hay lista que filtrar, guardar ni seleccionar. *@
     @if (!_alcanceCero)
     {
-    <BarraFiltros PresentacionMaqueta="true" Contador="@(_cargando || _errorCarga ? null : _totalElementos)" SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="@(_puedeEscribir && !_alcanceCero ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   OnGuardarFiltro="AbrirGuardarFiltro" FiltrosGuardados="OpcionesFiltrosGuardados"
                   OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync"
                   OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado"
                   VistaRecordada="_vistaRecordada">
         <Pastillas>
-            <FranjaEstado PresentacionCampo="true" Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
-                  Recuentos="_recuentosPorEstado" />
-            <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["EtiquetaEmpresa"]" TextoTodos="@Textos["OpcionTodas"]" Valor="@ValorFiltroEmpleador"
+            <PastillaFiltro Etiqueta="@Textos["EtiquetaEmpresa"]" TextoTodos="@Textos["OpcionTodas"]" Valor="@ValorFiltroEmpleador"
                             ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
-            <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["EtiquetaCentro"]" TextoTodos="@Textos["OpcionTodosLosCentros"]" Valor="@_filtroCentroId"
+            <PastillaFiltro Etiqueta="@Textos["EtiquetaCentro"]" TextoTodos="@Textos["OpcionTodosLosCentros"]" Valor="@_filtroCentroId"
                             ValorChanged="FiltrarPorCentroAsync" Opciones="OpcionesFiltroCentro" />
-            <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["EtiquetaActividad"]" TextoTodos="@Textos["OpcionActividadTodos"]" Valor="@_filtroActividad"
+            <PastillaFiltro Etiqueta="@Textos["EtiquetaActividad"]" TextoTodos="@Textos["OpcionActividadTodos"]" Valor="@_filtroActividad"
                             ValorChanged="FiltrarPorActividadAsync" Opciones="OpcionesFiltroActividad" />
         </Pastillas>
-        <Herramientas><BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" /></Herramientas>
+        <Estados>
+            <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                  Recuentos="_recuentosPorEstado" />
+        </Estados>
+        <Herramientas>
+            <PastillaFiltro Etiqueta="@Textos["EtiquetaAgrupar"]" TextoTodos="@Textos["OpcionSinAgrupar"]" Valor="@ValorAgrupacion"
+                            ValorChanged="CambiarAgrupacionAsync" Opciones="OpcionesAgrupacion" />
+            @if (HayFilasDesplegables)
+            {
+                <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" />
+            }
+        </Herramientas>
         @* Lo que está filtrando se ve y se quita de uno en uno: el valor de cada pastilla vive
            dentro de un menú cerrado, y sin esto no hay forma de ver desde fuera por qué la lista
            está recortada. *@
@@ -131,7 +143,7 @@
     </BarraFiltros>
     <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Trabajadores"
                              ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
-    @* Selector desplegable de estado: conserva la semántica de la franja para «Documentación». Admite varios estados a la vez, viaja en la
+    @* La franja de estados conserva la semántica de «Documentación»: admite varios estados a la vez, viaja en la
        URL como «estado» (estados de código separados por coma) y cada botón dice cuántas filas hay, con los
        demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
 
@@ -148,121 +160,166 @@
             </Accion>
         </EstadoVacio>
     }
-    else
+    else if (_cargando && _elementosPagina.Count == 0)
     {
-        @if (_cargando && _totalElementos == 0)
-        {
-            <Esqueleto Forma="FormaEsqueleto.Tabla" Cantidad="8" Columnas="4" />
-        }
+        <EstadoCargando Filas="6" />
+    }
+    else if (_elementosPagina.Count == 0 && HayFiltrosActivos)
+    {
+        @* Distinto de "aún no hay trabajadores": aquí hay filtros
+           puestos —búsqueda, documentación, empresa o subcontrata— y
+           ofrecer "crea el primero" a quien ha filtrado lo manda a dar de
+           alta un trabajador que probablemente ya existe, con el DNI
+           duplicado que eso arrastra.
 
-        @* La carga nativa conserva la tabla y el pie externo durante la carga. *@
-        @TarjetaListado.RenderizarMaqueta(@<text>
-                <div class="contenido-entra" style="display:@(_totalElementos == 0 ? "none" : "block")">
-                <table class="tabla-datos quickgrid trabajadores-rejilla-propia" theme="default" aria-busy="@(_cargando ? "true" : "false")">
-                    <thead><tr>
-                        @if (_seleccionMultiple)
-                        {
-                            <th scope="col" class="seleccion-trabajador"><input type="checkbox" aria-label="@Textos["AriaSeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" /></th>
-                        }
-                        @(CabeceraOrdenable(nameof(TrabajadorListaDto.Apellidos), Textos["ListaColumnaTrabajador"]))
-                        <th scope="col">@Textos["ListaColumnaDni"]</th>
-                        @(CabeceraOrdenable(nameof(TrabajadorListaDto.EmpleadorNombre), Textos["ListaColumnaEmpleador"]))
-                        <th scope="col" class="col-registrados-vigentes">@Textos["ListaColumnaRegistradosVigentes"]</th>
-                        @(CabeceraOrdenable(nameof(TrabajadorListaDto.EstadoDocumental), Textos["ListaColumnaEstadoDocumental"], "col-estado"))
-                        <th scope="col"></th>
-                    </tr></thead>
-                    <tbody>
-                        @{ var claves = new ClavesDeHermanos(); }
-                        @foreach (var context in _elementosPagina)
-                        {
-                            <tr @key="claves.De(context.Id)" class="@ObtenerClaseFila(context)">
-                                @if (_seleccionMultiple)
-                                {
-                                    <td class="seleccion-trabajador"><input type="checkbox" aria-label="@(Textos["AriaSeleccionarTrabajador", NombreCompleto(context)])" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" /></td>
-                                }
-                                <td><div class="trabajador-identidad">
-                                    @if (context.Incidencias.Count > 0)
-                                    {
-                                        <button type="button" class="boton-expandir-incidencias" aria-label="@Textos["DesplegarIncidenciasTrabajador", NombreCompleto(context)]" aria-expanded="@(EstaExpandido(context) ? "true" : "false")" @onclick="() => AlternarExpansion(context.Id)" @onclick:stopPropagation="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></button>
-                                    }
-                        <span class="celda-trabajador">
-                            <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida"
-                                    aria-label="@Textos["AbrirVistaRapidaDe", NombreCompleto(context)]"
-                                    @onclick="() => AbrirVistaRapidaAsync(context.Id)"><TextoResaltado Texto="@context.Nombre" Termino="@_busqueda" />@(" ")<TextoResaltado Texto="@context.Apellidos" Termino="@_busqueda" /></button>
-                            @if (context.VoluntarioInactivo)
-                            {
-                                <span class="voluntario-inactivo" title="@Textos["VoluntarioInactivoAyuda"]">@Textos["VoluntarioInactivo"]</span>
-                            }
-                        </span>
-
-                                </div></td>
-                                <td>
-                                    @if (!string.IsNullOrWhiteSpace(context.Dni))
-                            {
-                                <span class="celda-trabajador-dni">
-                                    <BotonCopiar EnLinea="true" Valor="@context.Dni" Texto="@context.Dni" TerminoResaltado="@_busqueda" Etiqueta="@Textos["EtiquetaCopiarDni"]"
-                                                     NombreAccesible="@Textos["CopiarDni", context.Dni]" />
-                                </span>
-                                    }
-                                </td>
-                                <td>@context.EmpleadorNombre</td>
-
-                                <td class="col-registrados-vigentes">
-                                    <span class="celda-registrados-vigentes">
-                                        <BarraCumplimiento Porcentaje="@PorcentajeRegistradosVigentes(context)"
-                                                           Texto="@MotivoIncidenciasUi.RegistradosVigentes(context.DocumentosVigentes, context.DocumentosRegistrados)"
-                                                           Etiqueta="@MotivoIncidenciasUi.RegistradosVigentesAccesible(context.DocumentosVigentes, context.DocumentosRegistrados)" />
-                                    </span>
-                                </td>
-                                @{
-                                    // Lo exigido y sin documento no está entre los documentos registrados: el estado de la fila
-                                    // nunca puede decir «Sin incidencias» mientras falte un Tipo que un Centro le exige.
-                                    var estadoFila = EstadoDocumentoUi.ConFaltantes(context.EstadoDocumental, context.DocumentosFaltantes.Count > 0);
-                                }
-                                <td class="col-estado"><EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(estadoFila)" Texto="@EstadoDocumentoUi.TextoDocumental(estadoFila)" Correcto="EstadoDocumentoUi.EsCorrecto(estadoFila)" Motivo="@MotivoIncidenciasUi.Texto(context.Incidencias, context.DocumentosFaltantes, CaeManager.Domain.Common.DiaDeNegocio.Hoy())" /></td>
-                                <td class="acciones-trabajador"><Boton360 Nombre="@NombreCompleto(context)" Href="@($"/trabajadores/{context.Id}")" /></td>
-                            </tr>
-                            @if (context.Incidencias.Count > 0 && EstaExpandido(context))
-                            {
-                                <tr @key="claves.De((context.Id, true))" class="trabajador-detalle-incidencias"><td colspan="@(_seleccionMultiple ? 7 : 6)">
-                                    <SubcajaIncidenciasDocumentales Incidencias="context.Incidencias" Interactiva="_puedeEscribir" AlPulsar="incidencia => CorregirIncidenciaAsync(context, incidencia)" Busqueda="@_busqueda" />
-                                </td></tr>
-                            }
-                        }
-                    </tbody>
-                </table>
-
-                </div>
-
-        @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
-        {
-            @* Distinto de "aún no hay trabajadores": aquí hay filtros
-               puestos —búsqueda, documentación, empresa o subcontrata— y
-               ofrecer "crea el primero" a quien ha filtrado lo manda a dar de
-               alta un trabajador que probablemente ya existe, con el DNI
-               duplicado que eso arrastra.
-
-               La copia no afirma que HAYA trabajadores dados de alta: el
-               filtrado es de servidor y solo devuelve el total ya filtrado. *@
-            <EstadoVacio NombreIcono="vacio" Titulo="@Textos["VacioFiltrosTitulo"]"
-                         Descripcion="@Textos["VacioFiltrosDescripcion"]">
+           La copia no afirma que HAYA trabajadores dados de alta: el
+           filtrado es de servidor y solo devuelve el total ya filtrado. *@
+        <EstadoVacio NombreIcono="vacio" Titulo="@Textos["VacioFiltrosTitulo"]">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["BotonQuitarFiltros"]</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_elementosPagina.Count == 0)
+    {
+        @* Con alcance cero no se invita a crear lo que quizá ya existe fuera de la cartera (P0-9a, FS-05). *@
+        <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
+            <EstadoVacio NombreIcono="trabajadores" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
                 <Accion>
-                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["BotonQuitarFiltros"]</Boton>
+                    <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync">@Textos["BotonNuevoTrabajador"]</Boton></SoloConEscritura>
                 </Accion>
             </EstadoVacio>
-        }
-        else if (_totalElementos == 0 && !_cargando)
-        {
-            @* Con alcance cero no se invita a crear lo que quizá ya existe fuera de la cartera (P0-9a, FS-05). *@
-            <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
-                <EstadoVacio NombreIcono="trabajadores" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
-                    <Accion>
-                        <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync">@Textos["BotonNuevoTrabajador"]</Boton></SoloConEscritura>
-                    </Accion>
-                </EstadoVacio>
-            </VacioSegunAlcance>
-        }
-</text>, PieDelListado)
+        </VacioSegunAlcance>
+    }
+    else
+    {
+        @* Marco de la lista del mockup: una sola tarjeta con la cabecera de columnas arriba y las filas separadas por una
+           línea. Sin roles de tabla ni QuickGrid, como Empresas: la fila se despliega y QuickGrid no soporta filas
+           expandibles. Los rótulos «Trabajador», «Empresa» y «Documentación» ordenan (el orden vive en la URL). *@
+        @TarjetaListado.Renderizar(@<text>
+            <div class="marco-lista-trabajadores">
+            <div class="@ClaseRejilla("cabecera-columnas-trabajadores")">
+                @if (_seleccionMultiple)
+                {
+                    <span class="seleccion-trabajador"><input type="checkbox" aria-label="@Textos["AriaSeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" /></span>
+                }
+                <span></span>
+                @(CabeceraOrdenable(nameof(TrabajadorListaDto.Apellidos), Textos["ListaColumnaTrabajador"]))
+                @(CabeceraOrdenable(nameof(TrabajadorListaDto.EmpleadorNombre), Textos["ListaColumnaEmpleador"]))
+                <span class="col-registrados-vigentes">@Textos["ListaColumnaRegistradosVigentes"]</span>
+                @(CabeceraOrdenable(nameof(TrabajadorListaDto.EstadoDocumental), Textos["ListaColumnaEstadoDocumental"], "col-estado"))
+                <span></span>
+            </div>
+
+            <div class="lista-filas-acordeon" aria-busy="@(_cargando ? "true" : "false")">
+                @foreach (var (context, grupo, cantidadGrupo) in FilasConGrupo())
+                {
+                    @if (grupo is not null)
+                    {
+                        @* Título del grupo «Por Empresa» (maqueta de Trabajadores): la Empresa y cuántos Trabajadores suyos hay en esta página. *@
+                        <div class="cabecera-grupo-trabajadores" data-grupo-empresa="@grupo">
+                            @grupo<span class="cabecera-grupo-trabajadores-recuento">· @cantidadGrupo</span>
+                        </div>
+                    }
+                    <div class="@ClaseTarjeta(context)" @key="context.Id">
+                        @{ var expandido = context.Incidencias.Count > 0 && EstaExpandido(context); }
+                        @* Patrón de listados: la fila no lleva menú «⋯». Un clic en cualquier punto de la fila abre la
+                           vista rápida (el panel del Context Workspace), igual que Enter sobre la fila enfocada; los
+                           controles de dentro —casilla, desplegable, DNI copiable, icono 360— hacen lo suyo y no dejan
+                           subir el clic. *@
+                        <div class="@(ClaseRejilla("tarjeta-fila-acordeon-cabecera") + " fila-pulsable")"
+                             @onclick="() => AbrirVistaRapidaAsync(context.Id)">
+                            @if (_seleccionMultiple)
+                            {
+                                <span class="seleccion-trabajador"><input type="checkbox" aria-label="@(Textos["AriaSeleccionarTrabajador", NombreCompleto(context)])" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" @onclick:stopPropagation="true" /></span>
+                            }
+                            @if (context.Incidencias.Count > 0)
+                            {
+                                <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
+                                        aria-label="@Textos["DesplegarIncidenciasTrabajador", NombreCompleto(context)]" aria-expanded="@(expandido ? "true" : "false")"
+                                        @onclick="() => AlternarExpansion(context.Id)" @onclick:stopPropagation="true">
+                                    <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                                </button>
+                            }
+                            else
+                            {
+                                <span></span>
+                            }
+                            @* Celda «Trabajador»: «Nombre Apellidos» (abre la vista rápida) con, si es voluntario sin evento, su pastilla, y
+                               debajo «DNI» y el documento copiable con un clic, sin abrir la fila. *@
+                            <span class="celda-identidad-trabajador">
+                                <span class="celda-trabajador">
+                                    <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida"
+                                            aria-label="@Textos["AbrirVistaRapidaDe", NombreCompleto(context)]"
+                                            @onclick="() => AbrirVistaRapidaAsync(context.Id)" @onclick:stopPropagation="true"><TextoResaltado Texto="@context.Nombre" Termino="@_busqueda" />@(" ")<TextoResaltado Texto="@context.Apellidos" Termino="@_busqueda" /></button>
+                                    @if (context.VoluntarioInactivo)
+                                    {
+                                        <span class="voluntario-inactivo" title="@Textos["VoluntarioInactivoAyuda"]">@Textos["VoluntarioInactivo"]</span>
+                                    }
+                                </span>
+                                @if (!string.IsNullOrWhiteSpace(context.Dni))
+                                {
+                                    <span class="celda-trabajador-dni">
+                                        <span>@Textos["ListaColumnaDni"]</span>
+                                        <BotonCopiar EnLinea="true" Valor="@context.Dni" Texto="@context.Dni" TerminoResaltado="@_busqueda" Etiqueta="@Textos["EtiquetaCopiarDni"]"
+                                                     NombreAccesible="@Textos["CopiarDni", context.Dni]" />
+                                    </span>
+                                }
+                            </span>
+                            <span class="celda-empresa-trabajador">@context.EmpleadorNombre</span>
+                            <span class="col-registrados-vigentes">
+                                <span class="celda-registrados-vigentes">
+                                    <BarraCumplimiento Porcentaje="@PorcentajeRegistradosVigentes(context)"
+                                                       Texto="@MotivoIncidenciasUi.RegistradosVigentes(context.DocumentosVigentes, context.DocumentosRegistrados)"
+                                                       Etiqueta="@MotivoIncidenciasUi.RegistradosVigentesAccesible(context.DocumentosVigentes, context.DocumentosRegistrados)" />
+                                </span>
+                            </span>
+                            @{
+                                // Lo exigido y sin documento no está entre los documentos registrados: el estado de la fila
+                                // nunca puede decir «Sin incidencias» mientras falte un Tipo que un Centro le exige.
+                                var estadoFila = EstadoDocumentoUi.ConFaltantes(context.EstadoDocumental, context.DocumentosFaltantes.Count > 0);
+                            }
+                            <span class="col-estado celda-estado-trabajador"><EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(estadoFila)" Texto="@EstadoDocumentoUi.TextoDocumental(estadoFila)" Correcto="EstadoDocumentoUi.EsCorrecto(estadoFila)" Motivo="@MotivoIncidenciasUi.Texto(context.Incidencias, context.DocumentosFaltantes, CaeManager.Domain.Common.DiaDeNegocio.Hoy())" /></span>
+                            <div class="tarjeta-fila-acordeon-acciones acciones-trabajador">
+                                <Boton360 Nombre="@NombreCompleto(context)" Href="@($"/trabajadores/{context.Id}")" />
+                            </div>
+                        </div>
+                        @if (expandido)
+                        {
+                            @* La fila desplegada son los documentos que piden trabajo, cada uno con la única acción «Gestionar»
+                               (maqueta de Trabajadores; regla 8 de LEEME-AUTORIDAD: un solo verbo para todo lo que necesita
+                               el trabajo del Gestor CAE). Son las incidencias que ya trae la fila: no cuestan otra consulta y
+                               se corrigen con el mismo formulario de siempre (CorreccionIncidenciaDocumental). Quien solo
+                               consulta ve los documentos sin el botón: no se le ofrece un formulario que el comando le va a
+                               denegar. *@
+                            <div class="@("tarjeta-fila-acordeon-contenido" + (_seleccionMultiple ? " contenido-con-seleccion" : string.Empty))">
+                                <ul class="documentos-pendientes-trabajador" data-pieza="documentos-pendientes">
+                                    @foreach (var incidencia in context.Incidencias)
+                                    {
+                                        <li class="@(SubcajaIncidenciasDocumentales.Coincide(incidencia, _busqueda) ? "documento-pendiente-trabajador coincidencia-incidencia" : "documento-pendiente-trabajador")" @key="incidencia.DocumentoId">
+                                            <span class="documento-pendiente-nombre"><TextoResaltado Texto="@MotivoIncidenciasUi.NombreDeTipo(incidencia)" Termino="@_busqueda" /></span>
+                                            <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
+                                            <span class="documento-pendiente-detalle"><TextoResaltado Texto="@DetalleDelDocumento(incidencia)" Termino="@_busqueda" /></span>
+                                            @if (_puedeEscribir)
+                                            {
+                                                <button type="button" class="documento-pendiente-gestionar" data-accion="gestionar"
+                                                        aria-label="@Textos["GestionarDocumentoAccesible", MotivoIncidenciasUi.NombreDeTipo(incidencia), NombreCompleto(context)]"
+                                                        @onclick="() => CorregirIncidenciaAsync(context, incidencia)">@Textos["Gestionar"]</button>
+                                            }
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            </div>
+        </text>, PieDelListado)
+    }
+    @if (!_errorCarga && !_cargando && _elementosPagina.Count == 0)
+    {
+        @TarjetaListado.RenderizarMaqueta(null, PieDelListadoVacio)
     }
     }
 </div>
@@ -427,10 +484,17 @@
 </LimiteDeErrores>
 
 @code {
-    private RenderFragment? PieDelListado => _errorCarga || (_cargando && _totalElementos == 0) ? null : @<text>
+    private RenderFragment PieDelListado => PieSegun(false);
+
+    // Sin trabajadores el pie sigue visible debajo de la tarjeta, con la presentación de la maqueta anterior
+    // (regla compartida de los listados, ListadosPieSiempreVisibleTests).
+    private RenderFragment PieDelListadoVacio => PieSegun(true);
+
+    // Un solo montaje de la leyenda de atajos (LeyendaAtajosListaAdopcionTests): lo único que cambia es la presentación del pie.
+    private RenderFragment PieSegun(bool presentacionMaqueta) => @<text>
         @if (!_errorCarga && (!_cargando || _totalElementos > 0))
         {
-            <PaginadorSimple PresentacionMaqueta="true" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+            <PaginadorSimple PresentacionMaqueta="presentacionMaqueta" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
                                   TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
                     <Centro><LeyendaAtajosLista /></Centro>
@@ -444,7 +508,9 @@
 }
 
 @code {
-    private RenderFragment CabeceraOrdenable(string propiedad, string titulo, string clase = "") => @<th scope="col" class="@(clase + (_orden.Propiedad == propiedad ? (_orden.Direccion == SortDirection.Descending ? " col-sort-desc" : " col-sort-asc") : ""))" aria-sort="@(_orden.Propiedad == propiedad ? (_orden.Direccion == SortDirection.Descending ? "descending" : "ascending") : "none")">
-        <button type="button" class="col-title" @onclick="() => OrdenarAsync(propiedad)"><span class="col-title-text">@titulo</span></button>
-    </th>;
+    // Rótulo de columna que ordena. Sin roles de tabla (la lista no lo es), así que el sentido del orden lo dice la
+    // flecha de la clase y el nombre accesible del botón. Agrupada «Por Empresa» manda el orden del grupo: ninguna columna lo marca.
+    private RenderFragment CabeceraOrdenable(string propiedad, string titulo, string clase = "") => @<span class="@(clase + (!_agruparPorEmpresa && _orden.Propiedad == propiedad ? (_orden.Direccion == SortDirection.Descending ? " col-sort-desc" : " col-sort-asc") : ""))">
+        <button type="button" class="col-title" title="@Textos["OrdenarPorColumna"]" @onclick="() => OrdenarAsync(propiedad)"><span class="col-title-text">@titulo</span></button>
+    </span>;
 }

@@ -91,19 +91,19 @@
     <value>trabajador(es)</value>
   </data>
   <data name="VacioFiltrosTitulo" xml:space="preserve">
-    <value>Ningún trabajador con estos filtros</value>
+    <value>Ningún resultado con estos filtros</value>
   </data>
   <data name="VacioFiltrosDescripcion" xml:space="preserve">
     <value>Ninguno coincide con la búsqueda ni con los filtros de documentación, empresa o subcontrata.</value>
   </data>
   <data name="BotonQuitarFiltros" xml:space="preserve">
-    <value>Quitar los filtros</value>
+    <value>Quitar filtros</value>
   </data>
   <data name="VacioTitulo" xml:space="preserve">
-    <value>Aún no hay trabajadores</value>
+    <value>Todavía no hay trabajadores</value>
   </data>
   <data name="VacioDescripcion" xml:space="preserve">
-    <value>Da de alta el primero para empezar a controlar su documentación.</value>
+    <value>Da de alta el primero o impórtalos desde una hoja de cálculo.</value>
   </data>
   <data name="DrawerNuevoTitulo" xml:space="preserve">
     <value>Nuevo trabajador</value>
@@ -625,10 +625,10 @@
     <value>Vigencia sin confirmar: {0}</value>
   </data>
   <data name="ListaFiltrarPlaceholder" xml:space="preserve">
-    <value>Filtrar esta pantalla: nombre, DNI o alias</value>
+    <value>Filtrar esta pantalla: Nombre, DNI o alias</value>
   </data>
   <data name="ListaColumnaTrabajador" xml:space="preserve">
-    <value>Nombre</value>
+    <value>Trabajador</value>
   </data>
   <data name="ListaOpcionSubcontrata" xml:space="preserve">
     <value>{0} (subcontrata)</value>
@@ -655,7 +655,7 @@
     <value>Editar (e)</value>
   </data>
   <data name="ListaColumnaEstadoDocumental" xml:space="preserve">
-    <value>Documentación</value>
+    <value>Estado documental</value>
   </data>
   <data name="ListaColumnaRegistradosVigentes" xml:space="preserve">
     <value>Registrados vigentes</value>
@@ -730,5 +730,11 @@
   <data name="FichaCopiarNombreAccesible" xml:space="preserve"><value>Copiar {0}</value></data>
   <data name="FichaCopiarNombreAccesibleConValor" xml:space="preserve"><value>Copiar {0}: {1}</value></data>
   <data name="ListaColumnaDni" xml:space="preserve"><value>DNI</value></data>
-  <data name="ListaColumnaEmpleador" xml:space="preserve"><value>Empresa / Subcontrata</value></data>
+  <data name="ListaColumnaEmpleador" xml:space="preserve"><value>Empresa</value></data>
+  <data name="Gestionar" xml:space="preserve"><value>Gestionar</value></data>
+  <data name="GestionarDocumentoAccesible" xml:space="preserve"><value>Gestionar {0} de {1}</value></data>
+  <data name="EtiquetaAgrupar" xml:space="preserve"><value>Agrupar</value></data>
+  <data name="OpcionSinAgrupar" xml:space="preserve"><value>Sin agrupar</value></data>
+  <data name="AgruparPorEmpresa" xml:space="preserve"><value>Por Empresa</value></data>
+  <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordenar</value></data>
 </root>
