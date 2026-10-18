@@ -142,8 +142,7 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         // antes), así que se entra directamente, sin pasar por el hub. Como en el
         // marco de Design (marco-talveg.js), el grupo «Plataforma» nace plegado:
         // se abre antes, como haría la persona.
-        await Ayudas.AbrirGrupoDelMenuAsync(page, "plataforma");
-        await page.Locator(".nav-item", new PageLocatorOptions { HasText = "Delegaciones" }).ClickAsync();
+        await Ayudas.AbrirGrupoYClickAsync(page, "plataforma", page.Locator("a.nav-item[href='delegaciones']"));
         await page.WaitForURLAsync($"{fixture.BaseUrl}/delegaciones");
 
         tarjeta = TarjetaSoporte(page, Ayudas.NombreClienteDelegadoDemo);
