@@ -54,8 +54,8 @@ public class ObtenerEmpresasPorClienteQueryTests
         public Empresa Basauri { get; } = new("Basauri Obras S.L.");
         public Empresa Castro { get; } = new("Castro Servicios S.L.");
         public Empresa Dominguez { get; } = new("Dominguez Reformas S.L.");
-        public Empresa Umbrella { get; } = Empresa.CrearComoCliente("Umbrella Iberica S.A.", "B00000000", esCritico: false, notas: null, ejecutivoUsuarioId: null);
-        public Empresa Cyberdyne { get; } = Empresa.CrearComoCliente("Cyberdyne Iberica S.A.", null, esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        public Empresa Umbrella { get; } = Empresa.CrearComoCliente("Umbrella Iberica S.A.", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        public Empresa Cyberdyne { get; } = Empresa.CrearComoCliente("Cyberdyne Iberica S.A.", "B10380202", esCritico: false, notas: null, ejecutivoUsuarioId: null);
         public EmpresasQueryContextFalso Contexto { get; } = new();
 
         /// <summary>

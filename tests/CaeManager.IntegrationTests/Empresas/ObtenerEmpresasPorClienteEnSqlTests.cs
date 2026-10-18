@@ -41,8 +41,8 @@ public class ObtenerEmpresasPorClienteEnSqlTests : IAsyncLifetime
         var aragon = new Empresa("Aragon Montajes S.L.");
         var basauri = new Empresa("Basauri Obras S.L.");
         var castro = new Empresa("Castro Servicios S.L.");
-        var umbrella = Empresa.CrearComoCliente("Umbrella Iberica S.A.", null, esCritico: false, notas: null, ejecutivoUsuarioId: null);
-        var cyberdyne = Empresa.CrearComoCliente("Cyberdyne Iberica S.A.", null, esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        var umbrella = Empresa.CrearComoCliente("Umbrella Iberica S.A.", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        var cyberdyne = Empresa.CrearComoCliente("Cyberdyne Iberica S.A.", "B10380202", esCritico: false, notas: null, ejecutivoUsuarioId: null);
         contexto.Empresas.AddRange(aragon, basauri, castro, umbrella, cyberdyne);
         await contexto.SaveChangesAsync();
 
