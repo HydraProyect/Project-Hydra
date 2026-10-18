@@ -269,6 +269,7 @@ public static class InfrastructureServiceCollectionExtensions
         // dominio: ya no existe ninguna fuente legacy que registrar aquí.
         services.AddScoped<IEmpresaRepository, EmpresaRepository>();
         services.AddScoped<ICredencialAccesoEmpresaRepository, CredencialAccesoEmpresaRepository>();
+        services.AddScoped<ICatalogoTrabajadoresEmpresaRepository, CatalogoTrabajadoresEmpresaRepository>();
         services.AddScoped<IPlataformaCaeClienteEmpresarialRepository, PlataformaCaeClienteEmpresarialRepository>();
         services.AddScoped<IVerificacionExternaSubcontrataRepository, VerificacionExternaSubcontrataRepository>();
         services.AddScoped<IRelacionEmpresarialRepository, RelacionEmpresarialRepository>();

@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -19,7 +19,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
         // Los mismos más el contacto de emergencia: nombre y teléfono de una persona física a la que avisar, así que son
         // dato personal (Trabajador.CamposDeDatosPersonales) y la anonimización los enmascara también en el historial.
-        private const string CamposConContactoEmergencia =
+        internal const string CamposConContactoEmergencia =
             """
             'Nombre', 'Apellidos', 'Alias', 'Dni', 'FechaNacimiento',
                                 'Email', 'Telefono', 'Observaciones', 'Notas',
@@ -70,7 +70,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 table: "Trabajadores");
         }
 
-        private static string DefinicionDeLaFuncion(string campos) =>
+        // internal: AnadeDelegacionYOficioEmpresa redefine la función con el mismo cuerpo y otra lista de campos.
+        internal static string DefinicionDeLaFuncion(string campos) =>
             $$"""
             CREATE OR REPLACE FUNCTION public.app_enmascarar_auditoria_de_trabajador_anonimizado(p_trabajador_id uuid) RETURNS integer
                 LANGUAGE plpgsql SECURITY DEFINER
