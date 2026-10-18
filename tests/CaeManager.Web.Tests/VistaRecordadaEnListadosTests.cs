@@ -303,7 +303,7 @@ public class VistaRecordadaEnListadosTests : BunitContext
     {
         var recordada = ConVistaRecordada(PantallasConVistaRecordada.Centros,
             ("q", "Nave"), ("estado", "Vencido"), ("cliente", ClienteA.ToString()), ("empresa", EmpresaE.ToString()),
-            ("agrupar", "no"), ("orden", "cumplimiento-desc"));
+            ("agrupar", "cliente"), ("orden", "cumplimiento-desc"));
 
         var cut = Renderizar<Centros>("centros");
 

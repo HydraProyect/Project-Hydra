@@ -105,7 +105,7 @@ public class ImportarClientesTests(WebAppFixture fixture)
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
             await page.GetByPlaceholder("Filtrar esta pantalla: nombre").FillAsync(nombreClienteCentro);
             await page.WaitForTimeoutAsync(500); // debounce de CampoTexto
-            await Expect(page.Locator("tr", new PageLocatorOptions { HasText = nombreClienteCentro })).ToHaveCountAsync(0);
+            await Expect(page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = nombreClienteCentro })).ToHaveCountAsync(0);
         }
         finally
         {

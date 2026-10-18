@@ -890,18 +890,23 @@ public static class Ayudas
     }
 
     /// <summary>
-    /// /centros agrupa por Cliente empresarial y los grupos arrancan contraídos (rediseño de
-    /// listados, fase 1): sin buscar, las filas de Centro no se ven. Para los recorridos que
-    /// necesitan una fila cualquiera, «Sin agrupar» (en el desplegable «Agrupar») las pinta todas.
+    /// /centros nace sin agrupar (lista 1:1 con la maqueta; «Por Cliente» se elige en el desplegable
+    /// «Agrupar» y los títulos de grupo no se contraen). Un recorrido que necesita una fila cualquiera
+    /// asegura aquí el estado sin agrupar aunque la vista recordada o la URL traigan «Por Cliente»:
+    /// elige «Sin agrupar» y espera a que la pastilla diga «Agrupar» y no quede ningún título de grupo.
     /// </summary>
     public static async Task MostrarCentrosSinAgruparAsync(IPage page)
     {
-        await ElegirAgrupacionAsync(page, "Sin agrupar", new Regex("^Agrupar: no$"));
-        await Assertions.Expect(page.Locator(".grupo-lista")).ToHaveCountAsync(0);
+        await ElegirAgrupacionAsync(page, "Sin agrupar", new Regex("^Agrupar$"));
+        await Assertions.Expect(page.Locator(".cabecera-grupo-centros")).ToHaveCountAsync(0);
     }
 
-    /// <summary>El desplegable «Agrupar» de un listado: el disparador que declara la letra A de KeyTips.</summary>
-    public static ILocator DesplegableAgrupar(IPage page) => page.Locator("[data-keytip='A']");
+    /// <summary>
+    /// El desplegable «Agrupar» de un listado: una pastilla de filtro cuya letra de KeyTips (la A) se deduce de su
+    /// nombre en el navegador, no se declara en <c>data-keytip</c>; se localiza por el nombre que declara en
+    /// <c>data-keytip-nombre</c>.
+    /// </summary>
+    public static ILocator DesplegableAgrupar(IPage page) => page.Locator(".barra-filtros-pastillas [data-keytip-nombre='Agrupar']");
 
     /// <summary>
     /// Elige una opción del desplegable «Agrupar» por su texto («Sin agrupar», «Por Cliente») y espera a que

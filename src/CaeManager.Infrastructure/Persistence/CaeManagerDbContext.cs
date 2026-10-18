@@ -159,6 +159,8 @@ public class CaeManagerDbContext(
     public DbSet<Empresa> Empresas => Set<Empresa>();
     IQueryable<Empresa> IEmpresasQueryContext.Empresas => Empresas;
     public DbSet<CredencialAccesoEmpresa> CredencialesAccesoEmpresa => Set<CredencialAccesoEmpresa>();
+    public DbSet<DelegacionEmpresa> DelegacionesEmpresa => Set<DelegacionEmpresa>();
+    public DbSet<OficioEmpresa> OficiosEmpresa => Set<OficioEmpresa>();
     IQueryable<CredencialAccesoEmpresa> IEmpresasQueryContext.CredencialesAccesoEmpresa => CredencialesAccesoEmpresa;
     public DbSet<PlataformaCaeClienteEmpresarial> PlataformasCaeClienteEmpresarial => Set<PlataformaCaeClienteEmpresarial>();
     IQueryable<PlataformaCaeClienteEmpresarial> IEmpresasQueryContext.PlataformasCaeClienteEmpresarial => PlataformasCaeClienteEmpresarial;

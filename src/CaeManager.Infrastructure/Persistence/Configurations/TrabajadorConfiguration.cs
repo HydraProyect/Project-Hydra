@@ -73,6 +73,19 @@ public class TrabajadorConfiguration : IEntityTypeConfiguration<Trabajador>
             .HasPrincipalKey(s => new { s.TenantId, s.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Delegación y Oficio de su Empresa (2026-10-18). La FK lleva TenantId y EmpresaId: la fila referida tiene que
+        // ser del mismo Tenant y de la misma Empresa que el Trabajador. Con columnas nulas es MATCH SIMPLE, así que un
+        // Trabajador sin Delegación u Oficio no se comprueba; uno de Subcontrata (EmpresaId nulo) no puede tenerlos por
+        // CK_Trabajadores_CatalogoSoloDeEmpresa, que añade la migración AnadeDelegacionYOficioEmpresa.
+        builder.HasOne<DelegacionEmpresa>().WithMany()
+            .HasForeignKey(t => new { t.TenantId, t.EmpresaId, t.DelegacionEmpresaId })
+            .HasPrincipalKey(d => new { d.TenantId, d.EmpresaId, d.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<OficioEmpresa>().WithMany()
+            .HasForeignKey(t => new { t.TenantId, t.EmpresaId, t.OficioEmpresaId })
+            .HasPrincipalKey(o => new { o.TenantId, o.EmpresaId, o.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+
         // Prerequisito de las FKs que Asignacion/Documento/... declaran hacia Trabajador.
         builder.HasIndex(t => new { t.TenantId, t.Id }).IsUnique();
 

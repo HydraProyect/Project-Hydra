@@ -151,7 +151,11 @@ public class TerminologiaCanonicaTests
         ["EjecutivoUsuarioId"] = ("EjecutivoUsuarioId",
             "Asignación de Cartera — eje único de responsabilidad que ADR-011 sustituye (§ 5)"),
 
-        ["Delegacion"] = ("Delegacion",
+        // «Delegación de Empresa» (DelegacionEmpresa, tabla DelegacionesEmpresa; 2026-10-18) es un término distinto:
+        // la sede de una Empresa a la que pertenecen sus Trabajadores, no la Asignación de Operación. Se excluye por
+        // su nombre completo, no por raíz: todo identificador de ese concepto lleva «DelegacionEmpresa» o
+        // «DelegacionesEmpresa», así que la deuda de «Delegacion» a secas sigue contándose entera.
+        ["Delegacion"] = ("Delegacion(?!(es)?Empresa)",
             "Asignación de Operación — vocabulario de ADR-004 que ADR-011 § 2.7 generaliza (§ 5)"),
 
         // NO está en el § 5 del contrato: lo encontró el primer barrido de auditoría
@@ -430,7 +434,7 @@ public class TerminologiaCanonicaTests
         // argumentos por posición (un árbol de expresión no admite los opcionales del record), y
         // el «EjecutivoUsuarioId: c.EjecutivoUsuarioId» nombrado pasó a ser un solo uso. Baja
         // mecánica: la deuda (Gestor CAE de referencia del Cliente empresarial) sigue entera.
-        ["EjecutivoUsuarioId"] = 31,
+        ["EjecutivoUsuarioId"] = 28, // 31 → 28 el 2026-10-18: la lista de Clientes ya no reasigna el Gestor CAE (vive en Cliente 360)
         // 337 → 340 (2026-09-28, «Asignar empresas» a un Gestor CAE existente): tres usos de
         // identificadores legacy que ya existen y no se renombran aquí —DelegacionesTenant,
         // DelegacionTenantId y PropositoDelegacion— en la retirada de la fila heredada de

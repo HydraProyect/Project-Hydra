@@ -10,7 +10,8 @@ namespace CaeManager.E2ETests;
 /// subir, ejecutar una letra y salir.
 /// </summary>
 /// <remarks>
-/// «Agrupar» es un desplegable (<c>DesplegableAgrupar</c>, letra A): un menú que abre Blazor, cuyas
+/// «Agrupar» es una pastilla (<c>PastillaFiltro</c> con <c>Keytip="A"</c>, la letra estable que anuncia la
+/// chuleta; una pastilla sin letra declarada la deduce del nombre y nunca recibe una estable): un menú que abre Blazor, cuyas
 /// opciones reciben letra al llegar el panel y que apaga el modo al elegir. Ningún control del código
 /// se declara hoy como grupo (<c>data-keytip-grupo</c>): ese nivel, en el que elegir no apaga, lo
 /// cubre <see cref="KeyTipsSuperficieTests"/> con HTML estático.
@@ -34,10 +35,11 @@ public class KeyTipsEnListadoTests(WebAppFixtureListados fixture)
         var filtro = page.Locator("[data-filtro-pantalla]");
         var apagado = new System.Text.RegularExpressions.Regex(".+");
 
-        // «Agrupar» solo se pinta con centros en la página; de serie la lista llega agrupada.
+        // «Agrupar» solo se pinta con centros en la página; de serie la lista llega sin agrupar.
         await Assertions.Expect(agrupar).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await Assertions.Expect(agrupar).ToHaveAttributeAsync("aria-expanded", "false");
-        await Assertions.Expect(page.Locator(".grupo-lista")).Not.ToHaveCountAsync(0);
+        await Assertions.Expect(agrupar).ToHaveTextAsync("Agrupar");
+        await Assertions.Expect(page.Locator(".cabecera-grupo-centros")).ToHaveCountAsync(0);
 
         // --- Encender: Alt pulsada y soltada sola. ---
         await page.Keyboard.PressAsync("Alt");
@@ -54,10 +56,10 @@ public class KeyTipsEnListadoTests(WebAppFixtureListados fixture)
         await Assertions.Expect(html).ToHaveAttributeAsync("data-keytips", "menu");
         await Assertions.Expect(letras).ToHaveCountAsync(2);
 
-        // --- Elegir una opción la aplica y apaga el modo: «Sin agrupar» quita los grupos. ---
-        await page.Keyboard.PressAsync("s");
-        await Assertions.Expect(agrupar).ToHaveTextAsync("Agrupar: no");
-        await Assertions.Expect(page.Locator(".grupo-lista")).ToHaveCountAsync(0);
+        // --- Elegir una opción la aplica y apaga el modo: «Por Cliente» pone los títulos de grupo. ---
+        await page.Keyboard.PressAsync("p");
+        await Assertions.Expect(agrupar).ToHaveTextAsync("Agrupar: Por Cliente");
+        await Assertions.Expect(page.Locator(".cabecera-grupo-centros")).Not.ToHaveCountAsync(0);
         await Assertions.Expect(html).Not.ToHaveAttributeAsync("data-keytips", apagado);
         await Assertions.Expect(letras).ToHaveCountAsync(0);
 

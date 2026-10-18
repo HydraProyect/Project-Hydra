@@ -21,7 +21,6 @@ src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.ca-ES.resx :: QuitarA
 src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.ca-ES.resx :: QuitarAjusteMensajeConFormulario [tenant-a-secas] = 1
 src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.resx :: QuitarAjusteMensaje [tenant-a-secas] = 1
 src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.resx :: QuitarAjusteMensajeConFormulario [tenant-a-secas] = 1
-src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor :: [gestor-a-secas] = 1
 src/CaeManager.Web/Features/Clientes/Pages/ConfiguracionIaCliente.razor :: [tenant-a-secas] = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.ca-ES.resx :: PresupuestoDescripcion [operador-a-secas] = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: PresupuestoDescripcion [operador-a-secas] = 1

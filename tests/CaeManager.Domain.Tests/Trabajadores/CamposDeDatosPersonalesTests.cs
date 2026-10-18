@@ -17,6 +17,8 @@ public class CamposDeDatosPersonalesTests
     private static readonly string[] PropiedadesNoPersonales =
     [
         nameof(Trabajador.EmpresaId), nameof(Trabajador.SubcontrataId), nameof(Trabajador.AnonimizadoEnUtc),
+        // La Delegación de su Empresa es dato de organización, como EmpresaId (el Oficio, en cambio, dice lo mismo que el Puesto).
+        nameof(Trabajador.DelegacionEmpresaId),
         // Enum cerrado de tres valores que gobierna reglas operativas (voluntario inactivo); a diferencia de TipoVinculo,
         // que es texto libre, no puede contener nada que identifique a la persona una vez suprimidos nombre y documento.
         nameof(Trabajador.TipoContratacion),
