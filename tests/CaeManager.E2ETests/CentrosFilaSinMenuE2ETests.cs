@@ -23,8 +23,10 @@ public class CentrosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
     // La lista sembrada no tiene un Centro de nombre estable que sirva de ancla: el recorrido vale
     // para cualquier fila, así que se toma la primera, y su celda de Empresa como punto de la fila
-    // que no es ningún control.
-    private static ILocator PrimeraFila(IPage page) => page.Locator(".lista-filas-acordeon .fila-pulsable").First;
+    // que no es ningún control. Solo los Centros con incidencias llevan chevron (maqueta: «tieneHijos») y el
+    // recorrido pulsa el desplegable: se toma la primera fila que lo tenga.
+    private static ILocator PrimeraFila(IPage page) =>
+        page.Locator(".lista-filas-acordeon .fila-pulsable").Filter(new() { Has = page.Locator(".boton-expandir-fila") }).First;
     private static ILocator CeldaSinControles(ILocator fila) => fila.Locator(".columna-empresa-centro");
 
     private async Task<IPage> AbrirCentrosAsync(IBrowserContext contexto)
@@ -57,8 +59,7 @@ public class CentrosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         // Un control de dentro (el desplegable de asignaciones) hace lo suyo y NO abre el panel.
         // Barrera de la ausencia: el panel se abriría en el mismo viaje al servidor que despliega
         // la fila, así que tras un segundo viaje completo (plegarla) ya estaría pintado.
-        // Solo los Centros con incidencias llevan chevron (maqueta: «tieneHijos»): se toma el primero que lo tenga.
-        var desplegable = page.Locator(".lista-filas-acordeon .boton-expandir-fila").First;
+        var desplegable = fila.Locator(".boton-expandir-fila");
         await desplegable.ClickAsync();
         await Expect(desplegable).ToHaveAttributeAsync("aria-expanded", "true");
         await desplegable.ClickAsync();
