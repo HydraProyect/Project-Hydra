@@ -270,4 +270,10 @@
   <data name="FichaDescripcion360" xml:space="preserve"><value>Descripción</value></data>
   <data name="FichaCriterios360" xml:space="preserve"><value>Criterios de validación</value></data>
   <data name="FichaObservaciones360" xml:space="preserve"><value>Observaciones</value></data>
+  <data name="DniCopiado" xml:space="preserve">
+    <value>DNI {0} copiado al portapapeles</value>
+  </data>
+  <data name="AriaCopiarElDni" xml:space="preserve">
+    <value>Copiar el DNI {0}</value>
+  </data>
 </root>

@@ -75,6 +75,21 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
     [Parameter, SupplyParameterFromQuery(Name = "estado")] public string? Estado { get; set; }
 
+    /// <summary>
+    /// <c>accion=subir</c> abre la subida con este Trabajador fijado, como el botón «Subir documento» de la cabecera
+    /// (enlace «Subir documento para…» del palette). Solo con escritura —la misma comprobación que
+    /// <see cref="SoloConEscritura"/> hace con ese botón—; sin ella, el enlace se queda en la ficha y no abre nada. Se
+    /// consume una vez y se quita de la URL, para que recargar o volver atrás no reabra el drawer.
+    /// </summary>
+    [Parameter, SupplyParameterFromQuery(Name = "accion")] public string? Accion { get; set; }
+
+    internal const string AccionSubir = "subir";
+
+    [CascadingParameter] private Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    private string? _accionDeLaUrl;
+    private bool _subidaDeLaUrlPendiente;
+
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -319,6 +334,11 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// </summary>
     private void AdoptarUrl()
     {
+        if (!string.Equals(_accionDeLaUrl, Accion, StringComparison.Ordinal))
+        {
+            _accionDeLaUrl = Accion;
+            _subidaDeLaUrlPendiente = string.Equals(Accion, AccionSubir, StringComparison.Ordinal);
+        }
         if (!string.Equals(_estadoCentrosDeLaUrl, Estado, StringComparison.Ordinal))
         {
             _estadoCentrosDeLaUrl = Estado;
@@ -338,6 +358,27 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         _pestanaActiva = pestana;
         _pestanaDeLaUrl = pestana == PestanaOperacion ? null : pestana;
         NavigationManager.ActualizarFiltroEnUrl("pestana", _pestanaDeLaUrl);
+    }
+
+    /// <summary>
+    /// Abre la subida pedida por <c>accion=subir</c> cuando la ficha ya está cargada y el drawer montado (solo en la
+    /// fase interactiva: OnAfterRender no corre en el prerenderizado).
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_subidaDeLaUrlPendiente || _cargando || _detalle is null || _drawerGestion is null)
+            return;
+
+        _subidaDeLaUrlPendiente = false;
+        _accionDeLaUrl = null;
+        NavigationManager.ActualizarFiltroEnUrl("accion", null);
+
+        if (!await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion))
+            return;
+
+        // Alta de un documento nuevo con el Trabajador fijado: el enlace dice «Subir documento para…», no
+        // «gestionar el más urgente» (eso es el botón de la cabecera).
+        await _drawerGestion.AbrirCrearParaTrabajadorAsync(TrabajadorId);
     }
 
     private async Task CargarAsync()
@@ -430,6 +471,9 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             if (EsVigente(carga))
             {
                 _cargando = false;
+                // Sin ficha no hay subida que abrir: la acción del enlace no queda esperando a una recarga.
+                if (_error)
+                    _subidaDeLaUrlPendiente = false;
                 StateHasChanged();
             }
         }

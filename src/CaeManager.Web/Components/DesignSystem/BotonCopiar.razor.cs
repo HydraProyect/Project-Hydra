@@ -20,6 +20,8 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
     [Parameter] public Func<Task<string?>>? ValorAsync { get; set; }
 
     [Parameter] public string Etiqueta { get; set; } = "el valor";
+    [Parameter] public string? MensajeExito { get; set; }
+    [Parameter] public bool ConfirmarConIcono { get; set; }
 
     /// <summary>Rótulo del botón. Por defecto «Copiar»; se cambia cuando hay varios en una misma fila y hay que distinguirlos.</summary>
     [Parameter] public string Texto { get; set; } = "Copiar";
@@ -39,6 +41,12 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
     [Parameter] public bool EnLinea { get; set; }
 
     /// <summary>
+    /// Rótulo al pasar el ratón por un identificador en línea: «Copiar {valor}», como el <c>title</c> de
+    /// <c>.copia</c> en las maquetas 360. El nombre accesible sigue siendo <see cref="NombreAccesible"/>.
+    /// </summary>
+    private string? TituloEnLinea => EnLinea ? $"Copiar {(string.IsNullOrEmpty(Valor) ? Texto : Valor)}" : null;
+
+    /// <summary>
     /// Lo escrito en el buscador del listado, para marcar en <see cref="Texto"/> la parte que casa
     /// (<c>TextoResaltado</c>). Solo cambia lo que se ve: lo que se copia sigue saliendo de
     /// <see cref="Valor"/> y el nombre accesible de <see cref="NombreAccesible"/>, los dos íntegros.
@@ -49,6 +57,8 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
     [Inject] private ToastService ToastService { get; set; } = default!;
 
     private IJSObjectReference? _modulo;
+    private bool _copiado;
+    private CancellationTokenSource? _confirmacion;
 
     private bool Deshabilitado => ValorAsync is null && string.IsNullOrEmpty(Valor);
 
@@ -72,7 +82,15 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
             if (string.IsNullOrEmpty(valor)) return;
 
             await _modulo.InvokeVoidAsync("copiarAlPortapapeles", valor);
-            ToastService.Mostrar($"Se copió {Etiqueta} al portapapeles.", TonoToast.Exito);
+            ToastService.Mostrar(MensajeExito ?? $"Se copió {Etiqueta} al portapapeles.", TonoToast.Exito);
+            if (ConfirmarConIcono)
+            {
+                _confirmacion?.Cancel();
+                _confirmacion?.Dispose();
+                _confirmacion = new();
+                _copiado = true;
+                _ = RestablecerConfirmacionAsync(_confirmacion.Token);
+            }
         }
         catch (Exception)
         {
@@ -86,8 +104,26 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
         }
     }
 
+    private async Task RestablecerConfirmacionAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(1600), token);
+            await InvokeAsync(() =>
+            {
+                if (token.IsCancellationRequested) return;
+                _copiado = false;
+                StateHasChanged();
+            });
+        }
+        catch (OperationCanceledException) { }
+    }
+
     public async ValueTask DisposeAsync()
     {
+        _confirmacion?.Cancel();
+        _confirmacion?.Dispose();
+        _confirmacion = null;
         if (_modulo is null) return;
 
         try

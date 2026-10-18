@@ -54,6 +54,21 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class Subcontrata360PaginaTests : BunitContext
 {
+    [Fact]
+    public async Task El_dni_de_la_fila_se_copia_con_confirmacion_sin_abrir_la_ficha()
+    {
+        Montar();
+        var cut = Renderizar();
+        var copiar = cut.FindComponents<BotonCopiar>().First(c => c.Instance.Valor == "12345678Z");
+        copiar.Instance.EnLinea.Should().BeTrue();
+        copiar.Instance.ConfirmarConIcono.Should().BeTrue();
+        var destino = Navegacion.Uri;
+        await copiar.Find("button").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        Services.GetRequiredService<ToastService>().Mensajes.Should()
+            .Contain(t => t.Mensaje == "DNI 12345678Z copiado al portapapeles");
+        copiar.FindAll(".boton-copiar-confirmacion").Should().ContainSingle();
+        Navegacion.Uri.Should().Be(destino);
+    }
     public Subcontrata360PaginaTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;

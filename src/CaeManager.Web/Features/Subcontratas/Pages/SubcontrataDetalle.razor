@@ -280,7 +280,7 @@
                                                 <Detalle>
                                                     @if (!string.IsNullOrWhiteSpace(trabajador.TrabajadorDni))
                                                     {
-                                                        @Textos["DetalleDni"] <span class="subcontrata360-copia"><BotonCopiar Valor="@trabajador.TrabajadorDni" Texto="@trabajador.TrabajadorDni" Etiqueta="@Textos["CopiarElDni"]" NombreAccesible="@Textos["AriaCopiarValor360", Textos["CopiarElDni"], trabajador.TrabajadorDni]" /></span>
+                                                        @Textos["DetalleDni"] <span class="subcontrata360-copia"><BotonCopiar EnLinea="true" ConfirmarConIcono="true" MensajeExito="@Textos["DniCopiado", trabajador.TrabajadorDni]" Valor="@trabajador.TrabajadorDni" Texto="@trabajador.TrabajadorDni" Etiqueta="@Textos["CopiarElDni"]" NombreAccesible="@Textos["AriaCopiarValor360", Textos["CopiarElDni"], trabajador.TrabajadorDni]" /></span>
                                                     }
                                                     @if (motivo.Length > 0)
                                                     {

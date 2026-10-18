@@ -102,22 +102,12 @@
     color: var(--color-primary-600);
 }
 
-/* .copia del mockup: el propio valor es lo que se copia, sin botón al lado. */
+/* .copia del mockup: el propio valor es lo que se copia, sin botón al lado. El aspecto
+   (seminegrita, 0 2px, sin subrayado) lo pone BotonCopiar EnLinea; aquí solo el corte de línea. */
 .subcontrata360-copia ::deep .boton-copiar {
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    font: inherit;
-    color: inherit;
     white-space: normal;
     overflow-wrap: anywhere;
     text-align: left;
-    cursor: copy;
-}
-
-.subcontrata360-copia ::deep .boton-copiar:hover:not(:disabled) {
-    background: none;
-    text-decoration: underline;
 }
 
 .subcontrata360-pastilla-tarjeta {
