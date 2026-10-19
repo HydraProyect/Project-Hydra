@@ -337,7 +337,9 @@
   <data name="ListaPlazoTranscurrido" xml:space="preserve"><value>Termini transcorregut</value></data>
   <data name="ListaProyecto" xml:space="preserve"><value>Projecte</value></data>
   <data name="ListaSinFechaFinPrevista" xml:space="preserve"><value>Sense data de fi prevista</value></data>
-  <data name="MigaProyectos" xml:space="preserve"><value>Projectes (obres)</value></data>
+  <data name="MigaProyectos" xml:space="preserve"><value>Projectes</value></data>
+  <data name="ResumenTecnicosProyecto" xml:space="preserve"><value>{0} tècnics actius</value></data>
+  <data name="ResumenTecnicoProyecto" xml:space="preserve"><value>{0} tècnic actiu</value></data>
   <data name="EtiquetaMigas" xml:space="preserve"><value>Ruta de Projecte 360</value></data>
   <data name="TituloPestanaNavegadorDetalle" xml:space="preserve"><value>Projecte</value></data>
   <data name="KickerDetalle" xml:space="preserve"><value>Projecte</value></data>
@@ -501,4 +503,13 @@
   <data name="ToastPlantillaGuardada" xml:space="preserve">
     <value>Plantilla desada.</value>
   </data>
+  <data name="ListaEmpresa" xml:space="preserve"><value>Empresa</value></data>
+  <data name="ListaAgrupar" xml:space="preserve"><value>Agrupar</value></data>
+  <data name="ListaSinAgrupar" xml:space="preserve"><value>Sense agrupar</value></data>
+  <data name="ListaPorEmpresa" xml:space="preserve"><value>Per Empresa</value></data>
+  <data name="ListaDocumentacionDe" xml:space="preserve"><value>Documentació de {0}</value></data>
+  <data name="ListaErrorDocumentacion" xml:space="preserve"><value>No hem pogut carregar la documentació</value></data>
+  <data name="ListaSinDocumentos" xml:space="preserve"><value>Sense documents registrats per a aquest projecte.</value></data>
+  <data name="ListaSinVencimiento" xml:space="preserve"><value>Sense data de venciment</value></data>
+  <data name="ListaGestionar" xml:space="preserve"><value>Gestionar</value></data>
 </root>

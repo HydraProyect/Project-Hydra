@@ -281,4 +281,13 @@
   <data name="SeleccionarDocumento" xml:space="preserve"><value>Seleccionar {0} de {1}, emisión {2}</value></data>
   <data name="SeleccionarPagina" xml:space="preserve"><value>Seleccionar los documentos de esta página</value></data>
   <data name="ToleranciaHasta" xml:space="preserve"><value>En tolerancia hasta {0}</value></data>
+  <data name="RecDestinoDelegacionEmpresa" xml:space="preserve">
+    <value>Se reclama a la Delegación {0}, a su contacto de reclamación.</value>
+  </data>
+  <data name="RecDestinoEmpresa" xml:space="preserve">
+    <value>Se reclama a la Empresa que emplea a estos Trabajadores, a los contactos de su agenda.</value>
+  </data>
+  <data name="RecDelegacionEmpresaSinContactoVisible" xml:space="preserve">
+    <value>No puedes ver el contacto de reclamación de esta Delegación, así que no puedes enviarle la reclamación.</value>
+  </data>
 </root>

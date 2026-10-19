@@ -13,6 +13,7 @@
 @using CaeManager.Web.Features.Subcontratas
 @using CaeManager.Web.Features.Subcontratas.Components
 @using FluentValidation
+@using Microsoft.AspNetCore.Components.QuickGrid
 @using MediatR
 @using CaeManager.Web.Features.IncorporacionCartera.Components
 @inject IMediator Mediator
@@ -66,9 +67,7 @@
        «Nivel» (viaja en la URL como «nivel»), «Filtros guardados» con «Guardar filtro» y, debajo, la franja de estado (viaja en
        la URL como «estado»), los chips y «Limpiar todo». A la derecha, «Expandir todo».
 
-       - La maqueta dibuja además la pastilla «Contratada por» y la agrupación «Por empresa contratante»: ObtenerSubcontratasQuery
-         no devuelve la Empresa contratante de cada Subcontrata ni sabe filtrar por ella, y una pastilla que no filtra nada
-         mentiría. Queda registrado como divergencia hasta que la consulta lo ofrezca.
+       - La pastilla «Contratada por» filtra por la Empresa propia contratante (ContratadaPorEmpresaId; viaja como «contratadapor»).
        - Sin «Importar subcontratas» en el menú ⋯: no existe una plantilla de importación de Subcontratas. *@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["PlaceholderBusqueda"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
@@ -76,6 +75,7 @@
                   OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
                   VistaRecordada="_vistaRecordada">
         <Pastillas>
+            <PastillaFiltro Etiqueta="@Textos["ContratadaPor"]" Valor="@_contratadaPorFiltro" ValorChanged="CambiarContratadaPorAsync" Opciones="OpcionesContratadaPor" />
             <PastillaFiltro Etiqueta="@Textos["RotuloNivel"]" Valor="@_nivelFiltro" ValorChanged="CambiarNivelAsync" Opciones="OpcionesNivel" />
         </Pastillas>
         <Estados>
@@ -83,6 +83,7 @@
                   Recuentos="_recuentosPorEstado" />
         </Estados>
         <Herramientas>
+            <DesplegableAgrupar Opciones="OpcionesAgrupar" Valor="@_agruparPor" ValorChanged="CambiarAgrupacion" />
             @if (HayFilasDesplegables)
             {
                 <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" />
@@ -92,6 +93,10 @@
             @if (!string.IsNullOrWhiteSpace(_busqueda))
             {
                 <ChipFiltro Etiqueta="@Textos["ChipBusqueda", _busqueda]" EtiquetaAccesible="@Textos["BotonQuitarBusqueda"]" OnQuitar="() => BuscarAsync(string.Empty)" />
+            }
+            @if (!string.IsNullOrWhiteSpace(_contratadaPorFiltro))
+            {
+                <ChipFiltro Etiqueta="@Textos["ChipContratadaPor", TextoContratadaPorFiltro]" EtiquetaAccesible="@Textos["BotonQuitarContratadaPor"]" OnQuitar="() => CambiarContratadaPorAsync(string.Empty)" />
             }
             @if (!string.IsNullOrWhiteSpace(_nivelFiltro))
             {
@@ -151,8 +156,7 @@
     {
         @* Marco de la lista de la maqueta: una sola tarjeta con la cabecera de columnas arriba y las filas separadas por una
            línea. Sin roles de tabla ni QuickGrid, como Empresas y Trabajadores: la fila se despliega y QuickGrid no soporta
-           filas expandibles. La maqueta ordena por las columnas «Contratada por», «Nivel» y «Cumplimiento»; la consulta solo
-           ordena por razón social, CIF y alta, así que ningún rótulo ordena (divergencia registrada). *@
+           filas expandibles. Ordenan los rótulos «Subcontrata», «Contratada por», «Nivel» y «Cumplimiento» (?orden=, OrdenDeRejilla). *@
         @TarjetaListado.Renderizar(@<text>
             <div class="marco-lista-subcontratas">
             <div class="@ClaseRejilla("cabecera-columnas-subcontratas")">
@@ -161,15 +165,26 @@
                     <span class="seleccion-subcontrata"><input type="checkbox" aria-label="@Textos["AriaSeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" /></span>
                 }
                 <span></span>
-                <span>@Textos["RotuloSubcontrata"]</span>
-                <span>@Textos["RotuloNivel"]</span>
-                <span>@Textos["RotuloCumplimiento"]</span>
+                @CabeceraOrdenable("subcontrata", Textos["RotuloSubcontrata"])
+                @CabeceraOrdenable("contratadapor", Textos["ContratadaPor"])
+                @CabeceraOrdenable("nivel", Textos["RotuloNivel"])
+                @CabeceraOrdenable("cumplimiento", Textos["RotuloCumplimiento"])
                 <span>@Textos["RotuloEstadoDocumental"]</span>
                 <span></span>
             </div>
 
+            @{ var clavesDeGrupo = new ClavesDeHermanos(); }
             <div class="lista-filas-acordeon" aria-busy="@(_cargando ? "true" : "false")">
-                @foreach (var subcontrata in _elementosPagina)
+                @foreach (var grupo in GruposDePagina)
+                {
+                <div class="grupo-subcontratas" @key="clavesDeGrupo.De(grupo.Clave)">
+                @if (_agruparPor is not null)
+                {
+                    <div class="cabecera-empresa-contratante">
+                        @grupo.Nombre <span>· @grupo.Filas.Count</span>
+                    </div>
+                }
+                @foreach (var subcontrata in grupo.Filas)
                 {
                     var incidencias = Incidencias(subcontrata.Recuentos);
                     var expandido = _expandidos.Contains(subcontrata.Id) && incidencias.Count != 0;
@@ -236,6 +251,7 @@
                                 </span>
                             </span>
                             @* Nivel: texto plano, como la maqueta. Qué significa cada uno va en el título (sin atribuir la gestión a TALVEG). *@
+                            <span class="celda-contratada-por">@TextoContratantes(subcontrata)</span>
                             <span class="celda-nivel-subcontrata" title="@DescribirNivel(subcontrata.NivelServicio)">@EstadoSupervisionUi.TextoNivel(Textos, subcontrata.NivelServicio)</span>
                             <span>
                                 <BarraCumplimiento Porcentaje="subcontrata.CumplimientoPorcentaje"
@@ -271,7 +287,7 @@
                                             <span class="documento-pendiente-detalle">@DetalleDelDocumento(incidencia)</span>
                                             @if (EsCorregible(incidencia))
                                             {
-                                                <button type="button" class="documento-pendiente-gestionar" data-accion="gestionar"
+                                                <button type="button" class="@("documento-pendiente-gestionar" + (EstadoDocumentoUi.EsCorrecto(incidencia.Estado) ? " gestionar-secundario" : ""))" data-accion="gestionar"
                                                         aria-label="@Textos["GestionarDocumentoAccesible", incidencia.Descripcion, subcontrata.RazonSocial]"
                                                         @onclick="() => CorregirIncidenciaAsync(incidencia)">@Textos["BotonGestionar"]</button>
                                             }
@@ -281,6 +297,8 @@
                             </div>
                         }
                     </div>
+                }
+                </div>
                 }
             </div>
             </div>
@@ -345,6 +363,11 @@
 </LimiteDeErrores>
 
 @code {
+    // Rótulo de columna que ordena: la flecha del orden vigente la pinta la clase.
+    private RenderFragment CabeceraOrdenable(string clave, string titulo) => @<span class="@(_orden.Clave == clave ? (_orden.Direccion == SortDirection.Descending ? "col-sort-desc" : "col-sort-asc") : "")">
+        <button type="button" class="col-title" title="@Textos["OrdenarPorColumna"]" @onclick="() => OrdenarAsync(clave)"><span class="col-title-text">@titulo</span></button>
+    </span>;
+
     private RenderFragment PieDelListado => PieSegun(false);
 
     // Sin subcontratas el pie sigue visible debajo de la tarjeta, con la presentación de la maqueta anterior

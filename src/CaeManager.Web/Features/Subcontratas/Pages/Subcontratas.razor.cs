@@ -19,6 +19,7 @@ using CaeManager.Web.Features.Subcontratas.Recursos;
 using CaeManager.Web.Recursos;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.QuickGrid;
 using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Subcontratas.Pages;
@@ -109,6 +110,72 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     [SupplyParameterFromQuery(Name = "estado")]
     public string? EstadoInicial { get; set; }
 
+    /// <summary>Filtro «Contratada por»: Id de la Empresa propia contratante (<c>?contratadapor=</c>).</summary>
+    [SupplyParameterFromQuery(Name = "contratadapor")]
+    public string? ContratadaPorInicial { get; set; }
+
+    [SupplyParameterFromQuery(Name = "orden")]
+    public string? OrdenInicial { get; set; }
+
+    /// <summary>Empresas propias entre las que elegir en «Contratada por»; vacío hasta la primera carga.</summary>
+    private IReadOnlyList<EmpresaSelectorDto> _contratantesParaFiltro = [];
+
+    /// <summary>Empresa elegida en «Contratada por» (Id en texto) o vacío. Solo vale si es una de las ofrecidas.</summary>
+    private string _contratadaPorFiltro = string.Empty;
+
+    /// <summary>Orden de columna en la URL. Nace por razón social; la lista pagina en servidor.</summary>
+    private readonly OrdenDeRejilla _orden = new(
+    [
+        ("subcontrata", nameof(SubcontrataListaDto.RazonSocial)),
+        ("contratadapor", ObtenerSubcontratasQueryHandler.ColumnaContratadaPor),
+        ("nivel", nameof(SubcontrataListaDto.NivelServicio)),
+        ("cumplimiento", nameof(SubcontrataListaDto.CumplimientoPorcentaje)),
+    ], claveDeFabrica: "subcontrata");
+
+    private string ContratadaPorValida(string? valor) =>
+        Guid.TryParse(valor, out var id) && _contratantesParaFiltro.Any(e => e.Id == id) ? id.ToString() : string.Empty;
+
+    private IReadOnlyList<OpcionEstado> OpcionesContratadaPor =>
+        _contratantesParaFiltro.Select(e => new OpcionEstado(e.Id.ToString(), e.RazonSocial)).ToList();
+
+    private string TextoContratadaPorFiltro =>
+        OpcionesContratadaPor.FirstOrDefault(o => o.Valor == _contratadaPorFiltro)?.Texto ?? _contratadaPorFiltro;
+
+    private async Task OrdenarAsync(string clave)
+    {
+        var descendente = _orden.Clave == clave && _orden.Direccion != SortDirection.Descending;
+        _orden.Leer(clave + (descendente ? "-desc" : string.Empty));
+        NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
+        await CargarAsync(resetPagina: true);
+    }
+
+
+    [SupplyParameterFromQuery(Name = "agrupar")]
+    public string? AgruparInicial { get; set; }
+
+    private static readonly AgrupacionDeLista Agrupacion = new(null, "empresa");
+    private string? _agruparPor;
+    private IReadOnlyList<OpcionAgrupar> OpcionesAgrupar => [new("empresa", Textos["EmpresaContratante"])];
+
+    private void CambiarAgrupacion(string? valor)
+    {
+        _agruparPor = valor;
+        NavigationManager.ActualizarFiltroEnUrl("agrupar", Agrupacion.ParaUrl(valor));
+    }
+
+    private sealed record GrupoContratante(string Clave, string Nombre, IReadOnlyList<SubcontrataListaDto> Filas);
+
+    private IEnumerable<GrupoContratante> GruposDePagina => _agruparPor is null
+        ? [new(string.Empty, string.Empty, _elementosPagina)]
+        : _elementosPagina.SelectMany(s => s.Contratantes.Count == 0
+                ? new[] { (Clave: string.Empty, Nombre: Textos["SinEmpresaContratante"].Value, Fila: s) }
+                : s.Contratantes.Select(e => (Clave: e.Id.ToString(), Nombre: e.RazonSocial, Fila: s)))
+            .GroupBy(e => e.Clave).OrderBy(g => g.First().Nombre)
+            .Select(g => new GrupoContratante(g.Key, g.First().Nombre, g.Select(e => e.Fila).ToList()));
+
+    private string TextoContratantes(SubcontrataListaDto fila) => fila.Contratantes.Count == 0
+        ? Textos["SinEmpresaContratante"] : string.Join(", ", fila.Contratantes.Select(e => e.RazonSocial));
+
     /// <summary>Comando del palette "Crear subcontrata": /subcontratas?accion=crear abre el modal directamente — mismo patrón que Clientes/Empresas/Centros/Trabajadores/Documentos.</summary>
     [SupplyParameterFromQuery] public string? Accion { get; set; }
 
@@ -177,6 +244,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _nivelFiltro = NivelDesdeUrl();
         _estadoFiltro = EstadoDesdeUrl();
+        _orden.Leer(OrdenInicial);
 
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
         // vuelo el render saldría con «hay empresa» y lanzaría la carga del Tenant de origen.
@@ -199,6 +267,8 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
             return;
 
         _puedeEscribir = await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
+        await CargarContratantesParaFiltroAsync();
+        _contratadaPorFiltro = ContratadaPorValida(ContratadaPorInicial);
         await CargarAsync();
 
         if (Accion == "crear")
@@ -208,18 +278,23 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     /// <summary>Se re-ejecuta en cada navegación dentro de la propia página — mismo criterio que Centros.razor.cs.</summary>
     protected override async Task OnParametersSetAsync()
     {
+        _agruparPor = Agrupacion.Leer(AgruparInicial);
         if (_resolviendoEmpresa || _sinEmpresaSeleccionada)
             return;
 
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         var nivelDeLaUrl = NivelDesdeUrl();
         var estadoDeLaUrl = EstadoDesdeUrl();
-        if (deLaUrl == _busqueda && nivelDeLaUrl == _nivelFiltro && estadoDeLaUrl == _estadoFiltro)
+        var contratadaPorDeLaUrl = ContratadaPorValida(ContratadaPorInicial);
+        var cambiaElOrden = _orden.Leer(OrdenInicial);
+        if (deLaUrl == _busqueda && nivelDeLaUrl == _nivelFiltro && estadoDeLaUrl == _estadoFiltro
+            && contratadaPorDeLaUrl == _contratadaPorFiltro && !cambiaElOrden)
             return;
 
         _busqueda = deLaUrl;
         _nivelFiltro = nivelDeLaUrl;
         _estadoFiltro = estadoDeLaUrl;
+        _contratadaPorFiltro = contratadaPorDeLaUrl;
         await CargarAsync(resetPagina: true);
     }
 
@@ -245,6 +320,9 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         Pagina: _pagina,
         TamanoPagina: _tamanoPagina,
         NivelServicio: NivelSeleccionado,
+        OrdenarPor: _orden.Propiedad,
+        Descendente: _orden.Direccion == SortDirection.Descending,
+        ContratadaPorEmpresaId: Guid.TryParse(_contratadaPorFiltro, out var contratante) ? contratante : null,
         EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
         ConRecuentosPorEstado: true);
 
@@ -432,6 +510,26 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         await CargarAsync(resetPagina: true);
     }
 
+    private async Task CargarContratantesParaFiltroAsync()
+    {
+        try
+        {
+            _contratantesParaFiltro = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
+        }
+        catch (Exception)
+        {
+            // Sin la lista la pastilla queda sin opciones; la lista de Subcontratas sigue funcionando.
+            _contratantesParaFiltro = [];
+        }
+    }
+
+    private async Task CambiarContratadaPorAsync(string valor)
+    {
+        _contratadaPorFiltro = ContratadaPorValida(valor);
+        NavigationManager.ActualizarFiltroEnUrl("contratadapor", _contratadaPorFiltro);
+        await CargarAsync(resetPagina: true);
+    }
+
     private async Task CambiarEstadoAsync(string? valor)
     {
         _estadoFiltro = valor ?? string.Empty;
@@ -440,7 +538,8 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     }
 
     private bool HayFiltrosActivos =>
-        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_nivelFiltro) || !string.IsNullOrWhiteSpace(_estadoFiltro);
+        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_nivelFiltro) || !string.IsNullOrWhiteSpace(_estadoFiltro)
+        || !string.IsNullOrWhiteSpace(_contratadaPorFiltro);
 
     private IReadOnlyList<OpcionEstado> OpcionesNivel =>
     [
@@ -462,7 +561,9 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _busqueda = string.Empty;
         _nivelFiltro = string.Empty;
         _estadoFiltro = string.Empty;
-        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["nivel"] = null, ["estado"] = null });
+        _contratadaPorFiltro = string.Empty;
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        { ["q"] = null, ["nivel"] = null, ["estado"] = null, ["contratadapor"] = null });
         await CargarAsync(resetPagina: true);
     }
 
@@ -475,7 +576,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado.
     /// Fuera queda <c>accion</c>.
     /// </summary>
-    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "nivel", "estado"];
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "nivel", "estado", "contratadapor", "orden", "agrupar"];
 
     private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
     private readonly ConexionVistaRecordada _vistaRecordada = new();
@@ -490,11 +591,17 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
         _nivelFiltro = NivelValido(vista.GetValueOrDefault("nivel"));
         _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"));
+        _contratadaPorFiltro = ContratadaPorValida(vista.GetValueOrDefault("contratadapor"));
+        _orden.Leer(vista.GetValueOrDefault("orden"));
+        _agruparPor = Agrupacion.Leer(vista.GetValueOrDefault("agrupar"));
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = _busqueda,
             ["nivel"] = _nivelFiltro,
-            ["estado"] = _estadoFiltro
+            ["estado"] = _estadoFiltro,
+            ["contratadapor"] = _contratadaPorFiltro,
+            ["orden"] = _orden.EnUrl,
+            ["agrupar"] = Agrupacion.ParaUrl(_agruparPor)
         });
         await CargarAsync(resetPagina: true);
     }
@@ -852,5 +959,6 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         ["q"] = _busqueda,
         ["nivel"] = NivelSeleccionado?.ToString(),
         ["estado"] = string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
+        ["contratadapor"] = string.IsNullOrWhiteSpace(_contratadaPorFiltro) ? null : _contratadaPorFiltro,
     };
 }

@@ -579,6 +579,24 @@
   <data name="PasosGrupoEtiqueta" xml:space="preserve">
     <value>Passos del formulari</value>
   </data>
+  <data name="LecturaAbrirFicha" xml:space="preserve">
+    <value>Obre la fitxa completa</value>
+  </data>
+  <data name="LecturaCerrar" xml:space="preserve">
+    <value>Tanca</value>
+  </data>
+  <data name="LecturaEditar" xml:space="preserve">
+    <value>Edita</value>
+  </data>
+  <data name="LecturaSoloConsulta" xml:space="preserve">
+    <value>Només consulta</value>
+  </data>
+  <data name="LecturaSinDato" xml:space="preserve">
+    <value>Sense dada</value>
+  </data>
+  <data name="SelectorQuitarElegido" xml:space="preserve">
+    <value>Treu {0}</value>
+  </data>
   <data name="SeccionErrorSingular" xml:space="preserve">
     <value>Un error</value>
   </data>

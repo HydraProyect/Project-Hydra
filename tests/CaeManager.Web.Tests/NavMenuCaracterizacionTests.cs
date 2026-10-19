@@ -54,7 +54,7 @@ public class NavMenuCaracterizacionTests
         "dashboard", "clientes", "empresas", "centros", "subcontratas", "trabajadores", "vehiculos", "documentos",
         "asignaciones", "proyectos", "visitas", "alertas", "calendario", "reportes", "configuracion", "usuarios",
         "seguridad", "chat", "cartera", "evaluaciones", "incidencias", "chevron", "plataforma",
-        "inicio", "ejecutivo", "solicitud", "mi-trabajo", "facturacion", "conectar", "delegacion", "etiqueta", "equipo", "auditoria", "importar",
+        "inicio", "ejecutivo", "tendencia", "ia", "solicitud", "mi-trabajo", "facturacion", "conectar", "delegacion", "etiqueta", "equipo", "auditoria", "importar",
     ];
 
     public sealed record Combinacion(

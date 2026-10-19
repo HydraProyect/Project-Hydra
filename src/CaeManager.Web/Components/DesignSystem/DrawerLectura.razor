@@ -1,0 +1,56 @@
+@*
+    Modo Lectura del panel («Panel Formulario TALVEG»): el mismo Drawer y el mismo ancho que DrawerFormulario, sin inputs. El cuerpo
+    son SeccionLectura con DatoRejilla (EnLectura); no hay HayCambios ni guardián, porque no hay nada que perder.
+      - Cabecera: título, subtítulo y, con HrefFicha, «Abrir ficha completa» (botón de icono de 40 px a la izquierda de la X).
+      - Gestor CAE (OnEditar con delegado): pie con «Cerrar» y «Editar»; «Editar» pasa el mismo panel a edición, lo decide la pantalla.
+      - Consulta (SoloConsulta): pastilla «Solo consulta» bajo el título y sin pie.
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<Drawer Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Titulo" Subtitulo="@Subtitulo" Ancho="Ancho"
+        AccionesCabecera="AccionesRender" BajoTitulo="@(SoloConsulta ? PastillaRender : null)" Pie="@(MostrarPie ? PieRender : null)">
+    <ChildContent>@ChildContent</ChildContent>
+</Drawer>
+
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+    [Parameter] public string? Subtitulo { get; set; }
+    [Parameter] public AnchoDrawer Ancho { get; set; } = AnchoDrawer.Estandar;
+
+    /// <summary>Destino de «Abrir ficha completa» (la ficha 360 del registro). Sin valor no hay botón.</summary>
+    [Parameter] public string? HrefFicha { get; set; }
+
+    /// <summary>Rol Consulta: pastilla «Solo consulta» y sin pie (ni «Editar» ni «Cerrar»; se cierra con la X).</summary>
+    [Parameter] public bool SoloConsulta { get; set; }
+
+    /// <summary>«Editar»: la pantalla cambia el mismo panel a edición. Sin delegado no se ofrece (el pie queda sin nada).</summary>
+    [Parameter] public EventCallback OnEditar { get; set; }
+
+    [Parameter] public string? TextoAbrirFicha { get; set; }
+    [Parameter] public string? TextoCerrar { get; set; }
+    [Parameter] public string? TextoEditar { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool MostrarPie => !SoloConsulta && OnEditar.HasDelegate;
+
+    private RenderFragment AccionesRender => @<text>
+        @if (!string.IsNullOrWhiteSpace(HrefFicha))
+        {
+            var texto = TextoAbrirFicha ?? Comunes["LecturaAbrirFicha"].Value;
+            <a href="@HrefFicha" class="drawer-lectura-abrir" title="@texto" aria-label="@texto"><Icono Nombre="abrir" /></a>
+        }
+    </text>;
+
+    private RenderFragment PastillaRender => @<span class="drawer-lectura-pastilla">@Comunes["LecturaSoloConsulta"]</span>;
+
+    private RenderFragment PieRender => @<text>
+        <Boton Variante="VarianteBoton.Secundario" OnClick="() => VisibleChanged.InvokeAsync(false)">@(TextoCerrar ?? Comunes["LecturaCerrar"].Value)</Boton>
+        <Boton Variante="VarianteBoton.Primario" OnClick="OnEditar">@(TextoEditar ?? Comunes["LecturaEditar"].Value)</Boton>
+    </text>;
+}

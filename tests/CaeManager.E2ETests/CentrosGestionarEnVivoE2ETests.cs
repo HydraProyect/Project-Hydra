@@ -115,11 +115,35 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         // recarga del filtro limpia la selección. La barrera es la lista filtrada: queda solo esa fila.
         await Expect(page.Locator(".marco-lista-trabajadores .fila-pulsable")).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
 
+        // Quedan recargas de la lista en vuelo tras el alta del Trabajador y el filtro; al aterrizar limpian la selección.
+        // Se espera a que el DOM esté quieto 1,5 s (condición, no reloj) antes de seleccionar.
+        await page.WaitForFunctionAsync("""
+            () => new Promise(resolver => {
+                let temporizador;
+                const observador = new MutationObserver(() => { clearTimeout(temporizador); temporizador = setTimeout(fin, 1500); });
+                const fin = () => { observador.disconnect(); resolver(true); };
+                observador.observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
+                temporizador = setTimeout(fin, 1500);
+            })
+            """, null, new PageWaitForFunctionOptions { Timeout = 30_000 });
         // El ☑ de la cabecera de la lista (rediseño de listados, fase 1): un icono con nombre accesible, sin texto visible.
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true }).ClickAsync();
-        await filaTrabajador.Locator("input[type=\"checkbox\"]").CheckAsync();
-
-        await page.Locator(".barra-acciones-lote").GetByText("Asignar a centro…").ClickAsync();
+        // Una recarga de la lista posterior al alta del Trabajador limpia la selección (CargarListaAsync sin conservarSeleccion):
+        // se marca y se abre «Asignar a centro…» con un tiempo acotado; si la recarga borró la selección, la barra de lote
+        // desaparece, el clic agota el tiempo y se vuelve a marcar. Hipótesis de causa (no demostrada): la recarga propia
+        // del alta aterriza después del filtro.
+        for (var intento = 1; ; intento++)
+        {
+            var casilla = filaTrabajador.Locator("input[type=\"checkbox\"]");
+            if (!await casilla.IsCheckedAsync()) await casilla.CheckAsync();
+            try
+            {
+                await page.Locator(".barra-acciones-lote").GetByText("Asignar a centro…")
+                    .ClickAsync(new LocatorClickOptions { Timeout = 3_000 });
+                break;
+            }
+            catch (TimeoutException) when (intento < 3) { }
+        }
         await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync($"{nombreCentro} ({razonSocialCliente})");
         await page.WaitForTimeoutAsync(500);
@@ -208,7 +232,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = Ayudas.HoyDeNegocio();
         await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
         await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(180).ToString("yyyy-MM-dd"));
 

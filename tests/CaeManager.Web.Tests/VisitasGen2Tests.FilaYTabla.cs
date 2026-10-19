@@ -21,7 +21,7 @@ public partial class VisitasGen2Tests
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Norte"));
 
         cut.FindAll("thead th").Select(th => th.TextContent.Trim())
-            .Should().Equal("Visita", "Fechas", "Trab.", "Origen", "Documentación", "Avisada", "Estado", "");
+            .Should().Equal("", "Centro", "Cliente · Empresa", "Fechas", "Preparación", "Estado documental", "");
     }
 
     [Fact]
@@ -31,10 +31,10 @@ public partial class VisitasGen2Tests
         var cut = Renderizar(mediator);
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Norte"));
 
-        var celda = Fila(cut, "Centro Norte").QuerySelector("td")!;
-        celda.QuerySelectorAll("button.enlace-nombre-fila").Select(b => b.TextContent.Trim())
-            .Should().Equal("Centro Norte", "Iberojet S.A.", "Instalaciones Arbeko S.L.");
-        celda.QuerySelectorAll(".visitas-celda-titular-empresa button").Select(b => b.GetAttribute("title"))
+        var fila = Fila(cut, "Centro Norte");
+        fila.QuerySelectorAll(".visitas-identidad button").Select(b => b.TextContent.Trim())
+            .Should().Equal("Iberojet S.A.", "Instalaciones Arbeko S.L.");
+        fila.QuerySelectorAll(".visitas-identidad button").Select(b => b.GetAttribute("title"))
             .Should().Equal("Titular del centro", "Empresa");
     }
 
@@ -50,7 +50,8 @@ public partial class VisitasGen2Tests
         var cut = Renderizar(mediator);
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Norte"));
 
-        var estado = Fila(cut, "Centro Norte").QuerySelector("td.col-estado .estado-fila")!;
+        Fila(cut, "Centro Norte").QuerySelector(".visitas-expandir")!.Click();
+        var estado = Fila(cut, "Centro Norte").NextElementSibling!.QuerySelector("[data-pieza=estado-operativo] .estado-fila")!;
         estado.TextContent.Trim().Should().Be(rotulo);
         estado.QuerySelectorAll(".badge").Should().HaveCount(conPastilla ? 1 : 0);
         estado.QuerySelectorAll("[data-pieza=estado-correcto]").Should().HaveCount(conPastilla ? 0 : 1);

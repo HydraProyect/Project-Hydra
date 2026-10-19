@@ -20,7 +20,9 @@
                     {
                         <span class="drawer-subtitulo">@Subtitulo</span>
                     }
+                    @BajoTitulo
                 </div>
+                @AccionesCabecera
                 <button type="button" class="drawer-cerrar" aria-label="Cerrar" @onclick="SolicitarCierreAsync"><Icono Nombre="cerrar" /></button>
             </div>
             @if (Pasos is not null)
@@ -68,6 +70,12 @@
 
     /// <summary>Indicador de pasos, entre la cabecera y el aviso y fuera del desplazamiento (lo rellena <c>DrawerFormulario</c> en modo pasos).</summary>
     [Parameter] public RenderFragment? Pasos { get; set; }
+
+    /// <summary>Contenido bajo título y subtítulo (la pastilla «Solo consulta» del modo Lectura). Opcional.</summary>
+    [Parameter] public RenderFragment? BajoTitulo { get; set; }
+
+    /// <summary>Botones de icono de 40 px a la izquierda de la X («Abrir ficha completa» del modo Lectura). Opcional.</summary>
+    [Parameter] public RenderFragment? AccionesCabecera { get; set; }
 
     private string ClasePanel => Ancho == AnchoDrawer.Ancho ? "drawer-panel drawer-panel-ancho" : "drawer-panel";
 

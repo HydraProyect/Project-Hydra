@@ -25,6 +25,21 @@ namespace CaeManager.Web.Features.Documentos;
 /// </summary>
 public static class DetalleVigenciaDocumentoUi
 {
+    /// <summary>Vigencia en las subfilas 360, incluida la documentación pendiente de aportar.</summary>
+    public static string DeFicha360(EstadoDocumento estado, DateOnly? fecha, string nombre, bool deEmpresa = false)
+    {
+        var incidencia = new IncidenciaDocumentalDto(Guid.Empty, Guid.Empty, nombre, estado, fecha);
+        if (estado is EstadoDocumento.SinConfirmar or EstadoDocumento.Faltante)
+            return FaltaLaFecha(incidencia);
+        if (estado == EstadoDocumento.SinCaducidad)
+            return EstadoDocumentoUi.TextoSinFechaDeVencimiento(estado);
+        if (fecha is not { } vencimiento)
+            return FaltaLaFecha(incidencia);
+        return Con(EstadoDocumentoUi.HaVencido(estado)
+            ? deEmpresa ? "DetalleVencioFecha" : "DetalleDesdeFecha"
+            : "DetalleCaducaFecha", vencimiento);
+    }
+
     /// <summary>
     /// Trabajadores: «Desde el dd/MM/yyyy» si venció, «Caduca el dd/MM/yyyy» si está por vencer, la falta de
     /// fecha si está sin confirmar y vacío en cualquier otro caso.

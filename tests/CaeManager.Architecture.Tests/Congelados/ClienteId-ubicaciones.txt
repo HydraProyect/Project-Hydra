@@ -113,6 +113,7 @@ src/CaeManager.Application/Dashboard/Queries/ObtenerKpisBpoQuery.cs :: clienteId
 src/CaeManager.Application/Dashboard/Queries/ObtenerKpisBpoQuery.cs :: clienteIdsVisibles = 3
 src/CaeManager.Application/Dashboard/Queries/ObtenerKpisDashboardQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Dashboard/Queries/ObtenerKpisDashboardQuery.cs :: clienteIdsVisibles = 2
+src/CaeManager.Application/Dashboard/Queries/ObtenerSerieCuadroDireccionQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Documentos/CalculoEstadoDocumentalService.cs :: ClienteId = 3
 src/CaeManager.Application/Documentos/Commands/CrearDocumento/CrearDocumentoCommand.cs :: ClienteId = 5
 src/CaeManager.Application/Documentos/DocumentoAlcanceExtensions.cs :: ClienteId = 2
@@ -228,6 +229,7 @@ src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacionEmpresaEmplea
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacionEmpresaEmpleadora/EnviarReclamacionEmpresaEmpleadoraCommand.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacionEmpresaEmpleadora/EnviarReclamacionEmpresaEmpleadoraCommand.cs :: clienteId = 1
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacionEmpresaEmpleadora/EnviarReclamacionEmpresaEmpleadoraCommand.cs :: clienteIdsVisibles = 3
+src/CaeManager.Application/Reclamaciones/DestinoDeReclamacionesEnviadasService.cs :: ClienteId = 1
 src/CaeManager.Application/Reclamaciones/PendientesDeReclamacionService.cs :: ClienteId = 10
 src/CaeManager.Application/Reclamaciones/PendientesDeReclamacionService.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Reclamaciones/PendientesDeReclamacionService.cs :: clienteId = 7
@@ -242,7 +244,7 @@ src/CaeManager.Application/Reclamaciones/Queries/ObtenerReclamacionesEnviadas/Ob
 src/CaeManager.Application/Reclamaciones/Queries/ObtenerReclamacionesSinRespuesta/ObtenerReclamacionesSinRespuestaQuery.cs :: ClienteId = 7
 src/CaeManager.Application/Reclamaciones/Queries/ObtenerReclamacionesSinRespuesta/ObtenerReclamacionesSinRespuestaQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Reclamaciones/Queries/ObtenerReclamacionesSinRespuesta/ObtenerReclamacionesSinRespuestaQuery.cs :: clienteIdsVisibles = 3
-src/CaeManager.Application/Reclamaciones/Queries/ObtenerUltimaReclamacionCliente/ObtenerUltimaReclamacionClienteQuery.cs :: ClienteId = 4
+src/CaeManager.Application/Reclamaciones/Queries/ObtenerUltimaReclamacionCliente/ObtenerUltimaReclamacionClienteQuery.cs :: ClienteId = 5
 src/CaeManager.Application/RelacionesEmpresariales/GuardDeCierreDeArista.cs :: ClienteId = 1
 src/CaeManager.Application/RelacionesEmpresariales/GuardDeCierreDeArista.cs :: clienteId = 3
 src/CaeManager.Application/RelacionesEmpresariales/IGuardDeCierreDeArista.cs :: clienteId = 1
@@ -273,6 +275,9 @@ src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontrataPorId/ObtenerS
 src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontrataPorId/ObtenerSubcontrataPorIdQuery.cs :: ClienteIds = 1
 src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontrataPorId/ObtenerSubcontrataPorIdQuery.cs :: clienteIds = 2
 src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontratasParaSelector/ObtenerSubcontratasParaSelectorQuery.cs :: ClienteId = 1
+# «Contratada por»: JOIN inevitable con la FK legacy de la Empresa en posición cliente de la
+# Relación Empresarial vigente; no introduce una entidad ni cambia propiedad o autorización.
+src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontratas/ObtenerSubcontratasQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Subcontratas/Queries/ObtenerSupervisionSubcontrata/ObtenerSupervisionSubcontrataQuery.cs :: ClienteId = 3
 src/CaeManager.Application/Telemetria/Commands/RegistrarTramoGestion/RegistrarTramoGestionCommand.cs :: ClienteId = 3
 src/CaeManager.Application/Tenants/Commands/AbrirAccesoSoporte/AbrirAccesoSoporteCommand.cs :: TenantClienteId = 1
@@ -494,9 +499,6 @@ src/CaeManager.Web/Features/Documentos/Components/DrawerGestionDocumento.razor :
 src/CaeManager.Web/Features/Documentos/Components/DrawerGestionDocumento.razor.cs :: ClienteId = 1
 src/CaeManager.Web/Features/Documentos/Components/DrawerGestionDocumento.razor.cs :: _clienteId = 5
 src/CaeManager.Web/Features/Documentos/Components/PlataformaTab.razor :: ClienteId = 1
-src/CaeManager.Web/Features/Documentos/Components/ReclamacionesTab.razor :: ClienteId = 21
-src/CaeManager.Web/Features/Documentos/Components/ReclamacionesTab.razor :: _enviandoClienteId = 11
-src/CaeManager.Web/Features/Documentos/Components/ReclamacionesTab.razor :: clienteId = 9
 src/CaeManager.Web/Features/Empresas/Components/EmpresaWorkspacePanel.razor :: ClienteIds = 1
 src/CaeManager.Web/Features/Empresas/Components/EmpresaWorkspacePanel.razor :: _clienteIdsInfo = 7
 src/CaeManager.Web/Features/Empresas/Components/EmpresaWorkspacePanel.razor :: clienteId = 3
@@ -517,6 +519,7 @@ src/CaeManager.Web/Features/Plantillas/Pages/ConfigurarPlantilla.razor :: _clien
 src/CaeManager.Web/Features/Plantillas/Pages/ConfigurarPlantilla.razor.cs :: _clienteId = 3
 src/CaeManager.Web/Features/Proyectos/Pages/ProyectoDetalle.razor :: ClienteId = 1
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor :: _nuevoClienteId = 1
+src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.Listado.cs :: ClienteId = 1
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: ClienteId = 2
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: _nuevoClienteId = 6
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: clienteId = 10

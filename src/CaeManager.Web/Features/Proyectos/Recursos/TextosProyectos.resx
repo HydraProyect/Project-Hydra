@@ -337,7 +337,9 @@
   <data name="ListaPlazoTranscurrido" xml:space="preserve"><value>Plazo transcurrido</value></data>
   <data name="ListaProyecto" xml:space="preserve"><value>Proyecto</value></data>
   <data name="ListaSinFechaFinPrevista" xml:space="preserve"><value>Sin fecha de fin prevista</value></data>
-  <data name="MigaProyectos" xml:space="preserve"><value>Proyectos (obras)</value></data>
+  <data name="MigaProyectos" xml:space="preserve"><value>Proyectos</value></data>
+  <data name="ResumenTecnicosProyecto" xml:space="preserve"><value>{0} técnicos activos</value></data>
+  <data name="ResumenTecnicoProyecto" xml:space="preserve"><value>{0} técnico activo</value></data>
   <data name="EtiquetaMigas" xml:space="preserve"><value>Ruta de Proyecto 360</value></data>
   <data name="TituloPestanaNavegadorDetalle" xml:space="preserve"><value>Proyecto</value></data>
   <data name="KickerDetalle" xml:space="preserve"><value>Proyecto</value></data>
@@ -501,4 +503,13 @@
   <data name="ToastPlantillaGuardada" xml:space="preserve">
     <value>Plantilla guardada.</value>
   </data>
+  <data name="ListaEmpresa" xml:space="preserve"><value>Empresa</value></data>
+  <data name="ListaAgrupar" xml:space="preserve"><value>Agrupar</value></data>
+  <data name="ListaSinAgrupar" xml:space="preserve"><value>Sin agrupar</value></data>
+  <data name="ListaPorEmpresa" xml:space="preserve"><value>Por Empresa</value></data>
+  <data name="ListaDocumentacionDe" xml:space="preserve"><value>Documentación de {0}</value></data>
+  <data name="ListaErrorDocumentacion" xml:space="preserve"><value>No pudimos cargar la documentación</value></data>
+  <data name="ListaSinDocumentos" xml:space="preserve"><value>Sin documentos registrados para este proyecto.</value></data>
+  <data name="ListaSinVencimiento" xml:space="preserve"><value>Sin fecha de vencimiento</value></data>
+  <data name="ListaGestionar" xml:space="preserve"><value>Gestionar</value></data>
 </root>

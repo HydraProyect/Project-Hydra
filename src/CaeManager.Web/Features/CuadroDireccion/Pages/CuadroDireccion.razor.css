@@ -1,0 +1,617 @@
+/*
+    Cuadro de direcciÃ³n. Medidas de la maqueta (assets/cuadro-direccion.js): tarjeta 14, KPI 12, botÃ³n 10,
+    chip 6; KPI de 16 de relleno con valor de 28/36; cuadrÃ­cula de 6 columnas que baja a 3, 2 y 1 segÃºn
+    el ancho de la pÃ¡gina. Colores solo de tokens.css (la maqueta lleva un :root propio que no manda).
+*/
+.cuadro {
+    padding: 24px;
+    max-width: 1440px;
+    margin-inline: auto;
+    display: grid;
+    /* Una sola columna que puede encogerse: sin minmax(0, 1fr) el contenido ancho (tablas, gráficos) ensancha la página. */
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+    min-width: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.cuadro > * { min-width: 0; }
+
+/* Título de la pantalla (maqueta: .tv-hrow .tv-title) 24/32 con interlineado de letra -0,24 px, y h2 de las tarjetas 18/26.
+   Se fija solo aquí: la cabecera y la tarjeta compartidas no cambian para el resto de pantallas. */
+.cuadro ::deep h1 {
+    font-size: 24px;
+    line-height: 32px;
+    letter-spacing: -0.24px;
+}
+
+/* Título y su fila de acciones en una línea (h1 + mes + chip «parcial»: gap 10, alto 32). */
+.cuadro ::deep .cabecera-pagina-titular { gap: 10px; min-height: 32px; align-items: center; }
+/* El hueco bajo el título lo pone el gap de la pantalla (20): la barra queda a 52 px del borde superior del h1 (32 + 20). */
+.cuadro ::deep .cabecera-pagina { margin-bottom: 0; }
+
+/* Tarjetas (maqueta: .tv-card). El componente Tarjeta solo pone el atributo de ámbito de este componente en su raíz,
+   así que las reglas cuelgan del envoltorio .cuadro-bloque, que sí es de este componente, y llegan por ::deep. */
+.cuadro-bloque ::deep .tarjeta { padding: 20px; min-width: 0; }
+.cuadro-bloque ::deep .tarjeta-header { padding: 0; border-bottom: 0; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
+.cuadro-bloque ::deep .tarjeta-titulo { margin: 0; font-size: 18px; line-height: 26px; font-weight: 600; text-wrap: balance; min-width: 0; flex: 1; }
+.cuadro-bloque ::deep .tarjeta-acciones { flex: none; }
+.cuadro-bloque ::deep .tarjeta-contenido { padding: 0; display: grid; gap: 12px; min-width: 0; align-content: start; }
+
+/* «Exportar a Excel» en la fila de cabecera de la tarjeta (maqueta: 30 de alto, 12/16, relleno 10, radio 8). */
+.cuadro-bloque ::deep .cuadro-exportar {
+    min-height: 30px;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.cuadro-mes {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    line-height: 22px;
+    color: var(--color-text-muted);
+}
+
+.cuadro-mes-nombre {
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+.cuadro-estado {
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    border-radius: 6px;
+    padding: 2px 8px;
+    white-space: nowrap;
+    cursor: help;
+}
+
+.cuadro-estado[data-e="parcial"] { color: var(--color-warning-700); background: var(--color-warning-50); }
+.cuadro-estado[data-e="estimado"] { color: var(--color-info-500); background: var(--color-info-50); }
+.cuadro-estado[data-e="cerrado"] { color: var(--color-success-700); background: var(--color-success-50); }
+
+.cuadro-estado-fila { margin-left: 6px; }
+
+.cuadro-barra {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+/* Periodo: ‹ [Mes 1 / Mes 6 / Año 3] › en un solo grupo de 38 px (maqueta: .tv-seg con las flechas). */
+.cuadro-periodo {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 42px;
+    max-width: 100%;
+}
+
+.cuadro-momento {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    min-width: 0;
+    height: 42px;
+    box-sizing: border-box;
+}
+
+.cuadro-momento button {
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.cuadro-momento button small { font-weight: 400; margin-left: 4px; color: inherit; }
+.cuadro-momento button[aria-pressed="true"] { background: var(--color-primario-fondo); color: var(--color-primario-texto); }
+.cuadro-momento button:disabled { opacity: .45; cursor: default; }
+.cuadro-momento button:not([aria-pressed="true"]):not(:disabled):hover { color: var(--color-text); }
+
+/* Los botones de la barra miden 38 px, como en la maqueta. */
+.cuadro-barra ::deep .boton { height: auto; min-height: 0; padding: 8px 12px; font-size: 13px; line-height: 20px; }
+/* Ámbito: un select de 38 px, sin etiqueta encima (el nombre accesible va en aria-label). */
+.cuadro-select {
+    box-sizing: border-box;
+    height: 38px;
+    font-weight: 400;
+    min-width: 0;
+    max-width: 100%;
+    padding: 8px 12px;
+    font: inherit;
+    font-size: 13px;
+    line-height: 20px;
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-md);
+}
+
+/* Más acciones (Reabrir un mes cerrado), fuera de la barra principal. */
+.cuadro-mas { position: relative; }
+.cuadro-mas > summary {
+    list-style: none;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: 700 18px/1 var(--font-family);
+    cursor: pointer;
+}
+.cuadro-mas > summary::-webkit-details-marker { display: none; }
+.cuadro-mas-menu {
+    position: absolute;
+    right: 0;
+    top: 40px;
+    z-index: 5;
+    min-width: 200px;
+    padding: 4px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .12);
+}
+.cuadro-mas-menu button {
+    width: 100%;
+    text-align: left;
+    padding: 8px 12px;
+    font: inherit;
+    font-size: 14px;
+    color: var(--color-text);
+    background: none;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.cuadro-mas-menu button:disabled { color: var(--color-text-muted); cursor: default; }
+.cuadro-mas-menu button:not(:disabled):hover { background: var(--color-fila-hover); }
+
+/* Presentación (maqueta: .tv-presenta): sin controles de edición y con la pantalla para los gráficos. */
+.cuadro-presenta .cuadro-aviso-cierre,
+.cuadro-presenta .cuadro-personalizar,
+.cuadro-presenta .cuadro-interruptor,
+.cuadro-presenta .cuadro-mas,
+.cuadro-presenta .cuadro-pastilla { display: none; }
+.cuadro-presenta { font-size: 110%; }
+.cuadro-presenta .cuadro-barra ::deep > :not(.cuadro-presentar) { display: none; }
+
+.cuadro-espaciador { flex: 1 1 0; }
+
+.cuadro-mesnav {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.cuadro-mesnav-boton {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: 600 16px/1 var(--font-family);
+    cursor: pointer;
+}
+
+.cuadro-mesnav-boton:disabled { opacity: .4; cursor: default; }
+
+.cuadro-mesnav-mes {
+    min-width: 88px;
+    text-align: center;
+    padding: 8px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.cuadro-pastilla {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 6px 0 12px;
+    border: 1px solid var(--color-primary-500);
+    border-radius: var(--radius-full);
+    background: var(--color-primary-50);
+    color: var(--color-primary-700);
+    font: 600 13px/16px var(--font-family);
+}
+
+.cuadro-pastilla button {
+    width: 22px;
+    height: 22px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: inherit;
+    font: 600 15px/1 var(--font-family);
+    cursor: pointer;
+}
+
+.cuadro-pastilla button:hover { background: var(--color-surface); }
+
+.cuadro-aviso-cierre {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    font-size: 13px;
+}
+
+.cuadro-aviso-cierre > span { flex: 1; min-width: 0; }
+.cuadro-aviso-cierre b { color: var(--color-success-700); }
+
+.cuadro-aviso-cierre button {
+    margin-left: auto;
+    border: 0;
+    background: none;
+    color: var(--color-text-muted);
+    font: 600 13px/16px var(--font-family);
+    cursor: pointer;
+}
+
+.cuadro-nota {
+    margin: 0;
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--color-text-muted);
+    max-width: 80ch;
+}
+
+.cuadro-vacio {
+    display: grid;
+    place-items: center;
+    text-align: center;
+    min-height: 160px;
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 13px;
+    line-height: 1.5;
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-md);
+    padding: 16px;
+}
+
+/* La página de cada pestaña es el contenedor: las columnas de los KPI siguen su ancho y no el de la ventana (maqueta: .tv-page). */
+.cuadro-pagina { container-type: inline-size; min-width: 0; display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); }
+
+.cuadro-kpis {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    min-width: 0;
+}
+
+@container (max-width: 68rem) { .cuadro-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container (max-width: 34rem) { .cuadro-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (max-width: 22rem) { .cuadro-kpis { grid-template-columns: minmax(0, 1fr); } }
+
+.cuadro-kpi {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 16px;
+    display: grid;
+    gap: 4px;
+    grid-template-rows: auto auto 1fr;
+    align-content: start;
+    min-width: 0;
+}
+
+.cuadro-kpi-etiqueta { font-size: 13px; line-height: 16px; font-weight: 600; color: var(--color-text-muted); }
+
+.cuadro-kpi-valor {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -.02em;
+    line-height: 36px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cuadro-kpi-sub { font-size: 12px; color: var(--color-text-muted); line-height: 16px; }
+
+/* Móvil: los KPI en una fila con desplazamiento horizontal y encaje (maqueta: .tv-kpis a 375). */
+@media (max-width: 640px) {
+    .cuadro-kpi-valor { font-size: 24px; }
+    .cuadro-kpis {
+        display: flex;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        gap: 10px;
+        padding-bottom: 4px;
+    }
+    .cuadro-kpis > .cuadro-kpi { flex: 0 0 78%; scroll-snap-align: start; }
+    .cuadro-pagina { display: flex; flex-direction: column; gap: 16px; }
+    .cuadro-pagina > .cuadro-rejilla { display: contents; }
+    .cuadro-bloque[data-tarjeta="g-alertas"] { order: -1; }
+    .cuadro-bloque ::deep .cuadro-exportar { display: none; }
+}
+
+.cuadro-tabla-envoltorio { overflow: auto; max-width: 100%; max-height: 560px; border-radius: var(--radius-md); }
+
+.cuadro-tabla { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 20px; }
+
+.cuadro-tabla th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--color-surface);
+    text-align: right;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--color-text-muted);
+    padding: 12px;
+    border-bottom: 1px solid var(--color-border-strong);
+    white-space: nowrap;
+}
+
+.cuadro-tabla td {
+    padding: 12px;
+    border-bottom: 1px solid var(--color-border);
+    text-align: right;
+    white-space: nowrap;
+}
+
+.cuadro-tabla th:first-child,
+.cuadro-tabla td:first-child {
+    text-align: left;
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--color-surface);
+}
+
+.cuadro-tabla td.cuadro-texto { text-align: left; white-space: normal; }
+.cuadro-tabla th.cuadro-texto { text-align: left; }
+
+.cuadro-tabla tbody tr:hover { background: var(--color-fila-hover); }
+
+.cuadro-apagado { color: var(--color-text-muted); }
+
+.cuadro-suprimida { color: var(--color-text-muted); font-size: 12px; }
+
+.cuadro-chip {
+    display: inline-block;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 600;
+    border-radius: 6px;
+    padding: 2px 8px;
+}
+
+.cuadro-chip-ok { color: var(--color-success-700); background: var(--color-success-50); }
+.cuadro-chip-aviso { color: var(--color-warning-700); background: var(--color-warning-50); }
+.cuadro-chip-malo { color: var(--color-tolerancia-700); background: var(--color-tolerancia-50); }
+.cuadro-chip-neutro { color: var(--color-text-muted); background: var(--color-surface-subtle); }
+
+/* Mapa de calor de solicitudes: rampa de --color-primary-50 a --color-primario-fondo (la maqueta usa --color-primary-700, que el trinquete de tokens no deja hacer de fondo). */
+.cuadro-calor { display: grid; gap: 2px; overflow-x: auto; }
+
+.cuadro-calor-fila {
+    display: grid;
+    grid-template-columns: 36px repeat(var(--horas), minmax(26px, 1fr));
+    gap: 2px;
+    align-items: center;
+}
+
+.cuadro-calor-hora { font-size: 11px; text-align: center; color: var(--color-text-muted); }
+.cuadro-calor-dia { font-size: 11px; color: var(--color-text-muted); }
+
+.cuadro-calor-celda {
+    height: 28px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--color-primario-fondo) var(--intensidad), var(--color-primary-50));
+}
+
+.cuadro-solo-lector {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cuadro * { transition: none !important; }
+}
+
+/* Rejilla de tarjetas de las pestañas distintas de Visión general, y tarjetas anchas dentro de cualquiera. */
+.cuadro-rejilla { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, max(26rem, calc(50% - 8px))), 1fr)); }
+.cuadro-ancha { grid-column: 1 / -1; }
+.cuadro-bloque { min-width: 0; }
+.cuadro-acciones { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+
+.cuadro-kpi ::deep .gs { margin-top: 6px; }
+
+/* Interruptor de etiquetas de datos (maqueta: .tv-switch). */
+.cuadro-interruptor {
+    display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px;
+    font: inherit; font-size: 13px; line-height: 20px; font-weight: 600; color: var(--color-text); cursor: pointer;
+    background: var(--color-surface); border: 1px solid var(--color-border-control); border-radius: 10px;
+}
+.cuadro-interruptor i { width: 28px; height: 16px; border-radius: 999px; background: var(--color-border-strong); position: relative; flex: none; transition: background 120ms; }
+.cuadro-interruptor i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--color-surface); transition: transform 120ms; }
+.cuadro-interruptor[aria-checked="true"] i { background: var(--color-primario-fondo); }
+.cuadro-interruptor[aria-checked="true"] i::after { transform: translateX(12px); }
+.cuadro-interruptor:hover { background: var(--color-fila-hover); }
+
+/* Panel Personalizar. */
+.cuadro-personalizar {
+    padding: 16px; display: grid; gap: 12px;
+    background: var(--color-elevated); border: 1px solid var(--color-border-strong); border-radius: 14px;
+}
+.cuadro-personalizar h3 { margin: 0; font-size: 15px; }
+.cuadro-personalizar > p { font-size: 13px; }
+.cuadro-pers-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cuadro-pers-lista li {
+    display: grid; grid-template-columns: 24px 1fr auto auto; align-items: center; gap: 8px; padding: 6px 8px;
+    border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface-subtle);
+}
+.cuadro-pers-lista label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.cuadro-asa { cursor: grab; color: var(--color-text-muted); text-align: center; }
+.cuadro-flecha {
+    width: 28px; height: 28px; font: inherit; cursor: pointer; color: var(--color-text);
+    background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px;
+}
+
+/* Tabla de Empresas: cabeceras ordenables y fila de detalle. */
+.cuadro-orden { font: inherit; font-weight: inherit; text-transform: inherit; letter-spacing: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.cuadro-tabla th[aria-sort="ascending"] .cuadro-orden::after { content: " ▲"; font-size: 10px; }
+.cuadro-tabla th[aria-sort="descending"] .cuadro-orden::after { content: " ▼"; font-size: 10px; }
+.cuadro-expandir {
+    display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; margin-right: 6px; vertical-align: middle;
+    font: inherit; font-size: 12px; line-height: 12px; font-weight: 600;
+    color: var(--color-text-muted); background: none; border: 0; cursor: pointer;
+}
+.cuadro-detalle td { background: var(--color-surface-subtle); }
+.cuadro-detalle-contenido { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; text-align: left; }
+.cuadro-detalle-contenido dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; }
+.cuadro-detalle-contenido dt { color: var(--color-text-muted); }
+.cuadro-detalle-contenido dd { margin: 0; }
+@media (max-width: 700px) { .cuadro-detalle-contenido { grid-template-columns: 1fr; } }
+
+/* Alertas de «Qué requiere una decisión». */
+.cuadro-alertas { display: grid; gap: 8px; }
+.cuadro-alerta { display: flex; align-items: center; gap: 10px; }
+.cuadro-alerta p { margin: 0; }
+.cuadro-sev { width: 10px; height: 10px; border-radius: 50%; background: var(--color-warning-500); flex: none; }
+.cuadro-alerta[data-prioridad="1"] .cuadro-sev { background: var(--color-danger-500); }
+
+/* Simulador de tarifa. */
+.cuadro-sim { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); align-items: end; }
+@media (max-width: 700px) { .cuadro-sim { grid-template-columns: 1fr; } }
+.cuadro-sim-importe { font-size: 18px; line-height: 20px; font-weight: 700; }
+/* Controles del simulador de 38 px (maqueta). */
+.cuadro-sim ::deep input, .cuadro-sim ::deep select, .cuadro-sim-como .cuadro-select { min-height: 38px; box-sizing: border-box; }
+
+/* Recomendación «Si hubiera que reforzar a media jornada». */
+.cuadro-reco-grande { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+.cuadro-reco dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; }
+.cuadro-reco dt { color: var(--color-text-muted); }
+.cuadro-reco dd { margin: 0; }
+
+/* Calendario de gestiones por día: una columna por semana, cinco filas (lunes a viernes). */
+.cuadro-calendario { display: flex; gap: 3px; overflow-x: auto; }
+.cuadro-calendario-semana { display: grid; gap: 3px; }
+.cuadro-calendario-dia {
+    width: 16px; height: 16px; border-radius: 3px;
+    background: color-mix(in srgb, var(--color-primario-fondo) var(--intensidad), var(--color-primary-50));
+}
+.cuadro-calendario-fuera { visibility: hidden; }
+
+/* Barras horizontales de Comunicaciones. */
+.cuadro-barras-h { display: grid; gap: 8px; }
+.cuadro-barra-h { display: grid; grid-template-columns: minmax(120px, 40%) 1fr auto; align-items: center; gap: 10px; font-size: 13px; }
+.cuadro-barra-h-pista { height: 10px; border-radius: 5px; background: var(--color-surface-subtle); overflow: hidden; display: block; }
+.cuadro-barra-h-pista > span { display: block; height: 100%; background: var(--color-primary-500); }
+
+/* Selector de métrica de la Comparativa anual (maqueta: .tv-seg). */
+.cuadro-seg { display: inline-flex; flex-wrap: wrap; gap: 0; margin-bottom: 12px; border: 1px solid var(--color-border); border-radius: 10px; overflow: hidden; }
+.cuadro-seg button { font: inherit; font-size: 13px; line-height: 20px; font-weight: 600; padding: 6px 12px; color: var(--color-text); background: var(--color-surface); border: 0; cursor: pointer; }
+.cuadro-seg button[aria-pressed="true"] { color: var(--color-primary-700); background: var(--color-primary-50); }
+
+/* Móvil (375 px): pestañas en una sola fila con desplazamiento y controles que se ajustan al ancho. */
+@media (max-width: 640px) {
+    /* Margen lateral de 16 px (el contenedor de página compartido da 32). */
+    .cuadro { padding: 16px; gap: 16px; }
+    .cuadro-bloque ::deep .tarjeta { padding: 16px; }
+    .cuadro ::deep .pestanas-lista-envuelta { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+    .cuadro-barra > * { flex: 1 1 auto; min-width: 0; }
+    .cuadro-periodo { display: flex; }
+    .cuadro-momento { flex: 1 1 auto; justify-content: space-between; }
+    .cuadro-momento button { padding: 0 8px; }
+    .cuadro-select { width: 100%; }
+    .cuadro-espaciador { display: none; }
+    .cuadro-barra ::deep .boton { width: 100%; }
+}
+/* Insignia de aviso de las pestañas: ámbar, 20 x 20, 11 px en negrita (maqueta: .tv-tabs .tv-badge). */
+.cuadro ::deep .pestanas-contador-alerta {
+    box-sizing: border-box;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    font-size: 11px;
+    line-height: 20px;
+    font-weight: 700;
+    background: var(--color-warning-50);
+    color: var(--color-warning-700);
+}
+/* Rótulo accesible de la insignia («documentos con incidencia»): oculto a la vista y sin desbordar. */
+.cuadro ::deep .pestanas-contador-glosa {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+/* Pestañas con el relleno de la maqueta (12 / 16). */
+.cuadro ::deep .pestanas-boton { padding: 12px 16px; }
+/* Índice de cartera por Gestor CAE (maqueta: chartCarga): barras horizontales con la media (100) punteada. */
+.cuadro-indice { display: grid; }
+.cuadro-indice-fila,
+.cuadro-indice-media {
+    display: grid;
+    grid-template-columns: minmax(64px, 120px) minmax(0, 1fr) 40px;
+    align-items: center;
+    column-gap: 8px;
+    font-size: 12px;
+}
+.cuadro-indice-fila { min-height: 28px; }
+.cuadro-indice-nombre { text-align: right; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cuadro-indice-pista { position: relative; display: block; height: 20px; align-self: stretch; margin-block: 4px; }
+.cuadro-indice-pista::after { content: ""; position: absolute; top: -4px; bottom: -4px; left: var(--media); border-left: 1px dashed var(--color-text-muted); }
+.cuadro-indice-barra { display: block; height: 100%; border-radius: 4px; background: var(--color-primary-500); }
+.cuadro-indice-barra[data-nivel="alto"] { background: var(--color-tolerancia-500); }
+.cuadro-indice-barra[data-nivel="bajo"] { background: var(--color-primary-300); }
+.cuadro-indice-valor { font-weight: 600; text-align: left; }
+.cuadro-indice-media { height: 22px; color: var(--color-text-muted); }
+.cuadro-indice-media > span { grid-column: 2; position: relative; left: var(--media); transform: translateX(-50%); width: max-content; }
+/* Simulador: precios de ejemplo en chips y el selector «se factura como» (maqueta). */
+.cuadro-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cuadro-chips button {
+    font: inherit; font-size: 13px; padding: 4px 12px; cursor: pointer; color: var(--color-text);
+    background: var(--color-surface); border: 1px solid var(--color-border-control); border-radius: 6px;
+}
+.cuadro-chips button[aria-pressed="true"] { color: var(--color-primario-texto); background: var(--color-primario-fondo); border-color: var(--color-primario-fondo); }
+.cuadro-sim-como { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--color-border); }
+.cuadro-sim-como-etiqueta { display: grid; gap: 4px; font-size: 13px; font-weight: 600; max-width: 320px; }

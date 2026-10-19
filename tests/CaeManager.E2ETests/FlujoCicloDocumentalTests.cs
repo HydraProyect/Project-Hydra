@@ -153,7 +153,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await page.WaitForTimeoutAsync(500);
         await drawer.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = nombreTipoDocumento });
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = Ayudas.HoyDeNegocio();
         await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
         await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(10).ToString("yyyy-MM-dd"));
 
@@ -270,7 +270,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // del historial vacío menciona "+ Nueva reclamación" entre comillas,
         // así que GetByText a secas es ambiguo entre la pestaña y ese párrafo.
         await page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { Name = "+ Nueva reclamación" }).ClickAsync();
-        var tarjetaCliente = page.Locator(".tarjeta-reclamacion", new PageLocatorOptions { HasText = razonSocialCliente });
+        var tarjetaCliente = page.Locator(".tarjeta-reclamacion", new PageLocatorOptions { HasText = razonSocialEmpresa });
         await tarjetaCliente.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // Sin contacto en la agenda todavía — ReclamacionesTab ofrece darlo de

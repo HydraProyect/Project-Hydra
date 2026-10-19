@@ -22,7 +22,9 @@ public sealed record FilaExportacionTrabajador(
     string Apellidos, string Nombre, string? Dni, string EmpleadorNombre, EstadoDocumento? EstadoDocumental)
 {
     public static FilaExportacionTrabajador Desde(TrabajadorListaDto trabajador) =>
-        new(trabajador.Apellidos, trabajador.Nombre, trabajador.Dni, trabajador.EmpleadorNombre, trabajador.EstadoDocumental);
+        new(trabajador.Apellidos, trabajador.Nombre, trabajador.Dni, trabajador.EmpleadorNombre,
+            // Mismo estado que la fila del listado: un requisito exigido sin documento no se lee «Sin incidencias».
+            EstadoDocumentoUi.ConFaltantes(trabajador.EstadoDocumental, trabajador.DocumentosFaltantes.Count > 0));
 }
 
 /// <summary>Mismo patrón de referencia que ClientesEndpoints — ver comentario allí.</summary>
@@ -71,7 +73,9 @@ public static class TrabajadoresEndpoints
                     CentroId: Guid.TryParse(centro, out var centroId) ? centroId : null,
                     DelegacionEmpresaId: Guid.TryParse(delegacion, out var delegacionId) ? delegacionId : null,
                     OficioEmpresaId: Guid.TryParse(oficio, out var oficioId) ? oficioId : null,
-                    // Sin ConDesgloseDocumental: el libro no lleva incidencias ni «vigentes / registrados».
+                    // El desglose se pide solo para saber qué exigido falta (la columna Estado coincide con el listado);
+                    // el libro no lleva incidencias ni «vigentes / registrados».
+                    ConDesgloseDocumental: true,
                     OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,
                     Descendente: desc,
                     EstadoDocumental: string.IsNullOrWhiteSpace(estado) ? null : estado),

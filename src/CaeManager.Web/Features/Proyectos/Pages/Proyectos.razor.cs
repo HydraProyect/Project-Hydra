@@ -375,7 +375,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
             Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
             Pagina: _paginaActual,
             TamanoPagina: _tamanoPagina,
-            ConRecuentosPorEstado: true);
+            ConRecuentosPorEstado: true,
+            AgruparPorEmpresa: _agrupar == "empresa");
         _cargandoProyectos = true;
         _errorProyectos = false;
         StateHasChanged();

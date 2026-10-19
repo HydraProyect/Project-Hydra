@@ -19,6 +19,22 @@ namespace CaeManager.Application.Tests.Proyectos;
 /// </summary>
 public class ObtenerProyectosQueryListadoTests
 {
+    [Fact]
+    public async Task Agrupar_por_Empresa_ordena_antes_de_paginar_y_respeta_la_cartera()
+    {
+        var surAntiguo = NuevoProyecto(_obrasDelSur, "Sur antiguo", inicio: Inicio);
+        var norte = NuevoProyecto(_montajesNorte, "Norte", inicio: Inicio.AddDays(1));
+        var surNuevo = NuevoProyecto(_obrasDelSur, "Sur nuevo", inicio: Inicio.AddDays(2));
+        var primera = await Pedir(new ObtenerProyectosQuery(TamanoPagina: 2, AgruparPorEmpresa: true));
+        primera.Elementos.Select(p => p.Id).Should().Equal(norte.Id, surNuevo.Id);
+        primera.TotalElementos.Should().Be(3);
+        var segunda = await Pedir(new ObtenerProyectosQuery(Pagina: 2, TamanoPagina: 2, AgruparPorEmpresa: true));
+        segunda.Elementos.Select(p => p.Id).Should().Equal(surAntiguo.Id);
+        var limitada = await Pedir(new ObtenerProyectosQuery(AgruparPorEmpresa: true), AlcanceLimitadoA(_montajesNorte.Id));
+        limitada.Elementos.Select(p => p.Id).Should().Equal(norte.Id);
+        limitada.TotalElementos.Should().Be(1);
+    }
+
     private static readonly DateOnly Inicio = new(2026, 3, 12);
     private static readonly Guid EmpresaPropiaId = Guid.NewGuid();
 

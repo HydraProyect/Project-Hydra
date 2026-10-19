@@ -902,4 +902,16 @@
   <data name="DocumentoDesdeFecha" xml:space="preserve"><value>Va vèncer el {0}</value></data>
   <data name="DocumentoCaducaFecha" xml:space="preserve"><value>Caduca el {0}</value></data>
   <data name="AriaSeleccionarPagina" xml:space="preserve"><value>Selecciona les subcontractes d'aquesta pàgina</value></data>
+  <data name="ContratadaPor" xml:space="preserve">
+    <value>Contractada per</value>
+  </data>
+  <data name="EmpresaContratante" xml:space="preserve">
+    <value>empresa contractant</value>
+  </data>
+  <data name="SinEmpresaContratante" xml:space="preserve">
+    <value>Sense empresa contractant</value>
+  </data>
+  <data name="ChipContratadaPor" xml:space="preserve"><value>Contractada per: {0}</value></data>
+  <data name="BotonQuitarContratadaPor" xml:space="preserve"><value>Treu el filtre de contractant</value></data>
+  <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordena per aquesta columna</value></data>
 </root>

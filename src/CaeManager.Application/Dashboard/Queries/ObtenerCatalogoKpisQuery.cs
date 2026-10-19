@@ -341,7 +341,7 @@ public class ObtenerCatalogoKpisQueryHandler(
         // Un Dni null (trabajador anonimizado) no tiene tipo que clasificar,
         // así que queda fuera del KPI en vez de forzar un valor.
         return filas
-            .Where(f => f.Dni is not null && ValidadorIdentificacion.Analizar(f.Dni).Tipo != TipoIdentificacion.Dni)
+            .Where(f => ValidadorIdentificacion.EsDocumentoDeExtranjero(f.Dni))
             .GroupBy(f => clientePorCentro[centroPorVisita[f.VisitaId]])
             .ToDictionary(g => g.Key, g => g.Select(x => x.Dni).Distinct().Count());
     }

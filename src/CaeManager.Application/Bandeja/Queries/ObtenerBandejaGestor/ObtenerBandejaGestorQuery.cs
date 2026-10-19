@@ -198,7 +198,9 @@ public record ItemBandejaDto(
     bool? EmpresaEsPropia = null,
     bool RechazoBloqueaCentro = false,
     Guid? AcreditacionId = null,
-    Guid? VisitaId = null);
+    Guid? VisitaId = null,
+    string? CentroNombre = null,
+    bool EsPropagacionPendiente = false);
 
 public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracionQueryContext configuracionContext)
     : IRequestHandler<ObtenerBandejaGestorQuery, IReadOnlyList<ItemBandejaDto>>
@@ -397,7 +399,9 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
             EmpresaId: x.d.EmpresaId,
             TrabajadorNombre: x.d.TrabajadorId is not null ? x.d.PropietarioNombre : null,
             ProveedorNombre: x.proveedor.ProveedorNombre,
-            AcreditacionId: x.d.AcreditacionId)));
+            AcreditacionId: x.d.AcreditacionId,
+            CentroNombre: x.d.CentroNombre,
+            EsPropagacionPendiente: x.d.Estado == EstadoAcreditacion.PendienteDeSubir)));
 
         // Aquí todavía no se sabe qué Rechazada cierra su Centro de Trabajo
         // (RechazoBloqueaCentro sin calcular): este orden vale para la cola

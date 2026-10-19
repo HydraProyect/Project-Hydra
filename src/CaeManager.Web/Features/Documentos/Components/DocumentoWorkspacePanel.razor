@@ -295,8 +295,8 @@ else
     private void IniciarEdicionInformacion()
     {
         if (_detalle is null) return;
-        // Renovar es emitir otro documento: la fecha de emisión nace vacía, no con la del documento anterior.
-        _fechaEmisionEditada = string.Empty;
+        // Este panel corrige el mismo registro sin sustituir el archivo: conserva ambas fechas.
+        _fechaEmisionEditada = _detalle.FechaEmision.ToString("yyyy-MM-dd");
         _fechaVencimientoEditada = _detalle.FechaVencimiento?.ToString("yyyy-MM-dd") ?? string.Empty;
         // Editar solo fechas o comentarios no puede perder la confirmación
         // de «no caduca»: se precarga y viaja de vuelta en el comando.

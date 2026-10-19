@@ -16,6 +16,10 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 /// que viaja en la URL), sobre <see cref="SubcontrataListaDto.EstadoDocumental"/>. Un valor que no es un
 /// estado se ignora; si ninguno lo es, no filtra (ver <see cref="EstadoDocumentalFiltro.Coincide"/>).
 /// </param>
+/// <param name="ContratadaPorEmpresaId">
+/// Filtro «Contratada por»: solo las Subcontratas con una Relación Empresarial vigente con esa Empresa propia
+/// contratante. La Empresa no concede visibilidad: el alcance de arriba sigue decidiendo qué Subcontratas se ven.
+/// </param>
 /// <param name="ConRecuentosPorEstado">
 /// Rellena <c>ResultadoPaginado.RecuentosPorEstado</c>: Subcontratas por estado documental con los demás
 /// filtros aplicados y sin el de estado.
@@ -24,7 +28,7 @@ public record ObtenerSubcontratasQuery(
     string? Busqueda, int Pagina = 1, int TamanoPagina = 20,
     string? OrdenarPor = null, bool Descendente = false, Guid? SubcontrataId = null,
     NivelServicioSubcontrata? NivelServicio = null,
-    string? EstadoDocumental = null, bool ConRecuentosPorEstado = false)
+    string? EstadoDocumental = null, bool ConRecuentosPorEstado = false, Guid? ContratadaPorEmpresaId = null)
     : IRequest<ResultadoPaginado<SubcontrataListaDto>>;
 
 /// <param name="CumplimientoPorcentaje">
@@ -40,6 +44,9 @@ public record SubcontrataListaDto(
     /// <summary>Identidades visibles por el ámbito efectivo del listado de Trabajadores y por RLS.</summary>
     public IReadOnlyList<TrabajadorIdentidadSubcontrataDto> Trabajadores { get; init; } = [];
 
+    /// <summary>Empresas propias contratantes visibles, con una Relación Empresarial vigente.</summary>
+    public IReadOnlyList<EmpresaContratanteSubcontrataDto> Contratantes { get; init; } = [];
+
     /// <summary>
     /// Estado documental de la fila: el peor de sus incidencias (<see cref="RecuentosSubcontrataDto.PeorEstado"/>).
     /// No está persistido; por eso filtrar por él obliga a calcularlo para todas las filas.
@@ -48,6 +55,7 @@ public record SubcontrataListaDto(
 }
 
 public record TrabajadorIdentidadSubcontrataDto(Guid Id, string Nombre, string Apellidos);
+public record EmpresaContratanteSubcontrataDto(Guid Id, string RazonSocial);
 
 /// <summary>
 /// F3b-Subcontrata (revisión adversaria del 2026-08-26, evidencia real de
@@ -65,6 +73,9 @@ public class ObtenerSubcontratasQueryHandler(
     ITrabajadoresQueryContext trabajadoresContext)
     : IRequestHandler<ObtenerSubcontratasQuery, ResultadoPaginado<SubcontrataListaDto>>
 {
+    /// <summary>Clave de <see cref="ObtenerSubcontratasQuery.OrdenarPor"/> de la columna «Contratada por».</summary>
+    public const string ColumnaContratadaPor = "ContratadaPor";
+
     public async Task<ResultadoPaginado<SubcontrataListaDto>> Handle(ObtenerSubcontratasQuery request, CancellationToken cancellationToken)
     {
         var consulta = dbContext.Empresas.Where(e => e.NivelServicio != null);
@@ -91,9 +102,27 @@ public class ObtenerSubcontratasQueryHandler(
         if (nivelTexto is not null)
             consulta = consulta.Where(s => s.NivelServicio == nivelTexto);
 
-        // Lista blanca de columnas ordenables — ver ObtenerClientesQuery.
+        // Empresas propias contratantes con relación vigente: la columna «Contratada por» ordena por la primera por razón social.
+        // Con el mismo alcance de Empresas que la columna que se pinta: ni el filtro ni el orden revelan una Empresa que no se ve.
+        var empresasVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
+        var contratantes = ContratantesVigentes(empresasVisibles);
+
+        if (request.ContratadaPorEmpresaId is { } contratanteId)
+            consulta = consulta.Where(s => contratantes.Any(c => c.ProveedoraId == s.Id && c.Id == contratanteId));
+
+        // Lista blanca de columnas ordenables — ver ObtenerClientesQuery. El cumplimiento no está persistido:
+        // ordena en memoria por el camino con estado (más abajo) y aquí queda el orden por razón social.
         var ordenada = (request.OrdenarPor, request.Descendente) switch
         {
+            (nameof(SubcontrataListaDto.NivelServicio), false) => consulta.OrderBy(s => s.NivelServicio),
+            (nameof(SubcontrataListaDto.NivelServicio), true) => consulta.OrderByDescending(s => s.NivelServicio),
+            // Las sin contratante van siempre al final, en los dos sentidos.
+            (ColumnaContratadaPor, false) => consulta
+                .OrderBy(s => !contratantes.Any(c => c.ProveedoraId == s.Id))
+                .ThenBy(s => contratantes.Where(c => c.ProveedoraId == s.Id).Min(c => c.RazonSocial)),
+            (ColumnaContratadaPor, true) => consulta
+                .OrderBy(s => !contratantes.Any(c => c.ProveedoraId == s.Id))
+                .ThenByDescending(s => contratantes.Where(c => c.ProveedoraId == s.Id).Min(c => c.RazonSocial)),
             (nameof(SubcontrataListaDto.RazonSocial), true) => consulta.OrderByDescending(s => s.RazonSocial),
             (nameof(SubcontrataListaDto.Cif), false) => consulta.OrderBy(s => s.Cif),
             (nameof(SubcontrataListaDto.Cif), true) => consulta.OrderByDescending(s => s.Cif),
@@ -113,7 +142,8 @@ public class ObtenerSubcontratasQueryHandler(
         // filtros, y paginar después en memoria — mismo planteamiento que ObtenerCentrosQuery. El
         // alcance es el de arriba: no se calcula nada de una Subcontrata que el usuario no ve.
         var filtraPorEstado = EstadoDocumentalFiltro.ClavesDeOrden(request.EstadoDocumental) is not null;
-        if (filtraPorEstado || request.ConRecuentosPorEstado)
+        var ordenaPorCumplimiento = request.OrdenarPor == nameof(SubcontrataListaDto.CumplimientoPorcentaje);
+        if (filtraPorEstado || request.ConRecuentosPorEstado || ordenaPorCumplimiento)
         {
             var todas = await ordenada
                 .Select(s => new FilaSubcontrata(s.Id, s.RazonSocial, s.Cif, s.CreadoEnUtc, s.NivelServicio!))
@@ -131,6 +161,19 @@ public class ObtenerSubcontratasQueryHandler(
             var filtradas = filtraPorEstado
                 ? conEstado.Where(s => EstadoDocumentalFiltro.Coincide(s.EstadoDocumental, request.EstadoDocumental)).ToList()
                 : conEstado;
+
+            // Sin cumplimiento (ningún requisito exigido) va siempre al final; el desempate es el orden de razón social ya aplicado.
+            if (ordenaPorCumplimiento)
+            {
+                var conValor = filtradas.Where(s => s.CumplimientoPorcentaje is not null);
+                filtradas =
+                [
+                    .. (request.Descendente
+                        ? conValor.OrderByDescending(s => s.CumplimientoPorcentaje)
+                        : conValor.OrderBy(s => s.CumplimientoPorcentaje)),
+                    .. filtradas.Where(s => s.CumplimientoPorcentaje is null)
+                ];
+            }
 
             var paginaFiltrada = filtradas.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList();
             return new ResultadoPaginado<SubcontrataListaDto>(
@@ -168,6 +211,26 @@ public class ObtenerSubcontratasQueryHandler(
             .ToList();
     }
 
+    /// <summary>Empresas propias contratantes (dentro del alcance de visibilidad) con una relación vigente con cada Subcontrata.</summary>
+    private IQueryable<ContratanteVigente> ContratantesVigentes(IReadOnlyList<Guid>? empresasVisibles)
+    {
+        var empresas = dbContext.Empresas.Where(e => e.EsPropia);
+        if (empresasVisibles is not null)
+            empresas = empresas.Where(e => empresasVisibles.Contains(e.Id));
+        return
+            from r in dbContext.RelacionesEmpresariales
+            where r.VigenciaHasta == null
+            join e in empresas on r.ClienteId equals e.Id
+            select new ContratanteVigente { ProveedoraId = r.ProveedoraId, Id = e.Id, RazonSocial = e.RazonSocial };
+    }
+
+    private sealed class ContratanteVigente
+    {
+        public Guid ProveedoraId { get; init; }
+        public Guid Id { get; init; }
+        public string RazonSocial { get; init; } = string.Empty;
+    }
+
     /// <summary>
     /// Solo para las filas que se devuelven, ya paginadas: la ventana de trabajadores no se carga para las
     /// Subcontratas que el listado no enseña. El recuento y la ventana salen de estas mismas identidades.
@@ -178,6 +241,10 @@ public class ObtenerSubcontratasQueryHandler(
             return [];
 
         var ids = filas.Select(s => s.Id).ToList();
+        var empresasVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
+        var contratantes = await ContratantesVigentes(empresasVisibles)
+            .Where(c => ids.Contains(c.ProveedoraId))
+            .Distinct().OrderBy(e => e.RazonSocial).ThenBy(e => e.Id).ToListAsync(cancellationToken);
         var consultaTrabajadores = trabajadoresContext.Trabajadores
             .Where(t => t.SubcontrataId != null && ids.Contains(t.SubcontrataId.Value));
         var idsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
@@ -189,7 +256,12 @@ public class ObtenerSubcontratasQueryHandler(
             .ToListAsync(cancellationToken);
         var porSubcontrata = trabajadores.ToLookup(t => t.SubcontrataId!.Value, t => t.Identidad);
 
-        return filas.Select(s => s with { Trabajadores = porSubcontrata[s.Id].ToList() }).ToList();
+        return filas.Select(s => s with
+        {
+            Trabajadores = porSubcontrata[s.Id].ToList(),
+            Contratantes = contratantes.Where(e => e.ProveedoraId == s.Id)
+                .Select(e => new EmpresaContratanteSubcontrataDto(e.Id, e.RazonSocial)).ToList()
+        }).ToList();
     }
 
     private record FilaSubcontrata(Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc, string NivelServicio);

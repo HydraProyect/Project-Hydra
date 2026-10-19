@@ -113,12 +113,12 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         {
             Contador = _detalle is null ? null : new ContadorPestana(TecnicosActivosAhora, Textos["GlosaTecnicosActivos"])
         },
+        new(PestanaEmpresas, Textos["PestanaEmpresasProyecto"]),
+        new(PestanaVehiculos, Textos["PestanaVehiculosProyecto"]),
         new(PestanaDocumentos, Textos["PestanaDocumentos"])
         {
             Contador = _detalle is null ? null : new ContadorPestana(_detalle.DocumentosGestionados, Textos["GlosaDocumentosGestionados"])
         },
-        new(PestanaEmpresas, Textos["PestanaEmpresasProyecto"]),
-        new(PestanaVehiculos, Textos["PestanaVehiculosProyecto"]),
         new(PestanaVisitas, Textos["PestanaVisitasProyecto"]),
         // «Historial» va la última y «Ficha» justo antes, como en Centro 360.
         new(PestanaFicha, Comunes["PestanaFicha"]),

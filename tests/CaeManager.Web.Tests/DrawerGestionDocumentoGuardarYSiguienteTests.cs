@@ -13,6 +13,8 @@ using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.Components.Forms;
+using PdfSharp.Pdf;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -68,10 +70,10 @@ public class DrawerGestionDocumentoGuardarYSiguienteTests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    private sealed class AlmacenQueNadieDebeTocar : IFileStorageService
+    private sealed class AlmacenDePruebas : IFileStorageService
     {
         public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException("Este test no sube nada.");
+            Task.FromResult("documentos/nuevo.pdf");
 
         public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("Este test no abre nada.");
@@ -100,7 +102,7 @@ public class DrawerGestionDocumentoGuardarYSiguienteTests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<ToastService>();
-        Services.AddScoped<IFileStorageService, AlmacenQueNadieDebeTocar>();
+        Services.AddScoped<IFileStorageService, AlmacenDePruebas>();
         Services.AddScoped<IConversorWordPdfService, ConversorQueNadieDebeTocar>();
         Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
 
@@ -119,11 +121,11 @@ public class DrawerGestionDocumentoGuardarYSiguienteTests : BunitContext
             Ambito: AmbitoAplicacion.Trabajador,
             PropietarioNombre: propietario,
             TipoDocumentoNombre: "Reconocimiento médico",
-            TipoDocumentoAplicaVencimientoAutomatico: true,
+            TipoDocumentoAplicaVencimientoAutomatico: false,
             FechaEmision: new DateOnly(2025, 1, 10),
             FechaVencimiento: new DateOnly(2026, 1, 10),
             EstadoVigencia: default,
-            ArchivoUrl: null,
+            ArchivoUrl: "documentos/anterior.pdf",
             Comentarios: null,
             TipoDocumentoDescripcion: null,
             TipoDocumentoCriteriosValidacion: null,
@@ -139,23 +141,65 @@ public class DrawerGestionDocumentoGuardarYSiguienteTests : BunitContext
         cut.FindAll(".drawer-pie button").Select(b => b.TextContent.Trim()).ToList();
 
     [Fact]
-    public async Task Renovar_abre_la_fecha_de_emision_vacia_y_sin_escribirla_no_renueva()
+    public async Task Corregir_sin_archivo_conserva_ambas_fechas_y_las_guarda_sin_reescribirlas()
     {
         var cut = Renderizar();
         PasoSerieDocumento[] serie = [Documento("Ana Ruiz")];
         await cut.InvokeAsync(() => cut.Instance.AbrirSerieAsync(serie, serie[0]));
 
         cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de emisión").Instance.Valor
-            .Should().BeNullOrEmpty("renovar no hereda la fecha de emisión del documento anterior");
+            .Should().Be("2025-01-10");
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de vencimiento").Instance.Valor
+            .Should().Be("2026-01-10");
+        await PulsarAsync(cut, "Guardar");
 
+        var comando = _mediador.Comandos.OfType<RenovarDocumentoCommand>().Should().ContainSingle().Subject;
+        comando.FechaEmision.Should().Be(new DateOnly(2025, 1, 10));
+        comando.FechaVencimientoManual.Should().Be(new DateOnly(2026, 1, 10));
+        comando.ArchivoUrl.Should().Be("documentos/anterior.pdf");
+    }
+
+    [Fact]
+    public async Task Una_subida_rechazada_conserva_ambas_fechas_del_registro_actual()
+    {
+        var cut = Renderizar();
+        PasoSerieDocumento[] serie = [Documento("Ana Ruiz")];
+        await cut.InvokeAsync(() => cut.Instance.AbrirSerieAsync(serie, serie[0]));
+
+        cut.FindComponent<InputFile>().UploadFiles(
+            InputFileContent.CreateFromBinary([1, 2, 3], "rechazado.pdf", contentType: "application/pdf"));
+
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de emisión").Instance.Valor
+            .Should().Be("2025-01-10");
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de vencimiento").Instance.Valor
+            .Should().Be("2026-01-10");
+    }
+
+    [Fact]
+    public async Task Subir_archivo_nuevo_vacia_ambas_fechas_y_exige_una_emision_nueva()
+    {
+        var cut = Renderizar();
+        PasoSerieDocumento[] serie = [Documento("Ana Ruiz")];
+        await cut.InvokeAsync(() => cut.Instance.AbrirSerieAsync(serie, serie[0]));
+        using var documento = new PdfDocument();
+        documento.AddPage();
+        using var salida = new MemoryStream();
+        documento.Save(salida);
+
+        cut.FindComponent<InputFile>().UploadFiles(
+            InputFileContent.CreateFromBinary(salida.ToArray(), "nuevo.pdf", contentType: "application/pdf"));
+
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de emisión").Instance.Valor
+            .Should().BeNullOrEmpty();
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de vencimiento").Instance.Valor
+            .Should().BeNullOrEmpty();
         await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
-
-        Renovados.Should().BeEmpty("sin fecha de emisión no hay renovación");
+        Renovados.Should().BeEmpty("el archivo nuevo necesita su fecha de emisión");
     }
 
     private static async Task PulsarAsync(IRenderedComponent<DrawerGestionDocumento> cut, string rotulo)
     {
-        // Renovar abre la fecha de emisión vacía: quien guarda sin haberla escrito la escribe aquí (hoy).
+        // Tras subir un archivo nuevo, el guardado requiere una nueva fecha de emisión.
         if (rotulo.StartsWith("Guardar", StringComparison.Ordinal)
             && cut.FindComponents<CampoTexto>().SingleOrDefault(c => c.Instance.Etiqueta == "Fecha de emisión") is { } emision
             && string.IsNullOrEmpty(emision.Instance.Valor))

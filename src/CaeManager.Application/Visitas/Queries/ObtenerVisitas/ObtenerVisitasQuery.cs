@@ -31,7 +31,8 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 public record ObtenerVisitasQuery(
     string? Busqueda, bool SoloActivas, bool? NotificadoCliente, bool SoloUrgentes = false, int Pagina = 1, int TamanoPagina = 20,
     string? OrdenarPor = null, bool Descendente = false, Guid? VisitaId = null,
-    IReadOnlyCollection<EstadoDocumentacionVisita>? EstadosDocumentacion = null, bool ConRecuentosPorEstado = false)
+    IReadOnlyCollection<EstadoDocumentacionVisita>? EstadosDocumentacion = null, bool ConRecuentosPorEstado = false,
+    string? ClienteFiltro = null, string? EmpresaFiltro = null, int? VentanaDias = null, bool AgruparPorCliente = false)
     : IRequest<ResultadoPaginado<VisitaListaDto>>;
 
 public record VisitaListaDto(
@@ -70,7 +71,8 @@ public record VisitaListaDto(
     IReadOnlyList<string>? Trabajadores = null,
     // Estado GUARDADO en la Visita (Visita.DocumentacionGestionadaEnUtc): cuándo se envió el
     // paquete de acreditación o se marcó a mano. Null = por gestionar.
-    DateTime? DocumentacionGestionadaEnUtc = null)
+    DateTime? DocumentacionGestionadaEnUtc = null, int? TrabajadoresListos = null,
+    EstadoDocumento? PeorEstadoDocumental = null, TimeOnly? HoraEstimadaAcceso = null)
 {
     /// <summary>
     /// Lo que la columna «Documentación» pinta en rojo: ni cancelada, ni en un
@@ -123,6 +125,18 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
 
         if (request.VisitaId is { } visitaId)
             consulta = consulta.Where(x => x.visita.Id == visitaId);
+
+        var clientesSeleccionados = SeleccionFiltroVisitas.Leer(request.ClienteFiltro);
+        var empresasSeleccionadas = SeleccionFiltroVisitas.Leer(request.EmpresaFiltro);
+        if (clientesSeleccionados.Count > 0)
+            consulta = consulta.Where(x => clientesSeleccionados.Contains(x.cliente.RazonSocial));
+        if (empresasSeleccionadas.Count > 0)
+            consulta = consulta.Where(x => empresasSeleccionadas.Contains(x.empresa.RazonSocial));
+        if (request.VentanaDias is 0 or 7 or 14)
+        {
+            var hasta = hoy.AddDays(request.VentanaDias.Value);
+            consulta = consulta.Where(x => x.visita.FechaFin >= hoy && x.visita.FechaInicio <= hasta);
+        }
 
         // FS-11: una Visita cancelada no está activa ni es urgente, aunque sus
         // fechas lo digan. Sale de la lista activa, de Mi trabajo y de la
@@ -191,6 +205,21 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
 
         var total = await consulta.CountAsync(cancellationToken);
 
+        IReadOnlyDictionary<string, ResumenDeGrupo>? resumenPorGrupo = null;
+        if (request.AgruparPorCliente && request.ConRecuentosPorEstado)
+        {
+            var grupos = await consulta.GroupBy(x => new
+            {
+                Grupo = x.cliente.Id,
+                Estado = x.visita.EstaCancelada ? EstadoDocumentacionVisita.Cancelada
+                    : x.centro.GestionCae == ModalidadGestionCae.SinGestionCae ? EstadoDocumentacionVisita.SinGestionCae
+                    : x.visita.DocumentacionGestionadaEnUtc != null ? EstadoDocumentacionVisita.Gestionada
+                    : EstadoDocumentacionVisita.PorGestionar
+            }).Select(g => new { g.Key.Grupo, g.Key.Estado, Total = g.Count() }).ToListAsync(cancellationToken);
+            resumenPorGrupo = grupos.GroupBy(g => g.Grupo).ToDictionary(g => g.Key.ToString(),
+                g => new ResumenDeGrupo(g.Sum(e => e.Total), g.ToDictionary(e => e.Estado.ToString(), e => e.Total)));
+        }
+
         // Lista blanca de columnas ordenables — ver ObtenerClientesQuery.
         // PorGestionar es la misma expresión que VisitaListaDto.PorGestionar, escrita sobre
         // las columnas: desde que el estado se guarda en la Visita se ordena y pagina en SQL
@@ -224,6 +253,8 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
         // paginar en SQL eso hace que una fila aparezca dos veces o no
         // aparezca nunca. El Id no se ordena nunca por sí solo — solo cierra
         // el orden que haya elegido el usuario.
+        if (request.AgruparPorCliente)
+            ordenada = consulta.OrderBy(x => x.cliente.RazonSocial).ThenBy(x => x.cliente.Id).ThenBy(x => x.visita.FechaInicio);
         ordenada = ordenada.ThenBy(x => x.visita.Id);
 
         var filas = ordenada
@@ -238,6 +269,7 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
                 EmpresaId = x.empresa.Id,
                 x.visita.FechaInicio,
                 x.visita.FechaFin,
+                x.visita.HoraEstimadaAcceso,
                 x.visita.NotificadoCliente,
                 x.visita.Origen,
                 x.centro.GestionCae,
@@ -256,7 +288,7 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
             .ToListAsync(cancellationToken);
 
         if (pagina.Count == 0)
-            return new ResultadoPaginado<VisitaListaDto>([], total, request.Pagina, request.TamanoPagina) { RecuentosPorEstado = recuentosPorEstado };
+            return new ResultadoPaginado<VisitaListaDto>([], total, request.Pagina, request.TamanoPagina) { RecuentosPorEstado = recuentosPorEstado, ResumenPorGrupo = resumenPorGrupo };
 
         var visitaIds = pagina.Select(p => p.Id).ToList();
 
@@ -321,6 +353,17 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
                 DocumentacionOk(
                     vencimientosTrabajadores.Where(v => v.TrabajadorId == trabajadorId).Select(v => (v.EstadoVigencia, v.FechaVencimiento))));
 
+            // La misma documentación que define DocumentacionCompleta y TrabajadoresListos, sin otra consulta ni otro universo.
+            var estadosDocumentales = vencimientosTrabajadores
+                .Where(v => trabajadorIdsDeEstaVisita.Contains(v.TrabajadorId))
+                .Select(v => CalculadoraEstadoDocumento.Calcular(v.EstadoVigencia, v.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias))
+                .Concat(vencimientosEmpresas.Where(v => v.EmpresaId == p.EmpresaId && tiposObligatoriosEmpresa.Contains(v.TipoDocumentoId))
+                    .Select(v => CalculadoraEstadoDocumento.Calcular(v.EstadoVigencia, v.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
+                .ToList();
+            if (trabajadorIdsDeEstaVisita.Any(id => !vencimientosTrabajadores.Any(v => v.TrabajadorId == id))
+                || tiposObligatoriosEmpresa.Any(tipoId => !vencimientosEmpresas.Any(v => v.EmpresaId == p.EmpresaId && v.TipoDocumentoId == tipoId)))
+                estadosDocumentales.Add(EstadoDocumento.Faltante);
+
             return new VisitaListaDto(
                 p.Id, p.CentroId, p.CentroNombre, p.ClienteId, p.ClienteRazonSocial, p.EmpresaId, p.EmpresaRazonSocial,
                 p.FechaInicio, p.FechaFin, trabajadorIdsDeEstaVisita.Count,
@@ -342,9 +385,13 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
                     .Where(t => trabajadorIdsDeEstaVisita.Contains(t.Id))
                     .Select(t => t.NombreCompleto)
                     .ToList(),
-                DocumentacionGestionadaEnUtc: p.DocumentacionGestionadaEnUtc);
+                DocumentacionGestionadaEnUtc: p.DocumentacionGestionadaEnUtc,
+                TrabajadoresListos: trabajadorIdsDeEstaVisita.Count(trabajadorId => DocumentacionOk(
+                    vencimientosTrabajadores.Where(v => v.TrabajadorId == trabajadorId).Select(v => (v.EstadoVigencia, v.FechaVencimiento)))),
+                PeorEstadoDocumental: estadosDocumentales.OrderBy(SeveridadEstadoDocumento.Rango).Cast<EstadoDocumento?>().FirstOrDefault(),
+                HoraEstimadaAcceso: p.HoraEstimadaAcceso);
         }).ToList();
 
-        return new ResultadoPaginado<VisitaListaDto>(elementos, total, request.Pagina, request.TamanoPagina) { RecuentosPorEstado = recuentosPorEstado };
+        return new ResultadoPaginado<VisitaListaDto>(elementos, total, request.Pagina, request.TamanoPagina) { RecuentosPorEstado = recuentosPorEstado, ResumenPorGrupo = resumenPorGrupo };
     }
 }

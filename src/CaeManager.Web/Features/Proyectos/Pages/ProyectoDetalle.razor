@@ -18,25 +18,17 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@(_detalle?.Nombre ?? Textos["TituloPestanaNavegadorDetalle"]) — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina proyecto360">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["EtiquetaMigas"]" />
 
     @if (_error)
     {
         @* No encontrado y sin acceso se ven igual: la consulta devuelve null en los dos casos. *@
-        <EstadoVacio Titulo="@Textos["ErrorDetalleTitulo"]" Descripcion="@Textos["ErrorDetalleDescripcion"]"
-                     NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
-            <Accion>
-                <Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton>
-                <EnlaceProfundoOtraEmpresa />
-            </Accion>
-        </EstadoVacio>
+        <EstadoErrorProyecto OnReintentar="CargarAsync" />
     }
     else if (_cargando)
     {
-        <Tarjeta>
-            <EstadoCargando Filas="5" />
-        </Tarjeta>
+        <EstadoCargando Filas="5" />
     }
     else if (_detalle is not null)
     {
@@ -62,11 +54,11 @@
                     <span>@Textos["MetaCliente"] <a class="proyecto360-enlace" href="@($"/clientes/{_detalle.ClienteId}")">@_detalle.ClienteRazonSocial</a></span>
                     <span aria-hidden="true">·</span>
                     <span>
-                        @Textos["EtiquetaInicio"]: @_detalle.FechaInicio.ToString("dd/MM/yyyy")
+                        @_detalle.FechaInicio.ToString("dd/MM/yyyy")
                         <span aria-hidden="true">→</span>
                         @if (_detalle.FechaFinPrevista is { } fin)
                         {
-                            <span>@Textos["EtiquetaFinPrevisto"]: @fin.ToString("dd/MM/yyyy")</span>
+                            <span>@fin.ToString("dd/MM/yyyy")</span>
                             <BotonCopiar Valor="@fin.ToString("dd/MM/yyyy")" Etiqueta="@Textos["CopiarLaFechaDeFin"]" />
                         }
                         else
@@ -96,7 +88,7 @@
             </Acciones>
         </CabeceraIdentidad>
 
-        <Pestanas Definiciones="Pestanas" PestanaActiva="@PestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["EtiquetaSecciones"]">
+        <Pestanas Definiciones="Pestanas" PestanaActiva="@PestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["EtiquetaSecciones"]" Pagina360="true">
             <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
                 <ChildContent>
                     @if (PestanaActiva == PestanaDocumentos)
@@ -140,7 +132,7 @@
                                 <DatoRejilla Etiqueta="@Textos["EtiquetaCliente"]" Valor="@_detalle.ClienteRazonSocial" Ancho="true" />
                                 <DatoRejilla Etiqueta="@Textos["EtiquetaCentro"]" Valor="@_detalle.CentroNombre" />
                                 <DatoRejilla Etiqueta="@Textos["EtiquetaInicio"]" Valor="@_detalle.FechaInicio.ToString("dd/MM/yyyy")" />
-                                <DatoRejilla Etiqueta="@Textos["EtiquetaFinPrevisto"]" Valor="@(_detalle.FechaFinPrevista?.ToString("dd/MM/yyyy") ?? Textos["FinIndefinido"].Value)" />
+                                <DatoRejilla Etiqueta="@Textos["EtiquetaFinPrevisto"]" Valor="@(_detalle.FechaFinPrevista?.ToString("dd/MM/yyyy") ?? Textos["FinIndefinido"].Value)" Ancho="true" />
                             </RejillaDatos>
                         </ChildContent>
                     </Tarjeta>
@@ -278,10 +270,30 @@
 
 @code {
     /// <summary>
-    /// Cajas de la pestaña «Ficha»: lo que no cabe en el lateral, que lleva dos o tres cajas
-    /// como mucho (decisión del 2026-10-09). Hoy, el plazo.
+    /// Datos completos de la ficha del export del 17-10 y el plazo que ya ofrecía la página.
     /// </summary>
-    private IReadOnlyList<CajaFicha> CajasDeFicha => [new("plazo", CajaPlazo)];
+    private IReadOnlyList<CajaFicha> CajasDeFicha => [new("datos", CajaDatos), new("plazo", CajaPlazo)];
+
+    private RenderFragment CajaDatos => __builder =>
+    {
+        <Tarjeta Titulo="@Comunes["PestanaFicha"]" Compacta="true">
+            <AccionesHeader>
+                <SoloConEscritura>
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirEditar">@Textos["EditarFlecha"]</Boton>
+                </SoloConEscritura>
+            </AccionesHeader>
+            <ChildContent>
+                <RejillaDatos>
+                    <DatoRejilla Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_detalle!.Nombre" />
+                    <DatoRejilla Etiqueta="@Textos["EtiquetaCliente"]" Valor="@_detalle.ClienteRazonSocial" />
+                    <DatoRejilla Etiqueta="@Textos["EtiquetaCentro"]" Valor="@_detalle.CentroNombre" />
+                    <DatoRejilla Etiqueta="@Textos["EtiquetaEstado"]" Valor="@Textos[_detalle.EstaAbierto ? "BadgeAbierto" : "BadgeCerrado"].Value" />
+                    <DatoRejilla Etiqueta="@Textos["EtiquetaInicio"]" Valor="@_detalle.FechaInicio.ToString("dd/MM/yyyy")" />
+                    <DatoRejilla Etiqueta="@Textos["EtiquetaFinPrevisto"]" Valor="@(_detalle.FechaFinPrevista?.ToString("dd/MM/yyyy") ?? Textos["FinIndefinido"].Value)" />
+                </RejillaDatos>
+            </ChildContent>
+        </Tarjeta>
+    };
 
     private RenderFragment CajaPlazo => __builder =>
     {
@@ -421,6 +433,8 @@
         {
             @* Una sola tarjeta, como el mockup: los activos, la raya «De baja · N» y los de baja. *@
             <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["ListaTecnicos"]">
+                <Encabezado>@Textos[TecnicosActivosAhora == 1 ? "ResumenTecnicoProyecto" : "ResumenTecnicosProyecto", TecnicosActivosAhora]</Encabezado>
+                <ChildContent>
                 @foreach (var tecnico in TecnicosActivos)
                 {
                     @FilaDeTecnico(tecnico)
@@ -433,6 +447,7 @@
                         @FilaDeTecnico(tecnico)
                     }
                 }
+                </ChildContent>
             </ListaRelaciones>
         }
     };
@@ -467,11 +482,11 @@
 
     private RenderFragment PestanaDeDocumentos => __builder =>
     {
-        <Tarjeta>
-            <PestanaDocumentacion Ambito="AmbitoAplicacion.Proyecto" PropietarioId="_detalle!.Id" />
+        <div class="proyecto360-documentos">
+            <PestanaDocumentacion Ambito="AmbitoAplicacion.Proyecto" PropietarioId="_detalle!.Id" EnPagina="true" />
             @* «Subir documento» para un proyecto todavía no existe: la única vía sigue siendo Documentos. *@
             <p class="texto-vacio-seccion">@Textos["AyudaAdjuntarDocumento"]</p>
             <a class="proyecto360-enlace" href="/documentos?Ambito=Proyecto">@Textos["EnlaceIrADocumentos"]</a>
-        </Tarjeta>
+        </div>
     };
 }

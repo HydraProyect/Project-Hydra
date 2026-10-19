@@ -132,7 +132,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = Ayudas.HoyDeNegocio();
         await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
         await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(180).ToString("yyyy-MM-dd"));
         var rutaPdf = Ayudas.GenerarPdfDePruebaEnDisco($"porcorreo-{sufijo}.pdf");
@@ -167,14 +167,14 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
                 INSERT INTO "Visitas"
                     ("Id", "CentroId", "TenantId", "FechaInicio", "FechaFin", "Origen", "Atribucion",
                      "NotificadoCliente", "EstaEliminado", "CreadoEnUtc", "Version")
-                SELECT @visita::uuid, c."Id", c."TenantId", (now() + interval '3 days')::date, (now() + interval '3 days')::date,
+                SELECT @visita::uuid, c."Id", c."TenantId", @fecha::date, @fecha::date,
                        0, 0, false, false, now(), gen_random_uuid()
                 FROM "Centros" c WHERE c."Nombre" = @centro
                 RETURNING "Id", "TenantId")
             INSERT INTO "VisitasTrabajadores" ("Id", "TenantId", "TrabajadorId", "VisitaId")
             SELECT gen_random_uuid(), v."TenantId", t."Id", v."Id"
             FROM v JOIN "Trabajadores" t ON t."TenantId" = v."TenantId" AND t."Apellidos" = @apellidos
-            """, ("visita", visitaId.ToString()), ("centro", nombreCentro), ("apellidos", apellidosTrabajador));
+            """, ("fecha", hoy.AddDays(3).ToString("yyyy-MM-dd")), ("visita", visitaId.ToString()), ("centro", nombreCentro), ("apellidos", apellidosTrabajador));
         Assert.Equal(1, visitas);
 
         // --- /visitas: abrir la Visita, copiar la solicitud y descargar el zip ---

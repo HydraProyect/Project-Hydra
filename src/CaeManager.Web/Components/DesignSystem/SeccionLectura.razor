@@ -1,0 +1,18 @@
+@*
+    Una sección del modo Lectura del panel («Panel Formulario TALVEG»): título de sección y, debajo, una tarjeta con la rejilla
+    etiqueta/valor. Sus hijos son <DatoRejilla EnLectura="true">; un dato vacío dice «Sin dato». Es una lista de descripción
+    (dl/dt/dd), como RejillaDatos.
+*@
+<section class="seccion-lectura">
+    <h3 class="seccion-lectura-titulo">@Titulo</h3>
+    <dl class="seccion-lectura-rejilla">
+        @ChildContent
+    </dl>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+
+    /// <summary>Los <see cref="DatoRejilla"/> (con <c>EnLectura</c>) de la sección.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

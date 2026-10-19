@@ -156,7 +156,7 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
         var cut = Renderizar(new MediatorPanel { DocumentosVigentes = true, GestionadaEn = null });
 
         var fila = Fila(cut);
-        fila.QuerySelectorAll(".badge-peligro").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Por gestionar");
+        fila.QuerySelectorAll(".visitas-preparacion .badge-peligro").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Por gestionar");
         fila.TextContent.Should().NotContain("Gestionada").And.NotContain("Completa");
         fila.QuerySelector("span[title^='Documentos vigentes']").Should().NotBeNull("el title dice que ya se puede enviar");
     }
@@ -180,7 +180,7 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
         });
 
         var fila = Fila(cut);
-        fila.QuerySelectorAll("[data-pieza=estado-correcto]").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Gestionada");
+        fila.QuerySelectorAll(".visitas-preparacion [data-pieza=estado-correcto]").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Gestionada");
         fila.TextContent.Should().NotContain("Por gestionar");
         fila.QuerySelector("span[title^='Documentación gestionada el']").Should().NotBeNull();
     }
@@ -200,7 +200,7 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
             "viaja la versión que se vio: si alguien cambió los Trabajadores, el servidor lo rechaza");
         cut.WaitForAssertion(() =>
         {
-            Fila(cut).QuerySelectorAll("[data-pieza=estado-correcto]").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Gestionada");
+            Fila(cut).QuerySelectorAll(".visitas-preparacion [data-pieza=estado-correcto]").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Gestionada");
             BotonesMarcar(cut).Should().BeEmpty("ya gestionada, no se ofrece marcarla otra vez");
             cut.Find(".drawer-panel").TextContent.Should().Contain("Gestionada el");
         });
@@ -225,7 +225,7 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
 
         cut.WaitForAssertion(() => mediator.Marcas.Should().ContainSingle());
         mediator.Marcas.Single().Version.Should().NotBe(versionAlAbrir);
-        cut.WaitForAssertion(() => Fila(cut).QuerySelectorAll("[data-pieza=estado-correcto]").Should().ContainSingle());
+        cut.WaitForAssertion(() => Fila(cut).QuerySelectorAll(".visitas-preparacion [data-pieza=estado-correcto]").Should().ContainSingle());
     }
 
     /// <summary>Deshacer: una Visita gestionada ofrece quitar la marca, y al quitarla vuelve a «Por gestionar» y a ofrecer marcarla.</summary>
@@ -244,7 +244,7 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
         mediator.MarcasQuitadas.Single().Should().Be(new QuitarMarcaDocumentacionGestionadaCommand(mediator.VisitaId, versionVista));
         cut.WaitForAssertion(() =>
         {
-            Fila(cut).QuerySelectorAll(".badge-peligro").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Por gestionar");
+            Fila(cut).QuerySelectorAll(".visitas-preparacion .badge-peligro").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Por gestionar");
             BotonesQuitarMarca(cut).Should().BeEmpty();
             BotonesMarcar(cut).Should().ContainSingle();
         });
@@ -265,7 +265,7 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
         cut.WaitForAssertion(() => mediator.Marcas.Should().ContainSingle());
         cut.WaitForAssertion(() =>
         {
-            Fila(cut).QuerySelectorAll(".badge-peligro").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Por gestionar");
+            Fila(cut).QuerySelectorAll(".visitas-preparacion .badge-peligro").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Por gestionar");
             Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje.Contains("Otra persona modificó"));
         });
     }

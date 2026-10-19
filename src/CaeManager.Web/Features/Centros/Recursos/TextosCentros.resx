@@ -595,4 +595,10 @@
   <data name="CopiarCodigo" xml:space="preserve">
     <value>Copiar el código {0}</value>
   </data>
+  <data name="UltimaReclamacionCliente" xml:space="preserve">
+    <value>Última reclamación a este Cliente</value>
+  </data>
+  <data name="UltimaReclamacionEmpresaEmpleadora" xml:space="preserve">
+    <value>Última reclamación a {0}, Empresa de sus Trabajadores</value>
+  </data>
 </root>
