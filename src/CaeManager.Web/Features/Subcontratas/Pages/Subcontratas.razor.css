@@ -231,3 +231,8 @@
     .rejilla-subcontratas-seleccion > .celda-contratada-por { grid-column: 3 / -1; }
     .tarjeta-fila-acordeon-cabecera > .celda-estado-subcontrata { grid-row: 3; }
 }
+/* Rótulos que ordenan: botones sin aspecto de botón, con el orden vigente como flecha. */
+.col-title { border: none; padding: 0; background: none; cursor: pointer; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; text-align: left; }
+.col-sort-asc .col-title, .col-sort-desc .col-title { color: var(--color-text); }
+.col-sort-asc .col-title::after { content: " ↑"; }
+.col-sort-desc .col-title::after { content: " ↓"; }

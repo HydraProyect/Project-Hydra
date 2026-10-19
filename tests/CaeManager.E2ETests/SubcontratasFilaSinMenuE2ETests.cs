@@ -89,6 +89,29 @@ public class SubcontratasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     }
 
     [Fact]
+    public async Task Los_rotulos_ordenan_y_la_pastilla_Contratada_por_filtra_en_un_navegador_real()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await AbrirSubcontratasAsync(contexto);
+        var cabecera = page.Locator(".cabecera-columnas-subcontratas");
+
+        await cabecera.GetByRole(AriaRole.Button, new() { Name = "Contratada por" }).ClickAsync();
+        await page.WaitForURLAsync(new Regex(@"orden=contratadapor(&|$)"));
+        await Expect(cabecera.Locator(".col-sort-asc .col-title")).ToHaveTextAsync("Contratada por");
+        await Expect(page.Locator(".lista-filas-acordeon .fila-pulsable")).Not.ToHaveCountAsync(0);
+
+        await cabecera.GetByRole(AriaRole.Button, new() { Name = "Contratada por" }).ClickAsync();
+        await page.WaitForURLAsync(new Regex(@"orden=contratadapor-desc"));
+        await Expect(cabecera.Locator(".col-sort-desc .col-title")).ToHaveTextAsync("Contratada por");
+
+        // La pastilla ofrece las Empresas del Tenant y filtrar por una la deja en la URL con su chip.
+        await page.Locator(".barra-filtros-pastillas .menu-acciones-disparador-pastilla[aria-label='Contratada por']").ClickAsync();
+        await page.Locator(".barra-filtros-pastillas [role=menuitemradio]").Nth(1).ClickAsync();
+        await page.WaitForURLAsync(new Regex(@"contratadapor=[0-9a-f-]{36}"));
+        await Expect(page.Locator(".chip-filtro")).ToContainTextAsync("Contratada por:");
+    }
+
+    [Fact]
     public async Task La_tecla_e_edita_la_fila_enfocada()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();

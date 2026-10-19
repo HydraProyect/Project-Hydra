@@ -911,4 +911,7 @@
   <data name="SinEmpresaContratante" xml:space="preserve">
     <value>Sense empresa contractant</value>
   </data>
+  <data name="ChipContratadaPor" xml:space="preserve"><value>Contractada per: {0}</value></data>
+  <data name="BotonQuitarContratadaPor" xml:space="preserve"><value>Treu el filtre de contractant</value></data>
+  <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordena per aquesta columna</value></data>
 </root>
