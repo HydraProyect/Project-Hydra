@@ -153,6 +153,10 @@
     {
         @if (_cargando) { <Esqueleto Forma="FormaEsqueleto.Lista" Cantidad="6" /> }
         <div style="display:@(_cargando ? "none" : "block")">
+        @* La llamada va dentro de un bloque de código para que tras el argumento «PieDelListado)» siga una llave: suelto
+           entre etiquetas, Razor lo trataría como texto. Mismo patrón que Centros.razor y Clientes.razor. *@
+        @if (true)
+        {
         @TarjetaListado.RenderizarMaqueta(@<text>
                 <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
                 <div class="visitas-lista-desplazable">
@@ -345,6 +349,7 @@
 
                 </div>
 </text>, PieDelListado)
+        }
         </div>
 
         @* TRES estados vacíos, no dos, y la razón es que "Solo activas" viene

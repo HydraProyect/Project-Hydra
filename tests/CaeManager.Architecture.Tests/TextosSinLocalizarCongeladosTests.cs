@@ -151,7 +151,7 @@ public class TextosSinLocalizarCongeladosTests
         // que quedan son las etiquetas estáticas de NivelUrgenciaVisitaUi y AntelacionVisitaUi,
         // que también pintan Dashboard (Inicio) y DashboardEjecutivo: migrarlas cambia la firma
         // de helpers compartidos entre Features y es un incremento propio.
-        ["Visitas"] = 11, // 10 → 11 el 2026-10-19 (lista 1:1 con Design): el medidor cuenta el fragmento de código «, PieDelListado)» que queda entre «</text>» y «</div>» tras la reestructuración de la lista; no es un texto de interfaz y no hay nada que mover a .resx. Si el medidor aprende a ignorar código Razor, esta entrada vuelve a 10.
+        ["Visitas"] = 10,
         ["Web(raiz)"] = 4,
         ["Web/Api"] = 2,
         ["Web/Reportes"] = 5,
