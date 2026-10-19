@@ -190,6 +190,11 @@
         width: 100%;
     }
 
+    /* Una etiqueta larga («Guardar y terminar») baja de línea en su columna en vez de desbordarla. */
+    .drawer-pie ::deep .boton {
+        white-space: normal;
+    }
+
     .drawer-pie > :last-child:nth-child(odd) {
         grid-column: 1 / -1;
     }
@@ -233,6 +238,19 @@
     margin: 0;
     flex: none;
     accent-color: var(--color-primario-fondo);
+}
+
+/* Una lista con algo más que casillas (texto, botones entre ellas, como «Asignar empresas») conserva su caja de siempre. */
+.drawer-cuerpo ::deep .lista-seleccion-multiple:has(> :not(.campo-checkbox)) {
+    gap: var(--space-2);
+    padding: var(--space-3);
+    overflow: visible;
+}
+
+.drawer-cuerpo ::deep .lista-seleccion-multiple:has(> :not(.campo-checkbox)) .campo-checkbox {
+    min-height: 0;
+    padding: 0;
+    border-top: 0;
 }
 /* Ficha 16: desenfoque ligero tras el velo, detrás de @supports y bajo el token
    --scrim-filtro (tokens.css; "none" lo apaga). Con transparencia o movimiento
