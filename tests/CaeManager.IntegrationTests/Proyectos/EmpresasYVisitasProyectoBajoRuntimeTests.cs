@@ -1,3 +1,4 @@
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Proyectos.Queries.ObtenerEmpresasProyecto;
@@ -198,7 +199,7 @@ public class EmpresasYVisitasProyectoBajoRuntimeTests : IAsyncLifetime
         await using var contexto = Contexto(_propietario.Id, usuario, rol);
         var alcance = new AlcanceDatosService(contexto, new CurrentUserServiceFalso(usuario, rol, tenantOrigenId: _propietario.Id),
             new TenantActualAmbiental { TenantId = _propietario.Id }, new SesionPrivilegiadaAusente());
-        return await new ObtenerVehiculosProyectoQueryHandler(contexto, contexto, contexto, contexto, contexto, alcance)
+        return await new ObtenerVehiculosProyectoQueryHandler(contexto, contexto, contexto, contexto, contexto, alcance, new CalculoEstadoDocumentalService(contexto, contexto, contexto))
             .Handle(new(proyectoId), CancellationToken.None);
     }
 
@@ -208,7 +209,7 @@ public class EmpresasYVisitasProyectoBajoRuntimeTests : IAsyncLifetime
         await using var contexto = Contexto(_propietario.Id, usuario, rol);
         var alcance = new AlcanceDatosService(contexto, new CurrentUserServiceFalso(usuario, rol, tenantOrigenId: _propietario.Id),
             new TenantActualAmbiental { TenantId = _propietario.Id }, new SesionPrivilegiadaAusente());
-        var empresas = await new ObtenerEmpresasProyectoQueryHandler(contexto, contexto, contexto, contexto, alcance)
+        var empresas = await new ObtenerEmpresasProyectoQueryHandler(contexto, contexto, contexto, contexto, alcance, new CalculoEstadoDocumentalService(contexto, contexto, contexto))
             .Handle(new(proyectoId), CancellationToken.None);
         var visitas = await new ObtenerVisitasProyectoQueryHandler(contexto, contexto, contexto, alcance)
             .Handle(new(proyectoId), CancellationToken.None);

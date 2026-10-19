@@ -330,9 +330,23 @@
                     @foreach (var empresa in _empresasProyecto)
                     {
                         <FilaRelacion @key="empresa.Id" Nombre="@empresa.RazonSocial" NombreIcono="empresas"
+                                      Tono="@TonoDeEstadoDocumental(empresa.EstadoDocumental)"
                                       OnNombre="() => AbrirEmpresaProyectoAsync(empresa)"
                                       OnAbrir360="() => NavigationManager.NavigateTo(RutaEmpresaProyecto(empresa))">
-                            <Detalle>@TextoPapelEmpresaProyecto(empresa) · @Textos[empresa.TecnicosActivos == 1 ? "EmpresaProyectoUnTecnico" : "EmpresaProyectoTecnicos", empresa.TecnicosActivos]</Detalle>
+                            <Detalle>@TextoPapelEmpresaProyecto(empresa) · @Textos[empresa.TecnicosActivos == 1 ? "EmpresaProyectoUnTecnico" : "EmpresaProyectoTecnicos", empresa.TecnicosActivos]@MotivoDocumental(empresa.Incidencias)</Detalle>
+                            <Cifra>
+                                @* Documentos propios de la Empresa al día / registrados (la maqueta: «6 de 8»). *@
+                                @if (empresa.DocumentosRegistrados > 0)
+                                {
+                                    <span class="fila-trabajador-fraccion">@Textos["FraccionTecnico", empresa.DocumentosVigentes, empresa.DocumentosRegistrados]</span>
+                                }
+                            </Cifra>
+                            <Estado>
+                                @if (empresa.EstadoDocumental is { } estadoEmpresa)
+                                {
+                                    <Badge Tono="EstadoDocumentoUi.Tono(estadoEmpresa)">@EstadoDocumentoUi.Texto(estadoEmpresa)</Badge>
+                                }
+                            </Estado>
                         </FilaRelacion>
                     }
                 </ChildContent>
@@ -354,9 +368,22 @@
                     @foreach (var vehiculo in _vehiculosProyecto)
                     {
                         <FilaRelacion @key="vehiculo.Id" Nombre="@vehiculo.Nombre" NombreIcono="vehiculos"
+                                      Tono="@TonoDeEstadoDocumental(vehiculo.EstadoDocumental)"
                                       OnNombre="() => AbrirVehiculoProyectoAsync(vehiculo)"
                                       OnAbrir360="() => IrAVehiculoProyecto(vehiculo.Id)">
-                            <Detalle>@vehiculo.NumeroPlaca · @vehiculo.Modelo · @vehiculo.EmpleadorNombre</Detalle>
+                            <Detalle>@vehiculo.NumeroPlaca · @vehiculo.Modelo · @vehiculo.EmpleadorNombre@MotivoDocumental(vehiculo.Incidencias)</Detalle>
+                            <Cifra>
+                                @if (vehiculo.DocumentosRegistrados > 0)
+                                {
+                                    <span class="fila-trabajador-fraccion">@Textos["FraccionTecnico", vehiculo.DocumentosVigentes, vehiculo.DocumentosRegistrados]</span>
+                                }
+                            </Cifra>
+                            <Estado>
+                                @if (vehiculo.EstadoDocumental is { } estadoVehiculo)
+                                {
+                                    <Badge Tono="EstadoDocumentoUi.Tono(estadoVehiculo)">@EstadoDocumentoUi.Texto(estadoVehiculo)</Badge>
+                                }
+                            </Estado>
                         </FilaRelacion>
                     }
                 </ChildContent>

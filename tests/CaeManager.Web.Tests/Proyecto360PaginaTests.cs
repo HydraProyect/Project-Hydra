@@ -826,16 +826,29 @@ public class Proyecto360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void Empresas_no_presenta_fraccion_estado_ni_tinte_documental()
+    public void Empresas_sin_documentos_propios_no_inventa_fraccion_ni_estado_ni_tinte()
     {
         _mediador.Empresas[AbiertoId] = [new(Guid.NewGuid(), "Empresa empleadora", 1, true, false)];
         var cut = Renderizar(AbiertoId, "?pestana=empresas");
         var fila = cut.Find(".lista-relaciones-tarjeta .fila-relacion");
         fila.TextContent.Should().Contain("1 técnico activo en el Proyecto").And.NotContain("0 de 0").And.NotContain("100");
-        var patron = cut.FindComponents<FilaRelacion>().Single().Instance;
-        patron.Cifra.Should().BeNull();
-        patron.Estado.Should().BeNull();
-        patron.Tono.Should().BeNull();
+        fila.QuerySelector(".fila-trabajador-fraccion").Should().BeNull();
+        fila.QuerySelector(".badge").Should().BeNull();
+        cut.FindComponents<FilaRelacion>().Single().Instance.Tono.Should().BeNull();
+    }
+
+    [Fact]
+    public void Empresas_con_documentos_propios_muestra_la_cifra_n_de_m_el_estado_y_el_tinte()
+    {
+        _mediador.Empresas[AbiertoId] = [new(Guid.NewGuid(), "Empresa empleadora", 5, true, false)
+        {
+            EstadoDocumental = EstadoDocumento.Vencido, DocumentosRegistrados = 8, DocumentosVigentes = 6,
+        }];
+        var cut = Renderizar(AbiertoId, "?pestana=empresas");
+        var fila = cut.Find(".lista-relaciones-tarjeta .fila-relacion");
+        fila.QuerySelector(".fila-trabajador-fraccion")!.TextContent.Should().Contain("6").And.Contain("8");
+        fila.TextContent.Should().Contain("Vencido");
+        cut.FindComponents<FilaRelacion>().Single().Instance.Tono.Should().Be(TonoFila.Peligro);
     }
 
     [Fact]
@@ -934,11 +947,24 @@ public class Proyecto360PaginaTests : BunitContext
         Services.GetRequiredService<ContextWorkspaceService>().FrameActual
             .Should().Be(new WorkspaceFrame(EntidadWorkspace.Vehiculo, vehiculoId, "Furgoneta 1", "informacion"));
 
+        fila.QuerySelector(".fila-trabajador-fraccion").Should().BeNull("sin documentos no se inventa una fracción");
         var patron = cut.FindComponents<FilaRelacion>().Single().Instance;
-        patron.Cifra.Should().BeNull("no se inventa una fracción documental del vehículo");
-        patron.Estado.Should().BeNull();
         await cut.InvokeAsync(() => patron.OnAbrir360.InvokeAsync());
         Navegacion.Uri.Should().EndWith($"/vehiculos/{vehiculoId}");
+    }
+
+    [Fact]
+    public void Vehiculos_con_documentos_muestra_la_cifra_n_de_m_el_estado_y_el_tinte()
+    {
+        _mediador.Vehiculos[AbiertoId] = [new(Guid.NewGuid(), "Furgoneta 1", "Ford Transit", "1234 ABC", Guid.NewGuid(), "Limpiezas Raccoon S.L.")
+        {
+            EstadoDocumental = EstadoDocumento.Proximo, DocumentosRegistrados = 3, DocumentosVigentes = 2,
+        }];
+        var cut = Renderizar(AbiertoId, "?pestana=vehiculos");
+        var fila = cut.Find(".lista-relaciones-tarjeta .fila-relacion");
+        fila.QuerySelector(".fila-trabajador-fraccion")!.TextContent.Should().Contain("2").And.Contain("3");
+        fila.QuerySelector(".badge").Should().NotBeNull();
+        cut.FindComponents<FilaRelacion>().Single().Instance.Tono.Should().Be(TonoFila.Advertencia);
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Proyectos.Commands.ActualizarProyecto;
 using CaeManager.Application.Proyectos.Commands.AsignarTecnicoProyecto;
 using CaeManager.Application.Proyectos.Commands.CerrarProyecto;
@@ -15,6 +16,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelecto
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Common;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using MediatR;
@@ -160,6 +162,20 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
 
     private bool SinAsignarAlCentro(TecnicoProyectoDto tecnico) =>
         tecnico.EstaActivo && _estadoEnCentro.TryGetValue(tecnico.TrabajadorId, out var centro) && centro is null;
+
+    /// <summary>Tinte de la fila de una Empresa o un Vehículo según el peor estado de sus documentos (mismos tonos que los técnicos).</summary>
+    private static TonoFila? TonoDeEstadoDocumental(EstadoDocumento? estado) => estado switch
+    {
+        EstadoDocumento.Faltante or EstadoDocumento.Vencido => TonoFila.Peligro,
+        EstadoDocumento.EnTolerancia or EstadoDocumento.Urgente or EstadoDocumento.Proximo or EstadoDocumento.SinConfirmar => TonoFila.Advertencia,
+        _ => null,
+    };
+
+    /// <summary>« · motivo» (el documento que causa el estado) para cerrar la línea de detalle; vacío si no hay incidencias.</summary>
+    private static string MotivoDocumental(IReadOnlyList<IncidenciaDocumentalDto> incidencias) =>
+        MotivoIncidenciasUi.Texto(incidencias, CaeManager.Domain.Common.DiaDeNegocio.Hoy()) is { } motivo
+            ? " · " + motivo
+            : string.Empty;
 
     private TonoFila? TonoDelTecnico(TecnicoProyectoDto tecnico)
     {
