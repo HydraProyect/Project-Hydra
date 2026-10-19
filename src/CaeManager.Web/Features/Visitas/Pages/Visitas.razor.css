@@ -356,3 +356,48 @@
     justify-content: space-between;
     gap: var(--space-2);
 }
+
+/* Export de Design: la tabla conserva la semántica y el desplazamiento horizontal en móvil. */
+.visitas-lista-desplazable { overflow-x: auto; }
+.visitas-lista { display: block; width: 100%; min-width: 1042px; border-collapse: collapse; }
+.visitas-lista thead, .visitas-lista tbody { display: block; }
+.visitas-lista thead > tr, .visitas-lista tr.fila-pulsable {
+    display: grid;
+    grid-template-columns: 24px minmax(200px, 2fr) minmax(200px, 1.6fr) minmax(150px, 1.4fr) minmax(130px, 1fr) minmax(170px, 1.3fr) 40px;
+    align-items: center;
+    gap: var(--space-4);
+    padding: 12px var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+.visitas-lista.visitas-con-seleccion { min-width: 1086px; }
+.visitas-lista.visitas-con-seleccion thead > tr, .visitas-lista.visitas-con-seleccion tr.fila-pulsable {
+    grid-template-columns: 28px 24px minmax(200px, 2fr) minmax(200px, 1.6fr) minmax(150px, 1.4fr) minmax(130px, 1fr) minmax(170px, 1.3fr) 40px;
+}
+.visitas-lista th, .visitas-lista td { display: block; min-width: 0; padding: 0; border: 0; }
+.visitas-lista thead > tr { padding-block: 14px 10px; align-items: end; border-bottom: 1.5px solid var(--color-text); }
+.visitas-lista th { font: 600 12px/16px var(--font-family); text-align: left; text-transform: uppercase; letter-spacing: .08em; color: var(--color-text-muted); }
+.visitas-lista th button { border: 0; background: none; padding: 0; color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
+.visitas-lista td > .visitas-celda-secundaria, .visitas-identidad > button { display: block; }
+.visitas-lista .visitas-celda-acciones { flex-wrap: wrap; }
+.visitas-lista .visitas-estado-acotado { width: auto; max-width: none; white-space: normal; }
+.visitas-lista .visitas-estado-acotado ::deep .estado-fila { max-width: none; }
+.visitas-lista .visitas-grupo th { padding: 10px var(--space-4); color: var(--color-text); border-bottom: 1px solid var(--color-border); }
+.visitas-expandir { display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--radius-sm); background: none; color: var(--color-text-muted); cursor: pointer; }
+.visitas-expandir:hover { background: var(--color-surface-hover); }
+.visitas-expandir ::deep .icono { transition: transform var(--motion-transition) var(--ease-fluid); }
+.visitas-expandir[aria-expanded="false"] ::deep .icono { transform: rotate(-90deg); }
+.visitas-expandir:focus-visible, .visitas-lista button:focus-visible { outline: 2px solid var(--color-primary-500); outline-offset: 2px; }
+.visitas-lista .visitas-fila-desplegada > td { padding: 4px var(--space-4) 4px 56px; border-bottom: 1px solid var(--color-border); background: color-mix(in srgb, var(--color-surface-subtle) 60%, var(--color-surface)); }
+.visitas-con-seleccion .visitas-fila-desplegada > td { padding-left: 100px; }
+.visitas-lista .visitas-fila-peligro { background: color-mix(in srgb, var(--color-danger-50) 45%, var(--color-surface)); }
+.visitas-lista .visitas-fila-advertencia { background: color-mix(in srgb, var(--color-warning-50) 45%, var(--color-surface)); }
+.visitas-hijo { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4); padding-block: 10px; border-top: 1px solid var(--color-border); }
+.visitas-hijo:first-of-type { border-top: 0; }
+.visitas-hijo-nombre { flex: none; width: 220px; text-align: left; font-weight: 600; }
+.visitas-hijo > .visitas-celda-secundaria { flex: 1; min-width: 120px; }
+.visitas-datos-conservados { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4); padding-block: 10px; font: var(--font-caption); }
+.visitas-datos-conservados > span { display: inline-flex; align-items: center; gap: var(--space-2); }
+.visitas-preparacion ::deep .estado-fila { display: block; margin-top: var(--space-1); }
+.visitas-barra-preparacion { display: inline-block; width: 64px; height: 6px; overflow: hidden; border-radius: 3px; background: var(--color-border); }
+.visitas-barra-preparacion > span { display: block; height: 100%; background: var(--color-success-500); }
+@media (prefers-reduced-motion: reduce) { .visitas-expandir ::deep .icono { transition: none; } }

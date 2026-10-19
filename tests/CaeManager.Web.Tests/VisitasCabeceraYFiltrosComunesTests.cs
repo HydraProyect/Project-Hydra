@@ -133,13 +133,13 @@ public class VisitasCabeceraYFiltrosComunesTests : BunitContext
             .Should().Be("Buscar por centro, titular o empresa…");
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(p => p.GetAttribute("aria-label"))
             .Should().Equal(
-                ["Solo activas: Sí", "Solo urgentes: No", "Notificada al titular del Centro: Todas", "Más filtros", "Filtros guardados"],
+                ["Cliente", "Empresa", "Ventana", "Más filtros", "Filtros guardados"],
                 "«Solo activas» nace marcado; el orden vive en «Más filtros»");
 
         OpcionesDe(cut, "Solo activas").Should().Equal("No", "Sí");
         OpcionesDe(cut, "Solo urgentes").Should().Equal("No", "Sí");
         OpcionesDe(cut, "Notificada al titular del Centro").Should().Equal("Todas", "Sí", "No");
-        OpcionesDe(cut, "Más filtros").Should().Equal("Por fechas", "Documentación por gestionar primero");
+        OpcionesDe(cut, "Más filtros").Should().Equal("Por fechas", "Documentación por gestionar primero", "Por origen", "Por aviso al titular del Centro");
     }
 
     private static IEnumerable<string> OpcionesDe(IRenderedComponent<Visitas> cut, string pastilla)
@@ -147,7 +147,7 @@ public class VisitasCabeceraYFiltrosComunesTests : BunitContext
         if (FiltrosVisitasDePrueba.Pastilla(cut, pastilla).GetAttribute("aria-expanded") != "true")
             FiltrosVisitasDePrueba.Pastilla(cut, pastilla).Click();
         return cut.Find("#" + FiltrosVisitasDePrueba.Pastilla(cut, pastilla).GetAttribute("aria-controls"))
-            .QuerySelectorAll("[role=menuitemradio]").Select(o => o.TextContent.Trim()).ToList();
+            .QuerySelectorAll(":scope > [role=menuitemradio]").Select(o => o.TextContent.Trim()).ToList();
     }
 
     [Fact]
