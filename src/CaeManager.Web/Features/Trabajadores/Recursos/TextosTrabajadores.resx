@@ -735,6 +735,20 @@
   <data name="EtiquetaAgrupar" xml:space="preserve"><value>Agrupar</value></data>
   <data name="OpcionSinAgrupar" xml:space="preserve"><value>Sin agrupar</value></data>
   <data name="AgruparPorEmpresa" xml:space="preserve"><value>Por Empresa</value></data>
+  <data name="AgruparPorDelegacionEmpresa" xml:space="preserve"><value>Por Delegación</value></data>
+  <data name="AgruparPorOficio" xml:space="preserve"><value>Por Oficio</value></data>
+  <data name="SinDelegacionEmpresa" xml:space="preserve"><value>Sin delegación</value></data>
+  <data name="SinOficio" xml:space="preserve"><value>Sin oficio</value></data>
+  <data name="GrupoDeCatalogoConEmpresa" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="EtiquetaDelegacionEmpresa" xml:space="preserve"><value>Delegación</value></data>
+  <data name="EtiquetaOficio" xml:space="preserve"><value>Oficio</value></data>
+  <data name="OpcionTodasLasDelegacionesEmpresa" xml:space="preserve"><value>Todas</value></data>
+  <data name="OpcionTodosLosOficios" xml:space="preserve"><value>Todos</value></data>
+  <data name="ChipDelegacionEmpresa" xml:space="preserve"><value>Delegación: {0}</value></data>
+  <data name="ChipOficio" xml:space="preserve"><value>Oficio: {0}</value></data>
+  <data name="AriaQuitarFiltroDelegacionEmpresa" xml:space="preserve"><value>Quitar filtro de delegación</value></data>
+  <data name="AriaQuitarFiltroOficio" xml:space="preserve"><value>Quitar filtro de oficio</value></data>
+  <data name="OficioEtiquetaAyuda" xml:space="preserve"><value>Oficio del catálogo de su empresa</value></data>
   <data name="RecuentoGrupoEnEstaPagina" xml:space="preserve"><value>· {0} en esta página</value></data>
   <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordenar</value></data>
   <data name="OficioEtiqueta" xml:space="preserve"><value>Oficio</value></data>

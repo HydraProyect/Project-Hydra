@@ -2,6 +2,7 @@ using AngleSharp.Dom;
 using Bunit.TestDoubles;
 using Bunit;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa;
 using CaeManager.Application.Empresas.Commands.GuardarNotaInternaEmpresa;
 using CaeManager.Application.Empresas.Commands.EditarFichaEmpresa;
@@ -62,6 +63,7 @@ public partial class Empresa360PaginaTests : BunitContext
         public Dictionary<Guid, List<ClienteDeEmpresaDto>> Clientes { get; } = [];
         public Dictionary<Guid, CredencialAccesoEmpresaDto> Credenciales { get; } = [];
         public Dictionary<Guid, SelloEmpresaDto> Sellos { get; } = [];
+        public Dictionary<Guid, CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.CatalogoTrabajadoresEmpresaDto> Catalogos { get; } = [];
 
         public List<object> Enviadas { get; } = [];
 
@@ -87,7 +89,7 @@ public partial class Empresa360PaginaTests : BunitContext
                 ? new CredencialAccesoEmpresaSinContrasenaDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Notas)
                 : null,
             ObtenerCredencialAccesoEmpresaQuery q => Credenciales.GetValueOrDefault(q.EmpresaId),
-            CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.ObtenerCatalogoTrabajadoresEmpresaQuery => CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.CatalogoTrabajadoresEmpresaDto.Vacio,
+            CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.ObtenerCatalogoTrabajadoresEmpresaQuery q => Catalogos.GetValueOrDefault(q.EmpresaId) ?? CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.CatalogoTrabajadoresEmpresaDto.Vacio,
             GuardarNotaInternaEmpresaCommand c => GuardarNota(c),
             EditarFichaEmpresaCommand c => GuardarFicha(c),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
@@ -119,12 +121,18 @@ public partial class Empresa360PaginaTests : BunitContext
             IEnumerable<TrabajadorListaDto> filas = q.EmpresaId is { } id ? Trabajadores.GetValueOrDefault(id) ?? [] : [];
             if (!string.IsNullOrWhiteSpace(q.Busqueda))
                 filas = filas.Where(t => $"{t.Nombre} {t.Apellidos}".Contains(q.Busqueda, StringComparison.OrdinalIgnoreCase));
+            if (q.DelegacionEmpresaId is { } delegacionId)
+                filas = filas.Where(t => t.DelegacionEmpresaId == delegacionId);
+            if (q.OficioEmpresaId is { } oficioId)
+                filas = filas.Where(t => t.OficioEmpresaId == oficioId);
             if (!string.IsNullOrWhiteSpace(q.EstadoDocumental))
-                filas = Enum.TryParse<EstadoDocumento>(q.EstadoDocumental, out var estado)
-                    ? filas.Where(t => t.EstadoDocumental == estado)
-                    : filas;
+                filas = filas.Where(t => EstadoDocumentalFiltro.Coincide(t.EstadoDocumental, q.EstadoDocumental));
             if (q.OrdenarPor == nameof(TrabajadorListaDto.EstadoDocumental))
                 filas = filas.OrderBy(t => Rango(t.EstadoDocumental)).ThenBy(t => t.Apellidos).ThenBy(t => t.Nombre).ThenBy(t => t.Id);
+            else if (q.OrdenarPor == nameof(TrabajadorListaDto.DelegacionEmpresaNombre))
+                filas = filas.OrderBy(t => t.DelegacionEmpresaNombre is null).ThenBy(t => t.DelegacionEmpresaNombre, StringComparer.Ordinal).ThenBy(t => t.Apellidos).ThenBy(t => t.Id);
+            else if (q.OrdenarPor == nameof(TrabajadorListaDto.OficioNombre))
+                filas = filas.OrderBy(t => t.OficioNombre is null).ThenBy(t => t.OficioNombre, StringComparer.Ordinal).ThenBy(t => t.Apellidos).ThenBy(t => t.Id);
 
             var lista = filas.ToList();
             return new ResultadoPaginado<TrabajadorListaDto>(
