@@ -54,23 +54,6 @@ public class RelojUtcComoHoyEnTestsCongeladoTests
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new(StringComparer.Ordinal)
     {
-        ["tests/CaeManager.E2ETests/BucleCorreccionPlataformaTests.cs"] = 1,
-        ["tests/CaeManager.E2ETests/CentrosGestionarEnVivoE2ETests.cs"] = 1,
-        ["tests/CaeManager.E2ETests/FlujoBandejaPriorizadaTests.cs"] = 1,
-        ["tests/CaeManager.E2ETests/FlujoCicloDocumentalTests.cs"] = 1,
-        ["tests/CaeManager.E2ETests/FlujoCriticoTests.cs"] = 1,
-        ["tests/CaeManager.E2ETests/IdiomaPorCuentaTests.cs"] = 3,
-        ["tests/CaeManager.E2ETests/ImportacionTests.cs"] = 1,
-        ["tests/CaeManager.E2ETests/ImportarDocumentosTests.cs"] = 1,
-        ["tests/CaeManager.E2ETests/SubidaMasivaTests.cs"] = 1,
-        ["tests/CaeManager.E2ETests/VisitaCentroGestionadoPorCorreoE2ETests.cs"] = 3,
-        // Horizonte de particiones de auditoría (current_date + 3650), no un «hoy» de negocio:
-        // se congela porque el patrón es el mismo y no distingue.
-        ["tests/CaeManager.IntegrationTests/Auditoria/ParticionadoAuditoriaBajoRuntimeTests.cs"] = 1,
-        ["tests/CaeManager.IntegrationTests/Importacion/ClosedXmlImportacionParserTests.cs"] = 3,
-        ["tests/CaeManager.IntegrationTests/Importacion/ClosedXmlPlantillaDocumentosServiceTests.cs"] = 4,
-        // INSERT que la RLS debe rechazar: la fecha no interviene en lo que se prueba.
-        ["tests/CaeManager.IntegrationTests/Tenants/AislamientoRlsCentroYSatelitesTests.cs"] = 1,
     };
 
     private static readonly Regex PatronHoyDesdeReloj = new(
