@@ -189,6 +189,21 @@
   <data name="BadgeActivo" xml:space="preserve">
     <value>Activo</value>
   </data>
+  <data name="BadgeSinAsignarAlCentro" xml:space="preserve">
+    <value>Sense assignar al Centre</value>
+  </data>
+  <data name="FraccionTecnico" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="MetaTecnicoSinAsignar" xml:space="preserve">
+    <value>no té assignació a {0}</value>
+  </data>
+  <data name="BotonAsignarAlCentro" xml:space="preserve">
+    <value>Assignar</value>
+  </data>
+  <data name="SubtituloTecnicosPorEstado" xml:space="preserve">
+    <value>{0}, del pitjor estat al millor · xifres amb els requisits de {1}</value>
+  </data>
   <data name="BotonDarDeBaja" xml:space="preserve">
     <value>Dar de baja</value>
   </data>
@@ -503,10 +518,10 @@
   <data name="ToastPlantillaGuardada" xml:space="preserve">
     <value>Plantilla desada.</value>
   </data>
-  <data name="ListaEmpresa" xml:space="preserve"><value>Empresa</value></data>
+  <data name="ListaEmpresa" xml:space="preserve"><value>Client</value></data>
   <data name="ListaAgrupar" xml:space="preserve"><value>Agrupar</value></data>
   <data name="ListaSinAgrupar" xml:space="preserve"><value>Sense agrupar</value></data>
-  <data name="ListaPorEmpresa" xml:space="preserve"><value>Per Empresa</value></data>
+  <data name="ListaPorEmpresa" xml:space="preserve"><value>Per Client</value></data>
   <data name="ListaDocumentacionDe" xml:space="preserve"><value>Documentació de {0}</value></data>
   <data name="ListaErrorDocumentacion" xml:space="preserve"><value>No hem pogut carregar la documentació</value></data>
   <data name="ListaSinDocumentos" xml:space="preserve"><value>Sense documents registrats per a aquest projecte.</value></data>

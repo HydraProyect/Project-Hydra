@@ -99,6 +99,18 @@ public class Proyecto360PaginaTests : BunitContext
         public bool FallarDetalle { get; set; }
         public bool SinTecnicos { get; set; }
         public bool FallarTecnicos { get; set; }
+
+        /// <summary>Estado del técnico activo en el Centro del Proyecto; <c>null</c> = no está asignado a ese Centro.</summary>
+        public EstadoDocumento? EstadoDelTecnico { get; set; } = EstadoDocumento.Vigente;
+        public bool TecnicoSinAsignarAlCentro { get; set; }
+        public bool FallarDocumentacionPorCentro { get; set; }
+        public FraccionCumplimiento FraccionDelTecnico { get; set; } = new(5, 5);
+
+        private IReadOnlyList<CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador.CentroDocumentacionTrabajadorDto> DocumentacionPorCentro() =>
+            TecnicoSinAsignarAlCentro ? [] :
+            [new(Guid.NewGuid(), CentroId, "Sede Sevilla", ClienteId, "Umbrella Corporation Ibérica S.A.", new DateOnly(2026, 6, 2),
+                EstadoDelTecnico ?? EstadoDocumento.Vigente, [], FraccionDelTecnico, FraccionDelTecnico)];
+
         public List<RequisitoEventoDto> Requisitos { get; } = [];
         public List<TipoDocumentoListaDto> TiposDocumento { get; } = [];
 
@@ -161,6 +173,8 @@ public class Proyecto360PaginaTests : BunitContext
                 ObtenerProyectoPorIdQuery q => Detalles.GetValueOrDefault(q.Id),
                 ObtenerTecnicosProyectoQuery when FallarTecnicos => throw new InvalidOperationException("fallo simulado de los técnicos"),
                 ObtenerTecnicosProyectoQuery => Tecnicos(),
+                CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador.ObtenerDocumentacionPorCentroDeTrabajadorQuery when FallarDocumentacionPorCentro => throw new InvalidOperationException("fallo simulado de la documentación por Centro"),
+                CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador.ObtenerDocumentacionPorCentroDeTrabajadorQuery => DocumentacionPorCentro(),
                 ObtenerEmpresasProyectoQuery q => Empresas.GetValueOrDefault(q.ProyectoId) ?? [],
                 ObtenerVisitasProyectoQuery q => Visitas.GetValueOrDefault(q.ProyectoId) ?? [],
                 ObtenerVehiculosProyectoQuery q => Vehiculos.GetValueOrDefault(q.ProyectoId) ?? [],
@@ -412,7 +426,7 @@ public class Proyecto360PaginaTests : BunitContext
         cut.FindAll("[data-pieza=tarjeta]").Should().BeEmpty();
 
         await cut.InvokeAsync(() => respuesta.SetResult(Abierto));
-        cut.WaitForAssertion(() => cut.Find(".lista-relaciones-encabezado").TextContent.Trim().Should().Be("1 técnico activo"));
+        cut.WaitForAssertion(() => cut.Find(".lista-relaciones-encabezado").TextContent.Trim().Should().Be("1 técnico activo, del peor estado al mejor · cifras con los requisitos de Sede Sevilla"));
     }
 
     [Fact]
@@ -452,7 +466,7 @@ public class Proyecto360PaginaTests : BunitContext
         var filas = cut.FindAll("[data-pieza=fila]");
         filas.Select(f => f.QuerySelector(".fila-relacion-nombre")!.TextContent.Trim())
             .Should().Equal("Salas Moreno, Javier", "Duarte, Ana");
-        filas[0].TextContent.Should().Contain("alta 02/06/2026").And.Contain("Activo").And.Contain("Dar de baja");
+        filas[0].TextContent.Should().Contain("alta 02/06/2026").And.Contain("Vigente").And.Contain("5 de 5").And.Contain("Dar de baja");
         filas[1].TextContent.Should().Contain("alta 09/06/2026 · baja 31/07/2026").And.Contain("De baja");
         filas[1].QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Dar de baja");
         cut.Find(".proyecto360-grupo").TextContent.Trim().Should().Be("De baja · 1");
@@ -460,6 +474,57 @@ public class Proyecto360PaginaTests : BunitContext
         var pestanas = cut.FindAll("[role=tab]");
         pestanas[0].TextContent.Should().Contain("Técnicos").And.Contain("1");
         pestanas[3].TextContent.Should().Contain("Documentos").And.Contain("3");
+    }
+
+    [Fact]
+    public void El_tecnico_lleva_su_estado_y_su_cifra_con_los_requisitos_del_Centro()
+    {
+        _mediador.EstadoDelTecnico = EstadoDocumento.Vencido;
+        _mediador.FraccionDelTecnico = new FraccionCumplimiento(3, 5);
+        var cut = Renderizar(AbiertoId);
+
+        cut.Find(".fila-relacion-cifra").TextContent.Trim().Should().Be("3 de 5");
+        cut.Find(".fila-relacion-estado").TextContent.Trim().Should().Be("Vencido");
+        cut.Find("[data-pieza=fila]").GetAttribute("data-tono").Should().Be("peligro");
+        cut.Markup.Should().Contain("cifras con los requisitos de Sede Sevilla");
+    }
+
+    [Fact]
+    public async Task El_tecnico_sin_asignar_al_Centro_lo_dice_y_ofrece_asignar_en_vez_de_dar_de_baja()
+    {
+        _mediador.TecnicoSinAsignarAlCentro = true;
+        var cut = Renderizar(AbiertoId);
+
+        var fila = cut.FindAll("[data-pieza=fila]")[0];
+        fila.GetAttribute("data-tono").Should().Be("advertencia");
+        fila.TextContent.Should().Contain("Sin asignar al Centro").And.Contain("no tiene asignación a Sede Sevilla");
+        var botones = fila.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).ToList();
+        botones.Should().Contain("Asignar").And.NotContain("Dar de baja");
+
+        await BotonConTexto(cut, "[data-pieza=fila] button", "Asignar").ClickAsync(new MouseEventArgs());
+        Navegacion.Uri.Should().EndWith($"/trabajadores/{TrabajadorActivoId}");
+    }
+
+    [Fact]
+    public void Si_falla_la_lectura_del_Centro_el_tecnico_conserva_Activo_y_no_se_inventa_un_estado()
+    {
+        _mediador.FallarDocumentacionPorCentro = true;
+        var cut = Renderizar(AbiertoId);
+
+        var fila = cut.FindAll("[data-pieza=fila]")[0];
+        fila.TextContent.Should().Contain("Activo").And.Contain("Dar de baja")
+            .And.NotContain("Sin asignar al Centro").And.NotContain(" de 5");
+    }
+
+    [Fact]
+    public void Con_el_proyecto_cerrado_el_tecnico_sin_asignar_no_ofrece_asignar_ni_dar_de_baja()
+    {
+        _mediador.TecnicoSinAsignarAlCentro = true;
+        var cut = Renderizar(CerradoId);
+
+        var fila = cut.FindAll("[data-pieza=fila]")[0];
+        fila.TextContent.Should().Contain("Sin asignar al Centro");
+        fila.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Asignar").And.NotContain("Dar de baja");
     }
 
     [Fact]

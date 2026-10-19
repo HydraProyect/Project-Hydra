@@ -433,7 +433,7 @@
         {
             @* Una sola tarjeta, como el mockup: los activos, la raya «De baja · N» y los de baja. *@
             <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["ListaTecnicos"]">
-                <Encabezado>@Textos[TecnicosActivosAhora == 1 ? "ResumenTecnicoProyecto" : "ResumenTecnicosProyecto", TecnicosActivosAhora]</Encabezado>
+                <Encabezado>@Textos["SubtituloTecnicosPorEstado", Textos[TecnicosActivosAhora == 1 ? "ResumenTecnicoProyecto" : "ResumenTecnicosProyecto", TecnicosActivosAhora].Value, _detalle!.CentroNombre]</Encabezado>
                 <ChildContent>
                 @foreach (var tecnico in TecnicosActivos)
                 {
@@ -457,20 +457,42 @@
     private RenderFragment FilaDeTecnico(TecnicoProyectoDto tecnico) => __builder =>
     {
         <FilaRelacion @key="tecnico.Id" Nombre="@tecnico.TrabajadorNombreCompleto" Iniciales="@AvatarTenant.Iniciales(tecnico.TrabajadorNombreCompleto)"
+                      Tono="@TonoDelTecnico(tecnico)"
                       OnNombre="() => AbrirPanelTrabajador(tecnico)" OnAbrir360="() => IrAFichaTrabajador(tecnico)">
             <Detalle>@MetaTecnico(tecnico)</Detalle>
-            <Estado>
-                @if (tecnico.EstaActivo)
+            <Cifra>
+                @if (EstadoEnCentroDe(tecnico) is { } enCentro && tecnico.EstaActivo)
                 {
-                    <Badge Tono="TonoBadge.Exito">@Textos["BadgeActivo"]</Badge>
+                    <span class="fila-trabajador-fraccion">@Textos["FraccionTecnico", enCentro.CumplimientoEnElCentro.AlDia, enCentro.CumplimientoEnElCentro.Requeridos]</span>
                 }
-                else
+            </Cifra>
+            <Estado>
+                @if (!tecnico.EstaActivo)
                 {
                     <Badge Tono="TonoBadge.Neutro">@Textos["BadgeDeBaja"]</Badge>
                 }
+                else if (SinAsignarAlCentro(tecnico))
+                {
+                    <Badge Tono="TonoBadge.Advertencia">@Textos["BadgeSinAsignarAlCentro"]</Badge>
+                }
+                else if (EstadoEnCentroDe(tecnico) is { } enCentro)
+                {
+                    <Badge Tono="EstadoDocumentoUi.Tono(enCentro.PeorEstado)">@EstadoDocumentoUi.Texto(enCentro.PeorEstado)</Badge>
+                }
+                else
+                {
+                    @* Mientras llega su lectura, o si falló: no se inventa un estado documental. *@
+                    <Badge Tono="TonoBadge.Exito">@Textos["BadgeActivo"]</Badge>
+                }
             </Estado>
             <Acciones>
-                @if (tecnico.EstaActivo && ListasEditables)
+                @if (SinAsignarAlCentro(tecnico) && ListasEditables)
+                {
+                    <SoloConEscritura>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => IrAFichaTrabajador(tecnico)">@Textos["BotonAsignarAlCentro"]</Boton>
+                    </SoloConEscritura>
+                }
+                else if (tecnico.EstaActivo && ListasEditables)
                 {
                     <SoloConEscritura>
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => _tecnicoADarDeBaja = tecnico">@Textos["BotonDarDeBaja"]</Boton>
