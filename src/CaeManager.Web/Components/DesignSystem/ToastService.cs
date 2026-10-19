@@ -140,7 +140,9 @@ public class ToastService
 
         var toast = new ToastMensaje(Guid.NewGuid(), titulo, tono, Enlace: enlace);
         _mensajes.Add(toast);
-        Programar(toast.Id, _duracionConAccion, cuentaVisible: false);
+        // Como en Mostrar: un error exige descarte manual.
+        if (tono != TonoToast.Error)
+            Programar(toast.Id, _duracionConAccion, cuentaVisible: false);
         OnCambio?.Invoke();
     }
 

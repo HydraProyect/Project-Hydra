@@ -222,6 +222,17 @@ public class PanelFormularioLecturaMultipleYToastTests : BunitContext
     }
 
     [Fact]
+    public async Task Toast_con_enlace_de_error_no_se_autodescarta()
+    {
+        var servicio = new ToastService(TimeSpan.FromMilliseconds(30), TimeSpan.FromMilliseconds(30));
+        servicio.MostrarConEnlace("Fallo", new ToastEnlace("/x", "Ver"), TonoToast.Error);
+
+        await Task.Delay(250);
+
+        servicio.Mensajes.Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task Toast_con_enlace_no_se_oculta_solo_con_el_puntero_encima()
     {
         var servicio = new ToastService(TimeSpan.FromMilliseconds(80), TimeSpan.FromMilliseconds(80));
