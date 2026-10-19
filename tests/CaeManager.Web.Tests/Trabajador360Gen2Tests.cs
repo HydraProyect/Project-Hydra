@@ -1427,11 +1427,14 @@ public partial class Trabajador360Gen2Tests : BunitContext
 
     /// <summary>
     /// Mismo criterio en el tercer nivel de la pestaña Operación (Centro desplegado): la celda de vigencia de un
-    /// documento exigido «Sin confirmar» dice «Sin confirmar» con aviso, y un hueco sigue en «—», sin aviso.
+    /// documento exigido indica la fecha que falta; «Sin confirmar» conserva el aviso y «Pendiente» no lo lleva.
     /// </summary>
-    [Fact]
-    public async Task La_vigencia_de_un_exigido_en_el_centro_desplegado_dice_Sin_confirmar_con_aviso_y_un_hueco_sigue_en_raya()
+    [Theory]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    public async Task La_vigencia_de_un_exigido_en_el_centro_desplegado_indica_la_fecha_que_falta_sin_guiones(string rol, bool gestionar)
     {
+        this.ConRolDeEscritura(rol);
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
         mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
@@ -1446,13 +1449,20 @@ public partial class Trabajador360Gen2Tests : BunitContext
         AbrirCentros(cut);
         await cut.FindAll(".trabajador360-centros .fila-relacion-desplegar")[0].ClickAsync(new MouseEventArgs());
 
+        var documentos = cut.FindAll(".fila-relacion-desplegado .fila-relacion-compacta");
+        documentos.Should().HaveCount(2);
+        foreach (var documento in documentos)
+        {
+            documento.Children.Should().HaveCount(4);
+            documento.QuerySelectorAll(".fila-relacion-acciones button").Should().HaveCount(gestionar ? 1 : 0);
+        }
         var filas = cut.Find(".fila-relacion-desplegado").QuerySelectorAll(".fila-relacion")
             .ToDictionary(f => SinEspaciosDeMas(f.QuerySelector(".fila-relacion-nombre")!.TextContent),
                 f => f.QuerySelector(".celda-documento-vigencia")!);
 
-        SinEspaciosDeMas(filas["Reconocimiento médico"].TextContent).Should().Be("Sin confirmar");
+        SinEspaciosDeMas(filas["Reconocimiento médico"].TextContent).Should().Be("Falta la fecha de vencimiento");
         filas["Reconocimiento médico"].ClassList.Should().Contain("celda-documento-vigencia-sin-confirmar");
-        SinEspaciosDeMas(filas["Autorización de acceso"].TextContent).Should().Be("—");
+        SinEspaciosDeMas(filas["Autorización de acceso"].TextContent).Should().Be("Falta la fecha de vencimiento");
         filas["Autorización de acceso"].ClassList.Should().NotContain("celda-documento-vigencia-sin-confirmar");
     }
 
