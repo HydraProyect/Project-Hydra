@@ -215,6 +215,10 @@ src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/EnviarReclam
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/EnviarReclamacionCommand.cs :: clienteIdsVisibles = 3
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/RegistroEnvioReclamacionService.cs :: ClienteId = 4
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/RegistroEnvioReclamacionService.cs :: clienteIdDelBuzon = 2
+# «Gestionar» a la Empresa empleadora (2026-10-18): el envío revalida lo reclamable con el mismo join que
+# ObtenerLoteReclamacionQuery (Asignación activa -> Centro -> Centro.ClienteId, columna legacy de Cliente
+# empresarial) y el mismo alcance de Clientes visibles, para no ofrecer ni aceptar lo que el lote no trae.
+# El join queda duplicado con el de EnviarReclamacionCommand a sabiendas: unificarlo es un incremento propio.
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacionEmpresaEmpleadora/EnviarReclamacionEmpresaEmpleadoraCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacionEmpresaEmpleadora/EnviarReclamacionEmpresaEmpleadoraCommand.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacionEmpresaEmpleadora/EnviarReclamacionEmpresaEmpleadoraCommand.cs :: clienteId = 1

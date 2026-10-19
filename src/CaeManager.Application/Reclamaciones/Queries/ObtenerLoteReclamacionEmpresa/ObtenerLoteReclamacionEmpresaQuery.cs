@@ -103,9 +103,13 @@ public class ObtenerLoteReclamacionEmpresaQueryHandler(
         // Solo las de titular Empresa: una reclamación anterior a la MISMA
         // Empresa en posición de cliente (ClienteId) es otro asunto, con otros
         // documentos y otros destinatarios — mezclarlas mostraría "última
-        // reclamación: hace 2 días" sobre algo que nunca se reclamó.
+        // reclamación: hace 2 días" sobre algo que nunca se reclamó. Por lo
+        // mismo quedan fuera las de documentos de sus Trabajadores, que también
+        // llevan titular Empresa («Gestionar», ReclamacionDocumental.ParaEmpresaEmpleadora).
+        var conDocumentosDeTrabajadores = DestinoDeReclamacionesEnviadasService.IdsConDocumentosDeTrabajadores(
+            reclamacionesContext, documentosContext);
         var ultimasReclamaciones = await reclamacionesContext.ReclamacionesDocumentales
-            .Where(r => r.EmpresaId != null)
+            .Where(r => r.EmpresaId != null && !conDocumentosDeTrabajadores.Contains(r.Id))
             .GroupBy(r => r.EmpresaId!.Value)
             .Select(g => new
             {

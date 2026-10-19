@@ -165,6 +165,7 @@ public static class ApplicationServiceCollectionExtensions
         // Qué se puede pedir sin vencimiento (documento que falta, «Sin confirmar» sin fecha): lo leen el lote y el envío.
         services.AddScoped<Reclamaciones.IPendientesDeReclamacionService, Reclamaciones.PendientesDeReclamacionService>();
         services.AddScoped<Reclamaciones.ReclamacionEmpresaEmpleadoraService>();
+        services.AddScoped<Reclamaciones.DestinoDeReclamacionesEnviadasService>();
         // Estado en las plataformas del Centro y última reclamación de cada documento: lo leen las fichas 360 que fijan un Centro.
         services.AddScoped<
             Documentos.SituacionEnCentro.ISituacionDocumentosEnCentrosService,
@@ -173,6 +174,7 @@ public static class ApplicationServiceCollectionExtensions
         // implementación de «qué se envía y a quién»): hace falta resolverlos como clases concretas.
         services.AddScoped<Reclamaciones.Commands.EnviarReclamacion.EnviarReclamacionCommandHandler>();
         services.AddScoped<Reclamaciones.Commands.EnviarReclamacionEmpresa.EnviarReclamacionEmpresaCommandHandler>();
+        services.AddScoped<Reclamaciones.Commands.EnviarReclamacionEmpresaEmpleadora.EnviarReclamacionEmpresaEmpleadoraCommandHandler>();
         services.AddScoped<IClasificacionRuidoMensajeService, ClasificacionRuidoMensajeService>();
         services.AddScoped<IRelevanciaCaeService, RelevanciaCaeService>();
         services.AddScoped<IMotorCoincidenciaConversacionesService, MotorCoincidenciaConversacionesService>();

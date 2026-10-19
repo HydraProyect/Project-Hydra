@@ -84,7 +84,7 @@
                 var contactos = _contactosPorTitular.GetValueOrDefault(Clave(lote), []);
                 var enviandoEste = _enviandoTitularId == Clave(lote);
 
-                <Tarjeta @key="clavesLotes.De(Clave(lote))" Titulo="@lote.TitularNombre" Class="tarjeta-reclamacion">
+                <Tarjeta @key="clavesLotes.De(Clave(lote))" Titulo="@TituloDeLote(lote)" Class="tarjeta-reclamacion">
                     <AccionesHeader>
                         <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(totalSeleccionado == 0 || contactos.Count == 0 || _enviando)"
                                Cargando="enviandoEste" OnClick="() => PedirConfirmacion(lote)">
@@ -301,7 +301,7 @@
     private int _fueraTrabajadores;
     private int _fueraVentana;
 
-    // Lo que no entra en el cajón, con el motivo: de Trabajadores (su lote es del Cliente del Centro) o fuera de la ventana
+    // Lo que no entra en el cajón, con el motivo: de Trabajadores (se reclaman desde «Gestionar» de cada Trabajador) o fuera de la ventana
     // de reclamación (o ya renovado / sin alcance de gestión: ningún lote de la Empresa los trae).
     private RenderFragment AvisosFuera => __builder =>
     {
@@ -492,7 +492,11 @@
     private RenderFragment CampoExtra(LoteReclamacionAgrupadoDto lote, bool enCopia) => @<div class="reclamacion-extra-campo">
         @{
             var extra = ExtraDe(Clave(lote));
-            var idCampo = $"extra-{(enCopia ? "cc" : "para")}-{lote.Ambito}-{lote.TitularId:N}";
+            // Un id por tarjeta: una misma Empresa puede tener una tarjeta por Delegación y otra para su agenda.
+            var destinoCampo = lote.EmpresaEmpleadora is { } destinoLote
+                ? $"-empleadora-{destinoLote.DelegacionEmpresaId?.ToString("N") ?? "agenda"}"
+                : string.Empty;
+            var idCampo = $"extra-{(enCopia ? "cc" : "para")}-{lote.Ambito}-{lote.TitularId:N}{destinoCampo}";
             var lista = enCopia ? extra.Copia : extra.Para;
             var borrador = enCopia ? extra.BorradorCopia : extra.BorradorPara;
             var error = enCopia ? extra.ErrorCopia : extra.ErrorPara;
@@ -656,13 +660,19 @@
         }
 
         // La vista previa dice a qué Delegación sale, no solo a qué Empresa (los contactos ya van con nombre y correo).
-        var titularNombre = lote.EmpresaEmpleadora?.DelegacionEmpresaNombre is { } delegacion
-            ? $"{lote.TitularNombre} ({delegacion})"
-            : lote.TitularNombre;
         _envioPendiente = new EnvioPendiente(
-            lote.TitularId, titularNombre, lote.Ambito, documentoIds, pendientes, contactoIds, destinatarios,
+            lote.TitularId, TituloDeLote(lote), lote.Ambito, documentoIds, pendientes, contactoIds, destinatarios,
             [.. extra.Para], [.. extra.Copia], lote.EmpresaEmpleadora);
     }
+
+    /// <summary>
+    /// El nombre del lote en su tarjeta y en la confirmación: la Empresa y, si va al contacto de una Delegación, también la
+    /// Delegación, porque una misma Empresa puede tener una tarjeta por Delegación y otra para su agenda.
+    /// </summary>
+    private static string TituloDeLote(LoteReclamacionAgrupadoDto lote) =>
+        lote.EmpresaEmpleadora?.DelegacionEmpresaNombre is { } delegacion
+            ? $"{lote.TitularNombre} ({delegacion})"
+            : lote.TitularNombre;
 
     private void CerrarConfirmacionEnvio(bool visible)
     {

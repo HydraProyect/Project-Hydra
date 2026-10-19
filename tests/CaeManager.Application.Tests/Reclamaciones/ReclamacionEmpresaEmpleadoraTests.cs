@@ -5,7 +5,9 @@ using CaeManager.Application.Contactos;
 using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresaEmpleadora;
+using CaeManager.Application.Reclamaciones.Commands.PrepararVistaPreviaReclamacion;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
+using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Documentos;
@@ -18,6 +20,7 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Reclamaciones;
 using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
 using Xunit;
@@ -43,6 +46,7 @@ public class ReclamacionEmpresaEmpleadoraTests
     private readonly DelegacionEmpresaYOficioEmpresaTests.CatalogoFalso _catalogo = new();
     private readonly ResolucionDestinatariosAgendaServiceFalso _agenda = new();
     private readonly RegistroEnvioReclamacionServiceFalso _registro = new();
+    private readonly ReclamacionesQueryContextFalso _reclamaciones = new();
 
     private readonly Empresa _cliente = Empresa.CrearComoCliente("Cliente SA", "B12345674", false, null, null);
     private readonly Empresa _contratista = new("Contratista SL", "B12345674");
@@ -68,6 +72,7 @@ public class ReclamacionEmpresaEmpleadoraTests
         _malagaSinCorreo.FijarContactoReclamacion("Luis Málaga", null, "600000000");
         _catalogo.Agregar(_sevilla);
         _catalogo.Agregar(_malagaSinCorreo);
+        _empresas.ListaDelegacionesEmpresa.AddRange([_sevilla, _malagaSinCorreo]);
 
         _anaSevilla = DeContratista("Ana", "00000000T", _sevilla);
         _beaSevilla = DeContratista("Bea", "00000001R", _sevilla);
@@ -94,7 +99,9 @@ public class ReclamacionEmpresaEmpleadoraTests
     }
 
     private ReclamacionEmpresaEmpleadoraService Servicio(AlcanceDatosServiceFalso? alcance = null, string rol = "GestorCae") =>
-        new(_trabajadores, _empresas, _catalogo, alcance ?? new AlcanceDatosServiceFalso(), PoliticaNotaInternaPruebas.Con(rol), _agenda);
+        new(_trabajadores, _empresas, _catalogo, alcance ?? new AlcanceDatosServiceFalso(), PoliticaNotaInternaPruebas.Con(rol), _agenda, Destinos());
+
+    private DestinoDeReclamacionesEnviadasService Destinos() => new(_reclamaciones, _documentos, _trabajadores, _empresas);
 
     private EnviarReclamacionEmpresaEmpleadoraCommandHandler Handler(AlcanceDatosServiceFalso? alcance = null, string rol = "GestorCae")
     {
@@ -264,5 +271,169 @@ public class ReclamacionEmpresaEmpleadoraTests
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : null);
         _registro.UltimosDestinatarios.Should().Equal(ContactoAgendaEmpresa.Email);
         _agenda.UltimaLlamadaResolverParaEmpresaAsync!.Value.EmpresaId.Should().Be(_contratista.Id);
+    }
+
+    // ---- Alcance visible del envío: cada filtro, por separado ----
+
+    private AlcanceDatosServiceFalso AlcanceSin(string fuera) => new(
+        tieneAccesoTotal: false,
+        clienteIdsVisibles: fuera == "Cliente" ? [] : [_cliente.Id],
+        trabajadorIdsVisibles: fuera == "Trabajador" ? [] : [_anaSevilla.Id],
+        centroIdsVisibles: fuera == "Centro" ? [] : [_centro.Id],
+        empresaIdsParaGestion: [_contratista.Id]);
+
+    [Fact]
+    public async Task Con_todo_el_alcance_visible_el_envio_sale()
+    {
+        // El control de los tres casos de abajo: con la Empresa en cartera y todo lo demás visible, el mismo envío sí sale.
+        var documento = DocumentoQueVence(_anaSevilla);
+
+        var resultado = await Handler(AlcanceSin("nada")).Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(_contratista.Id, _sevilla.Id, [documento.Id]), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : null);
+    }
+
+    [Theory]
+    [InlineData("Trabajador")]
+    [InlineData("Centro")]
+    [InlineData("Cliente")]
+    public async Task Un_documento_fuera_del_alcance_visible_no_viaja_aunque_la_Empresa_este_en_cartera(string fuera)
+    {
+        var documento = DocumentoQueVence(_anaSevilla);
+
+        var resultado = await Handler(AlcanceSin(fuera)).Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(_contratista.Id, _sevilla.Id, [documento.Id]), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue($"el {fuera} no es visible y el lote tampoco lo ofrecería");
+        resultado.Error.Codigo.Should().Be("Reclamacion.DocumentosDesactualizados");
+        _registro.VecesLlamado.Should().Be(0);
+    }
+
+    // ---- Lo que se pide sin fecha ----
+
+    [Fact]
+    public async Task Lo_que_le_falta_a_un_Trabajador_de_la_Delegacion_se_pide_en_el_mismo_envio_y_lo_de_otro_destino_no()
+    {
+        var requerido = new TipoDocumento("Formación PRL", null, false, 2, AmbitoAplicacion.Trabajador, RequisitoDocumental.Si);
+        _tipos.ListaTiposDocumento.Add(requerido);
+
+        var resultado = await Handler().Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(_contratista.Id, _sevilla.Id, [], Pendientes: [PendienteSinFecha.Ausente(_anaSevilla.Id, requerido.Id)]),
+            CancellationToken.None);
+        var deOtroDestino = await Handler().Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(_contratista.Id, _sevilla.Id, [], Pendientes: [PendienteSinFecha.Ausente(_carlosSinDelegacion.Id, requerido.Id)]),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : null);
+        _registro.UltimosDocumentosQueFaltan.Should().Equal(new DocumentoQueFaltaPedido(requerido.Id, _anaSevilla.Id));
+        deOtroDestino.EsFallido.Should().BeTrue("Carlos no es de la Delegación de Sevilla: su falta va en el lote de la agenda");
+        deOtroDestino.Error.Codigo.Should().Be(PendientesDeReclamacionService.ErrorDesactualizados().Codigo);
+        _registro.VecesLlamado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Lo_pendiente_sin_fecha_de_cada_Trabajador_va_en_el_lote_de_su_destino()
+    {
+        var faltaAna = new DocumentoPendienteDto(null, _anaSevilla.Id, "Ana Pérez", _tipo.Id, _tipo.Nombre, MotivoPendienteDeReclamacion.Ausente);
+        var faltaCarlos = new DocumentoPendienteDto(null, _carlosSinDelegacion.Id, "Carlos Pérez", _tipo.Id, _tipo.Nombre, MotivoPendienteDeReclamacion.Ausente);
+
+        var reagrupados = await Servicio().ReagruparAsync(
+            [LoteDelCliente() with { PendientesSinFecha = [faltaAna, faltaCarlos] }], CancellationToken.None);
+
+        reagrupados.LotesCliente.Should().BeEmpty();
+        var sevilla = reagrupados.LotesEmpresaEmpleadora.Single(l => l.EmpresaEmpleadora!.DelegacionEmpresaId == _sevilla.Id);
+        sevilla.Documentos.Should().BeEmpty();
+        sevilla.PendientesSinFecha.Should().Equal(faltaAna);
+        reagrupados.LotesEmpresaEmpleadora.Single(l => l.EmpresaEmpleadora!.DelegacionEmpresaId is null)
+            .PendientesSinFecha.Should().Equal(faltaCarlos);
+    }
+
+    // ---- Última reclamación y «Reclamar de nuevo» ----
+
+    [Fact]
+    public async Task Cada_lote_trae_la_ultima_reclamacion_de_su_mismo_destino_y_no_la_de_documentos_de_empresa()
+    {
+        var haceTresDias = DateTime.UtcNow.AddDays(-3);
+        var documentoAna = DocumentoQueVence(_anaSevilla);
+        _reclamaciones.Lista.Add(ReclamacionDocumental.ParaEmpresaEmpleadora(
+            _contratista.Id, Guid.NewGuid(), CorreoSevilla, haceTresDias, [documentoAna.Id]));
+        _reclamaciones.Lista.Add(ReclamacionDocumental.ParaEmpresa(
+            _contratista.Id, Guid.NewGuid(), "agenda@contratista.example", DateTime.UtcNow.AddDays(-1), [Guid.NewGuid()]));
+
+        var reagrupados = await Servicio().ReagruparAsync(
+            [LoteDelCliente(Reclamable(_anaSevilla), Reclamable(_carlosSinDelegacion))], CancellationToken.None);
+
+        reagrupados.LotesEmpresaEmpleadora.Single(l => l.EmpresaEmpleadora!.DelegacionEmpresaId == _sevilla.Id)
+            .UltimaReclamacionFechaUtc.Should().Be(haceTresDias);
+        reagrupados.LotesEmpresaEmpleadora.Single(l => l.EmpresaEmpleadora!.DelegacionEmpresaId is null)
+            .UltimaReclamacionFechaUtc.Should().BeNull("a la agenda no se le reclamó nada de sus Trabajadores; lo de la propia Empresa es otro asunto");
+    }
+
+    [Fact]
+    public async Task Reclamar_de_nuevo_prepara_con_el_comando_de_la_Empresa_empleadora_y_su_Delegacion()
+    {
+        var documento = DocumentoQueVence(_anaSevilla);
+        var enviada = ReclamacionDocumental.ParaEmpresaEmpleadora(
+            _contratista.Id, Guid.NewGuid(), CorreoSevilla, DateTime.UtcNow.AddDays(-1), [documento.Id]);
+        _reclamaciones.Lista.Add(enviada);
+
+        var destino = (await Destinos().DerivarAsync([enviada.Id], CancellationToken.None))[enviada.Id];
+        var previa = await new PrepararVistaPreviaReclamacionCommandHandler(null!, null!, Handler()).Handle(
+            new PrepararVistaPreviaReclamacionCommand(AmbitoAplicacion.Empresa, _contratista.Id, [documento.Id], EmpresaEmpleadora: destino),
+            CancellationToken.None);
+
+        destino.Should().Be(new DestinoDeReclamacionEnviadaDto(_sevilla.Id, true));
+        previa.EsExitoso.Should().BeTrue(previa.EsFallido ? previa.Error.Mensaje : null);
+        previa.Valor.EmpresaEmpleadora.Should().Be(new DestinoEmpresaEmpleadoraDto(_sevilla.Id, "Sevilla"));
+        previa.Valor.Correos.Should().Equal(CorreoSevilla);
+        _registro.VecesLlamado.Should().Be(0, "la vista previa no envía");
+    }
+
+    [Fact]
+    public async Task Una_reclamacion_cuyos_Trabajadores_ya_no_comparten_destino_no_se_reenvia()
+    {
+        var documentoAna = DocumentoQueVence(_anaSevilla);
+        var mezclada = ReclamacionDocumental.ParaEmpresaEmpleadora(
+            _contratista.Id, Guid.NewGuid(), CorreoSevilla, DateTime.UtcNow.AddDays(-1), [documentoAna.Id],
+            documentosQueFaltan: [new DocumentoQueFaltaPedido(_tipo.Id, _carlosSinDelegacion.Id)]);
+        var deEmpresa = ReclamacionDocumental.ParaEmpresa(
+            _contratista.Id, Guid.NewGuid(), "agenda@contratista.example", DateTime.UtcNow.AddDays(-1), [Guid.NewGuid()]);
+        _reclamaciones.Lista.AddRange([mezclada, deEmpresa]);
+
+        var destinos = await Destinos().DerivarAsync([mezclada.Id, deEmpresa.Id], CancellationToken.None);
+        var previa = await new PrepararVistaPreviaReclamacionCommandHandler(null!, null!, Handler()).Handle(
+            new PrepararVistaPreviaReclamacionCommand(AmbitoAplicacion.Empresa, _contratista.Id, [documentoAna.Id], EmpresaEmpleadora: destinos[mezclada.Id]),
+            CancellationToken.None);
+
+        destinos.Should().ContainSingle("la de documentos de la propia Empresa no es de la Empresa empleadora");
+        destinos[mezclada.Id].Should().Be(new DestinoDeReclamacionEnviadaDto(null, false));
+        previa.EsFallido.Should().BeTrue();
+        previa.Error.Codigo.Should().Be("Reclamacion.DelegacionEmpresaDesactualizada");
+    }
+
+    // ---- El dispatcher del cajón ----
+
+    [Fact]
+    public async Task El_dispatcher_con_PorEmpresaEmpleadora_reclama_a_la_Delegacion_y_deja_al_Cliente_lo_de_Subcontrata()
+    {
+        var deSubcontrata = Reclamable(_saraSubcontrata);
+        var mediator = new MediatorFalso
+        {
+            Respuesta = (IReadOnlyList<LoteReclamacionClienteDto>)[LoteDelCliente(Reclamable(_anaSevilla), deSubcontrata)]
+        };
+        var handler = new ObtenerLoteReclamacionPorFiltroQueryHandler(mediator, Servicio());
+        var filtro = new FiltroLoteDocumental(AmbitoAplicacion.Trabajador, [], _anaSevilla.Id);
+
+        var conDelegacion = await handler.Handle(new ObtenerLoteReclamacionPorFiltroQuery(filtro, PorEmpresaEmpleadora: true), CancellationToken.None);
+        var sinBandera = await handler.Handle(new ObtenerLoteReclamacionPorFiltroQuery(filtro), CancellationToken.None);
+
+        conDelegacion.Should().HaveCount(2);
+        conDelegacion[0].TitularId.Should().Be(_contratista.Id);
+        conDelegacion[0].EmpresaEmpleadora.Should().Be(new DestinoEmpresaEmpleadoraDto(_sevilla.Id, "Sevilla"));
+        conDelegacion[1].TitularId.Should().Be(_cliente.Id);
+        conDelegacion[1].Documentos.Should().Equal(deSubcontrata);
+        sinBandera.Should().ContainSingle("sin la bandera todo sigue yendo al Cliente, como antes")
+            .Which.TitularId.Should().Be(_cliente.Id);
     }
 }

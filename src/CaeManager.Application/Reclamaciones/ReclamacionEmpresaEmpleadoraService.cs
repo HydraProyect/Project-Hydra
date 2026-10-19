@@ -53,7 +53,8 @@ public class ReclamacionEmpresaEmpleadoraService(
     ICatalogoTrabajadoresEmpresaRepository catalogo,
     IAlcanceDatosService alcanceDatos,
     IPoliticaNotaInterna politicaNotaInterna,
-    IResolucionDestinatariosAgendaService resolucionDestinatarios)
+    IResolucionDestinatariosAgendaService resolucionDestinatarios,
+    DestinoDeReclamacionesEnviadasService reclamacionesEnviadas)
 {
     private sealed record TrabajadorDeEmpresa(Guid Id, Guid EmpresaId, Guid? DelegacionEmpresaId);
 
@@ -130,6 +131,10 @@ public class ReclamacionEmpresaEmpleadoraService(
                     .Distinct().ToList());
         var agendaPorEmpresa = await resolucionDestinatarios.ResolverParaEmpresasAsync(tiposPorEmpresaSinDelegacionEmpresa, cancellationToken);
 
+        // La última reclamación de cada lote es la de su mismo destino (Empresa y Delegación) y de documentos de Trabajador:
+        // una de documentos de la propia Empresa, o la de otra Delegación, es otro asunto con otros destinatarios.
+        var ultimas = await reclamacionesEnviadas.UltimasPorDestinoAsync([.. claves.Select(c => c.EmpresaId)], cancellationToken);
+
         return new(
             [.. claves
                 .Select(c =>
@@ -138,12 +143,13 @@ public class ReclamacionEmpresaEmpleadoraService(
                     IReadOnlyList<DestinatarioAgendaDto> destinatarios = delegacion is null
                         ? agendaPorEmpresa.GetValueOrDefault(c.EmpresaId, [])
                         : conContacto ? [DestinatarioDe(delegacion)] : [];
+                    var ultima = ultimas.GetValueOrDefault((c.EmpresaId, c.DelegacionEmpresaId));
 
                     return new LoteReclamacionAgrupadoDto(
                         c.EmpresaId, razonesSociales[c.EmpresaId], AmbitoAplicacion.Trabajador,
-                        UltimaReclamacionFechaUtc: null,
+                        ultima?.FechaEnvioUtc,
                         [.. documentos.Where(x => x.Destino == c).Select(x => x.Documento).OrderBy(d => d.FechaVencimiento)],
-                        UltimaReclamacionConversacionId: null,
+                        ultima?.ConversacionId,
                         destinatarios,
                         [.. pendientes.Where(x => x.Destino == c).Select(x => x.Pendiente)],
                         new DestinoEmpresaEmpleadoraDto(delegacion?.Id, delegacion?.Nombre));
