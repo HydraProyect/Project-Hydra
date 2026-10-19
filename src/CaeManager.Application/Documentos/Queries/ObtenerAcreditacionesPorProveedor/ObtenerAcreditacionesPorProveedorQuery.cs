@@ -104,7 +104,8 @@ public record AcreditacionDrillDownDto(
     EstadoVigenciaEnPlataforma EstadoVigencia = EstadoVigenciaEnPlataforma.SinConfirmar,
     DateOnly? FechaVencimientoEnPlataforma = null,
     bool VencidaEnPlataforma = false,
-    string? UrlAccesoCanal = null);
+    string? UrlAccesoCanal = null,
+    string? CentroNombre = null);
 
 public class ObtenerAcreditacionesPorProveedorQueryHandler(
     IDocumentosQueryContext documentosContext, ICentrosQueryContext centrosContext,
@@ -160,6 +161,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                 CanalGestionDocumentalId = canal.Id,
                 canal.UrlAcceso,
                 CentroId = centro.Id,
+                CentroNombre = centro.Nombre,
                 centro.ClienteId,
                 documento.TrabajadorId,
                 documento.EmpresaId,
@@ -232,7 +234,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                                 f.EstadoVigencia, f.FechaVencimientoEnPlataforma,
                                 VencidaEnPlataforma: f.EstadoVigencia == EstadoVigenciaEnPlataforma.VenceEnFecha
                                                      && f.FechaVencimientoEnPlataforma < hoy,
-                                UrlAccesoCanal: f.UrlAcceso))
+                                UrlAccesoCanal: f.UrlAcceso, CentroNombre: f.CentroNombre))
                             .OrderBy(d => d.PropietarioNombre)
                             .ToList()))
                     .OrderBy(c => c.ClienteNombre)

@@ -391,4 +391,10 @@
   <data name="ReclamacionDestinoDelegacionEmpresa" xml:space="preserve"><value>Se reclama a la Delegación {0}, a su contacto de reclamación.</value></data>
   <data name="ReclamacionDestinoEmpresa" xml:space="preserve"><value>Se reclama a la Empresa que emplea a estos Trabajadores, a los contactos de su agenda.</value></data>
   <data name="ReclamacionDelegacionEmpresaSinContactoVisible" xml:space="preserve"><value>No puedes ver el contacto de reclamación de esta Delegación, así que no puedes enviarle la reclamación.</value></data>
+  <data name="PropagacionesTitulo" xml:space="preserve"><value>Propagaciones pendientes</value></data>
+  <data name="PropagacionesDetalle" xml:space="preserve"><value>Documentos aprobados que falta actualizar en un Centro o plataforma del Cliente</value></data>
+  <data name="PropagacionesVacio" xml:space="preserve"><value>Todo actualizado en los Centros y plataformas.</value></data>
+  <data name="PropagacionesIncompletas" xml:space="preserve"><value>La consulta está incompleta. Reintenta la consulta de las Empresas pendientes.</value></data>
+  <data name="PropagacionesGestionar" xml:space="preserve"><value>Gestionar</value></data>
+  <data name="PropagacionesSinResultados" xml:space="preserve"><value>No hay propagaciones con estos filtros.</value></data>
 </root>

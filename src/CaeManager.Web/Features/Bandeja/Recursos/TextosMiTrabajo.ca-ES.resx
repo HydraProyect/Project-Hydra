@@ -391,4 +391,10 @@
   <data name="ReclamacionDestinoDelegacionEmpresa" xml:space="preserve"><value>Es reclama a la Delegació {0}, al seu contacte de reclamació.</value></data>
   <data name="ReclamacionDestinoEmpresa" xml:space="preserve"><value>Es reclama a l'Empresa que ocupa aquests Treballadors, als contactes de la seva agenda.</value></data>
   <data name="ReclamacionDelegacionEmpresaSinContactoVisible" xml:space="preserve"><value>No pots veure el contacte de reclamació d'aquesta Delegació, així que no li pots enviar la reclamació.</value></data>
+  <data name="PropagacionesTitulo" xml:space="preserve"><value>Propagacions pendents</value></data>
+  <data name="PropagacionesDetalle" xml:space="preserve"><value>Documents aprovats que cal actualitzar en un Centre o plataforma del Client</value></data>
+  <data name="PropagacionesVacio" xml:space="preserve"><value>Tot actualitzat als Centres i plataformes.</value></data>
+  <data name="PropagacionesIncompletas" xml:space="preserve"><value>La consulta és incompleta. Torna a consultar les Empreses pendents.</value></data>
+  <data name="PropagacionesGestionar" xml:space="preserve"><value>Gestionar</value></data>
+  <data name="PropagacionesSinResultados" xml:space="preserve"><value>No hi ha propagacions amb aquests filtres.</value></data>
 </root>
