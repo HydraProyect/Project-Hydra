@@ -60,7 +60,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     }
 
     private string TituloColumnaVehiculo => Textos["ListaColumnaVehiculoOrden",
-        Textos[_campoOrdenVehiculo == nameof(VehiculoListaDto.Modelo) ? "EtiquetaModelo" : "EtiquetaNombre"].Value].Value;
+        Textos[_campoOrdenVehiculo == nameof(VehiculoListaDto.NumeroPlaca) ? "EtiquetaMatricula" : "EtiquetaNombre"].Value].Value;
 
     [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
     private bool _puedeEscribir;
@@ -163,13 +163,20 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     [SupplyParameterFromQuery(Name = "subcontrata")]
     public string? SubcontrataInicial { get; set; }
 
+    /// <summary>Agrupación de la URL (<c>?agrupar=empresa</c>): «Por Empresa», como la maqueta de Vehículos.</summary>
+    [SupplyParameterFromQuery(Name = "agrupar")]
+    public string? AgruparInicial { get; set; }
+
+    private bool _agruparPorEmpresa;
+    private const string ValorAgruparPorEmpresa = "empresa";
+
     /// <summary>Orden de columna (<c>?orden=matricula-desc</c>). Sin él, el de fábrica: ver <see cref="_orden"/>.</summary>
     [SupplyParameterFromQuery(Name = "orden")]
     public string? OrdenInicial { get; set; }
 
     /// <summary>
     /// El orden de columna viaja en la URL y forma parte de la vista. La rejilla nace sin ordenar
-    /// (el orden de fábrica es el de la consulta); «vehiculo» y «modelo» son la misma columna.
+    /// (el orden de fábrica es el de la consulta); «vehiculo» y «matricula» son la misma columna.
     /// </summary>
     private readonly OrdenDeRejilla _orden = new(
     [
@@ -186,7 +193,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         if (!_orden.Leer(valor))
             return false;
 
-        if (_orden.Propiedad is nameof(VehiculoListaDto.Nombre) or nameof(VehiculoListaDto.Modelo))
+        if (_orden.Propiedad is nameof(VehiculoListaDto.Nombre) or nameof(VehiculoListaDto.NumeroPlaca))
             _campoOrdenVehiculo = _orden.Propiedad;
         return true;
     }
@@ -345,6 +352,13 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             _filtroEmpresaId = empresaDeLaUrl;
 
         if (LeerOrden(OrdenInicial)) _cargaPendiente = true;
+
+        var agruparDeLaUrl = string.Equals(AgruparInicial, ValorAgruparPorEmpresa, StringComparison.OrdinalIgnoreCase);
+        if (agruparDeLaUrl != _agruparPorEmpresa)
+        {
+            _agruparPorEmpresa = agruparDeLaUrl;
+            _cargaPendiente = true;
+        }
     }
 
     /// <summary>Un Id de la URL solo vale si es un Guid; cualquier otra cosa es «sin filtro».</summary>
@@ -387,8 +401,10 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         var token = cancelacion.Token;
 
         // La pregunta se compone entera ANTES del await, como el número de carga y el token.
-        var ordenarPor = _orden.Propiedad;
-        var descendente = _orden.Direccion == SortDirection.Descending;
+        // Agrupar «Por Empresa» es ordenar por la Empresa (solo cambia el sentido si se pidió así).
+        var ordenarPor = _agruparPorEmpresa ? nameof(VehiculoListaDto.EmpleadorNombre) : _orden.Propiedad;
+        var descendente = _orden.Direccion == SortDirection.Descending
+            && (!_agruparPorEmpresa || _orden.Propiedad == nameof(VehiculoListaDto.EmpleadorNombre));
         var consulta = new ObtenerVehiculosQuery(
             Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
             EmpresaId: Guid.TryParse(_filtroEmpresaId, out var empresaId) ? empresaId : null,
@@ -414,7 +430,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
 
         try
         {
-            if (_orden.Anotar(ordenarPor, descendente))
+            if (!_agruparPorEmpresa && _orden.Anotar(ordenarPor, descendente))
                 NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
             (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
 
@@ -475,6 +491,25 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             }
         }
     }
+
+    private async Task CambiarAgrupacionAsync(string? valor)
+    {
+        _agruparPorEmpresa = valor == ValorAgruparPorEmpresa;
+        NavigationManager.ActualizarFiltroEnUrl("agrupar", _agruparPorEmpresa ? ValorAgruparPorEmpresa : null);
+        await RecargarAsync();
+    }
+
+    private string ValorAgrupacion => _agruparPorEmpresa ? ValorAgruparPorEmpresa : string.Empty;
+
+    private IReadOnlyList<OpcionEstado> OpcionesAgrupacion =>
+        [new OpcionEstado(ValorAgruparPorEmpresa, Textos["AgruparPorEmpresa"].Value)];
+
+    /// <summary>Porcentaje de documentos al día para la barra de la columna Documentación; sin documentos no hay universo y la barra pinta la raya.</summary>
+    private static int? PorcentajeDocumentacion(VehiculoListaDto vehiculo) =>
+        vehiculo.DocumentosRegistrados <= 0 ? null : vehiculo.DocumentosVigentes * 100 / vehiculo.DocumentosRegistrados;
+
+    /// <summary>Cuántos Vehículos de la Empresa hay en esta página (agrupar es ordenar en servidor: el recuento es el de la página).</summary>
+    private int VehiculosDelGrupo(string empresa) => _elementosPagina.Count(v => v.EmpleadorNombre == empresa);
 
     private async Task FiltrarPorEmpresaAsync(string valor)
     {
@@ -537,14 +572,20 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         };
         var desc = descendente ?? (_orden.Propiedad == propiedad && _orden.Direccion != SortDirection.Descending);
         LeerOrden(clave + (desc ? "-desc" : string.Empty));
-        NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
+        // Ordenar por una columna es dejar de agrupar «Por Empresa» (como en Trabajadores).
+        _agruparPorEmpresa = false;
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["orden"] = _orden.EnUrl,
+            ["agrupar"] = null,
+        });
         await RecargarAsync();
     }
 
     private async Task CambiarCampoOrdenVehiculoAsync(string valor)
     {
-        if (valor is not (nameof(VehiculoListaDto.Nombre) or nameof(VehiculoListaDto.Modelo)) || valor == _campoOrdenVehiculo) return;
-        var desc = _orden.Es("vehiculo", "modelo") && _orden.Direccion == SortDirection.Descending;
+        if (valor is not (nameof(VehiculoListaDto.Nombre) or nameof(VehiculoListaDto.NumeroPlaca)) || valor == _campoOrdenVehiculo) return;
+        var desc = _orden.Es("vehiculo", "matricula") && _orden.Direccion == SortDirection.Descending;
         _campoOrdenVehiculo = valor;
         _opcionesOrdenVehiculo = false;
         await OrdenarAsync(valor, desc);
@@ -671,7 +712,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado, y lo que
     /// recuerda la vista recordada (<see cref="VistaRecordadaDeListado"/>), menos la búsqueda libre (<c>q</c>).
     /// </summary>
-    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "empresa", "subcontrata", "orden"];
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "empresa", "subcontrata", "orden", "agrupar"];
 
     private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
     private readonly ConexionVistaRecordada _vistaRecordada = new();
@@ -689,6 +730,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         _filtroSubcontrataId = IdDesdeUrl(vista.GetValueOrDefault("subcontrata"));
         _filtroEmpresaId = _filtroSubcontrataId.Length > 0 ? string.Empty : IdDesdeUrl(vista.GetValueOrDefault("empresa"));
         LeerOrden(vista.GetValueOrDefault("orden"));
+        _agruparPorEmpresa = vista.GetValueOrDefault("agrupar") == ValorAgruparPorEmpresa;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = _busqueda,
@@ -696,6 +738,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             ["empresa"] = _filtroEmpresaId,
             ["subcontrata"] = _filtroSubcontrataId,
             ["orden"] = _orden.EnUrl,
+            ["agrupar"] = _agruparPorEmpresa ? ValorAgruparPorEmpresa : null,
         });
 
         await RecargarAsync();

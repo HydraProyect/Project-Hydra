@@ -382,4 +382,9 @@
   <data name="FichaErrorGuardar" xml:space="preserve">
     <value>No hem pogut desar la fitxa del vehicle.</value>
   </data>
+  <data name="ListaColumnaEmpresa" xml:space="preserve"><value>Empresa</value></data>
+  <data name="ListaColumnaDocumentacion" xml:space="preserve"><value>Documentació</value></data>
+  <data name="EtiquetaAgrupar" xml:space="preserve"><value>Agrupar</value></data>
+  <data name="OpcionSinAgrupar" xml:space="preserve"><value>Sense agrupar</value></data>
+  <data name="AgruparPorEmpresa" xml:space="preserve"><value>Per Empresa</value></data>
 </root>
