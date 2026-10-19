@@ -590,6 +590,24 @@
   <data name="PasosGrupoEtiqueta" xml:space="preserve">
     <value>Pasos del formulario</value>
   </data>
+  <data name="LecturaAbrirFicha" xml:space="preserve">
+    <value>Abrir ficha completa</value>
+  </data>
+  <data name="LecturaCerrar" xml:space="preserve">
+    <value>Cerrar</value>
+  </data>
+  <data name="LecturaEditar" xml:space="preserve">
+    <value>Editar</value>
+  </data>
+  <data name="LecturaSoloConsulta" xml:space="preserve">
+    <value>Solo consulta</value>
+  </data>
+  <data name="LecturaSinDato" xml:space="preserve">
+    <value>Sin dato</value>
+  </data>
+  <data name="SelectorQuitarElegido" xml:space="preserve">
+    <value>Quitar {0}</value>
+  </data>
   <data name="SeccionErrorSingular" xml:space="preserve">
     <value>1 error</value>
   </data>

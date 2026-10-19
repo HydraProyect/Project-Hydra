@@ -28,6 +28,31 @@
     overflow-wrap: anywhere;
 }
 
+/* Modo Lectura del panel (maqueta «Panel Formulario TALVEG»): dt y dd son celdas de la rejilla de SeccionLectura. */
+.dato-rejilla-lectura {
+    display: contents;
+}
+
+.dato-rejilla-lectura .dato-rejilla-etiqueta {
+    font: var(--font-body-sm);
+    font-weight: 400;
+    padding-top: 2px;
+}
+
+.dato-rejilla-lectura .dato-rejilla-valor {
+    display: block;
+    min-width: 0;
+    font: var(--font-body-md);
+    font-weight: 400;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+    .dato-rejilla-lectura .dato-rejilla-valor {
+        margin-bottom: 8px;
+    }
+}
+
 .dato-rejilla-vacio {
     font-weight: 400;
     color: var(--color-text-muted);

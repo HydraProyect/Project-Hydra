@@ -1,0 +1,31 @@
+.seccion-lectura {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.seccion-lectura-titulo {
+    margin: 0;
+    font: var(--font-label);
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 600;
+}
+
+.seccion-lectura-rejilla {
+    margin: 0;
+    display: grid;
+    grid-template-columns: minmax(120px, max-content) minmax(0, 1fr);
+    gap: 12px 24px;
+    padding: var(--space-4);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background-color: var(--color-surface);
+}
+
+@media (max-width: 640px) {
+    .seccion-lectura-rejilla {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px;
+    }
+}

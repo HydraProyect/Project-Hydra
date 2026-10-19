@@ -523,7 +523,7 @@ public class BotonVarianteYUnSoloPrimarioTests
     private sealed record Analisis(List<BotonAnalizado> Botones, List<ContenedorAnalizado> Contenedores);
 
     /// <summary>Los contenedores donde se escribe un primario: los de siempre y los kits de formulario (que ponen el suyo).</summary>
-    private static readonly string[] NombresDeKit = ["DrawerFormulario", "ModalFormulario"];
+    private static readonly string[] NombresDeKit = ["DrawerFormulario", "ModalFormulario", "DrawerLectura"];
 
     private static readonly string Contenedores = "Drawer|Modal|DialogoConfirmacion|" + string.Join('|', NombresDeKit);
 
