@@ -7,7 +7,7 @@ namespace CaeManager.Web.Features.Documentos.Components;
 
 public partial class PastillaEntidadAsociadaDocumento
 {
-[Parameter] public Guid? Valor { get; set; }
+    [Parameter] public Guid? Valor { get; set; }
     [Parameter] public AmbitoAplicacion? Ambito { get; set; }
     [Parameter] public string? Nombre { get; set; }
     [Parameter] public EventCallback<EntidadAsociadaDocumentoDto?> ValorChanged { get; set; }

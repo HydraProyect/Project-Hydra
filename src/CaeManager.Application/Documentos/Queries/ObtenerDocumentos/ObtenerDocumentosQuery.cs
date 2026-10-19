@@ -218,15 +218,15 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         {
             // Agregados del mismo universo filtrado antes de paginar; nunca un recuento de la página visible.
             var agregados = await consulta.GroupBy(x => new
-                {
-                    x.Ambito,
-                    ClaveEstado = x.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca ? 5
+            {
+                x.Ambito,
+                ClaveEstado = x.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca ? 5
                         : x.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 3
                         : x.FechaVencimiento < hoy ? 0
                         : x.FechaVencimiento <= limiteRojo ? 1
                         : x.FechaVencimiento <= limiteAmbar ? 2
                         : 4
-                })
+            })
                 .Select(g => new { g.Key.Ambito, g.Key.ClaveEstado, Total = g.Count() })
                 .ToListAsync(cancellationToken);
             resumenPorGrupo = agregados.GroupBy(x => x.Ambito).ToDictionary(
@@ -512,9 +512,13 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             join clienteEmpresarial in empresasContext.Empresas on centro.ClienteId equals clienteEmpresarial.Id
             select new
             {
-                acreditacion.DocumentoId, CentroId = centro.Id, CentroNombre = centro.Nombre,
-                ClienteEmpresarialId = clienteEmpresarial.Id, ClienteNombre = clienteEmpresarial.RazonSocial,
-                canal.ProveedorPlataformaCaeId, canal.Tipo
+                acreditacion.DocumentoId,
+                CentroId = centro.Id,
+                CentroNombre = centro.Nombre,
+                ClienteEmpresarialId = clienteEmpresarial.Id,
+                ClienteNombre = clienteEmpresarial.RazonSocial,
+                canal.ProveedorPlataformaCaeId,
+                canal.Tipo
             }).ToListAsync(cancellationToken);
         if (crudas.Count == 0) return [];
 

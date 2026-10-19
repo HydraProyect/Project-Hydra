@@ -93,7 +93,7 @@ public partial class DocumentosGen2Tests
 
         cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).AgruparPorAmbito.Should().BeTrue());
         cut.FindAll(".documentos-cabecera-grupo").Should().HaveCount(2);
-        cut.FindAll("button.documentos-grupo").Should().BeEmpty("los títulos de agrupación no son controles de despliegue" );
+        cut.FindAll("button.documentos-grupo").Should().BeEmpty("los títulos de agrupación no son controles de despliegue");
 
         await cut.Find("button[aria-label='Agrupar: por ámbito']").ClickAsync(new MouseEventArgs());
         await cut.FindAll("[role=menuitemradio]").Single(b => b.TextContent.Trim() == "Sin agrupar")
