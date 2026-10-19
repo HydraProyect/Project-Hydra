@@ -29,6 +29,12 @@ namespace CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa
 /// </para>
 /// </summary>
 /// <param name="DelegacionEmpresaId">La Delegación del lote; null = el lote que va a la agenda de la Empresa.</param>
+/// <param name="DocumentoIds">
+/// Documentos de Trabajadores de esta Empresa y, en la reclamación por acceso (decisión de Chris, 2026-10-19), también de
+/// la propia Empresa, que viajan en el mismo correo. Los de la Empresa se revalidan con la regla de
+/// <c>EnviarReclamacionEmpresaCommand</c> (de esta Empresa, de ámbito Empresa, dentro de la ventana); un pendiente sin
+/// Trabajador, con <c>ResolverParaEmpresaAsync</c>. Todo o nada.
+/// </param>
 public record EnviarReclamacionEmpresaEmpleadoraCommand(
     Guid EmpresaId,
     Guid? DelegacionEmpresaId,
@@ -67,6 +73,9 @@ public class EnviarReclamacionEmpresaEmpleadoraCommandHandler(
             : Result.Exito(new EnvioReclamacionResultado(p.DocumentoIds, p.CorreosParaEnviar, p.DocumentosQueFaltan.Count, p.EnCopia));
     }
 
+    /// <summary>Lo que dice la columna «Trabajador» del correo en una fila de documentos de la propia Empresa.</summary>
+    public const string RotuloEmpresa = "Empresa";
+
     /// <summary>Decide qué se envía y a quién, sin enviar: misma idea que <c>EnviarReclamacionCommandHandler.PrepararAsync</c>.</summary>
     public async Task<Result<ReclamacionPreparada>> PrepararAsync(EnviarReclamacionEmpresaEmpleadoraCommand request, CancellationToken cancellationToken)
     {
@@ -77,19 +86,48 @@ public class EnviarReclamacionEmpresaEmpleadoraCommandHandler(
         if (empresa is null)
             return Result.Fallo<ReclamacionPreparada>(Error.Crear("Reclamacion.EmpresaNoEncontrada", "No encontramos esta empresa."));
 
-        var pedidos = request.Pendientes ?? [];
-        if (request.DocumentoIds.Count == 0 && pedidos.Count == 0)
+        var todosLosPedidos = request.Pendientes ?? [];
+        if (request.DocumentoIds.Count == 0 && todosLosPedidos.Count == 0)
             return Result.Fallo<ReclamacionPreparada>(Error.Crear("Reclamacion.SinDocumentos", "Selecciona al menos un documento a reclamar."));
 
+        // Reclamación por acceso: lo de la propia Empresa (sin Trabajador) se separa y se revalida con su propia regla.
+        // Un «Ausente» de la Empresa no trae Trabajador; un «Sin confirmar» se reconoce por su Documento, que es de la Empresa.
+        var sinConfirmarIds = todosLosPedidos.Where(p => p.DocumentoId is not null).Select(p => p.DocumentoId!.Value).ToList();
+        var sinConfirmarDeEmpresa = sinConfirmarIds.Count == 0 ? [] : (await documentosContext.Documentos
+            .Where(d => sinConfirmarIds.Contains(d.Id) && d.TrabajadorId == null && d.EmpresaId == request.EmpresaId)
+            .Select(d => d.Id).ToListAsync(cancellationToken)).ToHashSet();
+        var pedidosEmpresa = todosLosPedidos
+            .Where(p => p.DocumentoId is { } id ? sinConfirmarDeEmpresa.Contains(id) : p.TrabajadorId is null)
+            .ToList();
+        var pedidos = todosLosPedidos.Except(pedidosEmpresa).ToList();
+        var todosLosIds = request.DocumentoIds.Distinct().ToList();
+        var hoy = DiaDeNegocio.Hoy();
+        var filasEmpresa = await (
+                from documento in documentosContext.Documentos.Reclamables(hoy)
+                where todosLosIds.Contains(documento.Id)
+                where documento.EmpresaId == request.EmpresaId
+                where documento.TrabajadorId == null
+                join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+                where tipoDocumento.AmbitoAplicacion == AmbitoAplicacion.Empresa
+                select new
+                {
+                    DocumentoId = documento.Id,
+                    TipoDocumentoId = tipoDocumento.Id,
+                    TipoDocumentoNombre = tipoDocumento.Nombre,
+                    documento.FechaVencimiento
+                })
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        var idsEmpresa = filasEmpresa.Select(f => f.DocumentoId).ToHashSet();
+
         var trabajadorIdsDelLote = await empresaEmpleadora.TrabajadoresDelDestinoAsync(request.EmpresaId, request.DelegacionEmpresaId, cancellationToken);
-        var idsSolicitados = request.DocumentoIds.Distinct().ToList();
+        var idsSolicitados = todosLosIds.Where(id => !idsEmpresa.Contains(id)).ToList();
 
         // Mismo alcance y misma ventana que el lote (ObtenerLoteReclamacionQuery): un Id fuera de ellos falla igual que uno
         // ya renovado, sin decir que existe.
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
-        var hoy = DiaDeNegocio.Hoy();
 
         var filas = (await (
                 from documento in documentosContext.Documentos.Reclamables(hoy)
@@ -141,9 +179,22 @@ public class EnviarReclamacionEmpresaEmpleadoraCommandHandler(
             pendientes = emparejados.Valor;
         }
 
+        IReadOnlyList<DocumentoPendienteDto> pendientesEmpresa = [];
+        if (pedidosEmpresa.Count > 0)
+        {
+            if (pedidosEmpresa.Any(p => p.TrabajadorId is not null))
+                return Result.Fallo<ReclamacionPreparada>(PendientesDeReclamacionService.ErrorDesactualizados());
+            var resueltosEmpresa = await pendientesDeReclamacion.ResolverParaEmpresaAsync(request.EmpresaId, pedidosEmpresa, cancellationToken);
+            if (resueltosEmpresa.EsFallido)
+                return Result.Fallo<ReclamacionPreparada>(resueltosEmpresa.Error);
+            pendientesEmpresa = [.. resueltosEmpresa.Valor.Select(p => p with { TrabajadorNombre = RotuloEmpresa })];
+        }
+
         var destino = await empresaEmpleadora.ResolverDestinoAsync(
             request.EmpresaId, request.DelegacionEmpresaId,
-            filas.Select(f => f.TipoDocumentoId).Concat(pendientes.Select(p => p.TipoDocumentoId)).Distinct().ToList(),
+            filas.Select(f => f.TipoDocumentoId).Concat(pendientes.Select(p => p.TipoDocumentoId))
+                .Concat(filasEmpresa.Select(f => f.TipoDocumentoId)).Concat(pendientesEmpresa.Select(p => p.TipoDocumentoId))
+                .Distinct().ToList(),
             cancellationToken);
         if (destino.EsFallido)
             return Result.Fallo<ReclamacionPreparada>(destino.Error);
@@ -169,7 +220,9 @@ public class EnviarReclamacionEmpresaEmpleadoraCommandHandler(
                 "No hay a quién reclamar esta documentación: añade un contacto de reclamación a la delegación o un contacto en la ficha de la empresa."));
         }
 
+        pendientes = [.. pendientes, .. pendientesEmpresa];
         var documentoIds = filas.Select(f => f.DocumentoId)
+            .Concat(filasEmpresa.Select(f => f.DocumentoId))
             .Concat(pendientes.Where(p => p.DocumentoId is not null).Select(p => p.DocumentoId!.Value))
             .Distinct().ToList();
         var destinatarios = resueltos.Select(d => d.Email).Distinct().ToList();
@@ -180,7 +233,10 @@ public class EnviarReclamacionEmpresaEmpleadoraCommandHandler(
         var saludo = destino.Valor.Destino.DelegacionEmpresaNombre is { } delegacion ? $"{empresa.RazonSocial} ({delegacion})" : empresa.RazonSocial;
         var asunto = EnviarReclamacionCommandHandler.ConstruirAsunto(empresa.RazonSocial);
         var cuerpoHtml = EnviarReclamacionCommandHandler.ConstruirCuerpoHtml(
-            saludo, filas.Select(f => (f.TrabajadorNombre, f.TipoDocumentoNombre, f.FechaVencimiento!.Value)), pendientes);
+            saludo,
+            filas.Select(f => (f.TrabajadorNombre, f.TipoDocumentoNombre, f.FechaVencimiento!.Value))
+                .Concat(filasEmpresa.Select(f => (RotuloEmpresa, f.TipoDocumentoNombre, f.FechaVencimiento!.Value))),
+            pendientes);
 
         return Result.Exito(new ReclamacionPreparada(
             request.EmpresaId, empresa.RazonSocial, documentoIds, destinatarios,

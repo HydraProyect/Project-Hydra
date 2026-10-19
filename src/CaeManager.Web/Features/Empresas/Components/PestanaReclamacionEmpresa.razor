@@ -1,0 +1,229 @@
+@using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro
+@using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionAEmpresaEmpleadora
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Bandeja.Components
+@using CaeManager.Web.Features.Empresas.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosEmpresas> Textos
+
+@* Empresa 360 · Reclamación (decisión de Chris, 2026-10-19): todo lo vencido, por vencer o pendiente de la Empresa y de sus
+   Trabajadores, consolidado por destino (una tarjeta por Delegación y otra para la agenda de la Empresa), y la reclamación
+   por acceso a un Centro. Sin maqueta propia: reutiliza las secciones de Empresa 360 y DrawerReclamacionLote, que es quien
+   envía (nada sale sin el clic del Gestor CAE). *@
+<section class="empresa360-seccion" data-testid="reclamacion-preventiva">
+    <h2 class="empresa360-subtitulo">@Textos["ReclamacionPreventivaTitulo"]</h2>
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_error || _datos is null)
+    {
+        <EstadoVacio Titulo="@Textos["ReclamacionError"]" Descripcion="@Textos["ErrorSeccionDescripcion"]">
+            <Accion>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["Reintentar"]</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        @if (_datos.Delegaciones.Count > 0 || _datos.Oficios.Count > 0)
+        {
+            <div class="empresa360-pastillas" role="group" aria-label="@Textos["EtiquetaFiltrosCatalogo"]">
+                @if (_datos.Delegaciones.Count > 0)
+                {
+                    <PastillaFiltro Etiqueta="@Textos["EtiquetaDelegacionEmpresaFiltro"]" TextoTodos="@Textos["OpcionTodasLasDelegacionesEmpresa"]" Valor="@_delegacionId"
+                                    ValorChanged="CambiarDelegacionAsync" Opciones="@Opciones(_datos.Delegaciones)" />
+                }
+                @if (_datos.Oficios.Count > 0)
+                {
+                    <PastillaFiltro Etiqueta="@Textos["EtiquetaOficioFiltro"]" TextoTodos="@Textos["OpcionTodosLosOficios"]" Valor="@_oficioId"
+                                    ValorChanged="CambiarOficioAsync" Opciones="@Opciones(_datos.Oficios)" />
+                }
+            </div>
+        }
+
+        @if (_datos.Lotes.Count == 0)
+        {
+            <EstadoVacio Titulo="@Textos["ReclamacionVacioTitulo"]" Descripcion="@Textos["ReclamacionVacioDescripcion"]" />
+        }
+        else
+        {
+            <div class="empresa360-reclamacion-acciones">
+                <Boton Variante="VarianteBoton.Primario" OnClick="() => Abrir(_datos.Lotes)" data-testid="reclamar-todo">
+                    @Textos["ReclamacionReclamarTodo", _datos.Lotes.Count]
+                </Boton>
+            </div>
+            @foreach (var lote in _datos.Lotes)
+            {
+                <Tarjeta Titulo="@TituloDe(lote)" Compacta="true">
+                    <table class="tabla-datos" data-testid="reclamacion-lote">
+                        <thead>
+                            <tr><th>@Textos["ReclamacionColumnaTrabajador"]</th><th>@Textos["ReclamacionColumnaDocumento"]</th><th>@Textos["ReclamacionColumnaSituacion"]</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var d in lote.Documentos.OrderBy(d => d.TrabajadorNombre).ThenBy(d => d.FechaVencimiento))
+                            {
+                                <tr>
+                                    <td>@(d.TrabajadorNombre ?? Textos["ReclamacionDeLaEmpresa"])</td>
+                                    <td>@d.TipoDocumentoNombre</td>
+                                    <td>@Textos["ReclamacionVence", d.FechaVencimiento.ToString("dd/MM/yyyy")]</td>
+                                </tr>
+                            }
+                            @foreach (var p in (lote.PendientesSinFecha ?? []).OrderBy(p => p.TrabajadorNombre))
+                            {
+                                <tr>
+                                    <td>@(p.TrabajadorNombre ?? Textos["ReclamacionDeLaEmpresa"])</td>
+                                    <td>@p.TipoDocumentoNombre</td>
+                                    <td>@(p.Motivo == CaeManager.Application.Reclamaciones.MotivoPendienteDeReclamacion.Ausente ? Textos["ReclamacionAusente"] : Textos["ReclamacionSinConfirmar"])</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="() => Abrir([lote])">@Textos["ReclamacionReclamar"]</Boton>
+                </Tarjeta>
+            }
+        }
+    }
+</section>
+
+@if (_datos is { Centros.Count: > 0 })
+{
+    <section class="empresa360-seccion" data-testid="reclamacion-acceso">
+        <h2 class="empresa360-subtitulo">@Textos["ReclamacionAccesoTitulo"]</h2>
+        <p class="texto-secundario">@Textos["ReclamacionAccesoDescripcion"]</p>
+        <CampoSelect Etiqueta="@Textos["ReclamacionAccesoCentro"]" Valor="@(_centroId?.ToString() ?? string.Empty)" ValorChanged="CambiarCentro">
+            <option value="">@Textos["ReclamacionAccesoElegirCentro"]</option>
+            @foreach (var c in _datos.Centros)
+            {
+                <option value="@c.CentroId">@c.CentroNombre</option>
+            }
+        </CampoSelect>
+        @if (_datos.Centros.FirstOrDefault(c => c.CentroId == _centroId) is { } centro)
+        {
+            <fieldset class="empresa360-reclamacion-trabajadores">
+                <legend>@Textos["ReclamacionAccesoTrabajadores"]</legend>
+                @foreach (var t in centro.Trabajadores)
+                {
+                    <label class="casilla">
+                        <input type="checkbox" checked="@_trabajadores.Contains(t.Id)" @onchange="e => Marcar(t.Id, e.Value is true)" />
+                        @t.Nombre
+                    </label>
+                }
+            </fieldset>
+            @if (_accesoSinResultados)
+            {
+                <p class="texto-vacio-seccion" role="status">@Textos["ReclamacionAccesoNada"]</p>
+            }
+            <Boton Variante="VarianteBoton.Primario" Disabled="@(_trabajadores.Count == 0 || _preparando)" OnClick="PrepararAccesoAsync" data-testid="preparar-acceso">
+                @Textos["ReclamacionAccesoPreparar"]
+            </Boton>
+        }
+    </section>
+}
+
+@if (_lotesDrawer is { } lotes)
+{
+    <DrawerReclamacionLote @key="lotes" Visible="true" VisibleChanged="v => { if (!v) _lotesDrawer = null; }"
+                          AmbitosDisponibles="@(new[] { AmbitoAplicacion.Empresa, AmbitoAplicacion.Trabajador })"
+                          LotesIniciales="lotes" OnReclamacionEnviada="CargarAsync" />
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid EmpresaId { get; set; }
+
+    private ReclamacionPreventivaEmpresaDto? _datos;
+    private bool _cargando = true;
+    private bool _error;
+    private string _delegacionId = string.Empty;
+    private string _oficioId = string.Empty;
+    private Guid? _centroId;
+    private readonly HashSet<Guid> _trabajadores = [];
+    private bool _preparando;
+    private bool _accesoSinResultados;
+    private IReadOnlyList<LoteReclamacionAgrupadoDto>? _lotesDrawer;
+
+    private Guid _empresaCargada;
+
+    protected override Task OnParametersSetAsync()
+    {
+        if (_empresaCargada == EmpresaId) return Task.CompletedTask;
+        _empresaCargada = EmpresaId;
+        return CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = false;
+        try
+        {
+            _datos = await Mediator.Send(new ObtenerReclamacionPreventivaEmpresaQuery(
+                EmpresaId, Guid.TryParse(_delegacionId, out var d) ? d : null, Guid.TryParse(_oficioId, out var o) ? o : null));
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private static IReadOnlyList<OpcionEstado> Opciones(IReadOnlyList<OpcionFiltroDto> opciones) =>
+        [.. opciones.Select(o => new OpcionEstado(o.Id.ToString(), o.Nombre))];
+
+    private string TituloDe(LoteReclamacionAgrupadoDto lote) => lote.EmpresaEmpleadora is { DelegacionEmpresaNombre: { } delegacion }
+        ? Textos["ReclamacionTarjetaDelegacion", delegacion]
+        : Textos["ReclamacionTarjetaAgenda"];
+
+    private Task CambiarDelegacionAsync(string valor)
+    {
+        _delegacionId = valor;
+        return CargarAsync();
+    }
+
+    private Task CambiarOficioAsync(string valor)
+    {
+        _oficioId = valor;
+        return CargarAsync();
+    }
+
+    private void CambiarCentro(string valor)
+    {
+        _centroId = Guid.TryParse(valor, out var id) ? id : null;
+        _trabajadores.Clear();
+        _accesoSinResultados = false;
+    }
+
+    private void Marcar(Guid trabajadorId, bool marcado)
+    {
+        _accesoSinResultados = false;
+        if (marcado) _trabajadores.Add(trabajadorId);
+        else _trabajadores.Remove(trabajadorId);
+    }
+
+    private void Abrir(IReadOnlyList<LoteReclamacionAgrupadoDto> lotes) => _lotesDrawer = lotes;
+
+    private async Task PrepararAccesoAsync()
+    {
+        if (_centroId is not { } centroId || _trabajadores.Count == 0) return;
+        _preparando = true;
+        try
+        {
+            var lotes = await Mediator.Send(new ObtenerReclamacionPorAccesoQuery(EmpresaId, centroId, [.. _trabajadores]));
+            _accesoSinResultados = lotes.Count == 0;
+            if (lotes.Count > 0) Abrir(lotes);
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _preparando = false;
+        }
+    }
+}

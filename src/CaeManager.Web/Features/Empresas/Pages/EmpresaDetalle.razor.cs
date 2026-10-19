@@ -57,11 +57,12 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     internal const string PestanaAgenda = "agenda";
     internal const string PestanaFicha = "ficha";
     internal const string PestanaHistorial = "historial";
+    internal const string PestanaReclamacion = "reclamacion";
 
     internal const int TamanoPagina = 20;
 
     private static readonly string[] PestanasValidas =
-        [PestanaTrabajadores, PestanaClientes, PestanaDocumentacion, PestanaAgenda, PestanaFicha, PestanaHistorial];
+        [PestanaTrabajadores, PestanaClientes, PestanaDocumentacion, PestanaAgenda, PestanaFicha, PestanaReclamacion, PestanaHistorial];
 
     [Parameter] public Guid EmpresaId { get; set; }
 
@@ -939,6 +940,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
         new(PestanaAgenda, Textos["PestanaAgenda"]),
         .. HayCajasDeFicha ? new[] { new PestanaDefinicion(PestanaFicha, Textos["PestanaFicha"]) } : [],
+        new(PestanaReclamacion, Textos["PestanaReclamacion"]),
         new(PestanaHistorial, Textos["PestanaHistorial"])
     ];
 

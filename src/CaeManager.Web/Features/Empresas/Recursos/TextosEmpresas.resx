@@ -526,4 +526,73 @@
   <data name="CatalogoEliminarMensaje" xml:space="preserve"><value>Se quitará del catálogo de la empresa.</value></data>
   <data name="CatalogoGuardado" xml:space="preserve"><value>Guardado.</value></data>
   <data name="CatalogoEliminado" xml:space="preserve"><value>Eliminado.</value></data>
+  <data name="PestanaReclamacion" xml:space="preserve">
+    <value>Reclamación</value>
+  </data>
+  <data name="ReclamacionPreventivaTitulo" xml:space="preserve">
+    <value>Todo lo que hay que reclamar</value>
+  </data>
+  <data name="ReclamacionError" xml:space="preserve">
+    <value>No se ha podido cargar lo que hay que reclamar</value>
+  </data>
+  <data name="ReclamacionVacioTitulo" xml:space="preserve">
+    <value>Nada que reclamar</value>
+  </data>
+  <data name="ReclamacionVacioDescripcion" xml:space="preserve">
+    <value>Ni la empresa ni sus trabajadores tienen documentos vencidos, por vencer o pendientes con este filtro.</value>
+  </data>
+  <data name="ReclamacionReclamarTodo" xml:space="preserve">
+    <value>Reclamar todo ({0} correos)</value>
+  </data>
+  <data name="ReclamacionReclamar" xml:space="preserve">
+    <value>Reclamar</value>
+  </data>
+  <data name="ReclamacionColumnaTrabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="ReclamacionColumnaDocumento" xml:space="preserve">
+    <value>Documento</value>
+  </data>
+  <data name="ReclamacionColumnaSituacion" xml:space="preserve">
+    <value>Situación</value>
+  </data>
+  <data name="ReclamacionDeLaEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="ReclamacionVence" xml:space="preserve">
+    <value>Vence el {0}</value>
+  </data>
+  <data name="ReclamacionAusente" xml:space="preserve">
+    <value>Falta</value>
+  </data>
+  <data name="ReclamacionSinConfirmar" xml:space="preserve">
+    <value>Sin confirmar</value>
+  </data>
+  <data name="ReclamacionTarjetaDelegacion" xml:space="preserve">
+    <value>Delegación {0}</value>
+  </data>
+  <data name="ReclamacionTarjetaAgenda" xml:space="preserve">
+    <value>Contactos de la empresa</value>
+  </data>
+  <data name="ReclamacionAccesoTitulo" xml:space="preserve">
+    <value>Reclamar para entrar a un centro</value>
+  </data>
+  <data name="ReclamacionAccesoDescripcion" xml:space="preserve">
+    <value>Elige un centro y los trabajadores que tienen que entrar: se reclama en un solo correo lo que ese centro exige y está vencido o pendiente, de la empresa y de esos trabajadores.</value>
+  </data>
+  <data name="ReclamacionAccesoCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="ReclamacionAccesoElegirCentro" xml:space="preserve">
+    <value>Elige un centro</value>
+  </data>
+  <data name="ReclamacionAccesoTrabajadores" xml:space="preserve">
+    <value>Trabajadores que tienen que entrar</value>
+  </data>
+  <data name="ReclamacionAccesoPreparar" xml:space="preserve">
+    <value>Preparar reclamación</value>
+  </data>
+  <data name="ReclamacionAccesoNada" xml:space="preserve">
+    <value>Ese centro no exige nada vencido ni pendiente a estos trabajadores ni a la empresa.</value>
+  </data>
 </root>

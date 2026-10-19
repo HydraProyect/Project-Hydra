@@ -441,4 +441,73 @@
   <data name="CatalogoEliminarMensaje" xml:space="preserve"><value>Es traurà del catàleg de l'empresa.</value></data>
   <data name="CatalogoGuardado" xml:space="preserve"><value>Desat.</value></data>
   <data name="CatalogoEliminado" xml:space="preserve"><value>Eliminat.</value></data>
+  <data name="PestanaReclamacion" xml:space="preserve">
+    <value>Reclamació</value>
+  </data>
+  <data name="ReclamacionPreventivaTitulo" xml:space="preserve">
+    <value>Tot el que cal reclamar</value>
+  </data>
+  <data name="ReclamacionError" xml:space="preserve">
+    <value>No s&apos;ha pogut carregar el que cal reclamar</value>
+  </data>
+  <data name="ReclamacionVacioTitulo" xml:space="preserve">
+    <value>Res a reclamar</value>
+  </data>
+  <data name="ReclamacionVacioDescripcion" xml:space="preserve">
+    <value>Ni l&apos;empresa ni els seus treballadors tenen documents vençuts, a punt de vèncer o pendents amb aquest filtre.</value>
+  </data>
+  <data name="ReclamacionReclamarTodo" xml:space="preserve">
+    <value>Reclamar-ho tot ({0} correus)</value>
+  </data>
+  <data name="ReclamacionReclamar" xml:space="preserve">
+    <value>Reclamar</value>
+  </data>
+  <data name="ReclamacionColumnaTrabajador" xml:space="preserve">
+    <value>Treballador</value>
+  </data>
+  <data name="ReclamacionColumnaDocumento" xml:space="preserve">
+    <value>Document</value>
+  </data>
+  <data name="ReclamacionColumnaSituacion" xml:space="preserve">
+    <value>Situació</value>
+  </data>
+  <data name="ReclamacionDeLaEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="ReclamacionVence" xml:space="preserve">
+    <value>Venç el {0}</value>
+  </data>
+  <data name="ReclamacionAusente" xml:space="preserve">
+    <value>Falta</value>
+  </data>
+  <data name="ReclamacionSinConfirmar" xml:space="preserve">
+    <value>Sense confirmar</value>
+  </data>
+  <data name="ReclamacionTarjetaDelegacion" xml:space="preserve">
+    <value>Delegació {0}</value>
+  </data>
+  <data name="ReclamacionTarjetaAgenda" xml:space="preserve">
+    <value>Contactes de l&apos;empresa</value>
+  </data>
+  <data name="ReclamacionAccesoTitulo" xml:space="preserve">
+    <value>Reclamar per entrar a un centre</value>
+  </data>
+  <data name="ReclamacionAccesoDescripcion" xml:space="preserve">
+    <value>Tria un centre i els treballadors que hi han d&apos;entrar: es reclama en un sol correu el que aquest centre exigeix i està vençut o pendent, de l&apos;empresa i d&apos;aquests treballadors.</value>
+  </data>
+  <data name="ReclamacionAccesoCentro" xml:space="preserve">
+    <value>Centre</value>
+  </data>
+  <data name="ReclamacionAccesoElegirCentro" xml:space="preserve">
+    <value>Tria un centre</value>
+  </data>
+  <data name="ReclamacionAccesoTrabajadores" xml:space="preserve">
+    <value>Treballadors que hi han d&apos;entrar</value>
+  </data>
+  <data name="ReclamacionAccesoPreparar" xml:space="preserve">
+    <value>Preparar la reclamació</value>
+  </data>
+  <data name="ReclamacionAccesoNada" xml:space="preserve">
+    <value>Aquest centre no exigeix res vençut ni pendent a aquests treballadors ni a l&apos;empresa.</value>
+  </data>
 </root>
