@@ -19,7 +19,8 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerUltimaReclamacionC
 public record ObtenerUltimaReclamacionClienteQuery(Guid ClienteId) : IRequest<UltimaReclamacionClienteDto?>;
 
 /// <param name="ConversacionId">Null si esa reclamación salió sin buzón conectado, o si es anterior al vínculo con Comunicaciones.</param>
-public record UltimaReclamacionClienteDto(Guid Id, DateTime FechaEnvioUtc, int TotalDocumentos, Guid? ConversacionId);
+/// <param name="EmpresaEmpleadoraNombre">Informado = la reclamación fue a esa Empresa empleadora de los Trabajadores del Cliente, no al Cliente: quien la pinta lo dice así y no enlaza a Comunicaciones por Cliente.</param>
+public record UltimaReclamacionClienteDto(Guid Id, DateTime FechaEnvioUtc, int TotalDocumentos, Guid? ConversacionId, string? EmpresaEmpleadoraNombre = null);
 
 public class ObtenerUltimaReclamacionClienteQueryHandler(
     IReclamacionesQueryContext reclamacionesContext, IAlcanceDatosService alcanceDatos,
@@ -41,7 +42,7 @@ public class ObtenerUltimaReclamacionClienteQueryHandler(
         var viaEmpresa = await reclamacionesEnviadas.UltimaViaEmpresaEmpleadoraDeClienteAsync(
             request.ClienteId, await alcanceDatos.ObtenerEmpresaIdsParaGestionAsync(cancellationToken), cancellationToken);
         if (viaEmpresa is not null && (ultima is null || viaEmpresa.FechaEnvioUtc > ultima.FechaEnvioUtc))
-            return new UltimaReclamacionClienteDto(viaEmpresa.Id, viaEmpresa.FechaEnvioUtc, viaEmpresa.TotalDocumentos, viaEmpresa.ConversacionId);
+            return new UltimaReclamacionClienteDto(viaEmpresa.Id, viaEmpresa.FechaEnvioUtc, viaEmpresa.TotalDocumentos, viaEmpresa.ConversacionId, viaEmpresa.EmpresaNombre);
 
         if (ultima is null) return null;
 

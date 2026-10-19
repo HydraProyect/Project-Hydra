@@ -106,7 +106,7 @@
                     var seleccionados = _seleccionPorLote[lote.Clave];
                     var enviando = _enviandoLote == lote.Clave;
 
-                    <Tarjeta @key="clavesLotes.De(lote.Clave)" Titulo="@lote.TitularNombre" Class="tarjeta-reclamacion">
+                    <Tarjeta @key="clavesLotes.De(lote.Clave)" Titulo="@lote.TituloVisible" Class="tarjeta-reclamacion">
                         <AccionesHeader>
                             <span class="alertas-lote-ultima">
                                 @TextoUltimaReclamacion(lote.UltimaReclamacionFechaUtc)

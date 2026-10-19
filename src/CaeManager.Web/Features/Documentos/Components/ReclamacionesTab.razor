@@ -144,7 +144,7 @@ else
         var seleccionados = _seleccionPorLote[lote.Clave];
         var enviando = _enviandoLote == lote.Clave;
 
-        <Tarjeta @key="clavesLotes.De(lote.Clave)" Titulo="@lote.TitularNombre" Class="tarjeta-reclamacion">
+        <Tarjeta @key="clavesLotes.De(lote.Clave)" Titulo="@lote.TituloVisible" Class="tarjeta-reclamacion">
             <AccionesHeader>
                 <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || ContactosMarcados(lote.Clave).Count == 0)"
                        Cargando="enviando" OnClick="() => AbrirRevision(lote)"

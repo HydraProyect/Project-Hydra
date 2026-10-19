@@ -511,4 +511,36 @@ public class ReclamacionEmpresaEmpleadoraTests
             _contratista.Id, Guid.NewGuid(), CorreoSevilla, DateTime.UtcNow.AddDays(-1), [documento.Id]));
 
         (await UltimaDelCliente()).Should().BeNull();
-    }}
+    }
+
+    [Fact]
+    public async Task El_rastro_nombra_a_la_Empresa_y_solo_cuenta_las_lineas_de_Trabajadores_del_Cliente()
+    {
+        var otroCliente = Empresa.CrearComoCliente("Otro SA", "B12345674", false, null, null);
+        var otroCentro = new Centro(otroCliente.Id, _contratista.Id, "Centro Sur");
+        _centros.ListaCentros.Add(otroCentro);
+        var eva = Trabajador.DeEmpresa(_contratista.Id, "Eva", "Pérez", "00000004G");
+        _trabajadores.ListaTrabajadores.Add(eva);
+        _asignaciones.ListaAsignaciones.Add(new Asignacion(eva.Id, otroCentro.Id, new DateOnly(2026, 1, 1)));
+        var deAna = DocumentoQueVence(_anaSevilla);
+        var deEva = DocumentoQueVence(eva);
+        _reclamaciones.Lista.Add(ReclamacionDocumental.ParaEmpresaEmpleadora(
+            _contratista.Id, Guid.NewGuid(), CorreoSevilla, DateTime.UtcNow.AddDays(-1), [deAna.Id, deEva.Id]));
+
+        var ultima = await UltimaDelCliente();
+
+        ultima!.TotalDocumentos.Should().Be(1, "el documento de Eva es de otro Cliente");
+        ultima.EmpresaEmpleadoraNombre.Should().Be(_contratista.RazonSocial);
+    }
+
+    [Fact]
+    public async Task Un_Trabajador_dado_de_baja_del_Cliente_no_trae_su_rastro()
+    {
+        var documento = DocumentoQueVence(_anaSevilla);
+        _asignaciones.ListaAsignaciones.Single(a => a.TrabajadorId == _anaSevilla.Id).DarDeBaja(new DateOnly(2026, 2, 1));
+        _reclamaciones.Lista.Add(ReclamacionDocumental.ParaEmpresaEmpleadora(
+            _contratista.Id, Guid.NewGuid(), CorreoSevilla, DateTime.UtcNow.AddDays(-1), [documento.Id]));
+
+        (await UltimaDelCliente()).Should().BeNull();
+    }
+}

@@ -388,7 +388,7 @@ public class ReglasDeNegocioSinCopiasTests
         // para derivar a qué Empresa empleadora y Delegación se envió, sea o no operativo hoy.
         // Y a qué Clientes empresariales llegó una reclamación a la Empresa empleadora (rastro de Centro 360): por las líneas que
         // nombran el Documento, sea o no operativo hoy, porque habla de lo que se reclamó y no del estado actual.
-        ["src/CaeManager.Application/Reclamaciones/DestinoDeReclamacionesEnviadasService.cs"] = 2,
+        ["src/CaeManager.Application/Reclamaciones/DestinoDeReclamacionesEnviadasService.cs"] = 3,
 
         // --- Auditoría: quién accedió a qué documento, sea o no operativo hoy. ---
         ["src/CaeManager.Application/Auditoria/Queries/ObtenerAccesosDocumentosSensiblesQuery.cs"] = 1,
