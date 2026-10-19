@@ -19,7 +19,7 @@
 @using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion
 @using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa
 @using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresaEmpleadora
-@using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion
+@using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro
 @using CaeManager.Application.Reclamaciones
 @using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesEnviadas
 @using CaeManager.Application.Reclamaciones.Commands.PrepararVistaPreviaReclamacion
@@ -138,14 +138,15 @@ else if (_lotes.Count == 0)
 }
 else
 {
+    var clavesLotes = new ClavesDeHermanos();
     @foreach (var lote in _lotes)
     {
-        var seleccionados = _seleccionPorCliente[lote.ClienteId];
-        var enviando = _enviandoClienteId == lote.ClienteId;
+        var seleccionados = _seleccionPorLote[lote.Clave];
+        var enviando = _enviandoLote == lote.Clave;
 
-        <Tarjeta @key="lote.ClienteId" Titulo="@lote.RazonSocialCliente" Class="tarjeta-reclamacion">
+        <Tarjeta @key="clavesLotes.De(lote.Clave)" Titulo="@lote.TituloVisible" Class="tarjeta-reclamacion">
             <AccionesHeader>
-                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || ContactosMarcados(lote.ClienteId).Count == 0)"
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || ContactosMarcados(lote.Clave).Count == 0)"
                        Cargando="enviando" OnClick="() => AbrirRevision(lote)"
                        title="@TituloBotonEnviar(lote, seleccionados.Count)">
                     Enviar reclamación (@seleccionados.Count)
@@ -162,9 +163,9 @@ else
                        (hueco declarado en Project-Hydra-Negocio/tecnico/05_WORKSPACE_PATTERNS.md § 3.6) y no se
                        finge aquí. Solo se ofrece si la última reclamación llegó a
                        tener conversación y el módulo de Comunicaciones está activo. *@
-                    @if (lote.UltimaReclamacionConversacionId is not null && OpcionesComunicaciones.Value.Activo)
+                    @if (lote.UltimaReclamacionConversacionId is not null && lote.EmpresaEmpleadora is null && OpcionesComunicaciones.Value.Activo)
                     {
-                        <a href="@($"/comunicaciones?cliente={lote.ClienteId}")">Ver en Comunicaciones</a>
+                        <a href="@($"/comunicaciones?cliente={lote.TitularId}")">Ver en Comunicaciones</a>
                     }
                 </p>
 
@@ -173,16 +174,30 @@ else
                    portal — ver IResolucionDestinatariosAgendaService. La lista
                    sale marcada entera: desmarcar es la excepción, no el paso
                    obligatorio. *@
+                @* Un Trabajador de Empresa se reclama a su Empresa empleadora: la tarjeta dice a qué Delegación va, o que va a la agenda de la Empresa. *@
+                @if (lote.EmpresaEmpleadora is { } destino)
+                {
+                    <p class="reclamacion-motivo reclamacion-destino-delegacion">
+                        @(destino.DelegacionEmpresaNombre is { } delegacion
+                            ? Textos["RecDestinoDelegacionEmpresa", delegacion].Value
+                            : Textos["RecDestinoEmpresa"].Value)
+                    </p>
+                }
                 @if (lote.Destinatarios is not { Count: > 0 })
                 {
                     <div class="alerta-formulario" role="alert">
-                        No hay ningún contacto en la agenda al que reclamar esta documentación.
-                        <SoloConEscritura>
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                   OnClick="() => AbrirAltaContacto(lote.ClienteId)">
-                                <Icono Nombre="contacto" Tamano="TamanoIcono.Pequeno" /> Añadir contacto
-                            </Boton>
-                        </SoloConEscritura>
+                        @(EsLoteDeDelegacionEmpresa(lote)
+                            ? Textos["RecDelegacionEmpresaSinContactoVisible"].Value
+                            : "No hay ningún contacto en la agenda al que reclamar esta documentación.")
+                        @if (!EsLoteDeDelegacionEmpresa(lote))
+                        {
+                            <SoloConEscritura>
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                       OnClick="() => AbrirAltaContacto(lote)">
+                                    <Icono Nombre="contacto" Tamano="TamanoIcono.Pequeno" /> Añadir contacto
+                                </Boton>
+                            </SoloConEscritura>
+                        }
                     </div>
                 }
                 else
@@ -193,18 +208,21 @@ else
                         {
                             <label class="campo-checkbox" @key="destinatario.ContactoId">
                                 <input type="checkbox"
-                                       checked="@ContactosMarcados(lote.ClienteId).Contains(destinatario.ContactoId)"
-                                       @onchange="e => AlternarContacto(lote.ClienteId, destinatario.ContactoId, (bool)e.Value!)" />
+                                       checked="@ContactosMarcados(lote.Clave).Contains(destinatario.ContactoId)"
+                                       @onchange="e => AlternarContacto(lote.Clave, destinatario.ContactoId, (bool)e.Value!)" />
                                 <span>@destinatario.Nombre — @destinatario.Email</span>
                                 <span class="reclamacion-motivo">@string.Join(", ", destinatario.MotivoTipos)</span>
                             </label>
                         }
-                        <SoloConEscritura>
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                   OnClick="() => AbrirAltaContacto(lote.ClienteId)">
-                                <Icono Nombre="contacto" Tamano="TamanoIcono.Pequeno" /> Añadir contacto
-                            </Boton>
-                        </SoloConEscritura>
+                        @if (!EsLoteDeDelegacionEmpresa(lote))
+                        {
+                            <SoloConEscritura>
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                       OnClick="() => AbrirAltaContacto(lote)">
+                                    <Icono Nombre="contacto" Tamano="TamanoIcono.Pequeno" /> Añadir contacto
+                                </Boton>
+                            </SoloConEscritura>
+                        }
                     </fieldset>
                 }
 
@@ -224,7 +242,7 @@ else
                             <tr @key="documento.DocumentoId">
                                 <td>
                                     <input type="checkbox" aria-label="@($"Incluir {documento.TipoDocumentoNombre} de {documento.TrabajadorNombre}, vencimiento {documento.FechaVencimiento:dd/MM/yyyy}, en la reclamación")" checked="@seleccionados.Contains(documento.DocumentoId)"
-                                           @onchange="e => AlternarSeleccion(lote.ClienteId, documento.DocumentoId, (bool)e.Value!)" />
+                                           @onchange="e => AlternarSeleccion(lote.Clave, documento.DocumentoId, (bool)e.Value!)" />
                                 </td>
                                 <td>@documento.TrabajadorNombre</td>
                                 <td>@documento.TipoDocumentoNombre</td>
@@ -245,7 +263,7 @@ else
    asunto y el cuerpo salen de las mismas funciones que usa el handler) y hace
    falta una confirmación explícita. *@
 <Modal Visible="_loteEnRevision is not null" VisibleChanged="CerrarRevision" Titulo="@Textos["RecRevisionTitulo"]"
-       Ancho="AnchoModal.Grande" CerrarAlHacerClicFuera="_enviandoClienteId is null">
+       Ancho="AnchoModal.Grande" CerrarAlHacerClicFuera="_enviandoLote is null">
     <ChildContent>
         @if (_loteEnRevision is { } revisado)
         {
@@ -254,7 +272,7 @@ else
                 <dt>@Textos["RecRevisionPara"]</dt>
                 <dd>@string.Join(", ", destinatariosRevision.Select(d => $"{d.Nombre} <{d.Email}>"))</dd>
                 <dt>@Textos["RecRevisionAsunto"]</dt>
-                <dd>@EnviarReclamacionCommandHandler.ConstruirAsunto(revisado.RazonSocialCliente)</dd>
+                <dd>@EnviarReclamacionCommandHandler.ConstruirAsunto(revisado.TitularNombre)</dd>
                 <dt>@Textos["RecRevisionTexto"]</dt>
                 <dd class="reclamacion-revision-cuerpo">@((MarkupString)CuerpoRevision(revisado))</dd>
             </dl>
@@ -262,8 +280,8 @@ else
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enviandoClienteId is not null" OnClick="() => CerrarRevision(false)">@Textos["RecVolver"]</Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_enviandoClienteId is not null" OnClick="ConfirmarEnvioAsync">@Textos["RecConfirmarEnviar"]</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enviandoLote is not null" OnClick="() => CerrarRevision(false)">@Textos["RecVolver"]</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_enviandoLote is not null" OnClick="ConfirmarEnvioAsync">@Textos["RecConfirmarEnviar"]</Boton>
     </Pie>
 </Modal>
 
@@ -295,7 +313,7 @@ else
 @* Alta inline: el gestor que ve que falta el destinatario lo crea sin salir
    de la pantalla y la lista se recarga con él ya resuelto. *@
 <ModalContactoAgenda Visible="_altaContactoVisible" VisibleChanged="v => _altaContactoVisible = v"
-                     Tipo="TipoPropietarioAgenda.Cliente" PropietarioId="_clienteAltaContacto"
+                     Tipo="_tipoAgendaAltaContacto" PropietarioId="_titularAltaContacto"
                      PredeterminadoPorDefecto="true" OnGuardado="_ => CargarAsync()" />
 
 @code {
@@ -323,12 +341,13 @@ else
 
     private bool _cargando = true;
     private bool _error;
-    private IReadOnlyList<LoteReclamacionClienteDto> _lotes = [];
-    private readonly Dictionary<Guid, HashSet<Guid>> _seleccionPorCliente = [];
-    private readonly Dictionary<Guid, HashSet<Guid>> _contactosPorCliente = [];
-    private Guid? _enviandoClienteId;
+    private IReadOnlyList<LoteReclamacionAgrupadoDto> _lotes = [];
+    private readonly Dictionary<string, HashSet<Guid>> _seleccionPorLote = [];
+    private readonly Dictionary<string, HashSet<Guid>> _contactosPorLote = [];
+    private string? _enviandoLote;
     private bool _altaContactoVisible;
-    private Guid _clienteAltaContacto;
+    private Guid _titularAltaContacto;
+    private TipoPropietarioAgenda _tipoAgendaAltaContacto = TipoPropietarioAgenda.Cliente;
 
     // --- Ciclo de vida ---------------------------------------------------
 
@@ -510,7 +529,10 @@ else
 
         try
         {
-            var lotes = await Mediator.Send(new ObtenerLoteReclamacionQuery(), token);
+            // Los documentos de un Trabajador de Empresa se reclaman a su Empresa empleadora (decisión de Chris, 2026-10-18),
+            // igual que en «Gestionar»; los de Subcontrata siguen yendo al Cliente.
+            var lotes = await Mediator.Send(
+                new ObtenerLoteReclamacionPorFiltroQuery(new FiltroLoteDocumental(AmbitoAplicacion.Trabajador, [], null), PorEmpresaEmpleadora: true), token);
 
             // La respuesta de una recarga ya abandonada no puede pisar los
             // lotes ni la selección de la pregunta que sí se está mirando.
@@ -518,12 +540,12 @@ else
                 return;
 
             _lotes = lotes;
-            _seleccionPorCliente.Clear();
-            _contactosPorCliente.Clear();
+            _seleccionPorLote.Clear();
+            _contactosPorLote.Clear();
             foreach (var lote in _lotes)
             {
-                _seleccionPorCliente[lote.ClienteId] = lote.Documentos.Select(d => d.DocumentoId).ToHashSet();
-                _contactosPorCliente[lote.ClienteId] =
+                _seleccionPorLote[lote.Clave] = lote.Documentos.Select(d => d.DocumentoId).ToHashSet();
+                _contactosPorLote[lote.Clave] =
                     (lote.Destinatarios ?? []).Select(d => d.ContactoId).ToHashSet();
             }
         }
@@ -543,32 +565,36 @@ else
         }
     }
 
-    private void AlternarSeleccion(Guid clienteId, Guid documentoId, bool seleccionado)
+    private void AlternarSeleccion(string claveLote, Guid documentoId, bool seleccionado)
     {
-        var seleccionados = _seleccionPorCliente[clienteId];
+        var seleccionados = _seleccionPorLote[claveLote];
         if (seleccionado) seleccionados.Add(documentoId);
         else seleccionados.Remove(documentoId);
     }
 
-    private HashSet<Guid> ContactosMarcados(Guid clienteId) =>
-        _contactosPorCliente.TryGetValue(clienteId, out var marcados) ? marcados : [];
+    private HashSet<Guid> ContactosMarcados(string claveLote) =>
+        _contactosPorLote.TryGetValue(claveLote, out var marcados) ? marcados : [];
 
-    private void AlternarContacto(Guid clienteId, Guid contactoId, bool marcado)
+    private void AlternarContacto(string claveLote, Guid contactoId, bool marcado)
     {
-        if (!_contactosPorCliente.TryGetValue(clienteId, out var marcados))
-            _contactosPorCliente[clienteId] = marcados = [];
+        if (!_contactosPorLote.TryGetValue(claveLote, out var marcados))
+            _contactosPorLote[claveLote] = marcados = [];
 
         if (marcado) marcados.Add(contactoId);
         else marcados.Remove(contactoId);
     }
 
-    private void AbrirAltaContacto(Guid clienteId)
+    /// <summary>El contacto nace en la agenda de quien recibe el lote: la Empresa empleadora o el Cliente. Un lote a una Delegación no admite alta: su contacto es el de la Delegación.</summary>
+    private void AbrirAltaContacto(LoteReclamacionAgrupadoDto lote)
     {
-        _clienteAltaContacto = clienteId;
+        _titularAltaContacto = lote.TitularId;
+        _tipoAgendaAltaContacto = lote.EmpresaEmpleadora is not null ? TipoPropietarioAgenda.Empresa : TipoPropietarioAgenda.Cliente;
         _altaContactoVisible = true;
     }
 
-    private LoteReclamacionClienteDto? _loteEnRevision;
+    private static bool EsLoteDeDelegacionEmpresa(LoteReclamacionAgrupadoDto lote) => lote.EmpresaEmpleadora?.DelegacionEmpresaId is not null;
+
+    private LoteReclamacionAgrupadoDto? _loteEnRevision;
     private ReclamacionEnviadaDto? _reclamacionAReenviar;
 
     private ReclamacionPreparada? _vistaPreviaReenvio;
@@ -622,20 +648,20 @@ else
     /// destinatario marcado no se puede enviar; sin título el motivo solo
     /// estaba en el aviso de abajo.
     /// </summary>
-    private string? TituloBotonEnviar(LoteReclamacionClienteDto lote, int documentos)
+    private string? TituloBotonEnviar(LoteReclamacionAgrupadoDto lote, int documentos)
     {
         if (lote.Destinatarios is not { Count: > 0 })
             return Textos["RecBotonSinContacto"].Value;
-        if (ContactosMarcados(lote.ClienteId).Count == 0)
+        if (ContactosMarcados(lote.Clave).Count == 0)
             return Textos["RecBotonMarcaDestinatario"].Value;
         if (documentos == 0)
             return Textos["RecBotonMarcaDocumento"].Value;
         return null;
     }
 
-    private List<DestinatarioReclamacion> DestinatariosMarcados(LoteReclamacionClienteDto lote)
+    private List<DestinatarioReclamacion> DestinatariosMarcados(LoteReclamacionAgrupadoDto lote)
     {
-        var marcados = ContactosMarcados(lote.ClienteId);
+        var marcados = ContactosMarcados(lote.Clave);
         return (lote.Destinatarios ?? [])
             .Where(d => marcados.Contains(d.ContactoId))
             .Select(d => new DestinatarioReclamacion(d.Nombre, d.Email))
@@ -644,24 +670,25 @@ else
 
     private sealed record DestinatarioReclamacion(string Nombre, string Email);
 
-    private string CuerpoRevision(LoteReclamacionClienteDto lote)
+    private string CuerpoRevision(LoteReclamacionAgrupadoDto lote)
     {
         // TryGetValue: una recarga concurrente vacía el diccionario con el modal abierto.
-        if (!_seleccionPorCliente.TryGetValue(lote.ClienteId, out var seleccionados))
+        if (!_seleccionPorLote.TryGetValue(lote.Clave, out var seleccionados))
             return string.Empty;
 
+        // Mismo saludo que el del envío a la Empresa empleadora: la Empresa y, entre paréntesis, la Delegación.
         return EnviarReclamacionCommandHandler.ConstruirCuerpoHtml(
-            lote.RazonSocialCliente,
+            lote.EmpresaEmpleadora?.DelegacionEmpresaNombre is { } delegacion ? $"{lote.TitularNombre} ({delegacion})" : lote.TitularNombre,
             lote.Documentos
                 .Where(d => seleccionados.Contains(d.DocumentoId))
                 .Select(d => (d.TrabajadorNombre ?? string.Empty, d.TipoDocumentoNombre, d.FechaVencimiento)));
     }
 
-    private void AbrirRevision(LoteReclamacionClienteDto lote)
+    private void AbrirRevision(LoteReclamacionAgrupadoDto lote)
     {
-        if (_enviandoClienteId is not null || _desechado)
+        if (_enviandoLote is not null || _desechado)
             return;
-        if (_seleccionPorCliente[lote.ClienteId].Count == 0 || ContactosMarcados(lote.ClienteId).Count == 0)
+        if (_seleccionPorLote[lote.Clave].Count == 0 || ContactosMarcados(lote.Clave).Count == 0)
             return;
 
         _loteEnRevision = lote;
@@ -669,7 +696,7 @@ else
 
     private void CerrarRevision(bool visible)
     {
-        if (!visible && _enviandoClienteId is null)
+        if (!visible && _enviandoLote is null)
             _loteEnRevision = null;
     }
 
@@ -701,7 +728,7 @@ else
     private async Task ConfirmarEnvioAsync()
     {
         var lote = _loteEnRevision;
-        if (lote is null || _enviandoClienteId is not null)
+        if (lote is null || _enviandoLote is not null)
             return;
 
         try
@@ -714,26 +741,29 @@ else
         }
     }
 
-    private async Task EnviarAsync(LoteReclamacionClienteDto lote)
+    private async Task EnviarAsync(LoteReclamacionAgrupadoDto lote)
     {
         // La guarda se comprueba AL ENTRAR, no al salir: el botón deshabilitado
         // no basta porque el segundo clic ya viajaba cuando se deshabilitó.
-        if (_enviandoClienteId is not null || _desechado)
+        if (_enviandoLote is not null || _desechado)
             return;
 
-        var documentoIds = _seleccionPorCliente[lote.ClienteId].ToList();
+        var documentoIds = _seleccionPorLote[lote.Clave].ToList();
         if (documentoIds.Count == 0) return;
 
-        var contactoIds = ContactosMarcados(lote.ClienteId).ToList();
+        var contactoIds = ContactosMarcados(lote.Clave).ToList();
         if (contactoIds.Count == 0) return;
 
         // El token se lee antes del primer await, igual que en CargarAsync.
         var token = _ciclo.Token;
-        _enviandoClienteId = lote.ClienteId;
+        _enviandoLote = lote.Clave;
         try
         {
-            var resultado = await Mediator.Send(new EnviarReclamacionCommand(
-                lote.ClienteId, documentoIds, CentroId: null, ContactoIdsSeleccionados: contactoIds), token);
+            var resultado = lote.EmpresaEmpleadora is { } destino
+                ? await Mediator.Send(new EnviarReclamacionEmpresaEmpleadoraCommand(
+                    lote.TitularId, destino.DelegacionEmpresaId, documentoIds, contactoIds), token)
+                : await Mediator.Send(new EnviarReclamacionCommand(
+                    lote.TitularId, documentoIds, CentroId: null, ContactoIdsSeleccionados: contactoIds), token);
 
             // La pestaña pudo desecharse mientras el comando estaba en vuelo:
             // ni el toast ni la recarga pertenecen a un componente ya retirado.
@@ -748,12 +778,12 @@ else
                 return;
             }
 
-            ToastService.Mostrar($"Reclamación enviada a {lote.RazonSocialCliente}.", TonoToast.Exito);
+            ToastService.Mostrar($"Reclamación enviada a {lote.TitularNombre}.", TonoToast.Exito);
             await CargarAsync();
         }
         finally
         {
-            _enviandoClienteId = null;
+            _enviandoLote = null;
         }
     }
 

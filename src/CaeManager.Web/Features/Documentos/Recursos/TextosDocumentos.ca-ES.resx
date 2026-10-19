@@ -252,4 +252,13 @@
   <data name="ValDecisionVerificadoAutomaticamente" xml:space="preserve">
     <value>Verificat automàticament</value>
   </data>
+  <data name="RecDestinoDelegacionEmpresa" xml:space="preserve">
+    <value>Es reclama a la Delegació {0}, al seu contacte de reclamació.</value>
+  </data>
+  <data name="RecDestinoEmpresa" xml:space="preserve">
+    <value>Es reclama a l&apos;Empresa que ocupa aquests Treballadors, als contactes de la seva agenda.</value>
+  </data>
+  <data name="RecDelegacionEmpresaSinContactoVisible" xml:space="preserve">
+    <value>No pots veure el contacte de reclamació d&apos;aquesta Delegació, així que no li pots enviar la reclamació.</value>
+  </data>
 </root>

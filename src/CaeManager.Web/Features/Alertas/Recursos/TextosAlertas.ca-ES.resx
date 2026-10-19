@@ -204,4 +204,13 @@
   <data name="ToastErrorEnvio" xml:space="preserve">
     <value>No pudimos enviar la reclamación. Inténtalo de nuevo.</value>
   </data>
+  <data name="LoteDestinoDelegacionEmpresa" xml:space="preserve">
+    <value>Es reclama a la Delegació {0}, al seu contacte de reclamació.</value>
+  </data>
+  <data name="LoteDestinoEmpresa" xml:space="preserve">
+    <value>Es reclama a l'Empresa que ocupa aquests Treballadors, als contactes de la seva agenda.</value>
+  </data>
+  <data name="LoteDelegacionEmpresaSinContactoVisible" xml:space="preserve">
+    <value>No pots veure el contacte de reclamació d'aquesta Delegació, així que no li pots enviar la reclamació.</value>
+  </data>
 </root>
