@@ -397,4 +397,5 @@
   <data name="PropagacionesIncompletas" xml:space="preserve"><value>La consulta está incompleta. Reintenta la consulta de las Empresas pendientes.</value></data>
   <data name="PropagacionesGestionar" xml:space="preserve"><value>Gestionar</value></data>
   <data name="PropagacionesSinResultados" xml:space="preserve"><value>No hay propagaciones con estos filtros.</value></data>
+  <data name="PropagacionesAbrirDocumento" xml:space="preserve"><value>Abrir el documento</value></data>
 </root>

@@ -27,9 +27,16 @@
     }
     <input type="hidden" name="tenantId" value="@TenantId" />
     <input type="hidden" name="returnUrl" value="@Destino" />
-    <Boton Type="submit" Variante="Variante" Tamano="Tamano" title="@Titulo">
-        @(Texto ?? (Pedir ? TextosMiTrabajo.Texto("AccionPedir") : TipoItemBandejaUi.TextoAccion(Item)))
-    </Boton>
+    @if (ComoEnlace)
+    {
+        <button type="submit" class="enlace-documento" title="@Titulo">@(Texto ?? Titulo)</button>
+    }
+    else
+    {
+        <Boton Type="submit" Variante="Variante" Tamano="Tamano" title="@Titulo">
+            @(Texto ?? (Pedir ? TextosMiTrabajo.Texto("AccionPedir") : TipoItemBandejaUi.TextoAccion(Item)))
+        </Boton>
+    }
 </form>
 
 @code {
@@ -45,8 +52,14 @@
     /// <summary>«Pedir» lo que falta de este Trabajador en vez de la acción primaria del ítem (solo si <see cref="AccionesBandeja.PuedePedir"/>).</summary>
     [Parameter] public bool Pedir { get; set; }
 
+    /// <summary>Pantalla de destino distinta de la acción primaria del ítem (p. ej. el documento al pulsar el título). Misma puerta y misma revalidación.</summary>
+    [Parameter] public string? UrlDestino { get; set; }
+
+    /// <summary>Se pinta como enlace de texto en vez de botón (el título de la fila).</summary>
+    [Parameter] public bool ComoEnlace { get; set; }
+
     private string Destino => RetornoMiTrabajo.ComponerDestino(
-        Pedir ? AccionesBandeja.UrlPedir(Item) : AccionesBandeja.ResolverUrl(Item) ?? "/bandeja", UrlRetorno);
+        UrlDestino ?? (Pedir ? AccionesBandeja.UrlPedir(Item) : AccionesBandeja.ResolverUrl(Item) ?? "/bandeja"), UrlRetorno);
     [Parameter] public VarianteBoton Variante { get; set; } = VarianteBoton.Fantasma;
     [Parameter] public TamanoBoton Tamano { get; set; } = TamanoBoton.Pequeno;
 }

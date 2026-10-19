@@ -28,11 +28,21 @@ public partial class MiTrabajoGen2Tests
         {
             var fila = cut.FindAll(".propagaciones-fila").Single(e => e.TextContent.Contains(pendiente.CentroNombre!));
             fila.TextContent.Should().Contain("Refrielectric").And.Contain("Nalanda");
-            fila.QuerySelector("button")!.TextContent.Trim().Should().Be("Gestionar");
-            fila.QuerySelector("form")!.GetAttribute("action").Should().Be("/cuenta/cliente-activo");
-            fila.QuerySelector("input[name=tenantId]")!.GetAttribute("value").Should().Be(TenantRefri.ToString());
-            fila.QuerySelector("input[name=returnUrl]")!.GetAttribute("value").Should().Contain(pendiente.AcreditacionId.ToString());
-            fila.QuerySelector("input[name=__RequestVerificationToken]")!.GetAttribute("value").Should().Be("token-de-prueba");
+            // Dos puertas cross-Tenant por fila, la misma que revalida el endpoint: el título (enlace al documento) y «Gestionar».
+            var formularios = fila.QuerySelectorAll("form").ToList();
+            formularios.Should().HaveCount(2);
+            var titulo = formularios[0];
+            titulo.QuerySelector("button.enlace-documento")!.TextContent.Should().Contain("RNT");
+            titulo.QuerySelector("input[name=returnUrl]")!.GetAttribute("value").Should().StartWith($"/documentos?documentoId={documento}");
+            var gestionar = formularios[1];
+            gestionar.QuerySelector("button")!.TextContent.Trim().Should().Be("Gestionar");
+            foreach (var formulario in formularios)
+            {
+                formulario.GetAttribute("action").Should().Be("/cuenta/cliente-activo");
+                formulario.QuerySelector("input[name=tenantId]")!.GetAttribute("value").Should().Be(TenantRefri.ToString());
+                formulario.QuerySelector("input[name=__RequestVerificationToken]")!.GetAttribute("value").Should().Be("token-de-prueba");
+            }
+            gestionar.QuerySelector("input[name=returnUrl]")!.GetAttribute("value").Should().Contain(pendiente.AcreditacionId.ToString());
         }
         cut.Find(".propagaciones").OuterHtml.Should().NotContain("mailto:");
         cut.Render();

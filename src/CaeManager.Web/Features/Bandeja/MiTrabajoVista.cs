@@ -89,6 +89,10 @@ public sealed class MiTrabajoVista
         .ThenBy(f => f.OrdenTenant)
         .ToList();
 
+    /// <summary>El documento de la fila (el título de la propagación). Las propagaciones siempre lo traen; <c>null</c> si no.</summary>
+    public static string? UrlDocumento(FilaMiTrabajo fila) =>
+        fila.Item.DocumentoId is { } documentoId ? $"/documentos?documentoId={documentoId}" : null;
+
     public static string DestinoPropagacion(FilaMiTrabajo fila) => string.Join(" · ",
         new[] { fila.TenantNombre, fila.Item.ClienteNombre, fila.Item.CentroNombre }
             .Where(n => !string.IsNullOrWhiteSpace(n)));

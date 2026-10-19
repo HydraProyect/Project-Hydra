@@ -51,8 +51,10 @@ public partial class MiTrabajoGen2Tests : BunitContext
         vista.Propagaciones(new(Severidad: SeveridadMiTrabajo.Bloqueo)).Should().BeEmpty();
 
         var cut = Renderizar(() => datos, rol: rol);
-        cut.FindAll(".propagaciones-fila button").Should().HaveCount(2)
+        // Una sola acción por fila: «Gestionar»; el título es un enlace al documento, no una acción más.
+        cut.FindAll(".propagaciones-fila button:not(.enlace-documento)").Should().HaveCount(2)
             .And.OnlyContain(b => b.TextContent.Trim() == "Gestionar");
+        cut.FindAll(".propagaciones-fila button.enlace-documento").Should().HaveCount(2);
         cut.FindAll(".mi-trabajo-fila").Should().HaveCount(2);
         cut.Markup.Should().Contain("Empresa").And.Contain("Prioridad").And.Contain("Cliente");
     }
