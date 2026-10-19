@@ -117,7 +117,15 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
 
         // El ☑ de la cabecera de la lista (rediseño de listados, fase 1): un icono con nombre accesible, sin texto visible.
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true }).ClickAsync();
-        await filaTrabajador.Locator("input[type=\"checkbox\"]").CheckAsync();
+        // Una carga tardía de la lista (tras el alta del Trabajador) limpia la selección sin pasar por aria-busy a tiempo:
+        // se marca y se espera a que la barra de lote siga ahí; si la carga la borró, se vuelve a marcar.
+        for (var intento = 0; intento < 3; intento++)
+        {
+            var casilla = filaTrabajador.Locator("input[type=\"checkbox\"]");
+            if (!await casilla.IsCheckedAsync()) await casilla.CheckAsync();
+            await page.WaitForTimeoutAsync(1500);
+            if (await page.Locator(".barra-acciones-lote").CountAsync() > 0) break;
+        }
 
         await page.Locator(".barra-acciones-lote").GetByText("Asignar a centro…").ClickAsync();
         await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
