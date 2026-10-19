@@ -25,75 +25,81 @@
                   HayErroresDeCampo="@(_errorCampo is not null)" MotivoGuardarDeshabilitado="@MotivoDeshabilitado"
                   OnGuardar="GuardarAsync" TextoGuardar="@T("GuardarEstado")" TextoCancelar="@T("Cancelar")"
                   SinContenido="@(Acreditaciones.Count == 0 ? SinPlataforma : null)">
-    <section class="gestionar-acreditacion-bloque" aria-label="@T("EnTalvegEtiqueta")">
-        <h3 class="gestionar-acreditacion-titulo">@T("EnTalveg")</h3>
-        <p class="gestionar-acreditacion-linea" data-estado-talveg="@EstadoTalveg">
-            <Badge Tono="EstadoDocumentoUi.Tono(EstadoTalveg)" ConIcono Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(EstadoTalveg)</Badge>
-            @if (FechaVencimiento is { } vence)
+    <dl class="ga-ficha">
+        <dt>@T("Documento")</dt><dd class="ga-ficha-fuerte">@DocumentoNombre</dd>
+        <dt>@T("Titular")</dt><dd>@PropietarioNombre</dd>
+        <dt>@T("Plataforma")</dt>
+        <dd>
+            @if (Acreditaciones.Count > 1)
             {
-                <span class="gestionar-acreditacion-detalle">@(TextosGestionarAcreditacion.Formato("ValidoHasta", vence.ToString("dd/MM/yyyy")))</span>
+                <CampoSelect Etiqueta="@T("Plataforma")" Valor="@_acreditacionId.ToString()" ValorChanged="ElegirPlataforma">
+                    @foreach (var acreditacion in Acreditaciones)
+                    {
+                        <option value="@acreditacion.Id">@acreditacion.NombrePlataforma</option>
+                    }
+                </CampoSelect>
             }
-        </p>
-        <p class="gestionar-acreditacion-ayuda">@T(EsDeEmpresa ? "AyudaEmpresa" : "AyudaTrabajador")</p>
+            else
+            {
+                @(Elegida.NombrePlataforma)
+            }
+        </dd>
+        <dt>@T("Centro")</dt><dd>@CentroNombre</dd>
+    </dl>
+
+    <section class="ga-bloque" aria-label="@T("EstadoActual")">
+        <h3 class="ga-titulo">@T("EstadoActual")</h3>
+        <div class="dos-estados">
+            <span class="de-linea" data-estado-talveg="@EstadoTalveg">
+                <span class="de-et">@T("EnTalveg")</span>
+                <Badge Tono="EstadoDocumentoUi.Tono(EstadoTalveg)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(EstadoTalveg)</Badge>
+                @if (FechaVencimiento is { } vence)
+                {
+                    <span class="de-txt">@(TextosGestionarAcreditacion.Formato("ValidoHasta", vence.ToString("dd/MM/yyyy")))</span>
+                }
+            </span>
+            <span class="de-linea" data-estado-plataforma="@Elegida.Estado">
+                <span class="de-et">@T("EnLaPlataforma")</span>
+                <span class="bp @ClaseEstado(Elegida.Estado)">@TextoEstado(Elegida.Estado)</span>
+            </span>
+        </div>
     </section>
 
-    <section class="gestionar-acreditacion-bloque" aria-label="@T("EnLaPlataformaEtiqueta")">
-        <h3 class="gestionar-acreditacion-titulo">@T("EnLaPlataforma")</h3>
-        @if (Acreditaciones.Count > 1)
-        {
-            <CampoSelect Etiqueta="@T("Plataforma")" Valor="@_acreditacionId.ToString()" ValorChanged="ElegirPlataforma">
-                @foreach (var acreditacion in Acreditaciones)
-                {
-                    <option value="@acreditacion.Id">@acreditacion.NombrePlataforma</option>
-                }
-            </CampoSelect>
-        }
-        else
-        {
-            <p class="gestionar-acreditacion-linea">@(Acreditaciones[0].NombrePlataforma)</p>
-        }
-        <p class="gestionar-acreditacion-linea">@(TextosGestionarAcreditacion.Formato("Ahora", EstadoAcreditacionUi.Texto(Elegida.Estado)))</p>
+    @if (!VigenteEnTalveg)
+    {
+        <div role="note" class="ga-aviso" data-aviso="talveg-no-vigente">@(TextosGestionarAcreditacion.Formato("AvisoNoVigente", FichaTitular))</div>
+    }
 
-        <fieldset class="gestionar-acreditacion-opciones">
-            <legend>@T("NuevoEstado")</legend>
-            @foreach (var (valor, texto) in Opciones)
-            {
-                <label class="gestionar-acreditacion-opcion">
-                    <input type="radio" name="estado-plataforma" value="@valor" checked="@(_destino == valor)"
-                           @onchange="() => ElegirDestino(valor)" />
-                    @T(texto)
-                </label>
-            }
-        </fieldset>
+    <fieldset class="ga-opciones">
+        <legend>@(TextosGestionarAcreditacion.Formato("NuevoEstadoEn", Elegida.NombrePlataforma))</legend>
+        @foreach (var (valor, clave, clase) in Opciones)
+        {
+            var bloqueada = !VigenteEnTalveg && valor is DestinoAlDia or DestinoPendienteValidacion;
+            <button type="button" role="radio" class="ga-op" aria-checked="@(Destino == valor ? "true" : "false")" disabled="@bloqueada"
+                    data-destino="@valor" @onclick="() => ElegirDestino(valor)">
+                <span class="ga-radio" aria-hidden="true"></span>
+                <span class="ga-op-texto">
+                    <span class="bp @clase">@T(clave)</span>
+                    <span class="ga-op-desc">@T(clave + "Desc")</span>
+                </span>
+            </button>
+        }
+    </fieldset>
 
-        @if (_destino == DestinoAlDia)
-        {
-            <CampoSelect Etiqueta="@T("HastaCuando")" Valor="@_estadoVigencia"
-                         ValorChanged="v => { _estadoVigencia = v; _errorCampo = null; _errorServidor = null; }">
-                <option value="@nameof(EstadoVigenciaEnPlataforma.VenceEnFecha)">@T("VenceEnFecha")</option>
-                <option value="@nameof(EstadoVigenciaEnPlataforma.NoVenceAqui)">@T("NoCaducaAqui")</option>
-                <option value="@nameof(EstadoVigenciaEnPlataforma.SinConfirmar)">@T("TodaviaNoLoSe")</option>
-            </CampoSelect>
-            @if (_estadoVigencia == nameof(EstadoVigenciaEnPlataforma.VenceEnFecha))
+    @if (Destino == DestinoRechazada)
+    {
+        <CampoSelect Etiqueta="@T("CausaRechazo")" Valor="@_causaRechazo" ValorChanged="v => { _causaRechazo = v; _errorServidor = null; }">
+            @foreach (var causa in Enum.GetValues<CausaRechazoAcreditacion>())
             {
-                <CampoTexto Etiqueta="@T("FechaEnPlataforma")" Type="date" Valor="@_fechaVigencia"
-                            ValorChanged="v => { _fechaVigencia = v; _errorCampo = null; _errorServidor = null; }" MensajeError="@_errorCampo" />
+                <option value="@causa">@CausaRechazoAcreditacionUi.Texto(causa)</option>
             }
-        }
-        else if (_destino == DestinoRechazada)
-        {
-            <CampoSelect Etiqueta="@T("CausaRechazo")" Valor="@_causaRechazo" ValorChanged="v => { _causaRechazo = v; _errorServidor = null; }">
-                @foreach (var causa in Enum.GetValues<CausaRechazoAcreditacion>())
-                {
-                    <option value="@causa">@CausaRechazoAcreditacionUi.Texto(causa)</option>
-                }
-            </CampoSelect>
-            <CampoTextarea Etiqueta="@T("Motivo")" Valor="@_motivoRechazo" Filas="3" Placeholder="@T("MotivoPlaceholder")"
-                           ValorChanged="v => { _motivoRechazo = v; _errorCampo = null; _errorServidor = null; }" MensajeError="@_errorCampo" />
-        }
-    </section>
+        </CampoSelect>
+        <CampoTextarea Etiqueta="@T("MotivoObligatorio")" Valor="@_motivoRechazo" Filas="3" Placeholder="@T("MotivoPlaceholder")"
+                       ValorChanged="v => { _motivoRechazo = v; _errorCampo = null; _errorServidor = null; }" MensajeError="@_errorCampo" />
+    }
+
+    <p class="ga-pie">@T("PieSoloPlataforma") <a href="@GestionarEnPlataforma.RutaFicha(EsDeEmpresa, PropietarioId)" data-accion="ir-a-ficha">@FichaTitular</a>.</p>
 </DrawerFormulario>
-
 @code {
     public const string DestinoAlDia = "AlDia";
     public const string DestinoPendienteValidacion = "PendienteValidacion";
@@ -102,19 +108,37 @@
 
     private static string T(string clave) => TextosGestionarAcreditacion.Texto(clave);
 
-    private static readonly (string Valor, string Clave)[] Opciones =
+    // Orden y textos de la maqueta «Gestionar Acreditacion» (Design, 2026-10-19).
+    private static readonly (string Valor, string Clave, string Clase)[] Opciones =
     [
-        (DestinoAlDia, "OpcionAlDia"),
-        (DestinoPendienteValidacion, "OpcionPendienteValidacion"),
-        (DestinoPendienteSubir, "OpcionPendienteSubir"),
-        (DestinoRechazada, "OpcionRechazada")
+        (DestinoAlDia, "OpcionAlDia", "bp-ok"),
+        (DestinoPendienteValidacion, "OpcionPendienteValidacion", "bp-val"),
+        (DestinoRechazada, "OpcionRechazada", "bp-rech"),
+        (DestinoPendienteSubir, "OpcionPendienteSubir", "bp-subir")
     ];
+
+    /// <summary>Opción que corresponde al estado guardado: el panel abre con ella marcada y no guarda si no cambia.</summary>
+    public static string? DestinoDe(EstadoAcreditacion estado) => estado switch
+    {
+        EstadoAcreditacion.Aceptada => DestinoAlDia,
+        EstadoAcreditacion.Subida => DestinoPendienteValidacion,
+        EstadoAcreditacion.Rechazada => DestinoRechazada,
+        EstadoAcreditacion.PendienteDeSubir => DestinoPendienteSubir,
+        _ => null
+    };
+
+    private static string ClaseEstado(EstadoAcreditacion estado) => Opciones.FirstOrDefault(o => o.Valor == DestinoDe(estado)).Clase ?? "bp-sin";
+
+    private static string TextoEstado(EstadoAcreditacion estado) =>
+        DestinoDe(estado) is { } destino ? T(Opciones.First(o => o.Valor == destino).Clave) : EstadoAcreditacionUi.Texto(estado);
 
     [Parameter] public bool Visible { get; set; }
     [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
     [Parameter, EditorRequired] public string DocumentoNombre { get; set; } = string.Empty;
     [Parameter, EditorRequired] public string PropietarioNombre { get; set; } = string.Empty;
     [Parameter] public bool EsDeEmpresa { get; set; }
+    [Parameter, EditorRequired] public Guid PropietarioId { get; set; }
+    [Parameter] public string CentroNombre { get; set; } = string.Empty;
     [Parameter, EditorRequired] public EstadoDocumento EstadoTalveg { get; set; }
     [Parameter] public DateOnly? FechaVencimiento { get; set; }
 
@@ -126,8 +150,11 @@
 
     private Guid _acreditacionId;
     private string? _destino;
-    private string _estadoVigencia = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
-    private string _fechaVigencia = string.Empty;
+    private string? Destino => _destino ?? (Acreditaciones.Count > 0 ? DestinoDe(Elegida.Estado) : null);
+    private string FichaTitular => GestionarEnPlataforma.TextoFicha(EsDeEmpresa);
+
+    /// <summary>Hay versión válida en TALVEG (maqueta: Vigente, Por vencer o En tolerancia): lo conforme, más la tolerancia.</summary>
+    private bool VigenteEnTalveg => CumplimientoDocumental.EsConforme(EstadoTalveg) || EstadoTalveg == EstadoDocumento.EnTolerancia;
     private string _causaRechazo = nameof(CausaRechazoAcreditacion.Ilegible);
     private string _motivoRechazo = string.Empty;
     private string? _errorCampo;
@@ -141,10 +168,11 @@
 
     private string? MotivoDeshabilitado =>
         Acreditaciones.Count == 0 ? T("MotivoSinPlataforma")
-        : _destino is null ? T("MotivoSinDestino")
+        : Destino is null || Destino == DestinoDe(Elegida.Estado) ? T("MotivoSinDestino")
+        : Destino == DestinoRechazada && string.IsNullOrWhiteSpace(_motivoRechazo) ? T("ErrorMotivo")
         : null;
 
-    private bool HayCambios() => _destino is not null || !string.IsNullOrWhiteSpace(_motivoRechazo) || !string.IsNullOrWhiteSpace(_fechaVigencia);
+    private bool HayCambios() => (_destino is not null && _destino != DestinoDe(Elegida.Estado)) || !string.IsNullOrWhiteSpace(_motivoRechazo);
 
     private RenderFragment SinPlataforma => @<EstadoVacio Titulo="@T("SinPlataformaTitulo")" Descripcion="@T("SinPlataformaDescripcion")" />;
 
@@ -162,8 +190,6 @@
     private void Reiniciar()
     {
         _destino = null;
-        _estadoVigencia = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
-        _fechaVigencia = string.Empty;
         _causaRechazo = nameof(CausaRechazoAcreditacion.Ilegible);
         _motivoRechazo = string.Empty;
         _errorCampo = null;
@@ -188,22 +214,9 @@
         _errorCampo = null;
         _errorServidor = null;
 
-        VigenciaEnPlataforma? vigencia = null;
-        if (_destino == DestinoAlDia)
-        {
-            vigencia = _estadoVigencia switch
-            {
-                nameof(EstadoVigenciaEnPlataforma.NoVenceAqui) => VigenciaEnPlataforma.NoVenceAqui,
-                nameof(EstadoVigenciaEnPlataforma.SinConfirmar) => VigenciaEnPlataforma.SinConfirmar,
-                _ => DateOnly.TryParse(_fechaVigencia, out var fecha) ? VigenciaEnPlataforma.VenceEl(fecha) : null
-            };
-            if (vigencia is null)
-            {
-                _errorCampo = T("ErrorFecha");
-                return;
-            }
-        }
-        else if (_destino == DestinoRechazada && string.IsNullOrWhiteSpace(_motivoRechazo))
+        // La maqueta no pide la vigencia en la plataforma: «Subido y al día» la deja sin confirmar, y se confirma en la
+        // pestaña Plataforma del documento cuando el Gestor CAE la mire.
+        if (_destino == DestinoRechazada && string.IsNullOrWhiteSpace(_motivoRechazo))
         {
             _errorCampo = T("ErrorMotivo");
             return;
@@ -215,7 +228,7 @@
             var id = Elegida.Id;
             Result resultado = _destino switch
             {
-                DestinoAlDia => (await Mediator.Send(new MarcarAcreditacionAceptadaCommand(id, vigencia!.Value))) is { EsFallido: true } fallo
+                DestinoAlDia => (await Mediator.Send(new MarcarAcreditacionAceptadaCommand(id, VigenciaEnPlataforma.SinConfirmar))) is { EsFallido: true } fallo
                     ? Result.Fallo(fallo.Error) : Result.Exito(),
                 DestinoPendienteValidacion => await Mediator.Send(new MarcarAcreditacionSubidaCommand(id)),
                 DestinoPendienteSubir => await Mediator.Send(new MarcarAcreditacionPendienteDeSubirCommand(id)),

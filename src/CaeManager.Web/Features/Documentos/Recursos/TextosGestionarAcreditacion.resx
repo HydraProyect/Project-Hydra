@@ -85,7 +85,7 @@
     <value>Motivo</value>
   </data>
   <data name="MotivoPlaceholder" xml:space="preserve">
-    <value>Texto literal del portal, si lo hay</value>
+    <value>Lo que indica la plataforma, por ejemplo: «Ilegible por el reverso»</value>
   </data>
   <data name="SinPlataformaTitulo" xml:space="preserve">
     <value>Sin plataforma</value>
@@ -122,5 +122,47 @@
   </data>
   <data name="ActualizarEnTrabajador" xml:space="preserve">
     <value>Actualizar en Trabajador 360</value>
+  </data>
+  <data name="Documento" xml:space="preserve">
+    <value>Documento</value>
+  </data>
+  <data name="Titular" xml:space="preserve">
+    <value>Titular</value>
+  </data>
+  <data name="Centro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="EstadoActual" xml:space="preserve">
+    <value>Estado actual</value>
+  </data>
+  <data name="AvisoNoVigente" xml:space="preserve">
+    <value>En TALVEG no hay versión vigente: no se puede marcar como subido ni como pendiente de validación hasta actualizarlo en {0}.</value>
+  </data>
+  <data name="NuevoEstadoEn" xml:space="preserve">
+    <value>Nuevo estado en {0}</value>
+  </data>
+  <data name="OpcionAlDiaDesc" xml:space="preserve">
+    <value>La plataforma tiene la versión vigente en TALVEG.</value>
+  </data>
+  <data name="OpcionPendienteValidacionDesc" xml:space="preserve">
+    <value>Subido a la plataforma; todavía no lo ha revisado.</value>
+  </data>
+  <data name="OpcionRechazadaDesc" xml:space="preserve">
+    <value>La plataforma no lo acepta. Indica el motivo.</value>
+  </data>
+  <data name="OpcionPendienteSubirDesc" xml:space="preserve">
+    <value>Vigente en TALVEG, pero en la plataforma sigue el anterior.</value>
+  </data>
+  <data name="MotivoObligatorio" xml:space="preserve">
+    <value>Motivo del rechazo (obligatorio)</value>
+  </data>
+  <data name="PieSoloPlataforma" xml:space="preserve">
+    <value>Aquí solo se registra el estado en la plataforma. El documento se sube o se actualiza con «Subir» en la cabecera o en</value>
+  </data>
+  <data name="FichaEmpresa" xml:space="preserve">
+    <value>Empresa 360</value>
+  </data>
+  <data name="FichaTrabajador" xml:space="preserve">
+    <value>Trabajador 360</value>
   </data>
 </root>

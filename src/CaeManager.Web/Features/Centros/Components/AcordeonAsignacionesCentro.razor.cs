@@ -617,7 +617,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
     private DrawerGestionDocumento _drawerGestion = default!;
 
-    private sealed record AcreditacionAGestionar(DocumentoRequeridoDto Documento, string PropietarioNombre);
+    private sealed record AcreditacionAGestionar(DocumentoRequeridoDto Documento, Guid PropietarioId, string PropietarioNombre);
 
     private AcreditacionAGestionar? _acreditacionAGestionar;
     private bool _panelAcreditacionVisible;
@@ -632,7 +632,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         if (documento.AcreditacionesEnElCentro is not { Count: > 0 })
             return GestionarAsync(trabajador.TrabajadorId, documento);
 
-        _acreditacionAGestionar = new AcreditacionAGestionar(documento, trabajador.TrabajadorNombre);
+        _acreditacionAGestionar = new AcreditacionAGestionar(documento, trabajador.TrabajadorId, trabajador.TrabajadorNombre);
         _panelAcreditacionVisible = true;
         return Task.CompletedTask;
     }

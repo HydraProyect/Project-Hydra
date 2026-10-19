@@ -34,6 +34,10 @@ public static class GestionarEnPlataforma
     public static string TextoActualizar(bool esDeEmpresa) =>
         TextosGestionarAcreditacion.Texto(esDeEmpresa ? "ActualizarEnEmpresa" : "ActualizarEnTrabajador");
 
+    /// <summary>Nombre de la ficha 360 del titular, para el aviso y el pie del panel.</summary>
+    public static string TextoFicha(bool esDeEmpresa) =>
+        TextosGestionarAcreditacion.Texto(esDeEmpresa ? "FichaEmpresa" : "FichaTrabajador");
+
     public static string RutaFicha(bool esDeEmpresa, Guid propietarioId) =>
         esDeEmpresa ? $"/empresas/{propietarioId}" : $"/trabajadores/{propietarioId}";
 

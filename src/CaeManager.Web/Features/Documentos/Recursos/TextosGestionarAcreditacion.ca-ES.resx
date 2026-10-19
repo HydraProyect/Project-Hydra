@@ -123,4 +123,46 @@
   <data name="ActualizarEnTrabajador" xml:space="preserve">
     <value>Actualitza a Treballador 360</value>
   </data>
+  <data name="Documento" xml:space="preserve">
+    <value>Document</value>
+  </data>
+  <data name="Titular" xml:space="preserve">
+    <value>Qui n'és titular</value>
+  </data>
+  <data name="Centro" xml:space="preserve">
+    <value>Centre</value>
+  </data>
+  <data name="EstadoActual" xml:space="preserve">
+    <value>Estat actual</value>
+  </data>
+  <data name="AvisoNoVigente" xml:space="preserve">
+    <value>A TALVEG no hi ha cap versió vigent: no es pot marcar com a pujat ni com a pendent de validació fins que s&apos;actualitzi a {0}.</value>
+  </data>
+  <data name="NuevoEstadoEn" xml:space="preserve">
+    <value>Nou estat a {0}</value>
+  </data>
+  <data name="OpcionAlDiaDesc" xml:space="preserve">
+    <value>La plataforma té la versió vigent a TALVEG.</value>
+  </data>
+  <data name="OpcionPendienteValidacionDesc" xml:space="preserve">
+    <value>Pujat a la plataforma; encara no l&apos;ha revisat.</value>
+  </data>
+  <data name="OpcionRechazadaDesc" xml:space="preserve">
+    <value>La plataforma no l&apos;accepta. Indica&apos;n el motiu.</value>
+  </data>
+  <data name="OpcionPendienteSubirDesc" xml:space="preserve">
+    <value>Vigent a TALVEG, però a la plataforma continua l&apos;anterior.</value>
+  </data>
+  <data name="MotivoObligatorio" xml:space="preserve">
+    <value>Motiu del rebuig (obligatori)</value>
+  </data>
+  <data name="PieSoloPlataforma" xml:space="preserve">
+    <value>Aquí només es registra l&apos;estat a la plataforma. El document es puja o s&apos;actualitza amb «Pujar» a la capçalera o a</value>
+  </data>
+  <data name="FichaEmpresa" xml:space="preserve">
+    <value>fitxa Empresa 360</value>
+  </data>
+  <data name="FichaTrabajador" xml:space="preserve">
+    <value>fitxa Treballador 360</value>
+  </data>
 </root>

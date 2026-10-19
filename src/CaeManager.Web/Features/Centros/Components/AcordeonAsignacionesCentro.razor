@@ -496,6 +496,7 @@ else
 {
     <PanelGestionarAcreditacion @bind-Visible="_panelAcreditacionVisible"
                                 DocumentoNombre="@gestion.Documento.TipoDocumentoNombre" PropietarioNombre="@gestion.PropietarioNombre"
+                                PropietarioId="gestion.PropietarioId" CentroNombre="@CentroNombre"
                                 EstadoTalveg="gestion.Documento.Estado" FechaVencimiento="gestion.Documento.FechaVencimiento"
                                 Acreditaciones="@(gestion.Documento.AcreditacionesEnElCentro ?? [])"
                                 OnGuardado="ManejarDocumentoGuardadoAsync" />

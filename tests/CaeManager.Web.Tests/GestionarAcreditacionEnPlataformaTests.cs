@@ -167,10 +167,12 @@ public class GestionarAcreditacionEnPlataformaTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Gestionar acreditación en plataforma"));
         cut.Find("[data-estado-talveg]").TextContent.Should().Contain("Vigente");
-        cut.FindAll("input[name=estado-plataforma]").Should().HaveCount(4);
+        cut.FindAll("[role=radio].ga-op").Should().HaveCount(4);
+        cut.Find("[data-estado-plataforma]").TextContent.Should().Contain("Pendiente de subir");
     }
 
-    private (IRenderedComponent<PanelGestionarAcreditacion>, MediatorFalso, AcreditacionResumenDto) Panel(EstadoAcreditacion estado)
+    private (IRenderedComponent<PanelGestionarAcreditacion>, MediatorFalso, AcreditacionResumenDto) Panel(
+        EstadoAcreditacion estado, EstadoDocumento enTalveg = EstadoDocumento.Vigente)
     {
         var mediator = Registrar();
         var acreditacion = Acreditacion(estado);
@@ -178,15 +180,59 @@ public class GestionarAcreditacionEnPlataformaTests : BunitContext
             .Add(x => x.Visible, true)
             .Add(x => x.DocumentoNombre, "RNT")
             .Add(x => x.PropietarioNombre, "Montajes S.L.")
-            .Add(x => x.EstadoTalveg, EstadoDocumento.Vigente)
+            .Add(x => x.PropietarioId, Guid.NewGuid())
+            .Add(x => x.CentroNombre, "Almacén Sur")
+            .Add(x => x.EsDeEmpresa, true)
+            .Add(x => x.EstadoTalveg, enTalveg)
             .Add(x => x.Acreditaciones, [acreditacion]));
         return (cut, mediator, acreditacion);
     }
 
+    private static AngleSharp.Dom.IElement Opcion(IRenderedComponent<PanelGestionarAcreditacion> cut, string destino) =>
+        cut.Find($"[role=radio][data-destino={destino}]");
+
+    private static AngleSharp.Dom.IElement BotonGuardar(IRenderedComponent<PanelGestionarAcreditacion> cut) =>
+        cut.FindAll("button").Single(b => b.TextContent.Contains("Guardar estado"));
+
     private static async Task ElegirYGuardarAsync(IRenderedComponent<PanelGestionarAcreditacion> cut, string destino)
     {
-        cut.Find($"input[name=estado-plataforma][value={destino}]").Change(destino);
-        await cut.FindAll("button").Single(b => b.TextContent.Contains("Guardar estado")).ClickAsync(new MouseEventArgs());
+        await Opcion(cut, destino).ClickAsync(new MouseEventArgs());
+        await BotonGuardar(cut).ClickAsync(new MouseEventArgs());
+    }
+
+    [Fact]
+    public void El_panel_calca_la_maqueta_ficha_estado_actual_y_pie_con_enlace_a_la_ficha()
+    {
+        var (cut, _, _) = Panel(EstadoAcreditacion.Subida);
+
+        cut.Find(".ga-ficha").TextContent.Should().Contain("RNT").And.Contain("Montajes S.L.").And.Contain("Nalanda").And.Contain("Almacén Sur");
+        cut.Find("legend").TextContent.Should().Be("Nuevo estado en Nalanda");
+        cut.FindAll("[role=radio].ga-op").Select(o => o.GetAttribute("data-destino")).Should().Equal(
+            PanelGestionarAcreditacion.DestinoAlDia, PanelGestionarAcreditacion.DestinoPendienteValidacion,
+            PanelGestionarAcreditacion.DestinoRechazada, PanelGestionarAcreditacion.DestinoPendienteSubir);
+        cut.Find("[data-accion=ir-a-ficha]").TextContent.Should().Be("Empresa 360");
+    }
+
+    [Fact]
+    public void Abre_con_el_estado_actual_marcado_y_no_deja_guardar_sin_cambiarlo()
+    {
+        var (cut, _, _) = Panel(EstadoAcreditacion.Subida);
+
+        Opcion(cut, PanelGestionarAcreditacion.DestinoPendienteValidacion).GetAttribute("aria-checked").Should().Be("true");
+        BotonGuardar(cut).HasAttribute("disabled").Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(EstadoDocumento.Vencido)]
+    [InlineData(EstadoDocumento.Faltante)]
+    public void Sin_version_vigente_en_TALVEG_avisa_y_bloquea_subido_y_pendiente_de_validacion(EstadoDocumento enTalveg)
+    {
+        var (cut, _, _) = Panel(EstadoAcreditacion.PendienteDeSubir, enTalveg);
+
+        cut.Find("[data-aviso=talveg-no-vigente]").TextContent.Should().Contain("Empresa 360");
+        Opcion(cut, PanelGestionarAcreditacion.DestinoAlDia).HasAttribute("disabled").Should().BeTrue();
+        Opcion(cut, PanelGestionarAcreditacion.DestinoPendienteValidacion).HasAttribute("disabled").Should().BeTrue();
+        Opcion(cut, PanelGestionarAcreditacion.DestinoRechazada).HasAttribute("disabled").Should().BeFalse();
     }
 
     [Theory]
@@ -202,39 +248,36 @@ public class GestionarAcreditacionEnPlataformaTests : BunitContext
     }
 
     [Fact]
-    public async Task Subido_y_al_dia_envia_validada_con_la_vigencia_en_la_plataforma()
+    public async Task Subido_y_al_dia_envia_validada_con_la_vigencia_sin_confirmar()
     {
         var (cut, mediator, acreditacion) = Panel(EstadoAcreditacion.Subida);
-        cut.Find($"input[name=estado-plataforma][value={PanelGestionarAcreditacion.DestinoAlDia}]").Change(PanelGestionarAcreditacion.DestinoAlDia);
-        cut.Find("input[type=date]").Input("2027-05-31");
-        cut.Find("input[type=date]").Blur();
 
-        await cut.FindAll("button").Single(b => b.TextContent.Contains("Guardar estado")).ClickAsync(new MouseEventArgs());
+        await ElegirYGuardarAsync(cut, PanelGestionarAcreditacion.DestinoAlDia);
 
         var enviado = mediator.Enviados.Should().ContainSingle().Which.Should().BeOfType<MarcarAcreditacionAceptadaCommand>().Subject;
         enviado.AcreditacionId.Should().Be(acreditacion.Id);
-        enviado.Vigencia.Should().Be(VigenciaEnPlataforma.VenceEl(new DateOnly(2027, 5, 31)));
+        enviado.Vigencia.Should().Be(VigenciaEnPlataforma.SinConfirmar);
     }
 
     [Fact]
-    public async Task Rechazado_sin_motivo_no_envia_nada_y_lo_pide()
+    public async Task Rechazado_sin_motivo_no_deja_guardar()
     {
         var (cut, mediator, _) = Panel(EstadoAcreditacion.Subida);
 
-        await ElegirYGuardarAsync(cut, PanelGestionarAcreditacion.DestinoRechazada);
+        await Opcion(cut, PanelGestionarAcreditacion.DestinoRechazada).ClickAsync(new MouseEventArgs());
 
+        BotonGuardar(cut).HasAttribute("disabled").Should().BeTrue();
         mediator.Enviados.Should().BeEmpty();
-        cut.Markup.Should().Contain("Describe el motivo del rechazo.");
     }
 
     [Fact]
     public async Task Rechazado_con_motivo_envia_el_rechazo_con_su_motivo()
     {
         var (cut, mediator, _) = Panel(EstadoAcreditacion.Subida);
-        cut.Find($"input[name=estado-plataforma][value={PanelGestionarAcreditacion.DestinoRechazada}]").Change(PanelGestionarAcreditacion.DestinoRechazada);
+        await Opcion(cut, PanelGestionarAcreditacion.DestinoRechazada).ClickAsync(new MouseEventArgs());
         cut.Find("textarea").Input("Firma ilegible");
 
-        await cut.FindAll("button").Single(b => b.TextContent.Contains("Guardar estado")).ClickAsync(new MouseEventArgs());
+        await BotonGuardar(cut).ClickAsync(new MouseEventArgs());
 
         mediator.Enviados.Should().ContainSingle().Which.Should().BeOfType<MarcarAcreditacionRechazadaCommand>()
             .Which.MotivoLiteral.Should().Be("Firma ilegible");
