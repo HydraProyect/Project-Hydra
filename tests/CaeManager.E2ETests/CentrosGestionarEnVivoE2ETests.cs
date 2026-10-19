@@ -208,7 +208,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = Ayudas.HoyDeNegocio();
         await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
         await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(180).ToString("yyyy-MM-dd"));
 
