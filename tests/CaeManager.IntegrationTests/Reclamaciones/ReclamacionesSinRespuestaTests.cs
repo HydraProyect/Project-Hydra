@@ -1,3 +1,4 @@
+using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesSinRespuesta;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Empresas;
@@ -86,6 +87,53 @@ public class ReclamacionesSinRespuestaTests : IAsyncLifetime
         resultado.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Lo_pedido_a_una_Empresa_de_sus_Trabajadores_y_lo_pedido_de_la_propia_Empresa_son_dos_pendientes()
+    {
+        // Hallazgo de la revisión de la PR #1454: las dos llevan titular Empresa, y agrupar solo por titular escondía una.
+        var fechaEnvio = DateTime.UtcNow.AddDays(-10);
+        Guid empresaId;
+        Guid deTrabajadoresId;
+        await using (var contexto = CrearContexto())
+        {
+            var empresa = new Empresa("Contratista Doble S.L.", "B87654323");
+            var trabajador = Domain.Trabajadores.Trabajador.DeEmpresa(empresa.Id, "Ana", "Pérez", "00000000T");
+            var tipo = new Domain.Documentos.TipoDocumento("Ficha de riesgos", null, false, 1, Domain.Documentos.AmbitoAplicacion.Trabajador);
+            contexto.Empresas.Add(empresa);
+            contexto.Trabajadores.Add(trabajador);
+            contexto.TiposDocumento.Add(tipo);
+            await contexto.SaveChangesAsync();
+
+            var deEmpresa = ReclamacionDocumental.ParaEmpresa(
+                empresa.Id, Guid.NewGuid(), "agenda@contratista.local", fechaEnvio, [Guid.NewGuid()], ConversacionSinRespuesta(contexto, fechaEnvio));
+            var deTrabajadores = ReclamacionDocumental.ParaEmpresaEmpleadora(
+                empresa.Id, Guid.NewGuid(), "agenda@contratista.local", fechaEnvio.AddMinutes(1), [],
+                ConversacionSinRespuesta(contexto, fechaEnvio),
+                [new DocumentoQueFaltaPedido(tipo.Id, trabajador.Id)]);
+            contexto.ReclamacionesDocumentales.AddRange(deEmpresa, deTrabajadores);
+            await contexto.SaveChangesAsync();
+            empresaId = empresa.Id;
+            deTrabajadoresId = deTrabajadores.Id;
+        }
+
+        var resultado = await EjecutarAsync();
+
+        resultado.Should().HaveCount(2);
+        resultado.Should().OnlyContain(r => r.TitularId == empresaId);
+        resultado.Single(r => r.ReclamacionId == deTrabajadoresId).EmpresaEmpleadora
+            .Should().Be(new DestinoDeReclamacionEnviadaDto(null, true), "sin Delegación va a la agenda de la Empresa");
+        resultado.Single(r => r.ReclamacionId != deTrabajadoresId).EmpresaEmpleadora.Should().BeNull();
+    }
+
+    private static Guid ConversacionSinRespuesta(CaeManagerDbContext contexto, DateTime fechaEnvio)
+    {
+        var conversacion = new Conversacion("Documentación pendiente", null);
+        conversacion.AgregarMensaje(
+            DireccionMensaje.Saliente, CanalConversacion.Correo, "cae@buzon.local", "<p>Reclamación</p>", fechaEnvio);
+        contexto.Conversaciones.Add(conversacion);
+        return conversacion.Id;
+    }
+
     private async Task<(Guid ClienteId, Guid ConversacionId)> SembrarReclamacionAsync(
         string razonSocial, string cif, int diasAtras, bool conRespuestaDelCliente, int totalDocumentos)
     {
@@ -123,7 +171,8 @@ public class ReclamacionesSinRespuestaTests : IAsyncLifetime
     {
         await using var lectura = CrearContexto();
         var handler = new ObtenerReclamacionesSinRespuestaQueryHandler(
-            lectura, lectura, lectura, new AlcanceDatosServiceFalso());
+            lectura, lectura, lectura, new AlcanceDatosServiceFalso(),
+            new DestinoDeReclamacionesEnviadasService(lectura, lectura, lectura, lectura));
 
         return await handler.Handle(new ObtenerReclamacionesSinRespuestaQuery(), CancellationToken.None);
     }

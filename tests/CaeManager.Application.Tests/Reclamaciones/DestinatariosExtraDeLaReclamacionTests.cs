@@ -223,6 +223,28 @@ public class DestinatariosExtraDeLaReclamacionTests
             .Which.DestinatarioEmail.Should().Be($"{Agenda}; {Manual}; {Copia} (CC)");
     }
 
+    [Fact]
+    public async Task Un_titular_Empresa_con_documentos_de_Trabajadores_se_registra_como_reclamacion_a_la_Empresa_empleadora()
+    {
+        // «Gestionar» (2026-10-18): el servicio real elige ParaEmpresaEmpleadora. Con ParaEmpresa la línea con Trabajador no
+        // cabría (lo que falta a una Empresa es suyo, no de un Trabajador) y el envío reventaría tras salir el correo.
+        var entorno = Construir();
+        var empresaId = Guid.NewGuid();
+        var trabajadorId = Guid.NewGuid();
+        var tipoId = Guid.NewGuid();
+
+        var resultado = await entorno.Servicio.EnviarYRegistrarAsync(
+            new TitularReclamacion(empresaId, "Refrielectric SL", AmbitoAplicacion.Empresa, DocumentosDeTrabajadores: true),
+            [], [Agenda], "Documentación pendiente", "<p>Falta la ficha de Ana.</p>", CancellationToken.None,
+            [new DocumentoQueFaltaPedido(tipoId, trabajadorId)]);
+
+        resultado.EsExitoso.Should().BeTrue();
+        var reclamacion = entorno.Repositorio.Agregadas.Should().ContainSingle().Subject;
+        reclamacion.EmpresaId.Should().Be(empresaId);
+        reclamacion.ClienteId.Should().BeNull();
+        reclamacion.Documentos.Should().ContainSingle(d => d.TrabajadorId == trabajadorId && d.TipoDocumentoId == tipoId);
+    }
+
     // ---- Dobles ----
 
     private sealed class EmailQueCapturaYFalla(IReadOnlyCollection<string> queFallan) : IEmailService

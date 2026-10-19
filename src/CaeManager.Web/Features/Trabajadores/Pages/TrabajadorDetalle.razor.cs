@@ -47,6 +47,10 @@ namespace CaeManager.Web.Features.Trabajadores.Pages;
 /// 2026-10-18: <see cref="ReclamarFaltantesAsync"/> abre siempre la confirmación (con uno o con varios
 /// Clientes), el gestor elige a qué Cliente(s) reclamar y no se envía nada hasta que confirma; nunca se
 /// inventa un criterio automático (próxima visita, "el más urgente"...) que el usuario no pidió.
+/// Desde 2026-10-18 (decisión de Chris), eso queda solo para un Trabajador de Subcontrata: con un Trabajador de
+/// Empresa, «Gestionar» abre <c>DrawerReclamacionLote</c>, que reclama a la Empresa que lo emplea, al contacto de
+/// reclamación de su Delegación o, si no hay Delegación con correo, a la agenda de la Empresa; tampoco ahí sale
+/// nada sin el clic del gestor.
 /// </summary>
 public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
@@ -780,6 +784,15 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// </summary>
     private async Task ReclamarFaltantesAsync()
     {
+        // Trabajador de Empresa: sus documentos se reclaman a la Empresa que lo emplea, a la Delegación del Trabajador
+        // (decisión de Chris, 2026-10-18), con el mismo cajón que «Gestionar»: vista previa y envío solo con clic explícito.
+        // El de Subcontrata sigue reclamándose al Cliente del Centro con la confirmación de abajo.
+        if (_detalle?.EmpresaId is not null)
+        {
+            _reclamacionEmpresaVisible = true;
+            return;
+        }
+
         // Solo se ofrece lo que el envío acepta (VentanaReclamacion: con FechaVencimiento y dentro de la
         // ventana). Un «Sin confirmar» sin fecha no tiene vencimiento que renovar: este botón no lo incluye
         // (se pide con «Gestionar» en Centro 360) y, si es lo único pendiente, se explica por qué.
@@ -813,6 +826,8 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         // Todos los Clientes empresariales vienen marcados: no es un cambio de quien edita.
         _instantaneaReclamar.Fijar(_clientesSeleccionadosReclamar);
     }
+
+    private bool _reclamacionEmpresaVisible;
 
     private readonly InstantaneaFormulario _instantaneaReclamar = new();
 

@@ -595,6 +595,14 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Reclamaciones.EnviarReclamacionCommandHandler", "ITrabajadoresQueryContext"),
         ("Reclamaciones.EnviarReclamacionEmpresaCommandHandler", "IDocumentosQueryContext"),
         ("Reclamaciones.EnviarReclamacionEmpresaCommandHandler", "ITiposDocumentoQueryContext"),
+        // «Gestionar» a la Empresa empleadora (2026-10-18): revalida el mismo join reclamable que EnviarReclamacionCommandHandler
+        // (Documento, Trabajador, Tipo, Asignación activa, Centro con gestión CAE) y lee la Empresa titular, sin el Cliente.
+        ("Reclamaciones.EnviarReclamacionEmpresaEmpleadoraCommandHandler", "IAsignacionesQueryContext"),
+        ("Reclamaciones.EnviarReclamacionEmpresaEmpleadoraCommandHandler", "ICentrosQueryContext"),
+        ("Reclamaciones.EnviarReclamacionEmpresaEmpleadoraCommandHandler", "IDocumentosQueryContext"),
+        ("Reclamaciones.EnviarReclamacionEmpresaEmpleadoraCommandHandler", "IEmpresasQueryContext"),
+        ("Reclamaciones.EnviarReclamacionEmpresaEmpleadoraCommandHandler", "ITiposDocumentoQueryContext"),
+        ("Reclamaciones.EnviarReclamacionEmpresaEmpleadoraCommandHandler", "ITrabajadoresQueryContext"),
         ("Reclamaciones.ObtenerLoteReclamacionEmpresaQueryHandler", "IConfiguracionQueryContext"),
         ("Reclamaciones.ObtenerLoteReclamacionEmpresaQueryHandler", "IDocumentosQueryContext"),
         ("Reclamaciones.ObtenerLoteReclamacionEmpresaQueryHandler", "ITiposDocumentoQueryContext"),

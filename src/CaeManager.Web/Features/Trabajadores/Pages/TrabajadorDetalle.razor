@@ -577,6 +577,11 @@
         }
     </fieldset>
 </ModalFormulario>
+@* Trabajador de Empresa: «Reclamar faltantes» va a su Empresa empleadora, por Delegación, con el cajón de «Gestionar». *@
+<CaeManager.Web.Features.Bandeja.Components.DrawerReclamacionLote
+    Visible="_reclamacionEmpresaVisible" VisibleChanged="v => _reclamacionEmpresaVisible = v"
+    AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa })"
+    AmbitoInicial="AmbitoAplicacion.Trabajador" EntidadIdInicial="TrabajadorId" IncluirPendientesSinFecha="true" />
 @if (_detalle is not null)
 {
     <SoloConEscritura>

@@ -155,8 +155,12 @@ public partial class Trabajador360Gen2Tests : BunitContext
             ObtenerDocumentacionBaseTrabajadoresQuery q => q.TrabajadorIds.ToDictionary(id => id,
                 id => BaseDocumental.GetValueOrDefault(id) ?? new DocumentacionBaseTrabajadorDto(Enum.GetValues<TipoDocumentoBase>()
                     .Select(tipo => new IndicadorDocumentacionBase(tipo, EstadoIndicadorBase.SinConfirmar, Guid.NewGuid(), null)).ToList())),
+            CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro.ObtenerLoteReclamacionPorFiltroQuery => LotesReclamacion,
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
+
+        /// <summary>Lo que devuelve el cajón de reclamación («Gestionar» con un Trabajador de Empresa).</summary>
+        public IReadOnlyList<CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro.LoteReclamacionAgrupadoDto> LotesReclamacion { get; set; } = [];
 
         private Result GuardarFicha(EditarFichaTrabajadorCommand c)
         {
@@ -2148,6 +2152,20 @@ public partial class Trabajador360Gen2Tests : BunitContext
             .ClickAsync(new MouseEventArgs());
     }
 
+    /// <summary>
+    /// Trabajador de Subcontrata: Â«GestionarÂ» sigue abriendo la confirmaciÃ³n por Cliente empresarial. Con un Trabajador de
+    /// Empresa abre el cajÃ³n de reclamaciÃ³n a su Empresa empleadora (decisiÃ³n de Chris, 2026-10-18).
+    /// </summary>
+    private MediatorFalso ConTrabajadorDeSubcontrata(Guid id, string nombre = "Javier", string apellidos = "Salas Moreno")
+    {
+        var mediador = ConTrabajador(id, nombre, apellidos);
+        mediador.Detalles[id] = DeSubcontrata(mediador.Detalles[id]);
+        return mediador;
+    }
+
+    private static TrabajadorDetalleDto DeSubcontrata(TrabajadorDetalleDto detalle) =>
+        detalle with { EmpresaId = null, SubcontrataId = Guid.NewGuid() };
+
     private MediatorFalso ConTrabajador(Guid id, string nombre = "Javier", string apellidos = "Salas Moreno")
     {
         var mediador = Registrar(new MediatorFalso());
@@ -2290,7 +2308,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     public async Task Reclamar_faltantes_no_ofrece_un_sin_confirmar_sin_fecha_y_explica_por_que()
     {
         var id = Guid.NewGuid();
-        var mediador = ConTrabajador(id);
+        var mediador = ConTrabajadorDeSubcontrata(id);
         mediador.Centros[id] =
         [
             Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.SinConfirmar,
@@ -2311,7 +2329,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     public async Task Reclamar_faltantes_con_un_sin_confirmar_sin_fecha_y_un_vencido_solo_reclama_el_vencido()
     {
         var id = Guid.NewGuid();
-        var mediador = ConTrabajador(id);
+        var mediador = ConTrabajadorDeSubcontrata(id);
         var vencido = Documento("Formación PRL — 20 h", EstadoDocumento.Vencido);
         mediador.Centros[id] =
         [
@@ -2338,7 +2356,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     public async Task Reclamar_faltantes_no_ofrece_un_documento_con_vencimiento_mas_alla_de_la_ventana()
     {
         var id = Guid.NewGuid();
-        var mediador = ConTrabajador(id);
+        var mediador = ConTrabajadorDeSubcontrata(id);
         var lejano = new DocumentoRequeridoDto(Guid.NewGuid(), Guid.NewGuid(), "Formación PRL — 20 h", EstadoDocumento.Proximo,
             VentanaReclamacion.Limite(DiaDeNegocio.Hoy()).AddDays(1));
         var dentro = new DocumentoRequeridoDto(Guid.NewGuid(), Guid.NewGuid(), "Reconocimiento médico", EstadoDocumento.Proximo,
@@ -2363,7 +2381,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     public async Task Gestionar_con_un_solo_Cliente_empresarial_cancelar_no_envia_nada()
     {
         var id = Guid.NewGuid();
-        var mediador = ConTrabajador(id);
+        var mediador = ConTrabajadorDeSubcontrata(id);
         mediador.Centros[id] =
         [
             Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Vencido, Documento("Formación PRL — 20 h", EstadoDocumento.Vencido))
@@ -2378,9 +2396,44 @@ public partial class Trabajador360Gen2Tests : BunitContext
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty("cancelar la confirmación no envía el correo al Cliente empresarial");
     }
 
+    [Fact]
+    public async Task Gestionar_con_un_Trabajador_de_Empresa_abre_el_cajon_que_reclama_a_su_Delegacion_y_no_envia_nada()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        var empresaId = mediador.Detalles[id]!.EmpresaId!.Value;
+        var delegacionEmpresaId = Guid.NewGuid();
+        mediador.LotesReclamacion =
+        [
+            new(empresaId, "Refrielectric S.L.", AmbitoAplicacion.Trabajador, null,
+                [new(Guid.NewGuid(), id, "Javier Salas Moreno", Guid.NewGuid(), "Formación PRL — 20 h", DateOnly.FromDateTime(DateTime.Today).AddDays(10), EstadoDocumento.Proximo)],
+                null,
+                [new(delegacionEmpresaId, "Marta Sevilla", "reclamaciones.sevilla@refrielectric.example", ["Contacto de reclamación de la Delegación Sevilla"])],
+                EmpresaEmpleadora: new(delegacionEmpresaId, "Sevilla")),
+        ];
+        var cut = Renderizar(id);
+
+        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Gestionar")
+            .ClickAsync(new MouseEventArgs());
+        cut.FindAll(".reclamacion-destinatarios input[type=checkbox]").Should().BeEmpty("no se abre la confirmación por Cliente empresarial");
+        await cut.FindAll(".selector-lote-acciones button").Single(b => b.TextContent.Trim() == "Continuar")
+            .ClickAsync(new MouseEventArgs());
+
+        var consulta = mediador.Enviadas
+            .OfType<CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro.ObtenerLoteReclamacionPorFiltroQuery>()
+            .Should().ContainSingle().Subject;
+        consulta.PorEmpresaEmpleadora.Should().BeTrue("lo de un Trabajador de Empresa se reclama a su Empresa empleadora");
+        consulta.Filtro.Ambito.Should().Be(AmbitoAplicacion.Trabajador);
+        consulta.Filtro.EntidadId.Should().Be(id);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Sevilla").And.Contain("reclamaciones.sevilla@refrielectric.example"));
+        mediador.Enviadas.Should().NotContain(p => p.GetType().Name.StartsWith("EnviarReclamacion"),
+            "abrir el cajón no envía nada: el correo sale solo con el clic explícito del Gestor CAE");
+    }
+
     private MediatorFalso ConDosClientesEmpresarialesQueReclamar(Guid id)
     {
-        var mediador = ConTrabajador(id);
+        var mediador = ConTrabajadorDeSubcontrata(id);
         mediador.Centros[id] =
         [
             Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Vencido, Documento("Formación PRL — 20 h", EstadoDocumento.Vencido)),
@@ -2592,7 +2645,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         var primero = Guid.NewGuid();
         var segundo = Guid.NewGuid();
         var mediador = ConDosClientesEmpresarialesQueReclamar(primero);
-        mediador.Detalles[segundo] = Detalle(segundo, "Eider", "Lasa Arrieta");
+        mediador.Detalles[segundo] = DeSubcontrata(Detalle(segundo, "Eider", "Lasa Arrieta"));
         mediador.Centros[segundo] = mediador.Centros[primero];
         mediador.FallaEnviarReclamacionCon = "Sin contacto con email.";
         var envio = new TaskCompletionSource();
