@@ -22,8 +22,8 @@ public class PestanaDocumentacionEnPaginaTests : BunitContext
     [InlineData("GestorCae", EstadoDocumento.Vencido, "Venció el 06/11/2026", true)]
     [InlineData("GestorCae", EstadoDocumento.Proximo, "Caduca el 06/11/2026", true)]
     [InlineData("GestorCae", EstadoDocumento.SinConfirmar, "Falta la fecha de fin", true)]
-    [InlineData("GestorCae", EstadoDocumento.Vigente, "Caduca el 06/11/2026", false)]
-    [InlineData("GestorCae", EstadoDocumento.SinCaducidad, "Sin caducidad", false)]
+    [InlineData("GestorCae", EstadoDocumento.Vigente, "Caduca el 06/11/2026", true)]
+    [InlineData("GestorCae", EstadoDocumento.SinCaducidad, "Sin caducidad", true)]
     [InlineData("Consulta", EstadoDocumento.Vencido, "Venció el 06/11/2026", false)]
     [InlineData("Consulta", EstadoDocumento.SinConfirmar, "Falta la fecha de fin", false)]
     public async Task Empresa_conserva_la_fila_compacta_y_la_consulta_del_documento_por_rol(
@@ -102,7 +102,9 @@ public class PestanaDocumentacionEnPaginaTests : BunitContext
         filas[0].QuerySelector(".fila-relacion-estado [data-pieza=pastilla]")!.TextContent.Trim().Should().Be(EstadoDocumentoUi.Texto(EstadoDocumento.Vigente));
         filas[1].QuerySelector(".fila-relacion-cifra")!.TextContent.Trim().Should().Be("Falta la fecha de vencimiento");
         filas.Should().OnlyContain(f => f.ClassList.Contains("fila-relacion-compacta"));
-        filas[0].QuerySelector(".fila-relacion-acciones button").Should().BeNull();
+        var gestionarVigente = filas[0].QuerySelector(".fila-relacion-acciones button")!;
+        gestionarVigente.TextContent.Trim().Should().Be("Gestionar");
+        gestionarVigente.ClassList.Should().Contain("gestionar-discreto");
         filas[1].QuerySelector(".fila-relacion-acciones button")!.TextContent.Trim().Should().Be("Gestionar");
     }
 

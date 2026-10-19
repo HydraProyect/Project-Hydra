@@ -15,8 +15,8 @@ public partial class Centro360Gen2Tests
     [InlineData(EstadoDocumento.Urgente, "Aptitud médica", "Caduca el 06/11/2026", true)]
     [InlineData(EstadoDocumento.SinConfirmar, "Contrato de trabajo", "Falta la fecha de fin", true)]
     [InlineData(EstadoDocumento.Faltante, "Aptitud médica", "Falta la fecha de vencimiento", true)]
-    [InlineData(EstadoDocumento.Vigente, "Aptitud médica", "Caduca el 06/11/2026", false)]
-    [InlineData(EstadoDocumento.SinCaducidad, "Aptitud médica", "Sin caducidad", false)]
+    [InlineData(EstadoDocumento.Vigente, "Aptitud médica", "Caduca el 06/11/2026", true)]
+    [InlineData(EstadoDocumento.SinCaducidad, "Aptitud médica", "Sin caducidad", true)]
     public async Task Cada_documento_conserva_nombre_estado_vigencia_y_su_unica_accion_en_la_misma_fila(
         EstadoDocumento estado, string nombre, string texto, bool gestionar)
     {
