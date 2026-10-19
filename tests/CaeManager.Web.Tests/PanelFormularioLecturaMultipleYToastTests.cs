@@ -49,7 +49,7 @@ public class PanelFormularioLecturaMultipleYToastTests : BunitContext
         var chip = cut.Find(".csa-chip");
         chip.TextContent.Should().Contain("Comunidad Valenciana");
         cut.Find(".csa-chip-quitar").GetAttribute("aria-label").Should().Be("Quitar Comunidad Valenciana");
-        cut.Find("button#deleg .csa-valor").TextContent.Should().Be("Añadir delegación","el disparador no enseña lo elegido: ya está en los chips");
+        cut.Find("button#deleg .csa-valor").TextContent.Should().Be("Añadir delegación", "el disparador no enseña lo elegido: ya está en los chips");
     }
 
     [Fact]
