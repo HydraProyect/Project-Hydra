@@ -1628,7 +1628,7 @@ public partial class DocumentosGen2Tests : BunitContext
             "FechaEmision" => "Ordenar por emisión",
             _ => "Ordenar por vencimiento"
         };
-        await CabeceraDocumentoFase1(cut, titulo).QuerySelector("button.col-options-button")!.ClickAsync(new MouseEventArgs());
+        await CabeceraDocumentoFase1(cut, titulo).QuerySelector("button.documentos-opciones-boton")!.ClickAsync(new MouseEventArgs());
         await cut.FindAll(".documentos-opciones-orden button").Single(b => b.TextContent.Trim() == texto)
             .ClickAsync(new MouseEventArgs());
     }

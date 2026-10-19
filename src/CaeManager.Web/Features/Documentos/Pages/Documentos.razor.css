@@ -15,6 +15,14 @@
     color: var(--color-text-muted);
 }
 
+.documentos-opciones-boton {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
 .documentos-opciones-orden {
     display: flex;
     flex-direction: column;

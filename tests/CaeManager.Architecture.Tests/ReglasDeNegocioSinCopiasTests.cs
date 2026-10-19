@@ -448,9 +448,8 @@ public class ReglasDeNegocioSinCopiasTests
     {
         // El punto único: la emisión más reciente y «sin confirmar» como desempates del orden (dos líneas).
         ["src/CaeManager.Application/Documentos/DocumentoEfectivo.cs"] = 2,
-        // Orden de la LISTA de Documentos por la columna que elige el usuario (emisión, dos líneas): no elige a quién
-        // representa a un tipo, presenta filas.
-        ["src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/ObtenerDocumentosQuery.cs"] = 2,
+        // La lista de Documentos ya no escribe a mano ningún orden por emisión (2026-10-19, lista 1:1 con Design):
+        // la entrada de ObtenerDocumentosQuery.cs se retira.
     };
 
     [Fact]

@@ -212,7 +212,7 @@
                                 <th scope="col" aria-sort="@AriaOrdenGrupo("tipo")"><button type="button" class="col-title documentos-orden-grupo" @onclick="() => OrdenarGrupoAsync(_columnaTipo)">@Textos["ListaDocumento"]</button></th>
                                 <th scope="col" aria-sort="@AriaOrdenGrupo("entidad", "ambito")">
                                     <button type="button" class="col-title documentos-orden-grupo" @onclick="() => OrdenarGrupoAsync(_columnaEntidadAsociada)">@Textos[_ordenEntidadAsociadaPorAmbito ? "ListaEntidadAsociadaPorAmbito" : "ListaPropietario"]</button>
-                                    <button type="button" class="col-options-button" aria-label="@Textos["ListaOrdenarEntidadAsociada"]" aria-expanded="@(_opcionesOrdenVisible == ColumnaOrdenListado.EntidadAsociada ? "true" : "false")" @onclick="() => _opcionesOrdenVisible = _opcionesOrdenVisible == ColumnaOrdenListado.EntidadAsociada ? null : ColumnaOrdenListado.EntidadAsociada"><Icono Nombre="mas-opciones" Tamano="TamanoIcono.Pequeno" /></button>
+                                    <button type="button" class="documentos-opciones-boton" aria-label="@Textos["ListaOrdenarEntidadAsociada"]" aria-expanded="@(_opcionesOrdenVisible == ColumnaOrdenListado.EntidadAsociada ? "true" : "false")" @onclick="() => _opcionesOrdenVisible = _opcionesOrdenVisible == ColumnaOrdenListado.EntidadAsociada ? null : ColumnaOrdenListado.EntidadAsociada"><Icono Nombre="mas-opciones" Tamano="TamanoIcono.Pequeno" /></button>
                                     @if (_opcionesOrdenVisible == ColumnaOrdenListado.EntidadAsociada)
                                     {
                                         <div class="documentos-opciones-orden" data-opciones-orden>
@@ -223,7 +223,7 @@
                                 </th>
                                 <th scope="col" aria-sort="@AriaOrdenGrupo("vencimiento", "emision")">
                                     <button type="button" class="col-title documentos-orden-grupo" @onclick="() => OrdenarGrupoAsync(_columnaVigencia)">@Textos[_ordenVigenciaPorEmision ? "ListaVigenciaPorEmision" : "ListaVence"]</button>
-                                    <button type="button" class="col-options-button" aria-label="@Textos["ListaOrdenarVencimiento"]" aria-expanded="@(_opcionesOrdenVisible == ColumnaOrdenListado.Vigencia ? "true" : "false")" @onclick="() => _opcionesOrdenVisible = _opcionesOrdenVisible == ColumnaOrdenListado.Vigencia ? null : ColumnaOrdenListado.Vigencia"><Icono Nombre="mas-opciones" Tamano="TamanoIcono.Pequeno" /></button>
+                                    <button type="button" class="documentos-opciones-boton" aria-label="@Textos["ListaOrdenarVencimiento"]" aria-expanded="@(_opcionesOrdenVisible == ColumnaOrdenListado.Vigencia ? "true" : "false")" @onclick="() => _opcionesOrdenVisible = _opcionesOrdenVisible == ColumnaOrdenListado.Vigencia ? null : ColumnaOrdenListado.Vigencia"><Icono Nombre="mas-opciones" Tamano="TamanoIcono.Pequeno" /></button>
                                     @if (_opcionesOrdenVisible == ColumnaOrdenListado.Vigencia)
                                     {
                                         <div class="documentos-opciones-orden" data-opciones-orden>
