@@ -8,6 +8,8 @@ using CaeManager.Application.Facturacion.Queries.ObtenerResumenFacturacion;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Integraciones;
+using CaeManager.Application.Tests.Plantillas;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -34,6 +36,7 @@ public class EventosEnFacturacionYKpiTests
 
     private readonly Empresa _cliente = Empresa.CrearComoCliente("Obras del Sur S.L.", "B12345674", false, null, null);
     private readonly Contextos _contextos = new();
+    private readonly TrabajadoresQueryContextFalso _trabajadores = new();
     private readonly Centro _centro;
 
     public EventosEnFacturacionYKpiTests()
@@ -69,11 +72,39 @@ public class EventosEnFacturacionYKpiTests
     private void Tarifa(ConceptoFacturable concepto, decimal precio) =>
         _contextos.Tarifas.Add(TarifaCliente.Crear(_cliente.Id, concepto, precio, "EUR"));
 
-    private async Task<ResumenFacturacionDto> ResumenAsync(int anyo, int mes)
+    private async Task<ResumenFacturacionDto> ResumenAsync(int anyo, int mes, DateTime? existenteHastaUtc = null)
     {
         var handler = new ObtenerResumenFacturacionQueryHandler(
-            null!, _contextos, _contextos, _contextos, _contextos, _contextos, null!, null!);
-        return (await handler.Handle(new ObtenerResumenFacturacionQuery(_cliente.Id, anyo, mes), CancellationToken.None))!;
+            null!, _contextos, _contextos, _contextos, _contextos, _contextos, _trabajadores, null!);
+        return (await handler.Handle(new ObtenerResumenFacturacionQuery(_cliente.Id, anyo, mes, existenteHastaUtc), CancellationToken.None))!;
+    }
+
+    /// <summary>
+    /// Defecto de la serie del Cuadro de dirección: «julio de 2026: 3.963 € de facturación con 0 trabajadores, 0 centros
+    /// y 0 gestiones». La facturación valoraba cada mes con las fechas de negocio de los registros (inicio de una
+    /// obra, alta de un técnico), que pueden ser anteriores al momento en que se registraron; el resto de la serie
+    /// mide por fecha de creación. Un mes anterior a la existencia de los registros salía con importe y sin actividad.
+    /// El corte <see cref="ObtenerResumenFacturacionQuery.ExistenteHastaUtc"/> deja fuera lo que aún no existía.
+    /// </summary>
+    [Fact]
+    public async Task Un_mes_anterior_a_la_existencia_de_los_registros_no_se_factura_aunque_sus_fechas_de_negocio_caigan_en_el_mes()
+    {
+        var obra = Obra(new DateOnly(2026, 3, 10), new DateOnly(2026, 3, 20));
+        var tecnico = Trabajador.DeEmpresa(_cliente.Id, "Ana", "Alba", "60005301A");
+        _trabajadores.ListaTrabajadores.Add(tecnico);
+        Tecnico(obra, new DateOnly(2026, 3, 10), trabajadorId: tecnico.Id);
+        Tarifa(ConceptoFacturable.DiaProyectoAbierto, PrecioDia);
+        Tarifa(ConceptoFacturable.TecnicoAsignadoProyecto, PrecioTecnico);
+
+        var sinCorte = await ResumenAsync(2026, 3);
+        var antesDeExistir = await ResumenAsync(2026, 3, new DateTime(2026, 3, 31, 23, 59, 59, DateTimeKind.Utc));
+        var despuesDeExistir = await ResumenAsync(2026, 3, DateTime.UtcNow.AddMinutes(1));
+
+        sinCorte.TotalesPorMoneda.Single().Total.Should().Be(11 * PrecioDia + PrecioTecnico, "sin corte, el mes se valora con lo que hay hoy");
+        antesDeExistir.TotalesPorMoneda.Sum(t => t.Total).Should().Be(0m, "ni la obra ni el técnico existían a 31 de marzo de 2026");
+        Unidades(antesDeExistir, ConceptoFacturable.DiaProyectoAbierto).Should().Be(0);
+        Unidades(antesDeExistir, ConceptoFacturable.TecnicoAsignadoProyecto).Should().Be(0);
+        despuesDeExistir.TotalesPorMoneda.Single().Total.Should().Be(sinCorte.TotalesPorMoneda.Single().Total, "con el corte después de la creación nada cambia");
     }
 
     private async Task<decimal> EstimacionDeKpiAsync(DateOnly desde, DateOnly hasta)

@@ -66,7 +66,8 @@ public static class VisitasEndpoints
         IMediator mediator, IRegistroExportacionService registroExportacion,
         IStringLocalizer<TextosVisitas> textos, CancellationToken cancellationToken,
         string? q = null, string? activas = null, string? notificado = null, bool urgentes = false,
-        string? orden = null, bool desc = false, string? estado = null)
+        string? orden = null, bool desc = false, string? estado = null,
+        string? cliente = null, string? empresa = null, string? ventana = null, string? agrupar = null)
     {
         var soloActivas = activas == "true";
         bool? notificadoAplicado = notificado switch { "si" => true, "no" => false, _ => null };
@@ -83,7 +84,9 @@ public static class VisitasEndpoints
                     Pagina: pagina,
                     TamanoPagina: tamanoPagina,
                     OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,
-                    Descendente: desc),
+                    Descendente: desc, ClienteFiltro: cliente, EmpresaFiltro: empresa,
+                    VentanaDias: SeleccionFiltroVisitas.Ventana(ventana),
+                    AgruparPorCliente: agrupar == "cliente"),
                 cancellationToken));
 
         var (libro, filas) = await LibroDeListado.EscribirAsync(
@@ -104,6 +107,10 @@ public static class VisitasEndpoints
                 ("notificado", notificadoAplicado switch { true => "si", false => "no", _ => null }),
                 ("urgentes", urgentes ? "true" : null),
                 ("estado", estados.Count == 0 ? null : SeleccionEstados.Unir(estados.Select(e => e.ToString()))),
+                ("cliente", string.IsNullOrWhiteSpace(cliente) ? null : "true"),
+                ("empresa", string.IsNullOrWhiteSpace(empresa) ? null : "true"),
+                ("ventana", SeleccionFiltroVisitas.Ventana(ventana)?.ToString()),
+                ("agrupar", agrupar == "cliente" ? "cliente" : null),
                 ("orden", CriteriosExportacion.SoloNombre(orden)), ("desc", desc ? "true" : null)),
             cancellationToken);
 

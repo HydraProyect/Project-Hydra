@@ -51,7 +51,7 @@ public class ClosedXmlImportacionParserTests
         var hoja = libro.Worksheets.Worksheet("Empleados");
         hoja.Cell(4, 1).Value = 1;
         if (valorTexto is not null) hoja.Cell(4, columna).Value = valorTexto;
-        else hoja.Cell(4, columna).Value = DateTime.UtcNow.Date.AddDays(-30);
+        else hoja.Cell(4, columna).Value = CaeManager.Domain.Common.DiaDeNegocio.Hoy().ToDateTime(TimeOnly.MinValue).AddDays(-30);
 
         var plan = await AnalizarAsync(libro);
 
@@ -150,7 +150,7 @@ public class ClosedXmlImportacionParserTests
         var libro = NuevoLibroBase();
         var hoja = libro.Worksheets.Worksheet("Empleados");
         EscribirTrabajadorValido(hoja, fila: 4);
-        hoja.Cell(4, 7).Value = DateTime.UtcNow.Date.AddDays(-30); // Fecha válida, pero el tipo no está en el catálogo (fake sin sembrar).
+        hoja.Cell(4, 7).Value = CaeManager.Domain.Common.DiaDeNegocio.Hoy().ToDateTime(TimeOnly.MinValue).AddDays(-30); // Fecha válida, pero el tipo no está en el catálogo (fake sin sembrar).
 
         var plan = await AnalizarAsync(libro);
 
@@ -175,7 +175,7 @@ public class ClosedXmlImportacionParserTests
         var libro = NuevoLibroBase();
         var hoja = libro.Worksheet(posicionHoja);
         EscribirTrabajadorValido(hoja, fila: 4);
-        hoja.Cell(4, 7).Value = DateTime.UtcNow.Date.AddDays(-30);
+        hoja.Cell(4, 7).Value = CaeManager.Domain.Common.DiaDeNegocio.Hoy().ToDateTime(TimeOnly.MinValue).AddDays(-30);
         var tipos = new TiposDocumentoQueryContextFalso();
         tipos.ListaTiposDocumento.Add(new CaeManager.Domain.Documentos.TipoDocumento(
             TipoDocumentoConocido, vigenciaMeses: null, aplicaVencimientoAutomatico: false, orden: 1,

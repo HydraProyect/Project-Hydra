@@ -118,7 +118,7 @@ public class VisitasListaAntelacionYOrdenTests : BunitContext
         var filas = cut.FindAll("tbody tr");
         var span = filas.Single(f => f.TextContent.Contains("Con tramo")).QuerySelector("[data-antelacion-tramo]")!;
         span.TextContent.Trim().Should().Be("Tramo " + AntelacionVisitaUi.Texto(TramoAntelacion.Expres));
-        span.ParentElement!.ClassName.Should().Be("estado-fila-motivo", "el tramo es el motivo bajo el estado de la fila");
+        span.ClassName.Should().Contain("visitas-celda-secundaria", "el tramo sigue junto a la identidad de la visita");
         span.QuerySelector(".badge").Should().BeNull("el motivo es texto: la pastilla de color es solo el nivel de urgencia");
         span.GetAttribute("title").Should().Contain("71,5 h").And.Contain("15 h");
         var sinTramo = filas.Single(f => f.TextContent.Contains("Sin tramo"));

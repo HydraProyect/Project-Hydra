@@ -1,9 +1,10 @@
-﻿using CaeManager.Application.Common;
+using CaeManager.Application.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Comunicaciones;
+using CaeManager.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,7 +18,7 @@ public class MedicionMensualCuadroDireccion(
     IMediator mediator,
     CaeManager.Application.Gestiones.IGestionesQueryContext? gestionesContext = null)
 {
-    public async Task<MedicionCuadroDireccion> MedirAsync(MesCuadroDireccion mes, DateTime corteUtc, CancellationToken cancellationToken, bool medirDocumental = true)
+    public virtual async Task<MedicionCuadroDireccion> MedirAsync(MesCuadroDireccion mes, DateTime corteUtc, CancellationToken cancellationToken, bool medirDocumental = true)
     {
         // Falla cerrado: sin Tenant en el ámbito no hay con qué comparar las filas sin filtro.
         var tenantId = tenantActual.TenantId
@@ -28,7 +29,7 @@ public class MedicionMensualCuadroDireccion(
         var vidasTrabajadores = trabajadoresContext.Trabajadores
             .IgnoreQueryFilters()
             .Where(t => t.TenantId == tenantId)
-            .Select(t => new VidaDeRegistro { CreadoEnUtc = t.CreadoEnUtc, EstaEliminado = t.EstaEliminado, EliminadoEnUtc = t.EliminadoEnUtc });
+            .Select(t => new VidaDeRegistro { CreadoEnUtc = t.CreadoEnUtc, EstaEliminado = t.EstaEliminado, EliminadoEnUtc = t.EliminadoEnUtc, Documento = t.Dni });
 
         var vidasCentros = centrosContext.Centros
             .IgnoreQueryFilters()
@@ -36,6 +37,10 @@ public class MedicionMensualCuadroDireccion(
             .Select(c => new VidaDeRegistro { CreadoEnUtc = c.CreadoEnUtc, EstaEliminado = c.EstaEliminado, EliminadoEnUtc = c.EliminadoEnUtc });
 
         var trabajadoresActivos = await vidasTrabajadores.CountAsync(DefinicionesCuadroDireccion.VivoAlCorte(corteUtc), cancellationToken);
+        // Trabajadores extranjeros: los activos en el corte con documento de extranjero (NIE, TIE u otro que no sea DNI),
+        // con la regla única de ValidadorIdentificacion. Es un recuento de personas, no las visitas facturables.
+        var documentos = await vidasTrabajadores.Where(DefinicionesCuadroDireccion.VivoAlCorte(corteUtc)).Select(v => v.Documento).ToListAsync(cancellationToken);
+        var extranjeros = documentos.Count(ValidadorIdentificacion.EsDocumentoDeExtranjero);
         var altasTrabajadores = await vidasTrabajadores.CountAsync(DefinicionesCuadroDireccion.AltaEnElMes(inicio, fin), cancellationToken);
         var bajasTrabajadores = await vidasTrabajadores.CountAsync(DefinicionesCuadroDireccion.BajaEnElMes(inicio, fin), cancellationToken);
         var centrosActivos = await vidasCentros.CountAsync(DefinicionesCuadroDireccion.VivoAlCorte(corteUtc), cancellationToken);
@@ -71,7 +76,7 @@ public class MedicionMensualCuadroDireccion(
             trabajadoresActivos, altasTrabajadores, bajasTrabajadores,
             centrosActivos, altasCentros,
             documentosGestionados, requerimientos,
-            solicitudes, documental, gestiones);
+            solicitudes, documental, gestiones, ExtranjerosActivos: extranjeros);
     }
 
 }

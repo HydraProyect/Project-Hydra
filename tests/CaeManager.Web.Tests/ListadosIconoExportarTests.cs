@@ -194,7 +194,7 @@ public partial class VisitasGen2Tests
 
     [Fact]
     public void La_cabecera_adopta_exportacion_filtrada_con_menu_solo_Exportar_todo() =>
-        ComprobacionIconoExportar.Cabecera(Renderizar(new MediatorVisitas()), "/visitas/exportar.xlsx", false);
+        ComprobacionIconoExportar.Cabecera(Renderizar(new MediatorVisitas()), "/visitas/exportar.xlsx", true);
 }
 
 public partial class GestionesListaGen2Tests
