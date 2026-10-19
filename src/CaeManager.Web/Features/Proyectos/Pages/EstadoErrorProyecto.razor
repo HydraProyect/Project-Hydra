@@ -1,0 +1,15 @@
+@using CaeManager.Web.Features.Proyectos.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosProyectos> Textos
+
+<EstadoVacio Titulo="@Textos["ErrorDetalleTitulo"]" Descripcion="@Textos["ErrorDetalleDescripcion"]"
+             NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
+    <Accion>
+        <Boton Variante="VarianteBoton.Primario" OnClick="OnReintentar">@Textos["BotonReintentar"]</Boton>
+        <EnlaceProfundoOtraEmpresa />
+    </Accion>
+</EstadoVacio>
+
+@code {
+    [Parameter] public EventCallback OnReintentar { get; set; }
+}

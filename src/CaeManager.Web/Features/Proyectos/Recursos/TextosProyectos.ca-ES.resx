@@ -337,7 +337,9 @@
   <data name="ListaPlazoTranscurrido" xml:space="preserve"><value>Termini transcorregut</value></data>
   <data name="ListaProyecto" xml:space="preserve"><value>Projecte</value></data>
   <data name="ListaSinFechaFinPrevista" xml:space="preserve"><value>Sense data de fi prevista</value></data>
-  <data name="MigaProyectos" xml:space="preserve"><value>Projectes (obres)</value></data>
+  <data name="MigaProyectos" xml:space="preserve"><value>Projectes</value></data>
+  <data name="ResumenTecnicosProyecto" xml:space="preserve"><value>{0} tècnics actius</value></data>
+  <data name="ResumenTecnicoProyecto" xml:space="preserve"><value>{0} tècnic actiu</value></data>
   <data name="EtiquetaMigas" xml:space="preserve"><value>Ruta de Projecte 360</value></data>
   <data name="TituloPestanaNavegadorDetalle" xml:space="preserve"><value>Projecte</value></data>
   <data name="KickerDetalle" xml:space="preserve"><value>Projecte</value></data>

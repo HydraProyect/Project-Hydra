@@ -4,6 +4,118 @@
     en Components/DesignSystem; aquí solo lo que no tiene primitiva.
 */
 
+.proyecto360 {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding-top: var(--space-6);
+}
+
+.proyecto360 ::deep .pestanas-lista-pagina360 {
+    gap: var(--space-2);
+}
+
+.proyecto360 ::deep .pestanas-lista-pagina360 .pestanas-boton {
+    height: 44px;
+    font-size: 15px;
+}
+
+.proyecto360 ::deep .esqueleto-lista {
+    gap: var(--space-3);
+}
+
+.proyecto360 ::deep .esqueleto-fila {
+    height: 56px;
+    border-radius: var(--radius-md);
+}
+
+.proyecto360-documentos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.proyecto360 ::deep .cabecera-identidad {
+    flex-wrap: wrap;
+    margin-bottom: 0;
+    padding: var(--space-5);
+    border-color: var(--color-border-strong);
+    box-shadow: var(--shadow-tarjeta-lista);
+}
+
+.proyecto360 ::deep .cabecera-identidad-texto {
+    flex: 1 1 380px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.proyecto360 ::deep .cabecera-identidad-titulo {
+    margin: 0;
+    line-height: 34px;
+    letter-spacing: -0.01em;
+    text-wrap: pretty;
+}
+
+.proyecto360 ::deep .cabecera-identidad-datos {
+    margin-top: 0;
+}
+
+.proyecto360 ::deep .cabecera-identidad-acciones {
+    margin-left: auto;
+}
+
+.proyecto360 ::deep .cuerpo-con-lateral {
+    gap: var(--space-5);
+}
+
+.proyecto360 ::deep .cajas-ficha {
+    columns: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    align-items: start;
+}
+
+.proyecto360 ::deep .cajas-ficha-caja {
+    min-width: 0;
+    margin: 0;
+}
+
+.proyecto360 ::deep [data-caja=datos] .rejilla-datos {
+    grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+}
+
+.proyecto360 ::deep .tarjeta-compacta {
+    border-color: var(--color-border-strong);
+    box-shadow: var(--shadow-tarjeta-lista);
+}
+
+.proyecto360 ::deep .tarjeta-compacta .tarjeta-header {
+    padding: var(--space-5) var(--space-5) 0;
+    margin-bottom: var(--space-4);
+}
+
+.proyecto360 ::deep .tarjeta-compacta .tarjeta-contenido {
+    padding: 0 var(--space-5) var(--space-5);
+}
+
+@media (max-width: 900px) {
+    .proyecto360 ::deep .cajas-ficha {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .proyecto360 ::deep .cabecera-identidad-texto {
+        flex-basis: 100%;
+    }
+
+    .proyecto360 ::deep .cabecera-identidad-acciones {
+        margin-left: 0;
+    }
+}
+
 .proyecto360-acciones {
     display: inline-flex;
     align-items: center;
@@ -14,16 +126,16 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: var(--space-1) var(--space-2);
+    gap: 6px;
     font: var(--font-body-md);
     color: var(--color-text-muted);
 }
 
 .proyecto360-enlace {
-    font-weight: 600;
+    font-weight: 400;
     color: var(--color-primary-500);
     text-decoration: none;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
 }
 
 .proyecto360-enlace:hover {
@@ -42,7 +154,7 @@
     align-items: center;
     gap: var(--space-2);
     margin: 0;
-    padding: var(--space-4) 0 var(--space-1);
+    padding: var(--space-4) var(--space-4) var(--space-2);
     font: var(--font-label-md);
     letter-spacing: 0.06em;
     text-transform: uppercase;
