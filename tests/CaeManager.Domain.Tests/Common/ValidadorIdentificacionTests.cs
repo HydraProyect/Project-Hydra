@@ -207,4 +207,14 @@ public class ValidadorIdentificacionTests
     {
         ValidadorIdentificacion.LetraControlEsperada(documento).Should().BeNull();
     }
+
+    [Theory]
+    [InlineData("12345678Z", false)]
+    [InlineData("X1234567L", true)]
+    [InlineData("AB123456", true)]
+    [InlineData(null, false)]
+    public void Es_documento_de_extranjero_si_hay_documento_y_no_es_un_DNI(string? documento, bool esperado)
+    {
+        ValidadorIdentificacion.EsDocumentoDeExtranjero(documento).Should().Be(esperado);
+    }
 }

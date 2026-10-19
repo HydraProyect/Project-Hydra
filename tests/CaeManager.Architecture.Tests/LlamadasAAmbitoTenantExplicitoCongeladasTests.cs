@@ -272,6 +272,15 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerCuadroDireccionQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "cliente.TenantId, mismo fan-out que ObtenerDashboardEjecutivoQuery y solo si AlcanzaElTenantEnteroAsync; y ObtenerTenantOrigenIdAsync() del propio usuario para leer el catálogo de carteras de su organización (mismo criterio que ObtenerOperacionesSinPrincipalQuery)"),
+        ["src/CaeManager.Application/Dashboard/Queries/ObtenerSerieCuadroDireccionQuery.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync"),
+        ["src/CaeManager.Application/Dashboard/Queries/ObtenerComunicacionesCuadroDireccionQuery.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync"),
+        ["src/CaeManager.Application/Dashboard/Queries/ObtenerGestionesPorDiaCuadroDireccionQuery.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync"),
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerKpisGlobalesQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "cliente.TenantId, mismo fan-out que ObtenerDashboardEjecutivoQuery"),
         ["src/CaeManager.Application/Bandeja/Queries/ObtenerMiTrabajoAgregado/ObtenerMiTrabajoAgregadoQuery.cs"] =

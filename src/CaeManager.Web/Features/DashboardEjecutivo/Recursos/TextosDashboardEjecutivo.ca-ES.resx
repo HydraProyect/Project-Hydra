@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -13,13 +13,13 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="TituloPagina" xml:space="preserve">
-    <value>Quadre de direcció</value>
+    <value>Indicadors d'IA i BPO</value>
   </data>
   <data name="Kicker" xml:space="preserve">
-    <value>Quadre de direcció</value>
+    <value>Indicadors d'IA i BPO</value>
   </data>
   <data name="TituloCabecera" xml:space="preserve">
-    <value>Tu cartera, con los KPI que elijas</value>
+    <value>Indicadors d'IA i BPO</value>
   </data>
   <data name="EtiquetaSelectorPeriodo" xml:space="preserve">
     <value>Periodo</value>
@@ -46,7 +46,7 @@
     <value>Personalizado</value>
   </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
-    <value>No hem pogut carregar el Quadre de direcció</value>
+    <value>No hem pogut carregar els Indicadors d'IA i BPO</value>
   </data>
   <data name="ErrorCargaDescripcion" xml:space="preserve">
     <value>Intenta nuevamente en unos segundos.</value>
@@ -79,7 +79,7 @@
     <value>Marca al menos uno en el panel de arriba y guarda la selección.</value>
   </data>
   <data name="SeccionDelPeriodo" xml:space="preserve">
-    <value>El negocio en el periodo</value>
+    <value>IA documental y operación del servicio</value>
   </data>
   <data name="VentanaAlcanceTitulo" xml:space="preserve">
     <value>Organitzacions incloses</value>
@@ -290,6 +290,9 @@
   </data>
   <data name="DetalleFacturacionPeriodo" xml:space="preserve">
     <value>{0:F2} € de facturación estimada del periodo consultado, sumando solo los Clientes con tarifas configuradas de las {1} de este panel.</value>
+  </data>
+  <data name="DetalleFacturacionSinPermiso" xml:space="preserve">
+    <value>Els imports de facturació només els veuen Administrador i Direcció CAE.</value>
   </data>
   <data name="EnlaceVerFacturas" xml:space="preserve">
     <value>Ver facturación →</value>

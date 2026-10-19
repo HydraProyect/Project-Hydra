@@ -132,8 +132,15 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         Assert.Equal(0, await page.EvaluateAsync<int>("() => window.__pulsacionesDelNombre"));
         await Expect(panel).ToHaveCountAsync(0);
 
-        // Un punto de la fila que no es ningún control: la celda del estado.
-        await fila.Locator("td.col-estado").ClickAsync();
+        // Un punto de la fila que no es ningún control: su margen interior (esquina superior izquierda). En la
+        // lista de la maqueta la fila es una rejilla y la ventana de trabajadores, abierta, tapa la celda de
+        // estado (Playwright lo detecta como «intercepts pointer events»), así que ya no se pulsa esa celda.
+        // La ventana se sostiene por :hover y :focus-within: se suelta el foco y el puntero y se espera a que se
+        // cierre, para que el cierre no ocurra entre el pulsar y el soltar del clic de la fila (y lo descarte).
+        await page.EvaluateAsync("() => document.activeElement?.blur()");
+        await page.Mouse.MoveAsync(1, 1);
+        await Expect(lista).ToBeHiddenAsync();
+        await fila.ClickAsync(new LocatorClickOptions { Position = new Position { X = 6, Y = 6 } });
         Assert.Equal(1, await page.EvaluateAsync<int>("() => window.__pulsacionesDelNombre"));
         await Expect(panel).ToBeVisibleAsync();
         await Expect(panel.Locator(".visitas-detalle-fechas")).ToHaveTextAsync(await fila.Locator("button.nombre-abre-vista-rapida").InnerTextAsync());
@@ -220,6 +227,8 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         // lo que se afirma es que el motivo largo ocupa una sola línea (500 caracteres sin acotar serían varias).
         Assert.True(await motivoVisible.EvaluateAsync<bool>(
             "e => e.getBoundingClientRect().height <= 2 * parseFloat(getComputedStyle(e).fontSize)"));
-        Assert.True(await motivoVisible.EvaluateAsync<bool>("e => e.getBoundingClientRect().width <= 92 && e.scrollWidth > e.clientWidth"));
+        var medidas = await motivoVisible.EvaluateAsync<double[]>("e => [e.getBoundingClientRect().width, e.scrollWidth, e.clientWidth]");
+        Assert.True(medidas[0] <= 92 && medidas[1] > medidas[2],
+            $"ancho {medidas[0]}, scrollWidth {medidas[1]}, clientWidth {medidas[2]}: el motivo debe medir <= 92 y quedar recortado");
     }
 }

@@ -96,6 +96,9 @@
     /// </summary>
     [Parameter] public EventCallback AlDesasignarme { get; set; }
 
+    /// <summary>Turno de lectura de la página (comparte el DbContext del circuito). Sin serie, lee sin esperar.</summary>
+    [Parameter] public SerieDeLecturas? Serie { get; set; }
+
     [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
 
     private readonly CancellationTokenSource _ciclo = new();
@@ -146,6 +149,7 @@
         _error = false;
         try
         {
+            using var turno = await SerieDeLecturas.TomarSiHayAsync(Serie, _ciclo.Token);
             _tenantId = TenantActual.TenantId;
             if (_tenantId is not { } tenantId)
             {

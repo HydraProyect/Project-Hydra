@@ -224,10 +224,11 @@ public class AislamientoRlsCentroYSatelitesTests : IAsyncLifetime
         await using var comando = conexion.CreateCommand();
         comando.CommandText =
             "INSERT INTO \"Asignaciones\" (\"Id\", \"TenantId\", \"TrabajadorId\", \"CentroId\", \"FechaAlta\") " +
-            "SELECT gen_random_uuid(), @tenantB, a.\"TrabajadorId\", @centroAjeno, CURRENT_DATE " +
+            "SELECT gen_random_uuid(), @tenantB, a.\"TrabajadorId\", @centroAjeno, @hoy " +
             "FROM \"Asignaciones\" a LIMIT 1;";
         comando.Parameters.AddWithValue("tenantB", _tenantB);
         comando.Parameters.AddWithValue("centroAjeno", _centroDeA);
+        comando.Parameters.AddWithValue("hoy", DiaDeNegocio.Hoy());
 
         var accion = async () => await comando.ExecuteNonQueryAsync();
 

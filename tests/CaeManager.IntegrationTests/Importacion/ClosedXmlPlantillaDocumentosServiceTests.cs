@@ -29,7 +29,7 @@ public class ClosedXmlPlantillaDocumentosServiceTests
         var hoja = libro.Worksheets.Worksheet("Documentos");
         hoja.Cell(2, 1).Value = "EJEMPLO — Borra esta fila antes de importar";
         hoja.Cell(2, 2).Value = TipoDocumentoConocido;
-        hoja.Cell(2, 3).Value = DateTime.UtcNow.Date.AddDays(-1);
+        hoja.Cell(2, 3).Value = CaeManager.Domain.Common.DiaDeNegocio.Hoy().ToDateTime(TimeOnly.MinValue).AddDays(-1);
 
         var plan = await AnalizarAsync(libro);
 
@@ -43,7 +43,7 @@ public class ClosedXmlPlantillaDocumentosServiceTests
         var libro = NuevoLibroBase(DniValido);
         var hoja = libro.Worksheets.Worksheet("Documentos");
         hoja.Cell(2, 1).Value = DniValido;
-        hoja.Cell(2, 3).Value = DateTime.UtcNow.Date.AddDays(-1); // Fecha presente y válida, solo falta el tipo.
+        hoja.Cell(2, 3).Value = CaeManager.Domain.Common.DiaDeNegocio.Hoy().ToDateTime(TimeOnly.MinValue).AddDays(-1); // Fecha presente y válida, solo falta el tipo.
 
         var plan = await AnalizarAsync(libro);
 
@@ -93,7 +93,7 @@ public class ClosedXmlPlantillaDocumentosServiceTests
         var hoja = libro.Worksheets.Worksheet("Documentos");
         hoja.Cell(2, 1).Value = DniValido;
         hoja.Cell(2, 2).Value = TipoDocumentoConocido;
-        hoja.Cell(2, 3).Value = DateTime.UtcNow.Date.AddDays(-1);
+        hoja.Cell(2, 3).Value = CaeManager.Domain.Common.DiaDeNegocio.Hoy().ToDateTime(TimeOnly.MinValue).AddDays(-1);
 
         var plan = await AnalizarAsync(libro);
 
@@ -111,7 +111,7 @@ public class ClosedXmlPlantillaDocumentosServiceTests
         var hoja = libro.Worksheets.Worksheet("Documentos");
         hoja.Cell(2, 1).Value = DniValido;
         hoja.Cell(2, 2).Value = TipoDocumentoConocido;
-        hoja.Cell(2, 3).Value = DateTime.UtcNow.Date.AddDays(-1);
+        hoja.Cell(2, 3).Value = CaeManager.Domain.Common.DiaDeNegocio.Hoy().ToDateTime(TimeOnly.MinValue).AddDays(-1);
 
         var plan = await AnalizarAsync(libro);
 

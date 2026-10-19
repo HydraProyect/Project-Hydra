@@ -72,6 +72,9 @@ public sealed class VidaDeRegistro
     public DateTime CreadoEnUtc { get; init; }
     public bool EstaEliminado { get; init; }
     public DateTime? EliminadoEnUtc { get; init; }
+
+    /// <summary>Documento de identidad del registro cuando es un Trabajador (para contar extranjeros); null en los demás.</summary>
+    public string? Documento { get; init; }
 }
 
 /// <summary>

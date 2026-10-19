@@ -1,0 +1,885 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Cuadro de dirección</value>
+  </data>
+  <data name="TituloCabecera" xml:space="preserve">
+    <value>Cuadro de dirección</value>
+  </data>
+  <data name="EstadoParcial" xml:space="preserve">
+    <value>parcial</value>
+  </data>
+  <data name="EstadoEstimado" xml:space="preserve">
+    <value>estimado</value>
+  </data>
+  <data name="EstadoCerrado" xml:space="preserve">
+    <value>cerrado</value>
+  </data>
+  <data name="EstadoParcialTitulo" xml:space="preserve">
+    <value>Parcial hasta el cierre del día 1 a las 00:00, hora de Madrid. Los meses anteriores al primer cierre en TALVEG se marcan «estimado».</value>
+  </data>
+  <data name="EstadoEstimadoTitulo" xml:space="preserve">
+    <value>Estimado: el mes terminó y sus cifras se han reconstruido con los datos de hoy, porque no tiene cierre mensual. El primer cierre real en TALVEG es octubre de 2026, el 1 de noviembre a las 00:00, hora de Madrid.</value>
+  </data>
+  <data name="EstadoCerradoTitulo" xml:space="preserve">
+    <value>Cerrado el día 1 a las 00:00, hora de Madrid: son las cifras que se congelaron al cierre del mes.</value>
+  </data>
+  <data name="EtiquetaMomento" xml:space="preserve">
+    <value>Mes del cuadro</value>
+  </data>
+  <data name="MesAnterior" xml:space="preserve">
+    <value>Mes anterior</value>
+  </data>
+  <data name="MesSiguiente" xml:space="preserve">
+    <value>Mes siguiente</value>
+  </data>
+  <data name="EtiquetaAmbito" xml:space="preserve">
+    <value>Ámbito</value>
+  </data>
+  <data name="AmbitoTodas" xml:space="preserve">
+    <value>Todo el Operador CAE</value>
+  </data>
+  <data name="QuitarFiltroAmbito" xml:space="preserve">
+    <value>Quitar el filtro de Empresa</value>
+  </data>
+  <data name="EtiquetaVistas" xml:space="preserve">
+    <value>Vistas</value>
+  </data>
+  <data name="BotonReabrirMes" xml:space="preserve">
+    <value>Reabrir un mes cerrado</value>
+  </data>
+  <data name="BotonReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar el Cuadro de dirección</value>
+  </data>
+  <data name="ErrorCargaDescripcion" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="MesFuturoTitulo" xml:space="preserve">
+    <value>Ese mes todavía no ha empezado</value>
+  </data>
+  <data name="MesFuturoDescripcion" xml:space="preserve">
+    <value>No hay nada que contar de un mes futuro. Elige el mes en curso o uno anterior.</value>
+  </data>
+  <data name="MesNoValidoTitulo" xml:space="preserve">
+    <value>Ese mes no existe</value>
+  </data>
+  <data name="MesNoValidoDescripcion" xml:space="preserve">
+    <value>Elige un mes entre enero de 2000 y el mes en curso.</value>
+  </data>
+  <data name="SinEmpresasTitulo" xml:space="preserve">
+    <value>Todavía no hay Empresas que mostrar</value>
+  </data>
+  <data name="SinEmpresasDescripcion" xml:space="preserve">
+    <value>El cuadro enseña las Empresas de las que respondes con acceso a toda la organización.</value>
+  </data>
+  <data name="EmpresasSinAlcance" xml:space="preserve">
+    <value>{0} Empresas no salen en el cuadro ni en el total: no tienes acceso a toda su organización.</value>
+  </data>
+  <data name="AvisoCierre" xml:space="preserve">
+    <value>{0} de {1} se cerró el {2} a las 00:00 (hora de Madrid): sus cifras ya son definitivas.</value>
+  </data>
+  <data name="AvisoCierreEntendido" xml:space="preserve">
+    <value>Entendido</value>
+  </data>
+  <data name="PestanaGeneral" xml:space="preserve">
+    <value>Visión general</value>
+  </data>
+  <data name="PestanaEmpresas" xml:space="preserve">
+    <value>Empresas</value>
+  </data>
+  <data name="PestanaDemanda" xml:space="preserve">
+    <value>Demanda</value>
+  </data>
+  <data name="PestanaComunicaciones" xml:space="preserve">
+    <value>Comunicaciones</value>
+  </data>
+  <data name="KpiTrabajadores" xml:space="preserve">
+    <value>Trabajadores en gestión</value>
+  </data>
+  <data name="KpiTrabajadoresSub" xml:space="preserve">
+    <value>{0} altas y {1} bajas</value>
+  </data>
+  <data name="KpiCentros" xml:space="preserve">
+    <value>Centros en gestión</value>
+  </data>
+  <data name="KpiCentrosSub" xml:space="preserve">
+    <value>{0} altas este mes</value>
+  </data>
+  <data name="KpiDocumentos" xml:space="preserve">
+    <value>Documentos gestionados</value>
+  </data>
+  <data name="KpiDocumentosSub" xml:space="preserve">
+    <value>registrados en el mes</value>
+  </data>
+  <data name="KpiRequerimientos" xml:space="preserve">
+    <value>Requerimientos</value>
+  </data>
+  <data name="KpiRequerimientosSub" xml:space="preserve">
+    <value>reclamaciones de documentación enviadas</value>
+  </data>
+  <data name="KpiSolicitudes" xml:space="preserve">
+    <value>Solicitudes del mes</value>
+  </data>
+  <data name="KpiSolicitudesSub" xml:space="preserve">
+    <value>primer mensaje de cada conversación</value>
+  </data>
+  <data name="KpiCumplimiento" xml:space="preserve">
+    <value>Cumplimiento documental</value>
+  </data>
+  <data name="KpiCumplimientoSub" xml:space="preserve">
+    <value>foto de hoy, no se reconstruye en meses pasados</value>
+  </data>
+  <data name="EmpresasTitulo" xml:space="preserve">
+    <value>Contratado frente a real por Empresa</value>
+  </data>
+  <data name="EmpresasNota" xml:space="preserve">
+    <value>Pulsa una cabecera para ordenar. «€ / gestión» = facturación estimada ÷ gestiones del mes. «Rotación» = altas y bajas de Trabajadores frente a la plantilla media: más rotación, más trabajo documental. Una Empresa con menos de 20 solicitudes en el mes no enseña ese recuento.</value>
+  </data>
+  <data name="ColumnaEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="ColumnaResponde" xml:space="preserve">
+    <value>Responde</value>
+  </data>
+  <data name="ColumnaTrabajadores" xml:space="preserve">
+    <value>Trab.</value>
+  </data>
+  <data name="ColumnaCentros" xml:space="preserve">
+    <value>Centros</value>
+  </data>
+  <data name="ColumnaAltas" xml:space="preserve">
+    <value>Altas trab.</value>
+  </data>
+  <data name="ColumnaBajas" xml:space="preserve">
+    <value>Bajas trab.</value>
+  </data>
+  <data name="ColumnaDocumentos" xml:space="preserve">
+    <value>Documentos</value>
+  </data>
+  <data name="ColumnaRequerimientos" xml:space="preserve">
+    <value>Requerim.</value>
+  </data>
+  <data name="ColumnaSolicitudes" xml:space="preserve">
+    <value>Solicitudes</value>
+  </data>
+  <data name="ColumnaCumplimiento" xml:space="preserve">
+    <value>Cumpl.</value>
+  </data>
+  <data name="RolCoordinadorCae" xml:space="preserve">
+    <value>Coordinador CAE</value>
+  </data>
+  <data name="RolGestorCae" xml:space="preserve">
+    <value>Gestor CAE</value>
+  </data>
+  <data name="SolicitudesSuprimida" xml:space="preserve">
+    <value>No se muestra</value>
+  </data>
+  <data name="SolicitudesSuprimidasTitulo" xml:space="preserve">
+    <value>Menos de {0} conversaciones: la medida no se muestra</value>
+  </data>
+  <data name="MapaCalorTitulo" xml:space="preserve">
+    <value>Cuándo llegan las solicitudes</value>
+  </data>
+  <data name="MapaCalorNota" xml:space="preserve">
+    <value>Peso de cada hora y día laborable en las solicitudes de las Empresas (correo y mensajería) de los últimos 6 meses. Solo Operador CAE o Empresa; nunca por persona.</value>
+  </data>
+  <data name="MapaCalorSuprimido" xml:space="preserve">
+    <value>No se muestra: menos de {0} conversaciones</value>
+  </data>
+  <data name="MapaCalorSinDatos" xml:space="preserve">
+    <value>Sin datos.</value>
+  </data>
+  <data name="ExportarNoDisponible" xml:space="preserve">
+    <value>No se pudo exportar la tabla: este navegador no permite la descarga.</value>
+  </data>
+  <data name="MapaCalorCeldaPocas" xml:space="preserve">
+    <value>{0} {1}:00–{2}:00 · menos de {3} solicitudes al mes</value>
+  </data>
+  <data name="MapaCalorCelda" xml:space="preserve">
+    <value>{0} {1}:00–{2}:00 · {3} de las solicitudes · {4} solicitudes al mes</value>
+  </data>
+  <data name="DiaAbreviado1" xml:space="preserve">
+    <value>Lun</value>
+  </data>
+  <data name="DiaAbreviado2" xml:space="preserve">
+    <value>Mar</value>
+  </data>
+  <data name="DiaAbreviado3" xml:space="preserve">
+    <value>Mié</value>
+  </data>
+  <data name="DiaAbreviado4" xml:space="preserve">
+    <value>Jue</value>
+  </data>
+  <data name="DiaAbreviado5" xml:space="preserve">
+    <value>Vie</value>
+  </data>
+  <data name="EquiposTitulo" xml:space="preserve">
+    <value>Por equipo</value>
+  </data>
+  <data name="EquiposNota" xml:space="preserve">
+    <value>Siempre por equipo del Operador CAE, nunca por persona. «Cambios de manos»: veces que la conversación pasa de un equipo o persona a otra. Un equipo con menos de 3 personas o 20 conversaciones no se muestra.</value>
+  </data>
+  <data name="EquiposSinMedidas" xml:space="preserve">
+    <value>Todavía no hay medidas de tiempo por equipo (Outbound, Validación y Fincas). Aparecerán cuando existan en Comunicaciones.</value>
+  </data>
+  <data name="EquipoSuprimido" xml:space="preserve">
+    <value>No se muestra: menos de {0} personas o menos de {1} conversaciones</value>
+  </data>
+  <data name="ColumnaEquipo" xml:space="preserve">
+    <value>Equipo</value>
+  </data>
+  <data name="ColumnaConversaciones" xml:space="preserve">
+    <value>Conversaciones</value>
+  </data>
+  <data name="ColumnaPrimeraRespuesta" xml:space="preserve">
+    <value>1.ª respuesta</value>
+  </data>
+  <data name="ColumnaResolucion" xml:space="preserve">
+    <value>Resolución</value>
+  </data>
+  <data name="ColumnaUnaRespuesta" xml:space="preserve">
+    <value>Una respuesta</value>
+  </data>
+  <data name="ColumnaReabiertas" xml:space="preserve">
+    <value>Reabiertas</value>
+  </data>
+  <data name="ColumnaEnSla" xml:space="preserve">
+    <value>En SLA</value>
+  </data>
+  <data name="ColumnaCambiosDeManos" xml:space="preserve">
+    <value>Cambios de manos</value>
+  </data>
+  <data name="CriterioTitulo" xml:space="preserve">
+    <value>Qué mide y qué no mide</value>
+  </data>
+  <data name="CriterioTexto" xml:space="preserve">
+    <value>Mide el servicio que recibe la Empresa: tiempos, cumplimiento del SLA (crítica 1 h, urgente 4 h y normal 1 día laborable; horario laborable de 8 a 17, con jornada intensiva hasta las 15 los viernes, en verano y en vísperas de festivo) y volumen. Una medida de equipo con menos de 3 personas o 20 conversaciones no se muestra. No mide a ninguna persona: no hay ranking, ni tiempo activo, ni puntuación por persona. La franja horaria de llegada está en la pestaña Demanda.</value>
+  </data>
+  <data name="ReabrirTitulo" xml:space="preserve">
+    <value>Reabrir un mes cerrado</value>
+  </data>
+  <data name="ReabrirAviso" xml:space="preserve">
+    <value>Al reabrir {0} de {1}, el cuadro vuelve a calcular sus cifras en vivo y las marca como estimadas hasta el siguiente cierre. Solo Dirección CAE puede hacerlo.</value>
+  </data>
+  <data name="ReabrirEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="ReabrirMotivo" xml:space="preserve">
+    <value>Motivo de la reapertura</value>
+  </data>
+  <data name="ReabrirMotivoAyuda" xml:space="preserve">
+    <value>Por qué hay que reabrir este mes</value>
+  </data>
+  <data name="ReabrirMotivoObligatorio" xml:space="preserve">
+    <value>Indica el motivo de la reapertura, de hasta {0} caracteres.</value>
+  </data>
+  <data name="ReabrirContador" xml:space="preserve">
+    <value>{0} de {1} caracteres</value>
+  </data>
+  <data name="ReabrirConfirmar" xml:space="preserve">
+    <value>Reabrir mes</value>
+  </data>
+  <data name="ReabrirCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="ReabrirOk" xml:space="preserve">
+    <value>Mes reabierto.</value>
+  </data>
+  <data name="ReabrirError" xml:space="preserve">
+    <value>No pudimos reabrir el mes. Inténtalo de nuevo.</value>
+  </data>
+  <data name="PestanaFacturacion" xml:space="preserve">
+    <value>Facturación</value>
+  </data>
+  <data name="PestanaVacaciones" xml:space="preserve">
+    <value>Vacaciones y cobertura</value>
+  </data>
+  <data name="PestanaComparativa" xml:space="preserve">
+    <value>Comparativa anual</value>
+  </data>
+  <data name="BotonPersonalizar" xml:space="preserve">
+    <value>Personalizar esta pestaña</value>
+  </data>
+  <data name="EtiquetasDatos" xml:space="preserve">
+    <value>Etiquetas de datos</value>
+  </data>
+  <data name="ExportarTabla" xml:space="preserve">
+    <value>Exportar a Excel</value>
+  </data>
+  <data name="PersonalizarTitulo" xml:space="preserve">
+    <value>Personalizar</value>
+  </data>
+  <data name="PersonalizarAyuda" xml:space="preserve">
+    <value>Marca lo que quieres ver en esta pestaña y ordénalo con las flechas o arrastrando el asa de cada tarjeta.</value>
+  </data>
+  <data name="PersonalizarRestablecer" xml:space="preserve">
+    <value>Restablecer esta pestaña</value>
+  </data>
+  <data name="MoverArriba" xml:space="preserve">
+    <value>Subir «{0}»</value>
+  </data>
+  <data name="MoverAbajo" xml:space="preserve">
+    <value>Bajar «{0}»</value>
+  </data>
+  <data name="ArrastrarAsa" xml:space="preserve">
+    <value>Arrastrar «{0}»</value>
+  </data>
+  <data name="MostrarTarjeta" xml:space="preserve">
+    <value>Mostrar «{0}»</value>
+  </data>
+  <data name="KpiFacturacion" xml:space="preserve">
+    <value>Facturación estimada</value>
+  </data>
+  <data name="KpiFacturacionSub" xml:space="preserve">
+    <value>{0} vs mes anterior · tarifas de hoy</value>
+  </data>
+  <data name="KpiFacturacionSinTarifas" xml:space="preserve">
+    <value>sin tarifas por Empresa: nada que valorar</value>
+  </data>
+  <data name="KpiExtranjeros" xml:space="preserve">
+    <value>Gestiones de extranjeros</value>
+  </data>
+  <data name="KpiExtranjerosSub" xml:space="preserve">
+    <value>visitas de Trabajadores extranjeros con tarifa</value>
+  </data>
+  <data name="KpiRevisar" xml:space="preserve">
+    <value>Pendientes de revisar cuota</value>
+  </data>
+  <data name="KpiRevisarSub" xml:space="preserve">
+    <value>sin contrato ni cuota contratada todavía</value>
+  </data>
+  <data name="KpiSinTarifa" xml:space="preserve">
+    <value>Trabajadores extra sin tarifa</value>
+  </data>
+  <data name="KpiSinTarifaSub" xml:space="preserve">
+    <value>volumen que hoy no se cobra · {0} altas de centro</value>
+  </data>
+  <data name="KpiGestiones" xml:space="preserve">
+    <value>Gestiones del mes</value>
+  </data>
+  <data name="KpiGestionesSub" xml:space="preserve">
+    <value>{0} documentos y {1} requerimientos</value>
+  </data>
+  <data name="SinDato" xml:space="preserve">
+    <value>—</value>
+  </data>
+  <data name="VariacionSinPrevio" xml:space="preserve">
+    <value>sin mes anterior</value>
+  </data>
+  <data name="AlertasTitulo" xml:space="preserve">
+    <value>Qué requiere una decisión</value>
+  </data>
+  <data name="AlertasNota" xml:space="preserve">
+    <value>Ordenado por urgencia. Cada línea es una decisión, no un dato.</value>
+  </data>
+  <data name="AlertasVacio" xml:space="preserve">
+    <value>Nada pendiente en este ámbito.</value>
+  </data>
+  <data name="AlertasLimite" xml:space="preserve">
+    <value>Solo hay alertas de cumplimiento documental: las de cuota, reparto de cartera y vacaciones dependen de datos que TALVEG todavía no guarda.</value>
+  </data>
+  <data name="AlertaCumplimientoTipo" xml:space="preserve">
+    <value>Cumplimiento bajo</value>
+  </data>
+  <data name="AlertaCumplimiento" xml:space="preserve">
+    <value>{0} está en {1} % de cumplimiento documental.</value>
+  </data>
+  <data name="EvolucionTitulo" xml:space="preserve">
+    <value>Facturación y gestiones por mes</value>
+  </data>
+  <data name="EvolucionNota" xml:space="preserve">
+    <value>Barras: facturación estimada. Línea: gestiones del mes.</value>
+  </data>
+  <data name="SerieFacturacion" xml:space="preserve">
+    <value>Facturación</value>
+  </data>
+  <data name="SerieGestiones" xml:space="preserve">
+    <value>Gestiones</value>
+  </data>
+  <data name="SerieCargando" xml:space="preserve">
+    <value>Calculando la serie de los últimos meses…</value>
+  </data>
+  <data name="SerieError" xml:space="preserve">
+    <value>No pudimos calcular la serie. Inténtalo de nuevo.</value>
+  </data>
+  <data name="ApiladoTitulo" xml:space="preserve">
+    <value>Facturación estimada por mes</value>
+  </data>
+  <data name="ApiladoNota" xml:space="preserve">
+    <value>Solo lo que tiene precio: las unidades de cada concepto con tarifa, valoradas con la tarifa de hoy.</value>
+  </data>
+  <data name="FacturacionSinTarifas" xml:space="preserve">
+    <value>Todavía no hay tarifas por Empresa, así que no hay nada que valorar.</value>
+  </data>
+  <data name="FacturacionOtraMoneda" xml:space="preserve">
+    <value>También hay importes en {0}: no se suman a los de {1}.</value>
+  </data>
+  <data name="SinTarifaTitulo" xml:space="preserve">
+    <value>Volumen que hoy no se cobra</value>
+  </data>
+  <data name="SinTarifaNota" xml:space="preserve">
+    <value>Trabajadores por encima de lo contratado (cada mes) y altas de centro nuevas. Aún no tienen tarifa: aquí se ve cuánto son para decidir si cobrarlos.</value>
+  </data>
+  <data name="SerieAltasCentro" xml:space="preserve">
+    <value>Altas de centro</value>
+  </data>
+  <data name="SinTarifaTrabajadoresExtra" xml:space="preserve">
+    <value>Trabajadores extra: todavía no hay contrato ni cuota contratada, así que no se puede saber cuántos están por encima.</value>
+  </data>
+  <data name="SinTarifaConTarifa" xml:space="preserve">
+    <value>Las altas de centro ya llevan tarifa: salen en la facturación estimada.</value>
+  </data>
+  <data name="SimuladorTitulo" xml:space="preserve">
+    <value>Simular una tarifa</value>
+  </data>
+  <data name="SimuladorNota" xml:space="preserve">
+    <value>Elige un precio y mira cuánto supondría. No cambia nada; es para decidir.</value>
+  </data>
+  <data name="SimuladorAlta" xml:space="preserve">
+    <value>Por alta de centro</value>
+  </data>
+  <data name="SimuladorPrecio" xml:space="preserve">
+    <value>Precio</value>
+  </data>
+  <data name="SimuladorMes" xml:space="preserve">
+    <value>{0} altas de centro este mes</value>
+  </data>
+  <data name="SimuladorVentana" xml:space="preserve">
+    <value>en los últimos 6 meses</value>
+  </data>
+  <data name="SimuladorTrabajadoresExtra" xml:space="preserve">
+    <value>Por trabajador extra y mes: necesita el contrato y la cuota contratada, que todavía no existen.</value>
+  </data>
+  <data name="BorradorTitulo" xml:space="preserve">
+    <value>Borrador de factura por Empresa</value>
+  </data>
+  <data name="BorradorNota" xml:space="preserve">
+    <value>Lo facturable hoy según las tarifas y, aparte, el volumen sin tarifa del mes.</value>
+  </data>
+  <data name="ColumnaFacturable" xml:space="preserve">
+    <value>Facturable</value>
+  </data>
+  <data name="ColumnaTrabajadoresExtra" xml:space="preserve">
+    <value>Trab. extra</value>
+  </data>
+  <data name="ColumnaAltasCentro" xml:space="preserve">
+    <value>Altas centro</value>
+  </data>
+  <data name="CeldaSinModelo" xml:space="preserve">
+    <value>Todavía no hay contrato ni cuota contratada</value>
+  </data>
+  <data name="ColumnaEmpresasTitulares" xml:space="preserve">
+    <value>Emp. tit.</value>
+  </data>
+  <data name="ColumnaExtranjeros" xml:space="preserve">
+    <value>Extranj.</value>
+  </data>
+  <data name="ColumnaRotacion" xml:space="preserve">
+    <value>Rotación</value>
+  </data>
+  <data name="ColumnaFacturaMes" xml:space="preserve">
+    <value>Factura mes</value>
+  </data>
+  <data name="ColumnaIngresoGestion" xml:space="preserve">
+    <value>€ / gestión</value>
+  </data>
+  <data name="ExpandirFila" xml:space="preserve">
+    <value>Ver el detalle de {0}</value>
+  </data>
+  <data name="ContraerFila" xml:space="preserve">
+    <value>Ocultar el detalle de {0}</value>
+  </data>
+  <data name="DetalleEvolucion" xml:space="preserve">
+    <value>Trabajadores en gestión, últimos 6 meses</value>
+  </data>
+  <data name="RendimientoTitulo" xml:space="preserve">
+    <value>Ingreso por gestión frente a volumen</value>
+  </data>
+  <data name="RendimientoNota" xml:space="preserve">
+    <value>Cada punto es una Empresa del mes. Abajo a la derecha: mucho trabajo y poco ingreso por gestión. El tamaño es la facturación estimada.</value>
+  </data>
+  <data name="RendimientoX" xml:space="preserve">
+    <value>Gestiones del mes</value>
+  </data>
+  <data name="RendimientoY" xml:space="preserve">
+    <value>€ por gestión</value>
+  </data>
+  <data name="RendimientoPunto" xml:space="preserve">
+    <value>{0}: {1} gestiones · {2} por gestión · {3} estimados</value>
+  </data>
+  <data name="ParetoTitulo" xml:space="preserve">
+    <value>Concentración de la facturación</value>
+  </data>
+  <data name="ParetoNota" xml:space="preserve">
+    <value>Barras: peso de cada Empresa. Línea: acumulado. Si pocas pasan del 80 %, perder una pesa mucho.</value>
+  </data>
+  <data name="SeriePeso" xml:space="preserve">
+    <value>Peso</value>
+  </data>
+  <data name="SerieAcumulado" xml:space="preserve">
+    <value>Acumulado</value>
+  </data>
+  <data name="ContratosTitulo" xml:space="preserve">
+    <value>Contrato y revisiones de cuota</value>
+  </data>
+  <data name="ContratosNota" xml:space="preserve">
+    <value>Tras una revisión, lo incluido en la nueva cuota deja de contar como exceso.</value>
+  </data>
+  <data name="ContratosVacio" xml:space="preserve">
+    <value>Todavía no hay contrato ni historial de cuota por Empresa. Aparecerán cuando TALVEG guarde la dimensión contratada.</value>
+  </data>
+  <data name="FranjaTitulo" xml:space="preserve">
+    <value>Si hubiera que reforzar a media jornada</value>
+  </data>
+  <data name="FranjaNota" xml:space="preserve">
+    <value>Calculado con las solicitudes que llegan de las Empresas, no con la actividad de los Gestores CAE.</value>
+  </data>
+  <data name="FranjaTexto" xml:space="preserve">
+    <value>{0}–{1} h, {2}</value>
+  </data>
+  <data name="FranjaPeso" xml:space="preserve">
+    <value>Peso de esa franja</value>
+  </data>
+  <data name="FranjaPesoTexto" xml:space="preserve">
+    <value>{0} de las solicitudes de la semana</value>
+  </data>
+  <data name="FranjaMesesCarga" xml:space="preserve">
+    <value>Meses de más carga</value>
+  </data>
+  <data name="FranjaMesTranquilo" xml:space="preserve">
+    <value>Mes más tranquilo</value>
+  </data>
+  <data name="FranjaPicoValle" xml:space="preserve">
+    <value>Pico frente a valle</value>
+  </data>
+  <data name="FranjaPicoValleTexto" xml:space="preserve">
+    <value>+{0} % de gestiones por día</value>
+  </data>
+  <data name="FranjaHistorico" xml:space="preserve">
+    <value>Histórico usado</value>
+  </data>
+  <data name="FranjaHistoricoTexto" xml:space="preserve">
+    <value>{0} meses</value>
+  </data>
+  <data name="FranjaSinDatos" xml:space="preserve">
+    <value>Sin datos.</value>
+  </data>
+  <data name="CalendarioTitulo" xml:space="preserve">
+    <value>Gestiones por día</value>
+  </data>
+  <data name="CalendarioNota" xml:space="preserve">
+    <value>Cada cuadro es un día laborable de los últimos 6 meses; más intenso, más gestiones. Se ven los arranques de mes y los cierres.</value>
+  </data>
+  <data name="CalendarioCelda" xml:space="preserve">
+    <value>{0}: {1} gestiones</value>
+  </data>
+  <data name="CalendarioSinDatos" xml:space="preserve">
+    <value>Sin gestiones completadas en estos meses.</value>
+  </data>
+  <data name="EstacionalTitulo" xml:space="preserve">
+    <value>Meses de más y menos carga</value>
+  </data>
+  <data name="EstacionalNota" xml:space="preserve">
+    <value>Gestiones por día laborable según el mes del año. En naranja, los tres meses pico.</value>
+  </data>
+  <data name="EstacionalSinDatos" xml:space="preserve">
+    <value>Hace falta al menos un mes completo con gestiones para ver la estacionalidad.</value>
+  </data>
+  <data name="SerieGestionesDia" xml:space="preserve">
+    <value>Gestiones por día laborable</value>
+  </data>
+  <data name="CmKpisTitulo" xml:space="preserve">
+    <value>Atención a la Empresa este mes</value>
+  </data>
+  <data name="CmKpisNota" xml:space="preserve">
+    <value>Medianas en horas laborables.</value>
+  </data>
+  <data name="CmKpisVacio" xml:space="preserve">
+    <value>Todavía no hay medidas de tiempo (primera respuesta, resolución, cumplimiento del SLA): llegarán con el incremento 2 de Comunicaciones.</value>
+  </data>
+  <data name="CmEstadosTitulo" xml:space="preserve">
+    <value>Conversaciones abiertas por estado</value>
+  </data>
+  <data name="CmEstadosNota" xml:space="preserve">
+    <value>Foto de hoy. Incluye los dos estados nuevos aprobados. «Esperando respuesta externa» se cierra sola a los 4 días.</value>
+  </data>
+  <data name="EstadoAbierta" xml:space="preserve">
+    <value>Abierta</value>
+  </data>
+  <data name="EstadoPendiente" xml:space="preserve">
+    <value>Pendiente</value>
+  </data>
+  <data name="EstadoEsperandoExterna" xml:space="preserve">
+    <value>Esperando respuesta externa</value>
+  </data>
+  <data name="EstadoEnEsperaTercero" xml:space="preserve">
+    <value>En espera de tercero</value>
+  </data>
+  <data name="EstadoFueraSla" xml:space="preserve">
+    <value>Fuera de SLA</value>
+  </data>
+  <data name="EstadoFueraSlaSinMedida" xml:space="preserve">
+    <value>Sin medida de SLA todavía</value>
+  </data>
+  <data name="CmIntencionTitulo" xml:space="preserve">
+    <value>Por intención CAE</value>
+  </data>
+  <data name="CmIntencionNota" xml:space="preserve">
+    <value>Catálogo cerrado con confianza. Solo cuentan las de confianza alta o confirmadas por una persona.</value>
+  </data>
+  <data name="CmIntencionVacio" xml:space="preserve">
+    <value>Todavía no se clasifica la intención de las conversaciones.</value>
+  </data>
+  <data name="CmCanalTitulo" xml:space="preserve">
+    <value>Volumen por canal</value>
+  </data>
+  <data name="CmCanalNota" xml:space="preserve">
+    <value>Solicitudes entrantes del mes: primer mensaje de cada conversación.</value>
+  </data>
+  <data name="CanalCorreo" xml:space="preserve">
+    <value>Correo</value>
+  </data>
+  <data name="CanalWhatsApp" xml:space="preserve">
+    <value>WhatsApp</value>
+  </data>
+  <data name="CanalLlamada" xml:space="preserve">
+    <value>Llamada (Webex, tras el piloto)</value>
+  </data>
+  <data name="CmCargando" xml:space="preserve">
+    <value>Calculando las conversaciones…</value>
+  </data>
+  <data name="VacacionesCoberturaTitulo" xml:space="preserve">
+    <value>Capacidad del equipo ausente por vacaciones</value>
+  </data>
+  <data name="VacacionesCoberturaNota" xml:space="preserve">
+    <value>Porcentaje de días laborables del equipo en vacaciones cada mes. Cruzado con los meses pico, dice cuándo no conviene concentrar vacaciones.</value>
+  </data>
+  <data name="VacacionesSaldoTitulo" xml:space="preserve">
+    <value>Saldo de vacaciones</value>
+  </data>
+  <data name="VacacionesVacio" xml:space="preserve">
+    <value>Todavía no hay vacaciones registradas: TALVEG aún no guarda el derecho anual ni los periodos de vacaciones.</value>
+  </data>
+  <data name="CmpLineaTitulo" xml:space="preserve">
+    <value>Mismo mes, distinto año</value>
+  </data>
+  <data name="CmpTablaTitulo" xml:space="preserve">
+    <value>Acumulado de enero a {0}</value>
+  </data>
+  <data name="CmpTablaNota" xml:space="preserve">
+    <value>Mismo tramo del año para que la comparación sea justa.</value>
+  </data>
+  <data name="CmpVacio13" xml:space="preserve">
+    <value>Con menos de trece meses de histórico no hay un mismo mes en dos años. La comparativa aparece a partir del mes trece.</value>
+  </data>
+  <data name="CmpTablaVacio" xml:space="preserve">
+    <value>Disponible cuando haya al menos dos años con datos de enero a {0}.</value>
+  </data>
+  <data name="CmpMetrica" xml:space="preserve">
+    <value>Métrica</value>
+  </data>
+  <data name="CmpCargando" xml:space="preserve">
+    <value>Calculando la comparativa…</value>
+  </data>
+  <data name="MetricaFacturacion" xml:space="preserve">
+    <value>Facturación</value>
+  </data>
+  <data name="MetricaGestiones" xml:space="preserve">
+    <value>Gestiones</value>
+  </data>
+  <data name="MetricaAltasTrabajadores" xml:space="preserve">
+    <value>Altas de trabajadores</value>
+  </data>
+  <data name="MetricaExtranjeros" xml:space="preserve">
+    <value>Extranjeros</value>
+  </data>
+  <data name="ColumnaAnio" xml:space="preserve">
+    <value>Año</value>
+  </data>
+  <data name="ColumnaVar" xml:space="preserve">
+    <value>Var.</value>
+  </data>
+  <data name="ColumnaGestiones" xml:space="preserve">
+    <value>Gestiones</value>
+  </data>
+  <data name="ColumnaAltasTrab" xml:space="preserve">
+    <value>Altas trab.</value>
+  </data>
+  <data name="ColumnaDocumentosAcumulados" xml:space="preserve">
+    <value>Documentos</value>
+  </data>
+  <data name="NombreFichero" xml:space="preserve">
+    <value>cuadro-direccion-{0}-{1}.csv</value>
+  </data>
+  <data name="ColumnaIngresoEmpresaMes" xml:space="preserve">
+    <value>€ por Empresa y mes</value>
+  </data>
+  <data name="ColumnaEmpresasMas" xml:space="preserve">
+    <value>Empresas +</value>
+  </data>
+  <data name="ColumnaEmpresasMenos" xml:space="preserve">
+    <value>Empresas −</value>
+  </data>
+  <data name="CmpSinFacturacion" xml:space="preserve">
+    <value>Sin tarifas por Empresa: la facturación estimada no tiene qué valorar.</value>
+  </data>
+  <data name="EtiquetaDetalle" xml:space="preserve">
+    <value>Detalle</value>
+  </data>
+  <data name="Cargando" xml:space="preserve">
+    <value>Calculando…</value>
+  </data>
+  <data name="EtiquetaMes" xml:space="preserve">
+    <value>Mes</value>
+  </data>
+  <data name="AmbitoEquipo" xml:space="preserve">
+    <value>Equipo {0}</value>
+  </data>
+  <data name="MomentoMes1" xml:space="preserve">
+    <value>Mes 1</value>
+  </data>
+  <data name="MomentoMes6" xml:space="preserve">
+    <value>Mes 6</value>
+  </data>
+  <data name="MomentoAnio3" xml:space="preserve">
+    <value>Año 3</value>
+  </data>
+  <data name="BotonPresentar" xml:space="preserve">
+    <value>Presentar</value>
+  </data>
+  <data name="SalirPresentacion" xml:space="preserve">
+    <value>Salir de la presentación</value>
+  </data>
+  <data name="MasAcciones" xml:space="preserve">
+    <value>Más acciones</value>
+  </data>
+  <data name="PestanaCartera" xml:space="preserve">
+    <value>Cartera por Gestor CAE</value>
+  </data>
+  <data name="GlosaAlertas" xml:space="preserve">
+    <value>{0} alertas que requieren una decisión</value>
+  </data>
+  <data name="GlosaSinPrincipal" xml:space="preserve">
+    <value>{0} Empresas sin Gestor CAE principal</value>
+  </data>
+  <data name="CarteraTitulo" xml:space="preserve">
+    <value>Cartera por Gestor CAE</value>
+  </data>
+  <data name="CarteraNota" xml:space="preserve">
+    <value>«Mayor Empresa» es el peso de la Empresa más grande en los trabajadores de la cartera: por encima del 50 %, esa Empresa depende de una sola persona si el Gestor CAE se ausenta.</value>
+  </data>
+  <data name="CarteraVacia" xml:space="preserve">
+    <value>Todavía no hay Empresas en la cartera del Operador CAE.</value>
+  </data>
+  <data name="CarteraSinResponsable" xml:space="preserve">
+    <value>Sin Gestor CAE principal</value>
+  </data>
+  <data name="CarteraCriterioTitulo" xml:space="preserve">
+    <value>Qué mide y qué no mide</value>
+  </data>
+  <data name="CarteraCriterioTexto" xml:space="preserve">
+    <value>Mide el volumen de la Asignación de Cartera de cada Gestor CAE para repartir mejor. No mide horas, conexiones, velocidad ni errores de nadie, y no ordena a las personas. Las gestiones se atribuyen al Gestor CAE principal de la Empresa, no a quien las hizo.</value>
+  </data>
+  <data name="ColumnaGestorCae" xml:space="preserve">
+    <value>Gestor CAE</value>
+  </data>
+  <data name="ColumnaEmpresas" xml:space="preserve">
+    <value>Empresas</value>
+  </data>
+  <data name="ColumnaEmpresasAsignadas" xml:space="preserve">
+    <value>Empresas asignadas</value>
+  </data>
+  <data name="VacacionesPorGestorTitulo" xml:space="preserve">
+    <value>Vacaciones del año por Gestor CAE</value>
+  </data>
+  <data name="VacacionesPorGestorNota" xml:space="preserve">
+    <value>Días laborables disfrutados hasta el mes, ya planificados y sin planificar. Solo vacaciones.</value>
+  </data>
+  <data name="CarteraMedia" xml:space="preserve">
+    <value>media = 100</value>
+  </data>
+  <data name="CarteraIndiceNota" xml:space="preserve">
+    <value>Media de tres proporciones frente a la media: trabajadores, centros y gestiones que genera la cartera. 100 = media. Mide cartera, no rendimiento.</value>
+  </data>
+  <data name="ColumnaIndice" xml:space="preserve">
+    <value>Índice</value>
+  </data>
+  <data name="ColumnaMayorEmpresa" xml:space="preserve">
+    <value>Mayor Empresa</value>
+  </data>
+  <data name="CarteraIndiceTip" xml:space="preserve">
+    <value>Índice {0} · {1} Empresas · {2} centros · {3} trabajadores</value>
+  </data>
+  <data name="CarteraIndiceTitulo" xml:space="preserve">
+    <value>Índice de cartera por Gestor CAE</value>
+  </data>
+  <data name="SinTendencia" xml:space="preserve">
+    <value>no hay tendencia; aparece desde el segundo mes</value>
+  </data>
+  <data name="KpiFacturacionSubSinPrevio" xml:space="preserve">
+    <value>tarifas de hoy</value>
+  </data>
+  <data name="SimuladorComoTitulo" xml:space="preserve">
+    <value>Gestión de extranjero se factura como</value>
+  </data>
+  <data name="SimuladorComoNota" xml:space="preserve">
+    <value>En un extranjero también se gestiona la documentación de su empresa extranjera; por eso puede llevar precio propio. Ahora: cada gestión lleva la tarifa de extranjero de su Empresa.</value>
+  </data>
+  <data name="SimuladorExtranjeroMes" xml:space="preserve">
+    <value>{0} gestiones de extranjero este mes</value>
+  </data>
+  <data name="SimuladorExtranjeroEtiqueta" xml:space="preserve">
+    <value>Por gestión de extranjero</value>
+  </data>
+  <data name="SimuladorComoExtra" xml:space="preserve">
+    <value>Trabajador extra</value>
+  </data>
+  <data name="SimuladorComoIndividual" xml:space="preserve">
+    <value>Precio individual</value>
+  </data>
+  <data name="ParetoResto" xml:space="preserve">
+    <value>Resto</value>
+  </data>
+  <data name="ParetoPrimer50" xml:space="preserve">
+    <value>Primer 50 %</value>
+  </data>
+  <data name="RendimientoNormal" xml:space="preserve">
+    <value>Resto de Empresas</value>
+  </data>
+  <data name="RendimientoBajo" xml:space="preserve">
+    <value>Por debajo del 80 % de la mediana</value>
+  </data>
+  <data name="RendimientoMediana" xml:space="preserve">
+    <value>mediana {0}</value>
+  </data>
+  <data name="ExtranjerosTip" xml:space="preserve">
+    <value>Trabajadores con NIE, TIE u otro documento que no es DNI.</value>
+  </data>
+  <data name="ColumnaGestionesExtranjeros" xml:space="preserve">
+    <value>Gestiones de extranjeros</value>
+  </data>
+  <data name="EjeMiles" xml:space="preserve">
+    <value>{0} mil {1}</value>
+  </data>
+  <data name="ColumnaTrabajadoresCartera" xml:space="preserve">
+    <value>Trabajadores</value>
+  </data>
+  <data name="ColumnaExtranjerosCartera" xml:space="preserve">
+    <value>Extranjeros</value>
+  </data>
+</root>
