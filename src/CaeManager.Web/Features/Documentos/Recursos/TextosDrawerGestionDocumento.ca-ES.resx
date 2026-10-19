@@ -15,6 +15,9 @@
   <data name="TrabajadorPreseleccionadoNoEncontrado" xml:space="preserve">
     <value>No trobem aquest treballador entre els que pots gestionar. Tria a qui pertany el document.</value>
   </data>
+  <data name="EmpresaPreseleccionadaNoEncontrada" xml:space="preserve">
+    <value>No trobem aquesta empresa entre les que pots gestionar. Tria a qui pertany el document.</value>
+  </data>
   <data name="GuardarEsperaSubida" xml:space="preserve">
     <value>Espera que acabi la pujada de l'arxiu.</value>
   </data>

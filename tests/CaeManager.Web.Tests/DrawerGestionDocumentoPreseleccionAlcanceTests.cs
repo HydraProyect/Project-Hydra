@@ -142,6 +142,26 @@ public class DrawerGestionDocumentoPreseleccionAlcanceTests : BunitContext
         LeerCampoPrivado(cut.Instance, "_vehiculoId").Should().Be(enCatalogo ? vehiculoId.ToString() : string.Empty);
     }
 
+    /// <summary>«Subir documento» de Empresa 360: ámbito Empresa y Empresa preseleccionada solo si está en el catálogo; si no, se dice.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Abrir_para_una_empresa_preselecciona_solo_si_esta_en_el_catalogo_y_si_no_lo_dice(bool enCatalogo)
+    {
+        var empresaId = Guid.NewGuid();
+        var cut = Renderizar(new MediatorFalso
+        {
+            Trabajadores = [],
+            Empresas = enCatalogo ? [new EmpresaSelectorDto(empresaId, "Ibertec GmbH")] : [],
+        });
+
+        await cut.InvokeAsync(() => cut.Instance.AbrirCrearParaEmpresaAsync(empresaId));
+
+        LeerCampoPrivado(cut.Instance, "_ambitoAplicacion").Should().Be("Empresa");
+        LeerCampoPrivado(cut.Instance, "_empresaId").Should().Be(enCatalogo ? empresaId.ToString() : string.Empty);
+        cut.Markup.Contains("No encontramos esta empresa").Should().Be(!enCatalogo);
+    }
+
     [Fact]
     public async Task Un_trabajadorId_ajeno_al_catalogo_cargado_no_preselecciona_nada()
     {

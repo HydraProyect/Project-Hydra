@@ -327,8 +327,8 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     private async Task ManejarDocumentoGuardadoAsync()
     {
-        // Recarga la página entera: la pestaña Documentación y los recuentos enseñan el documento nuevo.
-        NavigationManager.Refresh();
+        // Recarga completa: la pestaña Documentación, la cifra por trabajador y los recuentos enseñan el documento nuevo.
+        NavigationManager.Refresh(forceReload: true);
         await Task.CompletedTask;
     }
 

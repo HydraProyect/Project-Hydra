@@ -233,6 +233,8 @@ public partial class DrawerGestionDocumento : ComponentBase
         await CambiarAmbitoAsync(nameof(AmbitoAplicacion.Empresa));
         if (_empresasDisponibles.Any(e => e.Id == empresaId))
             _empresaId = empresaId.ToString();
+        else
+            _mensajeErrorFormulario = TextosDrawerGestionDocumento.Texto("EmpresaPreseleccionadaNoEncontrada");
         // La preselección la hace la pantalla que abre, no quien mira: no cuenta como cambio.
         FijarInstantaneaFormulario();
         StateHasChanged();
