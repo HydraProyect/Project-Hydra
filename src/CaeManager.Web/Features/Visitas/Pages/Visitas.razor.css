@@ -381,6 +381,9 @@
 .visitas-lista .visitas-celda-acciones { flex-wrap: wrap; }
 .visitas-lista .visitas-estado-acotado { width: auto; max-width: none; white-space: normal; }
 .visitas-lista .visitas-estado-acotado ::deep .estado-fila { max-width: none; }
+/* En la fila principal el estado sigue acotado a la caja de 92 px: el motivo de cancelación es texto libre y, sin tope, ensancharía la celda. */
+.visitas-lista td.col-estado-visitas .visitas-estado-acotado { width: 92px; max-width: 92px; white-space: nowrap; }
+.visitas-lista td.col-estado-visitas .visitas-estado-acotado ::deep .estado-fila { max-width: 92px; }
 .visitas-lista .visitas-grupo th { padding: 10px var(--space-4); color: var(--color-text); border-bottom: 1px solid var(--color-border); }
 .visitas-expandir { display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--radius-sm); background: none; color: var(--color-text-muted); cursor: pointer; }
 .visitas-expandir:hover { background: var(--color-surface-hover); }

@@ -246,9 +246,10 @@
                                         Titulo="@(context.DocumentacionCompleta ? Textos["TituloPorGestionarDocumentosVigentes"] : Textos["TituloPorGestionarFaltanDocumentos"])" />
                         }
                     </td>
-                            <td class="col-estado">
+                            <td class="col-estado col-estado-visitas">
+                                @* El motivo de cancelación es texto libre y puede ser larguísimo: va en la caja acotada, que lo recorta a una línea (su title lo da entero). *@
                                 @if (context.EstaCancelada)
-                                { <EstadoFila Tono="TonoBadge.Neutro" Texto="@Textos["BadgeCancelada"]"><MotivoContenido><span title="@context.MotivoCancelacion" data-pieza="motivo-cancelacion">@context.MotivoCancelacion</span></MotivoContenido></EstadoFila> }
+                                { <span class="visitas-estado-acotado"><EstadoFila Tono="TonoBadge.Neutro" Texto="@Textos["BadgeCancelada"]"><MotivoContenido><span title="@context.MotivoCancelacion" data-pieza="motivo-cancelacion">@context.MotivoCancelacion</span></MotivoContenido></EstadoFila></span> }
                                 else if (!context.CentroRequiereGestionCae)
                                 { <Badge Tono="TonoBadge.Neutro">@Textos["BadgeSinGestionCae"]</Badge> }
                                 else
