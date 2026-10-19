@@ -42,7 +42,10 @@ public partial class MiTrabajoGen2Tests
                 formulario.QuerySelector("input[name=tenantId]")!.GetAttribute("value").Should().Be(TenantRefri.ToString());
                 formulario.QuerySelector("input[name=__RequestVerificationToken]")!.GetAttribute("value").Should().Be("token-de-prueba");
             }
-            gestionar.QuerySelector("input[name=returnUrl]")!.GetAttribute("value").Should().Contain(pendiente.AcreditacionId.ToString());
+            // «Gestionar» lleva a la pestaña Plataforma del Tenant propietario, sobre la fila de esa acreditación, donde está «Marcar subido»:
+            // no hay «Hecho» ni «Deshacer» en Mi trabajo ni contrato nuevo entre Tenants (decisión del piloto).
+            gestionar.QuerySelector("input[name=returnUrl]")!.GetAttribute("value").Should()
+                .StartWith($"/documentos?pestana=plataforma&acreditacionId={pendiente.AcreditacionId}");
         }
         cut.Find(".propagaciones").OuterHtml.Should().NotContain("mailto:");
         cut.Render();
