@@ -96,6 +96,25 @@ public class AcreditacionDocumentoPlataformaTests
     }
 
     [Fact]
+    public void DevolverAPendienteDeSubir_solo_desde_subida_o_validada_y_borra_la_vigencia_confirmada()
+    {
+        var validada = new AcreditacionDocumentoPlataforma(Guid.NewGuid(), Guid.NewGuid());
+        validada.MarcarAceptada(VigenciaEnPlataforma.VenceEl(new DateOnly(2027, 1, 1)));
+        validada.DevolverAPendienteDeSubir();
+        validada.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir);
+        validada.EstadoVigencia.Should().Be(EstadoVigenciaEnPlataforma.SinConfirmar);
+
+        var rechazada = new AcreditacionDocumentoPlataforma(Guid.NewGuid(), Guid.NewGuid());
+        rechazada.Rechazar(CausaRechazoAcreditacion.Ilegible, "Firma ilegible", DateTime.UtcNow);
+        rechazada.PuedeDevolverAPendienteDeSubir.Should().BeFalse("una rechazada sale con una versión corregida");
+        ((Action)rechazada.DevolverAPendienteDeSubir).Should().Throw<InvalidOperationException>();
+
+        var noExigida = new AcreditacionDocumentoPlataforma(Guid.NewGuid(), Guid.NewGuid());
+        noExigida.MarcarNoRequerida();
+        noExigida.PuedeDevolverAPendienteDeSubir.Should().BeFalse();
+    }
+
+    [Fact]
     public void ReiniciarPorRenovacionDocumento_vuelve_a_PendienteDeSubir_sin_tocar_el_historial()
     {
         var acreditacion = CrearAcreditacion();

@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Titulo" xml:space="preserve">
+    <value>Gestiona l&apos;acreditació a la plataforma</value>
+  </data>
+  <data name="GuardarEstado" xml:space="preserve">
+    <value>Desa l&apos;estat</value>
+  </data>
+  <data name="Cancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="EnTalveg" xml:space="preserve">
+    <value>A TALVEG</value>
+  </data>
+  <data name="EnTalvegEtiqueta" xml:space="preserve">
+    <value>Estat a TALVEG</value>
+  </data>
+  <data name="ValidoHasta" xml:space="preserve">
+    <value>Vàlid fins al {0}</value>
+  </data>
+  <data name="AyudaEmpresa" xml:space="preserve">
+    <value>Per pujar o renovar el document, ves a la fitxa 360 de la seva Empresa.</value>
+  </data>
+  <data name="AyudaTrabajador" xml:space="preserve">
+    <value>Per pujar o renovar el document, ves a la fitxa 360 del seu Treballador.</value>
+  </data>
+  <data name="EnLaPlataforma" xml:space="preserve">
+    <value>A la plataforma</value>
+  </data>
+  <data name="EnLaPlataformaEtiqueta" xml:space="preserve">
+    <value>Estat a la plataforma</value>
+  </data>
+  <data name="Plataforma" xml:space="preserve">
+    <value>Plataforma</value>
+  </data>
+  <data name="Ahora" xml:space="preserve">
+    <value>Ara: {0}</value>
+  </data>
+  <data name="NuevoEstado" xml:space="preserve">
+    <value>Nou estat a la plataforma</value>
+  </data>
+  <data name="OpcionAlDia" xml:space="preserve">
+    <value>Pujat i al dia</value>
+  </data>
+  <data name="OpcionPendienteValidacion" xml:space="preserve">
+    <value>Pendent de validació</value>
+  </data>
+  <data name="OpcionPendienteSubir" xml:space="preserve">
+    <value>Pendent de pujar</value>
+  </data>
+  <data name="OpcionRechazada" xml:space="preserve">
+    <value>Rebutjat per la plataforma</value>
+  </data>
+  <data name="HastaCuando" xml:space="preserve">
+    <value>Fins quan val en aquesta plataforma?</value>
+  </data>
+  <data name="VenceEnFecha" xml:space="preserve">
+    <value>Venç en una data</value>
+  </data>
+  <data name="NoCaducaAqui" xml:space="preserve">
+    <value>Aquí no té caducitat</value>
+  </data>
+  <data name="TodaviaNoLoSe" xml:space="preserve">
+    <value>Encara no ho sé</value>
+  </data>
+  <data name="FechaEnPlataforma" xml:space="preserve">
+    <value>Data de venciment a la plataforma</value>
+  </data>
+  <data name="CausaRechazo" xml:space="preserve">
+    <value>Causa del rebuig</value>
+  </data>
+  <data name="Motivo" xml:space="preserve">
+    <value>Motiu</value>
+  </data>
+  <data name="MotivoPlaceholder" xml:space="preserve">
+    <value>Text literal del portal, si n&apos;hi ha</value>
+  </data>
+  <data name="SinPlataformaTitulo" xml:space="preserve">
+    <value>Sense plataforma</value>
+  </data>
+  <data name="SinPlataformaDescripcion" xml:space="preserve">
+    <value>Aquest Centre no acredita aquest document a cap plataforma.</value>
+  </data>
+  <data name="MotivoSinPlataforma" xml:space="preserve">
+    <value>Aquest Centre no té plataforma per a aquest document.</value>
+  </data>
+  <data name="MotivoSinDestino" xml:space="preserve">
+    <value>Tria el nou estat a la plataforma.</value>
+  </data>
+  <data name="ErrorFecha" xml:space="preserve">
+    <value>Escriu la data fins a la qual val, o tria una altra opció.</value>
+  </data>
+  <data name="ErrorMotivo" xml:space="preserve">
+    <value>Descriu el motiu del rebuig.</value>
+  </data>
+  <data name="Guardado" xml:space="preserve">
+    <value>Estat a {0} desat.</value>
+  </data>
+  <data name="LineaEnTalveg" xml:space="preserve">
+    <value>A TALVEG</value>
+  </data>
+  <data name="LineaEnPlataforma" xml:space="preserve">
+    <value>A la plataforma</value>
+  </data>
+  <data name="ActualizarEnEmpresa" xml:space="preserve">
+    <value>Actualitza a Empresa 360</value>
+  </data>
+  <data name="SinPlataformaEnCentro" xml:space="preserve">
+    <value>Sense plataforma en aquest Centre</value>
+  </data>
+  <data name="ActualizarEnTrabajador" xml:space="preserve">
+    <value>Actualitza a Treballador 360</value>
+  </data>
+</root>

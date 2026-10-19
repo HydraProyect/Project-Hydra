@@ -1,0 +1,242 @@
+@*
+    «Gestionar acreditación en plataforma» (regla de Chris del 2026-10-19): el estado de un documento en TALVEG (su vigencia)
+    y el de su acreditación en cada plataforma o Centro son dos cosas distintas. Este panel cambia SOLO la segunda: subido y
+    al día, pendiente de validación, pendiente de subir o rechazado por la plataforma con su motivo. El estado en TALVEG se
+    enseña arriba, de solo lectura: subir o renovar el documento se hace en la ficha 360 de su Empresa o Trabajador, nunca aquí.
+
+    Cada opción es un comando que ya comprueba la cartera de quien guarda (DocumentoVisibleAsync): este panel no decide nada
+    de alcance, y lo que el comando rechaza (una rechazada sin versión nueva, por ejemplo) sale en el aviso del kit.
+*@
+@using CaeManager.Application.Documentos.Commands.MarcarAcreditacionAceptada
+@using CaeManager.Application.Documentos.Commands.MarcarAcreditacionPendienteDeSubir
+@using CaeManager.Application.Documentos.Commands.MarcarAcreditacionRechazada
+@using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida
+@using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
+@using CaeManager.Domain.Common
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Features.Documentos.Recursos
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+<DrawerFormulario Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@T("Titulo")"
+                  Subtitulo="@Subtitulo" HayCambios="HayCambios" Guardando="_guardando" MensajeError="@_errorServidor"
+                  HayErroresDeCampo="@(_errorCampo is not null)" MotivoGuardarDeshabilitado="@MotivoDeshabilitado"
+                  OnGuardar="GuardarAsync" TextoGuardar="@T("GuardarEstado")" TextoCancelar="@T("Cancelar")"
+                  SinContenido="@(Acreditaciones.Count == 0 ? SinPlataforma : null)">
+    <section class="gestionar-acreditacion-bloque" aria-label="@T("EnTalvegEtiqueta")">
+        <h3 class="gestionar-acreditacion-titulo">@T("EnTalveg")</h3>
+        <p class="gestionar-acreditacion-linea" data-estado-talveg="@EstadoTalveg">
+            <Badge Tono="EstadoDocumentoUi.Tono(EstadoTalveg)" ConIcono Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(EstadoTalveg)</Badge>
+            @if (FechaVencimiento is { } vence)
+            {
+                <span class="gestionar-acreditacion-detalle">@(TextosGestionarAcreditacion.Formato("ValidoHasta", vence.ToString("dd/MM/yyyy")))</span>
+            }
+        </p>
+        <p class="gestionar-acreditacion-ayuda">@T(EsDeEmpresa ? "AyudaEmpresa" : "AyudaTrabajador")</p>
+    </section>
+
+    <section class="gestionar-acreditacion-bloque" aria-label="@T("EnLaPlataformaEtiqueta")">
+        <h3 class="gestionar-acreditacion-titulo">@T("EnLaPlataforma")</h3>
+        @if (Acreditaciones.Count > 1)
+        {
+            <CampoSelect Etiqueta="@T("Plataforma")" Valor="@_acreditacionId.ToString()" ValorChanged="ElegirPlataforma">
+                @foreach (var acreditacion in Acreditaciones)
+                {
+                    <option value="@acreditacion.Id">@acreditacion.NombrePlataforma</option>
+                }
+            </CampoSelect>
+        }
+        else
+        {
+            <p class="gestionar-acreditacion-linea">@(Acreditaciones[0].NombrePlataforma)</p>
+        }
+        <p class="gestionar-acreditacion-linea">@(TextosGestionarAcreditacion.Formato("Ahora", EstadoAcreditacionUi.Texto(Elegida.Estado)))</p>
+
+        <fieldset class="gestionar-acreditacion-opciones">
+            <legend>@T("NuevoEstado")</legend>
+            @foreach (var (valor, texto) in Opciones)
+            {
+                <label class="gestionar-acreditacion-opcion">
+                    <input type="radio" name="estado-plataforma" value="@valor" checked="@(_destino == valor)"
+                           @onchange="() => ElegirDestino(valor)" />
+                    @T(texto)
+                </label>
+            }
+        </fieldset>
+
+        @if (_destino == DestinoAlDia)
+        {
+            <CampoSelect Etiqueta="@T("HastaCuando")" Valor="@_estadoVigencia"
+                         ValorChanged="v => { _estadoVigencia = v; _errorCampo = null; _errorServidor = null; }">
+                <option value="@nameof(EstadoVigenciaEnPlataforma.VenceEnFecha)">@T("VenceEnFecha")</option>
+                <option value="@nameof(EstadoVigenciaEnPlataforma.NoVenceAqui)">@T("NoCaducaAqui")</option>
+                <option value="@nameof(EstadoVigenciaEnPlataforma.SinConfirmar)">@T("TodaviaNoLoSe")</option>
+            </CampoSelect>
+            @if (_estadoVigencia == nameof(EstadoVigenciaEnPlataforma.VenceEnFecha))
+            {
+                <CampoTexto Etiqueta="@T("FechaEnPlataforma")" Type="date" Valor="@_fechaVigencia"
+                            ValorChanged="v => { _fechaVigencia = v; _errorCampo = null; _errorServidor = null; }" MensajeError="@_errorCampo" />
+            }
+        }
+        else if (_destino == DestinoRechazada)
+        {
+            <CampoSelect Etiqueta="@T("CausaRechazo")" Valor="@_causaRechazo" ValorChanged="v => { _causaRechazo = v; _errorServidor = null; }">
+                @foreach (var causa in Enum.GetValues<CausaRechazoAcreditacion>())
+                {
+                    <option value="@causa">@CausaRechazoAcreditacionUi.Texto(causa)</option>
+                }
+            </CampoSelect>
+            <CampoTextarea Etiqueta="@T("Motivo")" Valor="@_motivoRechazo" Filas="3" Placeholder="@T("MotivoPlaceholder")"
+                           ValorChanged="v => { _motivoRechazo = v; _errorCampo = null; _errorServidor = null; }" MensajeError="@_errorCampo" />
+        }
+    </section>
+</DrawerFormulario>
+
+@code {
+    public const string DestinoAlDia = "AlDia";
+    public const string DestinoPendienteValidacion = "PendienteValidacion";
+    public const string DestinoPendienteSubir = "PendienteSubir";
+    public const string DestinoRechazada = "Rechazada";
+
+    private static string T(string clave) => TextosGestionarAcreditacion.Texto(clave);
+
+    private static readonly (string Valor, string Clave)[] Opciones =
+    [
+        (DestinoAlDia, "OpcionAlDia"),
+        (DestinoPendienteValidacion, "OpcionPendienteValidacion"),
+        (DestinoPendienteSubir, "OpcionPendienteSubir"),
+        (DestinoRechazada, "OpcionRechazada")
+    ];
+
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter, EditorRequired] public string DocumentoNombre { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string PropietarioNombre { get; set; } = string.Empty;
+    [Parameter] public bool EsDeEmpresa { get; set; }
+    [Parameter, EditorRequired] public EstadoDocumento EstadoTalveg { get; set; }
+    [Parameter] public DateOnly? FechaVencimiento { get; set; }
+
+    /// <summary>Acreditaciones del documento en las plataformas del Centro desde el que se gestiona.</summary>
+    [Parameter] public IReadOnlyList<AcreditacionResumenDto> Acreditaciones { get; set; } = [];
+
+    /// <summary>Tras guardar: quien abre el panel recarga su lista.</summary>
+    [Parameter] public EventCallback OnGuardado { get; set; }
+
+    private Guid _acreditacionId;
+    private string? _destino;
+    private string _estadoVigencia = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
+    private string _fechaVigencia = string.Empty;
+    private string _causaRechazo = nameof(CausaRechazoAcreditacion.Ilegible);
+    private string _motivoRechazo = string.Empty;
+    private string? _errorCampo;
+    private string? _errorServidor;
+    private bool _guardando;
+    private bool _visiblePrevio;
+
+    private string Subtitulo => $"{DocumentoNombre} · {PropietarioNombre}";
+
+    private AcreditacionResumenDto Elegida => Acreditaciones.FirstOrDefault(a => a.Id == _acreditacionId) ?? Acreditaciones[0];
+
+    private string? MotivoDeshabilitado =>
+        Acreditaciones.Count == 0 ? T("MotivoSinPlataforma")
+        : _destino is null ? T("MotivoSinDestino")
+        : null;
+
+    private bool HayCambios() => _destino is not null || !string.IsNullOrWhiteSpace(_motivoRechazo) || !string.IsNullOrWhiteSpace(_fechaVigencia);
+
+    private RenderFragment SinPlataforma => @<EstadoVacio Titulo="@T("SinPlataformaTitulo")" Descripcion="@T("SinPlataformaDescripcion")" />;
+
+    protected override void OnParametersSet()
+    {
+        // Cada apertura empieza limpia y sobre la primera plataforma: lo elegido para otro documento no se arrastra.
+        if (Visible && !_visiblePrevio)
+        {
+            _acreditacionId = Acreditaciones.Count > 0 ? Acreditaciones[0].Id : Guid.Empty;
+            Reiniciar();
+        }
+        _visiblePrevio = Visible;
+    }
+
+    private void Reiniciar()
+    {
+        _destino = null;
+        _estadoVigencia = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
+        _fechaVigencia = string.Empty;
+        _causaRechazo = nameof(CausaRechazoAcreditacion.Ilegible);
+        _motivoRechazo = string.Empty;
+        _errorCampo = null;
+        _errorServidor = null;
+    }
+
+    private void ElegirPlataforma(string valor)
+    {
+        if (Guid.TryParse(valor, out var id)) _acreditacionId = id;
+        Reiniciar();
+    }
+
+    private void ElegirDestino(string valor)
+    {
+        _destino = valor;
+        _errorCampo = null;
+        _errorServidor = null;
+    }
+
+    private async Task GuardarAsync()
+    {
+        _errorCampo = null;
+        _errorServidor = null;
+
+        VigenciaEnPlataforma? vigencia = null;
+        if (_destino == DestinoAlDia)
+        {
+            vigencia = _estadoVigencia switch
+            {
+                nameof(EstadoVigenciaEnPlataforma.NoVenceAqui) => VigenciaEnPlataforma.NoVenceAqui,
+                nameof(EstadoVigenciaEnPlataforma.SinConfirmar) => VigenciaEnPlataforma.SinConfirmar,
+                _ => DateOnly.TryParse(_fechaVigencia, out var fecha) ? VigenciaEnPlataforma.VenceEl(fecha) : null
+            };
+            if (vigencia is null)
+            {
+                _errorCampo = T("ErrorFecha");
+                return;
+            }
+        }
+        else if (_destino == DestinoRechazada && string.IsNullOrWhiteSpace(_motivoRechazo))
+        {
+            _errorCampo = T("ErrorMotivo");
+            return;
+        }
+
+        _guardando = true;
+        try
+        {
+            var id = Elegida.Id;
+            Result resultado = _destino switch
+            {
+                DestinoAlDia => (await Mediator.Send(new MarcarAcreditacionAceptadaCommand(id, vigencia!.Value))) is { EsFallido: true } fallo
+                    ? Result.Fallo(fallo.Error) : Result.Exito(),
+                DestinoPendienteValidacion => await Mediator.Send(new MarcarAcreditacionSubidaCommand(id)),
+                DestinoPendienteSubir => await Mediator.Send(new MarcarAcreditacionPendienteDeSubirCommand(id)),
+                DestinoRechazada => await Mediator.Send(new MarcarAcreditacionRechazadaCommand(id, Enum.Parse<CausaRechazoAcreditacion>(_causaRechazo), _motivoRechazo)),
+                _ => Result.Fallo(Error.Crear("Acreditacion.SinDestino", T("MotivoSinDestino")))
+            };
+
+            if (resultado.EsFallido)
+            {
+                _errorServidor = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar(TextosGestionarAcreditacion.Formato("Guardado", Elegida.NombrePlataforma), TonoToast.Exito);
+            Reiniciar();
+            await VisibleChanged.InvokeAsync(false);
+            await OnGuardado.InvokeAsync();
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

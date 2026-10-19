@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Titulo" xml:space="preserve">
+    <value>Gestionar acreditación en plataforma</value>
+  </data>
+  <data name="GuardarEstado" xml:space="preserve">
+    <value>Guardar estado</value>
+  </data>
+  <data name="Cancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="EnTalveg" xml:space="preserve">
+    <value>En TALVEG</value>
+  </data>
+  <data name="EnTalvegEtiqueta" xml:space="preserve">
+    <value>Estado en TALVEG</value>
+  </data>
+  <data name="ValidoHasta" xml:space="preserve">
+    <value>Válido hasta el {0}</value>
+  </data>
+  <data name="AyudaEmpresa" xml:space="preserve">
+    <value>Para subir o renovar el documento, ve a la ficha 360 de su Empresa.</value>
+  </data>
+  <data name="AyudaTrabajador" xml:space="preserve">
+    <value>Para subir o renovar el documento, ve a la ficha 360 de su Trabajador.</value>
+  </data>
+  <data name="EnLaPlataforma" xml:space="preserve">
+    <value>En la plataforma</value>
+  </data>
+  <data name="EnLaPlataformaEtiqueta" xml:space="preserve">
+    <value>Estado en la plataforma</value>
+  </data>
+  <data name="Plataforma" xml:space="preserve">
+    <value>Plataforma</value>
+  </data>
+  <data name="Ahora" xml:space="preserve">
+    <value>Ahora: {0}</value>
+  </data>
+  <data name="NuevoEstado" xml:space="preserve">
+    <value>Nuevo estado en la plataforma</value>
+  </data>
+  <data name="OpcionAlDia" xml:space="preserve">
+    <value>Subido y al día</value>
+  </data>
+  <data name="OpcionPendienteValidacion" xml:space="preserve">
+    <value>Pendiente de validación</value>
+  </data>
+  <data name="OpcionPendienteSubir" xml:space="preserve">
+    <value>Pendiente de subir</value>
+  </data>
+  <data name="OpcionRechazada" xml:space="preserve">
+    <value>Rechazado por la plataforma</value>
+  </data>
+  <data name="HastaCuando" xml:space="preserve">
+    <value>¿Hasta cuándo vale en esta plataforma?</value>
+  </data>
+  <data name="VenceEnFecha" xml:space="preserve">
+    <value>Vence en una fecha</value>
+  </data>
+  <data name="NoCaducaAqui" xml:space="preserve">
+    <value>Aquí no caduca</value>
+  </data>
+  <data name="TodaviaNoLoSe" xml:space="preserve">
+    <value>Todavía no lo sé</value>
+  </data>
+  <data name="FechaEnPlataforma" xml:space="preserve">
+    <value>Fecha de vencimiento en la plataforma</value>
+  </data>
+  <data name="CausaRechazo" xml:space="preserve">
+    <value>Causa del rechazo</value>
+  </data>
+  <data name="Motivo" xml:space="preserve">
+    <value>Motivo</value>
+  </data>
+  <data name="MotivoPlaceholder" xml:space="preserve">
+    <value>Texto literal del portal, si lo hay</value>
+  </data>
+  <data name="SinPlataformaTitulo" xml:space="preserve">
+    <value>Sin plataforma</value>
+  </data>
+  <data name="SinPlataformaDescripcion" xml:space="preserve">
+    <value>Este Centro no acredita este documento en ninguna plataforma.</value>
+  </data>
+  <data name="MotivoSinPlataforma" xml:space="preserve">
+    <value>Este Centro no tiene plataforma para este documento.</value>
+  </data>
+  <data name="MotivoSinDestino" xml:space="preserve">
+    <value>Elige el nuevo estado en la plataforma.</value>
+  </data>
+  <data name="ErrorFecha" xml:space="preserve">
+    <value>Escribe la fecha hasta la que vale, o elige otra opción.</value>
+  </data>
+  <data name="ErrorMotivo" xml:space="preserve">
+    <value>Describe el motivo del rechazo.</value>
+  </data>
+  <data name="Guardado" xml:space="preserve">
+    <value>Estado en {0} guardado.</value>
+  </data>
+  <data name="LineaEnTalveg" xml:space="preserve">
+    <value>En TALVEG</value>
+  </data>
+  <data name="LineaEnPlataforma" xml:space="preserve">
+    <value>En la plataforma</value>
+  </data>
+  <data name="ActualizarEnEmpresa" xml:space="preserve">
+    <value>Actualizar en Empresa 360</value>
+  </data>
+  <data name="SinPlataformaEnCentro" xml:space="preserve">
+    <value>Sin plataforma en este Centro</value>
+  </data>
+  <data name="ActualizarEnTrabajador" xml:space="preserve">
+    <value>Actualizar en Trabajador 360</value>
+  </data>
+</root>

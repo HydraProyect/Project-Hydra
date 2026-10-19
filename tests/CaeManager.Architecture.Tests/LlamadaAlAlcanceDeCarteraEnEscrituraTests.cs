@@ -144,6 +144,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Documentos.FirmarDocumentoEnCampoCommandHandler",
         "Documentos.GuardarSelloEmpresaCommandHandler",
         "Documentos.MarcarAcreditacionAceptadaCommandHandler",
+        "Documentos.MarcarAcreditacionPendienteDeSubirCommandHandler",
         "Documentos.MarcarAcreditacionRechazadaCommandHandler",
         "Documentos.MarcarAcreditacionSubidaCommandHandler",
         "Documentos.RenovarDocumentoCommandHandler",

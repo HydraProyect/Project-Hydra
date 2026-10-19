@@ -9,12 +9,12 @@ namespace CaeManager.Web.Tests;
 public partial class Centro360Gen2Tests
 {
     [Theory]
-    [InlineData(EstadoDocumento.Vencido, "Aptitud médica", "Desde el 06/11/2026", true)]
+    [InlineData(EstadoDocumento.Vencido, "Aptitud médica", "Desde el 06/11/2026", false)]
     [InlineData(EstadoDocumento.EnTolerancia, "Aptitud médica", "Desde el 06/11/2026", true)]
     [InlineData(EstadoDocumento.Proximo, "Aptitud médica", "Caduca el 06/11/2026", true)]
     [InlineData(EstadoDocumento.Urgente, "Aptitud médica", "Caduca el 06/11/2026", true)]
     [InlineData(EstadoDocumento.SinConfirmar, "Contrato de trabajo", "Falta la fecha de fin", true)]
-    [InlineData(EstadoDocumento.Faltante, "Aptitud médica", "Falta la fecha de vencimiento", true)]
+    [InlineData(EstadoDocumento.Faltante, "Aptitud médica", "Falta la fecha de vencimiento", false)]
     [InlineData(EstadoDocumento.Vigente, "Aptitud médica", "Caduca el 06/11/2026", true)]
     [InlineData(EstadoDocumento.SinCaducidad, "Aptitud médica", "Sin caducidad", true)]
     public async Task Cada_documento_conserva_nombre_estado_vigencia_y_su_unica_accion_en_la_misma_fila(
@@ -32,7 +32,8 @@ public partial class Centro360Gen2Tests
         fila.Children[1].QuerySelector(".badge").Should().NotBeNull();
         fila.Children[2].TextContent.Should().Contain(texto).And.NotBe("—");
         fila.Children[3].QuerySelectorAll("button").Should().HaveCount(gestionar ? 1 : 0);
-        if (gestionar) fila.Children[3].TextContent.Trim().Should().Be("Gestionar");
+        // Lo vencido o pendiente en TALVEG no se gestiona desde el Centro: se actualiza en la ficha 360 (regla del 2026-10-19).
+        fila.Children[3].TextContent.Trim().Should().Be(gestionar ? "Gestionar" : "Actualizar en Trabajador 360");
     }
 
     [Theory]
