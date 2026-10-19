@@ -73,6 +73,9 @@
     private string _filtro = string.Empty;
     private string _ultimoValorNotificado = string.Empty;
     private bool _abierto;
+    // Solo el usuario vacía la selección: borrar el texto a mano. Un campo vacío porque las opciones no llegaron (catálogo
+    // que no cargó) no la vacía al salir.
+    private bool _vaciadoPorUsuario;
     private int _indiceResaltado = -1;
 
     [Parameter] public string? Etiqueta { get; set; }
@@ -93,7 +96,8 @@
 
     /// <summary>
     /// Si borrar el texto y salir del campo deja el valor sin elegir (<c>ValorChanged("")</c>). Sin él (por defecto) el
-    /// campo siempre vuelve al texto de la opción elegida, que es lo que quiere un selector obligatorio.
+    /// campo siempre vuelve al texto de la opción elegida, que es lo que quiere un selector obligatorio. Solo cuenta un
+    /// borrado del usuario: salir de un campo que se ve vacío porque sus opciones no llegaron no toca el valor.
     /// </summary>
     [Parameter] public bool PermiteVaciar { get; set; }
 
@@ -149,6 +153,7 @@
     private Task ManejarEntradaAsync(ChangeEventArgs e)
     {
         _filtro = e.Value?.ToString() ?? string.Empty;
+        _vaciadoPorUsuario = _filtro.Trim().Length == 0;
         _abierto = true;
         _indiceResaltado = -1;
         return Task.CompletedTask;
@@ -172,8 +177,10 @@
         _abierto = false;
         _indiceResaltado = -1;
 
-        // Quitar la selección: con PermiteVaciar, salir del campo con el texto borrado la deja sin elegir.
-        if (PermiteVaciar && _filtro.Trim().Length == 0 && Valor.Length > 0)
+        // Quitar la selección: con PermiteVaciar, salir del campo después de borrar el texto a mano la deja sin elegir.
+        var vaciar = PermiteVaciar && _vaciadoPorUsuario && _filtro.Trim().Length == 0 && Valor.Length > 0;
+        _vaciadoPorUsuario = false;
+        if (vaciar)
         {
             _ultimoValorNotificado = string.Empty;
             await ValorChanged.InvokeAsync(string.Empty);
@@ -186,6 +193,7 @@
     private async Task SeleccionarOpcionAsync(OpcionBuscable opcion)
     {
         _filtro = opcion.Texto;
+        _vaciadoPorUsuario = false;
         _ultimoValorNotificado = opcion.Id;
         _abierto = false;
         _indiceResaltado = -1;
@@ -220,6 +228,7 @@
             case "Escape":
                 _abierto = false;
                 _indiceResaltado = -1;
+                _vaciadoPorUsuario = false;
                 _filtro = Opciones.FirstOrDefault(o => o.Id == Valor)?.Texto ?? string.Empty;
                 break;
 

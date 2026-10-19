@@ -103,6 +103,29 @@ public class DelegacionEmpresaYOficioEnLaFichaTests
     }
 
     [Fact]
+    public async Task Con_su_empresa_fuera_de_gestion_guarda_la_ficha_si_la_delegacion_y_el_oficio_no_cambian()
+    {
+        // Quien ve al Trabajador solo por una Asignación (sin gestionar su Empresa) edita el resto de la ficha: los mismos
+        // Ids que ya tiene no cuentan como cambio de Delegación ni de Oficio.
+        var oficio = new OficioEmpresa(_empresa.Id, "Soldador");
+        _catalogo.Agregar(oficio);
+        _trabajador.FijarDelegacionEmpresaYOficio(null, oficio);
+        var versionOficio = oficio.Version;
+        var handler = new EditarFichaTrabajadorCommandHandler(_trabajadores, _catalogo,
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [_empresa.Id],
+                trabajadorIdsVisibles: [_trabajador.Id], empresaIdsParaGestion: []),
+            PoliticaNotaInternaPruebas.Con("GestorCae"), _unitOfWork);
+
+        var resultado = await handler.Handle(Orden(new(null, oficio.Id)), default);
+
+        resultado.EsExitoso.Should().BeTrue();
+        _trabajador.OficioEmpresaId.Should().Be(oficio.Id);
+        _trabajador.Puesto.Should().Be("Puesto antiguo", "el resto de la ficha sí se guarda");
+        oficio.Version.Should().Be(versionOficio);
+        _unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
     public async Task Asignar_un_oficio_nuevo_renueva_su_version_y_repetir_el_mismo_no()
     {
         // La versión renovada hace chocar por concurrencia una eliminación simultánea del Oficio

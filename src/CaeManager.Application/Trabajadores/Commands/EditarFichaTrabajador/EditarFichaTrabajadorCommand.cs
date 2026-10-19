@@ -72,10 +72,13 @@ public class EditarFichaTrabajadorCommandHandler(ITrabajadorRepository repositor
 
         // La Delegación y el Oficio se validan antes de tocar la entidad: si fallan, el comando responde el error sin dejar
         // el Trabajador rastreado a medio cambiar (el DbContext del circuito lo guardaría con el siguiente comando).
-        // null = no se cambian. Solo un Trabajador de Empresa tiene Delegación y Oficio, y quien los fija gestiona esa
-        // Empresa.
+        // null = no se cambian, y los mismos Ids que ya tiene tampoco cuentan como cambio: quien ve al Trabajador solo por
+        // una Asignación (sin gestionar su Empresa) puede guardar el resto de la ficha. Solo un Trabajador de Empresa tiene
+        // Delegación y Oficio, y quien los cambia gestiona esa Empresa.
         AsignacionDelegacionEmpresaYOficio.Resuelta? asignacion = null;
-        if (request.DelegacionEmpresaYOficio is { } delegacionYOficio)
+        if (request.DelegacionEmpresaYOficio is { } delegacionYOficio
+            && (delegacionYOficio.DelegacionEmpresaId != trabajador.DelegacionEmpresaId
+                || delegacionYOficio.OficioEmpresaId != trabajador.OficioEmpresaId))
         {
             if (trabajador.EmpresaId is not { } empresaId)
                 return Result.Fallo(Error.Crear("Trabajador.SinEmpresa", "Solo un trabajador de empresa tiene delegación y oficio."));

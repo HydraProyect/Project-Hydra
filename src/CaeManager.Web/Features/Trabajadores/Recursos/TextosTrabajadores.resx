@@ -744,6 +744,7 @@
   <data name="DelegacionEmpresaSinElegir" xml:space="preserve"><value>Sin delegación</value></data>
   <data name="CatalogoNoCargo" xml:space="preserve"><value>No se pudo cargar el catálogo de la empresa.</value></data>
   <data name="OficioErrorCrear" xml:space="preserve"><value>No se pudo crear el oficio.</value></data>
+  <data name="OficioPuestoActual" xml:space="preserve"><value>Puesto actual: {0}. Elige un oficio para sustituirlo.</value></data>
   <data name="PasoAltaBasico" xml:space="preserve">
     <value>Lo básico</value>
   </data>

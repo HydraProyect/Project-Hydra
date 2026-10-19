@@ -1068,7 +1068,11 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         null, null, _nombre, _apellidos, _dni, DateOnly.TryParse(_fechaNacimiento, out var fecha) ? fecha : null,
         string.IsNullOrWhiteSpace(_email) ? null : _email, string.IsNullOrWhiteSpace(_observaciones) ? null : _observaciones,
         string.IsNullOrWhiteSpace(_alias) ? null : _alias, string.IsNullOrWhiteSpace(_telefono) ? null : _telefono,
-        string.IsNullOrWhiteSpace(_puesto) ? null : _puesto);
+        PuestoEnTexto);
+
+    // El Puesto en texto es solo del Trabajador de Subcontrata: con Empresa, el campo no se ve (lo sustituye el Oficio) y lo
+    // escrito antes de cambiar de empleador ni se valida ni viaja en el alta.
+    private string? PuestoEnTexto => _tipoEmpleador == "empresa" || string.IsNullOrWhiteSpace(_puesto) ? null : _puesto;
 
     private void AltaAtras()
     {
@@ -1195,7 +1199,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             var telefono = string.IsNullOrWhiteSpace(_telefono) ? null : _telefono;
             var observaciones = string.IsNullOrWhiteSpace(_observaciones) ? null : _observaciones;
             var alias = string.IsNullOrWhiteSpace(_alias) ? null : _alias;
-            var puesto = string.IsNullOrWhiteSpace(_puesto) ? null : _puesto;
+            var puesto = PuestoEnTexto;
             var fechaNacimiento = DateOnly.TryParse(_fechaNacimiento, out var fecha) ? fecha : (DateOnly?)null;
 
             Guid? empresaId = null;

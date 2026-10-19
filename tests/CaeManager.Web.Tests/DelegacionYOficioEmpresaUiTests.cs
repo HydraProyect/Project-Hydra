@@ -38,16 +38,23 @@ public class DelegacionEmpresaYOficioEmpresaUiTests : BunitContext
     {
         public CatalogoTrabajadoresEmpresaDto Catalogo { get; set; } = CatalogoTrabajadoresEmpresaDto.Vacio;
         public Result ResultadoEliminar { get; set; } = Result.Exito();
+        public Result<Guid>? ResultadoGuardarOficio { get; set; }
+        public bool FallaCatalogo { get; set; }
+        /// <summary>Si se fija, el alta de Oficio no responde hasta que el test complete esta tarea.</summary>
+        public TaskCompletionSource<Result<Guid>>? GuardarOficioPendiente { get; set; }
         public List<object> Enviadas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+            if (request is GuardarOficioEmpresaCommand && GuardarOficioPendiente is { } pendiente)
+                return (Task<TResponse>)(object)pendiente.Task;
             object? respuesta = request switch
             {
+                ObtenerCatalogoTrabajadoresEmpresaQuery when FallaCatalogo => throw new InvalidOperationException("Fallo simulado del catálogo."),
                 ObtenerCatalogoTrabajadoresEmpresaQuery => Catalogo,
                 EliminarDelegacionEmpresaUOficioCommand => ResultadoEliminar,
-                GuardarOficioEmpresaCommand => Result.Exito(Guid.NewGuid()),
+                GuardarOficioEmpresaCommand => ResultadoGuardarOficio ?? Result.Exito(Guid.NewGuid()),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
             };
             return Task.FromResult((TResponse)respuesta!);
@@ -163,5 +170,83 @@ public class DelegacionEmpresaYOficioEmpresaUiTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find("input[role=combobox]").GetAttribute("value").Should().Be("Soldador"));
         cut.FindAll("option").Select(o => o.TextContent).Should().Equal("Sin delegación", "Sevilla");
+    }
+
+    [Fact]
+    public void Un_doble_clic_en_crear_oficio_solo_envia_un_alta()
+    {
+        Registrar(Roles.GestorCae);
+        _mediador.GuardarOficioPendiente = new TaskCompletionSource<Result<Guid>>();
+        var elegidos = new List<string>();
+        var cut = Render<SelectorDelegacionEmpresaYOficio>(p => p
+            .Add(x => x.EmpresaId, EmpresaId)
+            .Add(x => x.OficioIdChanged, v => elegidos.Add(v)));
+        cut.WaitForAssertion(() => cut.FindAll("option").Select(o => o.TextContent).Should().Contain("Sevilla"));
+
+        cut.Find("input[role=combobox]").Input("Electricista");
+        var crear = cut.Find("li.selector-entidad-opcion-crear");
+        crear.Click();
+        cut.Find("input[role=combobox]").Input("Electricista");
+        cut.Find("li.selector-entidad-opcion-crear").Click();
+
+        var nuevo = Guid.NewGuid();
+        cut.InvokeAsync(() => _mediador.GuardarOficioPendiente.SetResult(Result.Exito(nuevo)));
+        cut.WaitForAssertion(() => elegidos.Should().Equal(nuevo.ToString()));
+        _mediador.Enviadas.OfType<GuardarOficioEmpresaCommand>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Si_el_formulario_se_cierra_mientras_se_crea_el_oficio_no_avisa_al_padre()
+    {
+        Registrar(Roles.GestorCae);
+        _mediador.GuardarOficioPendiente = new TaskCompletionSource<Result<Guid>>();
+        string? elegido = null;
+        var cut = Render<SelectorDelegacionEmpresaYOficio>(p => p
+            .Add(x => x.EmpresaId, EmpresaId)
+            .Add(x => x.OficioIdChanged, v => elegido = v));
+        cut.WaitForAssertion(() => cut.FindAll("option").Select(o => o.TextContent).Should().Contain("Sevilla"));
+        cut.Find("input[role=combobox]").Input("Electricista");
+        cut.Find("li.selector-entidad-opcion-crear").Click();
+
+        await DisposeComponentsAsync();
+        _mediador.GuardarOficioPendiente.SetResult(Result.Exito(Guid.NewGuid()));
+
+        elegido.Should().BeNull();
+    }
+
+    [Fact]
+    public void Si_el_catalogo_no_carga_el_selector_avisa_y_deshabilita_los_campos_sin_vaciar_el_oficio()
+    {
+        Registrar(Roles.GestorCae);
+        _mediador.FallaCatalogo = true;
+        string? elegido = null;
+        var cut = Render<SelectorDelegacionEmpresaYOficio>(p => p
+            .Add(x => x.EmpresaId, EmpresaId)
+            .Add(x => x.OficioId, OficioId.ToString())
+            .Add(x => x.OficioIdChanged, v => elegido = v));
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("No se pudo cargar el catálogo de la empresa."));
+        cut.Find("input[role=combobox]").HasAttribute("disabled").Should().BeTrue();
+        cut.Find("select").HasAttribute("disabled").Should().BeTrue();
+        cut.Find("input[role=combobox]").Blur();
+
+        elegido.Should().BeNull();
+    }
+
+    [Fact]
+    public void Un_conflicto_al_guardar_un_oficio_relee_el_catalogo()
+    {
+        _mediador.ResultadoGuardarOficio = Result.Fallo<Guid>(Error.Crear(
+            CaeManager.Application.Common.ConcurrenciaOptimista.CodigoConflicto, "Otra persona cambió este oficio."));
+        var cut = RenderizarCaja(Roles.GestorCae);
+        var lecturas = _mediador.Enviadas.OfType<ObtenerCatalogoTrabajadoresEmpresaQuery>().Count();
+        _mediador.Catalogo = _mediador.Catalogo with { Oficios = [new OficioEmpresaDto(OficioId, "Soldador TIG", Guid.NewGuid())] };
+
+        cut.Find("button[aria-label='Editar «Soldador»']").Click();
+        cut.FindAll("button").Last(b => b.TextContent.Trim() == "Guardar").Click();
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Otra persona cambió este oficio."));
+        _mediador.Enviadas.OfType<ObtenerCatalogoTrabajadoresEmpresaQuery>().Should().HaveCount(lecturas + 1);
+        cut.Markup.Should().Contain("Soldador TIG", "la lista de detrás enseña lo que dejó la otra persona");
     }
 }

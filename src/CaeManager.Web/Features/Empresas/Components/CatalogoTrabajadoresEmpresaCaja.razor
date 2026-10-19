@@ -5,6 +5,7 @@
     (AutorizacionEscrituraBehavior y alcance de gestión sobre la Empresa). Eliminar algo con Trabajadores asignados lo
     rechaza el comando y el diálogo enseña ese rechazo sin cerrarse.
 *@
+@using CaeManager.Application.Common
 @using CaeManager.Application.Empresas.Commands.EliminarDelegacionEmpresaUOficio
 @using CaeManager.Application.Empresas.Commands.GuardarDelegacionEmpresa
 @using CaeManager.Application.Empresas.Commands.GuardarOficioEmpresa
@@ -262,6 +263,9 @@
             if (resultado.EsFallido)
             {
                 _errorFormulario = resultado.Error.Mensaje;
+                // Otra persona lo cambió o lo eliminó: la lista de detrás se relee para que no siga enseñando lo de antes.
+                // El formulario conserva su versión: para guardar encima hay que cerrarlo y volver a abrirlo.
+                if (resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto) await CargarAsync();
                 return;
             }
 
@@ -301,6 +305,7 @@
             {
                 // Con Trabajadores asignados, o si otra persona lo cambió antes: el diálogo sigue abierto con el motivo.
                 _errorEliminar = resultado.Error.Mensaje;
+                if (resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto) await CargarAsync();
                 return;
             }
 

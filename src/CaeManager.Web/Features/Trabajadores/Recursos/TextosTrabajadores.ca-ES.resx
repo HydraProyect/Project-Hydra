@@ -744,6 +744,7 @@
   <data name="DelegacionEmpresaSinElegir" xml:space="preserve"><value>Sense delegació</value></data>
   <data name="CatalogoNoCargo" xml:space="preserve"><value>No s'ha pogut carregar el catàleg de l'empresa.</value></data>
   <data name="OficioErrorCrear" xml:space="preserve"><value>No s'ha pogut crear l'ofici.</value></data>
+  <data name="OficioPuestoActual" xml:space="preserve"><value>Lloc actual: {0}. Tria un ofici per substituir-lo.</value></data>
   <data name="PasoAltaBasico" xml:space="preserve">
     <value>Allò bàsic</value>
   </data>
