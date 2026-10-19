@@ -911,4 +911,7 @@
   <data name="SinEmpresaContratante" xml:space="preserve">
     <value>Sin empresa contratante</value>
   </data>
+  <data name="ChipContratadaPor" xml:space="preserve"><value>Contratada por: {0}</value></data>
+  <data name="BotonQuitarContratadaPor" xml:space="preserve"><value>Quitar filtro de contratante</value></data>
+  <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordenar por esta columna</value></data>
 </root>
