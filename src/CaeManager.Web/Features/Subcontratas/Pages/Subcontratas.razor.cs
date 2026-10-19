@@ -109,6 +109,32 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     [SupplyParameterFromQuery(Name = "estado")]
     public string? EstadoInicial { get; set; }
 
+    [SupplyParameterFromQuery(Name = "agrupar")]
+    public string? AgruparInicial { get; set; }
+
+    private static readonly AgrupacionDeLista Agrupacion = new(null, "empresa");
+    private string? _agruparPor;
+    private IReadOnlyList<OpcionAgrupar> OpcionesAgrupar => [new("empresa", Textos["EmpresaContratante"])];
+
+    private void CambiarAgrupacion(string? valor)
+    {
+        _agruparPor = valor;
+        NavigationManager.ActualizarFiltroEnUrl("agrupar", Agrupacion.ParaUrl(valor));
+    }
+
+    private sealed record GrupoContratante(string Clave, string Nombre, IReadOnlyList<SubcontrataListaDto> Filas);
+
+    private IEnumerable<GrupoContratante> GruposDePagina => _agruparPor is null
+        ? [new(string.Empty, string.Empty, _elementosPagina)]
+        : _elementosPagina.SelectMany(s => s.Contratantes.Count == 0
+                ? new[] { (Clave: string.Empty, Nombre: Textos["SinEmpresaContratante"].Value, Fila: s) }
+                : s.Contratantes.Select(e => (Clave: e.Id.ToString(), Nombre: e.RazonSocial, Fila: s)))
+            .GroupBy(e => e.Clave).OrderBy(g => g.First().Nombre)
+            .Select(g => new GrupoContratante(g.Key, g.First().Nombre, g.Select(e => e.Fila).ToList()));
+
+    private string TextoContratantes(SubcontrataListaDto fila) => fila.Contratantes.Count == 0
+        ? Textos["SinEmpresaContratante"] : string.Join(", ", fila.Contratantes.Select(e => e.RazonSocial));
+
     /// <summary>Comando del palette "Crear subcontrata": /subcontratas?accion=crear abre el modal directamente — mismo patrón que Clientes/Empresas/Centros/Trabajadores/Documentos.</summary>
     [SupplyParameterFromQuery] public string? Accion { get; set; }
 
@@ -208,6 +234,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     /// <summary>Se re-ejecuta en cada navegación dentro de la propia página — mismo criterio que Centros.razor.cs.</summary>
     protected override async Task OnParametersSetAsync()
     {
+        _agruparPor = Agrupacion.Leer(AgruparInicial);
         if (_resolviendoEmpresa || _sinEmpresaSeleccionada)
             return;
 
@@ -475,7 +502,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado.
     /// Fuera queda <c>accion</c>.
     /// </summary>
-    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "nivel", "estado"];
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "nivel", "estado", "agrupar"];
 
     private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
     private readonly ConexionVistaRecordada _vistaRecordada = new();
@@ -490,11 +517,13 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
         _nivelFiltro = NivelValido(vista.GetValueOrDefault("nivel"));
         _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"));
+        _agruparPor = Agrupacion.Leer(vista.GetValueOrDefault("agrupar"));
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = _busqueda,
             ["nivel"] = _nivelFiltro,
-            ["estado"] = _estadoFiltro
+            ["estado"] = _estadoFiltro,
+            ["agrupar"] = Agrupacion.ParaUrl(_agruparPor)
         });
         await CargarAsync(resetPagina: true);
     }
