@@ -406,7 +406,7 @@
   <data name="VentanaTecnicoAyuda" xml:space="preserve"><value>Abrir la pestaña Técnicos del proyecto</value></data>
   <data name="AriaEditarProyecto" xml:space="preserve"><value>Editar la información del proyecto</value></data>
   <data name="TituloEditarConAtajo" xml:space="preserve"><value>Editar (e)</value></data>
-  <data name="ListaFechas" xml:space="preserve"><value>Fechas</value></data>
+  <data name="ListaFechas" xml:space="preserve"><value>Periodo</value></data>
   <data name="ListaSinFechaFin" xml:space="preserve"><value>sin fecha de fin</value></data>
   <data name="MotivoDuroUno" xml:space="preserve"><value>Duró {0} día</value></data>
   <data name="MotivoDuroVarios" xml:space="preserve"><value>Duró {0} días</value></data>

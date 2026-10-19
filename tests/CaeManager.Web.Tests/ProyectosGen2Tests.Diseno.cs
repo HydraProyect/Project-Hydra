@@ -33,6 +33,21 @@ public partial class ProyectosGen2Tests
         cut.FindAll("tr.proyecto-documentacion").Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Expandir_todo_despliega_y_contrae_la_documentacion_de_todas_las_filas()
+    {
+        Services.AddScoped<ContextWorkspaceService>();
+        _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];
+        var cut = await RenderizarConClienteAsync();
+        cut.FindAll("tr.proyecto-documentacion").Should().BeEmpty();
+
+        await cut.FindAll(".lista-herramientas-maqueta button").Single(b => b.TextContent.Contains("Expandir todo")).ClickAsync(new());
+        cut.FindAll("tr.proyecto-documentacion").Should().HaveCount(2);
+
+        await cut.FindAll(".lista-herramientas-maqueta button").Single(b => b.TextContent.Contains("Contraer todo")).ClickAsync(new());
+        cut.FindAll("tr.proyecto-documentacion").Should().BeEmpty();
+    }
+
     [Theory]
     [InlineData(Roles.Administrador, true)]
     [InlineData(Roles.DireccionCae, true)]
