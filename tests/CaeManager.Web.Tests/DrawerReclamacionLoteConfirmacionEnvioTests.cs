@@ -3,6 +3,7 @@ using CaeManager.Application.Contactos;
 using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresaEmpleadora;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
@@ -47,6 +48,9 @@ public class DrawerReclamacionLoteConfirmacionEnvioTests : BunitContext
     private sealed class MediatorFalso : IMediator
     {
         public List<object> Recibidas { get; } = [];
+        /// <summary>Si se informa, sustituye a los lotes de siempre (un único lote del Cliente titular).</summary>
+        public IReadOnlyList<LoteReclamacionAgrupadoDto>? LotesForzados { get; set; }
+
         public Result<EnvioReclamacionResultado> ResultadoDelEnvio { get; set; } =
             Result.Exito(new EnvioReclamacionResultado([], ["marta@example.invalid"], 0));
 
@@ -57,7 +61,7 @@ public class DrawerReclamacionLoteConfirmacionEnvioTests : BunitContext
             {
                 ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)[],
                 ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)[new(TrabajadorId, "Ana Ruiz", null, null)],
-                ObtenerLoteReclamacionPorFiltroQuery => (IReadOnlyList<LoteReclamacionAgrupadoDto>)
+                ObtenerLoteReclamacionPorFiltroQuery => LotesForzados ?? (IReadOnlyList<LoteReclamacionAgrupadoDto>)
                 [
                     new(ClienteTitularId, "Refrielectric S.A.", AmbitoAplicacion.Trabajador, null,
                         [
@@ -73,6 +77,7 @@ public class DrawerReclamacionLoteConfirmacionEnvioTests : BunitContext
                 ],
                 EnviarReclamacionCommand => ResultadoDelEnvio,
                 EnviarReclamacionEmpresaCommand => ResultadoDelEnvio,
+                EnviarReclamacionEmpresaEmpleadoraCommand => ResultadoDelEnvio,
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             };
             return Task.FromResult((TResponse)respuesta);
@@ -164,6 +169,42 @@ public class DrawerReclamacionLoteConfirmacionEnvioTests : BunitContext
         envio.ContactoIdsSeleccionados.Should().BeEquivalentTo([ContactoMartaId, ContactoPrlId]);
         Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Exito);
         _reclamacionesEnviadas.Should().Be(1);
+    }
+
+    /// <summary>
+    /// «Gestionar» por Delegación (PR #1454): el lote que se reclama a la Empresa que emplea al Trabajador se envía con
+    /// <see cref="EnviarReclamacionEmpresaEmpleadoraCommand"/> y la Delegación del lote, nunca por el comando de Cliente; y la
+    /// tarjeta nombra la Delegación para distinguir dos lotes de la misma Empresa.
+    /// </summary>
+    [Fact]
+    public async Task Un_lote_de_la_Empresa_empleadora_se_envia_por_su_comando_con_la_Delegacion_del_lote()
+    {
+        var empresaId = Guid.NewGuid();
+        var delegacionEmpresaId = Guid.NewGuid();
+        _mediator.LotesForzados =
+        [
+            new(empresaId, "Instalaciones Norte S.L.", AmbitoAplicacion.Trabajador, null,
+                [new(DocumentoUnoId, TrabajadorId, "Ana Ruiz", Guid.NewGuid(), "Curso de altura", new DateOnly(2026, 11, 2), EstadoDocumento.Urgente)],
+                null,
+                [new DestinatarioAgendaDto(ContactoMartaId, "Marta Gil", "sevilla@norte.example", ["Delegación"])],
+                [],
+                new DestinoEmpresaEmpleadoraDto(delegacionEmpresaId, "Sevilla")),
+        ];
+        var cut = await AbrirYContinuarAsync();
+
+        cut.Markup.Should().Contain("Instalaciones Norte S.L. (Sevilla)", "la tarjeta distingue la Delegación");
+        _mediator.Recibidas.OfType<ObtenerLoteReclamacionPorFiltroQuery>().Should().Contain(q => q.PorEmpresaEmpleadora);
+
+        await BotonEnviar(cut).ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
+
+        var envio = _mediator.Recibidas.OfType<EnviarReclamacionEmpresaEmpleadoraCommand>().Should().ContainSingle().Which;
+        envio.EmpresaId.Should().Be(empresaId);
+        envio.DelegacionEmpresaId.Should().Be(delegacionEmpresaId);
+        envio.DocumentoIds.Should().Equal(DocumentoUnoId);
+        envio.ContactoIdsSeleccionados.Should().Equal(ContactoMartaId);
+        EnviosRecibidos.Should().Be(0, "no se reclama al Cliente");
+        _mediator.Recibidas.OfType<EnviarReclamacionEmpresaCommand>().Should().BeEmpty();
     }
 
     [Fact]
