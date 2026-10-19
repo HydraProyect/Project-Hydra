@@ -173,6 +173,7 @@ public partial class Empresa360PaginaTests : BunitContext
     private MediatorFalso Registrar(MediatorFalso mediador, string rol = Roles.GestorCae)
     {
         this.ConRolDeEscritura(rol);
+        this.ConServiciosDelFormularioDeDocumento();
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
@@ -289,6 +290,23 @@ public partial class Empresa360PaginaTests : BunitContext
             "los trabajadores son los de ESTA Empresa, con el alcance que aplica el handler");
         mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Should().OnlyContain(q => q.TamanoPagina <= 20,
             "nunca se trae la plantilla entera para contar");
+    }
+
+    [Theory]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    public void La_cabecera_ofrece_Subir_documento_como_accion_principal_solo_con_escritura(string rol, bool escribe)
+    {
+        Registrar(Empresa(), rol);
+
+        var acciones = Renderizar().Find(".cabecera-identidad-acciones");
+
+        var subir = acciones.QuerySelectorAll("button").SingleOrDefault(b => b.TextContent.Trim() == "Subir documento");
+        (subir is not null).Should().Be(escribe);
+        if (escribe)
+            subir!.ClassList.Should().Contain("boton-primario");
+        acciones.QuerySelectorAll("a").Single(x => x.TextContent.Contains("Detectar altas y bajas"))
+            .ClassList.Should().NotContain("boton-primario", "la acción principal es subir el documento");
     }
 
     [Fact]

@@ -77,3 +77,13 @@
     font: var(--font-caption);
     color: var(--color-text-muted);
 }
+
+.empresa360-cifra-trabajador {
+    display: inline-block;
+    min-width: 2.5em;
+    text-align: right;
+    margin-right: var(--space-3);
+    font: var(--font-caption);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-muted);
+}

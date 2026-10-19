@@ -222,6 +222,22 @@ public partial class DrawerGestionDocumento : ComponentBase
         StateHasChanged();
     }
 
+    /// <summary>
+    /// «Subir documento» de la cabecera de Empresa 360: alta con el ámbito Empresa y la Empresa ya elegidos, y el
+    /// tipo por elegir en el propio drawer. Fuera del catálogo del selector no se preselecciona, igual que
+    /// <see cref="AbrirCrearParaFaltanteEmpresaAsync"/>.
+    /// </summary>
+    public async Task AbrirCrearParaEmpresaAsync(Guid empresaId)
+    {
+        await AbrirCrearAsync();
+        await CambiarAmbitoAsync(nameof(AmbitoAplicacion.Empresa));
+        if (_empresasDisponibles.Any(e => e.Id == empresaId))
+            _empresaId = empresaId.ToString();
+        // La preselección la hace la pantalla que abre, no quien mira: no cuenta como cambio.
+        FijarInstantaneaFormulario();
+        StateHasChanged();
+    }
+
     public async Task AbrirCrearParaFaltanteEmpresaAsync(Guid empresaId, Guid tipoDocumentoId)
     {
         await AbrirCrearAsync();
