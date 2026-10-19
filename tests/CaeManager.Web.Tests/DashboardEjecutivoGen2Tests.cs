@@ -848,7 +848,9 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         var facturacion = cut.FindAll(".pulso-negocio-cifra").Single(c => TextoNormalizado(c).Contains("Facturación estimada"));
         Disparador(facturacion.QuerySelector(".pulso-negocio-valor")!).Should().Be("—");
         cut.FindAll(".enlace-facturacion").Should().BeEmpty();
-        cut.Markup.Should().NotContain("1480").And.NotContain("1000,00").And.NotContain("480,00");
+        // Se busca el importe tal y como se pinta (con decimales y coma): la cifra «1480» a secas coincidía a veces con un
+        // tramo hexadecimal de los identificadores GUID de los campos (p. ej. «…c1480f9e…») y rompía la cola de fusión.
+        cut.Markup.Should().NotContain("1480,00").And.NotContain("1000,00").And.NotContain("480,00");
     }
 
     /// <summary>
