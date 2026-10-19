@@ -17,6 +17,7 @@ using CaeManager.Application.Documentos.Commands.GuardarSelloEmpresa;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresaEmpleadora;
 using CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente;
 using CaeManager.Application.Trabajadores.Commands.ResolverDeteccionNuevo;
 using CaeManager.Application.Visitas.Commands.CrearVisita;
@@ -509,6 +510,7 @@ public class AutorizacionEscrituraBehaviorTests
         new DarDeBajaAsignacionesCommand([Guid.NewGuid()], new DateOnly(2026, 10, 9)),
         new EnviarReclamacionCommand(Guid.NewGuid(), [Guid.NewGuid()]),
         new EnviarReclamacionEmpresaCommand(Guid.NewGuid(), [Guid.NewGuid()]),
+        new EnviarReclamacionEmpresaEmpleadoraCommand(Guid.NewGuid(), Guid.NewGuid(), [Guid.NewGuid()]),
         new CrearDocumentoCommand(Guid.NewGuid(), null, null, null, null, Guid.NewGuid(), new DateOnly(2026, 10, 9), null, null, null),
         new CrearVisitaCommand(Guid.NewGuid(), new DateOnly(2026, 10, 9), new DateOnly(2026, 10, 9), [Guid.NewGuid()], null),
         new GuardarSelloEmpresaCommand(Guid.NewGuid(), [1, 2, 3]),

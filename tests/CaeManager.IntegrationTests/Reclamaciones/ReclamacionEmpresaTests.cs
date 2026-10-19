@@ -425,6 +425,29 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Una_reclamacion_a_la_Empresa_empleadora_guarda_a_que_Trabajador_le_falta_cada_documento()
+    {
+        // «Gestionar» (2026-10-18): lo de un Trabajador se reclama a su Empresa. La base acepta la línea con Trabajador bajo
+        // un titular Empresa: no hace falta migración, el invariante vive en el dominio (ParaEmpresaEmpleadora).
+        var trabajador = Domain.Trabajadores.Trabajador.DeEmpresa(_empresaId, "Ana", "Pérez", "00000000T");
+        await using (var siembra = CrearContexto())
+        {
+            siembra.Trabajadores.Add(trabajador);
+            await siembra.SaveChangesAsync();
+            siembra.ReclamacionesDocumentales.Add(ReclamacionDocumental.ParaEmpresaEmpleadora(
+                _empresaId, Guid.NewGuid(), "delegacion@contratista.test", DateTime.UtcNow, [],
+                documentosQueFaltan: [new DocumentoQueFaltaPedido(_tipoClienteId, trabajador.Id)]));
+            await siembra.SaveChangesAsync();
+        }
+
+        await using var comprobacion = CrearContexto();
+        var reclamacion = await comprobacion.ReclamacionesDocumentales.Include(r => r.Documentos).SingleAsync();
+        reclamacion.EmpresaId.Should().Be(_empresaId);
+        reclamacion.ClienteId.Should().BeNull();
+        reclamacion.Documentos.Should().ContainSingle(d => d.TrabajadorId == trabajador.Id && d.TipoDocumentoId == _tipoClienteId);
+    }
+
+    [Fact]
     public async Task El_historial_ofrece_para_reclamar_de_nuevo_lo_que_faltaba_y_lo_que_sigue_sin_confirmar()
     {
         var sinConfirmarId = await SembrarDocumentoSinConfirmarDeEmpresaAsync(_empresaId, _tipoEmpresaId);

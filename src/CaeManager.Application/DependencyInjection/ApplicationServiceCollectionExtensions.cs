@@ -164,6 +164,7 @@ public static class ApplicationServiceCollectionExtensions
             Reclamaciones.Commands.EnviarReclamacion.RegistroEnvioReclamacionService>();
         // Qué se puede pedir sin vencimiento (documento que falta, «Sin confirmar» sin fecha): lo leen el lote y el envío.
         services.AddScoped<Reclamaciones.IPendientesDeReclamacionService, Reclamaciones.PendientesDeReclamacionService>();
+        services.AddScoped<Reclamaciones.ReclamacionEmpresaEmpleadoraService>();
         // Estado en las plataformas del Centro y última reclamación de cada documento: lo leen las fichas 360 que fijan un Centro.
         services.AddScoped<
             Documentos.SituacionEnCentro.ISituacionDocumentosEnCentrosService,
