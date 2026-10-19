@@ -41,16 +41,16 @@ namespace CaeManager.Web.Features.Trabajadores.Pages;
 /// (a diferencia de la pestaña "Documentación" del panel, que es plana) y
 /// las gestiones pendientes.
 ///
-/// "Reclamar faltantes" del menú de acciones del mockup: <c>EnviarReclamacionCommand</c>
-/// opera a grano Cliente (reclama todo lo pendiente de ese Cliente, no hace
-/// falta acotar por Centro), así que el único caso ambiguo es un trabajador
-/// con asignaciones activas en Centros de Clientes distintos a la vez —
-/// escenario común, no raro (ver <c>DatosPruebaSeeder</c>). Decisión del
-/// usuario 2026-08-18: el gestor elige a qué Cliente(s) reclamar
-/// (<see cref="ReclamarFaltantesAsync"/> salta directo si solo hay uno,
-/// abre selector si hay varios) — nunca se reclama sin que el gestor lo
-/// confirme, y nunca se inventa un criterio automático (próxima visita,
-/// "el más urgente"...) que el usuario no pidió.
+/// «Gestionar» del menú de acciones (antes «Reclamar faltantes»; regla 8 de LEEME-AUTORIDAD, 2026-10-18):
+/// <c>EnviarReclamacionCommand</c> opera a grano Cliente (reclama todo lo pendiente de ese Cliente, no hace
+/// falta acotar por Centro) y es un correo a un tercero. Decisión del usuario 2026-08-18, ampliada el
+/// 2026-10-18: <see cref="ReclamarFaltantesAsync"/> abre siempre la confirmación (con uno o con varios
+/// Clientes), el gestor elige a qué Cliente(s) reclamar y no se envía nada hasta que confirma; nunca se
+/// inventa un criterio automático (próxima visita, "el más urgente"...) que el usuario no pidió.
+/// Desde 2026-10-18 (decisión de Chris), eso queda solo para un Trabajador de Subcontrata: con un Trabajador de
+/// Empresa, «Gestionar» abre <c>DrawerReclamacionLote</c>, que reclama a la Empresa que lo emplea, al contacto de
+/// reclamación de su Delegación o, si no hay Delegación con correo, a la agenda de la Empresa; tampoco ahí sale
+/// nada sin el clic del gestor.
 /// </summary>
 public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
@@ -96,7 +96,6 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosTrabajadores> Textos { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
-    [Inject] private IStringLocalizer<TextosTipoDocumento360> TextosDocumentos360 { get; set; } = default!;
 
     private bool _editorFichaVisible;
 
@@ -172,7 +171,6 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// ObtenerDocumentosQuery que la pestaña del panel, con su alcance.
     /// </summary>
     private IReadOnlyList<DocumentoListaDto> _documentos = [];
-    private IReadOnlySet<Guid> DocumentosUrgentes => _documentos.Where(d => d.Estado == EstadoDocumento.Urgente).Select(d => d.Id).ToHashSet();
     private int _totalDocumentos;
 
     /// <summary>
@@ -399,7 +397,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         var trabajadorId = TrabajadorId;
 
         // Las modales se pintan fuera del bloque de la página, así que
-        // sobrevivían al cambio de ruta: abrir «Reclamar faltantes» para A, navegar a
+        // sobrevivían al cambio de ruta: abrir «Gestionar» (reclamar) para A, navegar a
         // B y confirmar reclamaba a B. Cambiar de trabajador las cierra y
         // tira lo que habían preparado.
         if (_trabajadorEnPantalla != trabajadorId)
@@ -680,6 +678,12 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
     private Task EditarDocumentoAsync(Guid documentoId) => _drawerGestion.AbrirEditarAsync(documentoId);
 
+    /// <summary>
+    /// «Gestionar» de un indicador de Documentación base que falta: no hay Documento que renovar ni Tipo de documento
+    /// concreto, así que abre el mismo Nuevo documento con el Trabajador ya elegido que usa «Subir documento» sin incidencia.
+    /// </summary>
+    private Task SubirFaltanteAsync() => _drawerGestion.AbrirCrearParaTrabajadorAsync(TrabajadorId);
+
     private PasoSerieDocumento PasoDe(DocumentoRequeridoDto documento) =>
         PasoSerieDocumento.DeFilaDeTrabajador(documento.DocumentoId, TrabajadorId, documento.TipoDocumentoId);
 
@@ -773,16 +777,25 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// <summary>
     /// Solo cuentan documentos que existen (<c>DocumentoId != null</c>), no vigentes y reclamables según
     /// <see cref="VentanaReclamacion"/> (con FechaVencimiento y dentro de la ventana): un Faltante no tiene fila de
-    /// Documento que reclamar, y un «Sin confirmar» sin fecha no tiene vencimiento que renovar. «Reclamar» pide una
-    /// renovación; lo que falta y lo «Sin confirmar» sin fecha se piden con «Pedir» (Centro 360 y Mi trabajo), que
+    /// Documento que reclamar, y un «Sin confirmar» sin fecha no tiene vencimiento que renovar. «Gestionar» reclama una
+    /// renovación; lo que falta y lo «Sin confirmar» sin fecha se piden con «Gestionar» (Centro 360 y Mi trabajo), que
     /// viaja por las Pendientes del mismo envío. No replica el resto de filtros del envío (asignación activa,
     /// alcance, Centro con gestión CAE): el envío los revalida.
     /// </summary>
     private async Task ReclamarFaltantesAsync()
     {
+        // Trabajador de Empresa: sus documentos se reclaman a la Empresa que lo emplea, a la Delegación del Trabajador
+        // (decisión de Chris, 2026-10-18), con el mismo cajón que «Gestionar»: vista previa y envío solo con clic explícito.
+        // El de Subcontrata sigue reclamándose al Cliente del Centro con la confirmación de abajo.
+        if (_detalle?.EmpresaId is not null)
+        {
+            _reclamacionEmpresaVisible = true;
+            return;
+        }
+
         // Solo se ofrece lo que el envío acepta (VentanaReclamacion: con FechaVencimiento y dentro de la
         // ventana). Un «Sin confirmar» sin fecha no tiene vencimiento que renovar: este botón no lo incluye
-        // (se pide con «Pedir») y, si es lo único pendiente, se explica por qué.
+        // (se pide con «Gestionar» en Centro 360) y, si es lo único pendiente, se explica por qué.
         var hoy = DiaDeNegocio.Hoy();
         var clientes = _centros
             .SelectMany(c => c.Documentos
@@ -803,12 +816,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             return;
         }
 
-        if (clientes.Count == 1)
-        {
-            await EnviarReclamacionAClientesAsync(clientes);
-            return;
-        }
-
+        // Con uno o con varios Clientes se abre siempre la confirmación: es un correo a un tercero y no sale sin un «Reclamar» explícito.
         _clientesReclamables = clientes;
         _clientesSeleccionadosReclamar.Clear();
         foreach (var cliente in clientes)
@@ -818,6 +826,8 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         // Todos los Clientes empresariales vienen marcados: no es un cambio de quien edita.
         _instantaneaReclamar.Fijar(_clientesSeleccionadosReclamar);
     }
+
+    private bool _reclamacionEmpresaVisible;
 
     private readonly InstantaneaFormulario _instantaneaReclamar = new();
 
@@ -1010,5 +1020,33 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         _asignacionABajar = null;
         _clientesReclamables = [];
         _clientesSeleccionadosReclamar.Clear();
+    }
+
+    // ---------- Nota interna (mismo patrón que Empresa 360, editor en NotaInternaEditable) ----------
+
+    /// <summary>Manda solo la nota y la <c>Version</c> que la ficha leyó.</summary>
+    private Task<CaeManager.Domain.Common.Result> GuardarNotaInternaAsync(string nota) =>
+        Mediator.Send(new CaeManager.Application.Trabajadores.Commands.GuardarNotaInternaTrabajador
+            .GuardarNotaInternaTrabajadorCommand(_detalle!.Id, nota, _detalle.Version));
+
+    /// <summary>
+    /// Relee solo la cabecera (nota y Version) sin el spinner de CargarAsync, que rehará la ficha y perdería el
+    /// borrador del editor. Si falla, la ficha se queda con lo que ya enseñaba: el siguiente guardado dará conflicto.
+    /// </summary>
+    private async Task RecargarTrasNotaInternaAsync()
+    {
+        var trabajadorId = _detalle?.Id;
+        if (trabajadorId is null) return;
+
+        try
+        {
+            var detalle = await Mediator.Send(new ObtenerTrabajadorPorIdQuery(trabajadorId.Value), _ciclo.Token);
+            if (detalle is not null && detalle.Id == _detalle?.Id)
+                _detalle = detalle;
+        }
+        catch (Exception)
+        {
+            // Sin relectura la Version queda vieja: el siguiente guardado dará conflicto y releerá.
+        }
     }
 }

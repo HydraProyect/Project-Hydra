@@ -384,8 +384,11 @@
   <data name="ReclamacionErrorPreparar" xml:space="preserve"><value>No pudimos preparar la reclamación</value></data>
   <data name="ReclamacionErrorPrepararDetalle" xml:space="preserve"><value>Intenta nuevamente en unos segundos.</value></data>
   <data name="ReclamacionReintentar" xml:space="preserve"><value>Reintentar</value></data>
-  <data name="ReclamacionFueraTrabajadores" xml:space="preserve"><value>{0} de {1} documentos son de Trabajadores y se reclaman al Cliente del Centro, no a esta Empresa.</value></data>
+  <data name="ReclamacionFueraTrabajadores" xml:space="preserve"><value>{0} de {1} documentos son de Trabajadores y no entran en este lote de documentos de la Empresa: se reclaman desde «Gestionar» en la ficha de cada Trabajador.</value></data>
   <data name="ReclamacionFueraVentana" xml:space="preserve"><value>{0} de {1} documentos están fuera de la ventana de reclamación o ya no son reclamables.</value></data>
   <data name="ReclamacionNadaTitulo" xml:space="preserve"><value>Nada que reclamar a esta Empresa</value></data>
   <data name="ReclamacionNadaDetalle" xml:space="preserve"><value>Ninguno de estos documentos se puede reclamar a los contactos de esta Empresa desde aquí.</value></data>
+  <data name="ReclamacionDestinoDelegacionEmpresa" xml:space="preserve"><value>Se reclama a la Delegación {0}, a su contacto de reclamación.</value></data>
+  <data name="ReclamacionDestinoEmpresa" xml:space="preserve"><value>Se reclama a la Empresa que emplea a estos Trabajadores, a los contactos de su agenda.</value></data>
+  <data name="ReclamacionDelegacionEmpresaSinContactoVisible" xml:space="preserve"><value>No puedes ver el contacto de reclamación de esta Delegación, así que no puedes enviarle la reclamación.</value></data>
 </root>

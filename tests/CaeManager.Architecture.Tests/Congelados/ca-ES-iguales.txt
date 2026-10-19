@@ -508,12 +508,6 @@ src/CaeManager.Web/Features/Documentos/Recursos/TextosDocumentos.resx :: Confirm
 src/CaeManager.Web/Features/Documentos/Recursos/TextosDocumentos.resx :: ToastLoteRestaurados = 1
 src/CaeManager.Web/Features/Documentos/Recursos/TextosDocumentos.resx :: ToastLoteRestauradosConErrores = 1
 src/CaeManager.Web/Features/Documentos/Recursos/TextosFirmaEnCampo.resx :: DescripcionSinFirmas = 1
-src/CaeManager.Web/Features/Documentos/Recursos/TextosSubidaMasiva.resx :: ArchivoSuperaLimite = 1
-src/CaeManager.Web/Features/Documentos/Recursos/TextosSubidaMasiva.resx :: IndicacionLimites = 1
-src/CaeManager.Web/Features/Documentos/Recursos/TextosSubidaMasiva.resx :: SalirDescartar = 1
-src/CaeManager.Web/Features/Documentos/Recursos/TextosSubidaMasiva.resx :: SalirMensaje = 1
-src/CaeManager.Web/Features/Documentos/Recursos/TextosSubidaMasiva.resx :: SalirSeguir = 1
-src/CaeManager.Web/Features/Documentos/Recursos/TextosSubidaMasiva.resx :: SalirTitulo = 1
 src/CaeManager.Web/Features/Empresas/Recursos/TextosEmpresas.resx :: ToastLoteRestaurados = 1
 src/CaeManager.Web/Features/Empresas/Recursos/TextosEmpresas.resx :: ToastLoteRestauradosConErrores = 1
 src/CaeManager.Web/Features/Gestiones/Recursos/TextosGestiones.resx :: AccionMarcarCompletada = 1
@@ -1095,7 +1089,6 @@ src/CaeManager.Web/Features/TiposDocumento/Recursos/TextosTiposDocumento.resx ::
 src/CaeManager.Web/Features/TiposDocumento/Recursos/TextosTiposDocumento.resx :: VacioFiltrosTitulo = 1
 src/CaeManager.Web/Features/TiposDocumento/Recursos/TextosTiposDocumento.resx :: VistaPreviaExigencia = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AccionCrearGestion = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AccionReclamarFaltantes = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AnilloCumplimiento = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaDocumentacionExigida = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaEditarInformacion = 1
@@ -1112,7 +1105,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Bad
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BotonAsignarACentro = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BotonAsignarIgualmente = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BotonNuevoTrabajador = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BotonQuitarFiltros = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BotonSubirDocumento = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ConfirmarBajaAsignacionMensaje = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ConfirmarBajaAsignacionTitulo = 1
@@ -1207,10 +1199,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Toa
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ToastSinPendientesReclamar = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VacioAsignacionesDescripcion = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VacioAsignacionesTitulo = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VacioDescripcion = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VacioFiltrosDescripcion = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VacioFiltrosTitulo = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VacioTitulo = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VacioVehiculosDescripcion = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VacioVehiculosTitulo = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VentanaIncidenciasUno = 1

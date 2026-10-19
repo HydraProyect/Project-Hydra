@@ -56,6 +56,74 @@ public class SelectorEntidadTests : BunitContext
     }
 
     [Fact]
+    public void Con_PermiteVaciar_borrar_el_texto_y_salir_deja_el_valor_sin_elegir()
+    {
+        string? valorNotificado = null;
+        var cut = Render<SelectorEntidad>(parametros => parametros
+            .Add(p => p.Opciones, TresClientes)
+            .Add(p => p.Valor, "2")
+            .Add(p => p.PermiteVaciar, true)
+            .Add(p => p.ValorChanged, v => valorNotificado = v));
+
+        cut.Find("input").Input(string.Empty);
+        cut.Find("input").Blur();
+
+        valorNotificado.Should().Be(string.Empty);
+    }
+
+    [Fact]
+    public void Con_PermiteVaciar_salir_de_un_campo_vacio_porque_no_llegaron_las_opciones_no_toca_el_valor()
+    {
+        // Un catálogo que no cargó: el campo se ve vacío aunque tiene valor. Entrar y salir sin escribir no lo borra.
+        string? valorNotificado = null;
+        var cut = Render<SelectorEntidad>(parametros => parametros
+            .Add(p => p.Opciones, [])
+            .Add(p => p.Valor, "2")
+            .Add(p => p.PermiteVaciar, true)
+            .Add(p => p.ValorChanged, v => valorNotificado = v));
+        cut.Find("input").GetAttribute("value").Should().BeEmpty();
+
+        cut.Find("input").Focus();
+        cut.Find("input").Blur();
+
+        valorNotificado.Should().BeNull();
+    }
+
+    [Fact]
+    public void Con_PermiteVaciar_escribir_y_volver_a_escribir_no_vacia_si_el_texto_final_no_esta_vacio()
+    {
+        string? valorNotificado = null;
+        var cut = Render<SelectorEntidad>(parametros => parametros
+            .Add(p => p.Opciones, TresClientes)
+            .Add(p => p.Valor, "2")
+            .Add(p => p.PermiteVaciar, true)
+            .Add(p => p.ValorChanged, v => valorNotificado = v));
+
+        cut.Find("input").Input(string.Empty);
+        cut.Find("input").Input("Beb");
+        cut.Find("input").Blur();
+
+        valorNotificado.Should().BeNull();
+        cut.Find("input").GetAttribute("value").Should().Be("Bebidas del Norte S.A.");
+    }
+
+    [Fact]
+    public void Sin_PermiteVaciar_borrar_el_texto_y_salir_vuelve_a_la_opcion_elegida()
+    {
+        string? valorNotificado = null;
+        var cut = Render<SelectorEntidad>(parametros => parametros
+            .Add(p => p.Opciones, TresClientes)
+            .Add(p => p.Valor, "2")
+            .Add(p => p.ValorChanged, v => valorNotificado = v));
+
+        cut.Find("input").Input(string.Empty);
+        cut.Find("input").Blur();
+
+        valorNotificado.Should().BeNull();
+        cut.Find("input").GetAttribute("value").Should().Be("Bebidas del Norte S.A.");
+    }
+
+    [Fact]
     public void Sin_PermiteCrear_no_aparece_ninguna_fila_de_creacion()
     {
         var cut = Render<SelectorEntidad>(parametros => parametros

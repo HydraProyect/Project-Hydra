@@ -118,7 +118,7 @@ public class AltaGuiadaTests(WebAppFixture fixture)
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
-        await page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente o empresa").FillAsync(nombreCentro);
+        await page.GetByPlaceholder("Filtrar esta pantalla: Centro, código, Cliente o Empresa").FillAsync(nombreCentro);
         // Acotado a la lista: el nombre buscado también sale en el chip «Búsqueda: …».
         await page.Locator(".lista-filas-acordeon").GetByText(nombreCentro).WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
     }

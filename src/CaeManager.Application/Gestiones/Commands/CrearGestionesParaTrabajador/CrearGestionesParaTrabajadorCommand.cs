@@ -1,5 +1,6 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -42,6 +43,7 @@ public class CrearGestionesParaTrabajadorCommandHandler(
     ITipoDocumentoRepository tipoDocumentoRepositorio,
     IGestionRepository gestionRepositorio,
     IDetalleSugerenciaGestionCorreoRepository detalleSugerenciaRepositorio,
+    IComunicacionesQueryContext comunicacionesContext,
     IAlcanceDatosService alcanceDatos,
     ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)
@@ -75,13 +77,26 @@ public class CrearGestionesParaTrabajadorCommandHandler(
                 "Gestion.SinCentros", "Este trabajador no tiene ninguna asignación activa a un centro."));
         }
 
+        // El mensaje de origen solo se enlaza si su Conversación está al alcance de quien mira: una
+        // Gestión de esta cartera no puede quedar atada a un hilo de otra. Fuera de alcance, o si no
+        // existe, la Gestión nace sin origen.
+        var mensajeOrigenId = request.MensajeOrigenId is { } mensajeId
+            && await alcanceDatos.MensajeVisibleAsync(comunicacionesContext, mensajeId, cancellationToken)
+                ? mensajeId
+                : (Guid?)null;
+
         foreach (var centroId in centroIds)
         {
             gestionRepositorio.Agregar(new Gestion(
-                request.TrabajadorId, centroId, request.TipoDocumentoId, request.MensajeOrigenId));
+                request.TrabajadorId, centroId, request.TipoDocumentoId, mensajeOrigenId));
         }
 
-        if (request.DetalleSugerenciaGestionCorreoId is { } detalleId)
+        // Asignación de Cartera del ítem sugerido: solo se marca resuelto si quien mira alcanza la
+        // Conversación del mensaje que lo originó, el mismo criterio con el que
+        // ObtenerConversacionPorIdQuery lo enseña. Fuera de alcance se trata igual que un Id que no
+        // existe: las Gestiones del Trabajador nacen, pero el ítem de otra cartera no se toca.
+        if (request.DetalleSugerenciaGestionCorreoId is { } detalleId
+            && await DetalleDentroDeAlcanceAsync(detalleId, cancellationToken))
         {
             var detalle = await detalleSugerenciaRepositorio.ObtenerPorIdAsync(detalleId, cancellationToken);
 
@@ -102,5 +117,17 @@ public class CrearGestionesParaTrabajadorCommandHandler(
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito(new ResultadoCrearGestionesDto(centroIds.Count));
+    }
+
+    private async Task<bool> DetalleDentroDeAlcanceAsync(Guid detalleId, CancellationToken cancellationToken)
+    {
+        var mensajeId = await (
+            from detalle in comunicacionesContext.DetallesSugerenciaGestionCorreo
+            where detalle.Id == detalleId
+            join sugerencia in comunicacionesContext.SugerenciasGestionCorreo on detalle.SugerenciaGestionCorreoId equals sugerencia.Id
+            select (Guid?)sugerencia.MensajeId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return mensajeId is { } id && await alcanceDatos.MensajeVisibleAsync(comunicacionesContext, id, cancellationToken);
     }
 }

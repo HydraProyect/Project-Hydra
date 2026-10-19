@@ -1,6 +1,7 @@
 using Bunit;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
 
@@ -13,6 +14,8 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class IndicadorPasosTests : BunitContext
 {
+    public IndicadorPasosTests() => Services.AddLocalization();
+
     private static readonly IReadOnlyList<PasoDefinicion> TresPasos =
     [
         new("cliente", "Cliente"),

@@ -225,7 +225,9 @@
                                             @if (accion is not null)
                                             {
                                                 <SoloConEscritura>
-                                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => CorregirAsync(fila)">@accion</Boton>
+                                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                           aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(estado.Nombre, fila.Nombre)"
+                                                           OnClick="() => CorregirAsync(fila)">@accion</Boton>
                                                 </SoloConEscritura>
                                             }
                                         </Acciones>
@@ -338,7 +340,9 @@
                     @if (accion is not null)
                     {
                         <SoloConEscritura>
-                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => CorregirAsync(fila)">@accion</Boton>
+                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                   aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(_estado?.Nombre ?? string.Empty, $"{fila.Nombre} · {centro.CentroNombre}")"
+                                   OnClick="() => CorregirAsync(fila)">@accion</Boton>
                         </SoloConEscritura>
                     }
                 </span>

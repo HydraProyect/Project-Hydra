@@ -17,11 +17,10 @@
 @using CaeManager.Web.Components.DesignSystem
 @using MediatR
 @using CaeManager.Web.Features.Trabajadores.Recursos
-@using CaeManager.Web.Features.Documentos.Recursos
+@using CaeManager.Web.Features.Documentos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosTrabajadores> Textos
 @inject IMediator Mediator
-@inject IStringLocalizer<TextosTipoDocumento360> TextosAcciones
 
 @if (_datos is not null)
 {
@@ -55,7 +54,7 @@
             <ul class="panel-doc-base-lista">
                 @foreach (var indicador in _datos.Indicadores)
                 {
-                    <li class="panel-doc-base-fila @(OnCorregirDocumento.HasDelegate ? "panel-doc-base-con-acciones" : null)" @key="indicador.Tipo">
+                    <li class="panel-doc-base-fila @(OnCorregirDocumento.HasDelegate || OnSubirFaltante.HasDelegate ? "panel-doc-base-con-acciones" : null)" @key="indicador.Tipo">
                         <span>@TextoTipo(indicador.Tipo)</span>
                         <Badge Tono="TonoDe(indicador.Estado)" Tamano="TamanoBadge.Pequeno">@TextoEstado(indicador)</Badge>
                         @if (indicador.FechaVencimiento is { } vence && indicador.Estado is EstadoIndicadorBase.Vigente or EstadoIndicadorBase.ProximoAVencer or EstadoIndicadorBase.Vencido)
@@ -63,12 +62,23 @@
                             <span class="panel-doc-base-fecha">@vence.ToString("dd/MM/yyyy")</span>
                         }
                         @if (OnCorregirDocumento.HasDelegate && indicador.DocumentoId is { } documentoId &&
-                            (indicador.Estado is EstadoIndicadorBase.Vencido or EstadoIndicadorBase.SinConfirmar ||
-                             indicador.Estado == EstadoIndicadorBase.ProximoAVencer && DocumentosUrgentes.Contains(documentoId)))
+                            indicador.Estado is EstadoIndicadorBase.Vencido or EstadoIndicadorBase.SinConfirmar or EstadoIndicadorBase.ProximoAVencer or EstadoIndicadorBase.Vigente)
                         {
                             <SoloConEscritura>
+                                @* Confirmar o renovar abren el mismo editor: la fila ofrece una sola acción, «Gestionar»; la del documento vigente, en tono secundario. *@
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                       class="@("accion-fila-enlace" + (indicador.Estado == EstadoIndicadorBase.Vigente ? " " + EstadoDocumentoFicha360.ClaseGestionarDiscreto : string.Empty))"
+                                       aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(TextoTipo(indicador.Tipo))"
+                                       OnClick="() => OnCorregirDocumento.InvokeAsync(documentoId)">@EstadoDocumentoFicha360.TextoAccion</Boton>
+                            </SoloConEscritura>
+                        }
+                        else if (OnSubirFaltante.HasDelegate && indicador.Estado == EstadoIndicadorBase.Falta)
+                        {
+                            @* El que falta no tiene documento que abrir: «Gestionar» lleva a la misma subida que usa la ficha (Nuevo documento con el Trabajador elegido). *@
+                            <SoloConEscritura>
                                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                       OnClick="() => OnCorregirDocumento.InvokeAsync(documentoId)">@TextosAcciones[indicador.Estado == EstadoIndicadorBase.SinConfirmar ? "AccionConfirmar" : "AccionRenovar"]</Boton>
+                                       aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(TextoTipo(indicador.Tipo))"
+                                       OnClick="() => OnSubirFaltante.InvokeAsync()">@EstadoDocumentoFicha360.TextoAccion</Boton>
                             </SoloConEscritura>
                         }
                     </li>
@@ -97,8 +107,8 @@
     /// <summary>La ficha puede abrir su editor existente; los hosts que no lo ofrecen conservan el panel de lectura.</summary>
     [Parameter] public EventCallback<Guid> OnCorregirDocumento { get; set; }
 
-    /// <summary>El indicador reúne Próximo y Urgente; solo un Documento ya cargado con estado Urgente permite distinguirlos.</summary>
-    [Parameter] public IReadOnlySet<Guid> DocumentosUrgentes { get; set; } = new HashSet<Guid>();
+    /// <summary>La ficha abre su subida de un documento que falta; sin ella, un indicador «Falta» no lleva acción.</summary>
+    [Parameter] public EventCallback OnSubirFaltante { get; set; }
 
     protected override async Task OnParametersSetAsync()
     {

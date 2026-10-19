@@ -649,7 +649,7 @@
     <value>Les subcontratas es mostren d'una empresa cada vegada. Tria'n una a la barra lateral.</value>
   </data>
   <data name="ChipNivelServicio" xml:space="preserve">
-    <value>Nivell de servei: {0}</value>
+    <value>Nivell: {0}</value>
   </data>
   <data name="BotonQuitarNivelServicio" xml:space="preserve">
     <value>Treu el filtre de nivell de servei</value>
@@ -673,7 +673,7 @@
     <value>Puja</value>
   </data>
   <data name="AccionVerificar" xml:space="preserve">
-    <value>Verifica</value>
+    <value>Gestionar</value>
   </data>
   <data name="AccionRegistrarVerificacion" xml:space="preserve">
     <value>Registra una verificació</value>
@@ -700,7 +700,7 @@
     <value>Veure l'evidència de {0} a {1}</value>
   </data>
   <data name="AriaVerificar" xml:space="preserve">
-    <value>Verifica {0} a {1}</value>
+    <value>Gestionar {0} a {1}</value>
   </data>
   <data name="BotonCopiarContrasena" xml:space="preserve">
     <value>Copia la contrasenya</value>
@@ -896,4 +896,10 @@
     <value>DNI {0} copiat al porta-retalls</value>
   </data>
   <data name="TituloCopiarCif" xml:space="preserve"><value>Copia el CIF</value></data>
+  <data name="RotuloNivel" xml:space="preserve"><value>Nivell</value></data>
+  <data name="DesplegarIncidenciasSubcontrata" xml:space="preserve"><value>Desplega incidències de {0}</value></data>
+  <data name="GestionarDocumentoAccesible" xml:space="preserve"><value>Gestionar el document {0} de {1}</value></data>
+  <data name="DocumentoDesdeFecha" xml:space="preserve"><value>Va vèncer el {0}</value></data>
+  <data name="DocumentoCaducaFecha" xml:space="preserve"><value>Caduca el {0}</value></data>
+  <data name="AriaSeleccionarPagina" xml:space="preserve"><value>Selecciona les subcontractes d'aquesta pàgina</value></data>
 </root>

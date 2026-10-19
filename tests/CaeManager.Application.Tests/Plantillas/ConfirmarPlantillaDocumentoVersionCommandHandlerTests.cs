@@ -33,7 +33,7 @@ public class ConfirmarPlantillaDocumentoVersionCommandHandlerTests
         PlantillaDocumentoVersionRepositorioFalso versiones, PlantillaDocumentoRepositorioFalso documentos,
         Guid? usuarioId = null, IReadOnlyList<CampoAcroFormDetectado>? camposReales = null) =>
         new(versiones, documentos, new CurrentUserServiceFalso(usuarioId ?? Guid.NewGuid()),
-            new AlmacenamientoFalso(), new ExtractorAcroFormFalso(camposReales ?? []), new UnitOfWorkFalso());
+            new AlmacenamientoFalso(), new ExtractorAcroFormFalso(camposReales ?? []), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
 
     private sealed class ExtractorAcroFormFalso(IReadOnlyList<CampoAcroFormDetectado> campos) : IExtractorCamposAcroFormService
     {
@@ -97,7 +97,7 @@ public class ConfirmarPlantillaDocumentoVersionCommandHandlerTests
         versiones.Agregar(version);
         var handler = new ConfirmarPlantillaDocumentoVersionCommandHandler(
             versiones, documentos, new CurrentUserServiceFalso(usuarioId: null),
-            new AlmacenamientoFalso(), new ExtractorAcroFormFalso([]), new UnitOfWorkFalso());
+            new AlmacenamientoFalso(), new ExtractorAcroFormFalso([]), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(new ConfirmarPlantillaDocumentoVersionCommand(version.Id), CancellationToken.None);
 

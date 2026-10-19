@@ -299,7 +299,7 @@
 .bandeja-grupo-caret {
     display: inline-flex;
     flex-shrink: 0;
-    transition: transform var(--motion-fast) var(--ease-standard);
+    transition: transform var(--motion-transition) var(--ease-fluid);
 }
 
 /* El caret apunta hacia abajo abierto y a la derecha cerrado; el estado lo

@@ -28,6 +28,7 @@ src/CaeManager.Application/Centros/Queries/ObtenerCentroPorId/ObtenerCentroPorId
 src/CaeManager.Application/Centros/Queries/ObtenerCentros/ObtenerCentrosQuery.cs :: ClienteId = 11
 src/CaeManager.Application/Centros/Queries/ObtenerCentrosParaSelector/ObtenerCentrosParaSelectorQuery.cs :: ClienteId = 5
 src/CaeManager.Application/Centros/Queries/ObtenerDocumentacionBloqueantePendiente/ObtenerDocumentacionBloqueantePendienteQuery.cs :: ClienteId = 5
+src/CaeManager.Application/Centros/Queries/ObtenerDocumentacionExigidaDeCliente/ObtenerDocumentacionExigidaDeClienteQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Centros/Queries/ObtenerDocumentacionRequeridaDeCentro/ObtenerDocumentacionRequeridaDeCentroQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Clientes/Commands/ReasignarEjecutivoCliente/ReasignarEjecutivoClienteCommand.cs :: ClienteId = 2
 src/CaeManager.Application/Clientes/Queries/ObtenerCentrosDeCliente/ObtenerCentrosDeClienteQuery.cs :: ClienteId = 4
@@ -43,6 +44,7 @@ src/CaeManager.Application/Clientes/ReasignadorCarteraCliente.cs :: clienteId = 
 src/CaeManager.Application/Common/AlcanceDatosServiceExtensions.cs :: ObtenerClienteIdsVisiblesAsync = 2
 src/CaeManager.Application/Common/AlcanceDatosServiceExtensions.cs :: clienteId = 7
 src/CaeManager.Application/Common/IAlcanceDatosService.cs :: ObtenerClienteIdsVisiblesAsync = 1
+src/CaeManager.Application/Comunicaciones/AlcanceDeMensajesDeConversacion.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Commands/ActualizarDocumentoDesdeAdjunto/ActualizarDocumentoDesdeAdjuntoCommand.cs :: ClienteId = 2
 src/CaeManager.Application/Comunicaciones/Commands/AplicarMacro/AplicarMacroCommand.cs :: ClienteId = 6
 src/CaeManager.Application/Comunicaciones/Commands/AprobarRecordatorioConversacion/AprobarRecordatorioConversacionCommand.cs :: ClienteId = 1
@@ -145,6 +147,7 @@ src/CaeManager.Application/Empresas/Queries/ObtenerClientesDeEmpresa/ObtenerClie
 src/CaeManager.Application/Empresas/Queries/ObtenerEmpresaPorId/ObtenerEmpresaPorIdQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Empresas/Queries/ObtenerEmpresaPorId/ObtenerEmpresaPorIdQuery.cs :: ClienteIds = 1
 src/CaeManager.Application/Empresas/Queries/ObtenerEmpresaPorId/ObtenerEmpresaPorIdQuery.cs :: clienteIds = 2
+src/CaeManager.Application/Empresas/Queries/ObtenerEmpresas/ObtenerEmpresasQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Empresas/Queries/ObtenerEmpresasParaSelector/ObtenerEmpresasParaSelectorQuery.cs :: ClienteId = 4
 src/CaeManager.Application/Facturacion/Commands/CrearTarifaCliente/CrearTarifaClienteCommand.cs :: ClienteId = 5
 src/CaeManager.Application/Facturacion/Queries/ObtenerResumenFacturacion/ObtenerResumenFacturacionQuery.cs :: ClienteId = 14
@@ -170,6 +173,7 @@ src/CaeManager.Application/Integraciones/Queries/ObtenerConexionesIntegracion/Ob
 src/CaeManager.Application/Integraciones/Queries/ObtenerEstructuraBuzon/ObtenerEstructuraBuzonQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Integraciones/Queries/ObtenerLineasWhatsApp/ObtenerLineasWhatsAppQuery.cs :: ClienteId = 4
 src/CaeManager.Application/Integraciones/Queries/ObtenerMensajesCarpeta/ObtenerMensajesCarpetaQuery.cs :: ClienteId = 1
+src/CaeManager.Application/Plantillas/AlcanceDePlantillas.cs :: ClienteId = 1
 src/CaeManager.Application/Plantillas/Commands/CrearPlantillaDocumento/CrearPlantillaDocumentoCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Plantillas/Commands/CrearPlantillaDocumento/CrearPlantillaDocumentoCommandHandler.cs :: ClienteId = 2
 src/CaeManager.Application/Plantillas/Commands/CrearPlantillaDocumento/CrearPlantillaDocumentoCommandHandler.cs :: ObtenerClienteIdsVisiblesAsync = 1
@@ -213,6 +217,14 @@ src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/EnviarReclam
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/EnviarReclamacionCommand.cs :: clienteIdsVisibles = 3
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/RegistroEnvioReclamacionService.cs :: ClienteId = 4
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/RegistroEnvioReclamacionService.cs :: clienteIdDelBuzon = 2
+# «Gestionar» a la Empresa empleadora (2026-10-18): el envío revalida lo reclamable con el mismo join que
+# ObtenerLoteReclamacionQuery (Asignación activa -> Centro -> Centro.ClienteId, columna legacy de Cliente
+# empresarial) y el mismo alcance de Clientes visibles, para no ofrecer ni aceptar lo que el lote no trae.
+# El join queda duplicado con el de EnviarReclamacionCommand a sabiendas: unificarlo es un incremento propio.
+src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacionEmpresaEmpleadora/EnviarReclamacionEmpresaEmpleadoraCommand.cs :: ClienteId = 1
+src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacionEmpresaEmpleadora/EnviarReclamacionEmpresaEmpleadoraCommand.cs :: ObtenerClienteIdsVisiblesAsync = 1
+src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacionEmpresaEmpleadora/EnviarReclamacionEmpresaEmpleadoraCommand.cs :: clienteId = 1
+src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacionEmpresaEmpleadora/EnviarReclamacionEmpresaEmpleadoraCommand.cs :: clienteIdsVisibles = 3
 src/CaeManager.Application/Reclamaciones/PendientesDeReclamacionService.cs :: ClienteId = 10
 src/CaeManager.Application/Reclamaciones/PendientesDeReclamacionService.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Reclamaciones/PendientesDeReclamacionService.cs :: clienteId = 7
@@ -443,14 +455,22 @@ src/CaeManager.Web/Features/Centros/Pages/Centros.razor.cs :: ClienteId = 9
 src/CaeManager.Web/Features/Centros/Pages/Centros.razor.cs :: ClienteIdParaFormularioRapido = 1
 src/CaeManager.Web/Features/Centros/Pages/Centros.razor.cs :: _clienteId = 9
 src/CaeManager.Web/Features/Centros/Pages/Centros.razor.cs :: clienteId = 6
+src/CaeManager.Web/Features/Clientes/Components/DocumentosExigidosCliente.razor :: ClienteId = 4
 src/CaeManager.Web/Features/Clientes/Pages/AltaGuiada.razor :: _clienteId = 2
 src/CaeManager.Web/Features/Clientes/Pages/AltaGuiada.razor.cs :: ClienteIdEntrada = 2
 src/CaeManager.Web/Features/Clientes/Pages/AltaGuiada.razor.cs :: ClienteIds = 4
 src/CaeManager.Web/Features/Clientes/Pages/AltaGuiada.razor.cs :: _clienteId = 12
 src/CaeManager.Web/Features/Clientes/Pages/AltaGuiada.razor.cs :: clienteId = 21
 src/CaeManager.Web/Features/Clientes/Pages/AltaGuiada.razor.cs :: clienteIds = 6
-src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor :: ClienteId = 6
+# Plataforma CAE de Cliente 360 (2026-10-18): las tablas nuevas usan ClienteEmpresarialId; quedan el join
+# con RelacionEmpresarial.ClienteId (columna legacy) y el parámetro de ruta de la ficha que se pasa a la caja.
+src/CaeManager.Application/Clientes/Commands/GuardarAccesoPlataformaCae/GuardarAccesoPlataformaCaeCommand.cs :: ClienteId = 1
+src/CaeManager.Application/Clientes/Commands/GuardarPlataformaCaeCliente/GuardarPlataformaCaeClienteCommand.cs :: ClienteId = 1
+src/CaeManager.Application/Clientes/Queries/ObtenerAccesosPlataformaCaeCliente/ObtenerAccesosPlataformaCaeClienteQuery.cs :: ClienteId = 1
+src/CaeManager.Application/Clientes/Queries/RevelarContrasenaAccesoPlataformaCae/RevelarContrasenaAccesoPlataformaCaeQuery.cs :: ClienteId = 1
+src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor :: ClienteId = 7
 src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor.cs :: ClienteId = 12
+src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor.cs :: ClienteId = 1
 src/CaeManager.Web/Features/Clientes/Pages/ConfiguracionIaCliente.razor :: ClienteId = 1
 src/CaeManager.Web/Features/Clientes/Pages/ConfiguracionIaCliente.razor.cs :: ClienteId = 7
 src/CaeManager.Web/Features/Clientes/Pages/ConfiguracionIaCliente.razor.cs :: clienteId = 15
@@ -482,7 +502,7 @@ src/CaeManager.Web/Features/Empresas/Components/FormularioRapidoEmpresa.razor.cs
 src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor :: _clienteIdsSeleccionados = 1
 src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor.cs :: ClienteId = 7
 src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor.cs :: _clienteIdsSeleccionados = 8
-src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor.cs :: clienteId = 5
+src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor.cs :: clienteId = 3
 src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor.cs :: clienteIds = 5
 src/CaeManager.Web/Features/Facturacion/FacturacionEndpoints.cs :: clienteId = 2
 src/CaeManager.Web/Features/Facturacion/Pages/Facturacion.razor.cs :: ClienteId = 2

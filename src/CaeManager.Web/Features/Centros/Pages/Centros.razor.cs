@@ -56,14 +56,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     private bool _opcionesFiltroCargadas;
 
-    /// <summary>Agrupación por Cliente empresarial: de serie, sí.</summary>
-    private bool _agruparPorCliente = true;
-
-    /// <summary>
-    /// Grupos abiertos, por Id del Cliente empresarial. Sobrevive a las recargas (el Id es estable
-    /// entre páginas y filtros) y se vacía al cambiar la agrupación.
-    /// </summary>
-    private readonly HashSet<Guid> _gruposAbiertos = [];
+    /// <summary>Agrupación «Por Cliente»: de serie, no (como en la maqueta); se pide con «agrupar=cliente» en la URL.</summary>
+    private bool _agruparPorCliente;
 
     /// <summary>
     /// Total y Centros por estado de cada Cliente empresarial, contando todas las páginas: lo da la consulta
@@ -198,8 +192,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     public string? EmpresaFiltroInicial { get; set; }
 
     /// <summary>
-    /// Agrupación de la lista, como la lee <see cref="Agrupacion"/>: ausente, la de fábrica (por Cliente
-    /// empresarial); <c>no</c>, sin agrupar; <c>cliente</c>, por Cliente empresarial; otro valor, la de fábrica.
+    /// Agrupación de la lista, como la lee <see cref="Agrupacion"/>: ausente, la de fábrica (sin agrupar);
+    /// <c>cliente</c>, por Cliente empresarial; <c>no</c> u otro valor, sin agrupar.
     /// </summary>
     [SupplyParameterFromQuery(Name = AgrupacionDeLista.Parametro)]
     public string? AgruparInicial { get; set; }
@@ -211,14 +205,25 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Clave en la URL de la única agrupación que ofrece Centros: por Cliente empresarial.</summary>
     private const string AgruparPorClienteClave = "cliente";
 
-    /// <summary>Centros nace agrupado por Cliente empresarial y no ofrece otra agrupación.</summary>
-    private static readonly AgrupacionDeLista Agrupacion = new(AgruparPorClienteClave, AgruparPorClienteClave);
+    /// <summary>Centros nace sin agrupar (maqueta) y no ofrece otra agrupación que «Por Cliente».</summary>
+    private static readonly AgrupacionDeLista Agrupacion = new(null, AgruparPorClienteClave);
 
-    /// <summary>
-    /// Opciones del desplegable «Agrupar». El campo se rotula con el mismo texto que su pastilla de filtro,
-    /// así que los dos dicen siempre lo mismo.
-    /// </summary>
-    private IReadOnlyList<OpcionAgrupar> OpcionesAgrupar => [new(AgruparPorClienteClave, Textos["FiltroClienteEmpresarial"])];
+    /// <summary>La pastilla «Agrupar»: «Sin agrupar» (valor vacío, el «todos» de la pastilla) y «Por Cliente».</summary>
+    private IReadOnlyList<OpcionEstado> OpcionesAgrupacion => [new OpcionEstado(AgruparPorClienteClave, Textos["AgruparPorCliente"].Value)];
+
+    private string ValorAgrupacion => ClaveDeAgrupacion ?? string.Empty;
+
+    /// <summary>Cambia la agrupación y la escribe en la URL en una sola navegación (<see cref="AgrupacionDeLista.ParaUrl"/>).</summary>
+    private Task CambiarAgrupacionAsync(string? valor)
+    {
+        var clave = string.IsNullOrEmpty(valor) ? null : valor;
+        AplicarAgrupacion(clave == AgruparPorClienteClave);
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            [AgrupacionDeLista.Parametro] = Agrupacion.ParaUrl(clave),
+        });
+        return Task.CompletedTask;
+    }
 
     private bool AgrupaPorClienteSegunLaUrl => AgrupaPorCliente(AgruparInicial);
 
@@ -801,16 +806,6 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             .DefaultIfEmpty(0)
             .Max();
 
-        /// <summary>
-        /// Tinte del peor estado: peligro antes que aviso. La cabecera incluye Próximo en «por vencer»;
-        /// las filas y el orden del grupo conservan su criterio propio.
-        /// </summary>
-        public TinteGrupoLista Tinte => Peor switch
-        {
-            2 => TinteGrupoLista.Peligro,
-            _ when PorEstado.GetValueOrDefault(nameof(EstadoCentro.Urgente)) + PorEstado.GetValueOrDefault(nameof(EstadoCentro.Proximo)) > 0 => TinteGrupoLista.Aviso,
-            _ => TinteGrupoLista.Ninguno,
-        };
     }
 
     /// <summary>
@@ -855,86 +850,39 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     }
 
     /// <summary>
-    /// Resumen por estado de la cabecera de grupo: un punto y «N estado» por cada botón de la franja de estado
-    /// (<see cref="EstadoCentroUi.Franja"/>: mismo orden, de peor a mejor, y misma agrupación, «por vencer»
-    /// suma Urgente y Próximo) que tenga algún Centro. Lo que no es un problema no se lista: ni lo vigente ni lo
-    /// que no requiere gestión CAE.
+    /// El recuento del título de grupo cuenta las filas de esta página: con más de una página no es el total del
+    /// grupo y lo dice, para que no se lea como tal.
     /// </summary>
-    private IReadOnlyList<ResumenEstadoGrupo> ResumenDe(GrupoCentros grupo) =>
-        EstadoCentroUi.Franja
-            .Where(opcion => opcion.Tono is not (TonoBadge.Exito or TonoBadge.Neutro))
-            .Select(opcion => (Opcion: opcion, Cuantos: opcion.Valores.Sum(estado => grupo.PorEstado.GetValueOrDefault(estado))))
-            .Where(estado => estado.Cuantos > 0)
-            .Select(estado => new ResumenEstadoGrupo(estado.Opcion.Tono, TextoDeResumen(estado.Opcion, estado.Cuantos)))
-            .ToList();
+    private string RecuentoDeGrupo(int cantidad) =>
+        Textos[TotalPaginas > 1 ? "RecuentoGrupoEnPagina" : "RecuentoGrupo", cantidad].Value;
 
-    /// <summary>«1 vencido», «3 vencidos»: el rótulo del estado en minúscula y en su número. «Por vencer» no varía.</summary>
-    private string TextoDeResumen(OpcionFranjaEstado opcion, int cuantos) => opcion.Valores[0] switch
+    /// <summary>
+    /// Las filas de la página con el título del grupo en la primera de cada uno cuando se agrupa «Por Cliente»
+    /// (los grupos en el orden de <see cref="Grupos"/>, y dentro de cada uno el de la consulta). <c>Cantidad</c> es
+    /// cuántas filas tiene el grupo EN ESTA PÁGINA. Sin agrupar, ninguna fila lleva título.
+    /// </summary>
+    private IEnumerable<(CentroListaDto Centro, GrupoCentros? Grupo, int Cantidad)> FilasConGrupo()
     {
-        nameof(EstadoCentro.Bloqueado) => Textos[cuantos == 1 ? "GrupoResumenBloqueoUno" : "GrupoResumenBloqueoVarios", cuantos],
-        nameof(EstadoCentro.Vencido) => Textos[cuantos == 1 ? "GrupoResumenVencidoUno" : "GrupoResumenVencidoVarios", cuantos],
-        nameof(EstadoCentro.Faltante) => Textos[cuantos == 1 ? "GrupoResumenPendienteUno" : "GrupoResumenPendienteVarios", cuantos],
-        nameof(EstadoCentro.Urgente) => Textos["GrupoPorVencer", cuantos],
-        _ => $"{cuantos} {opcion.Texto}",
-    };
+        if (!_agruparPorCliente)
+        {
+            foreach (var centro in _elementosPagina)
+                yield return (centro, null, 0);
+            yield break;
+        }
+
+        foreach (var grupo in Grupos)
+        {
+            for (var i = 0; i < grupo.Centros.Count; i++)
+                yield return i == 0 ? (grupo.Centros[i], grupo, grupo.Centros.Count) : (grupo.Centros[i], null, 0);
+        }
+    }
+
+    private string ClaseRejilla(string claseBase) =>
+        $"{claseBase} rejilla-centros" + (_seleccionMultiple ? " rejilla-centros-seleccion" : string.Empty);
 
     /// <summary>Filas en el orden en que se pintan: agrupadas, las de cada grupo seguidas.</summary>
     private IEnumerable<CentroListaDto> FilasEnOrden(IReadOnlyList<GrupoCentros> grupos) =>
         _agruparPorCliente ? grupos.SelectMany(g => g.Centros) : _elementosPagina;
-
-    /// <summary>Filas que se ven (fuera de los grupos contraídos): las que recorren j/k.</summary>
-    private List<CentroListaDto> FilasVisibles() =>
-        FilasEnOrden(Grupos).Where(c => GrupoAbierto(ClienteEmpresarialDe(c))).ToList();
-
-    /// <summary>
-    /// Un grupo se ve abierto si se abrió, y además siempre que haya búsqueda (lo buscado no se
-    /// esconde), un Centro concreto en la URL (el enlace profundo lleva a él) o la selección múltiple
-    /// esté activa: «Seleccionar los de esta página» y la barra de lote actúan sobre filas que se ven.
-    /// </summary>
-    private bool GrupoAbierto(Guid clienteEmpresarialId) =>
-        GruposForzadosAbiertos || _gruposAbiertos.Contains(clienteEmpresarialId);
-
-    /// <summary>
-    /// Todos los grupos se ven abiertos por algo ajeno a ellos (sin agrupar, búsqueda, Centro en la URL,
-    /// selección múltiple): su cabecera no puede contraerlos, así que no se pinta como botón.
-    /// </summary>
-    private bool GruposForzadosAbiertos =>
-        !_agruparPorCliente
-        || !string.IsNullOrWhiteSpace(_busqueda)
-        || _centroIdFiltro is not null
-        || _seleccionMultiple
-        || _seleccionados.Count > 0;
-
-    private void AlternarGrupo(Guid clienteEmpresarialId)
-    {
-        if (!_gruposAbiertos.Add(clienteEmpresarialId))
-            _gruposAbiertos.Remove(clienteEmpresarialId);
-
-        DesenfocarSiOculta();
-    }
-
-    /// <summary>
-    /// La fila enfocada (j/k) deja de verse al contraer su grupo: se suelta el foco, para que x y Enter
-    /// no actúen sobre un Centro que no está en pantalla (x lo marcaría para la baja en lote).
-    /// </summary>
-    private void DesenfocarSiOculta()
-    {
-        if (_idEnfocado is { } id && !FilasVisibles().Any(c => c.Id == id))
-            _idEnfocado = null;
-    }
-
-    /// <summary>
-    /// El desplegable «Agrupar»: cambia la agrupación y la escribe en la URL en una sola navegación
-    /// (<see cref="AgrupacionDeLista.ParaUrl"/>: la de fábrica no deja rastro, sin agrupar es <c>agrupar=no</c>).
-    /// </summary>
-    private void CambiarAgrupacion(string? clave)
-    {
-        AplicarAgrupacion(clave == AgruparPorClienteClave);
-        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
-        {
-            [AgrupacionDeLista.Parametro] = Agrupacion.ParaUrl(clave),
-        });
-    }
 
     private void AplicarAgrupacion(bool agrupar)
     {
@@ -942,7 +890,6 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             return;
 
         _agruparPorCliente = agrupar;
-        _gruposAbiertos.Clear();
         _idEnfocado = null;
     }
 
@@ -1005,19 +952,6 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     private string EtiquetaFiltroBusqueda => Textos["ChipBusqueda", _busqueda].Value;
 
-
-    /// <summary>«N centros»; con filtros, dice que el número es el de los que coinciden.</summary>
-    private string TextoConteo
-    {
-        get
-        {
-            var uno = _totalElementos == 1;
-            var clave = HayFiltrosActivos
-                ? (uno ? "ConteoUnoFiltrado" : "ConteoVariosFiltrado")
-                : (uno ? "ConteoUno" : "ConteoVarios");
-            return Textos[clave, _totalElementos].Value;
-        }
-    }
 
     private async Task AbrirCrearAsync()
     {
@@ -1258,17 +1192,23 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     {
         _seleccionMultiple = activa;
         if (!activa)
-        {
             _seleccionados.Clear();
-            // Sin selección múltiple los grupos vuelven a su estado: la fila enfocada puede quedar oculta.
-            DesenfocarSiOculta();
-        }
     }
 
-    /// <summary>Todo abierto: los grupos (si se agrupa) y el desplegable de cada fila.</summary>
+    /// <summary>
+    /// El Centro tiene algo que desplegar (maqueta: «tieneHijos»): un estado con trabajo pendiente o algún recuento de
+    /// vencidos o próximos. Un Centro vigente, sin datos o que no requiere gestión CAE no lleva chevron.
+    /// </summary>
+    private static bool TieneDesplegable(CentroListaDto centro) =>
+        centro.Estado is not (EstadoCentro.Vigente or EstadoCentro.SinGestionCae)
+        || centro.Recuentos.TotalVencidas > 0 || centro.Recuentos.TotalProximas > 0;
+
+    private bool HayFilasDesplegables => _elementosPagina.Any(TieneDesplegable);
+
+    /// <summary>Todo abierto: el desplegable de cada fila que lo tiene.</summary>
     private bool TodosExpandidos =>
-        _elementosPagina.Count > 0
-        && _elementosPagina.All(e => _expandidos.Contains(e.Id) && GrupoAbierto(ClienteEmpresarialDe(e)));
+        HayFilasDesplegables
+        && _elementosPagina.Where(TieneDesplegable).All(e => _expandidos.Contains(e.Id));
 
     private void AlternarExpansion(Guid id)
     {
@@ -1280,17 +1220,12 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     {
         if (expandir)
         {
-            foreach (var elemento in _elementosPagina)
-            {
+            foreach (var elemento in _elementosPagina.Where(TieneDesplegable))
                 _expandidos.Add(elemento.Id);
-                _gruposAbiertos.Add(ClienteEmpresarialDe(elemento));
-            }
         }
         else
         {
             _expandidos.Clear();
-            _gruposAbiertos.Clear();
-            DesenfocarSiOculta();
         }
     }
 
@@ -1388,8 +1323,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private async Task ManejarAtajoAsync(string tecla)
     {
         // «e» no depende de que haya filas a la vista: sin fila enfocada edita la ficha que esté
-        // abierta, aunque el filtro haya dejado la lista vacía. La fila enfocada siempre se ve:
-        // contraer su grupo o recargar la lista la olvida (DesenfocarSiOculta).
+        // abierta, aunque el filtro haya dejado la lista vacía.
         if (tecla == "e")
         {
             if ((_idEnfocado ?? CentroEnVistaRapida) is { } idEditar)
@@ -1397,8 +1331,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             return;
         }
 
-        // j/k recorren las filas que se ven, en el orden en que se pintan (los grupos contraídos no cuentan).
-        var filas = FilasVisibles();
+        // j/k recorren las filas, en el orden en que se pintan.
+        var filas = FilasEnOrden(Grupos).ToList();
         if (filas.Count == 0) return;
 
         switch (tecla)
@@ -1415,9 +1349,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
                     _idEnfocado = filas[Math.Max(indiceActual - 1, 0)].Id;
                     break;
                 }
-            // x y Enter solo sobre una fila que se ve: un foco que quedó en un grupo contraído no cuenta.
-            // x activa la selección múltiple (como en la maqueta): con ella los grupos se ven abiertos y la
-            // casilla de la fila marcada está a la vista, así que el lote nunca lleva un Centro oculto.
+            // x activa la selección múltiple (como en la maqueta): la casilla de la fila marcada está a la vista,
+            // así que el lote nunca lleva un Centro oculto.
             case "x":
                 if (_idEnfocado is { } idAlternar && filas.Any(e => e.Id == idAlternar))
                 {
@@ -1446,21 +1379,6 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private bool _ordenDescendente;
 
     private bool OrdenPorCumplimiento => _ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje);
-
-    /// <summary>
-    /// Segunda línea de la identidad: el código, y además el Cliente empresarial cuando no se agrupa (agrupado,
-    /// ya lo dice la cabecera del grupo). Vacía si no hay nada que decir. Van por separado, y la página las
-    /// une con « · », porque el resaltado de la búsqueda se aplica campo a campo.
-    /// </summary>
-    private List<string> PartesMetaCentro(CentroListaDto centro)
-    {
-        var partes = new List<string>(2);
-        if (!_agruparPorCliente)
-            partes.Add(centro.ClienteRazonSocial);
-        if (!string.IsNullOrEmpty(centro.CodigoCentro))
-            partes.Add(centro.CodigoCentro);
-        return partes;
-    }
 
     private async Task CambiarOrdenAsync(string? ordenarPor)
     {

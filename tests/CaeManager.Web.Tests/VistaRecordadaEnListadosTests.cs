@@ -144,6 +144,9 @@ public class VistaRecordadaEnListadosTests : BunitContext
             return (TResponse)Responder(request)!;
         }
 
+        /// <summary>Trabajadores que devuelve la lista; vacía por defecto. Con filas aparece la cabecera de columnas que ordena.</summary>
+        public List<TrabajadorListaDto> Trabajadores { get; } = [];
+
         private object? Responder(object request)
         {
             object? respuesta = request switch
@@ -158,7 +161,7 @@ public class VistaRecordadaEnListadosTests : BunitContext
                 ObtenerSubcontratasQuery q => new ResultadoPaginado<SubcontrataListaDto>([], 0, q.Pagina, q.TamanoPagina),
                 ObtenerVehiculosQuery q => new ResultadoPaginado<VehiculoListaDto>([], 0, q.Pagina, q.TamanoPagina),
                 ObtenerGestionesQuery q => new ResultadoPaginado<GestionListaDto>([], 0, q.Pagina, q.TamanoPagina),
-                ObtenerTrabajadoresQuery q => new ResultadoPaginado<TrabajadorListaDto>([], 0, q.Pagina, q.TamanoPagina),
+                ObtenerTrabajadoresQuery q => new ResultadoPaginado<TrabajadorListaDto>(Trabajadores.ToList(), Trabajadores.Count, q.Pagina, q.TamanoPagina),
                 ObtenerProyectosQuery => (IReadOnlyList<ProyectoListaDto>)[],
                 ObtenerVisitasQuery q => new ResultadoPaginado<VisitaListaDto>([], 0, q.Pagina, q.TamanoPagina),
                 ObtenerTrabajadoresParaSelectorQuery => Array.Empty<TrabajadorSelectorDto>(),
@@ -300,7 +303,7 @@ public class VistaRecordadaEnListadosTests : BunitContext
     {
         var recordada = ConVistaRecordada(PantallasConVistaRecordada.Centros,
             ("q", "Nave"), ("estado", "Vencido"), ("cliente", ClienteA.ToString()), ("empresa", EmpresaE.ToString()),
-            ("agrupar", "no"), ("orden", "cumplimiento-desc"));
+            ("agrupar", "cliente"), ("orden", "cumplimiento-desc"));
 
         var cut = Renderizar<Centros>("centros");
 
@@ -672,10 +675,11 @@ public class VistaRecordadaEnListadosTests : BunitContext
     [Fact]
     public async Task Trabajadores_ordenar_por_una_columna_lo_escribe_en_la_url()
     {
+        _mediador.Trabajadores.Add(new TrabajadorListaDto(Guid.NewGuid(), "Ana", "Alonso", "12345678Z", "Montajes Ebro S.L.", CaeManager.Domain.Documentos.EstadoDocumento.Vigente));
         var cut = Renderizar<Trabajadores>("trabajadores");
         ParametrosDeLaUrl().Should().NotContainKey("orden", "control: el orden de fábrica no viaja");
 
-        await cut.FindAll("thead th button.col-title").First().ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".cabecera-columnas-trabajadores button.col-title").First().ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().Contain("orden", "trabajador"));
         Ultima<ObtenerTrabajadoresQuery>().Should().Match<ObtenerTrabajadoresQuery>(q =>

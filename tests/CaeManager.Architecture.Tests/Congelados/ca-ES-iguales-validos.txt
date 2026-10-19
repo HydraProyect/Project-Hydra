@@ -29,3 +29,6 @@ Nota interna
 # 2026-10-12 (icono de exportación de listados): «exportar» y la preposición «a» se escriben
 # igual en ambas lenguas; Excel es el nombre propio del producto, sin traducción.
 Exportar a Excel
+#
+# Los formatos de archivo que admite la subida múltiple se escriben igual en cualquier lengua (siglas).
+PDF · JPG · PNG · DOCX · ZIP

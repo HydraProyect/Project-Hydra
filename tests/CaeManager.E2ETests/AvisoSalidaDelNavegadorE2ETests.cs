@@ -63,7 +63,7 @@ public class AvisoSalidaDelNavegadorE2ETests(WebAppFixtureListados fixture)
         // Se espera a que exista, no se lee la lista una vez: al hacerse interactiva, la página cambia las filas
         // prerenderizadas por el esqueleto de carga y una lectura hecha en ese hueco encuentra la lista vacía.
         const string rotulosDeLaLista =
-            "[...document.querySelectorAll('tbody tr.fila-pulsable button.nombre-abre-vista-rapida')].map(b => b.getAttribute('aria-label') ?? '')";
+            "[...document.querySelectorAll('.marco-lista-trabajadores .fila-pulsable button.nombre-abre-vista-rapida')].map(b => b.getAttribute('aria-label') ?? '')";
         string rotulo;
         try
         {
@@ -84,7 +84,7 @@ public class AvisoSalidaDelNavegadorE2ETests(WebAppFixtureListados fixture)
         // Las filas prerenderizadas ya se pueden pulsar, pero su manejador no existe hasta que la página es
         // interactiva: un clic anterior se pierde sin error. Abrir la ficha es una asignación, no un interruptor,
         // así que se repite hasta que la ficha aparece (mismo criterio que Ayudas.SeleccionarFilaBandejaAsync).
-        var nombre = page.Locator("tbody tr.fila-pulsable").GetByRole(AriaRole.Button,
+        var nombre = page.Locator(".marco-lista-trabajadores .fila-pulsable").GetByRole(AriaRole.Button,
             new LocatorGetByRoleOptions { Name = rotulo, Exact = true });
         var panel = page.Locator(".workspace-panel");
         var lapiz = panel.Locator("button[aria-label='Editar información del trabajador']");
@@ -179,6 +179,6 @@ public class AvisoSalidaDelNavegadorE2ETests(WebAppFixtureListados fixture)
         await ResponderAsync(page, "Salir y descartar");
         await Expect(page).ToHaveURLAsync(new Regex(@"/trabajadores$"));
         await Expect(page).ToHaveTitleAsync(new Regex("trabajadores", RegexOptions.IgnoreCase));
-        await Expect(page.Locator("tbody tr.fila-pulsable")).Not.ToHaveCountAsync(0);
+        await Expect(page.Locator(".marco-lista-trabajadores .fila-pulsable")).Not.ToHaveCountAsync(0);
     }
 }

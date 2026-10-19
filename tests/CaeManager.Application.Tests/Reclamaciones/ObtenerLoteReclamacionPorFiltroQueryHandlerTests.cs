@@ -16,6 +16,9 @@ namespace CaeManager.Application.Tests.Reclamaciones;
 /// </summary>
 public class ObtenerLoteReclamacionPorFiltroQueryHandlerTests
 {
+    // Sin PorEmpresaEmpleadora el dispatcher no toca el servicio de la Empresa empleadora (lo cubre ReclamacionEmpresaEmpleadoraTests).
+    private static readonly ReclamacionEmpresaEmpleadoraService SinEmpresaEmpleadora = null!;
+
     [Fact]
     public async Task Ambito_Trabajador_traduce_EntidadId_a_TrabajadorId_y_delega_en_ObtenerLoteReclamacionQuery()
     {
@@ -30,7 +33,7 @@ public class ObtenerLoteReclamacionPorFiltroQueryHandlerTests
                 new LoteReclamacionClienteDto(clienteId, "Cliente de prueba", null, [])
             ]
         };
-        var handler = new ObtenerLoteReclamacionPorFiltroQueryHandler(mediator);
+        var handler = new ObtenerLoteReclamacionPorFiltroQueryHandler(mediator, SinEmpresaEmpleadora);
 
         var filtro = new FiltroLoteDocumental(AmbitoAplicacion.Trabajador, [tipoDocumentoId], trabajadorId);
         var lotes = await handler.Handle(new ObtenerLoteReclamacionPorFiltroQuery(filtro), CancellationToken.None);
@@ -51,7 +54,7 @@ public class ObtenerLoteReclamacionPorFiltroQueryHandlerTests
     public async Task TipoDocumentoIds_vacio_se_traduce_a_null_para_no_filtrar_por_tipo()
     {
         var mediator = new MediatorFalso { Respuesta = (IReadOnlyList<LoteReclamacionClienteDto>)[] };
-        var handler = new ObtenerLoteReclamacionPorFiltroQueryHandler(mediator);
+        var handler = new ObtenerLoteReclamacionPorFiltroQueryHandler(mediator, SinEmpresaEmpleadora);
 
         var filtro = new FiltroLoteDocumental(AmbitoAplicacion.Trabajador, [], EntidadId: null);
         await handler.Handle(new ObtenerLoteReclamacionPorFiltroQuery(filtro), CancellationToken.None);
@@ -74,7 +77,7 @@ public class ObtenerLoteReclamacionPorFiltroQueryHandlerTests
                 new LoteReclamacionEmpresaDto(empresaId, "Contratista de prueba S.L.", null, [])
             ]
         };
-        var handler = new ObtenerLoteReclamacionPorFiltroQueryHandler(mediator);
+        var handler = new ObtenerLoteReclamacionPorFiltroQueryHandler(mediator, SinEmpresaEmpleadora);
 
         var filtro = new FiltroLoteDocumental(AmbitoAplicacion.Empresa, [tipoDocumentoId], empresaId);
         var lotes = await handler.Handle(new ObtenerLoteReclamacionPorFiltroQuery(filtro), CancellationToken.None);
@@ -98,7 +101,7 @@ public class ObtenerLoteReclamacionPorFiltroQueryHandlerTests
     public async Task Ambito_Empresa_con_EntidadId_null_pide_todas_las_Empresas_visibles()
     {
         var mediator = new MediatorFalso { Respuesta = (IReadOnlyList<LoteReclamacionEmpresaDto>)[] };
-        var handler = new ObtenerLoteReclamacionPorFiltroQueryHandler(mediator);
+        var handler = new ObtenerLoteReclamacionPorFiltroQueryHandler(mediator, SinEmpresaEmpleadora);
 
         var filtro = new FiltroLoteDocumental(AmbitoAplicacion.Empresa, [], EntidadId: null);
         await handler.Handle(new ObtenerLoteReclamacionPorFiltroQuery(filtro), CancellationToken.None);
@@ -120,7 +123,7 @@ public class ObtenerLoteReclamacionPorFiltroQueryHandlerTests
         // él, y un ámbito que SelectorLoteDocumental no debería haber ofrecido
         // nunca no puede devolver silenciosamente "nada pendiente" — eso se
         // confundiría con ausencia real de datos.
-        var handler = new ObtenerLoteReclamacionPorFiltroQueryHandler(new MediatorFalso());
+        var handler = new ObtenerLoteReclamacionPorFiltroQueryHandler(new MediatorFalso(), SinEmpresaEmpleadora);
 
         var filtro = new FiltroLoteDocumental(ambito, [], null);
         var accion = () => handler.Handle(new ObtenerLoteReclamacionPorFiltroQuery(filtro), CancellationToken.None);

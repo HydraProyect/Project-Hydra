@@ -175,8 +175,16 @@
     [
         .. HayCajaAcceso ? new[] { new CajaFicha("acceso", CajaDeAcceso) } : [],
         .. _detalle?.FichaVisible == true ? new[] { new CajaFicha("firma-documentos", CajaFirmaDocumentos), new CajaFicha("prevencion", CajaPrevencion), new CajaFicha("mutua", CajaMutua), new CajaFicha("formacion", CajaFormacion) } : [],
-        .. HayCajaSello ? new[] { new CajaFicha("sello", CajaDeSello) } : []
+        .. HayCajaSello ? new[] { new CajaFicha("sello", CajaDeSello) } : [],
+        new CajaFicha("catalogo-trabajadores", CajaDeCatalogoTrabajadores)
     ];
+
+    // Catálogo de delegaciones y oficios de la Empresa (decisión de Chris, 2026-10-18). No cuenta en HayCajasDeFicha: quien ve la
+    // pestaña Ficha lo ve; no es motivo para que la pestaña exista.
+    private RenderFragment CajaDeCatalogoTrabajadores => __builder =>
+    {
+        <CatalogoTrabajadoresEmpresaCaja EmpresaId="_detalle!.Id" />
+    };
 
     private RenderFragment AccionEditarFicha => @<SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _editorFichaVisible = true">@Textos["FichaEditarEnlace"]</Boton></SoloConEscritura>;
 
@@ -348,6 +356,25 @@
                     @Chip(FiltroTrabajadores.PorVencer, Textos["ChipPorVencer", r.PorVencer])
                     @Chip(FiltroTrabajadores.AlDia, Textos["ChipAlDia", r.AlDia])
                 </div>
+                @* Delegación, Oficio y «Agrupar»: solo si la Empresa tiene catálogo, o si hay una agrupación activa (que así
+                   siempre se puede quitar). Las opciones son las de ESTA Empresa. *@
+                @if (OfrecerPastillasDeCatalogo)
+                {
+                    <div class="empresa360-pastillas" role="group" aria-label="@Textos["EtiquetaFiltrosCatalogo"]">
+                        @if (TieneDelegacionesEmpresa)
+                        {
+                            <PastillaFiltro Etiqueta="@Textos["EtiquetaDelegacionEmpresaFiltro"]" TextoTodos="@Textos["OpcionTodasLasDelegacionesEmpresa"]" Valor="@_delegacionId"
+                                            ValorChanged="CambiarDelegacionEmpresaAsync" Opciones="OpcionesDelegacionEmpresa" />
+                        }
+                        @if (TieneOficios)
+                        {
+                            <PastillaFiltro Etiqueta="@Textos["EtiquetaOficioFiltro"]" TextoTodos="@Textos["OpcionTodosLosOficios"]" Valor="@_oficioId"
+                                            ValorChanged="CambiarOficioAsync" Opciones="OpcionesOficio" />
+                        }
+                        <PastillaFiltro Etiqueta="@Textos["EtiquetaAgrupar"]" TextoTodos="@Textos["OpcionSinAgrupar"]" Valor="@_agrupar"
+                                        ValorChanged="CambiarAgrupacionAsync" Opciones="OpcionesAgrupacion" Keytip="A" />
+                    </div>
+                }
 
                 @if (TotalDelFiltro == 0)
                 {
@@ -358,8 +385,14 @@
                 }
                 else
                 {
-                    <ListaRelaciones Etiqueta="@Textos["ListaTrabajadores"]">
-                        @foreach (var trabajador in _filas)
+                    @foreach (var (tituloGrupo, filasGrupo) in GruposDeFilas())
+                    {
+                    @if (tituloGrupo is not null)
+                    {
+                        <h3 class="empresa360-grupo" data-grupo="@tituloGrupo" data-agrupar="@_agrupar">@tituloGrupo<span class="empresa360-grupo-recuento"> · @filasGrupo.Count</span></h3>
+                    }
+                    <ListaRelaciones Etiqueta="@(tituloGrupo ?? Textos["ListaTrabajadores"])">
+                        @foreach (var trabajador in filasGrupo)
                         {
                             <FilaRelacion @key="trabajador.Id" Nombre="@NombreCompleto(trabajador)" Href="@($"/trabajadores/{trabajador.Id}")"
                                           Iniciales="@Iniciales(NombreCompleto(trabajador))" OnAbrir360="() => AbrirTrabajador(trabajador)">
@@ -382,6 +415,7 @@
                             </FilaRelacion>
                         }
                     </ListaRelaciones>
+                    }
                     <p class="empresa360-pie">
                         @Textos["PieMostrando", _filas.Count, TotalDelFiltro]
                     </p>

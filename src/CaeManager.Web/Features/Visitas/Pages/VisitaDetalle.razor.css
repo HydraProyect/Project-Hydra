@@ -76,7 +76,7 @@
     background: none;
     color: var(--color-text-muted);
     cursor: pointer;
-    transition: transform 0.15s ease;
+    transition: transform var(--motion-transition) var(--ease-fluid);
 }
 
 .visita360-grupo-plegar[aria-expanded="false"] {

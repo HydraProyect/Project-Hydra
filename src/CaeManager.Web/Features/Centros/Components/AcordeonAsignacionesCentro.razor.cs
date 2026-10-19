@@ -92,11 +92,12 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// (<c>/centros/{id}</c>): «Ver los N en Centro 360» en el estado «Todos al
     /// día» y «Ver Centro 360 →» junto a la nota de trabajadores al día
     /// ocultos. Por defecto sí, para que cualquier consumidor que no lo diga
-    /// quede como estaba. La lista de /centros lo apaga porque ya pinta, bajo
-    /// el acordeón, un enlace único y siempre presente a la misma ficha: con
-    /// los dos, la misma fila ofrecía dos caminos al mismo destino. Apagado,
-    /// el texto informativo (título «Todos al día», recuento de ocultos) se
-    /// conserva; solo desaparece el botón.
+    /// quede como estaba. La lista de /centros lo apaga porque la misma ficha ya
+    /// se alcanza con el icono 360 del final de la fila, que está con o sin
+    /// desplegar (la maqueta retiró «Ver el centro completo»): con los dos, la
+    /// misma fila ofrecía dos caminos al mismo destino. Apagado, el texto
+    /// informativo (título «Todos al día», recuento de ocultos) se conserva;
+    /// solo desaparece el botón.
     /// </summary>
     [Parameter] public bool MostrarEnlacesCentro360 { get; set; } = true;
 
@@ -545,9 +546,6 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         d.Estado == EstadoDocumento.Faltante || (d.DocumentoId is not null &&
         (VentanaReclamacion.EsReclamable(d.FechaVencimiento, DiaDeNegocio.Hoy()) ||
          (d.Estado == EstadoDocumento.SinConfirmar && d.FechaVencimiento is null))));
-
-    private static AccionDocumentoFicha360? AccionDocumento(DocumentoRequeridoDto documento) =>
-        documento.Estado == EstadoDocumento.Proximo ? AccionDocumentoFicha360.Renovar : EstadoDocumentoFicha360.Accion(documento.Estado);
 
     /// <summary>
     /// Por qué no se ve ningún trabajador. El vacío por filtro y el vacío por

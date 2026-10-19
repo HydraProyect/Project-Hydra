@@ -45,6 +45,23 @@ public class KeyTipsDeclaradosEnComponentesTests : BunitContext
         disparador.GetAttribute("data-keytip-nombre").Should().Be("Estado");
     }
 
+    /// <summary>
+    /// Una pastilla que la chuleta nombra con letra estable («Agrupar», A) la declara con el parámetro
+    /// <c>Keytip</c>; el nombre sigue viajando para el resto de usos.
+    /// </summary>
+    [Fact]
+    public void La_pastilla_de_filtro_declara_la_letra_estable_que_le_pasa_la_pagina()
+    {
+        var cut = Render<PastillaFiltro>(p => p
+            .Add(c => c.Etiqueta, "Agrupar")
+            .Add(c => c.Opciones, Opciones)
+            .Add(c => c.Keytip, "A"));
+
+        var disparador = cut.Find(".menu-acciones-disparador");
+        disparador.GetAttribute("data-keytip").Should().Be("A");
+        disparador.GetAttribute("data-keytip-nombre").Should().Be("Agrupar");
+    }
+
     [Fact]
     public void Un_menu_sin_Keytip_no_se_ofrece_a_KeyTips()
     {

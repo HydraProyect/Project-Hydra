@@ -91,3 +91,108 @@ button.indicador-pasos-boton:focus-visible {
         display: none;
     }
 }
+
+/* Variante del panel lateral (EnPanel): �Panel Formulario TALVEG�. C�rculo de 24 px; activo relleno con el color del primario,
+   completado en verde de �xito con su marca, futuro con el borde de control. Una raya fina une los pasos. */
+.indicador-pasos-panel {
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.indicador-pasos-panel .indicador-pasos-item {
+    flex: 1;
+}
+
+.indicador-pasos-panel .indicador-pasos-item:last-child {
+    flex: none;
+}
+
+.indicador-pasos-panel .indicador-pasos-item:not(:last-child)::after {
+    height: 1px;
+    min-width: var(--space-2);
+    margin: 0 var(--space-2);
+}
+
+.indicador-pasos-panel .indicador-pasos-item.indicador-pasos-completado:not(:last-child)::after {
+    background: var(--color-success-700);
+}
+
+.indicador-pasos-panel .indicador-pasos-boton {
+    min-height: 36px;
+    font: var(--font-label);
+    gap: var(--space-2);
+}
+
+.indicador-pasos-panel .indicador-pasos-circulo {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-width: 1px;
+    border-color: var(--color-border-control);
+    background-color: var(--color-surface);
+    font: var(--font-body-sm);
+    font-weight: 600;
+}
+
+.indicador-pasos-panel .indicador-pasos-activo .indicador-pasos-circulo {
+    border-color: var(--color-primario-fondo);
+    background-color: var(--color-primario-fondo);
+    color: var(--color-primario-texto);
+}
+
+.indicador-pasos-panel .indicador-pasos-completado .indicador-pasos-circulo {
+    border-color: var(--color-success-700);
+    background-color: var(--color-success-50);
+    color: var(--color-success-700);
+}
+
+.indicador-pasos-panel .indicador-pasos-activo.indicador-pasos-completado .indicador-pasos-circulo {
+    border-color: var(--color-primario-fondo);
+    background-color: var(--color-primario-fondo);
+    color: var(--color-primario-texto);
+}
+
+.indicador-pasos-movil {
+    display: none;
+}
+
+@media (max-width: 640px) {
+    .indicador-pasos-panel {
+        display: none;
+    }
+
+    .indicador-pasos-movil {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+}
+
+.indicador-pasos-movil-texto {
+    font: var(--font-label);
+    color: var(--color-text);
+}
+
+.indicador-pasos-barras {
+    display: flex;
+    gap: var(--space-1);
+}
+
+.indicador-pasos-barra {
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--color-border);
+}
+
+.indicador-pasos-barra-activa {
+    background: var(--color-primary-500);
+}
+
+.indicador-pasos-barra-hecha {
+    background: var(--color-success-700);
+}
+
+/* «Paso 2 de 3 · Trabajo»: el separador es de presentación y no es texto de la pantalla. */
+.indicador-pasos-movil-titulo::before {
+    content: " \00B7 ";
+}

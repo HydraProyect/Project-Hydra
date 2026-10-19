@@ -143,14 +143,16 @@ public class CrearVisitaCommandTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Una_sugerencia_cuyo_mensaje_no_se_encuentra_crea_una_visita_de_origen_Correo()
+    public async Task Una_sugerencia_cuyo_mensaje_no_se_encuentra_no_se_aplica_y_crea_una_visita_de_origen_Manual()
     {
-        // MensajeId no tiene clave foránea: el mensaje puede haberse retirado. Sin canal que leer manda el
-        // valor por defecto de una sugerencia, Correo (nunca Manual: la Visita sí nació de una sugerencia).
+        // MensajeId no tiene clave foránea: el mensaje puede haberse retirado. Sin mensaje no hay Conversación con la
+        // que comprobar la Asignación de Cartera, y la sugerencia huérfana falla cerrado igual que al descartarla
+        // (DescartarSugerenciaVisitaCorreoCommandHandler, #1424): se trata como un Id que no existe, así que la Visita
+        // nace como Manual y no como «desde correo».
         var origen = await CrearVisitaDesdeSugerenciaAsync(
             (contexto, _) => Task.FromResult(Guid.NewGuid()));
 
-        origen.Should().Be(OrigenVisita.Correo);
+        origen.Should().Be(OrigenVisita.Manual);
     }
 
     [Fact]

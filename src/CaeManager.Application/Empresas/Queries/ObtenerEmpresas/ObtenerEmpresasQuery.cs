@@ -5,6 +5,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -27,11 +28,22 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 /// solo quien lo pinta (el listado de Empresas, en su carga de página y al refrescar una fila por id). Sin
 /// pedirlo, las filas llegan con las incidencias vacías.
 /// </para>
+///
+/// <para>
+/// <paramref name="ClienteEmpresarialId"/> deja solo las Empresas que prestan servicio a ese Cliente empresarial en una
+/// Relación Empresarial vigente, y <paramref name="ConClientePrincipal"/> rellena
+/// <see cref="EmpresaListaDto.ClientePrincipal"/> (la agrupación «Por Cliente» de la pantalla). Las dos preguntas
+/// tocan la cartera COMERCIAL de la contratista —a qué Clientes sirve—, así que solo ven lo que el usuario
+/// alcanza: Empresas de su alcance de GESTIÓN (REC-153) y Clientes de su alcance de lectura. Fuera de ahí la
+/// Empresa no sale con el filtro ni lleva Cliente, aunque la relación exista. <c>OrdenarPor =
+/// ClientePrincipal</c> ordena por ese Cliente (sin Cliente, al final), que es lo que hace contiguos los grupos.
+/// </para>
 /// </summary>
 public record ObtenerEmpresasQuery(
     string? Busqueda, int Pagina = 1, int TamanoPagina = 20,
     string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null,
-    bool ConRecuentosPorEstado = false, Guid? EmpresaId = null, bool ConDesgloseDocumental = false)
+    bool ConRecuentosPorEstado = false, Guid? EmpresaId = null, bool ConDesgloseDocumental = false,
+    Guid? ClienteEmpresarialId = null, bool ConClientePrincipal = false)
     : IRequest<ResultadoPaginado<EmpresaListaDto>>;
 
 /// <param name="CumplimientoPorcentaje">
@@ -58,6 +70,14 @@ public record EmpresaListaDto(
     /// consulta no pidió el desglose.
     /// </summary>
     public IReadOnlyList<IncidenciaDocumentalDto> Incidencias { get; init; } = [];
+
+    /// <summary>
+    /// El Cliente empresarial bajo el que la agrupación «Por Cliente» coloca la fila: el primero por razón social
+    /// de los Clientes a los que presta servicio la Empresa (el del filtro, si lo hay) y que el usuario alcanza.
+    /// Una Empresa con varios Clientes sale una sola vez, no una por Cliente. Nulo si no tiene ninguno a su
+    /// alcance o si la consulta no lo pidió (<see cref="ObtenerEmpresasQuery.ConClientePrincipal"/>).
+    /// </summary>
+    public string? ClientePrincipal { get; init; }
 }
 
 public class ObtenerEmpresasQueryHandler(
@@ -80,6 +100,17 @@ public class ObtenerEmpresasQueryHandler(
         // Va después del alcance: solo estrecha.
         if (request.EmpresaId is not null)
             consulta = consulta.Where(e => e.Id == request.EmpresaId);
+
+        // Cartera comercial (Clientes a los que sirve cada Empresa): solo se consulta si se pide el filtro,
+        // la agrupación o ese orden, y siempre acotada al alcance (ver ClientesAlcanzadosAsync). Sin pedirlo es
+        // una consulta vacía: no cuesta nada ni se traduce a SQL.
+        var ordenaPorCliente = string.Equals(
+            request.OrdenarPor, nameof(EmpresaListaDto.ClientePrincipal), StringComparison.Ordinal);
+        var clientesAlcanzados = request.ClienteEmpresarialId is not null || request.ConClientePrincipal || ordenaPorCliente
+            ? await ClientesAlcanzadosAsync(request.ClienteEmpresarialId, cancellationToken)
+            : ClientesVigentesDeEmpresas.Todas(dbContext).Where(c => false);
+        if (request.ClienteEmpresarialId is not null)
+            consulta = consulta.Where(e => clientesAlcanzados.Any(c => c.EmpresaId == e.Id));
 
         // Razón social o CIF, como ObtenerSubcontratasQuery: el buscador de la lista promete los dos.
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
@@ -115,6 +146,10 @@ public class ObtenerEmpresasQueryHandler(
                     e.RazonSocial,
                     e.Cif,
                     e.CreadoEnUtc,
+                    // Solo con el orden por Cliente: sin él es un nulo constante y no entra en el SQL.
+                    ClientePrincipal = ordenaPorCliente
+                        ? clientesAlcanzados.Where(c => c.EmpresaId == e.Id).Min(c => c.RazonSocial)
+                        : null,
                     PeorFecha = documentosContext.Documentos.Where(DocumentoOperativo.Expresion)
                         .Where(d => d.EmpresaId == e.Id)
                         .Min(d => (DateOnly?)d.FechaVencimiento),
@@ -187,6 +222,9 @@ public class ObtenerEmpresasQueryHandler(
                 ? porEstado.ThenBy(e => e.RazonSocial)
                 : (request.OrdenarPor, request.Descendente) switch
                 {
+                    // Agrupar por Cliente: los de un mismo Cliente seguidos, las sin Cliente al final.
+                    (nameof(EmpresaListaDto.ClientePrincipal), _) => conFecha
+                        .OrderBy(e => e.ClientePrincipal == null).ThenBy(e => e.ClientePrincipal).ThenBy(e => e.RazonSocial),
                     (nameof(EmpresaListaDto.RazonSocial), true) => conFecha.OrderByDescending(e => e.RazonSocial),
                     (nameof(EmpresaListaDto.Cif), false) => conFecha.OrderBy(e => e.Cif),
                     (nameof(EmpresaListaDto.Cif), true) => conFecha.OrderByDescending(e => e.Cif),
@@ -206,14 +244,16 @@ public class ObtenerEmpresasQueryHandler(
             var deteccionesConEstado = await ContarDeteccionesPendientesPorEmpresaAsync(idsPaginaConEstado, cancellationToken);
 
             return new ResultadoPaginado<EmpresaListaDto>(
-                await ConDesgloseAsync(
-                    paginaConEstado.Select(e => new EmpresaListaDto(
-                        e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc,
-                        CalculoEstadoDocumentalService.PeorEstado(e.PeorFecha, e.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
-                        cumplimientoConEstado.GetValueOrDefault(e.Id),
-                        deteccionesConEstado.GetValueOrDefault(e.Id)))
-                        .ToList(),
-                    request, cancellationToken),
+                await ConClientePrincipalAsync(
+                    await ConDesgloseAsync(
+                        paginaConEstado.Select(e => new EmpresaListaDto(
+                            e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc,
+                            CalculoEstadoDocumentalService.PeorEstado(e.PeorFecha, e.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
+                            cumplimientoConEstado.GetValueOrDefault(e.Id),
+                            deteccionesConEstado.GetValueOrDefault(e.Id)))
+                            .ToList(),
+                        request, cancellationToken),
+                    request, clientesAlcanzados, cancellationToken),
                 totalConEstado, request.Pagina, request.TamanoPagina)
             {
                 RecuentosPorEstado = recuentosPorEstado
@@ -225,6 +265,10 @@ public class ObtenerEmpresasQueryHandler(
         // Lista blanca de columnas ordenables — ver ObtenerClientesQuery.
         var ordenada = (request.OrdenarPor, request.Descendente) switch
         {
+            (nameof(EmpresaListaDto.ClientePrincipal), _) => consulta
+                .OrderBy(e => clientesAlcanzados.Where(c => c.EmpresaId == e.Id).Min(c => c.RazonSocial) == null)
+                .ThenBy(e => clientesAlcanzados.Where(c => c.EmpresaId == e.Id).Min(c => c.RazonSocial))
+                .ThenBy(e => e.RazonSocial),
             (nameof(EmpresaListaDto.RazonSocial), true) => consulta.OrderByDescending(e => e.RazonSocial),
             (nameof(EmpresaListaDto.Cif), false) => consulta.OrderBy(e => e.Cif),
             (nameof(EmpresaListaDto.Cif), true) => consulta.OrderByDescending(e => e.Cif),
@@ -252,15 +296,66 @@ public class ObtenerEmpresasQueryHandler(
         var detecciones = await ContarDeteccionesPendientesPorEmpresaAsync(idsPagina, cancellationToken);
 
         return new ResultadoPaginado<EmpresaListaDto>(
-            await ConDesgloseAsync(
-                elementos.Select(e => e with
-                {
-                    EstadoDocumental = estados.GetValueOrDefault(e.Id),
-                    CumplimientoPorcentaje = cumplimiento.GetValueOrDefault(e.Id),
-                    DeteccionesPendientes = detecciones.GetValueOrDefault(e.Id)
-                }).ToList(),
-                request, cancellationToken),
+            await ConClientePrincipalAsync(
+                await ConDesgloseAsync(
+                    elementos.Select(e => e with
+                    {
+                        EstadoDocumental = estados.GetValueOrDefault(e.Id),
+                        CumplimientoPorcentaje = cumplimiento.GetValueOrDefault(e.Id),
+                        DeteccionesPendientes = detecciones.GetValueOrDefault(e.Id)
+                    }).ToList(),
+                    request, cancellationToken),
+                request, clientesAlcanzados, cancellationToken),
             total, request.Pagina, request.TamanoPagina);
+    }
+
+    /// <summary>
+    /// Los Clientes empresariales que el usuario puede ver en la cartera de las Empresas que gestiona: la
+    /// relación vigente Empresa→Cliente (<see cref="ClientesVigentesDeEmpresas"/>) recortada por el alcance de
+    /// GESTIÓN de las Empresas (REC-153: el usuario de portal obtiene lista vacía, porque la cartera comercial
+    /// de una contratista no es contenido de portal) y por el de lectura de los Clientes. Con
+    /// <paramref name="clienteEmpresarialId"/>, solo ese. Es la única fuente del filtro, de la agrupación y del orden por
+    /// Cliente: ninguna ve una relación que esta consulta no deje pasar.
+    /// </summary>
+    private async Task<IQueryable<ClienteVigenteDeEmpresa>> ClientesAlcanzadosAsync(
+        Guid? clienteEmpresarialId, CancellationToken cancellationToken)
+    {
+        var clientes = ClientesVigentesDeEmpresas.Todas(dbContext);
+
+        var empresasGestionadas = await alcanceDatos.ObtenerEmpresaIdsParaGestionAsync(cancellationToken);
+        if (empresasGestionadas is not null)
+            clientes = clientes.Where(c => empresasGestionadas.Contains(c.EmpresaId));
+
+        var clientesVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        if (clientesVisibles is not null)
+            clientes = clientes.Where(c => clientesVisibles.Contains(c.ClienteEmpresarialId));
+
+        if (clienteEmpresarialId is { } id)
+            clientes = clientes.Where(c => c.ClienteEmpresarialId == id);
+
+        return clientes;
+    }
+
+    /// <summary>
+    /// Rellena <see cref="EmpresaListaDto.ClientePrincipal"/> de las filas de la página con el MISMO criterio con
+    /// el que <c>OrdenarPor = ClientePrincipal</c> las ordenó (el primero por razón social, calculado por la base
+    /// de datos: con otra comparación un grupo podría partirse). Una consulta para toda la página.
+    /// </summary>
+    private async Task<IReadOnlyList<EmpresaListaDto>> ConClientePrincipalAsync(
+        IReadOnlyList<EmpresaListaDto> pagina, ObtenerEmpresasQuery request,
+        IQueryable<ClienteVigenteDeEmpresa> clientesAlcanzados, CancellationToken cancellationToken)
+    {
+        if (!request.ConClientePrincipal || pagina.Count == 0)
+            return pagina;
+
+        var ids = pagina.Select(e => e.Id).ToList();
+        var principales = await clientesAlcanzados
+            .Where(c => ids.Contains(c.EmpresaId))
+            .GroupBy(c => c.EmpresaId)
+            .Select(g => new { EmpresaId = g.Key, Principal = g.Min(c => c.RazonSocial) })
+            .ToDictionaryAsync(x => x.EmpresaId, x => x.Principal, cancellationToken);
+
+        return pagina.Select(e => e with { ClientePrincipal = principales.GetValueOrDefault(e.Id) }).ToList();
     }
 
     /// <summary>

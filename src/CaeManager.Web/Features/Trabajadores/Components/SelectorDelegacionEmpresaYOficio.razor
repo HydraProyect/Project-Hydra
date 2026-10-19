@@ -1,0 +1,138 @@
+@*
+    Delegación y Oficio del Trabajador de una Empresa (decisión de Chris, 2026-10-18). El Oficio ocupa el sitio del
+    «Puesto» de las fichas y se elige del catálogo de la Empresa, con búsqueda y «+ Crear oficio «X»» (que guarda con
+    GuardarOficioEmpresaCommand y lo deja elegido); la Delegación es un desplegable del mismo catálogo. Solo se monta con
+    una Empresa: el Trabajador de una Subcontrata no tiene ninguno de los dos y sigue con el Puesto en texto.
+
+    Crear un Oficio es escribir: solo se ofrece a quien tiene un rol con escritura (SoloConEscritura), aunque este
+    componente viva en un formulario que ya lo exige; la decisión de verdad sigue siendo de AutorizacionEscrituraBehavior.
+*@
+@using CaeManager.Application.Empresas.Commands.GuardarOficioEmpresa
+@using CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa
+@using CaeManager.Web.Features.Trabajadores.Recursos
+@using FluentValidation
+@using MediatR
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosTrabajadores> Textos
+@implements IDisposable
+
+<SelectorEntidad Etiqueta="@Textos["OficioEtiqueta"]" Valor="@OficioId" ValorChanged="OficioIdChanged"
+                 Opciones="_oficios" Placeholder="@Textos["OficioPlaceholder"]" PermiteVaciar="true"
+                 PermiteCrear="_puedeCrear" TextoCrear="@Textos["OficioCrear"]" OnCrearSolicitado="CrearOficioAsync"
+                 Deshabilitado="@(_cargando || _creando || _errorCatalogo)" MensajeError="@(_errorOficio ?? MensajeErrorOficio)" />
+@* Sin Oficio, el Puesto que ya tiene el Trabajador (texto libre de antes del catálogo) se enseña como pista. *@
+@if (string.IsNullOrEmpty(OficioId) && !string.IsNullOrWhiteSpace(PuestoActual))
+{
+    <p class="texto-ayuda-campo">@string.Format(Textos["OficioPuestoActual"], PuestoActual)</p>
+}
+
+<CampoSelect Etiqueta="@Textos["DelegacionEmpresaEtiqueta"]" Valor="@DelegacionEmpresaId" ValorChanged="DelegacionEmpresaIdChanged" Deshabilitado="@(_cargando || _errorCatalogo)">
+    <option value="">@Textos["DelegacionEmpresaSinElegir"]</option>
+    @foreach (var delegacion in _delegaciones)
+    {
+        <option value="@delegacion.Id">@delegacion.Nombre</option>
+    }
+</CampoSelect>
+
+@if (_errorCatalogo)
+{
+    <p class="campo-mensaje-error" role="alert">@Textos["CatalogoNoCargo"]</p>
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    /// <summary>La Empresa del Trabajador, de la que sale el catálogo.</summary>
+    [Parameter, EditorRequired] public Guid EmpresaId { get; set; }
+
+    [Parameter] public string OficioId { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> OficioIdChanged { get; set; }
+    [Parameter] public string DelegacionEmpresaId { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> DelegacionEmpresaIdChanged { get; set; }
+
+    /// <summary>Error por campo del formulario padre (por ejemplo, el del servidor al guardar).</summary>
+    [Parameter] public string? MensajeErrorOficio { get; set; }
+
+    /// <summary>El Puesto en texto que ya tiene el Trabajador: sin Oficio elegido se enseña como pista.</summary>
+    [Parameter] public string? PuestoActual { get; set; }
+
+    private IReadOnlyList<OpcionBuscable> _oficios = [];
+    private IReadOnlyList<DelegacionEmpresaDto> _delegaciones = [];
+    private Guid _empresaCargada;
+    // _errorCatalogo deshabilita los dos campos: sin opciones, el selector se vería vacío y salir de él no debe tocar el
+    // valor que el Trabajador ya tiene. _creando evita dos altas del mismo Oficio con un doble clic.
+    private bool _cargando, _errorCatalogo, _puedeCrear, _creando, _desechado;
+    private string? _errorOficio;
+
+    public void Dispose() => _desechado = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (EmpresaId == _empresaCargada) return;
+        _empresaCargada = EmpresaId;
+        _puedeCrear = await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
+        await CargarCatalogoAsync();
+    }
+
+    private async Task CargarCatalogoAsync()
+    {
+        var empresa = EmpresaId;
+        _cargando = true;
+        _errorCatalogo = false;
+        try
+        {
+            var catalogo = await Mediator.Send(new ObtenerCatalogoTrabajadoresEmpresaQuery(empresa));
+            if (empresa != EmpresaId) return;
+            _delegaciones = catalogo.DelegacionesEmpresa;
+            _oficios = [.. catalogo.Oficios.Select(o => new OpcionBuscable(o.Id.ToString(), o.Nombre))];
+        }
+        catch (Exception)
+        {
+            if (empresa != EmpresaId) return;
+            _delegaciones = [];
+            _oficios = [];
+            _errorCatalogo = true;
+        }
+        finally
+        {
+            if (empresa == EmpresaId) _cargando = false;
+        }
+    }
+
+    private async Task CrearOficioAsync(string nombre)
+    {
+        if (_creando) return;
+        _creando = true;
+        _errorOficio = null;
+        try
+        {
+            var resultado = await Mediator.Send(new GuardarOficioEmpresaCommand(EmpresaId, null, nombre, null));
+            if (_desechado) return;
+            if (resultado.EsFallido)
+            {
+                _errorOficio = resultado.Error.Mensaje;
+                return;
+            }
+
+            // Si ya existía uno con ese nombre, el comando devuelve ese: se relee el catálogo y queda elegido. Si el
+            // formulario se cerró mientras tanto, no se avisa a un padre que ya no existe.
+            await CargarCatalogoAsync();
+            if (_desechado) return;
+            await OficioIdChanged.InvokeAsync(resultado.Valor.ToString());
+        }
+        catch (ValidationException ex)
+        {
+            _errorOficio = ex.Errors.FirstOrDefault()?.ErrorMessage ?? Textos["OficioErrorCrear"];
+        }
+        catch (Exception)
+        {
+            _errorOficio = Textos["OficioErrorCrear"];
+        }
+        finally
+        {
+            _creando = false;
+        }
+    }
+}

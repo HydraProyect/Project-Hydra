@@ -118,7 +118,9 @@ else if (_empresas is not null)
         _ => "—"
     };
 
-    private static TonoBadge Tono(EstadoBlindaje42? estado) => estado switch
+    // internal: la fila del certificado TGSS en la pestaña «Documentación» de Cliente 360 pinta el mismo tono (con sus
+    // propios textos localizados, en DocumentosExigidosCliente).
+    internal static TonoBadge Tono(EstadoBlindaje42? estado) => estado switch
     {
         null => TonoBadge.Neutro,
         EstadoBlindaje42.PendienteRespuesta => TonoBadge.Info,

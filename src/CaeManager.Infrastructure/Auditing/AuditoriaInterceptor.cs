@@ -35,8 +35,8 @@ namespace CaeManager.Infrastructure.Auditing;
 ///
 /// 1. Secretos cifrados por ValueConverter en CaeManagerDbContext
 ///    (CanalGestionDocumental, CredencialAccesoEmpresa,
-///    CredencialAccesoSubcontrata, CredencialIntegracion, SuscripcionWebhook,
-///    LineaWhatsApp): nunca deben quedar en texto plano en el historial (ver
+///    CredencialAccesoSubcontrata, AccesoPlataformaCaeEmpresa,
+///    CredencialIntegracion, SuscripcionWebhook, LineaWhatsApp): nunca deben quedar en texto plano en el historial (ver
 ///    Project-Hydra-Negocio/tecnico/DATABASE.md). Esta lista debe crecer junto con cualquier propiedad
 ///    nueva que se cifre en reposo — el cifrado en la BD no protege el
 ///    historial de auditoría, que lee el valor plano directamente del
@@ -132,6 +132,7 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         [typeof(CanalGestionDocumental)] = [nameof(CanalGestionDocumental.Usuario), nameof(CanalGestionDocumental.Contrasena)],
         [typeof(CredencialAccesoEmpresa)] = [nameof(CredencialAccesoEmpresa.Usuario), nameof(CredencialAccesoEmpresa.Contrasena)],
         [typeof(CredencialAccesoSubcontrata)] = [nameof(CredencialAccesoSubcontrata.Usuario), nameof(CredencialAccesoSubcontrata.Contrasena)],
+        [typeof(AccesoPlataformaCaeEmpresa)] = [nameof(AccesoPlataformaCaeEmpresa.Usuario), nameof(AccesoPlataformaCaeEmpresa.Contrasena)],
         [typeof(CredencialIntegracion)] = [nameof(CredencialIntegracion.RefreshToken), nameof(CredencialIntegracion.AccessToken)],
         [typeof(SuscripcionWebhook)] = [nameof(SuscripcionWebhook.ClientState)],
         [typeof(LineaWhatsApp)] = [nameof(LineaWhatsApp.TokenAcceso)],
@@ -233,6 +234,10 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         [
             nameof(Visita.ContactoNombre), nameof(Visita.ContactoTelefono), nameof(Visita.ContactoCorreo),
         ],
+        // Punto 11 (2026-10-18): el contacto de reclamación de una Delegación de Empresa, persona física de un tercero,
+        // con el mismo criterio que la ficha de Empresa 360 (punto 8). Como su valor nunca llega al historial, no hace
+        // falta enmascararlo a posteriori al anonimizar la Delegación.
+        [typeof(DelegacionEmpresa)] = [.. DelegacionEmpresa.CamposDeDatosPersonales],
         [typeof(Empresa)] =
         [
             nameof(Empresa.FirmanteDocumentos),
@@ -257,7 +262,10 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
     /// </summary>
     private static readonly Dictionary<Type, HashSet<string>> PropiedadesSilenciosasPorTipo = new()
     {
-        [typeof(ApplicationUser)] = [nameof(ApplicationUser.UltimaActividadUtc), nameof(ApplicationUser.ConcurrencyStamp)]
+        [typeof(ApplicationUser)] = [nameof(ApplicationUser.UltimaActividadUtc), nameof(ApplicationUser.ConcurrencyStamp)],
+        // RegistrarAsignacion solo renueva la Version (para que asignar y eliminar choquen): no es un cambio del catálogo.
+        [typeof(DelegacionEmpresa)] = [nameof(DelegacionEmpresa.Version)],
+        [typeof(OficioEmpresa)] = [nameof(OficioEmpresa.Version)],
     };
 
     /// <summary>

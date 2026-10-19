@@ -34,7 +34,14 @@ public record TrabajadorDetalleDto(
     DateOnly? CaducidadPermisoTrabajo = null,
     string? MotivoPermisoTrabajo = null,
     bool PermisoTrabajoVisible = false,
-    TipoContratacion TipoContratacion = TipoContratacion.CuentaAjena);
+    TipoContratacion TipoContratacion = TipoContratacion.CuentaAjena,
+    string? Notas = null,
+    bool NotaInternaVisible = false,
+    string? ContactoEmergenciaNombre = null,
+    string? ContactoEmergenciaTelefono = null,
+    bool ContactoEmergenciaVisible = false,
+    Guid? DelegacionEmpresaId = null,
+    Guid? OficioEmpresaId = null);
 
 /// <summary>
 /// Detalle de Trabajador 360.
@@ -49,6 +56,20 @@ public record TrabajadorDetalleDto(
 /// <c>false</c>; la afiliación y el vínculo con la empresa sí le llegan. La regla vive aquí, en Application, y no solo
 /// en la pantalla: el DTO es lo que sale del servidor. El <c>false</c> por defecto de <c>PermisoTrabajoVisible</c>
 /// hace que quien construya el DTO sin pasar por esta regla oculte, no enseñe.
+/// </para>
+///
+/// <para>
+/// <b>Nota interna.</b> <c>Notas</c> (la «Nota interna» de Trabajador 360) sigue la misma política y el mismo criterio
+/// que la de Empresa 360: solo viaja a quien la lee según <see cref="IPoliticaNotaInterna"/>; los demás reciben
+/// <c>null</c> y <c>NotaInternaVisible</c> en <c>false</c>. La API pública v1 no la publica (<c>TrabajadorApiDetalleDto</c>).
+/// </para>
+///
+/// <para>
+/// <b>Contacto de emergencia (decisión de Chris, 2026-10-18).</b> <c>ContactoEmergenciaNombre</c> y
+/// <c>ContactoEmergenciaTelefono</c> siguen la misma política: solo viajan a quien lee la nota interna; el Usuario de
+/// Cliente recibe <c>null</c> y <c>ContactoEmergenciaVisible</c> en <c>false</c>. Tampoco los publica la API v1 ni
+/// salen en listados o exportaciones. Todo rol con escritura los lee, así que el editor de la ficha nunca reenvía como
+/// vacío un contacto que no pudo ver.
 /// </para>
 /// </summary>
 public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
@@ -85,7 +106,12 @@ public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasCo
                 t.TipoPermisoTrabajo,
                 t.CaducidadPermisoTrabajo,
                 t.MotivoPermisoTrabajo,
-                t.TipoContratacion
+                t.TipoContratacion,
+                t.Notas,
+                t.ContactoEmergenciaNombre,
+                t.ContactoEmergenciaTelefono,
+                t.DelegacionEmpresaId,
+                t.OficioEmpresaId
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -95,8 +121,11 @@ public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasCo
             ? await empresasContext.Empresas.Where(e => e.Id == trabajador.EmpresaId).Select(e => e.RazonSocial).FirstAsync(cancellationToken)
             : await empresasContext.Empresas.Where(e => e.Id == trabajador.SubcontrataId).Select(e => e.RazonSocial).FirstAsync(cancellationToken);
 
-        // Ver el comentario de la clase: sin la política, los tres campos del permiso no salen del servidor.
+        // Ver el comentario de la clase: sin la política, ni los tres campos del permiso, ni la nota interna, ni el
+        // contacto de emergencia salen del servidor.
         var conPermisoTrabajo = await politicaNotaInterna.PuedeLeerAsync(cancellationToken);
+        var conNotaInterna = conPermisoTrabajo;
+        var conContactoEmergencia = conPermisoTrabajo;
 
         return new TrabajadorDetalleDto(
             trabajador.Id, trabajador.EmpresaId, trabajador.SubcontrataId, empleadorNombre, trabajador.Nombre, trabajador.Apellidos,
@@ -108,6 +137,12 @@ public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasCo
             conPermisoTrabajo ? trabajador.CaducidadPermisoTrabajo : null,
             conPermisoTrabajo ? trabajador.MotivoPermisoTrabajo : null,
             conPermisoTrabajo,
-            trabajador.TipoContratacion);
+            trabajador.TipoContratacion,
+            conNotaInterna ? trabajador.Notas : null,
+            conNotaInterna,
+            conContactoEmergencia ? trabajador.ContactoEmergenciaNombre : null,
+            conContactoEmergencia ? trabajador.ContactoEmergenciaTelefono : null,
+            conContactoEmergencia,
+            trabajador.DelegacionEmpresaId, trabajador.OficioEmpresaId);
     }
 }

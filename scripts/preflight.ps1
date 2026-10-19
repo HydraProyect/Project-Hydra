@@ -19,7 +19,10 @@
     Los tests corren con --no-build sobre lo compilado en el paso 2.
 
     Salida: PASA / FALLA / OMITIDO por paso y codigo de salida distinto de 0 si algo falla.
-    El log completo de cada paso queda en %TEMP%\preflight\.
+    El log completo de cada paso queda en una carpeta propia de cada ejecucion,
+    %TEMP%\preflight\<carpeta-del-worktree>-<yyyyMMdd-HHmmss>-<PID>\, que el resumen imprime.
+    Asi varios worktrees (o dos ejecuciones del mismo) pueden correr a la vez sin pisarse el log.
+    PASA/FALLA de cada paso sale del codigo de salida de su proceso, nunca de leer un log.
 
 .PARAMETER Rapido
     Solo Architecture mas los proyectos de test tocados respecto a origin/main.
@@ -32,21 +35,43 @@ param([switch]$Rapido)
 
 $ErrorActionPreference = 'Continue'
 Set-Location (Split-Path -Parent $PSScriptRoot)
-$logs = Join-Path $env:TEMP 'preflight'
+$raiz = (Get-Location).Path
+$raizLogs = Join-Path $env:TEMP 'preflight'
+# Carpeta de logs unica por ejecucion: worktree + marca de tiempo + PID. Nunca se comparte ni se reutiliza.
+$carpetaWorktree = (Split-Path -Leaf $raiz) -replace '[^\w.-]+', '-'
+$logs = Join-Path $raizLogs ('{0}-{1}-{2}' -f $carpetaWorktree, (Get-Date -Format 'yyyyMMdd-HHmmss'), $PID)
 New-Item -ItemType Directory -Force $logs | Out-Null
+Get-ChildItem -LiteralPath $logs -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+# Limpieza de carpetas de ejecuciones viejas (>7 dias); nunca las recientes, que pueden estar en uso.
+Get-ChildItem -LiteralPath $raizLogs -ErrorAction SilentlyContinue |
+    Where-Object { $_.PSIsContainer -or $_.Extension -eq '.log' } |
+    Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-7) } |
+    ForEach-Object { try { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction Stop } catch {} }
 $resultados = New-Object System.Collections.ArrayList
 
 function Invoke-Paso([string]$Nombre, [string]$Comando) {
     $log = Join-Path $logs (($Nombre -replace '[^\w]+', '-') + '.log')
     $reloj = [Diagnostics.Stopwatch]::StartNew()
-    cmd.exe /c "$Comando > `"$log`" 2>&1"
-    $ok = ($LASTEXITCODE -eq 0)
+    # El veredicto es el codigo de salida de ESTE proceso (cmd.exe /s /c con su redireccion al log propio),
+    # leido de su objeto Process; el log solo sirve para mostrar errores tras un fallo.
+    $psi = New-Object Diagnostics.ProcessStartInfo
+    $psi.FileName = 'cmd.exe'
+    $psi.Arguments = "/d /s /c `"$Comando > `"$log`" 2>&1`""
+    $psi.UseShellExecute = $false
+    $psi.WorkingDirectory = $raiz
+    $proc = [Diagnostics.Process]::Start($psi)
+    $proc.WaitForExit()
+    $codigo = $proc.ExitCode
+    $proc.Dispose()
+    $ok = ($codigo -eq 0)
     $s = [int]$reloj.Elapsed.TotalSeconds
     [void]$resultados.Add([pscustomobject]@{ Paso = $Nombre; Estado = $(if ($ok) { 'PASA' } else { 'FALLA' }); Segundos = $s })
     if (-not $ok) {
-        Write-Host "--- $Nombre : FALLA (log: $log)" -ForegroundColor Red
-        Get-Content $log | Select-String -Pattern 'error|Failed|Con error' |
-            ForEach-Object { $_.Line.Trim() } | Select-Object -Unique -First 25 | ForEach-Object { Write-Host "    $_" }
+        Write-Host "--- $Nombre : FALLA (codigo de salida $codigo, log: $log)" -ForegroundColor Red
+        if (Test-Path -LiteralPath $log) {
+            Get-Content -LiteralPath $log | Select-String -Pattern 'error|Failed|Con error' |
+                ForEach-Object { $_.Line.Trim() } | Select-Object -Unique -First 25 | ForEach-Object { Write-Host "    $_" }
+        }
     } else { Write-Host "OK  $Nombre ($s s)" -ForegroundColor Green }
     return $ok
 }
@@ -100,12 +125,14 @@ foreach ($f in ($tocados | Where-Object { $_ -match '\.(razor|cs)$' -and (Test-P
     foreach ($p in $patrones) {
         $e2e | Select-String -Pattern $p -CaseSensitive -List | ForEach-Object { [void]$pistas.Add($_.Path.Substring((Get-Location).Path.Length + 1).Replace('\', '/')) }
     }
-}Write-Host "`nE2E posiblemente afectados (pista, no se ejecutan):"
+}
+Write-Host "`nE2E posiblemente afectados (pista, no se ejecutan):"
 if ($pistas.Count -eq 0) { Write-Host '    ninguno detectado' } else { $pistas | Sort-Object | ForEach-Object { Write-Host "    $_" } }
 
 # 6. Resumen
 Write-Host "`n=== Resumen preflight$(if ($Rapido) { ' (-Rapido)' }) ==="
 $resultados | ForEach-Object { '{0,-36} {1,-34} {2,5} s' -f $_.Paso, $_.Estado, $_.Segundos } | Write-Host
+Write-Host "Logs de esta ejecucion: $logs"
 $fallos = @($resultados | Where-Object { $_.Estado -eq 'FALLA' }).Count
 if ($fallos -gt 0) { Write-Host "`nPREFLIGHT: FALLA ($fallos paso/s)" -ForegroundColor Red; exit 1 }
 Write-Host "`nPREFLIGHT: PASA" -ForegroundColor Green

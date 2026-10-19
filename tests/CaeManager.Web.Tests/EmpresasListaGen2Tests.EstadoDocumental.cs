@@ -1,4 +1,5 @@
-﻿using AngleSharp.Dom;
+using System.Globalization;
+using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Commands.RenovarDocumento;
@@ -21,7 +22,7 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// Listado de Empresas, cierre de la maqueta de listados (línea I): la columna «Estado documental» con el
 /// motivo bajo la pastilla y su desglose corregible sin salir del listado, y las mismas incidencias en la fila
-/// desplegada, antes de los Clientes de la Empresa.
+/// desplegada, cada una con la única acción «Gestionar».
 ///
 /// <para>
 /// El doble del mediador (<c>MediatorFalso</c>) hace con el desglose lo mismo que el handler: sin
@@ -49,6 +50,7 @@ public partial class EmpresasListaGen2Tests
     private IRenderedComponent<Empresas> RenderizarComo(MediatorFalso mediador, string rol = Roles.GestorCae, string url = "empresas")
     {
         this.ConRolDeEscritura(rol);
+        RolEfectivo = rol;
         this.ConServiciosDelFormularioDeDocumento();
         return Renderizar(mediador, url);
     }
@@ -203,15 +205,13 @@ public partial class EmpresasListaGen2Tests
         var nervion = EmpresaCon("Aislamientos Nervión S.L.", EstadoDocumento.Vencido, vencida);
         var ebro = Empresa("Montajes Ebro S.L.", estado: EstadoDocumento.Vigente);
         var mediador = new MediatorFalso { Almacen = { nervion, ebro }, Documento = DocumentoDe(vencida, "Aislamientos Nervión S.L.", version) };
-        mediador.ClientesDe[ebro.Id] = [ClienteEmpresarial("Orion Cliente S.L.", "B10000016")];
         var cut = RenderizarComo(mediador);
         await AlternarSeleccionMultiple(cut);
         await CasillaDe(cut, "Montajes Ebro S.L.").ChangeAsync(new ChangeEventArgs { Value = true });
         await DesplegarAsync(cut, "Montajes Ebro S.L.");
-        cut.WaitForAssertion(() => Tarjeta(cut, "Montajes Ebro S.L.").TextContent.Should().Contain("Orion Cliente S.L."));
+        cut.WaitForAssertion(() => Tarjeta(cut, "Montajes Ebro S.L.").TextContent.Should().Contain("Sin documentos pendientes de gestionar"));
         var pregunta = UltimaConsulta(mediador);
         var consultasAntes = ConsultasDeLista(mediador);
-        var consultasDeClientesAntes = ConsultasDeClientes(mediador);
 
         await CeldaDeEstado(cut, "Aislamientos Nervión S.L.").QuerySelector("button.ventana-contexto-elemento")!.ClickAsync(new MouseEventArgs());
         var formulario = cut.FindComponent<DrawerGestionDocumento>();
@@ -230,8 +230,8 @@ public partial class EmpresasListaGen2Tests
         CasillaDe(cut, "Montajes Ebro S.L.").HasAttribute("checked").Should().BeTrue(
             "corregir un documento no es cambiar de lista: lo marcado sigue marcado");
         Tarjeta(cut, "Montajes Ebro S.L.").QuerySelector(".tarjeta-fila-acordeon-contenido")!.TextContent
-            .Should().Contain("Orion Cliente S.L.", "y lo desplegado sigue desplegado, con sus Clientes");
-        ConsultasDeClientes(mediador).Should().Be(consultasDeClientesAntes, "los Clientes ya cargados no se vuelven a pedir");
+            .Should().Contain("Sin documentos pendientes de gestionar", "y lo desplegado sigue desplegado");
+        ConsultasDeClientes(mediador).Should().Be(0, "ni antes ni después se pregunta por Clientes");
     }
 
     /// <summary>
@@ -280,65 +280,145 @@ public partial class EmpresasListaGen2Tests
         MotivoDe(cut, "Aislamientos Nervión S.L.").Should().Be("Seguro de responsabilidad civil");
     }
 
-    // --- Fila desplegada: incidencias y Clientes -----------------------------------------------
+    // --- Fila desplegada: documentos pendientes con una sola acción, «Gestionar» --------------------
 
+    private static IReadOnlyList<IElement> DocumentosPendientes(IRenderedComponent<Empresas> cut) =>
+        cut.FindAll(".tarjeta-fila-acordeon-contenido [data-pieza='documentos-pendientes'] .documento-pendiente-empresa").ToList();
+
+    /// <summary>
+    /// Maqueta de Empresas y regla 8 de LEEME-AUTORIDAD: cada documento que pide trabajo lleva nombre, pastilla
+    /// de estado, el detalle de su vigencia y UNA acción, «Gestionar» (revisar, subir, confirmar o reclamar viven
+    /// detrás de ese verbo). Abre el formulario de corrección del documento de su línea, sin abrir la vista rápida.
+    /// </summary>
     [Fact]
-    public async Task La_fila_desplegada_lleva_las_incidencias_antes_de_los_Clientes_y_conserva_los_Clientes()
+    public async Task La_fila_desplegada_lista_cada_documento_pendiente_con_una_sola_accion_Gestionar()
     {
         var vencida = IncidenciaDe("Seguro de responsabilidad civil", EstadoDocumento.Vencido, -12);
         var sinConfirmar = IncidenciaDe("Modalidad preventiva", EstadoDocumento.SinConfirmar);
         var nervion = EmpresaCon("Aislamientos Nervión S.L.", EstadoDocumento.Vencido, vencida, sinConfirmar);
         var mediador = new MediatorFalso { Almacen = { nervion }, Documento = DocumentoDe(sinConfirmar, "Aislamientos Nervión S.L.", Guid.NewGuid()) };
-        mediador.ClientesDe[nervion.Id] = [ClienteEmpresarial("Orion Cliente S.L.", "B10000016")];
         var cut = RenderizarComo(mediador);
 
         await DesplegarAsync(cut, "Aislamientos Nervión S.L.");
 
-        cut.WaitForAssertion(() => cut.FindAll(".tarjeta-fila-acordeon-contenido li").Should().ContainSingle());
-        var contenido = cut.Find(".tarjeta-fila-acordeon-contenido");
-        var incidencias = contenido.QuerySelector("[data-pieza='incidencias-fila']")!;
-        incidencias.QuerySelector(".titulo-incidencias-empresa")!.TextContent.Trim().Should().NotBeEmpty();
-        incidencias.QuerySelectorAll("button.ventana-contexto-elemento .motivo-incidencias-tipo").Select(e => e.TextContent.Trim())
-            .Should().Equal(["Seguro de responsabilidad civil", "Modalidad preventiva"], "las mismas líneas que la ventana del motivo, en su orden");
-        contenido.QuerySelector(".titulo-clientes-empresa")!.TextContent.Trim().Should().Be("Clientes");
-        contenido.QuerySelector("li")!.TextContent.Should().Contain("Orion Cliente S.L.");
-        (incidencias.CompareDocumentPosition(contenido.QuerySelector(".titulo-clientes-empresa")!) & DocumentPositions.Following)
-            .Should().Be(DocumentPositions.Following, "las incidencias van antes que los Clientes");
+        var documentos = DocumentosPendientes(cut);
+        documentos.Select(d => d.QuerySelector(".documento-pendiente-nombre")!.TextContent.Trim())
+            .Should().Equal(["Seguro de responsabilidad civil", "Modalidad preventiva"], "los mismos documentos que la ventana del motivo, en su orden");
+        documentos.Select(d => d.QuerySelector("[data-pieza='pastilla']")!.TextContent.Trim()).Should().HaveCount(2).And.OnlyContain(t => t.Length > 0);
+        documentos[0].QuerySelector(".documento-pendiente-detalle")!.TextContent.Trim().Should().Be("Venció el " + FechaMaqueta(vencida), "dice cuándo venció, con la fecha absoluta de la maqueta");
+        documentos[1].QuerySelector(".documento-pendiente-detalle")!.TextContent.Trim().Should().Be("Falta la fecha de vencimiento", "dice qué falta para saber su vigencia");
+        documentos.Should().AllSatisfy(d =>
+        {
+            d.QuerySelectorAll("button").Should().ContainSingle("una sola acción por documento")
+                .Which.TextContent.Trim().Should().Be("Gestionar");
+        });
+        cut.Find(".tarjeta-fila-acordeon-contenido").TextContent.Should().NotContainAny("Revisar", "Subir", "Confirmar", "Reclamar");
+        cut.FindAll(".titulo-clientes-empresa").Should().BeEmpty();
 
-        // Misma corrección que la ventana.
-        await incidencias.QuerySelectorAll("button.ventana-contexto-elemento")[1].ClickAsync(new MouseEventArgs());
+        await documentos[1].QuerySelector("button")!.ClickAsync(new MouseEventArgs());
 
-        mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().ContainSingle().Which.Id.Should().Be(sinConfirmar.DocumentoId);
-        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().BeNull("corregir desde la fila desplegada tampoco abre la vista rápida");
+        mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().ContainSingle().Which.Id.Should().Be(sinConfirmar.DocumentoId,
+            "«Gestionar» abre el documento de su línea");
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().BeNull("gestionar desde la fila desplegada tampoco abre la vista rápida");
+        ConsultasDeClientes(mediador).Should().Be(0);
+    }
+
+    private static string FechaMaqueta(IncidenciaDocumentalDto incidencia) =>
+        incidencia.FechaVencimiento!.Value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// «Empresas TALVEG.dc.html», fila desplegada: lo vencido dice «Venció el dd/MM/yyyy» (fecha absoluta, nunca
+    /// «Hace N días»), literal de esa maqueta. «Caduca en N días» (por vencer) y «Falta la fecha de vencimiento»
+    /// (sin confirmar) son una extrapolación de la maqueta de Trabajadores: la de Empresas solo trae «Venció el».
+    /// </summary>
+    [Fact]
+    public async Task La_fila_desplegada_dice_Vencio_el_de_la_maqueta_y_extrapola_el_resto_de_Trabajadores()
+    {
+        var vencido = IncidenciaDe("Certificado de estar al corriente con la TGSS", EstadoDocumento.Vencido, -80);
+        var enTolerancia = IncidenciaDe("Seguro de responsabilidad civil", EstadoDocumento.EnTolerancia, -3);
+        var urgente = IncidenciaDe("Modalidad preventiva", EstadoDocumento.Urgente, 5);
+        var proximo = IncidenciaDe("Memoria de actividades", EstadoDocumento.Proximo, 20);
+        var sinConfirmar = IncidenciaDe("Póliza de accidentes", EstadoDocumento.SinConfirmar);
+        var nervion = EmpresaCon("Aislamientos Nervión S.L.", EstadoDocumento.Vencido, vencido, enTolerancia, urgente, proximo, sinConfirmar);
+        var cut = RenderizarComo(new MediatorFalso { Almacen = { nervion } });
+
+        await DesplegarAsync(cut, "Aislamientos Nervión S.L.");
+
+        DocumentosPendientes(cut).Select(d => d.QuerySelector(".documento-pendiente-detalle")!.TextContent.Trim()).Should().Equal(
+            "Venció el " + FechaMaqueta(vencido),
+            "Venció el " + FechaMaqueta(enTolerancia),
+            "Caduca en 5 días",
+            "Caduca en 20 días",
+            "Falta la fecha de vencimiento");
+        cut.Find(".tarjeta-fila-acordeon-contenido").TextContent.Should().NotContain("Hace ", "la maqueta no muestra el plazo relativo de lo vencido");
+    }
+
+    /// <summary>Un «sin confirmar» que es el contrato de trabajo pide la fecha de FIN, como en la lista de Trabajadores.</summary>
+    [Fact]
+    public async Task Un_contrato_de_trabajo_sin_confirmar_pide_la_fecha_de_fin()
+    {
+        var nervion = EmpresaCon("Aislamientos Nervión S.L.", EstadoDocumento.SinConfirmar,
+            IncidenciaDe("Contrato de trabajo", EstadoDocumento.SinConfirmar));
+        var cut = RenderizarComo(new MediatorFalso { Almacen = { nervion } });
+
+        await DesplegarAsync(cut, "Aislamientos Nervión S.L.");
+
+        DocumentosPendientes(cut).Single().QuerySelector(".documento-pendiente-detalle")!.TextContent.Trim().Should().Be("Falta la fecha de fin");
     }
 
     [Fact]
-    public async Task Sin_incidencias_la_fila_desplegada_solo_lleva_los_Clientes()
+    public async Task El_boton_Gestionar_nombra_el_documento_y_la_empresa_para_un_lector_de_pantalla()
+    {
+        var nervion = EmpresaCon("Aislamientos Nervión S.L.", EstadoDocumento.Vencido,
+            IncidenciaDe("Seguro de responsabilidad civil", EstadoDocumento.Vencido, -12));
+        var cut = RenderizarComo(new MediatorFalso { Almacen = { nervion } });
+
+        await DesplegarAsync(cut, "Aislamientos Nervión S.L.");
+
+        DocumentosPendientes(cut).Single().QuerySelector("button")!.GetAttribute("aria-label")
+            .Should().Be("Gestionar Seguro de responsabilidad civil de Aislamientos Nervión S.L.");
+    }
+
+    [Fact]
+    public async Task Sin_documentos_pendientes_la_fila_desplegada_dice_que_esta_al_dia()
     {
         var ebro = Empresa("Montajes Ebro S.L.", estado: EstadoDocumento.Vigente);
-        var mediador = new MediatorFalso { Almacen = { ebro } };
-        mediador.ClientesDe[ebro.Id] = [ClienteEmpresarial("Orion Cliente S.L.", "B10000016")];
-        var cut = RenderizarComo(mediador);
+        var cut = RenderizarComo(new MediatorFalso { Almacen = { ebro } });
 
         await DesplegarAsync(cut, "Montajes Ebro S.L.");
 
-        cut.WaitForAssertion(() => cut.FindAll(".tarjeta-fila-acordeon-contenido li").Should().ContainSingle());
-        cut.FindAll("[data-pieza='incidencias-fila']").Should().BeEmpty();
-        cut.FindAll(".titulo-incidencias-empresa").Should().BeEmpty();
+        var contenido = cut.Find(".tarjeta-fila-acordeon-contenido");
+        contenido.TextContent.Trim().Should().Be("Sin documentos pendientes de gestionar");
+        cut.FindAll("[data-pieza='documentos-pendientes']").Should().BeEmpty();
+        contenido.QuerySelectorAll("button").Should().BeEmpty("sin documentos no hay nada que gestionar");
     }
 
-    [Fact]
-    public async Task Quien_solo_consulta_ve_las_incidencias_de_la_fila_desplegada_sin_botones()
+    /// <summary>
+    /// Por rol: quien puede escribir (<c>Roles.ConEscrituraCsv</c>) ve «Gestionar» en cada documento; quien solo
+    /// consulta (o el rol Cliente, de portal) ve los mismos documentos sin el botón: no se le ofrece un formulario
+    /// que el comando le va a denegar.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Administrador, true)]
+    [InlineData(Roles.DireccionCae, true)]
+    [InlineData(Roles.CoordinadorCae, true)]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    [InlineData(Roles.Cliente, false)]
+    public async Task Gestionar_solo_se_ofrece_al_rol_que_puede_escribir(string rol, bool ofreceGestionar)
     {
+        var vencida = IncidenciaDe("Seguro de responsabilidad civil", EstadoDocumento.Vencido, -12);
         var nervion = EmpresaCon("Aislamientos Nervión S.L.", EstadoDocumento.Vencido,
-            IncidenciaDe("Seguro de responsabilidad civil", EstadoDocumento.Vencido, -12),
+            vencida,
             IncidenciaDe("Modalidad preventiva", EstadoDocumento.SinConfirmar));
-        var cut = RenderizarComo(new MediatorFalso { Almacen = { nervion } }, rol: Roles.Consulta);
+        var cut = RenderizarComo(new MediatorFalso { Almacen = { nervion } }, rol: rol);
 
         await DesplegarAsync(cut, "Aislamientos Nervión S.L.");
 
-        var incidencias = cut.Find(".tarjeta-fila-acordeon-contenido [data-pieza='incidencias-fila']");
-        incidencias.QuerySelectorAll(".ventana-linea").Should().HaveCount(2, "control positivo: las líneas se ven");
-        incidencias.QuerySelectorAll("button").Should().BeEmpty("no se ofrece un formulario que el comando va a denegar");
+        DocumentosPendientes(cut).Should().HaveCount(2, "control positivo: los documentos se ven con cualquier rol");
+        DocumentosPendientes(cut).Select(d => d.QuerySelector(".documento-pendiente-detalle")!.TextContent.Trim()).Should().Equal(
+            ["Venció el " + FechaMaqueta(vencida), "Falta la fecha de vencimiento"], "el texto de vigencia no depende del rol");
+        cut.FindAll(".tarjeta-fila-acordeon-contenido button").Should().HaveCount(ofreceGestionar ? 2 : 0);
+        cut.FindAll(".tarjeta-fila-acordeon-contenido button").Where(b => b.TextContent.Trim() != "Gestionar").Should().BeEmpty("el único verbo es «Gestionar»");
     }
 }

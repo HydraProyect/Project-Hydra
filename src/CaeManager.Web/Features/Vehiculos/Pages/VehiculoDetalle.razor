@@ -168,11 +168,12 @@
                                                     <BadgesAcreditacion Acreditaciones="documento.Acreditaciones" />
                                                 </Estado>
                                                 <Acciones>
-                                                    @if (EstadoDocumentoFicha360.Accion(documento.Estado) is { } accion)
+                                                    @if (EstadoDocumentoFicha360.PideGestionar(documento.Estado))
                                                     {
                                                         <SoloConEscritura>
-                                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                                                   OnClick="() => EditarDocumentoAsync(documento)">@Textos[$"Accion{accion}"]</Boton>
+                                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="@EstadoDocumentoFicha360.ClaseGestionar(documento.Estado, "accion-fila-enlace")"
+                                                                   aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)"
+                                                                   OnClick="() => EditarDocumentoAsync(documento)">@EstadoDocumentoFicha360.TextoAccion</Boton>
                                                         </SoloConEscritura>
                                                     }
                                                 </Acciones>

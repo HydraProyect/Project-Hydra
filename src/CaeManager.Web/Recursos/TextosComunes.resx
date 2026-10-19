@@ -486,6 +486,22 @@
     <value>No la ve el cliente.</value>
     <comment>Pie de la tarjeta NotaInterna: la nota no la ve el usuario de un Cliente. La ven el equipo y el Gestor CAE de un Operador CAE externo.</comment>
   </data>
+  <data name="NotaInternaEditar" xml:space="preserve">
+    <value>Editar →</value>
+    <comment>Botón de la tarjeta Nota interna (NotaInternaEditable) que abre su editor. Solo lo ve un rol con escritura.</comment>
+  </data>
+  <data name="NotaInternaGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="NotaInternaCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="NotaInternaGuardada" xml:space="preserve">
+    <value>Nota interna guardada.</value>
+  </data>
+  <data name="NotaInternaErrorGuardar" xml:space="preserve">
+    <value>No pudimos guardar la nota interna. Intenta nuevamente en unos segundos.</value>
+  </data>
   <data name="RestablecerVista" xml:space="preserve">
     <value>Restablecer vista</value>
   </data>
@@ -555,5 +571,29 @@
   </data>
   <data name="SelectorTenantQuitarFijada" xml:space="preserve">
     <value>Quitar de fijadas</value>
+  </data>
+  <data name="SelectorCrear" xml:space="preserve">
+    <value>Crear «{0}»</value>
+  </data>
+  <data name="PasosSiguiente" xml:space="preserve">
+    <value>Siguiente</value>
+  </data>
+  <data name="PasosAtras" xml:space="preserve">
+    <value>Atrás</value>
+  </data>
+  <data name="PasosGuardarYTerminar" xml:space="preserve">
+    <value>Guardar y terminar</value>
+  </data>
+  <data name="PasosPasoDeTotal" xml:space="preserve">
+    <value>Paso {0} de {1}</value>
+  </data>
+  <data name="PasosGrupoEtiqueta" xml:space="preserve">
+    <value>Pasos del formulario</value>
+  </data>
+  <data name="SeccionErrorSingular" xml:space="preserve">
+    <value>1 error</value>
+  </data>
+  <data name="SeccionErroresPlural" xml:space="preserve">
+    <value>{0} errores</value>
   </data>
 </root>
