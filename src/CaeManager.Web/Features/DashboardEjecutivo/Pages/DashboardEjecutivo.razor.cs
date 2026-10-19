@@ -768,7 +768,7 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
         ? Textos["DetalleFacturacionPeriodo", f, Organizaciones].Value
         : Textos["DetalleFacturacionSinPermiso"].Value;
 
-    private string DetalleCosteIa =>TenantsConPresupuestoIaExcedido.Count == 0
+    private string DetalleCosteIa => TenantsConPresupuestoIaExcedido.Count == 0
         ? Textos["DetalleCosteIaDentro", _valores!.CosteIaMesActual, Organizaciones].Value
         : Textos["DetalleCosteIaExcedido", _valores!.CosteIaMesActual, Organizaciones, TenantsConPresupuestoIaExcedido.Count].Value;
 }

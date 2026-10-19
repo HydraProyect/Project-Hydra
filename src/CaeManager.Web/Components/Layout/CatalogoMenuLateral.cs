@@ -149,7 +149,7 @@ public static class CatalogoMenuLateral
     /// </summary>
     private const string RolesDeCuadroDireccion = $"{Roles.DireccionCae},{Roles.CoordinadorCae}";
 
-    private const string RolesDeCartera =$"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae}";
+    private const string RolesDeCartera = $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae}";
 
     /// <summary>
     /// Quién ve las pestañas de gestión documental de Documentos. Mismo valor que

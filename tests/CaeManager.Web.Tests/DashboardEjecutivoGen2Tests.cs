@@ -230,7 +230,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 
-    private sealed class LoggerQueGuarda: ILogger<DashboardEjecutivoPagina>
+    private sealed class LoggerQueGuarda : ILogger<DashboardEjecutivoPagina>
     {
         public List<string> Errores { get; } = [];
 
