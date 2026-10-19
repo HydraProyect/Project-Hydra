@@ -1,5 +1,6 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Domain.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
@@ -37,6 +38,20 @@ public record ObtenerReclamacionPorAccesoQuery(Guid EmpresaId, Guid CentroId, IR
 /// </summary>
 public record ObtenerReclamacionPreventivaEmpresaQuery(Guid EmpresaId, Guid? DelegacionEmpresaId = null, Guid? OficioEmpresaId = null)
     : IRequest<ReclamacionPreventivaEmpresaDto>;
+
+/// <summary>
+/// «Pendiente de subir a plataformas» (regla de Chris, 2026-10-19: el estado del documento en TALVEG y el de su acreditación
+/// en cada plataforma o Centro son cosas distintas). Lo vigente en TALVEG que un Centro aún no da por acreditado es trabajo
+/// del Gestor CAE, no se reclama a la Empresa: por eso las dos reclamaciones de arriba parten solo de la vigencia en TALVEG
+/// (los lotes de siempre) y esto va aparte. Sale de <see cref="ObtenerDocumentacionBloqueantePendienteQuery"/> (la única
+/// fuente del bloqueo por Centro), con las situaciones de plataforma, acotado a la Empresa y a sus Trabajadores.
+/// </summary>
+/// <param name="CentroId">Con valor, solo ese Centro (reclamación por acceso); sin él, todos (preventiva).</param>
+/// <param name="TrabajadorIds">Con valor, solo lo de esos Trabajadores y lo de la Empresa.</param>
+public record ObtenerPendientesDeSubirAPlataformaEmpresaQuery(
+    Guid EmpresaId, Guid? CentroId = null, IReadOnlyList<Guid>? TrabajadorIds = null,
+    Guid? DelegacionEmpresaId = null, Guid? OficioEmpresaId = null)
+    : IRequest<IReadOnlyList<DocumentacionBloqueantePendienteDto>>;
 
 public record OpcionFiltroDto(Guid Id, string Nombre);
 
@@ -189,5 +204,35 @@ public class ObtenerReclamacionPreventivaEmpresaQueryHandler(
             .OrderBy(g => g.Key.CentroNombre)
             .Select(g => new CentroConTrabajadoresDto(g.Key.CentroId, g.Key.CentroNombre,
                 [.. g.OrderBy(f => f.TrabajadorNombre).Select(f => new OpcionFiltroDto(f.TrabajadorId, f.TrabajadorNombre))]))];
+    }
+}
+
+public class ObtenerPendientesDeSubirAPlataformaEmpresaQueryHandler(
+    IMediator mediator,
+    IAlcanceDatosService alcanceDatos,
+    ITrabajadoresQueryContext trabajadoresContext)
+    : IRequestHandler<ObtenerPendientesDeSubirAPlataformaEmpresaQuery, IReadOnlyList<DocumentacionBloqueantePendienteDto>>
+{
+    public async Task<IReadOnlyList<DocumentacionBloqueantePendienteDto>> Handle(
+        ObtenerPendientesDeSubirAPlataformaEmpresaQuery request, CancellationToken cancellationToken)
+    {
+        if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaId, cancellationToken))
+            return [];
+
+        var trabajadores = await trabajadoresContext.Trabajadores.Where(t => t.EmpresaId == request.EmpresaId)
+            .Where(t => request.DelegacionEmpresaId == null || t.DelegacionEmpresaId == request.DelegacionEmpresaId)
+            .Where(t => request.OficioEmpresaId == null || t.OficioEmpresaId == request.OficioEmpresaId)
+            .Select(t => t.Id).ToListAsync(cancellationToken);
+        var admitidos = trabajadores.Where(id => request.TrabajadorIds is null || request.TrabajadorIds.Contains(id)).ToHashSet();
+        // Lo de la propia Empresa no es de ninguna Delegación ni Oficio: con esos filtros no entra (como en la preventiva).
+        var conEmpresa = request.DelegacionEmpresaId is null && request.OficioEmpresaId is null;
+
+        var filas = await mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(request.CentroId), cancellationToken);
+        return [.. filas
+            .Where(f => f.Situacion is SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma or SituacionDeRequisitoBloqueante.SinValidarEnPlataforma)
+            .Where(f => f.Ambito == AmbitoAplicacion.Empresa
+                ? conEmpresa && f.EmpresaId == request.EmpresaId && (request.TrabajadorIds is null || admitidos.Contains(f.TrabajadorId))
+                : admitidos.Contains(f.TrabajadorId))
+            .DistinctBy(f => (f.CentroId, f.Ambito, f.Ambito == AmbitoAplicacion.Empresa ? Guid.Empty : f.TrabajadorId, f.TipoDocumentoId))];
     }
 }

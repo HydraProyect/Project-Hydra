@@ -485,7 +485,7 @@ public partial class Empresa360PaginaTests : BunitContext
         var cut = Renderizar();
 
         cut.FindAll("[role=tab]").Select(t => t.ChildNodes.OfType<IText>().First(n => !string.IsNullOrWhiteSpace(n.Data)).Data.Trim())
-            .Should().Equal(["Trabajadores", "Clientes", "Documentación", "Agenda", "Ficha", "Reclamación", "Historial"]);
+            .Should().Equal(["Trabajadores", "Clientes", "Documentación", "Agenda", "Ficha", "Historial"]);
         Pestana(cut, "Trabajadores").GetAttribute("aria-selected").Should().Be("true");
         Pestana(cut, "Trabajadores").TextContent.Should().Contain("25");
         Pestana(cut, "Clientes").TextContent.Should().Contain("2");
@@ -569,8 +569,7 @@ public partial class Empresa360PaginaTests : BunitContext
         lateral.TextContent.Should().Contain("Información").And.NotContain("Carpeta de documentación");
         cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "firma-documentos", "prevencion", "mutua", "formacion", "sello");
         var tabs = cut.FindAll("[role=tab]");
-        tabs[^3].TextContent.Trim().Should().Be("Ficha");
-        tabs[^2].TextContent.Trim().Should().Be("Reclamación");
+        tabs[^2].TextContent.Trim().Should().Be("Ficha");
         tabs[^1].TextContent.Trim().Should().Be("Historial");
     }
 

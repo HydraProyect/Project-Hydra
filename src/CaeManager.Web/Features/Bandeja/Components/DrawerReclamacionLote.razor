@@ -296,13 +296,6 @@
     /// queda fuera se dice, con su motivo, y no se reclama en silencio a otro.
     /// </summary>
     [Parameter] public Guid? TitularIdInicial { get; set; }
-
-    /// <summary>
-    /// Abre directamente la revisión de estos lotes, ya resueltos por quien llama (reclamación por acceso y preventiva de
-    /// Empresa 360: <c>ObtenerReclamacionPorAccesoQuery</c>, <c>ObtenerReclamacionPreventivaEmpresaQuery</c>). Una tarjeta por
-    /// lote; el envío los revalida igual que siempre, así que no amplían nada.
-    /// </summary>
-    [Parameter] public IReadOnlyList<LoteReclamacionAgrupadoDto>? LotesIniciales { get; set; }
     private bool _inicialesCargados;
     private int _inicialesPedidos;
     private int _fueraTrabajadores;
@@ -328,13 +321,6 @@
         if (Visible && DocumentoIdsIniciales is not null && TitularIdInicial is null)
             throw new InvalidOperationException(
                 "DrawerReclamacionLote: con DocumentoIdsIniciales hay que indicar TitularIdInicial; sin él se ofrecerían lotes de cualquier titular.");
-        if (Visible && LotesIniciales is not null && !_inicialesCargados)
-        {
-            _inicialesCargados = true;
-            _lotes = LotesIniciales;
-            PrepararRevision();
-            return;
-        }
         if (Visible && DocumentoIdsIniciales is not null && !_inicialesCargados)
         {
             _inicialesCargados = true;
