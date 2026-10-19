@@ -203,6 +203,8 @@ public class EventosEnFacturacionYKpiTests
         IQueryable<CredencialAccesoEmpresa> IEmpresasQueryContext.CredencialesAccesoEmpresa => throw new NotSupportedException();
         IQueryable<PlataformaCaeClienteEmpresarial> IEmpresasQueryContext.PlataformasCaeClienteEmpresarial => throw new NotSupportedException();
         IQueryable<AccesoPlataformaCaeEmpresa> IEmpresasQueryContext.AccesosPlataformaCaeEmpresa => throw new NotSupportedException();
+        IQueryable<DelegacionEmpresa> IEmpresasQueryContext.DelegacionesEmpresa => throw new NotSupportedException();
+        IQueryable<OficioEmpresa> IEmpresasQueryContext.OficiosEmpresa => throw new NotSupportedException();
         IQueryable<RelacionEmpresarial> IEmpresasQueryContext.RelacionesEmpresariales => throw new NotSupportedException();
         IQueryable<CanalGestionDocumental> ICentrosQueryContext.CanalesGestionDocumental => throw new NotSupportedException();
         IQueryable<RevisionIaDocumento> IDocumentosQueryContext.RevisionesIaDocumento => throw new NotSupportedException();

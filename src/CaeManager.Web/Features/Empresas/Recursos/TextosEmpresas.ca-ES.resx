@@ -334,6 +334,15 @@
     <value>DNI</value>
   </data>
   <data name="NingunoConFiltro" xml:space="preserve"><value>Cap amb aquest filtre.</value></data>
+  <data name="EtiquetaFiltrosCatalogo" xml:space="preserve"><value>Delegació, ofici i agrupació</value></data>
+  <data name="EtiquetaDelegacionEmpresaFiltro" xml:space="preserve"><value>Delegació</value></data>
+  <data name="EtiquetaOficioFiltro" xml:space="preserve"><value>Ofici</value></data>
+  <data name="OpcionTodasLasDelegacionesEmpresa" xml:space="preserve"><value>Totes</value></data>
+  <data name="OpcionTodosLosOficios" xml:space="preserve"><value>Tots</value></data>
+  <data name="AgruparPorDelegacionEmpresa" xml:space="preserve"><value>Per Delegació</value></data>
+  <data name="AgruparPorOficio" xml:space="preserve"><value>Per Ofici</value></data>
+  <data name="SinDelegacionEmpresa" xml:space="preserve"><value>Sense delegació</value></data>
+  <data name="SinOficio" xml:space="preserve"><value>Sense ofici</value></data>
   <data name="FichaCanalFirma" xml:space="preserve"><value>Com se li envia el que cal signar</value></data>
   <data name="FichaFirmante" xml:space="preserve"><value>Qui signa en nom de l’Empresa</value></data>
   <data name="FichaModalidadPreventiva" xml:space="preserve"><value>Modalitat d’organització preventiva</value></data>

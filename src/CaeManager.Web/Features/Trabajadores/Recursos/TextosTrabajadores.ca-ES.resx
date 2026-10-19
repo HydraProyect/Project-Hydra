@@ -735,6 +735,20 @@
   <data name="EtiquetaAgrupar" xml:space="preserve"><value>Agrupa</value></data>
   <data name="OpcionSinAgrupar" xml:space="preserve"><value>Sense agrupar</value></data>
   <data name="AgruparPorEmpresa" xml:space="preserve"><value>Per Empresa</value></data>
+  <data name="AgruparPorDelegacionEmpresa" xml:space="preserve"><value>Per Delegació</value></data>
+  <data name="AgruparPorOficio" xml:space="preserve"><value>Per Ofici</value></data>
+  <data name="SinDelegacionEmpresa" xml:space="preserve"><value>Sense delegació</value></data>
+  <data name="SinOficio" xml:space="preserve"><value>Sense ofici</value></data>
+  <data name="GrupoDeCatalogoConEmpresa" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="EtiquetaDelegacionEmpresa" xml:space="preserve"><value>Delegació</value></data>
+  <data name="EtiquetaOficio" xml:space="preserve"><value>Ofici</value></data>
+  <data name="OpcionTodasLasDelegacionesEmpresa" xml:space="preserve"><value>Totes</value></data>
+  <data name="OpcionTodosLosOficios" xml:space="preserve"><value>Tots</value></data>
+  <data name="ChipDelegacionEmpresa" xml:space="preserve"><value>Delegació: {0}</value></data>
+  <data name="ChipOficio" xml:space="preserve"><value>Ofici: {0}</value></data>
+  <data name="AriaQuitarFiltroDelegacionEmpresa" xml:space="preserve"><value>Treu el filtre de delegació</value></data>
+  <data name="AriaQuitarFiltroOficio" xml:space="preserve"><value>Treu el filtre d'ofici</value></data>
+  <data name="OficioEtiquetaAyuda" xml:space="preserve"><value>Ofici del catàleg de la seva empresa</value></data>
   <data name="RecuentoGrupoEnEstaPagina" xml:space="preserve"><value>· {0} en aquesta pàgina</value></data>
   <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordena</value></data>
   <data name="OficioEtiqueta" xml:space="preserve"><value>Ofici</value></data>

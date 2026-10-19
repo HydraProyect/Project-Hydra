@@ -21,6 +21,25 @@
     gap: var(--space-2);
 }
 
+.empresa360-pastillas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+.empresa360-grupo {
+    margin: var(--space-4) 0 var(--space-2);
+    font: var(--font-label);
+    color: var(--color-text);
+}
+
+.empresa360-grupo-recuento {
+    font: var(--font-caption);
+    font-weight: 400;
+    color: var(--color-text-muted);
+}
+
 .empresa360-chip {
     height: 30px;
     padding: 0 10px;

@@ -11,6 +11,7 @@ using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
@@ -122,6 +123,9 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         /// <summary>Lo que responde «Guardar filtro»; sin valor, éxito.</summary>
         public Result<Guid>? ResultadoGuardarFiltro { get; set; }
 
+        /// <summary>DelegacionesEmpresa y Oficios por Empresa, lo que responde el catálogo de las pastillas «Delegación» y «Oficio».</summary>
+        public Dictionary<Guid, CatalogoTrabajadoresEmpresaDto> Catalogos { get; } = [];
+
         public List<CentroSelectorDto> Centros { get; } = [];
         public Func<Guid, IReadOnlyList<DocumentoFaltanteDto>> Faltantes { get; set; } = _ => [];
 
@@ -174,6 +178,8 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
                     return EmpleadoresFiltro ?? new EmpleadoresDeTrabajadoresDto(
                         Empresas.Select(e => new EmpleadorDeTrabajadorDto(e.Id, e.RazonSocial)).ToList(),
                         Subcontratas.Select(s => new EmpleadorDeTrabajadorDto(s.Id, s.RazonSocial)).ToList());
+                case ObtenerCatalogoTrabajadoresEmpresaQuery c:
+                    return Catalogos.GetValueOrDefault(c.EmpresaId) ?? CatalogoTrabajadoresEmpresaDto.Vacio;
                 case ObtenerTrabajadoresQuery q:
                     return Filtrar(q);
                 case ObtenerTrabajadorPorIdQuery q:
@@ -231,6 +237,8 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
                 .Where(f => string.IsNullOrWhiteSpace(q.Busqueda) || CoincideBusqueda(f, q.Busqueda))
                 .Where(f => q.EmpresaId is null || f.EmpresaId == q.EmpresaId)
                 .Where(f => q.SubcontrataId is null || f.SubcontrataId == q.SubcontrataId)
+                .Where(f => q.DelegacionEmpresaId is null || f.Dto.DelegacionEmpresaId == q.DelegacionEmpresaId)
+                .Where(f => q.OficioEmpresaId is null || f.Dto.OficioEmpresaId == q.OficioEmpresaId)
                 .Where(f => EstadoDocumentalFiltro.Coincide(f.Dto.EstadoDocumental, q.EstadoDocumental))
                 .Select(f => q.ConDesgloseDocumental
                     ? f.Dto
@@ -283,6 +291,11 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
                 (nameof(TrabajadorListaDto.Dni), true) => filas.OrderByDescending(t => t.Dni, c),
                 (nameof(TrabajadorListaDto.EmpleadorNombre), false) => filas.OrderBy(t => t.EmpleadorNombre, c).ThenBy(t => t.Apellidos, c),
                 (nameof(TrabajadorListaDto.EmpleadorNombre), true) => filas.OrderByDescending(t => t.EmpleadorNombre, c).ThenBy(t => t.Apellidos, c),
+                // «Agrupar»: con catálogo por nombre y Empresa, sin catálogo al final (como el handler).
+                (nameof(TrabajadorListaDto.DelegacionEmpresaNombre), _) => filas.OrderBy(t => t.DelegacionEmpresaNombre is null).ThenBy(t => t.DelegacionEmpresaNombre, c)
+                    .ThenBy(t => t.EmpleadorNombre, c).ThenBy(t => t.DelegacionEmpresaId).ThenBy(t => t.Apellidos, c),
+                (nameof(TrabajadorListaDto.OficioNombre), _) => filas.OrderBy(t => t.OficioNombre is null).ThenBy(t => t.OficioNombre, c)
+                    .ThenBy(t => t.EmpleadorNombre, c).ThenBy(t => t.OficioEmpresaId).ThenBy(t => t.Apellidos, c),
                 _ => filas.OrderBy(t => t.Apellidos, c).ThenBy(t => t.Nombre, c)
             };
             return ordenada.ThenBy(t => t.Id);

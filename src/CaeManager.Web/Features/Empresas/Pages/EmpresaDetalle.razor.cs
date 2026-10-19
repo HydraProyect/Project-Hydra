@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa;
 using CaeManager.Application.Empresas.Commands.GuardarNotaInternaEmpresa;
+using CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresaSinContrasena;
 using CaeManager.Application.Empresas.Queries.ObtenerCumplimientoEmpresa;
@@ -73,6 +74,13 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// <summary>Texto del buscador de la pestaña Trabajadores, en la URL (<c>?q=</c>), como en Centro 360.</summary>
     [Parameter, SupplyParameterFromQuery(Name = "q")] public string? Busqueda { get; set; }
 
+    /// <summary>Delegación y Oficio de la pestaña Trabajadores (Ids del catálogo de esta Empresa) y su agrupación, en la URL.</summary>
+    [Parameter, SupplyParameterFromQuery(Name = "delegacion")] public string? DelegacionEmpresa { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "oficio")] public string? Oficio { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "agrupar")] public string? Agrupar { get; set; }
+
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -132,6 +140,32 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     private string? _busquedaDeLaUrl;
     private bool _urlAdoptada;
 
+    internal const string AgruparPorDelegacionEmpresa = "delegacion";
+    internal const string AgruparPorOficio = "oficio";
+
+    // Delegación y Oficio (catálogo de ESTA Empresa) y la agrupación de la lista: filtros y vista de la pestaña.
+    private string _delegacionId = string.Empty;
+    private string _oficioId = string.Empty;
+    private string _agrupar = string.Empty;
+    private string? _delegacionDeLaUrl;
+    private string? _oficioDeLaUrl;
+    private string? _agruparDeLaUrl;
+
+    /// <summary>Catálogo de Delegación y Oficio de la Empresa, para las pastillas. <c>null</c> hasta cargarlos; si fallan, vacío.</summary>
+    private CatalogoTrabajadoresEmpresaDto? _catalogo;
+
+    private bool Agrupado => _agrupar.Length > 0;
+    private bool HayFiltroDeCatalogo => _delegacionId.Length > 0 || _oficioId.Length > 0;
+    private Guid? DelegacionEmpresaFiltro => Guid.TryParse(_delegacionId, out var id) ? id : null;
+    private Guid? OficioFiltro => Guid.TryParse(_oficioId, out var id) ? id : null;
+
+    private static string IdValido(string? valor) => Guid.TryParse(valor, out var id) ? id.ToString() : string.Empty;
+
+    private static string AgrupacionValida(string? valor) =>
+        string.Equals(valor, AgruparPorDelegacionEmpresa, StringComparison.OrdinalIgnoreCase) ? AgruparPorDelegacionEmpresa
+        : string.Equals(valor, AgruparPorOficio, StringComparison.OrdinalIgnoreCase) ? AgruparPorOficio
+        : string.Empty;
+
     /// <summary>
     /// Empresa que esta instancia tiene cargada: Blazor reutiliza la instancia
     /// al pasar de una Empresa a otra, y sin esto cada cambio de pestaña o de
@@ -166,7 +200,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// </summary>
     protected override async Task OnParametersSetAsync()
     {
-        var (filtroCambio, busquedaCambio) = AdoptarUrl();
+        var (filtroCambio, busquedaCambio, catalogoCambio, agruparCambio) = AdoptarUrl();
 
         if (_empresaCargada != EmpresaId)
         {
@@ -176,12 +210,13 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             return;
         }
 
-        if (busquedaCambio && _recuentos is not null)
+        // Delegación y Oficio cambian lo que cuentan los chips, igual que el buscador: recuentos y lista otra vez.
+        if ((busquedaCambio || catalogoCambio) && _recuentos is not null)
         {
             _pagina = 1;
             await CargarTrabajadoresAsync(soloLaLista: true);
         }
-        else if (filtroCambio && _recuentos is not null)
+        else if ((filtroCambio || agruparCambio) && _recuentos is not null)
         {
             _pagina = 1;
             await MostrarPaginaAsync();
@@ -198,10 +233,12 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// botón «atrás»—; lo que cambia la propia página ya lo apuntó antes de
     /// navegar. Devuelve si el chip cambió y si cambió el texto del buscador.
     /// </summary>
-    private (bool Filtro, bool Busqueda) AdoptarUrl()
+    private (bool Filtro, bool Busqueda, bool Catalogo, bool Agrupar) AdoptarUrl()
     {
         var filtroCambio = false;
         var busquedaCambio = false;
+        var catalogoCambio = false;
+        var agruparCambio = false;
         if (!_urlAdoptada || !string.Equals(_pestanaDeLaUrl, Pestana, StringComparison.Ordinal))
         {
             _pestanaDeLaUrl = Pestana;
@@ -224,8 +261,28 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             _busqueda = busqueda;
         }
 
+        if (!_urlAdoptada || !string.Equals(_delegacionDeLaUrl, DelegacionEmpresa, StringComparison.Ordinal)
+            || !string.Equals(_oficioDeLaUrl, Oficio, StringComparison.Ordinal))
+        {
+            _delegacionDeLaUrl = DelegacionEmpresa;
+            _oficioDeLaUrl = Oficio;
+            var delegacion = IdValido(DelegacionEmpresa);
+            var oficio = IdValido(Oficio);
+            catalogoCambio = delegacion != _delegacionId || oficio != _oficioId;
+            _delegacionId = delegacion;
+            _oficioId = oficio;
+        }
+
+        if (!_urlAdoptada || !string.Equals(_agruparDeLaUrl, Agrupar, StringComparison.Ordinal))
+        {
+            _agruparDeLaUrl = Agrupar;
+            var agrupar = AgrupacionValida(Agrupar);
+            agruparCambio = agrupar != _agrupar;
+            _agrupar = agrupar;
+        }
+
         _urlAdoptada = true;
-        return (filtroCambio, busquedaCambio);
+        return (filtroCambio, busquedaCambio, catalogoCambio, agruparCambio);
     }
 
     private void InvalidarCargas()
@@ -248,6 +305,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         _error = false;
         _recuentos = null;
         _recuentosLista = null;
+        _catalogo = null;
         _filas = [];
         _paginasOrdenadas.Clear();
         _cargandoTrabajadores = true;
@@ -356,12 +414,21 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
 
         try
         {
+            // Las pastillas «Delegación» y «Oficio» ofrecen el catálogo de esta Empresa: se pide una vez por Empresa.
+            if (_catalogo is null)
+            {
+                var catalogo = await CargarCatalogoAsync(empresaId);
+                if (carga != _cargaTrabajadores) return;
+                _catalogo = catalogo;
+            }
+
             var deLaLista = await ContarTodosLosEstadosAsync(empresaId, busqueda, carga);
             if (deLaLista is null) return;
             var (recuentoDeLaLista, primera) = deLaLista.Value;
 
+            // «Todos» (cabecera y contador de la pestaña) son los de la Empresa entera: sin buscador ni catálogo.
             var todos = recuentoDeLaLista;
-            if (busqueda is not null)
+            if (busqueda is not null || HayFiltroDeCatalogo)
             {
                 if (soloLaLista && _recuentos is { } yaContados)
                 {
@@ -369,7 +436,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
                 }
                 else
                 {
-                    var deTodos = await ContarTodosLosEstadosAsync(empresaId, null, carga);
+                    var deTodos = await ContarTodosLosEstadosAsync(empresaId, null, carga, conCatalogo: false);
                     if (deTodos is null) return;
                     todos = deTodos.Value.Recuento;
                 }
@@ -397,11 +464,29 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     }
 
     /// <summary>Total de un solo estado: el handler cuenta en SQL y devuelve una fila, que se descarta.</summary>
-    private async Task<int> ContarAsync(Guid empresaId, EstadoDocumento estado, string? busqueda)
+    private async Task<int> ContarAsync(Guid empresaId, EstadoDocumento estado, string? busqueda, bool conCatalogo)
     {
         var resultado = await Mediator.Send(new ObtenerTrabajadoresQuery(
-            busqueda, EmpresaId: empresaId, Pagina: 1, TamanoPagina: 1, EstadoDocumental: estado.ToString()), _cancelacion);
+            busqueda, EmpresaId: empresaId, Pagina: 1, TamanoPagina: 1, EstadoDocumental: estado.ToString(),
+            DelegacionEmpresaId: conCatalogo ? DelegacionEmpresaFiltro : null, OficioEmpresaId: conCatalogo ? OficioFiltro : null), _cancelacion);
         return resultado.TotalElementos;
+    }
+
+    /// <summary>Catálogo de Delegación y Oficio de la Empresa. Si fallan, vacío: la lista sigue y las pastillas no se ofrecen.</summary>
+    private async Task<CatalogoTrabajadoresEmpresaDto> CargarCatalogoAsync(Guid empresaId)
+    {
+        try
+        {
+            return await Mediator.Send(new ObtenerCatalogoTrabajadoresEmpresaQuery(empresaId), _cancelacion);
+        }
+        catch (OperationCanceledException) when (_cancelacion.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return CatalogoTrabajadoresEmpresaDto.Vacio;
+        }
     }
 
     /// <summary>
@@ -409,23 +494,36 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// primera página ordenada. <c>null</c> si mientras tanto empezó otra carga: quien llama no escribe nada.
     /// </summary>
     private async Task<(RecuentoTrabajadores Recuento, IReadOnlyList<TrabajadorListaDto> PrimeraPagina)?> ContarTodosLosEstadosAsync(
-        Guid empresaId, string? busqueda, int carga)
+        Guid empresaId, string? busqueda, int carga, bool conCatalogo = true)
     {
-        var primera = await Mediator.Send(ConsultaOrdenada(empresaId, 1, busqueda), _cancelacion);
+        var primera = await Mediator.Send(ConsultaOrdenada(empresaId, 1, busqueda, conCatalogo ? DelegacionEmpresaFiltro : null, conCatalogo ? OficioFiltro : null), _cancelacion);
         if (carga != _cargaTrabajadores) return null;
-        var vencidos = await ContarAsync(empresaId, EstadoDocumento.Vencido, busqueda);
+        var vencidos = await ContarAsync(empresaId, EstadoDocumento.Vencido, busqueda, conCatalogo);
         if (carga != _cargaTrabajadores) return null;
-        var urgentes = await ContarAsync(empresaId, EstadoDocumento.Urgente, busqueda);
+        var urgentes = await ContarAsync(empresaId, EstadoDocumento.Urgente, busqueda, conCatalogo);
         if (carga != _cargaTrabajadores) return null;
-        var proximos = await ContarAsync(empresaId, EstadoDocumento.Proximo, busqueda);
+        var proximos = await ContarAsync(empresaId, EstadoDocumento.Proximo, busqueda, conCatalogo);
         if (carga != _cargaTrabajadores) return null;
 
         return (new RecuentoTrabajadores(primera.TotalElementos, vencidos, urgentes, proximos), primera.Elementos);
     }
 
-    private static ObtenerTrabajadoresQuery ConsultaOrdenada(Guid empresaId, int pagina, string? busqueda) =>
+    private static ObtenerTrabajadoresQuery ConsultaOrdenada(Guid empresaId, int pagina, string? busqueda, Guid? delegacionId, Guid? oficioId) =>
         new(busqueda, EmpresaId: empresaId, Pagina: pagina, TamanoPagina: TamanoPagina,
-            OrdenarPor: nameof(TrabajadorListaDto.EstadoDocumental));
+            OrdenarPor: nameof(TrabajadorListaDto.EstadoDocumental), DelegacionEmpresaId: delegacionId, OficioEmpresaId: oficioId);
+
+    /// <summary>
+    /// Estados que deja pasar cada chip, para pedir a la consulta la página agrupada (el orden por Delegación u Oficio
+    /// ya no deja cada chip como un tramo de la lista ordenada por estado). Los mismos tramos que
+    /// <see cref="Tramo"/>: «Al día» es todo lo que no es Vencido, Urgente ni Próximo.
+    /// </summary>
+    private static string? EstadosDelChip(FiltroTrabajadores filtro) => filtro switch
+    {
+        FiltroTrabajadores.SinDocumentacionValida => nameof(EstadoDocumento.Vencido),
+        FiltroTrabajadores.PorVencer => $"{nameof(EstadoDocumento.Urgente)},{nameof(EstadoDocumento.Proximo)}",
+        FiltroTrabajadores.AlDia => $"{nameof(EstadoDocumento.SinConfirmar)},{nameof(EstadoDocumento.Vigente)},{nameof(EstadoDocumento.SinCaducidad)}",
+        _ => null
+    };
 
     /// <summary>
     /// Pinta la página <see cref="_pagina"/> del chip activo: su tramo de la
@@ -450,6 +548,30 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             return;
         }
 
+        // Agrupada, la lista se ordena por Delegación u Oficio y cada chip filtra por sus estados en la propia consulta.
+        if (Agrupado)
+        {
+            try
+            {
+                var agrupada = await Mediator.Send(new ObtenerTrabajadoresQuery(
+                    busqueda, EmpresaId: empresaId, Pagina: _pagina, TamanoPagina: TamanoPagina,
+                    OrdenarPor: _agrupar == AgruparPorOficio ? nameof(TrabajadorListaDto.OficioNombre) : nameof(TrabajadorListaDto.DelegacionEmpresaNombre),
+                    EstadoDocumental: EstadosDelChip(filtro), DelegacionEmpresaId: DelegacionEmpresaFiltro, OficioEmpresaId: OficioFiltro), _cancelacion);
+                if (carga != _cargaPagina || generacion != _generacion) return;
+                _filas = agrupada.Elementos;
+            }
+            catch (Exception)
+            {
+                if (carga == _cargaPagina && generacion == _generacion)
+                {
+                    _filas = [];
+                    _errorTrabajadores = true;
+                }
+            }
+
+            return;
+        }
+
         try
         {
             var primeraPagina = desde / TamanoPagina + 1;
@@ -459,7 +581,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             {
                 if (!_paginasOrdenadas.TryGetValue(pagina, out var elementos))
                 {
-                    var resultado = await Mediator.Send(ConsultaOrdenada(empresaId, pagina, busqueda), _cancelacion);
+                    var resultado = await Mediator.Send(ConsultaOrdenada(empresaId, pagina, busqueda, DelegacionEmpresaFiltro, OficioFiltro), _cancelacion);
                     if (carga != _cargaPagina || generacion != _generacion) return;
                     elementos = resultado.Elementos;
                     _paginasOrdenadas[pagina] = elementos;
@@ -550,11 +672,91 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     {
         _busqueda = string.Empty;
         _filtro = FiltroTrabajadores.Todos;
+        _delegacionId = string.Empty;
+        _oficioId = string.Empty;
         _pagina = 1;
         _busquedaDeLaUrl = null;
         _estadoDeLaUrl = null;
-        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["estado"] = null });
+        _delegacionDeLaUrl = null;
+        _oficioDeLaUrl = null;
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = null,
+            ["estado"] = null,
+            ["delegacion"] = null,
+            ["oficio"] = null
+        });
         await CargarTrabajadoresAsync(soloLaLista: true);
+    }
+
+    private async Task CambiarDelegacionEmpresaAsync(string valor)
+    {
+        _delegacionId = IdValido(valor);
+        _pagina = 1;
+        _delegacionDeLaUrl = _delegacionId.Length == 0 ? null : _delegacionId;
+        NavigationManager.ActualizarFiltroEnUrl("delegacion", _delegacionId);
+        await CargarTrabajadoresAsync(soloLaLista: true);
+    }
+
+    private async Task CambiarOficioAsync(string valor)
+    {
+        _oficioId = IdValido(valor);
+        _pagina = 1;
+        _oficioDeLaUrl = _oficioId.Length == 0 ? null : _oficioId;
+        NavigationManager.ActualizarFiltroEnUrl("oficio", _oficioId);
+        await CargarTrabajadoresAsync(soloLaLista: true);
+    }
+
+    private async Task CambiarAgrupacionAsync(string valor)
+    {
+        _agrupar = AgrupacionValida(valor);
+        _pagina = 1;
+        _agruparDeLaUrl = Agrupado ? _agrupar : null;
+        NavigationManager.ActualizarFiltroEnUrl("agrupar", Agrupado ? _agrupar : null);
+        await MostrarPaginaAsync();
+    }
+
+    private IReadOnlyList<OpcionEstado> OpcionesDelegacionEmpresa =>
+        (_catalogo?.DelegacionesEmpresa ?? []).Select(d => new OpcionEstado(d.Id.ToString(), d.Nombre)).ToList();
+
+    private IReadOnlyList<OpcionEstado> OpcionesOficio =>
+        (_catalogo?.Oficios ?? []).Select(o => new OpcionEstado(o.Id.ToString(), o.Nombre)).ToList();
+
+    private IReadOnlyList<OpcionEstado> OpcionesAgrupacion =>
+    [
+        new OpcionEstado(AgruparPorDelegacionEmpresa, Textos["AgruparPorDelegacionEmpresa"].Value),
+        new OpcionEstado(AgruparPorOficio, Textos["AgruparPorOficio"].Value),
+    ];
+
+    /// <summary>
+    /// Las filas de la página en grupos contiguos (el orden ya viene de la consulta). Sin agrupar, un solo grupo sin
+    /// título. Quien no tiene Delegación u Oficio va a «Sin delegación» / «Sin oficio», al final.
+    /// </summary>
+    private IReadOnlyList<(string? Titulo, IReadOnlyList<TrabajadorListaDto> Filas)> GruposDeFilas()
+    {
+        if (!Agrupado)
+            return [(null, _filas)];
+
+        var grupos = new List<(string? Titulo, IReadOnlyList<TrabajadorListaDto> Filas)>();
+        string? claveAnterior = null;
+        List<TrabajadorListaDto>? actual = null;
+        foreach (var trabajador in _filas)
+        {
+            var (clave, nombre) = _agrupar == AgruparPorOficio
+                ? (trabajador.OficioEmpresaId?.ToString(), trabajador.OficioNombre)
+                : (trabajador.DelegacionEmpresaId?.ToString(), trabajador.DelegacionEmpresaNombre);
+            if (actual is null || clave != claveAnterior)
+            {
+                actual = [];
+                claveAnterior = clave;
+                var titulo = nombre ?? Textos[_agrupar == AgruparPorOficio ? "SinOficio" : "SinDelegacionEmpresa"].Value;
+                grupos.Add((titulo, actual));
+            }
+
+            actual.Add(trabajador);
+        }
+
+        return grupos;
     }
 
     private async Task CambiarFiltroAsync(FiltroTrabajadores filtro)

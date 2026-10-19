@@ -247,3 +247,15 @@
     font-weight: 600;
     white-space: nowrap;
 }
+/* Oficio del catálogo de la Empresa, como etiqueta junto al nombre (misma silueta que la de voluntario, en tono neutro). */
+.etiqueta-oficio-trabajador {
+    align-self: flex-start;
+    padding: 2px 9px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-surface-subtle);
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+    font-weight: 600;
+    white-space: nowrap;
+}

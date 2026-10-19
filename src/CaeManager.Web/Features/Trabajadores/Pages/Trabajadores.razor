@@ -103,6 +103,18 @@
                             ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
             <PastillaFiltro Etiqueta="@Textos["EtiquetaCentro"]" TextoTodos="@Textos["OpcionTodosLosCentros"]" Valor="@_filtroCentroId"
                             ValorChanged="FiltrarPorCentroAsync" Opciones="OpcionesFiltroCentro" />
+            @* Delegación y Oficio son del catálogo de UNA Empresa: solo hay pastilla con la Empresa elegida (o la única que
+               emplea a Trabajadores visibles) y con algo que ofrecer. Un Trabajador de Subcontrata no casa con ninguna. *@
+            @if (OfrecerPastillaDeDelegacionEmpresa)
+            {
+                <PastillaFiltro Etiqueta="@Textos["EtiquetaDelegacionEmpresa"]" TextoTodos="@Textos["OpcionTodasLasDelegacionesEmpresa"]" Valor="@_filtroDelegacionEmpresaId"
+                                ValorChanged="FiltrarPorDelegacionEmpresaAsync" Opciones="OpcionesFiltroDelegacionEmpresa" />
+            }
+            @if (OfrecerPastillaDeOficio)
+            {
+                <PastillaFiltro Etiqueta="@Textos["EtiquetaOficio"]" TextoTodos="@Textos["OpcionTodosLosOficios"]" Valor="@_filtroOficioId"
+                                ValorChanged="FiltrarPorOficioAsync" Opciones="OpcionesFiltroOficio" />
+            }
         </Pastillas>
         <Estados>
             <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
@@ -110,7 +122,7 @@
         </Estados>
         <Herramientas>
             <PastillaFiltro Etiqueta="@Textos["EtiquetaAgrupar"]" TextoTodos="@Textos["OpcionSinAgrupar"]" Valor="@ValorAgrupacion"
-                            ValorChanged="CambiarAgrupacionAsync" Opciones="OpcionesAgrupacion" />
+                            ValorChanged="CambiarAgrupacionAsync" Opciones="OpcionesAgrupacion" Keytip="A" />
             @if (HayFilasDesplegables)
             {
                 <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" />
@@ -135,6 +147,14 @@
             @if (!string.IsNullOrWhiteSpace(_filtroCentroId))
             {
                 <ChipFiltro Etiqueta="@EtiquetaFiltroCentro" EtiquetaAccesible="@Textos["AriaQuitarFiltroCentro"]" OnQuitar="QuitarFiltroCentroAsync" />
+            }
+            @if (!string.IsNullOrWhiteSpace(_filtroDelegacionEmpresaId))
+            {
+                <ChipFiltro Etiqueta="@EtiquetaFiltroDelegacionEmpresa" EtiquetaAccesible="@Textos["AriaQuitarFiltroDelegacionEmpresa"]" OnQuitar="QuitarFiltroDelegacionEmpresaAsync" />
+            }
+            @if (!string.IsNullOrWhiteSpace(_filtroOficioId))
+            {
+                <ChipFiltro Etiqueta="@EtiquetaFiltroOficio" EtiquetaAccesible="@Textos["AriaQuitarFiltroOficio"]" OnQuitar="QuitarFiltroOficioAsync" />
             }
         </Chips>
     </BarraFiltros>
@@ -213,8 +233,8 @@
                 {
                     @if (grupo is not null)
                     {
-                        @* Título del grupo «Por Empresa» (maqueta de Trabajadores): la Empresa y cuántos Trabajadores suyos hay en esta página. *@
-                        <div class="cabecera-grupo-trabajadores" data-grupo-empresa="@grupo">
+                        @* Título del grupo «Por Empresa», «Por Delegación» o «Por Oficio» (maqueta de Trabajadores): su nombre y cuántos Trabajadores suyos hay en esta página. *@
+                        <div class="cabecera-grupo-trabajadores" data-grupo-empresa="@(_agrupar == "empresa" ? grupo : null)" data-grupo="@grupo" data-agrupar="@_agrupar">
                             @grupo<span class="cabecera-grupo-trabajadores-recuento">@(TotalPaginas > 1 ? Textos["RecuentoGrupoEnEstaPagina", cantidadGrupo].Value : $"· {cantidadGrupo}")</span>
                         </div>
                     }
@@ -252,6 +272,11 @@
                                     @if (context.VoluntarioInactivo)
                                     {
                                         <span class="voluntario-inactivo" title="@Textos["VoluntarioInactivoAyuda"]">@Textos["VoluntarioInactivo"]</span>
+                                    }
+                                    @* Oficio del catálogo de su Empresa, como etiqueta (decisión de Chris, 2026-10-18). Sin Oficio no hay etiqueta. *@
+                                    @if (!string.IsNullOrWhiteSpace(context.OficioNombre))
+                                    {
+                                        <span class="etiqueta-oficio-trabajador" data-oficio title="@Textos["OficioEtiquetaAyuda"]">@context.OficioNombre</span>
                                     }
                                 </span>
                                 @if (!string.IsNullOrWhiteSpace(context.Dni))
@@ -528,7 +553,7 @@
 @code {
     // Rótulo de columna que ordena. Sin roles de tabla (la lista no lo es), así que el sentido del orden lo dice la
     // flecha de la clase y el nombre accesible del botón. Agrupada «Por Empresa» manda el orden del grupo: ninguna columna lo marca.
-    private RenderFragment CabeceraOrdenable(string propiedad, string titulo, string clase = "") => @<span class="@(clase + (!_agruparPorEmpresa && _orden.Propiedad == propiedad ? (_orden.Direccion == SortDirection.Descending ? " col-sort-desc" : " col-sort-asc") : ""))">
+    private RenderFragment CabeceraOrdenable(string propiedad, string titulo, string clase = "") => @<span class="@(clase + (!Agrupado && _orden.Propiedad == propiedad ? (_orden.Direccion == SortDirection.Descending ? " col-sort-desc" : " col-sort-asc") : ""))">
         <button type="button" class="col-title" title="@Textos["OrdenarPorColumna"]" @onclick="() => OrdenarAsync(propiedad)"><span class="col-title-text">@titulo</span></button>
     </span>;
 }

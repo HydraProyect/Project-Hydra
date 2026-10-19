@@ -26,4 +26,10 @@ public interface IEmpresasQueryContext
     /// desde Queries marcadas (<c>IConsultaDeDatosDeCredencial</c>, <c>IConsultaDeSecretosDeTenant</c>).
     /// </summary>
     IQueryable<AccesoPlataformaCaeEmpresa> AccesosPlataformaCaeEmpresa { get; }
+
+    /// <summary>Catálogo de Delegación de cada Empresa (propio de la Empresa; ver <see cref="DelegacionEmpresa"/>).</summary>
+    IQueryable<DelegacionEmpresa> DelegacionesEmpresa { get; }
+
+    /// <summary>Oficios de cada Empresa (catálogo propio de la Empresa; ver <see cref="OficioEmpresa"/>).</summary>
+    IQueryable<OficioEmpresa> OficiosEmpresa { get; }
 }
