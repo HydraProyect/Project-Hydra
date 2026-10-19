@@ -411,6 +411,15 @@
     <value>DNI</value>
   </data>
   <data name="NingunoConFiltro" xml:space="preserve"><value>Ninguno con ese filtro.</value></data>
+  <data name="EtiquetaFiltrosCatalogo" xml:space="preserve"><value>Delegación, oficio y agrupación</value></data>
+  <data name="EtiquetaDelegacionEmpresaFiltro" xml:space="preserve"><value>Delegación</value></data>
+  <data name="EtiquetaOficioFiltro" xml:space="preserve"><value>Oficio</value></data>
+  <data name="OpcionTodasLasDelegacionesEmpresa" xml:space="preserve"><value>Todas</value></data>
+  <data name="OpcionTodosLosOficios" xml:space="preserve"><value>Todos</value></data>
+  <data name="AgruparPorDelegacionEmpresa" xml:space="preserve"><value>Por Delegación</value></data>
+  <data name="AgruparPorOficio" xml:space="preserve"><value>Por Oficio</value></data>
+  <data name="SinDelegacionEmpresa" xml:space="preserve"><value>Sin delegación</value></data>
+  <data name="SinOficio" xml:space="preserve"><value>Sin oficio</value></data>
   <data name="FichaCanalFirma" xml:space="preserve"><value>Cómo se le envía lo que hay que firmar</value></data>
   <data name="FichaFirmante" xml:space="preserve"><value>Quién firma en nombre de la Empresa</value></data>
   <data name="FichaModalidadPreventiva" xml:space="preserve"><value>Modalidad de organización preventiva</value></data>
