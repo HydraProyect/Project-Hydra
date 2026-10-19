@@ -1,3 +1,4 @@
+using CaeManager.Web.Features.Documentos.Components;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa;
 using CaeManager.Application.Empresas.Commands.GuardarNotaInternaEmpresa;
@@ -320,6 +321,17 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         _errorAcceso = false;
     }
 
+    private DrawerGestionDocumento _drawerGestion = default!;
+
+    private Task SubirDocumentoAsync() => _drawerGestion.AbrirCrearParaEmpresaAsync(EmpresaId);
+
+    private async Task ManejarDocumentoGuardadoAsync()
+    {
+        // Recarga completa: la pestaña Documentación, la cifra por trabajador y los recuentos enseñan el documento nuevo.
+        NavigationManager.Refresh(forceReload: true);
+        await Task.CompletedTask;
+    }
+
     private async Task CargarAsync()
     {
         var carga = ++_cargaDetalle;
@@ -510,7 +522,8 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     private static ObtenerTrabajadoresQuery ConsultaOrdenada(Guid empresaId, int pagina, string? busqueda, Guid? delegacionId, Guid? oficioId) =>
         new(busqueda, EmpresaId: empresaId, Pagina: pagina, TamanoPagina: TamanoPagina,
-            OrdenarPor: nameof(TrabajadorListaDto.EstadoDocumental), DelegacionEmpresaId: delegacionId, OficioEmpresaId: oficioId);
+            OrdenarPor: nameof(TrabajadorListaDto.EstadoDocumental), DelegacionEmpresaId: delegacionId, OficioEmpresaId: oficioId,
+            ConDesgloseDocumental: true);
 
     /// <summary>
     /// Estados que deja pasar cada chip, para pedir a la consulta la página agrupada (el orden por Delegación u Oficio
@@ -564,7 +577,8 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
                 var agrupada = await Mediator.Send(new ObtenerTrabajadoresQuery(
                     busqueda, EmpresaId: empresaId, Pagina: _pagina, TamanoPagina: TamanoPagina,
                     OrdenarPor: _agrupar == AgruparPorOficio ? nameof(TrabajadorListaDto.OficioNombre) : nameof(TrabajadorListaDto.DelegacionEmpresaNombre),
-                    EstadoDocumental: EstadosDelChip(filtro), DelegacionEmpresaId: DelegacionEmpresaFiltro, OficioEmpresaId: OficioFiltro), _cancelacion);
+                    EstadoDocumental: EstadosDelChip(filtro), DelegacionEmpresaId: DelegacionEmpresaFiltro, OficioEmpresaId: OficioFiltro,
+                    ConDesgloseDocumental: true), _cancelacion);
                 if (carga != _cargaPagina || generacion != _generacion) return;
                 _filas = agrupada.Elementos;
             }

@@ -12,6 +12,7 @@
 @using CaeManager.Web.Services
 @using CaeManager.Web.Features.Centros.Components
 @using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Documentos.Components
 @using CaeManager.Web.Features.Empresas.Components
 @using CaeManager.Web.Features.Empresas.Recursos
 @using CaeManager.Web.Recursos
@@ -83,7 +84,10 @@
                 }
             </Datos>
             <Acciones>
-                <Boton Variante="VarianteBoton.Primario" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
+                <Boton Variante="VarianteBoton.Secundario" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
+                <SoloConEscritura>
+                    <Boton Variante="VarianteBoton.Primario" OnClick="SubirDocumentoAsync">@Textos["AccionSubirDocumento"]</Boton>
+                </SoloConEscritura>
                 @* El único ítem del menú es de escritura: sin escritura no hay menú. *@
                 <SoloConEscritura>
                     <MenuAcciones ConBorde="true" EtiquetaAccesible="@Textos["MenuMasAcciones"]">
@@ -92,6 +96,9 @@
                 </SoloConEscritura>
             </Acciones>
         </CabeceraIdentidad>
+
+        @* «Subir documento» de la cabecera: el alta del drawer con la Empresa ya elegida. *@
+        <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />
 
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
             <ChildContent>
@@ -408,6 +415,11 @@
                                     }
                                 </Detalle>
                                 <Derecha>
+                                    @* Cifra de la maqueta: documentos al día / documentos registrados del trabajador. *@
+                                    @if (MotivoIncidenciasUi.RegistradosVigentes(trabajador.DocumentosVigentes, trabajador.DocumentosRegistrados) is { } cifra)
+                                    {
+                                        <span class="empresa360-cifra-trabajador" aria-label="@MotivoIncidenciasUi.RegistradosVigentesAccesible(trabajador.DocumentosVigentes, trabajador.DocumentosRegistrados)">@cifra</span>
+                                    }
                                     <Badge Tono="EstadoDocumentoUi.TonoDocumental(trabajador.EstadoDocumental)" Tamano="TamanoBadge.Pequeno">
                                         @EstadoDocumentoUi.TextoDocumental(trabajador.EstadoDocumental)
                                     </Badge>
