@@ -501,4 +501,13 @@
   <data name="ToastPlantillaGuardada" xml:space="preserve">
     <value>Plantilla desada.</value>
   </data>
+  <data name="ListaEmpresa" xml:space="preserve"><value>Empresa</value></data>
+  <data name="ListaAgrupar" xml:space="preserve"><value>Agrupar</value></data>
+  <data name="ListaSinAgrupar" xml:space="preserve"><value>Sense agrupar</value></data>
+  <data name="ListaPorEmpresa" xml:space="preserve"><value>Per Empresa</value></data>
+  <data name="ListaDocumentacionDe" xml:space="preserve"><value>Documentació de {0}</value></data>
+  <data name="ListaErrorDocumentacion" xml:space="preserve"><value>No hem pogut carregar la documentació</value></data>
+  <data name="ListaSinDocumentos" xml:space="preserve"><value>Sense documents registrats per a aquest projecte.</value></data>
+  <data name="ListaSinVencimiento" xml:space="preserve"><value>Sense data de venciment</value></data>
+  <data name="ListaGestionar" xml:space="preserve"><value>Gestionar</value></data>
 </root>

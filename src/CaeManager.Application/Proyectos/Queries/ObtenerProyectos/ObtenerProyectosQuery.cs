@@ -32,7 +32,7 @@ namespace CaeManager.Application.Proyectos.Queries.ObtenerProyectos;
 /// </param>
 public record ObtenerProyectosQuery(
     Guid? ClienteId = null, bool? SoloAbiertos = null, string? Busqueda = null,
-    int Pagina = 1, int TamanoPagina = 20, bool ConRecuentosPorEstado = false)
+    int Pagina = 1, int TamanoPagina = 20, bool ConRecuentosPorEstado = false, bool AgruparPorEmpresa = false)
     : IRequest<ResultadoPaginado<ProyectoListaDto>>
 {
     /// <summary>Clave de <c>RecuentosPorEstado</c> de los Proyectos abiertos; es también el valor que viaja en la URL.</summary>
@@ -152,9 +152,11 @@ public class ObtenerProyectosQueryHandler(
         // Desempate estable: sin un criterio total, PostgreSQL puede devolver las filas empatadas en
         // distinto orden entre una página y otra, y al paginar en SQL eso hace que una fila aparezca dos
         // veces o no aparezca nunca. Varios Proyectos con la misma fecha de inicio son lo normal.
-        var proyectos = await consulta
-            .OrderByDescending(x => x.proyecto.FechaInicio)
-            .ThenBy(x => x.proyecto.Id)
+        var ordenados = request.AgruparPorEmpresa
+            ? consulta.OrderBy(x => x.cliente.RazonSocial).ThenBy(x => x.cliente.Id)
+                .ThenByDescending(x => x.proyecto.FechaInicio).ThenBy(x => x.proyecto.Id)
+            : consulta.OrderByDescending(x => x.proyecto.FechaInicio).ThenBy(x => x.proyecto.Id);
+        var proyectos = await ordenados
             .Skip((request.Pagina - 1) * request.TamanoPagina)
             .Take(request.TamanoPagina)
             .Select(x => new ProyectoListaDto(

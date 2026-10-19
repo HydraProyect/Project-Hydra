@@ -63,9 +63,11 @@
             <FranjaEstado PresentacionCampo="true" Etiqueta="@ComunesLista["ListaEstado"]" Opciones="OpcionesEstado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
                       Recuentos="_recuentosPorEstado" />
                 @* Filtro opcional: «Todos» (el valor vacío) lista los Proyectos de todos los Clientes empresariales visibles. *@
-                <PastillaFiltro PresentacionCampo="true" @key="_versionSelectorCliente" @ref="_selectorClienteEmpresarial" Etiqueta="@Textos["EtiquetaCliente"]"
+                <PastillaFiltro PresentacionCampo="true" @key="_versionSelectorCliente" @ref="_selectorClienteEmpresarial" Etiqueta="@Textos["ListaEmpresa"]"
                                 Valor="@(_clienteSeleccionadoId == Guid.Empty ? string.Empty : _clienteSeleccionadoId.ToString())"
                                 ValorChanged="OnClienteSeleccionadoAsync" Opciones="OpcionesClienteListado" />
+                <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["ListaAgrupar"]" Valor="@_agrupar" ValorChanged="CambiarAgrupacion"
+                                TextoTodos="@Textos["ListaSinAgrupar"]" Opciones="@([new OpcionEstado("empresa", Textos["ListaPorEmpresa"])])" />
             </Pastillas>
             <Chips>
                 @if (!string.IsNullOrWhiteSpace(_busqueda))
@@ -131,7 +133,13 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var proyecto in _proyectos)
+                            @foreach (var bloque in BloquesDeProyectos)
+                            {
+                            @if (_agrupar == "empresa")
+                            {
+                                <tr class="proyectos-grupo"><th colspan="6" scope="rowgroup">@bloque.Key.Nombre</th></tr>
+                            }
+                            @foreach (var proyecto in bloque)
                             {
                                 var finPrevistoSuperado = TextoFinPrevistoSuperado(proyecto);
                                 @* Patrón de listados: la fila no lleva menú «⋯». Un clic en cualquier punto de la
@@ -140,6 +148,10 @@
                                    icono 360— hacen lo suyo y no dejan subir el clic. *@
                                 <tr @key="proyecto.Id" class="@ClaseFila(proyecto)" @onclick="() => AbrirDetalleDesdeLaFilaAsync(proyecto.Id)">
                                     <td>
+                                        <button type="button" class="proyecto-expandir" aria-expanded="@(_expandidos.Contains(proyecto.Id) ? "true" : "false")"
+                                                aria-label="@Textos["ListaDocumentacionDe", proyecto.Nombre]" @onclick="() => AlternarDocumentacion(proyecto.Id)" @onclick:stopPropagation="true">
+                                            <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                                        </button>
                                         <span class="proyecto-nombre-centro">
                                             @* El nombre es el destino de teclado del clic en la fila (la fila no es focable con Tab). *@
                                             <button type="button" class="enlace-nombre-fila nombre-proyecto nombre-abre-vista-rapida"
@@ -238,6 +250,13 @@
                                         </span>
                                     </td>
                                 </tr>
+                                @if (_expandidos.Contains(proyecto.Id))
+                                {
+                                    <tr class="proyecto-documentacion"><td colspan="6">
+                                        <DocumentacionFilaProyecto ProyectoId="proyecto.Id" />
+                                    </td></tr>
+                                }
+                            }
                             }
                         </tbody>
                     </table>
