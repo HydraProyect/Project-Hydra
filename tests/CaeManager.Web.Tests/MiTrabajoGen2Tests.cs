@@ -27,8 +27,44 @@ namespace CaeManager.Web.Tests;
 /// calendario, chips, carril de cartera, Tenant de origen fuera (§ 10) y
 /// rótulos de pantalla (§ 14).
 /// </summary>
-public class MiTrabajoGen2Tests : BunitContext
+public partial class MiTrabajoGen2Tests : BunitContext
 {
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    [InlineData("GestorCae")]
+    public void PropagacionesReutilizaColaSinModificarTotalesNiAccionesExistentes(string rol)
+    {
+        var documento = Guid.NewGuid();
+        var pendientes = new[]
+        {
+            Item("p1", TipoItemBandeja.PlataformaPendiente, "RNT", "Cliente Norte", documentoId: documento) with { CentroNombre = "Centro Norte", EsPropagacionPendiente = true },
+            Item("p2", TipoItemBandeja.PlataformaPendiente, "RNT", "Cliente Sur", documentoId: documento) with { CentroNombre = "Centro Sur", EsPropagacionPendiente = true }
+        };
+        var datos = new MiTrabajoAgregadoDto([Tenant(TenantRefri, "Refrielectric", false, pendientes)]);
+        var vista = new MiTrabajoVista(datos);
+        vista.Propagaciones(new()).Should().HaveCount(2);
+        vista.TotalCartera.Should().Be(2);
+        vista.Propagaciones(new(Busqueda: "Centro Sur")).Should().ContainSingle();
+        vista.Propagaciones(new(TenantId: TenantDexter)).Should().BeEmpty();
+        vista.Propagaciones(new(Severidad: SeveridadMiTrabajo.Bloqueo)).Should().BeEmpty();
+
+        var cut = Renderizar(() => datos, rol: rol);
+        cut.FindAll(".propagaciones-fila button").Should().HaveCount(2)
+            .And.OnlyContain(b => b.TextContent.Trim() == "Gestionar");
+        cut.FindAll(".mi-trabajo-fila").Should().HaveCount(2);
+        cut.Markup.Should().Contain("Empresa").And.Contain("Prioridad").And.Contain("Cliente");
+    }
+
+    [Fact]
+    public void ConsultaSigueFueraDeLosRolesAutorizadosDeMiTrabajo()
+    {
+        var autorizacion = typeof(MiTrabajoPagina).GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+            .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>().Single();
+        autorizacion.Roles!.Split(',').Should().NotContain(CaeManager.Infrastructure.Identity.Roles.Consulta);
+    }
+
     public MiTrabajoGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
     private static readonly Guid TenantOrigen = Guid.Parse("0a0a0a0a-0000-0000-0000-000000000001");

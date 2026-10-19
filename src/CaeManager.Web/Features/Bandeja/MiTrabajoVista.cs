@@ -80,6 +80,19 @@ public sealed class MiTrabajoVista
 
     public IReadOnlyList<FilaCarteraMiTrabajo> Cartera { get; }
 
+    // La propagación usa las mismas filas autorizadas y los mismos estados de
+    // acreditación de la cola. No crea tareas ni suma otra vez sus totales.
+    public IReadOnlyList<FilaMiTrabajo> Propagaciones(FiltroMiTrabajo filtro) => Alcance(filtro)
+        .Where(f => f.Item.EsPropagacionPendiente && f.Item.DocumentoId is not null)
+        .OrderBy(f => f.Severidad)
+        .ThenBy(f => f.Item.Fecha ?? DateOnly.MaxValue)
+        .ThenBy(f => f.OrdenTenant)
+        .ToList();
+
+    public static string DestinoPropagacion(FilaMiTrabajo fila) => string.Join(" · ",
+        new[] { fila.TenantNombre, fila.Item.ClienteNombre, fila.Item.CentroNombre }
+            .Where(n => !string.IsNullOrWhiteSpace(n)));
+
     /// <summary>
     /// Empresas de la cartera cuya cola no se pudo consultar (FS-07). No están
     /// en <see cref="Cartera"/>: no se sabe si tienen trabajo pendiente, y
@@ -346,7 +359,7 @@ public sealed class MiTrabajoVista
     {
         if (string.IsNullOrWhiteSpace(busqueda)) return true;
         var item = fila.Item;
-        var texto = string.Join(' ', item.Titulo, item.Subtitulo, Sujeto(item), item.ClienteNombre, item.EmpresaNombre, item.TrabajadorNombre, item.ProveedorNombre, fila.TenantNombre);
+        var texto = string.Join(' ', item.Titulo, item.Subtitulo, Sujeto(item), item.ClienteNombre, item.EmpresaNombre, item.TrabajadorNombre, item.ProveedorNombre, fila.TenantNombre, item.CentroNombre);
         return texto.Contains(busqueda.Trim(), StringComparison.CurrentCultureIgnoreCase);
     }
 
