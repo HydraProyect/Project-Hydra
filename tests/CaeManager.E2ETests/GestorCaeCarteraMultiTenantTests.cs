@@ -167,9 +167,10 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await filaAcreditacion.GetByRole(AriaRole.Button, new() { Name = "Subir versión corregida", Exact = true }).ClickAsync();
         var drawer = page.Locator(".drawer-panel");
         await Expect(drawer.GetByText("Renovar documento")).ToBeVisibleAsync();
-        await drawer.GetByLabel("Fecha de emisión", new() { Exact = true }).FillAsync(hoy.AddDays(-1).ToString("yyyy-MM-dd"));
         await drawer.Locator("input[type=\"file\"]").SetInputFilesAsync(Ayudas.GenerarPdfDePruebaEnDisco("formacion-corregida.pdf"));
         await drawer.GetByText("Archivo adjuntado correctamente.").WaitForAsync();
+        // Subir un archivo nuevo reinicia las fechas (renovar es emitir otro documento): la emisión se escribe después.
+        await drawer.GetByLabel("Fecha de emisión", new() { Exact = true }).FillAsync(hoy.AddDays(-1).ToString("yyyy-MM-dd"));
         await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new() { State = WaitForSelectorState.Hidden });
         // Renovar con archivo crea un Documento nuevo (D8): la acreditación Rechazada es del anterior, que pasa al
