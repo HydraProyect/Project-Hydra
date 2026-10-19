@@ -386,7 +386,18 @@
     }
     else if (_pasoAlta == PasoAltaTrabajo)
     {
-    <CampoTexto Etiqueta="@Textos["EtiquetaPuestoOpcional"]" Placeholder="@Textos["PlaceholderPuesto"]" Valor="@_puesto" ValorChanged="v => _puesto = v" OnBlur="ValidarPuestoAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Puesto))" />
+    @* Oficio y Delegación (decisión de Chris, 2026-10-18): el Oficio ocupa el sitio del Puesto y los dos salen del catálogo
+       de la Empresa elegida. El Trabajador de una Subcontrata no los tiene y sigue con el Puesto en texto. *@
+    if (EmpresaElegidaParaCatalogo is { } empresaDelCatalogo)
+    {
+        <SelectorDelegacionEmpresaYOficio EmpresaId="empresaDelCatalogo"
+                                   OficioId="@_oficioId" OficioIdChanged="v => _oficioId = v"
+                                   DelegacionEmpresaId="@_delegacionId" DelegacionEmpresaIdChanged="v => _delegacionId = v" />
+    }
+    else
+    {
+        <CampoTexto Etiqueta="@Textos["EtiquetaPuestoOpcional"]" Placeholder="@Textos["PlaceholderPuesto"]" Valor="@_puesto" ValorChanged="v => _puesto = v" OnBlur="ValidarPuestoAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Puesto))" />
+    }
     <CampoSelect Etiqueta="@Textos["EtiquetaTipoContratacion"]" Valor="@_tipoContratacion" ValorChanged="v => _tipoContratacion = v">
         <option value="CuentaAjena">@Textos["TipoContratacionCuentaAjena"]</option>
         <option value="Autonomo">@Textos["TipoContratacionAutonomo"]</option>

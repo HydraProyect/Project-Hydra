@@ -35,7 +35,7 @@ public class ContactoEmergenciaTrabajadorTests
         var repositorio = new TrabajadorRepositorioFalso();
         if (trabajador is not null) repositorio.Agregar(trabajador);
         var unitOfWork = new UnitOfWorkFalso();
-        return (new EditarFichaTrabajadorCommandHandler(repositorio, alcance ?? new AlcanceDatosServiceFalso(),
+        return (new EditarFichaTrabajadorCommandHandler(repositorio, new Empresas.DelegacionEmpresaYOficioEmpresaTests.CatalogoFalso(), alcance ?? new AlcanceDatosServiceFalso(),
             politica ?? PoliticaNotaInternaPruebas.Con("GestorCae"), unitOfWork), unitOfWork);
     }
 

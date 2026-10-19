@@ -111,6 +111,9 @@ public partial class Trabajador360Gen2Tests : BunitContext
         /// <summary>Si devuelve una tarea, la respuesta espera a que se complete.</summary>
         public Func<object, Task?>? Retener { get; set; }
 
+        /// <summary>El catálogo de Delegaciones y Oficios de la Empresa; <c>null</c> = la consulta falla.</summary>
+        public CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.CatalogoTrabajadoresEmpresaDto? CatalogoEmpresa { get; set; }
+
         public List<object> Enviadas { get; } = [];
 
         /// <summary>El token con el que llegó cada petición, en el mismo orden que <see cref="Enviadas"/>.</summary>
@@ -128,6 +131,8 @@ public partial class Trabajador360Gen2Tests : BunitContext
         private object? Responder(object request) => request switch
         {
             ObtenerTrabajadorPorIdQuery q => Detalles.GetValueOrDefault(q.Id),
+            CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.ObtenerCatalogoTrabajadoresEmpresaQuery =>
+                CatalogoEmpresa ?? throw new InvalidOperationException("Fallo simulado del catálogo de la Empresa."),
             EditarFichaTrabajadorCommand c => GuardarFicha(c),
             CaeManager.Application.Trabajadores.Commands.GuardarNotaInternaTrabajador.GuardarNotaInternaTrabajadorCommand c => GuardarNota(c.Id, c.Notas),
             ObtenerDocumentacionPorCentroDeTrabajadorQuery q =>

@@ -175,8 +175,16 @@
     [
         .. HayCajaAcceso ? new[] { new CajaFicha("acceso", CajaDeAcceso) } : [],
         .. _detalle?.FichaVisible == true ? new[] { new CajaFicha("firma-documentos", CajaFirmaDocumentos), new CajaFicha("prevencion", CajaPrevencion), new CajaFicha("mutua", CajaMutua), new CajaFicha("formacion", CajaFormacion) } : [],
-        .. HayCajaSello ? new[] { new CajaFicha("sello", CajaDeSello) } : []
+        .. HayCajaSello ? new[] { new CajaFicha("sello", CajaDeSello) } : [],
+        new CajaFicha("catalogo-trabajadores", CajaDeCatalogoTrabajadores)
     ];
+
+    // Catálogo de delegaciones y oficios de la Empresa (decisión de Chris, 2026-10-18). No cuenta en HayCajasDeFicha: quien ve la
+    // pestaña Ficha lo ve; no es motivo para que la pestaña exista.
+    private RenderFragment CajaDeCatalogoTrabajadores => __builder =>
+    {
+        <CatalogoTrabajadoresEmpresaCaja EmpresaId="_detalle!.Id" />
+    };
 
     private RenderFragment AccionEditarFicha => @<SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _editorFichaVisible = true">@Textos["FichaEditarEnlace"]</Boton></SoloConEscritura>;
 

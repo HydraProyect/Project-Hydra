@@ -452,7 +452,7 @@ public class TerminologiaCanonicaTests
         // ya existe y no se renombra aquí, DelegacionesSoporteSeeder, en PilotoOutboundAdministrativa.cs. Es la
         // llamada al paso del arranque que aprovisiona —apagado— el acceso de soporte de los Tenants recién
         // creados, que el modo de línea de órdenes ejecuta entre la siembra y la autoverificación igual que el arranque.
-        ["Delegacion"] = 345,
+        ["Delegacion"] = 347,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

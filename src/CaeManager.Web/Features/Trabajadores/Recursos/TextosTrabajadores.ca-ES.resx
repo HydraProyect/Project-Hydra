@@ -737,6 +737,14 @@
   <data name="AgruparPorEmpresa" xml:space="preserve"><value>Per Empresa</value></data>
   <data name="RecuentoGrupoEnEstaPagina" xml:space="preserve"><value>· {0} en aquesta pàgina</value></data>
   <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordena</value></data>
+  <data name="OficioEtiqueta" xml:space="preserve"><value>Ofici</value></data>
+  <data name="OficioPlaceholder" xml:space="preserve"><value>Cerca o escriu un ofici</value></data>
+  <data name="OficioCrear" xml:space="preserve"><value>+ Crear ofici «{0}»</value></data>
+  <data name="DelegacionEmpresaEtiqueta" xml:space="preserve"><value>Delegació</value></data>
+  <data name="DelegacionEmpresaSinElegir" xml:space="preserve"><value>Sense delegació</value></data>
+  <data name="CatalogoNoCargo" xml:space="preserve"><value>No s'ha pogut carregar el catàleg de l'empresa.</value></data>
+  <data name="OficioErrorCrear" xml:space="preserve"><value>No s'ha pogut crear l'ofici.</value></data>
+  <data name="OficioPuestoActual" xml:space="preserve"><value>Lloc actual: {0}. Tria un ofici per substituir-lo.</value></data>
   <data name="PasoAltaBasico" xml:space="preserve">
     <value>Allò bàsic</value>
   </data>

@@ -194,6 +194,12 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private string _observaciones = string.Empty;
     private string _alias = string.Empty;
     private string _puesto = string.Empty;
+    private string _oficioId = string.Empty;
+    private string _delegacionId = string.Empty;
+
+    /// <summary>La Empresa elegida en el alta, de la que salen el Oficio y la Delegación; <c>null</c> con una Subcontrata o sin elegir.</summary>
+    private Guid? EmpresaElegidaParaCatalogo =>
+        _tipoEmpleador == "empresa" && Guid.TryParse(_empresaId, out var id) ? id : null;
     private string _tipoContratacion = nameof(CaeManager.Domain.Trabajadores.TipoContratacion.CuentaAjena);
     private bool _guardando;
     private string? _mensajeErrorFormulario;
@@ -968,6 +974,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _apellidos = string.Empty;
         _alias = string.Empty;
         _puesto = string.Empty;
+        _oficioId = string.Empty;
+        _delegacionId = string.Empty;
         _tipoContratacion = nameof(CaeManager.Domain.Trabajadores.TipoContratacion.CuentaAjena);
         _fechaNacimiento = string.Empty;
         _email = string.Empty;
@@ -1060,7 +1068,11 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         null, null, _nombre, _apellidos, _dni, DateOnly.TryParse(_fechaNacimiento, out var fecha) ? fecha : null,
         string.IsNullOrWhiteSpace(_email) ? null : _email, string.IsNullOrWhiteSpace(_observaciones) ? null : _observaciones,
         string.IsNullOrWhiteSpace(_alias) ? null : _alias, string.IsNullOrWhiteSpace(_telefono) ? null : _telefono,
-        string.IsNullOrWhiteSpace(_puesto) ? null : _puesto);
+        PuestoEnTexto);
+
+    // El Puesto en texto es solo del Trabajador de Subcontrata: con Empresa, el campo no se ve (lo sustituye el Oficio) y lo
+    // escrito antes de cambiar de empleador ni se valida ni viaja en el alta.
+    private string? PuestoEnTexto => _tipoEmpleador == "empresa" || string.IsNullOrWhiteSpace(_puesto) ? null : _puesto;
 
     private void AltaAtras()
     {
@@ -1106,7 +1118,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private bool HayCambiosFiltro => _mostrarGuardarFiltro && !string.IsNullOrWhiteSpace(_nombreFiltroNuevo);
 
     private object?[] ValoresFormulario() =>
-        [_tipoEmpleador, _empresaId, _subcontrataId, _dni, _nombre, _apellidos, _alias, _puesto, _tipoContratacion, _fechaNacimiento, _email, _telefono, _observaciones];
+        [_tipoEmpleador, _empresaId, _subcontrataId, _dni, _nombre, _apellidos, _alias, _puesto, _oficioId, _delegacionId, _tipoContratacion, _fechaNacimiento, _email, _telefono, _observaciones];
 
     private object?[] ValoresAsignarCentro() => [_centroIdParaAsignar, _fechaAltaParaAsignar];
 
@@ -1131,6 +1143,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _tipoEmpleador = tipo;
         _empresaId = string.Empty;
         _subcontrataId = string.Empty;
+        _oficioId = string.Empty;
+        _delegacionId = string.Empty;
         LimpiarAvisoDeEmpleadorFaltante();
     }
 
@@ -1138,6 +1152,12 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     // al elegir el empleador deja de ser verdad y no puede quedarse en pantalla hasta el siguiente guardado.
     private void AlElegirEmpresa(string valor)
     {
+        // El catálogo es de la Empresa: al cambiarla, el Oficio y la Delegación elegidos ya no valen.
+        if (valor != _empresaId)
+        {
+            _oficioId = string.Empty;
+            _delegacionId = string.Empty;
+        }
         _empresaId = valor;
         LimpiarAvisoDeEmpleadorFaltante();
     }
@@ -1179,7 +1199,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             var telefono = string.IsNullOrWhiteSpace(_telefono) ? null : _telefono;
             var observaciones = string.IsNullOrWhiteSpace(_observaciones) ? null : _observaciones;
             var alias = string.IsNullOrWhiteSpace(_alias) ? null : _alias;
-            var puesto = string.IsNullOrWhiteSpace(_puesto) ? null : _puesto;
+            var puesto = PuestoEnTexto;
             var fechaNacimiento = DateOnly.TryParse(_fechaNacimiento, out var fecha) ? fecha : (DateOnly?)null;
 
             Guid? empresaId = null;
@@ -1206,9 +1226,15 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 subcontrataId = subcontrataIdValor;
             }
 
+            // Con Empresa, el Puesto sale del Oficio elegido (lo copia el servidor) y su campo de texto no existe: lo que se
+            // hubiera escrito antes de elegir la Empresa no se envía.
+            var oficioEmpresaId = empresaId is not null && Guid.TryParse(_oficioId, out var oficio) ? oficio : (Guid?)null;
+            var delegacionEmpresaId = empresaId is not null && Guid.TryParse(_delegacionId, out var delegacion) ? delegacion : (Guid?)null;
+            if (empresaId is not null) puesto = null;
+
             var resultado = await Mediator.Send(
                 new CrearTrabajadorCommand(empresaId, subcontrataId, _nombre, _apellidos, _dni, fechaNacimiento, email, observaciones, alias, telefono, puesto,
-                    Enum.Parse<CaeManager.Domain.Trabajadores.TipoContratacion>(_tipoContratacion)));
+                    Enum.Parse<CaeManager.Domain.Trabajadores.TipoContratacion>(_tipoContratacion), oficioEmpresaId, delegacionEmpresaId));
 
             if (resultado.EsFallido)
             {

@@ -53,34 +53,12 @@ public class FijarDelegacionEmpresaYOficioTrabajadorCommandHandler(
         if (ConcurrenciaOptimista.Verificar(trabajador, request.Version, "este trabajador") is { } conflicto)
             return Result.Fallo(conflicto);
 
-        DelegacionEmpresa? delegacion = null;
-        if (request.DelegacionEmpresaId is { } delegacionId)
-        {
-            delegacion = await catalogo.ObtenerDelegacionEmpresaAsync(delegacionId, cancellationToken);
-            if (delegacion is null || delegacion.EmpresaId != empresaId)
-                return Result.Fallo(Error.Crear("Delegacion.NoEncontrada", "No encontramos esta delegación en su empresa."));
-        }
+        var (asignacion, error) = await AsignacionDelegacionEmpresaYOficio.ResolverAsync(
+            trabajador, request.DelegacionEmpresaId, request.OficioEmpresaId, catalogo, cancellationToken);
+        if (error is not null)
+            return Result.Fallo(error);
+        AsignacionDelegacionEmpresaYOficio.Aplicar(trabajador, asignacion!, renovarVersionDelCatalogo: true);
 
-        OficioEmpresa? oficio = null;
-        if (request.OficioEmpresaId is { } oficioId)
-        {
-            oficio = await catalogo.ObtenerOficioAsync(oficioId, cancellationToken);
-            if (oficio is null || oficio.EmpresaId != empresaId)
-                return Result.Fallo(Error.Crear("Oficio.NoEncontrado", "No encontramos este oficio en su empresa."));
-        }
-
-        if (oficio is not null && trabajador.EstaAnonimizado)
-            return Result.Fallo(Error.Crear("Trabajador.Anonimizado",
-                "Este trabajador está anonimizado: sus datos personales se suprimieron y no pueden volver a introducirse."));
-
-        // Una Delegación o un Oficio que pasa a estar asignado renueva su versión: si alguien lo elimina a la vez, uno de
-        // los dos guardados choca por concurrencia en vez de dejar al Trabajador con un catálogo eliminado.
-        if (delegacion is not null && trabajador.DelegacionEmpresaId != delegacion.Id)
-            delegacion.RegistrarAsignacion();
-        if (oficio is not null && trabajador.OficioEmpresaId != oficio.Id)
-            oficio.RegistrarAsignacion();
-
-        trabajador.FijarDelegacionEmpresaYOficio(delegacion, oficio);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();
     }
