@@ -174,7 +174,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
             INSERT INTO "VisitasTrabajadores" ("Id", "TenantId", "TrabajadorId", "VisitaId")
             SELECT gen_random_uuid(), v."TenantId", t."Id", v."Id"
             FROM v JOIN "Trabajadores" t ON t."TenantId" = v."TenantId" AND t."Apellidos" = @apellidos
-            """, ("fecha", hoy.AddDays(3)), ("visita", visitaId.ToString()), ("centro", nombreCentro), ("apellidos", apellidosTrabajador));
+            """, ("fecha", hoy.AddDays(3).ToString("yyyy-MM-dd")), ("visita", visitaId.ToString()), ("centro", nombreCentro), ("apellidos", apellidosTrabajador));
         Assert.Equal(1, visitas);
 
         // --- /visitas: abrir la Visita, copiar la solicitud y descargar el zip ---
