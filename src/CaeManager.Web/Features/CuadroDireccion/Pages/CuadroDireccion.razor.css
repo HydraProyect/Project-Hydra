@@ -4,6 +4,9 @@
     el ancho de la pÃ¡gina. Colores solo de tokens.css (la maqueta lleva un :root propio que no manda).
 */
 .cuadro {
+    padding: 24px;
+    max-width: 1440px;
+    margin-inline: auto;
     display: grid;
     /* Una sola columna que puede encogerse: sin minmax(0, 1fr) el contenido ancho (tablas, gráficos) ensancha la página. */
     grid-template-columns: minmax(0, 1fr);
@@ -84,9 +87,6 @@
     gap: 10px;
     align-items: center;
 }
-
-/* Las dos filas de la barra de herramientas van a 12 px entre sí (el hueco de la pantalla es 20). */
-.cuadro-barra + .cuadro-barra { margin-top: -8px; }
 
 /* Periodo: ‹ [Mes 1 / Mes 6 / Año 3] › en un solo grupo de 38 px (maqueta: .tv-seg con las flechas). */
 .cuadro-periodo {
@@ -196,6 +196,7 @@
 .cuadro-presenta .cuadro-mas,
 .cuadro-presenta .cuadro-pastilla { display: none; }
 .cuadro-presenta { font-size: 110%; }
+.cuadro-presenta .cuadro-barra ::deep > :not(.cuadro-presentar) { display: none; }
 
 .cuadro-espaciador { flex: 1 1 0; }
 
@@ -315,7 +316,6 @@
 @container (max-width: 22rem) { .cuadro-kpis { grid-template-columns: minmax(0, 1fr); } }
 
 .cuadro-kpi {
-    min-height: 196px;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: 12px;
@@ -346,13 +346,16 @@
     .cuadro-kpi-valor { font-size: 24px; }
     .cuadro-kpis {
         display: flex;
-        align-items: flex-start;
         overflow-x: auto;
         scroll-snap-type: x mandatory;
         gap: 10px;
         padding-bottom: 4px;
     }
-    .cuadro-kpis > .cuadro-kpi { flex: 0 0 193px; scroll-snap-align: start; }
+    .cuadro-kpis > .cuadro-kpi { flex: 0 0 78%; scroll-snap-align: start; }
+    .cuadro-pagina { display: flex; flex-direction: column; gap: 16px; }
+    .cuadro-pagina > .cuadro-rejilla { display: contents; }
+    .cuadro-bloque[data-tarjeta="g-alertas"] { order: -1; }
+    .cuadro-bloque ::deep .cuadro-exportar { display: none; }
 }
 
 .cuadro-tabla-envoltorio { overflow: auto; max-width: 100%; max-height: 560px; border-radius: var(--radius-md); }
@@ -447,8 +450,7 @@
 }
 
 /* Rejilla de tarjetas de las pestañas distintas de Visión general, y tarjetas anchas dentro de cualquiera. */
-.cuadro-rejilla { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-@media (max-width: 900px) { .cuadro-rejilla { grid-template-columns: 1fr; } }
+.cuadro-rejilla { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, max(26rem, calc(50% - 8px))), 1fr)); }
 .cuadro-ancha { grid-column: 1 / -1; }
 .cuadro-bloque { min-width: 0; }
 .cuadro-acciones { display: flex; justify-content: flex-end; margin-bottom: 8px; }
@@ -458,20 +460,22 @@
 /* Interruptor de etiquetas de datos (maqueta: .tv-switch). */
 .cuadro-interruptor {
     display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px;
-    font: inherit; font-size: 13px; line-height: 20px; font-weight: 500; color: var(--color-text); cursor: pointer;
-    background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px;
+    font: inherit; font-size: 13px; line-height: 20px; font-weight: 600; color: var(--color-text); cursor: pointer;
+    background: var(--color-surface); border: 1px solid var(--color-border-control); border-radius: 10px;
 }
-.cuadro-interruptor i { width: 28px; height: 16px; border-radius: 8px; background: var(--color-border-strong); position: relative; }
-.cuadro-interruptor i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--color-surface); transition: left .15s; }
-.cuadro-interruptor[aria-checked="true"] i { background: var(--color-primary-500); }
-.cuadro-interruptor[aria-checked="true"] i::after { left: 14px; }
+.cuadro-interruptor i { width: 28px; height: 16px; border-radius: 999px; background: var(--color-border-strong); position: relative; flex: none; transition: background 120ms; }
+.cuadro-interruptor i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--color-surface); transition: transform 120ms; }
+.cuadro-interruptor[aria-checked="true"] i { background: var(--color-primario-fondo); }
+.cuadro-interruptor[aria-checked="true"] i::after { transform: translateX(12px); }
+.cuadro-interruptor:hover { background: var(--color-fila-hover); }
 
 /* Panel Personalizar. */
 .cuadro-personalizar {
-    margin-bottom: 16px; padding: 16px; display: grid; gap: 8px;
-    background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 14px;
+    padding: 16px; display: grid; gap: 12px;
+    background: var(--color-elevated); border: 1px solid var(--color-border-strong); border-radius: 14px;
 }
-.cuadro-personalizar h3 { margin: 0; font-size: 16px; }
+.cuadro-personalizar h3 { margin: 0; font-size: 15px; }
+.cuadro-personalizar > p { font-size: 13px; }
 .cuadro-pers-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .cuadro-pers-lista li {
     display: grid; grid-template-columns: 24px 1fr auto auto; align-items: center; gap: 8px; padding: 6px 8px;
@@ -540,23 +544,19 @@
 .cuadro-seg button { font: inherit; font-size: 13px; line-height: 20px; font-weight: 600; padding: 6px 12px; color: var(--color-text); background: var(--color-surface); border: 0; cursor: pointer; }
 .cuadro-seg button[aria-pressed="true"] { color: var(--color-primary-700); background: var(--color-primary-50); }
 
-/* Móvil (375 px): pestañas en una sola fila con desplazamiento y controles apilados a todo el ancho. */
+/* Móvil (375 px): pestañas en una sola fila con desplazamiento y controles que se ajustan al ancho. */
 @media (max-width: 640px) {
     /* Margen lateral de 16 px (el contenedor de página compartido da 32). */
-    .cuadro { padding: 16px; }
+    .cuadro { padding: 16px; gap: 16px; }
     .cuadro-bloque ::deep .tarjeta { padding: 16px; }
     .cuadro ::deep .pestanas-lista-envuelta { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
-    .cuadro-barra { flex-direction: column; align-items: stretch; gap: 8px; }
-    .cuadro-barra > * { width: 100%; min-width: 0; }
+    .cuadro-barra > * { flex: 1 1 auto; min-width: 0; }
     .cuadro-periodo { display: flex; }
     .cuadro-momento { flex: 1 1 auto; justify-content: space-between; }
     .cuadro-momento button { padding: 0 8px; }
-    .cuadro-momento button small { display: none; }
     .cuadro-select { width: 100%; }
     .cuadro-espaciador { display: none; }
     .cuadro-barra ::deep .boton { width: 100%; }
-    .cuadro-barra-acciones { flex-direction: row; flex-wrap: wrap; }
-    .cuadro-barra-acciones > * { width: auto; flex: 1 1 auto; }
 }
 /* Insignia de aviso de las pestañas: ámbar, 20 x 20, 11 px en negrita (maqueta: .tv-tabs .tv-badge). */
 .cuadro ::deep .pestanas-contador-alerta {

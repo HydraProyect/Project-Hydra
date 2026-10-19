@@ -390,14 +390,14 @@ public partial class CuadroDireccionTests : BunitContext
     }
 
     [Fact]
-    public void Etiquetas_de_datos_va_en_la_primera_fila_tras_Personalizar_y_Presentar_en_la_segunda()
+    public void La_barra_reune_Personalizar_Etiquetas_y_Presentar_en_el_orden_de_Design()
     {
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
 
         var filas = cut.FindAll(".cuadro-barra");
+        filas.Should().ContainSingle();
         var primera = filas[0].QuerySelectorAll("button").Select(b => b.TextContent.Trim()).ToList();
-        primera.Should().EndWith(["Personalizar esta pestaña", "Etiquetas de datos"]);
-        filas[1].QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Presentar").And.NotContain("Etiquetas de datos");
+        primera.Should().ContainInOrder("Personalizar esta pestaña", "Etiquetas de datos", "Presentar");
     }
 
     [Fact]
