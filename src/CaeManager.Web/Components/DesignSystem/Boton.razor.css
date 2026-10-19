@@ -28,8 +28,9 @@
    desentonaba junto a los pequeños de 36). Sin relleno vertical: la altura la da el mínimo, y una
    etiqueta que no cabe crece en vez de desbordar. */
 .boton-medio {
-    padding: 0 1.5rem;
+    padding: 0 1.25rem;
     min-height: 40px;
+    font-size: 0.875rem;
 }
 
 .boton-pequeno {

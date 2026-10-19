@@ -38,7 +38,7 @@
         <div class="formulario-drawer-contenido" @ref="_contenido">
             @if (Cargando)
             {
-                <EstadoCargando Filas="FilasCargando" />
+                <EstadoCargando Filas="FilasCargando" ConEtiqueta="true" />
             }
             else if (SinContenido is not null)
             {
@@ -314,6 +314,7 @@
     {
         builder.OpenComponent<AvisoFormulario>(0);
         builder.AddAttribute(1, nameof(AvisoFormulario.Mensaje), MensajeError);
+        builder.AddAttribute(2, nameof(AvisoFormulario.EnPanel), true);
         builder.CloseComponent();
     };
 
