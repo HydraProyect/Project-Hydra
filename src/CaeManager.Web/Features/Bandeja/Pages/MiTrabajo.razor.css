@@ -605,3 +605,20 @@
     .propagaciones-fila { padding: 12px; }
     .propagaciones-fila ::deep button { min-height: 44px; }
 }
+
+/* El título de la fila de Propagaciones es un enlace al documento (envío cross-Tenant): se pinta como texto, no como botón. */
+.propagaciones-texto ::deep .enlace-documento {
+    border: 0;
+    padding: 0;
+    background: none;
+    cursor: pointer;
+    text-align: left;
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.propagaciones-texto ::deep .enlace-documento:hover {
+    color: var(--color-primary-500);
+    text-decoration: underline;
+}
