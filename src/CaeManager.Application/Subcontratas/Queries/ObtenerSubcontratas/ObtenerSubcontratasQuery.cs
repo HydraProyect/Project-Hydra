@@ -40,6 +40,9 @@ public record SubcontrataListaDto(
     /// <summary>Identidades visibles por el ámbito efectivo del listado de Trabajadores y por RLS.</summary>
     public IReadOnlyList<TrabajadorIdentidadSubcontrataDto> Trabajadores { get; init; } = [];
 
+    /// <summary>Empresas propias contratantes visibles, con una Relación Empresarial vigente.</summary>
+    public IReadOnlyList<EmpresaContratanteSubcontrataDto> Contratantes { get; init; } = [];
+
     /// <summary>
     /// Estado documental de la fila: el peor de sus incidencias (<see cref="RecuentosSubcontrataDto.PeorEstado"/>).
     /// No está persistido; por eso filtrar por él obliga a calcularlo para todas las filas.
@@ -48,6 +51,7 @@ public record SubcontrataListaDto(
 }
 
 public record TrabajadorIdentidadSubcontrataDto(Guid Id, string Nombre, string Apellidos);
+public record EmpresaContratanteSubcontrataDto(Guid Id, string RazonSocial);
 
 /// <summary>
 /// F3b-Subcontrata (revisión adversaria del 2026-08-26, evidencia real de
@@ -178,6 +182,16 @@ public class ObtenerSubcontratasQueryHandler(
             return [];
 
         var ids = filas.Select(s => s.Id).ToList();
+        var empresasVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
+        var empresas = dbContext.Empresas.Where(e => e.EsPropia);
+        if (empresasVisibles is not null)
+            empresas = empresas.Where(e => empresasVisibles.Contains(e.Id));
+        var contratantes = await (
+            from r in dbContext.RelacionesEmpresariales
+            where ids.Contains(r.ProveedoraId) && r.VigenciaHasta == null
+            join e in empresas on r.ClienteId equals e.Id
+            select new { r.ProveedoraId, e.Id, e.RazonSocial })
+            .Distinct().OrderBy(e => e.RazonSocial).ThenBy(e => e.Id).ToListAsync(cancellationToken);
         var consultaTrabajadores = trabajadoresContext.Trabajadores
             .Where(t => t.SubcontrataId != null && ids.Contains(t.SubcontrataId.Value));
         var idsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
@@ -189,7 +203,12 @@ public class ObtenerSubcontratasQueryHandler(
             .ToListAsync(cancellationToken);
         var porSubcontrata = trabajadores.ToLookup(t => t.SubcontrataId!.Value, t => t.Identidad);
 
-        return filas.Select(s => s with { Trabajadores = porSubcontrata[s.Id].ToList() }).ToList();
+        return filas.Select(s => s with
+        {
+            Trabajadores = porSubcontrata[s.Id].ToList(),
+            Contratantes = contratantes.Where(e => e.ProveedoraId == s.Id)
+                .Select(e => new EmpresaContratanteSubcontrataDto(e.Id, e.RazonSocial)).ToList()
+        }).ToList();
     }
 
     private record FilaSubcontrata(Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc, string NivelServicio);

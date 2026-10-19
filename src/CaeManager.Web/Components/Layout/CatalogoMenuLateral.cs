@@ -143,6 +143,12 @@ public static class CatalogoMenuLateral
     /// </summary>
     private const string RolesDeDashboardEjecutivo = $"{Roles.Administrador},{Roles.DireccionCae},{Roles.Consulta}";
 
+    /// <summary>
+    /// Los roles que admite la página <c>/direccion</c> (Cuadro de dirección) y su guard de Application
+    /// (<c>AutorizacionCuadroDireccion</c>): Dirección CAE y Coordinador CAE ven la misma vista.
+    /// </summary>
+    private const string RolesDeCuadroDireccion = $"{Roles.DireccionCae},{Roles.CoordinadorCae}";
+
     private const string RolesDeCartera = $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae}";
 
     /// <summary>
@@ -223,12 +229,13 @@ public static class CatalogoMenuLateral
         // marco de Design (marco-talveg.js, DDL-083) no lo trae en Dashboards. La ruta sigue funcionando:
         // CabeceraGestorCae enlaza a ella y RutasIncorporacionCartera.Bandeja la usa para los avisos.
         // Entrega de Design del 2026-10-17: «Dashboard Ejecutivo» pasa a llamarse «Cuadro de dirección»
-        // y su ruta de diseño es /direccion. Esa pantalla nueva aún no existe: el rótulo cambia ya, y el
-        // enlace sigue en la ruta de la pantalla actual (que es la que el Cuadro sustituirá). Mismo Id,
-        // mismos roles: el orden guardado y la autorización no se tocan.
-        // «Indicadores de IA y BPO» (Design) NO tiene enlace todavía: no hay pantalla, y un enlace a una
-        // pantalla que no existe es peor que no tener el enlace (ver el resumen de esta clase).
-        new("dashboard-ejecutivo", "dashboards", "dashboard-ejecutivo", "ejecutivo", "Cuadro de dirección",
+        // y su ruta es /direccion. Conserva el Id de la entrada anterior (el orden guardado no se rompe) pero
+        // sus roles son los que admite la página: Dirección CAE y Coordinador CAE.
+        new("dashboard-ejecutivo", "dashboards", "direccion", "tendencia", "Cuadro de dirección",
+            Condicion: c => c.TieneAlgunRol(RolesDeCuadroDireccion)),
+        // «Indicadores de IA y BPO» (Design): la pantalla que antes se llamaba Dashboard Ejecutivo,
+        // limitada a las categorías IA, Operativa (BPO) y Fricción (BPO). Mismos roles que su página.
+        new("indicadores-ia-bpo", "dashboards", "dashboard-ejecutivo", "ia", "Indicadores de IA y BPO",
             Condicion: c => c.TieneAlgunRol(RolesDeDashboardEjecutivo)),
 
         // DDL-072 (decisión del propietario 2026-09-28): "Mi empresa" (registro único) solo si el

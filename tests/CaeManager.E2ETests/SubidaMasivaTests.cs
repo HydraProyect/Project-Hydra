@@ -112,7 +112,7 @@ public class SubidaMasivaTests(WebAppFixture fixture)
             await Expect(item).ToContainTextAsync("Pendiente de confirmar");
             await Expect(item).Not.ToContainTextAsync("Creado tras confirmar");
 
-            await confirmacion.GetByLabel("Fecha de emisión").FillAsync(DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd"));
+            await confirmacion.GetByLabel("Fecha de emisión").FillAsync(Ayudas.HoyDeNegocio().ToString("yyyy-MM-dd"));
             await confirmacion.GetByText("Confirmar y crear").ClickAsync();
 
             await Expect(item).ToContainTextAsync("Creado", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });

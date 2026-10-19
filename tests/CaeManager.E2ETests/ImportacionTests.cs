@@ -43,7 +43,7 @@ public class ImportacionTests(WebAppFixture fixture)
         var nombreTrabajador = "CAE";
         var apellidosTrabajador = $"Import {sufijo}";
         var dniTrabajador = Ayudas.GenerarDniValido(88_400_001);
-        var fechaEmision = DateTime.UtcNow.Date.AddDays(-30);
+        var fechaEmision = Ayudas.HoyDeNegocio().ToDateTime(TimeOnly.MinValue).AddDays(-30);
 
         var libro = new XLWorkbook();
 
