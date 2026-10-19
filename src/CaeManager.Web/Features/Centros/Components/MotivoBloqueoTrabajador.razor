@@ -1,10 +1,10 @@
 @*
     Ficha 12 de «La jornada del Gestor CAE»: junto al «Bloqueado» de un Trabajador en un Centro, el motivo y los documentos que
-    faltan, con «Pedir». No decide nada: los bloqueos llegan ya evaluados por la regla única por Centro
+    faltan, con «Gestionar». No decide nada: los bloqueos llegan ya evaluados por la regla única por Centro
     (ReglaBloqueoDeAcceso, vía ObtenerDocumentacionBloqueantePendienteQuery) y esta pieza solo los dice; por eso nunca muestra un
     bloqueo de otro Centro.
 
-    «Pedir» abre el flujo de reclamación que ya existe (DrawerReclamacionLote): el Gestor CAE elige y revisa, y es él quien
+    «Gestionar» (antes «Pedir») abre el flujo de reclamación que ya existe (DrawerReclamacionLote): el Gestor CAE elige y revisa, y es él quien
     envía. Se ofrece donde ese flujo puede actuar: un documento que vence (VentanaReclamacion), uno que falta del todo y un
     «Sin confirmar» sin fecha (IPendientesDeReclamacionService). Donde no puede actuar la línea lo dice en vez de ofrecer un
     botón que no puede cumplir.
@@ -25,7 +25,7 @@
                     <span class="motivo-bloqueo-texto">@TextoBloqueoDeAcceso.LineaDeDocumento(Textos, bloqueo)</span>
                     @if (entidad is { } e)
                     {
-                        @* «Pedir» acaba en EnviarReclamacionCommand, denegado a Consulta: el motivo se le dice, el botón no. *@
+                        @* «Gestionar» acaba en EnviarReclamacionCommand, denegado a Consulta: el motivo se le dice, el botón no. *@
                         @if (MostrarAcciones)
                         {
                             <SoloConEscritura>

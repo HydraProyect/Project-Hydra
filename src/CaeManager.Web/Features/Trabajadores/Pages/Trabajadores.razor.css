@@ -1,18 +1,216 @@
 /*
-  Celda «Trabajador» de la lista (rediseño de listados, fase 1): «Apellidos, Nombre» y, debajo,
-  el documento de identidad en pequeño. La barra de filtros y el tinte de las filas son del
-  patrón compartido (list-page.css); aquí solo va lo propio de esta pantalla.
+  Lista de Trabajadores (Lista Trabajadores TALVEG.dc.html, export de Design 2026-10-18).
+
+  Sin QuickGrid, con el mismo molde que Empresas: la fila se despliega para mostrar los documentos que piden
+  trabajo y QuickGrid no soporta filas expandibles. La cabecera de columnas y cada fila son rejillas DISTINTAS
+  que solo comparten esta definición, así que ninguna pista se resuelve por contenido (una celda vacía en la cabecera
+  desalinearía los rótulos respecto a las celdas de la fila).
+
+  Va en CSS aislado y no en list-page.css porque .tarjeta-fila-acordeon-cabecera es compartida con Empresas,
+  Subcontratas y Centros: cambiarla allí movería varias pantallas en un incremento que solo ha verificado una.
 */
-.celda-trabajador {
+.rejilla-trabajadores {
+    /*
+      chevron · Trabajador (nombre y DNI) · Empresa (1,6fr) · Registrados vigentes · Estado documental · acciones.
+      La columna de estado mide 170 px como mínimo: es el ancho que necesita el motivo bajo la pastilla.
+    */
+    display: grid;
+    grid-template-columns: 24px minmax(200px, 2fr) minmax(180px, 1.6fr) minmax(130px, 1fr) minmax(170px, 1.3fr) 40px;
+    gap: var(--space-4);
+    align-items: center;
+}
+
+/* Con selección múltiple entra una casilla delante y las columnas se corren. */
+.rejilla-trabajadores-seleccion {
+    grid-template-columns: 28px 24px minmax(200px, 2fr) minmax(180px, 1.6fr) minmax(130px, 1fr) minmax(170px, 1.3fr) 40px;
+}
+
+/*
+  Marco de la lista (mockup): una tarjeta con la cabecera de columnas en una banda blanca y las filas pegadas,
+  separadas por una línea. Las reglas de .tarjeta-fila-acordeon* de list-page.css las comparten otras pantallas;
+  aquí solo se anulan DENTRO del marco, con el atributo de ámbito de esta página.
+*/
+.marco-lista-trabajadores {
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+.cabecera-columnas-trabajadores {
+    align-items: end;
+    padding: 14px var(--space-4) 10px;
+    background: var(--color-surface);
+    border-bottom: 1.5px solid var(--color-text);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    font: 600 12px/16px var(--font-family);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--color-text-muted);
+}
+
+.marco-lista-trabajadores .lista-filas-acordeon {
+    gap: 0;
+}
+
+.marco-lista-trabajadores .tarjeta-fila-acordeon {
+    border: 0;
+    border-bottom: 1px solid var(--color-fila-divisor);
+    border-radius: 0;
+}
+
+.marco-lista-trabajadores .tarjeta-fila-acordeon:last-child {
+    border-bottom: 0;
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.marco-lista-trabajadores .tarjeta-fila-acordeon-cabecera {
+    min-height: 0;
+    padding: 12px var(--space-4);
+    transition: background-color .12s ease, box-shadow .12s ease;
+    border-bottom: 0;
+    border-radius: 0;
+}
+
+.marco-lista-trabajadores .tarjeta-fila-acordeon-cabecera:hover {
+    background-color: var(--color-primary-50);
+    box-shadow: inset 3px 0 0 var(--color-primary-500);
+}
+
+.marco-lista-trabajadores .tarjeta-fila-acordeon-contenido {
+    border-top: 0;
+    border-radius: 0;
+    background: color-mix(in srgb, var(--color-surface-subtle) 60%, var(--color-surface));
+    padding: 4px var(--space-4) 4px 56px;
+}
+
+/* Con la casilla delante, los documentos se sangran lo mismo que el nombre: 16 + 44 (casilla) + 40 (chevron). */
+.marco-lista-trabajadores .tarjeta-fila-acordeon-contenido.contenido-con-seleccion {
+    padding-left: 100px;
+}
+
+/* Rótulos que ordenan: botones sin aspecto de botón, con el orden vigente como flecha. */
+.col-title { border: none; padding: 0; background: none; cursor: pointer; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; text-align: left; }
+.col-sort-asc .col-title { color: var(--color-text); }
+.col-sort-desc .col-title { color: var(--color-text); }
+.col-sort-asc .col-title::after { content: " ↑"; }
+.col-sort-desc .col-title::after { content: " ↓"; }
+
+.seleccion-trabajador { display: flex; align-items: center; justify-content: center; }
+.acciones-trabajador { display: flex; justify-content: flex-end; }
+
+/* Celda «Trabajador»: nombre (600) con su pastilla y debajo «DNI» y el documento, en pequeño. */
+.celda-identidad-trabajador {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-1);
+    gap: 2px;
+    min-width: 0;
+}
+
+.celda-trabajador {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
 }
 
 .celda-trabajador-dni {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
     font: var(--font-caption);
     color: var(--color-text-muted);
+    letter-spacing: .02em;
+}
+
+/* Celda «Empresa»: el empleador en 600, como la columna fuerte de la maqueta. */
+.celda-empresa-trabajador {
+    min-width: 0;
+    font: var(--font-body-md);
+    font-weight: 600;
+    text-wrap: pretty;
+}
+
+.col-registrados-vigentes,
+.celda-estado-trabajador {
+    min-width: 0;
+}
+
+/* Título de cada grupo «Por Empresa» (maqueta): nombre de la Empresa en mayúsculas y recuento. */
+.cabecera-grupo-trabajadores {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 10px var(--space-4);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-fila-divisor);
+    font: 600 12px/16px var(--font-family);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--color-text);
+}
+
+.cabecera-grupo-trabajadores-recuento {
+    color: var(--color-text-muted);
+}
+
+/* Fila desplegada: los documentos que piden trabajo, cada uno con su «Gestionar» (maqueta de Trabajadores). */
+.documentos-pendientes-trabajador {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.documento-pendiente-trabajador {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-4);
+    padding: 10px 0;
+    border-top: 1px solid var(--color-border);
+}
+
+.documento-pendiente-trabajador:first-child {
+    border-top-color: transparent;
+}
+
+.documento-pendiente-nombre {
+    flex: none;
+    width: 220px;
+    font: 600 13px/18px var(--font-family);
+}
+
+.documento-pendiente-detalle {
+    flex: 1;
+    min-width: 120px;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.documento-pendiente-gestionar {
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--color-primary-500);
+    font: var(--font-label);
+    cursor: pointer;
+}
+
+.documento-pendiente-gestionar:hover {
+    text-decoration: underline;
+}
+
+.documento-pendiente-gestionar:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+/* El documento que coincide con lo buscado se marca, como la subcaja que sustituye. */
+.documento-pendiente-trabajador.coincidencia-incidencia {
+    background: var(--color-primary-50);
 }
 
 .pista-documento {
@@ -37,19 +235,27 @@
     color: var(--color-text-muted);
 }
 
-.trabajador-identidad { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: var(--space-2); }
-.boton-expandir-incidencias, .col-title { border: none; padding: 0; background: none; cursor: pointer; }
-.boton-expandir-incidencias[aria-expanded=true] { transform: rotate(90deg); }
-.col-sort-asc .col-title::after { content: " ↑"; }
-.col-sort-desc .col-title::after { content: " ↓"; }
-.trabajadores-rejilla-propia .trabajador-detalle-incidencias > td { padding: 0; }
-
-.seleccion-trabajador { text-align: center; }
-.acciones-trabajador { text-align: end; }
-
-/* Voluntario sin evento vigente ni futuro: sigue en la lista, en segundo plano. */
+/* Voluntario sin evento vigente ni futuro: sigue en la lista, en segundo plano, con la pastilla neutra de la maqueta. */
 .voluntario-inactivo {
-    margin-inline-start: var(--space-2);
-    font: var(--font-caption);
+    align-self: flex-start;
+    padding: 2px 9px;
+    border: 1px solid color-mix(in srgb, var(--color-text-muted) 35%, transparent);
+    border-radius: var(--radius-full);
+    background: var(--color-surface-subtle);
     color: var(--color-text-muted);
+    font: var(--font-caption);
+    font-weight: 600;
+    white-space: nowrap;
+}
+/* Oficio del catálogo de la Empresa, como etiqueta junto al nombre (misma silueta que la de voluntario, en tono neutro). */
+.etiqueta-oficio-trabajador {
+    align-self: flex-start;
+    padding: 2px 9px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-surface-subtle);
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+    font-weight: 600;
+    white-space: nowrap;
 }

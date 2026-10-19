@@ -1,0 +1,91 @@
+@using System.Security.Claims
+@using CaeManager.Application.VistaDemo
+@using CaeManager.Web.Recursos
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.Extensions.Localization
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject IServiceProvider Servicios
+@inject IStringLocalizer<TextosComunes> Textos
+@inherits CaeManager.Web.Components.IsloteInteractivo
+
+@*
+    Pestañas de sección (entrega de Design del 2026-10-17, «SECC» de marco-talveg.js): una barra de 48 px
+    bajo la cabecera con las pantallas hermanas de una entrada del menú —Documentos: Todos los documentos ·
+    Revisión IA · Incidencias; Equipo: Usuarios · Roles—. Sale de CatalogoSeccionesMenu, que a su vez usa los
+    mismos roles que la autorización de cada pantalla.
+
+    Solo señala: cada pestaña es un enlace corriente y la pantalla de destino decide quién entra. Una
+    pestaña que el rol no ve no se pinta, y con menos de dos visibles no se pinta la barra. Es un islote
+    porque tiene que seguir la navegación interna del circuito (LocationChanged), incluido el cambio de
+    pestaña de Documentos, que solo cambia el ?pestana= de la URL.
+*@
+<LimiteDeErrores Islote="this">
+@if (_seccion is { } seccion)
+{
+    <nav class="barra-seccion" aria-label="@Textos["SeccionAriaEtiqueta", Textos[seccion.Seccion.ClaveRotulo].Value]"
+         data-testid="barra-seccion" data-seccion="@seccion.Seccion.Id">
+        @foreach (var visible in seccion.Pestanas)
+        {
+            <a class="barra-seccion-enlace" href="@visible.Pestana.Ruta" data-pestana="@visible.Pestana.Id"
+               aria-current="@(visible.Activa ? "page" : null)">@Textos[visible.Pestana.ClaveRotulo]</a>
+        }
+    </nav>
+}
+</LimiteDeErrores>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    private SeccionVisible? _seccion;
+    private ClaimsPrincipal _usuario = new(new ClaimsIdentity());
+    private VistaDemo? _vista;
+    private Task<AuthenticationState>? _estadoEvaluado;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += AlCambiarDeRuta;
+
+        // Misma lente de demo que el menú lateral (MenuPorVista): solo puede ocultar pestañas, nunca
+        // mostrar una que la autorización real de la cuenta no mostraría. Opcional a propósito.
+        if (Servicios.GetService<IVistaDemoActual>() is { } vistaDemoActual)
+        {
+            try
+            {
+                _vista = (await vistaDemoActual.ObtenerEfectivaAsync())?.Vista;
+            }
+            catch (Exception ex) when (ExcepcionDeCircuitoDesconectado.Es(ex))
+            {
+                // Circuito cerrado a mitad de la consulta (mismo caso que MigasPagina): sin lente, la barra sigue.
+            }
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_estadoEvaluado is not null && ReferenceEquals(_estadoEvaluado, EstadoAutenticacion)) return;
+        _estadoEvaluado = EstadoAutenticacion;
+        _usuario = EstadoAutenticacion is null ? new ClaimsPrincipal(new ClaimsIdentity()) : (await EstadoAutenticacion).User;
+        _seccion = Resolver(Navigation.Uri);
+    }
+
+    private void AlCambiarDeRuta(object? sender, LocationChangedEventArgs e) =>
+        _ = InvokeAsync(() =>
+        {
+            _seccion = Resolver(e.Location);
+            StateHasChanged();
+        });
+
+    private SeccionVisible? Resolver(string uri)
+    {
+        var ruta = Navigation.ToBaseRelativePath(uri).Split('?', '#')[0].Trim('/');
+        var consulta = QueryHelpers.ParseQuery(new Uri(uri).Query);
+        var pestana = consulta.TryGetValue("pestana", out var valor) ? valor.ToString() : null;
+
+        var contexto = new ContextoMenuLateral(_usuario, _vista, false, false, default, VariosTenants: false);
+        return CatalogoSeccionesMenu.Resolver(ruta, pestana, contexto);
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= AlCambiarDeRuta;
+}

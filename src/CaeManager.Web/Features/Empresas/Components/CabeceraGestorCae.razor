@@ -6,29 +6,32 @@
 
     Operador CAE = organización; Gestor CAE = persona. Salen personas: el Gestor CAE principal
     —«Coordinador CAE principal» si quien lleva la marca gestiona el Tenant con ese rol— y los
-    Gestores CAE de apoyo, con la fecha de fin si su cartera la tiene.
+    Gestores CAE de apoyo, con la fecha de fin si su cartera la tiene. La pastilla Principal/Apoyo
+    se mantiene (decisión del 2026-10-17): hace falta para la Asignación de Cartera temporal de
+    vacaciones («Apoyo hasta el dd/mm/aaaa»).
 
     UNA LÍNEA. Junto al título caben pocas personas: salen por su nombre las dos primeras
-    (PersonasALaVista; los principales van antes que los de apoyo) y las demás se agrupan en una
-    pastilla «+N» que abre una ventana con TODAS, cada una con su rótulo. Los nombres largos se
-    recortan con puntos suspensivos y se leen enteros en su `title` y en esa ventana: no se
-    pierde información. El Operador CAE y los avisos de «sin principal» se dicen siempre.
+    (PersonasALaVista; los principales van antes que los de apoyo) y las demás se agrupan en un
+    botón «+N» que abre una ventana (VentanaContexto interactiva) con TODAS, agrupadas en «Principal»
+    y «Apoyo», cada una con su avatar y su rótulo. Los nombres largos se recortan con puntos
+    suspensivos y se leen enteros en su `title` y en esa ventana: no se pierde información. El
+    Operador CAE y los avisos de «sin principal» (pastilla ámbar) se dicen siempre.
 
-    El dato es de lectura para las dos miradas. Las dos acciones que acompañan al dato —«+ Dar
-    acceso» y «Desasignarme»— no las decide este componente: las pinta PanelDarAcceso en su forma
-    de cabecera, con sus propias lecturas (a quien es el principal de la operación, la primera; a
-    quien tiene un apoyo propio, la segunda; a ninguno con un rol efectivo de solo consulta) y sus
-    Commands, que lo vuelven a comprobar todo. El panel se monta cuando
-    ObtenerPersonasConCarteraQuery devuelve filas de este Tenant, es decir, cuando el dato no se
-    mira desde el Tenant propietario: para cualquier cuenta del Operador CAE a la que esa consulta
-    responde, que incluye a su Administrador y a su Dirección CAE además de Coordinadores y
-    Gestores CAE. Montarlo no es ofrecer nada: los botones los filtra el propio panel. Al
-    Administrador del Tenant propietario no se le monta ni se le ofrece nada sobre la cartera.
-    Retirar una propuesta, retirar un apoyo concedido, revocar y «Asumir» siguen en sus pantallas.
+    SOLO LECTURA, para las dos miradas (revisión de Design, 2026-10-17, §C; decisión del 16-10). Las dos
+    acciones que antes acompañaban al dato —«+ Dar acceso» y «Desasignarme», que pintaba
+    PanelDarAcceso en su forma de cabecera— salieron de aquí: este componente ya no monta ningún
+    botón de acción sobre la cartera y no ofrece nada que cambie datos. Están en /cartera/solicitudes
+    (PanelDarAcceso completo) y en la fila «Gestor CAE» de Cliente 360 (GestorCaeCliente); la ventana remite a
+    la ficha, como el dibujo de Design (§C), y enlaza a Empresas (ver RutaEmpresa360).
 
-    Tras «+ Dar acceso» basta con releer este dato. Tras «Desasignarme», quien mira ya no tiene
-    acceso al Tenant propietario cuyos datos pinta la pantalla: además de releer, la cabecera lo
-    avisa por AlDesasignarme y la página decide qué hace (Empresas lleva a Mi trabajo con un aviso).
+    Estados: cargando (esqueleto que reserva la línea, invisible los primeros 200 ms para no destellar
+    en cargas cortas), error («No pudimos cargarlo» con «Reintentar»), vacío (si las dos consultas
+    devuelven vacío no se pinta nada, ni el rótulo) y datos.
+
+    MÓVIL. La línea baja bajo el título (el contenedor ocupa el ancho entero) y deja UNA persona a la
+    vista; la segunda se oculta por CSS y el botón muestra el número de personas fuera de la primera
+    (`cabecera-gestor-cae-mas-movil`). La ventana pasa a hoja inferior (HojaEnMovil). Límite declarado:
+    el nombre accesible del botón cuenta las personas que no caben en la línea de escritorio.
 
     Quién recibe datos lo deciden las consultas, no este componente:
     - ObtenerPersonasConCarteraQuery responde a una cuenta activa del Operador CAE externo que
@@ -46,7 +49,6 @@
 @using CaeManager.Domain.Common
 @using CaeManager.Infrastructure.Identity
 @using CaeManager.Web.Features.Empresas.Recursos
-@using CaeManager.Web.Features.IncorporacionCartera.Components
 @using MediatR
 @using Microsoft.Extensions.Localization
 @implements IDisposable
@@ -54,34 +56,49 @@
 @inject ITenantActual TenantActual
 @inject IStringLocalizer<TextosEmpresas> Textos
 
-@if (_error)
+@if (_cargando)
+{
+    @* Reserva la línea: sin esto el título salta al llegar el dato. Invisible los primeros 200 ms (CSS). *@
+    <span class="cabecera-gestor-cae cabecera-gestor-cae-cargando" role="group" aria-busy="true" aria-label="@Textos["GestorCaeCargando"]">
+        <span class="cabecera-gestor-cae-rotulo">@Textos["GestorCaeRotulo"]</span>
+        <span class="cabecera-gestor-cae-esqueleto" aria-hidden="true">
+            <span class="cabecera-gestor-cae-esqueleto-redondo"></span><span class="cabecera-gestor-cae-esqueleto-linea cabecera-gestor-cae-esqueleto-larga"></span>
+            <span class="cabecera-gestor-cae-esqueleto-redondo cabecera-gestor-cae-esqueleto-secundaria"></span><span class="cabecera-gestor-cae-esqueleto-linea cabecera-gestor-cae-esqueleto-corta cabecera-gestor-cae-esqueleto-secundaria"></span>
+        </span>
+    </span>
+}
+else if (_error)
 {
     <span class="cabecera-gestor-cae" role="group" aria-label="@Textos["GestorCaeGrupo"]">
         <span class="cabecera-gestor-cae-rotulo">@Textos["GestorCaeRotulo"]</span>
-        <span class="cabecera-gestor-cae-sin-dato" role="status">@Textos["GestorCaeError"]</span>
+        <span class="cabecera-gestor-cae-error" role="status">
+            <span class="cabecera-gestor-cae-sin-dato">@Textos["GestorCaeError"]</span>
+            <button type="button" class="cabecera-gestor-cae-reintentar" @onclick="CargarAsync">@Textos["GestorCaeReintentar"]</button>
+        </span>
     </span>
 }
 else if (_grupos.Count > 0)
 {
     var titulo = Textos[_desdeElPropietario ? "GestorCaeTituloPropietario" : "GestorCaeTitulo"].Value;
-    var tramos = TramosALaVista();
-    var ocultas = _grupos.Sum(g => g.Principales.Count + g.Apoyos.Count) - tramos.Sum(t => t.Piezas.Count(p => p.Persona is not null));
+    var vista = Vista();
 
     <span class="cabecera-gestor-cae" role="group" aria-label="@Textos["GestorCaeGrupo"]" title="@titulo">
         <span class="cabecera-gestor-cae-rotulo">@Textos["GestorCaeRotulo"]</span>
         <span class="cabecera-gestor-cae-personas" title="@Resumen()">
             @{ var claves = new ClavesDeHermanos(); }
-            @foreach (var tramo in tramos)
+            @foreach (var tramo in vista.Tramos)
             {
-                @if (!ReferenceEquals(tramo, tramos[0]))
+                @* Entre tramos, el mismo punto medio que entre piezas (revisión de Design, DDL-083): ya no hay barra «|». *@
+                @if (!ReferenceEquals(tramo, vista.Tramos[0]))
                 {
-                    <span class="cabecera-gestor-cae-separador" aria-hidden="true">|</span>
+                    <span class="cabecera-gestor-cae-separador" aria-hidden="true">·</span>
                 }
                 @foreach (var pieza in tramo.Piezas)
                 {
+                    var claseSecundaria = vista.Secundarias.Contains(pieza) ? "cabecera-gestor-cae-secundaria" : null;
                     @if (!ReferenceEquals(pieza, tramo.Piezas[0]))
                     {
-                        <span class="cabecera-gestor-cae-separador" aria-hidden="true">·</span>
+                        <span class="cabecera-gestor-cae-separador @claseSecundaria" aria-hidden="true">·</span>
                     }
                     @switch (pieza.Clase)
                     {
@@ -92,14 +109,14 @@ else if (_grupos.Count > 0)
                             </span>
                             break;
                         case ClasePieza.Principal:
-                            <span class="cabecera-gestor-cae-persona" data-gestor-cae="principal" @key="claves.De((tramo.Grupo.Clave, pieza.Persona!.UsuarioId))">
+                            <span class="cabecera-gestor-cae-persona @claseSecundaria" data-gestor-cae="principal" @key="claves.De((tramo.Grupo.Clave, pieza.Persona!.UsuarioId))">
                                 <AvatarUsuario Nombre="@pieza.Persona.Nombre" Avatar="@pieza.Persona.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />
                                 <strong class="cabecera-gestor-cae-nombre" title="@pieza.Persona.Nombre">@pieza.Persona.Nombre</strong>
                                 <span class="cabecera-gestor-cae-pastilla cabecera-gestor-cae-principal">@RotuloPrincipal(pieza.Persona)</span>
                             </span>
                             break;
                         case ClasePieza.Apoyo:
-                            <span class="cabecera-gestor-cae-persona" data-gestor-cae="apoyo" @key="claves.De((tramo.Grupo.Clave, pieza.Persona!.UsuarioId))">
+                            <span class="cabecera-gestor-cae-persona @claseSecundaria" data-gestor-cae="apoyo" @key="claves.De((tramo.Grupo.Clave, pieza.Persona!.UsuarioId))">
                                 <AvatarUsuario Nombre="@pieza.Persona.Nombre" Avatar="@pieza.Persona.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />
                                 <span class="cabecera-gestor-cae-nombre" title="@pieza.Persona.Nombre">@pieza.Persona.Nombre</span>
                                 <span class="cabecera-gestor-cae-pastilla">@RotuloApoyo(pieza.Persona)</span>
@@ -107,81 +124,117 @@ else if (_grupos.Count > 0)
                             break;
                         case ClasePieza.SinPrincipal:
                             @* Sin principal es un estado válido (el relevo automático no encontró a quién pasar
-                               la marca). «Asumir» vive en su panel: aquí solo se dice. *@
-                            <span class="cabecera-gestor-cae-sin-dato cabecera-gestor-cae-aviso" data-gestor-cae="sin-principal">@Textos["GestorCaeSinPrincipal"]</span>
+                               la marca). Pastilla de aviso (ámbar), no texto gris que se confunda con un dato. *@
+                            <span class="cabecera-gestor-cae-pastilla-aviso" data-gestor-cae="sin-principal"><span class="cabecera-gestor-cae-punto-aviso" aria-hidden="true"></span>@Textos["GestorCaeSinPrincipal"]</span>
                             break;
                         case ClasePieza.OtraSinPrincipal:
                             @* Varias Asignaciones de Operación del mismo Operador CAE y solo alguna con
                                principal: callarlo haría creer que todas lo tienen. *@
-                            <span class="cabecera-gestor-cae-sin-dato cabecera-gestor-cae-aviso" data-gestor-cae="otra-sin-principal">@Textos["GestorCaeOtraSinPrincipal"]</span>
+                            <span class="cabecera-gestor-cae-pastilla-aviso" data-gestor-cae="otra-sin-principal"><span class="cabecera-gestor-cae-punto-aviso" aria-hidden="true"></span>@Textos["GestorCaeOtraSinPrincipal"]</span>
                             break;
                     }
                 }
             }
         </span>
-        @if (ocultas > 0)
+        @if (vista.HayVentana)
         {
             @* Las que no caben en la línea. La ventana las enseña a TODAS, no solo a las agrupadas:
-               quien la abre lee la cartera entera sin tener que sumar la línea y la ventana. *@
-            <VentanaContexto Etiqueta="@Textos["GestorCaeMasEtiqueta", ocultas]" Titulo="@titulo"
-                             Colocacion="VentanaContextoColocacion.AbajoCentro" data-gestor-cae-mas="@ocultas">
+               quien la abre lee la cartera entera sin tener que sumar la línea y la ventana. Interactiva:
+               el disparador es un <button> de verdad (borde de control, hover, foco y aria-expanded) y el
+               panel un grupo con nombre al que se llega con el tabulador, porque lleva un enlace. En
+               escritorio con exactamente dos personas no hay nada que agrupar: el botón solo existe en móvil. *@
+            <VentanaContexto Etiqueta="@vista.EtiquetaMas" Titulo="@Textos["GestorCaeVentanaTitulo"].Value"
+                             Interactiva="true" HojaEnMovil="true" EtiquetaCerrar="@Textos["GestorCaeCerrar"]"
+                             Colocacion="VentanaContextoColocacion.AbajoCentro"
+                             class="@(vista.Ocultas > 0 ? null : "cabecera-gestor-cae-mas-solo-movil")"
+                             data-gestor-cae-mas="@vista.Ocultas">
                 <Disparador>
-                    <span class="cabecera-gestor-cae-pastilla cabecera-gestor-cae-mas">@Textos["GestorCaeMas", ocultas]</span>
+                    @if (vista.Ocultas > 0)
+                    {
+                        <span class="cabecera-gestor-cae-mas cabecera-gestor-cae-mas-escritorio">@Textos["GestorCaeMas", vista.Ocultas]</span>
+                    }
+                    <span class="cabecera-gestor-cae-mas cabecera-gestor-cae-mas-movil">@Textos["GestorCaeMas", vista.OcultasEnMovil]</span>
                 </Disparador>
                 <Detalle>
                     @foreach (var grupo in _grupos)
                     {
                         @if (grupo.Operador is { } operador)
                         {
-                            <span class="ventana-linea" data-gestor-cae-detalle="operador">@Textos["GestorCaeOperador"] <strong>@operador</strong></span>
+                            <span class="cabecera-gestor-cae-fila cabecera-gestor-cae-fila-operador" data-gestor-cae-detalle="operador">
+                                <span class="cabecera-gestor-cae-sin-dato">@Textos["GestorCaeOperador"]</span> <strong>@operador</strong>
+                            </span>
+                        }
+                        @if (grupo.Principales.Count > 0)
+                        {
+                            <span class="cabecera-gestor-cae-seccion">@Textos["GestorCaePrincipal"]</span>
                         }
                         @foreach (var principal in grupo.Principales)
                         {
-                            <span class="ventana-linea" data-gestor-cae-detalle="principal"><strong>@principal.Nombre</strong> · @RotuloPrincipal(principal)</span>
+                            <span class="cabecera-gestor-cae-fila" data-gestor-cae-detalle="principal">
+                                <AvatarUsuario Nombre="@principal.Nombre" Avatar="@principal.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />
+                                <strong class="cabecera-gestor-cae-fila-nombre">@principal.Nombre</strong>
+                                <span class="cabecera-gestor-cae-fila-rotulo cabecera-gestor-cae-fila-rotulo-principal">@RotuloPrincipal(principal)</span>
+                            </span>
                         }
                         @if (grupo.Principales.Count == 0)
                         {
-                            <span class="ventana-linea" data-gestor-cae-detalle="sin-principal">@Textos["GestorCaeSinPrincipal"]</span>
+                            <span class="cabecera-gestor-cae-fila" data-gestor-cae-detalle="sin-principal"><span class="cabecera-gestor-cae-pastilla-aviso"><span class="cabecera-gestor-cae-punto-aviso" aria-hidden="true"></span>@Textos["GestorCaeSinPrincipal"]</span></span>
                         }
                         else if (grupo.OtraSinPrincipal)
                         {
-                            <span class="ventana-linea" data-gestor-cae-detalle="otra-sin-principal">@Textos["GestorCaeOtraSinPrincipal"]</span>
+                            <span class="cabecera-gestor-cae-fila" data-gestor-cae-detalle="otra-sin-principal"><span class="cabecera-gestor-cae-pastilla-aviso"><span class="cabecera-gestor-cae-punto-aviso" aria-hidden="true"></span>@Textos["GestorCaeOtraSinPrincipal"]</span></span>
+                        }
+                        @if (grupo.Apoyos.Count > 0)
+                        {
+                            <span class="cabecera-gestor-cae-seccion">@Textos["GestorCaeSeccionApoyo", grupo.Apoyos.Count]</span>
                         }
                         @foreach (var apoyo in grupo.Apoyos)
                         {
-                            <span class="ventana-linea" data-gestor-cae-detalle="apoyo">@apoyo.Nombre · @RotuloApoyo(apoyo)</span>
+                            <span class="cabecera-gestor-cae-fila" data-gestor-cae-detalle="apoyo">
+                                <AvatarUsuario Nombre="@apoyo.Nombre" Avatar="@apoyo.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />
+                                <span class="cabecera-gestor-cae-fila-nombre">@apoyo.Nombre</span>
+                                <span class="cabecera-gestor-cae-fila-rotulo">@RotuloApoyo(apoyo)</span>
+                            </span>
                         }
                     }
+                    @* Pie de la revisión de Design (§C): «Dar acceso o desasignarte: desde la ficha.» + «Abrir Empresa 360 →»;
+                       en la hoja de móvil, un solo botón «Dar acceso o desasignarte en la ficha». Un único <a>: los dos
+                       rótulos son la misma acción y CSS enseña el que toca. *@
+                    <span class="cabecera-gestor-cae-pie">
+                        <span class="cabecera-gestor-cae-pie-ayuda">@Textos["GestorCaeFichaAyuda"]</span>
+                        <a class="cabecera-gestor-cae-pie-enlace" href="@RutaEmpresa360">
+                            <span class="cabecera-gestor-cae-pie-enlace-escritorio">@Textos["GestorCaeFichaEnlace"]</span>
+                            <span class="cabecera-gestor-cae-pie-enlace-movil">@Textos["GestorCaeFichaEnlaceMovil"]</span>
+                        </a>
+                    </span>
                 </Detalle>
             </VentanaContexto>
         }
     </span>
-    @if (!_desdeElPropietario && TenantActual.TenantId is { } tenantId)
-    {
-        @* Fuera del grupo a propósito: su formulario y su confirmación no deben heredar la
-           tipografía ni el recorte de la línea. En pantalla quedan a continuación, en la misma línea. *@
-        <PanelDarAcceso TenantId="tenantId" EnCabecera="true" AlCambiar="CargarAsync" AlDesasignarme="AlDesasignarme" />
-    }
 }
 
 @code {
     /// <summary>
-    /// Cuántas personas salen por su nombre en la línea; las demás van a la pastilla «+N». Dos es lo
-    /// que cabe junto al título, con sus rótulos y los botones de la cabecera, a 1280 px de ancho.
+    /// Cuántas personas salen por su nombre en la línea; las demás van al botón «+N». Dos es lo
+    /// que cabe junto al título, con sus rótulos, a 1280 px de ancho.
     /// </summary>
     public const int PersonasALaVista = 2;
 
     /// <summary>
-    /// Quien mira acaba de desasignarse de su apoyo sobre el Tenant propietario activo (el Command lo
-    /// aceptó) y ya no tiene acceso a él. La cabecera ya releyó su dato; la página que pinta datos
-    /// de ese Tenant decide qué hace con los suyos. Nunca llega tras «+ Dar acceso».
+    /// Destino del enlace «Abrir Empresa 360 →» del pie de la ventana (revisión de Design, §C: «Dar acceso o desasignarte:
+    /// desde la ficha»). Es la pantalla de Empresas, desde la que se abre la ficha: la Asignación de Cartera cuelga del
+    /// Tenant propietario, no de una Empresa, así que no hay un Id de Empresa que enlazar. DECISIÓN NECESARIA (producto):
+    /// a qué ficha lleva; hoy esas acciones están en /cartera/solicitudes y en la fila «Gestor CAE» de Cliente 360.
     /// </summary>
-    [Parameter] public EventCallback AlDesasignarme { get; set; }
+    private const string RutaEmpresa360 = "/empresas";
 
     private readonly CancellationTokenSource _ciclo = new();
     private IReadOnlyList<Grupo> _grupos = [];
     private bool _desdeElPropietario;
     private bool _error;
+
+    /// <summary>Verdadero hasta que llega la primera respuesta (o falla): decide el esqueleto.</summary>
+    private bool _cargando = true;
 
     /// <summary>
     /// Un tramo de la cabecera. Desde el Operador CAE hay uno solo, sin nombre de organización;
@@ -201,16 +254,19 @@ else if (_grupos.Count > 0)
     protected override Task OnInitializedAsync() => CargarAsync();
 
     /// <summary>
-    /// Lee quién gestiona el Tenant propietario activo. Corre al montar y cada vez que
-    /// <see cref="PanelDarAcceso"/> avisa de que una acción terminó.
+    /// Lee quién gestiona el Tenant propietario activo. Corre al montar y con «Reintentar». Es solo
+    /// lectura: ninguna acción de este componente cambia la cartera, así que no hay nada que releer tras ella.
     /// </summary>
     private async Task CargarAsync()
     {
-        if (TenantActual.TenantId is not { } tenantId)
-            return;
+        _cargando = true;
+        _error = false;
 
         try
         {
+            if (TenantActual.TenantId is not { } tenantId)
+                return;
+
             var operaciones = (await Mediator.Send(new ObtenerPersonasConCarteraQuery(tenantId), _ciclo.Token))
                 .Where(o => o.TenantId == tenantId)
                 .ToList();
@@ -218,7 +274,6 @@ else if (_grupos.Count > 0)
             {
                 _desdeElPropietario = false;
                 _grupos = [DesdeElOperador(operaciones)];
-                _error = false;
                 return;
             }
 
@@ -232,13 +287,16 @@ else if (_grupos.Count > 0)
                     o.Principal is { } principal ? [principal] : [],
                     o.Apoyos, OtraSinPrincipal: false))
                 .ToList();
-            _error = false;
         }
         catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
         catch (Exception)
         {
             // Un fallo no es «nadie lo gestiona»: se dice, en vez de dejar la cabecera muda.
             _error = true;
+        }
+        finally
+        {
+            _cargando = false;
         }
     }
 
@@ -301,8 +359,15 @@ else if (_grupos.Count > 0)
     }
 
     /// <summary>
+    /// Las personas de la línea que, en móvil, se ocultan: todas menos la primera. Por referencia: dos
+    /// piezas iguales por valor (p. ej. dos Operadores CAE) no son la misma pieza.
+    /// </summary>
+    private static HashSet<Pieza> PiezasSecundarias(IReadOnlyList<Tramo> tramos) =>
+        new(tramos.SelectMany(t => t.Piezas).Where(p => p.Persona is not null).Skip(1), ReferenceEqualityComparer.Instance);
+
+    /// <summary>
     /// La cartera entera en una frase, para el <c>title</c> de la línea: lo que un nombre recortado o
-    /// la pastilla «+N» no dejan leer de un vistazo.
+    /// el botón «+N» no dejan leer de un vistazo.
     /// </summary>
     private string Resumen() => string.Join(" | ", _grupos.Select(grupo =>
     {
@@ -317,6 +382,29 @@ else if (_grupos.Count > 0)
         partes.AddRange(grupo.Apoyos.Select(a => $"{a.Nombre} ({RotuloApoyo(a)})"));
         return string.Join(" · ", partes);
     }));
+
+    /// <summary>
+    /// Todo lo que la línea calcula antes de pintarse. Vive aquí y no en el marcado para que el marcado sea solo marcado
+    /// (y para que el medidor de textos sin localizar no tome por texto de interfaz el C# que queda entre dos etiquetas).
+    /// </summary>
+    private sealed record VistaLinea(
+        IReadOnlyList<Tramo> Tramos, int Ocultas, int OcultasEnMovil, string EtiquetaMas, HashSet<Pieza> Secundarias)
+    {
+        public bool HayVentana => OcultasEnMovil != 0;
+    }
+
+    private VistaLinea Vista()
+    {
+        var tramos = TramosALaVista();
+        var total = _grupos.Sum(g => g.Principales.Count + g.Apoyos.Count);
+        var ocultas = total - tramos.Sum(t => t.Piezas.Count(p => p.Persona is not null));
+
+        // En móvil solo se deja a la vista la primera persona: «+N» cuenta todas las demás. El nombre accesible del
+        // botón cuenta las que no caben en la línea de escritorio o, si caben todas, las que el móvil deja fuera.
+        var ocultasEnMovil = Math.Max(total - 1, 0);
+        var etiquetaMas = Textos["GestorCaeMasEtiqueta", ocultas > 0 ? ocultas : ocultasEnMovil].Value;
+        return new VistaLinea(tramos, ocultas, ocultasEnMovil, etiquetaMas, PiezasSecundarias(tramos));
+    }
 
     private string RotuloPrincipal(PersonaConCartera principal) =>
         principal.Rol == Roles.CoordinadorCae ? Textos["GestorCaeCoordinadorPrincipal"] : Textos["GestorCaePrincipal"];

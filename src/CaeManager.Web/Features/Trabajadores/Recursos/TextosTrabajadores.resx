@@ -91,19 +91,16 @@
     <value>trabajador(es)</value>
   </data>
   <data name="VacioFiltrosTitulo" xml:space="preserve">
-    <value>Ningún trabajador con estos filtros</value>
-  </data>
-  <data name="VacioFiltrosDescripcion" xml:space="preserve">
-    <value>Ninguno coincide con la búsqueda ni con los filtros de documentación, empresa o subcontrata.</value>
+    <value>Ningún resultado con estos filtros</value>
   </data>
   <data name="BotonQuitarFiltros" xml:space="preserve">
-    <value>Quitar los filtros</value>
+    <value>Quitar filtros</value>
   </data>
   <data name="VacioTitulo" xml:space="preserve">
-    <value>Aún no hay trabajadores</value>
+    <value>Todavía no hay trabajadores</value>
   </data>
   <data name="VacioDescripcion" xml:space="preserve">
-    <value>Da de alta el primero para empezar a controlar su documentación.</value>
+    <value>Da de alta el primero o impórtalos desde una hoja de cálculo.</value>
   </data>
   <data name="DrawerNuevoTitulo" xml:space="preserve">
     <value>Nuevo trabajador</value>
@@ -277,7 +274,7 @@
     <value>Editar</value>
   </data>
   <data name="AccionReclamarFaltantes" xml:space="preserve">
-    <value>Reclamar faltantes</value>
+    <value>Gestionar</value>
   </data>
   <data name="AccionCrearGestion" xml:space="preserve">
     <value>Crear gestión</value>
@@ -413,6 +410,9 @@
   </data>
   <data name="AccionRenovar" xml:space="preserve">
     <value>Renovar</value>
+  </data>
+  <data name="NotaReclamarUno" xml:space="preserve">
+    <value>{0} tiene documentación pendiente en {1}. Se enviará una reclamación a ese Cliente al confirmar.</value>
   </data>
   <data name="NotaReclamarVarios" xml:space="preserve">
     <value>{0} tiene documentación pendiente en varios Clientes a la vez. Elige a cuáles reclamar.</value>
@@ -625,10 +625,10 @@
     <value>Vigencia sin confirmar: {0}</value>
   </data>
   <data name="ListaFiltrarPlaceholder" xml:space="preserve">
-    <value>Filtrar esta pantalla: nombre, DNI o alias</value>
+    <value>Filtrar esta pantalla: Nombre, DNI o alias</value>
   </data>
   <data name="ListaColumnaTrabajador" xml:space="preserve">
-    <value>Nombre</value>
+    <value>Trabajador</value>
   </data>
   <data name="ListaOpcionSubcontrata" xml:space="preserve">
     <value>{0} (subcontrata)</value>
@@ -655,7 +655,7 @@
     <value>Editar (e)</value>
   </data>
   <data name="ListaColumnaEstadoDocumental" xml:space="preserve">
-    <value>Documentación</value>
+    <value>Estado documental</value>
   </data>
   <data name="ListaColumnaRegistradosVigentes" xml:space="preserve">
     <value>Registrados vigentes</value>
@@ -675,6 +675,9 @@
   <data name="AccionDarDeBajaDeCentro" xml:space="preserve">
     <value>Dar de baja de este centro</value>
   </data>
+  <data name="AsignadoDesdeEl" xml:space="preserve"><value>Asignado desde el {0}</value></data>
+  <data name="ContadorCentrosUno" xml:space="preserve"><value>centro asignado</value></data>
+  <data name="ContadorCentrosVarios" xml:space="preserve"><value>centros asignados</value></data>
   <data name="SinDocumentoExigido" xml:space="preserve">
     <value>Sin documento</value>
   </data>
@@ -712,20 +715,60 @@
   <data name="TipoContratacionVoluntario" xml:space="preserve"><value>Voluntario</value></data>
   <data name="VoluntarioInactivo" xml:space="preserve"><value>Voluntario inactivo</value></data>
   <data name="VoluntarioInactivoAyuda" xml:space="preserve"><value>Sin evento vigente ni futuro: sus vencimientos no avisan ni cuentan en el Centro. Se reactiva al asignarlo a otro evento.</value></data>
-  <data name="EtiquetaActividad" xml:space="preserve"><value>Actividad</value></data>
-  <data name="OpcionActividadTodos" xml:space="preserve"><value>Todos</value></data>
-  <data name="OpcionSinVoluntariosInactivos" xml:space="preserve"><value>Sin voluntarios inactivos</value></data>
-  <data name="OpcionSoloVoluntariosInactivos" xml:space="preserve"><value>Solo voluntarios inactivos</value></data>
   <data name="FichaCopiarAfiliacion" xml:space="preserve"><value>el número de afiliación a la Seguridad Social</value></data>
   <data name="FichaCopiarAltaEmpresa" xml:space="preserve"><value>la fecha de alta en la empresa</value></data>
   <data name="FichaCopiarBajaEmpresa" xml:space="preserve"><value>la fecha de baja en la empresa</value></data>
   <data name="FichaCopiarCaducidadPermiso" xml:space="preserve"><value>la caducidad del permiso de trabajo</value></data>
+  <data name="FichaRotuloDni" xml:space="preserve"><value>DNI</value></data>
   <data name="FichaCopiarDni" xml:space="preserve"><value>el DNI</value></data>
   <data name="FichaCopiarTelefono" xml:space="preserve"><value>el teléfono</value></data>
+  <data name="FichaContactoEmergencia" xml:space="preserve"><value>Contacto de emergencia</value></data>
+  <data name="FichaTelefonoEmergencia" xml:space="preserve"><value>Teléfono de emergencia</value></data>
+  <data name="FichaCopiarTelefonoEmergencia" xml:space="preserve"><value>el teléfono de emergencia</value></data>
   <data name="FichaCopiarCorreo" xml:space="preserve"><value>el correo electrónico</value></data>
   <data name="FichaCopiarNacimiento" xml:space="preserve"><value>la fecha de nacimiento</value></data>
   <data name="FichaCopiarNombreAccesible" xml:space="preserve"><value>Copiar {0}</value></data>
   <data name="FichaCopiarNombreAccesibleConValor" xml:space="preserve"><value>Copiar {0}: {1}</value></data>
-  <data name="ListaColumnaDni" xml:space="preserve"><value>DNI</value></data>
-  <data name="ListaColumnaEmpleador" xml:space="preserve"><value>Empresa / Subcontrata</value></data>
+  <data name="ListaColumnaEmpleador" xml:space="preserve"><value>Empresa</value></data>
+  <data name="Gestionar" xml:space="preserve"><value>Gestionar</value></data>
+  <data name="GestionarDocumentoAccesible" xml:space="preserve"><value>Gestionar {0} de {1}</value></data>
+  <data name="EtiquetaAgrupar" xml:space="preserve"><value>Agrupar</value></data>
+  <data name="OpcionSinAgrupar" xml:space="preserve"><value>Sin agrupar</value></data>
+  <data name="AgruparPorEmpresa" xml:space="preserve"><value>Por Empresa</value></data>
+  <data name="AgruparPorDelegacionEmpresa" xml:space="preserve"><value>Por Delegación</value></data>
+  <data name="AgruparPorOficio" xml:space="preserve"><value>Por Oficio</value></data>
+  <data name="SinDelegacionEmpresa" xml:space="preserve"><value>Sin delegación</value></data>
+  <data name="SinOficio" xml:space="preserve"><value>Sin oficio</value></data>
+  <data name="GrupoDeCatalogoConEmpresa" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="EtiquetaDelegacionEmpresa" xml:space="preserve"><value>Delegación</value></data>
+  <data name="EtiquetaOficio" xml:space="preserve"><value>Oficio</value></data>
+  <data name="OpcionTodasLasDelegacionesEmpresa" xml:space="preserve"><value>Todas</value></data>
+  <data name="OpcionTodosLosOficios" xml:space="preserve"><value>Todos</value></data>
+  <data name="ChipDelegacionEmpresa" xml:space="preserve"><value>Delegación: {0}</value></data>
+  <data name="ChipOficio" xml:space="preserve"><value>Oficio: {0}</value></data>
+  <data name="AriaQuitarFiltroDelegacionEmpresa" xml:space="preserve"><value>Quitar filtro de delegación</value></data>
+  <data name="AriaQuitarFiltroOficio" xml:space="preserve"><value>Quitar filtro de oficio</value></data>
+  <data name="OficioEtiquetaAyuda" xml:space="preserve"><value>Oficio del catálogo de su empresa</value></data>
+  <data name="RecuentoGrupoEnEstaPagina" xml:space="preserve"><value>· {0} en esta página</value></data>
+  <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordenar</value></data>
+  <data name="OficioEtiqueta" xml:space="preserve"><value>Oficio</value></data>
+  <data name="OficioPlaceholder" xml:space="preserve"><value>Busca o escribe un oficio</value></data>
+  <data name="OficioCrear" xml:space="preserve"><value>+ Crear oficio «{0}»</value></data>
+  <data name="DelegacionEmpresaEtiqueta" xml:space="preserve"><value>Delegación</value></data>
+  <data name="DelegacionEmpresaSinElegir" xml:space="preserve"><value>Sin delegación</value></data>
+  <data name="CatalogoNoCargo" xml:space="preserve"><value>No se pudo cargar el catálogo de la empresa.</value></data>
+  <data name="OficioErrorCrear" xml:space="preserve"><value>No se pudo crear el oficio.</value></data>
+  <data name="OficioPuestoActual" xml:space="preserve"><value>Puesto actual: {0}. Elige un oficio para sustituirlo.</value></data>
+  <data name="PasoAltaBasico" xml:space="preserve">
+    <value>Lo básico</value>
+  </data>
+  <data name="PasoAltaTrabajo" xml:space="preserve">
+    <value>Trabajo</value>
+  </data>
+  <data name="PasoAltaContacto" xml:space="preserve">
+    <value>Contacto</value>
+  </data>
+  <data name="EtiquetaPasosAlta" xml:space="preserve">
+    <value>Alta de trabajador</value>
+  </data>
 </root>

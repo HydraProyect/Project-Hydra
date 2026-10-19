@@ -34,6 +34,9 @@ public class MacroRespuesta : EntidadBase
         ClienteId = clienteId;
     }
 
+    internal static MacroRespuesta CrearPredefinida(Guid id, string titulo, string cuerpoHtml) =>
+        new(titulo, cuerpoHtml) { Id = id };
+
     private void EstablecerTitulo(string titulo)
     {
         if (string.IsNullOrWhiteSpace(titulo))

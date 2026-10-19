@@ -36,7 +36,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     [SupplyParameterFromQuery(Name = "severidad")] public string? SeveridadUrl { get; set; }
 
     /// <summary>
-    /// Llega de «Desasignarme» en Empresas (<c>/mi-trabajo?sinAcceso=true</c>): quien mira acaba de dejar el Tenant
+    /// Llega de «Desasignarme» en la fila «Gestor CAE» de Cliente 360 (<c>/mi-trabajo?sinAcceso=true</c>): quien mira acaba de dejar el Tenant
     /// que tenía abierto. Sin nombre de Tenant ni dato personal en la URL.
     /// </summary>
     [SupplyParameterFromQuery(Name = "sinAcceso")] public bool? SinAccesoUrl { get; set; }

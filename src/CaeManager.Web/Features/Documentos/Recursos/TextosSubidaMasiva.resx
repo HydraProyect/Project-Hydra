@@ -30,4 +30,355 @@
   <data name="SalirDescartar" xml:space="preserve">
     <value>Salir y descartar</value>
   </data>
+  <data name="TituloPestana" xml:space="preserve">
+    <value>Subida múltiple</value>
+  </data>
+  <data name="MigaDocumentos" xml:space="preserve">
+    <value>Documentos</value>
+  </data>
+  <data name="MigaSubida" xml:space="preserve">
+    <value>Subida múltiple</value>
+  </data>
+  <data name="MigaEtiqueta" xml:space="preserve">
+    <value>Miga de pan</value>
+  </data>
+  <data name="Titulo" xml:space="preserve">
+    <value>Subida múltiple de documentos</value>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Ciclo documental</value>
+  </data>
+  <data name="Descripcion" xml:space="preserve">
+    <value>Arrastra o selecciona varios archivos (PDF, JPG, PNG, Word) o un único .zip con varios dentro. Solo documentos de Trabajador. La IA propone el trabajador, el tipo y las fechas que lee de cada archivo; el documento no existe hasta que tú confirmas o corriges cada uno.</value>
+  </data>
+  <data name="EnlaceImportar" xml:space="preserve">
+    <value>Importar desde Excel</value>
+  </data>
+  <data name="EnlaceRevisionIa" xml:space="preserve">
+    <value>Revisión IA →</value>
+  </data>
+  <data name="SoloLecturaTitulo" xml:space="preserve">
+    <value>Solo lectura</value>
+  </data>
+  <data name="SoloLecturaDescripcion" xml:space="preserve">
+    <value>Tu rol de Consulta permite ver este flujo, pero no crear documentos desde aquí.</value>
+  </data>
+  <data name="ZonaEtiqueta" xml:space="preserve">
+    <value>Seleccionar archivos</value>
+  </data>
+  <data name="ZonaTitulo" xml:space="preserve">
+    <value>Arrastra aquí los documentos de trabajador</value>
+  </data>
+  <data name="ZonaFormatos" xml:space="preserve">
+    <value>PDF · JPG · PNG · DOCX · ZIP</value>
+  </data>
+  <data name="ZonaAviso" xml:space="preserve">
+    <value>Nada se guarda hasta que confirmas cada archivo.</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar la subida</value>
+  </data>
+  <data name="ErrorCargaDescripcion" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="ErrorLoteCantidad" xml:space="preserve">
+    <value>El lote supera el máximo de {0} archivos por subida</value>
+  </data>
+  <data name="ErrorLoteDetalleCantidad" xml:space="preserve">
+    <value>No se ha guardado ningún archivo de este lote. Suelta menos archivos cada vez.</value>
+  </data>
+  <data name="VolverAIntentarlo" xml:space="preserve">
+    <value>Volver a intentarlo</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Todavía no has soltado ningún archivo</value>
+  </data>
+  <data name="VacioDescripcion" xml:space="preserve">
+    <value>Cuando sueltes el primero aparecerá aquí la lista con su estado.</value>
+  </data>
+  <data name="ProgresoEtiqueta" xml:space="preserve">
+    <value>Progreso del lote</value>
+  </data>
+  <data name="ProgresoTitulo" xml:space="preserve">
+    <value>{0} de {1} archivos leídos</value>
+  </data>
+  <data name="ContadorCreados" xml:space="preserve">
+    <value>{0} creados</value>
+  </data>
+  <data name="ContadorPorConfirmar" xml:space="preserve">
+    <value>{0} por confirmar</value>
+  </data>
+  <data name="ContadorDescartados" xml:space="preserve">
+    <value>{0} descartados</value>
+  </data>
+  <data name="ContadorErrores" xml:space="preserve">
+    <value>{0} con error</value>
+  </data>
+  <data name="ContadorCreadosAyuda" xml:space="preserve">
+    <value>{0} de {1} archivos ya creados tras tu confirmación</value>
+  </data>
+  <data name="ContadorPorConfirmarAyuda" xml:space="preserve">
+    <value>{0} de {1} archivos esperan que confirmes trabajador, tipo y fechas</value>
+  </data>
+  <data name="ContadorDescartadosAyuda" xml:space="preserve">
+    <value>{0} de {1} archivos descartados, no se guardaron</value>
+  </data>
+  <data name="ContadorErroresAyuda" xml:space="preserve">
+    <value>{0} de {1} archivos con error, no se guardaron</value>
+  </data>
+  <data name="LimpiarResueltos" xml:space="preserve">
+    <value>Limpiar creados y descartados</value>
+  </data>
+  <data name="SoloPropone" xml:space="preserve">
+    <value>La IA solo propone: ningún documento se crea sin que confirmes ese archivo.</value>
+  </data>
+  <data name="EnCurso" xml:space="preserve">
+    <value>{0} en curso — puedes confirmar los ya leídos mientras tanto</value>
+  </data>
+  <data name="LoteTerminado" xml:space="preserve">
+    <value>Lote terminado</value>
+  </data>
+  <data name="PanelEtiqueta" xml:space="preserve">
+    <value>Archivos del lote</value>
+  </data>
+  <data name="FiltroTodos" xml:space="preserve">
+    <value>Todos</value>
+  </data>
+  <data name="FiltroPendientes" xml:space="preserve">
+    <value>Ambiguos</value>
+  </data>
+  <data name="FiltroErrores" xml:space="preserve">
+    <value>Errores</value>
+  </data>
+  <data name="FiltroCreados" xml:space="preserve">
+    <value>Creados</value>
+  </data>
+  <data name="FiltroVacioTitulo" xml:space="preserve">
+    <value>Ningún archivo con este filtro</value>
+  </data>
+  <data name="FiltroVacioDescripcion" xml:space="preserve">
+    <value>El lote tiene archivos, pero ninguno en ese estado.</value>
+  </data>
+  <data name="VerTodos" xml:space="preserve">
+    <value>Ver todos</value>
+  </data>
+  <data name="EstadoCola" xml:space="preserve">
+    <value>En cola</value>
+  </data>
+  <data name="EstadoSubiendo" xml:space="preserve">
+    <value>Subiendo…</value>
+  </data>
+  <data name="EstadoLeyendo" xml:space="preserve">
+    <value>Leyendo…</value>
+  </data>
+  <data name="EstadoPendiente" xml:space="preserve">
+    <value>Pendiente de confirmar</value>
+  </data>
+  <data name="EstadoCreado" xml:space="preserve">
+    <value>Creado tras confirmar</value>
+  </data>
+  <data name="EstadoDescartado" xml:space="preserve">
+    <value>Descartado</value>
+  </data>
+  <data name="EstadoError" xml:space="preserve">
+    <value>Error</value>
+  </data>
+  <data name="DetalleCola" xml:space="preserve">
+    <value>A la espera de que termine el anterior</value>
+  </data>
+  <data name="DetalleSubiendo" xml:space="preserve">
+    <value>Subiendo al servidor</value>
+  </data>
+  <data name="DetalleLeyendo" xml:space="preserve">
+    <value>Convirtiendo a PDF y leyendo…</value>
+  </data>
+  <data name="DetalleOrigen" xml:space="preserve">
+    <value>Salió de {0}</value>
+  </data>
+  <data name="Confianza" xml:space="preserve">
+    <value>{0} % de confianza IA</value>
+  </data>
+  <data name="MiniaturaAlt" xml:space="preserve">
+    <value>Miniatura de {0}</value>
+  </data>
+  <data name="BarraSubida" xml:space="preserve">
+    <value>Subida de {0}</value>
+  </data>
+  <data name="BarraLectura" xml:space="preserve">
+    <value>Leyendo {0}</value>
+  </data>
+  <data name="BytesSubidos" xml:space="preserve">
+    <value>{0} de {1} MB</value>
+  </data>
+  <data name="SubidoLeyendo" xml:space="preserve">
+    <value>100 % subido · leyendo con IA</value>
+  </data>
+  <data name="PropuestaSinDatos" xml:space="preserve">
+    <value>La IA no propuso datos para este archivo: indícalos tú.</value>
+  </data>
+  <data name="PropuestaIntacta" xml:space="preserve">
+    <value>Propuesta de la IA</value>
+  </data>
+  <data name="PropuestaCorregida" xml:space="preserve">
+    <value>Propuesta de la IA con tus correcciones</value>
+  </data>
+  <data name="PropuestaResumen" xml:space="preserve">
+    <value>{0} — trabajador: {1} · tipo: {2} · emisión: {3}</value>
+  </data>
+  <data name="PropuestaVencimiento" xml:space="preserve">
+    <value> · vencimiento: {0}</value>
+  </data>
+  <data name="SinDeterminar" xml:space="preserve">
+    <value>sin determinar</value>
+  </data>
+  <data name="SinLeer" xml:space="preserve">
+    <value>sin leer en el archivo</value>
+  </data>
+  <data name="SinIndicar" xml:space="preserve">
+    <value>sin indicar</value>
+  </data>
+  <data name="Gestionar" xml:space="preserve">
+    <value>Gestionar</value>
+  </data>
+  <data name="QuitarDeLaLista" xml:space="preserve">
+    <value>Quitar de la lista</value>
+  </data>
+  <data name="Descartar" xml:space="preserve">
+    <value>Descartar</value>
+  </data>
+  <data name="VistaPreviaTitulo" xml:space="preserve">
+    <value>Vista previa de {0}</value>
+  </data>
+  <data name="VistaPreviaPie" xml:space="preserve">
+    <value>Vista previa del PDF convertido, todavía sin guardar</value>
+  </data>
+  <data name="Trabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="TrabajadorMarcador" xml:space="preserve">
+    <value>Escribe un nombre o alias para buscar…</value>
+  </data>
+  <data name="TrabajadorFalta" xml:space="preserve">
+    <value>Selecciona un trabajador antes de confirmar.</value>
+  </data>
+  <data name="TrabajadorPropuesto" xml:space="preserve">
+    <value>Propuesto por la IA con el DNI leído en el documento</value>
+  </data>
+  <data name="TipoDocumento" xml:space="preserve">
+    <value>Tipo de documento</value>
+  </data>
+  <data name="TipoDocumentoMarcador" xml:space="preserve">
+    <value>Selecciona un tipo de documento…</value>
+  </data>
+  <data name="TipoDocumentoAyuda" xml:space="preserve">
+    <value>Solo tipos de ámbito Trabajador.</value>
+  </data>
+  <data name="FechaEmision" xml:space="preserve">
+    <value>Fecha de emisión</value>
+  </data>
+  <data name="FechaEmisionLeida" xml:space="preserve">
+    <value>Leída del archivo por la IA: compárala con el PDF antes de confirmar.</value>
+  </data>
+  <data name="FechaEmisionNoLeida" xml:space="preserve">
+    <value>La IA no leyó una fecha de emisión en el archivo: indícala tú.</value>
+  </data>
+  <data name="Vencimiento" xml:space="preserve">
+    <value>Vencimiento</value>
+  </data>
+  <data name="VencimientoAyuda" xml:space="preserve">
+    <value>Se calcula con la vigencia del tipo. El campo de fecha de vencimiento solo aparece si el tipo no calcula vigencia automática.</value>
+  </data>
+  <data name="VencimientoCalculado" xml:space="preserve">
+    <value>{0} (emisión + {1} meses)</value>
+  </data>
+  <data name="VencimientoSinVigencia" xml:space="preserve">
+    <value>Sin vencimiento</value>
+  </data>
+  <data name="VencimientoDependeDelTipo" xml:space="preserve">
+    <value>Depende del tipo que elijas</value>
+  </data>
+  <data name="VencimientoSinEmision" xml:space="preserve">
+    <value>Depende de la fecha de emisión</value>
+  </data>
+  <data name="FechaVencimiento" xml:space="preserve">
+    <value>Fecha de vencimiento</value>
+  </data>
+  <data name="VencimientoPropuesto" xml:space="preserve">
+    <value>Propuesta por la IA; puede haberla calculado a partir de la vigencia del documento en lugar de leerla. Compárala con el PDF antes de confirmar.</value>
+  </data>
+  <data name="ConfirmarYCrear" xml:space="preserve">
+    <value>Confirmar y crear</value>
+  </data>
+  <data name="CerrarSinConfirmar" xml:space="preserve">
+    <value>Cerrar sin confirmar</value>
+  </data>
+  <data name="ConfirmarAviso" xml:space="preserve">
+    <value>Confirmar este archivo no toca a los demás.</value>
+  </data>
+  <data name="DescartarTitulo" xml:space="preserve">
+    <value>Descartar este archivo</value>
+  </data>
+  <data name="DescartarMensaje" xml:space="preserve">
+    <value>Se suelta de memoria y no llega a guardarse. Habría que volver a soltarlo para recuperarlo. El resto del lote sigue igual.</value>
+  </data>
+  <data name="Cancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="CargandoLote" xml:space="preserve">
+    <value>Convirtiendo a PDF y leyendo cada archivo…</value>
+  </data>
+  <data name="ProcesandoLote" xml:space="preserve">
+    <value>Procesando el lote</value>
+  </data>
+  <data name="ToastCreado" xml:space="preserve">
+    <value>Documento creado desde {0}.</value>
+  </data>
+  <data name="ToastDescartado" xml:space="preserve">
+    <value>Archivo descartado. El resto del lote sigue igual.</value>
+  </data>
+  <data name="ToastQuitado" xml:space="preserve">
+    <value>Archivo quitado de la lista.</value>
+  </data>
+  <data name="ToastLimpiado" xml:space="preserve">
+    <value>Creados y descartados fuera de la lista.</value>
+  </data>
+  <data name="FaltaTipo" xml:space="preserve">
+    <value>Selecciona un tipo de documento antes de confirmar.</value>
+  </data>
+  <data name="FaltaFecha" xml:space="preserve">
+    <value>Indica la fecha de emisión antes de confirmar.</value>
+  </data>
+  <data name="FechaFutura" xml:space="preserve">
+    <value>La fecha de emisión no puede ser futura.</value>
+  </data>
+  <data name="ErrorGuardar" xml:space="preserve">
+    <value>No pudimos guardar este documento. Intenta nuevamente.</value>
+  </data>
+  <data name="ErrorConsulta" xml:space="preserve">
+    <value>Tu rol de Consulta no permite crear documentos.</value>
+  </data>
+  <data name="ErrorSinArchivo" xml:space="preserve">
+    <value>No hay archivo que guardar.</value>
+  </data>
+  <data name="ErrorFormato" xml:space="preserve">
+    <value>No es un PDF, JPG, PNG ni Word (.docx) — se omitió.</value>
+  </data>
+  <data name="ErrorContenido" xml:space="preserve">
+    <value>El contenido real no coincide con la extensión — se omitió.</value>
+  </data>
+  <data name="ErrorConvertir" xml:space="preserve">
+    <value>No pudimos convertir este archivo a PDF.</value>
+  </data>
+  <data name="ErrorZipInvalido" xml:space="preserve">
+    <value>El archivo no es realmente un .zip válido.</value>
+  </data>
+  <data name="ErrorZipIlegible" xml:space="preserve">
+    <value>No pudimos abrir este archivo .zip.</value>
+  </data>
+  <data name="ErrorSubida" xml:space="preserve">
+    <value>No pudimos subir este archivo.</value>
+  </data>
 </root>

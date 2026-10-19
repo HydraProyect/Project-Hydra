@@ -38,9 +38,9 @@ public partial class PanelDarAcceso
     [Parameter] public Guid? TenantId { get; set; }
 
     /// <summary>
-    /// Forma compacta para la cabecera «Gestor CAE» de la pantalla Empresas: solo los botones
+    /// Forma compacta para la fila «Gestor CAE» de Cliente 360 (<c>GestorCaeCliente</c>): solo los botones
     /// «+ Dar acceso» (uno por operación de la que quien mira es el principal) y «Desasignarme»
-    /// (uno por apoyo suyo), sin las tarjetas. Qué botón se pinta sale de las mismas lecturas que
+    /// (uno por apoyo suyo, salvo sobre una operación de la que hoy es el principal), sin las tarjetas. Qué botón se pinta sale de las mismas lecturas que
     /// la forma completa —menos la de propuestas sin responder, que aquí no se pintan—, y lo que
     /// hace cada uno, de los mismos Commands.
     /// </summary>
@@ -56,11 +56,18 @@ public partial class PanelDarAcceso
     /// Quien mira se desasignó de un apoyo suyo y el Command lo aceptó: acaba de perder ese acceso al
     /// Tenant propietario. Llega después de <see cref="AlCambiar"/> y solo por «Desasignarme»: nunca
     /// al proponer, retirar o revocar, ni si el Command lo rechazó. Es para quien tenga pintados
-    /// datos de ese Tenant (la pantalla Empresas); quien no lo pasa no nota nada.
+    /// datos de ese Tenant (Cliente 360); quien no lo pasa no nota nada.
     /// </summary>
     [Parameter] public EventCallback AlDesasignarme { get; set; }
 
+    /// <summary>
+    /// La primera lectura del panel terminó, bien o con error. Es para quien serializa sus consultas sobre el
+    /// DbContext del circuito (Cliente 360 espera a esto antes de leer sus pestañas); quien no lo pasa no nota nada.
+    /// </summary>
+    [Parameter] public EventCallback AlCargar { get; set; }
+
     private IReadOnlyList<CarterasDeOperacion> _operaciones = [];
+    private bool _errorDeCarga;
     private IReadOnlyList<PropuestaApoyoDto> _enviadas = [];
     private ApoyosDeCarteraDto _apoyos = ApoyosDeCarteraDto.Vacio;
     private Guid? _tenantCargado;
@@ -91,7 +98,7 @@ public partial class PanelDarAcceso
 
     private string TituloConfirmarFinDeApoyo => _aTerminar?.Via switch
     {
-        ViaFinDeApoyo.Desasignarme => Textos["ConfirmarDesasignarmeTitulo"],
+        ViaFinDeApoyo.Desasignarme => Textos["ConfirmarDesasignarmeTitulo", _aTerminar.Value.Apoyo.NombreEmpresa],
         ViaFinDeApoyo.RetirarLoConcedido => Textos["ConfirmarRetirarApoyoTitulo"],
         ViaFinDeApoyo.Revocar => Textos["ConfirmarRevocarApoyoTitulo"],
         _ => string.Empty,
@@ -116,30 +123,59 @@ public partial class PanelDarAcceso
         if (_cargado && _tenantCargado == TenantId)
             return;
 
+        var primeraLectura = !_cargado;
         _cargado = true;
         _tenantCargado = TenantId;
         await CargarAsync();
+        if (primeraLectura)
+            await AlCargar.InvokeAsync();
     }
 
+    /// <summary>
+    /// «Desasignarme» solo por un apoyo de quien mira y nunca sobre una operación de la que hoy es el principal
+    /// (soltar la marca es un relevo); el Command lo vuelve a comprobar (EresElPrincipal).
+    /// </summary>
+    private IReadOnlyList<ApoyoDeCarteraDto> MisApoyos => _apoyos.Mios
+        .Where(a => !_operaciones.Any(o => o.AsignacionOperacionId == a.AsignacionOperacionId))
+        .ToList();
+
+    /// <summary>
+    /// Lee lo que el panel enseña. Un fallo (también una colisión sobre el DbContext del circuito) se dice en el
+    /// sitio y deja el panel sin acciones; nunca sube a LimiteDeErrores.
+    /// </summary>
     private async Task CargarAsync()
     {
-        var usuarioId = await UsuarioActual.ObtenerUsuarioActualIdAsync();
-        if (usuarioId is null)
+        _errorDeCarga = false;
+        try
         {
-            _operaciones = [];
-            _enviadas = [];
-            _apoyos = ApoyosDeCarteraDto.Vacio;
-            return;
-        }
+            var usuarioId = await UsuarioActual.ObtenerUsuarioActualIdAsync();
+            if (usuarioId is null)
+            {
+                VaciarLecturas();
+                return;
+            }
 
-        _operaciones = (await Mediator.Send(new ObtenerPersonasConCarteraQuery(TenantId)))
-            .Where(o => o.Principal?.UsuarioId == usuarioId.Value)
-            .ToList();
-        // Las propuestas sin responder solo se pintan en la forma completa: en la cabecera no se leen.
-        _enviadas = EnCabecera || _operaciones.Count == 0
-            ? []
-            : (await Mediator.Send(new ObtenerPropuestasApoyoPendientesQuery())).Enviadas;
-        _apoyos = await Mediator.Send(new ObtenerApoyosDeCarteraQuery(TenantId));
+            _operaciones = (await Mediator.Send(new ObtenerPersonasConCarteraQuery(TenantId)))
+                .Where(o => o.Principal?.UsuarioId == usuarioId.Value)
+                .ToList();
+            // Las propuestas sin responder solo se pintan en la forma completa: en la cabecera no se leen.
+            _enviadas = EnCabecera || _operaciones.Count == 0
+                ? []
+                : (await Mediator.Send(new ObtenerPropuestasApoyoPendientesQuery())).Enviadas;
+            _apoyos = await Mediator.Send(new ObtenerApoyosDeCarteraQuery(TenantId));
+        }
+        catch (Exception)
+        {
+            VaciarLecturas();
+            _errorDeCarga = true;
+        }
+    }
+
+    private void VaciarLecturas()
+    {
+        _operaciones = [];
+        _enviadas = [];
+        _apoyos = ApoyosDeCarteraDto.Vacio;
     }
 
     /// <summary>«Apoyo hasta <fecha>» si la cartera lleva fecha de fin; sin ella, «Apoyo» (D-5).</summary>

@@ -10,6 +10,7 @@ using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Commands.CambiarNivelServicioSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarVerificacionExterna;
+using CaeManager.Application.Subcontratas.Commands.RegistrarVerificacionExterna;
 using CaeManager.Application.Subcontratas.Commands.RestaurarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.GuardarNotaInternaSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata;
@@ -35,6 +36,7 @@ using CaeManager.Web.Features.Subcontratas.Pages;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -54,6 +56,21 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class Subcontrata360PaginaTests : BunitContext
 {
+    [Fact]
+    public async Task El_dni_de_la_fila_se_copia_con_confirmacion_sin_abrir_la_ficha()
+    {
+        Montar();
+        var cut = Renderizar();
+        var copiar = cut.FindComponents<BotonCopiar>().First(c => c.Instance.Valor == "12345678Z");
+        copiar.Instance.EnLinea.Should().BeTrue();
+        copiar.Instance.ConfirmarConIcono.Should().BeTrue();
+        var destino = Navegacion.Uri;
+        await copiar.Find("button").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        Services.GetRequiredService<ToastService>().Mensajes.Should()
+            .Contain(t => t.Mensaje == "DNI 12345678Z copiado al portapapeles");
+        copiar.FindAll(".boton-copiar-confirmacion").Should().ContainSingle();
+        Navegacion.Uri.Should().Be(destino);
+    }
     public Subcontrata360PaginaTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -76,6 +93,7 @@ public class Subcontrata360PaginaTests : BunitContext
         public bool FallaElCumplimiento { get; set; }
         public bool FallaGestion { get; set; }
         public List<DocumentoListaDto> DocumentosGestion { get; } = [];
+        public List<TipoDocumentoListaDto> TiposCatalogo { get; } = [];
         public Dictionary<Guid, Task<ResultadoPaginado<DocumentoListaDto>>> GestionPendiente { get; } = [];
         public Dictionary<Guid, SubcontrataDetalleDto> DetallesPorId { get; } = [];
 
@@ -113,7 +131,7 @@ public class Subcontrata360PaginaTests : BunitContext
             ObtenerEmpresasParaSelectorQuery => (IReadOnlyList<EmpresaSelectorDto>)[],
             // Los catálogos del formulario de documento al abrirlo desde una subfila.
             ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)[],
-            ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)[],
+            ObtenerTiposDocumentoQuery q => (IReadOnlyList<TipoDocumentoListaDto>)TiposCatalogo.Where(t => q.AmbitoAplicacion is null || t.AmbitoAplicacion == q.AmbitoAplicacion).ToList(),
             ObtenerTrabajadoresDocumentacionPorSubcontrataQuery => (IReadOnlyList<TrabajadorDocumentacionSubcontrataDto>)Trabajadores,
             ObtenerSupervisionSubcontrataQuery => Supervision,
             ObtenerCentrosConCumplimientoDeSubcontrataQuery => CentrosConCumplimiento ?? Centros.Select(c => new CentroCumplimientoSubcontrataDto(c, FraccionCumplimiento.SinRequisitos, null)).ToList(),
@@ -122,7 +140,7 @@ public class Subcontrata360PaginaTests : BunitContext
             ObtenerDobleFactorPropioQuery => DobleFactor,
             ObtenerCredencialAccesoSubcontrataQuery => Credencial,
             CambiarNivelServicioSubcontrataCommand or EliminarSubcontrataCommand or RestaurarSubcontrataCommand
-                or EliminarVerificacionExternaSubcontrataCommand => Result.Exito(),
+                or EliminarVerificacionExternaSubcontrataCommand or RegistrarVerificacionExternaSubcontrataCommand => Result.Exito(),
             GuardarNotaInternaSubcontrataCommand => ResultadoNota,
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
@@ -388,9 +406,34 @@ public class Subcontrata360PaginaTests : BunitContext
 
         var subfilas = cut.FindAll(".subcontrata360-subfila");
         subfilas.Should().HaveCount(2);
-        subfilas[0].QuerySelector(".subcontrata360-subfila-accion button")!.TextContent.Trim().Should().Be("Renovar");
+        subfilas[0].QuerySelector(".subcontrata360-subfila-accion button")!.TextContent.Trim().Should().Be("Gestionar");
         subfilas[1].TextContent.Should().Contain("Pendiente").And.Contain("Se exige y no hay documento");
-        subfilas[1].QuerySelector(".subcontrata360-subfila-accion button")!.TextContent.Trim().Should().Be("Subir");
+        subfilas[1].QuerySelector(".subcontrata360-subfila-accion button")!.TextContent.Trim().Should().Be("Gestionar");
+    }
+
+    /// <summary>
+    /// Regla 8 de LEEME-AUTORIDAD (2026-10-18): quien escribe ve una sola acción, «Gestionar», en cada documento del
+    /// trabajador; Consulta y Cliente no ven ninguna acción de escritura.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Administrador, true)]
+    [InlineData(Roles.DireccionCae, true)]
+    [InlineData(Roles.CoordinadorCae, true)]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    [InlineData(Roles.Cliente, false)]
+    public void El_documento_del_trabajador_ofrece_solo_Gestionar_a_quien_escribe(string rol, bool escribe)
+    {
+        Montar(rol);
+        var cut = Renderizar();
+
+        cut.FindAll(".fila-relacion-desplegar")[0].Click();
+
+        var botones = cut.FindAll(".subcontrata360-subfila-accion button").Select(b => b.TextContent.Trim()).ToList();
+        if (escribe)
+            botones.Should().NotBeEmpty().And.OnlyContain(b => b == "Gestionar");
+        else
+            botones.Should().BeEmpty();
     }
 
     /// <summary>
@@ -766,9 +809,43 @@ public class Subcontrata360PaginaTests : BunitContext
         var filas = cut.FindAll(".fila-relacion");
         filas[0].TextContent.Should().Contain("Sin verificar").And.Contain("Nunca comprobada");
         filas[0].GetAttribute("data-tono").Should().Be("peligro");
-        filas[0].QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Verificar");
-        filas[1].QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Verificar");
+        filas[0].QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Gestionar");
+        filas[1].QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Gestionar");
+        cut.FindAll(".fila-relacion button").Select(b => b.TextContent.Trim()).Should().NotContain("Verificar", "regla 8: una sola acción, «Gestionar»");
         filas[1].QuerySelector("a.subcontrata360-enlace")!.GetAttribute("href").Should().StartWith("/subcontratas/verificaciones/");
+    }
+
+    /// <summary>
+    /// Regla 8 de LEEME-AUTORIDAD (Chris, 2026-10-18): «Gestionar» en una fila de supervisión no registra nada con un clic: abre
+    /// el formulario «Registrar verificación externa» con el Centro y el tipo de la fila ya elegidos, y la verificación solo
+    /// se registra al confirmar con «Registrar»; cancelar no deja rastro.
+    /// </summary>
+    [Fact]
+    public async Task Gestionar_en_una_fila_de_supervision_abre_el_formulario_y_solo_registra_al_confirmar()
+    {
+        var tipo = new TipoDocumentoListaDto(Guid.NewGuid(), "Formación Art. 19", null, false, 1, AmbitoAplicacion.Trabajador, default, default,
+            null, null, null, null, false, false, false, default, []);
+        var mediador = Montar(ajustar: m =>
+        {
+            m.TiposCatalogo.Add(tipo);
+            m.Supervision = new SupervisionSubcontrataDto(
+                [new SupervisionCentroDto(CentroId, "Almacén Vigo", "Cyberdyne Ibérica S.A.",
+                    [new SupervisionTipoDto(tipo.Id, tipo.Nombre, Exigido: true, EstadoSupervision.SinVerificar, null)])],
+                [new CentroSeleccionableDto(CentroId, "Almacén Vigo", "Cyberdyne Ibérica S.A.")]);
+        });
+        var cut = Renderizar("?pestana=supervision");
+
+        await cut.FindAll(".fila-relacion button").Single(b => b.TextContent.Trim() == "Gestionar").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().ContainSingle());
+        mediador.Enviadas.Should().NotContain(p => p is RegistrarVerificacionExternaSubcontrataCommand, "un clic solo abre el formulario");
+
+        await cut.Find(".drawer-pie").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Registrar").ClickAsync(new MouseEventArgs());
+
+        var comando = mediador.Enviadas.OfType<RegistrarVerificacionExternaSubcontrataCommand>().Should().ContainSingle().Subject;
+        comando.SubcontrataId.Should().Be(SubcontrataId);
+        comando.CentroId.Should().Be(CentroId, "el Centro de la fila llega elegido");
+        comando.TipoDocumentoId.Should().Be(tipo.Id, "el tipo de la fila llega elegido");
     }
 
     [Fact]

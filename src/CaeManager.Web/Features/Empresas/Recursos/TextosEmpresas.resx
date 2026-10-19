@@ -338,6 +338,38 @@
     <value>{0} más. Lista completa de personas con Asignación de Cartera</value>
     <comment>Nombre accesible de la pastilla «+N» de la cabecera «Gestor CAE». {0} = número de personas agrupadas.</comment>
   </data>
+  <data name="GestorCaeReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+    <comment>Botón junto al error de la cabecera «Gestor CAE»: vuelve a leer quién gestiona la organización.</comment>
+  </data>
+  <data name="GestorCaeCargando" xml:space="preserve">
+    <value>Cargando los Gestores CAE de esta organización</value>
+    <comment>Nombre accesible de la línea de esqueleto de la cabecera «Gestor CAE» mientras carga.</comment>
+  </data>
+  <data name="GestorCaeSeccionApoyo" xml:space="preserve">
+    <value>Apoyo · {0}</value>
+    <comment>Cabecera de sección de la ventana «+N»: los Gestores CAE de apoyo. {0} = cuántos.</comment>
+  </data>
+  <data name="GestorCaeFichaAyuda" xml:space="preserve">
+    <value>Dar acceso o desasignarte: desde la ficha.</value>
+    <comment>Pie de la ventana «+N» (revisión de Design, §C): la cabecera es de solo lectura; las acciones sobre la cartera están fuera de ella y el dibujo las remite a la ficha. Hoy siguen en Solicitudes de cartera: la ficha de la Empresa aún no las aloja.</comment>
+  </data>
+  <data name="GestorCaeFichaEnlace" xml:space="preserve">
+    <value>Abrir Empresa 360 →</value>
+    <comment>Enlace del pie de la ventana «+N» a la ficha (Empresa 360), en escritorio.</comment>
+  </data>
+  <data name="GestorCaeFichaEnlaceMovil" xml:space="preserve">
+    <value>Dar acceso o desasignarte en la ficha</value>
+    <comment>Botón del pie de la hoja inferior de la ventana «+N» en móvil: sustituye al texto y al enlace de escritorio.</comment>
+  </data>
+  <data name="GestorCaeVentanaTitulo" xml:space="preserve">
+    <value>Gestores CAE con Asignación de Cartera</value>
+    <comment>Título de la ventana «+N» (revisión de Design, §C). El title de la línea sigue usando GestorCaeTitulo.</comment>
+  </data>
+  <data name="GestorCaeCerrar" xml:space="preserve">
+    <value>Cerrar</value>
+    <comment>Botón de cierre de la hoja inferior de la ventana «+N» en móvil.</comment>
+  </data>
   <data name="ColDetecciones" xml:space="preserve">
     <value>Detecciones</value>
   </data>
@@ -379,6 +411,15 @@
     <value>DNI</value>
   </data>
   <data name="NingunoConFiltro" xml:space="preserve"><value>Ninguno con ese filtro.</value></data>
+  <data name="EtiquetaFiltrosCatalogo" xml:space="preserve"><value>Delegación, oficio y agrupación</value></data>
+  <data name="EtiquetaDelegacionEmpresaFiltro" xml:space="preserve"><value>Delegación</value></data>
+  <data name="EtiquetaOficioFiltro" xml:space="preserve"><value>Oficio</value></data>
+  <data name="OpcionTodasLasDelegacionesEmpresa" xml:space="preserve"><value>Todas</value></data>
+  <data name="OpcionTodosLosOficios" xml:space="preserve"><value>Todos</value></data>
+  <data name="AgruparPorDelegacionEmpresa" xml:space="preserve"><value>Por Delegación</value></data>
+  <data name="AgruparPorOficio" xml:space="preserve"><value>Por Oficio</value></data>
+  <data name="SinDelegacionEmpresa" xml:space="preserve"><value>Sin delegación</value></data>
+  <data name="SinOficio" xml:space="preserve"><value>Sin oficio</value></data>
   <data name="FichaCanalFirma" xml:space="preserve"><value>Cómo se le envía lo que hay que firmar</value></data>
   <data name="FichaFirmante" xml:space="preserve"><value>Quién firma en nombre de la Empresa</value></data>
   <data name="FichaModalidadPreventiva" xml:space="preserve"><value>Modalidad de organización preventiva</value></data>
@@ -416,4 +457,73 @@
   <data name="FichaCopiarTelefonoFormacion" xml:space="preserve"><value>el teléfono del contacto de formación</value></data>
   <data name="FichaCopiarNombreAccesible" xml:space="preserve"><value>Copiar {0}</value></data>
   <data name="FichaNotaTecnico" xml:space="preserve"><value>Al Técnico de PRL se le envía lo que necesita su firma o su gestión.</value></data>
+  <data name="NadaPendiente" xml:space="preserve">
+    <value>Sin documentos pendientes de gestionar</value>
+    <comment>Fila desplegada de /empresas sin ningún documento que pida trabajo (maqueta de Empresas).</comment>
+  </data>
+  <data name="Gestionar" xml:space="preserve">
+    <value>Gestionar</value>
+    <comment>Única acción de cada documento de la fila desplegada de /empresas (regla 8 de LEEME-AUTORIDAD: un solo verbo para revisar, subir, confirmar o reclamar).</comment>
+  </data>
+  <data name="GestionarDocumentoAccesible" xml:space="preserve">
+    <value>Gestionar {0} de {1}</value>
+    <comment>Nombre accesible del botón «Gestionar» de un documento de la fila desplegada de /empresas. {0} = tipo de documento, {1} = razón social de la Empresa.</comment>
+  </data>  <data name="EtiquetaCliente" xml:space="preserve">
+    <value>Cliente</value>
+    <comment>Filtro «Cliente» de /empresas: solo las Empresas que prestan servicio a ese Cliente empresarial, dentro del alcance de gestión.</comment>
+  </data>
+  <data name="EtiquetaAgrupar" xml:space="preserve">
+    <value>Agrupar</value>
+    <comment>Pastilla de agrupación de /empresas.</comment>
+  </data>
+  <data name="AgruparPorCliente" xml:space="preserve">
+    <value>Por Cliente</value>
+    <comment>Opción de agrupación de /empresas: cada Empresa bajo el primer Cliente (por razón social) al que presta servicio.</comment>
+  </data>
+  <data name="OpcionSinAgrupar" xml:space="preserve">
+    <value>Sin agrupar</value>
+  </data>
+  <data name="GrupoSinCliente" xml:space="preserve">
+    <value>Sin Cliente visible</value>
+    <comment>Título del grupo de /empresas con las Empresas que no tienen ningún Cliente a su alcance.</comment>
+  </data>
+  <data name="RecuentoGrupo" xml:space="preserve">
+    <value>· {0}</value>
+  </data>
+  <data name="RecuentoGrupoEnPagina" xml:space="preserve">
+    <value>· {0} en esta página</value>
+  </data>
+  <data name="ChipCliente" xml:space="preserve">
+    <value>Cliente: {0}</value>
+    <comment>Chip del filtro «Cliente» aplicado en /empresas. {0} = razón social del Cliente.</comment>
+  </data>
+  <data name="QuitarFiltroCliente" xml:space="preserve">
+    <value>Quitar filtro de Cliente</value>
+  </data>  <data name="CatalogoTitulo" xml:space="preserve"><value>Delegaciones y oficios</value></data>
+  <data name="CatalogoDelegacionesEmpresa" xml:space="preserve"><value>Delegaciones</value></data>
+  <data name="CatalogoOficios" xml:space="preserve"><value>Oficios</value></data>
+  <data name="CatalogoAnadir" xml:space="preserve"><value>Añadir</value></data>
+  <data name="CatalogoEditar" xml:space="preserve"><value>Editar</value></data>
+  <data name="CatalogoEliminar" xml:space="preserve"><value>Eliminar</value></data>
+  <data name="CatalogoSinDelegacionesEmpresa" xml:space="preserve"><value>Esta empresa aún no tiene delegaciones.</value></data>
+  <data name="CatalogoSinOficios" xml:space="preserve"><value>Esta empresa aún no tiene oficios.</value></data>
+  <data name="CatalogoError" xml:space="preserve"><value>No se pudo cargar el catálogo.</value></data>
+  <data name="CatalogoErrorGuardar" xml:space="preserve"><value>No se pudo guardar. Inténtalo de nuevo.</value></data>
+  <data name="CatalogoErrorEliminar" xml:space="preserve"><value>No se pudo eliminar. Inténtalo de nuevo.</value></data>
+  <data name="CatalogoDelegacionEmpresaNuevaTitulo" xml:space="preserve"><value>Nueva delegación</value></data>
+  <data name="CatalogoDelegacionEmpresaEditarTitulo" xml:space="preserve"><value>Editar delegación</value></data>
+  <data name="CatalogoOficioNuevoTitulo" xml:space="preserve"><value>Nuevo oficio</value></data>
+  <data name="CatalogoOficioEditarTitulo" xml:space="preserve"><value>Editar oficio</value></data>
+  <data name="CatalogoNombre" xml:space="preserve"><value>Nombre</value></data>
+  <data name="CatalogoContactoNombre" xml:space="preserve"><value>Contacto de reclamación: nombre</value></data>
+  <data name="CatalogoContactoCorreo" xml:space="preserve"><value>Contacto de reclamación: correo</value></data>
+  <data name="CatalogoContactoTelefono" xml:space="preserve"><value>Contacto de reclamación: teléfono</value></data>
+  <data name="CatalogoReclamaciones" xml:space="preserve"><value>Reclamaciones: {0}</value></data>
+  <data name="CatalogoEditarNombre" xml:space="preserve"><value>Editar «{0}»</value></data>
+  <data name="CatalogoEliminarNombre" xml:space="preserve"><value>Eliminar «{0}»</value></data>
+  <data name="CatalogoEliminarDelegacionEmpresaTitulo" xml:space="preserve"><value>¿Eliminar la delegación «{0}»?</value></data>
+  <data name="CatalogoEliminarOficioTitulo" xml:space="preserve"><value>¿Eliminar el oficio «{0}»?</value></data>
+  <data name="CatalogoEliminarMensaje" xml:space="preserve"><value>Se quitará del catálogo de la empresa.</value></data>
+  <data name="CatalogoGuardado" xml:space="preserve"><value>Guardado.</value></data>
+  <data name="CatalogoEliminado" xml:space="preserve"><value>Eliminado.</value></data>
 </root>

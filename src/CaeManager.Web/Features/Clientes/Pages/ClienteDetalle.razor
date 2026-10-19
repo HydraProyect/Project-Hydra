@@ -52,6 +52,8 @@
             con todos los Centros cargados y la lectura de bloqueos completada.
             Excluye los Centros sin gestión CAE y cuenta los que no tienen incidencias.
         *@
+        @* Maqueta 17-10: «Cliente» sobre el nombre (Cliente 360 TALVEG.dc.html:315); la línea de datos termina en la pastilla con el peor
+           estado de sus Centros con gestión CAE, por gravedad (CalculadoraEstadoCentro.Gravedad), no por el valor numérico del enum. *@
         <CabeceraIdentidad Titulo="@_detalle.RazonSocial" Kicker="@Textos["Kicker"]" Anillo="@(MostrarAnillo ? AnilloDeCentros : null)">
             <JuntoAlTitulo>
                 @if (_detalle.EsCritico)
@@ -60,58 +62,56 @@
                 }
             </JuntoAlTitulo>
             <Datos>
+              <div class="cliente360-datos">
+               <div class="cliente360-meta">
+                @{
+                    var hayCif = !string.IsNullOrWhiteSpace(_detalle.Cif);
+                    var recuentos = TextoRecuentos;
+                    var contratista = _empresas is [var empresaContratista] ? empresaContratista.RazonSocial : null;
+                }
                 @* Sin CIF no hay nada que enseñar ni copiar, igual que en Empresa 360. *@
-                @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
+                @if (hayCif)
                 {
                     <span>
                         @Textos["Cif"] <b>@_detalle.Cif</b>
                         <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarCifEtiqueta"]" />
                     </span>
                 }
-                @if (TextoRecuentos is { } recuentos)
+                @if (recuentos is not null)
                 {
-                    @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
+                    @if (hayCif)
                     {
                         <span aria-hidden="true">·</span>
                     }
                     <span>@recuentos</span>
                 }
-                @if (_empresas is [var empresaContratista])
+                @if (contratista is not null)
                 {
-                    @if (!string.IsNullOrWhiteSpace(_detalle.Cif) || TextoRecuentos is not null)
+                    @if (hayCif || recuentos is not null)
                     {
                         <span aria-hidden="true">·</span>
                     }
-                    <span>@Textos["DetalleEntraComoContratista", empresaContratista.RazonSocial]</span>
+                    <span>@Textos["CabeceraContratista", contratista]</span>
                 }
-                @if (Indicadores.Count > 0)
+                @if (PeorCentroConGestionCae is { } peorCentro)
                 {
-                    <span class="cliente360-indicadores">
-                        @foreach (var indicador in Indicadores)
-                        {
-                            <VentanaContexto Etiqueta="@indicador.Etiqueta" Titulo="@indicador.Titulo">
-                                <Disparador>
-                                    <button type="button" class="cliente360-indicador-boton" data-indicador="@indicador.Clave" @onclick="IrACentros">
-                                        <Badge Tono="indicador.Tono">@indicador.Texto</Badge>
-                                    </button>
-                                </Disparador>
-                                <Detalle>
-                                    @foreach (var linea in indicador.Lineas)
-                                    {
-                                        <span class="ventana-linea">@linea</span>
-                                    }
-                                </Detalle>
-                            </VentanaContexto>
-                        }
-                    </span>
+                    @if (hayCif || recuentos is not null || contratista is not null)
+                    {
+                        <span aria-hidden="true">·</span>
+                    }
+                    <Badge Tono="EstadoCentroUi.Tono(peorCentro.Estado, peorCentro.CumplimientoPorcentaje)" Tamano="TamanoBadge.Pequeno" data-peor-estado>@EstadoCentroUi.Texto(peorCentro.Estado, peorCentro.CumplimientoPorcentaje)</Badge>
                 }
+               </div>
+               @* Decisión de Chris (2026-10-18): sin fila de indicadores por Centro en la cabecera; el motivo de cada Centro
+                  se lee en su propia fila. *@
+              </div>
             </Datos>
             <Acciones>
-                @* Las dos acciones de escritura abren los formularios existentes.
-                   El menú entero va dentro de SoloConEscritura para no dejarlo vacío. *@
+                @* Maqueta 17-10: acción principal «Editar Cliente» (abre el panel en Información) y menú «⋯» con «Tolerancia de documentos».
+                   Las dos son escrituras: a Consulta no se le deja ni el botón ni un menú vacío. *@
                 <SoloConEscritura>
+                    <Boton Variante="VarianteBoton.Primario" OnClick="AbrirInformacionAsync">@Textos["EditarCliente"]</Boton>
                     <MenuAcciones ConBorde="true" EtiquetaAccesible="@Textos["MenuMasAcciones"]">
-                        <ItemMenuAccion OnClick="AbrirInformacionAsync">@Textos["EditarCliente"]</ItemMenuAccion>
                         <ItemMenuAccion OnClick="AbrirToleranciasAsync">@Textos["ToleranciaMenu"]</ItemMenuAccion>
                     </MenuAcciones>
                 </SoloConEscritura>
@@ -120,7 +120,7 @@
 
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
             <ChildContent>
-                <Pestanas Definiciones="PestanasConRecuento" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["EtiquetaPestanas"]">
+                <Pestanas Definiciones="PestanasConRecuento" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["EtiquetaPestanas"]" Pagina360="true">
                     @switch (_pestanaActiva)
                     {
                         case "centros":
@@ -132,7 +132,7 @@
                             {
                                 <EstadoVacio Titulo="@Textos["ErrorCentrosTitulo"]" Descripcion="@Textos["ErrorListaDescripcion"]">
                                     <Accion>
-                                        <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarCentrosAsync">@Textos["Reintentar"]</Boton>
+                                        <Boton Variante="VarianteBoton.Secundario" OnClick="ReintentarCentrosAsync">@Textos["Reintentar"]</Boton>
                                     </Accion>
                                 </EstadoVacio>
                             }
@@ -143,34 +143,45 @@
                             else if (_centros is not null)
                             {
                                 var centrosVisibles = CentrosVisibles;
-                                <div class="cliente360-buscador">
-                                    <CampoTexto Type="search" Placeholder="@Textos["BuscadorCentros"]" aria-label="@Textos["BuscadorCentros"]"
-                                                Valor="@_busqueda" ValorChanged="BuscarCentros" />
+                                @* Maqueta 17-10 (.barra-lista): los filtros de estado a la izquierda y el buscador a su derecha, en la misma fila. *@
+                                <div class="cliente360-barra">
+                                    <FranjaEstado Opciones="OpcionesFranjaCentros" Valor="@_estado" ValorChanged="CambiarEstado"
+                                                  Recuentos="RecuentosCentros" TotalTodos="CentrosPorBusqueda.Count" />
+                                    <div class="cliente360-buscador">
+                                        <CampoTexto Type="search" Placeholder="@Textos["BuscadorCentros"]" aria-label="@Textos["BuscadorCentros"]"
+                                                    Valor="@_busqueda" ValorChanged="BuscarCentros" />
+                                    </div>
                                 </div>
-                                <FranjaEstado Opciones="OpcionesFranjaCentros" Valor="@_estado" ValorChanged="CambiarEstado"
-                                              Recuentos="RecuentosCentros" TotalTodos="CentrosPorBusqueda.Count" />
                                 @if (_totalCentros > _centros.Count)
                                 {
                                     <p class="texto-descriptivo" data-recuentos-parciales>@Textos["AvisoFranjaCentrosParcial", _centros.Count, _totalCentros]</p>
                                 }
-                                <p class="cliente360-resumen-lista">
-                                    @ResumenCentros · @Textos["OrdenCentros"]
-                                    @if (centrosVisibles.Count == 0)
-                                    {
+                                @* Decisión de Chris (2026-10-18): sin la línea «Mostrando N de M · del peor estado al mejor». Con el filtro
+                                   sin resultados queda la salida: quitar los filtros. *@
+                                @if (centrosVisibles.Count == 0)
+                                {
+                                    <p class="cliente360-resumen-lista">
                                         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="QuitarFiltros">@Textos["QuitarFiltros"]</Boton>
-                                    }
-                                </p>
+                                    </p>
+                                }
+                                @* Maqueta 17-10: el nombre del Centro abre su consulta rápida (panel de 520 px) y el icono 360 lleva a su página;
+                                   rejilla identidad | cumplimiento | estado | icono, con la fila teñida si el Centro tiene un problema. *@
                                 <ListaRelaciones Etiqueta="@Textos["ListaCentros"]">
                                     @foreach (var centro in centrosVisibles.Where(c => c.Estado != EstadoCentro.SinGestionCae))
                                     {
-                                        <FilaRelacion @key="centro.Id" Nombre="@centro.Nombre" Href="@($"/centros/{centro.Id}")" NombreIcono="centros"
-                                                      OnAbrir360="() => AbrirCentroAsync(centro)" Detalle="FragmentoDetalleCentro(centro)">
-                                            <Derecha>
+                                        <FilaRelacion @key="centro.Id" Nombre="@centro.Nombre" NombreIcono="centros" Tono="TonoDeFilaCentro(centro)"
+                                                      OnNombre="() => AbrirCentroAsync(centro)" Detalle="FragmentoDetalleCentro(centro)">
+                                            <Cifra>
                                                 <span class="cliente360-cumplimiento" title="@Textos["CumplimientoCentro"]">
                                                     @(centro.CumplimientoPorcentaje is { } porcentaje ? $"{porcentaje} %" : Textos["CentroSinRequisitos"])
                                                 </span>
-                                                <Badge Tono="EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje)">@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)</Badge>
-                                            </Derecha>
+                                            </Cifra>
+                                            <Estado>
+                                                <Badge Tono="EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje)" Tamano="TamanoBadge.Pequeno">@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)</Badge>
+                                            </Estado>
+                                            <Acciones>
+                                                <Boton360 Nombre="@centro.Nombre" Href="@($"/centros/{centro.Id}")" />
+                                            </Acciones>
                                         </FilaRelacion>
                                     }
                                 </ListaRelaciones>
@@ -181,8 +192,12 @@
                                         <ListaRelaciones Etiqueta="@Textos["ListaCentrosSinGestionCae"]">
                                             @foreach (var centro in centrosVisibles.Where(c => c.Estado == EstadoCentro.SinGestionCae))
                                             {
-                                                <FilaRelacion @key="centro.Id" Nombre="@centro.Nombre" Href="@($"/centros/{centro.Id}")" NombreIcono="centros"
-                                                              OnAbrir360="() => AbrirCentroAsync(centro)" Detalle="FragmentoDetalleCentro(centro)" />
+                                                <FilaRelacion @key="centro.Id" Nombre="@centro.Nombre" NombreIcono="centros"
+                                                              OnNombre="() => AbrirCentroAsync(centro)" Detalle="FragmentoDetalleCentro(centro)">
+                                                    <Derecha>
+                                                        <Boton360 Nombre="@centro.Nombre" Href="@($"/centros/{centro.Id}")" />
+                                                    </Derecha>
+                                                </FilaRelacion>
                                             }
                                         </ListaRelaciones>
                                     </section>
@@ -199,7 +214,7 @@
                             {
                                 <EstadoVacio Titulo="@Textos["ErrorEmpresasTitulo"]" Descripcion="@Textos["ErrorListaDescripcion"]">
                                     <Accion>
-                                        <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarEmpresasAsync">@Textos["Reintentar"]</Boton>
+                                        <Boton Variante="VarianteBoton.Secundario" OnClick="ReintentarEmpresasAsync">@Textos["Reintentar"]</Boton>
                                     </Accion>
                                 </EstadoVacio>
                             }
@@ -213,9 +228,13 @@
                                 <ListaRelaciones Etiqueta="@Textos["ListaEmpresas"]">
                                     @foreach (var empresa in _empresas)
                                     {
-                                        <FilaRelacion @key="empresa.Id" Nombre="@empresa.RazonSocial" Href="@($"/empresas/{empresa.Id}")" NombreIcono="empresas"
-                                                      OnAbrir360="() => AbrirEmpresaAsync(empresa)">
+                                        @* Maqueta 17-10: el nombre abre la consulta rápida (panel de Empresa); el icono 360 lleva a Empresa 360. *@
+                                        <FilaRelacion @key="empresa.Id" Nombre="@empresa.RazonSocial" NombreIcono="empresas"
+                                                      OnNombre="() => AbrirEmpresaAsync(empresa)">
                                             <Detalle>@(string.IsNullOrWhiteSpace(empresa.Cif) ? "—" : empresa.Cif)</Detalle>
+                                            <Derecha>
+                                                <Boton360 Nombre="@empresa.RazonSocial" Href="@($"/empresas/{empresa.Id}")" />
+                                            </Derecha>
                                         </FilaRelacion>
                                     }
                                 </ListaRelaciones>
@@ -231,7 +250,7 @@
                             {
                                 <EstadoVacio Titulo="@Textos["ErrorSubcontratasTitulo"]" Descripcion="@Textos["ErrorListaDescripcion"]">
                                     <Accion>
-                                        <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarSubcontratasAsync">@Textos["Reintentar"]</Boton>
+                                        <Boton Variante="VarianteBoton.Secundario" OnClick="ReintentarSubcontratasAsync">@Textos["Reintentar"]</Boton>
                                     </Accion>
                                 </EstadoVacio>
                             }
@@ -247,11 +266,13 @@
                                     {
                                         var centros = _centrosSubcontratas.GetValueOrDefault(subcontrata.Id) ?? [];
                                         <FilaRelacion @key="subcontrata.Id" Nombre="@subcontrata.RazonSocial" NombreIcono="subcontratas"
-                                                      Href="@($"/subcontratas/{subcontrata.Id}")"
                                                       Desplegada="@(_subcontratasDesplegadas.Contains(subcontrata.Id))"
                                                       DesplegadaChanged="@(abierta => { if (abierta) _subcontratasDesplegadas.Add(subcontrata.Id); else _subcontratasDesplegadas.Remove(subcontrata.Id); })"
-                                                      OnAbrir360="() => AbrirSubcontrataAsync(subcontrata)">
+                                                      OnNombre="() => AbrirSubcontrataAsync(subcontrata)">
                                             <Detalle>@Textos[centros.Count == 1 ? "CentroSubcontrata360" : "CentrosSubcontrata360", centros.Count]</Detalle>
+                                            <Derecha>
+                                                <Boton360 Nombre="@subcontrata.RazonSocial" Href="@($"/subcontratas/{subcontrata.Id}")" />
+                                            </Derecha>
                                             <Desplegable>
                                                 <p class="cliente360-resumen-lista">@Textos["UniversoSubcontrata360"]</p>
                                                 @if (centros.Count == 0)
@@ -294,15 +315,36 @@
 
                         case "documentacion":
                             <div class="cliente360-documentacion">
-                                <Tarjeta Titulo="@Textos["CertificadoSeguridadSocialTitulo"]">
-                                    <PestanaBlindaje42 EntidadId="ClienteId" />
-                                </Tarjeta>
-                                <PestanaDocumentacion Ambito="AmbitoAplicacion.Cliente" PropietarioId="ClienteId" />
+                                <DocumentosExigidosCliente ClienteId="ClienteId" Cargar="_documentacionHabilitada" Serie="_serie" />
                             </div>
                             break;
 
                         case "agenda":
                             <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Cliente" PropietarioId="ClienteId" />
+                            break;
+
+                        case "ficha":
+                            @*
+                                Maqueta 17-10: la tolerancia por defecto del Cliente empresarial vive en la pestaña «Ficha»
+                                (antes, tarjeta del lateral): resumen de cuántos tipos la tienen y «Editar →», que abre el mismo
+                                cajón de tolerancias. Los Centros la heredan salvo que fijen la suya.
+                            *@
+                            <div class="cliente360-ficha">
+                                <Tarjeta Compacta="true" Titulo="@Textos["ToleranciaTarjetaTitulo"]">
+                                    <AccionesHeader>
+                                        <SoloConEscritura>
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirToleranciasAsync">@Textos["EditarEnlace"]</Boton>
+                                        </SoloConEscritura>
+                                    </AccionesHeader>
+                                    <ChildContent>
+                                        @if (ResumenTolerancias is { } resumenTolerancias)
+                                        {
+                                            <p class="cliente360-tolerancia-resumen" data-tolerancia-resumen>@resumenTolerancias</p>
+                                        }
+                                        <p class="texto-ayuda-campo">@Textos["ToleranciaTarjetaDescripcion"]</p>
+                                    </ChildContent>
+                                </Tarjeta>
+                            </div>
                             break;
 
                         case "historial":
@@ -313,12 +355,14 @@
             </ChildContent>
             <Lateral>
                 @*
-                    Razón social y CIF ya están en la cabecera: no se repiten.
+                    La razón social ya está en la cabecera; el CIF se repite aquí como «Identificación fiscal» copiable (maqueta del 17-10).
                     Del mockup de panel no entran, igual que en el panel, Alias y
                     Domicilio (sin columna), Portal principal (el portal es del
-                    Centro), el Gestor CAE (deuda terminológica congelada por
-                    TerminologiaCanonicaTests) ni Cumplimiento (sin dato por
-                    Cliente empresarial).
+                    Centro), el «Gestor CAE de referencia» (deuda terminológica
+                    congelada por TerminologiaCanonicaTests) ni Cumplimiento (sin dato por
+                    Cliente empresarial). La fila «Gestor CAE» de la maqueta del 17-10 sí entra, con
+                    «Dar acceso» y «Desasignarme» debajo (GestorCaeCliente): son las personas con
+                    Asignación de Cartera sobre el Tenant, no esa referencia.
                 *@
                 <Tarjeta Compacta="true" Titulo="@Textos["TarjetaInformacion"]">
                     <AccionesHeader>
@@ -328,24 +372,24 @@
                     </AccionesHeader>
                     <ChildContent>
                         <RejillaDatos>
+                            @* Maqueta 17-10: «Identificación fiscal» ocupa la primera fila entera y se copia, aunque el CIF también esté en la cabecera. *@
+                            @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
+                            {
+                                <DatoRejilla Etiqueta="@Textos["IdentificacionFiscal"]" Ancho="true">
+                                    @_detalle.Cif
+                                    <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarCifEtiqueta"]" />
+                                </DatoRejilla>
+                            }
                             <DatoRejilla Etiqueta="@Textos["Critico"]" Valor="@(_detalle.EsCritico ? Textos["Si"] : Textos["No"])" />
                             <DatoRejilla Etiqueta="@Textos["DatoAlta"]" Valor="@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")" />
                         </RejillaDatos>
+                        <GestorCaeCliente Cargar="_gestorCaeHabilitado" Serie="_serie" AlCargar="GestorCaeCargado" AlDesasignarme="IrAMiTrabajoTrasDesasignarme" />
                     </ChildContent>
                 </Tarjeta>
 
-                @*
-                    Tolerancia por defecto del Cliente empresarial: sin mockup (ninguno de los de Cliente la dibuja), se construye con
-                    el kit (DrawerFormulario) y el patrón del selector del Centro. Los Centros la heredan salvo que fijen la suya.
-                *@
-                <Tarjeta Compacta="true" Titulo="@Textos["ToleranciaTarjetaTitulo"]">
-                    <ChildContent>
-                        <p class="texto-ayuda-campo">@Textos["ToleranciaTarjetaDescripcion"]</p>
-                        <SoloConEscritura>
-                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirToleranciasAsync">@Textos["ToleranciaTarjetaBoton"]</Boton>
-                        </SoloConEscritura>
-                    </ChildContent>
-                </Tarjeta>
+                @* «Plataforma CAE»: lee después de la fila «Gestor CAE» (mismo DbContext); al Usuario de Cliente no se le pinta. *@
+                <CaeManager.Web.Features.Clientes.Components.CajaPlataformaCaeCliente ClienteEmpresarialId="ClienteId"
+                    Cargar="_plataformaCaeHabilitada" AlCargar="PlataformaCaeCargada" />
 
                 @*
                     «Notas» es una sola columna (ClienteDetalleDto.Notas): la
@@ -371,5 +415,5 @@
         </CuerpoConLateral>
     }
 </div>
-<DrawerToleranciasClienteEmpresarial @bind-Visible="_drawerToleranciasVisible" ClienteEmpresarialId="ClienteId" OnGuardado="RefrescarBloqueosAsync" />
+<DrawerToleranciasClienteEmpresarial @bind-Visible="_drawerToleranciasVisible" ClienteEmpresarialId="ClienteId" OnGuardado="TrasGuardarToleranciasAsync" />
 </LimiteDeErrores>

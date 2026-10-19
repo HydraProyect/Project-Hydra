@@ -336,4 +336,59 @@
   <data name="ReclamacionConfirmarBoton" xml:space="preserve">
     <value>Enviar reclamación</value>
   </data>
+  <data name="ReclamacionExtraTitulo" xml:space="preserve">
+    <value>Añadir destinatarios a este envío</value>
+  </data>
+  <data name="ReclamacionExtraAviso" xml:space="preserve">
+    <value>No se guardan en la agenda: solo reciben este envío.</value>
+  </data>
+  <data name="ReclamacionExtraParaEtiqueta" xml:space="preserve">
+    <value>Otro destinatario</value>
+  </data>
+  <data name="ReclamacionExtraCopiaEtiqueta" xml:space="preserve">
+    <value>En copia (CC)</value>
+  </data>
+  <data name="ReclamacionExtraAnadir" xml:space="preserve">
+    <value>Añadir</value>
+  </data>
+  <data name="ReclamacionExtraQuitar" xml:space="preserve">
+    <value>Quitar {0}</value>
+  </data>
+  <data name="ReclamacionExtraNoValido" xml:space="preserve">
+    <value>«{0}» no es un correo válido.</value>
+  </data>
+  <data name="ReclamacionExtraRepetido" xml:space="preserve">
+    <value>«{0}» ya está añadido a este envío.</value>
+  </data>
+  <data name="ReclamacionExtraTope" xml:space="preserve">
+    <value>Puedes añadir hasta {0} correos en cada lista.</value>
+  </data>
+  <data name="ReclamacionExtraSinAnadir" xml:space="preserve">
+    <value>Pulsa «Añadir» para incluir este correo o bórralo antes de enviar.</value>
+  </data>
+  <data name="ReclamacionConfirmarMensajeConExtras" xml:space="preserve">
+    <value>Se reclamarán {0} documento(s) a {1} contacto(s) de la agenda: {2}. {3}{4}El correo sale a terceros y no se puede deshacer.</value>
+  </data>
+  <data name="ReclamacionConfirmarAdicionales" xml:space="preserve">
+    <value>También a: {0}. </value>
+  </data>
+  <data name="ReclamacionConfirmarCopia" xml:space="preserve">
+    <value>En copia (CC): {0}. </value>
+  </data>
+  <data name="ReclamacionExtraEnAgenda" xml:space="preserve">
+    <value>«{0}» ya es un contacto de la agenda: márcalo en «Se solicita a».</value>
+  </data>
+  <data name="ReclamacionExtraNoCabe" xml:space="preserve">
+    <value>Hay demasiados destinatarios para registrar el envío: desmarca algún contacto o quita algún correo añadido.</value>
+  </data>
+  <data name="ReclamacionErrorPreparar" xml:space="preserve"><value>No pudimos preparar la reclamación</value></data>
+  <data name="ReclamacionErrorPrepararDetalle" xml:space="preserve"><value>Intenta nuevamente en unos segundos.</value></data>
+  <data name="ReclamacionReintentar" xml:space="preserve"><value>Reintentar</value></data>
+  <data name="ReclamacionFueraTrabajadores" xml:space="preserve"><value>{0} de {1} documentos son de Trabajadores y no entran en este lote de documentos de la Empresa: se reclaman desde «Gestionar» en la ficha de cada Trabajador.</value></data>
+  <data name="ReclamacionFueraVentana" xml:space="preserve"><value>{0} de {1} documentos están fuera de la ventana de reclamación o ya no son reclamables.</value></data>
+  <data name="ReclamacionNadaTitulo" xml:space="preserve"><value>Nada que reclamar a esta Empresa</value></data>
+  <data name="ReclamacionNadaDetalle" xml:space="preserve"><value>Ninguno de estos documentos se puede reclamar a los contactos de esta Empresa desde aquí.</value></data>
+  <data name="ReclamacionDestinoDelegacionEmpresa" xml:space="preserve"><value>Se reclama a la Delegación {0}, a su contacto de reclamación.</value></data>
+  <data name="ReclamacionDestinoEmpresa" xml:space="preserve"><value>Se reclama a la Empresa que emplea a estos Trabajadores, a los contactos de su agenda.</value></data>
+  <data name="ReclamacionDelegacionEmpresaSinContactoVisible" xml:space="preserve"><value>No puedes ver el contacto de reclamación de esta Delegación, así que no puedes enviarle la reclamación.</value></data>
 </root>

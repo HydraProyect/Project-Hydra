@@ -2,7 +2,7 @@ using System.Security.Claims;
 using CaeManager.Application.VistaDemo;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
-using CaeManager.Web.Features.IncorporacionCartera.Recursos;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Components.Layout;
 
@@ -55,6 +55,10 @@ public sealed record GrupoMenuLateral(
 /// <param name="CoincidenciaExacta">NavLinkMatch.All en vez de prefijo (el Dashboard, cuya ruta vacía casaría con todo).</param>
 /// <param name="RotuloPorContexto">Rótulo que depende del contexto (perfil de vocabulario); si es null, <paramref name="Rotulo"/>.</param>
 /// <param name="RutaPorContexto">Ruta que depende del contexto; si es null, <paramref name="Ruta"/>.</param>
+/// <param name="ClaveRotulo">Clave del rótulo en <c>TextosComunes</c> cuando el rótulo se localiza (ratchet
+/// de textos sin localizar: un rótulo de varias palabras no puede vivir como literal). Si no es null,
+/// <paramref name="Rotulo"/> solo repite esa clave y el texto lo resuelve
+/// <see cref="RotuloPara(ContextoMenuLateral, IStringLocalizer)"/>.</param>
 public sealed record EnlaceMenuLateral(
     string Id,
     string GrupoId,
@@ -64,9 +68,21 @@ public sealed record EnlaceMenuLateral(
     Func<ContextoMenuLateral, bool>? Condicion = null,
     bool CoincidenciaExacta = false,
     Func<ContextoMenuLateral, string>? RotuloPorContexto = null,
-    Func<ContextoMenuLateral, string>? RutaPorContexto = null)
+    Func<ContextoMenuLateral, string>? RutaPorContexto = null,
+    string? ClaveRotulo = null)
 {
+    /// <summary>
+    /// Rótulo sin idioma: solo para quien no tiene localizador. Un enlace con <see cref="ClaveRotulo"/> devuelve aquí su
+    /// clave cruda; todo lo que se pinta usa <see cref="RotuloPara(ContextoMenuLateral, IStringLocalizer)"/> o <see cref="RotuloEn"/>.
+    /// </summary>
     public string RotuloPara(ContextoMenuLateral contexto) => RotuloPorContexto?.Invoke(contexto) ?? Rotulo;
+
+    /// <summary>Como <see cref="RotuloPara(ContextoMenuLateral)"/>, pero con el idioma activo cuando el rótulo lleva clave.</summary>
+    public string RotuloPara(ContextoMenuLateral contexto, IStringLocalizer textos) =>
+        RotuloPorContexto?.Invoke(contexto) ?? (ClaveRotulo is null ? Rotulo : textos[ClaveRotulo].Value);
+
+    /// <summary>El rótulo sin contexto, con el idioma activo cuando lleva clave.</summary>
+    public string RotuloEn(IStringLocalizer textos) => ClaveRotulo is null ? Rotulo : textos[ClaveRotulo].Value;
     public string RutaPara(ContextoMenuLateral contexto) => RutaPorContexto?.Invoke(contexto) ?? Ruta;
 }
 
@@ -164,22 +180,25 @@ public static class CatalogoMenuLateral
         new("dashboards", "Dashboards", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto)),
 
         // Reparto y orden por mandato explícito del propietario (2026-09-29), que sustituye al de
-        // DDL-073 (cadena de titularidad, Documentos al final). Negocio: Empresas, Trabajadores,
-        // Documentos, Clientes, Centros, Vehículos, Proyectos y Subcontratas, en ese orden.
+        // DDL-073 (cadena de titularidad, Documentos al final). Negocio, desde el 2026-10-18 en el
+        // orden del marco de Design: Empresas, Subcontratas, Trabajadores, Clientes, Centros, Documentos,
+        // Vehículos y Proyectos.
         new("negocio", "Negocio", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto)),
 
-        // Mismo mandato. Operación: Mi trabajo, Comunicaciones, Gestiones, Visitas e Incidencias, en
-        // ese orden; Vehículos y Proyectos pasaron a Negocio y Mi trabajo llegó desde Control.
+        // Mismo mandato. Operación: Mi trabajo, Comunicaciones, Gestiones y Visitas, en ese orden;
+        // Vehículos y Proyectos pasaron a Negocio y Mi trabajo llegó desde Control. Incidencias salió
+        // el 2026-10-17 (entrega de Design): es pestaña de sección de Documentos.
         new("operacion", "Operación", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto)),
 
-        // Colapsado por defecto (informe de consolidación de menú, 2026-09-01 § 6): Control: Alertas,
-        // Facturación, Calendario y Reportes, y por el mandato del propietario del 2026-09-29
-        // cierra con Conectar extensión (Mi trabajo salió a Operación).
-        new("control", "Control", AbiertoPorDefecto: false, c => c.TieneAlgunRol(RolesConMenuCompleto)),
+        // Control: Alertas, Calendario, Reportes y Facturación, y por el mandato del propietario del
+        // 2026-09-29 cierra con Conectar extensión (Mi trabajo salió a Operación). Nace ABIERTO desde el
+        // 2026-10-18: en el marco de Design (marco-talveg.js, DDL-083) solo Administración y Plataforma
+        // llevan «closed»; el colapsado de Control venía del informe de consolidación de 2026-09-01.
+        new("control", "Control", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto)),
 
-        // Un único grupo visual para dos audiencias: DireccionCae solo ve Usuarios; solo
-        // Administrador ve el resto (Condicion de cada enlace).
-        new("administracion", "Administración", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesDeAdministracionAmpliada)),
+        // Un único grupo visual para dos audiencias: DireccionCae solo ve Equipo; solo
+        // Administrador ve el resto (Condicion de cada enlace). Nace colapsado (marco de Design, DDL-083).
+        new("administracion", "Administración", AbiertoPorDefecto: false, c => c.TieneAlgunRol(RolesDeAdministracionAmpliada)),
 
         // Delegaciones y Estado comercial: fuera de "administracion" a propósito (#401/#403,
         // revisión adversarial de Codex). Ambas páginas se autorizan por CAPACIDAD (`[Authorize]`
@@ -190,7 +209,7 @@ public static class CatalogoMenuLateral
         // audiencia y Estado comercial es solo de plataforma (su Query falla cerrado a lista vacía
         // sin la capacidad): comparten el mismo gate aceptando que un Administrador normal vea
         // "Estado comercial" vacío.
-        new("plataforma", "Plataforma", AbiertoPorDefecto: true,
+        new("plataforma", "Plataforma", AbiertoPorDefecto: false,
             c => c.Usuario.Identity?.IsAuthenticated == true
                  && (c.TieneAlgunRol(Roles.Administrador) || c.EsAdministradorPlataforma)),
     ];
@@ -200,13 +219,16 @@ public static class CatalogoMenuLateral
         new("dashboard", "dashboards", "", "inicio", "Inicio", CoincidenciaExacta: true),
         new("vision-cartera", "dashboards", "vision-cartera", "cartera", "Visión de cartera",
             Condicion: c => c.TieneAlgunRol(RolesDeCartera)),
-        // Rótulo localizado (TextosIncorporacionCartera), a diferencia de sus vecinos todavía literales:
-        // lo da RotuloPorContexto, así que el Rotulo fijo queda vacío.
-        new("solicitudes-cartera", "dashboards", "cartera/solicitudes", "solicitud", "",
-            // Por el rol en el tenant de origen, no por IsInRole (ver ParticipaEnIncorporacionCartera).
-            Condicion: c => c.ParticipaEnIncorporacionCartera,
-            RotuloPorContexto: _ => TextosIncorporacionCartera.Texto("EnlaceMenu")),
-        new("dashboard-ejecutivo", "dashboards", "dashboard-ejecutivo", "ejecutivo", "Dashboard Ejecutivo",
+        // «Solicitudes de cartera» (/cartera/solicitudes) ya NO tiene enlace en el menú (2026-10-18): el
+        // marco de Design (marco-talveg.js, DDL-083) no lo trae en Dashboards. La ruta sigue funcionando:
+        // CabeceraGestorCae enlaza a ella y RutasIncorporacionCartera.Bandeja la usa para los avisos.
+        // Entrega de Design del 2026-10-17: «Dashboard Ejecutivo» pasa a llamarse «Cuadro de dirección»
+        // y su ruta de diseño es /direccion. Esa pantalla nueva aún no existe: el rótulo cambia ya, y el
+        // enlace sigue en la ruta de la pantalla actual (que es la que el Cuadro sustituirá). Mismo Id,
+        // mismos roles: el orden guardado y la autorización no se tocan.
+        // «Indicadores de IA y BPO» (Design) NO tiene enlace todavía: no hay pantalla, y un enlace a una
+        // pantalla que no existe es peor que no tener el enlace (ver el resumen de esta clase).
+        new("dashboard-ejecutivo", "dashboards", "dashboard-ejecutivo", "ejecutivo", "Cuadro de dirección",
             Condicion: c => c.TieneAlgunRol(RolesDeDashboardEjecutivo)),
 
         // DDL-072 (decisión del propietario 2026-09-28): "Mi empresa" (registro único) solo si el
@@ -215,20 +237,22 @@ public static class CatalogoMenuLateral
         // usan los títulos de página; aquí solo se consume como RotulosPrimeraPersona.
         new("empresas", "negocio", "empresas", "empresas", "Empresas",
             RotuloPorContexto: c => c.RotulosPrimeraPersona ? "Mi empresa" : "Empresas"),
+        // Orden de Negocio: el del marco de Design (marco-talveg.js, DDL-083, 2026-10-18), que sustituye al
+        // del mandato del 2026-09-29. Subcontratas sube al segundo puesto.
+        new("subcontratas", "negocio", "subcontratas", "subcontratas", "Subcontratas"),
         new("trabajadores", "negocio", "trabajadores", "trabajadores", "Trabajadores",
             RotuloPorContexto: c => c.RotulosPrimeraPersona ? "Mis trabajadores" : "Trabajadores"),
+        new("clientes", "negocio", "clientes", "clientes", "Clientes"),
+        new("centros", "negocio", "centros", "centros", "Centros"),
         // Revisión IA, Documentos generados y Plantillas no tienen enlace propio: viven como
         // pestañas de Documentos (REC-062, DEC-28, DDL-080). Sus rutas siguen funcionando para
         // enlaces guardados y notificaciones.
         new("documentos", "negocio", "documentos", "documentos", "Documentos"),
-        new("clientes", "negocio", "clientes", "clientes", "Clientes"),
-        new("centros", "negocio", "centros", "centros", "Centros"),
         // Vehículos y Proyectos son de Negocio por mandato del propietario del 2026-09-29.
         // "Vehículos" y no "Vehículos y Maquinaria": Maquinaria es un tramo bloqueado
         // (2.4, pendiente de ADR-006) y un enlace no se adelanta a una entidad que no existe.
         new("vehiculos", "negocio", "vehiculos", "vehiculos", "Vehículos"),
         new("proyectos", "negocio", "proyectos", "proyectos", "Proyectos"),
-        new("subcontratas", "negocio", "subcontratas", "subcontratas", "Subcontratas"),
 
         // "Mi trabajo" y no "Bandeja": "bandeja" en español significa inbox de correo. Con más de
         // un Tenant autorizado (mismo criterio que el selector de Tenant de la cabecera) es la cola
@@ -244,25 +268,29 @@ public static class CatalogoMenuLateral
             Condicion: c => c.ComunicacionesActivo),
         new("gestiones", "operacion", "gestiones", "evaluaciones", "Gestiones"),
         new("visitas", "operacion", "visitas", "visitas", "Visitas"),
-        new("incidencias", "operacion", "incidencias", "incidencias", "Incidencias"),
+        // Incidencias y Revisión IA ya no tienen enlace propio: son pestañas de sección de Documentos
+        // (entrega de Design del 2026-10-17; ver CatalogoSeccionesMenu). /incidencias sigue siendo la
+        // misma ruta y «g i» y la paleta siguen llevando allí.
 
         // Alertas NO es una segunda cola de "qué hacer ahora": desde DEC-4 es la vista agregada de
         // documentación a reclamar, que conserva a propósito EstadoDocumento.Proximo.
         new("alertas", "control", "alertas", "alertas", "Alertas"),
-        new("facturacion", "control", "facturacion", "facturacion", "Facturación",
-            Condicion: c => c.TieneAlgunRol(RolesDeAdministracionAmpliada)),
+        // Orden de Control: el del marco de Design (DDL-083): Alertas, Calendario, Reportes, Facturación.
         new("calendario", "control", "calendario", "calendario", "Calendario"),
         new("reportes", "control", "reportes", "reportes", "Reportes"),
+        new("facturacion", "control", "facturacion", "facturacion", "Facturación",
+            Condicion: c => c.TieneAlgunRol(RolesDeAdministracionAmpliada)),
         // Cierra Control por mandato del propietario del 2026-09-29 (salvo el enlace de equipo del Coordinador CAE, de más abajo).
         new("conectar-extension", "control", "cuenta/extension", "conectar", "Conectar extensión"),
-        // Rótulo «Mi equipo» (no «Usuarios»): Administración ya tiene su «Usuarios»: así el catálogo no
-        // repite el rótulo para la misma ruta. La pantalla sigue titulándose Usuarios.
+        // Rótulo «Equipo» (entrega de Design del 2026-10-17: Usuarios, Roles y Carteras de gestores se
+        // agrupan bajo «Equipo», con pestañas de sección; ver CatalogoSeccionesMenu). Lo ven dos
+        // audiencias distintas y nunca a la vez, así que el rótulo no se repite ante una misma persona.
         // D-12: el Coordinador CAE gestiona su equipo en /usuarios (la página ya lo autoriza por rol,
         // Usuarios.razor) pero no ve el grupo «Administración», que es de Administrador y Dirección CAE.
         // Este enlace solo hace descubrible lo ya autorizado: misma ruta, misma autorización, ningún
         // permiso nuevo. Administrador y Dirección CAE conservan «usuarios» en Administración, y no
         // lo ven duplicado aquí.
-        new("usuarios-equipo", "control", "usuarios", "equipo", "Mi equipo",
+        new("usuarios-equipo", "control", "usuarios", "equipo", "Equipo",
             Condicion: c => c.TieneAlgunRol(Roles.CoordinadorCae)
                             && !c.TieneAlgunRol(RolesDeAdministracionAmpliada)),
 
@@ -270,15 +298,28 @@ public static class CatalogoMenuLateral
         // viven como paneles de Configuración (DDL-078), su único punto de entrada. Usuarios se
         // queda porque Dirección CAE lo ve y Configuración es solo de Administrador; Verificación
         // en dos pasos apunta al alta personal de 2FA del propio usuario, no a la política.
-        new("usuarios", "administracion", "usuarios", "usuarios", "Usuarios"),
+        // «Equipo» (Design, 2026-10-17): la entrada lleva a Usuarios, la primera pestaña de la sección
+        // Equipo (Usuarios · Roles). Mismo Id, ruta y roles de siempre: Dirección CAE sigue viendo solo esta.
+        new("usuarios", "administracion", "usuarios", "usuarios", "Equipo"),
         new("configuracion", "administracion", "configuracion", "configuracion", "Configuración",
             Condicion: c => c.TieneAlgunRol(Roles.Administrador)),
-        new("verificacion-dos-pasos", "administracion", "cuenta/configurar-2fa", "seguridad", "Verificación en dos pasos",
-            Condicion: c => c.TieneAlgunRol(Roles.Administrador)),
+        // «Auditoría» (marco de Design, DDL-083): tercera entrada de Administración. Misma ruta y misma
+        // autorización de siempre (/auditoria es solo del Administrador); también sigue siendo un panel
+        // de Configuración. «Verificación en dos pasos» salió del menú: en el marco es la entrada «Mi cuenta»
+        // de Configuración, que ya lleva a cuenta/configurar-2fa.
+        new("auditoria", "administracion", "auditoria", "auditoria", "MenuAuditoria",
+            Condicion: c => c.TieneAlgunRol(Roles.Administrador), ClaveRotulo: "MenuAuditoria"),
 
+        // Plataforma, en el orden del marco de Design: Administración de plataforma, Delegaciones, Estado
+        // comercial y Estado del sistema. «Estado del sistema» NO tiene enlace: no hay pantalla que lo respalde
+        // (pantalla por construir). «Conectores CAE» no está en el marco, pero es una función existente: se
+        // conserva al final.
+        // Solo con capacidad de plataforma: la pantalla se autoriza por capacidad y un Administrador normal no tiene nada que hacer allí.
+        new("plataforma-administracion", "plataforma", "configuracion/plataforma", "plataforma", "MenuAdministracionPlataforma",
+            Condicion: c => c.EsAdministradorPlataforma, ClaveRotulo: "MenuAdministracionPlataforma"),
         new("delegaciones", "plataforma", "delegaciones", "delegacion", "Delegaciones"),
         new("estado-comercial", "plataforma", "configuracion/comercial", "etiqueta", "Estado comercial"),
-        new("conectores-cae", "plataforma", "plataforma/conectores-cae", "plataforma", "Conectores CAE"),
+        new("conectores-cae", "plataforma", "plataforma/conectores-cae", "importar", "Conectores CAE"),
     ];
 
     /// <summary>
@@ -293,9 +334,8 @@ public static class CatalogoMenuLateral
     [
         // Configuración: el hub resuelve /configuracion/{id}; los ids y las claves de rótulo son los de
         // Configuracion.razor.cs (lo vigila un test). Visibilidad = la del enlace «configuracion»
-        // (rol Administrador), que es la misma [Authorize] del hub.
-        new("config-usuarios", "configuracion", "configuracion/usuarios", "EntradaUsuariosNombre", FuenteRotuloSubopcion.TextosConfiguracion),
-        new("config-roles", "configuracion", "configuracion/roles", "EntradaRolesNombre", FuenteRotuloSubopcion.TextosConfiguracion),
+        // (rol Administrador), que es la misma [Authorize] del hub. Usuarios y Roles ya no son entradas
+        // del hub (viven en la sección Equipo) y «Mi cuenta» son salidas puras: ninguna es subopción.
         new("config-api", "configuracion", "configuracion/api", "EntradaApiNombre", FuenteRotuloSubopcion.TextosConfiguracion),
         new("config-integraciones", "configuracion", "configuracion/integraciones", "EntradaIntegracionesNombre", FuenteRotuloSubopcion.TextosConfiguracion),
         new("config-importar", "configuracion", "configuracion/importar", "EntradaImportarNombre", FuenteRotuloSubopcion.TextosConfiguracion),
@@ -321,6 +361,17 @@ public static class CatalogoMenuLateral
             Condicion: c => c.TieneAlgunRol(RolesDeGestionDocumental)),
         new("documentos-plantillas", "documentos", "documentos?pestana=plantillas", "MenuSubDocumentosPlantillas", FuenteRotuloSubopcion.TextosComunes,
             Condicion: c => c.TieneAlgunRol(RolesDeGestionDocumental)),
+
+        // Pestañas de sección sin entrada propia en el menú (entrega de Design del 2026-10-17): la lupa sigue
+        // encontrando Incidencias, Usuarios y Roles. Mismos roles que la pestaña y que su pantalla
+        // (CatalogoSeccionesMenu); Roles tampoco se ofrece a quien administra por un Encargo no pleno.
+        new("documentos-incidencias", "documentos", "incidencias", "SeccionIncidencias", FuenteRotuloSubopcion.TextosComunes,
+            Condicion: c => c.TieneAlgunRol(CatalogoSeccionesMenu.RolesDeIncidencias)),
+        new("equipo-usuarios", "usuarios", "usuarios", "SeccionUsuarios", FuenteRotuloSubopcion.TextosComunes,
+            Condicion: c => c.TieneAlgunRol(CatalogoSeccionesMenu.RolesDeUsuarios)),
+        new("equipo-roles", "usuarios", "roles", "SeccionRoles", FuenteRotuloSubopcion.TextosComunes,
+            Condicion: c => c.TieneAlgunRol(CatalogoSeccionesMenu.RolesDeRoles)
+                            && !CaeManager.Web.Services.PaginasExcluidasDelEncargo.RigenLasExclusiones(c.Usuario)),
     ];
 
     /// <summary>Una subopción visible con el enlace padre bajo el que se muestra.</summary>

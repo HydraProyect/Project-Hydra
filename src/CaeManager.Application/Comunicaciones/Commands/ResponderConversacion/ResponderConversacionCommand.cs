@@ -17,6 +17,9 @@ public class ResponderConversacionCommandValidator : AbstractValidator<Responder
 {
     public ResponderConversacionCommandValidator()
     {
+        RuleFor(c => c.CuerpoHtml)
+            .Must(texto => texto is null || VariablesPlantillaRespuesta.Pendientes(texto).Count == 0)
+            .WithMessage("Completa las variables de la plantilla antes de enviar.");
         RuleFor(c => c.ConversacionId).NotEmpty().WithMessage("La respuesta debe pertenecer a una conversación.");
         RuleFor(c => c.CuerpoHtml).NotEmpty().WithMessage("La respuesta no puede estar vacía.");
 

@@ -35,8 +35,14 @@
     cursor: pointer;
 }
 
+/* Como el chevron del menú lateral (NavMenu): cerrado apunta a la derecha, abierto hacia abajo. */
+.boton-expandir-incidencias {
+    transition: transform var(--motion-transition) var(--ease-fluid);
+    transform: rotate(-90deg);
+}
+
 .boton-expandir-incidencias[aria-expanded=true] {
-    transform: rotate(90deg);
+    transform: rotate(0deg);
 }
 
 .col-header-content {

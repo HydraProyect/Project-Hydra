@@ -145,13 +145,13 @@ public class ImportarCombinadoTests(WebAppFixture fixture)
                 .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
-            await page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente o empresa").FillAsync(nombreCentro);
+            await page.GetByPlaceholder("Filtrar esta pantalla: Centro, código, Cliente o Empresa").FillAsync(nombreCentro);
             // Acotado a la lista: el nombre buscado también sale en el chip «Búsqueda: …».
             await page.Locator(".lista-filas-acordeon").GetByText(nombreCentro).WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
             await page.GetByPlaceholder("Filtrar esta pantalla: nombre, DNI o alias").FillAsync(apellidosTrabajador);
-            await page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador })
+            await page.Locator(".marco-lista-trabajadores .tarjeta-fila-acordeon", new PageLocatorOptions { HasText = apellidosTrabajador })
                 .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         }
         finally

@@ -3,6 +3,7 @@ using CaeManager.Application.Contactos;
 using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresaEmpleadora;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
@@ -47,6 +48,9 @@ public class DrawerReclamacionLoteConfirmacionEnvioTests : BunitContext
     private sealed class MediatorFalso : IMediator
     {
         public List<object> Recibidas { get; } = [];
+        /// <summary>Si se informa, sustituye a los lotes de siempre (un único lote del Cliente titular).</summary>
+        public IReadOnlyList<LoteReclamacionAgrupadoDto>? LotesForzados { get; set; }
+
         public Result<EnvioReclamacionResultado> ResultadoDelEnvio { get; set; } =
             Result.Exito(new EnvioReclamacionResultado([], ["marta@example.invalid"], 0));
 
@@ -57,7 +61,7 @@ public class DrawerReclamacionLoteConfirmacionEnvioTests : BunitContext
             {
                 ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)[],
                 ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)[new(TrabajadorId, "Ana Ruiz", null, null)],
-                ObtenerLoteReclamacionPorFiltroQuery => (IReadOnlyList<LoteReclamacionAgrupadoDto>)
+                ObtenerLoteReclamacionPorFiltroQuery => LotesForzados ?? (IReadOnlyList<LoteReclamacionAgrupadoDto>)
                 [
                     new(ClienteTitularId, "Refrielectric S.A.", AmbitoAplicacion.Trabajador, null,
                         [
@@ -73,6 +77,7 @@ public class DrawerReclamacionLoteConfirmacionEnvioTests : BunitContext
                 ],
                 EnviarReclamacionCommand => ResultadoDelEnvio,
                 EnviarReclamacionEmpresaCommand => ResultadoDelEnvio,
+                EnviarReclamacionEmpresaEmpleadoraCommand => ResultadoDelEnvio,
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             };
             return Task.FromResult((TResponse)respuesta);
@@ -166,6 +171,42 @@ public class DrawerReclamacionLoteConfirmacionEnvioTests : BunitContext
         _reclamacionesEnviadas.Should().Be(1);
     }
 
+    /// <summary>
+    /// «Gestionar» por Delegación (PR #1454): el lote que se reclama a la Empresa que emplea al Trabajador se envía con
+    /// <see cref="EnviarReclamacionEmpresaEmpleadoraCommand"/> y la Delegación del lote, nunca por el comando de Cliente; y la
+    /// tarjeta nombra la Delegación para distinguir dos lotes de la misma Empresa.
+    /// </summary>
+    [Fact]
+    public async Task Un_lote_de_la_Empresa_empleadora_se_envia_por_su_comando_con_la_Delegacion_del_lote()
+    {
+        var empresaId = Guid.NewGuid();
+        var delegacionEmpresaId = Guid.NewGuid();
+        _mediator.LotesForzados =
+        [
+            new(empresaId, "Instalaciones Norte S.L.", AmbitoAplicacion.Trabajador, null,
+                [new(DocumentoUnoId, TrabajadorId, "Ana Ruiz", Guid.NewGuid(), "Curso de altura", new DateOnly(2026, 11, 2), EstadoDocumento.Urgente)],
+                null,
+                [new DestinatarioAgendaDto(ContactoMartaId, "Marta Gil", "sevilla@norte.example", ["Delegación"])],
+                [],
+                new DestinoEmpresaEmpleadoraDto(delegacionEmpresaId, "Sevilla")),
+        ];
+        var cut = await AbrirYContinuarAsync();
+
+        cut.Markup.Should().Contain("Instalaciones Norte S.L. (Sevilla)", "la tarjeta distingue la Delegación");
+        _mediator.Recibidas.OfType<ObtenerLoteReclamacionPorFiltroQuery>().Should().Contain(q => q.PorEmpresaEmpleadora);
+
+        await BotonEnviar(cut).ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
+
+        var envio = _mediator.Recibidas.OfType<EnviarReclamacionEmpresaEmpleadoraCommand>().Should().ContainSingle().Which;
+        envio.EmpresaId.Should().Be(empresaId);
+        envio.DelegacionEmpresaId.Should().Be(delegacionEmpresaId);
+        envio.DocumentoIds.Should().Equal(DocumentoUnoId);
+        envio.ContactoIdsSeleccionados.Should().Equal(ContactoMartaId);
+        EnviosRecibidos.Should().Be(0, "no se reclama al Cliente");
+        _mediator.Recibidas.OfType<EnviarReclamacionEmpresaCommand>().Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Lo_anunciado_en_la_confirmacion_es_lo_que_sale_aunque_cambien_las_casillas_con_el_dialogo_abierto()
     {
@@ -230,5 +271,101 @@ public class DrawerReclamacionLoteConfirmacionEnvioTests : BunitContext
         mensajes.Should().NotContain(m => m.Tono == TonoToast.Exito);
         _reclamacionesEnviadas.Should().Be(1, "la parte entregada ya está en el historial y la cola se refresca");
         cut.FindAll(".tabla-datos").Should().BeEmpty("reenviar el lote entero reclamaría otra vez a quien ya lo recibió");
+    }
+
+    // ---- Destinatarios añadidos a mano y copia (hueco 5 del piloto) ----
+
+    private static async Task EscribirYAnadirAsync(IRenderedComponent<DrawerReclamacionLote> cut, string prefijoId, string correo)
+    {
+        await cut.Find($"input[id^='{prefijoId}']").InputAsync(new ChangeEventArgs { Value = correo });
+        await cut.FindAll(".reclamacion-extra-campo")
+            .Single(c => c.QuerySelector($"input[id^='{prefijoId}']") is not null)
+            .QuerySelector("button")!.ClickAsync(new MouseEventArgs());
+    }
+
+    [Fact]
+    public async Task Un_destinatario_manual_y_uno_en_copia_salen_en_la_confirmacion_y_en_el_comando()
+    {
+        var cut = await AbrirYContinuarAsync();
+        await EscribirYAnadirAsync(cut, "extra-para-", "jefe.obra@subcontrata.example");
+        await EscribirYAnadirAsync(cut, "extra-cc-", "coordinacion@arcosspa.example");
+
+        await BotonEnviar(cut).ClickAsync(new MouseEventArgs());
+
+        cut.Find(".modal-contenido").TextContent
+            .Should().Contain("También a: jefe.obra@subcontrata.example")
+            .And.Contain("En copia (CC): coordinacion@arcosspa.example")
+            .And.Contain("Marta Gil (marta@example.invalid)");
+
+        await BotonDelDialogo(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
+
+        var envio = _mediator.Recibidas.OfType<EnviarReclamacionCommand>().Should().ContainSingle().Which;
+        envio.CorreosAdicionales.Should().Equal("jefe.obra@subcontrata.example");
+        envio.CorreosEnCopia.Should().Equal("coordinacion@arcosspa.example");
+    }
+
+    [Fact]
+    public async Task Sin_extras_la_confirmacion_y_el_comando_quedan_como_antes()
+    {
+        var cut = await AbrirYContinuarAsync();
+
+        await BotonEnviar(cut).ClickAsync(new MouseEventArgs());
+        cut.Find(".modal-contenido").TextContent.Should().NotContain("También a").And.NotContain("En copia");
+        await BotonDelDialogo(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
+
+        var envio = _mediator.Recibidas.OfType<EnviarReclamacionCommand>().Should().ContainSingle().Which;
+        envio.CorreosAdicionales.Should().BeEmpty();
+        envio.CorreosEnCopia.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("no-es-un-correo", "no es un correo válido")]
+    [InlineData("MARTA@example.invalid", "ya es un contacto de la agenda")]
+    public async Task Un_correo_invalido_o_ya_presente_no_se_añade_y_dice_por_que(string correo, string motivo)
+    {
+        var cut = await AbrirYContinuarAsync();
+
+        await EscribirYAnadirAsync(cut, "extra-para-", correo);
+
+        cut.Find(".reclamacion-extra .campo-mensaje-error").TextContent.Should().Contain(motivo);
+        cut.FindAll(".reclamacion-extra-lista li").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task El_mismo_correo_no_se_puede_poner_dos_veces_ni_en_destinatarios_y_en_copia()
+    {
+        var cut = await AbrirYContinuarAsync();
+        await EscribirYAnadirAsync(cut, "extra-para-", "jefe.obra@subcontrata.example");
+
+        await EscribirYAnadirAsync(cut, "extra-para-", "jefe.obra@subcontrata.example");
+        await EscribirYAnadirAsync(cut, "extra-cc-", "JEFE.obra@subcontrata.example");
+
+        cut.FindAll(".reclamacion-extra-lista li").Should().ContainSingle();
+        cut.FindAll(".reclamacion-extra .campo-mensaje-error").Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Quitar_un_manual_lo_saca_del_envio()
+    {
+        var cut = await AbrirYContinuarAsync();
+        await EscribirYAnadirAsync(cut, "extra-para-", "jefe.obra@subcontrata.example");
+
+        await cut.Find(".reclamacion-extra-quitar").ClickAsync(new MouseEventArgs());
+        await BotonEnviar(cut).ClickAsync(new MouseEventArgs());
+
+        cut.Find(".modal-contenido").TextContent.Should().NotContain("jefe.obra@subcontrata.example");
+    }
+
+    [Fact]
+    public async Task Un_correo_tecleado_y_sin_anadir_bloquea_el_envio_en_vez_de_descartarse_en_silencio()
+    {
+        var cut = await AbrirYContinuarAsync();
+        await cut.Find("input[id^='extra-cc-']").InputAsync(new ChangeEventArgs { Value = "coordinacion@arcosspa.example" });
+
+        await BotonEnviar(cut).ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".modal-pie button").Should().BeEmpty("no se abre la confirmación");
+        cut.Find(".reclamacion-extra .campo-mensaje-error").TextContent.Should().Contain("Pulsa «Añadir»");
+        EnviosRecibidos.Should().Be(0);
     }
 }

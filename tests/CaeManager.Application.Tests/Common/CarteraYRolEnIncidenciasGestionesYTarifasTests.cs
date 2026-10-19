@@ -325,7 +325,8 @@ public class CarteraYRolEnIncidenciasGestionesYTarifasTests
                 centroIdsVisibles: enCartera ? [centroEnCartera] : [Guid.NewGuid()],
                 centroIdsParaGestion: soloLectura ? [] : null);
         var handler = new CrearGestionesParaTrabajadorCommandHandler(
-            asignaciones, tipos, gestiones, new DetallesSugerenciaVacios(), alcance, new CurrentUserServiceFalso(Guid.NewGuid()), unitOfWork);
+            asignaciones, tipos, gestiones, new DetallesSugerenciaVacios(), new Comunicaciones.ComunicacionesQueryContextFalso(), alcance,
+            new CurrentUserServiceFalso(Guid.NewGuid()), unitOfWork);
         return (handler, gestiones, trabajadorId, tipo.Id, centroEnCartera, unitOfWork);
     }
 

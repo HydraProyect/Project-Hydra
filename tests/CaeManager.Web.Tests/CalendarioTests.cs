@@ -413,24 +413,26 @@ public class CalendarioTests : BunitContext
 
         var dialogo = cut.Find("[role=dialog]");
         dialogo.QuerySelector("h2")!.TextContent.Should().Be(Dia10.ToString("d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-ES")));
-        dialogo.QuerySelector(".calendario-resumen-dia")!.TextContent.Should().EndWith("· 1 vencimiento · 1 visita");
+        dialogo.QuerySelector(".modal-sobretitulo")!.TextContent.Should().Be("Martes");
+        dialogo.QuerySelector(".modal-subtitulo")!.TextContent.Should().Be("1 vencimiento · 1 visita");
         dialogo.TextContent.Should().Contain("Juan Pérez").And.Contain("Vencido");
         dialogo.TextContent.Should().Contain("Sin notificar", "el estado de notificación viene del código anterior y el mockup lo había perdido");
         dialogo.TextContent.Should().Contain($"Montajes Ebro · {Dia10:dd/MM}–{Dia11:dd/MM} · 1 trabajador");
     }
 
-    /// <summary>«Gestionar» sigue llevando al drawer del documento en Documentos, como antes.</summary>
+    /// <summary>«Renovar» (antes «Gestionar») sigue llevando al documento en Documentos.</summary>
     [Fact]
-    public async Task Gestionar_un_vencimiento_lleva_al_documento_en_documentos()
+    public async Task Renovar_un_vencimiento_lleva_al_documento_en_documentos()
     {
         var vencimiento = Vencimiento(Dia10, EstadoDocumento.Proximo);
         var cut = Renderizar(vencimientos: [vencimiento]);
 
         await BotonDelDia(cut, Dia10).ClickAsync(new());
-        await cut.FindAll("[role=dialog] button").First(b => b.TextContent.Trim() == "Gestionar").ClickAsync(new());
 
-        Services.GetRequiredService<NavigationManager>().Uri
-            .Should().EndWith($"/documentos?documentoId={vencimiento.DocumentoId}");
+        cut.FindAll("[role=dialog] a").Single(a => a.TextContent.Trim() == "Renovar").GetAttribute("href")
+            .Should().Be($"/documentos?documentoId={vencimiento.DocumentoId}");
+        cut.FindAll("[role=dialog] .detalle-dia-reclamar").Should().BeEmpty(
+            "el Mes no sabe de qué Empresa es cada documento: no ofrece Reclamar");
     }
 
     /// <summary>
@@ -448,13 +450,13 @@ public class CalendarioTests : BunitContext
         {
             textos["FormatoDiaMes"].ResourceNotFound.Should().BeFalse();
             textos["FormatoDiaMes"].Value.Should().Be("d 'de' MMMM");
-            textos["Gestionar"].Value.Should().Be("Gestionar");
+            textos["Renovar"].Value.Should().Be("Renovar");
         });
         EnCultura("ca-ES", () =>
         {
             textos["FormatoDiaMes"].Value.Should().Be("d MMMM");
             textos["FormatoFechaLarga"].Value.Should().Be("d MMMM 'de' yyyy");
-            textos["Gestionar"].ResourceNotFound.Should().BeFalse();
+            textos["EstadoVenceHoy"].Value.Should().Be("Venç avui");
         });
     }
 
@@ -481,7 +483,7 @@ public class CalendarioTests : BunitContext
 
             await dia.ClickAsync(new());
             cut.Find("[role=dialog] h2").TextContent.Should().Be("1 d’octubre de 2026");
-            cut.Find(".calendario-resumen-dia").TextContent.Should().StartWith("Dijous");
+            cut.Find(".modal-sobretitulo").TextContent.Should().Be("Dijous");
         });
 
     private static void EnCultura(string cultura, Action accion) =>

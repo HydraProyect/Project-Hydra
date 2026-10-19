@@ -312,7 +312,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoRestaurar = CrearContexto(_tenant);
         var handler = new RestaurarTrabajadorCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar);
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), new CaeManager.Infrastructure.Persistence.Repositories.CatalogoTrabajadoresEmpresaRepository(contextoRestaurar), contextoRestaurar);
 
         var resultado = await handler.Handle(new RestaurarTrabajadorCommand(trabajadorId), CancellationToken.None);
 
@@ -343,7 +343,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
         await using var contextoRestaurar = CrearContexto(_tenant);
         var alcance = new AlcanceDatosServiceFalso(empresaIds: [Guid.NewGuid()]);
         var handler = new RestaurarTrabajadorCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, contextoRestaurar);
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, new CaeManager.Infrastructure.Persistence.Repositories.CatalogoTrabajadoresEmpresaRepository(contextoRestaurar), contextoRestaurar);
 
         var resultado = await handler.Handle(new RestaurarTrabajadorCommand(trabajadorId), CancellationToken.None);
 
@@ -372,7 +372,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoAtacante = CrearContexto(_otroTenant);
         var handler = new RestaurarTrabajadorCommandHandler(
-            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, new AlcanceDatosServiceFalso(), contextoAtacante);
+            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, new AlcanceDatosServiceFalso(), new CaeManager.Infrastructure.Persistence.Repositories.CatalogoTrabajadoresEmpresaRepository(contextoAtacante), contextoAtacante);
 
         var resultado = await handler.Handle(new RestaurarTrabajadorCommand(trabajadorId), CancellationToken.None);
 

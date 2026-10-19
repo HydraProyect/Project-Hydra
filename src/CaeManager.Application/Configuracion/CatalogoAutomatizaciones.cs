@@ -37,7 +37,10 @@ namespace CaeManager.Application.Configuracion;
 /// <c>CierreEventosTerminadosHostedService</c> cierra el Proyecto de tipo Evento
 /// cuando pasa su fecha de fin (decisión 2026-10-16). Apagarlo dejaría eventos
 /// abiertos con «fin previsto superado», que es justo lo que la decisión
-/// prohíbe, así que no tiene interruptor.</description></item>
+/// prohíbe, así que no tiene interruptor. Igual
+/// <c>CierreConversacionesResueltasHostedService</c>: cierra la Conversación
+/// que lleva 4 días Resuelta (decisión 2026-10-17); es el plazo de la bandeja,
+/// no una preferencia del Tenant.</description></item>
 /// <item><description><b>Verificación de infraestructura</b> — gates de
 /// arranque que comprueban si un sistema de la propia plataforma (no del
 /// tenant) está operativo, y no corren por tenant: <c>VerificacionKmsHostedService</c>,

@@ -11,5 +11,13 @@ public class TenantRepository(CaeManagerDbContext dbContext) : ITenantRepository
     public Task<Tenant?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         dbContext.Tenants.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
 
-    public void Agregar(Tenant tenant) => dbContext.Tenants.Add(tenant);
+    public void Agregar(Tenant tenant)
+    {
+        dbContext.Tenants.Add(tenant);
+        foreach (var plantilla in CaeManager.Domain.Comunicaciones.PlantillasRespuestaPredefinidas.Crear(tenant.Id))
+        {
+            dbContext.MacrosRespuesta.Add(plantilla);
+            dbContext.Entry(plantilla).Property(p => p.TenantId).CurrentValue = tenant.Id;
+        }
+    }
 }

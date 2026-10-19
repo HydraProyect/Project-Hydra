@@ -144,6 +144,7 @@ public partial class Centro360Gen2Tests : BunitContext
             EliminarCentroCommand => Result.Exito(),
             RestaurarCentroCommand => Result.Exito(),
             CaeManager.Application.Centros.Commands.EditarFichaCentro.EditarFichaCentroCommand c => GuardarFicha(c),
+            CaeManager.Application.Centros.Commands.GuardarNotaInternaCentro.GuardarNotaInternaCentroCommand c => GuardarNota(c.Id, c.Notas),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -151,6 +152,16 @@ public partial class Centro360Gen2Tests : BunitContext
         {
             if (ResultadoFicha.EsExitoso && DetalleTrasGuardarFicha is { } detalle) Detalles[comando.Id] = detalle;
             return ResultadoFicha;
+        }
+
+        /// <summary>Lo que responde el servidor al guardar la nota interna; con éxito, la relectura trae la nota y otra Version.</summary>
+        public Result ResultadoNota { get; set; } = Result.Exito();
+
+        private Result GuardarNota(Guid id, string? notas)
+        {
+            if (ResultadoNota.EsFallido) return ResultadoNota;
+            Detalles[id] = Detalles[id] with { Notas = notas, Version = Guid.NewGuid() };
+            return ResultadoNota;
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
@@ -485,8 +496,16 @@ public partial class Centro360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         var cabecera = cut.Find("header.cabecera-identidad[data-pieza='cabecera-identidad']");
-        cabecera.QuerySelector(".cabecera-identidad-kicker")!.TextContent.Should().Be("Centro");
+        cabecera.QuerySelector(".cabecera-identidad-kicker").Should().BeNull("Centro 360 del 17-10 no lleva rótulo sobre el nombre");
         cabecera.QuerySelector("h1")!.TextContent.Trim().Should().Be("Centro Norte");
+        // Bajo el nombre solo el Cliente (nombre = consulta rápida, icono 360 = su página), los Trabajadores y la
+        // pastilla de estado: ni la Empresa ni las pastillas de motivos.
+        var datos = cabecera.QuerySelector(".cabecera-identidad-datos")!;
+        datos.TextContent.Should().Contain("Refrielectric S.A.").And.NotContain("Ibertec GmbH").And.NotContain("Empresa:");
+        datos.QuerySelector("button.enlace-nombre-fila")!.TextContent.Trim().Should().Be("Refrielectric S.A.");
+        datos.QuerySelectorAll("a").Should().ContainSingle("el nombre ya no es un enlace (abre la consulta rápida): solo el icono 360 lo es")
+            .Which.ClassList.Should().Contain("boton-360");
+        datos.QuerySelectorAll(".badge").Should().HaveCount(1, "una sola pastilla: el estado del Centro");
         cabecera.QuerySelector(".cabecera-identidad-anillo [role=img]").Should().NotBeNull();
         cut.FindAll("h1").Should().ContainSingle("la ficha tiene un solo título de página");
 
@@ -494,12 +513,64 @@ public partial class Centro360Gen2Tests : BunitContext
         lateral.GetAttribute("aria-label").Should().Be("Contexto del centro");
         var tarjetas = lateral.QuerySelectorAll(":scope > .tarjeta-compacta[data-pieza='tarjeta']");
         tarjetas.Select(t => t.QuerySelector(".tarjeta-titulo")!.TextContent.Trim())
-            .Should().Equal("Canales de gestión");
-        tarjetas[0].QuerySelector(".tarjeta-acciones button")!.TextContent.Trim().Should().Be("Gestionar →");
+            .Should().Equal("Información", "Canales de gestión");
+        tarjetas[0].TextContent.Should().Contain("Refrielectric S.A.").And.Contain("CN-01").And.Contain("Pol. Norte 4");
+        tarjetas[0].QuerySelector(".tarjeta-acciones button")!.TextContent.Trim().Should().Be("Editar →");
+        tarjetas[1].QuerySelector(".tarjeta-acciones button")!.TextContent.Trim().Should().Be("Gestionar →");
 
         cut.Find(".cuerpo-con-lateral-principal").QuerySelector("aside").Should().BeNull();
         cut.FindAll(".centro360-cuerpo, .centro360-lateral, .centro360-tarjeta-lateral, .cabecera-pagina")
             .Should().BeEmpty("la maquetación propia de la ficha se sustituyó por las piezas compartidas");
+    }
+
+    /// <summary>
+    /// Por rol: la tarjeta «Información» y los datos de la cabecera los ve todo rol (el Cliente empresarial y su
+    /// consulta rápida también); «Editar →» y «Programar visita» son escritura y a Consulta no se le pintan.
+    /// </summary>
+    [Theory]
+    [InlineData("Administrador", true)]
+    [InlineData("Consulta", false)]
+    public void La_tarjeta_Informacion_y_la_cabecera_respetan_el_rol_de_escritura(string rol, bool escribe)
+    {
+        this.ConRolDeEscritura(rol);
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte");
+
+        var cut = Renderizar(id);
+
+        var informacion = cut.FindAll("aside[data-pieza=lateral] .tarjeta-compacta")
+            .Single(t => t.QuerySelector(".tarjeta-titulo")!.TextContent.Trim() == "Información");
+        informacion.TextContent.Should().Contain("Refrielectric S.A.").And.Contain("CN-01");
+        informacion.QuerySelectorAll(".tarjeta-acciones button").Any(b => b.TextContent.Trim() == "Editar →").Should().Be(escribe);
+        cut.Find(".cabecera-identidad-datos button.enlace-nombre-fila").TextContent.Trim().Should().Be("Refrielectric S.A.");
+        cut.FindAll(".cabecera-identidad-acciones button").Any(b => b.TextContent.Trim() == "Programar visita").Should().Be(escribe);
+    }
+
+    /// <summary>
+    /// Sin las pastillas de motivos, el bloque «Empresa» del acordeón es el único camino de Centro 360 para ver las causas de
+    /// ámbito Empresa, también la de plataforma con Estado null (rechazo en la plataforma). Si la página dejara de pasarle
+    /// <c>IncidenciasEmpresa</c>, esas causas desaparecerían de la pantalla sin aviso.
+    /// </summary>
+    [Fact]
+    public void Las_causas_de_ambito_Empresa_se_ven_en_el_acordeon_tambien_la_de_plataforma_sin_estado()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte", vencidas:
+        [
+            Incidencia("Seguro de responsabilidad civil", AmbitoCausa.Empresa) with { TrabajadorId = null },
+            Incidencia("Rechazo en plataforma: falta la firma", AmbitoCausa.Empresa) with { Estado = null, TrabajadorId = null },
+            Incidencia("Formación de Juan", AmbitoCausa.Trabajador)
+        ]);
+
+        var cut = Renderizar(id);
+
+        var bloque = cut.WaitForElement("[data-bloque-empresa]");
+        bloque.TextContent.Should().Contain("Seguro de responsabilidad civil").And.Contain("Rechazo en plataforma: falta la firma")
+            .And.Contain("2 doc.").And.NotContain("Formación de Juan", "las causas de Trabajador van en la fila de su Trabajador");
     }
 
     [Fact]
@@ -696,8 +767,8 @@ public partial class Centro360Gen2Tests : BunitContext
 
         cut.Find("h1").TextContent.Trim().Should().Be("Centro Norte");
         var entradilla = cut.Find(".cabecera-identidad-datos").TextContent;
-        entradilla.Should().Contain("Cliente: Refrielectric S.A.")
-            .And.Contain("0 trabajadores asignados").And.Contain("Empresa: Ibertec GmbH").And.NotContain("21/08–23/08");
+        entradilla.Should().Contain("Refrielectric S.A.")
+            .And.Contain("0 trabajadores asignados").And.NotContain("Empresa").And.NotContain("Ibertec GmbH").And.NotContain("21/08–23/08");
         // Decisión de rótulo del 2026-10-09 (CONTRATO_TERMINOLOGIA § 3.2): el Cliente empresarial se rotula
         // «Cliente» en todas las pantallas; el rótulo largo no vuelve.
         entradilla.Should().NotContain("Cliente empresarial", "la pantalla dice «Cliente», no el rótulo largo");
@@ -728,18 +799,16 @@ public partial class Centro360Gen2Tests : BunitContext
         var cut = Renderizar(id);
         var entradilla = cut.Find(".cabecera-identidad-datos");
 
-        var enlaces = entradilla.QuerySelectorAll("a");
-        enlaces.Select(a => (a.TextContent.Trim(), a.GetAttribute("href"))).Should().Equal(
-            ("Refrielectric S.A.", $"/clientes/{detalle.ClienteId}"), ("Ibertec GmbH", $"/empresas/{detalle.EmpresaId}"));
+        // Centro 360 del 17-10 invierte los dos caminos: el NOMBRE abre la consulta rápida y el icono 360 es el enlace a la
+        // página. La Empresa ya no está en la cabecera (la Empresa del Centro vive en «Documentación del Centro»).
+        entradilla.QuerySelectorAll("a").Select(a => (a.GetAttribute("aria-label"), a.GetAttribute("href"))).Should().Equal(
+            ("Abrir la ficha 360 de Refrielectric S.A.", $"/clientes/{detalle.ClienteId}"));
 
         var workspace = Services.GetRequiredService<ContextWorkspaceService>();
 
-        cut.Find("button[aria-label='Consultar Refrielectric S.A. de un vistazo']").Click();
+        entradilla.QuerySelector("button.enlace-nombre-fila")!.Click();
         workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Cliente, detalle.ClienteId, "Refrielectric S.A.", "informacion"));
-
-        cut.Find("button[aria-label='Consultar Ibertec GmbH de un vistazo']").Click();
-        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Empresa, detalle.EmpresaId, "Ibertec GmbH", "informacion"));
-        entradilla.QuerySelectorAll("button").Should().HaveCount(2);
+        entradilla.QuerySelectorAll("button").Should().ContainSingle("solo el nombre del Cliente es botón; el icono 360 es un enlace");
     }
 
     /// <summary>
@@ -845,7 +914,7 @@ public partial class Centro360Gen2Tests : BunitContext
         botones.Count(b => b == "+ Asignar trabajador").Should().Be(esperados);
         botones.Count(b => b == "Dar de baja seleccionados").Should().Be(esperados);
         menu.Count(i => i == "Reclamar documentación (1)").Should().Be(esperados);
-        cut.FindAll(".motivo-bloqueo-pedir").Should().HaveCount(esperados, "«Pedir» acaba en un envío de reclamación");
+        cut.FindAll(".motivo-bloqueo-pedir").Should().HaveCount(esperados, "«Gestionar» (antes «Pedir») abre el flujo que acaba en un envío de reclamación");
         cut.FindAll(".celda-documento-nombre button").Should().HaveCount(esperados,
             "el nombre del documento abre el Drawer que crea o renueva: a Consulta se le pinta como texto");
     }
@@ -907,7 +976,8 @@ public partial class Centro360Gen2Tests : BunitContext
 
         mediador.Enviadas.OfType<ObtenerDocumentacionBloqueantePendienteQuery>().Should().ContainSingle()
             .Which.CentroId.Should().Be(id, "el detalle por Trabajador es el de ESTE Centro, no el de todos los visibles");
-        cut.Markup.Should().Contain("1 trabajador bloqueado");
+        // Centro 360 del 17-10: la cabecera ya no lleva la pastilla «N trabajadores bloqueados»; el bloqueo se dice en la fila.
+        cut.Find(".cabecera-identidad-datos").TextContent.Should().NotContain("bloqueado");
         cut.Markup.Should().NotContain("Acceso bloqueado").And.NotContain("Bloqueo de la plataforma CAE",
             "un documento de Trabajador no bloquea al Centro: el Centro está en Faltante");
         var filaBloqueada = cut.FindAll(".lista-trabajadores-acordeon .fila-relacion").Single(b => b.TextContent.Contains("Juan Pérez"));

@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Centros.Commands.CrearCanalGestion;
 using CaeManager.Application.Centros.Commands.EditarCanalGestion;
+using CaeManager.Application.Clientes.Commands.GuardarAccesoPlataformaCae;
 using CaeManager.Application.Empresas.Commands.BorrarCredencialAccesoEmpresaContrasena;
 using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa;
 using CaeManager.Application.Plataforma;
@@ -366,6 +367,7 @@ public class AutorizacionSecretosDeTenantBehaviorTests
         { new GuardarCredencialAccesoEmpresaCommand(Guid.NewGuid(), null, null, "u", null), true },
         { new GuardarCredencialAccesoSubcontrataCommand(Guid.NewGuid(), null, null, null, null), true },
         { new BorrarCredencialAccesoEmpresaContrasenaCommand(Guid.NewGuid()), true },
+        { new GuardarAccesoPlataformaCaeCommand(Guid.NewGuid(), Guid.NewGuid(), "u", null), true },
         { new CrearCanalGestionCommand(Guid.NewGuid(), TipoCanalGestion.Plataforma, "x", null, null, "u", null, null, null, null), true },
         { new CrearCanalGestionCommand(Guid.NewGuid(), TipoCanalGestion.Plataforma, "x", null, null, null, "p", null, null, null), true },
         { new CrearCanalGestionCommand(Guid.NewGuid(), TipoCanalGestion.Plataforma, "x", null, null, null, null, null, null, null), false },
@@ -409,6 +411,7 @@ public class AutorizacionSecretosDeTenantBehaviorTests
         [
             typeof(GuardarCredencialAccesoEmpresaCommand), typeof(GuardarCredencialAccesoSubcontrataCommand),
             typeof(CrearCanalGestionCommand), typeof(EditarCanalGestionCommand),
+            typeof(GuardarAccesoPlataformaCaeCommand),
         ]);
 
         conContrasena.Where(t => !typeof(IEscrituraDeDatosDeCredencial).IsAssignableFrom(t))

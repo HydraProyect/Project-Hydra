@@ -6,6 +6,10 @@
     marcado porque cada uno vive en su propia página, pero es el mismo
     contrato de UX: nunca se envía sin que el gestor vea antes qué y a quién.
 
+    Además de los contactos de la agenda, cada tarjeta deja añadir a mano destinatarios y direcciones en copia (CC) de ESTE envío:
+    no se guardan en la agenda y salen en la confirmación con el resto. La UI comprueba formato y repetidos para avisar al
+    momento, pero quien decide es el comando (DestinatariosExtraDeReclamacion).
+
     El envío es un EnviarReclamacionCommand por titular, secuencial (no
     Task.WhenAll) — mismo motivo que TrabajadorDetalle.razor.cs.
     EnviarReclamacionAClientesAsync: el DbContext de la petición Blazor
@@ -14,6 +18,7 @@
 @using CaeManager.Application.Reclamaciones
 @using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion
 @using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa
+@using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresaEmpleadora
 @using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Bandeja.Recursos
@@ -34,31 +39,52 @@
         {
             <EstadoCargando Filas="3" />
         }
+        else if (_paso == Paso.Error)
+        {
+            <EstadoVacio Titulo="@TextosMiTrabajo.Texto("ReclamacionErrorPreparar")" Descripcion="@TextosMiTrabajo.Texto("ReclamacionErrorPrepararDetalle")">
+                <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="ResolverDocumentosInicialesAsync">@TextosMiTrabajo.Texto("ReclamacionReintentar")</Boton></Accion>
+            </EstadoVacio>
+        }
         else if (_paso == Paso.SinResultados)
         {
-            <EstadoVacio Titulo="Nada pendiente con este filtro" Descripcion="Prueba con otro tipo de documento o ámbito.">
-                <Accion>
-                    <Boton Variante="VarianteBoton.Secundario" OnClick="() => _paso = Paso.Seleccion">Volver a elegir</Boton>
-                </Accion>
-            </EstadoVacio>
+            @if (DocumentoIdsIniciales is not null)
+            {
+                @* Abierto con documentos concretos (Calendario): no hay otro filtro que probar, y se dice por qué no hay nada. *@
+                @AvisosFuera
+                <EstadoVacio Titulo="@TextosMiTrabajo.Texto("ReclamacionNadaTitulo")" Descripcion="@TextosMiTrabajo.Texto("ReclamacionNadaDetalle")" />
+            }
+            else
+            {
+                <EstadoVacio Titulo="Nada pendiente con este filtro" Descripcion="Prueba con otro tipo de documento o ámbito.">
+                    <Accion>
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="() => _paso = Paso.Seleccion">Volver a elegir</Boton>
+                    </Accion>
+                </EstadoVacio>
+            }
         }
         else
         {
+            @if (DocumentoIdsIniciales is null)
+            {
             <p class="texto-vacio-seccion">
                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _paso = Paso.Seleccion" Deshabilitado="_enviando">
                     ← Cambiar filtro
                 </Boton>
             </p>
+            }
 
+            @AvisosFuera
+
+            var clavesLotes = new ClavesDeHermanos();
             @foreach (var lote in _lotes)
             {
-                var seleccionados = _seleccionPorTitular[lote.TitularId];
-                var pendientesSeleccionados = _seleccionPendientesPorTitular[lote.TitularId];
+                var seleccionados = _seleccionPorTitular[Clave(lote)];
+                var pendientesSeleccionados = _seleccionPendientesPorTitular[Clave(lote)];
                 var totalSeleccionado = seleccionados.Count + pendientesSeleccionados.Count;
-                var contactos = _contactosPorTitular.GetValueOrDefault(lote.TitularId, []);
-                var enviandoEste = _enviandoTitularId == lote.TitularId;
+                var contactos = _contactosPorTitular.GetValueOrDefault(Clave(lote), []);
+                var enviandoEste = _enviandoTitularId == Clave(lote);
 
-                <Tarjeta @key="lote.TitularId" Titulo="@lote.TitularNombre" Class="tarjeta-reclamacion">
+                <Tarjeta @key="clavesLotes.De(Clave(lote))" Titulo="@TituloDeLote(lote)" Class="tarjeta-reclamacion">
                     <AccionesHeader>
                         <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(totalSeleccionado == 0 || contactos.Count == 0 || _enviando)"
                                Cargando="enviandoEste" OnClick="() => PedirConfirmacion(lote)">
@@ -66,9 +92,18 @@
                         </Boton>
                     </AccionesHeader>
                     <ChildContent>
+                        @* «Gestionar» reclama lo de un Trabajador a su Empresa: la tarjeta dice a qué Delegación va, o que va a la agenda de la Empresa. *@
+                        @if (lote.EmpresaEmpleadora is { } destino)
+                        {
+                            <p class="reclamacion-motivo reclamacion-destino-delegacion">
+                                @(destino.DelegacionEmpresaNombre is { } delegacion
+                                    ? TextosMiTrabajo.Formato("ReclamacionDestinoDelegacionEmpresa", delegacion)
+                                    : TextosMiTrabajo.Texto("ReclamacionDestinoEmpresa"))
+                            </p>
+                        }
                         @if (lote.Destinatarios is not { Count: > 0 })
                         {
-                            <div class="alerta-formulario" role="alert">No hay ningún contacto en la agenda al que reclamar esta documentación.</div>
+                            <div class="alerta-formulario" role="alert">@(lote.EmpresaEmpleadora?.DelegacionEmpresaId is not null ? TextosMiTrabajo.Texto("ReclamacionDelegacionEmpresaSinContactoVisible") : "No hay ningún contacto en la agenda al que reclamar esta documentación.")</div>
                         }
                         else
                         {
@@ -78,11 +113,19 @@
                                 {
                                     <label class="campo-checkbox" @key="destinatario.ContactoId">
                                         <input type="checkbox" checked="@contactos.Contains(destinatario.ContactoId)"
-                                               @onchange="e => AlternarContacto(lote.TitularId, destinatario.ContactoId, (bool)e.Value!)" />
+                                               @onchange="e => AlternarContacto(Clave(lote), destinatario.ContactoId, (bool)e.Value!)" />
                                         <span>@destinatario.Nombre — @destinatario.Email</span>
                                         <span class="reclamacion-motivo">@string.Join(", ", destinatario.MotivoTipos)</span>
                                     </label>
                                 }
+                            </fieldset>
+
+                            @* Destinatarios de este envío que no están en la agenda: se añaden a mano y no se guardan en ella. *@
+                            <fieldset class="reclamacion-destinatarios reclamacion-extra">
+                                <legend>@TextosMiTrabajo.Texto("ReclamacionExtraTitulo")</legend>
+                                <p class="reclamacion-motivo">@TextosMiTrabajo.Texto("ReclamacionExtraAviso")</p>
+                                @(CampoExtra(lote, false))
+                                @(CampoExtra(lote, true))
                             </fieldset>
                         }
 
@@ -108,7 +151,7 @@
                                     <tr @key="documento.DocumentoId">
                                         <td>
                                             <input type="checkbox" aria-label="@($"Incluir {documento.TipoDocumentoNombre}" + (muestraTrabajador ? $" de {documento.TrabajadorNombre}" : "") + $", vencimiento {documento.FechaVencimiento:dd/MM/yyyy}, en la reclamación")" checked="@seleccionados.Contains(documento.DocumentoId)"
-                                                   @onchange="e => AlternarSeleccion(lote.TitularId, documento.DocumentoId, (bool)e.Value!)" />
+                                                   @onchange="e => AlternarSeleccion(Clave(lote), documento.DocumentoId, (bool)e.Value!)" />
                                         </td>
                                         <td class="lote-reclamacion-documento">
                                             @documento.TipoDocumentoNombre
@@ -132,7 +175,7 @@
                                     <tr @key="clavesPendientes.De(pendiente.Clave)">
                                         <td>
                                             <input type="checkbox" aria-label="@EtiquetaIncluir(pendiente, muestraTrabajador)" checked="@pendientesSeleccionados.Contains(pendiente.Clave)"
-                                                   @onchange="e => AlternarPendiente(lote.TitularId, pendiente.Clave, (bool)e.Value!)" />
+                                                   @onchange="e => AlternarPendiente(Clave(lote), pendiente.Clave, (bool)e.Value!)" />
                                         </td>
                                         <td class="lote-reclamacion-documento">
                                             @pendiente.TipoDocumentoNombre
@@ -169,18 +212,24 @@
 
 @code {
     private Drawer? _drawer;
-    private enum Paso { Seleccion, Cargando, SinResultados, Revision }
+    /// <summary>Identidad de una tarjeta: el titular y su ámbito y, en un lote a la Empresa empleadora, también su Delegación (una Empresa puede tener varias tarjetas).</summary>
+    private readonly record struct ClaveDeLote(Guid TitularId, AmbitoAplicacion Ambito, bool AEmpresaEmpleadora = false, Guid? DelegacionEmpresaId = null);
+    private static ClaveDeLote Clave(LoteReclamacionAgrupadoDto lote) =>
+        new(lote.TitularId, lote.Ambito, lote.EmpresaEmpleadora is not null, lote.EmpresaEmpleadora?.DelegacionEmpresaId);
+
+    private enum Paso { Seleccion, Cargando, SinResultados, Revision, Error }
 
     private Paso _paso = Paso.Seleccion;
     private IReadOnlyList<LoteReclamacionAgrupadoDto> _lotes = [];
-    private readonly Dictionary<Guid, HashSet<Guid>> _seleccionPorTitular = [];
-    private readonly Dictionary<Guid, HashSet<string>> _seleccionPendientesPorTitular = [];
-    private readonly Dictionary<Guid, HashSet<Guid>> _contactosPorTitular = [];
+    private readonly Dictionary<ClaveDeLote, HashSet<Guid>> _seleccionPorTitular = [];
+    private readonly Dictionary<ClaveDeLote, HashSet<string>> _seleccionPendientesPorTitular = [];
+    private readonly Dictionary<ClaveDeLote, HashSet<Guid>> _contactosPorTitular = [];
+    private readonly Dictionary<ClaveDeLote, ExtraDeTitular> _extraPorTitular = [];
     private bool _enviando;
-    private Guid? _enviandoTitularId;
+    private ClaveDeLote? _enviandoTitularId;
     private SelectorLoteDocumental? _selector;
     private bool _filtroElegidoDifiere;
-    private readonly Dictionary<Guid, string> _revisionInicialPorTitular = [];
+    private readonly Dictionary<ClaveDeLote, string> _revisionInicialPorTitular = [];
 
     /// <summary>
     /// P1-E2b: único punto de verdad de «hay cambios» en la reclamación en lote. Eligiendo
@@ -193,7 +242,7 @@
     {
         Paso.Seleccion => _selector?.DifiereDeLoInicial() == true,
         Paso.Revision => _filtroElegidoDifiere
-            || _lotes.Any(l => _revisionInicialPorTitular.GetValueOrDefault(l.TitularId) != ValoresRevision(l.TitularId)),
+            || _lotes.Any(l => _revisionInicialPorTitular.GetValueOrDefault(Clave(l)) != ValoresRevision(Clave(l))),
         _ => false,
     };
 
@@ -206,10 +255,11 @@
     {
     }
 
-    private string ValoresRevision(Guid titularId) =>
+    private string ValoresRevision(ClaveDeLote titularId) =>
         string.Join(',', _seleccionPorTitular.GetValueOrDefault(titularId, []).Order())
         + ';' + string.Join(',', _contactosPorTitular.GetValueOrDefault(titularId, []).Order())
-        + ';' + string.Join(',', _seleccionPendientesPorTitular.GetValueOrDefault(titularId, []).Order(StringComparer.Ordinal));
+        + ';' + string.Join(',', _seleccionPendientesPorTitular.GetValueOrDefault(titularId, []).Order(StringComparer.Ordinal))
+        + ';' + (_extraPorTitular.TryGetValue(titularId, out var extra) ? extra.ComoValorDeRevision() : string.Empty);
 
     [Parameter] public bool Visible { get; set; }
     [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
@@ -231,6 +281,95 @@
     /// <summary>Se dispara tras cada envío exitoso, para que el llamador refresque su propia lista (p. ej. la cola).</summary>
     [Parameter] public EventCallback OnReclamacionEnviada { get; set; }
 
+    /// <summary>
+    /// Abre la revisión de estos Documentos concretos (Calendario). Se intersectan con
+    /// los lotes autorizados existentes; nunca amplía la ventana ni cambia destinatarios.
+    /// Null conserva el selector de lote habitual; vacío no reclama ningún Documento.
+    /// </summary>
+    [Parameter] public IReadOnlyList<Guid>? DocumentoIdsIniciales { get; set; }
+
+    /// <summary>
+    /// Obligatorio con <see cref="DocumentoIdsIniciales"/> (sin él, abrir con documentos lanza <see cref="InvalidOperationException"/>):
+    /// el único titular al que se puede reclamar desde esta apertura (Calendario: la Empresa de la fila). Los lotes de otro
+    /// titular no se ofrecen aunque contengan esos Documentos: el lote de ámbito Trabajador tiene por titular al Cliente del
+    /// Centro donde trabaja cada Trabajador, con los contactos de ese Cliente, no los de la Empresa dueña de la fila. Lo que
+    /// queda fuera se dice, con su motivo, y no se reclama en silencio a otro.
+    /// </summary>
+    [Parameter] public Guid? TitularIdInicial { get; set; }
+    private bool _inicialesCargados;
+    private int _inicialesPedidos;
+    private int _fueraTrabajadores;
+    private int _fueraVentana;
+
+    // Lo que no entra en el cajón, con el motivo: de Trabajadores (se reclaman desde «Gestionar» de cada Trabajador) o fuera de la ventana
+    // de reclamación (o ya renovado / sin alcance de gestión: ningún lote de la Empresa los trae).
+    private RenderFragment AvisosFuera => __builder =>
+    {
+        if (_fueraTrabajadores > 0)
+        {
+            <p class="texto-vacio-seccion" role="note">@TextosMiTrabajo.Formato("ReclamacionFueraTrabajadores", _fueraTrabajadores, _inicialesPedidos)</p>
+        }
+        if (_fueraVentana > 0)
+        {
+            <p class="texto-vacio-seccion" role="note">@TextosMiTrabajo.Formato("ReclamacionFueraVentana", _fueraVentana, _inicialesPedidos)</p>
+        }
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Visible) { _inicialesCargados = false; _fueraTrabajadores = 0; _fueraVentana = 0; _inicialesPedidos = 0; }
+        if (Visible && DocumentoIdsIniciales is not null && TitularIdInicial is null)
+            throw new InvalidOperationException(
+                "DrawerReclamacionLote: con DocumentoIdsIniciales hay que indicar TitularIdInicial; sin él se ofrecerían lotes de cualquier titular.");
+        if (Visible && DocumentoIdsIniciales is not null && !_inicialesCargados)
+        {
+            _inicialesCargados = true;
+            await ResolverDocumentosInicialesAsync();
+        }
+    }
+
+    private async Task ResolverDocumentosInicialesAsync()
+    {
+        _paso = Paso.Cargando;
+        try
+        {
+            var ids = (DocumentoIdsIniciales ?? []).ToHashSet();
+            var lotes = new List<LoteReclamacionAgrupadoDto>();
+            var ajenos = new List<Guid>();
+            if (ids.Count > 0)
+            {
+                foreach (var ambito in AmbitosDisponibles)
+                {
+                    // Con titular fijado, el ámbito Empresa se pide solo para esa Empresa; el de Trabajador no se puede
+                    // acotar por Empresa (su titular es el Cliente), así que se filtra por titular después.
+                    var titular = TitularIdInicial!.Value;
+                    var entidad = ambito == AmbitoAplicacion.Empresa ? titular : (Guid?)null;
+                    var autorizados = await Mediator.Send(new ObtenerLoteReclamacionPorFiltroQuery(new(ambito, [], entidad)));
+                    if (!Visible) return;
+                    ajenos.AddRange(autorizados.Where(l => l.TitularId != titular && l.Ambito == AmbitoAplicacion.Trabajador)
+                        .SelectMany(l => l.Documentos.Select(d => d.DocumentoId)));
+                    lotes.AddRange(autorizados
+                        .Where(l => l.TitularId == titular)
+                        .Select(l => l with
+                        {
+                            Documentos = l.Documentos.Where(d => ids.Contains(d.DocumentoId)).ToList(),
+                            PendientesSinFecha = null
+                        }).Where(l => l.Documentos.Count > 0));
+                }
+            }
+            _lotes = lotes;
+            _inicialesPedidos = ids.Count;
+            var cubiertos = lotes.SelectMany(l => l.Documentos).Select(d => d.DocumentoId).ToHashSet();
+            _fueraTrabajadores = ids.Count(id => !cubiertos.Contains(id) && ajenos.Contains(id));
+            _fueraVentana = ids.Count(id => !cubiertos.Contains(id) && !ajenos.Contains(id));
+            PrepararRevision();
+        }
+        catch (Exception)
+        {
+            _paso = Paso.Error;
+        }
+    }
+
     private async Task ResolverAsync(FiltroLoteDocumental filtro)
     {
         if (!Visible || _paso != Paso.Seleccion) return;
@@ -239,7 +378,14 @@
         _paso = Paso.Cargando;
         StateHasChanged();
 
-        _lotes = await Mediator.Send(new ObtenerLoteReclamacionPorFiltroQuery(filtro, IncluirPendientesSinFecha));
+        // «Gestionar»: lo de un Trabajador de Empresa se reclama a su Empresa, por Delegación (decisión de Chris, 2026-10-18).
+        _lotes = await Mediator.Send(new ObtenerLoteReclamacionPorFiltroQuery(filtro, IncluirPendientesSinFecha, PorEmpresaEmpleadora: true));
+
+        PrepararRevision();
+    }
+
+    private void PrepararRevision()
+    {
 
         if (_lotes.Count == 0)
         {
@@ -250,28 +396,29 @@
         _seleccionPorTitular.Clear();
         _seleccionPendientesPorTitular.Clear();
         _contactosPorTitular.Clear();
+        _extraPorTitular.Clear();
         foreach (var lote in _lotes)
         {
-            _seleccionPorTitular[lote.TitularId] = lote.Documentos.Select(d => d.DocumentoId).ToHashSet();
-            _seleccionPendientesPorTitular[lote.TitularId] = (lote.PendientesSinFecha ?? []).Select(p => p.Clave).ToHashSet();
-            _contactosPorTitular[lote.TitularId] = (lote.Destinatarios ?? []).Select(d => d.ContactoId).ToHashSet();
+            _seleccionPorTitular[Clave(lote)] = lote.Documentos.Select(d => d.DocumentoId).ToHashSet();
+            _seleccionPendientesPorTitular[Clave(lote)] = (lote.PendientesSinFecha ?? []).Select(p => p.Clave).ToHashSet();
+            _contactosPorTitular[Clave(lote)] = (lote.Destinatarios ?? []).Select(d => d.ContactoId).ToHashSet();
         }
 
         _revisionInicialPorTitular.Clear();
         foreach (var lote in _lotes)
-            _revisionInicialPorTitular[lote.TitularId] = ValoresRevision(lote.TitularId);
+            _revisionInicialPorTitular[Clave(lote)] = ValoresRevision(Clave(lote));
 
         _paso = Paso.Revision;
     }
 
-    private void AlternarSeleccion(Guid titularId, Guid documentoId, bool seleccionado)
+    private void AlternarSeleccion(ClaveDeLote titularId, Guid documentoId, bool seleccionado)
     {
         var seleccionados = _seleccionPorTitular[titularId];
         if (seleccionado) seleccionados.Add(documentoId);
         else seleccionados.Remove(documentoId);
     }
 
-    private void AlternarPendiente(Guid titularId, string clave, bool seleccionado)
+    private void AlternarPendiente(ClaveDeLote titularId, string clave, bool seleccionado)
     {
         var seleccionados = _seleccionPendientesPorTitular[titularId];
         if (seleccionado) seleccionados.Add(clave);
@@ -292,7 +439,7 @@
             sinConfirmar ? "ReclamacionIncluirSinConfirmarEmpresa" : "ReclamacionIncluirFaltaEmpresa", pendiente.TipoDocumentoNombre);
     }
 
-    private void AlternarContacto(Guid titularId, Guid contactoId, bool marcado)
+    private void AlternarContacto(ClaveDeLote titularId, Guid contactoId, bool marcado)
     {
         if (!_contactosPorTitular.TryGetValue(titularId, out var marcados))
             _contactosPorTitular[titularId] = marcados = [];
@@ -308,10 +455,152 @@
     private sealed record EnvioPendiente(
         Guid TitularId, string TitularNombre, AmbitoAplicacion Ambito,
         IReadOnlyList<Guid> DocumentoIds, IReadOnlyList<PendienteSinFecha> Pendientes,
-        IReadOnlyList<Guid> ContactoIds, IReadOnlyList<string> Destinatarios)
+        IReadOnlyList<Guid> ContactoIds, IReadOnlyList<string> Destinatarios,
+        IReadOnlyList<string> CorreosAdicionales, IReadOnlyList<string> CorreosEnCopia,
+        DestinoEmpresaEmpleadoraDto? EmpresaEmpleadora = null)
     {
         public int TotalDocumentos => DocumentoIds.Count + Pendientes.Count;
+
+        public ClaveDeLote Clave => new(TitularId, Ambito, EmpresaEmpleadora is not null, EmpresaEmpleadora?.DelegacionEmpresaId);
     }
+
+    /// <summary>Lo que el gestor añade a mano en una tarjeta: los destinatarios, los de copia y lo que lleva tecleado sin añadir aún.</summary>
+    private sealed class ExtraDeTitular
+    {
+        public List<string> Para { get; } = [];
+        public List<string> Copia { get; } = [];
+        public string BorradorPara { get; set; } = string.Empty;
+        public string BorradorCopia { get; set; } = string.Empty;
+        public string? ErrorPara { get; set; }
+        public string? ErrorCopia { get; set; }
+
+        public bool TieneBorrador => !string.IsNullOrWhiteSpace(BorradorPara) || !string.IsNullOrWhiteSpace(BorradorCopia);
+
+        public string ComoValorDeRevision() =>
+            Para.Count == 0 && Copia.Count == 0 && !TieneBorrador
+                ? string.Empty
+                : string.Join(',', Para) + '|' + string.Join(',', Copia) + '|' + BorradorPara.Trim() + '|' + BorradorCopia.Trim();
+    }
+
+    private ExtraDeTitular ExtraDe(ClaveDeLote titularId)
+    {
+        if (!_extraPorTitular.TryGetValue(titularId, out var extra))
+            _extraPorTitular[titularId] = extra = new ExtraDeTitular();
+        return extra;
+    }
+
+    private RenderFragment CampoExtra(LoteReclamacionAgrupadoDto lote, bool enCopia) => @<div class="reclamacion-extra-campo">
+        @{
+            var extra = ExtraDe(Clave(lote));
+            // Un id por tarjeta: una misma Empresa puede tener una tarjeta por Delegación y otra para su agenda.
+            var destinoCampo = lote.EmpresaEmpleadora is { } destinoLote
+                ? $"-empleadora-{destinoLote.DelegacionEmpresaId?.ToString("N") ?? "agenda"}"
+                : string.Empty;
+            var idCampo = $"extra-{(enCopia ? "cc" : "para")}-{lote.Ambito}-{lote.TitularId:N}{destinoCampo}";
+            var lista = enCopia ? extra.Copia : extra.Para;
+            var borrador = enCopia ? extra.BorradorCopia : extra.BorradorPara;
+            var error = enCopia ? extra.ErrorCopia : extra.ErrorPara;
+            var etiqueta = TextosMiTrabajo.Texto(enCopia ? "ReclamacionExtraCopiaEtiqueta" : "ReclamacionExtraParaEtiqueta");
+        }
+        <label for="@idCampo">@etiqueta</label>
+        <div class="reclamacion-extra-entrada">
+            <input id="@idCampo" type="email" class="campo-input @(error is null ? "" : "campo-input-error")" autocomplete="off"
+                   value="@borrador" disabled="@_enviando"
+                   @oninput="e => CambiarBorrador(extra, enCopia, e.Value?.ToString() ?? string.Empty)"
+                   @onkeydown="e => AlPulsarTecla(e, lote, extra, enCopia)" />
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_enviando"
+                   OnClick="() => AnadirExtra(lote, extra, enCopia)">@TextosMiTrabajo.Texto("ReclamacionExtraAnadir")</Boton>
+        </div>
+        @if (error is not null)
+        {
+            <span class="campo-mensaje-error" role="alert">@error</span>
+        }
+        @if (lista.Count > 0)
+        {
+            <ul class="reclamacion-extra-lista" aria-label="@etiqueta">
+                @foreach (var correo in lista)
+                {
+                    <li>
+                        <span>@correo</span>
+                        <button type="button" class="reclamacion-extra-quitar" disabled="@_enviando"
+                                aria-label="@TextosMiTrabajo.Formato("ReclamacionExtraQuitar", correo)"
+                                @onclick="() => QuitarExtra(extra, enCopia, correo)">×</button>
+                    </li>
+                }
+            </ul>
+        }
+    </div>;
+
+    private static void CambiarBorrador(ExtraDeTitular extra, bool enCopia, string valor)
+    {
+        if (enCopia)
+        {
+            extra.BorradorCopia = valor;
+            extra.ErrorCopia = null;
+        }
+        else
+        {
+            extra.BorradorPara = valor;
+            extra.ErrorPara = null;
+        }
+    }
+
+    private void AlPulsarTecla(KeyboardEventArgs e, LoteReclamacionAgrupadoDto lote, ExtraDeTitular extra, bool enCopia)
+    {
+        if (e.Key == "Enter")
+            AnadirExtra(lote, extra, enCopia);
+    }
+
+    /// <summary>
+    /// Añade lo tecleado a la lista, o dice por qué no: formato, repetido (en cualquiera de las dos listas o ya en la agenda de la
+    /// tarjeta) o el tope. El comando lo vuelve a comprobar; aquí es solo para avisar al momento.
+    /// </summary>
+    private void AnadirExtra(LoteReclamacionAgrupadoDto lote, ExtraDeTitular extra, bool enCopia)
+    {
+        if (_enviando) return;
+
+        var correo = (enCopia ? extra.BorradorCopia : extra.BorradorPara).Trim();
+        if (correo.Length == 0) return;
+
+        string? error = null;
+        var lista = enCopia ? extra.Copia : extra.Para;
+        if (!DestinatariosExtraDeReclamacion.EsCorreoUtilizable(correo))
+            error = TextosMiTrabajo.Formato("ReclamacionExtraNoValido", correo);
+        else if ((lote.Destinatarios ?? []).Any(d => string.Equals(d.Email, correo, StringComparison.OrdinalIgnoreCase)))
+            error = TextosMiTrabajo.Formato("ReclamacionExtraEnAgenda", correo);
+        else if (extra.Para.Concat(extra.Copia).Any(e => string.Equals(e, correo, StringComparison.OrdinalIgnoreCase)))
+            error = TextosMiTrabajo.Formato("ReclamacionExtraRepetido", correo);
+        else if (lista.Count >= DestinatariosExtraDeReclamacion.MaximoPorLista)
+            error = TextosMiTrabajo.Formato("ReclamacionExtraTope", DestinatariosExtraDeReclamacion.MaximoPorLista);
+        else if (!CabeEnElRegistro(lote, extra, enCopia ? null : correo, enCopia ? correo : null))
+            error = TextosMiTrabajo.Texto("ReclamacionExtraNoCabe");
+
+        if (error is null)
+        {
+            lista.Add(correo);
+            if (enCopia) extra.BorradorCopia = string.Empty;
+            else extra.BorradorPara = string.Empty;
+        }
+
+        if (enCopia) extra.ErrorCopia = error;
+        else extra.ErrorPara = error;
+    }
+
+    /// <summary>
+    /// Si el envío (contactos de la agenda marcados, más lo añadido a mano y lo que se va a añadir) cabe en el registro. El comando lo
+    /// comprueba antes de enviar; aquí se avisa al añadir y no tras la confirmación.
+    /// </summary>
+    private bool CabeEnElRegistro(LoteReclamacionAgrupadoDto lote, ExtraDeTitular extra, string? nuevoPara, string? nuevaCopia)
+    {
+        var marcados = _contactosPorTitular.GetValueOrDefault(Clave(lote), []);
+        var agenda = (lote.Destinatarios ?? []).Where(d => marcados.Contains(d.ContactoId)).Select(d => d.Email).Distinct();
+        var para = agenda.Concat(extra.Para).Concat(nuevoPara is null ? [] : [nuevoPara]);
+        var copia = extra.Copia.Concat(nuevaCopia is null ? [] : [nuevaCopia]);
+        return DestinatariosExtraDeReclamacion.CabeEnElRegistro(para, copia);
+    }
+
+    private static void QuitarExtra(ExtraDeTitular extra, bool enCopia, string correo) =>
+        (enCopia ? extra.Copia : extra.Para).Remove(correo);
 
     private EnvioPendiente? _envioPendiente;
 
@@ -325,23 +614,28 @@
 
     private string MensajeConfirmacionEnvio => _envioPendiente is not { } envio
         ? string.Empty
-        : TextosMiTrabajo.Formato("ReclamacionConfirmarMensaje", envio.TotalDocumentos, envio.ContactoIds.Count, string.Join(", ", envio.Destinatarios));
+        : envio.CorreosAdicionales.Count == 0 && envio.CorreosEnCopia.Count == 0
+            ? TextosMiTrabajo.Formato("ReclamacionConfirmarMensaje", envio.TotalDocumentos, envio.ContactoIds.Count, string.Join(", ", envio.Destinatarios))
+            : TextosMiTrabajo.Formato(
+                "ReclamacionConfirmarMensajeConExtras", envio.TotalDocumentos, envio.ContactoIds.Count, string.Join(", ", envio.Destinatarios),
+                envio.CorreosAdicionales.Count == 0 ? string.Empty : TextosMiTrabajo.Formato("ReclamacionConfirmarAdicionales", string.Join(", ", envio.CorreosAdicionales)),
+                envio.CorreosEnCopia.Count == 0 ? string.Empty : TextosMiTrabajo.Formato("ReclamacionConfirmarCopia", string.Join(", ", envio.CorreosEnCopia)));
 
     private void PedirConfirmacion(LoteReclamacionAgrupadoDto lote)
     {
-        if (_enviando || !Visible || !_lotes.Any(l => l.TitularId == lote.TitularId)) return;
+        if (_enviando || !Visible || !_lotes.Any(l => Clave(l) == Clave(lote))) return;
 
-        var documentoIds = _seleccionPorTitular[lote.TitularId].ToList();
+        var documentoIds = _seleccionPorTitular[Clave(lote)].ToList();
 
         // Lo seleccionado sin vencimiento, tal como lo pide el envío (que lo revalida contra la base).
-        var seleccionPendientes = _seleccionPendientesPorTitular[lote.TitularId];
+        var seleccionPendientes = _seleccionPendientesPorTitular[Clave(lote)];
         var pendientes = (lote.PendientesSinFecha ?? [])
             .Where(p => seleccionPendientes.Contains(p.Clave))
             .Select(p => p.ComoPedido())
             .ToList();
         if (documentoIds.Count == 0 && pendientes.Count == 0) return;
 
-        var contactoIds = _contactosPorTitular.GetValueOrDefault(lote.TitularId, []).ToList();
+        var contactoIds = _contactosPorTitular.GetValueOrDefault(Clave(lote), []).ToList();
         if (contactoIds.Count == 0) return;
 
         var destinatarios = (lote.Destinatarios ?? [])
@@ -349,9 +643,36 @@
             .Select(d => $"{d.Nombre} ({d.Email})")
             .ToList();
 
+        // Un correo tecleado y sin añadir no sale ni se descarta en silencio: el gestor decide antes de enviar.
+        var extra = ExtraDe(Clave(lote));
+        if (extra.TieneBorrador)
+        {
+            if (!string.IsNullOrWhiteSpace(extra.BorradorPara)) extra.ErrorPara = TextosMiTrabajo.Texto("ReclamacionExtraSinAnadir");
+            if (!string.IsNullOrWhiteSpace(extra.BorradorCopia)) extra.ErrorCopia = TextosMiTrabajo.Texto("ReclamacionExtraSinAnadir");
+            return;
+        }
+
+        // Marcar más contactos de la agenda tras añadir los manuales puede pasar el tope del registro: se dice aquí, no tras la confirmación.
+        if (extra.Para.Count + extra.Copia.Count > 0 && !CabeEnElRegistro(lote, extra, null, null))
+        {
+            extra.ErrorPara = TextosMiTrabajo.Texto("ReclamacionExtraNoCabe");
+            return;
+        }
+
+        // La vista previa dice a qué Delegación sale, no solo a qué Empresa (los contactos ya van con nombre y correo).
         _envioPendiente = new EnvioPendiente(
-            lote.TitularId, lote.TitularNombre, lote.Ambito, documentoIds, pendientes, contactoIds, destinatarios);
+            lote.TitularId, TituloDeLote(lote), lote.Ambito, documentoIds, pendientes, contactoIds, destinatarios,
+            [.. extra.Para], [.. extra.Copia], lote.EmpresaEmpleadora);
     }
+
+    /// <summary>
+    /// El nombre del lote en su tarjeta y en la confirmación: la Empresa y, si va al contacto de una Delegación, también la
+    /// Delegación, porque una misma Empresa puede tener una tarjeta por Delegación y otra para su agenda.
+    /// </summary>
+    private static string TituloDeLote(LoteReclamacionAgrupadoDto lote) =>
+        lote.EmpresaEmpleadora?.DelegacionEmpresaNombre is { } delegacion
+            ? $"{lote.TitularNombre} ({delegacion})"
+            : lote.TitularNombre;
 
     private void CerrarConfirmacionEnvio(bool visible)
     {
@@ -362,14 +683,14 @@
     private async Task ConfirmarEnvioAsync()
     {
         if (_envioPendiente is not { } envio) return;
-        if (_enviando || !Visible || !_lotes.Any(l => l.TitularId == envio.TitularId))
+        if (_enviando || !Visible || !_lotes.Any(l => Clave(l) == envio.Clave))
         {
             _envioPendiente = null;
             return;
         }
 
         _enviando = true;
-        _enviandoTitularId = envio.TitularId;
+        _enviandoTitularId = envio.Clave;
         try
         {
             // Un comando por ámbito del titular (ver
@@ -377,11 +698,17 @@
             // es el Cliente resuelto vía Centro; con Empresa es la Empresa
             // contraparte dueña de sus propios documentos. Sin CentroId en los
             // dos casos: el selector no acota por Centro.
-            var resultado = envio.Ambito == AmbitoAplicacion.Empresa
+            var resultado = envio.EmpresaEmpleadora is { } destino
+                ? await Mediator.Send(new EnviarReclamacionEmpresaEmpleadoraCommand(
+                    envio.TitularId, destino.DelegacionEmpresaId, envio.DocumentoIds, ContactoIdsSeleccionados: envio.ContactoIds,
+                    Pendientes: envio.Pendientes, CorreosAdicionales: envio.CorreosAdicionales, CorreosEnCopia: envio.CorreosEnCopia))
+                : envio.Ambito == AmbitoAplicacion.Empresa
                 ? await Mediator.Send(new EnviarReclamacionEmpresaCommand(
-                    envio.TitularId, envio.DocumentoIds, ContactoIdsSeleccionados: envio.ContactoIds, Pendientes: envio.Pendientes))
+                    envio.TitularId, envio.DocumentoIds, ContactoIdsSeleccionados: envio.ContactoIds, Pendientes: envio.Pendientes,
+                    CorreosAdicionales: envio.CorreosAdicionales, CorreosEnCopia: envio.CorreosEnCopia))
                 : await Mediator.Send(new EnviarReclamacionCommand(
-                    envio.TitularId, envio.DocumentoIds, CentroId: null, ContactoIdsSeleccionados: envio.ContactoIds, Pendientes: envio.Pendientes));
+                    envio.TitularId, envio.DocumentoIds, CentroId: null, ContactoIdsSeleccionados: envio.ContactoIds, Pendientes: envio.Pendientes,
+                    CorreosAdicionales: envio.CorreosAdicionales, CorreosEnCopia: envio.CorreosEnCopia));
 
             if (resultado.EsFallido)
             {
@@ -394,7 +721,7 @@
                 // a quien ya lo recibió, así que sale de la lista y la cola se refresca.
                 if (resultado.Error.Codigo == RegistroEnvioReclamacionService.CodigoEnvioParcial)
                 {
-                    _lotes = [.. _lotes.Where(l => l.TitularId != envio.TitularId)];
+                    _lotes = [.. _lotes.Where(l => Clave(l) != envio.Clave)];
                     await OnReclamacionEnviada.InvokeAsync();
                     if (_lotes.Count == 0)
                         await CerrarAsync(false);
@@ -405,7 +732,7 @@
 
             _envioPendiente = null;
             ToastService.Mostrar($"Reclamación enviada a {envio.TitularNombre}.", TonoToast.Exito);
-            _lotes = [.. _lotes.Where(l => l.TitularId != envio.TitularId)];
+            _lotes = [.. _lotes.Where(l => Clave(l) != envio.Clave)];
             await OnReclamacionEnviada.InvokeAsync();
 
             if (_lotes.Count == 0)
@@ -426,6 +753,9 @@
             _paso = Paso.Seleccion;
             _lotes = [];
             _filtroElegidoDifiere = false;
+            _fueraTrabajadores = 0;
+            _fueraVentana = 0;
+            _inicialesPedidos = 0;
         }
 
         return VisibleChanged.InvokeAsync(visible);

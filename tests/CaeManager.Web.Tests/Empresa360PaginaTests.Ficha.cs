@@ -62,7 +62,7 @@ public partial class Empresa360PaginaTests
     {
         var m = Empresa(); m.Sellos.Clear(); Registrar(m, Roles.Consulta);
         var cut = Renderizar("?pestana=ficha");
-        cut.FindAll("[data-caja]").Should().HaveCount(4);
+        cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Should().HaveCount(4);
         cut.FindAll("[data-caja] dd").Should().NotBeEmpty().And.OnlyContain(d => d.TextContent.Trim() == "\u2014");
         cut.FindAll("[data-caja] button").Should().BeEmpty();
         cut.FindComponents<EditarFichaEmpresaDrawer>().Should().BeEmpty();

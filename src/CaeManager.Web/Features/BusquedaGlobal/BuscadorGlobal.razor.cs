@@ -1,5 +1,10 @@
 using CaeManager.Application.BusquedaGlobal.Commands.RegistrarUsoReciente;
 using CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal;
+using CaeManager.Application.BusquedaGlobal.Queries.ContarVencenEstaSemana;
+using CaeManager.Domain.Documentos;
+using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Documentos;
+using Microsoft.AspNetCore.Components.Authorization;
 using CaeManager.Application.BusquedaGlobal.Queries.ObtenerRecientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
@@ -41,6 +46,19 @@ public partial class BuscadorGlobal
     private bool _buscando;
     private ResultadoBusquedaGlobalDto? _resultado;
     private int _indiceSeleccionado = -1;
+
+    /// <summary>
+    /// Fila activa que se pinta y que Enter ejecuta: la seleccionada, pero solo mientras la lista está a la vista.
+    /// Al abrir y al escribir se arranca en la primera (la maqueta pone <c>focus: 0</c>); mientras se busca, ante un
+    /// error o un aviso de documento la lista no se ve y Enter no puede ejecutar una fila oculta ni una ya superada.
+    /// </summary>
+    private int IndiceActivo =>
+        _indiceSeleccionado >= 0
+        && DocumentoActual?.Aviso is null
+        && (ConsultaVacia || (_errorBusqueda is null && !_buscando))
+        && _indiceSeleccionado < ElementosPlanos.Count
+            ? _indiceSeleccionado
+            : -1;
 
     /// <summary>
     /// Mensaje de fallo de la búsqueda vigente. Existe porque un fallo no
@@ -101,6 +119,18 @@ public partial class BuscadorGlobal
     /// <summary>"Recientes" del estado inicial — cargado una sola vez al abrir el palette, no en cada tecla.</summary>
     private IReadOnlyList<ItemRecienteDto> _recientes = [];
 
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    /// <summary>
+    /// ¿El rol efectivo puede escribir? Lo mismo que pregunta <see cref="SoloConEscritura"/> ante el botón «Subir
+    /// documento» de Trabajador 360: sin escritura, «Subir documento para {Trabajador}» no se ofrece. Se resuelve en
+    /// cada apertura; el alta sigue autorizándose en servidor.
+    /// </summary>
+    private bool _puedeEscribir;
+
+    /// <summary>Recuento «vencen esta semana» de cada Empresa sujeto de «Reclamar a…», pedido una vez por apertura; null = no calculado (fuera de cartera o fallo).</summary>
+    private readonly Dictionary<Guid, int?> _vencenEstaSemana = [];
+
     /// <summary>"En esta pantalla" del estado inicial — resuelto una sola vez al abrir, a partir de la ruta actual.</summary>
     private IReadOnlyList<ItemBusquedaDto> _accionesPantalla = [];
 
@@ -108,6 +138,7 @@ public partial class BuscadorGlobal
 
     /// <summary>true mientras la query está vacía (&lt;2 caracteres) — el estado que muestra Recientes + En esta pantalla en vez de resultados de búsqueda.</summary>
     private bool ConsultaVacia => _termino.Trim().Length < 2;
+    private DocumentoBuscado? DocumentoActual => DocumentoBuscado.Analizar(_termino);
 
     /// <summary>
     /// Marcador para "Guardar filtro actual" en <see cref="AccionesContextualesPorPantalla"/> — a
@@ -142,6 +173,8 @@ public partial class BuscadorGlobal
         ("Crear Cliente", "/clientes?accion=crear"),
         ("Alta guiada de Cliente", "/clientes/alta-guiada"),
         ("Crear documento", "/documentos?accion=crear"),
+        ("Reclamar…", "/comunicaciones"),
+        ("Subir…", "/documentos?accion=crear"),
     ];
 
     private IReadOnlyList<ItemBusquedaDto> IrA
@@ -149,6 +182,10 @@ public partial class BuscadorGlobal
         get
         {
             var termino = _termino.Trim();
+            if (termino.StartsWith("ir a", StringComparison.OrdinalIgnoreCase))
+                termino = termino[4..].Trim();
+            if (_termino.Trim().Equals("ir a", StringComparison.OrdinalIgnoreCase))
+                return CoberturaDePaleta.DestinosNavegacion.Select(c => new ItemBusquedaDto(Guid.Empty, c.Nombre, null, c.Ruta)).ToList();
             if (termino.Length < 2) return [];
 
             return CoberturaDePaleta.DestinosNavegacion
@@ -164,34 +201,184 @@ public partial class BuscadorGlobal
     /// el término ya escrito precargado como nombre — pedido explícito: "si
     /// introduce una empresa/centro/trabajador que no se encuentre, dar la
     /// opción de crearlo con el nombre ya prellenado".
+    ///
+    /// Si el término empieza por un verbo de la maqueta (reclamar, subir, ir a)
+    /// las acciones llevan sujeto —«Reclamar a {Empresa}», «Subir documento para
+    /// {Trabajador}», «Ir a {Centro}»— tomado de los Recientes de la apertura
+    /// (<see cref="AccionesConSujeto"/>); sin sujeto disponible queda la acción
+    /// genérica. Con un verbo escrito nunca se ofrece «Crear X «término»»: el
+    /// término no es un nombre.
     /// </summary>
-    private IReadOnlyList<ItemBusquedaDto> Acciones
+    private IReadOnlyList<ItemPaleta> Acciones
     {
         get
         {
             var termino = _termino.Trim();
             if (termino.Length < 2) return [];
+            if (DocumentoActual is not null) return [];
 
-            var acciones = AccionesFijas
-                .Where(c => c.Nombre.Contains(termino, StringComparison.OrdinalIgnoreCase))
-                .Select(c => new ItemBusquedaDto(Guid.Empty, c.Nombre, null, c.Ruta))
-                .ToList();
+            var verbo = VerboDeAccion(termino);
+            var conSujeto = verbo is null ? [] : AccionesConSujeto(FiltroTrasElVerbo(termino, verbo));
+            var esIrA = verbo == VerboIrA;
+            var esperadas = conSujeto.Select(a => a.PistaEnter).ToHashSet();
 
-            if (_resultado is not null)
+            var acciones = esIrA
+                ? []
+                : AccionesFijas
+                    .Where(c => c.Nombre.Contains(termino, StringComparison.OrdinalIgnoreCase))
+                    // Una acción con sujeto sustituye a su versión genérica.
+                    .Where(c => !(c.Nombre == "Reclamar…" && esperadas.Contains("Reclamar")) &&
+                                !(c.Nombre == "Subir…" && esperadas.Contains("Subir")))
+                    .Select(c => ComoAccion(new ItemBusquedaDto(Guid.Empty, c.Nombre, null, c.Ruta)))
+                    .ToList();
+
+            acciones.InsertRange(0, conSujeto);
+
+            if (_resultado is not null && verbo is null && !acciones.Any(a => a.Item.Titulo is "Reclamar…" or "Subir…"))
             {
                 var terminoCodificado = Uri.EscapeDataString(termino);
 
                 if (_resultado.Empresas.Count == 0)
-                    acciones.Add(new ItemBusquedaDto(Guid.Empty, $"Crear empresa «{termino}»", null, $"/empresas?accion=crear&nombre={terminoCodificado}"));
+                    acciones.Add(ComoAccion(new ItemBusquedaDto(Guid.Empty, $"Crear empresa «{termino}»", null, $"/empresas?accion=crear&nombre={terminoCodificado}")));
                 if (_resultado.Centros.Count == 0)
-                    acciones.Add(new ItemBusquedaDto(Guid.Empty, $"Crear centro «{termino}»", null, $"/centros?accion=crear&nombre={terminoCodificado}"));
+                    acciones.Add(ComoAccion(new ItemBusquedaDto(Guid.Empty, $"Crear centro «{termino}»", null, $"/centros?accion=crear&nombre={terminoCodificado}")));
                 if (_resultado.Trabajadores.Count == 0)
-                    acciones.Add(new ItemBusquedaDto(Guid.Empty, $"Crear trabajador «{termino}»", null, $"/trabajadores?accion=crear&nombre={terminoCodificado}"));
+                    acciones.Add(ComoAccion(new ItemBusquedaDto(Guid.Empty, $"Crear trabajador «{termino}»", null, $"/trabajadores?accion=crear&nombre={terminoCodificado}")));
             }
 
             return acciones;
         }
     }
+
+    private static string Texto(string clave) => TextosBusquedaGlobal.Texto(clave);
+
+    private static string Texto(string clave, string argumento) =>
+        string.Format(CultureInfo.CurrentUICulture, TextosBusquedaGlobal.Texto(clave), argumento);
+
+    private static string Placeholder => TextosBusquedaGlobal.Texto("Placeholder");
+
+    private const string VerboReclamar = "reclamar";
+    private const string VerboSubir = "subir";
+    private const string VerboIrA = "ir a";
+
+    /// <summary>El verbo de la maqueta con el que empieza el término como palabra completa (sin distinguir mayúsculas), o null: «Subirats» no es el verbo «subir».</summary>
+    private static string? VerboDeAccion(string termino) =>
+        new[] { VerboReclamar, VerboSubir, VerboIrA }
+            .FirstOrDefault(v => termino.StartsWith(v, StringComparison.OrdinalIgnoreCase)
+                && (termino.Length == v.Length || termino[v.Length] == ' '));
+
+    /// <summary>Lo escrito tras el verbo y su preposición («reclamar a Refri» → «Refri»); vacío si solo hay verbo.</summary>
+    private static string FiltroTrasElVerbo(string termino, string verbo)
+    {
+        var resto = termino[verbo.Length..].Trim();
+        foreach (var preposicion in new[] { "para", "a" })
+        {
+            if (resto.Equals(preposicion, StringComparison.OrdinalIgnoreCase)) return string.Empty;
+            if (resto.StartsWith(preposicion + " ", StringComparison.OrdinalIgnoreCase))
+                return resto[(preposicion.Length + 1)..].Trim();
+        }
+        return resto;
+    }
+
+    /// <summary>
+    /// Acciones con sujeto de la maqueta, en su orden. El sujeto sale de los
+    /// Recientes ya cargados al abrir —el palette no hace ninguna consulta
+    /// nueva, así que el alcance de cartera no se ensancha—: la Empresa, el
+    /// Trabajador y el Centro más recientes que casen con lo escrito tras el
+    /// verbo. Sin reciente de ese tipo no hay acción con sujeto y queda la
+    /// genérica. El subtítulo de «Reclamar a {Empresa}» es «N documentos vencen
+    /// esta semana» (<see cref="ContarVencenEstaSemanaDeEmpresaQuery"/>, pedido
+    /// una sola vez para ese sujeto en <see cref="CargarVencenEstaSemanaAsync"/>);
+    /// sin recuento, va vacío. «Reclamar» abre Comunicaciones sin fijar la
+    /// Empresa: la Bandeja solo admite el filtro por Cliente empresarial.
+    /// «Subir documento para…» solo se ofrece con escritura.
+    /// </summary>
+    private List<ItemPaleta> AccionesConSujeto(string filtro)
+    {
+        bool Casa(ItemRecienteDto r) =>
+            filtro.Length == 0 || r.Titulo.Contains(filtro, StringComparison.OrdinalIgnoreCase);
+
+        var acciones = new List<ItemPaleta>();
+
+        if (EmpresaSujeto(filtro) is { } empresa)
+            acciones.Add(new ItemPaleta(
+                new ItemBusquedaDto(Guid.Empty, Texto("ReclamarA", empresa.Titulo), null, "/comunicaciones"),
+                null, "enviar", TextoVencenEstaSemana(empresa.EntidadId), "Reclamar"));
+
+        if (_puedeEscribir && _recientes.FirstOrDefault(r => r.Tipo == "Trabajador" && r.EntidadId is not null && Casa(r)) is { } trabajador)
+            acciones.Add(new ItemPaleta(
+                new ItemBusquedaDto(Guid.Empty, Texto("SubirDocumentoPara", trabajador.Titulo), null, RutaSubirDocumentoDeTrabajador(trabajador.EntidadId!.Value)),
+                null, "importar", string.IsNullOrWhiteSpace(trabajador.Subtitulo) ? string.Empty : trabajador.Subtitulo, "Subir"));
+
+        if (_recientes.FirstOrDefault(r => r.Tipo == "Centro" && EsRutaLocal(r.UrlDestino) && Casa(r)) is { } centro)
+            acciones.Add(new ItemPaleta(
+                new ItemBusquedaDto(Guid.Empty, $"Ir a {centro.Titulo}", null, centro.UrlDestino),
+                null, "centros", string.Empty, "Abrir"));
+
+        return acciones;
+    }
+
+    /// <summary>La Empresa reciente que casa con lo escrito tras el verbo: el sujeto de «Reclamar a…».</summary>
+    private ItemRecienteDto? EmpresaSujeto(string filtro) =>
+        _recientes.FirstOrDefault(r => r.Tipo == "Empresa" &&
+            (filtro.Length == 0 || r.Titulo.Contains(filtro, StringComparison.OrdinalIgnoreCase)));
+
+    private string TextoVencenEstaSemana(Guid? empresaId) =>
+        empresaId is { } id && _vencenEstaSemana.TryGetValue(id, out var recuento) && recuento is { } n
+            ? n == 1 ? Texto("VencenEstaSemanaUno") : Texto("VencenEstaSemanaVarios", n.ToString(CultureInfo.CurrentCulture))
+            : string.Empty;
+
+    /// <summary>
+    /// Pide el recuento «vencen esta semana» del sujeto de «Reclamar a…» si el término lleva verbo y aún no se pidió en
+    /// esta apertura. Una consulta por sujeto, nunca por tecla; si falla, la acción sigue ofreciéndose sin subtítulo.
+    /// </summary>
+    private async Task CargarVencenEstaSemanaAsync(string termino, CancellationToken token)
+    {
+        var limpio = termino.Trim();
+        if (DocumentoBuscado.Analizar(limpio) is not null || VerboDeAccion(limpio) is not { } verbo || verbo == VerboIrA) return;
+        if (EmpresaSujeto(FiltroTrasElVerbo(limpio, verbo)) is not { EntidadId: { } empresaId } ||
+            _vencenEstaSemana.ContainsKey(empresaId)) return;
+
+        try
+        {
+            _vencenEstaSemana[empresaId] = await Mediator.Send(new ContarVencenEstaSemanaDeEmpresaQuery(empresaId), token);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            _vencenEstaSemana[empresaId] = null;
+        }
+    }
+
+    /// <summary>Texto del estado del Trabajador en una búsqueda por DNI/NIE: el de la maqueta («Al día», «2 documentos vencidos», «Pendiente») sobre el estado del listado de Trabajadores.</summary>
+    internal static string TextoEstadoTrabajador(EstadoTrabajadorBuscadoDto estado)
+    {
+        if (estado.DocumentosVencidos > 0)
+            return estado.DocumentosVencidos == 1
+                ? Texto("EstadoVencidosUno")
+                : Texto("EstadoVencidosVarios", estado.DocumentosVencidos.ToString(CultureInfo.CurrentCulture));
+
+        return EstadoDocumentoUi.ConFaltantes(estado.PeorEstado, estado.HayFaltantes) switch
+        {
+            null => EstadoDocumentoUi.TextoDocumental(null),
+            EstadoDocumento.Faltante => Texto("EstadoPendiente"),
+            { } peor when EstadoDocumentoUi.EsCorrecto(peor) => Texto("EstadoAlDia"),
+            { } peor => EstadoDocumentoUi.Texto(peor),
+        };
+    }
+
+    /// <summary>
+    /// Trabajador 360 en la pestaña Documentación con <c>accion=subir</c>: la ficha abre allí la subida con el
+    /// Trabajador fijado, solo si el rol puede escribir (la misma comprobación que el botón «Subir documento»).
+    /// </summary>
+    private static string RutaSubirDocumentoDeTrabajador(Guid trabajadorId) =>
+        $"/trabajadores/{trabajadorId}?pestana=documentacion&accion=subir";
+
+    private static bool EsRutaLocal(string url) =>
+        url.StartsWith('/') && !url.StartsWith("//", StringComparison.Ordinal) && !url.Contains('\\');
 
     /// <summary>
     /// Una fila del palette, ya resuelta para pintar: el DTO, el tipo con el
@@ -202,7 +389,7 @@ public partial class BuscadorGlobal
     private sealed record ItemPaleta(ItemBusquedaDto Item, string? TipoHistorial, string Icono, string Subtitulo, string PistaEnter);
 
     /// <summary>Una sección del palette, con el título en versalitas del mockup.</summary>
-    private sealed record GrupoPaleta(string Titulo, IReadOnlyList<ItemPaleta> Items);
+    private sealed record GrupoPaleta(string Titulo, IReadOnlyList<ItemPaleta> Items, string? UrlVerMas = null);
 
     /// <summary>
     /// Etiqueta de tipo de cada categoría de entidad, en terminología
@@ -272,6 +459,7 @@ public partial class BuscadorGlobal
         get
         {
             var grupos = new List<GrupoPaleta>();
+            if (DocumentoActual is { EsValido: false }) return grupos;
 
             if (ConsultaVacia)
             {
@@ -286,10 +474,19 @@ public partial class BuscadorGlobal
                 }
 
                 if (_accionesPantalla.Count > 0)
-                    grupos.Add(new GrupoPaleta("En esta pantalla", [.. _accionesPantalla.Select(ComoAccion)]));
+                {
+                    var pantalla = NombreDePantalla(SegmentoDeRuta(Navigation.Uri));
+                    grupos.Add(new GrupoPaleta("En esta pantalla",
+                        [.. _accionesPantalla.Select(a => ComoAccionDePantalla(a, pantalla))]));
+                }
 
                 return grupos;
             }
+
+            // Búsqueda por documento completo y válido: la maqueta no usa el grupo
+            // genérico «Entidades» sino «Trabajador» (+ «Acciones») o «Empresa».
+            if (DocumentoActual is { EsValido: true } documento)
+                return GruposPorDocumento(documento);
 
             if (_resultado is not null && _resultado.TieneResultados)
             {
@@ -301,7 +498,7 @@ public partial class BuscadorGlobal
                     .. ComoEntidades(_resultado.Documentos, "Documento", "Documento", "documentos"),
                 ];
 
-                grupos.Add(new GrupoPaleta("Entidades", entidades));
+                grupos.Add(new GrupoPaleta("Entidades", entidades, UrlVerMas(_resultado, _termino.Trim())));
             }
 
             if (IrA.Count > 0)
@@ -310,22 +507,139 @@ public partial class BuscadorGlobal
                     new ItemPaleta(i, null, "configuracion", string.Empty, "ir"))]));
             }
 
-            if (Acciones.Count > 0)
-                grupos.Add(new GrupoPaleta("Acciones", [.. Acciones.Select(ComoAccion)]));
+            var acciones = Acciones;
+            if (acciones.Count > 0)
+                grupos.Add(new GrupoPaleta("Acciones", acciones));
 
             return grupos;
         }
     }
 
+    /// <summary>
+    /// «Ver más →» del grupo Entidades: el listado del primer módulo (en el orden del grupo) que tiene más
+    /// coincidencias de las que caben, con el término en su filtro (?q=). El listado aplica su propio alcance; el
+    /// palette no consulta nada más. Null si ninguna categoría se quedó corta.
+    /// </summary>
+    private static string? UrlVerMas(ResultadoBusquedaGlobalDto resultado, string termino)
+    {
+        // Empresas: el listado lo decide la consulta con el mismo criterio que cada fila (clientes, subcontratas o
+        // empresas según el alcance que la trajo), para no aterrizar en un listado donde no se ven.
+        var modulo = resultado.ListadoVerMasEmpresas
+            ?? (resultado.HayMasCentros ? "centros"
+                : resultado.HayMasTrabajadores ? "trabajadores"
+                : resultado.HayMasDocumentos ? "documentos"
+                : null);
+        return modulo is null ? null : $"/{modulo}?q={Uri.EscapeDataString(termino)}";
+    }
+
+    /// <summary>
+    /// «Buscar en documentos por identificador →» del bloque «Sin resultados»: Documentos con lo escrito en su
+    /// filtro, salvo un DNI/NIE, que nunca viaja en la URL (historial, registros, Referer): entonces Documentos sin
+    /// filtro.
+    /// </summary>
+    private string UrlBuscarEnDocumentos =>
+        DocumentoActual is { Tipo: CaeManager.Domain.Common.TipoIdentificacion.Dni or CaeManager.Domain.Common.TipoIdentificacion.Nie }
+            ? "/documentos"
+            : $"/documentos?q={Uri.EscapeDataString(_termino.Trim())}";
+
+    /// <summary>Enlace fuera de la lista navegable («Ver más →», «Buscar en documentos…»): cierra y navega, sin registrar uso.</summary>
+    private void NavegarFueraDeLista(string url)
+    {
+        if (_navegando) return;
+        _navegando = true;
+        Cerrar();
+        Navigation.NavigateTo(url);
+    }
+
     private static ItemPaleta ComoAccion(ItemBusquedaDto item) =>
         new(item, "Accion", "editar", string.Empty, "ejecutar");
 
-    private static IEnumerable<ItemPaleta> ComoEntidades(
-        IReadOnlyList<ItemBusquedaDto> items, string tipoHistorial, string etiquetaTipo, string icono) =>
-        items.Select(i => new ItemPaleta(i, tipoHistorial, icono, ComponerSubtitulo(etiquetaTipo, i.Subtitulo), "abrir ficha"));
+    /// <summary>
+    /// «En esta pantalla» de la maqueta: cada acción con su icono (crear → pulso, guardar el filtro → filtro,
+    /// exportar → descargar) y, de subtítulo, la pantalla en la que se está («Documentos»).
+    /// </summary>
+    private static ItemPaleta ComoAccionDePantalla(ItemBusquedaDto item, string pantalla) =>
+        new(item, "Accion", IconoDeAccionDePantalla(item.UrlDestino), pantalla, "ejecutar");
 
-    private static IEnumerable<ItemPaleta> ComoEntidadesEmpresa(IReadOnlyList<ItemBusquedaDto> items) =>
-        items.Select(i => new ItemPaleta(i, "Empresa", "empresas", ComponerSubtituloEmpresa(i.Subtitulo), "abrir ficha"));
+    private static string IconoDeAccionDePantalla(string ruta)
+    {
+        if (ruta.Contains("accion=guardar-filtro", StringComparison.Ordinal)) return "filtro";
+        var sinConsulta = ruta.Split('?', 2)[0];
+        return sinConsulta.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) ? "descargar" : "pulso";
+    }
+
+    private static string NombreDePantalla(string? segmento) =>
+        string.IsNullOrEmpty(segmento) ? string.Empty : char.ToUpperInvariant(segmento[0]) + segmento[1..];
+
+    private IEnumerable<ItemPaleta> ComoEntidades(
+        IReadOnlyList<ItemBusquedaDto> items, string tipoHistorial, string etiquetaTipo, string icono) =>
+        items.Select(i => new ItemPaleta(i, tipoHistorial, icono,
+            ComponerSubtitulo(etiquetaTipo, i.Subtitulo), "abrir ficha"));
+
+    private IEnumerable<ItemPaleta> ComoEntidadesEmpresa(IReadOnlyList<ItemBusquedaDto> items) =>
+        items.Select(i => new ItemPaleta(i, "Empresa", "empresas",
+            ComponerSubtituloEmpresa(i.Subtitulo), "abrir ficha"));
+
+    /// <summary>
+    /// Resultado de buscar un DNI/NIE o un CIF completo y válido, tal y como lo
+    /// dibuja la maqueta del Command Palette. Solo ve lo que devolvió la
+    /// consulta (alcance de cartera y RLS ya aplicados); el documento buscado
+    /// no se proyecta en ninguna fila.
+    /// </summary>
+    private IReadOnlyList<GrupoPaleta> GruposPorDocumento(DocumentoBuscado documento)
+    {
+        var grupos = new List<GrupoPaleta>();
+        if (_resultado is null) return grupos;
+
+        if (documento.Tipo == CaeManager.Domain.Common.TipoIdentificacion.NifEmpresa)
+        {
+            if (_resultado.Empresas.Count > 0)
+                grupos.Add(new GrupoPaleta("Empresa", [.. _resultado.Empresas.Select(e => new ItemPaleta(
+                    e with { UrlDestino = Ficha360DeEmpresa(e) }, "Empresa", "empresas",
+                    Texto("CoincideCif"), Texto("AbrirEmpresa360")))]));
+            return grupos;
+        }
+
+        if (_resultado.Trabajadores.Count == 0) return grupos;
+
+        // «Coincide con el documento buscado · {empresa} · {estado}», como en la maqueta; sin estado (no calculado), sin él.
+        grupos.Add(new GrupoPaleta("Trabajador", [.. _resultado.Trabajadores.Select(t => new ItemPaleta(
+            t, "Trabajador", "trabajadores",
+            t.EstadoTrabajador is { } estado
+                ? $"{ComponerSubtitulo(Texto("CoincideDocumento"), t.Subtitulo)} · {TextoEstadoTrabajador(estado)}"
+                : ComponerSubtitulo(Texto("CoincideDocumento"), t.Subtitulo),
+            Texto("AbrirTrabajador360")))]));
+
+        // Las acciones son sobre la primera coincidencia, como en la maqueta.
+        var primero = _resultado.Trabajadores[0];
+        List<ItemPaleta> acciones = [];
+        if (_puedeEscribir)
+            acciones.Add(new(new ItemBusquedaDto(Guid.Empty, Texto("SubirDocumentoPara", primero.Titulo), null, RutaSubirDocumentoDeTrabajador(primero.Id)),
+                null, "importar", Texto("SubirDocumentoParaSub"), "Subir"));
+        // La organización empleadora es el subtítulo del Trabajador; sin ella no hay a quién reclamar.
+        if (!string.IsNullOrWhiteSpace(primero.Subtitulo))
+            acciones.Add(new(new ItemBusquedaDto(Guid.Empty, Texto("ReclamarA", primero.Subtitulo), null, "/comunicaciones"),
+                null, "enviar", Texto("ReclamarASub", primero.Titulo), "Reclamar"));
+        if (acciones.Count > 0)
+            grupos.Add(new GrupoPaleta("Acciones", acciones));
+
+        return grupos;
+    }
+
+    /// <summary>
+    /// Empresa 360 de una fila de Empresa. El papel que ya decidió el listado de
+    /// la búsqueda por nombre decide también la ficha, con la misma precedencia
+    /// que el handler (Cliente, luego Subcontrata, luego Empresa sin papel): es la
+    /// ficha cuyo alcance coincide con la consulta que trajo la fila.
+    /// </summary>
+    private static string Ficha360DeEmpresa(ItemBusquedaDto empresa)
+    {
+        var papeles = (empresa.Subtitulo ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return papeles.Contains("Cliente", StringComparer.OrdinalIgnoreCase) ? $"/clientes/{empresa.Id}"
+            : papeles.Contains("Subcontrata", StringComparer.OrdinalIgnoreCase) ? $"/subcontratas/{empresa.Id}"
+            : $"/empresas/{empresa.Id}";
+    }
 
     /// <summary>Todas las filas en el orden en que se pintan, para navegar con ↑↓/Tab + Enter.</summary>
     private IReadOnlyList<ItemPaleta> ElementosPlanos => [.. GruposVisibles.SelectMany(g => g.Items)];
@@ -479,6 +793,11 @@ public partial class BuscadorGlobal
     private string TextoAmbitoPie => string.Format(CultureInfo.CurrentUICulture, TextosBusquedaGlobal.Texto("AmbitoPie"), AmbitoRotulo);
 
     private string TextoSinResultados =>
+        DocumentoActual is { } documento
+        ? documento.Tipo == CaeManager.Domain.Common.TipoIdentificacion.NifEmpresa
+            ? Texto("SinResultadosCif")
+            : Texto("SinResultadosTrabajadorDocumento")
+        :
         string.Format(CultureInfo.CurrentUICulture, TextosBusquedaGlobal.Texto("SinResultados"), _termino, AmbitoRotulo)
         + (_selectorVisible ? " " + TextosBusquedaGlobal.Texto("SinResultadosPistaSelector") : "");
 
@@ -553,9 +872,10 @@ public partial class BuscadorGlobal
         _resultado = null;
         _errorBusqueda = null;
         _buscando = false;
-        _indiceSeleccionado = -1;
+        _indiceSeleccionado = 0;
         _navegando = false;
         _recientes = [];
+        _vencenEstaSemana.Clear();
 
         // Una sola vez por apertura, no en cada tecla (a diferencia de la
         // búsqueda, que sí se repite con el debounce).
@@ -595,6 +915,9 @@ public partial class BuscadorGlobal
         }
 
         await ResolverExportacionDeTrabajadoresAsync(apertura, token.Value);
+        if (apertura != _generacionApertura) return;
+
+        _puedeEscribir = await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
         if (apertura != _generacionApertura) return;
 
         try
@@ -700,8 +1023,8 @@ public partial class BuscadorGlobal
                 _indiceSeleccionado = _indiceSeleccionado <= 0 ? 0 : _indiceSeleccionado - 1;
                 break;
 
-            case "Enter" when _indiceSeleccionado >= 0 && _indiceSeleccionado < elementos.Count:
-                Seleccionar(elementos[_indiceSeleccionado].Item, elementos[_indiceSeleccionado].TipoHistorial);
+            case "Enter" when IndiceActivo >= 0:
+                Seleccionar(elementos[IndiceActivo].Item, elementos[IndiceActivo].TipoHistorial);
                 break;
         }
     }
@@ -780,7 +1103,7 @@ public partial class BuscadorGlobal
     private async Task ManejarEntradaAsync(ChangeEventArgs e)
     {
         _termino = e.Value?.ToString() ?? string.Empty;
-        _indiceSeleccionado = -1;
+        _indiceSeleccionado = 0;
         _errorBusqueda = null;
 
         // El número de la búsqueda y el término se capturan ANTES de
@@ -790,12 +1113,13 @@ public partial class BuscadorGlobal
         // es el que disparó esta búsqueda.
         var generacion = ++_generacionBusqueda;
         var termino = _termino;
+        _resultado = null;
 
         _debounceCts?.Cancel();
         _debounceCts?.Dispose();
         _debounceCts = null;
 
-        if (termino.Trim().Length < 2)
+        if (termino.Trim().Length < 2 || DocumentoActual is { EsValido: false })
         {
             _resultado = null;
             _buscando = false;
@@ -816,6 +1140,8 @@ public partial class BuscadorGlobal
             await Task.Delay(RetardoDebounce, token);
 
             var resultado = await Mediator.Send(new BuscarGlobalQuery(termino), token);
+            if (generacion == _generacionBusqueda)
+                await CargarVencenEstaSemanaAsync(termino, token);
 
             // Comprobación después del await, y deliberadamente NO basada en
             // el token: cancelar es una petición, no una garantía — un

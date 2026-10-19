@@ -220,10 +220,6 @@ public class ReglasDeNegocioSinCopiasTests
         // Idoneidad ESTRICTA para una visita: un documento Próximo o Urgente no basta para acceder, así que «vigente» aquí
         // es más exigente que «al día en un porcentaje». Dos usos: documento del Trabajador y de la Empresa.
         ["src/CaeManager.Application/Visitas/Queries/ObtenerVisitas/ObtenerVisitasQuery.cs"] = 2,
-        // Filtro «Al día» de la lista de Trabajadores de una Empresa: filtra por el PEOR estado de cada Trabajador
-        // (sin incidencia), no calcula un porcentaje. Deuda: el rótulo «Al día» del filtro y el porcentaje de la misma
-        // pantalla responden a preguntas distintas; unificarlos es una decisión de producto (no se decidió).
-        ["src/CaeManager.Web/Features/Empresas/Pages/EmpresaDetalle.razor.cs"] = 1,
         // «Lo correcto no lleva pastilla de color» (listados 2/7): EstadoDocumentoUi.EsCorrecto decide si la columna de
         // estado pinta punto verde y texto gris en vez de pastilla. Es una pregunta de presentación sobre el rótulo de una
         // fila (Vigente y Sin caducidad), no un porcentaje: Próximo y Urgente son conformes y aun así llevan pastilla.
@@ -388,6 +384,9 @@ public class ReglasDeNegocioSinCopiasTests
         ["src/CaeManager.Application/Comunicaciones/Deteccion/ClasificacionRuidoMensajeService.cs"] = 1,
         ["src/CaeManager.Application/Visitas/Antelacion/EvaluadorExpedienteVisitaService.cs"] = 1,
         ["src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs"] = 1,
+        // Una reclamación enviada nombra Documentos que pudieron renovarse después: se resuelve su Trabajador por Id
+        // para derivar a qué Empresa empleadora y Delegación se envió, sea o no operativo hoy.
+        ["src/CaeManager.Application/Reclamaciones/DestinoDeReclamacionesEnviadasService.cs"] = 1,
 
         // --- Auditoría: quién accedió a qué documento, sea o no operativo hoy. ---
         ["src/CaeManager.Application/Auditoria/Queries/ObtenerAccesosDocumentosSensiblesQuery.cs"] = 1,
@@ -408,6 +407,8 @@ public class ReglasDeNegocioSinCopiasTests
         //     incluido. ---
         ["src/CaeManager.Application/Proyectos/Queries/ObtenerProyectoPorId/ObtenerProyectoPorIdQuery.cs"] = 1,
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerCatalogoKpisQuery.cs"] = 2,
+        // Cuadro de dirección: documentos gestionados en el mes (registrados en él), historial incluido.
+        ["src/CaeManager.Application/Dashboard/Queries/MedicionMensualCuadroDireccion.cs"] = 1,
         ["src/CaeManager.Application/Facturacion/Queries/ObtenerResumenFacturacion/ObtenerResumenFacturacionQuery.cs"] = 2,
 
         // --- Estadística de aprobación por revisor: pasaron por su mano aunque luego se sustituyeran. ---

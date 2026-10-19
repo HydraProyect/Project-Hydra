@@ -34,8 +34,16 @@ public class Conversacion : EntidadBase
     /// <summary>Ventana de servicio de WhatsApp (Meta): fuera de las 24 h desde el último entrante solo se pueden enviar plantillas aprobadas.</summary>
     public static readonly TimeSpan DuracionVentanaServicio = TimeSpan.FromHours(24);
 
+    /// <summary>
+    /// Plazo que una conversación Resuelta espera antes de cerrarse sola (decisión de producto 2026-10-17, hueco 2 de
+    /// Comunicaciones). Son 4 días naturales (96 horas) desde que se resolvió, no laborables: el reloj es el del hilo,
+    /// no el calendario del Gestor CAE. Un mensaje entrante antes de que se cumpla la reabre y reinicia la cuenta.
+    /// </summary>
+    public static readonly TimeSpan PlazoCierreAutomaticoTrasResolucion = TimeSpan.FromDays(4);
+
     private readonly List<Mensaje> _mensajes = [];
     private readonly List<ParticipanteConversacion> _participantes = [];
+    private readonly List<CambioEstadoConversacion> _cambiosEstado = [];
 
     public Guid? ClienteId { get; private set; }
 
@@ -56,11 +64,35 @@ public class Conversacion : EntidadBase
 
     public string Asunto { get; private set; } = string.Empty;
     public EstadoConversacion Estado { get; private set; }
+    public PrioridadConversacion Prioridad { get; private set; } = PrioridadConversacion.Normal;
+    public Guid? AvisoCriticaPendienteId { get; private set; }
+
+    public void CambiarPrioridad(PrioridadConversacion prioridad)
+    {
+        if (!Enum.IsDefined(prioridad)) throw new ArgumentOutOfRangeException(nameof(prioridad));
+        if (Prioridad == prioridad) return;
+        Prioridad = prioridad;
+        AvisoCriticaPendienteId = prioridad == PrioridadConversacion.Critica ? IdentificadorEntidad.Nuevo() : null;
+    }
+
+    public void ConfirmarAvisoCritica(Guid eventoId)
+    {
+        if (AvisoCriticaPendienteId == eventoId) AvisoCriticaPendienteId = null;
+    }
+
+    /// <summary>
+    /// Instante en que la conversación entró en su <see cref="Estado"/> actual. Es la copia desnormalizada del último
+    /// <see cref="CambiosEstado"/> para poder preguntar «Resuelta desde hace más de N días» sin cargar el historial
+    /// (el cierre automático lo usa) y para decidir si un mensaje entrante llegó antes o después del cambio.
+    /// </summary>
+    public DateTime EstadoDesdeUtc { get; private set; }
+
     public Guid? EjecutivoAsignadoId { get; private set; }
     public string? Etiquetas { get; private set; }
     public DateTime FechaUltimoMensajeUtc { get; private set; }
     public Guid? ConexionIntegracionId { get; private set; }
     public string? HiloExternoId { get; private set; }
+    public Guid? ConversacionAnteriorId { get; private set; }
     public CanalConversacion Canal { get; private set; }
 
     /// <summary>Teléfono E.164 del contacto — solo canal WhatsApp. El "hilo" WhatsApp es (ConexionIntegracionId, TelefonoContacto) + estado, no HiloExternoId (su índice único impediría reabrir conversación con el mismo teléfono tras cerrar la anterior).</summary>
@@ -71,6 +103,13 @@ public class Conversacion : EntidadBase
 
     public IReadOnlyList<Mensaje> Mensajes => _mensajes.AsReadOnly();
     public IReadOnlyList<ParticipanteConversacion> Participantes => _participantes.AsReadOnly();
+
+    /// <summary>
+    /// Historial de cambios de estado, del más antiguo al más reciente. Solo anexado y sin autor (ver
+    /// <see cref="CambioEstadoConversacion"/>). No lo carga <c>ObtenerPorIdAsync</c>: lo que lo necesita (las métricas
+    /// de tiempo) lo consulta aparte.
+    /// </summary>
+    public IReadOnlyList<CambioEstadoConversacion> CambiosEstado => _cambiosEstado.AsReadOnly();
 
     private Conversacion()
     {
@@ -93,6 +132,7 @@ public class Conversacion : EntidadBase
         Estado = EstadoConversacion.Abierta;
         Canal = CanalConversacion.Correo;
         FechaUltimoMensajeUtc = DateTime.UtcNow;
+        EstadoDesdeUtc = FechaUltimoMensajeUtc;
     }
 
     /// <summary>
@@ -133,10 +173,10 @@ public class Conversacion : EntidadBase
     /// </summary>
     public Mensaje AgregarMensaje(
         DireccionMensaje direccion, CanalConversacion canal, string remitente, string cuerpoHtml,
-        DateTime? fechaUtc = null, string? mensajeExternoId = null)
+        DateTime? fechaUtc = null, string? mensajeExternoId = null, bool esAutomatico = false)
     {
         var fecha = fechaUtc ?? DateTime.UtcNow;
-        var mensaje = new Mensaje(Id, direccion, canal, remitente, cuerpoHtml, fecha, mensajeExternoId);
+        var mensaje = new Mensaje(Id, direccion, canal, remitente, cuerpoHtml, fecha, mensajeExternoId, esAutomatico);
         _mensajes.Add(mensaje);
 
         if (fecha > FechaUltimoMensajeUtc)
@@ -146,7 +186,30 @@ public class Conversacion : EntidadBase
             (FechaUltimoMensajeEntranteUtc is null || fecha > FechaUltimoMensajeEntranteUtc))
             FechaUltimoMensajeEntranteUtc = fecha;
 
+        if (!esAutomatico)
+            ReabrirSiLlegaRespuesta(direccion, fecha);
+
         return mensaje;
+    }
+
+    /// <summary>
+    /// Una respuesta del interlocutor reabre sola la conversación que dimos por resuelta y la que estaba esperando
+    /// precisamente esa respuesta (decisión 2026-10-17). Solo si el mensaje es posterior al cambio de estado: uno
+    /// atrasado —ingesta tardía de un correo anterior a la resolución— no deshace lo que el Gestor CAE ya resolvió.
+    /// <see cref="EstadoConversacion.EnEsperaDeTercero"/> no se mueve: un entrante no dice si es de la Empresa gestionada
+    /// o del tercero. <see cref="EstadoConversacion.Cerrada"/> tampoco: reabrirla es de una persona.
+    /// La fecha del mensaje la pone el proveedor; si viniese del futuro por desfase de reloj, el cambio se registra con
+    /// la hora actual para que el historial no deje de ser monótono.
+    /// </summary>
+    private void ReabrirSiLlegaRespuesta(DireccionMensaje direccion, DateTime fechaMensajeUtc)
+    {
+        if (direccion != DireccionMensaje.Entrante
+            || Estado is not (EstadoConversacion.Resuelta or EstadoConversacion.EsperandoRespuestaExterna)
+            || fechaMensajeUtc <= EstadoDesdeUtc)
+            return;
+
+        var ahora = DateTime.UtcNow;
+        RegistrarCambioDeEstado(EstadoConversacion.Abierta, fechaMensajeUtc > ahora ? ahora : fechaMensajeUtc);
     }
 
     /// <summary>
@@ -179,6 +242,34 @@ public class Conversacion : EntidadBase
         HiloExternoId = normalizado;
     }
 
+    /// <summary>Continúa un hilo cerrado conservando separados sus mensajes e historial.</summary>
+    public void EnlazarConversacionAnterior(Conversacion anterior)
+    {
+        if (anterior.Id == Id || anterior.Estado != EstadoConversacion.Cerrada
+            || anterior.ConexionIntegracionId != ConexionIntegracionId || anterior.HiloExternoId != HiloExternoId)
+            throw new ArgumentException("La conversación anterior debe ser el mismo hilo cerrado.", nameof(anterior));
+
+        ConversacionAnteriorId = anterior.Id;
+    }
+
+    /// <summary>La continuación conserva las coordenadas de acceso del hilo; nunca vuelve a la cola de triage.</summary>
+    public static Conversacion ContinuarCorreo(Conversacion anterior, string asunto)
+    {
+        if (anterior.Canal != CanalConversacion.Correo || anterior.Estado != EstadoConversacion.Cerrada
+            || anterior.ConexionIntegracionId is null || anterior.HiloExternoId is null)
+            throw new ArgumentException("Solo se puede continuar un hilo de correo cerrado.", nameof(anterior));
+
+        // ClienteId es el ancla legacy de Cliente empresarial: copiarla evita ampliar la visibilidad a triage.
+        var nueva = new Conversacion(asunto, anterior.ClienteId, anterior.Etiquetas, anterior.EmpresaId)
+        {
+            EjecutivoAsignadoId = anterior.EjecutivoAsignadoId,
+            Prioridad = anterior.Prioridad
+        };
+        nueva.AsociarConexion(anterior.ConexionIntegracionId.Value, anterior.HiloExternoId);
+        nueva.EnlazarConversacionAnterior(anterior);
+        return nueva;
+    }
+
     public ParticipanteConversacion AgregarParticipante(
         string email, RolParticipante rol, TipoParticipanteOrigen tipoOrigen, Guid? entidadRelacionadaId = null)
     {
@@ -187,7 +278,40 @@ public class Conversacion : EntidadBase
         return participante;
     }
 
-    public void CambiarEstado(EstadoConversacion nuevoEstado) => Estado = nuevoEstado;
+    /// <summary>
+    /// Cambia el estado si <see cref="TransicionesEstadoConversacion"/> lo permite; si no, devuelve el fallo de dominio
+    /// y no toca nada. Registra el instante del cambio en <see cref="CambiosEstado"/> — nunca quién lo hizo.
+    /// <paramref name="ahoraUtc"/> existe para que los tests fijen el reloj; en producción es el instante actual.
+    /// </summary>
+    public Result CambiarEstado(EstadoConversacion nuevoEstado, DateTime? ahoraUtc = null)
+    {
+        if (!TransicionesEstadoConversacion.EstaPermitida(Estado, nuevoEstado))
+            return Result.Fallo(TransicionesEstadoConversacion.ErrorTransicionNoPermitida(Estado, nuevoEstado));
+
+        RegistrarCambioDeEstado(nuevoEstado, ahoraUtc ?? DateTime.UtcNow);
+        return Result.Exito();
+    }
+
+    /// <summary>
+    /// Cierra la conversación si lleva Resuelta al menos <see cref="PlazoCierreAutomaticoTrasResolucion"/>. Lo llama el
+    /// proceso programado de cierre (Sistema); devuelve si la cerró. El plazo se cuenta desde <see cref="EstadoDesdeUtc"/>:
+    /// reabrir y volver a resolver lo reinicia.
+    /// </summary>
+    public bool CerrarSiResueltaHaceMasDelPlazo(DateTime ahoraUtc)
+    {
+        if (Estado != EstadoConversacion.Resuelta || ahoraUtc - EstadoDesdeUtc < PlazoCierreAutomaticoTrasResolucion)
+            return false;
+
+        RegistrarCambioDeEstado(EstadoConversacion.Cerrada, ahoraUtc);
+        return true;
+    }
+
+    private void RegistrarCambioDeEstado(EstadoConversacion nuevoEstado, DateTime fechaUtc)
+    {
+        _cambiosEstado.Add(new CambioEstadoConversacion(Id, Estado, nuevoEstado, fechaUtc));
+        Estado = nuevoEstado;
+        EstadoDesdeUtc = fechaUtc;
+    }
 
     public void Asignar(Guid? ejecutivoId) => EjecutivoAsignadoId = ejecutivoId;
 
@@ -233,6 +357,11 @@ public class Conversacion : EntidadBase
             if (mensaje.Direccion == DireccionMensaje.Entrante &&
                 (FechaUltimoMensajeEntranteUtc is null || mensaje.FechaUtc > FechaUltimoMensajeEntranteUtc))
                 FechaUltimoMensajeEntranteUtc = mensaje.FechaUtc;
+
+            // Un mensaje entrante que llega por vinculación vale como cualquier otro entrante: si este hilo esperaba
+            // esa respuesta, se reabre. Un automático no reabre, igual que al llegar por la ingesta.
+            if (!mensaje.EsAutomatico)
+                ReabrirSiLlegaRespuesta(mensaje.Direccion, mensaje.FechaUtc);
         }
 
         origen._mensajes.Clear();

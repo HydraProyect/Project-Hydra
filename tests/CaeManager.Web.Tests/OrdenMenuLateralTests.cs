@@ -225,8 +225,10 @@ public class OrdenMenuLateralTests : BunitContext
         cut.Find(Fila(TipoDeFila.Grupo, "", "control")).QuerySelector("[data-nuevo]").Should().BeNull();
         EnlacesEnPantalla(cut, "control").Take(2).Should().Equal(["alertas", "calendario"]);
         cut.Find(Fila(TipoDeFila.Enlace, "control", "facturacion")).QuerySelector("[data-nuevo]").Should().NotBeNull();
-        cut.Find(Fila(TipoDeFila.Grupo, "", "control")).QuerySelector("[data-nace-plegado]").Should().NotBeNull(
-            "«Control» nace plegado en el catálogo");
+        cut.Find(Fila(TipoDeFila.Grupo, "", "administracion")).QuerySelector("[data-nace-plegado]").Should().NotBeNull(
+            "«Administración» nace plegada en el catálogo (el marco de Design solo pliega Administración y Plataforma)");
+        cut.Find(Fila(TipoDeFila.Grupo, "", "control")).QuerySelector("[data-nace-plegado]").Should().BeNull(
+            "«Control» nace abierto desde la entrega del marco de Design");
     }
 
     [Fact]

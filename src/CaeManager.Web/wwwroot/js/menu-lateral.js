@@ -14,16 +14,12 @@
 //     dura, todos los grupos se abren (para que todos los iconos se vean) y al
 //     ensanchar vuelve el estado guardado, intacto. menu-lateral-inicio.js lo
 //     pone antes del primer pintado para que no parpadee.
-//  4. Fijados (hydra-menu-fijados): lista de identificadores de enlace. Solo se
-//     pintan los que YA están en este menú (el que el rol y el contexto de la
-//     persona hayan dejado): un identificador ajeno se ignora, así que fijar
-//     nunca da acceso a nada.
-//  5. Búsqueda: un icono de lupa en la cabecera se expande en la misma fila hasta ser el campo (animado). Filtra los enlaces del
+//  4. Búsqueda: el campo «Buscar en el menú» de la cabecera está siempre a la vista (marco de Design). Filtra los enlaces del
 //     menú y muestra las opciones de dentro de las páginas (Configuración, pestañas de Documentos) que
 //     el servidor ya dejó en el marcado según las reglas de visibilidad del catálogo: este script solo
-//     muestra u oculta lo que existe, nunca añade un destino. Elegir una navega directo. Esc cierra.
-//     Lo escrito y si está abierta no se guardan.
-//  6. Tooltip (tooltip.js) con el rótulo de cada enlace cuando está compacto o
+//     muestra u oculta lo que existe, nunca añade un destino. Elegir una navega directo. Esc vacía el campo.
+//     Lo escrito no se guarda.
+//  5. Tooltip (tooltip.js) con el rótulo de cada enlace cuando está compacto o
 //     el rótulo largo se corta con puntos suspensivos.
 //
 // Se reaplica tras cada navegación "enhanced" de Blazor, que vuelve a pedir el
@@ -32,7 +28,6 @@
 // del cajón móvil, que es un componente interactivo y no dispara esa navegación).
 const CLAVE_ESTADO = 'hydra-menu-grupos-estado';
 const CLAVE_COMPACTO = 'hydra-menu-compacto';
-const CLAVE_FIJADOS = 'hydra-menu-fijados';
 
 function leerJson(clave, vacio) {
     try {
@@ -56,11 +51,6 @@ function leerEstados() {
     return (datos && typeof datos === 'object' && !Array.isArray(datos)) ? datos : {};
 }
 
-function leerFijados() {
-    const datos = leerJson(CLAVE_FIJADOS, []);
-    return Array.isArray(datos) ? datos.filter(id => typeof id === 'string') : [];
-}
-
 function esCompacto() {
     try {
         return localStorage.getItem(CLAVE_COMPACTO) === '1';
@@ -75,10 +65,6 @@ const menus = () => document.querySelectorAll('.nav-principal');
 // El modo compacto es de la barra lateral: el menú del cajón móvil (bajo 1024px) siempre va completo.
 const enBarraLateral = nav => nav.closest('.barra-lateral') !== null;
 const filtroActivo = nav => normalizar(nav.querySelector('[data-menu-filtro]')?.value);
-
-// La búsqueda abierta vive en memoria: una navegación "enhanced" repinta el HTML del servidor (cerrado)
-// y refrescarTodo la vuelve a abrir si seguía abierta.
-let busquedaAbierta = false;
 
 function fijarAbierto(detalle, abierto) {
     // Lo guardado es solo lo que el usuario decide al pulsar la cabecera (ver el listener de
@@ -111,32 +97,6 @@ function aplicarGrupos() {
     });
 }
 
-// Un enlace (fila) por identificador estable, solo de los grupos; las copias de fijados no cuentan.
-const filasOriginales = nav => nav.querySelectorAll('.nav-grupo-detalle .nav-fila[data-enlace]');
-
-function pintarFijados() {
-    const fijados = leerFijados();
-    menus().forEach(nav => {
-        const contenedor = nav.querySelector('[data-menu-fijados]');
-        if (!contenedor) return;
-        const lista = contenedor.querySelector('[data-menu-fijados-lista]');
-        lista.replaceChildren();
-
-        const porId = new Map();
-        filasOriginales(nav).forEach(fila => porId.set(fila.dataset.enlace, fila));
-        fijados.forEach(id => {
-            const fila = porId.get(id);
-            if (fila) lista.appendChild(fila.cloneNode(true));
-        });
-
-        nav.querySelectorAll('[data-fijar]').forEach(boton => {
-            const fijado = fijados.includes(boton.dataset.fijar);
-            boton.setAttribute('aria-pressed', String(fijado));
-            boton.setAttribute('aria-label', fijado ? boton.dataset.etiquetaQuitar : boton.dataset.etiquetaFijar);
-        });
-    });
-}
-
 function aplicarFiltro(nav) {
     const q = filtroActivo(nav);
     nav.querySelectorAll('.nav-fila').forEach(fila => {
@@ -157,11 +117,6 @@ function aplicarFiltro(nav) {
             alguno = alguno || casa;
         });
         resultados.hidden = !alguno;
-    }
-    const contenedor = nav.querySelector('[data-menu-fijados]');
-    if (contenedor) {
-        const hayFilas = contenedor.querySelector('.nav-fila:not([hidden])') !== null;
-        contenedor.hidden = !hayFilas;
     }
 }
 
@@ -188,22 +143,12 @@ function aplicarCompacto() {
         boton.setAttribute('aria-label', compacto ? boton.dataset.etiquetaAmpliar : boton.dataset.etiquetaCompactar));
 }
 
-// Despliega o recoge el campo de búsqueda de todos los menús; al recoger se vacía lo escrito.
-function fijarBusqueda(abierta, enfocar) {
-    busquedaAbierta = abierta;
+// Vacía el campo de búsqueda de todos los menús y restablece el menú entero. El campo no se oculta nunca salvo en
+// la barra compacta (CSS), donde no puede quedar un filtro invisible activo: por eso compactar también lo vacía.
+function vaciarBusqueda() {
     menus().forEach(nav => {
-        const panel = nav.querySelector('[data-menu-busqueda]');
-        const lupa = nav.querySelector('[data-menu-lupa]');
-        if (!panel || !lupa) return;
-        const campo = panel.querySelector('[data-menu-filtro]');
-        const teniaFoco = campo === document.activeElement;
-        // El campo va inert mientras la lupa está recogida: sin foco por teclado ni lectura.
-        campo?.toggleAttribute('inert', !abierta);
-        panel.toggleAttribute('data-abierta', abierta);
-        lupa.setAttribute('aria-expanded', String(abierta));
-        if (!abierta && campo) campo.value = '';
-        if (abierta && enfocar && campo && nav.offsetParent !== null) campo.focus({ preventScroll: true });
-        if (!abierta && enfocar && teniaFoco) lupa.focus();
+        const campo = nav.querySelector('[data-menu-filtro]');
+        if (campo) campo.value = '';
     });
     menus().forEach(aplicarFiltro);
     aplicarGrupos();
@@ -211,16 +156,6 @@ function fijarBusqueda(abierta, enfocar) {
 
 function refrescarTodo() {
     aplicarCompacto();
-    menus().forEach(nav => {
-        const panel = nav.querySelector('[data-menu-busqueda]');
-        if (!panel) return;
-        // Compacto no tiene campo: no puede quedar una búsqueda invisible activa.
-        const abierta = busquedaAbierta && !(esCompacto() && enBarraLateral(nav));
-        panel.querySelector('[data-menu-filtro]')?.toggleAttribute('inert', !abierta);
-        panel.toggleAttribute('data-abierta', abierta);
-        nav.querySelector('[data-menu-lupa]')?.setAttribute('aria-expanded', String(abierta));
-    });
-    pintarFijados();
     menus().forEach(aplicarFiltro);
     aplicarGrupos();
     actualizarTooltips();
@@ -254,7 +189,7 @@ document.addEventListener('click', function (evento) {
     if (compactar) {
         guardar(CLAVE_COMPACTO, esCompacto() ? '0' : '1');
         // El campo de búsqueda desaparece en modo compacto: no puede quedar un filtro invisible activo.
-        fijarBusqueda(false, false);
+        vaciarBusqueda();
         aplicarCompacto();
         aplicarGrupos();
         actualizarTooltips();
@@ -263,33 +198,16 @@ document.addEventListener('click', function (evento) {
         return;
     }
 
-    // Elegir un enlace del menú con la búsqueda abierta la recoge: no se queda el texto sobre la página de destino.
-    if (busquedaAbierta && evento.target.closest?.('.nav-principal .nav-item')) {
-        setTimeout(() => fijarBusqueda(false, false), 0);
-        return;
-    }
-
-    const lupa = evento.target.closest?.('[data-menu-lupa]');
-    if (lupa) {
-        fijarBusqueda(!busquedaAbierta, true);
+    // Elegir un enlace del menú con algo escrito en el campo lo vacía: no se queda el texto sobre la página de destino.
+    if (evento.target.closest?.('.nav-principal .nav-item')) {
+        if ([...menus()].some(nav => filtroActivo(nav) !== '')) setTimeout(vaciarBusqueda, 0);
         return;
     }
 
     // Elegir una opción de dentro de una página: la navegación la hace el propio enlace; aquí solo se
-    // recoge la búsqueda para que no se quede abierta con el texto escrito sobre la página de destino.
+    // vacía el campo para que no se quede el texto escrito sobre la página de destino.
     if (evento.target.closest?.('[data-subopcion]')) {
-        setTimeout(() => fijarBusqueda(false, false), 0);
-        return;
-    }
-
-    const fijar = evento.target.closest?.('[data-fijar]');
-    if (fijar) {
-        const id = fijar.dataset.fijar;
-        const fijados = leerFijados();
-        guardar(CLAVE_FIJADOS, fijados.includes(id) ? fijados.filter(x => x !== id) : [...fijados, id]);
-        pintarFijados();
-        menus().forEach(aplicarFiltro);
-        actualizarTooltips();
+        setTimeout(vaciarBusqueda, 0);
     }
 });
 
@@ -304,9 +222,10 @@ document.addEventListener('keydown', function (evento) {
     const campo = evento.target.matches?.('[data-menu-filtro]') ? evento.target : null;
     if (!campo) return;
     if (evento.key === 'Escape') {
-        // No cerrar además el cajón u otro panel que escuche Escape.
+        // Con algo escrito, Esc vacía el campo y no cierra además el cajón u otro panel que escuche Escape; vacío, deja pasar Esc.
+        if (campo.value === '') return;
         evento.stopPropagation();
-        fijarBusqueda(false, true);
+        vaciarBusqueda();
     } else if (evento.key === 'Enter') {
         const nav = campo.closest('.nav-principal');
         // Sin nada escrito Enter no navega: el primer enlace sería «Inicio».

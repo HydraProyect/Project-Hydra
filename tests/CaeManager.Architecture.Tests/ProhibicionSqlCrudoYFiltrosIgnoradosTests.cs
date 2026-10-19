@@ -98,6 +98,13 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Application/Retencion/EjecucionPurgaService.cs", ".IgnoreQueryFilters()")] = 2,
         [("src/CaeManager.Application/Retencion/DeteccionPurgaService.cs", ".IgnoreQueryFilters()")] = 2,
 
+        // Cuadro de dirección: activos a fecha de corte, altas y bajas del mes de
+        // Trabajadores y Centros, y los Documentos gestionados en el mes (actividad),
+        // necesitan las filas ya eliminadas (una baja ES la
+        // eliminación). Tres apariciones, una por tabla, cada una seguida de la
+        // comparación del TenantId con el Tenant del ámbito (falla cerrado sin él).
+        [("src/CaeManager.Application/Dashboard/Queries/MedicionMensualCuadroDireccion.cs", ".IgnoreQueryFilters()")] = 3,
+
         // Resolución de tenant a partir de un webhook entrante (Graph/WhatsApp):
         // en ese punto todavía no hay tenant resuelto en el contexto — es
         // precisamente lo que esta consulta calcula — así que no hay filtro
@@ -317,6 +324,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // privilegiada antes de elevar) y la tercera fija el marcador sobre el
         // Tenant que la propia siembra acaba de crear, por Id.
         [("src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs", "var existentes = await dbContext.Tenants.IgnoreQueryFilters()")] = 1,
+        // Bootstrap administrativo: incluye soft delete para no reponer eliminaciones humanas.
+        // La consulta conserva el filtro explícito m.TenantId == tenantId.
+        [("src/CaeManager.Infrastructure/Persistence/Seed/PlantillasRespuestaSeeder.cs", "var existentes = await contextoBootstrap.MacrosRespuesta.IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs", "var id = await dbContextNoPrivilegiado.Tenants.IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs", "var tenant = await dbContext.Tenants.IgnoreQueryFilters().SingleAsync(t => t.Id == tenantId, cancellationToken);")] = 1,
 

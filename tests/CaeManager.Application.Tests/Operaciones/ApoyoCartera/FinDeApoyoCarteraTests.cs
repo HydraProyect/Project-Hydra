@@ -137,8 +137,8 @@ public class FinDeApoyoCarteraTests
             new(Como(actor, origen, rolDeSesion), Roles, Cuentas, Catalogo, Repositorio, Transaccion, Bloqueo,
                 Notificaciones, Tenants, UnitOfWork, NullLogger<TerminarApoyoCarteraCommandHandler>.Instance);
 
-        public Task<Result> Desasignarme(Guid actor, Guid propuestaId, string? rolDeSesion = "GestorCae") =>
-            Handler(actor, null, rolDeSesion).Handle(new DesasignarmeDeApoyoCommand(propuestaId), default);
+        public Task<Result> Desasignarme(Guid actor, Guid propuestaId, string? rolDeSesion = "GestorCae", Guid? origen = null) =>
+            Handler(actor, origen, rolDeSesion).Handle(new DesasignarmeDeApoyoCommand(propuestaId), default);
 
         public Task<Result> RetirarLoConcedido(Guid actor, Guid propuestaId, string? rolDeSesion = "GestorCae") =>
             Handler(actor, null, rolDeSesion).Handle(new RetirarApoyoConcedidoCommand(propuestaId), default);
@@ -220,6 +220,38 @@ public class FinDeApoyoCarteraTests
         (await e.Desasignarme(CoordinadorDeB, propuesta.Id, "CoordinadorCae")).Error.Should().Be(ErroresPropuestaApoyo.ApoyoNoEncontrado,
             "el Coordinador CAE revoca; desasignarse es solo del propio apoyo");
 
+        e.ElApoyoSigueIntacto(propuesta);
+    }
+
+    [Fact]
+    public async Task Un_Gestor_CAE_fuera_de_la_cartera_no_desasigna_el_apoyo_de_otro()
+    {
+        // «Desasignarme» de Cliente 360 manda solo la propuesta: quien no lleva el Tenant en su cartera no la toca.
+        var e = new Escenario();
+        var sinCartera = Guid.NewGuid();
+        e.Cuenta(sinCartera, "GestorCae", CoordinadorDeB);
+        var propuesta = await e.ApoyoAceptado();
+
+        (await e.Desasignarme(sinCartera, propuesta.Id)).Error.Should().Be(ErroresPropuestaApoyo.ApoyoNoEncontrado);
+
+        e.ConCartera.Should().NotContain(sinCartera, "control: de verdad está fuera de la cartera");
+        e.Catalogo.ApoyosRetirados.Should().BeEmpty();
+        e.ElApoyoSigueIntacto(propuesta);
+    }
+
+    [Fact]
+    public async Task Un_Gestor_CAE_de_otro_Operador_CAE_no_desasigna_un_apoyo_que_no_es_de_su_Operador()
+    {
+        var e = new Escenario();
+        var gestorDeOtroOperador = Guid.NewGuid();
+        e.Roles.Asignar(gestorDeOtroOperador, OtroOperador, "GestorCae");
+        var propuesta = await e.ApoyoAceptado();
+
+        var resultado = await e.Desasignarme(gestorDeOtroOperador, propuesta.Id, origen: OtroOperador);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Should().Be(ErroresPropuestaApoyo.ApoyoNoEncontrado, "desde otro Operador CAE ese apoyo no existe");
+        e.Catalogo.ApoyosRetirados.Should().BeEmpty();
         e.ElApoyoSigueIntacto(propuesta);
     }
 

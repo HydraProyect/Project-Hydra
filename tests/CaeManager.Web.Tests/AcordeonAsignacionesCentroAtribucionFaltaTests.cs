@@ -155,24 +155,57 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
     }
 
     [Fact]
-    public async Task Subir_se_ofrece_a_quien_escribe_y_no_a_Consulta()
+    public async Task Gestionar_se_ofrece_a_quien_escribe_y_no_a_Consulta()
     {
         var escribe = await RenderizarExpandidoAsync(EstadoDocumento.Faltante);
-        escribe.FindAll(".tabla-documentos-requeridos button").Select(b => b.TextContent.Trim()).Should().Contain("Subir",
+        escribe.FindAll(".tabla-documentos-requeridos button").Select(b => b.TextContent.Trim()).Should().Contain("Gestionar",
             "control positivo: con un rol que escribe el botón está");
 
         // Otro contexto: mismo montaje con Consulta, que no puede ejecutar CrearDocumento/RenovarDocumento.
         using var consulta = new ConsultaSinEscritura();
         var cut = await consulta.RenderizarAsync();
-        cut.FindAll(".tabla-documentos-requeridos button").Select(b => b.TextContent.Trim()).Should().NotContain("Subir");
+        cut.FindAll(".tabla-documentos-requeridos button").Select(b => b.TextContent.Trim()).Should().NotContain("Gestionar");
     }
 
+    /// <summary>
+    /// Un documento al día (Vigente o Sin caducidad) lleva «Gestionar» en tono secundario (regla de Chris, 2026-10-18, que
+    /// sustituye a «sin botón» de la regla 8 y la maqueta del 17-10), también con la Visita en riesgo.
+    /// </summary>
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Documento_vigente_conserva_Gestionar_y_su_clic_abre_la_gestion_incluso_en_Visita(bool riesgoEnVisita)
+    [InlineData(EstadoDocumento.Vigente, false)]
+    [InlineData(EstadoDocumento.Vigente, true)]
+    [InlineData(EstadoDocumento.SinCaducidad, false)]
+    public async Task Documento_al_dia_lleva_Gestionar_en_tono_secundario_si_se_puede_escribir(EstadoDocumento estado, bool riesgoEnVisita)
     {
-        var cut = await RenderizarExpandidoAsync(EstadoDocumento.Vigente, riesgoEnVisita: riesgoEnVisita);
+        var cut = await RenderizarExpandidoAsync(estado, riesgoEnVisita: riesgoEnVisita);
+        var boton = cut.Find(".tabla-documentos-requeridos .columna-accion button");
+        boton.TextContent.Trim().Should().Be("Gestionar");
+        boton.ClassList.Should().Contain("accion-fila-enlace").And.Contain("gestionar-discreto").And.NotContain("accion-atenuada");
+        cut.Find(".tabla-documentos-requeridos").TextContent.Should().Contain("Reconocimiento médico");
+    }
+
+    /// <summary>
+    /// El nombre del documento sigue siendo una vía más para quien escribe: con la Visita en riesgo (Vigente que caduca
+    /// dentro de ella) abre la misma gestión que «Gestionar».
+    /// </summary>
+    [Fact]
+    public async Task El_nombre_del_documento_Vigente_con_riesgo_en_Visita_abre_la_gestion()
+    {
+        var cut = await RenderizarExpandidoAsync(EstadoDocumento.Vigente, riesgoEnVisita: true);
+
+        cut.FindAll(".tabla-documentos-requeridos .columna-accion button").Should().ContainSingle();
+        var enlace = cut.Find(".tabla-documentos-requeridos .celda-documento-nombre button.enlace-nombre-fila");
+        enlace.TextContent.Trim().Should().Be("Reconocimiento médico");
+        await enlace.ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Find(".drawer-panel").TextContent.Should().Contain("Renovar documento")
+            .And.Contain("Reconocimiento médico").And.Contain("Ruiz Peña, Ana"));
+    }
+
+    [Fact]
+    public async Task El_clic_en_Gestionar_abre_la_gestion_del_documento()
+    {
+        var cut = await RenderizarExpandidoAsync(EstadoDocumento.Vencido);
         var boton = cut.Find(".tabla-documentos-requeridos .columna-accion button");
         boton.TextContent.Trim().Should().Be("Gestionar");
         boton.ClassList.Should().Contain("accion-fila-enlace").And.NotContain("accion-atenuada");
@@ -183,20 +216,19 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
     }
 
     [Theory]
-    [InlineData(EstadoDocumento.Vencido, "Renovar")]
-    [InlineData(EstadoDocumento.EnTolerancia, "Renovar")]
-    [InlineData(EstadoDocumento.Urgente, "Renovar")]
-    [InlineData(EstadoDocumento.Proximo, "Renovar")]
-    [InlineData(EstadoDocumento.SinConfirmar, "Confirmar")]
-    [InlineData(EstadoDocumento.Faltante, "Subir")]
-    [InlineData(EstadoDocumento.SinCaducidad, "Gestionar")]
-    [InlineData(EstadoDocumento.Vigente, "Gestionar")]
-    public async Task La_accion_del_documento_depende_de_su_estado_y_no_esta_atenuada(EstadoDocumento estado, string accion)
+    [InlineData(EstadoDocumento.Vencido, "Gestionar")]
+    [InlineData(EstadoDocumento.EnTolerancia, "Gestionar")]
+    [InlineData(EstadoDocumento.Urgente, "Gestionar")]
+    [InlineData(EstadoDocumento.Proximo, "Gestionar")]
+    [InlineData(EstadoDocumento.SinConfirmar, "Gestionar")]
+    [InlineData(EstadoDocumento.Faltante, "Gestionar")]
+    public async Task El_documento_ofrece_una_sola_accion_Gestionar_sea_cual_sea_su_estado_y_no_esta_atenuada(EstadoDocumento estado, string accion)
     {
         var cut = await RenderizarExpandidoAsync(estado);
         var boton = cut.Find(".tabla-documentos-requeridos .columna-accion button");
         boton.TextContent.Trim().Should().Be(accion);
-        boton.ClassList.Should().NotContain("accion-atenuada");
+        boton.ClassList.Should().NotContain("accion-atenuada")
+            .And.NotContain("gestionar-discreto", "solo el documento al día lleva el tono secundario; el resto, el normal");
         boton.HasAttribute("disabled").Should().BeFalse();
     }
 
@@ -205,7 +237,7 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
     {
         var cut = await RenderizarExpandidoAsync(EstadoDocumento.Faltante);
 
-        var boton = cut.FindAll(".tabla-documentos-requeridos button").Single(b => b.TextContent.Trim() == "Subir");
+        var boton = cut.FindAll(".tabla-documentos-requeridos button").Single(b => b.TextContent.Trim() == "Gestionar");
         boton.ClassList.Should().NotContain("accion-atenuada");
         boton.GetAttribute("title").Should().BeNull();
     }

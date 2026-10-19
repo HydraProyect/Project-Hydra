@@ -1,13 +1,48 @@
+/* /mi-avatar, 1:1 con «Revisión Interfaz sin Maqueta TALVEG» §B (Design, DDL-083). Escritorio: tarjeta de elección y,
+   a la derecha, la vista previa en contexto de 300 px. Móvil (< 768 px): la vista previa sube, la rejilla es de 6
+   columnas y «Guardar avatar» queda en una barra fija inferior de 48 px. */
 .mi-emblema {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: var(--space-6);
+    align-items: start;
+}
+
+.mi-emblema-tarjeta {
     display: flex;
     flex-direction: column;
     gap: var(--space-6);
+    padding: var(--space-6);
+    background-color: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
 }
+
+/* ---------- Vista previa en contexto ---------- */
 
 .mi-emblema-vista {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: var(--space-4);
+    padding: var(--space-5);
+    background-color: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+.mi-emblema-vista-rotulo,
+.mi-emblema-vista-descripcion,
+.mi-emblema-estado,
+.mi-emblema-estado-movil,
+.mi-emblema-contexto-rotulo {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.mi-emblema-vista-cabecera {
+    display: flex;
+    align-items: center;
+    gap: 14px;
 }
 
 /* Rebote de confirmación al guardar: una sola vez, cuando entra la clase. */
@@ -38,16 +73,112 @@
     min-width: 0;
 }
 
-.mi-emblema-vista-rotulo {
-    font: var(--font-caption);
-    color: var(--color-text-muted);
-}
-
 .mi-emblema-vista-nombre {
-    font: var(--font-label-md);
+    font: var(--font-label);
+    font-size: 0.9375rem;
     color: var(--color-text);
     overflow-wrap: anywhere;
 }
+
+.mi-emblema-estado-movil {
+    display: none;
+}
+
+.mi-emblema-contextos {
+    display: flex;
+    flex-direction: column;
+    border-top: var(--border-default);
+}
+
+.mi-emblema-contexto {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: var(--border-default);
+}
+
+/* Un nombre largo o un correo (lo que sale cuando la cuenta no tiene nombre) se recorta con puntos suspensivos y
+   nunca pisa el rótulo «Fila»/«Historial» de la derecha: el texto cede (min-width: 0) y el rótulo no encoge. */
+.mi-emblema-contexto-texto {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: var(--font-body-md);
+    color: var(--color-text);
+}
+
+.mi-emblema-contexto ::deep .avatar-usuario {
+    flex: none;
+}
+
+.mi-emblema-contexto-texto strong {
+    font-weight: 600;
+}
+
+.mi-emblema-contexto-rotulo {
+    flex: none;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.mi-emblema-pie {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.mi-emblema-estado {
+    text-align: center;
+}
+
+.mi-emblema-pie ::deep .mi-emblema-guardar {
+    width: 100%;
+    height: 44px;
+    font-size: 0.875rem;
+}
+
+/* Sin cambios que guardar o sin nada que quitar los botones se atenúan al 45 % (opacity de la revisión de Design,
+   §B: .45), no al 55 % genérico de Boton. */
+.mi-emblema-pie ::deep .mi-emblema-guardar:disabled,
+.mi-emblema ::deep .mi-emblema-iniciales:disabled,
+.mi-emblema ::deep .mi-emblema-iniciales-movil:disabled {
+    opacity: 0.45;
+}
+
+/* «Volver a mis iniciales»: es la salida, no una acción par de «Guardar avatar». Botón de TEXTO: sin borde ni fondo
+   (Boton Fantasma trae los dos), color primario, font-label y subrayado al pasar el cursor (revisión de Design, §B). */
+.mi-emblema ::deep .mi-emblema-iniciales,
+.mi-emblema ::deep .mi-emblema-iniciales-movil {
+    border: 0;
+    background: transparent;
+    color: var(--color-primary-500);
+    font: var(--font-label);
+}
+
+.mi-emblema ::deep .mi-emblema-iniciales:not(:disabled):hover,
+.mi-emblema ::deep .mi-emblema-iniciales-movil:not(:disabled):hover {
+    background: transparent;
+    text-decoration: underline;
+    transform: none;
+}
+
+/* 36 px (Boton medio trae min-height: 40, que ganaría a la altura). */
+.mi-emblema ::deep .mi-emblema-iniciales {
+    height: 36px;
+    min-height: 36px;
+}
+
+.mi-emblema ::deep .mi-emblema-iniciales-movil {
+    display: none;
+    align-self: flex-start;
+    height: 44px;
+    padding: 0;
+}
+
+/* ---------- Elección: animal y tono ---------- */
 
 .mi-emblema-grupo {
     display: flex;
@@ -61,7 +192,8 @@
 
 .mi-emblema-leyenda {
     padding: 0;
-    font: var(--font-label-md);
+    margin-bottom: var(--space-3);
+    font: var(--font-label);
     color: var(--color-text);
 }
 
@@ -78,15 +210,10 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-1);
     border-radius: var(--radius-full);
     font: var(--font-body-md);
     color: var(--color-text);
     cursor: pointer;
-}
-
-.mi-emblema-opcion-tono {
-    padding-right: var(--space-3);
 }
 
 .mi-emblema-radio {
@@ -117,8 +244,241 @@
     transform: scale(1.15) rotate(-8deg);
 }
 
-.mi-emblema-acciones {
+/* Rejilla fija de 8 columnas de 52 px (6 en móvil, que se reparten el ancho) con el avatar de 44 px. */
+.mi-emblema-rejilla {
+    display: grid;
+    grid-template-columns: repeat(8, 52px);
+    gap: var(--space-2);
+}
+
+.mi-emblema-rejilla .mi-emblema-opcion {
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    padding: 0;
+}
+
+.mi-emblema-rejilla ::deep .avatar-usuario {
+    --avatar-usuario-lado: 44px;
+}
+
+/* Tono: píldora de 44 px con el avatar de 32 y su nombre. */
+.mi-emblema-opcion-tono {
+    height: 44px;
+    padding: 0 14px 0 6px;
+    background-color: var(--color-surface);
+    border: var(--border-default);
+}
+
+.mi-emblema-opcion-tono:hover {
+    background-color: var(--color-surface-hover);
+}
+
+/* ---------- Cargando: la forma de la pantalla ---------- */
+
+.mi-emblema-esqueleto {
+    gap: var(--space-6);
+}
+
+.mi-emblema-esqueleto-vista {
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
     gap: var(--space-3);
+}
+
+.mi-emblema-esqueleto-textos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.mi-emblema-esqueleto-rejilla {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 6px;
+}
+
+/* Mismos tokens por tema que Esqueleto; el brillo se apaga con movimiento reducido. */
+.mi-emblema-esqueleto-bloque {
+    display: block;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(90deg, var(--color-esqueleto-base) 25%, var(--color-esqueleto-brillo) 37%, var(--color-esqueleto-base) 63%);
+    background-size: 400% 100%;
+    animation: mi-emblema-esqueleto-brillo 1.4s var(--ease-fluid) infinite;
+}
+
+.mi-emblema-esqueleto-redondo,
+.mi-emblema-esqueleto-celda {
+    border-radius: var(--radius-full);
+}
+
+.mi-emblema-esqueleto-redondo {
+    width: 56px;
+    height: 56px;
+}
+
+.mi-emblema-esqueleto-celda {
+    aspect-ratio: 1;
+}
+
+.mi-emblema-esqueleto-titulo {
+    width: 120px;
+    height: 12px;
+}
+
+.mi-emblema-esqueleto-detalle {
+    width: 80px;
+    height: 10px;
+}
+
+@keyframes mi-emblema-esqueleto-brillo {
+    0% { background-position: 100% 50%; }
+    100% { background-position: 0 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mi-emblema-esqueleto-bloque {
+        animation: none;
+    }
+}
+
+/* Barra de móvil (revisión de Design §B): oculta en escritorio; ahí manda CabeceraPagina. */
+.mi-emblema-barra-movil {
+    display: none;
+}
+
+/* ---------- Tableta: la rejilla fija de 8 × 52 px no cabe junto a la columna de 300 px; una sola columna ---------- */
+
+@media (max-width: 1023px) {
+    .mi-emblema {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .mi-emblema-vista {
+        order: -1;
+    }
+}
+
+/* ---------- Móvil ---------- */
+
+@media (max-width: 767px) {
+    /* La maqueta de móvil lleva 16 px de margen (base.css da 32 px a la página): con 32 la rejilla de 6 columnas
+       de 44 px no cabe a 375 px. */
+    .contenedor-pagina {
+        padding: var(--space-4);
+    }
+
+    /* «‹ Mi avatar» en lugar de CabeceraPagina: 56 px, relleno 0 8 px, hueco 8 px, fondo de superficie y filete inferior. */
+    .mi-emblema-cabecera-escritorio {
+        display: none;
+    }
+
+    .mi-emblema-barra-movil {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        height: 56px;
+        margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
+        padding: 0 var(--space-2);
+        background-color: var(--color-surface);
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    .mi-emblema-barra-volver {
+        display: inline-grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        color: var(--color-text);
+        font: 400 22px/1 var(--font-family);
+        text-decoration: none;
+    }
+
+    .mi-emblema-barra-titulo {
+        font: var(--font-h4);
+        color: var(--color-text);
+    }
+
+    .mi-emblema {
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-4);
+        /* La barra fija mide 80 px (12 + 48 + 20): que no tape el último control. */
+        padding-bottom: 96px;
+    }
+
+    .mi-emblema-tarjeta,
+    .mi-emblema-vista {
+        padding: var(--space-4);
+    }
+
+    .mi-emblema-tarjeta {
+        gap: var(--space-3);
+    }
+
+    /* La vista previa sube sobre la elección; sin contextos ni descripción: lleva la línea de estado. */
+    .mi-emblema-vista {
+        order: -1;
+    }
+
+    .mi-emblema-vista-rotulo,
+    .mi-emblema-vista-descripcion,
+    .mi-emblema-contextos,
+    .mi-emblema-estado {
+        display: none;
+    }
+
+    .mi-emblema-estado-movil {
+        display: block;
+    }
+
+    .mi-emblema ::deep .mi-emblema-iniciales {
+        display: none;
+    }
+
+    .mi-emblema ::deep .mi-emblema-iniciales-movil {
+        display: inline-flex;
+    }
+
+    .mi-emblema-rejilla,
+    .mi-emblema-esqueleto-rejilla {
+        grid-template-columns: repeat(6, minmax(44px, 1fr));
+        gap: 6px;
+    }
+
+    .mi-emblema-rejilla .mi-emblema-opcion {
+        width: auto;
+        height: auto;
+        min-height: 44px;
+        aspect-ratio: 1;
+    }
+
+    .mi-emblema-rejilla ::deep .avatar-usuario {
+        --avatar-usuario-lado: 40px;
+    }
+
+    .mi-emblema-tonos {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .mi-emblema-opcion-tono {
+        height: 48px;
+        padding: 0 12px 0 8px;
+    }
+
+    .mi-emblema-acciones {
+        position: fixed;
+        inset-inline: 0;
+        bottom: 0;
+        /* Por debajo de la cabecera fija (1020) y de sus velos: un menú abierto tapa la barra, no al revés. */
+        z-index: 1010;
+        padding: var(--space-3) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+        background-color: var(--color-surface);
+        border-top: var(--border-default);
+    }
+
+    .mi-emblema-pie ::deep .mi-emblema-guardar {
+        height: 48px;
+        font-size: 0.9375rem;
+    }
 }

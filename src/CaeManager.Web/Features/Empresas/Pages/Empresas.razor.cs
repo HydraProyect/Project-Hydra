@@ -2,7 +2,6 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
 using CaeManager.Application.Empresas.Commands.EliminarEmpresas;
 using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
-using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 using CaeManager.Application.Common;
 using CaeManager.Web.Components.Layout;
@@ -27,6 +26,9 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
 
     [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
 
+    /// <summary>Falso para el rol Cliente (usuario de portal): no se le ofrece el filtro ni la agrupación por Cliente.</summary>
+    private bool _operaDesdeGestion = true;
+
     /// <summary>
     /// El rol de quien mira puede escribir: las incidencias del motivo y de la fila desplegada son botones
     /// que abren su corrección. Mismo criterio que el listado de Vehículos. No es la autorización: quién
@@ -43,6 +45,21 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
 
     private string _busqueda = string.Empty;
     private string _estadoFiltro = string.Empty;
+
+    /// <summary>
+    /// Filtro «Cliente»: solo las Empresas que prestan servicio a ese Cliente empresarial dentro del alcance de
+    /// gestión de quien mira (<see cref="ObtenerEmpresasQuery.ClienteEmpresarialId"/>). Viaja en la URL como «cliente».
+    /// </summary>
+    private Guid? _clienteFiltro;
+
+    /// <summary>Agrupar «Por Cliente» (<see cref="ObtenerEmpresasQuery.ConClientePrincipal"/>). Viaja en la URL como «agrupar=cliente».</summary>
+    private bool _agruparPorCliente;
+
+    /// <summary>
+    /// Los Clientes entre los que elegir en el filtro: los de su alcance de lectura (la misma consulta del
+    /// selector del alta). Vacía = la pantalla no ofrece ni el filtro ni la agrupación.
+    /// </summary>
+    private IReadOnlyList<ClienteSelectorDto> _clientesFiltro = [];
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -56,10 +73,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// del <c>await</c> y, al volver, solo escribe estado si sigue siendo la
     /// vigente: si mientras tanto cambió un filtro, la página o el tamaño, su
     /// respuesta es de otra pregunta. Sin esto, una respuesta lenta del filtro
-    /// anterior pisaba las filas, el total y el estado vacío del nuevo. Las
-    /// cargas de «Clientes de la Empresa» de la fila desplegada comparten el
-    /// mismo número: una respuesta de antes de recargar la lista ya no
-    /// pertenece a lo que se ve.
+    /// anterior pisaba las filas, el total y el estado vacío del nuevo.
     /// </summary>
     private int _cargaVigente;
 
@@ -86,15 +100,6 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     // pantallas. A la página Empresa 360 (/empresas/{id}) se va con el icono 360 de la fila.
     private Task AbrirVistaRapidaAsync(Guid id) =>
         WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, id, NombreDe(id), "informacion");
-
-    /// <summary>
-    /// Quien mira acaba de desasignarse, desde la cabecera «Gestor CAE», de su apoyo sobre el Tenant
-    /// propietario activo: todo lo que esta página tiene pintado es de un Tenant al que ya no accede.
-    /// Va a «Mi trabajo» con <c>sinAcceso=true</c> para avisarlo; <c>forceLoad</c> hace que el arranque
-    /// normal de la aplicación vuelva a resolver el Tenant activo y el acceso.
-    /// Tras «+ Dar acceso» no se llama: ahí basta con que la cabecera relea su dato.
-    /// </summary>
-    private void IrAMiTrabajoTrasDesasignarme() => NavigationManager.NavigateTo("/mi-trabajo?sinAcceso=true", forceLoad: true);
 
     /// <summary>
     /// Tecla «e»: la vista rápida de la fila enfocada, ya en edición (el lápiz de la cabecera
@@ -134,26 +139,12 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     }
 
     /// <summary>
-    /// Qué filas tienen el acordeón de "Clientes" abierto — la expansión la
+    /// Qué filas tienen el acordeón de documentos pendientes abierto — la expansión la
     /// lleva la página, no un estado interno por fila, para que
-    /// "Expandir/Colapsar todos" pueda decidirlo desde fuera (§ 0.9).
+    /// "Expandir/Colapsar todos" pueda decidirlo desde fuera (§ 0.9). Lo que enseña el
+    /// acordeón ya viene en la fila (<see cref="EmpresaListaDto.Incidencias"/>): abrirlo no cuesta consulta.
     /// </summary>
     private readonly HashSet<Guid> _expandidos = [];
-
-    /// <summary>
-    /// Carga perezosa por Empresa, al expandir: no tiene sentido pagar N
-    /// consultas de "Clientes de la Empresa" (una por Empresa de la página)
-    /// si la mayoría de acordeones se quedan cerrados. <c>null</c> = todavía
-    /// no se ha pedido; lista vacía = ya se pidió y no tiene clientes (o
-    /// falló: ver <see cref="_clientesConError"/>).
-    /// </summary>
-    private readonly Dictionary<Guid, IReadOnlyList<ClienteDeEmpresaDto>?> _clientesPorEmpresa = new();
-
-    /// <summary>
-    /// Empresas cuya consulta de clientes falló. Van aparte para no pintar un
-    /// fallo como «no tiene ningún Cliente asociado».
-    /// </summary>
-    private readonly HashSet<Guid> _clientesConError = [];
 
     private List<EmpresaListaDto> _elementosPagina = [];
     private Guid? _idEnfocado;
@@ -173,6 +164,14 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// </summary>
     [SupplyParameterFromQuery(Name = "estado")]
     public string? EstadoInicial { get; set; }
+
+    /// <summary>Filtro «Cliente» de la URL (<c>?cliente=</c>): solo vale un Cliente de <see cref="_clientesFiltro"/>.</summary>
+    [SupplyParameterFromQuery(Name = "cliente")]
+    public string? ClienteFiltroInicial { get; set; }
+
+    /// <summary>Agrupación de la URL (<c>?agrupar=cliente</c>).</summary>
+    [SupplyParameterFromQuery(Name = "agrupar")]
+    public string? AgruparInicial { get; set; }
 
     /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
     private bool _sinEmpresaSeleccionada;
@@ -222,6 +221,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             var usuario = (await EstadoAutenticacion).User;
             if (_desechado) return;
             _puedeEscribir = Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole);
+            _operaDesdeGestion = !usuario.IsInRole(Roles.Cliente);
         }
 
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
@@ -249,6 +249,11 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         if (_sinEmpresaSeleccionada)
             return;
 
+        // Antes de leer la URL: un «cliente» que no está entre sus Clientes visibles no se aplica.
+        await CargarClientesDelFiltroAsync();
+        _clienteFiltro = ClienteDesdeUrl();
+        _agruparPorCliente = AgruparDesdeUrl();
+
         await CargarAsync();
     }
 
@@ -271,11 +276,16 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
 
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         var estadoDeLaUrl = EstadoDesdeUrl();
+        var clienteDeLaUrl = ClienteDesdeUrl();
+        var agruparDeLaUrl = AgruparDesdeUrl();
 
-        if (deLaUrl != _busqueda || estadoDeLaUrl != _estadoFiltro)
+        if (deLaUrl != _busqueda || estadoDeLaUrl != _estadoFiltro
+            || clienteDeLaUrl != _clienteFiltro || agruparDeLaUrl != _agruparPorCliente)
         {
             _busqueda = deLaUrl;
             _estadoFiltro = estadoDeLaUrl;
+            _clienteFiltro = clienteDeLaUrl;
+            _agruparPorCliente = agruparDeLaUrl;
             await CargarAsync(resetPagina: true);
         }
 
@@ -291,6 +301,37 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     }
 
     private string EstadoDesdeUrl() => EstadoDocumentoUi.SeleccionDocumentalValida(EstadoInicial);
+
+    private Guid? ClienteDesdeUrl() =>
+        Guid.TryParse(ClienteFiltroInicial, out var id) && _clientesFiltro.Any(c => c.Id == id) ? id : null;
+
+    private bool AgruparDesdeUrl() =>
+        _clientesFiltro.Count > 0 && string.Equals(AgruparInicial, ValorAgruparPorCliente, StringComparison.OrdinalIgnoreCase);
+
+    private const string ValorAgruparPorCliente = "cliente";
+
+    private async Task CargarClientesDelFiltroAsync()
+    {
+        // Solo quien opera desde el lado de gestión CAE: a un usuario de portal (rol Cliente) el servidor le
+        // devuelve siempre «ninguna Empresa» por Cliente, así que ofrecerle el filtro sería prometer lo que no hay
+        // (REC-153). Misma frontera que IAlcanceDatosService.OperaDesdeElLadoDeGestionAsync, leída del principal
+        // como el resto de la página (el rol efectivo consulta el DbContext y esto corre en paralelo con el layout).
+        if (!_operaDesdeGestion)
+        {
+            _clientesFiltro = [];
+            return;
+        }
+
+        try
+        {
+            _clientesFiltro = await Mediator.Send(new ObtenerClientesParaSelectorQuery(), _ciclo.Token);
+        }
+        catch (Exception) when (!_desechado)
+        {
+            // Sin la lista no hay filtro ni agrupación por Cliente; la lista de Empresas sigue funcionando.
+            _clientesFiltro = [];
+        }
+    }
 
     private async Task AbrirCrearDesdeUrlAsync()
     {
@@ -351,7 +392,8 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             // Y pide el desglose, como la carga de página: la fila pinta el motivo de su estado.
             var resultado = await Mediator.Send(
                 new ObtenerEmpresasQuery(
-                    Busqueda: null, ConRecuentosPorEstado: true, EmpresaId: id, ConDesgloseDocumental: true),
+                    Busqueda: null, ConRecuentosPorEstado: true, EmpresaId: id, ConDesgloseDocumental: true,
+                    ClienteEmpresarialId: _clienteFiltro, ConClientePrincipal: _agruparPorCliente),
                 _ciclo.Token);
             var indice = _elementosPagina.FindIndex(e => e.Id == id);
             if (_desechado || _cargando || carga != _cargaVigente || indice < 0
@@ -359,19 +401,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
                 return;
 
             _elementosPagina[indice] = actualizada;
-
-            // El formulario del panel también edita los Clientes empresariales de la Empresa, que
-            // son el contenido del acordeón de la fila: lo cargado ya no vale. Si está
-            // desplegado se vuelve a pedir; si no, se pedirá al desplegarlo. La fila se pinta
-            // antes de esa segunda consulta, para que no espere por ella.
-            _clientesPorEmpresa.Remove(id);
-            _clientesConError.Remove(id);
             StateHasChanged();
-            if (_expandidos.Contains(id))
-            {
-                await CargarClientesDeEmpresaAsync(id);
-                StateHasChanged();
-            }
         }
         catch (Exception)
         {
@@ -424,7 +454,11 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
             ConRecuentosPorEstado: true,
             // Esta página pinta el motivo del estado: es quien pide el desglose.
-            ConDesgloseDocumental: true);
+            ConDesgloseDocumental: true,
+            ClienteEmpresarialId: _clienteFiltro,
+            // Agrupar es ordenar por el Cliente principal y pedir su nombre para el título del grupo.
+            OrdenarPor: _agruparPorCliente ? nameof(EmpresaListaDto.ClientePrincipal) : null,
+            ConClientePrincipal: _agruparPorCliente);
 
         // La misma pregunta que la carga anterior, pedida por el refresco tras corregir una incidencia,
         // conserva la selección, las filas desplegadas y la fila enfocada; cualquier otra carga las limpia.
@@ -448,14 +482,10 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             if (conservarSeleccion)
             {
                 // Lo que ya no está en la página (la corrección lo sacó del filtro) deja de estar
-                // seleccionado y desplegado. Los Clientes ya cargados de las filas que siguen valen:
-                // corregir un documento no los cambia.
+                // seleccionado y desplegado.
                 var enPagina = _elementosPagina.Select(e => e.Id).ToHashSet();
                 _seleccionados.IntersectWith(enPagina);
                 _expandidos.IntersectWith(enPagina);
-                foreach (var fuera in _clientesPorEmpresa.Keys.Where(id => !enPagina.Contains(id)).ToList())
-                    _clientesPorEmpresa.Remove(fuera);
-                _clientesConError.IntersectWith(enPagina);
                 if (_idEnfocado is { } enfocado && !enPagina.Contains(enfocado))
                     _idEnfocado = null;
             }
@@ -463,8 +493,6 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             {
                 _seleccionados.Clear();
                 _expandidos.Clear();
-                _clientesPorEmpresa.Clear();
-                _clientesConError.Clear();
                 _idEnfocado = null;
             }
         }
@@ -512,12 +540,6 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
 
         _consultaQueConservaSeleccion = _ultimaConsulta;
         await CargarAsync();
-
-        // Una carga de Clientes que estaba en vuelo pertenecía a la lista anterior y se descartó: la fila
-        // que sigue desplegada los vuelve a pedir, para no quedarse cargando.
-        var sinClientes = _expandidos.Where(id => !_clientesPorEmpresa.ContainsKey(id)).ToList();
-        if (sinClientes.Count > 0)
-            await Task.WhenAll(sinClientes.Select(CargarClientesDeEmpresaAsync));
     }
 
     // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
@@ -547,8 +569,80 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         await CargarAsync(resetPagina: true);
     }
 
+    private async Task CambiarClienteAsync(string? valor)
+    {
+        _clienteFiltro = Guid.TryParse(valor, out var id) && _clientesFiltro.Any(c => c.Id == id) ? id : null;
+        NavigationManager.ActualizarFiltroEnUrl("cliente", _clienteFiltro?.ToString());
+        await CargarAsync(resetPagina: true);
+    }
+
+    private async Task CambiarAgrupacionAsync(string? valor)
+    {
+        _agruparPorCliente = valor == ValorAgruparPorCliente;
+        NavigationManager.ActualizarFiltroEnUrl("agrupar", _agruparPorCliente ? ValorAgruparPorCliente : null);
+        await CargarAsync(resetPagina: true);
+    }
+
+    private Task QuitarFiltroClienteAsync() => CambiarClienteAsync(null);
+
+    private string ValorFiltroCliente => _clienteFiltro?.ToString() ?? string.Empty;
+
+    private string ValorAgrupacion => _agruparPorCliente ? ValorAgruparPorCliente : string.Empty;
+
+    private string NombreClienteFiltro =>
+        _clientesFiltro.FirstOrDefault(c => c.Id == _clienteFiltro)?.RazonSocial ?? string.Empty;
+
+    private IReadOnlyList<OpcionEstado> OpcionesFiltroCliente =>
+        _clientesFiltro.OrderBy(c => c.RazonSocial).Select(c => new OpcionEstado(c.Id.ToString(), c.RazonSocial)).ToList();
+
+    /// <summary>
+    /// El detalle de vigencia de un documento de la fila desplegada, literal de la maqueta («Empresas TALVEG.dc.html»):
+    /// «Venció el dd/MM/yyyy» si venció, el plazo si está por vencer y la falta de fecha si está sin confirmar.
+    /// </summary>
+    private static string DetalleDelDocumento(CaeManager.Application.Documentos.IncidenciaDocumentalDto incidencia) =>
+        DetalleVigenciaDocumentoUi.DeEmpresa(incidencia, CaeManager.Domain.Common.DiaDeNegocio.Hoy());
+
+    private IReadOnlyList<OpcionEstado> OpcionesAgrupacion =>
+        [new OpcionEstado(ValorAgruparPorCliente, Textos["AgruparPorCliente"].Value)];
+
     private bool HayFiltrosActivos =>
-        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro);
+        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro) || _clienteFiltro is not null;
+
+    /// <summary>
+    /// Las filas de la página con el título del grupo en la primera de cada uno cuando se agrupa «Por Cliente»
+    /// (el orden ya viene del servidor: los de un mismo Cliente, seguidos). <c>Cantidad</c> es cuántas filas
+    /// tiene el grupo EN ESTA PÁGINA. Sin agrupar, ninguna fila lleva título.
+    /// </summary>
+    /// <summary>
+    /// El recuento del título de grupo cuenta las filas de esta página (agrupar es ordenar en servidor): con más de una
+    /// página no es el total del grupo y lo dice, para que no se lea como tal.
+    /// </summary>
+    private string RecuentoDeGrupo(int cantidad) =>
+        Textos[TotalPaginas > 1 ? "RecuentoGrupoEnPagina" : "RecuentoGrupo", cantidad].Value;
+
+    private IEnumerable<(EmpresaListaDto Empresa, string? Grupo, int Cantidad)> FilasConGrupo()
+    {
+        if (!_agruparPorCliente)
+        {
+            foreach (var empresa in _elementosPagina)
+                yield return (empresa, null, 0);
+            yield break;
+        }
+
+        var cantidades = _elementosPagina
+            .GroupBy(e => e.ClientePrincipal ?? string.Empty)
+            .ToDictionary(g => g.Key, g => g.Count());
+        string? anterior = null;
+        foreach (var empresa in _elementosPagina)
+        {
+            var clave = empresa.ClientePrincipal ?? string.Empty;
+            var empiezaGrupo = anterior is null || clave != anterior;
+            anterior = clave;
+            yield return empiezaGrupo
+                ? (empresa, empresa.ClientePrincipal ?? Textos["GrupoSinCliente"].Value, cantidades[clave])
+                : (empresa, null, 0);
+        }
+    }
 
     private Task QuitarFiltroBusquedaAsync() => BuscarAsync(string.Empty);
 
@@ -564,7 +658,8 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     {
         _busqueda = string.Empty;
         _estadoFiltro = string.Empty;
-        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["estado"] = null });
+        _clienteFiltro = null;
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["estado"] = null, ["cliente"] = null });
         await CargarAsync(resetPagina: true);
     }
 
@@ -577,7 +672,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado.
     /// Fuera quedan <c>accion</c> y las precargas del alta (<c>Nombre</c>, <c>ClienteId</c>).
     /// </summary>
-    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado"];
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "cliente", "agrupar"];
 
     private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
     private readonly ConexionVistaRecordada _vistaRecordada = new();
@@ -591,7 +686,16 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     {
         _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
         _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"));
-        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = _busqueda, ["estado"] = _estadoFiltro });
+        // Un Cliente que ya no está entre los visibles, o una agrupación desconocida, se ignoran como un estado que ya no existe.
+        _clienteFiltro = Guid.TryParse(vista.GetValueOrDefault("cliente"), out var cliente) && _clientesFiltro.Any(c => c.Id == cliente) ? cliente : null;
+        _agruparPorCliente = _clientesFiltro.Count > 0 && vista.GetValueOrDefault("agrupar") == ValorAgruparPorCliente;
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = _busqueda,
+            ["estado"] = _estadoFiltro,
+            ["cliente"] = _clienteFiltro?.ToString(),
+            ["agrupar"] = _agruparPorCliente ? ValorAgruparPorCliente : null
+        });
         await CargarAsync(resetPagina: true);
     }
 
@@ -625,7 +729,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     private static string ClaseTinte(EstadoDocumento? estado) => estado switch
     {
         EstadoDocumento.Faltante or EstadoDocumento.Vencido => " fila-tintada-peligro",
-        EstadoDocumento.Urgente => " fila-tintada-aviso",
+        EstadoDocumento.Urgente or EstadoDocumento.Proximo or EstadoDocumento.EnTolerancia => " fila-tintada-aviso",
         _ => string.Empty
     };
 
@@ -833,19 +937,13 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     private bool TodosExpandidos =>
         _elementosPagina.Count > 0 && _elementosPagina.All(e => _expandidos.Contains(e.Id));
 
-    private async Task AlternarExpansionAsync(Guid empresaId)
+    private void AlternarExpansion(Guid empresaId)
     {
         if (!_expandidos.Add(empresaId))
-        {
             _expandidos.Remove(empresaId);
-            return;
-        }
-
-        if (!_clientesPorEmpresa.ContainsKey(empresaId))
-            await CargarClientesDeEmpresaAsync(empresaId);
     }
 
-    private async Task AlternarTodosExpandidosAsync(bool expandir)
+    private void AlternarTodosExpandidos(bool expandir)
     {
         if (!expandir)
         {
@@ -854,53 +952,6 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         }
 
         foreach (var elemento in _elementosPagina) _expandidos.Add(elemento.Id);
-
-        var pendientes = _elementosPagina
-            .Select(e => e.Id)
-            .Where(id => !_clientesPorEmpresa.ContainsKey(id))
-            .Select(CargarClientesDeEmpresaAsync);
-
-        await Task.WhenAll(pendientes);
-    }
-
-    private void IrAlCliente(Guid clienteId, string razonSocial) =>
-        WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, clienteId, razonSocial, "informacion");
-
-    private Task ReintentarClientesAsync(Guid empresaId)
-    {
-        _clientesPorEmpresa.Remove(empresaId);
-        _clientesConError.Remove(empresaId);
-        return CargarClientesDeEmpresaAsync(empresaId);
-    }
-
-    private async Task CargarClientesDeEmpresaAsync(Guid empresaId)
-    {
-        if (_desechado)
-            return;
-
-        // La respuesta solo vale para la lista que se veía al pedirla: tras
-        // recargar, la fila ya no está desplegada y su entrada se limpió.
-        var cargaDeLaLista = _cargaVigente;
-
-        try
-        {
-            var resultado = await Mediator.Send(new ObtenerClientesDeEmpresaQuery(empresaId), _ciclo.Token);
-            if (!EsVigente(cargaDeLaLista))
-                return;
-
-            _clientesPorEmpresa[empresaId] = resultado;
-        }
-        catch (Exception) when (!EsVigente(cargaDeLaLista))
-        {
-            return;
-        }
-        catch (Exception)
-        {
-            _clientesPorEmpresa[empresaId] = [];
-            _clientesConError.Add(empresaId);
-        }
-
-        StateHasChanged();
     }
 
     private async Task ConfirmarEliminarLoteAsync()
@@ -1030,5 +1081,6 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     {
         ["q"] = _busqueda,
         ["estado"] = _estadoFiltro,
+        ["cliente"] = _clienteFiltro?.ToString(),
     };
 }

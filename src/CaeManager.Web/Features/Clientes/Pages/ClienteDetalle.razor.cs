@@ -1,4 +1,4 @@
-using CaeManager.Application.Centros.Queries.ObtenerCentros;
+﻿using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
@@ -6,6 +6,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerResumenCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasConCentrosDeCliente;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConCumplimientoDeSubcontrata;
+using CaeManager.Application.TiposDocumento.Queries.ObtenerToleranciasClienteEmpresarial;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Centros;
 using CaeManager.Web.Components;
@@ -48,7 +49,9 @@ namespace CaeManager.Web.Features.Clientes.Pages;
 /// <para>
 /// Qué NO enseña, igual que el panel: porcentaje de cumplimiento del Cliente
 /// empresarial (no existe), Alias, Domicilio, Portal
-/// principal, Gestor CAE e historial de notas. Editar la identidad y la nota
+/// principal, el «Gestor CAE de referencia» (<c>EjecutivoUsuarioId</c>) e historial de notas. La fila
+/// «Gestor CAE» de la tarjeta Información sí está (<c>GestorCaeCliente</c>): enseña quién tiene Asignación de
+/// Cartera sobre el Tenant y aloja «Dar acceso» y «Desasignarme». Editar la identidad y la nota
 /// se hace en el panel: los «Editar» de esta página lo abren en su pestaña.
 /// El anillo cuenta Centros sin incidencias sobre Centros con gestión CAE; se omite si la lista está truncada
 /// o no se han podido leer los bloqueos, para no presentar una fracción global incompleta.
@@ -63,7 +66,8 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     /// <summary>
     /// Orden de la tira: Centros primera y por defecto porque es la única que
-    /// trae estado; después Empresas, Subcontratas, Documentación, Agenda e Historial.
+    /// trae estado; después Empresas, Subcontratas, Documentación, Agenda, Ficha (tolerancia
+    /// de documentos por defecto) e Historial, como la maqueta del 17-10.
     /// La certificación TGSS es el primer bloque de Documentación.
     /// </summary>
     private static readonly (string Id, string Clave)[] _pestanas =
@@ -73,6 +77,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         ("subcontratas", "PestanaSubcontratas"),
         ("documentacion", "PestanaDocumentacion"),
         ("agenda", "PestanaAgenda"),
+        ("ficha", "PestanaFicha"),
         ("historial", "PestanaHistorial")
     ];
 
@@ -129,6 +134,41 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     private bool _datosInicialesCargados;
     private int _cargaCentrosSubcontratas;
 
+    /// <summary>
+    /// Habilita la lectura de la fila «Gestor CAE» (<c>GestorCaeCliente</c>) cuando la cadena de
+    /// <see cref="CargarTodoAsync"/> terminó: sus consultas comparten el DbContext del circuito.
+    /// </summary>
+    private bool _gestorCaeHabilitado;
+
+    /// <summary>
+    /// Habilita la lectura de la pestaña «Documentación» (<c>DocumentosExigidosCliente</c>) cuando terminaron la cadena
+    /// de <see cref="CargarTodoAsync"/> y la primera lectura de la fila «Gestor CAE»: comparten el DbContext del circuito.
+    /// </summary>
+    private bool _documentacionHabilitada;
+
+    /// <summary>
+    /// Turno de las lecturas que no van en la cadena de <see cref="CargarTodoAsync"/>: las de pestaña (Centros de
+    /// Subcontratas, tolerancias), la fila «Gestor CAE» y la pestaña «Documentación». La cadena espera a que quede libre
+    /// antes de empezar, así que una lectura cancelada sale del DbContext del circuito antes de la siguiente.
+    /// </summary>
+    private readonly SerieDeLecturas _serie = new();
+
+    /// <summary>
+    /// Habilita la caja «Plataforma CAE» (<c>CajaPlataformaCaeCliente</c>) cuando la fila «Gestor CAE» avisó: va
+    /// detrás de ella en la misma serie, por el DbContext compartido.
+    /// </summary>
+    private bool _plataformaCaeHabilitada;
+
+    /// <summary>
+    /// Pendiente mientras la fila «Gestor CAE» (y su panel de acciones) y, detrás, la caja «Plataforma CAE» hacen su
+    /// primera lectura: las lecturas de pestaña esperan a que terminen, por el mismo DbContext compartido. Sin valor o
+    /// completada, no se espera.
+    /// </summary>
+    private TaskCompletionSource? _gestorCaeEnVuelo;
+
+    /// <summary>Tope de esa espera: si la fila no avisara nunca, la pestaña no se queda colgada.</summary>
+    private static readonly TimeSpan EsperaMaximaGestorCae = TimeSpan.FromSeconds(10);
+
     private string _pestanaActiva = PestanaPorDefecto;
     private string? _pestanaDeLaUrl;
     private string _busqueda = string.Empty;
@@ -180,6 +220,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         if (_clienteCargado == ClienteId)
         {
             await CargarCentrosSubcontratasSiProcedeAsync();
+            await CargarToleranciasSiProcedeAsync();
             return;
         }
 
@@ -290,11 +331,31 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _pestanaActiva = Normalizar(pestana);
         _pestanaDeLaUrl = _pestanaActiva == PestanaPorDefecto ? null : _pestanaActiva;
         NavigationManager.ActualizarFiltroEnUrl("pestana", _pestanaDeLaUrl);
+        await EsperarGestorCaeAsync();
         await CargarCentrosSubcontratasSiProcedeAsync();
+        await CargarToleranciasSiProcedeAsync();
     }
 
-    /// <summary>Los indicadores de la cabecera cuentan centros: al pulsarlos se ven esos centros.</summary>
-    private Task IrACentros() => CambiarPestana(PestanaPorDefecto);
+    /// <summary>
+    /// Si la fila «Gestor CAE» sigue con su primera lectura, se espera a que avise (con tope): una pestaña que lee
+    /// en paralelo chocaría con ella en el DbContext del circuito. Es la misma serie que sigue la carga inicial.
+    /// </summary>
+    private async Task EsperarGestorCaeAsync()
+    {
+        if (_gestorCaeEnVuelo is { Task.IsCompleted: false } enVuelo)
+            await Task.WhenAny(enVuelo.Task, Task.Delay(EsperaMaximaGestorCae));
+    }
+
+    /// <summary>La fila «Gestor CAE» terminó: le toca a la caja «Plataforma CAE», que cierra la serie al avisar.</summary>
+    private void GestorCaeCargado() => _plataformaCaeHabilitada = true;
+
+    private void PlataformaCaeCargada()
+    {
+        _gestorCaeEnVuelo?.TrySetResult();
+        // Terminaron la cadena (que es quien habilita la fila), la fila y la caja: ya lee la pestaña «Documentación».
+        if (_gestorCaeHabilitado)
+            _documentacionHabilitada = true;
+    }
 
     /// <summary>Invalida cualquier carga en vuelo: su respuesta ya no escribirá nada.</summary>
     private void InvalidarCargas()
@@ -354,6 +415,9 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _bloqueos = [];
         _bloqueosLeidos = false;
         _drawerToleranciasVisible = false;
+        _tiposConTolerancia = null;
+        _toleranciasLeidas = false;
+        _cargandoTolerancias = false;
         _errorCentros = false;
         _cargandoCentros = false;
         _empresas = null;
@@ -361,6 +425,11 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _cargandoEmpresas = false;
         _subcontratas = null;
         _datosInicialesCargados = false;
+        _gestorCaeHabilitado = false;
+        _documentacionHabilitada = false;
+        _plataformaCaeHabilitada = false;
+        _gestorCaeEnVuelo?.TrySetResult();
+        _gestorCaeEnVuelo = null;
         _centrosSubcontratasLeidos = false;
         _cargandoCentrosSubcontratas = false;
         _centrosSubcontratas = new Dictionary<Guid, IReadOnlyList<CentroCumplimientoSubcontrataDto>>();
@@ -377,6 +446,18 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     private async Task CargarTodoAsync()
     {
         var generacion = _generacion;
+        // Si una lectura de la serie sigue en vuelo (p. ej. la pestaña «Documentación» del Cliente empresarial anterior,
+        // ya cancelada), la cadena espera a que salga del DbContext antes de empezar.
+        try
+        {
+            using (await _serie.TomarAsync(_cancelacion)) { }
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        if (generacion != _generacion) return;
+
         await CargarCabeceraAsync();
         if (generacion != _generacion || _detalle is null) return;
 
@@ -395,6 +476,18 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         if (generacion != _generacion) return;
         _datosInicialesCargados = true;
         await CargarCentrosSubcontratasSiProcedeAsync();
+        await CargarToleranciasSiProcedeAsync();
+        if (generacion != _generacion) return;
+        // Solo la primera vez por Cliente empresarial: GestorCaeCliente avisa cuando Cargar pasa de false a true, así que
+        // en una segunda cadena (Reintentar) con la fila ya habilitada no llegaría nadie a completar un aviso nuevo.
+        if (!_gestorCaeHabilitado)
+        {
+            _gestorCaeEnVuelo = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _gestorCaeHabilitado = true;
+        }
+        StateHasChanged();
+        // La pestaña «Documentación» se habilita cuando la fila «Gestor CAE» avisa de su primera lectura
+        // (GestorCaeCargado), no esperándola aquí: la cadena termina como antes, sin un render tardío de la página.
     }
 
     /// <summary>Un doble clic en «Reintentar» no lanza una segunda cadena: la primera ya puso _cargando.</summary>
@@ -576,6 +669,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _cargandoSubcontratas = true;
         try
         {
+            using var turno = await _serie.TomarAsync(_cancelacion);
             var filas = await Mediator.Send(new ObtenerSubcontratasConCentrosDeClienteQuery(id), _cancelacion);
             if (carga != _cargaCentrosSubcontratas) return;
             _centrosSubcontratas = filas.ToDictionary(s => s.Subcontrata.Id, s => s.Centros);
@@ -619,24 +713,6 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             : $"{Plural(_resumen.TotalCentros, "RecuentoCentrosUno", "RecuentoCentrosVarios")} · " +
               Plural(_resumen.TotalTrabajadores, "RecuentoTrabajadoresUno", "RecuentoTrabajadoresVarios");
 
-    private string ResumenCentros
-    {
-        get
-        {
-            var mostrados = _centros?.Count ?? 0;
-            // El buscador filtra lo cargado: con la lista cortada en MaximoCentros hay que seguir diciéndolo, o «0 de 200»
-            // se leería como «este Cliente no tiene ese Centro».
-            if (HayBusqueda || !string.IsNullOrEmpty(_estado))
-                return _totalCentros > mostrados
-                    ? Textos["ResumenCentrosBuscadosTruncado", CentrosVisibles.Count, mostrados, _totalCentros]
-                    : Textos["ResumenCentrosBuscados", CentrosVisibles.Count, mostrados];
-
-            return _totalCentros > mostrados
-                ? Textos["ResumenCentrosTruncado", mostrados, _totalCentros]
-                : Textos["ResumenCentrosBuscados", CentrosVisibles.Count, mostrados];
-        }
-    }
-
     /// <summary>
     /// El Centro es del Cliente empresarial de esta ficha, que es su titular: la fila nunca rotula una Empresa como si
     /// fuera la dueña. La Empresa del Tenant solo «entra como contratista», y solo se dice cuando el usuario ve más de
@@ -649,12 +725,10 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             ? Textos["DetalleEntraComoContratista", centro.EmpresaRazonSocial].Value
             : null;
 
-    /// <summary>Empresa contratista, motivos documentales, bloqueos de plataforma y Trabajadores bloqueados, sin partes en cero ni confundir pendientes con vencidos.</summary>
-    private string DetalleCentro(CentroListaDto centro)
+    /// <summary>Motivos documentales, bloqueos de plataforma y Trabajadores bloqueados, sin partes en cero ni confundir pendientes con vencidos.</summary>
+    private string MotivosCentro(CentroListaDto centro)
     {
         var partes = new List<string>();
-        if (EntraComoContratista(centro) is { } contratista)
-            partes.Add(contratista);
         if (centro.Recuentos.VencidasPorFecha.Count > 0)
             partes.Add(Plural(centro.Recuentos.VencidasPorFecha.Count, "DetalleVencidosUno", "DetalleVencidosVarios"));
         if (centro.Recuentos.Pendientes.Count > 0)
@@ -669,11 +743,105 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         return string.Join(" · ", partes);
     }
 
-    /// <summary>Sin partes no se pasa la ranura: FilaRelacion pintaría una segunda línea vacía.</summary>
+    /// <summary>
+    /// Maqueta 17-10: bajo el nombre, una línea por cosa — «Entra como contratista: …» (solo con varias Empresas contratistas) y
+    /// los motivos del estado—; un Centro sin gestión CAE lo dice en la primera. El bloqueo de la plataforma CAE va como
+    /// parte de los motivos, no como rótulo junto al nombre: FilaRelacion no tiene ranura en esa posición.
+    /// </summary>
+    private IReadOnlyList<string> LineasDetalleCentro(CentroListaDto centro)
+    {
+        var lineas = new List<string>();
+        if (centro.Estado == EstadoCentro.SinGestionCae)
+            lineas.Add(Textos["CentroSinGestionCaeLinea"].Value);
+        if (EntraComoContratista(centro) is { } contratista)
+            lineas.Add(contratista);
+        var motivos = MotivosCentro(centro);
+        if (motivos.Length > 0)
+            lineas.Add(motivos);
+        return lineas;
+    }
+
+    /// <summary>Sin líneas no se pasa la ranura: FilaRelacion pintaría una segunda línea vacía.</summary>
     private RenderFragment? FragmentoDetalleCentro(CentroListaDto centro)
     {
-        var detalle = DetalleCentro(centro);
-        return detalle.Length == 0 ? null : builder => builder.AddContent(0, detalle);
+        var lineas = LineasDetalleCentro(centro);
+        if (lineas.Count == 0) return null;
+        return builder =>
+        {
+            foreach (var linea in lineas)
+            {
+                builder.OpenElement(0, "span");
+                builder.AddAttribute(1, "class", "cliente360-linea-detalle");
+                builder.AddContent(2, linea);
+                builder.CloseElement();
+            }
+        };
+    }
+
+    /// <summary>Maqueta 17-10 (.fila-tinte-rojo / .fila-tinte-ambar): la fila se tiñe con el tono de su estado cuando hay problema.</summary>
+    private static TonoFila? TonoDeFilaCentro(CentroListaDto centro) =>
+        EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje) switch
+        {
+            TonoBadge.Peligro => TonoFila.Peligro,
+            TonoBadge.Advertencia => TonoFila.Advertencia,
+            _ => null
+        };
+
+    /// <summary>
+    /// El peor estado de los Centros con gestión CAE, para la pastilla de la cabecera (maqueta 17-10). Con la lista truncada
+    /// en <see cref="MaximoCentros"/> no se afirma nada global, igual que el anillo.
+    /// </summary>
+    private CentroListaDto? PeorCentroConGestionCae =>
+        _centros is not null && !_errorCentros && !_cargandoCentros && _centros.Count == _totalCentros
+            ? CentrosConGestionCae.MaxBy(c => CalculadoraEstadoCentro.Gravedad(c.Estado))
+            : null;
+
+    // ── Tolerancia por defecto (pestaña Ficha) ───────────────────────────
+
+    private int? _tiposConTolerancia;
+    private bool _toleranciasLeidas;
+    private bool _cargandoTolerancias;
+
+    private string? ResumenTolerancias => _tiposConTolerancia switch
+    {
+        null => null,
+        0 => Textos["ToleranciaResumenNinguno"].Value,
+        var n => Plural(n.Value, "ToleranciaResumenUno", "ToleranciaResumenVarios")
+    };
+
+    private Task CargarToleranciasSiProcedeAsync() =>
+        _pestanaActiva == "ficha" && !_toleranciasLeidas ? CargarToleranciasAsync() : Task.CompletedTask;
+
+    /// <summary>Informativo: si la lectura falla la tarjeta se queda con su descripción, sin resumen.</summary>
+    private async Task CargarToleranciasAsync()
+    {
+        if (_cargandoTolerancias || _detalle is not { } detalle) return;
+        _cargandoTolerancias = true;
+        var generacion = _generacion;
+        try
+        {
+            using var turno = await _serie.TomarAsync(_cancelacion);
+            var tolerancias = await Mediator.Send(new ObtenerToleranciasClienteEmpresarialQuery(detalle.Id), _cancelacion);
+            if (generacion != _generacion) return;
+            _tiposConTolerancia = tolerancias.Count(t => t.ToleranciaDias > 0);
+            _toleranciasLeidas = true;
+        }
+        catch (Exception)
+        {
+            _tiposConTolerancia = null;
+        }
+        finally
+        {
+            _cargandoTolerancias = false;
+        }
+    }
+
+    /// <summary>Tras guardar el cajón: bloqueos de la cabecera y resumen de la ficha al día.</summary>
+    private async Task TrasGuardarToleranciasAsync()
+    {
+        await RefrescarBloqueosAsync();
+        _toleranciasLeidas = false;
+        await CargarToleranciasSiProcedeAsync();
     }
 
     private IReadOnlyList<PestanaDefinicion> PestanasConRecuento =>
@@ -692,76 +860,6 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             };
         }).ToList();
 
-    /// <summary>Un indicador de la cabecera y el desglose literal de su ventana de contexto.</summary>
-    private sealed record Indicador(
-        string Clave, string Texto, string Titulo, string Etiqueta, IReadOnlyList<string> Lineas,
-        TonoBadge Tono);
-
-    /// <summary>
-    /// Los centros de este cliente, no documentos sumados: un documento de
-    /// Empresa exigido en varios centros no se cuenta varias veces. Un
-    /// indicador en cero no se pinta. «Vencidos» incluye Faltante, como en
-    /// RecuentosCentroDto.
-    /// </summary>
-    private IReadOnlyList<Indicador> Indicadores
-    {
-        get
-        {
-            if (_centros is null) return [];
-
-            var indicadores = new List<Indicador>();
-
-            // Trabajadores bloqueados: un Trabajador bloqueado en dos Centros cuenta una vez, y la ventana lo lista por Centro.
-            var trabajadoresBloqueados = _bloqueos.Select(b => b.TrabajadorId).Distinct().Count();
-            if (trabajadoresBloqueados > 0)
-            {
-                indicadores.Add(Crear("trabajadores-bloqueados",
-                    Plural(trabajadoresBloqueados, "IndicadorTrabajadoresBloqueadosUno", "IndicadorTrabajadoresBloqueadosVarios"),
-                    Plural(trabajadoresBloqueados, "VentanaTrabajadoresBloqueadosUno", "VentanaTrabajadoresBloqueadosVarios"),
-                    _bloqueos.Select(b => $"{b.TrabajadorNombre} · {b.CentroNombre}").Distinct().ToList(),
-                    TonoBadge.Peligro));
-            }
-
-            // El Centro solo está «Bloqueado» por la plataforma del Cliente empresarial (D-7), no por documentos.
-            var bloqueados = _centros.Where(c => c.Estado == EstadoCentro.Bloqueado).ToList();
-            if (bloqueados.Count > 0)
-            {
-                var texto = _totalCentros == 1
-                    ? Textos["IndicadorBloqueadosUnico"]
-                    : Textos["IndicadorBloqueados", bloqueados.Count, _totalCentros];
-                indicadores.Add(Crear("bloqueados", texto,
-                    Plural(bloqueados.Count, "VentanaBloqueadosUno", "VentanaBloqueadosVarios"),
-                    bloqueados.Select(c => EntraComoContratista(c) is { } contratista ? $"{c.Nombre} · {contratista}" : c.Nombre).ToList(),
-                    TonoBadge.Peligro));
-            }
-
-            var conVencidos = _centros.Where(c => c.Recuentos.TotalVencidas > 0).ToList();
-            if (conVencidos.Count > 0)
-            {
-                indicadores.Add(Crear("vencidos",
-                    Plural(conVencidos.Count, "IndicadorVencidosUno", "IndicadorVencidosVarios"),
-                    Plural(conVencidos.Count, "VentanaVencidosUno", "VentanaVencidosVarios"),
-                    conVencidos.Select(c => $"{c.Nombre} · {Plural(c.Recuentos.TotalVencidas, "DetalleVencidosUno", "DetalleVencidosVarios")}").ToList(),
-                    TonoBadge.Peligro));
-            }
-
-            var conProximos = _centros.Where(c => c.Recuentos.TotalProximas > 0).ToList();
-            if (conProximos.Count > 0)
-            {
-                indicadores.Add(Crear("proximos",
-                    Plural(conProximos.Count, "IndicadorProximosUno", "IndicadorProximosVarios"),
-                    Plural(conProximos.Count, "VentanaProximosUno", "VentanaProximosVarios"),
-                    conProximos.Select(c => $"{c.Nombre} · {Plural(c.Recuentos.TotalProximas, "DetalleProximosUno", "DetalleProximosVarios")}").ToList(),
-                    TonoBadge.Advertencia));
-            }
-
-            return indicadores;
-        }
-    }
-
-    private Indicador Crear(string clave, string texto, string titulo, IReadOnlyList<string> lineas, TonoBadge tono) =>
-        new(clave, texto, titulo, Textos["AriaIndicador", texto, string.Join("; ", lineas)], lineas, tono);
-
     // ── Navegación ────────────────────────────────────────────────────────
 
     private void IrABreadcrumb(int indice)
@@ -769,6 +867,13 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         if (indice == 0)
             NavigationManager.NavigateTo("/clientes");
     }
+
+    /// <summary>
+    /// Quien mira acaba de desasignarse, desde la fila «Gestor CAE», de su apoyo sobre el Tenant activo: todo lo que
+    /// esta página tiene pintado es de un Tenant al que ya no accede. Va a «Mi trabajo» con <c>sinAcceso=true</c>
+    /// para avisarlo; <c>forceLoad</c> hace que el arranque normal vuelva a resolver el Tenant activo y el acceso.
+    /// </summary>
+    private void IrAMiTrabajoTrasDesasignarme() => NavigationManager.NavigateTo("/mi-trabajo?sinAcceso=true", forceLoad: true);
 
     private Task AbrirInformacionAsync() =>
         WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, ClienteId, _detalle?.RazonSocial ?? string.Empty, "informacion");

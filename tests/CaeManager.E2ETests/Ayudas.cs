@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 using Microsoft.Playwright;
@@ -640,6 +640,80 @@ public static class Ayudas
     }
 
     /// <summary>
+    /// Abre un grupo plegable del menú lateral (<c>details.nav-grupo-detalle[data-grupo]</c>) si sigue plegado. Como en
+    /// el marco de Design (<c>marco-talveg.js</c>), «Plataforma» y «Administración» nacen cerrados: sus enlaces existen
+    /// en el DOM pero no son visibles hasta que se abre el grupo, y Playwright no hace clic en lo oculto. No toca
+    /// nada de producto: solo hace lo que haría la persona, pulsar la cabecera del grupo. Espera a que quede abierto.
+    /// </summary>
+    public static async Task AbrirGrupoDelMenuAsync(IPage page, string idGrupo)
+    {
+        var grupo = page.Locator($".nav-principal details.nav-grupo-detalle[data-grupo='{idGrupo}']");
+        var abierto = page.Locator($".nav-principal details.nav-grupo-detalle[data-grupo='{idGrupo}'][open]");
+        await grupo.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Attached, Timeout = 15_000 });
+        if (await abierto.CountAsync() == 0)
+        {
+            await grupo.Locator("> summary").ClickAsync();
+        }
+
+        await Assertions.Expect(abierto).ToBeAttachedAsync(new LocatorAssertionsToBeAttachedOptions { Timeout = 15_000 });
+    }
+
+    /// <summary>
+    /// Pulsa un enlace del menú lateral que vive dentro de un grupo plegable, abriendo antes el grupo
+    /// (<see cref="AbrirGrupoDelMenuAsync"/>) y comprobando que el enlace ya es visible. «Administración» y «Plataforma»
+    /// nacen cerrados (<c>CatalogoMenuLateral</c>): un <c>ClickAsync</c> directo sobre un enlace suyo espera 30 s a un
+    /// elemento oculto y expulsa la PR de la cola (#1413, <c>FlujoSoporteTests</c>). Usa este ayudante para todo enlace de
+    /// un grupo de <c>AbiertoPorDefecto: false</c>; <c>PatronesFragilesDeE2ECongeladosTests</c> (símbolo <c>ClicEnGrupoPlegado</c>) congela
+    /// los que no lo hacen.
+    /// </summary>
+    public static async Task AbrirGrupoYClickAsync(IPage page, string idGrupo, ILocator enlace)
+    {
+        await AbrirGrupoDelMenuAsync(page, idGrupo);
+        await Assertions.Expect(enlace).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await enlace.ClickAsync();
+    }
+
+    /// <summary>
+    /// Espera a que un listado esté de verdad listo: la rejilla ha terminado la carga observada (<c>aria-busy="false"</c>,
+    /// que el producto renderiza desde su estado de carga) y, si se pasan <paramref name="filas"/>, hay al menos una. Un
+    /// <c>aria-busy</c> sin filas deja pasar la carga que acaba vacía y una fila sin <c>aria-busy</c> deja pasar la
+    /// anterior a una recarga: los dos fallos son carreras que solo aparecen en un runner lento.
+    /// <paramref name="lista"/> es el contenedor que lleva <c>aria-busy</c> (p. ej. <c>table.vehiculos-rejilla-propia</c>).
+    /// </summary>
+    public static async Task EsperarListaListaAsync(ILocator lista, ILocator? filas = null, float timeoutMs = 15_000)
+    {
+        await Assertions.Expect(lista).ToHaveAttributeAsync("aria-busy", "false", new LocatorAssertionsToHaveAttributeOptions { Timeout = timeoutMs });
+        if (filas is not null)
+            await Assertions.Expect(filas).Not.ToHaveCountAsync(0, new LocatorAssertionsToHaveCountOptions { Timeout = timeoutMs });
+    }
+
+    /// <summary>
+    /// Espera a que la fila enfocada con «j»/«k» tenga el <b>foco real del DOM</b> (<c>document.activeElement</c>), no solo
+    /// la clase <c>fila-enfocada</c>. La clase llega con el parche del servidor y el foco pasa a la fila un fotograma después
+    /// (<c>enfocarFilaActiva</c> de <c>atajos-lista.js</c>); mientras el foco siga en el control de origen, una tecla como Enter
+    /// se descarta por ser la de un elemento interactivo (#1340 y #1345, mismo fallo dos veces). <paramref name="filaEnfocada"/>
+    /// debe resolver a una única fila (<c>.fila-enfocada</c> dentro del marco de la lista).
+    /// </summary>
+    public static async Task EsperarFocoRealEnFilaAsync(ILocator filaEnfocada)
+    {
+        await Assertions.Expect(filaEnfocada).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
+        await Assertions.Expect(filaEnfocada).ToBeFocusedAsync(new LocatorAssertionsToBeFocusedOptions { Timeout = 15_000 });
+    }
+
+    /// <summary>
+    /// Enfoca una fila con «j» como lo hace una persona: saca el foco a <paramref name="origenDelFoco"/> (un control que no
+    /// sea un campo de texto, donde «j» sería texto), pulsa «j» y espera el foco real de la fila
+    /// (<see cref="EsperarFocoRealEnFilaAsync"/>). Antes de llamarlo, espera la carga con
+    /// <see cref="EsperarListaListaAsync"/>: una «j» que llega antes de que la carga termine pierde el foco en silencio.
+    /// </summary>
+    public static async Task EnfocarFilaAsync(IPage page, ILocator origenDelFoco, ILocator filaEnfocada)
+    {
+        await origenDelFoco.FocusAsync();
+        await page.Keyboard.PressAsync("j");
+        await EsperarFocoRealEnFilaAsync(filaEnfocada);
+    }
+
+    /// <summary>
     /// Selecciona una fila de la bandeja unificada de <c>/comunicaciones</c>
     /// (<c>FilaConversacion.razor</c>) confirmando que el clic llegó de verdad
     /// al circuito de Blazor antes de devolver el control.
@@ -816,18 +890,23 @@ public static class Ayudas
     }
 
     /// <summary>
-    /// /centros agrupa por Cliente empresarial y los grupos arrancan contraídos (rediseño de
-    /// listados, fase 1): sin buscar, las filas de Centro no se ven. Para los recorridos que
-    /// necesitan una fila cualquiera, «Sin agrupar» (en el desplegable «Agrupar») las pinta todas.
+    /// /centros nace sin agrupar (lista 1:1 con la maqueta; «Por Cliente» se elige en el desplegable
+    /// «Agrupar» y los títulos de grupo no se contraen). Un recorrido que necesita una fila cualquiera
+    /// asegura aquí el estado sin agrupar aunque la vista recordada o la URL traigan «Por Cliente»:
+    /// elige «Sin agrupar» y espera a que la pastilla diga «Agrupar» y no quede ningún título de grupo.
     /// </summary>
     public static async Task MostrarCentrosSinAgruparAsync(IPage page)
     {
-        await ElegirAgrupacionAsync(page, "Sin agrupar", new Regex("^Agrupar: no$"));
-        await Assertions.Expect(page.Locator(".grupo-lista")).ToHaveCountAsync(0);
+        await ElegirAgrupacionAsync(page, "Sin agrupar", new Regex("^Agrupar$"));
+        await Assertions.Expect(page.Locator(".cabecera-grupo-centros")).ToHaveCountAsync(0);
     }
 
-    /// <summary>El desplegable «Agrupar» de un listado: el disparador que declara la letra A de KeyTips.</summary>
-    public static ILocator DesplegableAgrupar(IPage page) => page.Locator("[data-keytip='A']");
+    /// <summary>
+    /// El desplegable «Agrupar» de un listado: una pastilla de filtro cuya letra de KeyTips (la A) se deduce de su
+    /// nombre en el navegador, no se declara en <c>data-keytip</c>; se localiza por el nombre que declara en
+    /// <c>data-keytip-nombre</c>.
+    /// </summary>
+    public static ILocator DesplegableAgrupar(IPage page) => page.Locator(".barra-filtros-pastillas [data-keytip-nombre='Agrupar']");
 
     /// <summary>
     /// Elige una opción del desplegable «Agrupar» por su texto («Sin agrupar», «Por Cliente») y espera a que

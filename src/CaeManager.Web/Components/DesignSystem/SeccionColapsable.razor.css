@@ -36,11 +36,13 @@
 .seccion-colapsable-chevron {
     display: inline-flex;
     color: var(--color-text-muted);
-    transition: transform var(--motion-fast) var(--ease-standard);
+    /* Como el chevron del menú lateral (NavMenu): cerrado apunta a la derecha, abierto hacia abajo. */
+    transition: transform var(--motion-transition) var(--ease-fluid);
+    transform: rotate(-90deg);
 }
 
 .seccion-colapsable-chevron-abierta {
-    transform: rotate(180deg);
+    transform: rotate(0deg);
 }
 
 .seccion-colapsable-titulo {

@@ -91,7 +91,14 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombreTrabajador);
         await drawer.GetByLabel("Apellidos").FillAsync(apellidosTrabajador);
 
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        // El alta es un panel de tres pasos (Lo básico, Trabajo, Contacto): se recorren y el último paso termina con «Guardar»
+        // exacto (en los pasos anteriores el primario es «Siguiente» y «Guardar y terminar» es un secundario).
+        var pie = drawer.Locator(".drawer-pie");
+        await pie.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Siguiente", Exact = true }).ClickAsync();
+        await Assertions.Expect(drawer.Locator(".indicador-pasos-panel .indicador-pasos-activo")).ToContainTextAsync("Trabajo");
+        await pie.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Siguiente", Exact = true }).ClickAsync();
+        await Assertions.Expect(drawer.Locator(".indicador-pasos-panel .indicador-pasos-activo")).ToContainTextAsync("Contacto");
+        await pie.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Subir Documento del Trabajador con vencimiento a 10 días (Urgente: umbral rojo = 15 días) ---
@@ -104,7 +111,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         // se escribe el texto exacto de la opción y se espera su debounce de
         // 150ms más el viaje de ida y vuelta a Blazor Server antes de seguir.
         await drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
-            .FillAsync($"{nombreTrabajador} {apellidosTrabajador}");
+            .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
         await page.WaitForTimeoutAsync(500);
 
         // "Formación 60h (base convenio)" no tiene vencimiento automático (ver

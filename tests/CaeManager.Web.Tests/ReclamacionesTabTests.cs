@@ -6,6 +6,7 @@ using CaeManager.Application.Contactos.Commands.GuardarContactoAgenda;
 using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresaEmpleadora;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesEnviadas;
 using CaeManager.Application.Reclamaciones.Commands.PrepararVistaPreviaReclamacion;
@@ -107,6 +108,7 @@ public class ReclamacionesTabTests : BunitContext
             PrepararVistaPreviaReclamacionCommand q => Previa(q),
             EnviarReclamacionCommand c => AlEnviar?.Invoke(c) ?? Result.Exito(new EnvioReclamacionResultado(c.DocumentoIds, [])),
             EnviarReclamacionEmpresaCommand c => AlEnviarEmpresa?.Invoke(c) ?? Result.Exito(new EnvioReclamacionResultado(c.DocumentoIds, [])),
+            EnviarReclamacionEmpresaEmpleadoraCommand c => Result.Exito(new EnvioReclamacionResultado(c.DocumentoIds, [])),
             // La usa ModalContactoAgenda ("Añadir contacto"), que ReclamacionesTab monta siempre.
             GuardarContactoAgendaCommand => Result.Exito(Guid.NewGuid()),
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
@@ -600,6 +602,52 @@ public class ReclamacionesTabTests : BunitContext
         var envio = mediador.Enviadas.OfType<EnviarReclamacionEmpresaCommand>().Should().ContainSingle().Subject;
         envio.ContactoIdsSeleccionados.Should().NotBeNullOrEmpty();
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Hallazgo ALTA de la revisión de la PR #1454: una reclamación que pidió a una Empresa los documentos de sus Trabajadores
+    /// no se reenvía por el comando de documentos de Empresa (que exige ámbito Empresa y fallaba), sino por el de Empresa
+    /// empleadora, con la Delegación derivada, tanto en la vista previa como en el envío.
+    /// </summary>
+    [Fact]
+    public async Task Reclamar_de_nuevo_lo_pedido_a_la_Empresa_empleadora_usa_su_comando_con_la_Delegacion()
+    {
+        var delegacionEmpresaId = Guid.NewGuid();
+        var fila = ReclamacionEnviada("Contraparte SL") with
+        {
+            AmbitoTitular = AmbitoAplicacion.Empresa,
+            EmpresaEmpleadora = new DestinoDeReclamacionEnviadaDto(delegacionEmpresaId, true),
+        };
+        var mediador = ConHistorial(fila);
+        var (cut, _) = Renderizar(mediador);
+
+        await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<PrepararVistaPreviaReclamacionCommand>().Should().ContainSingle()
+            .Which.EmpresaEmpleadora.Should().Be(fila.EmpresaEmpleadora);
+        var envio = mediador.Enviadas.OfType<EnviarReclamacionEmpresaEmpleadoraCommand>().Should().ContainSingle().Subject;
+        envio.EmpresaId.Should().Be(fila.TitularId);
+        envio.DelegacionEmpresaId.Should().Be(delegacionEmpresaId);
+        envio.DocumentoIds.Should().Equal(fila.DocumentoIds);
+        envio.ContactoIdsSeleccionados.Should().NotBeNullOrEmpty("se envía a quien enseñó la revisión");
+        mediador.Enviadas.OfType<EnviarReclamacionEmpresaCommand>().Should().BeEmpty();
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Una_reclamacion_cuyo_destino_ya_no_se_puede_determinar_no_ofrece_Reclamar_de_nuevo()
+    {
+        var indeterminada = ReclamacionEnviada("Indeterminada SL") with
+        {
+            AmbitoTitular = AmbitoAplicacion.Empresa,
+            EmpresaEmpleadora = new DestinoDeReclamacionEnviadaDto(null, false),
+        };
+        var (cut, _) = Renderizar(ConHistorial(indeterminada, ReclamacionEnviada("Control SL")));
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Indeterminada SL").And.Contain("Control SL"));
+        cut.FindAll("button").Count(b => b.TextContent.Trim() == "Reclamar de nuevo")
+            .Should().Be(1, "solo la fila de control se puede reenviar");
     }
 
     /// <summary>Si la vista previa falla (el envío fallaría igual), se avisa y no se abre ninguna revisión ni se envía.</summary>

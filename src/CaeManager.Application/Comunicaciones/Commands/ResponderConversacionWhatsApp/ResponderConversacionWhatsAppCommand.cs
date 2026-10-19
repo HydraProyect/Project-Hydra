@@ -19,6 +19,9 @@ public class ResponderConversacionWhatsAppCommandValidator : AbstractValidator<R
 
     public ResponderConversacionWhatsAppCommandValidator()
     {
+        RuleFor(c => c.Texto)
+            .Must(texto => texto is null || VariablesPlantillaRespuesta.Pendientes(texto).Count == 0)
+            .WithMessage("Completa las variables de la plantilla antes de enviar.");
         RuleFor(c => c.ConversacionId).NotEmpty().WithMessage("La respuesta debe pertenecer a una conversación.");
         RuleFor(c => c.Texto).NotEmpty().WithMessage("La respuesta no puede estar vacía.")
             .MaximumLength(LongitudMaximaTexto).WithMessage($"Un mensaje de WhatsApp no puede superar {LongitudMaximaTexto} caracteres.");

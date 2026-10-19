@@ -214,7 +214,8 @@ public class Microsoft365GraphClient(
 
     public async Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
         string accessToken, string buzonEmail, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
-        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken,
+        IReadOnlyList<string>? copia = null)
     {
         using var peticionBorrador = NuevaPeticionGraph(HttpMethod.Post, "https://graph.microsoft.com/v1.0/me/messages", accessToken);
 
@@ -233,7 +234,8 @@ public class Microsoft365GraphClient(
                 asunto,
                 new CuerpoMensajeGraphConTipo("HTML", cuerpoHtml),
                 destinatarios.Select(d => new EmailAddressGraph(new DireccionGraph(d))).ToList(),
-                ConstruirAdjuntosGraph(adjuntos)));
+                ConstruirAdjuntosGraph(adjuntos),
+                copia is { Count: > 0 } ? copia.Select(d => new EmailAddressGraph(new DireccionGraph(d))).ToList() : null));
 
         try
         {
@@ -313,7 +315,7 @@ public class Microsoft365GraphClient(
         // contenido de todos los adjuntos de un mensaje que quizás nadie
         // vaya a abrir sería desperdiciar ancho de banda en el caso común.
         var url = $"https://graph.microsoft.com/v1.0/me/messages/{Uri.EscapeDataString(mensajeId)}" +
-            "?$select=subject,from,toRecipients,ccRecipients,body,receivedDateTime,conversationId,hasAttachments" +
+            "?$select=subject,from,toRecipients,ccRecipients,body,receivedDateTime,conversationId,hasAttachments,internetMessageHeaders" +
             "&$expand=attachments($select=id,name,contentType,size)";
         using var peticion = NuevaPeticionGraph(HttpMethod.Get, url, accessToken);
 
@@ -352,7 +354,8 @@ public class Microsoft365GraphClient(
                 CuerpoHtml: mensaje.Body?.Content ?? string.Empty,
                 FechaUtc: mensaje.ReceivedDateTime ?? DateTime.UtcNow,
                 Participantes: participantes,
-                Adjuntos: adjuntos));
+                Adjuntos: adjuntos,
+                Cabeceras: mensaje.InternetMessageHeaders?.Select(c => new CabeceraCorreoDto(c.Name ?? string.Empty, c.Value ?? string.Empty)).ToList()));
         }
         catch (HttpRequestException ex)
         {
@@ -665,7 +668,8 @@ public class Microsoft365GraphClient(
         [property: JsonPropertyName("subject")] string Subject,
         [property: JsonPropertyName("body")] CuerpoMensajeGraphConTipo Body,
         [property: JsonPropertyName("toRecipients")] IReadOnlyList<EmailAddressGraph> ToRecipients,
-        [property: JsonPropertyName("attachments")] IReadOnlyList<AdjuntoEnvioGraph>? Attachments);
+        [property: JsonPropertyName("attachments")] IReadOnlyList<AdjuntoEnvioGraph>? Attachments,
+        [property: JsonPropertyName("ccRecipients"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<EmailAddressGraph>? CcRecipients = null);
 
     /// <summary>sendMail exige "contentType" explícito en el body (a diferencia de /reply, que no lo pide) — de ahí este envoltorio en vez de reutilizar CuerpoMensajeGraph tal cual.</summary>
     private sealed record CuerpoMensajeGraphConTipo(
@@ -712,7 +716,12 @@ public class Microsoft365GraphClient(
         [property: JsonPropertyName("receivedDateTime")] DateTime? ReceivedDateTime,
         [property: JsonPropertyName("conversationId")] string? ConversationId,
         [property: JsonPropertyName("hasAttachments")] bool? HasAttachments,
-        [property: JsonPropertyName("attachments")] IReadOnlyList<AdjuntoDetalleGraph>? Attachments);
+        [property: JsonPropertyName("attachments")] IReadOnlyList<AdjuntoDetalleGraph>? Attachments,
+        [property: JsonPropertyName("internetMessageHeaders")] IReadOnlyList<CabeceraGraph>? InternetMessageHeaders);
+
+    private sealed record CabeceraGraph(
+        [property: JsonPropertyName("name")] string? Name,
+        [property: JsonPropertyName("value")] string? Value);
 
     private sealed record SolicitudSuscripcionGraph(
         [property: JsonPropertyName("changeType")] string ChangeType,

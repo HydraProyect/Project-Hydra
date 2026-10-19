@@ -34,13 +34,21 @@
 .nav-principal {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
-    padding: var(--space-4) var(--space-3);
+    /* Sin hueco entre hijos: la separación entre grupos es solo el margin-top de 12 px del grupo (.tvm-g del marco
+       de Design); con un gap además se sumaban 8 + 12 = 20 px. */
+    gap: 0;
+    /* Marco de Design (marco-talveg.js, .tvm-nav): padding 4/8/16. */
+    padding: var(--space-1) var(--space-2) var(--space-4);
     /* Scroll propio: la marca de MainLayout queda fija arriba y la barra no se estira con la página. */
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
+}
+
+/* El menú fijo del rol Cliente (enlaces sueltos, sin grupo) conserva 4 px entre filas, como .tvm-items. */
+.nav-principal > ::deep .nav-item + .nav-item {
+    margin-top: var(--space-1);
 }
 
 /*
@@ -69,12 +77,13 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--space-2);
-    padding: 0 var(--space-3);
+    /* Marco de Design (.tvm-gh): padding 6/10 y color --color-text. */
+    padding: 6px 10px;
     font: var(--font-body-sm);
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: var(--color-text-muted);
+    color: var(--color-text);
     cursor: pointer;
     list-style: none;
     user-select: none;
@@ -82,10 +91,6 @@
 
 .nav-grupo-titulo::-webkit-details-marker {
     display: none;
-}
-
-.nav-grupo-titulo:hover {
-    color: var(--color-text);
 }
 
 .nav-grupo-titulo ::deep .icono {
@@ -137,8 +142,9 @@
 .nav-grupo-items {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
-    margin-top: var(--space-2);
+    /* Marco de Design (.tvm-items): gap 4 y margin-top 4. */
+    gap: var(--space-1);
+    margin-top: var(--space-1);
 }
 
 /*
@@ -155,30 +161,22 @@
     height: 40px;
     padding: 0 var(--space-3);
     border-radius: var(--radius-md);
-    border: 1px solid transparent;
-    color: var(--color-text-muted);
+    /* Marco de Design (.tvm-it): color --color-text, sin marco; el hover solo cambia el fondo. */
+    color: var(--color-text);
     font: var(--font-body-md);
     text-decoration: none;
     position: relative;
     cursor: pointer;
     transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard),
-        border-color var(--motion-fast) var(--ease-standard),
         transform var(--motion-fast) var(--ease-standard);
 }
 
 .nav-principal ::deep .nav-item .icono {
-    color: var(--color-text-muted);
-    transition: color var(--motion-fast) var(--ease-standard);
+    color: currentColor;
 }
 
 .nav-principal ::deep .nav-item:hover {
     background-color: var(--color-surface-hover);
-    border-color: var(--color-border);
-    color: var(--color-text);
-}
-
-.nav-principal ::deep .nav-item:hover .icono {
-    color: var(--color-text);
 }
 
 /* Feedback táctil: al pulsar, el botón "cede" ligeramente y suelta al soltar. */
@@ -192,7 +190,6 @@
 .nav-principal ::deep .nav-item.active {
     /* La selección se distingue por fondo, color y peso: sin franja ni marco (ni inset, ni border-left). */
     background-color: var(--color-primary-50);
-    border-color: transparent;
     color: var(--color-primary-500);
     font-weight: 600;
 }
@@ -202,9 +199,8 @@
 }
 
 .nav-principal ::deep .nav-item.active:hover {
-    background-color: var(--color-nav-activo-hover-fondo);
-    /* El hover genérico de .nav-item pinta un marco gris: el seleccionado no lleva marco. */
-    border-color: transparent;
+    /* Marco de Design: el seleccionado conserva su fondo al pasar el cursor (el hover genérico va antes). */
+    background-color: var(--color-primary-50);
 }
 
 /*
@@ -233,16 +229,19 @@
     }
 }
 
-/* ---- Cabecera de herramientas: lupa de búsqueda y modo compacto ---- */
+/* ---- Cabecera de herramientas: campo «Buscar en el menú» y modo compacto ---- */
 .nav-herramientas {
     position: sticky;
-    top: calc(-1 * var(--space-4));
+    top: calc(-1 * var(--space-1));
     z-index: 2;
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    margin-top: calc(-1 * var(--space-4));
-    padding: var(--space-4) 0 var(--space-2);
+    /* Marco de Design (.tvm-buscam): gap 6 y margin 12 8 4 sobre la fila del campo. */
+    gap: 6px;
+    /* Sin campo (menú fijo del rol Cliente) el botón de compactar queda a la derecha; con campo, este lo llena. */
+    justify-content: flex-end;
+    margin-top: calc(-1 * var(--space-1));
+    padding: var(--space-3) 0 var(--space-1);
     background-color: var(--color-surface);
     /* Los resultados de la búsqueda (.nav-resultados) ocupan su propia fila y solo existen con coincidencias. */
     flex-wrap: wrap;
@@ -250,31 +249,28 @@
 }
 
 /*
-    La lupa es el campo: un único recuadro de 32 px que, al abrirse, crece en la misma fila (flex-grow
-    0 → 1) hasta el botón de compactar y descubre el input; al cerrar vuelve a ser el botón. Sin fila
-    nueva ni salto de altura. Recogido, el input va inert y transparente.
+    El campo «Buscar en el menú» está siempre a la vista (marco de Design, .tvm-buscam label): 34 px de alto,
+    borde --color-border, padding 0 10, gap 8 y un icono de 15 px; ocupa la fila hasta el botón de compactar.
 */
 .nav-buscador {
     display: flex;
     align-items: center;
-    flex: 0 0 32px;
-    min-width: 32px;
-    height: 32px;
-    overflow: hidden;
+    /* Base 0 (flex:1 del marco): el ancho intrínseco del input no empuja el botón de compactar a otra fila. */
+    flex: 1 1 0;
+    gap: 8px;
+    min-width: 0;
+    height: 34px;
+    padding: 0 10px;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     background-color: var(--color-surface);
     color: var(--color-text-muted);
-    transition: flex-grow var(--motion-transition) var(--ease-fluid),
-        border-color var(--motion-fast) var(--ease-standard),
+    cursor: text;
+    transition: border-color var(--motion-fast) var(--ease-standard),
         box-shadow var(--motion-fast) var(--ease-standard);
 }
 
-.nav-buscador[data-abierta] {
-    flex-grow: 1;
-}
-
-.nav-buscador:focus-within[data-abierta] {
+.nav-buscador:focus-within {
     border-color: var(--color-primary-500);
     box-shadow: 0 0 0 3px var(--color-primary-100);
 }
@@ -282,37 +278,23 @@
 .nav-lupa {
     display: grid;
     place-items: center;
-    flex-shrink: 0;
-    width: 30px;
-    height: 30px;
-    border: 0;
-    border-radius: var(--radius-md);
-    background: none;
-    color: inherit;
-    cursor: pointer;
+    flex: none;
 }
 
-.nav-buscador:not([data-abierta]):hover {
-    background-color: var(--color-surface-hover);
-    color: var(--color-text);
+.nav-lupa ::deep .icono {
+    width: 15px;
+    height: 15px;
 }
 
 .nav-filtro-campo {
     flex: 1;
     min-width: 0;
-    height: 100%;
-    padding: 0 var(--space-2) 0 0;
+    padding: 0;
     border: 0;
     outline: 0;
     background: none;
     color: var(--color-text);
-    font: var(--font-body-sm);
-    opacity: 0;
-    transition: opacity var(--motion-transition) var(--ease-fluid);
-}
-
-.nav-buscador[data-abierta] .nav-filtro-campo {
-    opacity: 1;
+    font: 400 13px/18px var(--font-family);
 }
 
 /* Resultados dentro de las páginas (opciones de Configuración, pestañas de Documentos). */
@@ -359,19 +341,18 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .nav-buscador,
-    .nav-filtro-campo {
+    .nav-buscador {
         transition: none;
     }
 }
 
+/* .tvm-ib: 34 x 34 px. Sin el campo (barra compacta) no hace falta empujarlo a la derecha. */
 .nav-compactar {
     display: grid;
     place-items: center;
-    flex-shrink: 0;
-    width: 32px;
-    height: 32px;
-    margin-left: auto;
+    flex: none;
+    width: 34px;
+    height: 34px;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     background-color: var(--color-surface);
@@ -390,7 +371,7 @@
     transition: transform var(--motion-transition) var(--ease-fluid);
 }
 
-/* ---- Fila de enlace: enlace + estrella de fijado ---- */
+/* ---- Fila de enlace ---- */
 .nav-fila {
     position: relative;
     display: flex;
@@ -408,52 +389,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.nav-fijar {
-    position: absolute;
-    right: var(--space-1);
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    border: 0;
-    border-radius: var(--radius-sm);
-    background: none;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    opacity: 0;
-}
-
-.nav-fila:hover .nav-fijar,
-.nav-fila:focus-within .nav-fijar,
-.nav-fijar[aria-pressed="true"] {
-    opacity: 1;
-}
-
-.nav-fijar[aria-pressed="true"] {
-    color: var(--color-warning-700);
-}
-
-.nav-fijar[aria-pressed="true"] ::deep .icono path {
-    fill: currentColor;
-}
-
-/* ---- Fijados (preferencia personal del navegador; lo pinta menu-lateral.js) ---- */
-.nav-fijados {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    padding-bottom: var(--space-3);
-    border-bottom: 1px solid var(--color-border);
-}
-
-.nav-fijados[hidden] {
-    display: none;
-}
-
-.nav-fijados-titulo {
-    cursor: default;
 }
 
 /* ---- Cabecera de grupo: marca de «aquí está la página actual» con el grupo cerrado ---- */
@@ -500,9 +435,7 @@
 .nav-principal ::deep .nav-item:focus-visible,
 .nav-grupo-titulo:focus-visible,
 .nav-compactar:focus-visible,
-.nav-lupa:focus-visible,
-.nav-resultado:focus-visible,
-.nav-fijar:focus-visible {
+.nav-resultado:focus-visible {
     outline: 2px solid var(--color-primary-500);
     outline-offset: -2px;
 }
@@ -525,18 +458,12 @@ html[data-menu-compacto] .barra-lateral .nav-principal {
 }
 
 html[data-menu-compacto] .barra-lateral .nav-buscador,
-html[data-menu-compacto] .barra-lateral .nav-fijar,
-html[data-menu-compacto] .barra-lateral .nav-fijados-titulo,
 html[data-menu-compacto] .barra-lateral .nav-grupo-titulo {
     display: none;
 }
 
 html[data-menu-compacto] .barra-lateral .nav-herramientas {
     justify-content: center;
-}
-
-html[data-menu-compacto] .barra-lateral .nav-compactar {
-    margin-left: 0;
 }
 
 html[data-menu-compacto] .barra-lateral .nav-compactar ::deep .icono {
@@ -556,10 +483,6 @@ html[data-menu-compacto] .barra-lateral .nav-grupo-detalle + .nav-grupo-detalle 
     margin-top: var(--space-1);
     padding-top: var(--space-2);
     border-top: 1px solid var(--color-border);
-}
-
-html[data-menu-compacto] .barra-lateral .nav-fijados {
-    padding-bottom: var(--space-2);
 }
 
 @supports selector(::details-content) {

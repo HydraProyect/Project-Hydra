@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresaEmpleadora;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -25,19 +26,37 @@ namespace CaeManager.Application.Reclamaciones.Commands.PrepararVistaPreviaRecla
 /// </para>
 /// </summary>
 /// <param name="Ambito">Titular del lote: Cliente (documentos de Trabajador) o Empresa.</param>
+/// <param name="EmpresaEmpleadora">
+/// Informado cuando el lote pidió documentos de Trabajadores a su Empresa empleadora (<c>ReclamacionEnviadaDto.EmpresaEmpleadora</c>):
+/// se prepara con <see cref="EnviarReclamacionEmpresaEmpleadoraCommandHandler"/> y su Delegación, no como documentos de empresa.
+/// </param>
 public record PrepararVistaPreviaReclamacionCommand(
     AmbitoAplicacion Ambito,
     Guid TitularId,
     IReadOnlyList<Guid> DocumentoIds,
-    IReadOnlyList<PendienteSinFecha>? Pendientes = null) : ICommand<ReclamacionPreparada>;
+    IReadOnlyList<PendienteSinFecha>? Pendientes = null,
+    DestinoDeReclamacionEnviadaDto? EmpresaEmpleadora = null) : ICommand<ReclamacionPreparada>;
 
 public class PrepararVistaPreviaReclamacionCommandHandler(
     EnviarReclamacionCommandHandler enviarCliente,
-    EnviarReclamacionEmpresaCommandHandler enviarEmpresa)
+    EnviarReclamacionEmpresaCommandHandler enviarEmpresa,
+    EnviarReclamacionEmpresaEmpleadoraCommandHandler enviarEmpresaEmpleadora)
     : IRequestHandler<PrepararVistaPreviaReclamacionCommand, Result<ReclamacionPreparada>>
 {
     public Task<Result<ReclamacionPreparada>> Handle(PrepararVistaPreviaReclamacionCommand request, CancellationToken cancellationToken) =>
-        request.Ambito == AmbitoAplicacion.Empresa
-            ? enviarEmpresa.PrepararAsync(new EnviarReclamacionEmpresaCommand(request.TitularId, request.DocumentoIds, Pendientes: request.Pendientes), cancellationToken)
-            : enviarCliente.PrepararAsync(new EnviarReclamacionCommand(request.TitularId, request.DocumentoIds, Pendientes: request.Pendientes), cancellationToken);
+        request.EmpresaEmpleadora switch
+        {
+            { DelegacionEmpresaDeterminada: false } => Task.FromResult(Result.Fallo<ReclamacionPreparada>(ErrorDestinoIndeterminado)),
+            { } destino => enviarEmpresaEmpleadora.PrepararAsync(
+                new EnviarReclamacionEmpresaEmpleadoraCommand(request.TitularId, destino.DelegacionEmpresaId, request.DocumentoIds, Pendientes: request.Pendientes),
+                cancellationToken),
+            null when request.Ambito == AmbitoAplicacion.Empresa =>
+                enviarEmpresa.PrepararAsync(new EnviarReclamacionEmpresaCommand(request.TitularId, request.DocumentoIds, Pendientes: request.Pendientes), cancellationToken),
+            null => enviarCliente.PrepararAsync(new EnviarReclamacionCommand(request.TitularId, request.DocumentoIds, Pendientes: request.Pendientes), cancellationToken),
+        };
+
+    /// <summary>Sus Trabajadores ya no caen en una única Delegación: el lote no puede reenviarse tal cual.</summary>
+    public static readonly Error ErrorDestinoIndeterminado = Error.Crear(
+        "Reclamacion.DelegacionEmpresaDesactualizada",
+        "Los trabajadores de esta reclamación ya no están en una misma delegación. Reclámalos de nuevo desde «Gestionar».");
 }

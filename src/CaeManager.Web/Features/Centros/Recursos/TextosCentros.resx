@@ -127,7 +127,7 @@
     <value>Empresa</value>
   </data>
   <data name="ColEstado" xml:space="preserve">
-    <value>Estado</value>
+    <value>Estado documental</value>
   </data>
   <data name="ColVisita" xml:space="preserve">
     <value>Visita</value>
@@ -262,10 +262,10 @@
     <value>Por qué está bloqueado en este Centro</value>
   </data>
   <data name="MotivoBloqueoPedir" xml:space="preserve">
-    <value>Pedir</value>
+    <value>Gestionar</value>
   </data>
   <data name="MotivoBloqueoPedirDe" xml:space="preserve">
-    <value>Pedir {0}</value>
+    <value>Gestionar {0}</value>
   </data>
   <data name="MotivoBloqueoNoSePuedePedir" xml:space="preserve">
     <value>no se puede pedir desde aquí</value>
@@ -289,7 +289,7 @@
     <value>+ Nuevo centro</value>
   </data>
   <data name="ListaFiltrarPlaceholder" xml:space="preserve">
-    <value>Filtrar esta pantalla: centro, código, Cliente o empresa</value>
+    <value>Filtrar esta pantalla: Centro, código, Cliente o Empresa</value>
   </data>
   <data name="FiltroClienteEmpresarial" xml:space="preserve">
     <value>Cliente</value>
@@ -397,7 +397,7 @@
     <value>{0} de {1}</value>
   </data>
   <data name="PedirDocumentacion360" xml:space="preserve">
-    <value>Pedir</value>
+    <value>Gestionar</value>
   </data>
   <data name="TotalesListaCompleta360" xml:space="preserve">
     <value>Se calcula sobre la lista completa, no sobre la filtrada.</value>
@@ -439,6 +439,9 @@
   <data name="CabeceraEmpresa" xml:space="preserve">
     <value>Empresa:</value>
     <comment>Empresa que trabaja en el Centro.</comment>
+  </data>
+  <data name="AriaGestionarDocumentosTrabajador" xml:space="preserve">
+    <value>Gestionar los documentos de {0}</value>
   </data>
   <data name="GestionarDocumento360" xml:space="preserve">
     <value>Gestionar</value>
@@ -559,4 +562,37 @@
   <data name="FichaAccesoVacioDescripcion" xml:space="preserve"><value>Todavía no se ha informado el horario ni el contacto de control de accesos de este Centro.</value></data>
   <data name="FichaPrevencionVacioTitulo" xml:space="preserve"><value>Prevención sin configurar</value></data>
   <data name="FichaPrevencionVacioDescripcion" xml:space="preserve"><value>Todavía no se ha informado el Técnico de prevención ni los trabajos especiales de este Centro.</value></data>
+  <data name="InformacionTitulo360" xml:space="preserve"><value>Información</value></data>
+  <data name="InformacionCodigo360" xml:space="preserve"><value>Código</value></data>
+  <data name="InformacionCliente360" xml:space="preserve"><value>Cliente</value></data>
+  <data name="EditarFlecha360" xml:space="preserve"><value>Editar →</value></data>
+  <data name="ConsultaRapida360" xml:space="preserve"><value>Consulta rápida</value></data>
+  <data name="InformacionEmpresa360" xml:space="preserve"><value>Empresa</value></data>
+  <data name="EtiquetaAgrupar" xml:space="preserve">
+    <value>Agrupar</value>
+  </data>
+  <data name="OpcionSinAgrupar" xml:space="preserve">
+    <value>Sin agrupar</value>
+  </data>
+  <data name="AgruparPorCliente" xml:space="preserve">
+    <value>Por Cliente</value>
+  </data>
+  <data name="RecuentoGrupo" xml:space="preserve">
+    <value>· {0}</value>
+  </data>
+  <data name="RecuentoGrupoEnPagina" xml:space="preserve">
+    <value>· {0} en esta página</value>
+  </data>
+  <data name="AriaSeleccionarPagina" xml:space="preserve">
+    <value>Seleccionar los centros de esta página</value>
+  </data>
+  <data name="AriaSeleccionarCentro" xml:space="preserve">
+    <value>Seleccionar el centro {0}</value>
+  </data>
+  <data name="EtiquetaCopiarCodigo" xml:space="preserve">
+    <value>el código</value>
+  </data>
+  <data name="CopiarCodigo" xml:space="preserve">
+    <value>Copiar el código {0}</value>
+  </data>
 </root>

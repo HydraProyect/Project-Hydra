@@ -47,7 +47,7 @@ internal static class RecorridoFichas360
         await page.WaitForTimeoutAsync(6_000);
         await ComprobarQueElTenantSigueActivoAsync(page, tenantEsperado, "la lista de Trabajadores tras la revalidación del circuito");
 
-        var enlace = page.Locator("tbody a.boton-360-pagina").First;
+        var enlace = page.Locator(".marco-lista-trabajadores a.boton-360-pagina").First;
         await Expect(enlace).ToBeVisibleAsync(EsperaEnFrio);
         await enlace.ClickAsync();
         await page.WaitForURLAsync(new Regex(@"/trabajadores/[0-9a-f-]{36}"));
@@ -64,8 +64,7 @@ internal static class RecorridoFichas360
     }
 
     /// <summary>
-    /// Lista de Centros → acordeón del primer Centro → «Ver el centro completo →»
-    /// (navegación mejorada) → Centro 360, y recarga.
+    /// Lista de Centros → icono 360 de la primera fila (navegación mejorada) → Centro 360, y recarga.
     /// </summary>
     public static async Task AbrirCentro360DesdeLaListaAsync(IPage page, string baseUrl, string tenantEsperado)
     {
@@ -73,16 +72,10 @@ internal static class RecorridoFichas360
         await ComprobarQueElTenantSigueActivoAsync(page, tenantEsperado, "la lista de Centros");
         await Ayudas.MostrarCentrosSinAgruparAsync(page);
 
-        var expandir = page.Locator("button.boton-expandir-fila").First;
-        await Expect(expandir).ToBeVisibleAsync(EsperaEnFrio);
-        // El botón llega con el prerender antes que el circuito: un clic en esa ventana se pierde.
-        for (var intento = 1; await expandir.GetAttributeAsync("aria-expanded") != "true"; intento++)
-        {
-            Assert.True(intento <= 10, "El acordeón del Centro no se expandió tras 10 clics.");
-            await expandir.ClickAsync();
-            await page.WaitForTimeoutAsync(1_000);
-        }
-        await page.Locator("a.acordeon-centro-enlace-360").First.ClickAsync();
+        // El nombre de la fila abre la vista rápida; a la página se va con el icono 360.
+        var enlace = page.Locator(".lista-filas-acordeon a.boton-360-pagina").First;
+        await Expect(enlace).ToBeVisibleAsync(EsperaEnFrio);
+        await enlace.ClickAsync();
         await page.WaitForURLAsync(new Regex(@"/centros/[0-9a-f-]{36}"));
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await Expect(page.Locator("main h1")).ToBeVisibleAsync(new() { Timeout = 15_000 });

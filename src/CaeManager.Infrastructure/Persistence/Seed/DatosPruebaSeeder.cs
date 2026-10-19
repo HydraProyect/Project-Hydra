@@ -1105,7 +1105,7 @@ public static class DatosPruebaSeeder
                 ElementoAleatorio(aleatorio, tiposTrabajadorEstandar).Id,
                 notas: aleatorio.Next(2) == 0 ? "Pendiente de recibir el justificante firmado." : null);
             if (aleatorio.Next(2) == 0)
-                gestion.Completar();
+                gestion.Completar(ahoraSeed);
             dbContext.Gestiones.Add(gestion);
         }
 

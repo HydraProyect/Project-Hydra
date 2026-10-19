@@ -66,7 +66,8 @@
      badge-visita, pendiente-rol-icono, chips de Plataforma) y acento de borde.
      Se espeja por tema a través de --color-secondary-500. */
   --color-info-500: var(--color-secondary-500);
-  /* Papel opuesto y por eso token aparte: FONDO sólido informativo con texto
+  /* (Los toasts ya no usan este token: desde 2026-10-17 llevan fondo inverso, --color-toast-*.)
+     Papel opuesto y por eso token aparte: FONDO sólido informativo con texto
      blanco fijo encima (.toast-info), el mismo patrón que --color-success-500
      y --color-danger-500 en los otros toasts. No se espeja —10,51:1 con
      --color-neutral-0 en los dos temas— porque un fondo que se aclarase en
@@ -176,6 +177,35 @@
      detrás de un emoji. Con variante por tema porque los neutros claros no se
      espejan en oscuro. */
   --color-avatar-fondo-neutro: var(--color-neutral-200);
+  /* Anillo interior de 1 px de AvatarUsuario con emoji (revisión de Design,
+     2026-10-17): en oscuro el tono verde (#0c2a1b) y el neutro (#2a3441) apenas
+     se separan de Surface (#18222e) y el círculo se pierde detrás del emoji.
+     Es un borde translúcido, no un color de texto: no entra en ningún par de
+     contraste. */
+  --color-avatar-anillo: rgba(22, 30, 39, 0.08);
+
+  /* Toasts (AnfitrionToasts): fondo INVERSO y único para todos los tonos
+     (revisión de Design, 2026-10-17); el tono lo llevan el icono y la barra de
+     tiempo. Antes el texto era blanco fijo sobre el -500 de cada tono y no
+     llegaba a 4,5:1: éxito 2,28:1, aviso 2,15:1, error 3,76:1. Claro: fondo
+     #161e27 con texto #f0f3f7 (14,44:1). Oscuro: se invierten (ver el bloque
+     oscuro). Los cuatro colores de tono y la acción («Deshacer») se miden como
+     trazo o texto sobre --color-toast-fondo de su tema (>= 4,5:1 los de texto,
+     3:1 los de icono). */
+  --color-toast-fondo: #161e27;
+  --color-toast-texto: #f0f3f7;
+  --color-toast-exito: #4ade80;
+  --color-toast-error: #f87171;
+  --color-toast-aviso: #fbbf24;
+  --color-toast-info: #aeb9c7;
+  --color-toast-accion: #bdd9ff;
+
+  /* Esqueleto de carga (Esqueleto, EstadoCargando): base y brillo del degradado
+     del shimmer, por tema. Antes pintaban --color-neutral-100 y -200, que no
+     cambian de tema: en oscuro el esqueleto salía gris claro sobre la tarjeta
+     oscura. Son relleno sin texto encima. */
+  --color-esqueleto-base: #f4f6f8;
+  --color-esqueleto-brillo: #e8edf2;
 
   /* Selección de texto (::selection, base.css): fondo y letra como PAR. Antes
      solo se fijaba el fondo (--color-primary-100, #dcebff, sin variante
@@ -302,6 +332,7 @@
      (ficha 14 del acabado). Es la única sombra fuera del nivel Overlay y existe
      porque la cabecera fija SÍ tiene una relación espacial real sobre las filas. */
   --shadow-cabecera-tabla: 0 6px 8px -6px rgba(22, 30, 39, 0.35);
+  --shadow-tarjeta-lista: 0 1px 3px rgba(22, 30, 39, 0.1);
 
   /* Velo detras de Modal/Drawer/AsistenteIa/BuscadorGlobal (ODM-08): valor
      unico, no varia por tema — un velo oscuro funciona igual sobre claro
@@ -424,6 +455,19 @@
   --color-avatar-fondo: #12264a;
   --color-avatar-texto: var(--color-primary-700);
   --color-avatar-fondo-neutro: #2a3441;
+  --color-avatar-anillo: rgba(255, 255, 255, 0.1);
+  /* Toasts: la inversión del claro (fondo #f0f3f7, texto #161e27, 14,44:1). Los
+     colores de tono se oscurecen para leerse sobre el fondo claro. */
+  --color-toast-fondo: #f0f3f7;
+  --color-toast-texto: #161e27;
+  --color-toast-exito: #15803d;
+  --color-toast-error: #991b1b;
+  --color-toast-aviso: #b45309;
+  --color-toast-info: #475569;
+  --color-toast-accion: #1e4a9e;
+  /* Esqueleto sobre Surface (#18222e): un escalón por encima, sin llegar a gris claro. */
+  --color-esqueleto-base: #1e2936;
+  --color-esqueleto-brillo: #2a3441;
   /* Selección: fondo del azul brillante de la paleta (-300, #5ca2f4) y letra
      --color-bg (#0a1017): 7,21:1 y visible sobre Surface (#18222e). */
   --color-seleccion-fondo: var(--color-primary-300);
@@ -497,6 +541,7 @@
 
   --shadow-overlay: 0 20px 50px rgba(0, 0, 0, 0.5);
   --shadow-cabecera-tabla: 0 6px 8px -6px rgba(0, 0, 0, 0.7);
+  --shadow-tarjeta-lista: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 :root[data-theme='claro'] {
@@ -527,6 +572,16 @@
   --color-avatar-fondo: var(--color-primary-100);
   --color-avatar-texto: var(--color-primary-700);
   --color-avatar-fondo-neutro: var(--color-neutral-200);
+  --color-avatar-anillo: rgba(22, 30, 39, 0.08);
+  --color-toast-fondo: #161e27;
+  --color-toast-texto: #f0f3f7;
+  --color-toast-exito: #4ade80;
+  --color-toast-error: #f87171;
+  --color-toast-aviso: #fbbf24;
+  --color-toast-info: #aeb9c7;
+  --color-toast-accion: #bdd9ff;
+  --color-esqueleto-base: #f4f6f8;
+  --color-esqueleto-brillo: #e8edf2;
   --color-seleccion-fondo: var(--color-primary-100);
   --color-seleccion-texto: var(--color-text);
   --color-nav-activo-hover-fondo: var(--color-primary-100);
@@ -540,4 +595,5 @@
 
   --shadow-overlay: 0 20px 50px rgba(22, 30, 39, 0.16);
   --shadow-cabecera-tabla: 0 6px 8px -6px rgba(22, 30, 39, 0.35);
+  --shadow-tarjeta-lista: 0 1px 3px rgba(22, 30, 39, 0.1);
 }

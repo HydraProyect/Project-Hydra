@@ -53,6 +53,13 @@ public class FronterasEntrePersistenciaDeFeaturesTests
     // interfaz de persistencia ajena de la que depende).
     private static readonly HashSet<(string Handler, string Interfaz)> ReferenciasCruzadasPermitidas = new()
     {
+        // La Delegación y el Oficio del Trabajador son el catálogo de su Empresa (2026-10-18): el handler lee ese
+        // catálogo para comprobar que lo elegido es de la Empresa del Trabajador.
+        ("Trabajadores.FijarDelegacionEmpresaYOficioTrabajadorCommandHandler", "ICatalogoTrabajadoresEmpresaRepository"),
+        ("Trabajadores.CrearTrabajadorCommandHandler", "ICatalogoTrabajadoresEmpresaRepository"),
+        ("Trabajadores.EditarFichaTrabajadorCommandHandler", "ICatalogoTrabajadoresEmpresaRepository"),
+        // Al restaurar, quita la Delegación o el Oficio que se eliminaron mientras el Trabajador estaba eliminado.
+        ("Trabajadores.RestaurarTrabajadorCommandHandler", "ICatalogoTrabajadoresEmpresaRepository"),
         // La lista de Tenants beneficiarios autorizados incluye la vía de
         // Operación (lote 0 del selector de Tenant beneficiario): lee los
         // catálogos de asignación a través del predicado único
@@ -141,10 +148,22 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("BusquedaGlobal.BuscarGlobalQueryHandler", "ITiposDocumentoQueryContext"),
         ("BusquedaGlobal.BuscarGlobalQueryHandler", "ITrabajadoresQueryContext"),
         ("BusquedaGlobal.BuscarGlobalQueryHandler", "IVehiculosQueryContext"),
+        // «N documentos vencen esta semana» de «Reclamar a {Empresa}» en la paleta: Documentos de la Empresa y de sus
+        // Trabajadores en cartera, sin voluntarios inactivos (Proyectos), con las reglas de Documentos.Operativos().
+        ("BusquedaGlobal.ContarVencenEstaSemanaDeEmpresaQueryHandler", "IDocumentosQueryContext"),
+        ("BusquedaGlobal.ContarVencenEstaSemanaDeEmpresaQueryHandler", "IProyectosQueryContext"),
+        ("BusquedaGlobal.ContarVencenEstaSemanaDeEmpresaQueryHandler", "ITrabajadoresQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "IConfiguracionQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "IDocumentosQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "ITiposDocumentoQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "ITrabajadoresQueryContext"),
+        // Semana por Empresa compone vencimientos visibles y el historial de envío; no escribe fuera de Calendario.
+        ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "IDocumentosQueryContext"),
+        ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "IEmpresasQueryContext"),
+        ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "ITrabajadoresQueryContext"),
+        ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "IProyectosQueryContext"),
+        ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "IReclamacionesQueryContext"),
+        ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "ITiposDocumentoQueryContext"),
         ("Centros.CrearCanalGestionCommandHandler", "IProveedoresPlataformaCaeQueryContext"),
         ("Centros.CrearCentroCommandHandler", "IClientesQueryContext"),
         ("Centros.CrearCentroCommandHandler", "IEmpresasQueryContext"),
@@ -173,6 +192,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Centros.ObtenerDocumentacionBloqueantePendienteQueryHandler", "ITiposDocumentoQueryContext"),
         ("Centros.ObtenerDocumentacionBloqueantePendienteQueryHandler", "ITrabajadoresQueryContext"),
         ("Centros.ObtenerDocumentacionRequeridaDeCentroQueryHandler", "ITiposDocumentoQueryContext"),
+        // La misma lectura que la de arriba, sobre todos los Centros del Cliente empresarial (Cliente 360, «Documentación»).
+        ("Centros.ObtenerDocumentacionExigidaDeClienteQueryHandler", "ITiposDocumentoQueryContext"),
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "IAsignacionesQueryContext"),
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "IEmpresasQueryContext"),
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "ISubcontratasQueryContext"),
@@ -217,6 +238,17 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // F4.2b: repuntado a RelacionesEmpresariales — ya no depende de
         // ISubcontratasQueryContext en absoluto.
         ("Clientes.ObtenerSubcontratasDeClienteQueryHandler", "IEmpresasQueryContext"),
+        // Plataforma CAE de Cliente 360 (2026-10-18): la plataforma es del Cliente empresarial y el acceso
+        // de cada Empresa proveedora, las dos tablas viven en Empresas; el Cliente empresarial es una Empresa.
+        ("Clientes.GuardarAccesoPlataformaCaeCommandHandler", "IEmpresasQueryContext"),
+        ("Clientes.GuardarAccesoPlataformaCaeCommandHandler", "IPlataformaCaeClienteEmpresarialRepository"),
+        ("Clientes.GuardarPlataformaCaeClienteCommandHandler", "IEmpresaRepository"),
+        // Comprueba que la Empresa es hoy Cliente empresarial (Relación Empresarial vigente).
+        ("Clientes.GuardarPlataformaCaeClienteCommandHandler", "IEmpresasQueryContext"),
+        ("Clientes.GuardarPlataformaCaeClienteCommandHandler", "IPlataformaCaeClienteEmpresarialRepository"),
+        ("Clientes.ObtenerAccesosPlataformaCaeClienteQueryHandler", "IEmpresasQueryContext"),
+        ("Clientes.ObtenerPlataformaCaeClienteQueryHandler", "IEmpresasQueryContext"),
+        ("Clientes.RevelarContrasenaAccesoPlataformaCaeQueryHandler", "IEmpresasQueryContext"),
         ("Clientes.ReasignarEjecutivoClienteCommandHandler", "IConfiguracionIaDocumentoClienteRepository"),
         ("Clientes.ReasignarEjecutivoClienteCommandHandler", "INotificacionUsuarioRepository"),
         // F3b-Subcontrata: mismo motivo que Cliente arriba — "Subcontrata" es
@@ -255,6 +287,13 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comercial.ObtenerEstadoComercialTenantsQueryHandler", "ITenantsQueryContext"),
         ("Comercial.RegistrarSuscripcionTenantCommandHandler", "ITenantsQueryContext"),
         ("Comunicaciones.ActualizarDocumentoDesdeAdjuntoCommandHandler", "IDocumentosQueryContext"),
+        // Rellena variables con los sujetos y la visita del hilo; solo lee otras features.
+        ("Comunicaciones.AplicarMacroCommandHandler", "ICentrosQueryContext"),
+        ("Comunicaciones.AplicarMacroCommandHandler", "IDocumentosQueryContext"),
+        ("Comunicaciones.AplicarMacroCommandHandler", "IEmpresasQueryContext"),
+        ("Comunicaciones.AplicarMacroCommandHandler", "ITiposDocumentoQueryContext"),
+        ("Comunicaciones.AplicarMacroCommandHandler", "ITrabajadoresQueryContext"),
+        ("Comunicaciones.AplicarMacroCommandHandler", "IVisitasQueryContext"),
         ("Comunicaciones.AsignarClienteConversacionCommandHandler", "IEmpresaRepository"),
         ("Comunicaciones.CrearMacroCommandHandler", "IEmpresaRepository"),
         ("Comunicaciones.DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler", "IEmpresasQueryContext"),
@@ -329,6 +368,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Dashboard.ObtenerDesgloseDashboardQueryHandler", "ISubcontratasQueryContext"),
         ("Dashboard.ObtenerDesgloseDashboardQueryHandler", "ITiposDocumentoQueryContext"),
         ("Dashboard.ObtenerDesgloseDashboardQueryHandler", "ITrabajadoresQueryContext"),
+        // Cuadro de dirección (incremento 2): recuentos del mes por Tenant beneficiario.
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "ICentrosQueryContext"),
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IComunicacionesQueryContext"),
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IDocumentosQueryContext"),
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IReclamacionesQueryContext"),
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "ITrabajadoresQueryContext"),
         ("Dashboard.ObtenerEstadisticasAprobacionDocumentoQueryHandler", "IDocumentosQueryContext"),
         ("Dashboard.ObtenerKpisBpoQueryHandler", "IClientesQueryContext"),
         ("Dashboard.ObtenerKpisBpoQueryHandler", "IComunicacionesQueryContext"),
@@ -456,6 +501,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Facturacion.ObtenerResumenFacturacionQueryHandler", "IVisitasQueryContext"),
         ("Facturacion.ObtenerTarifasClienteQueryHandler", "IClientesQueryContext"),
         ("Gestiones.CrearGestionesParaTrabajadorCommandHandler", "IAsignacionesQueryContext"),
+        // Asignación de Cartera: el ítem sugerido y el mensaje de origen solo se enlazan si la Conversación es visible.
+        ("Gestiones.CrearGestionesParaTrabajadorCommandHandler", "IComunicacionesQueryContext"),
         ("Gestiones.CrearGestionesParaTrabajadorCommandHandler", "IDetalleSugerenciaGestionCorreoRepository"),
         ("Gestiones.CrearGestionesParaTrabajadorCommandHandler", "ITipoDocumentoRepository"),
         ("Gestiones.ObtenerGestionesQueryHandler", "ICentrosQueryContext"),
@@ -550,6 +597,14 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Reclamaciones.EnviarReclamacionCommandHandler", "ITrabajadoresQueryContext"),
         ("Reclamaciones.EnviarReclamacionEmpresaCommandHandler", "IDocumentosQueryContext"),
         ("Reclamaciones.EnviarReclamacionEmpresaCommandHandler", "ITiposDocumentoQueryContext"),
+        // «Gestionar» a la Empresa empleadora (2026-10-18): revalida el mismo join reclamable que EnviarReclamacionCommandHandler
+        // (Documento, Trabajador, Tipo, Asignación activa, Centro con gestión CAE) y lee la Empresa titular, sin el Cliente.
+        ("Reclamaciones.EnviarReclamacionEmpresaEmpleadoraCommandHandler", "IAsignacionesQueryContext"),
+        ("Reclamaciones.EnviarReclamacionEmpresaEmpleadoraCommandHandler", "ICentrosQueryContext"),
+        ("Reclamaciones.EnviarReclamacionEmpresaEmpleadoraCommandHandler", "IDocumentosQueryContext"),
+        ("Reclamaciones.EnviarReclamacionEmpresaEmpleadoraCommandHandler", "IEmpresasQueryContext"),
+        ("Reclamaciones.EnviarReclamacionEmpresaEmpleadoraCommandHandler", "ITiposDocumentoQueryContext"),
+        ("Reclamaciones.EnviarReclamacionEmpresaEmpleadoraCommandHandler", "ITrabajadoresQueryContext"),
         ("Reclamaciones.ObtenerLoteReclamacionEmpresaQueryHandler", "IConfiguracionQueryContext"),
         ("Reclamaciones.ObtenerLoteReclamacionEmpresaQueryHandler", "IDocumentosQueryContext"),
         ("Reclamaciones.ObtenerLoteReclamacionEmpresaQueryHandler", "ITiposDocumentoQueryContext"),

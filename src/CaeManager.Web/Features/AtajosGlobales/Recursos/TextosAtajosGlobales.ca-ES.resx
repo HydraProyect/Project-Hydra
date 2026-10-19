@@ -90,6 +90,12 @@
   <data name="AccionBuscadorGlobal" xml:space="preserve">
     <value>Buscador global</value>
   </data>
+  <data name="AccionSubir" xml:space="preserve">
+    <value>Puja documents (pujada massiva)</value>
+  </data>
+  <data name="AccionEmpresaFijada" xml:space="preserve">
+    <value>Canvia a l'empresa gestionada fixada amb aquest número (només amb diverses empreses gestionades)</value>
+  </data>
   <data name="AccionMostrarAyuda" xml:space="preserve">
     <value>Mostrar esta ayuda (Esc para cerrar)</value>
   </data>

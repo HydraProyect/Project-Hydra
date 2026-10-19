@@ -1,0 +1,82 @@
+@using CaeManager.Web.Features.Calendario.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosCalendario> Textos
+
+@* «Detalle del día» del mockup de Calendario: el mismo diálogo para el día del Mes y para la celda Empresa × día de la
+   Semana por Empresa. Antetítulo con el día de la semana, fecha larga, «N vencimientos · M visita», una fila por
+   vencimiento (sujeto en negrita, documento debajo, estado, Renovar y Reclamar), la sección de Visitas y el pie con
+   «Reclamar los N». Reclamar y el pie solo existen si el llamador puede reclamar (OnReclamar con manejador) y la
+   persona tiene un rol de gestión; el diálogo no decide a quién se reclama: devuelve los Documentos y quien lo abre
+   sabe el titular. *@
+<div class="detalle-dia">
+    <Modal Visible="@(Fecha is not null)" VisibleChanged="AlCambiarVisible"
+           Sobretitulo="@Antetitulo" Titulo="@TituloFecha" Subtitulo="@Resumen"
+           Pie="@(MostrarPie ? PieReclamar : null)">
+        @if (Fecha is not null)
+        {
+            @if (Vencimientos.Count > 0)
+            {
+                <section class="detalle-dia-seccion">
+                    <h3 class="detalle-dia-etiqueta">@Textos["SubtituloVencimientos"]</h3>
+                    <ul class="detalle-dia-lista">
+                        @foreach (var fila in Vencimientos)
+                        {
+                            <li class="detalle-dia-fila">
+                                <span class="detalle-dia-texto">
+                                    <span class="detalle-dia-principal">@fila.Sujeto</span>
+                                    <span class="detalle-dia-secundaria">@fila.Documento</span>
+                                </span>
+                                <Badge Tono="fila.Tono">@fila.Estado</Badge>
+                                <span class="detalle-dia-acciones">
+                                    <a class="detalle-dia-renovar" href="@($"/documentos?documentoId={fila.DocumentoId}")">@Textos["Renovar"]</a>
+                                    @if (PuedeReclamar && fila.Reclamable)
+                                    {
+                                        <button type="button" class="detalle-dia-reclamar" @onclick="() => Reclamar(new[] { fila.DocumentoId })">@Textos["Reclamar"]</button>
+                                    }
+                                </span>
+                            </li>
+                        }
+                    </ul>
+                </section>
+            }
+
+            @if (Visitas.Count > 0)
+            {
+                <section class="detalle-dia-seccion">
+                    <h3 class="detalle-dia-etiqueta">@Textos["SubtituloVisitas"]</h3>
+                    <ul class="detalle-dia-lista">
+                        @foreach (var visita in Visitas)
+                        {
+                            <li class="detalle-dia-fila">
+                                <span class="detalle-dia-barra" aria-hidden="true"></span>
+                                <span class="detalle-dia-texto">
+                                    <span class="detalle-dia-principal">@visita.CentroNombre</span>
+                                    <span class="detalle-dia-secundaria">@DetalleVisita(visita)</span>
+                                </span>
+                                @if (visita.NotificadoCliente)
+                                {
+                                    <Badge Tono="TonoBadge.Exito" title="@Textos["NotificadaDetalle"]">@Textos["Notificada"]</Badge>
+                                }
+                                else
+                                {
+                                    <Badge Tono="TonoBadge.Advertencia" title="@Textos["SinNotificarDetalle"]">@Textos["SinNotificar"]</Badge>
+                                }
+                                <a class="detalle-dia-renovar" href="/visitas">@Textos["IrAVisitas"]</a>
+                            </li>
+                        }
+                    </ul>
+                </section>
+            }
+        }
+    </Modal>
+</div>
+
+@code {
+    private RenderFragment PieReclamar => __builder =>
+    {
+        <span class="detalle-dia-pie-texto">@Textos["AccionesSinSalir"]</span>
+        <Boton Variante="VarianteBoton.Primario" OnClick="() => Reclamar(ReclamablesIds)">
+            @(ReclamablesIds.Count == 1 ? Textos["ReclamarElDocumento"] : Textos["ReclamarLosN", ReclamablesIds.Count])
+        </Boton>
+    };
+}

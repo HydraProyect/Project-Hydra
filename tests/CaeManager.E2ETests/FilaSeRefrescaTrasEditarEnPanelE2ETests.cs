@@ -47,7 +47,7 @@ public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixtureListados fixtu
         const string lapiz = "button[aria-label='Editar información del trabajador']";
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await AbrirAsync(contexto, "trabajadores");
-        var filas = page.Locator("tbody tr.fila-pulsable");
+        var filas = page.Locator(".marco-lista-trabajadores .fila-pulsable");
         await Expect(filas).Not.ToHaveCountAsync(0);
 
         // Se aísla un trabajador sembrado por su DNI, que la edición no toca: la fila sigue
@@ -95,8 +95,8 @@ public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixtureListados fixtu
                 {
                     await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
                     await page.GetByPlaceholder("Filtrar esta pantalla: nombre, DNI o alias").FillAsync(dni);
-                    await Expect(page.Locator("tbody tr.fila-pulsable")).ToHaveCountAsync(1);
-                    await page.Locator("tbody tr.fila-pulsable .nombre-abre-vista-rapida").ClickAsync();
+                    await Expect(page.Locator(".marco-lista-trabajadores .fila-pulsable")).ToHaveCountAsync(1);
+                    await page.Locator(".marco-lista-trabajadores .fila-pulsable .nombre-abre-vista-rapida").ClickAsync();
                     await GuardarNombreEnElPanelAsync(page.Locator(".workspace-panel"), lapiz, nombreOriginal);
                 }
                 catch (Exception)
@@ -161,9 +161,11 @@ public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixtureListados fixtu
 
         // Un nombre que no esté contenido en el de otro Centro a la vista: el filtro es por «contiene».
         var nombres = (await filas.Locator(".enlace-nombre-fila").AllInnerTextsAsync()).Select(n => n.Trim()).ToArray();
-        var nombre = Array.Find(nombres, n => nombres.Count(otro => otro.Contains(n, StringComparison.OrdinalIgnoreCase)) == 1);
+        // Solo los Centros con incidencias llevan chevron (maqueta: «tieneHijos»), y el recorrido necesita desplegar la fila.
+        var conChevron = (await filas.Filter(new() { Has = page.Locator(".boton-expandir-fila") }).Locator(".enlace-nombre-fila").AllInnerTextsAsync()).Select(n => n.Trim()).ToArray();
+        var nombre = Array.Find(conChevron, n => nombres.Count(otro => otro.Contains(n, StringComparison.OrdinalIgnoreCase)) == 1);
         Assert.NotNull(nombre);
-        var filtro = page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente o empresa");
+        var filtro = page.GetByPlaceholder("Filtrar esta pantalla: Centro, código, Cliente o Empresa");
         await filtro.FillAsync(nombre);
         await Expect(filas).ToHaveCountAsync(1);
         // Todo se busca en la cabecera de la fila: el acordeón desplegado trae sus propios botones.
@@ -209,7 +211,7 @@ public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixtureListados fixtu
                 {
                     await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
                     await Ayudas.MostrarCentrosSinAgruparAsync(page);
-                    await page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente o empresa").FillAsync(nombre);
+                    await page.GetByPlaceholder("Filtrar esta pantalla: Centro, código, Cliente o Empresa").FillAsync(nombre);
                     await Expect(filas).ToHaveCountAsync(1);
                     await filas.Locator(".nombre-abre-vista-rapida").ClickAsync();
                     await GuardarCampoEnElPanelAsync(page.Locator(".workspace-panel"), lapiz, campo, codigoOriginal);
@@ -247,6 +249,6 @@ public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixtureListados fixtu
             }
         }
 
-        await Expect(enfocada).ToHaveCountAsync(1);
+        await Ayudas.EsperarFocoRealEnFilaAsync(enfocada);
     }
 }

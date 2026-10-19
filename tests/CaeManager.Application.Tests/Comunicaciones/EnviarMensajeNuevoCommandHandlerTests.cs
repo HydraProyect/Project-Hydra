@@ -53,6 +53,24 @@ public class EnviarMensajeNuevoCommandHandlerTests
     }
 
     [Fact]
+    public async Task La_copia_viaja_al_proveedor_y_queda_como_participante_Cc_del_hilo()
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        var (handler, conversaciones, graphClient) = CrearHandler(conexion);
+
+        var resultado = await handler.Handle(
+            new EnviarMensajeNuevoCommand(
+                conexion.Id, ["contacto@cliente.com"], "Reclamación", "<p>Hola</p>", Copia: ["coordinacion@arcosspa.example"]),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        graphClient.UltimaCopia.Should().Equal("coordinacion@arcosspa.example");
+        var conversacion = conversaciones.Conversaciones.Should().ContainSingle().Which;
+        conversacion.Participantes.Should().ContainSingle(p => p.Email == "contacto@cliente.com" && p.Rol == RolParticipante.Para);
+        conversacion.Participantes.Should().ContainSingle(p => p.Email == "coordinacion@arcosspa.example" && p.Rol == RolParticipante.Cc);
+    }
+
+    [Fact]
     public async Task Con_conexion_deshabilitada_devuelve_fallo_y_no_crea_nada()
     {
         var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
@@ -143,7 +161,8 @@ public class EnviarMensajeNuevoCommandHandlerTests
             new ClasificacionRuidoMensajeRepositorioFalso(),
             new ClasificacionRuidoMensajeServiceFalso(),
             new RelevanciaCaeServiceFalso(),
-            NullLogger<IngestaWebhookService>.Instance);
+            new AlertaCriticaServiceFalso(),
+            NullLogger<IngestaWebhookService>.Instance, new CaeManager.Application.Tests.Comunicaciones.IntencionConversacionServiceFalso());
 
         var eventoWebhook = new EventoWebhook(conexion.Id, "{\"value\":[{}]}");
         await servicioIngesta.ProcesarAsync(eventoWebhook, CancellationToken.None);

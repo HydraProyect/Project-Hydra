@@ -32,8 +32,8 @@ namespace CaeManager.E2ETests;
 public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
 {
     private static readonly string Gestor = Ayudas.EmailPrueba("gestorcae", 3);
-    private static readonly Regex AgrupadoPorCliente = new("^Agrupar: Cliente$");
-    private static readonly Regex SinAgrupar = new("^Agrupar: no$");
+    private static readonly Regex AgrupadoPorCliente = new("^Agrupar: Por Cliente$");
+    private static readonly Regex SinAgrupar = new("^Agrupar$");
 
     private const string ToastRestablecida = "Vista de fábrica restablecida.";
 
@@ -113,9 +113,9 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
     public async Task Centros_recuerda_la_agrupacion_y_no_la_busqueda_la_URL_manda_y_Restablecer_vista_la_olvida()
     {
         const string pastilla = "Cliente";
-        const string placeholder = "Filtrar esta pantalla: centro, código, Cliente o empresa";
+        const string placeholder = "Filtrar esta pantalla: Centro, código, Cliente o Empresa";
         var listado = $"{fixture.BaseUrl}/centros";
-        var conUnaVista = $"{listado}?agrupar=no";
+        var conUnaVista = $"{listado}?agrupar=cliente";
 
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
@@ -126,16 +126,16 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
             await OlvidarLoRecordadoAsync(page, conUnaVista, pastilla);
 
             var buscador = page.GetByPlaceholder(placeholder);
-            // El desplegable «Agrupar» dice en su pastilla la agrupación vigente («Agrupar: Cliente», «Agrupar: no»).
+            // El desplegable «Agrupar» dice en su pastilla la agrupación vigente («Agrupar: Por Cliente», «Agrupar» si no hay).
             var agrupar = Ayudas.DesplegableAgrupar(page);
-            var conteo = page.Locator(".conteo-centros");
-            await Expect(agrupar).ToHaveTextAsync(AgrupadoPorCliente);
+            var conteo = page.Locator(".cabecera-pagina .cabecera-listado-contador");
+            await Expect(agrupar).ToHaveTextAsync(SinAgrupar);
             var conteoDeInicio = (await conteo.InnerTextAsync()).Trim();
 
-            // --- Una vista propia: sin agrupar y buscando un Centro por su nombre. La siembra no da un
+            // --- Una vista propia: agrupado «Por Cliente» y buscando un Centro por su nombre. La siembra no da un
             //     nombre estable, así que se lee de la lista el de un Centro cualquiera. ---
-            await Ayudas.ElegirAgrupacionAsync(page, "Sin agrupar", SinAgrupar);
-            await Expect(agrupar).ToHaveTextAsync(SinAgrupar);
+            await Ayudas.ElegirAgrupacionAsync(page, "Por Cliente", AgrupadoPorCliente);
+            await Expect(agrupar).ToHaveTextAsync(AgrupadoPorCliente);
             var nombresDeCentro = page.Locator(".lista-filas-acordeon .fila-pulsable .enlace-nombre-fila");
             await Expect(nombresDeCentro).Not.ToHaveCountAsync(0);
             var nombre = (await nombresDeCentro.AllInnerTextsAsync()).Select(n => n.Trim()).Last(n => n.Length > 0);
@@ -145,21 +145,21 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
             var cifraDeInicio = Regex.Match(conteoDeInicio, @"^\d+");
             Assert.True(cifraDeInicio.Success, $"el recuento de Centros debe empezar por su cifra: «{conteoDeInicio}»");
             await Expect(conteo).Not.ToHaveTextAsync(new Regex($@"^{cifraDeInicio.Value}\b"));
-            await EsperarVistaEnLaUrlAsync(page, ("q", nombre), ("agrupar", "no"));
+            await EsperarVistaEnLaUrlAsync(page, ("q", nombre), ("agrupar", "cliente"));
 
             // --- Salir por el menú escribe la vista en el acto; al volver sin parámetros, está la
             //     agrupación y no la búsqueda, que no se recuerda: la lista vuelve a ser la entera. ---
             await SalirAOtraPantallaAsync(page, placeholder);
             await Ayudas.NavegarYEsperarAsync(page, listado);
-            await EsperarVistaEnLaUrlAsync(page, ("agrupar", "no"));
+            await EsperarVistaEnLaUrlAsync(page, ("agrupar", "cliente"));
             await Expect(buscador).ToHaveValueAsync(string.Empty);
-            await Expect(agrupar).ToHaveTextAsync(SinAgrupar);
+            await Expect(agrupar).ToHaveTextAsync(AgrupadoPorCliente);
             await Expect(conteo).ToHaveTextAsync(new Regex($@"^{cifraDeInicio.Value}\b"));
 
-            // --- Con parámetros manda la URL: agrupado y sin búsqueda, como dice ella. ---
+            // --- Con parámetros manda la URL: sin agrupar (la de fábrica) y sin búsqueda, como dice ella. ---
             await Ayudas.NavegarYEsperarAsync(page, $"{listado}?orden=cumplimiento-desc");
             await CircuitoAtendiendoAsync(page, pastilla);
-            await Expect(agrupar).ToHaveTextAsync(AgrupadoPorCliente);
+            await Expect(agrupar).ToHaveTextAsync(SinAgrupar);
             await Expect(conteo).ToHaveTextAsync(conteoDeInicio);
             await Expect(buscador).ToHaveValueAsync(string.Empty);
             Assert.Equal(new Dictionary<string, string> { ["orden"] = "cumplimiento-desc" }, ParametrosDe(page.Url));
@@ -175,7 +175,7 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
             await CircuitoAtendiendoAsync(page, pastilla);
             Assert.Empty(ParametrosDe(page.Url));
             await Expect(EnlaceRestablecer(page)).ToHaveCountAsync(0);
-            await Expect(agrupar).ToHaveTextAsync(AgrupadoPorCliente);
+            await Expect(agrupar).ToHaveTextAsync(SinAgrupar);
         }
         catch
         {
@@ -195,7 +195,7 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
     public async Task Un_inicio_de_sesion_del_arnes_deja_al_Usuario_sin_vista_recordada()
     {
         const string pastilla = "Cliente";
-        const string placeholder = "Filtrar esta pantalla: centro, código, Cliente o empresa";
+        const string placeholder = "Filtrar esta pantalla: Centro, código, Cliente o Empresa";
         var listado = $"{fixture.BaseUrl}/centros";
 
         await using (var contexto = await fixture.Browser.NewContextAsync())
@@ -205,15 +205,15 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
             await Ayudas.NavegarYEsperarAsync(page, listado);
             await CircuitoAtendiendoAsync(page, pastilla);
             // Recién cargada en frío, la página aún se repinta al terminar de inicializarse y un clic suelto en
-            // «Sin agrupar» puede perderse (visto 1 de 5 veces): la ayuda de la suite insiste hasta que el
-            // desplegable dice «Agrupar: no».
-            await Ayudas.MostrarCentrosSinAgruparAsync(page);
-            await EsperarVistaEnLaUrlAsync(page, ("agrupar", "no"));
+            // el desplegable puede perderse (visto 1 de 5 veces): se elige «Por Cliente» hasta que dice
+            // «Agrupar: Por Cliente» y la URL lo lleva.
+            await Ayudas.ElegirAgrupacionAsync(page, "Por Cliente", AgrupadoPorCliente);
+            await EsperarVistaEnLaUrlAsync(page, ("agrupar", "cliente"));
             await SalirAOtraPantallaAsync(page, placeholder);
 
             // Control: la vista consta recordada, porque una carga en frío sin parámetros la restaura.
             await Ayudas.NavegarYEsperarAsync(page, listado);
-            await EsperarVistaEnLaUrlAsync(page, ("agrupar", "no"));
+            await EsperarVistaEnLaUrlAsync(page, ("agrupar", "cliente"));
         }
 
         await using var otroContexto = await fixture.Browser.NewContextAsync();

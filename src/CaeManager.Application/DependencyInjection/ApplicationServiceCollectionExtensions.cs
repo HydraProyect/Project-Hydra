@@ -35,6 +35,7 @@ public static class ApplicationServiceCollectionExtensions
         // Scoped: una puerta por petición HTTP o circuito de Blazor — la
         // misma que usan los accesos a datos que no pasan por MediatR.
         services.AddScoped<PuertaAccesoDatos>();
+        services.AddScoped<CaeManager.Application.Dashboard.Queries.MedicionMensualCuadroDireccion>();
         // Lectura de la «Nota interna» de las fichas 360: una sola decisión para todas (ver PoliticaNotaInterna).
         services.AddScoped<CaeManager.Application.Common.IPoliticaNotaInterna, CaeManager.Application.Common.PoliticaNotaInterna>();
         // Singleton a propósito (Horizonte 2.4): la ventana de tasa de
@@ -163,6 +164,8 @@ public static class ApplicationServiceCollectionExtensions
             Reclamaciones.Commands.EnviarReclamacion.RegistroEnvioReclamacionService>();
         // Qué se puede pedir sin vencimiento (documento que falta, «Sin confirmar» sin fecha): lo leen el lote y el envío.
         services.AddScoped<Reclamaciones.IPendientesDeReclamacionService, Reclamaciones.PendientesDeReclamacionService>();
+        services.AddScoped<Reclamaciones.ReclamacionEmpresaEmpleadoraService>();
+        services.AddScoped<Reclamaciones.DestinoDeReclamacionesEnviadasService>();
         // Estado en las plataformas del Centro y última reclamación de cada documento: lo leen las fichas 360 que fijan un Centro.
         services.AddScoped<
             Documentos.SituacionEnCentro.ISituacionDocumentosEnCentrosService,
@@ -171,6 +174,7 @@ public static class ApplicationServiceCollectionExtensions
         // implementación de «qué se envía y a quién»): hace falta resolverlos como clases concretas.
         services.AddScoped<Reclamaciones.Commands.EnviarReclamacion.EnviarReclamacionCommandHandler>();
         services.AddScoped<Reclamaciones.Commands.EnviarReclamacionEmpresa.EnviarReclamacionEmpresaCommandHandler>();
+        services.AddScoped<Reclamaciones.Commands.EnviarReclamacionEmpresaEmpleadora.EnviarReclamacionEmpresaEmpleadoraCommandHandler>();
         services.AddScoped<IClasificacionRuidoMensajeService, ClasificacionRuidoMensajeService>();
         services.AddScoped<IRelevanciaCaeService, RelevanciaCaeService>();
         services.AddScoped<IMotorCoincidenciaConversacionesService, MotorCoincidenciaConversacionesService>();

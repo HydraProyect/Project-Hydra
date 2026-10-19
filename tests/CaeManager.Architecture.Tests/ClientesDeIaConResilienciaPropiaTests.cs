@@ -40,6 +40,8 @@ public class ClientesDeIaConResilienciaPropiaTests
         "AnthropicDeteccionVisitaCorreoService",
         "AnthropicDeteccionGestionCorreoService",
         "AnthropicDeteccionRelevanciaCaeService",
+        "AnthropicDeteccionIntencionCaeService",
+        "AnthropicSegundaOpinionCriticaIa",
         "MistralOcrDocumentAIProvider",
         "AnthropicDocumentAIProvider",
         "GeminiDocumentAIProvider",

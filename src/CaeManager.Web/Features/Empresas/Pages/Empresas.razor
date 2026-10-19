@@ -6,7 +6,6 @@
 @using CaeManager.Application.Empresas.Commands.EditarEmpresa
 @using CaeManager.Application.Empresas.Commands.EliminarEmpresas
 @using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa
-@using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresas
@@ -31,7 +30,7 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@_tituloPagina — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina lista-design">
     @* Rediseño de listados, fase 1: cabecera de una línea (CabeceraListado) con el contador, el
        conmutador ☑ de selección múltiple —la única vía para eliminar: la fila no lleva menú—,
        el icono ⤓ de exportación de la vista filtrada (lectura: cualquier rol) y UNA acción primaria. El título lo sigue decidiendo el perfil de vocabulario del
@@ -42,17 +41,17 @@
        sigue más abajo. *@
     @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
     {
-        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@_tituloPagina" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
+        <CabeceraListado Titulo="@_tituloPagina" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
                          RutaExportar="/empresas/exportar.xlsx" CriteriosExportar="CriteriosExportar">
             <Menu>
                 <CaeManager.Web.Exportacion.EntradasExportar Ruta="/empresas/exportar.xlsx" />
             </Menu>
             @* «Gestor CAE» es dato de cabecera, no columna: la Asignación de Cartera es sobre el
-               Tenant entero, así que es el mismo para todas las filas. Si quien mira se desasigna
-               desde ahí, quien mira va a Mi trabajo con un aviso (IrAMiTrabajoTrasDesasignarme). *@
+               Tenant entero, así que es el mismo para todas las filas. Es de solo lectura: dar acceso y
+               desasignarse ya no se hacen desde aquí (revisión de Design, 2026-10-17, §C). *@
             <DatoCabecera>
-                <CabeceraGestorCae AlDesasignarme="IrAMiTrabajoTrasDesasignarme" />
+                <CabeceraGestorCae />
             </DatoCabecera>
             <Primaria>
                 @if (!_alcanceCero)
@@ -64,7 +63,7 @@
     }
     else
     {
-        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@_tituloPagina" />
+        <CabeceraListado Titulo="@_tituloPagina" />
     }
 
     @if (_resolviendoEmpresa)
@@ -88,29 +87,37 @@
          dice los dos.
        - El estado documental es el peor estado de vigencia de los documentos de la Empresa; viaja
          en la URL como «estado». *@
-    <BarraFiltros PresentacionMaqueta="true" Contador="@(_cargando || _errorCarga ? null : _totalElementos)" SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
                   OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
                   VistaRecordada="_vistaRecordada">
-        @* Sin pastillas desde que el estado se filtra en la franja; el fragmento vacío mantiene la barra en modo pastillas. *@
+        @* El estado se filtra en la franja de debajo. Quedan el filtro «Cliente» (solo las Empresas que prestan
+           servicio a ese Cliente, dentro del alcance de gestión de quien mira) y, en Herramientas, la agrupación
+           «Por Cliente». Sin Clientes a su alcance no hay ninguno de los dos; el fragmento, aunque vacío, mantiene
+           la barra en modo pastillas. *@
         <Pastillas>
-            <FranjaEstado PresentacionCampo="true" Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
-                  Recuentos="_recuentosPorEstado" TextoTodos="@Textos["ListaFiltroTodas"]" /></Pastillas>
+            @if (_clientesFiltro.Count > 0)
+            {
+                <PastillaFiltro Etiqueta="@Textos["EtiquetaCliente"]" Valor="@ValorFiltroCliente" ValorChanged="CambiarClienteAsync"
+                                Opciones="OpcionesFiltroCliente" />
+            }
+        </Pastillas>
+        <Estados>
+            <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                  Recuentos="_recuentosPorEstado" />
+        </Estados>
         <Herramientas>
+            @if (_clientesFiltro.Count > 0)
+            {
+                <PastillaFiltro Etiqueta="@Textos["EtiquetaAgrupar"]" TextoTodos="@Textos["OpcionSinAgrupar"]" Valor="@ValorAgrupacion"
+                                ValorChanged="CambiarAgrupacionAsync" Opciones="OpcionesAgrupacion" />
+            }
             @if (_elementosPagina.Count > 0)
             {
-                <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidosAsync" />
+                <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" />
             }
         </Herramientas>
-        <Resumen>
-            @if (!_errorCarga && _totalElementos > 0)
-            {
-                @* El total lo da la consulta ya filtrada: es el número de coincidencias, no el
-                   de la cartera entera. *@
-                <span class="conteo-empresas">@TextoConteo</span>
-            }
-        </Resumen>
         @* Lo que está filtrando se ve y se quita de uno en uno (#497). El valor del FiltroEstado vive
            dentro de un desplegable cerrado, así que sin esto una lista corta parece una lista corta,
            y no una recortada. «Limpiar todo» es el mismo LimpiarFiltrosAsync que «Quitar los filtros»
@@ -119,6 +126,10 @@
             @if (!string.IsNullOrWhiteSpace(_busqueda))
             {
                 <ChipFiltro Etiqueta="@($"Búsqueda: \"{_busqueda}\"")" EtiquetaAccesible="Quitar filtro de búsqueda" OnQuitar="QuitarFiltroBusquedaAsync" />
+            }
+            @if (_clienteFiltro is not null)
+            {
+                <ChipFiltro Etiqueta="@Textos["ChipCliente", NombreClienteFiltro]" EtiquetaAccesible="@Textos["QuitarFiltroCliente"]" OnQuitar="QuitarFiltroClienteAsync" />
             }
         </Chips>
     </BarraFiltros>
@@ -156,10 +167,9 @@
            que no sabemos cuántas hay sin filtro. Con cero empresas y un filtro
            escrito, "no coincide ninguna" sigue siendo cierto. Por eso no se
            copia el «Hay empresas dadas de alta, pero…» del mockup. *@
-        <EstadoVacio NombreIcono="vacio" Titulo="Ninguna empresa con este filtro"
-                     Descripcion="Ninguna coincide con la búsqueda ni con el estado de documentación seleccionado.">
+        <EstadoVacio NombreIcono="vacio" Titulo="Ningún resultado con estos filtros">
             <Accion>
-                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar filtros</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -167,7 +177,7 @@
     {
         @* Con alcance cero no se invita a crear lo que quizá ya existe fuera de la cartera (P0-9a, FS-05). *@
         <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
-            <EstadoVacio NombreIcono="empresas" Titulo="Aún no hay empresas" Descripcion="Crea la primera para poder dar de alta trabajadores.">
+            <EstadoVacio NombreIcono="empresas" Titulo="Todavía no hay empresas" Descripcion="Da de alta la primera o impórtalas desde una hoja de cálculo.">
                 <Accion>
                     <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">+ Nueva empresa</Boton></SoloConEscritura>
                 </Accion>
@@ -202,7 +212,7 @@
         @* Marco de la lista del mockup: una sola tarjeta con la cabecera de
            columnas arriba y las filas separadas por una línea, en vez de una
            tarjeta suelta por Empresa. *@
-        @TarjetaListado.RenderizarMaqueta(@<text>
+        @TarjetaListado.Renderizar(@<text>
             <div class="marco-lista-empresas">
             @* Cabecera de columnas (#498). Sin roles de tabla a propósito: esto no
                es una tabla —la fila se despliega— y anunciarlo como tal prometería
@@ -223,8 +233,15 @@
             </div>
 
             <div class="lista-filas-acordeon">
-                @foreach (var empresa in _elementosPagina)
+                @foreach (var (empresa, grupo, cantidadGrupo) in FilasConGrupo())
                 {
+                    @if (grupo is not null)
+                    {
+                        @* Título del grupo «Por Cliente» (maqueta de Empresas): el Cliente y cuántas Empresas suyas hay en esta página. *@
+                        <div class="cabecera-grupo-empresas" data-grupo-cliente="@grupo">
+                            @grupo<span class="cabecera-grupo-empresas-recuento">@RecuentoDeGrupo(cantidadGrupo)</span>
+                        </div>
+                    }
                     <div class="@ClaseTarjeta(empresa)" @key="empresa.Id">
                         @{ var expandido = _expandidos.Contains(empresa.Id); }
                         @* Patrón de listados: la fila no lleva menú «⋯». Un clic en cualquier punto de la
@@ -239,8 +256,8 @@
                             }
                             <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
                                     aria-expanded="@(expandido ? "true" : "false")"
-                                    aria-label="@($"{(expandido ? "Ocultar" : "Ver")} los Clientes de {empresa.RazonSocial}")"
-                                    @onclick="() => AlternarExpansionAsync(empresa.Id)" @onclick:stopPropagation="true">
+                                    aria-label="@($"{(expandido ? "Ocultar" : "Ver")} los documentos pendientes de {empresa.RazonSocial}")"
+                                    @onclick="() => AlternarExpansion(empresa.Id)" @onclick:stopPropagation="true">
                                 <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
                             </button>
                             @* El mockup pinta bajo la razón social «CNAE 4322 · Anexo I».
@@ -272,8 +289,8 @@
                                 </span>
                             </span>
                             @* La fila no nombra ni cuenta Clientes empresariales (decisión del propietario, 2026-10-08:
-                               sin columna «Presta servicio a»): solo los enseña el desplegable del chevron, que los pide
-                               con alcance de gestión. *@
+                               sin columna «Presta servicio a»): solo los enseña el filtro y la agrupación «Por Cliente»,
+                               acotados al alcance de gestión. *@
                             @* Orden de la maqueta aprobada: Detecciones · Cumplimiento · Estado documental.
                                Cada celda va envuelta para que la rejilla tenga SIEMPRE el mismo número
                                de columnas: un componente que no se pinta desalinearía la fila
@@ -284,8 +301,7 @@
                                     <button type="button" class="badge-deteccion"
                                             @onclick='() => NavigationManager.NavigateTo($"/empresas/{empresa.Id}/deteccion-trabajadores")'
                                             @onclick:stopPropagation="true">
-                                        <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" />
-                                        @(empresa.DeteccionesPendientes == 1 ? "1 detección" : $"{empresa.DeteccionesPendientes} detecciones")
+                                        @(empresa.DeteccionesPendientes == 1 ? "1 alta/baja ›" : $"{empresa.DeteccionesPendientes} altas/bajas ›")
                                     </button>
                                 }
                                 else
@@ -338,64 +354,42 @@
                         </div>
                         @if (expandido)
                         {
-                            @* La fila desplegada son los Clientes empresariales de las
-                               Relaciones Empresariales vigentes en las que esta Empresa es
-                               la proveedora: un rol de la relación, no un tipo de la
-                               Empresa. Su rótulo, su vacío y su error son los de la pestaña
-                               «Clientes» de Empresa 360 (TextosEmpresas):
-                               neutros, sin recuento y sin «presta servicio a» (decisión del
-                               propietario, 2026-10-08).
+                            @* La fila desplegada son los documentos que piden trabajo, cada uno con la única acción
+                               «Gestionar» (maqueta de Empresas; regla 8 de LEEME-AUTORIDAD: un solo verbo para todo lo
+                               que necesita el trabajo del Gestor CAE: revisar, subir, confirmar o reclamar viven detrás
+                               de él). Sustituye a los Clientes de la Empresa, que ya no se enseñan aquí (decisión de
+                               Chris, 2026-10-18; los de cada Empresa siguen en su pestaña «Clientes»).
 
-                               Antes de los Clientes, las incidencias documentales de la fila cuando las
-                               hay: las mismas líneas que la ventana del motivo (LineasIncidenciasDocumentales)
-                               y la misma corrección en sitio. Ya vienen en la fila: no cuestan otra consulta. *@
+                               Son las incidencias que ya trae la fila (los documentos de ámbito Empresa que deciden
+                               su estado): no cuestan otra consulta y se corrigen con el mismo formulario que la
+                               ventana del motivo. Quien solo consulta ve los documentos sin el botón: no se le ofrece
+                               un formulario que el comando le va a denegar. *@
                             <div class="tarjeta-fila-acordeon-contenido">
                                 @if (empresa.Incidencias.Count > 0)
                                 {
-                                    <div class="incidencias-fila-empresa" data-pieza="incidencias-fila">
-                                        <span class="titulo-incidencias-empresa">@MotivoIncidenciasUi.Titulo(empresa.Incidencias.Count)</span>
-                                        <LineasIncidenciasDocumentales Incidencias="empresa.Incidencias" Interactiva="_puedeEscribir"
-                                                                       AlPulsar="incidencia => CorregirIncidenciaAsync(empresa.Id, incidencia)" />
-                                    </div>
-                                }
-                                @{ var clientes = _clientesPorEmpresa.GetValueOrDefault(empresa.Id); }
-                                @if (clientes is null)
-                                {
-                                    <EstadoCargando Filas="2" />
-                                }
-                                else if (_clientesConError.Contains(empresa.Id))
-                                {
-                                    @* Antes un fallo se pintaba como «no tiene ningún
-                                       Cliente asociado»: calma donde lo cierto es que no
-                                       sabemos nada. *@
-                                    <p class="texto-vacio-seccion" role="alert">@Textos["ErrorClientes"]</p>
-                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => ReintentarClientesAsync(empresa.Id)">
-                                        Reintentar
-                                    </Boton>
-                                }
-                                else if (clientes.Count == 0)
-                                {
-                                    @* ObtenerClientesDeEmpresaQuery devuelve vacío también sin alcance de gestión:
-                                       el texto es cierto en los dos casos y no revela cuál (#810). *@
-                                    <p class="texto-vacio-seccion">@Textos["VacioClientesDescripcion"]</p>
-                                }
-                                else
-                                {
-                                    <span class="titulo-clientes-empresa">@Textos["PestanaClientes"]</span>
-                                    <ul class="workspace-lista-entidades">
-                                        @foreach (var cliente in clientes)
+                                    <ul class="documentos-pendientes-empresa" data-pieza="documentos-pendientes">
+                                        @foreach (var incidencia in empresa.Incidencias)
                                         {
-                                            <FilaEntidadRelacionada
-                                                @key="cliente.Id"
-                                                Titulo="@cliente.RazonSocial"
-                                                Subtitulo="@cliente.Cif"
-                                                OnClic="() => IrAlCliente(cliente.Id, cliente.RazonSocial)" />
+                                            <li class="documento-pendiente-empresa" @key="incidencia.DocumentoId">
+                                                <span class="documento-pendiente-nombre">@MotivoIncidenciasUi.NombreDeTipo(incidencia)</span>
+                                                <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
+                                                <span class="documento-pendiente-detalle">@DetalleDelDocumento(incidencia)</span>
+                                                @if (_puedeEscribir)
+                                                {
+                                                    <button type="button" class="documento-pendiente-gestionar" data-accion="gestionar"
+                                                            aria-label="@Textos["GestionarDocumentoAccesible", MotivoIncidenciasUi.NombreDeTipo(incidencia), empresa.RazonSocial]"
+                                                            @onclick="() => CorregirIncidenciaAsync(empresa.Id, incidencia)">@Textos["Gestionar"]</button>
+                                                }
+                                            </li>
                                         }
                                     </ul>
                                 }
+                                else
+                                {
+                                    <p class="texto-vacio-seccion">@Textos["NadaPendiente"]</p>
+                                }
                             </div>
-                        }
-                    </div>
+                        }                    </div>
                 }
             </div>
             </div>
@@ -403,7 +397,7 @@
     }
     @if (!_errorCarga && !_cargando && _elementosPagina.Count == 0)
     {
-        @TarjetaListado.RenderizarMaqueta(null, PieDelListado)
+        @TarjetaListado.RenderizarMaqueta(null, PieDelListadoVacio)
     }
     }
 </div>
@@ -452,10 +446,17 @@
 
 
 @code {
-    private RenderFragment PieDelListado => @<text>
+    private RenderFragment PieDelListado => PieSegun(false);
+
+    // Sin empresas el pie sigue visible debajo de la tarjeta, con la presentación de la maqueta anterior
+    // (regla compartida de los listados, ListadosPieSiempreVisibleTests).
+    private RenderFragment PieDelListadoVacio => PieSegun(true);
+
+    // Un solo montaje de la leyenda de atajos (LeyendaAtajosListaAdopcionTests): lo único que cambia es la presentación del pie.
+    private RenderFragment PieSegun(bool presentacionMaqueta) => @<text>
         @if (!_errorCarga && (!_cargando || _totalElementos > 0))
         {
-            <PaginadorSimple PresentacionMaqueta="true" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+            <PaginadorSimple PresentacionMaqueta="presentacionMaqueta" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
                                   TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
                     <Centro><LeyendaAtajosLista /></Centro>

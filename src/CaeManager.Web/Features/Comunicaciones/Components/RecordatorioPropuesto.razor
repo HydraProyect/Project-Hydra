@@ -1,0 +1,155 @@
+@*
+    Recordatorio que TALVEG propone cuando la conversación lleva dos días laborables esperando respuesta externa
+    (decisión de producto del 2026-10-17). Nada se envía solo: el Gestor CAE revisa el borrador y lo aprueba (sale por
+    el camino normal de respuesta del hilo) o lo descarta. La maqueta vigente de Comunicaciones no dibuja este bloque;
+    se compone con piezas del kit que ya usa la pantalla (Tarjeta, CampoTextarea, Boton).
+*@
+@using CaeManager.Application.Comunicaciones.Commands.AprobarRecordatorioConversacion
+@using CaeManager.Application.Comunicaciones.Commands.DescartarRecordatorioConversacion
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerRecordatorioPropuestoConversacion
+@using CaeManager.Domain.Comunicaciones
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using FluentValidation
+@using MediatR
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject IStringLocalizer<TextosRecordatorioConversacion> Textos
+@inject ILogger<RecordatorioPropuesto> Logger
+
+@if (_propuesta is not null)
+{
+    <Tarjeta Titulo="@Textos["Titulo"]" NivelTitulo="3" Compacta="true" Class="recordatorio-propuesto">
+        <p class="recordatorio-propuesto-explicacion">@Textos["Explicacion"]</p>
+        <CampoTextarea Etiqueta="@Textos["EtiquetaBorrador"]" Valor="@_borrador" ValorChanged="v => _borrador = v" Filas="5"
+                       Deshabilitado="_ocupado" />
+        <div class="recordatorio-propuesto-acciones">
+            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_ocupado" OnClick="DescartarAsync">
+                @Textos["BotonDescartar"]
+            </Boton>
+            <Boton Variante="VarianteBoton.Primario" Cargando="_enviando"
+                   Deshabilitado="@(_ocupado || string.IsNullOrWhiteSpace(_borrador))" OnClick="AprobarAsync">
+                @Textos["BotonAprobarYEnviar"]
+            </Boton>
+        </div>
+    </Tarjeta>
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid ConversacionId { get; set; }
+    [Parameter, EditorRequired] public string Asunto { get; set; } = string.Empty;
+
+    /// <summary>Junto con <see cref="FechaUltimoMensajeUtc"/>, lo que hace volver a preguntar por la propuesta.</summary>
+    [Parameter] public EstadoConversacion Estado { get; set; }
+    [Parameter] public DateTime FechaUltimoMensajeUtc { get; set; }
+
+    /// <summary>La página recarga el hilo al recibirlo: el recordatorio ya es un mensaje enviado.</summary>
+    [Parameter] public EventCallback OnEnviado { get; set; }
+
+    private RecordatorioPropuestoDto? _propuesta;
+    private string _borrador = string.Empty;
+    private bool _enviando;
+    private bool _descartando;
+    private bool _ocupado => _enviando || _descartando;
+    private (Guid, EstadoConversacion, DateTime)? _cargadoPara;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var clave = (ConversacionId, Estado, FechaUltimoMensajeUtc);
+        if (_cargadoPara == clave) return;
+
+        // Al cambiar de hilo la tarjeta del anterior no se queda pintada mientras llega la consulta del nuevo.
+        if (_cargadoPara?.Item1 != ConversacionId)
+        {
+            _propuesta = null;
+            _borrador = string.Empty;
+        }
+
+        var propuesta = await Mediator.Send(new ObtenerRecordatorioPropuestoConversacionQuery(ConversacionId));
+        // Si los parámetros cambiaron durante la espera, esta respuesta ya no es la del hilo abierto.
+        if (clave != (ConversacionId, Estado, FechaUltimoMensajeUtc)) return;
+        _cargadoPara = clave;
+        if (propuesta?.PropuestaId != _propuesta?.PropuestaId)
+            _borrador = propuesta is null ? string.Empty : string.Format(Textos["BorradorPorDefecto"], Asunto);
+        _propuesta = propuesta;
+    }
+
+    private async Task AprobarAsync()
+    {
+        // A prueba de doble clic, como el envío del composer: un correo enviado no se deshace.
+        if (_ocupado || _propuesta is null || string.IsNullOrWhiteSpace(_borrador)) return;
+
+        _enviando = true;
+        try
+        {
+            var resultado = await Mediator.Send(
+                new AprobarRecordatorioConversacionCommand(ConversacionId, _propuesta.PropuestaId, _borrador));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                await RecargarAsync();
+                return;
+            }
+
+            _propuesta = null;
+            _borrador = string.Empty;
+            ToastService.Mostrar(Textos["ToastEnviado"], TonoToast.Exito);
+            await OnEnviado.InvokeAsync();
+        }
+        catch (ValidationException ex)
+        {
+            ToastService.Mostrar(string.Join(" ", ex.Errors.Select(e => e.ErrorMessage).Distinct()), TonoToast.Error);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al aprobar el recordatorio de la conversación {ConversacionId}.", ConversacionId);
+            ToastService.Mostrar(Textos["ToastErrorEnviar"], TonoToast.Error);
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+
+    private async Task DescartarAsync()
+    {
+        if (_ocupado || _propuesta is null) return;
+
+        _descartando = true;
+        try
+        {
+            var resultado = await Mediator.Send(
+                new DescartarRecordatorioConversacionCommand(ConversacionId, _propuesta.PropuestaId));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                await RecargarAsync();
+                return;
+            }
+
+            _propuesta = null;
+            _borrador = string.Empty;
+            ToastService.Mostrar(Textos["ToastDescartado"], TonoToast.Exito);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al descartar el recordatorio de la conversación {ConversacionId}.", ConversacionId);
+            ToastService.Mostrar(Textos["ToastErrorDescartar"], TonoToast.Error);
+        }
+        finally
+        {
+            _descartando = false;
+        }
+    }
+
+    /// <summary>Tras un fallo de negocio (ya resuelto, ya no aplica): se vuelve a preguntar si sigue habiendo propuesta.</summary>
+    private async Task RecargarAsync()
+    {
+        var propuesta = await Mediator.Send(new ObtenerRecordatorioPropuestoConversacionQuery(ConversacionId));
+        if (propuesta is null)
+        {
+            _propuesta = null;
+            _borrador = string.Empty;
+        }
+    }
+}

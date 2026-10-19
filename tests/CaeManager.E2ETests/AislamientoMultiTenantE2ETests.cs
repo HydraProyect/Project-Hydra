@@ -1,4 +1,4 @@
-using Microsoft.Playwright;
+﻿using Microsoft.Playwright;
 
 namespace CaeManager.E2ETests;
 
@@ -103,10 +103,10 @@ public class AislamientoMultiTenantE2ETests(WebAppFixtureConSegundoTenant fixtur
 
         await Ayudas.NavegarYEsperarAsync(paginaB, $"{fixture.BaseUrl}/empresas");
 
-        // Empresas.razor muestra el estado vacío ("Aún no hay empresas") cuando
+        // Empresas.razor muestra el estado vacío ("Todavía no hay empresas") cuando
         // el total de elementos es 0 (ver Empresas.razor.cs) — si el filtro
         // global fallara y se filtraran Empresas ajenas a este tenant, este
         // estado vacío nunca aparecería.
-        await paginaB.GetByText("Aún no hay empresas").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await paginaB.GetByText("Todavía no hay empresas").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
     }
 }

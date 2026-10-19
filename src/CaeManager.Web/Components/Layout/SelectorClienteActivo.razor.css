@@ -2,34 +2,39 @@
   Selector de Tenant beneficiario en la cabecera de la barra lateral (decisión
   7 ter, variante B). El bloque del Tenant activo es el disparador; la lista de
   la cartera se despliega justo debajo, sobre el menú.
+
+  Medidas y tipografías del marco de Design (marco-talveg.js, DDL-083, .tvm-ctx,
+  .tvm-ctxb, .tvm-pop, .tvm-opt): valores literales del marcado fuente.
 */
 .selector-tenant {
     position: relative;
-    padding: var(--space-3);
-    border-bottom: var(--border-default);
+    margin: 10px 8px 0;
 }
 
 .selector-tenant-disparador {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
+    gap: 10px;
     width: 100%;
-    padding: var(--space-2);
-    background: var(--color-surface-subtle);
-    border: var(--border-default);
+    padding: 8px 10px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     color: var(--color-text);
+    font: inherit;
     text-align: left;
     cursor: pointer;
+    transition: border-color 0.12s;
 }
 
 .selector-tenant-disparador:hover {
-    background: var(--color-surface-hover);
+    border-color: var(--color-primary-500);
 }
 
 .selector-tenant-disparador:focus-visible,
 .selector-tenant-fila:focus-visible,
-.selector-tenant-busqueda:focus-visible {
+.selector-tenant-busqueda:focus-visible,
+.selector-tenant-solicitar:focus-visible {
     outline: var(--border-focus);
     outline-offset: 1px;
 }
@@ -48,15 +53,14 @@
 
 /* Nombres largos: una sola línea con puntos suspensivos (carteras de 15 o más). */
 .selector-tenant-nombre {
-    font: var(--font-label-md);
-    font-weight: 600;
+    font: 600 13px/17px var(--font-family);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .selector-tenant-sub {
-    font: var(--font-caption);
+    font: 500 11px/14px var(--font-family);
     color: var(--color-text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -73,6 +77,20 @@
     transform: rotate(180deg);
 }
 
+/* Barra compacta (<html data-menu-compacto>; marco de Design: html[data-tv-rail] .tvm-ctxb, .tvm-ctxt y .tvm-ctxb>svg
+   ocultos y padding 8px 0): solo queda el avatar de la empresa gestionada, centrado en el disparador. */
+/* Solo en la barra lateral (.barra-lateral): el selector del cajón móvil va siempre completo, aunque <html> lleve
+   data-menu-compacto de una sesión de escritorio. */
+html[data-menu-compacto] .barra-lateral .selector-tenant-disparador {
+    justify-content: center;
+    padding: 8px 0;
+}
+
+html[data-menu-compacto] .barra-lateral .selector-tenant-disparador .selector-tenant-texto,
+html[data-menu-compacto] .barra-lateral .selector-tenant-disparador .selector-tenant-chevron {
+    display: none;
+}
+
 /* Cierra al pulsar fuera sin JS: un velo transparente bajo el panel. */
 .selector-tenant-velo {
     position: fixed;
@@ -86,23 +104,61 @@
 
 .selector-tenant-panel {
     position: absolute;
-    top: calc(100% - var(--space-2));
-    left: var(--space-3);
-    right: var(--space-3);
+    top: calc(100% + 6px);
+    left: 0;
+    /* 300 px (Design): más ancha que la barra lateral (260 px), así que MainLayout.razor.css deja que la barra la
+       desborde mientras está abierta. En pantallas estrechas no pasa del ancho disponible. */
+    width: min(300px, calc(100vw - 16px));
     z-index: 30;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
     max-height: 60vh;
-    padding: var(--space-2);
+    overflow-y: auto;
+    padding: 8px;
     background: var(--color-overlay);
-    border: var(--border-default);
-    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-overlay);
 }
 
+/* Título de la cartera y «+ Solicitar» en la misma fila (marco de Design). */
+.selector-tenant-cabecera {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 8px 4px;
+}
+
+.selector-tenant-cabecera-titulo {
+    flex: 1;
+    margin: 0;
+    font: 500 12px/16px var(--font-family);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.selector-tenant-solicitar {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 26px;
+    padding: 0 8px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-primary-500);
+    border-radius: var(--radius-full);
+    color: var(--color-primary-500);
+    font: 600 11px/14px var(--font-family);
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.selector-tenant-solicitar:hover {
+    background: var(--color-primary-50);
+}
+
+/* Buscador: extra de la aplicación que el marco de Design no trae (se conserva). */
 .selector-tenant-busqueda {
     width: 100%;
+    margin: 0 0 4px;
     padding: var(--space-2) var(--space-3);
     font: var(--font-body-md);
     color: var(--color-text);
@@ -111,23 +167,28 @@
     border-radius: var(--radius-md);
 }
 
-.selector-tenant-lista {
-    max-height: 40vh;
-    overflow-y: auto;
-}
-
 .selector-tenant-fila {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
+    gap: 10px;
     width: 100%;
-    padding: var(--space-2);
+    padding: 8px;
     background: none;
     border: 0;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     color: var(--color-text);
+    font: 500 13px/17px var(--font-family);
     text-align: left;
     cursor: pointer;
+}
+
+/* En una fila el nombre pesa como el resto de la fila (500); en el disparador, 600. */
+.selector-tenant-fila .selector-tenant-nombre {
+    font: 500 13px/17px var(--font-family);
+}
+
+.selector-tenant-fila .selector-tenant-sub {
+    font: 400 12px/16px var(--font-family);
 }
 
 .selector-tenant-fila:hover {
@@ -135,24 +196,15 @@
 }
 
 .selector-tenant-fila-activa {
-    /* Sin franja lateral: fondo, nombre en negrita y la marca de verificación la distinguen. */
-    background: var(--color-primary-50);
-}
-
-.selector-tenant-fila-activa .selector-tenant-nombre {
-    font-weight: 600;
-}
-
-.selector-tenant-cabecera {
-    padding: var(--space-2) var(--space-2) 0;
-    font: var(--font-caption);
-    color: var(--color-text-muted);
+    /* Sin franja lateral: el fondo de fila (el mismo del puntero, como el aria-current del marco de Design) y la
+       marca de verificación distinguen la activa. */
+    background: var(--color-surface-hover);
 }
 
 .selector-tenant-separador {
-    height: 1px;
-    margin: var(--space-1) var(--space-2);
-    background: var(--color-border);
+    height: 0;
+    margin: 6px 0;
+    border-top: 1px solid var(--color-border);
 }
 
 .selector-tenant-marca {
@@ -169,19 +221,74 @@
 }
 
 .selector-tenant-grupo {
-    padding: var(--space-2) var(--space-2) 0;
-    font: var(--font-caption);
+    margin: 10px 8px 4px;
+    font: 500 12px/16px var(--font-family);
     color: var(--color-text-muted);
 }
 
 /* Pendientes por empresa gestionada: dato de apoyo, el nombre sigue mandando. */
 .selector-tenant-contador {
     flex-shrink: 0;
-    min-width: 1.25rem;
-    padding: 0 var(--space-2);
+    padding: 2px 7px;
     border-radius: var(--radius-full);
     background: var(--color-primary-50);
-    color: var(--color-primary-600);
-    font: var(--font-caption);
+    color: var(--color-primary-700);
+    font: 600 11px/14px var(--font-family);
     text-align: center;
+}
+
+/* Fila con su estrella de fijar: el botón de envío ocupa el ancho y la estrella va al lado. */
+.selector-tenant-fila-envoltorio {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.selector-tenant-fila-envoltorio .selector-tenant-fila {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+}
+
+.selector-tenant-fijar {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: var(--radius-sm);
+    color: var(--color-border-strong);
+    cursor: pointer;
+}
+
+.selector-tenant-fijar:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text-muted);
+}
+
+.selector-tenant-fijar:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 1px;
+}
+
+/* Fijada: estrella llena en ámbar (--color-warning-500, como el marco de Design). Se pinta con fill y
+   stroke y no con color: ese token ya hace de fondo en otras pantallas y TokensDeTexto lo vigila como
+   texto. El estado también lo dice aria-pressed, no solo el color. */
+.selector-tenant-fijar[aria-pressed='true'] ::deep svg {
+    fill: var(--color-warning-500);
+    stroke: var(--color-warning-500);
+}
+
+/* Atajo de las cinco primeras fijadas, en lugar de dato de apoyo: el nombre sigue mandando. */
+.selector-tenant-atajo {
+    flex-shrink: 0;
+    padding: 1px 5px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 4px;
+    color: var(--color-text-muted);
+    font: 600 10px/14px var(--font-family);
 }

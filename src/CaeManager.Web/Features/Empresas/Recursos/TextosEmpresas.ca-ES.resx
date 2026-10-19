@@ -270,6 +270,30 @@
   <data name="GestorCaeMasEtiqueta" xml:space="preserve">
     <value>{0} més. Llista completa de persones amb Assignació de Cartera</value>
   </data>
+  <data name="GestorCaeReintentar" xml:space="preserve">
+    <value>Torna-ho a provar</value>
+  </data>
+  <data name="GestorCaeCargando" xml:space="preserve">
+    <value>Carregant els Gestors CAE d’aquesta organització</value>
+  </data>
+  <data name="GestorCaeSeccionApoyo" xml:space="preserve">
+    <value>Suport · {0}</value>
+  </data>
+  <data name="GestorCaeFichaAyuda" xml:space="preserve">
+    <value>Donar accés o desassignar-te: des de la fitxa.</value>
+  </data>
+  <data name="GestorCaeFichaEnlace" xml:space="preserve">
+    <value>Obrir Empresa 360 →</value>
+  </data>
+  <data name="GestorCaeFichaEnlaceMovil" xml:space="preserve">
+    <value>Donar accés o desassignar-te a la fitxa</value>
+  </data>
+  <data name="GestorCaeVentanaTitulo" xml:space="preserve">
+    <value>Gestors CAE amb Assignació de Cartera</value>
+  </data>
+  <data name="GestorCaeCerrar" xml:space="preserve">
+    <value>Tanca</value>
+  </data>
   <data name="ColDetecciones" xml:space="preserve">
     <value>Deteccions</value>
   </data>
@@ -310,6 +334,15 @@
     <value>DNI</value>
   </data>
   <data name="NingunoConFiltro" xml:space="preserve"><value>Cap amb aquest filtre.</value></data>
+  <data name="EtiquetaFiltrosCatalogo" xml:space="preserve"><value>Delegació, ofici i agrupació</value></data>
+  <data name="EtiquetaDelegacionEmpresaFiltro" xml:space="preserve"><value>Delegació</value></data>
+  <data name="EtiquetaOficioFiltro" xml:space="preserve"><value>Ofici</value></data>
+  <data name="OpcionTodasLasDelegacionesEmpresa" xml:space="preserve"><value>Totes</value></data>
+  <data name="OpcionTodosLosOficios" xml:space="preserve"><value>Tots</value></data>
+  <data name="AgruparPorDelegacionEmpresa" xml:space="preserve"><value>Per Delegació</value></data>
+  <data name="AgruparPorOficio" xml:space="preserve"><value>Per Ofici</value></data>
+  <data name="SinDelegacionEmpresa" xml:space="preserve"><value>Sense delegació</value></data>
+  <data name="SinOficio" xml:space="preserve"><value>Sense ofici</value></data>
   <data name="FichaCanalFirma" xml:space="preserve"><value>Com se li envia el que cal signar</value></data>
   <data name="FichaFirmante" xml:space="preserve"><value>Qui signa en nom de l’Empresa</value></data>
   <data name="FichaModalidadPreventiva" xml:space="preserve"><value>Modalitat d’organització preventiva</value></data>
@@ -347,4 +380,65 @@
   <data name="FichaCopiarTelefonoFormacion" xml:space="preserve"><value>el telèfon del contacte de formació</value></data>
   <data name="FichaCopiarNombreAccesible" xml:space="preserve"><value>Copiar {0}</value></data>
   <data name="FichaNotaTecnico" xml:space="preserve"><value>Al Tècnic de PRL se li envia el que necessita la seva signatura o la seva gestió.</value></data>
+  <data name="NadaPendiente" xml:space="preserve">
+    <value>Sense documents pendents de gestionar</value>
+  </data>
+  <data name="Gestionar" xml:space="preserve">
+    <value>Gestionar</value>
+  </data>
+  <data name="GestionarDocumentoAccesible" xml:space="preserve">
+    <value>Gestionar el document «{0}» de {1}</value>
+  </data>  <data name="EtiquetaCliente" xml:space="preserve">
+    <value>Client</value>
+  </data>
+  <data name="EtiquetaAgrupar" xml:space="preserve">
+    <value>Agrupar</value>
+  </data>
+  <data name="AgruparPorCliente" xml:space="preserve">
+    <value>Per Client</value>
+  </data>
+  <data name="OpcionSinAgrupar" xml:space="preserve">
+    <value>Sense agrupar</value>
+  </data>
+  <data name="GrupoSinCliente" xml:space="preserve">
+    <value>Sense Client visible</value>
+  </data>
+  <data name="RecuentoGrupo" xml:space="preserve">
+    <value>· {0}</value>
+  </data>
+  <data name="RecuentoGrupoEnPagina" xml:space="preserve">
+    <value>· {0} en aquesta pàgina</value>
+  </data>
+  <data name="ChipCliente" xml:space="preserve">
+    <value>Client: {0}</value>
+  </data>
+  <data name="QuitarFiltroCliente" xml:space="preserve">
+    <value>Treure el filtre de Client</value>
+  </data>  <data name="CatalogoTitulo" xml:space="preserve"><value>Delegacions i oficis</value></data>
+  <data name="CatalogoDelegacionesEmpresa" xml:space="preserve"><value>Delegacions</value></data>
+  <data name="CatalogoOficios" xml:space="preserve"><value>Oficis</value></data>
+  <data name="CatalogoAnadir" xml:space="preserve"><value>Afegir</value></data>
+  <data name="CatalogoEditar" xml:space="preserve"><value>Editar</value></data>
+  <data name="CatalogoEliminar" xml:space="preserve"><value>Eliminar</value></data>
+  <data name="CatalogoSinDelegacionesEmpresa" xml:space="preserve"><value>Aquesta empresa encara no té delegacions.</value></data>
+  <data name="CatalogoSinOficios" xml:space="preserve"><value>Aquesta empresa encara no té oficis.</value></data>
+  <data name="CatalogoError" xml:space="preserve"><value>No s'ha pogut carregar el catàleg.</value></data>
+  <data name="CatalogoErrorGuardar" xml:space="preserve"><value>No s'ha pogut desar. Torna-ho a provar.</value></data>
+  <data name="CatalogoErrorEliminar" xml:space="preserve"><value>No s'ha pogut eliminar. Torna-ho a provar.</value></data>
+  <data name="CatalogoDelegacionEmpresaNuevaTitulo" xml:space="preserve"><value>Nova delegació</value></data>
+  <data name="CatalogoDelegacionEmpresaEditarTitulo" xml:space="preserve"><value>Editar delegació</value></data>
+  <data name="CatalogoOficioNuevoTitulo" xml:space="preserve"><value>Nou ofici</value></data>
+  <data name="CatalogoOficioEditarTitulo" xml:space="preserve"><value>Editar ofici</value></data>
+  <data name="CatalogoNombre" xml:space="preserve"><value>Nom</value></data>
+  <data name="CatalogoContactoNombre" xml:space="preserve"><value>Contacte de reclamació: nom</value></data>
+  <data name="CatalogoContactoCorreo" xml:space="preserve"><value>Contacte de reclamació: correu</value></data>
+  <data name="CatalogoContactoTelefono" xml:space="preserve"><value>Contacte de reclamació: telèfon</value></data>
+  <data name="CatalogoReclamaciones" xml:space="preserve"><value>Reclamacions: {0}</value></data>
+  <data name="CatalogoEditarNombre" xml:space="preserve"><value>Editar «{0}»</value></data>
+  <data name="CatalogoEliminarNombre" xml:space="preserve"><value>Eliminar «{0}»</value></data>
+  <data name="CatalogoEliminarDelegacionEmpresaTitulo" xml:space="preserve"><value>Eliminar la delegació «{0}»?</value></data>
+  <data name="CatalogoEliminarOficioTitulo" xml:space="preserve"><value>Eliminar l'ofici «{0}»?</value></data>
+  <data name="CatalogoEliminarMensaje" xml:space="preserve"><value>Es traurà del catàleg de l'empresa.</value></data>
+  <data name="CatalogoGuardado" xml:space="preserve"><value>Desat.</value></data>
+  <data name="CatalogoEliminado" xml:space="preserve"><value>Eliminat.</value></data>
 </root>

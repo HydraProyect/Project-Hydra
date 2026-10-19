@@ -1,0 +1,293 @@
+@*
+    Pestaña «Documentación» de Cliente 360 (página): solo lo que el Cliente empresarial exige para acceder a sus
+    Centros, es decir, sus requisitos documentales. Sin texto explicativo del art. 42.1/42.2 ET: los Gestores CAE lo
+    saben (Chris, 2026-10-18).
+
+    Universo: ObtenerDocumentacionExigidaDeClienteQuery, una sola consulta de servidor que agrega por tipo la misma
+    regla que la pestaña «Requisitos» de Centro 360 sobre los Centros con gestión CAE del Cliente empresarial que caen
+    en la Asignación de Cartera de quien mira. Un Centro sin gestión CAE no exige nada (como en Centro 360). No es un
+    universo nuevo ni una lista de documentos registrados.
+
+    El certificado de la Seguridad Social (TGSS) es una fila más, siempre la primera: se pide por Empresa, así que su
+    estado es el peor de las Empresas del Cliente y la fila se despliega con una por Empresa. Pulsar el nombre de una
+    Empresa abre DrawerBlindaje42 con su historial, en lectura para cualquier rol (el drawer guarda sus acciones tras
+    SoloConEscritura); «Gestionar» (única acción verbal) abre el mismo drawer y solo se pinta con escritura.
+
+    No pregunta nada hasta que la página pone Cargar (terminó su cadena de lecturas): todas las consultas comparten el
+    DbContext del circuito y no deben ir en paralelo. Al desmontarse cancela lo que tenga en vuelo.
+*@
+@using CaeManager.Application.Blindaje42.Queries.ObtenerBlindajeEmpresasDeCliente
+@using CaeManager.Application.Centros.Queries.ObtenerDocumentacionExigidaDeCliente
+@using CaeManager.Domain.Blindaje42
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Blindaje42.Components
+@using CaeManager.Web.Features.Clientes.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@implements IDisposable
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosClientes> Textos
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="3" />
+}
+else if (_error)
+{
+    <EstadoVacio Titulo="@Textos["DocumentosExigidosError"]" Descripcion="@Textos["DocumentosExigidosErrorDescripcion"]">
+        <Accion>
+            <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarAsync">@Textos["Reintentar"]</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else if (_empresas.Count == 0 && _documentacion.Requisitos.Count == 0)
+{
+    <EstadoVacio Titulo="@Textos["DocumentosExigidosVacio"]" />
+}
+else
+{
+    <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["ListaDocumentosExigidos"]">
+        @if (_empresas.Count > 0)
+        {
+            <FilaRelacion Nombre="@Textos["CertificadoSeguridadSocialTitulo"]"
+                          Tono="@TonoCertificado"
+                          Desplegada="_certificadoDesplegado" DesplegadaChanged="v => _certificadoDesplegado = v">
+                <Detalle>@Textos[_empresas.Count == 1 ? "CertificadoEmpresasUna" : "CertificadoEmpresasVarias", _empresas.Count]</Detalle>
+                <Cifra><span>@TextoSolicitudes(TotalSolicitudes)</span></Cifra>
+                <Estado><Badge Tono="PestanaBlindaje42.Tono(PeorEstado)" Tamano="TamanoBadge.Pequeno">@EtiquetaCertificado(PeorEstado)</Badge></Estado>
+                <Desplegable>
+                    <ListaRelaciones Etiqueta="@Textos["ListaEmpresasCertificado"]">
+                        @foreach (var empresa in _empresas)
+                        {
+                            <FilaRelacion @key="empresa.EmpresaId" Nombre="@empresa.EmpresaRazonSocial" NombreIcono="empresas"
+                                          OnNombre="() => AbrirDrawer(empresa)">
+                                <Cifra><span>@TextoSolicitudes(empresa.TotalSolicitudes)</span></Cifra>
+                                <Estado><Badge Tono="PestanaBlindaje42.Tono(empresa.UltimaSolicitud?.Estado)" Tamano="TamanoBadge.Pequeno">@EtiquetaCertificado(empresa.UltimaSolicitud?.Estado)</Badge></Estado>
+                                <Acciones>
+                                    <SoloConEscritura>
+                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirDrawer(empresa)">@Textos["Gestionar"]</Boton>
+                                    </SoloConEscritura>
+                                </Acciones>
+                            </FilaRelacion>
+                        }
+                    </ListaRelaciones>
+                </Desplegable>
+            </FilaRelacion>
+        }
+
+        @foreach (var requisito in _documentacion.Requisitos)
+        {
+            <FilaRelacion @key="requisito.TipoDocumentoId" Nombre="@requisito.Nombre">
+                <Detalle>@Textos[requisito.AmbitoAplicacion == AmbitoAplicacion.Empresa ? "RequisitoAmbitoEmpresa" : "RequisitoAmbitoTrabajador"]</Detalle>
+                <Cifra><span>@TextoCentros(requisito.Centros)</span></Cifra>
+                <Estado>
+                    @if (requisito.BloqueaAcceso)
+                    {
+                        <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Textos["RequisitoBloqueaAcceso"]</Badge>
+                    }
+                </Estado>
+            </FilaRelacion>
+        }
+    </ListaRelaciones>
+}
+
+<DrawerBlindaje42 Visible="_drawerVisible" VisibleChanged="v => _drawerVisible = v"
+                  ClienteId="_cliente" EmpresaId="_empresaId" EmpresaRazonSocial="_empresaNombre"
+                  OnCambio="RecargarEmpresasAsync" />
+
+@code {
+    private static readonly DocumentacionExigidaClienteDto SinDocumentacion = new(0, []);
+
+    [Parameter, EditorRequired] public Guid ClienteId { get; set; }
+
+    /// <summary>
+    /// La página lo pone cuando terminó su cadena de lecturas: hasta entonces no se pregunta nada, porque las
+    /// consultas comparten el DbContext del circuito y no deben ir en paralelo.
+    /// </summary>
+    [Parameter] public bool Cargar { get; set; }
+
+    /// <summary>
+    /// Turno de lectura de la página: cada lectura de la pestaña lo toma y lo suelta al salir del DbContext, también si
+    /// se canceló, así que ni choca con otra lectura de la página ni la siguiente empieza antes de que esta termine.
+    /// </summary>
+    [Parameter] public SerieDeLecturas? Serie { get; set; }
+
+    private readonly CancellationTokenSource _ciclo = new();
+
+    /// <summary>Copia de <c>_ciclo.Token</c>: se lee sin tocar la fuente, que puede estar ya liberada al desmontarse.</summary>
+    private CancellationToken _cancelacion;
+
+    /// <summary>Lecturas del Cliente empresarial actual (enlazada a <c>_ciclo</c>): se cancela al cambiar de Cliente.</summary>
+    private CancellationTokenSource? _lectura;
+
+    private IReadOnlyList<BlindajeEmpresaDto> _empresas = [];
+    private DocumentacionExigidaClienteDto _documentacion = SinDocumentacion;
+    private bool _cargando = true;
+    private bool _error;
+    private bool _leido;
+    private bool _certificadoDesplegado;
+    private Guid _cliente;
+
+    /// <summary>Sube con cada Cliente empresarial y con cada lectura completa: lo que llegue de una anterior no escribe.</summary>
+    private int _generacion;
+
+    private bool _drawerVisible;
+    private Guid _empresaId;
+    private string _empresaNombre = string.Empty;
+
+    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ClienteId != _cliente)
+        {
+            // Lo que siga en vuelo del Cliente anterior se corta ya: la página va a releer sobre el mismo DbContext.
+            CancelarLectura();
+            _cliente = ClienteId;
+            _generacion++;
+            _leido = false;
+            _cargando = true;
+            _error = false;
+            _empresas = [];
+            _documentacion = SinDocumentacion;
+            _certificadoDesplegado = false;
+        }
+
+        if (!Cargar || _leido)
+            return;
+
+        _leido = true;
+        await CargarAsync();
+    }
+
+    /// <summary>Un doble clic en «Reintentar» no lanza una segunda lectura: la primera ya puso _cargando.</summary>
+    private Task ReintentarAsync() => _cargando ? Task.CompletedTask : CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        var generacion = ++_generacion;
+        var token = TokenDeLectura();
+        _cargando = true;
+        _error = false;
+
+        try
+        {
+            // Una tras otra y con el turno de la página: comparten el DbContext del circuito.
+            using var turno = await SerieDeLecturas.TomarSiHayAsync(Serie, token);
+            var empresas = await Mediator.Send(new ObtenerBlindajeEmpresasDeClienteQuery(_cliente), token);
+            var documentacion = await Mediator.Send(new ObtenerDocumentacionExigidaDeClienteQuery(_cliente), token);
+            if (generacion != _generacion) return;
+            _empresas = empresas;
+            _documentacion = documentacion ?? SinDocumentacion;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            // Desmontado o de otro Cliente empresarial: nadie va a pintar el resultado.
+        }
+        catch (Exception)
+        {
+            if (generacion == _generacion)
+                _error = true;
+        }
+        finally
+        {
+            if (generacion == _generacion)
+                _cargando = false;
+        }
+    }
+
+    /// <summary>Tras una solicitud o una respuesta de la TGSS solo cambia el certificado: los requisitos no se releen.</summary>
+    private async Task RecargarEmpresasAsync()
+    {
+        var generacion = _generacion;
+        var token = TokenDeLectura();
+        try
+        {
+            using var turno = await SerieDeLecturas.TomarSiHayAsync(Serie, token);
+            var empresas = await Mediator.Send(new ObtenerBlindajeEmpresasDeClienteQuery(_cliente), token);
+            if (generacion == _generacion)
+                _empresas = empresas;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        catch (Exception)
+        {
+            if (generacion == _generacion)
+                _error = true;
+        }
+    }
+
+    private int TotalSolicitudes => _empresas.Sum(e => e.TotalSolicitudes);
+
+    /// <summary>El peor estado entre las Empresas: con descubiertos, sin solicitar, en trámite, silencio, certificación.</summary>
+    private EstadoBlindaje42? PeorEstado => _empresas
+        .Select(e => e.UltimaSolicitud?.Estado)
+        .OrderBy(Gravedad)
+        .FirstOrDefault();
+
+    private static int Gravedad(EstadoBlindaje42? estado) => estado switch
+    {
+        EstadoBlindaje42.NoExonerada => 0,
+        null => 1,
+        EstadoBlindaje42.PendienteRespuesta => 2,
+        EstadoBlindaje42.ExoneradaPorSilencio => 3,
+        _ => 4
+    };
+
+    private TonoFila? TonoCertificado => PeorEstado switch
+    {
+        EstadoBlindaje42.NoExonerada => TonoFila.Peligro,
+        null => TonoFila.Advertencia,
+        _ => null
+    };
+
+    private string EtiquetaCertificado(EstadoBlindaje42? estado) => estado switch
+    {
+        null => Textos["CertificadoSinSolicitar"],
+        EstadoBlindaje42.PendienteRespuesta => Textos["CertificadoPendienteTgss"],
+        EstadoBlindaje42.ExoneradaPorSilencio => Textos["CertificadoExoneradaSilencio"],
+        EstadoBlindaje42.ExoneradaPorCertificacion => Textos["CertificadoExoneradaCertificacion"],
+        EstadoBlindaje42.NoExonerada => Textos["CertificadoConDescubiertos"],
+        _ => "—"
+    };
+
+    private string TextoSolicitudes(int total) => total switch
+    {
+        0 => Textos["SolicitudesCero"],
+        1 => Textos["SolicitudesUna"],
+        var n => Textos["SolicitudesVarias", n]
+    };
+
+    private string TextoCentros(int centros) =>
+        _documentacion.CentrosConGestionCae == 1
+            ? Textos["ExigidoEnCentroUnico"]
+            : Textos["ExigidoEnCentros", centros, _documentacion.CentrosConGestionCae];
+
+    private void AbrirDrawer(BlindajeEmpresaDto empresa)
+    {
+        _empresaId = empresa.EmpresaId;
+        _empresaNombre = empresa.EmpresaRazonSocial;
+        _drawerVisible = true;
+    }
+
+    private CancellationToken TokenDeLectura()
+    {
+        _lectura ??= CancellationTokenSource.CreateLinkedTokenSource(_cancelacion);
+        return _lectura.Token;
+    }
+
+    private void CancelarLectura()
+    {
+        _lectura?.Cancel();
+        _lectura?.Dispose();
+        _lectura = null;
+    }
+
+    public void Dispose()
+    {
+        CancelarLectura();
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+}

@@ -3,7 +3,7 @@
 # Medida: 'ruta :: expresión = n'. Clasificación de cada una (revisada a mano al congelar, 2026-10-03):
 #   - Reinicio de UN hijo (sin hermanos con clave: la clave solo fuerza recrear el elemento/componente). No compiten con nadie:
 #       CampoTexto._generacionValor, Proyectos._versionSelectorCliente, DocumentoWorkspacePanel.titular, ContextWorkspace (tipo, entidad)
-#       y las dos GeneracionDe(...) de TiposDocumento (un select/checkbox por celda). Desde 2026-10-10, también las rejillas de
+#       las dos GeneracionDe(...) de TiposDocumento (un select/checkbox por celda) y Bandeja _intentosCambioEstado (el selector «Cambiar estado…» de la Conversación abierta: se remonta tras cada intento para volver a «Cambiar estado…» aunque el cambio falle). Desde 2026-10-10, también las rejillas de
 #       Vehículos, Gestiones, Trabajadores, Clientes y Documentos (_orden.Version): QuickGrid no ofrece volver a «sin orden», así que al cambiar el orden que
 #       trae la URL la rejilla se remonta ya ordenada (OrdenDeRejilla). Una rejilla por página, sin hermanos.
 #   - Clave de agrupación o lista fija, única por construcción en su productor: Alertas grupo.Clave y Inicio GrupoId (GroupBy),
@@ -13,7 +13,7 @@
 src/CaeManager.Web/Components/DesignSystem/CampoTexto.razor :: _generacionValor = 1
 src/CaeManager.Web/Components/Workspace/ContextWorkspace.razor :: (frame.Tipo, frame.EntidadId) = 1
 src/CaeManager.Web/Features/Alertas/Pages/Alertas.razor :: grupo.Clave = 1
-src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor :: _orden.Version = 1
+src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: _intentosCambioEstado = 1
 src/CaeManager.Web/Features/Configuracion/Pages/OrdenMenuLateral.razor :: enlace.Fila.Clave = 1
 src/CaeManager.Web/Features/Configuracion/Pages/OrdenMenuLateral.razor :: grupo.Cabecera.Fila.Clave = 1
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor :: bandeja.Grupos[i].GrupoId = 1

@@ -71,6 +71,10 @@ public class ObtenerCredencialAccesoEmpresaSinContrasenaQueryTests
 
         public IQueryable<Empresa> Empresas => Explota<Empresa>();
         public IQueryable<CredencialAccesoEmpresa> CredencialesAccesoEmpresa => Explota<CredencialAccesoEmpresa>();
+        public IQueryable<PlataformaCaeClienteEmpresarial> PlataformasCaeClienteEmpresarial => Explota<PlataformaCaeClienteEmpresarial>();
+        public IQueryable<AccesoPlataformaCaeEmpresa> AccesosPlataformaCaeEmpresa => Explota<AccesoPlataformaCaeEmpresa>();
+        public IQueryable<DelegacionEmpresa> DelegacionesEmpresa => Explota<DelegacionEmpresa>();
+        public IQueryable<OficioEmpresa> OficiosEmpresa => Explota<OficioEmpresa>();
         public IQueryable<CaeManager.Domain.RelacionesEmpresariales.RelacionEmpresarial> RelacionesEmpresariales =>
             Explota<CaeManager.Domain.RelacionesEmpresariales.RelacionEmpresarial>();
     }

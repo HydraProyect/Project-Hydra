@@ -109,11 +109,11 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
 
         // --- Paso 3: Asignar el Trabajador al Centro (queda Faltante) ---
         await page.GetByPlaceholder("Filtrar esta pantalla: nombre, DNI o alias").FillAsync(apellidosTrabajador);
-        var filaTrabajador = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
+        var filaTrabajador = page.Locator(".marco-lista-trabajadores .tarjeta-fila-acordeon", new PageLocatorOptions { HasText = apellidosTrabajador });
         await filaTrabajador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         // La fila ya estaba en la lista sin filtrar, así que verla no dice que el filtro haya llegado; y la
         // recarga del filtro limpia la selección. La barrera es la lista filtrada: queda solo esa fila.
-        await Expect(page.Locator("tbody tr.fila-pulsable")).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
+        await Expect(page.Locator(".marco-lista-trabajadores .fila-pulsable")).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
 
         // El ☑ de la cabecera de la lista (rediseño de listados, fase 1): un icono con nombre accesible, sin texto visible.
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true }).ClickAsync();
@@ -132,7 +132,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
 
         // --- Paso 4: /centros — buscar, dejar que el buscador asiente y expandir ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
-        var buscador = page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente o empresa");
+        var buscador = page.GetByPlaceholder("Filtrar esta pantalla: Centro, código, Cliente o Empresa");
         await buscador.FillAsync(nombreCentro);
 
         var botonExpandir = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Asignaciones de {nombreCentro}" });
@@ -205,7 +205,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await Expect(badgeFalta).ToHaveTextAsync("Pendiente", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
 
         // --- Paso 5: Subir el documento pendiente, sin salir de /centros ---
-        await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Subir" }).ClickAsync();
+        await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);

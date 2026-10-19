@@ -51,7 +51,8 @@ public static class TrabajadoresEndpoints
         IMediator mediator, ITenantActual tenantActual, IRegistroExportacionService registroExportacion,
         CancellationToken cancellationToken,
         string? q = null, string? estado = null, string? empresa = null, string? subcontrata = null,
-        string? orden = null, bool desc = false, string? centro = null)
+        string? orden = null, bool desc = false, string? centro = null,
+        string? delegacion = null, string? oficio = null)
     {
         // Estado 4a: la página no muestra los datos del Tenant de origen a quien tiene que
         // elegir una empresa de su cartera; el endpoint no los exporta tampoco. Misma
@@ -70,6 +71,8 @@ public static class TrabajadoresEndpoints
                     Pagina: pagina,
                     TamanoPagina: tamanoPagina,
                     CentroId: Guid.TryParse(centro, out var centroId) ? centroId : null,
+                    DelegacionEmpresaId: Guid.TryParse(delegacion, out var delegacionId) ? delegacionId : null,
+                    OficioEmpresaId: Guid.TryParse(oficio, out var oficioId) ? oficioId : null,
                     // El desglose se pide solo para saber qué exigido falta (la columna Estado coincide con el listado);
                     // el libro no lleva incidencias ni «vigentes / registrados».
                     ConDesgloseDocumental: true,
@@ -85,7 +88,7 @@ public static class TrabajadoresEndpoints
         // rastro no se puede guardar, la excepción sube y el fichero no sale.
         // Al rastro va el criterio APLICADO, nunca el texto de la petición, que es
         // libre y puede ser un DNI o un nombre: de la búsqueda solo consta que la
-        // hubo; de los filtros de Empresa, Subcontrata y Centro, el Id ya leído (uno
+        // hubo; de los filtros de Empresa, Subcontrata, Centro, Delegación y Oficio, el Id ya leído (uno
         // que no se pudo leer no filtró nada, así que no consta); el estado y el
         // orden, solo si tienen forma de nombre.
         await registroExportacion.RegistrarAsync(
@@ -96,6 +99,8 @@ public static class TrabajadoresEndpoints
                 ("empresa", Guid.TryParse(empresa, out var empresaAplicada) ? empresaAplicada.ToString() : null),
                 ("subcontrata", Guid.TryParse(subcontrata, out var subcontrataAplicada) ? subcontrataAplicada.ToString() : null),
                 ("centro", Guid.TryParse(centro, out var centroAplicado) ? centroAplicado.ToString() : null),
+                ("delegacion", Guid.TryParse(delegacion, out var delegacionAplicada) ? delegacionAplicada.ToString() : null),
+                ("oficio", Guid.TryParse(oficio, out var oficioAplicado) ? oficioAplicado.ToString() : null),
                 ("orden", CriteriosExportacion.SoloNombre(orden)), ("desc", desc ? "true" : null)),
             cancellationToken);
 

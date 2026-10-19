@@ -51,11 +51,13 @@
     flex: none;
     display: flex;
     color: var(--color-text-muted);
+    /* Como el chevron del menú lateral (NavMenu): cerrado apunta a la derecha, abierto hacia abajo. */
     transition: transform var(--motion-transition) var(--ease-fluid);
+    transform: rotate(-90deg);
 }
 
 .grupo-cola-chevron-abierta {
-    transform: rotate(180deg);
+    transform: rotate(0deg);
 }
 
 .grupo-cola-info {

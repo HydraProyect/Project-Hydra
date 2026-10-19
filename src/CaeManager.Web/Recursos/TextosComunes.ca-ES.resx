@@ -326,6 +326,9 @@
   <data name="CabeceraMigaFicha" xml:space="preserve">
     <value>Fitxa</value>
   </data>
+  <data name="CabeceraMigaMiAvatar" xml:space="preserve">
+    <value>El meu avatar</value>
+  </data>
   <data name="CabeceraDescartar" xml:space="preserve">
     <value>Descarta</value>
   </data>
@@ -353,20 +356,26 @@
   <data name="MenuSubDocumentosPlantillas" xml:space="preserve">
     <value>Plantilles</value>
   </data>
+  <data name="SelectorTenantSolicitar" xml:space="preserve">
+    <value>+ Sol·licitar</value>
+  </data>
+  <data name="SelectorTenantSolicitarTitulo" xml:space="preserve">
+    <value>Sol·licitar accés a una altra empresa de l'organització</value>
+  </data>
+  <data name="SelectorTenantTrabajandoEn" xml:space="preserve">
+    <value>Treballant a {0}</value>
+  </data>
+  <data name="MenuAuditoria" xml:space="preserve">
+    <value>Auditoria</value>
+  </data>
+  <data name="MenuAdministracionPlataforma" xml:space="preserve">
+    <value>Administració de plataforma</value>
+  </data>
   <data name="MenuCompactar" xml:space="preserve">
     <value>Compacta la barra lateral</value>
   </data>
   <data name="MenuAmpliar" xml:space="preserve">
     <value>Amplia la barra lateral</value>
-  </data>
-  <data name="MenuFijar" xml:space="preserve">
-    <value>Fixa «{0}»</value>
-  </data>
-  <data name="MenuQuitarFijado" xml:space="preserve">
-    <value>Treu «{0}» dels fixats</value>
-  </data>
-  <data name="MenuFijados" xml:space="preserve">
-    <value>Fixats</value>
   </data>
   <data name="MenuGrupoContieneActual" xml:space="preserve">
     <value>Conté la pàgina actual</value>
@@ -467,6 +476,21 @@
     <value>No la veu el client.</value>
     <comment>Peu de la targeta NotaInterna: la nota no la veu l'usuari d'un Client. La veuen l'equip i el Gestor CAE d'un Operador CAE extern.</comment>
   </data>
+  <data name="NotaInternaEditar" xml:space="preserve">
+    <value>Edita →</value>
+  </data>
+  <data name="NotaInternaGuardar" xml:space="preserve">
+    <value>Desa</value>
+  </data>
+  <data name="NotaInternaCancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="NotaInternaGuardada" xml:space="preserve">
+    <value>Nota interna desada.</value>
+  </data>
+  <data name="NotaInternaErrorGuardar" xml:space="preserve">
+    <value>No hem pogut desar la nota interna. Torna-ho a provar d'aquí a uns segons.</value>
+  </data>
   <data name="RestablecerVista" xml:space="preserve">
     <value>Restableix la vista</value>
   </data>
@@ -504,4 +528,61 @@
   <data name="ListaResultadosUnidad" xml:space="preserve"><value>resultats</value></data>
   <data name="ListaDocumentacion" xml:space="preserve"><value>Documentació</value></data>
   <data name="ListaEstado" xml:space="preserve"><value>Estat</value></data>
+  <data name="SeccionAriaEtiqueta" xml:space="preserve">
+    <value>Seccions de {0}</value>
+  </data>
+  <data name="SeccionDocumentos" xml:space="preserve">
+    <value>Documents</value>
+  </data>
+  <data name="SeccionEquipo" xml:space="preserve">
+    <value>Equip</value>
+  </data>
+  <data name="SeccionTodosLosDocumentos" xml:space="preserve">
+    <value>Tots els documents</value>
+  </data>
+  <data name="SeccionIncidencias" xml:space="preserve">
+    <value>Incidències</value>
+  </data>
+  <data name="SeccionUsuarios" xml:space="preserve">
+    <value>Usuaris</value>
+  </data>
+  <data name="SeccionRoles" xml:space="preserve">
+    <value>Rols</value>
+  </data>
+  <data name="SelectorTenantFijadas" xml:space="preserve">
+    <value>Fixades</value>
+  </data>
+  <data name="SelectorTenantResto" xml:space="preserve">
+    <value>Resta de la cartera</value>
+  </data>
+  <data name="SelectorTenantFijar" xml:space="preserve">
+    <value>Fixa a dalt</value>
+  </data>
+  <data name="SelectorTenantQuitarFijada" xml:space="preserve">
+    <value>Treu de les fixades</value>
+  </data>
+  <data name="SelectorCrear" xml:space="preserve">
+    <value>Crea «{0}»</value>
+  </data>
+  <data name="PasosSiguiente" xml:space="preserve">
+    <value>Següent</value>
+  </data>
+  <data name="PasosAtras" xml:space="preserve">
+    <value>Enrere</value>
+  </data>
+  <data name="PasosGuardarYTerminar" xml:space="preserve">
+    <value>Desa i acaba</value>
+  </data>
+  <data name="PasosPasoDeTotal" xml:space="preserve">
+    <value>Pas {0} de {1}</value>
+  </data>
+  <data name="PasosGrupoEtiqueta" xml:space="preserve">
+    <value>Passos del formulari</value>
+  </data>
+  <data name="SeccionErrorSingular" xml:space="preserve">
+    <value>Un error</value>
+  </data>
+  <data name="SeccionErroresPlural" xml:space="preserve">
+    <value>{0} errors</value>
+  </data>
 </root>

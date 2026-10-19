@@ -5,6 +5,8 @@ using CaeManager.Application.Empresas;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
+using CaeManager.Domain.Documentos;
 using CaeManager.Application.Vehiculos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +23,22 @@ namespace CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal;
 /// </summary>
 public record BuscarGlobalQuery(string Termino) : IRequest<ResultadoBusquedaGlobalDto>;
 
-public record ItemBusquedaDto(Guid Id, string Titulo, string? Subtitulo, string UrlDestino);
+public record ItemBusquedaDto(Guid Id, string Titulo, string? Subtitulo, string UrlDestino)
+{
+    /// <summary>
+    /// Estado documental del Trabajador, solo en una búsqueda por DNI/NIE completo (el subtítulo «Coincide con el
+    /// documento buscado · {empresa} · {estado}» de la maqueta). Null en cualquier otra fila.
+    /// </summary>
+    public EstadoTrabajadorBuscadoDto? EstadoTrabajador { get; init; }
+}
+
+/// <summary>
+/// El estado del Trabajador tal y como lo pinta el listado de Trabajadores: el peor estado de sus documentos
+/// registrados (<see cref="Documentos.ICalculoEstadoDocumentalService"/>), cuántos de ellos están vencidos y si le
+/// falta algún documento que le exige un Centro con Asignación activa (<c>IDocumentosFaltantesService</c>). Sale de
+/// <see cref="ObtenerTrabajadoresQuery"/> con su desglose: la misma regla, no una copia.
+/// </summary>
+public record EstadoTrabajadorBuscadoDto(EstadoDocumento? PeorEstado, int DocumentosVencidos, bool HayFaltantes);
 
 /// <param name="Empresas">
 /// Una fila por Empresa, sin importar cuántos papeles contextuales tenga
@@ -40,6 +57,19 @@ public record ResultadoBusquedaGlobalDto(
     IReadOnlyList<ItemBusquedaDto> Trabajadores,
     IReadOnlyList<ItemBusquedaDto> Documentos)
 {
+    /// <summary>La categoría tiene más coincidencias de las que caben en el palette («Ver más →» de la maqueta).</summary>
+    public bool HayMasEmpresas => ListadoVerMasEmpresas is not null;
+
+    /// <summary>
+    /// Listado donde siguen las Empresas que no cupieron («Ver más →»): el de la primera que se quedó fuera, con el
+    /// mismo criterio de destino que cada fila (clientes, subcontratas o empresas, según el alcance que la trajo).
+    /// Null si cupieron todas.
+    /// </summary>
+    public string? ListadoVerMasEmpresas { get; init; }
+    public bool HayMasCentros { get; init; }
+    public bool HayMasTrabajadores { get; init; }
+    public bool HayMasDocumentos { get; init; }
+
     public bool TieneResultados =>
         Empresas.Count > 0 || Centros.Count > 0 || Trabajadores.Count > 0 || Documentos.Count > 0;
 }
@@ -49,7 +79,7 @@ public class BuscarGlobalQueryHandler(
     ITrabajadoresQueryContext trabajadoresContext,
     IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext,
     IVehiculosQueryContext vehiculosContext, IProyectosQueryContext proyectosContext,
-    IAlcanceDatosService alcanceDatos) : IRequestHandler<BuscarGlobalQuery, ResultadoBusquedaGlobalDto>
+    IAlcanceDatosService alcanceDatos, ISender sender) : IRequestHandler<BuscarGlobalQuery, ResultadoBusquedaGlobalDto>
 {
     private const int LimitePorCategoria = 5;
 
@@ -60,7 +90,10 @@ public class BuscarGlobalQueryHandler(
         if (termino.Length < 2)
             return new ResultadoBusquedaGlobalDto([], [], [], []);
 
-        var terminoMayus = termino.ToUpper();
+        var documento = DocumentoBuscado.Analizar(termino);
+        if (documento is { EsValido: false }) return new([], [], [], []);
+        var documentoPersona = documento is { Tipo: CaeManager.Domain.Common.TipoIdentificacion.Dni or CaeManager.Domain.Common.TipoIdentificacion.Nie };
+        var terminoMayus = documento?.Valor ?? termino.ToUpperInvariant();
 
         // Alcance de cartera en las cuatro categorías. El buscador global es una
         // superficie de LISTADO —cada resultado enlaza al listado del módulo con
@@ -75,7 +108,7 @@ public class BuscarGlobalQueryHandler(
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
 
-        var empresas = await BuscarEmpresasAsync(
+        var (empresas, listadoVerMasEmpresas) = documentoPersona ? ([], null) : await BuscarEmpresasAsync(
             terminoMayus, clienteIdsVisibles, empresaIdsVisibles, subcontrataIdsVisibles, cancellationToken);
 
         // Centro y Trabajador SÍ tienen ficha propia (Centro 360, Trabajador
@@ -83,28 +116,20 @@ public class BuscarGlobalQueryHandler(
         // listado con filtro porque no la tienen todavía.
         var centros = await centrosContext.Centros
             .Where(c => centroIdsVisibles == null || centroIdsVisibles.Contains(c.Id))
-            .Where(c => c.Nombre.ToUpper().Contains(terminoMayus))
+            .Where(c => documento == null && c.Nombre.ToUpper().Contains(terminoMayus))
             .OrderBy(c => c.Nombre)
-            .Take(LimitePorCategoria)
+            .Take(LimitePorCategoria + 1)
             .Select(c => new ItemBusquedaDto(c.Id, c.Nombre, "Centro", $"/centros/{c.Id}"))
             .ToListAsync(cancellationToken);
 
-        // Sin DNI, ni como criterio ni como subtítulo (decisión delegada en
-        // Codex por el propietario, 2026-09-24, que extiende P4 «base general
-        // sin DNI» a Ctrl+K): el buscador lo tiene todo usuario autenticado,
-        // incluido un usuario Consulta de un Operador CAE externo con alcance
-        // sobre el Tenant beneficiario entero, y buscar por fragmento de DNI
-        // mostrando el DNI completo al lado permitía enumerarlo tecleando.
-        // Se busca por nombre y apellidos; el subtítulo es la razón social de
-        // la organización empleadora (Empresa o Subcontrata), como en el
-        // mockup del Command Palette y en el desempate de homónimos de los
-        // selectores. Quien necesite el DNI lo tiene en la ficha del
-        // Trabajador y en el listado /trabajadores.
+        // Solo documentos completos y válidos; conserva la cartera y no proyecta el DNI.
         var trabajadores = await (
                 from trabajador in trabajadoresContext.Trabajadores
                 where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(trabajador.Id)
-                where trabajador.Nombre.ToUpper().Contains(terminoMayus) ||
-                      trabajador.Apellidos.ToUpper().Contains(terminoMayus)
+                where documentoPersona
+                    ? trabajador.Dni != null && trabajador.Dni == terminoMayus
+                    : documento == null && (trabajador.Nombre.ToUpper().Contains(terminoMayus) ||
+                      trabajador.Apellidos.ToUpper().Contains(terminoMayus))
                 join empresa in empresasContext.Empresas on trabajador.EmpresaId equals empresa.Id into empresasCoincidentes
                 from empresa in empresasCoincidentes.DefaultIfEmpty()
                 join subcontrata in empresasContext.Empresas on trabajador.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
@@ -115,12 +140,51 @@ public class BuscarGlobalQueryHandler(
                     trabajador.Nombre + " " + trabajador.Apellidos,
                     empresa != null ? empresa.RazonSocial : subcontrata != null ? subcontrata.RazonSocial : null,
                     $"/trabajadores/{trabajador.Id}"))
-            .Take(LimitePorCategoria)
+            .Take(LimitePorCategoria + 1)
             .ToListAsync(cancellationToken);
 
-        var documentos = await BuscarDocumentosAsync(terminoMayus, cancellationToken);
+        var documentos = documento is null ? await BuscarDocumentosAsync(terminoMayus, cancellationToken) : [];
 
-        return new ResultadoBusquedaGlobalDto(empresas, centros, trabajadores, documentos);
+        // Cada categoría pide una fila de más solo para saber si hay «Ver más»; esa fila nunca se devuelve.
+        IReadOnlyList<ItemBusquedaDto> trabajadoresDevueltos = [.. trabajadores.Take(LimitePorCategoria)];
+        if (documentoPersona)
+            trabajadoresDevueltos = await ConEstadoDocumentalAsync(trabajadoresDevueltos, cancellationToken);
+
+        return new ResultadoBusquedaGlobalDto(
+            empresas, [.. centros.Take(LimitePorCategoria)], trabajadoresDevueltos, [.. documentos.Take(LimitePorCategoria)])
+        {
+            ListadoVerMasEmpresas = listadoVerMasEmpresas,
+            HayMasCentros = centros.Count > LimitePorCategoria,
+            HayMasTrabajadores = trabajadores.Count > LimitePorCategoria,
+            HayMasDocumentos = documentos.Count > LimitePorCategoria,
+        };
+    }
+
+    /// <summary>
+    /// Estado documental de los Trabajadores que ya devolvió una búsqueda por DNI/NIE (como mucho
+    /// <see cref="LimitePorCategoria"/>; en la práctica, uno). Lo calcula <see cref="ObtenerTrabajadoresQuery"/> por
+    /// Id con su desglose, que vuelve a aplicar el alcance de cartera: un Trabajador fuera de la cartera no llega aquí,
+    /// y si saliera de ella entre las dos consultas se queda sin estado en vez de revelarlo.
+    /// </summary>
+    private async Task<IReadOnlyList<ItemBusquedaDto>> ConEstadoDocumentalAsync(
+        IReadOnlyList<ItemBusquedaDto> trabajadores, CancellationToken cancellationToken)
+    {
+        var conEstado = new List<ItemBusquedaDto>(trabajadores.Count);
+        foreach (var trabajador in trabajadores)
+        {
+            var pagina = await sender.Send(new ObtenerTrabajadoresQuery(
+                Busqueda: null, TamanoPagina: 1, ConDesgloseDocumental: true, TrabajadorId: trabajador.Id), cancellationToken);
+            var fila = pagina.Elementos.FirstOrDefault(t => t.Id == trabajador.Id);
+            conEstado.Add(fila is null ? trabajador : trabajador with
+            {
+                EstadoTrabajador = new EstadoTrabajadorBuscadoDto(
+                    fila.EstadoDocumental,
+                    fila.Incidencias.Count(i => i.Estado == EstadoDocumento.Vencido),
+                    fila.DocumentosFaltantes.Count > 0)
+            });
+        }
+
+        return conEstado;
     }
 
     /// <summary>
@@ -161,14 +225,15 @@ public class BuscarGlobalQueryHandler(
     /// </summary>
     private const int MargenPorOrigen = LimitePorCategoria * 10;
 
-    private async Task<IReadOnlyList<ItemBusquedaDto>> BuscarEmpresasAsync(
+    private async Task<(IReadOnlyList<ItemBusquedaDto> Empresas, string? ListadoVerMas)> BuscarEmpresasAsync(
         string terminoMayus,
         IReadOnlyList<Guid>? clienteIdsVisibles, IReadOnlyList<Guid>? empresaIdsVisibles, IReadOnlyList<Guid>? subcontrataIdsVisibles,
         CancellationToken cancellationToken)
     {
+        var esCif = DocumentoBuscado.Analizar(terminoMayus) is { Tipo: CaeManager.Domain.Common.TipoIdentificacion.NifEmpresa, EsValido: true };
         var comoClientes = await empresasContext.Empresas.Where(e => e.EsCritico != null)
             .Where(c => clienteIdsVisibles == null || clienteIdsVisibles.Contains(c.Id))
-            .Where(c => c.RazonSocial.ToUpper().Contains(terminoMayus))
+            .Where(c => esCif ? c.Cif != null && c.Cif == terminoMayus : c.RazonSocial.ToUpper().Contains(terminoMayus))
             .OrderBy(c => c.RazonSocial)
             .Take(MargenPorOrigen)
             .Select(c => new { c.Id, c.RazonSocial })
@@ -176,7 +241,7 @@ public class BuscarGlobalQueryHandler(
 
         var comoSubcontratas = await empresasContext.Empresas.Where(e => e.NivelServicio != null)
             .Where(s => subcontrataIdsVisibles == null || subcontrataIdsVisibles.Contains(s.Id))
-            .Where(s => s.RazonSocial.ToUpper().Contains(terminoMayus))
+            .Where(s => esCif ? s.Cif != null && s.Cif == terminoMayus : s.RazonSocial.ToUpper().Contains(terminoMayus))
             .OrderBy(s => s.RazonSocial)
             .Take(MargenPorOrigen)
             .Select(s => new { s.Id, s.RazonSocial })
@@ -184,13 +249,13 @@ public class BuscarGlobalQueryHandler(
 
         var comoEmpresas = await empresasContext.Empresas
             .Where(e => empresaIdsVisibles == null || empresaIdsVisibles.Contains(e.Id))
-            .Where(e => e.RazonSocial.ToUpper().Contains(terminoMayus))
+            .Where(e => esCif ? e.Cif != null && e.Cif == terminoMayus : e.RazonSocial.ToUpper().Contains(terminoMayus))
             .OrderBy(e => e.RazonSocial)
             .Take(MargenPorOrigen)
             .Select(e => new { e.Id, e.RazonSocial })
             .ToListAsync(cancellationToken);
 
-        var papelesPorEmpresa = new Dictionary<Guid, (string RazonSocial, List<string> Papeles, string UrlDestino)>();
+        var papelesPorEmpresa = new Dictionary<Guid, (string RazonSocial, List<string> Papeles, string Listado)>();
 
         // El destino tiene que ser un listado donde la fila SEA visible: cada
         // listado (/clientes, /subcontratas, /empresas) filtra por su propio
@@ -204,13 +269,13 @@ public class BuscarGlobalQueryHandler(
         // gana el destino) el papel con nombre: Cliente, luego Subcontrata,
         // luego la visibilidad "sin papel" — cada uno garantizado por el
         // WHERE que ya lo trajo aquí.
-        void Registrar(IEnumerable<(Guid Id, string RazonSocial)> filas, string? papel, Func<string, string> construirUrl)
+        void Registrar(IEnumerable<(Guid Id, string RazonSocial)> filas, string? papel, string listado)
         {
             foreach (var (id, razonSocial) in filas)
             {
                 if (!papelesPorEmpresa.TryGetValue(id, out var entrada))
                 {
-                    entrada = (razonSocial, [], construirUrl(razonSocial));
+                    entrada = (razonSocial, [], listado);
                     papelesPorEmpresa[id] = entrada;
                 }
 
@@ -219,18 +284,26 @@ public class BuscarGlobalQueryHandler(
             }
         }
 
-        Registrar(comoClientes.Select(c => (c.Id, c.RazonSocial)), "Cliente", rs => $"/clientes?q={Uri.EscapeDataString(rs)}");
-        Registrar(comoSubcontratas.Select(s => (s.Id, s.RazonSocial)), "Subcontrata", rs => $"/subcontratas?q={Uri.EscapeDataString(rs)}");
-        Registrar(comoEmpresas.Select(e => (e.Id, e.RazonSocial)), null, rs => $"/empresas?q={Uri.EscapeDataString(rs)}");
+        Registrar(comoClientes.Select(c => (c.Id, c.RazonSocial)), "Cliente", "clientes");
+        Registrar(comoSubcontratas.Select(s => (s.Id, s.RazonSocial)), "Subcontrata", "subcontratas");
+        Registrar(comoEmpresas.Select(e => (e.Id, e.RazonSocial)), null, "empresas");
 
-        return papelesPorEmpresa
+        var empresas = papelesPorEmpresa
             .OrderBy(kv => kv.Value.RazonSocial, StringComparer.Ordinal)
             .Take(LimitePorCategoria)
             .Select(kv => new ItemBusquedaDto(
                 kv.Key, kv.Value.RazonSocial,
                 kv.Value.Papeles.Count > 0 ? string.Join(",", kv.Value.Papeles) : null,
-                kv.Value.UrlDestino))
+                $"/{kv.Value.Listado}?q={Uri.EscapeDataString(kv.Value.RazonSocial)}"))
             .ToList();
+
+        // «Ver más →»: el listado de la primera Empresa que no cupo, con el mismo criterio de destino que su fila.
+        var listadoVerMas = papelesPorEmpresa.Values
+            .OrderBy(v => v.RazonSocial, StringComparer.Ordinal)
+            .Skip(LimitePorCategoria)
+            .Select(v => v.Listado)
+            .FirstOrDefault();
+        return (empresas, listadoVerMas);
     }
 
     /// <summary>
@@ -298,7 +371,7 @@ public class BuscarGlobalQueryHandler(
 
         var filas = await union
             .OrderBy(x => x.TipoNombre)
-            .Take(LimitePorCategoria)
+            .Take(LimitePorCategoria + 1)
             .ToListAsync(cancellationToken);
 
         // Sin ficha propia: abre el listado de Documentos filtrado por el

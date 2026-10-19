@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Titulo" xml:space="preserve">
+    <value>Recordatori proposat</value>
+  </data>
+  <data name="Explicacion" xml:space="preserve">
+    <value>Aquesta conversa porta dos dies laborables esperant resposta. Revisa l'esborrany: no s'enviarà fins que l'aprovis.</value>
+  </data>
+  <data name="EtiquetaBorrador" xml:space="preserve">
+    <value>Esborrany del recordatori</value>
+  </data>
+  <data name="BorradorPorDefecto" xml:space="preserve">
+    <value>Hola:
+
+Us tornem a escriure sobre «{0}». Ens podeu confirmar si ho heu pogut revisar?
+
+Gràcies.</value>
+  </data>
+  <data name="BotonAprobarYEnviar" xml:space="preserve">
+    <value>Aprova i envia</value>
+  </data>
+  <data name="BotonDescartar" xml:space="preserve">
+    <value>Descarta</value>
+  </data>
+  <data name="ToastEnviado" xml:space="preserve">
+    <value>Recordatori enviat.</value>
+  </data>
+  <data name="ToastDescartado" xml:space="preserve">
+    <value>Recordatori descartat.</value>
+  </data>
+  <data name="ToastErrorEnviar" xml:space="preserve">
+    <value>No s'ha pogut enviar el recordatori. Torna-ho a provar.</value>
+  </data>
+  <data name="ToastErrorDescartar" xml:space="preserve">
+    <value>No s'ha pogut descartar el recordatori. Torna-ho a provar.</value>
+  </data>
+</root>

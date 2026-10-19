@@ -45,7 +45,7 @@
             El nombre del empleador abre su consulta rápida; el icono 360,
             su página.
         *@
-        <CabeceraIdentidad Titulo="@(NombreCompleto ?? string.Empty)" Kicker="@Textos["Kicker"]">
+        <CabeceraIdentidad Titulo="@(NombreCompleto ?? string.Empty)">
             <Anillo>
                 <AnilloCumplimiento Porcentaje="Cumplimiento" Tamano="TamanoAnillo.Cabecera"
                                      Etiqueta="@(Textos["AnilloCumplimiento", Cumplimiento?.ToString() ?? string.Empty])" />
@@ -56,10 +56,14 @@
                     <span class="trabajador360-alias">(@_detalle.Alias)</span>
                 }
             </JuntoAlTitulo>
+            @* Maqueta 17-10: dos líneas bajo el nombre («DNI» y el DNI copiable sin dos puntos · empleador, y debajo las pastillas de estado); sin «Trabajador» sobre el nombre. *@
             <Datos>
+              <div class="trabajador360-datos">
+               <div class="trabajador360-meta">
                 <span>
-                    DNI: <b>@_detalle.Dni</b>
-                    <BotonCopiar Valor="@_detalle.Dni" Etiqueta="@Textos["FichaCopiarDni"]" NombreAccesible="@Textos["FichaCopiarNombreAccesible", Textos["FichaCopiarDni"]]" />
+                    @Textos["FichaRotuloDni"]
+                    @{ var dni = _detalle.Dni ?? string.Empty; }
+                    <BotonCopiar EnLinea="true" ConfirmarConIcono="true" Valor="@dni" Texto="@dni" Etiqueta="@Textos["FichaCopiarDni"]" NombreAccesible="@Textos["FichaCopiarNombreAccesibleConValor", Textos["FichaCopiarDni"], dni]" />
                 </span>
                 <span aria-hidden="true">·</span>
                 <span>
@@ -69,9 +73,10 @@
                         <Boton360 Nombre="@_detalle.EmpleadorNombre" Href="@paginaEmpleador" />
                     }
                 </span>
+               </div>
+               <div class="trabajador360-indicadores">
                 @if (PeorEstadoGlobal is { } peorEstado)
                 {
-                    <span aria-hidden="true">·</span>
                     <Badge Tono="EstadoDocumentoUi.Tono(peorEstado)">@EstadoDocumentoUi.Texto(peorEstado)</Badge>
                 }
                 @* El estado de arriba puede ser otro más grave (un vencido): lo exigido y sin documento se nombra aparte,
@@ -102,6 +107,8 @@
                 {
                     <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Textos["AvisoVigenciaSinConfirmar", TotalSinConfirmar]</Badge>
                 }
+               </div>
+              </div>
             </Datos>
             <Acciones>
                 <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="SubirDocumentoAsync">@Textos["BotonSubirDocumento"]</Boton></SoloConEscritura>
@@ -118,11 +125,11 @@
 
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
             <ChildContent>
-        <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["AriaSeccionesTrabajador360"]">
+        <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["AriaSeccionesTrabajador360"]" Pagina360="true">
             @switch (_pestanaActiva)
             {
                 case PestanaOperacion:
-                    <PanelDocumentacionBase TrabajadorId="TrabajadorId" OnCorregirDocumento="EditarDocumentoAsync" DocumentosUrgentes="DocumentosUrgentes" />
+                    <PanelDocumentacionBase TrabajadorId="TrabajadorId" OnCorregirDocumento="EditarDocumentoAsync" OnSubirFaltante="SubirFaltanteAsync" />
                     @*
                         Franja «Por vencer» (decisión del propietario 2026-09-24,
                         Q3 = (a)): los documentos del trabajador en Próximo o
@@ -137,14 +144,14 @@
                             <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["SeparadorPorVencer"]">
                                 @foreach (var documento in porVencer)
                                 {
-                                    var accion = EstadoDocumentoFicha360.Accion(documento.Estado);
+                                    var pideGestionar = EstadoDocumentoFicha360.PideGestionar(documento.Estado);
                                     <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre" Tono="@EstadoDocumentoFicha360.TonoFila(documento.Estado)">
                                         <Detalle>@(" ")@Textos["VenceEl", TextoVence(documento.FechaVencimiento, documento.Estado)]</Detalle>
                                         <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></Estado>
                                         <Acciones>
-                                            @if (accion is not null)
+                                            @if (pideGestionar)
                                             {
-                                                <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => EditarDocumentoAsync(documento.Id)">@TextosDocumentos360[$"Accion{accion}"]</Boton></SoloConEscritura>
+                                                <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)" OnClick="() => EditarDocumentoAsync(documento.Id)">@EstadoDocumentoFicha360.TextoAccion</Boton></SoloConEscritura>
                                             }
                                         </Acciones>
                                     </FilaRelacion>
@@ -239,13 +246,22 @@
                                                   Tono="@TonoDocumentoEnCentro(centro.PeorEstado)"
                                                   Desplegada="@_expandidosCentro.Contains(centro.CentroId)"
                                                   DesplegadaChanged="_ => AlternarExpansionCentro(centro.CentroId)">
+                                        @* Maqueta 17-10: la línea secundaria dice el Cliente empresarial, «Asignado desde el …», el resumen y,
+                                           al final y en la misma línea, «Dar de baja de este centro» (antes, una columna de acciones que lo cortaba). *@
                                         <Detalle>
                                             @centro.ClienteRazonSocial ·
+                                            <span class="trabajador360-centro-alta">@Textos["AsignadoDesdeEl", centro.FechaAlta.ToString("dd/MM/yyyy")]</span> ·
                                             @(centro.Cumplimiento.Requeridos == 0
                                                 ? Textos["ResumenSinExigencia"]
                                                 : Textos["ResumenExigidosCorrectos", centro.Cumplimiento.AlDia, centro.Cumplimiento.Requeridos])
+                                            <SoloConEscritura>
+                                                <span aria-hidden="true"> · </span>
+                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="trabajador360-centro-baja accion-fila-enlace"
+                                                       OnClick="() => AbrirBajaAsignacionConfirm(centro.AsignacionId, centro.CentroNombre)">
+                                                    @Textos["AccionDarDeBajaDeCentro"]
+                                                </Boton>
+                                            </SoloConEscritura>
                                         </Detalle>
-                                        <Cifra><span class="trabajador360-centro-alta">@Textos["ColumnaDesde"] @centro.FechaAlta.ToString("dd/MM/yyyy")</span></Cifra>
                                         <Estado>
                                             <Badge Tono="EstadoDocumentoUi.Tono(centro.PeorEstado)" Tamano="TamanoBadge.Pequeno">
                                                 @(incidencias == 0
@@ -254,12 +270,6 @@
                                             </Badge>
                                         </Estado>
                                         <Acciones>
-                                            <SoloConEscritura>
-                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="trabajador360-centro-baja accion-fila-enlace"
-                                                       OnClick="() => AbrirBajaAsignacionConfirm(centro.AsignacionId, centro.CentroNombre)">
-                                                    @Textos["AccionDarDeBajaDeCentro"]
-                                                </Boton>
-                                            </SoloConEscritura>
                                             <Boton360 Nombre="@centro.CentroNombre" Href="@($"/centros/{centro.CentroId}")" />
                                         </Acciones>
                                         <Desplegable>
@@ -289,12 +299,17 @@
                                                                     </Cifra>
                                                                     <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado, documento.EnToleranciaHasta)</Badge></Estado>
                                                                     <Acciones>
-                                                                        <SoloConEscritura>
-                                                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                                                                   OnClick="() => GestionarDocumentoAsync(documento)">
-                                                                                @(documento.DocumentoId is null ? Textos["AccionSubir"] : documento.Estado == EstadoDocumento.Vigente ? Textos["AccionVer"] : Textos["AccionRenovar"])
-                                                                            </Boton>
-                                                                        </SoloConEscritura>
+                                                                        @* Todo documento lleva «Gestionar»; Vigente y Sin caducidad, en tono secundario. *@
+                                                                        @if (EstadoDocumentoFicha360.PideGestionar(documento.Estado))
+                                                                        {
+                                                                            <SoloConEscritura>
+                                                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="@EstadoDocumentoFicha360.ClaseGestionar(documento.Estado, "accion-fila-enlace")"
+                                                                                       aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)"
+                                                                                       OnClick="() => GestionarDocumentoAsync(documento)">
+                                                                                    @EstadoDocumentoFicha360.TextoAccion
+                                                                                </Boton>
+                                                                            </SoloConEscritura>
+                                                                        }
                                                                     </Acciones>
                                                                 </FilaRelacion>
                                                             </ChildContent>
@@ -351,7 +366,7 @@
                                     <ChildContent>
                                     @foreach (var documento in DocumentosOrdenados)
                                     {
-                                        var accion = EstadoDocumentoFicha360.Accion(documento.Estado);
+                                        var pideGestionar = EstadoDocumentoFicha360.PideGestionar(documento.Estado);
                                         <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre" Tono="@EstadoDocumentoFicha360.TonoFila(documento.Estado)">
                                             <Cifra><span>@Textos["ColumnaVence"]: </span><span class="trabajador360-vigencia @EstadoDocumentoUi.ClaseAvisoVigenciaSinConfirmar(documento.Estado)">@TextoVence(documento.FechaVencimiento, documento.Estado)</span></Cifra>
                                             <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></Estado>
@@ -360,9 +375,9 @@
                                                 <LineaPlataformaYReclamacion Acreditaciones="documento.Acreditaciones" Estado="documento.Estado" />
                                             </Detalle>
                                             <Acciones>
-                                                @if (accion is not null)
+                                                @if (pideGestionar)
                                                 {
-                                                    <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => EditarDocumentoAsync(documento.Id)">@TextosDocumentos360[$"Accion{accion}"]</Boton></SoloConEscritura>
+                                                    <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="@EstadoDocumentoFicha360.ClaseGestionar(documento.Estado)" aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)" OnClick="() => EditarDocumentoAsync(documento.Id)">@EstadoDocumentoFicha360.TextoAccion</Boton></SoloConEscritura>
                                                 }
                                             </Acciones>
                                         </FilaRelacion>
@@ -422,12 +437,16 @@
                 @*
                     Lo que era la pestaña «Contactos» (decisión del propietario
                     2026-09-24, punto 3): los datos de contacto del propio
-                    trabajador, copiables, y la agenda de su empleador. Solo
-                    Teléfono y Correo, los únicos que trae TrabajadorDetalleDto:
-                    Dirección y contacto de emergencia NO existen en ningún DTO y
-                    no se inventan. Sin ninguno de los dos no se pinta la tarjeta.
+                    trabajador, copiables, y la agenda de su empleador. Teléfono,
+                    Correo y, como en la maqueta Trabajador 360 del 17-10, el
+                    contacto de emergencia (nombre y teléfono copiable; decisión de
+                    Chris, 2026-10-18). Dirección y firma de documentos NO se
+                    construyen. El contacto solo llega a quien lee la nota interna
+                    (ContactoEmergenciaVisible); al Usuario de Cliente, nunca. Sin
+                    ningún dato no se pinta la tarjeta.
                 *@
-                @if (!string.IsNullOrWhiteSpace(_detalle.Telefono) || !string.IsNullOrWhiteSpace(_detalle.Email))
+                @if (!string.IsNullOrWhiteSpace(_detalle.Telefono) || !string.IsNullOrWhiteSpace(_detalle.Email)
+                     || !string.IsNullOrWhiteSpace(_detalle.ContactoEmergenciaNombre) || !string.IsNullOrWhiteSpace(_detalle.ContactoEmergenciaTelefono))
                 {
                     <Tarjeta Titulo="@Textos["SeparadorDatosTrabajador"]" Compacta="true">
                         <dl class="trabajador360-contactos">
@@ -451,6 +470,25 @@
                                     </dd>
                                 </div>
                             }
+                            @if (!string.IsNullOrWhiteSpace(_detalle.ContactoEmergenciaNombre))
+                            {
+                                <div class="trabajador360-contacto" data-contacto="emergencia-nombre">
+                                    <dt class="trabajador360-contacto-clave">@Textos["FichaContactoEmergencia"]</dt>
+                                    <dd class="trabajador360-contacto-valor">
+                                        <span class="trabajador360-contacto-texto">@_detalle.ContactoEmergenciaNombre</span>
+                                    </dd>
+                                </div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(_detalle.ContactoEmergenciaTelefono))
+                            {
+                                <div class="trabajador360-contacto" data-contacto="emergencia-telefono">
+                                    <dt class="trabajador360-contacto-clave">@Textos["FichaTelefonoEmergencia"]</dt>
+                                    <dd class="trabajador360-contacto-valor">
+                                        <span class="trabajador360-contacto-texto">@_detalle.ContactoEmergenciaTelefono</span>
+                                        <BotonCopiar Valor="@_detalle.ContactoEmergenciaTelefono" Etiqueta="@Textos["FichaCopiarTelefonoEmergencia"]" NombreAccesible="@Textos["FichaCopiarNombreAccesible", Textos["FichaCopiarTelefonoEmergencia"]]" />
+                                    </dd>
+                                </div>
+                            }
                         </dl>
                     </Tarjeta>
                 }
@@ -468,6 +506,13 @@
                             }
                         </div>
                     </Tarjeta>
+                }
+
+                @* Nota interna: el servidor decide si el lector es del equipo (NotaInternaVisible); a un usuario de
+                   Cliente no le llega ni la tarjeta vacía. *@
+                @if (_detalle.NotaInternaVisible)
+                {
+                    <NotaInternaEditable @key="_detalle.Id" Texto="@_detalle.Notas" Guardar="GuardarNotaInternaAsync" OnGuardada="RecargarTrasNotaInternaAsync" />
                 }
             </Lateral>
         </CuerpoConLateral>
@@ -492,9 +537,8 @@
     </CampoSelect>
 </ModalFormulario>
 
-@* Solo aparece cuando el trabajador tiene asignaciones activas en Centros de
-   más de un Cliente empresarial a la vez — con uno solo, ReclamarFaltantesAsync
-   envía directo. *@
+@* Confirmación de «Gestionar» (reclamar): se abre siempre, con uno o con varios Clientes empresariales, y no se envía
+   nada hasta pulsar «Reclamar» (es un correo a un tercero). *@
 @* FS-13: la baja de una asignación se confirma y se puede deshacer desde el aviso. *@
 <DialogoConfirmacion
     Visible="_confirmarBajaAsignacionVisible"
@@ -510,7 +554,14 @@
                  MotivoGuardarDeshabilitado="@(_clientesSeleccionadosReclamar.Count == 0 ? Textos["MotivoReclamarSinCliente"].Value : null)"
                  OnGuardar="ConfirmarReclamarFaltantesAsync" TextoGuardar="@Textos["BotonReclamar"]" TextoCancelar="@Textos["BotonCancelar"]">
     <p class="workspace-nota-contextual">
-        @Textos["NotaReclamarVarios", NombreCompleto ?? string.Empty]
+        @if (_clientesReclamables.Count == 1)
+        {
+            @Textos["NotaReclamarUno", NombreCompleto ?? string.Empty, _clientesReclamables[0].ClienteRazonSocial]
+        }
+        else
+        {
+            @Textos["NotaReclamarVarios", NombreCompleto ?? string.Empty]
+        }
     </p>
     <fieldset class="reclamacion-destinatarios" disabled="@_reclamandoFaltantes">
         <legend>@Textos["LeyendaClientesEmpresariales"]</legend>
@@ -526,6 +577,11 @@
         }
     </fieldset>
 </ModalFormulario>
+@* Trabajador de Empresa: «Reclamar faltantes» va a su Empresa empleadora, por Delegación, con el cajón de «Gestionar». *@
+<CaeManager.Web.Features.Bandeja.Components.DrawerReclamacionLote
+    Visible="_reclamacionEmpresaVisible" VisibleChanged="v => _reclamacionEmpresaVisible = v"
+    AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa })"
+    AmbitoInicial="AmbitoAplicacion.Trabajador" EntidadIdInicial="TrabajadorId" IncluirPendientesSinFecha="true" />
 @if (_detalle is not null)
 {
     <SoloConEscritura>
