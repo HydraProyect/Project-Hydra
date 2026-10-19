@@ -76,6 +76,10 @@ public class EnviarReclamacionEmpresaEmpleadoraCommandHandler(
     /// <summary>Lo que dice la columna «Trabajador» del correo en una fila de documentos de la propia Empresa.</summary>
     public const string RotuloEmpresa = "Empresa";
 
+    private static Error ErrorDocumentosDesactualizados() => Error.Crear(
+        "Reclamacion.DocumentosDesactualizados",
+        "Algunos de los documentos seleccionados ya no son reclamables a esta empresa — puede que se hayan renovado, que el trabajador haya cambiado de delegación o que hayan salido de la ventana de reclamación. Actualiza la vista antes de volver a intentarlo.");
+
     /// <summary>Decide qué se envía y a quién, sin enviar: misma idea que <c>EnviarReclamacionCommandHandler.PrepararAsync</c>.</summary>
     public async Task<Result<ReclamacionPreparada>> PrepararAsync(EnviarReclamacionEmpresaEmpleadoraCommand request, CancellationToken cancellationToken)
     {
@@ -159,9 +163,7 @@ public class EnviarReclamacionEmpresaEmpleadoraCommandHandler(
         var idsEncontrados = filas.Select(f => f.DocumentoId).ToHashSet();
         if (idsSolicitados.Exists(id => !idsEncontrados.Contains(id)))
         {
-            return Result.Fallo<ReclamacionPreparada>(Error.Crear(
-                "Reclamacion.DocumentosDesactualizados",
-                "Algunos de los documentos seleccionados ya no son reclamables a esta empresa — puede que se hayan renovado, que el trabajador haya cambiado de delegación o que hayan salido de la ventana de reclamación. Actualiza la vista antes de volver a intentarlo."));
+            return Result.Fallo<ReclamacionPreparada>(ErrorDocumentosDesactualizados());
         }
 
         // Lo que se pide sin vencimiento: la misma regla que lo ofreció, acotada a los Trabajadores de este lote (todo o nada).
@@ -178,6 +180,11 @@ public class EnviarReclamacionEmpresaEmpleadoraCommandHandler(
                 return Result.Fallo<ReclamacionPreparada>(emparejados.Error);
             pendientes = emparejados.Valor;
         }
+
+        // Este comando reclama a la Empresa por sus Trabajadores: si tras validar no queda ninguna fila ni pendiente de
+        // Trabajador (solo lo de la Empresa), no es de este lote; eso va por EnviarReclamacionEmpresaCommand.
+        if (filas.Count == 0 && pendientes.Count == 0)
+            return Result.Fallo<ReclamacionPreparada>(ErrorDocumentosDesactualizados());
 
         IReadOnlyList<DocumentoPendienteDto> pendientesEmpresa = [];
         if (pedidosEmpresa.Count > 0)

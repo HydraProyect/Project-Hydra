@@ -1,4 +1,5 @@
 using CaeManager.Application.Centros;
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Contactos;
@@ -49,6 +50,8 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
     private readonly Guid _tenantA = Guid.NewGuid();
     private readonly Guid _tenantB = Guid.NewGuid();
     private readonly Guid _tenantSinPlan = Guid.NewGuid();
+    private readonly Guid _tenantPlataforma = Guid.NewGuid();
+    private readonly Guid _tenantAgenda = Guid.NewGuid();
     private readonly Guid _usuario = Guid.NewGuid();
     private readonly List<CaeManagerDbContext> _contextosRuntime = [];
 
@@ -56,12 +59,19 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
     private Escenario _a = null!;
     private Escenario _b = null!;
     private Escenario _sinPlan = null!;
+    private Escenario _plataforma = null!;
+    private Escenario _agenda = null!;
 
     /// <summary>Todo lo que siembra un Tenant: una Empresa con dos Delegaciones, dos Trabajadores y un Centro que les exige lo bloqueante.</summary>
     private sealed record Escenario(
         Guid EmpresaId, Guid CentroId, Guid SevillaId, Guid MalagaId, Guid AnaId, Guid BeaId,
         Guid TipoCertificadoId, Guid TipoPlanId,
-        Guid DocAnaCertificadoId, Guid DocAnaFormacionId, Guid DocBeaCertificadoId, Guid? DocPlanId);
+        Guid DocAnaCertificadoId, Guid DocAnaFormacionId, Guid DocBeaCertificadoId, Guid? DocPlanId,
+        PlataformaSembrada? Plataforma = null);
+
+    /// <summary>Lo vigente en TALVEG (a 12 meses, fuera de la ventana de reclamación) que la plataforma del Centro aún no da por acreditado.</summary>
+    private sealed record PlataformaSembrada(
+        Guid TipoAltaId, Guid TipoPolizaId, Guid DocAltaAnaId, Guid DocAltaBeaId, Guid DocPolizaId);
 
     public async Task InitializeAsync()
     {
@@ -76,6 +86,8 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
         _a = await SembrarAsync(_tenantA, conPlanDePrevencion: true);
         _b = await SembrarAsync(_tenantB, conPlanDePrevencion: true);
         _sinPlan = await SembrarAsync(_tenantSinPlan, conPlanDePrevencion: false);
+        _plataforma = await SembrarAsync(_tenantPlataforma, conPlanDePrevencion: true, conPlataforma: true);
+        _agenda = await SembrarAsync(_tenantAgenda, conPlanDePrevencion: true, conAgendaPorTipo: true);
     }
 
     public async Task DisposeAsync()
@@ -161,6 +173,37 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
             .Select(d => d.DocumentoId).Should().BeEquivalentTo([_a.DocBeaCertificadoId]);
         lotes.Single(l => l.EmpresaEmpleadora is null).Documentos
             .Select(d => d.DocumentoId).Should().BeEquivalentTo([_a.DocPlanId!.Value]);
+    }
+
+    [Fact]
+    public async Task Por_acceso_el_lote_fusionado_con_lo_de_la_Empresa_ofrece_tambien_al_contacto_dueno_del_Tipo_de_la_Empresa()
+    {
+        var arnes = new Arnes(Runtime(_tenantAgenda), new AlcanceDatosServiceFalso());
+
+        var lotes = await arnes.PorAcceso.Handle(
+            new ObtenerReclamacionPorAccesoQuery(_agenda.EmpresaId, _agenda.CentroId, [_agenda.AnaId]), CancellationToken.None);
+
+        var lote = lotes.Should().ContainSingle().Subject;
+        lote.EmpresaEmpleadora!.DelegacionEmpresaId.Should().BeNull("Ana no tiene Delegación: el lote va a la agenda de la Empresa");
+        lote.Documentos.Select(d => d.DocumentoId).Should().BeEquivalentTo([_agenda.DocAnaCertificadoId, _agenda.DocPlanId!.Value]);
+        lote.Destinatarios.Select(d => d.Email).Should().BeEquivalentTo(
+            ["agenda@contratista.test", "plan@contratista.test"],
+            "el predeterminado recibe el certificado y la dueña del Plan recibe lo de la Empresa, que ya viaja en este lote");
+    }
+
+    [Fact]
+    public async Task Por_acceso_un_Trabajador_fuera_de_los_Trabajadores_visibles_no_aparece_ni_arrastra_lo_de_la_Empresa()
+    {
+        var soloBea = new Arnes(Runtime(_tenantA), new AlcanceDatosServiceFalso(trabajadorIds: [_a.BeaId]));
+
+        var soloAna = await soloBea.PorAcceso.Handle(
+            new ObtenerReclamacionPorAccesoQuery(_a.EmpresaId, _a.CentroId, [_a.AnaId]), CancellationToken.None);
+        soloAna.Should().BeEmpty("Ana no está en la cartera de Trabajadores: ni lo suyo ni el Plan de la Empresa que el Centro exige por ella");
+
+        var ambas = await soloBea.PorAcceso.Handle(
+            new ObtenerReclamacionPorAccesoQuery(_a.EmpresaId, _a.CentroId, [_a.AnaId, _a.BeaId]), CancellationToken.None);
+        var lote = ambas.Should().ContainSingle().Subject;
+        lote.Documentos.Select(d => d.DocumentoId).Should().BeEquivalentTo([_a.DocBeaCertificadoId, _a.DocPlanId!.Value]);
     }
 
     // ---------- Envío ----------
@@ -277,9 +320,92 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
         (await contextoA.ReclamacionesDocumentales.CountAsync()).Should().Be(0);
     }
 
+    // ---------- Pendiente de subir a plataformas (va aparte de lo reclamable) ----------
+
+    [Fact]
+    public async Task Lo_vigente_en_TALVEG_pero_sin_acreditar_en_la_plataforma_sale_aparte_y_no_en_los_lotes_de_reclamacion()
+    {
+        var p = _plataforma.Plataforma!;
+        var arnes = new Arnes(Runtime(_tenantPlataforma), new AlcanceDatosServiceFalso());
+
+        var pendientes = await arnes.PendientesDePlataforma.Handle(
+            new ObtenerPendientesDeSubirAPlataformaEmpresaQuery(_plataforma.EmpresaId), CancellationToken.None);
+
+        pendientes.Should().HaveCount(3);
+        pendientes.Single(f => f.TipoDocumentoId == p.TipoAltaId && f.TrabajadorId == _plataforma.AnaId)
+            .Situacion.Should().Be(SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma);
+        pendientes.Single(f => f.TipoDocumentoId == p.TipoAltaId && f.TrabajadorId == _plataforma.BeaId)
+            .Situacion.Should().Be(SituacionDeRequisitoBloqueante.SinValidarEnPlataforma);
+        var deLaEmpresa = pendientes.Single(f => f.TipoDocumentoId == p.TipoPolizaId);
+        deLaEmpresa.Ambito.Should().Be(AmbitoAplicacion.Empresa);
+        deLaEmpresa.EmpresaId.Should().Be(_plataforma.EmpresaId);
+        deLaEmpresa.Situacion.Should().Be(SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma);
+        pendientes.Should().OnlyContain(f => f.CentroId == _plataforma.CentroId);
+
+        // Los lotes de las dos reclamaciones parten solo de la vigencia en TALVEG: nada de lo pendiente en la plataforma entra.
+        var idsPlataforma = new[] { p.DocAltaAnaId, p.DocAltaBeaId, p.DocPolizaId };
+        var preventiva = await arnes.Preventiva.Handle(new ObtenerReclamacionPreventivaEmpresaQuery(_plataforma.EmpresaId), CancellationToken.None);
+        preventiva.Lotes.Should().HaveCount(3, "la preventiva queda como sin plataforma: lo mismo de siempre");
+        preventiva.Lotes.SelectMany(l => l.Documentos.Select(d => d.DocumentoId)).Should().NotIntersectWith(idsPlataforma);
+        preventiva.Lotes.SelectMany(l => (l.PendientesSinFecha ?? []).Select(d => d.TipoDocumentoId)).Should().NotContain([p.TipoAltaId, p.TipoPolizaId]);
+
+        var porAcceso = await arnes.PorAcceso.Handle(
+            new ObtenerReclamacionPorAccesoQuery(_plataforma.EmpresaId, _plataforma.CentroId, [_plataforma.AnaId, _plataforma.BeaId]), CancellationToken.None);
+        porAcceso.Should().NotBeEmpty("el Centro sigue exigiendo el certificado y el plan, que sí están en la ventana");
+        porAcceso.SelectMany(l => l.Documentos.Select(d => d.DocumentoId)).Should().NotIntersectWith(idsPlataforma);
+    }
+
+    [Fact]
+    public async Task Los_filtros_de_Centro_Trabajadores_Delegacion_y_Oficio_acotan_lo_pendiente_en_la_plataforma()
+    {
+        var p = _plataforma.Plataforma!;
+        var arnes = new Arnes(Runtime(_tenantPlataforma), new AlcanceDatosServiceFalso());
+
+        var deSevilla = await arnes.PendientesDePlataforma.Handle(
+            new ObtenerPendientesDeSubirAPlataformaEmpresaQuery(_plataforma.EmpresaId, DelegacionEmpresaId: _plataforma.SevillaId), CancellationToken.None);
+        var soloAna = deSevilla.Should().ContainSingle("la Delegación deja fuera a Bea y lo de la propia Empresa").Subject;
+        soloAna.TrabajadorId.Should().Be(_plataforma.AnaId);
+        soloAna.TipoDocumentoId.Should().Be(p.TipoAltaId);
+
+        var deBea = await arnes.PendientesDePlataforma.Handle(
+            new ObtenerPendientesDeSubirAPlataformaEmpresaQuery(_plataforma.EmpresaId, TrabajadorIds: [_plataforma.BeaId]), CancellationToken.None);
+        deBea.Select(f => f.TipoDocumentoId).Should().BeEquivalentTo([p.TipoAltaId, p.TipoPolizaId], "lo de Bea y lo de la Empresa; nada de Ana");
+        deBea.Where(f => f.Ambito == AmbitoAplicacion.Trabajador).Should().OnlyContain(f => f.TrabajadorId == _plataforma.BeaId);
+
+        var delCentro = await arnes.PendientesDePlataforma.Handle(
+            new ObtenerPendientesDeSubirAPlataformaEmpresaQuery(_plataforma.EmpresaId, CentroId: _plataforma.CentroId), CancellationToken.None);
+        delCentro.Should().HaveCount(3);
+
+        var deOtroCentro = await arnes.PendientesDePlataforma.Handle(
+            new ObtenerPendientesDeSubirAPlataformaEmpresaQuery(_plataforma.EmpresaId, CentroId: Guid.NewGuid()), CancellationToken.None);
+        deOtroCentro.Should().BeEmpty();
+
+        var deUnOficioSinTrabajadores = await arnes.PendientesDePlataforma.Handle(
+            new ObtenerPendientesDeSubirAPlataformaEmpresaQuery(_plataforma.EmpresaId, OficioEmpresaId: Guid.NewGuid()), CancellationToken.None);
+        deUnOficioSinTrabajadores.Should().BeEmpty("ningún Trabajador tiene ese Oficio y con filtro lo de la Empresa no entra");
+    }
+
+    [Fact]
+    public async Task Fuera_de_la_Asignacion_de_Cartera_o_en_otro_Tenant_lo_pendiente_en_la_plataforma_sale_vacio()
+    {
+        // Control positivo: con alcance completo el Tenant de la plataforma ve sus tres filas, así que los vacíos de abajo no son siembra incompleta.
+        (await new Arnes(Runtime(_tenantPlataforma), new AlcanceDatosServiceFalso()).PendientesDePlataforma.Handle(
+            new ObtenerPendientesDeSubirAPlataformaEmpresaQuery(_plataforma.EmpresaId), CancellationToken.None)).Should().HaveCount(3);
+
+        var fueraDeCartera = new Arnes(Runtime(_tenantPlataforma), new AlcanceDatosServiceFalso(empresaIds: [Guid.NewGuid()]));
+        (await fueraDeCartera.PendientesDePlataforma.Handle(
+            new ObtenerPendientesDeSubirAPlataformaEmpresaQuery(_plataforma.EmpresaId), CancellationToken.None)).Should().BeEmpty();
+
+        var comoA = new Arnes(Runtime(_tenantA), new AlcanceDatosServiceFalso());
+        (await comoA.PendientesDePlataforma.Handle(
+            new ObtenerPendientesDeSubirAPlataformaEmpresaQuery(_plataforma.EmpresaId), CancellationToken.None)).Should().BeEmpty("la Empresa es de otro Tenant");
+        (await comoA.PendientesDePlataforma.Handle(
+            new ObtenerPendientesDeSubirAPlataformaEmpresaQuery(_a.EmpresaId), CancellationToken.None)).Should().BeEmpty("el Tenant A no tiene nada pendiente en ninguna plataforma");
+    }
+
     // ---------- Siembra ----------
 
-    private async Task<Escenario> SembrarAsync(Guid tenant, bool conPlanDePrevencion)
+    private async Task<Escenario> SembrarAsync(Guid tenant, bool conPlanDePrevencion, bool conPlataforma = false, bool conAgendaPorTipo = false)
     {
         using var ambito = AmbitoTenantExplicito.Establecer(tenant);
         var c = _propietario;
@@ -309,9 +435,19 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
         await c.SaveChangesAsync();
 
         var ana = Trabajador.DeEmpresa(empresa.Id, "Ana", "Pérez", "00000000T");
-        ana.FijarDelegacionEmpresaYOficio(sevilla, null);
         var bea = Trabajador.DeEmpresa(empresa.Id, "Bea", "Ruiz", "00000001R");
-        bea.FijarDelegacionEmpresaYOficio(malaga, null);
+        if (conAgendaPorTipo)
+        {
+            // Sin Delegación: el lote va a la agenda de la Empresa, con un contacto predeterminado y otro dueño del Plan de prevención.
+            var duenaDelPlan = ContactoAgenda.DeEmpresa(empresa.Id, "Dueña del plan", "plan@contratista.test", esPredeterminado: false);
+            duenaDelPlan.EstablecerTiposDocumento([plan.Id]);
+            c.ContactosAgenda.Add(duenaDelPlan);
+        }
+        else
+        {
+            ana.FijarDelegacionEmpresaYOficio(sevilla, null);
+            bea.FijarDelegacionEmpresaYOficio(malaga, null);
+        }
         c.Trabajadores.AddRange(ana, bea);
         await c.SaveChangesAsync();
 
@@ -334,9 +470,40 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
         }
         await c.SaveChangesAsync();
 
+        PlataformaSembrada? plataforma = null;
+        if (conPlataforma)
+        {
+            // Dos tipos que el Centro exige y marca como bloqueantes, con el documento vigente a 12 meses en TALVEG pero sin
+            // acreditar en la plataforma del Centro: el de Ana sin subir, el de Bea subido sin validar y el de la Empresa sin subir.
+            var alta = new TipoDocumento("Alta en la plataforma", null, false, 4, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
+            var poliza = new TipoDocumento("Póliza de responsabilidad civil", null, false, 5, AmbitoAplicacion.Empresa, requerido: RequisitoDocumental.Si);
+            var proveedor = new ProveedorPlataformaCae($"PLAT-{Guid.NewGuid():N}"[..14], "Plataforma del Centro Norte");
+            c.TiposDocumento.AddRange(alta, poliza);
+            c.ProveedoresPlataformaCae.Add(proveedor);
+            await c.SaveChangesAsync();
+
+            c.TiposDocumentoCentros.Add(new TipoDocumentoCentro(alta.Id, centro.Id, incluido: true, bloqueaAcceso: true));
+            c.TiposDocumentoCentros.Add(new TipoDocumentoCentro(poliza.Id, centro.Id, incluido: true, bloqueaAcceso: true));
+            var vencimientoLejano = VigenciaDocumento.VenceEl(hoy.AddMonths(12));
+            var altaAna = Documento.DeTrabajador(ana.Id, alta.Id, hoy.AddMonths(-1), vencimientoLejano);
+            var altaBea = Documento.DeTrabajador(bea.Id, alta.Id, hoy.AddMonths(-1), vencimientoLejano);
+            var docPoliza = Documento.DeEmpresa(empresa.Id, poliza.Id, hoy.AddMonths(-1), vencimientoLejano);
+            c.Documentos.AddRange(altaAna, altaBea, docPoliza);
+            var canal = CanalGestionDocumental.DePlataforma(centro.Id, "Plataforma del Centro", proveedor.Id, null, null, null);
+            c.CanalesGestionDocumental.Add(canal);
+            await c.SaveChangesAsync();
+
+            var acreditacionBea = new AcreditacionDocumentoPlataforma(altaBea.Id, canal.Id);
+            acreditacionBea.MarcarSubida();
+            c.AcreditacionesDocumentoPlataforma.AddRange(
+                new AcreditacionDocumentoPlataforma(altaAna.Id, canal.Id), acreditacionBea, new AcreditacionDocumentoPlataforma(docPoliza.Id, canal.Id));
+            await c.SaveChangesAsync();
+            plataforma = new PlataformaSembrada(alta.Id, poliza.Id, altaAna.Id, altaBea.Id, docPoliza.Id);
+        }
+
         return new Escenario(
             empresa.Id, centro.Id, sevilla.Id, malaga.Id, ana.Id, bea.Id, certificado.Id, plan.Id,
-            anaCertificado.Id, anaFormacion.Id, beaCertificado.Id, docPlan?.Id);
+            anaCertificado.Id, anaFormacion.Id, beaCertificado.Id, docPlan?.Id, plataforma);
     }
 
     /// <summary>Buzón genérico del Tenant y la conversación (anclada a la Empresa) que el doble devuelve como enviada: la FK es real.</summary>
@@ -374,6 +541,7 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
         public EmailServiceFalso Correo { get; } = new();
         public ObtenerReclamacionPorAccesoQueryHandler PorAcceso { get; }
         public ObtenerReclamacionPreventivaEmpresaQueryHandler Preventiva { get; }
+        public ObtenerPendientesDeSubirAPlataformaEmpresaQueryHandler PendientesDePlataforma { get; }
         public EnviarReclamacionEmpresaEmpleadoraCommandHandler Envio { get; }
 
         public Arnes(CaeManagerDbContext c, IAlcanceDatosService alcance, Guid? conversacionId = null)
@@ -382,12 +550,14 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
             Mediador = new MediadorDeReclamaciones(
                 new ObtenerLoteReclamacionQueryHandler(c, c, c, c, c, c, c, c, alcance, agenda, PendientesDeReclamacionFabrica.Crear(c, alcance)),
                 new ObtenerLoteReclamacionEmpresaQueryHandler(c, c, c, c, c, alcance, agenda, PendientesDeReclamacionFabrica.Crear(c, alcance)),
+                new ObtenerDocumentacionBloqueantePendienteQueryHandler(c, c, c, new EvaluacionDeAccesoPorCentroService(c, c, c, c, c, alcance)),
                 conversacionId ?? Guid.NewGuid());
+            PendientesDePlataforma = new ObtenerPendientesDeSubirAPlataformaEmpresaQueryHandler(Mediador, alcance, c);
             var servicio = new ReclamacionEmpresaEmpleadoraService(
                 c, c, new CatalogoTrabajadoresEmpresaRepository(c), alcance, PoliticaNotaInternaPruebas.Con("GestorCae"), agenda,
                 new DestinoDeReclamacionesEnviadasService(c, c, c, c, c, c));
             PorAcceso = new ObtenerReclamacionPorAccesoQueryHandler(
-                Mediador, alcance, new EvaluacionDeAccesoPorCentroService(c, c, c, c, c, alcance), servicio);
+                Mediador, alcance, c, new EvaluacionDeAccesoPorCentroService(c, c, c, c, c, alcance), servicio);
             Preventiva = new ObtenerReclamacionPreventivaEmpresaQueryHandler(Mediador, alcance, c, c, c, c, servicio);
             Envio = new EnviarReclamacionEmpresaEmpleadoraCommandHandler(
                 c, c, c, c, c, c, alcance, servicio,
@@ -419,7 +589,8 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
     /// el único <see cref="EnviarMensajeNuevoCommand"/> que la reclamación compone. Cualquier otro request revienta a propósito.
     /// </summary>
     private sealed class MediadorDeReclamaciones(
-        ObtenerLoteReclamacionQueryHandler lote, ObtenerLoteReclamacionEmpresaQueryHandler loteEmpresa, Guid conversacionIdADevolver) : IMediator
+        ObtenerLoteReclamacionQueryHandler lote, ObtenerLoteReclamacionEmpresaQueryHandler loteEmpresa,
+        ObtenerDocumentacionBloqueantePendienteQueryHandler bloqueante, Guid conversacionIdADevolver) : IMediator
     {
         public List<EnviarMensajeNuevoCommand> Envios { get; } = [];
         public List<INotification> Publicados { get; } = [];
@@ -432,6 +603,8 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
                     return (Task<TResponse>)(object)lote.Handle(query, cancellationToken);
                 case ObtenerLoteReclamacionEmpresaQuery query:
                     return (Task<TResponse>)(object)loteEmpresa.Handle(query, cancellationToken);
+                case ObtenerDocumentacionBloqueantePendienteQuery query:
+                    return (Task<TResponse>)(object)bloqueante.Handle(query, cancellationToken);
                 case EnviarMensajeNuevoCommand envio:
                     Envios.Add(envio);
                     return Task.FromResult((TResponse)(object)Result.Exito(conversacionIdADevolver));

@@ -71,6 +71,7 @@ public record ReclamacionPreventivaEmpresaDto(
 public class ObtenerReclamacionPorAccesoQueryHandler(
     IMediator mediator,
     IAlcanceDatosService alcanceDatos,
+    ITrabajadoresQueryContext trabajadoresContext,
     IEvaluacionDeAccesoPorCentroService evaluacionDeAcceso,
     ReclamacionEmpresaEmpleadoraService empresaEmpleadora)
     : IRequestHandler<ObtenerReclamacionPorAccesoQuery, IReadOnlyList<LoteReclamacionAgrupadoDto>>
@@ -81,7 +82,16 @@ public class ObtenerReclamacionPorAccesoQueryHandler(
         if (request.TrabajadorIds.Count == 0 || !await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaId, cancellationToken))
             return [];
 
-        var trabajadores = request.TrabajadorIds.ToHashSet();
+        // Solo Trabajadores visibles y de esta Empresa (Trabajador.EmpresaId, no de una Subcontrata): los requisitos de los
+        // demás no cuentan, tampoco para lo que el Centro exige de la propia Empresa.
+        var visibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
+        var pedidos = request.TrabajadorIds.Where(id => visibles is null || visibles.Contains(id)).Distinct().ToList();
+        var trabajadores = (await trabajadoresContext.Trabajadores
+                .Where(t => pedidos.Contains(t.Id) && t.EmpresaId == request.EmpresaId)
+                .Select(t => t.Id).ToListAsync(cancellationToken)).ToHashSet();
+        if (trabajadores.Count == 0)
+            return [];
+
         var evaluacion = await evaluacionDeAcceso.EvaluarAsync([request.CentroId], cancellationToken);
         var requisitos = evaluacion.Requisitos.Where(r => r.CentroId == request.CentroId && trabajadores.Contains(r.TrabajadorId)).ToList();
         var exigidosTrabajador = requisitos.Where(r => r.Ambito == AmbitoAplicacion.Trabajador)
@@ -124,6 +134,14 @@ public class ObtenerReclamacionPorAccesoQueryHandler(
             Documentos = [.. deEmpresa.Documentos, .. receptor.Documentos],
             PendientesSinFecha = [.. deEmpresa.PendientesSinFecha ?? [], .. receptor.PendientesSinFecha ?? []],
         };
+
+        // Los destinatarios dependen de los Tipos del lote: con lo de la Empresa dentro se vuelven a resolver (el contacto que
+        // es dueño del Tipo de la Empresa también debe poder recibirlo). Si no se pueden resolver, el lote queda sin destinatario.
+        var tipos = unido.Documentos.Select(d => d.TipoDocumentoId)
+            .Concat(unido.PendientesSinFecha!.Select(p => p.TipoDocumentoId)).Distinct().ToList();
+        var destino = await empresaEmpleadora.ResolverDestinoAsync(
+            request.EmpresaId, receptor.EmpresaEmpleadora?.DelegacionEmpresaId, tipos, cancellationToken);
+        unido = unido with { Destinatarios = destino.EsFallido ? [] : destino.Valor.Destinatarios };
         return [.. lotes.Select(l => ReferenceEquals(l, receptor) ? unido : l)];
     }
 }
@@ -219,11 +237,16 @@ public class ObtenerPendientesDeSubirAPlataformaEmpresaQueryHandler(
         if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaId, cancellationToken))
             return [];
 
-        var trabajadores = await trabajadoresContext.Trabajadores.Where(t => t.EmpresaId == request.EmpresaId)
+        // Solo Trabajadores de esta Empresa (Trabajador.EmpresaId): ni los de una Subcontrata cuentan para ella, tampoco en las
+        // filas de ámbito Empresa.
+        var deLaEmpresa = await trabajadoresContext.Trabajadores.Where(t => t.EmpresaId == request.EmpresaId)
+            .Select(t => new { t.Id, t.DelegacionEmpresaId, t.OficioEmpresaId }).ToListAsync(cancellationToken);
+        var idsDeLaEmpresa = deLaEmpresa.Select(t => t.Id).ToHashSet();
+        var admitidos = deLaEmpresa
             .Where(t => request.DelegacionEmpresaId == null || t.DelegacionEmpresaId == request.DelegacionEmpresaId)
             .Where(t => request.OficioEmpresaId == null || t.OficioEmpresaId == request.OficioEmpresaId)
-            .Select(t => t.Id).ToListAsync(cancellationToken);
-        var admitidos = trabajadores.Where(id => request.TrabajadorIds is null || request.TrabajadorIds.Contains(id)).ToHashSet();
+            .Where(t => request.TrabajadorIds is null || request.TrabajadorIds.Contains(t.Id))
+            .Select(t => t.Id).ToHashSet();
         // Lo de la propia Empresa no es de ninguna Delegación ni Oficio: con esos filtros no entra (como en la preventiva).
         var conEmpresa = request.DelegacionEmpresaId is null && request.OficioEmpresaId is null;
 
@@ -231,7 +254,8 @@ public class ObtenerPendientesDeSubirAPlataformaEmpresaQueryHandler(
         return [.. filas
             .Where(f => f.Situacion is SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma or SituacionDeRequisitoBloqueante.SinValidarEnPlataforma)
             .Where(f => f.Ambito == AmbitoAplicacion.Empresa
-                ? conEmpresa && f.EmpresaId == request.EmpresaId && (request.TrabajadorIds is null || admitidos.Contains(f.TrabajadorId))
+                ? conEmpresa && f.EmpresaId == request.EmpresaId && idsDeLaEmpresa.Contains(f.TrabajadorId)
+                    && (request.TrabajadorIds is null || admitidos.Contains(f.TrabajadorId))
                 : admitidos.Contains(f.TrabajadorId))
             .DistinctBy(f => (f.CentroId, f.Ambito, f.Ambito == AmbitoAplicacion.Empresa ? Guid.Empty : f.TrabajadorId, f.TipoDocumentoId))];
     }
