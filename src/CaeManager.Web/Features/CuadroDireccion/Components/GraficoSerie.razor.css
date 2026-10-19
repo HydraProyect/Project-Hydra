@@ -1,5 +1,5 @@
 .gs { position: relative; margin: 0; min-width: 0; }
-.gs-compacto svg { display: block; width: 100%; height: 32px; overflow: visible; }
+.gs-compacto svg { display: block; width: 100%; height: 28px; overflow: visible; }
 
 /* Cuerpo: eje Y a la izquierda, plano en el centro y rótulos de los meses debajo. El texto es HTML a 11 px, atenuado. */
 .gs-cuerpo { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: 220px auto; column-gap: 8px; padding-top: 10px; }

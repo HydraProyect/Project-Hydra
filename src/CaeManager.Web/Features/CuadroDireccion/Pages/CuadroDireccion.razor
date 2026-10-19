@@ -31,6 +31,13 @@
                     <span class="cuadro-estado" data-e="@EstadoDato" title="@EstadoTitulo">@EstadoTexto</span>
                 }
             </p>
+            @if (_ambito.Length > 0)
+            {
+                <span class="cuadro-pastilla">
+                    <span>@NombreAmbito</span>
+                    <button type="button" aria-label="@Textos["QuitarFiltroAmbito"]" @onclick="@(() => CambiarAmbito(string.Empty))">×</button>
+                </span>
+            }
         </JuntoAlTitulo>
     </CabeceraPagina>
 
@@ -60,31 +67,17 @@
             </select>
         }
 
-        @if (_ambito.Length > 0)
-        {
-            <span class="cuadro-pastilla">
-                <span>@NombreAmbito</span>
-                <button type="button" aria-label="@Textos["QuitarFiltroAmbito"]" @onclick="@(() => CambiarAmbito(string.Empty))">×</button>
-            </span>
-        }
-
         <span class="cuadro-espaciador"></span>
 
         @if (HayCifras)
         {
-            <Boton Variante="VarianteBoton.Secundario" OnClick="AlternarPersonalizar">@Textos["BotonPersonalizar"]</Boton>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="AlternarPersonalizar" aria-pressed="@(_personalizando ? "true" : "false")" aria-controls="cuadro-panel-personalizar">@Textos["BotonPersonalizar"]</Boton>
             <button type="button" class="cuadro-interruptor" role="switch" aria-checked="@(_preferencias.Etiquetas ? "true" : "false")" id="cuadro-etiquetas" @onclick="AlternarEtiquetasAsync">
                 <i aria-hidden="true"></i>@Textos["EtiquetasDatos"]
             </button>
-        }
-    </div>
+            <Boton Class="cuadro-presentar" Variante="VarianteBoton.Secundario" OnClick="AlternarPresentacionAsync" aria-pressed="@(_presentando ? "true" : "false")">@(_presentando ? Textos["SalirPresentacion"] : Textos["BotonPresentar"])</Boton>
 
-    @if (HayCifras)
-    {
-        <div class="cuadro-barra cuadro-barra-acciones">
-            <Boton Variante="VarianteBoton.Secundario" OnClick="AlternarPresentacionAsync" aria-pressed="@(_presentando ? "true" : "false")">@(_presentando ? Textos["SalirPresentacion"] : Textos["BotonPresentar"])</Boton>
-
-            @* Reabrir un mes cerrado: solo Dirección CAE (ReabrirMesCuadroDireccionCommand lo exige también en servidor). Vive en un menú de más acciones, fuera de la barra principal. *@
+            @* Reabrir un mes cerrado: solo Dirección CAE (ReabrirMesCuadroDireccionCommand lo exige también en servidor). Vive en el menú de más acciones. *@
             @if (_puedeReabrir)
             {
                 <details class="cuadro-mas">
@@ -94,8 +87,8 @@
                     </div>
                 </details>
             }
-        </div>
-    }
+        }
+    </div>
     @if (_avisoExportar)
     {
         <p class="cuadro-nota" role="status" data-aviso="exportar">@Textos["ExportarNoDisponible"]</p>
@@ -142,8 +135,8 @@
         {
             @if (_personalizando)
             {
-                <section class="cuadro-personalizar" aria-labelledby="cuadro-pers-titulo" data-panel="personalizar">
-                    <h3 id="cuadro-pers-titulo">@Textos["PersonalizarTitulo"]</h3>
+                <section id="cuadro-panel-personalizar" class="cuadro-personalizar" aria-labelledby="cuadro-pers-titulo" data-panel="personalizar">
+                    <h3 id="cuadro-pers-titulo">@Textos["PersonalizarTitulo"]: @EtiquetaPestanaActiva</h3>
                     <p class="cuadro-nota">@Textos["PersonalizarAyuda"]</p>
                     <ul class="cuadro-pers-lista">
                         @foreach (var tarjeta in TarjetasOrdenadas)
@@ -170,6 +163,10 @@
 
             <Pestanas Definiciones="Definiciones" PestanaActiva="@_pestana" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="@Textos["EtiquetaVistas"]" Envolver="true">
                 <div class="cuadro-pagina">
+                @if (TarjetasVisibles.Count == 0)
+                {
+                    <p class="cuadro-vacio" role="status" data-vacio="personalizacion">@Textos["PestanaVacia"]</p>
+                }
                 @foreach (var grupo in GruposVisibles)
                 {
                 <div class="@(grupo.EsKpi ? "cuadro-kpis" : "cuadro-rejilla")">

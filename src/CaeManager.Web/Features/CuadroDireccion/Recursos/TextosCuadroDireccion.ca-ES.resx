@@ -64,10 +64,10 @@
     <value>Reintentar</value>
   </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
-    <value>No pudimos cargar el Cuadro de dirección</value>
+    <value>No hem pogut carregar el quadre</value>
   </data>
   <data name="ErrorCargaDescripcion" xml:space="preserve">
-    <value>Intenta nuevamente en unos segundos.</value>
+    <value>Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="MesFuturoTitulo" xml:space="preserve">
     <value>Ese mes todavía no ha empezado</value>
@@ -323,6 +323,9 @@
   </data>
   <data name="PersonalizarTitulo" xml:space="preserve">
     <value>Personalizar</value>
+  </data>
+  <data name="PestanaVacia" xml:space="preserve">
+    <value>Aquesta pestanya està buida. Fes servir «Personalitzar aquesta pestanya» per triar què vols veure.</value>
   </data>
   <data name="PersonalizarAyuda" xml:space="preserve">
     <value>Marca lo que quieres ver en esta pestaña y ordénalo con las flechas o arrastrando el asa de cada tarjeta.</value>

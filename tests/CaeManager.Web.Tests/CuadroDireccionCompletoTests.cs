@@ -694,6 +694,72 @@ public partial class CuadroDireccionTests
         modulo.Invocations["leer"].Single().Arguments[0].Should().Be($"cuadro-direccion:preferencias:{UsuarioPrueba}");
     }
 
+    [Theory]
+    [InlineData(Roles.DireccionCae)]
+    [InlineData(Roles.CoordinadorCae)]
+    public void Una_pestaña_sin_tarjetas_ofrece_recuperarlas_sin_escribir_datos_de_negocio(string rol)
+    {
+        ModuloPreferencias();
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), rol, out var mediador);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Personalizar esta pestaña").Click();
+        var tarjetas = cut.FindAll("[data-tarjeta-lista]").Select(e => e.GetAttribute("data-tarjeta-lista")).ToList();
+        foreach (var tarjeta in tarjetas)
+            cut.Find($"[data-tarjeta-lista='{tarjeta}'] input[type=checkbox]").Change(false);
+
+        cut.Find("[data-vacio=personalizacion]").TextContent.Should().Be(
+            "Esta pestaña está vacía. Usa «Personalizar esta pestaña» para elegir qué ver.");
+        cut.FindAll(".cuadro-kpi, .cuadro-bloque").Should().BeEmpty();
+        mediador.Reaperturas.Should().BeEmpty();
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Restablecer esta pestaña").Click();
+        cut.FindAll("[data-vacio=personalizacion]").Should().BeEmpty();
+        cut.FindAll(".cuadro-kpi").Should().HaveCount(6);
+    }
+
+    [Theory]
+    [InlineData(Roles.DireccionCae)]
+    [InlineData(Roles.CoordinadorCae)]
+    public void Personalizar_identifica_la_pestaña_y_expone_su_estado_sin_enviar_comandos(string rol)
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), rol, out var mediador);
+        var boton = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Personalizar esta pestaña");
+        boton.GetAttribute("aria-pressed").Should().Be("false");
+        cut.Find("h1").TextContent.Should().Be("Cuadro de dirección");
+        var pestanas = cut.FindAll("button[role=tab]");
+        var etiquetas = new[] { "Visión general", "Facturación", "Empresas", "Cartera por Gestor CAE", "Demanda", "Vacaciones y cobertura", "Comunicaciones", "Comparativa anual" };
+        pestanas.Should().HaveCount(etiquetas.Length);
+        for (var i = 0; i < etiquetas.Length; i++)
+            pestanas[i].TextContent.Trim().Should().StartWith(etiquetas[i]);
+        cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Presentar");
+        cut.Find("button[role=switch]").TextContent.Should().Contain("Etiquetas de datos");
+
+        boton.Click();
+
+        cut.Find("#cuadro-pers-titulo").TextContent.Should().Be("Personalizar: Visión general");
+        cut.Find("button[aria-controls=cuadro-panel-personalizar]").GetAttribute("aria-pressed").Should().Be("true");
+        cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Restablecer esta pestaña");
+        mediador.Reaperturas.Should().BeEmpty();
+
+        IrA(cut, "Demanda");
+        cut.FindAll("[data-panel=personalizar]").Should().BeEmpty();
+        cut.Find("button[aria-controls=cuadro-panel-personalizar]").Click();
+        cut.Find("#cuadro-pers-titulo").TextContent.Should().Be("Personalizar: Demanda");
+    }
+
+    [Theory]
+    [InlineData(Roles.DireccionCae, true)]
+    [InlineData(Roles.CoordinadorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    [InlineData(Roles.Administrador, false)]
+    public void El_pulido_conserva_los_roles_admitidos_por_la_ruta_direccion(string rol, bool permitido)
+    {
+        var autorizacion = typeof(CuadroDireccionPagina)
+            .GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+            .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>().Single();
+
+        autorizacion.Roles!.Split(',').Contains(rol).Should().Be(permitido);
+    }
+
     [Fact]
     public void Sin_modulo_de_navegador_exportar_avisa_en_vez_de_no_hacer_nada()
     {

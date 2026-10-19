@@ -533,6 +533,8 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     private bool HayCifras => _cuadro is { SinCifras: null, Tenants.Count: > 0 };
 
+    private string EtiquetaPestanaActiva => Definiciones.Single(p => p.Id == _pestana).Etiqueta;
+
     private const string PrefijoEquipo = "g:";
 
     /// <summary>Quien lleva la cartera principal de una o más Empresas: una opción «Equipo …» del selector de ámbito.</summary>
