@@ -352,7 +352,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
 
         var cabecera = cut.Find(".cabecera-columnas-subcontratas");
         cabecera.Children.Select(c => c.TextContent.Trim()).Where(t => t.Length > 0)
-            .Should().Equal(["Subcontrata", "Nivel", "Cumplimiento", "Estado documental"],
+            .Should().Equal(["Subcontrata", "Contratada por", "Nivel", "Cumplimiento", "Estado documental"],
                 "«Vencidos» y «Por vencer» ya no son columnas: sus cifras son el motivo bajo la pastilla de estado");
         cut.Find(".tarjeta-fila-acordeon-cabecera").Children.Length.Should().Be(cabecera.Children.Length,
             "sin selección múltiple");

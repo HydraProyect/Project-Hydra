@@ -120,7 +120,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         // semáforo en vez de depender del cálculo automático por meses.
         await drawer.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = "Formación 60h (base convenio)" });
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = Ayudas.HoyDeNegocio();
         // Exact: true — sin esto, GetByLabel hace match por substring y también
         // resuelve el botón "Copiar fecha de emisión a vencimiento" (mismo
         // patrón que "Trabajador" más arriba, ver DrawerGestionDocumento.razor).

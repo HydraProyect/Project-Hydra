@@ -17,10 +17,11 @@ public class ObtenerCuadroDireccionQueryHandlerTests
     private static MedicionCuadroDireccion Medicion(
         int activos = 0, int altas = 0, int bajas = 0, int centros = 0, int altasCentros = 0,
         int documentos = 0, int requerimientos = 0, IReadOnlyList<DateTime>? solicitudes = null,
-        int vigentes = 0, int vencidos = 0, int sinConfirmar = 0, int paresExigidos = 0) =>
+        int vigentes = 0, int vencidos = 0, int sinConfirmar = 0, int paresExigidos = 0, int? extranjeros = null) =>
         new(activos, altas, bajas, centros, altasCentros, documentos, requerimientos, solicitudes ?? [],
             new KpisDashboardDto(activos, centros, vencidos, 0, 0, vigentes, 0, 0,
-                DocumentosSinConfirmar: sinConfirmar, ParesExigidosSinDocumento: paresExigidos));
+                DocumentosSinConfirmar: sinConfirmar, ParesExigidosSinDocumento: paresExigidos),
+            ExtranjerosActivos: extranjeros);
 
     private static CuadroDireccionDto Fusionar(
         DateTime ahora, params (ClienteAutorizadoDto Cliente, MedicionCuadroDireccion Medicion)[] porTenant) =>
@@ -210,5 +211,30 @@ public class ObtenerCuadroDireccionQueryHandlerTests
         resultado.Total.TrabajadoresActivos.Valor.Should().Be(0);
         resultado.Total.Solicitudes.PorFranja.Should().BeEmpty();
         resultado.Total.Cumplimiento.SinDatos.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Los_Trabajadores_extranjeros_se_suman_por_Tenant_y_en_el_total()
+    {
+        var ibertec = Tenant("Ibertec");
+        var resultado = Fusionar(EnOctubre,
+            (ibertec, Medicion(activos: 100, extranjeros: 12)),
+            (Tenant("EcoPlant"), Medicion(activos: 50, extranjeros: 0)));
+
+        resultado.Total.Extranjeros!.Valor.Should().Be(12);
+        resultado.Tenants.Single(t => t.TenantId == ibertec.TenantId).Cifras.Extranjeros!.Valor.Should().Be(12);
+        resultado.Tenants.Single(t => t.TenantNombre == "EcoPlant").Cifras.Extranjeros!.Valor.Should().Be(0, "un cero medido es un dato");
+        resultado.Total.Extranjeros!.Estado.Should().Be(EstadoCifraMensual.Parcial);
+    }
+
+    [Fact]
+    public void Si_algun_Tenant_no_midio_los_extranjeros_el_total_no_los_inventa()
+    {
+        var resultado = Fusionar(EnOctubre,
+            (Tenant("Ibertec"), Medicion(activos: 100, extranjeros: 12)),
+            (Tenant("EcoPlant"), Medicion(activos: 50)));
+
+        resultado.Total.Extranjeros.Should().BeNull("un cierre anterior al campo no lo guardó y no se reconstruye");
+        resultado.Tenants.Single(t => t.TenantNombre == "EcoPlant").Cifras.Extranjeros.Should().BeNull();
     }
 }

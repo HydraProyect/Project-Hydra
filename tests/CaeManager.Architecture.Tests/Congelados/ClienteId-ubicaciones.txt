@@ -28,6 +28,7 @@ src/CaeManager.Application/Centros/Queries/ObtenerCentroPorId/ObtenerCentroPorId
 src/CaeManager.Application/Centros/Queries/ObtenerCentros/ObtenerCentrosQuery.cs :: ClienteId = 11
 src/CaeManager.Application/Centros/Queries/ObtenerCentrosParaSelector/ObtenerCentrosParaSelectorQuery.cs :: ClienteId = 5
 src/CaeManager.Application/Centros/Queries/ObtenerDocumentacionBloqueantePendiente/ObtenerDocumentacionBloqueantePendienteQuery.cs :: ClienteId = 5
+src/CaeManager.Application/Centros/Queries/ObtenerDocumentacionExigidaDeCliente/ObtenerDocumentacionExigidaDeClienteQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Centros/Queries/ObtenerDocumentacionRequeridaDeCentro/ObtenerDocumentacionRequeridaDeCentroQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Clientes/Commands/ReasignarEjecutivoCliente/ReasignarEjecutivoClienteCommand.cs :: ClienteId = 2
 src/CaeManager.Application/Clientes/Queries/ObtenerCentrosDeCliente/ObtenerCentrosDeClienteQuery.cs :: ClienteId = 4
@@ -112,6 +113,7 @@ src/CaeManager.Application/Dashboard/Queries/ObtenerKpisBpoQuery.cs :: clienteId
 src/CaeManager.Application/Dashboard/Queries/ObtenerKpisBpoQuery.cs :: clienteIdsVisibles = 3
 src/CaeManager.Application/Dashboard/Queries/ObtenerKpisDashboardQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Dashboard/Queries/ObtenerKpisDashboardQuery.cs :: clienteIdsVisibles = 2
+src/CaeManager.Application/Dashboard/Queries/ObtenerSerieCuadroDireccionQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Documentos/CalculoEstadoDocumentalService.cs :: ClienteId = 3
 src/CaeManager.Application/Documentos/Commands/CrearDocumento/CrearDocumentoCommand.cs :: ClienteId = 5
 src/CaeManager.Application/Documentos/DocumentoAlcanceExtensions.cs :: ClienteId = 2
@@ -268,6 +270,9 @@ src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontrataPorId/ObtenerS
 src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontrataPorId/ObtenerSubcontrataPorIdQuery.cs :: ClienteIds = 1
 src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontrataPorId/ObtenerSubcontrataPorIdQuery.cs :: clienteIds = 2
 src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontratasParaSelector/ObtenerSubcontratasParaSelectorQuery.cs :: ClienteId = 1
+# «Contratada por»: JOIN inevitable con la FK legacy de la Empresa en posición cliente de la
+# Relación Empresarial vigente; no introduce una entidad ni cambia propiedad o autorización.
+src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontratas/ObtenerSubcontratasQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Subcontratas/Queries/ObtenerSupervisionSubcontrata/ObtenerSupervisionSubcontrataQuery.cs :: ClienteId = 3
 src/CaeManager.Application/Telemetria/Commands/RegistrarTramoGestion/RegistrarTramoGestionCommand.cs :: ClienteId = 3
 src/CaeManager.Application/Tenants/Commands/AbrirAccesoSoporte/AbrirAccesoSoporteCommand.cs :: TenantClienteId = 1
@@ -453,6 +458,7 @@ src/CaeManager.Web/Features/Centros/Pages/Centros.razor.cs :: ClienteId = 9
 src/CaeManager.Web/Features/Centros/Pages/Centros.razor.cs :: ClienteIdParaFormularioRapido = 1
 src/CaeManager.Web/Features/Centros/Pages/Centros.razor.cs :: _clienteId = 9
 src/CaeManager.Web/Features/Centros/Pages/Centros.razor.cs :: clienteId = 6
+src/CaeManager.Web/Features/Clientes/Components/DocumentosExigidosCliente.razor :: ClienteId = 4
 src/CaeManager.Web/Features/Clientes/Pages/AltaGuiada.razor :: _clienteId = 2
 src/CaeManager.Web/Features/Clientes/Pages/AltaGuiada.razor.cs :: ClienteIdEntrada = 2
 src/CaeManager.Web/Features/Clientes/Pages/AltaGuiada.razor.cs :: ClienteIds = 4
@@ -511,6 +517,7 @@ src/CaeManager.Web/Features/Plantillas/Pages/ConfigurarPlantilla.razor :: _clien
 src/CaeManager.Web/Features/Plantillas/Pages/ConfigurarPlantilla.razor.cs :: _clienteId = 3
 src/CaeManager.Web/Features/Proyectos/Pages/ProyectoDetalle.razor :: ClienteId = 1
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor :: _nuevoClienteId = 1
+src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.Listado.cs :: ClienteId = 1
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: ClienteId = 2
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: _nuevoClienteId = 6
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: clienteId = 10

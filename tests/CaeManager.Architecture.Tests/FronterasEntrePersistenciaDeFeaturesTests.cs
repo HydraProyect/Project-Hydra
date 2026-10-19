@@ -192,6 +192,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Centros.ObtenerDocumentacionBloqueantePendienteQueryHandler", "ITiposDocumentoQueryContext"),
         ("Centros.ObtenerDocumentacionBloqueantePendienteQueryHandler", "ITrabajadoresQueryContext"),
         ("Centros.ObtenerDocumentacionRequeridaDeCentroQueryHandler", "ITiposDocumentoQueryContext"),
+        // La misma lectura que la de arriba, sobre todos los Centros del Cliente empresarial (Cliente 360, «Documentación»).
+        ("Centros.ObtenerDocumentacionExigidaDeClienteQueryHandler", "ITiposDocumentoQueryContext"),
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "IAsignacionesQueryContext"),
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "IEmpresasQueryContext"),
         ("Centros.ObtenerTrabajadoresAsignadosDeCentroQueryHandler", "ISubcontratasQueryContext"),
@@ -372,6 +374,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IDocumentosQueryContext"),
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IReclamacionesQueryContext"),
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "ITrabajadoresQueryContext"),
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IGestionesQueryContext"),
+        // Serie y Comunicaciones del Cuadro de dirección: tarifas por Tenant beneficiario y conversaciones del mes.
+        ("Dashboard.ObtenerSerieCuadroDireccionQueryHandler", "IFacturacionQueryContext"),
+        ("Dashboard.ObtenerComunicacionesCuadroDireccionQueryHandler", "IComunicacionesQueryContext"),
+        ("Dashboard.ObtenerGestionesPorDiaCuadroDireccionQueryHandler", "IGestionesQueryContext"),
         ("Dashboard.ObtenerEstadisticasAprobacionDocumentoQueryHandler", "IDocumentosQueryContext"),
         ("Dashboard.ObtenerKpisBpoQueryHandler", "IClientesQueryContext"),
         ("Dashboard.ObtenerKpisBpoQueryHandler", "IComunicacionesQueryContext"),

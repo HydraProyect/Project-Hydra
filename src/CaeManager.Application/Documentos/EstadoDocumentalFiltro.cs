@@ -91,10 +91,11 @@ public static class EstadoDocumentalFiltro
     /// la misma clave con la que ordenan. <c>null</c>: el filtro no descarta nada (vacío, o ningún valor conocido).
     /// Lista vacía: ningún propietario coincide — es lo que ocurre con <see cref="SinDocumentos"/> (el SQL de esos
     /// listados no distingue «sin documentos» de <see cref="EstadoDocumento.SinCaducidad"/>) y con los estados que
-    /// un propietario nunca tiene (<see cref="EstadoDocumento.Faltante"/>, <see cref="EstadoDocumento.EnTolerancia"/>):
-    /// un filtro válido pero no aplicable devuelve nada, no todo.
+    /// un propietario nunca tiene (<see cref="EstadoDocumento.EnTolerancia"/>): un filtro válido pero no aplicable
+    /// devuelve nada, no todo. Con <paramref name="incluirFaltantes"/>, admite también Faltante y traduce todos los
+    /// estados con <see cref="ClaveOrdenConFaltantes"/>; sin pedirlo, Faltante no devuelve filas.
     /// </summary>
-    public static IReadOnlyList<int>? ClavesDeOrden(string? filtro)
+    public static IReadOnlyList<int>? ClavesDeOrden(string? filtro, bool incluirFaltantes = false)
     {
         var algunoConocido = false;
         var claves = new List<int>();
@@ -107,8 +108,9 @@ public static class EstadoDocumentalFiltro
             else if (EsNombreDeEstado(valor, out var estado))
             {
                 algunoConocido = true;
-                var clave = ClaveOrden(estado);
-                if (clave < ClaveSinEstadoDePropietario && !claves.Contains(clave))
+                var clave = incluirFaltantes ? ClaveOrdenConFaltantes(estado) : ClaveOrden(estado);
+                if ((ClaveOrden(estado) < ClaveSinEstadoDePropietario || incluirFaltantes && estado == EstadoDocumento.Faltante)
+                    && !claves.Contains(clave))
                     claves.Add(clave);
             }
         }
@@ -120,12 +122,23 @@ public static class EstadoDocumentalFiltro
     /// Recuentos por <see cref="ClaveOrden"/> (lo que devuelve un <c>GROUP BY</c> sobre la clave) convertidos al
     /// diccionario por nombre de estado de <c>ResultadoPaginado.RecuentosPorEstado</c>. Lleva todos los estados
     /// que un propietario puede tener, también los que no tienen filas (0), para que «no hay ninguno» no se
-    /// confunda con «no se contó».
+    /// confunda con «no se contó». Con <paramref name="incluirFaltantes"/> usa <see cref="ClaveOrdenConFaltantes"/>
+    /// e incluye Faltante; los demás listados conservan sus claves y estados habituales.
     /// </summary>
-    public static IReadOnlyDictionary<string, int> RecuentosPorEstado(IReadOnlyDictionary<int, int> filasPorClave) =>
+    public static IReadOnlyDictionary<string, int> RecuentosPorEstado(IReadOnlyDictionary<int, int> filasPorClave, bool incluirFaltantes = false) =>
         Enum.GetValues<EstadoDocumento>()
-            .Where(estado => ClaveOrden(estado) < ClaveSinEstadoDePropietario)
-            .ToDictionary(estado => estado.ToString(), estado => filasPorClave.GetValueOrDefault(ClaveOrden(estado)));
+            .Where(estado => ClaveOrden(estado) < ClaveSinEstadoDePropietario || incluirFaltantes && estado == EstadoDocumento.Faltante)
+            .ToDictionary(estado => estado.ToString(), estado => filasPorClave.GetValueOrDefault(
+                incluirFaltantes ? ClaveOrdenConFaltantes(estado) : ClaveOrden(estado)));
+
+    /// <summary>
+    /// Orden de propietarios con requisitos faltantes conocidos: Vencido, Faltante y después
+    /// los demás estados en su orden habitual. Los otros listados usan <see cref="ClaveOrden"/>.
+    /// </summary>
+    public static int ClaveOrdenConFaltantes(EstadoDocumento? estado) =>
+        estado == EstadoDocumento.Faltante ? ClaveOrden(EstadoDocumento.Vencido) + 1
+        : ClaveOrden(estado) == ClaveOrden(EstadoDocumento.Vencido) ? ClaveOrden(estado)
+        : ClaveOrden(estado) + 1;
 
     /// <summary>Un número no es un nombre: <c>Enum.TryParse</c> aceptaría "4" como Vencido.</summary>
     private static bool EsNombreDeEstado(string valor, out EstadoDocumento estado)

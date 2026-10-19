@@ -100,6 +100,15 @@ public static partial class ValidadorIdentificacion
     }
 
     /// <summary>
+    /// Criterio único de «documento de extranjero» de un Trabajador: tiene documento y no es un DNI español, es
+    /// decir, NIE, número de soporte de la TIE o un documento extranjero (pasaporte). Un documento <c>null</c>
+    /// (Trabajador anonimizado) no tiene tipo que clasificar y no cuenta. Lo usan la facturación de la visita de
+    /// Trabajador extranjero, el catálogo de KPI y el Cuadro de dirección: ninguno copia la regla.
+    /// </summary>
+    public static bool EsDocumentoDeExtranjero(string? documento) =>
+        documento is not null && Analizar(documento).Tipo != TipoIdentificacion.Dni;
+
+    /// <summary>
     /// Letra de control que corresponde a un DNI o NIE, calculada solo con su
     /// parte numérica: sirve para decir «la letra debería ser E», no solo «no
     /// cuadra». Acepta el DNI de siete dígitos, que existe (el cero a la

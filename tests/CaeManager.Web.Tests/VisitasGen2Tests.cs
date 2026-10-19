@@ -77,6 +77,7 @@ public partial class VisitasGen2Tests : BunitContext
         public DocumentacionVisitaDto? Documentacion { get; set; }
 
         public bool DiferirDocumentacion { get; set; }
+        public bool FallarDocumentacion { get; set; }
 
         public List<TaskCompletionSource<DocumentacionVisitaDto>> CargasDocumentacionPendientes { get; } = [];
 
@@ -220,6 +221,8 @@ public partial class VisitasGen2Tests : BunitContext
 
                 case ObtenerDocumentacionVisitaQuery:
                     ConsultasDocumentacion++;
+                    if (FallarDocumentacion)
+                        return Task.FromException<TResponse>(new InvalidOperationException("Fallo de preparación simulado."));
                     if (DiferirDocumentacion)
                     {
                         var pendiente = new TaskCompletionSource<DocumentacionVisitaDto>();
@@ -381,9 +384,14 @@ public partial class VisitasGen2Tests : BunitContext
     private static IElement Fila(IRenderedComponent<Visitas> cut, string centro) =>
         cut.FindAll("tbody tr").First(tr => tr.TextContent.Contains(centro));
 
-    private static IElement Interruptor(IRenderedComponent<Visitas> cut, string centro) =>
-        Fila(cut, centro).QuerySelector("input.visitas-interruptor")
+    private static IElement Interruptor(IRenderedComponent<Visitas> cut, string centro)
+    {
+        var fila = Fila(cut, centro);
+        var desplegar = fila.QuerySelector(".visitas-expandir")!;
+        if (desplegar.GetAttribute("aria-expanded") != "true") desplegar.Click();
+        return Fila(cut, centro).NextElementSibling!.QuerySelector("input.visitas-interruptor")
             ?? throw new InvalidOperationException($"La fila de {centro} no tiene interruptor.");
+    }
 
     /// <summary>
     /// El botón de la fila que abre la vista rápida (sus fechas). Es el que pulsa por la fila el oyente
@@ -462,23 +470,13 @@ public partial class VisitasGen2Tests : BunitContext
         actual.Consulta.SoloUrgentes.Should().BeTrue("los filtros de la carga vigente se capturan todos");
         actual.Consulta.NotificadoCliente.Should().BeFalse();
 
-        // La respuesta vigente trae un total distinto (de 1 a 0) y eso hace que
-        // QuickGrid pida la misma página otra vez por su cuenta: su guarda
-        // compara un hash de PaginationState que incluye TotalItemCount y que se
-        // guardó ANTES de conocer el total nuevo, así que queda rancio. Es del
-        // componente, no de la página — y por eso los tests de recuento de
-        // consultas se escriben siempre con el total quieto. Se resuelve esa
-        // repetición para llegar al estado vacío; con el total ya en 0 no vuelve
-        // a repetirse.
         await cut.InvokeAsync(() => actual.Respuesta.SetResult(Pagina()));
-        cut.WaitForAssertion(() => mediator.CargasPendientes.Should().HaveCount(4));
-        await cut.InvokeAsync(() => mediator.CargasPendientes[3].Respuesta.SetResult(Pagina()));
         await cambioNotificado.WaitAsync(TimeSpan.FromSeconds(5));
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ninguna visita con estos filtros"));
 
         await cut.InvokeAsync(() => anterior.Respuesta.SetResult(Pagina(Visita("Planta Zaragoza"), Visita("Nave Berriz"))));
         await cambioUrgentes.WaitAsync(TimeSpan.FromSeconds(5));
-        mediator.CargasPendientes.Should().HaveCount(4, "detrás de la respuesta tardía no sale ninguna carga que la cure");
+        mediator.CargasPendientes.Should().HaveCount(3, "detrás de la respuesta tardía no sale ninguna carga que la cure");
 
         cut.Markup.Should().Contain("Ninguna visita con estos filtros",
             "la respuesta del filtro anterior llegó la última y no puede sustituir a la del filtro vigente");
@@ -614,7 +612,8 @@ public partial class VisitasGen2Tests : BunitContext
         var panel = cut.Find(".drawer-panel").TextContent;
         panel.Should().Contain("Este centro no requiere gestión CAE");
         panel.Should().NotContain("Comprobación previa");
-        cut.FindComponents<BotonCopiar>().Should().ContainSingle()
+        // La referencia en línea de la fila también es un BotonCopiar: aquí solo cuenta el del cajón.
+        cut.FindComponents<BotonCopiar>().Where(b => !b.Instance.EnLinea).Should().ContainSingle()
             .Which.Instance.Valor.Should().Be(mediator.Aviso.Asunto + "\n\n" + mediator.Aviso.Cuerpo,
                 "lo que se pega en el correo es el asunto y el cuerpo, sin nada añadido por la página");
         mediator.ConsultasDocumentacion.Should().Be(0, "sin gestión CAE no hay documentación que consultar");
@@ -638,7 +637,7 @@ public partial class VisitasGen2Tests : BunitContext
         await IrAPestanaAsync(cut, "Documentación");
 
         cut.WaitForAssertion(() => cut.Find(".visitas-aviso-destinatarios").TextContent.Should().Contain("acceso@centronorte.es"));
-        cut.FindComponents<BotonCopiar>().Should().ContainSingle()
+        cut.FindComponents<BotonCopiar>().Where(b => !b.Instance.EnLinea).Should().ContainSingle()
             .Which.Instance.Valor.Should().Be(mediator.Solicitud.Asunto + "\n\n" + mediator.Solicitud.Cuerpo,
                 "lo que se pega en el correo es el asunto y el cuerpo, sin nada añadido por la página");
         var descarga = cut.Find($"a[href='/visitas/{norte.Id}/paquete-documental.zip']");
@@ -796,7 +795,7 @@ public partial class VisitasGen2Tests : BunitContext
 
         cut.WaitForAssertion(() => mediator.ConsultasDocumentacion.Should().Be(1));
         cut.FindAll("a[href$='paquete-documental.zip']").Should().BeEmpty();
-        cut.FindComponents<BotonCopiar>().Should().BeEmpty();
+        cut.FindComponents<BotonCopiar>().Where(b => !b.Instance.EnLinea).Should().BeEmpty();
         mediator.ConsultasSolicitud.Should().Be(0, "sin canal de correo no se compone la solicitud");
     }
 
@@ -1213,7 +1212,8 @@ public partial class VisitasGen2Tests : BunitContext
         mediator.Visitas.Add(Visita("Nave Berriz", urgencia: NivelUrgenciaVisita.Normal));
         var cut = Renderizar(mediator);
 
-        Fila(cut, "Nave Berriz").TextContent.Should().Contain("Normal",
+        Fila(cut, "Nave Berriz").QuerySelector(".visitas-expandir")!.Click();
+        Fila(cut, "Nave Berriz").NextElementSibling!.TextContent.Should().Contain("Normal",
             "una celda vacía no distingue «normal» de «sin calcular»");
     }
 
@@ -1223,14 +1223,15 @@ public partial class VisitasGen2Tests : BunitContext
     /// «cliente» a secas, ni en la lista, ni en el detalle, ni en el formulario.
     /// </summary>
     [Fact]
-    public async Task Ningun_texto_visible_dice_cliente_a_secas()
+    public async Task La_notificacion_y_el_formulario_nombran_al_titular_del_Centro()
     {
         var mediator = new MediatorVisitas { Tramo = TramoAntelacion.Urgente };
         mediator.Visitas.Add(Visita("Centro Norte"));
         var cut = Renderizar(mediator);
-        var cliente = new Regex(@"\bcliente\b", RegexOptions.IgnoreCase);
+        var cliente = new Regex(@"\b(?:notificad[ao]|avisad[ao])\s+(?:al?\s+)?cliente\b", RegexOptions.IgnoreCase);
 
-        cliente.IsMatch(cut.Markup).Should().BeFalse("en la lista");
+        cut.Find(".visitas-lista thead").TextContent.Should().Contain("Cliente · Empresa");
+        cliente.IsMatch(cut.Markup).Should().BeFalse("la notificación nombra al titular del Centro");
 
         await BotonVistaRapida(cut, "Centro Norte").ClickAsync(new MouseEventArgs());
         cut.Markup.Should().Contain("Antelación", "el bloque de antelación tiene que estar pintado para que esto mida algo");

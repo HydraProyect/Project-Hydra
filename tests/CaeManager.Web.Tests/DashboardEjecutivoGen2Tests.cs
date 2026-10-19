@@ -164,13 +164,10 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         /// <summary>Lo que devuelve la preferencia guardada. Por defecto, el catálogo entero: así una cifra mal puesta no se esconde detrás de un KPI no seleccionado.</summary>
         public IReadOnlyList<string> Seleccion { get; set; } = CatalogoKpis.Todos.Select(k => k.Codigo).ToList();
 
-        public EstadisticasAprobacionDocumentoDto Aprobaciones { get; set; } = new(312, 147);
+        /// <summary>El rol efectivo de quien mira el panel: decide si el servidor devuelve la facturación estimada.</summary>
+        public string Rol { get; set; } = "DireccionCae";
 
-        public IReadOnlyList<RiesgoEmpresaDto> EmpresasEnRiesgo { get; set; } =
-        [
-            new(Guid.NewGuid(), "Instalaciones Beroa", 8, 3),
-            new(Guid.NewGuid(), "Electro Ebro", 0, 1)
-        ];
+        public EstadisticasAprobacionDocumentoDto Aprobaciones { get; set; } = new(312, 147);
 
         public Result ResultadoGuardar { get; set; } = Result.Exito();
 
@@ -192,7 +189,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
 
             object respuesta = request switch
             {
-                ObtenerDashboardEjecutivoQuery q => await new ObtenerDashboardEjecutivoQueryHandler(this).Handle(q, cancellationToken),
+                ObtenerDashboardEjecutivoQuery q => await new ObtenerDashboardEjecutivoQueryHandler(this, new UsuarioConRol(escenario.Rol)).Handle(q, cancellationToken),
                 ObtenerClientesAutorizadosQuery => escenario.Organizaciones
                     .Select(o => new ClienteAutorizadoDto(o.TenantId, o.Nombre, o.EsOrigen)).ToList(),
                 ObtenerCatalogoKpisQuery => escenario[ambito
@@ -200,7 +197,6 @@ public class DashboardEjecutivoGen2Tests : BunitContext
                     .Valores,
                 ObtenerPreferenciaDashboardQuery => escenario.Seleccion,
                 ObtenerEstadisticasAprobacionDocumentoQuery => escenario.Aprobaciones,
-                ObtenerDesgloseDashboardQuery => new DesgloseDashboardDto([], [], escenario.EmpresasEnRiesgo),
                 GuardarPreferenciaDashboardCommand => escenario.ResultadoGuardar,
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
             };
@@ -223,6 +219,15 @@ public class DashboardEjecutivoGen2Tests : BunitContext
 
         public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
             where TNotification : INotification => Task.CompletedTask;
+    }
+
+    private sealed class UsuarioConRol(string rol) : ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(rol);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 
     private sealed class LoggerQueGuarda : ILogger<DashboardEjecutivoPagina>
@@ -257,6 +262,10 @@ public class DashboardEjecutivoGen2Tests : BunitContext
 
         return new Montaje(Render<DashboardEjecutivoPagina>(), mediador, logger, toasts);
     }
+
+    /// <summary>Los KPI que ofrece «Indicadores de IA y BPO»: las categorías IA, Operativa (BPO) y Fricción (BPO).</summary>
+    private static int KpisDeLaPantalla =>
+        CatalogoKpis.Todos.Count(k => k.Categoria is CategoriaKpi.Ia or CategoriaKpi.Operativa or CategoriaKpi.Friccion);
 
     private static string Texto(IElement elemento) => elemento.TextContent.Trim();
 
@@ -348,7 +357,24 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         enviadas.Where(e => e.Peticion is ObtenerCatalogoKpisQuery).Select(e => e.Ambito).Should().Equal(
             [TenantA, TenantB], "una vuelta por organización autorizada, cada una con su ámbito");
         enviadas.Should().OnlyContain(e => e.Token.CanBeCanceled,
-            "todas las llamadas de la carga llevan el token del ciclo de la página, también las cuatro que lanza la pantalla");
+            "todas las llamadas de la carga llevan el token del ciclo de la página");
+        enviadas.Select(e => e.Peticion.GetType().Name).Should().NotContain(
+            ["ObtenerDesgloseDashboardQuery", "ObtenerKpisBpoQuery"], "lo documental y las incidencias no se pintan en esta pantalla, así que no se piden");
+    }
+
+    [Fact]
+    public void La_pantalla_se_llama_Indicadores_de_IA_y_BPO_y_solo_ofrece_sus_tres_categorias()
+    {
+        var cut = Renderizar(new Escenario()).Cut;
+
+        Texto(cut.Find("h1")).Should().Be("Indicadores de IA y BPO");
+        var etiquetas = cut.FindAll(".tarjeta-metrica").Select(t => Tile(t).Etiqueta)
+            .Concat(cut.FindAll(".tarjeta-kpi .tarjeta-titulo").Select(Texto))
+            .ToList();
+        etiquetas.Should().NotContain(e => e.Contains("Trabajadores activos") || e.Contains("Incidencias") || e.Contains("Semáforo documental")
+            || e.Contains("Facturación estimada del mes") || e.Contains("Centros con menor cumplimiento"));
+        TextoPagina(cut).Should().NotContainEquivalentOf("Ocupación de Gestores CAE")
+            .And.NotContainEquivalentOf("Ocupación por gestor", "la ocupación por persona se retiró: nunca se mide al Gestor CAE");
     }
 
     [Fact]
@@ -358,8 +384,8 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         await AbrirPersonalizar(cut);
 
         cut.FindAll(".categoria-kpi-titulo").Select(Texto).Should().Equal(
-            ["Documental", "Incidencias", "IA", "Facturación", "Operativa", "Fricción"],
-            "«Ia» y «Facturacion» son nombres de miembros del enum, no rótulos");
+            ["IA", "Operativa", "Fricción"],
+            "«Ia» es el nombre de un miembro del enum, no un rótulo; lo documental, las incidencias y la facturación no son de esta pantalla");
     }
 
     /// <summary>
@@ -372,33 +398,9 @@ public class DashboardEjecutivoGen2Tests : BunitContext
     {
         var cut = Renderizar(new Escenario()).Cut;
 
-        // Al día (vigentes + próximos + urgentes: siguen siendo válidos hoy) = 98 + 10 = 108 de 110 documentos = 98 %;
-        // la media simple de 90 y 80 sería 85.
-        TilePorEtiqueta(cut, "Tasa de cumplimiento documental").Should().Be(
-            ("Tasa de cumplimiento documental", "98%", "Ponderada por el volumen de documentos de cada organización", "tarjeta-metrica-exito"));
-
-        // (80×400 + 40×100) / 500 = 72; la media simple sería 60.
-        TilePorEtiqueta(cut, "% de cumplimiento documental (trabajadores)").Valor.Should().Be("72%");
-
         // (96×50 + 60×10) / 60 = 90; la media simple sería 78.
         TilePorEtiqueta(cut, "Confianza media de extracción IA").Should().Be(
             ("Confianza media de extracción IA", "90%", "Ponderada por las extracciones de cada organización", "tarjeta-metrica-exito"));
-
-        // (2×10 + 12×2) / 12 = 3,67 días; la media simple sería 7.
-        TilePorEtiqueta(cut, "Tiempo medio de resolución").Valor.Should().Be("3,7 días");
-    }
-
-    [Fact]
-    public void Los_recuentos_del_panel_suman_las_dos_organizaciones()
-    {
-        var cut = Renderizar(new Escenario()).Cut;
-
-        TilePorEtiqueta(cut, "Trabajadores activos").Valor.Should().Be("418");
-        TilePorEtiqueta(cut, "Centros").Valor.Should().Be("37");
-        TilePorEtiqueta(cut, "Visitas programadas").Valor.Should().Be("12");
-        TilePorEtiqueta(cut, "Incidencias abiertas").Valor.Should().Be("4");
-        TilePorEtiqueta(cut, "Facturación estimada del mes").Should().Be(
-            ("Facturación estimada del mes", "1480,00 €", "Solo los Clientes con tarifas configuradas", "tarjeta-metrica-neutro"));
     }
 
     /// <summary>
@@ -415,13 +417,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         var cut = Renderizar(new Escenario()).Cut;
 
         Texto(TarjetaKpi(cut, "Gestiones automáticas vs manuales").QuerySelector(".aviso-alcance-kpi")!).Should().StartWith(aviso);
-        Texto(TarjetaKpi(cut, "Empresas con más riesgo").QuerySelector(".aviso-alcance-kpi")!).Should().StartWith(aviso);
         Disparador(cut.Find(".pulso-negocio-frase")).Should().Be("459 verificaciones de IA resueltas en total en la organización activa.");
-
-        // Las que SÍ recorren las organizaciones no lo llevan: advertir de un
-        // límite que no tienen es el defecto simétrico.
-        Texto(TarjetaKpi(cut, "Semáforo documental").QuerySelector(".aviso-alcance-kpi")!).Should().NotContain(aviso);
-        Texto(TarjetaKpi(cut, "Centros con menor cumplimiento").QuerySelector(".aviso-alcance-kpi")!).Should().NotContain(aviso);
     }
 
     [Fact]
@@ -457,70 +453,6 @@ public class DashboardEjecutivoGen2Tests : BunitContext
 
     // ---------------------------------------------------------------- gráficos
 
-    [Fact]
-    public void El_semaforo_documental_reparte_el_anillo_entero_y_pone_cada_cifra_en_texto()
-    {
-        var cut = Renderizar(new Escenario()).Cut;
-        var tarjeta = TarjetaKpi(cut, "Semáforo documental");
-
-        Leyenda(tarjeta).Should().Equal(
-            ("Vigente", "98 (89%)", "segmento-exito"),
-            ("Próximo", "6 (5%)", "segmento-advertencia"),
-            ("Urgente", "4 (4%)", "segmento-advertencia-fuerte"),
-            ("Vencido", "2 (2%)", "segmento-peligro"));
-        Texto(tarjeta.QuerySelector(".grafico-total")!).Should().Be("110 documentos con vigencia en total");
-        Texto(tarjeta.QuerySelector(".donut-total")!).Should().Be("110");
-
-        // Los arcos reparten la circunferencia entera: sin rendija que insinúe
-        // una quinta categoría inexistente.
-        var arcos = tarjeta.QuerySelectorAll("circle.donut-arco");
-        arcos.Should().HaveCount(4);
-        arcos.Sum(a => int.Parse(a.GetAttribute("stroke-dasharray")!.Split(' ')[0], CultureInfo.InvariantCulture))
-            .Should().Be(390);
-        arcos.Select(a => a.GetAttribute("stroke-dasharray")!).Should().OnlyContain(
-            d => !d.Contains(','), "un decimal con coma de es-ES dejaría el atributo inválido");
-
-        tarjeta.QuerySelector("svg.donut")!.GetAttribute("aria-hidden").Should().Be(
-            "true", "lo que dice el anillo lo dice la leyenda en texto");
-    }
-
-    [Fact]
-    public void La_leyenda_del_donut_abre_el_desglose_literal_de_cada_segmento()
-    {
-        var cut = Renderizar(new Escenario()).Cut;
-
-        var valores = TarjetaKpi(cut, "Semáforo documental").QuerySelectorAll(".leyenda-donut-valor");
-        valores[0].GetAttribute("aria-label").Should().Be("Vigente: 98 de 110 documentos con vigencia, el 89% del total.");
-        valores[0].GetAttribute("tabindex").Should().Be("0", "el desglose se abre también con el foco, no solo con el puntero");
-        valores[3].GetAttribute("aria-label").Should().Be("Vencido: 2 de 110 documentos con vigencia, el 2% del total.");
-    }
-
-    [Fact]
-    public void Las_barras_de_recuento_escalan_al_mayor_de_la_serie_y_no_ensenan_el_nombre_del_enum()
-    {
-        var cut = Renderizar(new Escenario()).Cut;
-
-        Barras(TarjetaKpi(cut, "Incidencias por gravedad")).Should().Equal(
-            ("Leve", "7", "width:100%"),
-            ("Grave", "3", "width:43%"),
-            ("Muy grave", "1", "width:14%"));
-        TextoPagina(cut).Should().NotContain("MuyGrave", "el nombre del miembro del enum no llega a pantalla");
-    }
-
-    [Fact]
-    public void Las_barras_de_porcentaje_usan_el_cien_por_cien_como_carril_y_el_tono_del_semaforo()
-    {
-        var cut = Renderizar(new Escenario()).Cut;
-        var tarjeta = TarjetaKpi(cut, "Centros con menor cumplimiento");
-
-        Barras(tarjeta).Should().Equal(
-            ($"{NombreA} · Centro Norte", "41%", "width:41%"),
-            ($"{NombreB} · Nave Berriz", "78%", "width:78%"));
-        tarjeta.QuerySelectorAll(".barra-kpi-relleno")
-            .Select(r => r.ClassList.Single(c => c.StartsWith("segmento-", StringComparison.Ordinal)))
-            .Should().Equal("segmento-peligro", "segmento-advertencia");
-    }
-
     // ---------------------------------------------------------------- tablas
 
     /// <summary>
@@ -547,24 +479,6 @@ public class DashboardEjecutivoGen2Tests : BunitContext
             o => o.WithStrictOrdering());
         tarjeta.QuerySelectorAll(".reparto-horas")[0].GetAttribute("aria-label").Should().Be(
             "Instalaciones Beroa: 41,5 h de las 74,7 h medidas en los 2 Clientes con más tiempo; no incluye el resto de la cartera.");
-    }
-
-    [Fact]
-    public void Las_empresas_con_mas_riesgo_enlazan_su_busqueda_y_un_cero_no_es_una_senal()
-    {
-        var cut = Renderizar(new Escenario()).Cut;
-        var tarjeta = TarjetaKpi(cut, "Empresas con más riesgo");
-
-        var enlaces = tarjeta.QuerySelectorAll("a.nombre-empresa-riesgo");
-        enlaces.Select(Texto).Should().Equal("Instalaciones Beroa", "Electro Ebro");
-        enlaces[0].GetAttribute("href").Should().Be("/empresas?q=Instalaciones%20Beroa",
-            "el deep link sigue siendo por texto y no por Id, y ahora se alcanza con el teclado");
-
-        var badgesPrimera = tarjeta.QuerySelectorAll("tbody tr")[0].QuerySelectorAll(".badge");
-        badgesPrimera[0].GetAttribute("title").Should().Be("Instalaciones Beroa: 8 documentos de trabajador vencidos");
-        badgesPrimera[0].ClassList.Should().Contain("badge-peligro");
-        tarjeta.QuerySelectorAll("tbody tr")[1].QuerySelectorAll(".badge")[0].ClassList.Should().Contain(
-            "badge-neutro", "un cero no es una señal de peligro");
     }
 
     // ---------------------------------------------------------------- presupuesto de IA
@@ -625,12 +539,12 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         {
             // Un código que ya no existe en el catálogo: la consulta lo filtra,
             // y aquí tampoco puede contar como mostrado.
-            Seleccion = [CatalogoKpis.TrabajadoresActivos, CatalogoKpis.Centros, "doc.kpi-que-ya-no-existe"]
+            Seleccion = [CatalogoKpis.ConfianzaMediaIa, CatalogoKpis.CosteMesActualIa, "doc.kpi-que-ya-no-existe"]
         };
 
         var cut = Renderizar(escenario).Cut;
 
-        Texto(cut.Find(".resumen-seleccion")).Should().Be($"2 de {CatalogoKpis.Todos.Count} KPI mostrados");
+        Texto(cut.Find(".resumen-seleccion")).Should().Be($"2 de {KpisDeLaPantalla} KPI mostrados");
         cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Should().HaveCount(2);
     }
 
@@ -649,7 +563,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
 
         var cut = Renderizar(escenario).Cut;
 
-        Texto(cut.Find(".resumen-seleccion")).Should().Be($"2 de {CatalogoKpis.Todos.Count} KPI mostrados");
+        Texto(cut.Find(".resumen-seleccion")).Should().Be($"2 de {KpisDeLaPantalla} KPI mostrados");
         cut.FindAll(".tarjeta-kpi .tarjeta-titulo").Select(Texto).Should().Equal("Horas de gestión por Cliente");
         cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Select(t => Tile(t).Etiqueta)
             .Should().Equal("Índice de palanca IA");
@@ -658,13 +572,13 @@ public class DashboardEjecutivoGen2Tests : BunitContext
     [Fact]
     public async Task Marcar_no_aplica_nada_hasta_guardar_y_mientras_lo_dice()
     {
-        var escenario = new Escenario { Seleccion = [CatalogoKpis.TrabajadoresActivos] };
+        var escenario = new Escenario { Seleccion = [CatalogoKpis.ConfianzaMediaIa] };
         var (cut, mediador, _, _) = Renderizar(escenario);
         await AbrirPersonalizar(cut);
 
         cut.FindAll(".aviso-sin-guardar").Should().BeEmpty("nada marcado de más: no hay cambios pendientes");
 
-        await Marcar(cut, "Centros", true);
+        await Marcar(cut, "Coste IA del mes", true);
 
         Texto(cut.Find(".aviso-sin-guardar")).Should().Be("Cambios sin guardar");
         cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Should().HaveCount(1, "marcar no pinta el KPI: lo pinta guardar");
@@ -673,10 +587,10 @@ public class DashboardEjecutivoGen2Tests : BunitContext
 
         cut.FindAll(".aviso-sin-guardar").Should().BeEmpty();
         cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Select(t => Tile(t).Etiqueta).Should().Equal(
-            "Trabajadores activos", "Centros");
+            "Confianza media de extracción IA", "Coste IA del mes");
         mediador.Enviadas.Where(e => e.Peticion is GuardarPreferenciaDashboardCommand)
             .Select(e => ((GuardarPreferenciaDashboardCommand)e.Peticion).CodigosKpi)
-            .Should().ContainSingle().Which.Should().Equal(CatalogoKpis.TrabajadoresActivos, CatalogoKpis.Centros);
+            .Should().ContainSingle().Which.Should().Equal(CatalogoKpis.ConfianzaMediaIa, CatalogoKpis.CosteMesActualIa);
     }
 
     /// <summary>
@@ -689,20 +603,20 @@ public class DashboardEjecutivoGen2Tests : BunitContext
     {
         var escenario = new Escenario
         {
-            Seleccion = [CatalogoKpis.TrabajadoresActivos],
+            Seleccion = [CatalogoKpis.ConfianzaMediaIa],
             ResultadoGuardar = Result.Fallo(Error.Crear("PreferenciaDashboard.Invalida", "Selecciona al menos un KPI."))
         };
         var (cut, _, _, toasts) = Renderizar(escenario);
         await AbrirPersonalizar(cut);
 
-        await Marcar(cut, "Centros", true);
+        await Marcar(cut, "Coste IA del mes", true);
         await Pulsar(cut, "Guardar selección");
 
         toasts.Mensajes.Select(m => (m.Mensaje, m.Tono)).Should().Equal(
             ("Selecciona al menos un KPI.", TonoToast.Error));
         Texto(cut.Find(".aviso-sin-guardar")).Should().Be("Cambios sin guardar");
         cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Select(t => Tile(t).Etiqueta).Should().Equal(
-            "Trabajadores activos");
+            "Confianza media de extracción IA");
     }
 
     /// <summary>
@@ -716,26 +630,26 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         var respuesta = new TaskCompletionSource<object?>();
         var escenario = new Escenario
         {
-            Seleccion = [CatalogoKpis.TrabajadoresActivos],
+            Seleccion = [CatalogoKpis.ConfianzaMediaIa],
             Retener = p => p is GuardarPreferenciaDashboardCommand ? respuesta.Task : null
         };
         var (cut, mediador, _, _) = Renderizar(escenario);
         await AbrirPersonalizar(cut);
 
-        await Marcar(cut, "Centros", true);
+        await Marcar(cut, "Coste IA del mes", true);
         // Sin await: el clic no vuelve hasta que el comando responda, y el
         // sentido del test es marcar OTRO KPI mientras sigue en vuelo.
         var guardado = Pulsar(cut, "Guardar selección");
-        await Marcar(cut, "Visitas programadas", true);
+        await Marcar(cut, "Tiempo medio de procesamiento IA", true);
 
         await cut.InvokeAsync(() => respuesta.SetResult(Result.Exito()));
         await guardado;
 
         cut.WaitForAssertion(() => cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Should().HaveCount(2));
         cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Select(t => Tile(t).Etiqueta).Should().Equal(
-            "Trabajadores activos", "Centros");
+            "Confianza media de extracción IA", "Coste IA del mes");
         Texto(cut.Find(".aviso-sin-guardar")).Should().Be(
-            "Cambios sin guardar", "«Visitas programadas» quedó marcado y nunca se envió");
+            "Cambios sin guardar", "«Tiempo medio de procesamiento IA» quedó marcado y nunca se envió");
         mediador.Enviadas.Where(e => e.Peticion is GuardarPreferenciaDashboardCommand)
             .Select(e => ((GuardarPreferenciaDashboardCommand)e.Peticion).CodigosKpi.Count)
             .Should().Equal(2);
@@ -752,7 +666,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         var respuesta = new TaskCompletionSource<object?>();
         var escenario = new Escenario
         {
-            Seleccion = [CatalogoKpis.TrabajadoresActivos],
+            Seleccion = [CatalogoKpis.ConfianzaMediaIa],
             Retener = p => p is GuardarPreferenciaDashboardCommand ? respuesta.Task : null
         };
         var (cut, mediador, _, _) = Renderizar(escenario);
@@ -785,12 +699,12 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         var respuesta = new TaskCompletionSource<object?>();
         var escenario = new Escenario
         {
-            Seleccion = [CatalogoKpis.TrabajadoresActivos],
+            Seleccion = [CatalogoKpis.ConfianzaMediaIa],
             Retener = p => p is GuardarPreferenciaDashboardCommand ? respuesta.Task : null
         };
         var (cut, mediador, _, _) = Renderizar(escenario);
         await AbrirPersonalizar(cut);
-        await Marcar(cut, "Centros", true);
+        await Marcar(cut, "Coste IA del mes", true);
 
         // Sin await: el comando queda en vuelo, que es la premisa del caso.
         var primero = Pulsar(cut, "Guardar selección");
@@ -800,7 +714,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Should().NotBeEmpty());
 
         await AbrirPersonalizar(cut);
-        await Marcar(cut, "Visitas programadas", true);
+        await Marcar(cut, "Tiempo medio de procesamiento IA", true);
         var segundo = Pulsar(cut, "Guardar selección");
 
         mediador.Enviadas.Count(e => e.Peticion is GuardarPreferenciaDashboardCommand).Should().Be(1,
@@ -822,12 +736,12 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         var respuesta = new TaskCompletionSource<object?>();
         var escenario = new Escenario
         {
-            Seleccion = [CatalogoKpis.TrabajadoresActivos],
+            Seleccion = [CatalogoKpis.ConfianzaMediaIa],
             Retener = p => p is GuardarPreferenciaDashboardCommand ? respuesta.Task : null
         };
         var (cut, _, _, toasts) = Renderizar(escenario);
         await AbrirPersonalizar(cut);
-        await Marcar(cut, "Centros", true);
+        await Marcar(cut, "Coste IA del mes", true);
         var guardado = Pulsar(cut, "Guardar selección");
 
         await cut.Find(".dashboard-periodo select").ChangeAsync(new ChangeEventArgs { Value = "MesAnterior" });
@@ -836,7 +750,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
 
         toasts.Mensajes.Select(m => (m.Mensaje, m.Tono)).Should().Equal(("Selección guardada.", TonoToast.Exito));
         cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Select(t => Tile(t).Etiqueta).Should().Equal(
-            ["Trabajadores activos"],
+            ["Confianza media de extracción IA"],
             "la carga nueva releyó la preferencia: pintar la selección de antes sería pisarla");
     }
 
@@ -853,23 +767,13 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         var cut = Renderizar(new Escenario()).Cut;
 
         var delPeriodo = cut.Find("section[aria-labelledby='titulo-negocio-periodo']");
-        Texto(delPeriodo.QuerySelector("h2")!).Should().Be("El negocio en el periodo");
+        Texto(delPeriodo.QuerySelector("h2")!).Should().Be("IA documental y operación del servicio");
         delPeriodo.QuerySelectorAll(".tarjeta-metrica").Select(t => Tile(t).Etiqueta).Should().Equal(
             "Confianza media de extracción IA", "Coste IA del mes", "Tiempo medio de procesamiento IA",
-            "Facturación estimada del mes", "Índice de palanca IA", "Falsos avisos con tiempo",
-            "Tiempo bloqueado por el Cliente");
+            "Índice de palanca IA", "Falsos avisos con tiempo", "Tiempo bloqueado por el Cliente");
 
-        var fuera = cut.Find("section[aria-labelledby='titulo-estado-actual']");
-        Texto(fuera.QuerySelector("h2")!).Should().Be("Al margen del periodo");
-        Texto(fuera.QuerySelector(".periodo-texto")!).Should().Be(
-            "Foto de hoy y totales desde el principio: estas cifras no dependen del periodo elegido.");
-        fuera.QuerySelectorAll(".tarjeta-metrica").Select(t => Tile(t).Etiqueta).Should().Equal(
-            "Trabajadores activos", "Centros", "Visitas programadas", "Gestiones urgentes (visitas)",
-            "Tasa de cumplimiento documental", "% de cumplimiento documental (trabajadores)",
-            "Incidencias abiertas", "Tiempo medio de resolución");
-
-        // El rango no puede quedar en la sección que no es suya.
-        fuera.QuerySelectorAll(".ventana-contexto").Should().BeEmpty();
+        // Lo que es foto de hoy o total acumulado vive en otras pantallas: aquí no hay sección «al margen del periodo».
+        cut.FindAll("section[aria-labelledby='titulo-estado-actual']").Should().BeEmpty();
     }
 
     [Fact]
@@ -881,13 +785,8 @@ public class DashboardEjecutivoGen2Tests : BunitContext
             TarjetaKpi(cut, titulo).QuerySelector(".aviso-alcance-kpi") is { } a ? Texto(a) : null;
 
         const string activa = "Solo la organización activa: esta consulta no recorre las demás.";
-        const string hoy = "Estado de hoy: no depende del periodo elegido.";
         const string siempre = "Todo lo registrado desde el principio: no depende del periodo elegido.";
 
-        Aviso("Semáforo documental").Should().Be(hoy);
-        Aviso("Centros con menor cumplimiento").Should().Be(hoy);
-        Aviso("Empresas con más riesgo").Should().Be($"{activa} {hoy}");
-        Aviso("Incidencias por gravedad").Should().Be(siempre);
         Aviso("Gestiones automáticas vs manuales").Should().Be($"{activa} {siempre}");
 
         // Las del periodo no llevan rótulo temporal: el silencio ya dice «del periodo».
@@ -911,9 +810,47 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         frase.GetAttribute("aria-label").Should().Be(
             "459 decisiones de verificación resueltas: 312 automáticas y 147 manuales. Solo la organización activa, y desde el principio: la consulta no recibe periodo.");
 
-        // Las dos cifras del pulso que SÍ son del periodo lo dicen.
-        cut.FindAll(".pulso-negocio-valor")[0].GetAttribute("aria-label").Should().Contain("en el periodo consultado");
-        cut.FindAll(".pulso-negocio-valor")[1].GetAttribute("aria-label").Should().Contain("del periodo consultado");
+        // Las cifras del pulso que SÍ son del periodo lo dicen: el coste de IA y la facturación estimada.
+        var cifras = cut.FindAll(".pulso-negocio-valor");
+        cifras.Should().HaveCount(2);
+        cifras[0].GetAttribute("aria-label").Should().Contain("en el periodo consultado");
+        cifras[1].GetAttribute("aria-label").Should().Contain("facturación estimada del periodo consultado");
+    }
+
+    /// <summary>
+    /// El pulso enseña la facturación estimada y el enlace «Ver facturación» (mockup). El importe sale solo del
+    /// servidor para quien pasa <c>AutorizacionTarifasCliente</c> (Administrador o Dirección CAE).
+    /// </summary>
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    public void El_pulso_enseña_la_facturacion_estimada_y_el_enlace_a_quien_gestiona_tarifas(string rol)
+    {
+        var cut = Renderizar(new Escenario { Rol = rol }).Cut;
+
+        var facturacion = cut.FindAll(".pulso-negocio-cifra").Single(c => TextoNormalizado(c).Contains("Facturación estimada"));
+        Disparador(facturacion.QuerySelector(".pulso-negocio-valor")!).Should().Be("1480,00 €");
+        cut.Find(".enlace-facturacion").GetAttribute("href").Should().Be("/facturacion");
+        TextoNormalizado(cut.Find(".enlace-facturacion")).Should().Be("Ver facturación →");
+    }
+
+    /// <summary>
+    /// Quien mira el panel sin gestionar tarifas (Consulta, Coordinador CAE) ve «—» donde iría el importe, y ni la
+    /// cifra ni el enlace a una pantalla que no puede abrir: el importe no llega siquiera al navegador.
+    /// </summary>
+    [Theory]
+    [InlineData("Consulta")]
+    [InlineData("CoordinadorCae")]
+    public void Sin_autoridad_sobre_tarifas_el_pulso_no_enseña_ningun_importe_de_facturacion(string rol)
+    {
+        var cut = Renderizar(new Escenario { Rol = rol }).Cut;
+
+        var facturacion = cut.FindAll(".pulso-negocio-cifra").Single(c => TextoNormalizado(c).Contains("Facturación estimada"));
+        Disparador(facturacion.QuerySelector(".pulso-negocio-valor")!).Should().Be("—");
+        cut.FindAll(".enlace-facturacion").Should().BeEmpty();
+        // Se busca el importe tal y como se pinta (con decimales y coma): la cifra «1480» a secas coincidía a veces con un
+        // tramo hexadecimal de los identificadores GUID de los campos (p. ej. «…c1480f9e…») y rompía la cola de fusión.
+        cut.Markup.Should().NotContain("1480,00").And.NotContain("1000,00").And.NotContain("480,00");
     }
 
     /// <summary>
@@ -977,20 +914,15 @@ public class DashboardEjecutivoGen2Tests : BunitContext
             };
         }
         escenario.Aprobaciones = new EstadisticasAprobacionDocumentoDto(0, 0);
-        escenario.EmpresasEnRiesgo = [];
 
         var cut = Renderizar(escenario).Cut;
 
         string Vacio(string titulo) => Texto(TarjetaKpi(cut, titulo).QuerySelector("p.texto-vacio-seccion")!);
 
-        Vacio("Centros con menor cumplimiento").Should().Be(
-            "Todavía no hay documentación de trabajador que evaluar: ningún centro con trabajadores asignados la pide.");
-        Vacio("Incidencias por gravedad").Should().Be("No hay incidencias registradas.");
         Vacio("Distribución por tramo de antelación").Should().Be("Todavía no hay visitas con la antelación medida.");
         Vacio("Urgencias por atribución").Should().Be("Todavía no hay visitas con la antelación medida.");
         Vacio("Horas de gestión por Cliente").Should().Be(
             "No hay tiempo de gestión registrado este mes. La medición de tiempo se activa en Configuración.");
-        Vacio("Empresas con más riesgo").Should().Be("Ninguna empresa tiene documentación urgente o vencida.");
         Vacio("Gestiones automáticas vs manuales").Should().Be("Todavía no hay documentos verificados por IA.");
 
         // Sin resoluciones no hay porcentaje que enseñar: un 0% mentiría.
@@ -1011,14 +943,14 @@ public class DashboardEjecutivoGen2Tests : BunitContext
 
         var (cut, mediador, logger, _) = Renderizar(escenario);
 
-        Texto(cut.Find(".estado-vacio h3")).Should().Be("No pudimos cargar el Cuadro de dirección");
+        Texto(cut.Find(".estado-vacio h3")).Should().Be("No pudimos cargar los Indicadores de IA y BPO");
         cut.FindAll(".tarjeta-metrica").Should().BeEmpty();
         logger.Errores.Should().ContainSingle();
 
         await Pulsar(cut, "Reintentar");
 
         cut.FindAll(".estado-vacio").Should().BeEmpty();
-        TilePorEtiqueta(cut, "Trabajadores activos").Valor.Should().Be("418");
+        TilePorEtiqueta(cut, "Confianza media de extracción IA").Valor.Should().Be("90%");
         mediador.Enviadas.Count(e => e.Peticion is ObtenerDashboardEjecutivoQuery).Should().Be(2);
     }
 
@@ -1084,7 +1016,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         retener = false;
         await cut.Find(".dashboard-periodo select").ChangeAsync(new ChangeEventArgs { Value = "MesAnterior" });
 
-        cut.WaitForAssertion(() => TilePorEtiqueta(cut, "Trabajadores activos").Valor.Should().Be("418"));
+        cut.WaitForAssertion(() => TilePorEtiqueta(cut, "Confianza media de extracción IA").Valor.Should().Be("90%"));
         var visibleTrasLaSegunda = TextoPagina(cut);
 
         await cut.InvokeAsync(() => primera.SetException(new InvalidOperationException("carga retirada")));

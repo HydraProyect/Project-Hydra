@@ -19,12 +19,11 @@ namespace CaeManager.Web.Features.DashboardEjecutivo.Pages;
 /// <b>Dos alcances distintos en la misma pantalla, y se dicen.</b>
 /// <see cref="ObtenerDashboardEjecutivoQuery"/> hace fan-out por organización
 /// autorizada (tenant de origen más los Delegated Workspaces activos) y fusiona
-/// en memoria. Las otras dos consultas —
-/// <see cref="ObtenerEstadisticasAprobacionDocumentoQuery"/> y
-/// <see cref="ObtenerDesgloseDashboardQuery"/>— se piden SIN
-/// <c>AmbitoTenantExplicito</c>, así que responden con el filtro global del
-/// tenant activo: son de UNA organización. Mientras la consulta no recorra las
-/// demás, lo que sale de ellas se rotula como tal
+/// en memoria. La otra consulta —
+/// <see cref="ObtenerEstadisticasAprobacionDocumentoQuery"/>— se pide SIN
+/// <c>AmbitoTenantExplicito</c>, así que responde con el filtro global del
+/// tenant activo: es de UNA organización. Mientras la consulta no recorra las
+/// demás, lo que sale de ella se rotula como tal
 /// (<see cref="AvisoSoloOrganizacionActiva"/>) en vez de presentarse junto a
 /// sumas de varias como si midiera lo mismo.
 /// </para>
@@ -76,7 +75,6 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
     private bool _guardando;
 
     private EstadisticasAprobacionDocumentoDto? _estadisticasAprobacion;
-    private IReadOnlyList<RiesgoEmpresaDto> _empresasEnRiesgo = [];
 
     /// <summary>
     /// El rango que de verdad viajó en la petición cuya respuesta se está
@@ -187,13 +185,11 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
         IReadOnlyList<string> seleccion;
         DashboardEjecutivoDto valores;
         EstadisticasAprobacionDocumentoDto estadisticasAprobacion;
-        DesgloseDashboardDto desglose;
         try
         {
             seleccion = await Mediator.Send(new ObtenerPreferenciaDashboardQuery(), token);
             valores = await Mediator.Send(new ObtenerDashboardEjecutivoQuery(periodo), token);
             estadisticasAprobacion = await Mediator.Send(new ObtenerEstadisticasAprobacionDocumentoQuery(), token);
-            desglose = await Mediator.Send(new ObtenerDesgloseDashboardQuery(), token);
         }
         catch (Exception ex)
         {
@@ -210,7 +206,6 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
         _seleccionEnEdicion = [.. seleccion];
         _valores = valores;
         _estadisticasAprobacion = estadisticasAprobacion;
-        _empresasEnRiesgo = desglose.EmpresasEnRiesgo;
     }
 
     // ---------------------------------------------------------------- selección
@@ -224,7 +219,7 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
     private IReadOnlyList<DefinicionKpi> Seleccionados => _seleccionGuardada is null
         ? []
         : _seleccionGuardada
-            .Select(codigo => CatalogoKpis.Todos.FirstOrDefault(k => k.Codigo == codigo))
+            .Select(codigo => KpisVisibles.FirstOrDefault(k => k.Codigo == codigo))
             .Where(k => k is not null)
             .Select(k => k!)
             .ToList();
@@ -257,7 +252,20 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
     /// como mostrado.
     /// </summary>
     private string ResumenSeleccion =>
-        Textos["ResumenKpisMostrados", Seleccionados.Count, CatalogoKpis.Todos.Count];
+        Textos["ResumenKpisMostrados", Seleccionados.Count, KpisVisibles.Count];
+
+    /// <summary>
+    /// «Indicadores de IA y BPO» (mockup «Indicadores IA BPO TALVEG.dc.html») conserva solo las categorías
+    /// IA, Operativa (BPO) y Fricción (BPO) del catálogo. Lo documental y las incidencias viven en Inicio,
+    /// Visión de cartera y el Cuadro de dirección; la facturación estimada solo aparece en el pulso del
+    /// negocio (con importe para quien pasa AutorizacionTarifasCliente); el indicador de ocupación por Gestor CAE
+    /// se retiró del catálogo (nunca se mide por persona). Un código guardado de otra categoría se
+    /// descarta aquí igual que un código huérfano.
+    /// </summary>
+    private static readonly CategoriaKpi[] CategoriasVisibles = [CategoriaKpi.Ia, CategoriaKpi.Operativa, CategoriaKpi.Friccion];
+
+    private static IReadOnlyList<DefinicionKpi> KpisVisibles { get; } =
+        CatalogoKpis.Todos.Where(k => CategoriasVisibles.Contains(k.Categoria)).ToList();
 
     /// <summary>
     /// Marcar no aplica nada: hasta pulsar Guardar, lo marcado y lo guardado son
@@ -402,15 +410,14 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
     /// misma forma de defecto: una cifra presentada bajo un alcance que no es el suyo.
     /// </summary>
     /// <summary>
-    /// Los dos KPI que NO salen del fan-out: «Empresas con más riesgo» viene de
-    /// <see cref="ObtenerDesgloseDashboardQuery"/> y el reparto automáticas/manuales
-    /// de <see cref="ObtenerEstadisticasAprobacionDocumentoQuery"/>, y la pantalla
-    /// pide las dos sin <c>AmbitoTenantExplicito</c>. El resto sí recorre las
+    /// El KPI que NO sale del fan-out: el reparto automáticas/manuales viene de
+    /// <see cref="ObtenerEstadisticasAprobacionDocumentoQuery"/>, que la pantalla
+    /// pide sin <c>AmbitoTenantExplicito</c>. El resto sí recorre las
     /// organizaciones autorizadas: rotularlas también sería el defecto simétrico,
     /// advertir de un límite que no tienen.
     /// </summary>
     private static bool SaleDeUnaSolaOrganizacion(string codigo) =>
-        codigo is CatalogoKpis.EmpresasConMasRiesgo or CatalogoKpis.AutomaticoVsManual;
+        codigo is CatalogoKpis.AutomaticoVsManual;
 
     private string? AvisoAlcanceKpi(DefinicionKpi kpi)
     {
@@ -445,7 +452,7 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
         CatalogoKpis.ConfianzaMediaIa => _valores!.ConfianzaMediaIa is { } c ? $"{c:F0}%" : "—",
         CatalogoKpis.CosteMesActualIa => $"{_valores!.CosteIaMesActual:F2} €",
         CatalogoKpis.TiempoMedioProcesamientoIa => _valores!.TiempoMedioProcesamientoIaMs is { } t ? $"{t:F0} ms" : "—",
-        CatalogoKpis.FacturacionEstimadaMesActual => $"{_valores!.FacturacionEstimadaMesActual:F2} €",
+        CatalogoKpis.FacturacionEstimadaMesActual => ValorFacturacion,
         CatalogoKpis.PalancaIa => PorcentajePalancaIa is { } pi ? $"{pi}%" : "—",
         CatalogoKpis.FalsosAvisos => PorcentajeFalsosAvisos is { } fa ? $"{fa}%" : "—",
         CatalogoKpis.TiempoBloqueadoCliente => HorasBloqueadasMedia is { } hb ? $"{hb:F1} h" : "—",
@@ -749,10 +756,19 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
         ? Textos["DetallePulsoSinDecisiones"].Value
         : Textos["DetallePulsoConDecisiones", TotalAprobaciones, _estadisticasAprobacion!.Automaticas, _estadisticasAprobacion.Manuales].Value;
 
+    /// <summary>
+    /// El importe estimado llega solo a quien pasa <c>AutorizacionTarifasCliente</c> (el servidor devuelve null al
+    /// resto): sin importe no hay cifra que enseñar ni enlace a una pantalla a la que no se puede entrar.
+    /// </summary>
+    private bool VeImportesDeFacturacion => _valores?.FacturacionEstimadaMesActual is not null;
+
+    private string ValorFacturacion => _valores!.FacturacionEstimadaMesActual is { } f ? $"{f:F2} €" : "—";
+
+    private string DetalleFacturacion => _valores!.FacturacionEstimadaMesActual is { } f
+        ? Textos["DetalleFacturacionPeriodo", f, Organizaciones].Value
+        : Textos["DetalleFacturacionSinPermiso"].Value;
+
     private string DetalleCosteIa => TenantsConPresupuestoIaExcedido.Count == 0
         ? Textos["DetalleCosteIaDentro", _valores!.CosteIaMesActual, Organizaciones].Value
         : Textos["DetalleCosteIaExcedido", _valores!.CosteIaMesActual, Organizaciones, TenantsConPresupuestoIaExcedido.Count].Value;
-
-    private string DetalleFacturacion =>
-        Textos["DetalleFacturacionPeriodo", _valores!.FacturacionEstimadaMesActual, Organizaciones];
 }
