@@ -1,0 +1,88 @@
+@using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Components.Workspace
+@using MediatR
+@inject IMediator Mediator
+@inject ContextWorkspaceService WorkspaceService
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Proyectos.Recursos.TextosProyectos> Textos
+
+<div class="documentacion-fila-proyecto">
+@if (_cargando)
+{
+    <EstadoCargando Filas="2" />
+}
+else if (_error)
+{
+    <EstadoVacio Titulo="@Textos["ListaErrorDocumentacion"]">
+        <Accion><Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton></Accion>
+    </EstadoVacio>
+}
+else if (_documentos.Count == 0)
+{
+    <p>@Textos["ListaSinDocumentos"]</p>
+}
+else
+{
+    @foreach (var documento in _documentos)
+    {
+        <div class="documento-proyecto" @key="documento.Id">
+            <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirAsync(documento)">@documento.TipoDocumentoNombre</button>
+            <Badge Tono="@(documento.Estado == EstadoDocumento.Vigente ? TonoBadge.Neutro : EstadoDocumentoUi.Tono(documento.Estado))">@EstadoDocumentoUi.Texto(documento.Estado)</Badge>
+            <span class="documento-vencimiento">@(documento.FechaVencimiento?.ToString("dd/MM/yyyy") ?? Textos["ListaSinVencimiento"].Value)</span>
+            <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirAsync(documento)">@Textos["ListaGestionar"]</Boton></SoloConEscritura>
+        </div>
+    }
+    <PaginadorSimple PaginaActual="_pagina" TotalPaginas="_totalPaginas" TotalElementos="_total" PaginaActualChanged="CambiarPaginaAsync" />
+}
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid ProyectoId { get; set; }
+    private IReadOnlyList<DocumentoListaDto> _documentos = [];
+    private bool _cargando = true;
+    private bool _error;
+    private int _pagina = 1;
+    private int _totalPaginas;
+    private int _total;
+    private Guid _proyectoCargado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_proyectoCargado == ProyectoId) return;
+        _proyectoCargado = ProyectoId;
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = false;
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerDocumentosQuery(null, AmbitoAplicacion.Proyecto, null,
+                Pagina: _pagina, PropietarioId: ProyectoId, OrdenarPor: ObtenerDocumentosQuery.OrdenPorSeveridad));
+            _documentos = resultado.Elementos;
+            _total = resultado.TotalElementos;
+            _totalPaginas = resultado.TotalPaginas;
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task CambiarPaginaAsync(int pagina)
+    {
+        _pagina = pagina;
+        await CargarAsync();
+    }
+
+    private Task AbrirAsync(DocumentoListaDto documento) =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, documento.Id, documento.TipoDocumentoNombre, "informacion");
+}

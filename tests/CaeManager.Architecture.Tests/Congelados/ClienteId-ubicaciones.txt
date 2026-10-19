@@ -511,6 +511,7 @@ src/CaeManager.Web/Features/Plantillas/Pages/ConfigurarPlantilla.razor :: _clien
 src/CaeManager.Web/Features/Plantillas/Pages/ConfigurarPlantilla.razor.cs :: _clienteId = 3
 src/CaeManager.Web/Features/Proyectos/Pages/ProyectoDetalle.razor :: ClienteId = 1
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor :: _nuevoClienteId = 1
+src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.Listado.cs :: ClienteId = 1
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: ClienteId = 2
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: _nuevoClienteId = 6
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: clienteId = 10

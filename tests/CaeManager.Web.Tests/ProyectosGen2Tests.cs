@@ -117,6 +117,8 @@ public partial class ProyectosGen2Tests : BunitContext
         public List<CentroSelectorDto> CentrosClienteB { get; set; } = [];
         public Dictionary<Guid, IReadOnlyList<TecnicoProyectoDto>> TecnicosPorProyecto { get; } = [];
         public bool FallarAlCargarProyectos { get; set; }
+        public bool FallarDocumentacion { get; set; }
+        public List<CaeManager.Application.Documentos.Queries.ObtenerDocumentos.DocumentoListaDto> Documentos { get; set; } = [];
         public List<FiltroGuardadoDto> FiltrosGuardados { get; } = [];
         public List<object> Enviados { get; } = [];
         public OrigenesRequisitosEventoDto Origenes { get; set; } = OrigenesRequisitosEventoDto.Vacio;
@@ -214,6 +216,10 @@ public partial class ProyectosGen2Tests : BunitContext
                 CerrarProyectoCommand => Result.Exito(),
                 CrearProyectoCommand => Result.Exito(Guid.NewGuid()),
                 ObtenerOrigenesRequisitosEventoQuery => Origenes,
+                CaeManager.Application.Documentos.Queries.ObtenerDocumentos.ObtenerDocumentosQuery q => FallarDocumentacion
+                    ? throw new InvalidOperationException("Error documental de prueba")
+                    : new ResultadoPaginado<CaeManager.Application.Documentos.Queries.ObtenerDocumentos.DocumentoListaDto>(
+                        Documentos.Skip((q.Pagina - 1) * q.TamanoPagina).Take(q.TamanoPagina).ToList(), Documentos.Count, q.Pagina, q.TamanoPagina),
                 ReabrirProyectoCommand => Result.Exito(),
                 ActualizarProyectoCommand => Result.Exito(),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
@@ -269,12 +275,12 @@ public partial class ProyectosGen2Tests : BunitContext
     }
 
     private static IElement SelectorDeCliente(IRenderedComponent<Proyectos> cut) =>
-        DisparadorPastilla(cut, "Cliente");
+        DisparadorPastilla(cut, "Empresa");
 
     // Devuelve la tarea del clic: las pruebas de respuestas retenidas y confirmaciones
     // siguen observando todo el manejador, sin invocarlo por reflexión ni saltarse el menú.
     private static Task ElegirCliente(IRenderedComponent<Proyectos> cut, Guid clienteId) =>
-        ElegirPastillaAsync(cut, "Cliente", clienteId == Guid.Empty
+        ElegirPastillaAsync(cut, "Empresa", clienteId == Guid.Empty
             ? "Todos"
             : clienteId == ClienteId ? "Refrielectric S.L." : "Frigoríficos Arcos S.A.");
 
@@ -301,7 +307,7 @@ public partial class ProyectosGen2Tests : BunitContext
         BotonConTexto(cut, "tbody .nombre-proyecto", proyecto.Nombre).ClickAsync(new MouseEventArgs());
 
     private static IElement FilaDe(IRenderedComponent<Proyectos> cut, ProyectoListaDto proyecto) =>
-        cut.FindAll("tbody tr").Single(f => f.QuerySelector(".nombre-proyecto")!.TextContent.Trim() == proyecto.Nombre);
+        cut.FindAll("tbody tr").Single(f => f.QuerySelector(".nombre-proyecto")?.TextContent.Trim() == proyecto.Nombre);
 
     private static bool PanelAbiertoEn(IRenderedComponent<Proyectos> cut, ProyectoListaDto proyecto) =>
         cut.FindAll("aside.panel-proyecto .nombre-cabecera-panel-proyecto").Any(n => n.TextContent.Trim() == proyecto.Nombre);
@@ -678,7 +684,7 @@ public partial class ProyectosGen2Tests : BunitContext
 
         cut.WaitForAssertion(() => cut.FindAll("tbody .nombre-proyecto").Select(b => b.TextContent.Trim())
             .Should().Equal(ProyectoAbierto.Nombre));
-        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente: Refrielectric S.L.");
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Empresa: Refrielectric S.L.");
         _mediator.Enviados.OfType<ObtenerProyectosQuery>().Should().ContainSingle(q => q.ClienteId == ClienteId,
             "la carga inicial y la primera pasada de parámetros no duplican la consulta");
         ((BunitNavigationManager)Services.GetRequiredService<NavigationManager>()).History.Should().ContainSingle(
@@ -1574,7 +1580,7 @@ public partial class ProyectosGen2Tests : BunitContext
         await cierre.WaitAsync(Paciencia);
 
         PanelDeDetalleAbierto(cut).Should().BeTrue("«Seguir editando» conserva el panel");
-        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente: Refrielectric S.L.",
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Empresa: Refrielectric S.L.",
             "cancelar conserva también la selección visible de la pastilla");
         ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre", "y conserva lo escrito");
 
@@ -1640,7 +1646,7 @@ public partial class ProyectosGen2Tests : BunitContext
 
         cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeFalse());
         Uri.Should().Be(uriAntes, "«Seguir editando» deja la URL diciendo la vista que sigue en pantalla");
-        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente: Refrielectric S.L.");
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Empresa: Refrielectric S.L.");
         ValorDelBuscador(cut).Should().BeEmpty("la búsqueda de la URL que no se aceptó no se queda en el campo");
         cut.MarcadosEnFranja().Should().Equal("Todos");
         _mediator.Enviados.OfType<ObtenerProyectosQuery>().Count().Should().Be(consultasAntes,
@@ -1659,7 +1665,7 @@ public partial class ProyectosGen2Tests : BunitContext
             q => q.ClienteId == ClienteBId && q.Busqueda == "nave" && q.SoloAbiertos == false,
             "descartando, la navegación llega y la lista se pide con los tres filtros de la URL"));
         Uri.Should().EndWith(destino);
-        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente: Frigoríficos Arcos S.A.");
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Empresa: Frigoríficos Arcos S.A.");
         ValorDelBuscador(cut).Should().Be("nave");
         cut.MarcadosEnFranja().Should().Equal("Cerrados");
         PanelDeDetalleAbierto(cut).Should().BeFalse("el panel era de un Proyecto de la lista anterior");
@@ -1707,7 +1713,7 @@ public partial class ProyectosGen2Tests : BunitContext
         await cambio.WaitAsync(Paciencia);
 
         PanelDeDetalleAbierto(cut).Should().BeTrue("«Seguir editando» conserva el panel");
-        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente: Refrielectric S.L.",
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Empresa: Refrielectric S.L.",
             "cancelar conserva también la selección visible de la pastilla");
         ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre");
         _mediator.Enviados.OfType<ObtenerProyectosQuery>().Count().Should().Be(consultasDeProyectosAntes,
@@ -1771,7 +1777,7 @@ public partial class ProyectosGen2Tests : BunitContext
         await PulsarEnLaPreguntaAsync(cut, "Seguir editando");
         await cierre.WaitAsync(Paciencia);
         PanelDeDetalleAbierto(cut).Should().BeTrue("«Seguir editando» conserva el panel");
-        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente: Refrielectric S.L.",
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Empresa: Refrielectric S.L.",
             "cancelar conserva también la selección visible de la pastilla");
         ValorDelCampo(cut, "Fecha de alta").Should().Be("2020-01-01");
 
@@ -1963,7 +1969,7 @@ public partial class ProyectosGen2Tests : BunitContext
         await PulsarEnLaPreguntaAsync(cut, "Seguir editando");
         await cambio.WaitAsync(Paciencia);
         PanelDeDetalleAbierto(cut).Should().BeTrue("«Seguir editando» conserva el panel");
-        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente: Refrielectric S.L.",
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Empresa: Refrielectric S.L.",
             "cancelar conserva también la selección visible de la pastilla");
         ValorDelCampo(cut, "Fecha de alta").Should().Be("2020-01-01");
         _mediator.Enviados.OfType<ObtenerProyectosQuery>().Count().Should().Be(consultasDeProyectosAntes);
