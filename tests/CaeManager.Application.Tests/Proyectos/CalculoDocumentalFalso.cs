@@ -19,5 +19,5 @@ internal sealed class CalculoDocumentalFalso : ICalculoEstadoDocumentalService
     public Task<IReadOnlyDictionary<Guid, DesgloseDocumentalDto>> CalcularDesgloseAsync(
         AmbitoAplicacion ambito, IReadOnlyList<Guid> propietarioIds, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyDictionary<Guid, DesgloseDocumentalDto>>(
-            propietarioIds.ToDictionary(id => id, id => PorPropietario.TryGetValue(id, out var v) ? v.Desglose : DesgloseDocumentalDto.Vacio));
+            PorPropietario.Where(p => propietarioIds.Contains(p.Key)).ToDictionary(p => p.Key, p => p.Value.Desglose));
 }

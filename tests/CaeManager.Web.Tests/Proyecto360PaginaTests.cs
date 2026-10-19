@@ -846,7 +846,7 @@ public class Proyecto360PaginaTests : BunitContext
         }];
         var cut = Renderizar(AbiertoId, "?pestana=empresas");
         var fila = cut.Find(".lista-relaciones-tarjeta .fila-relacion");
-        fila.QuerySelector(".fila-trabajador-fraccion")!.TextContent.Should().Contain("6").And.Contain("8");
+        fila.QuerySelector(".fila-trabajador-fraccion")!.TextContent.Should().Contain("6 de 8");
         fila.TextContent.Should().Contain("Vencido");
         cut.FindComponents<FilaRelacion>().Single().Instance.Tono.Should().Be(TonoFila.Peligro);
     }
@@ -962,7 +962,7 @@ public class Proyecto360PaginaTests : BunitContext
         }];
         var cut = Renderizar(AbiertoId, "?pestana=vehiculos");
         var fila = cut.Find(".lista-relaciones-tarjeta .fila-relacion");
-        fila.QuerySelector(".fila-trabajador-fraccion")!.TextContent.Should().Contain("2").And.Contain("3");
+        fila.QuerySelector(".fila-trabajador-fraccion")!.TextContent.Should().Contain("2 de 3");
         fila.QuerySelector(".badge").Should().NotBeNull();
         cut.FindComponents<FilaRelacion>().Single().Instance.Tono.Should().Be(TonoFila.Advertencia);
     }
