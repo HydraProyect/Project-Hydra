@@ -20,6 +20,19 @@ public partial class Proyectos
         return RecargarDesdeLaPrimeraPaginaAsync();
     }
 
+    private bool TodosExpandidos => _proyectos.Count > 0 && _proyectos.All(p => _expandidos.Contains(p.Id));
+
+    private void AlternarTodosExpandidos(bool expandir)
+    {
+        if (!expandir)
+        {
+            _expandidos.Clear();
+            return;
+        }
+
+        foreach (var proyecto in _proyectos) _expandidos.Add(proyecto.Id);
+    }
+
     private void AlternarDocumentacion(Guid id)
     {
         if (!_expandidos.Add(id)) _expandidos.Remove(id);
