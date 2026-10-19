@@ -122,10 +122,14 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
 
         if (request.ProveedorPlataformaCaeId is { } proveedorPlataformaCaeId)
         {
+            // La subconsulta se acota a los Centros visibles del usuario, igual que el destino por Centro de cada fila
+            // (ObtenerDestinosEnCentrosAsync): sin ello el filtro serviría de oráculo de acreditaciones en Centros que no ve.
+            var centrosVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
             var documentosEnPlataforma =
                 from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
                 join canal in centrosContext.CanalesGestionDocumental on acreditacion.CanalGestionDocumentalId equals canal.Id
                 where canal.ProveedorPlataformaCaeId == proveedorPlataformaCaeId
+                    && (centrosVisibles == null || centrosVisibles.Contains(canal.CentroId))
                 select acreditacion.DocumentoId;
             consulta = consulta.Where(x => documentosEnPlataforma.Contains(x.Id));
         }

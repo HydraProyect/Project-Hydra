@@ -449,7 +449,8 @@ public class ReglasDeNegocioSinCopiasTests
         // El punto único: la emisión más reciente y «sin confirmar» como desempates del orden (dos líneas).
         ["src/CaeManager.Application/Documentos/DocumentoEfectivo.cs"] = 2,
         // La lista de Documentos ya no escribe a mano ningún orden por emisión (2026-10-19, lista 1:1 con Design):
-        // la entrada de ObtenerDocumentosQuery.cs se retira.
+        // la entrada de ObtenerDocumentosQuery.cs se retira. El orden por emisión sigue en ObtenerDocumentosQuery.cs (rama por
+        // defecto del orden, junto a la clave FechaEmision), pero a través del helper OrdenarPor, que el detector no ve como orden escrito a mano.
     };
 
     [Fact]
