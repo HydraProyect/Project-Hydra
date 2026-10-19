@@ -8,6 +8,7 @@ using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresaEmpl
 using CaeManager.Application.Reclamaciones.Commands.PrepararVistaPreviaReclamacion;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro;
+using CaeManager.Application.Reclamaciones.Queries.ObtenerUltimaReclamacionCliente;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Documentos;
@@ -101,7 +102,7 @@ public class ReclamacionEmpresaEmpleadoraTests
     private ReclamacionEmpresaEmpleadoraService Servicio(AlcanceDatosServiceFalso? alcance = null, string rol = "GestorCae") =>
         new(_trabajadores, _empresas, _catalogo, alcance ?? new AlcanceDatosServiceFalso(), PoliticaNotaInternaPruebas.Con(rol), _agenda, Destinos());
 
-    private DestinoDeReclamacionesEnviadasService Destinos() => new(_reclamaciones, _documentos, _trabajadores, _empresas);
+    private DestinoDeReclamacionesEnviadasService Destinos() => new(_reclamaciones, _documentos, _trabajadores, _empresas, _asignaciones, _centros);
 
     private EnviarReclamacionEmpresaEmpleadoraCommandHandler Handler(AlcanceDatosServiceFalso? alcance = null, string rol = "GestorCae")
     {
@@ -436,4 +437,78 @@ public class ReclamacionEmpresaEmpleadoraTests
         sinBandera.Should().ContainSingle("sin la bandera todo sigue yendo al Cliente, como antes")
             .Which.TitularId.Should().Be(_cliente.Id);
     }
-}
+
+    // ---- Centro 360: la «última reclamación» del Cliente ve las dos vías ----
+
+    private Task<UltimaReclamacionClienteDto?> UltimaDelCliente(AlcanceDatosServiceFalso? alcance = null) =>
+        new ObtenerUltimaReclamacionClienteQueryHandler(_reclamaciones, alcance ?? new AlcanceDatosServiceFalso(), Destinos())
+            .Handle(new ObtenerUltimaReclamacionClienteQuery(_cliente.Id), CancellationToken.None);
+
+    [Fact]
+    public async Task La_ultima_reclamacion_del_Cliente_incluye_la_enviada_a_la_Empresa_empleadora_de_sus_Trabajadores()
+    {
+        var documento = DocumentoQueVence(_anaSevilla);
+        var conversacion = Guid.NewGuid();
+        var enviada = ReclamacionDocumental.ParaEmpresaEmpleadora(
+            _contratista.Id, Guid.NewGuid(), CorreoSevilla, DateTime.UtcNow.AddDays(-2), [documento.Id], conversacion);
+        _reclamaciones.Lista.Add(enviada);
+
+        var ultima = await UltimaDelCliente();
+
+        ultima.Should().NotBeNull("el Cliente no recibió nada: la reclamación fue a la Empresa que emplea a sus Trabajadores");
+        ultima!.Id.Should().Be(enviada.Id);
+        ultima.TotalDocumentos.Should().Be(1);
+        ultima.ConversacionId.Should().Be(conversacion);
+    }
+
+    [Fact]
+    public async Task La_mas_reciente_de_las_dos_vias_es_la_ultima_del_Cliente()
+    {
+        var documento = DocumentoQueVence(_anaSevilla);
+        var alCliente = ReclamacionDocumental.ParaCliente(_cliente.Id, Guid.NewGuid(), "compras@cliente.example", DateTime.UtcNow.AddDays(-5), [Guid.NewGuid()]);
+        var aLaEmpresa = ReclamacionDocumental.ParaEmpresaEmpleadora(_contratista.Id, Guid.NewGuid(), CorreoSevilla, DateTime.UtcNow.AddDays(-1), [documento.Id]);
+        _reclamaciones.Lista.AddRange([alCliente, aLaEmpresa]);
+
+        (await UltimaDelCliente())!.Id.Should().Be(aLaEmpresa.Id);
+
+        var maReciente = ReclamacionDocumental.ParaCliente(_cliente.Id, Guid.NewGuid(), "compras@cliente.example", DateTime.UtcNow, [Guid.NewGuid()]);
+        _reclamaciones.Lista.Add(maReciente);
+
+        (await UltimaDelCliente())!.Id.Should().Be(maReciente.Id);
+    }
+
+    [Fact]
+    public async Task Una_reclamacion_de_documentos_de_la_propia_Empresa_no_es_rastro_del_Cliente()
+    {
+        DocumentoQueVence(_anaSevilla);
+        _reclamaciones.Lista.Add(ReclamacionDocumental.ParaEmpresa(
+            _contratista.Id, Guid.NewGuid(), "agenda@contratista.example", DateTime.UtcNow.AddDays(-1), [Guid.NewGuid()]));
+
+        (await UltimaDelCliente()).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task La_reclamacion_a_una_Empresa_fuera_del_alcance_de_gestion_no_aparece_en_el_rastro_del_Cliente()
+    {
+        var documento = DocumentoQueVence(_anaSevilla);
+        _reclamaciones.Lista.Add(ReclamacionDocumental.ParaEmpresaEmpleadora(
+            _contratista.Id, Guid.NewGuid(), CorreoSevilla, DateTime.UtcNow.AddDays(-1), [documento.Id]));
+
+        (await UltimaDelCliente(new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsParaGestion: []))).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task La_reclamacion_de_Trabajadores_de_otro_Cliente_no_es_rastro_de_este()
+    {
+        var otroCliente = Empresa.CrearComoCliente("Otro SA", "B12345674", false, null, null);
+        var otroCentro = new Centro(otroCliente.Id, _contratista.Id, "Centro Sur");
+        _centros.ListaCentros.Add(otroCentro);
+        var trabajador = Trabajador.DeEmpresa(_contratista.Id, "Eva", "Pérez", "00000004G");
+        _trabajadores.ListaTrabajadores.Add(trabajador);
+        _asignaciones.ListaAsignaciones.Add(new Asignacion(trabajador.Id, otroCentro.Id, new DateOnly(2026, 1, 1)));
+        var documento = DocumentoQueVence(trabajador);
+        _reclamaciones.Lista.Add(ReclamacionDocumental.ParaEmpresaEmpleadora(
+            _contratista.Id, Guid.NewGuid(), CorreoSevilla, DateTime.UtcNow.AddDays(-1), [documento.Id]));
+
+        (await UltimaDelCliente()).Should().BeNull();
+    }}

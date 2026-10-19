@@ -25,9 +25,11 @@ namespace CaeManager.Application.Calendario.Queries;
 /// </para>
 ///
 /// <para>
-/// <see cref="DocumentoSemanaDto.Reclamable"/> dice si «Reclamar» puede pedirlo a los contactos de ESA Empresa: solo los
-/// documentos de ámbito Empresa, dentro de <see cref="VentanaReclamacion"/>, y con alcance de gestión sobre la Empresa. Los de
-/// Trabajador se reclaman al Cliente del Centro donde trabaja cada uno, no a la Empresa.
+/// <see cref="DocumentoSemanaDto.Reclamable"/> dice si «Reclamar» puede pedirlo a ESA Empresa: los documentos de ámbito
+/// Empresa y los de sus Trabajadores (a la Delegación del Trabajador o, sin ella, a los contactos de la Empresa; decisión
+/// de Chris, 2026-10-18), dentro de <see cref="VentanaReclamacion"/> y con alcance de gestión sobre la Empresa. Los de un
+/// Trabajador de Subcontrata no: siguen yendo al Cliente del Centro. Es una oferta, no una promesa: el cajón de
+/// reclamación aplica además la Asignación activa y el Centro con gestión CAE, y dice qué deja fuera.
 /// </para>
 /// </summary>
 public record ObtenerSemanaPorEmpresaQuery(DateOnly Fecha) : IRequest<IReadOnlyList<SemanaEmpresaDto>>;
@@ -107,13 +109,14 @@ public class ObtenerSemanaPorEmpresaQueryHandler(
                 && envio.FechaEnvioUtc >= inicio && envio.FechaEnvioUtc < fin
             select linea.DocumentoId!.Value).Distinct().ToListAsync(cancellationToken);
 
-        // Reclamable desde la fila: documento de la propia Empresa (ámbito Empresa), dentro de la ventana de reclamación y con
-        // alcance de gestión sobre ella. El envío (EnviarReclamacionEmpresaCommand) revalida lo mismo; esto evita ofrecer lo que
-        // rechazaría. Los de Trabajador no se reclaman desde esta fila sino desde «Gestionar» de cada Trabajador: a la
-        // Delegación de su Empresa empleadora (EnviarReclamacionEmpresaEmpleadoraCommand) o, si es de Subcontrata, al Cliente.
-        bool EsReclamable(Guid? trabajadorId, Guid tipoDocumentoId, Guid empresaId, DateOnly fecha) =>
-            trabajadorId is null
-            && tipos.TryGetValue(tipoDocumentoId, out var tipo) && tipo.AmbitoAplicacion == AmbitoAplicacion.Empresa
+        // Reclamable desde la fila: documento de la propia Empresa (ámbito Empresa) o de uno de sus Trabajadores (ámbito
+        // Trabajador), dentro de la ventana de reclamación y con alcance de gestión sobre ella. El envío
+        // (EnviarReclamacionEmpresaCommand / EnviarReclamacionEmpresaEmpleadoraCommand) revalida lo mismo; esto evita ofrecer lo
+        // que rechazaría. Los de un Trabajador de Subcontrata no se reclaman a la Empresa: van al Cliente del Centro.
+        bool EsReclamable(Guid? trabajadorId, Guid tipoDocumentoId, Guid empresaId, DateOnly fecha, bool esSubcontrata) =>
+            !esSubcontrata
+            && tipos.TryGetValue(tipoDocumentoId, out var tipo)
+            && tipo.AmbitoAplicacion == (trabajadorId is null ? AmbitoAplicacion.Empresa : AmbitoAplicacion.Trabajador)
             && VentanaReclamacion.EsReclamable(fecha, hoy)
             && (empresasParaGestion is null || empresasParaGestion.Contains(empresaId));
 
@@ -129,7 +132,7 @@ public class ObtenerSemanaPorEmpresaQueryHandler(
                     tipos.TryGetValue(f.TipoDocumentoId, out var tipo) ? tipo.Nombre : string.Empty,
                     f.TrabajadorId is { } id ? nombres.GetValueOrDefault(id, string.Empty) : f.RazonSocial,
                     f.TrabajadorId is not null,
-                    EsReclamable(f.TrabajadorId, f.TipoDocumentoId, f.EmpresaId, f.Fecha)))
+                    EsReclamable(f.TrabajadorId, f.TipoDocumentoId, f.EmpresaId, f.Fecha, f.EsSubcontrata)))
                     .OrderBy(d => d.Fecha).ThenBy(d => d.DocumentoId).ToList();
                 // «Reclamado hoy» habla solo de lo que se puede reclamar desde la fila.
                 var reclamables = documentos.Where(d => d.Reclamable).ToList();

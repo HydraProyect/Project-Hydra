@@ -172,7 +172,7 @@ public class ReclamacionesSinRespuestaTests : IAsyncLifetime
         await using var lectura = CrearContexto();
         var handler = new ObtenerReclamacionesSinRespuestaQueryHandler(
             lectura, lectura, lectura, new AlcanceDatosServiceFalso(),
-            new DestinoDeReclamacionesEnviadasService(lectura, lectura, lectura, lectura));
+            new DestinoDeReclamacionesEnviadasService(lectura, lectura, lectura, lectura, lectura, lectura));
 
         return await handler.Handle(new ObtenerReclamacionesSinRespuestaQuery(), CancellationToken.None);
     }

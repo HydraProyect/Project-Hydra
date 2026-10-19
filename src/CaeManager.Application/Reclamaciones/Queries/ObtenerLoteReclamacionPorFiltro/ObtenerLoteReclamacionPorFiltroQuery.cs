@@ -61,7 +61,16 @@ public record LoteReclamacionAgrupadoDto(
     Guid? UltimaReclamacionConversacionId,
     IReadOnlyList<DestinatarioAgendaDto>? Destinatarios,
     IReadOnlyList<DocumentoPendienteDto>? PendientesSinFecha = null,
-    DestinoEmpresaEmpleadoraDto? EmpresaEmpleadora = null);
+    DestinoEmpresaEmpleadoraDto? EmpresaEmpleadora = null)
+{
+    /// <summary>
+    /// Identifica el lote en pantalla. El titular no basta: la Empresa empleadora puede tener un lote por Delegación y otro
+    /// para su agenda, y un Cliente y una Empresa distintos nunca comparten Id pero sí el ámbito del DTO.
+    /// </summary>
+    public string Clave => EmpresaEmpleadora is { } destino
+        ? $"empleadora:{TitularId:N}:{destino.DelegacionEmpresaId?.ToString("N") ?? "agenda"}"
+        : $"{Ambito}:{TitularId:N}";
+}
 
 public class ObtenerLoteReclamacionPorFiltroQueryHandler(IMediator mediator, ReclamacionEmpresaEmpleadoraService empresaEmpleadora)
     : IRequestHandler<ObtenerLoteReclamacionPorFiltroQuery, IReadOnlyList<LoteReclamacionAgrupadoDto>>

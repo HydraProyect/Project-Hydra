@@ -10,12 +10,11 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerUltimaReclamacionC
 /// <c>ObtenerLoteReclamacionQuery</c> (que recorre todos los clientes del
 /// tenant). Null si a ese Cliente nunca se le reclamó nada.
 ///
-/// Solo mira el ancla de Cliente, y a propósito: una reclamación de documentos
-/// de empresa a esa misma Empresa contraparte (ReclamacionDocumental.EmpresaId)
-/// es otro pendiente, con otros documentos y otros destinatarios, y no es lo
-/// que Centro 360 está enseñando. El filtro por <c>ClienteId</c> las excluye
-/// solo porque en ellas esa columna es NULL — si algún día este rastro debe
-/// cubrir las dos, hay que decirlo aquí, no confiar en el descarte.
+/// Cubre las dos vías por las que «Gestionar» reclama los documentos de los Trabajadores del Cliente: la reclamación
+/// anclada al Cliente (Trabajadores de Subcontrata) y la enviada a la Empresa empleadora de sus Trabajadores
+/// (2026-10-18), y devuelve la más reciente de las dos. Una reclamación de documentos de la propia Empresa contraparte es
+/// otro pendiente, con otros documentos y otros destinatarios, y no entra: la vía de la Empresa solo cuenta las que
+/// piden documentos de Trabajadores asignados a Centros de este Cliente, y solo de Empresas del alcance de gestión.
 /// </summary>
 public record ObtenerUltimaReclamacionClienteQuery(Guid ClienteId) : IRequest<UltimaReclamacionClienteDto?>;
 
@@ -23,7 +22,8 @@ public record ObtenerUltimaReclamacionClienteQuery(Guid ClienteId) : IRequest<Ul
 public record UltimaReclamacionClienteDto(Guid Id, DateTime FechaEnvioUtc, int TotalDocumentos, Guid? ConversacionId);
 
 public class ObtenerUltimaReclamacionClienteQueryHandler(
-    IReclamacionesQueryContext reclamacionesContext, IAlcanceDatosService alcanceDatos)
+    IReclamacionesQueryContext reclamacionesContext, IAlcanceDatosService alcanceDatos,
+    DestinoDeReclamacionesEnviadasService reclamacionesEnviadas)
     : IRequestHandler<ObtenerUltimaReclamacionClienteQuery, UltimaReclamacionClienteDto?>
 {
     public async Task<UltimaReclamacionClienteDto?> Handle(
@@ -37,6 +37,11 @@ public class ObtenerUltimaReclamacionClienteQueryHandler(
             .OrderByDescending(r => r.FechaEnvioUtc)
             .Select(r => new { r.Id, r.FechaEnvioUtc, r.ConversacionId })
             .FirstOrDefaultAsync(cancellationToken);
+
+        var viaEmpresa = await reclamacionesEnviadas.UltimaViaEmpresaEmpleadoraDeClienteAsync(
+            request.ClienteId, await alcanceDatos.ObtenerEmpresaIdsParaGestionAsync(cancellationToken), cancellationToken);
+        if (viaEmpresa is not null && (ultima is null || viaEmpresa.FechaEnvioUtc > ultima.FechaEnvioUtc))
+            return new UltimaReclamacionClienteDto(viaEmpresa.Id, viaEmpresa.FechaEnvioUtc, viaEmpresa.TotalDocumentos, viaEmpresa.ConversacionId);
 
         if (ultima is null) return null;
 
