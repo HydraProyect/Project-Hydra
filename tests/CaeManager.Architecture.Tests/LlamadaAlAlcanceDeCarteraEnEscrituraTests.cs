@@ -65,7 +65,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
 {
     /// <summary>
     /// Handlers cuyo <c>Handle</c> alcanza la comprobación de cartera. Medido sobre
-    /// <c>origin/main</c> <c>af72f7ad3</c> (2026-10-18): 182 de 215.
+    /// <c>origin/main</c> <c>ef558744c</c> (2026-10-19): 189 de 222.
     /// </summary>
     private static readonly HashSet<string> Llaman =
     [
@@ -100,6 +100,8 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Clientes.EditarClienteCommandHandler",
         "Clientes.EliminarClienteCommandHandler",
         "Clientes.EliminarClientesCommandHandler",
+        "Clientes.GuardarAccesoPlataformaCaeCommandHandler",
+        "Clientes.GuardarPlataformaCaeClienteCommandHandler",
         "Clientes.ReasignarEjecutivoClienteCommandHandler",
         "Clientes.RestaurarClienteCommandHandler",
 
@@ -154,10 +156,13 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Empresas.CrearEmpresaCommandHandler",
         "Empresas.EditarEmpresaCommandHandler",
         "Empresas.EditarFichaEmpresaCommandHandler",
+        "Empresas.EliminarDelegacionEmpresaUOficioCommandHandler",
         "Empresas.EliminarEmpresaCommandHandler",
         "Empresas.EliminarEmpresasCommandHandler",
         "Empresas.GuardarCredencialAccesoEmpresaCommandHandler",
+        "Empresas.GuardarDelegacionEmpresaCommandHandler",
         "Empresas.GuardarNotaInternaEmpresaCommandHandler",
+        "Empresas.GuardarOficioEmpresaCommandHandler",
         "Empresas.RestaurarEmpresaCommandHandler",
 
         // Gestiones
@@ -203,6 +208,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         // Reclamaciones
         "Reclamaciones.EnviarReclamacionCommandHandler",
         "Reclamaciones.EnviarReclamacionEmpresaCommandHandler",
+        "Reclamaciones.EnviarReclamacionEmpresaEmpleadoraCommandHandler",
         "Reclamaciones.PrepararVistaPreviaReclamacionCommandHandler",
 
         // Subcontratas
@@ -233,6 +239,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Trabajadores.EditarTrabajadorCommandHandler",
         "Trabajadores.EliminarTrabajadorCommandHandler",
         "Trabajadores.EliminarTrabajadoresCommandHandler",
+        "Trabajadores.FijarDelegacionEmpresaYOficioTrabajadorCommandHandler",
         "Trabajadores.GuardarNotaInternaTrabajadorCommandHandler",
         "Trabajadores.ResolverDeteccionAusenteCommandHandler",
         "Trabajadores.ResolverDeteccionNuevoCommandHandler",
@@ -504,7 +511,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
             new[] { "Centros", "Clientes", "Documentos", "Empresas", "Gestiones", "Subcontratas", "Trabajadores", "Vehiculos" },
             "son las carpetas cuyo agregado tiene cartera definida en IAlcanceDatosService");
         medida.Handlers.Should().HaveCountGreaterThan(100,
-            "hoy hay 215 comandos de escritura en las características con cartera; muy pocos significa que la medida ya no los ve");
+            "hoy hay 222 comandos de escritura en las características con cartera; muy pocos significa que la medida ya no los ve");
     }
 
     [Fact]
