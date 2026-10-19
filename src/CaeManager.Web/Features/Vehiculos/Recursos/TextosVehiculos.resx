@@ -70,25 +70,25 @@
     <value>Empresa / Subcontrata</value>
   </data>
   <data name="ListaColumnaEstadoDocumental" xml:space="preserve">
-    <value>Estado documental</value>
+    <value>Estado</value>
   </data>
   <data name="EtiquetaPaginador" xml:space="preserve">
     <value>vehículo(s)</value>
   </data>
   <data name="VacioFiltrosTitulo" xml:space="preserve">
-    <value>Ningún vehículo con estos filtros</value>
+    <value>Ningún resultado con estos filtros</value>
   </data>
   <data name="VacioFiltrosDescripcion" xml:space="preserve">
     <value>Ninguno coincide con la búsqueda ni con los filtros de documentación, empresa o subcontrata.</value>
   </data>
   <data name="BotonQuitarFiltros" xml:space="preserve">
-    <value>Quitar los filtros</value>
+    <value>Quitar filtros</value>
   </data>
   <data name="VacioTitulo" xml:space="preserve">
-    <value>Aún no hay vehículos</value>
+    <value>Todavía no hay vehículos</value>
   </data>
   <data name="VacioDescripcion" xml:space="preserve">
-    <value>Crea el primero para empezar a gestionar su documentación.</value>
+    <value>Da de alta el primero desde aquí o desde la ficha de su Empresa.</value>
   </data>
   <data name="DrawerNuevoTitulo" xml:space="preserve">
     <value>Nuevo vehículo</value>
@@ -160,7 +160,7 @@
     <value>Los vehículos se muestran de una empresa cada vez. Elige una en la barra lateral.</value>
   </data>
   <data name="ListaFiltrarPlaceholder" xml:space="preserve">
-    <value>Filtrar esta pantalla: nombre, modelo o matrícula</value>
+    <value>Nombre, modelo o matrícula</value>
   </data>
   <data name="ListaFiltroTodas" xml:space="preserve">
     <value>Todas</value>
@@ -382,4 +382,6 @@
   <data name="FichaErrorGuardar" xml:space="preserve">
     <value>No pudimos guardar la ficha del vehículo.</value>
   </data>
+<data name="ColumnaVehiculo" xml:space="preserve"><value>Vehículo</value></data>
+<data name="ColumnaDocumentacion" xml:space="preserve"><value>Documentación</value></data>
 </root>

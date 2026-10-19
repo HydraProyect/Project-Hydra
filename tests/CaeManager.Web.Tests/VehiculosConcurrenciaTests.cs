@@ -319,7 +319,7 @@ public class VehiculosConcurrenciaTests : BunitContext
         m.ResultadosPorBusqueda["camion"] = ([Vehiculo("Camión grúa")], 1);
         m.Retener = x => x is ObtenerVehiculosQuery q && q.Busqueda == "furgo" ? espera.Task : null;
 
-        var caja = cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder?.StartsWith("Filtrar esta pantalla") == true);
+        var caja = cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder == "Nombre, modelo o matrícula");
         var primeraBusqueda = cut.InvokeAsync(() => caja.Instance.ValorChanged.InvokeAsync("furgo"));
         m.Enviadas.OfType<ObtenerVehiculosQuery>().Should().Contain(q => q.Busqueda == "furgo", "la primera búsqueda quedó retenida");
 
@@ -394,7 +394,7 @@ public class VehiculosConcurrenciaTests : BunitContext
     }
 
     [Fact]
-    public async Task Nombre_y_modelo_en_una_celda_conservan_matricula_tinte_y_foco()
+    public async Task Nombre_y_matricula_en_una_celda_conservan_modelo_tinte_y_foco()
     {
         var vencido = Vehiculo("Furgoneta roja") with { Modelo = "Transit contractual", EstadoDocumental = EstadoDocumento.Vencido };
         var urgente = Vehiculo("Camión amarillo") with { EstadoDocumental = EstadoDocumento.Urgente };
@@ -404,8 +404,7 @@ public class VehiculosConcurrenciaTests : BunitContext
         var filas = cut.FindAll("tbody tr:has(button.enlace-nombre-fila)");
         filas.Should().HaveCount(3);
         cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("3");
-        filas[0].QuerySelectorAll("td").Single(td => td.TextContent.Contains(vencido.Nombre))
-            .TextContent.Should().Contain(vencido.Modelo);
+        filas[0].QuerySelector(".celda-vehiculo-modelo")!.TextContent.Should().Be(vencido.Modelo);
         filas[0].TextContent.Should().Contain(vencido.NumeroPlaca);
         filas[0].ClassList.Should().Contain("fila-tintada-peligro");
         filas[1].ClassList.Should().Contain("fila-tintada-aviso");
@@ -464,6 +463,11 @@ public class VehiculosConcurrenciaTests : BunitContext
     private static async Task FijarSentidoVehiculoFase1(
         IRenderedComponent<Vehiculos> cut, MediadorFalso m, string titulo, bool descendente)
     {
+        if (titulo == "Matrícula")
+        {
+            await ElegirOrdenVehiculoFase1(cut, "NumeroPlaca");
+            titulo = "Vehículo";
+        }
         await CabeceraVehiculoFase1(cut, titulo).QuerySelector("button.col-title")!.ClickAsync(new MouseEventArgs());
         if (UltimoOrdenVehiculoFase1(m).Descendente != descendente)
             await CabeceraVehiculoFase1(cut, titulo).QuerySelector("button.col-title")!.ClickAsync(new MouseEventArgs());

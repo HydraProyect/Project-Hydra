@@ -110,12 +110,12 @@ public partial class VehiculosEstadoDocumentalTests
     }
 
     [Fact]
-    public void La_subcaja_enseña_la_fecha_absoluta_junto_al_motivo_relativo()
+    public void La_subcaja_ensena_la_fecha_absoluta_y_conserva_el_motivo_relativo_en_el_titulo()
     {
         var cut = Renderizar(new MediadorFalso { Almacen = { Vehiculo("Furgoneta", EstadoDocumento.Vencido, IncidenciaDe("ITV", EstadoDocumento.Vencido, -3)) } });
         cut.Find(".boton-expandir-incidencias").Click();
         var esperada = DiaDeNegocio.Hoy().AddDays(-3).ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture);
-        cut.Find(".vehiculo-detalle-incidencias .incidencia-fecha").TextContent.Should().Be(esperada);
-        cut.Find(".vehiculo-detalle-incidencias .incidencia-motivo").TextContent.Should().NotContain(esperada, "el motivo es el relativo");
+        cut.Find(".vehiculo-detalle-incidencias .incidencia-motivo").TextContent.Should().Be($"Venció el {esperada}");
+        cut.Find(".vehiculo-detalle-incidencias .incidencia-motivo").GetAttribute("title").Should().NotContain(esperada, "el título conserva el motivo relativo");
     }
 }

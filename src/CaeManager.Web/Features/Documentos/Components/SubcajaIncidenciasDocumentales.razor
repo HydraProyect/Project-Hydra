@@ -2,12 +2,23 @@
 @using CaeManager.Application.Common
 @using CaeManager.Domain.Common
 @using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Documentos.Recursos
 
-<div class="subcaja-incidencias" role="list">
+<div class="@(ModoListado ? "subcaja-incidencias subcaja-listado" : "subcaja-incidencias")" role="list">
 @foreach (var incidencia in Incidencias)
 {
     <div class="@(Coincide(incidencia, Busqueda) ? "subfila-incidencia coincidencia-incidencia" : "subfila-incidencia")" role="listitem" @key="incidencia.DocumentoId">
-        @if (Interactiva && AlPulsar.HasDelegate)
+        @if (ModoListado)
+        {
+            <div class="incidencia-lectura">
+                @Contenido(incidencia)
+                @if (Interactiva && AlPulsar.HasDelegate)
+                {
+                    <button type="button" class="incidencia-corregir incidencia-gestionar" aria-label="@string.Format(System.Globalization.CultureInfo.CurrentCulture, TextosVigenciaDocumento.Texto("Ficha360GestionarAccesible"), MotivoIncidenciasUi.NombreDeTipo(incidencia))" @onclick="() => AlPulsar.InvokeAsync(incidencia)" @onclick:stopPropagation="true">@TextosVigenciaDocumento.Texto("Ficha360Gestionar")</button>
+                }
+            </div>
+        }
+        else if (Interactiva && AlPulsar.HasDelegate)
         {
             <button type="button" class="incidencia-corregir" @onclick="() => AlPulsar.InvokeAsync(incidencia)" @onclick:stopPropagation="true">@Contenido(incidencia)</button>
         }
@@ -22,6 +33,7 @@
 @code {
     [Parameter, EditorRequired] public IReadOnlyList<IncidenciaDocumentalDto> Incidencias { get; set; } = [];
     [Parameter] public bool Interactiva { get; set; }
+    [Parameter] public bool ModoListado { get; set; }
     [Parameter] public EventCallback<IncidenciaDocumentalDto> AlPulsar { get; set; }
     [Parameter] public string? Busqueda { get; set; }
 
@@ -33,10 +45,17 @@
     private RenderFragment Contenido(IncidenciaDocumentalDto incidencia) => @<text>
         <span class="incidencia-tipo"><TextoResaltado Texto="@MotivoIncidenciasUi.NombreDeTipo(incidencia)" Termino="@Busqueda" /></span>
         <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
-        <span class="incidencia-motivo"><TextoResaltado Texto="@Motivo(incidencia)" Termino="@Busqueda" /></span>
-        @if (incidencia.FechaVencimiento is { } vence)
+        <span class="incidencia-motivo" title="@Motivo(incidencia)"><TextoResaltado Texto="@MotivoVisible(incidencia)" Termino="@Busqueda" /></span>
+        @if (!ModoListado && incidencia.FechaVencimiento is { } vence)
         {
             <span class="incidencia-fecha">@vence.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture)</span>
         }
     </text>;
+
+    private string MotivoVisible(IncidenciaDocumentalDto incidencia) =>
+        ModoListado && incidencia.FechaVencimiento is { } fecha
+            ? string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                TextosVigenciaDocumento.Texto(EstadoDocumentoUi.HaVencido(incidencia.Estado) ? "DetalleVencioFecha" : "DetalleCaducaFecha"),
+                fecha.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture))
+            : Motivo(incidencia);
 }

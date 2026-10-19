@@ -21,7 +21,7 @@ import { letraDePestanaDeFicha, objetivosDeFicha } from './atajos-ficha.js';
 // Debe coincidir con CatalogoAtajos.KeyTips (CatalogoAtajosSincronizadoConJsTests). Son las
 // letras de los controles compartidos: una letra deducida nunca las ocupa, aunque el control
 // no esté en la pantalla, para que signifiquen lo mismo en los diez listados.
-const LETRAS_ESTABLES = ['S', 'X', 'K', 'M', 'N', 'F', 'T', 'L', 'G', 'A', 'E'];
+const LETRAS_ESTABLES = ['S', 'X', 'K', 'M', 'N', 'F', 'T', 'P', 'L', 'G', 'A', 'E'];
 
 const SELECTOR_DIALOGO = '[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"], dialog:modal';
 const SELECTOR_ACTIVABLE = 'button, a[href], [role="tab"], [role="button"], input, select';

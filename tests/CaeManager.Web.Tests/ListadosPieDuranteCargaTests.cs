@@ -124,7 +124,8 @@ public partial class VehiculosVacioPorFiltroTests
         var cut = Renderizar();
         try
         {
-            ComprobacionPieDuranteCarga.SinFranjaVacia(cut);
+            cut.FindAll(".esqueleto-lista[aria-busy=true]").Should().ContainSingle();
+            cut.FindAll(".tarjeta-listado-pie, .paginador-texto").Should().BeEmpty();
         }
         finally
         {

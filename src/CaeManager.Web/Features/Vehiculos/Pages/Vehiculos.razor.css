@@ -1,63 +1,47 @@
-.celda-vehiculo {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
+.marco-lista-vehiculos { overflow-x: auto; }
+.vehiculos-rejilla-propia { display: block; width: 100%; min-width: 1140px; }
+.vehiculos-rejilla-propia thead,
+.vehiculos-rejilla-propia tbody { display: block; }
+.vehiculos-rejilla-propia tr {
+    display: grid;
+    grid-template-columns: 24px minmax(200px, 2fr) minmax(180px, 1.5fr) minmax(150px, 1.4fr) minmax(130px, 1fr) minmax(170px, 1.3fr) 40px;
+    align-items: center;
+    gap: var(--space-4);
+    padding: 12px var(--space-4);
+    border-bottom: 1px solid var(--color-fila-divisor);
 }
-
-.celda-vehiculo-modelo {
-    font: var(--font-caption);
+.vehiculos-con-seleccion tr { grid-template-columns: 28px 24px minmax(200px, 2fr) minmax(180px, 1.5fr) minmax(150px, 1.4fr) minmax(130px, 1fr) minmax(170px, 1.3fr) 40px; }
+.vehiculos-rejilla-propia th,
+.vehiculos-rejilla-propia td { min-width: 0; padding: 0; border: 0; }
+.vehiculos-rejilla-propia thead tr {
+    align-items: end;
+    padding: 14px var(--space-4) 10px;
+    border-bottom: 1.5px solid var(--color-text);
+    font: 600 12px/16px var(--font-family);
+    text-transform: uppercase;
+    letter-spacing: .08em;
     color: var(--color-text-muted);
 }
-
-.celda-vehiculo-matricula {
-    display: inline-block;
-    padding: var(--space-1) var(--space-2);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    color: var(--color-text);
-    background: var(--color-surface);
-}
-
-.vehiculo-identidad,
-.col-header-content {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-}
-
-.boton-expandir-incidencias,
+.celda-vehiculo { display: flex; flex-direction: column; gap: 2px; }
+.celda-vehiculo-matricula { color: var(--color-text-muted); font: var(--font-caption); letter-spacing: .02em; }
+.celda-vehiculo-modelo { color: var(--color-text); font: var(--font-body-md); }
+.col-header-content { display: flex; align-items: center; gap: var(--space-1); position: relative; }
+.col-title,
 .col-options-button,
-.col-title {
-    border: 0;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
-}
-
-/* Como el chevron del menú lateral (NavMenu): cerrado apunta a la derecha, abierto hacia abajo. */
-.boton-expandir-incidencias {
-    transition: transform var(--motion-transition) var(--ease-fluid);
-    transform: rotate(-90deg);
-}
-
-.boton-expandir-incidencias[aria-expanded=true] {
-    transform: rotate(0deg);
-}
-
-.col-header-content {
-    position: relative;
-}
-
-.col-options {
-    position: absolute;
-    top: 100%;
-    background: var(--color-surface);
-    padding: var(--space-3);
-    border: var(--border-default);
-    z-index: 1030;
-}
-
-.vehiculos-rejilla-propia .vehiculo-detalle-incidencias > td {
-    padding: 0;
+.boton-expandir-incidencias { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 0; }
+.col-title { display: flex; gap: var(--space-1); text-align: left; text-transform: inherit; letter-spacing: inherit; }
+.boton-expandir-incidencias { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; color: var(--color-text-muted); border-radius: var(--radius-sm); }
+.boton-expandir-incidencias { transition: transform var(--motion-transition) var(--ease-fluid); transform: rotate(-90deg); }
+.boton-expandir-incidencias[aria-expanded=true] { transform: rotate(0deg); }
+.boton-expandir-incidencias:hover { background: var(--color-surface-hover); }
+.boton-expandir-incidencias:focus-visible,
+.col-title:focus-visible,
+.col-options-button:focus-visible { outline: var(--border-focus); outline-offset: 2px; }
+.col-options { position: absolute; top: 100%; background: var(--color-surface); padding: var(--space-3); border: var(--border-default); z-index: 1030; }
+.vehiculos-rejilla-propia .vehiculo-detalle-incidencias { display: block; padding: 0; }
+.vehiculo-detalle-incidencias > td { display: block; }
+.vehiculos-con-seleccion .vehiculo-detalle-incidencias ::deep .subcaja-listado { padding-left: 100px; }
+.vehiculos-rejilla-propia .vehiculos-grupo { display: block; padding: 10px var(--space-4); font: 600 12px/16px var(--font-family); text-transform: uppercase; letter-spacing: .08em; }
+@media (prefers-reduced-motion: reduce) {
+    .boton-expandir-incidencias { transition: none; }
 }

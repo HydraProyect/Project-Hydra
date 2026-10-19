@@ -177,6 +177,7 @@
   <data name="KeyTipFranjaEstado" xml:space="preserve">
     <value>Franja d'estat</value>
   </data>
+  <data name="KeyTipEmpresa" xml:space="preserve"><value>Filtre d’Empresa</value></data>
   <data name="KeyTipMasFiltros" xml:space="preserve">
     <value>Més filtres</value>
   </data>

@@ -211,22 +211,22 @@ public partial class VehiculosEstadoDocumentalTests : BunitContext
             Almacen = { Vehiculo("Camión grúa", EstadoDocumento.Vencido, IncidenciaDe("ITV", EstadoDocumento.Vencido, -10)) }
         });
 
-        Cabeceras(cut).Should().Equal("Vehículo · Nombre", "Empleador", "Matrícula", "Estado documental", "");
+        Cabeceras(cut).Should().Equal("", "Vehículo", "Empresa", "Modelo", "Documentación", "Estado", "");
 
         // Las celdas siguen a sus cabeceras: identidad, empleador, matrícula copiable, estado e icono 360.
         var celdas = Filas(cut)[0].QuerySelectorAll("td").ToList();
-        celdas.Should().HaveCount(5);
-        celdas[0].QuerySelector("button.enlace-nombre-fila")!.TextContent.Trim().Should().Be("Camión grúa");
-        celdas[0].QuerySelector(".celda-vehiculo-modelo")!.TextContent.Trim().Should().Be("Iveco Daily");
-        celdas[1].TextContent.Trim().Should().Be("Montajes Ebro S.L.");
-        celdas[2].QuerySelector(".celda-vehiculo-matricula")!.TextContent.Should().Contain("9012GHI");
-        celdas[2].QuerySelector(".celda-vehiculo-matricula button").Should().NotBeNull("la matrícula se sigue pudiendo copiar");
-        celdas[3].ClassList.Should().Contain("col-estado");
-        celdas[4].QuerySelector("a.boton-360-pagina")!.GetAttribute("href").Should().StartWith("/vehiculos/");
+        celdas.Should().HaveCount(7);
+        celdas[1].QuerySelector("button.enlace-nombre-fila")!.TextContent.Trim().Should().Be("Camión grúa");
+        celdas[3].TextContent.Trim().Should().Be("Iveco Daily");
+        celdas[2].TextContent.Trim().Should().Be("Montajes Ebro S.L.");
+        celdas[1].QuerySelector(".celda-vehiculo-matricula")!.TextContent.Should().Contain("9012GHI");
+        celdas[1].QuerySelector(".celda-vehiculo-matricula button").Should().NotBeNull("la matrícula se sigue pudiendo copiar");
+        celdas[5].ClassList.Should().Contain("col-estado");
+        celdas[6].QuerySelector("a.boton-360-pagina")!.GetAttribute("href").Should().StartWith("/vehiculos/");
 
         // Con la selección múltiple, la casilla va delante y el resto no se mueve.
         await AlternarSeleccionMultiple(cut);
-        Cabeceras(cut).Should().Equal("", "Vehículo · Nombre", "Empleador", "Matrícula", "Estado documental", "");
+        Cabeceras(cut).Should().Equal("", "", "Vehículo", "Empresa", "Modelo", "Documentación", "Estado", "");
         cut.Find("thead th input[type=checkbox]").Should().NotBeNull();
     }
 
@@ -264,7 +264,7 @@ public partial class VehiculosEstadoDocumentalTests : BunitContext
         var celda = CeldaDeEstado(cut);
         celda.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Vencido");
         Motivo(cut).Should().Be("2 vencidos · 1 por vencer");
-        AbrirIncidencias(cut).QuerySelectorAll("button.incidencia-corregir .incidencia-tipo").Select(e => e.TextContent.Trim())
+        AbrirIncidencias(cut).QuerySelectorAll(".incidencia-tipo").Select(e => e.TextContent.Trim())
             .Should().Equal("ITV", "Tarjeta de transporte", "Seguro del vehículo");
     }
 

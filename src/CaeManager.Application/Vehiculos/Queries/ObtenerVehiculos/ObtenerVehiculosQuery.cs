@@ -37,6 +37,8 @@ public record VehiculoListaDto(
     /// atención, del más grave al menos. Vacía si no hay ninguno o si la consulta no pidió el desglose.
     /// </summary>
     public IReadOnlyList<IncidenciaDocumentalDto> Incidencias { get; init; } = [];
+    public int DocumentosRegistrados { get; init; }
+    public int DocumentosVigentes { get; init; }
 }
 
 public class ObtenerVehiculosQueryHandler(
@@ -264,7 +266,12 @@ public class ObtenerVehiculosQueryHandler(
             AmbitoAplicacion.Vehiculo, pagina.Select(v => v.Id).ToList(), cancellationToken);
 
         return pagina
-            .Select(v => desgloses.TryGetValue(v.Id, out var desglose) ? v with { Incidencias = desglose.Incidencias } : v)
+            .Select(v => desgloses.TryGetValue(v.Id, out var desglose) ? v with
+            {
+                Incidencias = desglose.Incidencias,
+                DocumentosRegistrados = desglose.DocumentosRegistrados,
+                DocumentosVigentes = desglose.DocumentosVigentes
+            } : v)
             .ToList();
     }
 }

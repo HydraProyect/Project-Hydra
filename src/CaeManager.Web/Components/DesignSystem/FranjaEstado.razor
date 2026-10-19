@@ -24,7 +24,7 @@
     <div class="franja-campo-lista">
         <span class="franja-campo-etiqueta">@EtiquetaCampo</span>
         <details class="franja-campo-desplegable">
-            <summary aria-label="@($"{EtiquetaCampo}: {TextoSeleccion}")">@TextoSeleccion <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></summary>
+            <summary data-keytip="@Keytip" aria-label="@($"{EtiquetaCampo}: {TextoSeleccion}")">@TextoSeleccion <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></summary>
             <div class="franja-campo-panel">@Botones</div>
         </details>
     </div>
@@ -36,6 +36,7 @@ else
 
 @code {
     [Parameter] public bool PresentacionCampo { get; set; }
+    [Parameter] public string? Keytip { get; set; }
     [Parameter] public string? Etiqueta { get; set; }
     private string EtiquetaCampo => Etiqueta ?? Comunes["ListaDocumentacion"].Value;
     private string TextoSeleccion => _seleccion.Count == 0

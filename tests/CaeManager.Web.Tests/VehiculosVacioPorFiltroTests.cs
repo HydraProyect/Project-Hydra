@@ -139,7 +139,7 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
     {
         _consultaExtra = $"empresa={EmpresaId}";
         var (cut, mediador) = RenderizarConMediador();
-        cut.Markup.Should().Contain("Quitar los filtros", "con la Empresa en la URL el vacío es «con estos filtros»");
+        cut.Markup.Should().Contain("Quitar filtros", "con la Empresa en la URL el vacío es «con estos filtros»");
 
         cut.Find(".estado-vacio button").Click();
 
@@ -176,9 +176,9 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(busqueda: "1234-ABC");
 
-        cut.Markup.Should().Contain("Ningún vehículo con estos filtros");
-        cut.Markup.Should().Contain("Quitar los filtros");
-        cut.Markup.Should().NotContain("Aún no hay vehículos",
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros");
+        cut.Markup.Should().Contain("Quitar filtros");
+        cut.Markup.Should().NotContain("Todavía no hay vehículos",
             "mandar a crear a quien acaba de buscar una matrícula termina en un vehículo duplicado");
     }
 
@@ -187,8 +187,8 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(estado: nameof(CaeManager.Domain.Documentos.EstadoDocumento.Vencido));
 
-        cut.Markup.Should().Contain("Ningún vehículo con estos filtros");
-        cut.Markup.Should().NotContain("Aún no hay vehículos");
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros");
+        cut.Markup.Should().NotContain("Todavía no hay vehículos");
     }
 
     [Fact]
@@ -196,9 +196,9 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("Aún no hay vehículos");
-        cut.Markup.Should().Contain("Crea el primero para empezar a gestionar su documentación.");
-        cut.Markup.Should().NotContain("Ningún vehículo con estos filtros");
+        cut.Markup.Should().Contain("Todavía no hay vehículos");
+        cut.Markup.Should().Contain("Da de alta el primero desde aquí o desde la ficha de su Empresa.");
+        cut.Markup.Should().NotContain("Ningún resultado con estos filtros");
     }
 
     /// <summary>D-30: un solo botón primario por vista; el del estado vacío no compite con el de la cabecera.</summary>
@@ -223,7 +223,7 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(busqueda: "1234-ABC");
 
-        cut.Markup.Should().Contain("Ningún vehículo con estos filtros");
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros");
         cut.Markup.Should().NotContain("Hay vehículos dados de alta");
     }
 
@@ -231,12 +231,12 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
     public void Quitar_los_filtros_devuelve_la_lista_completa()
     {
         var cut = Renderizar(busqueda: "1234-ABC");
-        cut.Markup.Should().Contain("Ningún vehículo con estos filtros", "es el punto de partida de este caso");
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros", "es el punto de partida de este caso");
 
         cut.Find(".estado-vacio button").Click();
 
-        cut.Markup.Should().NotContain("Ningún vehículo con estos filtros");
-        cut.Markup.Should().Contain("Aún no hay vehículos",
+        cut.Markup.Should().NotContain("Ningún resultado con estos filtros");
+        cut.Markup.Should().Contain("Todavía no hay vehículos",
             "sin filtros y sin registros, el estado correcto vuelve a ser el de la lista vacía de verdad");
     }
 
@@ -246,8 +246,8 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
         var cut = Renderizar(busqueda: "Furgoneta", vehiculos: new VehiculoListaDto(
             Guid.NewGuid(), "Furgoneta de obra", "Transit", "1234-ABC", "Montajes Ebro S.L."));
 
-        cut.Markup.Should().NotContain("Ningún vehículo con estos filtros");
-        cut.Markup.Should().NotContain("Aún no hay vehículos");
+        cut.Markup.Should().NotContain("Ningún resultado con estos filtros");
+        cut.Markup.Should().NotContain("Todavía no hay vehículos");
         cut.Markup.Should().Contain("1234-ABC");
     }
 
@@ -257,7 +257,7 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
         mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Count();
 
     private static IRenderedComponent<CampoTexto> CajaDeBusqueda(IRenderedComponent<Vehiculos> cut) =>
-        cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder?.StartsWith("Filtrar esta pantalla") == true);
+        cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder == "Nombre, modelo o matrícula");
 
     /// <summary>
     /// Cambiar el tamaño de página pide la página 1 del tamaño nuevo UNA vez.
@@ -302,7 +302,7 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
     }
 
     // P0-9a (FS-03 a FS-06): con alcance cero —sin ninguna Asignación de Cartera
-    // vigente en este Tenant— el vacío no es «Aún no hay vehículos»: la pantalla dice que
+    // vigente en este Tenant— el vacío no es «Todavía no hay vehículos»: la pantalla dice que
     // falta la Asignación de Cartera y a quién pedirla.
     private bool _alcanceCero;
 
@@ -315,7 +315,7 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
 
         cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
             .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
-        cut.Markup.Should().NotContain("Aún no hay vehículos");
+        cut.Markup.Should().NotContain("Todavía no hay vehículos");
         cut.Markup.Should().NotContain("+ Nuevo vehículo", "invitar a crear con alcance cero termina en un duplicado");
     }
 
@@ -326,7 +326,7 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
 
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("Aún no hay vehículos");
+        cut.Markup.Should().Contain("Todavía no hay vehículos");
         cut.Markup.Should().Contain("+ Nuevo vehículo");
         cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
     }

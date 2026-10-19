@@ -39,6 +39,21 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
     private bool _cargaPendiente = true;
     private bool _opcionesOrdenVehiculo;
+    private bool _agruparPorEmpresa;
+    [SupplyParameterFromQuery(Name = "agrupar")]
+    public string? AgrupacionInicial { get; set; }
+
+    private IEnumerable<IGrouping<string, VehiculoListaDto>> BloquesDeVehiculos =>
+        _elementosPagina.GroupBy(v => _agruparPorEmpresa ? v.EmpleadorNombre : string.Empty);
+
+    private void CambiarAgrupacion(string? valor)
+    {
+        _agruparPorEmpresa = valor == "empresa";
+        NavigationManager.ActualizarFiltroEnUrl("agrupar", _agruparPorEmpresa ? "empresa" : null);
+    }
+
+    private static int? PorcentajeDocumental(VehiculoListaDto vehiculo) =>
+        new FraccionCumplimiento(vehiculo.DocumentosVigentes, vehiculo.DocumentosRegistrados).Porcentaje;
     private readonly HashSet<Guid> _expandidos = [];
     // Filas que la búsqueda abriría por una incidencia coincidente y que se cerraron a mano.
     private readonly HashSet<Guid> _cerradasAMano = [];
@@ -330,6 +345,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             return;
 
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
+        _agruparPorEmpresa = AgrupacionInicial == "empresa";
         if (deLaUrl != _busqueda)
             _busqueda = deLaUrl;
 
@@ -543,10 +559,10 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private async Task CambiarCampoOrdenVehiculoAsync(string valor)
     {
-        if (valor is not (nameof(VehiculoListaDto.Nombre) or nameof(VehiculoListaDto.Modelo)) || valor == _campoOrdenVehiculo) return;
+        _opcionesOrdenVehiculo = false;
+        if (valor is not (nameof(VehiculoListaDto.Nombre) or nameof(VehiculoListaDto.Modelo) or nameof(VehiculoListaDto.NumeroPlaca)) || valor == _campoOrdenVehiculo) return;
         var desc = _orden.Es("vehiculo", "modelo") && _orden.Direccion == SortDirection.Descending;
         _campoOrdenVehiculo = valor;
-        _opcionesOrdenVehiculo = false;
         await OrdenarAsync(valor, desc);
     }
 
@@ -671,7 +687,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado, y lo que
     /// recuerda la vista recordada (<see cref="VistaRecordadaDeListado"/>), menos la búsqueda libre (<c>q</c>).
     /// </summary>
-    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "empresa", "subcontrata", "orden"];
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "empresa", "subcontrata", "orden", "agrupar"];
 
     private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
     private readonly ConexionVistaRecordada _vistaRecordada = new();
@@ -689,6 +705,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         _filtroSubcontrataId = IdDesdeUrl(vista.GetValueOrDefault("subcontrata"));
         _filtroEmpresaId = _filtroSubcontrataId.Length > 0 ? string.Empty : IdDesdeUrl(vista.GetValueOrDefault("empresa"));
         LeerOrden(vista.GetValueOrDefault("orden"));
+        _agruparPorEmpresa = vista.GetValueOrDefault("agrupar") == "empresa";
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = _busqueda,
@@ -696,6 +713,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             ["empresa"] = _filtroEmpresaId,
             ["subcontrata"] = _filtroSubcontrataId,
             ["orden"] = _orden.EnUrl,
+            ["agrupar"] = _agruparPorEmpresa ? "empresa" : null,
         });
 
         await RecargarAsync();
@@ -950,7 +968,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         var tinte = item.EstadoDocumental switch
         {
             EstadoDocumento.Faltante or EstadoDocumento.Vencido => "fila-tintada-peligro",
-            EstadoDocumento.Urgente => "fila-tintada-aviso",
+            EstadoDocumento.Urgente or EstadoDocumento.Proximo => "fila-tintada-aviso",
             _ => null
         };
         var foco = item.Id == _idEnfocado ? "fila-enfocada" : null;
