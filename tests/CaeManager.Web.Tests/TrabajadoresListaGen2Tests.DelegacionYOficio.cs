@@ -134,6 +134,25 @@ public partial class TrabajadoresListaGen2Tests
             .Select(b => b.GetAttribute("aria-label")).Should().NotContain("Delegación");
     }
 
+    [Fact]
+    public async Task Un_catalogo_que_fallo_se_vuelve_a_pedir_en_la_siguiente_carga_de_la_misma_Empresa()
+    {
+        var mediador = ConCatalogos();
+        var fallos = 0;
+        mediador.Retener = peticion => peticion is ObtenerCatalogoTrabajadoresEmpresaQuery && fallos++ == 0
+            ? Task.FromException<object>(new InvalidOperationException("Fallo simulado del catálogo."))
+            : null;
+        var cut = Renderizar(mediador, $"trabajadores?empresa={EmpresaEbro}");
+        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla")
+            .Select(b => b.GetAttribute("aria-label")).Should().NotContain("Delegación", "control: la primera carga falló");
+
+        // Misma Empresa, otra carga de la lista (cambia la búsqueda en la URL).
+        await cut.InvokeAsync(() => Services.GetRequiredService<NavigationManager>().NavigateTo($"trabajadores?empresa={EmpresaEbro}&q=a"));
+
+        cut.WaitForAssertion(() => Pastilla(cut, "Delegación").Should().NotBeNull("el fallo no se queda anotado como catálogo cargado"));
+        mediador.Enviadas.OfType<ObtenerCatalogoTrabajadoresEmpresaQuery>().Should().HaveCount(2);
+    }
+
     // --- Filtrar ----------------------------------------------------------------------------------------
 
     [Theory]

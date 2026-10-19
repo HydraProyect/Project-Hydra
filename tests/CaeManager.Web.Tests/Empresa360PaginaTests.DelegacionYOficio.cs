@@ -187,6 +187,72 @@ public partial class Empresa360PaginaTests
         Navegacion.Uri.Should().NotContain("agrupar=");
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("?agrupar=oficio")]
+    public async Task El_chip_Al_dia_pinta_las_mismas_filas_agrupado_o_no_incluidos_los_Sin_confirmar(string consulta)
+    {
+        var mediador = Empresa(
+        [
+            ConCatalogo(Trabajador(EstadoDocumento.Vencido, "Blanco"), DelegacionEmpresaBilbao, "Bilbao", OficioAndamiero, "Andamiero"),
+            ConCatalogo(Trabajador(EstadoDocumento.SinConfirmar, "Cano"), DelegacionEmpresaMadrid, "Madrid", OficioAndamiero, "Andamiero"),
+            ConCatalogo(Trabajador(EstadoDocumento.Vigente, "Alonso"), DelegacionEmpresaMadrid, "Madrid", OficioSoldador, "Soldador"),
+        ]);
+        mediador.Catalogos[EmpresaId] = new CatalogoTrabajadoresEmpresaDto(
+            [new DelegacionEmpresaDto(DelegacionEmpresaMadrid, "Madrid", null, null, null, Guid.NewGuid())],
+            [new OficioEmpresaDto(OficioAndamiero, "Andamiero", Guid.NewGuid())]);
+        Registrar(mediador);
+        var cut = Renderizar(consulta);
+
+        await cut.FindAll(".empresa360-chip").Single(b => b.TextContent.Contains("Al día")).ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => ApellidosDeLasFilas(cut).Should().BeEquivalentTo("Alonso", "Cano"));
+        Chips(cut).Single(c => c.Contains("Al día")).Should().Contain("2");
+    }
+
+    [Fact]
+    public void Con_agrupacion_activa_y_sin_catalogo_la_pastilla_Agrupar_sigue_y_solo_deja_quitarla()
+    {
+        Registrar(Empresa());
+
+        var cut = Renderizar("?agrupar=oficio");
+
+        PastillasDeCatalogo(cut).Should().ContainSingle().Which.Should().StartWith("Agrupar");
+        cut.Find(".empresa360-pastillas [data-keytip=A]").Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Sin_catalogo_la_agrupacion_de_la_URL_se_quita_desde_la_pastilla()
+    {
+        Registrar(Empresa());
+        var cut = Renderizar("?agrupar=oficio");
+        await cut.FindAll(".empresa360-pastillas .menu-acciones-disparador-pastilla").Single().ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".empresa360-pastillas [role=menuitemradio]").Select(i => i.TextContent.Trim())
+            .Should().Equal("Sin agrupar");
+        await cut.FindAll(".empresa360-pastillas [role=menuitemradio]").Single().ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.FindAll(".empresa360-pastillas").Should().BeEmpty());
+        Navegacion.Uri.Should().NotContain("agrupar=");
+    }
+
+    [Fact]
+    public async Task Agrupar_solo_ofrece_Por_Delegacion_y_Por_Oficio_si_ese_catalogo_tiene_opciones()
+    {
+        var mediador = Empresa();
+        mediador.Catalogos[EmpresaId] = new CatalogoTrabajadoresEmpresaDto(
+            [], [new OficioEmpresaDto(OficioSoldador, "Soldador", Guid.NewGuid())]);
+        Registrar(mediador);
+        var cut = Renderizar();
+
+        PastillasDeCatalogo(cut).Should().Equal("Oficio", "Agrupar");
+        await cut.FindAll(".empresa360-pastillas .menu-acciones-disparador-pastilla").Single(b => b.GetAttribute("aria-label") == "Agrupar")
+            .ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".empresa360-pastillas [role=menuitemradio]").Select(i => i.TextContent.Trim())
+            .Should().Equal("Sin agrupar", "Por Oficio");
+    }
+
     [Fact]
     public void Un_valor_de_agrupacion_desconocido_en_la_URL_no_agrupa()
     {

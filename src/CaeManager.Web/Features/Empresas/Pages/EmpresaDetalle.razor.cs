@@ -517,11 +517,19 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// ya no deja cada chip como un tramo de la lista ordenada por estado). Los mismos tramos que
     /// <see cref="Tramo"/>: «Al día» es todo lo que no es Vencido, Urgente ni Próximo.
     /// </summary>
-    private static string? EstadosDelChip(FiltroTrabajadores filtro) => filtro switch
+    private static string? EstadosDelChip(FiltroTrabajadores filtro) =>
+        EstadosDeChip(filtro) is { } estados ? string.Join(',', estados.Select(e => e.ToString())) : null;
+
+    /// <summary>
+    /// Única fuente de los estados de cada chip: la usan la consulta agrupada (<see cref="EstadosDelChip"/>) y el filtro
+    /// de filas de la lista sin agrupar (<see cref="Incluye"/>), para que la página coincida con el «Mostrando» del recuento
+    /// (<c>AlDia</c> es todo lo que no es Vencido, Urgente ni Próximo, así que incluye «Sin confirmar»).
+    /// </summary>
+    private static EstadoDocumento[]? EstadosDeChip(FiltroTrabajadores filtro) => filtro switch
     {
-        FiltroTrabajadores.SinDocumentacionValida => nameof(EstadoDocumento.Vencido),
-        FiltroTrabajadores.PorVencer => $"{nameof(EstadoDocumento.Urgente)},{nameof(EstadoDocumento.Proximo)}",
-        FiltroTrabajadores.AlDia => $"{nameof(EstadoDocumento.SinConfirmar)},{nameof(EstadoDocumento.Vigente)},{nameof(EstadoDocumento.SinCaducidad)}",
+        FiltroTrabajadores.SinDocumentacionValida => [EstadoDocumento.Vencido],
+        FiltroTrabajadores.PorVencer => [EstadoDocumento.Urgente, EstadoDocumento.Proximo],
+        FiltroTrabajadores.AlDia => [EstadoDocumento.SinConfirmar, EstadoDocumento.Vigente, EstadoDocumento.SinCaducidad],
         _ => null
     };
 
@@ -626,13 +634,9 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         return (desde, Math.Max(0, Math.Min(tamano, fin - desde)));
     }
 
-    internal static bool Incluye(FiltroTrabajadores filtro, EstadoDocumento? estado) => filtro switch
-    {
-        FiltroTrabajadores.SinDocumentacionValida => estado is EstadoDocumento.Vencido or EstadoDocumento.Faltante,
-        FiltroTrabajadores.PorVencer => estado is EstadoDocumento.Urgente or EstadoDocumento.Proximo,
-        FiltroTrabajadores.AlDia => estado is null or EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad,
-        _ => true
-    };
+    internal static bool Incluye(FiltroTrabajadores filtro, EstadoDocumento? estado) =>
+        EstadosDeChip(filtro) is not { } estados
+        || (estado is null ? filtro == FiltroTrabajadores.AlDia : estados.Contains(estado.Value));
 
     private int TotalDelFiltro => _recuentosLista is not { } r ? 0 : _filtro switch
     {
@@ -722,11 +726,29 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     private IReadOnlyList<OpcionEstado> OpcionesOficio =>
         (_catalogo?.Oficios ?? []).Select(o => new OpcionEstado(o.Id.ToString(), o.Nombre)).ToList();
 
-    private IReadOnlyList<OpcionEstado> OpcionesAgrupacion =>
-    [
-        new OpcionEstado(AgruparPorDelegacionEmpresa, Textos["AgruparPorDelegacionEmpresa"].Value),
-        new OpcionEstado(AgruparPorOficio, Textos["AgruparPorOficio"].Value),
-    ];
+    private bool TieneDelegacionesEmpresa => _catalogo is { DelegacionesEmpresa.Count: > 0 };
+
+    private bool TieneOficios => _catalogo is { Oficios.Count: > 0 };
+
+    /// <summary>
+    /// El bloque de pastillas se ofrece con catálogo, y también sin él mientras haya una agrupación activa (por
+    /// <c>?agrupar=</c>): sin la pastilla «Agrupar» no habría forma de quitarla.
+    /// </summary>
+    private bool OfrecerPastillasDeCatalogo => TieneDelegacionesEmpresa || TieneOficios || Agrupado;
+
+    /// <summary>«Por Delegación» y «Por Oficio» solo se ofrecen si ESE catálogo tiene opciones.</summary>
+    private IReadOnlyList<OpcionEstado> OpcionesAgrupacion
+    {
+        get
+        {
+            var opciones = new List<OpcionEstado>();
+            if (TieneDelegacionesEmpresa)
+                opciones.Add(new OpcionEstado(AgruparPorDelegacionEmpresa, Textos["AgruparPorDelegacionEmpresa"].Value));
+            if (TieneOficios)
+                opciones.Add(new OpcionEstado(AgruparPorOficio, Textos["AgruparPorOficio"].Value));
+            return opciones;
+        }
+    }
 
     /// <summary>
     /// Las filas de la página en grupos contiguos (el orden ya viene de la consulta). Sin agrupar, un solo grupo sin

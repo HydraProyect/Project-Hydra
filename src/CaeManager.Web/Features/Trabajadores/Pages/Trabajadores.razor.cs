@@ -857,7 +857,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         if (empresa == _catalogoDeEmpresaId)
             return;
 
-        _catalogoDeEmpresaId = empresa;
+        // Mientras carga (o si falla) no hay catálogo: nunca se ofrecen las opciones de la Empresa anterior. La Empresa del
+        // catálogo solo se anota tras una carga correcta, así que un fallo se reintenta en la siguiente carga de la lista.
+        _catalogoDeEmpresaId = null;
         _catalogoFiltros = CatalogoTrabajadoresEmpresaDto.Vacio;
         if (empresa is not { } empresaId)
             return;
@@ -865,8 +867,11 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         try
         {
             var catalogo = await Mediator.Send(new ObtenerCatalogoTrabajadoresEmpresaQuery(empresaId), _ciclo.Token);
-            if (!_desechado && _catalogoDeEmpresaId == empresaId)
+            if (!_desechado && EmpresaDelCatalogo == empresaId)
+            {
                 _catalogoFiltros = catalogo;
+                _catalogoDeEmpresaId = empresaId;
+            }
         }
         catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
         {
@@ -874,8 +879,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         }
         catch (Exception)
         {
-            if (!_desechado && _catalogoDeEmpresaId == empresaId)
-                _catalogoFiltros = CatalogoTrabajadoresEmpresaDto.Vacio;
+            // Sin catálogo: la lista se pinta igual y la próxima carga lo vuelve a pedir.
         }
     }
 
@@ -1073,9 +1077,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private Task QuitarFiltroSubcontrataAsync() => FiltrarPorSubcontrataAsync(string.Empty);
 
     /// <summary>
-    /// Quita los cinco filtros en una sola recarga. Encadenar los setters
-    /// lanzaría cinco consultas y las cuatro primeras devolverían listas que ya
-    /// no se van a pintar. Los cinco viven además en la URL y se
+    /// Quita los siete filtros en una sola recarga. Encadenar los setters
+    /// lanzaría siete consultas y las seis primeras devolverían listas que ya
+    /// no se van a pintar. Los siete viven además en la URL y se
     /// limpian allí en UNA sola navegación (ver
     /// <see cref="NavigationManagerExtensions.ActualizarFiltrosEnUrl"/>): si no,
     /// <see cref="OnParametersSetAsync"/> los repondría desde la URL
@@ -1829,7 +1833,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _filtroDelegacionEmpresaId = IdDesdeUrl(valores.DelegacionEmpresaId);
         _filtroOficioId = IdDesdeUrl(valores.OficioId);
 
-        // Los cinco filtros del filtro guardado se escriben también en la URL, en una sola navegación.
+        // Los siete filtros del filtro guardado se escriben también en la URL, en una sola navegación.
         // Si solo se aplicaran en memoria, la siguiente navegación dentro de la página haría que
         // OnParametersSetAsync los borrase leyendo una URL sin ellos.
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>

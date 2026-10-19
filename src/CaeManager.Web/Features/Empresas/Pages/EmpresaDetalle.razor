@@ -356,16 +356,17 @@
                     @Chip(FiltroTrabajadores.PorVencer, Textos["ChipPorVencer", r.PorVencer])
                     @Chip(FiltroTrabajadores.AlDia, Textos["ChipAlDia", r.AlDia])
                 </div>
-                @* Delegación, Oficio y «Agrupar»: solo si la Empresa tiene catálogo. Las opciones son las de ESTA Empresa. *@
-                @if (_catalogo is { } catalogo && (catalogo.DelegacionesEmpresa.Count > 0 || catalogo.Oficios.Count > 0))
+                @* Delegación, Oficio y «Agrupar»: solo si la Empresa tiene catálogo, o si hay una agrupación activa (que así
+                   siempre se puede quitar). Las opciones son las de ESTA Empresa. *@
+                @if (OfrecerPastillasDeCatalogo)
                 {
                     <div class="empresa360-pastillas" role="group" aria-label="@Textos["EtiquetaFiltrosCatalogo"]">
-                        @if (catalogo.DelegacionesEmpresa.Count > 0)
+                        @if (TieneDelegacionesEmpresa)
                         {
                             <PastillaFiltro Etiqueta="@Textos["EtiquetaDelegacionEmpresaFiltro"]" TextoTodos="@Textos["OpcionTodasLasDelegacionesEmpresa"]" Valor="@_delegacionId"
                                             ValorChanged="CambiarDelegacionEmpresaAsync" Opciones="OpcionesDelegacionEmpresa" />
                         }
-                        @if (catalogo.Oficios.Count > 0)
+                        @if (TieneOficios)
                         {
                             <PastillaFiltro Etiqueta="@Textos["EtiquetaOficioFiltro"]" TextoTodos="@Textos["OpcionTodosLosOficios"]" Valor="@_oficioId"
                                             ValorChanged="CambiarOficioAsync" Opciones="OpcionesOficio" />
