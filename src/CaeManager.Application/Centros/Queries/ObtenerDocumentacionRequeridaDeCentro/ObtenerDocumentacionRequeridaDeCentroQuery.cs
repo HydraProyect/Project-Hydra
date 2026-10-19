@@ -59,27 +59,19 @@ public class ObtenerDocumentacionRequeridaDeCentroQueryHandler(
             .Where(t => t.ClienteEmpresarialId == clienteEmpresarialId)
             .ToDictionaryAsync(t => t.TipoDocumentoId, t => t.ToleranciaDias, cancellationToken);
 
-        var tipos = await tiposDocumentoContext.TiposDocumento
-            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador || t.AmbitoAplicacion == AmbitoAplicacion.Empresa)
-            .OrderBy(t => t.AmbitoAplicacion).ThenBy(t => t.Orden)
-            .Select(t => new { t.Id, t.Nombre, t.AmbitoAplicacion, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
-            .ToListAsync(cancellationToken);
-
-        var filas = (await tiposDocumentoContext.TiposDocumentoCentros
-            .Where(tc => tc.CentroId == request.CentroId)
-            .ToListAsync(cancellationToken))
-            .ToDictionary(tc => tc.TipoDocumentoId);
+        var tipos = await DocumentacionRequeridaDeCentros.CargarCatalogoAsync(tiposDocumentoContext, cancellationToken);
+        var filas = await DocumentacionRequeridaDeCentros.CargarFilasAsync(tiposDocumentoContext, [request.CentroId], cancellationToken);
 
         return tipos
             .Select(t =>
             {
-                filas.TryGetValue(t.Id, out var fila);
+                filas.TryGetValue((t.Id, request.CentroId), out var fila);
                 return new DocumentacionRequeridaCentroDto(
                     t.Id, t.Nombre, t.AmbitoAplicacion, t.CuentaParaCumplimiento,
-                    Aplica: fila is not null ? fila.Incluido : t.CuentaParaCumplimiento,
+                    Aplica: DocumentacionRequeridaDeCentros.Aplica(filas, t, request.CentroId),
                     Incluido: fila?.Incluido,
                     PeriodicidadEspecialMeses: fila?.PeriodicidadEspecialMeses,
-                    BloqueaAcceso: fila?.BloqueaAcceso ?? false,
+                    BloqueaAcceso: DocumentacionRequeridaDeCentros.BloqueaAcceso(filas, t.Id, request.CentroId),
                     ArchivoUrl: fila?.ArchivoUrl,
                     NombreArchivoOriginal: fila?.NombreArchivoOriginal,
                     ToleranciaDias: fila?.ToleranciaDias,
