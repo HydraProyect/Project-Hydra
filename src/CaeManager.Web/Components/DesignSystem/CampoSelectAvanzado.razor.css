@@ -2,6 +2,52 @@
     position: relative;
 }
 
+/* Selección múltiple: chips de lo elegido sobre el disparador (maqueta «Panel Formulario TALVEG»). */
+.csa-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: var(--space-2);
+}
+
+.csa-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    min-height: 32px;
+    padding: 0 4px 0 12px;
+    border: var(--border-default);
+    border-radius: var(--radius-full);
+    background-color: var(--color-surface-subtle);
+    font: var(--font-body-sm);
+    font-size: 13px;
+    line-height: 16px;
+    font-weight: 500;
+}
+
+.csa-chip-quitar {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: none;
+    color: var(--color-text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.csa-chip-quitar:hover:not(:disabled) {
+    background-color: var(--color-surface-hover);
+    color: var(--color-text);
+}
+
+.csa-chip-quitar:disabled {
+    cursor: not-allowed;
+}
+
 .csa-disparador {
     display: flex;
     align-items: center;

@@ -192,6 +192,9 @@
   <data name="ErrorSeleccionaSubcontrata" xml:space="preserve">
     <value>Selecciona una subcontrata.</value>
   </data>
+  <data name="ToastVerFicha" xml:space="preserve">
+    <value>Veure la fitxa de {0}</value>
+  </data>
   <data name="ToastCreado" xml:space="preserve">
     <value>Trabajador creado correctamente.</value>
   </data>

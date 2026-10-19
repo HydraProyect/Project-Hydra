@@ -1450,7 +1450,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 return;
             }
 
-            ToastService.Mostrar(Textos["ToastCreado"], TonoToast.Exito);
+            var nombreCompleto = $"{_nombre} {_apellidos}".Trim();
+            ToastService.MostrarConEnlace(
+                Textos["ToastCreado"],
+                new ToastEnlace($"/trabajadores/{resultado.Valor}", string.Format(Textos["ToastVerFicha"], nombreCompleto), nombreCompleto));
             _drawerVisible = false;
             await RecargarTrasEscrituraAsync();
         }

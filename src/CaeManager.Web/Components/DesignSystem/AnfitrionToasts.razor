@@ -10,7 +10,7 @@
            de la pila: sin él, la animación de entrada y el trazado de
            confirmación se redibujarían en cada cambio de la lista, y el
            trazado debe dibujarse una vez por evento (07 § 6.1, DDL-071). *@
-        <div class="toast toast-@toast.Tono.ToString().ToLowerInvariant()" role="@(toast.Tono == TonoToast.Error ? "alert" : "status")" @key="toast.Id"
+        <div class="toast toast-@toast.Tono.ToString().ToLowerInvariant() @(toast.Enlace is null ? null : "toast-con-enlace")" role="@(toast.Tono == TonoToast.Error ? "alert" : "status")" @key="toast.Id"
              @onmouseenter="() => ToastService.PunteroSobre(toast.Id, true)"
              @onmouseleave="() => ToastService.PunteroSobre(toast.Id, false)"
              @onfocusin="() => ToastService.FocoEn(toast.Id, true)"
@@ -36,7 +36,22 @@
                     <Icono Nombre="@nombreIcono" Tamano="TamanoIcono.Pequeno" />
                 </span>
             }
-            <span class="toast-mensaje">@toast.Mensaje</span>
+            @if (toast.Enlace is { } enlace)
+            {
+                @* Toast de confirmación con enlace («Panel Formulario TALVEG»): todo el bloque de texto es el enlace a la ficha. *@
+                <a class="toast-enlace" href="@enlace.Href">
+                    <span class="toast-enlace-titulo">@toast.Mensaje</span>
+                    @if (!string.IsNullOrWhiteSpace(enlace.Detalle))
+                    {
+                        <span class="toast-enlace-detalle">@enlace.Detalle</span>
+                    }
+                    <span class="toast-enlace-llamada">@enlace.Texto<span aria-hidden="true">→</span></span>
+                </a>
+            }
+            else
+            {
+                <span class="toast-mensaje">@toast.Mensaje</span>
+            }
             @if (toast.TextoAccion is not null)
             {
                 <button type="button" class="toast-accion" @onclick="() => ToastService.EjecutarAccionAsync(toast.Id)">@toast.TextoAccion</button>
@@ -48,7 +63,7 @@
                 }
             }
             <button type="button" class="toast-cerrar" aria-label="Cerrar" @onclick="() => ToastService.Descartar(toast.Id)"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-            @if (toast.Tono != TonoToast.Error)
+            @if (toast.Tono != TonoToast.Error && toast.Enlace is null)
             {
                 var duracionMs = toast.TextoAccion is not null
                     ? (int)ToastService.DuracionAutoDescarteConAccion.TotalMilliseconds
