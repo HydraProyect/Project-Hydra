@@ -139,9 +139,14 @@
                     <h3 id="cuadro-pers-titulo">@Textos["PersonalizarTitulo"]: @EtiquetaPestanaActiva</h3>
                     <p class="cuadro-nota">@Textos["PersonalizarAyuda"]</p>
                     <ul class="cuadro-pers-lista">
-                        @foreach (var tarjeta in TarjetasOrdenadas)
+                        @{ var ordenadas = TarjetasOrdenadas.ToList(); }
+                        @foreach (var tarjeta in ordenadas)
                         {
                             var id = tarjeta;
+                            // Como la maqueta: una tarjeta sin marcar no se mueve y los extremos no tienen flecha hacia fuera.
+                            var visible = _preferencias.EsVisible(id);
+                            var primera = ordenadas[0] == id;
+                            var ultima = ordenadas[^1] == id;
                             var titulo = TituloTarjeta(id);
                             <li draggable="true" data-tarjeta-lista="@id"
                                 @ondragstart="@(() => EmpezarArrastre(id))"
@@ -152,8 +157,8 @@
                                     <input type="checkbox" checked="@_preferencias.EsVisible(id)" aria-label="@Textos["MostrarTarjeta", titulo]" @onchange="@(() => AlternarTarjetaAsync(id))" />
                                     <span>@titulo</span>
                                 </label>
-                                <button type="button" class="cuadro-flecha" aria-label="@Textos["MoverArriba", titulo]" @onclick="@(() => MoverTarjetaAsync(id, -1))">↑</button>
-                                <button type="button" class="cuadro-flecha" aria-label="@Textos["MoverAbajo", titulo]" @onclick="@(() => MoverTarjetaAsync(id, 1))">↓</button>
+                                <button type="button" class="cuadro-flecha" aria-label="@Textos["MoverArriba", titulo]" disabled="@(!visible || primera)" @onclick="@(() => MoverTarjetaAsync(id, -1))">↑</button>
+                                <button type="button" class="cuadro-flecha" aria-label="@Textos["MoverAbajo", titulo]" disabled="@(!visible || ultima)" @onclick="@(() => MoverTarjetaAsync(id, 1))">↓</button>
                             </li>
                         }
                     </ul>

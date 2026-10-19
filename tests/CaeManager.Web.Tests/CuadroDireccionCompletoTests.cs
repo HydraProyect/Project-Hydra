@@ -790,6 +790,20 @@ public partial class CuadroDireccionTests
     }
 
     [Fact]
+    public void Las_flechas_de_los_extremos_y_las_de_una_tarjeta_oculta_estan_desactivadas_como_en_la_maqueta()
+    {
+        ModuloPreferencias("{\"Ocultas\":[\"k-ext\"],\"Orden\":{},\"Etiquetas\":false,\"AvisosVistos\":[]}");
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Personalizar esta pestaña").Click();
+        var ids = cut.FindAll("[data-tarjeta-lista]").Select(l => l.GetAttribute("data-tarjeta-lista")!).ToList();
+
+        cut.Find($"[data-tarjeta-lista={ids[0]}] button[aria-label^='Subir']").HasAttribute("disabled").Should().BeTrue("la primera no sube");
+        cut.Find($"[data-tarjeta-lista={ids[^1]}] button[aria-label^='Bajar']").HasAttribute("disabled").Should().BeTrue("la última no baja");
+        cut.Find($"[data-tarjeta-lista={ids[1]}] button[aria-label^='Bajar']").HasAttribute("disabled").Should().Be(ids[1] == "k-ext");
+        cut.Find("[data-tarjeta-lista=k-ext] button[aria-label^='Subir']").HasAttribute("disabled").Should().BeTrue("una tarjeta sin marcar no se mueve");
+    }
+
+    [Fact]
     public void Arrastrar_una_tarjeta_sobre_otra_la_coloca_antes()
     {
         ModuloPreferencias();
