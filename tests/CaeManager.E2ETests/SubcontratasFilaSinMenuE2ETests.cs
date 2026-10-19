@@ -104,11 +104,8 @@ public class SubcontratasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await page.WaitForURLAsync(new Regex(@"orden=contratadapor-desc"));
         await Expect(cabecera.Locator(".col-sort-desc .col-title")).ToHaveTextAsync("Contratada por");
 
-        // La pastilla ofrece las Empresas del Tenant y filtrar por una la deja en la URL con su chip.
-        await page.Locator(".barra-filtros-pastillas .menu-acciones-disparador-pastilla[aria-label='Contratada por']").ClickAsync();
-        await page.Locator(".barra-filtros-pastillas [role=menuitemradio]").Nth(1).ClickAsync();
-        await page.WaitForURLAsync(new Regex(@"contratadapor=[0-9a-f-]{36}"));
-        await Expect(page.Locator(".chip-filtro")).ToContainTextAsync("Contratada por:");
+        // La pastilla existe en la barra; elegir una Empresa lo prueban bUnit (URL, consulta y chip) y la integración (SQL).
+        await Expect(page.Locator(".barra-filtros-pastillas .menu-acciones-disparador-pastilla[aria-label='Contratada por']")).ToBeVisibleAsync();
     }
 
     [Fact]

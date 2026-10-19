@@ -105,15 +105,10 @@ public class ObtenerSubcontratasQueryHandler(
         // Empresas propias contratantes con relación vigente: la columna «Contratada por» ordena por la primera por razón social.
         // Con el mismo alcance de Empresas que la columna que se pinta: ni el filtro ni el orden revelan una Empresa que no se ve.
         var empresasVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
-        var empresasContratantes = dbContext.Empresas.Where(e => e.EsPropia);
-        if (empresasVisibles is not null)
-            empresasContratantes = empresasContratantes.Where(e => empresasVisibles.Contains(e.Id));
-        var contratantes = dbContext.RelacionesEmpresariales.Where(r => r.VigenciaHasta == null)
-            .Join(empresasContratantes, r => r.ClienteId, e => e.Id,
-                (r, e) => new { r.ProveedoraId, ContratanteId = e.Id, e.RazonSocial });
+        var contratantes = ContratantesVigentes(empresasVisibles);
 
         if (request.ContratadaPorEmpresaId is { } contratanteId)
-            consulta = consulta.Where(s => contratantes.Any(c => c.ProveedoraId == s.Id && c.ContratanteId == contratanteId));
+            consulta = consulta.Where(s => contratantes.Any(c => c.ProveedoraId == s.Id && c.Id == contratanteId));
 
         // Lista blanca de columnas ordenables — ver ObtenerClientesQuery. El cumplimiento no está persistido:
         // ordena en memoria por el camino con estado (más abajo) y aquí queda el orden por razón social.
@@ -216,6 +211,26 @@ public class ObtenerSubcontratasQueryHandler(
             .ToList();
     }
 
+    /// <summary>Empresas propias contratantes (dentro del alcance de visibilidad) con una relación vigente con cada Subcontrata.</summary>
+    private IQueryable<ContratanteVigente> ContratantesVigentes(IReadOnlyList<Guid>? empresasVisibles)
+    {
+        var empresas = dbContext.Empresas.Where(e => e.EsPropia);
+        if (empresasVisibles is not null)
+            empresas = empresas.Where(e => empresasVisibles.Contains(e.Id));
+        return
+            from r in dbContext.RelacionesEmpresariales
+            where r.VigenciaHasta == null
+            join e in empresas on r.ClienteId equals e.Id
+            select new ContratanteVigente { ProveedoraId = r.ProveedoraId, Id = e.Id, RazonSocial = e.RazonSocial };
+    }
+
+    private sealed class ContratanteVigente
+    {
+        public Guid ProveedoraId { get; init; }
+        public Guid Id { get; init; }
+        public string RazonSocial { get; init; } = string.Empty;
+    }
+
     /// <summary>
     /// Solo para las filas que se devuelven, ya paginadas: la ventana de trabajadores no se carga para las
     /// Subcontratas que el listado no enseña. El recuento y la ventana salen de estas mismas identidades.
@@ -227,14 +242,8 @@ public class ObtenerSubcontratasQueryHandler(
 
         var ids = filas.Select(s => s.Id).ToList();
         var empresasVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
-        var empresas = dbContext.Empresas.Where(e => e.EsPropia);
-        if (empresasVisibles is not null)
-            empresas = empresas.Where(e => empresasVisibles.Contains(e.Id));
-        var contratantes = await (
-            from r in dbContext.RelacionesEmpresariales
-            where ids.Contains(r.ProveedoraId) && r.VigenciaHasta == null
-            join e in empresas on r.ClienteId equals e.Id
-            select new { r.ProveedoraId, e.Id, e.RazonSocial })
+        var contratantes = await ContratantesVigentes(empresasVisibles)
+            .Where(c => ids.Contains(c.ProveedoraId))
             .Distinct().OrderBy(e => e.RazonSocial).ThenBy(e => e.Id).ToListAsync(cancellationToken);
         var consultaTrabajadores = trabajadoresContext.Trabajadores
             .Where(t => t.SubcontrataId != null && ids.Contains(t.SubcontrataId.Value));
