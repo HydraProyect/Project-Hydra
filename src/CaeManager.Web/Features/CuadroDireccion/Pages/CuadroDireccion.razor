@@ -154,7 +154,7 @@
                                 @ondrop="@(() => SoltarArrastreAsync(id))">
                                 <span class="cuadro-asa" aria-label="@Textos["ArrastrarAsa", titulo]" title="@Textos["ArrastrarAsa", titulo]">⠿</span>
                                 <label>
-                                    <input type="checkbox" checked="@_preferencias.EsVisible(id)" aria-label="@Textos["MostrarTarjeta", titulo]" @onchange="@(() => AlternarTarjetaAsync(id))" />
+                                    <input type="checkbox" checked="@visible" aria-label="@Textos["MostrarTarjeta", titulo]" @onchange="@(() => AlternarTarjetaAsync(id))" />
                                     <span>@titulo</span>
                                 </label>
                                 <button type="button" class="cuadro-flecha" aria-label="@Textos["MoverArriba", titulo]" disabled="@(!visible || primera)" @onclick="@(() => MoverTarjetaAsync(id, -1))">↑</button>

@@ -799,7 +799,8 @@ public partial class CuadroDireccionTests
 
         cut.Find($"[data-tarjeta-lista={ids[0]}] button[aria-label^='Subir']").HasAttribute("disabled").Should().BeTrue("la primera no sube");
         cut.Find($"[data-tarjeta-lista={ids[^1]}] button[aria-label^='Bajar']").HasAttribute("disabled").Should().BeTrue("la última no baja");
-        cut.Find($"[data-tarjeta-lista={ids[1]}] button[aria-label^='Bajar']").HasAttribute("disabled").Should().Be(ids[1] == "k-ext");
+        ids[1].Should().Be("k-ext");
+        cut.Find("[data-tarjeta-lista=k-ext] button[aria-label^='Bajar']").HasAttribute("disabled").Should().BeTrue("una tarjeta sin marcar no se mueve");
         cut.Find("[data-tarjeta-lista=k-ext] button[aria-label^='Subir']").HasAttribute("disabled").Should().BeTrue("una tarjeta sin marcar no se mueve");
     }
 
