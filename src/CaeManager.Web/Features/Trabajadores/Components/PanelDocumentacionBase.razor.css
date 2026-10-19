@@ -1,39 +1,88 @@
+/*
+  Panel completo contra la maqueta Trabajador 360 (Operación): título + pastilla del peor estado, y las
+  filas en tarjeta con la rejilla nombre · fecha · estado · acción (minmax(0,1fr) 104px 152px 128px).
+  El contenedor es de consulta: en el panel lateral de 520 px la fila vuelve a una sola línea que se parte.
+*/
 .panel-doc-base {
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
     margin-bottom: 1rem;
+    container-type: inline-size;
 }
 
 .panel-doc-base-cabecera {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    margin-bottom: 0.5rem;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
 }
 
 .panel-doc-base-lista {
     list-style: none;
     margin: 0;
     padding: 0;
-    display: grid;
-    gap: 0.35rem;
+    overflow: hidden;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-tarjeta-lista);
 }
 
 .panel-doc-base-fila {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 104px 152px 128px;
+    justify-items: start;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--space-3);
+    min-height: 48px;
+    padding: 8px var(--space-4);
+    border-top: 1px solid var(--color-fila-divisor);
 }
 
-.panel-doc-base-fila > span:first-child {
-    flex: 1 1 auto;
+.panel-doc-base-fila:first-child {
+    border-top: none;
+}
+
+.panel-doc-base-fila-mal {
+    background: linear-gradient(90deg, var(--color-danger-50) 0, transparent 75%);
+}
+
+.panel-doc-base-fila-aviso {
+    background: linear-gradient(90deg, var(--color-warning-50) 0, transparent 75%);
+}
+
+.panel-doc-base-nombre {
+    min-width: 0;
+}
+
+.panel-doc-base-estado {
+    display: flex;
+    min-width: 0;
 }
 
 .panel-doc-base-fecha {
     color: var(--color-text-muted);
-    font-size: 0.85em;
+    font: var(--font-caption);
+    font-variant-numeric: tabular-nums;
+}
+
+/* La acción va en la cuarta columna, pegada a la derecha. */
+.panel-doc-base-con-acciones ::deep .accion-fila-enlace {
+    grid-column: 4;
+    justify-self: end;
+}
+
+@container (max-width: 640px) {
+    .panel-doc-base-fila {
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        row-gap: 6px;
+    }
+
+    .panel-doc-base-nombre {
+        grid-column: 1 / -1;
+    }
+
+    .panel-doc-base-con-acciones ::deep .accion-fila-enlace {
+        grid-column: auto;
+    }
 }
 
 .panel-doc-base-aviso {
@@ -73,11 +122,3 @@
 .panel-doc-base-punto-ok { background: var(--color-success-500); }
 .panel-doc-base-punto-aviso { background: var(--color-warning-500); }
 .panel-doc-base-punto-mal { background: var(--color-danger-500); }
-.panel-doc-base-fila.panel-doc-base-con-acciones {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto auto;
-}
-
-.panel-doc-base-con-acciones ::deep .accion-fila-enlace {
-    grid-column: 4;
-}
