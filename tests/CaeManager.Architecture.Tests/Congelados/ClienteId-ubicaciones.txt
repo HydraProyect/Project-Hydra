@@ -268,6 +268,9 @@ src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontrataPorId/ObtenerS
 src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontrataPorId/ObtenerSubcontrataPorIdQuery.cs :: ClienteIds = 1
 src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontrataPorId/ObtenerSubcontrataPorIdQuery.cs :: clienteIds = 2
 src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontratasParaSelector/ObtenerSubcontratasParaSelectorQuery.cs :: ClienteId = 1
+# «Contratada por»: JOIN inevitable con la FK legacy de la Empresa en posición cliente de la
+# Relación Empresarial vigente; no introduce una entidad ni cambia propiedad o autorización.
+src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontratas/ObtenerSubcontratasQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Subcontratas/Queries/ObtenerSupervisionSubcontrata/ObtenerSupervisionSubcontrataQuery.cs :: ClienteId = 3
 src/CaeManager.Application/Telemetria/Commands/RegistrarTramoGestion/RegistrarTramoGestionCommand.cs :: ClienteId = 3
 src/CaeManager.Application/Tenants/Commands/AbrirAccesoSoporte/AbrirAccesoSoporteCommand.cs :: TenantClienteId = 1
