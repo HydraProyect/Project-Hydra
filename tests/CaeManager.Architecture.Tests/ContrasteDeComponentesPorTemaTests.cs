@@ -117,6 +117,11 @@ public class ContrasteDeComponentesPorTemaTests
         new("Toast (texto sobre el fondo inverso, todos los tonos)", Toast, [".toast"]),
         new("Acción del toast («Deshacer»)", Toast, [".toast .toast-accion"], FondoSiFalta: "var(--color-toast-fondo)"),
 
+        // Toast con enlace («Panel Formulario TALVEG»): superficie elevada, no el fondo inverso.
+        new("Toast con enlace (texto)", Toast, [".toast-enlace"], FondoSiFalta: "var(--color-elevated)"),
+        new("Toast con enlace (detalle atenuado)", Toast, [".toast-enlace-detalle"], FondoSiFalta: "var(--color-elevated)"),
+        new("Toast con enlace (llamada «Ver ficha»)", Toast, [".toast-enlace-llamada"], FondoSiFalta: "var(--color-elevated)"),
+
         // ---- Badges ----
         new("Badge neutro", Badge, [".badge-neutro"]),
         new("Badge éxito", Badge, [".badge-exito"]),
