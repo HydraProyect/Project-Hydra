@@ -29,7 +29,7 @@
     <input type="hidden" name="returnUrl" value="@Destino" />
     @if (ComoEnlace)
     {
-        <button type="submit" class="enlace-documento" title="@Titulo">@Texto</button>
+        <button type="submit" class="enlace-documento" title="@Titulo">@(Texto ?? TipoItemBandejaUi.TextoAccion(Item))</button>
     }
     else
     {

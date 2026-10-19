@@ -33,7 +33,7 @@ public partial class MiTrabajoGen2Tests
             formularios.Should().HaveCount(2);
             var titulo = formularios[0];
             titulo.QuerySelector("button.enlace-documento")!.TextContent.Should().Contain("RNT");
-            titulo.QuerySelector("input[name=returnUrl]")!.GetAttribute("value").Should().Contain($"documentoId={documento}");
+            titulo.QuerySelector("input[name=returnUrl]")!.GetAttribute("value").Should().StartWith($"/documentos?documentoId={documento}");
             var gestionar = formularios[1];
             gestionar.QuerySelector("button")!.TextContent.Trim().Should().Be("Gestionar");
             foreach (var formulario in formularios)
