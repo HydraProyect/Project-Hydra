@@ -30,6 +30,7 @@ using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Trabajadores.Pages;
+using CaeManager.Web.Features.Documentos;
 using FluentAssertions;
 using FluentValidation;
 using MediatR;
@@ -239,17 +240,26 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
                 .Where(f => q.SubcontrataId is null || f.SubcontrataId == q.SubcontrataId)
                 .Where(f => q.DelegacionEmpresaId is null || f.Dto.DelegacionEmpresaId == q.DelegacionEmpresaId)
                 .Where(f => q.OficioEmpresaId is null || f.Dto.OficioEmpresaId == q.OficioEmpresaId)
-                .Where(f => EstadoDocumentalFiltro.Coincide(f.Dto.EstadoDocumental, q.EstadoDocumental))
-                .Select(f => q.ConDesgloseDocumental
-                    ? f.Dto
-                    : f.Dto with { Incidencias = [], DocumentosRegistrados = 0, DocumentosVigentes = 0 })
+                .Select(f => f.Dto)
                 .ToList();
 
+            var recuentos = q.ConRecuentosPorEstado
+                ? EstadoDocumentalFiltro.RecuentosPorEstado(coincidentes
+                    .GroupBy(t => EstadoDocumentalFiltro.ClaveOrdenConFaltantes(
+                        EstadoDocumentoUi.ConFaltantes(t.EstadoDocumental, t.DocumentosFaltantes.Count > 0)))
+                    .ToDictionary(g => g.Key, g => g.Count()), incluirFaltantes: true)
+                : null;
+            coincidentes = coincidentes.Where(t => EstadoDocumentalFiltro.Coincide(
+                EstadoDocumentoUi.ConFaltantes(t.EstadoDocumental, t.DocumentosFaltantes.Count > 0), q.EstadoDocumental)).ToList();
             var pagina = Ordenar(coincidentes, q)
                 .Skip((q.Pagina - 1) * q.TamanoPagina)
                 .Take(q.TamanoPagina)
+                .Select(t => q.ConDesgloseDocumental
+                    ? t
+                    : t with { Incidencias = [], DocumentosFaltantes = [], DocumentosRegistrados = 0, DocumentosVigentes = 0 })
                 .ToList();
-            return new ResultadoPaginado<TrabajadorListaDto>(pagina, coincidentes.Count, q.Pagina, q.TamanoPagina);
+            return new ResultadoPaginado<TrabajadorListaDto>(pagina, coincidentes.Count, q.Pagina, q.TamanoPagina)
+            { RecuentosPorEstado = recuentos };
         }
 
         /// <summary>
@@ -277,8 +287,10 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
             if (porEstado)
             {
                 return (q.Descendente
-                        ? filas.OrderByDescending(t => EstadoDocumentalFiltro.ClaveOrden(t.EstadoDocumental))
-                        : filas.OrderBy(t => EstadoDocumentalFiltro.ClaveOrden(t.EstadoDocumental)))
+                        ? filas.OrderByDescending(t => EstadoDocumentalFiltro.ClaveOrdenConFaltantes(
+                            EstadoDocumentoUi.ConFaltantes(t.EstadoDocumental, t.DocumentosFaltantes.Count > 0)))
+                        : filas.OrderBy(t => EstadoDocumentalFiltro.ClaveOrdenConFaltantes(
+                            EstadoDocumentoUi.ConFaltantes(t.EstadoDocumental, t.DocumentosFaltantes.Count > 0))))
                     .ThenBy(t => t.Apellidos, c).ThenBy(t => t.Nombre, c).ThenBy(t => t.Id);
             }
 
@@ -970,7 +982,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
 
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(b => b.GetAttribute("aria-label"))
             .Should().Equal("Empresa", "Centro", "Filtros guardados", "Agrupar");
-        cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Por vencer", "Sin confirmar", "Sin incidencias");
+        cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Pendiente", "Por vencer", "Sin confirmar", "Sin incidencias");
         cut.MarcadosEnFranja().Should().Equal(["Todos"], "sin filtro de estado, el marcado es «Todos»");
         UltimaConsulta(mediador).ConRecuentosPorEstado.Should().BeTrue("sin pedirlos, la franja no tendría cifras");
     }

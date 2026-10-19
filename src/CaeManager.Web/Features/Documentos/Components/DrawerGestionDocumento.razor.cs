@@ -367,10 +367,8 @@ public partial class DrawerGestionDocumento : ComponentBase
         _propietarioNombreSoloLectura = documento.PropietarioNombre;
         _tipoDocumentoNombreSoloLectura = documento.TipoDocumentoNombre;
         _tipoDocumentoAplicaVencimientoAutomaticoEdit = documento.TipoDocumentoAplicaVencimientoAutomatico;
-        // Renovar es emitir otro documento: la fecha de emisión nace vacía, no con la del documento anterior (un clic de
-        // «Guardar» no puede renovar con la fecha vieja sin que nadie la haya mirado). La del anterior se conserva solo
-        // para avisar si la nueva es anterior a ella (GuardarAsync).
-        _fechaEmision = string.Empty;
+        // Corregir el mismo registro conserva las fechas; subir un archivo nuevo las reinicia.
+        _fechaEmision = documento.FechaEmision.ToString("yyyy-MM-dd");
         _fechaEmisionOriginal = documento.FechaEmision;
         _fechaVencimientoManual = documento.FechaVencimiento?.ToString("yyyy-MM-dd") ?? string.Empty;
         // Renovar sin tocar la vigencia no puede perder la confirmación de
@@ -595,6 +593,11 @@ public partial class DrawerGestionDocumento : ComponentBase
             using var flujoPdf = new MemoryStream(pdfUnificado);
             _archivoUrl = await AlmacenamientoArchivos.GuardarAsync(flujoPdf, "documento.pdf");
             _archivoUrlSubidoSinAdoptar = _archivoUrl;
+            if (_editandoId is not null)
+            {
+                _fechaEmision = string.Empty;
+                _fechaVencimientoManual = string.Empty;
+            }
 
             // El formulario se cerró mientras se subía (la X, o salir confirmando el aviso de
             // cambios sin guardar): nadie va a adoptar este archivo.
@@ -851,10 +854,14 @@ public partial class DrawerGestionDocumento : ComponentBase
 
             // El comando confirmó: el archivo ya tiene Documento propietario y
             // deja de ser candidato a descarte.
+            var conArchivoNuevo = _archivoUrlSubidoSinAdoptar is not null;
             _archivoUrlSubidoSinAdoptar = null;
 
+            // Sin archivo nuevo se corrigio el mismo registro: no se dice "renovado".
             ToastService.Mostrar(
-                _editandoId is null ? "Documento creado correctamente." : "Documento renovado correctamente.",
+                _editandoId is null ? "Documento creado correctamente."
+                : conArchivoNuevo ? "Documento renovado correctamente."
+                : TextosDrawerGestionDocumento.Texto("ToastDocumentoActualizado"),
                 TonoToast.Exito);
 
             var pendientes = _seguirTrasGuardar ? _pasosPendientes : [];
