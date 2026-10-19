@@ -563,7 +563,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _estadoFiltro = string.Empty;
         _contratadaPorFiltro = string.Empty;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
-            { ["q"] = null, ["nivel"] = null, ["estado"] = null, ["contratadapor"] = null });
+        { ["q"] = null, ["nivel"] = null, ["estado"] = null, ["contratadapor"] = null });
         await CargarAsync(resetPagina: true);
     }
 
@@ -959,5 +959,6 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         ["q"] = _busqueda,
         ["nivel"] = NivelSeleccionado?.ToString(),
         ["estado"] = string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
+        ["contratadapor"] = string.IsNullOrWhiteSpace(_contratadaPorFiltro) ? null : _contratadaPorFiltro,
     };
 }

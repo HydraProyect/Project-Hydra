@@ -40,7 +40,7 @@ public static class SubcontratasEndpoints
         // Mismo patrón de referencia que ClientesEndpoints.
         endpoints.MapGet("/subcontratas/exportar.xlsx", async (
             IMediator mediator, IStringLocalizer<TextosSubcontratas> textos, CancellationToken cancellationToken,
-            string? q = null, string? nivel = null, string? estado = null) =>
+            string? q = null, string? nivel = null, string? estado = null, Guid? contratadapor = null) =>
         {
             using var libro = new XLWorkbook();
             var hoja = libro.Worksheets.Add("Subcontratas");
@@ -61,7 +61,8 @@ public static class SubcontratasEndpoints
                         Pagina: pagina,
                         TamanoPagina: tamanoPagina,
                         NivelServicio: Enum.TryParse<NivelServicioSubcontrata>(nivel, out var nivelServicio) ? nivelServicio : null,
-                        EstadoDocumental: string.IsNullOrWhiteSpace(estado) ? null : estado),
+                        EstadoDocumental: string.IsNullOrWhiteSpace(estado) ? null : estado,
+                        ContratadaPorEmpresaId: contratadapor),
                     cancellationToken)))
             {
                 hoja.Cell(fila, 1).Value = subcontrata.RazonSocial;

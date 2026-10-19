@@ -103,15 +103,17 @@ public class ObtenerSubcontratasQueryHandler(
             consulta = consulta.Where(s => s.NivelServicio == nivelTexto);
 
         // Empresas propias contratantes con relación vigente: la columna «Contratada por» ordena por la primera por razón social.
+        // Con el mismo alcance de Empresas que la columna que se pinta: ni el filtro ni el orden revelan una Empresa que no se ve.
+        var empresasVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
+        var empresasContratantes = dbContext.Empresas.Where(e => e.EsPropia);
+        if (empresasVisibles is not null)
+            empresasContratantes = empresasContratantes.Where(e => empresasVisibles.Contains(e.Id));
         var contratantes = dbContext.RelacionesEmpresariales.Where(r => r.VigenciaHasta == null)
-            .Join(dbContext.Empresas.Where(e => e.EsPropia), r => r.ClienteId, e => e.Id,
-                (r, e) => new { r.ProveedoraId, e.RazonSocial });
+            .Join(empresasContratantes, r => r.ClienteId, e => e.Id,
+                (r, e) => new { r.ProveedoraId, ContratanteId = e.Id, e.RazonSocial });
 
         if (request.ContratadaPorEmpresaId is { } contratanteId)
-        {
-            consulta = consulta.Where(s => dbContext.RelacionesEmpresariales.Any(r =>
-                r.ProveedoraId == s.Id && r.ClienteId == contratanteId && r.VigenciaHasta == null));
-        }
+            consulta = consulta.Where(s => contratantes.Any(c => c.ProveedoraId == s.Id && c.ContratanteId == contratanteId));
 
         // Lista blanca de columnas ordenables — ver ObtenerClientesQuery. El cumplimiento no está persistido:
         // ordena en memoria por el camino con estado (más abajo) y aquí queda el orden por razón social.
@@ -119,8 +121,13 @@ public class ObtenerSubcontratasQueryHandler(
         {
             (nameof(SubcontrataListaDto.NivelServicio), false) => consulta.OrderBy(s => s.NivelServicio),
             (nameof(SubcontrataListaDto.NivelServicio), true) => consulta.OrderByDescending(s => s.NivelServicio),
-            (ColumnaContratadaPor, false) => consulta.OrderBy(s => contratantes.Where(c => c.ProveedoraId == s.Id).Min(c => c.RazonSocial)),
-            (ColumnaContratadaPor, true) => consulta.OrderByDescending(s => contratantes.Where(c => c.ProveedoraId == s.Id).Min(c => c.RazonSocial)),
+            // Las sin contratante van siempre al final, en los dos sentidos.
+            (ColumnaContratadaPor, false) => consulta
+                .OrderBy(s => !contratantes.Any(c => c.ProveedoraId == s.Id))
+                .ThenBy(s => contratantes.Where(c => c.ProveedoraId == s.Id).Min(c => c.RazonSocial)),
+            (ColumnaContratadaPor, true) => consulta
+                .OrderBy(s => !contratantes.Any(c => c.ProveedoraId == s.Id))
+                .ThenByDescending(s => contratantes.Where(c => c.ProveedoraId == s.Id).Min(c => c.RazonSocial)),
             (nameof(SubcontrataListaDto.RazonSocial), true) => consulta.OrderByDescending(s => s.RazonSocial),
             (nameof(SubcontrataListaDto.Cif), false) => consulta.OrderBy(s => s.Cif),
             (nameof(SubcontrataListaDto.Cif), true) => consulta.OrderByDescending(s => s.Cif),

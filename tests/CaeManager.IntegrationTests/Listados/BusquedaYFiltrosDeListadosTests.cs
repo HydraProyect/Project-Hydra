@@ -274,6 +274,38 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
         orden.Should().Equal(primera, segunda);
     }
 
+    [Fact]
+    public async Task Filtrar_por_Contratada_por_no_revela_Empresas_fuera_del_alcance_de_visibilidad()
+    {
+        await using var contexto = CrearContexto();
+        var alcance = new AlcanceDatosServiceFalso(empresaIds: [_empresaSurId]);
+        var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance, contexto, contexto);
+        var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio, contexto);
+
+        var delNorte = await handler.Handle(new ObtenerSubcontratasQuery(null, ContratadaPorEmpresaId: _empresaNorteId), CancellationToken.None);
+        var delSur = await handler.Handle(new ObtenerSubcontratasQuery(null, ContratadaPorEmpresaId: _empresaSurId), CancellationToken.None);
+
+        delNorte.Elementos.Should().BeEmpty("el Norte no está en el alcance de Empresas de quien consulta");
+        delSur.Elementos.Select(s => s.RazonSocial).Should().Equal("Subcontrata Supervisada S.L.");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Subcontratas_sin_contratante_van_al_final_al_ordenar_por_Contratada_por_en_los_dos_sentidos(bool descendente)
+    {
+        await using (var contexto = CrearContexto())
+        {
+            contexto.Empresas.Add(Empresa.CrearComoSubcontrata("Subcontrata Sin Contratante S.L.", "B10380277", NivelServicioSubcontrata.Gestionada.ToString()));
+            await contexto.SaveChangesAsync();
+        }
+
+        var orden = await ObtenerSubcontratasAsync(new ObtenerSubcontratasQuery(null, OrdenarPor: "ContratadaPor", Descendente: descendente));
+
+        orden.Should().HaveCount(3);
+        orden.Last().Should().Be("Subcontrata Sin Contratante S.L.");
+    }
+
     private async Task<IReadOnlyList<string>> ObtenerSubcontratasAsync(NivelServicioSubcontrata? nivel) =>
         await ObtenerSubcontratasAsync(new ObtenerSubcontratasQuery(null, NivelServicio: nivel));
 
