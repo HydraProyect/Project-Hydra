@@ -145,7 +145,7 @@ public static class CatalogoMenuLateral
 
     /// <summary>
     /// Los roles que admite la página <c>/direccion</c> (Cuadro de dirección) y su guard de Application
-    /// (<c>AutorizacionCuadroDireccion</c>): Dirección CAE y Coordinador CAE ven la misma vista.
+    /// (<c>AutorizacionCuadroDireccion</c>): Dirección CAE, Coordinador CAE y Administrador ven la misma vista.
     /// </summary>
     private const string RolesDeCuadroDireccion = $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae}";
 

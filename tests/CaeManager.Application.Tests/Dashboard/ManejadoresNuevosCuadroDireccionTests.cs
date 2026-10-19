@@ -24,14 +24,23 @@ public class ManejadoresNuevosCuadroDireccionTests
 
     // ---------------------------------------------------------------- Serie
 
-    private static ObtenerSerieCuadroDireccionQueryHandler Serie(string? rol, IAlcanceDatosService alcance) =>
-        new(Autorizados(), alcance, new MedicionFalsa(), null!, new UsuarioConRol(rol), new PoliticaAccesoTotalFalsa(false), new RelojFijo(Ahora));
+    private static ObtenerSerieCuadroDireccionQueryHandler Serie(string? rol, IAlcanceDatosService alcance, bool accesoTotal = false) =>
+        new(Autorizados(), alcance, new MedicionFalsa(), null!, new UsuarioConRol(rol), new PoliticaAccesoTotalFalsa(accesoTotal), new RelojFijo(Ahora));
+
+    /// <summary>La Sesión Privilegiada lee la serie, pero sin rol de negocio no pasa el guard de tarifas: sin importes.</summary>
+    [Fact]
+    public async Task La_serie_en_Sesion_Privilegiada_se_lee_sin_facturacion()
+    {
+        var resultado = await Serie(null, ConAlcance, accesoTotal: true).Handle(new ObtenerSerieCuadroDireccionQuery(2026, 10, 1, ConFacturacion: true), default);
+
+        resultado.Tenants.Should().ContainSingle().Which.Meses.Should().OnlyContain(m => m.Facturacion == null);
+    }
 
     [Theory]
     [InlineData("GestorCae")]
     [InlineData("Consulta")]
     [InlineData(null)]
-    public async Task La_serie_rechaza_un_rol_que_no_es_Direccion_ni_Coordinador_CAE(string? rol)
+    public async Task La_serie_rechaza_un_rol_que_no_es_Direccion_Coordinador_ni_Administrador(string? rol)
     {
         var accion = () => Serie(rol, ConAlcance).Handle(new ObtenerSerieCuadroDireccionQuery(2026, 10, 1, ConFacturacion: true), default);
 

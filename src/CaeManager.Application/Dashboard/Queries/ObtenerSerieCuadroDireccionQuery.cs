@@ -103,6 +103,12 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
                         .GroupBy(c => (c.Anyo, c.Mes))
                         .ToDictionary(g => g.Key, g => g.First());
 
+                // El guard de tarifas se mira con el rol efectivo en ESTE Tenant, no con el de origen: una
+                // Administradora de origen puede ser Gestora CAE en un Tenant que alcanza entero. Si en uno no
+                // pasa, la serie entera va sin importes (un total parcial pasaría por completo).
+                if (conFacturacion && !await DevuelveFacturacionAsync(true, currentUserService))
+                    conFacturacion = false;
+
                 var empresasConTarifa = conFacturacion
                     ? await facturacionContext.TarifasCliente.Select(t => t.ClienteId).Distinct().ToListAsync(cancellationToken)
                     : [];
@@ -123,14 +129,22 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
                     if (conFacturacion)
                     {
                         var lineas = new List<LineaFacturacionDto>();
-                        foreach (var empresaId in empresasConTarifa)
+                        try
                         {
-                            var resumen = await mediator.Send(new ObtenerResumenFacturacionQuery(empresaId, mes.Anyo, mes.Mes, corteUtc), cancellationToken);
-                            if (resumen is not null)
-                                lineas.AddRange(resumen.Lineas);
-                        }
+                            foreach (var empresaId in empresasConTarifa)
+                            {
+                                var resumen = await mediator.Send(new ObtenerResumenFacturacionQuery(empresaId, mes.Anyo, mes.Mes, corteUtc), cancellationToken);
+                                if (resumen is not null)
+                                    lineas.AddRange(resumen.Lineas);
+                            }
 
-                        facturacion = SumarLineas(lineas);
+                            facturacion = SumarLineas(lineas);
+                        }
+                        catch (CaeManager.Application.Tenants.Encargo.ActoExcluidoDelEncargoException)
+                        {
+                            // Un Encargo de administración que excluye Facturación: la serie sigue, sin importes.
+                            conFacturacion = false;
+                        }
                     }
 
                     medidos.Add(new MesMedidoCuadro(medida, facturacion));
@@ -139,6 +153,11 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
                 porTenant.Add((cliente, medidos));
             }
         }
+
+        if (!conFacturacion)
+            porTenant = porTenant
+                .Select(t => (t.Cliente, (IReadOnlyList<MesMedidoCuadro>)t.Meses.Select(m => m with { Facturacion = null }).ToList()))
+                .ToList();
 
         return Construir(meses, ahoraUtc, porTenant, sinAlcance);
     }
