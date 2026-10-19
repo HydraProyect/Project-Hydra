@@ -32,7 +32,7 @@ public class MarcarAcreditacionPendienteDeSubirCommandHandler(
 
     public async Task<Result> Handle(MarcarAcreditacionPendienteDeSubirCommand request, CancellationToken cancellationToken)
     {
-        var acreditacion = await acreditacionRepositorio.ObtenerPorIdAsync(request.AcreditacionId, cancellationToken);
+        var acreditacion = await acreditacionRepositorio.ObtenerPorIdActualizadoAsync(request.AcreditacionId, cancellationToken);
         if (acreditacion is null)
             return Result.Fallo(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
 

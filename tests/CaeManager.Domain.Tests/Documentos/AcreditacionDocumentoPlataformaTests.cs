@@ -115,6 +115,18 @@ public class AcreditacionDocumentoPlataformaTests
     }
 
     [Fact]
+    public void Volver_de_validada_a_enviada_borra_la_vigencia_confirmada()
+    {
+        var acreditacion = CrearAcreditacion();
+        acreditacion.MarcarAceptada(VigenciaEnPlataforma.VenceEl(new DateOnly(2026, 1, 1)));
+
+        acreditacion.MarcarSubida();
+
+        acreditacion.Estado.Should().Be(EstadoAcreditacion.Subida);
+        acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue("una vigencia vieja contaría como vencida en plataforma");
+    }
+
+    [Fact]
     public void ReiniciarPorRenovacionDocumento_vuelve_a_PendienteDeSubir_sin_tocar_el_historial()
     {
         var acreditacion = CrearAcreditacion();

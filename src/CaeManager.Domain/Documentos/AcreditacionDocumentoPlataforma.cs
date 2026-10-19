@@ -68,7 +68,16 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
         Estado = EstadoAcreditacion.PendienteDeSubir;
     }
 
-    public void MarcarSubida() => Estado = EstadoAcreditacion.Subida;
+    /// <summary>
+    /// Enviada a la plataforma y sin validar. Si venía validada, la vigencia que se confirmó entonces ya no respalda nada
+    /// (la plataforma la está revisando otra vez): vuelve a sin confirmar, igual que al rechazar o devolver a pendiente.
+    /// </summary>
+    public void MarcarSubida()
+    {
+        if (Estado == EstadoAcreditacion.Aceptada)
+            AnotarVigencia(VigenciaEnPlataforma.SinConfirmar);
+        Estado = EstadoAcreditacion.Subida;
+    }
 
     /// <summary>
     /// La plataforma aceptó el documento, y ese es justo el momento en que el
