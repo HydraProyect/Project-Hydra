@@ -228,7 +228,7 @@ public class SerieYComunicacionesCuadroDireccionTests
     }
 
     private static async Task AutorizacionCuadroDireccionComprobar(string rol) =>
-        await CaeManager.Application.Dashboard.AutorizacionCuadroDireccion.ExigirLecturaAsync(new UsuarioConRol(rol));
+        await CaeManager.Application.Dashboard.AutorizacionCuadroDireccion.ExigirLecturaAsync(new UsuarioConRol(rol), new PoliticaAccesoTotalFalsa(false));
 
     // ---------------------------------------------------------------- Gestiones por día
 

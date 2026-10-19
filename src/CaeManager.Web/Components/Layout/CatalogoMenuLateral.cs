@@ -147,7 +147,7 @@ public static class CatalogoMenuLateral
     /// Los roles que admite la página <c>/direccion</c> (Cuadro de dirección) y su guard de Application
     /// (<c>AutorizacionCuadroDireccion</c>): Dirección CAE y Coordinador CAE ven la misma vista.
     /// </summary>
-    private const string RolesDeCuadroDireccion = $"{Roles.DireccionCae},{Roles.CoordinadorCae}";
+    private const string RolesDeCuadroDireccion = $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae}";
 
     private const string RolesDeCartera = $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae}";
 
@@ -230,7 +230,8 @@ public static class CatalogoMenuLateral
         // CabeceraGestorCae enlaza a ella y RutasIncorporacionCartera.Bandeja la usa para los avisos.
         // Entrega de Design del 2026-10-17: «Dashboard Ejecutivo» pasa a llamarse «Cuadro de dirección»
         // y su ruta es /direccion. Conserva el Id de la entrada anterior (el orden guardado no se rompe) pero
-        // sus roles son los que admite la página: Dirección CAE y Coordinador CAE.
+        // sus roles son los que admite la página: Administrador, Dirección CAE y Coordinador CAE (2026-10-19). La Sesión
+        // Privilegiada no trae roles y no ve la entrada: entra por la ruta, como a las fichas 360.
         new("dashboard-ejecutivo", "dashboards", "direccion", "tendencia", "Cuadro de dirección",
             Condicion: c => c.TieneAlgunRol(RolesDeCuadroDireccion)),
         // «Indicadores de IA y BPO» (Design): la pantalla que antes se llamaba Dashboard Ejecutivo,

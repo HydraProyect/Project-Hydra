@@ -750,14 +750,31 @@ public partial class CuadroDireccionTests
     [InlineData(Roles.DireccionCae, true)]
     [InlineData(Roles.CoordinadorCae, true)]
     [InlineData(Roles.Consulta, false)]
-    [InlineData(Roles.Administrador, false)]
-    public void El_pulido_conserva_los_roles_admitidos_por_la_ruta_direccion(string rol, bool permitido)
+    [InlineData(Roles.Administrador, true)]
+    [InlineData(Roles.GestorCae, false)]
+    public void La_ruta_direccion_admite_por_rol_a_Direccion_Coordinacion_y_Administrador(string rol, bool permitido)
     {
+        // La ruta va por política: el rol de equipo, o una Sesión Privilegiada
+        // con acceso total al Tenant (Actor de Plataforma TALVEG auditado).
         var autorizacion = typeof(CuadroDireccionPagina)
             .GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
             .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>().Single();
 
-        autorizacion.Roles!.Split(',').Contains(rol).Should().Be(permitido);
+        autorizacion.Policy.Should().Be(CaeManager.Web.Services.Autorizacion.PoliticaCuadroDireccion.Nombre);
+        CaeManager.Web.Services.Autorizacion.PoliticaCuadroDireccion.Roles.Contains(rol).Should().Be(permitido);
+    }
+
+    [Theory]
+    [InlineData(Roles.DireccionCae, true)]
+    [InlineData(Roles.CoordinadorCae, false)]
+    [InlineData(Roles.Administrador, false)]
+    // Sesión Privilegiada: el middleware quita los claims de rol del Actor de Plataforma.
+    [InlineData("", false)]
+    public void Reabrir_un_mes_cerrado_sigue_siendo_solo_de_Direccion(string rol, bool visible)
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), rol, out _);
+
+        cut.FindAll("button").Any(b => b.TextContent.Trim() == "Reabrir un mes cerrado").Should().Be(visible);
     }
 
     [Fact]

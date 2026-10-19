@@ -66,13 +66,14 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
     MedicionMensualCuadroDireccion medicion,
     IFacturacionQueryContext facturacionContext,
     ICurrentUserService currentUserService,
+    IPoliticaNotaInterna politicaAcceso,
     TimeProvider reloj,
     ICierresCuadroDireccion? cierresContext = null)
     : IRequestHandler<ObtenerSerieCuadroDireccionQuery, SerieCuadroDireccionDto>
 {
     public async Task<SerieCuadroDireccionDto> Handle(ObtenerSerieCuadroDireccionQuery request, CancellationToken cancellationToken)
     {
-        await AutorizacionCuadroDireccion.ExigirLecturaAsync(currentUserService);
+        await AutorizacionCuadroDireccion.ExigirLecturaAsync(currentUserService, politicaAcceso);
 
         // Leer el Cuadro no da derecho a ver importes: las tarifas son plano Comercial y las guarda
         // AutorizacionTarifasCliente. Sin ese rol efectivo (Coordinador CAE) la facturación sale a null.
@@ -82,7 +83,7 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
         if (meses.Count == 0)
             return Construir(meses, ahoraUtc, [], 0);
 
-        var clientes = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        var clientes = await mediator.Send(new ObtenerTenantsCuadroDireccionQuery(), cancellationToken);
         var porTenant = new List<(ClienteAutorizadoDto Cliente, IReadOnlyList<MesMedidoCuadro> Meses)>();
         var sinAlcance = 0;
 

@@ -25,7 +25,7 @@ public class ManejadoresNuevosCuadroDireccionTests
     // ---------------------------------------------------------------- Serie
 
     private static ObtenerSerieCuadroDireccionQueryHandler Serie(string? rol, IAlcanceDatosService alcance) =>
-        new(Autorizados(), alcance, new MedicionFalsa(), null!, new UsuarioConRol(rol), new RelojFijo(Ahora));
+        new(Autorizados(), alcance, new MedicionFalsa(), null!, new UsuarioConRol(rol), new PoliticaAccesoTotalFalsa(false), new RelojFijo(Ahora));
 
     [Theory]
     [InlineData("GestorCae")]
@@ -60,7 +60,7 @@ public class ManejadoresNuevosCuadroDireccionTests
     // ---------------------------------------------------------------- Comunicaciones
 
     private static ObtenerComunicacionesCuadroDireccionQueryHandler Comunicaciones(string? rol, IAlcanceDatosService alcance) =>
-        new(Autorizados(), alcance, null!, new UsuarioConRol(rol), new RelojFijo(Ahora));
+        new(Autorizados(), alcance, null!, new UsuarioConRol(rol), new PoliticaAccesoTotalFalsa(false), new RelojFijo(Ahora));
 
     [Theory]
     [InlineData("GestorCae")]
@@ -84,7 +84,7 @@ public class ManejadoresNuevosCuadroDireccionTests
     // ---------------------------------------------------------------- Gestiones por día
 
     private static ObtenerGestionesPorDiaCuadroDireccionQueryHandler Gestiones(string? rol, IAlcanceDatosService alcance) =>
-        new(Autorizados(), alcance, null!, new UsuarioConRol(rol), new RelojFijo(Ahora));
+        new(Autorizados(), alcance, null!, new UsuarioConRol(rol), new PoliticaAccesoTotalFalsa(false), new RelojFijo(Ahora));
 
     [Theory]
     [InlineData("GestorCae")]
@@ -131,8 +131,8 @@ public class ManejadoresNuevosCuadroDireccionTests
     private sealed class AutorizadosFalsos(IReadOnlyList<ClienteAutorizadoDto> autorizados) : IMediator
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            request is ObtenerClientesAutorizadosQuery
-                ? Task.FromResult((TResponse)(object)autorizados)
+            request is ObtenerClientesAutorizadosQuery or ObtenerTenantsCuadroDireccionQuery
+                ?Task.FromResult((TResponse)(object)autorizados)
                 : throw new NotSupportedException(request.GetType().Name);
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>

@@ -1,7 +1,7 @@
 @page "/direccion"
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
-@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}")]
+@attribute [Authorize(Policy = CaeManager.Web.Services.Autorizacion.PoliticaCuadroDireccion.Nombre)]
 @using System.Globalization
 @using CaeManager.Application.Dashboard.Queries
 @using CaeManager.Domain.Comunicaciones

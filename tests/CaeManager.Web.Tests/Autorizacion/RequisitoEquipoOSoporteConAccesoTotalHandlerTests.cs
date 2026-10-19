@@ -60,6 +60,27 @@ public class RequisitoEquipoOSoporteConAccesoTotalHandlerTests
         (await Evaluar(PoliticasFichas360.RolesTipoDocumento, rol: "Consulta", accesoTotal: false)).Should().BeFalse();
     }
 
+    /// <summary>
+    /// Cuadro de dirección: Dirección, Coordinación y Administrador del Tenant por rol; el administrador de TALVEG solo
+    /// con Sesión Privilegiada de acceso total. Gestor CAE, Consulta y Cliente no entran.
+    /// </summary>
+    [Theory]
+    [InlineData("DireccionCae", false, true)]
+    [InlineData("CoordinadorCae", false, true)]
+    [InlineData("Administrador", false, true)]
+    [InlineData(null, true, true)]
+    [InlineData(null, false, false)]
+    [InlineData("GestorCae", false, false)]
+    [InlineData("Consulta", false, false)]
+    [InlineData("Cliente", false, false)]
+    public async Task Cuadro_de_direccion_admite_a_los_administradores_y_a_la_sesion_privilegiada(
+        string? rol, bool accesoTotal, bool entra)
+    {
+        var resultado = await Evaluar(PoliticaCuadroDireccion.Roles, rol, accesoTotal);
+
+        resultado.Should().Be(entra);
+    }
+
     private static async Task<bool> Evaluar(string[] rolesDeEquipo, string? rol, bool accesoTotal)
     {
         var identidad = rol is null
