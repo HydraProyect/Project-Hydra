@@ -568,7 +568,7 @@
   <data name="ReclamacionSinConfirmar" xml:space="preserve">
     <value>Sin confirmar</value>
   </data>
-  <data name="ReclamacionTarjetaDelegacion" xml:space="preserve">
+  <data name="ReclamacionTarjetaDelegacionEmpresa" xml:space="preserve">
     <value>Delegación {0}</value>
   </data>
   <data name="ReclamacionTarjetaAgenda" xml:space="preserve">

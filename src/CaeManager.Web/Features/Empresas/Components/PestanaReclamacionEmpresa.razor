@@ -22,19 +22,19 @@
     {
         <EstadoVacio Titulo="@Textos["ReclamacionError"]" Descripcion="@Textos["ErrorSeccionDescripcion"]">
             <Accion>
-                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["Reintentar"]</Boton>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["Reintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
     else
     {
-        @if (_datos.Delegaciones.Count > 0 || _datos.Oficios.Count > 0)
+        @if (_datos.DelegacionesEmpresa.Count > 0 || _datos.Oficios.Count > 0)
         {
             <div class="empresa360-pastillas" role="group" aria-label="@Textos["EtiquetaFiltrosCatalogo"]">
-                @if (_datos.Delegaciones.Count > 0)
+                @if (_datos.DelegacionesEmpresa.Count > 0)
                 {
                     <PastillaFiltro Etiqueta="@Textos["EtiquetaDelegacionEmpresaFiltro"]" TextoTodos="@Textos["OpcionTodasLasDelegacionesEmpresa"]" Valor="@_delegacionId"
-                                    ValorChanged="CambiarDelegacionAsync" Opciones="@Opciones(_datos.Delegaciones)" />
+                                    ValorChanged="CambiarDelegacionEmpresaAsync" Opciones="@Opciones(_datos.DelegacionesEmpresa)" />
                 }
                 @if (_datos.Oficios.Count > 0)
                 {
@@ -116,7 +116,7 @@
             {
                 <p class="texto-vacio-seccion" role="status">@Textos["ReclamacionAccesoNada"]</p>
             }
-            <Boton Variante="VarianteBoton.Primario" Disabled="@(_trabajadores.Count == 0 || _preparando)" OnClick="PrepararAccesoAsync" data-testid="preparar-acceso">
+            <Boton Variante="VarianteBoton.Secundario" Disabled="@(_trabajadores.Count == 0 || _preparando)" OnClick="PrepararAccesoAsync" data-testid="preparar-acceso">
                 @Textos["ReclamacionAccesoPreparar"]
             </Boton>
         }
@@ -125,7 +125,7 @@
 
 @if (_lotesDrawer is { } lotes)
 {
-    <DrawerReclamacionLote @key="lotes" Visible="true" VisibleChanged="v => { if (!v) _lotesDrawer = null; }"
+    <DrawerReclamacionLote Visible="true" VisibleChanged="v => { if (!v) _lotesDrawer = null; }"
                           AmbitosDisponibles="@(new[] { AmbitoAplicacion.Empresa, AmbitoAplicacion.Trabajador })"
                           LotesIniciales="lotes" OnReclamacionEnviada="CargarAsync" />
 }
@@ -176,10 +176,10 @@
         [.. opciones.Select(o => new OpcionEstado(o.Id.ToString(), o.Nombre))];
 
     private string TituloDe(LoteReclamacionAgrupadoDto lote) => lote.EmpresaEmpleadora is { DelegacionEmpresaNombre: { } delegacion }
-        ? Textos["ReclamacionTarjetaDelegacion", delegacion]
+        ? Textos["ReclamacionTarjetaDelegacionEmpresa", delegacion]
         : Textos["ReclamacionTarjetaAgenda"];
 
-    private Task CambiarDelegacionAsync(string valor)
+    private Task CambiarDelegacionEmpresaAsync(string valor)
     {
         _delegacionId = valor;
         return CargarAsync();

@@ -44,12 +44,12 @@ public record OpcionFiltroDto(Guid Id, string Nombre);
 public record CentroConTrabajadoresDto(Guid CentroId, string CentroNombre, IReadOnlyList<OpcionFiltroDto> Trabajadores);
 
 /// <param name="Lotes">Los lotes listos para <c>DrawerReclamacionLote</c>, ya filtrados.</param>
-/// <param name="Delegaciones">Las Delegaciones de la Empresa, para el filtro.</param>
+/// <param name="DelegacionesEmpresa">Las sedes (Delegaciones de Empresa) de la Empresa, para el filtro.</param>
 /// <param name="Oficios">Los Oficios de la Empresa, para el filtro.</param>
 /// <param name="Centros">Los Centros donde trabaja hoy la Empresa, para la reclamación por acceso.</param>
 public record ReclamacionPreventivaEmpresaDto(
     IReadOnlyList<LoteReclamacionAgrupadoDto> Lotes,
-    IReadOnlyList<OpcionFiltroDto> Delegaciones,
+    IReadOnlyList<OpcionFiltroDto> DelegacionesEmpresa,
     IReadOnlyList<OpcionFiltroDto> Oficios,
     IReadOnlyList<CentroConTrabajadoresDto> Centros);
 
@@ -171,7 +171,7 @@ public class ObtenerReclamacionPreventivaEmpresaQueryHandler(
     {
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
-        var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        var clientesEnAlcance = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
         var filas = await (
                 from trabajador in trabajadoresContext.Trabajadores
                 where trabajador.EmpresaId == empresaId
@@ -181,7 +181,7 @@ public class ObtenerReclamacionPreventivaEmpresaQueryHandler(
                 where centroIdsVisibles == null || centroIdsVisibles.Contains(asignacion.CentroId)
                 join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
                 where centro.GestionCae != ModalidadGestionCae.SinGestionCae
-                where clienteIdsVisibles == null || clienteIdsVisibles.Contains(centro.ClienteId)
+                where clientesEnAlcance == null || clientesEnAlcance.Contains(centro.ClienteId)
                 select new { CentroId = centro.Id, CentroNombre = centro.Nombre, TrabajadorId = trabajador.Id, TrabajadorNombre = trabajador.Nombre + " " + trabajador.Apellidos })
             .Distinct()
             .ToListAsync(cancellationToken);

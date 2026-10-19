@@ -620,6 +620,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Reclamaciones.ObtenerLoteReclamacionQueryHandler", "IDocumentosQueryContext"),
         ("Reclamaciones.ObtenerLoteReclamacionQueryHandler", "ITiposDocumentoQueryContext"),
         ("Reclamaciones.ObtenerLoteReclamacionQueryHandler", "ITrabajadoresQueryContext"),
+        // Reclamación preventiva de Empresa 360 (2026-10-19): ofrece los Centros con gestión CAE donde la Empresa tiene Trabajadores
+        // con Asignación activa, con el mismo alcance que ObtenerLoteReclamacionQueryHandler, y las sedes y Oficios de la Empresa.
+        ("Reclamaciones.ObtenerReclamacionPreventivaEmpresaQueryHandler", "IAsignacionesQueryContext"),
+        ("Reclamaciones.ObtenerReclamacionPreventivaEmpresaQueryHandler", "ICentrosQueryContext"),
+        ("Reclamaciones.ObtenerReclamacionPreventivaEmpresaQueryHandler", "IEmpresasQueryContext"),
+        ("Reclamaciones.ObtenerReclamacionPreventivaEmpresaQueryHandler", "ITrabajadoresQueryContext"),
         ("Reclamaciones.ObtenerReclamacionesEnviadasQueryHandler", "IClientesQueryContext"),
         ("Reclamaciones.ObtenerReclamacionesEnviadasQueryHandler", "IComunicacionesQueryContext"),
         ("Reclamaciones.ObtenerReclamacionesSinRespuestaQueryHandler", "IClientesQueryContext"),

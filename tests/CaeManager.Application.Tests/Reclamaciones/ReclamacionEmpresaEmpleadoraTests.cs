@@ -220,6 +220,60 @@ public class ReclamacionEmpresaEmpleadoraTests
         _registro.VecesLlamado.Should().Be(0);
     }
 
+    private Documento DocumentoDeEmpresaQueVence(Empresa empresa)
+    {
+        var tipoEmpresa = _tipos.ListaTiposDocumento.FirstOrDefault(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa)
+            ?? new TipoDocumento("Certificado de la Seguridad Social", null, false, 1, AmbitoAplicacion.Empresa);
+        if (!_tipos.ListaTiposDocumento.Contains(tipoEmpresa))
+            _tipos.ListaTiposDocumento.Add(tipoEmpresa);
+        var documento = Documento.DeEmpresa(empresa.Id, tipoEmpresa.Id, Hoy.AddYears(-1), VigenciaDocumento.VenceEl(Hoy.AddDays(5)));
+        _documentos.ListaDocumentos.Add(documento);
+        return documento;
+    }
+
+    [Fact]
+    public async Task Por_acceso_lo_de_la_Empresa_y_lo_de_su_Trabajador_salen_en_un_solo_correo_a_la_Delegacion()
+    {
+        var deAna = DocumentoQueVence(_anaSevilla);
+        var deLaEmpresa = DocumentoDeEmpresaQueVence(_contratista);
+
+        var resultado = await Handler().Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(_contratista.Id, _sevilla.Id, [deAna.Id, deLaEmpresa.Id]), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeFalse(resultado.EsFallido ? resultado.Error.Mensaje : null);
+        _registro.VecesLlamado.Should().Be(1, "un solo borrador");
+        _registro.UltimosDestinatarios.Should().Equal(CorreoSevilla);
+        _registro.UltimosDocumentoIds.Should().BeEquivalentTo([deAna.Id, deLaEmpresa.Id]);
+        _registro.UltimoCuerpoHtml.Should().Contain("Certificado de la Seguridad Social").And.Contain(EnviarReclamacionEmpresaEmpleadoraCommandHandler.RotuloEmpresa);
+    }
+
+    [Fact]
+    public async Task Un_documento_de_otra_Empresa_no_viaja_en_la_reclamacion_por_acceso()
+    {
+        var deAna = DocumentoQueVence(_anaSevilla);
+        var deOtraEmpresa = DocumentoDeEmpresaQueVence(_cliente);
+
+        var resultado = await Handler().Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(_contratista.Id, _sevilla.Id, [deAna.Id, deOtraEmpresa.Id]), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Reclamacion.DocumentosDesactualizados");
+        _registro.VecesLlamado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Lo_de_la_Empresa_fuera_de_la_Asignacion_de_Cartera_se_rechaza_sin_enviar()
+    {
+        var deLaEmpresa = DocumentoDeEmpresaQueVence(_contratista);
+        var fueraDeCartera = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsParaGestion: []);
+
+        var resultado = await Handler(fueraDeCartera).Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(_contratista.Id, null, [deLaEmpresa.Id]), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Reclamacion.SinAcceso");
+        _registro.VecesLlamado.Should().Be(0);
+    }
+
     [Fact]
     public async Task Sin_leer_la_nota_interna_el_envio_a_la_Delegacion_se_rechaza_sin_enviar()
     {

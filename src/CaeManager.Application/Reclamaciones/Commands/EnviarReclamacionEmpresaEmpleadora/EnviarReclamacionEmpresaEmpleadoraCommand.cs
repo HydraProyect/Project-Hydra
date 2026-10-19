@@ -93,7 +93,7 @@ public class EnviarReclamacionEmpresaEmpleadoraCommandHandler(
         // Reclamación por acceso: lo de la propia Empresa (sin Trabajador) se separa y se revalida con su propia regla.
         // Un «Ausente» de la Empresa no trae Trabajador; un «Sin confirmar» se reconoce por su Documento, que es de la Empresa.
         var sinConfirmarIds = todosLosPedidos.Where(p => p.DocumentoId is not null).Select(p => p.DocumentoId!.Value).ToList();
-        var sinConfirmarDeEmpresa = sinConfirmarIds.Count == 0 ? [] : (await documentosContext.Documentos
+        var sinConfirmarDeEmpresa = sinConfirmarIds.Count == 0 ? [] : (await documentosContext.Documentos.Operativos()
             .Where(d => sinConfirmarIds.Contains(d.Id) && d.TrabajadorId == null && d.EmpresaId == request.EmpresaId)
             .Select(d => d.Id).ToListAsync(cancellationToken)).ToHashSet();
         var pedidosEmpresa = todosLosPedidos
