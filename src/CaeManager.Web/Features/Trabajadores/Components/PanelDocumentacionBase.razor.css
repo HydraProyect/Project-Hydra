@@ -58,6 +58,10 @@
     min-width: 0;
 }
 
+.panel-doc-base-estado ::deep .badge {
+    white-space: nowrap;
+}
+
 .panel-doc-base-fecha {
     color: var(--color-text-muted);
     font: var(--font-caption);

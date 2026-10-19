@@ -4,7 +4,8 @@
     Es una vista de referencia: ni afirma que ninguno sea obligatorio por oficio ni equivale
     a «apto para un Centro» (TipoDocumentoCentro, otro plano). Los estados salen de
     DocumentacionBaseTrabajador, que reutiliza CalculadoraEstadoDocumento. «Vigencia sin
-    confirmar» cuenta como al día, pero se avisa con texto visible: junto al resumen compacto y
+    confirmar» cuenta como al día en el resumen compacto (el panel completo, por la maqueta Trabajador 360, rotula su pastilla con
+    el peor estado de las cuatro filas), pero se avisa con texto visible: junto al resumen compacto y
     en una línea propia del panel completo, además del indicador.
 
     Dos modos de alimentarlo: con Datos ya cargados o con TrabajadorId (cajón y ficha), que lo
@@ -59,7 +60,7 @@
                 {
                     <li class="panel-doc-base-fila panel-doc-base-fila-@Clase(indicador.Estado) @(OnCorregirDocumento.HasDelegate || OnSubirFaltante.HasDelegate ? "panel-doc-base-con-acciones" : null)" @key="indicador.Tipo">
                         <span class="panel-doc-base-nombre">@TextoTipo(indicador.Tipo)</span>
-                        <span class="panel-doc-base-fecha">
+                        <span class="panel-doc-base-fecha" title="@Textos["ColumnaVence"]">
                             @if (indicador.FechaVencimiento is { } vence && indicador.Estado is EstadoIndicadorBase.Vigente or EstadoIndicadorBase.ProximoAVencer or EstadoIndicadorBase.Vencido)
                             {
                                 @vence.ToString("dd/MM/yyyy")

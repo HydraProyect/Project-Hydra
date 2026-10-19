@@ -58,6 +58,19 @@ public class PanelDocumentacionBaseTests : BunitContext
         cut.Markup.Should().NotContain("Próximo a vencer");
     }
 
+    [Theory]
+    [InlineData(EstadoIndicadorBase.Falta, EstadoIndicadorBase.ProximoAVencer, "Pendiente")]
+    [InlineData(EstadoIndicadorBase.ProximoAVencer, EstadoIndicadorBase.SinConfirmar, "Por vencer")]
+    [InlineData(EstadoIndicadorBase.SinConfirmar, EstadoIndicadorBase.Vigente, "Vigencia sin confirmar")]
+    public void La_pastilla_del_titulo_es_el_peor_estado_y_las_filas_se_tiñen(EstadoIndicadorBase peor, EstadoIndicadorBase otro, string texto)
+    {
+        var cut = Render<PanelDocumentacionBase>(p => p.Add(c => c.Datos, Dto(otro, peor, otro, otro)));
+
+        cut.Find(".panel-doc-base-cabecera .badge").TextContent.Trim().Should().Be(texto);
+        cut.FindAll(".panel-doc-base-fecha").Should().OnlyContain(f => f.TextContent.Trim() == "—");
+        cut.FindAll(".panel-doc-base-fila-mal, .panel-doc-base-fila-aviso").Should().NotBeEmpty();
+    }
+
     [Fact]
     public void Un_indicador_vencido_o_ausente_no_es_al_dia_y_se_nombra()
     {
