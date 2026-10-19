@@ -24,7 +24,7 @@ public partial class DocumentosGen2Tests
     {
         var (cut, _) = Renderizar();
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Aún no hay documentos", "es el estado vacío: no hay filas que recorrer"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Todavía no hay documentos", "es el estado vacío: no hay filas que recorrer"));
         cut.FindAll(LeyendaAtajosEnPagina.Selector).Should().ContainSingle("el pie conserva la leyenda también sin resultados");
     }
 }

@@ -252,4 +252,33 @@
   <data name="ValDecisionVerificadoAutomaticamente" xml:space="preserve">
     <value>Verificat automàticament</value>
   </data>
+  <data name="AgruparNo" xml:space="preserve"><value>Agrupa: no</value></data>
+  <data name="AgruparPorAmbitoEtiqueta" xml:space="preserve"><value>Agrupa: per àmbit</value></data>
+  <data name="ChipPropietario" xml:space="preserve"><value>Propietari · 1</value></data>
+  <data name="Gestionar" xml:space="preserve"><value>Gestiona</value></data>
+  <data name="GestionarAria" xml:space="preserve"><value>Gestiona {0} de {1}</value></data>
+  <data name="ListaAcciones" xml:space="preserve"><value>Accions</value></data>
+  <data name="ListaArchivo" xml:space="preserve"><value>Fitxer</value></data>
+  <data name="ListaDocumento" xml:space="preserve"><value>Document</value></data>
+  <data name="ListaEstado" xml:space="preserve"><value>Estat</value></data>
+  <data name="ListaPlataformas" xml:space="preserve"><value>Plataformes</value></data>
+  <data name="ListaPortal" xml:space="preserve"><value>Portal</value></data>
+  <data name="ListaPropietario" xml:space="preserve"><value>Propietari</value></data>
+  <data name="ListaVence" xml:space="preserve"><value>Venç</value></data>
+  <data name="PorAmbito" xml:space="preserve"><value>Per àmbit</value></data>
+  <data name="QuitarFiltroPropietario" xml:space="preserve"><value>Treu el filtre de propietari</value></data>
+  <data name="SinAgrupar" xml:space="preserve"><value>Sense agrupar</value></data>
+  <data name="VacioDescripcionDesign" xml:space="preserve"><value>Puja el primer o fes servir la pujada massiva.</value></data>
+  <data name="VacioFiltroQuitarDesign" xml:space="preserve"><value>Treu els filtres</value></data>
+  <data name="VacioFiltroTituloDesign" xml:space="preserve"><value>Cap resultat amb aquests filtres</value></data>
+  <data name="VacioTituloDesign" xml:space="preserve"><value>Encara no hi ha documents</value></data>
+  <data name="ContraerTodo" xml:space="preserve"><value>Contreu-ho tot</value></data>
+  <data name="DocumentoContraer" xml:space="preserve"><value>Contreu {0}</value></data>
+  <data name="DocumentoExpandir" xml:space="preserve"><value>Desplega {0}</value></data>
+  <data name="ExpandirTodo" xml:space="preserve"><value>Desplega-ho tot</value></data>
+  <data name="ListaCentro" xml:space="preserve"><value>Centre</value></data>
+  <data name="ListaDestino" xml:space="preserve"><value>Destinació</value></data>
+  <data name="SeleccionarDocumento" xml:space="preserve"><value>Selecciona {0} de {1}, emissió {2}</value></data>
+  <data name="SeleccionarPagina" xml:space="preserve"><value>Selecciona els documents d&apos;aquesta pàgina</value></data>
+  <data name="ToleranciaHasta" xml:space="preserve"><value>En tolerància fins al {0}</value></data>
 </root>
