@@ -109,18 +109,13 @@
   sin las columnas fijas de cifra y acción de la rejilla de documentos. La fecha de alta y la baja van en la línea secundaria, que así
   ocupa el ancho de la fila. Las filas de documentos que se despliegan debajo conservan la rejilla de 104 · 152 · 128 px de la maqueta.
 */
-.trabajador360-centros ::deep .fila-relacion-rejilla {
+.trabajador360-centros ::deep .fila-relacion-rejilla:not(.fila-relacion-compacta) {
     grid-template-columns: minmax(0, 1fr) auto 30px;
     column-gap: var(--space-2);
 }
 
 .trabajador360-centros ::deep .fila-relacion-rejilla > .fila-relacion-cifra:empty {
     display: none;
-}
-
-.trabajador360-centros ::deep .fila-relacion-desplegado .fila-relacion-rejilla {
-    grid-template-columns: minmax(0, 1fr) 104px 152px 128px;
-    column-gap: normal;
 }
 
 .trabajador360-centros ::deep .fila-relacion-detalle {

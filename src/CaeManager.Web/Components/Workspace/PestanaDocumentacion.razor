@@ -53,12 +53,22 @@ else if (EnPagina)
     <ListaRelaciones EnTarjeta="true" Etiqueta="@Comunes["ListaDocumentacion"]">
         @foreach (var documento in _documentos)
         {
-            <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre"
+            <FilaRelacion Compacta="true" @key="documento.Id" Nombre="@documento.TipoDocumentoNombre"
                           Tono="@EstadoDocumentoFicha360.TonoFila(documento.Estado)"
                           OnNombre="() => AbrirDocumentoAsync(documento)">
                 <Detalle><BadgesAcreditacion Acreditaciones="documento.Acreditaciones" /></Detalle>
                 <Cifra><span>@TextoVence(documento)</span></Cifra>
                 <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></Estado>
+                <Acciones>
+                    @if (EstadoDocumentoFicha360.PideGestionar(documento.Estado))
+                    {
+                        <SoloConEscritura>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="@EstadoDocumentoFicha360.ClaseGestionar(documento.Estado, "accion-fila-enlace")"
+                                   aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)"
+                                   OnClick="() => _correccion.AbrirAsync(documento.Id, null, null, null)">@EstadoDocumentoFicha360.TextoAccion</Boton>
+                        </SoloConEscritura>
+                    }
+                </Acciones>
             </FilaRelacion>
         }
     </ListaRelaciones>
@@ -80,7 +90,10 @@ else
     </ul>
 }
 
+<CorreccionIncidenciaDocumental @ref="_correccion" OnCorregida="CargarAsync" />
+
 @code {
+    private CorreccionIncidenciaDocumental _correccion = default!;
     [Parameter, EditorRequired] public AmbitoAplicacion Ambito { get; set; }
     [Parameter, EditorRequired] public Guid PropietarioId { get; set; }
 
@@ -148,5 +161,6 @@ else
             : WorkspaceService.NavegarAAsync(EntidadWorkspace.Documento, documento.Id, documento.TipoDocumentoNombre, "informacion");
 
     private static string TextoVence(DocumentoListaDto documento) =>
-        $"Vence: {(documento.FechaVencimiento is null ? "—" : documento.FechaVencimiento.Value.ToString("dd/MM/yyyy"))}";
+        DetalleVigenciaDocumentoUi.DeFicha360(documento.Estado, documento.FechaVencimiento,
+            documento.TipoDocumentoNombre, deEmpresa: documento.Ambito == AmbitoAplicacion.Empresa);
 }

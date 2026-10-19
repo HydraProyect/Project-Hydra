@@ -20,9 +20,9 @@ namespace CaeManager.Web.Tests;
 /// S4: un documento «Sin confirmar» no tiene fecha de vencimiento, pero eso NO es «no caduca». La celda de
 /// vigencia del tercer nivel de Centro 360 decía «Sin caducidad» junto al badge ámbar «Sin confirmar» (el modelo
 /// eliminó el «nulo = no caduca»; decisión del propietario del 2026-10-01: «Sin confirmar» es un estado propio,
-/// al día con aviso). Ahora dice «Sin confirmar» y lleva el mismo aviso ámbar que el panel Documentación base;
-/// «Sin caducidad» queda solo para lo confirmado como tal, y un estado sin fecha que no es ninguno de los dos
-/// (un hueco) se rotula «—».
+/// al día con aviso). La vigencia indica «Falta la fecha de vencimiento» y conserva el aviso ámbar;
+/// «Sin caducidad» queda solo para lo confirmado como tal. Un documento pendiente también indica la fecha
+/// que falta, nunca un guion.
 /// </summary>
 public partial class AcordeonAsignacionesCentroVigenciaSinConfirmarTests : BunitContext
 {
@@ -127,11 +127,11 @@ public partial class AcordeonAsignacionesCentroVigenciaSinConfirmarTests : Bunit
     }
 
     [Fact]
-    public async Task Un_documento_de_Trabajador_sin_confirmar_dice_Sin_confirmar_con_aviso_y_nunca_Sin_caducidad()
+    public async Task Un_documento_de_Trabajador_sin_confirmar_indica_la_fecha_que_falta_con_aviso_y_nunca_Sin_caducidad()
     {
         var (texto, clase) = await CeldaDeTrabajadorAsync(EstadoDocumento.SinConfirmar, fecha: null);
 
-        texto.Should().Be("Sin confirmar");
+        texto.Should().Be("Falta la fecha de vencimiento");
         texto.Should().NotContain("Sin caducidad", "sin fecha no es «no caduca»: nadie ha anotado hasta cuándo vale");
         clase.Should().Contain("celda-documento-vigencia-sin-confirmar", "lleva el mismo aviso ámbar que el panel Documentación base");
     }
@@ -150,16 +150,16 @@ public partial class AcordeonAsignacionesCentroVigenciaSinConfirmarTests : Bunit
     {
         var (texto, clase) = await CeldaDeTrabajadorAsync(EstadoDocumento.Vigente, new DateOnly(2027, 3, 14));
 
-        texto.Should().Be("Caduca 14/03/2027");
+        texto.Should().Be("Caduca el 14/03/2027");
         clase.Should().NotContain("celda-documento-vigencia-sin-confirmar");
     }
 
     [Fact]
-    public void Una_incidencia_de_Empresa_sin_confirmar_dice_Sin_confirmar_con_aviso()
+    public void Una_incidencia_de_Empresa_sin_confirmar_indica_la_fecha_que_falta_con_aviso()
     {
         var (texto, clase) = CeldaDeEmpresa(EstadoDocumento.SinConfirmar, fecha: null);
 
-        texto.Should().Be("Sin confirmar");
+        texto.Should().Be("Falta la fecha de vencimiento");
         clase.Should().Contain("celda-documento-vigencia-sin-confirmar");
     }
 
@@ -168,7 +168,7 @@ public partial class AcordeonAsignacionesCentroVigenciaSinConfirmarTests : Bunit
     {
         var (texto, clase) = CeldaDeEmpresa(EstadoDocumento.Faltante, fecha: null);
 
-        texto.Should().Be("—", "un hueco no tiene vigencia que rotular; antes decía «Sin caducidad»");
+        texto.Should().Be("Falta la fecha de vencimiento", "un documento pendiente nunca muestra un guion como vigencia");
         clase.Should().NotContain("celda-documento-vigencia-sin-confirmar");
     }
     private static TrabajadorAsignacionDocumentacionDto Asignado(string nombre, EstadoDocumento estado) =>
