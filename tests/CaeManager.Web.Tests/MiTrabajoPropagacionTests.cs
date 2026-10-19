@@ -16,7 +16,9 @@ public partial class MiTrabajoGen2Tests
             Item(centro, TipoItemBandeja.PlataformaPendiente, "RNT", "Empresa destinataria", documentoId: documento,
                 proveedor: "Nalanda") with
             {
-                CentroNombre = centro, AcreditacionId = Guid.NewGuid(), EsPropagacionPendiente = true
+                CentroNombre = centro,
+                AcreditacionId = Guid.NewGuid(),
+                EsPropagacionPendiente = true
             }).ToArray();
         var datos = new MiTrabajoAgregadoDto([Tenant(TenantRefri, "Refrielectric", false, pendientes)]);
         var cut = Renderizar(() => datos);
@@ -41,7 +43,8 @@ public partial class MiTrabajoGen2Tests
     public void PropagacionesExcluyeOrigenYEstadosQueNoSonPendientes()
     {
         var pendiente = Item("p", TipoItemBandeja.PlataformaPendiente, "RNT", documentoId: Guid.NewGuid())
-            with { EsPropagacionPendiente = true };
+            with
+        { EsPropagacionPendiente = true };
         var datos = new MiTrabajoAgregadoDto([
             Tenant(TenantOrigen, "Origen", true, [pendiente]),
             Tenant(TenantRefri, "Refrielectric", false,
