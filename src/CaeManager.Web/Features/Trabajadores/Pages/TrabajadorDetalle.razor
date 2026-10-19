@@ -299,11 +299,11 @@
                                                                     </Cifra>
                                                                     <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado, documento.EnToleranciaHasta)</Badge></Estado>
                                                                     <Acciones>
-                                                                        @* Vigente y Sin caducidad no llevan botón; lo que pide trabajo, «Gestionar». *@
+                                                                        @* Todo documento lleva «Gestionar»; Vigente y Sin caducidad, en tono secundario. *@
                                                                         @if (EstadoDocumentoFicha360.PideGestionar(documento.Estado))
                                                                         {
                                                                             <SoloConEscritura>
-                                                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="@EstadoDocumentoFicha360.ClaseGestionar(documento.Estado, "accion-fila-enlace")"
                                                                                        aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)"
                                                                                        OnClick="() => GestionarDocumentoAsync(documento)">
                                                                                     @EstadoDocumentoFicha360.TextoAccion
@@ -377,7 +377,7 @@
                                             <Acciones>
                                                 @if (pideGestionar)
                                                 {
-                                                    <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)" OnClick="() => EditarDocumentoAsync(documento.Id)">@EstadoDocumentoFicha360.TextoAccion</Boton></SoloConEscritura>
+                                                    <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="@EstadoDocumentoFicha360.ClaseGestionar(documento.Estado)" aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)" OnClick="() => EditarDocumentoAsync(documento.Id)">@EstadoDocumentoFicha360.TextoAccion</Boton></SoloConEscritura>
                                                 }
                                             </Acciones>
                                         </FilaRelacion>
@@ -577,6 +577,11 @@
         }
     </fieldset>
 </ModalFormulario>
+@* Trabajador de Empresa: «Reclamar faltantes» va a su Empresa empleadora, por Delegación, con el cajón de «Gestionar». *@
+<CaeManager.Web.Features.Bandeja.Components.DrawerReclamacionLote
+    Visible="_reclamacionEmpresaVisible" VisibleChanged="v => _reclamacionEmpresaVisible = v"
+    AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa })"
+    AmbitoInicial="AmbitoAplicacion.Trabajador" EntidadIdInicial="TrabajadorId" IncluirPendientesSinFecha="true" />
 @if (_detalle is not null)
 {
     <SoloConEscritura>

@@ -20,6 +20,10 @@ namespace CaeManager.Application.Reclamaciones;
 /// Los destinatarios añadidos a mano (ya validados) y las direcciones en copia. Van aparte de <paramref name="Correos"/> y
 /// <paramref name="Destinatarios"/>, que son solo los de la agenda: ninguno de estos se guarda en ella.
 /// </param>
+/// <param name="EmpresaEmpleadora">
+/// Solo en una reclamación de documentos de Trabajador a la Empresa que los emplea: la Delegación a la que va (o ninguna,
+/// cuando va a la agenda de la Empresa), para que la vista previa diga a dónde sale.
+/// </param>
 public sealed record ReclamacionPreparada(
     Guid TitularId,
     string TitularRazonSocial,
@@ -29,7 +33,8 @@ public sealed record ReclamacionPreparada(
     string Asunto,
     string CuerpoHtml,
     IReadOnlyList<DocumentoPendienteDto>? Pendientes = null,
-    DestinatariosExtraDeReclamacion? Extra = null)
+    DestinatariosExtraDeReclamacion? Extra = null,
+    DestinoEmpresaEmpleadoraDto? EmpresaEmpleadora = null)
 {
     /// <summary>Los correos a los que va el envío: los de la agenda más los añadidos a mano.</summary>
     public IReadOnlyList<string> CorreosParaEnviar => [.. Correos, .. (Extra ?? DestinatariosExtraDeReclamacion.Ninguno).Adicionales];

@@ -180,7 +180,7 @@ public partial class ClientesListaGen2Tests
         var cut = Renderizar(mediador, "clientes");
         ParametrosDeLaUrl().Should().NotContainKey("orden", "control: el orden de fábrica no viaja");
 
-        await cut.FindAll("thead th button.col-title").Single(b => b.TextContent.Trim() == "Cliente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".cabecera-columnas-clientes button.col-title").Single(b => b.TextContent.Trim() == "Cliente").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().Contain("orden", "cliente"));
         UltimaConsulta(mediador).Should().Match<ObtenerClientesQuery>(q => q.OrdenarPor == nameof(ClienteListaDto.RazonSocial) && !q.Descendente);

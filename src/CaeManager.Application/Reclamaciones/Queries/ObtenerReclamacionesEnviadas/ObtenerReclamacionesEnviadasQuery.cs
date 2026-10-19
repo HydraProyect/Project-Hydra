@@ -50,17 +50,29 @@ public record ObtenerReclamacionesEnviadasQuery(int Pagina = 1, int TamanoPagina
 /// Documentos que siguen «Sin confirmar» sin fecha. Se reenvían tal cual: el envío los revalida contra la base.
 /// <paramref name="TotalDocumentos"/> cuenta todas las líneas del lote, estén donde estén.
 /// </param>
+/// <param name="EmpresaEmpleadora">
+/// Informado cuando el lote pidió documentos de Trabajadores a su Empresa empleadora («Gestionar»,
+/// <c>ReclamacionDocumental.ParaEmpresaEmpleadora</c>): entonces «reclamar de nuevo» va por
+/// <c>EnviarReclamacionEmpresaEmpleadoraCommand</c> con su Delegación, porque <c>EnviarReclamacionEmpresaCommand</c> solo
+/// acepta documentos de la propia Empresa. Si su destino ya no es uno solo, no se ofrece el reenvío.
+/// </param>
 public record ReclamacionEnviadaDto(
     Guid Id, Guid TitularId, string TitularRazonSocial, AmbitoAplicacion AmbitoTitular, string DestinatarioEmail,
     DateTime FechaEnvioUtc, int TotalDocumentos, Guid? ConversacionId, bool? SinRespuesta,
-    IReadOnlyList<Guid> DocumentoIds, IReadOnlyList<PendienteSinFecha>? Pendientes = null);
+    IReadOnlyList<Guid> DocumentoIds, IReadOnlyList<PendienteSinFecha>? Pendientes = null,
+    DestinoDeReclamacionEnviadaDto? EmpresaEmpleadora = null)
+{
+    /// <summary>Si «Reclamar de nuevo» puede despacharse: siempre, salvo un lote a la Empresa empleadora cuyo destino ya no es uno solo.</summary>
+    public bool Reenviable => EmpresaEmpleadora is not { DelegacionEmpresaDeterminada: false };
+}
 
 public class ObtenerReclamacionesEnviadasQueryHandler(
     IReclamacionesQueryContext reclamacionesContext,
     IEmpresasQueryContext empresasContext,
     IComunicacionesQueryContext comunicacionesContext,
     IAlcanceDatosService alcanceDatos,
-    IPendientesDeReclamacionService pendientesDeReclamacion)
+    IPendientesDeReclamacionService pendientesDeReclamacion,
+    DestinoDeReclamacionesEnviadasService destinoDeReclamaciones)
     : IRequestHandler<ObtenerReclamacionesEnviadasQuery, ResultadoPaginado<ReclamacionEnviadaDto>>
 {
     public async Task<ResultadoPaginado<ReclamacionEnviadaDto>> Handle(
@@ -120,6 +132,10 @@ public class ObtenerReclamacionesEnviadasQueryHandler(
         var idsDeDocumentos = lineas.Where(l => l.DocumentoId is not null).Select(l => l.DocumentoId!.Value).Distinct().ToList();
         var sinConfirmarHoy = await pendientesDeReclamacion.DocumentoIdsAunSinConfirmarSinFechaAsync(idsDeDocumentos, cancellationToken);
 
+        // Con titular Empresa, cuáles pidieron documentos de sus Trabajadores y a qué Delegación irían hoy.
+        var destinos = await destinoDeReclamaciones.DerivarAsync(
+            [.. pagina.Where(r => r.EmpresaId is not null).Select(r => r.Id)], cancellationToken);
+
         // Igual criterio que ObtenerReclamacionesSinRespuestaQuery, pero por
         // FILA (aquí una misma Conversación puede llevar más de un lote a
         // distintas fechas, así que el umbral "hay un entrante DESPUÉS del
@@ -157,7 +173,8 @@ public class ObtenerReclamacionesEnviadasQueryHandler(
                     r.Id, r.ClienteId ?? r.EmpresaId!.Value, r.RazonSocial,
                     r.ClienteId is not null ? AmbitoAplicacion.Cliente : AmbitoAplicacion.Empresa,
                     r.DestinatarioEmail, r.FechaEnvioUtc,
-                    lineasDe.Count, r.ConversacionId, sinRespuesta, documentoIds, pendientes);
+                    lineasDe.Count, r.ConversacionId, sinRespuesta, documentoIds, pendientes,
+                    destinos.GetValueOrDefault(r.Id));
             })
             .ToList();
 

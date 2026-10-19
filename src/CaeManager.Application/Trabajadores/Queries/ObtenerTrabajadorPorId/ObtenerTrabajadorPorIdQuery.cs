@@ -39,7 +39,9 @@ public record TrabajadorDetalleDto(
     bool NotaInternaVisible = false,
     string? ContactoEmergenciaNombre = null,
     string? ContactoEmergenciaTelefono = null,
-    bool ContactoEmergenciaVisible = false);
+    bool ContactoEmergenciaVisible = false,
+    Guid? DelegacionEmpresaId = null,
+    Guid? OficioEmpresaId = null);
 
 /// <summary>
 /// Detalle de Trabajador 360.
@@ -107,7 +109,9 @@ public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasCo
                 t.TipoContratacion,
                 t.Notas,
                 t.ContactoEmergenciaNombre,
-                t.ContactoEmergenciaTelefono
+                t.ContactoEmergenciaTelefono,
+                t.DelegacionEmpresaId,
+                t.OficioEmpresaId
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -138,6 +142,7 @@ public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasCo
             conNotaInterna,
             conContactoEmergencia ? trabajador.ContactoEmergenciaNombre : null,
             conContactoEmergencia ? trabajador.ContactoEmergenciaTelefono : null,
-            conContactoEmergencia);
+            conContactoEmergencia,
+            trabajador.DelegacionEmpresaId, trabajador.OficioEmpresaId);
     }
 }

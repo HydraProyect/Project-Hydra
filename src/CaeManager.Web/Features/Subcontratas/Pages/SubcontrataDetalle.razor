@@ -319,6 +319,7 @@
                                                                         {
                                                                             <SoloConEscritura>
                                                                                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                                                       class="@EstadoDocumentoFicha360.ClaseGestionar(documento.Estado)"
                                                                                        aria-label="@Textos["AriaAccionDocumento", EstadoDocumentoFicha360.TextoAccion, documento.TipoDocumentoNombre, trabajador.TrabajadorNombre]"
                                                                                        OnClick="() => GestionarDocumentoAsync(trabajador.TrabajadorId, documento)">
                                                                                     @EstadoDocumentoFicha360.TextoAccion

@@ -1,0 +1,73 @@
+/*
+    Catálogo de delegaciones de empresa y Oficios en Empresa 360: dos listas cortas con sus acciones a la derecha. Solo lo que no tiene primitiva.
+*/
+
+.catalogo-empresa {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.catalogo-empresa-bloque {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.catalogo-empresa-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.catalogo-empresa-titulo {
+    margin: 0;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+}
+
+.catalogo-empresa-lista {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+}
+
+.catalogo-empresa-fila {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-2) 0;
+    border-top: 1px solid var(--color-border);
+}
+
+.catalogo-empresa-fila:first-child {
+    border-top: 0;
+}
+
+.catalogo-empresa-texto {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.catalogo-empresa-nombre {
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+}
+
+.catalogo-empresa-detalle {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+}
+
+.catalogo-empresa-acciones {
+    display: flex;
+    flex-shrink: 0;
+    gap: var(--space-1);
+}

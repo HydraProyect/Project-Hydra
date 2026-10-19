@@ -19,7 +19,11 @@ namespace CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 /// <see cref="ReclamacionDocumental"/> se rellena.
 /// </summary>
 /// <param name="Ambito">Solo <c>Cliente</c> o <c>Empresa</c>: son los dos únicos titulares que el modelo admite hoy.</param>
-public sealed record TitularReclamacion(Guid Id, string RazonSocial, AmbitoAplicacion Ambito);
+/// <param name="DocumentosDeTrabajadores">
+/// Solo con <c>Ambito = Empresa</c>: la Empresa es la que emplea a los Trabajadores cuyos documentos se reclaman
+/// (<see cref="ReclamacionDocumental.ParaEmpresaEmpleadora"/>), no la propietaria de documentos de empresa.
+/// </param>
+public sealed record TitularReclamacion(Guid Id, string RazonSocial, AmbitoAplicacion Ambito, bool DocumentosDeTrabajadores = false);
 
 /// <summary>
 /// Cola común de todo envío de reclamación, sea cual sea el ámbito del
@@ -227,7 +231,9 @@ public class RegistroEnvioReclamacionService(
 
         var reclamacion = titular.Ambito == AmbitoAplicacion.Cliente
             ? ReclamacionDocumental.ParaCliente(titular.Id, usuarioId.Value, destinatarioUnico, DateTime.UtcNow, documentoIds, conversacionId, documentosQueFaltan)
-            : ReclamacionDocumental.ParaEmpresa(titular.Id, usuarioId.Value, destinatarioUnico, DateTime.UtcNow, documentoIds, conversacionId, documentosQueFaltan);
+            : titular.DocumentosDeTrabajadores
+                ? ReclamacionDocumental.ParaEmpresaEmpleadora(titular.Id, usuarioId.Value, destinatarioUnico, DateTime.UtcNow, documentoIds, conversacionId, documentosQueFaltan)
+                : ReclamacionDocumental.ParaEmpresa(titular.Id, usuarioId.Value, destinatarioUnico, DateTime.UtcNow, documentoIds, conversacionId, documentosQueFaltan);
 
         repositorio.Agregar(reclamacion);
 

@@ -73,6 +73,9 @@
     private string _filtro = string.Empty;
     private string _ultimoValorNotificado = string.Empty;
     private bool _abierto;
+    // Solo el usuario vacía la selección: borrar el texto a mano. Un campo vacío porque las opciones no llegaron (catálogo
+    // que no cargó) no la vacía al salir.
+    private bool _vaciadoPorUsuario;
     private int _indiceResaltado = -1;
 
     [Parameter] public string? Etiqueta { get; set; }
@@ -90,6 +93,13 @@
     [Parameter] public string TextoCrear { get; set; } = "+ Crear «{0}»";
 
     [Parameter] public EventCallback<string> OnCrearSolicitado { get; set; }
+
+    /// <summary>
+    /// Si borrar el texto y salir del campo deja el valor sin elegir (<c>ValorChanged("")</c>). Sin él (por defecto) el
+    /// campo siempre vuelve al texto de la opción elegida, que es lo que quiere un selector obligatorio. Solo cuenta un
+    /// borrado del usuario: salir de un campo que se ve vacío porque sus opciones no llegaron no toca el valor.
+    /// </summary>
+    [Parameter] public bool PermiteVaciar { get; set; }
 
     private bool TieneError => !string.IsNullOrWhiteSpace(MensajeError);
 
@@ -127,15 +137,23 @@
     /// <summary>Igual que CampoBuscarSelect: solo se resincroniza el texto visible con el Id recibido cuando ese Id no vino de nuestro propio evento.</summary>
     protected override void OnParametersSet()
     {
-        if (Valor == _ultimoValorNotificado) return;
+        var textoDelValor = Opciones.FirstOrDefault(o => o.Id == Valor)?.Texto;
+        if (Valor == _ultimoValorNotificado)
+        {
+            // Las opciones pueden llegar después del valor (un catálogo que se carga al abrir): se completa el texto.
+            if (!_abierto && _filtro.Length == 0 && textoDelValor is not null)
+                _filtro = textoDelValor;
+            return;
+        }
 
         _ultimoValorNotificado = Valor;
-        _filtro = Opciones.FirstOrDefault(o => o.Id == Valor)?.Texto ?? string.Empty;
+        _filtro = textoDelValor ?? string.Empty;
     }
 
     private Task ManejarEntradaAsync(ChangeEventArgs e)
     {
         _filtro = e.Value?.ToString() ?? string.Empty;
+        _vaciadoPorUsuario = _filtro.Trim().Length == 0;
         _abierto = true;
         _indiceResaltado = -1;
         return Task.CompletedTask;
@@ -154,17 +172,28 @@
     /// foco al hacer clic en ellas — este blur solo ocurre para el resto de
     /// casos (Tab, clic fuera), donde cerrar y resincronizar es lo correcto.
     /// </summary>
-    private Task CerrarAsync()
+    private async Task CerrarAsync()
     {
         _abierto = false;
         _indiceResaltado = -1;
+
+        // Quitar la selección: con PermiteVaciar, salir del campo después de borrar el texto a mano la deja sin elegir.
+        var vaciar = PermiteVaciar && _vaciadoPorUsuario && _filtro.Trim().Length == 0 && Valor.Length > 0;
+        _vaciadoPorUsuario = false;
+        if (vaciar)
+        {
+            _ultimoValorNotificado = string.Empty;
+            await ValorChanged.InvokeAsync(string.Empty);
+            return;
+        }
+
         _filtro = Opciones.FirstOrDefault(o => o.Id == Valor)?.Texto ?? string.Empty;
-        return Task.CompletedTask;
     }
 
     private async Task SeleccionarOpcionAsync(OpcionBuscable opcion)
     {
         _filtro = opcion.Texto;
+        _vaciadoPorUsuario = false;
         _ultimoValorNotificado = opcion.Id;
         _abierto = false;
         _indiceResaltado = -1;
@@ -199,6 +228,7 @@
             case "Escape":
                 _abierto = false;
                 _indiceResaltado = -1;
+                _vaciadoPorUsuario = false;
                 _filtro = Opciones.FirstOrDefault(o => o.Id == Valor)?.Texto ?? string.Empty;
                 break;
 

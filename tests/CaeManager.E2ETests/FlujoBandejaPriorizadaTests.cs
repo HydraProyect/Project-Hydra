@@ -79,7 +79,7 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         await page.WaitForTimeoutAsync(500);
         await drawer.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = "Formación PRL de convenio" });
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = Ayudas.HoyDeNegocio();
         await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
         await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(10).ToString("yyyy-MM-dd"));
 

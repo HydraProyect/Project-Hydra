@@ -316,7 +316,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
 
         await using var lectura = CrearContexto();
         var queryHandler = CrearQueryHandler(lectura, alcanceAcotado);
-        var dispatcher = new ObtenerLoteReclamacionPorFiltroQueryHandler(new MediatorReenviaAObtenerLoteReclamacion(queryHandler));
+        var dispatcher = new ObtenerLoteReclamacionPorFiltroQueryHandler(new MediatorReenviaAObtenerLoteReclamacion(queryHandler), empresaEmpleadora: null!); // sin PorEmpresaEmpleadora no se usa
 
         // "Todos los trabajadores visibles" (EntidadId null, DEC-7): con
         // cartera acotada debe traer solo _clienteId, nunca el de fuera.

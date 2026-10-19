@@ -1,3 +1,4 @@
+@using CaeManager.Application.Trabajadores
 @using CaeManager.Application.Trabajadores.Commands.EditarFichaTrabajador
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId
 @using CaeManager.Domain.Common
@@ -16,7 +17,19 @@
     MotivoGuardarDeshabilitado="@(!_lista ? Textos["FichaNoDisponible"].Value : null)" OnGuardar="GuardarAsync"
     TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
     <CampoTexto Etiqueta="@Textos["FichaAfiliacion"]" Valor="@_afiliacion" ValorChanged="v => _afiliacion = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.NumeroAfiliacionSeguridadSocial))" />
-    <CampoTexto Etiqueta="@Textos["FichaPuesto"]" Valor="@_puesto" ValorChanged="v => _puesto = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.Puesto))" />
+    @* Oficio y Delegación (decisión de Chris, 2026-10-18): solo con un Trabajador de Empresa; el Oficio ocupa el sitio del
+       Puesto. El de una Subcontrata sigue con el Puesto en texto. *@
+    @if (_empresaId is { } empresaDelCatalogo)
+    {
+        <SelectorDelegacionEmpresaYOficio EmpresaId="empresaDelCatalogo"
+                                   OficioId="@_oficioId" OficioIdChanged="v => _oficioId = v"
+                                   DelegacionEmpresaId="@_delegacionId" DelegacionEmpresaIdChanged="v => _delegacionId = v"
+                                   PuestoActual="@_puesto" />
+    }
+    else
+    {
+        <CampoTexto Etiqueta="@Textos["FichaPuesto"]" Valor="@_puesto" ValorChanged="v => _puesto = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.Puesto))" />
+    }
     <CampoTexto Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Type="date" Valor="@_nacimiento" ValorChanged="v => _nacimiento = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FechaNacimiento))" />
     <CampoTexto Etiqueta="@Textos["FichaNacionalidad"]" Valor="@_nacionalidad" ValorChanged="v => _nacionalidad = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.Nacionalidad))" />
     <CampoTexto Etiqueta="@Textos["FichaTipoVinculo"]" Valor="@_vinculo" ValorChanged="v => _vinculo = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.TipoVinculo))" />
@@ -54,6 +67,8 @@
     private bool _abierto, _cargando, _guardando, _lista, _conContactoEmergencia;
     private int _generacion;
     private Guid _id, _version;
+    private Guid? _empresaId;
+    private string _oficioId = "", _delegacionId = "", _oficioIdCargado = "", _delegacionIdCargado = "";
     private string _afiliacion = "", _puesto = "", _nacimiento = "", _nacionalidad = "",
         _vinculo = "", _tipoContratacion = "CuentaAjena", _alta = "", _baja = "", _rnt = "", _permiso = "", _caducidad = "", _motivo = "",
         _emergenciaNombre = "", _emergenciaTelefono = "";
@@ -66,7 +81,7 @@
     private string Instantanea() => System.Text.Json.JsonSerializer.Serialize(new
     {
         _afiliacion, _puesto, _nacimiento, _nacionalidad, _vinculo, _tipoContratacion, _alta, _baja, _rnt, _permiso, _caducidad, _motivo,
-        _emergenciaNombre, _emergenciaTelefono
+        _emergenciaNombre, _emergenciaTelefono, _oficioId, _delegacionId
     });
 
     private DateOnly? Fecha(string valor, string campo)
@@ -101,6 +116,9 @@
             _version = detalle.Version;
             _afiliacion = detalle.NumeroAfiliacionSeguridadSocial ?? "";
             _puesto = detalle.Puesto ?? "";
+            _empresaId = detalle.EmpresaId;
+            _oficioId = _oficioIdCargado = detalle.OficioEmpresaId?.ToString() ?? "";
+            _delegacionId = _delegacionIdCargado = detalle.DelegacionEmpresaId?.ToString() ?? "";
             _nacimiento = detalle.FechaNacimiento?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? "";
             _nacionalidad = detalle.Nacionalidad ?? "";
             _vinculo = detalle.TipoVinculo ?? "";
@@ -144,7 +162,16 @@
                 Fecha(_caducidad, nameof(EditarFichaTrabajadorCommand.CaducidadPermisoTrabajo)),
                 _motivo,
                 Enum.Parse<CaeManager.Domain.Trabajadores.TipoContratacion>(_tipoContratacion),
-                _conContactoEmergencia ? new ContactoEmergenciaTrabajador(_emergenciaNombre, _emergenciaTelefono) : null);
+                _conContactoEmergencia ? new ContactoEmergenciaTrabajador(_emergenciaNombre, _emergenciaTelefono) : null,
+                // Con Empresa, los dos Ids tal como los muestra el formulario (vacío = quitarlos), pero solo si cambiaron:
+                // sin cambio va null y el servidor no exige gestionar la Empresa (quien ve al Trabajador solo por una
+                // Asignación guarda el resto de la ficha). El servidor copia el nombre del Oficio en el Puesto. Con
+                // Subcontrata, null: no se tocan.
+                _empresaId is null || (_oficioId == _oficioIdCargado && _delegacionId == _delegacionIdCargado)
+                    ? null
+                    : new DelegacionEmpresaYOficioDeTrabajador(
+                        Guid.TryParse(_delegacionId, out var delegacion) ? delegacion : null,
+                        Guid.TryParse(_oficioId, out var oficio) ? oficio : null));
             var validacion = new EditarFichaTrabajadorCommandValidator().Validate(comando);
             if (!validacion.IsValid) throw new ValidationException(validacion.Errors);
             var resultado = await Mediator.Send(comando, _ciclo.Token);

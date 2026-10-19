@@ -103,10 +103,36 @@ public static class EstadoDocumentoFicha360
         string.Format(CultureInfo.CurrentUICulture, TextosVigenciaDocumento.Texto("Ficha360GestionarAccesible"), documento);
 
     /// <summary>
-    /// Si la fila de un documento en este estado lleva el botón «Gestionar»: lo que pide acción (<see cref="Accion"/>) y también
-    /// «Por vencer» aunque aún no sea urgente (maqueta «… 360 TALVEG» del 2026-10-17). Vigente y Sin caducidad no llevan botón.
+    /// Si la fila de un documento en este estado lleva el botón «Gestionar»: todos los estados (regla de Chris, 2026-10-18,
+    /// que sustituye a la de #1435, en la que Vigente y Sin caducidad no llevaban botón). Quien lo lleva con tono secundario es
+    /// lo que ya está al día (<see cref="GestionarEsDiscreto"/>). A Consulta no se le ofrece en ningún estado: lo decide
+    /// <c>SoloConEscritura</c>, no el estado.
     /// </summary>
-    public static bool PideGestionar(EstadoDocumento estado) => estado == EstadoDocumento.Proximo || Accion(estado) is not null;
+    public static bool PideGestionar(EstadoDocumento estado) => Enum.IsDefined(estado);
+
+    /// <summary>Clase CSS común (list-page.css) del «Gestionar» de un documento al día: texto atenuado, sin color de acento.</summary>
+    public const string ClaseGestionarDiscreto = "gestionar-discreto";
+
+    /// <summary>
+    /// Si el «Gestionar» de este estado va en tono secundario: Vigente y Sin caducidad, que no piden trabajo. El resto de estados
+    /// lleva el tono normal del botón.
+    /// </summary>
+    public static bool GestionarEsDiscreto(EstadoDocumento estado) => EstadoDocumentoUi.EsCorrecto(estado);
+
+    /// <summary>
+    /// Clases del botón «Gestionar» de un documento en este estado: las que ya llevaba el llamador (<paramref name="clase"/>) más
+    /// <see cref="ClaseGestionarDiscreto"/> si el estado es de los discretos; <c>null</c> si no hay ninguna.
+    /// </summary>
+    public static string? ClaseGestionar(EstadoDocumento estado, string? clase = null) =>
+        GestionarEsDiscreto(estado)
+            ? string.IsNullOrWhiteSpace(clase) ? ClaseGestionarDiscreto : $"{clase} {ClaseGestionarDiscreto}"
+            : string.IsNullOrWhiteSpace(clase) ? null : clase;
+
+    /// <summary>
+    /// Si el estado pide trabajo de verdad (renovar, subir, confirmar o «Por vencer»): el «Gestionar» de las superficies que
+    /// abren una serie de correcciones (Tipo de documento 360) solo se ofrece aquí, porque un documento al día no entra en la serie.
+    /// </summary>
+    public static bool PideTrabajo(EstadoDocumento estado) => estado == EstadoDocumento.Proximo || Accion(estado) is not null;
 
     /// <summary>Como <see cref="TextoAccionAccesible(string)"/>, para filas donde el mismo documento se repite por propietario o Centro.</summary>
     public static string TextoAccionAccesible(string documento, string deQuien) =>

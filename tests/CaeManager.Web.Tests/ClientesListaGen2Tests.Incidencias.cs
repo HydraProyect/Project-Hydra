@@ -66,7 +66,7 @@ public partial class ClientesListaGen2Tests
                 .ToArray());
 
     private static IElement CeldaDeEstado(IRenderedComponent<Clientes> cut, string razonSocial) =>
-        Fila(cut, razonSocial).QuerySelector("td.col-estado")!;
+        Fila(cut, razonSocial).QuerySelector(".col-estado.celda-estado-cliente")!;
 
     private static string Fecha(IncidenciaClienteDto incidencia) =>
         incidencia.FechaVencimiento!.Value.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture);

@@ -315,10 +315,7 @@
 
                         case "documentacion":
                             <div class="cliente360-documentacion">
-                                <Tarjeta Titulo="@Textos["CertificadoSeguridadSocialTitulo"]">
-                                    <PestanaBlindaje42 EntidadId="ClienteId" />
-                                </Tarjeta>
-                                <PestanaDocumentacion Ambito="AmbitoAplicacion.Cliente" PropietarioId="ClienteId" EnPagina="true" />
+                                <DocumentosExigidosCliente ClienteId="ClienteId" Cargar="_documentacionHabilitada" Serie="_serie" />
                             </div>
                             break;
 
@@ -386,7 +383,7 @@
                             <DatoRejilla Etiqueta="@Textos["Critico"]" Valor="@(_detalle.EsCritico ? Textos["Si"] : Textos["No"])" />
                             <DatoRejilla Etiqueta="@Textos["DatoAlta"]" Valor="@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")" />
                         </RejillaDatos>
-                        <GestorCaeCliente Cargar="_gestorCaeHabilitado" AlCargar="GestorCaeCargado" AlDesasignarme="IrAMiTrabajoTrasDesasignarme" />
+                        <GestorCaeCliente Cargar="_gestorCaeHabilitado" Serie="_serie" AlCargar="GestorCaeCargado" AlDesasignarme="IrAMiTrabajoTrasDesasignarme" />
                     </ChildContent>
                 </Tarjeta>
 

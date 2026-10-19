@@ -102,11 +102,14 @@ public class CentrosFilaSeRefrescaTests : BunitContext
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 
-    /// <summary>Todos del mismo Cliente empresarial: un solo grupo, y el orden de las filas es el de la página.</summary>
+    /// <summary>
+    /// Todos del mismo Cliente empresarial y vencidos: el orden de las filas es el de la página, y cada fila
+    /// tiene algo que desplegar (la maqueta solo pinta el chevron en las filas con incidencias).
+    /// </summary>
     private static CentroListaDto Centro(string nombre) => new(
         Guid.NewGuid(), nombre, "C-001", ClienteEmpresarial, "Refrielectric S.A.",
-        Guid.NewGuid(), "Montajes Ebro S.L.", EstadoCentro.Vigente,
-        CumplimientoPorcentaje: 100, RecuentosCentroDto.Vacio);
+        Guid.NewGuid(), "Montajes Ebro S.L.", EstadoCentro.Vencido,
+        CumplimientoPorcentaje: 60, RecuentosCentroDto.Vacio);
 
     private IRenderedComponent<Centros> Renderizar(MediatorFalso mediador, string ruta = "centros")
     {
@@ -118,7 +121,7 @@ public class CentrosFilaSeRefrescaTests : BunitContext
         Services.AddScoped<IValidator<CrearCentroCommand>>(_ => new InlineValidator<CrearCentroCommand>());
         Services.GetRequiredService<NavigationManager>().NavigateTo(ruta);
 
-        return Render<Centros>().AbrirGruposDeCentros();
+        return Render<Centros>();
     }
 
     /// <summary>
@@ -156,8 +159,7 @@ public class CentrosFilaSeRefrescaTests : BunitContext
 
     private static async Task IrALaPaginaDosAsync(IRenderedComponent<Centros> cut)
     {
-        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
-        cut.AbrirGruposDeCentros();
+        await cut.FindAll(".paginador-pie-listado button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().HaveCount(5).And.StartWith("Centro 21"));
     }
 
@@ -189,7 +191,7 @@ public class CentrosFilaSeRefrescaTests : BunitContext
         var editado = mediador.Almacen.Single(c => c.Nombre == "Centro 23").Id;
         var cut = Renderizar(mediador);
         await IrALaPaginaDosAsync(cut);
-        await cut.Find(".lista-herramientas-maqueta button[aria-pressed]").ClickAsync(new MouseEventArgs());
+        await cut.Find("header.cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
         await cut.Find("input[aria-label='Seleccionar el centro Centro 22']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.Find("input[aria-label='Seleccionar el centro Centro 23']").ChangeAsync(new ChangeEventArgs { Value = true });
         var atajos = cut.FindComponent<AtajosListaTeclado>();

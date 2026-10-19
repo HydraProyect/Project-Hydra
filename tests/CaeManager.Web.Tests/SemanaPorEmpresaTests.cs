@@ -377,7 +377,7 @@ public class SemanaPorEmpresaTests : BunitContext
 
         cut.FindAll(".tarjeta-reclamacion").Should().ContainSingle();
         var notas = cut.FindAll("[role=note]").Select(n => n.TextContent).ToArray();
-        notas.Should().Contain("1 de 3 documentos son de Trabajadores y se reclaman al Cliente del Centro, no a esta Empresa.");
+        notas.Should().Contain("1 de 3 documentos son de Trabajadores y no entran en este lote de documentos de la Empresa: se reclaman desde «Gestionar» en la ficha de cada Trabajador.");
         notas.Should().Contain("1 de 3 documentos están fuera de la ventana de reclamación o ya no son reclamables.");
         cut.Markup.Should().NotContain("LexCorp");
     }

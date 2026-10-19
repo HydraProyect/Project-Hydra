@@ -14,9 +14,18 @@ public class TrabajadorConfiguration : IEntityTypeConfiguration<Trabajador>
         // dominio lo garantizaba (DeEmpresa/DeSubcontrata) pero el esquema
         // admitía las dos columnas nulas o las dos informadas. El CHECK deja
         // la intención escrita en la base, no solo en el constructor.
-        builder.ToTable("Trabajadores", t => t.HasCheckConstraint(
-            "CK_Trabajadores_EmpresaXorSubcontrata",
-            "(\"EmpresaId\" IS NULL) <> (\"SubcontrataId\" IS NULL)"));
+        builder.ToTable("Trabajadores", t =>
+        {
+            t.HasCheckConstraint(
+                "CK_Trabajadores_EmpresaXorSubcontrata",
+                "(\"EmpresaId\" IS NULL) <> (\"SubcontrataId\" IS NULL)");
+
+            // Un Trabajador de Subcontrata (EmpresaId nulo) no tiene Delegación ni Oficio: con EmpresaId nulo la FK
+            // compuesta (TenantId, EmpresaId, …) es MATCH SIMPLE y no comprobaría nada, así que lo impide este CHECK.
+            t.HasCheckConstraint(
+                "CK_Trabajadores_CatalogoSoloDeEmpresa",
+                "(\"DelegacionEmpresaId\" IS NULL AND \"OficioEmpresaId\" IS NULL) OR \"EmpresaId\" IS NOT NULL");
+        });
         builder.HasKey(t => t.Id);
 
         builder.Property(t => t.Nombre).IsRequired().HasMaxLength(Trabajador.LongitudMaximaNombre);
@@ -71,6 +80,19 @@ public class TrabajadorConfiguration : IEntityTypeConfiguration<Trabajador>
         builder.HasOne<Empresa>().WithMany()
             .HasForeignKey(t => new { t.TenantId, t.SubcontrataId })
             .HasPrincipalKey(s => new { s.TenantId, s.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Delegación y Oficio de su Empresa (2026-10-18). La FK lleva TenantId y EmpresaId: la fila referida tiene que
+        // ser del mismo Tenant y de la misma Empresa que el Trabajador. Con columnas nulas es MATCH SIMPLE, así que un
+        // Trabajador sin Delegación u Oficio no se comprueba; uno de Subcontrata (EmpresaId nulo) no puede tenerlos por
+        // CK_Trabajadores_CatalogoSoloDeEmpresa, declarado arriba en ToTable.
+        builder.HasOne<DelegacionEmpresa>().WithMany()
+            .HasForeignKey(t => new { t.TenantId, t.EmpresaId, t.DelegacionEmpresaId })
+            .HasPrincipalKey(d => new { d.TenantId, d.EmpresaId, d.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<OficioEmpresa>().WithMany()
+            .HasForeignKey(t => new { t.TenantId, t.EmpresaId, t.OficioEmpresaId })
+            .HasPrincipalKey(o => new { o.TenantId, o.EmpresaId, o.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
         // Prerequisito de las FKs que Asignacion/Documento/... declaran hacia Trabajador.

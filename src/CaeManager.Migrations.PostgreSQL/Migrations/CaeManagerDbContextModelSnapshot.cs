@@ -5506,6 +5506,58 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("CredencialesAccesoEmpresa", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Empresas.DelegacionEmpresa", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContactoReclamacionCorreo")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<string>("ContactoReclamacionNombre")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ContactoReclamacionTelefono")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("EmpresaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "EmpresaId");
+
+                    b.ToTable("DelegacionesEmpresa", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Empresas.Empresa", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5643,6 +5695,46 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsUnique();
 
                     b.ToTable("Empresas", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Empresas.OficioEmpresa", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("EmpresaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "EmpresaId");
+
+                    b.ToTable("OficiosEmpresa", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Empresas.PlataformaCaeClienteEmpresarial", b =>
@@ -8754,6 +8846,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("DelegacionEmpresaId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Dni")
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
@@ -8812,6 +8907,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<Guid?>("OficioEmpresaId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Puesto")
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
@@ -8851,8 +8949,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsUnique()
                         .HasFilter("\"Dni\" IS NOT NULL");
 
-                    b.HasIndex("TenantId", "EmpresaId");
-
                     b.HasIndex("TenantId", "Id")
                         .IsUnique();
 
@@ -8860,8 +8956,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "Telefono");
 
+                    b.HasIndex("TenantId", "EmpresaId", "DelegacionEmpresaId");
+
+                    b.HasIndex("TenantId", "EmpresaId", "OficioEmpresaId");
+
                     b.ToTable("Trabajadores", null, t =>
                         {
+                            t.HasCheckConstraint("CK_Trabajadores_CatalogoSoloDeEmpresa", "(\"DelegacionEmpresaId\" IS NULL AND \"OficioEmpresaId\" IS NULL) OR \"EmpresaId\" IS NOT NULL");
+
                             t.HasCheckConstraint("CK_Trabajadores_EmpresaXorSubcontrata", "(\"EmpresaId\" IS NULL) <> (\"SubcontrataId\" IS NULL)");
                         });
                 });
@@ -9863,6 +9965,26 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Empresas.DelegacionEmpresa", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmpresaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Empresas.OficioEmpresa", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmpresaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Empresas.PlataformaCaeClienteEmpresarial", b =>
                 {
                     b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
@@ -10298,6 +10420,18 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .WithMany()
                         .HasForeignKey("TenantId", "SubcontrataId")
                         .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Empresas.DelegacionEmpresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmpresaId", "DelegacionEmpresaId")
+                        .HasPrincipalKey("TenantId", "EmpresaId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Empresas.OficioEmpresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmpresaId", "OficioEmpresaId")
+                        .HasPrincipalKey("TenantId", "EmpresaId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 

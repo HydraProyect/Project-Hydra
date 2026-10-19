@@ -207,4 +207,35 @@ public class ReclamacionDocumentalTests
         ((Action)(() => ReclamacionDocumentalDocumento.DeDocumentoQueFalta(reclamacion, Guid.Empty, null))).Should().Throw<ArgumentException>();
         ((Action)(() => ReclamacionDocumentalDocumento.DeDocumentoQueFalta(reclamacion, Guid.NewGuid(), Guid.Empty))).Should().Throw<ArgumentException>();
     }
+
+    [Fact]
+    public void ParaEmpresaEmpleadora_ancla_la_Empresa_y_guarda_a_que_Trabajador_le_falta_cada_documento()
+    {
+        var empresaId = Guid.NewGuid();
+        var trabajadorId = Guid.NewGuid();
+        var tipoId = Guid.NewGuid();
+
+        var reclamacion = ReclamacionDocumental.ParaEmpresaEmpleadora(
+            empresaId, Guid.NewGuid(), "delegacion@empresa.example", DateTime.UtcNow, [Guid.NewGuid()],
+            documentosQueFaltan: [new DocumentoQueFaltaPedido(tipoId, trabajadorId)]);
+
+        reclamacion.EmpresaId.Should().Be(empresaId);
+        reclamacion.ClienteId.Should().BeNull("los documentos de un Trabajador se reclaman a su Empresa empleadora, no al Cliente del Centro");
+        reclamacion.AmbitoTitular.Should().Be(AmbitoAplicacion.Empresa);
+        reclamacion.Documentos.Should().Contain(d => d.TipoDocumentoId == tipoId && d.TrabajadorId == trabajadorId);
+    }
+
+    [Fact]
+    public void ParaEmpresaEmpleadora_rechaza_un_documento_que_falta_sin_Trabajador_y_ParaEmpresa_sigue_rechazandolo_con_Trabajador()
+    {
+        var aEmpleadora = () => ReclamacionDocumental.ParaEmpresaEmpleadora(
+            Guid.NewGuid(), Guid.NewGuid(), "delegacion@empresa.example", DateTime.UtcNow, [],
+            documentosQueFaltan: [new DocumentoQueFaltaPedido(Guid.NewGuid(), null)]);
+        var aEmpresa = () => ReclamacionDocumental.ParaEmpresa(
+            Guid.NewGuid(), Guid.NewGuid(), "agenda@empresa.example", DateTime.UtcNow, [],
+            documentosQueFaltan: [new DocumentoQueFaltaPedido(Guid.NewGuid(), Guid.NewGuid())]);
+
+        aEmpleadora.Should().Throw<ArgumentException>();
+        aEmpresa.Should().Throw<ArgumentException>();
+    }
 }

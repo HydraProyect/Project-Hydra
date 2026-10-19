@@ -56,6 +56,20 @@ public class Trabajador : EntidadBase
     public string? Puesto { get; private set; }
 
     /// <summary>
+    /// Delegación de su Empresa (<c>DelegacionEmpresa</c>) a la que pertenece. Solo un Trabajador de Empresa la tiene;
+    /// la FK compuesta <c>(TenantId, EmpresaId, DelegacionEmpresaId)</c> obliga a que sea de su misma Empresa. Es dato
+    /// de organización: <see cref="Anonimizar"/> la conserva, igual que <see cref="EmpresaId"/>.
+    /// </summary>
+    public Guid? DelegacionEmpresaId { get; private set; }
+
+    /// <summary>
+    /// Oficio de su Empresa (<c>OficioEmpresa</c>), el selector que sustituye en pantalla al texto libre
+    /// <see cref="Puesto"/>. Misma FK compuesta que <see cref="DelegacionEmpresaId"/>. Dice lo mismo que el Puesto,
+    /// así que está con él en <see cref="CamposDeDatosPersonales"/> y <see cref="Anonimizar"/> lo vacía.
+    /// </summary>
+    public Guid? OficioEmpresaId { get; private set; }
+
+    /// <summary>
     /// Solo <c>null</c> tras <see cref="Anonimizar"/> — auditoría Módulo 5,
     /// hallazgo crítico 9/9. Antes se vaciaba a <c>string.Empty</c>, pero el
     /// índice único (TenantId, Dni) no tenía filtro: el segundo trabajador
@@ -211,14 +225,14 @@ public class Trabajador : EntidadBase
     /// <c>EnmascaraAuditoriaDeTrabajadorAnonimizado</c>) reescribe con "***" estas mismas
     /// claves en las entradas anteriores. La función repite la lista en SQL: una propiedad
     /// personal nueva se añade aquí, en <see cref="Anonimizar"/> y en la función, redefinida con
-    /// CREATE OR REPLACE en una migración nueva (la última, <c>AnadeContactoEmergenciaATrabajador</c>,
-    /// añadió <see cref="ContactoEmergenciaNombre"/> y <see cref="ContactoEmergenciaTelefono"/>).
+    /// CREATE OR REPLACE en una migración nueva (la última, <c>AnadeDelegacionYOficioEmpresa</c>,
+    /// añadió <see cref="OficioEmpresaId"/>).
     /// </summary>
     public static readonly IReadOnlyList<string> CamposDeDatosPersonales =
     [
         nameof(Nombre), nameof(Apellidos), nameof(Alias), nameof(Dni), nameof(FechaNacimiento),
         nameof(Email), nameof(Telefono), nameof(Observaciones), nameof(Notas),
-        nameof(ContactoEmergenciaNombre), nameof(ContactoEmergenciaTelefono), nameof(Puesto),
+        nameof(ContactoEmergenciaNombre), nameof(ContactoEmergenciaTelefono), nameof(Puesto), nameof(OficioEmpresaId),
         nameof(NumeroAfiliacionSeguridadSocial), nameof(Nacionalidad), nameof(TipoVinculo),
         nameof(FechaAltaEmpresa), nameof(FechaBajaEmpresa), nameof(FiguraEnRnt),
         nameof(TipoPermisoTrabajo), nameof(CaducidadPermisoTrabajo), nameof(MotivoPermisoTrabajo),
@@ -262,6 +276,7 @@ public class Trabajador : EntidadBase
         ContactoEmergenciaNombre = null;
         ContactoEmergenciaTelefono = null;
         Puesto = null;
+        OficioEmpresaId = null;
         NumeroAfiliacionSeguridadSocial = null;
         Nacionalidad = null;
         TipoVinculo = null;
@@ -315,6 +330,38 @@ public class Trabajador : EntidadBase
 
         ContactoEmergenciaNombre = nombreNormalizado;
         ContactoEmergenciaTelefono = telefonoNormalizado;
+    }
+
+    /// <summary>
+    /// Fija la Delegación y el Oficio de su Empresa (decisión de Chris, 2026-10-18). <c>null</c> deja el campo vacío.
+    /// Los dos tienen que ser de la Empresa del Trabajador; un Trabajador de Subcontrata no tiene ninguno. Elegir un
+    /// Oficio copia su nombre en <see cref="Puesto"/>, que se conserva para los formatos que lo citan; quitarlo no
+    /// borra el Puesto. Un Trabajador anonimizado no admite Oficio: dice lo mismo que el Puesto suprimido.
+    /// </summary>
+    public void FijarDelegacionEmpresaYOficio(Empresas.DelegacionEmpresa? delegacion, Empresas.OficioEmpresa? oficio)
+    {
+        if (delegacion is not null && (EmpresaId is null || delegacion.EmpresaId != EmpresaId))
+            throw new InvalidOperationException("La delegación tiene que ser de la empresa del trabajador.");
+        if (oficio is not null && (EmpresaId is null || oficio.EmpresaId != EmpresaId))
+            throw new InvalidOperationException("El oficio tiene que ser de la empresa del trabajador.");
+        if (oficio is not null && EstaAnonimizado)
+            throw new InvalidOperationException(
+                "Este trabajador está anonimizado: sus datos personales se suprimieron y no pueden volver a introducirse.");
+
+        DelegacionEmpresaId = delegacion?.Id;
+        OficioEmpresaId = oficio?.Id;
+        if (oficio is not null)
+            Puesto = oficio.Nombre.Length > LongitudMaximaPuesto ? oficio.Nombre[..LongitudMaximaPuesto] : oficio.Nombre;
+    }
+
+    /// <summary>
+    /// Al restaurar un Trabajador eliminado: quita la Delegación o el Oficio que se eliminaron mientras él lo estaba
+    /// (eliminar el catálogo solo cuenta a los Trabajadores vivos). El Puesto se conserva, como al quitar el Oficio.
+    /// </summary>
+    public void QuitarCatalogoEliminado(bool delegacionEliminada, bool oficioEliminado)
+    {
+        if (delegacionEliminada) DelegacionEmpresaId = null;
+        if (oficioEliminado) OficioEmpresaId = null;
     }
 
     /// <summary>

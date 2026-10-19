@@ -691,7 +691,8 @@ public partial class Vehiculo360PaginaTests : BunitContext
 
     /// <summary>
     /// Regla 8 de LEEME-AUTORIDAD (2026-10-18): la fila de un documento que pide trabajo ofrece una sola acción,
-    /// «Gestionar», a quien escribe; Consulta y Cliente no ven acción de escritura; un documento Vigente no lleva botón.
+    /// «Gestionar», a quien escribe, en todos los estados (Vigente y Sin caducidad, en tono secundario, regla del 2026-10-18);
+    /// Consulta y Cliente no ven acción de escritura en ningún estado.
     /// </summary>
     [Theory]
     [InlineData(Roles.Administrador, EstadoDocumento.Vencido, "Gestionar")]
@@ -699,10 +700,11 @@ public partial class Vehiculo360PaginaTests : BunitContext
     [InlineData(Roles.CoordinadorCae, EstadoDocumento.SinConfirmar, "Gestionar")]
     [InlineData(Roles.GestorCae, EstadoDocumento.Urgente, "Gestionar")]
     [InlineData(Roles.GestorCae, EstadoDocumento.Proximo, "Gestionar")]
-    [InlineData(Roles.GestorCae, EstadoDocumento.Vigente, null)]
-    [InlineData(Roles.GestorCae, EstadoDocumento.SinCaducidad, null)]
+    [InlineData(Roles.GestorCae, EstadoDocumento.Vigente, "Gestionar")]
+    [InlineData(Roles.GestorCae, EstadoDocumento.SinCaducidad, "Gestionar")]
     [InlineData(Roles.Consulta, EstadoDocumento.Vencido, null)]
     [InlineData(Roles.Consulta, EstadoDocumento.Proximo, null)]
+    [InlineData(Roles.Consulta, EstadoDocumento.Vigente, null)]
     [InlineData(Roles.Cliente, EstadoDocumento.Vencido, null)]
     public void La_fila_del_documento_ofrece_solo_Gestionar_segun_rol_y_estado(string rol, EstadoDocumento estado, string? esperado)
     {
@@ -716,7 +718,12 @@ public partial class Vehiculo360PaginaTests : BunitContext
         if (esperado is null)
             botones.Should().BeEmpty();
         else
+        {
             botones.Should().Equal(esperado);
+            var discreto = cut.Find(".lista-relaciones-tarjeta .fila-relacion-acciones button").ClassList.Contains("gestionar-discreto");
+            discreto.Should().Be(estado is EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad,
+                "solo el documento al día lleva «Gestionar» en tono secundario; el resto, en tono normal");
+        }
     }
 
     [Fact]

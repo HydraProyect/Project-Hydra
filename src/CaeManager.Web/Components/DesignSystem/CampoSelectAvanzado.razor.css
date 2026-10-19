@@ -265,3 +265,41 @@
         min-height: 44px;
     }
 }
+
+/* Fila fija de alta en línea («+ Crear "X"»): al final del panel, con su propia franja y el azul de acción. */
+.csa-crear {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 44px;
+    padding: 0 var(--space-4);
+    border-top: var(--border-default);
+    background-color: var(--color-surface-subtle);
+    color: var(--color-primary-500);
+    font: var(--font-label);
+    font-size: 0.875rem;
+    cursor: pointer;
+    list-style: none;
+}
+
+.csa-crear:hover,
+.csa-crear.csa-activa {
+    background-color: var(--color-primary-50);
+}
+
+.csa-crear-mas {
+    flex: none;
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.csa-crear .csa-texto {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.csa-crear-mas::before {
+    content: "+";
+}

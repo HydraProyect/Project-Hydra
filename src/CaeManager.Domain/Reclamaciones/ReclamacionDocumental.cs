@@ -31,7 +31,9 @@ namespace CaeManager.Domain.Reclamaciones;
 /// asignados (ver ObtenerLoteReclamacionQuery);</item>
 /// <item><see cref="EmpresaId"/> — reclamación de documentos de empresa,
 /// cuyo titular es la propia Empresa contraparte a la que pertenecen (DEC-7,
-/// caso literal "todos los documentos de empresa de una empresa").</item>
+/// caso literal "todos los documentos de empresa de una empresa"), o de
+/// documentos de los Trabajadores que esa Empresa emplea, reclamados con
+/// «Gestionar» (<see cref="ParaEmpresaEmpleadora"/>).</item>
 /// </list>
 /// Las dos anclas repuntan contra <c>Empresas</c> (ADR-011: Empresa es una
 /// entidad única sin rol; "Cliente" y "proveedora" son posiciones en una
@@ -92,7 +94,8 @@ public class ReclamacionDocumental : EntidadBase
 
     private ReclamacionDocumental(
         Guid? clienteId, Guid? empresaId, Guid enviadoPorUsuarioId, string destinatarioEmail, DateTime fechaEnvioUtc,
-        IEnumerable<Guid> documentoIds, Guid? conversacionId, IEnumerable<DocumentoQueFaltaPedido>? documentosQueFaltan)
+        IEnumerable<Guid> documentoIds, Guid? conversacionId, IEnumerable<DocumentoQueFaltaPedido>? documentosQueFaltan,
+        bool documentosDeTrabajadores = false)
     {
         if (enviadoPorUsuarioId == Guid.Empty)
             throw new ArgumentException("La reclamación debe registrar quién la envió.", nameof(enviadoPorUsuarioId));
@@ -110,10 +113,11 @@ public class ReclamacionDocumental : EntidadBase
             throw new ArgumentException("La reclamación debe incluir al menos un documento.", nameof(documentoIds));
 
         // Un documento de Empresa que falta no lleva Trabajador, y uno de Trabajador sí: en una reclamación de ámbito
-        // Cliente (documentos de Trabajador) todo lo que falta es de un Trabajador; en una de ámbito Empresa, de la Empresa.
-        if (clienteId is not null && faltanUnicos.Any(f => f.TrabajadorId is null))
+        // Cliente (documentos de Trabajador) todo lo que falta es de un Trabajador; en una de ámbito Empresa, de la Empresa,
+        // salvo la de documentos de sus Trabajadores (ParaEmpresaEmpleadora), donde todo lo que falta es de un Trabajador.
+        if ((clienteId is not null || documentosDeTrabajadores) && faltanUnicos.Any(f => f.TrabajadorId is null))
             throw new ArgumentException("Un documento que falta en una reclamación a un cliente debe indicar a qué trabajador le falta.", nameof(documentosQueFaltan));
-        if (empresaId is not null && faltanUnicos.Any(f => f.TrabajadorId is not null))
+        if (empresaId is not null && !documentosDeTrabajadores && faltanUnicos.Any(f => f.TrabajadorId is not null))
             throw new ArgumentException("Un documento que falta en una reclamación a una empresa es de la empresa, no de un trabajador.", nameof(documentosQueFaltan));
 
         ClienteId = clienteId;
@@ -154,5 +158,23 @@ public class ReclamacionDocumental : EntidadBase
 
         return new ReclamacionDocumental(
             null, empresaId, enviadoPorUsuarioId, destinatarioEmail, fechaEnvioUtc, documentoIds, conversacionId, documentosQueFaltan);
+    }
+
+    /// <summary>
+    /// Reclamación de documentos de Trabajador dirigida a la Empresa que los emplea (decisión de Chris, 2026-10-18: «Gestionar»
+    /// reclama los documentos de un Trabajador a su Empresa, nunca al Trabajador, y al contacto de su Delegación cuando lo
+    /// hay). Se ancla por <see cref="EmpresaId"/>, como la de documentos de empresa, porque el titular es esa Empresa; lo
+    /// que cambia es que lo que falta es de un Trabajador y por eso lo nombra.
+    /// </summary>
+    public static ReclamacionDocumental ParaEmpresaEmpleadora(
+        Guid empresaId, Guid enviadoPorUsuarioId, string destinatarioEmail, DateTime fechaEnvioUtc,
+        IEnumerable<Guid> documentoIds, Guid? conversacionId = null, IEnumerable<DocumentoQueFaltaPedido>? documentosQueFaltan = null)
+    {
+        if (empresaId == Guid.Empty)
+            throw new ArgumentException("La reclamación debe pertenecer a una empresa.", nameof(empresaId));
+
+        return new ReclamacionDocumental(
+            null, empresaId, enviadoPorUsuarioId, destinatarioEmail, fechaEnvioUtc, documentoIds, conversacionId, documentosQueFaltan,
+            documentosDeTrabajadores: true);
     }
 }

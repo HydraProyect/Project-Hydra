@@ -76,7 +76,7 @@ public class AutoridadEnAltasTests : IAsyncLifetime
 
         await using var contextoAlta = CrearContexto();
         var handler = new CrearTrabajadorCommandHandler(
-            new TrabajadorRepository(contextoAlta), contextoAlta,
+            new TrabajadorRepository(contextoAlta), contextoAlta, new CatalogoTrabajadoresEmpresaRepository(contextoAlta),
             new AlcanceDatosServiceFalso(empresaIds: [Guid.NewGuid()]), contextoAlta);
 
         var resultado = await handler.Handle(

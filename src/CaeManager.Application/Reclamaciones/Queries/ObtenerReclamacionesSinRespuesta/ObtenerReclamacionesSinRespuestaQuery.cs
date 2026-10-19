@@ -26,7 +26,9 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesSinRe
 /// una reclamación de documentos de Trabajador a una Empresa contraparte en
 /// posición de cliente y una de documentos de empresa a esa MISMA Empresa son
 /// dos pendientes distintos —otros documentos, otros destinatarios— y
-/// colapsarlos por Id escondería uno de los dos.
+/// colapsarlos por Id escondería uno de los dos. Con titular Empresa, además,
+/// lo pedido de sus Trabajadores («Gestionar») se separa de lo pedido de la
+/// propia Empresa, y por Delegación (<see cref="DestinoDeReclamacionesEnviadasService"/>).
 ///
 /// <paramref name="DiasSinRespuesta"/> llega por parámetro con un valor por
 /// defecto en vez de por configuración: hoy solo hay un llamador y el umbral no
@@ -37,6 +39,10 @@ public record ObtenerReclamacionesSinRespuestaQuery(int DiasSinRespuesta = 7)
     : IRequest<IReadOnlyList<ReclamacionSinRespuestaDto>>;
 
 /// <param name="AmbitoTitular"><c>Cliente</c> o <c>Empresa</c> — ver ObtenerReclamacionesEnviadasQuery, mismo criterio.</param>
+/// <param name="EmpresaEmpleadora">
+/// Informado cuando la reclamación pidió documentos de Trabajadores a su Empresa empleadora («Gestionar»), con la
+/// Delegación a la que iría hoy; <c>null</c> en las de titular Cliente y en las de documentos de la propia Empresa.
+/// </param>
 public record ReclamacionSinRespuestaDto(
     Guid ReclamacionId,
     Guid TitularId,
@@ -45,13 +51,15 @@ public record ReclamacionSinRespuestaDto(
     Guid ConversacionId,
     DateTime FechaEnvioUtc,
     int DiasTranscurridos,
-    int TotalDocumentos);
+    int TotalDocumentos,
+    DestinoDeReclamacionEnviadaDto? EmpresaEmpleadora = null);
 
 public class ObtenerReclamacionesSinRespuestaQueryHandler(
     IReclamacionesQueryContext reclamacionesContext,
     IComunicacionesQueryContext comunicacionesContext,
     IEmpresasQueryContext empresasContext,
-    IAlcanceDatosService alcanceDatos)
+    IAlcanceDatosService alcanceDatos,
+    DestinoDeReclamacionesEnviadasService destinoDeReclamaciones)
     : IRequestHandler<ObtenerReclamacionesSinRespuestaQuery, IReadOnlyList<ReclamacionSinRespuestaDto>>
 {
     public async Task<IReadOnlyList<ReclamacionSinRespuestaDto>> Handle(
@@ -98,8 +106,14 @@ public class ObtenerReclamacionesSinRespuestaQueryHandler(
 
         if (candidatas.Count == 0) return [];
 
+        // Con titular Empresa conviven dos pendientes distintos: lo pedido de la
+        // propia Empresa (DEC-7) y lo pedido de sus Trabajadores («Gestionar»),
+        // que además va a una Delegación u otra. Cada uno es su propio problema.
+        var destinos = await destinoDeReclamaciones.DerivarAsync(
+            [.. candidatas.Where(c => c.EmpresaId is not null).Select(c => c.ReclamacionId)], cancellationToken);
+
         var ultimaPorTitular = candidatas
-            .GroupBy(c => new { c.ClienteId, c.EmpresaId })
+            .GroupBy(c => new { c.ClienteId, c.EmpresaId, Destino = destinos.GetValueOrDefault(c.ReclamacionId) })
             .Select(g => g.OrderByDescending(c => c.FechaEnvioUtc).First())
             .ToList();
 
@@ -116,7 +130,8 @@ public class ObtenerReclamacionesSinRespuestaQueryHandler(
                 r.ClienteId is not null ? AmbitoAplicacion.Cliente : AmbitoAplicacion.Empresa,
                 r.RazonSocial, r.ConversacionId, r.FechaEnvioUtc,
                 (int)(ahora - r.FechaEnvioUtc).TotalDays,
-                totalesDocumentos.GetValueOrDefault(r.ReclamacionId)))
+                totalesDocumentos.GetValueOrDefault(r.ReclamacionId),
+                destinos.GetValueOrDefault(r.ReclamacionId)))
             // Lo que más lleva esperando primero: es el orden en que hay que atenderlo.
             .OrderByDescending(r => r.DiasTranscurridos)
             .ThenBy(r => r.RazonSocialTitular)

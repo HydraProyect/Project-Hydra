@@ -62,11 +62,12 @@
                             <span class="panel-doc-base-fecha">@vence.ToString("dd/MM/yyyy")</span>
                         }
                         @if (OnCorregirDocumento.HasDelegate && indicador.DocumentoId is { } documentoId &&
-                            indicador.Estado is EstadoIndicadorBase.Vencido or EstadoIndicadorBase.SinConfirmar or EstadoIndicadorBase.ProximoAVencer)
+                            indicador.Estado is EstadoIndicadorBase.Vencido or EstadoIndicadorBase.SinConfirmar or EstadoIndicadorBase.ProximoAVencer or EstadoIndicadorBase.Vigente)
                         {
                             <SoloConEscritura>
-                                @* Confirmar o renovar abren el mismo editor: la fila ofrece una sola acción, «Gestionar». *@
-                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                @* Confirmar o renovar abren el mismo editor: la fila ofrece una sola acción, «Gestionar»; la del documento vigente, en tono secundario. *@
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                       class="@("accion-fila-enlace" + (indicador.Estado == EstadoIndicadorBase.Vigente ? " " + EstadoDocumentoFicha360.ClaseGestionarDiscreto : string.Empty))"
                                        aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(TextoTipo(indicador.Tipo))"
                                        OnClick="() => OnCorregirDocumento.InvokeAsync(documentoId)">@EstadoDocumentoFicha360.TextoAccion</Boton>
                             </SoloConEscritura>

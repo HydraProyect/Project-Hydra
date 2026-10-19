@@ -44,12 +44,12 @@ public partial class ClientesListaGen2Tests
 
     private static async Task IrALaPagina2Async(IRenderedComponent<Clientes> cut)
     {
-        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".paginador-pie-listado button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().HaveCount(5).And.StartWith("Cliente 21"));
     }
 
     private static List<IElement> FilasConDatos(IRenderedComponent<Clientes> cut) =>
-        cut.FindAll("tbody tr").Where(tr => tr.QuerySelector(".enlace-nombre-fila") is not null).ToList();
+        cut.FindAll(".lista-filas-acordeon > .tarjeta-fila-acordeon").ToList();
 
     /// <summary>
     /// La razón social nueva mandaría la fila al final con el orden de la lista: que siga la

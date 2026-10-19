@@ -234,6 +234,10 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         [
             nameof(Visita.ContactoNombre), nameof(Visita.ContactoTelefono), nameof(Visita.ContactoCorreo),
         ],
+        // Punto 11 (2026-10-18): el contacto de reclamación de una Delegación de Empresa, persona física de un tercero,
+        // con el mismo criterio que la ficha de Empresa 360 (punto 8). Como su valor nunca llega al historial, no hace
+        // falta enmascararlo a posteriori al anonimizar la Delegación.
+        [typeof(DelegacionEmpresa)] = [.. DelegacionEmpresa.CamposDeDatosPersonales],
         [typeof(Empresa)] =
         [
             nameof(Empresa.FirmanteDocumentos),
@@ -258,7 +262,10 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
     /// </summary>
     private static readonly Dictionary<Type, HashSet<string>> PropiedadesSilenciosasPorTipo = new()
     {
-        [typeof(ApplicationUser)] = [nameof(ApplicationUser.UltimaActividadUtc), nameof(ApplicationUser.ConcurrencyStamp)]
+        [typeof(ApplicationUser)] = [nameof(ApplicationUser.UltimaActividadUtc), nameof(ApplicationUser.ConcurrencyStamp)],
+        // RegistrarAsignacion solo renueva la Version (para que asignar y eliminar choquen): no es un cambio del catálogo.
+        [typeof(DelegacionEmpresa)] = [nameof(DelegacionEmpresa.Version)],
+        [typeof(OficioEmpresa)] = [nameof(OficioEmpresa.Version)],
     };
 
     /// <summary>
