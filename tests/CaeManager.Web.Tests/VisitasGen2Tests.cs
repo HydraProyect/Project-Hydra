@@ -612,7 +612,8 @@ public partial class VisitasGen2Tests : BunitContext
         var panel = cut.Find(".drawer-panel").TextContent;
         panel.Should().Contain("Este centro no requiere gestión CAE");
         panel.Should().NotContain("Comprobación previa");
-        cut.FindComponents<BotonCopiar>().Should().ContainSingle()
+        // La referencia en línea de la fila también es un BotonCopiar: aquí solo cuenta el del cajón.
+        cut.FindComponents<BotonCopiar>().Where(b => !b.Instance.EnLinea).Should().ContainSingle()
             .Which.Instance.Valor.Should().Be(mediator.Aviso.Asunto + "\n\n" + mediator.Aviso.Cuerpo,
                 "lo que se pega en el correo es el asunto y el cuerpo, sin nada añadido por la página");
         mediator.ConsultasDocumentacion.Should().Be(0, "sin gestión CAE no hay documentación que consultar");
@@ -636,7 +637,7 @@ public partial class VisitasGen2Tests : BunitContext
         await IrAPestanaAsync(cut, "Documentación");
 
         cut.WaitForAssertion(() => cut.Find(".visitas-aviso-destinatarios").TextContent.Should().Contain("acceso@centronorte.es"));
-        cut.FindComponents<BotonCopiar>().Should().ContainSingle()
+        cut.FindComponents<BotonCopiar>().Where(b => !b.Instance.EnLinea).Should().ContainSingle()
             .Which.Instance.Valor.Should().Be(mediator.Solicitud.Asunto + "\n\n" + mediator.Solicitud.Cuerpo,
                 "lo que se pega en el correo es el asunto y el cuerpo, sin nada añadido por la página");
         var descarga = cut.Find($"a[href='/visitas/{norte.Id}/paquete-documental.zip']");
@@ -794,7 +795,7 @@ public partial class VisitasGen2Tests : BunitContext
 
         cut.WaitForAssertion(() => mediator.ConsultasDocumentacion.Should().Be(1));
         cut.FindAll("a[href$='paquete-documental.zip']").Should().BeEmpty();
-        cut.FindComponents<BotonCopiar>().Should().BeEmpty();
+        cut.FindComponents<BotonCopiar>().Where(b => !b.Instance.EnLinea).Should().BeEmpty();
         mediator.ConsultasSolicitud.Should().Be(0, "sin canal de correo no se compone la solicitud");
     }
 
