@@ -12,6 +12,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
+using CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
@@ -144,6 +145,19 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private string _filtroCentroId = string.Empty;
 
     /// <summary>
+    /// Delegación y Oficio elegidos en sus pastillas (<c>?delegacion=</c>, <c>?oficio=</c>): Id del catálogo de la Empresa.
+    /// Cada Id es de una sola Empresa; se componen con el resto de filtros y solo estrechan.
+    /// </summary>
+    private string _filtroDelegacionEmpresaId = string.Empty;
+    private string _filtroOficioId = string.Empty;
+
+    /// <summary>Catálogo (Delegación y Oficio) de la Empresa a la que pertenecen las opciones de las pastillas.</summary>
+    private CatalogoTrabajadoresEmpresaDto _catalogoFiltros = CatalogoTrabajadoresEmpresaDto.Vacio;
+
+    /// <summary>Empresa de la que se cargó <see cref="_catalogoFiltros"/>. <c>null</c>: ninguna, y sin pastillas.</summary>
+    private Guid? _catalogoDeEmpresaId;
+
+    /// <summary>
     /// Opciones de la pastilla «Centro»: los Centros que el usuario ya puede ver (mismo alcance que comprueba la
     /// consulta del listado). Si fallan, la lista se pinta igual y la pastilla solo ofrece «Todos».
     /// </summary>
@@ -194,8 +208,13 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private string _observaciones = string.Empty;
     private string _alias = string.Empty;
     private string _puesto = string.Empty;
+    private string _oficioId = string.Empty;
+    private string _delegacionId = string.Empty;
+
+    /// <summary>La Empresa elegida en el alta, de la que salen el Oficio y la Delegación; <c>null</c> con una Subcontrata o sin elegir.</summary>
+    private Guid? EmpresaElegidaParaCatalogo =>
+        _tipoEmpleador == "empresa" && Guid.TryParse(_empresaId, out var id) ? id : null;
     private string _tipoContratacion = nameof(CaeManager.Domain.Trabajadores.TipoContratacion.CuentaAjena);
-    private string _filtroActividad = string.Empty;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
@@ -264,20 +283,46 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     [SupplyParameterFromQuery(Name = "centro")]
     public string? CentroInicial { get; set; }
 
-    /// <summary>Agrupación de la URL (<c>?agrupar=empresa</c>): «Por Empresa» de la maqueta.</summary>
+    [SupplyParameterFromQuery(Name = "delegacion")]
+    public string? DelegacionEmpresaInicial { get; set; }
+
+    [SupplyParameterFromQuery(Name = "oficio")]
+    public string? OficioInicial { get; set; }
+
+    /// <summary>Agrupación de la URL (<c>?agrupar=empresa|delegacion|oficio</c>): «Por Empresa», «Por Delegación» y «Por Oficio».</summary>
     [SupplyParameterFromQuery(Name = "agrupar")]
     public string? AgruparInicial { get; set; }
 
     private const string ValorAgruparPorEmpresa = "empresa";
+    private const string ValorAgruparPorDelegacionEmpresa = "delegacion";
+    private const string ValorAgruparPorOficio = "oficio";
 
     /// <summary>
-    /// Agrupada «Por Empresa», la consulta ordena por empleador (los de una misma Empresa, seguidos) y manda sobre el orden de columna,
-    /// que no se toca ni se escribe en la URL: al quitar la agrupación vuelve el orden de antes.
+    /// Agrupación vigente (vacía: sin agrupar). Agrupada, la consulta ordena por el criterio del grupo (los de una misma
+    /// Empresa, Delegación u Oficio, seguidos) y manda sobre el orden de columna, que no se toca ni se escribe en la URL:
+    /// al quitar la agrupación vuelve el orden de antes.
     /// </summary>
-    private bool _agruparPorEmpresa;
+    private string _agrupar = string.Empty;
 
-    private bool AgruparDesdeUrl() =>
-        string.Equals(AgruparInicial, ValorAgruparPorEmpresa, StringComparison.OrdinalIgnoreCase);
+    private bool Agrupado => _agrupar.Length > 0;
+
+    /// <summary>Un valor de agrupación desconocido (URL, vista recordada) se ignora, como un estado que ya no existe.</summary>
+    private static string AgrupacionValida(string? valor) =>
+        valor is null ? string.Empty
+        : string.Equals(valor, ValorAgruparPorEmpresa, StringComparison.OrdinalIgnoreCase) ? ValorAgruparPorEmpresa
+        : string.Equals(valor, ValorAgruparPorDelegacionEmpresa, StringComparison.OrdinalIgnoreCase) ? ValorAgruparPorDelegacionEmpresa
+        : string.Equals(valor, ValorAgruparPorOficio, StringComparison.OrdinalIgnoreCase) ? ValorAgruparPorOficio
+        : string.Empty;
+
+    private string AgruparDesdeUrl() => AgrupacionValida(AgruparInicial);
+
+    /// <summary>Columna por la que la consulta ordena para dejar contiguo cada grupo de la agrupación vigente.</summary>
+    private string OrdenDeLaAgrupacion => _agrupar switch
+    {
+        ValorAgruparPorDelegacionEmpresa => nameof(TrabajadorListaDto.DelegacionEmpresaNombre),
+        ValorAgruparPorOficio => nameof(TrabajadorListaDto.OficioNombre),
+        _ => nameof(TrabajadorListaDto.EmpleadorNombre),
+    };
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosTrabajadores> Textos { get; set; } = default!;
@@ -341,11 +386,12 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     /// <summary>
     /// Lo que guarda un filtro de esta pantalla. <c>Estado</c> (la franja de estado) y <c>CentroId</c> (la pastilla
-    /// «Centro») llegaron después: son opcionales para que los filtros ya guardados sin ellos se sigan leyendo, y
+    /// «Centro») y después <c>DelegacionEmpresaId</c> y <c>OficioId</c> (sus pastillas) llegaron después: son opcionales para que los filtros ya guardados sin ellos se sigan leyendo, y
     /// entonces se aplican sin estado y sin Centro.
     /// </summary>
     private record FiltrosTrabajadoresJson(
-        string? Busqueda, string? EmpresaId, string? SubcontrataId, string? Estado = null, string? CentroId = null);
+        string? Busqueda, string? EmpresaId, string? SubcontrataId, string? Estado = null, string? CentroId = null,
+        string? DelegacionEmpresaId = null, string? OficioId = null);
 
     /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
     private bool _sinEmpresaSeleccionada;
@@ -459,12 +505,18 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
         var centroDeLaUrl = IdDesdeUrl(CentroInicial);
 
+        var delegacionDeLaUrl = IdDesdeUrl(DelegacionEmpresaInicial);
+        var oficioDeLaUrl = IdDesdeUrl(OficioInicial);
+
         var agruparDeLaUrl = AgruparDesdeUrl();
 
         var cambiaronLosFiltros = deLaUrl != _busqueda || estadoDeLaUrl != _estadoFiltro
             || empresaDeLaUrl != _filtroEmpresaId || subcontrataDeLaUrl != _filtroSubcontrataId
-            || centroDeLaUrl != _filtroCentroId || agruparDeLaUrl != _agruparPorEmpresa;
-        _agruparPorEmpresa = agruparDeLaUrl;
+            || centroDeLaUrl != _filtroCentroId || agruparDeLaUrl != _agrupar
+            || delegacionDeLaUrl != _filtroDelegacionEmpresaId || oficioDeLaUrl != _filtroOficioId;
+        _agrupar = agruparDeLaUrl;
+        _filtroDelegacionEmpresaId = delegacionDeLaUrl;
+        _filtroOficioId = oficioDeLaUrl;
         _busqueda = deLaUrl;
         _estadoFiltro = estadoDeLaUrl;
         _filtroEmpresaId = empresaDeLaUrl;
@@ -516,9 +568,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         var anterior = _peticionActiva;
         _peticionActiva = cancelacion;
         anterior?.Cancel();
-        var ordenarPor = _agruparPorEmpresa ? nameof(TrabajadorListaDto.EmpleadorNombre) : _orden.Propiedad;
-        var descendente = !_agruparPorEmpresa && _orden.Direccion == SortDirection.Descending;
-        if (!_agruparPorEmpresa && _orden.Anotar(ordenarPor, descendente))
+        var ordenarPor = Agrupado ? OrdenDeLaAgrupacion : _orden.Propiedad;
+        var descendente = !Agrupado && _orden.Direccion == SortDirection.Descending;
+        if (!Agrupado && _orden.Anotar(ordenarPor, descendente))
             NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
         (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
         var consulta = new ObtenerTrabajadoresQuery(
@@ -528,13 +580,14 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             Pagina: _pagina,
             TamanoPagina: _tamanoPagina,
             CentroId: Guid.TryParse(_filtroCentroId, out var centroId) ? centroId : null,
+            DelegacionEmpresaId: Guid.TryParse(_filtroDelegacionEmpresaId, out var delegacionId) ? delegacionId : null,
+            OficioEmpresaId: Guid.TryParse(_filtroOficioId, out var oficioId) ? oficioId : null,
             // Esta página pinta el motivo del estado y «Registrados vigentes»: es quien pide el desglose.
             ConDesgloseDocumental: true,
             OrdenarPor: ordenarPor,
             Descendente: descendente,
             EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
-            ConRecuentosPorEstado: true,
-            VoluntarioInactivo: _filtroActividad switch { "inactivos" => true, "activos" => false, _ => null });
+            ConRecuentosPorEstado: true);
         var conservarSeleccion = consulta == _consultaQueConservaSeleccion;
         _consultaQueConservaSeleccion = null;
         _ultimaConsulta = consulta;
@@ -543,6 +596,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         StateHasChanged();
         try
         {
+            // Las opciones de las pastillas «Delegación» y «Oficio» son las del catálogo de la Empresa en juego.
+            await AsegurarCatalogoDeFiltrosAsync();
+            if (_desechado || carga != _cargaVigente) return;
             var resultado = await Mediator.Send(consulta, cancelacion.Token);
             if (_desechado || carga != _cargaVigente) return;
             _totalElementos = resultado.TotalElementos;
@@ -596,10 +652,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             nameof(TrabajadorListaDto.EmpleadorNombre) => "empleador",
             _ => "documentacion"
         };
-        var descendente = !_agruparPorEmpresa && _orden.Propiedad == propiedad && _orden.Direccion != SortDirection.Descending;
+        var descendente = !Agrupado && _orden.Propiedad == propiedad && _orden.Direccion != SortDirection.Descending;
         _orden.Leer(clave + (descendente ? "-desc" : string.Empty));
         // Ordenar por una columna es dejar de agrupar: las dos cosas piden orden y la última pulsada manda. Una sola navegación.
-        _agruparPorEmpresa = false;
+        _agrupar = string.Empty;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["orden"] = _orden.EnUrl,
@@ -610,40 +666,74 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private async Task CambiarAgrupacionAsync(string? valor)
     {
-        _agruparPorEmpresa = valor == ValorAgruparPorEmpresa;
-        NavigationManager.ActualizarFiltroEnUrl("agrupar", _agruparPorEmpresa ? ValorAgruparPorEmpresa : null);
+        _agrupar = AgrupacionValida(valor);
+        NavigationManager.ActualizarFiltroEnUrl("agrupar", Agrupado ? _agrupar : null);
         await RecargarAsync();
     }
 
-    private string ValorAgrupacion => _agruparPorEmpresa ? ValorAgruparPorEmpresa : string.Empty;
+    private string ValorAgrupacion => _agrupar;
 
     private IReadOnlyList<OpcionEstado> OpcionesAgrupacion =>
-        [new OpcionEstado(ValorAgruparPorEmpresa, Textos["AgruparPorEmpresa"].Value)];
+    [
+        new OpcionEstado(ValorAgruparPorEmpresa, Textos["AgruparPorEmpresa"].Value),
+        new OpcionEstado(ValorAgruparPorDelegacionEmpresa, Textos["AgruparPorDelegacionEmpresa"].Value),
+        new OpcionEstado(ValorAgruparPorOficio, Textos["AgruparPorOficio"].Value),
+    ];
 
     /// <summary>
-    /// Las filas de la página con el título del grupo en la primera de cada uno cuando se agrupa «Por Empresa»
-    /// (el orden ya viene del servidor: los de un mismo empleador, seguidos). <c>Cantidad</c> es cuántas filas
+    /// Las filas de la página con el título del grupo en la primera de cada uno cuando se agrupa «Por Empresa»,
+    /// «Por Delegación» o «Por Oficio» (el orden ya viene del servidor: los de un mismo grupo, seguidos y los que no
+    /// tienen Delegación u Oficio, al final, bajo «Sin delegación» / «Sin oficio»). <c>Cantidad</c> es cuántas filas
     /// tiene el grupo EN ESTA PÁGINA. Sin agrupar, ninguna fila lleva título.
     /// </summary>
     private IEnumerable<(TrabajadorListaDto Trabajador, string? Grupo, int Cantidad)> FilasConGrupo()
     {
-        if (!_agruparPorEmpresa)
+        if (!Agrupado)
         {
             foreach (var trabajador in _elementosPagina)
                 yield return (trabajador, null, 0);
             yield break;
         }
 
-        var cantidades = _elementosPagina.GroupBy(t => t.EmpleadorNombre).ToDictionary(g => g.Key, g => g.Count());
+        var cantidades = _elementosPagina.GroupBy(ClaveDeGrupo).ToDictionary(g => g.Key, g => g.Count());
         string? anterior = null;
         foreach (var trabajador in _elementosPagina)
         {
-            var empiezaGrupo = anterior is null || trabajador.EmpleadorNombre != anterior;
-            anterior = trabajador.EmpleadorNombre;
+            var clave = ClaveDeGrupo(trabajador);
+            var empiezaGrupo = anterior is null || clave != anterior;
+            anterior = clave;
             yield return empiezaGrupo
-                ? (trabajador, trabajador.EmpleadorNombre, cantidades[trabajador.EmpleadorNombre])
+                ? (trabajador, TituloDeGrupo(trabajador), cantidades[clave])
                 : (trabajador, null, 0);
         }
+    }
+
+    /// <summary>Lo que identifica el grupo de una fila en la agrupación vigente (el Id del catálogo, no el nombre: dos Empresas pueden llamar igual a una Delegación).</summary>
+    private string ClaveDeGrupo(TrabajadorListaDto t) => _agrupar switch
+    {
+        ValorAgruparPorDelegacionEmpresa => t.DelegacionEmpresaId?.ToString() ?? string.Empty,
+        ValorAgruparPorOficio => t.OficioEmpresaId?.ToString() ?? string.Empty,
+        _ => t.EmpleadorNombre,
+    };
+
+    /// <summary>
+    /// Título del grupo. Delegación y Oficio son de cada Empresa: mientras la lista pueda mezclar Empresas, el título
+    /// de un grupo con catálogo dice de cuál (<c>Madrid · Empresa</c>); con una sola Empresa en juego, solo el nombre.
+    /// Quien no tiene Delegación u Oficio (también los Trabajadores de Subcontrata) cae en «Sin …», sin Empresa.
+    /// </summary>
+    private string TituloDeGrupo(TrabajadorListaDto t)
+    {
+        var nombre = _agrupar switch
+        {
+            ValorAgruparPorDelegacionEmpresa => t.DelegacionEmpresaNombre,
+            ValorAgruparPorOficio => t.OficioNombre,
+            _ => t.EmpleadorNombre,
+        };
+        if (_agrupar == ValorAgruparPorEmpresa)
+            return t.EmpleadorNombre;
+        if (nombre is null)
+            return _agrupar == ValorAgruparPorDelegacionEmpresa ? Textos["SinDelegacionEmpresa"].Value : Textos["SinOficio"].Value;
+        return EmpresaDelCatalogo is null ? Textos["GrupoDeCatalogoConEmpresa", nombre, t.EmpleadorNombre].Value : nombre;
     }
 
     /// <summary>Hay alguna fila con documentos que piden trabajo: solo entonces «Expandir todo» tiene algo que abrir.</summary>
@@ -655,19 +745,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// «Desde el dd/MM/yyyy» si venció, «Caduca el dd/MM/yyyy» si está por vencer, la falta de fecha si está sin confirmar
     /// y vacío en cualquier otro caso.
     /// </summary>
-    private string DetalleDelDocumento(CaeManager.Application.Documentos.IncidenciaDocumentalDto incidencia)
-    {
-        if (incidencia.Estado == CaeManager.Domain.Documentos.EstadoDocumento.SinConfirmar)
-            return EstadoDocumentoUi.MotivoDeDocumento(incidencia.Estado, incidencia.FechaVencimiento, CaeManager.Domain.Common.DiaDeNegocio.Hoy()) ?? string.Empty;
-        if (incidencia.FechaVencimiento is not { } fecha) return string.Empty;
-        var texto = fecha.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture);
-        return incidencia.Estado switch
-        {
-            CaeManager.Domain.Documentos.EstadoDocumento.Vencido or CaeManager.Domain.Documentos.EstadoDocumento.EnTolerancia => Textos["DocumentoDesdeFecha", texto].Value,
-            CaeManager.Domain.Documentos.EstadoDocumento.Urgente or CaeManager.Domain.Documentos.EstadoDocumento.Proximo => Textos["DocumentoCaducaFecha", texto].Value,
-            _ => string.Empty
-        };
-    }
+    private static string DetalleDelDocumento(CaeManager.Application.Documentos.IncidenciaDocumentalDto incidencia) =>
+        DetalleVigenciaDocumentoUi.DeTrabajador(incidencia);
 
     private bool TodosExpandidos => _elementosPagina.Any(t => t.Incidencias.Count > 0)
         && _elementosPagina.Where(t => t.Incidencias.Count > 0).All(EstaExpandido);
@@ -708,40 +787,141 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// y dos navegaciones seguidas se pisarían (ver
     /// <see cref="NavigationManagerExtensions.ActualizarFiltrosEnUrl"/>).
     /// </summary>
-    private void EscribirEmpleadorEnUrl() =>
-        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+    private void EscribirEmpleadorEnUrl(bool soltarCatalogo = false)
+    {
+        // Delegación y Oficio son del catálogo de UNA Empresa: al cambiar de empleador dejan de tener sentido.
+        if (soltarCatalogo)
+        {
+            _filtroDelegacionEmpresaId = string.Empty;
+            _filtroOficioId = string.Empty;
+        }
+
+        var parametros = new Dictionary<string, string?>
         {
             ["empresa"] = _filtroEmpresaId,
             ["subcontrata"] = _filtroSubcontrataId,
-        });
+        };
+        if (soltarCatalogo)
+        {
+            parametros["delegacion"] = null;
+            parametros["oficio"] = null;
+        }
+
+        NavigationManager.ActualizarFiltrosEnUrl(parametros);
+    }
 
     private async Task FiltrarPorEmpresaAsync(string valor)
     {
+        var cambia = valor != _filtroEmpresaId || _filtroSubcontrataId.Length > 0;
         _filtroEmpresaId = valor;
         _filtroSubcontrataId = string.Empty;
-        EscribirEmpleadorEnUrl();
+        EscribirEmpleadorEnUrl(soltarCatalogo: cambia);
         await RecargarAsync();
     }
 
     private async Task FiltrarPorSubcontrataAsync(string valor)
     {
+        var cambia = valor != _filtroSubcontrataId || _filtroEmpresaId.Length > 0;
         _filtroSubcontrataId = valor;
         _filtroEmpresaId = string.Empty;
-        EscribirEmpleadorEnUrl();
+        EscribirEmpleadorEnUrl(soltarCatalogo: cambia);
         await RecargarAsync();
     }
 
-    private IReadOnlyList<OpcionEstado> OpcionesFiltroActividad =>
-    [
-        new("activos", Textos["OpcionSinVoluntariosInactivos"].Value),
-        new("inactivos", Textos["OpcionSoloVoluntariosInactivos"].Value),
-    ];
+    // ── Delegación y Oficio: catálogo de la Empresa ─────────────────────────────────────────────
 
-    private async Task FiltrarPorActividadAsync(string valor)
+    /// <summary>
+    /// La Empresa cuyo catálogo ofrecen las pastillas «Delegación» y «Oficio»: la de la pastilla «Empresa» o, sin ella,
+    /// la única Empresa que emplea a Trabajadores visibles. Con varias, ninguna: cada Delegación y cada Oficio es de UNA
+    /// Empresa, y mezclar los catálogos en un menú sin decir de cuál sería ambiguo; hasta elegir Empresa no hay pastillas
+    /// (el valor que traiga una URL o un filtro guardado sí se aplica, y su chip se puede quitar). Con una subcontrata
+    /// elegida tampoco hay pastillas: sus Trabajadores no tienen catálogo.
+    /// </summary>
+    private Guid? EmpresaDelCatalogo
     {
-        _filtroActividad = valor;
+        get
+        {
+            if (_filtroSubcontrataId.Length > 0) return null;
+            if (Guid.TryParse(_filtroEmpresaId, out var elegida)) return elegida;
+            return _empleadoresFiltro.Empresas.Count == 1 ? _empleadoresFiltro.Empresas[0].Id : null;
+        }
+    }
+
+    /// <summary>
+    /// Carga el catálogo de la Empresa en juego si no es el que ya hay. Si falla, la lista se pinta igual y las
+    /// pastillas no aparecen (como las opciones de «Centro»).
+    /// </summary>
+    private async Task AsegurarCatalogoDeFiltrosAsync()
+    {
+        var empresa = EmpresaDelCatalogo;
+        if (empresa == _catalogoDeEmpresaId)
+            return;
+
+        // Mientras carga (o si falla) no hay catálogo: nunca se ofrecen las opciones de la Empresa anterior. La Empresa del
+        // catálogo solo se anota tras una carga correcta, así que un fallo se reintenta en la siguiente carga de la lista.
+        _catalogoDeEmpresaId = null;
+        _catalogoFiltros = CatalogoTrabajadoresEmpresaDto.Vacio;
+        if (empresa is not { } empresaId)
+            return;
+
+        try
+        {
+            var catalogo = await Mediator.Send(new ObtenerCatalogoTrabajadoresEmpresaQuery(empresaId), _ciclo.Token);
+            if (!_desechado && EmpresaDelCatalogo == empresaId)
+            {
+                _catalogoFiltros = catalogo;
+                _catalogoDeEmpresaId = empresaId;
+            }
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
+        {
+            // La página retirada no conserva una respuesta del contexto anterior.
+        }
+        catch (Exception)
+        {
+            // Sin catálogo: la lista se pinta igual y la próxima carga lo vuelve a pedir.
+        }
+    }
+
+    /// <summary>Hay Delegación u Oficio que ofrecer: sin ninguno la pastilla no tiene nada que decir.</summary>
+    private bool OfrecerPastillaDeDelegacionEmpresa => _catalogoDeEmpresaId == EmpresaDelCatalogo && _catalogoFiltros.DelegacionesEmpresa.Count > 0;
+
+    private bool OfrecerPastillaDeOficio => _catalogoDeEmpresaId == EmpresaDelCatalogo && _catalogoFiltros.Oficios.Count > 0;
+
+    private IReadOnlyList<OpcionEstado> OpcionesFiltroDelegacionEmpresa =>
+        _catalogoFiltros.DelegacionesEmpresa.Select(d => new OpcionEstado(d.Id.ToString(), d.Nombre)).ToList();
+
+    private IReadOnlyList<OpcionEstado> OpcionesFiltroOficio =>
+        _catalogoFiltros.Oficios.Select(o => new OpcionEstado(o.Id.ToString(), o.Nombre)).ToList();
+
+    private async Task FiltrarPorDelegacionEmpresaAsync(string valor)
+    {
+        _filtroDelegacionEmpresaId = IdDesdeUrl(valor);
+        NavigationManager.ActualizarFiltroEnUrl("delegacion", _filtroDelegacionEmpresaId);
         await RecargarAsync();
     }
+
+    private async Task FiltrarPorOficioAsync(string valor)
+    {
+        _filtroOficioId = IdDesdeUrl(valor);
+        NavigationManager.ActualizarFiltroEnUrl("oficio", _filtroOficioId);
+        await RecargarAsync();
+    }
+
+    private Task QuitarFiltroDelegacionEmpresaAsync() => FiltrarPorDelegacionEmpresaAsync(string.Empty);
+
+    private Task QuitarFiltroOficioAsync() => FiltrarPorOficioAsync(string.Empty);
+
+    /// <summary>Rótulo del chip. Si el Id no está en el catálogo cargado (URL o filtro guardado de otra Empresa), «Delegación» a secas.</summary>
+    private string EtiquetaFiltroDelegacionEmpresa =>
+        _catalogoFiltros.DelegacionesEmpresa.FirstOrDefault(d => d.Id.ToString() == _filtroDelegacionEmpresaId) is { } d
+            ? Textos["ChipDelegacionEmpresa", d.Nombre].Value
+            : Textos["EtiquetaDelegacionEmpresa"].Value;
+
+    private string EtiquetaFiltroOficio =>
+        _catalogoFiltros.Oficios.FirstOrDefault(o => o.Id.ToString() == _filtroOficioId) is { } o
+            ? Textos["ChipOficio", o.Nombre].Value
+            : Textos["EtiquetaOficio"].Value;
 
     private async Task FiltrarPorCentroAsync(string valor)
     {
@@ -797,7 +977,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private bool HayFiltrosActivos =>
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
         || !string.IsNullOrWhiteSpace(_filtroEmpresaId) || !string.IsNullOrWhiteSpace(_filtroSubcontrataId)
-        || !string.IsNullOrWhiteSpace(_filtroCentroId) || !string.IsNullOrWhiteSpace(_filtroActividad);
+        || !string.IsNullOrWhiteSpace(_filtroCentroId)
+        || !string.IsNullOrWhiteSpace(_filtroDelegacionEmpresaId) || !string.IsNullOrWhiteSpace(_filtroOficioId);
 
     // ── Corrección de una incidencia desde la subcaja del motivo ────────────────────────────────
 
@@ -896,9 +1077,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private Task QuitarFiltroSubcontrataAsync() => FiltrarPorSubcontrataAsync(string.Empty);
 
     /// <summary>
-    /// Quita los cinco filtros en una sola recarga. Encadenar los setters
-    /// lanzaría cinco consultas y las cuatro primeras devolverían listas que ya
-    /// no se van a pintar. Los cinco viven además en la URL y se
+    /// Quita los siete filtros en una sola recarga. Encadenar los setters
+    /// lanzaría siete consultas y las seis primeras devolverían listas que ya
+    /// no se van a pintar. Los siete viven además en la URL y se
     /// limpian allí en UNA sola navegación (ver
     /// <see cref="NavigationManagerExtensions.ActualizarFiltrosEnUrl"/>): si no,
     /// <see cref="OnParametersSetAsync"/> los repondría desde la URL
@@ -911,7 +1092,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _filtroEmpresaId = string.Empty;
         _filtroSubcontrataId = string.Empty;
         _filtroCentroId = string.Empty;
-        _filtroActividad = string.Empty;
+        _filtroDelegacionEmpresaId = string.Empty;
+        _filtroOficioId = string.Empty;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = null,
@@ -919,6 +1101,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             ["empresa"] = null,
             ["subcontrata"] = null,
             ["centro"] = null,
+            ["delegacion"] = null,
+            ["oficio"] = null,
         });
         await RecargarAsync();
     }
@@ -994,6 +1178,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _apellidos = string.Empty;
         _alias = string.Empty;
         _puesto = string.Empty;
+        _oficioId = string.Empty;
+        _delegacionId = string.Empty;
         _tipoContratacion = nameof(CaeManager.Domain.Trabajadores.TipoContratacion.CuentaAjena);
         _fechaNacimiento = string.Empty;
         _email = string.Empty;
@@ -1001,8 +1187,118 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _observaciones = string.Empty;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
+        _pasoAlta = PasoAltaBasico;
+        _pasosAltaVistos.Clear();
         _drawerVisible = true;
         FijarInstantaneaFormulario();
+    }
+
+    // Alta en pasos («Panel Formulario TALVEG»): Lo básico, Trabajo y Contacto ordenan los mismos campos de siempre; no hay
+    // un comando por paso. «Guardar» (o «Guardar y terminar» desde un paso intermedio) envía el CrearTrabajadorCommand único con
+    // todo lo escrito, y un error de campo del servidor lleva al paso donde está el campo.
+    private const string PasoAltaBasico = "basico";
+    private const string PasoAltaTrabajo = "trabajo";
+    private const string PasoAltaContacto = "contacto";
+
+    private string _pasoAlta = PasoAltaBasico;
+    private readonly HashSet<string> _pasosAltaVistos = [];
+
+    private IReadOnlyList<PasoDefinicion> PasosAlta =>
+    [
+        new(PasoAltaBasico, Textos["PasoAltaBasico"]),
+        new(PasoAltaTrabajo, Textos["PasoAltaTrabajo"]),
+        new(PasoAltaContacto, Textos["PasoAltaContacto"]),
+    ];
+
+    private int IndicePasoAlta => Math.Max(0, PasosAlta.ToList().FindIndex(p => p.Clave == _pasoAlta));
+
+    /// <summary>
+    /// «Siguiente» no avanza con campos del paso en error: valida los campos del paso con las reglas del comando (las mismas que
+    /// «Guardar»; el empleador, en el primero) y el paso no se da por visto hasta que está bien.
+    /// </summary>
+    private async Task AltaSiguienteAsync()
+    {
+        var pasos = PasosAlta;
+        var indice = IndicePasoAlta;
+        if (indice >= pasos.Count - 1) return;
+
+        LimpiarAvisoDeEmpleadorFaltante();
+        if (_pasoAlta == PasoAltaBasico && AvisoDeEmpleadorFaltante() is { } aviso)
+        {
+            _mensajeErrorFormulario = aviso;
+            return;
+        }
+
+        if (!await PasoAltaEsValidoAsync(_pasoAlta)) return;
+
+        _pasosAltaVistos.Add(_pasoAlta);
+        _pasoAlta = pasos[indice + 1].Clave;
+    }
+
+    private string? AvisoDeEmpleadorFaltante() =>
+        _tipoEmpleador == "empresa"
+            ? (Guid.TryParse(_empresaId, out _) ? null : Textos["ErrorSeleccionaEmpresa"].Value)
+            : (Guid.TryParse(_subcontrataId, out _) ? null : Textos["ErrorSeleccionaSubcontrata"].Value);
+
+    private static string[] CamposDelPasoAlta(string paso) => paso switch
+    {
+        PasoAltaBasico =>
+        [
+            nameof(CrearTrabajadorCommand.Dni), nameof(CrearTrabajadorCommand.Nombre), nameof(CrearTrabajadorCommand.Apellidos),
+            nameof(CrearTrabajadorCommand.Alias), nameof(CrearTrabajadorCommand.FechaNacimiento),
+        ],
+        PasoAltaTrabajo =>
+        [
+            nameof(CrearTrabajadorCommand.Puesto), nameof(CrearTrabajadorCommand.Observaciones), nameof(CrearTrabajadorCommand.TipoContratacion),
+        ],
+        _ => [nameof(CrearTrabajadorCommand.Email), nameof(CrearTrabajadorCommand.Telefono)],
+    };
+
+    /// <summary>Errores de los campos que se ven ahora: los de otro paso no bloquean Escape ni el clic fuera sin que nadie los vea.</summary>
+    private bool HayErroresDelPasoVisible =>
+        _erroresCampo.Keys.Any(campo => PasosAlta[Math.Min(OrdenPasoDeCampo(campo), PasosAlta.Count - 1)].Clave == _pasoAlta);
+
+    private async Task<bool> PasoAltaEsValidoAsync(string paso)
+    {
+        var campos = CamposDelPasoAlta(paso);
+        var resultado = await ValidadorCrear.ValidateAsync(ComandoParaValidar(), opciones => opciones.IncludeProperties(campos));
+        foreach (var campo in campos) _erroresCampo.Remove(campo);
+        foreach (var grupo in resultado.Errors.GroupBy(e => e.PropertyName))
+            _erroresCampo[grupo.Key] = grupo.First().ErrorMessage;
+        return resultado.IsValid;
+    }
+
+    private CrearTrabajadorCommand ComandoParaValidar() => new(
+        null, null, _nombre, _apellidos, _dni, DateOnly.TryParse(_fechaNacimiento, out var fecha) ? fecha : null,
+        string.IsNullOrWhiteSpace(_email) ? null : _email, string.IsNullOrWhiteSpace(_observaciones) ? null : _observaciones,
+        string.IsNullOrWhiteSpace(_alias) ? null : _alias, string.IsNullOrWhiteSpace(_telefono) ? null : _telefono,
+        PuestoEnTexto);
+
+    // El Puesto en texto es solo del Trabajador de Subcontrata: con Empresa, el campo no se ve (lo sustituye el Oficio) y lo
+    // escrito antes de cambiar de empleador ni se valida ni viaja en el alta.
+    private string? PuestoEnTexto => _tipoEmpleador == "empresa" || string.IsNullOrWhiteSpace(_puesto) ? null : _puesto;
+
+    private void AltaAtras()
+    {
+        var indice = IndicePasoAlta;
+        if (indice > 0) _pasoAlta = PasosAlta[indice - 1].Clave;
+    }
+
+    private void AltaIrAPaso(string clave) => _pasoAlta = clave;
+
+    /// <summary>El paso de cada campo del comando: el primero con error es el que se enseña tras un guardado que no pasó.</summary>
+    private static int OrdenPasoDeCampo(string campo) => campo switch
+    {
+        "Puesto" or "TipoContratacion" or "Observaciones" => 1,
+        "Email" or "Telefono" => 2,
+        _ => 0,
+    };
+
+    private void IrAlPrimerPasoConError(IEnumerable<string> campos)
+    {
+        var pasos = PasosAlta;
+        var primero = campos.Select(OrdenPasoDeCampo).DefaultIfEmpty(0).Min();
+        _pasoAlta = pasos[Math.Min(primero, pasos.Count - 1)].Clave;
     }
 
     private readonly InstantaneaFormulario _instantanea = new();
@@ -1026,7 +1322,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private bool HayCambiosFiltro => _mostrarGuardarFiltro && !string.IsNullOrWhiteSpace(_nombreFiltroNuevo);
 
     private object?[] ValoresFormulario() =>
-        [_tipoEmpleador, _empresaId, _subcontrataId, _dni, _nombre, _apellidos, _alias, _puesto, _fechaNacimiento, _email, _telefono, _observaciones];
+        [_tipoEmpleador, _empresaId, _subcontrataId, _dni, _nombre, _apellidos, _alias, _puesto, _oficioId, _delegacionId, _tipoContratacion, _fechaNacimiento, _email, _telefono, _observaciones];
 
     private object?[] ValoresAsignarCentro() => [_centroIdParaAsignar, _fechaAltaParaAsignar];
 
@@ -1051,6 +1347,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _tipoEmpleador = tipo;
         _empresaId = string.Empty;
         _subcontrataId = string.Empty;
+        _oficioId = string.Empty;
+        _delegacionId = string.Empty;
         LimpiarAvisoDeEmpleadorFaltante();
     }
 
@@ -1058,6 +1356,12 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     // al elegir el empleador deja de ser verdad y no puede quedarse en pantalla hasta el siguiente guardado.
     private void AlElegirEmpresa(string valor)
     {
+        // El catálogo es de la Empresa: al cambiarla, el Oficio y la Delegación elegidos ya no valen.
+        if (valor != _empresaId)
+        {
+            _oficioId = string.Empty;
+            _delegacionId = string.Empty;
+        }
         _empresaId = valor;
         LimpiarAvisoDeEmpleadorFaltante();
     }
@@ -1099,7 +1403,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             var telefono = string.IsNullOrWhiteSpace(_telefono) ? null : _telefono;
             var observaciones = string.IsNullOrWhiteSpace(_observaciones) ? null : _observaciones;
             var alias = string.IsNullOrWhiteSpace(_alias) ? null : _alias;
-            var puesto = string.IsNullOrWhiteSpace(_puesto) ? null : _puesto;
+            var puesto = PuestoEnTexto;
             var fechaNacimiento = DateOnly.TryParse(_fechaNacimiento, out var fecha) ? fecha : (DateOnly?)null;
 
             Guid? empresaId = null;
@@ -1110,6 +1414,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 if (!Guid.TryParse(_empresaId, out var empresaIdValor))
                 {
                     _mensajeErrorFormulario = Textos["ErrorSeleccionaEmpresa"];
+                    _pasoAlta = PasoAltaBasico;
                     return;
                 }
                 empresaId = empresaIdValor;
@@ -1119,18 +1424,29 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 if (!Guid.TryParse(_subcontrataId, out var subcontrataIdValor))
                 {
                     _mensajeErrorFormulario = Textos["ErrorSeleccionaSubcontrata"];
+                    _pasoAlta = PasoAltaBasico;
                     return;
                 }
                 subcontrataId = subcontrataIdValor;
             }
 
+            // Con Empresa, el Puesto sale del Oficio elegido (lo copia el servidor) y su campo de texto no existe: lo que se
+            // hubiera escrito antes de elegir la Empresa no se envía.
+            var oficioEmpresaId = empresaId is not null && Guid.TryParse(_oficioId, out var oficio) ? oficio : (Guid?)null;
+            var delegacionEmpresaId = empresaId is not null && Guid.TryParse(_delegacionId, out var delegacion) ? delegacion : (Guid?)null;
+            if (empresaId is not null) puesto = null;
+
             var resultado = await Mediator.Send(
                 new CrearTrabajadorCommand(empresaId, subcontrataId, _nombre, _apellidos, _dni, fechaNacimiento, email, observaciones, alias, telefono, puesto,
-                    Enum.Parse<CaeManager.Domain.Trabajadores.TipoContratacion>(_tipoContratacion)));
+                    Enum.Parse<CaeManager.Domain.Trabajadores.TipoContratacion>(_tipoContratacion), oficioEmpresaId, delegacionEmpresaId));
 
             if (resultado.EsFallido)
             {
                 _mensajeErrorFormulario = resultado.Error.Mensaje;
+                // Un fallo de regla de negocio sin ValidationException (DNI duplicado, empresa o subcontrata que ya no existe) es de
+                // lo que se escribió en el primer paso: se enseña ahí, no en el último.
+                if (resultado.Error.Codigo is "Trabajador.DniDuplicado" or "Trabajador.EmpresaNoEncontrada" or "Trabajador.SubcontrataNoEncontrada")
+                    _pasoAlta = PasoAltaBasico;
                 return;
             }
 
@@ -1143,6 +1459,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             _erroresCampo = ex.Errors
                 .GroupBy(e => e.PropertyName)
                 .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+            IrAlPrimerPasoConError(_erroresCampo.Keys);
         }
         catch (Exception)
         {
@@ -1179,16 +1496,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private async Task ValidarCampoAsync(string campo)
     {
-        var email = string.IsNullOrWhiteSpace(_email) ? null : _email;
-        var telefono = string.IsNullOrWhiteSpace(_telefono) ? null : _telefono;
-        var observaciones = string.IsNullOrWhiteSpace(_observaciones) ? null : _observaciones;
-        var alias = string.IsNullOrWhiteSpace(_alias) ? null : _alias;
-        var puesto = string.IsNullOrWhiteSpace(_puesto) ? null : _puesto;
-        var fechaNacimiento = DateOnly.TryParse(_fechaNacimiento, out var fecha) ? fecha : (DateOnly?)null;
-
-        var resultado = await ValidadorCrear.ValidateAsync(
-            new CrearTrabajadorCommand(null, null, _nombre, _apellidos, _dni, fechaNacimiento, email, observaciones, alias, telefono, puesto),
-            opciones => opciones.IncludeProperties(campo));
+        var resultado = await ValidadorCrear.ValidateAsync(ComandoParaValidar(), opciones => opciones.IncludeProperties(campo));
 
         if (resultado.IsValid)
             _erroresCampo.Remove(campo);
@@ -1522,8 +1830,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         // ya no es una opción (catálogo cambiado) se ignora, como uno de la URL.
         _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(valores.Estado);
         _filtroCentroId = IdDesdeUrl(valores.CentroId);
+        _filtroDelegacionEmpresaId = IdDesdeUrl(valores.DelegacionEmpresaId);
+        _filtroOficioId = IdDesdeUrl(valores.OficioId);
 
-        // Los cinco filtros del filtro guardado se escriben también en la URL, en una sola navegación.
+        // Los siete filtros del filtro guardado se escriben también en la URL, en una sola navegación.
         // Si solo se aplicaran en memoria, la siguiente navegación dentro de la página haría que
         // OnParametersSetAsync los borrase leyendo una URL sin ellos.
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
@@ -1533,6 +1843,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             ["empresa"] = _filtroEmpresaId,
             ["subcontrata"] = _filtroSubcontrataId,
             ["centro"] = _filtroCentroId,
+            ["delegacion"] = _filtroDelegacionEmpresaId,
+            ["oficio"] = _filtroOficioId,
         });
         await RecargarAsync();
     }
@@ -1545,7 +1857,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// no se recuerda. Los filtros guardados de esta pantalla son anteriores a la pieza compartida y
     /// conservan su propio JSON, sin el orden de columna.
     /// </summary>
-    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "empresa", "subcontrata", "centro", "orden", "agrupar"];
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "empresa", "subcontrata", "centro", "delegacion", "oficio", "orden", "agrupar"];
 
     private readonly ConexionVistaRecordada _vistaRecordada = new();
 
@@ -1562,9 +1874,11 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _filtroSubcontrataId = IdDesdeUrl(vista.GetValueOrDefault("subcontrata"));
         _filtroEmpresaId = _filtroSubcontrataId.Length > 0 ? string.Empty : IdDesdeUrl(vista.GetValueOrDefault("empresa"));
         _filtroCentroId = IdDesdeUrl(vista.GetValueOrDefault("centro"));
+        _filtroDelegacionEmpresaId = IdDesdeUrl(vista.GetValueOrDefault("delegacion"));
+        _filtroOficioId = IdDesdeUrl(vista.GetValueOrDefault("oficio"));
         _orden.Leer(vista.GetValueOrDefault("orden"));
         // Una agrupación desconocida se ignora como un estado que ya no existe.
-        _agruparPorEmpresa = vista.GetValueOrDefault("agrupar") == ValorAgruparPorEmpresa;
+        _agrupar = AgrupacionValida(vista.GetValueOrDefault("agrupar"));
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = _busqueda,
@@ -1572,8 +1886,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             ["empresa"] = _filtroEmpresaId,
             ["subcontrata"] = _filtroSubcontrataId,
             ["centro"] = _filtroCentroId,
+            ["delegacion"] = _filtroDelegacionEmpresaId,
+            ["oficio"] = _filtroOficioId,
             ["orden"] = _orden.EnUrl,
-            ["agrupar"] = _agruparPorEmpresa ? ValorAgruparPorEmpresa : null,
+            ["agrupar"] = Agrupado ? _agrupar : null,
         });
 
         await RecargarAsync();
@@ -1593,7 +1909,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 string.IsNullOrWhiteSpace(_filtroEmpresaId) ? null : _filtroEmpresaId,
                 string.IsNullOrWhiteSpace(_filtroSubcontrataId) ? null : _filtroSubcontrataId,
                 string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
-                string.IsNullOrWhiteSpace(_filtroCentroId) ? null : _filtroCentroId));
+                string.IsNullOrWhiteSpace(_filtroCentroId) ? null : _filtroCentroId,
+                string.IsNullOrWhiteSpace(_filtroDelegacionEmpresaId) ? null : _filtroDelegacionEmpresaId,
+                string.IsNullOrWhiteSpace(_filtroOficioId) ? null : _filtroOficioId));
 
             var resultado = await Mediator.Send(
                 new GuardarFiltroCommand(PantallasConFiltrosGuardados.Trabajadores, _nombreFiltroNuevo, valoresJson));
@@ -1663,6 +1981,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         ["empresa"] = _filtroEmpresaId,
         ["subcontrata"] = _filtroSubcontrataId,
         ["centro"] = _filtroCentroId,
+        ["delegacion"] = _filtroDelegacionEmpresaId,
+        ["oficio"] = _filtroOficioId,
         ["orden"] = _ordenExportar,
         ["desc"] = _descendenteExportar ? "true" : null,
     };

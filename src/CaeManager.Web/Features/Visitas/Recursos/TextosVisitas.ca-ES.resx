@@ -735,4 +735,73 @@
   <data name="RecomendacionYaVencido" xml:space="preserve">
     <value>{1} de {0} va vèncer el {2}.</value>
   </data>
+  <data name="FiltroCliente" xml:space="preserve">
+    <value>Client</value>
+  </data>
+  <data name="FiltroVentana" xml:space="preserve">
+    <value>Finestra</value>
+  </data>
+  <data name="OpcionTodos" xml:space="preserve">
+    <value>Tots</value>
+  </data>
+  <data name="ColumnaClienteEmpresa" xml:space="preserve">
+    <value>Client · Empresa</value>
+  </data>
+  <data name="ColumnaPreparacion" xml:space="preserve">
+    <value>Preparació</value>
+  </data>
+  <data name="DesplegarPreparacion" xml:space="preserve">
+    <value>Desplegar la preparació de {0}</value>
+  </data>
+  <data name="PreparacionCargando" xml:space="preserve">
+    <value>Carregant…</value>
+  </data>
+  <data name="PreparacionError" xml:space="preserve">
+    <value>No hem pogut carregar la preparació.</value>
+  </data>
+  <data name="PreparacionSinTrabajadores" xml:space="preserve">
+    <value>No hi ha treballadors en aquesta visita.</value>
+  </data>
+  <data name="BotonGestionar" xml:space="preserve">
+    <value>Gestionar</value>
+  </data>
+  <data name="VerCalendario" xml:space="preserve">
+    <value>Veure al calendari</value>
+  </data>
+  <data name="VentanaHoy" xml:space="preserve">
+    <value>Avui</value>
+  </data>
+  <data name="VentanaSieteDias" xml:space="preserve">
+    <value>Pròxims 7 dies</value>
+  </data>
+  <data name="VentanaCatorceDias" xml:space="preserve">
+    <value>Pròxims 14 dies</value>
+  </data>
+  <data name="PreparacionResumen" xml:space="preserve">
+    <value>{0} de {1} treballadors preparats</value>
+  </data>
+  <data name="QuitarFiltroEmpresa" xml:space="preserve">
+    <value>Treure el filtre de Empresa</value>
+  </data>
+  <data name="QuitarFiltroCliente" xml:space="preserve">
+    <value>Treure el filtre de Client</value>
+  </data>
+  <data name="QuitarFiltroVentana" xml:space="preserve">
+    <value>Treure el filtre de Finestra</value>
+  </data>
+  <data name="ColumnaEstadoDocumental" xml:space="preserve">
+    <value>Estat documental</value>
+  </data>
+  <data name="EntradaA" xml:space="preserve">
+    <value>Entrada {0}</value>
+  </data>
+  <data name="CopiarReferenciaVisita" xml:space="preserve">
+    <value>Copiar la referència de la visita a {0}</value>
+  </data>
+  <data name="OrdenPorAvisada" xml:space="preserve">
+    <value>Per avís al titular del Centre</value>
+  </data>
+  <data name="OrdenPorOrigen" xml:space="preserve">
+    <value>Per origen</value>
+  </data>
 </root>

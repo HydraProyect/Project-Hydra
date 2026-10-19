@@ -56,13 +56,14 @@
                     <span class="trabajador360-alias">(@_detalle.Alias)</span>
                 }
             </JuntoAlTitulo>
-            @* Maqueta 17-10: dos líneas bajo el nombre (DNI · empleador, y debajo las pastillas de estado); sin «Trabajador» sobre el nombre. *@
+            @* Maqueta 17-10: dos líneas bajo el nombre («DNI» y el DNI copiable sin dos puntos · empleador, y debajo las pastillas de estado); sin «Trabajador» sobre el nombre. *@
             <Datos>
               <div class="trabajador360-datos">
                <div class="trabajador360-meta">
                 <span>
-                    DNI: <b>@_detalle.Dni</b>
-                    <BotonCopiar Valor="@_detalle.Dni" Etiqueta="@Textos["FichaCopiarDni"]" NombreAccesible="@Textos["FichaCopiarNombreAccesible", Textos["FichaCopiarDni"]]" />
+                    @Textos["FichaRotuloDni"]
+                    @{ var dni = _detalle.Dni ?? string.Empty; }
+                    <BotonCopiar EnLinea="true" ConfirmarConIcono="true" Valor="@dni" Texto="@dni" Etiqueta="@Textos["FichaCopiarDni"]" NombreAccesible="@Textos["FichaCopiarNombreAccesibleConValor", Textos["FichaCopiarDni"], dni]" />
                 </span>
                 <span aria-hidden="true">·</span>
                 <span>
@@ -298,11 +299,11 @@
                                                                     </Cifra>
                                                                     <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado, documento.EnToleranciaHasta)</Badge></Estado>
                                                                     <Acciones>
-                                                                        @* Vigente y Sin caducidad no llevan botón; lo que pide trabajo, «Gestionar». *@
+                                                                        @* Todo documento lleva «Gestionar»; Vigente y Sin caducidad, en tono secundario. *@
                                                                         @if (EstadoDocumentoFicha360.PideGestionar(documento.Estado))
                                                                         {
                                                                             <SoloConEscritura>
-                                                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="@EstadoDocumentoFicha360.ClaseGestionar(documento.Estado, "accion-fila-enlace")"
                                                                                        aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)"
                                                                                        OnClick="() => GestionarDocumentoAsync(documento)">
                                                                                     @EstadoDocumentoFicha360.TextoAccion
@@ -376,7 +377,7 @@
                                             <Acciones>
                                                 @if (pideGestionar)
                                                 {
-                                                    <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)" OnClick="() => EditarDocumentoAsync(documento.Id)">@EstadoDocumentoFicha360.TextoAccion</Boton></SoloConEscritura>
+                                                    <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="@EstadoDocumentoFicha360.ClaseGestionar(documento.Estado)" aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)" OnClick="() => EditarDocumentoAsync(documento.Id)">@EstadoDocumentoFicha360.TextoAccion</Boton></SoloConEscritura>
                                                 }
                                             </Acciones>
                                         </FilaRelacion>
@@ -436,12 +437,16 @@
                 @*
                     Lo que era la pestaña «Contactos» (decisión del propietario
                     2026-09-24, punto 3): los datos de contacto del propio
-                    trabajador, copiables, y la agenda de su empleador. Solo
-                    Teléfono y Correo, los únicos que trae TrabajadorDetalleDto:
-                    Dirección y contacto de emergencia NO existen en ningún DTO y
-                    no se inventan. Sin ninguno de los dos no se pinta la tarjeta.
+                    trabajador, copiables, y la agenda de su empleador. Teléfono,
+                    Correo y, como en la maqueta Trabajador 360 del 17-10, el
+                    contacto de emergencia (nombre y teléfono copiable; decisión de
+                    Chris, 2026-10-18). Dirección y firma de documentos NO se
+                    construyen. El contacto solo llega a quien lee la nota interna
+                    (ContactoEmergenciaVisible); al Usuario de Cliente, nunca. Sin
+                    ningún dato no se pinta la tarjeta.
                 *@
-                @if (!string.IsNullOrWhiteSpace(_detalle.Telefono) || !string.IsNullOrWhiteSpace(_detalle.Email))
+                @if (!string.IsNullOrWhiteSpace(_detalle.Telefono) || !string.IsNullOrWhiteSpace(_detalle.Email)
+                     || !string.IsNullOrWhiteSpace(_detalle.ContactoEmergenciaNombre) || !string.IsNullOrWhiteSpace(_detalle.ContactoEmergenciaTelefono))
                 {
                     <Tarjeta Titulo="@Textos["SeparadorDatosTrabajador"]" Compacta="true">
                         <dl class="trabajador360-contactos">
@@ -462,6 +467,25 @@
                                     <dd class="trabajador360-contacto-valor">
                                         <span class="trabajador360-contacto-texto">@_detalle.Email</span>
                                         <BotonCopiar Valor="@_detalle.Email" Etiqueta="@Textos["FichaCopiarCorreo"]" NombreAccesible="@Textos["FichaCopiarNombreAccesible", Textos["FichaCopiarCorreo"]]" />
+                                    </dd>
+                                </div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(_detalle.ContactoEmergenciaNombre))
+                            {
+                                <div class="trabajador360-contacto" data-contacto="emergencia-nombre">
+                                    <dt class="trabajador360-contacto-clave">@Textos["FichaContactoEmergencia"]</dt>
+                                    <dd class="trabajador360-contacto-valor">
+                                        <span class="trabajador360-contacto-texto">@_detalle.ContactoEmergenciaNombre</span>
+                                    </dd>
+                                </div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(_detalle.ContactoEmergenciaTelefono))
+                            {
+                                <div class="trabajador360-contacto" data-contacto="emergencia-telefono">
+                                    <dt class="trabajador360-contacto-clave">@Textos["FichaTelefonoEmergencia"]</dt>
+                                    <dd class="trabajador360-contacto-valor">
+                                        <span class="trabajador360-contacto-texto">@_detalle.ContactoEmergenciaTelefono</span>
+                                        <BotonCopiar Valor="@_detalle.ContactoEmergenciaTelefono" Etiqueta="@Textos["FichaCopiarTelefonoEmergencia"]" NombreAccesible="@Textos["FichaCopiarNombreAccesible", Textos["FichaCopiarTelefonoEmergencia"]]" />
                                     </dd>
                                 </div>
                             }
@@ -513,9 +537,8 @@
     </CampoSelect>
 </ModalFormulario>
 
-@* Solo aparece cuando el trabajador tiene asignaciones activas en Centros de
-   más de un Cliente empresarial a la vez — con uno solo, ReclamarFaltantesAsync
-   envía directo. *@
+@* Confirmación de «Gestionar» (reclamar): se abre siempre, con uno o con varios Clientes empresariales, y no se envía
+   nada hasta pulsar «Reclamar» (es un correo a un tercero). *@
 @* FS-13: la baja de una asignación se confirma y se puede deshacer desde el aviso. *@
 <DialogoConfirmacion
     Visible="_confirmarBajaAsignacionVisible"
@@ -531,7 +554,14 @@
                  MotivoGuardarDeshabilitado="@(_clientesSeleccionadosReclamar.Count == 0 ? Textos["MotivoReclamarSinCliente"].Value : null)"
                  OnGuardar="ConfirmarReclamarFaltantesAsync" TextoGuardar="@Textos["BotonReclamar"]" TextoCancelar="@Textos["BotonCancelar"]">
     <p class="workspace-nota-contextual">
-        @Textos["NotaReclamarVarios", NombreCompleto ?? string.Empty]
+        @if (_clientesReclamables.Count == 1)
+        {
+            @Textos["NotaReclamarUno", NombreCompleto ?? string.Empty, _clientesReclamables[0].ClienteRazonSocial]
+        }
+        else
+        {
+            @Textos["NotaReclamarVarios", NombreCompleto ?? string.Empty]
+        }
     </p>
     <fieldset class="reclamacion-destinatarios" disabled="@_reclamandoFaltantes">
         <legend>@Textos["LeyendaClientesEmpresariales"]</legend>
@@ -547,6 +577,11 @@
         }
     </fieldset>
 </ModalFormulario>
+@* Trabajador de Empresa: «Reclamar faltantes» va a su Empresa empleadora, por Delegación, con el cajón de «Gestionar». *@
+<CaeManager.Web.Features.Bandeja.Components.DrawerReclamacionLote
+    Visible="_reclamacionEmpresaVisible" VisibleChanged="v => _reclamacionEmpresaVisible = v"
+    AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa })"
+    AmbitoInicial="AmbitoAplicacion.Trabajador" EntidadIdInicial="TrabajadorId" IncluirPendientesSinFecha="true" />
 @if (_detalle is not null)
 {
     <SoloConEscritura>

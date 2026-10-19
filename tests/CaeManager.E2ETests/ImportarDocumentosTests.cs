@@ -37,7 +37,7 @@ public class ImportarDocumentosTests(WebAppFixture fixture)
         var apellidosTrabajador = $"ImportarDocs {sufijo}";
         var dniTrabajador = Ayudas.GenerarDniValido(88_200_001);
         var dniInexistente = Ayudas.GenerarDniValido(88_200_002);
-        var fechaEmision = DateTime.UtcNow.Date.AddDays(-30);
+        var fechaEmision = Ayudas.HoyDeNegocio().ToDateTime(TimeOnly.MinValue).AddDays(-30);
 
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();

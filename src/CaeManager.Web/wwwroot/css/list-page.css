@@ -389,11 +389,11 @@
 .grupo-lista-chevron {
     display: inline-flex;
     transform: rotate(-90deg);
-    transition: transform 0.15s ease;
+    transition: transform var(--motion-transition) var(--ease-fluid);
 }
 
 .grupo-lista-cabecera-abierta .grupo-lista-chevron {
-    transform: none;
+    transform: rotate(0deg);
 }
 
 .grupo-lista-contador {
@@ -1326,6 +1326,21 @@
 }
 
 /*
+  «Gestionar» de un documento al día (Vigente o Sin caducidad; regla de Chris, 2026-10-18): la misma acción y el mismo
+  flujo que en el resto de estados, pero con el texto atenuado y sin color de acento para que no meta ruido. Lo pone
+  EstadoDocumentoFicha360.ClaseGestionar sobre el Boton (Fantasma con .accion-fila-enlace o Secundario). Al pasar el
+  puntero o enfocar con teclado el texto recupera --color-text, y el anillo de foco es el del propio Boton.
+*/
+.gestionar-discreto {
+    color: var(--color-text-muted) !important;
+}
+
+.gestionar-discreto:not(:disabled):hover,
+.gestionar-discreto:focus-visible {
+    color: var(--color-text) !important;
+}
+
+/*
   Tercer nivel del Centro 360 — variante A (OD-12, blueprint § 3.4, DDL-034).
 
   La rejilla se declara UNA vez, en el contenedor, y la heredan cabecera y
@@ -1974,22 +1989,6 @@
 .tarjeta-listado.tarjeta-listado .tarjeta-listado-contenido .tarjeta-fila-acordeon:last-child,
 .tarjeta-listado.tarjeta-listado .tarjeta-listado-contenido .tarjeta-fila-acordeon:last-child > .tarjeta-fila-acordeon-cabecera:last-child,
 .tarjeta-listado.tarjeta-listado .tarjeta-listado-contenido .tarjeta-fila-acordeon:last-child > .tarjeta-fila-acordeon-contenido {
-    border-radius: 0;
-}
-
-.tarjeta-listado-contenido > .cabecera-columnas-centros.cabecera-columnas-centros {
-    border: 0;
-    border-bottom: 1px solid var(--color-fila-divisor);
-    margin-bottom: 0;
-}
-
-.tarjeta-listado-contenido > .lista-filas-acordeon {
-    gap: 0;
-}
-
-.tarjeta-listado-contenido > .lista-filas-acordeon > .tarjeta-fila-acordeon {
-    border: 0;
-    border-bottom: 1px solid var(--color-fila-divisor);
     border-radius: 0;
 }
 

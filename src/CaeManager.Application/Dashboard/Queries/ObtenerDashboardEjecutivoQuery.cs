@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Facturacion;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using MediatR;
 
@@ -27,7 +28,9 @@ public record DashboardEjecutivoDto(
     double? ConfianzaMediaIa,
     decimal CosteIaMesActual,
     double? TiempoMedioProcesamientoIaMs,
-    decimal FacturacionEstimadaMesActual,
+    // Null cuando quien mira no pasa AutorizacionTarifasCliente (Administrador o Dirección CAE): las tarifas son
+    // plano Comercial y el importe estimado no sale del servidor para el resto de roles.
+    decimal? FacturacionEstimadaMesActual,
     KpisBpoDto Bpo,
     /// <summary>
     /// Aviso al operador (Horizonte 2.7): tenants cuyo gasto estimado de IA del período
@@ -50,7 +53,8 @@ public record DashboardEjecutivoDto(
 /// <c>DbContext</c> scoped no admite llamadas EF concurrentes sobre la misma
 /// instancia (mismo motivo que <c>ObtenerKpisGlobalesQueryHandler</c>).
 /// </summary>
-public class ObtenerDashboardEjecutivoQueryHandler(IMediator mediator) : IRequestHandler<ObtenerDashboardEjecutivoQuery, DashboardEjecutivoDto>
+public class ObtenerDashboardEjecutivoQueryHandler(IMediator mediator, ICurrentUserService currentUserService)
+    : IRequestHandler<ObtenerDashboardEjecutivoQuery, DashboardEjecutivoDto>
 {
     /// <summary>Cuántos centros/candidatos de riesgo se muestran en el ranking fusionado, con independencia de cuántos tenants aporten.</summary>
     public const int TopCentrosConMasRiesgo = 10;
@@ -70,7 +74,9 @@ public class ObtenerDashboardEjecutivoQueryHandler(IMediator mediator) : IReques
             }
         }
 
-        return Fusionar(porTenant);
+        // Ver el panel no da derecho a ver importes: la facturación estimada se devuelve solo a quien pasa
+        // AutorizacionTarifasCliente (rol efectivo Administrador o Dirección CAE); para el resto sale a null.
+        return Fusionar(porTenant, await currentUserService.PuedeGestionarTarifasAsync());
     }
 
     /// <summary>
@@ -82,7 +88,9 @@ public class ObtenerDashboardEjecutivoQueryHandler(IMediator mediator) : IReques
     /// concatenan (cada tenant ya limita su propia lista) y se recortan a
     /// <see cref="TopCentrosConMasRiesgo"/> global.
     /// </summary>
-    public static DashboardEjecutivoDto Fusionar(IReadOnlyList<(ClienteAutorizadoDto Cliente, CatalogoKpisValoresDto Valores)> porTenant)
+    public static DashboardEjecutivoDto Fusionar(
+        IReadOnlyList<(ClienteAutorizadoDto Cliente, CatalogoKpisValoresDto Valores)> porTenant,
+        bool conImporteDeFacturacion = true)
     {
         var vigentes = porTenant.Sum(p => p.Valores.Documental.DocumentosVigentes);
         var proximos = porTenant.Sum(p => p.Valores.Documental.DocumentosProximos);
@@ -131,7 +139,7 @@ public class ObtenerDashboardEjecutivoQueryHandler(IMediator mediator) : IReques
             CosteIaMesActual: porTenant.Sum(p => p.Valores.CosteIaMesActual),
             TiempoMedioProcesamientoIaMs: PromedioPonderado(
                 porTenant.Select(p => (p.Valores.TiempoMedioProcesamientoIaMs, (double)p.Valores.TotalAuditoriasIaMes))),
-            FacturacionEstimadaMesActual: porTenant.Sum(p => p.Valores.FacturacionEstimadaMesActual),
+            FacturacionEstimadaMesActual: conImporteDeFacturacion ? porTenant.Sum(p => p.Valores.FacturacionEstimadaMesActual) : null,
             Bpo: FusionarBpo(porTenant),
             TenantsConPresupuestoIaExcedido: porTenant
                 .Where(p => p.Valores.PresupuestoIaExcedido)

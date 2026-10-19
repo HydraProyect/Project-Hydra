@@ -122,13 +122,13 @@ public class IdiomaPorCuentaTests(WebAppFixtureConCatalan fixture)
             var catalan = System.Globalization.CultureInfo.GetCultureInfo("ca-ES");
             var espanol = System.Globalization.CultureInfo.GetCultureInfo("es-ES");
             var meses = 1;
-            while (DateTime.Today.AddMonths(meses).ToString("MMMM", catalan) ==
-                   DateTime.Today.AddMonths(meses).ToString("MMMM", espanol))
+            while (Ayudas.HoyDeNegocio().AddMonths(meses).ToString("MMMM", catalan) ==
+                   Ayudas.HoyDeNegocio().AddMonths(meses).ToString("MMMM", espanol))
                 meses++;
 
             for (var i = 1; i <= meses; i++)
             {
-                var mes = DateTime.Today.AddMonths(i).ToString("MMMM yyyy", catalan);
+                var mes = Ayudas.HoyDeNegocio().AddMonths(i).ToString("MMMM yyyy", catalan);
                 await page.Locator("button[aria-label='Mes siguiente']").ClickAsync();
                 await Assertions.Expect(page.Locator(".calendario-titulo-mes"))
                     .ToHaveTextAsync(char.ToUpper(mes[0], catalan) + mes[1..]);

@@ -1,6 +1,7 @@
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
+using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Subcontratas.Pages;
@@ -50,7 +51,7 @@ public partial class SubcontratasListaGen2Tests
 
     private static async Task IrALaPagina2Async(IRenderedComponent<Subcontratas> cut)
     {
-        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".paginador-pie-listado button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => RazonesSociales(cut).Should().HaveCount(5).And.StartWith("Subcontrata 21"));
     }
 
@@ -81,9 +82,9 @@ public partial class SubcontratasListaGen2Tests
     [Fact]
     public async Task El_aviso_de_guardado_conserva_la_pagina_la_seleccion_multiple_la_fila_enfocada_y_la_fila_desplegada()
     {
-        // El contenido del desplegable no es objeto de este test (y pide servicios de Documentos).
-        ComponentFactories.AddStub<CaeManager.Web.Features.Subcontratas.Components.AcordeonTrabajadoresSubcontrata>();
-        var almacen = VeinticincoSubcontratas();
+        // Solo se despliegan las filas con documentos pendientes: todas llevan uno.
+        var almacen = Enumerable.Range(1, 25).Select(i => Subcontrata($"Subcontrata {i:00}",
+            vencidas: [Incidencia("Aptitud médica — Sonia Cano", EstadoDocumento.Vencido)])).ToList();
         var editada = almacen.Single(s => s.RazonSocial == "Subcontrata 23").Id;
         var mediador = new MediatorFalso { Subcontratas = almacen };
         var cut = Renderizar(mediador);

@@ -18,6 +18,7 @@
 @using CaeManager.Application.Reclamaciones
 @using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion
 @using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa
+@using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresaEmpleadora
 @using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Bandeja.Recursos
@@ -83,7 +84,7 @@
                 var contactos = _contactosPorTitular.GetValueOrDefault(Clave(lote), []);
                 var enviandoEste = _enviandoTitularId == Clave(lote);
 
-                <Tarjeta @key="clavesLotes.De(Clave(lote))" Titulo="@lote.TitularNombre" Class="tarjeta-reclamacion">
+                <Tarjeta @key="clavesLotes.De(Clave(lote))" Titulo="@TituloDeLote(lote)" Class="tarjeta-reclamacion">
                     <AccionesHeader>
                         <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(totalSeleccionado == 0 || contactos.Count == 0 || _enviando)"
                                Cargando="enviandoEste" OnClick="() => PedirConfirmacion(lote)">
@@ -91,9 +92,18 @@
                         </Boton>
                     </AccionesHeader>
                     <ChildContent>
+                        @* «Gestionar» reclama lo de un Trabajador a su Empresa: la tarjeta dice a qué Delegación va, o que va a la agenda de la Empresa. *@
+                        @if (lote.EmpresaEmpleadora is { } destino)
+                        {
+                            <p class="reclamacion-motivo reclamacion-destino-delegacion">
+                                @(destino.DelegacionEmpresaNombre is { } delegacion
+                                    ? TextosMiTrabajo.Formato("ReclamacionDestinoDelegacionEmpresa", delegacion)
+                                    : TextosMiTrabajo.Texto("ReclamacionDestinoEmpresa"))
+                            </p>
+                        }
                         @if (lote.Destinatarios is not { Count: > 0 })
                         {
-                            <div class="alerta-formulario" role="alert">No hay ningún contacto en la agenda al que reclamar esta documentación.</div>
+                            <div class="alerta-formulario" role="alert">@(lote.EmpresaEmpleadora?.DelegacionEmpresaId is not null ? TextosMiTrabajo.Texto("ReclamacionDelegacionEmpresaSinContactoVisible") : "No hay ningún contacto en la agenda al que reclamar esta documentación.")</div>
                         }
                         else
                         {
@@ -202,8 +212,10 @@
 
 @code {
     private Drawer? _drawer;
-    private readonly record struct ClaveDeLote(Guid TitularId, AmbitoAplicacion Ambito);
-    private static ClaveDeLote Clave(LoteReclamacionAgrupadoDto lote) => new(lote.TitularId, lote.Ambito);
+    /// <summary>Identidad de una tarjeta: el titular y su ámbito y, en un lote a la Empresa empleadora, también su Delegación (una Empresa puede tener varias tarjetas).</summary>
+    private readonly record struct ClaveDeLote(Guid TitularId, AmbitoAplicacion Ambito, bool AEmpresaEmpleadora = false, Guid? DelegacionEmpresaId = null);
+    private static ClaveDeLote Clave(LoteReclamacionAgrupadoDto lote) =>
+        new(lote.TitularId, lote.Ambito, lote.EmpresaEmpleadora is not null, lote.EmpresaEmpleadora?.DelegacionEmpresaId);
 
     private enum Paso { Seleccion, Cargando, SinResultados, Revision, Error }
 
@@ -289,7 +301,7 @@
     private int _fueraTrabajadores;
     private int _fueraVentana;
 
-    // Lo que no entra en el cajón, con el motivo: de Trabajadores (su lote es del Cliente del Centro) o fuera de la ventana
+    // Lo que no entra en el cajón, con el motivo: de Trabajadores (se reclaman desde «Gestionar» de cada Trabajador) o fuera de la ventana
     // de reclamación (o ya renovado / sin alcance de gestión: ningún lote de la Empresa los trae).
     private RenderFragment AvisosFuera => __builder =>
     {
@@ -366,7 +378,8 @@
         _paso = Paso.Cargando;
         StateHasChanged();
 
-        _lotes = await Mediator.Send(new ObtenerLoteReclamacionPorFiltroQuery(filtro, IncluirPendientesSinFecha));
+        // «Gestionar»: lo de un Trabajador de Empresa se reclama a su Empresa, por Delegación (decisión de Chris, 2026-10-18).
+        _lotes = await Mediator.Send(new ObtenerLoteReclamacionPorFiltroQuery(filtro, IncluirPendientesSinFecha, PorEmpresaEmpleadora: true));
 
         PrepararRevision();
     }
@@ -443,9 +456,12 @@
         Guid TitularId, string TitularNombre, AmbitoAplicacion Ambito,
         IReadOnlyList<Guid> DocumentoIds, IReadOnlyList<PendienteSinFecha> Pendientes,
         IReadOnlyList<Guid> ContactoIds, IReadOnlyList<string> Destinatarios,
-        IReadOnlyList<string> CorreosAdicionales, IReadOnlyList<string> CorreosEnCopia)
+        IReadOnlyList<string> CorreosAdicionales, IReadOnlyList<string> CorreosEnCopia,
+        DestinoEmpresaEmpleadoraDto? EmpresaEmpleadora = null)
     {
         public int TotalDocumentos => DocumentoIds.Count + Pendientes.Count;
+
+        public ClaveDeLote Clave => new(TitularId, Ambito, EmpresaEmpleadora is not null, EmpresaEmpleadora?.DelegacionEmpresaId);
     }
 
     /// <summary>Lo que el gestor añade a mano en una tarjeta: los destinatarios, los de copia y lo que lleva tecleado sin añadir aún.</summary>
@@ -476,7 +492,11 @@
     private RenderFragment CampoExtra(LoteReclamacionAgrupadoDto lote, bool enCopia) => @<div class="reclamacion-extra-campo">
         @{
             var extra = ExtraDe(Clave(lote));
-            var idCampo = $"extra-{(enCopia ? "cc" : "para")}-{lote.Ambito}-{lote.TitularId:N}";
+            // Un id por tarjeta: una misma Empresa puede tener una tarjeta por Delegación y otra para su agenda.
+            var destinoCampo = lote.EmpresaEmpleadora is { } destinoLote
+                ? $"-empleadora-{destinoLote.DelegacionEmpresaId?.ToString("N") ?? "agenda"}"
+                : string.Empty;
+            var idCampo = $"extra-{(enCopia ? "cc" : "para")}-{lote.Ambito}-{lote.TitularId:N}{destinoCampo}";
             var lista = enCopia ? extra.Copia : extra.Para;
             var borrador = enCopia ? extra.BorradorCopia : extra.BorradorPara;
             var error = enCopia ? extra.ErrorCopia : extra.ErrorPara;
@@ -639,10 +659,20 @@
             return;
         }
 
+        // La vista previa dice a qué Delegación sale, no solo a qué Empresa (los contactos ya van con nombre y correo).
         _envioPendiente = new EnvioPendiente(
-            lote.TitularId, lote.TitularNombre, lote.Ambito, documentoIds, pendientes, contactoIds, destinatarios,
-            [.. extra.Para], [.. extra.Copia]);
+            lote.TitularId, TituloDeLote(lote), lote.Ambito, documentoIds, pendientes, contactoIds, destinatarios,
+            [.. extra.Para], [.. extra.Copia], lote.EmpresaEmpleadora);
     }
+
+    /// <summary>
+    /// El nombre del lote en su tarjeta y en la confirmación: la Empresa y, si va al contacto de una Delegación, también la
+    /// Delegación, porque una misma Empresa puede tener una tarjeta por Delegación y otra para su agenda.
+    /// </summary>
+    private static string TituloDeLote(LoteReclamacionAgrupadoDto lote) =>
+        lote.EmpresaEmpleadora?.DelegacionEmpresaNombre is { } delegacion
+            ? $"{lote.TitularNombre} ({delegacion})"
+            : lote.TitularNombre;
 
     private void CerrarConfirmacionEnvio(bool visible)
     {
@@ -653,14 +683,14 @@
     private async Task ConfirmarEnvioAsync()
     {
         if (_envioPendiente is not { } envio) return;
-        if (_enviando || !Visible || !_lotes.Any(l => Clave(l) == new ClaveDeLote(envio.TitularId, envio.Ambito)))
+        if (_enviando || !Visible || !_lotes.Any(l => Clave(l) == envio.Clave))
         {
             _envioPendiente = null;
             return;
         }
 
         _enviando = true;
-        _enviandoTitularId = new ClaveDeLote(envio.TitularId, envio.Ambito);
+        _enviandoTitularId = envio.Clave;
         try
         {
             // Un comando por ámbito del titular (ver
@@ -668,7 +698,11 @@
             // es el Cliente resuelto vía Centro; con Empresa es la Empresa
             // contraparte dueña de sus propios documentos. Sin CentroId en los
             // dos casos: el selector no acota por Centro.
-            var resultado = envio.Ambito == AmbitoAplicacion.Empresa
+            var resultado = envio.EmpresaEmpleadora is { } destino
+                ? await Mediator.Send(new EnviarReclamacionEmpresaEmpleadoraCommand(
+                    envio.TitularId, destino.DelegacionEmpresaId, envio.DocumentoIds, ContactoIdsSeleccionados: envio.ContactoIds,
+                    Pendientes: envio.Pendientes, CorreosAdicionales: envio.CorreosAdicionales, CorreosEnCopia: envio.CorreosEnCopia))
+                : envio.Ambito == AmbitoAplicacion.Empresa
                 ? await Mediator.Send(new EnviarReclamacionEmpresaCommand(
                     envio.TitularId, envio.DocumentoIds, ContactoIdsSeleccionados: envio.ContactoIds, Pendientes: envio.Pendientes,
                     CorreosAdicionales: envio.CorreosAdicionales, CorreosEnCopia: envio.CorreosEnCopia))
@@ -687,7 +721,7 @@
                 // a quien ya lo recibió, así que sale de la lista y la cola se refresca.
                 if (resultado.Error.Codigo == RegistroEnvioReclamacionService.CodigoEnvioParcial)
                 {
-                    _lotes = [.. _lotes.Where(l => Clave(l) != new ClaveDeLote(envio.TitularId, envio.Ambito))];
+                    _lotes = [.. _lotes.Where(l => Clave(l) != envio.Clave)];
                     await OnReclamacionEnviada.InvokeAsync();
                     if (_lotes.Count == 0)
                         await CerrarAsync(false);
@@ -698,7 +732,7 @@
 
             _envioPendiente = null;
             ToastService.Mostrar($"Reclamación enviada a {envio.TitularNombre}.", TonoToast.Exito);
-            _lotes = [.. _lotes.Where(l => Clave(l) != new ClaveDeLote(envio.TitularId, envio.Ambito))];
+            _lotes = [.. _lotes.Where(l => Clave(l) != envio.Clave)];
             await OnReclamacionEnviada.InvokeAsync();
 
             if (_lotes.Count == 0)

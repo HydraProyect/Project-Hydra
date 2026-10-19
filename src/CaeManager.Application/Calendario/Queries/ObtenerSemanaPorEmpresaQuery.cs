@@ -109,7 +109,8 @@ public class ObtenerSemanaPorEmpresaQueryHandler(
 
         // Reclamable desde la fila: documento de la propia Empresa (ámbito Empresa), dentro de la ventana de reclamación y con
         // alcance de gestión sobre ella. El envío (EnviarReclamacionEmpresaCommand) revalida lo mismo; esto evita ofrecer lo que
-        // rechazaría. Los de Trabajador se reclaman al Cliente del Centro, no a esta Empresa.
+        // rechazaría. Los de Trabajador no se reclaman desde esta fila sino desde «Gestionar» de cada Trabajador: a la
+        // Delegación de su Empresa empleadora (EnviarReclamacionEmpresaEmpleadoraCommand) o, si es de Subcontrata, al Cliente.
         bool EsReclamable(Guid? trabajadorId, Guid tipoDocumentoId, Guid empresaId, DateOnly fecha) =>
             trabajadorId is null
             && tipos.TryGetValue(tipoDocumentoId, out var tipo) && tipo.AmbitoAplicacion == AmbitoAplicacion.Empresa

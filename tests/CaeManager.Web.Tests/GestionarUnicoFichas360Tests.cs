@@ -69,9 +69,9 @@ public class GestionarUnicoFichas360Tests : BunitContext
 
         var filas = cut.FindAll(".panel-doc-base-fila");
         filas.Select(Botones).Should().Equal(
-            new List<string>[] { ["Gestionar"], ["Gestionar"], ["Gestionar"], [] },
+            new List<string>[] { ["Gestionar"], ["Gestionar"], ["Gestionar"], ["Gestionar"] },
             (a, b) => a.SequenceEqual(b),
-            "Vencido, Sin confirmar y Por vencer piden trabajo; Vigente no lleva botón");
+            "Vencido, Sin confirmar, Por vencer y Vigente llevan «Gestionar» (regla del 2026-10-18)");
 
         var total = cut.FindAll(".panel-doc-base-fila button").Count;
         for (var i = 0; i < total; i++)
@@ -84,8 +84,24 @@ public class GestionarUnicoFichas360Tests : BunitContext
         }
 
         corregidos.Should().Equal(
-            [Vencido, SinConfirmar, Proximo],
-            "«Gestionar» abre el mismo editor que abría el verbo de antes, para el documento de su fila");
+            [Vencido, SinConfirmar, Proximo, Vigente],
+            "«Gestionar» abre el mismo editor que abría el verbo de antes, para el documento de su fila; también el del Vigente");
+    }
+
+    [Fact]
+    public void Gestionar_del_documento_Vigente_va_en_tono_secundario_y_el_resto_en_tono_normal()
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var cut = Panel([]);
+
+        var clases = cut.FindAll(".panel-doc-base-fila")
+            .Select(f => f.QuerySelector("button")!.ClassList.Contains(EstadoDocumentoFicha360.ClaseGestionarDiscreto))
+            .ToList();
+
+        // Solo el documento Vigente (la cuarta fila) lleva la clase gestionar-discreto.
+        clases.Should().Equal(new[] { false, false, false, true });
+        cut.FindAll(".panel-doc-base-fila button").Should().OnlyContain(b => b.ClassList.Contains("accion-fila-enlace"),
+            "el discreto conserva la acción común de la fila; solo cambia el tono");
     }
 
     [Theory]
@@ -122,7 +138,7 @@ public class GestionarUnicoFichas360Tests : BunitContext
         var cut = PanelConFaltante(llamadas);
 
         cut.FindAll(".panel-doc-base-fila").Select(Botones).Should().Equal(
-            new List<string>[] { ["Gestionar"], [] }, (a, b) => a.SequenceEqual(b), "Falta pide trabajo; Vigente no lleva botón");
+            new List<string>[] { ["Gestionar"], ["Gestionar"] }, (a, b) => a.SequenceEqual(b), "Falta pide trabajo; Vigente también lleva «Gestionar», en tono secundario");
 
         await cut.Find(".panel-doc-base-fila button").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
@@ -179,8 +195,44 @@ public class GestionarUnicoFichas360Tests : BunitContext
     [InlineData(EstadoDocumento.Proximo, true)]
     [InlineData(EstadoDocumento.Vigente, false)]
     [InlineData(EstadoDocumento.SinCaducidad, false)]
-    public void Solo_los_estados_que_piden_trabajo_tienen_accion(EstadoDocumento estado, bool pide)
+    public void Solo_los_estados_que_piden_trabajo_tienen_accion_pendiente(EstadoDocumento estado, bool pide)
     {
-        EstadoDocumentoFicha360.PideGestionar(estado).Should().Be(pide);
+        EstadoDocumentoFicha360.PideTrabajo(estado).Should().Be(pide);
+    }
+
+    [Theory]
+    [InlineData(EstadoDocumento.Vencido, false)]
+    [InlineData(EstadoDocumento.EnTolerancia, false)]
+    [InlineData(EstadoDocumento.Urgente, false)]
+    [InlineData(EstadoDocumento.Faltante, false)]
+    [InlineData(EstadoDocumento.SinConfirmar, false)]
+    [InlineData(EstadoDocumento.Proximo, false)]
+    [InlineData(EstadoDocumento.Vigente, true)]
+    [InlineData(EstadoDocumento.SinCaducidad, true)]
+    public void Todo_estado_lleva_Gestionar_y_solo_Vigente_y_Sin_caducidad_en_tono_secundario(EstadoDocumento estado, bool discreto)
+    {
+        EstadoDocumentoFicha360.PideGestionar(estado).Should().BeTrue("la regla del 2026-10-18 sustituye a «Vigente sin botón»");
+        EstadoDocumentoFicha360.GestionarEsDiscreto(estado).Should().Be(discreto);
+        EstadoDocumentoFicha360.ClaseGestionar(estado).Should().Be(discreto ? "gestionar-discreto" : null);
+        EstadoDocumentoFicha360.ClaseGestionar(estado, "accion-fila-enlace")
+            .Should().Be(discreto ? "accion-fila-enlace gestionar-discreto" : "accion-fila-enlace");
+    }
+
+    [Fact]
+    public void La_hoja_de_estilos_atenua_el_Gestionar_discreto_sin_color_de_acento_y_conserva_hover_y_foco()
+    {
+        var css = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web", "wwwroot", "css", "list-page.css"));
+
+        System.Text.RegularExpressions.Regex.IsMatch(css, @"\.gestionar-discreto\s*\{\s*color:\s*var\(--color-text-muted\)\s*!important;").Should().BeTrue();
+        System.Text.RegularExpressions.Regex.IsMatch(css,
+            @"\.gestionar-discreto:not\(:disabled\):hover,\s*\.gestionar-discreto:focus-visible\s*\{\s*color:\s*var\(--color-text\)\s*!important;").Should().BeTrue();
+    }
+
+    private static string RaizDelRepositorio()
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
+            dir = Path.GetDirectoryName(dir);
+        return dir ?? throw new InvalidOperationException("No se encontró CaeManager.slnx subiendo desde el directorio de pruebas.");
     }
 }

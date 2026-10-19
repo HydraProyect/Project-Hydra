@@ -284,7 +284,8 @@ public class EnviarReclamacionCommandHandlerTests
         var e = escenario.Entorno;
         return new PrepararVistaPreviaReclamacionCommandHandler(
             e.CrearHandler(alcanceDatos),
-            e.CrearHandlerEmpresa(alcanceDatos));
+            e.CrearHandlerEmpresa(alcanceDatos),
+            null!); // la vista previa a la Empresa empleadora la cubre ReclamacionEmpresaEmpleadoraTests
     }
 
     [Fact]

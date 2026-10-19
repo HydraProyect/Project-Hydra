@@ -109,6 +109,32 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     [SupplyParameterFromQuery(Name = "estado")]
     public string? EstadoInicial { get; set; }
 
+    [SupplyParameterFromQuery(Name = "agrupar")]
+    public string? AgruparInicial { get; set; }
+
+    private static readonly AgrupacionDeLista Agrupacion = new(null, "empresa");
+    private string? _agruparPor;
+    private IReadOnlyList<OpcionAgrupar> OpcionesAgrupar => [new("empresa", Textos["EmpresaContratante"])];
+
+    private void CambiarAgrupacion(string? valor)
+    {
+        _agruparPor = valor;
+        NavigationManager.ActualizarFiltroEnUrl("agrupar", Agrupacion.ParaUrl(valor));
+    }
+
+    private sealed record GrupoContratante(string Clave, string Nombre, IReadOnlyList<SubcontrataListaDto> Filas);
+
+    private IEnumerable<GrupoContratante> GruposDePagina => _agruparPor is null
+        ? [new(string.Empty, string.Empty, _elementosPagina)]
+        : _elementosPagina.SelectMany(s => s.Contratantes.Count == 0
+                ? new[] { (Clave: string.Empty, Nombre: Textos["SinEmpresaContratante"].Value, Fila: s) }
+                : s.Contratantes.Select(e => (Clave: e.Id.ToString(), Nombre: e.RazonSocial, Fila: s)))
+            .GroupBy(e => e.Clave).OrderBy(g => g.First().Nombre)
+            .Select(g => new GrupoContratante(g.Key, g.First().Nombre, g.Select(e => e.Fila).ToList()));
+
+    private string TextoContratantes(SubcontrataListaDto fila) => fila.Contratantes.Count == 0
+        ? Textos["SinEmpresaContratante"] : string.Join(", ", fila.Contratantes.Select(e => e.RazonSocial));
+
     /// <summary>Comando del palette "Crear subcontrata": /subcontratas?accion=crear abre el modal directamente — mismo patrón que Clientes/Empresas/Centros/Trabajadores/Documentos.</summary>
     [SupplyParameterFromQuery] public string? Accion { get; set; }
 
@@ -208,6 +234,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     /// <summary>Se re-ejecuta en cada navegación dentro de la propia página — mismo criterio que Centros.razor.cs.</summary>
     protected override async Task OnParametersSetAsync()
     {
+        _agruparPor = Agrupacion.Leer(AgruparInicial);
         if (_resolviendoEmpresa || _sinEmpresaSeleccionada)
             return;
 
@@ -252,7 +279,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
     /// <summary>
     /// El rol efectivo puede escribir (misma pregunta que <see cref="SoloConEscritura"/>). Decide si
-    /// las incidencias de las ventanas del motivo de la fila se ofrecen como pulsables.
+    /// el «Gestionar» de cada documento de la fila desplegada se ofrece.
     /// </summary>
     private bool _puedeEscribir;
 
@@ -263,16 +290,55 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _puedeEscribir && CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental.EsCorregible(
             incidencia.DocumentoId, incidencia.TipoDocumentoId, incidencia.TrabajadorId, empresaId: null);
 
-    private bool HayCorregibles(IReadOnlyList<IncidenciaSubcontrataDto> incidencias) => incidencias.Any(EsCorregible);
+    /// <summary>
+    /// Los documentos de sus trabajadores que piden trabajo, de lo más grave a lo menos: vencidos, por vencer y sin
+    /// confirmar. Son la fila desplegada y no cuestan otra consulta: ya vienen con la fila.
+    /// </summary>
+    private static IReadOnlyList<IncidenciaSubcontrataDto> Incidencias(RecuentosSubcontrataDto recuentos) =>
+        [.. recuentos.Vencidas, .. recuentos.Proximas, .. recuentos.SinConfirmar];
 
-    private string? PieDeIncidencias(IReadOnlyList<IncidenciaSubcontrataDto> incidencias) =>
-        HayCorregibles(incidencias) ? Comunes["VentanaIncidenciasPie"].Value : null;
+    /// <summary>Hay alguna fila con documentos que piden trabajo: solo entonces «Expandir todo» tiene algo que abrir.</summary>
+    private bool HayFilasDesplegables => _elementosPagina.Any(s => Incidencias(s.Recuentos).Count > 0);
+
+    /// <summary>
+    /// El motivo que va bajo la pastilla de estado: cuántos documentos hay de cada clase, de la más grave a la menos
+    /// («2 vencidos · 1 por vencer · 1 sin confirmar»). Vacío si no hay ninguna incidencia.
+    /// </summary>
+    private string? MotivoDeFila(RecuentosSubcontrataDto recuentos)
+    {
+        var partes = new List<string>(3);
+        if (recuentos.TotalVencidas > 0) partes.Add(MotivoVencidos(recuentos.TotalVencidas));
+        if (recuentos.TotalProximas > 0) partes.Add(MotivoProximos(recuentos.TotalProximas));
+        if (recuentos.TotalSinConfirmar > 0) partes.Add(MotivoSinConfirmar(recuentos.TotalSinConfirmar));
+        return partes.Count == 0 ? null : string.Join(MotivoIncidenciasUi.Separador, partes);
+    }
+
+    /// <summary>
+    /// El texto de vigencia de un documento de la fila desplegada, literal de la maqueta: la fecha absoluta y nada de «hace N
+    /// días». «Venció el dd/MM/yyyy» si venció, «Caduca el dd/MM/yyyy» si está por vencer, la falta de fecha si está sin
+    /// confirmar y vacío en cualquier otro caso (mismo criterio que la lista de Trabajadores).
+    /// </summary>
+    private string DetalleDelDocumento(IncidenciaSubcontrataDto incidencia)
+    {
+        if (incidencia.Estado == EstadoDocumento.SinConfirmar)
+            return EstadoDocumentoUi.MotivoDeDocumento(incidencia.Estado, incidencia.FechaVencimiento, CaeManager.Domain.Common.DiaDeNegocio.Hoy()) ?? string.Empty;
+        if (incidencia.FechaVencimiento is not { } fecha)
+            return string.Empty;
+
+        var texto = fecha.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture);
+        return incidencia.Estado switch
+        {
+            EstadoDocumento.Vencido or EstadoDocumento.Faltante or EstadoDocumento.EnTolerancia => Textos["DocumentoDesdeFecha", texto].Value,
+            EstadoDocumento.Urgente or EstadoDocumento.Proximo => Textos["DocumentoCaducaFecha", texto].Value,
+            _ => string.Empty
+        };
+    }
 
     private Task CorregirIncidenciaAsync(IncidenciaSubcontrataDto incidencia) =>
         _correccion.AbrirAsync(incidencia.DocumentoId, incidencia.TipoDocumentoId, incidencia.TrabajadorId, empresaId: null);
 
     /// <summary>
-    /// Tras corregir una incidencia desde la ventana de contexto: el documento corregido puede
+    /// Tras corregir un documento con «Gestionar» en la fila desplegada: el documento corregido puede
     /// contar en más de una fila, así que se vuelve a pedir la página tal como está y se sustituye
     /// en sitio, conservando la selección. Los acordeones se cierran porque su contenido ya no es
     /// el de antes de corregir (mismo criterio que Centros).
@@ -436,7 +502,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado.
     /// Fuera queda <c>accion</c>.
     /// </summary>
-    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "nivel", "estado"];
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "nivel", "estado", "agrupar"];
 
     private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
     private readonly ConexionVistaRecordada _vistaRecordada = new();
@@ -451,28 +517,16 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
         _nivelFiltro = NivelValido(vista.GetValueOrDefault("nivel"));
         _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"));
+        _agruparPor = Agrupacion.Leer(vista.GetValueOrDefault("agrupar"));
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = _busqueda,
             ["nivel"] = _nivelFiltro,
-            ["estado"] = _estadoFiltro
+            ["estado"] = _estadoFiltro,
+            ["agrupar"] = Agrupacion.ParaUrl(_agruparPor)
         });
         await CargarAsync(resetPagina: true);
     }
-
-    /// <summary>
-    /// «N de M» de la barra de herramientas. M es el total que devuelve la
-    /// consulta, que con búsqueda ya viene filtrado — por eso la frase lo dice,
-    /// y no promete cuántas hay sin filtro, que esta pantalla no sabe.
-    /// </summary>
-    private string TextoConteo =>
-        (_totalElementos == 1, HayFiltrosActivos) switch
-        {
-            (true, false) => Textos["ConteoUno", _elementosPagina.Count, _totalElementos],
-            (false, false) => Textos["ConteoVarios", _elementosPagina.Count, _totalElementos],
-            (true, true) => Textos["ConteoUnoConBusqueda", _elementosPagina.Count, _totalElementos],
-            (false, true) => Textos["ConteoVariosConBusqueda", _elementosPagina.Count, _totalElementos],
-        };
 
     private string ClaseRejilla(string claseBase) =>
         $"{claseBase} rejilla-subcontratas" + (_seleccionMultiple ? " rejilla-subcontratas-seleccion" : string.Empty);
@@ -484,14 +538,15 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         + ClaseTinte(subcontrata.Recuentos);
 
     /// <summary>
-    /// Fila con problema (rediseño de listados, fase 1): algún documento vencido → tinte de
-    /// peligro; si no, alguno urgente → de aviso; el resto, sin tinte.
+    /// La fila se tinta por su estado documental (el peor de sus incidencias), con el mismo criterio que Empresas, Trabajadores y
+    /// la maqueta: rojo para lo vencido, ámbar para lo que está por vencer o en tolerancia; «Sin confirmar» no tiñe.
     /// </summary>
-    private static string ClaseTinte(RecuentosSubcontrataDto recuentos) =>
-        recuentos.TotalVencidas > 0 ? " fila-tintada-peligro"
-        : recuentos.Proximas.Any(p => p.Estado == EstadoDocumento.Urgente) ? " fila-tintada-aviso"
-        : string.Empty;
-
+    private static string ClaseTinte(RecuentosSubcontrataDto recuentos) => recuentos.PeorEstado switch
+    {
+        EstadoDocumento.Faltante or EstadoDocumento.Vencido => " fila-tintada-peligro",
+        EstadoDocumento.Urgente or EstadoDocumento.Proximo or EstadoDocumento.EnTolerancia => " fila-tintada-aviso",
+        _ => string.Empty
+    };
     // Un clic en la fila, su nombre o Enter sobre la fila enfocada abren la vista rápida: el
     // panel de 520 px del Context Workspace, el mismo que abren los botones 360 del resto de
     // pantallas. A la página Subcontrata 360 (/subcontratas/{id}) se va con el icono 360 de
@@ -630,8 +685,8 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private bool TodosSeleccionados =>
         _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
 
-    private bool TodosExpandidos =>
-        _elementosPagina.Count > 0 && _elementosPagina.All(e => _expandidos.Contains(e.Id));
+    private bool TodosExpandidos => HayFilasDesplegables
+        && _elementosPagina.Where(e => Incidencias(e.Recuentos).Count > 0).All(e => _expandidos.Contains(e.Id));
 
     private void AlternarExpansion(Guid id)
     {
@@ -642,7 +697,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private void AlternarTodosExpandidos(bool expandir)
     {
         if (expandir)
-            foreach (var elemento in _elementosPagina) _expandidos.Add(elemento.Id);
+            foreach (var elemento in _elementosPagina.Where(e => Incidencias(e.Recuentos).Count > 0)) _expandidos.Add(elemento.Id);
         else
             _expandidos.Clear();
     }
@@ -792,31 +847,6 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private string MotivoProximos(int total) => DescribirRecuento(total, "BadgeProximosUno", "BadgeProximosVarios");
 
     private string MotivoSinConfirmar(int total) => DescribirRecuento(total, "MotivoSinConfirmarUno", "MotivoSinConfirmarVarios");
-
-    /// <summary>
-    /// Nombre accesible del disparador de una cifra del motivo. Empieza por el texto que se ve («2 vencidos»)
-    /// para que quien lo nombre de viva voz lo active (WCAG 2.5.3, el nombre contiene la etiqueta visible), y
-    /// sigue con la frase completa.
-    /// </summary>
-    private static string EtiquetaDeMotivo(string textoVisible, string fraseCompleta) => $"{textoVisible}. {fraseCompleta}";
-
-    /// <summary>
-    /// Nombre accesible de la ventana de Próximas. El badge visual ya
-    /// distingue Urgente de Próximo por incidencia (Codex, oleada 3); sin
-    /// este aviso en el nombre accesible, quien usa lector de pantalla no
-    /// recibe esa misma distinción de severidad — solo el recuento genérico.
-    /// </summary>
-    private string EtiquetaProximos(IReadOnlyList<IncidenciaSubcontrataDto> proximas)
-    {
-        var etiquetaBase = DescribirRecuento(proximas.Count, "RecuentoDocumentosProximosUno", "AriaRecuentoDocumentosProximosVarios");
-        var totalUrgentes = proximas.Count(i => i.Estado == EstadoDocumento.Urgente);
-        return totalUrgentes switch
-        {
-            0 => etiquetaBase,
-            1 => $"{etiquetaBase}, {Textos["AriaAvisoUnUrgenteEnProximos"]}",
-            _ => $"{etiquetaBase}, {Textos["AriaAvisoVariosUrgentesEnProximos", totalUrgentes]}",
-        };
-    }
 
     /// <summary>
     /// Nombre accesible de la barra de cumplimiento. Antes se interpolaba el porcentaje sin

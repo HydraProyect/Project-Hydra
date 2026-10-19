@@ -384,8 +384,11 @@
   <data name="ReclamacionErrorPreparar" xml:space="preserve"><value>No hem pogut preparar la reclamació</value></data>
   <data name="ReclamacionErrorPrepararDetalle" xml:space="preserve"><value>Torna-ho a provar en uns segons.</value></data>
   <data name="ReclamacionReintentar" xml:space="preserve"><value>Torna-ho a provar</value></data>
-  <data name="ReclamacionFueraTrabajadores" xml:space="preserve"><value>{0} de {1} documents són de Treballadors i es reclamen al Client del Centre, no a aquesta Empresa.</value></data>
+  <data name="ReclamacionFueraTrabajadores" xml:space="preserve"><value>{0} de {1} documents són de Treballadors i no entren en aquest lot de documents de l'Empresa: es reclamen des de «Gestionar» a la fitxa de cada Treballador.</value></data>
   <data name="ReclamacionFueraVentana" xml:space="preserve"><value>{0} de {1} documents són fora de la finestra de reclamació o ja no es poden reclamar.</value></data>
   <data name="ReclamacionNadaTitulo" xml:space="preserve"><value>Res a reclamar a aquesta Empresa</value></data>
   <data name="ReclamacionNadaDetalle" xml:space="preserve"><value>Cap d'aquests documents es pot reclamar als contactes d'aquesta Empresa des d'aquí.</value></data>
+  <data name="ReclamacionDestinoDelegacionEmpresa" xml:space="preserve"><value>Es reclama a la Delegació {0}, al seu contacte de reclamació.</value></data>
+  <data name="ReclamacionDestinoEmpresa" xml:space="preserve"><value>Es reclama a l'Empresa que ocupa aquests Treballadors, als contactes de la seva agenda.</value></data>
+  <data name="ReclamacionDelegacionEmpresaSinContactoVisible" xml:space="preserve"><value>No pots veure el contacte de reclamació d'aquesta Delegació, així que no li pots enviar la reclamació.</value></data>
 </root>

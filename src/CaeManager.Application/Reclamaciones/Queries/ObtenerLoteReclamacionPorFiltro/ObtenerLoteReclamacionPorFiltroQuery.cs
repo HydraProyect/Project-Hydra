@@ -23,7 +23,12 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPor
 /// preferible a devolver una lista vacía que se confunda con "sin
 /// pendientes".
 /// </summary>
-public record ObtenerLoteReclamacionPorFiltroQuery(FiltroLoteDocumental Filtro, bool IncluirPendientesSinFecha = false)
+/// <param name="PorEmpresaEmpleadora">
+/// Solo para Ambito=Trabajador: «Gestionar» reclama los documentos de un Trabajador de Empresa a la Empresa que lo emplea,
+/// por Delegación (<see cref="ReclamacionEmpresaEmpleadoraService"/>), en vez de al Cliente del Centro. Lo de un Trabajador de
+/// Subcontrata sigue yendo al Cliente. Falso por defecto: Alertas sigue viendo lo de siempre.
+/// </param>
+public record ObtenerLoteReclamacionPorFiltroQuery(FiltroLoteDocumental Filtro, bool IncluirPendientesSinFecha = false, bool PorEmpresaEmpleadora = false)
     : IRequest<IReadOnlyList<LoteReclamacionAgrupadoDto>>;
 
 /// <param name="TitularId">
@@ -43,6 +48,10 @@ public record ObtenerLoteReclamacionPorFiltroQuery(FiltroLoteDocumental Filtro, 
 /// qué comando de envío corresponde (EnviarReclamacionCommand para Cliente,
 /// EnviarReclamacionEmpresaCommand para Empresa).
 /// </param>
+/// <param name="EmpresaEmpleadora">
+/// Informado = lote de documentos de Trabajador reclamado a la Empresa que los emplea (TitularId es esa Empresa) y,
+/// dentro de ella, a la Delegación que dice; se envía con <c>EnviarReclamacionEmpresaEmpleadoraCommand</c>, nunca por Ambito.
+/// </param>
 public record LoteReclamacionAgrupadoDto(
     Guid TitularId,
     string TitularNombre,
@@ -51,9 +60,10 @@ public record LoteReclamacionAgrupadoDto(
     IReadOnlyList<DocumentoReclamableDto> Documentos,
     Guid? UltimaReclamacionConversacionId,
     IReadOnlyList<DestinatarioAgendaDto>? Destinatarios,
-    IReadOnlyList<DocumentoPendienteDto>? PendientesSinFecha = null);
+    IReadOnlyList<DocumentoPendienteDto>? PendientesSinFecha = null,
+    DestinoEmpresaEmpleadoraDto? EmpresaEmpleadora = null);
 
-public class ObtenerLoteReclamacionPorFiltroQueryHandler(IMediator mediator)
+public class ObtenerLoteReclamacionPorFiltroQueryHandler(IMediator mediator, ReclamacionEmpresaEmpleadoraService empresaEmpleadora)
     : IRequestHandler<ObtenerLoteReclamacionPorFiltroQuery, IReadOnlyList<LoteReclamacionAgrupadoDto>>
 {
     public async Task<IReadOnlyList<LoteReclamacionAgrupadoDto>> Handle(
@@ -63,15 +73,15 @@ public class ObtenerLoteReclamacionPorFiltroQueryHandler(IMediator mediator)
 
         return filtro.Ambito switch
         {
-            AmbitoAplicacion.Trabajador => await ResolverTrabajadorAsync(mediator, filtro, request.IncluirPendientesSinFecha, cancellationToken),
+            AmbitoAplicacion.Trabajador => await ResolverTrabajadorAsync(filtro, request.IncluirPendientesSinFecha, request.PorEmpresaEmpleadora, cancellationToken),
             AmbitoAplicacion.Empresa => await ResolverEmpresaAsync(mediator, filtro, request.IncluirPendientesSinFecha, cancellationToken),
             _ => throw new NotSupportedException(
                 $"Todavía no hay camino de reclamación para el ámbito {filtro.Ambito} — no lo ofrezcas en SelectorLoteDocumental.AmbitosDisponibles.")
         };
     }
 
-    private static async Task<IReadOnlyList<LoteReclamacionAgrupadoDto>> ResolverTrabajadorAsync(
-        IMediator mediator, FiltroLoteDocumental filtro, bool incluirPendientes, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<LoteReclamacionAgrupadoDto>> ResolverTrabajadorAsync(
+        FiltroLoteDocumental filtro, bool incluirPendientes, bool porEmpresaEmpleadora, CancellationToken cancellationToken)
     {
         var lotes = await mediator.Send(
             new ObtenerLoteReclamacionQuery(
@@ -80,11 +90,18 @@ public class ObtenerLoteReclamacionPorFiltroQueryHandler(IMediator mediator)
                 IncluirPendientesSinFecha: incluirPendientes),
             cancellationToken);
 
-        return lotes
+        IReadOnlyList<LoteReclamacionAgrupadoDto> aEmpresas = [];
+        if (porEmpresaEmpleadora)
+        {
+            var reagrupados = await empresaEmpleadora.ReagruparAsync(lotes, cancellationToken);
+            aEmpresas = reagrupados.LotesEmpresaEmpleadora;
+            lotes = reagrupados.LotesCliente;
+        }
+
+        return [.. aEmpresas, .. lotes
             .Select(l => new LoteReclamacionAgrupadoDto(
                 l.ClienteId, l.RazonSocialCliente, AmbitoAplicacion.Trabajador,
-                l.UltimaReclamacionFechaUtc, l.Documentos, l.UltimaReclamacionConversacionId, l.Destinatarios, l.PendientesSinFecha))
-            .ToList();
+                l.UltimaReclamacionFechaUtc, l.Documentos, l.UltimaReclamacionConversacionId, l.Destinatarios, l.PendientesSinFecha))];
     }
 
     private static async Task<IReadOnlyList<LoteReclamacionAgrupadoDto>> ResolverEmpresaAsync(

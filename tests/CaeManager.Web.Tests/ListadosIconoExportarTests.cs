@@ -194,7 +194,7 @@ public partial class VisitasGen2Tests
 
     [Fact]
     public void La_cabecera_adopta_exportacion_filtrada_con_menu_solo_Exportar_todo() =>
-        ComprobacionIconoExportar.Cabecera(Renderizar(new MediatorVisitas()), "/visitas/exportar.xlsx", false);
+        ComprobacionIconoExportar.Cabecera(Renderizar(new MediatorVisitas()), "/visitas/exportar.xlsx", true);
 }
 
 public partial class GestionesListaGen2Tests
@@ -273,7 +273,7 @@ public partial class CentrosListaPatronTests
     {
         var mediador = ConDosClientes();
         var centro = mediador.Centros.First();
-        var cut = RenderizarConGruposContraidos(mediador, url: activos
+        var cut = Renderizar(mediador, url: activos
             ? $"centros?q=Pe%C3%B1a%20%26%20Hijos&estado=Vencido&cliente={ClienteOrion}&empresa={EmpresaMontajes}&CentroId={centro.Id}&orden=cumplimiento-desc"
             : "centros?q=&estado=&cliente=&empresa=&orden=");
         var esperados = activos

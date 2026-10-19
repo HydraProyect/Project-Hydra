@@ -223,11 +223,13 @@ a.fila-relacion-nombre:focus-visible,
     background: none;
     color: var(--color-text-muted);
     cursor: pointer;
-    transition: transform 150ms ease;
+    /* Como el chevron del menú lateral (NavMenu): cerrado apunta a la derecha, abierto hacia abajo. */
+    transition: transform var(--motion-transition) var(--ease-fluid);
+    transform: rotate(-90deg);
 }
 
 .fila-relacion-desplegar[aria-expanded="true"] {
-    transform: rotate(90deg);
+    transform: rotate(0deg);
 }
 
 .fila-relacion-desplegar:hover {

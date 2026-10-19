@@ -2,6 +2,7 @@ using AngleSharp.Dom;
 using Bunit.TestDoubles;
 using Bunit;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa;
 using CaeManager.Application.Empresas.Commands.GuardarNotaInternaEmpresa;
 using CaeManager.Application.Empresas.Commands.EditarFichaEmpresa;
@@ -62,6 +63,7 @@ public partial class Empresa360PaginaTests : BunitContext
         public Dictionary<Guid, List<ClienteDeEmpresaDto>> Clientes { get; } = [];
         public Dictionary<Guid, CredencialAccesoEmpresaDto> Credenciales { get; } = [];
         public Dictionary<Guid, SelloEmpresaDto> Sellos { get; } = [];
+        public Dictionary<Guid, CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.CatalogoTrabajadoresEmpresaDto> Catalogos { get; } = [];
 
         public List<object> Enviadas { get; } = [];
 
@@ -87,6 +89,7 @@ public partial class Empresa360PaginaTests : BunitContext
                 ? new CredencialAccesoEmpresaSinContrasenaDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Notas)
                 : null,
             ObtenerCredencialAccesoEmpresaQuery q => Credenciales.GetValueOrDefault(q.EmpresaId),
+            CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.ObtenerCatalogoTrabajadoresEmpresaQuery q => Catalogos.GetValueOrDefault(q.EmpresaId) ?? CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.CatalogoTrabajadoresEmpresaDto.Vacio,
             GuardarNotaInternaEmpresaCommand c => GuardarNota(c),
             EditarFichaEmpresaCommand c => GuardarFicha(c),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
@@ -118,12 +121,18 @@ public partial class Empresa360PaginaTests : BunitContext
             IEnumerable<TrabajadorListaDto> filas = q.EmpresaId is { } id ? Trabajadores.GetValueOrDefault(id) ?? [] : [];
             if (!string.IsNullOrWhiteSpace(q.Busqueda))
                 filas = filas.Where(t => $"{t.Nombre} {t.Apellidos}".Contains(q.Busqueda, StringComparison.OrdinalIgnoreCase));
+            if (q.DelegacionEmpresaId is { } delegacionId)
+                filas = filas.Where(t => t.DelegacionEmpresaId == delegacionId);
+            if (q.OficioEmpresaId is { } oficioId)
+                filas = filas.Where(t => t.OficioEmpresaId == oficioId);
             if (!string.IsNullOrWhiteSpace(q.EstadoDocumental))
-                filas = Enum.TryParse<EstadoDocumento>(q.EstadoDocumental, out var estado)
-                    ? filas.Where(t => t.EstadoDocumental == estado)
-                    : filas;
+                filas = filas.Where(t => EstadoDocumentalFiltro.Coincide(t.EstadoDocumental, q.EstadoDocumental));
             if (q.OrdenarPor == nameof(TrabajadorListaDto.EstadoDocumental))
                 filas = filas.OrderBy(t => Rango(t.EstadoDocumental)).ThenBy(t => t.Apellidos).ThenBy(t => t.Nombre).ThenBy(t => t.Id);
+            else if (q.OrdenarPor == nameof(TrabajadorListaDto.DelegacionEmpresaNombre))
+                filas = filas.OrderBy(t => t.DelegacionEmpresaNombre is null).ThenBy(t => t.DelegacionEmpresaNombre, StringComparer.Ordinal).ThenBy(t => t.Apellidos).ThenBy(t => t.Id);
+            else if (q.OrdenarPor == nameof(TrabajadorListaDto.OficioNombre))
+                filas = filas.OrderBy(t => t.OficioNombre is null).ThenBy(t => t.OficioNombre, StringComparer.Ordinal).ThenBy(t => t.Apellidos).ThenBy(t => t.Id);
 
             var lista = filas.ToList();
             return new ResultadoPaginado<TrabajadorListaDto>(
@@ -541,7 +550,7 @@ public partial class Empresa360PaginaTests : BunitContext
         if (!string.IsNullOrEmpty(consulta))
         {
             Pestana(cut, "Ficha").GetAttribute("aria-selected").Should().Be("true");
-            cut.FindAll("[data-caja]").Should().HaveCount(4);
+            cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Should().HaveCount(4);
         }
         else
         {
@@ -558,7 +567,7 @@ public partial class Empresa360PaginaTests : BunitContext
         var lateral = cut.Find(".cuerpo-con-lateral-lateral");
         lateral.QuerySelectorAll(".tarjeta").Should().ContainSingle();
         lateral.TextContent.Should().Contain("Información").And.NotContain("Carpeta de documentación");
-        cut.FindAll("[data-caja]").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "firma-documentos", "prevencion", "mutua", "formacion", "sello");
+        cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "firma-documentos", "prevencion", "mutua", "formacion", "sello");
         var tabs = cut.FindAll("[role=tab]");
         tabs[^2].TextContent.Trim().Should().Be("Ficha");
         tabs[^1].TextContent.Trim().Should().Be("Historial");
@@ -585,7 +594,7 @@ public partial class Empresa360PaginaTests : BunitContext
         var m = EmpresaConCredencial(rol: Roles.Consulta);
         m.Sellos.Clear();
         var cut = Renderizar("?pestana=ficha");
-        cut.FindAll("[data-caja]").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "firma-documentos", "prevencion", "mutua", "formacion");
+        cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "firma-documentos", "prevencion", "mutua", "formacion");
         cut.FindComponents<Stub<PestanaSelloEmpresa>>().Should().BeEmpty();
         cut.Markup.Should().Contain("https://app.twind.io/login").And.NotContain("usuario.ibertec");
     }
@@ -598,7 +607,7 @@ public partial class Empresa360PaginaTests : BunitContext
         Registrar(m);
         var cut = Renderizar("?pestana=ficha");
         Pestana(cut, "Ficha").GetAttribute("aria-selected").Should().Be("true");
-        cut.FindAll("[data-caja]").Select(c => c.GetAttribute("data-caja")).Should().Equal("firma-documentos", "prevencion", "mutua", "formacion", "sello");
+        cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Select(c => c.GetAttribute("data-caja")).Should().Equal("firma-documentos", "prevencion", "mutua", "formacion", "sello");
         cut.FindComponent<Stub<PestanaSelloEmpresa>>().Instance.Parameters.Get(x => x.EntidadId).Should().Be(EmpresaId);
     }
 
@@ -608,7 +617,7 @@ public partial class Empresa360PaginaTests : BunitContext
         var m = EmpresaConCredencial();
         m.Sellos.Clear();
         var cut = Renderizar("?pestana=ficha");
-        cut.FindAll("[data-caja]").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "firma-documentos", "prevencion", "mutua", "formacion", "sello");
+        cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "firma-documentos", "prevencion", "mutua", "formacion", "sello");
         cut.FindComponent<Stub<PestanaSelloEmpresa>>().Instance.Parameters.Get(x => x.EntidadId).Should().Be(EmpresaId);
     }
 
@@ -621,7 +630,7 @@ public partial class Empresa360PaginaTests : BunitContext
         var cut = Renderizar();
         Navegacion.NavigateTo($"/empresas/{EmpresaId}?pestana=ficha");
         cut.WaitForAssertion(() => Pestana(cut, "Ficha").GetAttribute("aria-selected").Should().Be("true"));
-        cut.FindAll("[data-caja]").Should().HaveCount(4);
+        cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Should().HaveCount(4);
     }
 
     // ── Filas: enlace a la página y 360 al panel ──────────────────────────

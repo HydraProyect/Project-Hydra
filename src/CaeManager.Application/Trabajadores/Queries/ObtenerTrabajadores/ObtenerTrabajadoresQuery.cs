@@ -35,6 +35,15 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 /// </para>
 ///
 /// <para>
+/// <paramref name="DelegacionEmpresaId"/> y <paramref name="OficioEmpresaId"/> dejan a los Trabajadores de ESA Delegación
+/// u Oficio del catálogo de su Empresa (cada Id es de una sola Empresa, así que filtrar por uno ya acota a ella). Solo
+/// estrechan, se componen entre sí y con el alcance de Asignación de Cartera de arriba; un Trabajador de Subcontrata no
+/// tiene ni Delegación ni Oficio y nunca casa. Ordenar por <c>DelegacionEmpresaNombre</c> u <c>OficioNombre</c> es lo que usa
+/// «Agrupar»: las filas con ese catálogo, por nombre y Empresa, seguidas de las que no lo tienen («Sin delegación»,
+/// «Sin oficio»), siempre al final.
+/// </para>
+///
+/// <para>
 /// <paramref name="ConDesgloseDocumental"/> rellena, para las filas de la página, las incidencias y la fracción
 /// «vigentes / registrados» de <see cref="TrabajadorListaDto"/>. Cuesta una consulta de documentos por página, así
 /// que hay que pedirlo: lo pide solo quien lo pinta (el listado de Trabajadores, en su carga de página y al
@@ -45,7 +54,8 @@ public record ObtenerTrabajadoresQuery(
     string? Busqueda, Guid? EmpresaId = null, Guid? SubcontrataId = null, int Pagina = 1, int TamanoPagina = 20,
     Guid? CentroId = null, bool ConDesgloseDocumental = false,
     string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null,
-    bool ConRecuentosPorEstado = false, Guid? TrabajadorId = null, bool? VoluntarioInactivo = null)
+    bool ConRecuentosPorEstado = false, Guid? TrabajadorId = null,
+    Guid? DelegacionEmpresaId = null, Guid? OficioEmpresaId = null)
     : IRequest<ResultadoPaginado<TrabajadorListaDto>>;
 
 public record TrabajadorListaDto(
@@ -57,6 +67,19 @@ public record TrabajadorListaDto(
     /// atención, del más grave al menos. Vacía si no hay ninguno o si la consulta no pidió el desglose.
     /// </summary>
     public IReadOnlyList<IncidenciaDocumentalDto> Incidencias { get; init; } = [];
+
+    /// <summary>
+    /// Delegación del Trabajador en el catálogo de su Empresa, o <c>null</c> (sin Delegación, o Trabajador de Subcontrata).
+    /// Solo el Id y el nombre: el contacto de reclamación de la Delegación no viaja en un listado.
+    /// </summary>
+    public Guid? DelegacionEmpresaId { get; init; }
+
+    public string? DelegacionEmpresaNombre { get; init; }
+
+    /// <summary>Oficio del Trabajador en el catálogo de su Empresa, o <c>null</c>. Es lo que el listado pinta como etiqueta.</summary>
+    public Guid? OficioEmpresaId { get; init; }
+
+    public string? OficioNombre { get; init; }
 
     /// <summary>Documentos operativos del Trabajador (ver <see cref="DesgloseDocumentalDto"/>).</summary>
     public int DocumentosRegistrados { get; init; }
@@ -107,7 +130,20 @@ public class ObtenerTrabajadoresQueryHandler(
             from empresa in empresasCoincidentes.DefaultIfEmpty()
             join subcontrata in empresasContext.Empresas on trabajador.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
             from subcontrata in subcontratasCoincidentes.DefaultIfEmpty()
-            select new { trabajador, EmpleadorNombre = empresa != null ? empresa.RazonSocial : subcontrata!.RazonSocial };
+                // Delegación y Oficio del catálogo de su Empresa (nombre para pintar y para «Agrupar»). La FK compuesta de
+                // Trabajador garantiza que son de su misma Empresa y Tenant; un Trabajador sin ellos (o de Subcontrata) sale
+                // con el nombre nulo, no se pierde de la lista.
+            join delegacion in empresasContext.DelegacionesEmpresa on trabajador.DelegacionEmpresaId equals (Guid?)delegacion.Id into delegacionesCoincidentes
+            from delegacion in delegacionesCoincidentes.DefaultIfEmpty()
+            join oficio in empresasContext.OficiosEmpresa on trabajador.OficioEmpresaId equals (Guid?)oficio.Id into oficiosCoincidentes
+            from oficio in oficiosCoincidentes.DefaultIfEmpty()
+            select new
+            {
+                trabajador,
+                EmpleadorNombre = empresa != null ? empresa.RazonSocial : subcontrata!.RazonSocial,
+                DelegacionEmpresaNombre = delegacion != null ? delegacion.Nombre : null,
+                OficioNombre = oficio != null ? oficio.Nombre : null
+            };
 
         // Este es el listado (tabla /trabajadores), no el selector de "elige
         // un trabajador ya existente" — se acota al alcance de Trabajadores:
@@ -139,6 +175,14 @@ public class ObtenerTrabajadoresQueryHandler(
         if (request.SubcontrataId is not null)
             consulta = consulta.Where(x => x.trabajador.SubcontrataId == request.SubcontrataId);
 
+        // Delegación y Oficio solo estrechan (ver la nota de la Query): el Id viaja del cliente, pero el alcance de
+        // arriba ya recortó las filas; un Id de otra Empresa o de otro Tenant no casa con ningún Trabajador visible.
+        if (request.DelegacionEmpresaId is { } delegacionId)
+            consulta = consulta.Where(x => x.trabajador.DelegacionEmpresaId == delegacionId);
+
+        if (request.OficioEmpresaId is { } oficioId)
+            consulta = consulta.Where(x => x.trabajador.OficioEmpresaId == oficioId);
+
         if (request.CentroId is { } centroId)
         {
             // El filtro por Centro solo estrecha. El alcance de Trabajadores de arriba no basta: un Trabajador
@@ -150,16 +194,6 @@ public class ObtenerTrabajadoresQueryHandler(
 
             consulta = consulta.Where(x => centroVisible && asignacionesContext.Asignaciones
                 .Any(a => a.TrabajadorId == x.trabajador.Id && a.CentroId == centroId && a.FechaBaja == null));
-        }
-
-        // Filtro de actividad: true = solo los voluntarios inactivos; false = todos menos ellos. Solo estrecha.
-        if (request.VoluntarioInactivo is { } soloInactivos)
-        {
-            var inactivos = ActividadVoluntarios.VoluntariosInactivosIds(
-                trabajadoresContext.Trabajadores, proyectosContext, DiaDeNegocio.Hoy());
-            consulta = soloInactivos
-                ? consulta.Where(x => inactivos.Contains(x.trabajador.Id))
-                : consulta.Where(x => !inactivos.Contains(x.trabajador.Id));
         }
 
         // Lista blanca de columnas ordenables — ver ObtenerClientesQuery. Este
@@ -178,6 +212,12 @@ public class ObtenerTrabajadoresQueryHandler(
             (nameof(TrabajadorListaDto.Dni), true) => consulta.OrderByDescending(x => x.trabajador.Dni),
             (nameof(TrabajadorListaDto.EmpleadorNombre), false) => consulta.OrderBy(x => x.EmpleadorNombre).ThenBy(x => x.trabajador.Apellidos),
             (nameof(TrabajadorListaDto.EmpleadorNombre), true) => consulta.OrderByDescending(x => x.EmpleadorNombre).ThenBy(x => x.trabajador.Apellidos),
+            // «Agrupar» por Delegación u Oficio: con catálogo, por nombre y Empresa (un nombre puede repetirse entre
+            // Empresas) y el Id para que cada grupo quede contiguo; sin catálogo, al final.
+            (nameof(TrabajadorListaDto.DelegacionEmpresaNombre), _) => consulta.OrderBy(x => x.DelegacionEmpresaNombre == null).ThenBy(x => x.DelegacionEmpresaNombre)
+                .ThenBy(x => x.EmpleadorNombre).ThenBy(x => x.trabajador.DelegacionEmpresaId).ThenBy(x => x.trabajador.Apellidos).ThenBy(x => x.trabajador.Nombre),
+            (nameof(TrabajadorListaDto.OficioNombre), _) => consulta.OrderBy(x => x.OficioNombre == null).ThenBy(x => x.OficioNombre)
+                .ThenBy(x => x.EmpleadorNombre).ThenBy(x => x.trabajador.OficioEmpresaId).ThenBy(x => x.trabajador.Apellidos).ThenBy(x => x.trabajador.Nombre),
             _ => consulta.OrderBy(x => x.trabajador.Apellidos).ThenBy(x => x.trabajador.Nombre)
         };
         // Desempate estable: sin un criterio total, PostgreSQL puede devolver
@@ -188,7 +228,13 @@ public class ObtenerTrabajadoresQueryHandler(
         ordenada = ordenada.ThenBy(x => x.trabajador.Id);
 
         var proyeccion = ordenada.Select(x => new TrabajadorListaDto(
-            x.trabajador.Id, x.trabajador.Nombre, x.trabajador.Apellidos, x.trabajador.Dni, x.EmpleadorNombre));
+            x.trabajador.Id, x.trabajador.Nombre, x.trabajador.Apellidos, x.trabajador.Dni, x.EmpleadorNombre)
+        {
+            DelegacionEmpresaId = x.trabajador.DelegacionEmpresaId,
+            DelegacionEmpresaNombre = x.DelegacionEmpresaNombre,
+            OficioEmpresaId = x.trabajador.OficioEmpresaId,
+            OficioNombre = x.OficioNombre
+        });
 
         // El estado documental se deriva de los Documentos, así que filtrar u
         // ordenar por él exige conocer, para cada Trabajador visible, el peor
@@ -221,6 +267,10 @@ public class ObtenerTrabajadoresQueryHandler(
                     x.trabajador.Apellidos,
                     x.trabajador.Dni,
                     x.EmpleadorNombre,
+                    DelegacionEmpresaId = x.trabajador.DelegacionEmpresaId,
+                    x.DelegacionEmpresaNombre,
+                    OficioEmpresaId = x.trabajador.OficioEmpresaId,
+                    x.OficioNombre,
                     PeorFecha = documentosContext.Documentos.Where(DocumentoOperativo.Expresion)
                         .Where(d => d.TrabajadorId == x.trabajador.Id)
                         .Min(d => (DateOnly?)d.FechaVencimiento),
@@ -299,6 +349,10 @@ public class ObtenerTrabajadoresQueryHandler(
                     (nameof(TrabajadorListaDto.Dni), true) => conFecha.OrderByDescending(x => x.Dni),
                     (nameof(TrabajadorListaDto.EmpleadorNombre), false) => conFecha.OrderBy(x => x.EmpleadorNombre).ThenBy(x => x.Apellidos),
                     (nameof(TrabajadorListaDto.EmpleadorNombre), true) => conFecha.OrderByDescending(x => x.EmpleadorNombre).ThenBy(x => x.Apellidos),
+                    (nameof(TrabajadorListaDto.DelegacionEmpresaNombre), _) => conFecha.OrderBy(x => x.DelegacionEmpresaNombre == null).ThenBy(x => x.DelegacionEmpresaNombre)
+                        .ThenBy(x => x.EmpleadorNombre).ThenBy(x => x.DelegacionEmpresaId).ThenBy(x => x.Apellidos).ThenBy(x => x.Nombre),
+                    (nameof(TrabajadorListaDto.OficioNombre), _) => conFecha.OrderBy(x => x.OficioNombre == null).ThenBy(x => x.OficioNombre)
+                        .ThenBy(x => x.EmpleadorNombre).ThenBy(x => x.OficioEmpresaId).ThenBy(x => x.Apellidos).ThenBy(x => x.Nombre),
                     _ => conFecha.OrderBy(x => x.Apellidos).ThenBy(x => x.Nombre)
                 };
             // Mismo desempate estable que el camino normal.
@@ -313,7 +367,13 @@ public class ObtenerTrabajadoresQueryHandler(
                 await ConDesgloseAsync(
                     paginaConEstado.Select(x => new TrabajadorListaDto(
                         x.Id, x.Nombre, x.Apellidos, x.Dni, x.EmpleadorNombre,
-                        CalculoEstadoDocumentalService.PeorEstado(x.PeorFecha, x.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
+                        CalculoEstadoDocumentalService.PeorEstado(x.PeorFecha, x.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias))
+                    {
+                        DelegacionEmpresaId = x.DelegacionEmpresaId,
+                        DelegacionEmpresaNombre = x.DelegacionEmpresaNombre,
+                        OficioEmpresaId = x.OficioEmpresaId,
+                        OficioNombre = x.OficioNombre
+                    })
                         .ToList(),
                     request, cancellationToken),
                 totalConEstado,

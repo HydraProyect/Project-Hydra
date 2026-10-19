@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EditarFichaTrabajador;
 using CaeManager.Domain.Trabajadores;
@@ -23,7 +24,7 @@ public class EditarFichaTrabajadorCommandTests
         var repo = new TrabajadorRepositorioFalso();
         if (t is not null) repo.Agregar(t);
         var uow = new UnitOfWorkFalso();
-        return (new(repo, alcance ?? new(), uow), uow);
+        return (new(repo, new Empresas.DelegacionEmpresaYOficioEmpresaTests.CatalogoFalso(), alcance ?? new(), PoliticaNotaInternaPruebas.Con("GestorCae"), uow), uow);
     }
 
     [Fact]

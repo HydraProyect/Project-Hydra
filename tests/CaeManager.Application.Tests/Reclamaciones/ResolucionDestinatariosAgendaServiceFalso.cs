@@ -37,6 +37,13 @@ public class ResolucionDestinatariosAgendaServiceFalso : IResolucionDestinatario
     }
 
     public Task<IReadOnlyDictionary<Guid, IReadOnlyList<DestinatarioAgendaDto>>> ResolverParaEmpresasAsync(
-        IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> tipoDocumentoIdsPorEmpresa, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("EnviarReclamacionEmpresaCommandHandler usa ResolverParaEmpresaAsync, no la versión por lote.");
+        IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> tipoDocumentoIdsPorEmpresa, CancellationToken cancellationToken = default)
+    {
+        // La reagrupación por Empresa empleadora pide la agenda de varias Empresas a la vez: todas reciben la misma respuesta.
+        UltimaLlamadaResolverParaEmpresasAsync = tipoDocumentoIdsPorEmpresa;
+        return Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlyList<DestinatarioAgendaDto>>>(
+            tipoDocumentoIdsPorEmpresa.Keys.ToDictionary(id => id, _ => RespuestaResolverParaEmpresaAsync));
+    }
+
+    public IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>? UltimaLlamadaResolverParaEmpresasAsync { get; private set; }
 }

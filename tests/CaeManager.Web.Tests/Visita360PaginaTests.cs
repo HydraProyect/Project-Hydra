@@ -253,14 +253,16 @@ public partial class Visita360PaginaTests : BunitContext
 
     /// <summary>
     /// Regla 8 de LEEME-AUTORIDAD (2026-10-18): una sola acción, «Gestionar», en la fila de un documento que pide trabajo;
-    /// Consulta y Cliente no ven acción de escritura y un documento Vigente no lleva botón.
+    /// Consulta y Cliente no ven acción de escritura; un documento Vigente también lleva «Gestionar», en tono secundario
+    /// (regla de Chris, 2026-10-18).
     /// </summary>
     [Theory]
     [InlineData(Roles.Administrador, EstadoDocumento.Vencido, "Gestionar")]
     [InlineData(Roles.DireccionCae, EstadoDocumento.Faltante, "Gestionar")]
     [InlineData(Roles.CoordinadorCae, EstadoDocumento.SinConfirmar, "Gestionar")]
     [InlineData(Roles.GestorCae, EstadoDocumento.EnTolerancia, "Gestionar")]
-    [InlineData(Roles.GestorCae, EstadoDocumento.Vigente, null)]
+    [InlineData(Roles.GestorCae, EstadoDocumento.Vigente, "Gestionar")]
+    [InlineData(Roles.Consulta, EstadoDocumento.Vigente, null)]
     [InlineData(Roles.Consulta, EstadoDocumento.Vencido, null)]
     [InlineData(Roles.Consulta, EstadoDocumento.Proximo, null)]
     [InlineData(Roles.Cliente, EstadoDocumento.Faltante, null)]
@@ -275,7 +277,12 @@ public partial class Visita360PaginaTests : BunitContext
         if (esperado is null)
             botones.Should().BeEmpty();
         else
+        {
             botones.Should().Equal(esperado);
+            FilaDeDocumento(cut, documento.TipoDocumentoNombre).QuerySelector(".fila-relacion-acciones button")!.ClassList
+                .Contains("gestionar-discreto").Should().Be(estado == EstadoDocumento.Vigente,
+                    "solo el documento al día lleva «Gestionar» en tono secundario");
+        }
     }
 
     [Theory]
@@ -306,13 +313,15 @@ public partial class Visita360PaginaTests : BunitContext
     [Theory]
     [InlineData(EstadoDocumento.Vigente)]
     [InlineData(EstadoDocumento.SinCaducidad)]
-    public void Un_documento_que_no_pide_accion_conserva_la_fila_sin_boton(EstadoDocumento estado)
+    public void Un_documento_al_dia_lleva_Gestionar_en_tono_secundario(EstadoDocumento estado)
     {
         var documento = Documento("Documento al día", estado, Paula);
         var documentacion = new DocumentacionVisitaDto(Guid.NewGuid(), new(EstadoDocumento.Vigente, []),
             [new(Paula, "Paula Campos", "Empresa Demo", new(estado, [documento]))]);
         var (cut, _) = Montar(Detalle(porCorreo: false), documentacion: documentacion);
-        FilaDeDocumento(cut, documento.TipoDocumentoNombre).QuerySelectorAll(".fila-relacion-acciones button").Should().BeEmpty();
+        var botones = FilaDeDocumento(cut, documento.TipoDocumentoNombre).QuerySelectorAll(".fila-relacion-acciones button");
+        botones.Select(b => b.TextContent.Trim()).Should().Equal("Gestionar");
+        botones[0].ClassList.Should().Contain("gestionar-discreto");
     }
 
     [Fact]
@@ -345,7 +354,9 @@ public partial class Visita360PaginaTests : BunitContext
         await cut.InvokeAsync(() => cut.FindComponent<DrawerGestionDocumento>().Instance.OnGuardado.InvokeAsync());
         mediador.Enviadas.OfType<ObtenerDocumentacionVisitaQuery>().Should().HaveCount(anteriores + 1);
         mediador.Enviadas.OfType<ObtenerDetalleVisitaQuery>().Should().HaveCount(consultasDetalle);
-        FilaDeDocumento(cut, "Entrega de EPI").QuerySelectorAll(".fila-relacion-acciones button").Should().BeEmpty();
+        // Resuelta la incidencia, el documento queda al día: su «Gestionar» pasa a tono secundario.
+        FilaDeDocumento(cut, "Entrega de EPI").QuerySelectorAll(".fila-relacion-acciones button").Should().ContainSingle()
+            .Which.ClassList.Should().Contain("gestionar-discreto");
     }
 
     [Theory]

@@ -85,7 +85,7 @@
     display: inline-flex;
     flex: none;
     color: var(--color-text-muted);
-    transition: transform 0.15s ease;
+    transition: transform var(--motion-transition) var(--ease-fluid);
 }
 
 .alertas-grupo-chevron-cerrado {

@@ -111,6 +111,9 @@ public partial class Trabajador360Gen2Tests : BunitContext
         /// <summary>Si devuelve una tarea, la respuesta espera a que se complete.</summary>
         public Func<object, Task?>? Retener { get; set; }
 
+        /// <summary>El catálogo de Delegaciones y Oficios de la Empresa; <c>null</c> = la consulta falla.</summary>
+        public CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.CatalogoTrabajadoresEmpresaDto? CatalogoEmpresa { get; set; }
+
         public List<object> Enviadas { get; } = [];
 
         /// <summary>El token con el que llegó cada petición, en el mismo orden que <see cref="Enviadas"/>.</summary>
@@ -128,6 +131,8 @@ public partial class Trabajador360Gen2Tests : BunitContext
         private object? Responder(object request) => request switch
         {
             ObtenerTrabajadorPorIdQuery q => Detalles.GetValueOrDefault(q.Id),
+            CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.ObtenerCatalogoTrabajadoresEmpresaQuery =>
+                CatalogoEmpresa ?? throw new InvalidOperationException("Fallo simulado del catálogo de la Empresa."),
             EditarFichaTrabajadorCommand c => GuardarFicha(c),
             CaeManager.Application.Trabajadores.Commands.GuardarNotaInternaTrabajador.GuardarNotaInternaTrabajadorCommand c => GuardarNota(c.Id, c.Notas),
             ObtenerDocumentacionPorCentroDeTrabajadorQuery q =>
@@ -150,8 +155,12 @@ public partial class Trabajador360Gen2Tests : BunitContext
             ObtenerDocumentacionBaseTrabajadoresQuery q => q.TrabajadorIds.ToDictionary(id => id,
                 id => BaseDocumental.GetValueOrDefault(id) ?? new DocumentacionBaseTrabajadorDto(Enum.GetValues<TipoDocumentoBase>()
                     .Select(tipo => new IndicadorDocumentacionBase(tipo, EstadoIndicadorBase.SinConfirmar, Guid.NewGuid(), null)).ToList())),
+            CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro.ObtenerLoteReclamacionPorFiltroQuery => LotesReclamacion,
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
+
+        /// <summary>Lo que devuelve el cajón de reclamación («Gestionar» con un Trabajador de Empresa).</summary>
+        public IReadOnlyList<CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro.LoteReclamacionAgrupadoDto> LotesReclamacion { get; set; } = [];
 
         private Result GuardarFicha(EditarFichaTrabajadorCommand c)
         {
@@ -361,7 +370,9 @@ public partial class Trabajador360Gen2Tests : BunitContext
             string DeRotuloCopiar(string valor) => cut.FindAll("button.boton-copiar")
                 .Where(b => b.TextContent.Trim() == "Copiar" && b.ParentElement!.TextContent.Contains(valor))
                 .Should().ContainSingle().Subject.GetAttribute("aria-label")!;
-            DeRotuloCopiar("12345678Z").Should().Be($"{verbo} {dni}");
+            // El DNI lleva su valor como rótulo, como las fechas: «DNI 12345678Z», sin dos puntos ni negrita (maqueta 17-10).
+            cut.Find(".trabajador360-meta").TextContent.Should().Contain("DNI").And.Contain("12345678Z").And.NotContain("DNI:");
+            cut.FindAll("button.boton-copiar").Select(b => b.GetAttribute("aria-label")!).Should().Contain($"{verbo} {dni}: 12345678Z");
             DeRotuloCopiar("600111222").Should().Be($"{verbo} {telefono}");
             DeRotuloCopiar("javier@ejemplo.com").Should().Be($"{verbo} {correo}");
             var enOperacion = Nombres(cut);
@@ -480,16 +491,18 @@ public partial class Trabajador360Gen2Tests : BunitContext
     }
 
     [Theory]
-    [InlineData(EstadoIndicadorBase.Vigente, true)]
-    [InlineData(EstadoIndicadorBase.Vencido, false)]
-    public void Documentacion_base_no_ofrece_una_accion_sin_Documento_o_sin_estado_que_la_pida(EstadoIndicadorBase estado, bool existe)
+    [InlineData(EstadoIndicadorBase.Vigente, true, 1)]
+    [InlineData(EstadoIndicadorBase.Vencido, false, 0)]
+    public void Documentacion_base_ofrece_Gestionar_con_Documento_y_no_sin_el(EstadoIndicadorBase estado, bool existe, int botones)
     {
         var id = Guid.NewGuid();
         var mediador = ConTrabajador(id);
         mediador.BaseDocumental[id] = new([new(TipoDocumentoBase.AptitudMedica, estado, existe ? Guid.NewGuid() : null, null)]);
         var cut = Renderizar(id);
         cut.FindAll(".panel-doc-base-fila").Should().ContainSingle();
-        cut.FindAll(".panel-doc-base-fila button").Should().BeEmpty();
+        cut.FindAll(".panel-doc-base-fila button").Should().HaveCount(botones);
+        if (estado == EstadoIndicadorBase.Vigente)
+            cut.Find(".panel-doc-base-fila button").ClassList.Should().Contain("gestionar-discreto");
     }
 
     [Theory]
@@ -1138,9 +1151,11 @@ public partial class Trabajador360Gen2Tests : BunitContext
         cut.FindAll(".trabajador360-centros .fila-relacion-desplegar")[0].GetAttribute("aria-expanded").Should().Be("true");
         var detalle = cut.Find(".fila-relacion-desplegado");
         detalle.TextContent.Should().Contain("Formación PRL — 20 h").And.Contain("Certificado de aptitud");
-        // Subir o renovar: la fila ofrece siempre la misma acción, «Gestionar», y abre el mismo flujo; lo vigente no lleva botón.
-        detalle.QuerySelectorAll(".fila-relacion-acciones button").Select(b => b.TextContent.Trim())
-            .Should().Equal(["Gestionar", "Gestionar"]);
+        // Subir o renovar: la fila ofrece siempre la misma acción, «Gestionar», y abre el mismo flujo; lo vigente también la
+        // lleva, en tono secundario (regla de Chris, 2026-10-18).
+        var botones = detalle.QuerySelectorAll(".fila-relacion-acciones button");
+        botones.Select(b => b.TextContent.Trim()).Should().Equal(["Gestionar", "Gestionar", "Gestionar"]);
+        botones.Select(b => b.ClassList.Contains("gestionar-discreto")).Should().Equal([false, false, true]);
         detalle.TextContent.Should().NotContain("Nave Berriz", "solo se despliega el centro sobre el que se pulsó");
     }
 
@@ -1313,7 +1328,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
 
     /// <summary>
     /// Regla 8 de LEEME-AUTORIDAD (2026-10-18): en Operación (Documentación base y franja «Por vencer») la fila que pide
-    /// trabajo ofrece solo «Gestionar» a quien escribe; Consulta y Cliente no ven acción de escritura; lo vigente no lleva botón.
+    /// trabajo ofrece solo «Gestionar» a quien escribe; Consulta y Cliente no ven acción de escritura; lo vigente también la lleva, en tono secundario.
     /// </summary>
     [Theory]
     [InlineData(Roles.Administrador, true)]
@@ -1322,7 +1337,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     [InlineData(Roles.GestorCae, true)]
     [InlineData(Roles.Consulta, false)]
     [InlineData(Roles.Cliente, false)]
-    public void Operacion_ofrece_solo_Gestionar_a_quien_escribe_y_nada_en_lo_vigente(string rol, bool escribe)
+    public void Operacion_ofrece_solo_Gestionar_a_quien_escribe_tambien_en_lo_vigente(string rol, bool escribe)
     {
         this.ConRolDeEscritura(rol);
         var id = Guid.NewGuid();
@@ -1350,8 +1365,8 @@ public partial class Trabajador360Gen2Tests : BunitContext
             .Select(f => f.QuerySelectorAll(".fila-relacion-acciones button").Select(b => b.TextContent.Trim()).ToList()).ToList();
         if (escribe)
         {
-            botonesBase.Should().Equal(new List<string>[] { ["Gestionar"], ["Gestionar"], [] },
-                (a, b) => a.SequenceEqual(b), "Vencido y Sin confirmar piden trabajo; lo vigente no lleva botón");
+            botonesBase.Should().Equal(new List<string>[] { ["Gestionar"], ["Gestionar"], ["Gestionar"] },
+                (a, b) => a.SequenceEqual(b), "Vencido y Sin confirmar piden trabajo; lo vigente también lleva «Gestionar», en tono secundario");
             botonesFranja.Should().HaveCount(2).And.OnlyContain(b => b.SequenceEqual(new[] { "Gestionar" }),
                 "Por vencer, urgente o no, lleva «Gestionar»");
         }
@@ -1704,7 +1719,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         cut.FindAll(".fila-relacion-desplegado .fila-relacion-nombre-boton").Should().BeEmpty(
             "el nombre del documento abre el mismo drawer de gestión: a Consulta se le pinta como texto");
         cut.FindAll(".menu-acciones-disparador").Should().BeEmpty(
-            "Editar, Reclamar faltantes y Crear gestión son escrituras: sin ellas el «⋯» abriría un menú vacío");
+            "Editar, Gestionar y Crear gestión son escrituras: sin ellas el «⋯» abriría un menú vacío");
     }
 
     /// <summary>
@@ -1728,7 +1743,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
 
         cut.FindAll("[role=menuitem]").Select(i => i.TextContent.Trim())
-            .Should().Equal(["Editar", "Reclamar faltantes", "Crear gestión"]);
+            .Should().Equal(["Editar", "Gestionar", "Crear gestión"]);
         cut.FindAll("[role=dialog]").Should().BeEmpty();
     }
 
@@ -1749,7 +1764,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         rejilla.TextContent.Should().Contain("644 902 118").And.Contain("javier.salas@refrielectric.example");
         rejilla.QuerySelectorAll("dt").Select(d => d.TextContent.Trim())
             .Should().Equal(["Teléfono", "Correo electrónico"],
-                "ni la dirección ni el contacto de emergencia del mockup existen en TrabajadorDetalleDto");
+                "la dirección no se construye y sin contacto de emergencia no se pintan sus filas");
         rejilla.QuerySelectorAll(".boton-copiar").Should().HaveCount(2, "los dos son datos para pegar en otro sitio");
     }
 
@@ -2137,6 +2152,20 @@ public partial class Trabajador360Gen2Tests : BunitContext
             .ClickAsync(new MouseEventArgs());
     }
 
+    /// <summary>
+    /// Trabajador de Subcontrata: Â«GestionarÂ» sigue abriendo la confirmaciÃ³n por Cliente empresarial. Con un Trabajador de
+    /// Empresa abre el cajÃ³n de reclamaciÃ³n a su Empresa empleadora (decisiÃ³n de Chris, 2026-10-18).
+    /// </summary>
+    private MediatorFalso ConTrabajadorDeSubcontrata(Guid id, string nombre = "Javier", string apellidos = "Salas Moreno")
+    {
+        var mediador = ConTrabajador(id, nombre, apellidos);
+        mediador.Detalles[id] = DeSubcontrata(mediador.Detalles[id]);
+        return mediador;
+    }
+
+    private static TrabajadorDetalleDto DeSubcontrata(TrabajadorDetalleDto detalle) =>
+        detalle with { EmpresaId = null, SubcontrataId = Guid.NewGuid() };
+
     private MediatorFalso ConTrabajador(Guid id, string nombre = "Javier", string apellidos = "Salas Moreno")
     {
         var mediador = Registrar(new MediatorFalso());
@@ -2279,7 +2308,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     public async Task Reclamar_faltantes_no_ofrece_un_sin_confirmar_sin_fecha_y_explica_por_que()
     {
         var id = Guid.NewGuid();
-        var mediador = ConTrabajador(id);
+        var mediador = ConTrabajadorDeSubcontrata(id);
         mediador.Centros[id] =
         [
             Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.SinConfirmar,
@@ -2288,7 +2317,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Reclamar faltantes")
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Gestionar")
             .ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty("el envío rechazaría un documento sin fecha");
@@ -2300,7 +2329,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     public async Task Reclamar_faltantes_con_un_sin_confirmar_sin_fecha_y_un_vencido_solo_reclama_el_vencido()
     {
         var id = Guid.NewGuid();
-        var mediador = ConTrabajador(id);
+        var mediador = ConTrabajadorDeSubcontrata(id);
         var vencido = Documento("Formación PRL — 20 h", EstadoDocumento.Vencido);
         mediador.Centros[id] =
         [
@@ -2310,8 +2339,14 @@ public partial class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Reclamar faltantes")
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Gestionar")
             .ClickAsync(new MouseEventArgs());
+
+        // Un clic en «Gestionar» solo abre la confirmación (es un correo a un tercero): nada sale hasta «Reclamar».
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty("un clic no envía la reclamación");
+        cut.Find(".modal-contenido .workspace-nota-contextual").TextContent.Should().Contain("Refrielectric S.A.").And.Contain("al confirmar");
+
+        await BotonDelPie(cut, "Reclamar").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle()
             .Which.DocumentoIds.Should().Equal([vencido.DocumentoId!.Value]);
@@ -2321,7 +2356,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     public async Task Reclamar_faltantes_no_ofrece_un_documento_con_vencimiento_mas_alla_de_la_ventana()
     {
         var id = Guid.NewGuid();
-        var mediador = ConTrabajador(id);
+        var mediador = ConTrabajadorDeSubcontrata(id);
         var lejano = new DocumentoRequeridoDto(Guid.NewGuid(), Guid.NewGuid(), "Formación PRL — 20 h", EstadoDocumento.Proximo,
             VentanaReclamacion.Limite(DiaDeNegocio.Hoy()).AddDays(1));
         var dentro = new DocumentoRequeridoDto(Guid.NewGuid(), Guid.NewGuid(), "Reconocimiento médico", EstadoDocumento.Proximo,
@@ -2330,17 +2365,75 @@ public partial class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Reclamar faltantes")
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Gestionar")
             .ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty("un clic no envía la reclamación");
+
+        await BotonDelPie(cut, "Reclamar").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle()
             .Which.DocumentoIds.Should().Equal([dentro.DocumentoId!.Value],
                 "el límite es inclusivo y un día más allá el envío lo rechazaría");
     }
 
+    [Fact]
+    public async Task Gestionar_con_un_solo_Cliente_empresarial_cancelar_no_envia_nada()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajadorDeSubcontrata(id);
+        mediador.Centros[id] =
+        [
+            Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Vencido, Documento("Formación PRL — 20 h", EstadoDocumento.Vencido))
+        ];
+        var cut = Renderizar(id);
+
+        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Gestionar")
+            .ClickAsync(new MouseEventArgs());
+        await BotonDelPie(cut, "Cancelar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty("cancelar la confirmación no envía el correo al Cliente empresarial");
+    }
+
+    [Fact]
+    public async Task Gestionar_con_un_Trabajador_de_Empresa_abre_el_cajon_que_reclama_a_su_Delegacion_y_no_envia_nada()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        var empresaId = mediador.Detalles[id]!.EmpresaId!.Value;
+        var delegacionEmpresaId = Guid.NewGuid();
+        mediador.LotesReclamacion =
+        [
+            new(empresaId, "Refrielectric S.L.", AmbitoAplicacion.Trabajador, null,
+                [new(Guid.NewGuid(), id, "Javier Salas Moreno", Guid.NewGuid(), "Formación PRL — 20 h", DateOnly.FromDateTime(DateTime.Today).AddDays(10), EstadoDocumento.Proximo)],
+                null,
+                [new(delegacionEmpresaId, "Marta Sevilla", "reclamaciones.sevilla@refrielectric.example", ["Contacto de reclamación de la Delegación Sevilla"])],
+                EmpresaEmpleadora: new(delegacionEmpresaId, "Sevilla")),
+        ];
+        var cut = Renderizar(id);
+
+        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Gestionar")
+            .ClickAsync(new MouseEventArgs());
+        cut.FindAll(".reclamacion-destinatarios input[type=checkbox]").Should().BeEmpty("no se abre la confirmación por Cliente empresarial");
+        await cut.FindAll(".selector-lote-acciones button").Single(b => b.TextContent.Trim() == "Continuar")
+            .ClickAsync(new MouseEventArgs());
+
+        var consulta = mediador.Enviadas
+            .OfType<CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro.ObtenerLoteReclamacionPorFiltroQuery>()
+            .Should().ContainSingle().Subject;
+        consulta.PorEmpresaEmpleadora.Should().BeTrue("lo de un Trabajador de Empresa se reclama a su Empresa empleadora");
+        consulta.Filtro.Ambito.Should().Be(AmbitoAplicacion.Trabajador);
+        consulta.Filtro.EntidadId.Should().Be(id);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Sevilla").And.Contain("reclamaciones.sevilla@refrielectric.example"));
+        mediador.Enviadas.Should().NotContain(p => p.GetType().Name.StartsWith("EnviarReclamacion"),
+            "abrir el cajón no envía nada: el correo sale solo con el clic explícito del Gestor CAE");
+    }
+
     private MediatorFalso ConDosClientesEmpresarialesQueReclamar(Guid id)
     {
-        var mediador = ConTrabajador(id);
+        var mediador = ConTrabajadorDeSubcontrata(id);
         mediador.Centros[id] =
         [
             Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Vencido, Documento("Formación PRL — 20 h", EstadoDocumento.Vencido)),
@@ -2352,7 +2445,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     private static async Task AbrirModalReclamarAsync(IRenderedComponent<TrabajadorDetalle> cut)
     {
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Reclamar faltantes")
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Gestionar")
             .ClickAsync(new MouseEventArgs());
         cut.FindAll(".reclamacion-destinatarios input[type=checkbox]").Should().HaveCount(2,
             "el test necesita la modal con dos Clientes");
@@ -2552,7 +2645,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         var primero = Guid.NewGuid();
         var segundo = Guid.NewGuid();
         var mediador = ConDosClientesEmpresarialesQueReclamar(primero);
-        mediador.Detalles[segundo] = Detalle(segundo, "Eider", "Lasa Arrieta");
+        mediador.Detalles[segundo] = DeSubcontrata(Detalle(segundo, "Eider", "Lasa Arrieta"));
         mediador.Centros[segundo] = mediador.Centros[primero];
         mediador.FallaEnviarReclamacionCon = "Sin contacto con email.";
         var envio = new TaskCompletionSource();

@@ -64,7 +64,7 @@ public class BucleCorreccionPlataformaTests(WebAppFixture fixture)
         var drawer = page.Locator(".drawer-panel");
         await Expect(drawer.GetByText("Renovar documento")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = Ayudas.HoyDeNegocio();
         await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
         // La vigencia se deja como la trae el drawer (la del Documento sembrado, que
         // puede ser «No caduca»); la corrección es el archivo nuevo.

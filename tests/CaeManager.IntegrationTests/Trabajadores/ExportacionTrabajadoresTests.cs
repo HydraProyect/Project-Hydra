@@ -48,6 +48,9 @@ public class ExportacionTrabajadoresTests : IAsyncLifetime
     private readonly Guid _otroTenant = Guid.NewGuid();
     private readonly Guid _usuario = Guid.NewGuid();
 
+    // Catálogo de la Empresa de este Tenant (Lucía es Madrid-Soldador, Iker no tiene) y el del otro Tenant (Marta).
+    private Guid _delegacionMadrid, _oficioSoldador, _delegacionDelOtroTenant, _oficioDelOtroTenant;
+
     public async Task InitializeAsync()
     {
         await using (var contexto = CrearContexto(_tenant))
@@ -62,10 +65,18 @@ public class ExportacionTrabajadoresTests : IAsyncLifetime
             contexto.Empresas.Add(empresa);
             await contexto.SaveChangesAsync();
 
-            contexto.Trabajadores.AddRange(
-                Trabajador.DeEmpresa(empresa.Id, "Lucía", "Prieto Ramos", DniLucia),
-                Trabajador.DeEmpresa(empresa.Id, "Iker", "Sanz Olmo", DniIker));
+            var madrid = new DelegacionEmpresa(empresa.Id, "Madrid");
+            var soldador = new OficioEmpresa(empresa.Id, "Soldador");
+            contexto.DelegacionesEmpresa.Add(madrid);
+            contexto.OficiosEmpresa.Add(soldador);
+
+            var lucia = Trabajador.DeEmpresa(empresa.Id, "Lucía", "Prieto Ramos", DniLucia);
+            contexto.Trabajadores.AddRange(lucia, Trabajador.DeEmpresa(empresa.Id, "Iker", "Sanz Olmo", DniIker));
             await contexto.SaveChangesAsync();
+
+            lucia.FijarDelegacionEmpresaYOficio(madrid, soldador);
+            await contexto.SaveChangesAsync();
+            (_delegacionMadrid, _oficioSoldador) = (madrid.Id, soldador.Id);
         }
 
         // Mismo apellido que Lucía: si el filtro de Tenant no actuara, la búsqueda
@@ -79,8 +90,18 @@ public class ExportacionTrabajadoresTests : IAsyncLifetime
             contexto.Empresas.Add(empresa);
             await contexto.SaveChangesAsync();
 
-            contexto.Trabajadores.Add(Trabajador.DeEmpresa(empresa.Id, "Marta", "Prieto Vega", DniOtroTenant));
+            var madridDeOtro = new DelegacionEmpresa(empresa.Id, "Madrid");
+            var soldadorDeOtro = new OficioEmpresa(empresa.Id, "Soldador");
+            contexto.DelegacionesEmpresa.Add(madridDeOtro);
+            contexto.OficiosEmpresa.Add(soldadorDeOtro);
+
+            var marta = Trabajador.DeEmpresa(empresa.Id, "Marta", "Prieto Vega", DniOtroTenant);
+            contexto.Trabajadores.Add(marta);
             await contexto.SaveChangesAsync();
+
+            marta.FijarDelegacionEmpresaYOficio(madridDeOtro, soldadorDeOtro);
+            await contexto.SaveChangesAsync();
+            (_delegacionDelOtroTenant, _oficioDelOtroTenant) = (madridDeOtro.Id, soldadorDeOtro.Id);
         }
     }
 
@@ -103,6 +124,58 @@ public class ExportacionTrabajadoresTests : IAsyncLifetime
         // Control positivo del dato: sin filtro hay dos, y en la base hay dos «Prieto».
         (await ExportarAsync(_tenant)).Should().HaveCount(2);
         filas.Should().ContainSingle().Which.Should().StartWith(["Prieto Ramos", "Lucía", DniLucia]);
+    }
+
+    [Fact]
+    public async Task Exportar_esta_vista_filtrada_por_Delegacion_o_por_Oficio_lleva_solo_a_los_de_ese_catalogo()
+    {
+        // Control positivo del dato: sin filtro hay dos, y solo Lucía tiene Delegación y Oficio.
+        (await ExportarAsync(_tenant)).Should().HaveCount(2);
+
+        var porDelegacion = await ExportarAsync(_tenant, delegacion: _delegacionMadrid.ToString());
+        porDelegacion.Should().ContainSingle().Which[2].Should().Be(DniLucia);
+
+        var porOficio = await ExportarAsync(_tenant, oficio: _oficioSoldador.ToString());
+        porOficio.Should().ContainSingle().Which[2].Should().Be(DniLucia);
+
+        var ambos = await ExportarAsync(_tenant, delegacion: _delegacionMadrid.ToString(), oficio: _oficioSoldador.ToString());
+        ambos.Should().ContainSingle().Which[2].Should().Be(DniLucia);
+
+        // Un valor que no es un Id no filtra nada (mismo criterio que el resto de filtros de Id).
+        (await ExportarAsync(_tenant, delegacion: "no-es-un-id")).Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Un_Id_de_Delegacion_u_Oficio_de_otro_Tenant_no_exporta_a_nadie()
+    {
+        // Control positivo: el Id es de verdad el de una Delegación con un Trabajador, en SU Tenant.
+        (await ExportarAsync(_otroTenant, delegacion: _delegacionDelOtroTenant.ToString()))
+            .Should().ContainSingle().Which[2].Should().Be(DniOtroTenant);
+
+        (await ExportarAsync(_tenant, delegacion: _delegacionDelOtroTenant.ToString())).Should().BeEmpty();
+        (await ExportarAsync(_tenant, oficio: _oficioDelOtroTenant.ToString())).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task La_auditoria_de_la_exportacion_registra_los_Ids_de_Delegacion_y_Oficio_aplicados()
+    {
+        (await ExportarAsync(_tenant, delegacion: _delegacionMadrid.ToString(), oficio: _oficioSoldador.ToString()))
+            .Should().ContainSingle();
+
+        var registro = (await ExportacionesAsync(_tenant)).Should().ContainSingle().Subject;
+        registro.DatosDespues.Should().Contain("\"filas\":1")
+            .And.Contain($"\"delegacion\":\"{_delegacionMadrid}\"")
+            .And.Contain($"\"oficio\":\"{_oficioSoldador}\"");
+    }
+
+    [Fact]
+    public async Task La_auditoria_no_registra_una_Delegacion_u_Oficio_que_no_es_un_Id()
+    {
+        // Lo que no se pudo leer no filtró nada, así que no consta (y el texto libre nunca llega al rastro).
+        (await ExportarAsync(_tenant, delegacion: DniLucia, oficio: "Soldador")).Should().HaveCount(2);
+
+        var registro = (await ExportacionesAsync(_tenant)).Should().ContainSingle().Subject;
+        registro.DatosDespues.Should().NotContain("delegacion").And.NotContain("oficio").And.NotContain(DniLucia);
     }
 
     [Fact]
@@ -130,7 +203,7 @@ public class ExportacionTrabajadoresTests : IAsyncLifetime
         (await ExportacionesAsync(_otroTenant)).Should().BeEmpty();
     }
 
-    private async Task<List<List<string>>> ExportarAsync(Guid tenant, string? q = null)
+    private async Task<List<List<string>>> ExportarAsync(Guid tenant, string? q = null, string? delegacion = null, string? oficio = null)
     {
         await using var contexto = CrearContexto(tenant);
         var handler = new ObtenerTrabajadoresQueryHandler(
@@ -142,7 +215,8 @@ public class ExportacionTrabajadoresTests : IAsyncLifetime
             new RegistroAccesoDatoSensibleRepository(contexto, NullLogger<RegistroAccesoDatoSensibleRepository>.Instance));
 
         var resultado = await TrabajadoresEndpoints.ExportarAsync(
-            new MediadorDelListado(handler, tenant), new TenantActualAmbiental { TenantId = tenant }, registro, default, q: q);
+            new MediadorDelListado(handler, tenant), new TenantActualAmbiental { TenantId = tenant }, registro, default, q: q,
+            delegacion: delegacion, oficio: oficio);
 
         await using var stream = resultado.Should().BeOfType<FileStreamHttpResult>().Subject.FileStream;
         using var libro = new XLWorkbook(stream);

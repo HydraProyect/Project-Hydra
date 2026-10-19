@@ -11,6 +11,7 @@ using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
@@ -122,6 +123,9 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         /// <summary>Lo que responde «Guardar filtro»; sin valor, éxito.</summary>
         public Result<Guid>? ResultadoGuardarFiltro { get; set; }
 
+        /// <summary>DelegacionesEmpresa y Oficios por Empresa, lo que responde el catálogo de las pastillas «Delegación» y «Oficio».</summary>
+        public Dictionary<Guid, CatalogoTrabajadoresEmpresaDto> Catalogos { get; } = [];
+
         public List<CentroSelectorDto> Centros { get; } = [];
         public Func<Guid, IReadOnlyList<DocumentoFaltanteDto>> Faltantes { get; set; } = _ => [];
 
@@ -174,6 +178,8 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
                     return EmpleadoresFiltro ?? new EmpleadoresDeTrabajadoresDto(
                         Empresas.Select(e => new EmpleadorDeTrabajadorDto(e.Id, e.RazonSocial)).ToList(),
                         Subcontratas.Select(s => new EmpleadorDeTrabajadorDto(s.Id, s.RazonSocial)).ToList());
+                case ObtenerCatalogoTrabajadoresEmpresaQuery c:
+                    return Catalogos.GetValueOrDefault(c.EmpresaId) ?? CatalogoTrabajadoresEmpresaDto.Vacio;
                 case ObtenerTrabajadoresQuery q:
                     return Filtrar(q);
                 case ObtenerTrabajadorPorIdQuery q:
@@ -231,6 +237,8 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
                 .Where(f => string.IsNullOrWhiteSpace(q.Busqueda) || CoincideBusqueda(f, q.Busqueda))
                 .Where(f => q.EmpresaId is null || f.EmpresaId == q.EmpresaId)
                 .Where(f => q.SubcontrataId is null || f.SubcontrataId == q.SubcontrataId)
+                .Where(f => q.DelegacionEmpresaId is null || f.Dto.DelegacionEmpresaId == q.DelegacionEmpresaId)
+                .Where(f => q.OficioEmpresaId is null || f.Dto.OficioEmpresaId == q.OficioEmpresaId)
                 .Where(f => EstadoDocumentalFiltro.Coincide(f.Dto.EstadoDocumental, q.EstadoDocumental))
                 .Select(f => q.ConDesgloseDocumental
                     ? f.Dto
@@ -283,6 +291,11 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
                 (nameof(TrabajadorListaDto.Dni), true) => filas.OrderByDescending(t => t.Dni, c),
                 (nameof(TrabajadorListaDto.EmpleadorNombre), false) => filas.OrderBy(t => t.EmpleadorNombre, c).ThenBy(t => t.Apellidos, c),
                 (nameof(TrabajadorListaDto.EmpleadorNombre), true) => filas.OrderByDescending(t => t.EmpleadorNombre, c).ThenBy(t => t.Apellidos, c),
+                // «Agrupar»: con catálogo por nombre y Empresa, sin catálogo al final (como el handler).
+                (nameof(TrabajadorListaDto.DelegacionEmpresaNombre), _) => filas.OrderBy(t => t.DelegacionEmpresaNombre is null).ThenBy(t => t.DelegacionEmpresaNombre, c)
+                    .ThenBy(t => t.EmpleadorNombre, c).ThenBy(t => t.DelegacionEmpresaId).ThenBy(t => t.Apellidos, c),
+                (nameof(TrabajadorListaDto.OficioNombre), _) => filas.OrderBy(t => t.OficioNombre is null).ThenBy(t => t.OficioNombre, c)
+                    .ThenBy(t => t.EmpleadorNombre, c).ThenBy(t => t.OficioEmpresaId).ThenBy(t => t.Apellidos, c),
                 _ => filas.OrderBy(t => t.Apellidos, c).ThenBy(t => t.Nombre, c)
             };
             return ordenada.ThenBy(t => t.Id);
@@ -569,6 +582,8 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".barra-filtros-pastillas").Should().NotBeEmpty());
     }
 
+    private bool _validadorReal;
+
     private void Registrar(MediatorFalso mediador, string url)
     {
         Services.AddScoped<IMediator>(_ => mediador);
@@ -576,7 +591,9 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         Services.AddScoped<ITenantActual>(_ => Seleccion);
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
-        Services.AddScoped<IValidator<CrearTrabajadorCommand>>(_ => new InlineValidator<CrearTrabajadorCommand>());
+        // Sin más, el validador no opina (InlineValidator vacío); las pruebas del alta en pasos piden las reglas reales del comando.
+        if (_validadorReal) Services.AddScoped<IValidator<CrearTrabajadorCommand>>(_ => new CrearTrabajadorCommandValidator());
+        else Services.AddScoped<IValidator<CrearTrabajadorCommand>>(_ => new InlineValidator<CrearTrabajadorCommand>());
 
         // Los filtros de URL son [SupplyParameterFromQuery]: se llega a ellos
         // navegando, no pasándolos como parámetros de componente.
@@ -941,7 +958,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Pastillas «Empresa», «Centro» y «Actividad» (voluntarios inactivos), y «Más filtros»; la documentación va en la franja de estado. La maqueta
+    /// Pastillas «Empresa» y «Centro», y «Más filtros»; la documentación va en la franja de estado. La maqueta
     /// dibuja también «Cliente» como pastilla: ObtenerTrabajadoresQuery no sabe filtrar por él, y una pastilla
     /// que no filtra nada no se pinta. Subcontrata no tiene pastilla propia: va dentro de «Empresa».
     /// </summary>
@@ -952,7 +969,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(b => b.GetAttribute("aria-label"))
-            .Should().Equal("Empresa", "Centro", "Actividad", "Filtros guardados", "Agrupar");
+            .Should().Equal("Empresa", "Centro", "Filtros guardados", "Agrupar");
         cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Por vencer", "Sin confirmar", "Sin incidencias");
         cut.MarcadosEnFranja().Should().Equal(["Todos"], "sin filtro de estado, el marcado es «Todos»");
         UltimaConsulta(mediador).ConRecuentosPorEstado.Should().BeTrue("sin pedirlos, la franja no tendría cifras");
@@ -1134,7 +1151,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         cut.FindComponents<CampoSelect>().Single(c => c.Instance.Etiqueta is "Empresa" or "Subcontrata");
 
     private static IElement GuardarAlta(IRenderedComponent<Trabajadores> cut) =>
-        cut.Find(".drawer-panel").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Guardar");
+        cut.Find(".drawer-panel").QuerySelectorAll("button").Single(b => b.TextContent.Trim() is "Guardar" or "Guardar y terminar");
 
     private static async Task EscribirDatosCompletosDelAltaAsync(IRenderedComponent<Trabajadores> cut)
     {
@@ -1470,7 +1487,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var celdas = fila.QuerySelector(".tarjeta-fila-acordeon-cabecera")!.Children;
         celdas.Should().HaveCount(6, "chevron, Trabajador, Empresa, Registrados vigentes, Estado documental y acciones: la misma rejilla que la cabecera");
         celdas[1].QuerySelector(".enlace-nombre-fila")!.TextContent.Trim().Should().Be("Javier Salas Moreno");
-        celdas[1].QuerySelector(".celda-trabajador-dni")!.TextContent.Should().Contain("DNI").And.Contain(javier.Dto.Dni);
+        celdas[1].QuerySelector(".celda-trabajador-dni")!.TextContent.Trim().Should().Be(javier.Dto.Dni, "el DNI va solo, sin prefijo «DNI» (Chris, 2026-10-18; la maqueta lo rotula en la columna)");
         celdas[2].TextContent.Trim().Should().Be("Montajes Ebro S.L.");
         celdas[4].QuerySelector(".badge")!.TextContent.Trim().Should().Be("Por vencer", "Urgente y Próximo se rotulan igual");
         celdas[4].QuerySelector(".badge")!.ClassList.Should().Contain("badge-advertencia", "y con el mismo tono: lo urgente ya no va en rojo en la pastilla");
@@ -2059,7 +2076,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         await AbrirAltaAsync(cut);
-        var guardar = cut.FindComponents<Boton>().Single(b => b.Find("button").TextContent.Trim() == "Guardar");
+        var guardar = cut.FindComponents<Boton>().Single(b => b.Find("button").TextContent.Trim() is "Guardar" or "Guardar y terminar");
 
         var primero = cut.InvokeAsync(() => guardar.Instance.OnClick.InvokeAsync());
         var segundo = cut.InvokeAsync(() => guardar.Instance.OnClick.InvokeAsync());
@@ -2390,7 +2407,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
     {
         var cut = Renderizar(new MediatorFalso());
         await AbrirAltaAsync(cut);
-        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() is "Guardar" or "Guardar y terminar").ClickAsync(new MouseEventArgs());
         cut.Find(".drawer-panel .alerta-formulario").TextContent.Trim().Should().Be("Selecciona una empresa.",
             "control positivo: el aviso existe antes de elegir");
 
@@ -2431,7 +2448,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         await cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = EmpresaEbro.ToString() });
         await EscribirDocumentoAsync(cut, "12345678Z");
 
-        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() is "Guardar" or "Guardar y terminar").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<CrearTrabajadorCommand>().Should().ContainSingle("el caso solo vale si el alta se guardó");
         await SalirYComprobarQueNoPreguntaAsync(cut, "lo escrito ya está guardado");

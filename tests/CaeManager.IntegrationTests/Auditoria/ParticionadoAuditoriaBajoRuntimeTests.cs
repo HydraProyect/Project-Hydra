@@ -157,7 +157,7 @@ public class ParticionadoAuditoriaBajoRuntimeTests
 
         foreach (var sentencia in new[]
         {
-            "SELECT app_particion_eventos_asegurar('public.\"RegistrosAuditoria\"'::regclass, current_date + 3650);",
+            "SELECT app_particion_eventos_asegurar('public.\"RegistrosAuditoria\"'::regclass, DATE '2040-01-01');",
             "SELECT app_particion_eventos_proteger('public.\"RegistrosAuditoria\"'::regclass, 'public.\"RegistrosAuditoria\"'::regclass);",
             "SELECT app_rls_copiar_politicas('public.\"RegistrosAuditoria\"'::regclass, 'public.\"RegistrosAuditoria\"'::regclass);",
         })

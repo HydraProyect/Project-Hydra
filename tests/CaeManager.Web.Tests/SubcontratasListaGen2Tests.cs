@@ -178,7 +178,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
     }
 
     private Task EncenderSeleccionMultiple(IRenderedComponent<Subcontratas> cut) =>
-        cut.Find(".lista-herramientas-maqueta button[aria-pressed]").ClickAsync(new MouseEventArgs());
+        cut.Find("button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
 
     /// <summary>
     /// Rediseño de listados, fase 1: cabecera de una línea con el contador, el ☑, el icono de
@@ -190,15 +190,15 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L."), Subcontrata("Pinturas Lauburu S.A.")] });
 
         var cabecera = cut.Find("header.cabecera-pagina");
-        cabecera.QuerySelector(".cabecera-pagina-kicker")!.TextContent.Trim().Should().Be("Negocio");
+        cabecera.QuerySelector(".cabecera-pagina-kicker").Should().BeNull("la maqueta no lleva antetítulo de grupo");
         cabecera.QuerySelector("h1")!.TextContent.Trim().Should().Be("Subcontratas");
-        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("2");
+        cabecera.QuerySelector(".cabecera-listado-contador")!.TextContent.Trim().Should().Be("2");
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
 
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
-        acciones.QuerySelectorAll("a.cabecera-listado-exportar").Should().ContainSingle().Which.GetAttribute("aria-label").Should().Be("Exportar a Excel");
+        acciones.QuerySelectorAll("a[data-keytip=X]").Should().ContainSingle().Which.GetAttribute("aria-label").Should().Be("Exportar a Excel");
         acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
-            .Should().Equal("Atajos de teclado", "Más acciones", "+ Nueva subcontrata");
+            .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nueva subcontrata");
 
         cut.FindAll("header.cabecera-pagina .menu-acciones").Should().ContainSingle();
         cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href").Should().Be("/subcontratas/exportar.xlsx");
@@ -212,12 +212,12 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         var buscador = cut.Find(".barra-filtros-pastillas input[type=text]");
         buscador.GetAttribute("placeholder").Should().Be("Filtrar esta pantalla: razón social o CIF",
             "ObtenerSubcontratasQuery busca en los dos; los E2E usan este texto");
-        buscador.GetAttribute("aria-label").Should().Be("Buscar");
+        buscador.GetAttribute("aria-label").Should().Be("Filtrar esta pantalla");
         buscador.HasAttribute("data-filtro-pantalla").Should().BeTrue("es lo que enfoca la tecla f (atajos-lista.js)");
     }
 
     /// <summary>
-    /// La pastilla «Nivel de servicio» viaja en la consulta y en la URL, y su chip la nombra.
+    /// La pastilla «Nivel» viaja en la consulta y en la URL, y su chip la nombra.
     /// El doble filtra por nivel: si la pantalla no lo enviara, se verían las dos.
     /// </summary>
     [Fact]
@@ -234,13 +234,13 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         var navegacion = Services.GetRequiredService<NavigationManager>();
 
-        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Single(b => b.GetAttribute("aria-label")!.StartsWith("Nivel de servicio:", StringComparison.Ordinal)).Click();
+        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Single(b => b.GetAttribute("aria-label") == "Nivel").Click();
         cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]").Single(i => i.TextContent.Trim() == "Supervisada").Click();
 
         mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Last().NivelServicio.Should().Be(NivelServicioSubcontrata.Supervisada);
         navegacion.Uri.Should().Contain("nivel=Supervisada");
         cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Select(b => b.TextContent.Trim()).Should().Equal("Pinturas Lauburu S.A.");
-        cut.FindAll(".chip-filtro").Select(c => c.TextContent.Trim()).Should().Equal("Nivel de servicio: Supervisada");
+        cut.FindAll(".chip-filtro").Select(c => c.TextContent.Trim()).Should().Equal("Nivel: Supervisada");
 
         cut.Find(".chip-filtro-quitar").Click();
 
@@ -270,8 +270,8 @@ public partial class SubcontratasListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Filas con problema (rediseño de listados, fase 1): algún vencido → peligro; si no, algún
-    /// urgente → aviso; próximos sin urgencia o al corriente → sin tinte.
+    /// Filas con problema, con el criterio de la maqueta y de Trabajadores: lo vencido → peligro; lo urgente o próximo
+    /// (por vencer) → aviso; sin confirmar o al corriente → sin tinte.
     /// </summary>
     [Fact]
     public void Las_filas_con_vencidos_o_urgentes_van_tintadas()
@@ -295,20 +295,26 @@ public partial class SubcontratasListaGen2Tests : BunitContext
 
         Tinte("A Vencida").Should().Be("peligro");
         Tinte("B Urgente").Should().Be("aviso");
-        Tinte("C Proxima").Should().Be("ninguno");
+        Tinte("C Proxima").Should().Be("aviso", "«Por vencer» tiñe de ámbar en la maqueta, urgente o no");
         Tinte("D Al corriente").Should().Be("ninguno");
     }
 
-    /// <summary>Todo arranca contraído; «Expandir todo» vive en la fila de los filtros.</summary>
+    /// <summary>Todo arranca contraído; «Expandir todo» vive en la fila de los filtros y solo abre las filas con documentos pendientes.</summary>
     [Fact]
     public void Todo_arranca_contraido_y_Expandir_todo_vive_en_la_barra_de_filtros()
     {
-        // El contenido del desplegable no es objeto de este test (y pide servicios de Documentos).
-        ComponentFactories.AddStub<CaeManager.Web.Features.Subcontratas.Components.AcordeonTrabajadoresSubcontrata>();
-        var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L."), Subcontrata("Pinturas Lauburu S.A.")] });
+        var cut = Renderizar(new MediatorFalso
+        {
+            Subcontratas =
+            [
+                Subcontrata("Andamios Bidasoa S.L.", vencidas: [Incidencia("Aptitud médica — Sonia Cano", EstadoDocumento.Vencido)]),
+                Subcontrata("Pinturas Lauburu S.A.", proximas: [Incidencia("EPIs — Ane Etxeberria", EstadoDocumento.Urgente)]),
+                Subcontrata("Transportes Argia S.A."),
+            ]
+        });
         cut.FindAll(".boton-expandir-fila").Select(b => b.GetAttribute("aria-expanded")).Should().Equal("false", "false");
 
-        var boton = cut.FindAll(".lista-herramientas-maqueta .barra-herramientas-lista button").Single(b => b.TextContent.Contains("todo", StringComparison.Ordinal));
+        var boton = cut.FindAll(".barra-herramientas-lista button").Single(b => b.TextContent.Contains("todo", StringComparison.Ordinal));
         boton.TextContent.Trim().Should().Be("Expandir todo");
         boton.Click();
 
@@ -326,12 +332,12 @@ public partial class SubcontratasListaGen2Tests : BunitContext
             Subcontratas = Enumerable.Range(1, subcontratas).Select(i => Subcontrata($"Subcontrata {i:00}")).ToList()
         });
 
-        cut.Find(".pie-lista-inicio button").HasAttribute("disabled").Should().BeTrue();
-        cut.Find(".pie-lista-opciones button").HasAttribute("disabled").Should().Be(!conPaginador);
-        cut.Find(".pie-lista-opciones select").Should().NotBeNull();
+        cut.Find(".paginador-pie-listado .paginador-texto").TextContent.Trim().Should().EndWith($"Mostrando 20 de {subcontratas}");
+        (cut.FindAll(".paginador-inicio button").Count > 0).Should().Be(conPaginador, "la navegación solo existe con más de una página");
+        cut.Find(".paginador-opciones-tamano").Should().NotBeNull();
         var tarjeta = cut.Find(".tarjeta-listado");
-        tarjeta.QuerySelector(".tarjeta-listado-contenido .marco-lista-acordeon").Should().NotBeNull();
-        cut.Find(".pie-lista-atajos .leyenda-atajos-lista").Should().NotBeNull();
+        tarjeta.QuerySelector(".tarjeta-listado-contenido .marco-lista-subcontratas").Should().NotBeNull();
+        cut.Find(".paginador-pie-listado .leyenda-atajos-lista").Should().NotBeNull();
     }
 
     /// <summary>
@@ -346,12 +352,12 @@ public partial class SubcontratasListaGen2Tests : BunitContext
 
         var cabecera = cut.Find(".cabecera-columnas-subcontratas");
         cabecera.Children.Select(c => c.TextContent.Trim()).Where(t => t.Length > 0)
-            .Should().Equal(["Subcontrata", "Nivel de servicio", "Cumplimiento", "Estado documental"],
+            .Should().Equal(["Subcontrata", "Contratada por", "Nivel", "Cumplimiento", "Estado documental"],
                 "«Vencidos» y «Por vencer» ya no son columnas: sus cifras son el motivo bajo la pastilla de estado");
         cut.Find(".tarjeta-fila-acordeon-cabecera").Children.Length.Should().Be(cabecera.Children.Length,
             "sin selección múltiple");
 
-        cut.Find(".lista-herramientas-maqueta button[aria-pressed]").Click();
+        cut.Find("button[aria-label='Selección múltiple']").Click();
 
         cut.Find(".tarjeta-fila-acordeon-cabecera").Children.Length
             .Should().Be(cut.Find(".cabecera-columnas-subcontratas").Children.Length,
@@ -387,45 +393,21 @@ public partial class SubcontratasListaGen2Tests : BunitContext
 
         string Estado(int fila) =>
             (celdas[fila].QuerySelector(".estado-fila > .badge") ?? celdas[fila].QuerySelector("[data-pieza=estado-correcto]"))!.TextContent.Trim();
-        IEnumerable<string> Motivo(int fila) => celdas[fila].QuerySelectorAll(".estado-fila-motivo .motivo-subcontrata").Select(m => m.TextContent.Trim());
+        string? Motivo(int fila) => celdas[fila].QuerySelector(".estado-fila-motivo")?.TextContent.Trim();
 
         Estado(0).Should().Be("Vencido");
-        Motivo(0).Should().Equal("2 vencidos", "1 por vencer");
+        Motivo(0).Should().Be("2 vencidos · 1 por vencer");
         Estado(1).Should().Be("Sin incidencias");
         celdas[1].QuerySelector(".estado-fila > .badge").Should().BeNull("lo correcto no lleva pastilla de color");
         celdas[1].QuerySelector(".estado-fila-motivo").Should().BeNull("sin nada pendiente no hay motivo que dar");
         Estado(2).Should().Be("Vencido");
-        Motivo(2).Should().Equal("1 vencido");
+        Motivo(2).Should().Be("1 vencido");
         Estado(3).Should().Be("Por vencer");
-        Motivo(3).Should().Equal("1 por vencer");
+        Motivo(3).Should().Be("1 por vencer");
         Estado(4).Should().Be("Sin confirmar");
-        Motivo(4).Should().Equal("2 sin confirmar");
+        Motivo(4).Should().Be("2 sin confirmar");
 
         cut.FindAll(".celda-sin-recuento").Should().BeEmpty("ya no hay columnas de recuento que reservar con un guion");
-    }
-
-    /// <summary>
-    /// El nombre accesible de cada cifra empieza por lo que se ve (WCAG 2.5.3) y sigue con la frase completa;
-    /// la de «por vencer» conserva el aviso de urgentes para quien no ve el color.
-    /// </summary>
-    [Fact]
-    public void Cada_cifra_del_motivo_tiene_nombre_accesible_que_empieza_por_el_texto_visible()
-    {
-        var cut = Renderizar(new MediatorFalso
-        {
-            Subcontratas =
-            [
-                Subcontrata("Andamios Bidasoa S.L.",
-                    vencidas: [Incidencia("Formación PRL — Iñaki Otaegi", EstadoDocumento.Vencido)],
-                    proximas: [Incidencia("EPIs — Iñaki Otaegi", EstadoDocumento.Urgente), Incidencia("Reconocimiento médico — Miguel Sanz", EstadoDocumento.Proximo)],
-                    sinConfirmar: [Incidencia("Aptitud médica — Jon Arrieta", EstadoDocumento.SinConfirmar)]),
-            ]
-        });
-
-        cut.FindAll(".celda-estado-subcontrata .ventana-contexto").Select(d => d.GetAttribute("aria-label")).Should().Equal(
-            "1 vencido. 1 documento vencido",
-            "2 por vencer. 2 documentos próximo a vencer, 1 urgente",
-            "1 sin confirmar. 1 documento con la vigencia sin confirmar");
     }
 
     /// <summary>
@@ -453,7 +435,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
             .Select(b => System.Text.RegularExpressions.Regex.Replace(b.TextContent, @"\s+", " ").Trim()).ToList();
         IReadOnlyList<string> Filas() => cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Select(b => b.TextContent.Trim()).ToList();
 
-        Botones().Should().Equal("Todas4", "1Vencidos", "1Por vencer", "1Sin confirmar", "1Sin incidencias");
+        Botones().Should().Equal("Todos4", "1Vencidos", "1Por vencer", "1Sin confirmar", "1Sin incidencias");
         mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Last().ConRecuentosPorEstado.Should().BeTrue();
 
         cut.Find(".franja-estado [data-estado='Vencido']").Click();
@@ -461,7 +443,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Last().EstadoDocumental.Should().Be("Vencido");
         navegacion.Uri.Should().Contain("estado=Vencido");
         Filas().Should().Equal("Andamios Bidasoa S.L.");
-        Botones().Should().Equal(["Todas4", "1Vencidos", "1Por vencer", "1Sin confirmar", "1Sin incidencias"],
+        Botones().Should().Equal(["Todos4", "1Vencidos", "1Por vencer", "1Sin confirmar", "1Sin incidencias"],
             "los recuentos no cuentan el propio filtro de estado: si no, al filtrar los demás botones dirían cero");
 
         cut.Find(".franja-estado [data-estado='SinConfirmar']").Click();
@@ -527,46 +509,8 @@ public partial class SubcontratasListaGen2Tests : BunitContext
     {
         var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.")] });
 
-        var marco = cut.Find(".marco-lista-acordeon");
+        var marco = cut.Find(".marco-lista-subcontratas");
         marco.Children.Select(c => c.ClassName!.Split(' ')[0]).Should().Equal("cabecera-columnas-subcontratas", "lista-filas-acordeon");
-    }
-
-    /// <summary>
-    /// Vencidas y Próximas se leen como texto literal ("N vencido(s)"/"N por
-    /// vencer"): por eso Urgente vive en Próximas, no en Vencidas
-    /// (ObtenerSubcontratasQuery.Desglosar). Pero el badge agregado de
-    /// Próximas es siempre Advertencia (ámbar), así que sin un badge por
-    /// incidencia dentro del detalle, un documento Urgente sería
-    /// indistinguible de uno Próximo normal en esta lista (hallazgo de Codex,
-    /// oleada 3 sobre esta PR). Desde el vocabulario único (2026-10-08) los dos
-    /// se rotulan «Por vencer»: lo que los separa en el desglose es el tono de
-    /// gravedad (<c>TonoDeSeveridad</c>), que conserva el rojo para lo urgente.
-    /// </summary>
-    [Fact]
-    public void El_detalle_de_Por_vencer_distingue_Urgente_de_Proximo_por_el_tono_de_su_propio_badge()
-    {
-        var cut = Renderizar(new MediatorFalso
-        {
-            Subcontratas =
-            [
-                Subcontrata("Andamios Bidasoa S.L.",
-                    proximas: [
-                        Incidencia("EPIs — Iñaki Otaegi", EstadoDocumento.Urgente),
-                        Incidencia("Reconocimiento médico — Miguel Sanz", EstadoDocumento.Proximo),
-                    ]),
-            ]
-        });
-
-        var lineas = cut.FindAll(".ventana-contexto-panel .ventana-linea").ToList();
-
-        var lineaUrgente = lineas.Should().ContainSingle(l => l.TextContent.Contains("EPIs — Iñaki Otaegi")).Subject;
-        lineaUrgente.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Por vencer (urgente)");
-        lineaUrgente.QuerySelector(".badge")!.ClassList.Should().Contain("badge-peligro",
-            "donde se colorea por gravedad, lo urgente sigue en rojo: es lo único que lo separa de lo próximo");
-
-        var lineaProxima = lineas.Should().ContainSingle(l => l.TextContent.Contains("Reconocimiento médico — Miguel Sanz")).Subject;
-        lineaProxima.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Por vencer");
-        lineaProxima.QuerySelector(".badge")!.ClassList.Should().Contain("badge-advertencia").And.NotContain("badge-peligro");
     }
 
     /// <summary>
@@ -604,8 +548,9 @@ public partial class SubcontratasListaGen2Tests : BunitContext
             Subcontratas = [Subcontrata("Electricidad Zubia S.L.", nivel: NivelServicioSubcontrata.Supervisada)]
         });
 
-        var explicacion = cut.FindAll(".tarjeta-fila-acordeon-cabecera .badge")
-            .Single(b => b.TextContent.Trim() == "Supervisada").GetAttribute("title");
+        var nivel = cut.Find(".tarjeta-fila-acordeon-cabecera .celda-nivel-subcontrata");
+        nivel.TextContent.Trim().Should().Be("Supervisada");
+        var explicacion = nivel.GetAttribute("title");
 
         explicacion.Should().Contain("solo se audita su cumplimiento", "es lo que distingue Supervisada de Gestionada");
         explicacion.Should().NotContain("TALVEG");
@@ -695,26 +640,6 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().BeNull();
     }
 
-    /// <summary>
-    /// Una incidencia corregible de la ventana de «Vencidos» abre su corrección y nada más:
-    /// la ventana interactiva corta la subida del clic, así que la fila no abre además su panel.
-    /// </summary>
-    [Fact]
-    public async Task Pulsar_una_incidencia_de_la_ventana_no_abre_la_vista_rapida()
-    {
-        this.ConServiciosDelFormularioDeDocumento();
-        var vencida = new IncidenciaSubcontrataDto(
-            "Aptitud médica — Sonia Cano", EstadoDocumento.Vencido, Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid());
-        var mediador = new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", cumplimiento: 60, vencidas: [vencida])] };
-        var cut = Renderizar(mediador);
-
-        await cut.Find(".celda-estado-subcontrata button.ventana-contexto-elemento").ClickAsync(new MouseEventArgs());
-
-        mediador.Enviadas.OfType<CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId.ObtenerDocumentoPorIdQuery>()
-            .Should().ContainSingle("control positivo: el clic llegó a la incidencia");
-        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().BeNull();
-    }
-
     /// <summary>El CIF se copia con un clic desde la fila, con nombre accesible que dice qué copia.</summary>
     [Fact]
     public void El_cif_de_la_fila_es_copiable_y_una_subcontrata_sin_cif_no_ofrece_copiar_nada()
@@ -768,7 +693,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador);
 
-        cut.Find(".lista-herramientas-maqueta button[aria-pressed]").Click();
+        cut.Find("button[aria-label='Selección múltiple']").Click();
         await cut.Find("input[aria-label='Seleccionar la empresa Andamios Bidasoa S.L.']")
             .ChangeAsync(new ChangeEventArgs { Value = true });
         cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").Click();
@@ -814,38 +739,6 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         cut.Find(".estado-vacio button").Click();
 
         navegacion.Uri.Should().NotContain("q=");
-    }
-
-    /// <summary>
-    /// El doble filtra por <c>ObtenerSubcontratasQuery.Busqueda</c>: de las
-    /// tres, solo una coincide con «iparra». Si la pantalla no enviara lo
-    /// escrito en <c>?q=</c>, el conteo diría 3, no 1.
-    /// </summary>
-    [Fact]
-    public void El_conteo_dice_cuantas_se_ven_de_cuantas_coinciden_con_la_busqueda()
-    {
-        var mediador = new MediatorFalso
-        {
-            Subcontratas =
-            [
-                Subcontrata("Andamios Bidasoa S.L."),
-                Subcontrata("Soldaduras Iparra S. Coop."),
-                Subcontrata("Transportes Argia S.A."),
-            ]
-        };
-        var cut = Renderizar(mediador, busqueda: "iparra");
-
-        mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Last().Busqueda.Should().Be("iparra",
-            "la búsqueda escrita en ?q= es la que tiene que llegar a la consulta");
-        cut.Find(".conteo-subcontratas").TextContent.Trim().Should().Be("1 de 1 subcontrata con estos filtros");
-    }
-
-    [Fact]
-    public void Sin_busqueda_el_conteo_no_habla_de_ningun_filtro()
-    {
-        var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.")] });
-
-        cut.Find(".conteo-subcontratas").TextContent.Trim().Should().Be("1 de 1 subcontrata");
     }
 
     [Fact]
@@ -943,7 +836,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
             EntidadWorkspace.Subcontrata, ibaEnElLote ? elegida : otra, "Ficha abierta", "informacion"));
         workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
 
-        cut.Find(".lista-herramientas-maqueta button[aria-pressed]").Click();
+        cut.Find("button[aria-label='Selección múltiple']").Click();
         await cut.Find("input[aria-label='Seleccionar la empresa Andamios Bidasoa S.L.']")
             .ChangeAsync(new ChangeEventArgs { Value = true });
         cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").Click();
@@ -968,7 +861,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         var workspace = Services.GetRequiredService<ContextWorkspaceService>();
         await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Subcontrata, elegida, "Andamios Bidasoa S.L.", "informacion"));
 
-        cut.Find(".lista-herramientas-maqueta button[aria-pressed]").Click();
+        cut.Find("button[aria-label='Selección múltiple']").Click();
         await cut.Find("input[aria-label='Seleccionar la empresa Andamios Bidasoa S.L.']").ChangeAsync(new ChangeEventArgs { Value = true });
         cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").Click();
         cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").Click();
@@ -986,7 +879,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         this.ConRolDeEscritura(Roles.Consulta);
         var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.")] });
 
-        cut.Find(".lista-herramientas-maqueta button[aria-pressed]").Click();
+        cut.Find("button[aria-label='Selección múltiple']").Click();
         await cut.Find("input[aria-label='Seleccionar la empresa Andamios Bidasoa S.L.']").ChangeAsync(new ChangeEventArgs { Value = true });
 
         cut.Markup.Should().Contain("Andamios Bidasoa S.L.", "la lista es lectura: la fila se ve");
@@ -1011,45 +904,6 @@ public partial class SubcontratasListaGen2Tests : BunitContext
             new ClienteAutorizadoDto(EmpresaSur, "Empresa Sur", EsOrigen: false, EsGestionadoPorOperacion: true),
         ]);
         return mediador;
-    }
-
-    /// <summary>
-    /// Gestionar un documento desde el acordeón puede cambiar el estado documental de la fila: la fila
-    /// se sustituye en sitio (el acordeón sigue abierto), la franja recuenta, y la fila permanece a la
-    /// vista aunque ya no pase el filtro de estado, hasta la siguiente carga. Es el otro refresco de
-    /// fila: el del guardado de la vista rápida no recuenta (una consulta, por id).
-    /// </summary>
-    [Fact]
-    public async Task Gestionar_un_documento_desde_el_acordeon_recuenta_la_franja_y_deja_la_fila_en_su_sitio()
-    {
-        ComponentFactories.AddStub<CaeManager.Web.Features.Subcontratas.Components.AcordeonTrabajadoresSubcontrata>();
-        var bidasoa = Subcontrata("Andamios Bidasoa S.L.", cumplimiento: 50, vencidas: [Incidencia("Formación PRL — Iñaki Otaegi", EstadoDocumento.Vencido)]);
-        var almacen = new List<SubcontrataListaDto> { bidasoa, Subcontrata("Grúas Urola S.L.") };
-        var mediador = new MediatorFalso { Subcontratas = almacen };
-        var cut = Renderizar(mediador);
-        IReadOnlyList<string> Botones() => cut.FindAll(".franja-estado .franja-estado-boton")
-            .Select(b => System.Text.RegularExpressions.Regex.Replace(b.TextContent, @"\s+", " ").Trim()).ToList();
-        cut.Find(".franja-estado [data-estado='Vencido']").Click();
-        cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Should().ContainSingle("punto de partida: el filtro deja la vencida");
-        Botones().Should().Equal("Todas2", "1Vencidos", "0Por vencer", "0Sin confirmar", "1Sin incidencias");
-        await cut.Find(".boton-expandir-fila").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
-        var consultasDePaginaAntes = mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Count(q => q.SubcontrataId is null);
-
-        // El documento se renueva dentro del acordeón: la Subcontrata queda sin incidencias.
-        almacen[0] = Subcontrata("Andamios Bidasoa S.L.", id: bidasoa.Id);
-        var alCambiar = cut.FindComponent<Bunit.TestDoubles.Stub<CaeManager.Web.Features.Subcontratas.Components.AcordeonTrabajadoresSubcontrata>>()
-            .Instance.Parameters.Get(a => a.OnCambio);
-        await cut.InvokeAsync(() => alCambiar.InvokeAsync());
-
-        cut.WaitForAssertion(() => Botones().Should().Equal(
-            ["Todas2", "0Vencidos", "0Por vencer", "0Sin confirmar", "2Sin incidencias"], "la franja recuenta con el estado nuevo"));
-        var fila = cut.FindAll(".tarjeta-fila-acordeon").Should().ContainSingle("la fila gestionada no desaparece bajo los pies").Subject;
-        fila.QuerySelector(".enlace-nombre-fila")!.TextContent.Trim().Should().Be("Andamios Bidasoa S.L.");
-        fila.QuerySelector(".celda-estado-subcontrata")!.TextContent.Should().NotContain("vencido", "la fila enseña el estado nuevo");
-        cut.Find(".boton-expandir-fila").GetAttribute("aria-expanded").Should().Be("true", "el acordeón que se está usando sigue abierto");
-        mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Count(q => q.SubcontrataId is null).Should().Be(consultasDePaginaAntes + 1,
-            "los recuentos salen de la consulta de la página");
-        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("estado=Vencido", "el filtro no se toca");
     }
 
     /// <summary>
@@ -1099,7 +953,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         var cut = Renderizar(ConCartera(origenGestionado: false));
 
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
-        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("1");
+        cut.Find(".cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("1");
         cut.Markup.Should().Contain("Andamios Bidasoa S.L.");
     }
 
@@ -1123,7 +977,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         cut.Markup.Should().NotContain("Andamios Bidasoa S.L.");
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty("no hay empresa activa que nombrar en el estado 4a");
         cut.FindAll("header.cabecera-pagina a[data-keytip=X]").Should().BeEmpty("el icono exportaría datos del origen sin Empresa elegida");
-        cut.FindAll(".lista-herramientas-maqueta .cabecera-listado-contador").Should().BeEmpty();
+        cut.FindAll(".cabecera-pagina .cabecera-listado-contador").Should().BeEmpty();
         ConsultasDeLista(mediador).Should().Be(0, "no se piden las subcontratas de la organización de origen");
     }
 
@@ -1195,58 +1049,6 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
     }
 
-    /// <summary>
-    /// Listados 3/7 (decisión del 2026-10-08): la incidencia de la ventana de contexto se pulsa y
-    /// abre su corrección sin salir del listado. Toda incidencia de una Subcontrata es de un
-    /// Trabajador: es pulsable si trae el Documento, o el Tipo junto con el Trabajador.
-    /// </summary>
-    [Fact]
-    public async Task La_incidencia_de_la_ventana_abre_la_correccion_de_su_documento()
-    {
-        this.ConServiciosDelFormularioDeDocumento();
-        var documentoId = Guid.NewGuid();
-        var vencida = new IncidenciaSubcontrataDto(
-            "Aptitud médica — Sonia Cano", EstadoDocumento.Vencido, documentoId, Guid.NewGuid(), null, Guid.NewGuid());
-        var urgente = new IncidenciaSubcontrataDto(
-            "Entrega de EPI — Carla Molina", EstadoDocumento.Urgente, Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid());
-        var mediador = new MediatorFalso
-        {
-            Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", cumplimiento: 60, vencidas: [vencida], proximas: [urgente])]
-        };
-        var cut = Renderizar(mediador);
-
-        var ventanas = cut.FindAll(".celda-estado-subcontrata .ventana-contexto");
-        ventanas.Should().HaveCount(2);
-        ventanas.Should().OnlyContain(v => v.ClassList.Contains("ventana-contexto-interactiva"));
-        // El panel abre hacia abajo (Subcontratas.razor.css): el puente del cursor va en ese lado.
-        ventanas.Should().OnlyContain(v => v.ClassList.Contains("ventana-contexto-abajo"));
-        // En «Próximos» el botón conserva el badge que distingue Urgente de Próximo.
-        ventanas[1].QuerySelector("button.ventana-contexto-elemento")!.TextContent.Should().Contain("Entrega de EPI — Carla Molina");
-        ventanas[1].QuerySelector("button.ventana-contexto-elemento .badge").Should().NotBeNull();
-
-        await ventanas[0].QuerySelector("button.ventana-contexto-elemento")!.ClickAsync(new MouseEventArgs());
-
-        mediador.Enviadas.OfType<CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId.ObtenerDocumentoPorIdQuery>()
-            .Should().ContainSingle().Which.Id.Should().Be(documentoId);
-    }
-
-    [Fact]
-    public void Una_incidencia_sin_trabajador_ni_documento_sigue_siendo_texto()
-    {
-        var mediador = new MediatorFalso
-        {
-            Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", cumplimiento: 60,
-                vencidas: [Incidencia("Aptitud médica — Sonia Cano", EstadoDocumento.Vencido)])]
-        };
-
-        var cut = Renderizar(mediador);
-
-        var ventana = cut.Find(".celda-estado-subcontrata .ventana-contexto");
-        ventana.ClassList.Should().NotContain("ventana-contexto-interactiva");
-        ventana.QuerySelectorAll("button").Should().BeEmpty();
-        ventana.QuerySelector(".ventana-linea")!.TextContent.Should().Be("Aptitud médica — Sonia Cano");
-    }
-
     [Fact]
     public async Task Tras_corregir_una_incidencia_la_lista_se_vuelve_a_pedir_sin_recargar_la_pagina()
     {
@@ -1275,7 +1077,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         var mediador = new MediatorFalso { Subcontratas = almacen };
         var cut = Renderizar(mediador);
         cut.Find(".franja-estado [data-estado='Vencido']").Click();
-        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".paginador-pie-listado button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Select(e => e.TextContent.Trim())
             .Should().Equal(["Subcontrata 21"], "punto de partida: la página 2 tiene una sola fila"));
 
@@ -1285,7 +1087,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
 
         cut.WaitForAssertion(() => cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Should().HaveCount(20));
         cut.Find(".paginador-texto").TextContent.Should().EndWith("Mostrando 20 de 20");
-        cut.FindAll(".pie-lista-maqueta button").Should().OnlyContain(b => b.HasAttribute("disabled"));
+        cut.FindAll(".paginador-inicio button").Should().BeEmpty("con una sola página ya no hay navegación");
         mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Last().Pagina.Should().Be(1);
     }
 }

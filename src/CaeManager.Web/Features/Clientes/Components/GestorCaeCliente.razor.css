@@ -1,0 +1,21 @@
+/* Maqueta Cliente 360 del 17-10: «Gestor CAE» es la última celda ancha de .rejilla-info; los botones van debajo
+   (display:flex; gap: space-2; margin-top: space-3). La separación con la rejilla de arriba es su mismo gap. */
+.gestor-cae-cliente {
+    margin-top: var(--space-3);
+}
+
+.gestor-cae-cliente-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+.gestor-cae-cliente-acciones:empty {
+    display: none;
+}
+
+.gestor-cae-cliente-error {
+    font-weight: 400;
+    color: var(--color-text-muted);
+}

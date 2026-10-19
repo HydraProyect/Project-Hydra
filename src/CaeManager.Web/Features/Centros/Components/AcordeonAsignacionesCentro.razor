@@ -289,7 +289,10 @@ else
                         @if (!ModoListado && !EstaBloqueado(trabajador.TrabajadorId) && PuedePedir(trabajador))
                         {
                             <SoloConEscritura>
+                                @* Texto visible «Gestionar»; el nombre accesible dice que reclama los documentos del Trabajador, para no
+                                   confundirlo con el «Gestionar» de cada documento. *@
                                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                       aria-label="@Textos["AriaGestionarDocumentosTrabajador", trabajador.TrabajadorNombre]"
                                        OnClick="() => PedirAsync(new(AmbitoAplicacion.Trabajador, trabajador.TrabajadorId))">@Textos["PedirDocumentacion360"]</Boton>
                             </SoloConEscritura>
                         }
@@ -391,12 +394,12 @@ else
                                                 </TextoFechaCopiable>
                                             </span>
                                             <span class="columna-accion" role="cell">
-                                                @* Solo lo que pide trabajo lleva «Gestionar» (y solo a quien puede escribir): un documento al día no lleva botón. *@
+                                                @* Todo documento lleva «Gestionar» (solo a quien puede escribir); el que está al día, en tono secundario. *@
                                                 @if (EstadoDocumentoFicha360.PideGestionar(documento.Estado))
                                                 {
                                                     <SoloConEscritura>
                                                         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                                               class="accion-fila-enlace"
+                                                               class="@EstadoDocumentoFicha360.ClaseGestionar(documento.Estado, "accion-fila-enlace")"
                                                                aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre, trabajador.TrabajadorNombre)"
                                                                OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
                                                             @Textos["GestionarDocumento360"]

@@ -40,7 +40,7 @@ namespace CaeManager.Web.Tests;
 /// real, <see cref="CentrosEnlaceUnicoCentro360Tests"/>.
 /// </para>
 /// </summary>
-public class CentrosListaGen2Tests : BunitContext
+public partial class CentrosListaGen2Tests : BunitContext
 {
     /// <summary>La página monta AtajosListaTeclado, que importa ./js/atajos-lista.js.</summary>
     public CentrosListaGen2Tests()
@@ -76,7 +76,7 @@ public class CentrosListaGen2Tests : BunitContext
                 ObtenerProximaVisitaPorCentroQuery => (IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>)Visitas,
                 ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[new ClienteAutorizadoDto(Guid.NewGuid(), "Propia", EsOrigen: true)],
                 ObtenerCentrosQuery q => new ResultadoPaginado<CentroListaDto>(
-                    Centros, Centros.Count, q.Pagina, q.TamanoPagina),
+                    Centros.Skip((q.Pagina - 1) * q.TamanoPagina).Take(q.TamanoPagina).ToList(), Centros.Count, q.Pagina, q.TamanoPagina),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
 
@@ -123,11 +123,11 @@ public class CentrosListaGen2Tests : BunitContext
     /// <summary>Visitas programadas que devolverá el mediador, por Centro. Se siembran antes de renderizar.</summary>
     private readonly Dictionary<Guid, IReadOnlyList<VisitaResumenDto>> _visitas = [];
 
+    /// <summary>Como la ve el usuario al llegar: sin agrupar (la agrupación «Por Cliente» se pide con agrupar=cliente).</summary>
     internal IRenderedComponent<Centros> Renderizar(params CentroListaDto[] centros) =>
-        RenderizarConGruposContraidos(centros).AbrirGruposDeCentros();
+        Renderizar("centros", centros);
 
-    /// <summary>Como la ve el usuario al llegar: agrupada por Cliente empresarial y con los grupos contraídos.</summary>
-    private IRenderedComponent<Centros> RenderizarConGruposContraidos(params CentroListaDto[] centros)
+    internal IRenderedComponent<Centros> Renderizar(string ruta, params CentroListaDto[] centros)
     {
         _mediador = new MediatorPorTipo { Centros = centros, Visitas = _visitas };
         Services.AddScoped<IMediator>(_ => _mediador);
@@ -137,7 +137,7 @@ public class CentrosListaGen2Tests : BunitContext
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         Services.AddScoped<IValidator<CrearCentroCommand>>(_ => new InlineValidator<CrearCentroCommand>());
 
-        Services.GetRequiredService<NavigationManager>().NavigateTo("centros");
+        Services.GetRequiredService<NavigationManager>().NavigateTo(ruta);
 
         return Render<Centros>();
     }
@@ -148,45 +148,6 @@ public class CentrosListaGen2Tests : BunitContext
         var cut = Renderizar(Centro("Centro Logístico Norte"));
 
         cut.Find("header.cabecera-pagina h1.titulo-pagina").TextContent.Trim().Should().Be("Centros");
-    }
-
-    [Fact]
-    public async Task Al_expandir_un_centro_aparece_el_camino_a_Centro_360()
-    {
-        var centro = Centro("Centro Logístico Norte");
-        var cut = Renderizar(centro);
-
-        // Barrera: la fila está pintada y colapsada. Sin ella, la ausencia
-        // del enlace sería un verde vacío.
-        cut.Markup.Should().Contain("Centro Logístico Norte");
-        cut.FindAll("a.acordeon-centro-enlace-360").Should().BeEmpty(
-            "el contenido expandido solo se monta al expandir la fila");
-
-        await cut.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
-
-        var enlace = cut.Find("a.acordeon-centro-enlace-360");
-        enlace.GetAttribute("href").Should().Be($"/centros/{centro.Id}");
-        enlace.TextContent.Should().Contain("Ver el centro completo");
-        cut.FindAll(".acordeon-centro-titulo").Should().BeEmpty("la fila desplegada de /centros no lleva título de sección");
-    }
-
-    /// <summary>
-    /// El enlace no depende de lo que haya dentro del acordeón ni del estado
-    /// del centro: un centro bloqueado y uno vigente lo llevan igual, y cada
-    /// uno apunta a SU ficha.
-    /// </summary>
-    [Fact]
-    public async Task Cada_centro_expandido_enlaza_a_su_propio_Centro_360_sea_cual_sea_su_estado()
-    {
-        var bloqueado = Centro("Obra Valdés — Fase 2", EstadoCentro.Bloqueado);
-        var vigente = Centro("Almacén Sur", EstadoCentro.Vigente);
-        var cut = Renderizar(bloqueado, vigente);
-
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Expandir todo").ClickAsync(new MouseEventArgs());
-
-        cut.FindAll("a.acordeon-centro-enlace-360")
-            .Select(a => a.GetAttribute("href"))
-            .Should().Equal($"/centros/{bloqueado.Id}", $"/centros/{vigente.Id}");
     }
 
     /// <summary>
@@ -211,7 +172,7 @@ public class CentrosListaGen2Tests : BunitContext
         await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Centro, abierto.Id, abierto.Nombre, "informacion"));
         workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
 
-        await cut.Find(".lista-herramientas-maqueta button[aria-pressed]").ClickAsync(new MouseEventArgs());
+        await cut.Find("header.cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
         await cut.Find("input[aria-label='Seleccionar el centro Centro Logístico Norte']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
             .ClickAsync(new MouseEventArgs());
@@ -234,7 +195,7 @@ public class CentrosListaGen2Tests : BunitContext
         var cut = Renderizar(elegido, superviviente);
         _mediador.NoEliminables.Add(superviviente.Id);
 
-        await cut.Find(".lista-herramientas-maqueta button[aria-pressed]").ClickAsync(new MouseEventArgs());
+        await cut.Find("header.cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
         await cut.Find("input[aria-label='Seleccionar el centro Centro Logístico Norte']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.Find("input[aria-label='Seleccionar el centro Centro Logístico Sur']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
@@ -266,7 +227,7 @@ public class CentrosListaGen2Tests : BunitContext
         cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain(
             ["Eliminar centro", "Eliminar seleccionados"], "la fila no ofrece la baja y aún no hay selección");
 
-        await cut.Find(".lista-herramientas-maqueta button[aria-pressed]").ClickAsync(new MouseEventArgs());
+        await cut.Find("header.cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
         await cut.Find("input[aria-label='Seleccionar el centro Centro Logístico Norte']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
         cut.Find("[role=dialog]").TextContent.Should().Contain("¿Eliminar 1 centro(s)?");
@@ -472,7 +433,7 @@ public class CentrosListaGen2Tests : BunitContext
             .Which.Id.Should().Be(documentoId);
         // No navega ni recarga: la lista no se vuelve a pedir por pulsar, y el acordeón de la fila no se abre.
         _mediador.Enviadas.OfType<ObtenerCentrosQuery>().Should().HaveCount(consultasDeListaAntes);
-        cut.FindAll(".tarjeta-fila-acordeon-cuerpo").Should().BeEmpty();
+        cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty();
     }
 
     [Fact]

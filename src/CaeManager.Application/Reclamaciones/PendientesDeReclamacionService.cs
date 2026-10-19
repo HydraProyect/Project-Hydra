@@ -326,12 +326,12 @@ public class PendientesDeReclamacionService(
     /// Cada pedido tiene exactamente una forma: «Sin confirmar» (solo <c>DocumentoId</c>) o «Ausente» (sin <c>DocumentoId</c>,
     /// con Tipo y, para un Cliente, con Trabajador; para una Empresa, sin él). Una forma mixta no se interpreta: falla.
     /// </summary>
-    private static bool PedidosBienFormados(IReadOnlyList<PendienteSinFecha> pedidos, bool conTrabajador) =>
+    internal static bool PedidosBienFormados(IReadOnlyList<PendienteSinFecha> pedidos, bool conTrabajador) =>
         pedidos.All(p => p.DocumentoId is { } documentoId
             ? documentoId != Guid.Empty && p.TipoDocumentoId is null && p.TrabajadorId is null
             : p.TipoDocumentoId is { } tipoId && tipoId != Guid.Empty && (conTrabajador ? p.TrabajadorId is { } t && t != Guid.Empty : p.TrabajadorId is null));
 
-    private static Result<IReadOnlyList<DocumentoPendienteDto>> Emparejar(
+    internal static Result<IReadOnlyList<DocumentoPendienteDto>> Emparejar(
         IReadOnlyList<PendienteSinFecha> pedidos, IEnumerable<DocumentoPendienteDto> disponibles)
     {
         var porClave = disponibles.DistinctBy(d => d.Clave).ToDictionary(d => d.Clave);
@@ -349,7 +349,7 @@ public class PendientesDeReclamacionService(
         return Result.Exito<IReadOnlyList<DocumentoPendienteDto>>(resueltos);
     }
 
-    private static Error ErrorDesactualizados() => Error.Crear(
+    internal static Error ErrorDesactualizados() => Error.Crear(
         "Reclamacion.PendientesDesactualizados",
         "Alguno de los documentos que faltan o sin confirmar ya no está pendiente — puede que se haya subido el documento o anotado su vigencia. Actualiza la vista antes de volver a intentarlo.");
 

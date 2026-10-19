@@ -1,0 +1,329 @@
+@*
+    DelegacionesEmpresa y Oficios de la Empresa en Empresa 360 (decisión de Chris, 2026-10-18): el catálogo del que salen los dos
+    desplegables de la ficha del Trabajador. Cualquiera que vea la Ficha lo lee; crear, editar y eliminar están tras
+    SoloConEscritura (Consulta no ve ninguna acción de escritura), y la decisión de verdad es de los comandos
+    (AutorizacionEscrituraBehavior y alcance de gestión sobre la Empresa). Eliminar algo con Trabajadores asignados lo
+    rechaza el comando y el diálogo enseña ese rechazo sin cerrarse.
+*@
+@using CaeManager.Application.Common
+@using CaeManager.Application.Empresas.Commands.EliminarDelegacionEmpresaUOficio
+@using CaeManager.Application.Empresas.Commands.GuardarDelegacionEmpresa
+@using CaeManager.Application.Empresas.Commands.GuardarOficioEmpresa
+@using CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa
+@using CaeManager.Web.Features.Empresas.Recursos
+@using FluentValidation
+@using MediatR
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject IStringLocalizer<TextosEmpresas> Textos
+
+<Tarjeta Titulo="@Textos["CatalogoTitulo"]" Compacta="true">
+    <ChildContent>
+        @if (_errorCarga)
+        {
+            <p class="texto-vacio-seccion">@Textos["CatalogoError"]</p>
+        }
+        else if (_catalogo is null)
+        {
+            <EstadoCargando Filas="2" />
+        }
+        else
+        {
+            <div class="catalogo-empresa">
+                <section class="catalogo-empresa-bloque" aria-labelledby="@IdDelegacionesEmpresa">
+                    <div class="catalogo-empresa-cabecera">
+                        <h3 id="@IdDelegacionesEmpresa" class="catalogo-empresa-titulo">@Textos["CatalogoDelegacionesEmpresa"]</h3>
+                        <SoloConEscritura>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirNuevaDelegacionEmpresa">@Textos["CatalogoAnadir"]</Boton>
+                        </SoloConEscritura>
+                    </div>
+                    @if (_catalogo.DelegacionesEmpresa.Count == 0)
+                    {
+                        <p class="texto-vacio-seccion">@Textos["CatalogoSinDelegacionesEmpresa"]</p>
+                    }
+                    else
+                    {
+                        <ul class="catalogo-empresa-lista">
+                            @foreach (var delegacion in _catalogo.DelegacionesEmpresa)
+                            {
+                                <li @key="delegacion.Id" class="catalogo-empresa-fila">
+                                    <div class="catalogo-empresa-texto">
+                                        <span class="catalogo-empresa-nombre">@delegacion.Nombre</span>
+                                        @if (Reclamaciones(delegacion) is { } contacto)
+                                        {
+                                            <span class="catalogo-empresa-detalle">@Textos["CatalogoReclamaciones", contacto]</span>
+                                        }
+                                    </div>
+                                    <SoloConEscritura>
+                                        <div class="catalogo-empresa-acciones">
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" aria-label="@Textos["CatalogoEditarNombre", delegacion.Nombre]"
+                                                   OnClick="() => AbrirEditarDelegacionEmpresa(delegacion)">@Textos["CatalogoEditar"]</Boton>
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" aria-label="@Textos["CatalogoEliminarNombre", delegacion.Nombre]"
+                                                   OnClick="() => PedirEliminar(CatalogoTrabajadoresEmpresa.DelegacionEmpresa, delegacion.Id, delegacion.Nombre, delegacion.Version)">@Textos["CatalogoEliminar"]</Boton>
+                                        </div>
+                                    </SoloConEscritura>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+
+                <section class="catalogo-empresa-bloque" aria-labelledby="@IdOficios">
+                    <div class="catalogo-empresa-cabecera">
+                        <h3 id="@IdOficios" class="catalogo-empresa-titulo">@Textos["CatalogoOficios"]</h3>
+                        <SoloConEscritura>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirNuevoOficio">@Textos["CatalogoAnadir"]</Boton>
+                        </SoloConEscritura>
+                    </div>
+                    @if (_catalogo.Oficios.Count == 0)
+                    {
+                        <p class="texto-vacio-seccion">@Textos["CatalogoSinOficios"]</p>
+                    }
+                    else
+                    {
+                        <ul class="catalogo-empresa-lista">
+                            @foreach (var oficio in _catalogo.Oficios)
+                            {
+                                <li @key="oficio.Id" class="catalogo-empresa-fila">
+                                    <div class="catalogo-empresa-texto">
+                                        <span class="catalogo-empresa-nombre">@oficio.Nombre</span>
+                                    </div>
+                                    <SoloConEscritura>
+                                        <div class="catalogo-empresa-acciones">
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" aria-label="@Textos["CatalogoEditarNombre", oficio.Nombre]"
+                                                   OnClick="() => AbrirEditarOficio(oficio)">@Textos["CatalogoEditar"]</Boton>
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" aria-label="@Textos["CatalogoEliminarNombre", oficio.Nombre]"
+                                                   OnClick="() => PedirEliminar(CatalogoTrabajadoresEmpresa.OficioEmpresa, oficio.Id, oficio.Nombre, oficio.Version)">@Textos["CatalogoEliminar"]</Boton>
+                                        </div>
+                                    </SoloConEscritura>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+            </div>
+        }
+    </ChildContent>
+</Tarjeta>
+
+<SoloConEscritura>
+    <DrawerFormulario Visible="_delegacionVisible" VisibleChanged="v => _delegacionVisible = v"
+                      Titulo="@(_delegacionId is null ? Textos["CatalogoDelegacionEmpresaNuevaTitulo"] : Textos["CatalogoDelegacionEmpresaEditarTitulo"])"
+                      HayCambios="() => _delegacionVisible && _instantaneaDelegacionEmpresa.Difiere(ValoresDelegacionEmpresa())"
+                      Guardando="_guardando" MensajeError="@_errorFormulario" HayErroresDeCampo="@(_erroresCampo.Count > 0)"
+                      OnGuardar="GuardarDelegacionEmpresaAsync" TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+        <CampoTexto Etiqueta="@Textos["CatalogoNombre"]" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@Error(nameof(GuardarDelegacionEmpresaCommand.Nombre))" />
+        <CampoTexto Etiqueta="@Textos["CatalogoContactoNombre"]" Valor="@_contactoNombre" ValorChanged="v => _contactoNombre = v" MensajeError="@Error(nameof(GuardarDelegacionEmpresaCommand.ContactoReclamacionNombre))" />
+        <CampoTexto Etiqueta="@Textos["CatalogoContactoCorreo"]" Type="email" Valor="@_contactoCorreo" ValorChanged="v => _contactoCorreo = v" MensajeError="@Error(nameof(GuardarDelegacionEmpresaCommand.ContactoReclamacionCorreo))" />
+        <CampoTexto Etiqueta="@Textos["CatalogoContactoTelefono"]" Type="tel" Valor="@_contactoTelefono" ValorChanged="v => _contactoTelefono = v" MensajeError="@Error(nameof(GuardarDelegacionEmpresaCommand.ContactoReclamacionTelefono))" />
+    </DrawerFormulario>
+
+    <DrawerFormulario Visible="_oficioVisible" VisibleChanged="v => _oficioVisible = v"
+                      Titulo="@(_oficioId is null ? Textos["CatalogoOficioNuevoTitulo"] : Textos["CatalogoOficioEditarTitulo"])"
+                      HayCambios="() => _oficioVisible && _instantaneaOficio.Difiere(ValoresOficio())"
+                      Guardando="_guardando" MensajeError="@_errorFormulario" HayErroresDeCampo="@(_erroresCampo.Count > 0)"
+                      OnGuardar="GuardarOficioAsync" TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+        <CampoTexto Etiqueta="@Textos["CatalogoNombre"]" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@Error(nameof(GuardarOficioEmpresaCommand.Nombre))" />
+    </DrawerFormulario>
+
+    <DialogoConfirmacion Visible="_eliminar is not null" VisibleChanged="v => { if (!v) _eliminar = null; }"
+                         Titulo="@(_eliminar is null ? "" : _eliminar.Catalogo == CatalogoTrabajadoresEmpresa.DelegacionEmpresa
+                             ? Textos["CatalogoEliminarDelegacionEmpresaTitulo", _eliminar.Nombre].Value
+                             : Textos["CatalogoEliminarOficioTitulo", _eliminar.Nombre].Value)"
+                         Mensaje="@Textos["CatalogoEliminarMensaje"]" TextoBotonConfirmar="@Textos["CatalogoEliminar"]"
+                         TextoBotonDescartar="@Textos["BotonCancelar"]" EnProgreso="_guardando" OnConfirmar="EliminarAsync">
+        @if (_errorEliminar is not null)
+        {
+            <p class="campo-mensaje-error" role="alert">@_errorEliminar</p>
+        }
+    </DialogoConfirmacion>
+</SoloConEscritura>
+
+@code {
+    private sealed record Eliminacion(CatalogoTrabajadoresEmpresa Catalogo, Guid Id, string Nombre, Guid Version);
+
+    [Parameter, EditorRequired] public Guid EmpresaId { get; set; }
+
+    private string IdDelegacionesEmpresa => $"catalogo-delegaciones-{EmpresaId:N}";
+    private string IdOficios => $"catalogo-oficios-{EmpresaId:N}";
+    private readonly InstantaneaFormulario _instantaneaDelegacionEmpresa = new();
+    private readonly InstantaneaFormulario _instantaneaOficio = new();
+
+    private CatalogoTrabajadoresEmpresaDto? _catalogo;
+    private Guid _empresaCargada;
+    private bool _errorCarga, _guardando, _delegacionVisible, _oficioVisible;
+    private Guid? _delegacionId, _oficioId;
+    private Guid _versionEnEdicion;
+    private string _nombre = "", _contactoNombre = "", _contactoCorreo = "", _contactoTelefono = "";
+    private string? _errorFormulario, _errorEliminar;
+    private Dictionary<string, string> _erroresCampo = [];
+    private Eliminacion? _eliminar;
+
+    private string? Error(string campo) => _erroresCampo.GetValueOrDefault(campo);
+
+    private object?[] ValoresDelegacionEmpresa() => [_nombre, _contactoNombre, _contactoCorreo, _contactoTelefono];
+    private object?[] ValoresOficio() => [_nombre];
+
+    private static string? Reclamaciones(DelegacionEmpresaDto d)
+    {
+        var partes = new[] { d.ContactoReclamacionNombre, d.ContactoReclamacionCorreo, d.ContactoReclamacionTelefono }
+            .Where(p => !string.IsNullOrWhiteSpace(p));
+        var texto = string.Join(" · ", partes);
+        return texto.Length == 0 ? null : texto;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (EmpresaId == _empresaCargada) return;
+        _empresaCargada = EmpresaId;
+        _catalogo = null;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var empresa = EmpresaId;
+        _errorCarga = false;
+        try
+        {
+            var catalogo = await Mediator.Send(new ObtenerCatalogoTrabajadoresEmpresaQuery(empresa));
+            if (empresa == EmpresaId) _catalogo = catalogo;
+        }
+        catch (Exception)
+        {
+            if (empresa == EmpresaId) _errorCarga = true;
+        }
+    }
+
+    private void ReiniciarFormulario(string nombre, string contactoNombre = "", string contactoCorreo = "", string contactoTelefono = "")
+    {
+        _nombre = nombre;
+        _contactoNombre = contactoNombre;
+        _contactoCorreo = contactoCorreo;
+        _contactoTelefono = contactoTelefono;
+        _erroresCampo = [];
+        _errorFormulario = null;
+    }
+
+    private void AbrirNuevaDelegacionEmpresa()
+    {
+        _delegacionId = null;
+        ReiniciarFormulario("");
+        _instantaneaDelegacionEmpresa.Fijar(ValoresDelegacionEmpresa());
+        _delegacionVisible = true;
+    }
+
+    private void AbrirEditarDelegacionEmpresa(DelegacionEmpresaDto d)
+    {
+        _delegacionId = d.Id;
+        _versionEnEdicion = d.Version;
+        ReiniciarFormulario(d.Nombre, d.ContactoReclamacionNombre ?? "", d.ContactoReclamacionCorreo ?? "", d.ContactoReclamacionTelefono ?? "");
+        _instantaneaDelegacionEmpresa.Fijar(ValoresDelegacionEmpresa());
+        _delegacionVisible = true;
+    }
+
+    private void AbrirNuevoOficio()
+    {
+        _oficioId = null;
+        ReiniciarFormulario("");
+        _instantaneaOficio.Fijar(ValoresOficio());
+        _oficioVisible = true;
+    }
+
+    private void AbrirEditarOficio(OficioEmpresaDto o)
+    {
+        _oficioId = o.Id;
+        _versionEnEdicion = o.Version;
+        ReiniciarFormulario(o.Nombre);
+        _instantaneaOficio.Fijar(ValoresOficio());
+        _oficioVisible = true;
+    }
+
+    private static string? Vacio(string valor) => string.IsNullOrWhiteSpace(valor) ? null : valor;
+
+    private Task GuardarDelegacionEmpresaAsync() => GuardarAsync(
+        () => Mediator.Send(new GuardarDelegacionEmpresaCommand(EmpresaId, _delegacionId, _nombre, Vacio(_contactoNombre),
+            Vacio(_contactoCorreo), Vacio(_contactoTelefono), _delegacionId is null ? null : _versionEnEdicion)),
+        () => _delegacionVisible = false);
+
+    private Task GuardarOficioAsync() => GuardarAsync(
+        () => Mediator.Send(new GuardarOficioEmpresaCommand(EmpresaId, _oficioId, _nombre, _oficioId is null ? null : _versionEnEdicion)),
+        () => _oficioVisible = false);
+
+    private async Task GuardarAsync(Func<Task<CaeManager.Domain.Common.Result<Guid>>> enviar, Action cerrar)
+    {
+        if (_guardando) return;
+        _guardando = true;
+        _errorFormulario = null;
+        _erroresCampo = [];
+        try
+        {
+            var resultado = await enviar();
+            if (resultado.EsFallido)
+            {
+                _errorFormulario = resultado.Error.Mensaje;
+                // Otra persona lo cambió o lo eliminó: la lista de detrás se relee para que no siga enseñando lo de antes.
+                // El formulario conserva su versión: para guardar encima hay que cerrarlo y volver a abrirlo.
+                if (resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto) await CargarAsync();
+                return;
+            }
+
+            cerrar();
+            ToastService.Mostrar(Textos["CatalogoGuardado"], TonoToast.Exito);
+            await CargarAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _erroresCampo = ex.Errors.GroupBy(e => e.PropertyName).ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+        }
+        catch (Exception)
+        {
+            _errorFormulario = Textos["CatalogoErrorGuardar"];
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private void PedirEliminar(CatalogoTrabajadoresEmpresa catalogo, Guid id, string nombre, Guid version)
+    {
+        _errorEliminar = null;
+        _eliminar = new Eliminacion(catalogo, id, nombre, version);
+    }
+
+    private async Task EliminarAsync()
+    {
+        if (_eliminar is not { } objetivo || _guardando) return;
+        _guardando = true;
+        _errorEliminar = null;
+        try
+        {
+            var resultado = await Mediator.Send(new EliminarDelegacionEmpresaUOficioCommand(EmpresaId, objetivo.Catalogo, objetivo.Id, objetivo.Version));
+            if (resultado.EsFallido)
+            {
+                // Con Trabajadores asignados, o si otra persona lo cambió antes: el diálogo sigue abierto con el motivo.
+                _errorEliminar = resultado.Error.Mensaje;
+                if (resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto) await CargarAsync();
+                return;
+            }
+
+            _eliminar = null;
+            ToastService.Mostrar(Textos["CatalogoEliminado"], TonoToast.Exito);
+            await CargarAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _errorEliminar = ex.Errors.FirstOrDefault()?.ErrorMessage ?? Textos["CatalogoErrorEliminar"];
+        }
+        catch (Exception)
+        {
+            _errorEliminar = Textos["CatalogoErrorEliminar"];
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

@@ -43,7 +43,7 @@ public class ImportacionTests(WebAppFixture fixture)
         var nombreTrabajador = "CAE";
         var apellidosTrabajador = $"Import {sufijo}";
         var dniTrabajador = Ayudas.GenerarDniValido(88_400_001);
-        var fechaEmision = DateTime.UtcNow.Date.AddDays(-30);
+        var fechaEmision = Ayudas.HoyDeNegocio().ToDateTime(TimeOnly.MinValue).AddDays(-30);
 
         var libro = new XLWorkbook();
 
@@ -177,7 +177,7 @@ public class ImportacionTests(WebAppFixture fixture)
         await Expect(page.Locator("tr", new PageLocatorOptions { HasText = nombreCentro })).ToHaveCountAsync(0);
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
-        await page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente o empresa").FillAsync(nombreCentro);
+        await page.GetByPlaceholder("Filtrar esta pantalla: Centro, código, Cliente o Empresa").FillAsync(nombreCentro);
         await page.WaitForTimeoutAsync(500);
         // El nombre buscado ahora también sale en el chip del filtro activo («Búsqueda: …»), así que ya no
         // sirve afirmar que el texto no se ve en ningún sitio: se afirma que ninguna FILA de centro lo lleva

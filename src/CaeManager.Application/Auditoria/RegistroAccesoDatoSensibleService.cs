@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Auditoria;
 
@@ -9,7 +10,16 @@ public class RegistroAccesoDatoSensibleService(
     IRegistroAccesoDatoSensibleRepository repositorio)
     : IRegistroAccesoDatoSensibleService
 {
-    public async Task RegistrarAsync(string entidadTipo, Guid entidadId, CancellationToken cancellationToken = default)
+    public Task RegistrarAsync(string entidadTipo, Guid entidadId, CancellationToken cancellationToken = default) =>
+        RegistrarAsync(entidadTipo, entidadId, datosDespues: null, cancellationToken);
+
+    public Task RegistrarLecturaAsync(string entidadTipo, Guid entidadId, string datoLeido, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(datoLeido);
+        return RegistrarAsync(entidadTipo, entidadId, JsonSerializer.Serialize(new { DatoLeido = datoLeido }), cancellationToken);
+    }
+
+    private async Task RegistrarAsync(string entidadTipo, Guid entidadId, string? datosDespues, CancellationToken cancellationToken)
     {
         var actor = await actorAuditoria.ObtenerAsync();
 
@@ -21,7 +31,7 @@ public class RegistroAccesoDatoSensibleService(
             entidadId,
             RegistroAuditoria.AccionAccesoDatoSensible,
             datosAntes: null,
-            datosDespues: null,
+            datosDespues: datosDespues,
             usuarioId: actor.UsuarioSimuladoId ?? actor.ActorRealUsuarioId,
             tipoActor: (TipoActorAuditoria)actor.ResolverTipoActor(),
             actorRealUsuarioId: actor.ActorRealUsuarioId,

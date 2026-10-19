@@ -1,3 +1,4 @@
+using System.Globalization;
 using Bunit;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Documentos;
@@ -103,12 +104,40 @@ public partial class TrabajadoresListaGen2Tests
         string Texto(int i, string clase) => lineas[i].QuerySelector("." + clase)!.TextContent.Trim();
         Texto(0, "documento-pendiente-nombre").Should().Be("Aptitud médica");
         Texto(0, "badge").Should().Be("Vencido");
-        Texto(0, "documento-pendiente-detalle").Should().Be("Desde el " + vencido.FechaVencimiento!.Value.ToString("dd/MM/yyyy"));
+        Texto(0, "documento-pendiente-detalle").Should().Be("Desde el " + vencido.FechaVencimiento!.Value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture));
         Texto(1, "badge").Should().Be("Por vencer");
-        Texto(1, "documento-pendiente-detalle").Should().Be("Caduca el " + porVencer.FechaVencimiento!.Value.ToString("dd/MM/yyyy"));
+        Texto(1, "documento-pendiente-detalle").Should().Be("Caduca el " + porVencer.FechaVencimiento!.Value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture));
         Texto(2, "badge").Should().Be("Sin confirmar");
-        Texto(2, "documento-pendiente-detalle").Should().Be("Falta la fecha de vencimiento");
+        Texto(2, "documento-pendiente-detalle").Should().Be("Falta la fecha de fin", "el contrato de trabajo no «vence»: acaba, como dice la maqueta");
         detalle.TextContent.Should().NotContain("Hace ", "la maqueta no muestra el plazo relativo en la fila expandida");
+    }
+
+    /// <summary>Un «sin confirmar» que no es el contrato sigue diciendo «Falta la fecha de vencimiento» (maqueta, fila de Formación PRL).</summary>
+    [Fact]
+    public void Un_sin_confirmar_que_no_es_el_contrato_pide_la_fecha_de_vencimiento()
+    {
+        var cut = Renderizar(new MediatorFalso { Almacen = { ConDesglose(Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.SinConfirmar), 2, 0, IncidenciaDe("Formación PRL", EstadoDocumento.SinConfirmar)) } });
+
+        AbrirIncidencias(cut).QuerySelector(".documento-pendiente-detalle")!.TextContent.Trim().Should().Be("Falta la fecha de vencimiento");
+    }
+
+    /// <summary>
+    /// El texto de vigencia es el mismo para todos los roles; «Gestionar» es lo único que cambia con la escritura.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(TodosLosRoles))]
+    public void El_texto_de_vigencia_de_cada_estado_no_depende_del_rol(string rol)
+    {
+        this.ConRolDeEscritura(rol);
+        var vencido = IncidenciaDe("Aptitud médica", EstadoDocumento.Vencido, -80);
+        var porVencer = IncidenciaDe("Formación Art. 19", EstadoDocumento.Urgente, 5);
+        var sinConfirmar = IncidenciaDe("Formación PRL", EstadoDocumento.SinConfirmar);
+        var cut = Renderizar(new MediatorFalso { Almacen = { ConDesglose(Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Vencido), 6, 3, vencido, porVencer, sinConfirmar) } });
+
+        AbrirIncidencias(cut).QuerySelectorAll(".documento-pendiente-detalle").Select(d => d.TextContent.Trim()).Should().Equal(
+            "Desde el " + vencido.FechaVencimiento!.Value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
+            "Caduca el " + porVencer.FechaVencimiento!.Value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
+            "Falta la fecha de vencimiento");
     }
 
     [Theory]
@@ -135,7 +164,7 @@ public partial class TrabajadoresListaGen2Tests
 
         var fila = FilasDeDatos(cut).Should().ContainSingle().Subject;
         fila.QuerySelector(".enlace-nombre-fila")!.TextContent.Trim().Should().Be("Javier Salas Moreno", "el nombre abre la vista rápida");
-        fila.QuerySelector(".celda-trabajador-dni")!.TextContent.Should().Contain("DNI");
+        fila.QuerySelector(".celda-trabajador-dni")!.TextContent.Trim().Should().NotStartWith("DNI", "el DNI va sin prefijo");
         fila.QuerySelector(".celda-trabajador-dni .boton-copiar-en-linea").Should().NotBeNull("el documento se copia con un clic");
         fila.QuerySelector(".celda-empresa-trabajador")!.TextContent.Trim().Should().Be("Montajes Ebro S.L.");
         fila.QuerySelector(".col-registrados-vigentes").Should().NotBeNull();
