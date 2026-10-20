@@ -22,12 +22,15 @@
 <div class="contenedor-pagina">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["AriaMigas"]" />
 
-    @if (_error)
+    @if (_noEncontrada)
+    {
+        <FichaNoEncontrada RutaLista="/trabajadores" />
+    }
+    else if (_error)
     {
         <EstadoVacio Titulo="@Textos["DetalleErrorTitulo"]" Descripcion="@Textos["DetalleErrorDescripcion"]">
             <Accion>
                 <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Comunes["Reintentar"]</Boton>
-                <EnlaceProfundoOtraEmpresa />
             </Accion>
         </EstadoVacio>
     }
@@ -65,6 +68,10 @@
                     @{ var dni = _detalle.Dni ?? string.Empty; }
                     <BotonCopiar EnLinea="true" ConfirmarConIcono="true" Valor="@dni" Texto="@dni" Etiqueta="@Textos["FichaCopiarDni"]" NombreAccesible="@Textos["FichaCopiarNombreAccesibleConValor", Textos["FichaCopiarDni"], dni]" />
                 </span>
+                @if (_detalle.ExtranjeroCobrableVisible && (_detalle.MarcaExtranjeroCobrable ?? _detalle.ExtranjeroCobrablePorDocumento))
+                {
+                    <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@Textos["CabeceraExtranjeroCobrable"]</Badge>
+                }
                 <span aria-hidden="true">·</span>
                 <span>
                     <button type="button" class="enlace-nombre-fila" @onclick="AbrirEmpleador">@_detalle.EmpleadorNombre</button>
@@ -112,12 +119,13 @@
             </Datos>
             <Acciones>
                 <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="SubirDocumentoAsync">@Textos["BotonSubirDocumento"]</Boton></SoloConEscritura>
-                @* Las tres acciones del menú son escrituras: a Consulta no se le deja el «⋯» con el menú vacío. *@
+                @* Las cuatro acciones del menú son escrituras: a Consulta no se le deja el «⋯» con el menú vacío. *@
                 <SoloConEscritura>
                     <MenuAcciones ConBorde="true" EtiquetaAccesible="@Comunes["MasAcciones"]">
                         <ItemMenuAccion OnClick="AbrirInformacion">@Textos["AccionEditar"]</ItemMenuAccion>
                         <ItemMenuAccion OnClick="ReclamarFaltantesAsync">@Textos["AccionReclamarFaltantes"]</ItemMenuAccion>
                         <ItemMenuAccion OnClick="AbrirCrearGestionAsync">@Textos["AccionCrearGestion"]</ItemMenuAccion>
+                        <ItemMenuAccion OnClick="() => _corregirDocumentoVisible = true">@Textos["AccionCorregirDocumento"]</ItemMenuAccion>
                     </MenuAcciones>
                 </SoloConEscritura>
             </Acciones>
@@ -427,6 +435,10 @@
                     <CajasFicha Cajas="CajasDeFicha" />
                     break;
 
+                case PestanaPlataformas:
+                    <PlataformasTrabajador Centros="_centros" />
+                    break;
+
                 case PestanaHistorial:
                     <PestanaHistorial EntidadTipo="Trabajador" EntidadId="TrabajadorId" />
                     break;
@@ -587,6 +599,8 @@
     <SoloConEscritura>
         <EditarFichaTrabajadorDrawer @key="TrabajadorId" TrabajadorId="TrabajadorId" Visible="_editorFichaVisible"
             VisibleChanged="v => _editorFichaVisible = v" OnGuardada="CargarAsync" />
+        <CorregirDocumentoIdentidadDrawer TrabajadorId="TrabajadorId" Visible="_corregirDocumentoVisible"
+            VisibleChanged="v => _corregirDocumentoVisible = v" OnGuardada="CargarAsync" />
     </SoloConEscritura>
 }
 </LimiteDeErrores>

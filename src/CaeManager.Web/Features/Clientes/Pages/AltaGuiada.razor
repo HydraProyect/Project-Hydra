@@ -284,6 +284,11 @@
                         OnBlur="ValidarApellidosTrabajadorAsync" MensajeError="@ObtenerError(_erroresTrabajador, nameof(CrearTrabajadorCommand.Apellidos))" />
             <CampoTexto Etiqueta="DNI / NIE" Valor="@_dniTrabajador" ValorChanged="v => _dniTrabajador = v"
                         OnBlur="ValidarDniTrabajadorAsync" MensajeError="@ObtenerError(_erroresTrabajador, nameof(CrearTrabajadorCommand.Dni))" />
+            @* Criterio único del documento del Trabajador (decisión de Chris, 2026-10-20): lo que no es DNI ni NIE se avisa. *@
+            @if (CaeManager.Domain.Trabajadores.CriterioDocumentoIdentidadTrabajador.Clasificar(_dniTrabajador).SeGuardaComoPasaporte)
+            {
+                <p class="texto-ayuda-campo" data-aviso="pasaporte" role="status">@CaeManager.Domain.Trabajadores.CriterioDocumentoIdentidadTrabajador.AvisoPasaporte</p>
+            }
             <CampoTexto Etiqueta="Puesto" Valor="@_puestoTrabajador" ValorChanged="v => _puestoTrabajador = v" />
             <CampoTexto Etiqueta="Email" Valor="@_emailTrabajador" ValorChanged="v => _emailTrabajador = v" />
 

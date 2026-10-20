@@ -39,6 +39,11 @@ public partial class DeteccionTrabajadores : CaeManager.Web.Components.PaginaInt
     private IReadOnlyList<DeteccionTrabajadorDto> _detecciones = [];
     private bool _cargando = true;
     private bool _errorCarga;
+    /// <summary>
+    /// La consulta de la Empresa devolvió null: no está en el Tenant activo (o no existe; es el mismo estado, § 4.5).
+    /// No es un fallo transitorio, así que no lleva «Reintentar»: lo pinta <c>FichaNoEncontrada</c>.
+    /// </summary>
+    private bool _noEncontrada;
 
     /// <summary>Hay una lista pintada: una recarga la deja a la vista, marcada como ocupada, en vez de volver al esqueleto.</summary>
     private bool _listaPintada;
@@ -132,6 +137,7 @@ public partial class DeteccionTrabajadores : CaeManager.Web.Components.PaginaInt
 
         _cargando = true;
         _errorCarga = false;
+        _noEncontrada = false;
         StateHasChanged();
 
         try
@@ -142,7 +148,7 @@ public partial class DeteccionTrabajadores : CaeManager.Web.Components.PaginaInt
 
             if (empresa is null)
             {
-                _errorCarga = true;
+                _noEncontrada = true;
                 _listaPintada = false;
                 return;
             }

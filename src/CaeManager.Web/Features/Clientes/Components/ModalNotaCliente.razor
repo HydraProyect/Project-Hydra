@@ -1,0 +1,84 @@
+@using CaeManager.Application.Clientes.Commands.EditarCliente
+@using CaeManager.Application.Clientes.Queries.ObtenerClientePorId
+@using CaeManager.Web.Features.Clientes.Recursos
+@using FluentValidation
+@using MediatR
+@using Microsoft.Extensions.Localization
+@implements IDisposable
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosClientes> Textos
+
+<ModalFormulario Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Textos["NotaEditarTitulo"]"
+                  HayCambios="HayCambios" Guardando="_guardando" MensajeError="@_error"
+                  MotivoGuardarDeshabilitado="@(HayCambios() ? null : Textos["NotaSinCambios"].Value)"
+                  TextoGuardar="@Textos["ToleranciaGuardar"]" TextoCancelar="@Textos["ToleranciaCancelar"]"
+                  OnGuardar="GuardarAsync">
+    <ChildContent>
+        <CampoTextarea Etiqueta="@Textos["NotaEtiqueta"]" Valor="@_nota" ValorChanged="v => _nota = v"
+                       Filas="5" Deshabilitado="_guardando" />
+        <p class="texto-ayuda-campo">@Textos["NotaPrivada"]</p>
+    </ChildContent>
+</ModalFormulario>
+
+@code {
+    [Parameter, EditorRequired] public ClienteDetalleDto Detalle { get; set; } = default!;
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter] public EventCallback OnGuardado { get; set; }
+
+    private ClienteDetalleDto? _origen;
+    private string _nota = string.Empty;
+    private string? _error;
+    private bool _guardando;
+    private bool _abierto;
+    private bool _desechado;
+
+    protected override void OnParametersSet()
+    {
+        if (Visible && (!_abierto || _origen?.Id != Detalle.Id))
+        {
+            _origen = Detalle;
+            _nota = Detalle.Notas ?? string.Empty;
+            _error = null;
+        }
+        _abierto = Visible;
+    }
+
+    private bool HayCambios() => _origen is not null && _nota != (_origen.Notas ?? string.Empty);
+
+    private async Task GuardarAsync()
+    {
+        if (_guardando || !HayCambios() || _origen is not { } origen) return;
+        _guardando = true;
+        _error = null;
+        try
+        {
+            var resultado = await Mediator.Send(new EditarClienteCommand(origen.Id, origen.RazonSocial,
+                origen.Cif, origen.EsCritico, string.IsNullOrWhiteSpace(_nota) ? null : _nota, origen.Version));
+            if (_desechado || _origen != origen) return;
+            if (resultado.EsFallido)
+            {
+                _error = resultado.Error.Mensaje;
+                return;
+            }
+            await VisibleChanged.InvokeAsync(false);
+            await OnGuardado.InvokeAsync();
+        }
+        catch (ValidationException ex)
+        {
+            if (!_desechado && _origen == origen)
+                _error = ex.Errors.FirstOrDefault()?.ErrorMessage ?? Textos["NotaErrorGuardar"];
+        }
+        catch (Exception)
+        {
+            if (!_desechado && _origen == origen)
+                _error = Textos["NotaErrorGuardar"];
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    public void Dispose() => _desechado = true;
+}

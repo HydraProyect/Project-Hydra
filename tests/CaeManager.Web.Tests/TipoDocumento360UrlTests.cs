@@ -1,3 +1,4 @@
+using CaeManager.Web.Components.Layout;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
@@ -544,12 +545,13 @@ public class TipoDocumento360UrlTests : BunitContext
         // los deja fuera por atributo (TipoDocumento360SoloRolesDeGestionTests). Aquí: los parámetros no cambian eso.
         var mediador = Montar(Roles.Consulta);
         mediador.PuedeLeer = false;
+        ComponentFactories.AddStub<FichaNoEncontrada>();
 
         var cut = Renderizar(consulta);
 
         Nombres(cut).Should().BeEmpty();
         cut.FindAll("input[type=search], .filtro-estados-opcion").Should().BeEmpty();
         cut.Markup.Should().NotContain("Marta Vencida");
-        cut.FindAll(".estado-vacio").Should().NotBeEmpty();
+        cut.RutaListaDeFichaNoEncontrada().Should().Be("/documentos");
     }
 }

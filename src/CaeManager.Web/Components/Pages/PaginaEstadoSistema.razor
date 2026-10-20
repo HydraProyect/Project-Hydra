@@ -13,9 +13,17 @@
    circuito interactivo no debería añadir más trabajo antes de poder pintar
    el mensaje (mismo principio que ya aplicaba AuthLayout, Sentry DOTNET-8). *@
 @using CaeManager.Infrastructure.Comunicaciones
+@using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados
+@using CaeManager.Web.Components.Layout
 @using CaeManager.Web.Features.Comunicaciones
+@using MediatR
+@using Microsoft.AspNetCore.Components.Authorization
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Options
 @inject IOptions<ComunicacionesOptions> OpcionesComunicaciones
+@inject IServiceProvider Servicios
+@inject IStringLocalizer<TextosComunes> Textos
 <div class="pagina-estado-sistema">
     <a class="marca-estado-sistema" href="/" aria-label="@($"{Marca.Nombre} — ir al Dashboard")">
         <span class="marca-estado-sistema-marca" aria-hidden="true"></span>
@@ -40,7 +48,8 @@
                 }
 
                 <div class="acciones-estado-sistema">
-                    <Boton Variante="VarianteBoton.Primario" Href="/">Ir al Inicio</Boton>
+                    @* En acceso denegado, Mi trabajo para quien lo tiene e Inicio para el resto: nunca otra pantalla que su rol niegue. *@
+                    <Boton Variante="VarianteBoton.Primario" Href="@RutaPrincipal">@EtiquetaPrincipal</Boton>
                     @if (MostrarReintentar)
                     {
                         <Boton Variante="VarianteBoton.Secundario" Href="@RutaReintentar">Reintentar</Boton>
@@ -72,6 +81,42 @@
 
 @code {
     [Parameter, EditorRequired] public TipoEstadoSistema Tipo { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    /// <summary>
+    /// Adónde lleva el botón principal de «acceso denegado»: Mi trabajo (la misma ruta que elige el menú
+    /// lateral) para los roles que lo tienen; Inicio para los demás y siempre que no se pueda saber. Solo
+    /// se consulta en esta pantalla: Error no debe sumar trabajo si lo que falló fue la base de datos.
+    /// </summary>
+    private string _rutaPantallaPrincipal = "/";
+
+    private string RutaPrincipal => Tipo == TipoEstadoSistema.AccesoDenegado ? _rutaPantallaPrincipal : "/";
+
+    private string EtiquetaPrincipal => Tipo == TipoEstadoSistema.AccesoDenegado ? Textos["IrATuPantallaPrincipal"].Value : "Ir al Inicio";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Tipo != TipoEstadoSistema.AccesoDenegado || EstadoAutenticacion is null)
+            return;
+
+        var usuario = (await EstadoAutenticacion).User;
+        if (!CatalogoMenuLateral.RolesDeMiTrabajo.Split(',').Any(usuario.IsInRole))
+            return;
+
+        var variosTenants = false;
+        try
+        {
+            if (Servicios.GetService<IMediator>() is { } mediador)
+                variosTenants = (await mediador.Send(new ObtenerClientesAutorizadosQuery())).Count > 1;
+        }
+        catch (Exception)
+        {
+            // Sin el recuento, la ruta de un solo Tenant: sigue siendo Mi trabajo y la autoriza el mismo rol.
+        }
+
+        _rutaPantallaPrincipal = "/" + CatalogoMenuLateral.RutaMiTrabajo(variosTenants);
+    }
 
     /// <summary>
     /// Solo aplica a <see cref="TipoEstadoSistema.Error"/>. Sin valor, el
@@ -119,7 +164,9 @@
     {
         TipoEstadoSistema.Error => "Ocurrió un error inesperado",
         TipoEstadoSistema.NoEncontrado => "No encontramos esta página",
-        TipoEstadoSistema.AccesoDenegado => "No tienes permiso para ver esta sección",
+        // Lenguaje de producto, no de permisos: quien llega aquí no sabe qué es un rol de plataforma y la
+        // propia interfaz no debería haberle ofrecido el destino. Sin nombrar el recurso que se pedía.
+        TipoEstadoSistema.AccesoDenegado => "Tu rol actual no incluye esta pantalla",
         _ => string.Empty,
     };
 
@@ -130,7 +177,7 @@
         // Nunca "el cliente X no es tuyo" ni "esa ficha no existe": ambas
         // frases confirmarían que el recurso existe, y eso es justo la fuga
         // de información que esta pantalla existe para evitar.
-        TipoEstadoSistema.AccesoDenegado => "Si crees que es un error, contacta con quien gestione tus accesos en tu organización.",
+        TipoEstadoSistema.AccesoDenegado => "Si la necesitas para tu trabajo, contacta con quien gestione tus accesos en tu organización.",
         _ => string.Empty,
     };
 

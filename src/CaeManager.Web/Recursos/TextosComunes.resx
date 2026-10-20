@@ -163,6 +163,27 @@
   <data name="EnlaceOtraEmpresaAbrir" xml:space="preserve">
     <value>Abrir en {0}</value>
   </data>
+  <data name="FichaNoEstaEnEmpresaActiva" xml:space="preserve">
+    <value>Esa ficha no está en {0}; te llevamos a la lista.</value>
+  </data>
+  <data name="FichaNoDisponibleTitulo" xml:space="preserve">
+    <value>Esta ficha no está disponible</value>
+  </data>
+  <data name="FichaNoDisponibleDescripcion" xml:space="preserve">
+    <value>Puede que se haya eliminado o que el enlace no sea correcto.</value>
+  </data>
+  <data name="FichaNoDisponibleIrALista" xml:space="preserve">
+    <value>Ir a la lista</value>
+  </data>
+  <data name="FichaNoDisponibleVolviendo" xml:space="preserve">
+    <value>Volviendo a la lista…</value>
+  </data>
+  <data name="FichaPanelNoEstaEnEmpresaActiva" xml:space="preserve">
+    <value>Esa ficha no está en {0}.</value>
+  </data>
+  <data name="FichaPanelNoDisponible" xml:space="preserve">
+    <value>Esa ficha ya no está disponible.</value>
+  </data>
   <data name="FiltrosGuardados" xml:space="preserve">
     <value>Filtros guardados</value>
   </data>
@@ -613,5 +634,23 @@
   </data>
   <data name="SeccionErroresPlural" xml:space="preserve">
     <value>{0} errores</value>
+  </data>
+  <data name="IrATuPantallaPrincipal" xml:space="preserve">
+    <value>Ir a tu pantalla principal</value>
+  </data>
+  <data name="TarjetasRestablecer" xml:space="preserve"><value>Restablecer orden</value></data>
+  <data name="TarjetasMover" xml:space="preserve"><value>Mover la tarjeta {0}. Usa las flechas arriba y abajo.</value></data>
+  <data name="TarjetasArrastrar" xml:space="preserve"><value>Arrastra ⠿ para reordenar las tarjetas</value></data>
+  <data name="AgendaNotaComunicaciones" xml:space="preserve">
+    <value>Nota para Comunicaciones</value>
+  </data>
+  <data name="AgendaNotaPlaceholder" xml:space="preserve">
+    <value>Trato especial o precaución al responderle</value>
+  </data>
+  <data name="AgendaNotaAyuda" xml:space="preserve">
+    <value>Cuando esta persona escriba, la nota aparece como marcapáginas en la conversación. Solo la ve tu equipo, nunca el contacto.</value>
+  </data>
+  <data name="AgendaNotaMarcapaginas" xml:space="preserve">
+    <value>Sale como marcapáginas en Comunicaciones cuando escribe</value>
   </data>
 </root>

@@ -2,6 +2,8 @@ using Bunit;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
 
@@ -18,6 +20,55 @@ namespace CaeManager.Web.Tests;
 public class CajasFichaTests : BunitContext
 {
     private const string Modulo = "./js/cajas-ficha.js";
+
+    public CajasFichaTests() => Services.AddLocalization();
+
+    [Fact]
+    public void Con_clave_de_orden_se_aplica_el_orden_guardado_sin_medir_alturas()
+    {
+        var modulo = JSInterop.SetupModule(Modulo);
+        modulo.Setup<string[]?>("leerOrden", _ => true).SetResult(["b", "a"]);
+
+        var cut = Render<CajasFicha>(p => p.Add(x => x.Cajas, [Caja("a"), Caja("b")]).Add(x => x.ClaveOrden, "centro-1"));
+
+        cut.WaitForAssertion(() => Claves(cut).Should().Equal("b", "a"));
+        modulo.Invocations.Should().NotContain(i => i.Identifier == "medirAlturas");
+        modulo.Invocations["leerOrden"].Single().Arguments[0].Should().Be("centro-1");
+    }
+
+    [Fact]
+    public async Task Mover_con_las_flechas_guarda_el_orden_y_restablecer_lo_borra()
+    {
+        var modulo = JSInterop.SetupModule(Modulo);
+        modulo.Setup<string[]?>("leerOrden", _ => true).SetResult([]);
+        modulo.SetupVoid("guardarOrden", _ => true);
+        var cut = Render<CajasFicha>(p => p.Add(x => x.Cajas, [Caja("a"), Caja("b")]).Add(x => x.ClaveOrden, "centro-1"));
+        cut.WaitForAssertion(() => modulo.Invocations["leerOrden"].Should().ContainSingle());
+
+        await cut.FindAll(".cajas-ficha-asa")[0].KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" });
+
+        Claves(cut).Should().Equal("b", "a");
+        var guardado = modulo.Invocations["guardarOrden"].Single().Arguments;
+        guardado[0].Should().Be("centro-1");
+        guardado[1].Should().BeAssignableTo<IEnumerable<string>>().Which.Should().Equal("b", "a");
+
+        await cut.Find(".cajas-ficha-restablecer").ClickAsync(new MouseEventArgs());
+
+        Claves(cut).Should().Equal("a", "b");
+        modulo.Invocations["guardarOrden"].Last().Arguments[1].Should().BeAssignableTo<IEnumerable<string>>().Which.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Sin_clave_de_orden_no_hay_asas_ni_restablecer()
+    {
+        var modulo = JSInterop.SetupModule(Modulo);
+        modulo.Setup<double[]>("medirAlturas", _ => true).SetResult([10, 20]);
+
+        var cut = Render<CajasFicha>(p => p.Add(x => x.Cajas, [Caja("a"), Caja("b")]));
+
+        cut.FindAll(".cajas-ficha-asa").Should().BeEmpty();
+        cut.FindAll(".cajas-ficha-restablecer").Should().BeEmpty();
+    }
 
     private static CajaFicha Caja(string clave) => new(clave, b => b.AddContent(0, clave));
 

@@ -1,28 +1,13 @@
-@*
-    Vehículo 360 (página): la ficha entera de un Vehículo, con su
-    documentación registrada, su historial y sus datos. Mockup de referencia:
-    «Paginas 360 nuevas TALVEG.maqueta.html», incluida la pestaña Ficha.
-
-    Identidad con anillo, pestañas Documentación, Centros orientativos de su Empresa empleadora, Ficha e Historial y tarjeta lateral
-    Información. El lateral se cierra con la «Nota interna» (pieza NotaInterna),
-    que se edita en su propio DrawerFormulario y se guarda con un comando
-    estrecho, no con el panel. Los Centros describen actividad de Trabajadores de su Empresa empleadora,
-    sin asignación del Vehículo a Centro ni Visita. «Eliminar vehículo» (menú «Más acciones») vuelve al
-    listado con un aviso que ofrece «Deshacer». Quedan pendientes fecha de alta y tarjeta lateral del
-    empleador.
-
-    El anillo mide los documentos REGISTRADOS, no los exigidos: todavía no
-    existe un universo de documentos exigidos a un vehículo. Por eso aquí no
-    hay estado «Pendiente»; los documentos de un vehículo no bloquean el
-    acceso de nadie.
-
-    Sin banda de incidencias bajo la cabecera (decisión de producto del
-    2026-10-09): los vencidos se ven, y se abren, en su fila.
-
-    Editar los datos de identidad abre el panel del Vehículo (Context Workspace) en «Información»,
-    que es donde vive la edición en línea con su aviso de cambios sin
-    guardar; al cerrarse el panel la ficha se vuelve a leer. Las cajas de Ficha
-    se editan con su propio DrawerFormulario y comando estrecho.
+﻿@*
+    Vehículo 360 según «Vehiculo 360 TALVEG.dc.html».
+    Los Centros muestran actividad de la Empresa empleadora, sin asignación del Vehículo.
+    Pendiente de backend: fecha de alta y acreditaciones por Cliente empresarial y Centro de Trabajo.
+    La ausencia de ese lector no equivale a que todo esté validado en plataformas CAE.
+    El anillo mide los documentos REGISTRADOS, no los exigidos (no hay universo de documentos exigidos
+    a un vehículo): por eso no hay estado «Pendiente» y los documentos no bloquean el acceso de nadie.
+    Sin banda de incidencias bajo la cabecera (decisión de producto del 2026-10-09): los vencidos se ven,
+    y se abren, en su fila. Editar la identidad abre el panel del Vehículo (Context Workspace) en
+    «Información». Quién ve la nota interna lo decide el servidor (ObtenerVehiculoPorIdQuery).
 *@
 @page "/vehiculos/{VehiculoId:guid}"
 @rendermode InteractiveServer
@@ -41,10 +26,16 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@(_detalle?.Nombre ?? Textos["FichaKicker"]) — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina vehiculo360">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["FichaRutaNavegacion"]" />
 
-    @if (_error)
+    @if (_noEncontrada)
+    {
+        <Tarjeta>
+            <FichaNoEncontrada RutaLista="/vehiculos" />
+        </Tarjeta>
+    }
+    else if (_error)
     {
         @* No encontrado y sin acceso se ven igual, para no revelar si el
            registro existe en otra organización: la consulta devuelve null en
@@ -54,7 +45,6 @@
                          NombreIcono="error-circulo" AcentoIcono="var(--color-danger-700)" FondoIcono="var(--color-danger-50)">
                 <Accion>
                     <Boton Variante="VarianteBoton.Secundario" OnClick="ReintentarAsync">@Textos["BotonReintentar"]</Boton>
-                    <EnlaceProfundoOtraEmpresa />
                 </Accion>
             </EstadoVacio>
         </Tarjeta>
@@ -86,6 +76,7 @@
                 @if (RutaEmpleador is { } rutaEmpleador)
                 {
                     <a class="vehiculo360-enlace" href="@rutaEmpleador">@_detalle.EmpleadorNombre</a>
+                    <Boton360 Nombre="@_detalle.EmpleadorNombre" Href="@rutaEmpleador" />
                 }
                 else
                 {
@@ -196,7 +187,7 @@
                             break;
 
                         case "centros":
-                            <p>@Textos["CentrosOrientativos360"]</p>
+                            <p class="vehiculo360-intro">@Textos["CentrosOrientativos360"]</p>
                             @if (_cargandoCentros)
                             {
                                 <EstadoCargando Filas="3" />
@@ -222,6 +213,11 @@
                                     }
                                 </ListaRelaciones>
                             }
+                            break;
+
+                        case "plataformas":
+                            <p class="vehiculo360-intro">@Textos["PlataformasIntroduccion"]</p>
+                            <EstadoVacio Titulo="@Textos["PlataformasNoDisponiblesTitulo"]" Descripcion="@Textos["PlataformasNoDisponiblesDescripcion"]" NombreIcono="documentos" />
                             break;
 
                         case "ficha":
@@ -270,18 +266,12 @@
                                 <DatoRejilla Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_detalle.Nombre" />
                                 <DatoRejilla Etiqueta="@Textos["EtiquetaMatricula"]" Valor="@_detalle.NumeroPlaca" />
                                 <DatoRejilla Etiqueta="@Textos["EtiquetaModelo"]" Valor="@_detalle.Modelo" />
+                                <DatoRejilla Etiqueta="@Textos["FichaAlta"]" Valor="—" />
+                                <DatoRejilla Etiqueta="@Textos["EtiquetaEmpleador"]" Valor="@_detalle.EmpleadorNombre" Ancho="true" />
                             </RejillaDatos>
+                            <p class="vehiculo360-nota">@Textos["FichaNotaEmpleador"]</p>
                         </ChildContent>
                     </Tarjeta>
-                    <Tarjeta Compacta="true" Titulo="@Textos["EtiquetaEmpleador"]">
-                        <ListaRelaciones Etiqueta="@Textos["EtiquetaEmpleador"]">
-                            <FilaRelacion Nombre="@_detalle.EmpleadorNombre" Href="@RutaEmpleador" NombreIcono="empresas" OnAbrir360="AbrirEmpleador" />
-                        </ListaRelaciones>
-                        <p class="vehiculo360-nota">@Textos["FichaNotaEmpleador"]</p>
-                    </Tarjeta>
-
-                    @* Quién ve la nota lo decide el servidor (ObtenerVehiculoPorIdQuery), no esta página: con
-                       NotaInternaVisible = false la tarjeta no existe, ni siquiera vacía. Consulta la lee sin «Editar». *@
                     @if (_detalle.NotaInternaVisible)
                     {
                         <NotaInterna Texto="@_detalle.Notas">
@@ -324,7 +314,7 @@
 
 @code {
     private IReadOnlyList<CajaFicha> CajasDeFicha =>
-        [new("tipo-titularidad", CajaTipoTitularidad), new("seguro", CajaSeguro)];
+        [new("empleador", CajaEmpleador), new("tipo-titularidad", CajaTipoTitularidad), new("seguro", CajaSeguro)];
 
     private Task AbrirConductorAsync(Guid id, string nombre) =>
         WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, id, nombre, "informacion");
@@ -359,6 +349,23 @@
                     <DatoRejilla Etiqueta="@Textos["FichaRecibo"]" Valor="@(_detalle.Recibo ?? "—")" Ancho="true" />
                 </RejillaDatos>
             </ChildContent>
+        </Tarjeta>
+    };
+
+    private RenderFragment CajaEmpleador => __builder =>
+    {
+        <Tarjeta Titulo="@Textos["EtiquetaEmpleador"]">
+            <ListaRelaciones Etiqueta="@Textos["EtiquetaEmpleador"]">
+                <FilaRelacion Nombre="@_detalle!.EmpleadorNombre" Href="@RutaEmpleador" NombreIcono="empresas">
+                    <Detalle>@Textos["EtiquetaEmpresa"]</Detalle>
+                    <Derecha>
+                        @if (RutaEmpleador is { } rutaEmpleadorCaja)
+                        {
+                            <Boton360 Nombre="@_detalle.EmpleadorNombre" Href="@rutaEmpleadorCaja" />
+                        }
+                    </Derecha>
+                </FilaRelacion>
+            </ListaRelaciones>
         </Tarjeta>
     };
 }

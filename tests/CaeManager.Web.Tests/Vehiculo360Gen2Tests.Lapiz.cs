@@ -132,10 +132,19 @@ public partial class Vehiculo360Gen2Tests
         if (lanza)
             m.Fallar = x => x is ObtenerVehiculoPorIdQuery ? new InvalidOperationException("Fallo simulado de la carga.") : null;
 
+        ComponentFactories.AddStub<PanelNoEncontrado>();
         var cut = RenderizarPanel(id);
 
         cut.FindAll(LapizVehiculo).Should().BeEmpty("control positivo: sin detalle no hay cabecera");
         workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Vehiculo, id).Should().BeFalse("la carga sin ficha la descartó");
+
+        if (!lanza)
+        {
+            // Sin detalle no es un fallo: el panel se cierra con un toast (PanelNoEncontrado), sin «Reintentar».
+            cut.PintaPanelNoEncontrado().Should().BeTrue();
+            cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Reintentar");
+            return;
+        }
 
         m.Fallar = null;
         m.Detalles[id] = Detalle(id, "Furgoneta de obra");
