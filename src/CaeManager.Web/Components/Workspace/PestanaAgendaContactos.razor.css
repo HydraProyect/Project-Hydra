@@ -65,6 +65,27 @@
     gap: var(--space-1);
 }
 
+.agenda-contacto-nota {
+    align-self: flex-start;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 4px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--color-warning-50);
+    color: var(--color-warning-700);
+    font: var(--font-small);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    min-width: 0;
+}
+
+.agenda-contacto-nota svg {
+    flex: none;
+    margin-top: 1px;
+}
+
 .agenda-contacto-acciones {
     display: flex;
     gap: var(--space-2);

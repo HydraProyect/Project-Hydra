@@ -55,6 +55,8 @@ else
     </SoloConEscritura>
     }
 
+    @Busqueda
+
     @*
         Ámbito EMPRESA (OD-13, blueprint § 3.3). Aparece solo cuando la empresa
         del centro tiene documentación con incidencia, y lista únicamente lo que
@@ -269,7 +271,7 @@ else
                         }
                         else
                         {
-                            <span class="fila-trabajador-fraccion">@TextoFraccionTrabajador(trabajador)</span>
+                            <span class="fila-trabajador-fraccion">@(TextoFraccionTrabajador(trabajador))</span>
                         }
                     </Cifra>
                     <Estado>
@@ -286,7 +288,7 @@ else
                                        OnClick="() => AlternarExpansionTrabajador(trabajador.AsignacionId)">@Textos["GestionarDocumento360"]</Boton>
                             </SoloConEscritura>
                         }
-                        @if (!ModoListado && !EstaBloqueado(trabajador.TrabajadorId) && PuedePedir(trabajador))
+                        @if (!MostrarEstadoPlataforma && !ModoListado && !EstaBloqueado(trabajador.TrabajadorId) && PuedePedir(trabajador))
                         {
                             <SoloConEscritura>
                                 @* Texto visible «Gestionar»; el nombre accesible dice que reclama los documentos del Trabajador, para no
@@ -306,6 +308,71 @@ else
                             }
                             else
                             {
+                                @if (MostrarEstadoPlataforma)
+                                {
+                                    <div class="tabla-plataforma-centro" role="table" aria-label="@($"{Textos["PestanaTrabajadores"]} · {trabajador.TrabajadorNombre}")">
+                                        <div class="cabecera-plataforma-centro" role="row">
+                                            <span role="columnheader">@Textos["DocumentoColumna360"]</span>
+                                            <span role="columnheader">@(NombrePlataforma is { } plataformaCabecera ? Textos["PlataformaEstadoCabeceraNombre360", plataformaCabecera] : Textos["PlataformaEstadoCabecera360"])</span>
+                                            <span role="columnheader">@Textos["PlataformaCaducidad360"]</span>
+                                            <span role="columnheader">@Textos["PlataformaBloquea360"]</span>
+                                        </div>
+                                        @{ var clavesDocumentos = new ClavesDeHermanos(); }
+                                        @foreach (var documento in trabajador.Documentos.OrderBy(OrdenPlataforma))
+                                        {
+                                            <div class="fila-plataforma-centro @(BloqueaPlataforma(documento) ? "fila-plataforma-bloquea" : TienePendienteValidacion(documento) ? "fila-plataforma-pendiente" : null)" role="row" @key="clavesDocumentos.De((documento.TipoDocumentoId, documento.DocumentoId))">
+                                                <span role="cell" class="identidad-documento-plataforma">
+                                                    <span class="indicador-talveg" data-estado="@EstadoDocumentoFicha360.Tono(documento.Estado)" title="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]" aria-label="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]">T</span>
+                                                    <span>@documento.TipoDocumentoNombre</span>
+                                                </span>
+                                                <span role="cell" class="estado-documento-plataforma">
+                                                    @if (documento.AcreditacionesEnElCentro is not { Count: > 0 })
+                                                    {
+                                                        <span>@Textos["PlataformaSinDatos360"]</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        @foreach (var acreditacion in documento.AcreditacionesEnElCentro)
+                                                        {
+                                                            <Badge Tono="TonoPlataforma(acreditacion.Estado)" Tamano="TamanoBadge.Pequeno">@TextoPlataforma(acreditacion.Estado)</Badge>
+                                                            <span class="nombre-plataforma-centro">@acreditacion.NombrePlataforma</span>
+                                                        }
+                                                    }
+                                                    <CaeManager.Web.Features.Documentos.Components.LineaPlataformaYReclamacion Acreditaciones="null" UltimaReclamacion="documento.UltimaReclamacion" Estado="documento.Estado" LaFilaYaDiceLaPlataforma="false" />
+                                                    @* La maqueta del 20-10 no pinta acción por documento, pero la regla del 2026-10-19 (#1475) sigue vigente:
+                                                       desde un Centro no se sube nada; si falta en TALVEG, la acción lleva a la ficha 360 del Trabajador y,
+                                                       si no, «Gestionar» abre el panel que cambia solo el estado en la plataforma. Solo con escritura. *@
+                                                    @if (GestionarEnPlataforma.FaltaEnTalveg(documento.DocumentoId, documento.Estado))
+                                                    {
+                                                        <SoloConEscritura>
+                                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                                                   data-accion="actualizar-en-ficha"
+                                                                   Href="@GestionarEnPlataforma.RutaFicha(esDeEmpresa: false, trabajador.TrabajadorId)">
+                                                                @GestionarEnPlataforma.TextoActualizar(esDeEmpresa: false)
+                                                            </Boton>
+                                                        </SoloConEscritura>
+                                                    }
+                                                    else
+                                                    {
+                                                        <SoloConEscritura>
+                                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                                                   class="@(GestionarEnPlataforma.AmbosAlDia(documento.Estado, documento.AcreditacionesEnElCentro) ? $"accion-fila-enlace {EstadoDocumentoFicha360.ClaseGestionarDiscreto}" : "accion-fila-enlace")"
+                                                                   data-accion="gestionar-acreditacion"
+                                                                   aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre, trabajador.TrabajadorNombre)"
+                                                                   OnClick="() => GestionarAcreditacion(trabajador, documento)">
+                                                                @Textos["GestionarDocumento360"]
+                                                            </Boton>
+                                                        </SoloConEscritura>
+                                                    }
+                                                </span>
+                                                <span role="cell"><TextoFechaCopiable Fecha="documento.FechaVencimiento">@TextoVigencia(documento)</TextoFechaCopiable></span>
+                                                <span role="cell">@(documento.AcreditacionesEnElCentro is not { Count: > 0 } ? "—" : Textos[BloqueaPlataforma(documento) ? "PlataformaBloqueaSi360" : "PlataformaBloqueaNo360"].Value)</span>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
                                 <div class="tabla-documentos-requeridos documentos-trabajador-ficha" role="table"
                                      aria-label="@($"Documentación exigida a {trabajador.TrabajadorNombre}")">
                                     <div class="documentos-requeridos-cabecera" role="row">
@@ -314,9 +381,10 @@ else
                                         <span role="columnheader">Vigencia</span>
                                         <span role="columnheader" class="columna-accion">Acción</span>
                                     </div>
+                                    @{ var clavesDocumentos = new ClavesDeHermanos(); }
                                     @foreach (var documento in trabajador.Documentos)
                                     {
-                                        <div class="fila-documento-requerido" role="row" @key="documento.TipoDocumentoId">
+                                        <div class="fila-documento-requerido" role="row" @key="clavesDocumentos.De((documento.TipoDocumentoId, documento.DocumentoId))">
                                             <span class="celda-documento-nombre" role="cell">
                                                 @* Mismo criterio que el nombre de la incidencia de Empresa, arriba: a Consulta, texto. *@
                                                 <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionNombre">
@@ -432,6 +500,7 @@ else
                                         </div>
                                     }
                                 </div>
+                                }
                             }
                         }
                     </Desplegable>

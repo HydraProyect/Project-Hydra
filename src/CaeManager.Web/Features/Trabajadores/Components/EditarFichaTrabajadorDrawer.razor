@@ -1,4 +1,5 @@
 @using CaeManager.Application.Trabajadores
+@using CaeManager.Domain.Trabajadores
 @using CaeManager.Application.Trabajadores.Commands.EditarFichaTrabajador
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId
 @using CaeManager.Domain.Common
@@ -16,6 +17,13 @@
     Guardando="_guardando" MensajeError="@_error" HayErroresDeCampo="@(_errores.Count > 0)"
     MotivoGuardarDeshabilitado="@(!_lista ? Textos["FichaNoDisponible"].Value : null)" OnGuardar="GuardarAsync"
     TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.Nombre))" />
+    <CampoTexto Etiqueta="@Textos["EtiquetaApellidos"]" Valor="@_apellidos" ValorChanged="v => _apellidos = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.Apellidos))" />
+    <CampoTexto Etiqueta="@Textos["CorregirDocumentoEtiqueta"]" Valor="@_documento" ValorChanged="CambiarDocumento" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.Documento))" />
+    @if (_documento != _documentoCargado && CriterioDocumentoIdentidadTrabajador.Clasificar(_documento).SeGuardaComoPasaporte)
+    {
+        <p class="texto-ayuda-campo">@CriterioDocumentoIdentidadTrabajador.AvisoPasaporte</p>
+    }
     <CampoTexto Etiqueta="@Textos["FichaAfiliacion"]" Valor="@_afiliacion" ValorChanged="v => _afiliacion = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.NumeroAfiliacionSeguridadSocial))" />
     @* Oficio y Delegación (decisión de Chris, 2026-10-18): solo con un Trabajador de Empresa; el Oficio ocupa el sitio del
        Puesto. El de una Subcontrata sigue con el Puesto en texto. *@
@@ -76,7 +84,7 @@
         nameof(EditarFichaTrabajadorCommand.ContactoEmergencia) + "." + nameof(ContactoEmergenciaTrabajador.Telefono);
 
     private bool _abierto, _cargando, _guardando, _lista, _conContactoEmergencia;
-    private bool _conExtranjeroCobrable, _extranjeroCobrable, _extranjeroCobrableCargado, _extranjeroCobrablePorDocumento;
+    private bool _conExtranjeroCobrable, _extranjeroCobrable, _extranjeroCobrableCargado, _extranjeroCobrablePorDocumento, _extranjeroCobrablePorDocumentoCargado;
     private int _generacion;
     private Guid _id, _version;
     private Guid? _empresaId;
@@ -84,6 +92,7 @@
     private string _afiliacion = "", _puesto = "", _nacimiento = "", _nacionalidad = "",
         _vinculo = "", _tipoContratacion = "CuentaAjena", _alta = "", _baja = "", _rnt = "", _permiso = "", _caducidad = "", _motivo = "",
         _emergenciaNombre = "", _emergenciaTelefono = "";
+    private string _nombre = "", _apellidos = "", _documento = "", _documentoCargado = "";
     private string? _error;
     private Dictionary<string, string> _errores = [];
     private readonly InstantaneaFormulario _instantanea = new();
@@ -92,7 +101,7 @@
     private string? Error(string campo) => _errores.GetValueOrDefault(campo);
     private string Instantanea() => System.Text.Json.JsonSerializer.Serialize(new
     {
-        _afiliacion, _puesto, _nacimiento, _nacionalidad, _vinculo, _tipoContratacion, _alta, _baja, _rnt, _permiso, _caducidad, _motivo,
+        _nombre, _apellidos, _documento, _afiliacion, _puesto, _nacimiento, _nacionalidad, _vinculo, _tipoContratacion, _alta, _baja, _rnt, _permiso, _caducidad, _motivo,
         _emergenciaNombre, _emergenciaTelefono, _oficioId, _delegacionId, _extranjeroCobrable
     });
 
@@ -101,9 +110,23 @@
     /// se quita (vuelve a decidir el documento); si lo contradice, se fija a mano.
     /// </summary>
     private MarcaExtranjeroCobrableTrabajador? CambioExtranjeroCobrable() =>
-        !_conExtranjeroCobrable || _extranjeroCobrable == _extranjeroCobrableCargado
+        !_conExtranjeroCobrable || (_documento == _documentoCargado && _extranjeroCobrable == _extranjeroCobrableCargado)
             ? null
             : new MarcaExtranjeroCobrableTrabajador(_extranjeroCobrable == _extranjeroCobrablePorDocumento ? null : _extranjeroCobrable);
+
+    private void CambiarDocumento(string valor)
+    {
+        _documento = valor;
+        if (valor == _documentoCargado)
+        {
+            // Volver al documento cargado restaura la casilla tal como estaba: así no se envía una marca a mano que nadie tocó.
+            _extranjeroCobrablePorDocumento = _extranjeroCobrablePorDocumentoCargado;
+            _extranjeroCobrable = _extranjeroCobrableCargado;
+            return;
+        }
+        _extranjeroCobrablePorDocumento = CriterioDocumentoIdentidadTrabajador.Clasificar(valor).SeGuardaComoPasaporte;
+        _extranjeroCobrable = _extranjeroCobrablePorDocumento;
+    }
 
     private DateOnly? Fecha(string valor, string campo)
     {
@@ -135,6 +158,9 @@
             if (generacion != _generacion) return;
             if (detalle is null) { _error = Textos["FichaNoDisponible"]; return; }
             _version = detalle.Version;
+            _nombre = detalle.Nombre;
+            _apellidos = detalle.Apellidos;
+            _documento = _documentoCargado = detalle.Dni ?? "";
             _afiliacion = detalle.NumeroAfiliacionSeguridadSocial ?? "";
             _puesto = detalle.Puesto ?? "";
             _empresaId = detalle.EmpresaId;
@@ -154,7 +180,7 @@
             _emergenciaNombre = detalle.ContactoEmergenciaNombre ?? "";
             _emergenciaTelefono = detalle.ContactoEmergenciaTelefono ?? "";
             _conExtranjeroCobrable = detalle.ExtranjeroCobrableVisible;
-            _extranjeroCobrablePorDocumento = detalle.ExtranjeroCobrablePorDocumento;
+            _extranjeroCobrablePorDocumento = _extranjeroCobrablePorDocumentoCargado = detalle.ExtranjeroCobrablePorDocumento;
             _extranjeroCobrable = _extranjeroCobrableCargado = detalle.MarcaExtranjeroCobrable ?? detalle.ExtranjeroCobrablePorDocumento;
             _instantanea.Fijar(Instantanea());
             _lista = true;
@@ -196,7 +222,8 @@
                     : new DelegacionEmpresaYOficioDeTrabajador(
                         Guid.TryParse(_delegacionId, out var delegacion) ? delegacion : null,
                         Guid.TryParse(_oficioId, out var oficio) ? oficio : null),
-                CambioExtranjeroCobrable());
+                CambioExtranjeroCobrable(), _nombre, _apellidos,
+                _documento == _documentoCargado ? null : _documento);
             var validacion = new EditarFichaTrabajadorCommandValidator().Validate(comando);
             if (!validacion.IsValid) throw new ValidationException(validacion.Errors);
             var resultado = await Mediator.Send(comando, _ciclo.Token);

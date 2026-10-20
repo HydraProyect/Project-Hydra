@@ -680,4 +680,19 @@
   <data name="VolverListaAlertas" xml:space="preserve">
     <value>Volver a la lista de alertas</value>
   </data>
+  <data name="TarjetasRestablecer" xml:space="preserve"><value>Restablecer orden</value></data>
+  <data name="TarjetasMover" xml:space="preserve"><value>Mover la tarjeta {0}. Usa las flechas arriba y abajo.</value></data>
+  <data name="TarjetasArrastrar" xml:space="preserve"><value>Arrastra ⠿ para reordenar las tarjetas</value></data>
+  <data name="AgendaNotaComunicaciones" xml:space="preserve">
+    <value>Nota para Comunicaciones</value>
+  </data>
+  <data name="AgendaNotaPlaceholder" xml:space="preserve">
+    <value>Trato especial o precaución al responderle</value>
+  </data>
+  <data name="AgendaNotaAyuda" xml:space="preserve">
+    <value>Cuando esta persona escriba, la nota aparece como marcapáginas en la conversación. Solo la ve tu equipo, nunca el contacto.</value>
+  </data>
+  <data name="AgendaNotaMarcapaginas" xml:space="preserve">
+    <value>Sale como marcapáginas en Comunicaciones cuando escribe</value>
+  </data>
 </root>
