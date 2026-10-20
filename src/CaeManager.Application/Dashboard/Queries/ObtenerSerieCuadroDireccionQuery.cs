@@ -29,9 +29,11 @@ public record LineaFacturacionCuadroDto(
 
 /// <param name="Cifras">Las cifras del mes con las mismas definiciones que el Cuadro (el cumplimiento no se mide aquí).</param>
 /// <param name="Facturacion">
-/// Lo que el Operador CAE externo cobra en el mes: unidades de cada concepto con tarifa activa por la tarifa del
-/// Operador (<see cref="Dashboard.ValoracionOperadorCae"/>); null si la serie no se pidió con facturación o quien
-/// mira no gestiona las tarifas del Operador. Sin tarifas, lista vacía: no hay nada que valorar y nada se inventa.
+/// Lo que el Operador CAE externo cobra en el mes: unidades de cada concepto con tarifa por la tarifa del Operador
+/// (<see cref="Dashboard.ValoracionOperadorCae"/>); un concepto con el cobro desactivado sale con sus unidades e
+/// importe cero. Null si la serie no se pidió con facturación o quien mira no gestiona las tarifas del Operador.
+/// Lista vacía sin tarifas o sin vigencia de la Asignación de Operación en el mes: no hay nada que valorar y nada se
+/// inventa.
 /// </param>
 public record PuntoSerieCuadroDto(
     int Anyo, int Mes, EstadoCifraMensual Estado, CifrasCuadroDireccionDto Cifras,

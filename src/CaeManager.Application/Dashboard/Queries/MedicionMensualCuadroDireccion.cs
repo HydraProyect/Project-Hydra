@@ -116,7 +116,9 @@ public class MedicionMensualCuadroDireccion(
     /// extranjero) contadas solo dentro de <paramref name="tramos"/>: los trozos del mes en que su Asignación de
     /// Operación estuvo en vigor (<see cref="ValoracionOperadorCae.TramosEnElMes"/>). Con las mismas definiciones que
     /// <see cref="MedirAsync"/>; las altas por instante y las Visitas por su día de inicio, que cuenta si el tramo
-    /// empieza ese día o antes y termina después de él.
+    /// empieza ese día o antes y termina después de él. Borde asimétrico: la Visita del día en que empieza la
+    /// Asignación cuenta y la del día en que se cierra queda fuera. Se cuenta en vivo aunque el mes esté cerrado (la
+    /// foto guarda el mes entero, no los trozos).
     /// </summary>
     public virtual async Task<UnidadesOperadorCae> MedirUnidadesOperadorAsync(
         IReadOnlyList<TramoDeVigencia> tramos, DateTime corteUtc, CancellationToken cancellationToken)

@@ -32,7 +32,7 @@ public static class AutorizacionTarifasOperadorCae
         "TarifaOperadorCae.SinPermiso", "Solo el Administrador o la Dirección CAE del Operador CAE gestionan sus tarifas.");
 
     public static readonly Error EmpresaNoGestionada = Error.Crear(
-        "TarifaOperadorCae.EmpresaNoGestionada", "Esta Empresa no la gestiona tu Operador CAE.");
+        "TarifaOperadorCae.EmpresaNoGestionada", "Tu organización no gestiona hoy a esta empresa, así que no puedes fijarle una tarifa.");
 
     /// <summary>El Tenant de origen del Operador CAE si quien pide puede gestionar sus tarifas; null si no.</summary>
     public static async Task<Guid?> OperadorQueGestionaAsync(ICurrentUserService usuario)
@@ -64,7 +64,8 @@ public static class AutorizacionTarifasOperadorCae
     /// Las vigencias de las Asignaciones de Operación externas de <paramref name="operadorTenantId"/>, por Tenant
     /// beneficiario. Se llama con el ámbito en el Tenant de origen del Operador. Una Programada no ha empezado y no
     /// cuenta; una Cerrada cuenta hasta su cierre. Una Suspendida cuenta entera: la suspensión no guarda desde
-    /// cuándo, y descontarla cambiaría meses ya cerrados.
+    /// cuándo, y descontarla cambiaría meses ya cerrados. Toda Asignación externa cuenta como vigencia sobre el
+    /// Tenant beneficiario entero, aunque su ámbito sea parcial: la tarifa es por Tenant, no por Cliente empresarial.
     /// </summary>
     public static async Task<ILookup<Guid, VigenciaAsignacionOperacion>> VigenciasPorTenantBeneficiarioAsync(
         IOperacionesQueryContext operaciones, Guid operadorTenantId, CancellationToken cancellationToken)

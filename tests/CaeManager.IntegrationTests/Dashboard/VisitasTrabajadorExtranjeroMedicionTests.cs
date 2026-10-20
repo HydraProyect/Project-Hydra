@@ -2,6 +2,7 @@ using CaeManager.Application.Dashboard;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -65,7 +66,18 @@ public class VisitasTrabajadorExtranjeroMedicionTests : IAsyncLifetime
             new VisitaTrabajador(dia31.Id, recurrente.Id),
             new VisitaTrabajador(dia31.Id, otro.Id),
             new VisitaTrabajador(dia1Nov.Id, recurrente.Id));
+
+        // Altas por tramo: el Centro se da de alta el 20-oct, una Obra el 5-oct y un Evento el 25-oct (no cuenta).
+        var obra = Proyecto.Crear(cliente.Id, centro.Id, "Obra de octubre", new DateOnly(2025, 10, 5), null, null);
+        var evento = Proyecto.Crear(cliente.Id, centro.Id, "Evento de octubre", new DateOnly(2025, 10, 25), new DateOnly(2025, 10, 26), null, TipoProyecto.Evento);
+        contexto.Proyectos.AddRange(obra, evento);
         await contexto.SaveChangesAsync();
+        await contexto.Centros.Where(c => c.Id == centro.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.CreadoEnUtc, new DateTime(2025, 10, 20, 9, 0, 0, DateTimeKind.Utc)));
+        await contexto.Proyectos.Where(p => p.Id == obra.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.CreadoEnUtc, new DateTime(2025, 10, 5, 9, 0, 0, DateTimeKind.Utc)));
+        await contexto.Proyectos.Where(p => p.Id == evento.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.CreadoEnUtc, new DateTime(2025, 10, 25, 9, 0, 0, DateTimeKind.Utc)));
     }
 
     public async Task DisposeAsync() => await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
@@ -96,6 +108,15 @@ public class VisitasTrabajadorExtranjeroMedicionTests : IAsyncLifetime
         segundaMitad.VisitasTrabajadorExtranjero.Should().Be(2, "solo la Visita del 31 cae en la segunda mitad");
         primeraMitad.VisitasTrabajadorExtranjero.Should().Be(1, "solo la Visita del 1 cae en la primera mitad");
         mesEntero.VisitasTrabajadorExtranjero.Should().Be(3, "el mes entero coincide con la medición del mes");
+
+        segundaMitad.AltasCentros.Should().Be(1, "el Centro se dio de alta el 20");
+        primeraMitad.AltasCentros.Should().Be(0);
+        primeraMitad.ObrasNuevas.Should().Be(1, "la Obra se dio de alta el 5");
+        segundaMitad.ObrasNuevas.Should().Be(0, "el Evento del 25 no es una Obra");
+        mesEntero.Should().Be(new UnidadesOperadorCae(1, 1, 3));
+
+        var medida = await medicion.MedirAsync(Octubre, corte, CancellationToken.None, medirDocumental: false);
+        (medida.AltasCentros, medida.ObrasNuevas).Should().Be((1, 1), "control: el mes entero da lo mismo por las dos vías");
     }
 
     private MedicionMensualCuadroDireccion Medicion(CaeManagerDbContext contexto) =>
