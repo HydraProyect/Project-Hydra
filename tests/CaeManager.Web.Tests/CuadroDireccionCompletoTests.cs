@@ -558,7 +558,7 @@ public partial class CuadroDireccionTests
         IrA(cut, "Comunicaciones");
 
         var estados = cut.Find("[data-barras=estados]");
-        estados.TextContent.Should().Contain("Abierta").And.Contain("40").And.Contain("En espera de tercero").And.Contain("Esperando respuesta externa");
+        estados.TextContent.Should().Contain("Abierta").And.Contain("40").And.Contain("En espera de tercero").And.Contain("Esperando al Cliente");
         estados.QuerySelector("[data-sin-modelo=sla]")!.TextContent.Should().Contain("Fuera de SLA").And.Contain("—");
         var canal = cut.Find("[data-barras=canal]");
         canal.TextContent.Should().Contain("Correo").And.Contain("30").And.Contain("WhatsApp").And.Contain("12").And.Contain("Llamada");

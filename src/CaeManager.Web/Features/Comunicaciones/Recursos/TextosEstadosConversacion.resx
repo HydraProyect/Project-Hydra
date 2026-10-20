@@ -19,7 +19,7 @@
     <value>Pendiente</value>
   </data>
   <data name="EsperandoRespuestaExterna" xml:space="preserve">
-    <value>Esperando respuesta externa</value>
+    <value>Esperando al Cliente</value>
   </data>
   <data name="EnEsperaDeTercero" xml:space="preserve">
     <value>En espera de tercero</value>
