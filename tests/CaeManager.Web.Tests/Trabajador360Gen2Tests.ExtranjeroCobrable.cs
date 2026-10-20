@@ -36,7 +36,9 @@ public partial class Trabajador360Gen2Tests
         var id = Guid.NewGuid(); var m = ConTrabajador(id);
         m.Detalles[id] = m.Detalles[id] with
         {
-            ExtranjeroCobrableVisible = true, ExtranjeroCobrablePorDocumento = false, MarcaExtranjeroCobrable = true
+            ExtranjeroCobrableVisible = true,
+            ExtranjeroCobrablePorDocumento = false,
+            MarcaExtranjeroCobrable = true
         };
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
 

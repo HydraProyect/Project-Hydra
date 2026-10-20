@@ -159,10 +159,22 @@ public class ObtenerExtranjerosDelMesQueryHandler(
                 where !v.EstaCancelada && v.FechaInicio >= primerDia && v.FechaInicio < primerDiaSiguiente
                 select new
                 {
-                    vt.Id, vt.FechaAsignacionUtc, vt.GestionadoPorUsuarioId, VisitaCreadaEnUtc = v.CreadoEnUtc,
-                    v.ContactoNombre, v.FechaInicio, v.FechaFin,
-                    t.Nombre, t.Apellidos, t.Dni, t.MarcaExtranjeroCobrable, t.EmpresaId, t.SubcontrataId,
-                    CentroNombre = c.Nombre, c.ClienteId, CentroEmpresaId = c.EmpresaId,
+                    vt.Id,
+                    vt.FechaAsignacionUtc,
+                    vt.GestionadoPorUsuarioId,
+                    VisitaCreadaEnUtc = v.CreadoEnUtc,
+                    v.ContactoNombre,
+                    v.FechaInicio,
+                    v.FechaFin,
+                    t.Nombre,
+                    t.Apellidos,
+                    t.Dni,
+                    t.MarcaExtranjeroCobrable,
+                    t.EmpresaId,
+                    t.SubcontrataId,
+                    CentroNombre = c.Nombre,
+                    c.ClienteId,
+                    CentroEmpresaId = c.EmpresaId,
                 })
             .ToListAsync(cancellationToken);
 
