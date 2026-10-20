@@ -192,3 +192,10 @@
     line-height: 18px;
     font-weight: 700;
 }
+
+/* Dos estados, dos líneas: «En TALVEG» (vigencia) y «En la plataforma» (acreditación en este Centro). */
+.celda-dos-estados { display: flex; flex-direction: column; gap: var(--space-1); }
+.linea-estado { display: flex; align-items: center; gap: var(--space-2); font-size: 0.75rem; }
+.linea-estado-etiqueta { color: var(--color-text-muted); min-width: 7.5em; }
+.linea-estado-plataforma { color: var(--color-text-muted); }
+.linea-estado-plataforma--rechazada { color: var(--color-danger-700); }
