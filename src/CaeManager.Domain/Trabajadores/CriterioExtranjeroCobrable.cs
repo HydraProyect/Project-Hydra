@@ -11,7 +11,9 @@ namespace CaeManager.Domain.Trabajadores;
 /// <see cref="CriterioDocumentoIdentidadTrabajador"/>. No cuentan el DNI ni el NIE (quien tiene NIE puede ser residente).
 /// Cuenta cualquier otro valor, incluido el número de soporte de la TIE, que ya no es un tipo de documento del
 /// Trabajador. Un DNI o un NIE guardado con la letra de control mal (dato anterior a la validación) sigue siendo DNI o
-/// NIE: un error de tecleo no convierte a nadie en extranjero. Sin documento (Trabajador anonimizado) no cuenta.
+/// NIE: un error de tecleo no convierte a nadie en extranjero. Un valor heredado que hoy no sería un Pasaporte válido
+/// (marcadores como «SIN DNI» o «PENDIENTE», anteriores a la validación) tampoco cuenta: no se cobra lo que no es un
+/// documento. Sin documento (Trabajador anonimizado) no cuenta.
 /// </para>
 ///
 /// <para>
@@ -34,7 +36,8 @@ namespace CaeManager.Domain.Trabajadores;
 public static class CriterioExtranjeroCobrable
 {
     public static bool PorDocumento(string? documento) =>
-        CriterioDocumentoIdentidadTrabajador.TipoGuardado(documento) == TipoDocumentoTrabajador.Pasaporte;
+        CriterioDocumentoIdentidadTrabajador.TipoGuardado(documento) == TipoDocumentoTrabajador.Pasaporte
+        && CriterioDocumentoIdentidadTrabajador.Clasificar(documento).EsValido;
 
     /// <summary>La marca a mano si está fijada; si no, el criterio por documento.</summary>
     public static bool Efectivo(bool? marca, string? documento) => marca ?? PorDocumento(documento);

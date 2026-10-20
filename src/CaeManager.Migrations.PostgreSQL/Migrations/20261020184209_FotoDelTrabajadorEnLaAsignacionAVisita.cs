@@ -7,21 +7,22 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <summary>
     /// Histórico congelado de la exportación de Trabajadores extranjeros del mes (decisión de Chris, 2026-10-20): cada
     /// asignación de un Trabajador a una Visita guarda la foto del Trabajador al asignarlo —si contaba como extranjero
-    /// cobrable, su documento y su nombre— para que corregir después el documento o la casilla no altere meses pasados.
+    /// cobrable y, solo en ese caso, su documento y su nombre (minimización)— para que corregir después el documento o la
+    /// casilla no altere meses pasados.
     ///
     /// <para>
     /// <b>Relleno</b>: las asignaciones que ya existen toman la foto con el criterio vigente
-    /// (<c>CriterioExtranjeroCobrable.Efectivo</c>): la marca a mano del Trabajador si la tiene; si no, cuenta todo
-    /// documento que, sin espacios, guiones ni puntos y en mayúsculas, no tenga forma de DNI (7 u 8 dígitos y letra) ni
-    /// de NIE (X, Y o Z, 7 dígitos y letra). Sin documento (Trabajador anonimizado) no cuenta, y la foto de un
-    /// Trabajador anonimizado no copia su documento ni su nombre.
+    /// (<c>CriterioExtranjeroCobrable.Efectivo</c>): la marca a mano del Trabajador si la tiene; si no, cuenta el
+    /// documento que, sin espacios, guiones ni puntos y en mayúsculas, sea un Pasaporte válido: sin forma de DNI (7 u 8
+    /// dígitos y letra) ni de NIE (X, Y o Z, 7 dígitos y letra), solo letras y números, entre 5 y 20 caracteres, con algún
+    /// dígito y sin espacios internos. Un marcador heredado («SIN DNI», «PENDIENTE») no cuenta. Sin documento (Trabajador
+    /// anonimizado) no cuenta, y la foto de un Trabajador anonimizado no copia su nombre.
     /// </para>
     ///
     /// <para>
-    /// <b>RLS</b>: <c>VisitasTrabajadores</c> y <c>Trabajadores</c> tienen RLS forzada, que también filtra al propietario
-    /// que ejecuta la migración (sin Tenant en el contexto no vería ninguna fila). El relleno quita el FORCE solo durante
-    /// la sentencia, dentro de la transacción de la migración (que bloquea las dos tablas mientras dura), y lo repone tal
-    /// como estaba. No toca políticas, GRANT ni roles.
+    /// <b>RLS</b>: como el resto de rellenos (<see cref="LineaBaseCompactada"/>, <c>AnadeTipoContratacionTrabajador</c>),
+    /// el migrador es superusuario o tiene BYPASSRLS; con un rol sin él el UPDATE no ve filas y la foto queda en su valor
+    /// por defecto (no cobrable). No toca políticas, FORCE, GRANT ni roles.
     /// </para>
     /// </summary>
     public partial class FotoDelTrabajadorEnLaAsignacionAVisita : Migration
@@ -51,32 +52,25 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             migrationBuilder.Sql(
                 """
-                DO $$
-                DECLARE
-                    forzada_visitas boolean;
-                    forzada_trabajadores boolean;
-                BEGIN
-                    SELECT relforcerowsecurity INTO forzada_visitas FROM pg_class WHERE oid = 'public."VisitasTrabajadores"'::regclass;
-                    SELECT relforcerowsecurity INTO forzada_trabajadores FROM pg_class WHERE oid = 'public."Trabajadores"'::regclass;
-                    IF forzada_visitas THEN ALTER TABLE public."VisitasTrabajadores" NO FORCE ROW LEVEL SECURITY; END IF;
-                    IF forzada_trabajadores THEN ALTER TABLE public."Trabajadores" NO FORCE ROW LEVEL SECURITY; END IF;
-
-                    UPDATE public."VisitasTrabajadores" vt
-                    SET "EsExtranjeroCobrable" = COALESCE(
-                            t."MarcaExtranjeroCobrable",
-                            d.normalizado IS NOT NULL AND d.normalizado <> ''
-                                AND d.normalizado !~ '^([0-9]{7,8}[A-Z]|[XYZ][0-9]{7}[A-Z])$'),
-                        "DocumentoIdentidad" = t."Dni",
-                        "NombreMostrado" = CASE WHEN t."AnonimizadoEnUtc" IS NULL
-                                                THEN btrim(t."Nombre" || ' ' || t."Apellidos") END
+                UPDATE public."VisitasTrabajadores" vt
+                SET "EsExtranjeroCobrable" = f.cobrable,
+                    "DocumentoIdentidad" = CASE WHEN f.cobrable THEN f.dni END,
+                    "NombreMostrado" = CASE WHEN f.cobrable AND f.anonimizado_en IS NULL THEN f.nombre END
+                FROM (
+                    SELECT t."Id", t."TenantId", t."Dni" AS dni, t."AnonimizadoEnUtc" AS anonimizado_en,
+                           btrim(t."Nombre" || ' ' || t."Apellidos") AS nombre,
+                           COALESCE(
+                               t."MarcaExtranjeroCobrable",
+                               d.normalizado IS NOT NULL
+                                   AND d.normalizado !~ '^([0-9]{7,8}[A-Z]|[XYZ][0-9]{7}[A-Z])$'
+                                   AND d.normalizado ~ '^[A-Z0-9]{5,20}$'
+                                   AND d.normalizado ~ '[0-9]'
+                                   AND btrim(t."Dni") !~ '[[:space:]]') AS cobrable
                     FROM public."Trabajadores" t
                     CROSS JOIN LATERAL (
-                        SELECT upper(regexp_replace(t."Dni", '[[:space:].-]', '', 'g')) AS normalizado) d
-                    WHERE t."Id" = vt."TrabajadorId" AND t."TenantId" = vt."TenantId";
-
-                    IF forzada_visitas THEN ALTER TABLE public."VisitasTrabajadores" FORCE ROW LEVEL SECURITY; END IF;
-                    IF forzada_trabajadores THEN ALTER TABLE public."Trabajadores" FORCE ROW LEVEL SECURITY; END IF;
-                END $$;
+                        SELECT NULLIF(upper(regexp_replace(t."Dni", '[[:space:].-]', '', 'g')), '') AS normalizado) d
+                ) f
+                WHERE f."Id" = vt."TrabajadorId" AND f."TenantId" = vt."TenantId";
                 """);
         }
 

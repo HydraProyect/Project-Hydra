@@ -125,10 +125,11 @@ public static partial class CriterioDocumentoIdentidadTrabajador
 
     private static ResultadoDocumentoTrabajador Rechazo(string error) => new(false, null, null, error);
 
-    [GeneratedRegex(@"^\d{8}[A-Z]$")]
+    // [0-9] y no \d: \d admite dígitos Unicode, que LetraEsperada no puede convertir con int.Parse.
+    [GeneratedRegex(@"^[0-9]{8}[A-Z]$")]
     private static partial Regex RegexDni();
 
-    [GeneratedRegex(@"^[XYZ]\d{7}[A-Z]$")]
+    [GeneratedRegex(@"^[XYZ][0-9]{7}[A-Z]$")]
     private static partial Regex RegexNie();
 
     [GeneratedRegex(@"^[A-Z0-9]+$")]

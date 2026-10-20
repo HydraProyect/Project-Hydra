@@ -775,7 +775,7 @@
     <value>Documento de identidad</value>
   </data>
   <data name="CorregirDocumentoAyuda" xml:space="preserve">
-    <value>DNI, NIE o pasaporte. La casilla «Trabajador extranjero (cobrable)» se recalcula con el documento nuevo solo hacia delante: los meses ya gestionados no cambian.</value>
+    <value>DNI, NIE o pasaporte. Si la casilla «Trabajador extranjero (cobrable)» se marcó o desmarcó a mano, esa marca se quita y la casilla se recalcula con el documento nuevo solo hacia delante: los meses ya gestionados no cambian.</value>
   </data>
   <data name="CorregirDocumentoGuardar" xml:space="preserve">
     <value>Guardar documento</value>

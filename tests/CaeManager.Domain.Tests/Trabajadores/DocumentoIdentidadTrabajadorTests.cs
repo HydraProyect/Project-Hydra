@@ -140,4 +140,36 @@ public class DocumentoIdentidadTrabajadorTests
         asignacion.NombreMostrado.Should().BeNull();
         asignacion.EsExtranjeroCobrable.Should().BeTrue();
     }
+
+    [Fact]
+    public void La_foto_de_una_asignacion_no_cobrable_no_copia_documento_ni_nombre()
+    {
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Ana", "Ruiz", "12345678Z");
+
+        var asignacion = new VisitaTrabajador(Guid.NewGuid(), trabajador);
+
+        asignacion.EsExtranjeroCobrable.Should().BeFalse();
+        asignacion.DocumentoIdentidad.Should().BeNull("minimización: solo la exportación de cobrables lee la foto");
+        asignacion.NombreMostrado.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("١٢٣٤٥٦٧٨Z")]   // dígitos arábigo-índicos con forma de DNI
+    [InlineData("X١٢٣٤٥٦٧L")]   // y con forma de NIE
+    public void Los_digitos_que_no_son_ASCII_se_rechazan_sin_excepcion(string valor)
+    {
+        var clasificar = () => CriterioDocumentoIdentidadTrabajador.Clasificar(valor);
+
+        clasificar.Should().NotThrow().Which.EsValido.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("SIN DNI")]
+    [InlineData("PENDIENTE")]
+    [InlineData("S/N")]
+    public void Un_marcador_heredado_sin_casilla_no_cuenta_como_extranjero_cobrable(string heredado)
+    {
+        CriterioExtranjeroCobrable.PorDocumento(heredado).Should().BeFalse("no se cobra lo que no es un documento");
+        CriterioExtranjeroCobrable.Efectivo(true, heredado).Should().BeTrue("la casilla manda");
+    }
 }

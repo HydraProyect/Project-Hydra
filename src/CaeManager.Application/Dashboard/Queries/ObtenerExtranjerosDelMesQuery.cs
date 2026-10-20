@@ -165,21 +165,32 @@ public class ObtenerExtranjerosDelMesQueryHandler(
                       && !v.EstaCancelada && v.FechaInicio >= primerDia && v.FechaInicio < primerDiaSiguiente
                 select new
                 {
-                    vt.Id, vt.FechaAsignacionUtc, vt.GestionadoPorUsuarioId, VisitaCreadaEnUtc = v.CreadoEnUtc,
-                    v.ContactoNombre, v.FechaInicio, v.FechaFin,
-                    vt.TrabajadorId, vt.NombreMostrado, vt.DocumentoIdentidad,
-                    t.Nombre, t.Apellidos, t.EmpresaId, t.SubcontrataId,
-                    CentroNombre = c.Nombre, c.ClienteId, CentroEmpresaId = c.EmpresaId,
+                    vt.Id,
+                    vt.FechaAsignacionUtc,
+                    vt.GestionadoPorUsuarioId,
+                    VisitaCreadaEnUtc = v.CreadoEnUtc,
+                    v.ContactoNombre,
+                    v.FechaInicio,
+                    v.FechaFin,
+                    vt.TrabajadorId,
+                    vt.NombreMostrado,
+                    vt.DocumentoIdentidad,
+                    t.Nombre,
+                    t.Apellidos,
+                    t.EmpresaId,
+                    t.SubcontrataId,
+                    CentroNombre = c.Nombre,
+                    c.ClienteId,
+                    CentroEmpresaId = c.EmpresaId,
                 })
             .ToListAsync(cancellationToken);
 
         // Histórico congelado: cuenta la foto de la asignación (VisitaTrabajador.EsExtranjeroCobrable), no el documento ni la
         // casilla de hoy. Corregir después el Trabajador no cambia un mes ya gestionado.
-        var extranjeras = asignaciones;
-        if (extranjeras.Count == 0)
+        if (asignaciones.Count == 0)
             return [];
 
-        var empresaIds = extranjeras
+        var empresaIds = asignaciones
             .SelectMany(a => new[] { a.EmpresaId, a.SubcontrataId, (Guid?)a.ClienteId, (Guid?)a.CentroEmpresaId })
             .OfType<Guid>().Distinct().ToList();
         var razonesSociales = await empresasContext.Empresas
@@ -189,7 +200,7 @@ public class ObtenerExtranjerosDelMesQueryHandler(
             .ToDictionaryAsync(e => e.Id, e => e.RazonSocial, cancellationToken);
 
         // Las asignaciones anteriores a FechaAsignacionUtc/GestionadoPorUsuarioId: su alta en la auditoría del Tenant.
-        var sinDatoPropio = extranjeras
+        var sinDatoPropio = asignaciones
             .Where(a => a.FechaAsignacionUtc is null || a.GestionadoPorUsuarioId is null)
             .Select(a => a.Id).ToList();
         var altasAuditadas = sinDatoPropio.Count == 0
@@ -202,7 +213,7 @@ public class ObtenerExtranjerosDelMesQueryHandler(
                 .GroupBy(r => r.EntidadId)
                 .ToDictionary(g => g.Key, g => g.OrderBy(r => r.FechaUtc).First());
 
-        return extranjeras.Select(a =>
+        return asignaciones.Select(a =>
         {
             var alta = altasAuditadas.GetValueOrDefault(a.Id);
             return new Fila(

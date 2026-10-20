@@ -775,7 +775,7 @@
     <value>Document d&apos;identitat</value>
   </data>
   <data name="CorregirDocumentoAyuda" xml:space="preserve">
-    <value>DNI, NIE o passaport. La casella «Treballador estranger (cobrable)» es recalcula amb el document nou només cap endavant: els mesos ja gestionats no canvien.</value>
+    <value>DNI, NIE o passaport. Si la casella «Treballador estranger (cobrable)» es va marcar o desmarcar a mà, aquesta marca es treu i la casella es recalcula amb el document nou només cap endavant: els mesos ja gestionats no canvien.</value>
   </data>
   <data name="CorregirDocumentoGuardar" xml:space="preserve">
     <value>Desar el document</value>

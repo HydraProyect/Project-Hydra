@@ -115,13 +115,13 @@
             </Datos>
             <Acciones>
                 <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="SubirDocumentoAsync">@Textos["BotonSubirDocumento"]</Boton></SoloConEscritura>
-                @* Las tres acciones del menú son escrituras: a Consulta no se le deja el «⋯» con el menú vacío. *@
+                @* Las cuatro acciones del menú son escrituras: a Consulta no se le deja el «⋯» con el menú vacío. *@
                 <SoloConEscritura>
                     <MenuAcciones ConBorde="true" EtiquetaAccesible="@Comunes["MasAcciones"]">
                         <ItemMenuAccion OnClick="AbrirInformacion">@Textos["AccionEditar"]</ItemMenuAccion>
                         <ItemMenuAccion OnClick="ReclamarFaltantesAsync">@Textos["AccionReclamarFaltantes"]</ItemMenuAccion>
                         <ItemMenuAccion OnClick="AbrirCrearGestionAsync">@Textos["AccionCrearGestion"]</ItemMenuAccion>
-                    <ItemMenuAccion OnClick="() => _corregirDocumentoVisible = true">@Textos["AccionCorregirDocumento"]</ItemMenuAccion>
+                        <ItemMenuAccion OnClick="() => _corregirDocumentoVisible = true">@Textos["AccionCorregirDocumento"]</ItemMenuAccion>
                     </MenuAcciones>
                 </SoloConEscritura>
             </Acciones>

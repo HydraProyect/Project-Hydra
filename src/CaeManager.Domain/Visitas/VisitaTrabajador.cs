@@ -37,10 +37,16 @@ public class VisitaTrabajador : EntidadConTenant
     /// </summary>
     public bool EsExtranjeroCobrable { get; private set; }
 
-    /// <summary>Foto del documento de identidad del Trabajador al asignarlo (dato personal; ver <see cref="EsExtranjeroCobrable"/>).</summary>
+    /// <summary>
+    /// Foto del documento de identidad del Trabajador al asignarlo, solo si la asignación es cobrable (dato personal,
+    /// minimizado; ver <see cref="EsExtranjeroCobrable"/>).
+    /// </summary>
     public string? DocumentoIdentidad { get; private set; }
 
-    /// <summary>Foto del nombre y apellidos del Trabajador al asignarlo (dato personal; ver <see cref="EsExtranjeroCobrable"/>).</summary>
+    /// <summary>
+    /// Foto del nombre y apellidos del Trabajador al asignarlo, solo si la asignación es cobrable (dato personal,
+    /// minimizado; ver <see cref="EsExtranjeroCobrable"/>).
+    /// </summary>
     public string? NombreMostrado { get; private set; }
 
     private VisitaTrabajador()
@@ -72,8 +78,14 @@ public class VisitaTrabajador : EntidadConTenant
             gestionadoPorUsuarioId, fechaAsignacionUtc)
     {
         EsExtranjeroCobrable = CriterioExtranjeroCobrable.Efectivo(trabajador.MarcaExtranjeroCobrable, trabajador.Dni);
-        DocumentoIdentidad = trabajador.Dni;
-        NombreMostrado = trabajador.NombreCompleto.Trim();
+
+        // Minimización: solo la exportación de extranjeros del mes lee el documento y el nombre de la foto, y solo de las
+        // asignaciones cobrables; las demás no guardan otra copia de esos datos personales.
+        if (EsExtranjeroCobrable)
+        {
+            DocumentoIdentidad = trabajador.Dni;
+            NombreMostrado = trabajador.NombreCompleto.Trim();
+        }
     }
 
     /// <summary>
