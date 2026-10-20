@@ -29,13 +29,17 @@ public partial class Centro360Gen2Tests
         var consultas = mediador.Enviadas.Count;
         await cut.Find("[role=tab][aria-controls$='-ficha']").ClickAsync(new MouseEventArgs());
         navegador.Uri.Should().Contain("pestana=ficha").And.Contain("q=Ana").And.Contain("estado=Vencido").And.Contain("extra=conservar");
-        cut.FindComponent<CajasFicha>().Instance.Cajas.Should().HaveCount(2);
+        // Centro 360 del 20-10: la Ficha lleva siempre Canales de gestión y Contactos, más las cajas con datos.
+        cut.FindComponent<CajasFicha>().Instance.Cajas.Select(c => c.Clave).Should()
+            .Equal("canales-centro", "contactos-centro", "datos-centro", "acceso-centro");
         var caja = cut.Find("[data-caja=datos-centro]").TextContent;
         caja.Should().Contain("CN-01").And.Contain("Marta R.");
         cut.Find("[data-caja=acceso-centro]").TextContent.Should().Contain("Pol. Norte 4");
         caja.Should().NotContain("Horario").And.NotContain("Control de accesos").And.NotContain("Técnico de prevención");
         cut.Find(".barra-filtros").HasAttribute("hidden").Should().BeTrue();
-        mediador.Enviadas.Count.Should().Be(consultas);
+        // Solo se añade la lectura de la caja de Contactos; el resto de la Ficha sale del detalle ya cargado.
+        mediador.Enviadas.Count.Should().Be(consultas + 1);
+        mediador.Enviadas.OfType<CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos.ObtenerAgendaContactosQuery>().Should().ContainSingle();
         await cut.Find("[role=tab][aria-controls$='-trabajadores']").ClickAsync(new MouseEventArgs());
         navegador.Uri.Should().NotContain("pestana=").And.Contain("q=Ana").And.Contain("estado=Vencido");
     }
@@ -50,8 +54,9 @@ public partial class Centro360Gen2Tests
         Registrar(new MediatorFalso()).Detalles[id] = Detalle(id, "Centro Norte") with { CodigoCentro = codigo, Direccion = direccion, Contacto = contacto };
         Services.GetRequiredService<NavigationManager>().NavigateTo($"centros/{id}?pestana=ficha");
         var cut = Renderizar(id);
-        cut.FindComponent<CajasFicha>().Instance.Cajas.Should().ContainSingle();
-        cut.Find(direccion is null ? "[data-caja=datos-centro]" : "[data-caja=acceso-centro]").TextContent.Should().Contain(etiqueta).And.Contain(codigo ?? direccion ?? contacto!);
+        var clave = direccion is null ? "datos-centro" : "acceso-centro";
+        cut.FindComponent<CajasFicha>().Instance.Cajas.Select(c => c.Clave).Should().Equal("canales-centro", "contactos-centro", clave);
+        cut.Find($"[data-caja={clave}]").TextContent.Should().Contain(etiqueta).And.Contain(codigo ?? direccion ?? contacto!);
         cut.FindComponent<CajasFicha>().FindComponents<DatoRejilla>().Should().ContainSingle();
     }
 
@@ -64,7 +69,8 @@ public partial class Centro360Gen2Tests
         navegador.NavigateTo($"centros/{id}?pestana=ficha&q=Ana&estado=Vencido&extra=conservar");
         var cut = Renderizar(id);
         cut.FindAll("[role=tab][aria-controls$='-ficha']").Should().ContainSingle();
-        cut.FindComponent<CajasFicha>().Instance.Cajas.Should().BeEmpty();
+        // Sin datos básicos quedan solo las cajas de siempre: Canales de gestión (para configurarlos) y Contactos.
+        cut.FindComponent<CajasFicha>().Instance.Cajas.Select(c => c.Clave).Should().Equal("canales-centro", "contactos-centro");
         cut.Find("[role=tab][aria-selected=true]").GetAttribute("aria-controls").Should().EndWith("-ficha");
         navegador.Uri.Should().Contain("pestana=ficha").And.Contain("q=Ana").And.Contain("estado=Vencido").And.Contain("extra=conservar");
     }
@@ -83,7 +89,8 @@ public partial class Centro360Gen2Tests
         cut.FindComponents<CajasFicha>().Should().ContainSingle();
         cut.Render(p => p.Add(x => x.CentroId, b));
         cut.FindAll("[role=tab][aria-controls$='-ficha']").Should().ContainSingle();
-        cut.FindComponent<CajasFicha>().Instance.Cajas.Should().BeEmpty();
+        cut.FindComponent<CajasFicha>().Instance.Cajas.Select(c => c.Clave).Should().Equal("canales-centro", "contactos-centro");
+        cut.Markup.Should().NotContain("CN-01");
         navegador.Uri.Should().Contain("pestana=ficha").And.Contain("q=Ana").And.Contain("estado=Vencido");
     }
 

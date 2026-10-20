@@ -9,6 +9,8 @@ namespace CaeManager.Web.Tests;
 
 public class CentroVisitasAnterioresTests : BunitContext
 {
+    public CentroVisitasAnterioresTests() => Services.AddLocalization();
+
     [Fact]
     public void Muestra_fechas_como_texto_nombres_y_enlace_a_visita_360()
     {

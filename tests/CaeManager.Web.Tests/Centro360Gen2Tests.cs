@@ -607,7 +607,7 @@ public partial class Centro360Gen2Tests : BunitContext
         enlace.GetAttribute("href").Should().Be("https://app.twind.io/login");
         enlace.GetAttribute("target").Should().Be("_blank");
         enlace.GetAttribute("rel").Should().Contain("noopener").And.Contain("noreferrer");
-        cut.FindAll(".centro-ficha-canales .boton-copiar").Select(b => b.TextContent.Trim()).Should().BeEquivalentTo(
+        cut.FindAll("[data-caja=canales-centro] .boton-copiar").Select(b => b.TextContent.Trim()).Should().BeEquivalentTo(
             ["Copiar usuario", "Copiar contraseña"], "la dirección del portal ya no se copia: solo las credenciales");
     }
 
@@ -658,7 +658,7 @@ public partial class Centro360Gen2Tests : BunitContext
     {
         var (id, _, _) = CentroConCanal(CanalPlataforma("app.twind.io") with { TieneCredenciales = false });
 
-        Renderizar(id).FindAll(".centro-ficha-canales .boton-copiar").Should().BeEmpty("sin credenciales no hay nada que copiar");
+        Renderizar(id).FindAll("[data-caja=canales-centro] .boton-copiar").Should().BeEmpty("sin credenciales no hay nada que copiar");
     }
 
     [Fact]
@@ -668,7 +668,7 @@ public partial class Centro360Gen2Tests : BunitContext
             null, "gestion@ejemplo.test", null, null, true, Guid.NewGuid());
         var (id, _, _) = CentroConCanal(correo);
 
-        Renderizar(id).FindAll(".centro-ficha-canales .boton-copiar").Select(b => b.TextContent.Trim())
+        Renderizar(id).FindAll("[data-caja=canales-centro] .boton-copiar").Select(b => b.TextContent.Trim())
             .Should().NotContain(["Copiar usuario", "Copiar contraseña"]);
     }
 
@@ -686,7 +686,7 @@ public partial class Centro360Gen2Tests : BunitContext
         this.ConRolDeEscritura(rol);
         var (id, _, _) = CentroConCanal(CanalPlataforma("app.twind.io"));
 
-        var botones = Renderizar(id).FindAll(".centro-ficha-canales .boton-copiar").Select(b => b.TextContent.Trim()).ToList();
+        var botones = Renderizar(id).FindAll("[data-caja=canales-centro] .boton-copiar").Select(b => b.TextContent.Trim()).ToList();
 
         if (seOfrece)
             botones.Should().Contain(["Copiar usuario", "Copiar contraseña"]);
@@ -705,7 +705,7 @@ public partial class Centro360Gen2Tests : BunitContext
         modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
         var cut = Renderizar(id);
 
-        await cut.FindAll(".centro-ficha-canales .boton-copiar").Single(b => b.TextContent.Trim() == boton).ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[data-caja=canales-centro] .boton-copiar").Single(b => b.TextContent.Trim() == boton).ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<ObtenerCredencialCanalGestionQuery>().Should().ContainSingle()
             .Which.Should().Be(new ObtenerCredencialCanalGestionQuery(id, canal.Id));
@@ -721,7 +721,7 @@ public partial class Centro360Gen2Tests : BunitContext
         modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
         var cut = Renderizar(id);
 
-        await cut.FindAll(".centro-ficha-canales .boton-copiar").Single(b => b.TextContent.Trim() == "Copiar contraseña").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[data-caja=canales-centro] .boton-copiar").Single(b => b.TextContent.Trim() == "Copiar contraseña").ClickAsync(new MouseEventArgs());
 
         modulo.Invocations.Should().BeEmpty("no había nada que copiar");
         Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(t => t.Mensaje.Contains("No hay ninguna contraseña"));
@@ -741,7 +741,7 @@ public partial class Centro360Gen2Tests : BunitContext
         modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
         var cut = Renderizar(id);
 
-        await cut.FindAll(".centro-ficha-canales .boton-copiar").Single(b => b.TextContent.Trim() == boton).ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[data-caja=canales-centro] .boton-copiar").Single(b => b.TextContent.Trim() == boton).ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<ObtenerCredencialCanalGestionQuery>().Should().ContainSingle();
         Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/cuenta/configurar-2fa?motivo=credenciales&returnUrl=%2F",

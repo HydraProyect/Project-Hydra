@@ -121,7 +121,7 @@
                                                       SoloIncidencias="false"
                                                       FiltroTexto="@_busqueda" FiltroEstado="@_estadoFiltro" FiltroEstadoChanged="CambiarEstado"
                                                       OnResumenCargado="ActualizarResumenTrabajadores"
-                                                      MostrarTotales="true" MostrarEstadoPlataforma="true"
+                                                      MostrarTotales="true" MostrarEstadoPlataforma="true" NombrePlataforma="@NombrePlataformaCentro"
                                                       Bloqueos="_bloqueos"
                                                       OnCambio="CargarAsync">
                             <Busqueda>
@@ -189,19 +189,18 @@
                             }
                             @if (_documentacionEmpresas.Count > 0)
                             {
-                                <p class="centro-documentacion-intro">@Textos["DocumentacionEmpresaIntro360"]</p>
+                                <p class="centro-documentacion-intro">@(NombrePlataformaCentro is { } plataformaIntro ? Textos["DocumentacionEmpresaIntroNombre360", plataformaIntro] : Textos["DocumentacionEmpresaIntro360"])</p>
                                 <div class="centro-documentacion-tabla" role="table" aria-label="@Textos["DocumentacionEmpresaTabla360"]">
                                     <div class="centro-documentacion-cabecera" role="row">
                                         <span role="columnheader">@Textos["DocumentoNombre360"]</span>
-                                        <span role="columnheader">@Textos["PlataformaEstadoCabecera360"]</span>
+                                        <span role="columnheader">@(NombrePlataformaCentro is { } plataformaCabecera ? Textos["PlataformaEstadoCabeceraNombre360", plataformaCabecera] : Textos["PlataformaEstadoCabecera360"])</span>
                                         <span role="columnheader">@Textos["PlataformaCaducidad360"]</span>
                                         <span role="columnheader">@Textos["PlataformaBloquea360"]</span>
                                     </div>
                                     @{ var clavesDocumentos = new ClavesDeHermanos(); }
-                                    @foreach (var empresa in _documentacionEmpresas)
+                                    @* Como la maqueta del 20-10: una sola lista, lo que bloquea primero y luego lo pendiente de validar. *@
+                                    @foreach (var (empresa, documento) in DocumentosEmpresaOrdenados)
                                     {
-                                        @foreach (var documento in empresa.Documentos)
-                                        {
                                             <div class="centro-documentacion-fila @(BloqueaPlataforma(documento) ? "centro-documentacion-bloquea" : documento.AcreditacionesEnElCentro?.Any(a => a.Estado == EstadoAcreditacion.Subida) == true ? "centro-documentacion-pendiente" : null)" role="row" @key="clavesDocumentos.De((empresa.EmpresaId, documento.TipoDocumentoId))">
                                                 <span role="cell" class="centro-documentacion-identidad">
                                                     <span class="centro-documentacion-t" data-estado="@EstadoDocumentoFicha360.Tono(documento.Estado)" title="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]" aria-label="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]">T</span>
@@ -233,11 +232,10 @@
                                                 </span>
                                                 <span role="cell">@(documento.AcreditacionesEnElCentro is { Count: > 0 } ? Textos[BloqueaPlataforma(documento) ? "PlataformaBloqueaSi360" : "PlataformaBloqueaNo360"].Value : "—")</span>
                                             </div>
-                                        }
-                                        @if (empresa.Documentos.Count == 0)
-                                        {
-                                            <EstadoVacio Titulo="@Textos["DocumentacionCentroSinExigidos360"]" />
-                                        }
+                                    }
+                                    @foreach (var empresaSinDocumentos in _documentacionEmpresas.Where(e => e.Documentos.Count == 0))
+                                    {
+                                        <EstadoVacio @key="empresaSinDocumentos.EmpresaId" Titulo="@Textos["DocumentacionCentroSinExigidos360"]" />
                                     }
                                 </div>
                             }

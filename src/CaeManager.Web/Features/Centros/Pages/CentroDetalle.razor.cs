@@ -100,6 +100,18 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         .Distinct()
         .Count();
 
+    // Centro 360 del 20-10: el estado se rotula con la plataforma del primer canal de gestión por plataforma; sin él, el rótulo genérico.
+    private string? NombrePlataformaCentro => _canales
+        .FirstOrDefault(c => c.Tipo == TipoCanalGestion.Plataforma && !string.IsNullOrWhiteSpace(c.ProveedorPlataformaCaeNombre))
+        ?.ProveedorPlataformaCaeNombre;
+
+    // Orden de la maqueta: primero lo que bloquea (Rechazado o Pendiente de subir), luego lo pendiente de validar, luego el resto.
+    private IEnumerable<(DocumentacionEmpresaCentroDto Empresa, DocumentoEmpresaCentroDto Documento)> DocumentosEmpresaOrdenados =>
+        _documentacionEmpresas
+            .SelectMany(e => e.Documentos.Select(d => (Empresa: e, Documento: d)))
+            .OrderBy(x => BloqueaPlataforma(x.Documento) ? 0
+                : x.Documento.AcreditacionesEnElCentro?.Any(a => a.Estado == EstadoAcreditacion.Subida) == true ? 1 : 2);
+
     private IReadOnlyList<PestanaDefinicion> Pestanas =>
     [
         new(PestanaTrabajadores, Textos["PestanaTrabajadores"])

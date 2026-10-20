@@ -596,6 +596,8 @@
     <value>Darrera reclamació a {0}, Empresa dels seus Treballadors</value>
   </data>
   <data name="PlataformaEstadoCabecera360" xml:space="preserve"><value>Estat a la plataforma</value></data>
+  <data name="PlataformaEstadoCabeceraNombre360" xml:space="preserve"><value>Estat a {0}</value></data>
+  <data name="DocumentacionEmpresaIntroNombre360" xml:space="preserve"><value>El que aquest Centre exigeix a cada Empresa, amb el seu estat a {0}.</value></data>
   <data name="PlataformaSinDatos360" xml:space="preserve"><value>Sense dades de plataforma</value></data>
   <data name="PlataformaBloquea360" xml:space="preserve"><value>Bloqueja</value></data>
   <data name="PlataformaBloqueaSi360" xml:space="preserve"><value>Sí</value></data>

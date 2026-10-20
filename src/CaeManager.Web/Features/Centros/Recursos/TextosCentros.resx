@@ -602,6 +602,8 @@
     <value>Última reclamación a {0}, Empresa de sus Trabajadores</value>
   </data>
   <data name="PlataformaEstadoCabecera360" xml:space="preserve"><value>Estado en la plataforma</value></data>
+  <data name="PlataformaEstadoCabeceraNombre360" xml:space="preserve"><value>Estado en {0}</value></data>
+  <data name="DocumentacionEmpresaIntroNombre360" xml:space="preserve"><value>Lo que este Centro exige a cada Empresa, con su estado en {0}.</value></data>
   <data name="PlataformaSinDatos360" xml:space="preserve"><value>Sin datos de plataforma</value></data>
   <data name="PlataformaBloquea360" xml:space="preserve"><value>Bloquea</value></data>
   <data name="PlataformaBloqueaSi360" xml:space="preserve"><value>Sí</value></data>

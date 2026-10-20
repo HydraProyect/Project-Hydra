@@ -40,6 +40,8 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// <summary>Empresa titular del centro, sujeto del ámbito Empresa (OD-13).</summary>
     [Parameter] public Guid EmpresaId { get; set; }
     [Parameter] public bool MostrarEstadoPlataforma { get; set; }
+    /// <summary>Plataforma CAE del primer canal de gestión por plataforma del Centro; rotula la columna de estado.</summary>
+    [Parameter] public string? NombrePlataforma { get; set; }
     [Parameter] public RenderFragment? Busqueda { get; set; }
 
     private static bool BloqueaPlataforma(DocumentoRequeridoDto documento) =>
