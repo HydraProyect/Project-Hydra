@@ -635,6 +635,7 @@
   </data>
   <data name="CodigoParaSoporteCopia" xml:space="preserve">
     <value>el codi per a suport</value>
+  </data>
   <data name="VolverListaTrabajadores" xml:space="preserve">
     <value>Tornar a la llista de treballadors</value>
   </data>
