@@ -109,7 +109,7 @@
     <value>Sense requisits</value>
   </data>
   <data name="CumplimientoCentro" xml:space="preserve">
-    <value>Compliment del centre</value>
+    <value>Documents validats a la plataforma CAE d’aquest Client</value>
   </data>
   <data name="SinCentrosTitulo" xml:space="preserve">
     <value>Sense centres</value>
@@ -629,4 +629,14 @@
   <data name="CentrosDesplegadosError" xml:space="preserve"><value>No hem pogut carregar els centres. Torna a desplegar la fila per reintentar-ho.</value></data>
   <data name="CentrosDesplegadosNinguno" xml:space="preserve"><value>Cap centre amb incidències.</value></data>
   <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordena</value></data>
+  <data name="EmpresasDelCentro" xml:space="preserve"><value>Empreses: {0}</value></data>
+  <data name="RotuloBloqueoPlataforma" xml:space="preserve"><value>Bloqueig de la plataforma CAE</value></data>
+  <data name="NotaEditarTitulo" xml:space="preserve"><value>Edita la nota interna</value></data>
+  <data name="NotaEtiqueta" xml:space="preserve"><value>Nota</value></data>
+  <data name="NotaPrivada" xml:space="preserve"><value>No la veu el Client.</value></data>
+  <data name="NotaSinCambios" xml:space="preserve"><value>No hi ha canvis per desar.</value></data>
+  <data name="NotaErrorGuardar" xml:space="preserve"><value>No hem pogut desar la nota. Torna-ho a provar en uns segons.</value></data>
+  <data name="BajaTitulo" xml:space="preserve"><value>Dona de baixa el Client</value></data>
+  <data name="BajaMensaje" xml:space="preserve"><value>Es donarà de baixa {0}. Vols continuar?</value></data>
+  <data name="BajaError" xml:space="preserve"><value>No hem pogut donar de baixa el Client. Torna-ho a provar en uns segons.</value></data>
 </root>
