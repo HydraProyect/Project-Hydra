@@ -1154,14 +1154,11 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Opc
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: OpcionSeleccionaSubcontrata = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: OpcionSeleccionaTipoDocumento = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: PestanaInformacion = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: PistaCifInvalido = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: PistaCifValido = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: PistaDniInvalido = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: PistaDniValido = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: PistaDocumentoExtranjero = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: PistaNieInvalido = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: PistaNieValido = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: PistaTieSoporte = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: PlaceholderAlias = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: PlaceholderCentro = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: PlaceholderNombreFiltro = 1

@@ -118,6 +118,7 @@
                         <ItemMenuAccion OnClick="AbrirInformacion">@Textos["AccionEditar"]</ItemMenuAccion>
                         <ItemMenuAccion OnClick="ReclamarFaltantesAsync">@Textos["AccionReclamarFaltantes"]</ItemMenuAccion>
                         <ItemMenuAccion OnClick="AbrirCrearGestionAsync">@Textos["AccionCrearGestion"]</ItemMenuAccion>
+                    <ItemMenuAccion OnClick="() => _corregirDocumentoVisible = true">@Textos["AccionCorregirDocumento"]</ItemMenuAccion>
                     </MenuAcciones>
                 </SoloConEscritura>
             </Acciones>
@@ -587,6 +588,8 @@
     <SoloConEscritura>
         <EditarFichaTrabajadorDrawer @key="TrabajadorId" TrabajadorId="TrabajadorId" Visible="_editorFichaVisible"
             VisibleChanged="v => _editorFichaVisible = v" OnGuardada="CargarAsync" />
+        <CorregirDocumentoIdentidadDrawer @key="TrabajadorId" TrabajadorId="TrabajadorId" Visible="_corregirDocumentoVisible"
+            VisibleChanged="v => _corregirDocumentoVisible = v" OnGuardada="CargarAsync" />
     </SoloConEscritura>
 }
 </LimiteDeErrores>

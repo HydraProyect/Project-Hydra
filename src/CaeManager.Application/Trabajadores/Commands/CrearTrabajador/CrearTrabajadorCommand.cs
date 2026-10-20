@@ -53,11 +53,12 @@ public class CrearTrabajadorCommandValidator : AbstractValidator<CrearTrabajador
             .MaximumLength(Trabajador.LongitudMaximaApellidos);
 
         RuleFor(c => c.Dni)
-            .NotEmpty().WithMessage("El documento de identidad es obligatorio.")
-            .Length(Trabajador.LongitudMinimaDni, Trabajador.LongitudMaximaDni)
-            .WithMessage($"El documento de identidad debe tener entre {Trabajador.LongitudMinimaDni} y {Trabajador.LongitudMaximaDni} caracteres.")
-            .Must(TenerDigitoDeControlValido)
-            .WithMessage("El dígito de control no es válido para un DNI, NIE o CIF.");
+            .Custom((dni, contexto) =>
+            {
+                // Criterio único del documento del Trabajador (decisión de Chris, 2026-10-20): DNI, NIE o Pasaporte.
+                if (CriterioDocumentoIdentidadTrabajador.Clasificar(dni) is { EsValido: false, Error: { } error })
+                    contexto.AddFailure(error);
+            });
 
         RuleFor(c => c.Email)
             .MaximumLength(Trabajador.LongitudMaximaEmail)
@@ -73,12 +74,6 @@ public class CrearTrabajadorCommandValidator : AbstractValidator<CrearTrabajador
             .WithMessage("Solo un trabajador de empresa tiene delegación y oficio.");
     }
 
-    private static bool TenerDigitoDeControlValido(string dni)
-    {
-        var resultado = ValidadorIdentificacion.Analizar(dni);
-        return resultado.EsValido
-            || resultado.Tipo is not (TipoIdentificacion.Dni or TipoIdentificacion.Nie or TipoIdentificacion.NifEmpresa);
-    }
 }
 
 public class CrearTrabajadorCommandHandler(
@@ -109,7 +104,9 @@ public class CrearTrabajadorCommandHandler(
                 return Result.Fallo<Guid>(Error.Crear("Trabajador.SubcontrataNoEncontrada", "No encontramos esta subcontrata."));
         }
 
-        if (await repositorio.ExisteConDniAsync(request.Dni, cancellationToken: cancellationToken))
+        // Normalizado como lo guarda Trabajador: «12.345.678-Z» y «12345678Z» son el mismo documento.
+        var dniNormalizado = CriterioDocumentoIdentidadTrabajador.Clasificar(request.Dni).Normalizado ?? request.Dni;
+        if (await repositorio.ExisteConDniAsync(dniNormalizado, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Trabajador.DniDuplicado", "Ya existe un trabajador con este DNI."));
 
         var trabajador = request.EmpresaId is not null

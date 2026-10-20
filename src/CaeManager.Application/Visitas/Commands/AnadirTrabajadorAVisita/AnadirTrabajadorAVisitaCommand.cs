@@ -56,10 +56,12 @@ public class AnadirTrabajadorAVisitaCommandHandler(
             return Result.Exito();
 
         // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
-        if (!await trabajadoresContext.Trabajadores.AnyAsync(t => t.Id == request.TrabajadorId, cancellationToken))
+        // Se carga entero: la asignación guarda su foto (VisitaTrabajador.EsExtranjeroCobrable).
+        var trabajador = await trabajadoresContext.Trabajadores.FirstOrDefaultAsync(t => t.Id == request.TrabajadorId, cancellationToken);
+        if (trabajador is null)
             return Result.Fallo(Error.Crear("Visita.TrabajadorNoEncontrado", "No encontramos este trabajador."));
 
-        visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, request.TrabajadorId,
+        visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, trabajador,
             await GestorDeLaAsignacion.ActorRealAsync(actorAuditoria)));
         visita.RegistrarCambioDeTrabajadores();
         await unitOfWork.SaveChangesAsync(cancellationToken);

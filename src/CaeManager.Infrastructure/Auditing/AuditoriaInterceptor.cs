@@ -88,6 +88,9 @@ namespace CaeManager.Infrastructure.Auditing;
 ///    correo, con el mismo criterio que la ficha de Centro 360 (punto 9). Se
 ///    enmascaran en toda entrada de Visita, también cuando se rellenan al
 ///    crearla copiando el contacto del Centro.
+/// 11. La foto del Trabajador en <see cref="VisitaTrabajador"/> (documento y
+///    nombre mostrado, tomados al asignarlo): se enmascaran en toda entrada de
+///    la asignación. Ver el comentario de esa entrada.
 /// </summary>
 public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesInterceptor
 {
@@ -233,6 +236,14 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         [typeof(Visita)] =
         [
             nameof(Visita.ContactoNombre), nameof(Visita.ContactoTelefono), nameof(Visita.ContactoCorreo),
+        ],
+
+        // Punto 11: la foto del Trabajador en su asignación a una Visita (histórico congelado de la exportación de
+        // extranjeros del mes, decisión de Chris, 2026-10-20) copia su documento y su nombre. Son datos personales que
+        // ya están en el Trabajador; la auditoría de la asignación no necesita otra copia que la anonimización no alcance.
+        [typeof(VisitaTrabajador)] =
+        [
+            nameof(VisitaTrabajador.DocumentoIdentidad), nameof(VisitaTrabajador.NombreMostrado),
         ],
         // Punto 11 (2026-10-18): el contacto de reclamación de una Delegación de Empresa, persona física de un tercero,
         // con el mismo criterio que la ficha de Empresa 360 (punto 8). Como su valor nunca llega al historial, no hace

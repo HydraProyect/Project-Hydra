@@ -82,6 +82,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     {
         public Dictionary<Guid, TrabajadorDetalleDto> Detalles { get; } = [];
         public Result ResultadoFicha { get; set; } = Result.Exito();
+        public Result ResultadoCorregirDocumento { get; set; } = Result.Exito();
         public Dictionary<Guid, List<CentroDocumentacionTrabajadorDto>> Centros { get; } = [];
         public List<ContactoAgendaDto> Contactos { get; } = [];
         public Dictionary<Guid, List<GestionListaDto>> Gestiones { get; } = [];
@@ -134,6 +135,8 @@ public partial class Trabajador360Gen2Tests : BunitContext
             CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.ObtenerCatalogoTrabajadoresEmpresaQuery =>
                 CatalogoEmpresa ?? throw new InvalidOperationException("Fallo simulado del catálogo de la Empresa."),
             EditarFichaTrabajadorCommand c => GuardarFicha(c),
+            CaeManager.Application.Trabajadores.Commands.CorregirDocumentoIdentidadTrabajador.CorregirDocumentoIdentidadTrabajadorCommand =>
+                ResultadoCorregirDocumento,
             CaeManager.Application.Trabajadores.Commands.GuardarNotaInternaTrabajador.GuardarNotaInternaTrabajadorCommand c => GuardarNota(c.Id, c.Notas),
             ObtenerDocumentacionPorCentroDeTrabajadorQuery q =>
                 (IReadOnlyList<CentroDocumentacionTrabajadorDto>)(Centros.GetValueOrDefault(q.TrabajadorId) ?? []),
@@ -1753,7 +1756,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
 
         cut.FindAll("[role=menuitem]").Select(i => i.TextContent.Trim())
-            .Should().Equal(["Editar", "Gestionar", "Crear gestión"]);
+            .Should().Equal(["Editar", "Gestionar", "Crear gestión", "Corregir documento de identidad"]);
         cut.FindAll("[role=dialog]").Should().BeEmpty();
     }
 

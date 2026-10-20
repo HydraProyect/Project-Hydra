@@ -210,17 +210,8 @@
   <data name="PistaNieInvalido" xml:space="preserve">
     <value>✗ Formato de NIE, pero el dígito de control no coincide.</value>
   </data>
-  <data name="PistaCifValido" xml:space="preserve">
-    <value>✓ Formato de CIF válido — comprueba que sea la persona y no la empresa.</value>
-  </data>
-  <data name="PistaCifInvalido" xml:space="preserve">
-    <value>✗ Parece un CIF, pero el dígito de control no coincide.</value>
-  </data>
-  <data name="PistaTieSoporte" xml:space="preserve">
-    <value>✓ Número de soporte TIE reconocido.</value>
-  </data>
   <data name="PistaDocumentoExtranjero" xml:space="preserve">
-    <value>ℹ Documento no español (pasaporte u otro) — se acepta sin validar dígito de control.</value>
+    <value>No coincide con un DNI ni un NIE: se guardará como Pasaporte.</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
@@ -776,5 +767,23 @@
   </data>
   <data name="EtiquetaPasosAlta" xml:space="preserve">
     <value>Alta de treballador</value>
+  </data>
+  <data name="AccionCorregirDocumento" xml:space="preserve">
+    <value>Corregir el document d&apos;identitat</value>
+  </data>
+  <data name="CorregirDocumentoEtiqueta" xml:space="preserve">
+    <value>Document d&apos;identitat</value>
+  </data>
+  <data name="CorregirDocumentoAyuda" xml:space="preserve">
+    <value>DNI, NIE o passaport. La casella «Treballador estranger (cobrable)» es recalcula amb el document nou només cap endavant: els mesos ja gestionats no canvien.</value>
+  </data>
+  <data name="CorregirDocumentoGuardar" xml:space="preserve">
+    <value>Desar el document</value>
+  </data>
+  <data name="CorregirDocumentoExito" xml:space="preserve">
+    <value>Document d&apos;identitat corregit.</value>
+  </data>
+  <data name="CorregirDocumentoActual" xml:space="preserve">
+    <value>Document actual</value>
   </data>
 </root>
