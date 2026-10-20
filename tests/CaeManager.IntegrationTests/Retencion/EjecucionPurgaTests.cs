@@ -6,6 +6,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Retencion;
 using CaeManager.Domain.Trabajadores;
+using CaeManager.Domain.Visitas;
 using System.Data.Common;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -72,7 +73,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
         {
             var empresaId = await contextoSiembra.Empresas.Select(e => e.Id).FirstAsync();
             var trabajador = Trabajador.DeEmpresa(
-                empresaId, "Manuel", "Moreno", "12345678Z", new DateOnly(1985, 1, 1), null, null, null);
+                empresaId, "Manuel", "Moreno", "AB1234567", new DateOnly(1985, 1, 1), null, null, null);
             contextoSiembra.Trabajadores.Add(trabajador);
             await contextoSiembra.SaveChangesAsync();
 
@@ -80,6 +81,12 @@ public class EjecucionPurgaTests : IAsyncLifetime
             var asignacion = new Asignacion(trabajador.Id, _centroId, fechaBaja.AddYears(-1));
             asignacion.DarDeBaja(fechaBaja);
             contextoSiembra.Asignaciones.Add(asignacion);
+
+            // Su asignación a una Visita guarda la foto (documento y nombre) para la exportación de extranjeros del mes.
+            var visita = new Visita(_centroId, fechaBaja.AddMonths(-3), fechaBaja.AddMonths(-3), null);
+            contextoSiembra.Visitas.Add(visita);
+            await contextoSiembra.SaveChangesAsync();
+            contextoSiembra.VisitasTrabajadores.Add(new VisitaTrabajador(visita.Id, trabajador));
             await contextoSiembra.SaveChangesAsync();
 
             // El caso central del hallazgo: además de dado de baja, eliminado lógicamente.
@@ -146,6 +153,11 @@ public class EjecucionPurgaTests : IAsyncLifetime
 
         trabajadorAnonimizado.EstaAnonimizado.Should().BeTrue(
             "el trabajador estaba soft-deleted pero seguía dentro del plazo de retención — debía anonimizarse igual");
+
+        var foto = await contextoVerificacion.VisitasTrabajadores.SingleAsync(vt => vt.TrabajadorId == trabajadorId);
+        foto.DocumentoIdentidad.Should().BeNull("la foto de la asignación copia un dato personal que se suprime con el Trabajador");
+        foto.NombreMostrado.Should().BeNull("la foto de la asignación copia un dato personal que se suprime con el Trabajador");
+        foto.EsExtranjeroCobrable.Should().BeTrue("la asignación ya se gestionó y se cobró: la marca no es dato personal");
 
         var solicitudEjecutada = await contextoVerificacion.SolicitudesPurga.FirstAsync(s => s.Id == solicitudId);
         solicitudEjecutada.ResultadoEjecucion.Should().Be(ResultadoEjecucionPurga.Completa,
