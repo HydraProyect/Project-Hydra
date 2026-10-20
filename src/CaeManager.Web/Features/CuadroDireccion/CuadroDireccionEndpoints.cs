@@ -31,10 +31,13 @@ public static class CuadroDireccionEndpoints
     }
 
     public static async Task<IResult> ExportarExtranjerosDelMesAsync(
-        int anyo, int mes, HttpContext contexto, IMediator mediator, IRegistroExportacionService registroExportacion,
+        int anyo, int mes, Guid? tenantId, HttpContext contexto, IMediator mediator, IRegistroExportacionService registroExportacion,
         IStringLocalizer<TextosCuadroDireccion> textos, CancellationToken cancellationToken)
     {
         var extranjeros = await mediator.Send(new ObtenerExtranjerosDelMesQuery(anyo, mes), cancellationToken);
+        // Con tenantId, solo las filas de esa Empresa gestionada (el detalle de la pestaña Facturación). La consulta ya dejó fuera
+        // a quien mira no alcanza: un Id ajeno da un libro sin filas, nunca datos de otro Tenant.
+        var delMes = tenantId is { } empresa ? extranjeros.Filas.Where(f => f.TenantId == empresa).ToList() : extranjeros.Filas;
         // Un mes futuro no tiene Visitas que cobrar todavía: se rechaza igual que uno inexistente.
         if (extranjeros.SinCifras is CuadroDireccionSinCifras.MesNoValido or CuadroDireccionSinCifras.MesFuturo)
             return Results.BadRequest();
@@ -56,7 +59,7 @@ public static class CuadroDireccionEndpoints
                 textos["ExtranjerosColumnaFechaSalida"].Value, textos["ExtranjerosColumnaTrabajador"].Value,
                 textos["ExtranjerosColumnaDocumento"].Value, textos["ExtranjerosColumnaGestorCae"].Value,
             ],
-            FilasAsync(extranjeros.Filas, nota), cancellationToken);
+            FilasAsync(delMes, nota), cancellationToken);
 
         // El rastro cuenta Trabajadores exportados, no la línea en blanco ni la nota.
         var filas = nota is null ? filasEscritas : filasEscritas - FilasDeNota;
@@ -66,6 +69,7 @@ public static class CuadroDireccionEndpoints
             CriteriosExportacion.Desde(
                 ("listado", "extranjerosDelMes"),
                 ("anyo", anyo.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                ("tenantId", tenantId?.ToString()),
                 ("mes", mes.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 ("tenantsSinAlcanceCompleto", extranjeros.TenantsSinAlcanceCompleto > 0
                     ? extranjeros.TenantsSinAlcanceCompleto.ToString(System.Globalization.CultureInfo.InvariantCulture)

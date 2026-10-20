@@ -1,0 +1,384 @@
+﻿@*
+    Pestaña «Facturación» del Cuadro de dirección contra su maqueta («Cuadro Facturacion TALVEG.dc.html»,
+    assets/facturacion-operador.js): lo que el Operador CAE externo cobra a cada Empresa gestionada (Tenant beneficiario)
+    por llevar su CAE, nunca por Cliente empresarial ni por persona. Los conceptos son los Trabajadores extranjeros por
+    Visita, los Centros nuevos y las Obras nuevas; los Eventos y el Cliente empresarial nuevo no se cobran. Todo sale de
+    ObtenerFacturacionOperadorCaeQuery: la cifra de extranjeros es la de ContarExtranjerosCobrablesDelMesQuery (la misma
+    que el Excel) y los precios, los de la tarifa; la pantalla no escribe ninguno. El mes lo manda la barra del Cuadro
+    (la maqueta repite el selector de mes dentro de la pestaña; aquí no hace falta).
+*@
+@using CaeManager.Application.Dashboard.Queries
+@using CaeManager.Domain.Dashboard
+@using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Features.CuadroDireccion.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosCuadroDireccion> T
+@inject MediatR.IMediator Mediator
+@inject ILogger<FacturacionOperador> Logger
+
+<div class="fact" data-facturacion="operador">
+    <div class="fact-cabecera">
+        <h2>@T["FactTitulo"]</h2>
+        <span>@T["FactSubtitulo"]</span>
+    </div>
+
+    @if (_error)
+    {
+        <EstadoVacio Titulo="@T["FactErrorTitulo"]" Descripcion="@T["FactErrorDescripcion"]">
+            <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@T["BotonReintentar"]</Boton></Accion>
+        </EstadoVacio>
+    }
+    else if (_datos is null)
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else if (_datos.SinCifras is not null)
+    {
+        <p class="fact-vacio" role="status">@T["FactMesSinCifras"]</p>
+    }
+    else
+    {
+        <Pestanas Definiciones="Definiciones" PestanaActiva="@_seccion" PestanaActivaChanged="CambiarSeccionAsync" EtiquetaGrupo="@T["FactSecciones"]" Envolver="true">
+            @if (_seccion == "general")
+            {
+                <div class="fact-kpis">
+                    <div class="fact-kpi" data-fact-kpi="cuota">
+                        <span class="fact-kpi-etiqueta" title="@T["FactKpiCuotaAyuda"]">@T["FactKpiCuota"]</span>
+                        <b>@(VeImportes ? Eur(_datos.Total.Cuota, _datos.Total.Moneda) : SinDato)</b>
+                        <span>@SubCuota</span>
+                    </div>
+                    <div class="fact-kpi" data-fact-kpi="extranjeros">
+                        <span class="fact-kpi-etiqueta" title="@T["FactKpiExtranjerosAyuda"]">@T["FactKpiExtranjeros"]</span>
+                        <b>@N(_datos.Total.Extranjeros)</b>
+                        <span>@T["FactKpiExtranjerosSub"]</span>
+                        @if (_datos.Total.Extranjeros > 0)
+                        {
+                            <Boton Class="fact-exportar" Variante="VarianteBoton.Secundario" Href="@RutaExportar(null)" download data-enhance-nav="false">@T["FactExportar"]</Boton>
+                        }
+                        else
+                        {
+                            <Boton Class="fact-exportar" Variante="VarianteBoton.Secundario" Deshabilitado="true" title="@T["FactNadaQueExportar", NombreMes]">@T["FactExportar"]</Boton>
+                            <span class="fact-nota">@T["FactNadaQueExportar", NombreMes]</span>
+                        }
+                    </div>
+                    <div class="fact-kpi" data-fact-kpi="centros">
+                        <span class="fact-kpi-etiqueta" title="@T["FactKpiCentrosAyuda"]">@T["FactKpiCentros"]</span>
+                        <b>@N(_datos.Total.CentrosNuevos)</b>
+                        <span>@T["FactKpiCentrosSub", N(CentrosCobrados)]</span>
+                    </div>
+                    <div class="fact-kpi" data-fact-kpi="obras">
+                        <span class="fact-kpi-etiqueta" title="@T["FactKpiObrasAyuda"]">@T["FactKpiObras"]</span>
+                        <b>@N(_datos.Total.ObrasNuevas)</b>
+                        <span>@T["FactKpiObrasSub", N(ObrasCobradas)]</span>
+                    </div>
+                    <div class="fact-kpi" data-fact-kpi="ingreso">
+                        <span class="fact-kpi-etiqueta" title="@T["FactKpiIngresoAyuda"]">@T["FactKpiIngreso"]</span>
+                        <b>@Eur2(_datos.Total.Ingreso.PorGestion, _datos.Total.Moneda)</b>
+                        <span>@T["FactKpiIngresoSub", Eur2(_datos.Total.Ingreso.PorGestionNormal, _datos.Total.Moneda), Eur2(_datos.Total.Ingreso.PorGestionExtranjero, _datos.Total.Moneda), Rel(_datos.Total.Ingreso.Relacion)]</span>
+                    </div>
+                </div>
+
+                @if (_datos.TenantsSinAlcanceCompleto > 0)
+                {
+                    <p class="fact-nota" role="status">@T["EmpresasSinAlcance", _datos.TenantsSinAlcanceCompleto]</p>
+                }
+
+                <section class="fact-tarjeta">
+                    <div class="fact-tarjeta-cabecera">
+                        <h3>@T["FactTablaTitulo", NombreMes]</h3>
+                        <span>@T["FactTablaNota"]</span>
+                    </div>
+                    @if (_datos.Filas.Count == 0)
+                    {
+                        <p class="fact-vacio">@T["SinEmpresasDescripcion"]</p>
+                    }
+                    else
+                    {
+                        <div class="fact-tabla-envoltorio">
+                            <table class="fact-tabla" data-tabla="facturacion-empresas">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">@T["FactColEmpresa"]</th>
+                                        <th scope="col">@T["FactColExtranjeros"]</th>
+                                        <th scope="col">@T["FactColCentros"]</th>
+                                        <th scope="col">@T["FactColObras"]</th>
+                                        <th scope="col" class="fact-der">@T["FactColCuota"]</th>
+                                        <th scope="col" class="fact-der" title="@T["FactColGestionesAyuda"]">@T["FactColGestiones"]</th>
+                                        <th scope="col" class="fact-der" title="@T["FactColCostoGestionAyuda"]">@T["FactColCostoGestion"]</th>
+                                        <th scope="col" class="fact-der" title="@T["FactColCostoExtranjeroAyuda"]">@T["FactColCostoExtranjero"]</th>
+                                        <th scope="col" class="fact-der" title="@T["FactColRelacionAyuda"]">@T["FactColRelacion"]</th>
+                                        @if (VeImportes)
+                                        {
+                                            <th scope="col"><span class="fact-solo-lectores">@T["FactColAcciones"]</span></th>
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var f in _datos.Filas)
+                                    {
+                                        var fila = f;
+                                        <tr data-empresa="@fila.TenantId">
+                                            <td>
+                                                <button type="button" class="fact-enlace" title="@T["FactVerDetalle"]" @onclick="@(() => VerDetalleAsync(fila.TenantId))">@fila.TenantNombre</button>
+                                                @if (Gestor(fila.TenantId) is { } gestor)
+                                                {
+                                                    <span class="fact-sub">@T["FactCartera", gestor]</span>
+                                                }
+                                            </td>
+                                            <td><b>@N(fila.Extranjero.Unidades)</b><span class="fact-sub">@ImporteConcepto(fila.Extranjero, fila)</span></td>
+                                            <td><b>@N(fila.Centro.Unidades)</b><span class="fact-sub">@ImporteConcepto(fila.Centro, fila)</span></td>
+                                            <td><b>@N(fila.Obra.Unidades)</b><span class="fact-sub">@ImporteConcepto(fila.Obra, fila)</span></td>
+                                            <td class="fact-der">
+                                                @if (!VeImportes)
+                                                {
+                                                    <span class="fact-apagado">@SinDato</span>
+                                                }
+                                                else if (fila.SinTarifa)
+                                                {
+                                                    <span class="fact-aviso">@T["FactSinTarifa"]</span>
+                                                    <button type="button" class="fact-enlace fact-enlace-peq" @onclick="@(() => AbrirTarifas(fila.TenantId))">@T["FactFijarTarifa"]</button>
+                                                }
+                                                else
+                                                {
+                                                    <b>@Eur(fila.Cuota ?? 0m, fila.Moneda)</b>
+                                                }
+                                            </td>
+                                            <td class="fact-der"><b>@(fila.GestionesNormales is { } gn ? N(gn) : SinDato)</b></td>
+                                            <td class="fact-der">
+                                                <span class="@(fila.Ingreso.PorGestionNormal is null ? "fact-apagado" : null)">@Eur2(fila.Ingreso.PorGestionNormal, fila.Moneda)</span>
+                                                @if (fila.Ingreso.PorGestionNormal is not null && fila.Cuota is { } cuota)
+                                                {
+                                                    <span class="fact-sub">@Eur(cuota - fila.Extranjero.Importe, fila.Moneda) ÷ @N(fila.GestionesNormales ?? 0)</span>
+                                                }
+                                            </td>
+                                            <td class="fact-der">
+                                                <span class="@(fila.Ingreso.PorGestionExtranjero is null ? "fact-apagado" : null)">@Eur2(fila.Ingreso.PorGestionExtranjero, fila.Moneda)</span>
+                                                @if (fila.Ingreso.PorGestionExtranjero is not null)
+                                                {
+                                                    <span class="fact-sub">@Eur(fila.Extranjero.Importe, fila.Moneda) ÷ @N(fila.GestionesDeExtranjeros)</span>
+                                                }
+                                            </td>
+                                            <td class="fact-der"><b class="@(fila.Ingreso.Relacion is null ? "fact-apagado" : null)">@Rel(fila.Ingreso.Relacion)</b></td>
+                                            @if (VeImportes)
+                                            {
+                                                <td class="fact-der"><Boton Variante="VarianteBoton.Secundario" Class="fact-tarifas" OnClick="@(() => AbrirTarifas(fila.TenantId))">@T["FactTarifas"]</Boton></td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <th scope="row">@T["FactTotales"]</th>
+                                        <td><b>@N(_datos.Total.Extranjeros)</b></td>
+                                        <td><b>@N(_datos.Total.CentrosNuevos)</b></td>
+                                        <td><b>@N(_datos.Total.ObrasNuevas)</b></td>
+                                        <td class="fact-der"><b>@(VeImportes ? Eur(_datos.Total.Cuota, _datos.Total.Moneda) : SinDato)</b></td>
+                                        <td class="fact-der">@(_datos.Total.GestionesNormales is { } tn ? N(tn) : SinDato)</td>
+                                        <td class="fact-der">@Eur2(_datos.Total.Ingreso.PorGestionNormal, _datos.Total.Moneda)</td>
+                                        <td class="fact-der">@Eur2(_datos.Total.Ingreso.PorGestionExtranjero, _datos.Total.Moneda)</td>
+                                        <td class="fact-der">@Rel(_datos.Total.Ingreso.Relacion)</td>
+                                        @if (VeImportes) { <td></td> }
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    }
+                </section>
+
+                <div class="fact-dos">
+                    <section class="fact-tarjeta fact-relleno" data-fact="crecimiento">
+                        <h3>@T["FactCrecimientoTitulo"]</h3>
+                        <span class="fact-nota">@T["FactCrecimientoNota", NombreMes]</span>
+                        @{ var maximo = _datos.CentrosPorCliente.Count == 0 ? 1 : _datos.CentrosPorCliente.Max(c => c.Centros); }
+                        @foreach (var cliente in _datos.CentrosPorCliente)
+                        {
+                            <div class="fact-barra">
+                                <span>@(cliente.ClienteNombre.Length == 0 ? SinDato : cliente.ClienteNombre)</span>
+                                <span class="fact-barra-pista"><span style="width:@(Math.Round(cliente.Centros * 100.0 / maximo).ToString(System.Globalization.CultureInfo.InvariantCulture))%"></span></span>
+                                <b>@N(cliente.Centros)</b>
+                            </div>
+                        }
+                        @if (_datos.CentrosPorCliente.Count == 0)
+                        {
+                            <span class="fact-nota">@T["FactSinCentros", NombreMes]</span>
+                        }
+                    </section>
+                    <section class="fact-tarjeta fact-relleno" data-fact="como-se-calcula">
+                        <h3>@T["FactComoTitulo"]</h3>
+                        <span>@T["FactComoIntro"]</span>
+                        <dl class="fact-formulas">
+                            <dt>@T["FactComoTotal"]</dt><dd>@T["FactComoTotalDef"]</dd>
+                            <dt>@T["FactColCostoGestion"]</dt><dd>@T["FactComoNormalDef"]</dd>
+                            <dt>@T["FactColCostoExtranjero"]</dt><dd>@T["FactComoExtranjeroDef"]</dd>
+                            <dt>@T["FactColRelacion"]</dt><dd>@T["FactComoRelacionDef"]</dd>
+                        </dl>
+                        <span class="fact-nota">@T["FactComoSinDato"]</span>
+                    </section>
+                </div>
+            }
+            else
+            {
+                @if (_datos.Filas.Count == 0)
+                {
+                    <p class="fact-vacio">@T["SinEmpresasDescripcion"]</p>
+                }
+                else if (Seleccionada is { } e)
+                {
+                    var extranjeros = ExtranjerosDe(e.TenantId);
+                    <div class="fact-barra-detalle">
+                        <select class="fact-select" data-fact="empresa" aria-label="@T["FactEmpresaGestionada"]" value="@e.TenantId" @onchange="CambiarEmpresa">
+                            @foreach (var opcion in _datos.Filas)
+                            {
+                                <option value="@opcion.TenantId">@opcion.TenantNombre</option>
+                            }
+                        </select>
+                        @if (Gestor(e.TenantId) is { } gestor)
+                        {
+                            <span class="fact-nota">@T["FactCartera", gestor]</span>
+                        }
+                        <span class="fact-espaciador"></span>
+                        @if (VeImportes)
+                        {
+                            <Boton Variante="VarianteBoton.Secundario" OnClick="@(() => AbrirTarifas(e.TenantId))">@T["FactTarifasEmpresa"]</Boton>
+                        }
+                        @if (e.Extranjero.Unidades > 0)
+                        {
+                            <Boton Variante="VarianteBoton.Primario" Href="@RutaExportar(e.TenantId)" download data-enhance-nav="false">@T["FactExportar"]</Boton>
+                        }
+                        else
+                        {
+                            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="true" title="@T["FactNadaQueExportar", NombreMes]">@T["FactExportar"]</Boton>
+                        }
+                    </div>
+
+                    <div class="fact-tres">
+                        <section class="fact-tarjeta" data-fact="cuota-empresa">
+                            <div class="fact-tarjeta-cabecera">
+                                <h3>@T["FactCuotaDe", NombreMes]</h3>
+                                @if (MesCerrado && !e.SinTarifa)
+                                {
+                                    <span class="fact-pastilla">@T["FactTarifaCongelada"]</span>
+                                }
+                            </div>
+                            <table class="fact-conceptos">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">@T["FactColConcepto"]</th>
+                                        <th scope="col" class="fact-der">@T["FactColUnidades"]</th>
+                                        <th scope="col">@T["FactColTarifa"]</th>
+                                        <th scope="col" class="fact-der">@T["FactColImporte"]</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var (clave, titulo, concepto) in new[] { ("Extranjeros", T["FactConceptoExtranjeros"].Value, e.Extranjero), ("Centros", T["FactConceptoCentros"].Value, e.Centro), ("Obras", T["FactConceptoObras"].Value, e.Obra) })
+                                    {
+                                        <tr data-concepto="@clave">
+                                            <td>@titulo</td>
+                                            <td class="fact-der"><b>@N(concepto.Unidades)</b></td>
+                                            <td class="@(concepto.PrecioUnitario is not null && concepto.CobroActivo ? null : "fact-apagado")">@TextoTarifa(concepto, e)</td>
+                                            <td class="fact-der">@(concepto.PrecioUnitario is not null && concepto.CobroActivo ? Eur(concepto.Importe, e.Moneda) : "—")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <th scope="row">@T["FactColCuota"]</th>
+                                        <td></td>
+                                        <td></td>
+                                        <td class="fact-der @(e.SinTarifa ? "fact-aviso" : null)"><b>@(!VeImportes ? SinDato : e.SinTarifa ? T["FactSinTarifa"].Value : Eur(e.Cuota ?? 0m, e.Moneda))</b></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                            @if (VeImportes && e.SinTarifa)
+                            {
+                                <div class="fact-banda-aviso" role="note">
+                                    <span>@T["FactSinTarifaDetalle"]</span>
+                                    <button type="button" class="fact-enlace" @onclick="@(() => AbrirTarifas(e.TenantId))">@T["FactFijarTarifa"]</button>
+                                </div>
+                            }
+                        </section>
+
+                        <section class="fact-tarjeta" data-fact="ingreso-empresa">
+                            <h3>@T["FactIngresoTitulo"]</h3>
+                            <div class="fact-ingresos">
+                                @foreach (var (titulo, valor, texto) in IngresosDe(e))
+                                {
+                                    <div class="fact-ingreso"><span>@titulo</span><b class="@(valor == SinDato ? "fact-apagado" : null)">@valor</b><span>@texto</span></div>
+                                }
+                            </div>
+                        </section>
+
+                        <section class="fact-tarjeta" data-fact="centros-empresa">
+                            <div class="fact-tarjeta-cabecera">
+                                <h3>@T["FactCrecimientoTitulo"]</h3>
+                            </div>
+                            <span class="fact-nota">@(e.Centro.PrecioUnitario is not null && e.Centro.CobroActivo ? T["FactCentrosSeCobran"].Value : T["FactCentrosNoSeCobran"].Value)</span>
+                            @foreach (var cliente in e.CentrosPorCliente)
+                            {
+                                <div class="fact-linea"><span>@(cliente.ClienteNombre.Length == 0 ? SinDato : cliente.ClienteNombre)</span><b>@N(cliente.Centros)</b></div>
+                            }
+                            @if (e.CentrosPorCliente.Count == 0)
+                            {
+                                <span class="fact-nota">@T["FactSinCentros", NombreMes]</span>
+                            }
+                        </section>
+                    </div>
+
+                    <section class="fact-tarjeta" data-fact="extranjeros-empresa">
+                        <div class="fact-tarjeta-cabecera">
+                            <h3>@T["FactExtranjerosDe", NombreMes, N(e.Extranjero.Unidades)]</h3>
+                            <span class="fact-ayuda" title="@T["FactExtranjerosAyuda"]">@T["FactExtranjerosNota"]</span>
+                        </div>
+                        @if (_cargandoExtranjeros)
+                        {
+                            <EstadoCargando Filas="2" />
+                        }
+                        else if (_errorExtranjeros)
+                        {
+                            <p class="fact-vacio">@T["FactErrorDescripcion"]</p>
+                        }
+                        else if (extranjeros.Count == 0)
+                        {
+                            <p class="fact-vacio" data-fact="sin-extranjeros">@T["FactSinExtranjeros", NombreMes]</p>
+                        }
+                        else
+                        {
+                            <div class="fact-tabla-envoltorio">
+                                <table class="fact-tabla" data-tabla="extranjeros-empresa">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">@T["FactExtSolicitud"]</th>
+                                            <th scope="col">@T["FactExtTrabajador"]</th>
+                                            <th scope="col">@T["FactExtDocumento"]</th>
+                                            <th scope="col">@T["FactExtCentro"]</th>
+                                            <th scope="col">@T["FactExtIngreso"]</th>
+                                            <th scope="col">@T["FactExtTrae"]</th>
+                                            <th scope="col">@T["FactExtGestor"]</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var x in extranjeros)
+                                        {
+                                            <tr>
+                                                <td>@Fecha(x.FechaSolicitud)</td>
+                                                <td><b>@x.NombreYApellidos</b>@if (!string.IsNullOrWhiteSpace(x.ContactoVisita)) { <span class="fact-sub">@T["FactVisitaCon", x.ContactoVisita]</span> }</td>
+                                                <td>@(x.Documento ?? SinDato)</td>
+                                                <td>@(string.IsNullOrWhiteSpace(x.Cliente) ? SinDato : x.Cliente) › @x.Centro</td>
+                                                <td>@Fecha(x.FechaIngreso) – @Fecha(x.FechaSalida)</td>
+                                                <td>@(string.IsNullOrWhiteSpace(x.Subcontrata) ? x.Empresa ?? SinDato : x.Subcontrata)</td>
+                                                <td>@(string.IsNullOrWhiteSpace(x.GestorCae) ? SinDato : x.GestorCae)</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </section>
+                }
+            }
+        </Pestanas>
+    }
+</div>
+
+<DrawerTarifasOperador Visible="_drawerTenantId is not null" VisibleChanged="@(v => { if (!v) _drawerTenantId = null; })"
+                       Fila="@(_datos?.Filas.FirstOrDefault(f => f.TenantId == _drawerTenantId))" OnGuardado="CargarAsync" />

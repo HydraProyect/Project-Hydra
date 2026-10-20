@@ -24,8 +24,11 @@ public record ObtenerSerieCuadroDireccionQuery(int Anyo, int Mes, int Meses, boo
 /// Operador para ese Tenant beneficiario (<see cref="Dashboard.ValoracionOperadorCae"/>), en una moneda. Con el cobro
 /// desactivado la línea sale con sus unidades e importe cero.
 /// </summary>
+/// <param name="PrecioUnitario">El precio de la versión de la tarifa con que se valoró; null en una línea sumada de varios Tenants.</param>
+/// <param name="CobroActivo">Si la versión de la tarifa cobraba el concepto; null en una línea sumada de varios Tenants.</param>
 public record LineaFacturacionCuadroDto(
-    ConceptoTarifaOperadorCae Concepto, string ConceptoNombre, string MonedaIso, int Unidades, decimal Importe);
+    ConceptoTarifaOperadorCae Concepto, string ConceptoNombre, string MonedaIso, int Unidades, decimal Importe,
+    decimal? PrecioUnitario = null, bool? CobroActivo = null);
 
 /// <param name="Cifras">Las cifras del mes con las mismas definiciones que el Cuadro (el cumplimiento no se mide aquí).</param>
 /// <param name="Facturacion">

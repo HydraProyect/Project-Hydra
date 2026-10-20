@@ -1,0 +1,105 @@
+/*
+    Facturación del Operador CAE. Medidas de la maqueta («Cuadro Facturacion TALVEG.dc.html»): tarjeta de radio 14 con
+    sombra suave, KPI de 16 de relleno con valor de 26/32, tabla de 11/14 en mayúsculas en la cabecera y filas de 52.
+    Colores solo de tokens.css.
+*/
+.fact { display: flex; flex-direction: column; gap: 20px; min-width: 0; font-variant-numeric: tabular-nums; }
+
+.fact-cabecera { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fact-cabecera h2 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; }
+.fact-cabecera span { color: var(--color-text-muted); text-wrap: pretty; }
+
+.fact-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.fact-kpi {
+    display: flex; flex-direction: column; gap: 4px; padding: 16px;
+    background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 14px; box-shadow: var(--shadow-tarjeta-lista);
+}
+.fact-kpi-etiqueta { font-size: 12px; line-height: 16px; font-weight: 500; color: var(--color-text-muted); cursor: help; }
+.fact-kpi b { font-size: 26px; line-height: 32px; font-weight: 700; }
+.fact-kpi > span:not(.fact-kpi-etiqueta) { font-size: 12px; line-height: 16px; color: var(--color-text-muted); text-wrap: pretty; }
+.fact-kpi ::deep .fact-exportar { align-self: flex-start; margin-top: 4px; min-height: 30px; height: 30px; padding: 0 10px; border-radius: 8px; font-size: 12px; line-height: 16px; font-weight: 600; }
+
+.fact-nota { font-size: 12px; line-height: 16px; color: var(--color-text-muted); margin: 0; text-wrap: pretty; }
+.fact-apagado { color: var(--color-text-muted); }
+.fact-aviso { font-size: 12px; line-height: 16px; font-weight: 600; color: var(--color-warning-700); }
+.fact-sub { display: block; font-size: 12px; line-height: 16px; font-weight: 400; color: var(--color-text-muted); }
+.fact-der { text-align: right; }
+.fact-solo-lectores { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.fact-espaciador { flex: 1; }
+
+.fact-tarjeta {
+    display: flex; flex-direction: column; gap: 12px; min-width: 0; overflow: hidden;
+    background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 14px; box-shadow: var(--shadow-tarjeta-lista);
+}
+.fact-tarjeta h3 { margin: 0; font-size: 16px; line-height: 22px; font-weight: 600; }
+.fact-tarjeta-cabecera { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 14px 16px 0; }
+.fact-tarjeta-cabecera > span { font-size: 12px; line-height: 16px; color: var(--color-text-muted); }
+.fact-tarjeta.fact-relleno, .fact-tres > .fact-tarjeta { padding: 16px; overflow: visible; }
+.fact-tres > .fact-tarjeta .fact-tarjeta-cabecera { padding: 0; }
+.fact-pastilla { font-size: 11px; line-height: 14px; font-weight: 600; padding: 2px 8px; border-radius: 9999px; background: var(--color-surface-subtle); color: var(--color-text-muted); }
+.fact-ayuda { cursor: help; text-decoration: underline dotted; }
+
+.fact-dos { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+.fact-tres { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; }
+
+.fact-tabla-envoltorio { overflow-x: auto; }
+.fact-tabla { width: 100%; min-width: 1220px; border-collapse: collapse; }
+.fact-tabla th {
+    padding: 10px 12px; text-align: left; font-size: 11px; line-height: 14px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .04em; color: var(--color-text-muted); border-bottom: 1px solid var(--color-border); white-space: nowrap;
+}
+.fact-tabla th.fact-der { text-align: right; }
+.fact-tabla td { padding: 6px 12px; min-height: 52px; vertical-align: middle; border-bottom: 1px solid var(--color-border); }
+.fact-tabla td.fact-der { text-align: right; }
+.fact-tabla tbody tr:hover { background: var(--color-surface-hover); }
+.fact-tabla tfoot th, .fact-tabla tfoot td { background: var(--color-surface-subtle); border-bottom: 0; font-weight: 600; text-transform: none; font-size: 14px; letter-spacing: 0; color: var(--color-text); }
+.fact-tabla ::deep .fact-tarifas { min-height: 30px; height: 30px; padding: 0 10px; border-radius: 8px; font-size: 12px; line-height: 16px; font-weight: 600; }
+
+.fact-enlace {
+    padding: 0; border: 0; background: none; cursor: pointer; font: inherit; font-weight: 600; text-align: left;
+    color: var(--color-text); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fact-enlace:hover { color: var(--color-primary-500); }
+.fact-enlace-peq { font-size: 12px; line-height: 16px; color: var(--color-primary-500); display: block; margin-left: auto; }
+
+.fact-barra { display: grid; grid-template-columns: minmax(0, 1fr) 120px 28px; gap: 10px; align-items: center; }
+.fact-barra > span:first-child { min-width: 0; font-size: 13px; line-height: 18px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fact-barra-pista { height: 8px; border-radius: 9999px; background: var(--color-surface-subtle); overflow: hidden; }
+.fact-barra-pista > span { display: block; height: 100%; border-radius: 9999px; background: var(--color-primary-500); }
+.fact-barra b { text-align: right; }
+
+.fact-formulas { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 6px 12px; margin: 0; font-size: 13px; line-height: 18px; }
+.fact-formulas dt { font-weight: 700; }
+.fact-formulas dd { margin: 0; }
+
+.fact-barra-detalle { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fact-select { min-width: 320px; max-width: 100%; height: 40px; font-weight: 600; }
+
+.fact-conceptos { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 18px; }
+.fact-conceptos th { padding: 4px 8px 4px 0; text-align: left; font-size: 11px; line-height: 14px; font-weight: 600; text-transform: uppercase; color: var(--color-text-muted); }
+.fact-conceptos th.fact-der { text-align: right; }
+.fact-conceptos td { padding: 6px 8px 6px 0; }
+.fact-conceptos td.fact-der { text-align: right; padding-right: 0; }
+.fact-conceptos tfoot th, .fact-conceptos tfoot td { padding-top: 8px; border-top: 1px solid var(--color-border); font-size: 13px; text-transform: none; color: var(--color-text); }
+.fact-conceptos tfoot td.fact-aviso { color: var(--color-warning-700); }
+
+.fact-banda-aviso {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px;
+    background: var(--color-warning-50); color: var(--color-warning-700);
+}
+.fact-banda-aviso > span { flex: 1; min-width: 200px; }
+.fact-banda-aviso .fact-enlace { color: var(--color-primary-500); font-size: 13px; }
+
+.fact-ingresos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.fact-ingreso { display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: 10px; background: var(--color-surface-subtle); }
+.fact-ingreso > span:first-child { font-size: 12px; line-height: 16px; font-weight: 500; color: var(--color-text-muted); }
+.fact-ingreso b { font-size: 20px; line-height: 26px; font-weight: 700; }
+.fact-ingreso > span:last-child { font-size: 11px; line-height: 14px; color: var(--color-text-muted); }
+
+.fact-linea { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--color-border); }
+
+.fact-select {
+    box-sizing: border-box; height: 40px; min-width: 320px; max-width: 100%; padding: 0 12px; border: 1px solid var(--color-border-control);
+    border-radius: 10px; background: var(--color-surface); color: var(--color-text); font: inherit; font-size: 14px; font-weight: 600;
+}
+.fact-vacio { display: grid; place-items: center; text-align: center; min-height: 120px; margin: 0; padding: 16px; color: var(--color-text-muted); font-size: 13px; line-height: 1.5; }

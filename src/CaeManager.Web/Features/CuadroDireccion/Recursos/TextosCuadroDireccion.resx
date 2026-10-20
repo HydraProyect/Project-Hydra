@@ -930,4 +930,361 @@
   <data name="ExtranjerosNotaSinAlcance" xml:space="preserve">
     <value>Organizaciones gestionadas de las que no ves todos los datos: {0}. Sus trabajadores extranjeros no están en esta exportación.</value>
   </data>
+  <data name="FactTitulo" xml:space="preserve">
+    <value>Facturación del Operador CAE</value>
+  </data>
+  <data name="FactSubtitulo" xml:space="preserve">
+    <value>Cuota que el Operador CAE cobra a cada Empresa gestionada por llevar su CAE externa.</value>
+  </data>
+  <data name="FactErrorTitulo" xml:space="preserve">
+    <value>No se pudo cargar la facturación</value>
+  </data>
+  <data name="FactErrorDescripcion" xml:space="preserve">
+    <value>Vuelve a intentarlo en un momento.</value>
+  </data>
+  <data name="FactMesSinCifras" xml:space="preserve">
+    <value>Este mes todavía no tiene cifras de facturación.</value>
+  </data>
+  <data name="FactSecciones" xml:space="preserve">
+    <value>Secciones de facturación</value>
+  </data>
+  <data name="FactPestanaResumen" xml:space="preserve">
+    <value>Resumen</value>
+  </data>
+  <data name="FactPestanaPorEmpresa" xml:space="preserve">
+    <value>Por Empresa gestionada</value>
+  </data>
+  <data name="FactKpiCuota" xml:space="preserve">
+    <value>Cuota del mes</value>
+  </data>
+  <data name="FactKpiCuotaAyuda" xml:space="preserve">
+    <value>Suma de lo que el Operador CAE cobra a cada Empresa gestionada: extranjeros, Centros nuevos y Obras nuevas según su tarifa.</value>
+  </data>
+  <data name="FactKpiCuotaSub" xml:space="preserve">
+    <value>{0} de {1} Empresas con tarifa</value>
+  </data>
+  <data name="FactKpiCuotaSubSin" xml:space="preserve">
+    <value> · {0} sin tarifa</value>
+  </data>
+  <data name="FactKpiSinImportes" xml:space="preserve">
+    <value>Los importes los ve quien gestiona las tarifas.</value>
+  </data>
+  <data name="FactKpiExtranjeros" xml:space="preserve">
+    <value>Extranjeros</value>
+  </data>
+  <data name="FactKpiExtranjerosAyuda" xml:space="preserve">
+    <value>Trabajadores extranjeros cobrables: el Pasaporte cuenta y el NIE no, porque puede ser residente. Un recurrente que va a 3 Centros en el mes cuenta 3. Se cuenta como estaba al hacer la gestión.</value>
+  </data>
+  <data name="FactKpiExtranjerosSub" xml:space="preserve">
+    <value>Filas Trabajador × Visita</value>
+  </data>
+  <data name="FactKpiCentros" xml:space="preserve">
+    <value>Centros nuevos</value>
+  </data>
+  <data name="FactKpiCentrosAyuda" xml:space="preserve">
+    <value>Centros dados de alta en el mes. Se cobran solo si la tarifa de la Empresa lo tiene activo.</value>
+  </data>
+  <data name="FactKpiCentrosSub" xml:space="preserve">
+    <value>{0} se cobran · el número se muestra siempre</value>
+  </data>
+  <data name="FactKpiObras" xml:space="preserve">
+    <value>Obras nuevas</value>
+  </data>
+  <data name="FactKpiObrasAyuda" xml:space="preserve">
+    <value>Proyectos de tipo Obra creados en el mes.</value>
+  </data>
+  <data name="FactKpiObrasSub" xml:space="preserve">
+    <value>{0} se cobran · los Eventos no cuentan</value>
+  </data>
+  <data name="FactKpiIngreso" xml:space="preserve">
+    <value>Ingreso por gestión</value>
+  </data>
+  <data name="FactKpiIngresoAyuda" xml:space="preserve">
+    <value>Por Empresa gestionada, nunca por persona. Aquí, el conjunto de las Empresas con tarifa.</value>
+  </data>
+  <data name="FactKpiIngresoSub" xml:space="preserve">
+    <value>Costo × gestión {0} · × extranjero {1} · relación {2}</value>
+  </data>
+  <data name="FactExportar" xml:space="preserve">
+    <value>Exportar extranjeros del mes</value>
+  </data>
+  <data name="FactNadaQueExportar" xml:space="preserve">
+    <value>Nada que exportar en {0}</value>
+  </data>
+  <data name="FactTablaTitulo" xml:space="preserve">
+    <value>Cuota por Empresa gestionada · {0}</value>
+  </data>
+  <data name="FactTablaNota" xml:space="preserve">
+    <value>Lo que el Operador CAE cobra a cada Empresa por llevar su CAE externa</value>
+  </data>
+  <data name="FactColEmpresa" xml:space="preserve">
+    <value>Empresa gestionada</value>
+  </data>
+  <data name="FactColExtranjeros" xml:space="preserve">
+    <value>Extranjeros</value>
+  </data>
+  <data name="FactColCentros" xml:space="preserve">
+    <value>Centros nuevos</value>
+  </data>
+  <data name="FactColObras" xml:space="preserve">
+    <value>Obras nuevas</value>
+  </data>
+  <data name="FactColCuota" xml:space="preserve">
+    <value>Cuota</value>
+  </data>
+  <data name="FactColGestiones" xml:space="preserve">
+    <value>Gestiones normales</value>
+  </data>
+  <data name="FactColGestionesAyuda" xml:space="preserve">
+    <value>Gestiones del mes que no son de extranjeros, sumando las de todos sus Gestores CAE</value>
+  </data>
+  <data name="FactColCostoGestion" xml:space="preserve">
+    <value>Costo × gestión</value>
+  </data>
+  <data name="FactColCostoGestionAyuda" xml:space="preserve">
+    <value>(Cuota − importe de extranjeros) ÷ gestiones normales</value>
+  </data>
+  <data name="FactColCostoExtranjero" xml:space="preserve">
+    <value>Costo × extranjero</value>
+  </data>
+  <data name="FactColCostoExtranjeroAyuda" xml:space="preserve">
+    <value>Importe de extranjeros ÷ gestiones de extranjeros</value>
+  </data>
+  <data name="FactColRelacion" xml:space="preserve">
+    <value>Relación</value>
+  </data>
+  <data name="FactColRelacionAyuda" xml:space="preserve">
+    <value>Costo × extranjero ÷ costo × gestión: cuántas gestiones normales vale una de extranjero</value>
+  </data>
+  <data name="FactColAcciones" xml:space="preserve">
+    <value>Acciones</value>
+  </data>
+  <data name="FactVerDetalle" xml:space="preserve">
+    <value>Ver el detalle</value>
+  </data>
+  <data name="FactCartera" xml:space="preserve">
+    <value>Cartera de {0}</value>
+  </data>
+  <data name="FactSinTarifa" xml:space="preserve">
+    <value>Sin tarifa</value>
+  </data>
+  <data name="FactFijarTarifa" xml:space="preserve">
+    <value>Fijar tarifa</value>
+  </data>
+  <data name="FactTarifas" xml:space="preserve">
+    <value>Tarifas</value>
+  </data>
+  <data name="FactTotales" xml:space="preserve">
+    <value>Totales</value>
+  </data>
+  <data name="FactNoSeCobra" xml:space="preserve">
+    <value>No se cobra</value>
+  </data>
+  <data name="FactCrecimientoTitulo" xml:space="preserve">
+    <value>Centros nuevos por Cliente empresarial</value>
+  </data>
+  <data name="FactCrecimientoNota" xml:space="preserve">
+    <value>Dónde se concentra el crecimiento en {0}. El Cliente empresarial nuevo no se cobra.</value>
+  </data>
+  <data name="FactSinCentros" xml:space="preserve">
+    <value>Ningún Centro nuevo en {0}.</value>
+  </data>
+  <data name="FactComoTitulo" xml:space="preserve">
+    <value>Cómo se calcula el ingreso por gestión</value>
+  </data>
+  <data name="FactComoIntro" xml:space="preserve">
+    <value>Por Empresa gestionada, nunca por persona. Suma las gestiones de todos sus Gestores CAE.</value>
+  </data>
+  <data name="FactComoTotal" xml:space="preserve">
+    <value>Total por gestión</value>
+  </data>
+  <data name="FactComoTotalDef" xml:space="preserve">
+    <value>Cuota del mes ÷ gestiones totales</value>
+  </data>
+  <data name="FactComoNormalDef" xml:space="preserve">
+    <value>(Cuota − importe de extranjeros) ÷ gestiones que no son de extranjeros</value>
+  </data>
+  <data name="FactComoExtranjeroDef" xml:space="preserve">
+    <value>Importe de extranjeros ÷ gestiones de extranjeros</value>
+  </data>
+  <data name="FactComoRelacionDef" xml:space="preserve">
+    <value>Costo × extranjero ÷ costo × gestión. «×2,4» = una gestión de extranjero rinde lo que 2,4 normales</value>
+  </data>
+  <data name="FactComoSinDato" xml:space="preserve">
+    <value>Sin gestiones o sin tarifa: «Sin dato».</value>
+  </data>
+  <data name="FactEmpresaGestionada" xml:space="preserve">
+    <value>Empresa gestionada</value>
+  </data>
+  <data name="FactTarifasEmpresa" xml:space="preserve">
+    <value>Tarifas de la Empresa</value>
+  </data>
+  <data name="FactCuotaDe" xml:space="preserve">
+    <value>Cuota de {0}</value>
+  </data>
+  <data name="FactTarifaCongelada" xml:space="preserve">
+    <value>Tarifa congelada al cierre</value>
+  </data>
+  <data name="FactColConcepto" xml:space="preserve">
+    <value>Concepto</value>
+  </data>
+  <data name="FactColUnidades" xml:space="preserve">
+    <value>Unidades</value>
+  </data>
+  <data name="FactColTarifa" xml:space="preserve">
+    <value>Tarifa</value>
+  </data>
+  <data name="FactColImporte" xml:space="preserve">
+    <value>Importe</value>
+  </data>
+  <data name="FactConceptoExtranjeros" xml:space="preserve">
+    <value>Extranjeros gestionados</value>
+  </data>
+  <data name="FactConceptoCentros" xml:space="preserve">
+    <value>Centros nuevos</value>
+  </data>
+  <data name="FactConceptoObras" xml:space="preserve">
+    <value>Obras nuevas</value>
+  </data>
+  <data name="FactPorUnidadVisitaTrabajadorExtranjero" xml:space="preserve">
+    <value>extranjero</value>
+  </data>
+  <data name="FactPorUnidadCentroNuevo" xml:space="preserve">
+    <value>centro</value>
+  </data>
+  <data name="FactPorUnidadObraNueva" xml:space="preserve">
+    <value>obra nueva</value>
+  </data>
+  <data name="FactSinTarifaDetalle" xml:space="preserve">
+    <value>Sin tarifa: las unidades se cuentan, pero no hay importe.</value>
+  </data>
+  <data name="FactIngresoTitulo" xml:space="preserve">
+    <value>Ingreso por gestión</value>
+  </data>
+  <data name="FactIngresoGestionesTotal" xml:space="preserve">
+    <value>{0} gestiones ({1} normales + {2} de extranjero)</value>
+  </data>
+  <data name="FactIngresoGestionesNormales" xml:space="preserve">
+    <value>{0} gestiones normales</value>
+  </data>
+  <data name="FactIngresoGestionesExtranjero" xml:space="preserve">
+    <value>{0} gestiones de extranjero</value>
+  </data>
+  <data name="FactIngresoRelacionDef" xml:space="preserve">
+    <value>Costo × extranjero ÷ costo × gestión</value>
+  </data>
+  <data name="FactCentrosSeCobran" xml:space="preserve">
+    <value>Se cobran según la tarifa</value>
+  </data>
+  <data name="FactCentrosNoSeCobran" xml:space="preserve">
+    <value>No se cobran con su tarifa actual; el número se muestra igual</value>
+  </data>
+  <data name="FactExtranjerosDe" xml:space="preserve">
+    <value>Extranjeros de {0} · {1}</value>
+  </data>
+  <data name="FactExtranjerosNota" xml:space="preserve">
+    <value>Una fila por Trabajador y Visita · cuenta el Pasaporte, no el NIE</value>
+  </data>
+  <data name="FactExtranjerosAyuda" xml:space="preserve">
+    <value>Tipos de documento: DNI, NIE y Pasaporte. Cuenta el Pasaporte; el NIE no, porque puede ser residente. El Pasaporte marca la casilla «Trabajador extranjero (cobrable)» y el Gestor CAE puede desmarcarla. Se cuenta como estaba al hacer la gestión.</value>
+  </data>
+  <data name="FactSinExtranjeros" xml:space="preserve">
+    <value>Ningún Trabajador extranjero en {0}. La exportación no tiene filas.</value>
+  </data>
+  <data name="FactExtSolicitud" xml:space="preserve">
+    <value>Solicitud</value>
+  </data>
+  <data name="FactExtTrabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="FactExtDocumento" xml:space="preserve">
+    <value>Documento</value>
+  </data>
+  <data name="FactExtCentro" xml:space="preserve">
+    <value>Cliente empresarial › Centro</value>
+  </data>
+  <data name="FactExtIngreso" xml:space="preserve">
+    <value>Ingreso – salida</value>
+  </data>
+  <data name="FactExtTrae" xml:space="preserve">
+    <value>Lo trae</value>
+  </data>
+  <data name="FactExtGestor" xml:space="preserve">
+    <value>Gestor CAE que lo gestionó</value>
+  </data>
+  <data name="FactVisitaCon" xml:space="preserve">
+    <value>Visita con {0}</value>
+  </data>
+  <data name="TarifasTitulo" xml:space="preserve">
+    <value>Tarifas de {0}</value>
+  </data>
+  <data name="TarifasSubtitulo" xml:space="preserve">
+    <value>Cuota que el Operador CAE cobra por llevar su CAE externa. Solo la ve el Operador CAE.</value>
+  </data>
+  <data name="TarifasGuardar" xml:space="preserve">
+    <value>Guardar tarifas</value>
+  </data>
+  <data name="TarifasCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="TarifasSinTarifa" xml:space="preserve">
+    <value>Esta Empresa gestionada no tiene tarifa. Mientras no la tenga, el Cuadro y Facturación muestran «Sin tarifa», nunca 0 €.</value>
+  </data>
+  <data name="TarifasMoneda" xml:space="preserve">
+    <value>Moneda de cobro</value>
+  </data>
+  <data name="TarifasMonedaEur" xml:space="preserve">
+    <value>EUR · euro</value>
+  </data>
+  <data name="TarifasMonedaUsd" xml:space="preserve">
+    <value>USD · dólar</value>
+  </data>
+  <data name="TarifasConceptoExtranjero" xml:space="preserve">
+    <value>Trabajador extranjero gestionado</value>
+  </data>
+  <data name="TarifasConceptoCentro" xml:space="preserve">
+    <value>Centro nuevo</value>
+  </data>
+  <data name="TarifasConceptoObra" xml:space="preserve">
+    <value>Obra nueva</value>
+  </data>
+  <data name="TarifasAyudaExtranjero" xml:space="preserve">
+    <value>Por Trabajador y Visita: un recurrente que va a 3 Centros en el mes cuenta 3. Cuenta el Pasaporte; el NIE no.</value>
+  </data>
+  <data name="TarifasAyudaCentro" xml:space="preserve">
+    <value>Centro dado de alta en el mes. El número de Centros nuevos se muestra siempre, se cobre o no.</value>
+  </data>
+  <data name="TarifasAyudaObra" xml:space="preserve">
+    <value>Proyecto de tipo Obra. Los Eventos no se cobran.</value>
+  </data>
+  <data name="TarifasSeCobra" xml:space="preserve">
+    <value>Se cobra</value>
+  </data>
+  <data name="TarifasNoSeCobra" xml:space="preserve">
+    <value>No se cobra</value>
+  </data>
+  <data name="TarifasCobrar" xml:space="preserve">
+    <value>Empezar a cobrar: {0}</value>
+  </data>
+  <data name="TarifasDejarDeCobrar" xml:space="preserve">
+    <value>Dejar de cobrar: {0}</value>
+  </data>
+  <data name="TarifasPrecioDe" xml:space="preserve">
+    <value>Precio por {0}</value>
+  </data>
+  <data name="TarifasUnidadEur" xml:space="preserve">
+    <value>€ / unidad</value>
+  </data>
+  <data name="TarifasUnidadUsd" xml:space="preserve">
+    <value>$ / unidad</value>
+  </data>
+  <data name="TarifasPrecioInvalido" xml:space="preserve">
+    <value>El precio debe ser un número de 0 a 999.999,99 con como mucho dos decimales.</value>
+  </data>
+  <data name="TarifasSinCambios" xml:space="preserve">
+    <value>No hay cambios que guardar.</value>
+  </data>
+  <data name="TarifasPie" xml:space="preserve">
+    <value>Los cambios se aplican desde el mes en curso. Los meses cerrados conservan las unidades y la tarifa que tenían al cerrarse. El Cliente empresarial nuevo no se cobra.</value>
+  </data>
 </root>

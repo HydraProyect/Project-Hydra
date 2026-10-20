@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Bunit;
 using CaeManager.Application.Dashboard;
 using CaeManager.Application.Dashboard.Queries;
+using CaeManager.Application.Dashboard.TarifasOperadorCae;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
@@ -45,6 +46,10 @@ public partial class CuadroDireccionTests : BunitContext
         public Func<ComunicacionesCuadroDireccionDto>? Comunicaciones { get; init; }
         public Func<GestionesPorDiaCuadroDireccionDto>? GestionesDia { get; init; }
         public List<ObtenerSerieCuadroDireccionQuery> SeriesPedidas { get; } = [];
+        public Func<FacturacionOperadorCaeDto>? Facturacion { get; init; }
+        public Func<ExtranjerosDelMesDto>? Extranjeros { get; init; }
+        public Func<ConteoExtranjerosCobrablesDelMesDto>? Conteo { get; init; }
+        public List<FijarTarifaOperadorCaeCommand> TarifasFijadas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -56,6 +61,10 @@ public partial class CuadroDireccionTests : BunitContext
                     ?? ObtenerComunicacionesCuadroDireccionQueryHandler.Fusionar(q.Anyo, q.Mes, [], 0),
                 ObtenerGestionesPorDiaCuadroDireccionQuery => GestionesDia?.Invoke() ?? new GestionesPorDiaCuadroDireccionDto([], 0),
                 ReabrirMesCuadroDireccionCommand c => Registrar(c),
+                ObtenerFacturacionOperadorCaeQuery q => Facturacion?.Invoke() ?? throw new NotSupportedException("Falta la facturación del Operador CAE en este test."),
+                ObtenerExtranjerosDelMesQuery q => Extranjeros?.Invoke() ?? new ExtranjerosDelMesDto(q.Anyo, q.Mes, [], 0),
+                ContarExtranjerosCobrablesDelMesQuery q => Conteo?.Invoke() ?? new ConteoExtranjerosCobrablesDelMesDto(q.Anyo, q.Mes, [], 0),
+                FijarTarifaOperadorCaeCommand c => RegistrarTarifa(c),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             };
             return Task.FromResult((TResponse)respuesta!);
@@ -65,6 +74,12 @@ public partial class CuadroDireccionTests : BunitContext
         {
             SeriesPedidas.Add(q);
             return Serie?.Invoke(q) ?? new SerieCuadroDireccionDto([], [], 0);
+        }
+
+        private Result RegistrarTarifa(FijarTarifaOperadorCaeCommand c)
+        {
+            TarifasFijadas.Add(c);
+            return Result.Exito();
         }
 
         private Result Registrar(ReabrirMesCuadroDireccionCommand c)
@@ -116,11 +131,15 @@ public partial class CuadroDireccionTests : BunitContext
         CuadroDireccionDto cuadro, string rol, out MediatorFalso mediador,
         Func<ObtenerSerieCuadroDireccionQuery, SerieCuadroDireccionDto>? serie = null,
         ComunicacionesCuadroDireccionDto? comunicaciones = null,
-        GestionesPorDiaCuadroDireccionDto? gestionesDia = null)
+        GestionesPorDiaCuadroDireccionDto? gestionesDia = null,
+        FacturacionOperadorCaeDto? facturacion = null, ExtranjerosDelMesDto? extranjeros = null, ConteoExtranjerosCobrablesDelMesDto? conteo = null)
     {
         var falso = new MediatorFalso(() => cuadro)
         {
             Serie = serie,
+            Facturacion = facturacion is null ? null : () => facturacion,
+            Extranjeros = extranjeros is null ? null : () => extranjeros,
+            Conteo = conteo is null ? null : () => conteo,
             Comunicaciones = comunicaciones is null ? null : () => comunicaciones,
             GestionesDia = gestionesDia is null ? null : () => gestionesDia,
         };
