@@ -627,4 +627,10 @@
   <data name="IrATuPantallaPrincipal" xml:space="preserve">
     <value>Ves a la teva pantalla principal</value>
   </data>
+  <data name="AgendaNotaComunicaciones" xml:space="preserve">
+    <value>Nota per a Comunicacions</value>
+  </data>
+  <data name="AgendaNotaPlaceholder" xml:space="preserve">
+    <value>Tracte especial o precaució en respondre-li</value>
+  </data>
 </root>

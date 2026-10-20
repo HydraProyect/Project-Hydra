@@ -638,4 +638,10 @@
   <data name="IrATuPantallaPrincipal" xml:space="preserve">
     <value>Ir a tu pantalla principal</value>
   </data>
+  <data name="AgendaNotaComunicaciones" xml:space="preserve">
+    <value>Nota para Comunicaciones</value>
+  </data>
+  <data name="AgendaNotaPlaceholder" xml:space="preserve">
+    <value>Trato especial o precaución al responderle</value>
+  </data>
 </root>
