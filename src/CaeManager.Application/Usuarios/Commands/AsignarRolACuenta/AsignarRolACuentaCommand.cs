@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -65,7 +65,7 @@ public class AsignarRolACuentaCommandHandler(
 
         var origen = await currentUserService.ObtenerTenantOrigenIdAsync();
         var rolAsignable = RolesReservadosAlTenantDeOrigen.Verificar(request.Rol, origen, tenantActual.TenantId,
-            await RolesReservadosAlTenantDeOrigen.ActuaPorEncargoPlenoAsync(encargoActual));
+            await RolesReservadosAlTenantDeOrigen.ActuaConAutoridadDePropiedadAsync(encargoActual));
         if (rolAsignable.EsFallido)
             return Result.Fallo<CuentaConRolAsignado>(rolAsignable.Error);
 
@@ -80,7 +80,7 @@ public class AsignarRolACuentaCommandHandler(
         // Tenant de origen (primer acto excluido del Encargo de administración, D-8).
         var destinoIntocable = CuentasConRolDePropiedad.VerificarDestino(
             cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId,
-            await RolesReservadosAlTenantDeOrigen.ActuaPorEncargoPlenoAsync(encargoActual));
+            await RolesReservadosAlTenantDeOrigen.ActuaConAutoridadDePropiedadAsync(encargoActual));
         if (destinoIntocable.EsFallido)
             return Result.Fallo<CuentaConRolAsignado>(destinoIntocable.Error);
 

@@ -45,6 +45,17 @@ public interface ICurrentUserService
     Task<string?> ObtenerRolOrigenAsync();
 
     /// <summary>
+    /// Rol de la <b>sesión</b> en el Tenant de origen: el del token, después de las
+    /// restricciones de sesión (login local), y antes de que se sustituyera por el rol del
+    /// Tenant operado. Es el perfil que rige en los Tenants beneficiarios delegados
+    /// (decisión Chris 2026-10-20) y el que decide por qué vía entra el usuario
+    /// (<c>TenantsBeneficiariosAutorizados.OperacionesQueAutorizan</c>). A diferencia de
+    /// <see cref="ObtenerRolOrigenAsync"/>, sí vale para autorizar: es la sesión, no Identity.
+    /// La implementación por defecto solo sirve a dobles de prueba sin Tenant delegado.
+    /// </summary>
+    Task<string?> ObtenerPerfilQueDecideAlcanceAsync() => ObtenerRolEfectivoAsync();
+
+    /// <summary>
     /// Alias obsoleto de <see cref="ObtenerRolEfectivoAsync"/> (decisión P7,
     /// 2026-09-23). El nombre no decía qué rol devolvía y dejó que algún
     /// consumidor lo leyera como el rol de origen.

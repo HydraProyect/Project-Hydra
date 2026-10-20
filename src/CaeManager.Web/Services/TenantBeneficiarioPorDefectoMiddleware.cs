@@ -125,7 +125,8 @@ public class TenantBeneficiarioPorDefectoMiddleware(RequestDelegate siguiente)
         // La misma operación que embebería el POST: la selección por defecto se
         // revalida por ella en cada petición, igual que una explícita.
         if (await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-                operacionesContext, usuarioId, tenantOrigenId, porDefecto.TenantId, DateTime.UtcNow, cancelacion)
+                operacionesContext, usuarioId, tenantOrigenId, porDefecto.TenantId,
+                await currentUserService.ObtenerPerfilQueDecideAlcanceAsync(), DateTime.UtcNow, cancelacion)
             is not { } asignacionOperacionId)
             return null;
 
