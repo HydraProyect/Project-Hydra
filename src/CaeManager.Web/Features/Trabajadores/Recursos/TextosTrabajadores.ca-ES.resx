@@ -727,6 +727,9 @@
   <data name="FichaCopiarTelefono" xml:space="preserve"><value>el telèfon</value></data>
   <data name="FichaContactoEmergencia" xml:space="preserve"><value>Contacte d'emergència</value></data>
   <data name="FichaTelefonoEmergencia" xml:space="preserve"><value>Telèfon d'emergència</value></data>
+  <data name="FichaExtranjeroCobrable" xml:space="preserve"><value>Treballador estranger (facturable)</value></data>
+  <data name="FichaExtranjeroCobrableDocumentoSi" xml:space="preserve"><value>Pel seu document compta com a estranger. Desmarca-ho si no es factura (per exemple, un ciutadà de la UE).</value></data>
+  <data name="FichaExtranjeroCobrableDocumentoNo" xml:space="preserve"><value>Pel seu document no compta com a estranger (DNI o NIE). Marca-ho si es factura.</value></data>
   <data name="FichaCopiarTelefonoEmergencia" xml:space="preserve"><value>el telèfon d'emergència</value></data>
   <data name="FichaCopiarCorreo" xml:space="preserve"><value>el correu electrònic</value></data>
   <data name="FichaCopiarNacimiento" xml:space="preserve"><value>la data de naixement</value></data>

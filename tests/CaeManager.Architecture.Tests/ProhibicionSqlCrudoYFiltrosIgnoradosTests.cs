@@ -105,6 +105,13 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // comparación del TenantId con el Tenant del ámbito (falla cerrado sin él).
         [("src/CaeManager.Application/Dashboard/Queries/MedicionMensualCuadroDireccion.cs", ".IgnoreQueryFilters()")] = 3,
 
+        // Trabajadores extranjeros del mes (exportación del Cuadro de dirección, decisión de Chris del
+        // 2026-10-20): la Visita del mes se gestionó aunque después se eliminaran su Trabajador, su Centro o
+        // las Empresas que nombra, y se cobra igual. Tres apariciones (Trabajadores, Centros, Empresas), cada
+        // una seguida de la comparación del TenantId con el Tenant del ámbito (falla cerrado sin él). La
+        // Visita eliminada sigue fuera: su filtro global no se quita.
+        [("src/CaeManager.Application/Dashboard/Queries/ObtenerExtranjerosDelMesQuery.cs", ".IgnoreQueryFilters()")] = 3,
+
         // Resolución de tenant a partir de un webhook entrante (Graph/WhatsApp):
         // en ese punto todavía no hay tenant resuelto en el contexto — es
         // precisamente lo que esta consulta calcula — así que no hay filtro

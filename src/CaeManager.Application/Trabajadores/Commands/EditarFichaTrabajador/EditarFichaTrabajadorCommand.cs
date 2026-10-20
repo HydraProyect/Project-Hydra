@@ -14,7 +14,15 @@ public record EditarFichaTrabajadorCommand(Guid Id, Guid Version,
     string? MotivoPermisoTrabajo,
     TipoContratacion? TipoContratacion = null,
     ContactoEmergenciaTrabajador? ContactoEmergencia = null,
-    DelegacionEmpresaYOficioDeTrabajador? DelegacionEmpresaYOficio = null) : ICommand;
+    DelegacionEmpresaYOficioDeTrabajador? DelegacionEmpresaYOficio = null,
+    MarcaExtranjeroCobrableTrabajador? ExtranjeroCobrable = null) : ICommand;
+
+/// <summary>
+/// La marca «Trabajador extranjero (cobrable)» que se fija con la ficha (decisión de Chris, 2026-10-20). En
+/// <see cref="EditarFichaTrabajadorCommand"/>, <c>null</c> (el objeto entero) = no se cambia. Dentro, <c>Marca</c> en
+/// <c>null</c> quita la marca a mano y vuelve a decidir el documento (<see cref="CriterioExtranjeroCobrable"/>).
+/// </summary>
+public record MarcaExtranjeroCobrableTrabajador(bool? Marca);
 
 /// <summary>
 /// El contacto de emergencia que se fija con la ficha. En <see cref="EditarFichaTrabajadorCommand"/>, <c>null</c> (el
@@ -103,6 +111,10 @@ public class EditarFichaTrabajadorCommandHandler(ITrabajadorRepository repositor
         // nadie borre ni pise a ciegas un dato que el servidor no le enseña.
         if (request.ContactoEmergencia is { } contacto && await politicaNotaInterna.PuedeLeerAsync(cancellationToken))
             trabajador.FijarContactoEmergencia(contacto.Nombre, contacto.Telefono);
+        // La marca de extranjero cobrable decide qué cobra el Operador CAE: la fija el equipo de gestión con la misma
+        // política que el contacto de emergencia (el Usuario de Cliente ni la lee ni la cambia), y null = no se cambia.
+        if (request.ExtranjeroCobrable is { } extranjero && await politicaNotaInterna.PuedeLeerAsync(cancellationToken))
+            trabajador.FijarMarcaExtranjeroCobrable(extranjero.Marca);
         // Se aplica después de ActualizarFicha porque elegir un Oficio copia su nombre en el Puesto.
         if (asignacion is not null)
             AsignacionDelegacionEmpresaYOficio.Aplicar(trabajador, asignacion, renovarVersionDelCatalogo: true);

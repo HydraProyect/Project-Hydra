@@ -379,6 +379,13 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Dashboard.ObtenerSerieCuadroDireccionQueryHandler", "IFacturacionQueryContext"),
         ("Dashboard.ObtenerComunicacionesCuadroDireccionQueryHandler", "IComunicacionesQueryContext"),
         ("Dashboard.ObtenerGestionesPorDiaCuadroDireccionQueryHandler", "IGestionesQueryContext"),
+        // Exportación de Trabajadores extranjeros del mes (decisión de Chris, 2026-10-20): cada fila junta la asignación
+        // a la Visita, el Trabajador, el Centro, las razones sociales y, para las asignaciones antiguas, su alta auditada.
+        ("Dashboard.ObtenerExtranjerosDelMesQueryHandler", "IAuditoriaQueryContext"),
+        ("Dashboard.ObtenerExtranjerosDelMesQueryHandler", "ICentrosQueryContext"),
+        ("Dashboard.ObtenerExtranjerosDelMesQueryHandler", "IEmpresasQueryContext"),
+        ("Dashboard.ObtenerExtranjerosDelMesQueryHandler", "ITrabajadoresQueryContext"),
+        ("Dashboard.ObtenerExtranjerosDelMesQueryHandler", "IVisitasQueryContext"),
         ("Dashboard.ObtenerEstadisticasAprobacionDocumentoQueryHandler", "IDocumentosQueryContext"),
         ("Dashboard.ObtenerKpisBpoQueryHandler", "IClientesQueryContext"),
         ("Dashboard.ObtenerKpisBpoQueryHandler", "IComunicacionesQueryContext"),

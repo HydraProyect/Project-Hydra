@@ -727,6 +727,9 @@
   <data name="FichaCopiarTelefono" xml:space="preserve"><value>el teléfono</value></data>
   <data name="FichaContactoEmergencia" xml:space="preserve"><value>Contacto de emergencia</value></data>
   <data name="FichaTelefonoEmergencia" xml:space="preserve"><value>Teléfono de emergencia</value></data>
+  <data name="FichaExtranjeroCobrable" xml:space="preserve"><value>Trabajador extranjero (cobrable)</value></data>
+  <data name="FichaExtranjeroCobrableDocumentoSi" xml:space="preserve"><value>Por su documento cuenta como extranjero. Desmárcalo si no se cobra (por ejemplo, un ciudadano de la UE).</value></data>
+  <data name="FichaExtranjeroCobrableDocumentoNo" xml:space="preserve"><value>Por su documento no cuenta como extranjero (DNI o NIE). Márcalo si se cobra.</value></data>
   <data name="FichaCopiarTelefonoEmergencia" xml:space="preserve"><value>el teléfono de emergencia</value></data>
   <data name="FichaCopiarCorreo" xml:space="preserve"><value>el correo electrónico</value></data>
   <data name="FichaCopiarNacimiento" xml:space="preserve"><value>la fecha de nacimiento</value></data>
