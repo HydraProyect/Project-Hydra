@@ -32,3 +32,6 @@ Exportar a Excel
 #
 # Los formatos de archivo que admite la subida múltiple se escriben igual en cualquier lengua (siglas).
 PDF · JPG · PNG · DOCX · ZIP
+#
+# 2026-10-20 (exportación de extranjeros del mes): «empresa» y el participio «gestionada» se escriben igual en catalán.
+Empresa gestionada

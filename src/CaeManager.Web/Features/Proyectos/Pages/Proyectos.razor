@@ -22,7 +22,7 @@
 <div class="contenedor-pagina">
     <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@Textos["TituloPagina"]"
                      Contador="@(ListaDisponible && _listaCargada ? (int?)_totalElementos : null)"
-                     RutaExportar="@(ListaDisponible ? "/proyectos/exportar.xlsx" : null)" CriteriosExportar="CriteriosExportar" Menu="@(ListaDisponible ? MenuExportarTodo : null)">
+                     RutaExportar="@(ListaDisponible ? "/proyectos/exportar.xlsx" : null)" CriteriosExportar="CriteriosExportar" Menu="@(ListaDisponible ? MenuListado : null)">
         <Primaria>
             @if (ListaDisponible)
             {
@@ -613,5 +613,9 @@
 }
 
 @code {
-    private RenderFragment MenuExportarTodo => @<CaeManager.Web.Exportacion.EntradasExportar Ruta="/proyectos/exportar.xlsx" />;
+    /// <summary>«Más acciones»: el alta de un Evento (mismo drawer que «+ Nuevo proyecto», con el tipo Evento) y la exportación.</summary>
+    private RenderFragment MenuListado => @<text>
+        <SoloConEscritura><ItemMenuAccion OnClick="AbrirNuevoEventoAsync">@Textos["MenuCrearEvento"]</ItemMenuAccion></SoloConEscritura>
+        <CaeManager.Web.Exportacion.EntradasExportar Ruta="/proyectos/exportar.xlsx" />
+    </text>;
 }

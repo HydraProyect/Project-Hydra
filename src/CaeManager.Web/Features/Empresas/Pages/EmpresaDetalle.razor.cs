@@ -1,3 +1,4 @@
+using CaeManager.Web.Features.Documentos.Components;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa;
 using CaeManager.Application.Empresas.Commands.GuardarNotaInternaEmpresa;
@@ -16,7 +17,7 @@ using CaeManager.Web.Services;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-
+using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 namespace CaeManager.Web.Features.Empresas.Pages;
 
 /// <summary>
@@ -52,8 +53,10 @@ namespace CaeManager.Web.Features.Empresas.Pages;
 public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     internal const string PestanaTrabajadores = "trabajadores";
+    internal const string PestanaVigencia = "vigencia";
     internal const string PestanaClientes = "clientes";
     internal const string PestanaDocumentacion = "documentacion";
+    internal const string PestanaPlataformas = "plataformas";
     internal const string PestanaAgenda = "agenda";
     internal const string PestanaFicha = "ficha";
     internal const string PestanaHistorial = "historial";
@@ -61,7 +64,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     internal const int TamanoPagina = 20;
 
     private static readonly string[] PestanasValidas =
-        [PestanaTrabajadores, PestanaClientes, PestanaDocumentacion, PestanaAgenda, PestanaFicha, PestanaHistorial];
+        [PestanaTrabajadores, PestanaVigencia, PestanaClientes, PestanaDocumentacion, PestanaPlataformas, PestanaAgenda, PestanaFicha, PestanaHistorial];
 
     [Parameter] public Guid EmpresaId { get; set; }
 
@@ -90,6 +93,11 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     private int? _cumplimiento;
     private bool _cargando = true;
     private bool _error;
+    /// <summary>
+    /// La consulta devolvió null: la ficha no está en el Tenant activo (o no existe; es el mismo estado, § 4.5).
+    /// No es un fallo transitorio, así que no lleva «Reintentar»: lo pinta <c>FichaNoEncontrada</c>.
+    /// </summary>
+    private bool _noEncontrada;
 
     /// <summary>Todos los Trabajadores de la Empresa: lo que cuentan la cabecera y el contador de la pestaña.</summary>
     private RecuentoTrabajadores? _recuentos;
@@ -293,6 +301,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         _cargaPagina++;
         _cargaClientes++;
         _cargaAcceso++;
+        _cargaContacto++;
     }
 
     /// <summary>Nada de la Empresa anterior sobrevive al cambio.</summary>
@@ -312,6 +321,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         _errorTrabajadores = false;
         _pagina = 1;
         _clientes = null;
+        _contactoPrincipal = null;
         _cargandoClientes = false;
         _errorClientes = false;
         _credencial = null;
@@ -320,12 +330,24 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         _errorAcceso = false;
     }
 
+    private DrawerGestionDocumento _drawerGestion = default!;
+
+    private Task SubirDocumentoAsync() => _drawerGestion.AbrirCrearParaEmpresaAsync(EmpresaId);
+
+    private async Task ManejarDocumentoGuardadoAsync()
+    {
+        // Recarga completa: la pestaña Documentación, la cifra por trabajador y los recuentos enseñan el documento nuevo.
+        NavigationManager.Refresh(forceReload: true);
+        await Task.CompletedTask;
+    }
+
     private async Task CargarAsync()
     {
         var carga = ++_cargaDetalle;
         var empresaId = EmpresaId;
         _cargando = true;
         _error = false;
+        _noEncontrada = false;
 
         try
         {
@@ -337,7 +359,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             if (detalle is null)
             {
                 _detalle = null;
-                _error = true;
+                _noEncontrada = true;
                 return;
             }
 
@@ -381,6 +403,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         // de esta lista acotada por alcance sale el recuento de la cabecera y del
         // contador (EmpresaDetalleDto.ClienteIds no está acotado).
         await CargarClientesAsync();
+        await CargarContactoPrincipalAsync();
 
         // Mismo motivo que CentroDetalle: OnParametersSetAsync también corre
         // en el prerenderizado estático, y una tarea sin await ahí queda en
@@ -510,7 +533,8 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     private static ObtenerTrabajadoresQuery ConsultaOrdenada(Guid empresaId, int pagina, string? busqueda, Guid? delegacionId, Guid? oficioId) =>
         new(busqueda, EmpresaId: empresaId, Pagina: pagina, TamanoPagina: TamanoPagina,
-            OrdenarPor: nameof(TrabajadorListaDto.EstadoDocumental), DelegacionEmpresaId: delegacionId, OficioEmpresaId: oficioId);
+            OrdenarPor: nameof(TrabajadorListaDto.EstadoDocumental), DelegacionEmpresaId: delegacionId, OficioEmpresaId: oficioId,
+            ConDesgloseDocumental: true);
 
     /// <summary>
     /// Estados que deja pasar cada chip, para pedir a la consulta la página agrupada (el orden por Delegación u Oficio
@@ -564,7 +588,8 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
                 var agrupada = await Mediator.Send(new ObtenerTrabajadoresQuery(
                     busqueda, EmpresaId: empresaId, Pagina: _pagina, TamanoPagina: TamanoPagina,
                     OrdenarPor: _agrupar == AgruparPorOficio ? nameof(TrabajadorListaDto.OficioNombre) : nameof(TrabajadorListaDto.DelegacionEmpresaNombre),
-                    EstadoDocumental: EstadosDelChip(filtro), DelegacionEmpresaId: DelegacionEmpresaFiltro, OficioEmpresaId: OficioFiltro), _cancelacion);
+                    EstadoDocumental: EstadosDelChip(filtro), DelegacionEmpresaId: DelegacionEmpresaFiltro, OficioEmpresaId: OficioFiltro,
+                    ConDesgloseDocumental: true), _cancelacion);
                 if (carga != _cargaPagina || generacion != _generacion) return;
                 _filas = agrupada.Elementos;
             }
@@ -823,6 +848,33 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         await CargarClientesAsync();
     }
 
+    private ContactoAgendaDto? _contactoPrincipal;
+    private int _cargaContacto;
+
+    /// <summary>
+    /// El contacto predeterminado de la Agenda de la Empresa, para la tarjeta «Se pide la documentación a».
+    /// Lo lee la misma consulta que la pestaña Agenda, así que el alcance es el suyo. Un fallo, o que no haya
+    /// contacto predeterminado, no tumba la página: la tarjeta simplemente no se pinta.
+    /// </summary>
+    private async Task CargarContactoPrincipalAsync()
+    {
+        var carga = ++_cargaContacto;
+        var empresaId = EmpresaId;
+        try
+        {
+            var contactos = await Mediator.Send(new ObtenerAgendaContactosQuery(TipoPropietarioAgenda.Empresa, empresaId), _cancelacion);
+            if (carga == _cargaContacto)
+                _contactoPrincipal = contactos.FirstOrDefault(c => c.EsPredeterminado);
+        }
+        catch (Exception)
+        {
+            if (carga == _cargaContacto)
+                _contactoPrincipal = null;
+        }
+    }
+
+    private Task IrAAgendaAsync() => CambiarPestanaAsync(PestanaAgenda);
+
     private async Task CargarClientesAsync()
     {
         var carga = ++_cargaClientes;
@@ -932,11 +984,13 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         {
             Contador = _recuentos is { } r ? new ContadorPestana(r.Total, Textos["GlosaTrabajadores"]) : null
         },
+        new(PestanaVigencia, Textos["PestanaVigencia"]),
         new(PestanaClientes, Textos["PestanaClientes"])
         {
             Contador = _clientes is { Count: > 0 } clientes ? new ContadorPestana(clientes.Count, Textos["GlosaClientes"]) : null
         },
         new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
+        new(PestanaPlataformas, Textos["PestanaPlataformas"]),
         new(PestanaAgenda, Textos["PestanaAgenda"]),
         .. HayCajasDeFicha ? new[] { new PestanaDefinicion(PestanaFicha, Textos["PestanaFicha"]) } : [],
         new(PestanaHistorial, Textos["PestanaHistorial"])

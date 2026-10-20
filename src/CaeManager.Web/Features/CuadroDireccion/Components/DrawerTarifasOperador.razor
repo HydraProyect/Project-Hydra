@@ -1,0 +1,196 @@
+@*
+    Drawer de tarifas contra su maqueta («Drawer Tarifas TALVEG.dc.html»): lo que el Operador CAE cobra a una Empresa
+    gestionada (Tenant beneficiario) por cada concepto. Solo se abre para quien pasa AutorizacionTarifasOperadorCae
+    (Administrador o Dirección CAE); el servidor lo exige otra vez en FijarTarifaOperadorCaeCommand. Cada guardado añade
+    una versión vigente desde ahora: los meses cerrados conservan la tarifa con que se cerraron.
+*@
+@using CaeManager.Application.Dashboard.Queries
+@using CaeManager.Application.Dashboard.TarifasOperadorCae
+@using CaeManager.Domain.Dashboard
+@using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Features.CuadroDireccion.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosCuadroDireccion> T
+@inject MediatR.IMediator Mediator
+
+<DrawerFormulario Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@T["TarifasTitulo", Fila?.TenantNombre ?? string.Empty].Value"
+                  Subtitulo="@T["TarifasSubtitulo"].Value" Ancho="AnchoDrawer.Estandar"
+                  HayCambios="HayCambios" Guardando="_guardando" MensajeError="@_error" HayErroresDeCampo="@HayPrecioInvalido"
+                  MotivoGuardarDeshabilitado="@MotivoSinGuardar" OnGuardar="GuardarAsync"
+                  TextoGuardar="@T["TarifasGuardar"].Value" TextoCancelar="@T["TarifasCancelar"].Value">
+    @if (Fila is { TarifaVigente.Count: 0 })
+    {
+        <div class="tarifas-nota tarifas-nota-aviso" role="note" data-tarifas="sin-tarifa">@T["TarifasSinTarifa"]</div>
+    }
+    <label class="tarifas-moneda">
+        <span>@T["TarifasMoneda"]</span>
+        <select class="tarifas-select" data-tarifas="moneda" value="@_moneda" @onchange="@(e => _moneda = e.Value?.ToString() ?? "EUR")">
+            <option value="EUR">@T["TarifasMonedaEur"]</option>
+            <option value="USD">@T["TarifasMonedaUsd"]</option>
+        </select>
+    </label>
+    @foreach (var concepto in _conceptos)
+    {
+        var c = concepto;
+        var invalido = PrecioInvalido(c);
+        <div class="tarifas-concepto" data-concepto="@c.Clave" data-activo="@(c.Activo ? "true" : "false")">
+            <div class="tarifas-concepto-cabecera">
+                <span class="tarifas-concepto-texto">
+                    <b>@TituloDe(c)</b>
+                    <span>@AyudaDe(c)</span>
+                </span>
+                <label class="tarifas-interruptor">
+                    @(c.Activo ? T["TarifasSeCobra"].Value : T["TarifasNoSeCobra"].Value)
+                    <input type="checkbox" role="switch" checked="@c.Activo" aria-label="@(c.Activo ? T["TarifasDejarDeCobrar", TituloDe(c)].Value : T["TarifasCobrar", TituloDe(c)].Value)"
+                           @onchange="@(e => c.Activo = e.Value is true)" />
+                </label>
+            </div>
+            <label class="tarifas-precio" data-invalido="@(invalido ? "true" : "false")">
+                <input type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00" disabled="@(!c.Activo)"
+                       aria-label="@T["TarifasPrecioDe", TituloDe(c)]" aria-invalid="@(invalido ? "true" : null)"
+                       value="@c.Precio" @onchange="@(e => c.Precio = e.Value?.ToString() ?? string.Empty)" />
+                <span>@(_moneda == "USD" ? T["TarifasUnidadUsd"].Value : T["TarifasUnidadEur"].Value)</span>
+            </label>
+            @if (invalido)
+            {
+                <span class="tarifas-error">@T["TarifasPrecioInvalido"]</span>
+            }
+        </div>
+    }
+    <p class="tarifas-nota">@T["TarifasPie"]</p>
+</DrawerFormulario>
+
+@code {
+    private sealed class ConceptoEditable(ConceptoTarifaOperadorCae concepto, string clave)
+    {
+        public ConceptoTarifaOperadorCae Concepto { get; } = concepto;
+        public string Clave { get; } = clave;
+        public bool Activo { get; set; }
+        public string Precio { get; set; } = string.Empty;
+    }
+
+    private readonly InstantaneaFormulario _instantanea = new();
+    private readonly List<ConceptoEditable> _conceptos =
+    [
+        new(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, "Extranjero"),
+        new(ConceptoTarifaOperadorCae.CentroNuevo, "Centro"),
+        new(ConceptoTarifaOperadorCae.ObraNueva, "Obra"),
+    ];
+
+    private string _moneda = "EUR";
+    private bool _guardando;
+    private string? _error;
+    private bool _eraVisible;
+
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+
+    /// <summary>La Empresa gestionada cuyas tarifas se editan, con la versión vigente de cada concepto.</summary>
+    [Parameter] public FilaFacturacionOperadorCaeDto? Fila { get; set; }
+
+    /// <summary>Se guardó al menos un concepto: la pantalla vuelve a leer la cuota.</summary>
+    [Parameter] public EventCallback OnGuardado { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (Visible && !_eraVisible && Fila is not null)
+            Abrir(Fila);
+        _eraVisible = Visible;
+    }
+
+    private void Abrir(FilaFacturacionOperadorCaeDto fila)
+    {
+        _error = null;
+        _moneda = fila.TarifaVigente.FirstOrDefault()?.MonedaIso.Trim().ToUpperInvariant() is "USD" ? "USD" : "EUR";
+        foreach (var c in _conceptos)
+        {
+            var vigente = fila.TarifaVigente.FirstOrDefault(t => t.Concepto == c.Concepto);
+            // Sin tarifa, como en la maqueta: los extranjeros se cobran y Centros y Obras no, hasta que se diga.
+            c.Activo = vigente?.Activa ?? c.Concepto == ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero;
+            c.Precio = vigente is null ? string.Empty : vigente.PrecioUnitario.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        _instantanea.Fijar(Estado());
+    }
+
+    private object?[] Estado() => [_moneda, .. _conceptos.SelectMany(c => new object?[] { c.Activo, c.Precio })];
+
+    private string TituloDe(ConceptoEditable c) => c.Concepto switch
+    {
+        ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero => T["TarifasConceptoExtranjero"].Value,
+        ConceptoTarifaOperadorCae.CentroNuevo => T["TarifasConceptoCentro"].Value,
+        _ => T["TarifasConceptoObra"].Value,
+    };
+
+    private string AyudaDe(ConceptoEditable c) => c.Concepto switch
+    {
+        ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero => T["TarifasAyudaExtranjero"].Value,
+        ConceptoTarifaOperadorCae.CentroNuevo => T["TarifasAyudaCentro"].Value,
+        _ => T["TarifasAyudaObra"].Value,
+    };
+
+    private bool HayCambios() => _instantanea.Difiere(Estado());
+
+    private static bool TryPrecio(string texto, out decimal precio)
+    {
+        // Un precio en blanco no es 0: con el concepto activo hay que escribirlo, para no guardar 0 donde se esperaba «Sin tarifa».
+        if (string.IsNullOrWhiteSpace(texto))
+        {
+            precio = 0m;
+            return false;
+        }
+
+        return decimal.TryParse(texto.Replace(',', '.'), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out precio)
+            && precio is >= 0m and <= 999_999.99m && decimal.Round(precio, 2) == precio;
+    }
+
+    private static bool PrecioInvalido(ConceptoEditable c) => c.Activo && !TryPrecio(c.Precio, out _);
+
+    private bool HayPrecioInvalido => _conceptos.Any(PrecioInvalido);
+
+    private string? MotivoSinGuardar => HayPrecioInvalido
+        ? T["TarifasPrecioInvalido"].Value
+        : !HayCambios() ? T["TarifasSinCambios"].Value : null;
+
+    private async Task CerrarAsync(bool visible)
+    {
+        _error = null;
+        await VisibleChanged.InvokeAsync(visible);
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (Fila is null || _guardando || HayPrecioInvalido) return;
+
+        _guardando = true;
+        _error = null;
+        try
+        {
+            var cambioMoneda = Fila.TarifaVigente.Any(t => !string.Equals(t.MonedaIso.Trim(), _moneda, StringComparison.OrdinalIgnoreCase));
+            foreach (var c in _conceptos)
+            {
+                var vigente = Fila.TarifaVigente.FirstOrDefault(t => t.Concepto == c.Concepto);
+                // Concepto sin tarifa que se deja apagado y sin precio: no se crea una versión a 0.
+                if (vigente is null && !c.Activo && string.IsNullOrWhiteSpace(c.Precio)) continue;
+
+                TryPrecio(c.Precio, out var precio);
+                var igual = vigente is not null && vigente.Activa == c.Activo && vigente.PrecioUnitario == precio && !cambioMoneda;
+                if (igual) continue;
+
+                var resultado = await Mediator.Send(new FijarTarifaOperadorCaeCommand(Fila.TenantId, c.Concepto, precio, _moneda, c.Activo));
+                if (resultado.EsFallido)
+                {
+                    _error = resultado.Error.Mensaje;
+                    return;
+                }
+            }
+
+            await OnGuardado.InvokeAsync();
+            await VisibleChanged.InvokeAsync(false);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

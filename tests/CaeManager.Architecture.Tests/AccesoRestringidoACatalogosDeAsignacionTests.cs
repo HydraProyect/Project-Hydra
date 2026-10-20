@@ -181,6 +181,11 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         // que una copia vuelva a aparecer en Web.
         "src/CaeManager.Application/Tenants/TenantsBeneficiariosAutorizados.cs",
 
+        // Tarifas del Operador CAE externo: comprueba que el Operador (Tenant de
+        // ORIGEN, OperadorTenantId) opera hoy a la Empresa gestionada antes de
+        // fijarle una tarifa; la consulta se acota a mano a OperadorTenantId.
+        "src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs",
+
         // Contrato de lectura del plano 3. "No existe ni debe existir un
         // listar sesiones" habla de un catálogo navegable —una pantalla que
         // enumere "todas las mías"—, y eso sigue sin existir. Los dos

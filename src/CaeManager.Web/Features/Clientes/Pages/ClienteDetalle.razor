@@ -26,7 +26,11 @@
 <div class="contenedor-pagina">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["RutaNavegacion"]" />
 
-    @if (_error)
+    @if (_noEncontrada)
+    {
+        <FichaNoEncontrada RutaLista="/clientes" />
+    }
+    else if (_error)
     {
         @*
             Mismo resultado que el panel: ObtenerClientePorIdQuery devuelve null
@@ -37,7 +41,6 @@
                      NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
             <Accion>
                 <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarAsync">@Textos["Reintentar"]</Boton>
-                <EnlaceProfundoOtraEmpresa />
             </Accion>
         </EstadoVacio>
     }
@@ -67,7 +70,6 @@
                 @{
                     var hayCif = !string.IsNullOrWhiteSpace(_detalle.Cif);
                     var recuentos = TextoRecuentos;
-                    var contratista = _empresas is [var empresaContratista] ? empresaContratista.RazonSocial : null;
                 }
                 @* Sin CIF no hay nada que enseñar ni copiar, igual que en Empresa 360. *@
                 @if (hayCif)
@@ -85,17 +87,9 @@
                     }
                     <span>@recuentos</span>
                 }
-                @if (contratista is not null)
-                {
-                    @if (hayCif || recuentos is not null)
-                    {
-                        <span aria-hidden="true">·</span>
-                    }
-                    <span>@Textos["CabeceraContratista", contratista]</span>
-                }
                 @if (PeorCentroConGestionCae is { } peorCentro)
                 {
-                    @if (hayCif || recuentos is not null || contratista is not null)
+                    @if (hayCif || recuentos is not null)
                     {
                         <span aria-hidden="true">·</span>
                     }
@@ -113,6 +107,7 @@
                     <Boton Variante="VarianteBoton.Primario" OnClick="AbrirInformacionAsync">@Textos["EditarCliente"]</Boton>
                     <MenuAcciones ConBorde="true" EtiquetaAccesible="@Textos["MenuMasAcciones"]">
                         <ItemMenuAccion OnClick="AbrirToleranciasAsync">@Textos["ToleranciaMenu"]</ItemMenuAccion>
+                        <ItemMenuAccion Destructivo="true" OnClick="AbrirBaja">@Textos["DarDeBaja"]</ItemMenuAccion>
                     </MenuAcciones>
                 </SoloConEscritura>
             </Acciones>
@@ -170,7 +165,13 @@
                                     @foreach (var centro in centrosVisibles.Where(c => c.Estado != EstadoCentro.SinGestionCae))
                                     {
                                         <FilaRelacion @key="centro.Id" Nombre="@centro.Nombre" NombreIcono="centros" Tono="TonoDeFilaCentro(centro)"
-                                                      OnNombre="() => AbrirCentroAsync(centro)" Detalle="FragmentoDetalleCentro(centro)">
+                                                      HrefFila="@($"/centros/{centro.Id}")" OnNombre="() => AbrirCentroAsync(centro)" Detalle="FragmentoDetalleCentro(centro)">
+                                            <JuntoAlNombre>
+                                                @if (centro.Recuentos.Bloqueos.Count > 0)
+                                                {
+                                                    <span class="cliente360-bloqueo-plataforma">@Textos["RotuloBloqueoPlataforma"]</span>
+                                                }
+                                            </JuntoAlNombre>
                                             <Cifra>
                                                 <span class="cliente360-cumplimiento" title="@Textos["CumplimientoCentro"]">
                                                     @(centro.CumplimientoPorcentaje is { } porcentaje ? $"{porcentaje} %" : Textos["CentroSinRequisitos"])
@@ -193,7 +194,7 @@
                                             @foreach (var centro in centrosVisibles.Where(c => c.Estado == EstadoCentro.SinGestionCae))
                                             {
                                                 <FilaRelacion @key="centro.Id" Nombre="@centro.Nombre" NombreIcono="centros"
-                                                              OnNombre="() => AbrirCentroAsync(centro)" Detalle="FragmentoDetalleCentro(centro)">
+                                                              HrefFila="@($"/centros/{centro.Id}")" OnNombre="() => AbrirCentroAsync(centro)" Detalle="FragmentoDetalleCentro(centro)">
                                                     <Derecha>
                                                         <Boton360 Nombre="@centro.Nombre" Href="@($"/centros/{centro.Id}")" />
                                                     </Derecha>
@@ -264,49 +265,11 @@
                                 <ListaRelaciones Etiqueta="@Textos["ListaSubcontratas"]">
                                     @foreach (var subcontrata in _subcontratas)
                                     {
-                                        var centros = _centrosSubcontratas.GetValueOrDefault(subcontrata.Id) ?? [];
                                         <FilaRelacion @key="subcontrata.Id" Nombre="@subcontrata.RazonSocial" NombreIcono="subcontratas"
-                                                      Desplegada="@(_subcontratasDesplegadas.Contains(subcontrata.Id))"
-                                                      DesplegadaChanged="@(abierta => { if (abierta) _subcontratasDesplegadas.Add(subcontrata.Id); else _subcontratasDesplegadas.Remove(subcontrata.Id); })"
                                                       OnNombre="() => AbrirSubcontrataAsync(subcontrata)">
-                                            <Detalle>@Textos[centros.Count == 1 ? "CentroSubcontrata360" : "CentrosSubcontrata360", centros.Count]</Detalle>
                                             <Derecha>
                                                 <Boton360 Nombre="@subcontrata.RazonSocial" Href="@($"/subcontratas/{subcontrata.Id}")" />
                                             </Derecha>
-                                            <Desplegable>
-                                                <p class="cliente360-resumen-lista">@Textos["UniversoSubcontrata360"]</p>
-                                                @if (centros.Count == 0)
-                                                {
-                                                    <EstadoVacio Titulo="@Textos["SinCentrosSubcontrata360"]" />
-                                                }
-                                                else
-                                                {
-                                                    <ListaRelaciones Etiqueta="@Textos["ListaCentros"]">
-                                                        @foreach (var fila in centros)
-                                                        {
-                                                            <FilaRelacion @key="fila.Centro.Id" Nombre="@fila.Centro.Nombre" Href="@($"/centros/{fila.Centro.Id}")" NombreIcono="centros"
-                                                                          Tono="@(fila.PeorEstado is { } peor ? EstadoDocumentoFicha360.TonoFila(peor) : null)">
-                                                                <Cifra>
-                                                                    @if (fila.Cumplimiento.Porcentaje is { } porcentaje)
-                                                                    {
-                                                                        <span>@porcentaje% · @Textos["FraccionSubcontrata360", fila.Cumplimiento.AlDia, fila.Cumplimiento.Requeridos]</span>
-                                                                    }
-                                                                    else
-                                                                    {
-                                                                        <span>@Textos["CentroSinRequisitos"]</span>
-                                                                    }
-                                                                </Cifra>
-                                                                <Estado>
-                                                                    @if (fila.PeorEstado is { } estado)
-                                                                    {
-                                                                        <Badge Tono="EstadoDocumentoFicha360.Tono(estado)">@EstadoDocumentoFicha360.Texto(estado)</Badge>
-                                                                    }
-                                                                </Estado>
-                                                            </FilaRelacion>
-                                                        }
-                                                    </ListaRelaciones>
-                                                }
-                                            </Desplegable>
                                         </FilaRelacion>
                                     }
                                 </ListaRelaciones>
@@ -341,7 +304,6 @@
                                         {
                                             <p class="cliente360-tolerancia-resumen" data-tolerancia-resumen>@resumenTolerancias</p>
                                         }
-                                        <p class="texto-ayuda-campo">@Textos["ToleranciaTarjetaDescripcion"]</p>
                                     </ChildContent>
                                 </Tarjeta>
                             </div>
@@ -393,8 +355,8 @@
 
                 @*
                     «Notas» es una sola columna (ClienteDetalleDto.Notas): la
-                    tarjeta la enseña y «Editar →» abre el panel en la pestaña
-                    Notas. Sin historial con fecha y autor: no existe entidad Nota.
+                    tarjeta la enseña y «Editar →» abre el modal del kit.
+                    Sin historial con fecha y autor: no existe entidad Nota.
 
                     La caja entera la decide el servidor (<c>NotaInternaVisible</c>):
                     al Usuario de Cliente (rol Cliente), que abre la ficha de su
@@ -406,7 +368,7 @@
                 <NotaInterna Texto="@_detalle.Notas">
                     <Acciones>
                         <SoloConEscritura>
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirNotasAsync">@Textos["EditarEnlace"]</Boton>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _notaVisible = true">@Textos["EditarEnlace"]</Boton>
                         </SoloConEscritura>
                     </Acciones>
                 </NotaInterna>
@@ -416,4 +378,21 @@
     }
 </div>
 <DrawerToleranciasClienteEmpresarial @bind-Visible="_drawerToleranciasVisible" ClienteEmpresarialId="ClienteId" OnGuardado="TrasGuardarToleranciasAsync" />
+@if (_detalle is not null)
+{
+    <SoloConEscritura>
+        @if (_detalle.NotaInternaVisible)
+        {
+            <ModalNotaCliente @key="_detalle.Id" Detalle="_detalle" @bind-Visible="_notaVisible" OnGuardado="CargarCabeceraAsync" />
+        }
+        <DialogoConfirmacion @bind-Visible="_bajaVisible" Titulo="@Textos["BajaTitulo"]"
+                             Mensaje="@Textos["BajaMensaje", _detalle.RazonSocial]" TextoBotonConfirmar="@Textos["DarDeBaja"]"
+                             EnProgreso="_dandoDeBaja" OnConfirmar="DarDeBajaAsync">
+            @if (_errorBaja is not null)
+            {
+                <p role="alert">@_errorBaja</p>
+            }
+        </DialogoConfirmacion>
+    </SoloConEscritura>
+}
 </LimiteDeErrores>

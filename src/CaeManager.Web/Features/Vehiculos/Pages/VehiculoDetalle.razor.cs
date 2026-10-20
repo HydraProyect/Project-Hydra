@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEmpresa;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata;
@@ -53,6 +53,7 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     [
         ("documentacion", "EtiquetaDocumentacion"),
         ("centros", "PestanaCentrosEmpleador360"),
+        ("plataformas", "PestanaPlataformas360"),
         ("ficha", "PestanaFicha"),
         ("historial", "PestanaHistorial")
     ];
@@ -99,6 +100,11 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     private VehiculoDetalleDto? _detalle;
     private bool _cargando = true;
     private bool _error;
+    /// <summary>
+    /// La consulta devolvió null: la ficha no está en el Tenant activo (o no existe; es el mismo estado, § 4.5).
+    /// No es un fallo transitorio, así que no lleva «Reintentar»: lo pinta <c>FichaNoEncontrada</c>.
+    /// </summary>
+    private bool _noEncontrada;
 
     private IReadOnlyList<DocumentoListaDto> _documentos = [];
     private int _totalDocumentos;
@@ -260,6 +266,8 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
         {
             _cargando = true;
             _error = false;
+            // Desmonta FichaNoEncontrada de un Id anterior: «Atrás»/«Adelante» reutilizan la página.
+            _noEncontrada = false;
         }
 
         try
@@ -267,14 +275,18 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
             var detalle = await Mediator.Send(new ObtenerVehiculoPorIdQuery(id), _cancelacion);
             if (carga != _cargaCabecera) return;
             _detalle = detalle;
-            _error = detalle is null;
+            _noEncontrada = detalle is null;
+            _error = false;
         }
         catch (Exception)
         {
             // En una relectura silenciosa se conserva lo que había: un fallo
             // de refresco no tumba una ficha que ya se estaba viendo.
             if (carga == _cargaCabecera && !silenciosa)
+            {
+                _noEncontrada = false;
                 _error = true;
+            }
         }
         finally
         {
@@ -414,12 +426,6 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     private string? RutaEmpleador =>
         _detalle?.EmpresaId is { } empresaId ? $"/empresas/{empresaId}"
         : _detalle?.SubcontrataId is { } contraparteId ? $"/subcontratas/{contraparteId}" : null;
-
-    private EventCallback AbrirEmpleador => _detalle?.EmpresaId is { } empresaId
-        ? EventCallback.Factory.Create(this, () => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, empresaId, _detalle.EmpleadorNombre, "informacion"))
-        : _detalle?.SubcontrataId is { } contraparteId
-            ? EventCallback.Factory.Create(this, () => WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, contraparteId, _detalle.EmpleadorNombre, "informacion"))
-            : default;
 
     /// <summary>
     /// El peor estado dice Vencido pero ningún documento pintado lo está: el

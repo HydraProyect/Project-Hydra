@@ -1,3 +1,4 @@
+using CaeManager.Web.Components.Layout;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConCumplimientoDeSubcontrata;
 using AngleSharp.Dom;
@@ -331,11 +332,13 @@ public class Subcontrata360PaginaTests : BunitContext
     [Fact]
     public void Una_subcontrata_que_no_existe_o_esta_fuera_del_alcance_se_ve_igual_y_no_pide_nada_mas()
     {
+        ComponentFactories.AddStub<FichaNoEncontrada>();
         var mediador = Montar(ajustar: m => m.Detalle = null);
 
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("No encontramos esta subcontrata");
+        cut.RutaListaDeFichaNoEncontrada().Should().Be("/subcontratas");
+        cut.Markup.Should().NotContain("Reintentar");
         cut.FindAll("[data-pieza=cabecera-identidad]").Should().BeEmpty();
         mediador.Enviadas.Should().NotContain(p => p is ObtenerTrabajadoresDocumentacionPorSubcontrataQuery
             || p is ObtenerSupervisionSubcontrataQuery || p is ObtenerCredencialAccesoSubcontrataQuery

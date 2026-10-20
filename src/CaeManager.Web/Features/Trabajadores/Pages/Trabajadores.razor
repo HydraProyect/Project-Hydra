@@ -401,7 +401,7 @@
     <CampoTexto Etiqueta="@Textos["EtiquetaDocumentoIdentidad"]" Valor="@_dni" ValorChanged="v => _dni = v" OnBlur="ValidarDniAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Dni))" />
     @if (PistaDni is not null)
     {
-        <p class="pista-documento pista-documento-@ToneDni">@PistaDni</p>
+        <p class="pista-documento pista-documento-@ToneDni" data-pista="documento">@PistaDni</p>
     }
 
     <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_nombre" ValorChanged="v => _nombre = v" OnBlur="ValidarNombreAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Nombre))" />

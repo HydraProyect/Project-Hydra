@@ -57,7 +57,7 @@ public class EncargoAdministracionE2ETests(WebAppFixtureEncargoAdministracion fi
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
             Assert.Contains("/acceso-denegado", page.Url);
             await Expect(page.GetByRole(AriaRole.Heading,
-                    new PageGetByRoleOptions { Name = "No tienes permiso para ver esta sección", Exact = true }))
+                    new PageGetByRoleOptions { Name = "Tu rol actual no incluye esta pantalla", Exact = true }))
                 .ToBeVisibleAsync();
         }
 

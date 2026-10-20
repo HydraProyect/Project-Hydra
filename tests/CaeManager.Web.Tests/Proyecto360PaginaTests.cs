@@ -315,17 +315,18 @@ public class Proyecto360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void No_encontrado_y_fallo_de_carga_se_ven_igual()
+    public void No_encontrado_pinta_FichaNoEncontrada_y_el_fallo_de_carga_conserva_Reintentar()
     {
+        ComponentFactories.AddStub<FichaNoEncontrada>();
         var sinProyecto = Renderizar(Guid.NewGuid());
-        var textoSinProyecto = sinProyecto.Find(".estado-vacio").TextContent;
-        textoSinProyecto.Should().Contain("No pudimos cargar este proyecto").And.Contain("Puede que ya no exista o que no tengas acceso.");
-        Botones(sinProyecto, ".estado-vacio button").Should().Contain("Reintentar");
-        sinProyecto.FindAll(".boton-primario").Should().ContainSingle();
+        sinProyecto.RutaListaDeFichaNoEncontrada().Should().Be("/proyectos");
+        sinProyecto.Markup.Should().NotContain("Reintentar");
 
         _mediador.FallarDetalle = true;
         var conFallo = Render<ProyectoDetalle>(p => p.Add(x => x.ProyectoId, AbiertoId));
-        conFallo.Find(".estado-vacio").TextContent.Should().Be(textoSinProyecto);
+        conFallo.Find(".estado-vacio").TextContent.Should().Contain("No pudimos cargar este proyecto");
+        Botones(conFallo, ".estado-vacio button").Should().Contain("Reintentar");
+        conFallo.FindComponents<Stub<FichaNoEncontrada>>().Should().BeEmpty();
     }
 
     // Decisión del 2026-10-09: el lateral lleva dos o tres cajas como mucho; «Plazo» vive en «Ficha».

@@ -1,5 +1,7 @@
+using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Features.AtajosGlobales.Recursos;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Localization;
 using Microsoft.JSInterop;
 
@@ -54,11 +56,52 @@ public partial class AtajosGlobales : IAsyncDisposable
             await _moduloKeyTips.InvokeVoidAsync("encenderKeyTips");
     }
 
-    [JSInvokable]
-    public void IrA(string tecla)
+    [Inject] private IServiceProvider Servicios { get; set; } = default!;
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    /// <summary>
+    /// Qué destinos de «g + letra» admite el rol de quien teclea (mismo criterio que el menú lateral, ver
+    /// <see cref="AdmisionDeDestinos"/>). Se evalúa en cada pulsación contra la sesión de ese momento, que
+    /// puede haber cambiado de rol desde el primer render.
+    /// </summary>
+    private async Task<Func<string, bool>> AdmiteDestinoAsync()
     {
-        if (CatalogoAtajos.DestinosNavegacion.TryGetValue(tecla, out var destino))
-            NavigationManager.NavigateTo(destino);
+        try
+        {
+            var contexto = await AdmisionDeDestinos.ContextoAsync(EstadoAutenticacion, Servicios, consultarPlataforma: false);
+            return AdmisionDeDestinos.Predicado(contexto);
+        }
+        catch (Exception)
+        {
+            return _ => false;
+        }
+    }
+
+    // Lo que pinta la chuleta: se resuelve al iniciar; mientras tanto (y si no hay sesión que evaluar) es la lista completa.
+    private Func<string, bool> _admiteDestinoChuleta = _ => true;
+
+    protected override async Task OnInitializedAsync() => _admiteDestinoChuleta = await AdmiteDestinoAsync();
+
+    private IEnumerable<DefinicionAtajo> AtajosDeNavegacionOfrecidos =>
+        CatalogoAtajos.Navegacion.Where(a =>
+            !CatalogoAtajos.DestinosNavegacion.TryGetValue(a.Tecla.Split(' ')[^1], out var destino)
+            || _admiteDestinoChuleta(destino));
+
+    /// <summary>
+    /// «g + letra»: si el rol no admite el destino no navega (un atajo que lleva a «acceso denegado» es peor
+    /// que uno que no hace nada). La puerta de la página sigue siendo la que autoriza.
+    /// </summary>
+    [JSInvokable]
+    public async Task IrA(string tecla)
+    {
+        if (!CatalogoAtajos.DestinosNavegacion.TryGetValue(tecla, out var destino))
+            return;
+
+        if (!(await AdmiteDestinoAsync())(destino))
+            return;
+
+        NavigationManager.NavigateTo(destino);
     }
 
     [JSInvokable]

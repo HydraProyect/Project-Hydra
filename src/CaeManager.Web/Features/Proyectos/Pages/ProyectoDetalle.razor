@@ -21,9 +21,13 @@
 <div class="contenedor-pagina proyecto360">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["EtiquetaMigas"]" />
 
-    @if (_error)
+    @if (_noEncontrada)
     {
-        @* No encontrado y sin acceso se ven igual: la consulta devuelve null en los dos casos. *@
+        @* No encontrado y sin acceso se ven igual: la consulta devuelve null en los dos casos (§ 4.5). *@
+        <FichaNoEncontrada RutaLista="/proyectos" />
+    }
+    else if (_error)
+    {
         <EstadoErrorProyecto OnReintentar="CargarAsync" />
     }
     else if (_cargando)

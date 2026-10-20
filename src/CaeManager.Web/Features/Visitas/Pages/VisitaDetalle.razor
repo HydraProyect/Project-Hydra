@@ -27,9 +27,15 @@
 <div class="contenedor-pagina">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["Visita360EtiquetaMigas"]" />
 
-    @if (_error)
+    @if (_noEncontrada)
     {
-        @* No encontrada y fuera de alcance se ven igual. *@
+        @* No encontrada y fuera de alcance se ven igual (§ 4.5). *@
+        <Tarjeta>
+            <FichaNoEncontrada RutaLista="/visitas" />
+        </Tarjeta>
+    }
+    else if (_error)
+    {
         <Tarjeta>
             <EstadoVacio Titulo="@Textos["Visita360ErrorTitulo"]" Descripcion="@Textos["Visita360ErrorDescripcion"]"
                          NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
