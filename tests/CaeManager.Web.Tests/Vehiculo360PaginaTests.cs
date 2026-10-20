@@ -1,3 +1,4 @@
+using CaeManager.Web.Components.Layout;
 using AngleSharp.Dom;
 using Bunit;
 using Bunit.TestDoubles;
@@ -584,9 +585,9 @@ public partial class Vehiculo360PaginaTests : BunitContext
     }
 
     [Fact]
-    public async Task Si_al_cerrar_el_panel_el_Vehiculo_ya_no_existe_la_ficha_pasa_a_su_estado_de_error()
+    public async Task Si_al_cerrar_el_panel_el_Vehiculo_ya_no_existe_la_ficha_pinta_FichaNoEncontrada()
     {
-        Services.ConEnlaceProfundoOtraEmpresa();
+        ComponentFactories.AddStub<FichaNoEncontrada>();
         var (id, mediador) = CamionGrua();
         Registrar(mediador);
         var cut = Renderizar(id);
@@ -597,7 +598,7 @@ public partial class Vehiculo360PaginaTests : BunitContext
         mediador.Detalles.Remove(id);
         await cut.InvokeAsync(panel.CerrarAsync);
 
-        cut.WaitForAssertion(() => cut.Find(".estado-vacio").TextContent.Should().Contain("No pudimos cargar el vehículo"));
+        cut.WaitForAssertion(() => cut.RutaListaDeFichaNoEncontrada().Should().Be("/vehiculos"));
         cut.FindAll(".cabecera-identidad, [data-pieza='lateral'] button.boton").Should().BeEmpty(
             "una ficha vieja con «Editar» abriría el panel de un Vehículo que ya no se puede ver");
     }
@@ -854,12 +855,14 @@ public partial class Vehiculo360PaginaTests : BunitContext
     [Fact]
     public void Fuera_de_alcance_o_inexistente_se_ven_igual_y_no_se_piden_sus_documentos()
     {
-        Services.ConEnlaceProfundoOtraEmpresa();
+        ComponentFactories.AddStub<FichaNoEncontrada>();
         var mediador = Registrar(new MediatorFalso());
 
-        var cut = Renderizar(Guid.NewGuid());
-
-        cut.Find(".estado-vacio").TextContent.Should().Contain("No pudimos cargar el vehículo");
+        var id = Guid.NewGuid();
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"vehiculos/{id}");
+        var cut = Render<VehiculoDetalle>(p => p.Add(x => x.VehiculoId, id));
+        cut.WaitForAssertion(() => cut.RutaListaDeFichaNoEncontrada().Should().Be("/vehiculos"));
+        cut.Markup.Should().NotContain("Reintentar");
         cut.FindAll(".cabecera-identidad, [data-pieza='banda'], .pestanas").Should().BeEmpty();
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().BeEmpty(
             "sin detalle no hay ficha: pedir los documentos sería preguntar por un vehículo que no se puede ver");

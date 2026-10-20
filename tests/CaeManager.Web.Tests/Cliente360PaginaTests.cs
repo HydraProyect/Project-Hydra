@@ -1,3 +1,4 @@
+using CaeManager.Web.Components.Layout;
 using AngleSharp.Dom;
 using Bunit;
 using Bunit.TestDoubles;
@@ -1179,25 +1180,19 @@ public class Cliente360PaginaTests : BunitContext
     /// no distingue, no filtra la existencia, y no pide nada más.
     /// </summary>
     [Fact]
-    public void Un_cliente_inexistente_o_fuera_de_alcance_muestra_el_error_con_Reintentar()
+    public void Un_cliente_inexistente_o_fuera_de_alcance_pinta_FichaNoEncontrada_sin_Reintentar()
     {
-        Services.ConEnlaceProfundoOtraEmpresa();
+        ComponentFactories.AddStub<FichaNoEncontrada>();
         var mediador = Registrar(new MediatorFalso());
         var id = Guid.NewGuid();
 
-        var cut = Renderizar(id);
-
-        cut.Find(".estado-vacio").TextContent.Should()
-            .Contain("No pudimos cargar este Cliente").And.Contain("Puede que ya no exista o que no tengas acceso.");
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"clientes/{id}");
+        var cut = Render<ClienteDetalle>(p => p.Add(x => x.ClienteId, id));
+        cut.WaitForAssertion(() => cut.RutaListaDeFichaNoEncontrada().Should().Be("/clientes"));
+        cut.Markup.Should().NotContain("Reintentar");
         cut.FindAll("[data-pieza=cabecera-identidad]").Should().BeEmpty();
-        // Del cliente pide solo su ficha; la lista de empresas autorizadas es del aviso de enlace profundo (§ 4.5).
-        mediador.Enviadas.Where(e => e is not CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados.ObtenerClientesAutorizadosQuery)
-            .Should().ContainSingle().Which.Should().BeOfType<ObtenerClientePorIdQuery>();
-
-        mediador.Detalles[id] = new ClienteDetalleDto(id, "Refrielectric S.A.", "A-48.220.917", false, null, Alta, null, Guid.NewGuid());
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Reintentar").Click();
-
-        cut.WaitForAssertion(() => cut.Find("[data-pieza=cabecera-identidad] h1").TextContent.Trim().Should().Be("Refrielectric S.A."));
+        // Del cliente pide solo su ficha: la página no pregunta por la entidad en ningún otro sitio (§ 4.5).
+        mediador.Enviadas.Should().ContainSingle().Which.Should().BeOfType<ObtenerClientePorIdQuery>();
     }
 
     // ── Acciones y lateral ────────────────────────────────────────────────

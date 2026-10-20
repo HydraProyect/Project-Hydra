@@ -1,7 +1,7 @@
 @*
     Panel de contexto (?ctx=Tipo:Id) cuya consulta por Id devolvió null en el Tenant activo: el enlace o el
     «Atrás» del navegador traen un ?ctx= de la Empresa gestionada anterior. Es la versión de panel de
-    FichaNoEncontrada (contrato del selector de Tenant, § 4.5, I15): se cierra el panel con un toast
+    FichaNoEncontrada (contrato del selector de Tenant, § 4.5, I15): se quita ese nivel del panel con un toast
     informativo, en vez de dejar un «No pudimos cargar… Reintentar» que devolvería lo mismo.
 
     Depende solo de quien mira, nunca de si la entidad existe en otro Tenant (no se consulta ninguno: sería
@@ -58,6 +58,11 @@
         Toasts.Mostrar(_nombreActiva is null
             ? Textos["FichaPanelNoDisponible"]
             : Textos["FichaPanelNoEstaEnEmpresaActiva", _nombreActiva], TonoToast.Info);
-        await WorkspaceService.CerrarAsync();
+        // Solo se quita el nivel que falla: si el panel venía de otra ficha (NavegarAAsync), se vuelve a ella
+        // como haría Escape; si era el único nivel, se cierra el panel.
+        if (WorkspaceService.Pila.Count > 1)
+            await WorkspaceService.VolverAsync();
+        else
+            await WorkspaceService.CerrarAsync();
     }
 }

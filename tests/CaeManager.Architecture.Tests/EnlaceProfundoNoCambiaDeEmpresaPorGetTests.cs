@@ -70,6 +70,22 @@ public class EnlaceProfundoNoCambiaDeEmpresaPorGetTests
             "una ficha ausente y una ficha de otro Tenant son el mismo estado, y ese estado tiene salida a la lista (contrato § 4.5)");
     }
 
+    [Theory]
+    [InlineData("src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor")]
+    [InlineData("src/CaeManager.Web/Features/Clientes/Components/ClienteWorkspacePanel.razor")]
+    [InlineData("src/CaeManager.Web/Features/Documentos/Components/DocumentoWorkspacePanel.razor")]
+    [InlineData("src/CaeManager.Web/Features/Empresas/Components/EmpresaWorkspacePanel.razor")]
+    [InlineData("src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataWorkspacePanel.razor")]
+    [InlineData("src/CaeManager.Web/Features/Trabajadores/Components/TrabajadorWorkspacePanel.razor")]
+    [InlineData("src/CaeManager.Web/Features/Vehiculos/Components/VehiculoWorkspacePanel.razor")]
+    public void Cada_panel_de_contexto_pinta_PanelNoEncontrado_cuando_su_consulta_devuelve_null(string panel)
+    {
+        var fuente = File.ReadAllText(Path.Combine(RaizDelRepositorio(), panel));
+
+        fuente.Should().Contain("<PanelNoEncontrado",
+            "un ?ctx= de la Empresa gestionada anterior quita ese nivel del panel con un toast, sin «Reintentar» (contrato § 4.5)");
+    }
+
     [Fact]
     public void FichaNoEncontrada_conserva_el_boton_Abrir_en_de_la_pista_y_solo_navega_a_su_lista()
     {

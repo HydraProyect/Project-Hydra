@@ -159,6 +159,16 @@ public class FichaNoEncontradaTests : BunitContext
     }
 
     [Fact]
+    public void Una_pista_igual_a_la_empresa_activa_no_ofrece_Abrir_en_y_redirige()
+    {
+        var cut = Renderizar($"{Ficha}?tenant={Sur}", activa: Sur);
+
+        cut.WaitForAssertion(() => Navegacion.History.First().Uri.Should().Be("/trabajadores"));
+        cut.FindAll("form[data-enlace-otra-empresa]").Should().BeEmpty();
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Contain("Empresa Sur");
+    }
+
+    [Fact]
     public void Una_pista_no_autorizada_se_ignora_y_redirige_igual()
     {
         var ajena = Guid.Parse("dddddddd-0000-0000-0000-000000000009");
@@ -181,7 +191,23 @@ public class FichaNoEncontradaTests : BunitContext
 }
 
 /// <summary>
-/// Panel de contexto (?ctx=) cuya consulta por Id devolvió null: se cierra con un toast, sin «Reintentar».
+/// Para las pruebas de cada ficha: con <c>ComponentFactories.AddStub&lt;FichaNoEncontrada&gt;()</c> (o
+/// <c>PanelNoEncontrado</c>) la página se prueba sin el comportamiento del componente, que ya cubren
+/// <see cref="FichaNoEncontradaTests"/> y <see cref="PanelNoEncontradoTests"/>.
+/// </summary>
+internal static class FichaNoEncontradaEnPaginas
+{
+    /// <summary>La lista a la que la ficha pide volver cuando su consulta devolvió null.</summary>
+    public static string RutaListaDeFichaNoEncontrada<T>(this IRenderedComponent<T> cut) where T : class, IComponent =>
+        cut.FindComponent<Stub<FichaNoEncontrada>>().Instance.Parameters.Get(p => p.RutaLista);
+
+    /// <summary>El panel pintó <see cref="PanelNoEncontrado"/> (se cerrará con un toast).</summary>
+    public static bool PintaPanelNoEncontrado<T>(this IRenderedComponent<T> cut) where T : class, IComponent =>
+        cut.FindComponents<Stub<PanelNoEncontrado>>().Count == 1;
+}
+
+/// <summary>
+/// Panel de contexto (?ctx=) cuya consulta por Id devolvió null: se quita ese nivel con un toast, sin «Reintentar».
 /// </summary>
 public class PanelNoEncontradoTests : BunitContext
 {
@@ -231,7 +257,7 @@ public class PanelNoEncontradoTests : BunitContext
 
         cut.WaitForAssertion(() => _workspace.EstaAbierto.Should().BeFalse());
         _toasts.Mensajes.Should().ContainSingle().Which.Should().Match<ToastMensaje>(t =>
-            t.Mensaje == "Esa ficha no está en Empresa Sur; hemos cerrado el panel." && t.Tono == TonoToast.Info);
+            t.Mensaje == "Esa ficha no está en Empresa Sur." && t.Tono == TonoToast.Info);
         cut.Markup.Should().NotContain("Reintentar");
     }
 
@@ -244,6 +270,19 @@ public class PanelNoEncontradoTests : BunitContext
         var cut = Render<PanelNoEncontrado>();
 
         cut.WaitForAssertion(() => _workspace.EstaAbierto.Should().BeFalse());
-        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Be("Esa ficha ya no está disponible; hemos cerrado el panel.");
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Be("Esa ficha ya no está disponible.");
+    }
+
+    [Fact]
+    public async Task Si_el_panel_venia_de_otra_ficha_vuelve_a_ella_en_vez_de_cerrarlo_todo()
+    {
+        var origen = Guid.NewGuid();
+        await _workspace.AbrirAsync(EntidadWorkspace.Subcontrata, origen, "Subcontrata", "informacion");
+        await _workspace.NavegarAAsync(EntidadWorkspace.Trabajador, Guid.NewGuid(), "Trabajador", "informacion");
+
+        var cut = Render<PanelNoEncontrado>();
+
+        cut.WaitForAssertion(() => _workspace.Pila.Should().ContainSingle().Which.EntidadId.Should().Be(origen));
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Be("Esa ficha no está en Empresa Sur.");
     }
 }

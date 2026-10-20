@@ -135,10 +135,10 @@
     <value>Tornant a la llista…</value>
   </data>
   <data name="FichaPanelNoEstaEnEmpresaActiva" xml:space="preserve">
-    <value>Aquesta fitxa no és a {0}; hem tancat el panell.</value>
+    <value>Aquesta fitxa no és a {0}.</value>
   </data>
   <data name="FichaPanelNoDisponible" xml:space="preserve">
-    <value>Aquesta fitxa ja no està disponible; hem tancat el panell.</value>
+    <value>Aquesta fitxa ja no està disponible.</value>
   </data>
   <data name="SelectorTenantEtiqueta" xml:space="preserve">
     <value>Context operatiu actual</value>

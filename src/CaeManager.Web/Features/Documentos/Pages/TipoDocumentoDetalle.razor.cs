@@ -225,6 +225,8 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
         var carga = ++_carga;
         _cargando = _estado is null;
         _error = false;
+        // Desmonta FichaNoEncontrada de un Id anterior: «Atrás»/«Adelante» reutilizan la página.
+        _noEncontrada = false;
 
         try
         {

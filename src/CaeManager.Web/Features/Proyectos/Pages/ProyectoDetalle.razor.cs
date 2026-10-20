@@ -250,6 +250,8 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         var proyectoId = ProyectoId;
         _cargando = true;
         _error = false;
+        // Desmonta FichaNoEncontrada de un Id anterior: «Atrás»/«Adelante» reutilizan la página.
+        _noEncontrada = false;
 
         try
         {

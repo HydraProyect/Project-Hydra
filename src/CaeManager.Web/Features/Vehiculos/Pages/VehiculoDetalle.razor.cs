@@ -265,6 +265,8 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
         {
             _cargando = true;
             _error = false;
+            // Desmonta FichaNoEncontrada de un Id anterior: «Atrás»/«Adelante» reutilizan la página.
+            _noEncontrada = false;
         }
 
         try
