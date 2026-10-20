@@ -3,6 +3,7 @@ using CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal;
 using CaeManager.Application.BusquedaGlobal.Queries.ContarVencenEstaSemana;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Features.Documentos;
 using Microsoft.AspNetCore.Components.Authorization;
 using CaeManager.Application.BusquedaGlobal.Queries.ObtenerRecientes;
@@ -177,6 +178,20 @@ public partial class BuscadorGlobal
         ("Subir…", "/documentos?accion=crear"),
     ];
 
+    [Inject] private IServiceProvider Servicios { get; set; } = default!;
+
+    /// <summary>
+    /// Qué destinos de «Ir a» se ofrecen a quien tiene la paleta abierta (mismo criterio que el menú lateral,
+    /// ver <see cref="AdmisionDeDestinos"/>): se resuelve una vez por apertura. Null = aún sin resolver, y
+    /// mientras tanto no se ofrece ninguno: la paleta nunca enseña un destino que luego se oculta.
+    /// </summary>
+    private Func<string, bool>? _admiteDestino;
+
+    private IReadOnlyList<(string Nombre, string Ruta)> DestinosOfrecidos =>
+        _admiteDestino is null
+            ? []
+            : [.. CoberturaDePaleta.DestinosNavegacion.Where(c => _admiteDestino(c.Ruta))];
+
     private IReadOnlyList<ItemBusquedaDto> IrA
     {
         get
@@ -185,14 +200,41 @@ public partial class BuscadorGlobal
             if (termino.StartsWith("ir a", StringComparison.OrdinalIgnoreCase))
                 termino = termino[4..].Trim();
             if (_termino.Trim().Equals("ir a", StringComparison.OrdinalIgnoreCase))
-                return CoberturaDePaleta.DestinosNavegacion.Select(c => new ItemBusquedaDto(Guid.Empty, c.Nombre, null, c.Ruta)).ToList();
+                return DestinosOfrecidos.Select(c => new ItemBusquedaDto(Guid.Empty, c.Nombre, null, c.Ruta)).ToList();
             if (termino.Length < 2) return [];
 
-            return CoberturaDePaleta.DestinosNavegacion
+            return DestinosOfrecidos
                 .Where(c => c.Nombre.Contains(termino, StringComparison.OrdinalIgnoreCase))
                 .Select(c => new ItemBusquedaDto(Guid.Empty, c.Nombre, null, c.Ruta))
                 .ToList();
         }
+    }
+
+    /// <summary>
+    /// Resuelve <see cref="_admiteDestino"/> para esta apertura. Un fallo al evaluar la sesión no deja la
+    /// paleta ofreciendo todo: falla cerrado y «Ir a» queda vacío (la búsqueda y el resto de grupos siguen).
+    /// </summary>
+    private async Task ResolverDestinosAdmitidosAsync(int apertura, CancellationToken token)
+    {
+        Func<string, bool> admite;
+        try
+        {
+            var contexto = await AdmisionDeDestinos.ContextoAsync(EstadoAutenticacion, Servicios, consultarPlataforma: true, token);
+            admite = AdmisionDeDestinos.Predicado(contexto);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception)
+        {
+            admite = _ => false;
+        }
+
+        if (apertura != _generacionApertura) return;
+
+        _admiteDestino = admite;
+        StateHasChanged();
     }
 
     /// <summary>
@@ -875,6 +917,7 @@ public partial class BuscadorGlobal
         _indiceSeleccionado = 0;
         _navegando = false;
         _recientes = [];
+        _admiteDestino = null;
         _vencenEstaSemana.Clear();
 
         // Una sola vez por apertura, no en cada tecla (a diferencia de la
@@ -886,6 +929,9 @@ public partial class BuscadorGlobal
         // El token se captura ANTES de cualquier await de este método.
         var token = TokenDeCicloDeVida();
         if (token is null) return;
+
+        await ResolverDestinosAdmitidosAsync(apertura, token.Value);
+        if (apertura != _generacionApertura) return;
 
         // El módulo se captura en una local: entre esta comprobación y su
         // uso hay un await, y DisposeAsync puede haberlo liberado y puesto a
