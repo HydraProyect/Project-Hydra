@@ -3,9 +3,10 @@ using CaeManager.Domain.Common;
 namespace CaeManager.Domain.Dashboard;
 
 /// <summary>
-/// Lo que un Operador CAE externo cobra a una Empresa gestionada (Tenant beneficiario) cada mes. No es
+/// Lo que un Operador CAE externo cobra cada mes a un Tenant beneficiario (Tenant propietario de la Asignación de
+/// Operación que el Operador tiene sobre él). No es
 /// <see cref="Facturacion.ConceptoFacturable"/>: aquel es lo que un Tenant cobra a sus Clientes empresariales
-/// (pantalla «Facturación»); este es la relación comercial del Operador CAE con cada Empresa que gestiona
+/// (pantalla «Facturación»); este es la relación comercial del Operador CAE con cada Tenant beneficiario que opera
 /// (decisión de Chris, 2026-10-20). El Cliente empresarial nuevo no se cobra: es un indicador de crecimiento.
 /// </summary>
 public enum ConceptoTarifaOperadorCae
@@ -25,19 +26,20 @@ public enum ConceptoTarifaOperadorCae
 
 /// <summary>
 /// Una versión de la tarifa que el Operador CAE externo (<see cref="EntidadConTenant.TenantId"/>, el Tenant
-/// propietario de la fila) aplica a una Empresa gestionada (<see cref="PropietarioTenantId"/>, el Tenant
-/// beneficiario) por un <see cref="ConceptoTarifaOperadorCae"/>.
+/// propietario de la fila) aplica a un Tenant beneficiario (<see cref="PropietarioTenantId"/>, el Tenant
+/// propietario de la Asignación de Operación) por un <see cref="ConceptoTarifaOperadorCae"/>.
 ///
 /// <para>
-/// <b>Plano Comercial</b>: la fila es del Operador CAE, no de la Empresa gestionada. La RLS estándar por
+/// <b>Plano Comercial</b>: la fila es del Operador CAE, no del Tenant beneficiario. La RLS estándar por
 /// <c>TenantId</c> la deja fuera del alcance del Tenant beneficiario, y solo el Administrador o la Dirección CAE
 /// del Operador la leen o la cambian (<c>AutorizacionTarifasOperadorCae</c>).
 /// </para>
 ///
 /// <para>
 /// <b>Historial, nunca edición</b>: cambiar el precio, la moneda o activar y desactivar el cobro añade una versión
-/// con <see cref="VigenteDesdeUtc"/>; ninguna versión se modifica ni se borra. Así el cierre mensual congela la
-/// tarifa sin copiarla a una fila del Tenant beneficiario: un mes cerrado se valora con la versión vigente en el
+/// con <see cref="VigenteDesdeUtc"/>; ninguna versión se modifica, se borra (salvo en la purga de uno de los dos
+/// Tenants) ni empieza antes de registrarse (lo exigen los privilegios y un trigger de la migración). Así el cierre
+/// mensual congela la tarifa sin copiarla a una fila del Tenant beneficiario: un mes cerrado se valora con la versión vigente en el
 /// instante de su cierre, y un cambio posterior no lo altera.
 /// </para>
 /// </summary>
@@ -50,7 +52,10 @@ public class TarifaOperadorCae : EntidadConTenant
     public decimal PrecioUnitario { get; private set; }
     public string MonedaIso { get; private set; } = "EUR";
 
-    /// <summary>Si el concepto se cobra. Desactivado, las unidades se siguen mostrando pero no se valoran.</summary>
+    /// <summary>
+    /// Si el concepto se cobra. Desactivado, la valoración sigue dando su línea con las unidades y el importe a cero:
+    /// las unidades se muestran siempre (regla de Chris).
+    /// </summary>
     public bool Activa { get; private set; }
 
     public DateTime VigenteDesdeUtc { get; private set; }
@@ -63,7 +68,7 @@ public class TarifaOperadorCae : EntidadConTenant
         bool activa, Guid registradaPorUsuarioId, DateTime ahoraUtc)
     {
         if (propietarioTenantId == Guid.Empty)
-            throw new ArgumentException("La tarifa debe ser de una Empresa gestionada.", nameof(propietarioTenantId));
+            throw new ArgumentException("La tarifa debe ser de un Tenant beneficiario.", nameof(propietarioTenantId));
         if (!Enum.IsDefined(concepto))
             throw new ArgumentException("Concepto de tarifa desconocido.", nameof(concepto));
         if (precioUnitario < 0)

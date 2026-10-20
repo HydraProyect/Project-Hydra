@@ -380,8 +380,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IEmpresasQueryContext"),
         // Visitas de Trabajador extranjero del mes: unidades de la tarifa del Operador CAE (decisión de Chris, 2026-10-20).
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IVisitasQueryContext"),
-        // Solo comprueba que el Operador CAE opera hoy a la Empresa gestionada antes de fijarle una tarifa.
+        // Solo comprueba que el Operador CAE opera hoy al Tenant beneficiario antes de fijarle una tarifa.
         ("Dashboard.FijarTarifaOperadorCaeCommandHandler", "IOperacionesQueryContext"),
+        // Acota la valoración del Operador CAE a la vigencia de su Asignación de Operación en cada mes.
+        ("Dashboard.ObtenerSerieCuadroDireccionQueryHandler", "IOperacionesQueryContext"),
         // Serie y Comunicaciones del Cuadro de dirección: conversaciones del mes.
         ("Dashboard.ObtenerComunicacionesCuadroDireccionQueryHandler", "IComunicacionesQueryContext"),
         ("Dashboard.ObtenerGestionesPorDiaCuadroDireccionQueryHandler", "IGestionesQueryContext"),

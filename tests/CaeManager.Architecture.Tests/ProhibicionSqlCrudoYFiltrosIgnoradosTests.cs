@@ -105,7 +105,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // mes que cuentan aunque luego se eliminaran (Obras nuevas y Centros nuevos
         // por Cliente empresarial), cada una seguida de la comparación del TenantId
         // con el Tenant del ámbito (falla cerrado sin él).
-        [("src/CaeManager.Application/Dashboard/Queries/MedicionMensualCuadroDireccion.cs", ".IgnoreQueryFilters()")] = 5,
+        [("src/CaeManager.Application/Dashboard/Queries/MedicionMensualCuadroDireccion.cs", ".IgnoreQueryFilters()")] = 2,
+        // Altas de Centros y Obras nuevas también cuentan las eliminadas después; el Where() compara el TenantId del ámbito.
+        [("src/CaeManager.Application/Dashboard/Queries/MedicionMensualCuadroDireccion.cs", "centrosContext.Centros.IgnoreQueryFilters().Where(c => c.TenantId == tenantId);")] = 1,
+        [("src/CaeManager.Application/Dashboard/Queries/MedicionMensualCuadroDireccion.cs", "proyectosContext?.Proyectos.IgnoreQueryFilters().Where(p => p.TenantId == tenantId && p.Tipo == CaeManager.Domain.Proyectos.TipoProyecto.Obra);")] = 1,
 
         // Resolución de tenant a partir de un webhook entrante (Graph/WhatsApp):
         // en ese punto todavía no hay tenant resuelto en el contexto — es
@@ -311,6 +314,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Igual que los filtros guardados: el orden de cajas de las fichas 360 es por Tenant y de
         // un usuario. El Where() acota por UsuarioId.
         [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "await dbContext.OrdenesCajasFicha.IgnoreQueryFilters().Where(o => idsUsuarios.Contains(o.UsuarioId) && o.TenantId != tenantId).ExecuteDeleteAsync(cancellationToken);")] = 1,
+        // Las tarifas que un Operador CAE externo fijó al Tenant retirado son filas del Operador (TenantId ajeno): el
+        // barrido genérico por TenantId no las alcanza. El Where() acota por PropietarioTenantId, el Tenant retirado.
+        [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "await dbContext.TarifasOperadorCae.IgnoreQueryFilters().Where(t => t.PropietarioTenantId == tenantId && t.TenantId != tenantId).ExecuteDeleteAsync(cancellationToken);")] = 1,
         // Retirada del piloto Outbound: antes de borrar las filas de un Tenant borra del almacén los PDF
         // de sus documentos, y tiene que alcanzar también los DESCARTADOS (borrado lógico), cuyo fichero
         // sigue en disco. Lectura con la identidad no privilegiada, dentro del ámbito del Tenant (RLS), y

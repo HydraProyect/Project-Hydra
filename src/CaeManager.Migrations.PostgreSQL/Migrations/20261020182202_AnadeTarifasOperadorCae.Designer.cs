@@ -2076,7 +2076,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "PropietarioTenantId", "Concepto", "VigenteDesdeUtc");
 
-                    b.ToTable("TarifasOperadorCae", (string)null);
+                    b.ToTable("TarifasOperadorCae", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TarifasOperadorCae_OperadorNoEsElTenantBeneficiario", "\"PropietarioTenantId\" <> \"TenantId\"");
+
+                            t.HasCheckConstraint("CK_TarifasOperadorCae_PrecioNoNegativo", "\"PrecioUnitario\" >= 0");
+                        });
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", b =>

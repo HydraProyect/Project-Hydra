@@ -3,13 +3,22 @@ using CaeManager.Domain.Dashboard;
 
 namespace CaeManager.Application.Dashboard;
 
-/// <summary>Una versión de la tarifa del Operador CAE externo para una Empresa gestionada (ver <see cref="TarifaOperadorCae"/>).</summary>
+/// <summary>Una versión de la tarifa del Operador CAE externo para un Tenant beneficiario (ver <see cref="TarifaOperadorCae"/>).</summary>
 public record TarifaOperadorCaeDto(
     Guid PropietarioTenantId, ConceptoTarifaOperadorCae Concepto, decimal PrecioUnitario, string MonedaIso,
     bool Activa, DateTime VigenteDesdeUtc);
 
+/// <summary>Un trozo de mes [DesdeUtc, HastaUtc) en que la Asignación de Operación del Operador CAE estuvo en vigor.</summary>
+public record TramoDeVigencia(DateTime DesdeUtc, DateTime HastaUtc);
+
+/// <summary>Una vigencia de Asignación de Operación: desde, y hasta (exclusivo) o null si sigue abierta.</summary>
+public record VigenciaAsignacionOperacion(DateTime DesdeUtc, DateTime? HastaUtc);
+
+/// <summary>Las unidades que valora el Operador CAE externo, contadas solo dentro de los tramos de vigencia.</summary>
+public record UnidadesOperadorCae(int AltasCentros, int? ObrasNuevas, int? VisitasTrabajadorExtranjero);
+
 /// <summary>
-/// Valoración pura de lo que el Operador CAE externo cobra a una Empresa gestionada en un mes: las unidades salen
+/// Valoración pura de lo que el Operador CAE externo cobra a un Tenant beneficiario en un mes: las unidades salen
 /// de la medición del Cuadro de dirección (en vivo o de la foto del cierre) y el precio de la versión de
 /// <see cref="TarifaOperadorCae"/> vigente en el instante de valoración. No usa <c>TarifaCliente</c> ni el resumen
 /// de «Facturación»: aquello es lo que cada Tenant cobra a sus Clientes empresariales (decisión de Chris, 2026-10-20).
@@ -40,6 +49,51 @@ public static class ValoracionOperadorCae
         _ => concepto.ToString(),
     };
 
+    /// <summary>
+    /// Los trozos de [<paramref name="inicioMesUtc"/>, <paramref name="finMesUtc"/>) cubiertos por alguna vigencia de
+    /// Asignación de Operación, recortados al mes, ordenados y unidos si se solapan o se tocan. Vacío si ninguna
+    /// estuvo en vigor en el mes: entonces el Operador no cobra ese mes (decisión de la coordinadora, 2026-10-20).
+    /// </summary>
+    public static IReadOnlyList<TramoDeVigencia> TramosEnElMes(
+        IEnumerable<VigenciaAsignacionOperacion> vigencias, DateTime inicioMesUtc, DateTime finMesUtc)
+    {
+        var recortados = vigencias
+            .Select(v => new TramoDeVigencia(
+                v.DesdeUtc > inicioMesUtc ? v.DesdeUtc : inicioMesUtc,
+                v.HastaUtc is { } hasta && hasta < finMesUtc ? hasta : finMesUtc))
+            .Where(t => t.DesdeUtc < t.HastaUtc)
+            .OrderBy(t => t.DesdeUtc);
+
+        var tramos = new List<TramoDeVigencia>();
+        foreach (var tramo in recortados)
+        {
+            if (tramos.Count > 0 && tramo.DesdeUtc <= tramos[^1].HastaUtc)
+            {
+                if (tramo.HastaUtc > tramos[^1].HastaUtc)
+                    tramos[^1] = tramos[^1] with { HastaUtc = tramo.HastaUtc };
+            }
+            else
+            {
+                tramos.Add(tramo);
+            }
+        }
+
+        return tramos;
+    }
+
+    /// <summary>Si los tramos cubren el mes entero: entonces vale la medición del mes tal cual.</summary>
+    public static bool CubreElMes(IReadOnlyList<TramoDeVigencia> tramos, DateTime inicioMesUtc, DateTime finMesUtc) =>
+        tramos.Count == 1 && tramos[0].DesdeUtc <= inicioMesUtc && tramos[0].HastaUtc >= finMesUtc;
+
+    /// <summary>La medición con las unidades del Operador sustituidas por las contadas dentro de su vigencia.</summary>
+    public static MedicionCuadroDireccion AcotadaA(MedicionCuadroDireccion medicion, UnidadesOperadorCae unidades) =>
+        medicion with
+        {
+            AltasCentros = unidades.AltasCentros,
+            ObrasNuevas = unidades.ObrasNuevas,
+            VisitasTrabajadorExtranjero = unidades.VisitasTrabajadorExtranjero,
+        };
+
     /// <summary>La versión vigente en <paramref name="instanteUtc"/>: la más reciente que empezó antes o en ese instante.</summary>
     public static TarifaOperadorCaeDto? VigenteEn(
         IEnumerable<TarifaOperadorCaeDto> versiones, Guid propietarioTenantId, ConceptoTarifaOperadorCae concepto, DateTime instanteUtc) =>
@@ -48,9 +102,10 @@ public static class ValoracionOperadorCae
             .MaxBy(v => v.VigenteDesdeUtc);
 
     /// <summary>
-    /// Las líneas valoradas de una Empresa gestionada en un mes: un renglón por concepto con tarifa activa en
-    /// <paramref name="instanteUtc"/> y unidades medidas. Un concepto desactivado, sin tarifa o sin unidades en la
-    /// foto no aparece; sus unidades se siguen viendo en las cifras del Cuadro.
+    /// Las líneas valoradas de un Tenant beneficiario en un mes: un renglón por concepto con tarifa vigente en
+    /// <paramref name="instanteUtc"/> y unidades medidas. Con el cobro desactivado el renglón sigue saliendo con sus
+    /// unidades y el importe a cero: las unidades se muestran siempre (regla de Chris). Un concepto sin tarifa o sin
+    /// unidades en la foto no aparece.
     /// </summary>
     public static IReadOnlyList<LineaFacturacionCuadroDto> Valorar(
         MedicionCuadroDireccion medicion, Guid propietarioTenantId, IEnumerable<TarifaOperadorCaeDto> versiones, DateTime instanteUtc)
@@ -60,10 +115,10 @@ public static class ValoracionOperadorCae
         foreach (var concepto in Conceptos)
         {
             var tarifa = VigenteEn(lista, propietarioTenantId, concepto, instanteUtc);
-            if (tarifa is not { Activa: true } || UnidadesDe(medicion, concepto) is not { } unidades)
+            if (tarifa is null || UnidadesDe(medicion, concepto) is not { } unidades)
                 continue;
             lineas.Add(new LineaFacturacionCuadroDto(
-                concepto, NombreDe(concepto), tarifa.MonedaIso, unidades, unidades * tarifa.PrecioUnitario));
+                concepto, NombreDe(concepto), tarifa.MonedaIso, unidades, tarifa.Activa ? unidades * tarifa.PrecioUnitario : 0m));
         }
 
         return lineas;

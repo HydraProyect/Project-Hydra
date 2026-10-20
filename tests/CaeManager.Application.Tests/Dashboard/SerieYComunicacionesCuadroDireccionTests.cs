@@ -208,22 +208,18 @@ public class SerieYComunicacionesCuadroDireccionTests
     }
 
     [Fact]
-    public async Task Direccion_CAE_recibe_los_importes_de_la_serie()
+    public async Task Direccion_CAE_del_Operador_pasa_la_guarda_de_los_importes_de_la_serie()
     {
-        (await ObtenerSerieCuadroDireccionQueryHandler.DevuelveFacturacionAsync(true, new UsuarioConRol("DireccionCae"))).Should().BeTrue();
+        (await CaeManager.Application.Dashboard.TarifasOperadorCae.AutorizacionTarifasOperadorCae
+            .OperadorQueGestionaAsync(new UsuarioConRol("DireccionCae"))).Should().NotBeNull();
     }
 
     [Fact]
-    public async Task Coordinador_CAE_lee_el_Cuadro_pero_no_recibe_importes()
+    public async Task Coordinador_CAE_lee_el_Cuadro_pero_no_pasa_la_guarda_de_los_importes()
     {
         await AutorizacionCuadroDireccionComprobar("CoordinadorCae");
-        (await ObtenerSerieCuadroDireccionQueryHandler.DevuelveFacturacionAsync(true, new UsuarioConRol("CoordinadorCae"))).Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task Sin_pedir_facturacion_no_hay_importes_ni_para_Direccion_CAE()
-    {
-        (await ObtenerSerieCuadroDireccionQueryHandler.DevuelveFacturacionAsync(false, new UsuarioConRol("DireccionCae"))).Should().BeFalse();
+        (await CaeManager.Application.Dashboard.TarifasOperadorCae.AutorizacionTarifasOperadorCae
+            .OperadorQueGestionaAsync(new UsuarioConRol("CoordinadorCae"))).Should().BeNull();
     }
 
     private static async Task AutorizacionCuadroDireccionComprobar(string rol) =>

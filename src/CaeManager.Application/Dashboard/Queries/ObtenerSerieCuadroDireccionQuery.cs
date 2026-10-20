@@ -21,7 +21,8 @@ public record ObtenerSerieCuadroDireccionQuery(int Anyo, int Mes, int Meses, boo
 
 /// <summary>
 /// Lo que el Operador CAE externo cobra por un concepto en un mes: unidades medidas y su importe con la tarifa del
-/// Operador para esa Empresa gestionada (<see cref="Dashboard.ValoracionOperadorCae"/>), en una moneda.
+/// Operador para ese Tenant beneficiario (<see cref="Dashboard.ValoracionOperadorCae"/>), en una moneda. Con el cobro
+/// desactivado la línea sale con sus unidades e importe cero.
 /// </summary>
 public record LineaFacturacionCuadroDto(
     ConceptoTarifaOperadorCae Concepto, string ConceptoNombre, string MonedaIso, int Unidades, decimal Importe);
@@ -60,13 +61,14 @@ public record MesMedidoCuadro(MedicionCuadroDireccion Medicion, IReadOnlyList<Li
 /// <see cref="MedicionMensualCuadroDireccion"/>. La fusión es pura (<see cref="Construir"/>).
 ///
 /// <para>
-/// <b>Facturación</b> (decisión de Chris, 2026-10-20): lo que el Operador CAE externo cobra a cada Empresa
-/// gestionada, no lo que cada Tenant cobra a sus Clientes empresariales (<c>TarifaCliente</c>, pantalla
+/// <b>Facturación</b> (decisión de Chris, 2026-10-20): lo que el Operador CAE externo cobra a cada Tenant
+/// beneficiario, no lo que cada Tenant cobra a sus Clientes empresariales (<c>TarifaCliente</c>, pantalla
 /// «Facturación» por Cliente empresarial). Solo la ve quien pasa <see cref="AutorizacionTarifasOperadorCae"/>
 /// (Administrador o Dirección CAE del Operador; para Coordinador CAE es null). Las unidades salen de la medición
 /// del mes (la foto en un mes cerrado) y el precio de la versión de la tarifa vigente en el instante del cierre; un
 /// mes sin cierre vigente se valora con la de ahora. Así el cierre congela unidades y tarifas sin copiar los precios
-/// del Operador a una fila del Tenant beneficiario.
+/// del Operador a una fila del Tenant beneficiario. La valoración se acota a la vigencia de la Asignación de
+/// Operación del Operador en cada mes (<see cref="ValorarEnVigenciaAsync"/>).
 /// </para>
 /// </summary>
 public class ObtenerSerieCuadroDireccionQueryHandler(
@@ -74,6 +76,7 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
     IAlcanceDatosService alcanceDatos,
     MedicionMensualCuadroDireccion medicion,
     ITarifasOperadorCaeContext tarifasContext,
+    CaeManager.Application.Operaciones.IOperacionesQueryContext operacionesContext,
     ICurrentUserService currentUserService,
     TimeProvider reloj,
     ICierresCuadroDireccion? cierresContext = null)
@@ -85,10 +88,17 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
 
         // Leer el Cuadro no da derecho a ver importes: las tarifas son plano Comercial del Operador CAE y las guarda
         // AutorizacionTarifasOperadorCae. Sin ese rol efectivo (Coordinador CAE) la facturación sale a null.
-        var tarifas = request.ConFacturacion
-            ? await new ObtenerTarifasOperadorCaeQueryHandler(currentUserService, tarifasContext).Handle(new ObtenerTarifasOperadorCaeQuery(), cancellationToken)
-            : null;
-        var conFacturacion = tarifas is not null;
+        IReadOnlyList<TarifaOperadorCaeDto>? tarifas = null;
+        ILookup<Guid, VigenciaAsignacionOperacion> vigencias = Array.Empty<VigenciaAsignacionOperacion>().ToLookup(_ => Guid.Empty);
+        if (request.ConFacturacion && await AutorizacionTarifasOperadorCae.OperadorQueGestionaAsync(currentUserService) is { } operador)
+        {
+            using (AmbitoTenantExplicito.Establecer(operador))
+            {
+                tarifas = await ObtenerTarifasOperadorCaeQueryHandler.LeerAsync(tarifasContext, operador, cancellationToken);
+                vigencias = await AutorizacionTarifasOperadorCae.VigenciasPorTenantBeneficiarioAsync(operacionesContext, operador, cancellationToken);
+            }
+        }
+
         var ahoraUtc = reloj.GetUtcNow().UtcDateTime;
         var meses = MesesDeLaSerie(request.Anyo, request.Mes, request.Meses, ahoraUtc);
         if (meses.Count == 0)
@@ -129,7 +139,7 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
 
                     var facturacion = tarifas is null
                         ? null
-                        : ValoracionOperadorCae.Valorar(medida, cliente.TenantId, tarifas, cierre?.CerradoEnUtc ?? ahoraUtc);
+                        : await ValorarEnVigenciaAsync(medida, mes, corteUtc, cliente.TenantId, tarifas, vigencias[cliente.TenantId], cierre?.CerradoEnUtc ?? ahoraUtc, cancellationToken);
 
                     medidos.Add(new MesMedidoCuadro(medida, facturacion));
                 }
@@ -141,9 +151,26 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
         return Construir(meses, ahoraUtc, porTenant, sinAlcance);
     }
 
-    /// <summary>Hay importes solo si se pidieron y quien mira es Administrador o Dirección CAE de su Operador CAE.</summary>
-    public static async Task<bool> DevuelveFacturacionAsync(bool pedida, ICurrentUserService usuario) =>
-        pedida && await AutorizacionTarifasOperadorCae.OperadorQueGestionaAsync(usuario) is not null;
+    /// <summary>
+    /// La valoración del Operador CAE acotada a la vigencia de su Asignación de Operación en el mes: sin vigencia en
+    /// el mes no hay importe (lista vacía); con el mes entero cubierto vale la medición del mes (la foto si está
+    /// cerrado); si la Asignación empieza o termina dentro del mes, solo cuentan las unidades dentro de su vigencia,
+    /// recontadas en vivo aunque el mes esté cerrado (la foto guarda el mes entero, no los trozos).
+    /// </summary>
+    private async Task<IReadOnlyList<LineaFacturacionCuadroDto>> ValorarEnVigenciaAsync(
+        MedicionCuadroDireccion medida, MesCuadroDireccion mes, DateTime corteUtc, Guid tenantBeneficiarioId,
+        IReadOnlyList<TarifaOperadorCaeDto> tarifas, IEnumerable<VigenciaAsignacionOperacion> vigencias, DateTime instanteUtc,
+        CancellationToken cancellationToken)
+    {
+        var tramos = ValoracionOperadorCae.TramosEnElMes(vigencias, mes.InicioUtc, mes.FinUtc);
+        if (tramos.Count == 0)
+            return [];
+
+        var valorada = ValoracionOperadorCae.CubreElMes(tramos, mes.InicioUtc, mes.FinUtc)
+            ? medida
+            : ValoracionOperadorCae.AcotadaA(medida, await medicion.MedirUnidadesOperadorAsync(tramos, corteUtc, cancellationToken));
+        return ValoracionOperadorCae.Valorar(valorada, tenantBeneficiarioId, tarifas, instanteUtc);
+    }
 
     /// <summary>
     /// Los meses de la serie, del más antiguo al más reciente: hasta <paramref name="cantidad"/> (1 a
@@ -165,7 +192,7 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
             .ToList();
     }
 
-    /// <summary>Suma las líneas de varias Empresas gestionadas por concepto y moneda: un renglón por cada par.</summary>
+    /// <summary>Suma las líneas de varios Tenants beneficiarios por concepto y moneda: un renglón por cada par.</summary>
     public static IReadOnlyList<LineaFacturacionCuadroDto> SumarLineas(IEnumerable<LineaFacturacionCuadroDto> lineas) =>
         lineas
             .GroupBy(l => (l.Concepto, Moneda: l.MonedaIso.Trim().ToUpperInvariant()))

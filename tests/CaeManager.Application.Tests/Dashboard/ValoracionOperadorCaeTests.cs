@@ -17,6 +17,69 @@ public class ValoracionOperadorCaeTests
         new(10, 0, 0, 3, altasCentros, 0, 0, [], new KpisDashboardDto(0, 0, 0, 0, 0, 0, 0, 0),
             ExtranjerosActivos: 2, ObrasNuevas: obras, VisitasTrabajadorExtranjero: visitasExtranjero);
 
+    // ------------------------------------------------ Vigencia de la Asignación de Operación en el mes
+
+    private static readonly DateTime InicioOctubre = new(2026, 9, 30, 22, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime InicioNoviembre = new(2026, 10, 31, 23, 0, 0, DateTimeKind.Utc);
+    private static DateTime Dia(int dia) => new(2026, 10, dia, 10, 0, 0, DateTimeKind.Utc);
+
+    [Fact]
+    public void Sin_Asignacion_en_vigor_en_el_mes_no_hay_tramos()
+    {
+        ValoracionOperadorCae.TramosEnElMes([], InicioOctubre, InicioNoviembre).Should().BeEmpty();
+        ValoracionOperadorCae.TramosEnElMes(
+            [new VigenciaAsignacionOperacion(Enero, Marzo), new VigenciaAsignacionOperacion(InicioNoviembre, null)],
+            InicioOctubre, InicioNoviembre).Should().BeEmpty("una cerrada antes del mes y otra que empieza al acabarlo no cubren nada");
+    }
+
+    [Fact]
+    public void Una_Asignacion_abierta_desde_antes_cubre_el_mes_entero()
+    {
+        var tramos = ValoracionOperadorCae.TramosEnElMes([new VigenciaAsignacionOperacion(Enero, null)], InicioOctubre, InicioNoviembre);
+
+        tramos.Should().Equal(new TramoDeVigencia(InicioOctubre, InicioNoviembre));
+        ValoracionOperadorCae.CubreElMes(tramos, InicioOctubre, InicioNoviembre).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Una_Asignacion_que_empieza_o_termina_dentro_del_mes_se_recorta_y_no_cubre_el_mes()
+    {
+        var empieza = ValoracionOperadorCae.TramosEnElMes([new VigenciaAsignacionOperacion(Dia(10), null)], InicioOctubre, InicioNoviembre);
+        var termina = ValoracionOperadorCae.TramosEnElMes([new VigenciaAsignacionOperacion(Enero, Dia(20))], InicioOctubre, InicioNoviembre);
+
+        empieza.Should().Equal(new TramoDeVigencia(Dia(10), InicioNoviembre));
+        termina.Should().Equal(new TramoDeVigencia(InicioOctubre, Dia(20)));
+        ValoracionOperadorCae.CubreElMes(empieza, InicioOctubre, InicioNoviembre).Should().BeFalse();
+        ValoracionOperadorCae.CubreElMes(termina, InicioOctubre, InicioNoviembre).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Las_vigencias_que_se_solapan_o_se_tocan_se_unen_y_las_separadas_no()
+    {
+        var tramos = ValoracionOperadorCae.TramosEnElMes(
+        [
+            new VigenciaAsignacionOperacion(Dia(15), Dia(25)),
+            new VigenciaAsignacionOperacion(Dia(2), Dia(5)),
+            new VigenciaAsignacionOperacion(Dia(5), Dia(8)),
+            new VigenciaAsignacionOperacion(Dia(20), Dia(22)),
+        ], InicioOctubre, InicioNoviembre);
+
+        tramos.Should().Equal(new TramoDeVigencia(Dia(2), Dia(8)), new TramoDeVigencia(Dia(15), Dia(25)));
+    }
+
+    [Fact]
+    public void Acotar_sustituye_solo_las_unidades_del_Operador_y_la_valoracion_usa_las_acotadas()
+    {
+        var acotada = ValoracionOperadorCae.AcotadaA(Medicion(altasCentros: 6, visitasExtranjero: 9, obras: 4), new UnidadesOperadorCae(1, 2, 3));
+
+        acotada.AltasCentros.Should().Be(1);
+        acotada.ObrasNuevas.Should().Be(2);
+        acotada.VisitasTrabajadorExtranjero.Should().Be(3);
+        acotada.TrabajadoresActivos.Should().Be(10, "las demás cifras del Cuadro no se tocan");
+        ValoracionOperadorCae.Valorar(acotada, Empresa, [Tarifa(ConceptoTarifaOperadorCae.CentroNuevo, 50m, Enero)], Marzo)
+            .Single().Importe.Should().Be(50m);
+    }
+
     [Fact]
     public void La_visita_de_Trabajador_extranjero_cuenta_Trabajador_por_Visita_y_no_las_personas_activas()
     {
@@ -53,13 +116,15 @@ public class ValoracionOperadorCaeTests
     }
 
     [Fact]
-    public void El_cobro_desactivado_no_se_valora_pero_las_unidades_siguen_en_la_medicion()
+    public void El_cobro_desactivado_sale_con_sus_unidades_e_importe_cero_porque_las_unidades_se_muestran_siempre()
     {
         var medicion = Medicion();
         var lineas = ValoracionOperadorCae.Valorar(medicion, Empresa,
             [Tarifa(ConceptoTarifaOperadorCae.CentroNuevo, 50m, Enero, activa: false)], Marzo);
 
-        lineas.Should().BeEmpty();
+        lineas.Should().ContainSingle()
+            .Which.Should().Match<LineaFacturacionCuadroDto>(l =>
+                l.Concepto == ConceptoTarifaOperadorCae.CentroNuevo && l.Unidades == 2 && l.Importe == 0m);
         ValoracionOperadorCae.UnidadesDe(medicion, ConceptoTarifaOperadorCae.CentroNuevo).Should().Be(2);
     }
 

@@ -17,12 +17,12 @@ public interface ITarifasOperadorCaeContext
 }
 
 /// <summary>
-/// Quién lee y fija lo que el Operador CAE externo cobra a sus Empresas gestionadas (decisión de Chris, 2026-10-20):
+/// Quién lee y fija lo que el Operador CAE externo cobra a sus Tenants beneficiarios (decisión de Chris, 2026-10-20):
 /// el Administrador o la Dirección CAE del propio Operador CAE, con el rol efectivo en su Tenant de origen. No es
 /// <c>AutorizacionTarifasCliente</c>: aquel guarda lo que un Tenant cobra a sus Clientes empresariales. Un Gestor CAE
 /// o un Coordinador CAE no pasan; una Sesión Privilegiada de plano 3 no tiene rol de negocio y tampoco (Soporte
-/// TALVEG no es Operador CAE). Las filas son del Tenant de origen del Operador, así que la RLS deja fuera a la
-/// Empresa gestionada aunque su Administrador lea el Cuadro de dirección.
+/// TALVEG no es Operador CAE). Las filas son del Tenant de origen del Operador, así que la RLS deja fuera al
+/// Tenant beneficiario aunque su Administrador lea el Cuadro de dirección.
 /// </summary>
 public static class AutorizacionTarifasOperadorCae
 {
@@ -59,6 +59,25 @@ public static class AutorizacionTarifasOperadorCae
             && o.Estado == EstadoAsignacion.Vigente
             && o.VigenciaDesde <= ahoraUtc
             && (o.VigenciaHasta == null || ahoraUtc < o.VigenciaHasta), cancellationToken);
+
+    /// <summary>
+    /// Las vigencias de las Asignaciones de Operación externas de <paramref name="operadorTenantId"/>, por Tenant
+    /// beneficiario. Se llama con el ámbito en el Tenant de origen del Operador. Una Programada no ha empezado y no
+    /// cuenta; una Cerrada cuenta hasta su cierre. Una Suspendida cuenta entera: la suspensión no guarda desde
+    /// cuándo, y descontarla cambiaría meses ya cerrados.
+    /// </summary>
+    public static async Task<ILookup<Guid, VigenciaAsignacionOperacion>> VigenciasPorTenantBeneficiarioAsync(
+        IOperacionesQueryContext operaciones, Guid operadorTenantId, CancellationToken cancellationToken)
+    {
+        var filas = await operaciones.AsignacionesOperacion
+            .Where(o => !o.EsRaiz
+                && o.OperadorTenantId == operadorTenantId
+                && o.PropietarioTenantId != operadorTenantId
+                && o.Estado != EstadoAsignacion.Programada)
+            .Select(o => new { o.PropietarioTenantId, o.VigenciaDesde, o.VigenciaHasta })
+            .ToListAsync(cancellationToken);
+        return filas.ToLookup(f => f.PropietarioTenantId, f => new VigenciaAsignacionOperacion(f.VigenciaDesde, f.VigenciaHasta));
+    }
 }
 
 /// <summary>Todas las versiones de las tarifas del Operador CAE de quien pide; null si no puede verlas.</summary>
@@ -73,16 +92,21 @@ public class ObtenerTarifasOperadorCaeQueryHandler(ICurrentUserService usuario, 
             return null;
 
         using (AmbitoTenantExplicito.Establecer(operador))
-            return await contexto.TarifasOperadorCae
-                .Where(t => t.TenantId == operador)
-                .OrderBy(t => t.VigenteDesdeUtc)
-                .Select(t => new TarifaOperadorCaeDto(t.PropietarioTenantId, t.Concepto, t.PrecioUnitario, t.MonedaIso, t.Activa, t.VigenteDesdeUtc))
-                .ToListAsync(cancellationToken);
+            return await LeerAsync(contexto, operador, cancellationToken);
     }
+
+    /// <summary>Todas las versiones del Operador; quien llama ya pasó la guarda y fijó el ámbito en su Tenant de origen.</summary>
+    public static async Task<IReadOnlyList<TarifaOperadorCaeDto>> LeerAsync(
+        ITarifasOperadorCaeContext contexto, Guid operador, CancellationToken cancellationToken) =>
+        await contexto.TarifasOperadorCae
+            .Where(t => t.TenantId == operador)
+            .OrderBy(t => t.VigenteDesdeUtc)
+            .Select(t => new TarifaOperadorCaeDto(t.PropietarioTenantId, t.Concepto, t.PrecioUnitario, t.MonedaIso, t.Activa, t.VigenteDesdeUtc))
+            .ToListAsync(cancellationToken);
 }
 
 /// <summary>
-/// Fija la tarifa del Operador CAE de quien pide para una Empresa gestionada y un concepto: añade una versión
+/// Fija la tarifa del Operador CAE de quien pide para un Tenant beneficiario y un concepto: añade una versión
 /// vigente desde ahora (ver <see cref="TarifaOperadorCae"/>). Desactivar el cobro es una versión con
 /// <paramref name="Activa"/> en falso; las unidades se siguen mostrando.
 /// </summary>

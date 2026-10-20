@@ -170,10 +170,74 @@ public class TarifasOperadorCaeRlsTests : IAsyncLifetime
             .Which.SqlState.Should().Be(PermisoDenegado, "la migración no concede nada a cae_app_soporte: Soporte TALVEG no es Operador CAE");
     }
 
-    private void Como(string? rol, Guid tenantOrigen)
+    [Fact]
+    public async Task La_guarda_mira_el_rol_en_el_Tenant_de_origen_del_Operador_y_no_en_el_del_ambito()
+    {
+        // Gestor CAE en su Operador y Administrador en el Tenant del ámbito: no fija tarifas.
+        Como("GestorCae", _operadorA, rolFueraDelOrigen: "Administrador");
+        using (AmbitoTenantExplicito.Establecer(_empresaX))
+            (await FijarAsync(_empresaX, ConceptoTarifaOperadorCae.CentroNuevo, 50m)).Error
+                .Should().Be(AutorizacionTarifasOperadorCae.SinPermiso, "el rol que cuenta es el del Tenant de origen del Operador");
+
+        // Al revés, Administrador en su Operador y Gestor CAE en el Tenant del ámbito: sí las fija.
+        Como("Administrador", _operadorA, rolFueraDelOrigen: "GestorCae");
+        using (AmbitoTenantExplicito.Establecer(_empresaX))
+            (await FijarAsync(_empresaX, ConceptoTarifaOperadorCae.CentroNuevo, 50m)).EsExitoso
+                .Should().BeTrue("control positivo: Administrador en el Tenant de origen del Operador");
+        (await ContarComoRuntimeAsync(_operadorA)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task La_base_no_admite_borrar_ni_una_version_retroactiva_ni_incoherente()
+    {
+        Como("Administrador", _operadorA);
+        (await FijarAsync(_empresaX, ConceptoTarifaOperadorCae.CentroNuevo, 50m)).EsExitoso.Should().BeTrue();
+
+        await using var conexion = await AbrirComoRuntimeAsync(_operadorA);
+        await using (var borrado = conexion.CreateCommand())
+        {
+            borrado.CommandText = """DELETE FROM "TarifasOperadorCae";""";
+            (await Record.ExceptionAsync(() => borrado.ExecuteNonQueryAsync())).Should().BeOfType<PostgresException>()
+                .Which.SqlState.Should().Be(PermisoDenegado, "historial de versiones: cae_app_runtime no tiene DELETE (la purga corre como propietario)");
+        }
+
+        (await InsertarComoRuntimeAsync(conexion, _empresaX, 10m, "now() - interval '1 day'")).Should().Be(
+            PostgresErrorCodes.CheckViolation, "una versión que empieza en el pasado cambiaría meses ya cerrados");
+        (await InsertarComoRuntimeAsync(conexion, _operadorA, 10m, "now()")).Should().Be(
+            PostgresErrorCodes.CheckViolation, "el Operador CAE no se cobra a sí mismo");
+        (await InsertarComoRuntimeAsync(conexion, _empresaX, -1m, "now()")).Should().Be(
+            PostgresErrorCodes.CheckViolation, "no hay precios negativos");
+        (await InsertarComoRuntimeAsync(conexion, _empresaX, 10m, "now()")).Should().BeNull(
+            "control positivo: una versión desde ahora se registra");
+        (await ContarComoRuntimeAsync(_operadorA)).Should().Be(2);
+    }
+
+    /// <summary>Inserta una versión del Operador A como runtime; devuelve el SqlState del error o null si entra.</summary>
+    private async Task<string?> InsertarComoRuntimeAsync(NpgsqlConnection conexion, Guid propietario, decimal precio, string vigenteDesde)
+    {
+        await using var insercion = conexion.CreateCommand();
+        insercion.CommandText = $"""
+            INSERT INTO "TarifasOperadorCae" ("Id", "PropietarioTenantId", "Concepto", "PrecioUnitario", "MonedaIso", "Activa", "VigenteDesdeUtc", "RegistradaPorUsuarioId", "TenantId")
+            VALUES (@id, @propietario, 2, @precio, 'EUR', true, {vigenteDesde}, @usuario, @operador);
+            """;
+        insercion.Parameters.AddWithValue("id", Guid.NewGuid());
+        insercion.Parameters.AddWithValue("propietario", propietario);
+        insercion.Parameters.AddWithValue("precio", precio);
+        insercion.Parameters.AddWithValue("usuario", _usuario);
+        insercion.Parameters.AddWithValue("operador", _operadorA);
+        return await Record.ExceptionAsync(() => insercion.ExecuteNonQueryAsync()) switch
+        {
+            null => null,
+            PostgresException e => e.SqlState,
+            var otra => throw otra,
+        };
+    }
+
+    private void Como(string? rol, Guid tenantOrigen, string? rolFueraDelOrigen = null)
     {
         _sesion.UsuarioId = _usuario;
         _sesion.Rol = rol;
+        _sesion.RolFueraDelOrigen = rolFueraDelOrigen;
         _sesion.TenantOrigenId = tenantOrigen;
     }
 
@@ -223,14 +287,21 @@ public class TarifasOperadorCaeRlsTests : IAsyncLifetime
     }
 
     /// <summary>La persona de la sesión, cambiable entre pasos: el interceptor la lee en cada apertura de conexión.</summary>
+    /// <remarks>
+    /// Como el servicio real, el rol efectivo depende del Tenant del ámbito: <see cref="Rol"/> en el Tenant de origen y
+    /// <see cref="RolFueraDelOrigen"/> en cualquier otro (o sin ámbito). Así la guarda solo pasa si fija el ámbito en
+    /// el Tenant de origen del Operador antes de preguntar el rol.
+    /// </remarks>
     private sealed class UsuarioConmutable : ICurrentUserService
     {
         public Guid? UsuarioId { get; set; }
         public string? Rol { get; set; }
+        public string? RolFueraDelOrigen { get; set; }
         public Guid? TenantOrigenId { get; set; }
 
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult(UsuarioId);
-        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult(Rol);
+        public Task<string?> ObtenerRolEfectivoAsync() =>
+            Task.FromResult(AmbitoTenantExplicito.TenantIdActual is { } ambito && ambito == TenantOrigenId ? Rol : RolFueraDelOrigen);
         public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult(Rol);
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(TenantOrigenId);
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
