@@ -96,6 +96,37 @@ public class AcreditacionDocumentoPlataformaTests
     }
 
     [Fact]
+    public void DevolverAPendienteDeSubir_solo_desde_subida_o_validada_y_borra_la_vigencia_confirmada()
+    {
+        var validada = new AcreditacionDocumentoPlataforma(Guid.NewGuid(), Guid.NewGuid());
+        validada.MarcarAceptada(VigenciaEnPlataforma.VenceEl(new DateOnly(2027, 1, 1)));
+        validada.DevolverAPendienteDeSubir();
+        validada.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir);
+        validada.EstadoVigencia.Should().Be(EstadoVigenciaEnPlataforma.SinConfirmar);
+
+        var rechazada = new AcreditacionDocumentoPlataforma(Guid.NewGuid(), Guid.NewGuid());
+        rechazada.Rechazar(CausaRechazoAcreditacion.Ilegible, "Firma ilegible", DateTime.UtcNow);
+        rechazada.PuedeDevolverAPendienteDeSubir.Should().BeFalse("una rechazada sale con una versión corregida");
+        ((Action)rechazada.DevolverAPendienteDeSubir).Should().Throw<InvalidOperationException>();
+
+        var noExigida = new AcreditacionDocumentoPlataforma(Guid.NewGuid(), Guid.NewGuid());
+        noExigida.MarcarNoRequerida();
+        noExigida.PuedeDevolverAPendienteDeSubir.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Volver_de_validada_a_enviada_borra_la_vigencia_confirmada()
+    {
+        var acreditacion = CrearAcreditacion();
+        acreditacion.MarcarAceptada(VigenciaEnPlataforma.VenceEl(new DateOnly(2026, 1, 1)));
+
+        acreditacion.MarcarSubida();
+
+        acreditacion.Estado.Should().Be(EstadoAcreditacion.Subida);
+        acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue("una vigencia vieja contaría como vencida en plataforma");
+    }
+
+    [Fact]
     public void ReiniciarPorRenovacionDocumento_vuelve_a_PendienteDeSubir_sin_tocar_el_historial()
     {
         var acreditacion = CrearAcreditacion();
