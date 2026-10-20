@@ -82,7 +82,7 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
         "src/CaeManager.Web/Features/Documentos/Pages/Documentos.razor",
         "src/CaeManager.Web/Features/Documentos/Pages/SubidaMasiva.razor",
         "src/CaeManager.Web/Features/Empresas/Components/EmpresaWorkspacePanel.razor",
-        "src/CaeManager.Web/Features/Facturacion/Pages/Facturacion.razor",
+        "src/CaeManager.Web/Features/Facturacion/Pages/FacturacionPorClienteEmpresarial.razor",
         "src/CaeManager.Web/Features/Importacion/Pages/Importacion.razor",
         "src/CaeManager.Web/Features/IncorporacionCartera/Components/DialogoSolicitarIncorporacion.razor",
         "src/CaeManager.Web/Features/Plantillas/Pages/ConfigurarPlantilla.razor",

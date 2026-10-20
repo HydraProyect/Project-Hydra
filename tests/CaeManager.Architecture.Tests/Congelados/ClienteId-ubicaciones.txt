@@ -510,8 +510,8 @@ src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor.cs :: _clienteIdsSelec
 src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor.cs :: clienteId = 3
 src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor.cs :: clienteIds = 5
 src/CaeManager.Web/Features/Facturacion/FacturacionEndpoints.cs :: clienteId = 2
-src/CaeManager.Web/Features/Facturacion/Pages/Facturacion.razor.cs :: ClienteId = 2
-src/CaeManager.Web/Features/Facturacion/Pages/Facturacion.razor.cs :: clienteId = 6
+src/CaeManager.Web/Features/Facturacion/Pages/FacturacionPorClienteEmpresarial.razor.cs :: ClienteId = 2
+src/CaeManager.Web/Features/Facturacion/Pages/FacturacionPorClienteEmpresarial.razor.cs :: clienteId = 6
 src/CaeManager.Web/Features/Integraciones/Endpoints/ConectarMicrosoft365Endpoints.cs :: ClienteId = 1
 src/CaeManager.Web/Features/Integraciones/Endpoints/ConectarMicrosoft365Endpoints.cs :: clienteId = 4
 src/CaeManager.Web/Features/Integraciones/Pages/Conexiones.razor.cs :: clienteId = 2

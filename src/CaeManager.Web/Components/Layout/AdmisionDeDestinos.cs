@@ -87,7 +87,7 @@ public static class AdmisionDeDestinos
     /// </summary>
     public static IReadOnlyCollection<string> RutasExcluidasDelEncargo { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        "configuracion/claves-api", "auditoria", "auditoria-ia", "facturacion", "importacion", "integraciones", "retencion", "roles",
+        "configuracion/claves-api", "auditoria", "auditoria-ia", "importacion", "integraciones", "retencion", "roles",
     };
 
     /// <summary>

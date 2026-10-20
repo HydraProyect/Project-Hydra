@@ -237,7 +237,7 @@ public class ConfirmacionAccionesDestructivasTests : BunitContext
 
     // ---------------------------------------------------------------- Facturación
 
-    private async Task<(IRenderedComponent<Features.Facturacion.Pages.Facturacion> Cut, MediatorRegistrador Mediator)> RenderizarFacturacionConTarifa()
+    private async Task<(IRenderedComponent<Features.Facturacion.Pages.FacturacionPorClienteEmpresarial> Cut, MediatorRegistrador Mediator)> RenderizarFacturacionConTarifa()
     {
         var tarifa = new TarifaClienteDto(
             TarifaId, ClienteId, default, "Gestión documental mensual", 120m, "EUR", Guid.NewGuid());
@@ -254,7 +254,7 @@ public class ConfirmacionAccionesDestructivasTests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddLocalization();
 
-        var cut = Render<Features.Facturacion.Pages.Facturacion>();
+        var cut = Render<Features.Facturacion.Pages.FacturacionPorClienteEmpresarial>();
         await cut.ElegirPorValorAsync("sel-cliente", ClienteId.ToString());
 
         return (cut, mediator);
