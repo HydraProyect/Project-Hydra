@@ -157,7 +157,7 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
     [Fact]
     public async Task Gestionar_se_ofrece_a_quien_escribe_y_no_a_Consulta()
     {
-        var escribe = await RenderizarExpandidoAsync(EstadoDocumento.Faltante);
+        var escribe = await RenderizarExpandidoAsync(EstadoDocumento.Urgente);
         escribe.FindAll(".tabla-documentos-requeridos button").Select(b => b.TextContent.Trim()).Should().Contain("Gestionar",
             "control positivo: con un rol que escribe el botón está");
 
@@ -165,6 +165,7 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
         using var consulta = new ConsultaSinEscritura();
         var cut = await consulta.RenderizarAsync();
         cut.FindAll(".tabla-documentos-requeridos button").Select(b => b.TextContent.Trim()).Should().NotContain("Gestionar");
+        cut.FindAll("[data-accion=actualizar-en-ficha]").Should().BeEmpty("a Consulta tampoco se le ofrece actualizar en la ficha 360");
     }
 
     /// <summary>
@@ -205,7 +206,7 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
     [Fact]
     public async Task El_clic_en_Gestionar_abre_la_gestion_del_documento()
     {
-        var cut = await RenderizarExpandidoAsync(EstadoDocumento.Vencido);
+        var cut = await RenderizarExpandidoAsync(EstadoDocumento.Urgente);
         var boton = cut.Find(".tabla-documentos-requeridos .columna-accion button");
         boton.TextContent.Trim().Should().Be("Gestionar");
         boton.ClassList.Should().Contain("accion-fila-enlace").And.NotContain("accion-atenuada");
@@ -216,12 +217,10 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
     }
 
     [Theory]
-    [InlineData(EstadoDocumento.Vencido, "Gestionar")]
     [InlineData(EstadoDocumento.EnTolerancia, "Gestionar")]
     [InlineData(EstadoDocumento.Urgente, "Gestionar")]
     [InlineData(EstadoDocumento.Proximo, "Gestionar")]
     [InlineData(EstadoDocumento.SinConfirmar, "Gestionar")]
-    [InlineData(EstadoDocumento.Faltante, "Gestionar")]
     public async Task El_documento_ofrece_una_sola_accion_Gestionar_sea_cual_sea_su_estado_y_no_esta_atenuada(EstadoDocumento estado, string accion)
     {
         var cut = await RenderizarExpandidoAsync(estado);
@@ -235,11 +234,28 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
     [Fact]
     public async Task Gestionar_de_un_documento_que_pide_intervencion_no_esta_atenuado_ni_lleva_titulo()
     {
-        var cut = await RenderizarExpandidoAsync(EstadoDocumento.Faltante);
+        var cut = await RenderizarExpandidoAsync(EstadoDocumento.Urgente);
 
         var boton = cut.FindAll(".tabla-documentos-requeridos button").Single(b => b.TextContent.Trim() == "Gestionar");
         boton.ClassList.Should().NotContain("accion-atenuada");
         boton.GetAttribute("title").Should().BeNull();
+    }
+
+    /// <summary>
+    /// Lo que falta en TALVEG (no hay documento o está vencido) no se gestiona desde el Centro: la acción lleva a la ficha
+    /// 360 del Trabajador, donde se sube (regla de Chris del 2026-10-19).
+    /// </summary>
+    [Theory]
+    [InlineData(EstadoDocumento.Vencido)]
+    [InlineData(EstadoDocumento.Faltante)]
+    public async Task Lo_que_falta_en_TALVEG_ofrece_actualizar_en_la_ficha_del_Trabajador(EstadoDocumento estado)
+    {
+        var cut = await RenderizarExpandidoAsync(estado);
+
+        var enlace = cut.Find("[data-accion=actualizar-en-ficha]");
+        enlace.TextContent.Trim().Should().Be("Actualizar en Trabajador 360");
+        enlace.GetAttribute("href").Should().StartWith("/trabajadores/");
+        cut.FindAll(".tabla-documentos-requeridos .columna-accion button").Should().BeEmpty();
     }
 
     [Theory]

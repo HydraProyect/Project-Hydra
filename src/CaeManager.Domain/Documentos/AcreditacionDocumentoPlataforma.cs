@@ -68,7 +68,16 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
         Estado = EstadoAcreditacion.PendienteDeSubir;
     }
 
-    public void MarcarSubida() => Estado = EstadoAcreditacion.Subida;
+    /// <summary>
+    /// Enviada a la plataforma y sin validar. Si venía validada, la vigencia que se confirmó entonces ya no respalda nada
+    /// (la plataforma la está revisando otra vez): vuelve a sin confirmar, igual que al rechazar o devolver a pendiente.
+    /// </summary>
+    public void MarcarSubida()
+    {
+        if (Estado == EstadoAcreditacion.Aceptada)
+            AnotarVigencia(VigenciaEnPlataforma.SinConfirmar);
+        Estado = EstadoAcreditacion.Subida;
+    }
 
     /// <summary>
     /// La plataforma aceptó el documento, y ese es justo el momento en que el
@@ -160,6 +169,25 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
     }
 
     public void MarcarNoRequerida() => Estado = EstadoAcreditacion.NoRequerida;
+
+    /// <summary>
+    /// «Pendiente de subir» del panel «Gestionar acreditación en plataforma»: el Gestor CAE ha mirado la
+    /// plataforma y la versión vigente en TALVEG no está allí (se dio por subida o validada y no lo estaba, o la
+    /// plataforma sigue mostrando la anterior). Solo desde Subida o Aceptada: una Rechazada sale con una versión
+    /// corregida (<see cref="ReiniciarPorRenovacionDocumento"/>), no marcándola pendiente sin papel nuevo, y una
+    /// NoRequerida no es trabajo de nadie. La vigencia confirmada se pierde por el mismo motivo que al renovar.
+    /// </summary>
+    public bool PuedeDevolverAPendienteDeSubir =>
+        Estado is EstadoAcreditacion.Subida or EstadoAcreditacion.Aceptada;
+
+    public void DevolverAPendienteDeSubir()
+    {
+        if (!PuedeDevolverAPendienteDeSubir)
+            throw new InvalidOperationException("Solo una acreditación subida o validada vuelve a quedar pendiente de subir.");
+
+        Estado = EstadoAcreditacion.PendienteDeSubir;
+        AnotarVigencia(VigenciaEnPlataforma.SinConfirmar);
+    }
 
     /// <summary>
     /// Causa tipificada + motivo literal de la plataforma son siempre
