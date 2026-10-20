@@ -28,13 +28,63 @@ public class ExtranjeroCobrableTrabajadorTests
             ExtranjeroCobrable: marca);
 
     private static (EditarFichaTrabajadorCommandHandler Handler, UnitOfWorkFalso UnitOfWork) Montar(
-        Trabajador trabajador, IPoliticaNotaInterna? politica = null)
+        Trabajador trabajador, IPoliticaNotaInterna? politica = null, IAlcanceDatosService? alcance = null)
     {
         var repositorio = new TrabajadorRepositorioFalso();
         repositorio.Agregar(trabajador);
         var unitOfWork = new UnitOfWorkFalso();
         return (new EditarFichaTrabajadorCommandHandler(repositorio, new Empresas.DelegacionEmpresaYOficioEmpresaTests.CatalogoFalso(),
-            new AlcanceDatosServiceFalso(), politica ?? PoliticaNotaInternaPruebas.Con("GestorCae"), unitOfWork), unitOfWork);
+            alcance ?? new AlcanceDatosServiceFalso(), politica ?? PoliticaNotaInternaPruebas.Con("GestorCae"), unitOfWork), unitOfWork);
+    }
+
+    /// <summary>Ve al Trabajador (por ejemplo, por una Asignación) pero no gestiona su Empresa ni ninguna Subcontrata.</summary>
+    private static AlcanceDatosServiceFalso SoloLectura(Trabajador t) =>
+        new(tieneAccesoTotal: false, trabajadorIdsVisibles: [t.Id], empresaIdsVisibles: [t.EmpresaId!.Value],
+            empresaIdsParaGestion: [], subcontrataIdsParaGestion: []);
+
+    [Fact]
+    public async Task Cambiar_la_marca_exige_gestionar_la_Empresa_del_Trabajador_no_solo_verlo()
+    {
+        var t = Amina();
+        var (handler, unitOfWork) = Montar(t, alcance: SoloLectura(t));
+
+        var resultado = await handler.Handle(Ficha(t, new(false)), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Trabajador.ExtranjeroCobrableSinGestion");
+        t.MarcaExtranjeroCobrable.Should().BeNull();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Quien_solo_ve_al_Trabajador_guarda_la_ficha_si_la_marca_no_cambia()
+    {
+        var t = Amina();
+        t.FijarMarcaExtranjeroCobrable(false);
+        var (handler, _) = Montar(t, alcance: SoloLectura(t));
+
+        (await handler.Handle(Ficha(t, new(false)), CancellationToken.None)).EsExitoso.Should().BeTrue();
+
+        t.Puesto.Should().Be("Electricista");
+    }
+
+    [Fact]
+    public async Task Cambiar_la_marca_de_un_Trabajador_de_Subcontrata_exige_gestionar_la_Subcontrata()
+    {
+        var subcontrata = Guid.NewGuid();
+        var t = Trabajador.DeSubcontrata(subcontrata, "Oleg", "Ivanov", "AB7654321");
+        var sinGestion = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [t.Id],
+            subcontrataIdsVisibles: [subcontrata], subcontrataIdsParaGestion: []);
+        var conGestion = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [t.Id],
+            subcontrataIdsVisibles: [subcontrata], subcontrataIdsParaGestion: [subcontrata]);
+
+        (await Montar(t, alcance: sinGestion).Handler.Handle(Ficha(t, new(false)), CancellationToken.None))
+            .EsFallido.Should().BeTrue();
+        t.MarcaExtranjeroCobrable.Should().BeNull();
+
+        (await Montar(t, alcance: conGestion).Handler.Handle(Ficha(t, new(false)), CancellationToken.None))
+            .EsExitoso.Should().BeTrue();
+        t.MarcaExtranjeroCobrable.Should().BeFalse();
     }
 
     [Fact]

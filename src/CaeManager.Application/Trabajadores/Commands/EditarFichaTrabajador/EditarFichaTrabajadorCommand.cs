@@ -98,6 +98,16 @@ public class EditarFichaTrabajadorCommandHandler(ITrabajadorRepository repositor
                 return Result.Fallo(errorCatalogo);
         }
 
+        // La marca de extranjero cobrable decide qué cobra el Operador CAE (decisión de Chris, 2026-10-20): cambiarla
+        // exige alcance de GESTIÓN sobre la Empresa o Subcontrata del Trabajador, no basta con verlo. Mismo valor = no
+        // es un cambio, para que quien solo lo ve pueda guardar el resto de la ficha.
+        var cambiaMarcaExtranjero = request.ExtranjeroCobrable is { } marcaPedida
+            && marcaPedida.Marca != trabajador.MarcaExtranjeroCobrable
+            && await politicaNotaInterna.PuedeLeerAsync(cancellationToken);
+        if (cambiaMarcaExtranjero && !await GestionaElEmpleadorAsync(trabajador, cancellationToken))
+            return Result.Fallo(Error.Crear("Trabajador.ExtranjeroCobrableSinGestion",
+                "Solo quien gestiona la empresa de este trabajador puede cambiar si es extranjero cobrable."));
+
         trabajador.ActualizarFicha(request.NumeroAfiliacionSeguridadSocial, request.Puesto,
             request.FechaNacimiento, request.Nacionalidad, request.TipoVinculo, request.FechaAltaEmpresa,
             request.FechaBajaEmpresa, request.FiguraEnRnt, request.TipoPermisoTrabajo,
@@ -111,14 +121,20 @@ public class EditarFichaTrabajadorCommandHandler(ITrabajadorRepository repositor
         // nadie borre ni pise a ciegas un dato que el servidor no le enseña.
         if (request.ContactoEmergencia is { } contacto && await politicaNotaInterna.PuedeLeerAsync(cancellationToken))
             trabajador.FijarContactoEmergencia(contacto.Nombre, contacto.Telefono);
-        // La marca de extranjero cobrable decide qué cobra el Operador CAE: la fija el equipo de gestión con la misma
-        // política que el contacto de emergencia (el Usuario de Cliente ni la lee ni la cambia), y null = no se cambia.
-        if (request.ExtranjeroCobrable is { } extranjero && await politicaNotaInterna.PuedeLeerAsync(cancellationToken))
-            trabajador.FijarMarcaExtranjeroCobrable(extranjero.Marca);
+        // Con la misma política que el contacto de emergencia (el Usuario de Cliente ni la lee ni la cambia), y
+        // null = no se cambia; el alcance de gestión se ha comprobado arriba.
+        if (cambiaMarcaExtranjero)
+            trabajador.FijarMarcaExtranjeroCobrable(request.ExtranjeroCobrable!.Marca);
         // Se aplica después de ActualizarFicha porque elegir un Oficio copia su nombre en el Puesto.
         if (asignacion is not null)
             AsignacionDelegacionEmpresaYOficio.Aplicar(trabajador, asignacion, renovarVersionDelCatalogo: true);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();
     }
+
+    private async Task<bool> GestionaElEmpleadorAsync(Domain.Trabajadores.Trabajador trabajador, CancellationToken cancellationToken) =>
+        trabajador.EmpresaId is { } empresaId
+            ? await alcanceDatos.EmpresaParaGestionVisibleAsync(empresaId, cancellationToken)
+            : trabajador.SubcontrataId is { } subcontrataId
+              && await alcanceDatos.SubcontrataParaGestionVisibleAsync(subcontrataId, cancellationToken);
 }
