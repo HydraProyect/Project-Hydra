@@ -3,7 +3,7 @@ using CaeManager.Application.Dashboard;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
-using CaeManager.Domain.Facturacion;
+using CaeManager.Domain.Dashboard;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.CuadroDireccion.Components;
@@ -863,13 +863,13 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     }
     private int AltasCentroSinTarifa => PuntoActual?.Cifras.AltasCentros.Valor ?? Cifras.AltasCentros.Valor;
 
-    private bool AltaCentroTieneTarifa => PuntosSerie.Any(p => p.UnidadesDe(ConceptoFacturable.AltaCentro) > 0 || (p.Facturacion?.Any(l => l.Concepto == ConceptoFacturable.AltaCentro) ?? false));
+    private bool AltaCentroTieneTarifa => PuntosSerie.Any(p => p.UnidadesDe(ConceptoTarifaOperadorCae.CentroNuevo) > 0 || (p.Facturacion?.Any(l => l.Concepto == ConceptoTarifaOperadorCae.CentroNuevo) ?? false));
 
     private string ValorExtranjeros
     {
         get
         {
-            var visitas = PuntoActual?.Facturacion?.Where(l => l.Concepto == ConceptoFacturable.VisitaTrabajadorExtranjero).ToList();
+            var visitas = PuntoActual?.Facturacion?.Where(l => l.Concepto == ConceptoTarifaOperadorCae.TrabajadorExtranjeroGestionado).ToList();
             return visitas is { Count: > 0 } ? Numero(visitas.Sum(l => l.Unidades)) : Textos["SinDato"].Value;
         }
     }
@@ -882,11 +882,11 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     private decimal? PrecioExtranjero => decimal.TryParse(_precioExtranjero.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var precio) && precio >= 0 ? precio : null;
 
-    private int ExtranjerosMes => PuntoActual?.UnidadesDe(ConceptoFacturable.VisitaTrabajadorExtranjero) ?? 0;
+    private int ExtranjerosMes => PuntoActual?.Cifras.Extranjeros?.Valor ?? 0;
 
     private string ImporteExtranjeroMes => Importe((PrecioExtranjero ?? 0) * ExtranjerosMes);
 
-    private string ImporteExtranjeroVentana => Importe((PrecioExtranjero ?? 0) * PuntosVentana.Sum(p => p.UnidadesDe(ConceptoFacturable.VisitaTrabajadorExtranjero)));
+    private string ImporteExtranjeroVentana => Importe((PrecioExtranjero ?? 0) * PuntosVentana.Sum(p => (p.Cifras.Extranjeros?.Valor ?? 0)));
 
     private string ImporteSimuladoMes => Importe((PrecioSimulado ?? 0) * AltasCentroSinTarifa);
 
@@ -1060,7 +1060,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     {
         "facturacion" => punto.Facturacion is null ? null : (double)(punto.ImporteEn(MonedaAnual) ?? 0m),
         "altas" => punto.Cifras.AltasTrabajadores.Valor,
-        "extranjeros" => punto.UnidadesDe(ConceptoFacturable.VisitaTrabajadorExtranjero),
+        "extranjeros" => (punto.Cifras.Extranjeros?.Valor ?? 0),
         _ => punto.Cifras.Gestiones?.Valor,
     };
 
@@ -1123,7 +1123,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     /// <summary>Visitas de Trabajador extranjero facturadas en el mes de la Empresa; sin tarifa de visita no hay dato.</summary>
     private string ExtranjerosDe(Guid tenantId) =>
-        PuntoDeEmpresa(tenantId)?.UnidadesDe(ConceptoFacturable.VisitaTrabajadorExtranjero) is > 0 and var visitas
+        PuntoDeEmpresa(tenantId)?.Cifras.Extranjeros?.Valor is > 0 and var visitas
             ? Numero(visitas)
             : Textos["SinDato"].Value;
 
@@ -1168,7 +1168,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     /// <summary>Gestiones de extranjeros del tramo (visitas facturables de Trabajador extranjero, la misma medida que el KPI); sin tarifa de visita no hay dato.</summary>
     private string ExtranjerosAcumulados(PuntoSerieCuadroDto[] meses)
     {
-        var visitas = meses.Sum(m => m.UnidadesDe(ConceptoFacturable.VisitaTrabajadorExtranjero));
+        var visitas = meses.Sum(m => (m.Cifras.Extranjeros?.Valor ?? 0));
         return visitas > 0 ? Numero(visitas) : Textos["SinDato"].Value;
     }
 

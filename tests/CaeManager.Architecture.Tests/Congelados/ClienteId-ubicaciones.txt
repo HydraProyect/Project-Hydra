@@ -113,7 +113,7 @@ src/CaeManager.Application/Dashboard/Queries/ObtenerKpisBpoQuery.cs :: clienteId
 src/CaeManager.Application/Dashboard/Queries/ObtenerKpisBpoQuery.cs :: clienteIdsVisibles = 3
 src/CaeManager.Application/Dashboard/Queries/ObtenerKpisDashboardQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Dashboard/Queries/ObtenerKpisDashboardQuery.cs :: clienteIdsVisibles = 2
-src/CaeManager.Application/Dashboard/Queries/ObtenerSerieCuadroDireccionQuery.cs :: ClienteId = 1
+src/CaeManager.Application/Dashboard/Queries/MedicionMensualCuadroDireccion.cs :: ClienteId = 1
 src/CaeManager.Application/Documentos/CalculoEstadoDocumentalService.cs :: ClienteId = 3
 src/CaeManager.Application/Documentos/Commands/CrearDocumento/CrearDocumentoCommand.cs :: ClienteId = 5
 src/CaeManager.Application/Documentos/DocumentoAlcanceExtensions.cs :: ClienteId = 2

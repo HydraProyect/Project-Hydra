@@ -1,9 +1,8 @@
 using CaeManager.Application.Common;
-using CaeManager.Application.Facturacion;
-using CaeManager.Application.Facturacion.Queries.ObtenerResumenFacturacion;
+using CaeManager.Application.Dashboard.TarifasOperadorCae;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Common;
-using CaeManager.Domain.Facturacion;
+using CaeManager.Domain.Dashboard;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,15 +19,18 @@ public record ObtenerSerieCuadroDireccionQuery(int Anyo, int Mes, int Meses, boo
     public const int MaximoMeses = 36;
 }
 
-/// <summary>Lo que un concepto con tarifa suma en un mes: unidades y su importe estimado, en una moneda.</summary>
+/// <summary>
+/// Lo que el Operador CAE externo cobra por un concepto en un mes: unidades medidas y su importe con la tarifa del
+/// Operador para esa Empresa gestionada (<see cref="Dashboard.ValoracionOperadorCae"/>), en una moneda.
+/// </summary>
 public record LineaFacturacionCuadroDto(
-    ConceptoFacturable Concepto, string ConceptoNombre, string MonedaIso, int Unidades, decimal Importe);
+    ConceptoTarifaOperadorCae Concepto, string ConceptoNombre, string MonedaIso, int Unidades, decimal Importe);
 
 /// <param name="Cifras">Las cifras del mes con las mismas definiciones que el Cuadro (el cumplimiento no se mide aquí).</param>
 /// <param name="Facturacion">
-/// Facturación estimada del mes: unidades de cada concepto con tarifa por la tarifa de hoy
-/// (<see cref="ObtenerResumenFacturacionQueryHandler"/>); null si la serie no se pidió con facturación. Sin
-/// tarifas, lista vacía: no hay nada que valorar y nada se inventa.
+/// Lo que el Operador CAE externo cobra en el mes: unidades de cada concepto con tarifa activa por la tarifa del
+/// Operador (<see cref="Dashboard.ValoracionOperadorCae"/>); null si la serie no se pidió con facturación o quien
+/// mira no gestiona las tarifas del Operador. Sin tarifas, lista vacía: no hay nada que valorar y nada se inventa.
 /// </param>
 public record PuntoSerieCuadroDto(
     int Anyo, int Mes, EstadoCifraMensual Estado, CifrasCuadroDireccionDto Cifras,
@@ -40,7 +42,7 @@ public record PuntoSerieCuadroDto(
         .Sum(l => l.Importe);
 
     /// <summary>Unidades de un concepto con tarifa en el mes (0 si no tiene tarifa o la serie no lleva facturación).</summary>
-    public int UnidadesDe(ConceptoFacturable concepto) => Facturacion?.Where(l => l.Concepto == concepto).Sum(l => l.Unidades) ?? 0;
+    public int UnidadesDe(ConceptoTarifaOperadorCae concepto) => Facturacion?.Where(l => l.Concepto == concepto).Sum(l => l.Unidades) ?? 0;
 }
 
 public record SerieTenantCuadroDto(Guid TenantId, string TenantNombre, IReadOnlyList<PuntoSerieCuadroDto> Meses);
@@ -55,16 +57,23 @@ public record MesMedidoCuadro(MedicionCuadroDireccion Medicion, IReadOnlyList<Li
 /// Misma disciplina que <see cref="ObtenerCuadroDireccionQueryHandler"/>: por cada Tenant beneficiario autorizado,
 /// con <see cref="AmbitoTenantExplicito"/> fijado a ese Tenant (filtro global y RLS de ese Tenant), solo si quien
 /// mira alcanza el Tenant entero; un mes con cierre mensual vigente sale de su foto y el resto se mide en vivo con
-/// <see cref="MedicionMensualCuadroDireccion"/>. La fusión es pura (<see cref="Construir"/>). La facturación es
-/// estimada por naturaleza y solo se devuelve a quien pasa <see cref="AutorizacionTarifasCliente"/> (en el Cuadro,
-/// Dirección CAE; para Coordinador CAE es null): valora con las tarifas de hoy las unidades de cada mes, igual que la pantalla
-/// «Facturación», y por eso no usa las tarifas congeladas de la foto (la foto no guarda las unidades por concepto).
+/// <see cref="MedicionMensualCuadroDireccion"/>. La fusión es pura (<see cref="Construir"/>).
+///
+/// <para>
+/// <b>Facturación</b> (decisión de Chris, 2026-10-20): lo que el Operador CAE externo cobra a cada Empresa
+/// gestionada, no lo que cada Tenant cobra a sus Clientes empresariales (<c>TarifaCliente</c>, pantalla
+/// «Facturación» por Cliente empresarial). Solo la ve quien pasa <see cref="AutorizacionTarifasOperadorCae"/>
+/// (Administrador o Dirección CAE del Operador; para Coordinador CAE es null). Las unidades salen de la medición
+/// del mes (la foto en un mes cerrado) y el precio de la versión de la tarifa vigente en el instante del cierre; un
+/// mes sin cierre vigente se valora con la de ahora. Así el cierre congela unidades y tarifas sin copiar los precios
+/// del Operador a una fila del Tenant beneficiario.
+/// </para>
 /// </summary>
 public class ObtenerSerieCuadroDireccionQueryHandler(
     IMediator mediator,
     IAlcanceDatosService alcanceDatos,
     MedicionMensualCuadroDireccion medicion,
-    IFacturacionQueryContext facturacionContext,
+    ITarifasOperadorCaeContext tarifasContext,
     ICurrentUserService currentUserService,
     TimeProvider reloj,
     ICierresCuadroDireccion? cierresContext = null)
@@ -74,9 +83,12 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
     {
         await AutorizacionCuadroDireccion.ExigirLecturaAsync(currentUserService);
 
-        // Leer el Cuadro no da derecho a ver importes: las tarifas son plano Comercial y las guarda
-        // AutorizacionTarifasCliente. Sin ese rol efectivo (Coordinador CAE) la facturación sale a null.
-        var conFacturacion = await DevuelveFacturacionAsync(request.ConFacturacion, currentUserService);
+        // Leer el Cuadro no da derecho a ver importes: las tarifas son plano Comercial del Operador CAE y las guarda
+        // AutorizacionTarifasOperadorCae. Sin ese rol efectivo (Coordinador CAE) la facturación sale a null.
+        var tarifas = request.ConFacturacion
+            ? await new ObtenerTarifasOperadorCaeQueryHandler(currentUserService, tarifasContext).Handle(new ObtenerTarifasOperadorCaeQuery(), cancellationToken)
+            : null;
+        var conFacturacion = tarifas is not null;
         var ahoraUtc = reloj.GetUtcNow().UtcDateTime;
         var meses = MesesDeLaSerie(request.Anyo, request.Mes, request.Meses, ahoraUtc);
         if (meses.Count == 0)
@@ -102,9 +114,6 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
                         .GroupBy(c => (c.Anyo, c.Mes))
                         .ToDictionary(g => g.Key, g => g.First());
 
-                var empresasConTarifa = conFacturacion
-                    ? await facturacionContext.TarifasCliente.Select(t => t.ClienteId).Distinct().ToListAsync(cancellationToken)
-                    : [];
 
                 var medidos = new List<MesMedidoCuadro>();
                 foreach (var mes in meses)
@@ -118,19 +127,9 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
                             EstadoPersistido = cierre.Estimado ? EstadoCifraMensual.Estimado : EstadoCifraMensual.Existe,
                         };
 
-                    IReadOnlyList<LineaFacturacionCuadroDto>? facturacion = null;
-                    if (conFacturacion)
-                    {
-                        var lineas = new List<LineaFacturacionDto>();
-                        foreach (var empresaId in empresasConTarifa)
-                        {
-                            var resumen = await mediator.Send(new ObtenerResumenFacturacionQuery(empresaId, mes.Anyo, mes.Mes, corteUtc), cancellationToken);
-                            if (resumen is not null)
-                                lineas.AddRange(resumen.Lineas);
-                        }
-
-                        facturacion = SumarLineas(lineas);
-                    }
+                    var facturacion = tarifas is null
+                        ? null
+                        : ValoracionOperadorCae.Valorar(medida, cliente.TenantId, tarifas, cierre?.CerradoEnUtc ?? ahoraUtc);
 
                     medidos.Add(new MesMedidoCuadro(medida, facturacion));
                 }
@@ -142,9 +141,9 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
         return Construir(meses, ahoraUtc, porTenant, sinAlcance);
     }
 
-    /// <summary>Hay importes solo si se pidieron y el rol efectivo pasa el guard de tarifas (Administrador o Dirección CAE).</summary>
+    /// <summary>Hay importes solo si se pidieron y quien mira es Administrador o Dirección CAE de su Operador CAE.</summary>
     public static async Task<bool> DevuelveFacturacionAsync(bool pedida, ICurrentUserService usuario) =>
-        pedida && await usuario.PuedeGestionarTarifasAsync();
+        pedida && await AutorizacionTarifasOperadorCae.OperadorQueGestionaAsync(usuario) is not null;
 
     /// <summary>
     /// Los meses de la serie, del más antiguo al más reciente: hasta <paramref name="cantidad"/> (1 a
@@ -166,12 +165,12 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
             .ToList();
     }
 
-    /// <summary>Suma las líneas de varias Empresas por concepto y moneda: un renglón por cada par.</summary>
-    public static IReadOnlyList<LineaFacturacionCuadroDto> SumarLineas(IEnumerable<LineaFacturacionDto> lineas) =>
+    /// <summary>Suma las líneas de varias Empresas gestionadas por concepto y moneda: un renglón por cada par.</summary>
+    public static IReadOnlyList<LineaFacturacionCuadroDto> SumarLineas(IEnumerable<LineaFacturacionCuadroDto> lineas) =>
         lineas
             .GroupBy(l => (l.Concepto, Moneda: l.MonedaIso.Trim().ToUpperInvariant()))
             .Select(g => new LineaFacturacionCuadroDto(
-                g.Key.Concepto, g.First().ConceptoNombre, g.Key.Moneda, g.Sum(l => l.Unidades), g.Sum(l => l.Subtotal)))
+                g.Key.Concepto, g.First().ConceptoNombre, g.Key.Moneda, g.Sum(l => l.Unidades), g.Sum(l => l.Importe)))
             .OrderBy(l => l.Concepto)
             .ThenBy(l => l.MonedaIso, StringComparer.Ordinal)
             .ToList();
@@ -206,8 +205,7 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
             estado = persistido;
 
         var facturacion = medidos.Count > 0 && medidos.All(m => m.Facturacion is not null)
-            ? SumarLineas(medidos.SelectMany(m => m.Facturacion!).Select(l =>
-                new LineaFacturacionDto(l.Concepto, l.ConceptoNombre, l.Unidades, 0, l.MonedaIso, l.Importe)))
+            ? SumarLineas(medidos.SelectMany(m => m.Facturacion!))
             : null;
 
         return new PuntoSerieCuadroDto(

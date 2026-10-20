@@ -375,8 +375,13 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IReclamacionesQueryContext"),
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "ITrabajadoresQueryContext"),
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IGestionesQueryContext"),
+        // Obras nuevas y Centros nuevos por Cliente empresarial del mes (decisión de Chris, 2026-10-20).
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IProyectosQueryContext"),
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IEmpresasQueryContext"),
+        // Solo comprueba que el Operador CAE opera hoy a la Empresa gestionada antes de fijarle una tarifa.
+        ("Dashboard.FijarTarifaOperadorCaeCommandHandler", "IOperacionesQueryContext"),
         // Serie y Comunicaciones del Cuadro de dirección: tarifas por Tenant beneficiario y conversaciones del mes.
-        ("Dashboard.ObtenerSerieCuadroDireccionQueryHandler", "IFacturacionQueryContext"),
+
         ("Dashboard.ObtenerComunicacionesCuadroDireccionQueryHandler", "IComunicacionesQueryContext"),
         ("Dashboard.ObtenerGestionesPorDiaCuadroDireccionQueryHandler", "IGestionesQueryContext"),
         ("Dashboard.ObtenerEstadisticasAprobacionDocumentoQueryHandler", "IDocumentosQueryContext"),

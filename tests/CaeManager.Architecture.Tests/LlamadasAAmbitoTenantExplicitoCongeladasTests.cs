@@ -275,6 +275,9 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerSerieCuadroDireccionQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync"),
+        ["src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "ObtenerTenantOrigenIdAsync() del propio usuario: las tarifas del Operador CAE son filas de su Tenant de origen, y solo se leen o escriben si el rol efectivo ahí es Administrador o Dirección CAE (AutorizacionTarifasOperadorCae)"),
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerComunicacionesCuadroDireccionQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync"),
@@ -548,6 +551,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookWhatsAppHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Retencion/RetencionHostedService.cs"] = 3,
+            // Las tres con el Tenant de origen de quien pide: rol efectivo, lectura y escritura de sus tarifas.
+            ["src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs"] = 3,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] = 12,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] = 4,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] = 3,

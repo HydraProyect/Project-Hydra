@@ -101,9 +101,11 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Cuadro de dirección: activos a fecha de corte, altas y bajas del mes de
         // Trabajadores y Centros, y los Documentos gestionados en el mes (actividad),
         // necesitan las filas ya eliminadas (una baja ES la
-        // eliminación). Tres apariciones, una por tabla, cada una seguida de la
-        // comparación del TenantId con el Tenant del ámbito (falla cerrado sin él).
-        [("src/CaeManager.Application/Dashboard/Queries/MedicionMensualCuadroDireccion.cs", ".IgnoreQueryFilters()")] = 3,
+        // eliminación). Tres apariciones, una por tabla, más dos para las altas del
+        // mes que cuentan aunque luego se eliminaran (Obras nuevas y Centros nuevos
+        // por Cliente empresarial), cada una seguida de la comparación del TenantId
+        // con el Tenant del ámbito (falla cerrado sin él).
+        [("src/CaeManager.Application/Dashboard/Queries/MedicionMensualCuadroDireccion.cs", ".IgnoreQueryFilters()")] = 5,
 
         // Resolución de tenant a partir de un webhook entrante (Graph/WhatsApp):
         // en ese punto todavía no hay tenant resuelto en el contexto — es

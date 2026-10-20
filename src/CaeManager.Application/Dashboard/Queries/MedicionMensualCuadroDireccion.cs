@@ -16,7 +16,9 @@ public class MedicionMensualCuadroDireccion(
     ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext,
     IReclamacionesQueryContext reclamacionesContext, IComunicacionesQueryContext comunicacionesContext,
     IMediator mediator,
-    CaeManager.Application.Gestiones.IGestionesQueryContext? gestionesContext = null)
+    CaeManager.Application.Gestiones.IGestionesQueryContext? gestionesContext = null,
+    CaeManager.Application.Proyectos.IProyectosQueryContext? proyectosContext = null,
+    CaeManager.Application.Empresas.IEmpresasQueryContext? empresasContext = null)
 {
     public virtual async Task<MedicionCuadroDireccion> MedirAsync(MesCuadroDireccion mes, DateTime corteUtc, CancellationToken cancellationToken, bool medirDocumental = true)
     {
@@ -72,11 +74,39 @@ public class MedicionMensualCuadroDireccion(
         int? gestiones = gestionesContext is null ? null : await gestionesContext.Gestiones
             .CountAsync(g => g.CompletadaEnUtc >= inicio && g.CompletadaEnUtc < fin, cancellationToken);
 
+        // Obras nuevas: Proyectos de tipo Obra dados de alta en el mes; los Eventos no se cobran. Como las altas de
+        // Centros, cuenta también los que después se eliminaron: el alta ocurrió en el mes.
+        int? obrasNuevas = proyectosContext is null ? null : await proyectosContext.Proyectos
+            .IgnoreQueryFilters()
+            .Where(p => p.TenantId == tenantId && p.Tipo == CaeManager.Domain.Proyectos.TipoProyecto.Obra)
+            .CountAsync(p => p.CreadoEnUtc >= inicio && p.CreadoEnUtc < fin, cancellationToken);
+
+        // Centros nuevos por Cliente empresarial: indicador de crecimiento, no se cobra.
+        IReadOnlyList<CentrosNuevosPorClienteDto>? porCliente = null;
+        if (empresasContext is not null)
+        {
+            var altasPorCliente = await centrosContext.Centros
+                .IgnoreQueryFilters()
+                .Where(c => c.TenantId == tenantId && c.CreadoEnUtc >= inicio && c.CreadoEnUtc < fin)
+                .GroupBy(c => c.ClienteId)
+                .Select(g => new { Cliente = g.Key, Centros = g.Count() })
+                .ToListAsync(cancellationToken);
+            var ids = altasPorCliente.Select(a => a.Cliente).ToList();
+            // Con el filtro global: un Cliente empresarial eliminado sale sin nombre, pero sus Centros nuevos cuentan.
+            var nombres = await empresasContext.Empresas
+                .Where(e => ids.Contains(e.Id))
+                .Select(e => new { e.Id, e.RazonSocial })
+                .ToDictionaryAsync(e => e.Id, e => e.RazonSocial, cancellationToken);
+            porCliente = ObtenerCuadroDireccionQueryHandler.SumarCentrosNuevosPorCliente(altasPorCliente.Select(a =>
+                new CentrosNuevosPorClienteDto(tenantId, a.Cliente, nombres.GetValueOrDefault(a.Cliente) ?? string.Empty, a.Centros)));
+        }
+
         return new MedicionCuadroDireccion(
             trabajadoresActivos, altasTrabajadores, bajasTrabajadores,
             centrosActivos, altasCentros,
             documentosGestionados, requerimientos,
-            solicitudes, documental, gestiones, ExtranjerosActivos: extranjeros);
+            solicitudes, documental, gestiones, ExtranjerosActivos: extranjeros,
+            ObrasNuevas: obrasNuevas, CentrosNuevosPorCliente: porCliente);
     }
 
 }
