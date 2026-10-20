@@ -1,28 +1,8 @@
-@*
-    Vehículo 360 (página): la ficha entera de un Vehículo, con su
-    documentación registrada, su historial y sus datos. Mockup de referencia:
-    «Paginas 360 nuevas TALVEG.maqueta.html», incluida la pestaña Ficha.
-
-    Identidad con anillo, pestañas Documentación, Centros orientativos de su Empresa empleadora, Ficha e Historial y tarjeta lateral
-    Información. El lateral se cierra con la «Nota interna» (pieza NotaInterna),
-    que se edita en su propio DrawerFormulario y se guarda con un comando
-    estrecho, no con el panel. Los Centros describen actividad de Trabajadores de su Empresa empleadora,
-    sin asignación del Vehículo a Centro ni Visita. «Eliminar vehículo» (menú «Más acciones») vuelve al
-    listado con un aviso que ofrece «Deshacer». Quedan pendientes fecha de alta y tarjeta lateral del
-    empleador.
-
-    El anillo mide los documentos REGISTRADOS, no los exigidos: todavía no
-    existe un universo de documentos exigidos a un vehículo. Por eso aquí no
-    hay estado «Pendiente»; los documentos de un vehículo no bloquean el
-    acceso de nadie.
-
-    Sin banda de incidencias bajo la cabecera (decisión de producto del
-    2026-10-09): los vencidos se ven, y se abren, en su fila.
-
-    Editar los datos de identidad abre el panel del Vehículo (Context Workspace) en «Información»,
-    que es donde vive la edición en línea con su aviso de cambios sin
-    guardar; al cerrarse el panel la ficha se vuelve a leer. Las cajas de Ficha
-    se editan con su propio DrawerFormulario y comando estrecho.
+﻿@*
+    Vehículo 360 según «Vehiculo 360 TALVEG.dc.html».
+    Los Centros muestran actividad de la Empresa empleadora, sin asignación del Vehículo.
+    Pendiente de backend: fecha de alta y acreditaciones por Cliente empresarial y Centro de Trabajo.
+    La ausencia de ese lector no equivale a que todo esté validado en plataformas CAE.
 *@
 @page "/vehiculos/{VehiculoId:guid}"
 @rendermode InteractiveServer
@@ -41,7 +21,7 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@(_detalle?.Nombre ?? Textos["FichaKicker"]) — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina vehiculo360">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["FichaRutaNavegacion"]" />
 
     @if (_noEncontrada)
@@ -91,6 +71,7 @@
                 @if (RutaEmpleador is { } rutaEmpleador)
                 {
                     <a class="vehiculo360-enlace" href="@rutaEmpleador">@_detalle.EmpleadorNombre</a>
+                    <Boton360 Nombre="@_detalle.EmpleadorNombre" Href="@rutaEmpleador" />
                 }
                 else
                 {
@@ -201,7 +182,7 @@
                             break;
 
                         case "centros":
-                            <p>@Textos["CentrosOrientativos360"]</p>
+                            <p class="vehiculo360-intro">@Textos["CentrosOrientativos360"]</p>
                             @if (_cargandoCentros)
                             {
                                 <EstadoCargando Filas="3" />
@@ -229,33 +210,13 @@
                             }
                             break;
 
+                        case "plataformas":
+                            <p class="vehiculo360-intro">@Textos["PlataformasIntroduccion"]</p>
+                            <EstadoVacio Titulo="@Textos["PlataformasNoDisponiblesTitulo"]" Descripcion="@Textos["PlataformasNoDisponiblesDescripcion"]" NombreIcono="documentos" />
+                            break;
+
                         case "ficha":
                             <CajasFicha Cajas="CajasDeFicha" />
-                            <Tarjeta Titulo="@Textos["FichaConductores"]">
-                                <AccionesHeader>
-                                    <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirEditorFicha">@Textos["FichaEditarEnlace"]</Boton></SoloConEscritura>
-                                </AccionesHeader>
-                                <ChildContent>
-                                    @if (_detalle.Conductores.Count == 0)
-                                    {
-                                        <p class="vehiculo360-nota">@Textos["FichaSinConductores"]</p>
-                                    }
-                                    else
-                                    {
-                                        <ListaRelaciones Etiqueta="@Textos["FichaConductores"]">
-                                            @foreach (var conductor in _detalle.Conductores)
-                                            {
-                                                <FilaRelacion @key="conductor.TrabajadorId" Nombre="@conductor.NombreCompleto"
-                                                    OnAbrir360="() => AbrirConductorAsync(conductor.TrabajadorId, conductor.NombreCompleto)"
-                                                    Href="@($"/trabajadores/{conductor.TrabajadorId}")" NombreIcono="trabajadores">
-                                                    <Estado><Badge Tono="TonoBadge.Exito">@Textos["FichaAutorizado"]</Badge></Estado>
-                                                </FilaRelacion>
-                                            }
-                                        </ListaRelaciones>
-                                    }
-                                    <p class="vehiculo360-nota">@Textos["FichaNotaConductores"]</p>
-                                </ChildContent>
-                            </Tarjeta>
                             break;
 
                         case "historial":
@@ -275,18 +236,12 @@
                                 <DatoRejilla Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_detalle.Nombre" />
                                 <DatoRejilla Etiqueta="@Textos["EtiquetaMatricula"]" Valor="@_detalle.NumeroPlaca" />
                                 <DatoRejilla Etiqueta="@Textos["EtiquetaModelo"]" Valor="@_detalle.Modelo" />
+                                <DatoRejilla Etiqueta="@Textos["FichaAlta"]" Valor="—" />
+                                <DatoRejilla Etiqueta="@Textos["EtiquetaEmpleador"]" Valor="@_detalle.EmpleadorNombre" Ancho="true" />
                             </RejillaDatos>
+                            <p class="vehiculo360-nota">@Textos["FichaNotaEmpleador"]</p>
                         </ChildContent>
                     </Tarjeta>
-                    <Tarjeta Compacta="true" Titulo="@Textos["EtiquetaEmpleador"]">
-                        <ListaRelaciones Etiqueta="@Textos["EtiquetaEmpleador"]">
-                            <FilaRelacion Nombre="@_detalle.EmpleadorNombre" Href="@RutaEmpleador" NombreIcono="empresas" OnAbrir360="AbrirEmpleador" />
-                        </ListaRelaciones>
-                        <p class="vehiculo360-nota">@Textos["FichaNotaEmpleador"]</p>
-                    </Tarjeta>
-
-                    @* Quién ve la nota lo decide el servidor (ObtenerVehiculoPorIdQuery), no esta página: con
-                       NotaInternaVisible = false la tarjeta no existe, ni siquiera vacía. Consulta la lee sin «Editar». *@
                     @if (_detalle.NotaInternaVisible)
                     {
                         <NotaInterna Texto="@_detalle.Notas">
@@ -303,8 +258,6 @@
 
         <SoloConEscritura>
             <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="RecargarTrasCambioAsync" />
-            <EditarFichaVehiculoDrawer @key="VehiculoId" VehiculoId="VehiculoId" Visible="_editorFichaVisible"
-                VisibleChanged="v => _editorFichaVisible = v" OnGuardada="RecargarFichaAsync" />
             <DialogoConfirmacion
                 Visible="_confirmarEliminarVisible"
                 VisibleChanged="v => _confirmarEliminarVisible = v"
@@ -328,42 +281,17 @@
 </LimiteDeErrores>
 
 @code {
-    private IReadOnlyList<CajaFicha> CajasDeFicha =>
-        [new("tipo-titularidad", CajaTipoTitularidad), new("seguro", CajaSeguro)];
+    private IReadOnlyList<CajaFicha> CajasDeFicha => [new("empleador", CajaEmpleador)];
 
-    private Task AbrirConductorAsync(Guid id, string nombre) =>
-        WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, id, nombre, "informacion");
-
-    private RenderFragment CajaTipoTitularidad => __builder =>
+    private RenderFragment CajaEmpleador => __builder =>
     {
-        <Tarjeta Titulo="@Textos["FichaTipoTitularidad"]">
-            <AccionesHeader>
-                <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirEditorFicha">@Textos["FichaEditarEnlace"]</Boton></SoloConEscritura>
-            </AccionesHeader>
-            <ChildContent>
-                <RejillaDatos>
-                    <DatoRejilla Etiqueta="@Textos["FichaTipo"]" Valor="@(_detalle!.Tipo ?? "—")" Ancho="true" />
-                    <DatoRejilla Etiqueta="@Textos["FichaTitularidad"]" Valor="@(_detalle.Titularidad ?? "—")" Ancho="true" />
-                    <DatoRejilla Etiqueta="@Textos["FichaRevisionGrua"]" Valor="@(_detalle.RevisionGrua ?? "—")" />
-                    <DatoRejilla Etiqueta="@Textos["FichaDeclaracionCe"]" Valor="@(_detalle.DeclaracionCe ?? "—")" />
-                </RejillaDatos>
-            </ChildContent>
-        </Tarjeta>
-    };
-
-    private RenderFragment CajaSeguro => __builder =>
-    {
-        <Tarjeta Titulo="@Textos["FichaSeguro"]">
-            <AccionesHeader>
-                <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirEditorFicha">@Textos["FichaEditarEnlace"]</Boton></SoloConEscritura>
-            </AccionesHeader>
-            <ChildContent>
-                <RejillaDatos>
-                    <DatoRejilla Etiqueta="@Textos["FichaAseguradora"]" Valor="@(_detalle!.Aseguradora ?? "—")" />
-                    <DatoRejilla Etiqueta="@Textos["FichaPoliza"]" Valor="@(_detalle.Poliza ?? "—")" />
-                    <DatoRejilla Etiqueta="@Textos["FichaRecibo"]" Valor="@(_detalle.Recibo ?? "—")" Ancho="true" />
-                </RejillaDatos>
-            </ChildContent>
+        <Tarjeta Titulo="@Textos["EtiquetaEmpleador"]">
+            <ListaRelaciones Etiqueta="@Textos["EtiquetaEmpleador"]">
+                <FilaRelacion Nombre="@_detalle!.EmpleadorNombre" Href="@RutaEmpleador" NombreIcono="empresas">
+                    <Detalle>@Textos["EtiquetaEmpresa"]</Detalle>
+                    <Derecha><Boton360 Nombre="@_detalle.EmpleadorNombre" Href="@RutaEmpleador" /></Derecha>
+                </FilaRelacion>
+            </ListaRelaciones>
         </Tarjeta>
     };
 }
