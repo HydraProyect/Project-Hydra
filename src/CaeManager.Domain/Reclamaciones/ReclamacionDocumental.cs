@@ -114,8 +114,10 @@ public class ReclamacionDocumental : EntidadBase
 
         // Un documento de Empresa que falta no lleva Trabajador, y uno de Trabajador sí: en una reclamación de ámbito
         // Cliente (documentos de Trabajador) todo lo que falta es de un Trabajador; en una de ámbito Empresa, de la Empresa,
-        // salvo la de documentos de sus Trabajadores (ParaEmpresaEmpleadora), donde todo lo que falta es de un Trabajador.
-        if ((clienteId is not null || documentosDeTrabajadores) && faltanUnicos.Any(f => f.TrabajadorId is null))
+        // salvo la de documentos de sus Trabajadores (ParaEmpresaEmpleadora), donde lo que falta de un Trabajador lo nombra y lo
+        // que falta de la propia Empresa (reclamación por acceso, 2026-10-19: lo de la Empresa y lo de sus Trabajadores salen en
+        // un solo correo) va sin Trabajador.
+        if (clienteId is not null && faltanUnicos.Any(f => f.TrabajadorId is null))
             throw new ArgumentException("Un documento que falta en una reclamación a un cliente debe indicar a qué trabajador le falta.", nameof(documentosQueFaltan));
         if (empresaId is not null && !documentosDeTrabajadores && faltanUnicos.Any(f => f.TrabajadorId is not null))
             throw new ArgumentException("Un documento que falta en una reclamación a una empresa es de la empresa, no de un trabajador.", nameof(documentosQueFaltan));
@@ -164,7 +166,8 @@ public class ReclamacionDocumental : EntidadBase
     /// Reclamación de documentos de Trabajador dirigida a la Empresa que los emplea (decisión de Chris, 2026-10-18: «Gestionar»
     /// reclama los documentos de un Trabajador a su Empresa, nunca al Trabajador, y al contacto de su Delegación cuando lo
     /// hay). Se ancla por <see cref="EmpresaId"/>, como la de documentos de empresa, porque el titular es esa Empresa; lo
-    /// que cambia es que lo que falta es de un Trabajador y por eso lo nombra.
+    /// que cambia es que lo que falta de un Trabajador lo nombra. En la reclamación por acceso (2026-10-19) el mismo correo
+    /// puede pedir también un documento que falta a la propia Empresa: esa línea va sin Trabajador.
     /// </summary>
     public static ReclamacionDocumental ParaEmpresaEmpleadora(
         Guid empresaId, Guid enviadoPorUsuarioId, string destinatarioEmail, DateTime fechaEnvioUtc,
