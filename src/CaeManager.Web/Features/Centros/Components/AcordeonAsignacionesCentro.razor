@@ -317,11 +317,12 @@ else
                                             <span role="columnheader">@Textos["PlataformaCaducidad360"]</span>
                                             <span role="columnheader">@Textos["PlataformaBloquea360"]</span>
                                         </div>
+                                        @{ var clavesDocumentos = new ClavesDeHermanos(); }
                                         @foreach (var documento in trabajador.Documentos.OrderBy(OrdenPlataforma))
                                         {
-                                            <div class="fila-plataforma-centro @(BloqueaPlataforma(documento) ? "fila-plataforma-bloquea" : TienePendienteValidacion(documento) ? "fila-plataforma-pendiente" : null)" role="row" @key="(documento.TipoDocumentoId, documento.DocumentoId)">
+                                            <div class="fila-plataforma-centro @(BloqueaPlataforma(documento) ? "fila-plataforma-bloquea" : TienePendienteValidacion(documento) ? "fila-plataforma-pendiente" : null)" role="row" @key="clavesDocumentos.De((documento.TipoDocumentoId, documento.DocumentoId))">
                                                 <span role="cell" class="identidad-documento-plataforma">
-                                                    <span class="indicador-talveg" title="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]" aria-label="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]">T</span>
+                                                    <span class="indicador-talveg" data-estado="@EstadoDocumentoFicha360.Tono(documento.Estado)" title="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]" aria-label="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]">T</span>
                                                     <span>@documento.TipoDocumentoNombre</span>
                                                 </span>
                                                 <span role="cell" class="estado-documento-plataforma">
@@ -337,7 +338,7 @@ else
                                                             <span class="nombre-plataforma-centro">@acreditacion.NombrePlataforma</span>
                                                         }
                                                     }
-                                                    <CaeManager.Web.Features.Documentos.Components.LineaPlataformaYReclamacion Acreditaciones="null" UltimaReclamacion="documento.UltimaReclamacion" Estado="documento.Estado" />
+                                                    <CaeManager.Web.Features.Documentos.Components.LineaPlataformaYReclamacion Acreditaciones="null" UltimaReclamacion="documento.UltimaReclamacion" Estado="documento.Estado" LaFilaYaDiceLaPlataforma="false" />
                                                 </span>
                                                 <span role="cell"><TextoFechaCopiable Fecha="documento.FechaVencimiento">@TextoVigencia(documento)</TextoFechaCopiable></span>
                                                 <span role="cell">@(documento.AcreditacionesEnElCentro is not { Count: > 0 } ? "—" : Textos[BloqueaPlataforma(documento) ? "PlataformaBloqueaSi360" : "PlataformaBloqueaNo360"].Value)</span>
@@ -355,9 +356,10 @@ else
                                         <span role="columnheader">Vigencia</span>
                                         <span role="columnheader" class="columna-accion">Acción</span>
                                     </div>
+                                    @{ var clavesDocumentos = new ClavesDeHermanos(); }
                                     @foreach (var documento in trabajador.Documentos)
                                     {
-                                        <div class="fila-documento-requerido" role="row" @key="(documento.TipoDocumentoId, documento.DocumentoId)">
+                                        <div class="fila-documento-requerido" role="row" @key="clavesDocumentos.De((documento.TipoDocumentoId, documento.DocumentoId))">
                                             <span class="celda-documento-nombre" role="cell">
                                                 @* Mismo criterio que el nombre de la incidencia de Empresa, arriba: a Consulta, texto. *@
                                                 <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionNombre">

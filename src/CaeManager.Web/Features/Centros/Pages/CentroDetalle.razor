@@ -155,17 +155,20 @@
                         }
                         else
                         {
-                            <Tarjeta Titulo="@Textos["VisitasActivasTitulo"]">
+                            <div class="centro-visitas-lista">
                                 <ListaLateral>
                                     @foreach (var visita in VisitasParaMostrar)
                                     {
                                         <ElementoListaLateral @key="visita.VisitaId">
-                                            <Etiqueta>@visita.FechaInicio.ToString("dd/MM/yyyy") – @visita.FechaFin.ToString("dd/MM/yyyy")</Etiqueta>
+                                            <Etiqueta>
+                                                <span>@visita.FechaInicio.ToString("dd/MM/yyyy") – @visita.FechaFin.ToString("dd/MM/yyyy")</span>
+                                                <Boton360 Nombre="@($"{_detalle.Nombre} · {visita.FechaInicio:dd/MM/yyyy} – {visita.FechaFin:dd/MM/yyyy}")" Href="@($"/visitas/{visita.VisitaId}")" />
+                                            </Etiqueta>
                                             <ChildContent><span>@Textos[visita.TrabajadoresCount == 1 ? "VisitaTrabajador" : "VisitaTrabajadores", visita.TrabajadoresCount]</span></ChildContent>
                                         </ElementoListaLateral>
                                     }
                                 </ListaLateral>
-                            </Tarjeta>
+                            </div>
                         }
                     }
                     @if (_pestana is PestanaDocumentacionCentro or PestanaRequisitos)
@@ -194,13 +197,14 @@
                                         <span role="columnheader">@Textos["PlataformaCaducidad360"]</span>
                                         <span role="columnheader">@Textos["PlataformaBloquea360"]</span>
                                     </div>
+                                    @{ var clavesDocumentos = new ClavesDeHermanos(); }
                                     @foreach (var empresa in _documentacionEmpresas)
                                     {
                                         @foreach (var documento in empresa.Documentos)
                                         {
-                                            <div class="centro-documentacion-fila" role="row" @key="(empresa.EmpresaId, documento.TipoDocumentoId)">
+                                            <div class="centro-documentacion-fila @(BloqueaPlataforma(documento) ? "centro-documentacion-bloquea" : documento.AcreditacionesEnElCentro?.Any(a => a.Estado == EstadoAcreditacion.Subida) == true ? "centro-documentacion-pendiente" : null)" role="row" @key="clavesDocumentos.De((empresa.EmpresaId, documento.TipoDocumentoId))">
                                                 <span role="cell" class="centro-documentacion-identidad">
-                                                    <span class="centro-documentacion-t" title="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]" aria-label="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]">T</span>
+                                                    <span class="centro-documentacion-t" data-estado="@EstadoDocumentoFicha360.Tono(documento.Estado)" title="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]" aria-label="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]">T</span>
                                                     <span class="centro-documentacion-nombre">
                                                         <span>@documento.Nombre</span>
                                                         <span class="centro-documentacion-empresa">
@@ -209,11 +213,25 @@
                                                         </span>
                                                     </span>
                                                 </span>
-                                                <span role="cell" class="centro-documentacion-plataforma">@Textos["PlataformaSinDatos360"]</span>
+                                                <span role="cell" class="centro-documentacion-plataforma">
+                                                    @if (documento.AcreditacionesEnElCentro is not { Count: > 0 })
+                                                    {
+                                                        @Textos["PlataformaSinDatos360"]
+                                                    }
+                                                    else
+                                                    {
+                                                        @foreach (var acreditacion in documento.AcreditacionesEnElCentro)
+                                                        {
+                                                            <Badge Tono="TonoPlataforma(acreditacion.Estado)" Tamano="TamanoBadge.Pequeno">@TextoPlataforma(acreditacion.Estado)</Badge>
+                                                            <span>@acreditacion.NombrePlataforma</span>
+                                                        }
+                                                    }
+                                                    <CaeManager.Web.Features.Documentos.Components.LineaPlataformaYReclamacion UltimaReclamacion="documento.UltimaReclamacion" Estado="documento.Estado" LaFilaYaDiceLaPlataforma="false" />
+                                                </span>
                                                 <span role="cell" class="centro-documentacion-fecha">
                                                     <TextoFechaCopiable Fecha="documento.FechaVencimiento" FechaEmision="documento.FechaEmision">@(documento.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</TextoFechaCopiable>
                                                 </span>
-                                                <span role="cell" title="@Textos["PlataformaSinDatos360"]">—</span>
+                                                <span role="cell">@(documento.AcreditacionesEnElCentro is { Count: > 0 } ? Textos[BloqueaPlataforma(documento) ? "PlataformaBloqueaSi360" : "PlataformaBloqueaNo360"].Value : "—")</span>
                                             </div>
                                         }
                                         @if (empresa.Documentos.Count == 0)
@@ -365,7 +383,7 @@
                                                 <span>
                                                     @if (UrlPortalCae.Normalizar(canal.UrlAcceso) is { } destino)
                                                     {
-                                                        <Boton Variante="@(canal.EsPrincipal ? VarianteBoton.Primario : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno"
+                                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                                                                Href="@destino" target="_blank" rel="noopener noreferrer"
                                                                title="@canal.UrlAcceso"
                                                                aria-label="@Textos["AbrirPortalCentroAccesible360", canal.UrlAcceso]">

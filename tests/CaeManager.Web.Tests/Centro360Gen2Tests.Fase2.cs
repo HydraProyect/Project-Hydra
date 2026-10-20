@@ -44,6 +44,8 @@ public partial class Centro360Gen2Tests
             .Should().Equal("Seguro", "Certificado");
         filas[0].QuerySelector(".centro-documentacion-t")!.GetAttribute("title").Should().Be("En TALVEG: Vencido");
         filas[1].QuerySelector(".centro-documentacion-t")!.GetAttribute("title").Should().Be("En TALVEG: Vigente");
+        filas[0].QuerySelector(".centro-documentacion-t")!.GetAttribute("data-estado").Should().Be("Peligro");
+        filas[1].QuerySelector(".centro-documentacion-t")!.GetAttribute("data-estado").Should().Be("Exito");
         filas.Should().OnlyContain(f => f.QuerySelector(".centro-documentacion-plataforma")!.TextContent.Trim() == "Sin datos de plataforma");
         // El DTO entrega la regla de bloqueo, pero no el estado de acreditación: nunca se infiere «Sí».
         filas.Should().OnlyContain(f => f.QuerySelectorAll("[role=cell]")[3].TextContent.Trim() == "—");
@@ -53,6 +55,29 @@ public partial class Centro360Gen2Tests
         Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Empresa, empresa, "Empresa Sur", "documentacion"));
         mediador.Enviadas.OfType<ObtenerDocumentacionEmpresasDeCentroQuery>().Should().ContainSingle().Which.CentroId.Should().Be(id);
         navegador.Uri.Should().Contain("q=Ana").And.Contain("estado=Vencido").And.Contain("extra=conservar");
+    }
+
+    [Theory]
+    [InlineData(EstadoAcreditacion.Rechazada, "Rechazado", "Sí", "centro-documentacion-bloquea")]
+    [InlineData(EstadoAcreditacion.PendienteDeSubir, "Pendiente de subir", "Sí", "centro-documentacion-bloquea")]
+    [InlineData(EstadoAcreditacion.Subida, "Pendiente de validación", "No", "centro-documentacion-pendiente")]
+    [InlineData(EstadoAcreditacion.Aceptada, "Validado", "No", "")]
+    public void Documentacion_Empresa_separa_acreditacion_en_el_Centro_de_vigencia_en_TALVEG(
+        EstadoAcreditacion estado, string texto, string bloquea, string clase)
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Sur");
+        mediador.DocumentacionEmpresas[id] = [new(Guid.NewGuid(), "Empresa Sur", false,
+            [new(Guid.NewGuid(), "Seguro", Guid.NewGuid(), EstadoDocumento.Vigente, new(2027, 1, 1), true,
+                AcreditacionesEnElCentro: [new(Guid.NewGuid(), "Nalanda", estado)])])];
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"centros/{id}?pestana=documentacion-centro");
+        var fila = Renderizar(id).Find(".centro-documentacion-fila");
+        fila.QuerySelector(".centro-documentacion-plataforma")!.TextContent.Should().Contain(texto).And.Contain("Nalanda");
+        fila.QuerySelectorAll("[role=cell]")[3].TextContent.Trim().Should().Be(bloquea);
+        fila.QuerySelector(".centro-documentacion-t")!.GetAttribute("title").Should().Be("En TALVEG: Vigente");
+        if (clase.Length > 0) fila.ClassList.Should().Contain(clase);
+        else fila.ClassList.Should().NotContain("centro-documentacion-bloquea").And.NotContain("centro-documentacion-pendiente");
     }
 
     [Fact]

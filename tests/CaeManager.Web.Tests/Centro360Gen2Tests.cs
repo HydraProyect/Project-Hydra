@@ -372,6 +372,8 @@ public partial class Centro360Gen2Tests : BunitContext
             .Should().Equal("10/10/2026 – 22/10/2026", "12/10/2026 – 14/10/2026");
         cut.FindAll("[role=tabpanel] .elemento-lista-lateral-detalles").Select(v => v.TextContent.Trim())
             .Should().Equal("3 trabajadores", "1 trabajador");
+        cut.FindAll(".centro-visitas-lista .boton-360").Select(v => v.GetAttribute("href"))
+            .Should().Equal(mediador.Visitas[id].OrderBy(v => v.FechaInicio).Select(v => $"/visitas/{v.VisitaId}"));
         cut.Find("[role=tabpanel] [hidden]").Should().NotBeNull();
     }
 

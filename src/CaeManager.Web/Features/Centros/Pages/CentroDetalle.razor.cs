@@ -537,6 +537,26 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         NavigationManager.NavigateTo($"/reportes?clienteId={_detalle!.ClienteId}&centroId={CentroId}");
 
     private IReadOnlyList<DocumentacionEmpresaCentroDto> _documentacionEmpresas = [];
+    private static bool BloqueaPlataforma(DocumentoEmpresaCentroDto documento) =>
+        documento.AcreditacionesEnElCentro?.Any(a => a.Estado is EstadoAcreditacion.Rechazada or EstadoAcreditacion.PendienteDeSubir) == true;
+
+    private string TextoPlataforma(EstadoAcreditacion estado) => Textos[estado switch
+    {
+        EstadoAcreditacion.Rechazada => "PlataformaRechazado360",
+        EstadoAcreditacion.PendienteDeSubir => "PlataformaPendienteSubir360",
+        EstadoAcreditacion.Subida => "PlataformaPendienteValidacion360",
+        EstadoAcreditacion.Aceptada => "PlataformaValidado360",
+        EstadoAcreditacion.NoRequerida => "PlataformaNoExigido360",
+        _ => "PlataformaSinDatos360"
+    }];
+
+    private static TonoBadge TonoPlataforma(EstadoAcreditacion estado) => estado switch
+    {
+        EstadoAcreditacion.Rechazada or EstadoAcreditacion.PendienteDeSubir => TonoBadge.Peligro,
+        EstadoAcreditacion.Subida => TonoBadge.Advertencia,
+        EstadoAcreditacion.Aceptada => TonoBadge.Exito,
+        _ => TonoBadge.Neutro
+    };
     private IReadOnlyList<DocumentacionRequeridaCentroDto> _requisitosCentro = [];
     private Guid? _lecturaDocumentacionCentro;
     private Guid? _lecturaRequisitosCentro;
