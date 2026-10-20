@@ -691,6 +691,29 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
         var lista = await new ObtenerClientesAutorizadosQueryHandler(runtime, runtime, restringido)
             .Handle(new ObtenerClientesAutorizadosQuery(), CancellationToken.None);
         lista.Where(c => !c.EsOrigen).Select(c => c.TenantId).Should().BeEquivalentTo([_a]);
+
+        // Dentro de A tampoco ve más: el rol Consulta le quita escritura, pero el alcance de datos
+        // sigue siendo el de su cartera, no el acceso total de Consulta.
+        await using var servicios = ServiciosDeAplicacion(_gestorUnico, Roles.Consulta, perfilAntesDeRestringir: Roles.GestorCae);
+        using (AmbitoTenantExplicito.Establecer(_a))
+            (await servicios.GetRequiredService<IAlcanceDatosService>().TieneAccesoTotalAsync())
+                .Should().BeFalse("la restricción a Consulta no amplía el alcance de un Gestor CAE");
+    }
+
+    [Fact]
+    public async Task Una_cuenta_sin_rol_limitada_a_Consulta_por_login_local_no_abre_ningun_Tenant_delegado()
+    {
+        // La restricción marca «sin perfil» (claim vacío): el Consulta que puso no entra sin cartera.
+        var sinRol = Guid.NewGuid();
+        await using var runtime = CrearRuntime(sinRol, tenantDeLaPeticion: _origen);
+        var usuario = CrearCurrentUserService(runtime, sinRol, Roles.Consulta, perfilAntesDeRestringir: string.Empty);
+
+        (await usuario.ObtenerPerfilQueDecideAlcanceAsync()).Should().BeNull();
+        using (AmbitoTenantExplicito.Establecer(_a))
+            (await usuario.ObtenerRolEfectivoAsync()).Should().BeNull();
+        (await new ObtenerClientesAutorizadosQueryHandler(runtime, runtime, usuario)
+                .Handle(new ObtenerClientesAutorizadosQuery(), CancellationToken.None))
+            .Where(c => !c.EsOrigen).Should().BeEmpty();
     }
 
     [Fact]

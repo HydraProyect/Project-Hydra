@@ -231,10 +231,16 @@ public class CurrentUserService(
     /// (<see cref="RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir"/>),
     /// para que la restricción nunca amplíe el alcance de un Gestor CAE de su cartera a toda la
     /// operación. No es rol efectivo: el rol sigue siendo <see cref="RolDeSesionEnOrigen"/>.
+    ///
+    /// <para>
+    /// Si el claim de la restricción existe, manda aunque esté vacío: la cuenta no traía rol y
+    /// el perfil es <c>null</c> (fallo cerrado), nunca el Consulta que la restricción le puso.
+    /// Sin restricción, el rol de sesión en origen.
+    /// </para>
     /// </summary>
     private static string? PerfilQueDecideAlcance(ClaimsPrincipal? usuario) =>
-        usuario?.FindFirst(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir) is { Value.Length: > 0 } antes
-            ? antes.Value
+        usuario?.FindFirst(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir) is { } antes
+            ? (antes.Value.Length > 0 ? antes.Value : null)
             : RolDeSesionEnOrigen(usuario);
 
     /// <summary>

@@ -69,8 +69,11 @@ public class CrearAsignacionOperadorDelegadoCommandHandler(
             return Result.Fallo<Guid>(Error.Crear("AsignacionOperadorDelegado.DelegacionNoEncontrada", "No encontramos esa delegación."));
 
         // La misma autoridad que crear la delegación, y por el mismo motivo:
-        // esta operación decide QUÉ PERSONA concreta va a poder entrar en los
-        // datos del Cliente Delegante, y con qué rol. Que la delegación ya
+        // por la vía heredada (acceso de soporte) esta operación decide QUÉ
+        // PERSONA concreta va a poder entrar en los datos del Cliente Delegante,
+        // y con qué rol. Por la vía de Asignación de Operación ya no lo decide
+        // (decisión Chris 2026-10-20): entra el perfil de organización del
+        // Operador CAE externo, y el Gestor CAE por su cartera. Que la delegación ya
         // exista autoriza a la Consultora como organización, no a cualquiera a
         // repartir accesos dentro de ella.
         //

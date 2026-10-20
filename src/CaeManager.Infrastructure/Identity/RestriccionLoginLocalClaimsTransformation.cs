@@ -50,13 +50,16 @@ public class RestriccionLoginLocalClaimsTransformation : IClaimsTransformation
         // El perfil anterior a la restricción no autoriza nada: solo decide qué Tenants
         // beneficiarios delegados alcanza la sesión (decisión Chris 2026-10-20). Sin él, un
         // Gestor CAE entrado con contraseña pasaría a Consulta y, con ese perfil, alcanzaría sin
-        // cartera todos los Tenants de la Asignación de Operación de su organización.
-        if (!identidad.HasClaim(c => c.Type == TipoClaimPerfilAntesDeRestringir)
-            // Con varios roles (estado que no debería existir) gana el más acotado.
-            && identidad.FindAll(identidad.RoleClaimType).Select(c => c.Value)
+        // cartera todos los Tenants de la Asignación de Operación de su organización. Se pone
+        // SIEMPRE al restringir: sin rol previo, vacío, que se lee como «sin perfil» (fallo
+        // cerrado); si faltara, una cuenta sin rol pasaría a Consulta y entraría sin cartera.
+        if (!identidad.HasClaim(c => c.Type == TipoClaimPerfilAntesDeRestringir))
+            identidad.AddClaim(new Claim(
+                TipoClaimPerfilAntesDeRestringir,
+                // Con varios roles (estado que no debería existir) gana el más acotado.
+                identidad.FindAll(identidad.RoleClaimType).Select(c => c.Value)
                     .OrderBy(r => r == Roles.GestorCae ? 0 : 1).ThenBy(r => r, StringComparer.Ordinal).FirstOrDefault()
-                is { } perfilAntes)
-            identidad.AddClaim(new Claim(TipoClaimPerfilAntesDeRestringir, perfilAntes));
+                ?? string.Empty));
 
         foreach (var claimRol in identidad.FindAll(identidad.RoleClaimType).ToList())
             identidad.RemoveClaim(claimRol);

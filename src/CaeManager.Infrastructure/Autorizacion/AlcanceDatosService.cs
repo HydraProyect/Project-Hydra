@@ -191,6 +191,25 @@ public class AlcanceDatosService(
     public async Task<bool> AlcanzaElTenantEnteroAsync(CancellationToken cancellationToken = default) =>
         await ObtenerAlcanceDeCarteraAsync(cancellationToken) is { SinRestriccion: true } or { TenantEntero: true };
 
+    /// <summary>
+    /// El rol con el que se calcula el alcance de datos: el rol efectivo, salvo en un Tenant
+    /// beneficiario delegado al que se entra por Asignación de Operación con perfil de origen
+    /// Gestor CAE y sesión limitada a Consulta por login local. Ahí el alcance sigue siendo el de
+    /// su Asignación de Cartera (decisión Chris 2026-10-20: la restricción nunca amplía el
+    /// alcance) y el rol efectivo, Consulta, solo quita escritura. Solo puede estrechar: devuelve
+    /// Gestor CAE, el perfil más acotado, y únicamente con la señal de la vía de Operación.
+    /// </summary>
+    private async Task<string?> RolQueDecideAlcanceAsync()
+    {
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
+        if (rol != Roles.GestorCae
+            && currentUserService is IEncargoDeAdministracionActual senal
+            && await senal.OperaPorAsignacionDeOperacionAsync()
+            && await currentUserService.ObtenerPerfilQueDecideAlcanceAsync() == Roles.GestorCae)
+            return Roles.GestorCae;
+        return rol;
+    }
+
     private async Task<bool> TieneAccesoTotalRealAsync(CancellationToken cancellationToken)
     {
         var tenant = ClaveTenantVigente();
@@ -244,8 +263,7 @@ public class AlcanceDatosService(
         }
         else
         {
-            var rol = await currentUserService.ObtenerRolEfectivoAsync();
-            accesoTotal = Roles.AlcanzaTodaLaOrganizacion(rol);
+            accesoTotal = Roles.AlcanzaTodaLaOrganizacion(await RolQueDecideAlcanceAsync());
         }
 
         Memoizar(_accesoTotal, tenant, generacion, accesoTotal);
@@ -327,7 +345,7 @@ public class AlcanceDatosService(
     {
         if (await TieneAccesoTotalRealAsync(cancellationToken)) return AlcanceCartera.Total;
 
-        var rol = await currentUserService.ObtenerRolEfectivoAsync();
+        var rol = await RolQueDecideAlcanceAsync();
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
         // Decisión Chris 2026-10-20: en un Tenant beneficiario delegado al que entra por la
@@ -633,7 +651,7 @@ public class AlcanceDatosService(
     /// Solo decide el rol: quien llama ya ha comprobado que la cartera no está vacía.
     /// </summary>
     private async Task<bool> IncluyeEstructuraPropiaAsync(CancellationToken cancellationToken) =>
-        await currentUserService.ObtenerRolEfectivoAsync() is Roles.GestorCae or Roles.CoordinadorCae
+        await RolQueDecideAlcanceAsync() is Roles.GestorCae or Roles.CoordinadorCae
         || (await ObtenerGestorDeLenteAsync(cancellationToken) is not null
             && await TieneAccesoTotalRealAsync(cancellationToken));
 

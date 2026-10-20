@@ -121,6 +121,18 @@ public class RestriccionLoginLocalClaimsTransformationTests
     }
 
     [Fact]
+    public async Task Una_cuenta_sin_rol_queda_marcada_sin_perfil_y_no_hereda_el_Consulta_de_la_restriccion()
+    {
+        var resultado = await CrearTransformacion(ssoConfigurado: true)
+            .TransformAsync(CrearPrincipal(esSso: false));
+
+        resultado.FindAll(ClaimTypes.Role).Select(c => c.Value).Should().Equal([Roles.Consulta]);
+        resultado.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            .Select(c => c.Value).Should().Equal([string.Empty],
+                "vacío es «sin perfil»: el Consulta puesto por la restricción no abre Tenants sin cartera");
+    }
+
+    [Fact]
     public async Task Sin_restriccion_no_se_anade_el_perfil_anterior()
     {
         (await CrearTransformacion(ssoConfigurado: false).TransformAsync(CrearPrincipal(esSso: false, Roles.GestorCae)))
