@@ -99,6 +99,9 @@ public class CuadroDireccionExtranjerosEndpointTests
         var resultado = await ExportarAsync($"?anyo=2026&mes=9&tenantId={Oleg.TenantId}", Mes());
 
         resultado.Contexto.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
+        resultado.Mediador.Consultas.Should().BeEmpty("con tenantId el libro sale de la consulta acotada a la vigencia, no del Excel general");
+        resultado.Mediador.ConsultasPorEmpresa.Should().ContainSingle().Which
+            .Should().Be(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 9, Oleg.TenantId));
         var filas = Filas(resultado.Contexto);
         filas.Should().HaveCount(2, "la cabecera y la única fila de la Empresa pedida");
         filas[1][9].Should().Be("Oleg Ivanov");
@@ -221,14 +224,26 @@ public class CuadroDireccionExtranjerosEndpointTests
     private sealed class MediatorDeExtranjeros(ExtranjerosDelMesDto respuesta) : IMediator
     {
         public List<ObtenerExtranjerosDelMesQuery> Consultas { get; } = [];
+        public List<ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery> ConsultasPorEmpresa { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
-            if (request is not ObtenerExtranjerosDelMesQuery consulta)
-                throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.");
-
-            Consultas.Add(consulta);
-            return Task.FromResult((TResponse)(object)respuesta);
+            switch (request)
+            {
+                case ObtenerExtranjerosDelMesQuery consulta:
+                    Consultas.Add(consulta);
+                    return Task.FromResult((TResponse)(object)respuesta);
+                case ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery porEmpresa:
+                    // El handler real acota a la Empresa pedida y a su vigencia (lo prueban FacturacionOperadorCaeTests y los de
+                    // integración): aquí el doble solo entrega las filas de esa Empresa.
+                    ConsultasPorEmpresa.Add(porEmpresa);
+                    return Task.FromResult((TResponse)(object)(respuesta with
+                    {
+                        Filas = respuesta.Filas.Where(f => porEmpresa.TenantId is not { } t || f.TenantId == t).ToList(),
+                    }));
+                default:
+                    throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.");
+            }
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>

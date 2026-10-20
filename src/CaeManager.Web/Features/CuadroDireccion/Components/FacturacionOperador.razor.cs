@@ -9,7 +9,7 @@ namespace CaeManager.Web.Features.CuadroDireccion.Components;
 /// <summary>
 /// La pestaña «Facturación» del Cuadro de dirección: lo que el Operador CAE externo cobra a cada Empresa gestionada.
 /// Lee <see cref="ObtenerFacturacionOperadorCaeQuery"/> (y, en el detalle de una Empresa, las filas de
-/// <see cref="ObtenerExtranjerosDelMesQuery"/>) y no calcula nada con precios propios. Quien no gestiona las tarifas
+/// <see cref="ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery"/>, acotadas a la vigencia como la cifra) y no calcula nada con precios propios. Quien no gestiona las tarifas
 /// (<c>PuedeFijarTarifas</c> en falso: el Coordinador CAE) ve las unidades y, donde iría un importe, el aviso «Los importes
 /// los ven Dirección CAE y Administrador», no «Sin dato»: el servidor le oculta los importes por regla, no por falta de dato.
 /// </summary>
@@ -26,6 +26,7 @@ public partial class FacturacionOperador : ComponentBase
 
     private ExtranjerosDelMesDto? _extranjeros;
     private bool _cargandoExtranjeros;
+    private int _versionCargandoExtranjeros;
     private bool _errorExtranjeros;
 
     /// <summary>El mes que se mira: lo manda la barra del Cuadro.</summary>
@@ -80,6 +81,7 @@ public partial class FacturacionOperador : ComponentBase
         _error = false;
         _extranjeros = null;
         _errorExtranjeros = false;
+        _cargandoExtranjeros = false;
         try
         {
             var datos = await Mediator.Send(new ObtenerFacturacionOperadorCaeQuery(Anyo, Mes));
@@ -117,27 +119,36 @@ public partial class FacturacionOperador : ComponentBase
             _empresa = id;
     }
 
-    /// <summary>Las filas Trabajador × Visita del mes, una sola vez por mes: son las del Excel y no cambian de Empresa a Empresa.</summary>
+    /// <summary>
+    /// Las filas Trabajador × Visita del mes de las Empresas gestionadas, una sola vez por mes y acotadas a la vigencia de su
+    /// Asignación de Operación (<see cref="ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery"/>): son las que cuenta la cifra y
+    /// las del Excel por Empresa. Cada carga lleva la versión del mes que la pidió: si el mes cambia mientras llega, su
+    /// respuesta (o su fallo) se descarta entera, sin tocar el estado del mes nuevo, y la carga del mes nuevo no queda
+    /// bloqueada por la anterior.
+    /// </summary>
     private async Task CargarExtranjerosAsync()
     {
-        if (_extranjeros is not null || _cargandoExtranjeros) return;
+        var version = _version;
+        if (_extranjeros is not null || (_cargandoExtranjeros && _versionCargandoExtranjeros == version)) return;
 
         _cargandoExtranjeros = true;
+        _versionCargandoExtranjeros = version;
         _errorExtranjeros = false;
-        var version = _version;
+        var (anyo, mes) = (Anyo, Mes);
         try
         {
-            var filas = await Mediator.Send(new ObtenerExtranjerosDelMesQuery(Anyo, Mes));
+            var filas = await Mediator.Send(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(anyo, mes));
             if (version == _version) _extranjeros = filas;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            if (version != _version) return;
             Logger.LogError(ex, "Error al cargar los Trabajadores extranjeros del mes.");
             _errorExtranjeros = true;
         }
         finally
         {
-            _cargandoExtranjeros = false;
+            if (version == _version) _cargandoExtranjeros = false;
         }
     }
 

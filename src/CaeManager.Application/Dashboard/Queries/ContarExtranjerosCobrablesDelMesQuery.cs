@@ -36,9 +36,10 @@ public record ConteoExtranjerosCobrablesTenantDto(Guid TenantId, string TenantNo
 /// <param name="PorTenant">Solo Tenants con alguna asignación cobrable en el mes.</param>
 /// <param name="TenantsSinAlcanceCompleto">Como en <see cref="ExtranjerosDelMesDto"/>.</param>
 /// <param name="SinCifras">Como en <see cref="ExtranjerosDelMesDto"/>.</param>
+/// <param name="IdsSinAlcanceCompleto">Como en <see cref="ExtranjerosDelMesDto"/>.</param>
 public record ConteoExtranjerosCobrablesDelMesDto(
     int Anyo, int Mes, IReadOnlyList<ConteoExtranjerosCobrablesTenantDto> PorTenant, int TenantsSinAlcanceCompleto,
-    CuadroDireccionSinCifras? SinCifras = null);
+    CuadroDireccionSinCifras? SinCifras = null, IReadOnlyList<Guid>? IdsSinAlcanceCompleto = null);
 
 public class ContarExtranjerosCobrablesDelMesQueryHandler(IMediator mediator)
     : IRequestHandler<ContarExtranjerosCobrablesDelMesQuery, ConteoExtranjerosCobrablesDelMesDto>
@@ -58,7 +59,8 @@ public class ContarExtranjerosCobrablesDelMesQueryHandler(IMediator mediator)
             .ToList();
 
         return new ConteoExtranjerosCobrablesDelMesDto(
-            extranjeros.Anyo, extranjeros.Mes, porTenant, extranjeros.TenantsSinAlcanceCompleto, extranjeros.SinCifras);
+            extranjeros.Anyo, extranjeros.Mes, porTenant, extranjeros.TenantsSinAlcanceCompleto, extranjeros.SinCifras,
+            extranjeros.IdsSinAlcanceCompleto);
     }
 
     /// <summary>

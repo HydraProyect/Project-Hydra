@@ -50,9 +50,33 @@ public partial class CuadroDireccionTests : BunitContext
         public Func<ExtranjerosDelMesDto>? Extranjeros { get; init; }
         public Func<ConteoExtranjerosCobrablesDelMesDto>? Conteo { get; init; }
         public List<FijarTarifaOperadorCaeCommand> TarifasFijadas { get; } = [];
+        public Func<EmpresasGestionadasDelMesDto>? Gestionadas { get; init; }
+        public List<ContarExtranjerosCobrablesDelMesQuery> ConteosPedidos { get; } = [];
+        public List<ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery> ExtranjerosGestionadosPedidos { get; } = [];
+        /// <summary>Si se fija, el detalle por Empresa tarda en responder lo que tarde esta tarea (para probar el cambio de mes en vuelo).</summary>
+        public Func<ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery, Task<ExtranjerosDelMesDto>>? ExtranjerosGestionadosAsync { get; init; }
+
+        private ConteoExtranjerosCobrablesDelMesDto RegistrarConteo(ContarExtranjerosCobrablesDelMesQuery q)
+        {
+            ConteosPedidos.Add(q);
+            return Conteo?.Invoke() ?? new ConteoExtranjerosCobrablesDelMesDto(q.Anyo, q.Mes, [], 0);
+        }
+
+        private Task<ExtranjerosDelMesDto> ExtranjerosGestionados(ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery q)
+        {
+            ExtranjerosGestionadosPedidos.Add(q);
+            if (ExtranjerosGestionadosAsync is { } asincrono)
+                return asincrono(q);
+
+            var todo = Extranjeros?.Invoke() ?? new ExtranjerosDelMesDto(q.Anyo, q.Mes, [], 0);
+            return Task.FromResult(q.TenantId is { } t ? todo with { Filas = todo.Filas.Where(f => f.TenantId == t).ToList() } : todo);
+        }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            if (request is ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery gestionados)
+                return (Task<TResponse>)(object)ExtranjerosGestionados(gestionados);
+
             object? respuesta = request switch
             {
                 ObtenerCuadroDireccionQuery => cuadro(),
@@ -63,7 +87,8 @@ public partial class CuadroDireccionTests : BunitContext
                 ReabrirMesCuadroDireccionCommand c => Registrar(c),
                 ObtenerFacturacionOperadorCaeQuery q => Facturacion?.Invoke() ?? throw new NotSupportedException("Falta la facturación del Operador CAE en este test."),
                 ObtenerExtranjerosDelMesQuery q => Extranjeros?.Invoke() ?? new ExtranjerosDelMesDto(q.Anyo, q.Mes, [], 0),
-                ContarExtranjerosCobrablesDelMesQuery q => Conteo?.Invoke() ?? new ConteoExtranjerosCobrablesDelMesDto(q.Anyo, q.Mes, [], 0),
+                ContarExtranjerosCobrablesDelMesQuery q => RegistrarConteo(q),
+                ObtenerEmpresasGestionadasDelMesQuery => Gestionadas?.Invoke() ?? EmpresasGestionadasDelMesDto.Ninguna,
                 FijarTarifaOperadorCaeCommand c => RegistrarTarifa(c),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             };
@@ -132,10 +157,14 @@ public partial class CuadroDireccionTests : BunitContext
         Func<ObtenerSerieCuadroDireccionQuery, SerieCuadroDireccionDto>? serie = null,
         ComunicacionesCuadroDireccionDto? comunicaciones = null,
         GestionesPorDiaCuadroDireccionDto? gestionesDia = null,
-        FacturacionOperadorCaeDto? facturacion = null, ExtranjerosDelMesDto? extranjeros = null, ConteoExtranjerosCobrablesDelMesDto? conteo = null)
+        FacturacionOperadorCaeDto? facturacion = null, ExtranjerosDelMesDto? extranjeros = null, ConteoExtranjerosCobrablesDelMesDto? conteo = null,
+        EmpresasGestionadasDelMesDto? gestionadas = null,
+        Func<ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery, Task<ExtranjerosDelMesDto>>? extranjerosGestionadosAsync = null)
     {
         var falso = new MediatorFalso(() => cuadro)
         {
+            Gestionadas = gestionadas is null ? null : () => gestionadas,
+            ExtranjerosGestionadosAsync = extranjerosGestionadosAsync,
             Serie = serie,
             Facturacion = facturacion is null ? null : () => facturacion,
             Extranjeros = extranjeros is null ? null : () => extranjeros,

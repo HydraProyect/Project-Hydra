@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Common;
+using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Dashboard.TarifasOperadorCae;
@@ -356,6 +356,251 @@ public class FacturacionOperadorCaeTests
             request is ObtenerExtranjerosDelMesQuery
                 ? Task.FromResult((TResponse)(object)excel)
                 : throw new NotSupportedException(request.GetType().Name);
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            throw new NotSupportedException();
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification => Task.CompletedTask;
+    }
+
+    // ------------------------------------------------ cifra, detalle por Empresa y Excel: el mismo borde de vigencia
+
+    private static readonly DateTime FinOctubre = new MesCuadroDireccion(2026, 10).FinUtc;
+
+    private static DateTime Utc(int mes, int dia, int hora = 0, int minuto = 0) =>
+        new(2026, mes, dia, hora, minuto, 0, DateTimeKind.Utc);
+
+    private static (ObtenerExtranjerosDeEmpresasGestionadasDelMesQueryHandler Detalle, ContarExtranjerosCobrablesDelMesQueryHandler Conteo)
+        ArmarDetalle(ExtranjerosDelMesDto excel, IReadOnlyList<AsignacionOperacion> asignaciones, string rol = "DireccionCae")
+    {
+        var empresas = new ObtenerEmpresasGestionadasDelMesQueryHandler(new UsuarioFalso(rol, Operador), new OperacionesFalsas(asignaciones));
+        var mediador = new MediadorPorFuncion(async request => request switch
+        {
+            ObtenerExtranjerosDelMesQuery => excel,
+            ObtenerEmpresasGestionadasDelMesQuery q => await empresas.Handle(q, CancellationToken.None),
+            _ => throw new NotSupportedException(request.GetType().Name),
+        });
+        return (new ObtenerExtranjerosDeEmpresasGestionadasDelMesQueryHandler(mediador), new ContarExtranjerosCobrablesDelMesQueryHandler(mediador));
+    }
+
+    [Fact]
+    public async Task El_detalle_por_Empresa_y_su_Excel_se_acotan_a_la_vigencia_igual_que_el_conteo_con_una_Asignacion_que_empieza_el_dia_10()
+    {
+        var excel = new ExtranjerosDelMesDto(2026, 10,
+        [
+            FilaExcel(Ebro, new DateOnly(2026, 10, 5)),
+            FilaExcel(Ebro, new DateOnly(2026, 10, 9)),
+            FilaExcel(Ebro, new DateOnly(2026, 10, 10)),
+            FilaExcel(Ebro, new DateOnly(2026, 10, 28)),
+        ], 0);
+        var (detalle, conteo) = ArmarDetalle(excel, [Externa(Ebro, Operador, Utc(10, 10))]);
+
+        var delExcel = await detalle.Handle(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10, Ebro), CancellationToken.None);
+        var todas = await detalle.Handle(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10), CancellationToken.None);
+        var tramos = (await new ObtenerEmpresasGestionadasDelMesQueryHandler(new UsuarioFalso("DireccionCae", Operador), new OperacionesFalsas([Externa(Ebro, Operador, Utc(10, 10))]))
+            .Handle(new ObtenerEmpresasGestionadasDelMesQuery(2026, 10), CancellationToken.None)).Tramos;
+        var cifra = await conteo.Handle(new ContarExtranjerosCobrablesDelMesQuery(2026, 10, tramos), CancellationToken.None);
+
+        delExcel.Filas.Select(f => f.FechaIngreso).Should().Equal(new DateOnly(2026, 10, 10), new DateOnly(2026, 10, 28));
+        todas.Filas.Should().HaveCount(2);
+        delExcel.Filas.Count.Should().Be(cifra.PorTenant.Single().Asignaciones, "la cifra de la pestaña, el detalle y el Excel no pueden divergir");
+    }
+
+    [Fact]
+    public async Task El_filtro_por_Tenant_no_devuelve_nada_del_propio_Tenant_del_Operador()
+    {
+        var excel = new ExtranjerosDelMesDto(2026, 10, [FilaExcel(Operador, new DateOnly(2026, 10, 12)), FilaExcel(Ebro, new DateOnly(2026, 10, 12))], 0);
+        var (detalle, _) = ArmarDetalle(excel,
+        [
+            Externa(Ebro, Operador, Enero),
+            // El Operador sobre sí mismo (Asignación interna) no es una Empresa gestionada.
+            AsignacionOperacion.Interna(Operador, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(Guid.NewGuid()), Enero, null, Enero),
+        ]);
+
+        var propio = await detalle.Handle(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10, Operador), CancellationToken.None);
+        var general = await detalle.Handle(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10), CancellationToken.None);
+
+        propio.Filas.Should().BeEmpty("el Operador CAE no se factura a sí mismo");
+        general.Filas.Select(f => f.TenantId).Should().Equal(Ebro);
+    }
+
+    [Fact]
+    public async Task El_filtro_por_Tenant_no_devuelve_nada_de_un_Tenant_sin_Asignacion_externa_vigente_en_el_mes_ni_de_otro_Operador()
+    {
+        var cerrada = Guid.NewGuid();
+        var futura = Guid.NewGuid();
+        var sinAsignacion = Guid.NewGuid();
+        var delOtroOperador = Guid.NewGuid();
+        var dia = new DateOnly(2026, 10, 12);
+        var excel = new ExtranjerosDelMesDto(2026, 10,
+            new[] { cerrada, futura, sinAsignacion, delOtroOperador, Ebro }.Select(t => FilaExcel(t, dia)).ToList(), 0);
+        var (detalle, _) = ArmarDetalle(excel,
+        [
+            Externa(Ebro, Operador, Enero),
+            Externa(cerrada, Operador, Enero, hasta: Utc(9, 30)),
+            Externa(futura, Operador, Utc(11, 1)),
+            Externa(delOtroOperador, Guid.NewGuid(), Enero),
+        ]);
+
+        foreach (var ajeno in new[] { cerrada, futura, sinAsignacion, delOtroOperador })
+        {
+            var dto = await detalle.Handle(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10, ajeno), CancellationToken.None);
+            dto.Filas.Should().BeEmpty($"{ajeno} no es una Empresa gestionada en octubre");
+        }
+
+        (await detalle.Handle(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10, Ebro), CancellationToken.None))
+            .Filas.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Quien_no_es_de_un_Operador_CAE_no_recibe_filas_del_detalle_por_Empresa()
+    {
+        var empresas = new ObtenerEmpresasGestionadasDelMesQueryHandler(new UsuarioFalso("DireccionCae", Guid.NewGuid()), new OperacionesFalsas([Externa(Ebro, Operador, Enero)]));
+
+        var dto = await empresas.Handle(new ObtenerEmpresasGestionadasDelMesQuery(2026, 10), CancellationToken.None);
+
+        dto.EsOperadorCae.Should().BeFalse();
+        dto.Tramos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_Operador_CAE_sin_Empresas_vigentes_en_el_mes_sigue_siendo_Operador_con_cero_tramos()
+    {
+        var empresas = new ObtenerEmpresasGestionadasDelMesQueryHandler(
+            new UsuarioFalso("DireccionCae", Operador), new OperacionesFalsas([Externa(Ebro, Operador, Enero, hasta: Utc(9, 30))]));
+
+        var dto = await empresas.Handle(new ObtenerEmpresasGestionadasDelMesQuery(2026, 10), CancellationToken.None);
+
+        dto.EsOperadorCae.Should().BeTrue("tiene Asignaciones externas, aunque ninguna esté en vigor en octubre");
+        dto.Tramos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task El_aviso_de_Tenants_sin_alcance_completo_cuenta_solo_las_Empresas_gestionadas()
+    {
+        var noGestionado = Guid.NewGuid();
+        var conteo = new ConteoExtranjerosCobrablesDelMesDto(2026, 10, [], 2, IdsSinAlcanceCompleto: [Ebro, noGestionado]);
+        var (handler, _) = Armar(conteo, Serie([]), null);
+
+        var dto = await handler.Handle(new ObtenerFacturacionOperadorCaeQuery(2026, 10), CancellationToken.None);
+
+        dto.TenantsSinAlcanceCompleto.Should().Be(1, "el Tenant que el Operador no gestiona no es de esta Facturación");
+    }
+
+    [Fact]
+    public async Task El_detalle_por_Empresa_cuenta_como_sin_alcance_solo_la_Empresa_pedida()
+    {
+        var otraGestionada = Guid.NewGuid();
+        var excel = new ExtranjerosDelMesDto(2026, 10, [], 2, IdsSinAlcanceCompleto: [Ebro, otraGestionada]);
+        var (detalle, _) = ArmarDetalle(excel, [Externa(Ebro, Operador, Enero), Externa(otraGestionada, Operador, Enero)]);
+
+        var pedida = await detalle.Handle(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10, Ebro), CancellationToken.None);
+        var todas = await detalle.Handle(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10), CancellationToken.None);
+
+        pedida.TenantsSinAlcanceCompleto.Should().Be(1);
+        todas.TenantsSinAlcanceCompleto.Should().Be(2);
+    }
+
+    // ------------------------------------------------ defensa en profundidad de los importes
+
+    [Fact]
+    public async Task Sin_permiso_sobre_las_tarifas_no_viaja_ni_la_cuota_ni_un_importe_aunque_la_serie_traiga_lineas()
+    {
+        var conteo = new ConteoExtranjerosCobrablesDelMesDto(2026, 10, [new ConteoExtranjerosCobrablesTenantDto(Ebro, "Ebro", 7, 5)], 0);
+        var serie = Serie([Linea(Ext, 9, 40m), Linea(ConceptoTarifaOperadorCae.CentroNuevo, 2, 25m)]);
+        var (handler, _) = Armar(conteo, serie, tarifas: null, rol: "CoordinadorCae");
+
+        var dto = await handler.Handle(new ObtenerFacturacionOperadorCaeQuery(2026, 10), CancellationToken.None);
+
+        var fila = dto.Filas.Single();
+        fila.Cuota.Should().BeNull();
+        fila.Moneda.Should().BeNull();
+        new[] { fila.Extranjero, fila.Centro, fila.Obra }.Should().OnlyContain(c => c.PrecioUnitario == null && c.Importe == 0m && !c.CobroActivo);
+        fila.Ingreso.Should().Be(new IngresoPorGestionOperadorCaeDto(null, null, null, null));
+        dto.Total.Cuota.Should().Be(0m);
+        dto.PuedeFijarTarifas.Should().BeFalse();
+        fila.Extranjero.Unidades.Should().Be(7, "las unidades sí se ven");
+    }
+
+    // ------------------------------------------------ el borde de día de negocio de los tramos
+
+    [Fact]
+    public void Un_tramo_que_empieza_a_las_2230_UTC_empieza_el_dia_siguiente_en_Madrid()
+    {
+        // 9 de octubre 22:30Z son las 00:30 del día 10 en Madrid (CEST, UTC+2).
+        var tramo = new TramoDeVigencia(Utc(10, 9, 22, 30), Utc(10, 19, 22, 30));
+
+        ContarExtranjerosCobrablesDelMesQueryHandler.EnAlgunTramo(new DateOnly(2026, 10, 9), [tramo]).Should().BeFalse("en Madrid ya es el día 10");
+        ContarExtranjerosCobrablesDelMesQueryHandler.EnAlgunTramo(new DateOnly(2026, 10, 10), [tramo]).Should().BeTrue();
+        ContarExtranjerosCobrablesDelMesQueryHandler.EnAlgunTramo(new DateOnly(2026, 10, 19), [tramo]).Should().BeTrue();
+        // El fin, 19 22:30Z, es el día 20 en Madrid: el día en que se cierra no cuenta.
+        ContarExtranjerosCobrablesDelMesQueryHandler.EnAlgunTramo(new DateOnly(2026, 10, 20), [tramo]).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Un_tramo_a_caballo_del_cambio_de_hora_de_octubre_usa_el_dia_de_Madrid_a_ambos_lados()
+    {
+        // En 2026 los relojes se atrasan el domingo 25 de octubre (a las 01:00Z, de CEST a CET): 24 22:30Z son las 00:30 del
+        // 25 (UTC+2) y 25 22:30Z son las 23:30 del 25 (UTC+1), el mismo día; 25 23:00Z ya es el 26 a las 00:00.
+        var empieza = new TramoDeVigencia(Utc(10, 24, 22, 30), FinOctubre);
+        var termina = new TramoDeVigencia(new MesCuadroDireccion(2026, 10).InicioUtc, Utc(10, 25, 23, 0));
+
+        ContarExtranjerosCobrablesDelMesQueryHandler.EnAlgunTramo(new DateOnly(2026, 10, 24), [empieza]).Should().BeFalse();
+        ContarExtranjerosCobrablesDelMesQueryHandler.EnAlgunTramo(new DateOnly(2026, 10, 25), [empieza]).Should().BeTrue("el 25 empieza a las 00:30 de Madrid");
+        ContarExtranjerosCobrablesDelMesQueryHandler.EnAlgunTramo(new DateOnly(2026, 10, 31), [empieza]).Should().BeTrue();
+
+        ContarExtranjerosCobrablesDelMesQueryHandler.EnAlgunTramo(new DateOnly(2026, 10, 25), [termina]).Should().BeTrue("el día del cambio de hora entero está dentro");
+        ContarExtranjerosCobrablesDelMesQueryHandler.EnAlgunTramo(new DateOnly(2026, 10, 26), [termina]).Should().BeFalse("25 23:00Z ya es el día 26 en Madrid");
+    }
+
+    [Fact]
+    public void Dos_tramos_contiguos_no_cuentan_dos_veces_el_dia_del_corte_y_no_dejan_un_dia_sin_contar()
+    {
+        var corte = Utc(10, 14, 22, 0); // las 00:00 del 15 en Madrid (CEST)
+        var primero = new TramoDeVigencia(new MesCuadroDireccion(2026, 10).InicioUtc, corte);
+        var segundo = new TramoDeVigencia(corte, FinOctubre);
+
+        // Cada día de octubre cae en exactamente uno de los dos.
+        for (var dia = 1; dia <= 31; dia++)
+        {
+            var d = new DateOnly(2026, 10, dia);
+            var enPrimero = ContarExtranjerosCobrablesDelMesQueryHandler.EnAlgunTramo(d, [primero]);
+            var enSegundo = ContarExtranjerosCobrablesDelMesQueryHandler.EnAlgunTramo(d, [segundo]);
+            (enPrimero ^ enSegundo).Should().BeTrue($"el {dia} de octubre cuenta una sola vez");
+        }
+
+        ContarExtranjerosCobrablesDelMesQueryHandler.EnAlgunTramo(new DateOnly(2026, 10, 14), [primero]).Should().BeTrue();
+        ContarExtranjerosCobrablesDelMesQueryHandler.EnAlgunTramo(new DateOnly(2026, 10, 15), [segundo]).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Dos_Asignaciones_contiguas_se_unen_en_un_solo_tramo_y_con_hueco_siguen_separadas()
+    {
+        var mes = new MesCuadroDireccion(2026, 10);
+        var contiguas = ValoracionOperadorCae.TramosEnElMes(
+            [new VigenciaAsignacionOperacion(mes.InicioUtc, Utc(10, 15)), new VigenciaAsignacionOperacion(Utc(10, 15), null)], mes.InicioUtc, mes.FinUtc);
+        var conHueco = ValoracionOperadorCae.TramosEnElMes(
+            [new VigenciaAsignacionOperacion(mes.InicioUtc, Utc(10, 10)), new VigenciaAsignacionOperacion(Utc(10, 20), null)], mes.InicioUtc, mes.FinUtc);
+
+        contiguas.Should().ContainSingle().Which.Should().Be(new TramoDeVigencia(mes.InicioUtc, mes.FinUtc));
+        conHueco.Should().HaveCount(2);
+    }
+
+    private sealed class MediadorPorFuncion(Func<object, Task<object?>> responde) : IMediator
+    {
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            (TResponse)(await responde(request))!;
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
             throw new NotSupportedException();

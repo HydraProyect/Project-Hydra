@@ -34,10 +34,14 @@ public static class CuadroDireccionEndpoints
         int anyo, int mes, Guid? tenantId, HttpContext contexto, IMediator mediator, IRegistroExportacionService registroExportacion,
         IStringLocalizer<TextosCuadroDireccion> textos, CancellationToken cancellationToken)
     {
-        var extranjeros = await mediator.Send(new ObtenerExtranjerosDelMesQuery(anyo, mes), cancellationToken);
-        // Con tenantId, solo las filas de esa Empresa gestionada (el detalle de la pestaña Facturación). La consulta ya dejó fuera
-        // a quien mira no alcanza: un Id ajeno da un libro sin filas, nunca datos de otro Tenant.
-        var delMes = tenantId is { } empresa ? extranjeros.Filas.Where(f => f.TenantId == empresa).ToList() : extranjeros.Filas;
+        // Con tenantId, solo las filas de esa Empresa gestionada y solo las de la vigencia de la Asignación de Operación externa
+        // del Operador CAE: las mismas que cuenta la pestaña Facturación (ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery), para
+        // que cifra y Excel no diverjan. Un Id que no es una Empresa gestionada en el mes (el propio Tenant del Operador, uno sin
+        // Asignación externa en vigor o ajeno) da un libro sin filas, nunca datos de otro Tenant. Sin tenantId, el Excel general.
+        var extranjeros = tenantId is { } empresa
+            ? await mediator.Send(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(anyo, mes, empresa), cancellationToken)
+            : await mediator.Send(new ObtenerExtranjerosDelMesQuery(anyo, mes), cancellationToken);
+        var delMes = extranjeros.Filas;
         // Un mes futuro no tiene Visitas que cobrar todavía: se rechaza igual que uno inexistente.
         if (extranjeros.SinCifras is CuadroDireccionSinCifras.MesNoValido or CuadroDireccionSinCifras.MesFuturo)
             return Results.BadRequest();

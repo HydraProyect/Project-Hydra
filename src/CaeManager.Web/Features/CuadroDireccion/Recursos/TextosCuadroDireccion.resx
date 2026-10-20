@@ -850,7 +850,7 @@
     <value> · {0} sin tarifa</value>
   </data>
   <data name="FactImportesReservados" xml:space="preserve">
-    <value>Los importes los ven Dirección CAE y Administrador</value>
+    <value>Los importes los ven Dirección CAE y Administrador de la organización</value>
   </data>
   <data name="FactImporteReservado" xml:space="preserve">
     <value>Reservado</value>
@@ -1009,7 +1009,7 @@
     <value>Cuota de {0}</value>
   </data>
   <data name="FactTarifaCongelada" xml:space="preserve">
-    <value>Tarifa congelada al cierre</value>
+    <value>Mes cerrado: los extranjeros se cuentan en vivo</value>
   </data>
   <data name="FactColConcepto" xml:space="preserve">
     <value>Concepto</value>

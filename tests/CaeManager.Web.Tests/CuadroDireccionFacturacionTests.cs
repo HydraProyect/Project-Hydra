@@ -1,9 +1,11 @@
 using Bunit;
+using CaeManager.Application.Dashboard;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Dashboard;
 using CaeManager.Infrastructure.Identity;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using CuadroDireccionPagina = CaeManager.Web.Features.CuadroDireccion.Pages.CuadroDireccion;
 
 namespace CaeManager.Web.Tests;
@@ -38,9 +40,11 @@ public partial class CuadroDireccionTests
     }
 
     private IRenderedComponent<CuadroDireccionPagina> PintarFacturacion(
-        FacturacionOperadorCaeDto facturacion, string rol, out MediatorFalso mediador, ExtranjerosDelMesDto? extranjeros = null)
+        FacturacionOperadorCaeDto facturacion, string rol, out MediatorFalso mediador, ExtranjerosDelMesDto? extranjeros = null,
+        Func<ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery, Task<ExtranjerosDelMesDto>>? extranjerosGestionadosAsync = null)
     {
-        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), rol, out mediador, facturacion: facturacion, extranjeros: extranjeros);
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), rol, out mediador, facturacion: facturacion, extranjeros: extranjeros,
+            extranjerosGestionadosAsync: extranjerosGestionadosAsync);
         IrA(cut, "Facturación");
         cut.WaitForAssertion(() => cut.Find("[data-facturacion=operador] [data-fact-kpi=cuota]"));
         return cut;
@@ -54,9 +58,76 @@ public partial class CuadroDireccionTests
             hoy.Year, hoy.Month,
             [new ConteoExtranjerosCobrablesTenantDto(TenantA, "Refrielectric S.A.", 7, 5), new ConteoExtranjerosCobrablesTenantDto(TenantB, "Montajes Ebro S.L.", 3, 3)], 0);
 
-        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _, conteo: conteo);
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out var mediador, conteo: conteo);
 
         cut.Find("[data-kpi=extranjeros] .cuadro-kpi-valor").TextContent.Trim().Should().Be("10");
+        // Quien no es de un Operador CAE no tiene Empresas gestionadas que acotar: el conteo es el de todo el ámbito, como antes.
+        mediador.ConteosPedidos.Should().ContainSingle().Which.TramosPorTenant.Should().BeNull();
+    }
+
+    [Fact]
+    public void El_KPI_de_Extranjeros_de_quien_es_de_un_Operador_CAE_usa_los_mismos_tramos_de_vigencia_que_la_Facturacion()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var tramos = new Dictionary<Guid, IReadOnlyList<TramoDeVigencia>>
+        {
+            [TenantA] = [new TramoDeVigencia(new DateTime(hoy.Year, hoy.Month, 1, 0, 0, 0, DateTimeKind.Utc), new DateTime(hoy.Year, hoy.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(1))],
+        };
+        var conteo = new ConteoExtranjerosCobrablesDelMesDto(
+            hoy.Year, hoy.Month, [new ConteoExtranjerosCobrablesTenantDto(TenantA, "Refrielectric S.A.", 7, 5)], 0);
+
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out var mediador, conteo: conteo,
+            gestionadas: new EmpresasGestionadasDelMesDto(true, tramos));
+
+        cut.Find("[data-kpi=extranjeros] .cuadro-kpi-valor").TextContent.Trim().Should().Be("7");
+        mediador.ConteosPedidos.Should().ContainSingle().Which.TramosPorTenant.Should().BeSameAs(tramos,
+            "el KPI y la pestaña Facturación cuentan con los mismos tramos, así que no muestran dos cifras de extranjeros distintas");
+    }
+
+    [Fact]
+    public void Un_Operador_CAE_sin_ninguna_Empresa_gestionada_en_el_mes_cuenta_cero_y_no_todo_el_ambito()
+    {
+        var vacios = new Dictionary<Guid, IReadOnlyList<TramoDeVigencia>>();
+
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out var mediador,
+            gestionadas: new EmpresasGestionadasDelMesDto(true, vacios));
+
+        mediador.ConteosPedidos.Should().ContainSingle().Which.TramosPorTenant.Should().NotBeNull().And.BeEmpty();
+        cut.Find("[data-kpi=extranjeros] .cuadro-kpi-valor").TextContent.Trim().Should().Be("0");
+    }
+
+    [Fact]
+    public void Cambiar_de_mes_con_el_detalle_cargando_descarta_la_respuesta_vieja_y_carga_la_del_mes_nuevo()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var anterior = hoy.AddMonths(-1);
+        var viejo = new TaskCompletionSource<ExtranjerosDelMesDto>();
+        ExtranjerosDelMesDto Dto(DateOnly dia, string trabajador) => new(dia.Year, dia.Month,
+        [
+            new FilaExtranjeroDelMesDto(TenantA, "Refrielectric S.A.", dia, null, null, null, null, "Fábrica Calatayud",
+                dia, dia.AddDays(1), trabajador, "Pasaporte X1", null, Guid.NewGuid()),
+        ], 0);
+        var falso = new MediatorFalso(() => Cuadro(EstadoCifraMensual.Parcial))
+        {
+            Facturacion = () => Facturacion(),
+            ExtranjerosGestionadosAsync = q => q.Mes == anterior.Month ? viejo.Task : Task.FromResult(Dto(hoy, "Trabajadora del mes nuevo")),
+        };
+        Services.AddScoped<MediatR.IMediator>(_ => falso);
+        Services.AddScoped<CaeManager.Web.Components.DesignSystem.ToastService>();
+        Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(Microsoft.Extensions.Logging.Abstractions.NullLogger<>));
+
+        var cut = Render<CaeManager.Web.Features.CuadroDireccion.Components.FacturacionOperador>(ps => ps
+            .Add(p => p.Anyo, anterior.Year).Add(p => p.Mes, anterior.Month).Add(p => p.NombreMes, "mes anterior"));
+        cut.WaitForElement($"[data-tabla=facturacion-empresas] tr[data-empresa='{TenantA}'] .fact-enlace").Click();
+        cut.WaitForAssertion(() => falso.ExtranjerosGestionadosPedidos.Should().ContainSingle());
+
+        // El mes cambia mientras el detalle del anterior sigue cargando; luego llega tarde la respuesta del mes viejo.
+        cut.Render(ps => ps.Add(p => p.Anyo, hoy.Year).Add(p => p.Mes, hoy.Month).Add(p => p.NombreMes, "este mes"));
+        viejo.SetResult(Dto(anterior, "Trabajador del mes viejo"));
+
+        cut.WaitForAssertion(() => cut.Find("[data-tabla=extranjeros-empresa]").TextContent.Should().Contain("Trabajadora del mes nuevo"));
+        cut.Find("[data-tabla=extranjeros-empresa]").TextContent.Should().NotContain("Trabajador del mes viejo");
+        falso.ExtranjerosGestionadosPedidos.Select(q => q.Mes).Should().Equal(anterior.Month, hoy.Month);
     }
 
     [Fact]
@@ -106,7 +177,7 @@ public partial class CuadroDireccionTests
     {
         var cut = PintarFacturacion(Facturacion(puedeFijar: false), Roles.CoordinadorCae, out _);
 
-        const string Aviso = "Los importes los ven Dirección CAE y Administrador";
+        const string Aviso = "Los importes los ven Dirección CAE y Administrador de la organización";
         cut.Find("[data-fact-kpi=cuota] b").TextContent.Trim().Should().Be(Aviso, "es una regla de rol, no un dato que falte");
         cut.Find("[data-fact=importes-reservados]").TextContent.Trim().Should().Be(Aviso);
         var fila = cut.Find($"[data-tabla=facturacion-empresas] tr[data-empresa='{TenantA}']");

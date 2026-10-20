@@ -296,7 +296,12 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
         try
         {
-            var conteo = await Mediator.Send(new ContarExtranjerosCobrablesDelMesQuery(_anyo, _mes), _ciclo.Token);
+            // Para quien es de un Operador CAE, la misma cifra que la pestaña Facturación: solo sus Empresas gestionadas y solo
+            // dentro de la vigencia de su Asignación de Operación externa. Para cualquier otro rol (un Tenant que no opera a
+            // nadie) no hay Empresas gestionadas que acotar y sigue el comportamiento previo: todo el ámbito que alcanza.
+            var gestionadas = await Mediator.Send(new ObtenerEmpresasGestionadasDelMesQuery(_anyo, _mes), _ciclo.Token);
+            var conteo = await Mediator.Send(
+                new ContarExtranjerosCobrablesDelMesQuery(_anyo, _mes, gestionadas.EsOperadorCae ? gestionadas.Tramos : null), _ciclo.Token);
             if (!EsVigente(version)) return;
             _conteoExtranjeros = conteo;
         }

@@ -152,9 +152,6 @@ public class ObtenerFacturacionOperadorCaeQueryHandler(
     IMediator mediator, ICurrentUserService usuario, IOperacionesQueryContext operaciones, TimeProvider reloj)
     : IRequestHandler<ObtenerFacturacionOperadorCaeQuery, FacturacionOperadorCaeDto>
 {
-    private static readonly IReadOnlyDictionary<Guid, IReadOnlyList<TramoDeVigencia>> SinEmpresas =
-        new Dictionary<Guid, IReadOnlyList<TramoDeVigencia>>();
-
     private static FacturacionOperadorCaeDto Vacia(int anyo, int mes, CuadroDireccionSinCifras? motivo, int sinAlcance = 0) =>
         new(anyo, mes, false, [], CalculosFacturacionOperadorCae.Total([]), [], sinAlcance, motivo);
 
@@ -178,11 +175,14 @@ public class ObtenerFacturacionOperadorCaeQueryHandler(
     public async Task<FacturacionOperadorCaeDto> Handle(ObtenerFacturacionOperadorCaeQuery request, CancellationToken cancellationToken)
     {
         await AutorizacionCuadroDireccion.ExigirLecturaAsync(usuario);
-        var tramos = await TramosPorEmpresaGestionadaAsync(request.Anyo, request.Mes, cancellationToken);
+        var tramos = (await ObtenerEmpresasGestionadasDelMesQueryHandler.LeerAsync(
+            usuario, operaciones, request.Anyo, request.Mes, cancellationToken)).Tramos;
 
         var extranjeros = await mediator.Send(new ContarExtranjerosCobrablesDelMesQuery(request.Anyo, request.Mes, tramos), cancellationToken);
+        // El aviso de «Empresas sin alcance completo» cuenta solo las Empresas gestionadas: las demás no son de esta Facturación.
+        var sinAlcance = (extranjeros.IdsSinAlcanceCompleto ?? []).Count(tramos.ContainsKey);
         if (extranjeros.SinCifras is { } motivo)
-            return Vacia(request.Anyo, request.Mes, motivo, extranjeros.TenantsSinAlcanceCompleto);
+            return Vacia(request.Anyo, request.Mes, motivo, sinAlcance);
 
         var serie = await mediator.Send(new ObtenerSerieCuadroDireccionQuery(request.Anyo, request.Mes, 1, ConFacturacion: true), cancellationToken);
         var tarifas = await mediator.Send(new ObtenerTarifasOperadorCaeQuery(), cancellationToken);
@@ -205,7 +205,9 @@ public class ObtenerFacturacionOperadorCaeQueryHandler(
                     t.TenantId, t.TenantNombre,
                     extranjeros.PorTenant.FirstOrDefault(e => e.TenantId == t.TenantId)?.Asignaciones ?? 0,
                     cifras?.AltasCentros.Valor ?? 0, cifras?.ObrasNuevas?.Valor ?? 0, cifras?.Gestiones?.Valor,
-                    cifras?.CentrosNuevosPorCliente ?? [], punto?.Facturacion, vigentes);
+                    // Defensa en profundidad: sin permiso sobre las tarifas (tarifas es null) no sale ninguna línea valorada, aunque
+                    // la serie la trajera: ni cuota ni importes ni precios viajan en el DTO.
+                    cifras?.CentrosNuevosPorCliente ?? [], tarifas is null ? null : punto?.Facturacion, vigentes);
             })
             .ToList();
 
@@ -219,28 +221,6 @@ public class ObtenerFacturacionOperadorCaeQueryHandler(
 
         return new FacturacionOperadorCaeDto(
             request.Anyo, request.Mes, tarifas is not null, filas, CalculosFacturacionOperadorCae.Total(filas), porCliente,
-            serie.TenantsSinAlcanceCompleto);
-    }
-
-    /// <summary>
-    /// Por Tenant beneficiario gestionado por el Operador CAE de quien mira, los trozos del mes en que su Asignación de
-    /// Operación externa estuvo en vigor; los Tenants sin ninguno no figuran. Vacío si el mes no es válido (la consulta de
-    /// extranjeros lo devuelve con su motivo), si quien mira no tiene Tenant de origen o si su Tenant no opera a nadie.
-    /// </summary>
-    private async Task<IReadOnlyDictionary<Guid, IReadOnlyList<TramoDeVigencia>>> TramosPorEmpresaGestionadaAsync(
-        int anyo, int numeroMes, CancellationToken cancellationToken)
-    {
-        if (!MesCuadroDireccion.EsValido(anyo, numeroMes) || await usuario.ObtenerTenantOrigenIdAsync() is not { } operador)
-            return SinEmpresas;
-
-        var mes = new MesCuadroDireccion(anyo, numeroMes);
-        ILookup<Guid, VigenciaAsignacionOperacion> vigencias;
-        using (AmbitoTenantExplicito.Establecer(operador))
-            vigencias = await AutorizacionTarifasOperadorCae.VigenciasPorTenantBeneficiarioAsync(operaciones, operador, cancellationToken);
-
-        return vigencias
-            .Select(g => (TenantId: g.Key, Tramos: ValoracionOperadorCae.TramosEnElMes(g, mes.InicioUtc, mes.FinUtc)))
-            .Where(e => e.Tramos.Count > 0)
-            .ToDictionary(e => e.TenantId, e => e.Tramos);
+            sinAlcance);
     }
 }

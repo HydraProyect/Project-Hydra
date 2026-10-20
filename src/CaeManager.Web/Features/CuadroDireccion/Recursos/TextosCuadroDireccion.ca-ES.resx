@@ -850,7 +850,7 @@
     <value> · {0} sense tarifa</value>
   </data>
   <data name="FactImportesReservados" xml:space="preserve">
-    <value>Els imports els veuen Direcció CAE i Administrador</value>
+    <value>Els imports els veuen Direcció CAE i Administrador de l'organització</value>
   </data>
   <data name="FactImporteReservado" xml:space="preserve">
     <value>Reservat</value>
@@ -1009,7 +1009,7 @@
     <value>Quota de {0}</value>
   </data>
   <data name="FactTarifaCongelada" xml:space="preserve">
-    <value>Tarifa congelada en el tancament</value>
+    <value>Mes tancat: els estrangers es compten en viu</value>
   </data>
   <data name="FactColConcepto" xml:space="preserve">
     <value>Concepte</value>
