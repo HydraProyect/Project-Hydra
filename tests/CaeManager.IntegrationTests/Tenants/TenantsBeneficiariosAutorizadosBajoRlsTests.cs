@@ -637,18 +637,18 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
         // Clientes empresariales de A (null queda para el acceso total real de Administrador,
         // Dirección CAE y Consulta), y AlcanzaElTenantEnteroAsync lo confirma.
         await using (var servicios = ServiciosDeAplicacion(coordinador, Roles.CoordinadorCae))
-            using (AmbitoTenantExplicito.Establecer(_a))
-            {
-                var alcance = servicios.GetRequiredService<IAlcanceDatosService>();
-                (await alcance.AlcanzaElTenantEnteroAsync()).Should().BeTrue(
-                    "en el Tenant delegado entra por la operación del Tenant entero, sin cartera");
-                // El propietario filtra por el ámbito explícito (A); EsCritico no nulo = Cliente empresarial.
-                var clientesDeA = await _propietario.Empresas
-                    .Where(e => e.EsCritico != null).Select(e => e.Id).ToListAsync();
-                clientesDeA.Should().NotBeEmpty("control de la siembra: A tiene Clientes empresariales");
-                (await alcance.ObtenerClienteIdsVisiblesAsync()).Should().BeEquivalentTo(clientesDeA,
-                    "todos los Clientes empresariales de A, no solo los de una cartera");
-            }
+        using (AmbitoTenantExplicito.Establecer(_a))
+        {
+            var alcance = servicios.GetRequiredService<IAlcanceDatosService>();
+            (await alcance.AlcanzaElTenantEnteroAsync()).Should().BeTrue(
+                "en el Tenant delegado entra por la operación del Tenant entero, sin cartera");
+            // El propietario filtra por el ámbito explícito (A); EsCritico no nulo = Cliente empresarial.
+            var clientesDeA = await _propietario.Empresas
+                .Where(e => e.EsCritico != null).Select(e => e.Id).ToListAsync();
+            clientesDeA.Should().NotBeEmpty("control de la siembra: A tiene Clientes empresariales");
+            (await alcance.ObtenerClienteIdsVisiblesAsync()).Should().BeEquivalentTo(clientesDeA,
+                "todos los Clientes empresariales de A, no solo los de una cartera");
+        }
 
         // En su Tenant de origen conserva el alcance de las carteras de su equipo: sin equipo, nada.
         await using (var servicios = ServiciosDeAplicacion(coordinador, Roles.CoordinadorCae))
@@ -661,15 +661,15 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
     {
         var sinCartera = Guid.NewGuid();
         await using (var runtime = CrearRuntime(sinCartera, tenantDeLaPeticion: _origen))
-            using (AmbitoTenantExplicito.Establecer(_a))
-                (await CrearCurrentUserService(runtime, sinCartera, Roles.GestorCae).ObtenerRolEfectivoAsync())
-                    .Should().BeNull("el Gestor CAE sigue acotado por su Asignación de Cartera");
+        using (AmbitoTenantExplicito.Establecer(_a))
+            (await CrearCurrentUserService(runtime, sinCartera, Roles.GestorCae).ObtenerRolEfectivoAsync())
+                .Should().BeNull("el Gestor CAE sigue acotado por su Asignación de Cartera");
 
         // _consultaUnico tiene sobre A una cartera que guarda Consulta; su perfil de origen manda.
         await using (var runtime = CrearRuntime(_consultaUnico, tenantDeLaPeticion: _origen))
-            using (AmbitoTenantExplicito.Establecer(_a))
-                (await CrearCurrentUserService(runtime, _consultaUnico, Roles.GestorCae).ObtenerRolEfectivoAsync())
-                    .Should().Be(Roles.GestorCae);
+        using (AmbitoTenantExplicito.Establecer(_a))
+            (await CrearCurrentUserService(runtime, _consultaUnico, Roles.GestorCae).ObtenerRolEfectivoAsync())
+                .Should().Be(Roles.GestorCae);
         (await ListaAsync(_consultaUnico, Roles.GestorCae)).Single(c => c.TenantId == _a).EsCarteraGestorCae
             .Should().BeTrue();
     }
