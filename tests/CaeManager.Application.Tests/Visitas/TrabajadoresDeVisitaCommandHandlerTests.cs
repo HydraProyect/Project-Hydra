@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Application.Tests.Plantillas;
@@ -70,22 +71,79 @@ public class TrabajadoresDeVisitaCommandHandlerTests
                     Visitas, Union, Evaluador, UnitOfWork, NullLogger<QuitarTrabajadorDeVisitaCommandHandler>.Instance, Alcance)
                 .Handle(new QuitarTrabajadorDeVisitaCommand(Visita.Id, trabajadorId, version), CancellationToken.None);
 
-        public Task<Domain.Common.Result> AnadirAsync(Guid trabajadorId, Guid version = default) =>
+        public Task<Domain.Common.Result> AnadirAsync(
+            Guid trabajadorId, Guid version = default, TrabajadoresQueryContextFalso? trabajadores = null,
+            IActorAuditoria? actor = null) =>
             new AnadirTrabajadorAVisitaCommandHandler(
-                    Visitas, Union, null!, Evaluador, UnitOfWork, NullLogger<AnadirTrabajadorAVisitaCommandHandler>.Instance, Alcance)
+                    Visitas, Union, trabajadores!, Evaluador, UnitOfWork, NullLogger<AnadirTrabajadorAVisitaCommandHandler>.Instance, Alcance,
+                    actor)
                 .Handle(new AnadirTrabajadorAVisitaCommand(Visita.Id, trabajadorId, version), CancellationToken.None);
 
         /// <summary>
         /// «Editar visita» con la lista de Trabajadores que se indique. El contexto de Trabajadores
-        /// va vacío: vale para quitar o dejar igual, que no consultan a nadie nuevo.
+        /// va vacío salvo que se pase: vale para quitar o dejar igual, que no consultan a nadie nuevo.
         /// </summary>
-        public Task<Domain.Common.Result> EditarAsync(IReadOnlyList<Guid> trabajadorIds, string? notas = null) =>
+        public Task<Domain.Common.Result> EditarAsync(
+            IReadOnlyList<Guid> trabajadorIds, string? notas = null, TrabajadoresQueryContextFalso? trabajadores = null,
+            IActorAuditoria? actor = null) =>
             new EditarVisitaCommandHandler(
-                    Visitas, Union, new TrabajadoresQueryContextFalso(), Evaluador, UnitOfWork,
-                    NullLogger<EditarVisitaCommandHandler>.Instance, Alcance)
+                    Visitas, Union, trabajadores ?? new TrabajadoresQueryContextFalso(), Evaluador, UnitOfWork,
+                    NullLogger<EditarVisitaCommandHandler>.Instance, Alcance, actor)
                 .Handle(new EditarVisitaCommand(Visita.Id, Visita.FechaInicio, Visita.FechaFin, trabajadorIds, notas), CancellationToken.None);
 
         public static AlcanceDatosServiceFalso FueraDeAlcance() => new(tieneAccesoTotal: false, centroIdsVisibles: [Guid.NewGuid()]);
+    }
+
+    // ---- Quién asignó al Trabajador (exportación de extranjeros del mes, decisión de Chris, 2026-10-20)
+
+    private sealed class ActorFijo(ActorAuditoria actor) : IActorAuditoria
+    {
+        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(actor);
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => actor;
+    }
+
+    private static readonly Guid AdminTalveg = Guid.NewGuid();
+    private static readonly Guid UsuarioSimulado = Guid.NewGuid();
+
+    /// <summary>En impersonación el Actor real es quien está detrás de la Sesión Privilegiada, no el usuario simulado.</summary>
+    private static ActorFijo Impersonacion() =>
+        new(new ActorAuditoria(AdminTalveg, UsuarioSimulado, TipoViaAcceso.SesionPrivilegiada, Guid.NewGuid()));
+
+    private static (TrabajadoresQueryContextFalso Contexto, Guid Id) UnTrabajador()
+    {
+        var trabajador = Domain.Trabajadores.Trabajador.DeEmpresa(Guid.NewGuid(), "Amina", "El Idrissi", "AB1234567");
+        var contexto = new TrabajadoresQueryContextFalso();
+        contexto.ListaTrabajadores.Add(trabajador);
+        return (contexto, trabajador.Id);
+    }
+
+    [Fact]
+    public async Task Anadir_guarda_como_gestor_al_Actor_real_y_no_al_usuario_simulado()
+    {
+        var escenario = new Escenario(Guid.NewGuid());
+        var (trabajadores, nuevo) = UnTrabajador();
+
+        (await escenario.AnadirAsync(nuevo, trabajadores: trabajadores, actor: Impersonacion())).EsExitoso.Should().BeTrue();
+
+        var asignacion = escenario.Union.Filas.Single(f => f.TrabajadorId == nuevo);
+        asignacion.GestionadoPorUsuarioId.Should().Be(AdminTalveg);
+        asignacion.FechaAsignacionUtc.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Editar_guarda_el_Actor_real_solo_en_las_asignaciones_nuevas()
+    {
+        var queda = Guid.NewGuid();
+        var escenario = new Escenario(queda);
+        var previa = escenario.Union.Filas.Single();
+        var (trabajadores, nuevo) = UnTrabajador();
+
+        (await escenario.EditarAsync([queda, nuevo], trabajadores: trabajadores, actor: Impersonacion()))
+            .EsExitoso.Should().BeTrue();
+
+        escenario.Union.Filas.Single(f => f.TrabajadorId == nuevo).GestionadoPorUsuarioId.Should().Be(AdminTalveg);
+        escenario.Union.Filas.Single(f => f.TrabajadorId == queda).Should().BeSameAs(previa);
+        previa.GestionadoPorUsuarioId.Should().BeNull("la asignación que ya existía conserva su gestor");
     }
 
     // ---- Documentación gestionada: cambiar quién entra la devuelve a «Por gestionar»

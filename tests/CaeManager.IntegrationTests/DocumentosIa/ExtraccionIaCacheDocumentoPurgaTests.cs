@@ -246,7 +246,7 @@ public class ExtraccionIaCacheDocumentoPurgaTests : IAsyncLifetime
 
     private EjecucionPurgaService CrearServicioEjecucion(CaeManagerDbContext contexto) =>
         new(
-            contexto, contexto, contexto,
+            contexto, contexto, contexto, contexto,
             new SolicitudPurgaRepository(contexto),
             new ExtraccionIaCacheRepository(contexto),
             new AlmacenamientoArchivosFalso(),

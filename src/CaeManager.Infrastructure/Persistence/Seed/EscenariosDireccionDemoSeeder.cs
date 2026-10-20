@@ -609,7 +609,7 @@ public static class EscenariosDireccionDemoSeeder
                 var visita = new Visita(centros[i].Id, hoy.AddDays(-7 + i * 2), hoy.AddDays(-7 + i * 2), notas: null, OrigenVisita.Plataforma);
                 dbContext.Visitas.Add(visita);
                 foreach (var plaza in Plantilla.Where(p => p.Centro == i).Take(2))
-                    dbContext.VisitasTrabajadores.Add(new VisitaTrabajador(visita.Id, trabajadores[plaza.Clave].Id));
+                    dbContext.VisitasTrabajadores.Add(AsignacionSembrada.De(visita, trabajadores[plaza.Clave].Id));
             }
 
             var gravedad = spec.Escenario switch

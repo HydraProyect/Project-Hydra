@@ -12,6 +12,9 @@ public class VisitaTrabajadorConfiguration : IEntityTypeConfiguration<VisitaTrab
         builder.ToTable("VisitasTrabajadores");
         builder.HasKey(vt => vt.Id);
 
+        // Foto del Trabajador al asignarlo (histórico congelado de la exportación de extranjeros del mes).
+        builder.Property(vt => vt.DocumentoIdentidad).HasMaxLength(Trabajador.LongitudMaximaDni);
+
         builder.HasIndex(vt => vt.VisitaId);
         builder.HasIndex(vt => vt.TrabajadorId);
         builder.HasIndex(vt => new { vt.TenantId, vt.VisitaId, vt.TrabajadorId }).IsUnique();
