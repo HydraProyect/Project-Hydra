@@ -1,0 +1,124 @@
+/* Pestaña «Plataformas» de Empresa 360 (maqueta «Empresa 360 TALVEG»). Solo tokens del sistema de diseño. */
+.plataformas-empresa {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.plataformas-cabecera {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.plataformas-apoyo {
+    flex: 1;
+    min-width: 240px;
+    margin: 0;
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+    text-wrap: pretty;
+}
+
+.plataformas-filtros {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.plataformas-chip {
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-caption);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.plataformas-chip[aria-pressed="true"] {
+    border-color: var(--color-primary-500);
+    background: var(--color-primary-50);
+    color: var(--color-primary-700);
+}
+
+.plataformas-grupos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.plataformas-grupo {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 1px 3px rgba(22, 30, 39, .10);
+    overflow: hidden;
+}
+
+.plataformas-grupo-cabecera {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    padding: 10px var(--space-4);
+    min-height: 48px;
+}
+
+.plataformas-grupo-titulo {
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+}
+
+.plataformas-grupo-titulo b {
+    font: var(--font-body-md);
+    font-weight: 600;
+}
+
+.plataformas-grupo-cliente {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.plataformas-fila {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 190px minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-3);
+    padding: 8px var(--space-4);
+    min-height: 44px;
+    border-top: 1px solid var(--color-border);
+}
+
+.plataformas-fila[data-estado="Subida"] {
+    background: linear-gradient(90deg, var(--color-warning-50) 0, transparent 75%);
+}
+
+.plataformas-fila[data-estado="VencidaEnPlataforma"],
+.plataformas-fila[data-estado="Rechazada"],
+.plataformas-fila[data-estado="PendienteDeSubir"] {
+    background: linear-gradient(90deg, var(--color-danger-50) 0, transparent 75%);
+}
+
+.plataformas-documento {
+    min-width: 0;
+    font: var(--font-body-md);
+    font-size: 13px;
+}
+
+.plataformas-motivo {
+    min-width: 0;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 720px) {
+    .plataformas-fila {
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-1);
+    }
+}

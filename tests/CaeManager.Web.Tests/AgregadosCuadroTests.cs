@@ -64,7 +64,7 @@ public class AgregadosCuadroTests
     {
         PuntoSerieCuadroDto Punto(int mes, int trabajadores, decimal importe) => new(
             2026, mes, EstadoCifraMensual.Estimado, Cifras(trabajadores, 1, 0),
-            [new LineaFacturacionCuadroDto(CaeManager.Domain.Facturacion.ConceptoFacturable.TrabajadorActivo, "Trabajador activo", "EUR", trabajadores, importe)]);
+            [new LineaFacturacionCuadroDto(CaeManager.Domain.Dashboard.ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, "Visita de Trabajador extranjero", "EUR", trabajadores, importe)]);
 
         var suma = AgregadosCuadro.SumarPuntos(
             [[Punto(8, 10, 20m), Punto(9, 12, 24m)], [Punto(9, 5, 10m)]], Ahora);

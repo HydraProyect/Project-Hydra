@@ -39,7 +39,19 @@
             if (_teniaSesion && estado.User.Identity?.IsAuthenticated != true)
             {
                 _teniaSesion = false;
-                NavigationManager.NavigateTo("/cuenta/iniciar-sesion", forceLoad: true);
+                var rutaActual = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+                var destino = "/cuenta/iniciar-sesion";
+                var soloRuta = rutaActual.Split('?', '#')[0];
+                var enCuenta = soloRuta.Equals("cuenta", StringComparison.OrdinalIgnoreCase)
+                    || soloRuta.StartsWith("cuenta/", StringComparison.OrdinalIgnoreCase);
+                if (!enCuenta)
+                {
+                    // Solo rutas locales: Sanear descarta "//host" y "/\host"; SanearParaVolver quita además
+                    // la marca de un solo uso desde=login para no reactivar el aterrizaje tras iniciar sesión.
+                    var retorno = CaeManager.Web.Components.Account.RedireccionLocal.SanearParaVolver("/" + rutaActual);
+                    destino += $"?ReturnUrl={Uri.EscapeDataString(retorno)}";
+                }
+                NavigationManager.NavigateTo(destino, forceLoad: true);
             }
         });
 

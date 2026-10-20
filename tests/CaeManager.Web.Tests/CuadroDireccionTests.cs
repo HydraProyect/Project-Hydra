@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Bunit;
 using CaeManager.Application.Dashboard;
 using CaeManager.Application.Dashboard.Queries;
+using CaeManager.Application.Dashboard.TarifasOperadorCae;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
@@ -45,9 +46,37 @@ public partial class CuadroDireccionTests : BunitContext
         public Func<ComunicacionesCuadroDireccionDto>? Comunicaciones { get; init; }
         public Func<GestionesPorDiaCuadroDireccionDto>? GestionesDia { get; init; }
         public List<ObtenerSerieCuadroDireccionQuery> SeriesPedidas { get; } = [];
+        public Func<FacturacionOperadorCaeDto>? Facturacion { get; init; }
+        public Func<ExtranjerosDelMesDto>? Extranjeros { get; init; }
+        public Func<ConteoExtranjerosCobrablesDelMesDto>? Conteo { get; init; }
+        public List<FijarTarifaOperadorCaeCommand> TarifasFijadas { get; } = [];
+        public Func<EmpresasGestionadasDelMesDto>? Gestionadas { get; init; }
+        public List<ContarExtranjerosCobrablesDelMesQuery> ConteosPedidos { get; } = [];
+        public List<ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery> ExtranjerosGestionadosPedidos { get; } = [];
+        /// <summary>Si se fija, el detalle por Empresa tarda en responder lo que tarde esta tarea (para probar el cambio de mes en vuelo).</summary>
+        public Func<ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery, Task<ExtranjerosDelMesDto>>? ExtranjerosGestionadosAsync { get; init; }
+
+        private ConteoExtranjerosCobrablesDelMesDto RegistrarConteo(ContarExtranjerosCobrablesDelMesQuery q)
+        {
+            ConteosPedidos.Add(q);
+            return Conteo?.Invoke() ?? new ConteoExtranjerosCobrablesDelMesDto(q.Anyo, q.Mes, [], 0);
+        }
+
+        private Task<ExtranjerosDelMesDto> ExtranjerosGestionados(ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery q)
+        {
+            ExtranjerosGestionadosPedidos.Add(q);
+            if (ExtranjerosGestionadosAsync is { } asincrono)
+                return asincrono(q);
+
+            var todo = Extranjeros?.Invoke() ?? new ExtranjerosDelMesDto(q.Anyo, q.Mes, [], 0);
+            return Task.FromResult(q.TenantId is { } t ? todo with { Filas = todo.Filas.Where(f => f.TenantId == t).ToList() } : todo);
+        }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            if (request is ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery gestionados)
+                return (Task<TResponse>)(object)ExtranjerosGestionados(gestionados);
+
             object? respuesta = request switch
             {
                 ObtenerCuadroDireccionQuery => cuadro(),
@@ -56,6 +85,11 @@ public partial class CuadroDireccionTests : BunitContext
                     ?? ObtenerComunicacionesCuadroDireccionQueryHandler.Fusionar(q.Anyo, q.Mes, [], 0),
                 ObtenerGestionesPorDiaCuadroDireccionQuery => GestionesDia?.Invoke() ?? new GestionesPorDiaCuadroDireccionDto([], 0),
                 ReabrirMesCuadroDireccionCommand c => Registrar(c),
+                ObtenerFacturacionOperadorCaeQuery q => Facturacion?.Invoke() ?? throw new NotSupportedException("Falta la facturación del Operador CAE en este test."),
+                ObtenerExtranjerosDelMesQuery q => Extranjeros?.Invoke() ?? new ExtranjerosDelMesDto(q.Anyo, q.Mes, [], 0),
+                ContarExtranjerosCobrablesDelMesQuery q => RegistrarConteo(q),
+                ObtenerEmpresasGestionadasDelMesQuery => Gestionadas?.Invoke() ?? EmpresasGestionadasDelMesDto.Ninguna,
+                FijarTarifaOperadorCaeCommand c => RegistrarTarifa(c),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             };
             return Task.FromResult((TResponse)respuesta!);
@@ -65,6 +99,12 @@ public partial class CuadroDireccionTests : BunitContext
         {
             SeriesPedidas.Add(q);
             return Serie?.Invoke(q) ?? new SerieCuadroDireccionDto([], [], 0);
+        }
+
+        private Result RegistrarTarifa(FijarTarifaOperadorCaeCommand c)
+        {
+            TarifasFijadas.Add(c);
+            return Result.Exito();
         }
 
         private Result Registrar(ReabrirMesCuadroDireccionCommand c)
@@ -116,11 +156,19 @@ public partial class CuadroDireccionTests : BunitContext
         CuadroDireccionDto cuadro, string rol, out MediatorFalso mediador,
         Func<ObtenerSerieCuadroDireccionQuery, SerieCuadroDireccionDto>? serie = null,
         ComunicacionesCuadroDireccionDto? comunicaciones = null,
-        GestionesPorDiaCuadroDireccionDto? gestionesDia = null)
+        GestionesPorDiaCuadroDireccionDto? gestionesDia = null,
+        FacturacionOperadorCaeDto? facturacion = null, ExtranjerosDelMesDto? extranjeros = null, ConteoExtranjerosCobrablesDelMesDto? conteo = null,
+        EmpresasGestionadasDelMesDto? gestionadas = null,
+        Func<ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery, Task<ExtranjerosDelMesDto>>? extranjerosGestionadosAsync = null)
     {
         var falso = new MediatorFalso(() => cuadro)
         {
+            Gestionadas = gestionadas is null ? null : () => gestionadas,
+            ExtranjerosGestionadosAsync = extranjerosGestionadosAsync,
             Serie = serie,
+            Facturacion = facturacion is null ? null : () => facturacion,
+            Extranjeros = extranjeros is null ? null : () => extranjeros,
+            Conteo = conteo is null ? null : () => conteo,
             Comunicaciones = comunicaciones is null ? null : () => comunicaciones,
             GestionesDia = gestionesDia is null ? null : () => gestionesDia,
         };
@@ -398,6 +446,22 @@ public partial class CuadroDireccionTests : BunitContext
         filas.Should().ContainSingle();
         var primera = filas[0].QuerySelectorAll("button").Select(b => b.TextContent.Trim()).ToList();
         primera.Should().ContainInOrder("Personalizar esta pestaña", "Etiquetas de datos", "Presentar");
+    }
+
+    /// <summary>
+    /// «Exportar extranjeros del mes» (decisión de Chris, 2026-10-20): una descarga del mes seleccionado, fuera de la
+    /// navegación mejorada de Blazor para que el navegador reciba el .xlsx.
+    /// </summary>
+    [Fact]
+    public void Exportar_extranjeros_del_mes_descarga_el_mes_seleccionado()
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
+
+        var enlace = cut.Find(".cuadro-exportar-extranjeros");
+        enlace.TextContent.Trim().Should().Be("Exportar extranjeros del mes");
+        enlace.GetAttribute("href").Should().MatchRegex(@"^/direccion/extranjeros\.xlsx\?anyo=\d{4}&mes=\d{1,2}$");
+        enlace.HasAttribute("download").Should().BeTrue();
+        enlace.GetAttribute("data-enhance-nav").Should().Be("false");
     }
 
     [Fact]

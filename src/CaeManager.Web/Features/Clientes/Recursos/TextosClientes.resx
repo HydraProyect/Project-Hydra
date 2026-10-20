@@ -119,7 +119,7 @@
     <comment>El Centro no exige ningún documento: no hay porcentaje.</comment>
   </data>
   <data name="CumplimientoCentro" xml:space="preserve">
-    <value>Cumplimiento del centro</value>
+    <value>Documentos validados en la plataforma CAE de este Cliente</value>
   </data>
   <data name="SinCentrosTitulo" xml:space="preserve">
     <value>Sin centros</value>
@@ -647,4 +647,14 @@
   <data name="CentrosDesplegadosError" xml:space="preserve"><value>No pudimos cargar los centros. Vuelve a desplegar la fila para reintentarlo.</value></data>
   <data name="CentrosDesplegadosNinguno" xml:space="preserve"><value>Ningún centro con incidencias.</value></data>
   <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordenar</value></data>
+  <data name="EmpresasDelCentro" xml:space="preserve"><value>Empresas: {0}</value></data>
+  <data name="RotuloBloqueoPlataforma" xml:space="preserve"><value>Bloqueo de la plataforma CAE</value></data>
+  <data name="NotaEditarTitulo" xml:space="preserve"><value>Editar nota interna</value></data>
+  <data name="NotaEtiqueta" xml:space="preserve"><value>Nota</value></data>
+  <data name="NotaPrivada" xml:space="preserve"><value>No la ve el Cliente.</value></data>
+  <data name="NotaSinCambios" xml:space="preserve"><value>No hay cambios que guardar.</value></data>
+  <data name="NotaErrorGuardar" xml:space="preserve"><value>No pudimos guardar la nota. Intenta nuevamente en unos segundos.</value></data>
+  <data name="BajaTitulo" xml:space="preserve"><value>Dar de baja al Cliente</value></data>
+  <data name="BajaMensaje" xml:space="preserve"><value>Se dará de baja a {0}. ¿Quieres continuar?</value></data>
+  <data name="BajaError" xml:space="preserve"><value>No pudimos dar de baja al Cliente. Intenta nuevamente en unos segundos.</value></data>
 </root>

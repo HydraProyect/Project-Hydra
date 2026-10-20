@@ -144,6 +144,49 @@ public class ClosedXmlImportacionParserTests
         trabajador.FechaNacimiento.Should().BeNull();
     }
 
+    /// <summary>
+    /// El documento del Trabajador es obligatorio y solo admite DNI, NIE o Pasaporte
+    /// (<see cref="CaeManager.Domain.Trabajadores.CriterioDocumentoIdentidadTrabajador"/>): los marcadores que llegan en
+    /// los Excel reales en lugar del número no crean un Trabajador y quedan omitidos con el motivo de su rama.
+    /// </summary>
+    [Theory]
+    [InlineData("PENDIENTE", "debe llevar algún número")]
+    [InlineData("SIN DNI", "no puede llevar espacios")]
+    [InlineData("12345678A", "La letra de control del DNI no es válida: debería ser Z")]
+    public async Task Fila_de_Empleados_con_un_marcador_en_lugar_del_documento_queda_omitida_con_su_motivo(string documento, string motivo)
+    {
+        var libro = NuevoLibroBase();
+        var hoja = libro.Worksheets.Worksheet("Empleados");
+        EscribirTrabajadorValido(hoja, fila: 4);
+        hoja.Cell(4, 4).Value = documento;
+
+        var plan = await AnalizarAsync(libro);
+
+        var omitido = plan.Omitidos.Should().ContainSingle(o => o.Hoja == "Empleados").Subject;
+        omitido.Fila.Should().Be(4);
+        omitido.Descripcion.Should().Contain(documento);
+        omitido.Motivo.Should().Contain(motivo);
+        plan.Trabajadores.Should().BeEmpty();
+    }
+
+    /// <summary>Sin forma de DNI ni de NIE, el documento se importa como Pasaporte y la fila lo avisa.</summary>
+    [Fact]
+    public async Task Documento_sin_forma_de_DNI_ni_NIE_se_importa_como_Pasaporte_con_aviso()
+    {
+        var libro = NuevoLibroBase();
+        var hoja = libro.Worksheets.Worksheet("Empleados");
+        EscribirTrabajadorValido(hoja, fila: 4);
+        hoja.Cell(4, 4).Value = "ab-123.4567";
+
+        var plan = await AnalizarAsync(libro);
+
+        plan.Omitidos.Should().BeEmpty();
+        plan.Trabajadores.Should().ContainSingle().Which.Dni.Should().Be("AB1234567");
+        var aviso = plan.Advertencias.Should().ContainSingle(a => a.Hoja == "Empleados").Subject;
+        aviso.Fila.Should().Be(4);
+        aviso.Motivo.Should().Contain(CaeManager.Domain.Trabajadores.CriterioDocumentoIdentidadTrabajador.AvisoPasaporte);
+    }
+
     [Fact]
     public async Task Tipo_de_documento_fuera_del_catalogo_queda_omitido_y_no_en_Advertencias()
     {

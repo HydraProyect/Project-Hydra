@@ -272,6 +272,10 @@ public static class RetiradaTenantDemoService
             dbContext.RemoveRange(await dbContext.AsignacionesOperacion
                 .Where(a => a.PropietarioTenantId == tenantId || a.OperadorTenantId == tenantId)
                 .ToListAsync(cancellationToken));
+            // Tarifas que un Operador CAE externo fijó a este Tenant beneficiario: son filas del Operador (TenantId
+            // ajeno), así que el barrido genérico no las alcanza y Remove las rechazaría el sellado; sentencia directa,
+            // como los filtros guardados de abajo. Las que este Tenant fijó como Operador caen en el barrido genérico.
+            await dbContext.TarifasOperadorCae.IgnoreQueryFilters().Where(t => t.PropietarioTenantId == tenantId && t.TenantId != tenantId).ExecuteDeleteAsync(cancellationToken);
 
             var usuarios = await dbContext.Users.Where(u => u.TenantId == tenantId).ToListAsync(cancellationToken);
             var idsUsuarios = usuarios.Select(u => u.Id).ToHashSet();

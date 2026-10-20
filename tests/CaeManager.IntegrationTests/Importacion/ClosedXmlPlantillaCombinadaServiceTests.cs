@@ -173,6 +173,56 @@ public class ClosedXmlPlantillaCombinadaServiceTests
     }
 
     /// <summary>
+    /// El documento del Trabajador es obligatorio y solo admite DNI, NIE o Pasaporte
+    /// (<see cref="CaeManager.Domain.Trabajadores.CriterioDocumentoIdentidadTrabajador"/>): los marcadores que llegan en
+    /// los Excel reales en lugar del número no crean un Trabajador y quedan omitidos con el motivo de su rama.
+    /// </summary>
+    [Theory]
+    [InlineData("PENDIENTE", "debe llevar algún número")]
+    [InlineData("SIN DNI", "no puede llevar espacios")]
+    [InlineData("X1234567A", "La letra de control del NIE no es válida: debería ser L")]
+    public async Task Trabajador_con_un_marcador_en_lugar_del_documento_queda_omitido_con_su_motivo(string documento, string motivo)
+    {
+        var libro = NuevoLibroBase();
+        EscribirEmpresaValida(libro, fila: 2, razonSocial: "Empresa Sur S.L.");
+        EscribirTrabajador(libro, fila: 2, documento);
+
+        var plan = await AnalizarAsync(libro);
+
+        var omitido = plan.Omitidos.Should().ContainSingle(o => o.Hoja == "Trabajadores").Subject;
+        omitido.Fila.Should().Be(2);
+        omitido.Descripcion.Should().Contain(documento);
+        omitido.Motivo.Should().Contain(motivo);
+        plan.Trabajadores.Should().BeEmpty();
+    }
+
+    /// <summary>Sin forma de DNI ni de NIE, el documento se importa como Pasaporte y la fila lo avisa.</summary>
+    [Fact]
+    public async Task Documento_sin_forma_de_DNI_ni_NIE_se_importa_como_Pasaporte_con_aviso()
+    {
+        var libro = NuevoLibroBase();
+        EscribirEmpresaValida(libro, fila: 2, razonSocial: "Empresa Sur S.L.");
+        EscribirTrabajador(libro, fila: 2, "ab-123.4567");
+
+        var plan = await AnalizarAsync(libro);
+
+        plan.Omitidos.Should().BeEmpty();
+        plan.Trabajadores.Should().ContainSingle().Which.Dni.Should().Be("AB1234567");
+        var aviso = plan.Advertencias.Should().ContainSingle(a => a.Hoja == "Trabajadores").Subject;
+        aviso.Fila.Should().Be(2);
+        aviso.Motivo.Should().Contain(CaeManager.Domain.Trabajadores.CriterioDocumentoIdentidadTrabajador.AvisoPasaporte);
+    }
+
+    private static void EscribirTrabajador(XLWorkbook libro, int fila, string documento)
+    {
+        var hojaTrabajadores = libro.Worksheets.Worksheet("Trabajadores");
+        hojaTrabajadores.Cell(fila, 1).Value = "Marta";
+        hojaTrabajadores.Cell(fila, 2).Value = "Ruiz";
+        hojaTrabajadores.Cell(fila, 3).Value = documento;
+        hojaTrabajadores.Cell(fila, 4).Value = "Empresa Sur S.L.";
+    }
+
+    /// <summary>
     /// Mismo defecto que en la Plantilla de Clientes empresariales y en la importación CAE
     /// completa: la hoja "Centros" resuelve su columna "Cliente" contra
     /// CUALQUIER Empresa existente por nombre, pero la escritura

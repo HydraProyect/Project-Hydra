@@ -83,6 +83,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     {
         public Dictionary<Guid, TrabajadorDetalleDto> Detalles { get; } = [];
         public Result ResultadoFicha { get; set; } = Result.Exito();
+        public Result ResultadoCorregirDocumento { get; set; } = Result.Exito();
         public Dictionary<Guid, List<CentroDocumentacionTrabajadorDto>> Centros { get; } = [];
         public List<ContactoAgendaDto> Contactos { get; } = [];
         public Dictionary<Guid, List<GestionListaDto>> Gestiones { get; } = [];
@@ -135,6 +136,8 @@ public partial class Trabajador360Gen2Tests : BunitContext
             CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.ObtenerCatalogoTrabajadoresEmpresaQuery =>
                 CatalogoEmpresa ?? throw new InvalidOperationException("Fallo simulado del catálogo de la Empresa."),
             EditarFichaTrabajadorCommand c => GuardarFicha(c),
+            CaeManager.Application.Trabajadores.Commands.CorregirDocumentoIdentidadTrabajador.CorregirDocumentoIdentidadTrabajadorCommand =>
+                ResultadoCorregirDocumento,
             CaeManager.Application.Trabajadores.Commands.GuardarNotaInternaTrabajador.GuardarNotaInternaTrabajadorCommand c => GuardarNota(c.Id, c.Notas),
             ObtenerDocumentacionPorCentroDeTrabajadorQuery q =>
                 (IReadOnlyList<CentroDocumentacionTrabajadorDto>)(Centros.GetValueOrDefault(q.TrabajadorId) ?? []),
@@ -322,7 +325,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         var consultas = mediador.Enviadas.Count;
         await AbrirPestanaAsync(cut, "Ficha");
 
-        cut.FindAll("[role=tab]").Select(t => t.FirstChild!.TextContent.Trim()).Should().Equal("Operación", "Centros", "Documentación", "Ficha", "Historial");
+        cut.FindAll("[role=tab]").Select(t => t.FirstChild!.TextContent.Trim()).Should().Equal("Operación", "Centros", "Documentación", "Plataformas", "Ficha", "Historial");
         var cajas = cut.Find(".cajas-ficha");
         cajas.QuerySelectorAll("[data-caja]").Should().HaveCount(3);
         cajas.TextContent.Should().Contain("Datos para altas en plataforma").And.NotContain("Observación que no debe pintarse").And.Contain("Vínculo con la empresa");
@@ -379,7 +382,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
             var enOperacion = Nombres(cut);
 
             // La pestaña Ficha es la cuarta (Operación, Centros, Documentación, Ficha, Historial) en cualquier cultura.
-            await cut.FindAll("[role=tab]")[3].ClickAsync(new MouseEventArgs());
+            await cut.FindAll("[role=tab]")[4].ClickAsync(new MouseEventArgs());
             var enFicha = Nombres(cut);
 
             enFicha.Should().Contain(new[]
@@ -650,7 +653,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     }
 
     [Fact]
-    public void Son_cinco_pestanas_y_solo_Operacion_lleva_el_recuento_de_documentos_con_incidencia()
+    public void Son_seis_pestanas_y_solo_Operacion_lleva_el_recuento_de_documentos_con_incidencia()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -663,7 +666,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         var pestanas = cut.FindAll("[role=tab]");
         pestanas.Select(t => t.QuerySelector(".pestanas-contador") is null
             ? t.TextContent.Trim()
-            : t.FirstChild!.TextContent.Trim()).Should().Equal(["Operación", "Centros", "Documentación", "Ficha", "Historial"],
+            : t.FirstChild!.TextContent.Trim()).Should().Equal(["Operación", "Centros", "Documentación", "Plataformas", "Ficha", "Historial"],
             "«Contactos» pasó al lateral y «Documentación» es la del trabajador a día de hoy (decisiones del propietario 2026-09-24); «Vehículos» nunca existió en esta página");
 
         // Maqueta «Trabajador 360 TALVEG» (17-10): Operación (en alerta) y Centros (en neutro) llevan recuento; el resto, no.
@@ -936,7 +939,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         cut.FindAll("[role=tab]").Select(t => t.FirstChild!.TextContent.Trim())
-            .Should().Equal("Operación", "Centros", "Documentación", "Ficha", "Historial");
+            .Should().Equal("Operación", "Centros", "Documentación", "Plataformas", "Ficha", "Historial");
         PestanaSeleccionada(cut).Should().Be("Operación");
         cut.Find("[role=tabpanel]").FirstElementChild!.ClassList.Should().Contain("panel-doc-base");
         cut.FindAll(".panel-doc-base-fila").Select(f => f.FirstElementChild!.TextContent.Trim())
@@ -1095,7 +1098,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         cut.FindAll(".pestanas-contador-alerta").Should().BeEmpty("un cero no se pinta como si fuera un dato que atender");
-        cut.FindAll("[role=tab]").Should().HaveCount(5);
+        cut.FindAll("[role=tab]").Should().HaveCount(6);
     }
 
     [Fact]
@@ -1754,7 +1757,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
 
         cut.FindAll("[role=menuitem]").Select(i => i.TextContent.Trim())
-            .Should().Equal(["Editar", "Gestionar", "Crear gestión"]);
+            .Should().Equal(["Editar", "Gestionar", "Crear gestión", "Corregir documento de identidad"]);
         cut.FindAll("[role=dialog]").Should().BeEmpty();
     }
 

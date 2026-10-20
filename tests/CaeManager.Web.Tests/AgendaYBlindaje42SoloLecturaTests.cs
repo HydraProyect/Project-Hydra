@@ -104,6 +104,27 @@ public class AgendaYBlindaje42SoloLecturaTests : BunitContext
             .Should().Contain(["Editar", "Quitar"]);
     }
 
+    [Theory]
+    [InlineData(Roles.GestorCae, "Responder por correo", true)]
+    [InlineData(Roles.GestorCae, "   ", false)]
+    [InlineData(Roles.Consulta, "Responder por correo", false)]
+    [InlineData(Roles.Cliente, "Responder por correo", false)]
+    public void La_nota_de_agenda_solo_se_muestra_con_contenido_y_a_roles_operativos(string rol, string nota, bool visible)
+    {
+        this.ConRolDeEscritura(rol);
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Contactos.Add(new ContactoAgendaDto(
+            Guid.NewGuid(), "Nuria Salas Ortiz", "nuria@example.test", null, "PRL", nota,
+            EsPredeterminado: true, RecibeProgramacionVisitas: false, RecibeFacturacion: false, [], [], []));
+
+        var cut = Render<PestanaAgendaContactos>(p => p
+            .Add(x => x.Tipo, TipoPropietarioAgenda.Subcontrata)
+            .Add(x => x.PropietarioId, Guid.NewGuid()));
+
+        cut.FindAll(".agenda-contacto-nota").Should().HaveCount(visible ? 1 : 0);
+        if (visible) cut.Find(".agenda-contacto-nota").TextContent.Should().Contain(nota);
+    }
+
     [Fact]
     public void Consulta_ve_el_historial_del_blindaje_42_sin_que_se_le_ofrezca_registrar_solicitud_ni_respuesta()
     {

@@ -1376,7 +1376,7 @@ public static class PilotoOutboundSeeder
                     throw new InvalidOperationException(
                         $"{tenant.Clave}: la Visita por correo necesita dos Trabajadores del Centro {especificacion.Centro} sin ninguna desviación y solo hay {acuden.Count}.");
                 foreach (var t in acuden)
-                    dbContext.VisitasTrabajadores.Add(new VisitaTrabajador(visita.Id, trabajadores[t].Id));
+                    dbContext.VisitasTrabajadores.Add(AsignacionSembrada.De(visita, trabajadores[t].Id));
 
                 switch (especificacion.Estado)
                 {
