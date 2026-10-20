@@ -103,7 +103,7 @@
 
 
 
-/* La fila del listado mantiene nombre, estado, motivo y gestión en una línea. */
+/* La fila del listado mantiene nombre, estado, motivo y gestiÃ³n en una lÃ­nea. */
 .lista-trabajadores-acordeon-listado ::deep .fila-relacion-rejilla {
     grid-template-columns: minmax(230px, auto) auto minmax(0, 1fr) auto;
     min-height: 0;
@@ -127,7 +127,7 @@
     display: none;
 }
 
-/* «Gestionar» sustituye al chevron solo donde existe; el rol sin escritura conserva el chevron para leer el desglose. */
+/* Â«GestionarÂ» sustituye al chevron solo donde existe; el rol sin escritura conserva el chevron para leer el desglose. */
 .lista-trabajadores-acordeon-listado ::deep .fila-relacion:has(.fila-trabajador-gestionar) .fila-relacion-desplegar {
     display: none;
 }
@@ -170,7 +170,7 @@
     font-weight: 700;
 }
 
-/* Aire entre la tarjeta de la Empresa y el rótulo «Trabajadores» que la sigue. */
+/* Aire entre la tarjeta de la Empresa y el rÃ³tulo Â«TrabajadoresÂ» que la sigue. */
 .bloque-empresa-ambito {
     margin-bottom: var(--space-4);
 }
@@ -250,3 +250,10 @@
 .lista-trabajadores-acordeon {
     container-type: inline-size;
 }
+
+/* Dos estados, dos lÃ­neas: Â«En TALVEGÂ» (vigencia) y Â«En la plataformaÂ» (acreditaciÃ³n en este Centro). */
+.celda-dos-estados { display: flex; flex-direction: column; gap: var(--space-1); }
+.linea-estado { display: flex; align-items: center; gap: var(--space-2); font-size: 0.75rem; }
+.linea-estado-etiqueta { color: var(--color-text-muted); min-width: 7.5em; }
+.linea-estado-plataforma { color: var(--color-text-muted); }
+.linea-estado-plataforma--rechazada { color: var(--color-danger-700); }

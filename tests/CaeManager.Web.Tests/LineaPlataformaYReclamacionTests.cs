@@ -180,13 +180,13 @@ public class LineaPlataformaYReclamacionTests : BunitContext
         ficheros.Count(f => OtraFormaDeDecirLaPlataforma.IsMatch(f.Texto)).Should().BeGreaterThanOrEqualTo(3, "control: el detector de la otra vía encuentra los ficheros que ya la usan");
 
         var sinDeclarar = usos
-            .Where(u => OtraFormaDeDecirLaPlataforma.IsMatch(u.Texto) && !u.Etiqueta.Contains("LaFilaYaDiceLaPlataforma="))
+            .Where(u => OtraFormaDeDecirLaPlataforma.IsMatch(u.Texto) && !u.Etiqueta.Contains("LaFilaYaDiceLaPlataforma=") && !u.Etiqueta.Contains("SoloReclamacion=\"true\""))
             .Select(u => u.Ruta)
             .ToList();
 
         sinDeclarar.Should().BeEmpty(
             "si el fichero ya enseña la plataforma con badges, cada uso de la segunda línea tiene que decir con " +
-            "LaFilaYaDiceLaPlataforma si esa fila ya la nombra: un mismo dato nunca aparece dos veces en la fila");
+            "LaFilaYaDiceLaPlataforma si esa fila ya la nombra (o con SoloReclamacion, que nunca la pinta): un mismo dato nunca aparece dos veces en la fila");
     }
 
     private static string RaizDelRepositorio()

@@ -643,6 +643,26 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
     private DrawerGestionDocumento _drawerGestion = default!;
 
+    private sealed record AcreditacionAGestionar(DocumentoRequeridoDto Documento, Guid PropietarioId, string PropietarioNombre);
+
+    private AcreditacionAGestionar? _acreditacionAGestionar;
+    private bool _panelAcreditacionVisible;
+
+    /// <summary>
+    /// «Gestionar» de un documento vigente en TALVEG: abre el panel que cambia su estado en las plataformas de este Centro.
+    /// Un Centro sin plataforma para ese documento no tiene estado de acreditación que cambiar, y entonces se abre el
+    /// drawer del documento, como antes.
+    /// </summary>
+    private Task GestionarAcreditacion(TrabajadorAsignacionDocumentacionDto trabajador, DocumentoRequeridoDto documento)
+    {
+        if (documento.AcreditacionesEnElCentro is not { Count: > 0 })
+            return GestionarAsync(trabajador.TrabajadorId, documento);
+
+        _acreditacionAGestionar = new AcreditacionAGestionar(documento, trabajador.TrabajadorId, trabajador.TrabajadorNombre);
+        _panelAcreditacionVisible = true;
+        return Task.CompletedTask;
+    }
+
     /// <summary>
     /// Gestionar in situ (contrato de fidelidad 2026-08-09, item 3 del
     /// backlog): antes navegaba a /documentos, ahora abre el mismo drawer

@@ -435,6 +435,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // de un Documento de Proyecto, igual que al eliminarlo.
         ("Documentos.RestaurarDocumentoCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionAceptadaCommandHandler", "IProyectosQueryContext"),
+        ("Documentos.MarcarAcreditacionPendienteDeSubirCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionRechazadaCommandHandler", "IProyectosQueryContext"),
         ("Documentos.RestaurarAnotacionAcreditacionCommandHandler", "IProyectosQueryContext"),
         // MVP2 § 14.5 (kill switch remoto, ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md en
@@ -635,6 +636,17 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Reclamaciones.ObtenerLoteReclamacionQueryHandler", "IDocumentosQueryContext"),
         ("Reclamaciones.ObtenerLoteReclamacionQueryHandler", "ITiposDocumentoQueryContext"),
         ("Reclamaciones.ObtenerLoteReclamacionQueryHandler", "ITrabajadoresQueryContext"),
+        // Reclamación preventiva de Empresa 360 (2026-10-19): ofrece los Centros con gestión CAE donde la Empresa tiene Trabajadores
+        // con Asignación activa, con el mismo alcance que ObtenerLoteReclamacionQueryHandler, y las sedes y Oficios de la Empresa.
+        ("Reclamaciones.ObtenerReclamacionPreventivaEmpresaQueryHandler", "IAsignacionesQueryContext"),
+        ("Reclamaciones.ObtenerReclamacionPreventivaEmpresaQueryHandler", "ICentrosQueryContext"),
+        ("Reclamaciones.ObtenerReclamacionPreventivaEmpresaQueryHandler", "IEmpresasQueryContext"),
+        ("Reclamaciones.ObtenerReclamacionPreventivaEmpresaQueryHandler", "ITrabajadoresQueryContext"),
+        // Reclamación por acceso (2026-10-19): solo cuentan los Trabajadores pedidos que son de la Empresa (Trabajador.EmpresaId).
+        ("Reclamaciones.ObtenerReclamacionPorAccesoQueryHandler", "ITrabajadoresQueryContext"),
+        // «Pendiente de subir a plataformas» de Empresa 360 (2026-10-19): acota lo bloqueante por Centro a los Trabajadores de la
+        // Empresa y a sus filtros de Delegación y Oficio, que solo conoce el catálogo de Trabajadores.
+        ("Reclamaciones.ObtenerPendientesDeSubirAPlataformaEmpresaQueryHandler", "ITrabajadoresQueryContext"),
         ("Reclamaciones.ObtenerReclamacionesEnviadasQueryHandler", "IClientesQueryContext"),
         ("Reclamaciones.ObtenerReclamacionesEnviadasQueryHandler", "IComunicacionesQueryContext"),
         ("Reclamaciones.ObtenerReclamacionesSinRespuestaQueryHandler", "IClientesQueryContext"),
