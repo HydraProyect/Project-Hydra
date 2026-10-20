@@ -102,6 +102,11 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     private FraccionCumplimiento? _cumplimiento;
     private bool _cargando = true;
     private bool _error;
+    /// <summary>
+    /// La consulta devolvió null: la ficha no está en el Tenant activo (o no existe; es el mismo estado, § 4.5).
+    /// No es un fallo transitorio, así que no lleva «Reintentar»: lo pinta <c>FichaNoEncontrada</c>.
+    /// </summary>
+    private bool _noEncontrada;
 
     private IReadOnlyList<TrabajadorDocumentacionSubcontrataDto>? _trabajadores;
     private bool _cargandoTrabajadores = true;
@@ -353,6 +358,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         var id = SubcontrataId;
         _cargando = true;
         _error = false;
+        _noEncontrada = false;
 
         try
         {
@@ -363,7 +369,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
             if (detalle is null)
             {
                 _detalle = null;
-                _error = true;
+                _noEncontrada = true;
                 return;
             }
 
@@ -407,7 +413,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
             if (detalle is null)
             {
                 _detalle = null;
-                _error = true;
+                _noEncontrada = true;
                 return;
             }
 

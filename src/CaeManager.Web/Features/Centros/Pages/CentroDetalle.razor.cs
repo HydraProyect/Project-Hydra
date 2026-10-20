@@ -150,6 +150,11 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private IReadOnlyList<DocumentacionBloqueantePendienteDto> _bloqueos = [];
     private bool _cargando = true;
     private bool _error;
+    /// <summary>
+    /// La consulta devolvió null: la ficha no está en el Tenant activo (o no existe; es el mismo estado, § 4.5).
+    /// No es un fallo transitorio, así que no lleva «Reintentar»: lo pinta <c>FichaNoEncontrada</c>.
+    /// </summary>
+    private bool _noEncontrada;
     private bool _cargandoCanales = true;
 
     /// <summary>
@@ -316,6 +321,7 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         var centroId = CentroId;
         _cargando = true;
         _error = false;
+        _noEncontrada = false;
 
         try
         {
@@ -324,7 +330,7 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
             _detalle = detalle;
             if (_detalle is null)
             {
-                _error = true;
+                _noEncontrada = true;
                 return;
             }
 

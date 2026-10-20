@@ -1,3 +1,4 @@
+using CaeManager.Web.Components.Layout;
 using AngleSharp.Dom;
 using Bunit.TestDoubles;
 using Bunit;
@@ -320,15 +321,15 @@ public partial class Empresa360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void Si_la_empresa_no_llega_se_ofrece_reintentar_y_no_se_consulta_nada_mas()
+    public void Si_la_empresa_no_llega_pinta_FichaNoEncontrada_sin_Reintentar_y_no_se_consulta_nada_mas()
     {
-        Services.ConEnlaceProfundoOtraEmpresa();
+        ComponentFactories.AddStub<FichaNoEncontrada>();
         var mediador = Registrar(new MediatorFalso());
 
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("No pudimos cargar esta empresa").And.Contain("Puede que ya no exista o que no tengas acceso.");
-        cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Reintentar");
+        cut.RutaListaDeFichaNoEncontrada().Should().Be("/empresas");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Reintentar");
         mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Should().BeEmpty();
         mediador.Enviadas.OfType<ObtenerCredencialAccesoEmpresaSinContrasenaQuery>().Should().BeEmpty();
     }

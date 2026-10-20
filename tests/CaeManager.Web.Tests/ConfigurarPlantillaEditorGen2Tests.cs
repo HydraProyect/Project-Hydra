@@ -1,3 +1,4 @@
+using CaeManager.Web.Components.Layout;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
@@ -483,9 +484,23 @@ public partial class ConfigurarPlantillaEditorGen2Tests : BunitContext
     // ------------------------------------------------------ Carga y carreras
 
     [Fact]
+    public void Si_la_version_no_esta_en_la_empresa_activa_pinta_FichaNoEncontrada_sin_Reintentar()
+    {
+        ComponentFactories.AddStub<FichaNoEncontrada>();
+        var cut = Renderizar(new MediatorFalso());
+
+        cut.RutaListaDeFichaNoEncontrada().Should().Be("/plantillas");
+        cut.FindAll("[role='alert']").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Reintentar");
+    }
+
+    [Fact]
     public async Task Si_la_carga_falla_lo_dice_con_una_alerta_y_Reintentar_pinta_la_plantilla()
     {
-        var mediador = new MediatorFalso();
+        var mediador = new MediatorFalso
+        {
+            Version = Result.Fallo<PlantillaDocumentoVersionDetalleDto>(Error.Crear("Plantilla.Prueba", "Fallo de prueba que no es una ausencia.")),
+        };
         var cut = Renderizar(mediador);
 
         var alerta = cut.Find("[role='alert']");

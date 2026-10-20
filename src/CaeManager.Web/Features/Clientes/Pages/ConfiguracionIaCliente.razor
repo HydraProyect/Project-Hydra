@@ -50,9 +50,13 @@
         </div>
     </section>
 
-    @if (_errorCarga)
+    @if (_noEncontrada)
     {
-        <EstadoVacio Titulo="No pudimos cargar la configuración" Descripcion="Intenta nuevamente en unos segundos, o puede que no tengas acceso a este Cliente.">
+        <FichaNoEncontrada RutaLista="/clientes" />
+    }
+    else if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar la configuración" Descripcion="Intenta nuevamente en unos segundos.">
             <Accion><Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton></Accion>
         </EstadoVacio>
     }

@@ -22,12 +22,15 @@
 <div class="contenedor-pagina">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["AriaMigas"]" />
 
-    @if (_error)
+    @if (_noEncontrada)
+    {
+        <FichaNoEncontrada RutaLista="/trabajadores" />
+    }
+    else if (_error)
     {
         <EstadoVacio Titulo="@Textos["DetalleErrorTitulo"]" Descripcion="@Textos["DetalleErrorDescripcion"]">
             <Accion>
                 <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Comunes["Reintentar"]</Boton>
-                <EnlaceProfundoOtraEmpresa />
             </Accion>
         </EstadoVacio>
     }

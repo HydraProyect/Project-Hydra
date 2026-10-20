@@ -44,7 +44,13 @@
 <div class="contenedor-pagina">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["FichaRutaNavegacion"]" />
 
-    @if (_error)
+    @if (_noEncontrada)
+    {
+        <Tarjeta>
+            <FichaNoEncontrada RutaLista="/vehiculos" />
+        </Tarjeta>
+    }
+    else if (_error)
     {
         @* No encontrado y sin acceso se ven igual, para no revelar si el
            registro existe en otra organización: la consulta devuelve null en
@@ -54,7 +60,6 @@
                          NombreIcono="error-circulo" AcentoIcono="var(--color-danger-700)" FondoIcono="var(--color-danger-50)">
                 <Accion>
                     <Boton Variante="VarianteBoton.Secundario" OnClick="ReintentarAsync">@Textos["BotonReintentar"]</Boton>
-                    <EnlaceProfundoOtraEmpresa />
                 </Accion>
             </EstadoVacio>
         </Tarjeta>
