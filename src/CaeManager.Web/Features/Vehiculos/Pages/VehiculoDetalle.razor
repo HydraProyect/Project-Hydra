@@ -294,7 +294,12 @@
             <ListaRelaciones Etiqueta="@Textos["EtiquetaEmpleador"]">
                 <FilaRelacion Nombre="@_detalle!.EmpleadorNombre" Href="@RutaEmpleador" NombreIcono="empresas">
                     <Detalle>@Textos["EtiquetaEmpresa"]</Detalle>
-                    <Derecha><Boton360 Nombre="@_detalle.EmpleadorNombre" Href="@RutaEmpleador" /></Derecha>
+                    <Derecha>
+                        @if (RutaEmpleador is { } rutaEmpleadorCaja)
+                        {
+                            <Boton360 Nombre="@_detalle.EmpleadorNombre" Href="@rutaEmpleadorCaja" />
+                        }
+                    </Derecha>
                 </FilaRelacion>
             </ListaRelaciones>
         </Tarjeta>
