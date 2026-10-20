@@ -18,7 +18,7 @@ public partial class TrabajadoresListaGen2Tests
             .Single(c => c.Instance.Etiqueta is { } e && (e.Contains("DNI") || e.Contains("ocumento")));
         var input = campo.Find("input");
         await input.InputAsync(new ChangeEventArgs { Value = valor });
-        await campo.Find("input").ChangeAsync(new ChangeEventArgs { Value = valor });
+        await campo.Find("input").BlurAsync(new Microsoft.AspNetCore.Components.Web.FocusEventArgs());
     }
 
     [Theory]
