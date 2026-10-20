@@ -638,6 +638,9 @@
   <data name="IrATuPantallaPrincipal" xml:space="preserve">
     <value>Ir a tu pantalla principal</value>
   </data>
+  <data name="TarjetasRestablecer" xml:space="preserve"><value>Restablecer orden</value></data>
+  <data name="TarjetasMover" xml:space="preserve"><value>Mover la tarjeta {0}. Usa las flechas arriba y abajo.</value></data>
+  <data name="TarjetasArrastrar" xml:space="preserve"><value>Arrastra ⠿ para reordenar las tarjetas</value></data>
   <data name="AgendaNotaComunicaciones" xml:space="preserve">
     <value>Nota para Comunicaciones</value>
   </data>

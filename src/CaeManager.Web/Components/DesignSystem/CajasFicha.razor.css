@@ -10,6 +10,21 @@
     margin: 0 0 var(--space-3);
 }
 
+.cajas-ficha-editables {
+    columns: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+    gap: var(--space-4);
+    align-items: start;
+}
+
+.cajas-ficha-editables .cajas-ficha-caja { position: relative; margin: 0; min-width: 0; }
+.cajas-ficha-editables .cajas-ficha-caja ::deep .tarjeta-header { padding-left: var(--space-8); }
+.cajas-ficha-ayuda { display: flex; flex-wrap: wrap; gap: var(--space-3); margin: var(--space-4) 0; color: var(--color-text-muted); font: var(--font-caption); }
+.cajas-ficha-restablecer { border: 0; background: none; padding: 0; color: var(--color-primary-500); font: inherit; cursor: pointer; }
+.cajas-ficha-asa { position: absolute; z-index: 1; top: var(--space-4); left: var(--space-2); border: 0; background: none; color: var(--color-text-muted); cursor: grab; font: inherit; padding: 2px; }
+.cajas-ficha-asa:focus-visible, .cajas-ficha-restablecer:focus-visible { outline: 2px solid var(--color-primary-500); outline-offset: 2px; }
+
 /* Mismo corte que CuerpoConLateral: cuando el lateral baja, las cajas van en una columna. */
 @media (max-width: 900px) {
     .cajas-ficha {
