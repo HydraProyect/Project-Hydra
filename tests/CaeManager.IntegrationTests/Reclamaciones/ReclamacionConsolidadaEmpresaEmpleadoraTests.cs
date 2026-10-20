@@ -186,7 +186,7 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
         var lote = lotes.Should().ContainSingle().Subject;
         lote.EmpresaEmpleadora!.DelegacionEmpresaId.Should().BeNull("Ana no tiene Delegación: el lote va a la agenda de la Empresa");
         lote.Documentos.Select(d => d.DocumentoId).Should().BeEquivalentTo([_agenda.DocAnaCertificadoId, _agenda.DocPlanId!.Value]);
-        lote.Destinatarios.Select(d => d.Email).Should().BeEquivalentTo(
+        lote.Destinatarios!.Select(d => d.Email).Should().BeEquivalentTo(
             ["agenda@contratista.test", "plan@contratista.test"],
             "el predeterminado recibe el certificado y la dueña del Plan recibe lo de la Empresa, que ya viaja en este lote");
     }
