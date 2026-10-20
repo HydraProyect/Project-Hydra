@@ -7,6 +7,7 @@ using CaeManager.Application.Proyectos.Queries.ObtenerVisitasProyecto;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Proyectos;
@@ -49,6 +50,9 @@ public class EmpresasYVisitasProyectoBajoRuntimeTests : IAsyncLifetime
         await using (var contexto = Contexto(_propietario.Id))
         {
             await contexto.Database.MigrateAsync();
+            // El estado documental de Empresas y Vehículos lee los umbrales del sistema, que en producción siempre existen.
+            if (await contexto.ParametrosSistema.SingleOrDefaultAsync() is null)
+                contexto.ParametrosSistema.Add(new ParametroSistema(30, 15));
             contexto.Tenants.AddRange(_propietario, _ajeno);
             var roles = await contexto.Roles.ToDictionaryAsync(r => r.Name!, r => r.Id);
             void Cuenta(Guid id, string rol)
