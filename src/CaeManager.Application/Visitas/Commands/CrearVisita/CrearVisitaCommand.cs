@@ -52,7 +52,8 @@ public class CrearVisitaCommandHandler(
     ISugerenciaVisitaCorreoRepository sugerenciaRepositorio, IComunicacionesQueryContext comunicacionesContext,
     IPaqueteDocumentalVisitaService paqueteDocumental, IEvaluadorExpedienteVisitaService evaluadorExpediente,
     ICurrentUserService currentUserService, IPublisher publisher, IUnitOfWork unitOfWork,
-    ILogger<CrearVisitaCommandHandler> logger, IAlcanceDatosService alcanceDatos)
+    ILogger<CrearVisitaCommandHandler> logger, IAlcanceDatosService alcanceDatos,
+    IActorAuditoria? actorAuditoria = null)
     : IRequestHandler<CrearVisitaCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearVisitaCommand request, CancellationToken cancellationToken)
@@ -118,8 +119,9 @@ public class CrearVisitaCommandHandler(
         visita.RellenarContactoDesdeCentro(centro.Contacto);
         repositorio.Agregar(visita);
 
+        var gestionadoPor = await GestorDeLaAsignacion.ActorRealAsync(actorAuditoria);
         foreach (var trabajadorId in trabajadorIds)
-            visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, trabajadorId));
+            visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, trabajadorId, gestionadoPor));
 
         Guid? conversacionParaPaquete = null;
         if (sugerencia is not null)

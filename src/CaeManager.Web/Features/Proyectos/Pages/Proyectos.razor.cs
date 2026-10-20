@@ -396,6 +396,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
             }
 
             _proyectos = resultado.Elementos.ToList();
+            _expandidos.IntersectWith(_proyectos.Select(p => p.Id));
             _totalElementos = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
             _listaCargada = true;

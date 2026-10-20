@@ -131,6 +131,12 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     private bool _cargando = true;
     private bool _error;
 
+    /// <summary>
+    /// La consulta devolvió null: la ficha no está en el Tenant activo (o no existe; es el mismo estado, § 4.5).
+    /// No es un fallo transitorio, así que no lleva «Reintentar»: lo pinta <c>FichaNoEncontrada</c>.
+    /// </summary>
+    private bool _noEncontrada;
+
     private string _pestanaActiva = PestanaOperacion;
     private string? _pestanaDeLaUrl;
     private bool _urlAdoptada;
@@ -417,6 +423,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
         _cargando = true;
         _error = false;
+        _noEncontrada = false;
 
         try
         {
@@ -427,7 +434,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             _detalle = detalle;
             if (_detalle is null)
             {
-                _error = true;
+                _noEncontrada = true;
                 return;
             }
 

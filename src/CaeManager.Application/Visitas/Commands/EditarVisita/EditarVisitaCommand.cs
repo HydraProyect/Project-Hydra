@@ -37,7 +37,8 @@ public class EditarVisitaCommandValidator : AbstractValidator<EditarVisitaComman
 public class EditarVisitaCommandHandler(
     IVisitaRepository repositorio, IVisitaTrabajadorRepository visitaTrabajadorRepositorio,
     ITrabajadoresQueryContext trabajadoresContext, IEvaluadorExpedienteVisitaService evaluadorExpediente,
-    IUnitOfWork unitOfWork, ILogger<EditarVisitaCommandHandler> logger, IAlcanceDatosService alcanceDatos)
+    IUnitOfWork unitOfWork, ILogger<EditarVisitaCommandHandler> logger, IAlcanceDatosService alcanceDatos,
+    IActorAuditoria? actorAuditoria = null)
     : IRequestHandler<EditarVisitaCommand, Result>
 {
     public async Task<Result> Handle(EditarVisitaCommand request, CancellationToken cancellationToken)
@@ -78,8 +79,10 @@ public class EditarVisitaCommandHandler(
         foreach (var vt in trabajadoresQueSalen)
             visitaTrabajadorRepositorio.Eliminar(vt);
 
+        // Solo los nuevos llevan la fecha y el Gestor CAE de esta edición: los que ya estaban conservan los suyos.
+        var gestionadoPor = trabajadorIdsNuevos.Count > 0 ? await GestorDeLaAsignacion.ActorRealAsync(actorAuditoria) : null;
         foreach (var trabajadorId in trabajadorIdsNuevos)
-            visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, trabajadorId));
+            visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, trabajadorId, gestionadoPor));
 
         // La misma regla que añadir o quitar desde el panel: si cambia quién entra, la
         // documentación deja de estar gestionada. Cambiar solo fechas, hora o notas no la borra.

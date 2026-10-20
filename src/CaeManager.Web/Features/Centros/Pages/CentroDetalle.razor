@@ -26,13 +26,18 @@
 <div class="contenedor-pagina">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="Ruta de Centro 360" />
 
-    @if (_error)
+    @if (_noEncontrada)
     {
         <Tarjeta>
-            <EstadoVacio Titulo="No pudimos cargar este centro" Descripcion="Puede que ya no exista o que no tengas acceso.">
+            <FichaNoEncontrada RutaLista="/centros" />
+        </Tarjeta>
+    }
+    else if (_error)
+    {
+        <Tarjeta>
+            <EstadoVacio Titulo="No pudimos cargar este centro" Descripcion="Intenta nuevamente en unos segundos.">
                 <Accion>
                     <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
-                    <EnlaceProfundoOtraEmpresa />
                 </Accion>
             </EstadoVacio>
         </Tarjeta>

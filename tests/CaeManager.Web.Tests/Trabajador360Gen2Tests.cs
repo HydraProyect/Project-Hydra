@@ -1,3 +1,4 @@
+using CaeManager.Web.Components.Layout;
 using CaeManager.Application.Documentos.DocumentacionBase;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentacionBaseTrabajadores;
 using CaeManager.Infrastructure.Identity;
@@ -2040,14 +2041,15 @@ public partial class Trabajador360Gen2Tests : BunitContext
     }
 
     [Fact]
-    public void Si_el_trabajador_no_existe_se_dice_y_se_ofrece_reintentar()
+    public void Si_el_trabajador_no_esta_en_la_empresa_activa_pinta_FichaNoEncontrada_sin_Reintentar()
     {
         var id = Guid.NewGuid();
-        Services.ConEnlaceProfundoOtraEmpresa();
+        ComponentFactories.AddStub<FichaNoEncontrada>();
         Registrar(new MediatorFalso());
 
         var cut = Renderizar(id);
-        cut.Markup.Should().Contain("No pudimos cargar este trabajador").And.Contain("Reintentar");
+        cut.RutaListaDeFichaNoEncontrada().Should().Be("/trabajadores");
+        cut.Markup.Should().NotContain("Reintentar").And.NotContain("No pudimos cargar este trabajador");
         cut.FindAll(".cabecera-identidad").Should().BeEmpty();
     }
 

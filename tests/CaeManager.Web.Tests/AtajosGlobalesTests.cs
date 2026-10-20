@@ -24,24 +24,24 @@ public class AtajosGlobalesTests : BunitContext
     }
 
     [Fact]
-    public void IrA_navega_al_destino_de_la_letra()
+    public async Task IrA_navega_al_destino_de_la_letra()
     {
         var cut = Render<AtajosGlobales>();
         var navegacion = Services.GetRequiredService<NavigationManager>();
 
-        cut.Instance.IrA("b");
+        await cut.InvokeAsync(() => cut.Instance.IrA("b"));
 
         navegacion.Uri.Should().EndWith("/bandeja");
     }
 
     [Fact]
-    public void IrA_con_una_letra_sin_destino_no_navega()
+    public async Task IrA_con_una_letra_sin_destino_no_navega()
     {
         var cut = Render<AtajosGlobales>();
         var navegacion = Services.GetRequiredService<NavigationManager>();
         var uriOriginal = navegacion.Uri;
 
-        cut.Instance.IrA("z");
+        await cut.InvokeAsync(() => cut.Instance.IrA("z"));
 
         navegacion.Uri.Should().Be(uriOriginal);
     }
@@ -63,12 +63,12 @@ public class AtajosGlobalesTests : BunitContext
     [InlineData("i", "/incidencias")]
     [InlineData("v", "/visitas")]
     [InlineData("m", "/mi-trabajo")]
-    public void IrA_navega_a_las_dos_areas_nuevas_con_letra_directa(string tecla, string rutaEsperada)
+    public async Task IrA_navega_a_las_dos_areas_nuevas_con_letra_directa(string tecla, string rutaEsperada)
     {
         var cut = Render<AtajosGlobales>();
         var navegacion = Services.GetRequiredService<NavigationManager>();
 
-        cut.Instance.IrA(tecla);
+        await cut.InvokeAsync(() => cut.Instance.IrA(tecla));
 
         navegacion.Uri.Should().EndWith(rutaEsperada);
     }
@@ -291,3 +291,4 @@ public class AtajosGlobalesTests : BunitContext
         cut.Markup.Should().NotContain("Atajos de teclado", "las letras se pintan sobre la pantalla, no sobre la chuleta");
     }
 }
+

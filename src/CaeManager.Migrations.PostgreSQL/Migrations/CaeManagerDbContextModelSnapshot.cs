@@ -8087,6 +8087,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<bool?>("MarcaExtranjeroCobrable")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("MotivoPermisoTrabajo")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -8477,6 +8480,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("FechaAsignacionUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("GestionadoPorUsuarioId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("TenantId")

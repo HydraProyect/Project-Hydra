@@ -163,6 +163,27 @@
   <data name="EnlaceOtraEmpresaAbrir" xml:space="preserve">
     <value>Abrir en {0}</value>
   </data>
+  <data name="FichaNoEstaEnEmpresaActiva" xml:space="preserve">
+    <value>Esa ficha no está en {0}; te llevamos a la lista.</value>
+  </data>
+  <data name="FichaNoDisponibleTitulo" xml:space="preserve">
+    <value>Esta ficha no está disponible</value>
+  </data>
+  <data name="FichaNoDisponibleDescripcion" xml:space="preserve">
+    <value>Puede que se haya eliminado o que el enlace no sea correcto.</value>
+  </data>
+  <data name="FichaNoDisponibleIrALista" xml:space="preserve">
+    <value>Ir a la lista</value>
+  </data>
+  <data name="FichaNoDisponibleVolviendo" xml:space="preserve">
+    <value>Volviendo a la lista…</value>
+  </data>
+  <data name="FichaPanelNoEstaEnEmpresaActiva" xml:space="preserve">
+    <value>Esa ficha no está en {0}.</value>
+  </data>
+  <data name="FichaPanelNoDisponible" xml:space="preserve">
+    <value>Esa ficha ya no está disponible.</value>
+  </data>
   <data name="FiltrosGuardados" xml:space="preserve">
     <value>Filtros guardados</value>
   </data>
@@ -613,5 +634,8 @@
   </data>
   <data name="SeccionErroresPlural" xml:space="preserve">
     <value>{0} errores</value>
+  </data>
+  <data name="IrATuPantallaPrincipal" xml:space="preserve">
+    <value>Ir a tu pantalla principal</value>
   </data>
 </root>
