@@ -885,4 +885,49 @@
   <data name="ColumnaExtranjerosCartera" xml:space="preserve">
     <value>Extranjeros</value>
   </data>
+  <data name="BotonExportarExtranjeros" xml:space="preserve">
+    <value>Exportar extranjeros del mes</value>
+  </data>
+  <data name="ExtranjerosHoja" xml:space="preserve">
+    <value>Extranjeros</value>
+  </data>
+  <data name="ExtranjerosColumnaTenant" xml:space="preserve">
+    <value>Empresa gestionada</value>
+  </data>
+  <data name="ExtranjerosColumnaFechaSolicitud" xml:space="preserve">
+    <value>Fecha de solicitud</value>
+  </data>
+  <data name="ExtranjerosColumnaContacto" xml:space="preserve">
+    <value>Técnico o contacto de la visita</value>
+  </data>
+  <data name="ExtranjerosColumnaEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="ExtranjerosColumnaSubcontrata" xml:space="preserve">
+    <value>Subcontrata</value>
+  </data>
+  <data name="ExtranjerosColumnaCliente" xml:space="preserve">
+    <value>Cliente</value>
+  </data>
+  <data name="ExtranjerosColumnaCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="ExtranjerosColumnaFechaIngreso" xml:space="preserve">
+    <value>Fecha de ingreso</value>
+  </data>
+  <data name="ExtranjerosColumnaFechaSalida" xml:space="preserve">
+    <value>Fecha de salida</value>
+  </data>
+  <data name="ExtranjerosColumnaTrabajador" xml:space="preserve">
+    <value>Nombre y apellidos</value>
+  </data>
+  <data name="ExtranjerosColumnaDocumento" xml:space="preserve">
+    <value>Documento</value>
+  </data>
+  <data name="ExtranjerosColumnaGestorCae" xml:space="preserve">
+    <value>Gestor CAE</value>
+  </data>
+  <data name="ExtranjerosNotaSinAlcance" xml:space="preserve">
+    <value>Organizaciones gestionadas de las que no ves todos los datos: {0}. Sus trabajadores extranjeros no están en esta exportación.</value>
+  </data>
 </root>

@@ -2,7 +2,7 @@ using Bunit;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
-using CaeManager.Domain.Facturacion;
+using CaeManager.Domain.Dashboard;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Features.CuadroDireccion;
 using CaeManager.Web.Features.CuadroDireccion.Components;
@@ -33,11 +33,11 @@ public partial class CuadroDireccionTests
             0);
     }
 
-    private static LineaFacturacionCuadroDto Linea(ConceptoFacturable concepto, string nombre, int unidades, decimal importe, string moneda = "EUR") =>
+    private static LineaFacturacionCuadroDto Linea(ConceptoTarifaOperadorCae concepto, string nombre, int unidades, decimal importe, string moneda = "EUR") =>
         new(concepto, nombre, moneda, unidades, importe);
 
     private static IReadOnlyList<LineaFacturacionCuadroDto> LineasDeTarifa() =>
-        [Linea(ConceptoFacturable.DocumentoGestionado, "Documento gestionado", 100, 150m), Linea(ConceptoFacturable.TrabajadorActivo, "Trabajador activo", 300, 600m)];
+        [Linea(ConceptoTarifaOperadorCae.ObraNueva, "Obra nueva", 100, 150m), Linea(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, "Visita de Trabajador extranjero", 300, 600m)];
 
     private IRenderedComponent<CuadroDireccionPagina> PintarConSerie(
         CuadroDireccionDto cuadro, IReadOnlyList<LineaFacturacionCuadroDto>? lineas, string rol = Roles.DireccionCae) =>
@@ -607,7 +607,7 @@ public partial class CuadroDireccionTests
                 {
                     Gestiones = new CifraMensual(d.Year == hoy.Year ? 50 : conDatosElAnyoPrevio ? 40 : 0, EstadoCifraMensual.Estimado),
                 },
-                [Linea(ConceptoFacturable.DocumentoGestionado, "Documento gestionado", 10, d.Year == hoy.Year ? 200m : 100m)]))
+                [Linea(ConceptoTarifaOperadorCae.ObraNueva, "Obra nueva", 10, d.Year == hoy.Year ? 200m : 100m)]))
             .ToList();
         return new SerieCuadroDireccionDto(puntos, [new SerieTenantCuadroDto(TenantA, "Refrielectric S.A.", puntos)], 0);
     }

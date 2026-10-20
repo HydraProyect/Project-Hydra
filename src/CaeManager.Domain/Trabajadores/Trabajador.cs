@@ -137,6 +137,13 @@ public class Trabajador : EntidadBase
     public DateOnly? CaducidadPermisoTrabajo { get; private set; }
     public string? MotivoPermisoTrabajo { get; private set; }
 
+    /// <summary>
+    /// «Trabajador extranjero (cobrable)» fijado a mano (decisión de Chris, 2026-10-20). <c>null</c> = sin fijar: decide
+    /// el documento (<see cref="CriterioExtranjeroCobrable"/>). Solo lo escribe <see cref="FijarMarcaExtranjeroCobrable"/>.
+    /// Dice algo de la nacionalidad de la persona, así que es dato personal y <see cref="Anonimizar"/> lo vacía.
+    /// </summary>
+    public bool? MarcaExtranjeroCobrable { get; private set; }
+
     public string NombreCompleto => $"{Nombre} {Apellidos}";
 
     public bool EsDeSubcontrata => SubcontrataId is not null;
@@ -225,8 +232,8 @@ public class Trabajador : EntidadBase
     /// <c>EnmascaraAuditoriaDeTrabajadorAnonimizado</c>) reescribe con "***" estas mismas
     /// claves en las entradas anteriores. La función repite la lista en SQL: una propiedad
     /// personal nueva se añade aquí, en <see cref="Anonimizar"/> y en la función, redefinida con
-    /// CREATE OR REPLACE en una migración nueva (la última, <c>AnadeDelegacionYOficioEmpresa</c>,
-    /// añadió <see cref="OficioEmpresaId"/>).
+    /// CREATE OR REPLACE en una migración nueva (la última, <c>AnadeExtranjeroCobrableYAsignacionVisita</c>,
+    /// añadió <see cref="MarcaExtranjeroCobrable"/>).
     /// </summary>
     public static readonly IReadOnlyList<string> CamposDeDatosPersonales =
     [
@@ -236,6 +243,7 @@ public class Trabajador : EntidadBase
         nameof(NumeroAfiliacionSeguridadSocial), nameof(Nacionalidad), nameof(TipoVinculo),
         nameof(FechaAltaEmpresa), nameof(FechaBajaEmpresa), nameof(FiguraEnRnt),
         nameof(TipoPermisoTrabajo), nameof(CaducidadPermisoTrabajo), nameof(MotivoPermisoTrabajo),
+        nameof(MarcaExtranjeroCobrable),
     ];
 
     /// <summary>
@@ -286,6 +294,7 @@ public class Trabajador : EntidadBase
         TipoPermisoTrabajo = null;
         CaducidadPermisoTrabajo = null;
         MotivoPermisoTrabajo = null;
+        MarcaExtranjeroCobrable = null;
 
         AnonimizadoEnUtc = ahoraUtc;
     }
@@ -308,6 +317,19 @@ public class Trabajador : EntidadBase
             throw new ArgumentException($"La nota interna no puede superar {LongitudMaximaNotas} caracteres.", nameof(notas));
 
         Notas = normalizada;
+    }
+
+    /// <summary>
+    /// Fija a mano si el Trabajador cuenta como extranjero cobrable (<see cref="MarcaExtranjeroCobrable"/>); <c>null</c>
+    /// la quita y vuelve a decidir el documento. Un Trabajador anonimizado no la admite: es dato personal.
+    /// </summary>
+    public void FijarMarcaExtranjeroCobrable(bool? marca)
+    {
+        if (EstaAnonimizado)
+            throw new InvalidOperationException(
+                "Este trabajador está anonimizado: sus datos personales se suprimieron y no pueden volver a introducirse.");
+
+        MarcaExtranjeroCobrable = marca;
     }
 
     /// <summary>

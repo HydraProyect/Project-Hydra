@@ -30,7 +30,8 @@ public class AnadirTrabajadorAVisitaCommandValidator : AbstractValidator<AnadirT
 public class AnadirTrabajadorAVisitaCommandHandler(
     IVisitaRepository repositorio, IVisitaTrabajadorRepository visitaTrabajadorRepositorio,
     ITrabajadoresQueryContext trabajadoresContext, IEvaluadorExpedienteVisitaService evaluadorExpediente,
-    IUnitOfWork unitOfWork, ILogger<AnadirTrabajadorAVisitaCommandHandler> logger, IAlcanceDatosService alcanceDatos)
+    IUnitOfWork unitOfWork, ILogger<AnadirTrabajadorAVisitaCommandHandler> logger, IAlcanceDatosService alcanceDatos,
+    IActorAuditoria? actorAuditoria = null)
     : IRequestHandler<AnadirTrabajadorAVisitaCommand, Result>
 {
     public async Task<Result> Handle(AnadirTrabajadorAVisitaCommand request, CancellationToken cancellationToken)
@@ -58,7 +59,8 @@ public class AnadirTrabajadorAVisitaCommandHandler(
         if (!await trabajadoresContext.Trabajadores.AnyAsync(t => t.Id == request.TrabajadorId, cancellationToken))
             return Result.Fallo(Error.Crear("Visita.TrabajadorNoEncontrado", "No encontramos este trabajador."));
 
-        visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, request.TrabajadorId));
+        visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, request.TrabajadorId,
+            await GestorDeLaAsignacion.ActorRealAsync(actorAuditoria)));
         visita.RegistrarCambioDeTrabajadores();
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

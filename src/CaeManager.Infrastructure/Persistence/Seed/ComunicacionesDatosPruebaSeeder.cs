@@ -301,7 +301,7 @@ public static class ComunicacionesDatosPruebaSeeder
                     ParametroSistemaSeedData.HoraInicioJornada, ParametroSistemaSeedData.HoraFinJornada));
 
             dbContext.Visitas.Add(visita);
-            dbContext.VisitasTrabajadores.Add(new VisitaTrabajador(visita.Id, trabajadores[i % trabajadores.Count].Id));
+            dbContext.VisitasTrabajadores.Add(AsignacionSembrada.De(visita, trabajadores[i % trabajadores.Count].Id));
             visitasSembradas++;
         }
 
