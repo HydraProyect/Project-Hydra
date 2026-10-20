@@ -208,6 +208,14 @@
     <value>Editar →</value>
     <comment>Acción de cabecera de tarjeta: abre el panel en Información.</comment>
   </data>
+  <data name="DatoIdentificacionFiscal" xml:space="preserve">
+    <value>Identificación fiscal</value>
+    <comment>Dato de Información: CIF, copiable.</comment>
+  </data>
+  <data name="SelloApoyo" xml:space="preserve">
+    <value>El sello de la empresa se estampa en las firmas en campo de sus documentos. Sube una foto nítida sobre fondo claro.</value>
+    <comment>Texto bajo el título de la sección Sello de la pestaña Ficha.</comment>
+  </data>
   <data name="DatoCnae" xml:space="preserve">
     <value>CNAE</value>
     <comment>Dato de Información.</comment>
@@ -221,7 +229,7 @@
     <comment>Dato de Información.</comment>
   </data>
   <data name="DatoAnexoI" xml:space="preserve">
-    <value>Actividad del Anexo I del RSP</value>
+    <value>Actividad de Anexo I</value>
     <comment>Dato de Información.</comment>
   </data>
   <data name="Si" xml:space="preserve">
@@ -527,4 +535,24 @@
   <data name="CatalogoEliminarMensaje" xml:space="preserve"><value>Se quitará del catálogo de la empresa.</value></data>
   <data name="CatalogoGuardado" xml:space="preserve"><value>Guardado.</value></data>
   <data name="CatalogoEliminado" xml:space="preserve"><value>Eliminado.</value></data>
+  <data name="TarjetaSePideDocumentacion" xml:space="preserve">
+    <value>Se pide la documentación a</value>
+    <comment>Título de la tarjeta lateral de Empresa 360: a quién se pide la documentación.</comment>
+  </data>
+  <data name="IrAAgendaFlecha" xml:space="preserve">
+    <value>Agenda →</value>
+    <comment>Enlace de la tarjeta lateral que abre la pestaña Agenda.</comment>
+  </data>
+  <data name="ContactoPrincipal" xml:space="preserve">
+    <value>Contacto principal</value>
+    <comment>Rótulo del contacto predeterminado de la Agenda.</comment>
+  </data>
+  <data name="CopiarCorreoContacto" xml:space="preserve">
+    <value>Copiar correo</value>
+    <comment>Botón que copia el correo del contacto principal.</comment>
+  </data>
+  <data name="CopiarTelefonoContacto" xml:space="preserve">
+    <value>Copiar teléfono</value>
+    <comment>Botón que copia el teléfono del contacto principal.</comment>
+  </data>
 </root>
