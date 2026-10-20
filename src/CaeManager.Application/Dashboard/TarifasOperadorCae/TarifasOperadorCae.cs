@@ -107,40 +107,6 @@ public class ObtenerTarifasOperadorCaeQueryHandler(ICurrentUserService usuario, 
 }
 
 /// <summary>
-/// Los Tenants beneficiarios sobre los que el Operador CAE de quien pide (su Tenant de origen) tuvo una Asignación de
-/// Operación EXTERNA en vigor en algún trozo del mes: las únicas Empresas gestionadas a las que «Facturación» puede
-/// cobrarles ese mes. Nunca el Tenant del propio Operador (la Asignación raíz no cuenta) ni uno que otra organización
-/// opere. Es el mismo criterio de vigencia que usa la valoración del Cuadro
-/// (<see cref="AutorizacionTarifasOperadorCae.VigenciasPorTenantBeneficiarioAsync"/> y
-/// <see cref="ValoracionOperadorCae.TramosEnElMes"/>), así que una lista vacía de líneas ya no se confunde con «sin vigencia».
-/// No lleva importes ni tarifas: la lee quien lee el Cuadro de dirección, también el Coordinador CAE.
-/// </summary>
-public record ObtenerEmpresasOperadasEnElMesQuery(int Anyo, int Mes) : IRequest<IReadOnlyList<Guid>>;
-
-public class ObtenerEmpresasOperadasEnElMesQueryHandler(ICurrentUserService usuario, IOperacionesQueryContext operaciones)
-    : IRequestHandler<ObtenerEmpresasOperadasEnElMesQuery, IReadOnlyList<Guid>>
-{
-    public async Task<IReadOnlyList<Guid>> Handle(ObtenerEmpresasOperadasEnElMesQuery request, CancellationToken cancellationToken)
-    {
-        await AutorizacionCuadroDireccion.ExigirLecturaAsync(usuario);
-
-        if (!Queries.MesCuadroDireccion.EsValido(request.Anyo, request.Mes)
-            || await usuario.ObtenerTenantOrigenIdAsync() is not { } operador)
-            return [];
-
-        var mes = new Queries.MesCuadroDireccion(request.Anyo, request.Mes);
-        ILookup<Guid, VigenciaAsignacionOperacion> vigencias;
-        using (AmbitoTenantExplicito.Establecer(operador))
-            vigencias = await AutorizacionTarifasOperadorCae.VigenciasPorTenantBeneficiarioAsync(operaciones, operador, cancellationToken);
-
-        return vigencias
-            .Where(g => ValoracionOperadorCae.TramosEnElMes(g, mes.InicioUtc, mes.FinUtc).Count > 0)
-            .Select(g => g.Key)
-            .ToList();
-    }
-}
-
-/// <summary>
 /// Fija la tarifa del Operador CAE de quien pide para un Tenant beneficiario y un concepto: añade una versión
 /// vigente desde ahora (ver <see cref="TarifaOperadorCae"/>). Desactivar el cobro es una versión con
 /// <paramref name="Activa"/> en falso; las unidades se siguen mostrando.

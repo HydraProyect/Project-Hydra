@@ -5,11 +5,31 @@
   CabeceraIdentidad y de las tarjetas.
 */
 
+.contenedor-pagina ::deep .cabecera-identidad {
+    align-items: flex-start;
+    gap: var(--space-6);
+    padding: var(--space-5);
+    margin-bottom: var(--space-6);
+    box-shadow: 0 1px 2px rgba(22, 30, 39, .08);
+}
+
 /* .centro360-identidad{flex:1 1 300px;min-width:260px} de la maqueta: a 375 px la identidad pasa a su propia fila bajo el anillo
    en vez de quedarse en una columna de 157 px. */
 .contenedor-pagina ::deep .cabecera-identidad-texto {
     flex: 1 1 300px;
     min-width: 260px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.contenedor-pagina ::deep .cabecera-identidad-kicker {
+    font: var(--font-caption);
+}
+
+.contenedor-pagina ::deep .cabecera-identidad-titulo,
+.contenedor-pagina ::deep .cabecera-identidad-datos {
+    margin: 0;
 }
 
 /* Línea de datos de la maqueta: CIF · recuentos · estado. */
@@ -86,6 +106,14 @@
     font: var(--font-body-md);
     font-variant-numeric: tabular-nums;
     color: var(--color-text-muted);
+}
+
+.cliente360-bloqueo-plataforma {
+    font: 500 11px/14px var(--font-family);
+    color: var(--color-danger-700);
+    border: 1px dashed var(--color-danger-500);
+    border-radius: var(--radius-sm);
+    padding: 0 5px;
 }
 
 /* .texto-apoyo / .fila-rel-sub de la maqueta: 13 px en la línea secundaria de las filas. */

@@ -1,0 +1,32 @@
+/* Drawer de tarifas (maqueta «Drawer Tarifas TALVEG.dc.html»): cada concepto en una caja de radio 12 con su interruptor y su precio. */
+.tarifas-moneda { display: flex; flex-direction: column; gap: 6px; max-width: 220px; font-size: 13px; line-height: 16px; font-weight: 600; }
+
+.tarifas-concepto {
+    display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 12px;
+    border: 1px solid var(--color-border); background: var(--color-surface-subtle);
+}
+.tarifas-concepto[data-activo="true"] { border-color: var(--color-primary-100); background: var(--color-surface); }
+.tarifas-concepto-cabecera { display: flex; align-items: flex-start; gap: 12px; }
+.tarifas-concepto-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tarifas-concepto-texto b { font-size: 14px; line-height: 20px; font-weight: 600; }
+.tarifas-concepto-texto span { font-size: 12px; line-height: 16px; color: var(--color-text-muted); text-wrap: pretty; }
+.tarifas-interruptor { flex: none; display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--color-text-muted); cursor: pointer; }
+.tarifas-interruptor input { width: 36px; height: 20px; margin: 0; cursor: pointer; accent-color: var(--color-primary-500); }
+
+.tarifas-precio {
+    display: flex; align-items: center; gap: 8px; max-width: 260px; height: 44px; padding: 0 12px;
+    border: 1px solid var(--color-border-control); border-radius: 10px; background: var(--color-surface);
+}
+.tarifas-precio[data-invalido="true"] { border-color: var(--color-danger-500); }
+.tarifas-precio input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-size: 15px; line-height: 20px; font-weight: 500; color: var(--color-text); }
+.tarifas-precio input:disabled { opacity: .55; }
+.tarifas-precio span { font-size: 13px; line-height: 16px; font-weight: 500; color: var(--color-text-muted); }
+.tarifas-error { font-size: 12px; line-height: 16px; color: var(--color-danger-700); }
+
+.tarifas-nota { margin: 0; font-size: 12px; line-height: 16px; color: var(--color-text-muted); text-wrap: pretty; }
+.tarifas-nota-aviso { padding: 10px 14px; border: 1px solid var(--color-warning-500); border-radius: 10px; background: var(--color-warning-50); color: var(--color-warning-700); font-size: 14px; line-height: 20px; }
+
+.tarifas-select {
+    box-sizing: border-box; height: 44px; padding: 0 12px; border: 1px solid var(--color-border-control); border-radius: 10px;
+    background: var(--color-surface); color: var(--color-text); font: inherit; font-size: 14px; font-weight: 400;
+}

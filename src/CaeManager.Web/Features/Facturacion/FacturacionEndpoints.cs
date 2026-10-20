@@ -110,13 +110,16 @@ public static class FacturacionEndpoints
         {
             var serie = await mediator.Send(
                 new CaeManager.Application.Dashboard.Queries.ObtenerSerieCuadroDireccionQuery(anyo, mes, 1, ConFacturacion: true), cancellationToken);
+            // Una sola fuente de vigencia (la del Cuadro de dirección): las Empresas gestionadas del mes y sus tramos. El conteo de
+            // extranjeros se acota a esos tramos, igual que la cifra del Cuadro, para que cifra, Excel e importe coincidan.
+            var gestionadas = await mediator.Send(
+                new CaeManager.Application.Dashboard.Queries.ObtenerEmpresasGestionadasDelMesQuery(anyo, mes), cancellationToken);
             var extranjeros = await mediator.Send(
-                new CaeManager.Application.Dashboard.Queries.ContarExtranjerosCobrablesDelMesQuery(anyo, mes), cancellationToken);
+                new CaeManager.Application.Dashboard.Queries.ContarExtranjerosCobrablesDelMesQuery(
+                    anyo, mes, gestionadas.EsOperadorCae ? gestionadas.Tramos : null), cancellationToken);
             var tarifas = await mediator.Send(
                 new CaeManager.Application.Dashboard.TarifasOperadorCae.ObtenerTarifasOperadorCaeQuery(), cancellationToken);
-            var operadas = await mediator.Send(
-                new CaeManager.Application.Dashboard.TarifasOperadorCae.ObtenerEmpresasOperadasEnElMesQuery(anyo, mes), cancellationToken);
-            modelo = FacturacionOperadorModelo.Construir(anyo, mes, serie, extranjeros, tarifas, operadas, ahoraUtc);
+            modelo = FacturacionOperadorModelo.Construir(anyo, mes, serie, extranjeros, tarifas, gestionadas.Tramos.Keys.ToList(), ahoraUtc);
         }
         catch (UnauthorizedAccessException)
         {

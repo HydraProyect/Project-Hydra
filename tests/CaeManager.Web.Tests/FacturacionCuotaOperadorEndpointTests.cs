@@ -118,8 +118,11 @@ public class FacturacionCuotaOperadorEndpointTests
         resultado.Contexto.Response.ContentType.Should().Contain("spreadsheetml");
         resultado.Mediador.Enviadas.OfType<ObtenerSerieCuadroDireccionQuery>().Should().ContainSingle()
             .Which.Should().Be(new ObtenerSerieCuadroDireccionQuery(2026, 10, 1, ConFacturacion: true));
-        resultado.Mediador.Enviadas.OfType<ObtenerEmpresasOperadasEnElMesQuery>().Should().ContainSingle()
-            .Which.Should().Be(new ObtenerEmpresasOperadasEnElMesQuery(2026, 10));
+        resultado.Mediador.Enviadas.OfType<ObtenerEmpresasGestionadasDelMesQuery>().Should().ContainSingle()
+            .Which.Should().Be(new ObtenerEmpresasGestionadasDelMesQuery(2026, 10));
+        // El conteo de extranjeros se acota a los tramos de vigencia de esa misma fuente única, como en el Cuadro de dirección.
+        resultado.Mediador.Enviadas.OfType<ContarExtranjerosCobrablesDelMesQuery>().Should().ContainSingle()
+            .Which.TramosPorTenant.Should().NotBeNull().And.ContainKey(Ebro);
 
         var filas = Filas(resultado.Contexto);
         filas.Should().HaveCount(3, "cabecera, una Empresa y el total del mes");
@@ -275,7 +278,7 @@ public class FacturacionCuotaOperadorEndpointTests
                 ContarExtranjerosCobrablesDelMesQuery q => new ConteoExtranjerosCobrablesDelMesDto(
                     q.Anyo, q.Mes, [new ConteoExtranjerosCobrablesTenantDto(Ebro, "Ebro", 14, 12)], 0),
                 ObtenerTarifasOperadorCaeQuery => escenario.Tarifas,
-                ObtenerEmpresasOperadasEnElMesQuery => escenario.Operadas,
+                ObtenerEmpresasGestionadasDelMesQuery => new EmpresasGestionadasDelMesDto(true, escenario.Operadas.ToDictionary(id => id, id => (IReadOnlyList<TramoDeVigencia>)[new TramoDeVigencia(new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc), new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc))])),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}."),
             };
             return Task.FromResult((TResponse)respuesta!);

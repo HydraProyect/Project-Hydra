@@ -112,8 +112,8 @@ public class FacturacionOperadorPaginaTests : BunitContext
         {
             switch (peticion)
             {
-                case ObtenerEmpresasOperadasEnElMesQuery:
-                    return Operadas;
+                case ObtenerEmpresasGestionadasDelMesQuery:
+                    return new EmpresasGestionadasDelMesDto(true, Operadas.ToDictionary(id => id, id => (IReadOnlyList<TramoDeVigencia>)[new TramoDeVigencia(new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc), new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc))]));
                 case ObtenerSerieCuadroDireccionQuery q:
                     if (ErrorEnSerie is not null)
                         throw ErrorEnSerie;
@@ -169,10 +169,11 @@ public class FacturacionOperadorPaginaTests : BunitContext
         mediador.Enviados.OfType<ObtenerSerieCuadroDireccionQuery>().Should().ContainSingle()
             .Which.Should().Be(new ObtenerSerieCuadroDireccionQuery(2026, 10, 1, ConFacturacion: true));
         mediador.Enviados.OfType<ContarExtranjerosCobrablesDelMesQuery>().Should().ContainSingle()
-            .Which.Should().Be(new ContarExtranjerosCobrablesDelMesQuery(2026, 10));
+            .Which.Should().Match<ContarExtranjerosCobrablesDelMesQuery>(q => q.Anyo == 2026 && q.Mes == 10
+                && q.TramosPorTenant != null && q.TramosPorTenant.Count == 2 && q.TramosPorTenant.ContainsKey(Ebro) && q.TramosPorTenant.ContainsKey(Rubén));
         mediador.Enviados.OfType<ObtenerTarifasOperadorCaeQuery>().Should().ContainSingle();
-        mediador.Enviados.OfType<ObtenerEmpresasOperadasEnElMesQuery>().Should().ContainSingle()
-            .Which.Should().Be(new ObtenerEmpresasOperadasEnElMesQuery(2026, 10));
+        mediador.Enviados.OfType<ObtenerEmpresasGestionadasDelMesQuery>().Should().ContainSingle()
+            .Which.Should().Be(new ObtenerEmpresasGestionadasDelMesQuery(2026, 10));
     }
 
     [Fact]
@@ -278,7 +279,7 @@ public class FacturacionOperadorPaginaTests : BunitContext
         await chips[2].ClickAsync(new MouseEventArgs());
 
         mediador.Enviados.OfType<ObtenerSerieCuadroDireccionQuery>().Last().Should().Be(new ObtenerSerieCuadroDireccionQuery(2026, 9, 1, ConFacturacion: true));
-        mediador.Enviados.OfType<ContarExtranjerosCobrablesDelMesQuery>().Last().Should().Be(new ContarExtranjerosCobrablesDelMesQuery(2026, 9));
+        mediador.Enviados.OfType<ContarExtranjerosCobrablesDelMesQuery>().Last().Should().Match<ContarExtranjerosCobrablesDelMesQuery>(q => q.Anyo == 2026 && q.Mes == 9);
     }
 
     [Fact]

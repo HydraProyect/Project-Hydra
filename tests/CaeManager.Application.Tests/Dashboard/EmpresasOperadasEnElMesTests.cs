@@ -1,5 +1,5 @@
 using CaeManager.Application.Common;
-using CaeManager.Application.Dashboard.TarifasOperadorCae;
+using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Domain.Operaciones;
@@ -10,7 +10,7 @@ namespace CaeManager.Application.Tests.Dashboard;
 
 /// <summary>
 /// «Facturación» solo lista las Empresas que el Operador CAE opera con una Asignación de Operación EXTERNA en vigor en el
-/// mes (<see cref="ObtenerEmpresasOperadasEnElMesQuery"/>), con el mismo criterio de vigencia que la valoración del Cuadro.
+/// mes (<see cref="ObtenerEmpresasGestionadasDelMesQuery"/>, la única fuente de vigencia, la misma que la valoración del Cuadro).
 /// Escenario: A, externa desde el 15-sep; E, desde el 10-oct; F, cerrada el 20-sep; B, solo Programada; C, fila raíz; el
 /// propio Operador, con una Asignación interna sobre sí mismo; y otro Operador sobre G.
 /// </summary>
@@ -31,8 +31,8 @@ public class EmpresasOperadasEnElMesTests
 
     private static async Task<IReadOnlyList<Guid>> PedirAsync(int anyo, int mes, string rol = "DireccionCae", Guid? origen = null)
     {
-        var handler = new ObtenerEmpresasOperadasEnElMesQueryHandler(new Usuario(rol, origen ?? Operador), new OperacionesFalsas());
-        return await handler.Handle(new ObtenerEmpresasOperadasEnElMesQuery(anyo, mes), default);
+        var handler = new ObtenerEmpresasGestionadasDelMesQueryHandler(new Usuario(rol, origen ?? Operador), new OperacionesFalsas());
+        return (await handler.Handle(new ObtenerEmpresasGestionadasDelMesQuery(anyo, mes), default)).Tramos.Keys.ToList();
     }
 
     [Fact]

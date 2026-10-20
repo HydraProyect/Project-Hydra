@@ -83,9 +83,6 @@ public partial class CuadroDireccionTests
         var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), []);
 
         cut.Find("[data-kpi=facturacion] .cuadro-kpi-valor").TextContent.Trim().Should().Be("—");
-        IrA(cut, "Facturación");
-        cut.Find("[data-sin-modelo=tarifas]").TextContent.Should().Contain("Todavía no hay tarifas por Empresa");
-        cut.FindAll("[data-grafico=apilado]").Should().BeEmpty();
     }
 
     [Fact]
@@ -307,51 +304,13 @@ public partial class CuadroDireccionTests
         indice.TextContent.Should().Contain("media = 100");
     }
 
-    [Fact]
-    public void El_simulador_trae_precios_de_ejemplo_y_el_selector_de_como_se_factura_la_gestion_de_extranjero()
-    {
-        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), []);
-        IrA(cut, "Facturación");
 
-        cut.FindAll("[data-chips=alta] button").Select(b => b.TextContent.Trim().Replace(' ', ' ')).Should().Equal("15 €", "20 €", "25 €", "30 €", "40 €");
-        cut.FindAll("[data-chips=extranjero]").Should().BeEmpty();
-
-        cut.FindAll("[data-chips=alta] button")[2].Click();
-        cut.Find("[data-sim=mes]").TextContent.Should().Contain("50", "25 € por las 2 altas de centro del mes");
-
-        cut.Find("select[data-sim=como]").Change("individual");
-        cut.FindAll("[data-chips=extranjero] button").Should().HaveCount(5);
-    }
 
     // ---------------------------------------------------------------- Facturación
 
-    [Fact]
-    public void La_pestaña_Facturacion_pinta_el_apilado_por_concepto_el_volumen_sin_tarifa_y_el_borrador()
-    {
-        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), LineasDeTarifa());
 
-        IrA(cut, "Facturación");
 
-        cut.Find("[data-grafico=apilado]").QuerySelectorAll(".gs-leyenda span").Length.Should().Be(2);
-        cut.Find("[data-grafico=sintarifa]").Should().NotBeNull();
-        cut.Find("[data-tarjeta=f-sintarifa] [data-sin-modelo=contrato]").TextContent.Should().Contain("contrato");
-        cut.Find($"[data-tabla=borrador] tr[data-empresa='{TenantA}']").TextContent.Should().Contain("€");
-        cut.Find($"[data-tabla=borrador] tr[data-empresa='{TenantA}'] [data-sin-modelo=contrato]").TextContent.Trim().Should().Be("—");
-    }
 
-    [Fact]
-    public void El_simulador_multiplica_el_precio_por_las_altas_de_centro()
-    {
-        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), []);
-        IrA(cut, "Facturación");
-
-        cut.Find("[data-sim=mes]").TextContent.Should().Contain("100").And.Contain("€");
-
-        cut.Find("[data-tarjeta=f-simulador] input").Input("70");
-
-        cut.WaitForAssertion(() => cut.Find("[data-sim=mes]").TextContent.Should().Contain("140"), TimeSpan.FromSeconds(3));
-        cut.Find("[data-sim=ventana]").TextContent.Should().Contain("840");
-    }
 
     // ---------------------------------------------------------------- Empresas
 

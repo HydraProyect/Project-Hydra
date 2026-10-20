@@ -40,3 +40,11 @@ src/CaeManager.Web/Features/Facturacion/Recursos/TextosFacturacion.resx :: Pesta
 src/CaeManager.Web/Features/Facturacion/Recursos/TextosFacturacion.resx :: PestanaPorClienteAyuda [cliente-empresarial-en-pantalla] = 1
 src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.ca-ES.resx :: AyudaNotificadaSoloMarca [empresa-titular] = 1
 src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.resx :: AyudaNotificadaSoloMarca [empresa-titular] = 1
+src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.ca-ES.resx :: FactCrecimientoNota [cliente-empresarial-en-pantalla] = 1
+src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.ca-ES.resx :: FactCrecimientoTitulo [cliente-empresarial-en-pantalla] = 1
+src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.ca-ES.resx :: FactExtCentro [cliente-empresarial-en-pantalla] = 1
+src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.ca-ES.resx :: TarifasPie [cliente-empresarial-en-pantalla] = 1
+src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: FactCrecimientoNota [cliente-empresarial-en-pantalla] = 1
+src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: FactCrecimientoTitulo [cliente-empresarial-en-pantalla] = 1
+src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: FactExtCentro [cliente-empresarial-en-pantalla] = 1
+src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: TarifasPie [cliente-empresarial-en-pantalla] = 1

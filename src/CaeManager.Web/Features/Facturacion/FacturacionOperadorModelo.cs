@@ -82,7 +82,7 @@ public sealed record ModeloFacturacion(
 /// <item>Sin línea, las unidades de extranjeros son las del conteo del Excel «Exportar extranjeros del mes»
 /// (<see cref="ContarExtranjerosCobrablesDelMesQuery"/>); con línea ese conteo es solo información complementaria.</item>
 /// <item>Solo salen las Empresas con una Asignación de Operación externa del Operador en vigor en el mes
-/// (<see cref="CaeManager.Application.Dashboard.TarifasOperadorCae.ObtenerEmpresasOperadasEnElMesQuery"/>): nunca el
+/// (<see cref="CaeManager.Application.Dashboard.Queries.ObtenerEmpresasGestionadasDelMesQuery"/>): nunca el
 /// Tenant del propio Operador ni uno que opera otra organización.</item>
 /// </list>
 /// El Cliente empresarial nuevo no se cobra ni sale aquí. Pura: la prueban los tests sin base de datos.

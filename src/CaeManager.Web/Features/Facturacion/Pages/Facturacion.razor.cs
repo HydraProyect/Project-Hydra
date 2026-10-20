@@ -84,10 +84,13 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
         {
             // En serie: el DbContext del circuito no admite consultas concurrentes.
             var serie = await Mediator.Send(new ObtenerSerieCuadroDireccionQuery(_anyo, _mes, 1, ConFacturacion: true));
-            var extranjeros = await Mediator.Send(new ContarExtranjerosCobrablesDelMesQuery(_anyo, _mes));
+            // Una sola fuente de vigencia, la del Cuadro de dirección: solo las Empresas que el Operador CAE gestiona con una
+            // Asignación de Operación externa en vigor en el mes, y los extranjeros se cuentan dentro de esos tramos.
+            var gestionadas = await Mediator.Send(new ObtenerEmpresasGestionadasDelMesQuery(_anyo, _mes));
+            var extranjeros = await Mediator.Send(
+                new ContarExtranjerosCobrablesDelMesQuery(_anyo, _mes, gestionadas.EsOperadorCae ? gestionadas.Tramos : null));
             var tarifas = await Mediator.Send(new ObtenerTarifasOperadorCaeQuery());
-            // Solo las Empresas que el Operador CAE opera con una Asignación de Operación externa en vigor en el mes.
-            var operadas = await Mediator.Send(new ObtenerEmpresasOperadasEnElMesQuery(_anyo, _mes));
+            var operadas = gestionadas.Tramos.Keys.ToList();
             if (solicitud != _solicitud)
                 return;
 
