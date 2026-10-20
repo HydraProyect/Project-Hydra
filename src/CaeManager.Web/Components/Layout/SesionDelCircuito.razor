@@ -39,7 +39,11 @@
             if (_teniaSesion && estado.User.Identity?.IsAuthenticated != true)
             {
                 _teniaSesion = false;
-                NavigationManager.NavigateTo("/cuenta/iniciar-sesion", forceLoad: true);
+                var rutaActual = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+                var destino = "/cuenta/iniciar-sesion";
+                if (!rutaActual.StartsWith("cuenta/", StringComparison.OrdinalIgnoreCase))
+                    destino += $"?ReturnUrl={Uri.EscapeDataString(CaeManager.Web.Components.Account.RedireccionLocal.Sanear("/" + rutaActual))}";
+                NavigationManager.NavigateTo(destino, forceLoad: true);
             }
         });
 
