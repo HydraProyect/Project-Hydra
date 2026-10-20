@@ -202,21 +202,6 @@ public class RetiradaTenantDemoServiceTests
             asignacionesOperacionRefrielectricAntes.Should().BeGreaterThan(0);
         }
 
-        // Tarifas de un Operador CAE externo (aquí Refrielectric) sobre Dexter: son filas del Operador (TenantId
-        // ajeno), así que el barrido genérico por TenantId no las alcanza. La de control, a otro Tenant beneficiario,
-        // tiene que sobrevivir.
-        var tarifaSobreDexterId = Guid.NewGuid();
-        var tarifaDeControlId = Guid.NewGuid();
-        await using (var contextoSiembraTarifas = CrearContextoBootstrap(arnes))
-        {
-            await contextoSiembraTarifas.Database.ExecuteSqlInterpolatedAsync(
-                $"""
-                 INSERT INTO "TarifasOperadorCae" ("Id", "PropietarioTenantId", "Concepto", "PrecioUnitario", "MonedaIso", "Activa", "VigenteDesdeUtc", "RegistradaPorUsuarioId", "TenantId")
-                 VALUES ({tarifaSobreDexterId}, {tenantDexterId}, 2, 50, 'EUR', true, now(), {Guid.NewGuid()}, {tenantRefrielectricId}),
-                        ({tarifaDeControlId}, {Guid.NewGuid()}, 2, 50, 'EUR', true, now(), {Guid.NewGuid()}, {tenantRefrielectricId})
-                 """);
-        }
-
         RetiradaTenantDemoService.ResultadoRetirada resultado;
         await using (var contextoBootstrap = CrearContextoBootstrap(arnes))
         {
@@ -260,12 +245,8 @@ public class RetiradaTenantDemoServiceTests
         (await contextoFinal.AsignacionesOperacion
                 .AnyAsync(a => a.PropietarioTenantId == tenantDexterId || a.OperadorTenantId == tenantDexterId))
             .Should().BeFalse();
-        (await contextoFinal.TarifasOperadorCae.IgnoreQueryFilters().AnyAsync(t => t.Id == tarifaSobreDexterId))
-            .Should().BeFalse("la tarifa que otro Operador CAE fijó a Dexter se borra con él aunque la fila sea del Operador");
 
         // ── Mitad 2: Refrielectric, sembrado en la misma pasada, queda intacto ──
-        (await contextoFinal.TarifasOperadorCae.IgnoreQueryFilters().AnyAsync(t => t.Id == tarifaDeControlId))
-            .Should().BeTrue("la tarifa del mismo Operador a otro Tenant beneficiario no se toca");
         (await contextoFinal.Tenants.IgnoreQueryFilters().AnyAsync(t => t.Id == tenantRefrielectricId))
             .Should().BeTrue("MEDIDO: retirar Dexter no toca al tenant hermano");
 
@@ -340,6 +321,8 @@ public class RetiradaTenantDemoServiceTests
         var ordenCajasEnTenantAjenoId = Guid.NewGuid();
         var vistaEnTenantAjenoId = Guid.NewGuid();
         var vistaEnTenantRetiradoId = Guid.NewGuid();
+        var tarifaSobreRetiradoId = Guid.NewGuid();
+        var tarifaDeControlId = Guid.NewGuid();
         await using (var contextoSiembraFiltro = CrearContextoBootstrap(arnes))
         {
             var gestorCaeId = (await contextoSiembraFiltro.Users.IgnoreQueryFilters()
@@ -370,6 +353,19 @@ public class RetiradaTenantDemoServiceTests
             (await contextoSiembraFiltro.FiltrosGuardados.IgnoreQueryFilters()
                     .CountAsync(f => f.Nombre == FiltroGuardado.NombreVistaRecordada && f.UsuarioId == gestorCaeId))
                 .Should().Be(2, "control del instrumento: las dos vistas recordadas existen antes de la retirada");
+
+            // Tarifas que otro Operador CAE (aquí el Tenant propietario ajeno) fijó al Tenant que se retira: son filas
+            // de ese Operador (TenantId ajeno), así que el barrido genérico por TenantId no las alcanza; solo la purga
+            // por PropietarioTenantId. La de control, del mismo Operador a otro Tenant beneficiario, sobrevive.
+            await contextoSiembraFiltro.Database.ExecuteSqlInterpolatedAsync(
+                $"""
+                 INSERT INTO "TarifasOperadorCae" ("Id", "PropietarioTenantId", "Concepto", "PrecioUnitario", "MonedaIso", "Activa", "VigenteDesdeUtc", "RegistradaPorUsuarioId", "TenantId")
+                 VALUES ({tarifaSobreRetiradoId}, {tenantConsultoraId}, 2, 50, 'EUR', true, now(), {gestorCaeId}, {tenantPropietarioAjenoId}),
+                        ({tarifaDeControlId}, {Guid.NewGuid()}, 2, 50, 'EUR', true, now(), {gestorCaeId}, {tenantPropietarioAjenoId})
+                 """);
+            (await contextoSiembraFiltro.TarifasOperadorCae.IgnoreQueryFilters()
+                    .CountAsync(t => t.Id == tarifaSobreRetiradoId || t.Id == tarifaDeControlId))
+                .Should().Be(2, "control del instrumento: las dos tarifas existen antes de la retirada");
         }
 
         await using (var contextoBootstrap = CrearContextoBootstrap(arnes))
@@ -402,6 +398,10 @@ public class RetiradaTenantDemoServiceTests
                 .Where(f => f.Id == vistaEnTenantAjenoId || f.Id == vistaEnTenantRetiradoId).Select(f => f.Id).ToListAsync())
             .Should().BeEmpty(
                 "la vista recordada es una fila más de esa tabla: la del Tenant retirado y la que su usuario dejó en otro Tenant se borran igual que los filtros con nombre");
+        (await contextoFinal.TarifasOperadorCae.IgnoreQueryFilters().AnyAsync(t => t.Id == tarifaSobreRetiradoId))
+            .Should().BeFalse("la tarifa que otro Operador CAE fijó al Tenant retirado se borra con él aunque la fila sea de ese Operador");
+        (await contextoFinal.TarifasOperadorCae.IgnoreQueryFilters().AnyAsync(t => t.Id == tarifaDeControlId))
+            .Should().BeTrue("la tarifa del mismo Operador a otro Tenant beneficiario no se toca");
     }
 
     /// <summary>
