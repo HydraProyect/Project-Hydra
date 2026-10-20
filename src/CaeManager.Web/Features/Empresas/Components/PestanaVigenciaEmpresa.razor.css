@@ -253,9 +253,15 @@
     text-overflow: ellipsis;
 }
 
-.vigencia-celda {
+.vigencia-celda-caja {
     flex: 1 1 72px;
     min-width: 72px;
+    display: flex;
+}
+
+.vigencia-celda {
+    flex: 1;
+    min-width: 0;
     height: 30px;
     display: inline-flex;
     align-items: center;
@@ -292,7 +298,8 @@ a.vigencia-celda:hover {
 .vigencia-muestra[data-estado="por-vencer"] {
     background: var(--color-warning-50);
     color: var(--color-warning-700);
-    border-color: color-mix(in srgb, var(--color-warning-700) 22%, transparent);
+    border-color: var(--color-warning-700);
+    border-style: dashed;
 }
 
 .vigencia-celda[data-estado="vencido"],
@@ -300,7 +307,7 @@ a.vigencia-celda:hover {
 .vigencia-muestra[data-estado="vencido"] {
     background: var(--color-danger-50);
     color: var(--color-danger-700);
-    border-color: color-mix(in srgb, var(--color-danger-700) 22%, transparent);
+    border-color: var(--color-danger-700);
 }
 
 .vigencia-celda[data-estado="vencido"],

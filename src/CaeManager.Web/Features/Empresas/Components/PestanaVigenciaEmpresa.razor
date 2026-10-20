@@ -34,7 +34,7 @@
         <div class="vigencia-barra">
             <select class="vigencia-select" data-activo="@(_centro is not null ? "true" : null)" aria-label="@Textos["VigenciaFiltroCentro"]" @onchange="e => CambiarCentro(e.Value?.ToString())">
                 <option value="" selected="@(_centro is null)">@Textos["VigenciaTodosLosCentros"]</option>
-                @foreach (var centro in _dto.Centros)
+                @foreach (var centro in CentrosConExigencias)
                 {
                     <option value="@centro.CentroId" selected="@(_centro == centro.CentroId)">@centro.Nombre</option>
                 }
@@ -79,7 +79,11 @@
             <span class="vigencia-leyenda-nota">@Textos["VigenciaPulsaUnaCelda"]</span>
         </div>
 
-        @if (vista.Filas.Count == 0)
+        @if (vista.Columnas.Count == 0)
+        {
+            <EstadoVacio Titulo="@Textos["VigenciaSinColumnasTitulo"]" Descripcion="@Textos["VigenciaSinColumnasDescripcion"]" />
+        }
+        else if (vista.Filas.Count == 0)
         {
             <EstadoVacio Titulo="@Textos["VigenciaSinFilasTitulo"]">
                 <Accion>
@@ -90,20 +94,20 @@
         else
         {
             <div class="vigencia-tarjeta">
-                <div class="vigencia-rejilla">
-                    <div class="vigencia-grupos">
+                <div class="vigencia-rejilla" role="table" aria-label="@Textos["PestanaVigencia"]">
+                    <div class="vigencia-grupos" aria-hidden="true">
                         <span class="vigencia-esquina"></span>
                         @foreach (var grupo in vista.Grupos)
                         {
                             <span class="vigencia-grupo" style="@EstiloGrupo(grupo)">@NombreGrupo(grupo.Grupo)</span>
                         }
                     </div>
-                    <div class="vigencia-cabecera">
-                        <span class="vigencia-esquina vigencia-esquina--cabecera">@Textos["VigenciaColumnaTrabajador", vista.TextoRecuento]</span>
+                    <div class="vigencia-cabecera" role="row">
+                        <span class="vigencia-esquina vigencia-esquina--cabecera" role="columnheader">@Textos["VigenciaColumnaTrabajador", vista.TextoRecuento]</span>
                         @foreach (var columna in vista.Columnas)
                         {
                             var vigencia = VigenciaDeCabecera(columna.Col);
-                            <span class="vigencia-columna" style="@EstiloMargen(columna.NuevoGrupo)">
+                            <span class="vigencia-columna" role="columnheader" style="@EstiloMargen(columna.NuevoGrupo)">
                                 <span class="vigencia-columna-nombre" data-opcional="@(columna.Col.Grupo == GrupoColumnaVigencia.Opcional ? "true" : null)" title="@columna.Col.Nombre">@AliasDe(columna.Col)</span>
                                 <span class="vigencia-columna-vigencia" tabindex="0" title="@Textos["VigenciaMinima", vigencia.Texto]. @vigencia.Explicacion"
                                       aria-label="@Textos["VigenciaMinima", vigencia.Texto]. @vigencia.Explicacion">@vigencia.Texto</span>
@@ -112,8 +116,8 @@
                     </div>
                     @foreach (var fila in vista.Pagina)
                     {
-                        <div class="vigencia-fila" @key="fila.Fila.TrabajadorId" data-fila>
-                            <span class="vigencia-trabajador">
+                        <div class="vigencia-fila" role="row" @key="fila.Fila.TrabajadorId" data-fila>
+                            <span class="vigencia-trabajador" role="rowheader">
                                 <a class="vigencia-trabajador-nombre" href="@($"/trabajadores/{fila.Fila.TrabajadorId}")">@fila.Fila.Nombre</a>
                                 <span class="vigencia-trabajador-detalle">@DetalleDeTrabajador(fila.Fila)</span>
                             </span>
@@ -121,16 +125,19 @@
                             {
                                 var titulo = TituloDeCelda(celda, fila.Fila);
                                 var atenuada = Filtrando && !Resalta(celda.Resultado);
-                                @if (celda.Resultado.Estado == EstadoCeldaVigencia.NoAplica)
-                                {
-                                    <span class="vigencia-celda" data-estado="no-aplica" style="@EstiloMargen(celda.NuevoGrupo)" title="@titulo" aria-label="@titulo">–</span>
-                                }
-                                else
-                                {
-                                    <a class="vigencia-celda" data-estado="@CodigoEstado(celda.Resultado)" data-atenuada="@(atenuada ? "true" : null)"
-                                       style="@EstiloMargen(celda.NuevoGrupo)" href="@($"/trabajadores/{fila.Fila.TrabajadorId}?pestana=documentacion")"
-                                       title="@titulo" aria-label="@titulo">@TextoDeCelda(celda)</a>
-                                }
+                                <span class="vigencia-celda-caja" role="cell" style="@EstiloMargen(celda.NuevoGrupo)">
+                                    @if (celda.Resultado.Estado == EstadoCeldaVigencia.NoAplica)
+                                    {
+                                        <span class="vigencia-celda" data-estado="no-aplica" title="@titulo" aria-label="@titulo">–</span>
+                                    }
+                                    else
+                                    {
+                                        @* El estado no depende solo del color: lo dice el nombre accesible y lo marcan el trazo y el grosor (ver el CSS). *@
+                                        <a class="vigencia-celda" data-estado="@CodigoEstado(celda.Resultado)" data-atenuada="@(atenuada ? "true" : null)"
+                                           href="@($"/trabajadores/{fila.Fila.TrabajadorId}?pestana=documentacion")"
+                                           title="@titulo" aria-label="@titulo">@TextoDeCelda(celda)</a>
+                                    }
+                                </span>
                             }
                         </div>
                     }
@@ -219,6 +226,10 @@
         _ciclo.Cancel();
         _ciclo.Dispose();
     }
+
+    // Un Centro sin gestión CAE (o que no exige nada a esta Empresa) no aporta columnas: elegirlo dejaría filas sin celdas.
+    private IEnumerable<VigenciaCentroDto> CentrosConExigencias => _dto!.Centros
+        .Where(c => _dto.Columnas.Any(col => col.ExigidoPor.Any(e => e.CentroId == c.CentroId)));
 
     private IEnumerable<(Guid Id, string Nombre)> DelegacionesEmpresa => _dto!.Filas
         .Where(f => f.DelegacionEmpresaId is not null && f.DelegacionEmpresaNombre is not null)
@@ -344,7 +355,7 @@
 
     private string TextoMeses(int meses) => meses % 12 == 0
         ? meses == 12 ? Textos["VigenciaUnAnio"] : Textos["VigenciaAnios", meses / 12]
-        : Textos["VigenciaMeses", meses];
+        : meses == 1 ? Textos["VigenciaUnMes"] : Textos["VigenciaMeses", meses];
 
     // Cabecera de columna: la vigencia más corta que pide algún Centro del alcance, y cuáles la piden.
     private (string Texto, string Explicacion) VigenciaDeCabecera(VigenciaColumnaDto columna)

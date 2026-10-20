@@ -777,4 +777,22 @@
   <data name="PlataformasEstadoPendienteSubir" xml:space="preserve">
     <value>Pendiente de subir</value>
   </data>
+  <data name="PlataformasEstadoVencidoEnPlataforma" xml:space="preserve">
+    <value>Vencido en plataforma</value>
+  </data>
+  <data name="PlataformasSinAlcanceNota" xml:space="preserve">
+    <value>Aquí solo aparecen las plataformas de los Centros que gestionas. Si no ves ninguna, puede deberse a tus permisos de acceso y no a que la Empresa no tenga documentación.</value>
+  </data>
+  <data name="PlataformasVencidoEl" xml:space="preserve">
+    <value>Vencido el {0}</value>
+  </data>
+  <data name="VigenciaSinColumnasDescripcion" xml:space="preserve">
+    <value>Ningún Centro con gestión CAE exige documentación a los Trabajadores de la Empresa, y todavía no hay documentos cargados.</value>
+  </data>
+  <data name="VigenciaSinColumnasTitulo" xml:space="preserve">
+    <value>Sin documentación exigida</value>
+  </data>
+  <data name="VigenciaUnMes" xml:space="preserve">
+    <value>1 mes</value>
+  </data>
 </root>

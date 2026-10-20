@@ -1,3 +1,5 @@
+using CaeManager.Domain.Documentos;
+
 namespace CaeManager.Application.Empresas.Queries.ObtenerVigenciaEmpresa;
 
 /// <summary>
@@ -8,8 +10,10 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerVigenciaEmpresa;
 /// <item>Sin documento: <see cref="EstadoCeldaVigencia.Falta"/> si se exige, <see cref="EstadoCeldaVigencia.NoAplica"/> si no.</item>
 /// <item>Con documento que ningún Centro del alcance exige: opcional (<see cref="Exigida"/> falso), con su propia fecha.</item>
 /// <item>Con la vigencia sin confirmar: <see cref="EstadoCeldaVigencia.SinConfirmar"/>.</item>
-/// <item>En otro caso, manda la fecha más temprana entre la de caducidad del documento y la emisión más los meses de vigencia que
-/// pide el Centro más exigente del alcance: vencida si ya pasó, «por vencer» dentro del umbral de Parámetros del sistema.</item>
+/// <item>En otro caso, el vencimiento efectivo de <see cref="ReglaBloqueoDeAcceso.VencimientoEfectivo"/> (la misma regla que decide el
+/// acceso, para que la vista y el bloqueo no diverjan): si el Centro define una periodicidad especial, vence en emisión + esos meses
+/// y SUSTITUYE a la fecha del documento; si no, vale la del documento; «no caduca» nunca vence. Con varios Centros en el alcance manda
+/// el vencimiento más temprano. Vencida si ya pasó, «por vencer» dentro del umbral de Parámetros del sistema.</item>
 /// </list>
 /// </summary>
 public static class VigenciaEnAlcance
@@ -38,22 +42,28 @@ public static class VigenciaEnAlcance
         if (!exigida)
             return new(EstadoCeldaVigencia.Vigente, celda.FechaVencimiento, false, vigenciaMinima);
 
-        if (celda.Estado == EstadoCeldaVigencia.SinConfirmar)
-            return new(EstadoCeldaVigencia.SinConfirmar, celda.FechaVencimiento, true, vigenciaMinima);
+        // El vencimiento de cada Centro del alcance con SU regla (periodicidad especial del Centro o fecha del documento).
+        var vigenciaDelDocumento = celda.Estado == EstadoCeldaVigencia.SinConfirmar ? VigenciaDocumento.SinConfirmar
+            : celda.FechaVencimiento is { } f ? VigenciaDocumento.VenceEl(f)
+            : VigenciaDocumento.NoCaduca;
+        var emision = celda.FechaEmision ?? hoy;
+        var vencimientos = columna.ExigidoPor
+            .Where(e => exigidaPor.Contains(e.CentroId))
+            .Select(e => ReglaBloqueoDeAcceso.VencimientoEfectivo(new DocumentoParaAcceso(vigenciaDelDocumento, emision), e.PeriodicidadEspecialMeses))
+            .OfType<DateOnly>()
+            .ToList();
 
-        // Sin fecha de caducidad (confirmado que no caduca): vigente. Con ella, vale la más temprana.
-        if (celda.FechaVencimiento is not { } vencimiento)
-            return new(EstadoCeldaVigencia.Vigente, null, true, vigenciaMinima);
+        // Ningún Centro le pone fecha: sin confirmar sigue sin confirmar; confirmado que no caduca, vigente.
+        if (vencimientos.Count == 0)
+            return vigenciaDelDocumento.Estado == EstadoVigenciaDocumento.SinConfirmar
+                ? new(EstadoCeldaVigencia.SinConfirmar, null, true, vigenciaMinima)
+                : new(EstadoCeldaVigencia.Vigente, null, true, vigenciaMinima);
 
-        var fecha = vigenciaMinima is { } m && celda.FechaEmision is { } emision
-            ? Min(vencimiento, emision.AddMonths(m))
-            : vencimiento;
+        var fecha = vencimientos.Min();
         var dias = fecha.DayNumber - hoy.DayNumber;
         var estado = dias < 0 ? EstadoCeldaVigencia.Vencido
             : dias <= umbralPorVencerDias ? EstadoCeldaVigencia.PorVencer
             : EstadoCeldaVigencia.Vigente;
         return new(estado, fecha, true, vigenciaMinima);
     }
-
-    private static DateOnly Min(DateOnly a, DateOnly b) => a <= b ? a : b;
 }

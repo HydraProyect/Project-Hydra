@@ -35,7 +35,7 @@ public class ObtenerVigenciaEmpresaQueryTests : IAsyncLifetime
 
     private sealed record Escenario(Guid EmpresaId, Guid OtraEmpresaId, Guid CentroId, Guid NoraId, Guid PabloId, Guid TipoAptitudId, Guid TipoCarretillaId);
 
-    private async Task<Escenario> SembrarAsync(ModalidadGestionCae gestion = ModalidadGestionCae.ConGestionCae)
+    private async Task<Escenario> SembrarAsync(ModalidadGestionCae gestion = ModalidadGestionCae.ConGestionCae, int? periodicidadAptitudDelCentro = null)
     {
         var hoy = DiaDeNegocio.Hoy();
         await using var contexto = CrearContexto();
@@ -56,10 +56,15 @@ public class ObtenerVigenciaEmpresaQueryTests : IAsyncLifetime
         var aptitud = new TipoDocumento("Reconocimiento médico", 12, true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
         var carretilla = new TipoDocumento("Carretilla elevadora", 60, true, 2, AmbitoAplicacion.Trabajador);
         contexto.TiposDocumento.AddRange(aptitud, carretilla);
+        await contexto.SaveChangesAsync();
+        if (periodicidadAptitudDelCentro is { } meses)
+            contexto.TiposDocumentoCentros.Add(new TipoDocumentoCentro(aptitud.Id, centro.Id, periodicidadEspecialMeses: meses));
 
         var nora = Trabajador.DeEmpresa(empresa.Id, "Nora", "Vidal", "22334455Y");
         nora.FijarDelegacionEmpresaYOficio(delegacion, null);
         var pablo = Trabajador.DeEmpresa(empresa.Id, "Pablo", "Zubiri", "33445566R");
+        // Con fecha de baja en la ficha (dato de plataformas): sigue siendo un Trabajador activo, como en la pestaña Trabajadores.
+        pablo.ActualizarFicha(null, null, null, null, null, null, hoy.AddDays(-1), null, null, null, null);
         var ajeno = Trabajador.DeEmpresa(otra.Id, "Ajeno", "Lasa", "44556677L");
         contexto.Trabajadores.AddRange(nora, pablo, ajeno);
         await contexto.SaveChangesAsync();
@@ -115,6 +120,22 @@ public class ObtenerVigenciaEmpresaQueryTests : IAsyncLifetime
         pablo.Celdas[0].Estado.Should().Be(EstadoCeldaVigencia.Falta, "el Centro lo exige y no tiene documento");
         pablo.Celdas[0].DocumentoId.Should().BeNull();
         pablo.Celdas[1].Estado.Should().Be(EstadoCeldaVigencia.NoAplica);
+    }
+
+    [Fact]
+    public async Task La_periodicidad_del_Centro_viaja_en_la_columna_y_manda_sobre_la_fecha_del_documento()
+    {
+        // El tipo dura 12 meses; este Centro pide 24. La regla del dominio (VencimientoEfectivo) dice emisión + 24 meses.
+        var e = await SembrarAsync(periodicidadAptitudDelCentro: 24);
+
+        var matriz = await ConsultarAsync(e.EmpresaId);
+
+        var columna = matriz.Columnas[0];
+        columna.ExigidoPor.Should().ContainSingle().Which.Should().Be(new VigenciaExigenciaCentroDto(e.CentroId, 24, 24));
+        var nora = matriz.Filas.Single(f => f.Nombre == "Nora Vidal");
+        var resultado = VigenciaEnAlcance.Resolver(columna, nora.Celdas[0], null, DiaDeNegocio.Hoy(), matriz.UmbralPorVencerDias);
+        resultado.Fecha.Should().Be(DiaDeNegocio.Hoy().AddDays(-165).AddMonths(24));
+        resultado.Estado.Should().Be(EstadoCeldaVigencia.Vigente);
     }
 
     [Fact]

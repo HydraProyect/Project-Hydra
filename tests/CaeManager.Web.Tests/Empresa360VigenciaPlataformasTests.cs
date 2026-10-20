@@ -63,29 +63,29 @@ public class Empresa360VigenciaPlataformasTests : BunitContext
         var columnas = new List<VigenciaColumnaDto>
         {
             new(TipoReco, "Reconocimiento médico", TipoDocumentoBase.AptitudMedica, GrupoColumnaVigencia.Basicos, 12,
-                [new(C1, 12), new(C2, 12)]),
+                [new(C1, 12, 12), new(C2, 12, 12)]),
             new(TipoArt19, "Formación Art 19", TipoDocumentoBase.FormacionArt19, GrupoColumnaVigencia.Basicos, 48,
-                [new(C1, 48), new(C2, 36)]),
-            new(TipoAltura, "Trabajos en altura", null, GrupoColumnaVigencia.Formacion, 60, [new(C1, 60)]),
+                [new(C1, 48, 48), new(C2, 36, 36)]),
+            new(TipoAltura, "Trabajos en altura", null, GrupoColumnaVigencia.Formacion, 60, [new(C1, 60, 60)]),
             new(TipoCarretilla, "Carretilla elevadora", null, GrupoColumnaVigencia.Opcional, 60, [])
         };
         var filas = new List<VigenciaFilaDto>
         {
-            new(Guid.NewGuid(), "Ana Goikoetxea", "11111111H", "Soldador", null, "Bilbao", [C1],
+            new(Guid.NewGuid(), "Ana Goikoetxea", "Soldador", null, "Bilbao", [C1],
             [
                 Celda(EstadoCeldaVigencia.Vigente, 300, [C1]),
                 Celda(EstadoCeldaVigencia.Falta, null, [C1]),
                 Celda(EstadoCeldaVigencia.Vencido, -20, [C1], 60),
                 Celda(EstadoCeldaVigencia.Vigente, 500, [], 60)
             ]),
-            new(Guid.NewGuid(), "Berta Lasa", "22222222J", "Peón", null, "Zaragoza", [C2],
+            new(Guid.NewGuid(), "Berta Lasa", "Peón", null, "Zaragoza", [C2],
             [
                 Celda(EstadoCeldaVigencia.PorVencer, 10, [C2]),
                 Celda(EstadoCeldaVigencia.Vigente, 700, [C2], 36),
                 Celda(EstadoCeldaVigencia.NoAplica, null, []),
                 Celda(EstadoCeldaVigencia.NoAplica, null, [])
             ]),
-            new(Guid.NewGuid(), "Carla Pardo", "33333333P", "Soldador", null, "Bilbao", [C1],
+            new(Guid.NewGuid(), "Carla Pardo", "Soldador", null, "Bilbao", [C1],
             [
                 Celda(EstadoCeldaVigencia.Vigente, 300, [C1]),
                 Celda(EstadoCeldaVigencia.Vigente, 900, [C1], 48),
@@ -209,10 +209,18 @@ public class Empresa360VigenciaPlataformasTests : BunitContext
     private static AcreditacionDrillDownDto Documento(string tipo, EstadoAcreditacion estado, Guid centroId, string centro, string? motivo = null) =>
         new(Guid.NewGuid(), Guid.NewGuid(), "Obras y Estructuras del Ebro S.L.", tipo, estado, motivo, EmpresaId: EmpresaId, CentroId: centroId, CentroNombre: centro);
 
-    private (MediadorFalso Mediador, IRenderedComponent<PestanaPlataformasEmpresa> Cut) RenderizarPlataformas(bool todoValidado = false)
+    private (MediadorFalso Mediador, IRenderedComponent<PestanaPlataformasEmpresa> Cut) RenderizarPlataformas(bool todoValidado = false) =>
+        RenderizarPlataformas(DatosDePlataformas(todoValidado));
+
+    private (MediadorFalso Mediador, IRenderedComponent<PestanaPlataformasEmpresa> Cut) RenderizarPlataformas(IReadOnlyList<ProveedorAcreditacionesDto> datos)
     {
-        var mediador = Registrar(q => q is ObtenerAcreditacionesPorProveedorQuery
-            ? (IReadOnlyList<ProveedorAcreditacionesDto>)
+        var mediador = Registrar(q => q is ObtenerAcreditacionesPorProveedorQuery ? datos : throw new NotSupportedException(q.GetType().Name));
+        var cut = Render<PestanaPlataformasEmpresa>(p => p.Add(x => x.EmpresaId, EmpresaId));
+        cut.WaitForAssertion(() => cut.FindAll("[aria-busy=true]").Should().BeEmpty());
+        return (mediador, cut);
+    }
+
+    private static IReadOnlyList<ProveedorAcreditacionesDto> DatosDePlataformas(bool todoValidado) =>
             [
                 new(Guid.NewGuid(), "Nalanda", "NALANDA",
                 [
@@ -231,12 +239,7 @@ public class Empresa360VigenciaPlataformasTests : BunitContext
                         Documento("Recibo del seguro", todoValidado ? EstadoAcreditacion.Aceptada : EstadoAcreditacion.Subida, C2, "Taller Berriz")
                     ])
                 ])
-            ]
-            : throw new NotSupportedException(q.GetType().Name));
-        var cut = Render<PestanaPlataformasEmpresa>(p => p.Add(x => x.EmpresaId, EmpresaId));
-        cut.WaitForAssertion(() => cut.FindAll("[aria-busy=true]").Should().BeEmpty());
-        return (mediador, cut);
-    }
+            ];
 
     [Fact]
     public void Plataformas_pide_solo_los_documentos_de_esta_Empresa_con_aceptadas_y_subidas()
@@ -284,5 +287,101 @@ public class Empresa360VigenciaPlataformasTests : BunitContext
         cut.Markup.Should().Contain("Sin incidencias en plataformas");
         cut.FindAll(".plataformas-fila").Should().BeEmpty();
         cut.FindAll(".plataformas-chip")[1].TextContent.Trim().Should().Be("Todo · 5");
+    }
+
+    // ── Revisión de la PR: regla del dominio, accesibilidad y estados ─────
+
+    private static AcreditacionDrillDownDto Vencida(string tipo, Guid centroId, string centro, DateOnly vencio) =>
+        new(Guid.NewGuid(), Guid.NewGuid(), "Obras y Estructuras del Ebro S.L.", tipo, EstadoAcreditacion.Aceptada, null,
+            EmpresaId: EmpresaId, CentroId: centroId, CentroNombre: centro,
+            EstadoVigencia: EstadoVigenciaEnPlataforma.VenceEnFecha, FechaVencimientoEnPlataforma: vencio, VencidaEnPlataforma: true);
+
+    private static IReadOnlyList<ProveedorAcreditacionesDto> UnProveedor(params AcreditacionDrillDownDto[] documentos) =>
+        [new(Guid.NewGuid(), "Nalanda", "NALANDA", [new ClienteAcreditacionesDto(Guid.NewGuid(), "Refrielectric S.A.", documentos)])];
+
+    [Fact]
+    public void Plataformas_un_documento_aceptado_pero_vencido_en_la_plataforma_es_una_incidencia_no_un_validado()
+    {
+        var vencio = DiaDeNegocio.Hoy().AddDays(-3);
+        var (_, cut) = RenderizarPlataformas(UnProveedor(
+            Vencida("Seguro de responsabilidad civil", C1, "Planta Zaragoza", vencio),
+            Documento("Plan de prevención", EstadoAcreditacion.Aceptada, C1, "Planta Zaragoza")));
+
+        cut.FindAll(".plataformas-chip")[0].TextContent.Trim().Should().Be("Solo incidencias · 1");
+        var fila = cut.FindAll(".plataformas-fila").Should().ContainSingle().Subject;
+        fila.GetAttribute("data-estado").Should().Be("VencidaEnPlataforma");
+        fila.TextContent.Should().Contain("Vencido en plataforma").And.Contain($"Vencido el {vencio:dd/MM/yyyy}").And.NotContain("Validado");
+        cut.Markup.Should().NotContain("Sin incidencias en plataformas");
+        cut.Find(".plataformas-grupo-titulo").TextContent.Should().Contain("1 incidencia");
+    }
+
+    [Fact]
+    public void Plataformas_un_documento_repetido_bajo_la_misma_plataforma_y_Centro_sale_una_vez_con_el_peor_estado()
+    {
+        var (_, cut) = RenderizarPlataformas(UnProveedor(
+            Documento("Plan de prevención", EstadoAcreditacion.Aceptada, C1, "Planta Zaragoza"),
+            Documento("Plan de prevención", EstadoAcreditacion.Rechazada, C1, "Planta Zaragoza", "Sin firma")));
+
+        cut.FindAll(".plataformas-chip")[1].TextContent.Trim().Should().Be("Todo · 1");
+        cut.FindAll(".plataformas-fila").Should().ContainSingle().Which.GetAttribute("data-estado").Should().Be("Rechazada");
+    }
+
+    [Fact]
+    public void Plataformas_sin_datos_no_afirma_que_no_haya_documentacion_porque_puede_ser_el_alcance()
+    {
+        var (_, cut) = RenderizarPlataformas([]);
+
+        cut.Markup.Should().Contain("Sin documentación en plataformas");
+        cut.Find("[data-nota=alcance]").TextContent.Should().Contain("puede deberse a tus permisos de acceso");
+    }
+
+    [Fact]
+    public void Vigencia_el_selector_de_Centro_no_ofrece_un_Centro_que_no_exige_nada()
+    {
+        var datos = DatosDeVigencia();
+        var sinGestion = Guid.NewGuid();
+        datos = datos with { Centros = [.. datos.Centros, new VigenciaCentroDto(sinGestion, "Almacén sin gestión", "Refrielectric S.A.")] };
+
+        var cut = RenderizarVigencia(datos);
+
+        cut.FindAll("select[aria-label=Centro] option").Select(o => o.TextContent.Trim())
+            .Should().Equal("Todos los Centros", "Planta Zaragoza", "Taller Berriz");
+    }
+
+    [Fact]
+    public void Vigencia_sin_columnas_dice_que_no_hay_documentacion_exigida_en_vez_de_filas_vacias()
+    {
+        var datos = DatosDeVigencia();
+
+        var cut = RenderizarVigencia(datos with { Columnas = [], Filas = [.. datos.Filas.Select(f => f with { Celdas = [] })] });
+
+        cut.Markup.Should().Contain("Sin documentación exigida");
+        cut.FindAll(".vigencia-fila").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Vigencia_un_mes_se_escribe_en_singular()
+    {
+        var datos = DatosDeVigencia();
+        var columna = datos.Columnas[2] with { VigenciaMesesDelTipo = 1, ExigidoPor = [new(C1, 1, 1)] };
+        var cut = RenderizarVigencia(datos with { Columnas = [datos.Columnas[0], datos.Columnas[1], columna, datos.Columnas[3]] });
+
+        cut.FindAll(".vigencia-columna-vigencia")[2].TextContent.Trim().Should().Be("1 mes");
+    }
+
+    [Fact]
+    public void Vigencia_la_rejilla_es_una_tabla_accesible_y_el_estado_no_depende_solo_del_color()
+    {
+        var cut = RenderizarVigencia();
+
+        cut.Find(".vigencia-rejilla").GetAttribute("role").Should().Be("table");
+        cut.FindAll("[role=row]").Should().HaveCount(1 + 3, "la cabecera y una fila por Trabajador");
+        cut.FindAll("[role=columnheader]").Should().HaveCount(1 + 4);
+        cut.FindAll("[role=rowheader]").Should().HaveCount(3);
+        cut.FindAll("[role=cell]").Should().HaveCount(3 * 4);
+        // El nombre accesible de cada celda dice el estado con palabras.
+        var filaAna = cut.FindAll("[data-fila]")[0];
+        filaAna.QuerySelectorAll(".vigencia-celda")[2].GetAttribute("aria-label").Should().Contain("Vencido");
+        filaAna.QuerySelectorAll(".vigencia-celda")[1].GetAttribute("aria-label").Should().Contain("sin registrar");
     }
 }

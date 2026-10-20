@@ -110,6 +110,19 @@ public class AcreditacionesPorProveedorDeEmpresaTests : IAsyncLifetime
         resultado.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Sin_alcance_de_gestion_la_lista_sale_vacia_aunque_la_Empresa_sea_visible()
+    {
+        // Un usuario de portal ve la Empresa pero no gestiona ningún Centro: el filtro por Empresa no le abre las plataformas.
+        var (empresaId, _, _) = await SembrarAsync();
+
+        var resultado = await ConsultarAsync(
+            new ObtenerAcreditacionesPorProveedorQuery(IncluirAceptadas: true, SoloDocumentosDeEmpresaId: empresaId),
+            new AlcanceDatosServiceFalso(centroIdsParaGestion: []));
+
+        resultado.Should().BeEmpty();
+    }
+
     private CaeManagerDbContext CrearContexto()
     {
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()

@@ -11,9 +11,15 @@ public class VigenciaEnAlcanceTests
     private static readonly Guid Zaragoza = Guid.NewGuid();
     private static readonly Guid Berriz = Guid.NewGuid();
 
+    // Los meses que se pasan son la periodicidad que IMPONE cada Centro (la vigencia propia del tipo es 60).
     private static VigenciaColumnaDto Columna(int? zaragoza, int? berriz) => new(
         Guid.NewGuid(), "Altura", null, GrupoColumnaVigencia.Formacion, 60,
-        [.. new[] { zaragoza is null ? null : new VigenciaExigenciaCentroDto(Zaragoza, zaragoza), berriz is null ? null : new VigenciaExigenciaCentroDto(Berriz, berriz) }.OfType<VigenciaExigenciaCentroDto>()]);
+        [.. new[] { zaragoza is null ? null : new VigenciaExigenciaCentroDto(Zaragoza, zaragoza, zaragoza), berriz is null ? null : new VigenciaExigenciaCentroDto(Berriz, berriz, berriz) }.OfType<VigenciaExigenciaCentroDto>()]);
+
+    // Un Centro que exige el tipo SIN periodicidad propia: rotula los meses del tipo, pero manda la fecha del documento.
+    private static VigenciaColumnaDto ColumnaSinPeriodicidad(int mesesDelTipo) => new(
+        Guid.NewGuid(), "Altura", null, GrupoColumnaVigencia.Formacion, mesesDelTipo,
+        [new VigenciaExigenciaCentroDto(Zaragoza, mesesDelTipo, null)]);
 
     private static VigenciaCeldaDto Documento(DateOnly vencimiento, DateOnly emision, EstadoCeldaVigencia estado = EstadoCeldaVigencia.Vigente, IReadOnlyList<Guid>? exigidaPor = null) =>
         new(estado, Guid.NewGuid(), vencimiento, emision, exigidaPor ?? []);
@@ -62,16 +68,43 @@ public class VigenciaEnAlcanceTests
     }
 
     [Fact]
-    public void Nunca_se_alarga_la_caducidad_propia_del_documento()
+    public void La_periodicidad_del_Centro_sustituye_a_la_fecha_del_documento_tambien_si_la_alarga()
     {
-        // El Centro pide 60 meses, pero el documento caduca antes: vale la fecha del documento.
-        var emision = Hoy.AddMonths(-12);
+        // Misma regla que ReglaBloqueoDeAcceso.VencimientoEfectivo: el tipo dura 12 meses, el Centro pide 24 y el documento
+        // trae vencimiento a los 12 (ya pasado). En ese Centro vale hasta emisión + 24 meses.
+        var emision = Hoy.AddMonths(-13);
+        var celda = Documento(emision.AddMonths(12), emision, exigidaPor: [Zaragoza]);
+
+        var resultado = VigenciaEnAlcance.Resolver(Columna(24, null), celda, null, Hoy, 30);
+
+        resultado.Fecha.Should().Be(emision.AddMonths(24));
+        resultado.Estado.Should().Be(EstadoCeldaVigencia.Vigente);
+    }
+
+    [Fact]
+    public void Si_el_Centro_acorta_la_periodicidad_vence_antes_que_el_documento()
+    {
+        var emision = Hoy.AddMonths(-13);
+        var celda = Documento(emision.AddMonths(24), emision, exigidaPor: [Zaragoza]);
+
+        var resultado = VigenciaEnAlcance.Resolver(Columna(12, null), celda, null, Hoy, 30);
+
+        resultado.Fecha.Should().Be(emision.AddMonths(12));
+        resultado.Estado.Should().Be(EstadoCeldaVigencia.Vencido);
+    }
+
+    [Fact]
+    public void Sin_periodicidad_del_Centro_manda_la_fecha_del_documento_aunque_el_tipo_diga_otra_cosa()
+    {
+        // El tipo dura 12 meses (solo rotula), pero el documento trae su vencimiento y el Centro no impone nada.
+        var emision = Hoy.AddMonths(-13);
         var celda = Documento(Hoy.AddDays(-5), emision, exigidaPor: [Zaragoza]);
 
-        var resultado = VigenciaEnAlcance.Resolver(Columna(60, null), celda, null, Hoy, 30);
+        var resultado = VigenciaEnAlcance.Resolver(ColumnaSinPeriodicidad(12), celda, null, Hoy, 30);
 
         resultado.Fecha.Should().Be(Hoy.AddDays(-5));
         resultado.Estado.Should().Be(EstadoCeldaVigencia.Vencido);
+        resultado.VigenciaMinimaMeses.Should().Be(12);
     }
 
     [Fact]
@@ -90,11 +123,23 @@ public class VigenciaEnAlcanceTests
     public void Sin_confirmar_y_sin_caducidad_se_respetan()
     {
         var sinConfirmar = Documento(Hoy.AddDays(-9), Hoy.AddDays(-99), EstadoCeldaVigencia.SinConfirmar, [Zaragoza]);
-        VigenciaEnAlcance.Resolver(Columna(60, null), sinConfirmar, null, Hoy, 30).Estado.Should().Be(EstadoCeldaVigencia.SinConfirmar);
+        VigenciaEnAlcance.Resolver(ColumnaSinPeriodicidad(60), sinConfirmar, null, Hoy, 30).Estado.Should().Be(EstadoCeldaVigencia.SinConfirmar);
 
         var noCaduca = new VigenciaCeldaDto(EstadoCeldaVigencia.Vigente, Guid.NewGuid(), null, Hoy.AddYears(-3), [Zaragoza]);
-        var resultado = VigenciaEnAlcance.Resolver(Columna(60, null), noCaduca, null, Hoy, 30);
-        resultado.Estado.Should().Be(EstadoCeldaVigencia.Vigente);
+        var resultado = VigenciaEnAlcance.Resolver(Columna(12, null), noCaduca, null, Hoy, 30);
+        resultado.Estado.Should().Be(EstadoCeldaVigencia.Vigente, "«no caduca» nunca vence, tenga el Centro la periodicidad que tenga");
         resultado.Fecha.Should().BeNull();
+    }
+
+    [Fact]
+    public void Sin_confirmar_vence_por_emision_mas_meses_si_el_Centro_impone_periodicidad()
+    {
+        var emision = Hoy.AddMonths(-13);
+        var celda = Documento(Hoy.AddDays(-9), emision, EstadoCeldaVigencia.SinConfirmar, [Zaragoza]);
+
+        var resultado = VigenciaEnAlcance.Resolver(Columna(12, null), celda, null, Hoy, 30);
+
+        resultado.Estado.Should().Be(EstadoCeldaVigencia.Vencido);
+        resultado.Fecha.Should().Be(emision.AddMonths(12));
     }
 }

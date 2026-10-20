@@ -66,11 +66,13 @@ public record VigenciaColumnaDto(
     Guid TipoDocumentoId, string Nombre, TipoDocumentoBase? Basico, GrupoColumnaVigencia Grupo,
     int? VigenciaMesesDelTipo, IReadOnlyList<VigenciaExigenciaCentroDto> ExigidoPor);
 
-public record VigenciaExigenciaCentroDto(Guid CentroId, int? VigenciaMeses);
+/// <param name="VigenciaMeses">Los meses de vigencia que rigen en ese Centro (su periodicidad o, si no la define, la del tipo): para rotular.</param>
+/// <param name="PeriodicidadEspecialMeses">Solo la periodicidad que el Centro IMPONE; <c>null</c> si no la define (manda el documento).</param>
+public record VigenciaExigenciaCentroDto(Guid CentroId, int? VigenciaMeses, int? PeriodicidadEspecialMeses = null);
 
 /// <param name="Celdas">Una por columna, en el mismo orden que <see cref="VigenciaEmpresaDto.Columnas"/>.</param>
 public record VigenciaFilaDto(
-    Guid TrabajadorId, string Nombre, string? Dni, string? Puesto, Guid? DelegacionEmpresaId, string? DelegacionEmpresaNombre,
+    Guid TrabajadorId, string Nombre, string? Puesto, Guid? DelegacionEmpresaId, string? DelegacionEmpresaNombre,
     IReadOnlyList<Guid> CentroIds, IReadOnlyList<VigenciaCeldaDto> Celdas);
 
 /// <param name="ExigidaPorCentroIds">Los Centros del Trabajador que exigen este tipo; vacío = no lo exige ninguno (opcional).</param>
@@ -98,7 +100,7 @@ public class ObtenerVigenciaEmpresaQueryHandler(
         var hoy = DiaDeNegocio.Hoy();
 
         var trabajadoresQuery = trabajadoresContext.Trabajadores
-            .Where(t => t.EmpresaId == request.EmpresaId && t.FechaBajaEmpresa == null);
+            .Where(t => t.EmpresaId == request.EmpresaId);
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
         if (trabajadorIdsVisibles is not null)
             trabajadoresQuery = trabajadoresQuery.Where(t => trabajadorIdsVisibles.Contains(t.Id));
@@ -110,7 +112,6 @@ public class ObtenerVigenciaEmpresaQueryHandler(
                 t.Id,
                 t.Nombre,
                 t.Apellidos,
-                t.Dni,
                 t.Puesto,
                 t.DelegacionEmpresaId,
                 t.TipoContratacion
@@ -224,11 +225,13 @@ public class ObtenerVigenciaEmpresaQueryHandler(
                     c.Tipo.Id, c.Tipo.Nombre, c.Basico,
                     c.Basico is not null ? GrupoColumnaVigencia.Basicos : c.ExigidoPor.Count > 0 ? GrupoColumnaVigencia.Formacion : GrupoColumnaVigencia.Opcional,
                     c.Tipo.VigenciaMeses,
-                    [.. c.ExigidoPor.Select(centroId => new VigenciaExigenciaCentroDto(
-                        centroId,
-                        filasDeLosCentros.TryGetValue((c.Tipo.Id, centroId), out var fila) && fila.Incluido
-                            ? fila.PeriodicidadEspecialMeses ?? c.Tipo.VigenciaMeses
-                            : c.Tipo.VigenciaMeses))])
+                    [.. c.ExigidoPor.Select(centroId =>
+                    {
+                        var periodicidad = filasDeLosCentros.TryGetValue((c.Tipo.Id, centroId), out var fila) && fila.Incluido
+                            ? fila.PeriodicidadEspecialMeses
+                            : null;
+                        return new VigenciaExigenciaCentroDto(centroId, periodicidad ?? c.Tipo.VigenciaMeses, periodicidad);
+                    })])
             })
             .OrderBy(c => c.Dto.Grupo)
             .ThenBy(c => c.Dto.Grupo == GrupoColumnaVigencia.Basicos ? OrdenBasico(c.Dto.Basico) : 0)
@@ -254,7 +257,7 @@ public class ObtenerVigenciaEmpresaQueryHandler(
 
                 var delegacionId = t.DelegacionEmpresaId;
                 return new VigenciaFilaDto(
-                    t.Id, $"{t.Nombre} {t.Apellidos}".Trim(), t.Dni, t.Puesto, delegacionId,
+                    t.Id, $"{t.Nombre} {t.Apellidos}".Trim(), t.Puesto, delegacionId,
                     delegacionId is { } id && delegaciones.TryGetValue(id, out var nombre) ? nombre : null,
                     todosLosCentrosDeCadaTrabajador.GetValueOrDefault(t.Id, []), celdas);
             })

@@ -685,4 +685,22 @@
   <data name="PlataformasEstadoPendienteSubir" xml:space="preserve">
     <value>Pendent de pujar</value>
   </data>
+  <data name="PlataformasEstadoVencidoEnPlataforma" xml:space="preserve">
+    <value>Vençut a la plataforma</value>
+  </data>
+  <data name="PlataformasSinAlcanceNota" xml:space="preserve">
+    <value>Aquí només apareixen les plataformes dels Centres que gestiones. Si no en veus cap, pot ser pels teus permisos d&apos;accés i no perquè l&apos;Empresa no tingui documentació.</value>
+  </data>
+  <data name="PlataformasVencidoEl" xml:space="preserve">
+    <value>Vençut el {0}</value>
+  </data>
+  <data name="VigenciaSinColumnasDescripcion" xml:space="preserve">
+    <value>Cap Centre amb gestió CAE exigeix documentació als Treballadors de l&apos;Empresa, i encara no hi ha documents carregats.</value>
+  </data>
+  <data name="VigenciaSinColumnasTitulo" xml:space="preserve">
+    <value>Sense documentació exigida</value>
+  </data>
+  <data name="VigenciaUnMes" xml:space="preserve">
+    <value>1 mes</value>
+  </data>
 </root>

@@ -98,6 +98,7 @@
     background: linear-gradient(90deg, var(--color-warning-50) 0, transparent 75%);
 }
 
+.plataformas-fila[data-estado="VencidaEnPlataforma"],
 .plataformas-fila[data-estado="Rechazada"],
 .plataformas-fila[data-estado="PendienteDeSubir"] {
     background: linear-gradient(90deg, var(--color-danger-50) 0, transparent 75%);
