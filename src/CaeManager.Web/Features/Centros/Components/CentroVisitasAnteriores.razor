@@ -1,21 +1,24 @@
 @using CaeManager.Application.Visitas.Queries.ObtenerVisitasAnterioresDeCentro
 @using MediatR
+@using CaeManager.Web.Features.Centros.Recursos
+@using Microsoft.Extensions.Localization
 @inject IMediator Mediator
+@inject IStringLocalizer<TextosCentros> Textos
 
-<h3 class="centro-visitas-anteriores-titulo">Anteriores</h3>
+<h3 class="centro-visitas-anteriores-titulo">@Textos["VisitasAnterioresTitulo360"]</h3>
 @if (_cargando)
 {
     <EstadoCargando Filas="3" />
 }
 else if (_error)
 {
-    <EstadoVacio Titulo="No pudimos cargar las visitas anteriores">
-        <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">Reintentar</Boton></Accion>
+    <EstadoVacio Titulo="@Textos["VisitasAnterioresError360"]">
+        <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["ReintentarCentro360"]</Boton></Accion>
     </EstadoVacio>
 }
 else if (_visitas.Count == 0)
 {
-    <EstadoVacio Titulo="Sin visitas anteriores" />
+    <EstadoVacio Titulo="@Textos["VisitasAnterioresVacio360"]" />
 }
 else
 {
@@ -24,11 +27,11 @@ else
         {
             <ElementoListaLateral @key="visita.Id">
                 <Etiqueta>
-                    <span>@visita.FechaInicio.ToString("dd/MM/yyyy") – @visita.FechaFin.ToString("dd/MM/yyyy") · @(visita.EstaCancelada ? "Cancelada" : visita.DocumentacionGestionada ? "Documentación gestionada" : "Pasada")</span>
-                    <Boton360 Nombre="@($"Visita {visita.FechaInicio:dd/MM/yyyy} – {visita.FechaFin:dd/MM/yyyy}")" Href="@($"/visitas/{visita.Id}")" />
+                    <span>@visita.FechaInicio.ToString("dd/MM/yyyy") – @visita.FechaFin.ToString("dd/MM/yyyy") · @Textos[visita.EstaCancelada ? "VisitaCancelada360" : visita.DocumentacionGestionada ? "VisitaDocumentacionGestionada360" : "VisitaPasada360"]</span>
+                    <Boton360 Nombre="@Textos["VisitaNombre360", visita.FechaInicio.ToString("dd/MM/yyyy"), visita.FechaFin.ToString("dd/MM/yyyy")].Value" Href="@($"/visitas/{visita.Id}")" />
                 </Etiqueta>
                 <ChildContent>
-                    <span>Trabajadores de la visita: @(visita.Trabajadores.Count == 0 ? "—" : string.Join(" · ", visita.Trabajadores))</span>
+                    <span>@Textos["VisitaTrabajadoresDe360", visita.Trabajadores.Count == 0 ? "—" : string.Join(" · ", visita.Trabajadores)]</span>
                 </ChildContent>
             </ElementoListaLateral>
         }

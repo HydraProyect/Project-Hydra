@@ -637,5 +637,13 @@
   <data name="AbrirPortalCentro360" xml:space="preserve"><value>Obrir portal ↗</value></data>
   <data name="DireccionCanalCentro360" xml:space="preserve"><value>l’adreça d’aquest canal</value></data>
   <data name="ContactosCentro360" xml:space="preserve"><value>Contactes del centre</value></data>
-  <data name="RegistrarCanal360" xml:space="preserve"><value>Registrar canal</value></data>
+  <data name="RegistrarCanal360" xml:space="preserve"><value>Registra un canal</value></data>
+  <data name="VisitasAnterioresTitulo360" xml:space="preserve"><value>Anteriors</value></data>
+  <data name="VisitasAnterioresError360" xml:space="preserve"><value>No hem pogut carregar les visites anteriors</value></data>
+  <data name="VisitasAnterioresVacio360" xml:space="preserve"><value>Sense visites anteriors</value></data>
+  <data name="VisitaCancelada360" xml:space="preserve"><value>Cancel·lada</value></data>
+  <data name="VisitaDocumentacionGestionada360" xml:space="preserve"><value>Documentació gestionada</value></data>
+  <data name="VisitaPasada360" xml:space="preserve"><value>Passada</value></data>
+  <data name="VisitaNombre360" xml:space="preserve"><value>Visita {0} – {1}</value></data>
+  <data name="VisitaTrabajadoresDe360" xml:space="preserve"><value>Treballadors de la visita: {0}</value></data>
 </root>

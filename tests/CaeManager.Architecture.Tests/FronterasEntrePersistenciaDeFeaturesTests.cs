@@ -815,6 +815,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Visitas.ObtenerVisitasQueryHandler", "ITiposDocumentoQueryContext"),
         // El recuento del listado abre quién entra: nombre y apellidos, como ObtenerDetalleVisita.
         ("Visitas.ObtenerVisitasQueryHandler", "ITrabajadoresQueryContext"),
+        // «Anteriores» de Centro 360 nombra a los Trabajadores de cada Visita pasada, acotados a los visibles (ObtenerTrabajadorIdsVisiblesAsync).
+        ("Visitas.ObtenerVisitasAnterioresDeCentroQueryHandler", "ITrabajadoresQueryContext"),
 
         // ── Doble escritura de F1 ──────────────────────────────────────────
         //
