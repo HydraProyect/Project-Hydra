@@ -152,6 +152,9 @@ public class CuadroDireccionExtranjerosEndpointTests
         // El 403 de un Gestor CAE o de un Usuario de Cliente lo da esta política antes de llegar a la consulta: la
         // UnauthorizedAccessException de AutorizacionCuadroDireccion queda como segunda puerta y no se convierte en 500.
         var builder = WebApplication.CreateSlimBuilder();
+        builder.Services.AddSingleton<IMediator>(new MediatorDeExtranjeros(Mes()));
+        builder.Services.AddSingleton<IRegistroExportacionService>(new RegistroFalso());
+        builder.Services.AddLocalization();
         builder.Services.AddAuthorizationCore();
         builder.Services.AddLogging();
         await using var app = builder.Build();
