@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
@@ -163,12 +164,17 @@ public class FotoDelTrabajadorEnLaAsignacionAVisitaTests : IAsyncLifetime
 
     private CaeManagerDbContext NuevoContexto()
     {
-        var tenantActual = new TenantActualPorAmbito();
+        var tenantActual = new TenantPorAmbito();
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadena, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    private sealed class TenantPorAmbito : ITenantActual
+    {
+        public Guid? TenantId => AmbitoTenantExplicito.TenantIdActual;
     }
 }
