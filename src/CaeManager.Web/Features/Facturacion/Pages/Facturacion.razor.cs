@@ -86,11 +86,13 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
             var serie = await Mediator.Send(new ObtenerSerieCuadroDireccionQuery(_anyo, _mes, 1, ConFacturacion: true));
             var extranjeros = await Mediator.Send(new ContarExtranjerosCobrablesDelMesQuery(_anyo, _mes));
             var tarifas = await Mediator.Send(new ObtenerTarifasOperadorCaeQuery());
+            // Solo las Empresas que el Operador CAE opera con una Asignación de Operación externa en vigor en el mes.
+            var operadas = await Mediator.Send(new ObtenerEmpresasOperadasEnElMesQuery(_anyo, _mes));
             if (solicitud != _solicitud)
                 return;
 
             _tarifas = tarifas;
-            _modelo = FacturacionOperadorModelo.Construir(_anyo, _mes, serie, extranjeros, tarifas, AhoraUtc);
+            _modelo = FacturacionOperadorModelo.Construir(_anyo, _mes, serie, extranjeros, tarifas, operadas, AhoraUtc);
             if (_modelo.Empresas.All(e => e.TenantId != _empresaId))
                 _empresaId = _modelo.Empresas.FirstOrDefault()?.TenantId ?? Guid.Empty;
         }
@@ -174,14 +176,34 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
 
     private string TextoCuota(EmpresaFacturada e)
     {
-        if (e.ImportesOcultos || e.SinVigencia)
+        if (e.ImportesOcultos)
             return Textos["SinImporte"].Value;
-        return e.SinTarifa ? Textos["SinTarifa"].Value : Dinero(e.Cuota);
+        if (e.SinTarifa)
+            return Textos["SinTarifa"].Value;
+        if (e.SinTarifaEnElMes)
+            return Textos["SinTarifaEnElMes"].Value;
+        // Con todos los conceptos sin cobrar la cuota es «0 €» (la línea lleva su moneda), no un hueco.
+        return e.Cuota.Count > 0 ? Dinero(e.Cuota) : Textos["SinImporte"].Value;
     }
 
-    private static string ClaseCuota(EmpresaFacturada e) => e.SinTarifa && !e.ImportesOcultos ? "fct-cuota fct-cuota-aviso" : "fct-cuota";
+    private static string ClaseCuota(EmpresaFacturada e) =>
+        (e.SinTarifa || e.SinTarifaEnElMes) && !e.ImportesOcultos ? "fct-cuota fct-cuota-aviso" : "fct-cuota";
 
-    private string TextoTotal() => _modelo is { Total.Count: > 0 } ? Dinero(_modelo.Total) : Dinero(0m, "EUR", false);
+    private string TextoTotal() => _modelo is { Total.Count: > 0 } ? Dinero(_modelo.Total) : Textos["SinImporte"].Value;
+
+    /// <summary>El total no incluye las Empresas que quien mira no alcanza por completo: se dice junto a la cifra.</summary>
+    private string TextoTotalParcial => _modelo is { TenantsSinAlcanceCompleto: 1 }
+        ? Textos["TotalParcialUna"].Value
+        : Textos["TotalParcial", _modelo?.TenantsSinAlcanceCompleto ?? 0].Value;
+
+    /// <summary>
+    /// Con línea de facturación las unidades son las de la línea (unidades × precio = importe). Si el Excel de extranjeros
+    /// cuenta otras, se enseña como información complementaria, nunca en su lugar.
+    /// </summary>
+    private string? ComplementoUnidades(EmpresaFacturada e, ConceptoFacturado c) =>
+        c.Concepto == ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero && c.Moneda is not null && c.Unidades != e.ExtranjerosEnExcel
+            ? Textos["ExtranjerosEnExcel", e.ExtranjerosEnExcel.ToString(CultureInfo.CurrentCulture)].Value
+            : null;
 
     // ------------------------------------------------------------------ conceptos
 
@@ -206,13 +228,17 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
         return c.Estado switch
         {
             EstadoTarifaConcepto.NoSeCobra => Textos["NoSeCobra"].Value,
-            EstadoTarifaConcepto.Cobra => Textos["TarifaPorUnidad", Dinero(c.Precio ?? 0m, c.Moneda, true), UnidadConcepto(c.Concepto)].Value,
+            EstadoTarifaConcepto.Cobra when c.Precio is { } precio =>
+                Textos["TarifaPorUnidad", Dinero(precio, c.Moneda, true), UnidadConcepto(c.Concepto)].Value,
+            EstadoTarifaConcepto.Cobra or EstadoTarifaConcepto.SinDato => Textos["SinDato"].Value,
             _ => Textos["SinTarifa"].Value,
         };
     }
 
     private string TextoImporte(ConceptoFacturado c) =>
-        c.Estado == EstadoTarifaConcepto.Cobra && c.Importe is { } importe ? Dinero(importe, c.Moneda, false) : Textos["SinImporte"].Value;
+        c.Estado is EstadoTarifaConcepto.Cobra or EstadoTarifaConcepto.SinDato && c.Importe is { } importe
+            ? Dinero(importe, c.Moneda, false)
+            : Textos["SinImporte"].Value;
 
     private static bool TarifaActiva(ConceptoFacturado c) => c.Estado == EstadoTarifaConcepto.Cobra;
 
@@ -268,14 +294,28 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
     private string? _errorGuardar;
     private Guid _drawerTenantId;
     private string _drawerNombre = string.Empty;
-    private bool _drawerSinTarifa;
     private string _moneda = "EUR";
+
+    /// <summary>La moneda de la tarifa en vigor al abrir el drawer; null si la Empresa no tenía tarifa.</summary>
+    private string? _monedaOriginal;
+
     private readonly bool[] _activo = new bool[3];
-    private readonly decimal?[] _precio = new decimal?[3];
+
+    /// <summary>El precio tal como lo escribió quien edita: se valida entero al guardar y un hueco nunca se guarda como 0.</summary>
+    private readonly string?[] _precioTexto = new string?[3];
+
+    private readonly string?[] _errorPrecio = new string?[3];
+
+    private bool DrawerSinTarifa => _tarifas is null || _tarifas.All(t => t.PropietarioTenantId != _drawerTenantId);
+
+    private bool CambiaMoneda => _monedaOriginal is not null && !string.Equals(_moneda, _monedaOriginal, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Una moneda guardada que el selector no ofrece (EUR y USD) se añade para no perderla al abrir.</summary>
+    private bool MonedaOriginalFueraDeLista => _monedaOriginal is { } m && m != "EUR" && m != "USD";
 
     private bool HayCambiosTarifas => _drawerVisible && _instantanea.Difiere(ValoresDrawer());
 
-    private object?[] ValoresDrawer() => [_moneda, _activo[0], _precio[0], _activo[1], _precio[1], _activo[2], _precio[2]];
+    private object?[] ValoresDrawer() => [_moneda, _activo[0], _precioTexto[0], _activo[1], _precioTexto[1], _activo[2], _precioTexto[2]];
 
     private TarifaOperadorCaeDto? Vigente(Guid tenantId, ConceptoTarifaOperadorCae concepto) =>
         _tarifas is null ? null : ValoracionOperadorCae.VigenteEn(_tarifas, tenantId, concepto, AhoraUtc);
@@ -287,15 +327,16 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
 
         _drawerTenantId = empresa.TenantId;
         _drawerNombre = empresa.Nombre;
-        _drawerSinTarifa = _tarifas.All(t => t.PropietarioTenantId != empresa.TenantId);
         _errorGuardar = null;
-        _moneda = Conceptos.Select(c => Vigente(empresa.TenantId, c)).FirstOrDefault(v => v is not null)?.MonedaIso.Trim().ToUpperInvariant() ?? "EUR";
+        _monedaOriginal = Conceptos.Select(c => Vigente(empresa.TenantId, c)).FirstOrDefault(v => v is not null)?.MonedaIso.Trim().ToUpperInvariant();
+        _moneda = _monedaOriginal ?? "EUR";
         for (var i = 0; i < Conceptos.Length; i++)
         {
             var version = Vigente(empresa.TenantId, Conceptos[i]);
             // Sin tarifa, como la maqueta: extranjeros activo y los otros dos sin cobrar, todos sin precio.
             _activo[i] = version?.Activa ?? i == 0;
-            _precio[i] = version?.PrecioUnitario;
+            _precioTexto[i] = version?.PrecioUnitario.ToString(CultureInfo.InvariantCulture);
+            _errorPrecio[i] = null;
         }
 
         _drawerVisible = true;
@@ -310,13 +351,16 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
         return Task.CompletedTask;
     }
 
-    private void AlternarActivo(int indice, bool valor) => _activo[indice] = valor;
+    private void AlternarActivo(int indice, bool valor)
+    {
+        _activo[indice] = valor;
+        _errorPrecio[indice] = null;
+    }
 
     private void FijarPrecio(int indice, object? valor)
     {
-        _precio[indice] = decimal.TryParse(valor?.ToString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var precio) && precio >= 0
-            ? precio
-            : null;
+        _precioTexto[indice] = valor?.ToString();
+        _errorPrecio[indice] = null;
     }
 
     private string UnidadPrecio => _moneda == "USD" ? Textos["UnidadPrecioUsd"].Value : Textos["UnidadPrecioEur"].Value;
@@ -332,6 +376,57 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
 
     private string? MotivoGuardarDeshabilitado => HayCambiosTarifas ? null : Textos["MotivoSinCambios"].Value;
 
+    /// <summary>Lo máximo que admite el comando (<see cref="FijarTarifaOperadorCaeCommandValidator"/>).</summary>
+    private const decimal PrecioMaximo = 999_999.99m;
+
+    /// <summary>
+    /// Un precio válido: número con punto o coma decimal, de cero a <see cref="PrecioMaximo"/> y con como mucho dos
+    /// decimales. Sin separador de miles: «36,5» es 36,50 y no 365.
+    /// </summary>
+    private static bool TryLeerPrecio(string? texto, out decimal precio)
+    {
+        precio = 0m;
+        var limpio = texto?.Trim().Replace(',', '.');
+        return !string.IsNullOrEmpty(limpio)
+            && decimal.TryParse(limpio, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out precio)
+            && precio is >= 0m and <= PrecioMaximo
+            && decimal.Round(precio, 2) == precio;
+    }
+
+    /// <summary>
+    /// Valida los tres conceptos ANTES de enviar nada. Un concepto que se cobra necesita su precio: en blanco o ilegible no
+    /// se guarda (nunca como 0). Uno que no se cobra no usa el precio: sin precio escrito conserva el de su versión
+    /// anterior, o 0 si no tuvo ninguna, solo porque el comando exige una cifra; no se muestra ni se cobra.
+    /// </summary>
+    private bool ValidarPrecios(out decimal[] precios)
+    {
+        precios = new decimal[Conceptos.Length];
+        var todoBien = true;
+        for (var i = 0; i < Conceptos.Length; i++)
+        {
+            _errorPrecio[i] = null;
+            var vacio = string.IsNullOrWhiteSpace(_precioTexto[i]);
+            if (!_activo[i] && vacio)
+            {
+                precios[i] = Vigente(_drawerTenantId, Conceptos[i])?.PrecioUnitario ?? 0m;
+                continue;
+            }
+
+            if (vacio)
+            {
+                _errorPrecio[i] = Textos["ErrorPrecioVacio"].Value;
+                todoBien = false;
+            }
+            else if (!TryLeerPrecio(_precioTexto[i], out precios[i]))
+            {
+                _errorPrecio[i] = Textos["ErrorPrecioNoValido"].Value;
+                todoBien = false;
+            }
+        }
+
+        return todoBien;
+    }
+
     private async Task GuardarTarifasAsync()
     {
         if (_guardando || !HayCambiosTarifas)
@@ -341,27 +436,36 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
         _errorGuardar = null;
         try
         {
-            foreach (var comando in ComandosAEnviar())
+            if (!ValidarPrecios(out var precios))
             {
-                var resultado = await Mediator.Send(comando);
-                if (resultado.EsFallido)
+                _errorGuardar = Textos["ErrorRevisaPrecios"].Value;
+                return;
+            }
+
+            // Una versión por concepto que cambió; cada comando es una transacción propia, así que si uno falla los
+            // anteriores ya están guardados: se recarga y se dice cuáles.
+            var pendientes = ComandosAEnviar(precios).ToList();
+            var guardados = new List<int>();
+            for (var n = 0; n < pendientes.Count; n++)
+            {
+                var (indice, comando) = pendientes[n];
+                var fallo = await EnviarAsync(comando);
+                if (fallo is null)
                 {
-                    _errorGuardar = resultado.Error.Mensaje;
-                    return;
+                    guardados.Add(indice);
+                    continue;
                 }
+
+                await CargarAsync();
+                _errorGuardar = guardados.Count == 0
+                    ? fallo
+                    : Textos["ErrorGuardadoParcial", NombresConceptos(guardados), NombresConceptos(pendientes.Skip(n).Select(p => p.Indice)), fallo].Value;
+                return;
             }
 
             _drawerVisible = false;
-            ToastService.Mostrar(Textos["AvisoTarifasGuardadas", NombreMes(MesActual.Anyo, MesActual.Mes)].Value, TonoToast.Exito);
+            ToastService.Mostrar(Textos["AvisoTarifasGuardadas", NombresConceptos(guardados)].Value, TonoToast.Exito);
             await CargarAsync();
-        }
-        catch (ValidationException ex)
-        {
-            _errorGuardar = ex.Errors.FirstOrDefault()?.ErrorMessage ?? Textos["ErrorGuardarTarifas"].Value;
-        }
-        catch (Exception)
-        {
-            _errorGuardar = Textos["ErrorGuardarTarifas"].Value;
         }
         finally
         {
@@ -369,21 +473,42 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
         }
     }
 
+    /// <summary>Envía un comando de tarifa; null si se guardó, y si no el motivo para enseñar en el drawer.</summary>
+    private async Task<string?> EnviarAsync(FijarTarifaOperadorCaeCommand comando)
+    {
+        try
+        {
+            var resultado = await Mediator.Send(comando);
+            return resultado.EsFallido ? resultado.Error.Mensaje : null;
+        }
+        catch (ValidationException ex)
+        {
+            return ex.Errors.FirstOrDefault()?.ErrorMessage ?? Textos["ErrorGuardarTarifas"].Value;
+        }
+        catch (Exception)
+        {
+            return Textos["ErrorGuardarTarifas"].Value;
+        }
+    }
+
+    private string NombresConceptos(IEnumerable<int> indices) =>
+        string.Join(", ", indices.Select(i => NombreTarifaDrawer(i).ToLower(CultureInfo.CurrentCulture)));
+
     /// <summary>
     /// Una versión nueva por concepto que cambió (y las tres si la Empresa no tenía tarifa o cambió la moneda: la tarifa
-    /// se guarda entera). Un precio en blanco vale cero, como la maqueta.
+    /// se guarda entera). Se compara con las tarifas recién cargadas, así que tras un fallo a medias solo quedan los que
+    /// faltan.
     /// </summary>
-    private IEnumerable<FijarTarifaOperadorCaeCommand> ComandosAEnviar()
+    private IEnumerable<(int Indice, FijarTarifaOperadorCaeCommand Comando)> ComandosAEnviar(decimal[] precios)
     {
-        var todas = _drawerSinTarifa;
+        var todas = DrawerSinTarifa;
         for (var i = 0; i < Conceptos.Length; i++)
         {
-            var precio = _precio[i] ?? 0m;
             var version = Vigente(_drawerTenantId, Conceptos[i]);
-            var cambia = todas || version is null || version.Activa != _activo[i] || version.PrecioUnitario != precio
+            var cambia = todas || version is null || version.Activa != _activo[i] || version.PrecioUnitario != precios[i]
                 || !string.Equals(version.MonedaIso.Trim(), _moneda, StringComparison.OrdinalIgnoreCase);
             if (cambia)
-                yield return new FijarTarifaOperadorCaeCommand(_drawerTenantId, Conceptos[i], precio, _moneda, _activo[i]);
+                yield return (i, new FijarTarifaOperadorCaeCommand(_drawerTenantId, Conceptos[i], precios[i], _moneda, _activo[i]));
         }
     }
 }

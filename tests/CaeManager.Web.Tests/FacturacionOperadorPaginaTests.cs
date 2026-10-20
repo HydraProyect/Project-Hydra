@@ -94,10 +94,26 @@ public class FacturacionOperadorPaginaTests : BunitContext
         public Exception? ErrorEnSerie { get; set; }
         public Func<FijarTarifaOperadorCaeCommand, Result> AlFijar { get; set; } = _ => Result.Exito();
 
+        /// <summary>Las líneas con las que la serie valoró a Ebro: 14 × 40 = 560, 2 × 25 = 50 y una Obra sin cobrar.</summary>
+        public IReadOnlyList<LineaFacturacionCuadroDto> LineasDeEbro { get; set; } =
+        [
+            Linea(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, 14, 560m),
+            Linea(ConceptoTarifaOperadorCae.CentroNuevo, 2, 50m),
+            Linea(ConceptoTarifaOperadorCae.ObraNueva, 1, 0m),
+        ];
+
+        /// <summary>Las filas del Excel «Exportar extranjeros del mes» de Ebro.</summary>
+        public int AsignacionesEbro { get; set; } = 14;
+
+        /// <summary>Las Empresas que el Operador CAE opera en el mes (Asignación de Operación externa en vigor).</summary>
+        public IReadOnlyList<Guid> Operadas { get; set; } = [Ebro, Rubén];
+
         public object? Responder(object peticion)
         {
             switch (peticion)
             {
+                case ObtenerEmpresasOperadasEnElMesQuery:
+                    return Operadas;
                 case ObtenerSerieCuadroDireccionQuery q:
                     if (ErrorEnSerie is not null)
                         throw ErrorEnSerie;
@@ -106,17 +122,20 @@ public class FacturacionOperadorPaginaTests : BunitContext
                     return new SerieCuadroDireccionDto([],
                     [
                         new SerieTenantCuadroDto(Ebro, "Obras y Estructuras del Ebro S.L.",
-                            [new PuntoSerieCuadroDto(q.Anyo, q.Mes, EstadoCifraMensual.Parcial, Cifras(2, 1, 212),
-                                conTarifas ? [Linea(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, 14, 560m), Linea(ConceptoTarifaOperadorCae.CentroNuevo, 2, 50m), Linea(ConceptoTarifaOperadorCae.ObraNueva, 1, 0m)] : null)]),
+                            [new PuntoSerieCuadroDto(q.Anyo, q.Mes, EstadoCifraMensual.Parcial, Cifras(2, 1, 212), conTarifas ? LineasDeEbro : null)]),
                         new SerieTenantCuadroDto(Rubén, "Rubén Salas Quintana",
                             [new PuntoSerieCuadroDto(q.Anyo, q.Mes, EstadoCifraMensual.Parcial, Cifras(1, 0, 18), conTarifas ? [] : null)]),
                     ], 1);
                 case ContarExtranjerosCobrablesDelMesQuery q:
-                    return new ConteoExtranjerosCobrablesDelMesDto(q.Anyo, q.Mes, [new ConteoExtranjerosCobrablesTenantDto(Ebro, "Ebro", 14, 12)], 0);
+                    return new ConteoExtranjerosCobrablesDelMesDto(q.Anyo, q.Mes, [new ConteoExtranjerosCobrablesTenantDto(Ebro, "Ebro", AsignacionesEbro, 12)], 0);
                 case ObtenerTarifasOperadorCaeQuery:
                     return Tarifas;
                 case FijarTarifaOperadorCaeCommand c:
-                    return AlFijar(c);
+                    var resultado = AlFijar(c);
+                    // Lo que se guarda queda guardado: la siguiente lectura de las tarifas ya lo trae.
+                    if (!resultado.EsFallido)
+                        Tarifas = [.. Tarifas ?? [], new TarifaOperadorCaeDto(c.PropietarioTenantId, c.Concepto, c.PrecioUnitario, c.MonedaIso, c.Activa, Ahora)];
+                    return resultado;
                 default:
                     throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.");
             }
@@ -152,6 +171,63 @@ public class FacturacionOperadorPaginaTests : BunitContext
         mediador.Enviados.OfType<ContarExtranjerosCobrablesDelMesQuery>().Should().ContainSingle()
             .Which.Should().Be(new ContarExtranjerosCobrablesDelMesQuery(2026, 10));
         mediador.Enviados.OfType<ObtenerTarifasOperadorCaeQuery>().Should().ContainSingle();
+        mediador.Enviados.OfType<ObtenerEmpresasOperadasEnElMesQuery>().Should().ContainSingle()
+            .Which.Should().Be(new ObtenerEmpresasOperadasEnElMesQuery(2026, 10));
+    }
+
+    [Fact]
+    public void Solo_salen_las_Empresas_que_el_Operador_opera_en_el_mes_aunque_el_Cuadro_alcance_mas()
+    {
+        var (cut, _) = Renderizar(new Escenario { Operadas = [Ebro] });
+
+        var filas = Filas(cut);
+        filas.Should().ContainSingle().Which.Should().Contain("Obras y Estructuras del Ebro S.L.");
+        cut.Markup.Should().NotContain("Rubén Salas Quintana");
+    }
+
+    [Fact]
+    public void El_total_dice_que_es_parcial_cuando_faltan_Empresas_que_no_se_alcanzan_por_completo()
+    {
+        var (cut, _) = Renderizar(new Escenario());
+
+        cut.Find(".fct-total-parcial").TextContent.Should().Contain("Total parcial").And.Contain("1 empresa que no alcanzas por completo");
+    }
+
+    [Fact]
+    public void Con_la_cuota_a_cero_porque_ningun_concepto_se_cobra_la_pagina_enseña_cero_euros()
+    {
+        var escenario = new Escenario
+        {
+            Tarifas =
+            [
+                Tarifa(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, 40m, activa: false),
+                Tarifa(ConceptoTarifaOperadorCae.CentroNuevo, 25m, activa: false),
+                Tarifa(ConceptoTarifaOperadorCae.ObraNueva, 120m, activa: false),
+            ],
+            LineasDeEbro =
+            [
+                Linea(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, 14, 0m),
+                Linea(ConceptoTarifaOperadorCae.CentroNuevo, 2, 0m),
+                Linea(ConceptoTarifaOperadorCae.ObraNueva, 1, 0m),
+            ],
+        };
+
+        var (cut, _) = Renderizar(escenario);
+
+        Filas(cut)[0].Should().Contain("0 €");
+        cut.Find(".fct-pie-cuota.fct-cuota-total").TextContent.Should().Contain("0 €");
+    }
+
+    [Fact]
+    public void Con_linea_las_unidades_son_las_de_la_linea_y_el_Excel_de_extranjeros_se_enseña_aparte()
+    {
+        var escenario = new Escenario { AsignacionesEbro = 16 };
+
+        var (cut, _) = Renderizar(escenario);
+
+        var detalle = Texto(cut.Find(".fct-conceptos"));
+        detalle.Should().Contain("Extranjeros gestionados").And.Contain("14").And.Contain("40,00 € / extranjero").And.Contain("560 €");
+        Texto(cut.Find(".fct-complemento")).Should().Contain("Excel: 16 filas");
     }
 
     [Fact]
@@ -223,15 +299,27 @@ public class FacturacionOperadorPaginaTests : BunitContext
         Filas(cut)[0].Should().Contain("14 extranjeros").And.NotContain("€");
         cut.FindAll(".fct-total").Should().BeEmpty();
         cut.FindAll(".fct-detalle-cabecera button").Should().BeEmpty();
-        cut.Find(".fct-aviso").TextContent.Should().Contain("Los importes y las tarifas los ven Administración y Dirección CAE.");
+        cut.Find(".fct-aviso").TextContent.Should().Contain("Los importes y las tarifas los ven Administrador del Tenant propietario y Dirección CAE.");
+        cut.Markup.Should().NotContain("Coordinación CAE").And.NotContain("Administración y");
     }
 
     [Fact]
-    public void Un_rol_que_el_Cuadro_no_admite_ve_un_aviso_y_no_un_error()
+    public void Sin_acceso_a_las_tarifas_el_Coordinador_CAE_ve_las_unidades_y_el_conteo_del_Excel_y_el_Excel_de_la_cuota_no_enseña_importes()
+    {
+        var (cut, _) = Renderizar(new Escenario { Tarifas = null, AsignacionesEbro = 16 });
+
+        // Sin línea de facturación las unidades de extranjeros son las del conteo del Excel de extranjeros.
+        Filas(cut)[0].Should().Contain("16 extranjeros · 2 Centros nuevos · 1 Obras nuevas");
+        cut.FindAll(".fct-complemento").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Un_rol_que_el_Cuadro_no_admite_ve_un_aviso_honesto_y_no_un_error()
     {
         var (cut, _) = Renderizar(new Escenario { ErrorEnSerie = new UnauthorizedAccessException() });
 
         cut.Markup.Should().Contain("Tu rol aún no puede leer las cifras del mes");
+        cut.Markup.Should().Contain("Disponible cuando se active el acceso del Administrador al Cuadro de dirección");
         cut.FindAll("[role=option]").Should().BeEmpty();
     }
 
@@ -273,5 +361,119 @@ public class FacturacionOperadorPaginaTests : BunitContext
 
         cut.Markup.Should().Contain("no gestiona hoy a esta empresa");
         cut.FindAll("button").Should().Contain(b => Texto(b) == "Guardar tarifas");
+    }
+
+    // ------------------------------------------------------------------ drawer: editar, moneda, validación y fallo a medias
+
+    private static async Task AbrirTarifasDeEbroAsync(IRenderedComponent<FacturacionPagina> cut) =>
+        await cut.Find(".fct-detalle-cabecera button").ClickAsync(new MouseEventArgs());
+
+    private static async Task GuardarAsync(IRenderedComponent<FacturacionPagina> cut) =>
+        await cut.FindAll("button").Single(b => Texto(b) == "Guardar tarifas").ClickAsync(new MouseEventArgs());
+
+    [Fact]
+    public async Task Editar_una_tarifa_existente_solo_envia_el_concepto_que_cambio_y_el_toast_dice_cual()
+    {
+        var (cut, mediador) = Renderizar(new Escenario());
+        await AbrirTarifasDeEbroAsync(cut);
+
+        cut.FindAll(".fct-precio input")[0].GetAttribute("value").Should().Be("40");
+        await cut.FindAll(".fct-precio input")[0].ChangeAsync(new ChangeEventArgs { Value = "42.5" });
+        await GuardarAsync(cut);
+
+        mediador.Enviados.OfType<FijarTarifaOperadorCaeCommand>().Should().Equal(
+            new FijarTarifaOperadorCaeCommand(Ebro, ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, 42.5m, "EUR", true));
+        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle().Subject.Mensaje;
+        aviso.Should().Contain("trabajador extranjero gestionado").And.Contain("meses sin cerrar").And.Contain("cerrados conservan");
+        aviso.Should().NotContain("desde octubre", "la versión vale desde ahora y recalcula los meses sin cerrar, no solo el actual");
+    }
+
+    [Fact]
+    public async Task Cambiar_la_moneda_avisa_de_que_los_importes_no_se_convierten_y_guarda_los_tres_conceptos_en_la_nueva()
+    {
+        var (cut, mediador) = Renderizar(new Escenario());
+        await AbrirTarifasDeEbroAsync(cut);
+        cut.FindAll(".fct-aviso-moneda").Should().BeEmpty("mientras no cambie la moneda no hay nada que avisar");
+
+        await cut.Find("select").ChangeAsync(new ChangeEventArgs { Value = "USD" });
+
+        cut.Find(".fct-aviso-moneda").TextContent.Should().Contain("EUR").And.Contain("USD").And.Contain("no se convierten");
+        await GuardarAsync(cut);
+
+        mediador.Enviados.OfType<FijarTarifaOperadorCaeCommand>().Should().Equal(
+            new FijarTarifaOperadorCaeCommand(Ebro, ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, 40m, "USD", true),
+            new FijarTarifaOperadorCaeCommand(Ebro, ConceptoTarifaOperadorCae.CentroNuevo, 25m, "USD", true),
+            new FijarTarifaOperadorCaeCommand(Ebro, ConceptoTarifaOperadorCae.ObraNueva, 120m, "USD", false));
+    }
+
+    [Theory]
+    [InlineData("", "Indica el precio.")]
+    [InlineData("   ", "Indica el precio.")]
+    [InlineData("abc", "Precio no válido")]
+    [InlineData("36.255", "Precio no válido")]
+    [InlineData("-1", "Precio no válido")]
+    [InlineData("1000000", "Precio no válido")]
+    public async Task Un_precio_en_blanco_o_no_valido_no_envia_nada_y_nunca_se_guarda_como_cero(string escrito, string mensaje)
+    {
+        var (cut, mediador) = Renderizar(new Escenario());
+        await cut.FindAll("[role=option]")[1].ClickAsync(new MouseEventArgs());
+        await cut.Find(".fct-aviso button").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".fct-precio input")[0].ChangeAsync(new ChangeEventArgs { Value = "36" });
+        await cut.FindAll("input[role=switch]")[1].ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".fct-precio input")[1].ChangeAsync(new ChangeEventArgs { Value = escrito });
+
+        await GuardarAsync(cut);
+
+        mediador.Enviados.OfType<FijarTarifaOperadorCaeCommand>().Should().BeEmpty("se valida todo antes de enviar nada");
+        cut.Find(".fct-error-precio").TextContent.Should().Contain(mensaje);
+        cut.Markup.Should().Contain("no se ha guardado ninguna tarifa");
+        cut.FindAll("button").Should().Contain(b => Texto(b) == "Guardar tarifas", "el drawer sigue abierto");
+    }
+
+    [Fact]
+    public async Task Un_precio_con_coma_decimal_vale_como_decimal_y_no_como_miles()
+    {
+        var (cut, mediador) = Renderizar(new Escenario());
+        await AbrirTarifasDeEbroAsync(cut);
+
+        await cut.FindAll(".fct-precio input")[0].ChangeAsync(new ChangeEventArgs { Value = "36,5" });
+        await GuardarAsync(cut);
+
+        mediador.Enviados.OfType<FijarTarifaOperadorCaeCommand>().Should().ContainSingle()
+            .Which.PrecioUnitario.Should().Be(36.5m);
+    }
+
+    [Fact]
+    public async Task Si_un_comando_falla_a_mitad_se_recargan_las_tarifas_se_dice_cuales_se_guardaron_y_reintentar_solo_envia_lo_que_falta()
+    {
+        var llamadas = 0;
+        var escenario = new Escenario
+        {
+            AlFijar = _ => ++llamadas == 2
+                ? Result.Fallo(Error.Crear("TarifaOperadorCae.EmpresaNoGestionada", "Tu organización no gestiona hoy a esta empresa."))
+                : Result.Exito(),
+        };
+        var (cut, mediador) = Renderizar(escenario);
+        await cut.FindAll("[role=option]")[1].ClickAsync(new MouseEventArgs());
+        await cut.Find(".fct-aviso button").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".fct-precio input")[0].ChangeAsync(new ChangeEventArgs { Value = "36" });
+        await cut.FindAll("input[role=switch]")[1].ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".fct-precio input")[1].ChangeAsync(new ChangeEventArgs { Value = "25" });
+
+        await GuardarAsync(cut);
+
+        mediador.Enviados.OfType<FijarTarifaOperadorCaeCommand>().Select(c => c.Concepto).Should().Equal(
+            ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, ConceptoTarifaOperadorCae.CentroNuevo);
+        mediador.Enviados.OfType<ObtenerTarifasOperadorCaeQuery>().Should().HaveCount(2, "tras el fallo se recargan las tarifas");
+        cut.Markup.Should().Contain("Se guardaron trabajador extranjero gestionado")
+            .And.Contain("pero no centros nuevos, obras nuevas")
+            .And.Contain("no gestiona hoy a esta empresa");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().BeEmpty("no hay toast de éxito si faltó algo");
+
+        // Reintentar: la primera ya está guardada y no se vuelve a enviar.
+        await GuardarAsync(cut);
+
+        mediador.Enviados.OfType<FijarTarifaOperadorCaeCommand>().Select(c => c.Concepto).Skip(2).Should().Equal(
+            ConceptoTarifaOperadorCae.CentroNuevo, ConceptoTarifaOperadorCae.ObraNueva);
     }
 }

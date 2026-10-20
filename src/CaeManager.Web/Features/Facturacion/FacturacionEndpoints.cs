@@ -1,4 +1,6 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Facturacion.Queries.ObtenerResumenFacturacion;
+using CaeManager.Web.Exportacion;
 using CaeManager.Web.Services;
 using ClosedXML.Excel;
 using MediatR;
@@ -93,7 +95,7 @@ public static class FacturacionEndpoints
     /// puede verlos (Coordinador CAE: solo unidades). No lleva datos personales: el Trabajador extranjero no sale aquí.
     /// </summary>
     public static async Task<IResult> ExportarCuotaDelOperadorAsync(
-        int anyo, int mes, IMediator mediator, TimeProvider reloj,
+        int anyo, int mes, HttpContext contexto, IMediator mediator, TimeProvider reloj, IRegistroExportacionService registroExportacion,
         Microsoft.Extensions.Localization.IStringLocalizer<Recursos.TextosFacturacion> textos, CancellationToken cancellationToken)
     {
         if (!CaeManager.Application.Dashboard.Queries.MesCuadroDireccion.EsValido(anyo, mes))
@@ -112,7 +114,9 @@ public static class FacturacionEndpoints
                 new CaeManager.Application.Dashboard.Queries.ContarExtranjerosCobrablesDelMesQuery(anyo, mes), cancellationToken);
             var tarifas = await mediator.Send(
                 new CaeManager.Application.Dashboard.TarifasOperadorCae.ObtenerTarifasOperadorCaeQuery(), cancellationToken);
-            modelo = FacturacionOperadorModelo.Construir(anyo, mes, serie, extranjeros, tarifas, ahoraUtc);
+            var operadas = await mediator.Send(
+                new CaeManager.Application.Dashboard.TarifasOperadorCae.ObtenerEmpresasOperadasEnElMesQuery(anyo, mes), cancellationToken);
+            modelo = FacturacionOperadorModelo.Construir(anyo, mes, serie, extranjeros, tarifas, operadas, ahoraUtc);
         }
         catch (UnauthorizedAccessException)
         {
@@ -135,6 +139,21 @@ public static class FacturacionEndpoints
             ],
             FilasAsync(modelo, nombreMes, textos, nota), cancellationToken);
 
+        // El libro lleva lo que el Operador CAE cobra a cada Empresa gestionada: dato comercial que solo ven el Administrador
+        // del Tenant y la Dirección CAE. Se deja el rastro de la descarga (filas = Empresas, no el total ni la nota) y no se cachea.
+        await registroExportacion.RegistrarAsync(
+            nameof(CaeManager.Domain.Dashboard.TarifaOperadorCae), modelo.Empresas.Count,
+            CriteriosExportacion.Desde(
+                ("listado", "cuotaOperador"),
+                ("anyo", anyo.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                ("mes", mes.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                ("importesOcultos", modelo.ImportesOcultos ? "true" : null),
+                ("tenantsSinAlcanceCompleto", modelo.AlcanceParcial
+                    ? modelo.TenantsSinAlcanceCompleto.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    : null)),
+            cancellationToken);
+
+        CabecerasArchivoSensible.ProhibirCache(contexto);
         return Results.File(libro, Exportacion.LibroDeListado.TipoContenido, $"facturacion-cuota-operador-{anyo:0000}-{mes:00}.xlsx");
     }
 
@@ -163,6 +182,8 @@ public static class FacturacionEndpoints
             EstadoTarifaConcepto.Cobra when concepto.Importe is { } importe => importe,
             EstadoTarifaConcepto.NoSeCobra => textos["NoSeCobra"].Value,
             EstadoTarifaConcepto.Cobra => string.Empty,
+            EstadoTarifaConcepto.SinDato when concepto.Importe is { } importe => importe,
+            EstadoTarifaConcepto.SinDato => textos["SinDato"].Value,
             _ => textos["SinTarifa"].Value,
         };
     }
@@ -173,9 +194,10 @@ public static class FacturacionEndpoints
     {
         foreach (var e in modelo.Empresas)
         {
-            var cuota = e.ImportesOcultos || e.SinVigencia
+            var cuota = e.ImportesOcultos
                 ? (XLCellValue)string.Empty
                 : e.SinTarifa ? (XLCellValue)textos["SinTarifa"].Value
+                : e.SinTarifaEnElMes ? (XLCellValue)textos["SinTarifaEnElMes"].Value
                 : e.Cuota.Count == 1 ? (XLCellValue)e.Cuota[0].Importe
                 : (XLCellValue)string.Join(" + ", e.Cuota.Select(c => $"{c.Importe} {c.Moneda}"));
             var extranjeros = e.Concepto(CaeManager.Domain.Dashboard.ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero);
@@ -194,7 +216,7 @@ public static class FacturacionEndpoints
         if (!modelo.ImportesOcultos)
         {
             foreach (var total in modelo.Total)
-                yield return [textos["TotalMes"].Value, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, total.Importe, total.Moneda];
+                yield return [modelo.AlcanceParcial ? textos["ExcelTotalParcial"].Value : textos["TotalMes"].Value, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, total.Importe, total.Moneda];
         }
 
         if (nota is not null)

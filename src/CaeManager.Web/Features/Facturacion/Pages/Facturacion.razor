@@ -102,6 +102,10 @@
                         @if (!_modelo.ImportesOcultos)
                         {
                             <div class="fct-total"><b>@Textos["TotalMes"]</b><b>@TextoTotal()</b></div>
+                            @if (_modelo.AlcanceParcial)
+                            {
+                                <div class="fct-total-parcial" role="note">@TextoTotalParcial</div>
+                            }
                         }
                     </div>
                 </section>
@@ -129,14 +133,20 @@
                         @foreach (var concepto in empresa.Conceptos)
                         {
                             <span>@NombreConcepto(concepto.Concepto)</span>
-                            <b class="fct-der">@Unidades(concepto.Unidades)</b>
+                            <b class="fct-der">
+                                @Unidades(concepto.Unidades)
+                                @if (ComplementoUnidades(empresa, concepto) is { } complemento)
+                                {
+                                    <small class="fct-complemento">@complemento</small>
+                                }
+                            </b>
                             <span class="@(TarifaActiva(concepto) ? null : "fct-tenue")">@TextoTarifa(empresa, concepto)</span>
                             <span class="fct-der">@(empresa.ImportesOcultos ? Textos["SinImporte"].Value : TextoImporte(concepto))</span>
                         }
                         <b class="fct-pie-cuota">@Textos["FilaCuota"]</b>
                         <span class="fct-pie-cuota"></span>
                         <span class="fct-pie-cuota"></span>
-                        <b class="@($"fct-pie-cuota fct-der fct-cuota-total{(empresa.SinTarifa && !empresa.ImportesOcultos ? " fct-cuota-aviso" : null)}")">@TextoCuota(empresa)</b>
+                        <b class="@($"fct-pie-cuota fct-der fct-cuota-total{((empresa.SinTarifa || empresa.SinTarifaEnElMes) && !empresa.ImportesOcultos ? " fct-cuota-aviso" : null)}")">@TextoCuota(empresa)</b>
                     </div>
                     @if (empresa.ImportesOcultos)
                     {
@@ -152,9 +162,9 @@
                             }
                         </div>
                     }
-                    else if (empresa.SinVigencia)
+                    else if (empresa.SinTarifaEnElMes)
                     {
-                        <div class="fct-aviso" role="note"><span class="fct-aviso-texto">@Textos["AvisoSinVigencia"]</span></div>
+                        <div class="fct-aviso" role="note"><span class="fct-aviso-texto">@Textos["AvisoSinTarifaEnElMes"]</span></div>
                     }
                     <div class="fct-metricas">
                         <span>@Textos["Gestiones"] <b>@TextoGestiones(empresa)</b></span>
@@ -173,7 +183,7 @@
                       Subtitulo="@Textos["DrawerSubtitulo"]" HayCambios="() => HayCambiosTarifas" Guardando="_guardando"
                       MensajeError="@_errorGuardar" OnGuardar="GuardarTarifasAsync" TextoGuardar="@Textos["GuardarTarifas"]"
                       TextoCancelar="@Textos["CancelarDrawer"]" MotivoGuardarDeshabilitado="@MotivoGuardarDeshabilitado">
-        @if (_drawerSinTarifa)
+        @if (DrawerSinTarifa)
         {
             <div class="fct-aviso" role="note"><span class="fct-aviso-texto">@Textos["DrawerSinTarifa"]</span></div>
         }
@@ -182,8 +192,18 @@
             <select class="fct-control" @bind="_moneda">
                 <option value="EUR">@Textos["MonedaEur"]</option>
                 <option value="USD">@Textos["MonedaUsd"]</option>
+                @if (MonedaOriginalFueraDeLista)
+                {
+                    <option value="@_monedaOriginal">@_monedaOriginal</option>
+                }
             </select>
         </label>
+        @if (CambiaMoneda)
+        {
+            <div class="fct-aviso fct-aviso-moneda" role="note">
+                <span class="fct-aviso-texto">@Textos["AvisoCambioMoneda", _monedaOriginal!, _moneda]</span>
+            </div>
+        }
         @foreach (var indice in IndicesTarifa)
         {
             var nombre = NombreTarifaDrawer(indice);
@@ -201,12 +221,17 @@
                     </label>
                 </div>
                 <label class="fct-precio">
-                    <input type="number" min="0" step="0.5" placeholder="0,00" disabled="@(!_activo[indice])"
-                           value="@(_precio[indice]?.ToString(CultureInfo.InvariantCulture))"
+                    <input type="number" min="0" step="0.01" placeholder="0,00" disabled="@(!_activo[indice])"
+                           value="@_precioTexto[indice]"
                            aria-label="@Textos["AriaPrecio", nombre.ToLower(CultureInfo.CurrentCulture)].Value"
+                           aria-invalid="@(_errorPrecio[indice] is null ? null : "true")"
                            @onchange="e => FijarPrecio(indice, e.Value)" />
                     <span class="fct-precio-unidad">@UnidadPrecio</span>
                 </label>
+                @if (_errorPrecio[indice] is { } errorPrecio)
+                {
+                    <span class="fct-error-precio" aria-live="polite">@errorPrecio</span>
+                }
             </div>
         }
         <span class="fct-ayuda">@Textos["DrawerNota"]</span>

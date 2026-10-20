@@ -277,7 +277,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
                 "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync; y el Tenant de origen del Operador CAE que devuelve AutorizacionTarifasOperadorCae.OperadorQueGestionaAsync (Administrador o Dirección CAE ahí) para leer sus tarifas y las vigencias de sus Asignaciones de Operación"),
         ["src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
-                "ObtenerTenantOrigenIdAsync() del propio usuario: las tarifas del Operador CAE son filas de su Tenant de origen, y solo se leen o escriben si el rol efectivo ahí es Administrador o Dirección CAE (AutorizacionTarifasOperadorCae)"),
+                "ObtenerTenantOrigenIdAsync() del propio usuario: las tarifas del Operador CAE son filas de su Tenant de origen, y solo se leen o escriben si el rol efectivo ahí es Administrador o Dirección CAE (AutorizacionTarifasOperadorCae); y las vigencias de sus Asignaciones de Operación (ObtenerEmpresasOperadasEnElMesQuery, tras AutorizacionCuadroDireccion), sin importes ni tarifas"),
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerComunicacionesCuadroDireccionQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync"),
@@ -554,8 +554,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookWhatsAppHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Retencion/RetencionHostedService.cs"] = 3,
-            // Las tres con el Tenant de origen de quien pide: rol efectivo, lectura y escritura de sus tarifas.
-            ["src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs"] = 3,
+            // Las cuatro con el Tenant de origen de quien pide: rol efectivo, lectura y escritura de sus tarifas y las vigencias de sus Asignaciones de Operación (ObtenerEmpresasOperadasEnElMesQuery).
+            ["src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs"] = 4,
             // Una por Tenant beneficiario (fan-out) y otra con el Tenant de origen del Operador CAE que pasó la guarda.
             ["src/CaeManager.Application/Dashboard/Queries/ObtenerSerieCuadroDireccionQuery.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] = 12,

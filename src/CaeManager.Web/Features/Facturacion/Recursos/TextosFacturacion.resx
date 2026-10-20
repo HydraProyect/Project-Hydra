@@ -165,11 +165,8 @@
   <data name="FijarTarifa" xml:space="preserve">
     <value>Fijar tarifa</value>
   </data>
-  <data name="AvisoSinVigencia" xml:space="preserve">
-    <value>Tu organización no tenía una Asignación de Operación vigente sobre esta Empresa en el mes: no se cobra.</value>
-  </data>
   <data name="AvisoImportesOcultos" xml:space="preserve">
-    <value>Los importes y las tarifas los ven Administración y Dirección CAE.</value>
+    <value>Los importes y las tarifas los ven Administrador del Tenant propietario y Dirección CAE.</value>
   </data>
   <data name="Gestiones" xml:space="preserve">
     <value>Gestiones</value>
@@ -211,7 +208,7 @@
     <value>Tu rol aún no puede leer las cifras del mes</value>
   </data>
   <data name="SinAccesoCifrasDescripcion" xml:space="preserve">
-    <value>Las cifras de Facturación las leen Dirección CAE y Coordinación CAE.</value>
+    <value>Disponible cuando se active el acceso del Administrador al Cuadro de dirección.</value>
   </data>
   <data name="DrawerTitulo" xml:space="preserve">
     <value>Tarifas de {0}</value>
@@ -262,7 +259,7 @@
     <value>$ / unidad</value>
   </data>
   <data name="DrawerNota" xml:space="preserve">
-    <value>Los cambios se aplican desde el mes en curso. Los meses cerrados conservan las unidades y la tarifa que tenían al cerrarse. El Cliente empresarial nuevo no se cobra.</value>
+    <value>Los cambios valen desde ahora: los meses sin cerrar, el actual incluido, se calculan con la tarifa en vigor; los meses cerrados conservan las unidades y la tarifa que tenían al cerrarse. El Cliente empresarial nuevo no se cobra.</value>
   </data>
   <data name="GuardarTarifas" xml:space="preserve">
     <value>Guardar tarifas</value>
@@ -274,7 +271,7 @@
     <value>No has cambiado ninguna tarifa.</value>
   </data>
   <data name="AvisoTarifasGuardadas" xml:space="preserve">
-    <value>Tarifas guardadas · se aplican desde {0}</value>
+    <value>Tarifas guardadas ({0}). Los meses sin cerrar se recalculan con ellas; los cerrados conservan la suya.</value>
   </data>
   <data name="ErrorGuardarTarifas" xml:space="preserve">
     <value>No pudimos guardar las tarifas.</value>
@@ -389,5 +386,38 @@
   </data>
   <data name="MesCorto12" xml:space="preserve">
     <value>Dic</value>
+  </data>
+  <data name="SinTarifaEnElMes" xml:space="preserve">
+    <value>Sin tarifa este mes</value>
+  </data>
+  <data name="AvisoSinTarifaEnElMes" xml:space="preserve">
+    <value>La tarifa se fijó después de este mes: las unidades se cuentan, pero no hay importe.</value>
+  </data>
+  <data name="TotalParcialUna" xml:space="preserve">
+    <value>Total parcial: no incluye 1 empresa que no alcanzas por completo.</value>
+  </data>
+  <data name="TotalParcial" xml:space="preserve">
+    <value>Total parcial: no incluye {0} empresas que no alcanzas por completo.</value>
+  </data>
+  <data name="ExcelTotalParcial" xml:space="preserve">
+    <value>Total del mes (parcial: sin las empresas que no alcanzas por completo)</value>
+  </data>
+  <data name="AvisoCambioMoneda" xml:space="preserve">
+    <value>Cambias la moneda de {0} a {1}: los precios no se convierten, se guardan tal como los escribas. Revisa cada uno.</value>
+  </data>
+  <data name="ErrorPrecioVacio" xml:space="preserve">
+    <value>Indica el precio.</value>
+  </data>
+  <data name="ErrorPrecioNoValido" xml:space="preserve">
+    <value>Precio no válido: escribe un número con como mucho dos decimales.</value>
+  </data>
+  <data name="ErrorRevisaPrecios" xml:space="preserve">
+    <value>Revisa los precios marcados: no se ha guardado ninguna tarifa.</value>
+  </data>
+  <data name="ErrorGuardadoParcial" xml:space="preserve">
+    <value>Se guardaron {0}, pero no {1}: {2}</value>
+  </data>
+  <data name="ExtranjerosEnExcel" xml:space="preserve">
+    <value>Excel: {0} filas</value>
   </data>
 </root>

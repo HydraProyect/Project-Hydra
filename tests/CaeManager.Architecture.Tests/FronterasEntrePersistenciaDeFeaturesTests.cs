@@ -384,6 +384,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Dashboard.FijarTarifaOperadorCaeCommandHandler", "IOperacionesQueryContext"),
         // Acota la valoración del Operador CAE a la vigencia de su Asignación de Operación en cada mes.
         ("Dashboard.ObtenerSerieCuadroDireccionQueryHandler", "IOperacionesQueryContext"),
+        // «Facturación» solo lista las Empresas que el Operador CAE opera en el mes: lee las vigencias de sus Asignaciones de Operación externas.
+        ("Dashboard.ObtenerEmpresasOperadasEnElMesQueryHandler", "IOperacionesQueryContext"),
         // Serie y Comunicaciones del Cuadro de dirección: conversaciones del mes.
         ("Dashboard.ObtenerComunicacionesCuadroDireccionQueryHandler", "IComunicacionesQueryContext"),
         ("Dashboard.ObtenerGestionesPorDiaCuadroDireccionQueryHandler", "IGestionesQueryContext"),

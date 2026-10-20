@@ -165,11 +165,8 @@
   <data name="FijarTarifa" xml:space="preserve">
     <value>Fixar tarifa</value>
   </data>
-  <data name="AvisoSinVigencia" xml:space="preserve">
-    <value>La teva organització no tenia una Assignació d&apos;Operació vigent sobre aquesta Empresa durant el mes: no es cobra.</value>
-  </data>
   <data name="AvisoImportesOcultos" xml:space="preserve">
-    <value>Els imports i les tarifes els veuen Administració i Direcció CAE.</value>
+    <value>Els imports i les tarifes els veuen Administrador del Tenant propietari i Direcció CAE.</value>
   </data>
   <data name="Gestiones" xml:space="preserve">
     <value>Gestions</value>
@@ -211,7 +208,7 @@
     <value>El teu rol encara no pot llegir les xifres del mes</value>
   </data>
   <data name="SinAccesoCifrasDescripcion" xml:space="preserve">
-    <value>Les xifres de Facturació les llegeixen Direcció CAE i Coordinació CAE.</value>
+    <value>Disponible quan s&apos;activi l&apos;accés de l&apos;Administrador al Quadre de direcció.</value>
   </data>
   <data name="DrawerTitulo" xml:space="preserve">
     <value>Tarifes de {0}</value>
@@ -262,7 +259,7 @@
     <value>$ / unitat</value>
   </data>
   <data name="DrawerNota" xml:space="preserve">
-    <value>Els canvis s&apos;apliquen des del mes en curs. Els mesos tancats conserven les unitats i la tarifa que tenien en tancar-se. El Client empresarial nou no es cobra.</value>
+    <value>Els canvis valen des d&apos;ara: els mesos sense tancar, l&apos;actual inclòs, es calculen amb la tarifa en vigor; els mesos tancats conserven les unitats i la tarifa que tenien en tancar-se. El Client empresarial nou no es cobra.</value>
   </data>
   <data name="GuardarTarifas" xml:space="preserve">
     <value>Desar tarifes</value>
@@ -274,7 +271,7 @@
     <value>No has canviat cap tarifa.</value>
   </data>
   <data name="AvisoTarifasGuardadas" xml:space="preserve">
-    <value>Tarifes desades · s&apos;apliquen des de {0}</value>
+    <value>Tarifes desades ({0}). Els mesos sense tancar es recalculen amb elles; els tancats conserven la seva.</value>
   </data>
   <data name="ErrorGuardarTarifas" xml:space="preserve">
     <value>No hem pogut desar les tarifes.</value>
@@ -389,5 +386,38 @@
   </data>
   <data name="MesCorto12" xml:space="preserve">
     <value>Des</value>
+  </data>
+  <data name="SinTarifaEnElMes" xml:space="preserve">
+    <value>Sense tarifa aquest mes</value>
+  </data>
+  <data name="AvisoSinTarifaEnElMes" xml:space="preserve">
+    <value>La tarifa es va fixar després d&apos;aquest mes: les unitats es compten, però no hi ha import.</value>
+  </data>
+  <data name="TotalParcialUna" xml:space="preserve">
+    <value>Total parcial: no inclou 1 empresa que no abastes per complet.</value>
+  </data>
+  <data name="TotalParcial" xml:space="preserve">
+    <value>Total parcial: no inclou {0} empreses que no abastes per complet.</value>
+  </data>
+  <data name="ExcelTotalParcial" xml:space="preserve">
+    <value>Total mensual (parcial: sense les empreses que no abastes per complet)</value>
+  </data>
+  <data name="AvisoCambioMoneda" xml:space="preserve">
+    <value>Canvies la moneda de {0} a {1}: els preus no es converteixen, es desen tal com els escriguis. Revisa&apos;ls un a un.</value>
+  </data>
+  <data name="ErrorPrecioVacio" xml:space="preserve">
+    <value>Indica el preu.</value>
+  </data>
+  <data name="ErrorPrecioNoValido" xml:space="preserve">
+    <value>Preu no vàlid: escriu un nombre amb com a màxim dos decimals.</value>
+  </data>
+  <data name="ErrorRevisaPrecios" xml:space="preserve">
+    <value>Revisa els preus marcats: no s&apos;ha desat cap tarifa.</value>
+  </data>
+  <data name="ErrorGuardadoParcial" xml:space="preserve">
+    <value>S&apos;han desat {0}, però no {1}: {2}</value>
+  </data>
+  <data name="ExtranjerosEnExcel" xml:space="preserve">
+    <value>Excel: {0} files</value>
   </data>
 </root>
