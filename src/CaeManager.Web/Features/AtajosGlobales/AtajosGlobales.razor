@@ -8,16 +8,19 @@
 <Modal Visible="_ayudaVisible" VisibleChanged="v => _ayudaVisible = v" Titulo="@Textos["TituloAyuda"]">
     <ChildContent>
         <div class="chuleta-atajos">
-            <section>
-                <h3>@Textos["SeccionNavegacion"]</h3>
-                @foreach (var atajo in AtajosDeNavegacionOfrecidos)
-                {
-                    <div class="chuleta-atajos-fila">
-                        <kbd>@atajo.Tecla</kbd>
-                        <span>@Textos[atajo.ClaveDescripcion]</span>
-                    </div>
-                }
-            </section>
+            @if (AtajosDeNavegacionOfrecidos.Any())
+            {
+                <section>
+                    <h3>@Textos["SeccionNavegacion"]</h3>
+                    @foreach (var atajo in AtajosDeNavegacionOfrecidos)
+                    {
+                        <div class="chuleta-atajos-fila">
+                            <kbd>@atajo.Tecla</kbd>
+                            <span>@Textos[atajo.ClaveDescripcion]</span>
+                        </div>
+                    }
+                </section>
+            }
             <section>
                 <h3>@Textos["SeccionAcciones"]</h3>
                 @foreach (var atajo in CatalogoAtajos.Acciones)

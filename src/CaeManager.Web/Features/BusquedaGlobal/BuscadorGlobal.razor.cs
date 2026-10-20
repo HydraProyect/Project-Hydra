@@ -930,9 +930,6 @@ public partial class BuscadorGlobal
         var token = TokenDeCicloDeVida();
         if (token is null) return;
 
-        await ResolverDestinosAdmitidosAsync(apertura, token.Value);
-        if (apertura != _generacionApertura) return;
-
         // El módulo se captura en una local: entre esta comprobación y su
         // uso hay un await, y DisposeAsync puede haberlo liberado y puesto a
         // null en ese hueco. Tras reanudar se vuelve a mirar el token, que es
@@ -959,6 +956,11 @@ public partial class BuscadorGlobal
 
             _suscripcionTab = await modulo.InvokeAsync<IJSObjectReference>("registrarSaltoDeGrupo", _inputElemento, _referenciaDotNet);
         }
+
+        // Después del foco: la resolución consulta la sesión y no debe retrasar el campo de texto. Hasta que llega,
+        // «Ir a» no ofrece nada.
+        await ResolverDestinosAdmitidosAsync(apertura, token.Value);
+        if (apertura != _generacionApertura) return;
 
         await ResolverExportacionDeTrabajadoresAsync(apertura, token.Value);
         if (apertura != _generacionApertura) return;

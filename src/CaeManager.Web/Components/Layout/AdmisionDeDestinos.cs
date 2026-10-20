@@ -4,6 +4,7 @@ using CaeManager.Application.VistaDemo;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Services;
 using MediatR;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
@@ -79,6 +80,25 @@ public static class AdmisionDeDestinos
         ["mi-firma"] = new(SoloAutenticado: true),
     };
 
+    /// <summary>
+    /// Rutas de las páginas que el Encargo de administración no abre cuando es no pleno
+    /// (<see cref="PaginasExcluidasDelEncargo"/>), aunque el rol efectivo sea Administrador o Dirección CAE. Un
+    /// test las compara con esa lista por reflexión: si divergen, falla.
+    /// </summary>
+    public static IReadOnlyCollection<string> RutasExcluidasDelEncargo { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "configuracion/claves-api", "auditoria", "auditoria-ia", "facturacion", "importacion", "integraciones", "retencion", "roles",
+    };
+
+    /// <summary>
+    /// El menú del rol Cliente es fijo y mínimo (marcado en <c>NavMenu.razor</c>, no del catálogo): Inicio, Empresas,
+    /// Subcontratas, Centros, Trabajadores y Documentos. Son exactamente los destinos que se le siguen ofreciendo.
+    /// </summary>
+    public static IReadOnlyCollection<string> RutasDelMenuDeCliente { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "", "empresas", "subcontratas", "centros", "trabajadores", "documentos",
+    };
+
     /// <summary>Rutas con regla: el test de cobertura las compara con las de la paleta y las de los atajos.</summary>
     public static IReadOnlyCollection<string> RutasConRegla => Reglas.Keys;
 
@@ -101,10 +121,21 @@ public static class AdmisionDeDestinos
             .Select(s => s.Subopcion.Id).ToHashSet(StringComparer.Ordinal);
         var autenticado = contexto.Usuario.Identity?.IsAuthenticated == true;
 
-        return ruta =>
+        var rigenExclusiones = PaginasExcluidasDelEncargo.RigenLasExclusiones(contexto.Usuario);
+        var esCliente = contexto.Usuario.IsInRole(Roles.Cliente);
+
+        return destino =>
         {
-            if (!Reglas.TryGetValue(Normalizar(ruta), out var regla))
+            var ruta = Normalizar(destino);
+            if (!Reglas.TryGetValue(ruta, out var regla))
                 return false;
+
+            // Con encargo no pleno la página se niega aunque el rol efectivo la admita.
+            if (rigenExclusiones && RutasExcluidasDelEncargo.Contains(ruta))
+                return false;
+
+            if (esCliente && RutasDelMenuDeCliente.Contains(ruta))
+                return true;
 
             if (regla.EnlaceId is not null)
                 return enlaces.Contains(regla.EnlaceId);

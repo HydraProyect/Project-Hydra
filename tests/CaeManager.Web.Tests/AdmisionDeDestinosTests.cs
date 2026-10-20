@@ -5,6 +5,7 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Features.AtajosGlobales;
 using CaeManager.Web.Features.BusquedaGlobal;
+using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
@@ -22,11 +23,12 @@ public class AdmisionDeDestinosTests
     private static readonly string[] TodosLosRoles =
         [Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta, Roles.Cliente];
 
-    private static ContextoMenuLateral ContextoDe(string? rol, bool comunicacionesActivo = true, bool plataforma = false)
+    private static ContextoMenuLateral ContextoDe(
+        string? rol, bool comunicacionesActivo = true, bool plataforma = false, params string[] claimsDeEncargo)
     {
         var identidad = rol is null
             ? new ClaimsIdentity()
-            : new ClaimsIdentity([new Claim(ClaimTypes.Role, rol)], authenticationType: "prueba");
+            : new ClaimsIdentity([new Claim(ClaimTypes.Role, rol), .. claimsDeEncargo.Select(c => new Claim(c, "true"))], authenticationType: "prueba");
         return new ContextoMenuLateral(
             new ClaimsPrincipal(identidad), Vista: null, comunicacionesActivo, plataforma, default(PerfilVocabularioTenant),
             VariosTenants: false);
@@ -64,14 +66,31 @@ public class AdmisionDeDestinosTests
 
     // ----------------------------------------------- paridad con la página real
 
+    /// <summary>
+    /// La página de <paramref name="ruta"/>: la de plantilla exacta («/clientes»), no una de detalle («/clientes/{id}»); solo
+    /// si no hay exacta, la de plantilla con parámetros opcionales («/configuracion/{EntradaRuta?}»).
+    /// </summary>
+    private static Type? PaginaDe(string ruta)
+    {
+        var destino = AdmisionDeDestinos.Normalizar(ruta);
+        var candidatas = typeof(AdmisionDeDestinos).Assembly.GetTypes()
+            .Where(t => typeof(IComponent).IsAssignableFrom(t))
+            .SelectMany(t => t.GetCustomAttributes<RouteAttribute>().Select(r => (Tipo: t, Plantilla: r.Template)))
+            .ToList();
+
+        var exactas = candidatas.Where(c => string.Equals(c.Plantilla.Trim('/'), destino, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (exactas.Count > 0)
+            return exactas.Single().Tipo;
+
+        var conParametros = candidatas.Where(c => c.Plantilla.Contains('{')
+            && string.Equals(c.Plantilla.Split('{')[0].Trim('/'), destino, StringComparison.OrdinalIgnoreCase)).ToList();
+        return conParametros.Count == 1 ? conParametros[0].Tipo : null;
+    }
+
     /// <summary>Los roles que exige la página de <paramref name="ruta"/> (null si basta con tener sesión), o «no encontrada».</summary>
     private static (bool Encontrada, string? Roles) RolesDeLaPagina(string ruta)
     {
-        var destino = AdmisionDeDestinos.Normalizar(ruta);
-        var pagina = typeof(AdmisionDeDestinos).Assembly.GetTypes()
-            .Where(t => typeof(IComponent).IsAssignableFrom(t))
-            .FirstOrDefault(t => t.GetCustomAttributes<RouteAttribute>()
-                .Any(r => string.Equals(r.Template.Split('{')[0].Trim('/'), destino, StringComparison.OrdinalIgnoreCase)));
+        var pagina = PaginaDe(ruta);
         if (pagina is null)
             return (false, null);
 
@@ -79,7 +98,6 @@ public class AdmisionDeDestinosTests
             .Select(a => a.Roles).Where(r => !string.IsNullOrWhiteSpace(r)));
         return (true, roles.Length == 0 ? null : roles);
     }
-
     public static TheoryData<string> RutasOfrecidas => [.. RutasDeLaPaleta.Concat(RutasDeLosAtajos).Distinct()];
 
     [Theory]
@@ -164,7 +182,7 @@ public class AdmisionDeDestinosTests
     }
 
     [Fact]
-    public void Delegaciones_se_ofrece_al_Administrador_de_plataforma_aunque_no_tenga_el_rol_Administrador()
+    public void Delegaciones_se_ofrece_con_capacidad_de_plataforma_aunque_no_se_tenga_el_rol_Administrador()
     {
         AdmisionDeDestinos.Predicado(ContextoDe(Roles.Consulta, plataforma: true))("/delegaciones").Should().BeTrue();
         AdmisionDeDestinos.Predicado(ContextoDe(Roles.Consulta, plataforma: false))("/delegaciones").Should().BeFalse();
@@ -199,11 +217,63 @@ public class AdmisionDeDestinosTests
         AdmisionDeDestinos.Predicado(null)("/direccion").Should().BeTrue();
     }
 
+    // ------------------------------------------- Encargo de administración no pleno
+
+    [Fact]
+    public void Las_rutas_excluidas_del_encargo_son_las_de_las_paginas_que_el_encargo_no_abre()
+    {
+        var destinos = RutasDeLaPaleta.Concat(RutasDeLosAtajos).Select(AdmisionDeDestinos.Normalizar).Distinct().ToList();
+
+        foreach (var ruta in destinos)
+        {
+            var pagina = PaginaDe(ruta);
+            pagina.Should().NotBeNull($"/{ruta} debe tener una página");
+
+            AdmisionDeDestinos.RutasExcluidasDelEncargo.Contains(ruta, StringComparer.OrdinalIgnoreCase)
+                .Should().Be(PaginasExcluidasDelEncargo.Contiene(pagina),
+                    $"/{ruta}: AdmisionDeDestinos y PaginasExcluidasDelEncargo deben coincidir");
+        }
+    }
+
+    [Theory]
+    [InlineData(Roles.Administrador)]
+    [InlineData(Roles.DireccionCae)]
+    public void Con_encargo_no_pleno_no_se_ofrece_lo_que_el_encargo_no_abre(string rol)
+    {
+        var admite = AdmisionDeDestinos.Predicado(ContextoDe(rol, true, false, RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion));
+
+        foreach (var ruta in AdmisionDeDestinos.RutasExcluidasDelEncargo)
+            admite("/" + ruta).Should().BeFalse($"/{ruta}: el encargo no pleno no abre esa página aunque el rol efectivo sea {rol}");
+
+        admite("/empresas").Should().BeTrue("lo que el encargo sí abre se sigue ofreciendo");
+    }
+
+    [Fact]
+    public void Con_encargo_pleno_no_se_reserva_nada()
+    {
+        var admite = AdmisionDeDestinos.Predicado(ContextoDe(Roles.Administrador, true, false,
+            RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion, RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoPleno));
+
+        AdmisionDeDestinos.RutasExcluidasDelEncargo.Where(r => !admite("/" + r)).Should().BeEmpty();
+    }
+
+    // ------------------------------------------------------------- rol Cliente
+
+    [Fact]
+    public void El_rol_Cliente_conserva_los_destinos_de_su_menu_fijo_y_ningun_otro()
+    {
+        var admite = AdmisionDeDestinos.Predicado(ContextoDe(Roles.Cliente));
+
+        // Inicio, Empresas, Subcontratas, Centros, Trabajadores y Documentos (NavMenu.razor), más lo personal.
+        string[] esperados = ["/", "/empresas", "/subcontratas", "/centros", "/trabajadores", "/documentos", "/mi-avatar", "/mi-firma"];
+        RutasDeLaPaleta.Concat(RutasDeLosAtajos).Distinct().Where(admite).Should().BeEquivalentTo(esperados);
+    }
     [Fact]
     public void El_menu_lateral_y_la_paleta_coinciden_en_los_enlaces_de_cada_rol()
     {
         // Mismo criterio: un destino de la paleta que es también un enlace del menú se ofrece en ambos o en ninguno.
-        foreach (var rol in TodosLosRoles)
+        // El rol Cliente no usa el catálogo: su menú es fijo (NavMenu.razor) y lo cubre otro test.
+        foreach (var rol in TodosLosRoles.Where(r => r != Roles.Cliente))
         {
             var contexto = ContextoDe(rol);
             var idsEnMenu = CatalogoMenuLateral.Visibles(contexto).SelectMany(g => g.Enlaces).Select(e => e.Id).ToHashSet();

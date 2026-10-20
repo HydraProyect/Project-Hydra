@@ -99,11 +99,12 @@ public class BuscadorGlobalIrAPorRolTests : BunitContext
     }
 
     [Fact]
-    public async Task Con_el_rol_Cliente_no_se_ofrece_ningun_destino_interno()
+    public async Task El_rol_Cliente_solo_ve_los_destinos_de_su_menu()
     {
         var destinos = await DestinosOfrecidosAsync(Roles.Cliente);
 
-        destinos.Should().NotContain(d => d.Contains("Ir a Empresas", StringComparison.Ordinal));
+        destinos.Should().Contain(d => d.Contains("Ir a Empresas", StringComparison.Ordinal));
+        destinos.Should().Contain(d => d.Contains("Ir a Documentos", StringComparison.Ordinal));
         destinos.Should().NotContain(d => d.Contains("Ir a Clientes", StringComparison.Ordinal));
         destinos.Should().NotContain(d => d.Contains("Ir a Mi trabajo", StringComparison.Ordinal));
     }
@@ -161,9 +162,9 @@ public class AtajosGlobalesPorRolTests : BunitContext
 
     [Theory]
     [InlineData("c")]
-    [InlineData("e")]
     [InlineData("b")]
-    public async Task El_rol_Cliente_no_navega_a_ningun_destino_interno(string tecla)
+    [InlineData("m")]
+    public async Task El_rol_Cliente_no_navega_a_destinos_que_su_menu_no_tiene(string tecla)
     {
         var (cut, navegacion) = Con(Roles.Cliente);
         var uriInicial = navegacion.Uri;
@@ -171,6 +172,19 @@ public class AtajosGlobalesPorRolTests : BunitContext
         await cut.InvokeAsync(() => cut.Instance.IrA(tecla));
 
         navegacion.Uri.Should().Be(uriInicial);
+    }
+
+    [Theory]
+    [InlineData("e", "/empresas")]
+    [InlineData("t", "/trabajadores")]
+    [InlineData("d", "/documentos")]
+    public async Task El_rol_Cliente_conserva_los_atajos_de_su_menu(string tecla, string ruta)
+    {
+        var (cut, navegacion) = Con(Roles.Cliente);
+
+        await cut.InvokeAsync(() => cut.Instance.IrA(tecla));
+
+        navegacion.Uri.Should().EndWith(ruta);
     }
 
     [Fact]
