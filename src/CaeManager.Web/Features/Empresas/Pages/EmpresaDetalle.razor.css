@@ -10,9 +10,27 @@
     gap: var(--space-3);
 }
 
-/* Buscador de la pestaña Trabajadores, sobre los chips de estado. */
+/* .barra-lista de la maqueta: chips de estado a la izquierda, buscador a la derecha. */
+.empresa360-barra {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
 .empresa360-buscador {
-    margin-bottom: var(--space-3);
+    min-width: 260px;
+}
+
+/* Sello de la pestaña Ficha: sección propia bajo las cajas (maqueta «Empresa 360»). */
+.empresa360-sello {
+    margin-top: var(--space-2);
+}
+
+.empresa360-sello-titulo {
+    margin: 0;
+    font: var(--font-h4);
 }
 
 .empresa360-chips {

@@ -208,6 +208,14 @@
     <value>Editar →</value>
     <comment>Acción de cabecera de tarjeta: abre el panel en Información.</comment>
   </data>
+  <data name="DatoIdentificacionFiscal" xml:space="preserve">
+    <value>Identificación fiscal</value>
+    <comment>Dato de Información: CIF, copiable.</comment>
+  </data>
+  <data name="SelloApoyo" xml:space="preserve">
+    <value>El sello de la empresa se estampa en las firmas en campo de sus documentos. Sube una foto nítida sobre fondo claro.</value>
+    <comment>Texto bajo el título de la sección Sello de la pestaña Ficha.</comment>
+  </data>
   <data name="DatoCnae" xml:space="preserve">
     <value>CNAE</value>
     <comment>Dato de Información.</comment>
@@ -221,7 +229,7 @@
     <comment>Dato de Información.</comment>
   </data>
   <data name="DatoAnexoI" xml:space="preserve">
-    <value>Actividad del Anexo I del RSP</value>
+    <value>Actividad de Anexo I</value>
     <comment>Dato de Información.</comment>
   </data>
   <data name="Si" xml:space="preserve">

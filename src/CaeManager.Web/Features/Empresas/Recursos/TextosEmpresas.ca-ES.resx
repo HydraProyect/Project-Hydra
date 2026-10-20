@@ -160,6 +160,12 @@
   <data name="EditarFlecha" xml:space="preserve">
     <value>Editar →</value>
   </data>
+  <data name="DatoIdentificacionFiscal" xml:space="preserve">
+    <value>Identificació fiscal</value>
+  </data>
+  <data name="SelloApoyo" xml:space="preserve">
+    <value>El segell de l'empresa s'estampa en les signatures en camp dels seus documents. Puja una foto nítida sobre fons clar.</value>
+  </data>
   <data name="DatoCnae" xml:space="preserve">
     <value>CNAE</value>
   </data>
@@ -170,7 +176,7 @@
     <value>Conveni aplicable</value>
   </data>
   <data name="DatoAnexoI" xml:space="preserve">
-    <value>Activitat de l'Annex I del RSP</value>
+    <value>Activitat d'Annex I</value>
   </data>
   <data name="Si" xml:space="preserve">
     <value>Sí</value>

@@ -585,7 +585,7 @@ public partial class Empresa360PaginaTests : BunitContext
         var lateral = cut.Find(".cuerpo-con-lateral-lateral");
         lateral.QuerySelectorAll(".tarjeta").Should().ContainSingle();
         lateral.TextContent.Should().Contain("Información").And.NotContain("Carpeta de documentación");
-        cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "firma-documentos", "prevencion", "mutua", "formacion", "sello");
+        cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "firma-documentos", "prevencion", "mutua", "formacion");
         var tabs = cut.FindAll("[role=tab]");
         tabs[^2].TextContent.Trim().Should().Be("Ficha");
         tabs[^1].TextContent.Trim().Should().Be("Historial");
@@ -625,8 +625,9 @@ public partial class Empresa360PaginaTests : BunitContext
         Registrar(m);
         var cut = Renderizar("?pestana=ficha");
         Pestana(cut, "Ficha").GetAttribute("aria-selected").Should().Be("true");
-        cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Select(c => c.GetAttribute("data-caja")).Should().Equal("firma-documentos", "prevencion", "mutua", "formacion", "sello");
+        cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Select(c => c.GetAttribute("data-caja")).Should().Equal("firma-documentos", "prevencion", "mutua", "formacion");
         cut.FindComponent<Stub<PestanaSelloEmpresa>>().Instance.Parameters.Get(x => x.EntidadId).Should().Be(EmpresaId);
+        cut.Find("[data-pieza=sello-empresa] h2").TextContent.Should().Be("Sello", "la maqueta lo pone como sección bajo las cajas, no como caja del flujo");
     }
 
     [Fact]
@@ -635,7 +636,7 @@ public partial class Empresa360PaginaTests : BunitContext
         var m = EmpresaConCredencial();
         m.Sellos.Clear();
         var cut = Renderizar("?pestana=ficha");
-        cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "firma-documentos", "prevencion", "mutua", "formacion", "sello");
+        cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "firma-documentos", "prevencion", "mutua", "formacion");
         cut.FindComponent<Stub<PestanaSelloEmpresa>>().Instance.Parameters.Get(x => x.EntidadId).Should().Be(EmpresaId);
     }
 

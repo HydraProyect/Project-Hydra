@@ -116,6 +116,17 @@
                             break;
                         case PestanaFicha:
                             <CajasFicha Cajas="CajasDeFicha" />
+                            @* «Sello» ya no es pestaña ni caja del flujo: la maqueta lo pone como sección propia bajo las cajas. *@
+                            @if (HayCajaSello)
+                            {
+                                <section class="empresa360-seccion empresa360-sello" data-pieza="sello-empresa">
+                                    <h2 class="empresa360-sello-titulo">@Textos["PestanaSello"]</h2>
+                                    <p class="empresa360-apoyo">@Textos["SelloApoyo"]</p>
+                                    <Tarjeta>
+                                        <PestanaSelloEmpresa EntidadId="_detalle.Id" />
+                                    </Tarjeta>
+                                </section>
+                            }
                             break;
                         case PestanaHistorial:
                             <PestanaHistorial EntidadTipo="Empresa" EntidadId="_detalle.Id" />
@@ -134,11 +145,22 @@
                         </SoloConEscritura>
                     </AccionesHeader>
                     <ChildContent>
+                        @* Orden y anchos de la maqueta: identificación fiscal, CNAE y convenio a ancho completo; alta y Anexo I, a media rejilla. *@
                         <RejillaDatos>
-                            <DatoRejilla Etiqueta="@Textos["DatoCnae"]" Valor="@(_detalle.Cnae ?? "—")" />
-                            <DatoRejilla Etiqueta="@Textos["DatoAlta"]" Valor="@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")" />
+                            <DatoRejilla Etiqueta="@Textos["DatoIdentificacionFiscal"]" Ancho="true">
+                                @if (string.IsNullOrWhiteSpace(_detalle.Cif))
+                                {
+                                    <span>—</span>
+                                }
+                                else
+                                {
+                                    <BotonCopiar Valor="@_detalle.Cif" Texto="@_detalle.Cif" Etiqueta="@Textos["CopiarElCif"]" />
+                                }
+                            </DatoRejilla>
+                            <DatoRejilla Etiqueta="@Textos["DatoCnae"]" Valor="@(_detalle.Cnae ?? "—")" Ancho="true" />
                             <DatoRejilla Etiqueta="@Textos["DatoConvenio"]" Valor="@(_detalle.ConvenioAplicable ?? "—")" Ancho="true" />
-                            <DatoRejilla Etiqueta="@Textos["DatoAnexoI"]" Valor="@(_detalle.EsActividadAnexoI ? Textos["Si"] : Textos["No"])" Ancho="true" />
+                            <DatoRejilla Etiqueta="@Textos["DatoAlta"]" Valor="@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")" />
+                            <DatoRejilla Etiqueta="@Textos["DatoAnexoI"]" Valor="@(_detalle.EsActividadAnexoI ? Textos["Si"] : Textos["No"])" />
                         </RejillaDatos>
                     </ChildContent>
                 </Tarjeta>
@@ -182,7 +204,6 @@
     [
         .. HayCajaAcceso ? new[] { new CajaFicha("acceso", CajaDeAcceso) } : [],
         .. _detalle?.FichaVisible == true ? new[] { new CajaFicha("firma-documentos", CajaFirmaDocumentos), new CajaFicha("prevencion", CajaPrevencion), new CajaFicha("mutua", CajaMutua), new CajaFicha("formacion", CajaFormacion) } : [],
-        .. HayCajaSello ? new[] { new CajaFicha("sello", CajaDeSello) } : [],
         new CajaFicha("catalogo-trabajadores", CajaDeCatalogoTrabajadores)
     ];
 
@@ -303,13 +324,6 @@
         }
     };
 
-    private RenderFragment CajaDeSello => __builder =>
-    {
-        <Tarjeta Titulo="@Textos["PestanaSello"]">
-            <PestanaSelloEmpresa EntidadId="_detalle!.Id" />
-        </Tarjeta>
-    };
-
     private RenderFragment CajaDeAcceso => __builder =>
     {
         <Tarjeta Titulo="@Textos["TarjetaCarpeta"]">
@@ -353,15 +367,18 @@
             else
             {
                 var r = _recuentosLista ?? _recuentos;
-                <div class="empresa360-buscador">
-                    <CampoTexto Type="search" Placeholder="@Textos["BuscadorTrabajadores"]" aria-label="@Textos["BuscadorTrabajadores"]"
-                                Valor="@_busqueda" ValorChanged="BuscarAsync" />
-                </div>
-                <div class="empresa360-chips" role="group" aria-label="@Textos["EtiquetaFiltros"]">
-                    @Chip(FiltroTrabajadores.Todos, Textos["ChipTodos", r.Total])
-                    @Chip(FiltroTrabajadores.SinDocumentacionValida, Textos["ChipSinValida", r.Vencidos], Textos["IndicadorFaltantesNoCuentan"])
-                    @Chip(FiltroTrabajadores.PorVencer, Textos["ChipPorVencer", r.PorVencer])
-                    @Chip(FiltroTrabajadores.AlDia, Textos["ChipAlDia", r.AlDia])
+                @* Barra de la maqueta (.barra-lista): los chips a la izquierda y el buscador a la derecha, en una sola fila. *@
+                <div class="empresa360-barra">
+                    <div class="empresa360-chips" role="group" aria-label="@Textos["EtiquetaFiltros"]">
+                        @Chip(FiltroTrabajadores.Todos, Textos["ChipTodos", r.Total])
+                        @Chip(FiltroTrabajadores.SinDocumentacionValida, Textos["ChipSinValida", r.Vencidos], Textos["IndicadorFaltantesNoCuentan"])
+                        @Chip(FiltroTrabajadores.PorVencer, Textos["ChipPorVencer", r.PorVencer])
+                        @Chip(FiltroTrabajadores.AlDia, Textos["ChipAlDia", r.AlDia])
+                    </div>
+                    <div class="empresa360-buscador">
+                        <CampoTexto Type="search" Placeholder="@Textos["BuscadorTrabajadores"]" aria-label="@Textos["BuscadorTrabajadores"]"
+                                    Valor="@_busqueda" ValorChanged="BuscarAsync" />
+                    </div>
                 </div>
                 @* Delegación, Oficio y «Agrupar»: solo si la Empresa tiene catálogo, o si hay una agrupación activa (que así
                    siempre se puede quitar). Las opciones son las de ESTA Empresa. *@
