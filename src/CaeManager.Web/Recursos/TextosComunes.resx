@@ -614,4 +614,7 @@
   <data name="SeccionErroresPlural" xml:space="preserve">
     <value>{0} errores</value>
   </data>
+  <data name="IrATuPantallaPrincipal" xml:space="preserve">
+    <value>Ir a tu pantalla principal</value>
+  </data>
 </root>
