@@ -17,7 +17,6 @@ using CaeManager.Web.Services;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 namespace CaeManager.Web.Features.Empresas.Pages;
 
@@ -875,7 +874,6 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     private Task IrAAgendaAsync() => CambiarPestanaAsync(PestanaAgenda);
 
     private async Task CargarClientesAsync()
-
     {
         var carga = ++_cargaClientes;
         var empresaId = EmpresaId;
