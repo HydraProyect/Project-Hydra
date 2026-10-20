@@ -9,10 +9,12 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Tenants.Commands.CrearAsignacionOperadorDelegado;
 
 /// <summary>
-/// Autoriza a un usuario de la Consultora (Operador Delegado) a operar sobre
-/// un Delegated Workspace ya creado, con un rol concreto para ese cliente
-/// (ADR-004 § 5.3 — un mismo usuario puede tener roles distintos en
-/// delegaciones distintas).
+/// Autoriza a un usuario del Operador CAE externo (Operador Delegado) a operar sobre
+/// un Tenant beneficiario delegado ya creado, con un rol guardado en la fila de la
+/// delegación (ADR-004 § 5.3). Ese rol solo rige por la vía heredada (acceso de
+/// soporte): por la vía de Asignación de Operación el rol efectivo es el perfil de
+/// origen del usuario, el mismo en todos los Tenants que su organización opera
+/// (decisión Chris 2026-10-20).
 ///
 /// <para>
 /// <b>Sin consumidor en la interfaz, y a propósito (FS-20, 2026-10-08).</b> Exige a la vez
@@ -33,9 +35,10 @@ public class CrearAsignacionOperadorDelegadoCommandValidator : AbstractValidator
     // aquí a propósito — Application no puede referenciar Infrastructure.Identity
     // sin invertir la dependencia entre capas (mismo criterio que
     // AutorizacionEscrituraBehavior). Administrador y DireccionCae quedan
-    // fuera a propósito: un Operador Delegado opera dentro del alcance del
-    // Delegated Workspace, nunca con privilegios de administración de la
-    // plataforma del cliente.
+    // fuera de la fila delegada: la vía heredada (acceso de soporte) nunca da
+    // un rol de Propiedad. Por la vía de Asignación de Operación sí puede
+    // tenerlo, pero no lo guarda esta fila: es el perfil de origen (decisión
+    // Chris 2026-10-20).
     private static readonly string[] RolesValidosParaOperadorDelegado =
         ["CoordinadorCae", "GestorCae", "Consulta"];
 

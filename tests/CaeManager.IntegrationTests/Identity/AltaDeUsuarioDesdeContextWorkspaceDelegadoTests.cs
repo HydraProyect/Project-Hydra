@@ -5,6 +5,7 @@ using CaeManager.Application.Tenants;
 using CaeManager.Application.Usuarios;
 using CaeManager.Application.Usuarios.Commands.CrearUsuario;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
@@ -136,6 +137,42 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
         contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
             new AsignacionOperadorDelegado(delegacion.Id, _actorDelOperador, Roles.Administrador));
         await contexto.SaveChangesAsync();
+
+        // Decisión Chris 2026-10-20: un Tenant beneficiario que el Operador CAE externo opera por una
+        // Asignación de Operación vigente del Tenant entero, sin cartera de nadie y sin encargo.
+        var beneficiario = new Tenant("Tenant beneficiario operado por Asignación de Operación");
+        contexto.Tenants.Add(beneficiario);
+        await contexto.SaveChangesAsync();
+        _tenantOperadoPorOperacion = beneficiario.Id;
+        var ahora = DateTime.UtcNow;
+        using (AmbitoTenantExplicito.Establecer(beneficiario.Id))
+        {
+            var operacion = AsignacionOperacion.Externa(
+                beneficiario.Id, _tenantOperadorCae, ServicioCae.Outbound, AmbitoAsignacion.Universal,
+                ahora.AddDays(-1), null, ahora);
+            contexto.AsignacionesOperacion.Add(operacion);
+            await contexto.SaveChangesAsync();
+            _operacionDelBeneficiario = operacion.Id;
+        }
+    }
+
+    private Guid _tenantOperadoPorOperacion;
+    private Guid _operacionDelBeneficiario;
+
+    [Fact]
+    public async Task Por_Asignacion_de_Operacion_el_Administrador_del_Operador_CAE_da_de_alta_un_Administrador_en_el_Tenant_beneficiario()
+    {
+        var (nuevo, mensaje) = await DarDeAltaAsync(
+            "admin.beneficiario@arcosspa.test", Roles.Administrador, contextWorkspaceSeleccionado: _tenantOperadoPorOperacion,
+            asignacionOperacionId: _operacionDelBeneficiario);
+
+        mensaje.Should().BeNull("su perfil de origen rige con todos sus poderes, también los de Propiedad");
+        nuevo.Should().NotBeNull();
+        nuevo!.TenantId.Should().Be(_tenantOperadoPorOperacion, "la cuenta nace en el Tenant beneficiario que opera");
+
+        using var ambito = _servicios.CreateScope();
+        (await ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().IsInRoleAsync(nuevo, Roles.Administrador))
+            .Should().BeTrue();
     }
 
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
@@ -181,13 +218,13 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
     }
 
     private async Task<(ApplicationUser? Nuevo, string? MensajeError)> DarDeAltaAsync(
-        string email, string rol, Guid? contextWorkspaceSeleccionado)
+        string email, string rol, Guid? contextWorkspaceSeleccionado, Guid? asignacionOperacionId = null)
     {
         using var ambito = _servicios.CreateScope();
         var sp = ambito.ServiceProvider;
 
         var autenticacion = new AutenticacionConTenant(_actorDelOperador, _tenantOperadorCae, Roles.Administrador);
-        var seleccion = new SeleccionFija(contextWorkspaceSeleccionado);
+        var seleccion = new SeleccionFija(contextWorkspaceSeleccionado, asignacionOperacionId);
         var tenantActualReal = new TenantActual(autenticacion, new HttpContextAccessor(), seleccion);
 
         // Premisa del instrumento: la resolución real devuelve lo que el escenario dice.
@@ -206,6 +243,8 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
         // CurrentUserService resuelve el rol efectivo del Context Workspace delegado
         // contra la base: la misma que la del alta.
         serviciosMediator.AddSingleton(sp.GetRequiredService<ITenantsQueryContext>());
+        serviciosMediator.AddSingleton<CaeManager.Application.Operaciones.IOperacionesQueryContext>(
+            sp.GetRequiredService<CaeManagerDbContext>());
         serviciosMediator.AddSingleton(sp.GetRequiredService<UserManager<ApplicationUser>>());
         serviciosMediator.AddSingleton<IGestionCuentasUsuario>(new GestionCuentasUsuarioIdentity(
             sp.GetRequiredService<UserManager<ApplicationUser>>(),
@@ -279,10 +318,10 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
         }
     }
 
-    private sealed class SeleccionFija(Guid? tenantIdSeleccionado) : IClienteActivoSeleccionado
+    private sealed class SeleccionFija(Guid? tenantIdSeleccionado, Guid? asignacionOperacionId = null) : IClienteActivoSeleccionado
     {
         public Guid? TenantIdSeleccionado => tenantIdSeleccionado;
-        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? AsignacionOperacionIdSeleccionada => asignacionOperacionId;
         public Guid? SesionPrivilegiadaIdSeleccionada => null;
     }
 

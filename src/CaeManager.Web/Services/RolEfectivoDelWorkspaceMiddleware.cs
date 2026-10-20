@@ -8,10 +8,12 @@ namespace CaeManager.Web.Services;
 /// delegado activo</b> mientras se opera uno.
 ///
 /// <para>
-/// <b>El agujero que cierra.</b> ADR-004 § 5.3 promete que un mismo usuario
-/// puede ser GestorCae en un cliente y Consulta en otro, y
-/// <c>CurrentUserService.ObtenerRolEfectivoAsync</c> lo cumple: resuelve el rol
-/// contra la cartera de la operación seleccionada. Pero hay una segunda familia
+/// <b>El agujero que cierra.</b> El rol en el Tenant operado lo resuelve
+/// <c>CurrentUserService.ObtenerRolEfectivoAsync</c>: por la vía de Asignación de
+/// Operación es el perfil de origen, si la operación le sigue autorizando ese
+/// Tenant (decisión Chris 2026-10-20, que deroga el «GestorCae en un cliente y
+/// Consulta en otro» de ADR-004 § 5.3 para esa vía); por la vía heredada (acceso
+/// de soporte), el rol de su fila delegada. Pero hay una segunda familia
 /// de puertas que no consulta ese método jamás — los <c>[Authorize(Roles = …)]</c>
 /// de páginas y endpoints, que preguntan directamente al
 /// <c>ClaimsPrincipal</c>—, y ahí seguía contestando el rol del <b>tenant de
@@ -29,11 +31,13 @@ namespace CaeManager.Web.Services;
 /// plataforma) se resuelve quitando el rol entero, porque quien entra por
 /// privilegio no es miembro del workspace y no debe tener ninguno
 /// (<see cref="SesionPrivilegiadaSinRolDeNegocioMiddleware"/>). El plano 2 es
-/// distinto: el operador delegado <b>sí</b> es miembro, con el rol que su
-/// cartera le da. Quitarlo dejaría la delegación sin acceso a nada —el motivo
+/// distinto: el operador delegado <b>sí</b> opera el Tenant, con el rol que le
+/// corresponde en él. Quitarlo dejaría la delegación sin acceso a nada —el motivo
 /// por el que el middleware del plano 3 conserva a propósito el claim aquí— y
-/// conservarlo intacto es el agujero. La respuesta correcta no era ninguna de
-/// las dos: es poner el rol que corresponde a este workspace.
+/// conservarlo sin resolver es el agujero: aunque por la vía de Operación el rol
+/// coincida con el de origen, solo vale mientras la operación siga autorizando
+/// ese Tenant. La respuesta correcta es poner el rol que corresponde a este
+/// Tenant, o ninguno.
 /// </para>
 ///
 /// <para>
@@ -50,17 +54,17 @@ namespace CaeManager.Web.Services;
 /// </para>
 ///
 /// <para>
-/// <b>El rol que pone ya no es siempre el de la cartera</b> (decisión D-8,
-/// 2026-10-08). Con Encargo de administración vigente del Tenant propietario,
-/// <c>ObtenerRolEfectivoAsync</c> devuelve el rol elevado —Administrador o
-/// Dirección CAE—, y este middleware lo pone tal cual: el Administrador del
-/// Operador CAE externo del ejemplo de arriba vuelve a pasar las puertas de
-/// Administrador, pero solo donde hay encargo y con cartera. Junto al rol
-/// elevado deja el claim <see cref="TipoClaimEncargoAdministracion"/>, que es lo
-/// que <see cref="PaginasExcluidasDelEncargoAuthorizationHandler"/> mira para
-/// negarle las páginas y endpoints que el encargo no abre. Ese claim solo lo
-/// pone este middleware, en cada petición: el que viniera en el principal se
-/// retira antes de decidir.
+/// <b>El rol que pone es el perfil de origen</b> (decisión Chris 2026-10-20, que
+/// deroga en el rol la D-8 del 2026-10-08). El Administrador del Operador CAE
+/// externo es Administrador en todos los Tenants beneficiarios de la Asignación
+/// de Operación de su organización, con todos sus poderes —también los de
+/// Propiedad— y sin Encargo de administración; Dirección CAE, Coordinador CAE y
+/// Consulta, igual con el suyo; el Gestor CAE, solo donde tiene cartera. El
+/// encargo ya no eleva: <c>ObtenerRolEfectivoAsync</c> no devuelve encargo, así
+/// que este middleware no deja el claim <see cref="TipoClaimEncargoAdministracion"/>
+/// y <see cref="PaginasExcluidasDelEncargoAuthorizationHandler"/> no excluye nada
+/// (deuda: la maquinaria del encargo se conserva sin señal). El claim que viniera
+/// en el principal se sigue retirando antes de decidir.
 /// </para>
 ///
 /// <para>
@@ -159,8 +163,8 @@ public class RolEfectivoDelWorkspaceMiddleware(RequestDelegate siguiente)
             // una sustitución legítima si ninguna de las dos se registrara.
             //
             // Nivel distinto según lo que representa, no el mismo para las
-            // dos ramas: operar un workspace delegado con el rol de su
-            // cartera es el camino feliz de cualquier Operador Delegado
+            // dos ramas: operar un Tenant delegado con el rol que le
+            // corresponde es el camino feliz de cualquier Operador Delegado
             // activo, en cada petición no estática — avisar ahí con Warning
             // fabricaría el defecto que REC-162 documentó (un aviso que
             // siempre suena se aprende a ignorar, y se ignorará el día que

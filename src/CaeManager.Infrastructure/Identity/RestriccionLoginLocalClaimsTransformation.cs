@@ -31,7 +31,7 @@ public class RestriccionLoginLocalClaimsTransformation : IClaimsTransformation
     /// Nunca es rol efectivo: solo decide el alcance en Tenants beneficiarios delegados, para que
     /// la restricción no amplíe el de un Gestor CAE (acotado por cartera) al de Consulta.
     /// </summary>
-    public const string TipoClaimPerfilAntesDeRestringir = "hydra:perfil_antes_de_restringir";
+    public const string TipoClaimPerfilAntesDeRestringir = "talveg:perfil_antes_de_restringir";
 
     private readonly IOptions<AzureAdOptions> _azureAd;
 
