@@ -1,4 +1,4 @@
-﻿@using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones
 @using CaeManager.Domain.Comunicaciones
 @using CaeManager.Web.Features.Comunicaciones.Recursos
 @using Microsoft.Extensions.Localization
@@ -20,7 +20,7 @@
             <span role="cell" class="tabla-prioridad tabla-prioridad-@conversacion.Prioridad.ToString().ToLowerInvariant()">@Prioridades[conversacion.Prioridad.ToString()]</span>
             <div role="cell" class="tabla-conversaciones-asunto">
                 <button type="button" @onclick="() => OnAbrir.InvokeAsync(conversacion.Id)">@conversacion.Asunto</button>
-                <span class="tabla-conversaciones-remitente">@conversacion.RemitentePrincipal · @conversacion.FechaUltimoMensajeUtc.EnHoraPeninsular().ToString("g")</span>
+                <span class="tabla-conversaciones-remitente">@conversacion.RemitentePrincipal · @conversacion.FechaUltimoMensajeUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")</span>
                 <span class="tabla-conversaciones-canal"><Icono Nombre="@(conversacion.Canal == CanalConversacion.WhatsApp ? "chat" : "correo")" Tamano="TamanoIcono.Pequeno" />@(conversacion.Canal == CanalConversacion.WhatsApp ? "WhatsApp" : Textos["Correo"].Value)</span>
             </div>
             <span role="cell">@(conversacion.ClienteRazonSocial ?? Textos["SinEmpresa"].Value)</span>

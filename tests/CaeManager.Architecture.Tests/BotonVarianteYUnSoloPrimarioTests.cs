@@ -74,7 +74,7 @@ public class BotonVarianteYUnSoloPrimarioTests
         ["src/CaeManager.Web/Features/Comunicaciones/Components/AccionCenter.razor"] = 3,
         ["src/CaeManager.Web/Features/Comunicaciones/Components/ComposerBar.razor"] = 3,
         ["src/CaeManager.Web/Features/Comunicaciones/Components/RevisionSugerenciaModal.razor#Modal1"] = 2,
-        ["src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor"] = 4,
+        ["src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor"] = 3,
         ["src/CaeManager.Web/Features/Comunicaciones/Pages/Buzon.razor"] = 3,
         ["src/CaeManager.Web/Features/Comunicaciones/Pages/Macros.razor"] = 4,
         ["src/CaeManager.Web/Features/Comunicaciones/Pages/Macros.razor#Drawer1"] = 2,

@@ -26,7 +26,7 @@
   <data name="Asignada" xml:space="preserve"><value>Assignada</value></data>
   <data name="SinEmpresa" xml:space="preserve"><value>Sense Empresa assignada</value></data>
   <data name="Correo" xml:space="preserve"><value>Correu</value></data>
-  <data name="VolverBandeja" xml:space="preserve"><value>Tornar a la safata</value></data>
+  <data name="VolverBandeja" xml:space="preserve"><value>Tornar a la safata d'entrada</value></data>
   <data name="ErrorBuzon" xml:space="preserve"><value>No hem pogut carregar la bústia</value></data>
   <data name="ErrorBuzonAyuda" xml:space="preserve"><value>Les converses continuen desades. Torna-ho a provar d’aquí a uns segons.</value></data>
   <data name="Reintentar" xml:space="preserve"><value>Torna-ho a provar</value></data>

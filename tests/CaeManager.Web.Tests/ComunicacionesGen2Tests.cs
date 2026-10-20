@@ -429,9 +429,9 @@ public class ComunicacionesGen2Tests : BunitContext
     {
         var (cut, _) = Renderizar(new Escenario());
 
-        cut.Find(".bandeja-lista .estado-vacio h3").TextContent.Trim().Should().Be("No hay conversaciones");
+        cut.Find(".bandeja-centro .estado-vacio h3").TextContent.Trim().Should().Be("No hay conversaciones");
         cut.Markup.Should().NotContain("Ninguna conversación con estos filtros");
-        cut.FindAll(".bandeja-lista .estado-vacio button").Should().BeEmpty(
+        cut.FindAll(".bandeja-centro .estado-vacio button").Should().BeEmpty(
             "sin filtros puestos no hay ningún filtro que quitar");
     }
 
@@ -445,10 +445,10 @@ public class ComunicacionesGen2Tests : BunitContext
 
         mediador.Enviados.OfType<ObtenerConversacionesQuery>().Last().Estado.Should().Be(EstadoConversacion.Resuelta,
             "el filtro de la URL tiene que llegar al servidor, no quedarse pintado en el select");
-        cut.Find(".bandeja-lista .estado-vacio h3").TextContent.Trim()
+        cut.Find(".bandeja-centro .estado-vacio h3").TextContent.Trim()
             .Should().Be("Ninguna conversación con estos filtros");
 
-        await Boton(cut, ".bandeja-lista .estado-vacio button", "Quitar los filtros").ClickAsync(new MouseEventArgs());
+        await Boton(cut, ".bandeja-centro .estado-vacio button", "Quitar los filtros").ClickAsync(new MouseEventArgs());
 
         navegacion.Uri.Should().NotContain("estado=", "un filtro quitado no puede seguir en la URL que se comparte");
         mediador.Enviados.OfType<ObtenerConversacionesQuery>().Last().Estado.Should().BeNull();
@@ -1379,6 +1379,24 @@ public class ComunicacionesGen2Tests : BunitContext
         mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Should().ContainSingle().Which.Id.Should().Be(abierta.Id);
     }
 
+    [Fact]
+    public async Task Abrir_por_clic_situa_j_k_en_el_hilo_abierto_sin_agrupar_por_Cliente_empresarial()
+    {
+        var primera = Conversacion("Primera", ClienteRefrielectric);
+        var segunda = Conversacion("Segunda", ClienteEbro);
+        var tercera = Conversacion("Tercera", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = id => DetalleDe(id == tercera.Id ? tercera : segunda) };
+        escenario.Conversaciones.AddRange([primera, segunda, tercera]);
+        var (cut, mediador) = Renderizar(escenario);
+
+        AsuntosVisibles(cut).Should().Equal("Primera", "Segunda", "Tercera");
+        await SeleccionarFila(cut, "Segunda");
+        AsuntosVisibles(cut).Should().Equal("Primera", "Segunda", "Tercera");
+        await PulsarAtajoDeLista(cut, "j");
+        AsuntosEnfocados(cut).Should().Equal("Tercera");
+        await PulsarAtajoDeLista(cut, "Enter");
+        mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Last().Id.Should().Be(tercera.Id);
+    }
     [Fact]
     public async Task Intro_sin_fila_enfocada_no_abre_nada()
     {

@@ -157,16 +157,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private IReadOnlyList<ConversacionListaDto> _conversaciones = [];
     private Guid? _idEnfocado;
 
-    // --- Paginación en SQL (Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md § Paginación/volumen — la
-    // bandeja no tenía techo, cargaba TODAS las conversaciones que cumplieran
-    // los filtros en cada visita). Enteros propios, no PaginationState de
-    // QuickGrid: esto no es una tabla, es una lista agrupada por cliente con
-    // secciones colapsables (ver PaginadorSimple.razor, variante manual).
-    // Un cliente puede quedar partido entre dos páginas si tiene
-    // conversaciones a ambos lados del corte — trade-off aceptado a cambio de
-    // no cargar la bandeja entera en cada visita; en la práctica ocurre solo
-    // con filtros amplios (sin cliente ni buscador), que es justo el caso que
-    // esta paginación existe para acotar.
+    // Paginación SQL compartida por la tabla inicial y la lista plana del hilo.
+    // Ambas conservan el orden del resultado sin agrupar por Cliente empresarial.
     private const int TamanoPaginaBandeja = 20;
     private int _pagina = 1;
     private int _totalConversaciones;
@@ -712,6 +704,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
 
         _conversacionSeleccionadaId = id;
+        _idEnfocado = id;
         _notaInternaActiva = false;
         _textoRespuesta = string.Empty;
         _macroSeleccionadaId = string.Empty;

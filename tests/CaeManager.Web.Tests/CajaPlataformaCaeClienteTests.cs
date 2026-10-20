@@ -158,9 +158,12 @@ public class CajaPlataformaCaeClienteTests : BunitContext
         cut.Find("input").Input("Nalanda Pro");
         Guardar(cut);
 
-        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerPlataformaCaeClienteQuery>().Should().HaveCount(lecturas + 1));
-        cut.Find("[data-plataforma-nombre]").TextContent.Should().Be("Dokify", "al reabrir, el modal parte de lo que guardó la otra persona");
-        cut.Markup.Should().Contain("Otra persona acaba de registrar la plataforma.");
+        cut.WaitForAssertion(() =>
+        {
+            mediador.Enviadas.OfType<ObtenerPlataformaCaeClienteQuery>().Should().HaveCount(lecturas + 1);
+            cut.Find("[data-plataforma-nombre]").TextContent.Should().Be("Dokify", "al reabrir, el modal parte de lo que guardó la otra persona");
+            cut.Markup.Should().Contain("Otra persona acaba de registrar la plataforma.");
+        });
     }
 
     [Fact]
