@@ -68,6 +68,10 @@
                     @{ var dni = _detalle.Dni ?? string.Empty; }
                     <BotonCopiar EnLinea="true" ConfirmarConIcono="true" Valor="@dni" Texto="@dni" Etiqueta="@Textos["FichaCopiarDni"]" NombreAccesible="@Textos["FichaCopiarNombreAccesibleConValor", Textos["FichaCopiarDni"], dni]" />
                 </span>
+                @if (_detalle.ExtranjeroCobrableVisible && (_detalle.MarcaExtranjeroCobrable ?? _detalle.ExtranjeroCobrablePorDocumento))
+                {
+                    <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@Textos["CabeceraExtranjeroCobrable"]</Badge>
+                }
                 <span aria-hidden="true">·</span>
                 <span>
                     <button type="button" class="enlace-nombre-fila" @onclick="AbrirEmpleador">@_detalle.EmpleadorNombre</button>
@@ -429,6 +433,10 @@
 
                 case PestanaFicha:
                     <CajasFicha Cajas="CajasDeFicha" />
+                    break;
+
+                case PestanaPlataformas:
+                    <PlataformasTrabajador Centros="_centros" />
                     break;
 
                 case PestanaHistorial:

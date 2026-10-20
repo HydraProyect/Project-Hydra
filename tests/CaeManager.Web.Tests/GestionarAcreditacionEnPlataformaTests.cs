@@ -171,6 +171,40 @@ public class GestionarAcreditacionEnPlataformaTests : BunitContext
         cut.Find("[data-estado-plataforma]").TextContent.Should().Contain("Pendiente de subir");
     }
 
+    private async Task<IRenderedComponent<AcordeonAsignacionesCentro>> DesplegadoConEstadoDePlataformaAsync()
+    {
+        var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(a => a.CentroId, Guid.NewGuid()).Add(a => a.CentroNombre, "Centro Norte")
+            .Add(a => a.MostrarEstadoPlataforma, true).Add(a => a.NombrePlataforma, "Nalanda"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ruiz Peña, Ana"));
+        await cut.Find("button.fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("tabla-plataforma-centro"));
+        return cut;
+    }
+
+    [Fact]
+    public async Task En_Centro_360_la_tabla_de_plataforma_rotula_la_columna_con_su_nombre_y_conserva_Gestionar()
+    {
+        Registrar(Trabajador(EstadoDocumento.Vigente, Guid.NewGuid(), Acreditacion(EstadoAcreditacion.PendienteDeSubir)));
+        var cut = await DesplegadoConEstadoDePlataformaAsync();
+
+        cut.Find(".cabecera-plataforma-centro").TextContent.Should().Contain("Estado en Nalanda");
+        await cut.Find(".fila-plataforma-centro [data-accion=gestionar-acreditacion]").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Gestionar acreditación en plataforma"));
+    }
+
+    [Fact]
+    public async Task En_Centro_360_si_falta_en_TALVEG_la_fila_de_plataforma_lleva_a_la_ficha_y_no_abre_el_panel()
+    {
+        var trabajador = Trabajador(EstadoDocumento.Vencido, Guid.NewGuid(), Acreditacion(EstadoAcreditacion.Aceptada));
+        Registrar(trabajador);
+        var cut = await DesplegadoConEstadoDePlataformaAsync();
+
+        cut.Find(".fila-plataforma-centro [data-accion=actualizar-en-ficha]").GetAttribute("href")
+            .Should().Be($"/trabajadores/{trabajador.TrabajadorId}");
+        cut.FindAll("[data-accion=gestionar-acreditacion]").Should().BeEmpty();
+    }
+
     private (IRenderedComponent<PanelGestionarAcreditacion>, MediatorFalso, AcreditacionResumenDto) Panel(
         EstadoAcreditacion estado, EstadoDocumento enTalveg = EstadoDocumento.Vigente)
     {

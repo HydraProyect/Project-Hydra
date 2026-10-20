@@ -463,4 +463,244 @@
   <data name="CopiarTelefonoContacto" xml:space="preserve">
     <value>Copia el telèfon</value>
   </data>
+  <data name="PestanaVigencia" xml:space="preserve">
+    <value>Vigència</value>
+  </data>
+  <data name="PestanaPlataformas" xml:space="preserve">
+    <value>Plataformes</value>
+  </data>
+  <data name="VigenciaErrorTitulo" xml:space="preserve">
+    <value>No s&apos;ha pogut carregar la vigència</value>
+  </data>
+  <data name="VigenciaSinTrabajadoresTitulo" xml:space="preserve">
+    <value>Sense Treballadors</value>
+  </data>
+  <data name="VigenciaSinTrabajadoresDescripcion" xml:space="preserve">
+    <value>Aquesta Empresa encara no té Treballadors; la vigència de la seva documentació surt d&apos;ells.</value>
+  </data>
+  <data name="VigenciaFiltroCentro" xml:space="preserve">
+    <value>Centre</value>
+  </data>
+  <data name="VigenciaTodosLosCentros" xml:space="preserve">
+    <value>Tots els Centres</value>
+  </data>
+  <data name="VigenciaFiltroDelegacionEmpresa" xml:space="preserve">
+    <value>Delegació</value>
+  </data>
+  <data name="VigenciaTodasLasDelegacionesEmpresa" xml:space="preserve">
+    <value>Totes les delegacions</value>
+  </data>
+  <data name="VigenciaFiltroPuesto" xml:space="preserve">
+    <value>Lloc de treball</value>
+  </data>
+  <data name="VigenciaTodosLosPuestos" xml:space="preserve">
+    <value>Tots els llocs</value>
+  </data>
+  <data name="VigenciaSoloProblemas" xml:space="preserve">
+    <value>Només amb problemes · {0}</value>
+  </data>
+  <data name="VigenciaVenceEnDias" xml:space="preserve">
+    <value>Venç en {0} dies · {1}</value>
+  </data>
+  <data name="VigenciaOrdenarPor" xml:space="preserve">
+    <value>Ordena per</value>
+  </data>
+  <data name="VigenciaOrdenNombre" xml:space="preserve">
+    <value>Nom</value>
+  </data>
+  <data name="VigenciaOrdenDelegacionEmpresa" xml:space="preserve">
+    <value>Delegació</value>
+  </data>
+  <data name="VigenciaOrdenPuesto" xml:space="preserve">
+    <value>Lloc</value>
+  </data>
+  <data name="VigenciaFechaMostrada" xml:space="preserve">
+    <value>Data mostrada</value>
+  </data>
+  <data name="VigenciaFechaVencimiento" xml:space="preserve">
+    <value>Venciment</value>
+  </data>
+  <data name="VigenciaFechaEmision" xml:space="preserve">
+    <value>Emissió</value>
+  </data>
+  <data name="VigenciaLeyendaVigente" xml:space="preserve">
+    <value>Vigent</value>
+  </data>
+  <data name="VigenciaLeyendaPorVencer" xml:space="preserve">
+    <value>Per vèncer</value>
+  </data>
+  <data name="VigenciaLeyendaVencidoOFalta" xml:space="preserve">
+    <value>Vençut o falta</value>
+  </data>
+  <data name="VigenciaLeyendaOpcional" xml:space="preserve">
+    <value>Opcional</value>
+  </data>
+  <data name="VigenciaPulsaUnaCelda" xml:space="preserve">
+    <value>Prem una cel·la per veure els documents del Treballador</value>
+  </data>
+  <data name="VigenciaSinFilasTitulo" xml:space="preserve">
+    <value>Cap Treballador amb aquests filtres</value>
+  </data>
+  <data name="VigenciaQuitarFiltros" xml:space="preserve">
+    <value>Treu els filtres</value>
+  </data>
+  <data name="VigenciaGrupoBasicos" xml:space="preserve">
+    <value>Bàsics</value>
+  </data>
+  <data name="VigenciaGrupoFormacion" xml:space="preserve">
+    <value>Formació exigida</value>
+  </data>
+  <data name="VigenciaGrupoOpcional" xml:space="preserve">
+    <value>Opcional</value>
+  </data>
+  <data name="VigenciaColumnaTrabajador" xml:space="preserve">
+    <value>Treballador · {0}</value>
+  </data>
+  <data name="VigenciaAliasAptitud" xml:space="preserve">
+    <value>Reco. mèdic</value>
+  </data>
+  <data name="VigenciaAliasEpi" xml:space="preserve">
+    <value>EPIs</value>
+  </data>
+  <data name="VigenciaAliasArt18" xml:space="preserve">
+    <value>Art. 18</value>
+  </data>
+  <data name="VigenciaAliasArt19" xml:space="preserve">
+    <value>Art. 19</value>
+  </data>
+  <data name="VigenciaMinima" xml:space="preserve">
+    <value>Vigència mínima: {0}</value>
+  </data>
+  <data name="VigenciaLaPide" xml:space="preserve">
+    <value>La demana {0}</value>
+  </data>
+  <data name="VigenciaLaPiden" xml:space="preserve">
+    <value>La demanen {0}</value>
+  </data>
+  <data name="VigenciaPropia" xml:space="preserve">
+    <value>Vigència pròpia del document. Cap Centre l&apos;exigeix</value>
+  </data>
+  <data name="VigenciaUnAnio" xml:space="preserve">
+    <value>1 any</value>
+  </data>
+  <data name="VigenciaAnios" xml:space="preserve">
+    <value>{0} anys</value>
+  </data>
+  <data name="VigenciaMeses" xml:space="preserve">
+    <value>{0} mesos</value>
+  </data>
+  <data name="VigenciaCeldaFalta" xml:space="preserve">
+    <value>Falta</value>
+  </data>
+  <data name="VigenciaCeldaVigente" xml:space="preserve">
+    <value>Vigent</value>
+  </data>
+  <data name="VigenciaCeldaNoAplica" xml:space="preserve">
+    <value>No l&apos;exigeix cap dels seus Centres</value>
+  </data>
+  <data name="VigenciaEstadoVigente" xml:space="preserve">
+    <value>Vigent</value>
+  </data>
+  <data name="VigenciaEstadoPorVencer" xml:space="preserve">
+    <value>Per vèncer</value>
+  </data>
+  <data name="VigenciaEstadoVencido" xml:space="preserve">
+    <value>Vençut</value>
+  </data>
+  <data name="VigenciaEstadoFalta" xml:space="preserve">
+    <value>Exigit i sense registrar</value>
+  </data>
+  <data name="VigenciaEstadoSinConfirmar" xml:space="preserve">
+    <value>Sense confirmar</value>
+  </data>
+  <data name="VigenciaEmitidoCaduca" xml:space="preserve">
+    <value>emès el {0}, caduca el {1}</value>
+  </data>
+  <data name="VigenciaPie" xml:space="preserve">
+    <value>Mostrant {0}–{1} de {2}</value>
+  </data>
+  <data name="VigenciaAnterior" xml:space="preserve">
+    <value>‹ Anterior</value>
+  </data>
+  <data name="VigenciaSiguiente" xml:space="preserve">
+    <value>Següent ›</value>
+  </data>
+  <data name="VigenciaPagina" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="VigenciaFilasPorPagina" xml:space="preserve">
+    <value>Files per pàgina:</value>
+  </data>
+  <data name="PlataformasApoyo" xml:space="preserve">
+    <value>Estat de la documentació de l&apos;Empresa a la plataforma CAE de cada Client, per Centre. Les credencials d&apos;accés són a cada Client 360.</value>
+  </data>
+  <data name="PlataformasQueMostrar" xml:space="preserve">
+    <value>Què mostrar</value>
+  </data>
+  <data name="PlataformasSoloIncidencias" xml:space="preserve">
+    <value>Només incidències · {0}</value>
+  </data>
+  <data name="PlataformasTodo" xml:space="preserve">
+    <value>Tot · {0}</value>
+  </data>
+  <data name="PlataformasErrorTitulo" xml:space="preserve">
+    <value>No s&apos;han pogut carregar les plataformes</value>
+  </data>
+  <data name="PlataformasSinDatosTitulo" xml:space="preserve">
+    <value>Sense documentació a les plataformes</value>
+  </data>
+  <data name="PlataformasSinDatosDescripcion" xml:space="preserve">
+    <value>L&apos;Empresa encara no té documents acreditables a la plataforma de cap Client.</value>
+  </data>
+  <data name="PlataformasVacioTitulo" xml:space="preserve">
+    <value>Sense incidències a les plataformes</value>
+  </data>
+  <data name="PlataformasVacioDescripcion" xml:space="preserve">
+    <value>Tot el que s&apos;exigeix està validat a les plataformes dels seus Clients.</value>
+  </data>
+  <data name="PlataformasPlataforma" xml:space="preserve">
+    <value>Plataforma {0} · {1}</value>
+  </data>
+  <data name="PlataformasTodoValidado" xml:space="preserve">
+    <value>tot validat</value>
+  </data>
+  <data name="PlataformasUnaIncidencia" xml:space="preserve">
+    <value>1 incidència</value>
+  </data>
+  <data name="PlataformasVariasIncidencias" xml:space="preserve">
+    <value>{0} incidències</value>
+  </data>
+  <data name="PlataformasIrAlCentro" xml:space="preserve">
+    <value>Ves al Centre 360</value>
+  </data>
+  <data name="PlataformasEstadoValidado" xml:space="preserve">
+    <value>Validat</value>
+  </data>
+  <data name="PlataformasEstadoPendienteValidacion" xml:space="preserve">
+    <value>Pendent de validació</value>
+  </data>
+  <data name="PlataformasEstadoRechazado" xml:space="preserve">
+    <value>Rebutjat</value>
+  </data>
+  <data name="PlataformasEstadoPendienteSubir" xml:space="preserve">
+    <value>Pendent de pujar</value>
+  </data>
+  <data name="PlataformasEstadoVencidoEnPlataforma" xml:space="preserve">
+    <value>Vençut a la plataforma</value>
+  </data>
+  <data name="PlataformasSinAlcanceNota" xml:space="preserve">
+    <value>Aquí només apareixen les plataformes dels Centres que gestiones. Si no en veus cap, pot ser pels teus permisos d&apos;accés i no perquè l&apos;Empresa no tingui documentació.</value>
+  </data>
+  <data name="PlataformasVencidoEl" xml:space="preserve">
+    <value>Vençut el {0}</value>
+  </data>
+  <data name="VigenciaSinColumnasDescripcion" xml:space="preserve">
+    <value>Cap Centre amb gestió CAE exigeix documentació als Treballadors de l&apos;Empresa, i encara no hi ha documents carregats.</value>
+  </data>
+  <data name="VigenciaSinColumnasTitulo" xml:space="preserve">
+    <value>Sense documentació exigida</value>
+  </data>
+  <data name="VigenciaUnMes" xml:space="preserve">
+    <value>1 mes</value>
+  </data>
 </root>

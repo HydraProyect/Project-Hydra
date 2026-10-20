@@ -64,9 +64,10 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     internal const string PestanaCentros = "centros";
     internal const string PestanaDocumentacion = "documentacion";
     internal const string PestanaFicha = "ficha";
+    internal const string PestanaPlataformas = "plataformas";
     internal const string PestanaHistorial = "historial";
 
-    private static readonly string[] PestanasValidas = [PestanaOperacion, PestanaCentros, PestanaDocumentacion, PestanaFicha, PestanaHistorial];
+    private static readonly string[] PestanasValidas = [PestanaOperacion, PestanaCentros, PestanaDocumentacion, PestanaPlataformas, PestanaFicha, PestanaHistorial];
 
     [Parameter] public Guid TrabajadorId { get; set; }
 
@@ -277,9 +278,17 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
                     _centros.Count == 1 ? Textos["ContadorCentrosUno"] : Textos["ContadorCentrosVarios"])
         },
         new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
+        new(PestanaPlataformas, Textos["PestanaPlataformas"])
+        {
+            Contador = TotalIncidenciasPlataformas == 0 ? null : new ContadorPestana(
+                TotalIncidenciasPlataformas, Textos["PlataformasSoloIncidencias", TotalIncidenciasPlataformas], EnAlerta: true)
+        },
         new(PestanaFicha, Comunes["PestanaFicha"]),
         new(PestanaHistorial, Textos["PestanaHistorial"])
     ];
+
+    private int TotalIncidenciasPlataformas => _centros.Sum(c => c.Documentos.Sum(d =>
+        d.AcreditacionesEnElCentro?.Count(a => a.Estado is EstadoAcreditacion.PendienteDeSubir or EstadoAcreditacion.Subida or EstadoAcreditacion.Rechazada) ?? 0));
 
     // D-22: «Sin confirmar» no es incidencia, cuenta como al día con aviso (misma regla que el panel
     // Documentación base, #1015: DocumentacionBaseTrabajador.CuentaComoIncidencia).

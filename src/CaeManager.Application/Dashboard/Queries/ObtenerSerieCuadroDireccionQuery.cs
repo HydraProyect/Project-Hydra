@@ -24,8 +24,11 @@ public record ObtenerSerieCuadroDireccionQuery(int Anyo, int Mes, int Meses, boo
 /// Operador para ese Tenant beneficiario (<see cref="Dashboard.ValoracionOperadorCae"/>), en una moneda. Con el cobro
 /// desactivado la línea sale con sus unidades e importe cero.
 /// </summary>
+/// <param name="PrecioUnitario">El precio de la versión de la tarifa con que se valoró; null en una línea sumada de varios Tenants.</param>
+/// <param name="CobroActivo">Si la versión de la tarifa cobraba el concepto; null en una línea sumada de varios Tenants.</param>
 public record LineaFacturacionCuadroDto(
-    ConceptoTarifaOperadorCae Concepto, string ConceptoNombre, string MonedaIso, int Unidades, decimal Importe);
+    ConceptoTarifaOperadorCae Concepto, string ConceptoNombre, string MonedaIso, int Unidades, decimal Importe,
+    decimal? PrecioUnitario = null, bool? CobroActivo = null);
 
 /// <param name="Cifras">Las cifras del mes con las mismas definiciones que el Cuadro (el cumplimiento no se mide aquí).</param>
 /// <param name="Facturacion">
@@ -199,7 +202,10 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
         lineas
             .GroupBy(l => (l.Concepto, Moneda: l.MonedaIso.Trim().ToUpperInvariant()))
             .Select(g => new LineaFacturacionCuadroDto(
-                g.Key.Concepto, g.First().ConceptoNombre, g.Key.Moneda, g.Sum(l => l.Unidades), g.Sum(l => l.Importe)))
+                g.Key.Concepto, g.First().ConceptoNombre, g.Key.Moneda, g.Sum(l => l.Unidades), g.Sum(l => l.Importe),
+                // Un solo Tenant en el grupo: se conserva el precio de su versión de tarifa; con varios no hay un precio único.
+                g.Count() == 1 ? g.First().PrecioUnitario : null,
+                g.Count() == 1 ? g.First().CobroActivo : null))
             .OrderBy(l => l.Concepto)
             .ThenBy(l => l.MonedaIso, StringComparer.Ordinal)
             .ToList();

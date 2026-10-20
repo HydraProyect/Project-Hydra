@@ -1,0 +1,197 @@
+@using System.Globalization
+@using CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProveedor
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Empresas.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@implements IDisposable
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosEmpresas> Textos
+
+@* Pestaña «Plataformas» de Empresa 360 (maqueta «Empresa 360 TALVEG»): el estado de los documentos de la Empresa en la plataforma CAE de
+   cada Cliente, por Centro. Lee ObtenerAcreditacionesPorProveedorQuery acotada a esta Empresa (la misma que el drill-down por plataforma
+   de Documentos y la Bandeja, con su mismo alcance de gestión). *@
+<section class="plataformas-empresa" data-pieza="plataformas-empresa" aria-label="@Textos["PestanaPlataformas"]">
+    <div class="plataformas-cabecera">
+        <p class="plataformas-apoyo">@Textos["PlataformasApoyo"]</p>
+        @if (_filas is not null)
+        {
+            <div class="plataformas-filtros" role="group" aria-label="@Textos["PlataformasQueMostrar"]">
+                <button type="button" class="plataformas-chip" aria-pressed="@(_soloIncidencias ? "true" : "false")" @onclick="() => _soloIncidencias = true">@Textos["PlataformasSoloIncidencias", Incidencias]</button>
+                <button type="button" class="plataformas-chip" aria-pressed="@(_soloIncidencias ? "false" : "true")" @onclick="() => _soloIncidencias = false">@Textos["PlataformasTodo", _filas.Count]</button>
+            </div>
+        }
+    </div>
+
+    @if (_error)
+    {
+        <EstadoVacio Titulo="@Textos["PlataformasErrorTitulo"]" Descripcion="@Textos["ErrorSeccionDescripcion"]">
+            <Accion>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["Reintentar"]</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_filas is null)
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else if (_filas.Count == 0)
+    {
+        <EstadoVacio Titulo="@Textos["PlataformasSinDatosTitulo"]" Descripcion="@Textos["PlataformasSinDatosDescripcion"]" />
+        @* Quien no gestiona Centros (p. ej. el rol de Cliente empresarial) recibe la lista vacía aunque la Empresa sí tenga documentos: no se le afirma que no hay nada. *@
+        <p class="plataformas-apoyo" data-nota="alcance">@Textos["PlataformasSinAlcanceNota"]</p>
+    }
+    else
+    {
+        var grupos = Grupos();
+        @if (grupos.Count == 0)
+        {
+            <EstadoVacio Titulo="@Textos["PlataformasVacioTitulo"]" Descripcion="@Textos["PlataformasVacioDescripcion"]" />
+        }
+        <div class="plataformas-grupos">
+            @{ var claves = new ClavesDeHermanos(); }
+            @foreach (var grupo in grupos)
+            {
+                <section class="plataformas-grupo" @key="claves.De((grupo.Cliente, grupo.CentroId, grupo.Plataforma))">
+                    <header class="plataformas-grupo-cabecera">
+                        <span class="plataformas-grupo-titulo">
+                            <span class="plataformas-grupo-cliente">@grupo.Cliente ›</span>
+                            <b>@grupo.Centro</b>
+                            <span class="plataformas-grupo-cliente">@Textos["PlataformasPlataforma", grupo.Plataforma, Resumen(grupo.Incidencias)]</span>
+                        </span>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Href="@($"/centros/{grupo.CentroId}")">@Textos["PlataformasIrAlCentro"]</Boton>
+                    </header>
+                    @foreach (var fila in grupo.Visibles)
+                    {
+                        <div class="plataformas-fila" data-incidencia="@(EsIncidencia(fila) ? "true" : "false")" data-estado="@CodigoEstado(fila)">
+                            <span class="plataformas-documento">@fila.Documento</span>
+                            <span><Badge Tono="@Tono(fila)">@NombreEstado(fila)</Badge></span>
+                            <span class="plataformas-motivo">@Detalle(fila)</span>
+                        </div>
+                    }
+                </section>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public Guid EmpresaId { get; set; }
+
+    private sealed record Fila(
+        string Cliente, Guid CentroId, string Centro, string Plataforma, string Documento, EstadoAcreditacion Estado, string? Motivo,
+        bool Vencida = false, DateOnly? VenceEnPlataforma = null);
+
+    private sealed record Grupo(string Cliente, Guid CentroId, string Centro, string Plataforma, IReadOnlyList<Fila> Visibles, int Incidencias);
+
+    private readonly CancellationTokenSource _ciclo = new();
+    private List<Fila>? _filas;
+    private bool _error;
+    private bool _soloIncidencias = true;
+    private Guid _cargado;
+    private int _carga;
+
+    private int Incidencias => _filas?.Count(EsIncidencia) ?? 0;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (EmpresaId == _cargado) return;
+        _cargado = EmpresaId;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var carga = ++_carga;
+        var empresaId = EmpresaId;
+        _error = false;
+        _filas = null;
+        try
+        {
+            var proveedores = await Mediator.Send(
+                new ObtenerAcreditacionesPorProveedorQuery(IncluirAceptadas: true, IncluirSubidas: true, SoloDocumentosDeEmpresaId: empresaId),
+                _ciclo.Token);
+            if (carga != _carga) return;
+
+            // Un mismo documento puede llegar dos veces bajo la misma plataforma y Centro (p. ej. por dos canales): se queda con
+            // la fila más grave, que es la que hay que atender.
+            _filas = [.. proveedores.SelectMany(p => p.Clientes.SelectMany(c => c.Documentos
+                .Where(d => d.CentroId is not null)
+                .Select(d => new Fila(c.ClienteNombre, d.CentroId!.Value, d.CentroNombre ?? "—", p.ProveedorNombre,
+                    d.TipoDocumentoNombre, d.Estado, d.Estado == EstadoAcreditacion.Rechazada ? d.UltimoMotivoRechazo : null,
+                    d.Estado == EstadoAcreditacion.Aceptada && d.VencidaEnPlataforma, d.FechaVencimientoEnPlataforma))))
+                .GroupBy(f => (f.Cliente, f.CentroId, f.Plataforma, f.Documento))
+                .Select(g => g.OrderBy(Rango).First())];
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception)
+        {
+            if (carga == _carga) _error = true;
+        }
+    }
+
+    public void Dispose()
+    {
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+
+    private IReadOnlyList<Grupo> Grupos() => _filas!
+        .GroupBy(f => (f.Cliente, f.CentroId, f.Centro, f.Plataforma))
+        .Select(g =>
+        {
+            var todas = g.OrderBy(Rango).ThenBy(f => f.Documento, StringComparer.CurrentCultureIgnoreCase).ToList();
+            var visibles = _soloIncidencias ? todas.Where(EsIncidencia).ToList() : todas;
+            return new Grupo(g.Key.Cliente, g.Key.CentroId, g.Key.Centro, g.Key.Plataforma, visibles, todas.Count(EsIncidencia));
+        })
+        .Where(g => g.Visibles.Count > 0)
+        .OrderBy(g => g.Cliente, StringComparer.CurrentCultureIgnoreCase)
+        .ThenBy(g => g.Centro, StringComparer.CurrentCultureIgnoreCase)
+        .ToList();
+
+    // Incidencia = todo lo que no está validado en la plataforma, y también lo validado que ya venció allí.
+    private static bool EsIncidencia(Fila fila) => fila.Estado != EstadoAcreditacion.Aceptada || fila.Vencida;
+
+    private static int Rango(Fila fila) => fila.Vencida ? 0 : fila.Estado switch
+    {
+        EstadoAcreditacion.Rechazada => 0,
+        EstadoAcreditacion.PendienteDeSubir => 1,
+        EstadoAcreditacion.Subida => 2,
+        _ => 3
+    };
+
+    private string Resumen(int incidencias) => incidencias switch
+    {
+        0 => Textos["PlataformasTodoValidado"],
+        1 => Textos["PlataformasUnaIncidencia"],
+        _ => Textos["PlataformasVariasIncidencias", incidencias]
+    };
+
+    private string NombreEstado(Fila fila) => fila.Vencida ? Textos["PlataformasEstadoVencidoEnPlataforma"] : fila.Estado switch
+    {
+        EstadoAcreditacion.Aceptada => Textos["PlataformasEstadoValidado"],
+        EstadoAcreditacion.Subida => Textos["PlataformasEstadoPendienteValidacion"],
+        EstadoAcreditacion.Rechazada => Textos["PlataformasEstadoRechazado"],
+        _ => Textos["PlataformasEstadoPendienteSubir"]
+    };
+
+    private static string CodigoEstado(Fila fila) => fila.Vencida ? "VencidaEnPlataforma" : fila.Estado.ToString();
+
+    private string Detalle(Fila fila)
+    {
+        if (fila.Vencida)
+            return fila.VenceEnPlataforma is { } fecha
+                ? Textos["PlataformasVencidoEl", fecha.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)]
+                : Textos["PlataformasEstadoVencidoEnPlataforma"];
+        return string.IsNullOrWhiteSpace(fila.Motivo) ? "—" : fila.Motivo;
+    }
+
+    private static TonoBadge Tono(Fila fila) => fila.Vencida ? TonoBadge.Peligro : fila.Estado switch
+    {
+        EstadoAcreditacion.Aceptada => TonoBadge.Exito,
+        EstadoAcreditacion.Subida => TonoBadge.Advertencia,
+        _ => TonoBadge.Peligro
+    };
+}
