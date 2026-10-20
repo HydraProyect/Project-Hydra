@@ -627,7 +627,6 @@
   <data name="IrATuPantallaPrincipal" xml:space="preserve">
     <value>Ves a la teva pantalla principal</value>
   </data>
-<<<<<<< HEAD
   <data name="CodigoParaSoporte" xml:space="preserve">
     <value>Codi per a suport</value>
   </data>
@@ -636,7 +635,6 @@
   </data>
   <data name="CodigoParaSoporteCopia" xml:space="preserve">
     <value>el codi per a suport</value>
-=======
   <data name="VolverListaTrabajadores" xml:space="preserve">
     <value>Tornar a la llista de treballadors</value>
   </data>
@@ -669,6 +667,5 @@
   </data>
   <data name="VolverListaAlertas" xml:space="preserve">
     <value>Tornar a la llista d'alertes</value>
->>>>>>> origin/codex/notfound-volver-lista
   </data>
 </root>
