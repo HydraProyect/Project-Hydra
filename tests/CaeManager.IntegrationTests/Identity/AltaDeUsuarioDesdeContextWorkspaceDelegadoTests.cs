@@ -271,6 +271,10 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
         serviciosMediator.AddSingleton<IClienteActivoSeleccionado>(seleccion);
         serviciosMediator.AddSingleton<ITenantActual>(tenantActualReal);
         serviciosMediator.AddSingleton<ICurrentUserService, CurrentUserService>();
+        // Como AddApplication() en producción: la señal de operación la da la misma clase que resuelve
+        // el rol efectivo. Sin ella, RolesReservadosAlTenantDeOrigen falla cerrado.
+        serviciosMediator.AddSingleton<IEncargoDeAdministracionActual>(sp =>
+            (IEncargoDeAdministracionActual)sp.GetRequiredService<ICurrentUserService>());
         // CurrentUserService resuelve el rol efectivo del Context Workspace delegado
         // contra la base: la misma que la del alta.
         serviciosMediator.AddSingleton(sp.GetRequiredService<ITenantsQueryContext>());
