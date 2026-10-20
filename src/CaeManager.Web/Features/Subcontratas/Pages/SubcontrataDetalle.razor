@@ -52,7 +52,7 @@
     }
     else if (_detalle is not null)
     {
-        <CabeceraIdentidad Titulo="@_detalle.RazonSocial" Kicker="@Textos["KickerSubcontrata360"]" Datos="DatosDeCabecera">
+        <CabeceraIdentidad Titulo="@_detalle.RazonSocial" Kicker="@($"{Textos["KickerSubcontrata360"]} · {EstadoSupervisionUi.TextoNivel(Textos, _detalle.NivelServicio)}")" Datos="DatosDeCabecera">
             <Anillo>
                 <AnilloCumplimiento Porcentaje="_cumplimiento?.Porcentaje" Tamano="TamanoAnillo.Cabecera"
                                     Etiqueta="@TextoAnillo" Leyenda="@LeyendaAnillo" />
@@ -355,6 +355,7 @@
                     </AccionesHeader>
                     <ChildContent>
                         <RejillaDatos>
+                            <DatoRejilla Etiqueta="@Textos["RotuloRazonSocial"]" Valor="@_detalle.RazonSocial" Ancho="true" />
                             <DatoRejilla Etiqueta="@Textos["RotuloIdentificacionFiscal"]">
                                 @if (string.IsNullOrWhiteSpace(_detalle.Cif))
                                 {
@@ -365,13 +366,9 @@
                                     <span class="subcontrata360-copia"><BotonCopiar EnLinea="true" ConfirmarConIcono="true" Titulo="@Textos["TituloCopiarCif"]" Valor="@_detalle.Cif" Texto="@_detalle.Cif" Etiqueta="@Textos["CopiarLaIdentificacionFiscal"]" NombreAccesible="@Textos["AriaCopiarValor360", Textos["CopiarLaIdentificacionFiscal"], _detalle.Cif]" /></span>
                                 }
                             </DatoRejilla>
-                            <DatoRejilla Etiqueta="@Textos["RotuloNivelServicio"]" Valor="@EstadoSupervisionUi.TextoNivel(Textos, _detalle.NivelServicio)" />
                             <DatoRejilla Etiqueta="@Textos["RotuloAlta"]" Valor="@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")" />
-                            <DatoRejilla Etiqueta="@Textos["RotuloTrabajadores"]" Valor="@(_trabajadores?.Count.ToString() ?? "—")" />
-                            <DatoRejilla Etiqueta="@Textos["RotuloClientesEmpresariales"]" Valor="@TextoRelaciones(_detalle.ClienteIds, _nombresClientes)" Ancho="true" />
-                            <DatoRejilla Etiqueta="@Textos["EtiquetaEmpresasPrestaServicio"]" Valor="@TextoRelaciones(_detalle.EmpresaIds, _nombresEmpresas)" Ancho="true" />
+                            <DatoRejilla Etiqueta="@Textos["ContratadaPor"]" Valor="@TextoRelaciones(_detalle.EmpresaIds, _nombresEmpresas)" Ancho="true" />
                         </RejillaDatos>
-                        <p class="subcontrata360-nota">@DescripcionNivel(_detalle.NivelServicio)</p>
                     </ChildContent>
                 </Tarjeta>
 
@@ -532,7 +529,11 @@
                     <span>@Textos["MetaCif360"] <strong><span class="subcontrata360-copia"><BotonCopiar EnLinea="true" ConfirmarConIcono="true" Titulo="@Textos["TituloCopiarCif"]" Valor="@detalle.Cif" Texto="@detalle.Cif" Etiqueta="@Textos["CopiarLaIdentificacionFiscal"]" NombreAccesible="@Textos["AriaCopiarValor360", Textos["CopiarLaIdentificacionFiscal"], detalle.Cif]" /></span></strong></span>
                     <span aria-hidden="true">·</span>
                 }
-                <Badge Tono="TonoBadge.Neutro">@EstadoSupervisionUi.TextoNivel(Textos, detalle.NivelServicio)</Badge>
+                @if (detalle.EmpresaIds.Count > 0)
+                {
+                    <span aria-hidden="true">·</span>
+                    <span>@Textos["ContratadaPor"] <strong>@TextoRelaciones(detalle.EmpresaIds, _nombresEmpresas)</strong></span>
+                }
                 @if (_trabajadores is { } trabajadoresMeta)
                 {
                     <span aria-hidden="true">·</span>
@@ -545,6 +546,25 @@
                 }
         }
     </text>;
+
+    // Caja «Cadena de subcontratación» de la pestaña Ficha (maqueta Subcontrata 360): solo datos que el detalle ya trae.
+    private RenderFragment CajaCadena => __builder =>
+    {
+        if (_detalle is { } detalle)
+        {
+            <Tarjeta Titulo="@Textos["TituloCadenaSubcontratacion"]" Compacta="true">
+                <ChildContent>
+                    <RejillaDatos>
+                        <DatoRejilla Etiqueta="@Textos["RotuloNivelServicio"]" Valor="@EstadoSupervisionUi.TextoNivel(Textos, detalle.NivelServicio)" />
+                        <DatoRejilla Etiqueta="@Textos["ContratadaPor"]" Valor="@TextoRelaciones(detalle.EmpresaIds, _nombresEmpresas)" />
+                        <DatoRejilla Etiqueta="@Textos["RotuloClientesDeLosCentros"]" Valor="@TextoRelaciones(detalle.ClienteIds, _nombresClientes)" />
+                        <DatoRejilla Etiqueta="@Textos["EtiquetaEmpresasPrestaServicio"]" Valor="@TextoRelaciones(detalle.EmpresaIds, _nombresEmpresas)" />
+                    </RejillaDatos>
+                    <p class="subcontrata360-nota">@DescripcionNivel(detalle.NivelServicio)</p>
+                </ChildContent>
+            </Tarjeta>
+        }
+    };
 
     // ListaRelaciones envuelve el pie en su propio párrafo: aquí solo va el texto.
     private RenderFragment PieSinCoincidencias => @<text>
