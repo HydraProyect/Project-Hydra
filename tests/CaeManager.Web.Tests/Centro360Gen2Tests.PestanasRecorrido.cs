@@ -56,17 +56,17 @@ public partial class Centro360Gen2Tests
     }
 
     [Fact]
-    public void Ficha_sin_datos_se_omite_y_su_URL_vuelve_a_Trabajadores_conservando_los_filtros()
+    public void Ficha_sin_datos_basicos_permite_configurar_canales_y_conserva_su_URL()
     {
         var id = Guid.NewGuid();
         Registrar(new MediatorFalso()).Detalles[id] = Detalle(id, "Centro Norte") with { CodigoCentro = null, Direccion = " ", Contacto = null };
         var navegador = Services.GetRequiredService<NavigationManager>();
         navegador.NavigateTo($"centros/{id}?pestana=ficha&q=Ana&estado=Vencido&extra=conservar");
         var cut = Renderizar(id);
-        cut.FindAll("[role=tab][aria-controls$='-ficha']").Should().BeEmpty();
-        cut.FindComponents<CajasFicha>().Should().BeEmpty();
-        cut.Find("[role=tab][aria-selected=true]").GetAttribute("aria-controls").Should().EndWith("-trabajadores");
-        navegador.Uri.Should().NotContain("pestana=").And.Contain("q=Ana").And.Contain("estado=Vencido").And.Contain("extra=conservar");
+        cut.FindAll("[role=tab][aria-controls$='-ficha']").Should().ContainSingle();
+        cut.FindComponent<CajasFicha>().Instance.Cajas.Should().BeEmpty();
+        cut.Find("[role=tab][aria-selected=true]").GetAttribute("aria-controls").Should().EndWith("-ficha");
+        navegador.Uri.Should().Contain("pestana=ficha").And.Contain("q=Ana").And.Contain("estado=Vencido").And.Contain("extra=conservar");
     }
 
     [Fact]
@@ -82,9 +82,9 @@ public partial class Centro360Gen2Tests
         var cut = Renderizar(a);
         cut.FindComponents<CajasFicha>().Should().ContainSingle();
         cut.Render(p => p.Add(x => x.CentroId, b));
-        cut.FindAll("[role=tab][aria-controls$='-ficha']").Should().BeEmpty();
-        cut.FindComponents<CajasFicha>().Should().BeEmpty();
-        navegador.Uri.Should().NotContain("pestana=").And.Contain("q=Ana").And.Contain("estado=Vencido");
+        cut.FindAll("[role=tab][aria-controls$='-ficha']").Should().ContainSingle();
+        cut.FindComponent<CajasFicha>().Instance.Cajas.Should().BeEmpty();
+        navegador.Uri.Should().Contain("pestana=ficha").And.Contain("q=Ana").And.Contain("estado=Vencido");
     }
 
     [Fact]

@@ -35,27 +35,23 @@ public partial class Centro360Gen2Tests
         await cut.Find("[role=tab][aria-controls$='-documentacion-centro']").ClickAsync(new MouseEventArgs());
         navegador.Uri.Should().Contain("q=Ana").And.Contain("estado=Vencido").And.Contain("extra=conservar");
         cut.Find(".barra-filtros").HasAttribute("hidden").Should().BeTrue();
-        cut.FindComponents<FilaRelacion>().Select(r => r.Instance.Nombre).Should().Equal("Seguro", "Certificado");
-        cut.Markup.Should().Contain("Mostrando 2 de 2").And.Contain("del peor estado al mejor");
-        var filas = cut.FindComponents<FilaRelacion>();
-        filas[0].Instance.Tono.Should().Be(TonoFila.Peligro);
-        filas[1].Instance.Tono.Should().BeNull();
-        filas[0].FindComponent<Badge>().Markup.Should().Contain("Vencido");
-        cut.Markup.Should().Contain("Emitido el 01/10/2025").And.Contain("Vencimiento: 01/10/2026");
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Empresa Sur").ClickAsync(new MouseEventArgs());
+        var tabla = cut.Find(".centro-documentacion-tabla");
+        tabla.QuerySelectorAll("[role=columnheader]").Select(c => c.TextContent.Trim())
+            .Should().Equal("Documento", "Estado en la plataforma", "Caducidad", "Bloquea");
+        var filas = cut.FindAll(".centro-documentacion-fila");
+        filas.Should().HaveCount(2);
+        filas.Select(f => f.QuerySelector(".centro-documentacion-nombre > span")!.TextContent.Trim())
+            .Should().Equal("Seguro", "Certificado");
+        filas[0].QuerySelector(".centro-documentacion-t")!.GetAttribute("title").Should().Be("En TALVEG: Vencido");
+        filas[1].QuerySelector(".centro-documentacion-t")!.GetAttribute("title").Should().Be("En TALVEG: Vigente");
+        filas.Should().OnlyContain(f => f.QuerySelector(".centro-documentacion-plataforma")!.TextContent.Trim() == "Sin datos de plataforma");
+        // El DTO entrega la regla de bloqueo, pero no el estado de acreditación: nunca se infiere «Sí».
+        filas.Should().OnlyContain(f => f.QuerySelectorAll("[role=cell]")[3].TextContent.Trim() == "—");
+        filas[0].QuerySelector(".centro-documentacion-fecha")!.TextContent.Should().Contain("01/10/2026");
+        filas[0].QuerySelector(".texto-fecha-copiable")!.GetAttribute("data-copiar-alt").Should().Be("01/10/2025");
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Empresa Sur").ClickAsync(new MouseEventArgs());
         Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Empresa, empresa, "Empresa Sur", "documentacion"));
         mediador.Enviadas.OfType<ObtenerDocumentacionEmpresasDeCentroQuery>().Should().ContainSingle().Which.CentroId.Should().Be(id);
-        var consultas = mediador.Enviadas.Count;
-        var franja = cut.FindComponents<FranjaEstado>().Single(c => c.Instance.EtiquetaAccesible == "Filtrar documentación del Centro por estado");
-        franja.Instance.Opciones.Select(o => o.Texto).Should().Equal("Vencido", "Pendiente", "En tolerancia", "Por vencer", "Sin confirmar", "Vigente");
-        await cut.InvokeAsync(() => franja.Instance.ValorChanged.InvokeAsync("Ficha360Vencido"));
-        cut.FindComponents<FilaRelacion>().Should().ContainSingle().Which.Instance.Nombre.Should().Be("Seguro");
-        cut.Markup.Should().Contain("Mostrando 1 de 2");
-        var buscar = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Buscar documento o Empresa empleadora");
-        await cut.InvokeAsync(() => buscar.Instance.ValorChanged.InvokeAsync("No existe"));
-        cut.FindComponents<FilaRelacion>().Should().BeEmpty();
-        cut.Markup.Should().Contain("Ningún documento coincide con los filtros").And.Contain("Mostrando 0 de 2");
-        mediador.Enviadas.Count.Should().Be(consultas);
         navegador.Uri.Should().Contain("q=Ana").And.Contain("estado=Vencido").And.Contain("extra=conservar");
     }
 

@@ -84,8 +84,8 @@ public partial class Centro360Gen2Tests
         mediador.Resumenes[id] = Resumen(id, "Centro Norte");
         mediador.Canales[id] = [CanalPlataforma("https://secundario.test") with { EsPrincipal = false }, CanalPlataforma("https://principal.test")];
         var cut = Renderizar(id);
-        cut.WaitForAssertion(() => cut.FindAll("aside a").Count(a => a.TextContent.Contains("Abrir portal")).Should().Be(2));
-        var portales = cut.FindAll("aside a").Where(a => a.TextContent.Contains("Abrir portal")).ToList();
+        cut.WaitForAssertion(() => cut.FindAll(".centro-ficha-canales a").Count(a => a.TextContent.Contains("Abrir portal")).Should().Be(2));
+        var portales = cut.FindAll(".centro-ficha-canales a").Where(a => a.TextContent.Contains("Abrir portal")).ToList();
         portales.Single(a => a.GetAttribute("href")!.Contains("principal.test")).ClassList.Should().Contain("boton-primario");
         portales.Single(a => a.GetAttribute("href")!.Contains("secundario.test")).ClassList.Should().Contain("boton-secundario");
         portales.Count(a => a.ClassList.Contains("boton-primario")).Should().Be(1);

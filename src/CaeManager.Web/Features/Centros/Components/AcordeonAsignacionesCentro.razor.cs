@@ -39,6 +39,32 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
     /// <summary>Empresa titular del centro, sujeto del ámbito Empresa (OD-13).</summary>
     [Parameter] public Guid EmpresaId { get; set; }
+    [Parameter] public bool MostrarEstadoPlataforma { get; set; }
+    [Parameter] public RenderFragment? Busqueda { get; set; }
+
+    private static bool BloqueaPlataforma(DocumentoRequeridoDto documento) =>
+        documento.AcreditacionesEnElCentro?.Any(a => a.Estado is EstadoAcreditacion.Rechazada or EstadoAcreditacion.PendienteDeSubir) == true;
+    private static bool TienePendienteValidacion(DocumentoRequeridoDto documento) =>
+        documento.AcreditacionesEnElCentro?.Any(a => a.Estado == EstadoAcreditacion.Subida) == true;
+    private static int OrdenPlataforma(DocumentoRequeridoDto documento) =>
+        BloqueaPlataforma(documento) ? 0 : TienePendienteValidacion(documento) ? 1 : 2;
+    private string TextoPlataforma(EstadoAcreditacion estado) => Textos[estado switch
+    {
+        EstadoAcreditacion.Rechazada => "PlataformaRechazado360",
+        EstadoAcreditacion.PendienteDeSubir => "PlataformaPendienteSubir360",
+        EstadoAcreditacion.Subida => "PlataformaPendienteValidacion360",
+        EstadoAcreditacion.Aceptada => "PlataformaValidado360",
+        EstadoAcreditacion.NoRequerida => "PlataformaNoExigido360",
+        _ => "PlataformaSinDatos360"
+    }];
+    private static TonoBadge TonoPlataforma(EstadoAcreditacion estado) => estado switch
+    {
+        EstadoAcreditacion.Rechazada or EstadoAcreditacion.PendienteDeSubir => TonoBadge.Peligro,
+        EstadoAcreditacion.Subida => TonoBadge.Advertencia,
+        EstadoAcreditacion.Aceptada => TonoBadge.Exito,
+        _ => TonoBadge.Neutro
+    };
+
     [Parameter] public string EmpresaNombre { get; set; } = string.Empty;
 
     /// <summary>

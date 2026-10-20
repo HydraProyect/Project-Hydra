@@ -87,9 +87,6 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private bool MuestraCajaPrevencion => _detalle is { FichaVisible: true };
     private bool _editarFichaVisible;
 
-    private bool HayDatosFicha => _detalle is { } detalle &&
-        (!string.IsNullOrWhiteSpace(detalle.CodigoCentro) || !string.IsNullOrWhiteSpace(detalle.Direccion) || !string.IsNullOrWhiteSpace(detalle.Contacto) || detalle.ContratoVigenteHasta is not null || MuestraCajaAcceso || MuestraCajaPrevencion);
-
     // Solo cambia el orden de presentación: _visitas[0] conserva la ventana de riesgo que eligió el lector.
     private IReadOnlyList<VisitaResumenDto> VisitasParaMostrar => _visitas
         .OrderBy(v => v.FechaInicio).ThenBy(v => v.FechaFin).ThenBy(v => v.VisitaId).ToList();
@@ -112,22 +109,14 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
                 EnAlerta: TrabajadoresConIncidencias > 0)
         },
         new(PestanaDocumentacionCentro, Textos["PestanaDocumentacionCentro360"]),
+        new(PestanaRequisitos, Textos["PestanaRequisitos360"]),
         new(PestanaVisitas, Textos["PestanaVisitas"])
         {
             Contador = new ContadorPestana(_visitas.Count, Textos["VisitasProgramadas360"])
         },
-        new(PestanaRequisitos, Textos["PestanaRequisitos360"]),
-        .. HayDatosFicha ? new PestanaDefinicion[] { new(PestanaFicha, Textos["PestanaFicha"]) } : [],
+        new(PestanaFicha, Textos["PestanaFicha"]),
         new(PestanaHistorial, Textos["PestanaHistorial"])
     ];
-
-    private void RevalidarPestanaFicha()
-    {
-        if (_detalle is null || _pestana != PestanaFicha || HayDatosFicha) return;
-        _pestana = PestanaTrabajadores;
-        _pestanaDeLaUrl = null;
-        NavigationManager.ActualizarFiltroEnUrl("pestana", null);
-    }
 
     private async Task CambiarPestana(string pestana)
     {
@@ -218,7 +207,6 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
 
         if (_centroCargado == CentroId)
         {
-            RevalidarPestanaFicha();
             await CargarLecturasFase2Async();
             return;
         }
@@ -296,8 +284,7 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private void ReiniciarParaNuevoCentro()
     {
         InvalidarCargas();
-        _busquedaDocumentacionCentro = string.Empty;
-        _estadosDocumentacionCentro = null;
+
         _documentacionEmpresas = [];
         _requisitosCentro = [];
         _lecturaDocumentacionCentro = null;
@@ -334,7 +321,6 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
                 return;
             }
 
-            RevalidarPestanaFicha();
 
             var pagina = await Mediator.Send(new ObtenerCentrosQuery(
                 Busqueda: null, ClienteId: null, Pagina: 1, TamanoPagina: 1, CentroId: centroId), _cancelacion);
@@ -433,7 +419,7 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         return valor;
     };
 
-    /// <summary>Aparte del resto: "Canales de gestión" es contexto de la barra lateral, no debe bloquear el render de la cabecera ni del cuerpo si tarda o falla.</summary>
+    /// <summary>Aparte del resto: "Canales de gestión" se muestra en Ficha, no debe bloquear el render de la cabecera ni del cuerpo si tarda o falla.</summary>
     private async Task CargarCanalesAsync()
     {
         var carga = ++_cargaCanales;
@@ -599,25 +585,6 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private void IrAEmpresaDocumentacion(DocumentacionEmpresaCentroDto empresa) =>
         NavigationManager.NavigateTo($"/{(empresa.DesdeRelacionSubcontrata ? "subcontratas" : "empresas")}/{empresa.EmpresaId}");
     private void IrATipoDocumento(Guid id) => NavigationManager.NavigateTo($"/documentos/tipos/{id}");
-
-    private string _busquedaDocumentacionCentro = string.Empty;
-    private string? _estadosDocumentacionCentro;
-    private static IReadOnlyList<OpcionFranjaEstado> OpcionesDocumentacionCentro =>
-        new[] { EstadoDocumento.Vencido, EstadoDocumento.Faltante, EstadoDocumento.EnTolerancia,
-            EstadoDocumento.Urgente, EstadoDocumento.SinConfirmar, EstadoDocumento.Vigente }
-        .Select(e => new OpcionFranjaEstado(EstadoDocumentoFicha360.Texto(e), EstadoDocumentoFicha360.Tono(e), EstadoDocumentoFicha360.Clave(e))).ToList();
-    private IEnumerable<DocumentoEmpresaCentroDto> DocumentosQueCoinciden(DocumentacionEmpresaCentroDto empresa) =>
-        empresa.Documentos.Where(d => string.IsNullOrWhiteSpace(_busquedaDocumentacionCentro)
-            || d.Nombre.Contains(_busquedaDocumentacionCentro, StringComparison.OrdinalIgnoreCase)
-            || empresa.Nombre.Contains(_busquedaDocumentacionCentro, StringComparison.OrdinalIgnoreCase));
-    private IReadOnlyList<DocumentoEmpresaCentroDto> DocumentosParaMostrar(DocumentacionEmpresaCentroDto empresa)
-    {
-        var estados = SeleccionEstados.Separar(_estadosDocumentacionCentro);
-        return DocumentosQueCoinciden(empresa).Where(d => estados.Count == 0 || estados.Contains(EstadoDocumentoFicha360.Clave(d.Estado))).ToList();
-    }
-    private IReadOnlyDictionary<string, int> RecuentosDocumentacionCentro => _documentacionEmpresas
-        .SelectMany(DocumentosQueCoinciden).GroupBy(d => EstadoDocumentoFicha360.Clave(d.Estado))
-        .ToDictionary(g => g.Key, g => g.Count());
 
     // ---------- Nota interna (mismo patrón que Empresa 360, editor en NotaInternaEditable) ----------
 
