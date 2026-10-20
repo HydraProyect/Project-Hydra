@@ -3,6 +3,11 @@
     Los Centros muestran actividad de la Empresa empleadora, sin asignación del Vehículo.
     Pendiente de backend: fecha de alta y acreditaciones por Cliente empresarial y Centro de Trabajo.
     La ausencia de ese lector no equivale a que todo esté validado en plataformas CAE.
+    El anillo mide los documentos REGISTRADOS, no los exigidos (no hay universo de documentos exigidos
+    a un vehículo): por eso no hay estado «Pendiente» y los documentos no bloquean el acceso de nadie.
+    Sin banda de incidencias bajo la cabecera (decisión de producto del 2026-10-09): los vencidos se ven,
+    y se abren, en su fila. Editar la identidad abre el panel del Vehículo (Context Workspace) en
+    «Información». Quién ve la nota interna lo decide el servidor (ObtenerVehiculoPorIdQuery).
 *@
 @page "/vehiculos/{VehiculoId:guid}"
 @rendermode InteractiveServer
