@@ -330,6 +330,17 @@ public class AlcanceDatosService(
         var rol = await currentUserService.ObtenerRolEfectivoAsync();
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
+        // Decisión Chris 2026-10-20: en un Tenant beneficiario delegado al que entra por la
+        // Asignación de Operación de su organización (que cubre el Tenant entero), el Coordinador
+        // CAE alcanza ese Tenant entero sin Asignación de Cartera. Solo el Gestor CAE sigue acotado
+        // por cartera. La señal la da la misma clase que resolvió el rol efectivo; un doble que no
+        // la dé cae en la rama de equipo de abajo (fallo cerrado). En su Tenant de origen, y por la
+        // vía heredada de soporte, el Coordinador CAE conserva el alcance de las carteras de su equipo.
+        if (rol == Roles.CoordinadorCae
+            && currentUserService is IEncargoDeAdministracionActual senal
+            && await senal.OperaPorAsignacionDeOperacionAsync())
+            return AlcanceCartera.Universal;
+
         return (rol, usuarioId) switch
         {
             (Roles.Cliente, { } id) => AlcanceCartera.DeLista(await ObtenerClienteIdsParaRolClienteAsync(id, cancellationToken)),

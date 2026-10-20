@@ -14,16 +14,29 @@ namespace CaeManager.Application.Tenants;
 /// Tenant propietario tiene Administrador propio: entonces rigen las
 /// exclusiones del 2026-10-08.
 /// </param>
-public readonly record struct RolEfectivoPorOperacion(string? Rol, Guid? EncargoAdministracionId, bool EncargoPleno = false)
+/// <param name="PorOperacion">
+/// El rol se resolvió por la vía de Asignación de Operación en un Tenant beneficiario
+/// delegado: es el perfil de origen, con sus poderes de Propiedad (decisión Chris 2026-10-20).
+/// </param>
+public readonly record struct RolEfectivoPorOperacion(
+    string? Rol, Guid? EncargoAdministracionId, bool EncargoPleno = false, bool PorOperacion = false)
 {
     public static RolEfectivoPorOperacion Ninguno => new(null, null);
 }
 
 /// <summary>
+/// <b>Deuda, sin consumidor en producción desde la decisión Chris 2026-10-20.</b> El rol
+/// efectivo en un Tenant beneficiario delegado es ya el perfil de origen con todos sus
+/// poderes, sin encargo (<see cref="TenantsBeneficiariosAutorizados.RolEnTenantDelegadoAsync"/>),
+/// así que este techo no lo calcula nadie. Se conserva, con sus pruebas, mientras el Encargo
+/// de administración siga existiendo; lo que sigue describe el diseño derogado.
+///
+/// <para>
 /// <b>El punto ÚNICO donde un Encargo de administración sube el techo del rol
 /// efectivo</b> (decisión D-8, 2026-10-08; ADR-011 § 2.7, enmienda del
-/// 2026-10-08, punto 7). Lo llama solo <c>CurrentUserService</c>, en la vía de
+/// 2026-10-08, punto 7). Lo llamaba solo <c>CurrentUserService</c>, en la vía de
 /// Operación (selección normal y fan-out). La vía heredada nunca se eleva.
+/// </para>
 ///
 /// <para>
 /// El encargo <b>no concede acceso</b>: sube el techo de quien ya lo tiene. Por
