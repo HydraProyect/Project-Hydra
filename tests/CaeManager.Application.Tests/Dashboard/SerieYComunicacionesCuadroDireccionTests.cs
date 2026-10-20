@@ -129,14 +129,14 @@ public class SerieYComunicacionesCuadroDireccionTests
     {
         var lineas = ObtenerSerieCuadroDireccionQueryHandler.SumarLineas(
         [
-            Linea(ConceptoTarifaOperadorCae.TrabajadorExtranjeroGestionado, 10, 2m),
-            Linea(ConceptoTarifaOperadorCae.TrabajadorExtranjeroGestionado, 5, 2m),
-            Linea(ConceptoTarifaOperadorCae.TrabajadorExtranjeroGestionado, 3, 1m, "USD"),
+            Linea(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, 10, 2m),
+            Linea(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, 5, 2m),
+            Linea(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, 3, 1m, "USD"),
             Linea(ConceptoTarifaOperadorCae.CentroNuevo, 2, 50m),
         ]);
 
         lineas.Should().HaveCount(3);
-        var trabajadoresEur = lineas.Single(l => l.Concepto == ConceptoTarifaOperadorCae.TrabajadorExtranjeroGestionado && l.MonedaIso == "EUR");
+        var trabajadoresEur = lineas.Single(l => l.Concepto == ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero && l.MonedaIso == "EUR");
         trabajadoresEur.Unidades.Should().Be(15);
         trabajadoresEur.Importe.Should().Be(30m);
         lineas.Single(l => l.MonedaIso == "USD").Importe.Should().Be(3m);

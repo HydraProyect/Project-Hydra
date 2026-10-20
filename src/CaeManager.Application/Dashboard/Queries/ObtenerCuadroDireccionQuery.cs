@@ -118,6 +118,12 @@ public record CuadroDireccionDto(
     CuadroDireccionSinCifras? SinCifras = null);
 
 /// <summary>Lo medido en un Tenant beneficiario, antes de marcar el estado del mes y fusionar.</summary>
+/// <param name="VisitasTrabajadorExtranjero">
+/// Unidades del concepto que el Operador CAE externo cobra por extranjeros (decisión de Chris, 2026-10-20): una por
+/// Trabajador con documento de extranjero en cada Visita no cancelada que empieza en el mes; un Trabajador recurrente
+/// en tres Visitas cuenta tres. Null si la medición no lo lleva (un cierre anterior a este campo): ese mes no se
+/// valora. Solo para la valoración (<see cref="ValoracionOperadorCae"/>); no es una cifra del Cuadro.
+/// </param>
 public record MedicionCuadroDireccion(
     int TrabajadoresActivos, int AltasTrabajadores, int BajasTrabajadores,
     int CentrosActivos, int AltasCentros,
@@ -128,7 +134,8 @@ public record MedicionCuadroDireccion(
     EstadoCifraMensual? EstadoPersistido = null,
     int? ExtranjerosActivos = null,
     int? ObrasNuevas = null,
-    IReadOnlyList<CentrosNuevosPorClienteDto>? CentrosNuevosPorCliente = null);
+    IReadOnlyList<CentrosNuevosPorClienteDto>? CentrosNuevosPorCliente = null,
+    int? VisitasTrabajadorExtranjero = null);
 
 /// <summary>
 /// Cuadro de dirección (incremento 2; sustituirá al Dashboard ejecutivo). Mismo patrón que
@@ -176,7 +183,8 @@ public class ObtenerCuadroDireccionQueryHandler(
     ICierresCuadroDireccion? cierresContext = null,
     CaeManager.Application.Gestiones.IGestionesQueryContext? gestionesContext = null,
     CaeManager.Application.Proyectos.IProyectosQueryContext? proyectosContext = null,
-    CaeManager.Application.Empresas.IEmpresasQueryContext? empresasContext = null)
+    CaeManager.Application.Empresas.IEmpresasQueryContext? empresasContext = null,
+    CaeManager.Application.Visitas.IVisitasQueryContext? visitasContext = null)
     : IRequestHandler<ObtenerCuadroDireccionQuery, CuadroDireccionDto>
 {
     public async Task<CuadroDireccionDto> Handle(ObtenerCuadroDireccionQuery request, CancellationToken cancellationToken)
@@ -211,7 +219,7 @@ public class ObtenerCuadroDireccionQueryHandler(
                     ? await cierresContext.CierresMensuales.SingleOrDefaultAsync(c => c.Anyo == mes.Anyo && c.Mes == mes.Mes && c.ReabiertoEnUtc == null, cancellationToken)
                     : null;
                 var medicion = cierre is null
-                    ? await new MedicionMensualCuadroDireccion(tenantActual, trabajadoresContext, centrosContext, documentosContext, reclamacionesContext, comunicacionesContext, mediator, gestionesContext, proyectosContext, empresasContext).MedirAsync(mes, corteUtc, cancellationToken)
+                    ? await new MedicionMensualCuadroDireccion(tenantActual, trabajadoresContext, centrosContext, documentosContext, reclamacionesContext, comunicacionesContext, mediator, gestionesContext, proyectosContext, empresasContext, visitasContext).MedirAsync(mes, corteUtc, cancellationToken)
                     : FotoCierreMensual.Leer(cierre.FotoJson).Medicion with
                     {
                         EstadoPersistido = cierre.Estimado ? EstadoCifraMensual.Estimado : EstadoCifraMensual.Existe,

@@ -21,11 +21,12 @@ public static class ValoracionOperadorCae
     /// <summary>
     /// Las unidades de un concepto en una medición; null si la medición no las lleva (una foto de cierre anterior al
     /// campo), y entonces el concepto no se valora: no se reconstruye ni se inventa. Es el único sitio que decide qué
-    /// cifra se cobra por cada concepto.
+    /// cifra se cobra por cada concepto: la visita de Trabajador extranjero cuenta Trabajador por Visita
+    /// (<see cref="MedicionCuadroDireccion.VisitasTrabajadorExtranjero"/>), no las personas de la cifra «Extranjeros».
     /// </summary>
     public static int? UnidadesDe(MedicionCuadroDireccion medicion, ConceptoTarifaOperadorCae concepto) => concepto switch
     {
-        ConceptoTarifaOperadorCae.TrabajadorExtranjeroGestionado => medicion.ExtranjerosActivos,
+        ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero => medicion.VisitasTrabajadorExtranjero,
         ConceptoTarifaOperadorCae.CentroNuevo => medicion.AltasCentros,
         ConceptoTarifaOperadorCae.ObraNueva => medicion.ObrasNuevas,
         _ => null,
@@ -33,7 +34,7 @@ public static class ValoracionOperadorCae
 
     public static string NombreDe(ConceptoTarifaOperadorCae concepto) => concepto switch
     {
-        ConceptoTarifaOperadorCae.TrabajadorExtranjeroGestionado => "Trabajador extranjero gestionado",
+        ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero => "Visita de Trabajador extranjero",
         ConceptoTarifaOperadorCae.CentroNuevo => "Centro nuevo",
         ConceptoTarifaOperadorCae.ObraNueva => "Obra nueva",
         _ => concepto.ToString(),

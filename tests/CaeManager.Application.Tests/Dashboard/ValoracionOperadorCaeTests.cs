@@ -13,9 +13,27 @@ public class ValoracionOperadorCaeTests
     private static readonly DateTime Enero = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
     private static readonly DateTime Marzo = new(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
 
-    private static MedicionCuadroDireccion Medicion(int altasCentros = 2, int? extranjeros = 5, int? obras = 1) =>
+    private static MedicionCuadroDireccion Medicion(int altasCentros = 2, int? visitasExtranjero = 5, int? obras = 1) =>
         new(10, 0, 0, 3, altasCentros, 0, 0, [], new KpisDashboardDto(0, 0, 0, 0, 0, 0, 0, 0),
-            ExtranjerosActivos: extranjeros, ObrasNuevas: obras);
+            ExtranjerosActivos: 2, ObrasNuevas: obras, VisitasTrabajadorExtranjero: visitasExtranjero);
+
+    [Fact]
+    public void La_visita_de_Trabajador_extranjero_cuenta_Trabajador_por_Visita_y_no_las_personas_activas()
+    {
+        var medicion = Medicion(visitasExtranjero: 3) with { ExtranjerosActivos = 1 };
+
+        ValoracionOperadorCae.UnidadesDe(medicion, ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero).Should().Be(3,
+            "un Trabajador extranjero recurrente en tres Visitas del mes cuenta tres (decisión de Chris, 2026-10-20)");
+        ValoracionOperadorCae.UnidadesDe(Medicion(visitasExtranjero: null), ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero)
+            .Should().BeNull("una foto de cierre anterior al campo no se valora ni se reconstruye");
+    }
+
+    [Fact]
+    public void Un_mes_cerrado_antes_de_existir_tarifas_sale_sin_importe()
+    {
+        ValoracionOperadorCae.Valorar(Medicion(), Empresa,
+            [Tarifa(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, 20m, Marzo)], Enero).Should().BeEmpty();
+    }
 
     private static TarifaOperadorCaeDto Tarifa(ConceptoTarifaOperadorCae concepto, decimal precio, DateTime desde, bool activa = true, Guid? empresa = null) =>
         new(empresa ?? Empresa, concepto, precio, "EUR", activa, desde);
@@ -25,7 +43,7 @@ public class ValoracionOperadorCaeTests
     {
         var lineas = ValoracionOperadorCae.Valorar(Medicion(), Empresa,
         [
-            Tarifa(ConceptoTarifaOperadorCae.TrabajadorExtranjeroGestionado, 20m, Enero),
+            Tarifa(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, 20m, Enero),
             Tarifa(ConceptoTarifaOperadorCae.CentroNuevo, 50m, Enero),
             Tarifa(ConceptoTarifaOperadorCae.ObraNueva, 100m, Enero),
         ], Marzo);

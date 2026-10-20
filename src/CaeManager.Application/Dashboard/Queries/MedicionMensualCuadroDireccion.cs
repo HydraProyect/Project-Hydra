@@ -18,7 +18,8 @@ public class MedicionMensualCuadroDireccion(
     IMediator mediator,
     CaeManager.Application.Gestiones.IGestionesQueryContext? gestionesContext = null,
     CaeManager.Application.Proyectos.IProyectosQueryContext? proyectosContext = null,
-    CaeManager.Application.Empresas.IEmpresasQueryContext? empresasContext = null)
+    CaeManager.Application.Empresas.IEmpresasQueryContext? empresasContext = null,
+    CaeManager.Application.Visitas.IVisitasQueryContext? visitasContext = null)
 {
     public virtual async Task<MedicionCuadroDireccion> MedirAsync(MesCuadroDireccion mes, DateTime corteUtc, CancellationToken cancellationToken, bool medirDocumental = true)
     {
@@ -101,12 +102,37 @@ public class MedicionMensualCuadroDireccion(
                 new CentrosNuevosPorClienteDto(tenantId, a.Cliente, nombres.GetValueOrDefault(a.Cliente) ?? string.Empty, a.Centros)));
         }
 
+        int? visitasExtranjero = visitasContext is null ? null : await ContarVisitasTrabajadorExtranjeroAsync(visitasContext, mes, corteUtc, cancellationToken);
+
         return new MedicionCuadroDireccion(
             trabajadoresActivos, altasTrabajadores, bajasTrabajadores,
             centrosActivos, altasCentros,
             documentosGestionados, requerimientos,
             solicitudes, documental, gestiones, ExtranjerosActivos: extranjeros,
-            ObrasNuevas: obrasNuevas, CentrosNuevosPorCliente: porCliente);
+            ObrasNuevas: obrasNuevas, CentrosNuevosPorCliente: porCliente,
+            VisitasTrabajadorExtranjero: visitasExtranjero);
+    }
+
+    /// <summary>
+    /// Unidades de la visita de Trabajador extranjero (decisión de Chris, 2026-10-20): una por Trabajador en cada
+    /// Visita no cancelada que empieza en el mes, si su documento es de extranjero. Es el único punto que decide qué
+    /// cuenta como extranjero aquí; hoy aplica el criterio vigente de la pantalla «Facturación»
+    /// (<see cref="ValidadorIdentificacion.EsDocumentoDeExtranjero"/> sobre el documento actual del Trabajador). Cuando
+    /// la Visita congele el documento del Trabajador, este método pasará a leer esa foto.
+    /// </summary>
+    private async Task<int> ContarVisitasTrabajadorExtranjeroAsync(
+        CaeManager.Application.Visitas.IVisitasQueryContext visitas, MesCuadroDireccion mes, DateTime corteUtc, CancellationToken cancellationToken)
+    {
+        var desde = DateOnly.FromDateTime(mes.InicioUtc);
+        var hasta = DateOnly.FromDateTime(mes.FinUtc);
+        var visitasDelMes = visitas.Visitas
+            .Where(v => !v.EstaCancelada && v.CreadoEnUtc <= corteUtc && v.FechaInicio >= desde && v.FechaInicio < hasta)
+            .Select(v => v.Id);
+        var documentos = await visitas.VisitasTrabajadores
+            .Where(vt => visitasDelMes.Contains(vt.VisitaId))
+            .Join(trabajadoresContext.Trabajadores, vt => vt.TrabajadorId, t => t.Id, (vt, t) => t.Dni)
+            .ToListAsync(cancellationToken);
+        return documentos.Count(ValidadorIdentificacion.EsDocumentoDeExtranjero);
     }
 
 }

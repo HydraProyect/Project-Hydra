@@ -869,7 +869,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     {
         get
         {
-            var visitas = PuntoActual?.Facturacion?.Where(l => l.Concepto == ConceptoTarifaOperadorCae.TrabajadorExtranjeroGestionado).ToList();
+            var visitas = PuntoActual?.Facturacion?.Where(l => l.Concepto == ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero).ToList();
             return visitas is { Count: > 0 } ? Numero(visitas.Sum(l => l.Unidades)) : Textos["SinDato"].Value;
         }
     }
@@ -882,11 +882,11 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     private decimal? PrecioExtranjero => decimal.TryParse(_precioExtranjero.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var precio) && precio >= 0 ? precio : null;
 
-    private int ExtranjerosMes => PuntoActual?.Cifras.Extranjeros?.Valor ?? 0;
+    private int ExtranjerosMes => PuntoActual?.UnidadesDe(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero) ?? 0;
 
     private string ImporteExtranjeroMes => Importe((PrecioExtranjero ?? 0) * ExtranjerosMes);
 
-    private string ImporteExtranjeroVentana => Importe((PrecioExtranjero ?? 0) * PuntosVentana.Sum(p => (p.Cifras.Extranjeros?.Valor ?? 0)));
+    private string ImporteExtranjeroVentana => Importe((PrecioExtranjero ?? 0) * PuntosVentana.Sum(p => p.UnidadesDe(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero)));
 
     private string ImporteSimuladoMes => Importe((PrecioSimulado ?? 0) * AltasCentroSinTarifa);
 
@@ -1060,7 +1060,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     {
         "facturacion" => punto.Facturacion is null ? null : (double)(punto.ImporteEn(MonedaAnual) ?? 0m),
         "altas" => punto.Cifras.AltasTrabajadores.Valor,
-        "extranjeros" => (punto.Cifras.Extranjeros?.Valor ?? 0),
+        "extranjeros" => punto.UnidadesDe(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero),
         _ => punto.Cifras.Gestiones?.Valor,
     };
 
@@ -1123,7 +1123,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     /// <summary>Visitas de Trabajador extranjero facturadas en el mes de la Empresa; sin tarifa de visita no hay dato.</summary>
     private string ExtranjerosDe(Guid tenantId) =>
-        PuntoDeEmpresa(tenantId)?.Cifras.Extranjeros?.Valor is > 0 and var visitas
+        PuntoDeEmpresa(tenantId)?.UnidadesDe(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero) is > 0 and var visitas
             ? Numero(visitas)
             : Textos["SinDato"].Value;
 
@@ -1168,7 +1168,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     /// <summary>Gestiones de extranjeros del tramo (visitas facturables de Trabajador extranjero, la misma medida que el KPI); sin tarifa de visita no hay dato.</summary>
     private string ExtranjerosAcumulados(PuntoSerieCuadroDto[] meses)
     {
-        var visitas = meses.Sum(m => (m.Cifras.Extranjeros?.Valor ?? 0));
+        var visitas = meses.Sum(m => m.UnidadesDe(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero));
         return visitas > 0 ? Numero(visitas) : Textos["SinDato"].Value;
     }
 

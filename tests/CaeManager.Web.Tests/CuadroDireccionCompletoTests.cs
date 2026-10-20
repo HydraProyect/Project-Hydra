@@ -37,7 +37,7 @@ public partial class CuadroDireccionTests
         new(concepto, nombre, moneda, unidades, importe);
 
     private static IReadOnlyList<LineaFacturacionCuadroDto> LineasDeTarifa() =>
-        [Linea(ConceptoTarifaOperadorCae.ObraNueva, "Obra nueva", 100, 150m), Linea(ConceptoTarifaOperadorCae.TrabajadorExtranjeroGestionado, "Trabajador extranjero gestionado", 300, 600m)];
+        [Linea(ConceptoTarifaOperadorCae.ObraNueva, "Obra nueva", 100, 150m), Linea(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, "Visita de Trabajador extranjero", 300, 600m)];
 
     private IRenderedComponent<CuadroDireccionPagina> PintarConSerie(
         CuadroDireccionDto cuadro, IReadOnlyList<LineaFacturacionCuadroDto>? lineas, string rol = Roles.DireccionCae) =>

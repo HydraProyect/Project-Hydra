@@ -37,14 +37,17 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             // Tabla del Operador CAE externo (plano Comercial): RLS estándar por TenantId, como toda EntidadConTenant.
             // Historial de versiones: el runtime inserta y lee, nunca actualiza (DELETE solo para la purga del Tenant).
-            // Sin GRANT a cae_app_soporte: Soporte TALVEG no es Operador CAE y no lee sus precios.
+            // Los privilegios por defecto del esquema conceden de más (UPDATE al runtime, lectura a Soporte): se
+            // revocan antes de conceder lo justo. Soporte TALVEG no es Operador CAE y no lee sus precios.
             migrationBuilder.Sql("""
                 ALTER TABLE public."TarifasOperadorCae" ENABLE ROW LEVEL SECURITY;
                 ALTER TABLE ONLY public."TarifasOperadorCae" FORCE ROW LEVEL SECURITY;
                 CREATE POLICY aislamiento_tenant ON public."TarifasOperadorCae"
                     USING (("TenantId" = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid))
                     WITH CHECK (("TenantId" = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid));
+                REVOKE ALL ON TABLE public."TarifasOperadorCae" FROM cae_app_runtime;
                 GRANT SELECT,INSERT,DELETE ON TABLE public."TarifasOperadorCae" TO cae_app_runtime;
+                REVOKE ALL ON TABLE public."TarifasOperadorCae" FROM cae_app_soporte;
                 """);
         }
 

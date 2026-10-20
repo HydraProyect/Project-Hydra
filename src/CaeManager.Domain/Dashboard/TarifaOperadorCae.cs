@@ -10,8 +10,11 @@ namespace CaeManager.Domain.Dashboard;
 /// </summary>
 public enum ConceptoTarifaOperadorCae
 {
-    /// <summary>Trabajadores extranjeros gestionados en el mes (la cifra «Extranjeros» del Cuadro de dirección).</summary>
-    TrabajadorExtranjeroGestionado = 1,
+    /// <summary>
+    /// Una unidad por Trabajador extranjero en cada Visita del mes (decisión de Chris, 2026-10-20): un Trabajador
+    /// recurrente en tres Centros cuenta tres. No es la cifra «Extranjeros» del Cuadro (personas activas).
+    /// </summary>
+    VisitaTrabajadorExtranjero = 1,
 
     /// <summary>Centros de trabajo dados de alta en el mes.</summary>
     CentroNuevo = 2,
