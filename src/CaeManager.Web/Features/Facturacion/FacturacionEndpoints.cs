@@ -140,12 +140,15 @@ public static class FacturacionEndpoints
 
     private static string EstadoTexto(
         CaeManager.Application.Dashboard.Queries.EstadoCifraMensual estado,
-        Microsoft.Extensions.Localization.IStringLocalizer<Recursos.TextosFacturacion> textos) => estado switch
+        Microsoft.Extensions.Localization.IStringLocalizer<Recursos.TextosFacturacion> textos)
     {
-        CaeManager.Application.Dashboard.Queries.EstadoCifraMensual.Existe => textos["EstadoCerrado"].Value,
-        CaeManager.Application.Dashboard.Queries.EstadoCifraMensual.Estimado => textos["EstadoSinCerrar"].Value,
-        _ => textos["EstadoEnCurso"].Value,
-    };
+        return estado switch
+        {
+            CaeManager.Application.Dashboard.Queries.EstadoCifraMensual.Existe => textos["EstadoCerrado"].Value,
+            CaeManager.Application.Dashboard.Queries.EstadoCifraMensual.Estimado => textos["EstadoSinCerrar"].Value,
+            _ => textos["EstadoEnCurso"].Value,
+        };
+    }
 
     private static XLCellValue Unidades(int? unidades, Microsoft.Extensions.Localization.IStringLocalizer<Recursos.TextosFacturacion> textos) =>
         unidades is { } u ? u : textos["SinDato"].Value;
