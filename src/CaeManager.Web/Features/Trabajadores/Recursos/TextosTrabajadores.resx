@@ -786,4 +786,17 @@
   <data name="CorregirDocumentoActual" xml:space="preserve">
     <value>Documento actual</value>
   </data>
+  <data name="PestanaPlataformas" xml:space="preserve"><value>Plataformas</value></data>
+  <data name="PlataformasDescripcion" xml:space="preserve"><value>Estado de la documentación en las plataformas de cada Cliente empresarial.</value></data>
+  <data name="PlataformasEstadoAceptada" xml:space="preserve"><value>Validado</value></data>
+  <data name="PlataformasEstadoPendienteDeSubir" xml:space="preserve"><value>Pendiente de subir</value></data>
+  <data name="PlataformasEstadoRechazada" xml:space="preserve"><value>Rechazado</value></data>
+  <data name="PlataformasEstadoSubida" xml:space="preserve"><value>Pendiente de validación</value></data>
+  <data name="PlataformasIrCentro" xml:space="preserve"><value>Ir al Centro 360</value></data>
+  <data name="PlataformasNombre" xml:space="preserve"><value>Plataforma {0}</value></data>
+  <data name="PlataformasSinResultados" xml:space="preserve"><value>Sin resultados en plataformas</value></data>
+  <data name="PlataformasSinResultadosDescripcion" xml:space="preserve"><value>No hay acreditaciones disponibles para este filtro.</value></data>
+  <data name="PlataformasSoloIncidencias" xml:space="preserve"><value>Solo incidencias · {0}</value></data>
+  <data name="PlataformasTodo" xml:space="preserve"><value>Todo · {0}</value></data>
+  <data name="CabeceraExtranjeroCobrable" xml:space="preserve"><value>Extranjero (cobrable)</value></data>
 </root>
