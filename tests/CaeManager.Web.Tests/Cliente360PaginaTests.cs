@@ -1,3 +1,4 @@
+﻿using CaeManager.Application.Clientes.Commands.EliminarCliente;
 using CaeManager.Web.Components.Layout;
 using AngleSharp.Dom;
 using Bunit;
@@ -16,7 +17,6 @@ using CaeManager.Application.Clientes.Queries.ObtenerPlataformaCaeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerResumenCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasConCentrosDeCliente;
-using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConCumplimientoDeSubcontrata;
 using CaeManager.Application.Common;
 using CaeManager.Application.TiposDocumento.Commands.EstablecerToleranciaClienteEmpresarial;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerToleranciasClienteEmpresarial;
@@ -78,8 +78,6 @@ public class Cliente360PaginaTests : BunitContext
         public Dictionary<Guid, List<EmpresaDeClienteDto>> EmpresasPorCliente { get; } = [];
         public Dictionary<Guid, List<CentroListaDto>> CentrosPorCliente { get; } = [];
         public List<SubcontrataDeClienteDto> Subcontratas { get; } = [];
-        public List<CentroCumplimientoSubcontrataDto> CentrosSubcontrata { get; } = [];
-        public Dictionary<Guid, Task<IReadOnlyList<SubcontrataConCentrosDeClienteDto>>> SubcontratasPendientes { get; } = [];
         public List<BlindajeEmpresaDto> Certificaciones { get; } = [];
         public List<SolicitudCertificacionTgssDto> HistorialCertificaciones { get; } = [];
 
@@ -99,15 +97,16 @@ public class Cliente360PaginaTests : BunitContext
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
-            if (request is ObtenerSubcontratasConCentrosDeClienteQuery q && SubcontratasPendientes.TryGetValue(q.Id, out var pendiente))
-                return (TResponse)(object)await pendiente;
             if (request is ObtenerPersonasConCarteraQuery && GestorCaePendiente is { } gestor)
                 await gestor;
             return (TResponse)Responder(request)!;
         }
 
+        public Result ResultadoBaja { get; set; } = Result.Exito();
+
         private object? Responder(object request) => request switch
         {
+            EliminarClienteCommand => ResultadoBaja,
             ObtenerClientePorIdQuery q => Detalles.GetValueOrDefault(q.Id),
             ObtenerResumenClienteQuery q => Resumenes.GetValueOrDefault(q.ClienteId),
             ObtenerCentrosQuery q when q.ClienteId is { } c && CentrosPorCliente.TryGetValue(c, out var propios) =>
@@ -117,7 +116,6 @@ public class Cliente360PaginaTests : BunitContext
             ObtenerEmpresasDeClienteQuery q when EmpresasPorCliente.TryGetValue(q.ClienteId, out var propias) => propias,
             ObtenerEmpresasDeClienteQuery => Empresas,
             ObtenerSubcontratasDeClienteQuery => Subcontratas,
-            ObtenerSubcontratasConCentrosDeClienteQuery => Subcontratas.Select(s => new SubcontrataConCentrosDeClienteDto(s, CentrosSubcontrata)).ToList(),
             ObtenerBlindajeEmpresasDeClienteQuery => Certificaciones,
             ObtenerHistorialCertificacionesTgssQuery => HistorialCertificaciones,
             SolicitarCertificacionTgssCommand => Result.Exito(Guid.NewGuid()),
@@ -226,9 +224,9 @@ public class Cliente360PaginaTests : BunitContext
         elementos.Select(e => e.TextContent.Trim()).ToList();
 
     [Theory]
-    [InlineData(1, "1 bloqueado por la plataforma")]
-    [InlineData(2, "2 bloqueados por la plataforma")]
-    public void El_detalle_cuenta_el_bloqueo_de_plataforma_sin_estado_documental(int cantidad, string esperado)
+    [InlineData(1)]
+    [InlineData(2)]
+    public void El_bloqueo_de_plataforma_es_un_rotulo_junto_al_nombre_sin_contador(int cantidad)
     {
         var (id, mediador) = ClienteBase();
         var centro = Centro("Centro solo plataforma", EstadoCentro.Bloqueado) with
@@ -239,8 +237,9 @@ public class Cliente360PaginaTests : BunitContext
         mediador.Centros.Add(centro);
         Registrar(mediador);
         var cut = Renderizar(id);
-        cut.Find(".fila-relacion-detalle").TextContent.Should().Be(esperado);
-        cut.Find(".fila-relacion-detalle").TextContent.Should().NotContain("vencido").And.NotContain("pendiente");
+        cut.Find(".fila-relacion-titulo .cliente360-bloqueo-plataforma").TextContent.Should().Be("Bloqueo de la plataforma CAE");
+        cut.Find(".fila-relacion-detalle").TextContent.Should().Be("Empresas: Ibertec GmbH");
+        cut.Find(".fila-relacion").TextContent.Should().NotContain("bloqueado por la plataforma");
     }
 
     [Fact]
@@ -255,6 +254,30 @@ public class Cliente360PaginaTests : BunitContext
         filtro.QuerySelector(".franja-estado-recuento")!.TextContent.Should().Be("0");
         cut.FindAll(".fila-relacion").Should().BeEmpty();
         Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=Centro").And.Contain("extra=conservar");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task La_baja_pide_confirmacion_y_respeta_el_resultado_del_servidor(bool exito)
+    {
+        var (id, mediador) = ClienteBase();
+        if (!exito) mediador.ResultadoBaja = Result.Fallo(Error.Crear("Centros", "Hay Centros activos."));
+        Registrar(mediador);
+        var cut = Renderizar(id);
+        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=menuitem]").Single(b => b.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
+        mediador.Enviadas.OfType<EliminarClienteCommand>().Should().BeEmpty();
+        cut.Find("[role=dialog]").TextContent.Should().Contain("Refrielectric S.A.");
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
+        mediador.Enviadas.OfType<EliminarClienteCommand>().Should().ContainSingle(q => q.Id == id);
+        if (exito)
+            Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/clientes");
+        else
+        {
+            Services.GetRequiredService<NavigationManager>().Uri.Should().Contain(id.ToString());
+            cut.Find("[role=alert]").TextContent.Should().Contain("Hay Centros activos.");
+        }
     }
 
     // ── Cabecera ──────────────────────────────────────────────────────────
@@ -771,7 +794,7 @@ public class Cliente360PaginaTests : BunitContext
     // Decisión del 2026-10-09: los Centros son del Cliente de la ficha, que es su titular. «Empresa: X» bajo el Centro se
     // leía como si la Empresa fuera la dueña.
     [Fact]
-    public void Con_una_sola_Empresa_contratista_la_fila_del_centro_no_nombra_ninguna_Empresa()
+    public void Con_una_sola_Empresa_contratista_la_fila_del_centro_tambien_nombra_la_Empresa()
     {
         var (id, mediador) = ClienteBase();
         mediador.Centros.AddRange([
@@ -786,13 +809,13 @@ public class Cliente360PaginaTests : BunitContext
         cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerSubcontratasDeClienteQuery>().Should().ContainSingle());
         cut.FindAll(".pestanas-boton").Select(b => b.TextContent).Should().NotContain(t => t.StartsWith("Empresas"));
         var filas = cut.FindAll("li.fila-relacion");
-        filas[0].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("3 vencidos");
-        filas[1].QuerySelector(".fila-relacion-detalle").Should().BeNull();
-        cut.FindAll("li.fila-relacion").Select(f => f.TextContent).Should().NotContain(t => t.Contains("Empresa:") || t.Contains("Montajes Ebro"));
+        filas[0].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresas: Montajes Ebro S.L.3 vencidos");
+        filas[1].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresas: Montajes Ebro S.L.");
+        cut.FindAll("li.fila-relacion").Should().OnlyContain(f => f.TextContent.Contains("Empresas: Montajes Ebro S.L."));
     }
 
     [Fact]
-    public void Con_varias_Empresas_contratistas_la_fila_dice_cual_entra_como_contratista_nunca_como_duena()
+    public void Con_varias_Empresas_contratistas_las_filas_rotulan_Empresas()
     {
         var (id, mediador) = ClienteBase();
         mediador.Centros.AddRange([
@@ -807,13 +830,13 @@ public class Cliente360PaginaTests : BunitContext
 
         // Maqueta 17-10: una línea por cosa bajo el nombre (contratista; motivos).
         cut.WaitForAssertion(() => Textos(cut.FindAll("li.fila-relacion .cliente360-linea-detalle")).Should().Equal([
-            "Entra como contratista: Montajes Ebro S.L.", "3 vencidos · 1 próximo",
-            "Entra como contratista: Ibertec GmbH"]));
+            "Empresas: Montajes Ebro S.L.", "3 vencidos · 1 próximo",
+            "Empresas: Ibertec GmbH"]));
         cut.FindAll("li.fila-relacion").Select(f => f.TextContent).Should().NotContain(t => t.Contains("Empresa:"));
     }
 
     [Fact]
-    public void Al_pasar_a_un_Cliente_con_una_Empresa_contratista_se_nombra_en_la_cabecera_y_no_en_las_filas()
+    public void Al_cambiar_de_Cliente_empresarial_las_filas_actualizan_sus_Empresas()
     {
         var (idA, mediador) = ClienteBase();
         mediador.CentrosPorCliente[idA] = [Centro("Planta Barakaldo", EstadoCentro.Vigente, empresa: "Montajes Ebro S.L.")];
@@ -828,16 +851,16 @@ public class Cliente360PaginaTests : BunitContext
         Registrar(mediador);
         var cut = Renderizar(idA);
         cut.WaitForAssertion(() => cut.Find("li.fila-relacion .fila-relacion-detalle").TextContent
-            .Should().Be("Entra como contratista: Montajes Ebro S.L."));
+            .Should().Be("Empresas: Montajes Ebro S.L."));
 
         Services.GetRequiredService<NavigationManager>().NavigateTo($"clientes/{idB}");
         cut.Render(p => p.Add(x => x.ClienteId, idB));
 
         cut.WaitForAssertion(() => cut.Find("li.fila-relacion .fila-relacion-nombre").TextContent.Should().Contain("Nave logística Tudela"));
         cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerEmpresasDeClienteQuery>().Should().Contain(new ObtenerEmpresasDeClienteQuery(idB)));
-        cut.FindAll("li.fila-relacion .fila-relacion-detalle").Should().BeEmpty();
+        cut.Find("li.fila-relacion .fila-relacion-detalle").TextContent.Should().Be("Empresas: Montajes Ebro S.L.");
         cut.FindAll("li.fila-relacion").Select(f => f.TextContent)
-            .Should().NotContain(t => t.Contains("Entra como contratista"));
+            .Should().Contain(t => t.Contains("Empresas: Montajes Ebro S.L."));
         cut.Find(".cabecera-identidad-datos").TextContent.Should().Contain("Contratista: Montajes Ebro S.L.");
     }
 
@@ -966,7 +989,7 @@ public class Cliente360PaginaTests : BunitContext
         if (puedeEscribir)
         {
             acciones.QuerySelector(".menu-acciones-disparador")!.Click();
-            Textos(cut.FindAll("[role=menuitem]")).Should().Equal(["Tolerancia de documentos"]);
+            Textos(cut.FindAll("[role=menuitem]")).Should().Equal(["Tolerancia de documentos", "Dar de baja"]);
         }
     }
 
@@ -1023,11 +1046,13 @@ public class Cliente360PaginaTests : BunitContext
         // Maqueta 17-10: el nombre abre la consulta rápida (botón) y el icono 360 es el enlace a la página del Centro.
         filas.Select(f => f.QuerySelector("a.boton-360")!.GetAttribute("href"))
             .Should().Equal([$"/centros/{bloqueado.Id}", $"/centros/{vigente.Id}"], "el orden es el de la consulta: peor primero");
+        filas.Select(f => f.QuerySelector("a.fila-relacion-enlace")!.GetAttribute("href"))
+            .Should().Equal($"/centros/{bloqueado.Id}", $"/centros/{vigente.Id}");
         filas.Should().OnlyContain(f => f.QuerySelector("a.fila-relacion-nombre") == null);
         filas[0].GetAttribute("data-tono").Should().Be("peligro", "la fila con problema se tiñe, como .fila-tinte-rojo");
         filas[1].GetAttribute("data-tono").Should().BeNull();
-        filas[0].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("3 vencidos · 1 próximo");
-        filas[1].QuerySelector(".fila-relacion-detalle").Should().BeNull("sin recuentos ni Empresa que distinguir no hay segunda línea");
+        filas[0].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresas: Montajes Ebro S.L.3 vencidos · 1 próximo");
+        filas[1].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresas: Ibertec GmbH");
         filas[0].QuerySelector(".cliente360-cumplimiento")!.TextContent.Trim().Should().Be("40 %");
         filas[1].QuerySelector(".cliente360-cumplimiento")!.TextContent.Trim().Should().Be("Sin requisitos");
         filas[0].QuerySelector(".badge")!.TextContent.Trim().Should().Be(Features.Centros.EstadoCentroUi.Texto(EstadoCentro.Bloqueado));
@@ -1075,7 +1100,7 @@ public class Cliente360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void El_nombre_de_una_subcontrata_enlaza_a_su_pagina_y_el_boton_360_abre_el_panel()
+    public void El_nombre_de_una_subcontrata_abre_el_panel_y_el_boton_360_enlaza_a_su_pagina()
     {
         var (id, mediador) = ClienteBase();
         var subcontrata = new SubcontrataDeClienteDto(Guid.NewGuid(), "Andamios Cantábrico S.L.");
@@ -1092,87 +1117,18 @@ public class Cliente360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void Subcontrata_despliega_Centros_y_su_documentacion_contextual()
-    {
-        var (id, mediador) = ClienteBase();
-        mediador.Subcontratas.Add(new(Guid.NewGuid(), "Contraparte"));
-        var centro = Guid.NewGuid();
-        mediador.CentrosSubcontrata.Add(new(new(centro, "Centro Norte", "Cliente", 2), new(1, 2), EstadoDocumento.Faltante));
-        Registrar(mediador);
-        var cut = Renderizar(id, "?pestana=subcontratas");
-        cut.Find(".fila-relacion-detalle").TextContent.Should().Be("1 centro de este Cliente");
-        cut.FindAll("button.fila-relacion-nombre").Should().ContainSingle();
-        cut.Find(".fila-relacion-desplegar").Click();
-        var fila = cut.Find($"a[href='/centros/{centro}']").Closest("li")!;
-        fila.TextContent.Should().Contain("50%").And.Contain("1 de 2 al día").And.Contain("Pendiente");
-        fila.GetAttribute("data-tono").Should().Be("peligro");
-        cut.Markup.Should().Contain("Documentación de sus Trabajadores exigida en los Centros de este Cliente.");
-        cut.Find(".fila-relacion-desplegar").Click();
-        cut.FindAll($"a[href='/centros/{centro}']").Should().BeEmpty();
-    }
-
-    [Fact]
-    public void Subcontrata_sin_Centros_visibles_muestra_vacio_contextual()
+    public void Subcontratas_muestra_filas_simples_sin_lectura_documental_de_Centros()
     {
         var (id, mediador) = ClienteBase();
         mediador.Subcontratas.Add(new(Guid.NewGuid(), "Contraparte"));
         Registrar(mediador);
         var cut = Renderizar(id, "?pestana=subcontratas");
-        cut.Find(".fila-relacion-desplegar").Click();
-        cut.Markup.Should().Contain("Sin actividad en Centros visibles de este Cliente");
-    }
 
-    [Fact]
-    public void Centro_sin_requisitos_no_inventa_un_porcentaje()
-    {
-        var (id, mediador) = ClienteBase();
-        mediador.Subcontratas.Add(new(Guid.NewGuid(), "Contraparte"));
-        mediador.CentrosSubcontrata.Add(new(new(Guid.NewGuid(), "Centro Norte", "Cliente", 2), FraccionCumplimiento.SinRequisitos, null));
-        Registrar(mediador);
-        var cut = Renderizar(id, "?pestana=subcontratas");
-        cut.Find(".fila-relacion-desplegar").Click();
-        cut.Find(".fila-relacion-desplegado").TextContent.Should().Contain("Sin requisitos").And.NotContain("%");
-    }
-
-    [Fact]
-    public void Centros_de_Subcontratas_se_leen_solo_al_abrir_la_pestana_y_se_conservan_al_reabrir()
-    {
-        var (id, mediador) = ClienteBase();
-        mediador.Subcontratas.Add(new(Guid.NewGuid(), "Contraparte"));
-        Registrar(mediador);
-        var cut = Renderizar(id);
-        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerSubcontratasDeClienteQuery>().Should().ContainSingle());
+        cut.WaitForAssertion(() => cut.FindAll("li.fila-relacion").Should().ContainSingle());
+        cut.FindAll(".fila-relacion-desplegar").Should().BeEmpty();
+        cut.FindAll(".fila-relacion-detalle").Should().BeEmpty();
         mediador.Enviadas.OfType<ObtenerSubcontratasConCentrosDeClienteQuery>().Should().BeEmpty();
-        cut.FindAll(".pestanas-boton").Single(b => b.TextContent.StartsWith("Subcontratas")).Click();
-        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerSubcontratasConCentrosDeClienteQuery>().Should().ContainSingle());
-        cut.FindAll(".pestanas-boton").Single(b => b.TextContent.StartsWith("Centros")).Click();
-        cut.FindAll(".pestanas-boton").Single(b => b.TextContent.StartsWith("Subcontratas")).Click();
-        mediador.Enviadas.OfType<ObtenerSubcontratasConCentrosDeClienteQuery>().Should().ContainSingle();
     }
-
-    [Fact]
-    public async Task Respuesta_tardia_de_Subcontratas_no_mezcla_dos_Clientes_empresariales()
-    {
-        var (id, mediador) = ClienteBase();
-        var otro = Guid.NewGuid();
-        var contraparte = new SubcontrataDeClienteDto(Guid.NewGuid(), "Contraparte compartida");
-        mediador.Subcontratas.Add(contraparte);
-        mediador.CentrosSubcontrata.Add(new(new(Guid.NewGuid(), "Centro de B", "Cliente B", 1), new(1, 1), EstadoDocumento.Vigente));
-        mediador.Detalles[otro] = mediador.Detalles[id] with { Id = otro, RazonSocial = "Cliente B" };
-        var pendiente = new TaskCompletionSource<IReadOnlyList<SubcontrataConCentrosDeClienteDto>>();
-        mediador.SubcontratasPendientes[id] = pendiente.Task;
-        Registrar(mediador);
-        var cut = Renderizar(id, "?pestana=subcontratas");
-        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerSubcontratasConCentrosDeClienteQuery>().Should().ContainSingle());
-        cut.Render(p => p.Add(x => x.ClienteId, otro));
-        pendiente.SetResult([new(contraparte, [new(new(Guid.NewGuid(), "Centro anterior", "Cliente A", 1), new(0, 1), EstadoDocumento.Faltante)])]);
-        await cut.InvokeAsync(() => Task.CompletedTask);
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Cliente B"));
-        cut.Find(".fila-relacion-desplegar").Click();
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro de B").And.NotContain("Centro anterior"));
-    }
-
-    // ── Error ─────────────────────────────────────────────────────────────
 
     /// <summary>
     /// ObtenerClientePorIdQuery devuelve null tanto si el cliente no existe
@@ -1215,7 +1171,9 @@ public class Cliente360PaginaTests : BunitContext
         var editar = cut.FindAll("button").Where(b => b.TextContent.Trim() == "Editar →").ToList();
         editar.Should().HaveCount(2, "Información y Nota interna");
         await editar[1].ClickAsync(new MouseEventArgs());
-        workspace.FrameActual!.PestanaActiva.Should().Be("notas");
+        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Cliente, id, "Refrielectric S.A.", "informacion"));
+        cut.FindComponent<CaeManager.Web.Features.Clientes.Components.ModalNotaCliente>().Instance.Visible.Should().BeTrue();
+        cut.Find("[role=dialog]").TextContent.Should().Contain("Editar nota interna").And.Contain("No la ve el Cliente.");
     }
 
     [Fact]
