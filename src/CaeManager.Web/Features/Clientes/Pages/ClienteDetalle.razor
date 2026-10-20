@@ -70,7 +70,6 @@
                 @{
                     var hayCif = !string.IsNullOrWhiteSpace(_detalle.Cif);
                     var recuentos = TextoRecuentos;
-                    var contratista = _empresas is [var empresaContratista] ? empresaContratista.RazonSocial : null;
                 }
                 @* Sin CIF no hay nada que enseñar ni copiar, igual que en Empresa 360. *@
                 @if (hayCif)
@@ -88,17 +87,9 @@
                     }
                     <span>@recuentos</span>
                 }
-                @if (contratista is not null)
-                {
-                    @if (hayCif || recuentos is not null)
-                    {
-                        <span aria-hidden="true">·</span>
-                    }
-                    <span>@Textos["CabeceraContratista", contratista]</span>
-                }
                 @if (PeorCentroConGestionCae is { } peorCentro)
                 {
-                    @if (hayCif || recuentos is not null || contratista is not null)
+                    @if (hayCif || recuentos is not null)
                     {
                         <span aria-hidden="true">·</span>
                     }
@@ -392,7 +383,7 @@
     <SoloConEscritura>
         @if (_detalle.NotaInternaVisible)
         {
-            <ModalNotaCliente @key="ClienteId" Detalle="_detalle" @bind-Visible="_notaVisible" OnGuardado="CargarCabeceraAsync" />
+            <ModalNotaCliente @key="_detalle.Id" Detalle="_detalle" @bind-Visible="_notaVisible" OnGuardado="CargarCabeceraAsync" />
         }
         <DialogoConfirmacion @bind-Visible="_bajaVisible" Titulo="@Textos["BajaTitulo"]"
                              Mensaje="@Textos["BajaMensaje", _detalle.RazonSocial]" TextoBotonConfirmar="@Textos["DarDeBaja"]"

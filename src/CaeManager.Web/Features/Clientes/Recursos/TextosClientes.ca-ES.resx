@@ -109,7 +109,7 @@
     <value>Sense requisits</value>
   </data>
   <data name="CumplimientoCentro" xml:space="preserve">
-    <value>Compliment del centre</value>
+    <value>Documents validats a la plataforma CAE d’aquest Client</value>
   </data>
   <data name="SinCentrosTitulo" xml:space="preserve">
     <value>Sense centres</value>

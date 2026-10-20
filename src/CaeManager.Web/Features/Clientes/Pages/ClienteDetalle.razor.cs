@@ -50,8 +50,8 @@ namespace CaeManager.Web.Features.Clientes.Pages;
 /// empresarial (no existe), Alias, Domicilio, Portal
 /// principal, el «Gestor CAE de referencia» (<c>EjecutivoUsuarioId</c>) e historial de notas. La fila
 /// «Gestor CAE» de la tarjeta Información sí está (<c>GestorCaeCliente</c>): enseña quién tiene Asignación de
-/// Cartera sobre el Tenant y aloja «Dar acceso» y «Desasignarme». Editar la identidad y la nota
-/// se hace en el panel: los «Editar» de esta página lo abren en su pestaña.
+/// Cartera sobre el Tenant y aloja «Dar acceso» y «Desasignarme». Editar la identidad
+/// abre el panel en Información; editar la nota interna abre su modal de formulario.
 /// El anillo cuenta Centros sin incidencias sobre Centros con gestión CAE; se omite si la lista está truncada
 /// o no se han podido leer los bloqueos, para no presentar una fracción global incompleta.
 /// </para>
@@ -678,7 +678,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             : $"{Plural(_resumen.TotalCentros, "RecuentoCentrosUno", "RecuentoCentrosVarios")} · " +
               Plural(_resumen.TotalTrabajadores, "RecuentoTrabajadoresUno", "RecuentoTrabajadoresVarios");
 
-    /// <summary>Empresas que participan en el Centro del Cliente empresarial, seg?n la lectura disponible.</summary>
+    /// <summary>Empresas que participan en el Centro del Cliente empresarial, según la lectura disponible.</summary>
     private string? EmpresasDelCentro(CentroListaDto centro) =>
         !string.IsNullOrWhiteSpace(centro.EmpresaRazonSocial)
             ? Textos["EmpresasDelCentro", centro.EmpresaRazonSocial].Value
@@ -701,7 +701,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     }
 
     /// <summary>
-    /// Maqueta vigente: Empresas y recuentos en l?neas distintas; el bloqueo de la plataforma CAE se rotula junto al nombre.
+    /// Maqueta vigente: Empresas y recuentos en líneas distintas; el bloqueo de la plataforma CAE se rotula junto al nombre.
     /// </summary>
     private IReadOnlyList<string> LineasDetalleCentro(CentroListaDto centro)
     {

@@ -119,7 +119,7 @@
     <comment>El Centro no exige ningún documento: no hay porcentaje.</comment>
   </data>
   <data name="CumplimientoCentro" xml:space="preserve">
-    <value>Cumplimiento del centro</value>
+    <value>Documentos validados en la plataforma CAE de este Cliente</value>
   </data>
   <data name="SinCentrosTitulo" xml:space="preserve">
     <value>Sin centros</value>

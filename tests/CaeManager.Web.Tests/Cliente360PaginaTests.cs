@@ -345,7 +345,7 @@ public class Cliente360PaginaTests : BunitContext
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
-    public void La_cabecera_nombra_la_Empresa_contratista_solo_si_hay_una_visible(int cantidad)
+    public void La_cabecera_conserva_la_identidad_del_Cliente_empresarial_sin_anadir_Empresas_participantes(int cantidad)
     {
         var (id, mediador) = ClienteBase();
         var nombres = new[] { "Ibertec GmbH", "Montajes Ebro S.L." };
@@ -358,10 +358,7 @@ public class Cliente360PaginaTests : BunitContext
         // La carga de Empresas debe haber terminado: una ausencia durante la carga no prueba el caso de varias.
         cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerSubcontratasDeClienteQuery>().Should().ContainSingle());
         var datos = cut.Find(".cabecera-identidad-datos").TextContent;
-        if (cantidad == 1)
-            datos.Should().Contain("Contratista: Ibertec GmbH");
-        else
-            datos.Should().NotContain(nombres[0]).And.NotContain(nombres[1]);
+        datos.Should().NotContain(nombres[0]).And.NotContain(nombres[1]);
     }
 
     [Fact]
@@ -682,7 +679,7 @@ public class Cliente360PaginaTests : BunitContext
         if (visible)
             Textos(cut.FindAll("[role=tab]")).Should().Equal([
                 "Centros0 centros", "Empresas2 empresas", "Subcontratas0 subcontratas", "Documentación", "Agenda", "Ficha", "Historial"]);
-        if (!visible) cut.Find(".cabecera-identidad-datos").TextContent.Should().Contain("Contratista: Contratista 0");
+        cut.Find(".cabecera-identidad-datos").TextContent.Should().NotContain("Contratista:");
         new Uri(Services.GetRequiredService<NavigationManager>().Uri).Query.Should().Contain("q=vigo").And.Contain("extra=conservar");
     }
 
@@ -861,7 +858,7 @@ public class Cliente360PaginaTests : BunitContext
         cut.Find("li.fila-relacion .fila-relacion-detalle").TextContent.Should().Be("Empresas: Montajes Ebro S.L.");
         cut.FindAll("li.fila-relacion").Select(f => f.TextContent)
             .Should().Contain(t => t.Contains("Empresas: Montajes Ebro S.L."));
-        cut.Find(".cabecera-identidad-datos").TextContent.Should().Contain("Contratista: Montajes Ebro S.L.");
+        cut.Find(".cabecera-identidad-datos").TextContent.Should().NotContain("Contratista:");
     }
 
     // Medidas de pastilla de la maqueta 17-10: «Crítico» va en la normal; la pastilla de estado de la cabecera y la
