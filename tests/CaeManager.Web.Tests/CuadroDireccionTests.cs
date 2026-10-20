@@ -400,6 +400,22 @@ public partial class CuadroDireccionTests : BunitContext
         primera.Should().ContainInOrder("Personalizar esta pestaña", "Etiquetas de datos", "Presentar");
     }
 
+    /// <summary>
+    /// «Exportar extranjeros del mes» (decisión de Chris, 2026-10-20): una descarga del mes seleccionado, fuera de la
+    /// navegación mejorada de Blazor para que el navegador reciba el .xlsx.
+    /// </summary>
+    [Fact]
+    public void Exportar_extranjeros_del_mes_descarga_el_mes_seleccionado()
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
+
+        var enlace = cut.Find(".cuadro-exportar-extranjeros");
+        enlace.TextContent.Trim().Should().Be("Exportar extranjeros del mes");
+        enlace.GetAttribute("href").Should().MatchRegex(@"^/direccion/extranjeros\.xlsx\?anyo=\d{4}&mes=\d{1,2}$");
+        enlace.HasAttribute("download").Should().BeTrue();
+        enlace.GetAttribute("data-enhance-nav").Should().Be("false");
+    }
+
     [Fact]
     public void El_mes_y_el_chip_de_estado_van_en_la_misma_fila_que_el_titulo()
     {

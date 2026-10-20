@@ -51,6 +51,17 @@
         <CampoTexto Etiqueta="@Textos["FichaContactoEmergencia"]" Valor="@_emergenciaNombre" ValorChanged="v => _emergenciaNombre = v" MensajeError="@Error(CampoEmergenciaNombre)" />
         <CampoTexto Etiqueta="@Textos["FichaTelefonoEmergencia"]" Type="tel" Valor="@_emergenciaTelefono" ValorChanged="v => _emergenciaTelefono = v" MensajeError="@Error(CampoEmergenciaTelefono)" />
     }
+    @* «Trabajador extranjero (cobrable)» (decisión de Chris, 2026-10-20): con la misma política que el contacto de
+       emergencia. La casilla enseña el valor efectivo; si no se toca, la orden no la cambia, y si se deja igual que lo
+       que dice el documento, se quita la marca a mano y vuelve a decidir el documento. *@
+    @if (_conExtranjeroCobrable)
+    {
+        <label class="campo-checkbox" data-campo="extranjero-cobrable">
+            <input type="checkbox" checked="@_extranjeroCobrable" @onchange="e => _extranjeroCobrable = e.Value is true" />
+            @Textos["FichaExtranjeroCobrable"]
+        </label>
+        <p class="texto-ayuda-campo" data-ayuda="extranjero-cobrable">@Textos[_extranjeroCobrablePorDocumento ? "FichaExtranjeroCobrableDocumentoSi" : "FichaExtranjeroCobrableDocumentoNo"]</p>
+    }
 </DrawerFormulario>
 
 @code {
@@ -65,6 +76,7 @@
         nameof(EditarFichaTrabajadorCommand.ContactoEmergencia) + "." + nameof(ContactoEmergenciaTrabajador.Telefono);
 
     private bool _abierto, _cargando, _guardando, _lista, _conContactoEmergencia;
+    private bool _conExtranjeroCobrable, _extranjeroCobrable, _extranjeroCobrableCargado, _extranjeroCobrablePorDocumento;
     private int _generacion;
     private Guid _id, _version;
     private Guid? _empresaId;
@@ -81,8 +93,17 @@
     private string Instantanea() => System.Text.Json.JsonSerializer.Serialize(new
     {
         _afiliacion, _puesto, _nacimiento, _nacionalidad, _vinculo, _tipoContratacion, _alta, _baja, _rnt, _permiso, _caducidad, _motivo,
-        _emergenciaNombre, _emergenciaTelefono, _oficioId, _delegacionId
+        _emergenciaNombre, _emergenciaTelefono, _oficioId, _delegacionId, _extranjeroCobrable
     });
+
+    /// <summary>
+    /// Sin tocar la casilla, null: no se cambia. Si se cambió y coincide con lo que dice el documento, la marca a mano
+    /// se quita (vuelve a decidir el documento); si lo contradice, se fija a mano.
+    /// </summary>
+    private MarcaExtranjeroCobrableTrabajador? CambioExtranjeroCobrable() =>
+        !_conExtranjeroCobrable || _extranjeroCobrable == _extranjeroCobrableCargado
+            ? null
+            : new MarcaExtranjeroCobrableTrabajador(_extranjeroCobrable == _extranjeroCobrablePorDocumento ? null : _extranjeroCobrable);
 
     private DateOnly? Fecha(string valor, string campo)
     {
@@ -132,6 +153,9 @@
             _conContactoEmergencia = detalle.ContactoEmergenciaVisible;
             _emergenciaNombre = detalle.ContactoEmergenciaNombre ?? "";
             _emergenciaTelefono = detalle.ContactoEmergenciaTelefono ?? "";
+            _conExtranjeroCobrable = detalle.ExtranjeroCobrableVisible;
+            _extranjeroCobrablePorDocumento = detalle.ExtranjeroCobrablePorDocumento;
+            _extranjeroCobrable = _extranjeroCobrableCargado = detalle.MarcaExtranjeroCobrable ?? detalle.ExtranjeroCobrablePorDocumento;
             _instantanea.Fijar(Instantanea());
             _lista = true;
         }
@@ -171,7 +195,8 @@
                     ? null
                     : new DelegacionEmpresaYOficioDeTrabajador(
                         Guid.TryParse(_delegacionId, out var delegacion) ? delegacion : null,
-                        Guid.TryParse(_oficioId, out var oficio) ? oficio : null));
+                        Guid.TryParse(_oficioId, out var oficio) ? oficio : null),
+                CambioExtranjeroCobrable());
             var validacion = new EditarFichaTrabajadorCommandValidator().Validate(comando);
             if (!validacion.IsValid) throw new ValidationException(validacion.Errors);
             var resultado = await Mediator.Send(comando, _ciclo.Token);

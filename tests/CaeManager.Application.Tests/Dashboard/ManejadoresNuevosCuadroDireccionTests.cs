@@ -25,7 +25,7 @@ public class ManejadoresNuevosCuadroDireccionTests
     // ---------------------------------------------------------------- Serie
 
     private static ObtenerSerieCuadroDireccionQueryHandler Serie(string? rol, IAlcanceDatosService alcance) =>
-        new(Autorizados(), alcance, new MedicionFalsa(), null!, new UsuarioConRol(rol), new RelojFijo(Ahora));
+        new(Autorizados(), alcance, new MedicionFalsa(), null!, null!, new UsuarioConRol(rol), new RelojFijo(Ahora));
 
     [Theory]
     [InlineData("GestorCae")]

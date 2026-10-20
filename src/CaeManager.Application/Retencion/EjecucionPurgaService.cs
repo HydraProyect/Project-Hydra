@@ -2,6 +2,7 @@ using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Application.Visitas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Retencion;
@@ -34,6 +35,7 @@ namespace CaeManager.Application.Retencion;
 /// </summary>
 public class EjecucionPurgaService(
     IAsignacionesQueryContext asignacionesContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext,
+    IVisitasQueryContext visitasContext,
     ISolicitudPurgaRepository solicitudRepositorio,
     IExtraccionIaCacheRepository extraccionIaCacheRepositorio,
     IFileStorageService almacenamiento,
@@ -234,6 +236,17 @@ public class EjecucionPurgaService(
 
         foreach (var trabajador in trabajadores)
             trabajador.Anonimizar(ahora);
+
+        // La foto del Trabajador en sus asignaciones a Visitas (histórico congelado de la exportación de extranjeros del
+        // mes) copia su documento y su nombre: se suprimen con él. La marca de extranjero cobrable se conserva.
+        var idsTrabajadores = trabajadores.Select(t => t.Id).ToList();
+        var fotos = idsTrabajadores.Count == 0
+            ? []
+            : await visitasContext.VisitasTrabajadores
+                .Where(vt => vt.TenantId == tenantId && idsTrabajadores.Contains(vt.TrabajadorId))
+                .ToListAsync(cancellationToken);
+        foreach (var foto in fotos)
+            foto.AnonimizarFoto();
 
         // Sin paso de almacenamiento externo — anonimizar un Trabajador no
         // puede fallar a medias hoy, así que no hay incidencias que registrar.

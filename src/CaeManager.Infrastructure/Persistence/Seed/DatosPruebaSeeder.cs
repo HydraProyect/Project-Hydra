@@ -1035,7 +1035,7 @@ public static class DatosPruebaSeeder
 
             dbContext.VisitasTrabajadores.AddRange(
                 ElementosAleatoriosUnicos(aleatorio, trabajadoresPorCentro[centroId], aleatorio.Next(1, 4))
-                    .Select(t => new VisitaTrabajador(visita.Id, t.Id)));
+                    .Select(t => AsignacionSembrada.De(visita, t.Id)));
         }
         dbContext.Visitas.AddRange(visitas);
 

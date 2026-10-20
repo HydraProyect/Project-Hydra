@@ -16,7 +16,10 @@ public class MedicionMensualCuadroDireccion(
     ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext,
     IReclamacionesQueryContext reclamacionesContext, IComunicacionesQueryContext comunicacionesContext,
     IMediator mediator,
-    CaeManager.Application.Gestiones.IGestionesQueryContext? gestionesContext = null)
+    CaeManager.Application.Gestiones.IGestionesQueryContext? gestionesContext = null,
+    CaeManager.Application.Proyectos.IProyectosQueryContext? proyectosContext = null,
+    CaeManager.Application.Empresas.IEmpresasQueryContext? empresasContext = null,
+    CaeManager.Application.Visitas.IVisitasQueryContext? visitasContext = null)
 {
     public virtual async Task<MedicionCuadroDireccion> MedirAsync(MesCuadroDireccion mes, DateTime corteUtc, CancellationToken cancellationToken, bool medirDocumental = true)
     {
@@ -31,9 +34,7 @@ public class MedicionMensualCuadroDireccion(
             .Where(t => t.TenantId == tenantId)
             .Select(t => new VidaDeRegistro { CreadoEnUtc = t.CreadoEnUtc, EstaEliminado = t.EstaEliminado, EliminadoEnUtc = t.EliminadoEnUtc, Documento = t.Dni });
 
-        var vidasCentros = centrosContext.Centros
-            .IgnoreQueryFilters()
-            .Where(c => c.TenantId == tenantId)
+        var vidasCentros = CentrosDelTenant(tenantId)
             .Select(c => new VidaDeRegistro { CreadoEnUtc = c.CreadoEnUtc, EstaEliminado = c.EstaEliminado, EliminadoEnUtc = c.EliminadoEnUtc });
 
         var trabajadoresActivos = await vidasTrabajadores.CountAsync(DefinicionesCuadroDireccion.VivoAlCorte(corteUtc), cancellationToken);
@@ -72,11 +73,103 @@ public class MedicionMensualCuadroDireccion(
         int? gestiones = gestionesContext is null ? null : await gestionesContext.Gestiones
             .CountAsync(g => g.CompletadaEnUtc >= inicio && g.CompletadaEnUtc < fin, cancellationToken);
 
+        // Obras nuevas: Proyectos de tipo Obra dados de alta en el mes; los Eventos no se cobran. Como las altas de
+        // Centros, cuenta también los que después se eliminaron: el alta ocurrió en el mes.
+        int? obrasNuevas = ObrasDelTenant(tenantId) is not { } obras ? null : await obras
+            .CountAsync(p => p.CreadoEnUtc >= inicio && p.CreadoEnUtc < fin, cancellationToken);
+
+        // Centros nuevos por Cliente empresarial: indicador de crecimiento, no se cobra.
+        IReadOnlyList<CentrosNuevosPorClienteDto>? porCliente = null;
+        if (empresasContext is not null)
+        {
+            var altasPorCliente = await CentrosDelTenant(tenantId)
+                .Where(c => c.CreadoEnUtc >= inicio && c.CreadoEnUtc < fin)
+                .GroupBy(c => c.ClienteId)
+                .Select(g => new { Cliente = g.Key, Centros = g.Count() })
+                .ToListAsync(cancellationToken);
+            var ids = altasPorCliente.Select(a => a.Cliente).ToList();
+            // Con el filtro global: un Cliente empresarial eliminado sale sin nombre, pero sus Centros nuevos cuentan.
+            var nombres = await empresasContext.Empresas
+                .Where(e => ids.Contains(e.Id))
+                .Select(e => new { e.Id, e.RazonSocial })
+                .ToDictionaryAsync(e => e.Id, e => e.RazonSocial, cancellationToken);
+            porCliente = ObtenerCuadroDireccionQueryHandler.SumarCentrosNuevosPorCliente(altasPorCliente.Select(a =>
+                new CentrosNuevosPorClienteDto(tenantId, a.Cliente, nombres.GetValueOrDefault(a.Cliente) ?? string.Empty, a.Centros)));
+        }
+
+        var primerDia = new DateOnly(mes.Anyo, mes.Mes, 1);
+        int? visitasExtranjero = visitasContext is null
+            ? null
+            : await ContarVisitasTrabajadorExtranjeroAsync(visitasContext, primerDia, primerDia.AddMonths(1), corteUtc, cancellationToken);
+
         return new MedicionCuadroDireccion(
             trabajadoresActivos, altasTrabajadores, bajasTrabajadores,
             centrosActivos, altasCentros,
             documentosGestionados, requerimientos,
-            solicitudes, documental, gestiones, ExtranjerosActivos: extranjeros);
+            solicitudes, documental, gestiones, ExtranjerosActivos: extranjeros,
+            ObrasNuevas: obrasNuevas, CentrosNuevosPorCliente: porCliente,
+            VisitasTrabajadorExtranjero: visitasExtranjero);
+    }
+
+    /// <summary>
+    /// Las unidades que valora el Operador CAE externo (altas de Centros, Obras nuevas y visitas de Trabajador
+    /// extranjero) contadas solo dentro de <paramref name="tramos"/>: los trozos del mes en que su Asignación de
+    /// Operación estuvo en vigor (<see cref="ValoracionOperadorCae.TramosEnElMes"/>). Con las mismas definiciones que
+    /// <see cref="MedirAsync"/>; las altas por instante y las Visitas por su día de inicio, que cuenta si el tramo
+    /// empieza ese día o antes y termina después de él. Borde asimétrico: la Visita del día en que empieza la
+    /// Asignación cuenta y la del día en que se cierra queda fuera. Se cuenta en vivo aunque el mes esté cerrado (la
+    /// foto guarda el mes entero, no los trozos).
+    /// </summary>
+    public virtual async Task<UnidadesOperadorCae> MedirUnidadesOperadorAsync(
+        IReadOnlyList<TramoDeVigencia> tramos, DateTime corteUtc, CancellationToken cancellationToken)
+    {
+        var tenantId = tenantActual.TenantId
+            ?? throw new InvalidOperationException("El Cuadro de dirección se mide con un Tenant en el ámbito.");
+        var altasCentros = 0;
+        int? obrasNuevas = proyectosContext is null ? null : 0;
+        int? visitasExtranjero = visitasContext is null ? null : 0;
+        foreach (var tramo in tramos)
+        {
+            var (desde, hasta) = (tramo.DesdeUtc, tramo.HastaUtc);
+            altasCentros += await CentrosDelTenant(tenantId).CountAsync(c => c.CreadoEnUtc >= desde && c.CreadoEnUtc < hasta, cancellationToken);
+            if (ObrasDelTenant(tenantId) is { } obras)
+                obrasNuevas += await obras.CountAsync(p => p.CreadoEnUtc >= desde && p.CreadoEnUtc < hasta, cancellationToken);
+            if (visitasContext is not null)
+                visitasExtranjero += await ContarVisitasTrabajadorExtranjeroAsync(
+                    visitasContext, DiaDeNegocio.De(desde), DiaDeNegocio.De(hasta), corteUtc, cancellationToken);
+        }
+
+        return new UnidadesOperadorCae(altasCentros, obrasNuevas, visitasExtranjero);
+    }
+
+    // Una sola fuente para las filas sin filtro global (las eliminadas también se dieron de alta): el TenantId del
+    // ámbito se compara a mano, como en el resto de la medición.
+    private IQueryable<CaeManager.Domain.Centros.Centro> CentrosDelTenant(Guid tenantId) =>
+        centrosContext.Centros.IgnoreQueryFilters().Where(c => c.TenantId == tenantId);
+
+    private IQueryable<CaeManager.Domain.Proyectos.Proyecto>? ObrasDelTenant(Guid tenantId) =>
+        proyectosContext?.Proyectos.IgnoreQueryFilters().Where(p => p.TenantId == tenantId && p.Tipo == CaeManager.Domain.Proyectos.TipoProyecto.Obra);
+
+    /// <summary>
+    /// Unidades de la visita de Trabajador extranjero (decisión de Chris, 2026-10-20): una por Trabajador en cada
+    /// Visita no cancelada cuyo día de inicio cae en [<paramref name="desde"/>, <paramref name="hasta"/>), si su
+    /// documento es de extranjero. Los límites son días civiles (el 1 del mes y el 1 del siguiente), no instantes
+    /// UTC: la medianoche de Madrid en UTC cae el día anterior. Es el único punto que decide qué cuenta como
+    /// extranjero aquí; hoy aplica el criterio vigente de la pantalla «Facturación»
+    /// (<see cref="ValidadorIdentificacion.EsDocumentoDeExtranjero"/> sobre el documento actual del Trabajador). Cuando
+    /// la Visita congele el documento del Trabajador, este método pasará a leer esa foto.
+    /// </summary>
+    private async Task<int> ContarVisitasTrabajadorExtranjeroAsync(
+        CaeManager.Application.Visitas.IVisitasQueryContext visitas, DateOnly desde, DateOnly hasta, DateTime corteUtc, CancellationToken cancellationToken)
+    {
+        var visitasDelMes = visitas.Visitas
+            .Where(v => !v.EstaCancelada && v.CreadoEnUtc <= corteUtc && v.FechaInicio >= desde && v.FechaInicio < hasta)
+            .Select(v => v.Id);
+        var documentos = await visitas.VisitasTrabajadores
+            .Where(vt => visitasDelMes.Contains(vt.VisitaId))
+            .Join(trabajadoresContext.Trabajadores, vt => vt.TrabajadorId, t => t.Id, (vt, t) => t.Dni)
+            .ToListAsync(cancellationToken);
+        return documentos.Count(ValidadorIdentificacion.EsDocumentoDeExtranjero);
     }
 
 }

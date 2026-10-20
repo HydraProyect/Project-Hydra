@@ -7,6 +7,17 @@
 @layout CaeManager.Web.Components.Layout.AuthLayout
 @attribute [AllowAnonymous]
 
+@using Microsoft.AspNetCore.Diagnostics
+@inject NavigationManager Navegacion
+
 <PageTitle>Página no encontrada — @Marca.Nombre</PageTitle>
 
-<PaginaEstadoSistema Tipo="TipoEstadoSistema.NoEncontrado" />
+<PaginaEstadoSistema Tipo="TipoEstadoSistema.NoEncontrado" RutaOriginal="@RutaOriginal" />
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    // La reejecución cambia Request.Path a /not-found; la feature conserva la petición original.
+    private string RutaOriginal => HttpContext?.Features.Get<IStatusCodeReExecuteFeature>()?.OriginalPath
+        ?? "/" + Navegacion.ToBaseRelativePath(Navegacion.Uri);
+}

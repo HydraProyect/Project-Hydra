@@ -91,6 +91,38 @@ public class AuditoriaCancelacionVisitaTests : IAsyncLifetime
             .And.Contain("Se retoma la obra");
     }
 
+    /// <summary>
+    /// La foto del Trabajador en su asignación a una Visita (documento y nombre, histórico congelado de la exportación de
+    /// extranjeros del mes) no llega en claro al historial: la anonimización del Trabajador no alcanzaría esa copia.
+    /// </summary>
+    [Fact]
+    public async Task La_foto_del_Trabajador_en_la_asignacion_a_Visita_se_enmascara_en_la_auditoria()
+    {
+        var visitaId = await SembrarVisitaAsync();
+
+        Guid asignacionId;
+        await using (var contexto = CrearContexto(new ActorAuditoriaFalso(ActorAuditoria.Normal(Guid.NewGuid()))))
+        {
+            var empresaId = await contexto.Empresas.Where(e => e.RazonSocial == "Contratista auditada").Select(e => e.Id).SingleAsync();
+            var trabajador = CaeManager.Domain.Trabajadores.Trabajador.DeEmpresa(empresaId, "Amina", "El Idrissi", "AB1234567");
+            contexto.Trabajadores.Add(trabajador);
+            await contexto.SaveChangesAsync();
+
+            var asignacion = new VisitaTrabajador(visitaId, trabajador);
+            contexto.VisitasTrabajadores.Add(asignacion);
+            await contexto.SaveChangesAsync();
+            asignacionId = asignacion.Id;
+        }
+
+        await using var lectura = CrearContexto(new ActorAuditoriaFalso(ActorAuditoria.SinResolver));
+        var alta = await lectura.RegistrosAuditoria
+            .SingleAsync(r => r.EntidadTipo == nameof(VisitaTrabajador) && r.EntidadId == asignacionId);
+
+        alta.DatosDespues.Should().NotContain("AB1234567").And.NotContain("Amina");
+        alta.DatosDespues.Should().Contain($"\"{nameof(VisitaTrabajador.EsExtranjeroCobrable)}\":true",
+            "la marca de la foto no es dato personal y queda en claro");
+    }
+
     private async Task<Guid> SembrarVisitaAsync()
     {
         await using var contexto = CrearContexto(new ActorAuditoriaFalso(ActorAuditoria.Normal(Guid.NewGuid())));

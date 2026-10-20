@@ -234,6 +234,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
 
         // Trabajadores
         "Trabajadores.AsignarAliasTrabajadorCommandHandler",
+        "Trabajadores.CorregirDocumentoIdentidadTrabajadorCommandHandler",
         "Trabajadores.CrearTrabajadorCommandHandler",
         "Trabajadores.EditarFichaTrabajadorCommandHandler",
         "Trabajadores.EditarTrabajadorCommandHandler",
@@ -348,6 +349,19 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
             "anota en el historial del propio usuario qué informe generó; no escribe sobre el Cliente empresarial, y " +
             "el informe ya sale filtrado por la cartera (mismo motivo que en EscriturasSobreEntidadesConCarteraTests)"),
 
+        // ── Plano Comercial del Operador CAE, no filas de una cartera ───────────────────────────
+        ["Dashboard.FijarTarifaOperadorCaeCommandHandler"] = new(
+            "fija la tarifa que el Operador CAE externo cobra a una Empresa gestionada: una fila del Tenant de origen " +
+            "del Operador, no de la Empresa gestionada; la guardan el rol efectivo en origen (Administrador o Dirección " +
+            "CAE, AutorizacionTarifasOperadorCae) y una Asignación de Operación vigente del Operador sobre esa Empresa",
+            Guardas:
+            [
+                new(typeof(CaeManager.Application.Dashboard.TarifasOperadorCae.AutorizacionTarifasOperadorCae),
+                    nameof(CaeManager.Application.Dashboard.TarifasOperadorCae.AutorizacionTarifasOperadorCae.OperadorQueGestionaAsync)),
+                new(typeof(CaeManager.Application.Dashboard.TarifasOperadorCae.AutorizacionTarifasOperadorCae),
+                    nameof(CaeManager.Application.Dashboard.TarifasOperadorCae.AutorizacionTarifasOperadorCae.GestionaAsync)),
+            ]),
+
         // ── Agregado del Tenant entero, no filas de una cartera ─────────────────────────────────
         ["Dashboard.ReabrirMesCuadroDireccionCommandHandler"] = new(
             "reabre el cierre mensual del Cuadro de dirección, un agregado del Tenant beneficiario entero: solo " +
@@ -432,7 +446,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
     /// Tope de <see cref="Exentos"/>: una exención nueva tiene que subir este número en el diff, para que
     /// la revisión la vea. Si bajan, baja también.
     /// </summary>
-    private const int MaximoDeExentos = 33;
+    private const int MaximoDeExentos = 34;
 
     /// <summary>De <see cref="Exentos"/>, los que no tienen nada verificable: solo su motivo escrito.</summary>
     private const int MaximoDeExentosSoloConMotivo = 4;

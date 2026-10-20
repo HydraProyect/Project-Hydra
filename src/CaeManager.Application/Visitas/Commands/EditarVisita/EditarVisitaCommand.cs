@@ -37,7 +37,8 @@ public class EditarVisitaCommandValidator : AbstractValidator<EditarVisitaComman
 public class EditarVisitaCommandHandler(
     IVisitaRepository repositorio, IVisitaTrabajadorRepository visitaTrabajadorRepositorio,
     ITrabajadoresQueryContext trabajadoresContext, IEvaluadorExpedienteVisitaService evaluadorExpediente,
-    IUnitOfWork unitOfWork, ILogger<EditarVisitaCommandHandler> logger, IAlcanceDatosService alcanceDatos)
+    IUnitOfWork unitOfWork, ILogger<EditarVisitaCommandHandler> logger, IAlcanceDatosService alcanceDatos,
+    IActorAuditoria? actorAuditoria = null)
     : IRequestHandler<EditarVisitaCommand, Result>
 {
     public async Task<Result> Handle(EditarVisitaCommand request, CancellationToken cancellationToken)
@@ -71,15 +72,21 @@ public class EditarVisitaCommandHandler(
 
         // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         var trabajadorIdsNuevos = trabajadorIdsDeseados.Except(trabajadorIdsActuales).ToList();
-        if (await trabajadoresContext.Trabajadores.Where(t => trabajadorIdsNuevos.Contains(t.Id)).CountAsync(cancellationToken) != trabajadorIdsNuevos.Count)
+        // Se cargan enteros: la asignación guarda su foto (VisitaTrabajador.EsExtranjeroCobrable).
+        var trabajadoresNuevos = await trabajadoresContext.Trabajadores
+            .Where(t => trabajadorIdsNuevos.Contains(t.Id))
+            .ToDictionaryAsync(t => t.Id, cancellationToken);
+        if (trabajadoresNuevos.Count != trabajadorIdsNuevos.Count)
             return Result.Fallo(Error.Crear("Visita.TrabajadorNoEncontrado", "Alguno de los trabajadores seleccionados no existe."));
 
         var trabajadoresQueSalen = trabajadoresActuales.Where(vt => !trabajadorIdsDeseados.Contains(vt.TrabajadorId)).ToList();
         foreach (var vt in trabajadoresQueSalen)
             visitaTrabajadorRepositorio.Eliminar(vt);
 
+        // Solo los nuevos llevan la fecha y el Gestor CAE de esta edición: los que ya estaban conservan los suyos.
+        var gestionadoPor = trabajadorIdsNuevos.Count > 0 ? await GestorDeLaAsignacion.ActorRealAsync(actorAuditoria) : null;
         foreach (var trabajadorId in trabajadorIdsNuevos)
-            visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, trabajadorId));
+            visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, trabajadoresNuevos[trabajadorId], gestionadoPor));
 
         // La misma regla que añadir o quitar desde el panel: si cambia quién entra, la
         // documentación deja de estar gestionada. Cambiar solo fechas, hora o notas no la borra.

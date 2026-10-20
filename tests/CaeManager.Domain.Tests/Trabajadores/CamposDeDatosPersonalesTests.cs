@@ -46,6 +46,7 @@ public class CamposDeDatosPersonalesTests
             new DateOnly(2020, 1, 1), new DateOnly(2024, 1, 1), "Sí", "Cuenta ajena", new DateOnly(2030, 1, 1), "Arraigo");
         trabajador.FijarNotaInterna("Manuela prefiere que la llamen por la tarde.");
         trabajador.FijarContactoEmergencia("Andrés Quintanilla (hermano)", "+34 611 222 333");
+        trabajador.FijarMarcaExtranjeroCobrable(true);
 
         trabajador.Anonimizar(DateTime.UtcNow);
 

@@ -48,8 +48,12 @@
                 }
 
                 <div class="acciones-estado-sistema">
+                    @if (_destinoLista is { } lista)
+                    {
+                        <Boton Variante="VarianteBoton.Primario" Href="@lista.Ruta">@Textos[lista.ClaveTexto]</Boton>
+                    }
                     @* En acceso denegado, Mi trabajo para quien lo tiene e Inicio para el resto: nunca otra pantalla que su rol niegue. *@
-                    <Boton Variante="VarianteBoton.Primario" Href="@RutaPrincipal">@EtiquetaPrincipal</Boton>
+                    <Boton Variante="@(_destinoLista is null ? VarianteBoton.Primario : VarianteBoton.Secundario)" Href="@RutaPrincipal">@EtiquetaPrincipal</Boton>
                     @if (MostrarReintentar)
                     {
                         <Boton Variante="VarianteBoton.Secundario" Href="@RutaReintentar">Reintentar</Boton>
@@ -81,6 +85,42 @@
 
 @code {
     [Parameter, EditorRequired] public TipoEstadoSistema Tipo { get; set; }
+
+    [Parameter] public string? RutaOriginal { get; set; }
+
+    private (string Ruta, string ClaveTexto)? _destinoLista;
+
+    // Los href y las claves proceden exclusivamente del catálogo cerrado, nunca de la URL recibida.
+    private static (string Ruta, string ClaveTexto)? DestinoLista(string? ruta)
+    {
+        if (string.IsNullOrEmpty(ruta) || !ruta.StartsWith('/') || ruta.StartsWith("//", StringComparison.Ordinal))
+            return null;
+
+        var segmento = ruta[1..].Split('/', '?', '#')[0].ToLowerInvariant();
+        return segmento switch
+        {
+            "trabajadores" => ("/trabajadores", "VolverListaTrabajadores"),
+            "empresas" => ("/empresas", "VolverListaEmpresas"),
+            "centros" => ("/centros", "VolverListaCentros"),
+            "clientes" => ("/clientes", "VolverListaClientes"),
+            "subcontratas" => ("/subcontratas", "VolverListaSubcontratas"),
+            "vehiculos" => ("/vehiculos", "VolverListaVehiculos"),
+            "proyectos" => ("/proyectos", "VolverListaProyectos"),
+            "documentos" => ("/documentos", "VolverListaDocumentos"),
+            "visitas" => ("/visitas", "VolverListaVisitas"),
+            "gestiones" => ("/gestiones", "VolverListaGestiones"),
+            "alertas" => ("/alertas", "VolverListaAlertas"),
+            _ => null,
+        };
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _destinoLista = Tipo == TipoEstadoSistema.NoEncontrado && EstadoAutenticacion is not null
+            && (await EstadoAutenticacion).User.Identity?.IsAuthenticated == true
+                ? DestinoLista(RutaOriginal)
+                : null;
+    }
 
     [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
 

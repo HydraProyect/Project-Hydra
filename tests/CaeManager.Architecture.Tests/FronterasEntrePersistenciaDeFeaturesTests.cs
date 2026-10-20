@@ -375,10 +375,25 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IReclamacionesQueryContext"),
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "ITrabajadoresQueryContext"),
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IGestionesQueryContext"),
-        // Serie y Comunicaciones del Cuadro de dirección: tarifas por Tenant beneficiario y conversaciones del mes.
-        ("Dashboard.ObtenerSerieCuadroDireccionQueryHandler", "IFacturacionQueryContext"),
+        // Obras nuevas y Centros nuevos por Cliente empresarial del mes (decisión de Chris, 2026-10-20).
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IProyectosQueryContext"),
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IEmpresasQueryContext"),
+        // Visitas de Trabajador extranjero del mes: unidades de la tarifa del Operador CAE (decisión de Chris, 2026-10-20).
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IVisitasQueryContext"),
+        // Solo comprueba que el Operador CAE opera hoy al Tenant beneficiario antes de fijarle una tarifa.
+        ("Dashboard.FijarTarifaOperadorCaeCommandHandler", "IOperacionesQueryContext"),
+        // Acota la valoración del Operador CAE a la vigencia de su Asignación de Operación en cada mes.
+        ("Dashboard.ObtenerSerieCuadroDireccionQueryHandler", "IOperacionesQueryContext"),
+        // Serie y Comunicaciones del Cuadro de dirección: conversaciones del mes.
         ("Dashboard.ObtenerComunicacionesCuadroDireccionQueryHandler", "IComunicacionesQueryContext"),
         ("Dashboard.ObtenerGestionesPorDiaCuadroDireccionQueryHandler", "IGestionesQueryContext"),
+        // Exportación de Trabajadores extranjeros del mes (decisión de Chris, 2026-10-20): cada fila junta la asignación
+        // a la Visita, el Trabajador, el Centro, las razones sociales y, para las asignaciones antiguas, su alta auditada.
+        ("Dashboard.ObtenerExtranjerosDelMesQueryHandler", "IAuditoriaQueryContext"),
+        ("Dashboard.ObtenerExtranjerosDelMesQueryHandler", "ICentrosQueryContext"),
+        ("Dashboard.ObtenerExtranjerosDelMesQueryHandler", "IEmpresasQueryContext"),
+        ("Dashboard.ObtenerExtranjerosDelMesQueryHandler", "ITrabajadoresQueryContext"),
+        ("Dashboard.ObtenerExtranjerosDelMesQueryHandler", "IVisitasQueryContext"),
         ("Dashboard.ObtenerEstadisticasAprobacionDocumentoQueryHandler", "IDocumentosQueryContext"),
         ("Dashboard.ObtenerKpisBpoQueryHandler", "IClientesQueryContext"),
         ("Dashboard.ObtenerKpisBpoQueryHandler", "IComunicacionesQueryContext"),
