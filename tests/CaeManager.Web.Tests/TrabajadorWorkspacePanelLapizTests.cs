@@ -239,15 +239,16 @@ public class TrabajadorWorkspacePanelLapizTests : BunitContext
         await workspace.AbrirEnEdicionAsync(EntidadWorkspace.Trabajador, Id, "Marco Vila");
         var cargas = 0;
 
+        ComponentFactories.AddStub<PanelNoEncontrado>();
         var cut = RenderizarConRetencion(Id, workspace, _ =>
             Task.FromResult(cargas++ == 0 ? null! : Detalle(Id, "Marco", "Vila")));
 
         cut.FindAll(Lapiz).Should().BeEmpty("control positivo: sin detalle no hay cabecera");
         workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Trabajador, Id).Should().BeFalse("la carga sin detalle la descartó");
 
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Reintentar").ClickAsync(new MouseEventArgs());
-
-        cut.Find(Lapiz).Should().NotBeNull("control positivo: el reintento cargó la ficha");
+        // Sin detalle no es un fallo: el panel se cierra con un toast (PanelNoEncontrado), sin «Reintentar».
+        cut.PintaPanelNoEncontrado().Should().BeTrue();
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Reintentar");
         EnEdicion(cut).Should().BeFalse("nadie pidió editar tras la carga sin detalle");
     }
 

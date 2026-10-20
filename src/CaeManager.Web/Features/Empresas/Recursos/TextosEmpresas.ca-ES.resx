@@ -57,6 +57,7 @@
   <data name="IndicadorFaltantesNoCuentan" xml:space="preserve">
     <value>Els documents obligatoris que falten no entren en aquest recompte.</value>
   </data>
+  <data name="AccionSubirDocumento" xml:space="preserve"><value>Pujar document</value></data>
   <data name="AccionDetectar" xml:space="preserve">
     <value>Detectar altes i baixes</value>
   </data>

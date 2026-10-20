@@ -253,28 +253,29 @@ public class SelectorClienteActivoTests : BunitContext
     }
 
     [Theory]
-    [InlineData("trabajadores/11111111-2222-3333-4444-555555555555")]
-    [InlineData("centros/11111111-2222-3333-4444-555555555555")]
-    [InlineData("empresas/11111111-2222-3333-4444-555555555555")]
-    [InlineData("clientes/11111111-2222-3333-4444-555555555555?q=x")]
-    public async Task En_una_ficha_por_Id_la_ruta_de_retorno_lleva_la_pista_del_Tenant_que_se_deja(string url)
+    [InlineData("trabajadores/11111111-2222-3333-4444-555555555555", "/trabajadores")]
+    [InlineData("centros/11111111-2222-3333-4444-555555555555", "/centros")]
+    [InlineData("empresas/11111111-2222-3333-4444-555555555555", "/empresas")]
+    [InlineData("clientes/11111111-2222-3333-4444-555555555555?q=x", "/clientes")]
+    [InlineData("proyectos/11111111-2222-3333-4444-555555555555?ctx=Proyecto:11111111-2222-3333-4444-555555555555:resumen", "/proyectos")]
+    [InlineData("clientes/11111111-2222-3333-4444-555555555555/lectura-ia", "/clientes")]
+    public async Task Desde_una_ficha_por_Id_la_ruta_de_retorno_es_la_lista_de_ese_arbol(string url, string lista)
     {
         _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
         var cut = Renderizar(seleccionado: Norte, url: url);
 
         await Abrir(cut);
 
-        var ruta = "/" + url.Split('?')[0];
-        cut.Find("input[name=returnUrl]").GetAttribute("value").Should().Be($"{ruta}?tenant={Norte}",
-            "la ficha pertenece al Tenant que se abandona (I15); la pista es solo una coordenada, nunca autoridad");
+        foreach (var retorno in cut.FindAll("input[name=returnUrl]"))
+            retorno.GetAttribute("value").Should().Be(lista,
+                "la ficha pertenece al Tenant que se deja: en el nuevo se aterriza en la lista, no en «sin acceso» (contrato del selector § 4.4)");
     }
 
     [Theory]
     [InlineData("trabajadores")]
-    [InlineData("clientes/11111111-2222-3333-4444-555555555555/lectura-ia")]
-    [InlineData("empresas/11111111-2222-3333-4444-555555555555/deteccion-trabajadores")]
     [InlineData("trabajadores/no-es-un-guid")]
-    public async Task Fuera_de_una_ficha_por_Id_la_ruta_de_retorno_no_lleva_pista(string url)
+    [InlineData("configuracion/usuarios")]
+    public async Task Fuera_de_una_ficha_por_Id_la_ruta_de_retorno_es_la_misma(string url)
     {
         _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
         var cut = Renderizar(seleccionado: Norte, url: url);

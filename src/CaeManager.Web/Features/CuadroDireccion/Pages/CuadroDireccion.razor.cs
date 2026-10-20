@@ -87,6 +87,11 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     private CuadroDireccionDto? _cuadro;
     private int _anyo;
     private int _mes;
+
+    /// <summary>El Excel de Trabajadores extranjeros del mes que se está mirando (<see cref="CuadroDireccionEndpoints"/>).</summary>
+    private string RutaExtranjerosDelMes =>
+        FormattableString.Invariant($"{CuadroDireccionEndpoints.RutaExtranjerosDelMes}?anyo={_anyo}&mes={_mes}");
+
     private string _ambito = string.Empty;
     private string _pestana = "general";
     private bool _error;

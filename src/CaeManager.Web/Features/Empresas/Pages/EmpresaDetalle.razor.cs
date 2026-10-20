@@ -1,3 +1,4 @@
+using CaeManager.Web.Features.Documentos.Components;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa;
 using CaeManager.Application.Empresas.Commands.GuardarNotaInternaEmpresa;
@@ -90,6 +91,11 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     private int? _cumplimiento;
     private bool _cargando = true;
     private bool _error;
+    /// <summary>
+    /// La consulta devolvió null: la ficha no está en el Tenant activo (o no existe; es el mismo estado, § 4.5).
+    /// No es un fallo transitorio, así que no lleva «Reintentar»: lo pinta <c>FichaNoEncontrada</c>.
+    /// </summary>
+    private bool _noEncontrada;
 
     /// <summary>Todos los Trabajadores de la Empresa: lo que cuentan la cabecera y el contador de la pestaña.</summary>
     private RecuentoTrabajadores? _recuentos;
@@ -320,12 +326,24 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         _errorAcceso = false;
     }
 
+    private DrawerGestionDocumento _drawerGestion = default!;
+
+    private Task SubirDocumentoAsync() => _drawerGestion.AbrirCrearParaEmpresaAsync(EmpresaId);
+
+    private async Task ManejarDocumentoGuardadoAsync()
+    {
+        // Recarga completa: la pestaña Documentación, la cifra por trabajador y los recuentos enseñan el documento nuevo.
+        NavigationManager.Refresh(forceReload: true);
+        await Task.CompletedTask;
+    }
+
     private async Task CargarAsync()
     {
         var carga = ++_cargaDetalle;
         var empresaId = EmpresaId;
         _cargando = true;
         _error = false;
+        _noEncontrada = false;
 
         try
         {
@@ -337,7 +355,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             if (detalle is null)
             {
                 _detalle = null;
-                _error = true;
+                _noEncontrada = true;
                 return;
             }
 
@@ -510,7 +528,8 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     private static ObtenerTrabajadoresQuery ConsultaOrdenada(Guid empresaId, int pagina, string? busqueda, Guid? delegacionId, Guid? oficioId) =>
         new(busqueda, EmpresaId: empresaId, Pagina: pagina, TamanoPagina: TamanoPagina,
-            OrdenarPor: nameof(TrabajadorListaDto.EstadoDocumental), DelegacionEmpresaId: delegacionId, OficioEmpresaId: oficioId);
+            OrdenarPor: nameof(TrabajadorListaDto.EstadoDocumental), DelegacionEmpresaId: delegacionId, OficioEmpresaId: oficioId,
+            ConDesgloseDocumental: true);
 
     /// <summary>
     /// Estados que deja pasar cada chip, para pedir a la consulta la página agrupada (el orden por Delegación u Oficio
@@ -564,7 +583,8 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
                 var agrupada = await Mediator.Send(new ObtenerTrabajadoresQuery(
                     busqueda, EmpresaId: empresaId, Pagina: _pagina, TamanoPagina: TamanoPagina,
                     OrdenarPor: _agrupar == AgruparPorOficio ? nameof(TrabajadorListaDto.OficioNombre) : nameof(TrabajadorListaDto.DelegacionEmpresaNombre),
-                    EstadoDocumental: EstadosDelChip(filtro), DelegacionEmpresaId: DelegacionEmpresaFiltro, OficioEmpresaId: OficioFiltro), _cancelacion);
+                    EstadoDocumental: EstadosDelChip(filtro), DelegacionEmpresaId: DelegacionEmpresaFiltro, OficioEmpresaId: OficioFiltro,
+                    ConDesgloseDocumental: true), _cancelacion);
                 if (carga != _cargaPagina || generacion != _generacion) return;
                 _filas = agrupada.Elementos;
             }

@@ -66,9 +66,15 @@
                 <PastillaFiltro PresentacionCampo="true" @key="_versionSelectorCliente" @ref="_selectorClienteEmpresarial" Etiqueta="@Textos["ListaEmpresa"]"
                                 Valor="@(_clienteSeleccionadoId == Guid.Empty ? string.Empty : _clienteSeleccionadoId.ToString())"
                                 ValorChanged="OnClienteSeleccionadoAsync" Opciones="OpcionesClienteListado" />
-                <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["ListaAgrupar"]" Valor="@_agrupar" ValorChanged="CambiarAgrupacion"
-                                TextoTodos="@Textos["ListaSinAgrupar"]" Opciones="@([new OpcionEstado("empresa", Textos["ListaPorEmpresa"])])" />
             </Pastillas>
+            <Herramientas>
+                <PastillaFiltro Etiqueta="@Textos["ListaAgrupar"]" Valor="@_agrupar" ValorChanged="CambiarAgrupacion"
+                                TextoTodos="@Textos["ListaSinAgrupar"]" Opciones="@([new OpcionEstado("empresa", Textos["ListaPorEmpresa"])])" Keytip="A" />
+                @if (_proyectos.Count > 0)
+                {
+                    <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" />
+                }
+            </Herramientas>
             <Chips>
                 @if (!string.IsNullOrWhiteSpace(_busqueda))
                 {

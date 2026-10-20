@@ -49,7 +49,7 @@ public partial class ProyectosGen2Tests
         var cut = await RenderizarConClienteAsync();
 
         cut.FindAll("table.tabla-proyectos thead th").Select(th => th.TextContent.Trim())
-            .Should().Equal("Proyecto", "Fechas", "Técnicos", "Plazo transcurrido", "Estado", "Acciones");
+            .Should().Equal("Proyecto", "Periodo", "Técnicos", "Plazo transcurrido", "Estado", "Acciones");
 
         var celdas = FilaDe(cut, ProyectoAbierto).QuerySelectorAll("td");
         celdas[0].QuerySelector(".nombre-proyecto").Should().NotBeNull();

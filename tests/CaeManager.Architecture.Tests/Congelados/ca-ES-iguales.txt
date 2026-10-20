@@ -1420,5 +1420,4 @@ src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.resx :: VacioTrabajad
 src/CaeManager.Web/Recursos/TextosComunes.resx :: IdiomaNoCambiadoDetalle = 1
 src/CaeManager.Web/Recursos/TextosComunes.resx :: IdiomaNoCambiadoTitulo = 1
 src/CaeManager.Web/Recursos/TextosComunes.resx :: LimiteErroresCompacto = 1
-src/CaeManager.Web/Recursos/TextosComunes.resx :: SelectorTenantRotulo = 1
 src/CaeManager.Web/Recursos/TextosComunes.resx :: SoporteEnlaceLogoOrganizacion = 1

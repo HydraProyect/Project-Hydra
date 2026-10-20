@@ -281,6 +281,9 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerGestionesPorDiaCuadroDireccionQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync"),
+        ["src/CaeManager.Application/Dashboard/Queries/ObtenerExtranjerosDelMesQuery.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync; y ObtenerTenantOrigenIdAsync() del propio usuario para los nombres de los Gestores CAE de su organización"),
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerKpisGlobalesQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "cliente.TenantId, mismo fan-out que ObtenerDashboardEjecutivoQuery"),
         ["src/CaeManager.Application/Bandeja/Queries/ObtenerMiTrabajoAgregado/ObtenerMiTrabajoAgregadoQuery.cs"] =
@@ -567,6 +570,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] = 2,
             ["src/CaeManager.Application/Operaciones/IncorporacionCartera/ContextoOperadorCae.cs"] = 2,
             ["src/CaeManager.Application/Dashboard/Queries/ObtenerCuadroDireccionQuery.cs"] = 2,
+            ["src/CaeManager.Application/Dashboard/Queries/ObtenerExtranjerosDelMesQuery.cs"] = 2,
         };
 
         foreach (var fichero in conocidos)

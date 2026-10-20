@@ -1,0 +1,103 @@
+@*
+    Estado de una ficha por Id cuya consulta devolvió null en el Tenant activo (contrato del selector de
+    Tenant, § 4.5, I15). Es el caso de pulsar «Atrás» del navegador tras cambiar de Empresa gestionada en
+    el selector de la cabecera: la URL vuelve a /trabajadores/{id} de la Empresa anterior, y en la activa
+    esa ficha no está. Un Gestor CAE no sabe qué es un Tenant: un «No pudimos cargar… Reintentar» ahí no
+    tiene salida, porque reintentar devuelve lo mismo.
+
+    Lo que decide este componente depende solo de quien mira y de la URL, nunca de si la entidad existe en
+    otro sitio: la ficha ausente y la ficha de otro Tenant son el mismo estado, y aquí no se consulta ningún
+    otro Tenant (sería un oráculo de existencia entre Tenants).
+
+    - Usuario con selector de Tenant (más de una empresa en su conjunto autorizado): vuelve a la lista con
+      replace (Atrás no reabre la ficha) y un toast informativo con el nombre de la empresa ACTIVA.
+    - Usuario sin selector (un solo Tenant), o lista autorizada ilegible: estado vacío con «Ir a la lista»;
+      no se redirige sin explicación.
+    - URL con la pista ?tenant= de un Tenant autorizado distinto del activo: estado vacío con el botón
+      «Abrir en {empresa}» de EnlaceProfundoOtraEmpresa (POST con antiforgery); no se redirige, porque esa
+      pista la pone a propósito quien enlaza.
+
+    Nunca hay «Reintentar»: el caso null no es un fallo transitorio. Una excepción real de la consulta es
+    otro estado, que la ficha sigue pintando con su «Reintentar».
+
+    Solo navega a RutaLista, una ruta local del mismo árbol; no cambia de Tenant ni toca la selección.
+    La redirección espera a la fase interactiva (OnAfterRender): en el prerenderizado el toast se perdería.
+*@
+@using System.Web
+@using CaeManager.Application.Common
+@using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados
+@using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+
+@if (_leyendo || _redirigir)
+{
+    <p class="ficha-no-encontrada-volviendo" role="status" data-ficha-no-encontrada="volviendo">@(_redirigir ? Textos["FichaNoDisponibleVolviendo"] : string.Empty)</p>
+}
+else
+{
+    <div data-ficha-no-encontrada="vacio">
+        <EstadoVacio Titulo="@Textos["FichaNoDisponibleTitulo"]" Descripcion="@Textos["FichaNoDisponibleDescripcion"]">
+            <Accion>
+                <Boton Variante="VarianteBoton.Primario" Href="@RutaLista">@Textos["FichaNoDisponibleIrALista"]</Boton>
+                <EnlaceProfundoOtraEmpresa />
+            </Accion>
+        </EstadoVacio>
+    </div>
+}
+
+@code {
+    [Inject] private IMediator Mediator { get; set; } = default!;
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private ToastService Toasts { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosComunes> Textos { get; set; } = default!;
+
+    /// <summary>Lista del mismo árbol a la que se vuelve (p. ej. <c>/trabajadores</c>). Ruta local, sin consulta.</summary>
+    [Parameter, EditorRequired] public string RutaLista { get; set; } = "/";
+
+    private bool _leyendo = true;
+    private bool _redirigir;
+    private bool _redirigido;
+    private string? _nombreActiva;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
+            var activa = ClientesAutorizados.Activo(autorizados, TenantActual.TenantId);
+
+            // La pista ?tenant= se contrasta con el conjunto autorizado del usuario, nunca con la entidad.
+            var pista = HttpUtility.ParseQueryString(new Uri(NavigationManager.Uri).Query)["tenant"];
+            var conPistaAutorizada = Guid.TryParse(pista, out var pistaId)
+                && pistaId != activa?.TenantId
+                && autorizados.Any(c => c.TenantId == pistaId);
+
+            _redirigir = activa is not null
+                && ClientesAutorizados.SelectorVisible(autorizados, activa)
+                && !conPistaAutorizada;
+            _nombreActiva = activa?.Nombre;
+        }
+        catch (Exception)
+        {
+            // Sin la lista autorizada no se sabe si el usuario tiene selector: estado vacío con salida.
+            _redirigir = false;
+        }
+        finally
+        {
+            _leyendo = false;
+        }
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!_redirigir || _redirigido)
+            return;
+
+        _redirigido = true;
+        Toasts.Mostrar(Textos["FichaNoEstaEnEmpresaActiva", _nombreActiva ?? string.Empty], TonoToast.Info);
+        NavigationManager.NavigateTo(RutaLista, replace: true);
+    }
+}

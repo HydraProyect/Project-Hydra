@@ -1,3 +1,4 @@
+using CaeManager.Web.Components.Layout;
 using AngleSharp.Dom;
 using Bunit.TestDoubles;
 using Bunit;
@@ -173,6 +174,7 @@ public partial class Empresa360PaginaTests : BunitContext
     private MediatorFalso Registrar(MediatorFalso mediador, string rol = Roles.GestorCae)
     {
         this.ConRolDeEscritura(rol);
+        this.ConServiciosDelFormularioDeDocumento();
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
@@ -291,6 +293,23 @@ public partial class Empresa360PaginaTests : BunitContext
             "nunca se trae la plantilla entera para contar");
     }
 
+    [Theory]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    public void La_cabecera_ofrece_Subir_documento_como_accion_principal_solo_con_escritura(string rol, bool escribe)
+    {
+        Registrar(Empresa(), rol);
+
+        var acciones = Renderizar().Find(".cabecera-identidad-acciones");
+
+        var subir = acciones.QuerySelectorAll("button").SingleOrDefault(b => b.TextContent.Trim() == "Subir documento");
+        (subir is not null).Should().Be(escribe);
+        if (escribe)
+            subir!.ClassList.Should().Contain("boton-primario");
+        acciones.QuerySelectorAll("a").Single(x => x.TextContent.Contains("Detectar altas y bajas"))
+            .ClassList.Should().NotContain("boton-primario", "la acción principal es subir el documento");
+    }
+
     [Fact]
     public void La_informacion_del_lateral_sale_del_detalle()
     {
@@ -302,15 +321,15 @@ public partial class Empresa360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void Si_la_empresa_no_llega_se_ofrece_reintentar_y_no_se_consulta_nada_mas()
+    public void Si_la_empresa_no_llega_pinta_FichaNoEncontrada_sin_Reintentar_y_no_se_consulta_nada_mas()
     {
-        Services.ConEnlaceProfundoOtraEmpresa();
+        ComponentFactories.AddStub<FichaNoEncontrada>();
         var mediador = Registrar(new MediatorFalso());
 
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("No pudimos cargar esta empresa").And.Contain("Puede que ya no exista o que no tengas acceso.");
-        cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Reintentar");
+        cut.RutaListaDeFichaNoEncontrada().Should().Be("/empresas");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Reintentar");
         mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Should().BeEmpty();
         mediador.Enviadas.OfType<ObtenerCredencialAccesoEmpresaSinContrasenaQuery>().Should().BeEmpty();
     }
