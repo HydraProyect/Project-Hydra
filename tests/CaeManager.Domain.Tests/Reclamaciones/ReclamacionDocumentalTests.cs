@@ -226,16 +226,27 @@ public class ReclamacionDocumentalTests
     }
 
     [Fact]
-    public void ParaEmpresaEmpleadora_rechaza_un_documento_que_falta_sin_Trabajador_y_ParaEmpresa_sigue_rechazandolo_con_Trabajador()
+    public void ParaEmpresaEmpleadora_admite_un_documento_que_falta_a_la_Empresa_sin_Trabajador_y_ParaEmpresa_sigue_rechazandolo_con_Trabajador()
     {
-        var aEmpleadora = () => ReclamacionDocumental.ParaEmpresaEmpleadora(
+        // Reclamación por acceso (2026-10-19): el correo a la Empresa empleadora pide lo que falta a sus Trabajadores (con
+        // Trabajador) y lo que falta a la propia Empresa (sin él). Una reclamación solo de documentos de empresa
+        // (ParaEmpresa) sigue sin poder nombrar a un Trabajador, y una a un Cliente sigue exigiéndolo.
+        var tipoDeLaEmpresa = Guid.NewGuid();
+        var tipoDelTrabajador = Guid.NewGuid();
+        var trabajadorId = Guid.NewGuid();
+        var aEmpleadora = ReclamacionDocumental.ParaEmpresaEmpleadora(
             Guid.NewGuid(), Guid.NewGuid(), "delegacion@empresa.example", DateTime.UtcNow, [],
-            documentosQueFaltan: [new DocumentoQueFaltaPedido(Guid.NewGuid(), null)]);
+            documentosQueFaltan: [new DocumentoQueFaltaPedido(tipoDeLaEmpresa, null), new DocumentoQueFaltaPedido(tipoDelTrabajador, trabajadorId)]);
         var aEmpresa = () => ReclamacionDocumental.ParaEmpresa(
             Guid.NewGuid(), Guid.NewGuid(), "agenda@empresa.example", DateTime.UtcNow, [],
             documentosQueFaltan: [new DocumentoQueFaltaPedido(Guid.NewGuid(), Guid.NewGuid())]);
+        var aCliente = () => ReclamacionDocumental.ParaCliente(
+            Guid.NewGuid(), Guid.NewGuid(), "cliente@empresa.example", DateTime.UtcNow, [],
+            documentosQueFaltan: [new DocumentoQueFaltaPedido(Guid.NewGuid(), null)]);
 
-        aEmpleadora.Should().Throw<ArgumentException>();
+        aEmpleadora.Documentos.Should().Contain(d => d.TipoDocumentoId == tipoDeLaEmpresa && d.TrabajadorId == null);
+        aEmpleadora.Documentos.Should().Contain(d => d.TipoDocumentoId == tipoDelTrabajador && d.TrabajadorId == trabajadorId);
         aEmpresa.Should().Throw<ArgumentException>();
+        aCliente.Should().Throw<ArgumentException>();
     }
 }
