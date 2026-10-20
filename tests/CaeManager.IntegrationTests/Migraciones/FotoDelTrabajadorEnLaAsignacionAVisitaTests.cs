@@ -150,7 +150,7 @@ public class FotoDelTrabajadorEnLaAsignacionAVisitaTests : IAsyncLifetime
         return _trabajadores.ToDictionary(
             p => p.Key,
             p => filas.Where(f => f.TrabajadorId == p.Value)
-                .Select(f => (f.EsExtranjeroCobrable, f.DocumentoIdentidad, f.NombreMostrado, f.MarcaExtranjeroCobrable, f.Dni))
+                .Select(f => (Cobrable: f.EsExtranjeroCobrable, Documento: (string?)f.DocumentoIdentidad, Nombre: (string?)f.NombreMostrado, Marca: f.MarcaExtranjeroCobrable, Dni: (string?)f.Dni))
                 .Single());
     }
 
