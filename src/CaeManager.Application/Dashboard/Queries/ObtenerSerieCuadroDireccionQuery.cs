@@ -202,7 +202,10 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
         lineas
             .GroupBy(l => (l.Concepto, Moneda: l.MonedaIso.Trim().ToUpperInvariant()))
             .Select(g => new LineaFacturacionCuadroDto(
-                g.Key.Concepto, g.First().ConceptoNombre, g.Key.Moneda, g.Sum(l => l.Unidades), g.Sum(l => l.Importe)))
+                g.Key.Concepto, g.First().ConceptoNombre, g.Key.Moneda, g.Sum(l => l.Unidades), g.Sum(l => l.Importe),
+                // Un solo Tenant en el grupo: se conserva el precio de su versión de tarifa; con varios no hay un precio único.
+                g.Count() == 1 ? g.First().PrecioUnitario : null,
+                g.Count() == 1 ? g.First().CobroActivo : null))
             .OrderBy(l => l.Concepto)
             .ThenBy(l => l.MonedaIso, StringComparer.Ordinal)
             .ToList();

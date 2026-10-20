@@ -46,7 +46,7 @@
                 </label>
             </div>
             <label class="tarifas-precio" data-invalido="@(invalido ? "true" : "false")">
-                <input type="number" min="0" step="0.5" inputmode="decimal" placeholder="0,00" disabled="@(!c.Activo)"
+                <input type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00" disabled="@(!c.Activo)"
                        aria-label="@T["TarifasPrecioDe", TituloDe(c)]" aria-invalid="@(invalido ? "true" : null)"
                        value="@c.Precio" @onchange="@(e => c.Precio = e.Value?.ToString() ?? string.Empty)" />
                 <span>@(_moneda == "USD" ? T["TarifasUnidadUsd"].Value : T["TarifasUnidadEur"].Value)</span>
@@ -133,10 +133,11 @@
 
     private static bool TryPrecio(string texto, out decimal precio)
     {
+        // Un precio en blanco no es 0: con el concepto activo hay que escribirlo, para no guardar 0 donde se esperaba «Sin tarifa».
         if (string.IsNullOrWhiteSpace(texto))
         {
             precio = 0m;
-            return true;
+            return false;
         }
 
         return decimal.TryParse(texto.Replace(',', '.'), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out precio)
@@ -168,8 +169,11 @@
             var cambioMoneda = Fila.TarifaVigente.Any(t => !string.Equals(t.MonedaIso.Trim(), _moneda, StringComparison.OrdinalIgnoreCase));
             foreach (var c in _conceptos)
             {
-                TryPrecio(c.Precio, out var precio);
                 var vigente = Fila.TarifaVigente.FirstOrDefault(t => t.Concepto == c.Concepto);
+                // Concepto sin tarifa que se deja apagado y sin precio: no se crea una versión a 0.
+                if (vigente is null && !c.Activo && string.IsNullOrWhiteSpace(c.Precio)) continue;
+
+                TryPrecio(c.Precio, out var precio);
                 var igual = vigente is not null && vigente.Activa == c.Activo && vigente.PrecioUnitario == precio && !cambioMoneda;
                 if (igual) continue;
 

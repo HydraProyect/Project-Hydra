@@ -41,6 +41,17 @@ public class FacturacionOperadorCaeTests
     }
 
     [Fact]
+    public void Sumar_las_lineas_de_un_solo_Tenant_conserva_el_precio_y_el_cobro_y_con_varios_no_inventa_un_precio()
+    {
+        var uno = ObtenerSerieCuadroDireccionQueryHandler.SumarLineas([Linea(Ext, 3, 40m), Linea(ConceptoTarifaOperadorCae.CentroNuevo, 2, 25m, activo: false)]);
+        uno.Single(l => l.Concepto == Ext).PrecioUnitario.Should().Be(40m);
+        uno.Single(l => l.Concepto == ConceptoTarifaOperadorCae.CentroNuevo).CobroActivo.Should().BeFalse();
+
+        var varios = ObtenerSerieCuadroDireccionQueryHandler.SumarLineas([Linea(Ext, 3, 40m), Linea(Ext, 1, 30m)]);
+        varios.Should().ContainSingle().Which.PrecioUnitario.Should().BeNull();
+    }
+
+    [Fact]
     public void El_ingreso_por_gestion_separa_las_normales_de_las_de_extranjero_y_da_la_relacion()
     {
         var fila = Fila(10, 110, Linea(Ext, 10, 40m), Linea(ConceptoTarifaOperadorCae.CentroNuevo, 2, 25m));
