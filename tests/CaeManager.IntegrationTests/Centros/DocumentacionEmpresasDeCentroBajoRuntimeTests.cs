@@ -156,7 +156,10 @@ public class DocumentacionEmpresasDeCentroBajoRuntimeTests : IAsyncLifetime
         servicios.AddMediatR(c => c.RegisterServicesFromAssemblyContaining<ObtenerDocumentacionRequeridaDeCentroQuery>());
         using var proveedor = servicios.BuildServiceProvider();
         return await new ObtenerDocumentacionEmpresasDeCentroQueryHandler(contexto, contexto, contexto, contexto, contexto,
-            contexto, alcance, proveedor.GetRequiredService<IMediator>()).Handle(new(centroId), CancellationToken.None);
+            contexto, alcance, proveedor.GetRequiredService<IMediator>(),
+            new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(
+                contexto, contexto, contexto, contexto, contexto, alcance,
+                new CurrentUserServiceFalso(usuario, rol, tenantOrigenId: _propietario.Id))).Handle(new(centroId), CancellationToken.None);
     }
 
     private CaeManagerDbContext Contexto(Guid tenantId, Guid? usuario = null, string? rol = null)

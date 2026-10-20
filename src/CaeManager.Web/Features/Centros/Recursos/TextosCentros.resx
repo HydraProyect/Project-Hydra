@@ -485,7 +485,7 @@
   <data name="ListadoDocumentoPorVencerSingular" xml:space="preserve">
     <value>{0}/{1} · {2} en {3} día</value>
   </data>
-  <data name="PestanaDocumentacionCentro360" xml:space="preserve"><value>Documentación del Centro</value></data>
+  <data name="PestanaDocumentacionCentro360" xml:space="preserve"><value>Documentación Empresa</value></data>
   <data name="PestanaRequisitos360" xml:space="preserve"><value>Requisitos</value></data>
   <data name="LecturaCentroError360" xml:space="preserve"><value>No se pudo cargar la documentación del Centro</value></data>
   <data name="DocumentacionCentroSinGestion360" xml:space="preserve"><value>Este Centro no requiere gestión CAE</value></data>
@@ -601,4 +601,55 @@
   <data name="UltimaReclamacionEmpresaEmpleadora" xml:space="preserve">
     <value>Última reclamación a {0}, Empresa de sus Trabajadores</value>
   </data>
+  <data name="PlataformaEstadoCabecera360" xml:space="preserve"><value>Estado en la plataforma</value></data>
+  <data name="PlataformaEstadoCabeceraNombre360" xml:space="preserve"><value>Estado en {0}</value></data>
+  <data name="DocumentacionEmpresaIntroNombre360" xml:space="preserve"><value>Lo que este Centro exige a cada Empresa, con su estado en {0}.</value></data>
+  <data name="PlataformaSinDatos360" xml:space="preserve"><value>Sin datos de plataforma</value></data>
+  <data name="PlataformaBloquea360" xml:space="preserve"><value>Bloquea</value></data>
+  <data name="PlataformaBloqueaSi360" xml:space="preserve"><value>Sí</value></data>
+  <data name="PlataformaBloqueaNo360" xml:space="preserve"><value>No</value></data>
+  <data name="PlataformaPendienteSubir360" xml:space="preserve"><value>Pendiente de subir</value></data>
+  <data name="PlataformaPendienteValidacion360" xml:space="preserve"><value>Pendiente de validación</value></data>
+  <data name="PlataformaValidado360" xml:space="preserve"><value>Validado</value></data>
+  <data name="PlataformaRechazado360" xml:space="preserve"><value>Rechazado</value></data>
+  <data name="PlataformaNoExigido360" xml:space="preserve"><value>No exigido</value></data>
+  <data name="PlataformaBloqueaAcceso360" xml:space="preserve"><value>Bloquea acceso</value></data>
+  <data name="PlataformaCaducidad360" xml:space="preserve"><value>Caducidad</value></data>
+  <data name="PlataformaTalveg360" xml:space="preserve"><value>En TALVEG: {0}</value></data>
+  <data name="DocumentacionEmpresaIntro360" xml:space="preserve"><value>Lo que este Centro exige a cada Empresa, con su estado en la plataforma CAE.</value></data>
+  <data name="DocumentacionEmpresaTabla360" xml:space="preserve"><value>Documentación de Empresa exigida en este Centro</value></data>
+  <data name="DocumentoNombre360" xml:space="preserve"><value>Documento</value></data>
+  <data name="HistorialCambios360" xml:space="preserve"><value>Cambios</value></data>
+  <data name="DocumentoColumna360" xml:space="preserve"><value>Documento</value></data>
+  <data name="BuscarTrabajadorCentro360" xml:space="preserve"><value>Buscar trabajador de este centro…</value></data>
+  <data name="RutaCentro360" xml:space="preserve"><value>Ruta de Centro 360</value></data>
+  <data name="ErrorCargarCentro360" xml:space="preserve"><value>No pudimos cargar este centro</value></data>
+  <data name="ReintentarCentroDescripcion360" xml:space="preserve"><value>Intenta nuevamente en unos segundos.</value></data>
+  <data name="ReintentarCentro360" xml:space="preserve"><value>Reintentar</value></data>
+  <data name="EditarCentro360" xml:space="preserve"><value>Editar centro</value></data>
+  <data name="ReclamarDocumentacionCentro360" xml:space="preserve"><value>Reclamar documentación ({0})</value></data>
+  <data name="GenerarInformeCentro360" xml:space="preserve"><value>Generar informe del centro</value></data>
+  <data name="DarBajaCentro360" xml:space="preserve"><value>Dar de baja</value></data>
+  <data name="LimpiarFiltrosCentro360" xml:space="preserve"><value>Limpiar filtros</value></data>
+  <data name="CanalesGestionCentro360" xml:space="preserve"><value>Canales de gestión</value></data>
+  <data name="GestionarCanalesCentro360" xml:space="preserve"><value>Gestionar →</value></data>
+  <data name="CanalesVacioCentro360" xml:space="preserve"><value>Sin canal de gestión registrado para este centro.</value></data>
+  <data name="PlataformaSinResolverCentro360" xml:space="preserve"><value>Plataforma sin resolver</value></data>
+  <data name="GestionCorreoCentro360" xml:space="preserve"><value>Gestión por correo</value></data>
+  <data name="ConCredencialesCentro360" xml:space="preserve"><value>Con credenciales</value></data>
+  <data name="SinCredencialesCentro360" xml:space="preserve"><value>Sin credenciales</value></data>
+  <data name="CanalPrincipalCentro360" xml:space="preserve"><value>Principal</value></data>
+  <data name="AbrirPortalCentroAccesible360" xml:space="preserve"><value>Abrir el portal {0} en una pestaña nueva</value></data>
+  <data name="AbrirPortalCentro360" xml:space="preserve"><value>Abrir portal ↗</value></data>
+  <data name="DireccionCanalCentro360" xml:space="preserve"><value>la dirección de este canal</value></data>
+  <data name="ContactosCentro360" xml:space="preserve"><value>Contactos del centro</value></data>
+  <data name="RegistrarCanal360" xml:space="preserve"><value>Registrar canal</value></data>
+  <data name="VisitasAnterioresTitulo360" xml:space="preserve"><value>Anteriores</value></data>
+  <data name="VisitasAnterioresError360" xml:space="preserve"><value>No pudimos cargar las visitas anteriores</value></data>
+  <data name="VisitasAnterioresVacio360" xml:space="preserve"><value>Sin visitas anteriores</value></data>
+  <data name="VisitaCancelada360" xml:space="preserve"><value>Cancelada</value></data>
+  <data name="VisitaDocumentacionGestionada360" xml:space="preserve"><value>Documentación gestionada</value></data>
+  <data name="VisitaPasada360" xml:space="preserve"><value>Pasada</value></data>
+  <data name="VisitaNombre360" xml:space="preserve"><value>Visita {0} – {1}</value></data>
+  <data name="VisitaTrabajadoresDe360" xml:space="preserve"><value>Trabajadores de la visita: {0}</value></data>
 </root>

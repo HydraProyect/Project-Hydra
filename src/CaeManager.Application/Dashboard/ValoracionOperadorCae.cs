@@ -118,7 +118,8 @@ public static class ValoracionOperadorCae
             if (tarifa is null || UnidadesDe(medicion, concepto) is not { } unidades)
                 continue;
             lineas.Add(new LineaFacturacionCuadroDto(
-                concepto, NombreDe(concepto), tarifa.MonedaIso, unidades, tarifa.Activa ? unidades * tarifa.PrecioUnitario : 0m));
+                concepto, NombreDe(concepto), tarifa.MonedaIso, unidades, tarifa.Activa ? unidades * tarifa.PrecioUnitario : 0m,
+                tarifa.PrecioUnitario, tarifa.Activa));
         }
 
         return lineas;

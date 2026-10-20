@@ -70,7 +70,7 @@ public partial class Trabajador360Gen2Tests
         };
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
 
-        drawer.FindComponents<CampoTexto>().Should().HaveCount(12);
+        drawer.FindComponents<CampoTexto>().Should().HaveCount(15);
         drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Contacto de emergencia").Instance.Valor
             .Should().Be("Lucía Moreno");
         drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Teléfono de emergencia").Instance.Type

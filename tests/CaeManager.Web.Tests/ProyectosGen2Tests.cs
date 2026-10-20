@@ -456,6 +456,41 @@ public partial class ProyectosGen2Tests : BunitContext
     private static List<string> OpcionesDelAlta(IRenderedComponent<Proyectos> cut, string etiqueta) =>
         SelectDelAlta(cut, etiqueta).QuerySelectorAll("option").Select(o => o.TextContent.Trim()).ToList();
 
+    /// <summary>«Más acciones» → «Crear Evento» abre el mismo alta de «+ Nuevo proyecto» con el tipo Evento: sale su fin obligatorio.</summary>
+    [Fact]
+    public async Task Mas_acciones_Crear_Evento_abre_el_alta_con_el_tipo_Evento()
+    {
+        _mediator.CentrosClienteA = [CentroDeA];
+        var cut = await RenderizarConClienteAsync();
+
+        await AbrirMasAccionesAsync(cut);
+        var crearEvento = cut.FindAll("[role=menuitem]").Single(e => e.TextContent.Trim() == "Crear Evento");
+        await crearEvento.ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().NotBeEmpty("«Crear Evento» abre el alta"));
+        var etiquetas = cut.FindComponents<CampoTexto>().Select(c => c.Instance.Etiqueta).ToList();
+        etiquetas.Should().Contain("Fin del evento", "el alta de un Evento pide su fecha de fin");
+        etiquetas.Should().NotContain("Fin previsto (opcional — indefinido si se deja vacío)", "no es un alta de Obra");
+    }
+
+    /// <summary>«Crear Evento» es escritura: Consulta no lo ve en «Más acciones».</summary>
+    [Fact]
+    public async Task Consulta_no_ve_Crear_Evento_en_Mas_acciones()
+    {
+        this.ConRolDeEscritura(Roles.Consulta);
+        _mediator.Proyectos = [ProyectoAbierto];
+        var cut = await RenderizarConClienteAsync();
+
+        await AbrirMasAccionesAsync(cut);
+        var entradas = cut.FindAll("[role=menuitem]").Select(e => e.TextContent.Trim()).ToList();
+        entradas.Should().Contain("Exportar todo", "control positivo: el menú sí se abrió y pinta sus entradas");
+        entradas.Should().NotContain("Crear Evento");
+    }
+
+    /// <summary>Abre «Más acciones» de la cabecera del listado (no los desplegables de las pastillas de filtro).</summary>
+    private static Task AbrirMasAccionesAsync(IRenderedComponent<Proyectos> cut) =>
+        cut.Find("[aria-haspopup=menu][aria-label='Más acciones']").ClickAsync(new MouseEventArgs());
+
     private static Task PulsarNuevoProyectoAsync(IRenderedComponent<Proyectos> cut) =>
         cut.FindAll("button").First(b => b.TextContent.Trim() == "+ Nuevo proyecto").ClickAsync(new MouseEventArgs());
 

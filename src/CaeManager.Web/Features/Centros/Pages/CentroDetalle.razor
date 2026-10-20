@@ -24,7 +24,7 @@
 <PageTitle>@(_detalle?.Nombre ?? "Centro") — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="Ruta de Centro 360" />
+    <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["RutaCentro360"]" />
 
     @if (_noEncontrada)
     {
@@ -35,9 +35,9 @@
     else if (_error)
     {
         <Tarjeta>
-            <EstadoVacio Titulo="No pudimos cargar este centro" Descripcion="Intenta nuevamente en unos segundos.">
+            <EstadoVacio Titulo="@Textos["ErrorCargarCentro360"]" Descripcion="@Textos["ReintentarCentroDescripcion360"]">
                 <Accion>
-                    <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
+                    <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["ReintentarCentro360"]</Boton>
                 </Accion>
             </EstadoVacio>
         </Tarjeta>
@@ -81,7 +81,7 @@
             </Datos>
             <Acciones>
                 @* Lleva a /visitas con el Drawer de alta abierto (CrearVisitaCommand, denegado a Consulta). *@
-                <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" OnClick="ProgramarVisita">Programar visita</Boton></SoloConEscritura>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="ProgramarVisita">@Textos["ProgramarVisitaCentro"]</Boton></SoloConEscritura>
                 @*
                     El resto de acciones, en el menú «⋯» del mockup. «Reclamar
                     documentación» remite al panel a propósito (ver doc de la
@@ -91,34 +91,21 @@
                     reclamar, para no ofrecer una acción sin objeto.
                 *@
                 <MenuAcciones>
-                    <SoloConEscritura><ItemMenuAccion OnClick="AbrirInformacion">Editar centro</ItemMenuAccion></SoloConEscritura>
+                    <SoloConEscritura><ItemMenuAccion OnClick="AbrirInformacion">@Textos["EditarCentro360"]</ItemMenuAccion></SoloConEscritura>
                     @if (_detalle.FichaVisible)
                     {
                         <SoloConEscritura><ItemMenuAccion OnClick="() => _editarFichaVisible = true">@Textos["FichaEditarTitulo"]</ItemMenuAccion></SoloConEscritura>
                     }
-                    <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => _confirmarEliminarVisible = true">@Textos["MenuEliminarCentro"]</ItemMenuAccion></SoloConEscritura>
                     @if (_documentosPorReclamar > 0)
                     {
                         @* Reclamar envía un mensaje (EnviarReclamacionCommand): es escritura, y a Consulta no se le ofrece. *@
-                        <SoloConEscritura><ItemMenuAccion OnClick="AbrirInformacion">Reclamar documentación (@_documentosPorReclamar)</ItemMenuAccion></SoloConEscritura>
+                        <SoloConEscritura><ItemMenuAccion OnClick="AbrirInformacion">@Textos["ReclamarDocumentacionCentro360", _documentosPorReclamar]</ItemMenuAccion></SoloConEscritura>
                     }
-                    <ItemMenuAccion OnClick="GenerarInformeDelCentro">Generar informe del centro</ItemMenuAccion>
+                    <ItemMenuAccion OnClick="GenerarInformeDelCentro">@Textos["GenerarInformeCentro360"]</ItemMenuAccion>
+                    <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => _confirmarEliminarVisible = true">@Textos["DarBajaCentro360"]</ItemMenuAccion></SoloConEscritura>
                 </MenuAcciones>
             </Acciones>
         </CabeceraIdentidad>
-
-        @*
-            Barra de trabajo del mockup (data-workbar). Filtra client-side lo
-            que el acordeón ya cargó —ninguna consulta nueva— y los dos filtros
-            viajan en la URL para que un centro filtrado se pueda enlazar.
-        *@
-        <div class="barra-filtros" hidden="@(_pestana != PestanaTrabajadores)">
-            <CampoTexto Placeholder="Buscar trabajador en este centro…" Valor="@_busqueda" ValorChanged="Buscar" />
-            @if (HayFiltrosActivos)
-            {
-                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="LimpiarFiltros">Limpiar filtros</Boton>
-            }
-        </div>
 
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral360"]">
             <ChildContent>
@@ -134,9 +121,24 @@
                                                       SoloIncidencias="false"
                                                       FiltroTexto="@_busqueda" FiltroEstado="@_estadoFiltro" FiltroEstadoChanged="CambiarEstado"
                                                       OnResumenCargado="ActualizarResumenTrabajadores"
-                                                      MostrarTotales="true"
+                                                      MostrarTotales="true" MostrarEstadoPlataforma="true" NombrePlataforma="@NombrePlataformaCentro"
                                                       Bloqueos="_bloqueos"
-                                                      OnCambio="CargarAsync" />
+                                                      OnCambio="CargarAsync">
+                            <Busqueda>
+                                @*
+                                    Barra de trabajo del mockup (data-workbar). Filtra client-side lo
+                                    que el acordeón ya cargó —ninguna consulta nueva— y los dos filtros
+                                    viajan en la URL para que un centro filtrado se pueda enlazar.
+                                *@
+                                <div class="barra-filtros" hidden="@(_pestana != PestanaTrabajadores)">
+                                    <CampoTexto Placeholder="@Textos["BuscarTrabajadorCentro360"]" Valor="@_busqueda" ValorChanged="Buscar" />
+                                    @if (HayFiltrosActivos)
+                                    {
+                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="LimpiarFiltros">@Textos["LimpiarFiltrosCentro360"]</Boton>
+                                    }
+                                </div>
+                            </Busqueda>
+                        </AcordeonAsignacionesCentro>
                     </div>
                     @if (_pestana == PestanaVisitas)
                     {
@@ -153,17 +155,20 @@
                         }
                         else
                         {
-                            <Tarjeta Titulo="@Textos["VisitasActivasTitulo"]">
+                            <div class="centro-visitas-lista">
                                 <ListaLateral>
                                     @foreach (var visita in VisitasParaMostrar)
                                     {
                                         <ElementoListaLateral @key="visita.VisitaId">
-                                            <Etiqueta>@visita.FechaInicio.ToString("dd/MM/yyyy") – @visita.FechaFin.ToString("dd/MM/yyyy")</Etiqueta>
+                                            <Etiqueta>
+                                                <span>@visita.FechaInicio.ToString("dd/MM/yyyy") – @visita.FechaFin.ToString("dd/MM/yyyy")</span>
+                                                <Boton360 Nombre="@($"{_detalle.Nombre} · {visita.FechaInicio:dd/MM/yyyy} – {visita.FechaFin:dd/MM/yyyy}")" Href="@($"/visitas/{visita.VisitaId}")" />
+                                            </Etiqueta>
                                             <ChildContent><span>@Textos[visita.TrabajadoresCount == 1 ? "VisitaTrabajador" : "VisitaTrabajadores", visita.TrabajadoresCount]</span></ChildContent>
                                         </ElementoListaLateral>
                                     }
                                 </ListaLateral>
-                            </Tarjeta>
+                            </div>
                         }
                     }
                     @if (_pestana is PestanaDocumentacionCentro or PestanaRequisitos)
@@ -182,68 +187,57 @@
                             {
                                 <EstadoVacio Titulo="@Textos[_detalle.GestionCae == ModalidadGestionCae.SinGestionCae ? "DocumentacionCentroSinGestion360" : "DocumentacionCentroSinEmpresas360"]" />
                             }
-                            @if (_documentacionEmpresas.Any(e => e.Documentos.Count > 0))
+                            @if (_documentacionEmpresas.Count > 0)
                             {
-                                <CampoTexto Etiqueta="@Textos["BuscarDocumentacionCentro360"]" Valor="@_busquedaDocumentacionCentro" ValorChanged="v => _busquedaDocumentacionCentro = v" />
-                                <FranjaEstado Opciones="OpcionesDocumentacionCentro" Valor="@_estadosDocumentacionCentro" ValorChanged="v => _estadosDocumentacionCentro = v"
-                                               Recuentos="RecuentosDocumentacionCentro" EtiquetaAccesible="@Textos["FiltrarDocumentacionCentro360"]" />
-                            }
-                            @foreach (var empresa in _documentacionEmpresas)
-                            {
-                                var documentosVisibles = DocumentosParaMostrar(empresa);
-                                <Tarjeta @key="empresa.EmpresaId" Titulo="@Textos["DocumentacionCentroExigeA360"]">
-                                    <AccionesHeader>
-                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEmpresaDocumentacion(empresa)">@empresa.Nombre</Boton>
-                                        <Boton360 Nombre="@empresa.Nombre" OnClick="() => IrAEmpresaDocumentacion(empresa)" />
-                                    </AccionesHeader>
-                                    <ChildContent>
-                                        @if (empresa.Documentos.Count == 0)
-                                        {
-                                            <EstadoVacio Titulo="@Textos["DocumentacionCentroSinExigidos360"]" />
-                                        }
-                                        else if (documentosVisibles.Count == 0)
-                                        {
-                                            <EstadoVacio Titulo="@Textos["DocumentacionCentroFiltroVacio360"]" />
-                                        }
-                                        else
-                                        {
-                                            <ListaRelaciones Etiqueta="@Textos["DocumentacionCentroLista360", empresa.Nombre]">
-                                                @foreach (var documento in documentosVisibles)
-                                                {
-                                                    <FilaRelacion @key="documento.TipoDocumentoId" Nombre="@documento.Nombre" Tono="EstadoDocumentoFicha360.TonoFila(documento.Estado)">
-                                                        <Detalle>
-                                                            @if (documento.DocumentoId is null)
-                                                            {
-                                                                @Textos["DocumentoCentroAusente360"]
-                                                            }
-                                                            else
-                                                            {
-                                                                @if (documento.FechaEmision is { } emision)
-                                                                {
-                                                                    <span>@Textos["DocumentoCentroEmision360", emision.ToString("dd/MM/yyyy")]</span>
-                                                                }
-                                                                @if (documento.FechaVencimiento is { } vence)
-                                                                {
-                                                                    <span> · @Textos["DocumentoCentroVence360", vence.ToString("dd/MM/yyyy")]</span>
-                                                                }
-                                                                @if (documento.EnToleranciaHasta is { } tolerancia)
-                                                                {
-                                                                    <span> · @Textos["DocumentoCentroToleranciaHasta360", tolerancia.ToString("dd/MM/yyyy")]</span>
-                                                                }
-                                                            }
-                                                        </Detalle>
-                                                        <Estado><Badge Tono="EstadoDocumentoFicha360.Tono(documento.Estado)">@EstadoDocumentoFicha360.Texto(documento.Estado)</Badge></Estado>
-                                                        <Acciones><Boton360 Nombre="@documento.Nombre" OnClick="() => IrATipoDocumento(documento.TipoDocumentoId)" /></Acciones>
-                                                    </FilaRelacion>
-                                                }
-                                            </ListaRelaciones>
-                                        }
-                                        @if (empresa.Documentos.Count > 0)
-                                        {
-                                            <p class="nota">@Textos["DocumentacionCentroRecuento360", documentosVisibles.Count, empresa.Documentos.Count]</p>
-                                        }
-                                    </ChildContent>
-                                </Tarjeta>
+                                <p class="centro-documentacion-intro">@(NombrePlataformaCentro is { } plataformaIntro ? Textos["DocumentacionEmpresaIntroNombre360", plataformaIntro] : Textos["DocumentacionEmpresaIntro360"])</p>
+                                <div class="centro-documentacion-tabla" role="table" aria-label="@Textos["DocumentacionEmpresaTabla360"]">
+                                    <div class="centro-documentacion-cabecera" role="row">
+                                        <span role="columnheader">@Textos["DocumentoNombre360"]</span>
+                                        <span role="columnheader">@(NombrePlataformaCentro is { } plataformaCabecera ? Textos["PlataformaEstadoCabeceraNombre360", plataformaCabecera] : Textos["PlataformaEstadoCabecera360"])</span>
+                                        <span role="columnheader">@Textos["PlataformaCaducidad360"]</span>
+                                        <span role="columnheader">@Textos["PlataformaBloquea360"]</span>
+                                    </div>
+                                    @{ var clavesDocumentos = new ClavesDeHermanos(); }
+                                    @* Como la maqueta del 20-10: una sola lista, lo que bloquea primero y luego lo pendiente de validar. *@
+                                    @foreach (var (empresa, documento) in DocumentosEmpresaOrdenados)
+                                    {
+                                            <div class="centro-documentacion-fila @(BloqueaPlataforma(documento) ? "centro-documentacion-bloquea" : documento.AcreditacionesEnElCentro?.Any(a => a.Estado == EstadoAcreditacion.Subida) == true ? "centro-documentacion-pendiente" : null)" role="row" @key="clavesDocumentos.De((empresa.EmpresaId, documento.TipoDocumentoId))">
+                                                <span role="cell" class="centro-documentacion-identidad">
+                                                    <span class="centro-documentacion-t" data-estado="@EstadoDocumentoFicha360.Tono(documento.Estado)" title="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]" aria-label="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]">T</span>
+                                                    <span class="centro-documentacion-nombre">
+                                                        <span>@documento.Nombre</span>
+                                                        <span class="centro-documentacion-empresa">
+                                                            <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirEmpresaDocumentacion(empresa)">@empresa.Nombre</button>
+                                                            <Boton360 Nombre="@empresa.Nombre" OnClick="() => IrAEmpresaDocumentacion(empresa)" />
+                                                        </span>
+                                                    </span>
+                                                </span>
+                                                <span role="cell" class="centro-documentacion-plataforma">
+                                                    @if (documento.AcreditacionesEnElCentro is not { Count: > 0 })
+                                                    {
+                                                        @Textos["PlataformaSinDatos360"]
+                                                    }
+                                                    else
+                                                    {
+                                                        @foreach (var acreditacion in documento.AcreditacionesEnElCentro)
+                                                        {
+                                                            <Badge Tono="TonoPlataforma(acreditacion.Estado)" Tamano="TamanoBadge.Pequeno">@TextoPlataforma(acreditacion.Estado)</Badge>
+                                                            <span>@acreditacion.NombrePlataforma</span>
+                                                        }
+                                                    }
+                                                    <CaeManager.Web.Features.Documentos.Components.LineaPlataformaYReclamacion UltimaReclamacion="documento.UltimaReclamacion" Estado="documento.Estado" LaFilaYaDiceLaPlataforma="false" />
+                                                </span>
+                                                <span role="cell" class="centro-documentacion-fecha">
+                                                    <TextoFechaCopiable Fecha="documento.FechaVencimiento" FechaEmision="documento.FechaEmision">@(documento.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</TextoFechaCopiable>
+                                                </span>
+                                                <span role="cell">@(documento.AcreditacionesEnElCentro is { Count: > 0 } ? Textos[BloqueaPlataforma(documento) ? "PlataformaBloqueaSi360" : "PlataformaBloqueaNo360"].Value : "—")</span>
+                                            </div>
+                                    }
+                                    @foreach (var empresaSinDocumentos in _documentacionEmpresas.Where(e => e.Documentos.Count == 0))
+                                    {
+                                        <EstadoVacio @key="empresaSinDocumentos.EmpresaId" Titulo="@Textos["DocumentacionCentroSinExigidos360"]" />
+                                    }
+                                </div>
                             }
                         }
                         else if (_requisitosCentro.Count == 0)
@@ -267,12 +261,12 @@
                             </ListaRelaciones>
                         }
                     }
-                    @if (_pestana == PestanaFicha && HayDatosFicha)
-                    {
-                        <CajasFicha Cajas="CajasDeFicha" />
-                    }
+                    <div class="centro-ficha-canales" hidden="@(_pestana != PestanaFicha)">
+                        <CajasFicha @key="CentroId" Cajas="CajasDeFicha" ClaveOrden="@($"centro-{CentroId}")" />
+                    </div>
                     @if (_pestana == PestanaHistorial)
                     {
+                        <h3 class="centro-historial-titulo">@Textos["HistorialCambios360"]</h3>
                         <PestanaHistorial @key="CentroId" EntidadTipo="Centro" EntidadId="CentroId" />
                     }
                 </Pestanas>
@@ -286,12 +280,12 @@
                         <RejillaDatos>
                             @if (!string.IsNullOrWhiteSpace(_detalle.CodigoCentro))
                             {
-                                <DatoRejilla Etiqueta="@Textos["InformacionCodigo360"]" Valor="@_detalle.CodigoCentro" />
+                                <DatoRejilla Etiqueta="@Textos["InformacionCodigo360"]"><BotonCopiar EnLinea="true" Valor="@_detalle.CodigoCentro" Texto="@_detalle.CodigoCentro" NombreAccesible="@Textos["FichaCopiarDato", Textos["InformacionCodigo360"]]" /></DatoRejilla>
                             }
                             <DatoRejilla Etiqueta="@Textos["InformacionCliente360"]" Valor="@_detalle.ClienteRazonSocial" />
                             @if (!string.IsNullOrWhiteSpace(_detalle.Direccion))
                             {
-                                <DatoRejilla Etiqueta="@Textos["FichaDireccionCentro"]" Valor="@_detalle.Direccion" />
+                                <DatoRejilla Etiqueta="@Textos["FichaDireccionCentro"]" Ancho="true"><BotonCopiar EnLinea="true" Valor="@_detalle.Direccion" Texto="@_detalle.Direccion" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaDireccionCentro"]]" /></DatoRejilla>
                             }
                             @if (_detalle.FichaVisible && _detalle.HorarioAcceso is not null)
                             {
@@ -302,9 +296,38 @@
                         </RejillaDatos>
                     </ChildContent>
                 </Tarjeta>
-                <Tarjeta Compacta="true" Titulo="Canales de gestión">
+
+                @* Nota interna: el servidor decide si el lector es del equipo (NotaInternaVisible); a un usuario de
+                   Cliente no le llega ni la tarjeta vacía. *@
+                @if (_detalle.NotaInternaVisible)
+                {
+                    <NotaInternaEditable @key="_detalle.Id" Texto="@_detalle.Notas" Guardar="GuardarNotaInternaAsync" OnGuardada="RecargarTrasNotaInternaAsync" />
+                }
+            </Lateral>
+        </CuerpoConLateral>
+    }
+</div>
+
+<DialogoConfirmacion Visible="_confirmarEliminarVisible"
+                     VisibleChanged="v => _confirmarEliminarVisible = v"
+                     Titulo="@Textos["EliminarCentroTitulo", _detalle?.Nombre ?? string.Empty].Value"
+                     Mensaje="@Textos["EliminarCentroMensaje"].Value"
+                     EnProgreso="_eliminando"
+                     OnConfirmar="ConfirmarEliminarAsync" />
+@if (_detalle is { FichaVisible: true })
+{
+    <SoloConEscritura><EditarFichaCentroDrawer CentroId="CentroId" Visible="_editarFichaVisible" VisibleChanged="v => _editarFichaVisible = v" OnGuardada="CargarAsync" /></SoloConEscritura>
+}
+</LimiteDeErrores>
+
+@code {
+    private RenderFragment CanalesDeGestion => __builder =>
+    {
+        if (_detalle is not null)
+        {
+<Tarjeta Compacta="true" Titulo="@Textos["CanalesGestionCentro360"]">
                     <AccionesHeader>
-                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPlataforma">Gestionar →</Boton>
+                        <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPlataforma">@Textos["GestionarCanalesCentro360"]</Boton></SoloConEscritura>
                     </AccionesHeader>
                     <ChildContent>
                         @if (_detalle.GestionCae == ModalidadGestionCae.SinGestionCae)
@@ -317,7 +340,8 @@
                         }
                         else if (_canales.Count == 0)
                         {
-                            <p class="texto-vacio-seccion">Sin canal de gestión registrado para este centro.</p>
+                            <p class="texto-vacio-seccion">@Textos["CanalesVacioCentro360"]</p>
+                            <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPlataforma">@Textos["RegistrarCanal360"]</Boton></SoloConEscritura>
                         }
                         else
                         {
@@ -328,18 +352,18 @@
                                         <Etiqueta>
                                             <span>
                                                 @(canal.Tipo == TipoCanalGestion.Plataforma
-                                                    ? (canal.ProveedorPlataformaCaeNombre ?? "Plataforma sin resolver")
-                                                    : "Gestión por correo")
+                                                    ? (canal.ProveedorPlataformaCaeNombre ?? Textos["PlataformaSinResolverCentro360"].Value)
+                                                    : Textos["GestionCorreoCentro360"].Value)
                                                 @if (canal.Tipo == TipoCanalGestion.Plataforma)
                                                 {
                                                     <Badge Tono="@(canal.TieneCredenciales ? TonoBadge.Exito : TonoBadge.Neutro)" Tamano="TamanoBadge.Pequeno">
-                                                        @(canal.TieneCredenciales ? "Con credenciales" : "Sin credenciales")
+                                                        @(Textos[canal.TieneCredenciales ? "ConCredencialesCentro360" : "SinCredencialesCentro360"])
                                                     </Badge>
                                                 }
                                             </span>
                                             @if (canal.EsPrincipal)
                                             {
-                                                <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">Principal</Badge>
+                                                <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">@Textos["CanalPrincipalCentro360"]</Badge>
                                             }
                                         </Etiqueta>
                                         <ChildContent>
@@ -356,11 +380,11 @@
                                                 <span>
                                                     @if (UrlPortalCae.Normalizar(canal.UrlAcceso) is { } destino)
                                                     {
-                                                        <Boton Variante="@(canal.EsPrincipal ? VarianteBoton.Primario : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno"
+                                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                                                                Href="@destino" target="_blank" rel="noopener noreferrer"
                                                                title="@canal.UrlAcceso"
-                                                               aria-label="@($"Abrir el portal {canal.UrlAcceso} en una pestaña nueva")">
-                                                            Abrir portal ↗
+                                                               aria-label="@Textos["AbrirPortalCentroAccesible360", canal.UrlAcceso]">
+                                                            @Textos["AbrirPortalCentro360"]
                                                         </Boton>
                                                     }
                                                     else
@@ -394,7 +418,7 @@
                                                 <span class="canal-aviso-visita">
                                                     <span>@Textos["ParaAvisarVisita360"] · @Textos["PorCorreo360"]</span>
                                                     @canal.EmailsDestinatarios
-                                                    <BotonCopiar Valor="@canal.EmailsDestinatarios" Etiqueta="la dirección de este canal" />
+                                                    <BotonCopiar Valor="@canal.EmailsDestinatarios" Etiqueta="@Textos["DireccionCanalCentro360"]" />
                                                 </span>
                                             }
                                         </ChildContent>
@@ -404,37 +428,27 @@
                         }
                     </ChildContent>
                 </Tarjeta>
+        }
+    };
 
-                @* Nota interna: el servidor decide si el lector es del equipo (NotaInternaVisible); a un usuario de
-                   Cliente no le llega ni la tarjeta vacía. *@
-                @if (_detalle.NotaInternaVisible)
-                {
-                    <NotaInternaEditable @key="_detalle.Id" Texto="@_detalle.Notas" Guardar="GuardarNotaInternaAsync" OnGuardada="RecargarTrasNotaInternaAsync" />
-                }
-            </Lateral>
-        </CuerpoConLateral>
-    }
-</div>
-
-<DialogoConfirmacion Visible="_confirmarEliminarVisible"
-                     VisibleChanged="v => _confirmarEliminarVisible = v"
-                     Titulo="@Textos["EliminarCentroTitulo", _detalle?.Nombre ?? string.Empty].Value"
-                     Mensaje="@Textos["EliminarCentroMensaje"].Value"
-                     EnProgreso="_eliminando"
-                     OnConfirmar="ConfirmarEliminarAsync" />
-@if (_detalle is { FichaVisible: true })
-{
-    <SoloConEscritura><EditarFichaCentroDrawer CentroId="CentroId" Visible="_editarFichaVisible" VisibleChanged="v => _editarFichaVisible = v" OnGuardada="CargarAsync" /></SoloConEscritura>
-}
-</LimiteDeErrores>
-
-@code {
-    private IReadOnlyList<CajaFicha> CajasDeFicha => HayDatosFicha ?
+    private IReadOnlyList<CajaFicha> CajasDeFicha =>
     [
+        new("canales-centro", CanalesDeGestion),
+        new("contactos-centro", ContactosDeFicha),
         .. HayDatosBasicosFicha ? new CajaFicha[] { new("datos-centro", DatosDeFicha) } : [],
         .. MuestraCajaAcceso ? new CajaFicha[] { new("acceso-centro", AccesoDeFicha) } : [],
         .. MuestraCajaPrevencion ? new CajaFicha[] { new("prevencion-centro", PrevencionDeFicha) } : []
-    ] : [];
+    ];
+
+    private RenderFragment ContactosDeFicha => __builder =>
+    {
+        <Tarjeta Compacta="true" Titulo="@Textos["ContactosCentro360"]">
+            @if (_pestana == PestanaFicha)
+            {
+                <PestanaAgendaContactos @key="CentroId" Tipo="CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos.TipoPropietarioAgenda.Centro" PropietarioId="CentroId" VacioCompacto="true" />
+            }
+        </Tarjeta>
+    };
 
     private RenderFragment AccesoDeFicha => __builder =>
     {

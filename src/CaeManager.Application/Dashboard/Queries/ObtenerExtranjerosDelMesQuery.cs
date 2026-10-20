@@ -39,9 +39,10 @@ public record FilaExtranjeroDelMesDto(
 
 /// <param name="TenantsSinAlcanceCompleto">Tenants beneficiarios autorizados que quedaron fuera porque quien mira no alcanza el Tenant entero.</param>
 /// <param name="SinCifras">Null si se calculó; si no, por qué no (mes no válido o futuro), y sin filas.</param>
+/// <param name="IdsSinAlcanceCompleto">Cuáles son esos Tenants (null si no se informa): la Facturación del Operador CAE solo avisa de los que son Empresas gestionadas.</param>
 public record ExtranjerosDelMesDto(
     int Anyo, int Mes, IReadOnlyList<FilaExtranjeroDelMesDto> Filas, int TenantsSinAlcanceCompleto,
-    CuadroDireccionSinCifras? SinCifras = null);
+    CuadroDireccionSinCifras? SinCifras = null, IReadOnlyList<Guid>? IdsSinAlcanceCompleto = null);
 
 /// <summary>
 /// Exportación mensual de Trabajadores extranjeros del Cuadro de dirección, con la que el Operador CAE externo cobra por
@@ -105,7 +106,7 @@ public class ObtenerExtranjerosDelMesQueryHandler(
         var clientes = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
         var filas = new List<Fila>();
         var nombres = new Dictionary<Guid, string>();
-        var sinAlcanceCompleto = 0;
+        var sinAlcanceCompleto = new List<Guid>();
 
         foreach (var cliente in clientes)
         {
@@ -113,7 +114,7 @@ public class ObtenerExtranjerosDelMesQueryHandler(
             {
                 if (!await alcanceDatos.AlcanzaElTenantEnteroAsync(cancellationToken))
                 {
-                    sinAlcanceCompleto++;
+                    sinAlcanceCompleto.Add(cliente.TenantId);
                     continue;
                 }
 
@@ -137,7 +138,7 @@ public class ObtenerExtranjerosDelMesQueryHandler(
             .ThenBy(f => f.NombreYApellidos, StringComparer.CurrentCulture)
             .ToList();
 
-        return new ExtranjerosDelMesDto(request.Anyo, request.Mes, resultado, sinAlcanceCompleto);
+        return new ExtranjerosDelMesDto(request.Anyo, request.Mes, resultado, sinAlcanceCompleto.Count, IdsSinAlcanceCompleto: sinAlcanceCompleto);
     }
 
     private async Task<List<Fila>> LeerDelTenantAsync(

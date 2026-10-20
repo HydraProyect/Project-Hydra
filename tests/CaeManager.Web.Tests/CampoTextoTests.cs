@@ -2,6 +2,7 @@ using Bunit;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components.Web;
+using System.Diagnostics;
 
 namespace CaeManager.Web.Tests;
 
@@ -23,29 +24,27 @@ public class CampoTextoTests : BunitContext
     public async Task Escribir_no_dispara_ValorChanged_antes_de_que_termine_el_debounce()
     {
         var valoresRecibidos = new List<string>();
+        var reloj = new Stopwatch();
+        TimeSpan? instanteNotificacion = null;
         var cut = Render<CampoTexto>(parametros => parametros
             .Add(p => p.Valor, string.Empty)
-            .Add(p => p.ValorChanged, v => valoresRecibidos.Add(v)));
+            .Add(p => p.ValorChanged, v =>
+            {
+                instanteNotificacion = reloj.Elapsed;
+                valoresRecibidos.Add(v);
+            }));
 
         var input = cut.Find("input");
 
-        // No se espera esta tarea todavía a propósito: ManejarCambioAsync
-        // arranca su Task.Delay(300ms) y le devuelve el control al llamador
-        // en cuanto llega a ese await, así que podemos comprobar el estado
-        // "a mitad de camino" antes de que el debounce termine.
-        var tareaInput = input.InputAsync("nuevo valor");
-
-        // 20ms en vez de 100ms: en runners de CI con contención, un
-        // Task.Delay corto puede despertarse tarde: cuanto más cerca del
-        // umbral de 300ms se comprueba, más fácil que el jitter del
-        // scheduler lo cruce y el assert de "todavía no" salga en falso
-        // (visto en CI, ver PR #44). 20ms deja el mismo margen que ya usa
-        // el otro test de este archivo sin ese problema.
-        await Task.Delay(20);
-        valoresRecibidos.Should().BeEmpty("todavía no pasaron los 300ms de debounce");
-
-        await tareaInput;
+        // Se mide dentro del callback: bajo contención una espera de 20 ms del test puede
+        // reanudarse después del debounce y atribuir al componente una notificación prematura.
+        // Stopwatch es monotónico; una reanudación tardía no adelanta el instante observado.
+        reloj.Start();
+        await input.InputAsync("nuevo valor");
         valoresRecibidos.Should().ContainSingle().Which.Should().Be("nuevo valor");
+        instanteNotificacion.Should().NotBeNull();
+        instanteNotificacion!.Value.Should().BeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(300),
+            "ValorChanged no debe notificarse antes de los 300 ms del debounce");
     }
 
     [Fact]
