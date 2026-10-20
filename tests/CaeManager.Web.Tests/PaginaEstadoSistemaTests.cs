@@ -2,6 +2,7 @@ using Bunit;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Pages;
 using FluentAssertions;
 using MediatR;
@@ -28,6 +29,24 @@ namespace CaeManager.Web.Tests;
 public class PaginaEstadoSistemaTests : BunitContext
 {
     public PaginaEstadoSistemaTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+
+    [Fact]
+    public void El_error_muestra_el_codigo_y_la_ayuda_para_soporte()
+    {
+        var cut = Renderizar(TipoEstadoSistema.Error, codigo: "codigo-prueba");
+
+        cut.Find(".referencia-tecnica-etiqueta").TextContent.Should().Be("Código para soporte");
+        cut.Find(".referencia-tecnica-valor").TextContent.Should().Be("codigo-prueba");
+        cut.Find(".referencia-tecnica-ayuda").TextContent.Trim().Should().Be("Si se repite, envía este código a soporte.");
+    }
+
+    [Fact]
+    public void Sin_codigo_no_se_muestra_la_ayuda_para_soporte()
+    {
+        var cut = Renderizar(TipoEstadoSistema.Error);
+
+        cut.FindAll(".referencia-tecnica-etiqueta, .referencia-tecnica-ayuda").Should().BeEmpty();
+    }
 
     // ------------------------------------------------------------ Reintentar
 
@@ -212,9 +231,10 @@ public class PaginaEstadoSistemaTests : BunitContext
     // ---------------------------------------------------------------- arnés
 
     private IRenderedComponent<PaginaEstadoSistema> Renderizar(
-        TipoEstadoSistema tipo, string? rutaReintentar = null, string? rol = null, bool comunicacionesActivo = true)
+        TipoEstadoSistema tipo, string? rutaReintentar = null, string? rol = null, bool comunicacionesActivo = true, string? codigo = null)
     {
         Services.AddLocalization();
+        Services.AddSingleton<ToastService>();
         Services.AddSingleton<IOptions<ComunicacionesOptions>>(
             Options.Create(new ComunicacionesOptions { Activo = comunicacionesActivo }));
 
@@ -227,7 +247,8 @@ public class PaginaEstadoSistemaTests : BunitContext
 
         return Render<PaginaEstadoSistema>(parametros => parametros
             .Add(p => p.Tipo, tipo)
-            .Add(p => p.RutaReintentar, rutaReintentar));
+            .Add(p => p.RutaReintentar, rutaReintentar)
+            .Add(p => p.ReferenciaTecnica, codigo));
     }
 }
 

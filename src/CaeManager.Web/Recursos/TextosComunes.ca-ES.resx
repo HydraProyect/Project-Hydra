@@ -627,4 +627,13 @@
   <data name="IrATuPantallaPrincipal" xml:space="preserve">
     <value>Ves a la teva pantalla principal</value>
   </data>
+  <data name="CodigoParaSoporte" xml:space="preserve">
+    <value>Codi per a suport</value>
+  </data>
+  <data name="CodigoParaSoporteAyuda" xml:space="preserve">
+    <value>Si es repeteix, envia aquest codi a suport.</value>
+  </data>
+  <data name="CodigoParaSoporteCopia" xml:space="preserve">
+    <value>el codi per a suport</value>
+  </data>
 </root>

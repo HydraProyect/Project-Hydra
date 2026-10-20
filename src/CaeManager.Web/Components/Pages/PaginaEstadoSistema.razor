@@ -38,12 +38,12 @@
                 @if (MostrarReferenciaTecnica)
                 {
                     <div class="referencia-tecnica-estado-sistema">
-                        <span class="referencia-tecnica-etiqueta">Referencia técnica</span>
+                        <span class="referencia-tecnica-etiqueta">@Textos["CodigoParaSoporte"]</span>
                         <code class="referencia-tecnica-valor">@ReferenciaTecnica</code>
-                        <BotonCopiar Valor="@ReferenciaTecnica" Etiqueta="la referencia técnica" />
+                        <BotonCopiar Valor="@ReferenciaTecnica" Etiqueta="@Textos["CodigoParaSoporteCopia"]" />
                     </div>
                     <p class="referencia-tecnica-ayuda">
-                        Si escribes a soporte, pega esta referencia: identifica exactamente esta petición en los registros.
+                        @Textos["CodigoParaSoporteAyuda"]
                     </p>
                 }
 
