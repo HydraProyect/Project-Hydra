@@ -912,6 +912,8 @@
     <value>Sense empresa contractant</value>
   </data>
   <data name="ChipContratadaPor" xml:space="preserve"><value>Contractada per: {0}</value></data>
+  <data name="TituloCadenaSubcontratacion" xml:space="preserve"><value>Cadena de subcontractació</value></data>
+  <data name="RotuloClientesDeLosCentros" xml:space="preserve"><value>Clients dels centres on treballa</value></data>
   <data name="BotonQuitarContratadaPor" xml:space="preserve"><value>Treu el filtre de contractant</value></data>
   <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordena per aquesta columna</value></data>
 </root>

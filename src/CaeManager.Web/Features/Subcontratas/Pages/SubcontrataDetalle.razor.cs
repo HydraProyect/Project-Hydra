@@ -156,7 +156,9 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     private bool _eliminandoVerificacion;
 
     // Rescate de d723988e2: sin dato real de cadena no se crea ninguna caja ni placeholder.
-    private readonly List<CajaFicha> _cajasFicha = [];
+    // La Ficha siempre existe (maqueta): su única caja con dato real es la cadena. Contrato, REA y Libro de Subcontratación
+    // no están modelados y no se inventan.
+    private IReadOnlyList<CajaFicha> _cajasFicha => [new CajaFicha("cadena", CajaCadena)];
     private IReadOnlyDictionary<Guid, CentroCumplimientoSubcontrataDto> _cumplimientoCentros = new Dictionary<Guid, CentroCumplimientoSubcontrataDto>();
     private string _pestana = PestanaTrabajadores;
     private string? _pestanaDeLaUrl;
