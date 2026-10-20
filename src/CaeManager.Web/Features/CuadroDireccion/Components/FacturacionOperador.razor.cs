@@ -10,7 +10,8 @@ namespace CaeManager.Web.Features.CuadroDireccion.Components;
 /// La pestaña «Facturación» del Cuadro de dirección: lo que el Operador CAE externo cobra a cada Empresa gestionada.
 /// Lee <see cref="ObtenerFacturacionOperadorCaeQuery"/> (y, en el detalle de una Empresa, las filas de
 /// <see cref="ObtenerExtranjerosDelMesQuery"/>) y no calcula nada con precios propios. Quien no gestiona las tarifas
-/// (<c>PuedeFijarTarifas</c> en falso) ve las unidades y «Sin dato» donde iría un importe.
+/// (<c>PuedeFijarTarifas</c> en falso: el Coordinador CAE) ve las unidades y, donde iría un importe, el aviso «Los importes
+/// los ven Dirección CAE y Administrador», no «Sin dato»: el servidor le oculta los importes por regla, no por falta de dato.
 /// </summary>
 public partial class FacturacionOperador : ComponentBase
 {
@@ -44,6 +45,12 @@ public partial class FacturacionOperador : ComponentBase
     private bool VeImportes => _datos?.PuedeFijarTarifas == true;
 
     private string SinDato => T["SinDato"].Value;
+
+    /// <summary>Lo que ve quien no gestiona las tarifas donde iría un importe: no es «sin dato», es que ese rol no ve importes.</summary>
+    private string Reservado => T["FactImportesReservados"].Value;
+
+    /// <summary>La versión corta de <see cref="Reservado"/> para las columnas derivadas (con la frase entera como ayuda).</summary>
+    private string ReservadoCorto => T["FactImporteReservado"].Value;
 
     private int SinTarifa => _datos is null ? 0 : _datos.Filas.Count(f => f.SinTarifa);
 
@@ -162,7 +169,8 @@ public partial class FacturacionOperador : ComponentBase
 
     /// <summary>El importe de un concepto en la tabla: «—» sin tarifa, «No se cobra» con el cobro desactivado.</summary>
     private string ImporteConcepto(ConceptoFacturadoOperadorCaeDto concepto, FilaFacturacionOperadorCaeDto fila) =>
-        !VeImportes || fila.SinTarifa || concepto.PrecioUnitario is null ? "—"
+        !VeImportes ? string.Empty
+        : fila.SinTarifa || concepto.PrecioUnitario is null ? "—"
         : !concepto.CobroActivo ? T["FactNoSeCobra"].Value
         : Eur(concepto.Importe, fila.Moneda);
 
@@ -174,12 +182,13 @@ public partial class FacturacionOperador : ComponentBase
     };
 
     /// <summary>El pie de la tarjeta de cuota: cuántas Empresas tienen tarifa, y cuántas no.</summary>
-    private string SubCuota => !VeImportes || _datos is null ? T["FactKpiSinImportes"].Value
+    private string SubCuota => !VeImportes || _datos is null ? string.Empty
         : SinTarifa > 0 ? T["FactKpiCuotaSub", _datos.Total.EmpresasConTarifa, _datos.Filas.Count].Value + T["FactKpiCuotaSubSin", SinTarifa].Value
         : T["FactKpiCuotaSub", _datos.Total.EmpresasConTarifa, _datos.Filas.Count].Value;
 
     private string TextoTarifa(ConceptoFacturadoOperadorCaeDto concepto, FilaFacturacionOperadorCaeDto fila) =>
-        !VeImportes || fila.SinTarifa || concepto.PrecioUnitario is null ? T["FactSinTarifa"].Value
+        !VeImportes ? ReservadoCorto
+        : fila.SinTarifa || concepto.PrecioUnitario is null ? T["FactSinTarifa"].Value
         : !concepto.CobroActivo ? T["FactNoSeCobra"].Value
         : Eur2(concepto.PrecioUnitario, fila.Moneda) + " / " + PorUnidad(concepto.Concepto);
 
@@ -194,10 +203,11 @@ public partial class FacturacionOperador : ComponentBase
         string Cuenta(decimal importe, string unidades) =>
             (conCuota ? Eur(importe, fila.Moneda) + " ÷ " : string.Empty) + unidades;
 
-        yield return (T["FactComoTotal"].Value, Eur2(i.PorGestion, fila.Moneda),
+        string Valor(string calculado) => VeImportes ? calculado : ReservadoCorto;
+        yield return (T["FactComoTotal"].Value, Valor(Eur2(i.PorGestion, fila.Moneda)),
             (conCuota ? Eur(cuota, fila.Moneda) + " ÷ " : string.Empty) + T["FactIngresoGestionesTotal", N(gestiones), N(normales), N(fila.GestionesDeExtranjeros)].Value);
-        yield return (T["FactColCostoGestion"].Value, Eur2(i.PorGestionNormal, fila.Moneda), Cuenta(cuota - fila.Extranjero.Importe, T["FactIngresoGestionesNormales", N(normales)].Value));
-        yield return (T["FactColCostoExtranjero"].Value, Eur2(i.PorGestionExtranjero, fila.Moneda), Cuenta(fila.Extranjero.Importe, T["FactIngresoGestionesExtranjero", N(fila.GestionesDeExtranjeros)].Value));
-        yield return (T["FactColRelacion"].Value, Rel(i.Relacion), T["FactIngresoRelacionDef"].Value);
+        yield return (T["FactColCostoGestion"].Value, Valor(Eur2(i.PorGestionNormal, fila.Moneda)), Cuenta(cuota - fila.Extranjero.Importe, T["FactIngresoGestionesNormales", N(normales)].Value));
+        yield return (T["FactColCostoExtranjero"].Value, Valor(Eur2(i.PorGestionExtranjero, fila.Moneda)), Cuenta(fila.Extranjero.Importe, T["FactIngresoGestionesExtranjero", N(fila.GestionesDeExtranjeros)].Value));
+        yield return (T["FactColRelacion"].Value, Valor(Rel(i.Relacion)), T["FactIngresoRelacionDef"].Value);
     }
 }

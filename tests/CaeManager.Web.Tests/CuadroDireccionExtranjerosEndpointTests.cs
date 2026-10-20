@@ -92,6 +92,42 @@ public class CuadroDireccionExtranjerosEndpointTests
         filas[2][11].Should().BeEmpty("sin Gestor CAE conocido la celda queda vacía, no se inventa");
     }
 
+    [Fact]
+    public async Task Con_tenantId_el_libro_solo_lleva_las_filas_de_esa_Empresa_gestionada_y_el_rastro_lo_dice()
+    {
+        // Amina y Oleg son de Tenants beneficiarios distintos: el detalle de una Empresa no puede llevar filas de la otra.
+        var resultado = await ExportarAsync($"?anyo=2026&mes=9&tenantId={Oleg.TenantId}", Mes());
+
+        resultado.Contexto.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
+        var filas = Filas(resultado.Contexto);
+        filas.Should().HaveCount(2, "la cabecera y la única fila de la Empresa pedida");
+        filas[1][9].Should().Be("Oleg Ivanov");
+        filas.Select(f => f[9]).Should().NotContain("Amina Benali");
+
+        var llamada = resultado.Registro.Llamadas.Should().ContainSingle().Subject;
+        llamada.Filas.Should().Be(1);
+        llamada.Criterios.Should().Contain("tenantId", Oleg.TenantId.ToString());
+    }
+
+    [Fact]
+    public async Task Con_un_tenantId_sin_filas_el_libro_sale_solo_con_la_cabecera_y_nunca_con_las_de_otra_Empresa()
+    {
+        var resultado = await ExportarAsync($"?anyo=2026&mes=9&tenantId={Guid.NewGuid()}", Mes());
+
+        resultado.Contexto.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
+        Filas(resultado.Contexto).Should().ContainSingle("solo la cabecera");
+        resultado.Registro.Llamadas.Should().ContainSingle().Which.Filas.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Sin_tenantId_el_rastro_no_lleva_ese_criterio_y_el_libro_las_lleva_todas()
+    {
+        var resultado = await ExportarAsync("?anyo=2026&mes=9", Mes());
+
+        Filas(resultado.Contexto).Should().HaveCount(3);
+        resultado.Registro.Llamadas.Single().Criterios.Should().NotContainKey("tenantId");
+    }
+
     [Theory]
     [InlineData(CuadroDireccionSinCifras.MesNoValido)]
     [InlineData(CuadroDireccionSinCifras.MesFuturo)]

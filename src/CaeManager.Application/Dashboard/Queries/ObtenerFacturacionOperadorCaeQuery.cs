@@ -1,4 +1,7 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard.TarifasOperadorCae;
+using CaeManager.Application.Operaciones;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Dashboard;
 using MediatR;
 
@@ -145,20 +148,39 @@ public static class CalculosFacturacionOperadorCae
     }
 }
 
-public class ObtenerFacturacionOperadorCaeQueryHandler(IMediator mediator, TimeProvider reloj)
+public class ObtenerFacturacionOperadorCaeQueryHandler(
+    IMediator mediator, ICurrentUserService usuario, IOperacionesQueryContext operaciones, TimeProvider reloj)
     : IRequestHandler<ObtenerFacturacionOperadorCaeQuery, FacturacionOperadorCaeDto>
 {
+    private static readonly IReadOnlyDictionary<Guid, IReadOnlyList<TramoDeVigencia>> SinEmpresas =
+        new Dictionary<Guid, IReadOnlyList<TramoDeVigencia>>();
+
     private static FacturacionOperadorCaeDto Vacia(int anyo, int mes, CuadroDireccionSinCifras? motivo, int sinAlcance = 0) =>
         new(anyo, mes, false, [], CalculosFacturacionOperadorCae.Total([]), [], sinAlcance, motivo);
 
     /// <summary>
     /// Autorización y alcance son los de las consultas que compone: <see cref="ObtenerSerieCuadroDireccionQuery"/> (las
     /// cifras, y los importes solo para quien pasa <see cref="AutorizacionTarifasOperadorCae"/>) y
-    /// <see cref="ContarExtranjerosCobrablesDelMesQuery"/> (la cifra de extranjeros). Esta consulta no lee ninguna tabla.
+    /// <see cref="ContarExtranjerosCobrablesDelMesQuery"/> (la cifra de extranjeros).
+    ///
+    /// <para>
+    /// <b>Qué Empresas salen</b>: solo los Tenants beneficiarios que el Operador CAE de quien mira gestiona hoy o gestionó
+    /// en el mes mediante una Asignación de Operación EXTERNA (<see cref="AutorizacionTarifasOperadorCae.VigenciasPorTenantBeneficiarioAsync"/>,
+    /// la misma vigencia que usa la serie): nunca el Tenant propio del Operador (no se factura a sí mismo) ni, para quien
+    /// no es de un Operador CAE, ninguna. El Operador es el Tenant de origen de quien mira, sea Administrador, Dirección
+    /// CAE o Coordinador CAE: ver las Empresas no da derecho a ver importes. Sin vigencia en el mes, la Empresa no sale.
+    /// </para>
+    /// <para>
+    /// Esta consulta solo lee las Asignaciones de Operación del Operador (con el ámbito en su Tenant de origen); las demás
+    /// cifras las leen las consultas que compone.
+    /// </para>
     /// </summary>
     public async Task<FacturacionOperadorCaeDto> Handle(ObtenerFacturacionOperadorCaeQuery request, CancellationToken cancellationToken)
     {
-        var extranjeros = await mediator.Send(new ContarExtranjerosCobrablesDelMesQuery(request.Anyo, request.Mes), cancellationToken);
+        await AutorizacionCuadroDireccion.ExigirLecturaAsync(usuario);
+        var tramos = await TramosPorEmpresaGestionadaAsync(request.Anyo, request.Mes, cancellationToken);
+
+        var extranjeros = await mediator.Send(new ContarExtranjerosCobrablesDelMesQuery(request.Anyo, request.Mes, tramos), cancellationToken);
         if (extranjeros.SinCifras is { } motivo)
             return Vacia(request.Anyo, request.Mes, motivo, extranjeros.TenantsSinAlcanceCompleto);
 
@@ -167,6 +189,7 @@ public class ObtenerFacturacionOperadorCaeQueryHandler(IMediator mediator, TimeP
         var ahora = reloj.GetUtcNow().UtcDateTime;
 
         var filas = serie.Tenants
+            .Where(t => tramos.ContainsKey(t.TenantId))
             .Select(t =>
             {
                 var punto = t.Meses.LastOrDefault(p => p.Anyo == request.Anyo && p.Mes == request.Mes);
@@ -197,5 +220,27 @@ public class ObtenerFacturacionOperadorCaeQueryHandler(IMediator mediator, TimeP
         return new FacturacionOperadorCaeDto(
             request.Anyo, request.Mes, tarifas is not null, filas, CalculosFacturacionOperadorCae.Total(filas), porCliente,
             serie.TenantsSinAlcanceCompleto);
+    }
+
+    /// <summary>
+    /// Por Tenant beneficiario gestionado por el Operador CAE de quien mira, los trozos del mes en que su Asignación de
+    /// Operación externa estuvo en vigor; los Tenants sin ninguno no figuran. Vacío si el mes no es válido (la consulta de
+    /// extranjeros lo devuelve con su motivo), si quien mira no tiene Tenant de origen o si su Tenant no opera a nadie.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<Guid, IReadOnlyList<TramoDeVigencia>>> TramosPorEmpresaGestionadaAsync(
+        int anyo, int numeroMes, CancellationToken cancellationToken)
+    {
+        if (!MesCuadroDireccion.EsValido(anyo, numeroMes) || await usuario.ObtenerTenantOrigenIdAsync() is not { } operador)
+            return SinEmpresas;
+
+        var mes = new MesCuadroDireccion(anyo, numeroMes);
+        ILookup<Guid, VigenciaAsignacionOperacion> vigencias;
+        using (AmbitoTenantExplicito.Establecer(operador))
+            vigencias = await AutorizacionTarifasOperadorCae.VigenciasPorTenantBeneficiarioAsync(operaciones, operador, cancellationToken);
+
+        return vigencias
+            .Select(g => (TenantId: g.Key, Tramos: ValoracionOperadorCae.TramosEnElMes(g, mes.InicioUtc, mes.FinUtc)))
+            .Where(e => e.Tramos.Count > 0)
+            .ToDictionary(e => e.TenantId, e => e.Tramos);
     }
 }

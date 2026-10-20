@@ -106,7 +106,12 @@ public partial class CuadroDireccionTests
     {
         var cut = PintarFacturacion(Facturacion(puedeFijar: false), Roles.CoordinadorCae, out _);
 
-        cut.Find("[data-fact-kpi=cuota] b").TextContent.Trim().Should().Be("—");
+        const string Aviso = "Los importes los ven Dirección CAE y Administrador";
+        cut.Find("[data-fact-kpi=cuota] b").TextContent.Trim().Should().Be(Aviso, "es una regla de rol, no un dato que falte");
+        cut.Find("[data-fact=importes-reservados]").TextContent.Trim().Should().Be(Aviso);
+        var fila = cut.Find($"[data-tabla=facturacion-empresas] tr[data-empresa='{TenantA}']");
+        fila.TextContent.Should().Contain(Aviso).And.NotContain("Sin tarifa");
+        cut.Find("[data-tabla=facturacion-empresas] tfoot").TextContent.Should().Contain(Aviso);
         cut.FindAll("[data-facturacion=operador] .fact-tarifas").Should().BeEmpty();
         cut.FindAll("[data-facturacion=operador] .fact-enlace-peq").Should().BeEmpty("sin permiso no hay «Fijar tarifa»");
         cut.Find($"[data-tabla=facturacion-empresas] tr[data-empresa='{TenantA}']").TextContent.Should().Contain("12");

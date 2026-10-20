@@ -120,24 +120,6 @@
   <data name="KpiCentrosSub" xml:space="preserve">
     <value>{0} altas este mes</value>
   </data>
-  <data name="KpiDocumentos" xml:space="preserve">
-    <value>Documentos gestionados</value>
-  </data>
-  <data name="KpiDocumentosSub" xml:space="preserve">
-    <value>registrados en el mes</value>
-  </data>
-  <data name="KpiRequerimientos" xml:space="preserve">
-    <value>Requerimientos</value>
-  </data>
-  <data name="KpiRequerimientosSub" xml:space="preserve">
-    <value>reclamaciones de documentación enviadas</value>
-  </data>
-  <data name="KpiSolicitudes" xml:space="preserve">
-    <value>Solicitudes del mes</value>
-  </data>
-  <data name="KpiSolicitudesSub" xml:space="preserve">
-    <value>primer mensaje de cada conversación</value>
-  </data>
   <data name="KpiCumplimiento" xml:space="preserve">
     <value>Cumplimiento documental</value>
   </data>
@@ -152,9 +134,6 @@
   </data>
   <data name="ColumnaEmpresa" xml:space="preserve">
     <value>Empresa</value>
-  </data>
-  <data name="ColumnaResponde" xml:space="preserve">
-    <value>Responde</value>
   </data>
   <data name="ColumnaTrabajadores" xml:space="preserve">
     <value>Trab.</value>
@@ -366,23 +345,8 @@
   <data name="KpiRevisarSub" xml:space="preserve">
     <value>sin contrato ni cuota contratada todavía</value>
   </data>
-  <data name="KpiSinTarifa" xml:space="preserve">
-    <value>Trabajadores extra sin tarifa</value>
-  </data>
-  <data name="KpiSinTarifaSub" xml:space="preserve">
-    <value>volumen que hoy no se cobra · {0} altas de centro</value>
-  </data>
-  <data name="KpiGestiones" xml:space="preserve">
-    <value>Gestiones del mes</value>
-  </data>
-  <data name="KpiGestionesSub" xml:space="preserve">
-    <value>{0} documentos y {1} requerimientos</value>
-  </data>
   <data name="SinDato" xml:space="preserve">
     <value>—</value>
-  </data>
-  <data name="VariacionSinPrevio" xml:space="preserve">
-    <value>sin mes anterior</value>
   </data>
   <data name="AlertasTitulo" xml:space="preserve">
     <value>Qué requiere una decisión</value>
@@ -420,65 +384,11 @@
   <data name="SerieError" xml:space="preserve">
     <value>No pudimos calcular la serie. Inténtalo de nuevo.</value>
   </data>
-  <data name="ApiladoTitulo" xml:space="preserve">
-    <value>Facturación estimada por mes</value>
-  </data>
-  <data name="ApiladoNota" xml:space="preserve">
-    <value>Solo lo que tiene precio: las unidades de cada concepto con tarifa, valoradas con la tarifa de hoy.</value>
-  </data>
   <data name="FacturacionSinTarifas" xml:space="preserve">
     <value>Todavía no hay tarifas por Empresa, así que no hay nada que valorar.</value>
   </data>
-  <data name="FacturacionOtraMoneda" xml:space="preserve">
-    <value>También hay importes en {0}: no se suman a los de {1}.</value>
-  </data>
-  <data name="SinTarifaTitulo" xml:space="preserve">
-    <value>Volumen que hoy no se cobra</value>
-  </data>
-  <data name="SinTarifaNota" xml:space="preserve">
-    <value>Trabajadores por encima de lo contratado (cada mes) y altas de centro nuevas. Aún no tienen tarifa: aquí se ve cuánto son para decidir si cobrarlos.</value>
-  </data>
-  <data name="SerieAltasCentro" xml:space="preserve">
-    <value>Altas de centro</value>
-  </data>
-  <data name="SinTarifaTrabajadoresExtra" xml:space="preserve">
-    <value>Trabajadores extra: todavía no hay contrato ni cuota contratada, así que no se puede saber cuántos están por encima.</value>
-  </data>
-  <data name="SinTarifaConTarifa" xml:space="preserve">
-    <value>Las altas de centro ya llevan tarifa: salen en la facturación estimada.</value>
-  </data>
-  <data name="SimuladorTitulo" xml:space="preserve">
-    <value>Simular una tarifa</value>
-  </data>
-  <data name="SimuladorNota" xml:space="preserve">
-    <value>Elige un precio y mira cuánto supondría. No cambia nada; es para decidir.</value>
-  </data>
-  <data name="SimuladorAlta" xml:space="preserve">
-    <value>Por alta de centro</value>
-  </data>
-  <data name="SimuladorPrecio" xml:space="preserve">
-    <value>Precio</value>
-  </data>
-  <data name="SimuladorMes" xml:space="preserve">
-    <value>{0} altas de centro este mes</value>
-  </data>
-  <data name="SimuladorVentana" xml:space="preserve">
-    <value>en los últimos 6 meses</value>
-  </data>
-  <data name="SimuladorTrabajadoresExtra" xml:space="preserve">
-    <value>Por trabajador extra y mes: necesita el contrato y la cuota contratada, que todavía no existen.</value>
-  </data>
-  <data name="BorradorTitulo" xml:space="preserve">
-    <value>Borrador de factura por Empresa</value>
-  </data>
-  <data name="BorradorNota" xml:space="preserve">
-    <value>Lo facturable hoy según las tarifas y, aparte, el volumen sin tarifa del mes.</value>
-  </data>
   <data name="ColumnaFacturable" xml:space="preserve">
     <value>Facturable</value>
-  </data>
-  <data name="ColumnaTrabajadoresExtra" xml:space="preserve">
-    <value>Trab. extra</value>
   </data>
   <data name="ColumnaAltasCentro" xml:space="preserve">
     <value>Altas centro</value>
@@ -738,12 +648,6 @@
   <data name="ColumnaEmpresasMenos" xml:space="preserve">
     <value>Empresas −</value>
   </data>
-  <data name="CmpSinFacturacion" xml:space="preserve">
-    <value>Sin tarifas por Empresa: la facturación estimada no tiene qué valorar.</value>
-  </data>
-  <data name="EtiquetaDetalle" xml:space="preserve">
-    <value>Detalle</value>
-  </data>
   <data name="Cargando" xml:space="preserve">
     <value>Calculando…</value>
   </data>
@@ -804,9 +708,6 @@
   <data name="ColumnaEmpresas" xml:space="preserve">
     <value>Empreses</value>
   </data>
-  <data name="ColumnaEmpresasAsignadas" xml:space="preserve">
-    <value>Empreses assignades</value>
-  </data>
   <data name="VacacionesPorGestorTitulo" xml:space="preserve">
     <value>Vacances de l'any per Gestor CAE</value>
   </data>
@@ -836,24 +737,6 @@
   </data>
   <data name="KpiFacturacionSubSinPrevio" xml:space="preserve">
     <value>tarifes d&apos;avui</value>
-  </data>
-  <data name="SimuladorComoTitulo" xml:space="preserve">
-    <value>Gestió d&apos;estranger es factura com</value>
-  </data>
-  <data name="SimuladorComoNota" xml:space="preserve">
-    <value>En un estranger també es gestiona la documentació de la seva empresa estrangera; per això pot dur preu propi. Ara: cada gestió duu la tarifa d&apos;estranger de la seva Empresa.</value>
-  </data>
-  <data name="SimuladorExtranjeroMes" xml:space="preserve">
-    <value>{0} gestions d&apos;estranger aquest mes</value>
-  </data>
-  <data name="SimuladorExtranjeroEtiqueta" xml:space="preserve">
-    <value>Per gestió d&apos;estranger</value>
-  </data>
-  <data name="SimuladorComoExtra" xml:space="preserve">
-    <value>Treballador extra</value>
-  </data>
-  <data name="SimuladorComoIndividual" xml:space="preserve">
-    <value>Preu individual</value>
   </data>
   <data name="ParetoResto" xml:space="preserve">
     <value>Resta</value>
@@ -966,8 +849,11 @@
   <data name="FactKpiCuotaSubSin" xml:space="preserve">
     <value> · {0} sense tarifa</value>
   </data>
-  <data name="FactKpiSinImportes" xml:space="preserve">
-    <value>Els imports els veu qui gestiona les tarifes.</value>
+  <data name="FactImportesReservados" xml:space="preserve">
+    <value>Els imports els veuen Direcció CAE i Administrador</value>
+  </data>
+  <data name="FactImporteReservado" xml:space="preserve">
+    <value>Reservat</value>
   </data>
   <data name="FactKpiExtranjeros" xml:space="preserve">
     <value>Estrangers</value>

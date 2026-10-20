@@ -1,7 +1,11 @@
-﻿using CaeManager.Application.Dashboard;
+﻿using CaeManager.Application.Common;
+using CaeManager.Application.Dashboard;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Dashboard.TarifasOperadorCae;
+using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Domain.Dashboard;
+using CaeManager.Domain.Operaciones;
 using FluentAssertions;
 using MediatR;
 using Xunit;
@@ -119,21 +123,49 @@ public class FacturacionOperadorCaeTests
 
     // ------------------------------------------------ la consulta
 
+    private static readonly Guid Operador = Guid.NewGuid();
+    private static readonly DateTime Enero = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+    private static AsignacionOperacion Externa(Guid beneficiario, Guid operador, DateTime desde, DateTime? hasta = null) =>
+        AsignacionOperacion.Externa(beneficiario, operador, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, hasta, desde);
+
     private static (ObtenerFacturacionOperadorCaeQueryHandler Handler, MediadorFalso Mediator) Armar(
-        ConteoExtranjerosCobrablesDelMesDto conteo, SerieCuadroDireccionDto serie, IReadOnlyList<TarifaOperadorCaeDto>? tarifas)
+        ConteoExtranjerosCobrablesDelMesDto conteo, SerieCuadroDireccionDto serie, IReadOnlyList<TarifaOperadorCaeDto>? tarifas,
+        string rol = "DireccionCae", Guid? origen = null, IReadOnlyList<AsignacionOperacion>? asignaciones = null)
     {
         var mediator = new MediadorFalso(conteo, serie, tarifas);
-        return (new ObtenerFacturacionOperadorCaeQueryHandler(mediator, new RelojFijo()), mediator);
+        var handler = new ObtenerFacturacionOperadorCaeQueryHandler(
+            mediator, new UsuarioFalso(rol, origen ?? Operador),
+            new OperacionesFalsas(asignaciones ?? [Externa(Ebro, Operador, Enero)]), new RelojFijo());
+        return (handler, mediator);
+    }
+
+    private sealed class UsuarioFalso(string rol, Guid origen) : ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(rol);
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(origen);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+
+    private sealed class OperacionesFalsas(IReadOnlyList<AsignacionOperacion> asignaciones) : IOperacionesQueryContext
+    {
+        public IQueryable<AsignacionOperacion> AsignacionesOperacion => new TestAsyncQueryable<AsignacionOperacion>(asignaciones.AsQueryable());
+        public IQueryable<AsignacionCartera> AsignacionesCartera => new TestAsyncQueryable<AsignacionCartera>(new List<AsignacionCartera>().AsQueryable());
     }
 
     private sealed class MediadorFalso(
         ConteoExtranjerosCobrablesDelMesDto conteo, SerieCuadroDireccionDto serie, IReadOnlyList<TarifaOperadorCaeDto>? tarifas) : IMediator
     {
         public List<Type> Pedidas { get; } = [];
+        public ContarExtranjerosCobrablesDelMesQuery? Conteo { get; private set; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Pedidas.Add(request.GetType());
+            if (request is ContarExtranjerosCobrablesDelMesQuery c)
+                Conteo = c;
             object? respuesta = request switch
             {
                 ContarExtranjerosCobrablesDelMesQuery => conteo,
@@ -167,7 +199,7 @@ public class FacturacionOperadorCaeTests
 
     private static CifraMensual Cifra(int valor) => new(valor, EstadoCifraMensual.Parcial);
 
-    private static SerieCuadroDireccionDto Serie(IReadOnlyList<LineaFacturacionCuadroDto>? lineas)
+    private static SerieCuadroDireccionDto Serie(IReadOnlyList<LineaFacturacionCuadroDto>? lineas, params Guid[] otrosTenants)
     {
         var cifras = new CifrasCuadroDireccionDto(
             Cifra(10), Cifra(0), Cifra(0), Cifra(3), Cifra(2), Cifra(0), Cifra(0),
@@ -175,7 +207,8 @@ public class FacturacionOperadorCaeTests
             Cifra(100), null, Cifra(1), [new CentrosNuevosPorClienteDto(Ebro, Guid.NewGuid(), "Papelera", 2)]);
         var punto = new PuntoSerieCuadroDto(2026, 10, EstadoCifraMensual.Parcial, cifras, lineas);
         return new SerieCuadroDireccionDto(
-            [punto], [new SerieTenantCuadroDto(Ebro, "Ebro", [punto])], 0);
+            [punto],
+            [new SerieTenantCuadroDto(Ebro, "Ebro", [punto]), .. otrosTenants.Select(t => new SerieTenantCuadroDto(t, "Otro", [punto]))], 0);
     }
 
     [Fact]
@@ -200,7 +233,7 @@ public class FacturacionOperadorCaeTests
     public async Task Quien_no_gestiona_las_tarifas_ve_las_unidades_pero_ni_importes_ni_el_derecho_a_fijarlas()
     {
         var conteo = new ConteoExtranjerosCobrablesDelMesDto(2026, 10, [new ConteoExtranjerosCobrablesTenantDto(Ebro, "Ebro", 7, 5)], 0);
-        var (handler, _) = Armar(conteo, Serie(null), null);
+        var (handler, _) = Armar(conteo, Serie(null), null, rol: "CoordinadorCae");
 
         var dto = await handler.Handle(new ObtenerFacturacionOperadorCaeQuery(2026, 10), CancellationToken.None);
 
@@ -210,6 +243,135 @@ public class FacturacionOperadorCaeTests
         fila.Cuota.Should().BeNull();
         fila.SinTarifa.Should().BeTrue();
         fila.TarifaVigente.Should().BeEmpty();
+    }
+
+    private static readonly ConteoExtranjerosCobrablesDelMesDto ConteoVacio = new(2026, 10, [], 0);
+
+    [Fact]
+    public async Task Solo_salen_las_Empresas_gestionadas_por_una_Asignacion_externa_y_nunca_el_Tenant_propio_del_Operador()
+    {
+        var otroOperador = Guid.NewGuid();
+        var sinAsignacion = Guid.NewGuid();
+        var delOtroOperador = Guid.NewGuid();
+        var (handler, mediator) = Armar(
+            ConteoVacio, Serie([], Operador, sinAsignacion, delOtroOperador), null,
+            asignaciones:
+            [
+                Externa(Ebro, Operador, Enero),
+                // El Operador sobre sí mismo (Asignación interna o propietario == operador) no es una Empresa gestionada.
+                AsignacionOperacion.Interna(Operador, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(Guid.NewGuid()), Enero, null, Enero),
+                Externa(delOtroOperador, otroOperador, Enero),
+            ]);
+
+        var dto = await handler.Handle(new ObtenerFacturacionOperadorCaeQuery(2026, 10), CancellationToken.None);
+
+        dto.Filas.Select(f => f.TenantId).Should().Equal(Ebro);
+        mediator.Conteo!.TramosPorTenant!.Keys.Should().BeEquivalentTo([Ebro], "el conteo de extranjeros se acota a las mismas Empresas");
+    }
+
+    [Fact]
+    public async Task Quien_no_es_de_un_Operador_CAE_no_ve_ninguna_Empresa()
+    {
+        var (handler, _) = Armar(ConteoVacio, Serie([], Operador), null, origen: Guid.NewGuid());
+
+        var dto = await handler.Handle(new ObtenerFacturacionOperadorCaeQuery(2026, 10), CancellationToken.None);
+
+        dto.Filas.Should().BeEmpty();
+        dto.Total.Extranjeros.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Una_Asignacion_cerrada_antes_del_mes_o_que_empieza_despues_no_da_fila()
+    {
+        var cerrada = Guid.NewGuid();
+        var futura = Guid.NewGuid();
+        var (handler, _) = Armar(
+            ConteoVacio, Serie([], cerrada, futura), null,
+            asignaciones:
+            [
+                Externa(cerrada, Operador, Enero, hasta: new DateTime(2026, 9, 30, 0, 0, 0, DateTimeKind.Utc)),
+                Externa(futura, Operador, new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc)),
+            ]);
+
+        var dto = await handler.Handle(new ObtenerFacturacionOperadorCaeQuery(2026, 10), CancellationToken.None);
+
+        dto.Filas.Should().BeEmpty("sin vigencia dentro de octubre el Operador no gestiona ni cobra a esa Empresa");
+    }
+
+    [Fact]
+    public async Task Los_tramos_de_una_Asignacion_que_empieza_a_mitad_de_mes_se_pasan_al_conteo_de_extranjeros()
+    {
+        var desde = new DateTime(2026, 10, 10, 0, 0, 0, DateTimeKind.Utc);
+        var (handler, mediator) = Armar(ConteoVacio, Serie([]), null, asignaciones: [Externa(Ebro, Operador, desde)]);
+
+        await handler.Handle(new ObtenerFacturacionOperadorCaeQuery(2026, 10), CancellationToken.None);
+
+        mediator.Conteo!.TramosPorTenant![Ebro].Should().Equal(new TramoDeVigencia(desde, new MesCuadroDireccion(2026, 10).FinUtc));
+    }
+
+    // ------------------------------------------------ el conteo acotado a la vigencia
+
+    [Fact]
+    public void Una_Visita_cuenta_si_su_dia_de_inicio_cae_en_un_tramo_con_el_dia_de_alta_dentro_y_el_de_cierre_fuera()
+    {
+        var tramo = new TramoDeVigencia(new DateTime(2026, 10, 10, 0, 0, 0, DateTimeKind.Utc), new DateTime(2026, 10, 20, 0, 0, 0, DateTimeKind.Utc));
+
+        ContarExtranjerosCobrablesDelMesQueryHandler.EnAlgunTramo(new DateOnly(2026, 10, 9), [tramo]).Should().BeFalse();
+        ContarExtranjerosCobrablesDelMesQueryHandler.EnAlgunTramo(new DateOnly(2026, 10, 10), [tramo]).Should().BeTrue("el día en que empieza cuenta");
+        ContarExtranjerosCobrablesDelMesQueryHandler.EnAlgunTramo(new DateOnly(2026, 10, 19), [tramo]).Should().BeTrue();
+        ContarExtranjerosCobrablesDelMesQueryHandler.EnAlgunTramo(new DateOnly(2026, 10, 20), [tramo]).Should().BeFalse("el día en que se cierra no cuenta");
+    }
+
+    [Fact]
+    public async Task El_conteo_con_tramos_descarta_las_asignaciones_fuera_de_vigencia_y_los_Tenants_sin_ella()
+    {
+        var sinVigencia = Guid.NewGuid();
+        var excel = new ExtranjerosDelMesDto(2026, 10,
+        [
+            FilaExcel(Ebro, new DateOnly(2026, 10, 5)),
+            FilaExcel(Ebro, new DateOnly(2026, 10, 12)),
+            FilaExcel(Ebro, new DateOnly(2026, 10, 14)),
+            FilaExcel(sinVigencia, new DateOnly(2026, 10, 12)),
+        ], 0);
+        var handler = new ContarExtranjerosCobrablesDelMesQueryHandler(new MediadorDeExcel(excel));
+        var tramos = new Dictionary<Guid, IReadOnlyList<TramoDeVigencia>>
+        {
+            [Ebro] = [new TramoDeVigencia(new DateTime(2026, 10, 10, 0, 0, 0, DateTimeKind.Utc), new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc))],
+        };
+
+        var acotado = await handler.Handle(new ContarExtranjerosCobrablesDelMesQuery(2026, 10, tramos), CancellationToken.None);
+        var completo = await handler.Handle(new ContarExtranjerosCobrablesDelMesQuery(2026, 10), CancellationToken.None);
+
+        acotado.PorTenant.Should().ContainSingle().Which.Asignaciones.Should().Be(2, "la del día 5 es anterior a la Asignación");
+        acotado.PorTenant.Single().TrabajadoresDistintos.Should().Be(2);
+        completo.PorTenant.Sum(t => t.Asignaciones).Should().Be(4, "sin tramos es el conteo del Excel entero");
+    }
+
+    private static FilaExtranjeroDelMesDto FilaExcel(Guid tenant, DateOnly ingreso) =>
+        new(tenant, "T", ingreso, null, null, null, null, "Centro", ingreso, ingreso.AddDays(1), "Nombre", null, null, Guid.NewGuid());
+
+    private sealed class MediadorDeExcel(ExtranjerosDelMesDto excel) : IMediator
+    {
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            request is ObtenerExtranjerosDelMesQuery
+                ? Task.FromResult((TResponse)(object)excel)
+                : throw new NotSupportedException(request.GetType().Name);
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            throw new NotSupportedException();
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification => Task.CompletedTask;
     }
 
     [Fact]

@@ -21,6 +21,9 @@
 
 .fact-nota { font-size: 12px; line-height: 16px; color: var(--color-text-muted); margin: 0; text-wrap: pretty; }
 .fact-apagado { color: var(--color-text-muted); }
+/* Donde iría un importe y quien mira no los ve (Coordinador CAE): un aviso neutro, no un dato que falta. */
+.fact-reservado { font-size: 12px; line-height: 16px; font-weight: 400; color: var(--color-text-muted); text-wrap: pretty; }
+.fact-reservado-nota { padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); }
 .fact-aviso { font-size: 12px; line-height: 16px; font-weight: 600; color: var(--color-warning-700); }
 .fact-sub { display: block; font-size: 12px; line-height: 16px; font-weight: 400; color: var(--color-text-muted); }
 .fact-der { text-align: right; }

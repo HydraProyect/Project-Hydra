@@ -275,6 +275,9 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerSerieCuadroDireccionQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync; y el Tenant de origen del Operador CAE que devuelve AutorizacionTarifasOperadorCae.OperadorQueGestionaAsync (Administrador o Dirección CAE ahí) para leer sus tarifas y las vigencias de sus Asignaciones de Operación"),
+        ["src/CaeManager.Application/Dashboard/Queries/ObtenerFacturacionOperadorCaeQuery.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "el Tenant de origen del propio usuario (ObtenerTenantOrigenIdAsync), que es el Operador CAE: lee las vigencias de sus Asignaciones de Operación externas (AutorizacionTarifasOperadorCae.VigenciasPorTenantBeneficiarioAsync) tras AutorizacionCuadroDireccion.ExigirLecturaAsync; el filtro de RLS sigue acotando a ese Tenant"),
         ["src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "ObtenerTenantOrigenIdAsync() del propio usuario: las tarifas del Operador CAE son filas de su Tenant de origen, y solo se leen o escriben si el rol efectivo ahí es Administrador o Dirección CAE (AutorizacionTarifasOperadorCae)"),
@@ -558,6 +561,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs"] = 3,
             // Una por Tenant beneficiario (fan-out) y otra con el Tenant de origen del Operador CAE que pasó la guarda.
             ["src/CaeManager.Application/Dashboard/Queries/ObtenerSerieCuadroDireccionQuery.cs"] = 2,
+            ["src/CaeManager.Application/Dashboard/Queries/ObtenerFacturacionOperadorCaeQuery.cs"] = 1,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] = 12,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] = 4,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] = 3,

@@ -39,13 +39,24 @@
     else
     {
         <Pestanas Definiciones="Definiciones" PestanaActiva="@_seccion" PestanaActivaChanged="CambiarSeccionAsync" EtiquetaGrupo="@T["FactSecciones"]" Envolver="true">
+            @if (!VeImportes)
+            {
+                <p class="fact-nota fact-reservado-nota" role="note" data-fact="importes-reservados">@Reservado</p>
+            }
             @if (_seccion == "general")
             {
                 <div class="fact-kpis">
                     <div class="fact-kpi" data-fact-kpi="cuota">
                         <span class="fact-kpi-etiqueta" title="@T["FactKpiCuotaAyuda"]">@T["FactKpiCuota"]</span>
-                        <b>@(VeImportes ? Eur(_datos.Total.Cuota, _datos.Total.Moneda) : SinDato)</b>
-                        <span>@SubCuota</span>
+                        @if (VeImportes)
+                        {
+                            <b>@Eur(_datos.Total.Cuota, _datos.Total.Moneda)</b>
+                            <span>@SubCuota</span>
+                        }
+                        else
+                        {
+                            <b class="fact-reservado">@Reservado</b>
+                        }
                     </div>
                     <div class="fact-kpi" data-fact-kpi="extranjeros">
                         <span class="fact-kpi-etiqueta" title="@T["FactKpiExtranjerosAyuda"]">@T["FactKpiExtranjeros"]</span>
@@ -73,8 +84,15 @@
                     </div>
                     <div class="fact-kpi" data-fact-kpi="ingreso">
                         <span class="fact-kpi-etiqueta" title="@T["FactKpiIngresoAyuda"]">@T["FactKpiIngreso"]</span>
-                        <b>@Eur2(_datos.Total.Ingreso.PorGestion, _datos.Total.Moneda)</b>
-                        <span>@T["FactKpiIngresoSub", Eur2(_datos.Total.Ingreso.PorGestionNormal, _datos.Total.Moneda), Eur2(_datos.Total.Ingreso.PorGestionExtranjero, _datos.Total.Moneda), Rel(_datos.Total.Ingreso.Relacion)]</span>
+                        @if (VeImportes)
+                        {
+                            <b>@Eur2(_datos.Total.Ingreso.PorGestion, _datos.Total.Moneda)</b>
+                            <span>@T["FactKpiIngresoSub", Eur2(_datos.Total.Ingreso.PorGestionNormal, _datos.Total.Moneda), Eur2(_datos.Total.Ingreso.PorGestionExtranjero, _datos.Total.Moneda), Rel(_datos.Total.Ingreso.Relacion)]</span>
+                        }
+                        else
+                        {
+                            <b class="fact-reservado">@Reservado</b>
+                        }
                     </div>
                 </div>
 
@@ -131,7 +149,7 @@
                                             <td class="fact-der">
                                                 @if (!VeImportes)
                                                 {
-                                                    <span class="fact-apagado">@SinDato</span>
+                                                    <span class="fact-reservado">@Reservado</span>
                                                 }
                                                 else if (fila.SinTarifa)
                                                 {
@@ -144,21 +162,28 @@
                                                 }
                                             </td>
                                             <td class="fact-der"><b>@(fila.GestionesNormales is { } gn ? N(gn) : SinDato)</b></td>
-                                            <td class="fact-der">
-                                                <span class="@(fila.Ingreso.PorGestionNormal is null ? "fact-apagado" : null)">@Eur2(fila.Ingreso.PorGestionNormal, fila.Moneda)</span>
-                                                @if (fila.Ingreso.PorGestionNormal is not null && fila.Cuota is { } cuota)
-                                                {
-                                                    <span class="fact-sub">@Eur(cuota - fila.Extranjero.Importe, fila.Moneda) ÷ @N(fila.GestionesNormales ?? 0)</span>
-                                                }
-                                            </td>
-                                            <td class="fact-der">
-                                                <span class="@(fila.Ingreso.PorGestionExtranjero is null ? "fact-apagado" : null)">@Eur2(fila.Ingreso.PorGestionExtranjero, fila.Moneda)</span>
-                                                @if (fila.Ingreso.PorGestionExtranjero is not null)
-                                                {
-                                                    <span class="fact-sub">@Eur(fila.Extranjero.Importe, fila.Moneda) ÷ @N(fila.GestionesDeExtranjeros)</span>
-                                                }
-                                            </td>
-                                            <td class="fact-der"><b class="@(fila.Ingreso.Relacion is null ? "fact-apagado" : null)">@Rel(fila.Ingreso.Relacion)</b></td>
+                                            @if (VeImportes)
+                                            {
+                                                <td class="fact-der">
+                                                    <span class="@(fila.Ingreso.PorGestionNormal is null ? "fact-apagado" : null)">@Eur2(fila.Ingreso.PorGestionNormal, fila.Moneda)</span>
+                                                    @if (fila.Ingreso.PorGestionNormal is not null && fila.Cuota is { } cuota)
+                                                    {
+                                                        <span class="fact-sub">@Eur(cuota - fila.Extranjero.Importe, fila.Moneda) ÷ @N(fila.GestionesNormales ?? 0)</span>
+                                                    }
+                                                </td>
+                                                <td class="fact-der">
+                                                    <span class="@(fila.Ingreso.PorGestionExtranjero is null ? "fact-apagado" : null)">@Eur2(fila.Ingreso.PorGestionExtranjero, fila.Moneda)</span>
+                                                    @if (fila.Ingreso.PorGestionExtranjero is not null)
+                                                    {
+                                                        <span class="fact-sub">@Eur(fila.Extranjero.Importe, fila.Moneda) ÷ @N(fila.GestionesDeExtranjeros)</span>
+                                                    }
+                                                </td>
+                                                <td class="fact-der"><b class="@(fila.Ingreso.Relacion is null ? "fact-apagado" : null)">@Rel(fila.Ingreso.Relacion)</b></td>
+                                            }
+                                            else
+                                            {
+                                                <td class="fact-der fact-reservado" colspan="3" title="@Reservado">@ReservadoCorto</td>
+                                            }
                                             @if (VeImportes)
                                             {
                                                 <td class="fact-der"><Boton Variante="VarianteBoton.Secundario" Class="fact-tarifas" OnClick="@(() => AbrirTarifas(fila.TenantId))">@T["FactTarifas"]</Boton></td>
@@ -172,11 +197,25 @@
                                         <td><b>@N(_datos.Total.Extranjeros)</b></td>
                                         <td><b>@N(_datos.Total.CentrosNuevos)</b></td>
                                         <td><b>@N(_datos.Total.ObrasNuevas)</b></td>
-                                        <td class="fact-der"><b>@(VeImportes ? Eur(_datos.Total.Cuota, _datos.Total.Moneda) : SinDato)</b></td>
+                                        @if (VeImportes)
+                                        {
+                                            <td class="fact-der"><b>@Eur(_datos.Total.Cuota, _datos.Total.Moneda)</b></td>
+                                        }
+                                        else
+                                        {
+                                            <td class="fact-der fact-reservado">@Reservado</td>
+                                        }
                                         <td class="fact-der">@(_datos.Total.GestionesNormales is { } tn ? N(tn) : SinDato)</td>
-                                        <td class="fact-der">@Eur2(_datos.Total.Ingreso.PorGestionNormal, _datos.Total.Moneda)</td>
-                                        <td class="fact-der">@Eur2(_datos.Total.Ingreso.PorGestionExtranjero, _datos.Total.Moneda)</td>
-                                        <td class="fact-der">@Rel(_datos.Total.Ingreso.Relacion)</td>
+                                        @if (VeImportes)
+                                        {
+                                            <td class="fact-der">@Eur2(_datos.Total.Ingreso.PorGestionNormal, _datos.Total.Moneda)</td>
+                                            <td class="fact-der">@Eur2(_datos.Total.Ingreso.PorGestionExtranjero, _datos.Total.Moneda)</td>
+                                            <td class="fact-der">@Rel(_datos.Total.Ingreso.Relacion)</td>
+                                        }
+                                        else
+                                        {
+                                            <td class="fact-der fact-reservado" colspan="3" title="@Reservado">@ReservadoCorto</td>
+                                        }
                                         @if (VeImportes) { <td></td> }
                                     </tr>
                                 </tfoot>
@@ -276,7 +315,7 @@
                                             <td>@titulo</td>
                                             <td class="fact-der"><b>@N(concepto.Unidades)</b></td>
                                             <td class="@(concepto.PrecioUnitario is not null && concepto.CobroActivo ? null : "fact-apagado")">@TextoTarifa(concepto, e)</td>
-                                            <td class="fact-der">@(concepto.PrecioUnitario is not null && concepto.CobroActivo ? Eur(concepto.Importe, e.Moneda) : "—")</td>
+                                            <td class="fact-der">@(!VeImportes ? ReservadoCorto : concepto.PrecioUnitario is not null && concepto.CobroActivo ? Eur(concepto.Importe, e.Moneda) : "—")</td>
                                         </tr>
                                     }
                                 </tbody>
@@ -285,7 +324,7 @@
                                         <th scope="row">@T["FactColCuota"]</th>
                                         <td></td>
                                         <td></td>
-                                        <td class="fact-der @(e.SinTarifa ? "fact-aviso" : null)"><b>@(!VeImportes ? SinDato : e.SinTarifa ? T["FactSinTarifa"].Value : Eur(e.Cuota ?? 0m, e.Moneda))</b></td>
+                                        <td class="fact-der @(!VeImportes ? "fact-reservado" : e.SinTarifa ? "fact-aviso" : null)"><b>@(!VeImportes ? Reservado : e.SinTarifa ? T["FactSinTarifa"].Value : Eur(e.Cuota ?? 0m, e.Moneda))</b></td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -303,7 +342,7 @@
                             <div class="fact-ingresos">
                                 @foreach (var (titulo, valor, texto) in IngresosDe(e))
                                 {
-                                    <div class="fact-ingreso"><span>@titulo</span><b class="@(valor == SinDato ? "fact-apagado" : null)">@valor</b><span>@texto</span></div>
+                                    <div class="fact-ingreso"><span>@titulo</span><b class="@(valor == SinDato || valor == ReservadoCorto ? "fact-apagado" : null)" title="@(valor == ReservadoCorto ? Reservado : null)">@valor</b><span>@texto</span></div>
                                 }
                             </div>
                         </section>

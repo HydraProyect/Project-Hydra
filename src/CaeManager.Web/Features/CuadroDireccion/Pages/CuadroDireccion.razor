@@ -367,7 +367,7 @@
                                                                     aria-label="@(abierta ? Textos["ContraerFila", empresa.TenantNombre].Value : Textos["ExpandirFila", empresa.TenantNombre].Value)"
                                                                     @onclick="@(() => AlternarFila(empresa.TenantId))">@(abierta ? "▾" : "▸")</button>
                                                             @empresa.TenantNombre
-                                                            @if (e.TrabajadoresActivos.Estado != _cuadro.Estado)
+                                                            @if (e.TrabajadoresActivos.Estado != _cuadro?.Estado)
                                                             {
                                                                 <span class="cuadro-estado cuadro-estado-fila" data-e="@DataEstado(e.TrabajadoresActivos.Estado)">@TextoEstado(e.TrabajadoresActivos.Estado)</span>
                                                             }
