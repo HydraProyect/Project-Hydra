@@ -160,6 +160,12 @@
   <data name="EditarFlecha" xml:space="preserve">
     <value>Editar →</value>
   </data>
+  <data name="DatoIdentificacionFiscal" xml:space="preserve">
+    <value>Identificació fiscal</value>
+  </data>
+  <data name="SelloApoyo" xml:space="preserve">
+    <value>El segell de l'empresa s'estampa en les signatures en camp dels seus documents. Puja una foto nítida sobre fons clar.</value>
+  </data>
   <data name="DatoCnae" xml:space="preserve">
     <value>CNAE</value>
   </data>
@@ -170,7 +176,7 @@
     <value>Conveni aplicable</value>
   </data>
   <data name="DatoAnexoI" xml:space="preserve">
-    <value>Activitat de l'Annex I del RSP</value>
+    <value>Activitat d'Annex I</value>
   </data>
   <data name="Si" xml:space="preserve">
     <value>Sí</value>
@@ -442,4 +448,19 @@
   <data name="CatalogoEliminarMensaje" xml:space="preserve"><value>Es traurà del catàleg de l'empresa.</value></data>
   <data name="CatalogoGuardado" xml:space="preserve"><value>Desat.</value></data>
   <data name="CatalogoEliminado" xml:space="preserve"><value>Eliminat.</value></data>
+  <data name="TarjetaSePideDocumentacion" xml:space="preserve">
+    <value>Es demana la documentació a</value>
+  </data>
+  <data name="IrAAgendaFlecha" xml:space="preserve">
+    <value>Agenda →</value>
+  </data>
+  <data name="ContactoPrincipal" xml:space="preserve">
+    <value>Contacte principal</value>
+  </data>
+  <data name="CopiarCorreoContacto" xml:space="preserve">
+    <value>Copia el correu</value>
+  </data>
+  <data name="CopiarTelefonoContacto" xml:space="preserve">
+    <value>Copia el telèfon</value>
+  </data>
 </root>
