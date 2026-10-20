@@ -30,7 +30,7 @@ public partial class Trabajador360Gen2Tests
         var campo = cut.FindAll("[role=dialog] input")
             .Single(i => i.GetAttribute("type") is null or "text");
         await campo.InputAsync(new ChangeEventArgs { Value = valor });
-        await campo.ChangeAsync(new ChangeEventArgs { Value = valor });
+        await campo.BlurAsync(new Microsoft.AspNetCore.Components.Web.FocusEventArgs());
     }
 
     private static Task GuardarDocumentoAsync(IRenderedComponent<TrabajadorDetalle> cut) =>

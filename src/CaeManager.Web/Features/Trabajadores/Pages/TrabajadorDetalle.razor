@@ -591,7 +591,7 @@
     <SoloConEscritura>
         <EditarFichaTrabajadorDrawer @key="TrabajadorId" TrabajadorId="TrabajadorId" Visible="_editorFichaVisible"
             VisibleChanged="v => _editorFichaVisible = v" OnGuardada="CargarAsync" />
-        <CorregirDocumentoIdentidadDrawer @key="TrabajadorId" TrabajadorId="TrabajadorId" Visible="_corregirDocumentoVisible"
+        <CorregirDocumentoIdentidadDrawer TrabajadorId="TrabajadorId" Visible="_corregirDocumentoVisible"
             VisibleChanged="v => _corregirDocumentoVisible = v" OnGuardada="CargarAsync" />
     </SoloConEscritura>
 }

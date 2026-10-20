@@ -287,7 +287,7 @@
             @* Criterio único del documento del Trabajador (decisión de Chris, 2026-10-20): lo que no es DNI ni NIE se avisa. *@
             @if (CaeManager.Domain.Trabajadores.CriterioDocumentoIdentidadTrabajador.Clasificar(_dniTrabajador).SeGuardaComoPasaporte)
             {
-                <p class="pista-documento pista-documento-info" data-aviso="pasaporte" role="status">@CaeManager.Domain.Trabajadores.CriterioDocumentoIdentidadTrabajador.AvisoPasaporte</p>
+                <p class="texto-ayuda-campo" data-aviso="pasaporte" role="status">@CaeManager.Domain.Trabajadores.CriterioDocumentoIdentidadTrabajador.AvisoPasaporte</p>
             }
             <CampoTexto Etiqueta="Puesto" Valor="@_puestoTrabajador" ValorChanged="v => _puestoTrabajador = v" />
             <CampoTexto Etiqueta="Email" Valor="@_emailTrabajador" ValorChanged="v => _emailTrabajador = v" />

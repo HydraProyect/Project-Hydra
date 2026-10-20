@@ -17,14 +17,14 @@
     Guardando="_guardando" MensajeError="@_error" HayErroresDeCampo="@(_errorCampo is not null)"
     MotivoGuardarDeshabilitado="@(!_lista ? Textos["FichaNoDisponible"].Value : null)" OnGuardar="GuardarAsync"
     TextoGuardar="@Textos["CorregirDocumentoGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
-    <p class="texto-secundario" data-campo="documento-actual">@Textos["CorregirDocumentoActual"]: @_documentoCargado</p>
+    <p class="texto-ayuda-campo" data-campo="documento-actual">@Textos["CorregirDocumentoActual"]: @_documentoCargado</p>
     <CampoTexto Etiqueta="@Textos["CorregirDocumentoEtiqueta"]" Valor="@_documento" ValorChanged="v => { _documento = v; _errorCampo = null; }"
         MensajeError="@_errorCampo" />
     @if (Aviso is { } aviso)
     {
-        <p class="pista-documento pista-documento-info" data-aviso="pasaporte" role="status">@aviso</p>
+        <p class="texto-ayuda-campo" data-aviso="pasaporte" role="status">@aviso</p>
     }
-    <p class="texto-secundario" data-ayuda="corregir-documento">@Textos["CorregirDocumentoAyuda"]</p>
+    <p class="texto-ayuda-campo" data-ayuda="corregir-documento">@Textos["CorregirDocumentoAyuda"]</p>
 </DrawerFormulario>
 
 @code {
