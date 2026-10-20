@@ -17,7 +17,7 @@ using CaeManager.Web.Services;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-
+using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 namespace CaeManager.Web.Features.Empresas.Pages;
 
 /// <summary>
@@ -299,6 +299,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         _cargaPagina++;
         _cargaClientes++;
         _cargaAcceso++;
+        _cargaContacto++;
     }
 
     /// <summary>Nada de la Empresa anterior sobrevive al cambio.</summary>
@@ -318,6 +319,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         _errorTrabajadores = false;
         _pagina = 1;
         _clientes = null;
+        _contactoPrincipal = null;
         _cargandoClientes = false;
         _errorClientes = false;
         _credencial = null;
@@ -399,6 +401,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         // de esta lista acotada por alcance sale el recuento de la cabecera y del
         // contador (EmpresaDetalleDto.ClienteIds no está acotado).
         await CargarClientesAsync();
+        await CargarContactoPrincipalAsync();
 
         // Mismo motivo que CentroDetalle: OnParametersSetAsync también corre
         // en el prerenderizado estático, y una tarea sin await ahí queda en
@@ -842,6 +845,33 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
 
         await CargarClientesAsync();
     }
+
+    private ContactoAgendaDto? _contactoPrincipal;
+    private int _cargaContacto;
+
+    /// <summary>
+    /// El contacto predeterminado de la Agenda de la Empresa, para la tarjeta «Se pide la documentación a».
+    /// Lo lee la misma consulta que la pestaña Agenda, así que el alcance es el suyo. Un fallo, o que no haya
+    /// contacto predeterminado, no tumba la página: la tarjeta simplemente no se pinta.
+    /// </summary>
+    private async Task CargarContactoPrincipalAsync()
+    {
+        var carga = ++_cargaContacto;
+        var empresaId = EmpresaId;
+        try
+        {
+            var contactos = await Mediator.Send(new ObtenerAgendaContactosQuery(TipoPropietarioAgenda.Empresa, empresaId), _cancelacion);
+            if (carga == _cargaContacto)
+                _contactoPrincipal = contactos.FirstOrDefault(c => c.EsPredeterminado);
+        }
+        catch (Exception)
+        {
+            if (carga == _cargaContacto)
+                _contactoPrincipal = null;
+        }
+    }
+
+    private Task IrAAgendaAsync() => CambiarPestanaAsync(PestanaAgenda);
 
     private async Task CargarClientesAsync()
     {
