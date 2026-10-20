@@ -89,6 +89,26 @@ public class SubcontratasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     }
 
     [Fact]
+    public async Task Los_rotulos_ordenan_y_la_pastilla_Contratada_por_filtra_en_un_navegador_real()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await AbrirSubcontratasAsync(contexto);
+        var cabecera = page.Locator(".cabecera-columnas-subcontratas");
+
+        await cabecera.GetByRole(AriaRole.Button, new() { Name = "Contratada por" }).ClickAsync();
+        await page.WaitForURLAsync(new Regex(@"orden=contratadapor(&|$)"));
+        await Expect(cabecera.Locator(".col-sort-asc .col-title")).ToHaveTextAsync("Contratada por");
+        await Expect(page.Locator(".lista-filas-acordeon .fila-pulsable")).Not.ToHaveCountAsync(0);
+
+        await cabecera.GetByRole(AriaRole.Button, new() { Name = "Contratada por" }).ClickAsync();
+        await page.WaitForURLAsync(new Regex(@"orden=contratadapor-desc"));
+        await Expect(cabecera.Locator(".col-sort-desc .col-title")).ToHaveTextAsync("Contratada por");
+
+        // La pastilla existe en la barra; elegir una Empresa lo prueban bUnit (URL, consulta y chip) y la integración (SQL).
+        await Expect(page.Locator(".barra-filtros-pastillas .menu-acciones-disparador-pastilla[aria-label='Contratada por']")).ToBeVisibleAsync();
+    }
+
+    [Fact]
     public async Task La_tecla_e_edita_la_fila_enfocada()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();

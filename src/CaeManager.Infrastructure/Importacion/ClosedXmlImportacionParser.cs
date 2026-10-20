@@ -252,17 +252,26 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
                 continue;
             }
 
-            if (!DniValido(dni))
+            // Criterio único del documento del Trabajador: los marcadores («PENDIENTE», «SIN DNI»...) se omiten con su motivo.
+            var documento = CriterioDocumentoIdentidadTrabajador.Clasificar(dni);
+            if (!documento.EsValido)
             {
-                omitidos.Add(new ItemImportacionDto(nombreHoja, fila, $"{nombre} {apellidos} ({dni})", "El documento de identidad no es un DNI, NIE o CIF válido."));
+                omitidos.Add(new ItemImportacionDto(nombreHoja, fila, $"{nombre} {apellidos} ({dni})", documento.Error!));
                 continue;
             }
+
+            dni = documento.Normalizado!;
 
             if (!dnisVistosEnArchivo.Add(dni))
             {
                 omitidos.Add(new ItemImportacionDto(nombreHoja, fila, $"{nombre} {apellidos} ({dni})", "DNI duplicado dentro del propio archivo."));
                 continue;
             }
+
+            // Aviso, no omisión: el Trabajador entra, con su documento guardado como Pasaporte.
+            if (documento.SeGuardaComoPasaporte)
+                advertencias.Add(new ItemImportacionDto(nombreHoja, fila, $"{nombre} {apellidos} ({dni})",
+                    CriterioDocumentoIdentidadTrabajador.AvisoPasaporte + "."));
 
             if (!huboAlMenosUnTrabajador)
             {
@@ -413,16 +422,6 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
         }
 
         return resultado;
-    }
-
-    private static bool DniValido(string dni)
-    {
-        if (dni.Length < Trabajador.LongitudMinimaDni || dni.Length > Trabajador.LongitudMaximaDni)
-            return false;
-
-        var resultado = ValidadorIdentificacion.Analizar(dni);
-        return resultado.EsValido
-            || resultado.Tipo is not (TipoIdentificacion.Dni or TipoIdentificacion.Nie or TipoIdentificacion.NifEmpresa);
     }
 
     private static string? TextoCelda(IXLCell celda)

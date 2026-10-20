@@ -26,6 +26,19 @@
     {
         <label id="@_idEtiqueta" for="@IdCampo">@Etiqueta</label>
     }
+    @if (Multiple && Elegidos.Count > 0)
+    {
+        <div class="csa-chips" role="list">
+            @foreach (var elegido in Elegidos)
+            {
+                <span class="csa-chip" role="listitem">
+                    @TextoDe(elegido)
+                    <button type="button" class="csa-chip-quitar" aria-label="@string.Format(Comunes["SelectorQuitarElegido"].Value, TextoDe(elegido))"
+                            disabled="@Deshabilitado" @onclick="() => QuitarAsync(elegido)"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                </span>
+            }
+        </div>
+    }
     <button type="button" id="@IdCampo" class="csa-disparador" @ref="_disparador"
             role="combobox" aria-haspopup="listbox" aria-expanded="@(_abierto ? "true" : "false")"
             aria-controls="@_idLista" aria-activedescendant="@(_abierto && !EsBuscable ? IdActivo : null)"
@@ -40,7 +53,17 @@
     </button>
     @if (!string.IsNullOrEmpty(Name))
     {
-        <input type="hidden" name="@Name" value="@Valor" />
+        @if (Multiple)
+        {
+            @foreach (var elegido in Elegidos)
+            {
+                <input type="hidden" name="@Name" value="@elegido" />
+            }
+        }
+        else
+        {
+            <input type="hidden" name="@Name" value="@Valor" />
+        }
     }
     @if (_abierto)
     {
@@ -63,7 +86,7 @@
                 @foreach (var (posicion, indice) in _visibles.Index())
                 {
                     var opcion = _todas[indice];
-                    var elegida = opcion.Valor == Valor;
+                    var elegida = !Multiple && opcion.Valor == Valor;
                     <li id="@IdOpcion(indice)" role="option" data-valor="@opcion.Valor" aria-selected="@(elegida ? "true" : "false")"
                         aria-disabled="@(opcion.Deshabilitada ? "true" : null)"
                         class="@ClaseOpcion(posicion, elegida, opcion.Deshabilitada)"
@@ -152,6 +175,17 @@
     [Parameter] public EventCallback<string> ValorChanged { get; set; }
     [Parameter] public bool Deshabilitado { get; set; }
 
+    /// <summary>
+    /// Selección múltiple («Panel Formulario TALVEG»): lo elegido sale como chips con «Quitar» sobre el disparador, que pasa a ser
+    /// «añadir» (el panel no ofrece lo ya elegido y se cierra al elegir). El valor es <see cref="Valores"/>, no <see cref="Valor"/>.
+    /// </summary>
+    [Parameter] public bool Multiple { get; set; }
+
+    /// <summary>Valores elegidos, en orden de elección (solo con <see cref="Multiple"/>).</summary>
+    [Parameter] public IReadOnlyList<string> Valores { get; set; } = [];
+
+    [Parameter] public EventCallback<IReadOnlyList<string>> ValoresChanged { get; set; }
+
     /// <summary>Texto del disparador mientras ningún valor coincide con una opción.</summary>
     [Parameter] public string? Marcador { get; set; }
 
@@ -217,7 +251,8 @@
             RecalcularTodas();
         }
 
-        if (nueva.Valor != Valor) await ValorChanged.InvokeAsync(nueva.Valor);
+        if (Multiple) await AnadirAsync(nueva.Valor);
+        else if (nueva.Valor != Valor) await ValorChanged.InvokeAsync(nueva.Valor);
     }
 
     private bool HayBusqueda => _consulta.Trim().Length > 0;
@@ -228,7 +263,18 @@
     private string _idEtiqueta => $"{IdCampo}-etiqueta";
     private string _idLista => $"{IdCampo}-lista";
     private bool EsBuscable => Buscable ?? (_todas.Count > UmbralBuscador || PuedeCrear);
-    private OpcionSelect? Actual => _todas.FirstOrDefault(o => o.Valor == Valor);
+    private OpcionSelect? Actual => Multiple ? null : _todas.FirstOrDefault(o => o.Valor == Valor);
+
+    private IReadOnlyList<string> Elegidos => Valores ?? [];
+
+    private string TextoDe(string valor) => _todas.FirstOrDefault(o => o.Valor == valor)?.Texto ?? valor;
+
+    private Task QuitarAsync(string valor) => ValoresChanged.InvokeAsync([.. Elegidos.Where(v => v != valor)]);
+
+    private async Task AnadirAsync(string valor)
+    {
+        if (!Elegidos.Contains(valor)) await ValoresChanged.InvokeAsync([.. Elegidos, valor]);
+    }
     private string TextoMarcador => Marcador ?? Comunes["SelectorMarcador"].Value;
     private string? IdActivo =>
         _activo >= 0 && _activo < _visibles.Count ? IdOpcion(_visibles[_activo]) : _activo == _visibles.Count && MostrarCrear ? IdCrear : null;
@@ -284,6 +330,7 @@
         _visibles.Clear();
         for (var i = 0; i < _todas.Count; i++)
         {
+            if (Multiple && Elegidos.Contains(_todas[i].Valor)) continue;
             if (buscado.Length == 0 || Coincide(_todas[i], buscado)) _visibles.Add(i);
         }
     }
@@ -408,7 +455,8 @@
         if (opcion.Deshabilitada) return;
 
         Cerrar(devolverFoco: true);
-        if (opcion.Valor != Valor) await ValorChanged.InvokeAsync(opcion.Valor);
+        if (Multiple) await AnadirAsync(opcion.Valor);
+        else if (opcion.Valor != Valor) await ValorChanged.InvokeAsync(opcion.Valor);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

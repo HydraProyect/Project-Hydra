@@ -64,10 +64,10 @@
     <value>Reintentar</value>
   </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
-    <value>No pudimos cargar el Cuadro de dirección</value>
+    <value>No hem pogut carregar el quadre</value>
   </data>
   <data name="ErrorCargaDescripcion" xml:space="preserve">
-    <value>Intenta nuevamente en unos segundos.</value>
+    <value>Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="MesFuturoTitulo" xml:space="preserve">
     <value>Ese mes todavía no ha empezado</value>
@@ -120,24 +120,6 @@
   <data name="KpiCentrosSub" xml:space="preserve">
     <value>{0} altas este mes</value>
   </data>
-  <data name="KpiDocumentos" xml:space="preserve">
-    <value>Documentos gestionados</value>
-  </data>
-  <data name="KpiDocumentosSub" xml:space="preserve">
-    <value>registrados en el mes</value>
-  </data>
-  <data name="KpiRequerimientos" xml:space="preserve">
-    <value>Requerimientos</value>
-  </data>
-  <data name="KpiRequerimientosSub" xml:space="preserve">
-    <value>reclamaciones de documentación enviadas</value>
-  </data>
-  <data name="KpiSolicitudes" xml:space="preserve">
-    <value>Solicitudes del mes</value>
-  </data>
-  <data name="KpiSolicitudesSub" xml:space="preserve">
-    <value>primer mensaje de cada conversación</value>
-  </data>
   <data name="KpiCumplimiento" xml:space="preserve">
     <value>Cumplimiento documental</value>
   </data>
@@ -152,9 +134,6 @@
   </data>
   <data name="ColumnaEmpresa" xml:space="preserve">
     <value>Empresa</value>
-  </data>
-  <data name="ColumnaResponde" xml:space="preserve">
-    <value>Responde</value>
   </data>
   <data name="ColumnaTrabajadores" xml:space="preserve">
     <value>Trab.</value>
@@ -324,6 +303,9 @@
   <data name="PersonalizarTitulo" xml:space="preserve">
     <value>Personalizar</value>
   </data>
+  <data name="PestanaVacia" xml:space="preserve">
+    <value>Aquesta pestanya està buida. Fes servir «Personalitzar aquesta pestanya» per triar què vols veure.</value>
+  </data>
   <data name="PersonalizarAyuda" xml:space="preserve">
     <value>Marca lo que quieres ver en esta pestaña y ordénalo con las flechas o arrastrando el asa de cada tarjeta.</value>
   </data>
@@ -363,23 +345,8 @@
   <data name="KpiRevisarSub" xml:space="preserve">
     <value>sin contrato ni cuota contratada todavía</value>
   </data>
-  <data name="KpiSinTarifa" xml:space="preserve">
-    <value>Trabajadores extra sin tarifa</value>
-  </data>
-  <data name="KpiSinTarifaSub" xml:space="preserve">
-    <value>volumen que hoy no se cobra · {0} altas de centro</value>
-  </data>
-  <data name="KpiGestiones" xml:space="preserve">
-    <value>Gestiones del mes</value>
-  </data>
-  <data name="KpiGestionesSub" xml:space="preserve">
-    <value>{0} documentos y {1} requerimientos</value>
-  </data>
   <data name="SinDato" xml:space="preserve">
     <value>—</value>
-  </data>
-  <data name="VariacionSinPrevio" xml:space="preserve">
-    <value>sin mes anterior</value>
   </data>
   <data name="AlertasTitulo" xml:space="preserve">
     <value>Qué requiere una decisión</value>
@@ -417,65 +384,11 @@
   <data name="SerieError" xml:space="preserve">
     <value>No pudimos calcular la serie. Inténtalo de nuevo.</value>
   </data>
-  <data name="ApiladoTitulo" xml:space="preserve">
-    <value>Facturación estimada por mes</value>
-  </data>
-  <data name="ApiladoNota" xml:space="preserve">
-    <value>Solo lo que tiene precio: las unidades de cada concepto con tarifa, valoradas con la tarifa de hoy.</value>
-  </data>
   <data name="FacturacionSinTarifas" xml:space="preserve">
     <value>Todavía no hay tarifas por Empresa, así que no hay nada que valorar.</value>
   </data>
-  <data name="FacturacionOtraMoneda" xml:space="preserve">
-    <value>También hay importes en {0}: no se suman a los de {1}.</value>
-  </data>
-  <data name="SinTarifaTitulo" xml:space="preserve">
-    <value>Volumen que hoy no se cobra</value>
-  </data>
-  <data name="SinTarifaNota" xml:space="preserve">
-    <value>Trabajadores por encima de lo contratado (cada mes) y altas de centro nuevas. Aún no tienen tarifa: aquí se ve cuánto son para decidir si cobrarlos.</value>
-  </data>
-  <data name="SerieAltasCentro" xml:space="preserve">
-    <value>Altas de centro</value>
-  </data>
-  <data name="SinTarifaTrabajadoresExtra" xml:space="preserve">
-    <value>Trabajadores extra: todavía no hay contrato ni cuota contratada, así que no se puede saber cuántos están por encima.</value>
-  </data>
-  <data name="SinTarifaConTarifa" xml:space="preserve">
-    <value>Las altas de centro ya llevan tarifa: salen en la facturación estimada.</value>
-  </data>
-  <data name="SimuladorTitulo" xml:space="preserve">
-    <value>Simular una tarifa</value>
-  </data>
-  <data name="SimuladorNota" xml:space="preserve">
-    <value>Elige un precio y mira cuánto supondría. No cambia nada; es para decidir.</value>
-  </data>
-  <data name="SimuladorAlta" xml:space="preserve">
-    <value>Por alta de centro</value>
-  </data>
-  <data name="SimuladorPrecio" xml:space="preserve">
-    <value>Precio</value>
-  </data>
-  <data name="SimuladorMes" xml:space="preserve">
-    <value>{0} altas de centro este mes</value>
-  </data>
-  <data name="SimuladorVentana" xml:space="preserve">
-    <value>en los últimos 6 meses</value>
-  </data>
-  <data name="SimuladorTrabajadoresExtra" xml:space="preserve">
-    <value>Por trabajador extra y mes: necesita el contrato y la cuota contratada, que todavía no existen.</value>
-  </data>
-  <data name="BorradorTitulo" xml:space="preserve">
-    <value>Borrador de factura por Empresa</value>
-  </data>
-  <data name="BorradorNota" xml:space="preserve">
-    <value>Lo facturable hoy según las tarifas y, aparte, el volumen sin tarifa del mes.</value>
-  </data>
   <data name="ColumnaFacturable" xml:space="preserve">
     <value>Facturable</value>
-  </data>
-  <data name="ColumnaTrabajadoresExtra" xml:space="preserve">
-    <value>Trab. extra</value>
   </data>
   <data name="ColumnaAltasCentro" xml:space="preserve">
     <value>Altas centro</value>
@@ -735,12 +648,6 @@
   <data name="ColumnaEmpresasMenos" xml:space="preserve">
     <value>Empresas −</value>
   </data>
-  <data name="CmpSinFacturacion" xml:space="preserve">
-    <value>Sin tarifas por Empresa: la facturación estimada no tiene qué valorar.</value>
-  </data>
-  <data name="EtiquetaDetalle" xml:space="preserve">
-    <value>Detalle</value>
-  </data>
   <data name="Cargando" xml:space="preserve">
     <value>Calculando…</value>
   </data>
@@ -801,9 +708,6 @@
   <data name="ColumnaEmpresas" xml:space="preserve">
     <value>Empreses</value>
   </data>
-  <data name="ColumnaEmpresasAsignadas" xml:space="preserve">
-    <value>Empreses assignades</value>
-  </data>
   <data name="VacacionesPorGestorTitulo" xml:space="preserve">
     <value>Vacances de l'any per Gestor CAE</value>
   </data>
@@ -834,24 +738,6 @@
   <data name="KpiFacturacionSubSinPrevio" xml:space="preserve">
     <value>tarifes d&apos;avui</value>
   </data>
-  <data name="SimuladorComoTitulo" xml:space="preserve">
-    <value>Gestió d&apos;estranger es factura com</value>
-  </data>
-  <data name="SimuladorComoNota" xml:space="preserve">
-    <value>En un estranger també es gestiona la documentació de la seva empresa estrangera; per això pot dur preu propi. Ara: cada gestió duu la tarifa d&apos;estranger de la seva Empresa.</value>
-  </data>
-  <data name="SimuladorExtranjeroMes" xml:space="preserve">
-    <value>{0} gestions d&apos;estranger aquest mes</value>
-  </data>
-  <data name="SimuladorExtranjeroEtiqueta" xml:space="preserve">
-    <value>Per gestió d&apos;estranger</value>
-  </data>
-  <data name="SimuladorComoExtra" xml:space="preserve">
-    <value>Treballador extra</value>
-  </data>
-  <data name="SimuladorComoIndividual" xml:space="preserve">
-    <value>Preu individual</value>
-  </data>
   <data name="ParetoResto" xml:space="preserve">
     <value>Resta</value>
   </data>
@@ -881,5 +767,410 @@
   </data>
   <data name="ColumnaExtranjerosCartera" xml:space="preserve">
     <value>Estrangers</value>
+  </data>
+  <data name="BotonExportarExtranjeros" xml:space="preserve">
+    <value>Exportar estrangers del mes</value>
+  </data>
+  <data name="ExtranjerosHoja" xml:space="preserve">
+    <value>Estrangers</value>
+  </data>
+  <data name="ExtranjerosColumnaTenant" xml:space="preserve">
+    <value>Empresa gestionada</value>
+  </data>
+  <data name="ExtranjerosColumnaFechaSolicitud" xml:space="preserve">
+    <value>Data de sol·licitud</value>
+  </data>
+  <data name="ExtranjerosColumnaContacto" xml:space="preserve">
+    <value>Tècnic o contacte de la visita</value>
+  </data>
+  <data name="ExtranjerosColumnaEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="ExtranjerosColumnaSubcontrata" xml:space="preserve">
+    <value>Subcontracta</value>
+  </data>
+  <data name="ExtranjerosColumnaCliente" xml:space="preserve">
+    <value>Client</value>
+  </data>
+  <data name="ExtranjerosColumnaCentro" xml:space="preserve">
+    <value>Centre</value>
+  </data>
+  <data name="ExtranjerosColumnaFechaIngreso" xml:space="preserve">
+    <value>Data d'ingrés</value>
+  </data>
+  <data name="ExtranjerosColumnaFechaSalida" xml:space="preserve">
+    <value>Data de sortida</value>
+  </data>
+  <data name="ExtranjerosColumnaTrabajador" xml:space="preserve">
+    <value>Nom i cognoms</value>
+  </data>
+  <data name="ExtranjerosColumnaDocumento" xml:space="preserve">
+    <value>Document</value>
+  </data>
+  <data name="ExtranjerosColumnaGestorCae" xml:space="preserve">
+    <value>Gestor CAE</value>
+  </data>
+  <data name="ExtranjerosNotaSinAlcance" xml:space="preserve">
+    <value>Organitzacions gestionades de les quals no veus totes les dades: {0}. Els seus treballadors estrangers no són en aquesta exportació.</value>
+  </data>
+  <data name="FactTitulo" xml:space="preserve">
+    <value>Facturació de l&apos;Operador CAE</value>
+  </data>
+  <data name="FactSubtitulo" xml:space="preserve">
+    <value>Quota que l&apos;Operador CAE cobra a cada Empresa gestionada per portar-ne la CAE externa.</value>
+  </data>
+  <data name="FactErrorTitulo" xml:space="preserve">
+    <value>No s&apos;ha pogut carregar la facturació</value>
+  </data>
+  <data name="FactErrorDescripcion" xml:space="preserve">
+    <value>Torna-ho a provar d&apos;aquí a un moment.</value>
+  </data>
+  <data name="FactMesSinCifras" xml:space="preserve">
+    <value>Aquest mes encara no té xifres de facturació.</value>
+  </data>
+  <data name="FactSecciones" xml:space="preserve">
+    <value>Seccions de facturació</value>
+  </data>
+  <data name="FactPestanaResumen" xml:space="preserve">
+    <value>Resum</value>
+  </data>
+  <data name="FactPestanaPorEmpresa" xml:space="preserve">
+    <value>Per Empresa gestionada</value>
+  </data>
+  <data name="FactKpiCuota" xml:space="preserve">
+    <value>Quota del mes</value>
+  </data>
+  <data name="FactKpiCuotaAyuda" xml:space="preserve">
+    <value>Suma del que l&apos;Operador CAE cobra a cada Empresa gestionada: estrangers, Centres nous i Obres noves segons la seva tarifa.</value>
+  </data>
+  <data name="FactKpiCuotaSub" xml:space="preserve">
+    <value>{0} de {1} Empreses amb tarifa</value>
+  </data>
+  <data name="FactKpiCuotaSubSin" xml:space="preserve">
+    <value> · {0} sense tarifa</value>
+  </data>
+  <data name="FactImportesReservados" xml:space="preserve">
+    <value>Els imports els veuen Direcció CAE i Administrador de l'organització</value>
+  </data>
+  <data name="FactImporteReservado" xml:space="preserve">
+    <value>Reservat</value>
+  </data>
+  <data name="FactKpiExtranjeros" xml:space="preserve">
+    <value>Estrangers</value>
+  </data>
+  <data name="FactKpiExtranjerosAyuda" xml:space="preserve">
+    <value>Treballadors estrangers cobrables: el Passaport compta i el NIE no, perquè pot ser resident. Un recurrent que va a 3 Centres en el mes compta 3. Es compta tal com estava en fer la gestió.</value>
+  </data>
+  <data name="FactKpiExtranjerosSub" xml:space="preserve">
+    <value>Files Treballador × Visita</value>
+  </data>
+  <data name="FactKpiCentros" xml:space="preserve">
+    <value>Centres nous</value>
+  </data>
+  <data name="FactKpiCentrosAyuda" xml:space="preserve">
+    <value>Centres donats d&apos;alta en el mes. Es cobren només si la tarifa de l&apos;Empresa ho té actiu.</value>
+  </data>
+  <data name="FactKpiCentrosSub" xml:space="preserve">
+    <value>{0} es cobren · el nombre es mostra sempre</value>
+  </data>
+  <data name="FactKpiObras" xml:space="preserve">
+    <value>Obres noves</value>
+  </data>
+  <data name="FactKpiObrasAyuda" xml:space="preserve">
+    <value>Projectes de tipus Obra creats en el mes.</value>
+  </data>
+  <data name="FactKpiObrasSub" xml:space="preserve">
+    <value>{0} es cobren · els Esdeveniments no compten</value>
+  </data>
+  <data name="FactKpiIngreso" xml:space="preserve">
+    <value>Ingrés per gestió</value>
+  </data>
+  <data name="FactKpiIngresoAyuda" xml:space="preserve">
+    <value>Per Empresa gestionada, mai per persona. Aquí, el conjunt de les Empreses amb tarifa.</value>
+  </data>
+  <data name="FactKpiIngresoSub" xml:space="preserve">
+    <value>Cost × gestió {0} · × estranger {1} · relació {2}</value>
+  </data>
+  <data name="FactExportar" xml:space="preserve">
+    <value>Exportar estrangers del mes</value>
+  </data>
+  <data name="FactNadaQueExportar" xml:space="preserve">
+    <value>Res a exportar en {0}</value>
+  </data>
+  <data name="FactTablaTitulo" xml:space="preserve">
+    <value>Quota per Empresa gestionada · {0}</value>
+  </data>
+  <data name="FactTablaNota" xml:space="preserve">
+    <value>El que l&apos;Operador CAE cobra a cada Empresa per portar-ne la CAE externa</value>
+  </data>
+  <data name="FactColEmpresa" xml:space="preserve">
+    <value>Empresa gestionada</value>
+  </data>
+  <data name="FactColExtranjeros" xml:space="preserve">
+    <value>Estrangers</value>
+  </data>
+  <data name="FactColCentros" xml:space="preserve">
+    <value>Centres nous</value>
+  </data>
+  <data name="FactColObras" xml:space="preserve">
+    <value>Obres noves</value>
+  </data>
+  <data name="FactColCuota" xml:space="preserve">
+    <value>Quota</value>
+  </data>
+  <data name="FactColGestiones" xml:space="preserve">
+    <value>Gestions normals</value>
+  </data>
+  <data name="FactColGestionesAyuda" xml:space="preserve">
+    <value>Gestions del mes que no són d&apos;estrangers, sumant les de tots els seus Gestors CAE</value>
+  </data>
+  <data name="FactColCostoGestion" xml:space="preserve">
+    <value>Cost × gestió</value>
+  </data>
+  <data name="FactColCostoGestionAyuda" xml:space="preserve">
+    <value>(Quota − import d&apos;estrangers) ÷ gestions normals</value>
+  </data>
+  <data name="FactColCostoExtranjero" xml:space="preserve">
+    <value>Cost × estranger</value>
+  </data>
+  <data name="FactColCostoExtranjeroAyuda" xml:space="preserve">
+    <value>Import d&apos;estrangers ÷ gestions d&apos;estrangers</value>
+  </data>
+  <data name="FactColRelacion" xml:space="preserve">
+    <value>Relació</value>
+  </data>
+  <data name="FactColRelacionAyuda" xml:space="preserve">
+    <value>Cost × estranger ÷ cost × gestió: quantes gestions normals val una d&apos;estranger</value>
+  </data>
+  <data name="FactColAcciones" xml:space="preserve">
+    <value>Accions</value>
+  </data>
+  <data name="FactVerDetalle" xml:space="preserve">
+    <value>Veure el detall</value>
+  </data>
+  <data name="FactCartera" xml:space="preserve">
+    <value>Cartera de {0}</value>
+  </data>
+  <data name="FactSinTarifa" xml:space="preserve">
+    <value>Sense tarifa</value>
+  </data>
+  <data name="FactFijarTarifa" xml:space="preserve">
+    <value>Fixar tarifa</value>
+  </data>
+  <data name="FactTarifas" xml:space="preserve">
+    <value>Tarifes</value>
+  </data>
+  <data name="FactTotales" xml:space="preserve">
+    <value>Totals</value>
+  </data>
+  <data name="FactNoSeCobra" xml:space="preserve">
+    <value>No es cobra</value>
+  </data>
+  <data name="FactCrecimientoTitulo" xml:space="preserve">
+    <value>Centres nous per Client empresarial</value>
+  </data>
+  <data name="FactCrecimientoNota" xml:space="preserve">
+    <value>On es concentra el creixement en {0}. El Client empresarial nou no es cobra.</value>
+  </data>
+  <data name="FactSinCentros" xml:space="preserve">
+    <value>Cap Centre nou en {0}.</value>
+  </data>
+  <data name="FactComoTitulo" xml:space="preserve">
+    <value>Com es calcula l&apos;ingrés per gestió</value>
+  </data>
+  <data name="FactComoIntro" xml:space="preserve">
+    <value>Per Empresa gestionada, mai per persona. Suma les gestions de tots els seus Gestors CAE.</value>
+  </data>
+  <data name="FactComoTotal" xml:space="preserve">
+    <value>Total per gestió</value>
+  </data>
+  <data name="FactComoTotalDef" xml:space="preserve">
+    <value>Quota del mes ÷ gestions totals</value>
+  </data>
+  <data name="FactComoNormalDef" xml:space="preserve">
+    <value>(Quota − import d&apos;estrangers) ÷ gestions que no són d&apos;estrangers</value>
+  </data>
+  <data name="FactComoExtranjeroDef" xml:space="preserve">
+    <value>Import d&apos;estrangers ÷ gestions d&apos;estrangers</value>
+  </data>
+  <data name="FactComoRelacionDef" xml:space="preserve">
+    <value>Cost × estranger ÷ cost × gestió. «×2,4» = una gestió d&apos;estranger rendeix el que 2,4 de normals</value>
+  </data>
+  <data name="FactComoSinDato" xml:space="preserve">
+    <value>Sense gestions o sense tarifa: «Sense dada».</value>
+  </data>
+  <data name="FactEmpresaGestionada" xml:space="preserve">
+    <value>Empresa gestionada</value>
+  </data>
+  <data name="FactTarifasEmpresa" xml:space="preserve">
+    <value>Tarifes de l&apos;Empresa</value>
+  </data>
+  <data name="FactCuotaDe" xml:space="preserve">
+    <value>Quota de {0}</value>
+  </data>
+  <data name="FactTarifaCongelada" xml:space="preserve">
+    <value>Mes tancat: els estrangers es compten en viu</value>
+  </data>
+  <data name="FactColConcepto" xml:space="preserve">
+    <value>Concepte</value>
+  </data>
+  <data name="FactColUnidades" xml:space="preserve">
+    <value>Unitats</value>
+  </data>
+  <data name="FactColTarifa" xml:space="preserve">
+    <value>Tarifa</value>
+  </data>
+  <data name="FactColImporte" xml:space="preserve">
+    <value>Import</value>
+  </data>
+  <data name="FactConceptoExtranjeros" xml:space="preserve">
+    <value>Estrangers gestionats</value>
+  </data>
+  <data name="FactConceptoCentros" xml:space="preserve">
+    <value>Centres nous</value>
+  </data>
+  <data name="FactConceptoObras" xml:space="preserve">
+    <value>Obres noves</value>
+  </data>
+  <data name="FactPorUnidadVisitaTrabajadorExtranjero" xml:space="preserve">
+    <value>estranger</value>
+  </data>
+  <data name="FactPorUnidadCentroNuevo" xml:space="preserve">
+    <value>centre</value>
+  </data>
+  <data name="FactPorUnidadObraNueva" xml:space="preserve">
+    <value>obra nova</value>
+  </data>
+  <data name="FactSinTarifaDetalle" xml:space="preserve">
+    <value>Sense tarifa: les unitats es compten, però no hi ha import.</value>
+  </data>
+  <data name="FactIngresoTitulo" xml:space="preserve">
+    <value>Ingrés per gestió</value>
+  </data>
+  <data name="FactIngresoGestionesTotal" xml:space="preserve">
+    <value>{0} gestions ({1} normals + {2} d&apos;estranger)</value>
+  </data>
+  <data name="FactIngresoGestionesNormales" xml:space="preserve">
+    <value>{0} gestions normals</value>
+  </data>
+  <data name="FactIngresoGestionesExtranjero" xml:space="preserve">
+    <value>{0} gestions d&apos;estranger</value>
+  </data>
+  <data name="FactIngresoRelacionDef" xml:space="preserve">
+    <value>Cost × estranger ÷ cost × gestió</value>
+  </data>
+  <data name="FactCentrosSeCobran" xml:space="preserve">
+    <value>Es cobren segons la tarifa</value>
+  </data>
+  <data name="FactCentrosNoSeCobran" xml:space="preserve">
+    <value>No es cobren amb la tarifa actual; el nombre es mostra igualment</value>
+  </data>
+  <data name="FactExtranjerosDe" xml:space="preserve">
+    <value>Estrangers de {0} · {1}</value>
+  </data>
+  <data name="FactExtranjerosNota" xml:space="preserve">
+    <value>Una fila per Treballador i Visita · compta el Passaport, no el NIE</value>
+  </data>
+  <data name="FactExtranjerosAyuda" xml:space="preserve">
+    <value>Tipus de document: DNI, NIE i Passaport. Compta el Passaport; el NIE no, perquè pot ser resident. El Passaport marca la casella «Treballador estranger (cobrable)» i el Gestor CAE pot desmarcar-la. Es compta tal com estava en fer la gestió.</value>
+  </data>
+  <data name="FactSinExtranjeros" xml:space="preserve">
+    <value>Cap Treballador estranger en {0}. L&apos;exportació no té files.</value>
+  </data>
+  <data name="FactExtSolicitud" xml:space="preserve">
+    <value>Sol·licitud</value>
+  </data>
+  <data name="FactExtTrabajador" xml:space="preserve">
+    <value>Treballador</value>
+  </data>
+  <data name="FactExtDocumento" xml:space="preserve">
+    <value>Document</value>
+  </data>
+  <data name="FactExtCentro" xml:space="preserve">
+    <value>Client empresarial › Centre</value>
+  </data>
+  <data name="FactExtIngreso" xml:space="preserve">
+    <value>Ingrés – sortida</value>
+  </data>
+  <data name="FactExtTrae" xml:space="preserve">
+    <value>El porta</value>
+  </data>
+  <data name="FactExtGestor" xml:space="preserve">
+    <value>Gestor CAE que el va gestionar</value>
+  </data>
+  <data name="FactVisitaCon" xml:space="preserve">
+    <value>Visita amb {0}</value>
+  </data>
+  <data name="TarifasTitulo" xml:space="preserve">
+    <value>Tarifes de {0}</value>
+  </data>
+  <data name="TarifasSubtitulo" xml:space="preserve">
+    <value>Quota que l&apos;Operador CAE cobra per portar-ne la CAE externa. Només la veu l&apos;Operador CAE.</value>
+  </data>
+  <data name="TarifasGuardar" xml:space="preserve">
+    <value>Desa les tarifes</value>
+  </data>
+  <data name="TarifasCancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="TarifasSinTarifa" xml:space="preserve">
+    <value>Aquesta Empresa gestionada no té tarifa. Mentre no en tingui, el Quadre i Facturació mostren «Sense tarifa», mai 0 €.</value>
+  </data>
+  <data name="TarifasMoneda" xml:space="preserve">
+    <value>Moneda de cobrament</value>
+  </data>
+  <data name="TarifasMonedaEur" xml:space="preserve">
+    <value>EUR · euro</value>
+  </data>
+  <data name="TarifasMonedaUsd" xml:space="preserve">
+    <value>USD · dòlar</value>
+  </data>
+  <data name="TarifasConceptoExtranjero" xml:space="preserve">
+    <value>Treballador estranger gestionat</value>
+  </data>
+  <data name="TarifasConceptoCentro" xml:space="preserve">
+    <value>Centre nou</value>
+  </data>
+  <data name="TarifasConceptoObra" xml:space="preserve">
+    <value>Obra nova</value>
+  </data>
+  <data name="TarifasAyudaExtranjero" xml:space="preserve">
+    <value>Per Treballador i Visita: un recurrent que va a 3 Centres en el mes compta 3. Compta el Passaport; el NIE no.</value>
+  </data>
+  <data name="TarifasAyudaCentro" xml:space="preserve">
+    <value>Centre donat d&apos;alta en el mes. El nombre de Centres nous es mostra sempre, es cobri o no.</value>
+  </data>
+  <data name="TarifasAyudaObra" xml:space="preserve">
+    <value>Projecte de tipus Obra. Els Esdeveniments no es cobren.</value>
+  </data>
+  <data name="TarifasSeCobra" xml:space="preserve">
+    <value>Es cobra</value>
+  </data>
+  <data name="TarifasNoSeCobra" xml:space="preserve">
+    <value>No es cobra</value>
+  </data>
+  <data name="TarifasCobrar" xml:space="preserve">
+    <value>Començar a cobrar: {0}</value>
+  </data>
+  <data name="TarifasDejarDeCobrar" xml:space="preserve">
+    <value>Deixar de cobrar: {0}</value>
+  </data>
+  <data name="TarifasPrecioDe" xml:space="preserve">
+    <value>Preu per {0}</value>
+  </data>
+  <data name="TarifasUnidadEur" xml:space="preserve">
+    <value>€ / unitat</value>
+  </data>
+  <data name="TarifasUnidadUsd" xml:space="preserve">
+    <value>$ / unitat</value>
+  </data>
+  <data name="TarifasPrecioInvalido" xml:space="preserve">
+    <value>El preu ha de ser un nombre de 0 a 999.999,99 amb com a màxim dos decimals.</value>
+  </data>
+  <data name="TarifasSinCambios" xml:space="preserve">
+    <value>No hi ha canvis per desar.</value>
+  </data>
+  <data name="TarifasPie" xml:space="preserve">
+    <value>Els canvis s&apos;apliquen des del mes en curs. Els mesos tancats conserven les unitats i la tarifa que tenien en tancar-se. El Client empresarial nou no es cobra.</value>
   </data>
 </root>

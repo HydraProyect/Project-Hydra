@@ -1,0 +1,17 @@
+/* Aviso del panel lateral («Panel Formulario TALVEG»): caja de radio md con borde danger-500, icono de error y texto de 14/20. */
+.alerta-formulario-panel {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--color-danger-500);
+    border-radius: var(--radius-md);
+    font: var(--font-body-md);
+    text-wrap: pretty;
+}
+
+.alerta-formulario-panel svg {
+    flex: none;
+    width: 18px;
+    height: 18px;
+}

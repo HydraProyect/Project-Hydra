@@ -58,9 +58,11 @@ public class ConfirmarSugerenciasDeCorreoAlcanceCarteraTests
         public required SugerenciaVisitaCorreo Sugerencia { get; init; }
         public required Centro Centro { get; init; }
         public required Trabajador Trabajador { get; init; }
+        public required VisitaTrabajadoresFalsos Asignaciones { get; init; }
     }
 
-    private EscenarioVisita PrepararVisita(Guid clienteDeLaConversacion, IAlcanceDatosService? alcance = null)
+    private EscenarioVisita PrepararVisita(
+        Guid clienteDeLaConversacion, IAlcanceDatosService? alcance = null, IActorAuditoria? actor = null)
     {
         var centro = new Centro(_clienteDeMiCartera, Guid.NewGuid(), "Planta norte");
         var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Ana", "García", "12345678Z");
@@ -77,14 +79,17 @@ public class ConfirmarSugerenciasDeCorreoAlcanceCarteraTests
 
         var visitas = new VisitaRepositorioFalso();
         var paquetes = new PaqueteQueAnota();
+        var asignaciones = new VisitaTrabajadoresFalsos();
         var handler = new CrearVisitaCommandHandler(
-            visitas, new VisitaTrabajadoresFalsos(), centros, trabajadores, sugerencias, _comunicaciones, paquetes,
+            visitas, asignaciones, centros, trabajadores, sugerencias, _comunicaciones, paquetes,
             new EvaluadorQueNoSella(), new CurrentUserServiceFalso(Guid.NewGuid()), new PublisherFalso(), new UnitOfWorkFalso(),
             NullLogger<CrearVisitaCommandHandler>.Instance,
-            alcance ?? new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [_clienteDeMiCartera], centroIdsVisibles: [centro.Id]));
+            alcance ?? new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [_clienteDeMiCartera], centroIdsVisibles: [centro.Id]),
+            actor);
 
         return new EscenarioVisita
         {
+            Asignaciones = asignaciones,
             Handler = handler,
             Visitas = visitas,
             Paquetes = paquetes,
@@ -96,6 +101,26 @@ public class ConfirmarSugerenciasDeCorreoAlcanceCarteraTests
 
     private static CrearVisitaCommand CrearVisitaDesde(EscenarioVisita e) =>
         new(e.Centro.Id, Hoy, Hoy, [e.Trabajador.Id], Notas: null, SugerenciaVisitaCorreoId: e.Sugerencia.Id);
+
+    [Fact]
+    public async Task CrearVisita_guarda_como_gestor_de_cada_asignacion_al_Actor_real_y_no_al_usuario_simulado()
+    {
+        var adminTalveg = Guid.NewGuid();
+        var e = PrepararVisita(_clienteDeMiCartera, actor: new ActorFijo(
+            new ActorAuditoria(adminTalveg, Guid.NewGuid(), TipoViaAcceso.SesionPrivilegiada, Guid.NewGuid())));
+
+        (await e.Handler.Handle(CrearVisitaDesde(e), CancellationToken.None)).EsExitoso.Should().BeTrue();
+
+        var asignacion = e.Asignaciones.Agregadas.Should().ContainSingle().Subject;
+        asignacion.GestionadoPorUsuarioId.Should().Be(adminTalveg);
+        asignacion.FechaAsignacionUtc.Should().NotBeNull();
+    }
+
+    private sealed class ActorFijo(ActorAuditoria actor) : IActorAuditoria
+    {
+        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(actor);
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => actor;
+    }
 
     [Fact]
     public async Task CrearVisita_con_una_sugerencia_de_otra_cartera_no_la_resuelve_ni_enlaza_ni_envia_su_hilo()
@@ -287,10 +312,12 @@ public class ConfirmarSugerenciasDeCorreoAlcanceCarteraTests
 
     private sealed class VisitaTrabajadoresFalsos : IVisitaTrabajadorRepository
     {
+        public List<VisitaTrabajador> Agregadas { get; } = [];
+
         public Task<IReadOnlyList<VisitaTrabajador>> ObtenerPorVisitaAsync(Guid visitaId, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<VisitaTrabajador>>([]);
 
-        public void Agregar(VisitaTrabajador visitaTrabajador) { }
+        public void Agregar(VisitaTrabajador visitaTrabajador) => Agregadas.Add(visitaTrabajador);
 
         public void Eliminar(VisitaTrabajador visitaTrabajador) { }
     }

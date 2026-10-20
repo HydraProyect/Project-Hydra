@@ -1,5 +1,6 @@
 /* .fila-rel y compañía, de los mockups Cliente 360 / Empresa 360. */
 .fila-relacion {
+    position: relative;
     min-height: 48px;
     display: flex;
     align-items: center;
@@ -8,6 +9,31 @@
     padding: var(--space-2) var(--space-4);
     border-top: var(--border-default);
     transition: background-color 120ms;
+}
+
+.fila-relacion-enlace {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+}
+
+.fila-relacion-enlace:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: -2px;
+}
+
+.fila-relacion:has(> .fila-relacion-enlace) .fila-relacion-nombre,
+.fila-relacion:has(> .fila-relacion-enlace) > .fila-relacion-acciones,
+.fila-relacion:has(> .fila-relacion-enlace) > .fila-relacion-derecha {
+    position: relative;
+}
+
+.fila-relacion-titulo {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
 }
 
 .fila-relacion:first-child {

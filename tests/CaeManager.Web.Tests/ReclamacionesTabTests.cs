@@ -8,6 +8,7 @@ using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresaEmpleadora;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
+using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesEnviadas;
 using CaeManager.Application.Reclamaciones.Commands.PrepararVistaPreviaReclamacion;
 using CaeManager.Domain.Common;
@@ -73,8 +74,8 @@ public class ReclamacionesTabTests : BunitContext
         public Func<ObtenerReclamacionesEnviadasQuery, ResultadoPaginado<ReclamacionEnviadaDto>> Historial { get; set; } =
             q => new ResultadoPaginado<ReclamacionEnviadaDto>([], 0, q.Pagina, q.TamanoPagina);
 
-        /// <summary>Lo que devuelve <see cref="ObtenerLoteReclamacionQuery"/> (vista de componer/enviar).</summary>
-        public Func<ObtenerLoteReclamacionQuery, IReadOnlyList<LoteReclamacionClienteDto>> Lotes { get; set; } = _ => [];
+        /// <summary>Lo que devuelve <see cref="ObtenerLoteReclamacionPorFiltroQuery"/> (vista de componer/enviar), ya reagrupado por Empresa empleadora.</summary>
+        public Func<ObtenerLoteReclamacionPorFiltroQuery, IReadOnlyList<LoteReclamacionAgrupadoDto>> Lotes { get; set; } = _ => [];
 
         /// <summary>Lo que devuelve la vista previa del reenvío; por defecto, un destinatario, asunto y texto reconocibles.</summary>
         public Func<PrepararVistaPreviaReclamacionCommand, Result<ReclamacionPreparada>> Previa { get; set; } =
@@ -104,7 +105,7 @@ public class ReclamacionesTabTests : BunitContext
         private object? Responder(object request) => request switch
         {
             ObtenerReclamacionesEnviadasQuery q => Historial(q),
-            ObtenerLoteReclamacionQuery q => Lotes(q),
+            ObtenerLoteReclamacionPorFiltroQuery q => Lotes(q),
             PrepararVistaPreviaReclamacionCommand q => Previa(q),
             EnviarReclamacionCommand c => AlEnviar?.Invoke(c) ?? Result.Exito(new EnvioReclamacionResultado(c.DocumentoIds, [])),
             EnviarReclamacionEmpresaCommand c => AlEnviarEmpresa?.Invoke(c) ?? Result.Exito(new EnvioReclamacionResultado(c.DocumentoIds, [])),
@@ -138,8 +139,9 @@ public class ReclamacionesTabTests : BunitContext
         Guid.NewGuid(), Guid.NewGuid(), razonSocial, AmbitoAplicacion.Cliente, "contacto@refrielectric.example",
         DateTime.UtcNow.AddDays(-1), 1, null, null, [Guid.NewGuid()]);
 
-    private static LoteReclamacionClienteDto LoteConTodoPreseleccionado(string razonSocial = "Arcos SPA") => new(
-        Guid.NewGuid(), razonSocial, UltimaReclamacionFechaUtc: null,
+    private static LoteReclamacionAgrupadoDto LoteConTodoPreseleccionado(string razonSocial = "Arcos SPA") => new(
+        Guid.NewGuid(), razonSocial, AmbitoAplicacion.Trabajador, UltimaReclamacionFechaUtc: null,
+        UltimaReclamacionConversacionId: null,
         Documentos:
         [
             new DocumentoReclamableDto(
@@ -336,7 +338,7 @@ public class ReclamacionesTabTests : BunitContext
         mediador.Interceptar = p => p switch
         {
             EnviarReclamacionCommand => tcsEnvio.Task,
-            ObtenerLoteReclamacionQuery when colaLotes.Count > 0 => colaLotes.Dequeue().Task,
+            ObtenerLoteReclamacionPorFiltroQuery when colaLotes.Count > 0 => colaLotes.Dequeue().Task,
             _ => null
         };
 
@@ -346,7 +348,7 @@ public class ReclamacionesTabTests : BunitContext
 
         // ...y, con el envío todavía en vuelo, se da de alta un contacto —
         // ruta de código totalmente distinta que también recarga los lotes.
-        // Su recarga (ObtenerLoteReclamacionQuery, dequeue #1) queda retenida
+        // Su recarga (ObtenerLoteReclamacionPorFiltroQuery, dequeue #1) queda retenida
         // en tcsRecargaModal: no se puede esperar a que "Guardar" termine
         // todavía, o el test se bloquearía contra esa misma tarea.
         await BotonPorTexto(cut, "Añadir contacto").ClickAsync(new MouseEventArgs());
@@ -361,14 +363,14 @@ public class ReclamacionesTabTests : BunitContext
         // (dequeue #2, tcsRecargaEnvio).
         await cut.InvokeAsync(() => tcsEnvio.SetResult(Result.Exito(new EnvioReclamacionResultado(
             lote.Documentos.Select(d => d.DocumentoId).ToList(), []))));
-        await cut.InvokeAsync(() => tcsRecargaEnvio.SetResult(new List<LoteReclamacionClienteDto> { LoteConTodoPreseleccionado("Post-envío SPA") }));
+        await cut.InvokeAsync(() => tcsRecargaEnvio.SetResult(new List<LoteReclamacionAgrupadoDto> { LoteConTodoPreseleccionado("Post-envío SPA") }));
         await envio;
 
         cut.Markup.Should().Contain("Post-envío SPA", "es la recarga vigente: la disparó lo último que terminó");
 
         // La recarga que disparó el alta de contacto —más antigua— responde
         // ahora, tarde: no puede pisar a la que ya se pintó.
-        await cut.InvokeAsync(() => tcsRecargaModal.SetResult(new List<LoteReclamacionClienteDto> { LoteConTodoPreseleccionado("Post-modal SPA") }));
+        await cut.InvokeAsync(() => tcsRecargaModal.SetResult(new List<LoteReclamacionAgrupadoDto> { LoteConTodoPreseleccionado("Post-modal SPA") }));
         await altaContacto;
 
         cut.Markup.Should().Contain("Post-envío SPA", "sigue siendo la vigente tras la respuesta tardía");
@@ -749,5 +751,96 @@ public class ReclamacionesTabTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Última reclamación:", "control: el lote con reclamación previa está pintado"));
         cut.FindAll("a").Count(a => a.TextContent.Trim() == "Ver en Comunicaciones").Should().Be(esperados);
+    }
+
+    // ------------------------------------------------- Empresa empleadora (decisión del 2026-10-18)
+
+    private static LoteReclamacionAgrupadoDto LoteDeEmpresaEmpleadora(
+        Guid empresaId, Guid? delegacionId, string? delegacion, string trabajador, bool conContacto = true) => new(
+        empresaId, "Contratista SL", AmbitoAplicacion.Trabajador, null,
+        [new DocumentoReclamableDto(Guid.NewGuid(), Guid.NewGuid(), trabajador, Guid.NewGuid(), "Ficha de riesgos", new DateOnly(2026, 1, 15), EstadoDocumento.Vigente)],
+        UltimaReclamacionConversacionId: Guid.NewGuid(),
+        Destinatarios: conContacto ? [new DestinatarioAgendaDto(delegacionId ?? Guid.NewGuid(), "Marta Sevilla", "sevilla@contratista.example", ["Contacto de reclamación"])] : [],
+        EmpresaEmpleadora: new DestinoEmpresaEmpleadoraDto(delegacionId, delegacion));
+
+    [Fact]
+    public async Task La_pestana_pide_los_lotes_de_Trabajador_reagrupados_por_Empresa_empleadora()
+    {
+        var (cut, mediador) = Renderizar();
+
+        await AbrirComponerAsync(cut);
+
+        var consulta = mediador.Enviadas.OfType<ObtenerLoteReclamacionPorFiltroQuery>().Should().ContainSingle().Subject;
+        consulta.PorEmpresaEmpleadora.Should().BeTrue("lo de un Trabajador de Empresa se reclama a la Empresa y no al Cliente");
+        consulta.Filtro.Should().Be(new FiltroLoteDocumental(AmbitoAplicacion.Trabajador, [], null));
+    }
+
+    [Fact]
+    public async Task Enviar_un_lote_de_Delegacion_despacha_el_comando_de_la_Empresa_empleadora_y_nunca_el_del_Cliente()
+    {
+        var empresa = Guid.NewGuid();
+        var delegacion = Guid.NewGuid();
+        var lote = LoteDeEmpresaEmpleadora(empresa, delegacion, "Sevilla", "Ana Pérez");
+        var mediador = new MediadorControlado { Lotes = _ => [lote] };
+        var (cut, _) = Renderizar(mediador);
+        await AbrirComponerAsync(cut);
+
+        cut.Markup.Should().Contain("Se reclama a la Delegación Sevilla, a su contacto de reclamación.");
+        await BotonPorTexto(cut, "Enviar reclamación (1)").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+
+        var envio = mediador.Enviadas.OfType<EnviarReclamacionEmpresaEmpleadoraCommand>().Should().ContainSingle().Subject;
+        envio.EmpresaId.Should().Be(empresa);
+        envio.DelegacionEmpresaId.Should().Be(delegacion);
+        envio.DocumentoIds.Should().Equal(lote.Documentos.Select(d => d.DocumentoId));
+        envio.ContactoIdsSeleccionados.Should().Equal(delegacion);
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Los_lotes_de_la_Delegacion_y_de_la_agenda_de_la_misma_Empresa_son_tarjetas_independientes()
+    {
+        var empresa = Guid.NewGuid();
+        var deSevilla = LoteDeEmpresaEmpleadora(empresa, Guid.NewGuid(), "Sevilla", "Ana Pérez");
+        var deLaAgenda = LoteDeEmpresaEmpleadora(empresa, null, null, "Carlos Pérez");
+        var (cut, mediador) = Renderizar(new MediadorControlado { Lotes = _ => [deSevilla, deLaAgenda] });
+        await AbrirComponerAsync(cut);
+
+        cut.FindAll(".tarjeta-reclamacion").Should().HaveCount(2);
+        cut.Markup.Should().Contain("Se reclama a la Delegación Sevilla").And.Contain("Se reclama a la Empresa que emplea a estos Trabajadores");
+
+        var primeraTarjeta = cut.FindAll(".tarjeta-reclamacion")[0];
+        primeraTarjeta.QuerySelector("tbody input[type=checkbox]")!.Change(false);
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Where(t => t.StartsWith("Enviar reclamación"))
+            .Should().Equal("Enviar reclamación (0)", "Enviar reclamación (1)");
+
+        await BotonPorTexto(cut, "Enviar reclamación (1)").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+        mediador.Enviadas.OfType<EnviarReclamacionEmpresaEmpleadoraCommand>().Should().ContainSingle()
+            .Which.DelegacionEmpresaId.Should().BeNull("el lote que se envió es el de la agenda de la Empresa");
+    }
+
+    [Fact]
+    public async Task Un_lote_de_Delegacion_sin_contacto_visible_lo_dice_y_no_ofrece_anadir_contacto_a_la_agenda()
+    {
+        var lote = LoteDeEmpresaEmpleadora(Guid.NewGuid(), Guid.NewGuid(), "Sevilla", "Ana Pérez", conContacto: false);
+        var (cut, _) = Renderizar(new MediadorControlado { Lotes = _ => [lote] });
+        await AbrirComponerAsync(cut);
+
+        cut.Markup.Should().Contain("No puedes ver el contacto de reclamación de esta Delegación");
+        cut.FindAll("button").Where(b => b.TextContent.Contains("Añadir contacto")).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_lote_a_la_agenda_de_la_Empresa_sin_contactos_sigue_permitiendo_anadir_contacto_y_no_enlaza_a_Comunicaciones_por_Cliente()
+    {
+        ConComunicaciones(true);
+        var lote = LoteDeEmpresaEmpleadora(Guid.NewGuid(), null, null, "Carlos Pérez", conContacto: false);
+        var (cut, _) = Renderizar(new MediadorControlado { Lotes = _ => [lote] });
+        await AbrirComponerAsync(cut);
+
+        cut.FindAll("button").Count(b => b.TextContent.Contains("Añadir contacto")).Should().Be(1);
+        cut.FindAll("a").Should().NotContain(a => a.TextContent.Trim() == "Ver en Comunicaciones",
+            "el filtro de Comunicaciones es por Cliente y el titular de este lote es una Empresa");
     }
 }

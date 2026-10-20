@@ -64,9 +64,10 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     internal const string PestanaCentros = "centros";
     internal const string PestanaDocumentacion = "documentacion";
     internal const string PestanaFicha = "ficha";
+    internal const string PestanaPlataformas = "plataformas";
     internal const string PestanaHistorial = "historial";
 
-    private static readonly string[] PestanasValidas = [PestanaOperacion, PestanaCentros, PestanaDocumentacion, PestanaFicha, PestanaHistorial];
+    private static readonly string[] PestanasValidas = [PestanaOperacion, PestanaCentros, PestanaDocumentacion, PestanaPlataformas, PestanaFicha, PestanaHistorial];
 
     [Parameter] public Guid TrabajadorId { get; set; }
 
@@ -98,6 +99,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
 
     private bool _editorFichaVisible;
+    private bool _corregirDocumentoVisible;
 
     /// <summary>
     /// El número de afiliación se guarda solo con dígitos; se presenta como en la maqueta
@@ -130,6 +132,12 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     private IReadOnlyList<CentroDocumentacionTrabajadorDto> _centros = [];
     private bool _cargando = true;
     private bool _error;
+
+    /// <summary>
+    /// La consulta devolvió null: la ficha no está en el Tenant activo (o no existe; es el mismo estado, § 4.5).
+    /// No es un fallo transitorio, así que no lleva «Reintentar»: lo pinta <c>FichaNoEncontrada</c>.
+    /// </summary>
+    private bool _noEncontrada;
 
     private string _pestanaActiva = PestanaOperacion;
     private string? _pestanaDeLaUrl;
@@ -270,9 +278,17 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
                     _centros.Count == 1 ? Textos["ContadorCentrosUno"] : Textos["ContadorCentrosVarios"])
         },
         new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
+        new(PestanaPlataformas, Textos["PestanaPlataformas"])
+        {
+            Contador = TotalIncidenciasPlataformas == 0 ? null : new ContadorPestana(
+                TotalIncidenciasPlataformas, Textos["PlataformasSoloIncidencias", TotalIncidenciasPlataformas], EnAlerta: true)
+        },
         new(PestanaFicha, Comunes["PestanaFicha"]),
         new(PestanaHistorial, Textos["PestanaHistorial"])
     ];
+
+    private int TotalIncidenciasPlataformas => _centros.Sum(c => c.Documentos.Sum(d =>
+        d.AcreditacionesEnElCentro?.Count(a => a.Estado is EstadoAcreditacion.PendienteDeSubir or EstadoAcreditacion.Subida or EstadoAcreditacion.Rechazada) ?? 0));
 
     // D-22: «Sin confirmar» no es incidencia, cuenta como al día con aviso (misma regla que el panel
     // Documentación base, #1015: DocumentacionBaseTrabajador.CuentaComoIncidencia).
@@ -417,6 +433,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
         _cargando = true;
         _error = false;
+        _noEncontrada = false;
 
         try
         {
@@ -427,7 +444,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             _detalle = detalle;
             if (_detalle is null)
             {
-                _error = true;
+                _noEncontrada = true;
                 return;
             }
 
@@ -1011,6 +1028,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     private void CerrarModalesPendientes()
     {
         _editorFichaVisible = false;
+        _corregirDocumentoVisible = false;
         _crearGestionVisible = false;
         _tipoDocumentoParaGestion = string.Empty;
         _errorCrearGestion = null;

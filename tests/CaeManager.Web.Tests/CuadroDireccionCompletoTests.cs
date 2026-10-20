@@ -2,7 +2,7 @@ using Bunit;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
-using CaeManager.Domain.Facturacion;
+using CaeManager.Domain.Dashboard;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Features.CuadroDireccion;
 using CaeManager.Web.Features.CuadroDireccion.Components;
@@ -33,11 +33,11 @@ public partial class CuadroDireccionTests
             0);
     }
 
-    private static LineaFacturacionCuadroDto Linea(ConceptoFacturable concepto, string nombre, int unidades, decimal importe, string moneda = "EUR") =>
+    private static LineaFacturacionCuadroDto Linea(ConceptoTarifaOperadorCae concepto, string nombre, int unidades, decimal importe, string moneda = "EUR") =>
         new(concepto, nombre, moneda, unidades, importe);
 
     private static IReadOnlyList<LineaFacturacionCuadroDto> LineasDeTarifa() =>
-        [Linea(ConceptoFacturable.DocumentoGestionado, "Documento gestionado", 100, 150m), Linea(ConceptoFacturable.TrabajadorActivo, "Trabajador activo", 300, 600m)];
+        [Linea(ConceptoTarifaOperadorCae.ObraNueva, "Obra nueva", 100, 150m), Linea(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, "Visita de Trabajador extranjero", 300, 600m)];
 
     private IRenderedComponent<CuadroDireccionPagina> PintarConSerie(
         CuadroDireccionDto cuadro, IReadOnlyList<LineaFacturacionCuadroDto>? lineas, string rol = Roles.DireccionCae) =>
@@ -83,9 +83,6 @@ public partial class CuadroDireccionTests
         var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), []);
 
         cut.Find("[data-kpi=facturacion] .cuadro-kpi-valor").TextContent.Trim().Should().Be("—");
-        IrA(cut, "Facturación");
-        cut.Find("[data-sin-modelo=tarifas]").TextContent.Should().Contain("Todavía no hay tarifas por Empresa");
-        cut.FindAll("[data-grafico=apilado]").Should().BeEmpty();
     }
 
     [Fact]
@@ -307,51 +304,13 @@ public partial class CuadroDireccionTests
         indice.TextContent.Should().Contain("media = 100");
     }
 
-    [Fact]
-    public void El_simulador_trae_precios_de_ejemplo_y_el_selector_de_como_se_factura_la_gestion_de_extranjero()
-    {
-        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), []);
-        IrA(cut, "Facturación");
 
-        cut.FindAll("[data-chips=alta] button").Select(b => b.TextContent.Trim().Replace(' ', ' ')).Should().Equal("15 €", "20 €", "25 €", "30 €", "40 €");
-        cut.FindAll("[data-chips=extranjero]").Should().BeEmpty();
-
-        cut.FindAll("[data-chips=alta] button")[2].Click();
-        cut.Find("[data-sim=mes]").TextContent.Should().Contain("50", "25 € por las 2 altas de centro del mes");
-
-        cut.Find("select[data-sim=como]").Change("individual");
-        cut.FindAll("[data-chips=extranjero] button").Should().HaveCount(5);
-    }
 
     // ---------------------------------------------------------------- Facturación
 
-    [Fact]
-    public void La_pestaña_Facturacion_pinta_el_apilado_por_concepto_el_volumen_sin_tarifa_y_el_borrador()
-    {
-        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), LineasDeTarifa());
 
-        IrA(cut, "Facturación");
 
-        cut.Find("[data-grafico=apilado]").QuerySelectorAll(".gs-leyenda span").Length.Should().Be(2);
-        cut.Find("[data-grafico=sintarifa]").Should().NotBeNull();
-        cut.Find("[data-tarjeta=f-sintarifa] [data-sin-modelo=contrato]").TextContent.Should().Contain("contrato");
-        cut.Find($"[data-tabla=borrador] tr[data-empresa='{TenantA}']").TextContent.Should().Contain("€");
-        cut.Find($"[data-tabla=borrador] tr[data-empresa='{TenantA}'] [data-sin-modelo=contrato]").TextContent.Trim().Should().Be("—");
-    }
 
-    [Fact]
-    public void El_simulador_multiplica_el_precio_por_las_altas_de_centro()
-    {
-        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), []);
-        IrA(cut, "Facturación");
-
-        cut.Find("[data-sim=mes]").TextContent.Should().Contain("100").And.Contain("€");
-
-        cut.Find("[data-tarjeta=f-simulador] input").Input("70");
-
-        cut.WaitForAssertion(() => cut.Find("[data-sim=mes]").TextContent.Should().Contain("140"), TimeSpan.FromSeconds(3));
-        cut.Find("[data-sim=ventana]").TextContent.Should().Contain("840");
-    }
 
     // ---------------------------------------------------------------- Empresas
 
@@ -607,7 +566,7 @@ public partial class CuadroDireccionTests
                 {
                     Gestiones = new CifraMensual(d.Year == hoy.Year ? 50 : conDatosElAnyoPrevio ? 40 : 0, EstadoCifraMensual.Estimado),
                 },
-                [Linea(ConceptoFacturable.DocumentoGestionado, "Documento gestionado", 10, d.Year == hoy.Year ? 200m : 100m)]))
+                [Linea(ConceptoTarifaOperadorCae.ObraNueva, "Obra nueva", 10, d.Year == hoy.Year ? 200m : 100m)]))
             .ToList();
         return new SerieCuadroDireccionDto(puntos, [new SerieTenantCuadroDto(TenantA, "Refrielectric S.A.", puntos)], 0);
     }
@@ -694,6 +653,72 @@ public partial class CuadroDireccionTests
         modulo.Invocations["leer"].Single().Arguments[0].Should().Be($"cuadro-direccion:preferencias:{UsuarioPrueba}");
     }
 
+    [Theory]
+    [InlineData(Roles.DireccionCae)]
+    [InlineData(Roles.CoordinadorCae)]
+    public void Una_pestaña_sin_tarjetas_ofrece_recuperarlas_sin_escribir_datos_de_negocio(string rol)
+    {
+        ModuloPreferencias();
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), rol, out var mediador);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Personalizar esta pestaña").Click();
+        var tarjetas = cut.FindAll("[data-tarjeta-lista]").Select(e => e.GetAttribute("data-tarjeta-lista")).ToList();
+        foreach (var tarjeta in tarjetas)
+            cut.Find($"[data-tarjeta-lista='{tarjeta}'] input[type=checkbox]").Change(false);
+
+        cut.Find("[data-vacio=personalizacion]").TextContent.Should().Be(
+            "Esta pestaña está vacía. Usa «Personalizar esta pestaña» para elegir qué ver.");
+        cut.FindAll(".cuadro-kpi, .cuadro-bloque").Should().BeEmpty();
+        mediador.Reaperturas.Should().BeEmpty();
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Restablecer esta pestaña").Click();
+        cut.FindAll("[data-vacio=personalizacion]").Should().BeEmpty();
+        cut.FindAll(".cuadro-kpi").Should().HaveCount(6);
+    }
+
+    [Theory]
+    [InlineData(Roles.DireccionCae)]
+    [InlineData(Roles.CoordinadorCae)]
+    public void Personalizar_identifica_la_pestaña_y_expone_su_estado_sin_enviar_comandos(string rol)
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), rol, out var mediador);
+        var boton = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Personalizar esta pestaña");
+        boton.GetAttribute("aria-pressed").Should().Be("false");
+        cut.Find("h1").TextContent.Should().Be("Cuadro de dirección");
+        var pestanas = cut.FindAll("button[role=tab]");
+        var etiquetas = new[] { "Visión general", "Facturación", "Empresas", "Cartera por Gestor CAE", "Demanda", "Vacaciones y cobertura", "Comunicaciones", "Comparativa anual" };
+        pestanas.Should().HaveCount(etiquetas.Length);
+        for (var i = 0; i < etiquetas.Length; i++)
+            pestanas[i].TextContent.Trim().Should().StartWith(etiquetas[i]);
+        cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Presentar");
+        cut.Find("button[role=switch]").TextContent.Should().Contain("Etiquetas de datos");
+
+        boton.Click();
+
+        cut.Find("#cuadro-pers-titulo").TextContent.Should().Be("Personalizar: Visión general");
+        cut.Find("button[aria-controls=cuadro-panel-personalizar]").GetAttribute("aria-pressed").Should().Be("true");
+        cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Restablecer esta pestaña");
+        mediador.Reaperturas.Should().BeEmpty();
+
+        IrA(cut, "Demanda");
+        cut.FindAll("[data-panel=personalizar]").Should().BeEmpty();
+        cut.Find("button[aria-controls=cuadro-panel-personalizar]").Click();
+        cut.Find("#cuadro-pers-titulo").TextContent.Should().Be("Personalizar: Demanda");
+    }
+
+    [Theory]
+    [InlineData(Roles.DireccionCae, true)]
+    [InlineData(Roles.CoordinadorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    [InlineData(Roles.Administrador, false)]
+    public void El_pulido_conserva_los_roles_admitidos_por_la_ruta_direccion(string rol, bool permitido)
+    {
+        var autorizacion = typeof(CuadroDireccionPagina)
+            .GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+            .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>().Single();
+
+        autorizacion.Roles!.Split(',').Contains(rol).Should().Be(permitido);
+    }
+
     [Fact]
     public void Sin_modulo_de_navegador_exportar_avisa_en_vez_de_no_hacer_nada()
     {
@@ -721,6 +746,21 @@ public partial class CuadroDireccionTests
         cut.Find("[data-tarjeta-lista=k-ext] button[aria-label^='Subir']").Click();
 
         cut.FindAll("[data-tarjeta-lista]").Select(l => l.GetAttribute("data-tarjeta-lista")).Take(2).Should().Equal("k-ext", "k-fact");
+    }
+
+    [Fact]
+    public void Las_flechas_de_los_extremos_y_las_de_una_tarjeta_oculta_estan_desactivadas_como_en_la_maqueta()
+    {
+        ModuloPreferencias("{\"Ocultas\":[\"k-ext\"],\"Orden\":{},\"Etiquetas\":false,\"AvisosVistos\":[]}");
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Personalizar esta pestaña").Click();
+        var ids = cut.FindAll("[data-tarjeta-lista]").Select(l => l.GetAttribute("data-tarjeta-lista")!).ToList();
+
+        cut.Find($"[data-tarjeta-lista={ids[0]}] button[aria-label^='Subir']").HasAttribute("disabled").Should().BeTrue("la primera no sube");
+        cut.Find($"[data-tarjeta-lista={ids[^1]}] button[aria-label^='Bajar']").HasAttribute("disabled").Should().BeTrue("la última no baja");
+        ids[1].Should().Be("k-ext");
+        cut.Find("[data-tarjeta-lista=k-ext] button[aria-label^='Bajar']").HasAttribute("disabled").Should().BeTrue("una tarjeta sin marcar no se mueve");
+        cut.Find("[data-tarjeta-lista=k-ext] button[aria-label^='Subir']").HasAttribute("disabled").Should().BeTrue("una tarjeta sin marcar no se mueve");
     }
 
     [Fact]

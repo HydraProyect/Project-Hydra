@@ -270,7 +270,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // del historial vacío menciona "+ Nueva reclamación" entre comillas,
         // así que GetByText a secas es ambiguo entre la pestaña y ese párrafo.
         await page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { Name = "+ Nueva reclamación" }).ClickAsync();
-        var tarjetaCliente = page.Locator(".tarjeta-reclamacion", new PageLocatorOptions { HasText = razonSocialCliente });
+        var tarjetaCliente = page.Locator(".tarjeta-reclamacion", new PageLocatorOptions { HasText = razonSocialEmpresa });
         await tarjetaCliente.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // Sin contacto en la agenda todavía — ReclamacionesTab ofrece darlo de

@@ -10,7 +10,13 @@ public enum TonoToast
     Error
 }
 
-public record ToastMensaje(Guid Id, string Mensaje, TonoToast Tono, string? TextoAccion = null, Func<Task>? OnAccion = null);
+/// <summary>
+/// Destino de un toast de confirmación («Panel Formulario TALVEG»): todo el toast es el enlace, con <see cref="Texto"/> como
+/// llamada («Ver ficha de …») y <see cref="Detalle"/> como línea de apoyo bajo el título.
+/// </summary>
+public record ToastEnlace(string Href, string Texto, string? Detalle = null);
+
+public record ToastMensaje(Guid Id, string Mensaje, TonoToast Tono, string? TextoAccion = null, Func<Task>? OnAccion = null, ToastEnlace? Enlace = null);
 
 /// <summary>
 /// Servicio de avisos de la interfaz (P1-E1): el único canal para comunicar al
@@ -100,7 +106,21 @@ public class ToastService
 
     public IReadOnlyList<ToastMensaje> Mensajes => _mensajes;
 
-    public void Mostrar(string mensaje, TonoToast tono = TonoToast.Info, string? textoAccion = null, Func<Task>? onAccion = null)
+    public void Mostrar(string mensaje, TonoToast tono = TonoToast.Info, string? textoAccion = null, Func<Task>? onAccion = null) =>
+        Apilar(mensaje, tono, textoAccion, onAccion, enlace: null);
+
+    /// <summary>
+    /// Toast de confirmación tras guardar un panel, con enlace al registro creado o editado (<paramref name="titulo"/> en negrita,
+    /// <see cref="ToastEnlace.Detalle"/> debajo y «Ver ficha de …» al pie). Se autodescarta como el de una acción (8 s), con la
+    /// cuenta detenida mientras el puntero o el foco están encima; la X lo cierra sin navegar. Uno de error no se autodescarta.
+    /// </summary>
+    public void MostrarConEnlace(string titulo, ToastEnlace enlace, TonoToast tono = TonoToast.Exito)
+    {
+        ArgumentNullException.ThrowIfNull(enlace);
+        Apilar(titulo, tono, textoAccion: null, onAccion: null, enlace);
+    }
+
+    private void Apilar(string mensaje, TonoToast tono, string? textoAccion, Func<Task>? onAccion, ToastEnlace? enlace)
     {
         // El más antiguo cede el sitio, incluido uno de error: la regla de
         // Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md no hace excepción por tono, y un error silenciado
@@ -109,13 +129,14 @@ public class ToastService
         while (_mensajes.Count >= MaximoVisibles)
             _mensajes.RemoveAt(0);
 
-        var toast = new ToastMensaje(Guid.NewGuid(), mensaje, tono, textoAccion, onAccion);
+        var toast = new ToastMensaje(Guid.NewGuid(), mensaje, tono, textoAccion, onAccion, enlace);
         _mensajes.Add(toast);
 
         // Antes de avisar a la interfaz: el primer pintado ya tiene que encontrar la cuenta atrás
         // (SegundosRestantes), o el aviso nacería sin el número y no lo enseñaría hasta el primer tic.
+        // El toast con enlace dura como uno con acción, pero sin cuenta a la vista.
         if (tono != TonoToast.Error)
-            Programar(toast.Id, onAccion is not null ? _duracionConAccion : _duracion, cuentaVisible: onAccion is not null);
+            Programar(toast.Id, onAccion is not null || enlace is not null ? _duracionConAccion : _duracion, cuentaVisible: onAccion is not null);
 
         OnCambio?.Invoke();
     }

@@ -396,6 +396,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
             }
 
             _proyectos = resultado.Elementos.ToList();
+            _expandidos.IntersectWith(_proyectos.Select(p => p.Id));
             _totalElementos = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
             _listaCargada = true;
@@ -691,7 +692,12 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
 
-    private async Task AbrirNuevoProyectoAsync()
+    private Task AbrirNuevoProyectoAsync() => AbrirNuevoAsync(nameof(TipoProyecto.Obra));
+
+    /// <summary>«Crear Evento» del menú «Más acciones»: el mismo alta, con el tipo Evento ya elegido.</summary>
+    private Task AbrirNuevoEventoAsync() => AbrirNuevoAsync(nameof(TipoProyecto.Evento));
+
+    private async Task AbrirNuevoAsync(string tipo)
     {
         _nuevoClienteId = _clienteSeleccionadoId == Guid.Empty ? string.Empty : _clienteSeleccionadoId.ToString();
         _centrosDisponibles = [];
@@ -700,7 +706,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         _nuevaFechaInicio = Hoy.ToString("yyyy-MM-dd");
         _nuevaFechaFinPrevista = string.Empty;
         _nuevasNotas = string.Empty;
-        _nuevoTipo = nameof(TipoProyecto.Obra);
+        _nuevoTipo = tipo;
         _nuevoOrigenRequisitos = string.Empty;
         _mensajeErrorFormulario = null;
         _erroresCampo = new Dictionary<string, string>();

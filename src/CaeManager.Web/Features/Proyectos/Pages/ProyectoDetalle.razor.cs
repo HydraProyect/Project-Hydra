@@ -10,7 +10,9 @@ using CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerEmpresasProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerVehiculosProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerVisitasProyecto;
+using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Common;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
@@ -67,6 +69,11 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     private ProyectoDetalleDto? _detalle;
     private bool _cargando = true;
     private bool _error;
+    /// <summary>
+    /// La consulta devolvió null: la ficha no está en el Tenant activo (o no existe; es el mismo estado, § 4.5).
+    /// No es un fallo transitorio, así que no lleva «Reintentar»: lo pinta <c>FichaNoEncontrada</c>.
+    /// </summary>
+    private bool _noEncontrada;
 
     private List<TecnicoProyectoDto> _tecnicos = [];
     private IReadOnlyList<EmpresaProyectoDto> _empresasProyecto = [];
@@ -113,12 +120,12 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         {
             Contador = _detalle is null ? null : new ContadorPestana(TecnicosActivosAhora, Textos["GlosaTecnicosActivos"])
         },
+        new(PestanaEmpresas, Textos["PestanaEmpresasProyecto"]),
+        new(PestanaVehiculos, Textos["PestanaVehiculosProyecto"]),
         new(PestanaDocumentos, Textos["PestanaDocumentos"])
         {
             Contador = _detalle is null ? null : new ContadorPestana(_detalle.DocumentosGestionados, Textos["GlosaDocumentosGestionados"])
         },
-        new(PestanaEmpresas, Textos["PestanaEmpresasProyecto"]),
-        new(PestanaVehiculos, Textos["PestanaVehiculosProyecto"]),
         new(PestanaVisitas, Textos["PestanaVisitasProyecto"]),
         // «Historial» va la última y «Ficha» justo antes, como en Centro 360.
         new(PestanaFicha, Comunes["PestanaFicha"]),
@@ -138,7 +145,63 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     /// </summary>
     private bool ListasEditables => _detalle is { EstaAbierto: true };
 
-    private IEnumerable<TecnicoProyectoDto> TecnicosActivos => _tecnicos.Where(t => t.EstaActivo);
+    /// <summary>
+    /// Lo que cada técnico activo tiene en el Centro del Proyecto: su fracción con los requisitos del Centro y su peor
+    /// estado, o <c>null</c> si no está asignado a ese Centro. Sin clave, la lectura falló y la fila queda sin estado.
+    /// </summary>
+    private Dictionary<Guid, CentroDocumentacionTrabajadorDto?> _estadoEnCentro = [];
+
+    /// <summary>Del peor estado al mejor, como dibuja el mockup: «Sin asignar al Centro» va entre En tolerancia y Por vencer.</summary>
+    private int SeveridadDelTecnico(TecnicoProyectoDto tecnico) =>
+        !_estadoEnCentro.TryGetValue(tecnico.TrabajadorId, out var centro) ? int.MaxValue
+        : centro is null ? SeveridadEstadoDocumento.Rango(EstadoDocumento.EnTolerancia) * 10 + 5
+        : SeveridadEstadoDocumento.Rango(centro.PeorEstado) * 10;
+
+    private IEnumerable<TecnicoProyectoDto> TecnicosActivos =>
+        _tecnicos.Where(t => t.EstaActivo).OrderBy(SeveridadDelTecnico);
+
+    private CentroDocumentacionTrabajadorDto? EstadoEnCentroDe(TecnicoProyectoDto tecnico) =>
+        _estadoEnCentro.GetValueOrDefault(tecnico.TrabajadorId);
+
+    private bool SinAsignarAlCentro(TecnicoProyectoDto tecnico) =>
+        tecnico.EstaActivo && _estadoEnCentro.TryGetValue(tecnico.TrabajadorId, out var centro) && centro is null;
+
+    private TonoFila? TonoDelTecnico(TecnicoProyectoDto tecnico)
+    {
+        if (!tecnico.EstaActivo) return null;
+        if (SinAsignarAlCentro(tecnico)) return TonoFila.Advertencia;
+        return EstadoEnCentroDe(tecnico)?.PeorEstado switch
+        {
+            EstadoDocumento.Faltante or EstadoDocumento.Vencido => TonoFila.Peligro,
+            EstadoDocumento.EnTolerancia or EstadoDocumento.Urgente or EstadoDocumento.Proximo or EstadoDocumento.SinConfirmar => TonoFila.Advertencia,
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Rellena el estado de cada técnico activo en el Centro del Proyecto, uno a uno y DESPUÉS de pintar la lista y de
+    /// cargar las demás pestañas: la lectura de cada técnico es pesada y no debe retener el spinner. Se detiene si el
+    /// Proyecto cambia o llega una carga más nueva. Una lectura fallida deja esa fila con su badge «Activo».
+    /// </summary>
+    private async Task CargarEstadoEnCentroAsync(int carga, Guid proyectoId, IReadOnlyList<TecnicoProyectoDto> tecnicos)
+    {
+        if (_detalle is null) return;
+        var centroId = _detalle.CentroId;
+        // Secuenciales: los lectores comparten el DbContext del scope.
+        foreach (var tecnico in tecnicos.Where(t => t.EstaActivo))
+        {
+            if (carga != _cargaTecnicos || ProyectoId != proyectoId) return;
+            try
+            {
+                var centros = await Mediator.Send(new ObtenerDocumentacionPorCentroDeTrabajadorQuery(tecnico.TrabajadorId), _cancelacion);
+                if (carga != _cargaTecnicos || ProyectoId != proyectoId) return;
+                _estadoEnCentro[tecnico.TrabajadorId] = centros.FirstOrDefault(c => c.CentroId == centroId);
+                StateHasChanged();
+            }
+            catch (OperationCanceledException) when (_cancelacion.IsCancellationRequested) { return; }
+            catch (Exception) { /* sin dato: la fila conserva «Activo» en vez de inventar un estado */ }
+        }
+    }
     private IReadOnlyList<TecnicoProyectoDto> TecnicosDeBaja => _tecnicos.Where(t => !t.EstaActivo).ToList();
 
     protected override void OnInitialized() => _cancelacion = _ciclo.Token;
@@ -170,6 +233,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         _detalle = null;
         _error = false;
         _tecnicos = [];
+        _estadoEnCentro = [];
         _cargandoTecnicos = true;
         _errorTecnicos = false;
         _editarVisible = false;
@@ -186,6 +250,8 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         var proyectoId = ProyectoId;
         _cargando = true;
         _error = false;
+        // Desmonta FichaNoEncontrada de un Id anterior: «Atrás»/«Adelante» reutilizan la página.
+        _noEncontrada = false;
 
         try
         {
@@ -194,7 +260,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
             var detalle = await Mediator.Send(new ObtenerProyectoPorIdQuery(proyectoId), _cancelacion);
             if (carga != _cargaDetalle) return;
             _detalle = detalle;
-            _error = detalle is null;
+            _noEncontrada = detalle is null;
         }
         catch (OperationCanceledException) when (_cancelacion.IsCancellationRequested)
         {
@@ -205,6 +271,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
             if (carga == _cargaDetalle)
             {
                 _detalle = null;
+                _noEncontrada = false;
                 _error = true;
             }
         }
@@ -233,6 +300,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
             var tecnicos = await Mediator.Send(new ObtenerTecnicosProyectoQuery(proyectoId), _cancelacion);
             if (carga != _cargaTecnicos) return;
             _tecnicos = tecnicos.ToList();
+            _estadoEnCentro = [];
         }
         catch (OperationCanceledException) when (_cancelacion.IsCancellationRequested)
         {
@@ -248,7 +316,10 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
                 _cargandoTecnicos = false;
         }
         if (carga == _cargaTecnicos && _detalle is not null && _detalle.Id == proyectoId)
+        {
             await CargarRelacionadosAsync();
+            await CargarEstadoEnCentroAsync(carga, proyectoId, _tecnicos);
+        }
     }
 
     private async Task CargarRelacionadosAsync()
@@ -333,6 +404,8 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         var partes = new List<string> { Textos["MetaAltaFecha", tecnico.FechaAlta] };
         if (tecnico.FechaBaja is { } baja)
             partes.Add(Textos["MetaBajaFecha", baja]);
+        if (SinAsignarAlCentro(tecnico) && _detalle is not null)
+            partes.Add(Textos["MetaTecnicoSinAsignar", _detalle.CentroNombre]);
         return string.Join(" · ", partes);
     }
 

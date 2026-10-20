@@ -17,6 +17,27 @@ namespace CaeManager.Application.Tests.Bandeja;
 
 public class ObtenerBandejaGestorQueryHandlerTests
 {
+    [Fact]
+    public void PropagacionConservaCadaCentroDelMismoDocumento()
+    {
+        var documento = Guid.NewGuid();
+        var proveedor = PendientePlataforma(EstadoAcreditacion.PendienteDeSubir);
+        var cliente = proveedor.Clientes.Single();
+        var original = cliente.Documentos.Single();
+        var destinos = new[]
+        {
+            original with { DocumentoId = documento, CentroNombre = "Norte" },
+            original with { DocumentoId = documento, AcreditacionId = Guid.NewGuid(), CentroId = Guid.NewGuid(), CentroNombre = "Sur" }
+        };
+        var resultado = Fusionar(pendientesPlataforma:
+            [proveedor with { Clientes = [cliente with { Documentos = destinos }] }]);
+
+        resultado.Should().HaveCount(2);
+        resultado.Select(x => x.CentroNombre).Should().BeEquivalentTo("Norte", "Sur");
+        resultado.Should().OnlyContain(x => x.DocumentoId == documento && x.Tipo == TipoItemBandeja.PlataformaPendiente && x.EsPropagacionPendiente);
+        resultado.Select(x => x.AcreditacionId).Should().OnlyHaveUniqueItems();
+    }
+
     private static readonly DateOnly Hoy = new(2026, 7, 15);
     private const int HorasAvisoVisita = 48;
     private const int HorasCriticasVisita = 24;

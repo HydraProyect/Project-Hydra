@@ -129,7 +129,20 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         var filaDocumento = page.GetByRole(AriaRole.Table,
                 new PageGetByRoleOptions { Name = $"Documentación exigida a {nombreTrabajador} {apellidosTrabajador}" })
             .Locator(".fila-documento-requerido", new LocatorLocatorOptions { HasText = nombreTipoDocumento });
-        await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).ClickAsync();
+        // Desde un Centro no se sube nada (regla del 2026-10-19): el documento falta en TALVEG, así que la acción
+        // de la fila es el enlace a Trabajador 360 y no «Gestionar» (ese solo cambia el estado en la plataforma).
+        var enlaceFicha = filaDocumento.Locator("[data-accion=actualizar-en-ficha]");
+        await Expect(enlaceFicha).ToHaveTextAsync("Actualizar en Trabajador 360", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
+        await enlaceFicha.ClickAsync();
+        await page.WaitForURLAsync(
+            new System.Text.RegularExpressions.Regex(@"/trabajadores/[0-9a-fA-F-]{36}(\?.*)?$"),
+            new PageWaitForURLOptions { Timeout = 15_000 });
+
+        // En la ficha, pestaña Centros: el Centro llega plegado; se despliega y se pulsa el «Gestionar» del
+        // documento que falta, que abre «Nuevo documento» con el Trabajador y el tipo ya elegidos.
+        await page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex("^Centros") }).ClickAsync();
+        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = nombreCentro, Exact = true }).ClickAsync();
+        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Gestionar el documento «{nombreTipoDocumento}»", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         var hoy = Ayudas.HoyDeNegocio();
@@ -140,7 +153,9 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         {
             await drawer.Locator("input[type=\"file\"]").SetInputFilesAsync(rutaPdf);
             await drawer.GetByText("Archivo adjuntado correctamente.").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-            await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+            // La ficha ofrece «Guardar y siguiente» como primario mientras queden otros documentos con problema, y
+            // «Guardar» a secas (guarda y cierra) como secundario; el rol exacto sirve a las dos formas.
+            await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Guardar", Exact = true }).ClickAsync();
             await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
         }
         finally

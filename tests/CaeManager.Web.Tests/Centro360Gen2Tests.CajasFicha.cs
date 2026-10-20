@@ -82,7 +82,7 @@ public partial class Centro360Gen2Tests
         var detalle = mediador.Detalles[id];
         mediador.DetalleTrasGuardarFicha = detalle with { HorarioAcceso = "8 a 20" };
         var cut = Renderizar(id);
-        await cut.Find("[data-caja=acceso-centro] button").ClickAsync(new MouseEventArgs());
+        await cut.Find("[data-caja=acceso-centro] .tarjeta-acciones button").ClickAsync(new MouseEventArgs());
         var drawer = cut.FindComponent<EditarFichaCentroDrawer>();
         drawer.FindComponent<DrawerFormulario>().Instance.HayCambios().Should().BeFalse();
         await GuardarFichaCentro(drawer);
@@ -99,7 +99,7 @@ public partial class Centro360Gen2Tests
         var version = mediador.Detalles[id].Version;
         mediador.ResultadoFicha = Result.Fallo(Error.Crear(ConcurrenciaOptimista.CodigoConflicto, "Otra persona ha guardado cambios."));
         var cut = Renderizar(id);
-        await cut.Find("[data-caja=acceso-centro] button").ClickAsync(new MouseEventArgs());
+        await cut.Find("[data-caja=acceso-centro] .tarjeta-acciones button").ClickAsync(new MouseEventArgs());
         var drawer = cut.FindComponent<EditarFichaCentroDrawer>();
         var campo = drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Valor == "7 a 19");
         await campo.Find("input").InputAsync(new ChangeEventArgs { Value = "Horario en borrador" });
@@ -117,7 +117,7 @@ public partial class Centro360Gen2Tests
     {
         var (id, mediador) = FichaCompleta();
         var cut = Renderizar(id);
-        await cut.Find("[data-caja=acceso-centro] button").ClickAsync(new MouseEventArgs());
+        await cut.Find("[data-caja=acceso-centro] .tarjeta-acciones button").ClickAsync(new MouseEventArgs());
         var drawer = cut.FindComponent<EditarFichaCentroDrawer>();
         var campo = drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Valor == "prl@example.test");
         await campo.Find("input").InputAsync(new ChangeEventArgs { Value = "correo-invalido" });

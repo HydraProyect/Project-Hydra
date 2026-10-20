@@ -192,6 +192,9 @@
   <data name="ErrorSeleccionaSubcontrata" xml:space="preserve">
     <value>Selecciona una subcontrata.</value>
   </data>
+  <data name="ToastVerFicha" xml:space="preserve">
+    <value>Veure la fitxa de {0}</value>
+  </data>
   <data name="ToastCreado" xml:space="preserve">
     <value>Trabajador creado correctamente.</value>
   </data>
@@ -207,17 +210,8 @@
   <data name="PistaNieInvalido" xml:space="preserve">
     <value>✗ Formato de NIE, pero el dígito de control no coincide.</value>
   </data>
-  <data name="PistaCifValido" xml:space="preserve">
-    <value>✓ Formato de CIF válido — comprueba que sea la persona y no la empresa.</value>
-  </data>
-  <data name="PistaCifInvalido" xml:space="preserve">
-    <value>✗ Parece un CIF, pero el dígito de control no coincide.</value>
-  </data>
-  <data name="PistaTieSoporte" xml:space="preserve">
-    <value>✓ Número de soporte TIE reconocido.</value>
-  </data>
   <data name="PistaDocumentoExtranjero" xml:space="preserve">
-    <value>ℹ Documento no español (pasaporte u otro) — se acepta sin validar dígito de control.</value>
+    <value>No coincide con un DNI ni un NIE: se guardará como Pasaporte.</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
@@ -724,6 +718,9 @@
   <data name="FichaCopiarTelefono" xml:space="preserve"><value>el telèfon</value></data>
   <data name="FichaContactoEmergencia" xml:space="preserve"><value>Contacte d'emergència</value></data>
   <data name="FichaTelefonoEmergencia" xml:space="preserve"><value>Telèfon d'emergència</value></data>
+  <data name="FichaExtranjeroCobrable" xml:space="preserve"><value>Treballador estranger (facturable)</value></data>
+  <data name="FichaExtranjeroCobrableDocumentoSi" xml:space="preserve"><value>Pel seu document compta com a estranger. Desmarca-ho si no es factura (per exemple, un ciutadà de la UE).</value></data>
+  <data name="FichaExtranjeroCobrableDocumentoNo" xml:space="preserve"><value>Pel seu document no compta com a estranger (DNI, NIE o TIE). Marca-ho si es factura.</value></data>
   <data name="FichaCopiarTelefonoEmergencia" xml:space="preserve"><value>el telèfon d'emergència</value></data>
   <data name="FichaCopiarCorreo" xml:space="preserve"><value>el correu electrònic</value></data>
   <data name="FichaCopiarNacimiento" xml:space="preserve"><value>la data de naixement</value></data>
@@ -771,4 +768,35 @@
   <data name="EtiquetaPasosAlta" xml:space="preserve">
     <value>Alta de treballador</value>
   </data>
+  <data name="AccionCorregirDocumento" xml:space="preserve">
+    <value>Corregir el document d&apos;identitat</value>
+  </data>
+  <data name="CorregirDocumentoEtiqueta" xml:space="preserve">
+    <value>Document d&apos;identitat</value>
+  </data>
+  <data name="CorregirDocumentoAyuda" xml:space="preserve">
+    <value>DNI, NIE o passaport. Si la casella «Treballador estranger (cobrable)» es va marcar o desmarcar a mà, aquesta marca es treu i la casella es recalcula amb el document nou només cap endavant: els mesos ja gestionats no canvien.</value>
+  </data>
+  <data name="CorregirDocumentoGuardar" xml:space="preserve">
+    <value>Desar el document</value>
+  </data>
+  <data name="CorregirDocumentoExito" xml:space="preserve">
+    <value>Document d&apos;identitat corregit.</value>
+  </data>
+  <data name="CorregirDocumentoActual" xml:space="preserve">
+    <value>Document actual</value>
+  </data>
+  <data name="PestanaPlataformas" xml:space="preserve"><value>Plataformes</value></data>
+  <data name="PlataformasDescripcion" xml:space="preserve"><value>Estat de la documentació a les plataformes de cada Client.</value></data>
+  <data name="PlataformasEstadoAceptada" xml:space="preserve"><value>Validat</value></data>
+  <data name="PlataformasEstadoPendienteDeSubir" xml:space="preserve"><value>Pendent de pujar</value></data>
+  <data name="PlataformasEstadoRechazada" xml:space="preserve"><value>Rebutjat</value></data>
+  <data name="PlataformasEstadoSubida" xml:space="preserve"><value>Pendent de validació</value></data>
+  <data name="PlataformasIrCentro" xml:space="preserve"><value>Ves al Centre 360</value></data>
+  <data name="PlataformasNombre" xml:space="preserve"><value>Plataforma {0}</value></data>
+  <data name="PlataformasSinResultados" xml:space="preserve"><value>Sense resultats a les plataformes</value></data>
+  <data name="PlataformasSinResultadosDescripcion" xml:space="preserve"><value>No hi ha acreditacions disponibles per a aquest filtre.</value></data>
+  <data name="PlataformasSoloIncidencias" xml:space="preserve"><value>Només incidències · {0}</value></data>
+  <data name="PlataformasTodo" xml:space="preserve"><value>Tot · {0}</value></data>
+  <data name="CabeceraExtranjeroCobrable" xml:space="preserve"><value>Estranger (cobrable)</value></data>
 </root>

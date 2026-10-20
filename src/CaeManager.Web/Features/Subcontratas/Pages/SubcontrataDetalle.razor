@@ -26,7 +26,13 @@
 <div class="contenedor-pagina">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["EtiquetaMigas360"]" />
 
-    @if (_error)
+    @if (_noEncontrada)
+    {
+        <Tarjeta>
+            <FichaNoEncontrada RutaLista="/subcontratas" />
+        </Tarjeta>
+    }
+    else if (_error)
     {
         @* No encontrada y sin acceso se ven igual, para no revelar si el registro existe en otra organización. *@
         <Tarjeta>
@@ -34,7 +40,6 @@
                          NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
                 <Accion>
                     <Boton Variante="VarianteBoton.Secundario" OnClick="ReintentarAsync">@Comunes["Reintentar"]</Boton>
-                    <EnlaceProfundoOtraEmpresa />
                 </Accion>
             </EstadoVacio>
         </Tarjeta>

@@ -41,7 +41,10 @@ public record TrabajadorDetalleDto(
     string? ContactoEmergenciaTelefono = null,
     bool ContactoEmergenciaVisible = false,
     Guid? DelegacionEmpresaId = null,
-    Guid? OficioEmpresaId = null);
+    Guid? OficioEmpresaId = null,
+    bool? MarcaExtranjeroCobrable = null,
+    bool ExtranjeroCobrablePorDocumento = false,
+    bool ExtranjeroCobrableVisible = false);
 
 /// <summary>
 /// Detalle de Trabajador 360.
@@ -70,6 +73,13 @@ public record TrabajadorDetalleDto(
 /// Cliente recibe <c>null</c> y <c>ContactoEmergenciaVisible</c> en <c>false</c>. Tampoco los publica la API v1 ni
 /// salen en listados o exportaciones. Todo rol con escritura los lee, así que el editor de la ficha nunca reenvía como
 /// vacío un contacto que no pudo ver.
+/// </para>
+///
+/// <para>
+/// <b>Extranjero cobrable (decisión de Chris, 2026-10-20).</b> <c>MarcaExtranjeroCobrable</c> (la marca a mano) y
+/// <c>ExtranjeroCobrablePorDocumento</c> (lo que diría <see cref="CriterioExtranjeroCobrable.PorDocumento"/>) siguen la
+/// misma política: es dato de lo que cobra el Operador CAE y el Usuario de Cliente no lo recibe
+/// (<c>ExtranjeroCobrableVisible</c> en <c>false</c>). La API v1 no los publica.
 /// </para>
 /// </summary>
 public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
@@ -111,7 +121,8 @@ public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasCo
                 t.ContactoEmergenciaNombre,
                 t.ContactoEmergenciaTelefono,
                 t.DelegacionEmpresaId,
-                t.OficioEmpresaId
+                t.OficioEmpresaId,
+                t.MarcaExtranjeroCobrable
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -143,6 +154,9 @@ public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasCo
             conContactoEmergencia ? trabajador.ContactoEmergenciaNombre : null,
             conContactoEmergencia ? trabajador.ContactoEmergenciaTelefono : null,
             conContactoEmergencia,
-            trabajador.DelegacionEmpresaId, trabajador.OficioEmpresaId);
+            trabajador.DelegacionEmpresaId, trabajador.OficioEmpresaId,
+            conContactoEmergencia ? trabajador.MarcaExtranjeroCobrable : null,
+            conContactoEmergencia && CriterioExtranjeroCobrable.PorDocumento(trabajador.Dni),
+            conContactoEmergencia);
     }
 }

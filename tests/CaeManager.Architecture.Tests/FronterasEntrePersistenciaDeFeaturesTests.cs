@@ -375,10 +375,27 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IReclamacionesQueryContext"),
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "ITrabajadoresQueryContext"),
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IGestionesQueryContext"),
-        // Serie y Comunicaciones del Cuadro de dirección: tarifas por Tenant beneficiario y conversaciones del mes.
-        ("Dashboard.ObtenerSerieCuadroDireccionQueryHandler", "IFacturacionQueryContext"),
+        // Obras nuevas y Centros nuevos por Cliente empresarial del mes (decisión de Chris, 2026-10-20).
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IProyectosQueryContext"),
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IEmpresasQueryContext"),
+        // Visitas de Trabajador extranjero del mes: unidades de la tarifa del Operador CAE (decisión de Chris, 2026-10-20).
+        ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IVisitasQueryContext"),
+        // Solo comprueba que el Operador CAE opera hoy al Tenant beneficiario antes de fijarle una tarifa.
+        ("Dashboard.FijarTarifaOperadorCaeCommandHandler", "IOperacionesQueryContext"),
+        // Acota la valoración del Operador CAE a la vigencia de su Asignación de Operación en cada mes.
+        ("Dashboard.ObtenerSerieCuadroDireccionQueryHandler", "IOperacionesQueryContext"),
+        ("Dashboard.ObtenerFacturacionOperadorCaeQueryHandler", "IOperacionesQueryContext"),
+        ("Dashboard.ObtenerEmpresasGestionadasDelMesQueryHandler", "IOperacionesQueryContext"),
+        // Serie y Comunicaciones del Cuadro de dirección: conversaciones del mes.
         ("Dashboard.ObtenerComunicacionesCuadroDireccionQueryHandler", "IComunicacionesQueryContext"),
         ("Dashboard.ObtenerGestionesPorDiaCuadroDireccionQueryHandler", "IGestionesQueryContext"),
+        // Exportación de Trabajadores extranjeros del mes (decisión de Chris, 2026-10-20): cada fila junta la asignación
+        // a la Visita, el Trabajador, el Centro, las razones sociales y, para las asignaciones antiguas, su alta auditada.
+        ("Dashboard.ObtenerExtranjerosDelMesQueryHandler", "IAuditoriaQueryContext"),
+        ("Dashboard.ObtenerExtranjerosDelMesQueryHandler", "ICentrosQueryContext"),
+        ("Dashboard.ObtenerExtranjerosDelMesQueryHandler", "IEmpresasQueryContext"),
+        ("Dashboard.ObtenerExtranjerosDelMesQueryHandler", "ITrabajadoresQueryContext"),
+        ("Dashboard.ObtenerExtranjerosDelMesQueryHandler", "IVisitasQueryContext"),
         ("Dashboard.ObtenerEstadisticasAprobacionDocumentoQueryHandler", "IDocumentosQueryContext"),
         ("Dashboard.ObtenerKpisBpoQueryHandler", "IClientesQueryContext"),
         ("Dashboard.ObtenerKpisBpoQueryHandler", "IComunicacionesQueryContext"),
@@ -420,6 +437,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // de un Documento de Proyecto, igual que al eliminarlo.
         ("Documentos.RestaurarDocumentoCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionAceptadaCommandHandler", "IProyectosQueryContext"),
+        ("Documentos.MarcarAcreditacionPendienteDeSubirCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionRechazadaCommandHandler", "IProyectosQueryContext"),
         ("Documentos.RestaurarAnotacionAcreditacionCommandHandler", "IProyectosQueryContext"),
         // MVP2 § 14.5 (kill switch remoto, ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md en
@@ -484,6 +502,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Empresas.ObtenerCentrosConActividadDeEmpresaQueryHandler", "IAsignacionesQueryContext"),
         ("Empresas.ObtenerCentrosConActividadDeEmpresaQueryHandler", "ICentrosQueryContext"),
         ("Empresas.ObtenerCentrosConActividadDeEmpresaQueryHandler", "IClientesQueryContext"),
+        ("Empresas.ObtenerVigenciaEmpresaQueryHandler", "IAsignacionesQueryContext"),
+        ("Empresas.ObtenerVigenciaEmpresaQueryHandler", "ICentrosQueryContext"),
+        ("Empresas.ObtenerVigenciaEmpresaQueryHandler", "IConfiguracionQueryContext"),
+        ("Empresas.ObtenerVigenciaEmpresaQueryHandler", "IDocumentosQueryContext"),
+        ("Empresas.ObtenerVigenciaEmpresaQueryHandler", "ITiposDocumentoQueryContext"),
+        ("Empresas.ObtenerVigenciaEmpresaQueryHandler", "ITrabajadoresQueryContext"),
         ("Empresas.ObtenerCentrosConActividadDeEmpresaQueryHandler", "ITrabajadoresQueryContext"),
         ("Empresas.ObtenerClientesDeEmpresaQueryHandler", "IClientesQueryContext"),
         ("Empresas.ObtenerCumplimientoEmpresaQueryHandler", "IAsignacionesQueryContext"),
@@ -620,6 +644,17 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Reclamaciones.ObtenerLoteReclamacionQueryHandler", "IDocumentosQueryContext"),
         ("Reclamaciones.ObtenerLoteReclamacionQueryHandler", "ITiposDocumentoQueryContext"),
         ("Reclamaciones.ObtenerLoteReclamacionQueryHandler", "ITrabajadoresQueryContext"),
+        // Reclamación preventiva de Empresa 360 (2026-10-19): ofrece los Centros con gestión CAE donde la Empresa tiene Trabajadores
+        // con Asignación activa, con el mismo alcance que ObtenerLoteReclamacionQueryHandler, y las sedes y Oficios de la Empresa.
+        ("Reclamaciones.ObtenerReclamacionPreventivaEmpresaQueryHandler", "IAsignacionesQueryContext"),
+        ("Reclamaciones.ObtenerReclamacionPreventivaEmpresaQueryHandler", "ICentrosQueryContext"),
+        ("Reclamaciones.ObtenerReclamacionPreventivaEmpresaQueryHandler", "IEmpresasQueryContext"),
+        ("Reclamaciones.ObtenerReclamacionPreventivaEmpresaQueryHandler", "ITrabajadoresQueryContext"),
+        // Reclamación por acceso (2026-10-19): solo cuentan los Trabajadores pedidos que son de la Empresa (Trabajador.EmpresaId).
+        ("Reclamaciones.ObtenerReclamacionPorAccesoQueryHandler", "ITrabajadoresQueryContext"),
+        // «Pendiente de subir a plataformas» de Empresa 360 (2026-10-19): acota lo bloqueante por Centro a los Trabajadores de la
+        // Empresa y a sus filtros de Delegación y Oficio, que solo conoce el catálogo de Trabajadores.
+        ("Reclamaciones.ObtenerPendientesDeSubirAPlataformaEmpresaQueryHandler", "ITrabajadoresQueryContext"),
         ("Reclamaciones.ObtenerReclamacionesEnviadasQueryHandler", "IClientesQueryContext"),
         ("Reclamaciones.ObtenerReclamacionesEnviadasQueryHandler", "IComunicacionesQueryContext"),
         ("Reclamaciones.ObtenerReclamacionesSinRespuestaQueryHandler", "IClientesQueryContext"),
@@ -788,6 +823,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Visitas.ObtenerVisitasQueryHandler", "ITiposDocumentoQueryContext"),
         // El recuento del listado abre quién entra: nombre y apellidos, como ObtenerDetalleVisita.
         ("Visitas.ObtenerVisitasQueryHandler", "ITrabajadoresQueryContext"),
+        // «Anteriores» de Centro 360 nombra a los Trabajadores de cada Visita pasada, acotados a los visibles (ObtenerTrabajadorIdsVisiblesAsync).
+        ("Visitas.ObtenerVisitasAnterioresDeCentroQueryHandler", "ITrabajadoresQueryContext"),
 
         // ── Doble escritura de F1 ──────────────────────────────────────────
         //

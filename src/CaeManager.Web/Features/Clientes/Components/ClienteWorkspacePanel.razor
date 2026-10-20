@@ -103,6 +103,11 @@
 {
     <EstadoCargando Filas="4" />
 }
+else if (!_error && _detalle is null)
+{
+    @* La consulta devolvió null: la ficha no está en el Tenant activo (o no existe; mismo estado, § 4.5). Se cierra el panel con un toast; sin «Reintentar». *@
+    <PanelNoEncontrado />
+}
 else if (_error || _detalle is null)
 {
     <EstadoVacio Titulo="No pudimos cargar el Cliente" Descripcion="Intenta nuevamente en unos segundos.">

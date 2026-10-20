@@ -750,8 +750,8 @@ public class InicioGen2Tests : BunitContext
             "Nada pendiente ahora mismo. Próximo vencimiento: Formación PRL de A. García, el 28/08/2026 (en 12 días).");
         cierre.QuerySelector(".inicio-cierre-enlace")!.GetAttribute("href").Should().Be("/calendario");
 
-        cut.FindAll("a").Should().NotContain(a => a.TextContent.Contains("Ver todo en Mi trabajo"),
-            "sin cola no hay nada que ver en Mi trabajo");
+        cut.FindAll("a").Should().Contain(a => a.TextContent.Contains("Ver todo en Mi trabajo"),
+            "la maqueta deja «Ver todo en Mi trabajo →» siempre visible, también con la cola vacía");
     }
 
     // --------------------------------------------------- qué llegó sin ver

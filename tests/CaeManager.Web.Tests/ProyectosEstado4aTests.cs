@@ -197,7 +197,7 @@ public class ProyectosEstado4aTests : BunitContext
         cut.Markup.Should().NotContain(TextoEstado4a);
         cut.Find("h1").TextContent.Trim().Should().Be("Proyectos");
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador")
-            .Should().Contain(b => b.GetAttribute("aria-label")!.StartsWith("Empresa", StringComparison.Ordinal));
+            .Should().Contain(b => b.GetAttribute("aria-label")!.StartsWith("Cliente", StringComparison.Ordinal));
         mediador.Enviadas.OfType<ObtenerClientesParaSelectorQuery>().Should().NotBeEmpty();
     }
 
@@ -211,7 +211,7 @@ public class ProyectosEstado4aTests : BunitContext
 
         cut.Find("h1").TextContent.Trim().Should().Be("Proyectos");
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador")
-            .Should().Contain(b => b.GetAttribute("aria-label")!.StartsWith("Empresa", StringComparison.Ordinal));
+            .Should().Contain(b => b.GetAttribute("aria-label")!.StartsWith("Cliente", StringComparison.Ordinal));
         cut.Markup.Should().NotContain(TextoEstado4a);
         mediador.Enviadas.OfType<ObtenerClientesParaSelectorQuery>().Should().NotBeEmpty();
     }

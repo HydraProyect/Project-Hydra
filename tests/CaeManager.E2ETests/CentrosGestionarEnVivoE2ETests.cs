@@ -5,17 +5,23 @@ namespace CaeManager.E2ETests;
 /// <summary>
 /// Cubre el flujo de demo con mayor valor narrativo identificado en la
 /// convergencia pre-cliente (2026-08-27): <c>/centros → expandir → semáforo
-/// → gestionar → subir → cambio de estado</c>, todo dentro de la misma
-/// pantalla y sin navegar — a diferencia del flujo de altas
+/// → «Actualizar en Trabajador 360» → subir en la ficha → volver y ver el
+/// cambio de estado</c>. A diferencia del flujo de altas
 /// (login→cliente→empresa→trabajador→documento), este enseña el valor
 /// central de TALVEG en segundos. No existía ningún E2E de esta pantalla
 /// hasta ahora; este cierra ese hueco (checklist Demo-Ready, punto 9).
 ///
-/// El cambio de estado en vivo depende de <c>AcordeonAsignacionesCentro.OnCambio</c>
-/// (ver el propio código): al guardar el documento, el componente recarga su
-/// lista y avisa a <c>Centros.razor</c> para que refresque la fila del
-/// Centro — este test verifica exactamente esa reacción, sin recargar la
-/// página manualmente.
+/// Contrato vigente desde el 2026-10-19: desde un Centro no se sube nada. Si el
+/// documento falta en TALVEG (Pendiente), la acción de la fila es el enlace
+/// <c>[data-accion=actualizar-en-ficha]</c>, que lleva a Trabajador 360; allí se
+/// sube. El «Gestionar» de la fila (<c>[data-accion=gestionar-acreditacion]</c>)
+/// queda para el documento que ya existe y solo cambia el estado en la plataforma
+/// (<c>PanelGestionarAcreditacion</c>), que no es lo que cubre este test. La celda
+/// de estado lleva dos líneas, <c>[data-linea=talveg]</c> y <c>[data-linea=plataforma]</c>.
+///
+/// El cambio de estado se ve al volver a <c>/centros</c>: la pantalla carga el
+/// estado real del Centro, así que el recuento de pendientes baja en 1 y la fila
+/// del tipo deja de estar Pendiente.
 ///
 /// GAP encontrado al escribir este test, mismo origen que el ya documentado
 /// en el PR #285 (F4.2a): <c>CampoTexto.ManejarBlurAsync</c> re-invoca
@@ -34,7 +40,7 @@ namespace CaeManager.E2ETests;
 public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
 {
     [Fact]
-    public async Task Centro_expandido_muestra_el_semaforo_y_gestionar_actualiza_el_estado_sin_navegar()
+    public async Task Centro_expandido_muestra_el_semaforo_y_el_documento_subido_en_Trabajador_360_cambia_el_estado_al_volver()
     {
         var sufijo = Guid.NewGuid().ToString("N")[..8];
         var nombreTipoDocumento = $"CentrosEnVivo Tipo {sufijo}";
@@ -115,11 +121,35 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         // recarga del filtro limpia la selección. La barrera es la lista filtrada: queda solo esa fila.
         await Expect(page.Locator(".marco-lista-trabajadores .fila-pulsable")).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
 
+        // Quedan recargas de la lista en vuelo tras el alta del Trabajador y el filtro; al aterrizar limpian la selección.
+        // Se espera a que el DOM esté quieto 1,5 s (condición, no reloj) antes de seleccionar.
+        await page.WaitForFunctionAsync("""
+            () => new Promise(resolver => {
+                let temporizador;
+                const observador = new MutationObserver(() => { clearTimeout(temporizador); temporizador = setTimeout(fin, 1500); });
+                const fin = () => { observador.disconnect(); resolver(true); };
+                observador.observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
+                temporizador = setTimeout(fin, 1500);
+            })
+            """, null, new PageWaitForFunctionOptions { Timeout = 30_000 });
         // El ☑ de la cabecera de la lista (rediseño de listados, fase 1): un icono con nombre accesible, sin texto visible.
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true }).ClickAsync();
-        await filaTrabajador.Locator("input[type=\"checkbox\"]").CheckAsync();
-
-        await page.Locator(".barra-acciones-lote").GetByText("Asignar a centro…").ClickAsync();
+        // Una recarga de la lista posterior al alta del Trabajador limpia la selección (CargarListaAsync sin conservarSeleccion):
+        // se marca y se abre «Asignar a centro…» con un tiempo acotado; si la recarga borró la selección, la barra de lote
+        // desaparece, el clic agota el tiempo y se vuelve a marcar. Hipótesis de causa (no demostrada): la recarga propia
+        // del alta aterriza después del filtro.
+        for (var intento = 1; ; intento++)
+        {
+            var casilla = filaTrabajador.Locator("input[type=\"checkbox\"]");
+            if (!await casilla.IsCheckedAsync()) await casilla.CheckAsync();
+            try
+            {
+                await page.Locator(".barra-acciones-lote").GetByText("Asignar a centro…")
+                    .ClickAsync(new LocatorClickOptions { Timeout = 3_000 });
+                break;
+            }
+            catch (TimeoutException) when (intento < 3) { }
+        }
         await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync($"{nombreCentro} ({razonSocialCliente})");
         await page.WaitForTimeoutAsync(500);
@@ -130,13 +160,9 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await page.Locator(".modal-pie").GetByText(new System.Text.RegularExpressions.Regex("^Asignar")).ClickAsync();
         await page.Locator(".modal-pie").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
-        // --- Paso 4: /centros — buscar, dejar que el buscador asiente y expandir ---
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
-        var buscador = page.GetByPlaceholder("Filtrar esta pantalla: Centro, código, Cliente o Empresa");
-        await buscador.FillAsync(nombreCentro);
-
-        var botonExpandir = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Asignaciones de {nombreCentro}" });
-        await botonExpandir.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        // --- Paso 4: /centros — buscar, expandir el Centro y el Trabajador, fila del tipo Pendiente ---
+        var (motivoPendientes, filaDocumento) = await AbrirFilaDocumentoAsync(
+            page, fixture.BaseUrl, nombreCentro, nombreTrabajador, apellidosTrabajador, nombreTipoDocumento);
 
         // El catálogo de tipos de documento es compartido por toda
         // "AppCollection" — el Trabajador nuevo también hereda como Faltantes
@@ -147,14 +173,113 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         // asumir un número fijo.
         // El recuento de pendientes del Centro (Faltante) es su propio motivo
         // bajo la pastilla de estado («1 pendiente»), separado de los vencidos
+        // desde el 2026-10-10 (ver AbrirFilaDocumentoAsync).
+        var pendientesAntes = await LeerRecuentoAsync(motivoPendientes);
+        Assert.True(pendientesAntes >= 1, "El Trabajador recién asignado debería tener al menos el Faltante de este test.");
+
+        // La celda de estado lleva dos líneas (regla del 2026-10-19): la vigencia en TALVEG y la
+        // acreditación en las plataformas del Centro. Aquí se observa la de TALVEG.
+        var lineaTalveg = filaDocumento.Locator("[data-linea=talveg]");
+
+        // Se ancla por clase Y por texto, y las dos mitades hacen falta:
+        //
+        // - Por clase, porque la misma palabra aparece también dentro de la
+        //   ventana de contexto que envuelve al badge, y GetByText la
+        //   resolvía dos veces. La clase es "badge-peligro" desde que
+        //   "Pendiente" dejó de pintarse en tono neutro: un requisito sin
+        //   documento no es un estado benigno.
+        // - Por texto, porque "badge-peligro" ya no identifica el caso: un
+        //   documento presente pero Vencido o Urgente lleva esa misma
+        //   clase. Distinguir "no existe" de "existe y está vencido" es
+        //   justamente lo que separa este badge, y sin la aserción de texto
+        //   el test dejaría de observar esa distinción.
+        // Desde el 2026-10-08 el estado Faltante se rotula «Pendiente» en toda la interfaz.
+        var badgeFalta = lineaTalveg.Locator(".badge-peligro");
+        await Expect(badgeFalta).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await Expect(badgeFalta).ToHaveTextAsync("Pendiente", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
+
+        // --- Paso 5: desde el Centro no se sube nada — la acción lleva a Trabajador 360 ---
+        // Falta en TALVEG → la acción de la fila es el enlace a la ficha, no «Gestionar»
+        // (ese abre el panel que solo cambia el estado en la plataforma y exige un documento).
+        var enlaceFicha = filaDocumento.Locator("[data-accion=actualizar-en-ficha]");
+        await Expect(enlaceFicha).ToHaveTextAsync("Actualizar en Trabajador 360", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
+        await Expect(filaDocumento.Locator("[data-accion=gestionar-acreditacion]")).ToHaveCountAsync(0);
+
+        await enlaceFicha.ClickAsync();
+        var rutaFicha = new System.Text.RegularExpressions.Regex(
+            @"/trabajadores/(?<id>[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(\?.*)?$");
+        await page.WaitForURLAsync(rutaFicha, new PageWaitForURLOptions { Timeout = 15_000 });
+        Assert.True(Guid.TryParse(rutaFicha.Match(page.Url).Groups["id"].Value, out _),
+            $"La acción debería llevar a /trabajadores/{{guid}}, pero la URL es {page.Url}.");
+
+        // --- Paso 6: subir el documento de ese tipo en Trabajador 360 (pestaña Centros) ---
+        // El Centro llega plegado: se despliega y se pulsa el «Gestionar» del documento que falta,
+        // que abre «Nuevo documento» con el Trabajador y el tipo ya elegidos.
+        await page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex("^Centros") }).ClickAsync();
+        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = nombreCentro, Exact = true }).ClickAsync();
+        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Gestionar el documento «{nombreTipoDocumento}»", Exact = true }).ClickAsync();
+        await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+
+        var hoy = Ayudas.HoyDeNegocio();
+        await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
+        await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(180).ToString("yyyy-MM-dd"));
+
+        var rutaPdf = Ayudas.GenerarPdfDePruebaEnDisco();
+        try
+        {
+            await drawer.Locator("input[type=\"file\"]").SetInputFilesAsync(rutaPdf);
+            await drawer.GetByText("Archivo adjuntado correctamente.").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+            // La ficha ofrece «Guardar y siguiente» como primario mientras queden otros documentos con
+            // problema (el catálogo compartido deja varios Pendientes), y «Guardar» a secas, que guarda y
+            // cierra, como secundario; sin serie, «Guardar» es el primario. El rol exacto sirve a las dos.
+            await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Guardar", Exact = true }).ClickAsync();
+            await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
+        }
+        finally
+        {
+            File.Delete(rutaPdf);
+        }
+
+        // --- Paso 7: volver a /centros — el estado real del Centro ya refleja el documento ---
+        // Prueba central del flujo: la pantalla carga el estado del Centro al entrar, así que si el
+        // documento subido en la ficha no cambia esta fila ni el recuento, el cálculo del Centro está
+        // roto. El recuento global baja en exactamente 1 (el resto de tipos obligatorios del catálogo
+        // compartido siguen pendientes, así que no llega a desaparecer del todo).
+        var (motivoDespuesDeSubir, filaDespuesDeSubir) = await AbrirFilaDocumentoAsync(
+            page, fixture.BaseUrl, nombreCentro, nombreTrabajador, apellidosTrabajador, nombreTipoDocumento);
+        var lineaTalvegDespues = filaDespuesDeSubir.Locator("[data-linea=talveg]");
+        await Expect(lineaTalvegDespues).ToContainTextAsync("Vigente", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
+        await Expect(lineaTalvegDespues).Not.ToContainTextAsync("Pendiente");
+        await Expect(lineaTalvegDespues.Locator(".badge-peligro")).ToHaveCountAsync(0);
+        await Expect(filaDespuesDeSubir.Locator("[data-accion=actualizar-en-ficha]")).ToHaveCountAsync(0);
+        var pendientesDespues = await LeerRecuentoAsync(motivoDespuesDeSubir);
+        Assert.Equal(pendientesAntes - 1, pendientesDespues);
+    }
+
+    /// <summary>
+    /// <c>/centros</c> → buscar el Centro, dejar que el buscador asiente, expandir el Centro y después
+    /// la fila del Trabajador, hasta tener a la vista la fila del documento de ese tipo. Devuelve el
+    /// motivo de pendientes del Centro y la fila del documento. Se usa antes y después de subir el
+    /// documento en Trabajador 360: la segunda vez es una carga nueva de la pantalla.
+    /// </summary>
+    private static async Task<(ILocator MotivoPendientes, ILocator FilaDocumento)> AbrirFilaDocumentoAsync(
+        IPage page, string baseUrl, string nombreCentro, string nombreTrabajador, string apellidosTrabajador, string nombreTipoDocumento)
+    {
+        await Ayudas.NavegarYEsperarAsync(page, $"{baseUrl}/centros");
+        var buscador = page.GetByPlaceholder("Filtrar esta pantalla: Centro, código, Cliente o Empresa");
+        await buscador.FillAsync(nombreCentro);
+
+        var botonExpandir = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Asignaciones de {nombreCentro}" });
+        await botonExpandir.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+
+        // El recuento de pendientes del Centro (Faltante) es su propio motivo
+        // bajo la pastilla de estado («1 pendiente»), separado de los vencidos
         // desde el 2026-10-10. Se localiza por su clase propia y no por
         // .badge-peligro, que en la cabecera de la fila es la pastilla de
         // estado y dentro del acordeón, el badge de cada Trabajador.
         var filaCentro = page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = nombreCentro });
         var motivoPendientes = filaCentro.Locator(".tarjeta-fila-acordeon-cabecera .motivo-recuento-pendientes");
         await Expect(motivoPendientes).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
-        var pendientesAntes = await LeerRecuentoAsync(motivoPendientes);
-        Assert.True(pendientesAntes >= 1, "El Trabajador recién asignado debería tener al menos el Faltante de este test.");
 
         // Blur explícito del buscador ANTES de expandir — ver el GAP
         // documentado arriba: sin esto, el re-disparo redundante de
@@ -168,7 +293,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
 
         // El acordeón tiene dos niveles: expandir el Centro revela la fila
         // del Trabajador, pero la tabla de documentos exigidos vive detrás
-        // de «Gestionar» en esa fila.
+        // del botón que despliega esa fila.
         var botonExpandirTrabajador = filaCentro.Locator(".fila-trabajador-gestionar");
         await botonExpandirTrabajador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         // El acordeón vuelve a renderizar la fila al terminar CargarAsync —
@@ -187,54 +312,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         // para este Trabajador nuevo, así que no basta con buscar ese texto
         // suelto en toda la tabla.
         var filaDocumento = tablaDocumentos.Locator(".fila-documento-requerido", new LocatorLocatorOptions { HasText = nombreTipoDocumento });
-        // Se ancla por clase Y por texto, y las dos mitades hacen falta:
-        //
-        // - Por clase, porque la misma palabra aparece también dentro de la
-        //   ventana de contexto que envuelve al badge, y GetByText la
-        //   resolvía dos veces. La clase es "badge-peligro" desde que
-        //   "Pendiente" dejó de pintarse en tono neutro: un requisito sin
-        //   documento no es un estado benigno.
-        // - Por texto, porque "badge-peligro" ya no identifica el caso: un
-        //   documento presente pero Vencido o Urgente lleva esa misma
-        //   clase. Distinguir "no existe" de "existe y está vencido" es
-        //   justamente lo que separa este badge, y sin la aserción de texto
-        //   el test dejaría de observar esa distinción.
-        // Desde el 2026-10-08 el estado Faltante se rotula «Pendiente» en toda la interfaz.
-        var badgeFalta = filaDocumento.Locator(".badge-peligro");
-        await Expect(badgeFalta).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
-        await Expect(badgeFalta).ToHaveTextAsync("Pendiente", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
-
-        // --- Paso 5: Subir el documento pendiente, sin salir de /centros ---
-        await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).ClickAsync();
-        await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-
-        var hoy = Ayudas.HoyDeNegocio();
-        await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
-        await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(180).ToString("yyyy-MM-dd"));
-
-        var rutaPdf = Ayudas.GenerarPdfDePruebaEnDisco();
-        try
-        {
-            await drawer.Locator("input[type=\"file\"]").SetInputFilesAsync(rutaPdf);
-            await drawer.GetByText("Archivo adjuntado correctamente.").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-            await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
-            await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
-        }
-        finally
-        {
-            File.Delete(rutaPdf);
-        }
-
-        // --- Paso 6: cambio de estado en vivo — sin recargar la página ---
-        // Esta es la prueba central del flujo: AcordeonAsignacionesCentro
-        // recarga su lista y dispara OnCambio hacia Centros.razor al
-        // guardar — si la fila de este documento no cambia, el enganche
-        // está roto. El recuento global del Centro baja en exactamente 1
-        // (el resto de tipos obligatorios del catálogo compartido siguen
-        // pendientes, así que no llega a desaparecer del todo).
-        await Expect(badgeFalta).Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
-        var pendientesDespues = await LeerRecuentoAsync(motivoPendientes);
-        Assert.Equal(pendientesAntes - 1, pendientesDespues);
+        return (motivoPendientes, filaDocumento);
     }
 
     /// <summary>La cifra con la que empieza el motivo («6 vencidos» → 6). Falla si el texto no empieza por un número.</summary>

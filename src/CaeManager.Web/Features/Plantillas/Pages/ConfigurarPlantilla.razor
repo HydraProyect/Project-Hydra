@@ -92,6 +92,10 @@
     {
         <EstadoCargando Filas="4" />
     }
+    else if (_noEncontrada)
+    {
+        <FichaNoEncontrada RutaLista="/plantillas" />
+    }
     else if (_errorCarga)
     {
         <div role="alert">

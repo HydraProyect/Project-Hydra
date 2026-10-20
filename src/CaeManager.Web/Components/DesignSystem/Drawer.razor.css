@@ -169,13 +169,17 @@
     display: none;
 }
 
-/* En móvil, como siempre, los botones del pie se apilan a todo el ancho (acción principal + «Cancelar», en el orden del marcado de
-   cada pantalla). Solo el modo pasos (.drawer-pie-pasos) usa la rejilla de dos columnas de la maqueta: ahí el pie tiene una forma
-   conocida (Atrás | Guardar y terminar, y Siguiente arriba a todo el ancho). Una rejilla para cualquier pie dejaba botones sueltos a
-   media anchura (un solo «Cerrar», un pie con tres botones extra). */
+/* La maqueta mide el botón por su contenido (padding 0 20): sin el ancho mínimo que BotonConEspera reserva fuera del pie. */
+.drawer-pie ::deep .boton-espera-boton {
+    min-width: 0;
+}
+
+/* En móvil, como la maqueta: rejilla de dos columnas con 8 px de hueco para cualquier pie (Cancelar | Guardar). Una acción
+   suelta, o la última de un pie impar, ocupa la fila entera; «Siguiente» del modo pasos va arriba a todo el ancho. */
 @media (max-width: 640px) {
     .drawer-pie {
-        flex-direction: column;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
         align-items: stretch;
         gap: var(--space-2);
     }
@@ -186,19 +190,67 @@
         width: 100%;
     }
 
-    .drawer-pie ::deep .boton-espera-boton {
-        min-width: 0;
+    /* Una etiqueta larga («Guardar y terminar») baja de línea en su columna en vez de desbordarla. */
+    .drawer-pie ::deep .boton {
+        white-space: normal;
     }
 
-    .drawer-pie.drawer-pie-pasos {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-    }
-
-    /* Si el número de acciones del pie en pasos es impar, la última no queda a media anchura. */
-    .drawer-pie.drawer-pie-pasos > :last-child:nth-child(odd) {
+    .drawer-pie > :last-child:nth-child(odd) {
         grid-column: 1 / -1;
     }
+}
+
+/* Cuerpo del panel («Panel Formulario TALVEG»): etiqueta y control a 6 px; en oscuro el control va sobre surface-subtle. */
+.drawer-cuerpo ::deep .campo {
+    gap: 6px;
+}
+
+:root[data-theme="oscuro"] .drawer-cuerpo ::deep .campo-input,
+:root[data-theme="oscuro"] .drawer-cuerpo ::deep .campo-select,
+:root[data-theme="oscuro"] .drawer-cuerpo ::deep .campo-textarea {
+    background-color: var(--color-surface-subtle);
+}
+
+/* Grupo de casillas del panel: caja de radio md, filas de 52 px separadas por una raya, casilla de 18 px. */
+.drawer-cuerpo ::deep .lista-seleccion-multiple {
+    gap: 0;
+    padding: 0;
+    max-height: none;
+    overflow: hidden;
+    background-color: var(--color-surface);
+}
+
+.drawer-cuerpo ::deep .lista-seleccion-multiple .campo-checkbox {
+    min-height: 52px;
+    padding: 8px 14px;
+    gap: var(--space-3);
+    font: 500 0.875rem/1.25rem var(--font-family);
+    cursor: pointer;
+}
+
+.drawer-cuerpo ::deep .lista-seleccion-multiple .campo-checkbox + .campo-checkbox {
+    border-top: var(--border-default);
+}
+
+.drawer-cuerpo ::deep .lista-seleccion-multiple .campo-checkbox input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    flex: none;
+    accent-color: var(--color-primario-fondo);
+}
+
+/* Una lista con algo más que casillas (texto, botones entre ellas, como «Asignar empresas») conserva su caja de siempre. */
+.drawer-cuerpo ::deep .lista-seleccion-multiple:has(> :not(.campo-checkbox)) {
+    gap: var(--space-2);
+    padding: var(--space-3);
+    overflow: visible;
+}
+
+.drawer-cuerpo ::deep .lista-seleccion-multiple:has(> :not(.campo-checkbox)) .campo-checkbox {
+    min-height: 0;
+    padding: 0;
+    border-top: 0;
 }
 /* Ficha 16: desenfoque ligero tras el velo, detrás de @supports y bajo el token
    --scrim-filtro (tokens.css; "none" lo apaga). Con transparencia o movimiento

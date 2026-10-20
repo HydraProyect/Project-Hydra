@@ -31,6 +31,13 @@
                     <span class="cuadro-estado" data-e="@EstadoDato" title="@EstadoTitulo">@EstadoTexto</span>
                 }
             </p>
+            @if (_ambito.Length > 0)
+            {
+                <span class="cuadro-pastilla">
+                    <span>@NombreAmbito</span>
+                    <button type="button" aria-label="@Textos["QuitarFiltroAmbito"]" @onclick="@(() => CambiarAmbito(string.Empty))">×</button>
+                </span>
+            }
         </JuntoAlTitulo>
     </CabeceraPagina>
 
@@ -60,31 +67,20 @@
             </select>
         }
 
-        @if (_ambito.Length > 0)
-        {
-            <span class="cuadro-pastilla">
-                <span>@NombreAmbito</span>
-                <button type="button" aria-label="@Textos["QuitarFiltroAmbito"]" @onclick="@(() => CambiarAmbito(string.Empty))">×</button>
-            </span>
-        }
-
         <span class="cuadro-espaciador"></span>
 
         @if (HayCifras)
         {
-            <Boton Variante="VarianteBoton.Secundario" OnClick="AlternarPersonalizar">@Textos["BotonPersonalizar"]</Boton>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="AlternarPersonalizar" aria-pressed="@(_personalizando ? "true" : "false")" aria-controls="cuadro-panel-personalizar">@Textos["BotonPersonalizar"]</Boton>
             <button type="button" class="cuadro-interruptor" role="switch" aria-checked="@(_preferencias.Etiquetas ? "true" : "false")" id="cuadro-etiquetas" @onclick="AlternarEtiquetasAsync">
                 <i aria-hidden="true"></i>@Textos["EtiquetasDatos"]
             </button>
-        }
-    </div>
+            <Boton Class="cuadro-presentar" Variante="VarianteBoton.Secundario" OnClick="AlternarPresentacionAsync" aria-pressed="@(_presentando ? "true" : "false")">@(_presentando ? Textos["SalirPresentacion"] : Textos["BotonPresentar"])</Boton>
+            @* Exportación general de Trabajadores extranjeros del mes seleccionado, de todas las Empresas gestionadas que
+               alcanza quien mira (decisión de Chris, 2026-10-20): con ella cobra el Operador CAE. No sigue el ámbito. *@
+            <Boton Class="cuadro-exportar-extranjeros" Variante="VarianteBoton.Secundario" Href="@RutaExtranjerosDelMes" download data-enhance-nav="false">@Textos["BotonExportarExtranjeros"]</Boton>
 
-    @if (HayCifras)
-    {
-        <div class="cuadro-barra cuadro-barra-acciones">
-            <Boton Variante="VarianteBoton.Secundario" OnClick="AlternarPresentacionAsync" aria-pressed="@(_presentando ? "true" : "false")">@(_presentando ? Textos["SalirPresentacion"] : Textos["BotonPresentar"])</Boton>
-
-            @* Reabrir un mes cerrado: solo Dirección CAE (ReabrirMesCuadroDireccionCommand lo exige también en servidor). Vive en un menú de más acciones, fuera de la barra principal. *@
+            @* Reabrir un mes cerrado: solo Dirección CAE (ReabrirMesCuadroDireccionCommand lo exige también en servidor). Vive en el menú de más acciones. *@
             @if (_puedeReabrir)
             {
                 <details class="cuadro-mas">
@@ -94,8 +90,8 @@
                     </div>
                 </details>
             }
-        </div>
-    }
+        }
+    </div>
     @if (_avisoExportar)
     {
         <p class="cuadro-nota" role="status" data-aviso="exportar">@Textos["ExportarNoDisponible"]</p>
@@ -142,13 +138,18 @@
         {
             @if (_personalizando)
             {
-                <section class="cuadro-personalizar" aria-labelledby="cuadro-pers-titulo" data-panel="personalizar">
-                    <h3 id="cuadro-pers-titulo">@Textos["PersonalizarTitulo"]</h3>
+                <section id="cuadro-panel-personalizar" class="cuadro-personalizar" aria-labelledby="cuadro-pers-titulo" data-panel="personalizar">
+                    <h3 id="cuadro-pers-titulo">@Textos["PersonalizarTitulo"]: @EtiquetaPestanaActiva</h3>
                     <p class="cuadro-nota">@Textos["PersonalizarAyuda"]</p>
                     <ul class="cuadro-pers-lista">
-                        @foreach (var tarjeta in TarjetasOrdenadas)
+                        @{ var ordenadas = TarjetasOrdenadas.ToList(); }
+                        @foreach (var tarjeta in ordenadas)
                         {
                             var id = tarjeta;
+                            // Como la maqueta: una tarjeta sin marcar no se mueve y los extremos no tienen flecha hacia fuera.
+                            var visible = _preferencias.EsVisible(id);
+                            var primera = ordenadas[0] == id;
+                            var ultima = ordenadas[^1] == id;
                             var titulo = TituloTarjeta(id);
                             <li draggable="true" data-tarjeta-lista="@id"
                                 @ondragstart="@(() => EmpezarArrastre(id))"
@@ -156,11 +157,11 @@
                                 @ondrop="@(() => SoltarArrastreAsync(id))">
                                 <span class="cuadro-asa" aria-label="@Textos["ArrastrarAsa", titulo]" title="@Textos["ArrastrarAsa", titulo]">⠿</span>
                                 <label>
-                                    <input type="checkbox" checked="@_preferencias.EsVisible(id)" aria-label="@Textos["MostrarTarjeta", titulo]" @onchange="@(() => AlternarTarjetaAsync(id))" />
+                                    <input type="checkbox" checked="@visible" aria-label="@Textos["MostrarTarjeta", titulo]" @onchange="@(() => AlternarTarjetaAsync(id))" />
                                     <span>@titulo</span>
                                 </label>
-                                <button type="button" class="cuadro-flecha" aria-label="@Textos["MoverArriba", titulo]" @onclick="@(() => MoverTarjetaAsync(id, -1))">↑</button>
-                                <button type="button" class="cuadro-flecha" aria-label="@Textos["MoverAbajo", titulo]" @onclick="@(() => MoverTarjetaAsync(id, 1))">↓</button>
+                                <button type="button" class="cuadro-flecha" aria-label="@Textos["MoverArriba", titulo]" disabled="@(!visible || primera)" @onclick="@(() => MoverTarjetaAsync(id, -1))">↑</button>
+                                <button type="button" class="cuadro-flecha" aria-label="@Textos["MoverAbajo", titulo]" disabled="@(!visible || ultima)" @onclick="@(() => MoverTarjetaAsync(id, 1))">↓</button>
                             </li>
                         }
                     </ul>
@@ -170,6 +171,10 @@
 
             <Pestanas Definiciones="Definiciones" PestanaActiva="@_pestana" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="@Textos["EtiquetaVistas"]" Envolver="true">
                 <div class="cuadro-pagina">
+                @if (TarjetasVisibles.Count == 0)
+                {
+                    <p class="cuadro-vacio" role="status" data-vacio="personalizacion">@Textos["PestanaVacia"]</p>
+                }
                 @foreach (var grupo in GruposVisibles)
                 {
                 <div class="@(grupo.EsKpi ? "cuadro-kpis" : "cuadro-rejilla")">
@@ -269,144 +274,9 @@
                             </div>
                             break;
 
-                        case "f-apilado":
-                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="f-apilado">
-                                <Tarjeta Titulo="@Textos["ApiladoTitulo"]" Class="cuadro-tarjeta">
-                                    <p class="cuadro-nota">@Textos["ApiladoNota"]</p>
-                                    @if (_errorSerie)
-                                    {
-                                        <p class="cuadro-vacio">@Textos["SerieError"]</p>
-                                    }
-                                    else if (PuntosSerie.Count == 0)
-                                    {
-                                        <p class="cuadro-vacio">@Textos["SerieCargando"]</p>
-                                    }
-                                    else if (!HayTarifas)
-                                    {
-                                        <p class="cuadro-vacio" data-sin-modelo="tarifas">@Textos["FacturacionSinTarifas"]</p>
-                                    }
-                                    else
-                                    {
-                                        <GraficoSerie Id="apilado" EtiquetaAria="@Textos["ApiladoTitulo"]" Etiquetas="@EtiquetasSerie"
-                                                      Barras="@SeriesFacturacionPorConcepto()" MostrarValores="@_preferencias.Etiquetas"
-                                                      FormatoBarra="@(v => Importe((decimal)v))" FormatoEjeBarra="@EjeImporte" />
-                                        @if (OtraMoneda is { } otra)
-                                        {
-                                            <p class="cuadro-nota">@Textos["FacturacionOtraMoneda", otra, Moneda]</p>
-                                        }
-                                    }
-                                </Tarjeta>
-                            </div>
-                            break;
-                        case "f-sintarifa":
-                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="f-sintarifa">
-                                <Tarjeta Titulo="@Textos["SinTarifaTitulo"]" Class="cuadro-tarjeta">
-                                    <p class="cuadro-nota">@Textos["SinTarifaNota"]</p>
-                                    @if (PuntosSerie.Count == 0)
-                                    {
-                                        <p class="cuadro-vacio">@(_errorSerie ? Textos["SerieError"].Value : Textos["SerieCargando"].Value)</p>
-                                    }
-                                    else if (AltaCentroTieneTarifa)
-                                    {
-                                        <p class="cuadro-vacio">@Textos["SinTarifaConTarifa"]</p>
-                                    }
-                                    else
-                                    {
-                                        <GraficoSerie Id="sintarifa" EtiquetaAria="@Textos["SinTarifaTitulo"]" Etiquetas="@EtiquetasSerie"
-                                                      Barras="@(new[] { new SerieGrafico(Textos["SerieAltasCentro"].Value, "var(--color-neutral-400)", PuntosSerie.Select(p => (double?)p.Cifras.AltasCentros.Valor).ToList()) })"
-                                                      MostrarValores="@_preferencias.Etiquetas" />
-                                    }
-                                    <p class="cuadro-nota" data-sin-modelo="contrato">@Textos["SinTarifaTrabajadoresExtra"]</p>
-                                </Tarjeta>
-                            </div>
-                            break;
-                        case "f-simulador":
-                            <div class="cuadro-bloque" data-tarjeta="f-simulador">
-                                <Tarjeta Titulo="@Textos["SimuladorTitulo"]" Class="cuadro-tarjeta">
-                                    <p class="cuadro-nota">@Textos["SimuladorNota"]</p>
-                                    <div class="cuadro-sim">
-                                        <CampoTexto Etiqueta="@Textos["SimuladorAlta"]" Valor="@_precioSimulado" ValorChanged="@(v => _precioSimulado = v)" />
-                                        <div>
-                                            <div class="cuadro-sim-importe" data-sim="mes">@ImporteSimuladoMes</div>
-                                            <div class="cuadro-apagado">@Textos["SimuladorMes", Numero(AltasCentroSinTarifa)]</div>
-                                        </div>
-                                        <div>
-                                            <div class="cuadro-sim-importe" data-sim="ventana">@ImporteSimuladoVentana</div>
-                                            <div class="cuadro-apagado">@Textos["SimuladorVentana"]</div>
-                                        </div>
-                                    </div>
-                                    <div class="cuadro-chips" role="group" aria-label="@Textos["SimuladorAlta"]" data-chips="alta">
-                                        @foreach (var precio in PreciosAlta)
-                                        {
-                                            var valor = precio;
-                                            <button type="button" aria-pressed="@(PrecioSimulado == valor ? "true" : "false")" @onclick="@(() => _precioSimulado = valor.ToString(CultureInfo.InvariantCulture))">@Importe(valor)</button>
-                                        }
-                                    </div>
-                                    <div class="cuadro-sim-como">
-                                        <label class="cuadro-sim-como-etiqueta">
-                                            <span>@Textos["SimuladorComoTitulo"]</span>
-                                            <select class="cuadro-select" data-sim="como" value="@_comoSeFactura" @onchange="@(e => _comoSeFactura = e.Value?.ToString() ?? "extra")">
-                                                <option value="extra">@Textos["SimuladorComoExtra"]</option>
-                                                <option value="individual">@Textos["SimuladorComoIndividual"]</option>
-                                            </select>
-                                        </label>
-                                        <p class="cuadro-nota">@Textos["SimuladorComoNota"]</p>
-                                        @if (_comoSeFactura == "individual")
-                                        {
-                                            <div class="cuadro-chips" role="group" aria-label="@Textos["SimuladorExtranjeroEtiqueta"]" data-chips="extranjero">
-                                                @foreach (var precio in PreciosExtranjero)
-                                                {
-                                                    var valor = precio;
-                                                    <button type="button" aria-pressed="@(PrecioExtranjero == valor ? "true" : "false")" @onclick="@(() => _precioExtranjero = valor.ToString(CultureInfo.InvariantCulture))">@Importe(valor)</button>
-                                                }
-                                            </div>
-                                            <div class="cuadro-sim">
-                                                <div>
-                                                    <div class="cuadro-sim-importe" data-sim="extranjero-mes">@ImporteExtranjeroMes</div>
-                                                    <div class="cuadro-apagado">@Textos["SimuladorExtranjeroMes", Numero(ExtranjerosMes)]</div>
-                                                </div>
-                                                <div>
-                                                    <div class="cuadro-sim-importe" data-sim="extranjero-ventana">@ImporteExtranjeroVentana</div>
-                                                    <div class="cuadro-apagado">@Textos["SimuladorVentana"]</div>
-                                                </div>
-                                            </div>
-                                        }
-                                    </div>
-                                    <p class="cuadro-nota" data-sin-modelo="contrato">@Textos["SimuladorTrabajadoresExtra"]</p>
-                                </Tarjeta>
-                            </div>
-                            break;
-                        case "f-borrador":
-                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="f-borrador">
-                                <Tarjeta Titulo="@Textos["BorradorTitulo"]" Class="cuadro-tarjeta">
-                                    <AccionesHeader><Boton Variante="VarianteBoton.Secundario" Class="cuadro-exportar" OnClick="ExportarBorradorAsync">@Textos["ExportarTabla"]</Boton></AccionesHeader>
-                                    <ChildContent>
-                                    <p class="cuadro-nota">@Textos["BorradorNota"]</p>
-                                    <div class="cuadro-tabla-envoltorio">
-                                        <table class="cuadro-tabla" data-tabla="borrador">
-                                            <thead>
-                                                <tr>
-                                                    <th scope="col">@Textos["ColumnaEmpresa"]</th>
-                                                    <th scope="col">@Textos["ColumnaFacturable"]</th>
-                                                    <th scope="col">@Textos["ColumnaTrabajadoresExtra"]</th>
-                                                    <th scope="col">@Textos["ColumnaAltasCentro"]</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach (var fila in FilasEmpresas())
-                                                {
-                                                    <tr data-empresa="@fila.Empresa.TenantId">
-                                                        <td class="cuadro-texto">@fila.Empresa.TenantNombre</td>
-                                                        <td>@(HayTarifas ? Importe(fila.Facturacion) : Textos["SinDato"].Value)</td>
-                                                        <td data-sin-modelo="contrato" title="@Textos["CeldaSinModelo"]">@Textos["SinDato"]</td>
-                                                        <td>@Numero(fila.Empresa.Cifras.AltasCentros.Valor)</td>
-                                                    </tr>
-                                                }
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    </ChildContent>
-                                </Tarjeta>
+                        case "f-operador":
+                            <div class="cuadro-bloque cuadro-ancha" data-tarjeta="f-operador">
+                                <FacturacionOperador Anyo="_anyo" Mes="_mes" NombreMes="@NombreMesConAnyo" MesCerrado="@(_cuadro?.Estado == EstadoCifraMensual.Existe)" Principales="@PrincipalesDeCartera" />
                             </div>
                             break;
 
@@ -497,7 +367,7 @@
                                                                     aria-label="@(abierta ? Textos["ContraerFila", empresa.TenantNombre].Value : Textos["ExpandirFila", empresa.TenantNombre].Value)"
                                                                     @onclick="@(() => AlternarFila(empresa.TenantId))">@(abierta ? "▾" : "▸")</button>
                                                             @empresa.TenantNombre
-                                                            @if (e.TrabajadoresActivos.Estado != _cuadro.Estado)
+                                                            @if (e.TrabajadoresActivos.Estado != _cuadro?.Estado)
                                                             {
                                                                 <span class="cuadro-estado cuadro-estado-fila" data-e="@DataEstado(e.TrabajadoresActivos.Estado)">@TextoEstado(e.TrabajadoresActivos.Estado)</span>
                                                             }

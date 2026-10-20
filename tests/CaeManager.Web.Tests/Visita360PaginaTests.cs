@@ -1,3 +1,4 @@
+using CaeManager.Web.Components.Layout;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Visitas.Commands.EnviarPaqueteAcreditacionVisita;
@@ -510,11 +511,13 @@ public partial class Visita360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void Visita_no_encontrada_o_fuera_de_alcance_se_ve_como_un_fallo_de_carga()
+    public void Visita_no_encontrada_o_fuera_de_alcance_pinta_FichaNoEncontrada_sin_Reintentar()
     {
+        ComponentFactories.AddStub<FichaNoEncontrada>();
         var (cut, _) = Montar(detalle: null);
 
-        cut.Markup.Should().Contain("No pudimos cargar esta visita");
+        cut.RutaListaDeFichaNoEncontrada().Should().Be("/visitas");
+        cut.Markup.Should().NotContain("Reintentar").And.NotContain("No pudimos cargar esta visita");
         cut.FindAll("[data-pieza=cabecera-identidad]").Should().BeEmpty();
     }
 

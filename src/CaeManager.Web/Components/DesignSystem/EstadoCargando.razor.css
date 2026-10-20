@@ -34,6 +34,44 @@
     animation: brillo 1.4s ease infinite;
 }
 
+/* Variante de campo (ConEtiqueta): grupos de etiqueta + bloque con 8 px entre ellos y 20 px entre campos, radio md. */
+.esqueleto-lista:has(.esqueleto-campo) {
+    gap: var(--space-5);
+}
+
+.esqueleto-campo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.esqueleto-campo .esqueleto-fila {
+    height: 48px;
+    border-radius: var(--radius-md);
+}
+
+.esqueleto-etiqueta {
+    height: 12px;
+    width: 40%;
+    border-radius: 6px;
+    background: linear-gradient(
+        90deg,
+        var(--color-esqueleto-base) 25%,
+        var(--color-esqueleto-brillo) 37%,
+        var(--color-esqueleto-base) 63%
+    );
+    background-size: 400% 100%;
+    animation: brillo 1.4s ease infinite;
+}
+
+.esqueleto-campo:nth-child(2n) .esqueleto-etiqueta {
+    width: 28%;
+}
+
+.esqueleto-campo:nth-child(3n) .esqueleto-etiqueta {
+    width: 52%;
+}
+
 @keyframes brillo {
     0% {
         background-position: 100% 50%;
@@ -45,6 +83,10 @@
 
 @media (prefers-reduced-motion: reduce) {
     .esqueleto-fila {
+        animation: none;
+    }
+
+    .esqueleto-etiqueta {
         animation: none;
     }
 }
