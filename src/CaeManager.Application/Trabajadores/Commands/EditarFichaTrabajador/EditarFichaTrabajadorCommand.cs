@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
@@ -15,7 +15,8 @@ public record EditarFichaTrabajadorCommand(Guid Id, Guid Version,
     TipoContratacion? TipoContratacion = null,
     ContactoEmergenciaTrabajador? ContactoEmergencia = null,
     DelegacionEmpresaYOficioDeTrabajador? DelegacionEmpresaYOficio = null,
-    MarcaExtranjeroCobrableTrabajador? ExtranjeroCobrable = null) : ICommand;
+    MarcaExtranjeroCobrableTrabajador? ExtranjeroCobrable = null,
+    string? Nombre = null, string? Apellidos = null, string? Documento = null) : ICommand;
 
 /// <summary>
 /// La marca «Trabajador extranjero (cobrable)» que se fija con la ficha (decisión de Chris, 2026-10-20). En
@@ -37,6 +38,13 @@ public class EditarFichaTrabajadorCommandValidator : AbstractValidator<EditarFic
     {
         RuleFor(c => c.Id).NotEmpty();
         RuleFor(c => c.Version).NotEmpty();
+        RuleFor(c => c.Nombre).NotEmpty().MaximumLength(Trabajador.LongitudMaximaNombre).When(c => c.Nombre is not null);
+        RuleFor(c => c.Apellidos).NotEmpty().MaximumLength(Trabajador.LongitudMaximaApellidos).When(c => c.Apellidos is not null);
+        RuleFor(c => c.Documento).Custom((valor, contexto) =>
+        {
+            if (valor is not null && CriterioDocumentoIdentidadTrabajador.Clasificar(valor) is { EsValido: false, Error: { } error })
+                contexto.AddFailure(error);
+        });
         RuleFor(c => c.NumeroAfiliacionSeguridadSocial).Must(Trabajador.NumeroAfiliacionValido)
             .WithMessage("Introduce un número de afiliación de 11 o 12 dígitos.");
         RuleFor(c => c.Puesto).MaximumLength(Trabajador.LongitudMaximaPuesto);
@@ -108,6 +116,30 @@ public class EditarFichaTrabajadorCommandHandler(ITrabajadorRepository repositor
             return Result.Fallo(Error.Crear("Trabajador.ExtranjeroCobrableSinGestion",
                 "Solo quien gestiona la empresa o la subcontrata de este trabajador puede cambiar si es extranjero cobrable."));
 
+        // Resolver el documento y su autorización antes de modificar cualquier dato rastreado.
+        string? documentoNuevo = null;
+        if (request.Documento is not null)
+        {
+            var documento = CriterioDocumentoIdentidadTrabajador.Clasificar(request.Documento);
+            if (!documento.EsValido)
+                return Result.Fallo(Error.Crear("Trabajador.DocumentoNoValido", documento.Error!));
+            if (documento.Normalizado != trabajador.Dni)
+            {
+                if (!await GestionaElEmpleadorAsync(trabajador, cancellationToken))
+                    return Result.Fallo(Error.Crear("Trabajador.DocumentoSinGestion",
+                        "Solo quien gestiona la empresa o la subcontrata de este trabajador puede corregir su documento de identidad."));
+                if (await repositorio.ExisteConDniAsync(documento.Normalizado!, trabajador.Id, cancellationToken))
+                    return Result.Fallo(Error.Crear("Trabajador.DniDuplicado", "Ya existe un trabajador con este documento de identidad."));
+                documentoNuevo = documento.Normalizado;
+            }
+        }
+        if (request.Nombre is not null || request.Apellidos is not null)
+            trabajador.Actualizar(request.Nombre ?? trabajador.Nombre, request.Apellidos ?? trabajador.Apellidos,
+                trabajador.FechaNacimiento, trabajador.Email, trabajador.Observaciones, trabajador.Alias,
+                trabajador.Telefono, trabajador.Puesto);
+        if (documentoNuevo is not null)
+            trabajador.CorregirDocumentoIdentidad(documentoNuevo);
+
         trabajador.ActualizarFicha(request.NumeroAfiliacionSeguridadSocial, request.Puesto,
             request.FechaNacimiento, request.Nacionalidad, request.TipoVinculo, request.FechaAltaEmpresa,
             request.FechaBajaEmpresa, request.FiguraEnRnt, request.TipoPermisoTrabajo,
@@ -123,7 +155,8 @@ public class EditarFichaTrabajadorCommandHandler(ITrabajadorRepository repositor
             trabajador.FijarContactoEmergencia(contacto.Nombre, contacto.Telefono);
         // Con la misma política que el contacto de emergencia (el Usuario de Cliente ni la lee ni la cambia), y
         // null = no se cambia; el alcance de gestión se ha comprobado arriba.
-        if (cambiaMarcaExtranjero)
+        if (request.ExtranjeroCobrable is not null && await politicaNotaInterna.PuedeLeerAsync(cancellationToken)
+            && (cambiaMarcaExtranjero || documentoNuevo is not null))
             trabajador.FijarMarcaExtranjeroCobrable(request.ExtranjeroCobrable!.Marca);
         // Se aplica después de ActualizarFicha porque elegir un Oficio copia su nombre en el Puesto.
         if (asignacion is not null)

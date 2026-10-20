@@ -1,4 +1,4 @@
-using Bunit;
+﻿using Bunit;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Features.Trabajadores.Components;
@@ -58,8 +58,7 @@ public partial class Trabajador360Gen2Tests
     {
         var id = Guid.NewGuid();
         ConTrabajador(id);
-        var cut = Render<CaeManager.Web.Features.Trabajadores.Pages.TrabajadorDetalle>(p => p
-            .Add(x => x.TrabajadorId, id).Add(x => x.Pestana, "plataformas"));
+        var cut = RenderizarEn(id, "?pestana=plataformas");
         cut.FindComponent<PlataformasTrabajador>();
         cut.Find("[role=tab][aria-selected=true]").TextContent.Should().Contain("Plataformas");
     }

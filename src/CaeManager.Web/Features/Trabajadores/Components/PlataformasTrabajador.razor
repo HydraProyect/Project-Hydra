@@ -8,7 +8,7 @@
     <div class="plataformas-filtros">
         <p>@Textos["PlataformasDescripcion"]</p>
         <div role="group" aria-label="@Textos["PestanaPlataformas"]">
-            <button type="button" aria-pressed="@_soloIncidencias" @onclick="() => _soloIncidencias = true">@Textos["PlataformasSoloIncidencias", Filas.Count(f => EsIncidencia(f.Estado))]</button>
+            <button type="button" aria-pressed="@_soloIncidencias" @onclick="() => _soloIncidencias = true">@Textos["PlataformasSoloIncidencias", NumeroIncidencias]</button>
             <button type="button" aria-pressed="@(!_soloIncidencias)" @onclick="() => _soloIncidencias = false">@Textos["PlataformasTodo", Filas.Count]</button>
         </div>
     </div>
@@ -21,7 +21,7 @@
         <section class="plataformas-grupo">
             <header>
                 <div><span>@grupo.Key.ClienteEmpresarial ›</span><strong>@grupo.Key.Centro</strong><span>@Textos["PlataformasNombre", grupo.Key.Plataforma]</span></div>
-                <a class="boton boton--secundario" href="@($"/centros/{grupo.Key.CentroId}")">@Textos["PlataformasIrCentro"]</a>
+                <Boton Variante="VarianteBoton.Secundario" Href="@($"/centros/{grupo.Key.CentroId}")">@Textos["PlataformasIrCentro"]</Boton>
             </header>
             @foreach (var fila in grupo)
             {
@@ -38,6 +38,7 @@
 @code {
     [Parameter] public IReadOnlyList<CentroDocumentacionTrabajadorDto> Centros { get; set; } = [];
     private bool _soloIncidencias = true;
+    private int NumeroIncidencias => Filas.Count(f => EsIncidencia(f.Estado));
     private sealed record Fila(Guid CentroId, string Centro, string ClienteEmpresarial, string Plataforma, string Documento, EstadoAcreditacion Estado);
     private List<Fila> Filas => Centros.SelectMany(c => c.Documentos.SelectMany(d =>
         (d.AcreditacionesEnElCentro ?? []).Where(a => a.Estado != EstadoAcreditacion.NoRequerida)

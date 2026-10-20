@@ -1,4 +1,4 @@
-using AngleSharp.Dom;
+﻿using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores.Commands.EditarFichaTrabajador;
@@ -32,6 +32,24 @@ public partial class Trabajador360Gen2Tests
         await AbrirPestanaAsync(cut, "Ficha");
         await cut.Find("[data-caja='altas-plataforma'] button").ClickAsync(new MouseEventArgs());
         return cut.FindComponent<EditarFichaTrabajadorDrawer>();
+    }
+
+    [Fact]
+    public async Task El_drawer_envia_nombre_documento_y_marca_en_una_sola_orden()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        m.Detalles[id] = m.Detalles[id] with { ExtranjeroCobrableVisible = true };
+        var drawer = await AbrirEditorFicha(Renderizar(id));
+        await CambiarCampoFicha(drawer, "Nombre", "Marta");
+        await CambiarCampoFicha(drawer, "Apellidos", "Salas");
+        await CambiarCampoFicha(drawer, "Documento de identidad", "AB123456");
+        drawer.Find("[data-campo='extranjero-cobrable'] input").HasAttribute("checked").Should().BeTrue();
+        await drawer.Find("[data-campo='extranjero-cobrable'] input").ChangeAsync(new ChangeEventArgs { Value = false });
+        await GuardarFicha(drawer);
+        var c = m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().ContainSingle().Subject;
+        c.Nombre.Should().Be("Marta"); c.Apellidos.Should().Be("Salas"); c.Documento.Should().Be("AB123456");
+        c.ExtranjeroCobrable.Should().Be(new MarcaExtranjeroCobrableTrabajador(false));
+        m.Enviadas.OfType<CaeManager.Application.Trabajadores.Commands.CorregirDocumentoIdentidadTrabajador.CorregirDocumentoIdentidadTrabajadorCommand>().Should().BeEmpty();
     }
 
     [Fact]
@@ -88,7 +106,7 @@ public partial class Trabajador360Gen2Tests
         var id = Guid.NewGuid(); var m = ConTrabajador(id); var version = m.Detalles[id].Version;
         m.Detalles[id] = m.Detalles[id] with { Nacionalidad = "Colombiana", FiguraEnRnt = "Sí, desde mayo de 2023" };
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
-        drawer.FindComponents<CampoTexto>().Should().HaveCount(10);
+        drawer.FindComponents<CampoTexto>().Should().HaveCount(13);
         drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nacionalidad").Instance.Valor.Should().Be("Colombiana");
         drawer.FindComponent<DrawerFormulario>().Instance.HayCambios().Should().BeFalse();
         await CambiarCampoFicha(drawer, "N.º de afiliación a la Seguridad Social", "41 1234567 89");

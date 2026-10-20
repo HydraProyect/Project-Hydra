@@ -787,7 +787,7 @@
     <value>Documento actual</value>
   </data>
   <data name="PestanaPlataformas" xml:space="preserve"><value>Plataformas</value></data>
-  <data name="PlataformasDescripcion" xml:space="preserve"><value>Estado de la documentación en las plataformas de cada Cliente empresarial.</value></data>
+  <data name="PlataformasDescripcion" xml:space="preserve"><value>Estado de la documentación en las plataformas de cada Cliente.</value></data>
   <data name="PlataformasEstadoAceptada" xml:space="preserve"><value>Validado</value></data>
   <data name="PlataformasEstadoPendienteDeSubir" xml:space="preserve"><value>Pendiente de subir</value></data>
   <data name="PlataformasEstadoRechazada" xml:space="preserve"><value>Rechazado</value></data>

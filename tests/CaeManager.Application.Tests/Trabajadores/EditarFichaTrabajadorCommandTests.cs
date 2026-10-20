@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
@@ -25,6 +25,39 @@ public class EditarFichaTrabajadorCommandTests
         if (t is not null) repo.Agregar(t);
         var uow = new UnitOfWorkFalso();
         return (new(repo, new Empresas.DelegacionEmpresaYOficioEmpresaTests.CatalogoFalso(), alcance ?? new(), PoliticaNotaInternaPruebas.Con("GestorCae"), uow), uow);
+    }
+
+    [Fact]
+    public async Task Nombre_documento_y_marca_se_guardan_juntos_con_una_sola_confirmacion()
+    {
+        var t = Crear(); var (handler, uow) = Montar(t);
+        var resultado = await handler.Handle(Comando(t) with
+        {
+            Nombre = "Marta", Apellidos = "Salas", Documento = "AB123456",
+            ExtranjeroCobrable = new(false)
+        }, CancellationToken.None);
+        resultado.EsExitoso.Should().BeTrue();
+        uow.VecesGuardado.Should().Be(1);
+        t.Nombre.Should().Be("Marta"); t.Apellidos.Should().Be("Salas");
+        t.Dni.Should().Be("AB123456"); t.MarcaExtranjeroCobrable.Should().BeFalse();
+        t.Email.Should().Be("paula@example.test"); t.Alias.Should().Be("Pau");
+    }
+
+    [Theory]
+    [InlineData("12345678A", true, "Trabajador.DocumentoNoValido")]
+    [InlineData("AB123456", false, "Trabajador.DocumentoSinGestion")]
+    public async Task Documento_rechazado_no_deja_el_nombre_ni_la_ficha_modificados(string documento, bool gestiona, string codigo)
+    {
+        var t = Crear();
+        var (handler, uow) = Montar(t, new(empresaIdsParaGestion: gestiona ? null : []));
+        var resultado = await handler.Handle(Comando(t) with
+        {
+            Nombre = "Marta", Documento = documento
+        }, CancellationToken.None);
+        resultado.Error.Codigo.Should().Be(codigo);
+        uow.VecesGuardado.Should().Be(0);
+        t.Nombre.Should().Be("Paula"); t.Dni.Should().Be("12345678Z");
+        t.NumeroAfiliacionSeguridadSocial.Should().BeNull();
     }
 
     [Fact]
