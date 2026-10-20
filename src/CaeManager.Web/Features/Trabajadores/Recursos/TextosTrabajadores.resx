@@ -210,17 +210,8 @@
   <data name="PistaNieInvalido" xml:space="preserve">
     <value>✗ Formato de NIE, pero el dígito de control no coincide.</value>
   </data>
-  <data name="PistaCifValido" xml:space="preserve">
-    <value>✓ Formato de CIF válido — comprueba que sea la persona y no la empresa.</value>
-  </data>
-  <data name="PistaCifInvalido" xml:space="preserve">
-    <value>✗ Parece un CIF, pero el dígito de control no coincide.</value>
-  </data>
-  <data name="PistaTieSoporte" xml:space="preserve">
-    <value>✓ Número de soporte TIE reconocido.</value>
-  </data>
   <data name="PistaDocumentoExtranjero" xml:space="preserve">
-    <value>ℹ Documento no español (pasaporte u otro) — se acepta sin validar dígito de control.</value>
+    <value>No coincide con un DNI ni un NIE: se guardará como Pasaporte.</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
@@ -776,5 +767,23 @@
   </data>
   <data name="EtiquetaPasosAlta" xml:space="preserve">
     <value>Alta de trabajador</value>
+  </data>
+  <data name="AccionCorregirDocumento" xml:space="preserve">
+    <value>Corregir documento de identidad</value>
+  </data>
+  <data name="CorregirDocumentoEtiqueta" xml:space="preserve">
+    <value>Documento de identidad</value>
+  </data>
+  <data name="CorregirDocumentoAyuda" xml:space="preserve">
+    <value>DNI, NIE o pasaporte. Si la casilla «Trabajador extranjero (cobrable)» se marcó o desmarcó a mano, esa marca se quita y la casilla se recalcula con el documento nuevo solo hacia delante: los meses ya gestionados no cambian.</value>
+  </data>
+  <data name="CorregirDocumentoGuardar" xml:space="preserve">
+    <value>Guardar documento</value>
+  </data>
+  <data name="CorregirDocumentoExito" xml:space="preserve">
+    <value>Documento de identidad corregido.</value>
+  </data>
+  <data name="CorregirDocumentoActual" xml:space="preserve">
+    <value>Documento actual</value>
   </data>
 </root>

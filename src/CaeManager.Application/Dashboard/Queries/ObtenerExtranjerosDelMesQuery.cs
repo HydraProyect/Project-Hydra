@@ -28,10 +28,14 @@ public record ObtenerExtranjerosDelMesQuery(int Anyo, int Mes) : IRequest<Extran
 /// <param name="Subcontrata">La Subcontrata del Trabajador, si es de una.</param>
 /// <param name="Cliente">El Cliente empresarial del Centro.</param>
 /// <param name="GestorCae">Quien asignó el Trabajador a la Visita; vacío si no consta.</param>
+/// <param name="NombreYApellidos">El nombre del Trabajador en la foto de la asignación (al asignarlo).</param>
+/// <param name="Documento">El documento del Trabajador en la foto de la asignación (al asignarlo).</param>
+/// <param name="TrabajadorId">El Trabajador, para contar Trabajadores distintos (no sale en el Excel).</param>
 public record FilaExtranjeroDelMesDto(
     Guid TenantId, string TenantNombre, DateOnly FechaSolicitud, string? ContactoVisita,
     string? Empresa, string? Subcontrata, string? Cliente, string Centro,
-    DateOnly FechaIngreso, DateOnly FechaSalida, string NombreYApellidos, string? Documento, string? GestorCae);
+    DateOnly FechaIngreso, DateOnly FechaSalida, string NombreYApellidos, string? Documento, string? GestorCae,
+    Guid TrabajadorId);
 
 /// <param name="TenantsSinAlcanceCompleto">Tenants beneficiarios autorizados que quedaron fuera porque quien mira no alcanza el Tenant entero.</param>
 /// <param name="SinCifras">Null si se calculó; si no, por qué no (mes no válido o futuro), y sin filas.</param>
@@ -44,8 +48,9 @@ public record ExtranjerosDelMesDto(
 /// cada Trabajador extranjero gestionado (decisión de Chris, 2026-10-20).
 ///
 /// <para>
-/// <b>Unidad</b>: una fila por Trabajador extranjero cobrable (<see cref="CriterioExtranjeroCobrable.Efectivo"/>) por
-/// Visita no cancelada cuya <c>FechaInicio</c> cae en el mes. La Visita eliminada no cuenta; el Trabajador, el Centro y
+/// <b>Unidad</b>: una fila por asignación de Trabajador a Visita cuya foto lo marca como extranjero cobrable
+/// (<see cref="VisitaTrabajador.EsExtranjeroCobrable"/>, tomada con <see cref="CriterioExtranjeroCobrable.Efectivo"/> al
+/// asignarlo: histórico congelado, decisión de Chris, 2026-10-20) en una Visita no cancelada cuya <c>FechaInicio</c> cae en el mes. La Visita eliminada no cuenta; el Trabajador, el Centro y
 /// las Empresas eliminados después sí, porque la Visita se gestionó.
 /// </para>
 ///
@@ -85,7 +90,7 @@ public class ObtenerExtranjerosDelMesQueryHandler(
     private sealed record Fila(
         Guid TenantId, string TenantNombre, DateTime FechaSolicitudUtc, string? ContactoVisita,
         string? Empresa, string? Subcontrata, string? Cliente, string Centro, DateOnly FechaIngreso, DateOnly FechaSalida,
-        string NombreYApellidos, string? Documento, Guid? GestorCaeId);
+        string NombreYApellidos, string? Documento, Guid? GestorCaeId, Guid TrabajadorId);
 
     public async Task<ExtranjerosDelMesDto> Handle(ObtenerExtranjerosDelMesQuery request, CancellationToken cancellationToken)
     {
@@ -125,7 +130,7 @@ public class ObtenerExtranjerosDelMesQueryHandler(
                 f.TenantId, f.TenantNombre, DiaDeNegocio.De(f.FechaSolicitudUtc), f.ContactoVisita,
                 f.Empresa, f.Subcontrata, f.Cliente, f.Centro, f.FechaIngreso, f.FechaSalida,
                 f.NombreYApellidos, f.Documento,
-                f.GestorCaeId is { } gestor ? nombres.GetValueOrDefault(gestor) : null))
+                f.GestorCaeId is { } gestor ? nombres.GetValueOrDefault(gestor) : null, f.TrabajadorId))
             .OrderBy(f => f.TenantNombre, StringComparer.CurrentCulture)
             .ThenBy(f => f.FechaIngreso)
             .ThenBy(f => f.Centro, StringComparer.CurrentCulture)
@@ -156,7 +161,8 @@ public class ObtenerExtranjerosDelMesQueryHandler(
                 join v in visitasContext.Visitas on vt.VisitaId equals v.Id
                 join t in trabajadores on vt.TrabajadorId equals t.Id
                 join c in centros on v.CentroId equals c.Id
-                where !v.EstaCancelada && v.FechaInicio >= primerDia && v.FechaInicio < primerDiaSiguiente
+                where vt.EsExtranjeroCobrable
+                      && !v.EstaCancelada && v.FechaInicio >= primerDia && v.FechaInicio < primerDiaSiguiente
                 select new
                 {
                     vt.Id,
@@ -166,10 +172,11 @@ public class ObtenerExtranjerosDelMesQueryHandler(
                     v.ContactoNombre,
                     v.FechaInicio,
                     v.FechaFin,
+                    vt.TrabajadorId,
+                    vt.NombreMostrado,
+                    vt.DocumentoIdentidad,
                     t.Nombre,
                     t.Apellidos,
-                    t.Dni,
-                    t.MarcaExtranjeroCobrable,
                     t.EmpresaId,
                     t.SubcontrataId,
                     CentroNombre = c.Nombre,
@@ -178,14 +185,12 @@ public class ObtenerExtranjerosDelMesQueryHandler(
                 })
             .ToListAsync(cancellationToken);
 
-        // El criterio se evalúa en memoria: es código (ValidadorIdentificacion), no SQL.
-        var extranjeras = asignaciones
-            .Where(a => CriterioExtranjeroCobrable.Efectivo(a.MarcaExtranjeroCobrable, a.Dni))
-            .ToList();
-        if (extranjeras.Count == 0)
+        // Histórico congelado: cuenta la foto de la asignación (VisitaTrabajador.EsExtranjeroCobrable), no el documento ni la
+        // casilla de hoy. Corregir después el Trabajador no cambia un mes ya gestionado.
+        if (asignaciones.Count == 0)
             return [];
 
-        var empresaIds = extranjeras
+        var empresaIds = asignaciones
             .SelectMany(a => new[] { a.EmpresaId, a.SubcontrataId, (Guid?)a.ClienteId, (Guid?)a.CentroEmpresaId })
             .OfType<Guid>().Distinct().ToList();
         var razonesSociales = await empresasContext.Empresas
@@ -195,7 +200,7 @@ public class ObtenerExtranjerosDelMesQueryHandler(
             .ToDictionaryAsync(e => e.Id, e => e.RazonSocial, cancellationToken);
 
         // Las asignaciones anteriores a FechaAsignacionUtc/GestionadoPorUsuarioId: su alta en la auditoría del Tenant.
-        var sinDatoPropio = extranjeras
+        var sinDatoPropio = asignaciones
             .Where(a => a.FechaAsignacionUtc is null || a.GestionadoPorUsuarioId is null)
             .Select(a => a.Id).ToList();
         var altasAuditadas = sinDatoPropio.Count == 0
@@ -208,7 +213,7 @@ public class ObtenerExtranjerosDelMesQueryHandler(
                 .GroupBy(r => r.EntidadId)
                 .ToDictionary(g => g.Key, g => g.OrderBy(r => r.FechaUtc).First());
 
-        return extranjeras.Select(a =>
+        return asignaciones.Select(a =>
         {
             var alta = altasAuditadas.GetValueOrDefault(a.Id);
             return new Fila(
@@ -219,8 +224,8 @@ public class ObtenerExtranjerosDelMesQueryHandler(
                 a.SubcontrataId is { } subcontrataId ? razonesSociales.GetValueOrDefault(subcontrataId) : null,
                 razonesSociales.GetValueOrDefault(a.ClienteId),
                 a.CentroNombre, a.FechaInicio, a.FechaFin,
-                $"{a.Nombre} {a.Apellidos}".Trim(), a.Dni,
-                a.GestionadoPorUsuarioId ?? alta?.ActorRealUsuarioId);
+                a.NombreMostrado ?? $"{a.Nombre} {a.Apellidos}".Trim(), a.DocumentoIdentidad,
+                a.GestionadoPorUsuarioId ?? alta?.ActorRealUsuarioId, a.TrabajadorId);
         }).ToList();
     }
 

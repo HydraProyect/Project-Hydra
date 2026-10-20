@@ -8527,11 +8527,21 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("DocumentoIdentidad")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<bool>("EsExtranjeroCobrable")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime?>("FechaAsignacionUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("GestionadoPorUsuarioId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("NombreMostrado")
+                        .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");

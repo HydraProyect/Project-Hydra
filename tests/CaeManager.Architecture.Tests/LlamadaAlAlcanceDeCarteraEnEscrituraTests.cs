@@ -234,6 +234,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
 
         // Trabajadores
         "Trabajadores.AsignarAliasTrabajadorCommandHandler",
+        "Trabajadores.CorregirDocumentoIdentidadTrabajadorCommandHandler",
         "Trabajadores.CrearTrabajadorCommandHandler",
         "Trabajadores.EditarFichaTrabajadorCommandHandler",
         "Trabajadores.EditarTrabajadorCommandHandler",

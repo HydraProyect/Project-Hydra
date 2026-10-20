@@ -641,36 +641,36 @@ public class Trabajador : EntidadBase
     }
 
     /// <summary>
-    /// Acepta DNI, NIE, número de soporte TIE o cualquier otro documento
-    /// extranjero (pasaporte) — un trabajador no tiene por qué ser español.
-    /// Solo se exige el dígito de control real cuando el formato encaja con
-    /// uno calculable (DNI/NIE/CIF); el resto se acepta sin validación
-    /// estricta, igual que hace <see cref="ValidadorIdentificacion"/>.
+    /// Corrige el documento de identidad (acción «Corregir documento de identidad» de la ficha 360, decisión de Chris,
+    /// 2026-10-20) con el mismo criterio que el alta (<see cref="CriterioDocumentoIdentidadTrabajador"/>). Quita la
+    /// marca a mano de <see cref="MarcaExtranjeroCobrable"/> para que la casilla vuelva a decidirla el documento nuevo:
+    /// el recálculo es solo hacia delante, porque las asignaciones a Visitas ya hechas guardan su foto
+    /// (<c>VisitaTrabajador.EsExtranjeroCobrable</c>). Devuelve el documento anterior. Un Trabajador anonimizado no lo
+    /// admite.
+    /// </summary>
+    public string? CorregirDocumentoIdentidad(string documento)
+    {
+        if (EstaAnonimizado)
+            throw new InvalidOperationException(
+                "Este trabajador está anonimizado: sus datos personales se suprimieron y no pueden volver a introducirse.");
+
+        var anterior = Dni;
+        EstablecerDni(documento);
+        MarcaExtranjeroCobrable = null;
+        return anterior;
+    }
+
+    /// <summary>
+    /// Fija el documento con <see cref="CriterioDocumentoIdentidadTrabajador"/>: obligatorio; DNI o NIE con su letra de
+    /// control; cualquier otro valor, Pasaporte, que ha de ser alfanumérico, sin espacios y con algún dígito (los
+    /// marcadores como «PENDIENTE» o «SIN DNI» se rechazan). Se guarda normalizado, sin separadores.
     /// </summary>
     private void EstablecerDni(string dni)
     {
-        if (string.IsNullOrWhiteSpace(dni))
-            throw new ArgumentException("El documento de identidad es obligatorio.", nameof(dni));
+        var resultado = CriterioDocumentoIdentidadTrabajador.Clasificar(dni);
+        if (!resultado.EsValido)
+            throw new ArgumentException(resultado.Error, nameof(dni));
 
-        var normalizado = dni.Trim().ToUpperInvariant();
-
-        if (normalizado.Length < LongitudMinimaDni || normalizado.Length > LongitudMaximaDni)
-            throw new ArgumentException(
-                $"El documento de identidad debe tener entre {LongitudMinimaDni} y {LongitudMaximaDni} caracteres.", nameof(dni));
-
-        var resultado = ValidadorIdentificacion.Analizar(normalizado);
-
-        if (!resultado.EsValido && resultado.Tipo is TipoIdentificacion.Dni or TipoIdentificacion.Nie or TipoIdentificacion.NifEmpresa)
-        {
-            var etiqueta = resultado.Tipo switch
-            {
-                TipoIdentificacion.Dni => "DNI",
-                TipoIdentificacion.Nie => "NIE",
-                _ => "CIF"
-            };
-            throw new ArgumentException($"El dígito de control del {etiqueta} no es válido.", nameof(dni));
-        }
-
-        Dni = normalizado;
+        Dni = resultado.Normalizado;
     }
 }
