@@ -26,7 +26,11 @@
 <div class="contenedor-pagina">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["RutaNavegacion"]" />
 
-    @if (_error)
+    @if (_noEncontrada)
+    {
+        <FichaNoEncontrada RutaLista="/clientes" />
+    }
+    else if (_error)
     {
         @*
             Mismo resultado que el panel: ObtenerClientePorIdQuery devuelve null
@@ -37,7 +41,6 @@
                      NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
             <Accion>
                 <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarAsync">@Textos["Reintentar"]</Boton>
-                <EnlaceProfundoOtraEmpresa />
             </Accion>
         </EstadoVacio>
     }

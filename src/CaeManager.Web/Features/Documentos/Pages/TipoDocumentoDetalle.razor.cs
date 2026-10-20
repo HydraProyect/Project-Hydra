@@ -70,6 +70,11 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
     private EstadoTipoDocumentoDto? _estado;
     private bool _cargando = true;
     private bool _error;
+    /// <summary>
+    /// La consulta devolvió null: la ficha no está en el Tenant activo (o no existe; es el mismo estado, § 4.5).
+    /// No es un fallo transitorio, así que no lleva «Reintentar»: lo pinta <c>FichaNoEncontrada</c>.
+    /// </summary>
+    private bool _noEncontrada;
     private Guid _tipoCargado;
     private int _carga;
 
@@ -230,7 +235,8 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
 
             // null = no existe, no se pide a Trabajadores o quien pregunta no puede leerla: la página no distingue.
             _estado = estado;
-            _error = estado is null;
+            _noEncontrada = estado is null;
+            _error = false;
             if (estado is not null)
                 _pagina = estado.Pagina;
         }
@@ -242,6 +248,7 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
             if (carga == _carga)
             {
                 _estado = null;
+                _noEncontrada = false;
                 _error = true;
             }
         }

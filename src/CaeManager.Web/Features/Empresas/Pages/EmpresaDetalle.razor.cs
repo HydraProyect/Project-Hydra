@@ -91,6 +91,11 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     private int? _cumplimiento;
     private bool _cargando = true;
     private bool _error;
+    /// <summary>
+    /// La consulta devolvió null: la ficha no está en el Tenant activo (o no existe; es el mismo estado, § 4.5).
+    /// No es un fallo transitorio, así que no lleva «Reintentar»: lo pinta <c>FichaNoEncontrada</c>.
+    /// </summary>
+    private bool _noEncontrada;
 
     /// <summary>Todos los Trabajadores de la Empresa: lo que cuentan la cabecera y el contador de la pestaña.</summary>
     private RecuentoTrabajadores? _recuentos;
@@ -338,6 +343,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         var empresaId = EmpresaId;
         _cargando = true;
         _error = false;
+        _noEncontrada = false;
 
         try
         {
@@ -349,7 +355,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             if (detalle is null)
             {
                 _detalle = null;
-                _error = true;
+                _noEncontrada = true;
                 return;
             }
 

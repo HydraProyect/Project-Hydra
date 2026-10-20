@@ -69,6 +69,11 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     private ProyectoDetalleDto? _detalle;
     private bool _cargando = true;
     private bool _error;
+    /// <summary>
+    /// La consulta devolvió null: la ficha no está en el Tenant activo (o no existe; es el mismo estado, § 4.5).
+    /// No es un fallo transitorio, así que no lleva «Reintentar»: lo pinta <c>FichaNoEncontrada</c>.
+    /// </summary>
+    private bool _noEncontrada;
 
     private List<TecnicoProyectoDto> _tecnicos = [];
     private IReadOnlyList<EmpresaProyectoDto> _empresasProyecto = [];
@@ -253,7 +258,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
             var detalle = await Mediator.Send(new ObtenerProyectoPorIdQuery(proyectoId), _cancelacion);
             if (carga != _cargaDetalle) return;
             _detalle = detalle;
-            _error = detalle is null;
+            _noEncontrada = detalle is null;
         }
         catch (OperationCanceledException) when (_cancelacion.IsCancellationRequested)
         {
@@ -264,6 +269,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
             if (carga == _cargaDetalle)
             {
                 _detalle = null;
+                _noEncontrada = false;
                 _error = true;
             }
         }

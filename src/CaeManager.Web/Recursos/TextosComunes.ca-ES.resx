@@ -119,6 +119,27 @@
   <data name="EnlaceOtraEmpresaAbrir" xml:space="preserve">
     <value>Obre a {0}</value>
   </data>
+  <data name="FichaNoEstaEnEmpresaActiva" xml:space="preserve">
+    <value>Aquesta fitxa no és a {0}; et portem a la llista.</value>
+  </data>
+  <data name="FichaNoDisponibleTitulo" xml:space="preserve">
+    <value>Aquesta fitxa no està disponible</value>
+  </data>
+  <data name="FichaNoDisponibleDescripcion" xml:space="preserve">
+    <value>Potser s'ha eliminat o l'enllaç no és correcte.</value>
+  </data>
+  <data name="FichaNoDisponibleIrALista" xml:space="preserve">
+    <value>Ves a la llista</value>
+  </data>
+  <data name="FichaNoDisponibleVolviendo" xml:space="preserve">
+    <value>Tornant a la llista…</value>
+  </data>
+  <data name="FichaPanelNoEstaEnEmpresaActiva" xml:space="preserve">
+    <value>Aquesta fitxa no és a {0}; hem tancat el panell.</value>
+  </data>
+  <data name="FichaPanelNoDisponible" xml:space="preserve">
+    <value>Aquesta fitxa ja no està disponible; hem tancat el panell.</value>
+  </data>
   <data name="SelectorTenantEtiqueta" xml:space="preserve">
     <value>Context operatiu actual</value>
   </data>

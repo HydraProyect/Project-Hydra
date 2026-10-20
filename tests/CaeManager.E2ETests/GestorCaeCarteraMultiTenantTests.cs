@@ -278,13 +278,15 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await Expect(FilaMiTrabajo(page, TenantBeneficiarioA, BadgeRechazada)).ToBeVisibleAsync();
 
         // Enlace directo con A activo: su Centro de cartera se abre (control positivo del
-        // instrumento); el del Tenant de fuera da EstadoVacio, sin su nombre en pantalla.
+        // instrumento); el del Tenant de fuera vuelve a la lista con el toast de la empresa
+        // activa (§ 4.5, FichaNoEncontrada), sin su nombre en pantalla.
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioA);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros/{centroA}");
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = CentroA })).ToBeVisibleAsync();
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros/{centroFuera}");
-        await Expect(page.GetByText("No pudimos cargar este centro", new() { Exact = true })).ToBeVisibleAsync();
+        await page.WaitForURLAsync(url => new Uri(url).PathAndQuery == "/centros", new() { Timeout = 30_000 });
+        await Expect(page.Locator(".toast").Filter(new() { HasText = $"Esa ficha no está en {TenantBeneficiarioA}" })).ToBeVisibleAsync(EsperaEnFrio);
         await Expect(page.GetByText(CentroFueraDeCartera)).ToHaveCountAsync(0);
 
         // Activar el Tenant de fuera por el mismo endpoint que usa la cola: el servidor
@@ -373,15 +375,16 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
     }
 
     /// <summary>
-    /// Lote 3 del selector, § 4.5 e I15. Con A activo, el enlace profundo a un Centro da el MISMO
-    /// EstadoVacio si el Centro no existe, si existe en otra empresa de la cartera (B) o si existe en
-    /// un Tenant fuera de la cartera: la ficha no revela existencia. La pista <c>?tenant</c> de una
-    /// empresa de la cartera añade un botón «Abrir en…» (POST) y no cambia la empresa activa por GET;
-    /// una pista de fuera de la cartera se ignora sin decir nada distinto. Pulsar el botón cambia de
-    /// empresa y vuelve al mismo enlace, sin la pista, donde ya carga la ficha.
+    /// Lote 3 del selector, § 4.5 e I15. Con A activo, el enlace profundo a un Centro da la MISMA
+    /// respuesta si el Centro no existe, si existe en otra empresa de la cartera (B) o si existe en
+    /// un Tenant fuera de la cartera: vuelve a la lista de Centros con el toast que nombra la empresa
+    /// activa (FichaNoEncontrada, 2026-10-20), sin revelar existencia. La pista <c>?tenant</c> de una
+    /// empresa de la cartera no redirige: deja el EstadoVacio con un botón «Abrir en…» (POST) y no
+    /// cambia la empresa activa por GET; una pista de fuera de la cartera se ignora y redirige igual.
+    /// Pulsar el botón cambia de empresa y vuelve al mismo enlace, sin la pista, donde ya carga la ficha.
     /// </summary>
     [Fact]
-    public async Task Un_enlace_profundo_a_un_Centro_de_otra_empresa_da_el_mismo_EstadoVacio_exista_o_no_y_la_pista_solo_ofrece_un_POST()
+    public async Task Un_enlace_profundo_a_un_Centro_de_otra_empresa_vuelve_a_la_lista_exista_o_no_y_la_pista_solo_ofrece_un_POST()
     {
         var tenantA = await IdTenantAsync(TenantBeneficiarioA);
         var tenantB = await IdTenantAsync(TenantBeneficiarioB);
@@ -401,20 +404,31 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
             return await page.Locator(".estado-vacio").InnerTextAsync();
         }
 
-        var inexistente = await EstadoVacioDeAsync($"/centros/{Guid.NewGuid()}");
-        Assert.Contains("No pudimos cargar este centro", inexistente);
-        Assert.Contains("Puede pertenecer a otra empresa de tu cartera", inexistente);
-        Assert.DoesNotContain("Abrir en", inexistente);
+        // Misma respuesta en los cinco casos: la lista, con el toast de la empresa ACTIVA y sin el nombre
+        // de la entidad pedida. «Atrás» no vuelve a la ficha: la vuelta es con replace.
+        async Task VuelveALaListaAsync(string ruta)
+        {
+            await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
+            await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}{ruta}");
+            await page.WaitForURLAsync(url => new Uri(url).PathAndQuery == "/centros", new() { Timeout = 30_000 });
+            await Expect(page.Locator(".toast").Filter(new() { HasText = $"Esa ficha no está en {TenantBeneficiarioA}; te llevamos a la lista." }))
+                .ToBeVisibleAsync(EsperaEnFrio);
+            await Expect(page.GetByText(CentroFueraDeCartera)).ToHaveCountAsync(0);
+            Assert.Equal(tenantA, await Ayudas.TenantActivoIdAsync(page));
+        }
 
-        Assert.Equal(inexistente, await EstadoVacioDeAsync($"/centros/{centroB}"));
-        Assert.Equal(inexistente, await EstadoVacioDeAsync($"/centros/{centroFuera}"));
-        Assert.Equal(inexistente, await EstadoVacioDeAsync($"/centros/{centroFuera}?tenant={tenantFuera}"));
-        Assert.Equal(inexistente, await EstadoVacioDeAsync($"/centros/{centroB}?tenant={Guid.NewGuid()}"));
+        await VuelveALaListaAsync($"/centros/{Guid.NewGuid()}");
+        await VuelveALaListaAsync($"/centros/{centroB}");
+        await VuelveALaListaAsync($"/centros/{centroFuera}");
+        await VuelveALaListaAsync($"/centros/{centroFuera}?tenant={tenantFuera}");
+        await VuelveALaListaAsync($"/centros/{centroB}?tenant={Guid.NewGuid()}");
 
         // Control positivo del instrumento: una pista de la cartera sí cambia la salida (el botón), y
         // solo con el GET la empresa activa sigue siendo A.
         var conPista = await EstadoVacioDeAsync($"/centros/{centroB}?tenant={tenantB}");
         Assert.Contains($"Abrir en {TenantBeneficiarioB}", conPista);
+        Assert.Contains("Ir a la lista", conPista);
+        Assert.DoesNotContain("Reintentar", conPista);
         Assert.Equal(tenantA, await Ayudas.TenantActivoIdAsync(page));
         await page.ReloadAsync();
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);

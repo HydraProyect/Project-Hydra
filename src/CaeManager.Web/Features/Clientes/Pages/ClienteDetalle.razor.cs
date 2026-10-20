@@ -106,6 +106,11 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     private ClienteDetalleDto? _detalle;
     private bool _cargando = true;
     private bool _error;
+    /// <summary>
+    /// La consulta devolvió null: la ficha no está en el Tenant activo (o no existe; es el mismo estado, § 4.5).
+    /// No es un fallo transitorio, así que no lleva «Reintentar»: lo pinta <c>FichaNoEncontrada</c>.
+    /// </summary>
+    private bool _noEncontrada;
 
     /// <summary>Si su consulta falla se queda en null y la entradilla omite los recuentos: un fallo no se disfraza de «0 centros».</summary>
     private ResumenClienteDto? _resumen;
@@ -499,13 +504,14 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         var id = ClienteId;
         _cargando = true;
         _error = false;
+        _noEncontrada = false;
 
         try
         {
             var detalle = await Mediator.Send(new ObtenerClientePorIdQuery(id), _cancelacion);
             if (carga != _cargaCabecera) return;
             _detalle = detalle;
-            _error = detalle is null;
+            _noEncontrada = detalle is null;
         }
         catch (Exception)
         {
