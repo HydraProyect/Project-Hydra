@@ -26,6 +26,13 @@ public class RestriccionLoginLocalClaimsTransformation : IClaimsTransformation
     public const string TipoClaimMetodoLogin = "metodo_login";
     public const string MetodoLoginSso = "sso";
 
+    /// <summary>
+    /// El perfil que la sesión traía antes de quedar limitada a <see cref="Roles.Consulta"/>.
+    /// Nunca es rol efectivo: solo decide el alcance en Tenants beneficiarios delegados, para que
+    /// la restricción no amplíe el de un Gestor CAE (acotado por cartera) al de Consulta.
+    /// </summary>
+    public const string TipoClaimPerfilAntesDeRestringir = "hydra:perfil_antes_de_restringir";
+
     private readonly IOptions<AzureAdOptions> _azureAd;
 
     public RestriccionLoginLocalClaimsTransformation(IOptions<AzureAdOptions> azureAd)
@@ -39,6 +46,17 @@ public class RestriccionLoginLocalClaimsTransformation : IClaimsTransformation
         if (principal.Identity is not ClaimsIdentity identidad || !identidad.IsAuthenticated) return Task.FromResult(principal);
         if (identidad.HasClaim(TipoClaimMetodoLogin, MetodoLoginSso)) return Task.FromResult(principal);
         if (identidad.HasClaim(identidad.RoleClaimType, Roles.Administrador)) return Task.FromResult(principal);
+
+        // El perfil anterior a la restricción no autoriza nada: solo decide qué Tenants
+        // beneficiarios delegados alcanza la sesión (decisión Chris 2026-10-20). Sin él, un
+        // Gestor CAE entrado con contraseña pasaría a Consulta y, con ese perfil, alcanzaría sin
+        // cartera todos los Tenants de la Asignación de Operación de su organización.
+        if (!identidad.HasClaim(c => c.Type == TipoClaimPerfilAntesDeRestringir)
+            // Con varios roles (estado que no debería existir) gana el más acotado.
+            && identidad.FindAll(identidad.RoleClaimType).Select(c => c.Value)
+                    .OrderBy(r => r == Roles.GestorCae ? 0 : 1).ThenBy(r => r, StringComparer.Ordinal).FirstOrDefault()
+                is { } perfilAntes)
+            identidad.AddClaim(new Claim(TipoClaimPerfilAntesDeRestringir, perfilAntes));
 
         foreach (var claimRol in identidad.FindAll(identidad.RoleClaimType).ToList())
             identidad.RemoveClaim(claimRol);

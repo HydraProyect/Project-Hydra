@@ -1107,13 +1107,14 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
         {
             var ahora = DateTime.UtcNow;
             var operacion = await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-                contexto, usuarioId, origen, tenantId, ahora, CancellationToken.None);
+                contexto, usuarioId, origen, tenantId, rolDeSesion, ahora, CancellationToken.None);
             if (operacion is null)
                 return (await TenantsBeneficiariosAutorizados.EstaAutorizadoAsync(
-                    contexto, contexto, usuarioId, origen, tenantId, ahora, CancellationToken.None), (string?)null);
+                    contexto, contexto, usuarioId, origen, tenantId, rolDeSesion, ahora, CancellationToken.None), (string?)null);
 
-            return (true, await TenantsBeneficiariosAutorizados.RolPorOperacionAsync(
-                contexto, usuarioId, origen, tenantId, operacion.Value, ahora, CancellationToken.None));
+            // Decisión Chris 2026-10-20: el rol efectivo es el perfil de origen, no el de la cartera.
+            return (true, await TenantsBeneficiariosAutorizados.RolEnTenantDelegadoAsync(
+                contexto, usuarioId, origen, tenantId, operacion.Value, rolDeSesion, rolDeSesion, ahora, CancellationToken.None));
         });
 
     private async Task<T> EnArnes<T>(

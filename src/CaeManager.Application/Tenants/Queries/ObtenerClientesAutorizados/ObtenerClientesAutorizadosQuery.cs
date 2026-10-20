@@ -130,10 +130,12 @@ public static class ClientesAutorizados
     /// soporte): con dos, elegir uno sería decidir por el usuario.
     ///
     /// <para>
-    /// Decisión 7 quater (2026-09-29, opción A): solo cuando esa Asignación de
-    /// Cartera es de rol Gestor CAE. Con otro rol (p. ej. Consulta, el Operador
-    /// delegado) el usuario entra en su Tenant de origen y ve el selector: nadie
-    /// queda dentro de un Tenant externo sin forma de volver.
+    /// Decisión 7 quater (2026-09-29, opción A): solo cuando el usuario actúa
+    /// como Gestor CAE. Desde la decisión Chris 2026-10-20 ese rol es su perfil
+    /// de origen, no el guardado en la cartera. Con otro perfil (Dirección CAE,
+    /// Coordinador CAE, Consulta, Administrador) el usuario entra en su Tenant de
+    /// origen y ve el selector: nadie queda dentro de un Tenant externo sin forma
+    /// de volver.
     /// </para>
     /// </summary>
     public static ClienteAutorizadoDto? TenantPorDefecto(IReadOnlyList<ClienteAutorizadoDto> autorizados)
@@ -176,26 +178,20 @@ public class ObtenerClientesAutorizadosQueryHandler(
                 EsGestionadoPorOperacion: await TenantsBeneficiariosAutorizados.OrigenGestionadoAsync(
                     operaciones, usuarioId.Value, tenantOrigenId.Value, ahora, cancellationToken)));
 
+        // Decisión Chris 2026-10-20: el perfil de sesión en origen rige en todos los Tenants
+        // delegados. Administrador, Dirección CAE, Coordinador CAE y Consulta alcanzan los Tenants
+        // de las Asignaciones de Operación de su organización; el Gestor CAE, los de su cartera.
+        var rolDeOrigen = await currentUserService.ObtenerPerfilQueDecideAlcanceAsync();
         var porOperacion = (await TenantsBeneficiariosAutorizados
-            .CarterasPorOperacion(operaciones, usuarioId.Value, tenantOrigenId.Value, ahora)
-            .Select(v => v.Operacion.PropietarioTenantId)
+            .OperacionesQueAutorizan(operaciones, usuarioId.Value, tenantOrigenId.Value, rolDeOrigen, ahora)
+            .Select(o => o.PropietarioTenantId)
             .ToListAsync(cancellationToken)).ToHashSet();
 
-        // Decisión 7 quater: el rol se resuelve con la MISMA selección de operación y la misma
-        // precedencia de carteras que el rol efectivo (RolPorOperacionAsync), no con «existe alguna
-        // cartera de ese rol»: con una universal Consulta y una parcial GestorCae manda la universal.
-        var comoGestorCae = new HashSet<Guid>();
-        foreach (var tenantId in porOperacion)
-        {
-            if (await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-                    operaciones, usuarioId.Value, tenantOrigenId.Value, tenantId, ahora, cancellationToken)
-                is not { } operacionId)
-                continue;
-            if (await TenantsBeneficiariosAutorizados.RolPorOperacionAsync(
-                    operaciones, usuarioId.Value, tenantOrigenId.Value, tenantId, operacionId, ahora, cancellationToken)
-                == ContextoOperadorCae.RolGestorCae)
-                comoGestorCae.Add(tenantId);
-        }
+        // Decisión 7 quater, releída con la regla de 2026-10-20: el rol en cada Tenant delegado es
+        // el de origen, así que «como Gestor CAE» es todo o nada según ese perfil.
+        var comoGestorCae = rolDeOrigen == ContextoOperadorCae.RolGestorCae
+            ? porOperacion
+            : [];
 
         var porDelegacion = await TenantsBeneficiariosAutorizados
             .AsignacionesHeredadasVigentes(dbContext, usuarioId.Value, ahora)
