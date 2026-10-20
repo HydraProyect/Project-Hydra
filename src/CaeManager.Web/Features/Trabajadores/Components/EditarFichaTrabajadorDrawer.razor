@@ -1,4 +1,4 @@
-﻿@using CaeManager.Application.Trabajadores
+@using CaeManager.Application.Trabajadores
 @using CaeManager.Domain.Trabajadores
 @using CaeManager.Application.Trabajadores.Commands.EditarFichaTrabajador
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId
@@ -84,7 +84,7 @@
         nameof(EditarFichaTrabajadorCommand.ContactoEmergencia) + "." + nameof(ContactoEmergenciaTrabajador.Telefono);
 
     private bool _abierto, _cargando, _guardando, _lista, _conContactoEmergencia;
-    private bool _conExtranjeroCobrable, _extranjeroCobrable, _extranjeroCobrableCargado, _extranjeroCobrablePorDocumento;
+    private bool _conExtranjeroCobrable, _extranjeroCobrable, _extranjeroCobrableCargado, _extranjeroCobrablePorDocumento, _extranjeroCobrablePorDocumentoCargado;
     private int _generacion;
     private Guid _id, _version;
     private Guid? _empresaId;
@@ -117,6 +117,13 @@
     private void CambiarDocumento(string valor)
     {
         _documento = valor;
+        if (valor == _documentoCargado)
+        {
+            // Volver al documento cargado restaura la casilla tal como estaba: así no se envía una marca a mano que nadie tocó.
+            _extranjeroCobrablePorDocumento = _extranjeroCobrablePorDocumentoCargado;
+            _extranjeroCobrable = _extranjeroCobrableCargado;
+            return;
+        }
         _extranjeroCobrablePorDocumento = CriterioDocumentoIdentidadTrabajador.Clasificar(valor).SeGuardaComoPasaporte;
         _extranjeroCobrable = _extranjeroCobrablePorDocumento;
     }
@@ -173,7 +180,7 @@
             _emergenciaNombre = detalle.ContactoEmergenciaNombre ?? "";
             _emergenciaTelefono = detalle.ContactoEmergenciaTelefono ?? "";
             _conExtranjeroCobrable = detalle.ExtranjeroCobrableVisible;
-            _extranjeroCobrablePorDocumento = detalle.ExtranjeroCobrablePorDocumento;
+            _extranjeroCobrablePorDocumento = _extranjeroCobrablePorDocumentoCargado = detalle.ExtranjeroCobrablePorDocumento;
             _extranjeroCobrable = _extranjeroCobrableCargado = detalle.MarcaExtranjeroCobrable ?? detalle.ExtranjeroCobrablePorDocumento;
             _instantanea.Fijar(Instantanea());
             _lista = true;

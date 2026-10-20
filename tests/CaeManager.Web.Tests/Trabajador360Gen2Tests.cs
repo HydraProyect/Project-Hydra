@@ -1,4 +1,4 @@
-﻿using CaeManager.Web.Components.Layout;
+using CaeManager.Web.Components.Layout;
 using CaeManager.Application.Documentos.DocumentacionBase;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentacionBaseTrabajadores;
 using CaeManager.Infrastructure.Identity;

@@ -1,4 +1,4 @@
-﻿using AngleSharp.Dom;
+using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores.Commands.EditarFichaTrabajador;
@@ -50,6 +50,27 @@ public partial class Trabajador360Gen2Tests
         c.Nombre.Should().Be("Marta"); c.Apellidos.Should().Be("Salas"); c.Documento.Should().Be("AB123456");
         c.ExtranjeroCobrable.Should().Be(new MarcaExtranjeroCobrableTrabajador(false));
         m.Enviadas.OfType<CaeManager.Application.Trabajadores.Commands.CorregirDocumentoIdentidadTrabajador.CorregirDocumentoIdentidadTrabajadorCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Volver_al_documento_cargado_no_envia_una_marca_a_mano_que_nadie_toco()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        m.Detalles[id] = m.Detalles[id] with
+        {
+            ExtranjeroCobrableVisible = true,
+            Dni = "12345678Z",
+            ExtranjeroCobrablePorDocumento = false,
+            MarcaExtranjeroCobrable = true
+        };
+        var drawer = await AbrirEditorFicha(Renderizar(id));
+        await CambiarCampoFicha(drawer, "Documento de identidad", "AB123456");
+        await CambiarCampoFicha(drawer, "Documento de identidad", "12345678Z");
+        drawer.Find("[data-campo='extranjero-cobrable'] input").HasAttribute("checked").Should().BeTrue();
+        await GuardarFicha(drawer);
+        var c = m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().ContainSingle().Subject;
+        c.Documento.Should().BeNull();
+        c.ExtranjeroCobrable.Should().BeNull();
     }
 
     [Fact]

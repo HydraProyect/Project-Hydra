@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Common;
+using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
@@ -133,17 +133,19 @@ public class EditarFichaTrabajadorCommandHandler(ITrabajadorRepository repositor
                 documentoNuevo = documento.Normalizado;
             }
         }
-        if (request.Nombre is not null || request.Apellidos is not null)
-            trabajador.Actualizar(request.Nombre ?? trabajador.Nombre, request.Apellidos ?? trabajador.Apellidos,
-                trabajador.FechaNacimiento, trabajador.Email, trabajador.Observaciones, trabajador.Alias,
-                trabajador.Telefono, trabajador.Puesto);
-        if (documentoNuevo is not null)
-            trabajador.CorregirDocumentoIdentidad(documentoNuevo);
-
+        // ActualizarFicha es lo que puede lanzar (validaciones del dominio): va primero, para que un fallo no deje el
+        // Trabajador rastreado a medio cambiar. Después, nombre y documento.
         trabajador.ActualizarFicha(request.NumeroAfiliacionSeguridadSocial, request.Puesto,
             request.FechaNacimiento, request.Nacionalidad, request.TipoVinculo, request.FechaAltaEmpresa,
             request.FechaBajaEmpresa, request.FiguraEnRnt, request.TipoPermisoTrabajo,
             request.CaducidadPermisoTrabajo, request.MotivoPermisoTrabajo);
+        if (request.Nombre is not null || request.Apellidos is not null)
+            trabajador.Actualizar(request.Nombre ?? trabajador.Nombre, request.Apellidos ?? trabajador.Apellidos,
+                trabajador.FechaNacimiento, trabajador.Email, trabajador.Observaciones, trabajador.Alias,
+                trabajador.Telefono, trabajador.Puesto);
+        // Corregir el documento deja la marca a mano en null: la vuelve a decidir el documento nuevo.
+        if (documentoNuevo is not null)
+            trabajador.CorregirDocumentoIdentidad(documentoNuevo);
         // null = no se cambia: quien edita la ficha sin conocer el campo no devuelve a un voluntario a cuenta ajena.
         if (request.TipoContratacion is { } tipoContratacion)
             trabajador.CambiarTipoContratacion(tipoContratacion);
@@ -155,9 +157,16 @@ public class EditarFichaTrabajadorCommandHandler(ITrabajadorRepository repositor
             trabajador.FijarContactoEmergencia(contacto.Nombre, contacto.Telefono);
         // Con la misma política que el contacto de emergencia (el Usuario de Cliente ni la lee ni la cambia), y
         // null = no se cambia; el alcance de gestión se ha comprobado arriba.
-        if (request.ExtranjeroCobrable is not null && await politicaNotaInterna.PuedeLeerAsync(cancellationToken)
+        // Corregido el documento, la marca a mano ya está en null y la decide el documento nuevo: no se reimpone la que
+        // había guardada. Solo se fija la que pide el llamante si contradice lo que decide el documento nuevo.
+        if (request.ExtranjeroCobrable is { } marcaFijada && await politicaNotaInterna.PuedeLeerAsync(cancellationToken)
             && (cambiaMarcaExtranjero || documentoNuevo is not null))
-            trabajador.FijarMarcaExtranjeroCobrable(request.ExtranjeroCobrable!.Marca);
+        {
+            if (documentoNuevo is null)
+                trabajador.FijarMarcaExtranjeroCobrable(marcaFijada.Marca);
+            else if (marcaFijada.Marca is { } marca && marca != CriterioExtranjeroCobrable.Efectivo(null, trabajador.Dni))
+                trabajador.FijarMarcaExtranjeroCobrable(marca);
+        }
         // Se aplica después de ActualizarFicha porque elegir un Oficio copia su nombre en el Puesto.
         if (asignacion is not null)
             AsignacionDelegacionEmpresaYOficio.Aplicar(trabajador, asignacion, renovarVersionDelCatalogo: true);

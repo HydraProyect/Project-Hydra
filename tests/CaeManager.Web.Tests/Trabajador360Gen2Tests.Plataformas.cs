@@ -1,4 +1,4 @@
-﻿using Bunit;
+using Bunit;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Features.Trabajadores.Components;

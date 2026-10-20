@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Common;
+using CaeManager.Application.Common;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
@@ -19,10 +19,11 @@ public class EditarFichaTrabajadorCommandTests
         "Residencia y trabajo por cuenta ajena", new(2027, 2, 18), "Se identifica con NIE");
 
     private static (EditarFichaTrabajadorCommandHandler Handler, UnitOfWorkFalso Uow) Montar(
-        Trabajador? t, AlcanceDatosServiceFalso? alcance = null)
+        Trabajador? t, AlcanceDatosServiceFalso? alcance = null, params Trabajador[] otros)
     {
         var repo = new TrabajadorRepositorioFalso();
         if (t is not null) repo.Agregar(t);
+        foreach (var otro in otros) repo.Agregar(otro);
         var uow = new UnitOfWorkFalso();
         return (new(repo, new Empresas.DelegacionEmpresaYOficioEmpresaTests.CatalogoFalso(), alcance ?? new(), PoliticaNotaInternaPruebas.Con("GestorCae"), uow), uow);
     }
@@ -33,7 +34,9 @@ public class EditarFichaTrabajadorCommandTests
         var t = Crear(); var (handler, uow) = Montar(t);
         var resultado = await handler.Handle(Comando(t) with
         {
-            Nombre = "Marta", Apellidos = "Salas", Documento = "AB123456",
+            Nombre = "Marta",
+            Apellidos = "Salas",
+            Documento = "AB123456",
             ExtranjeroCobrable = new(false)
         }, CancellationToken.None);
         resultado.EsExitoso.Should().BeTrue();
@@ -52,12 +55,93 @@ public class EditarFichaTrabajadorCommandTests
         var (handler, uow) = Montar(t, new(empresaIdsParaGestion: gestiona ? null : []));
         var resultado = await handler.Handle(Comando(t) with
         {
-            Nombre = "Marta", Documento = documento
+            Nombre = "Marta",
+            Documento = documento
         }, CancellationToken.None);
         resultado.Error.Codigo.Should().Be(codigo);
         uow.VecesGuardado.Should().Be(0);
         t.Nombre.Should().Be("Paula"); t.Dni.Should().Be("12345678Z");
         t.NumeroAfiliacionSeguridadSocial.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Cambiar_el_documento_no_reimpone_la_marca_a_mano_guardada()
+    {
+        var t = Crear(); t.FijarMarcaExtranjeroCobrable(true);
+        var (handler, uow) = Montar(t);
+        var resultado = await handler.Handle(Comando(t) with
+        {
+            Documento = "12345679S",
+            ExtranjeroCobrable = new(null)
+        }, CancellationToken.None);
+        resultado.EsExitoso.Should().BeTrue(); uow.VecesGuardado.Should().Be(1);
+        t.Dni.Should().Be("12345679S");
+        t.MarcaExtranjeroCobrable.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Un_documento_que_contradice_lo_que_decide_el_documento_se_fija_a_mano()
+    {
+        var t = Crear();
+        var (handler, uow) = Montar(t);
+        var resultado = await handler.Handle(Comando(t) with
+        {
+            Documento = "X1234567L",
+            ExtranjeroCobrable = new(true)
+        }, CancellationToken.None);
+        resultado.EsExitoso.Should().BeTrue(); uow.VecesGuardado.Should().Be(1);
+        t.Dni.Should().Be("X1234567L");
+        t.MarcaExtranjeroCobrable.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Documento_de_otro_trabajador_responde_DniDuplicado_y_no_toca_la_ficha()
+    {
+        var t = Crear();
+        var otro = Trabajador.DeEmpresa(Guid.NewGuid(), "Otra", "Persona", "12345679S");
+        var (handler, uow) = Montar(t, null, otro);
+        var resultado = await handler.Handle(Comando(t) with
+        {
+            Nombre = "Marta",
+            Documento = "12345679S"
+        }, CancellationToken.None);
+        resultado.Error.Codigo.Should().Be("Trabajador.DniDuplicado");
+        uow.VecesGuardado.Should().Be(0);
+        t.Dni.Should().Be("12345678Z"); t.Nombre.Should().Be("Paula");
+    }
+
+    [Fact]
+    public async Task El_mismo_documento_normalizado_no_exige_gestion()
+    {
+        var t = Crear(); var (handler, uow) = Montar(t, new(empresaIdsParaGestion: []));
+        var resultado = await handler.Handle(Comando(t) with
+        {
+            Nombre = "Marta",
+            Documento = "12345678Z"
+        }, CancellationToken.None);
+        resultado.EsExitoso.Should().BeTrue(); uow.VecesGuardado.Should().Be(1);
+        t.Nombre.Should().Be("Marta"); t.Dni.Should().Be("12345678Z");
+    }
+
+    [Theory]
+    [InlineData(true, null)]
+    [InlineData(false, "Trabajador.DocumentoSinGestion")]
+    public async Task La_subcontrata_gestiona_la_correccion_de_su_documento(bool gestiona, string? codigo)
+    {
+        var subcontrataId = Guid.NewGuid();
+        var t = Trabajador.DeSubcontrata(subcontrataId, "Paula", "Campos", "12345678Z");
+        var (handler, uow) = Montar(t, new(subcontrataIdsParaGestion: gestiona ? [subcontrataId] : []));
+        var resultado = await handler.Handle(Comando(t) with { Documento = "12345679S" }, CancellationToken.None);
+        if (codigo is null)
+        {
+            resultado.EsExitoso.Should().BeTrue(); uow.VecesGuardado.Should().Be(1);
+            t.Dni.Should().Be("12345679S");
+        }
+        else
+        {
+            resultado.Error.Codigo.Should().Be(codigo); uow.VecesGuardado.Should().Be(0);
+            t.Dni.Should().Be("12345678Z");
+        }
     }
 
     [Fact]

@@ -1,4 +1,4 @@
-﻿using Bunit;
+using Bunit;
 using CaeManager.Application.Trabajadores.Commands.EditarFichaTrabajador;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
