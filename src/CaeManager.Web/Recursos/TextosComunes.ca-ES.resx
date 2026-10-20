@@ -633,4 +633,10 @@
   <data name="AgendaNotaPlaceholder" xml:space="preserve">
     <value>Tracte especial o precaució en respondre-li</value>
   </data>
+  <data name="AgendaNotaAyuda" xml:space="preserve">
+    <value>Quan aquesta persona escrigui, la nota apareix com a marcapàgines a la conversa. Només la veuen els Gestors CAE.</value>
+  </data>
+  <data name="AgendaNotaMarcapaginas" xml:space="preserve">
+    <value>Surt com a marcapàgines a Comunicacions quan escriu</value>
+  </data>
 </root>

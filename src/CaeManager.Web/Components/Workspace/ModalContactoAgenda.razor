@@ -32,6 +32,7 @@
                 Placeholder="Finanzas, PRL, Vigilancia de la Salud…" />
     <CampoTextarea Etiqueta="@Comunes["AgendaNotaComunicaciones"]" Placeholder="@Comunes["AgendaNotaPlaceholder"]"
                    Valor="@_notas" ValorChanged="v => { _notas = v; _errorGuardar = null; }" />
+    <p class="agenda-nota-ayuda">@Comunes["AgendaNotaAyuda"]</p>
 
     <label class="campo-checkbox" for="@($"{_idBase}-predeterminado")">
         <input type="checkbox" id="@($"{_idBase}-predeterminado")" checked="@_esPredeterminado"
