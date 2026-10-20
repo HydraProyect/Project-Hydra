@@ -366,6 +366,7 @@
   <data name="AccionAsignarTecnico" xml:space="preserve"><value>Asignar técnico</value></data>
   <data name="AccionReabrir" xml:space="preserve"><value>Reabrir</value></data>
   <data name="MenuMasAcciones" xml:space="preserve"><value>Más acciones</value></data>
+  <data name="MenuCrearEvento" xml:space="preserve"><value>Crear Evento</value></data>
   <data name="MenuEditarProyecto" xml:space="preserve"><value>Editar proyecto</value></data>
   <data name="MenuCerrarProyecto" xml:space="preserve"><value>Cerrar proyecto…</value></data>
   <data name="MenuEliminarProyecto" xml:space="preserve"><value>Eliminar proyecto</value></data>
