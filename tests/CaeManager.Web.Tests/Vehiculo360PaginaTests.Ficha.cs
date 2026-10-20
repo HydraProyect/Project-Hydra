@@ -21,15 +21,36 @@ public partial class Vehiculo360PaginaTests
     [Theory]
     [InlineData(Roles.GestorCae)]
     [InlineData(Roles.Consulta)]
-    public async Task Ficha_muestra_solo_la_tarjeta_del_empleador_de_la_maqueta(string rol)
+    public async Task Ficha_muestra_la_tarjeta_del_empleador_primero_y_las_cajas_existentes(string rol)
     {
         var (id, m) = CamionGrua(); Registrar(m, rol);
         var cut = Renderizar(id); await AbrirFicha(cut);
-        cut.FindComponent<CajasFicha>().Instance.Cajas.Select(c => c.Clave).Should().Equal("empleador");
+        cut.FindComponent<CajasFicha>().Instance.Cajas.Select(c => c.Clave).Should().Equal("empleador", "tipo-titularidad", "seguro");
         var ficha = cut.Find("[data-caja='empleador']");
         ficha.TextContent.Should().Contain(m.Detalles[id].EmpleadorNombre);
         ficha.QuerySelector("a[href]")!.GetAttribute("href").Should().Be($"/empresas/{m.Detalles[id].EmpresaId}");
-        cut.FindComponents<EditarFichaVehiculoDrawer>().Should().BeEmpty();
+        cut.Find("[data-caja='tipo-titularidad']").Should().NotBeNull();
+        cut.Find("[data-caja='seguro']").Should().NotBeNull();
+        cut.Markup.Should().Contain("Conductores y operadores autorizados");
+        if (rol == Roles.GestorCae)
+        {
+            cut.FindComponents<EditarFichaVehiculoDrawer>().Should().ContainSingle()
+                .Which.Instance.Visible.Should().BeFalse();
+        }
+        else
+        {
+            cut.FindComponents<EditarFichaVehiculoDrawer>().Should().BeEmpty();
+        }
+    }
+
+    [Fact]
+    public async Task Editar_en_una_caja_de_la_ficha_abre_el_drawer_de_la_ficha()
+    {
+        var (id, m) = CamionGrua(); Registrar(m, Roles.GestorCae);
+        var cut = Renderizar(id); await AbrirFicha(cut);
+        cut.FindComponent<EditarFichaVehiculoDrawer>().Instance.Visible.Should().BeFalse();
+        await cut.Find("[data-caja='seguro']").QuerySelectorAll("button").Single(b => b.TextContent.Contains("Editar")).ClickAsync(new());
+        cut.FindComponent<EditarFichaVehiculoDrawer>().Instance.Visible.Should().BeTrue();
     }
 
     [Fact]

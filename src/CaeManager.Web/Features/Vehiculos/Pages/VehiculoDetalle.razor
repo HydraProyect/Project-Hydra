@@ -222,6 +222,31 @@
 
                         case "ficha":
                             <CajasFicha Cajas="CajasDeFicha" />
+                            <Tarjeta Titulo="@Textos["FichaConductores"]">
+                                <AccionesHeader>
+                                    <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirEditorFicha">@Textos["FichaEditarEnlace"]</Boton></SoloConEscritura>
+                                </AccionesHeader>
+                                <ChildContent>
+                                    @if (_detalle.Conductores.Count == 0)
+                                    {
+                                        <p class="vehiculo360-nota">@Textos["FichaSinConductores"]</p>
+                                    }
+                                    else
+                                    {
+                                        <ListaRelaciones Etiqueta="@Textos["FichaConductores"]">
+                                            @foreach (var conductor in _detalle.Conductores)
+                                            {
+                                                <FilaRelacion @key="conductor.TrabajadorId" Nombre="@conductor.NombreCompleto"
+                                                    OnAbrir360="() => AbrirConductorAsync(conductor.TrabajadorId, conductor.NombreCompleto)"
+                                                    Href="@($"/trabajadores/{conductor.TrabajadorId}")" NombreIcono="trabajadores">
+                                                    <Estado><Badge Tono="TonoBadge.Exito">@Textos["FichaAutorizado"]</Badge></Estado>
+                                                </FilaRelacion>
+                                            }
+                                        </ListaRelaciones>
+                                    }
+                                    <p class="vehiculo360-nota">@Textos["FichaNotaConductores"]</p>
+                                </ChildContent>
+                            </Tarjeta>
                             break;
 
                         case "historial":
@@ -263,6 +288,8 @@
 
         <SoloConEscritura>
             <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="RecargarTrasCambioAsync" />
+            <EditarFichaVehiculoDrawer @key="VehiculoId" VehiculoId="VehiculoId" Visible="_editorFichaVisible"
+                VisibleChanged="v => _editorFichaVisible = v" OnGuardada="RecargarFichaAsync" />
             <DialogoConfirmacion
                 Visible="_confirmarEliminarVisible"
                 VisibleChanged="v => _confirmarEliminarVisible = v"
@@ -286,7 +313,44 @@
 </LimiteDeErrores>
 
 @code {
-    private IReadOnlyList<CajaFicha> CajasDeFicha => [new("empleador", CajaEmpleador)];
+    private IReadOnlyList<CajaFicha> CajasDeFicha =>
+        [new("empleador", CajaEmpleador), new("tipo-titularidad", CajaTipoTitularidad), new("seguro", CajaSeguro)];
+
+    private Task AbrirConductorAsync(Guid id, string nombre) =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, id, nombre, "informacion");
+
+    private RenderFragment CajaTipoTitularidad => __builder =>
+    {
+        <Tarjeta Titulo="@Textos["FichaTipoTitularidad"]">
+            <AccionesHeader>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirEditorFicha">@Textos["FichaEditarEnlace"]</Boton></SoloConEscritura>
+            </AccionesHeader>
+            <ChildContent>
+                <RejillaDatos>
+                    <DatoRejilla Etiqueta="@Textos["FichaTipo"]" Valor="@(_detalle!.Tipo ?? "—")" Ancho="true" />
+                    <DatoRejilla Etiqueta="@Textos["FichaTitularidad"]" Valor="@(_detalle.Titularidad ?? "—")" Ancho="true" />
+                    <DatoRejilla Etiqueta="@Textos["FichaRevisionGrua"]" Valor="@(_detalle.RevisionGrua ?? "—")" />
+                    <DatoRejilla Etiqueta="@Textos["FichaDeclaracionCe"]" Valor="@(_detalle.DeclaracionCe ?? "—")" />
+                </RejillaDatos>
+            </ChildContent>
+        </Tarjeta>
+    };
+
+    private RenderFragment CajaSeguro => __builder =>
+    {
+        <Tarjeta Titulo="@Textos["FichaSeguro"]">
+            <AccionesHeader>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirEditorFicha">@Textos["FichaEditarEnlace"]</Boton></SoloConEscritura>
+            </AccionesHeader>
+            <ChildContent>
+                <RejillaDatos>
+                    <DatoRejilla Etiqueta="@Textos["FichaAseguradora"]" Valor="@(_detalle!.Aseguradora ?? "—")" />
+                    <DatoRejilla Etiqueta="@Textos["FichaPoliza"]" Valor="@(_detalle.Poliza ?? "—")" />
+                    <DatoRejilla Etiqueta="@Textos["FichaRecibo"]" Valor="@(_detalle.Recibo ?? "—")" Ancho="true" />
+                </RejillaDatos>
+            </ChildContent>
+        </Tarjeta>
+    };
 
     private RenderFragment CajaEmpleador => __builder =>
     {
