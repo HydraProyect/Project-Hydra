@@ -263,11 +263,9 @@
                             </ListaRelaciones>
                         }
                     }
-                    <div class="centro-ficha-canales" hidden="@(_pestana != PestanaFicha)">@CanalesDeGestion</div>
-                    @if (_pestana == PestanaFicha)
-                    {
-                        <CajasFicha Cajas="CajasDeFicha" />
-                    }
+                    <div class="centro-ficha-canales" hidden="@(_pestana != PestanaFicha)">
+                        <CajasFicha @key="CentroId" Cajas="CajasDeFicha" ClaveOrden="@($"centro-{CentroId}")" />
+                    </div>
                     @if (_pestana == PestanaHistorial)
                     {
                         <h3 class="centro-historial-titulo">@Textos["HistorialCambios360"]</h3>
@@ -331,7 +329,7 @@
         {
 <Tarjeta Compacta="true" Titulo="@Textos["CanalesGestionCentro360"]">
                     <AccionesHeader>
-                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPlataforma">@Textos["GestionarCanalesCentro360"]</Boton>
+                        <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPlataforma">@Textos["GestionarCanalesCentro360"]</Boton></SoloConEscritura>
                     </AccionesHeader>
                     <ChildContent>
                         @if (_detalle.GestionCae == ModalidadGestionCae.SinGestionCae)
@@ -345,6 +343,7 @@
                         else if (_canales.Count == 0)
                         {
                             <p class="texto-vacio-seccion">@Textos["CanalesVacioCentro360"]</p>
+                            <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPlataforma">@Textos["RegistrarCanal360"]</Boton></SoloConEscritura>
                         }
                         else
                         {
@@ -436,10 +435,22 @@
 
     private IReadOnlyList<CajaFicha> CajasDeFicha =>
     [
+        new("canales-centro", CanalesDeGestion),
+        new("contactos-centro", ContactosDeFicha),
         .. HayDatosBasicosFicha ? new CajaFicha[] { new("datos-centro", DatosDeFicha) } : [],
         .. MuestraCajaAcceso ? new CajaFicha[] { new("acceso-centro", AccesoDeFicha) } : [],
         .. MuestraCajaPrevencion ? new CajaFicha[] { new("prevencion-centro", PrevencionDeFicha) } : []
     ];
+
+    private RenderFragment ContactosDeFicha => __builder =>
+    {
+        <Tarjeta Compacta="true" Titulo="@Textos["ContactosCentro360"]">
+            @if (_pestana == PestanaFicha)
+            {
+                <PestanaAgendaContactos @key="CentroId" Tipo="CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos.TipoPropietarioAgenda.Centro" PropietarioId="CentroId" VacioCompacto="true" />
+            }
+        </Tarjeta>
+    };
 
     private RenderFragment AccesoDeFicha => __builder =>
     {

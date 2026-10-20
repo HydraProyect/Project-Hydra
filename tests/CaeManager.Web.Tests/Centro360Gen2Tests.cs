@@ -603,7 +603,7 @@ public partial class Centro360Gen2Tests : BunitContext
 
         var enlace = cut.FindAll("a").Where(a => a.TextContent.Contains("Abrir portal"))
             .Should().ContainSingle("hay un canal de plataforma con dirección").Subject;
-        enlace.GetAttribute("class").Should().Contain("boton-primario");
+        enlace.GetAttribute("class").Should().Contain("boton-secundario");
         enlace.GetAttribute("href").Should().Be("https://app.twind.io/login");
         enlace.GetAttribute("target").Should().Be("_blank");
         enlace.GetAttribute("rel").Should().Contain("noopener").And.Contain("noreferrer");

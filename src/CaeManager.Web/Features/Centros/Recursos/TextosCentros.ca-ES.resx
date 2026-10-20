@@ -634,4 +634,6 @@
   <data name="AbrirPortalCentroAccesible360" xml:space="preserve"><value>Obrir el portal {0} en una pestanya nova</value></data>
   <data name="AbrirPortalCentro360" xml:space="preserve"><value>Obrir portal ↗</value></data>
   <data name="DireccionCanalCentro360" xml:space="preserve"><value>l’adreça d’aquest canal</value></data>
+  <data name="ContactosCentro360" xml:space="preserve"><value>Contactes del centre</value></data>
+  <data name="RegistrarCanal360" xml:space="preserve"><value>Registrar canal</value></data>
 </root>

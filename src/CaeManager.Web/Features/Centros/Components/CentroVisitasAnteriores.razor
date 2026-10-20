@@ -1,0 +1,72 @@
+@using CaeManager.Application.Visitas.Queries.ObtenerVisitasAnterioresDeCentro
+@using MediatR
+@inject IMediator Mediator
+
+<h3 class="centro-visitas-anteriores-titulo">Anteriores</h3>
+@if (_cargando)
+{
+    <EstadoCargando Filas="3" />
+}
+else if (_error)
+{
+    <EstadoVacio Titulo="No pudimos cargar las visitas anteriores">
+        <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">Reintentar</Boton></Accion>
+    </EstadoVacio>
+}
+else if (_visitas.Count == 0)
+{
+    <EstadoVacio Titulo="Sin visitas anteriores" />
+}
+else
+{
+    <ListaLateral>
+        @foreach (var visita in _visitas)
+        {
+            <ElementoListaLateral @key="visita.Id">
+                <Etiqueta>
+                    <span>@visita.FechaInicio.ToString("dd/MM/yyyy") – @visita.FechaFin.ToString("dd/MM/yyyy") · @(visita.EstaCancelada ? "Cancelada" : visita.DocumentacionGestionada ? "Documentación gestionada" : "Pasada")</span>
+                    <Boton360 Nombre="@($"Visita {visita.FechaInicio:dd/MM/yyyy} – {visita.FechaFin:dd/MM/yyyy}")" Href="@($"/visitas/{visita.Id}")" />
+                </Etiqueta>
+                <ChildContent>
+                    <span>Trabajadores de la visita: @(visita.Trabajadores.Count == 0 ? "—" : string.Join(" · ", visita.Trabajadores))</span>
+                </ChildContent>
+            </ElementoListaLateral>
+        }
+    </ListaLateral>
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid CentroId { get; set; }
+    private Guid? _centroCargado;
+    private IReadOnlyList<VisitaAnteriorDeCentroDto> _visitas = [];
+    private bool _cargando = true;
+    private bool _error;
+
+    protected override Task OnParametersSetAsync()
+    {
+        if (_centroCargado == CentroId) return Task.CompletedTask;
+        _centroCargado = CentroId;
+        return CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var centroId = CentroId;
+        _cargando = true;
+        _error = false;
+        _visitas = [];
+        try
+        {
+            var visitas = await Mediator.Send(new ObtenerVisitasAnterioresDeCentroQuery(centroId));
+            if (CentroId == centroId) _visitas = visitas;
+        }
+        catch (Exception)
+        {
+            if (CentroId == centroId) _error = true;
+        }
+        finally
+        {
+            if (CentroId == centroId) _cargando = false;
+        }
+    }
+}
