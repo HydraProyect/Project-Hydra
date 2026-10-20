@@ -645,7 +645,7 @@
     <value>Trato especial o precaución al responderle</value>
   </data>
   <data name="AgendaNotaAyuda" xml:space="preserve">
-    <value>Cuando esta persona escriba, la nota aparece como marcapáginas en la conversación. Solo la ven los Gestores CAE.</value>
+    <value>Cuando esta persona escriba, la nota aparece como marcapáginas en la conversación. Solo la ve tu equipo, nunca el contacto.</value>
   </data>
   <data name="AgendaNotaMarcapaginas" xml:space="preserve">
     <value>Sale como marcapáginas en Comunicaciones cuando escribe</value>
