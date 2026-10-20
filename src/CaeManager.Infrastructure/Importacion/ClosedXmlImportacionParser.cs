@@ -261,15 +261,17 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
             }
 
             dni = documento.Normalizado!;
-            if (documento.SeGuardaComoPasaporte)
-                advertencias.Add(new ItemImportacionDto(nombreHoja, fila, $"{nombre} {apellidos} ({dni})",
-                    CriterioDocumentoIdentidadTrabajador.AvisoPasaporte + "."));
 
             if (!dnisVistosEnArchivo.Add(dni))
             {
                 omitidos.Add(new ItemImportacionDto(nombreHoja, fila, $"{nombre} {apellidos} ({dni})", "DNI duplicado dentro del propio archivo."));
                 continue;
             }
+
+            // Aviso, no omisión: el Trabajador entra, con su documento guardado como Pasaporte.
+            if (documento.SeGuardaComoPasaporte)
+                advertencias.Add(new ItemImportacionDto(nombreHoja, fila, $"{nombre} {apellidos} ({dni})",
+                    CriterioDocumentoIdentidadTrabajador.AvisoPasaporte + "."));
 
             if (!huboAlMenosUnTrabajador)
             {

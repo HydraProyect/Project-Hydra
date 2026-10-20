@@ -407,6 +407,10 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
             }
             var email = TextoCelda(hoja.Cell(fila, 6));
 
+            if (documento.SeGuardaComoPasaporte)
+                advertencias.Add(new ItemImportacionDto(HojaTrabajadores, fila, $"{nombre} {apellidos} ({dni})",
+                    CriterioDocumentoIdentidadTrabajador.AvisoPasaporte + "."));
+
             resultado.Add(new TrabajadorImportadoDto(empresa, nombre, apellidos, dni, resultadoNacimiento.Fecha, email, dnisExistentes.Contains(dni)));
         }
 

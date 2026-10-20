@@ -134,6 +134,62 @@ public class ExtranjerosDelMesMultiTenantTests : IAsyncLifetime
         enA.GestorCae.Should().Be("Marta Gestora", "es quien asignó al Trabajador, no el principal de cartera");
     }
 
+    /// <summary>
+    /// Histórico congelado (decisión de Chris, 2026-10-20): la exportación lee la foto de la asignación. Corregir después el
+    /// pasaporte de Amina a un NIE no saca del mes sus asignaciones ya hechas ni cambia el documento que muestran; solo la
+    /// asignación nueva, hecha tras la corrección, nace sin contar.
+    /// </summary>
+    [Fact]
+    public async Task Corregir_el_documento_a_NIE_tras_asignar_no_altera_el_mes_ya_gestionado()
+    {
+        using (AmbitoTenantExplicito.Establecer(_tenantIbertec))
+        {
+            var amina = await _dbContext.Trabajadores.SingleAsync(t => t.Nombre == "Amina");
+            amina.CorregirDocumentoIdentidad("Z1234567R");
+            var centroA = await _dbContext.Centros.SingleAsync(c => c.Nombre == "Ibertec Centro A");
+            var trasLaCorreccion = new Visita(centroA.Id, _mes.AddDays(25), _mes.AddDays(25), null);
+            _dbContext.Visitas.Add(trasLaCorreccion);
+            await _dbContext.SaveChangesAsync();
+            _dbContext.VisitasTrabajadores.Add(new VisitaTrabajador(trasLaCorreccion.Id, amina, _marta));
+            await _dbContext.SaveChangesAsync();
+        }
+
+        var filas = (await PedirAsync(ConstruirServicios())).Filas
+            .Where(f => f.NombreYApellidos == "Amina El Idrissi").ToList();
+
+        filas.Should().HaveCount(2, "las dos asignaciones previas conservan su foto y la nueva nace con el NIE, que no cuenta");
+        filas.Should().OnlyContain(f => f.Documento == "AB1234567", "el Excel muestra el documento de la foto, no el de hoy");
+    }
+
+    /// <summary>
+    /// <c>ContarExtranjerosCobrablesDelMesQuery</c>, el servicio que consume la valoración del Operador CAE, sale de las
+    /// mismas filas que el Excel: la unidad que se cobra es la asignación a Visita (un recurrente en dos Centros cuenta dos).
+    /// </summary>
+    [Fact]
+    public async Task El_conteo_del_mes_cuadra_con_el_Excel()
+    {
+        using var servicios = ConstruirServicios();
+        var mediator = servicios.GetRequiredService<IMediator>();
+
+        var excel = await mediator.Send(new ObtenerExtranjerosDelMesQuery(_mes.Year, _mes.Month));
+        var conteo = await mediator.Send(new ContarExtranjerosCobrablesDelMesQuery(_mes.Year, _mes.Month));
+
+        conteo.SinCifras.Should().BeNull();
+        conteo.TenantsSinAlcanceCompleto.Should().Be(excel.TenantsSinAlcanceCompleto);
+        conteo.PorTenant.Sum(t => t.Asignaciones).Should().Be(excel.Filas.Count);
+        foreach (var tenant in conteo.PorTenant)
+        {
+            var filasDelTenant = excel.Filas.Where(f => f.TenantId == tenant.TenantId).ToList();
+            tenant.Asignaciones.Should().Be(filasDelTenant.Count);
+            tenant.TrabajadoresDistintos.Should().Be(filasDelTenant.Select(f => f.TrabajadorId).Distinct().Count());
+        }
+
+        var ibertec = conteo.PorTenant.Single(t => t.TenantId == _tenantIbertec);
+        ibertec.Asignaciones.Should().Be(4, "Amina en dos Centros, Yusuf y Oleg");
+        ibertec.TrabajadoresDistintos.Should().Be(3);
+        conteo.PorTenant.Single(t => t.TenantId == _tenantConsultora).Asignaciones.Should().Be(1);
+    }
+
     [Fact]
     public async Task Sin_dato_en_la_asignacion_el_Gestor_CAE_y_la_fecha_salen_de_la_auditoria()
     {
