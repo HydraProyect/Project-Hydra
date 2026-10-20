@@ -37,6 +37,24 @@ public class SesionDelCircuitoTests : BunitContext
         }
     }
 
+    [Theory]
+    [InlineData("http://localhost//evil.com/x", "/cuenta/iniciar-sesion?ReturnUrl=%2F")]
+    [InlineData("http://localhost/cuenta", "/cuenta/iniciar-sesion")]
+    [InlineData("http://localhost/cuenta?paso=2", "/cuenta/iniciar-sesion")]
+    [InlineData("http://localhost/?desde=login", "/cuenta/iniciar-sesion?ReturnUrl=%2F")]
+    public async Task Al_perder_la_sesion_nunca_emite_un_ReturnUrl_no_local_ni_de_cuenta(string uri, string destino)
+    {
+        var proveedor = new ProveedorDeSesion(autenticado: true);
+        Services.AddSingleton<AuthenticationStateProvider>(proveedor);
+        var navegacion = Services.GetRequiredService<BunitNavigationManager>();
+        navegacion.NavigateTo(uri);
+        var cut = Render<SesionDelCircuito>();
+
+        await cut.InvokeAsync(proveedor.Invalidar);
+
+        cut.WaitForAssertion(() => navegacion.Uri.Should().Be("http://localhost" + destino));
+    }
+
     [Fact]
     public async Task Una_sesion_que_ya_nace_anonima_no_redirige()
     {
