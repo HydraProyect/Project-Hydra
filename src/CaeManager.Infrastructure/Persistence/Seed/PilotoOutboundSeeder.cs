@@ -706,9 +706,11 @@ public static class PilotoOutboundSeeder
     /// <list type="number">
     /// <item><b>Su Asignación de Cartera</b> del Tenant entero, con rol Coordinador CAE y sin marca de principal,
     /// en los ocho Tenants. Es la misma que emite el producto al escalar o asumir el principal
-    /// (<c>EscaladoDePrincipalDeCartera</c>): la Operación nunca concede un rol de Propiedad. Sin ella el encargo no
-    /// eleva a nadie (<c>TechoDeRolPorEncargo</c>: sin cartera no hay rol). En C, que tiene Administrador propio y no
-    /// lleva encargo, entra como Coordinador CAE y nada más.</item>
+    /// (<c>EscaladoDePrincipalDeCartera</c>). Desde la decisión Chris 2026-10-20 ni la cartera ni el encargo deciden
+    /// su rol: el Administrador del Operador CAE externo entra como Administrador, con todos sus poderes, en todos los
+    /// Tenants de la Asignación de Operación de su organización, también en C, que tiene Administrador propio. La
+    /// cartera se conserva porque la siembra refleja lo que el producto emite; el encargo, como deuda sin efecto en
+    /// el rol.</item>
     /// <item><b>El Encargo de administración</b>, en todos menos C, ligado a la operación externa y con origen
     /// <see cref="OrigenEncargoAdministracion.SiembraDeDemostracion"/>: sin quien lo registra, porque no lo registró
     /// nadie. No se atribuye a la identidad raíz de plataforma ni al Operador CAE externo que lo recibe.</item>

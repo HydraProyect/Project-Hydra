@@ -91,6 +91,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
     private Guid _heredado;
     private Guid _heredadoCaducado;
     private Guid _heredadoDesactivado;
+    private Guid _operacionAcotada;
 
     public async Task InitializeAsync()
     {
@@ -123,6 +124,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
         _heredado = NuevoTenant("Tenant por vía heredada");
         _heredadoCaducado = NuevoTenant("Tenant por vía heredada caducada");
         _heredadoDesactivado = NuevoTenant("Tenant por vía heredada desactivada");
+        _operacionAcotada = NuevoTenant("Tenant con operación acotada a un Cliente empresarial");
         await _propietario.SaveChangesAsync();
 
         foreach (var tenant in new[] { _origen, _a })
@@ -174,6 +176,20 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
         suspendida.Operacion.Suspender();
         carteraSuspendida.Cartera.Suspender();
         await _propietario.SaveChangesAsync();
+
+        // Asignación de Operación vigente del Operador de origen, pero acotada a un Cliente
+        // empresarial y sin cartera de nadie: los perfiles que entran sin cartera (decisión Chris
+        // 2026-10-20) tienen alcance de Tenant entero, así que no la abren (fallo cerrado).
+        using (AmbitoTenantExplicito.Establecer(_operacionAcotada))
+        {
+            var clienteAcotado = Empresa.CrearComoCliente("Cliente acotado", "B10380186", false, null, null);
+            _propietario.Empresas.Add(clienteAcotado);
+            await _propietario.SaveChangesAsync();
+            _propietario.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
+                _operacionAcotada, _origen, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteAcotado.Id),
+                ayer, null, ahora));
+            await _propietario.SaveChangesAsync();
+        }
 
         // Filas imposibles por dominio, forzadas para aislar una sola condición:
         // una operación y una cartera Vigentes con inicio futuro (el dominio las
@@ -499,57 +515,170 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Decision_7_quater_con_cartera_de_rol_Consulta_no_hay_Tenant_por_defecto_ni_middleware()
+    public async Task Decision_7_quater_con_perfil_Consulta_no_hay_Tenant_por_defecto_ni_middleware()
     {
-        var lista = await ListaAsync(_consultaUnico);
+        // Decisión Chris 2026-10-20: el rol en el Tenant delegado es el perfil de origen, no el de la cartera.
+        var lista = await ListaAsync(_consultaUnico, Roles.Consulta);
 
-        lista.Single(c => !c.EsOrigen).Should().Match<ClienteAutorizadoDto>(c =>
-            c.TenantId == _a && c.EsGestionadoPorOperacion && !c.EsCarteraGestorCae,
-            "el rol sale de la Asignación de Cartera vigente");
-        ClientesAutorizados.TenantPorDefecto(lista).Should().BeNull("la cartera no es de rol Gestor CAE");
+        lista.Single(c => c.TenantId == _a).Should().Match<ClienteAutorizadoDto>(c =>
+            c.EsGestionadoPorOperacion && !c.EsCarteraGestorCae, "el perfil de origen es Consulta");
+        ClientesAutorizados.TenantPorDefecto(lista).Should().BeNull("el perfil no es Gestor CAE");
 
         var httpContext = PeticionDePagina(_consultaUnico, "/trabajadores", "");
-        (await FijarPorDefectoAsync(httpContext, _consultaUnico)).Should().BeNull();
+        (await FijarPorDefectoAsync(httpContext, _consultaUnico, Roles.Consulta)).Should().BeNull();
         CookieEmitida(httpContext, ClienteActivoSeleccionado.NombreCookie).Should().BeNull(
             "entra en su Tenant de origen");
     }
 
     [Fact]
-    public async Task Sin_Asignacion_de_Cartera_un_unico_Tenant_externo_no_es_el_activo_por_defecto_decision_7_bis()
+    public async Task Sin_Asignacion_de_Cartera_el_Administrador_alcanza_la_operacion_pero_no_tiene_Tenant_por_defecto_decision_7_bis()
     {
-        var lista = await ListaAsync(_administradorSinCartera);
+        // Decisión Chris 2026-10-20: el Administrador del Operador CAE externo alcanza sin cartera los
+        // Tenants de las Asignaciones de Operación vigentes, del Tenant entero, de su organización.
+        var lista = await ListaAsync(_administradorSinCartera, Roles.Administrador);
         lista.Should().BeEquivalentTo(
         [
             new ClienteAutorizadoDto(_origen, "Operador CAE externo de prueba", EsOrigen: true, EsGestionadoPorOperacion: false),
+            new ClienteAutorizadoDto(_a, "Tenant beneficiario A", EsOrigen: false, EsGestionadoPorOperacion: true),
+            new ClienteAutorizadoDto(_carteraCaducada, "Tenant con cartera caducada", EsOrigen: false, EsGestionadoPorOperacion: true),
+            new ClienteAutorizadoDto(_carteraFutura, "Tenant con cartera futura", EsOrigen: false, EsGestionadoPorOperacion: true),
+            new ClienteAutorizadoDto(_carteraSuspendida, "Tenant con cartera suspendida", EsOrigen: false, EsGestionadoPorOperacion: true),
             new ClienteAutorizadoDto(_heredado, "Tenant por vía heredada", EsOrigen: false, EsGestionadoPorOperacion: false),
-        ], "alcanza un único Tenant externo, pero no por Asignación de Cartera");
+        ], "ni operación caducada, futura, suspendida, acotada, raíz ni de otro Operador CAE");
 
         ClientesAutorizados.TenantPorDefecto(lista).Should().BeNull(
-            "el defecto de la decisión 5 aplica solo a quien alcanza el Tenant por cartera vigente");
+            "el defecto de la decisión 5 aplica solo a quien actúa como Gestor CAE");
 
         var httpContext = PeticionDePagina(_administradorSinCartera, "/trabajadores", "");
-        (await FijarPorDefectoAsync(httpContext, _administradorSinCartera)).Should().BeNull(
-            "el Administrador sin cartera sigue entrando en su Tenant de origen");
+        (await FijarPorDefectoAsync(httpContext, _administradorSinCartera, Roles.Administrador)).Should().BeNull(
+            "el Administrador sigue entrando en su Tenant de origen");
         CookieEmitida(httpContext, ClienteActivoSeleccionado.NombreCookie).Should().BeNull();
     }
 
     [Fact]
-    public async Task Decision_7_quater_cartera_Consulta_el_rol_efectivo_es_Consulta_sin_defecto()
+    public async Task Decision_7_quater_perfil_Consulta_el_rol_efectivo_es_Consulta_sin_defecto()
     {
-        // El rol efectivo (fan-out) sale de la misma función que la marca de la lista.
-        var lista = await ListaAsync(_consultaUnico);
-        lista.Single(c => !c.EsOrigen).EsCarteraGestorCae.Should().BeFalse("manda la cartera del usuario (Consulta)");
+        // El rol efectivo (fan-out) sale del mismo perfil que la marca de la lista.
+        var lista = await ListaAsync(_consultaUnico, Roles.Consulta);
+        lista.Single(c => c.TenantId == _a).EsCarteraGestorCae.Should().BeFalse("manda el perfil de origen (Consulta)");
         ClientesAutorizados.TenantPorDefecto(lista).Should().BeNull();
         ClientesAutorizados.SelectorVisible(lista, ClientesAutorizados.Activo(lista, _a)).Should().BeTrue(
             "dentro del Tenant externo el selector es su control para volver");
 
         await using var runtime = CrearRuntime(_consultaUnico, tenantDeLaPeticion: _origen);
-        var usuario = CrearCurrentUserService(runtime, _consultaUnico);
+        var usuario = CrearCurrentUserService(runtime, _consultaUnico, Roles.Consulta);
         using (AmbitoTenantExplicito.Establecer(_a))
             (await usuario.ObtenerRolEfectivoAsync()).Should().Be(Roles.Consulta);
 
         var httpContext = PeticionDePagina(_consultaUnico, "/trabajadores", "");
-        (await FijarPorDefectoAsync(httpContext, _consultaUnico)).Should().BeNull();
+        (await FijarPorDefectoAsync(httpContext, _consultaUnico, Roles.Consulta)).Should().BeNull();
+    }
+
+    // ---------- Decisión Chris 2026-10-20: el perfil de origen rige en los Tenants delegados ----------
+
+    [Theory]
+    [InlineData(Roles.Administrador)]
+    [InlineData(Roles.DireccionCae)]
+    [InlineData(Roles.CoordinadorCae)]
+    [InlineData(Roles.Consulta)]
+    public async Task Sin_cartera_los_perfiles_de_organizacion_alcanzan_solo_las_operaciones_vigentes_del_Tenant_entero(string perfil)
+    {
+        var alcanzados = await TenantsBeneficiariosAutorizados
+            .OperacionesQueAutorizan(_propietario, Guid.NewGuid(), _origen, perfil, DateTime.UtcNow)
+            .Select(o => o.PropietarioTenantId)
+            .ToListAsync();
+
+        alcanzados.Should().BeEquivalentTo([_a, _carteraCaducada, _carteraFutura, _carteraSuspendida],
+            "ni operación caducada, futura o suspendida, ni acotada, ni raíz, ni de otro Operador CAE");
+    }
+
+    [Theory]
+    [InlineData(Roles.GestorCae)]
+    [InlineData(Roles.Cliente)]
+    [InlineData(null)]
+    public async Task Sin_cartera_un_Gestor_CAE_u_otro_perfil_no_alcanza_ninguna_operacion(string? perfil)
+    {
+        (await TenantsBeneficiariosAutorizados
+                .OperacionesQueAutorizan(_propietario, Guid.NewGuid(), _origen, perfil, DateTime.UtcNow)
+                .AnyAsync())
+            .Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Direccion_CAE_sin_cartera_abre_el_Tenant_de_la_operacion_con_su_perfil_y_alcance_total()
+    {
+        var director = Guid.NewGuid();
+        await using var runtime = CrearRuntime(director, tenantDeLaPeticion: _origen);
+        var usuario = CrearCurrentUserService(runtime, director, Roles.DireccionCae);
+
+        using (AmbitoTenantExplicito.Establecer(_a))
+            (await usuario.ObtenerRolEfectivoAsync()).Should().Be(Roles.DireccionCae);
+        foreach (var cerrado in new[] { _otroOperadorTenant, _operacionCaducada, _operacionFutura, _operacionSuspendida, _operacionAcotada })
+            using (AmbitoTenantExplicito.Establecer(cerrado))
+                (await usuario.ObtenerRolEfectivoAsync()).Should().BeNull(
+                    "otra organización, o una operación caducada, futura, suspendida o acotada, no se abre");
+
+        await using var servicios = ServiciosDeAplicacion(director, Roles.DireccionCae);
+        using (AmbitoTenantExplicito.Establecer(_a))
+            (await servicios.GetRequiredService<IAlcanceDatosService>().ObtenerClienteIdsVisiblesAsync())
+                .Should().BeNull("Dirección CAE alcanza el Tenant entero");
+    }
+
+    [Fact]
+    public async Task Coordinador_CAE_sin_cartera_alcanza_el_Tenant_delegado_entero()
+    {
+        var coordinador = Guid.NewGuid();
+        await using var runtime = CrearRuntime(coordinador, tenantDeLaPeticion: _origen);
+        using (AmbitoTenantExplicito.Establecer(_a))
+            (await CrearCurrentUserService(runtime, coordinador, Roles.CoordinadorCae).ObtenerRolEfectivoAsync())
+                .Should().Be(Roles.CoordinadorCae);
+
+        await using (var servicios = ServiciosDeAplicacion(coordinador, Roles.CoordinadorCae))
+            using (AmbitoTenantExplicito.Establecer(_a))
+                (await servicios.GetRequiredService<IAlcanceDatosService>().ObtenerClienteIdsVisiblesAsync())
+                    .Should().BeNull("en el Tenant delegado entra por la operación del Tenant entero, sin cartera");
+
+        // En su Tenant de origen conserva el alcance de las carteras de su equipo: sin equipo, nada.
+        await using (var servicios = ServiciosDeAplicacion(coordinador, Roles.CoordinadorCae))
+            (await servicios.GetRequiredService<IAlcanceDatosService>().ObtenerClienteIdsVisiblesAsync())
+                .Should().NotBeNull().And.BeEmpty();
+    }
+
+    [Fact]
+    public async Task Gestor_CAE_sin_cartera_no_abre_el_Tenant_y_con_cartera_es_Gestor_CAE_aunque_la_cartera_guarde_otro_rol()
+    {
+        var sinCartera = Guid.NewGuid();
+        await using (var runtime = CrearRuntime(sinCartera, tenantDeLaPeticion: _origen))
+            using (AmbitoTenantExplicito.Establecer(_a))
+                (await CrearCurrentUserService(runtime, sinCartera, Roles.GestorCae).ObtenerRolEfectivoAsync())
+                    .Should().BeNull("el Gestor CAE sigue acotado por su Asignación de Cartera");
+
+        // _consultaUnico tiene sobre A una cartera que guarda Consulta; su perfil de origen manda.
+        await using (var runtime = CrearRuntime(_consultaUnico, tenantDeLaPeticion: _origen))
+            using (AmbitoTenantExplicito.Establecer(_a))
+                (await CrearCurrentUserService(runtime, _consultaUnico, Roles.GestorCae).ObtenerRolEfectivoAsync())
+                    .Should().Be(Roles.GestorCae);
+        (await ListaAsync(_consultaUnico, Roles.GestorCae)).Single(c => c.TenantId == _a).EsCarteraGestorCae
+            .Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Un_Gestor_CAE_limitado_a_Consulta_por_login_local_no_amplia_su_alcance()
+    {
+        // Sesión restringida: rol Consulta, perfil anterior Gestor CAE. Sin la marca, Consulta abriría
+        // sin cartera todos los Tenants de la operación.
+        await using var runtime = CrearRuntime(_gestorUnico, tenantDeLaPeticion: _origen);
+        var restringido = CrearCurrentUserService(runtime, _gestorUnico, Roles.Consulta, perfilAntesDeRestringir: Roles.GestorCae);
+
+        using (AmbitoTenantExplicito.Establecer(_a))
+            (await restringido.ObtenerRolEfectivoAsync()).Should().Be(Roles.Consulta, "su cartera abre A, con el rol de la sesión");
+        using (AmbitoTenantExplicito.Establecer(_carteraCaducada))
+            (await restringido.ObtenerRolEfectivoAsync()).Should().BeNull("sin cartera ahí, la restricción no le abre el Tenant");
+        (await restringido.ObtenerPerfilQueDecideAlcanceAsync()).Should().Be(Roles.GestorCae);
+
+        var lista = await new ObtenerClientesAutorizadosQueryHandler(runtime, runtime, restringido)
+            .Handle(new ObtenerClientesAutorizadosQuery(), CancellationToken.None);
+        lista.Where(c => !c.EsOrigen).Select(c => c.TenantId).Should().BeEquivalentTo([_a]);
     }
 
     [Fact]
@@ -588,8 +717,9 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
     public async Task En_el_fan_out_una_operacion_que_autoriza_manda_aunque_su_rol_no_sea_delegable_y_haya_via_heredada()
     {
         // D1 de la revisión puente: seleccionado, el POST embebe la operación y el
-        // rol sale solo de ella (null si no es delegable). El fan-out no puede
-        // caer a la vía heredada y dar más.
+        // rol sale solo de ella. El fan-out no puede caer a la vía heredada. Desde la
+        // decisión Chris 2026-10-20 ese rol es el perfil de origen (aquí Gestor CAE), no
+        // el que guarda la cartera (Administrador) ni el de la fila heredada (Consulta).
         var ahora = DateTime.UtcNow;
         var usuario = Guid.NewGuid();
         using (AmbitoTenantExplicito.Establecer(_a))
@@ -602,23 +732,23 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
         var delegacion = new DelegacionTenant(_origen, _a);
         _propietario.DelegacionesTenant.Add(delegacion);
         _propietario.AsignacionesOperadorDelegadoConRevocadas.Add(
-            new AsignacionOperadorDelegado(delegacion.Id, usuario, Roles.GestorCae));
+            new AsignacionOperadorDelegado(delegacion.Id, usuario, Roles.Consulta));
         await _propietario.SaveChangesAsync();
 
         await using var runtime = CrearRuntime(usuario, tenantDeLaPeticion: _origen);
         var servicio = CrearCurrentUserService(runtime, usuario);
         using (AmbitoTenantExplicito.Establecer(_a))
-            (await servicio.ObtenerRolEfectivoAsync()).Should().BeNull();
+            (await servicio.ObtenerRolEfectivoAsync()).Should().Be(Roles.GestorCae);
 
-        // Control: la vía heredada sola sí da GestorCae (sin cartera, otro usuario).
+        // Control: la vía heredada sola da el rol de su fila (sin cartera, otro usuario).
         var soloHeredado = Guid.NewGuid();
         _propietario.AsignacionesOperadorDelegadoConRevocadas.Add(
-            new AsignacionOperadorDelegado(delegacion.Id, soloHeredado, Roles.GestorCae));
+            new AsignacionOperadorDelegado(delegacion.Id, soloHeredado, Roles.Consulta));
         await _propietario.SaveChangesAsync();
         await using var runtimeHeredado = CrearRuntime(soloHeredado, tenantDeLaPeticion: _origen);
         using (AmbitoTenantExplicito.Establecer(_a))
             (await CrearCurrentUserService(runtimeHeredado, soloHeredado).ObtenerRolEfectivoAsync())
-                .Should().Be(Roles.GestorCae);
+                .Should().Be(Roles.Consulta);
     }
 
     [Fact]
@@ -657,11 +787,11 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
 
     // ---------- Arnés ----------
 
-    private async Task<IReadOnlyList<ClienteAutorizadoDto>> ListaAsync(Guid usuario)
+    private async Task<IReadOnlyList<ClienteAutorizadoDto>> ListaAsync(Guid usuario, string rol = Roles.GestorCae)
     {
         await using var runtime = CrearRuntime(usuario, tenantDeLaPeticion: _origen);
         return await new ObtenerClientesAutorizadosQueryHandler(
-                runtime, runtime, new CurrentUserServiceFalso(usuario, tenantOrigenId: _origen))
+                runtime, runtime, new CurrentUserServiceFalso(usuario, rol, tenantOrigenId: _origen))
             .Handle(new ObtenerClientesAutorizadosQuery(), CancellationToken.None);
     }
 
@@ -670,7 +800,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
         await using var runtime = CrearRuntime(usuario, tenantDeLaPeticion: _origen);
         var httpContext = new DefaultHttpContext { User = UsuarioAutenticado(usuario) };
         var resultado = await ClienteActivoEndpoints.CambiarAsync(
-            tenantId, "/", httpContext, runtime, new CurrentUserServiceFalso(usuario, tenantOrigenId: _origen),
+            tenantId, "/", httpContext, runtime, new CurrentUserServiceFalso(usuario, Roles.GestorCae, tenantOrigenId: _origen),
             runtime, _protector, CancellationToken.None, contador);
         return (resultado, httpContext);
     }
@@ -689,18 +819,18 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
 
         await using var runtime = CrearRuntime(usuario, tenantDeLaPeticion: tenant);
         await new RevalidacionClienteActivoMiddleware(_ => Task.CompletedTask).InvokeAsync(
-            httpContext, seleccion, new CurrentUserServiceFalso(usuario, tenantOrigenId: _origen),
+            httpContext, seleccion, new CurrentUserServiceFalso(usuario, Roles.GestorCae, tenantOrigenId: _origen),
             runtime, runtime, new SesionPrivilegiadaAusente(),
             NullLogger<RevalidacionClienteActivoMiddleware>.Instance);
         return seleccion;
     }
 
-    private async Task<string?> FijarPorDefectoAsync(DefaultHttpContext httpContext, Guid usuario)
+    private async Task<string?> FijarPorDefectoAsync(DefaultHttpContext httpContext, Guid usuario, string rol = Roles.GestorCae)
     {
-        await using var servicios = ServiciosDeAplicacion(usuario);
+        await using var servicios = ServiciosDeAplicacion(usuario, rol);
         return await TenantBeneficiarioPorDefectoMiddleware.FijarTenantPorDefectoAsync(
             httpContext, servicios.GetRequiredService<IMediator>(),
-            new CurrentUserServiceFalso(usuario, tenantOrigenId: _origen),
+            new CurrentUserServiceFalso(usuario, rol, tenantOrigenId: _origen),
             servicios.GetRequiredService<IOperacionesQueryContext>(), _protector);
     }
 
@@ -720,13 +850,13 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
     /// <c>cae_app_runtime</c> bajo RLS: lo que tiene que demostrarse es que el
     /// rol efectivo de cada vuelta del fan-out sale de la cartera real.
     /// </summary>
-    private ServiceProvider ServiciosDeAplicacion(Guid usuario)
+    private ServiceProvider ServiciosDeAplicacion(Guid usuario, string rol = Roles.GestorCae, string? perfilAntesDeRestringir = null)
     {
         var tenantDeLaPeticion = new TenantActualDeLaPeticion(_origen);
         var runtime = CrearRuntime(usuario, tenantDeLaPeticion);
         _desechables.Add(runtime);
 
-        var usuarioReal = CrearCurrentUserService(runtime, usuario);
+        var usuarioReal = CrearCurrentUserService(runtime, usuario, rol, perfilAntesDeRestringir);
         var servicios = new ServiceCollection();
         servicios.AddApplication();
         servicios.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
@@ -766,15 +896,18 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
         return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantDeLaPeticion);
     }
 
-    private CurrentUserService CrearCurrentUserService(CaeManagerDbContext contexto, Guid usuario)
+    private CurrentUserService CrearCurrentUserService(
+        CaeManagerDbContext contexto, Guid usuario, string rol = Roles.GestorCae, string? perfilAntesDeRestringir = null)
     {
         var identidad = new ClaimsIdentity(
             [
                 new Claim(ClaimTypes.NameIdentifier, usuario.ToString()),
-                new Claim(ClaimTypes.Role, Roles.GestorCae),
+                new Claim(ClaimTypes.Role, rol),
                 new Claim(TenantClaimsPrincipalFactory.TipoClaimTenantId, _origen.ToString())
             ],
             "prueba");
+        if (perfilAntesDeRestringir is not null)
+            identidad.AddClaim(new Claim(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir, perfilAntesDeRestringir));
 
         var servicios = new ServiceCollection();
         servicios.AddSingleton<ITenantsQueryContext>(contexto);

@@ -288,6 +288,7 @@ src/CaeManager.Application/Tenants/Queries/ObtenerActividadSoporte/ObtenerActivi
 src/CaeManager.Application/Tenants/Queries/ObtenerClientesAutorizados/ObtenerClientesAutorizadosQuery.cs :: TenantClienteId = 1
 src/CaeManager.Application/Tenants/Queries/ObtenerDelegaciones/ObtenerDelegacionesQuery.cs :: TenantClienteId = 5
 src/CaeManager.Application/Tenants/Queries/ObtenerOperadoresCaeExternos/ObtenerOperadoresCaeExternosQuery.cs :: TenantClienteId = 1
+src/CaeManager.Application/Tenants/TenantsBeneficiariosAutorizados.cs :: AmbitoRelacionClienteId = 1
 src/CaeManager.Application/Tenants/TenantsBeneficiariosAutorizados.cs :: TenantClienteId = 1
 src/CaeManager.Application/TiposDocumento/Commands/ActualizarLecturaIaCliente/ActualizarLecturaIaClienteCommand.cs :: ClienteId = 5
 src/CaeManager.Application/TiposDocumento/Commands/ActualizarLecturaIaCliente/ActualizarLecturaIaClienteCommand.cs :: ObtenerClienteIdsVisiblesAsync = 1

@@ -629,6 +629,11 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
     }
 
     // ── El techo, leyendo Identity bajo RLS desde el Tenant propietario ───
+    //
+    // Decisión Chris 2026-10-20: TechoDeRolPorEncargo se quedó sin consumidor en producción (el rol
+    // efectivo en un Tenant beneficiario delegado es el perfil de origen, sin encargo). Las pruebas
+    // del techo (RolEnAsync) lo siguen fijando como deuda; las del circuito (CircuitoDe) prueban ya
+    // la regla nueva con el CurrentUserService de producción.
 
     [Fact]
     public async Task Con_cartera_y_encargo_el_perfil_de_Propiedad_en_origen_es_el_rol_efectivo()
@@ -643,17 +648,18 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Sin_cartera_no_hay_rol_ni_alcance_aunque_haya_encargo_vigente()
+    public async Task Sin_cartera_el_Administrador_del_Operador_CAE_entra_con_su_perfil_y_alcance_total_sin_encargo()
     {
         (await RolEnAsync(_adminOperadorSinCartera, _propietario, _operacion, Roles.Administrador))
-            .Should().Be(RolEfectivoPorOperacion.Ninguno, "el encargo sube el techo de quien ya tiene acceso; no lo concede");
+            .Should().Be(RolEfectivoPorOperacion.Ninguno, "deuda: el techo, sin consumidor, sigue sin conceder acceso");
 
+        // Decisión Chris 2026-10-20: la Asignación de Operación del Tenant entero de su organización basta.
         using var ambito = Sesion(_adminOperadorSinCartera, _propietario);
         var circuito = CircuitoDe(ambito, _adminOperadorSinCartera, _propietario, _operacion, Roles.Administrador, encargoEnElClaim: null);
-        (await circuito.Usuario.ObtenerRolEfectivoAsync()).Should().BeNull();
-        (await circuito.Usuario.EncargoQueElevaAsync()).Should().BeNull();
-        (await circuito.Alcance.ObtenerClienteIdsVisiblesAsync()).Should().NotBeNull().And.BeEmpty(
-            "alcance cero: ni total ni el del Tenant entero");
+        (await circuito.Usuario.ObtenerRolEfectivoAsync()).Should().Be(Roles.Administrador);
+        (await circuito.Usuario.EncargoQueElevaAsync()).Should().BeNull("el encargo ya no eleva a nadie");
+        (await circuito.Usuario.OperaPorAsignacionDeOperacionAsync()).Should().BeTrue();
+        (await circuito.Alcance.ObtenerClienteIdsVisiblesAsync()).Should().BeNull("el Administrador alcanza el Tenant entero");
     }
 
     /// <summary>
@@ -669,17 +675,15 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
             .Should().Be(new RolEfectivoPorOperacion(Roles.GestorCae, null),
                 "el encargo sube el techo de quien ya tiene el Tenant entero; a una cartera parcial le ampliaría el ámbito");
 
+        // Decisión Chris 2026-10-20: el Administrador entra por la Asignación de Operación del Tenant
+        // entero de su organización, no por su cartera; su cartera parcial ya no acota nada.
         using var ambito = Sesion(_adminOperadorCarteraParcial, _propietario);
         var circuito = CircuitoDe(
             ambito, _adminOperadorCarteraParcial, _propietario, _operacion, Roles.Administrador, encargoEnElClaim: null);
-        (await circuito.Usuario.ObtenerRolEfectivoAsync()).Should().Be(Roles.GestorCae);
+        (await circuito.Usuario.ObtenerRolEfectivoAsync()).Should().Be(Roles.Administrador);
         (await circuito.Usuario.EncargoQueElevaAsync()).Should().BeNull();
-        // Una lista (aunque vacía) es alcance por cartera; null sería el alcance total del rol de
-        // Propiedad. Hoy una cartera acotada a un Centro no concede ningún Cliente empresarial
-        // (dimensión diferida, falla cerrado): lo que importa aquí es que no se vuelve total.
-        (await circuito.Alcance.ObtenerClienteIdsVisiblesAsync()).Should().NotBeNull(
-            "con cartera parcial el alcance es el de la cartera, nunca el total del Tenant propietario")
-            .And.NotContain(_clienteEmpresarial);
+        (await circuito.Alcance.ObtenerClienteIdsVisiblesAsync()).Should().BeNull(
+            "la operación cubre el Tenant entero y el Administrador lo alcanza entero");
     }
 
     [Fact]
@@ -707,41 +711,54 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
     // ── Retirada con el circuito abierto ──────────────────────────────────
 
     [Fact]
-    public async Task Retirado_el_encargo_la_siguiente_resolucion_del_mismo_circuito_devuelve_el_rol_de_cartera()
+    public async Task Retirado_el_encargo_el_rol_y_el_alcance_del_circuito_no_cambian()
     {
+        // Decisión Chris 2026-10-20: el rol es el perfil de origen, con o sin encargo.
         using var ambito = Sesion(_adminOperador, _propietario);
-        var reloj = new RelojManual();
-        var circuito = CircuitoDe(ambito, _adminOperador, _propietario, _operacion, Roles.Administrador, _encargo, reloj);
+        var circuito = CircuitoDe(ambito, _adminOperador, _propietario, _operacion, Roles.Administrador, encargoEnElClaim: null);
 
         (await circuito.Usuario.ObtenerRolEfectivoAsync()).Should().Be(Roles.Administrador);
-        (await circuito.Usuario.EncargoQueElevaAsync()).Should().Be(_encargo);
-        circuito.Usuario.EncargoDeLaUltimaResolucion(_operacion).Should().Be(_encargo);
-        (await circuito.Alcance.ObtenerClienteIdsVisiblesAsync()).Should().BeNull(
-            "con el rol elevado el alcance es el de toda la organización");
+        (await circuito.Usuario.EncargoQueElevaAsync()).Should().BeNull("el encargo vigente ya no eleva");
+        circuito.Usuario.EncargoDeLaUltimaResolucion(_operacion).Should().BeNull(
+            "la auditoría no marca la escritura como hecha por encargo");
+        (await circuito.Alcance.ObtenerClienteIdsVisiblesAsync()).Should().BeNull();
 
         await RetirarComoAdministradorPropioAsync();
 
-        // El rol no se memoiza: la misma instancia (= el mismo circuito) baja en la siguiente llamada.
-        (await circuito.Usuario.ObtenerRolEfectivoAsync()).Should().Be(Roles.GestorCae,
-            "el techo vuelve al rol de la cartera en cuanto el encargo se retira");
+        (await circuito.Usuario.ObtenerRolEfectivoAsync()).Should().Be(Roles.Administrador);
         (await circuito.Usuario.EncargoQueElevaAsync()).Should().BeNull();
-        circuito.Usuario.EncargoDeLaUltimaResolucion(_operacion).Should().BeNull(
-            "la auditoría de la siguiente escritura ya no la marca como hecha por encargo");
-
-        // El alcance sí se memoiza, con cota: dentro de la ventana sigue siendo el total...
-        reloj.Avanzar(CaducidadDelAlcance - TimeSpan.FromSeconds(1));
-        (await circuito.Alcance.ObtenerClienteIdsVisiblesAsync()).Should().BeNull(
-            "dentro de la cota declarada la memoización del alcance se conserva");
-
-        // ...y al caducar pasa a ser el de la cartera (el Tenant entero, ya como lista).
-        reloj.Avanzar(TimeSpan.FromSeconds(1));
-        (await circuito.Alcance.ObtenerClienteIdsVisiblesAsync()).Should().NotBeNull()
-            .And.Contain(_clienteEmpresarial, "la cartera sigue vigente: retirar el encargo baja el techo, no quita acceso");
     }
 
     [Fact]
-    public async Task Retirado_el_encargo_el_circuito_que_se_abrio_con_el_rol_elevado_pierde_su_seleccion()
+    public async Task Retirado_el_encargo_el_circuito_del_Administrador_del_Operador_CAE_conserva_su_seleccion()
     {
+        using var ambito = Sesion(_adminOperador, _propietario);
+        var circuito = CircuitoDe(ambito, _adminOperador, _propietario, _operacion, Roles.Administrador, encargoEnElClaim: null);
+        circuito.Seleccion.TenantIdSeleccionado.Should().Be(_propietario);
+
+        var handler = circuito.Revalidacion(intervaloSegundos: 1);
+        var blazor = (Circuit)RuntimeHelpers.GetUninitializedObject(typeof(Circuit));
+        await handler.OnCircuitOpenedAsync(blazor, CancellationToken.None);
+        try
+        {
+            await RetirarComoAdministradorPropioAsync();
+            await Task.Delay(TimeSpan.FromSeconds(3));
+
+            circuito.Seleccion.TenantIdSeleccionado.Should().Be(_propietario,
+                "la Asignación de Operación sigue vigente: retirar el encargo no quita acceso ni rol");
+        }
+        finally
+        {
+            await handler.OnCircuitClosedAsync(blazor, CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task Un_circuito_con_un_claim_de_encargo_que_ya_no_eleva_se_corta()
+    {
+        // Fallo cerrado ante un claim de encargo que ninguna resolución respalda ya (decisión Chris
+        // 2026-10-20: el encargo no eleva a nadie): el circuito se negoció con unas exclusiones que
+        // ya no corresponden a la resolución actual.
         using var ambito = Sesion(_adminOperador, _propietario);
         var circuito = CircuitoDe(ambito, _adminOperador, _propietario, _operacion, Roles.Administrador, _encargo);
         circuito.Seleccion.TenantIdSeleccionado.Should().Be(_propietario);
@@ -751,14 +768,8 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
         await handler.OnCircuitOpenedAsync(blazor, CancellationToken.None);
         try
         {
-            // Control negativo: con el encargo vigente, varios ciclos del temporizador no cortan nada.
-            await Task.Delay(TimeSpan.FromSeconds(3));
-            circuito.Seleccion.TenantIdSeleccionado.Should().Be(_propietario);
-
-            await RetirarComoAdministradorPropioAsync();
-
             (await EsperarHastaAsync(() => circuito.Seleccion.TenantIdSeleccionado is null, TimeSpan.FromSeconds(10)))
-                .Should().BeTrue("las puertas de página del circuito vivían del claim congelado; la revalidación lo corta");
+                .Should().BeTrue();
         }
         finally
         {
@@ -793,35 +804,33 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
     // ── Encargo pleno con el circuito abierto (decisión del 2026-10-15) ───
 
     [Fact]
-    public async Task CurrentUserService_responde_el_encargo_pleno_solo_sin_Administrador_propio_y_lo_retira_en_cuanto_aparece_uno()
+    public async Task CurrentUserService_no_da_la_senal_de_encargo_pleno_porque_el_perfil_de_origen_ya_rige_entero()
     {
+        // Decisión Chris 2026-10-20: el Administrador del Operador CAE es Administrador en el Tenant
+        // beneficiario haya o no Administrador propio, y sin encargo. Las señales del encargo quedan
+        // sin efecto (deuda) y la de «opera por Asignación de Operación» las sustituye.
         using (var ambito = Sesion(_adminOperador, _propietario))
         {
-            var conAdministradorPropio = CircuitoDe(ambito, _adminOperador, _propietario, _operacion, Roles.Administrador, _encargo);
-            (await conAdministradorPropio.Usuario.EncargoQueElevaAsync()).Should().Be(_encargo, "control: el encargo eleva");
-            (await conAdministradorPropio.Usuario.EncargoPlenoAsync()).Should().BeNull("el Tenant tiene Administrador propio");
-            conAdministradorPropio.Usuario.EncargoPlenoDeLaUltimaResolucion(_operacion).Should().BeFalse();
+            var conAdministradorPropio = CircuitoDe(ambito, _adminOperador, _propietario, _operacion, Roles.Administrador, encargoEnElClaim: null);
+            (await conAdministradorPropio.Usuario.ObtenerRolEfectivoAsync()).Should().Be(Roles.Administrador);
+            (await conAdministradorPropio.Usuario.EncargoQueElevaAsync()).Should().BeNull();
+            (await conAdministradorPropio.Usuario.EncargoPlenoAsync()).Should().BeNull();
+            (await conAdministradorPropio.Usuario.OperaPorAsignacionDeOperacionAsync()).Should().BeTrue();
         }
 
         using (var ambito = Sesion(_adminOtroOperador, _propietarioDelOtro))
         {
-            var circuito = CircuitoDe(
-                ambito, _adminOtroOperador, _propietarioDelOtro, _operacionDelOtro, Roles.Administrador, _encargoDelOtro,
-                plenoEnElClaim: true);
-            (await circuito.Usuario.EncargoPlenoAsync()).Should().Be(_encargoDelOtro);
-            circuito.Usuario.EncargoPlenoDeLaUltimaResolucion(_operacionDelOtro).Should().BeTrue();
-            circuito.Usuario.EncargoPlenoDeLaUltimaResolucion(_operacion).Should().BeFalse("otra operación no hereda la resolución");
-
-            await SembrarUsuarioAsync("admin-invitado", _propietarioDelOtro, Roles.Administrador, conContrasena: false);
-
-            (await circuito.Usuario.EncargoPlenoAsync()).Should().BeNull(
-                "no se memoiza: la invitación de un Administrador propio, aun pendiente, acaba el pleno en la siguiente resolución");
-            (await circuito.Usuario.EncargoQueElevaAsync()).Should().Be(_encargoDelOtro, "el encargo sigue elevando, ya no pleno");
+            var sinAdministradorPropio = CircuitoDe(
+                ambito, _adminOtroOperador, _propietarioDelOtro, _operacionDelOtro, Roles.Administrador, encargoEnElClaim: null);
+            (await sinAdministradorPropio.Usuario.ObtenerRolEfectivoAsync()).Should().Be(Roles.Administrador);
+            (await sinAdministradorPropio.Usuario.EncargoPlenoAsync()).Should().BeNull();
+            sinAdministradorPropio.Usuario.EncargoPlenoDeLaUltimaResolucion(_operacionDelOtro).Should().BeFalse();
+            (await sinAdministradorPropio.Usuario.OperaPorAsignacionDeOperacionAsync()).Should().BeTrue();
         }
     }
 
     [Fact]
-    public async Task El_circuito_que_nacio_con_encargo_pleno_se_corta_cuando_deja_de_serlo()
+    public async Task Un_circuito_con_un_claim_de_encargo_pleno_que_ya_no_eleva_se_corta()
     {
         using var ambito = Sesion(_adminOtroOperador, _propietarioDelOtro);
         var circuito = CircuitoDe(
@@ -834,37 +843,8 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
         await handler.OnCircuitOpenedAsync(blazor, CancellationToken.None);
         try
         {
-            // Control negativo: con el encargo pleno vigente, varios ciclos del temporizador no cortan nada.
-            await Task.Delay(TimeSpan.FromSeconds(3));
-            circuito.Seleccion.TenantIdSeleccionado.Should().Be(_propietarioDelOtro);
-
-            // El Tenant propietario pasa a tener un Administrador propio (pendiente de activar basta).
-            await SembrarUsuarioAsync("admin-invitado", _propietarioDelOtro, Roles.Administrador, conContrasena: false);
-
             (await EsperarHastaAsync(() => circuito.Seleccion.TenantIdSeleccionado is null, TimeSpan.FromSeconds(10)))
-                .Should().BeTrue("el circuito se negoció sin exclusiones y el encargo ya no es pleno");
-        }
-        finally
-        {
-            await handler.OnCircuitClosedAsync(blazor, CancellationToken.None);
-        }
-    }
-
-    [Fact]
-    public async Task Un_circuito_con_encargo_no_pleno_no_se_corta_por_el_pleno()
-    {
-        // El claim del pleno solo vale si el circuito lo lleva: el Administrador del Operador CAE en un
-        // Tenant con Administrador propio sigue con su encargo no pleno.
-        using var ambito = Sesion(_adminOperador, _propietario);
-        var circuito = CircuitoDe(ambito, _adminOperador, _propietario, _operacion, Roles.Administrador, _encargo);
-
-        var handler = circuito.Revalidacion(intervaloSegundos: 1);
-        var blazor = (Circuit)RuntimeHelpers.GetUninitializedObject(typeof(Circuit));
-        await handler.OnCircuitOpenedAsync(blazor, CancellationToken.None);
-        try
-        {
-            await Task.Delay(TimeSpan.FromSeconds(3));
-            circuito.Seleccion.TenantIdSeleccionado.Should().Be(_propietario);
+                .Should().BeTrue("fallo cerrado: el claim nombra un encargo que ninguna resolución respalda");
         }
         finally
         {

@@ -99,7 +99,7 @@ public class CurrentUserService(
     public async Task<string?> ObtenerRolEfectivoAsync() => (await ResolverRolEfectivoAsync()).Rol;
 
     /// <inheritdoc />
-    public async Task<string?> ObtenerPerfilQueDecideAlcanceAsync() => RolDeSesionEnOrigen(await ObtenerUsuarioAsync());
+    public async Task<string?> ObtenerPerfilQueDecideAlcanceAsync() => PerfilQueDecideAlcance(await ObtenerUsuarioAsync());
 
     /// <inheritdoc />
     public async Task<bool> OperaPorAsignacionDeOperacionAsync() =>
