@@ -47,6 +47,14 @@ namespace CaeManager.IntegrationTests.Identity;
 /// </para>
 ///
 /// <para>
+/// Decisión Chris 2026-10-20: lo anterior vale ya solo para la vía heredada (acceso de
+/// soporte). Por una Asignación de Operación vigente del Tenant entero de su organización,
+/// el Administrador del Operador CAE externo es Administrador en el Tenant beneficiario con
+/// todos sus poderes, también los de Propiedad, y da de alta allí un Administrador. La
+/// Sesión Privilegiada se comporta igual que antes: sin rol de negocio, no da de alta nada.
+/// </para>
+///
+/// <para>
 /// Escenario: una persona del Operador CAE externo (ArcosSPA) opera el Context
 /// Workspace delegado del Tenant propietario (Refrielectric) e intenta dar de
 /// alta allí una cuenta con rol Administrador o Dirección CAE. Antes, la cuenta
@@ -175,6 +183,28 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
             .Should().BeTrue();
     }
 
+    /// <summary>
+    /// La Sesión Privilegiada se comporta igual que antes de la decisión Chris 2026-10-20: en el mismo
+    /// Tenant beneficiario, y aunque la selección traiga también la Asignación de Operación que sí
+    /// autoriza, un contexto de plataforma no tiene rol de negocio, así que no da de alta ninguna cuenta.
+    /// </summary>
+    [Fact]
+    public async Task Con_Sesion_Privilegiada_en_el_mismo_Tenant_beneficiario_no_da_de_alta_ninguna_cuenta()
+    {
+        var (nuevo, mensaje) = await DarDeAltaAsync(
+            "privilegiada.beneficiario@arcosspa.test", Roles.Administrador,
+            contextWorkspaceSeleccionado: _tenantOperadoPorOperacion, asignacionOperacionId: _operacionDelBeneficiario,
+            sesionPrivilegiadaId: Guid.NewGuid());
+
+        nuevo.Should().BeNull("una Sesión Privilegiada no tiene rol de negocio en el Tenant que visita");
+        mensaje.Should().Be(AutoridadSobreCuentas.SinAutoridad.Mensaje);
+
+        using var ambito = _servicios.CreateScope();
+        (await ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().Users
+                .AnyAsync(u => u.TenantId == _tenantOperadoPorOperacion))
+            .Should().BeFalse();
+    }
+
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
 
     [Theory]
@@ -218,13 +248,14 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
     }
 
     private async Task<(ApplicationUser? Nuevo, string? MensajeError)> DarDeAltaAsync(
-        string email, string rol, Guid? contextWorkspaceSeleccionado, Guid? asignacionOperacionId = null)
+        string email, string rol, Guid? contextWorkspaceSeleccionado, Guid? asignacionOperacionId = null,
+        Guid? sesionPrivilegiadaId = null)
     {
         using var ambito = _servicios.CreateScope();
         var sp = ambito.ServiceProvider;
 
         var autenticacion = new AutenticacionConTenant(_actorDelOperador, _tenantOperadorCae, Roles.Administrador);
-        var seleccion = new SeleccionFija(contextWorkspaceSeleccionado, asignacionOperacionId);
+        var seleccion = new SeleccionFija(contextWorkspaceSeleccionado, asignacionOperacionId, sesionPrivilegiadaId);
         var tenantActualReal = new TenantActual(autenticacion, new HttpContextAccessor(), seleccion);
 
         // Premisa del instrumento: la resolución real devuelve lo que el escenario dice.
@@ -318,11 +349,13 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
         }
     }
 
-    private sealed class SeleccionFija(Guid? tenantIdSeleccionado, Guid? asignacionOperacionId = null) : IClienteActivoSeleccionado
+    private sealed class SeleccionFija(
+        Guid? tenantIdSeleccionado, Guid? asignacionOperacionId = null, Guid? sesionPrivilegiadaId = null)
+        : IClienteActivoSeleccionado
     {
         public Guid? TenantIdSeleccionado => tenantIdSeleccionado;
         public Guid? AsignacionOperacionIdSeleccionada => asignacionOperacionId;
-        public Guid? SesionPrivilegiadaIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => sesionPrivilegiadaId;
     }
 
     private sealed class TenantActualPorAmbito : ITenantActual

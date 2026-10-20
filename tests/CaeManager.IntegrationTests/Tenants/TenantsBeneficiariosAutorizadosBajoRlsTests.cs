@@ -633,10 +633,22 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
             (await CrearCurrentUserService(runtime, coordinador, Roles.CoordinadorCae).ObtenerRolEfectivoAsync())
                 .Should().Be(Roles.CoordinadorCae);
 
+        // Tenant entero, no acceso total: AlcanceDatosService lo expresa como la lista de todos los
+        // Clientes empresariales de A (null queda para el acceso total real de Administrador,
+        // Dirección CAE y Consulta), y AlcanzaElTenantEnteroAsync lo confirma.
         await using (var servicios = ServiciosDeAplicacion(coordinador, Roles.CoordinadorCae))
             using (AmbitoTenantExplicito.Establecer(_a))
-                (await servicios.GetRequiredService<IAlcanceDatosService>().ObtenerClienteIdsVisiblesAsync())
-                    .Should().BeNull("en el Tenant delegado entra por la operación del Tenant entero, sin cartera");
+            {
+                var alcance = servicios.GetRequiredService<IAlcanceDatosService>();
+                (await alcance.AlcanzaElTenantEnteroAsync()).Should().BeTrue(
+                    "en el Tenant delegado entra por la operación del Tenant entero, sin cartera");
+                // El propietario filtra por el ámbito explícito (A); EsCritico no nulo = Cliente empresarial.
+                var clientesDeA = await _propietario.Empresas
+                    .Where(e => e.EsCritico != null).Select(e => e.Id).ToListAsync();
+                clientesDeA.Should().NotBeEmpty("control de la siembra: A tiene Clientes empresariales");
+                (await alcance.ObtenerClienteIdsVisiblesAsync()).Should().BeEquivalentTo(clientesDeA,
+                    "todos los Clientes empresariales de A, no solo los de una cartera");
+            }
 
         // En su Tenant de origen conserva el alcance de las carteras de su equipo: sin equipo, nada.
         await using (var servicios = ServiciosDeAplicacion(coordinador, Roles.CoordinadorCae))

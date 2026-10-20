@@ -1100,13 +1100,4 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
         public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
             Task.FromResult(new AuthenticationState(principal));
     }
-
-    /// <summary>La caducidad del alcance se mide con el reloj monotónico, no con el de pared.</summary>
-    private sealed class RelojManual : TimeProvider
-    {
-        private long _ticks;
-        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-        public void Avanzar(TimeSpan intervalo) => _ticks += intervalo.Ticks;
-        public override long GetTimestamp() => _ticks;
-    }
 }
