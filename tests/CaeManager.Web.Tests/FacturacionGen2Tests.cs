@@ -15,7 +15,7 @@ using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
-using FacturacionPagina = CaeManager.Web.Features.Facturacion.Pages.Facturacion;
+using FacturacionPagina = CaeManager.Web.Features.Facturacion.Pages.FacturacionPorClienteEmpresarial;
 
 namespace CaeManager.Web.Tests;
 

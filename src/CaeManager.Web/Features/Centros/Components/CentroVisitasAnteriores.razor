@@ -1,0 +1,75 @@
+@using CaeManager.Application.Visitas.Queries.ObtenerVisitasAnterioresDeCentro
+@using MediatR
+@using CaeManager.Web.Features.Centros.Recursos
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosCentros> Textos
+
+<h3 class="centro-visitas-anteriores-titulo">@Textos["VisitasAnterioresTitulo360"]</h3>
+@if (_cargando)
+{
+    <EstadoCargando Filas="3" />
+}
+else if (_error)
+{
+    <EstadoVacio Titulo="@Textos["VisitasAnterioresError360"]">
+        <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["ReintentarCentro360"]</Boton></Accion>
+    </EstadoVacio>
+}
+else if (_visitas.Count == 0)
+{
+    <EstadoVacio Titulo="@Textos["VisitasAnterioresVacio360"]" />
+}
+else
+{
+    <ListaLateral>
+        @foreach (var visita in _visitas)
+        {
+            <ElementoListaLateral @key="visita.Id">
+                <Etiqueta>
+                    <span>@visita.FechaInicio.ToString("dd/MM/yyyy") – @visita.FechaFin.ToString("dd/MM/yyyy") · @Textos[visita.EstaCancelada ? "VisitaCancelada360" : visita.DocumentacionGestionada ? "VisitaDocumentacionGestionada360" : "VisitaPasada360"]</span>
+                    <Boton360 Nombre="@Textos["VisitaNombre360", visita.FechaInicio.ToString("dd/MM/yyyy"), visita.FechaFin.ToString("dd/MM/yyyy")].Value" Href="@($"/visitas/{visita.Id}")" />
+                </Etiqueta>
+                <ChildContent>
+                    <span>@Textos["VisitaTrabajadoresDe360", visita.Trabajadores.Count == 0 ? "—" : string.Join(" · ", visita.Trabajadores)]</span>
+                </ChildContent>
+            </ElementoListaLateral>
+        }
+    </ListaLateral>
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid CentroId { get; set; }
+    private Guid? _centroCargado;
+    private IReadOnlyList<VisitaAnteriorDeCentroDto> _visitas = [];
+    private bool _cargando = true;
+    private bool _error;
+
+    protected override Task OnParametersSetAsync()
+    {
+        if (_centroCargado == CentroId) return Task.CompletedTask;
+        _centroCargado = CentroId;
+        return CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var centroId = CentroId;
+        _cargando = true;
+        _error = false;
+        _visitas = [];
+        try
+        {
+            var visitas = await Mediator.Send(new ObtenerVisitasAnterioresDeCentroQuery(centroId));
+            if (CentroId == centroId) _visitas = visitas;
+        }
+        catch (Exception)
+        {
+            if (CentroId == centroId) _error = true;
+        }
+        finally
+        {
+            if (CentroId == centroId) _cargando = false;
+        }
+    }
+}

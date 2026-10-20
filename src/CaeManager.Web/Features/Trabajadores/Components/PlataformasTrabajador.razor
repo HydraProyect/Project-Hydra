@@ -1,0 +1,48 @@
+@using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Trabajadores.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosTrabajadores> Textos
+
+<div class="plataformas-trabajador">
+    <div class="plataformas-filtros">
+        <p>@Textos["PlataformasDescripcion"]</p>
+        <div role="group" aria-label="@Textos["PestanaPlataformas"]">
+            <button type="button" aria-pressed="@_soloIncidencias" @onclick="() => _soloIncidencias = true">@Textos["PlataformasSoloIncidencias", NumeroIncidencias]</button>
+            <button type="button" aria-pressed="@(!_soloIncidencias)" @onclick="() => _soloIncidencias = false">@Textos["PlataformasTodo", Filas.Count]</button>
+        </div>
+    </div>
+    @if (!Visibles.Any())
+    {
+        <EstadoVacio Titulo="@Textos["PlataformasSinResultados"]" Descripcion="@Textos["PlataformasSinResultadosDescripcion"]" />
+    }
+    @foreach (var grupo in Visibles.GroupBy(f => (f.CentroId, f.Centro, f.ClienteEmpresarial, f.Plataforma)))
+    {
+        <section class="plataformas-grupo">
+            <header>
+                <div><span>@grupo.Key.ClienteEmpresarial ›</span><strong>@grupo.Key.Centro</strong><span>@Textos["PlataformasNombre", grupo.Key.Plataforma]</span></div>
+                <Boton Variante="VarianteBoton.Secundario" Href="@($"/centros/{grupo.Key.CentroId}")">@Textos["PlataformasIrCentro"]</Boton>
+            </header>
+            @foreach (var fila in grupo)
+            {
+                <div class="plataformas-fila" data-incidencia="@EsIncidencia(fila.Estado).ToString().ToLowerInvariant()">
+                    <span>@fila.Documento</span>
+                    <Badge Tono="@(fila.Estado == EstadoAcreditacion.Aceptada ? TonoBadge.Exito : fila.Estado == EstadoAcreditacion.Subida ? TonoBadge.Advertencia : TonoBadge.Peligro)">@Textos[$"PlataformasEstado{fila.Estado}"]</Badge>
+                    <span>—</span>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<CentroDocumentacionTrabajadorDto> Centros { get; set; } = [];
+    private bool _soloIncidencias = true;
+    private int NumeroIncidencias => Filas.Count(f => EsIncidencia(f.Estado));
+    private sealed record Fila(Guid CentroId, string Centro, string ClienteEmpresarial, string Plataforma, string Documento, EstadoAcreditacion Estado);
+    private List<Fila> Filas => Centros.SelectMany(c => c.Documentos.SelectMany(d =>
+        (d.AcreditacionesEnElCentro ?? []).Where(a => a.Estado != EstadoAcreditacion.NoRequerida)
+        .Select(a => new Fila(c.CentroId, c.CentroNombre, c.ClienteRazonSocial, a.NombrePlataforma, d.TipoDocumentoNombre, a.Estado)))).ToList();
+    private IEnumerable<Fila> Visibles => Filas.Where(f => !_soloIncidencias || EsIncidencia(f.Estado));
+    private static bool EsIncidencia(EstadoAcreditacion estado) => estado is not EstadoAcreditacion.Aceptada and not EstadoAcreditacion.NoRequerida;
+}
