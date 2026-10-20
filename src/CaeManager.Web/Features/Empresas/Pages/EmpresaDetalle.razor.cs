@@ -53,8 +53,10 @@ namespace CaeManager.Web.Features.Empresas.Pages;
 public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     internal const string PestanaTrabajadores = "trabajadores";
+    internal const string PestanaVigencia = "vigencia";
     internal const string PestanaClientes = "clientes";
     internal const string PestanaDocumentacion = "documentacion";
+    internal const string PestanaPlataformas = "plataformas";
     internal const string PestanaAgenda = "agenda";
     internal const string PestanaFicha = "ficha";
     internal const string PestanaHistorial = "historial";
@@ -62,7 +64,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     internal const int TamanoPagina = 20;
 
     private static readonly string[] PestanasValidas =
-        [PestanaTrabajadores, PestanaClientes, PestanaDocumentacion, PestanaAgenda, PestanaFicha, PestanaHistorial];
+        [PestanaTrabajadores, PestanaVigencia, PestanaClientes, PestanaDocumentacion, PestanaPlataformas, PestanaAgenda, PestanaFicha, PestanaHistorial];
 
     [Parameter] public Guid EmpresaId { get; set; }
 
@@ -982,11 +984,13 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         {
             Contador = _recuentos is { } r ? new ContadorPestana(r.Total, Textos["GlosaTrabajadores"]) : null
         },
+        new(PestanaVigencia, Textos["PestanaVigencia"]),
         new(PestanaClientes, Textos["PestanaClientes"])
         {
             Contador = _clientes is { Count: > 0 } clientes ? new ContadorPestana(clientes.Count, Textos["GlosaClientes"]) : null
         },
         new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
+        new(PestanaPlataformas, Textos["PestanaPlataformas"]),
         new(PestanaAgenda, Textos["PestanaAgenda"]),
         .. HayCajasDeFicha ? new[] { new PestanaDefinicion(PestanaFicha, Textos["PestanaFicha"]) } : [],
         new(PestanaHistorial, Textos["PestanaHistorial"])

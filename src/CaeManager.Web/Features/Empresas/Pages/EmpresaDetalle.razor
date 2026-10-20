@@ -108,6 +108,12 @@
                 <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestana" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="@Textos["EtiquetaGrupoPestanas"]" Pagina360="true">
                     @switch (_pestana)
                     {
+                        case PestanaVigencia:
+                            <PestanaVigenciaEmpresa EmpresaId="_detalle.Id" />
+                            break;
+                        case PestanaPlataformas:
+                            <PestanaPlataformasEmpresa EmpresaId="_detalle.Id" />
+                            break;
                         case PestanaClientes:
                             @PestanaDeClientes
                             break;

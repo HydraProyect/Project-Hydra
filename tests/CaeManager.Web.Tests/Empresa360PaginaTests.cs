@@ -1,4 +1,4 @@
-using CaeManager.Web.Components.Layout;
+﻿using CaeManager.Web.Components.Layout;
 using AngleSharp.Dom;
 using Bunit.TestDoubles;
 using Bunit;
@@ -55,6 +55,8 @@ public partial class Empresa360PaginaTests : BunitContext
         ComponentFactories.AddStub<PestanaAgendaContactos>();
         ComponentFactories.AddStub<PestanaSelloEmpresa>();
         ComponentFactories.AddStub<PestanaHistorial>();
+        ComponentFactories.AddStub<PestanaVigenciaEmpresa>();
+        ComponentFactories.AddStub<PestanaPlataformasEmpresa>();
     }
 
     private sealed class MediatorFalso : IMediator
@@ -544,7 +546,7 @@ public partial class Empresa360PaginaTests : BunitContext
         var cut = Renderizar();
 
         cut.FindAll("[role=tab]").Select(t => t.ChildNodes.OfType<IText>().First(n => !string.IsNullOrWhiteSpace(n.Data)).Data.Trim())
-            .Should().Equal(["Trabajadores", "Clientes", "Documentación", "Agenda", "Ficha", "Historial"]);
+            .Should().Equal(["Trabajadores", "Vigencia", "Clientes", "Documentación", "Plataformas", "Agenda", "Ficha", "Historial"]);
         Pestana(cut, "Trabajadores").GetAttribute("aria-selected").Should().Be("true");
         Pestana(cut, "Trabajadores").TextContent.Should().Contain("25");
         Pestana(cut, "Clientes").TextContent.Should().Contain("2");
@@ -570,6 +572,8 @@ public partial class Empresa360PaginaTests : BunitContext
     [InlineData("documentacion")]
     [InlineData("agenda")]
     [InlineData("historial")]
+    [InlineData("vigencia")]
+    [InlineData("plataformas")]
     public void La_pestana_de_la_url_monta_su_componente_con_la_empresa(string pestana)
     {
         Registrar(Empresa());
@@ -580,6 +584,8 @@ public partial class Empresa360PaginaTests : BunitContext
         {
             "documentacion" => cut.FindComponent<Stub<PestanaDocumentacion>>().Instance.Parameters.Get(x => x.PropietarioId),
             "agenda" => cut.FindComponent<Stub<PestanaAgendaContactos>>().Instance.Parameters.Get(x => x.PropietarioId),
+            "vigencia" => cut.FindComponent<Stub<PestanaVigenciaEmpresa>>().Instance.Parameters.Get(x => x.EmpresaId),
+            "plataformas" => cut.FindComponent<Stub<PestanaPlataformasEmpresa>>().Instance.Parameters.Get(x => x.EmpresaId),
             _ => cut.FindComponent<Stub<PestanaHistorial>>().Instance.Parameters.Get(x => x.EntidadId)
         };
         propietario.Should().Be(EmpresaId);
