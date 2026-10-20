@@ -238,7 +238,7 @@ public class ExtranjerosDelMesMultiTenantTests : IAsyncLifetime
         _dbContext.Centros.Add(centro);
         _dbContext.Trabajadores.Add(ana);
         _dbContext.Visitas.Add(visita);
-        _dbContext.VisitasTrabajadores.Add(new VisitaTrabajador(visita.Id, ana.Id, _marta, _asignadaEnUtc));
+        _dbContext.VisitasTrabajadores.Add(new VisitaTrabajador(visita.Id, ana, _marta, _asignadaEnUtc));
         await _dbContext.SaveChangesAsync();
     }
 
@@ -269,15 +269,15 @@ public class ExtranjerosDelMesMultiTenantTests : IAsyncLifetime
         _dbContext.Visitas.AddRange(enA, enB, cancelada, deOtroMes);
         await _dbContext.SaveChangesAsync();
 
-        var olegEnA = new VisitaTrabajador(enA.Id, oleg.Id);
+        var olegEnA = new VisitaTrabajador(enA.Id, oleg);
         _dbContext.VisitasTrabajadores.AddRange(
-            new VisitaTrabajador(enA.Id, amina.Id, _marta, _asignadaEnUtc),
-            new VisitaTrabajador(enB.Id, amina.Id, _marta),
-            new VisitaTrabajador(cancelada.Id, amina.Id, _marta),
-            new VisitaTrabajador(deOtroMes.Id, amina.Id, _marta),
-            new VisitaTrabajador(enA.Id, nadia.Id, _marta),
-            new VisitaTrabajador(enB.Id, yusuf.Id, _marta),
-            new VisitaTrabajador(enB.Id, pierre.Id, _marta),
+            new VisitaTrabajador(enA.Id, amina, _marta, _asignadaEnUtc),
+            new VisitaTrabajador(enB.Id, amina, _marta),
+            new VisitaTrabajador(cancelada.Id, amina, _marta),
+            new VisitaTrabajador(deOtroMes.Id, amina, _marta),
+            new VisitaTrabajador(enA.Id, nadia, _marta),
+            new VisitaTrabajador(enB.Id, yusuf, _marta),
+            new VisitaTrabajador(enB.Id, pierre, _marta),
             olegEnA);
         cancelada.Cancelar(DateTime.UtcNow, "El Cliente la anula");
         await _dbContext.SaveChangesAsync();

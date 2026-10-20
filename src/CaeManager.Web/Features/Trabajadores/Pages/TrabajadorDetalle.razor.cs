@@ -98,6 +98,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
 
     private bool _editorFichaVisible;
+    private bool _corregirDocumentoVisible;
 
     /// <summary>
     /// El número de afiliación se guarda solo con dígitos; se presenta como en la maqueta
@@ -1018,6 +1019,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     private void CerrarModalesPendientes()
     {
         _editorFichaVisible = false;
+        _corregirDocumentoVisible = false;
         _crearGestionVisible = false;
         _tipoDocumentoParaGestion = string.Empty;
         _errorCrearGestion = null;

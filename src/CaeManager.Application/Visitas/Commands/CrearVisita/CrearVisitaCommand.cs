@@ -86,12 +86,12 @@ public class CrearVisitaCommandHandler(
             return CentroNoEncontrado();
 
         var trabajadorIds = request.TrabajadorIds.Distinct().ToList();
-        var encontrados = await trabajadoresContext.Trabajadores
+        // Se cargan enteros: la asignación guarda su foto (VisitaTrabajador.EsExtranjeroCobrable).
+        var trabajadores = await trabajadoresContext.Trabajadores
             .Where(t => trabajadorIds.Contains(t.Id))
-            .Select(t => t.Id)
-            .CountAsync(cancellationToken);
+            .ToDictionaryAsync(t => t.Id, cancellationToken);
 
-        if (encontrados != trabajadorIds.Count)
+        if (trabajadores.Count != trabajadorIds.Count)
             return Result.Fallo<Guid>(Error.Crear("Visita.TrabajadorNoEncontrado", "Alguno de los trabajadores seleccionados no existe."));
 
         // Asignación de Cartera de la sugerencia: solo cuenta si quien mira alcanza la Conversación
@@ -121,7 +121,7 @@ public class CrearVisitaCommandHandler(
 
         var gestionadoPor = await GestorDeLaAsignacion.ActorRealAsync(actorAuditoria);
         foreach (var trabajadorId in trabajadorIds)
-            visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, trabajadorId, gestionadoPor));
+            visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, trabajadores[trabajadorId], gestionadoPor));
 
         Guid? conversacionParaPaquete = null;
         if (sugerencia is not null)

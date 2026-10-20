@@ -4,19 +4,25 @@ namespace CaeManager.Domain.Trabajadores;
 
 /// <summary>
 /// Quién cuenta como «Trabajador extranjero (cobrable)» en la exportación mensual del Cuadro de dirección, con la que el
-/// Operador CAE externo cobra por cada Trabajador extranjero gestionado (decisión de Chris, 2026-10-20).
+/// Operador CAE externo cobra por cada Trabajador extranjero gestionado (decisiones de Chris, 2026-10-20).
 ///
 /// <para>
-/// <b>Por documento</b> (<see cref="PorDocumento"/>): solo un documento que no es español. No cuentan el DNI ni el NIE
-/// (quien tiene NIE puede ser residente), tampoco el número de soporte de la TIE, que es la tarjeta española del
-/// extranjero residente y comparte formato con el pasaporte español. Cuentan el pasaporte y cualquier otro documento que
-/// no coincide con un formato español de persona física. Un DNI o un NIE con la letra de control mal sigue siendo DNI o
+/// <b>Por documento</b> (<see cref="PorDocumento"/>): el documento es un Pasaporte según
+/// <see cref="CriterioDocumentoIdentidadTrabajador"/>. No cuentan el DNI ni el NIE (quien tiene NIE puede ser residente).
+/// Cuenta cualquier otro valor, incluido el número de soporte de la TIE, que ya no es un tipo de documento del
+/// Trabajador. Un DNI o un NIE guardado con la letra de control mal (dato anterior a la validación) sigue siendo DNI o
 /// NIE: un error de tecleo no convierte a nadie en extranjero. Sin documento (Trabajador anonimizado) no cuenta.
 /// </para>
 ///
 /// <para>
 /// <b>Marca a mano</b> (<see cref="Trabajador.MarcaExtranjeroCobrable"/>): si está fijada, manda sobre el documento
 /// (<see cref="Efectivo"/>), en los dos sentidos (p. ej. un ciudadano de la UE con pasaporte que no se cobra).
+/// </para>
+///
+/// <para>
+/// <b>Histórico congelado</b>: al asignar un Trabajador a una Visita se guarda la foto
+/// (<c>VisitaTrabajador.EsExtranjeroCobrable</c>); la exportación y el conteo del mes leen la foto, no este criterio, así
+/// que corregir el documento o la casilla no cambia meses ya gestionados.
 /// </para>
 ///
 /// <para>
@@ -27,15 +33,8 @@ namespace CaeManager.Domain.Trabajadores;
 /// </summary>
 public static class CriterioExtranjeroCobrable
 {
-    public static bool PorDocumento(string? documento)
-    {
-        var normalizado = ValidadorIdentificacion.Normalizar(documento);
-        if (normalizado is null)
-            return false;
-
-        return ValidadorIdentificacion.Analizar(normalizado).Tipo
-            is not (TipoIdentificacion.Dni or TipoIdentificacion.Nie or TipoIdentificacion.TieSoporte);
-    }
+    public static bool PorDocumento(string? documento) =>
+        CriterioDocumentoIdentidadTrabajador.TipoGuardado(documento) == TipoDocumentoTrabajador.Pasaporte;
 
     /// <summary>La marca a mano si está fijada; si no, el criterio por documento.</summary>
     public static bool Efectivo(bool? marca, string? documento) => marca ?? PorDocumento(documento);

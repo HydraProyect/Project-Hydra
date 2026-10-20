@@ -4,6 +4,7 @@ using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Importacion;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Trabajadores;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 
@@ -373,11 +374,15 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
                 continue;
             }
 
-            if (!DocumentoValido(dni))
+            // Criterio único del documento del Trabajador: los marcadores («PENDIENTE», «SIN DNI»...) se omiten con su motivo.
+            var documento = CriterioDocumentoIdentidadTrabajador.Clasificar(dni);
+            if (!documento.EsValido)
             {
-                omitidos.Add(new ItemImportacionDto(HojaTrabajadores, fila, $"{nombre} {apellidos} ({dni})", "El documento de identidad no es un DNI, NIE o CIF válido."));
+                omitidos.Add(new ItemImportacionDto(HojaTrabajadores, fila, $"{nombre} {apellidos} ({dni})", documento.Error!));
                 continue;
             }
+
+            dni = documento.Normalizado!;
 
             if (!dnisVistos.Add(dni))
             {
@@ -406,12 +411,6 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
         }
 
         return resultado;
-    }
-
-    private static bool DocumentoValido(string dni)
-    {
-        var resultado = ValidadorIdentificacion.Analizar(dni);
-        return resultado.EsValido || resultado.Tipo is not (TipoIdentificacion.Dni or TipoIdentificacion.Nie or TipoIdentificacion.NifEmpresa);
     }
 
     private static string? TextoCelda(IXLCell celda)

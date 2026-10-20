@@ -7,7 +7,7 @@ namespace CaeManager.Domain.Tests.Trabajadores;
 
 /// <summary>
 /// Criterio de «Trabajador extranjero (cobrable)» de la exportación mensual del Cuadro de dirección (decisión de Chris,
-/// 2026-10-20): el NIE no cuenta, solo el pasaporte o un documento no español; la casilla a mano manda.
+/// 2026-10-20): el DNI y el NIE no cuentan; el Pasaporte (cualquier otro documento, también la TIE) sí; la casilla a mano manda.
 /// </summary>
 public class CriterioExtranjeroCobrableTests
 {
@@ -19,8 +19,7 @@ public class CriterioExtranjeroCobrableTests
     [InlineData("X1234567L")]      // NIE
     [InlineData("Y 1234567-X")]    // NIE con separadores
     [InlineData("Z1234567A")]      // NIE con letra mal: sigue siendo NIE
-    [InlineData("ABC123456")]      // número de soporte de la TIE (formato español)
-    public void Un_DNI_un_NIE_o_un_soporte_de_TIE_no_cuentan(string documento) =>
+    public void Un_DNI_o_un_NIE_no_cuentan(string documento) =>
         CriterioExtranjeroCobrable.PorDocumento(documento).Should().BeFalse();
 
     [Theory]
@@ -28,6 +27,8 @@ public class CriterioExtranjeroCobrableTests
     [InlineData("P12345678")]      // pasaporte con prefijo P
     [InlineData("C01X00T47")]      // documento de identidad extranjero alfanumérico
     [InlineData("123456789")]      // pasaporte solo numérico
+    [InlineData("ABC123456")]      // soporte de la TIE: ya no es un tipo del Trabajador, es Pasaporte (2026-10-20)
+    [InlineData("12345678")]       // DNI sin letra: Pasaporte
     public void Un_pasaporte_o_un_documento_no_espanol_cuentan(string documento) =>
         CriterioExtranjeroCobrable.PorDocumento(documento).Should().BeTrue();
 

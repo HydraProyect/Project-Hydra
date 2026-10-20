@@ -124,7 +124,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
             var servicioEjecucion = new EjecucionPurgaService(
                 contextoEjecucion,
                 contextoEjecucion,
-                contextoEjecucion,
+                contextoEjecucion, contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
                 new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(),
@@ -207,7 +207,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
             var servicioEjecucion = new EjecucionPurgaService(
                 contextoEjecucion,
                 contextoEjecucion,
-                contextoEjecucion,
+                contextoEjecucion, contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
                 new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(),
@@ -308,7 +308,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
             var servicioEjecucion = new EjecucionPurgaService(
                 contextoEjecucion,
                 contextoEjecucion,
-                contextoEjecucion,
+                contextoEjecucion, contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
                 new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(),
@@ -376,7 +376,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
         await using (var contextoEjecucion = CrearContexto())
         {
             var servicioEjecucion = new EjecucionPurgaService(
-                contextoEjecucion, contextoEjecucion, contextoEjecucion,
+                contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
                 new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(fallaAlEliminar: true),
@@ -430,7 +430,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
         await using (var contextoEjecucion = CrearContexto())
         {
             var servicioEjecucion = new EjecucionPurgaService(
-                contextoEjecucion, contextoEjecucion, contextoEjecucion,
+                contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
                 new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(),

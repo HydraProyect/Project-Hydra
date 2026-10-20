@@ -26,11 +26,11 @@ public class CuadroDireccionExtranjerosEndpointTests
 {
     private static readonly FilaExtranjeroDelMesDto Amina = new(
         Guid.NewGuid(), "Ibertec", new DateOnly(2026, 9, 1), "Jordi Puig", "Montajes Norte S.L.", null, "Cyberdyne",
-        "Planta Sur", new DateOnly(2026, 9, 3), new DateOnly(2026, 9, 5), "Amina Benali", "AB1234567", "Marta López");
+        "Planta Sur", new DateOnly(2026, 9, 3), new DateOnly(2026, 9, 5), "Amina Benali", "AB1234567", "Marta López", Guid.NewGuid());
 
     private static readonly FilaExtranjeroDelMesDto Oleg = new(
         Guid.NewGuid(), "Ibertec", new DateOnly(2026, 9, 10), null, "Montajes Norte S.L.", "Andamios Este S.L.",
-        "Cyberdyne", "Planta Norte", new DateOnly(2026, 9, 12), new DateOnly(2026, 9, 12), "Oleg Ivanov", "X-99", null);
+        "Cyberdyne", "Planta Norte", new DateOnly(2026, 9, 12), new DateOnly(2026, 9, 12), "Oleg Ivanov", "X-99", null, Guid.NewGuid());
 
     private sealed record Resultado(HttpContext Contexto, MediatorDeExtranjeros Mediador, RegistroFalso Registro);
 
