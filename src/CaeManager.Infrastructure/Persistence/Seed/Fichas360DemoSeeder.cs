@@ -516,7 +516,7 @@ public static class Fichas360DemoSeeder
                 var actuales = _asistentes.Where(a => a.VisitaId == finalizada.Id).ToList();
                 dbContext.VisitasTrabajadores.RemoveRange(actuales.Where(a => !quedan.Contains(a.TrabajadorId)));
                 foreach (var falta in quedan.Except(actuales.Select(a => a.TrabajadorId)))
-                    dbContext.VisitasTrabajadores.Add(new VisitaTrabajador(finalizada.Id, falta));
+                    dbContext.VisitasTrabajadores.Add(AsignacionSembrada.De(finalizada, falta));
             }
 
             NuevaVisita(CatalogoFichas360Demo.VisitaEnCurso);
@@ -527,7 +527,7 @@ public static class Fichas360DemoSeeder
             var visita = new Visita(CentroDe(spec.Centro).Id, En(spec.DesdeEn), En(spec.HastaEn), notas: null, spec.Origen, spec.Entrada);
             dbContext.Visitas.Add(visita);
             foreach (var nombre in spec.Trabajadores)
-                dbContext.VisitasTrabajadores.Add(new VisitaTrabajador(visita.Id, TrabajadorDe(nombre).Id));
+                dbContext.VisitasTrabajadores.Add(AsignacionSembrada.De(visita, TrabajadorDe(nombre).Id));
             return visita;
         }
 

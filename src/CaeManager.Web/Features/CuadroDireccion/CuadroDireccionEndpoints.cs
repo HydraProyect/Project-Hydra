@@ -35,10 +35,18 @@ public static class CuadroDireccionEndpoints
         IStringLocalizer<TextosCuadroDireccion> textos, CancellationToken cancellationToken)
     {
         var extranjeros = await mediator.Send(new ObtenerExtranjerosDelMesQuery(anyo, mes), cancellationToken);
-        if (extranjeros.SinCifras == CuadroDireccionSinCifras.MesNoValido)
+        // Un mes futuro no tiene Visitas que cobrar todavía: se rechaza igual que uno inexistente.
+        if (extranjeros.SinCifras is CuadroDireccionSinCifras.MesNoValido or CuadroDireccionSinCifras.MesFuturo)
             return Results.BadRequest();
 
-        var (libro, filas) = await LibroDeListado.EscribirAsync(
+        // Si a algún Tenant beneficiario no se le alcanza entero, el libro lo dice al final: quien lo use para
+        // facturar tiene que saber que le faltan Empresas gestionadas, no deducirlo de que salgan menos filas.
+        var nota = extranjeros.TenantsSinAlcanceCompleto > 0
+            ? string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                textos["ExtranjerosNotaSinAlcance"].Value, extranjeros.TenantsSinAlcanceCompleto)
+            : null;
+
+        var (libro, filasEscritas) = await LibroDeListado.EscribirAsync(
             textos["ExtranjerosHoja"].Value,
             [
                 textos["ExtranjerosColumnaTenant"].Value, textos["ExtranjerosColumnaFechaSolicitud"].Value,
@@ -48,7 +56,10 @@ public static class CuadroDireccionEndpoints
                 textos["ExtranjerosColumnaFechaSalida"].Value, textos["ExtranjerosColumnaTrabajador"].Value,
                 textos["ExtranjerosColumnaDocumento"].Value, textos["ExtranjerosColumnaGestorCae"].Value,
             ],
-            FilasAsync(extranjeros.Filas), cancellationToken);
+            FilasAsync(extranjeros.Filas, nota), cancellationToken);
+
+        // El rastro cuenta Trabajadores exportados, no la línea en blanco ni la nota.
+        var filas = nota is null ? filasEscritas : filasEscritas - FilasDeNota;
 
         await registroExportacion.RegistrarAsync(
             nameof(Trabajador), filas,
@@ -65,7 +76,11 @@ public static class CuadroDireccionEndpoints
         return Results.File(libro, LibroDeListado.TipoContenido, $"trabajadores-extranjeros-{anyo:0000}-{mes:00}.xlsx");
     }
 
-    private static async IAsyncEnumerable<IReadOnlyList<XLCellValue>> FilasAsync(IReadOnlyList<FilaExtranjeroDelMesDto> filas)
+    /// <summary>Una línea en blanco y la nota de Tenants sin alcance completo.</summary>
+    private const int FilasDeNota = 2;
+
+    private static async IAsyncEnumerable<IReadOnlyList<XLCellValue>> FilasAsync(
+        IReadOnlyList<FilaExtranjeroDelMesDto> filas, string? nota)
     {
         foreach (var fila in filas)
         {
@@ -76,6 +91,12 @@ public static class CuadroDireccionEndpoints
                 fila.Centro, LibroDeListado.Fecha(fila.FechaIngreso), LibroDeListado.Fecha(fila.FechaSalida),
                 fila.NombreYApellidos, fila.Documento ?? string.Empty, fila.GestorCae ?? string.Empty,
             ];
+        }
+
+        if (nota is not null)
+        {
+            yield return [];
+            yield return [nota];
         }
 
         await Task.CompletedTask;

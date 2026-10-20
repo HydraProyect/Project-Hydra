@@ -927,4 +927,7 @@
   <data name="ExtranjerosColumnaGestorCae" xml:space="preserve">
     <value>Gestor CAE</value>
   </data>
+  <data name="ExtranjerosNotaSinAlcance" xml:space="preserve">
+    <value>Falten {0} empreses gestionades sense abast complet: els seus treballadors estrangers no són en aquesta exportació.</value>
+  </data>
 </root>
