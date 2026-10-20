@@ -91,8 +91,12 @@ public class CaeManagerDbContext(
         CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext,
         CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext,
         IDesenganchadorDeEntidadesRastreadas,
-        IDescarteCambiosPendientes, CaeManager.Application.Dashboard.ICierresCuadroDireccion
+        IDescarteCambiosPendientes, CaeManager.Application.Dashboard.ICierresCuadroDireccion,
+        CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext
 {
+    public DbSet<CaeManager.Domain.Dashboard.TarifaOperadorCae> TarifasOperadorCae => Set<CaeManager.Domain.Dashboard.TarifaOperadorCae>();
+    IQueryable<CaeManager.Domain.Dashboard.TarifaOperadorCae> CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext.TarifasOperadorCae => TarifasOperadorCae;
+    void CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext.Agregar(CaeManager.Domain.Dashboard.TarifaOperadorCae tarifa) => TarifasOperadorCae.Add(tarifa);
     public DbSet<CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario> CierresMensualesTenantBeneficiario => Set<CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario>();
     IQueryable<CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario> CaeManager.Application.Dashboard.ICierresCuadroDireccion.CierresMensuales => CierresMensualesTenantBeneficiario;
     void CaeManager.Application.Dashboard.ICierresCuadroDireccion.Agregar(CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario cierre) => CierresMensualesTenantBeneficiario.Add(cierre);
