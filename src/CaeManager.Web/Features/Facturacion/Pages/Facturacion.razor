@@ -1,384 +1,215 @@
 @page "/facturacion"
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
-@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}")]
-@using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
-@using CaeManager.Application.Facturacion.Queries.ObtenerTarifasCliente
-@using CaeManager.Application.Facturacion.Queries.ObtenerResumenFacturacion
-@using CaeManager.Domain.Facturacion
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}")]
+@using System.Globalization
+@using CaeManager.Domain.Dashboard
+@using CaeManager.Web.Features.Facturacion.Recursos
+@using Microsoft.Extensions.Localization
 
 <LimiteDeErrores Pagina="this">
-<PageTitle>Facturación — @Marca.Nombre</PageTitle>
+<PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
-    @* Plano comercial del tenant, no de TALVEG: lo que aquí se tarifica es lo
-       que la organización dueña de estos datos factura a sus clientes
-       empresariales por el servicio CAE. Los siete ConceptoFacturable son
-       consumo de ese servicio; ninguno es la suscripción a la plataforma, que
-       vive en Estado comercial (Pagador TALVEG, Producto Contratado). *@
-    <CabeceraPagina Titulo="Facturación y costes">
-        <Descripcion>
-            Define las tarifas pactadas con cada Cliente para estimar lo que le facturas cada mes
-            por el servicio CAE. No incluye lo que se paga a TALVEG por usar la plataforma.
-        </Descripcion>
-    </CabeceraPagina>
+@*
+    «Facturación» contra su maqueta («Facturacion TALVEG.dc.html», assets/facturacion-operador.js): la cuota que el Operador
+    CAE externo cobra a cada Empresa gestionada. Los números son los del Cuadro de dirección (ver FacturacionOperadorModelo).
+    Lo que cada Empresa gestionada cobra a sus Clientes empresariales no se usa de momento y sale como la pestaña
+    «Próximamente» de la maqueta; FacturacionPorClienteEmpresarial se conserva sin ruta.
+*@
+<div class="contenedor-pagina fct">
+    <div class="fct-cabecera">
+        <CabeceraPagina Kicker="@Textos["Kicker"]" Titulo="@Textos["TituloPagina"]">
+            <Descripcion>@Textos["Descripcion"]</Descripcion>
+        </CabeceraPagina>
+        <div class="fct-meses" role="group" aria-label="@Textos["EtiquetaMes"]">
+            @foreach (var chip in Meses())
+            {
+                var elegido = chip.Anyo == _anyo && chip.Mes == _mes;
+                <button type="button" class="fct-mes" aria-pressed="@(elegido ? "true" : "false")" disabled="@(chip.Futuro || _cargando)"
+                        title="@chip.Titulo" @onclick="() => ElegirMesAsync(chip.Anyo, chip.Mes)">
+                    <span class="fct-mes-corto">@chip.Corto</span>
+                    <span class="fct-mes-marca">@chip.Marca</span>
+                </button>
+            }
+        </div>
+    </div>
 
-    @* Eliminar una tarifa iba directo del enlace al comando, con un solo clic.
-       Ahora pasa por la misma confirmación que el resto de acciones destructivas. *@
-    <DialogoConfirmacion
-        Visible="_confirmarEliminarVisible"
-        VisibleChanged="v => _confirmarEliminarVisible = v"
-        Titulo="@($"¿Eliminar la tarifa de «{_tarifaAEliminar?.ConceptoNombre}»?")"
-        Mensaje="Se retirará de las tarifas configuradas."
-        EnProgreso="_eliminando"
-        OnConfirmar="ConfirmarEliminarAsync" />
+    <div class="fct-pestanas" role="tablist" aria-label="@Textos["EtiquetaVista"]">
+        <button type="button" role="tab" class="fct-pestana" aria-selected="true">@Textos["PestanaCuota"]</button>
+        <button type="button" role="tab" class="fct-pestana fct-pestana-futura" aria-selected="false" disabled title="@Textos["PestanaPorClienteAyuda"]">
+            @Textos["PestanaPorCliente"]
+            <span class="fct-insignia">@Textos["Proximamente"]</span>
+        </button>
+    </div>
 
-    @if (_errorCarga)
+    @if (_sinAcceso)
     {
-        <EstadoVacio NombreIcono="error-circulo" Titulo="No pudimos cargar los datos" Descripcion="Intenta nuevamente en unos segundos.">
-            <Accion><Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton></Accion>
+        <EstadoVacio NombreIcono="candado" Titulo="@Textos["SinAccesoCifrasTitulo"]" Descripcion="@Textos["SinAccesoCifrasDescripcion"]" />
+    }
+    else if (_error)
+    {
+        <EstadoVacio NombreIcono="error-circulo" Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]">
+            <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["Reintentar"]</Boton></Accion>
         </EstadoVacio>
     }
-    else if (_cargando)
+    else if (_cargando || _modelo is null)
     {
-        <EstadoCargando Filas="3" />
-    }
-    else if (_clientes.Count == 0)
-    {
-        @* El selector está acotado al alcance del usuario: la pantalla sabe que
-           la lista vino vacía, no por qué. No afirma que no existan clientes. *@
-        <EstadoVacio NombreIcono="clientes" Titulo="No hay Clientes disponibles"
-                     Descripcion="Cuando haya Clientes que puedas gestionar, podrás configurar aquí sus tarifas." />
+        <EstadoCargando Filas="4" />
     }
     else
     {
-        <div class="franja-cliente">
-            <div class="bloque-selector-cliente">
-                <label for="sel-cliente" class="etiqueta-facturacion">Cliente</label>
-                <CampoSelectAvanzado Id="sel-cliente" Compacto="true" Opciones="OpcionesClientes"
-                                     Valor="@_clienteSeleccionadoId.ToString()" ValorChanged="CambiarClienteDesdeSelectorAsync" />
-            </div>
-
-            @if (_clienteSeleccionadoId != Guid.Empty)
+        var estado = EstadoDelMes;
+        <div class="fct-estado">
+            <span class="fct-pastilla" data-estado="@estado.Clave">@estado.Texto</span>
+            <span class="fct-estado-detalle">@estado.Detalle</span>
+            @if (_modelo.TenantsSinAlcanceCompleto > 0)
             {
-                <div class="dato-cliente dato-estimado">
-                    <span class="dato-cliente-etiqueta">@EtiquetaEstimado</span>
-                    <span class="dato-cliente-valor">@TextoEstimado</span>
-                    <span class="dato-cliente-pista">@PistaEstimado</span>
-                </div>
-                <div class="dato-cliente dato-conceptos">
-                    <span class="dato-cliente-etiqueta">Conceptos tarificados</span>
-                    <span class="dato-cliente-valor">@TextoConceptosTarificados</span>
-                </div>
+                <span class="fct-alcance" title="@Textos["AlcanceParcialAyuda"]">· @AlcanceParcial</span>
             }
+            <span class="fct-exportar">
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Href="@RutaExcel" download>@Textos["ExportarExcel"]</Boton>
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Href="@RutaExtranjeros" Deshabilitado="@(ExtranjerosDelMes == 0)"
+                       title="@TituloExtranjeros" download>@Textos["ExportarExtranjeros"]</Boton>
+            </span>
         </div>
 
-        @if (_clienteSeleccionadoId == Guid.Empty)
+        @if (_modelo.Empresas.Count == 0)
         {
-            @* Antes, sin cliente elegido no se pintaba nada bajo el selector: no
-               se distinguía «aún no has elegido» de «no hay resultados». *@
-            <EstadoVacio NombreIcono="clientes" Titulo="Elige un Cliente para empezar"
-                         Descripcion="Las tarifas y el resumen mensual se configuran por Cliente. Sin ninguno elegido no hay nada que mostrar." />
+            <EstadoVacio NombreIcono="empresas" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]" />
         }
         else
         {
-            @* El ámbito del Cliente elegido: cambiarlo también descarta el alta y la edición de tarifa. *@
-            <CascadingValue Value="_ambitoCliente" IsFixed="true">
-            <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana"
-                      EtiquetaGrupo="Secciones de facturación">
-                @* Dentro de Pestanas a propósito: cambiar de pestaña cierra el alta y la
-                   edición de tarifa (CambiarPestana), así que lo escrito se pierde también
-                   ahí y el cambio de pestaña pregunta con este mismo aviso. *@
-                <AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarFormulariosDescartando" />
-                @if (_pestanaActiva == PestanaTarifas)
-                {
-                    <section class="seccion-facturacion">
-                        @if (_errorTarifas)
+            var empresa = Seleccionada ?? _modelo.Empresas[0];
+            <div class="fct-rejilla">
+                <section class="fct-tarjeta fct-lista-tarjeta">
+                    <div class="fct-lista-cabecera">
+                        <span>@Textos["ColumnaEmpresa"]</span>
+                        <span>@Textos["ColumnaCuota", NombreMes(_anyo, _mes)]</span>
+                    </div>
+                    <div role="listbox" aria-label="@Textos["ListaEmpresas"]">
+                        @foreach (var fila in _modelo.Empresas)
                         {
-                            <p class="aviso-error">No pudimos cargar las tarifas. <button type="button" class="enlace-accion" @onclick="CargarTarifasAsync">Reintentar</button></p>
+                            var tenantId = fila.TenantId;
+                            <button type="button" role="option" class="fct-fila" aria-selected="@(fila.TenantId == empresa.TenantId ? "true" : "false")"
+                                    @onclick="() => ElegirEmpresa(tenantId)">
+                                <span class="fct-fila-texto">
+                                    <b class="fct-fila-nombre">@fila.Nombre</b>
+                                    <span class="fct-fila-sub">@SubEmpresa(fila)</span>
+                                </span>
+                                <span class="@ClaseCuota(fila)">@TextoCuota(fila)</span>
+                            </button>
                         }
-                        else if (_cargandoTarifas)
+                        @if (!_modelo.ImportesOcultos)
                         {
-                            <EstadoCargando Filas="2" />
+                            <div class="fct-total"><b>@Textos["TotalMes"]</b><b>@TextoTotal()</b></div>
                         }
-                        else
-                        {
-                            @if (_tarifas.Count == 0)
-                            {
-                                <EstadoVacio Titulo="Sin tarifas configuradas"
-                                             Descripcion="Añade las tarifas pactadas con este Cliente para calcular el resumen de facturación." />
-                            }
-                            else
-                            {
-                                @* El precio se imprime una sola vez con su moneda en
-                                   la columna de al lado: antes la celda del precio ya
-                                   decía «3,50 EUR» y la columna Moneda repetía «EUR». *@
-                                <div class="tabla-desplazable">
-                                    <table class="tabla-datos tabla-facturacion">
-                                        <thead>
-                                            <tr>
-                                                <th>Concepto</th>
-                                                <th class="col-numero">Precio unitario</th>
-                                                <th class="col-moneda">Moneda</th>
-                                                <th class="col-acciones">Acciones</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            @foreach (var tarifa in _tarifas)
-                                            {
-                                                @if (_tarifaEditandoId == tarifa.Id)
-                                                {
-                                                    <tr class="fila-edicion">
-                                                        <td>
-                                                            <span class="concepto-nombre">@tarifa.ConceptoNombre</span>
-                                                            @if (_editError is not null)
-                                                            {
-                                                                <span class="mensaje-error-campo" role="alert">@_editError</span>
-                                                            }
-                                                        </td>
-                                                        <td class="col-numero">
-                                                            <input type="number" class="control-facturacion control-precio" aria-label="Precio unitario"
-                                                                   @bind="_editPrecio" min="0" step="0.01" />
-                                                            @if (ErrorEdicion("PrecioUnitario") is { } errPrecio)
-                                                            {
-                                                                <span class="mensaje-error-campo" role="alert">@errPrecio</span>
-                                                            }
-                                                        </td>
-                                                        <td class="col-moneda">
-                                                            <input type="text" class="control-facturacion control-moneda" aria-label="Moneda (ISO)"
-                                                                   @bind="_editMoneda" maxlength="3" placeholder="EUR" />
-                                                            @if (ErrorEdicion("MonedaIso") is { } errMoneda)
-                                                            {
-                                                                <span class="mensaje-error-campo" role="alert">@errMoneda</span>
-                                                            }
-                                                        </td>
-                                                        <td class="col-acciones">
-                                                            <span class="acciones-fila">
-                                                                <Boton Variante="VarianteBoton.Primario" OnClick="GuardarEdicionAsync" Tamano="TamanoBoton.Pequeno" Cargando="_guardando">Guardar</Boton>
-                                                                <Boton OnClick="CancelarEdicion" Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario">Cancelar</Boton>
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                }
-                                                else
-                                                {
-                                                    <tr>
-                                                        <td>
-                                                            <span class="concepto-nombre">@tarifa.ConceptoNombre</span>
-                                                            <span class="concepto-unidad">@UnidadConcepto(tarifa.Concepto)</span>
-                                                        </td>
-                                                        <td class="col-numero cifra">@tarifa.PrecioUnitario.ToString("N2")</td>
-                                                        <td class="col-moneda texto-atenuado">@tarifa.MonedaIso</td>
-                                                        <td class="col-acciones">
-                                                            <span class="acciones-fila">
-                                                                <button type="button" class="enlace-accion" @onclick="() => IniciarEdicionAsync(tarifa)">Editar</button>
-                                                                <button type="button" class="enlace-accion enlace-peligro" @onclick="() => AbrirConfirmarEliminar(tarifa)">Eliminar</button>
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                }
-                                            }
-                                        </tbody>
-                                    </table>
-                                </div>
-                            }
+                    </div>
+                </section>
 
-                            @if (_mostrarFormularioNueva)
-                            {
-                                <Tarjeta Titulo="Nueva tarifa">
-                                    @if (_nuevaError is not null)
-                                    {
-                                        <p class="aviso-error">@_nuevaError</p>
-                                    }
-                                    <div class="rejilla-formulario">
-                                        <div class="campo-concepto">
-                                            <CampoSelect Etiqueta="Concepto" Valor="@_nuevaConcepto.ToString()" ValorChanged="CambiarConceptoNueva">
-                                                @foreach (var concepto in _conceptosDisponibles)
-                                                {
-                                                    <option value="@concepto">@NombreConcepto(concepto)</option>
-                                                }
-                                            </CampoSelect>
-                                        </div>
-                                        <div class="campo-formulario">
-                                            <label for="nueva-precio" class="etiqueta-facturacion">Precio unitario</label>
-                                            <input id="nueva-precio" type="number" class="control-facturacion" @bind="_nuevaPrecio" min="0" step="0.01" />
-                                            @if (_nuevaErrores.TryGetValue("PrecioUnitario", out var errNuevoPrecio))
-                                            {
-                                                <span class="mensaje-error-campo" role="alert">@errNuevoPrecio</span>
-                                            }
-                                        </div>
-                                        <div class="campo-formulario">
-                                            <label for="nueva-moneda" class="etiqueta-facturacion">Moneda (ISO)</label>
-                                            <input id="nueva-moneda" type="text" class="control-facturacion" @bind="_nuevaMoneda" maxlength="3" placeholder="EUR" />
-                                            @if (_nuevaErrores.TryGetValue("MonedaIso", out var errNuevaMoneda))
-                                            {
-                                                <span class="mensaje-error-campo" role="alert">@errNuevaMoneda</span>
-                                            }
-                                        </div>
-                                    </div>
-                                    <div class="acciones-formulario">
-                                        <Boton Variante="VarianteBoton.Primario" OnClick="CrearTarifaAsync" Cargando="_guardando">Guardar tarifa</Boton>
-                                        <Boton OnClick="() => _mostrarFormularioNueva = false" Variante="VarianteBoton.Secundario">Cancelar</Boton>
-                                    </div>
-                                </Tarjeta>
-                            }
-                            else if (_conceptosDisponibles.Count > 0)
-                            {
-                                <div class="acciones-seccion">
-                                    <Boton OnClick="AbrirFormularioNueva" Variante="VarianteBoton.Secundario">
-                                        + Añadir tarifa
-                                    </Boton>
-                                </div>
-                            }
-                            else
-                            {
-                                @* Antes el botón desaparecía sin explicar por qué:
-                                   una tarifa por concepto y cliente, y no quedan
-                                   conceptos libres. *@
-                                <p class="nota-facturacion nota-conceptos-completos">
-                                    Todos los conceptos facturables ya tienen tarifa para este Cliente. Para cambiar un precio, edita su tarifa.
-                                </p>
-                            }
+                <section class="fct-tarjeta fct-detalle">
+                    <div class="fct-detalle-cabecera">
+                        <span class="fct-detalle-titulo">
+                            <h2>@empresa.Nombre</h2>
+                            <span class="fct-detalle-sub">@NombreMes(_anyo, _mes)</span>
+                        </span>
+                        @if (_modelo.PuedeEditarTarifas)
+                        {
+                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirTarifas(empresa)">@Textos["BotonTarifas"]</Boton>
                         }
-                    </section>
-                }
-                else
-                {
-                    <section class="seccion-facturacion">
-                        <div class="filtros-resumen">
-                            <div class="campo-formulario">
-                                <label for="resumen-anyo" class="etiqueta-facturacion">Año</label>
-                                <input id="resumen-anyo" type="number" class="control-facturacion control-anyo" @bind="_anyoResumen" min="2020" max="2099" />
-                            </div>
-                            <div class="campo-mes">
-                                <CampoSelect Etiqueta="Mes" Valor="@_mesResumen.ToString()" ValorChanged="CambiarMesResumen">
-                                    @for (var m = 1; m <= 12; m++)
-                                    {
-                                        var mes = m;
-                                        <option value="@mes">@NombreMes(mes)</option>
-                                    }
-                                </CampoSelect>
-                            </div>
-                            <Boton Variante="VarianteBoton.Primario" OnClick="CargarResumenAsync" Cargando="_cargandoResumen">Calcular</Boton>
+                    </div>
+                    @if (empresa.Congelada && !empresa.ImportesOcultos)
+                    {
+                        <span class="fct-insignia fct-congelada">@Textos["TarifaCongelada"]</span>
+                    }
+                    <div class="fct-conceptos">
+                        <span class="fct-cab">@Textos["CabConcepto"]</span>
+                        <span class="fct-cab fct-der">@Textos["CabUnidades"]</span>
+                        <span class="fct-cab">@Textos["CabTarifa"]</span>
+                        <span class="fct-cab fct-der">@Textos["CabImporte"]</span>
+                        @foreach (var concepto in empresa.Conceptos)
+                        {
+                            <span>@NombreConcepto(concepto.Concepto)</span>
+                            <b class="fct-der">@Unidades(concepto.Unidades)</b>
+                            <span class="@(TarifaActiva(concepto) ? null : "fct-tenue")">@TextoTarifa(empresa, concepto)</span>
+                            <span class="fct-der">@(empresa.ImportesOcultos ? Textos["SinImporte"].Value : TextoImporte(concepto))</span>
+                        }
+                        <b class="fct-pie-cuota">@Textos["FilaCuota"]</b>
+                        <span class="fct-pie-cuota"></span>
+                        <span class="fct-pie-cuota"></span>
+                        <b class="@($"fct-pie-cuota fct-der fct-cuota-total{(empresa.SinTarifa && !empresa.ImportesOcultos ? " fct-cuota-aviso" : null)}")">@TextoCuota(empresa)</b>
+                    </div>
+                    @if (empresa.ImportesOcultos)
+                    {
+                        <div class="fct-aviso fct-aviso-neutro" role="note">@Textos["AvisoImportesOcultos"]</div>
+                    }
+                    else if (empresa.SinTarifa)
+                    {
+                        <div class="fct-aviso" role="note">
+                            <span class="fct-aviso-texto">@Textos["AvisoSinTarifa"]</span>
+                            @if (_modelo.PuedeEditarTarifas)
+                            {
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirTarifas(empresa)">@Textos["FijarTarifa"]</Boton>
+                            }
                         </div>
-
-                        @if (_cargandoResumen)
-                        {
-                            <EstadoCargando Filas="3" />
-                        }
-                        else if (_errorResumen)
-                        {
-                            <p class="aviso-error">No pudimos calcular el resumen. <button type="button" class="enlace-accion" @onclick="CargarResumenAsync">Reintentar</button></p>
-                        }
-                        else if (_resumenConsultado && _resumen is null)
-                        {
-                            @* La consulta devuelve null cuando no encuentra la
-                               empresa: no hay nombre ni tarifas que enseñar. *@
-                            <EstadoVacio Titulo="No encontramos este Cliente"
-                                         Descripcion="Recarga la página para actualizar la lista de Clientes." />
-                        }
-                        else if (_resumen is not null)
-                        {
-                            @if (_resumen.Lineas.Count == 0)
-                            {
-                                <EstadoVacio Titulo="Sin tarifas configuradas"
-                                             Descripcion="Configura las tarifas del Cliente en la pestaña 'Tarifas configuradas'." />
-                            }
-                            else
-                            {
-                                var totales = _resumen.TotalesPorMoneda;
-                                var maximo = _resumen.Lineas.Max(l => l.Subtotal);
-                                <Tarjeta Titulo="@($"Resumen — {_resumen.ClienteNombre} — {NombreMes(_periodoResumen.Mes)} {_periodoResumen.Anyo}")">
-                                    <AccionesHeader>
-                                        <a class="enlace-exportar" href="@UrlExportacion">
-                                            <Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel
-                                        </a>
-                                    </AccionesHeader>
-                                    <ChildContent>
-                                        @* Mismas líneas del resumen, sin consulta nueva.
-                                           Solo con una moneda: comparar barras de euros
-                                           con barras de dólares no dice nada. *@
-                                        @if (totales.Count == 1 && maximo > 0)
-                                        {
-                                            <div class="reparto-importe">
-                                                <span class="reparto-importe-titulo" id="reparto-importe-titulo">Dónde está el importe</span>
-                                                <ul class="reparto-importe-lista" aria-labelledby="reparto-importe-titulo">
-                                                    @foreach (var linea in _resumen.Lineas)
-                                                    {
-                                                        <li class="reparto-importe-fila">
-                                                            <span class="reparto-importe-concepto">@linea.ConceptoNombre</span>
-                                                            <span class="reparto-importe-pista" aria-hidden="true">
-                                                                <span class="reparto-importe-barra" style="width:@AnchoBarra(linea.Subtotal, maximo)"></span>
-                                                            </span>
-                                                            <span class="reparto-importe-valor cifra">@FormatearImporte(linea.Subtotal, linea.MonedaIso)</span>
-                                                        </li>
-                                                    }
-                                                </ul>
-                                            </div>
-                                        }
-
-                                        <div class="tabla-desplazable">
-                                            <table class="tabla-datos tabla-resumen">
-                                                <thead>
-                                                    <tr>
-                                                        <th>Concepto</th>
-                                                        <th class="col-numero">Unidades</th>
-                                                        <th class="col-numero">Precio unitario</th>
-                                                        <th class="col-numero">Subtotal</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    @foreach (var linea in _resumen.Lineas)
-                                                    {
-                                                        <tr>
-                                                            <td>@linea.ConceptoNombre</td>
-                                                            <td class="col-numero cifra">@linea.Unidades.ToString("N0")</td>
-                                                            <td class="col-numero cifra texto-atenuado">@FormatearImporte(linea.PrecioUnitario, linea.MonedaIso)</td>
-                                                            <td class="col-numero cifra subtotal-importe">@FormatearImporte(linea.Subtotal, linea.MonedaIso)</td>
-                                                        </tr>
-                                                    }
-                                                </tbody>
-                                                <tfoot>
-                                                    @if (totales.Count == 1)
-                                                    {
-                                                        <tr class="fila-total">
-                                                            <td colspan="3">Total estimado</td>
-                                                            <td class="col-numero cifra total-importe">@FormatearImporte(totales[0].Total, totales[0].MonedaIso)</td>
-                                                        </tr>
-                                                    }
-                                                    else
-                                                    {
-                                                        @foreach (var total in totales)
-                                                        {
-                                                            <tr class="fila-total">
-                                                                <td colspan="3">Total estimado en @total.MonedaIso</td>
-                                                                <td class="col-numero cifra total-importe">@FormatearImporte(total.Total, total.MonedaIso)</td>
-                                                            </tr>
-                                                        }
-                                                    }
-                                                </tfoot>
-                                            </table>
-                                        </div>
-
-                                        @if (totales.Count > 1)
-                                        {
-                                            <p class="nota-facturacion nota-varias-monedas">
-                                                Las tarifas de este Cliente usan varias monedas: el total se da por moneda, sin convertir.
-                                            </p>
-                                        }
-                                        <p class="nota-facturacion">
-                                            * Importes estimados calculados sobre los datos actuales del período.
-                                            No constituyen factura ni compromiso contractual.
-                                        </p>
-                                    </ChildContent>
-                                </Tarjeta>
-                            }
-                        }
-                    </section>
-                }
-            </Pestanas>
-            </CascadingValue>
+                    }
+                    else if (empresa.SinVigencia)
+                    {
+                        <div class="fct-aviso" role="note"><span class="fct-aviso-texto">@Textos["AvisoSinVigencia"]</span></div>
+                    }
+                    <div class="fct-metricas">
+                        <span>@Textos["Gestiones"] <b>@TextoGestiones(empresa)</b></span>
+                        <span>@Textos["IngresoPorGestion"] <b>@DineroOSinDato(empresa.IngresoPorGestion, empresa)</b></span>
+                        <span>@Textos["CostoPorGestion"] <b>@DineroOSinDato(empresa.CostoPorGestion, empresa)</b></span>
+                        <span>@Textos["CostoPorExtranjero"] <b>@DineroOSinDato(empresa.CostoPorExtranjero, empresa)</b></span>
+                        <span>@Textos["Relacion"] <b>@TextoRelacion(empresa)</b></span>
+                        <a class="fct-enlace-cuadro" href="/direccion">@Textos["VerEnCuadro"]</a>
+                    </div>
+                </section>
+            </div>
         }
     }
+
+    <DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerTitulo", _drawerNombre]"
+                      Subtitulo="@Textos["DrawerSubtitulo"]" HayCambios="() => HayCambiosTarifas" Guardando="_guardando"
+                      MensajeError="@_errorGuardar" OnGuardar="GuardarTarifasAsync" TextoGuardar="@Textos["GuardarTarifas"]"
+                      TextoCancelar="@Textos["CancelarDrawer"]" MotivoGuardarDeshabilitado="@MotivoGuardarDeshabilitado">
+        @if (_drawerSinTarifa)
+        {
+            <div class="fct-aviso" role="note"><span class="fct-aviso-texto">@Textos["DrawerSinTarifa"]</span></div>
+        }
+        <label class="fct-campo fct-campo-moneda">
+            <span class="fct-campo-etiqueta">@Textos["Moneda"]</span>
+            <select class="fct-control" @bind="_moneda">
+                <option value="EUR">@Textos["MonedaEur"]</option>
+                <option value="USD">@Textos["MonedaUsd"]</option>
+            </select>
+        </label>
+        @foreach (var indice in IndicesTarifa)
+        {
+            var nombre = NombreTarifaDrawer(indice);
+            <div class="fct-concepto-drawer" data-activo="@(_activo[indice] ? "true" : "false")">
+                <div class="fct-concepto-cabecera">
+                    <span class="fct-concepto-texto">
+                        <b>@nombre</b>
+                        <span class="fct-ayuda">@AyudaDrawer(indice)</span>
+                    </span>
+                    <label class="fct-interruptor">
+                        @(_activo[indice] ? Textos["SeCobra"].Value : Textos["NoSeCobra"].Value)
+                        <input type="checkbox" role="switch" checked="@_activo[indice]"
+                               aria-label="@(_activo[indice] ? Textos["AriaDejarDeCobrar", nombre.ToLower(CultureInfo.CurrentCulture)].Value : Textos["AriaCobrar", nombre.ToLower(CultureInfo.CurrentCulture)].Value)"
+                               @onchange="e => AlternarActivo(indice, e.Value is true)" />
+                    </label>
+                </div>
+                <label class="fct-precio">
+                    <input type="number" min="0" step="0.5" placeholder="0,00" disabled="@(!_activo[indice])"
+                           value="@(_precio[indice]?.ToString(CultureInfo.InvariantCulture))"
+                           aria-label="@Textos["AriaPrecio", nombre.ToLower(CultureInfo.CurrentCulture)].Value"
+                           @onchange="e => FijarPrecio(indice, e.Value)" />
+                    <span class="fct-precio-unidad">@UnidadPrecio</span>
+                </label>
+            </div>
+        }
+        <span class="fct-ayuda">@Textos["DrawerNota"]</span>
+    </DrawerFormulario>
 </div>
 </LimiteDeErrores>

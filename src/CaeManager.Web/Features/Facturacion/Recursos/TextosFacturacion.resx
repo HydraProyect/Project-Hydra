@@ -1,0 +1,393 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Facturación</value>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Control</value>
+  </data>
+  <data name="Descripcion" xml:space="preserve">
+    <value>Cuota del Operador CAE a cada Empresa gestionada. Son los mismos números que el Cuadro de dirección.</value>
+  </data>
+  <data name="EtiquetaMes" xml:space="preserve">
+    <value>Mes</value>
+  </data>
+  <data name="MarcaFuturo" xml:space="preserve">
+    <value>Futuro</value>
+  </data>
+  <data name="MarcaEnCurso" xml:space="preserve">
+    <value>En curso</value>
+  </data>
+  <data name="MarcaCerrado" xml:space="preserve">
+    <value>Cerrado</value>
+  </data>
+  <data name="TituloMesFuturo" xml:space="preserve">
+    <value>{0}: todavía no hay datos</value>
+  </data>
+  <data name="EtiquetaVista" xml:space="preserve">
+    <value>Vista</value>
+  </data>
+  <data name="PestanaCuota" xml:space="preserve">
+    <value>Cuota del Operador CAE</value>
+  </data>
+  <data name="PestanaPorCliente" xml:space="preserve">
+    <value>Por Cliente empresarial</value>
+  </data>
+  <data name="Proximamente" xml:space="preserve">
+    <value>Próximamente</value>
+  </data>
+  <data name="PestanaPorClienteAyuda" xml:space="preserve">
+    <value>Lo que cada Empresa gestionada factura a sus Clientes empresariales: ese dato todavía no existe en la plataforma</value>
+  </data>
+  <data name="EstadoEnCurso" xml:space="preserve">
+    <value>Mes en curso</value>
+  </data>
+  <data name="EstadoEnCursoDetalle" xml:space="preserve">
+    <value>Cifras parciales hasta hoy, {0}.</value>
+  </data>
+  <data name="EstadoCerrado" xml:space="preserve">
+    <value>Cerrado</value>
+  </data>
+  <data name="EstadoCerradoDetalle" xml:space="preserve">
+    <value>Unidades y tarifas congeladas al cierre.</value>
+  </data>
+  <data name="EstadoSinCerrar" xml:space="preserve">
+    <value>Sin cerrar</value>
+  </data>
+  <data name="EstadoSinCerrarDetalle" xml:space="preserve">
+    <value>El mes terminó y aún no tiene cierre: las cifras son estimadas con los datos de hoy.</value>
+  </data>
+  <data name="AlcanceParcialUna" xml:space="preserve">
+    <value>Falta 1 empresa que no alcanzas por completo</value>
+  </data>
+  <data name="AlcanceParcial" xml:space="preserve">
+    <value>Faltan {0} empresas que no alcanzas por completo</value>
+  </data>
+  <data name="AlcanceParcialAyuda" xml:space="preserve">
+    <value>No entran en las cifras porque tu Asignación de Cartera sobre ellas es parcial.</value>
+  </data>
+  <data name="ExportarExcel" xml:space="preserve">
+    <value>Exportar a Excel</value>
+  </data>
+  <data name="ExportarExtranjeros" xml:space="preserve">
+    <value>Exportar extranjeros del mes</value>
+  </data>
+  <data name="ExtranjerosFilas" xml:space="preserve">
+    <value>{0} filas</value>
+  </data>
+  <data name="ExtranjerosNinguno" xml:space="preserve">
+    <value>Ningún extranjero en {0}</value>
+  </data>
+  <data name="ColumnaEmpresa" xml:space="preserve">
+    <value>Empresa gestionada</value>
+  </data>
+  <data name="ColumnaCuota" xml:space="preserve">
+    <value>Cuota · {0}</value>
+  </data>
+  <data name="ListaEmpresas" xml:space="preserve">
+    <value>Empresas gestionadas</value>
+  </data>
+  <data name="TotalMes" xml:space="preserve">
+    <value>Total del mes</value>
+  </data>
+  <data name="SubEmpresa" xml:space="preserve">
+    <value>{0} extranjeros · {1} Centros nuevos · {2} Obras nuevas</value>
+  </data>
+  <data name="SinTarifa" xml:space="preserve">
+    <value>Sin tarifa</value>
+  </data>
+  <data name="SinDato" xml:space="preserve">
+    <value>Sin dato</value>
+  </data>
+  <data name="NoSeCobra" xml:space="preserve">
+    <value>No se cobra</value>
+  </data>
+  <data name="SinImporte" xml:space="preserve">
+    <value>—</value>
+  </data>
+  <data name="BotonTarifas" xml:space="preserve">
+    <value>Tarifas</value>
+  </data>
+  <data name="TarifaCongelada" xml:space="preserve">
+    <value>Tarifa congelada al cierre</value>
+  </data>
+  <data name="CabConcepto" xml:space="preserve">
+    <value>Concepto</value>
+  </data>
+  <data name="CabUnidades" xml:space="preserve">
+    <value>Unidades</value>
+  </data>
+  <data name="CabTarifa" xml:space="preserve">
+    <value>Tarifa</value>
+  </data>
+  <data name="CabImporte" xml:space="preserve">
+    <value>Importe</value>
+  </data>
+  <data name="FilaCuota" xml:space="preserve">
+    <value>Cuota</value>
+  </data>
+  <data name="ConceptoExtranjeros" xml:space="preserve">
+    <value>Extranjeros gestionados</value>
+  </data>
+  <data name="ConceptoCentros" xml:space="preserve">
+    <value>Centros nuevos</value>
+  </data>
+  <data name="ConceptoObras" xml:space="preserve">
+    <value>Obras nuevas</value>
+  </data>
+  <data name="UnidadExtranjero" xml:space="preserve">
+    <value>extranjero</value>
+  </data>
+  <data name="UnidadCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="UnidadObra" xml:space="preserve">
+    <value>Obra</value>
+  </data>
+  <data name="TarifaPorUnidad" xml:space="preserve">
+    <value>{0} / {1}</value>
+  </data>
+  <data name="AvisoSinTarifa" xml:space="preserve">
+    <value>Sin tarifa: las unidades se cuentan, pero no hay importe.</value>
+  </data>
+  <data name="FijarTarifa" xml:space="preserve">
+    <value>Fijar tarifa</value>
+  </data>
+  <data name="AvisoSinVigencia" xml:space="preserve">
+    <value>Tu organización no tenía una Asignación de Operación vigente sobre esta Empresa en el mes: no se cobra.</value>
+  </data>
+  <data name="AvisoImportesOcultos" xml:space="preserve">
+    <value>Los importes y las tarifas los ven Administración y Dirección CAE.</value>
+  </data>
+  <data name="Gestiones" xml:space="preserve">
+    <value>Gestiones</value>
+  </data>
+  <data name="GestionesDetalle" xml:space="preserve">
+    <value>{0} normales + {1} de extranjero</value>
+  </data>
+  <data name="IngresoPorGestion" xml:space="preserve">
+    <value>Ingreso por gestión</value>
+  </data>
+  <data name="CostoPorGestion" xml:space="preserve">
+    <value>Costo × gestión</value>
+  </data>
+  <data name="CostoPorExtranjero" xml:space="preserve">
+    <value>Costo × extranjero</value>
+  </data>
+  <data name="Relacion" xml:space="preserve">
+    <value>Relación</value>
+  </data>
+  <data name="VerEnCuadro" xml:space="preserve">
+    <value>Ver en el Cuadro de dirección</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar la facturación</value>
+  </data>
+  <data name="ErrorCargaDescripcion" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>No hay Empresas gestionadas que enseñar</value>
+  </data>
+  <data name="VacioDescripcion" xml:space="preserve">
+    <value>Cuando tu organización gestione Empresas y tengas acceso completo a sus datos, aparecerán aquí con su cuota.</value>
+  </data>
+  <data name="SinAccesoCifrasTitulo" xml:space="preserve">
+    <value>Tu rol aún no puede leer las cifras del mes</value>
+  </data>
+  <data name="SinAccesoCifrasDescripcion" xml:space="preserve">
+    <value>Las cifras de Facturación las leen Dirección CAE y Coordinación CAE.</value>
+  </data>
+  <data name="DrawerTitulo" xml:space="preserve">
+    <value>Tarifas de {0}</value>
+  </data>
+  <data name="DrawerSubtitulo" xml:space="preserve">
+    <value>Cuota que el Operador CAE cobra por llevar su CAE externa. Solo la ve el Operador CAE.</value>
+  </data>
+  <data name="DrawerSinTarifa" xml:space="preserve">
+    <value>Esta Empresa gestionada no tiene tarifa. Mientras no la tenga, el Cuadro y Facturación muestran «Sin tarifa», nunca 0 €.</value>
+  </data>
+  <data name="Moneda" xml:space="preserve">
+    <value>Moneda</value>
+  </data>
+  <data name="MonedaEur" xml:space="preserve">
+    <value>EUR · euro</value>
+  </data>
+  <data name="MonedaUsd" xml:space="preserve">
+    <value>USD · dólar</value>
+  </data>
+  <data name="NombreTarifaExtranjeros" xml:space="preserve">
+    <value>Trabajador extranjero gestionado</value>
+  </data>
+  <data name="AyudaExtranjeros" xml:space="preserve">
+    <value>Por Trabajador y Visita: un recurrente que va a 3 Centros en el mes cuenta 3. Cuenta el Pasaporte; el NIE no.</value>
+  </data>
+  <data name="AyudaCentros" xml:space="preserve">
+    <value>Centro dado de alta en el mes. El número de Centros nuevos se muestra siempre, se cobre o no.</value>
+  </data>
+  <data name="AyudaObras" xml:space="preserve">
+    <value>Proyecto de tipo Obra. Los Eventos no se cobran.</value>
+  </data>
+  <data name="SeCobra" xml:space="preserve">
+    <value>Se cobra</value>
+  </data>
+  <data name="AriaDejarDeCobrar" xml:space="preserve">
+    <value>Dejar de cobrar {0}</value>
+  </data>
+  <data name="AriaCobrar" xml:space="preserve">
+    <value>Cobrar {0}</value>
+  </data>
+  <data name="AriaPrecio" xml:space="preserve">
+    <value>Precio por {0}</value>
+  </data>
+  <data name="UnidadPrecioEur" xml:space="preserve">
+    <value>€ / unidad</value>
+  </data>
+  <data name="UnidadPrecioUsd" xml:space="preserve">
+    <value>$ / unidad</value>
+  </data>
+  <data name="DrawerNota" xml:space="preserve">
+    <value>Los cambios se aplican desde el mes en curso. Los meses cerrados conservan las unidades y la tarifa que tenían al cerrarse. El Cliente empresarial nuevo no se cobra.</value>
+  </data>
+  <data name="GuardarTarifas" xml:space="preserve">
+    <value>Guardar tarifas</value>
+  </data>
+  <data name="CancelarDrawer" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="MotivoSinCambios" xml:space="preserve">
+    <value>No has cambiado ninguna tarifa.</value>
+  </data>
+  <data name="AvisoTarifasGuardadas" xml:space="preserve">
+    <value>Tarifas guardadas · se aplican desde {0}</value>
+  </data>
+  <data name="ErrorGuardarTarifas" xml:space="preserve">
+    <value>No pudimos guardar las tarifas.</value>
+  </data>
+  <data name="ExcelHoja" xml:space="preserve">
+    <value>Facturación</value>
+  </data>
+  <data name="ExcelColEmpresa" xml:space="preserve">
+    <value>Empresa gestionada</value>
+  </data>
+  <data name="ExcelColMes" xml:space="preserve">
+    <value>Mes</value>
+  </data>
+  <data name="ExcelColEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="ExcelColExtranjeros" xml:space="preserve">
+    <value>Extranjeros</value>
+  </data>
+  <data name="ExcelColImporteExtranjeros" xml:space="preserve">
+    <value>Importe extranjeros</value>
+  </data>
+  <data name="ExcelColCentros" xml:space="preserve">
+    <value>Centros nuevos</value>
+  </data>
+  <data name="ExcelColImporteCentros" xml:space="preserve">
+    <value>Importe Centros</value>
+  </data>
+  <data name="ExcelColObras" xml:space="preserve">
+    <value>Obras nuevas</value>
+  </data>
+  <data name="ExcelColImporteObras" xml:space="preserve">
+    <value>Importe Obras</value>
+  </data>
+  <data name="ExcelColCuota" xml:space="preserve">
+    <value>Cuota</value>
+  </data>
+  <data name="ExcelColMoneda" xml:space="preserve">
+    <value>Moneda</value>
+  </data>
+  <data name="ExcelNotaSinAlcance" xml:space="preserve">
+    <value>Faltan empresas que no alcanzas por completo: {0}. No entran en este libro.</value>
+  </data>
+  <data name="Mes1" xml:space="preserve">
+    <value>Enero</value>
+  </data>
+  <data name="Mes2" xml:space="preserve">
+    <value>Febrero</value>
+  </data>
+  <data name="Mes3" xml:space="preserve">
+    <value>Marzo</value>
+  </data>
+  <data name="Mes4" xml:space="preserve">
+    <value>Abril</value>
+  </data>
+  <data name="Mes5" xml:space="preserve">
+    <value>Mayo</value>
+  </data>
+  <data name="Mes6" xml:space="preserve">
+    <value>Junio</value>
+  </data>
+  <data name="Mes7" xml:space="preserve">
+    <value>Julio</value>
+  </data>
+  <data name="Mes8" xml:space="preserve">
+    <value>Agosto</value>
+  </data>
+  <data name="Mes9" xml:space="preserve">
+    <value>Septiembre</value>
+  </data>
+  <data name="Mes10" xml:space="preserve">
+    <value>Octubre</value>
+  </data>
+  <data name="Mes11" xml:space="preserve">
+    <value>Noviembre</value>
+  </data>
+  <data name="Mes12" xml:space="preserve">
+    <value>Diciembre</value>
+  </data>
+  <data name="MesCorto1" xml:space="preserve">
+    <value>Ene</value>
+  </data>
+  <data name="MesCorto2" xml:space="preserve">
+    <value>Feb</value>
+  </data>
+  <data name="MesCorto3" xml:space="preserve">
+    <value>Mar</value>
+  </data>
+  <data name="MesCorto4" xml:space="preserve">
+    <value>Abr</value>
+  </data>
+  <data name="MesCorto5" xml:space="preserve">
+    <value>May</value>
+  </data>
+  <data name="MesCorto6" xml:space="preserve">
+    <value>Jun</value>
+  </data>
+  <data name="MesCorto7" xml:space="preserve">
+    <value>Jul</value>
+  </data>
+  <data name="MesCorto8" xml:space="preserve">
+    <value>Ago</value>
+  </data>
+  <data name="MesCorto9" xml:space="preserve">
+    <value>Sep</value>
+  </data>
+  <data name="MesCorto10" xml:space="preserve">
+    <value>Oct</value>
+  </data>
+  <data name="MesCorto11" xml:space="preserve">
+    <value>Nov</value>
+  </data>
+  <data name="MesCorto12" xml:space="preserve">
+    <value>Dic</value>
+  </data>
+</root>

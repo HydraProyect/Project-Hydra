@@ -33,7 +33,6 @@ public class PaginasExcluidasDelEncargoAuthorizationHandlerTests
         typeof(Features.Clientes.Pages.ImportarCombinado),
         typeof(Features.Configuracion.Pages.SeleccionarClienteLecturaIa),
         typeof(Features.Documentos.Pages.ImportarDocumentos),
-        typeof(Features.Facturacion.Pages.Facturacion),
         typeof(Features.GestionRoles.Pages.Roles),
         typeof(Features.Importacion.Pages.Importacion),
         typeof(Features.Integraciones.Pages.Conexiones),
