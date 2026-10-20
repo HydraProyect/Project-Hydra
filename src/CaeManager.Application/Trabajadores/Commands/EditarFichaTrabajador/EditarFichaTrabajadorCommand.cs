@@ -106,7 +106,7 @@ public class EditarFichaTrabajadorCommandHandler(ITrabajadorRepository repositor
             && await politicaNotaInterna.PuedeLeerAsync(cancellationToken);
         if (cambiaMarcaExtranjero && !await GestionaElEmpleadorAsync(trabajador, cancellationToken))
             return Result.Fallo(Error.Crear("Trabajador.ExtranjeroCobrableSinGestion",
-                "Solo quien gestiona la empresa de este trabajador puede cambiar si es extranjero cobrable."));
+                "Solo quien gestiona la empresa o la subcontrata de este trabajador puede cambiar si es extranjero cobrable."));
 
         trabajador.ActualizarFicha(request.NumeroAfiliacionSeguridadSocial, request.Puesto,
             request.FechaNacimiento, request.Nacionalidad, request.TipoVinculo, request.FechaAltaEmpresa,

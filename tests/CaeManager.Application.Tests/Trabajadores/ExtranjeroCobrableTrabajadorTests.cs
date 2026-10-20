@@ -69,6 +69,18 @@ public class ExtranjeroCobrableTrabajadorTests
     }
 
     [Fact]
+    public async Task Quien_ni_lee_la_marca_ni_gestiona_guarda_la_ficha_y_la_marca_se_ignora()
+    {
+        var t = Amina();
+        var (handler, _) = Montar(t, PoliticaNotaInternaPruebas.Con("Cliente"), SoloLectura(t));
+
+        (await handler.Handle(Ficha(t, new(false)), CancellationToken.None)).EsExitoso.Should().BeTrue(
+            "una marca que no puede leer se ignora como si viniera null, sin revelarle que existe");
+        t.MarcaExtranjeroCobrable.Should().BeNull();
+        t.Puesto.Should().Be("Electricista");
+    }
+
+    [Fact]
     public async Task Cambiar_la_marca_de_un_Trabajador_de_Subcontrata_exige_gestionar_la_Subcontrata()
     {
         var subcontrata = Guid.NewGuid();

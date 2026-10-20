@@ -928,6 +928,6 @@
     <value>Gestor CAE</value>
   </data>
   <data name="ExtranjerosNotaSinAlcance" xml:space="preserve">
-    <value>Falten {0} empreses gestionades de les quals no veus totes les dades: els seus treballadors estrangers no són en aquesta exportació.</value>
+    <value>Organitzacions gestionades de les quals no veus totes les dades: {0}. Els seus treballadors estrangers no són en aquesta exportació.</value>
   </data>
 </root>
