@@ -250,7 +250,7 @@ public class CarterasVigentesDelDirectorioAcotadasAlTenantTests : IAsyncLifetime
     /// NRE — un fallo ruidoso, no un verde silencioso.
     /// </summary>
     private static DirectorioUsuariosTenant CrearDirectorio(CaeManagerDbContext contexto, Guid tenantId) =>
-        new(null!, null!, new TenantActualAmbiental { TenantId = tenantId }, new PuertaAccesoDatos(), contexto);
+        new(null!, null!, new TenantActualAmbiental { TenantId = tenantId }, new PuertaAccesoDatos(), contexto, null!);
 
     private static ApplicationUser CrearUsuario(Guid id, Guid tenantId, string alias) => new()
     {

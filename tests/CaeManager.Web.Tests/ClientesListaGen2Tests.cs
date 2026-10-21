@@ -529,7 +529,7 @@ public partial class ClientesListaGen2Tests : BunitContext
         return new DirectorioUsuariosTenant(
             userManager,
             conGestores ? new TenantsQueryContextSinDelegaciones() : new TenantsQueryContextQueNadieDebeTocar(),
-            tenantActual, new PuertaAccesoDatos(), identidad);
+            tenantActual, new PuertaAccesoDatos(), identidad, null!);
     }
 
     private SeleccionEmpresaGestionadaDePrueba Seleccion { get; set; } = new();

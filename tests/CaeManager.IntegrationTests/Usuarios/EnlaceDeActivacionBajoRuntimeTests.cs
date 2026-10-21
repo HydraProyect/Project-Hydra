@@ -138,7 +138,7 @@ public class EnlaceDeActivacionBajoRuntimeTests
         var puerta = new PuertaAccesoDatos();
         var puerto = new GestionCuentasUsuarioIdentity(
             usuarios, puerta,
-            new DirectorioUsuariosTenant(usuarios, contexto, sp.GetRequiredService<ITenantActual>(), puerta, contexto),
+            new DirectorioUsuariosTenant(usuarios, contexto, sp.GetRequiredService<ITenantActual>(), puerta, contexto, null!),
             contexto);
 
         var emision = await puerto.GenerarTokenActivacionAsync(pendienteId);
@@ -301,7 +301,7 @@ public class EnlaceDeActivacionBajoRuntimeTests
         return new GestionCuentasUsuarioIdentity(
             usuarios,
             puerta,
-            new DirectorioUsuariosTenant(usuarios, contexto, sp.GetRequiredService<ITenantActual>(), puerta, contexto),
+            new DirectorioUsuariosTenant(usuarios, contexto, sp.GetRequiredService<ITenantActual>(), puerta, contexto, null!),
             contexto);
     }
 
