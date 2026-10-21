@@ -453,7 +453,11 @@ public class TerminologiaCanonicaTests
         // llamada al paso del arranque que aprovisiona —apagado— el acceso de soporte de los Tenants recién
         // creados, que el modo de línea de órdenes ejecuta entre la siembra y la autoverificación igual que el arranque.
         // 347 + 3: CoberturaPantallasSeeder (el alias de DelegacionDemoSeeder y el Id de la operación del equipo del Operador CAE).
-        ["Delegacion"] = 350,
+        // 350 → 351 (2026-10-21, rol ejercido en /usuarios): PropositoDelegacion.Soporte en
+        // DirectorioUsuariosTenant.OperadoresDelegadosVigentes, para que Soporte TALVEG conserve su rol guardado
+        // igual que en /delegaciones. Es el enum de dominio que ya existe, sin nombre canónico; renombrarlo es un
+        // incremento propio.
+        ["Delegacion"] = 351,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

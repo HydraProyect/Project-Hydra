@@ -17,7 +17,8 @@ namespace CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDe
 internal static class DocumentacionRequeridaDeCentros
 {
     /// <summary>Un tipo del catálogo con su criterio global (<c>TipoDocumento.CuentaParaCumplimiento</c>).</summary>
-    internal sealed record TipoDelCatalogo(Guid Id, string Nombre, AmbitoAplicacion AmbitoAplicacion, bool CuentaParaCumplimiento);
+    internal sealed record TipoDelCatalogo(
+        Guid Id, string Nombre, AmbitoAplicacion AmbitoAplicacion, bool CuentaParaCumplimiento, bool EsCertificadoTgss = false);
 
     /// <summary>Catálogo de tipos de Trabajador y de Empresa del Tenant, por ámbito y por orden del catálogo.</summary>
     internal static Task<List<TipoDelCatalogo>> CargarCatalogoAsync(
@@ -25,7 +26,9 @@ internal static class DocumentacionRequeridaDeCentros
         contexto.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador || t.AmbitoAplicacion == AmbitoAplicacion.Empresa)
             .OrderBy(t => t.AmbitoAplicacion).ThenBy(t => t.Orden)
-            .Select(t => new TipoDelCatalogo(t.Id, t.Nombre, t.AmbitoAplicacion, t.Requerido == RequisitoDocumental.Si))
+            .Select(t => new TipoDelCatalogo(
+                t.Id, t.Nombre, t.AmbitoAplicacion, t.Requerido == RequisitoDocumental.Si,
+                t.PerfilDocumentoOficial == PerfilDocumentoOficial.CorrienteTgss))
             .ToListAsync(cancellationToken);
 
     /// <summary>Filas explícitas de <see cref="TipoDocumentoCentro"/> de esos Centros, en una sola lectura, por (tipo, Centro).</summary>

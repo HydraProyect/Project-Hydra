@@ -1,0 +1,145 @@
+@*
+    Barra de progreso fina con avance SIMULADO y un texto que cambia por fases, para una pantalla que tarda varios segundos en
+    reunir sus datos (el Cuadro de dirección) y no debe parecer colgada. Hermano de ProgresoConMensajes: aquel es una barra
+    indeterminada con mensajes que dan vueltas, pensada para una operación con etapas; este es una barra de cabecera que
+    avanza deprisa al principio, se frena hacia el 90 % y se completa al pasar Activo a false.
+
+    El avance es deliberadamente ficticio (el servidor no informa de progreso): por eso la barra va oculta a los lectores de
+    pantalla (aria-hidden) y no es un progressbar con un valor inventado; lo que se anuncia es el texto de la fase, en una
+    región role="status" aria-live="polite". Sin aria-busy en la propia región: con él los lectores retienen los cambios; el aria-busy
+    va en los bloques que se esperan (esqueletos), que son los que aún no tienen contenido. Con prefers-reduced-motion la barra no se pinta y
+    queda solo el texto. Los textos los pone quien lo usa (Mensajes), ya localizados: el kit no lleva ninguno.
+*@
+@implements IDisposable
+
+@if (_visible)
+{
+    <div class="progreso-simulado" role="status" aria-live="polite" data-avance="@_avance">
+        <div class="progreso-simulado-barra" aria-hidden="true">
+            <div class="progreso-simulado-relleno" style="width:@(_avance)%"></div>
+        </div>
+        <p class="progreso-simulado-mensaje">@_mensaje</p>
+    </div>
+}
+
+@code {
+    /// <summary>Mientras es true la barra avanza y el texto cambia de fase; al pasar a false se completa y se retira.</summary>
+    [Parameter] public bool Activo { get; set; }
+
+    /// <summary>Las fases, ya localizadas. Se recorren una vez y la última se queda puesta mientras dure la espera.</summary>
+    [Parameter] public IReadOnlyList<string> Mensajes { get; set; } = [];
+
+    /// <summary>Cada cuánto cambia de fase el texto.</summary>
+    [Parameter] public int IntervaloMensajeMs { get; set; } = 3500;
+
+    /// <summary>Cada cuánto se mueve la barra.</summary>
+    [Parameter] public int IntervaloAvanceMs { get; set; } = 250;
+
+    /// <summary>Cuánto se queda la barra al 100 % antes de retirarse.</summary>
+    [Parameter] public int PermanenciaFinalMs { get; set; } = 400;
+
+    // Hacia dónde tiende el avance simulado y qué fracción del trecho restante recorre en cada paso: rápido al principio
+    // (≈35 % a los 2 s), 64 % a los 5 s, 83 % a los 10 s, sin llegar nunca al techo.
+    private const double Techo = 90;
+    private const double FraccionPorPaso = 0.06;
+
+    private System.Timers.Timer? _temporizadorAvance;
+    private System.Timers.Timer? _temporizadorMensaje;
+    private System.Timers.Timer? _temporizadorCierre;
+    private double _avanceReal;
+    private int _avance;
+    private int _indice;
+    private string _mensaje = string.Empty;
+    private bool _visible;
+    private bool _activoAnterior;
+    private bool _desechado;
+
+    // Cada Iniciar/Completar/Dispose abre una generación nueva: un Elapsed que ya estaba encolado en InvokeAsync cuando se paró el
+    // temporizador no puede tocar el estado de la siguiente (p. ej. un Retirar tardío ocultando una barra recién iniciada).
+    private int _generacion;
+
+    protected override void OnParametersSet()
+    {
+        if (Activo && !_activoAnterior)
+            Iniciar();
+        else if (!Activo && _activoAnterior)
+            Completar();
+
+        _activoAnterior = Activo;
+    }
+
+    private void Iniciar()
+    {
+        DetenerTemporizadores();
+        _avanceReal = 0;
+        _avance = 0;
+        _indice = 0;
+        _mensaje = Mensajes.Count > 0 ? Mensajes[0] : string.Empty;
+        _visible = true;
+
+        _temporizadorAvance = Crear(IntervaloAvanceMs, autoReset: true, Avanzar);
+        if (Mensajes.Count > 1)
+            _temporizadorMensaje = Crear(IntervaloMensajeMs, autoReset: true, SiguienteMensaje);
+    }
+
+    private void Completar()
+    {
+        if (!_visible) return;
+
+        DetenerTemporizadores();
+        _avance = 100;
+        _temporizadorCierre = Crear(PermanenciaFinalMs, autoReset: false, Retirar);
+    }
+
+    private void Avanzar()
+    {
+        _avanceReal += (Techo - _avanceReal) * FraccionPorPaso;
+        _avance = (int)Math.Round(_avanceReal);
+    }
+
+    private void SiguienteMensaje()
+    {
+        if (_indice >= Mensajes.Count - 1)
+        {
+            _temporizadorMensaje?.Stop();
+            return;
+        }
+
+        _indice++;
+        _mensaje = Mensajes[_indice];
+    }
+
+    private void Retirar() => _visible = false;
+
+    private System.Timers.Timer Crear(int intervaloMs, bool autoReset, Action paso)
+    {
+        var temporizador = new System.Timers.Timer(Math.Max(1, intervaloMs)) { AutoReset = autoReset };
+        var generacion = _generacion;
+        temporizador.Elapsed += (_, _) => _ = InvokeAsync(() =>
+        {
+            if (_desechado || generacion != _generacion) return;
+            paso();
+            StateHasChanged();
+        });
+        temporizador.Start();
+        return temporizador;
+    }
+
+    private void DetenerTemporizadores()
+    {
+        _generacion++;
+        foreach (var temporizador in new[] { _temporizadorAvance, _temporizadorMensaje, _temporizadorCierre })
+        {
+            temporizador?.Stop();
+            temporizador?.Dispose();
+        }
+
+        _temporizadorAvance = _temporizadorMensaje = _temporizadorCierre = null;
+    }
+
+    public void Dispose()
+    {
+        _desechado = true;
+        DetenerTemporizadores();
+    }
+}

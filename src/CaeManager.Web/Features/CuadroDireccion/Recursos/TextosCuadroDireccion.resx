@@ -121,7 +121,7 @@
     <value>{0} altas este mes</value>
   </data>
   <data name="KpiCumplimiento" xml:space="preserve">
-    <value>Cumplimiento documental</value>
+    <value>Documentos de Trabajador al día</value>
   </data>
   <data name="KpiCumplimientoSub" xml:space="preserve">
     <value>foto de hoy, no se reconstruye en meses pasados</value>
@@ -650,6 +650,18 @@
   </data>
   <data name="Cargando" xml:space="preserve">
     <value>Calculando…</value>
+  </data>
+  <data name="CargaFaseEmpresas" xml:space="preserve">
+    <value>Reuniendo los datos de las Empresas gestionadas…</value>
+  </data>
+  <data name="CargaFasePreparando" xml:space="preserve">
+    <value>Preparando el cuadro…</value>
+  </data>
+  <data name="ExtranjerosError" xml:space="preserve">
+    <value>No pudimos contar los Trabajadores extranjeros. Inténtalo de nuevo.</value>
+  </data>
+  <data name="GestionesError" xml:space="preserve">
+    <value>No pudimos calcular las gestiones por día. Inténtalo de nuevo.</value>
   </data>
   <data name="EtiquetaMes" xml:space="preserve">
     <value>Mes</value>
@@ -1187,5 +1199,8 @@
   </data>
   <data name="TarifasPie" xml:space="preserve">
     <value>Los cambios se aplican desde el mes en curso. Los meses cerrados conservan las unidades y la tarifa que tenían al cerrarse. El Cliente empresarial nuevo no se cobra.</value>
+  </data>
+  <data name="TituloColumnaCumplimiento" xml:space="preserve">
+    <value>Documentos exigidos a sus Trabajadores en sus Centros que están al día; los que faltan cuentan en contra (lo mismo que el listado de Empresas)</value>
   </data>
 </root>
