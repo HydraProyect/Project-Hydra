@@ -291,14 +291,14 @@
                             <span class="col-registrados-vigentes">
                                 <span class="celda-registrados-vigentes">
                                     <BarraCumplimiento Porcentaje="@PorcentajeRegistradosVigentes(context)"
-                                                       Texto="@MotivoIncidenciasUi.RegistradosVigentes(context.DocumentosVigentes, context.DocumentosRegistrados)"
-                                                       Etiqueta="@MotivoIncidenciasUi.RegistradosVigentesAccesible(context.DocumentosVigentes, context.DocumentosRegistrados)" />
+                                                       Texto="@MotivoIncidenciasUi.RegistradosVigentes(context.DocumentosVigentes, context.DocumentosEsperados)"
+                                                       Etiqueta="@MotivoIncidenciasUi.RegistradosVigentesAccesible(context.DocumentosVigentes, context.DocumentosEsperados)" />
                                 </span>
                             </span>
                             @{
-                                // Lo exigido y sin documento no está entre los documentos registrados: el estado de la fila
-                                // nunca puede decir «Sin incidencias» mientras falte un Tipo que un Centro le exige.
-                                var estadoFila = EstadoDocumentoUi.ConFaltantes(context.EstadoDocumental, context.DocumentosFaltantes.Count > 0);
+                                // El estado ya llega combinado con lo exigido y sin documento (ObtenerTrabajadoresQuery): es
+                                // el mismo que pintan Empresa 360 y la cabecera de Trabajador 360.
+                                var estadoFila = context.EstadoDocumental;
                             }
                             <span class="col-estado celda-estado-trabajador"><EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(estadoFila)" Texto="@EstadoDocumentoUi.TextoDocumental(estadoFila)" Correcto="EstadoDocumentoUi.EsCorrecto(estadoFila)" Motivo="@MotivoIncidenciasUi.Texto(context.Incidencias, context.DocumentosFaltantes, CaeManager.Domain.Common.DiaDeNegocio.Hoy())" /></span>
                             <div class="tarjeta-fila-acordeon-acciones acciones-trabajador">

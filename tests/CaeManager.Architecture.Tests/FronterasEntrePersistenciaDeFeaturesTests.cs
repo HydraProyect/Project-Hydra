@@ -68,6 +68,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // El endpoint del logo del Tenant (lote 1) autoriza con ese mismo predicado
         // antes de leer la fila del Tenant pedido (invariante I2 e I11).
         ("Tenants.ObtenerLogoTenantQueryHandler", "IOperacionesQueryContext"),
+        // /delegaciones rotula el rol que se ejerce (hallazgo 16, 2026-10-21) con el mismo
+        // predicado de operación del Tenant entero que da el acceso (TenantsBeneficiariosAutorizados).
+        ("Tenants.ObtenerDelegacionesQueryHandler", "IOperacionesQueryContext"),
         // Ficha de Vehículo: valida la selección de Trabajadores del mismo Tenant propietario.
         ("Vehiculos.EditarFichaVehiculoCommandHandler", "ITrabajadoresQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "IAsignacionesQueryContext"),
@@ -248,6 +251,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Clientes.GuardarPlataformaCaeClienteCommandHandler", "IPlataformaCaeClienteEmpresarialRepository"),
         ("Clientes.ObtenerAccesosPlataformaCaeClienteQueryHandler", "IEmpresasQueryContext"),
         ("Clientes.ObtenerPlataformaCaeClienteQueryHandler", "IEmpresasQueryContext"),
+        // Plataformas CAE de los Centros del Cliente empresarial, para que la caja no diga «sin plataforma» si sus Centros la tienen.
+        ("Clientes.ObtenerPlataformaCaeClienteQueryHandler", "ICentrosQueryContext"),
+        ("Clientes.ObtenerPlataformaCaeClienteQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
         ("Clientes.RevelarContrasenaAccesoPlataformaCaeQueryHandler", "IEmpresasQueryContext"),
         ("Clientes.ReasignarEjecutivoClienteCommandHandler", "IConfiguracionIaDocumentoClienteRepository"),
         ("Clientes.ReasignarEjecutivoClienteCommandHandler", "INotificacionUsuarioRepository"),
@@ -465,6 +471,13 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.ObtenerDocumentoPorIdQueryHandler", "ITiposDocumentoQueryContext"),
         ("Documentos.ObtenerDocumentoPorIdQueryHandler", "ITrabajadoresQueryContext"),
         ("Documentos.ObtenerDocumentoPorIdQueryHandler", "IVehiculosQueryContext"),
+        ("Documentos.ObtenerFichaDocumento360QueryHandler", "IAsignacionesQueryContext"),
+        ("Documentos.ObtenerFichaDocumento360QueryHandler", "ICentrosQueryContext"),
+        ("Documentos.ObtenerFichaDocumento360QueryHandler", "IConfiguracionQueryContext"),
+        ("Documentos.ObtenerFichaDocumento360QueryHandler", "IEmpresasQueryContext"),
+        ("Documentos.ObtenerFichaDocumento360QueryHandler", "IProveedoresPlataformaCaeQueryContext"),
+        ("Documentos.ObtenerFichaDocumento360QueryHandler", "ITiposDocumentoQueryContext"),
+        ("Documentos.ObtenerFichaDocumento360QueryHandler", "ITrabajadoresQueryContext"),
         ("Documentos.ObtenerDocumentosQueryHandler", "ICentrosQueryContext"),
         ("Documentos.ObtenerDocumentosQueryHandler", "IClientesQueryContext"),
         ("Documentos.ObtenerDocumentosQueryHandler", "IConfiguracionQueryContext"),
@@ -652,6 +665,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Reclamaciones.ObtenerReclamacionPreventivaEmpresaQueryHandler", "ITrabajadoresQueryContext"),
         // Reclamación por acceso (2026-10-19): solo cuentan los Trabajadores pedidos que son de la Empresa (Trabajador.EmpresaId).
         ("Reclamaciones.ObtenerReclamacionPorAccesoQueryHandler", "ITrabajadoresQueryContext"),
+        // Lo que el Centro exige de la propia Empresa (2026-10-21: lo exigido, no solo lo que bloquea): Centro con gestión CAE,
+        // Asignación activa de alguno de los Trabajadores elegidos y ResolucionTipoDocumentoCentro sobre los tipos de ámbito Empresa.
+        ("Reclamaciones.ObtenerReclamacionPorAccesoQueryHandler", "IAsignacionesQueryContext"),
+        ("Reclamaciones.ObtenerReclamacionPorAccesoQueryHandler", "ICentrosQueryContext"),
+        ("Reclamaciones.ObtenerReclamacionPorAccesoQueryHandler", "ITiposDocumentoQueryContext"),
         // «Pendiente de subir a plataformas» de Empresa 360 (2026-10-19): acota lo bloqueante por Centro a los Trabajadores de la
         // Empresa y a sus filtros de Delegación y Oficio, que solo conoce el catálogo de Trabajadores.
         ("Reclamaciones.ObtenerPendientesDeSubirAPlataformaEmpresaQueryHandler", "ITrabajadoresQueryContext"),

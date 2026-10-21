@@ -26,6 +26,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Visitas;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Documentos.Components;
 using CaeManager.Web.Features.Visitas.Components;
 using CaeManager.Web.Features.Visitas.Pages;
@@ -385,7 +386,7 @@ public partial class Visita360PaginaTests : BunitContext
         lateral.QuerySelectorAll(".tarjeta-titulo").Select(t => t.TextContent.Trim())
             .Should().Equal("Información", "Nota interna");
         var nota = cut.Find("[data-pieza=lateral] [data-pieza=nota-interna]");
-        nota.TextContent.Should().Contain("Puerta de servicio.").And.Contain("No la ve el cliente.");
+        nota.TextContent.Should().Contain("Puerta de servicio.").And.Contain("No la ve el Cliente.");
         nota.QuerySelectorAll("button").Should().HaveCount(puedeEditar ? 1 : 0);
         if (puedeEditar)
         {
@@ -418,13 +419,14 @@ public partial class Visita360PaginaTests : BunitContext
     // Decisión del 2026-10-09: el lateral lleva dos o tres cajas como mucho; «Antelación» vive en «Ficha».
 
     [Fact]
-    public void Con_antelacion_la_ficha_va_la_ultima_y_el_lateral_ya_no_la_lleva()
+    public void Con_antelacion_la_ficha_va_antes_del_historial_y_el_lateral_ya_no_la_lleva()
     {
         var (cut, _) = Montar(Detalle(tramo: TramoAntelacion.Urgente), documentacion: DocumentacionConIncidencias());
 
         var pestanas = cut.FindAll("[role=tab]");
-        pestanas.Should().HaveCount(3);
+        pestanas.Should().HaveCount(4);
         pestanas[2].TextContent.Trim().Should().Be("Ficha");
+        pestanas[3].TextContent.Trim().Should().Be("Historial");
         cut.Find("[data-pieza=lateral]").QuerySelectorAll(".tarjeta-titulo").Select(t => t.TextContent.Trim())
             .Should().NotContain("Antelación").And.HaveCountLessThanOrEqualTo(3);
         cut.FindAll("[data-pieza=cajas-ficha]").Should().BeEmpty("sin pedirla, la visita abre en su primera pestaña");
@@ -435,7 +437,7 @@ public partial class Visita360PaginaTests : BunitContext
     {
         var (cut, _) = Montar(Detalle(tramo: TramoAntelacion.Urgente), documentacion: DocumentacionConIncidencias(), pestana: "ficha");
 
-        cut.FindAll("[role=tab]")[^1].GetAttribute("aria-selected").Should().Be("true");
+        cut.FindAll("[role=tab]")[2].GetAttribute("aria-selected").Should().Be("true");
         var cajas = cut.FindAll("[data-pieza=cajas-ficha] > [data-caja]");
         cajas.Select(c => c.GetAttribute("data-caja")).Should().Equal("antelacion");
         cajas[0].QuerySelector(".tarjeta-titulo")!.TextContent.Trim().Should().Be("Antelación");
@@ -456,6 +458,19 @@ public partial class Visita360PaginaTests : BunitContext
         cut.Markup.Should().NotContain("Antelación");
     }
 
+    [Fact]
+    public void La_pestana_historial_llega_por_la_url_y_lee_la_auditoria_de_la_visita()
+    {
+        ComponentFactories.AddStub<PestanaHistorial>();
+        var detalle = Detalle();
+        var (cut, _) = Montar(detalle, documentacion: DocumentacionConIncidencias(), pestana: "historial");
+
+        cut.FindAll("[role=tab]")[^1].GetAttribute("aria-selected").Should().Be("true");
+        var historial = cut.FindComponent<Stub<PestanaHistorial>>().Instance.Parameters;
+        historial.Get(p => p.EntidadTipo).Should().Be("Visita");
+        historial.Get(p => p.EntidadId).Should().Be(detalle.Id);
+    }
+
     // ── Ramas ─────────────────────────────────────────────────────────────
 
     [Fact]
@@ -465,7 +480,8 @@ public partial class Visita360PaginaTests : BunitContext
 
         cut.FindAll("[role=tab]").Select(t => t.TextContent).Should().SatisfyRespectively(
             t => t.Should().Contain("Comprobación previa"),
-            t => t.Should().Contain("Paquete de acreditación"));
+            t => t.Should().Contain("Paquete de acreditación"),
+            t => t.Should().Contain("Historial"));
         cut.Find("[data-pieza=cabecera-identidad]").TextContent.Should().Contain("Enviar por correo");
         cut.Find("[data-pieza=anillo]").GetAttribute("aria-label").Should().Be("1 de 2 trabajadores listos para entrar");
 
@@ -481,7 +497,9 @@ public partial class Visita360PaginaTests : BunitContext
     {
         var (cut, mediador) = Montar(Detalle(porCorreo: false), documentacion: DocumentacionConIncidencias());
 
-        cut.FindAll("[role=tab]").Should().ContainSingle().Which.TextContent.Should().Contain("Comprobación previa");
+        cut.FindAll("[role=tab]").Select(t => t.TextContent).Should().SatisfyRespectively(
+            t => t.Should().Contain("Comprobación previa"),
+            t => t.Should().Contain("Historial"));
         Botones(cut).Should().NotContain(["Enviar por correo", "Copiar solicitud", "Descargar ZIP de documentación"]);
         mediador.Enviadas.OfType<ObtenerSolicitudAccesoCorreoQuery>().Should().BeEmpty();
     }
@@ -491,7 +509,9 @@ public partial class Visita360PaginaTests : BunitContext
     {
         var (cut, mediador) = Montar(Detalle(requiereGestion: false, porCorreo: false));
 
-        cut.FindAll("[role=tab]").Should().ContainSingle().Which.TextContent.Should().Contain("Aviso de visita");
+        cut.FindAll("[role=tab]").Select(t => t.TextContent).Should().SatisfyRespectively(
+            t => t.Should().Contain("Aviso de visita"),
+            t => t.Should().Contain("Historial"));
         cut.Markup.Should().Contain("Mañana acuden dos técnicos.");
         cut.FindAll("[data-pieza=anillo]").Should().BeEmpty();
         mediador.Enviadas.OfType<ObtenerDocumentacionVisitaQuery>().Should().BeEmpty();

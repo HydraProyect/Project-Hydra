@@ -150,36 +150,25 @@ public class PaginaEstadoSistemaTests : BunitContext
         cut.Markup.Should().NotContain("Tenant");
     }
 
-    [Fact]
-    public void AccesoDenegado_ofrece_Mi_trabajo_como_pantalla_principal_al_Gestor_CAE()
-    {
-        var cut = Renderizar(TipoEstadoSistema.AccesoDenegado, rol: Roles.GestorCae);
-
-        var boton = cut.Find("a.boton-primario");
-        boton.TextContent.Should().Be("Ir a tu pantalla principal");
-        boton.GetAttribute("href").Should().Be("/bandeja", "con un solo Tenant autorizado, Mi trabajo es /bandeja (la regla del menú lateral)");
-    }
-
-    [Fact]
-    public void AccesoDenegado_con_varios_Tenants_autorizados_lleva_a_la_cola_agregada_de_Mi_trabajo()
-    {
-        Services.AddScoped<IMediator>(_ => new MediatorConClientesAutorizados(2));
-
-        var cut = Renderizar(TipoEstadoSistema.AccesoDenegado, rol: Roles.GestorCae);
-
-        cut.Find("a.boton-primario").GetAttribute("href").Should().Be("/mi-trabajo");
-    }
-
+    /// <summary>
+    /// Decisión del propietario, 2026-10-21: la pantalla principal es Inicio para todos los roles, también
+    /// para el Gestor CAE con varios Tenants autorizados (antes, Mi trabajo).
+    /// </summary>
     [Theory]
-    [InlineData(Roles.Consulta)]
-    [InlineData(Roles.Cliente)]
-    public void AccesoDenegado_lleva_a_Inicio_si_el_rol_no_tiene_Mi_trabajo(string rol)
+    [InlineData(Roles.GestorCae, 1)]
+    [InlineData(Roles.GestorCae, 2)]
+    [InlineData(Roles.CoordinadorCae, 2)]
+    [InlineData(Roles.Consulta, 1)]
+    [InlineData(Roles.Cliente, 1)]
+    public void AccesoDenegado_lleva_a_Inicio_como_pantalla_principal(string rol, int tenantsAutorizados)
     {
+        Services.AddScoped<IMediator>(_ => new MediatorConClientesAutorizados(tenantsAutorizados));
+
         var cut = Renderizar(TipoEstadoSistema.AccesoDenegado, rol: rol);
 
         var boton = cut.Find("a.boton-primario");
         boton.TextContent.Should().Be("Ir a tu pantalla principal");
-        boton.GetAttribute("href").Should().Be("/", $"{rol} no tiene Mi trabajo: ofrecérselo sería otro acceso denegado");
+        boton.GetAttribute("href").Should().Be("/");
     }
 
     [Fact]
@@ -224,6 +213,14 @@ public class PaginaEstadoSistemaTests : BunitContext
         boton.TextContent.Should().Be($"Volver a la lista de {nombre}");
         cut.Find("a.boton-secundario").GetAttribute("href").Should().Be("/");
         cut.Markup.Should().NotContain("onclick=");
+    }
+
+    [Fact]
+    public void NoEncontrado_manda_a_Inicio_y_no_nombra_el_Dashboard()
+    {
+        var cut = Renderizar(TipoEstadoSistema.NoEncontrado, rol: Roles.GestorCae);
+
+        cut.Markup.Should().Contain("vuelve a Inicio.").And.NotContain("Dashboard");
     }
 
     [Theory]

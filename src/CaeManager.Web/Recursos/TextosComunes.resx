@@ -499,7 +499,7 @@
     <value>Sin nota interna.</value>
   </data>
   <data name="NotaInternaNoLaVeCliente" xml:space="preserve">
-    <value>No la ve el cliente.</value>
+    <value>No la ve el Cliente.</value>
     <comment>Pie de la tarjeta NotaInterna: la nota no la ve el usuario de un Cliente. La ven el equipo y el Gestor CAE de un Operador CAE externo.</comment>
   </data>
   <data name="NotaInternaEditar" xml:space="preserve">
@@ -578,9 +578,6 @@
   </data>
   <data name="SelectorTenantFijadas" xml:space="preserve">
     <value>Fijadas</value>
-  </data>
-  <data name="SelectorTenantResto" xml:space="preserve">
-    <value>Resto de empresas</value>
   </data>
   <data name="SelectorTenantFijar" xml:space="preserve">
     <value>Fijar arriba</value>

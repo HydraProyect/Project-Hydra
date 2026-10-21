@@ -17,8 +17,11 @@ using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
 using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
+using CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente;
+using CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPorEmpresa;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Gestiones;
 using CaeManager.Domain.Trabajadores;
@@ -130,6 +133,9 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
     private TrabajadorDetalleDto? _detalle;
     private IReadOnlyList<CentroDocumentacionTrabajadorDto> _centros = [];
+
+    /// <summary>La fila del Trabajador en <see cref="ObtenerTrabajadoresQuery"/>: estado, faltantes y desglose de la cabecera.</summary>
+    private TrabajadorListaDto? _estadoTrabajador;
     private bool _cargando = true;
     private bool _error;
 
@@ -182,15 +188,12 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     private int _totalDocumentos;
 
     /// <summary>
-    /// Tipos de ámbito Trabajador que se piden con carácter general
-    /// (<see cref="RequisitoDocumental.Si"/>). Lo que un Centro exige fuera de
-    /// esta lista lo incluyó la configuración de ese Centro. Null hasta cargar.
+    /// Detección pendiente de tipo Ausente de este Trabajador (no aparece en el último documento de personal de su Empresa):
+    /// alimenta el aviso «Podría estar de baja». Null si no hay ninguna o el lector no puede gestionar la Empresa.
     /// </summary>
-    /// <summary>
-    /// Tipos de Ámbito Trabajador que se piden con carácter general (Requerido = Sí), con su serie por tipo de
-    /// contratación: un tipo es general para este Trabajador solo si la serie incluye su tipo de contratación.
-    /// </summary>
-    private Dictionary<Guid, TiposContratacion>? _tiposGenerales;
+    private DeteccionTrabajadorDto? _deteccionBaja;
+    private bool _confirmarBajaDeteccionVisible;
+    private bool _resolviendoDeteccion;
     private bool _cargandoDocumentos = true;
     private bool _errorDocumentos;
 
@@ -311,7 +314,15 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
                     _centros.Count,
                     _centros.Count == 1 ? Textos["ContadorCentrosUno"] : Textos["ContadorCentrosVarios"])
         },
-        new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
+        // Maqueta 17-10: «Documentación» lleva el recuento de documentos que se listan, en neutro.
+        new(PestanaDocumentacion, Textos["PestanaDocumentacion"])
+        {
+            Contador = Grupos.Total == 0
+                ? null
+                : new ContadorPestana(
+                    Grupos.Total,
+                    Grupos.Total == 1 ? Textos["ContadorDocumentosUno"] : Textos["ContadorDocumentosVarios"])
+        },
         new(PestanaPlataformas, Textos["PestanaPlataformas"])
         {
             Contador = TotalIncidenciasPlataformas == 0 ? null : new ContadorPestana(
@@ -338,7 +349,11 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
     private int TotalConIncidencia => _centros.Sum(Incidencias);
 
-    private int TotalSinConfirmar => _centros.Sum(SinConfirmar);
+    /// <summary>
+    /// Documentos del Trabajador sin vigencia confirmada, cada uno una vez: del desglose de <see cref="_estadoTrabajador"/>,
+    /// no sumando Centros (un mismo documento exigido en dos Centros se contaba dos veces).
+    /// </summary>
+    private int TotalSinConfirmar => _estadoTrabajador?.Incidencias.Count(i => i.Estado == EstadoDocumento.SinConfirmar) ?? 0;
 
     private IReadOnlyList<BreadcrumbElemento> Miguero =>
         new[] { new BreadcrumbElemento(Textos["MigaTrabajadores"]), new BreadcrumbElemento(NombreCompleto ?? "…") };
@@ -353,16 +368,16 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     private CentroDocumentacionTrabajadorDto? CentroMasUrgente =>
         _centros.Count == 0 ? null : _centros.MinBy(c => SeveridadEstadoDocumento.Rango(c.PeorEstado));
 
-    private EstadoDocumento? PeorEstadoGlobal => CentroMasUrgente?.PeorEstado;
+    /// <summary>
+    /// El estado documental del Trabajador en la cabecera: el MISMO que su fila del listado de Trabajadores y de Empresa 360
+    /// (<see cref="ObtenerTrabajadoresQuery"/>, Vencido &gt; Pendiente &gt; Por vencer &gt; Sin incidencias), no el peor de los
+    /// Centros. El de un Centro mira solo lo que ese Centro exige y su tolerancia: con un vencido que ningún Centro exige
+    /// (o que un Centro tolera) la cabecera decía «Pendiente» mientras el listado decía «Vencido».
+    /// </summary>
+    private EstadoDocumento? PeorEstadoGlobal => _estadoTrabajador?.EstadoDocumental;
 
-    /// <summary>Los Tipos que algún Centro le exige y de los que no tiene documento, sin repetir (un Tipo exigido en dos Centros cuenta una vez).</summary>
-    private IReadOnlyList<string> TiposFaltantes => _centros
-        .SelectMany(c => c.Documentos)
-        .Where(d => d.DocumentoId is null && d.Estado == EstadoDocumento.Faltante)
-        .Select(d => d.TipoDocumentoNombre)
-        .Distinct()
-        .Order(StringComparer.CurrentCulture)
-        .ToList();
+    /// <summary>Los Tipos que algún Centro le exige y de los que no tiene documento, sin repetir: los del mismo cálculo que el estado.</summary>
+    private IReadOnlyList<string> TiposFaltantes => _estadoTrabajador?.DocumentosFaltantes ?? [];
 
     /// <summary>El primer documento faltante/vencido del centro más urgente — lo que abre el botón primario "Subir documento" de la cabecera (mockup § cabecera: el botón y el badge de urgencia hablan del mismo problema).</summary>
     private DocumentoRequeridoDto? DocumentoMasUrgente =>
@@ -460,9 +475,11 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             // enseñaría los de A mientras tanto.
             _documentos = [];
             _totalDocumentos = 0;
-            _tiposGenerales = null;
+            _deteccionBaja = null;
             _cargandoDocumentos = true;
             _errorDocumentos = false;
+            // Igual con el estado de la cabecera: el de A no puede quedarse bajo los Centros de B.
+            _estadoTrabajador = null;
         }
 
         _cargando = true;
@@ -496,6 +513,14 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
             _centros = centros;
 
+            // El estado de la cabecera sale del cálculo único del listado (su fila, con faltantes y desglose).
+            var fila = await Mediator.Send(new ObtenerTrabajadoresQuery(
+                null, Pagina: 1, TamanoPagina: 1, ConDesgloseDocumental: true, TrabajadorId: trabajadorId), _ciclo.Token);
+            if (!EsVigente(carga))
+                return;
+
+            _estadoTrabajador = fila.Elementos.FirstOrDefault();
+
             // RendererInfo.IsInteractive: OnParametersSetAsync (y por tanto
             // CargarAsync) también corre durante el prerenderizado estático
             // de una carga en frío — un "_ = " sin await ahí deja la tarea
@@ -512,6 +537,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             {
                 _ = CargarGestionesAsync();
                 _ = CargarDocumentosAsync();
+                _ = CargarDeteccionBajaAsync();
             }
         }
         catch (Exception) when (!EsVigente(carga))
@@ -602,14 +628,8 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             if (!EsVigente(carga))
                 return;
 
-            var tipos = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador), _ciclo.Token);
-            if (!EsVigente(carga))
-                return;
-
             _documentos = documentos.Elementos;
             _totalDocumentos = documentos.TotalElementos;
-            _tiposGenerales = tipos.Where(t => t.Requerido == RequisitoDocumental.Si)
-                .ToDictionary(t => t.Id, t => t.TiposContratacionDeSerie);
         }
         catch (Exception) when (!EsVigente(carga))
         {
@@ -619,7 +639,6 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         {
             _documentos = [];
             _totalDocumentos = 0;
-            _tiposGenerales = null;
             _errorDocumentos = true;
         }
         finally
@@ -649,44 +668,153 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             .ThenBy(d => d.TipoDocumentoNombre, StringComparer.CurrentCulture)
             .ToList();
 
-    /// <summary>Un tipo exigido en un Centro de trabajo concreto, con la fecha del documento que lo cubre.</summary>
-    private sealed record ExigenciaDeCentro(
-        Guid CentroId, string CentroNombre, string ClienteRazonSocial, DocumentoRequeridoDto Documento, DateOnly? FechaEmision);
+    /// <summary>
+    /// Una fila de la pestaña Documentación: un Tipo de documento, su peor estado entre los Centros que lo exigen y dónde se
+    /// exige. <see cref="Requerido"/> es el documento exigido (abre la serie de «Gestionar»); sin él, la fila es un documento
+    /// del trabajador que ningún Centro exige y se gestiona por su <see cref="DocumentoId"/>.
+    /// </summary>
+    private sealed record FilaDocumentacion(
+        Guid TipoId, string Nombre, EstadoDocumento Estado, DateOnly? Vence, DateOnly? EnToleranciaHasta, string Alcance,
+        DocumentoRequeridoDto? Requerido, Guid? DocumentoId)
+    {
+        /// <summary>Identidad de la fila dentro de su grupo: el Documento si existe y, si falta, el Tipo (único por grupo).</summary>
+        public Guid FilaId => DocumentoId ?? TipoId;
+    }
+
+    private sealed record GruposDocumentacion(
+        IReadOnlyList<FilaDocumentacion> EnTodos, IReadOnlyList<FilaDocumentacion> EnAlgunos, IReadOnlyList<FilaDocumentacion> Otros)
+    {
+        public int Total => EnTodos.Count + EnAlgunos.Count + Otros.Count;
+    }
 
     /// <summary>
-    /// «Lo que es puro del cliente» (Q2 = (a)): los tipos que un Centro exige y
-    /// que no se piden con carácter general, por par Trabajador–Centro. El
-    /// modelo no guarda quién originó la exigencia, así que se rotula como
-    /// «exigido en el Centro X (del Cliente Y)», nunca como
-    /// «exigido por Y». La fecha de renovación es la caducidad del documento
-    /// (Q1 = (a)): la misma en todos los Centros, porque Documento no tiene
-    /// CentroId.
+    /// La documentación del trabajador como la agrupa la maqueta Trabajador 360 (2026-10-17): lo exigido en todos sus Centros y lo
+    /// exigido solo en algunos (por Tipo, con el peor estado entre los Centros: el documento es el mismo, porque Documento no tiene
+    /// CentroId). Lo que el trabajador tiene y ningún Centro exige va aparte, para no esconderlo. Cada grupo, del peor estado al mejor.
     /// </summary>
-    private IReadOnlyList<ExigenciaDeCentro> ExigenciasPropiasDeCentros
+    private GruposDocumentacion Grupos
     {
         get
         {
-            if (_tiposGenerales is not { } generales)
-                return [];
+            var totalCentros = _centros.Count;
+            var enTodos = new List<FilaDocumentacion>();
+            var enAlgunos = new List<FilaDocumentacion>();
+            var exigidos = new HashSet<Guid>();
 
-            // General para este Trabajador = se pide de serie a su tipo de contratación (decisión 2026-10-16). Un
-            // tipo cuya serie no lo incluye y que un Centro exige por fila explícita es exigencia propia del Centro.
-            var tipoContratacion = _detalle?.TipoContratacion;
-            bool EsGeneralParaElTrabajador(Guid tipoId) =>
-                generales.TryGetValue(tipoId, out var serie)
-                && (tipoContratacion is not { } tipo || serie.Incluye(tipo));
+            foreach (var porTipo in _centros
+                .SelectMany(c => c.Documentos.Select(d => (Centro: c, Documento: d)))
+                .GroupBy(x => x.Documento.TipoDocumentoId))
+            {
+                exigidos.Add(porTipo.Key);
+                var centros = porTipo.Select(x => x.Centro.CentroNombre).Distinct().Order(StringComparer.CurrentCulture).ToList();
+                var peor = porTipo.Select(x => x.Documento).MinBy(d => SeveridadEstadoDocumento.Rango(d.Estado))!;
+                var enTodosLosCentros = porTipo.Select(x => x.Centro.CentroId).Distinct().Count() == totalCentros;
+                var fila = new FilaDocumentacion(
+                    porTipo.Key, peor.TipoDocumentoNombre, peor.Estado, peor.FechaVencimiento, peor.EnToleranciaHasta,
+                    enTodosLosCentros ? AlcanceEnTodos(totalCentros) : AlcanceEnAlgunos(centros), peor, peor.DocumentoId);
+                (enTodosLosCentros ? enTodos : enAlgunos).Add(fila);
+            }
 
-            var emisionPorDocumento = _documentos.ToDictionary(d => d.Id, d => d.FechaEmision);
-            return _centros
-                .SelectMany(c => c.Documentos
-                    .Where(d => !EsGeneralParaElTrabajador(d.TipoDocumentoId))
-                    .Select(d => new ExigenciaDeCentro(
-                        c.CentroId, c.CentroNombre, c.ClienteRazonSocial, d,
-                        d.DocumentoId is { } id && emisionPorDocumento.TryGetValue(id, out var emision) ? emision : null)))
-                .OrderBy(e => e.ClienteRazonSocial, StringComparer.CurrentCulture)
-                .ThenBy(e => e.CentroNombre, StringComparer.CurrentCulture)
-                .ThenBy(e => e.Documento.TipoDocumentoNombre, StringComparer.CurrentCulture)
+            var otros = _documentos
+                .Where(d => !exigidos.Contains(d.TipoDocumentoId))
+                .Select(d => new FilaDocumentacion(
+                    d.TipoDocumentoId, d.TipoDocumentoNombre, d.Estado, d.FechaVencimiento, null, Textos["AlcanceNingunCentro"], null, d.Id))
                 .ToList();
+
+            return new GruposDocumentacion(Ordenadas(enTodos), Ordenadas(enAlgunos), Ordenadas(otros));
+        }
+    }
+
+    private static IReadOnlyList<FilaDocumentacion> Ordenadas(IEnumerable<FilaDocumentacion> filas) =>
+        filas.OrderBy(f => SeveridadEstadoDocumento.Rango(f.Estado)).ThenBy(f => f.Nombre, StringComparer.CurrentCulture).ToList();
+
+    private string AlcanceEnTodos(int totalCentros) =>
+        totalCentros == 1 ? Textos["AlcanceUnicoCentro"] : Textos["AlcanceTodosCentros", totalCentros];
+
+    private string AlcanceEnAlgunos(IReadOnlyList<string> centros) => centros.Count switch
+    {
+        1 => Textos["AlcanceSoloEn", centros[0]],
+        2 => Textos["AlcanceEnDos", centros[0], centros[1]],
+        _ => Textos["AlcanceEnVarios", centros[0], centros[1], centros.Count - 2],
+    };
+
+    private Task GestionarFilaDocumentacionAsync(FilaDocumentacion fila) =>
+        fila.Requerido is { } requerido ? GestionarDocumentoAsync(requerido) : EditarDocumentoAsync(fila.DocumentoId!.Value);
+
+    /// <summary>Documentos del trabajador con la vigencia sin confirmar: Operación los nombra aunque no sean de la documentación base.</summary>
+    private IReadOnlyList<DocumentoListaDto> DocumentosSinConfirmar =>
+        _documentos.Where(d => d.Estado == EstadoDocumento.SinConfirmar)
+            .OrderBy(d => d.TipoDocumentoNombre, StringComparer.CurrentCulture)
+            .ToList();
+
+    /// <summary>
+    /// Detección «Ausente» pendiente de este Trabajador: el último documento de personal de su Empresa no lo incluye. Solo la lee
+    /// quien gestiona la Empresa (la consulta aplica el alcance de gestión); sin permiso o sin detección, el aviso no se pinta.
+    /// </summary>
+    private async Task CargarDeteccionBajaAsync()
+    {
+        if (_desechado || _detalle?.EmpresaId is not { } empresaId)
+            return;
+
+        var carga = _cargaVigente;
+        var trabajadorId = TrabajadorId;
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerDeteccionesPorEmpresaQuery(empresaId), _ciclo.Token);
+            if (!EsVigente(carga) || resultado.EsFallido)
+                return;
+
+            _deteccionBaja = resultado.Valor.FirstOrDefault(d => d.Tipo == TipoDeteccion.Ausente && d.TrabajadorExistenteId == trabajadorId);
+        }
+        catch (Exception)
+        {
+            // Es un aviso de ayuda: si falla, la ficha sigue sin él.
+            return;
+        }
+
+        if (EsVigente(carga))
+            await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ResolverDeteccionBajaAsync(bool darDeBaja)
+    {
+        if (_deteccionBaja is not { } deteccion || _resolviendoDeteccion)
+            return;
+
+        _resolviendoDeteccion = true;
+        try
+        {
+            var resultado = await Mediator.Send(new ResolverDeteccionAusenteCommand(deteccion.Id, darDeBaja), _ciclo.Token);
+            if (resultado.EsFallido)
+            {
+                // La detección ya no está pendiente (la resolvió otra persona): se cierra el diálogo y se relee el aviso.
+                ToastService.MostrarError(resultado.Error);
+                _confirmarBajaDeteccionVisible = false;
+                _deteccionBaja = null;
+                await CargarDeteccionBajaAsync();
+                return;
+            }
+
+            _confirmarBajaDeteccionVisible = false;
+            _deteccionBaja = null;
+            if (darDeBaja)
+            {
+                // Lo que la operación hizo de verdad, no lo que se pidió: otra persona pudo dar ya de baja al Trabajador.
+                var toast = resultado.Valor == ResultadoResolucionAusente.DadoDeBaja
+                    ? Textos["ToastBajaDeteccionConfirmada"]
+                    : Textos["ToastBajaDeteccionYaNoActivo"];
+                ToastService.Mostrar(toast, resultado.Valor == ResultadoResolucionAusente.DadoDeBaja ? TonoToast.Exito : TonoToast.Info);
+                // La baja es un borrado lógico: la ficha deja de existir, así que se vuelve a la lista.
+                NavigationManager.NavigateTo("/trabajadores");
+            }
+            else
+            {
+                ToastService.Mostrar(Textos["ToastBajaDeteccionIgnorada"], TonoToast.Info);
+            }
+        }
+        finally
+        {
+            _resolviendoDeteccion = false;
         }
     }
 
@@ -1069,6 +1197,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         _errorReclamar = null;
         _reclamarFaltantesVisible = false;
         _confirmarBajaAsignacionVisible = false;
+        _confirmarBajaDeteccionVisible = false;
         _asignacionABajar = null;
         _clientesReclamables = [];
         _clientesSeleccionadosReclamar.Clear();

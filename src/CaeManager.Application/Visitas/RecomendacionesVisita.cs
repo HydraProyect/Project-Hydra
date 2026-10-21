@@ -5,8 +5,11 @@ namespace CaeManager.Application.Visitas;
 
 public enum TipoRecomendacionVisita
 {
-    /// <summary>La Empresa o un Trabajador tiene documentos exigidos por el Centro que faltan o están vencidos.</summary>
+    /// <summary>La Empresa o un Trabajador no tiene documentos exigidos por el Centro: faltan (Faltante, «pendiente» en pantalla).</summary>
     DocumentacionPendiente,
+
+    /// <summary>La Empresa o un Trabajador tiene documentos exigidos por el Centro que ya vencieron (Vencido): se dice «vencida», nunca «pendiente».</summary>
+    DocumentacionVencida,
 
     /// <summary>Un documento hoy en regla vence antes del día de entrada: el día de la Visita ya no lo estará.</summary>
     VenceAntesDeLaEntrada,
@@ -37,8 +40,8 @@ public sealed record RecomendacionVisita(
 /// nunca texto inventado. Todas se derivan de <see cref="DocumentacionVisitaDto"/>, que ya trae solo lo que el
 /// Centro de la Visita exige, y de las fechas de la Visita:
 /// <list type="bullet">
-/// <item>documentación pendiente (Faltante o Vencido, el mismo criterio de incidencia que la pestaña de
-/// comprobación) de la Empresa o de cada Trabajador, una por sujeto;</item>
+/// <item>documentación pendiente (Faltante) y documentación vencida (Vencido) -el mismo criterio de incidencia que
+/// la pestaña de comprobación- de la Empresa o de cada Trabajador, una de cada por sujeto;</item>
 /// <item>documentos hoy en regla cuya fecha de vencimiento cae antes del último día de la Visita, uno por
 /// documento, distinguiendo si vence antes del día de entrada o durante la Visita;</item>
 /// <item>documentos que ya vencieron sin ser incidencia (en tolerancia en este Centro, o con la fecha ya pasada),
@@ -62,9 +65,15 @@ public static class RecomendacionesVisita
         var vencimientos = new List<RecomendacionVisita>();
         foreach (var (sujeto, seccion) in sujetos)
         {
-            var incidencias = seccion.Documentos.Where(EsIncidencia).Select(d => d.TipoDocumentoNombre).Distinct().ToList();
-            if (incidencias.Count > 0)
-                pendientes.Add(new RecomendacionVisita(TipoRecomendacionVisita.DocumentacionPendiente, sujeto, incidencias));
+            // «Pendiente» = falta el documento; «vencida» = lo hay y venció. Mismo criterio que las pastillas de Alertas y
+            // Centros: un documento vencido nunca se dice «pendiente».
+            var faltan = seccion.Documentos.Where(d => d.Estado == EstadoDocumento.Faltante).Select(d => d.TipoDocumentoNombre).Distinct().ToList();
+            if (faltan.Count > 0)
+                pendientes.Add(new RecomendacionVisita(TipoRecomendacionVisita.DocumentacionPendiente, sujeto, faltan));
+
+            var vencidos = seccion.Documentos.Where(d => d.Estado == EstadoDocumento.Vencido).Select(d => d.TipoDocumentoNombre).Distinct().ToList();
+            if (vencidos.Count > 0)
+                pendientes.Add(new RecomendacionVisita(TipoRecomendacionVisita.DocumentacionVencida, sujeto, vencidos));
 
             foreach (var documento in seccion.Documentos)
             {

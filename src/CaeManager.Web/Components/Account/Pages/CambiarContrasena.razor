@@ -187,7 +187,7 @@
         await SignInManager.RefreshSignInAsync(usuario);
 
         // El cambio obligatorio es el último paso del inicio de sesión: aterriza con
-        // la marca de un solo uso (D-2), igual que Login y LoginCon2fa.
+        // la marca de un solo uso, igual que Login y LoginCon2fa.
         Navigation.NavigateTo(RedireccionLocal.DestinoTrasLogin(null), forceLoad: true);
     }
 

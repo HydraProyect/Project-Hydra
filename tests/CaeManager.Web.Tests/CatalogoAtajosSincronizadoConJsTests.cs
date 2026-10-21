@@ -119,7 +119,7 @@ public class CatalogoAtajosSincronizadoConJsTests
     [InlineData("SELECTOR_COLUMNA", "cuerpo-con-lateral-principal", "Components/DesignSystem/CuerpoConLateral.razor")]
     [InlineData("SELECTOR_LATERAL", "cuerpo-con-lateral-lateral", "Components/DesignSystem/CuerpoConLateral.razor")]
     [InlineData("SELECTOR_FILA", "data-pieza=\"fila\"", "Components/DesignSystem/FilaRelacion.razor")]
-    [InlineData("SELECTOR_FILA", "fila-documento-requerido", "Features/Trabajadores/Pages/TrabajadorDetalle.razor")]
+    [InlineData("SELECTOR_FILA", "fila-documento-requerido", "Features/Centros/Components/AcordeonAsignacionesCentro.razor")]
     [InlineData("SELECTOR_ACCION_DE_FILA", "fila-relacion-acciones", "Components/DesignSystem/FilaRelacion.razor")]
     [InlineData("SELECTOR_ACCION_DE_FILA", "accion-fila-enlace", "Features/Trabajadores/Pages/TrabajadorDetalle.razor")]
     [InlineData("SELECTOR_ACCION_DE_FILA", "tipo360-subfila-accion", "Features/Documentos/Pages/TipoDocumentoDetalle.razor")]

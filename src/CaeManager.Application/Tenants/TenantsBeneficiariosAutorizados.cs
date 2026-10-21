@@ -74,11 +74,24 @@ public static class TenantsBeneficiariosAutorizados
     /// </summary>
     public static IQueryable<CarteraBajoOperacionVigente> CarterasPorOperacion(
         IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, DateTime ahora) =>
+        CarterasPorOperacionDeLaOrganizacion(operaciones, tenantOrigenId, ahora)
+            .Where(v => v.Cartera.UsuarioId == usuarioId);
+
+    /// <summary>
+    /// <see cref="CarterasPorOperacion"/> para todas las personas a la vez: las carteras
+    /// vigentes bajo operaciones vigentes externas del Operador CAE
+    /// <paramref name="tenantOrigenId"/>. Es la posición de operador de
+    /// <see cref="IOperacionesQueryContext"/>, así que solo la debe llamar quien tenga ese
+    /// Tenant como origen. La usa la columna «Ámbito efectivo» de <c>/usuarios</c> para
+    /// contar las Empresas gestionadas de cada Gestor CAE con el mismo predicado que
+    /// «Mi cartera · N empresas».
+    /// </summary>
+    public static IQueryable<CarteraBajoOperacionVigente> CarterasPorOperacionDeLaOrganizacion(
+        IOperacionesQueryContext operaciones, Guid tenantOrigenId, DateTime ahora) =>
         from cartera in operaciones.AsignacionesCartera
         join operacion in operaciones.AsignacionesOperacion
             on cartera.AsignacionOperacionId equals operacion.Id
-        where cartera.UsuarioId == usuarioId
-              && cartera.Estado == EstadoAsignacion.Vigente
+        where cartera.Estado == EstadoAsignacion.Vigente
               && cartera.VigenciaDesde <= ahora
               && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
               // La raíz es el fallback del propietario sobre sí mismo, no un
@@ -131,10 +144,20 @@ public static class TenantsBeneficiariosAutorizados
     /// </summary>
     public static IQueryable<AsignacionOperacion> OperacionesDelTenantEnteroDeLaOrganizacion(
         IOperacionesQueryContext operaciones, Guid tenantOrigenId, DateTime ahora) =>
+        OperacionesDelTenantEntero(operaciones, ahora).Where(operacion => operacion.OperadorTenantId == tenantOrigenId);
+
+    /// <summary>
+    /// El predicado de <see cref="OperacionesDelTenantEnteroDeLaOrganizacion"/> sin fijar la
+    /// organización: vigentes, externas, no raíz y sin ninguna dimensión de ámbito. Lo usa
+    /// también <c>ObtenerDelegacionesQuery</c> para rotular el rol que se ejerce, en los dos
+    /// sentidos de la delegación; una sola definición para que la etiqueta y el acceso no
+    /// diverjan.
+    /// </summary>
+    public static IQueryable<AsignacionOperacion> OperacionesDelTenantEntero(
+        IOperacionesQueryContext operaciones, DateTime ahora) =>
         operaciones.AsignacionesOperacion.Where(operacion =>
             !operacion.EsRaiz
-            && operacion.OperadorTenantId == tenantOrigenId
-            && operacion.PropietarioTenantId != tenantOrigenId
+            && operacion.PropietarioTenantId != operacion.OperadorTenantId
             && operacion.Estado == EstadoAsignacion.Vigente
             && operacion.VigenciaDesde <= ahora
             && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
@@ -214,6 +237,35 @@ public static class TenantsBeneficiariosAutorizados
             cancellationToken)
             ? rolDeSesionEnOrigen
             : null;
+
+    /// <summary>
+    /// El rol que una persona del Operador CAE externo <b>ejerce</b> en el Tenant beneficiario de
+    /// una delegación, para enseñarlo en la lista de personas de <c>/delegaciones</c>: el mismo
+    /// criterio que <see cref="RolEnTenantDelegadoAsync"/> (decisión Chris 2026-10-20):
+    /// <list type="bullet">
+    /// <item>Perfil de origen en <see cref="RolesConAccesoPorOperacion"/> y operación vigente del
+    /// Tenant entero (<paramref name="operacionDelTenantEntero"/>,
+    /// <see cref="OperacionesDelTenantEnteroDeLaOrganizacion"/>): ese perfil. Un Administrador
+    /// del Operador CAE externo es Administrador en la Empresa gestionada aunque su cartera
+    /// guarde «GestorCae».</item>
+    /// <item>Perfil de origen <see cref="RolAcotadoPorCartera"/>: Gestor CAE (la fila listada
+    /// nace de su cartera).</item>
+    /// <item>Si no, el rol guardado (<paramref name="rolGuardado"/>), que es el que decide por la
+    /// vía heredada (<c>CurrentUserService.ResolverRolViaHeredadaAsync</c>): siempre en Soporte
+    /// TALVEG, con una operación acotada, caducada o ausente, o con el perfil de origen
+    /// desconocido.</item>
+    /// </list>
+    /// Es una etiqueta, no autoridad: ninguna puerta lo lee.
+    /// </summary>
+    public static string RolEjercidoEnTenantBeneficiario(
+        bool esSoporte, bool operacionDelTenantEntero, string rolGuardado, string? rolDeOrigen) =>
+        esSoporte || rolDeOrigen is null
+            ? rolGuardado
+            : rolDeOrigen == RolAcotadoPorCartera
+                ? rolDeOrigen
+                : operacionDelTenantEntero && RolesConAccesoPorOperacion.Contains(rolDeOrigen)
+                    ? rolDeOrigen
+                    : rolGuardado;
 
     /// <summary>Roles que una cartera EXTERNA puede guardar (ya no deciden el rol efectivo).</summary>
     public static readonly IReadOnlyList<string> RolesDelegablesPorOperacion = ["CoordinadorCae", "GestorCae", "Consulta"];

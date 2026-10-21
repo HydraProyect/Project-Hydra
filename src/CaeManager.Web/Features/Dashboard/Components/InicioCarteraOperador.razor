@@ -1,0 +1,146 @@
+@*
+    Inicio del Gestor CAE (o Coordinador CAE) de un Operador CAE externo en el
+    contexto de su propia organización (decisión del propietario, 2026-10-21:
+    la pantalla al entrar es Inicio, no Mi trabajo). Ahí no tiene cartera: su
+    cartera son las Empresas gestionadas de los Tenants propietarios que opera.
+    Antes Inicio decía «Sin cartera en este contexto» y, tras iniciar sesión,
+    saltaba a Mi trabajo (D-2); ahora resume esa cartera aquí mismo.
+
+    Las cifras son las de la visión de cartera (ObtenerKpisGlobalesQuery): la
+    misma consulta de un solo Tenant, una vez por Tenant autorizado, sellada con
+    AmbitoTenantExplicito y con la RLS de cada uno. Esta pantalla no lee nada de
+    otro Tenant por su cuenta. «Entrar» es el mismo POST con antiforgery a
+    /cuenta/cliente-activo que el selector de la cabecera, VisionCartera y Mi
+    trabajo: el servidor revalida la autorización sobre ese Tenant en cada envío.
+*@
+@using CaeManager.Application.Dashboard.Queries
+@using CaeManager.Web.Features.Dashboard.Recursos
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosInicio> Textos
+@inject AntiforgeryStateProvider AntiforgeryStateProvider
+
+<section class="inicio-cartera" aria-labelledby="inicio-cartera-titulo" data-inicio-cartera>
+    <div class="inicio-cartera-cabecera">
+        <h2 id="inicio-cartera-titulo" class="dashboard-subtitulo">@Textos["CarteraTitulo"]</h2>
+        <span class="inicio-cartera-meta">@MetaEmpresas</span>
+        <a class="inicio-cartera-enlace" href="@RutaMiTrabajo">@Textos["EnlaceMiTrabajo"]</a>
+    </div>
+    <p class="inicio-cartera-descripcion">@Textos["CarteraDescripcion"]</p>
+
+    <dl class="inicio-cartera-cifras">
+        <div class="inicio-cartera-cifra @(TrabajadoresBloqueados > 0 ? "inicio-cartera-cifra-peligro" : null)">
+            <dt>@Textos["CarteraCifraTrabajadoresBloqueados"]</dt>
+            <dd>@TrabajadoresBloqueados</dd>
+        </div>
+        <div class="inicio-cartera-cifra @(CentrosBloqueados > 0 ? "inicio-cartera-cifra-peligro" : null)">
+            <dt>@Textos["CarteraCifraCentrosBloqueados"]</dt>
+            <dd>@CentrosBloqueados</dd>
+        </div>
+        <div class="inicio-cartera-cifra @(DocumentosVencidos > 0 ? "inicio-cartera-cifra-peligro" : null)">
+            <dt>@Textos["CarteraCifraVencidos"]</dt>
+            <dd>@DocumentosVencidos</dd>
+        </div>
+        <div class="inicio-cartera-cifra @(DocumentosUrgentes > 0 ? "inicio-cartera-cifra-advertencia" : null)">
+            <dt>@Textos["CarteraCifraUrgentes"]</dt>
+            <dd>@DocumentosUrgentes</dd>
+        </div>
+    </dl>
+
+    <Tarjeta Class="inicio-cartera-tarjeta">
+        <div class="inicio-cartera-tabla-contenedor">
+            <table class="tabla-datos" aria-labelledby="inicio-cartera-titulo">
+                <thead>
+                    <tr>
+                        <th scope="col">@Textos["CarteraColumnaEmpresa"]</th>
+                        <th scope="col">@Textos["CarteraColumnaTrabajadoresBloqueados"]</th>
+                        <th scope="col">@Textos["CarteraColumnaCentrosBloqueados"]</th>
+                        <th scope="col">@Textos["CarteraColumnaVencidos"]</th>
+                        <th scope="col">@Textos["CarteraColumnaUrgentes"]</th>
+                        <th scope="col">@Textos["CarteraColumnaCumplimiento"]</th>
+                        <th scope="col"><span class="inicio-cartera-oculto">@Textos["CarteraColumnaAcciones"]</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var empresa in Ordenadas)
+                    {
+                        <tr data-empresa-gestionada="@empresa.TenantId">
+                            <td class="inicio-cartera-nombre">@empresa.Nombre</td>
+                            @* El bloqueo es del Trabajador (regla de acceso por Centro) o de la plataforma CAE
+                               del Centro de Trabajo (D-7): dos cosas distintas, en dos columnas, como en la
+                               visión de cartera. *@
+                            <td>
+                                <Badge Tono="@(empresa.TrabajadoresBloqueados > 0 ? TonoBadge.Peligro : TonoBadge.Neutro)">@empresa.TrabajadoresBloqueados</Badge>
+                            </td>
+                            <td>
+                                <Badge Tono="@(empresa.CentrosBloqueados > 0 ? TonoBadge.Peligro : TonoBadge.Neutro)">@empresa.CentrosBloqueados</Badge>
+                            </td>
+                            <td>
+                                <Badge Tono="@(empresa.DocumentosVencidos > 0 ? TonoBadge.Peligro : TonoBadge.Neutro)">@empresa.DocumentosVencidos</Badge>
+                            </td>
+                            <td>
+                                <Badge Tono="@(empresa.DocumentosUrgentes > 0 ? TonoBadge.Advertencia : TonoBadge.Neutro)">@empresa.DocumentosUrgentes</Badge>
+                            </td>
+                            <td class="inicio-cartera-cumplimiento">
+                                @if (empresa.SinDatos)
+                                {
+                                    <span class="inicio-cartera-sin-datos">@Textos["CarteraCeldaSinDatos"]</span>
+                                }
+                                else
+                                {
+                                    @($"{Math.Clamp(empresa.TasaCumplimientoDocumental, 0, 100)}%")
+                                }
+                            </td>
+                            <td class="inicio-cartera-accion">
+                                @* Un <form> no puede envolver un <tr>: la acción vive en un botón de la última celda. *@
+                                <form method="post" action="/cuenta/cliente-activo">
+                                    @if (_token is not null)
+                                    {
+                                        <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
+                                    }
+                                    <input type="hidden" name="returnUrl" value="/" />
+                                    <input type="hidden" name="tenantId" value="@empresa.TenantId" />
+                                    <Boton Type="submit" Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                           title="@Textos["CarteraBotonEntrarTitulo", empresa.Nombre]"
+                                           aria-label="@Textos["CarteraBotonEntrarTitulo", empresa.Nombre]">@Textos["CarteraBotonEntrar"]</Boton>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </Tarjeta>
+</section>
+
+@code {
+    /// <summary>
+    /// Las Empresas gestionadas con Asignación de Cartera de quien mira, sin el
+    /// Tenant de origen ni el activo: ya filtradas por Inicio.
+    /// </summary>
+    [Parameter, EditorRequired] public IReadOnlyList<ClienteRiesgoDto> Empresas { get; set; } = [];
+
+    /// <summary>La cola agregada de toda la cartera (el mismo destino que «Mi trabajo» del menú lateral).</summary>
+    [Parameter, EditorRequired] public string RutaMiTrabajo { get; set; } = "/mi-trabajo";
+
+    private AntiforgeryRequestToken? _token;
+
+    protected override void OnInitialized() => _token = AntiforgeryStateProvider.GetAntiforgeryToken();
+
+    /// <summary>Primero lo que impide el acceso (Trabajadores, luego Centros de Trabajo), luego lo vencido y lo urgente; a igualdad, por nombre.</summary>
+    private IEnumerable<ClienteRiesgoDto> Ordenadas => Empresas
+        .OrderByDescending(e => e.TrabajadoresBloqueados)
+        .ThenByDescending(e => e.CentrosBloqueados)
+        .ThenByDescending(e => e.DocumentosVencidos)
+        .ThenByDescending(e => e.DocumentosUrgentes)
+        .ThenBy(e => e.Nombre, StringComparer.CurrentCulture);
+
+    private int TrabajadoresBloqueados => Empresas.Sum(e => e.TrabajadoresBloqueados);
+    private int CentrosBloqueados => Empresas.Sum(e => e.CentrosBloqueados);
+    private int DocumentosVencidos => Empresas.Sum(e => e.DocumentosVencidos);
+    private int DocumentosUrgentes => Empresas.Sum(e => e.DocumentosUrgentes);
+
+    private string MetaEmpresas => Empresas.Count == 1
+        ? Textos["CarteraMetaUna"]
+        : Textos["CarteraMetaVarias", Empresas.Count];
+}

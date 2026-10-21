@@ -90,6 +90,18 @@
   <data name="GlosaSubcontrataVarios" xml:space="preserve">
     <value>subcontractes</value>
   </data>
+  <data name="GlosaDocumentoUno" xml:space="preserve">
+    <value>document exigit</value>
+  </data>
+  <data name="GlosaDocumentoVarios" xml:space="preserve">
+    <value>documents exigits</value>
+  </data>
+  <data name="GlosaContactoUno" xml:space="preserve">
+    <value>contacte</value>
+  </data>
+  <data name="GlosaContactoVarios" xml:space="preserve">
+    <value>contactes</value>
+  </data>
   <data name="DetalleEntraComoContratista" xml:space="preserve">
     <value>Entra com a contractista: {0}</value>
   </data>
@@ -100,10 +112,10 @@
     <value>{0} vençuts</value>
   </data>
   <data name="DetalleProximosUno" xml:space="preserve">
-    <value>1 pròxim</value>
+    <value>1 per vèncer</value>
   </data>
   <data name="DetalleProximosVarios" xml:space="preserve">
-    <value>{0} pròxims</value>
+    <value>{0} per vèncer</value>
   </data>
   <data name="CentroSinRequisitos" xml:space="preserve">
     <value>Sense requisits</value>
@@ -363,11 +375,26 @@
   <data name="ToleranciaSinTiposDescripcion" xml:space="preserve">
     <value>Aquest Client no té tipus de document de Treballador o d'Empresa als quals fixar tolerància, o no hi tens accés.</value>
   </data>
-  <data name="MotivoUnDocumento" xml:space="preserve">
-    <value>1 document</value>
+  <data name="MotivoUnVencido" xml:space="preserve">
+    <value>1 vençut</value>
   </data>
-  <data name="MotivoDocumentos" xml:space="preserve">
-    <value>{0} documents</value>
+  <data name="MotivoVencidos" xml:space="preserve">
+    <value>{0} vençuts</value>
+  </data>
+  <data name="MotivoUnPendiente" xml:space="preserve">
+    <value>1 pendent</value>
+  </data>
+  <data name="MotivoPendientes" xml:space="preserve">
+    <value>{0} pendents</value>
+  </data>
+  <data name="MotivoUnPorVencer" xml:space="preserve">
+    <value>1 per vèncer</value>
+  </data>
+  <data name="MotivoPorVencer" xml:space="preserve">
+    <value>{0} per vèncer</value>
+  </data>
+  <data name="SeparadorMotivo" xml:space="preserve">
+    <value> · </value>
   </data>
   <data name="IncidenciasTituloUna" xml:space="preserve">
     <value>1 document amb incidència entre els seus treballadors</value>
@@ -489,6 +516,9 @@
   </data>
   <data name="PlataformaCaeSinRegistrar" xml:space="preserve">
     <value>Sense plataforma CAE registrada.</value>
+  </data>
+  <data name="PlataformaCaeDeSusCentros" xml:space="preserve">
+    <value>Els seus Centres ja s'acrediten a {0}.</value>
   </data>
   <data name="PlataformaCaeAlcance" xml:space="preserve">
     <value>La comparteixen tots els seus Centres.</value>

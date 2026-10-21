@@ -82,7 +82,9 @@ public partial class Visita360PaginaTests
 
         var caja = cut.Find(".visita360-caja-recomendaciones");
         caja.QuerySelectorAll("li").Select(li => li.TextContent.Trim())
-            .Should().Equal("Paula Campos tiene documentación pendiente: Aptitud médica, Entrega de EPI.");
+            .Should().Equal(
+                "Paula Campos tiene documentación pendiente: Entrega de EPI.",
+                "Paula Campos tiene documentación vencida: Aptitud médica.");
     }
 
     [Fact]

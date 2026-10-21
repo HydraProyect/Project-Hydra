@@ -233,6 +233,11 @@ html[data-menu-compacto] .barra-lateral .selector-tenant-disparador .selector-te
     color: var(--color-text-muted);
 }
 
+/* Lista principal sin rótulo (hay fijadas o recientes encima): conserva el hueco que daba la cabecera. */
+.selector-tenant-lista[aria-label] {
+    margin-top: 10px;
+}
+
 /* Pendientes por empresa gestionada: dato de apoyo, el nombre sigue mandando. */
 .selector-tenant-contador {
     flex-shrink: 0;

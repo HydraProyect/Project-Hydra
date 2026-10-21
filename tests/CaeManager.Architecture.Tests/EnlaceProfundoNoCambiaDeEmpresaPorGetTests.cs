@@ -62,6 +62,7 @@ public class EnlaceProfundoNoCambiaDeEmpresaPorGetTests
     [InlineData("src/CaeManager.Web/Features/Proyectos/Pages/ProyectoDetalle.razor")]
     [InlineData("src/CaeManager.Web/Features/Visitas/Pages/VisitaDetalle.razor")]
     [InlineData("src/CaeManager.Web/Features/Documentos/Pages/TipoDocumentoDetalle.razor")]
+    [InlineData("src/CaeManager.Web/Features/Documentos/Pages/DocumentoDetalle.razor")]
     [InlineData("src/CaeManager.Web/Features/Plantillas/Pages/ConfigurarPlantilla.razor")]
     public void Cada_ficha_por_Id_pinta_FichaNoEncontrada_cuando_su_consulta_devuelve_null(string ficha)
     {

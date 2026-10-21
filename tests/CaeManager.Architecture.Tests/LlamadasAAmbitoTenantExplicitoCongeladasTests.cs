@@ -423,6 +423,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.BootstrapOSiembra, "3 llamadas — tenantId del segundo tenant que el propio seeder crea"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "2 llamadas — el Tenant del Operador CAE externo y cada Tenant beneficiario, que la propia siembra aprovisiona o localiza por nombre (DelegacionDemoSeeder.AprovisionarTenantAsync); inerte salvo DatosPrueba:GestorCaeCarteraMultiTenant y rechazada en Producción"),
+        ["src/CaeManager.Infrastructure/Persistence/Seed/CoberturaPantallasSeeder.cs"] =
+            new(Categoria.BootstrapOSiembra, "4 llamadas — el Tenant del Operador CAE externo de la cobertura (asignar a su equipo a la operación y vincular a sus Gestores CAE con su Coordinador CAE) y cada Tenant propietario (Alfa y Beta), todos aprovisionados o localizados por nombre por la propia siembra (DelegacionDemoSeeder.AprovisionarTenantAsync); inerte salvo DatosPrueba:Cobertura:Activo y rechazada fuera de Development"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "7 llamadas — el Tenant del Operador CAE externo del piloto (tres: vincular a los Gestores CAE con su Coordinadora CAE, el segundo factor de siembra de su Administrador —la misma llamada, sobre el Tenant de la propia cuenta, da el suyo al Administrador de T1 y lee el Cliente empresarial al que queda ligada la cuenta de Usuario de Cliente de T1— y la operación heredada) y cada Tenant propietario del piloto (tres: su Asignación de Operación con sus Asignaciones de Cartera —también la del Administrador del Operador CAE externo— y su Encargo de administración de la siembra de demostración, sus datos, y —solo lectura, cuando la fecha de la demostración queda fuera de margen— si su Empresa propia ya existe, para decidir si queda algo por sembrar), más una que comparten los siete: la instrucción de tratamiento de IA de cada uno, borrador de demostración (lee si ya tiene una vigente y, si no, la registra); los Ids los devuelve DelegacionDemoSeeder.AprovisionarTenantAsync al aprovisionar o localizar por nombre del catálogo, o salen de la tabla de Tenants por ese mismo nombre en la lectura, y la siembra se niega antes si uno de esos nombres lo ocupa un Tenant sin marcador de demo; inerte salvo DatosPrueba:PilotoOutbound:Activo y rechazada en Producción"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAutoverificacion.cs"] =
@@ -568,6 +570,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] = 4,
             ["src/CaeManager.Infrastructure/Persistence/Seed/Fichas360DemoSeeder.cs"] = 3,
+            ["src/CaeManager.Infrastructure/Persistence/Seed/CoberturaPantallasSeeder.cs"] = 4,
             ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs"] = 7,
             ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAutoverificacion.cs"] = 2,
             ["src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs"] = 2,

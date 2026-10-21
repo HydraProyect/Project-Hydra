@@ -68,10 +68,6 @@
     <value>{0} trabajadores</value>
     <comment>Total de trabajadores de la Empresa visibles. {0} = número.</comment>
   </data>
-  <data name="IndicadorFaltantesNoCuentan" xml:space="preserve">
-    <value>Los documentos obligatorios que faltan no entran en este recuento.</value>
-    <comment>Aviso honesto: el recuento sale del peor vencimiento de los documentos existentes; un documento que falta no se ve.</comment>
-  </data>
   <data name="AccionSubirDocumento" xml:space="preserve"><value>Subir documento</value></data>
   <data name="AccionDetectar" xml:space="preserve">
     <value>Detectar altas y bajas</value>
@@ -86,7 +82,7 @@
     <comment>Ítem del menú de acciones: abre el panel en Información.</comment>
   </data>
   <data name="AnilloEtiqueta" xml:space="preserve">
-    <value>{0}% de cumplimiento acumulado en los centros donde esta empresa tiene actividad</value>
+    <value>{0}% de los documentos exigidos a sus Trabajadores en sus Centros, al día</value>
     <comment>Nombre accesible del anillo. {0} = porcentaje.</comment>
   </data>
   <data name="AnilloSinDato" xml:space="preserve">
@@ -385,6 +381,9 @@
   </data>
   <data name="ColDetecciones" xml:space="preserve">
     <value>Detecciones</value>
+  </data>
+  <data name="TituloColCumplimiento" xml:space="preserve">
+    <value>Documentos exigidos a sus Trabajadores en sus Centros que están al día; los que faltan cuentan en contra</value>
   </data>
   <data name="ColCumplimiento" xml:space="preserve">
     <value>Cumplimiento</value>

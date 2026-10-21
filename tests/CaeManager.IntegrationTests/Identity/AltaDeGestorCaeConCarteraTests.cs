@@ -289,6 +289,8 @@ public class AltaDeGestorCaeConCarteraTests : IAsyncLifetime
         servicios.AddSingleton(contexto);
         servicios.AddScoped<ITenantsQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddScoped<DirectorioUsuariosTenant>();
+        // El directorio exige la sesión (Ámbito efectivo); el arnés que no la registra recibe la de por defecto.
+        Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton<CaeManager.Application.Common.ICurrentUserService>(servicios, new CurrentUserServiceFalso());
         servicios.AddIdentityCore<ApplicationUser>()
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<CaeManagerDbContext>()

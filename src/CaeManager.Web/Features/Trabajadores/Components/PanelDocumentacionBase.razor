@@ -59,7 +59,10 @@
                 @foreach (var indicador in _datos.Indicadores)
                 {
                     <li class="panel-doc-base-fila panel-doc-base-fila-@Clase(indicador.Estado) @(OnCorregirDocumento.HasDelegate || OnSubirFaltante.HasDelegate ? "panel-doc-base-con-acciones" : null)" @key="indicador.Tipo">
-                        <span class="panel-doc-base-nombre">@TextoTipo(indicador.Tipo)</span>
+                        <span class="panel-doc-base-nombre">
+                            <span>@TextoTipo(indicador.Tipo)</span>
+                            <span class="panel-doc-base-sub">@TextoDetalle(indicador)</span>
+                        </span>
                         <span class="panel-doc-base-fecha" title="@Textos["ColumnaVence"]">
                             @if (indicador.FechaVencimiento is { } vence && indicador.Estado is EstadoIndicadorBase.Vigente or EstadoIndicadorBase.ProximoAVencer or EstadoIndicadorBase.Vencido)
                             {
@@ -72,12 +75,12 @@
                         </span>
                         <span class="panel-doc-base-estado"><Badge Tono="TonoDe(indicador.Estado)" Tamano="TamanoBadge.Pequeno">@TextoEstado(indicador)</Badge></span>
                         @if (OnCorregirDocumento.HasDelegate && indicador.DocumentoId is { } documentoId &&
-                            indicador.Estado is EstadoIndicadorBase.Vencido or EstadoIndicadorBase.SinConfirmar or EstadoIndicadorBase.ProximoAVencer or EstadoIndicadorBase.Vigente)
+                            indicador.Estado is EstadoIndicadorBase.Vencido or EstadoIndicadorBase.SinConfirmar or EstadoIndicadorBase.ProximoAVencer)
                         {
                             <SoloConEscritura>
-                                @* Confirmar o renovar abren el mismo editor: la fila ofrece una sola acción, «Gestionar»; la del documento vigente, en tono secundario. *@
+                                @* Confirmar o renovar abren el mismo editor: la fila ofrece una sola acción, «Gestionar», y solo si el documento pide trabajo (maqueta Trabajador 360: el vigente no lleva botón). *@
                                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                       class="@("accion-fila-enlace" + (indicador.Estado == EstadoIndicadorBase.Vigente ? " " + EstadoDocumentoFicha360.ClaseGestionarDiscreto : string.Empty))"
+                                       class="accion-fila-enlace"
                                        aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(TextoTipo(indicador.Tipo))"
                                        OnClick="() => OnCorregirDocumento.InvokeAsync(documentoId)">@EstadoDocumentoFicha360.TextoAccion</Boton>
                             </SoloConEscritura>
@@ -179,6 +182,19 @@
         EstadoIndicadorBase.Vencido => Textos["DocBaseEstadoVencido"],
         EstadoIndicadorBase.SinConfirmar => Textos["DocBaseEstadoSinConfirmar"],
         _ => Textos["DocBaseEstadoFalta"]
+    };
+
+    // Línea de detalle bajo el nombre (maqueta Trabajador 360): dice por qué la fila está como está, con el dato que ya tiene el indicador.
+    private string TextoDetalle(IndicadorDocumentacionBase indicador) => indicador.Estado switch
+    {
+        EstadoIndicadorBase.Vigente when indicador.Tipo == TipoDocumentoBase.InformacionArt18 => Textos["DocBaseSubPresente"],
+        EstadoIndicadorBase.Vigente when indicador.FechaVencimiento is { } vigenteHasta => Textos["DocBaseSubVigente", vigenteHasta.ToString("dd/MM/yyyy")],
+        EstadoIndicadorBase.Vigente => Textos["DocBaseSubVigenteSinFecha"],
+        EstadoIndicadorBase.ProximoAVencer when indicador.FechaVencimiento is { } vence => Textos["DocBaseSubProximoAVencer", vence.ToString("dd/MM/yyyy")],
+        EstadoIndicadorBase.Vencido when indicador.FechaVencimiento is { } venció => Textos["DocBaseSubVencido", venció.ToString("dd/MM/yyyy")],
+        EstadoIndicadorBase.SinConfirmar => Textos["DocBaseSubSinConfirmar"],
+        EstadoIndicadorBase.Falta => Textos["DocBaseSubFalta"],
+        _ => string.Empty
     };
 
     // Orden de la maqueta (de peor a mejor): Vencido, Pendiente (falta), Por vencer, Vigencia sin confirmar, Vigente.

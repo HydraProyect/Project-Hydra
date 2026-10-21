@@ -66,6 +66,26 @@ public class ManejadoresNuevosCuadroDireccionTests
         resultado.Total.Should().OnlyContain(p => p.Facturacion == null);
     }
 
+    /// <summary>
+    /// Rendimiento (prueba de flujos 2026-10-21, fila 16: 19,9 s en frío): la serie de 36 meses mide cada Tenant
+    /// beneficiario en una sola pasada, no una medición por mes, y cada mes lleva su propio corte.
+    /// </summary>
+    [Fact]
+    public async Task La_serie_mide_cada_Tenant_en_una_sola_pasada_para_todos_los_meses()
+    {
+        var medicion = new MedicionFalsa();
+        var handler = new ObtenerSerieCuadroDireccionQueryHandler(
+            Autorizados(), ConAlcance, medicion, null!, null!, new UsuarioConRol("CoordinadorCae"), new PoliticaAccesoTotalFalsa(false), new RelojFijo(Ahora));
+
+        var resultado = await handler.Handle(new ObtenerSerieCuadroDireccionQuery(2026, 10, ObtenerSerieCuadroDireccionQuery.MaximoMeses), default);
+
+        var pasada = medicion.Pasadas.Should().ContainSingle("una pasada por Tenant, no una por mes").Subject;
+        pasada.Should().HaveCount(ObtenerSerieCuadroDireccionQuery.MaximoMeses);
+        pasada[^1].Should().Be(new MesAMedir(new MesCuadroDireccion(2026, 10), Ahora), "el mes en curso se corta ahora");
+        pasada[0].CorteUtc.Should().Be(pasada[0].Mes.FinUtc, "un mes terminado se corta en su final");
+        resultado.Tenants.Should().ContainSingle().Which.Meses.Should().HaveCount(ObtenerSerieCuadroDireccionQuery.MaximoMeses);
+    }
+
     // ---------------------------------------------------------------- Comunicaciones
 
     private static ObtenerComunicacionesCuadroDireccionQueryHandler Comunicaciones(string? rol, IAlcanceDatosService alcance) =>
@@ -124,8 +144,16 @@ public class ManejadoresNuevosCuadroDireccionTests
     private sealed class MedicionFalsa()
         : MedicionMensualCuadroDireccion(null!, null!, null!, null!, null!, null!, null!)
     {
-        public override Task<MedicionCuadroDireccion> MedirAsync(MesCuadroDireccion mes, DateTime corteUtc, CancellationToken cancellationToken, bool medirDocumental = true) =>
-            Task.FromResult(new MedicionCuadroDireccion(10, 1, 0, 2, 0, 0, 0, [], new KpisDashboardDto(0, 0, 0, 0, 0, 0, 0, 0), 5, null));
+        public List<IReadOnlyList<MesAMedir>> Pasadas { get; } = [];
+
+        public override Task<IReadOnlyList<MedicionCuadroDireccion>> MedirMesesAsync(
+            IReadOnlyList<MesAMedir> meses, CancellationToken cancellationToken, bool medirDocumental = true)
+        {
+            Pasadas.Add(meses);
+            return Task.FromResult<IReadOnlyList<MedicionCuadroDireccion>>(meses
+                .Select(_ => new MedicionCuadroDireccion(10, 1, 0, 2, 0, 0, 0, [], new KpisDashboardDto(0, 0, 0, 0, 0, 0, 0, 0), 5, null))
+                .ToList());
+        }
     }
 
     private sealed class UsuarioConRol(string? rol) : ICurrentUserService

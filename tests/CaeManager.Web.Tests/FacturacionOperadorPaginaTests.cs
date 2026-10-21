@@ -238,7 +238,7 @@ public class FacturacionOperadorPaginaTests : BunitContext
 
         var filas = Filas(cut);
         filas.Should().HaveCount(2);
-        filas[0].Should().Contain("Obras y Estructuras del Ebro S.L.").And.Contain("14 extranjeros · 2 Centros nuevos · 1 Obras nuevas").And.Contain("610 €");
+        filas[0].Should().Contain("Obras y Estructuras del Ebro S.L.").And.Contain("14 extranjeros · 2 Centros nuevos · 1 Obra nueva").And.Contain("610 €");
         filas[1].Should().Contain("Rubén Salas Quintana").And.Contain("Sin tarifa");
         cut.Find(".fct-total").TextContent.Should().Contain("610 €");
     }
@@ -340,7 +340,7 @@ public class FacturacionOperadorPaginaTests : BunitContext
         var (cut, _) = Renderizar(new Escenario { Tarifas = null, AsignacionesEbro = 16 });
 
         // Sin línea de facturación las unidades de extranjeros son las del conteo del Excel de extranjeros.
-        Filas(cut)[0].Should().Contain("16 extranjeros · 2 Centros nuevos · 1 Obras nuevas");
+        Filas(cut)[0].Should().Contain("16 extranjeros · 2 Centros nuevos · 1 Obra nueva");
         cut.FindAll(".fct-complemento").Should().BeEmpty();
     }
 

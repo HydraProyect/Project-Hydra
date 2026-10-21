@@ -141,10 +141,18 @@
                     @foreach (var grupo in _vista.Grupos)
                     {
                         <section class="reclamar-empresa-grupo" @key="clavesGrupos.De(grupo.Clave)" aria-label="@grupo.Titulo">
+                            @{ var abierto = _abiertos.Contains(grupo.Clave); }
                             <header class="reclamar-empresa-grupo-cabecera">
+                                <button type="button" class="reclamar-empresa-grupo-alternar" data-alternar-grupo
+                                        aria-expanded="@(abierto ? "true" : "false")" aria-label="@Textos[abierto ? "PlegarGrupo" : "DesplegarGrupo", grupo.Titulo]"
+                                        @onclick="() => AlternarGrupo(grupo.Clave)">
+                                    <span class="@(abierto ? "reclamar-empresa-chevron" : "reclamar-empresa-chevron reclamar-empresa-chevron-cerrado")" aria-hidden="true">
+                                        <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                                    </span>
+                                </button>
                                 <span class="reclamar-empresa-grupo-titulo">
                                     <h3>@grupo.Titulo</h3>
-                                    <span class="texto-descriptivo">@grupo.Subtitulo</span>
+                                    <span class="texto-descriptivo">@grupo.Subtitulo@DesgloseDeGrupo(grupo)</span>
                                 </span>
                                 @if (grupo.Lote is { } lote)
                                 {
@@ -165,19 +173,22 @@
                                     </SoloConEscritura>
                                 }
                             </header>
-                            <ul class="reclamar-empresa-filas">
-                                @{ var clavesFilas = new ClavesDeHermanos(); }
-                                @foreach (var fila in grupo.Filas)
-                                {
-                                    <li class="reclamar-empresa-fila" @key="clavesFilas.De(fila.Clave)">
-                                        <span class="reclamar-empresa-fila-nombre">
-                                            <span>@fila.Tipo</span>
-                                            <span class="texto-descriptivo">@DetalleDeFila(fila)</span>
-                                        </span>
-                                        <Badge Tono="fila.Tono" Tamano="TamanoBadge.Pequeno">@fila.Insignia</Badge>
-                                    </li>
-                                }
-                            </ul>
+                            @if (abierto)
+                            {
+                                <ul class="reclamar-empresa-filas">
+                                    @{ var clavesFilas = new ClavesDeHermanos(); }
+                                    @foreach (var fila in grupo.Filas)
+                                    {
+                                        <li class="reclamar-empresa-fila" @key="clavesFilas.De(fila.Clave)">
+                                            <span class="reclamar-empresa-fila-nombre">
+                                                <span>@fila.Tipo</span>
+                                                <span class="texto-descriptivo">@DetalleDeFila(fila)</span>
+                                            </span>
+                                            <Badge Tono="fila.Tono" Tamano="TamanoBadge.Pequeno">@fila.Insignia</Badge>
+                                        </li>
+                                    }
+                                </ul>
+                            }
                         </section>
                     }
                 </div>

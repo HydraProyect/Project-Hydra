@@ -82,7 +82,7 @@ public partial class ClientesListaGen2Tests
         fila.QuerySelector(".insignia-critico")!.TextContent.Should().Contain("Crítico");
         fila.QuerySelector("button.aviso-sin-agenda")!.TextContent.Trim().Should().Be("Sin contacto");
         fila.QuerySelector(".enlace-centros-cliente")!.TextContent.Trim().Should().Be("3");
-        fila.QuerySelector(".col-estado")!.TextContent.Should().Contain("Vencido").And.Contain("1 documento");
+        fila.QuerySelector(".col-estado")!.TextContent.Should().Contain("Vencido").And.Contain("1 vencido");
         fila.QuerySelector($"a[href=\"/clientes/{cliente.Id}\"]").Should().NotBeNull("el icono 360 lleva a la ficha");
     }
 

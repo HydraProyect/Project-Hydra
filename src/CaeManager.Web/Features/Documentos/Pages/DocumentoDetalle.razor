@@ -1,0 +1,327 @@
+@*
+    Documento 360 — página (mockup «Documento 360 TALVEG», paquete 10-20). Ver el comentario de cabecera del
+    .razor.cs: una sola consulta, que también autoriza, y qué queda fuera de este incremento.
+*@
+@page "/documentos/{DocumentoId:guid}"
+@rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize]
+@using CaeManager.Application.Documentos.Queries.ObtenerFichaDocumento360
+@using CaeManager.Application.Documentos.Queries.ObtenerValidacionOficialDocumento
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Bandeja.Components
+@using CaeManager.Web.Features.Documentos.Components
+@using CaeManager.Web.Features.Documentos.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosDocumento360> Textos
+@inject IStringLocalizer<TextosDocumentos> TextosDocumento
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@(_ficha?.Documento.TipoDocumentoNombre ?? Textos["TituloPestanaNavegador"]) — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["EtiquetaMigas"]" />
+
+    @if (_noEncontrada)
+    {
+        @* No encontrado y sin acceso se ven igual: la página no revela si el registro existe (§ 4.5). *@
+        <Tarjeta>
+            <FichaNoEncontrada RutaLista="/documentos" />
+        </Tarjeta>
+    }
+    else if (_error)
+    {
+        <Tarjeta>
+            <EstadoVacio Titulo="@Textos["ErrorTitulo"]" Descripcion="@Textos["ErrorDescripcion"]"
+                         NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["Reintentar"]</Boton>
+                </Accion>
+            </EstadoVacio>
+        </Tarjeta>
+    }
+    else if (_cargando)
+    {
+        <Tarjeta>
+            <EstadoCargando Filas="5" />
+        </Tarjeta>
+    }
+    else if (_ficha is { } ficha)
+    {
+        var documento = ficha.Documento;
+
+        <CabeceraIdentidad Kicker="@Textos["Kicker", documento.Ambito]" Titulo="@documento.TipoDocumentoNombre" Datos="@DatosDeCabecera(ficha)">
+            <Anillo>
+                <AnilloCumplimiento Porcentaje="PorcentajeDeCentros" Tamano="TamanoAnillo.Cabecera"
+                                    Detalle="@(Textos["AnilloFraccion", CentrosValidos, ficha.DondeSeExige.Count])"
+                                    Etiqueta="@(ficha.DondeSeExige.Count > 0 ? Textos["AnilloEtiqueta", CentrosValidos, ficha.DondeSeExige.Count] : Textos["AnilloSinDato"])" />
+            </Anillo>
+            <JuntoAlTitulo>
+                <Badge Tono="TonoDelDocumento">@TextoDelDocumento</Badge>
+            </JuntoAlTitulo>
+            <Acciones>
+                @if (documento.ArchivoUrl is not null)
+                {
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="() => _versionAbierta = documento.Id">@Textos["VerPdf"]</Boton>
+                }
+                @* Renovar y Reclamar escriben o envían: sin escritura no hay botón ni menú. *@
+                <SoloConEscritura>
+                    @if (documento.SustitutoId is null)
+                    {
+                        <Boton Variante="VarianteBoton.Primario" OnClick="() => RenovarAsync(documento.Id)">@Textos["Renovar"]</Boton>
+                    }
+                </SoloConEscritura>
+                <MenuAcciones EtiquetaAccesible="@Textos["MasAcciones"]">
+                    @if (documento.ArchivoUrl is not null)
+                    {
+                        <ItemMenuAccion Href="@($"/documentos/{documento.Id}/archivo")">@Textos["DescargarPdf"]</ItemMenuAccion>
+                    }
+                    @if (TitularReclamable is not null)
+                    {
+                        <SoloConEscritura>
+                            <ItemMenuAccion OnClick="() => _reclamacionVisible = true">@Textos[documento.Ambito == AmbitoAplicacion.Trabajador ? "ReclamarTrabajador" : "ReclamarEmpresa"]</ItemMenuAccion>
+                        </SoloConEscritura>
+                    }
+                </MenuAcciones>
+            </Acciones>
+        </CabeceraIdentidad>
+
+        @* Historial (D8 del diseño del documento efectivo): un documento que otro sustituyó dice por quién y lleva al vigente. *@
+        @if (documento.SustitutoId is { } vigenteId)
+        {
+            <div class="documento360-aviso-historial" role="status">
+                @TextosDocumento["Documento360AvisoHistorial", documento.SustituidoEn?.EnHoraPeninsular().ToString("dd/MM/yyyy") ?? ""]
+                <a href="/documentos/@vigenteId">@TextosDocumento["Documento360VerVigente"]</a>
+            </div>
+        }
+
+        <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
+            <ChildContent>
+                <Pestanas Definiciones="Pestanas" PestanaActiva="@PestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["EtiquetaGrupoPestanas"]">
+                    @switch (PestanaActiva)
+                    {
+                        case PestanaDondeSeExige:
+                            @if (ficha.DondeSeExige.Count == 0)
+                            {
+                                <Tarjeta>
+                                    <EstadoVacio Titulo="@Textos["SinCentrosTitulo"]" Descripcion="@Textos["SinCentrosDescripcion"]" NombreIcono="centros" />
+                                </Tarjeta>
+                            }
+                            else
+                            {
+                                <FiltroEstadosMultiple Opciones="OpcionesDeEstado" Seleccion="_estadosMarcados" SeleccionChanged="CambiarEstados"
+                                                       Total="ficha.DondeSeExige.Count" TextoTodos="@Textos["Todos"]" Etiqueta="@Textos["EtiquetaFiltroEstado"]" />
+                                <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["DondeEtiquetaLista"]">
+                                    <Encabezado>
+                                        <span>@Textos["DondeIntro", documento.PropietarioNombre]</span>
+                                        <span> · @Textos["DondeMostrando", CentrosVisibles.Count, ficha.DondeSeExige.Count]</span>
+                                    </Encabezado>
+                                    <ChildContent>
+                                        @foreach (var centro in CentrosVisibles)
+                                        {
+                                            <FilaRelacion @key="centro.CentroId" Nombre="@centro.CentroNombre" Href="@($"/centros/{centro.CentroId}")" NombreIcono="centros"
+                                                          Tono="EstadoDocumentoFicha360.TonoFila(centro.Estado)">
+                                                <Detalle>
+                                                    <span>@LineaDeCentro(centro)</span>
+                                                    @if (TextoRecomendacion(centro) is { } recomendacion)
+                                                    {
+                                                        <span class="documento360-recomendacion">@Textos["RecomendacionLinea", recomendacion]</span>
+                                                    }
+                                                </Detalle>
+                                                <Cifra>
+                                                    <b>@CifraNegrita(centro)</b> @CifraTexto(centro)
+                                                </Cifra>
+                                                <Estado><Badge Tono="EstadoDocumentoFicha360.Tono(centro.Estado)">@EstadoDocumentoFicha360.Texto(centro.Estado)</Badge></Estado>
+                                            </FilaRelacion>
+                                        }
+                                    </ChildContent>
+                                    <Pie>
+                                        @if (CentrosVisibles.Count == 0 && HayFiltrosActivos)
+                                        {
+                                            <p class="documento360-sin-resultados">
+                                                @Textos["FiltroSinResultados"]
+                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="QuitarFiltros">@Textos["QuitarFiltros"]</Boton>
+                                            </p>
+                                        }
+                                    </Pie>
+                                </ListaRelaciones>
+                            }
+                            break;
+
+                        case PestanaVersiones:
+                            <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["VersionesEtiquetaLista"]">
+                                <ChildContent>
+                                    @foreach (var version in ficha.Versiones)
+                                    {
+                                        <FilaRelacion @key="version.Id" Nombre="@version.NombreArchivo" NombreIcono="documentos"
+                                                      Tono="@(version.EsActual ? EstadoDocumentoFicha360.TonoFila(version.Estado) : null)">
+                                            <Detalle><span>@LineaDeVersion(version)</span></Detalle>
+                                            <Estado>
+                                                @if (version.EsActual)
+                                                {
+                                                    <Badge Tono="EstadoDocumentoFicha360.Tono(version.Estado)">@EstadoDocumentoFicha360.Texto(version.Estado)</Badge>
+                                                }
+                                                else
+                                                {
+                                                    <Badge Tono="TonoBadge.Neutro">@Textos["VersionCerrada"]</Badge>
+                                                }
+                                            </Estado>
+                                            <Acciones>
+                                                @if (version.TieneArchivo)
+                                                {
+                                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                           aria-label="@Textos["VersionVerAccesible", version.NombreArchivo]"
+                                                           OnClick="() => _versionAbierta = version.Id">@Textos["VersionVer"]</Boton>
+                                                }
+                                                @if (version.EsActual)
+                                                {
+                                                    <SoloConEscritura>
+                                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                               aria-label="@Textos["VersionRenovarAccesible", version.NombreArchivo]"
+                                                               OnClick="() => RenovarAsync(version.Id)">@Textos["Renovar"]</Boton>
+                                                    </SoloConEscritura>
+                                                }
+                                            </Acciones>
+                                        </FilaRelacion>
+                                    }
+                                </ChildContent>
+                            </ListaRelaciones>
+                            break;
+
+                        case PestanaValidacion:
+                            @if (_cargandoValidacion)
+                            {
+                                <EstadoCargando Filas="3" />
+                            }
+                            else if (_validacion is null)
+                            {
+                                <Tarjeta>
+                                    <EstadoVacio Titulo="@Textos["ValSinTitulo"]" Descripcion="@Textos["ValSinDescripcion"]" />
+                                </Tarjeta>
+                            }
+                            else
+                            {
+                                <Tarjeta Titulo="@Textos["ValTitulo"]" Compacta="true">
+                                    <RejillaDatos>
+                                        <DatoRejilla Etiqueta="@Textos["ValConfianza"]"><Badge Tono="ValidacionOficialUi.TonoDeNivel(_validacion.NivelConfianza)">@ValidacionOficialUi.TextoDeNivel(_validacion.NivelConfianza)</Badge></DatoRejilla>
+                                        <DatoRejilla Etiqueta="@Textos["ValDecision"]"><Badge Tono="@(_validacion.Decision == DecisionValidacionOficial.AutoValidado ? TonoBadge.Exito : TonoBadge.Advertencia)">@TextoDeDecision(_validacion.Decision)</Badge></DatoRejilla>
+                                        @if (!string.IsNullOrWhiteSpace(_validacion.Motivos))
+                                        {
+                                            <DatoRejilla Etiqueta="@Textos["ValMotivos"]" Valor="@_validacion.Motivos" Ancho="true" />
+                                        }
+                                        <DatoRejilla Etiqueta="@Textos["ValCodigo"]" Valor="@(_validacion.CodigoVerificacion ?? Textos["InfoSinDato"])" />
+                                        <DatoRejilla Etiqueta="@Textos["ValCif"]" Valor="@(_validacion.CifDetectado ?? Textos["InfoSinDato"])" />
+                                        <DatoRejilla Etiqueta="@Textos["ValEmision"]" Valor="@(_validacion.FechaEmisionDetectada?.ToString("dd/MM/yyyy") ?? Textos["InfoSinDato"])" />
+                                        <DatoRejilla Etiqueta="@Textos["ValPeriodo"]" Valor="@(_validacion.PeriodoDetectado ?? Textos["InfoSinDato"])" />
+                                        <DatoRejilla Etiqueta="@Textos["ValVerificado"]" Valor="@_validacion.CreadaEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")" />
+                                    </RejillaDatos>
+                                </Tarjeta>
+                                @if (_validacion.Firmas.Count > 0)
+                                {
+                                    <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["ValFirmas"]">
+                                        <Encabezado><span>@Textos["ValFirmas"]</span></Encabezado>
+                                        <ChildContent>
+                                            @foreach (var firma in _validacion.Firmas)
+                                            {
+                                                <FilaRelacion Nombre="@Textos["ValFirmaN", firma.Indice + 1]">
+                                                    <Detalle>
+                                                        <span>@(firma.FirmanteNombre ?? Textos["ValFirmanteSinRegistrar"])@(firma.FirmanteNif is not null ? $" ({firma.FirmanteNif})" : "") · @Textos["ValEmitidoPor", firma.EmisorCertificado]</span>
+                                                        @if (firma.MotivoInvalidez is not null)
+                                                        {
+                                                            <span>@firma.MotivoInvalidez</span>
+                                                        }
+                                                    </Detalle>
+                                                    <Estado>
+                                                        <Badge Tono="@(firma.Estado == EstadoFirmaPdf.Valida ? TonoBadge.Exito : firma.Estado == EstadoFirmaPdf.Invalida ? TonoBadge.Peligro : TonoBadge.Neutro)">@(firma.Estado == EstadoFirmaPdf.Valida ? Textos["ValFirmaIntegra"] : firma.Estado == EstadoFirmaPdf.Invalida ? Textos["ValFirmaInvalida"] : Textos["ValFirmaNoSoportada"])</Badge>
+                                                    </Estado>
+                                                </FilaRelacion>
+                                            }
+                                        </ChildContent>
+                                    </ListaRelaciones>
+                                }
+                            }
+                            break;
+
+                        case PestanaFirma:
+                            <FirmaEnCampoTab EntidadId="DocumentoId" />
+                            break;
+
+                        case PestanaFicha:
+                            <Tarjeta Titulo="@Textos["FichaPropietario"]" Compacta="true">
+                                <ListaRelaciones Etiqueta="@Textos["FichaPropietario"]">
+                                    <FilaRelacion Nombre="@documento.PropietarioNombre" Href="@RutaDelPropietario" NombreIcono="@IconoDelPropietario" />
+                                </ListaRelaciones>
+                            </Tarjeta>
+                            break;
+
+                        case PestanaHistorial:
+                            <PestanaHistorial EntidadTipo="Documento" EntidadId="DocumentoId" />
+                            break;
+                    }
+                </Pestanas>
+            </ChildContent>
+            <Lateral>
+                <Tarjeta Titulo="@Textos["InfoTitulo"]" Compacta="true">
+                    <AccionesHeader>
+                        <SoloConEscritura>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => RenovarAsync(documento.Id)">@Textos["InfoEditar"]</Boton>
+                        </SoloConEscritura>
+                    </AccionesHeader>
+                    <ChildContent>
+                        <RejillaDatos>
+                            <DatoRejilla Etiqueta="@Textos["InfoTipo"]" Valor="@documento.TipoDocumentoNombre" Ancho="true" />
+                            <DatoRejilla Etiqueta="@Textos["InfoEmision"]" Valor="@documento.FechaEmision.ToString("dd/MM/yyyy")" />
+                            <DatoRejilla Etiqueta="@Textos["InfoVencimiento"]">
+                                @if (documento.FechaVencimiento is { } vencimiento)
+                                {
+                                    <TextoFechaCopiable Fecha="vencimiento" FechaEmision="documento.FechaEmision">@vencimiento.ToString("dd/MM/yyyy")</TextoFechaCopiable>
+                                }
+                                else
+                                {
+                                    @(documento.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca ? Textos["InfoSinCaducidad"] : Textos["InfoSinConfirmar"])
+                                }
+                            </DatoRejilla>
+                            <DatoRejilla Etiqueta="@Textos["InfoArchivo"]" Valor="@(documento.ArchivoUrl is null ? Textos["InfoSinArchivo"] : documento.NombreArchivoDescarga)" Ancho="true" />
+                            <DatoRejilla Etiqueta="@Textos["InfoComentarios"]" Valor="@(string.IsNullOrWhiteSpace(documento.Comentarios) ? Textos["InfoSinDato"] : documento.Comentarios)" Ancho="true" />
+                        </RejillaDatos>
+                    </ChildContent>
+                </Tarjeta>
+            </Lateral>
+        </CuerpoConLateral>
+    }
+</div>
+
+@if (_versionAbierta is { } versionAbierta)
+{
+    <VisorDocumento Visible="true" VisibleChanged="v => { if (!v) _versionAbierta = null; }"
+                    DocumentoId="versionAbierta" Titulo="@(_ficha?.Documento.TipoDocumentoNombre ?? Textos["TituloPestanaNavegador"])" />
+}
+
+<DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="CargarAsync" />
+
+@if (TitularReclamable is { } titular)
+{
+    @* @key por titular: el selector del cajón se inicializa una sola vez, así que otro titular es otra instancia. *@
+    <DrawerReclamacionLote @key="titular.EntidadId" Visible="_reclamacionVisible" VisibleChanged="v => _reclamacionVisible = v"
+                           AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa })"
+                           AmbitoInicial="titular.Ambito" EntidadIdInicial="titular.EntidadId" />
+}
+</LimiteDeErrores>
+
+@code {
+    // Línea de datos de la cabecera: «vence/venció el …» y Propietario con su ficha 360.
+    private RenderFragment DatosDeCabecera(FichaDocumento360Dto ficha) => @<text>
+        <span>@TextoVencimiento(ficha)</span>
+        <span aria-hidden="true">·</span>
+        <span>@Textos["MetaPropietario"]</span>
+        @if (RutaDelPropietario is { } ruta)
+        {
+            <a href="@ruta">@ficha.Documento.PropietarioNombre</a>
+            <Boton360 Nombre="@ficha.Documento.PropietarioNombre" Href="@ruta" />
+        }
+        else
+        {
+            <b>@ficha.Documento.PropietarioNombre</b>
+        }
+    </text>;
+}

@@ -28,34 +28,41 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
-    <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["KickerOperacion"]">
-        <Acciones>
-            <a class="enlace-exportar" href="/incidencias/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EnlaceExportarExcel"]</a>
+<div class="contenedor-pagina lista-design">
+    <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : (int?)_totalElementos)"
+                     SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
+                     >
+        <Menu>
+            <CaeManager.Web.Exportacion.EntradasExportar Ruta="/incidencias/exportar.xlsx" />
+        </Menu>
+        <Primaria>
             <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync">@Textos["BotonNuevaIncidencia"]</Boton></SoloConEscritura>
-        </Acciones>
-    </CabeceraPagina>
+        </Primaria>
+    </CabeceraListado>
 
-    <section class="barra-filtros-lista">
-        <div class="barra-filtros-lista-fila">
-            <CampoTexto Etiqueta="@ComunesListados["ListaBuscar"]" Placeholder="@Textos["PlaceholderBusqueda"]" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-            <FiltroEstado Etiqueta="@Textos["EtiquetaEstado"]" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync" Opciones="OpcionesEstado" TextoTodos="@Textos["OpcionTodas"]" />
-        </div>
-    </section>
-
-    @* El valor del filtro de estado vive dentro de un desplegable cerrado: sin
-       el chip, una lista de incidencias abiertas se lee como la lista de todas.
-       La búsqueda no lleva chip porque ya se ve escrita en su propio campo. *@
-    @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
-    {
-        <div class="chips-filtros">
-            <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
-            <span class="chip-filtro">
-                @EtiquetaFiltroEstado
-                <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoAsync" aria-label="@Textos["AriaQuitarFiltroEstado"]"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-            </span>
-        </div>
-    }
+    @* El estado se filtra en la franja (Sin resolver / Resueltas), que ya dice cuál está marcado: sin pastillas. El fragmento
+       vacío mantiene la barra en modo pastillas. *@
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["PlaceholderBusqueda"]"
+                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
+                  FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
+                  OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
+                  VistaRecordada="_vistaRecordada">
+        <Pastillas></Pastillas>
+        <Estados>
+            <FranjaEstado Opciones="OpcionesEstado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                          TextoTodos="@Textos["OpcionTodas"]" EtiquetaAccesible="@Textos["EtiquetaEstado"]" />
+        </Estados>
+        <Chips>
+            @if (!string.IsNullOrWhiteSpace(_busqueda))
+            {
+                <ChipFiltro Etiqueta="@Textos["ChipBusqueda", _busqueda]" EtiquetaAccesible="@Textos["AriaQuitarBusqueda"]" OnQuitar="() => BuscarAsync(string.Empty)" />
+            }
+        </Chips>
+    </BarraFiltros>
+    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
+                               OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+    <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Incidencias"
+                             ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -72,27 +79,14 @@
     }
     else
     {
-        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
-            <Extra>
-                @if (MostrarRecuento)
-                {
-                    <span class="recuento-incidencias">@TextoRecuento</span>
-                }
-                @if (_elementosPagina.Count > 0)
-                {
-                    <span class="atajos-incidencias">
-                        @Textos["AtajosEtiqueta"] <kbd>j</kbd> / <kbd>k</kbd> @Textos["AtajoMover"] · <kbd>x</kbd> @Textos["AtajoMarcar"] · <kbd>@Textos["TeclaEnter"]</kbd> @Textos["AtajoAbrirCentro"]
-                    </span>
-                }
-            </Extra>
-        </BarraHerramientasLista>
-
         @if (MostrarEsqueleto)
         {
             <EstadoCargando Filas="6" />
         }
 
-        <div style="display:@(OcultarTabla ? "none" : "block")">
+        @* La rejilla se monta siempre (es la que pide los datos): se esconde mientras no haya filas que enseñar. *@
+        @TarjetaListado.RenderizarMaqueta(@<text>
+            <div style="display:@(OcultarTabla ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="IncidenciaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                 @if (_seleccionMultiple)
                 {
@@ -105,6 +99,14 @@
                         </ChildContent>
                     </TemplateColumn>
                 }
+                @* Primera columna del patrón de listados (maqueta de Incidencias): el tipo y debajo su código INC-xxxxxxxx, derivado
+                   del Id como VIS- en Visitas (no es un dato guardado). *@
+                <TemplateColumn Title="@Textos["ColumnaIncidencia"]" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.Tipo))">
+                    <span class="incidencia-tipo-codigo">
+                        <span class="incidencia-nombre-tipo">@ObtenerEtiquetaTipo(context.Tipo)</span>
+                        <span class="incidencia-referencia"><BotonCopiar EnLinea="true" ConfirmarConIcono="true" Texto="@ReferenciaIncidencia(context.Id)" Valor="@context.Id.ToString()" NombreAccesible="@Textos["CopiarReferenciaIncidencia", ObtenerEtiquetaTipo(context.Tipo)]" /></span>
+                    </span>
+                </TemplateColumn>
                 <TemplateColumn Title="@Textos["EtiquetaCentro"]" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.CentroNombre))">
                     <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
                         @context.CentroNombre
@@ -122,7 +124,6 @@
                         </button>
                     }
                 </TemplateColumn>
-                <TemplateColumn Title="@Textos["EtiquetaTipo"]" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.Tipo))">@ObtenerEtiquetaTipo(context.Tipo)</TemplateColumn>
                 <TemplateColumn Title="@Textos["EtiquetaGravedad"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.Gravedad))">
                     <Badge Tono="@GravedadTono(context.Gravedad)">@ObtenerEtiquetaGravedad(context.Gravedad)</Badge>
                 </TemplateColumn>
@@ -146,11 +147,8 @@
                     </MenuAcciones>
                 </TemplateColumn>
             </QuickGrid>
-
-            <PaginadorSimple PresentacionMaqueta="true" ElementosEnPagina="_elementosPagina.Count" PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                              Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
-                              TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-        </div>
+            </div>
+        </text>, PieDelListado)
 
         @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
         {
@@ -240,7 +238,7 @@
 
 @* La única acción del lote es eliminar (ICommand que AutorizacionEscrituraBehavior deniega a
    Consulta): la barra no se le ofrece. La palanca de selección múltiple sigue visible porque
-   vive en BarraHerramientasLista, compartida y con contenido de lectura, y seleccionar no escribe. *@
+   vive en la cabecera, compartida y con contenido de lectura, y seleccionar no escribe. *@
 <SoloConEscritura>
     <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
                         OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
@@ -255,3 +253,13 @@
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 
 </LimiteDeErrores>
+
+@code {
+    private RenderFragment? PieDelListado => _errorCarga || (_cargando && _totalElementos == 0) ? null : @<text>
+        <PaginadorSimple PresentacionMaqueta="true" ElementosEnPagina="_elementosPagina.Count" PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                         Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
+                         TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync">
+            <Centro><LeyendaAtajosLista Omitir="@(["e"])" /></Centro>
+        </PaginadorSimple>
+    </text>;
+}

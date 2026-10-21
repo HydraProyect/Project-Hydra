@@ -70,6 +70,11 @@ public class ObtenerClientesOrdenPorEstadoDocumentalTests : IAsyncLifetime
         servicios.AddSingleton<CaeManager.Application.Centros.ICentrosQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Contactos.IContactosAgendaQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Configuracion.IConfiguracionQueryContext>(_dbContext);
+        // El handler calcula el bloqueo de plataforma con CalculoEstadoCentroService, que lee también estos contextos.
+        servicios.AddSingleton<CaeManager.Application.Documentos.IDocumentosQueryContext>(_dbContext);
+        servicios.AddSingleton<CaeManager.Application.TiposDocumento.ITiposDocumentoQueryContext>(_dbContext);
+        servicios.AddSingleton<CaeManager.Application.Trabajadores.ITrabajadoresQueryContext>(_dbContext);
+        servicios.AddSingleton<CaeManager.Application.Asignaciones.IAsignacionesQueryContext>(_dbContext);
         servicios.AddSingleton<IAlcanceDatosService>(new AlcanceDatosServiceFalso());
         servicios.AddSingleton<ICurrentUserService>(new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: _tenant));
         _servicios = servicios.BuildServiceProvider();

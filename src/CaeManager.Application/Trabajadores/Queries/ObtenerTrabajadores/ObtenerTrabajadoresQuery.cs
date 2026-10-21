@@ -26,7 +26,13 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 /// vigencia confirmada y ninguno está en Próximo, Urgente o Vencido, cae en
 /// <see cref="EstadoDocumento.SinConfirmar"/> — el <c>null</c> del tipo
 /// es un artefacto de <see cref="TrabajadorListaDto"/> siendo compartido con
-/// otros listados, no un valor que este handler produzca.
+/// otros listados, no un valor que este handler produzca. Sobre ese peor
+/// estado se aplican los Tipos exigidos sin documento
+/// (<see cref="SeveridadEstadoDocumento.ConFaltantes"/>): Vencido &gt;
+/// Pendiente &gt; Por vencer &gt; Sin confirmar &gt; Sin incidencias, el mismo
+/// orden de la clave con la que se filtra, cuenta y ordena antes de paginar.
+/// Es el ÚNICO estado de Trabajador: el listado, Empresa 360 y la cabecera de
+/// Trabajador 360 lo leen de aquí.
 ///
 /// <para>
 /// <paramref name="CentroId"/> deja solo a los Trabajadores con una Asignación activa en ese Centro. Solo
@@ -47,7 +53,8 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 /// <paramref name="ConDesgloseDocumental"/> rellena, para las filas de la página, las incidencias y la fracción
 /// «vigentes / registrados» de <see cref="TrabajadorListaDto"/>. Cuesta una consulta de documentos por página, así
 /// que hay que pedirlo: lo pide solo quien lo pinta (el listado de Trabajadores, en su carga de página y al
-/// refrescar una fila por id). Sin pedirlo, las filas llegan con las incidencias vacías y los contadores a cero.
+/// refrescar una fila por id). Sin pedirlo, las filas llegan con las incidencias vacías y los contadores a cero;
+/// los faltantes y el estado combinado llegan siempre.
 /// </para>
 /// </summary>
 public record ObtenerTrabajadoresQuery(
@@ -87,6 +94,13 @@ public record TrabajadorListaDto(
     /// <summary>De los registrados, los que están al día (<see cref="CumplimientoDocumental.EsConforme(EstadoDocumento)"/>).</summary>
     public int DocumentosVigentes { get; init; }
 
+    /// <summary>
+    /// Denominador de la cifra «vigentes / registrados» de las filas: los registrados más los Tipos exigidos que faltan
+    /// (<see cref="DocumentosFaltantes"/>). Quien tiene «Falta: Documento de identidad» no puede leerse 4/4: lo que
+    /// falta tampoco está vigente.
+    /// </summary>
+    public int DocumentosEsperados => DocumentosRegistrados + DocumentosFaltantes.Count;
+
     /// <summary>Cuenta ajena, autónomo o voluntario.</summary>
     public TipoContratacion TipoContratacion { get; init; }
 
@@ -99,9 +113,9 @@ public record TrabajadorListaDto(
     /// <summary>
     /// Nombres de los Tipos de documento que algún Centro con Asignación activa del Trabajador le EXIGE y de los que no
     /// tiene ningún Documento operativo (la misma regla de <see cref="IDocumentosFaltantesService"/>: Alertas, preflight
-    /// de asignación y Trabajador 360). Sin repetir y por nombre. Solo los rellena <c>ConDesgloseDocumental</c>. Un
-    /// Trabajador con alguno nunca se presenta como «Sin incidencias» en la fila, aunque <see cref="EstadoDocumental"/>,
-    /// que mide solo los documentos registrados, diga lo contrario.
+    /// de asignación y Trabajador 360). Sin repetir y por nombre. Se rellenan siempre, y con alguno
+    /// <see cref="EstadoDocumental"/> ya llega como <see cref="EstadoDocumento.Faltante"/> («Pendiente») salvo que haya
+    /// un vencido (<see cref="SeveridadEstadoDocumento.ConFaltantes"/>): ninguna pantalla lo combina por su cuenta.
     ///
     /// <para>
     /// El filtro, los recuentos y la ordenación incluyen los mismos faltantes antes de paginar.
@@ -399,9 +413,11 @@ public class ObtenerTrabajadoresQueryHandler(
     }
 
     /// <summary>
-    /// Añade a las filas YA paginadas su desglose documental, en una sola consulta de documentos para toda la
-    /// página. No toca <see cref="TrabajadorListaDto.EstadoDocumental"/>: sale de los mismos documentos y la
-    /// misma calculadora, así que coinciden (lo ata <c>DesgloseDocumentalDeTrabajadoresBajoRlsTests</c>).
+    /// Añade a las filas YA paginadas sus faltantes (siempre) y su desglose documental (si se pide), en una sola
+    /// consulta de documentos para toda la página. De <see cref="TrabajadorListaDto.EstadoDocumental"/> solo cambia
+    /// lo que los faltantes agravan (<see cref="SeveridadEstadoDocumento.ConFaltantes"/>); lo demás sale de los
+    /// mismos documentos y la misma calculadora que el desglose, así que coinciden (lo ata
+    /// <c>DesgloseDocumentalDeTrabajadoresBajoRlsTests</c>).
     /// </summary>
     private async Task<IReadOnlyList<TrabajadorListaDto>> ConDesgloseAsync(
         IReadOnlyList<TrabajadorListaDto> pagina, ObtenerTrabajadoresQuery request, CancellationToken cancellationToken,
@@ -409,28 +425,39 @@ public class ObtenerTrabajadoresQueryHandler(
     {
         pagina = await ConActividadAsync(pagina, cancellationToken);
 
-        if (!request.ConDesgloseDocumental || pagina.Count == 0)
+        if (pagina.Count == 0)
             return pagina;
 
-        var desgloses = await calculoEstadoDocumental.CalcularDesgloseAsync(
-            AmbitoAplicacion.Trabajador, pagina.Select(t => t.Id).ToList(), cancellationToken);
-
+        // Los faltantes entran SIEMPRE en el estado de la fila, pida o no el desglose quien llama: es el mismo estado
+        // que la clave de filtro, franja y orden del camino con estado completo (Vencido > Pendiente > Urgente > …).
+        // Sin esto, Empresa 360 leía «Sin incidencias» a quien el listado daba como Pendiente.
         var ids = pagina.Select(t => t.Id).ToList();
         var faltantes = faltantesCalculados ?? await FaltantesPorTrabajadorAsync(
             trabajadoresContext.Trabajadores.Where(t => ids.Contains(t.Id)), cancellationToken);
 
+        pagina = pagina
+            .Select(t => t with
+            {
+                EstadoDocumental = SeveridadEstadoDocumento.ConFaltantes(t.EstadoDocumental, faltantes.ContainsKey(t.Id)),
+                DocumentosFaltantes = faltantes.GetValueOrDefault(t.Id) ?? []
+            })
+            .ToList();
+
+        if (!request.ConDesgloseDocumental)
+            return pagina;
+
+        var desgloses = await calculoEstadoDocumental.CalcularDesgloseAsync(
+            AmbitoAplicacion.Trabajador, ids, cancellationToken);
+
         return pagina
-            .Select(t => (desgloses.TryGetValue(t.Id, out var desglose)
+            .Select(t => desgloses.TryGetValue(t.Id, out var desglose)
                 ? t with
                 {
                     Incidencias = desglose.Incidencias,
                     DocumentosRegistrados = desglose.DocumentosRegistrados,
                     DocumentosVigentes = desglose.DocumentosVigentes
                 }
-                : t) with
-            {
-                DocumentosFaltantes = faltantes.GetValueOrDefault(t.Id) ?? []
-            })
+                : t)
             .ToList();
     }
 

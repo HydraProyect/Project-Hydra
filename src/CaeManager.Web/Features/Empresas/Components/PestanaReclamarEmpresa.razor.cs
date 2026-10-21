@@ -72,6 +72,7 @@ public partial class PestanaReclamarEmpresa
     private Guid? _oficioId;
     private Categoria? _estado;
     private Agrupacion? _agrupacion;
+    private readonly HashSet<string> _abiertos = [];
 
     private bool _cajonVisible;
     private IReadOnlyList<LoteReclamacionAgrupadoDto>? _cajonLotes;
@@ -110,6 +111,7 @@ public partial class PestanaReclamarEmpresa
         _oficioId = null;
         _estado = null;
         _agrupacion = null;
+        _abiertos.Clear();
         _cajonVisible = false;
         _cajonLotes = null;
         await CargarAsync();
@@ -199,6 +201,10 @@ public partial class PestanaReclamarEmpresa
         {
             foreach (var documento in lote.Documentos)
             {
+                // Lo vigente no se reclama (la nota al pie lo dice): ni se lista ni cuenta, para que lo que se ve no contradiga los recuentos.
+                if (documento.Estado is not (EstadoDocumento.Vencido or EstadoDocumento.Proximo or EstadoDocumento.Urgente))
+                    continue;
+
                 var categoria = documento.Estado == EstadoDocumento.Vencido ? Categoria.Vencido : Categoria.PorVencer;
                 filas.Add(new Fila(
                     $"doc:{documento.DocumentoId}", lote.Clave, documento.TrabajadorId, documento.TrabajadorNombre, documento.TipoDocumentoNombre,
@@ -212,8 +218,8 @@ public partial class PestanaReclamarEmpresa
                 filas.Add(new Fila(
                     pendiente.Clave, lote.Clave, pendiente.TrabajadorId, pendiente.TrabajadorNombre, pendiente.TipoDocumentoNombre,
                     Categoria.Pendiente, Textos[sinConfirmar ? "DetalleSinConfirmar" : "DetalleFalta"],
-                    sinConfirmar ? TonoBadge.Advertencia : TonoBadge.Peligro,
-                    Textos[sinConfirmar ? "InsigniaSinConfirmar" : "InsigniaFalta"]));
+                    sinConfirmar ? TonoBadge.Advertencia : EstadoDocumentoUi.Tono(EstadoDocumento.Faltante),
+                    sinConfirmar ? Textos["InsigniaSinConfirmar"] : EstadoDocumentoUi.Texto(EstadoDocumento.Faltante)));
             }
         }
 
@@ -246,7 +252,7 @@ public partial class PestanaReclamarEmpresa
         };
 
         _vista = new Vista(
-            _filas.Count(f => f.TrabajadorId is null && f.Categoria is Categoria.Vencido or Categoria.Pendiente),
+            _filas.Count(f => f.TrabajadorId is null),
             deTrabajador.Select(f => f.TrabajadorId).Distinct().Count(),
             fichas, ConstruirGrupos(visibles), recuento, visibles.Count);
     }
@@ -299,6 +305,23 @@ public partial class PestanaReclamarEmpresa
             : NombreDeSede(lote) is { } sede
                 ? Textos["GrupoDelegacion", sede]
                 : Textos["GrupoContactosEmpresa"];
+
+    /// <summary>Con el grupo plegado la cabecera debe decir qué hay dentro: « · 1 vencido · 2 por vencer».</summary>
+    private string DesgloseDeGrupo(Grupo grupo)
+    {
+        var partes = new List<string>();
+        var vencidos = grupo.Filas.Count(f => f.Categoria == Categoria.Vencido);
+        var pendientes = grupo.Filas.Count(f => f.Categoria == Categoria.Pendiente);
+        var porVencer = grupo.Filas.Count(f => f.Categoria == Categoria.PorVencer);
+        if (vencidos > 0)
+            partes.Add(Textos["DesgloseVencidos", vencidos]);
+        if (pendientes > 0)
+            partes.Add(Textos["DesglosePendientes", pendientes]);
+        if (porVencer > 0)
+            partes.Add(Textos["DesglosePorVencer", porVencer]);
+
+        return partes.Count == 0 ? string.Empty : " · " + string.Join(" · ", partes);
+    }
 
     private string Recuento(int total) => total == 1 ? Textos["RecuentoDocumentosUno"] : Textos["RecuentoDocumentosVarios", total];
 
@@ -354,6 +377,13 @@ public partial class PestanaReclamarEmpresa
     {
         _estado = _estado == categoria ? null : categoria;
         Reconstruir();
+    }
+
+    /// <summary>Los grupos salen plegados (con 300 documentos la lista no se acaba): solo los que el usuario despliega están aquí.</summary>
+    private void AlternarGrupo(string clave)
+    {
+        if (!_abiertos.Remove(clave))
+            _abiertos.Add(clave);
     }
 
     private void Agrupar(Agrupacion agrupacion)

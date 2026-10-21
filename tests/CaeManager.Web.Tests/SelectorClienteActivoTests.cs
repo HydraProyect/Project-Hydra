@@ -177,6 +177,16 @@ public class SelectorClienteActivoTests : BunitContext
     }
 
     [Fact]
+    public void En_el_propio_Tenant_del_Operador_CAE_el_boton_dice_Tu_organizacion_y_no_Empresa_gestionada()
+    {
+        _lista = [Propio(gestionado: true), Gestionado(Norte, "Empresa Norte")];
+
+        var disparador = Renderizar().Find(".selector-tenant-disparador");
+
+        disparador.TextContent.Should().Contain("Tu organización").And.NotContain("Empresa gestionada");
+    }
+
+    [Fact]
     public void Quien_solo_alcanza_un_Tenant_por_la_via_heredada_conserva_el_selector()
     {
         _lista = [Propio(), new ClienteAutorizadoDto(Sur, "Delegante", EsOrigen: false)];
@@ -673,12 +683,12 @@ public class SelectorClienteActivoTests : BunitContext
         await AbrirConFijadas(cut);
 
         cut.WaitForAssertion(() => cut.Find("#selector-tenant-fijadas").TextContent.Trim().Should().Be("Fijadas"));
-        cut.Find("#selector-tenant-resto").TextContent.Trim().Should().Be("Resto de empresas");
-        NombresDeLaLista(cut).Should().Equal("Empresa Sur", "Empresa Norte", "Empresa Este");
+        cut.FindAll("#selector-tenant-resto").Should().BeEmpty("con fijadas encima la lista principal va sin rótulo «Resto de empresas»");
+        NombresDeLaLista(cut).Should().Equal("Empresa Sur", "Empresa Este", "Empresa Norte");
         var fijadas = cut.Find("[aria-labelledby=selector-tenant-fijadas]");
         fijadas.QuerySelector(".selector-tenant-atajo")!.TextContent.Trim().Should().Be("Alt 1");
         cut.FindAll(".selector-tenant-atajo").Should().ContainSingle("solo la fijada lleva atajo");
-        cut.Find("[aria-labelledby=selector-tenant-resto]").QuerySelectorAll("[role=option]").Should().HaveCount(2);
+        cut.Find("[role=listbox][aria-label=\"Todas las empresas\"]").QuerySelectorAll("[role=option]").Should().HaveCount(2);
     }
 
     [Fact]

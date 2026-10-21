@@ -561,7 +561,10 @@
   <data name="InformacionCliente360" xml:space="preserve"><value>Client</value></data>
   <data name="EditarFlecha360" xml:space="preserve"><value>Editar →</value></data>
   <data name="ConsultaRapida360" xml:space="preserve"><value>Consulta ràpida</value></data>
-  <data name="InformacionEmpresa360" xml:space="preserve"><value>Empresa</value></data>
+  <data name="InformacionAlta360" xml:space="preserve"><value>Alta</value></data>
+  <data name="GlosaDocumentoEmpresaConIncidencia" xml:space="preserve"><value>document d'Empresa amb incidència</value></data>
+  <data name="GlosaDocumentosEmpresaConIncidencia" xml:space="preserve"><value>documents d'Empresa amb incidència</value></data>
+  <data name="BloqueaAccesoEtiqueta" xml:space="preserve"><value>Bloqueja l'accés</value></data>
   <data name="EtiquetaAgrupar" xml:space="preserve">
     <value>Agrupa</value>
   </data>
@@ -660,5 +663,11 @@
   </data>
   <data name="RequisitoGuardadoToast" xml:space="preserve">
     <value>Requisit desat en aquest centre.</value>
+  </data>
+  <data name="TotalesAlDiaPorVencer" xml:space="preserve">
+    <value>(d'ells, {0} per vèncer)</value>
+  </data>
+  <data name="TotalesSinValidar" xml:space="preserve">
+    <value>sense confirmar o sense validar a la plataforma: {0}</value>
   </data>
 </root>

@@ -318,4 +318,28 @@
   <data name="AvatarMotivo_erizo" xml:space="preserve">
     <value>Eriçó</value>
   </data>
+  <data name="AlcanceGestorPorCartera" xml:space="preserve">
+    <value>Per les seves Assignacions de Cartera vigents.</value>
+  </data>
+  <data name="AlcanceCoordinadorPorOperacion" xml:space="preserve">
+    <value>A més, entra sense Assignació de Cartera a les Empreses gestionades que la seva organització opera senceres.</value>
+  </data>
+  <data name="AlcanceCoordinadorSoloPorOperacion" xml:space="preserve">
+    <value>Entra sense Assignació de Cartera a les Empreses gestionades que la seva organització opera senceres.</value>
+  </data>
+  <data name="AlcanceEmpresaGestionada" xml:space="preserve">
+    <value>Empresa gestionada</value>
+  </data>
+  <data name="AlcanceEmpresasGestionadas" xml:space="preserve">
+    <value>Empreses gestionades</value>
+  </data>
+  <data name="AlcanceEmpresasGestionadasNombres" xml:space="preserve">
+    <value>Empreses gestionades: {0}{1}.</value>
+  </data>
+  <data name="AlcanceEmpresasGestionadasResto" xml:space="preserve">
+    <value> i {0} més</value>
+  </data>
+  <data name="AlcanceEmpresaGestionadaParcial" xml:space="preserve">
+    <value>{0} (només un Client)</value>
+  </data>
 </root>

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -37,7 +37,7 @@
     <comment>Descripción del estado sin nada que reclamar.</comment>
   </data>
   <data name="ResumenEmpresa" xml:space="preserve">
-    <value>Documentos de Empresa vencidos o pendientes</value>
+    <value>Documentos de Empresa por reclamar</value>
     <comment>Rótulo del recuento de documentos de la propia Empresa.</comment>
   </data>
   <data name="ResumenTrabajadores" xml:space="preserve">
@@ -179,6 +179,26 @@
   <data name="InsigniaSinConfirmar" xml:space="preserve">
     <value>Sin confirmar</value>
     <comment>Insignia de una fila Sin confirmar.</comment>
+  </data>
+  <data name="DesgloseVencidos" xml:space="preserve">
+    <value>{0} vencidos</value>
+    <comment>Desglose en la cabecera de un grupo plegado; {0} es el número de documentos vencidos.</comment>
+  </data>
+  <data name="DesglosePendientes" xml:space="preserve">
+    <value>{0} pendientes</value>
+    <comment>Desglose en la cabecera de un grupo plegado; {0} es el número de documentos pendientes.</comment>
+  </data>
+  <data name="DesglosePorVencer" xml:space="preserve">
+    <value>{0} por vencer</value>
+    <comment>Desglose en la cabecera de un grupo plegado; {0} es el número de documentos por vencer.</comment>
+  </data>
+  <data name="PlegarGrupo" xml:space="preserve">
+    <value>Plegar {0}</value>
+    <comment>Nombre accesible del botón que pliega un grupo; {0} es el título del grupo.</comment>
+  </data>
+  <data name="DesplegarGrupo" xml:space="preserve">
+    <value>Desplegar {0}</value>
+    <comment>Nombre accesible del botón que despliega un grupo; {0} es el título del grupo.</comment>
   </data>
   <data name="DeLaEmpresa" xml:space="preserve">
     <value>Empresa</value>

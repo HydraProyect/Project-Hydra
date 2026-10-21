@@ -92,7 +92,7 @@ public partial class Trabajador360Gen2Tests
             PermisoTrabajoVisible = true
         };
         var cut = Renderizar(id); await AbrirPestanaAsync(cut, "Ficha");
-        cut.FindComponent<CajasFicha>().Instance.Cajas.Select(c => c.Clave).Should().Equal("altas-plataforma", "vinculo-empresa", "permiso-trabajo");
+        cut.FindComponent<CajasFicha>().Instance.Cajas.Select(c => c.Clave).Should().Equal("altas-plataforma", "vinculo-empresa", "permiso-trabajo", "agenda-empleador");
         cut.FindAll("[data-caja='altas-plataforma'] dt").Select(d => d.TextContent.Trim()).Should().Equal(
             "N.º de afiliación a la Seguridad Social", "Puesto u oficio", "Fecha de nacimiento", "Nacionalidad");
         cut.FindAll("[data-caja='vinculo-empresa'] dt").Select(d => d.TextContent.Trim()).Should().Equal(
@@ -116,7 +116,7 @@ public partial class Trabajador360Gen2Tests
             PermisoTrabajoVisible = false
         };
         var cut = Renderizar(id); await AbrirPestanaAsync(cut, "Ficha");
-        cut.FindComponent<CajasFicha>().Instance.Cajas.Select(c => c.Clave).Should().Equal("altas-plataforma", "vinculo-empresa");
+        cut.FindComponent<CajasFicha>().Instance.Cajas.Select(c => c.Clave).Should().Equal("altas-plataforma", "vinculo-empresa", "agenda-empleador");
         cut.FindAll("[data-caja='permiso-trabajo']").Should().BeEmpty();
         cut.Find(".cajas-ficha").TextContent.Should().Contain("41 1234567 89").And.Contain("Plantilla");
     }

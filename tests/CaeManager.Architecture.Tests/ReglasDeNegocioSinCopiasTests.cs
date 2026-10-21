@@ -376,6 +376,9 @@ public class ReglasDeNegocioSinCopiasTests
         //     (ObtenerDocumentosQuery) ya muestra solo los operativos desde la PR 4 (Renovar sustituye y el anterior
         //     pasaría a salir duplicado); la búsqueda global sigue sin filtrar hasta la PR 9. ---
         ["src/CaeManager.Application/Documentos/Queries/ObtenerDocumentoPorId/ObtenerDocumentoPorIdQuery.cs"] = 2,
+        // Documento 360: el documento por Id (ya autorizado por ObtenerDocumentoPorIdQuery) y, en la pestaña Versiones, el historial
+        // de versiones del mismo propietario y tipo, incluidas las sustituidas.
+        ["src/CaeManager.Application/Documentos/Queries/ObtenerFichaDocumento360/ObtenerFichaDocumento360Query.cs"] = 2,
         ["src/CaeManager.Application/BusquedaGlobal/Queries/BuscarGlobal/BuscarGlobalQuery.cs"] = 5,
 
         // --- Búsqueda por Id de un documento que ya se nombró (el historial referencia a documentos que pudieron
@@ -450,6 +453,8 @@ public class ReglasDeNegocioSinCopiasTests
     {
         // El punto único: la emisión más reciente y «sin confirmar» como desempates del orden (dos líneas).
         ["src/CaeManager.Application/Documentos/DocumentoEfectivo.cs"] = 2,
+        // Documento 360, pestaña Versiones: presenta el historial de versiones por emisión descendente (otra pregunta: no elige un efectivo).
+        ["src/CaeManager.Application/Documentos/Queries/ObtenerFichaDocumento360/ObtenerFichaDocumento360Query.cs"] = 1,
         // La lista de Documentos ya no escribe a mano ningún orden por emisión (2026-10-19, lista 1:1 con Design):
         // la entrada de ObtenerDocumentosQuery.cs se retira. El orden por emisión sigue en ObtenerDocumentosQuery.cs (rama por
         // defecto del orden, junto a la clave FechaEmision), pero a través del helper OrdenarPor, que el detector no ve como orden escrito a mano.

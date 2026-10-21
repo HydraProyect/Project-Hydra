@@ -49,7 +49,7 @@
                 @foreach (var momento in Momentos)
                 {
                     <button type="button" data-momento="@momento.Id" aria-pressed="@(momento.Activo ? "true" : "false")" disabled="@(!momento.Disponible || Cargando)"
-                            @onclick="@(() => IrAMomentoAsync(momento))">@momento.Rotulo<small>@momento.Mes</small></button>
+                            @onclick="@(() => IrAMomentoAsync(momento))">@momento.Rotulo <small>@momento.Mes</small></button>
                 }
             </div>
             <button type="button" class="cuadro-mesnav-boton" aria-label="@Textos["MesSiguiente"]" disabled="@(!PuedeIrAlSiguiente || Cargando)" @onclick="IrAlMesSiguienteAsync">›</button>
@@ -267,7 +267,7 @@
                                     }
                                     else if (PuntosSerie.Count == 0)
                                     {
-                                        <p class="cuadro-vacio">@Textos["SerieCargando"]</p>
+                                        <p class="cuadro-vacio">@TextoSerieSinPuntos</p>
                                     }
                                     else
                                     {
@@ -486,7 +486,7 @@
                                     }
                                     else if (PuntosSerie.Count == 0)
                                     {
-                                        <p class="cuadro-vacio">@Textos["SerieCargando"]</p>
+                                        <p class="cuadro-vacio">@TextoSerieSinPuntos</p>
                                     }
                                     else if (!UmbralAnonimatoCuadro.Cumple(null, SolicitudesPeriodo))
                                     {
@@ -543,7 +543,7 @@
                                     }
                                     @if (semanas.Count == 0)
                                     {
-                                        <p class="cuadro-vacio">@Textos["SerieCargando"]</p>
+                                        <p class="cuadro-vacio">@TextoSerieSinPuntos</p>
                                     }
                                     else if (maximoDia == 0)
                                     {

@@ -23,8 +23,8 @@ public sealed record FilaExportacionTrabajador(
 {
     public static FilaExportacionTrabajador Desde(TrabajadorListaDto trabajador) =>
         new(trabajador.Apellidos, trabajador.Nombre, trabajador.Dni, trabajador.EmpleadorNombre,
-            // Mismo estado que la fila del listado: un requisito exigido sin documento no se lee «Sin incidencias».
-            EstadoDocumentoUi.ConFaltantes(trabajador.EstadoDocumental, trabajador.DocumentosFaltantes.Count > 0));
+            // Mismo estado que la fila del listado, que ya llega combinado con lo exigido sin documento.
+            trabajador.EstadoDocumental);
 }
 
 /// <summary>Mismo patrón de referencia que ClientesEndpoints — ver comentario allí.</summary>

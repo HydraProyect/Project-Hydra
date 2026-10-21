@@ -24,9 +24,12 @@ public static class RegistroDataProtection
 {
     /// <summary>
     /// Declaración explícita de que se acepta, en Production, un llavero con las
-    /// claves en claro. Existe solo para la transición de P1-F3: el despliegue
-    /// que introduce el cifrado llega antes que el certificado al servidor. Con
-    /// el certificado (o KMS) configurado se ignora — se cifra igual.
+    /// claves en claro. Nació para la transición de P1-F3, ya cerrada: desde el
+    /// 2026-10-21 ningún compose desplegado (staging, producción) la declara, y
+    /// un despliegue sin certificado no arranca. Queda para leer un llavero
+    /// anterior al certificado (ensayo de restauración de un backup antiguo) y
+    /// para las pruebas. Con el certificado (o KMS) configurado se ignora — se
+    /// cifra igual.
     /// </summary>
     public const string ClavePermitirClavesSinCifrar = "DataProtection:PermitirClavesSinCifrar";
 
@@ -119,7 +122,7 @@ public static class RegistroDataProtection
                         "Las claves de Data Protection se guardarían SIN CIFRAR en Production: no hay " +
                         $"{DataProtectionCertificadoOptions.SeccionConfiguracion} (CertificadoRuta y ClavePrivadaRuta) " +
                         $"ni {DataProtectionKmsOptions.SeccionConfiguracion} configurados. Monta el certificado PEM en " +
-                        "/run/secretos e informa sus rutas, o —solo durante la transición— declara " +
+                        "/run/secretos e informa sus rutas, o —solo para leer un llavero anterior al certificado— declara " +
                         $"{ClavePermitirClavesSinCifrar}=true.");
 
                 // Con la bandera, cada arranque lo avisa por log y por alerta

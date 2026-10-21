@@ -51,6 +51,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
     internal const string PestanaPaquete = "paquete";
     internal const string PestanaAviso = "aviso";
     internal const string PestanaFicha = "ficha";
+    internal const string PestanaHistorial = "historial";
 
     [Parameter] public Guid VisitaId { get; set; }
 
@@ -134,6 +135,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
         return recomendacion.Tipo switch
         {
             TipoRecomendacionVisita.DocumentacionPendiente => Textos["RecomendacionDocumentacionPendiente", recomendacion.Sujeto, tipos],
+            TipoRecomendacionVisita.DocumentacionVencida => Textos["RecomendacionDocumentacionVencida", recomendacion.Sujeto, tipos],
             TipoRecomendacionVisita.VenceAntesDeLaEntrada => Textos["RecomendacionVenceAntesDeLaEntrada", recomendacion.Sujeto, tipos, fecha],
             TipoRecomendacionVisita.VencidoEnTolerancia => Textos["RecomendacionVencidoEnTolerancia", recomendacion.Sujeto, tipos, fecha],
             TipoRecomendacionVisita.YaVencido => Textos["RecomendacionYaVencido", recomendacion.Sujeto, tipos, fecha],
@@ -212,7 +214,11 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
     /// enseñar: una pestaña vacía no se pinta.
     /// </summary>
     private IReadOnlyList<PestanaDefinicion> Pestanas =>
-        HayAntelacion ? [.. PestanasDeLaRama, new PestanaDefinicion(PestanaFicha, Comunes["PestanaFicha"])] : PestanasDeLaRama;
+    [
+        .. PestanasDeLaRama,
+        .. HayAntelacion ? [new PestanaDefinicion(PestanaFicha, Comunes["PestanaFicha"])] : Array.Empty<PestanaDefinicion>(),
+        new PestanaDefinicion(PestanaHistorial, Textos["Visita360PestanaHistorial"])
+    ];
 
     private IReadOnlyList<PestanaDefinicion> PestanasDeLaRama
     {

@@ -1,4 +1,5 @@
-using CaeManager.Web.Components.Layout;
+﻿using CaeManager.Web.Components.Layout;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.DocumentacionBase;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentacionBaseTrabajadores;
 using CaeManager.Infrastructure.Identity;
@@ -21,6 +22,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroD
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
 using CaeManager.Application.Trabajadores.Commands.EditarFichaTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Gestiones;
@@ -92,9 +94,17 @@ public partial class Trabajador360Gen2Tests : BunitContext
         public Dictionary<Guid, List<DocumentoListaDto>> Documentos { get; } = [];
         public Dictionary<Guid, DocumentacionBaseTrabajadorDto> BaseDocumental { get; } = [];
 
+        /// <summary>La fila del Trabajador en el listado (ObtenerTrabajadoresQuery): el estado único de la cabecera.</summary>
+        public Dictionary<Guid, TrabajadorListaDto> Filas { get; } = [];
+
         /// <summary>Si es true, ObtenerDocumentosQuery lanza: el resto de la página tiene que seguir en pie.</summary>
         public bool FallarDocumentos { get; set; }
         public bool FallarDocumentacionBase { get; set; }
+
+        /// <summary>Detecciones de personal de la Empresa (aviso «Podría estar de baja»).</summary>
+        public List<CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPorEmpresa.DeteccionTrabajadorDto> Detecciones { get; } = [];
+        public CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente.ResultadoResolucionAusente ResultadoResolverDeteccion { get; set; } =
+            CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente.ResultadoResolucionAusente.DadoDeBaja;
 
         /// <summary>El comando dice cuántas bajas hizo y qué errores hubo: un éxito pelado no distingue «dada de baja» de «no se dio de baja ninguna».</summary>
         public Result<ResultadoBajaLoteDto> ResultadoDarDeBajaAsignacion { get; set; } =
@@ -144,7 +154,14 @@ public partial class Trabajador360Gen2Tests : BunitContext
             ObtenerGestionesQuery q => Paginar(q),
             ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)Tipos,
             ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)Selector,
+            ObtenerTrabajadoresQuery q => q.TrabajadorId is { } filaId && Filas.TryGetValue(filaId, out var fila)
+                ? new ResultadoPaginado<TrabajadorListaDto>([fila], 1, q.Pagina, q.TamanoPagina)
+                : new ResultadoPaginado<TrabajadorListaDto>([], 0, q.Pagina, q.TamanoPagina),
             ObtenerAgendaContactosQuery => Contactos,
+            CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPorEmpresa.ObtenerDeteccionesPorEmpresaQuery =>
+                Result.Exito<IReadOnlyList<CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPorEmpresa.DeteccionTrabajadorDto>>(Detecciones),
+            CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente.ResolverDeteccionAusenteCommand =>
+                Result.Exito(ResultadoResolverDeteccion),
             ObtenerDocumentosQuery when FallarDocumentos => throw new InvalidOperationException("Fallo simulado de la consulta de documentos."),
             ObtenerDocumentosQuery q => PaginarDocumentos(q),
             ObtenerDocumentoPorIdQuery => null,
@@ -327,7 +344,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
 
         cut.FindAll("[role=tab]").Select(t => t.FirstChild!.TextContent.Trim()).Should().Equal("Operación", "Centros", "Documentación", "Plataformas", "Ficha", "Historial");
         var cajas = cut.Find(".cajas-ficha");
-        cajas.QuerySelectorAll("[data-caja]").Should().HaveCount(3);
+        cajas.QuerySelectorAll("[data-caja]").Should().HaveCount(4, "tres cajas de datos y la agenda del empleador (maqueta Trabajador 360)");
         cajas.TextContent.Should().Contain("Datos para altas en plataforma").And.NotContain("Observación que no debe pintarse").And.Contain("Vínculo con la empresa");
         cajas.QuerySelectorAll("dt").Should().HaveCount(11);
         if (puesto) cajas.TextContent.Should().Contain("Oficial de montaje");
@@ -337,7 +354,8 @@ public partial class Trabajador360Gen2Tests : BunitContext
             cut.FindComponents<BotonCopiar>().Where(c => c.Instance.Valor == "14/03/1988").Should().ContainSingle();
         }
         Navegacion.Uri.Should().Contain("pestana=ficha").And.Contain("ctx=Trabajador").And.Contain("estado=Vencido");
-        mediador.Enviadas.Should().HaveCount(consultas);
+        mediador.Enviadas.Where(e => e is not ObtenerAgendaContactosQuery).Should().HaveCount(consultas,
+            "abrir Ficha solo pide la agenda del empleador, que vive en esta pestaña");
     }
 
     [Theory]
@@ -428,7 +446,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         PestanaSeleccionada(cut).Should().Be("Ficha");
         await cut.InvokeAsync(() => cut.Render(p => p.Add(x => x.TrabajadorId, otro)));
         PestanaSeleccionada(cut).Should().Be("Ficha");
-        cut.FindAll("[data-caja]").Should().HaveCount(3);
+        cut.FindAll("[data-caja]").Should().HaveCount(4);
         await cut.InvokeAsync(() => cut.Render(p => p.Add(x => x.TrabajadorId, id)));
         PestanaSeleccionada(cut).Should().Be("Ficha");
     }
@@ -495,18 +513,17 @@ public partial class Trabajador360Gen2Tests : BunitContext
     }
 
     [Theory]
-    [InlineData(EstadoIndicadorBase.Vigente, true, 1)]
+    [InlineData(EstadoIndicadorBase.Vigente, true, 0)]
+    [InlineData(EstadoIndicadorBase.Vencido, true, 1)]
     [InlineData(EstadoIndicadorBase.Vencido, false, 0)]
-    public void Documentacion_base_ofrece_Gestionar_con_Documento_y_no_sin_el(EstadoIndicadorBase estado, bool existe, int botones)
+    public void Documentacion_base_ofrece_Gestionar_solo_si_pide_trabajo_y_hay_Documento(EstadoIndicadorBase estado, bool existe, int botones)
     {
         var id = Guid.NewGuid();
         var mediador = ConTrabajador(id);
         mediador.BaseDocumental[id] = new([new(TipoDocumentoBase.AptitudMedica, estado, existe ? Guid.NewGuid() : null, null)]);
         var cut = Renderizar(id);
         cut.FindAll(".panel-doc-base-fila").Should().ContainSingle();
-        cut.FindAll(".panel-doc-base-fila button").Should().HaveCount(botones);
-        if (estado == EstadoIndicadorBase.Vigente)
-            cut.Find(".panel-doc-base-fila button").ClassList.Should().Contain("gestionar-discreto");
+        cut.FindAll(".panel-doc-base-fila button").Should().HaveCount(botones, "el vigente no lleva botón (maqueta Trabajador 360)");
     }
 
     [Theory]
@@ -516,6 +533,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     {
         var id = Guid.NewGuid();
         var mediador = ConTrabajador(id);
+        mediador.Centros[id] = [];
         var documento = DocumentoDelTrabajador("Reconocimiento médico", estado, new(2025, 3, 1), new(2026, 3, 1)) with
         {
             Acreditaciones = [new(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.Aceptada)]
@@ -523,14 +541,10 @@ public partial class Trabajador360Gen2Tests : BunitContext
         mediador.Documentos[id] = [documento];
         var cut = Renderizar(id);
         await AbrirPestanaAsync(cut, "Documentación");
-        cut.Find(".trabajador360-documentos .lista-relaciones-encabezado").TextContent.Should().Contain("Mostrando 1 de 1 documento · del peor estado al mejor");
         var fila = cut.Find(".trabajador360-documentos .fila-relacion");
-        fila.QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Contain("Fecha del documento").And.Contain("01/03/2025");
-        fila.QuerySelector(".fila-relacion-cifra")!.TextContent.Should().Contain("Caducidad");
-        fila.QuerySelector(".fila-relacion-cifra > span")!.ClassList.Should().NotContain("trabajador360-solo-lectores");
-        var plataforma = fila.QuerySelector(".linea-plataforma-reclamacion");
-        plataforma.Should().NotBeNull("las acreditaciones ya cargadas deben aparecer en su fila");
-        plataforma!.TextContent.Should().Contain("Nalanda");
+        fila.QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Contain("Ningún Centro lo exige hoy");
+        fila.QuerySelector(".fila-relacion-cifra")!.TextContent.Should().Contain("01/03/2026");
+        fila.QuerySelector(".fila-relacion-cifra > span")!.ClassList.Should().Contain("trabajador360-solo-lectores", "«Caducidad: » solo para lectores: no cabe en 104 px");
         fila.QuerySelector(".fila-relacion-acciones")!.TextContent.Trim().Should().Be(accion);
         await fila.QuerySelector(".fila-relacion-acciones button")!.ClickAsync(new MouseEventArgs());
         mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().ContainSingle().Which.Id.Should().Be(documento.Id);
@@ -541,12 +555,13 @@ public partial class Trabajador360Gen2Tests : BunitContext
     {
         var id = Guid.NewGuid();
         var mediador = ConTrabajador(id);
+        mediador.Centros[id] = [];
         mediador.Documentos[id] = Enumerable.Range(1, 201).Select(i =>
             DocumentoDelTrabajador($"Documento {i}", EstadoDocumento.Vigente, new(2025, 1, 1), new(2027, 1, 1))).ToList();
         var cut = Renderizar(id);
         await AbrirPestanaAsync(cut, "Documentación");
         cut.FindAll(".trabajador360-documentos .fila-relacion").Should().HaveCount(200);
-        cut.Find(".trabajador360-documentos .lista-relaciones-encabezado").TextContent.Should().Contain("Mostrando 200 de 201 documentos · del peor estado al mejor");
+        cut.Find(".trabajador360-documentos-recorte").TextContent.Should().Contain("Mostrando 200 de 201 documentos");
     }
 
     [Fact]
@@ -671,7 +686,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
 
         // Maqueta «Trabajador 360 TALVEG» (17-10): Operación (en alerta) y Centros (en neutro) llevan recuento; el resto, no.
         var contadores = cut.FindAll(".pestanas-contador");
-        contadores.Should().HaveCount(2, "solo Operación y Centros cuentan algo");
+        contadores.Should().HaveCount(3, "Operación (en alerta), Centros y Documentación (neutros) cuentan algo");
         SinEspaciosDeMas(contadores[0].TextContent).Should().Be("2 documentos con incidencia",
             "el número sin unidad no dice qué cuenta: la glosa existe para el nombre accesible del botón");
         contadores[0].ClassList.Should().Contain("pestanas-contador-alerta");
@@ -757,6 +772,9 @@ public partial class Trabajador360Gen2Tests : BunitContext
                 Documento("Formación PRL — 20 h", EstadoDocumento.Vigente),
                 Documento("Formación específica de centro", EstadoDocumento.Vencido))
         ];
+        mediador.Filas[id] = FilaDelListado(id, EstadoDocumento.Vencido, null,
+            IncidenciaDe("Formación específica de centro", EstadoDocumento.Vencido),
+            IncidenciaDe("Reconocimiento médico", EstadoDocumento.SinConfirmar));
 
         var cut = Renderizar(id);
 
@@ -942,12 +960,22 @@ public partial class Trabajador360Gen2Tests : BunitContext
             .Should().Equal("Operación", "Centros", "Documentación", "Plataformas", "Ficha", "Historial");
         PestanaSeleccionada(cut).Should().Be("Operación");
         cut.Find("[role=tabpanel]").FirstElementChild!.ClassList.Should().Contain("panel-doc-base");
-        cut.FindAll(".panel-doc-base-fila").Select(f => f.FirstElementChild!.TextContent.Trim())
+        cut.FindAll(".panel-doc-base-fila").Select(f => f.QuerySelector(".panel-doc-base-nombre > span:first-child")!.TextContent.Trim())
             .Should().Equal("Aptitud médica", "Formación Art. 19", "Información Art. 18", "Entrega de EPI");
         cut.Find(".panel-doc-base-aviso").TextContent.Should().NotBeNullOrWhiteSpace();
         cut.Find(".panel-doc-base-nota").TextContent.Should().NotBeNullOrWhiteSpace();
         cut.FindAll(".trabajador360-centros > div > ul > .fila-relacion").Should().BeEmpty();
         cut.Find("[aria-label='Gestiones pendientes']").TextContent.Should().Contain("Completar");
+
+        // Maqueta Trabajador 360: título en negrita sobre una tarjeta-lista (sin separador en mayúsculas ni cabecera de
+        // columnas), con el título de la Gestión y debajo «Centro · creada dd/mm/aaaa».
+        var bloqueGestiones = cut.Find(".trabajador360-gestiones");
+        bloqueGestiones.QuerySelector(".trabajador360-gestiones-titulo > strong")!.TextContent.Trim().Should().Be("Gestiones pendientes");
+        bloqueGestiones.QuerySelector(".lista-relaciones-tarjeta").Should().NotBeNull();
+        bloqueGestiones.QuerySelectorAll("[role=columnheader]").Should().BeEmpty();
+        bloqueGestiones.QuerySelector(".fila-relacion-nombre")!.TextContent.Trim().Should().Be("Reconocimiento médico");
+        bloqueGestiones.QuerySelector(".fila-relacion-detalle")!.TextContent.Trim().Should().StartWith("Centro Norte · creada ");
+        cut.FindAll(".separador-ambito").Should().NotContain(e => e.TextContent.Trim() == "Gestiones pendientes");
 
         foreach (var nombre in new[] { "Centros", "Documentación", "Historial" })
         {
@@ -1163,8 +1191,20 @@ public partial class Trabajador360Gen2Tests : BunitContext
         detalle.TextContent.Should().NotContain("Nave Berriz", "solo se despliega el centro sobre el que se pulsó");
     }
 
+    /// <summary>La fila del Trabajador tal como la entrega ObtenerTrabajadoresQuery: estado ya combinado, faltantes y desglose.</summary>
+    private static TrabajadorListaDto FilaDelListado(
+        Guid id, EstadoDocumento estado, IReadOnlyList<string>? faltan = null, params IncidenciaDocumentalDto[] incidencias) =>
+        new(id, "Javier", "Salas Moreno", "12345678Z", "Refrielectric S.L.", estado)
+        {
+            DocumentosFaltantes = faltan ?? [],
+            Incidencias = incidencias
+        };
+
+    private static IncidenciaDocumentalDto IncidenciaDe(string tipo, EstadoDocumento estado) =>
+        new(Guid.NewGuid(), Guid.NewGuid(), tipo, estado, estado == EstadoDocumento.SinConfirmar ? null : new DateOnly(2026, 10, 1));
+
     [Fact]
-    public void La_cabecera_nombra_cada_tipo_exigido_sin_documento_una_sola_vez_aunque_dos_centros_lo_exijan()
+    public void La_cabecera_nombra_los_tipos_exigidos_sin_documento_de_la_fila_del_listado()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -1178,12 +1218,49 @@ public partial class Trabajador360Gen2Tests : BunitContext
                 Documento("Formación Art. 19", EstadoDocumento.Faltante, existe: false),
                 Documento("Aptitud médica", EstadoDocumento.Faltante, existe: false))
         ];
+        // La consulta del listado ya los da sin repetir (un Tipo exigido en dos Centros cuenta una vez).
+        mediador.Filas[id] = FilaDelListado(id, EstadoDocumento.Faltante, ["Aptitud médica", "Formación Art. 19"]);
 
         var cut = Renderizar(id);
 
         var cabecera = cut.Find(".cabecera-identidad").TextContent;
         cabecera.Should().Contain("Falta: Aptitud médica, Formación Art. 19");
         cabecera.Should().NotContain("Vigente");
+        cut.Find(".trabajador360-indicadores .badge").TextContent.Trim().Should().Be("Pendiente");
+    }
+
+    /// <summary>
+    /// Revisión 1:1 (2026-10-21), Rubén Montero Medina: los Centros solo veían «Falta Información Art. 18» y la cabecera decía
+    /// «Pendiente», mientras el listado lo daba como Vencido por su Formación Art. 19. La cabecera pinta el estado de la fila del
+    /// listado (Vencido &gt; Pendiente &gt; Por vencer &gt; Sin incidencias), no el peor de los Centros, y cuenta los «sin confirmar»
+    /// de ese mismo desglose.
+    /// </summary>
+    [Fact]
+    public void La_cabecera_dice_el_mismo_estado_que_el_listado_aunque_ningun_Centro_vea_el_vencido()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Rubén", "Montero Medina");
+        mediador.Centros[id] =
+        [
+            Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Faltante,
+                Documento("Información Art. 18", EstadoDocumento.Faltante, existe: false),
+                Documento("Reconocimiento médico", EstadoDocumento.SinConfirmar),
+                Documento("Contrato", EstadoDocumento.Vigente)),
+            Centro("Nave Berriz", "Talleres Berriz Coop.", EstadoDocumento.SinConfirmar,
+                Documento("Reconocimiento médico", EstadoDocumento.SinConfirmar))
+        ];
+        mediador.Filas[id] = FilaDelListado(id, EstadoDocumento.Vencido, ["Información Art. 18"],
+            IncidenciaDe("Formación Art. 19", EstadoDocumento.Vencido),
+            IncidenciaDe("Reconocimiento médico", EstadoDocumento.SinConfirmar));
+
+        var cut = Renderizar(id);
+
+        var indicadores = cut.Find(".trabajador360-indicadores");
+        indicadores.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Vencido", "es el estado del listado: el vencido manda sobre lo que falta");
+        indicadores.TextContent.Should().Contain("Falta: Información Art. 18");
+        // Un documento sin confirmar exigido en dos Centros es UN documento sin confirmar.
+        indicadores.TextContent.Should().Contain("Vigencia sin confirmar: 1").And.NotContain("Vigencia sin confirmar: 2");
     }
 
     [Fact]
@@ -1290,13 +1367,14 @@ public partial class Trabajador360Gen2Tests : BunitContext
         cut.Find($"ul[aria-label='{tabla}']").QuerySelectorAll("li.fila-relacion")
             .Select(f =>
             {
-                var datos = new List<string> { SinEspaciosDeMas(f.QuerySelector(".fila-relacion-nombre")!.TextContent) };
-                if (f.QuerySelector(".trabajador360-exigencia-centro") is { } centro)
-                    datos.Add(SinEspaciosDeMas(centro.TextContent));
-                datos.Add(SinEspaciosDeMas(f.QuerySelector(".fila-relacion-estado")!.TextContent));
-                datos.Add(SinEspaciosDeMas(f.QuerySelector(".trabajador360-emision")!.TextContent));
-                datos.Add(SinEspaciosDeMas(f.QuerySelector(".trabajador360-vigencia")!.TextContent));
-                return datos.ToArray();
+                // Nombre · dónde se exige (línea de detalle) · estado · vigencia (maqueta Trabajador 360: ya no hay columna de emisión).
+                return new[]
+                {
+                    SinEspaciosDeMas(f.QuerySelector(".fila-relacion-nombre")!.TextContent),
+                    SinEspaciosDeMas(f.QuerySelector(".fila-relacion-detalle")!.TextContent),
+                    SinEspaciosDeMas(f.QuerySelector(".fila-relacion-estado")!.TextContent),
+                    SinEspaciosDeMas(f.QuerySelector(".trabajador360-vigencia")!.TextContent),
+                };
             }).ToList();
 
     [Fact]
@@ -1332,7 +1410,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
 
     /// <summary>
     /// Regla 8 de LEEME-AUTORIDAD (2026-10-18): en Operación (Documentación base y franja «Por vencer») la fila que pide
-    /// trabajo ofrece solo «Gestionar» a quien escribe; Consulta y Cliente no ven acción de escritura; lo vigente también la lleva, en tono secundario.
+    /// trabajo ofrece solo «Gestionar» a quien escribe; Consulta y Cliente no ven acción de escritura; lo vigente no la lleva (maqueta Trabajador 360, 2026-10-21).
     /// </summary>
     [Theory]
     [InlineData(Roles.Administrador, true)]
@@ -1341,7 +1419,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     [InlineData(Roles.GestorCae, true)]
     [InlineData(Roles.Consulta, false)]
     [InlineData(Roles.Cliente, false)]
-    public void Operacion_ofrece_solo_Gestionar_a_quien_escribe_tambien_en_lo_vigente(string rol, bool escribe)
+    public void Operacion_ofrece_solo_Gestionar_a_quien_escribe_y_solo_en_lo_que_pide_trabajo(string rol, bool escribe)
     {
         this.ConRolDeEscritura(rol);
         var id = Guid.NewGuid();
@@ -1369,8 +1447,8 @@ public partial class Trabajador360Gen2Tests : BunitContext
             .Select(f => f.QuerySelectorAll(".fila-relacion-acciones button").Select(b => b.TextContent.Trim()).ToList()).ToList();
         if (escribe)
         {
-            botonesBase.Should().Equal(new List<string>[] { ["Gestionar"], ["Gestionar"], ["Gestionar"] },
-                (a, b) => a.SequenceEqual(b), "Vencido y Sin confirmar piden trabajo; lo vigente también lleva «Gestionar», en tono secundario");
+            botonesBase.Should().Equal(new List<string>[] { ["Gestionar"], ["Gestionar"], [] },
+                (a, b) => a.SequenceEqual(b), "Vencido y Sin confirmar piden trabajo; lo vigente no lleva botón (maqueta Trabajador 360)");
             botonesFranja.Should().HaveCount(2).And.OnlyContain(b => b.SequenceEqual(new[] { "Gestionar" }),
                 "Por vencer, urgente o no, lleva «Gestionar»");
         }
@@ -1379,6 +1457,79 @@ public partial class Trabajador360Gen2Tests : BunitContext
             botonesBase.Should().OnlyContain(b => b.Count == 0);
             botonesFranja.Should().HaveCount(2).And.OnlyContain(b => b.Count == 0);
         }
+    }
+
+    [Fact]
+    public void Operacion_nombra_el_documento_con_la_vigencia_sin_confirmar_que_la_cabecera_cuenta()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Documentos[id] = [DocumentoDelTrabajador("Documento de identidad", EstadoDocumento.SinConfirmar, new(2026, 5, 31), null)];
+
+        var cut = Renderizar(id);
+
+        var franja = cut.Find("[aria-label='Vigencia sin confirmar']");
+        franja.TextContent.Should().Contain("Documento de identidad").And.Contain("Gestionar");
+    }
+
+    private MediatorFalso ConDeteccionAusente(Guid id, Guid? trabajadorDeLaDeteccion = null)
+    {
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] = [];
+        mediador.Detecciones.Add(new(Guid.NewGuid(), CaeManager.Domain.Trabajadores.TipoDeteccion.Ausente, "Javier", "Salas Moreno",
+            "12345678Z", trabajadorDeLaDeteccion ?? id, DateTime.UtcNow, 2));
+        return mediador;
+    }
+
+    [Fact]
+    public void Una_deteccion_Ausente_del_trabajador_pinta_el_aviso_de_posible_baja_a_quien_escribe()
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var id = Guid.NewGuid();
+        ConDeteccionAusente(id);
+
+        var cut = Renderizar(id);
+
+        cut.Find(".trabajador360-baja").TextContent.Should().Contain("Podría estar de baja").And.Contain("Confirmar baja").And.Contain("Ignorar");
+    }
+
+    [Theory]
+    [InlineData(Roles.Consulta)]
+    [InlineData(Roles.Cliente)]
+    public void El_aviso_de_posible_baja_no_se_pinta_sin_permiso_de_escritura(string rol)
+    {
+        this.ConRolDeEscritura(rol);
+        var id = Guid.NewGuid();
+        ConDeteccionAusente(id);
+
+        Renderizar(id).FindAll(".trabajador360-baja").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void La_deteccion_de_otro_trabajador_no_pinta_el_aviso()
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var id = Guid.NewGuid();
+        ConDeteccionAusente(id, trabajadorDeLaDeteccion: Guid.NewGuid());
+
+        Renderizar(id).FindAll(".trabajador360-baja").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Ignorar_el_aviso_resuelve_la_deteccion_sin_dar_de_baja_y_lo_oculta()
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var id = Guid.NewGuid();
+        var mediador = ConDeteccionAusente(id);
+        var cut = Renderizar(id);
+
+        await cut.Find(".trabajador360-baja-acciones button:last-of-type").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente.ResolverDeteccionAusenteCommand>()
+            .Should().ContainSingle().Which.Desactivar.Should().BeFalse();
+        cut.FindAll(".trabajador360-baja").Should().BeEmpty();
     }
 
     [Fact]
@@ -1415,9 +1566,9 @@ public partial class Trabajador360Gen2Tests : BunitContext
         Filas(cut, "Documentos del trabajador").Should().BeEquivalentTo(
             new[]
             {
-                new[] { "Reconocimiento médico", "Vencido", "01/09/2024", "01/09/2025" },
-                new[] { "Formación PRL — 20 h", "Vigente", "01/03/2025", "01/03/2027" },
-                new[] { "DNI", "Sin caducidad", "01/01/2020", "Sin caducidad" },
+                new[] { "Reconocimiento médico", "Ningún Centro lo exige hoy", "Vencido", "01/09/2025" },
+                new[] { "Formación PRL — 20 h", "Ningún Centro lo exige hoy", "Vigente", "01/03/2027" },
+                new[] { "DNI", "Ningún Centro lo exige hoy", "Sin caducidad", "Sin caducidad" },
             },
             o => o.WithStrictOrdering(),
             "lo más grave arriba; lo que no caduca lo dice (Q4) en vez de dejar la celda en blanco");
@@ -1531,7 +1682,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
         await AbrirPestanaAsync(cut, "Documentación");
 
-        var tabla = "Exigidos solo en algunos Centros de trabajo";
+        var tabla = "Exigidos en todos sus Centros";
         CeldaVence(cut, tabla, "Reconocimiento médico de centro").TextContent.Trim().Should().Be("Sin confirmar");
         CeldaVence(cut, tabla, "Reconocimiento médico de centro").ClassList.Should().Contain("celda-documento-vigencia-sin-confirmar");
         CeldaVence(cut, tabla, "Autorización de acceso").TextContent.Trim().Should().Be("—");
@@ -1569,85 +1720,39 @@ public partial class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
         await AbrirPestanaAsync(cut, "Documentación");
 
-        Filas(cut, "Exigidos solo en algunos Centros de trabajo").Should().BeEquivalentTo(
+        // Con un único Centro, todo lo que ese Centro exige se exige «en todos sus Centros» (maqueta Trabajador 360).
+        Filas(cut, "Exigidos en todos sus Centros").Should().BeEquivalentTo(
             new[]
             {
-                new[] { "Formación específica de centro", "Centro Norte del Cliente Refrielectric S.A.", "Por vencer", "15/10/2025", "15/10/2026" },
+                new[] { "Formación específica de centro", "En su único Centro", "Por vencer", "15/10/2026" },
+                new[] { "Formación PRL — 20 h", "En su único Centro", "Vigente", "01/03/2027" },
             },
             o => o.WithStrictOrdering(),
-            "el tipo exigido a todo trabajador (Requerido = Sí) no es propio de ningún Centro (Q2); la renovación es la caducidad del documento (Q1)");
-
-        var centro = cut.Find(".trabajador360-exigencia-centro a");
-        centro.GetAttribute("href").Should().Be($"/centros/{norte.CentroId}");
-        cut.Find(".trabajador360-exigencias").TextContent.Should().NotContain("exigido por",
-            "lo exige el Centro de trabajo; el Cliente solo lo sitúa");
+            "del peor estado al mejor; la vigencia es la caducidad del documento (Q1)");
+        cut.FindAll("ul[aria-label='Exigidos solo en algunos Centros']").Should().BeEmpty("un único Centro no tiene «algunos»");
     }
 
-    // ---- Serie documental por tipo de contratación (decisión 2026-10-16) ----
-
-    /// <summary>
-    /// Un tipo Requerido = Sí cuya serie no incluye el tipo de contratación del Trabajador. Con
-    /// <paramref name="centroLoIncluyePorFila"/>, el Centro lo exige por fila explícita (Incluido = true) y la consulta
-    /// de Application lo devuelve en el Centro; sin ella, la consulta no lo devuelve porque no se pide de serie.
-    /// </summary>
-    private (MediatorFalso Mediador, Guid Id) VoluntarioConTipoSinSerieDeVoluntario(
-        bool centroLoIncluyePorFila,
-        CaeManager.Domain.Trabajadores.TipoContratacion tipoContratacion = CaeManager.Domain.Trabajadores.TipoContratacion.Voluntario)
+    [Fact]
+    public async Task Los_exigidos_solo_en_algunos_Centros_dicen_en_cuales()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
-        mediador.Detalles[id] = Detalle(id, "Vera", "Voluntaria Ruiz") with { TipoContratacion = tipoContratacion };
-
-        var tipoMedico = Guid.NewGuid();
-        mediador.Tipos.Add(Tipo(tipoMedico, "Aptitud médica", RequisitoDocumental.Si) with
-        {
-            TiposContratacionDeSerie = CaeManager.Domain.Trabajadores.TiposContratacion.CuentaAjena
-                | CaeManager.Domain.Trabajadores.TiposContratacion.Autonomo,
-        });
-
-        mediador.Centros[id] = centroLoIncluyePorFila
-            ? [Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Faltante,
-                new DocumentoRequeridoDto(null, tipoMedico, "Aptitud médica", EstadoDocumento.Faltante, null))]
-            : [Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Vigente)];
-        return (mediador, id);
-    }
-
-    [Fact]
-    public async Task Un_tipo_cuya_serie_excluye_al_voluntario_no_figura_como_exigido_de_serie_en_su_ficha()
-    {
-        var (_, id) = VoluntarioConTipoSinSerieDeVoluntario(centroLoIncluyePorFila: false);
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        var (norte, berriz) = Escena();
+        var tipoComun = Guid.NewGuid();
+        var tipoDeNorte = Guid.NewGuid();
+        var comunNorte = new DocumentoRequeridoDto(Guid.NewGuid(), tipoComun, "Formación PRL — 20 h", EstadoDocumento.Vigente, new(2027, 3, 1));
+        var comunBerriz = new DocumentoRequeridoDto(Guid.NewGuid(), tipoComun, "Formación PRL — 20 h", EstadoDocumento.Vigente, new(2027, 3, 1));
+        var soloNorte = new DocumentoRequeridoDto(Guid.NewGuid(), tipoDeNorte, "Formación específica de centro", EstadoDocumento.Proximo, new(2026, 10, 15));
+        mediador.Centros[id] = [norte with { Documentos = [comunNorte, soloNorte] }, berriz with { Documentos = [comunBerriz] }];
 
         var cut = Renderizar(id);
         await AbrirPestanaAsync(cut, "Documentación");
 
-        cut.FindAll(".trabajador360-exigencias").Should().BeEmpty("al voluntario no se le pide de serie y ningún Centro lo exige por fila");
-    }
-
-    [Fact]
-    public async Task Un_tipo_cuya_serie_excluye_al_voluntario_y_que_el_centro_incluye_por_fila_figura_como_exigido_en_ese_centro()
-    {
-        var (_, id) = VoluntarioConTipoSinSerieDeVoluntario(centroLoIncluyePorFila: true);
-
-        var cut = Renderizar(id);
-        await AbrirPestanaAsync(cut, "Documentación");
-
-        Filas(cut, "Exigidos solo en algunos Centros de trabajo").Should().ContainSingle().Which[0].Should().Be(
-            "Aptitud médica",
-            "para un voluntario el tipo no es general (su serie no lo incluye): lo exige la fila explícita del Centro, " +
-            "así que es una exigencia propia de ese Centro y no puede quedar escondida como «general»");
-    }
-
-    [Fact]
-    public async Task El_mismo_tipo_en_la_ficha_de_un_trabajador_por_cuenta_ajena_es_general_y_no_propio_del_centro()
-    {
-        var (_, id) = VoluntarioConTipoSinSerieDeVoluntario(
-            centroLoIncluyePorFila: true, CaeManager.Domain.Trabajadores.TipoContratacion.CuentaAjena);
-
-        var cut = Renderizar(id);
-        await AbrirPestanaAsync(cut, "Documentación");
-
-        cut.FindAll(".trabajador360-exigencias").Should().BeEmpty(
-            "la serie incluye cuenta ajena: el tipo se le pide con carácter general, no es propio del Centro (control)");
+        Filas(cut, "Exigidos en todos sus Centros").Should().ContainSingle().Which.Take(3).Should().Equal(
+            "Formación PRL — 20 h", "En sus 2 Centros", "Vigente");
+        Filas(cut, "Exigidos solo en algunos Centros").Should().ContainSingle().Which.Take(3).Should().Equal(
+            "Formación específica de centro", "Solo en " + norte.CentroNombre, "Por vencer");
     }
 
     [Fact]
@@ -1665,14 +1770,14 @@ public partial class Trabajador360Gen2Tests : BunitContext
         cut.FindAll(".trabajador360-por-vencer ul").Should().BeEmpty();
 
         await AbrirPestanaAsync(cut, "Documentación");
-        cut.FindAll("ul[aria-label='Documentos del trabajador']").Should().BeEmpty(
-            "un fallo no se pinta como «sin documentos»");
+        cut.FindAll("[role=tabpanel] ul[aria-label]").Should().BeEmpty(
+            "un fallo no se pinta como «sin documentos» ni como lista");
 
         mediador.FallarDocumentos = false;
         mediador.Documentos[id] = [DocumentoDelTrabajador("DNI", EstadoDocumento.SinCaducidad, new(2020, 1, 1), null)];
         await cut.InvokeAsync(() => Boton(cut, "Reintentar").Click());
 
-        cut.WaitForAssertion(() => Filas(cut, "Documentos del trabajador").Should().ContainSingle());
+        cut.WaitForAssertion(() => Filas(cut, "Otros documentos del trabajador").Should().ContainSingle());
     }
 
     [Fact]
@@ -1726,7 +1831,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         cut.FindAll(".trabajador360-centro-baja").Should().BeEmpty();
         cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Operación")).Click();
         cut.Find("[aria-label='Gestiones pendientes']").TextContent.Should().Contain("Reconocimiento médico");
-        cut.FindAll(".columna-accion button").Should().BeEmpty("Completar requiere escritura");
+        cut.Find("[aria-label='Gestiones pendientes']").QuerySelectorAll("button").Should().BeEmpty("Completar requiere escritura");
         AbrirCentros(cut);
         cut.FindAll(".fila-relacion-desplegado .fila-relacion-acciones button").Should().BeEmpty(
             "Subir, Renovar, Ver, Dar de baja y Completar son las únicas acciones de fila y todas escriben");
@@ -1783,7 +1888,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     }
 
     [Fact]
-    public void Sin_telefono_ni_correo_no_se_pinta_la_rejilla_de_contacto_vacia()
+    public void Sin_telefono_ni_correo_la_tarjeta_de_datos_se_pinta_con_Sin_informar()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -1793,9 +1898,32 @@ public partial class Trabajador360Gen2Tests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.FindAll(".trabajador360-contactos").Should().BeEmpty();
-        cut.Find(".cuerpo-con-lateral-lateral").TextContent.Should().NotContain("Datos del trabajador",
-            "sin teléfono ni correo no se pinta la tarjeta, ni siquiera su título");
+        var lateral = cut.Find(".cuerpo-con-lateral-lateral");
+        lateral.TextContent.Should().Contain("Datos del trabajador", "la maqueta la pinta siempre, no la esconde");
+        lateral.QuerySelectorAll(".trabajador360-contacto-vacio").Select(v => v.TextContent.Trim())
+            .Should().Equal("Sin informar", "Sin informar");
+        lateral.QuerySelectorAll(".boton-copiar").Should().BeEmpty("no hay nada que copiar");
+    }
+
+    [Fact]
+    public async Task Documentacion_agrupa_lo_exigido_en_todos_los_Centros_y_solo_en_algunos()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        var (norte, berriz) = Escena();
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] = [norte, berriz];
+        var cut = Renderizar(id);
+        await AbrirPestanaAsync(cut, "Documentación");
+
+        var titulos = cut.FindAll(".separador-ambito").Select(t => t.TextContent.Trim()).ToList();
+        titulos.Should().NotContain("Documentos del trabajador", "la maqueta agrupa por exigencia, no una lista plana");
+        titulos.Should().Contain(t => t.StartsWith("Exigidos en todos sus Centros", StringComparison.OrdinalIgnoreCase)
+            || t.StartsWith("Exigidos solo en algunos Centros", StringComparison.OrdinalIgnoreCase));
+        cut.FindAll(".trabajador360-vigencia").Should().NotBeEmpty();
+        cut.FindAll(".fila-relacion-cifra").Should().OnlyContain(
+            c => !c.TextContent.Contains("Caducidad") || c.QuerySelector(".trabajador360-solo-lectores") != null,
+            "el rótulo «Caducidad: » no cabe en la columna de 104 px: va solo para lectores de pantalla");
     }
 
     [Fact]
@@ -1850,13 +1978,14 @@ public partial class Trabajador360Gen2Tests : BunitContext
     [Theory]
     [InlineData(Roles.GestorCae, true)]
     [InlineData(Roles.Consulta, false)]
-    public async Task La_agenda_vacia_del_lateral_es_compacta_y_solo_escritura_abre_el_contacto(string rol, bool puedeEscribir)
+    public async Task La_agenda_vacia_de_la_ficha_es_compacta_y_solo_escritura_abre_el_contacto(string rol, bool puedeEscribir)
     {
         this.ConRolDeEscritura(rol);
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
         mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
         var cut = Renderizar(id);
+        await AbrirPestanaAsync(cut, "Ficha");
 
         var agenda = cut.Find(".trabajador360-agenda");
         agenda.QuerySelector(".agenda-vacio-compacto").Should().NotBeNull();
@@ -1900,7 +2029,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
     }
 
     [Fact]
-    public void El_lateral_lleva_la_agenda_del_empleador_que_pide_por_su_Id_y_su_tipo()
+    public async Task La_pestana_Ficha_lleva_la_agenda_del_empleador_que_pide_por_su_Id_y_su_tipo()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -1911,10 +2040,13 @@ public partial class Trabajador360Gen2Tests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.Find(".cuerpo-con-lateral-lateral").TextContent.Should().Contain("Agenda del empleador");
+        await AbrirPestanaAsync(cut, "Ficha");
+
+        cut.Find(".cajas-ficha").TextContent.Should().Contain("Agenda del empleador");
+        cut.Find(".cuerpo-con-lateral-lateral").TextContent.Should().NotContain("Agenda del empleador");
         mediador.Enviadas.OfType<ObtenerAgendaContactosQuery>().Should().ContainSingle()
             .Which.Should().Be(new ObtenerAgendaContactosQuery(TipoPropietarioAgenda.Empresa, detalle.EmpresaId!.Value),
-                "la agenda es la del empleador del trabajador, sin pulsar ninguna pestaña");
+                "la agenda es la del empleador del trabajador");
     }
 
     [Fact]

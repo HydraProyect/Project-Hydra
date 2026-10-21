@@ -227,7 +227,7 @@ public class AccesoCuentaEscenaTests : BunitContext
     public async Task Recuperar_contrasena_reenvia_con_un_formulario_y_no_con_un_clic_sin_circuito()
     {
         var cut = Render<OlvideContrasena>();
-        cut.Find("h2.acceso-titulo").TextContent.Should().Be("¿Has olvidado la contraseña?");
+        cut.Find("h2.acceso-titulo").TextContent.Should().Be("¿Olvidaste tu contraseña?");
 
         await cut.Find("#email").ChangeAsync(new ChangeEventArgs { Value = "nadie@consultora.es" });
         await cut.Find("form").SubmitAsync();
@@ -261,7 +261,7 @@ public class AccesoCuentaEscenaTests : BunitContext
         await cut.Find("#email").ChangeAsync(new ChangeEventArgs { Value = "marta.ruiz@consultora.es" });
         await cut.Find("form").SubmitAsync();
 
-        cut.Find("h2.acceso-titulo").TextContent.Should().Be("¿Has olvidado la contraseña?",
+        cut.Find("h2.acceso-titulo").TextContent.Should().Be("¿Olvidaste tu contraseña?",
             "el envío falló de verdad: no puede decir 'Revisa tu correo' como si hubiera salido");
         cut.Find(".acceso-alerta").TextContent.Should().Be("No pudimos procesar tu solicitud. Inténtalo de nuevo en unos minutos.");
     }

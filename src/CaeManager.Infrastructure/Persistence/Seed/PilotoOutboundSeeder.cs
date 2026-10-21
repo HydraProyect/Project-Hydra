@@ -863,7 +863,7 @@ public static class PilotoOutboundSeeder
             var documentosDeEmpresa = await DocumentosExigidosDeLaEmpresaPropiaAsync(propia);
             await VehiculosAsync(propia, trabajadores);
             RequisitosPropiosDeLosCentros(centros);
-            await AcreditacionesExternasAsync(centros, trabajadores, documentos, activas);
+            await AcreditacionesExternasAsync(centros, trabajadores, documentos, documentosDeEmpresa, activas);
             VisitasDelPerfil(centros, trabajadores, activas, desviaciones);
             CanalPorCorreoDelCentro(centros);
             if (tenant.ConSenalesDeIa)
@@ -1191,10 +1191,18 @@ public static class PilotoOutboundSeeder
         /// exigido de cada Trabajador asignado: las primeras Rechazadas (con su motivo), las siguientes Subidas
         /// (pendientes de validar) y el resto Aceptadas. Las plataformas son las dos primeras del catálogo, por código,
         /// que siguen en uso.
+        ///
+        /// <para>
+        /// También cada documento exigido de la Empresa propia, Aceptado hasta su propio vencimiento: la Empresa tiene
+        /// Trabajadores asignados en ese Centro, y la regla de alta del producto (<c>AltaAcreditacionesPlataformaService</c>,
+        /// P0-7) los habría acreditado allí con la primera Asignación. Sin ellos, la primera Asignación que se hace a mano en
+        /// la demostración los acreditaba todos de golpe, y Mi trabajo pasaba de cero a una propagación pendiente por
+        /// documento de Empresa sin que nadie hubiera tocado ninguno.
+        /// </para>
         /// </summary>
         private async Task AcreditacionesExternasAsync(
             List<Centro> centros, List<Trabajador> trabajadores, Dictionary<(int Trabajador, string Tipo), Documento> documentos,
-            Dictionary<int, List<int>> activas)
+            List<Documento> documentosDeEmpresa, Dictionary<int, List<int>> activas)
         {
             if (tenant.CentroConPlataforma is not { } c) return;
 
@@ -1248,6 +1256,20 @@ public static class PilotoOutboundSeeder
                     dbContext.AcreditacionesDocumentoPlataforma.Add(acreditacion);
                 }
             }
+
+            // Los de la Empresa propia, solo si tiene alguien asignado en ese Centro: es lo que pide la regla de alta. Van
+            // después de los de los Trabajadores para no consumir la receta de rechazos y subidas. Los Trabajadores propios son
+            // los primeros tenant.Trabajadores; los de detrás son de Subcontrata y no dan actividad a la Empresa propia.
+            if (activas.Any(a => a.Key < tenant.Trabajadores && a.Value.Contains(c)))
+                foreach (var documento in documentosDeEmpresa)
+                {
+                    var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, canal.Id);
+                    acreditacion.MarcarSubida();
+                    acreditacion.MarcarAceptada(documento.FechaVencimiento is { } vence
+                        ? VigenciaEnPlataforma.VenceEl(vence)
+                        : VigenciaEnPlataforma.NoVenceAqui);
+                    dbContext.AcreditacionesDocumentoPlataforma.Add(acreditacion);
+                }
 
             if (rechazadas != tenant.Receta.AcreditacionesRechazadas || subidas != tenant.Receta.AcreditacionesSubidas)
                 throw new InvalidOperationException(
@@ -1340,6 +1362,7 @@ public static class PilotoOutboundSeeder
                 $"<p>Mañana pasa una inspección por {centro.Nombre} y entrará personal de otra contrata. Avisadnos de quién viene.</p>",
                 recibido);
             conversacion.AgregarParticipante(remitente, RolParticipante.De, TipoParticipanteOrigen.Empresa, centro.ClienteId);
+            conversacion.AlinearFechaConLosMensajes();
             dbContext.Conversaciones.Add(conversacion);
 
             dbContext.SugerenciasVisitaCorreo.Add(new SugerenciaVisitaCorreo(
@@ -1437,12 +1460,15 @@ public static class PilotoOutboundSeeder
                     $"<p>El documento «{caso.Tipo}» de {trabajador.Nombre} {trabajador.Apellidos}, que trabaja en {centro.Nombre}, ha vencido. " +
                     "Por favor, enviadnos el renovado.</p>",
                     enviada);
+                conversacion.AgregarParticipante(
+                    $"gestion-cae@{ContactosPilotoOutbound.DominioPorDefecto}", RolParticipante.De, TipoParticipanteOrigen.Desconocido);
                 conversacion.AgregarParticipante(destinatario, RolParticipante.Para, TipoParticipanteOrigen.Empresa, centro.ClienteId);
                 if (respuesta is { } respondida)
                     conversacion.AgregarMensaje(
                         DireccionMensaje.Entrante, CanalConversacion.Correo, destinatario,
                         "<p>Recibido. El reconocimiento está pedido y os enviamos el certificado en cuanto lo tengamos.</p>",
                         respondida);
+                conversacion.AlinearFechaConLosMensajes();
                 dbContext.Conversaciones.Add(conversacion);
 
                 var reclamacion = ReclamacionDocumental.ParaCliente(

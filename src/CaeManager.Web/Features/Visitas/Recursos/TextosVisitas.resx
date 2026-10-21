@@ -564,6 +564,9 @@
   <data name="Visita360PestanaPaquete" xml:space="preserve">
     <value>Paquete de acreditación</value>
   </data>
+  <data name="Visita360PestanaHistorial" xml:space="preserve">
+    <value>Historial</value>
+  </data>
   <data name="Visita360FilaSinDocumento" xml:space="preserve">
     <value>No hay documento</value>
   </data>
@@ -722,6 +725,9 @@
   </data>
   <data name="RecomendacionDocumentacionPendiente" xml:space="preserve">
     <value>{0} tiene documentación pendiente: {1}.</value>
+  </data>
+  <data name="RecomendacionDocumentacionVencida" xml:space="preserve">
+    <value>{0} tiene documentación vencida: {1}.</value>
   </data>
   <data name="RecomendacionVenceAntesDeLaEntrada" xml:space="preserve">
     <value>{1} de {0} vence el {2}, antes del día de entrada.</value>

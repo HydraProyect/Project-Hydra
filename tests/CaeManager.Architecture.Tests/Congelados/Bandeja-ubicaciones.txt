@@ -151,6 +151,7 @@ src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: RutaBandeja = 3
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: TipoItemBandejaUi = 1
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: _bandejaAgrupada = 9
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: bandeja = 9
+src/CaeManager.Web/Features/Documentos/Pages/DocumentoDetalle.razor :: Bandeja = 1
 src/CaeManager.Web/Features/Documentos/Components/DocumentoWorkspacePanel.razor :: Bandeja = 1
 src/CaeManager.Web/Features/Trabajadores/Pages/TrabajadorDetalle.razor :: Bandeja = 1
 src/CaeManager.Web/Features/IncorporacionCartera/Pages/SolicitudesCartera.razor :: _bandeja = 9

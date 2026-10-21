@@ -114,7 +114,7 @@ public partial class SelectorClienteActivo
 
     private string IdsFijadas => string.Join(",", FijadasAutorizadas.Select(c => c.TenantId));
 
-    /// <summary>Hay una sección encima de la lista principal: entonces esta se titula «Resto de la cartera».</summary>
+    /// <summary>Hay una sección encima de la lista principal: entonces esta va sin rótulo visible.</summary>
     private bool HayGruposArriba => Fijadas.Count > 0 || Recientes.Count > 0;
 
     private bool Buscando => !string.IsNullOrWhiteSpace(_busqueda);
@@ -142,6 +142,7 @@ public partial class SelectorClienteActivo
     /// </summary>
     private IEnumerable<ClienteAutorizadoDto> Filtrados => string.IsNullOrWhiteSpace(_busqueda)
         ? _clientes!.Where(c => !c.EsOrigen && !Recientes.Contains(c) && !EsFijada(c))
+            .OrderBy(c => c.Nombre, StringComparer.CurrentCulture)
         : _clientes!.Where(c => !c.EsOrigen && CultureInfo.CurrentCulture.CompareInfo.IndexOf(
                 c.Nombre, _busqueda.Trim(), CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0)
             .OrderBy(c => c.Nombre, StringComparer.CurrentCulture);

@@ -19,7 +19,7 @@ namespace CaeManager.Infrastructure.DataProtection;
 /// <c>DatosPrueba:Activo</c>: sin cuenta de AWS provisionada la aplicación
 /// tiene que arrancar igual. Desde P1-F3 la alternativa sin AWS es
 /// <see cref="DataProtectionCertificadoOptions"/>, y en Production el arranque
-/// se niega si no hay ninguno de los dos (salvo la bandera transitoria
+/// se niega si no hay ninguno de los dos (salvo la bandera
 /// <see cref="RegistroDataProtection.ClavePermitirClavesSinCifrar"/>); fuera
 /// de Production, lo advierte por log — un despliegue que cree estar cifrando
 /// y no lo esté es peor que uno que sepa que no lo está.

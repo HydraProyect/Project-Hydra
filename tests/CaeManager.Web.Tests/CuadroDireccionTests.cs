@@ -72,8 +72,21 @@ public partial class CuadroDireccionTests : BunitContext
             return Task.FromResult(q.TenantId is { } t ? todo with { Filas = todo.Filas.Where(f => f.TenantId == t).ToList() } : todo);
         }
 
+        /// <summary>Si se fijan, la serie y las conversaciones responden cuando el test complete su tarea, no al pedirlas.</summary>
+        public TaskCompletionSource<SerieCuadroDireccionDto>? SeriePendiente { get; init; }
+        public TaskCompletionSource<ComunicacionesCuadroDireccionDto>? ComunicacionesPendientes { get; init; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            if (request is ObtenerSerieCuadroDireccionQuery serieEnVuelo && SeriePendiente is { } seriePendiente)
+            {
+                SeriesPedidas.Add(serieEnVuelo);
+                return (Task<TResponse>)(object)seriePendiente.Task;
+            }
+
+            if (request is ObtenerComunicacionesCuadroDireccionQuery && ComunicacionesPendientes is { } comunicacionesPendientes)
+                return (Task<TResponse>)(object)comunicacionesPendientes.Task;
+
             if (request is ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery gestionados)
                 return (Task<TResponse>)(object)ExtranjerosGestionados(gestionados);
 
@@ -433,8 +446,31 @@ public partial class CuadroDireccionTests : BunitContext
             serie: q => new SerieCuadroDireccionDto([], [], 0));
 
         cut.FindAll(".cuadro-momento button").Select(b => b.FirstChild!.TextContent.Trim()).Should().Equal("Mes 1", "Mes 6", "Año 3");
+        cut.FindAll(".cuadro-momento button").Select(b => b.TextContent).Should().AllSatisfy(
+            t => t.Should().MatchRegex(@"^(Mes 1|Mes 6|Año 3) \S", "el rótulo y el mes van separados por un espacio, no pegados («Mes 1—»)"));
         cut.FindAll(".cuadro-momento button small").Select(s => s.TextContent.Trim())
             .Should().OnlyContain(m => m == m.ToLowerInvariant(), "los rótulos de segmento van en minúsculas («oct 2026»)");
+    }
+
+    [Theory]
+    [InlineData(1, "1 alerta que requiere una decisión")]
+    [InlineData(2, "2 alertas que requieren una decisión")]
+    public void El_contador_de_alertas_concuerda_en_singular_y_plural(int empresasEnAlerta, string glosa)
+    {
+        var baseCuadro = Cuadro(EstadoCifraMensual.Parcial);
+        var bajo = baseCuadro.Tenants[0].Cifras with { Cumplimiento = new CumplimientoActualDto(60, 5, 3, 2, 0, 0, 0, 60, false, DateTime.UtcNow) };
+        var cuadro = baseCuadro with
+        {
+            Tenants =
+            [
+                baseCuadro.Tenants[0] with { Cifras = bajo },
+                empresasEnAlerta == 2 ? baseCuadro.Tenants[1] with { Cifras = bajo } : baseCuadro.Tenants[1],
+            ],
+        };
+
+        var cut = Pintar(cuadro, Roles.DireccionCae, out _);
+
+        cut.FindAll(".pestanas-contador-glosa").Select(g => g.TextContent.Trim()).Should().Contain(glosa);
     }
 
     [Fact]
