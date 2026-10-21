@@ -13,16 +13,13 @@
    circuito interactivo no debería añadir más trabajo antes de poder pintar
    el mensaje (mismo principio que ya aplicaba AuthLayout, Sentry DOTNET-8). *@
 @using CaeManager.Infrastructure.Comunicaciones
-@using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados
 @using CaeManager.Web.Components.Layout
 @using CaeManager.Web.Features.Comunicaciones
-@using MediatR
 @using Microsoft.AspNetCore.Components.Authorization
 @using CaeManager.Web.Recursos
 @using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Options
 @inject IOptions<ComunicacionesOptions> OpcionesComunicaciones
-@inject IServiceProvider Servicios
 @inject IStringLocalizer<TextosComunes> Textos
 <div class="pagina-estado-sistema">
     <a class="marca-estado-sistema" href="/" aria-label="@($"{Marca.Nombre} — ir al Dashboard")">
@@ -125,38 +122,13 @@
     [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
 
     /// <summary>
-    /// Adónde lleva el botón principal de «acceso denegado»: Mi trabajo (la misma ruta que elige el menú
-    /// lateral) para los roles que lo tienen; Inicio para los demás y siempre que no se pueda saber. Solo
-    /// se consulta en esta pantalla: Error no debe sumar trabajo si lo que falló fue la base de datos.
+    /// Adónde lleva el botón principal: siempre Inicio. La pantalla principal es Inicio para todos los
+    /// roles (decisión del propietario, 2026-10-21); antes «acceso denegado» llevaba a Mi trabajo a los
+    /// roles que lo tienen. «Acceso denegado» conserva su etiqueta «Ir a tu pantalla principal».
     /// </summary>
-    private string _rutaPantallaPrincipal = "/";
-
-    private string RutaPrincipal => Tipo == TipoEstadoSistema.AccesoDenegado ? _rutaPantallaPrincipal : "/";
+    private const string RutaPrincipal = "/";
 
     private string EtiquetaPrincipal => Tipo == TipoEstadoSistema.AccesoDenegado ? Textos["IrATuPantallaPrincipal"].Value : "Ir al Inicio";
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (Tipo != TipoEstadoSistema.AccesoDenegado || EstadoAutenticacion is null)
-            return;
-
-        var usuario = (await EstadoAutenticacion).User;
-        if (!CatalogoMenuLateral.RolesDeMiTrabajo.Split(',').Any(usuario.IsInRole))
-            return;
-
-        var variosTenants = false;
-        try
-        {
-            if (Servicios.GetService<IMediator>() is { } mediador)
-                variosTenants = (await mediador.Send(new ObtenerClientesAutorizadosQuery())).Count > 1;
-        }
-        catch (Exception)
-        {
-            // Sin el recuento, la ruta de un solo Tenant: sigue siendo Mi trabajo y la autoriza el mismo rol.
-        }
-
-        _rutaPantallaPrincipal = "/" + CatalogoMenuLateral.RutaMiTrabajo(variosTenants);
-    }
 
     /// <summary>
     /// Solo aplica a <see cref="TipoEstadoSistema.Error"/>. Sin valor, el
