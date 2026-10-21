@@ -247,7 +247,7 @@
     <value>{0} asignación(es) creada(s), {1} ya estaban activas.</value>
   </data>
   <data name="ErrorAsignarLote" xml:space="preserve">
-    <value>No se ha asignado a nadie. Vuelve a intentarlo.</value>
+    <value>No se ha podido asignar a los trabajadores. Vuelve a intentarlo.</value>
   </data>
   <data name="ToastFiltroGuardado" xml:space="preserve">
     <value>Filtro guardado.</value>
