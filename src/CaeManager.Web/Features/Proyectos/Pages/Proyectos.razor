@@ -12,6 +12,7 @@
 @using CaeManager.Domain.Proyectos
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
 @using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Proyectos.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosProyectos> Textos
@@ -19,8 +20,8 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
-    <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@Textos["TituloPagina"]"
+<div class="contenedor-pagina lista-design">
+    <CabeceraListado Titulo="@Textos["TituloPagina"]"
                      Contador="@(ListaDisponible && _listaCargada ? (int?)_totalElementos : null)"
                      RutaExportar="@(ListaDisponible ? "/proyectos/exportar.xlsx" : null)" CriteriosExportar="CriteriosExportar" Menu="@(ListaDisponible ? MenuListado : null)">
         <Primaria>
@@ -53,20 +54,22 @@
     }
     else
     {
-        <BarraFiltros PresentacionMaqueta="true" Contador="@(ListaDisponible && _listaCargada ? (int?)_totalElementos : null)" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
+        <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
                       PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                       HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                       FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
                       OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
                       VistaRecordada="_vistaRecordada">
             <Pastillas>
-            <FranjaEstado PresentacionCampo="true" Etiqueta="@ComunesLista["ListaEstado"]" Opciones="OpcionesEstado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
-                      Recuentos="_recuentosPorEstado" />
                 @* Filtro opcional: «Todos» (el valor vacío) lista los Proyectos de todos los Clientes empresariales visibles. *@
-                <PastillaFiltro PresentacionCampo="true" @key="_versionSelectorCliente" @ref="_selectorClienteEmpresarial" Etiqueta="@Textos["ListaEmpresa"]"
+                <PastillaFiltro @key="_versionSelectorCliente" @ref="_selectorClienteEmpresarial" Etiqueta="@Textos["ListaEmpresa"]"
                                 Valor="@(_clienteSeleccionadoId == Guid.Empty ? string.Empty : _clienteSeleccionadoId.ToString())"
                                 ValorChanged="OnClienteSeleccionadoAsync" Opciones="OpcionesClienteListado" />
             </Pastillas>
+            <Estados>
+                <FranjaEstado Etiqueta="@ComunesLista["ListaEstado"]" Opciones="OpcionesEstado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                              Recuentos="_recuentosPorEstado" />
+            </Estados>
             <Herramientas>
                 <PastillaFiltro Etiqueta="@Textos["ListaAgrupar"]" Valor="@_agrupar" ValorChanged="CambiarAgrupacion"
                                 TextoTodos="@Textos["ListaSinAgrupar"]" Opciones="@([new OpcionEstado("empresa", Textos["ListaPorEmpresa"])])" Keytip="A" />
@@ -125,15 +128,18 @@
         {
             <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
-            @TarjetaListado.RenderizarMaqueta(@<text>
+            @TarjetaListado.Renderizar(@<text>
                 <div class="contenedor-tabla-proyectos" aria-busy="@(_cargandoProyectos ? "true" : "false")">
                     <table class="tabla-datos tabla-proyectos">
                         <thead>
                             <tr>
                                 <th>@Textos["ListaProyecto"]</th>
+                                <th>@Textos["EtiquetaCentro"]</th>
                                 <th>@Textos["ListaFechas"]</th>
                                 <th>@Textos["ColumnaTecnicos"]</th>
                                 <th class="col-plazo-transcurrido">@Textos["ListaPlazoTranscurrido"]</th>
+                                <th class="col-estado">@Textos["ColumnaCumplimiento"]</th>
+                                <th class="col-estado">@Textos["ColumnaEstadoDocumental"]</th>
                                 <th class="col-estado">@Textos["EtiquetaEstado"]</th>
                                 <th class="col-acciones"><span class="texto-solo-lectores">@Textos["ColumnaAcciones"]</span></th>
                             </tr>
@@ -143,7 +149,7 @@
                             {
                             @if (_agrupar == "empresa")
                             {
-                                <tr class="proyectos-grupo"><th colspan="6" scope="rowgroup">@bloque.Key.Nombre</th></tr>
+                                <tr class="proyectos-grupo"><th colspan="9" scope="rowgroup">@bloque.Key.Nombre</th></tr>
                             }
                             @foreach (var proyecto in bloque)
                             {
@@ -166,12 +172,16 @@
                                             {
                                                 <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@Textos["BadgeEvento"]</Badge>
                                             }
-                                            @* Con «Todos», dos filas pueden compartir nombre de Proyecto o de Centro: el
-                                               Cliente las distingue. Con un Cliente en el filtro sobraría en todas. La
-                                               búsqueda no mira el Cliente, así que no se resalta. *@
-                                            <span class="proyecto-centro"><TextoResaltado Texto="@proyecto.CentroNombre" Termino="@_busqueda.Trim()" />@(_clienteSeleccionadoId == Guid.Empty ? $" · {proyecto.ClienteRazonSocial}" : string.Empty)</span>
+                                            @* Con «Todos», dos filas pueden compartir nombre de Proyecto: el Cliente las
+                                               distingue. Con un Cliente en el filtro sobraría en todas. La búsqueda no
+                                               mira el Cliente, así que no se resalta. *@
+                                            @if (_clienteSeleccionadoId == Guid.Empty)
+                                            {
+                                                <span class="proyecto-centro">@proyecto.ClienteRazonSocial</span>
+                                            }
                                         </span>
                                     </td>
+                                    <td class="celda-centro-proyecto"><TextoResaltado Texto="@proyecto.CentroNombre" Termino="@_busqueda.Trim()" /></td>
                                     <td class="celda-fecha-proyecto">
                                         <span class="proyecto-plazo">
                                             <span><span class="texto-solo-lectores">@Textos["EtiquetaInicio"]: </span>@proyecto.FechaInicio.ToString("dd/MM/yyyy")</span>
@@ -225,6 +235,18 @@
                                         <BarraCumplimiento Porcentaje="PorcentajeDelPlazo(proyecto)" Marca="true"
                                                            Etiqueta="@EtiquetaPlazoTranscurrido(proyecto)" />
                                     </td>
+                                    @* Cumplimiento % y Estado documental, como en Vehículos: salen de los Documentos del
+                                       Proyecto, y sin ninguno la celda dice que no hay (no un 0 %). *@
+                                    <td class="col-estado">
+                                        <BarraCumplimiento Porcentaje="PorcentajeDocumentacion(proyecto)"
+                                                           Texto="@MotivoIncidenciasUi.RegistradosVigentes(proyecto.DocumentosVigentes, proyecto.DocumentosRegistrados)"
+                                                           Etiqueta="@MotivoIncidenciasUi.RegistradosVigentesAccesible(proyecto.DocumentosVigentes, proyecto.DocumentosRegistrados)" />
+                                    </td>
+                                    <td class="col-estado">
+                                        <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(proyecto.EstadoDocumental)" Texto="@EstadoDocumentoUi.TextoDocumental(proyecto.EstadoDocumental)"
+                                                    Correcto="EstadoDocumentoUi.EsCorrecto(proyecto.EstadoDocumental)"
+                                                    Motivo="@MotivoIncidenciasUi.Texto(proyecto.Incidencias, CaeManager.Domain.Common.DiaDeNegocio.Hoy())" />
+                                    </td>
                                     <td class="col-estado">
                                         @if (proyecto.EstaAbierto)
                                         {
@@ -258,7 +280,7 @@
                                 </tr>
                                 @if (_expandidos.Contains(proyecto.Id))
                                 {
-                                    <tr class="proyecto-documentacion"><td colspan="6">
+                                    <tr class="proyecto-documentacion"><td colspan="9">
                                         <DocumentacionFilaProyecto ProyectoId="proyecto.Id" />
                                     </td></tr>
                                 }
@@ -271,7 +293,7 @@
         }
         @if (_listaCargada && !_errorProyectos && _totalElementos == 0)
         {
-            @TarjetaListado.RenderizarMaqueta(null, PieDelListado)
+            @TarjetaListado.RenderizarMaqueta(null, PieDelListadoVacio)
         }
     }
 </div>
@@ -602,10 +624,16 @@
 }
 
 @code {
-    private RenderFragment PieDelListado => @<text>
+    private RenderFragment PieDelListado => PieSegun(false);
+
+    // Sin Proyectos el pie sigue visible debajo de la tarjeta, con la presentación de la maqueta anterior
+    // (regla compartida de los listados, ListadosPieSiempreVisibleTests).
+    private RenderFragment PieDelListadoVacio => PieSegun(true);
+
+    private RenderFragment PieSegun(bool presentacionMaqueta) => @<text>
         @if (_listaCargada && !_errorProyectos)
         {
-            <PaginadorSimple PresentacionMaqueta="true" PaginaActual="_paginaActual" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+            <PaginadorSimple PresentacionMaqueta="presentacionMaqueta" PaginaActual="_paginaActual" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                      PaginaActualChanged="CambiarPaginaAsync"
                                      TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_proyectos.Count">
                     <Centro><LeyendaAtajosLista Omitir="@(["x"])" /></Centro>

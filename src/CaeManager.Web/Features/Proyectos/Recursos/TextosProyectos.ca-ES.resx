@@ -531,4 +531,6 @@
   <data name="ListaSinDocumentos" xml:space="preserve"><value>Sense documents registrats per a aquest projecte.</value></data>
   <data name="ListaSinVencimiento" xml:space="preserve"><value>Sense data de venciment</value></data>
   <data name="ListaGestionar" xml:space="preserve"><value>Gestionar</value></data>
+  <data name="ColumnaCumplimiento" xml:space="preserve"><value>Compliment</value></data>
+  <data name="ColumnaEstadoDocumental" xml:space="preserve"><value>Estat documental</value></data>
 </root>

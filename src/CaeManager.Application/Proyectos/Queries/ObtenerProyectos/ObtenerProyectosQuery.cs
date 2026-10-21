@@ -1,6 +1,8 @@
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.Trabajadores;
@@ -69,6 +71,21 @@ public record ProyectoListaDto(
     /// fila del listado; el historial completo (bajas incluidas) lo da ObtenerTecnicosProyectoQuery.
     /// </summary>
     public IReadOnlyList<TecnicoActivoListaDto> TecnicosActivos { get; init; } = [];
+
+    /// <summary>
+    /// Peor estado de los Documentos operativos del Proyecto; <c>null</c> si no tiene ninguno. Sale del mismo
+    /// desglose y la misma calculadora que el de Vehículos, Trabajadores y Empresas.
+    /// </summary>
+    public EstadoDocumento? EstadoDocumental { get; init; }
+
+    /// <summary>Documentos operativos registrados del Proyecto (denominador del Cumplimiento %).</summary>
+    public int DocumentosRegistrados { get; init; }
+
+    /// <summary>De ellos, los que están al día (numerador del Cumplimiento %).</summary>
+    public int DocumentosVigentes { get; init; }
+
+    /// <summary>Los Documentos del Proyecto que explican su <see cref="EstadoDocumental"/>.</summary>
+    public IReadOnlyList<IncidenciaDocumentalDto> Incidencias { get; init; } = [];
 }
 
 /// <summary>Técnico activo de un proyecto en la lista: la persona, escrita «Nombre Apellidos».</summary>
@@ -76,7 +93,8 @@ public record TecnicoActivoListaDto(Guid TrabajadorId, string NombreCompleto);
 
 public class ObtenerProyectosQueryHandler(
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext,
-    ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
+    ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos,
+    ICalculoEstadoDocumentalService calculoEstadoDocumental)
     : IRequestHandler<ObtenerProyectosQuery, ResultadoPaginado<ProyectoListaDto>>
 {
     public async Task<ResultadoPaginado<ProyectoListaDto>> Handle(ObtenerProyectosQuery request, CancellationToken cancellationToken)
@@ -188,8 +206,25 @@ public class ObtenerProyectosQueryHandler(
                 .ToListAsync(cancellationToken);
 
             var tecnicosPorProyecto = tecnicos.ToLookup(t => t.ProyectoId, t => new TecnicoActivoListaDto(t.Id, t.Nombre));
+            // Solo para los Proyectos de la página: Cumplimiento % y Estado documental son columnas, no filtros. Los
+            // Documentos del Proyecto llevan los filtros de Tenant y RLS de su consulta. El peor estado sale de las
+            // incidencias (el desglose las ordena de más a menos grave); sin incidencias y con documentos, Vigente.
+            var desgloses = await calculoEstadoDocumental.CalcularDesgloseAsync(
+                AmbitoAplicacion.Proyecto, proyectoIds, cancellationToken);
             proyectos = proyectos
-                .Select(p => p with { TecnicosActivos = tecnicosPorProyecto[p.Id].ToList() })
+                .Select(p =>
+                {
+                    var conTecnicos = p with { TecnicosActivos = tecnicosPorProyecto[p.Id].ToList() };
+                    if (!desgloses.TryGetValue(p.Id, out var desglose))
+                        return conTecnicos;
+                    return conTecnicos with
+                    {
+                        Incidencias = desglose.Incidencias,
+                        DocumentosRegistrados = desglose.DocumentosRegistrados,
+                        DocumentosVigentes = desglose.DocumentosVigentes,
+                        EstadoDocumental = desglose.Incidencias.Count > 0 ? desglose.Incidencias[0].Estado : EstadoDocumento.Vigente
+                    };
+                })
                 .ToList();
         }
 

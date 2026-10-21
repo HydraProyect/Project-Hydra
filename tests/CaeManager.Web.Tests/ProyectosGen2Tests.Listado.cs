@@ -35,30 +35,51 @@ public partial class ProyectosGen2Tests
             .ToList();
 
     private static Task PulsarSiguienteAsync(IRenderedComponent<Proyectos> cut) =>
-        cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".paginador-pie-listado button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
 
     private static string MotivoDe(IRenderedComponent<Proyectos> cut, ProyectoListaDto proyecto) =>
-        FilaDe(cut, proyecto).QuerySelector("td.col-estado .estado-fila-motivo")!.TextContent.Trim();
+        FilaDe(cut, proyecto).QuerySelector("td:nth-last-child(2) .estado-fila-motivo")!.TextContent.Trim();
 
     // ------------------------------------------------------------------ columnas
 
     [Fact]
-    public async Task Las_columnas_son_Proyecto_Fechas_Tecnicos_Plazo_transcurrido_y_Estado_en_ese_orden()
+    public async Task Las_columnas_son_Proyecto_Centro_Fechas_Tecnicos_Plazo_Cumplimiento_Estado_documental_y_Estado_en_ese_orden()
     {
         _mediator.Proyectos = [ProyectoAbierto];
         var cut = await RenderizarConClienteAsync();
 
         cut.FindAll("table.tabla-proyectos thead th").Select(th => th.TextContent.Trim())
-            .Should().Equal("Proyecto", "Periodo", "Técnicos", "Plazo transcurrido", "Estado", "Acciones");
+            .Should().Equal("Proyecto", "Centro", "Periodo", "Técnicos", "Plazo transcurrido", "Cumplimiento", "Estado documental", "Estado", "Acciones");
 
         var celdas = FilaDe(cut, ProyectoAbierto).QuerySelectorAll("td");
         celdas[0].QuerySelector(".nombre-proyecto").Should().NotBeNull();
-        celdas[1].QuerySelector(".proyecto-plazo").Should().NotBeNull("la segunda columna son las fechas");
-        celdas[2].ClassList.Should().Contain("celda-tecnicos-proyecto");
-        celdas[3].ClassList.Should().Contain("col-plazo-transcurrido");
-        celdas[4].ClassList.Should().Contain("col-estado", "el estado cae en la columna de ancho fijo común a los listados");
-        celdas[4].QuerySelector(".estado-fila").Should().NotBeNull();
-        cut.Find("thead th.col-estado").TextContent.Trim().Should().Be("Estado");
+        celdas[1].ClassList.Should().Contain("celda-centro-proyecto");
+        celdas[1].TextContent.Trim().Should().Be(ProyectoAbierto.CentroNombre);
+        celdas[2].QuerySelector(".proyecto-plazo").Should().NotBeNull("la tercera columna son las fechas");
+        celdas[3].ClassList.Should().Contain("celda-tecnicos-proyecto");
+        celdas[4].ClassList.Should().Contain("col-plazo-transcurrido");
+        celdas[5].ClassList.Should().Contain("col-estado");
+        celdas[5].QuerySelector("[role=progressbar], .barra-cumplimiento").Should().NotBeNull("el cumplimiento es la barra de los demás listados");
+        celdas[6].QuerySelector(".estado-fila").Should().NotBeNull("el estado documental es el semáforo de los demás listados");
+        celdas[7].ClassList.Should().Contain("col-estado", "el estado cae en la columna de ancho fijo común a los listados");
+        celdas[7].QuerySelector(".estado-fila").Should().NotBeNull();
+        cut.FindAll("thead th.col-estado").Select(th => th.TextContent.Trim()).Should().Equal("Cumplimiento", "Estado documental", "Estado");
+    }
+
+    [Fact]
+    public async Task El_cumplimiento_y_el_estado_documental_salen_de_los_documentos_del_Proyecto()
+    {
+        var conDocumentos = ProyectoAbierto with { Id = Guid.NewGuid(), Nombre = "Obra con documentos" };
+        conDocumentos = conDocumentos with { EstadoDocumental = CaeManager.Domain.Documentos.EstadoDocumento.Proximo, DocumentosRegistrados = 4, DocumentosVigentes = 3 };
+        _mediator.Proyectos = [conDocumentos, ProyectoCerrado];
+        var cut = await RenderizarConClienteAsync();
+
+        var celdas = FilaDe(cut, conDocumentos).QuerySelectorAll("td");
+        celdas[5].TextContent.Should().Contain("3/4");
+        celdas[6].QuerySelector(".estado-fila").Should().NotBeNull();
+        var sinDocumentos = FilaDe(cut, ProyectoCerrado).QuerySelectorAll("td");
+        sinDocumentos[6].TextContent.Should().Contain("Sin documentos", "sin Documentos no hay estado que enseñar ni un 0 %");
+        sinDocumentos[5].TextContent.Should().NotContain("0 %");
     }
 
     // ------------------------------------------------------------------ motivo bajo el estado
@@ -90,8 +111,8 @@ public partial class ProyectosGen2Tests
         MotivoDe(cut, sinEmpezar).Should().Be("Todavía no ha empezado");
         MotivoDe(cut, ProyectoCerrado).Should().Be("Duró 55 días", "del 9 de enero al 4 de marzo de 2026, contando los dos");
         MotivoDe(cut, deUnDia).Should().Be("Duró 1 día");
-        FilaDe(cut, ProyectoCerrado).QuerySelector("td.col-estado")!.TextContent.Should().Contain("Cerrado");
-        FilaDe(cut, deHoy).QuerySelector("td.col-estado [data-pieza=estado-correcto]").Should().NotBeNull(
+        FilaDe(cut, ProyectoCerrado).QuerySelector("td:nth-last-child(2)")!.TextContent.Should().Contain("Cerrado");
+        FilaDe(cut, deHoy).QuerySelector("td:nth-last-child(2) [data-pieza=estado-correcto]").Should().NotBeNull(
             "abierto no pide acción: punto verde, sin pastilla de color");
     }
 
@@ -342,9 +363,15 @@ public partial class ProyectosGen2Tests
         var cut = await RenderizarConClienteAsync();
 
         NombresEnLaTabla(cut).Should().HaveCount(20, "control positivo: la lista está pintada");
-        cut.Find(".pie-lista-inicio button").HasAttribute("disabled").Should().BeTrue();
-        cut.Find(".pie-lista-opciones button").HasAttribute("disabled").Should().Be(!conPaginador);
-        cut.Find(".pie-lista-opciones select").Should().NotBeNull();
+        // El pie nuevo solo pinta Anterior/Siguiente cuando hay más de una página.
+        var navegacion = cut.FindAll(".paginador-inicio button");
+        navegacion.Any().Should().Be(conPaginador);
+        if (conPaginador)
+        {
+            navegacion.Single(b => b.GetAttribute("aria-label") == "Anterior").HasAttribute("disabled").Should().BeTrue();
+            navegacion.Single(b => b.GetAttribute("aria-label") == "Siguiente").HasAttribute("disabled").Should().BeFalse();
+        }
+        cut.FindAll(".paginador-opciones-tamano button").Select(b => b.TextContent.Trim()).Should().Equal("20", "50", "100");
     }
 
     /// <summary>Un filtro cambia el conjunto: la página 2 del anterior no es la página 2 del nuevo.</summary>
@@ -406,11 +433,11 @@ public partial class ProyectosGen2Tests
         var cut = await RenderizarConClienteAsync();
         await PulsarSiguienteAsync(cut);
 
-        await cut.Find(".pie-lista-opciones select").ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "50" });
+        await cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent.Trim() == "50").ClickAsync(new MouseEventArgs());
 
         UltimaConsultaDeProyectos.Should().Match<ObtenerProyectosQuery>(q => q.Pagina == 1 && q.TamanoPagina == 50);
         NombresEnLaTabla(cut).Should().HaveCount(45);
-        cut.FindAll(".pie-lista-opciones select").Should().ContainSingle(
+        cut.FindAll(".paginador-opciones-tamano").Should().ContainSingle(
             "con todo en una página el paginador se queda: sin él no habría cómo volver a bajar el tamaño");
     }
 

@@ -961,6 +961,9 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// </summary>
     private Guid? _idEnfocado;
 
+    private static int? PorcentajeDocumentacion(ProyectoListaDto proyecto) =>
+        proyecto.DocumentosRegistrados <= 0 ? null : proyecto.DocumentosVigentes * 100 / proyecto.DocumentosRegistrados;
+
     private string ClaseFila(ProyectoListaDto proyecto)
     {
         var seleccionada = _proyectoSeleccionadoId == proyecto.Id;

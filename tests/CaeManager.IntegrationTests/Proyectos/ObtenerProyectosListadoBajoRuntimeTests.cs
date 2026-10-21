@@ -10,6 +10,7 @@ using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Application.Documentos;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
@@ -421,7 +422,8 @@ public class ObtenerProyectosListadoBajoRuntimeTests : IAsyncLifetime
     {
         await using var contexto = ContextoRuntime(_administrador, Roles.Administrador);
         var handler = new ObtenerProyectosQueryHandler(
-            contexto, contexto, contexto, contexto, Alcance(contexto, _administrador, Roles.Administrador));
+            contexto, contexto, contexto, contexto, Alcance(contexto, _administrador, Roles.Administrador),
+            new CalculoEstadoDocumentalService(contexto, contexto, contexto));
 
         // Alcance total dentro del Tenant propietario: lo único que deja fuera al otro Tenant es RLS.
         var todos = await handler.Handle(new ObtenerProyectosQuery(TamanoPagina: 100, ConRecuentosPorEstado: true), CancellationToken.None);
@@ -476,7 +478,7 @@ public class ObtenerProyectosListadoBajoRuntimeTests : IAsyncLifetime
     private async Task<ResultadoPaginado<ProyectoListaDto>> PedirAsync(Guid usuarioId, string rol, ObtenerProyectosQuery consulta)
     {
         await using var contexto = ContextoRuntime(usuarioId, rol);
-        return await new ObtenerProyectosQueryHandler(contexto, contexto, contexto, contexto, Alcance(contexto, usuarioId, rol))
+        return await new ObtenerProyectosQueryHandler(contexto, contexto, contexto, contexto, Alcance(contexto, usuarioId, rol), new CalculoEstadoDocumentalService(contexto, contexto, contexto))
             .Handle(consulta, CancellationToken.None);
     }
 
