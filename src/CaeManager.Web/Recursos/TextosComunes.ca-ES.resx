@@ -567,9 +567,6 @@
   <data name="SelectorTenantFijadas" xml:space="preserve">
     <value>Fixades</value>
   </data>
-  <data name="SelectorTenantResto" xml:space="preserve">
-    <value>Resta d'empreses</value>
-  </data>
   <data name="SelectorTenantFijar" xml:space="preserve">
     <value>Fixa a dalt</value>
   </data>
