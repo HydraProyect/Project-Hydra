@@ -16,7 +16,7 @@
     <value>Recordatorio propuesto</value>
   </data>
   <data name="Explicacion" xml:space="preserve">
-    <value>Esta conversación lleva dos días laborables esperando respuesta. Revisa el borrador: no se enviará hasta que lo apruebes.</value>
+    <value>Esta conversación lleva dos días laborables esperando respuesta. Revisa el borrador: no se enviará hasta que lo apruebes. Al aprobar se envía y no se puede deshacer.</value>
   </data>
   <data name="EtiquetaBorrador" xml:space="preserve">
     <value>Borrador del recordatorio</value>

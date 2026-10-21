@@ -16,7 +16,7 @@
     <value>Recordatori proposat</value>
   </data>
   <data name="Explicacion" xml:space="preserve">
-    <value>Aquesta conversa porta dos dies laborables esperant resposta. Revisa l'esborrany: no s'enviarà fins que l'aprovis.</value>
+    <value>Aquesta conversa porta dos dies laborables esperant resposta. Revisa l'esborrany: no s'enviarà fins que l'aprovis. En aprovar-lo s'envia i no es pot desfer.</value>
   </data>
   <data name="EtiquetaBorrador" xml:space="preserve">
     <value>Esborrany del recordatori</value>
