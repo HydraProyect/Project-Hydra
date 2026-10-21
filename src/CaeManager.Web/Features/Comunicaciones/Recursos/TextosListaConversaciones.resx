@@ -18,13 +18,13 @@
   <data name="TodasConversaciones" xml:space="preserve"><value>Todas las conversaciones</value></data>
   <data name="RecuentoConversaciones" xml:space="preserve"><value>{0} conversaciones</value></data>
   <data name="Conversacion" xml:space="preserve"><value>Conversación</value></data>
-  <data name="Empresa" xml:space="preserve"><value>Empresa</value></data>
+  <data name="Empresa" xml:space="preserve"><value>Cliente</value></data>
   <data name="Prioridad" xml:space="preserve"><value>Prioridad</value></data>
   <data name="Estado" xml:space="preserve"><value>Estado</value></data>
   <data name="AsignadaA" xml:space="preserve"><value>Asignada a</value></data>
   <data name="SinAsignar" xml:space="preserve"><value>Sin asignar</value></data>
   <data name="Asignada" xml:space="preserve"><value>Asignada</value></data>
-  <data name="SinEmpresa" xml:space="preserve"><value>Sin Empresa asignada</value></data>
+  <data name="SinEmpresa" xml:space="preserve"><value>Sin Cliente asignado</value></data>
   <data name="Correo" xml:space="preserve"><value>Correo</value></data>
   <data name="VolverBandeja" xml:space="preserve"><value>Volver a la bandeja de entrada</value></data>
   <data name="ErrorBuzon" xml:space="preserve"><value>No pudimos cargar el buzón</value></data>
