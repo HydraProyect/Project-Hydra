@@ -859,7 +859,7 @@
     <value>Extranjeros</value>
   </data>
   <data name="FactKpiExtranjerosAyuda" xml:space="preserve">
-    <value>Trabajadores extranjeros cobrables: el Pasaporte cuenta y el NIE no, porque puede ser residente. Un recurrente que va a 3 Centros en el mes cuenta 3. Se cuenta como estaba al hacer la gestión.</value>
+    <value>Trabajadores con Pasaporte (casilla «Trabajador extranjero (cobrable)»). El NIE no cuenta porque puede ser residente. Un recurrente que va a 3 Centros en el mes cuenta 3. Se cuenta como estaba al hacer la gestión.</value>
   </data>
   <data name="FactKpiExtranjerosSub" xml:space="preserve">
     <value>Filas Trabajador × Visita</value>
@@ -961,7 +961,7 @@
     <value>Tarifas</value>
   </data>
   <data name="FactTotales" xml:space="preserve">
-    <value>Totales</value>
+    <value>Total</value>
   </data>
   <data name="FactNoSeCobra" xml:space="preserve">
     <value>No se cobra</value>
@@ -982,7 +982,7 @@
     <value>Por Empresa gestionada, nunca por persona. Suma las gestiones de todos sus Gestores CAE.</value>
   </data>
   <data name="FactComoTotal" xml:space="preserve">
-    <value>Total por gestión</value>
+    <value>Total</value>
   </data>
   <data name="FactComoTotalDef" xml:space="preserve">
     <value>Cuota del mes ÷ gestiones totales</value>
@@ -1096,7 +1096,7 @@
     <value>Lo trae</value>
   </data>
   <data name="FactExtGestor" xml:space="preserve">
-    <value>Gestor CAE que lo gestionó</value>
+    <value>Gestor CAE</value>
   </data>
   <data name="FactVisitaCon" xml:space="preserve">
     <value>Visita con {0}</value>
@@ -1117,7 +1117,16 @@
     <value>Esta Empresa gestionada no tiene tarifa. Mientras no la tenga, el Cuadro y Facturación muestran «Sin tarifa», nunca 0 €.</value>
   </data>
   <data name="TarifasMoneda" xml:space="preserve">
-    <value>Moneda de cobro</value>
+    <value>Moneda</value>
+  </data>
+  <data name="FactSinAlcance" xml:space="preserve">
+    <value>Faltan {0} empresas que no alcanzas por completo</value>
+  </data>
+  <data name="FactSinAlcanceUna" xml:space="preserve">
+    <value>Falta 1 empresa que no alcanzas por completo</value>
+  </data>
+  <data name="FactSinAlcanceAyuda" xml:space="preserve">
+    <value>No entran en las cifras porque tu Asignación de Cartera sobre ellas es parcial.</value>
   </data>
   <data name="TarifasMonedaEur" xml:space="preserve">
     <value>EUR · euro</value>

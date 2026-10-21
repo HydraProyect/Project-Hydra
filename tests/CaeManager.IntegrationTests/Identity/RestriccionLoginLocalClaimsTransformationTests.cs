@@ -92,5 +92,54 @@ public class RestriccionLoginLocalClaimsTransformationTests
         var segundaPasada = await transformacion.TransformAsync(primeraPasada);
 
         segundaPasada.FindAll(ClaimTypes.Role).Select(c => c.Value).Should().ContainSingle().Which.Should().Be(Roles.Consulta);
+        segundaPasada.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            .Select(c => c.Value).Should().Equal([Roles.GestorCae], "la segunda pasada no lo pisa con Consulta");
+    }
+
+    // Decisión Chris 2026-10-20: Consulta entra sin cartera en todos los Tenants beneficiarios de la
+    // Asignación de Operación de su organización. El perfil anterior a la restricción decide el
+    // alcance, para que limitar a un Gestor CAE a Consulta no le abra más Tenants que su cartera.
+
+    [Fact]
+    public async Task Con_sso_configurado_el_login_local_conserva_el_perfil_anterior_para_decidir_el_alcance()
+    {
+        var resultado = await CrearTransformacion(ssoConfigurado: true)
+            .TransformAsync(CrearPrincipal(esSso: false, Roles.GestorCae));
+
+        resultado.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            .Select(c => c.Value).Should().Equal([Roles.GestorCae]);
+    }
+
+    [Fact]
+    public async Task Con_varios_roles_el_perfil_anterior_es_el_mas_acotado()
+    {
+        var resultado = await CrearTransformacion(ssoConfigurado: true)
+            .TransformAsync(CrearPrincipal(esSso: false, Roles.CoordinadorCae, Roles.GestorCae));
+
+        resultado.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            .Select(c => c.Value).Should().Equal([Roles.GestorCae], "el Gestor CAE es el único acotado por cartera");
+    }
+
+    [Fact]
+    public async Task Una_cuenta_sin_rol_queda_marcada_sin_perfil_y_no_hereda_el_Consulta_de_la_restriccion()
+    {
+        var resultado = await CrearTransformacion(ssoConfigurado: true)
+            .TransformAsync(CrearPrincipal(esSso: false));
+
+        resultado.FindAll(ClaimTypes.Role).Select(c => c.Value).Should().Equal([Roles.Consulta]);
+        resultado.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            .Select(c => c.Value).Should().Equal([string.Empty],
+                "vacío es «sin perfil»: el Consulta puesto por la restricción no abre Tenants sin cartera");
+    }
+
+    [Fact]
+    public async Task Sin_restriccion_no_se_anade_el_perfil_anterior()
+    {
+        (await CrearTransformacion(ssoConfigurado: false).TransformAsync(CrearPrincipal(esSso: false, Roles.GestorCae)))
+            .HasClaim(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            .Should().BeFalse();
+        (await CrearTransformacion(ssoConfigurado: true).TransformAsync(CrearPrincipal(esSso: true, Roles.GestorCae)))
+            .HasClaim(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            .Should().BeFalse();
     }
 }

@@ -376,16 +376,17 @@ public class AsignacionesOperativasWriter(
     /// <see cref="AsignacionOperadorDelegado.Rol"/> es texto plano (Domain no
     /// referencia <c>Roles</c> — ver su doc-comment); esta lista blanca es lo
     /// único que impide que un valor corrupto, inesperado o heredado se cuele
-    /// como rol efectivo de la cartera nueva.
+    /// como rol guardado en la cartera nueva.
     ///
     /// <para>
-    /// Administrador y Dirección CAE quedan fuera (decisión del propietario,
-    /// 2026-09-23): son autoridad de Propiedad del Tenant propietario, no de
-    /// Operación, y una cartera o delegación solo concede Operación (ADR-011
-    /// § 1). Es la misma lista que ya exigía
+    /// Administrador y Dirección CAE quedan fuera del rol que se GUARDA
+    /// (decisión del propietario, 2026-09-23). Es la misma lista que ya exigía
     /// <c>CrearAsignacionOperadorDelegadoCommandValidator</c> al crear la
     /// delegación; aquí se exige también al leerla, para que una fila anterior
-    /// a esa validación no la esquive.
+    /// a esa validación no la esquive. Desde la decisión Chris 2026-10-20 ese rol
+    /// guardado ya no es el rol efectivo en el Tenant beneficiario: lo es el
+    /// perfil de origen, con todos sus poderes, también los de Propiedad
+    /// (<c>TenantsBeneficiariosAutorizados.RolEnTenantDelegadoAsync</c>).
     /// </para>
     /// </summary>
     private static readonly string[] RolesDelegadosPermitidos =

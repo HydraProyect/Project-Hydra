@@ -912,6 +912,17 @@
     <value>Sin empresa contratante</value>
   </data>
   <data name="ChipContratadaPor" xml:space="preserve"><value>Contratada por: {0}</value></data>
+  <data name="TituloCadenaSubcontratacion" xml:space="preserve"><value>Cadena de subcontratación</value></data>
+  <data name="RotuloClientesDeLosCentros" xml:space="preserve"><value>Clientes de los centros donde trabaja</value></data>
   <data name="BotonQuitarContratadaPor" xml:space="preserve"><value>Quitar filtro de contratante</value></data>
   <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordenar por esta columna</value></data>
+  <data name="PestanaPlataformas" xml:space="preserve"><value>Plataformas</value></data>
+  <data name="TextoPlataformasIntro" xml:space="preserve"><value>Cumplimiento de la subcontrata en las plataformas del titular de cada centro, verificado a mano por el Gestor CAE. El semáforo se calcula con la última verificación y los umbrales del sistema.</value></data>
+  <data name="AriaFiltrosPlataformas" xml:space="preserve"><value>Qué mostrar</value></data>
+  <data name="FiltroPlataformasSoloIncidencias" xml:space="preserve"><value>Solo incidencias · {0}</value></data>
+  <data name="FiltroPlataformasTodo" xml:space="preserve"><value>Todo · {0}</value></data>
+  <data name="PlataformasVacioTitulo" xml:space="preserve"><value>Sin incidencias en plataformas</value></data>
+  <data name="PlataformasVacioDescripcion" xml:space="preserve"><value>Todo lo exigido está validado en las plataformas de sus Clientes.</value></data>
+  <data name="EnlaceIrAlCentro360" xml:space="preserve"><value>Ir al Centro 360</value></data>
+  <data name="AriaIrAlCentro360" xml:space="preserve"><value>Ir al Centro 360 de {0}</value></data>
 </root>

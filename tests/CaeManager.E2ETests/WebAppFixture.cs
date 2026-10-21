@@ -586,8 +586,10 @@ public sealed class WebAppFixtureEscenariosDireccion : WebAppFixture
 
 /// <summary>
 /// Instancia propia para el Encargo de administración (decisión D-8, 2026-10-08), con su base
-/// propia: el encargo eleva al Administrador del Operador CAE externo de demo dentro de un Tenant
-/// propietario, y eso no debe alcanzar a ninguna otra colección.
+/// propia: el recorrido cambia la configuración y da de alta cuentas en Tenants propietarios, y eso
+/// no debe alcanzar a ninguna otra colección. Desde la regla del 2026-10-20 (opción A, PR #1488) el
+/// encargo ya no eleva: el Administrador del Operador CAE externo administra los dos Tenants con su
+/// rol de origen. La fixture conserva el encargo y las carteras para comprobar que no cambian nada.
 ///
 /// <para>
 /// <b>El encargo se siembra aquí, por SQL, y no por la interfaz.</b> En pantalla solo lo registra
@@ -604,11 +606,12 @@ public sealed class WebAppFixtureEscenariosDireccion : WebAppFixture
 /// <b>La Asignación de Cartera también se siembra aquí.</b> La siembra de demo da al Administrador
 /// del Operador CAE externo una asignación de Operador Delegado (vía heredada) sobre los dos
 /// Tenants propietarios, pero ninguna cartera: el relleno de carteras solo emite la de Consulta
-/// (<c>AsignacionesOperativasBackfillSeeder.RolesDeAlcanceTotal</c>). Sin cartera entra por la vía
-/// heredada, que nunca se eleva, y el encargo no sube ningún techo. La fixture le da una cartera
-/// de Gestor CAE <b>del Tenant entero</b> (ámbito universal) bajo cada una de las dos operaciones:
-/// el encargo solo eleva una cartera universal, y con la misma cartera en los dos Tenants lo único
-/// que los distingue es la fila del encargo. No se toca la siembra de demo de <c>src/</c>.
+/// (<c>AsignacionesOperativasBackfillSeeder.RolesDeAlcanceTotal</c>). La fixture le da una cartera
+/// de Gestor CAE <b>del Tenant entero</b> (ámbito universal) bajo cada una de las dos operaciones.
+/// Con la regla del 2026-10-20 ni esa cartera ni la fila del encargo deciden su rol: lo decide su
+/// rol de origen bajo la Asignación de Operación del Tenant entero, y los dos Tenants se
+/// administran igual. Se conservan para que el recorrido compruebe justo eso. No se toca la
+/// siembra de demo de <c>src/</c>.
 /// </para>
 /// </summary>
 [CollectionDefinition("AppCollectionEncargoAdministracion")]

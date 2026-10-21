@@ -8,11 +8,22 @@ namespace CaeManager.IntegrationTests;
 /// <paramref name="rol"/>: el caso de un usuario operando su propio Tenant.
 /// Distinto solo para modelar un Workspace operativo derivado (decisión P7).
 /// </param>
+/// <param name="perfilQueDecideAlcance">
+/// Perfil de la sesión en origen que decide qué Tenants beneficiarios delegados alcanza
+/// (decisión Chris 2026-10-20). Por defecto el mismo que <paramref name="rol"/>.
+/// </param>
+/// <param name="porOperacion">
+/// Declara que el rol se resolvió por la vía de Asignación de Operación en un Tenant delegado.
+/// </param>
 public class CurrentUserServiceFalso(
     Guid? usuarioId = null, string? rol = null, Guid? tenantOrigenId = null, bool tieneDobleFactorActivo = true,
-    string? rolOrigen = null, Guid? encargoPleno = null)
+    string? rolOrigen = null, Guid? encargoPleno = null, string? perfilQueDecideAlcance = null, bool porOperacion = false)
     : ICurrentUserService, IEncargoDeAdministracionActual
 {
+    public Task<string?> ObtenerPerfilQueDecideAlcanceAsync() => Task.FromResult(perfilQueDecideAlcance ?? rol);
+
+    public Task<bool> OperaPorAsignacionDeOperacionAsync() => Task.FromResult(porOperacion);
+
     // Este doble no calcula el Encargo de administración: por defecto nunca eleva. Con
     // encargoPleno declara un encargo pleno ya resuelto (el rol lo fija quien construye el doble),
     // para probar bajo RLS lo que el encargo pleno abre. Tiene que decirlo él porque AddApplication()

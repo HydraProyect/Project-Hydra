@@ -67,6 +67,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     internal const string PestanaTrabajadores = "trabajadores";
     internal const string PestanaSupervision = "supervision"; // Alias de enlaces existentes.
     internal const string PestanaGestion = "gestion";
+    internal const string PestanaPlataformas = "plataformas"; // Solo Supervisada: verificaciones en plataformas del titular.
     internal const string PestanaCentros = "centros";
     internal const string PestanaVehiculos = "vehiculos";
     internal const string PestanaAgenda = "agenda";
@@ -77,7 +78,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     internal const int TamanoPaginaTrabajadores = 50;
 
     private static readonly string[] PestanasValidas =
-        [PestanaTrabajadores, PestanaGestion, PestanaCentros, PestanaVehiculos, PestanaAgenda, PestanaFicha, PestanaHistorial];
+        [PestanaTrabajadores, PestanaGestion, PestanaPlataformas, PestanaCentros, PestanaVehiculos, PestanaAgenda, PestanaFicha, PestanaHistorial];
 
     [Parameter] public Guid SubcontrataId { get; set; }
 
@@ -121,7 +122,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     private bool _datosInicialesListos;
     private int _cargaGestion;
     private bool EsGestionada => _detalle?.NivelServicio == NivelServicioSubcontrata.Gestionada;
-    private string RotuloGestion => Textos[EsGestionada ? "PestanaGestion" : "PestanaSupervision"];
+    private string RotuloGestion => Textos[EsGestionada ? "PestanaGestion" : "PestanaDocumentacion"];
     private int DocumentosGestionConProblema => _documentosGestion.Count(d => d.Estado is EstadoDocumento.Vencido or EstadoDocumento.Faltante or EstadoDocumento.SinConfirmar);
 
     private SupervisionSubcontrataDto? _supervision;
@@ -161,7 +162,9 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     private bool _eliminandoVerificacion;
 
     // Rescate de d723988e2: sin dato real de cadena no se crea ninguna caja ni placeholder.
-    private readonly List<CajaFicha> _cajasFicha = [];
+    // La Ficha siempre existe (maqueta): su única caja con dato real es la cadena. Contrato, REA y Libro de Subcontratación
+    // no están modelados y no se inventan.
+    private IReadOnlyList<CajaFicha> _cajasFicha => [new CajaFicha("cadena", CajaCadena)];
     private IReadOnlyDictionary<Guid, CentroCumplimientoSubcontrataDto> _cumplimientoCentros = new Dictionary<Guid, CentroCumplimientoSubcontrataDto>();
     private string _pestana = PestanaTrabajadores;
     private string? _pestanaDeLaUrl;
@@ -251,8 +254,9 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         if (!_urlAdoptada || !string.Equals(_pestanaDeLaUrl, Pestana, StringComparison.Ordinal))
         {
             _pestanaDeLaUrl = Pestana;
-            var solicitada = Pestana == PestanaSupervision ? PestanaGestion : Pestana;
-            _pestana = PestanasValidas.Contains(solicitada) && (solicitada != PestanaFicha || _cajasFicha.Count > 0) ? solicitada! : PestanaTrabajadores;
+            var solicitada = Pestana == PestanaSupervision ? DestinoDeSupervision : Pestana;
+            _pestana = PestanasValidas.Contains(solicitada) && (solicitada != PestanaFicha || _cajasFicha.Count > 0)
+                && (solicitada != PestanaPlataformas || !EsGestionada) ? solicitada! : PestanaTrabajadores;
         }
 
         if (!_urlAdoptada || !string.Equals(_estadoDeLaUrl, Estado, StringComparison.Ordinal))
@@ -514,7 +518,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     // Se espera la carga inicial y se pagina completa, sin multiplicar lecturas por Centro.
     private async Task CargarGestionSiProcedeAsync()
     {
-        if (!_datosInicialesListos || !EsGestionada || _pestana != PestanaGestion || _gestionLeida || _cargandoGestion || _errorGestion) return;
+        if (!_datosInicialesListos || !EsGestionada || PestanaEfectiva != PestanaGestion || _gestionLeida || _cargandoGestion || _errorGestion) return;
         var carga = ++_cargaGestion;
         var id = _detalle!.Id;
         _cargandoGestion = true;
@@ -789,6 +793,27 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
 
     private int TiposConProblema => CentrosSupervisados.Sum(c => c.Tipos.Count(t => PideVerificar(t.Estado)));
 
+    /// <summary>Filtro «Solo incidencias» de la pestaña Plataformas (por defecto activo, como la maqueta).</summary>
+    private bool _plataformasSoloIncidencias = true;
+
+    private IReadOnlyList<SupervisionCentroDto> CentrosPlataformas =>
+        _plataformasSoloIncidencias
+            ? CentrosSupervisados
+                .Select(c => c with { Tipos = c.Tipos.Where(t => PideVerificar(t.Estado)).ToList() })
+                .Where(c => c.Tipos.Count > 0)
+                .ToList()
+            : CentrosSupervisados;
+
+    private int TiposExigidosSupervision => CentrosSupervisados.Sum(c => c.Tipos.Count);
+
+    private void FijarFiltroPlataformas(bool soloIncidencias) => _plataformasSoloIncidencias = soloIncidencias;
+
+    /// <summary>Destino de la pestaña «supervision» (enlaces existentes): en Supervisada son las plataformas; en Gestionada, la gestión.</summary>
+    private string DestinoDeSupervision => EsGestionada ? PestanaGestion : PestanaPlataformas;
+
+    /// <summary>La pestaña que se pinta: «Plataformas» no existe en Gestionada, donde la sección documental es «Gestión».</summary>
+    private string PestanaEfectiva => _pestana == PestanaPlataformas && EsGestionada ? PestanaGestion : _pestana;
+
     private bool HayCentrosDondeVerificar => _supervision is { CentrosSeleccionables.Count: > 0 };
 
     /// <summary>Con problema se ofrece «Verificar»; sin problema, «Ver evidencia».</summary>
@@ -954,7 +979,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
 
     private async Task CambiarPestana(string pestana)
     {
-        _pestana = pestana == PestanaSupervision ? PestanaGestion : pestana;
+        _pestana = pestana == PestanaSupervision ? DestinoDeSupervision : pestana;
         _pestanaDeLaUrl = _pestana == PestanaTrabajadores ? null : _pestana;
         NavigationManager.ActualizarFiltroEnUrl("pestana", _pestanaDeLaUrl);
         await CargarGestionSiProcedeAsync();
@@ -977,8 +1002,15 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         {
             Contador = EsGestionada
                 ? (_gestionLeida && DocumentosGestionConProblema > 0 ? new ContadorPestana(DocumentosGestionConProblema, Textos["GlosaGestion"], EnAlerta: true) : null)
-                : (_supervision is not null && TiposConProblema > 0 ? new ContadorPestana(TiposConProblema, Textos["GlosaSupervision"], EnAlerta: true) : null)
+                : null
         },
+        .. (EsGestionada ? [] : new PestanaDefinicion[]
+        {
+            new(PestanaPlataformas, Textos["PestanaPlataformas"])
+            {
+                Contador = _supervision is not null && TiposConProblema > 0 ? new ContadorPestana(TiposConProblema, Textos["GlosaSupervision"], EnAlerta: true) : null
+            }
+        }),
         new(PestanaCentros, Textos["PestanaCentros"])
         {
             Contador = _centros is { } centros ? new ContadorPestana(centros.Count, Textos["GlosaCentros"]) : null

@@ -33,12 +33,15 @@ namespace CaeManager.Application.Usuarios;
 /// </para>
 ///
 /// <para>
-/// <b>Única excepción: el Encargo de administración pleno</b> (decisión de
-/// Chris, 2026-10-15). En un Tenant propietario sin Administrador propio
-/// (ni activo ni pendiente de activar), quien lo administra por encargo es Administrador pleno y puede
-/// conceder estos roles en ese Tenant. La autoridad viene del encargo, no de la
-/// cartera: sin encargo pleno, una Asignación de Cartera o de Operación nunca
-/// concede un rol de Propiedad (la regla del 2026-09-23 sigue íntegra).
+/// <b>Excepciones: el usuario del Operador CAE externo que opera el Tenant por
+/// Asignación de Operación, y el Encargo de administración pleno.</b> Decisión Chris
+/// 2026-10-20: el perfil de origen rige en todos los Tenants beneficiarios delegados
+/// con todos sus poderes, también los de Propiedad, sin encargo; deroga la regla del
+/// 2026-09-23 («la Operación nunca concede roles de Propiedad»). Quien opera así el
+/// Tenant con un rol que gestiona cuentas puede conceder estos roles en él. El encargo
+/// pleno (decisión del 2026-10-15) se conserva como segunda vía, aunque ya no eleva a
+/// nadie (deuda). Soporte TALVEG no entra por ninguna de las dos: su Sesión
+/// Privilegiada no tiene rol de negocio.
 /// </para>
 ///
 /// <para>
@@ -62,11 +65,15 @@ public static class RolesReservadosAlTenantDeOrigen
         tenantOrigenId is null || tenantContextoId is null || tenantOrigenId != tenantContextoId;
 
     /// <summary>
-    /// Quien actúa lo hace por un Encargo de administración pleno en el Tenant
-    /// activo. Sin la señal (<c>null</c>) falla cerrado: no es pleno.
+    /// Quien actúa tiene autoridad de Propiedad en el Tenant activo aunque no sea su
+    /// Tenant de origen: lo opera por Asignación de Operación con su perfil de origen
+    /// (decisión Chris 2026-10-20) o por un Encargo de administración pleno. Sin la señal
+    /// (<c>null</c>) falla cerrado.
     /// </summary>
-    public static async Task<bool> ActuaPorEncargoPlenoAsync(Common.IEncargoDeAdministracionActual? encargoActual) =>
-        encargoActual is not null && await encargoActual.EncargoPlenoAsync() is not null;
+    public static async Task<bool> ActuaConAutoridadDePropiedadAsync(Common.IEncargoDeAdministracionActual? encargoActual) =>
+        encargoActual is not null
+        && (await encargoActual.OperaPorAsignacionDeOperacionAsync()
+            || await encargoActual.EncargoPlenoAsync() is not null);
 
     public static Result Verificar(string? rol, Guid? tenantOrigenId, Guid? tenantContextoId, bool encargoPleno) =>
         EsReservado(rol) && EsContextoCruzado(tenantOrigenId, tenantContextoId) && !encargoPleno

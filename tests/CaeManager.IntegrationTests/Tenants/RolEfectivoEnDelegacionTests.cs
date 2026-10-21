@@ -122,14 +122,19 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Lo mismo por la vía nueva (token de operación): una cartera externa
-    /// heredada con un rol de Propiedad no da rol; con Consulta sí (control).
+    /// Por la vía de Operación (token de operación) el rol guardado en la cartera
+    /// ya no decide (decisión Chris 2026-10-20): rige el perfil de la sesión en el
+    /// Tenant de origen —aquí Administrador—, porque la siembra tiene una Asignación
+    /// de Operación vigente, externa y del Tenant entero de su organización. Antes, una
+    /// cartera heredada con rol de Propiedad no daba rol; ahora ni lo quita ni lo da.
+    /// La vía heredada de soporte (test anterior) sigue con su lista blanca.
     /// </summary>
     [Theory]
-    [InlineData("Administrador", null)]
-    [InlineData("DireccionCae", null)]
-    [InlineData("Consulta", "Consulta")]
-    public async Task Una_cartera_externa_heredada_solo_da_roles_de_Operacion(string rol, string? esperado)
+    [InlineData("Administrador", "Administrador")]
+    [InlineData("DireccionCae", "Administrador")]
+    [InlineData("Consulta", "Administrador")]
+    public async Task Por_la_via_de_Operacion_el_rol_es_el_perfil_de_origen_y_no_el_que_guarda_la_cartera(
+        string rol, string? esperado)
     {
         var usuario = Guid.NewGuid();
         Guid operacionId;

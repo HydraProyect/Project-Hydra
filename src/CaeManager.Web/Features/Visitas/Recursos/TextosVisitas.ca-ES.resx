@@ -385,7 +385,7 @@
     <value>Enviar per correu</value>
   </data>
   <data name="PaqueteDemasiadoGrandeParaCorreo" xml:space="preserve">
-    <value>El ZIP pesa {0} MB i un correu admet fins a {1} MB d'adjunts. Descarrega'l amb el botó del costat i envia'l des del teu correu.</value>
+    <value>El ZIP pesa {0} MB i el màxim per correu és {1} MB. Descarrega'l amb el botó del costat i envia'l des del teu correu.</value>
   </data>
   <data name="ErrorEnviarPaquetePorCorreo" xml:space="preserve">
     <value>No hem pogut preparar el correu amb el paquet. Pots descarregar el ZIP i enviar-lo des del teu correu.</value>
@@ -433,7 +433,7 @@
     <value>Treure de la visita</value>
   </data>
   <data name="AyudaQuitarUltimoTrabajador" xml:space="preserve">
-    <value>La visita ha d'incloure almenys un treballador</value>
+    <value>No es pot treure l'últim: per a això hi ha «Cancel·lar visita»</value>
   </data>
   <data name="BotonAnadirTrabajador" xml:space="preserve">
     <value>Afegir treballador</value>
@@ -457,7 +457,7 @@
     <value>{0} entra a la visita.</value>
   </data>
   <data name="ToastTrabajadorQuitado" xml:space="preserve">
-    <value>{0} surt de la visita.</value>
+    <value>{0} tret de la visita.</value>
   </data>
   <data name="ToastErrorCambiarTrabajadores" xml:space="preserve">
     <value>No hem pogut canviar els treballadors de la visita. Torna-ho a provar.</value>
@@ -631,7 +631,7 @@
     <value>No hem pogut treure la marca de documentació gestionada. Torna-ho a provar.</value>
   </data>
   <data name="ToastDocumentacionGestionada" xml:space="preserve">
-    <value>Documentació marcada com a gestionada.</value>
+    <value>Documentació de la visita marcada com a gestionada.</value>
   </data>
   <data name="ToastErrorDocumentacionGestionada" xml:space="preserve">
     <value>No hem pogut marcar la documentació com a gestionada. Torna-ho a provar.</value>

@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Operaciones;
@@ -107,7 +107,7 @@ public class CrearUsuarioCommandHandler(
 
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
         var rolAsignable = RolesReservadosAlTenantDeOrigen.Verificar(request.Rol, tenantOrigenId, tenantId,
-            await RolesReservadosAlTenantDeOrigen.ActuaPorEncargoPlenoAsync(encargoActual));
+            await RolesReservadosAlTenantDeOrigen.ActuaConAutoridadDePropiedadAsync(encargoActual));
         if (rolAsignable.EsFallido)
             return Result.Fallo<UsuarioCreado>(rolAsignable.Error);
 

@@ -257,6 +257,36 @@ public class FacturacionOperadorPaginaTests : BunitContext
     }
 
     [Fact]
+    public void El_detalle_enseña_la_cuenta_de_Costo_por_gestion_y_de_Costo_por_extranjero_como_la_maqueta()
+    {
+        var (cut, _) = Renderizar(new Escenario());
+
+        // (610 − 560) ÷ 198 gestiones normales y 560 ÷ 14 de extranjero: las mismas cifras que el modelo ya divide, sin recalcular.
+        Texto(cut.Find("[data-metrica=costo-gestion]")).Should().Be("0,25 € (50 € ÷ 198 gestiones normales)");
+        Texto(cut.Find("[data-metrica=costo-extranjero]")).Should().Be("40,00 € (560 € ÷ 14 de extranjero)");
+    }
+
+    [Fact]
+    public void Sin_importes_a_la_vista_los_costos_no_enseñan_ninguna_cuenta()
+    {
+        var (cut, _) = Renderizar(new Escenario { Tarifas = null });
+
+        Texto(cut.Find("[data-metrica=costo-gestion]")).Should().Be("Sin dato");
+        Texto(cut.Find("[data-metrica=costo-extranjero]")).Should().Be("Sin dato");
+    }
+
+    [Fact]
+    public async Task Una_Empresa_sin_tarifa_enseña_Sin_dato_en_los_costos_y_sin_cuenta()
+    {
+        var (cut, _) = Renderizar(new Escenario());
+
+        await cut.FindAll("[role=option]")[1].ClickAsync(new MouseEventArgs());
+
+        Texto(cut.Find("[data-metrica=costo-gestion]")).Should().Be("Sin dato");
+        Texto(cut.Find("[data-metrica=costo-extranjero]")).Should().Be("Sin dato");
+    }
+
+    [Fact]
     public async Task Elegir_una_Empresa_sin_tarifa_dice_que_no_hay_importe_y_ofrece_fijarla()
     {
         var (cut, _) = Renderizar(new Escenario());
@@ -319,8 +349,8 @@ public class FacturacionOperadorPaginaTests : BunitContext
     {
         var (cut, _) = Renderizar(new Escenario { ErrorEnSerie = new UnauthorizedAccessException() });
 
-        cut.Markup.Should().Contain("Tu rol aún no puede leer las cifras del mes");
-        cut.Markup.Should().Contain("Disponible cuando se active el acceso del Administrador al Cuadro de dirección");
+        cut.Markup.Should().Contain("Facturación no está disponible para tu rol");
+        cut.Markup.Should().Contain("La ven Dirección CAE, Coordinación CAE y Administración del Operador CAE.");
         cut.FindAll("[role=option]").Should().BeEmpty();
     }
 

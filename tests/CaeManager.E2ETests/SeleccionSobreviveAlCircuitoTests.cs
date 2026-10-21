@@ -79,11 +79,11 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         // en rojo de forma estable (33 reintentos sobre 15 s, no una carrera
         // puntual). Un diagnóstico aparte confirmó que el mismo vacío aparece
         // incluso con un FULL RELOAD a /empresas (page.GotoAsync, sin circuito de
-        // por medio): no es un fallo del circuito, es que ese Administrador
-        // opera Dexter con rol GestorCae y cero AsignacionCartera — alcance cero
-        // por diseño, ya documentado y verificado por mutación en
-        // AlcanceRolesTests.cs. Ese test tenía la pregunta correcta con el actor
-        // equivocado.
+        // por medio): no era un fallo del circuito, es que ese Administrador
+        // operaba entonces Dexter con rol GestorCae y cero AsignacionCartera
+        // (alcance cero por la regla de entonces; desde la regla del 2026-10-20
+        // entra con su rol de origen y ve el Tenant entero, ver AlcanceRolesTests).
+        // El actor de Consulta se conserva porque no depende de esa regla.
         //
         // Este Operador Delegado tiene rol Consulta sobre el mismo
         // NombreClienteDelegadoDemo (ver DelegacionDemoSeeder.

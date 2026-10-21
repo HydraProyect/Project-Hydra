@@ -181,22 +181,22 @@ public class Subcontrata360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void Sin_cajas_reales_no_hay_Ficha_ni_texto_de_cadena_y_se_conservan_las_seis_pestanas()
+    public void La_Ficha_existe_siempre_con_la_cadena_y_se_conservan_las_ocho_pestanas_de_Supervisada()
     {
         Montar();
         var cut = Renderizar();
-        cut.FindAll("[role=tab]").Select(t => System.Text.RegularExpressions.Regex.Match(t.TextContent.Trim(), "^(Trabajadores|Supervisión|Centros|Vehículos|Agenda|Historial)").Value)
-            .Should().Equal("Trabajadores", "Supervisión", "Centros", "Vehículos", "Agenda", "Historial");
+        cut.FindAll("[role=tab]").Select(t => System.Text.RegularExpressions.Regex.Match(t.TextContent.Trim(), "^(Trabajadores|Documentación|Plataformas|Centros|Vehículos|Agenda|Ficha|Historial)").Value)
+            .Should().Equal("Trabajadores", "Documentación", "Plataformas", "Centros", "Vehículos", "Agenda", "Ficha", "Historial");
         cut.Markup.Should().NotContain("Cadena de subcontratación");
     }
 
     [Fact]
-    public void La_URL_ficha_sin_cajas_reales_abre_Trabajadores_sin_placeholder()
+    public void La_URL_ficha_abre_la_Ficha_con_la_caja_de_cadena()
     {
         Montar();
         var cut = Renderizar("?pestana=ficha");
-        cut.FindAll("[role=tab][aria-selected=true]").Should().ContainSingle().Which.TextContent.Should().StartWith("Trabajadores");
-        cut.FindAll("[data-pieza=cajas-ficha]").Should().BeEmpty();
+        cut.FindAll("[role=tab][aria-selected=true]").Should().ContainSingle().Which.TextContent.Should().StartWith("Ficha");
+        cut.Markup.Should().Contain("Cadena de subcontratación");
     }
 
     [Fact]
@@ -287,6 +287,10 @@ public class Subcontrata360PaginaTests : BunitContext
     }
 
     private NavigationManager Navegacion => Services.GetRequiredService<NavigationManager>();
+
+    /// <summary>Plataformas arranca con «Solo incidencias»; los tests de lista completa eligen «Todo».</summary>
+    private static void MostrarTodoPlataformas(IRenderedComponent<SubcontrataDetalle> cut) =>
+        cut.FindAll("button.subcontrata360-filtro")[1].Click();
 
     private static IElement Boton(IRenderedComponent<SubcontrataDetalle> cut, string texto) =>
         cut.FindAll("button").First(b => b.TextContent.Trim() == texto);
@@ -691,11 +695,20 @@ public class Subcontrata360PaginaTests : BunitContext
         });
         var cut = Renderizar($"?pestana={pesta}");
         var gestionada = nivel == NivelServicioSubcontrata.Gestionada;
-        var tab = cut.FindAll("[role=tab]")[1];
-        tab.TextContent.Should().StartWith(gestionada ? "Gestión" : "Supervisión");
-        tab.TextContent.Should().Contain(gestionada ? "documentos con problema en la gestión" : "documentos con problema en la supervisión");
-        tab.TextContent.Should().Contain("1");
-        cut.FindAll("[role=tab]").Should().HaveCount(6);
+        // Supervisada: «supervision» enlaza Plataformas (índice 2); «gestion» sigue en Documentación (índice 1), sin contenido.
+        var documentacion = !gestionada && pesta == "gestion";
+        var tab = cut.FindAll("[role=tab]")[gestionada || documentacion ? 1 : 2];
+        if (documentacion)
+        {
+            tab.TextContent.Should().StartWith("Documentación");
+        }
+        else
+        {
+            tab.TextContent.Should().StartWith(gestionada ? "Gestión" : "Plataformas");
+            tab.TextContent.Should().Contain(gestionada ? "documentos con problema en la gestión" : "documentos con problema en la supervisión");
+            tab.TextContent.Should().Contain("1");
+        }
+        cut.FindAll("[role=tab]").Should().HaveCount(gestionada ? 7 : 8);
         tab.GetAttribute("aria-selected").Should().Be("true");
         cut.Find(".pestanas-boton-activa").TextContent.Should().Be(tab.TextContent);
         if (gestionada)
@@ -714,10 +727,74 @@ public class Subcontrata360PaginaTests : BunitContext
         }
         else
         {
-            cut.Markup.Should().Contain("Supervisada: la subcontrata sube su documentación a la plataforma del titular del Centro");
+            if (!documentacion) cut.Markup.Should().Contain("Cumplimiento de la subcontrata en las plataformas del titular de cada centro");
             cut.Markup.Should().NotContain("RNT gestionado");
             m.Enviadas.OfType<ObtenerDocumentosQuery>().Should().BeEmpty();
         }
+    }
+
+    [Fact]
+    public async Task Plataformas_muestra_solo_incidencias_por_defecto_y_el_filtro_Todo_enseña_el_resto()
+    {
+        Montar();
+        var cut = Renderizar("?pestana=supervision");
+        var chips = cut.FindAll("section[aria-label=Plataformas] button.subcontrata360-filtro");
+        chips.Select(c => c.TextContent.Trim()).Should().Equal("Solo incidencias · 1", "Todo · 2");
+        chips[0].GetAttribute("aria-pressed").Should().Be("true");
+        cut.Markup.Should().Contain("Formación Art. 19").And.NotContain("Aptitud médica");
+
+        await chips[1].ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        cut.Markup.Should().Contain("Formación Art. 19").And.Contain("Aptitud médica");
+        cut.FindAll("button.subcontrata360-filtro")[1].GetAttribute("aria-pressed").Should().Be("true");
+    }
+
+    [Fact]
+    public void Plataformas_cabecera_de_grupo_pone_Cliente_antes_del_Centro_y_enlaza_a_su_Centro_360()
+    {
+        Montar();
+        var cut = Renderizar("?pestana=supervision");
+
+        var grupo = cut.Find("li.subcontrata360-grupo");
+        // Orden de la maqueta: «Cliente ›» y debajo el Centro.
+        grupo.Children[0].TextContent.Trim().Should().Be("Cyberdyne Ibérica S.A. ›Almacén Vigo");
+        grupo.QuerySelector(".subcontrata360-grupo-cliente")!.TextContent.Trim().Should().Be("Cyberdyne Ibérica S.A. ›");
+        grupo.QuerySelector("strong")!.TextContent.Trim().Should().Be("Almacén Vigo");
+
+        var enlace = grupo.QuerySelector("a")!;
+        enlace.GetAttribute("href").Should().Be($"/centros/{CentroId}");
+        enlace.TextContent.Trim().Should().Be("Ir al Centro 360");
+        // El nombre accesible empieza por el texto visible y dice de qué Centro habla.
+        enlace.GetAttribute("aria-label").Should().Be("Ir al Centro 360 de Almacén Vigo");
+    }
+
+    [Fact]
+    public void Plataformas_sin_incidencias_muestra_el_estado_vacio_con_el_filtro_en_cero()
+    {
+        Montar(ajustar: m => m.Supervision = new SupervisionSubcontrataDto(
+            [
+                new SupervisionCentroDto(CentroId, "Almacén Vigo", "Cyberdyne Ibérica S.A.",
+                [
+                    new SupervisionTipoDto(Guid.NewGuid(), "Aptitud médica", Exigido: true, EstadoSupervision.Vigente,
+                        new UltimaVerificacionDto(Guid.NewGuid(), new DateOnly(2026, 9, 20), ResultadoVerificacionExterna.Valido, new DateOnly(2027, 9, 20), null, true, "captura.png")),
+                ])
+            ],
+            [new CentroSeleccionableDto(CentroId, "Almacén Vigo", "Cyberdyne Ibérica S.A.")]));
+        var cut = Renderizar("?pestana=supervision");
+
+        cut.FindAll("section[aria-label=Plataformas] button.subcontrata360-filtro").Select(c => c.TextContent.Trim())
+            .Should().Equal("Solo incidencias · 0", "Todo · 1");
+        cut.Markup.Should().Contain("Sin incidencias en plataformas").And.NotContain("Aptitud médica");
+    }
+
+    [Fact]
+    public void En_Supervisada_Documentacion_va_antes_que_Plataformas_y_solo_esta_lleva_el_recuento_de_incidencias()
+    {
+        Montar();
+        var cut = Renderizar();
+        var tabs = cut.FindAll("[role=tab]").Select(t => t.TextContent.Trim()).ToList();
+        tabs[1].Should().StartWith("Documentación").And.NotContain("1");
+        tabs[2].Should().StartWith("Plataformas1");
     }
 
     [Fact]
@@ -737,7 +814,7 @@ public class Subcontrata360PaginaTests : BunitContext
         await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Subcontrata, SubcontrataId, "Transportes", "informacion"));
         m.Detalle = m.Detalle with { NivelServicio = NivelServicioSubcontrata.Supervisada };
         await cut.InvokeAsync(workspace.CerrarAsync);
-        cut.WaitForAssertion(() => cut.Find(".pestanas-boton-activa").TextContent.Should().StartWith("Supervisión"));
+        cut.WaitForAssertion(() => cut.Find(".pestanas-boton-activa").TextContent.Should().StartWith("Plataformas"));
         cut.FindAll("[data-gestion-documental]").Should().BeEmpty();
     }
 
@@ -807,6 +884,7 @@ public class Subcontrata360PaginaTests : BunitContext
         Montar();
 
         var cut = Renderizar("?pestana=supervision");
+        MostrarTodoPlataformas(cut);
 
         NombresDeFila(cut).Should().Equal("Formación Art. 19", "Aptitud médica");
         var filas = cut.FindAll(".fila-relacion");
@@ -867,6 +945,7 @@ public class Subcontrata360PaginaTests : BunitContext
         var mediador = Montar();
         var verificacion = mediador.Supervision.Centros[0].Tipos[1].UltimaVerificacion!.Id;
         var cut = Renderizar("?pestana=supervision");
+        MostrarTodoPlataformas(cut);
 
         cut.Find(".fila-relacion .menu-acciones-disparador").Click();
         cut.Find(".fila-relacion .menu-acciones-item").Click();
@@ -884,6 +963,7 @@ public class Subcontrata360PaginaTests : BunitContext
         Montar(Roles.Consulta);
 
         var cut = Renderizar("?pestana=supervision");
+        MostrarTodoPlataformas(cut);
 
         NombresDeFila(cut).Should().Equal("Formación Art. 19", "Aptitud médica");
         cut.FindAll(".fila-relacion button").Should().BeEmpty();
