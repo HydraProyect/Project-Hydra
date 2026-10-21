@@ -47,12 +47,17 @@
     {
         <Esqueleto Forma="FormaEsqueleto.Metricas" Cantidad="4" />
     }
+    else if (_kpis.SinCarteraAsignada && _carteraEnOtroTenant && _activoEsOrigen)
+    {
+        @* El Gestor CAE (o Coordinador CAE) de un Operador CAE externo en su propia
+           organización: la pantalla al entrar es Inicio (2026-10-21, D-2 retirado),
+           y aquí Inicio es su cartera, no un «sin cartera». *@
+        <InicioCarteraOperador Empresas="_empresasGestionadas" RutaMiTrabajo="@RutaMiTrabajo" />
+    }
     else if (_kpis.SinCarteraAsignada && _carteraEnOtroTenant)
     {
         @* Sin cartera aquí, con cartera en otros Tenants propietarios, en un
-           Context Workspace que el usuario eligió con el selector (en el Tenant
-           de origen sin la marca de inicio de sesión también: el aterrizaje a Mi
-           trabajo D-2 es solo tras iniciar sesión). No se
+           Context Workspace que el usuario eligió con el selector. No se
            redirige: acaba de elegir este contexto y decirle que aquí no tiene
            cartera es información; llevárselo a otra pantalla, no. *@
         <EstadoVacio Titulo="@Textos["SinCarteraEnEsteContextoTitulo"]"
