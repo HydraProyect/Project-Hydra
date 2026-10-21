@@ -77,6 +77,10 @@ public class EscaparatePilotoOutboundTests
         I.SituacionDocumentoDeEmpresa.Should().BeNull();
         (I.Tolerancia, I.CentroConRequisitoBloqueante, I.UrgentesVencenALosDias).Should().Be((null, null, null));
         I.Extranjeros.Should().OnlyContain(e => e.DiasHastaLaCaducidad > 30 + OpcionesPilotoOutbound.MargenMaximoDias);
+        // El permiso de trabajo es de fecha manual: su emisión se calcula doce meses antes del vencimiento y no puede
+        // ser futura ningún día de siembra (D − MargenMaximoDias).
+        CatalogoPilotoOutbound.Tenants.SelectMany(t => t.Extranjeros)
+            .Should().OnlyContain(e => e.DiasHastaLaCaducidad < 365 - OpcionesPilotoOutbound.MargenMaximoDias);
         (I.GestionesPendientes, I.ReclamacionesSinRespuesta, I.ReclamacionesRespondidas).Should().Be((0, 0, 0));
     }
 

@@ -655,7 +655,7 @@ public static class CatalogoPilotoOutbound
         Extranjeros =
         [
             new(20, "Colombiana", "Autorización de residencia y trabajo por cuenta ajena", 290),
-            new(45, "Peruana", "Autorización de residencia y trabajo por cuenta ajena", 410)
+            new(45, "Peruana", "Autorización de residencia y trabajo por cuenta ajena", 210)
         ],
         Vehiculos =
         [
