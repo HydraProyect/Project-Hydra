@@ -401,13 +401,29 @@ public class VisionCarteraGen2Tests : BunitContext
     // ---------------------------------------------------------------- resumen, reparto y pulso
 
     [Fact]
-    public void El_anillo_explica_que_la_media_pondera_y_con_que_tasas()
+    public void Bajo_el_anillo_solo_va_la_frase_corta_y_el_calculo_esta_en_una_ventana_accesible()
     {
         var cut = Renderizar(new Escenario()).Cut;
+        var tarjeta = cut.Find(".dashboard-resumen-tarjeta-anillo");
 
         Texto(cut.Find(".dashboard-resumen-anillo-titulo")).Should().Be("75% de cumplimiento documental promedio");
-        Texto(cut.Find(".detalle-media-cartera")).Should().Be(
-            "Media ponderada por el volumen de documentos con vencimiento de cada organización; tasas de las 3 que la forman: 96, 74 y 36%.");
+
+        // El párrafo enorme ya no está bajo el anillo: ni la media explicada, ni la lista de tasas, ni los bloqueos, ni el cálculo de la tasa.
+        tarjeta.QuerySelectorAll(".dashboard-resumen-anillo-detalle, .detalle-media-cartera, .detalle-bloqueos-cartera, .detalle-tasa-cartera")
+            .Should().BeEmpty("el cálculo vive en la ventana de contexto, no en párrafos que estiran la tarjeta");
+        tarjeta.QuerySelectorAll("p").Should().ContainSingle("solo la frase corta bajo el anillo");
+        Texto(tarjeta).Should().NotContain("96, 74").And.NotContain("tiene algún bloqueo", "ni la lista de tasas ni los bloqueos se repiten aquí");
+
+        // La explicación es accesible: disparador con foco de teclado, rol «note» y nombre accesible con el cálculo entero.
+        var ventana = tarjeta.QuerySelector(".ventana-contexto.anillo-cartera-calculo")!;
+        ventana.GetAttribute("tabindex").Should().Be("0", "se abre con teclado, no solo con el puntero");
+        ventana.GetAttribute("role").Should().Be("note");
+        var etiqueta = ventana.GetAttribute("aria-label")!;
+        etiqueta.Should().StartWith("Media ponderada por el volumen de documentos con vencimiento de cada una de las organizaciones que la forman (3).");
+        etiqueta.Should().Contain("Tasa de cada organización:").And.Contain("se cuentan aparte");
+        ventana.QuerySelector(".ventana-contexto-panel")!.TextContent.Should().Contain("Media ponderada").And.Contain("Tasa de cada organización:");
+        ventana.QuerySelector(".ventana-contexto-titulo")!.TextContent.Should().Be("Cómo se calcula");
+        ventana.QuerySelector("svg").Should().NotBeNull("el icono de información es el disparador visible");
     }
 
     // ---------------------------------------------------------------- bloqueos y sin datos (P2.4, D-7)
@@ -446,8 +462,9 @@ public class VisionCarteraGen2Tests : BunitContext
             .Single(m => m.Etiqueta == "Trabajadores bloqueados")
             .Should().Be(("Trabajadores bloqueados", "0", "En ninguna organización"));
         MetricaMedia(cut).Pista.Should().Be("Solo documental: los bloqueos se cuentan aparte");
-        Texto(cut.Find(".detalle-bloqueos-cartera")).Should().Be(
-            $"{NombrePropio} tiene algún bloqueo: no está al día, aunque su porcentaje documental sea alto.");
+        // Los bloqueos ya no se repiten bajo el anillo (los cuentan sus KPI y la fila); la ventana del cálculo avisa de que van aparte.
+        cut.FindAll(".dashboard-resumen-tarjeta-anillo .detalle-bloqueos-cartera").Should().BeEmpty();
+        cut.Find(".anillo-cartera-calculo").GetAttribute("aria-label").Should().Contain("se cuentan aparte");
         cut.FindAll("svg.reparto-riesgo-grafico g.barra-organizacion")[2].TextContent.Should().Contain("bloqueada").And.NotContain("sin riesgo");
     }
 
@@ -512,8 +529,10 @@ public class VisionCarteraGen2Tests : BunitContext
 
         // (74×100 + 36×30) / 130 = 65: la organización sin datos no pesa.
         MetricaMedia(cut).Valor.Should().Be("65%");
-        Texto(cut.Find(".detalle-media-cartera")).Should().Be(
-            "Media ponderada por el volumen de documentos con vencimiento de cada organización; tasas de las 2 que la forman: 74 y 36%. "
+        // El «no entra» ya no se pinta bajo el anillo: va en la ventana del cálculo.
+        cut.FindAll(".dashboard-resumen-tarjeta-anillo .detalle-media-cartera").Should().BeEmpty();
+        cut.Find(".dashboard-resumen-tarjeta-anillo .anillo-cartera-calculo").GetAttribute("aria-label").Should().StartWith(
+            "Media ponderada por el volumen de documentos con vencimiento de cada una de las organizaciones que la forman (2). "
             + $"No entra {NombrePropio}: sin datos.");
         TablaDelGrafico(cut).Should().Contain(r => r.Organizacion == $"{NombrePropio}, sin datos");
     }

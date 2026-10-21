@@ -1210,7 +1210,6 @@ src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: D
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: DetalleEnVerdeNingunaConCartera = 1
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: DetalleExcluidaUna = 1
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: DetalleExcluidasVarias = 1
-src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: DetalleMedia = 1
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: DetalleNoEnVerdeBloqueoUna = 1
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: DetalleNoEnVerdeBloqueoVarias = 1
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: DetalleSinDatosUna = 1
