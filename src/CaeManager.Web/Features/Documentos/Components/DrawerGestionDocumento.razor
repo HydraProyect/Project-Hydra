@@ -189,7 +189,11 @@
                 Accept=".pdf,application/pdf,.jpg,.jpeg,.png,image/jpeg,image/png,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 FormatosTexto="PDF · JPG · PNG · DOCX"
                 Cargando="_subiendoArchivo"
-                NombreArchivoActual="@(_archivoUrl is not null ? "Archivo adjuntado correctamente." : null)" />
+                NombreArchivoActual="@(_archivoUrl is not null && !_archivoNoAdjuntado ? "Archivo adjuntado correctamente." : null)" />
+            @if (_archivoNoAdjuntado && !_subiendoArchivo)
+            {
+                <span class="campo-mensaje-error" role="alert">@TextosDrawerGestionDocumento.Texto("ArchivoNoAdjuntado")</span>
+            }
             <p class="texto-vacio-seccion">Puedes seleccionar varios archivos a la vez (p. ej. varias fotos) — se combinan automáticamente en un solo PDF.</p>
         </div>
 

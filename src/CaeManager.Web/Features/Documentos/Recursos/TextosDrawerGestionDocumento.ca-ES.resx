@@ -39,4 +39,10 @@
   <data name="SiguienteNoDisponible" xml:space="preserve">
     <value>El document s'ha desat, però no hem pogut obrir el següent de la llista.</value>
   </data>
+  <data name="ArchivoNoAdjuntado" xml:space="preserve">
+    <value>Aquest arxiu no s'ha adjuntat. Tria'n un altre o torna-ho a provar.</value>
+  </data>
+  <data name="GuardarSinArchivoAdjuntado" xml:space="preserve">
+    <value>No s'ha desat: l'arxiu que has triat no s'ha adjuntat. Torna a adjuntar-lo abans de desar.</value>
+  </data>
 </root>

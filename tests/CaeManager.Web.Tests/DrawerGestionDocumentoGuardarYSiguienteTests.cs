@@ -175,6 +175,26 @@ public class DrawerGestionDocumentoGuardarYSiguienteTests : BunitContext
             .Should().Be("2026-01-10");
     }
 
+    /// <summary>
+    /// Hallazgo de pruebas del 21-10, al renovar: con la subida rechazada, Guardar renovaba el
+    /// registro con el archivo anterior y decía «actualizado» junto al error de la subida.
+    /// </summary>
+    [Fact]
+    public async Task Una_subida_rechazada_no_deja_renovar_hasta_adjuntar_otro_archivo()
+    {
+        var cut = Renderizar();
+        PasoSerieDocumento[] serie = [Documento("Ana Ruiz")];
+        await cut.InvokeAsync(() => cut.Instance.AbrirSerieAsync(serie, serie[0]));
+
+        cut.FindComponent<InputFile>().UploadFiles(
+            InputFileContent.CreateFromBinary([1, 2, 3], "rechazado.pdf", contentType: "application/pdf"));
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        Renovados.Should().BeEmpty("el archivo elegido no se adjuntó");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().NotContain(t => t.Tono == TonoToast.Exito);
+        cut.Markup.Should().Contain("No se ha guardado: el archivo que elegiste no se adjuntó.");
+    }
+
     [Fact]
     public async Task Subir_archivo_nuevo_vacia_ambas_fechas_y_exige_una_emision_nueva()
     {

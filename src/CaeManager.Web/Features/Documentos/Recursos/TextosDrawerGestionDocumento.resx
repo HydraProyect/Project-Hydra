@@ -39,4 +39,10 @@
   <data name="SiguienteNoDisponible" xml:space="preserve">
     <value>El documento se guardó, pero no pudimos abrir el siguiente de la lista.</value>
   </data>
+  <data name="ArchivoNoAdjuntado" xml:space="preserve">
+    <value>Este archivo no se adjuntó. Elige otro o vuelve a intentarlo.</value>
+  </data>
+  <data name="GuardarSinArchivoAdjuntado" xml:space="preserve">
+    <value>No se ha guardado: el archivo que elegiste no se adjuntó. Vuelve a adjuntarlo antes de guardar.</value>
+  </data>
 </root>
