@@ -122,7 +122,7 @@
     <value>Empresa gestionada</value>
   </data>
   <data name="SelectorTenantCartera" xml:space="preserve">
-    <value>Mi cartera · {0}</value>
+    <value>Empresas gestionadas · {0}</value>
   </data>
   <data name="SelectorTenantRecientes" xml:space="preserve">
     <value>Recientes</value>
@@ -133,17 +133,8 @@
   <data name="SelectorTenantPendientesUno" xml:space="preserve">
     <value>1 pendiente</value>
   </data>
-  <data name="SelectorTenantEmpresasUna" xml:space="preserve">
-    <value>1 empresa</value>
-  </data>
-  <data name="SelectorTenantEmpresasVarias" xml:space="preserve">
-    <value>{0} empresas</value>
-  </data>
   <data name="SelectorTenantBuscar" xml:space="preserve">
     <value>Buscar empresa</value>
-  </data>
-  <data name="SelectorTenantLista" xml:space="preserve">
-    <value>Cambiar de empresa gestionada</value>
   </data>
   <data name="SelectorTenantOrigen" xml:space="preserve">
     <value>Tu organización</value>
@@ -155,7 +146,7 @@
     <value>Exportar a Excel</value>
   </data>
   <data name="SelectorTenantSinResultados" xml:space="preserve">
-    <value>Ninguna empresa coincide con la búsqueda.</value>
+    <value>Ninguna empresa coincide con «{0}»</value>
   </data>
   <data name="EnlaceOtraEmpresaAviso" xml:space="preserve">
     <value>Puede pertenecer a otra empresa de tu cartera. Cambia de empresa en el selector.</value>
@@ -585,7 +576,7 @@
     <value>Fijadas</value>
   </data>
   <data name="SelectorTenantResto" xml:space="preserve">
-    <value>Resto de la cartera</value>
+    <value>Resto de empresas</value>
   </data>
   <data name="SelectorTenantFijar" xml:space="preserve">
     <value>Fijar arriba</value>
@@ -694,5 +685,20 @@
   </data>
   <data name="AgendaNotaMarcapaginas" xml:space="preserve">
     <value>Sale como marcapáginas en Comunicaciones cuando escribe</value>
+  </data>
+  <data name="SelectorTenantBuscarEtiqueta" xml:space="preserve">
+    <value>Buscar empresa gestionada</value>
+  </data>
+  <data name="SelectorTenantResultados" xml:space="preserve">
+    <value>Resultados</value>
+  </data>
+  <data name="SelectorTenantAyudaBuscar" xml:space="preserve">
+    <value>Escribe para filtrar · ↑↓ y Enter para elegir</value>
+  </data>
+  <data name="SelectorTenantConteo" xml:space="preserve">
+    <value>{0} de {1} empresas</value>
+  </data>
+  <data name="SelectorTenantTodas" xml:space="preserve">
+    <value>Todas las empresas</value>
   </data>
 </root>
