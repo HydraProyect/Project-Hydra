@@ -1188,6 +1188,30 @@ public partial class Centro360Gen2Tests : BunitContext
             .And.Contain("trabajadores de este centro", "la documentación de la Empresa no entra en esta suma");
     }
 
+    /// <summary>
+    /// Revisión 1:1 del 2026-10-21 (Centro ILL-01): «40 exigidos · 10 al día · 0 vencidos · 28 pendientes» no sumaba. «Al día»
+    /// incluye los por vencer y deja fuera los sin confirmar: el pie dice las dos cosas para que las partes cuadren.
+    /// </summary>
+    [Fact]
+    public void Los_totales_suman_el_total_con_por_vencer_y_sin_confirmar()
+    {
+        var id = Guid.NewGuid();
+        Registrar(new MediatorFalso()).Asignaciones[id] =
+        [
+            Asignado("Juan Pérez", EstadoDocumento.Proximo,
+                Documento("Formación PRL", EstadoDocumento.Proximo, new DateOnly(2026, 11, 2)),
+                Documento("Reconocimiento médico", EstadoDocumento.SinConfirmar)),
+            Asignado("Nuria Salas", EstadoDocumento.Faltante,
+                Documento("Formación específica de centro", EstadoDocumento.Faltante))
+        ];
+
+        var cut = RenderizarAcordeon(id);
+
+        var totales = System.Text.RegularExpressions.Regex.Replace(cut.Find("[data-totales-documentales]").TextContent, @"\s+", " ");
+        totales.Should().Contain("3 exigidos · 1 al día (de ellos, 1 por vencer) · 0 vencidos · 1 pendiente")
+            .And.Contain("sin confirmar o sin validar en la plataforma: 1");
+    }
+
     // ── Contrato: concurrencia ────────────────────────────────────────────
 
     /// <summary>

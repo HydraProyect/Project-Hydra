@@ -1359,9 +1359,9 @@ public partial class ClientesListaGen2Tests : BunitContext
                 Motivo: c.QuerySelector(".estado-fila-motivo .motivo-incidencias-cliente")?.TextContent.Trim(),
                 Correcto: c.QuerySelector("[data-pieza=estado-correcto]")?.TextContent.Trim()))
             .Should().Equal(
-                ("Vencido", "1 documento", null),
-                ("Vencido", "12 documentos", null),
-                ("Por vencer", "9 documentos", null),
+                ("Vencido", "1 vencido", null),
+                ("Vencido", "12 vencidos", null),
+                ("Por vencer", "9 por vencer", null),
                 (null, null, "Sin incidencias"));
         celdas[1].QuerySelector(".badge")!.GetAttribute("title").Should().Contain("trabajadores").And.NotContain("centros",
             "el agregado de ObtenerClientesQuery sale de las alertas de sus trabajadores; los centros no entran");

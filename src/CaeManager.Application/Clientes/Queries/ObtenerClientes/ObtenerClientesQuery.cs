@@ -4,6 +4,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Empresas;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using MediatR;
@@ -102,6 +103,41 @@ public record ClienteListaDto(
     /// </summary>
     [JsonIgnore]
     public int IncidenciasTotales { get; init; }
+
+    /// <summary>
+    /// Las alertas del Cliente empresarial por estado, con las mismas palabras que el motivo de cada Centro
+    /// («3 vencidos · 1 pendiente · 5 por vencer»). Revisión 1:1 del 2026-10-21: el motivo decía solo cuántas
+    /// había en el peor estado («6 documentos») y no se podía comparar con Inicio ni con los Centros. Mismo
+    /// universo que <see cref="EstadoDocumentalPeor"/> (documentos de Trabajador; un documento caducado cuenta una
+    /// vez en el Cliente empresarial aunque cuente en cada uno de sus Centros). No se serializa, por lo mismo que
+    /// <see cref="Incidencias"/>.
+    /// </summary>
+    [JsonIgnore]
+    public RecuentoAlertasClienteDto Recuento { get; init; } = RecuentoAlertasClienteDto.Vacio;
+
+    /// <summary>
+    /// Algún Centro de Trabajo de este Cliente empresarial está en <c>EstadoCentro.Bloqueado</c>: la plataforma CAE
+    /// rechazó un documento que ese Centro exige (D-7). No es un estado documental, por eso no cambia la pastilla
+    /// ni el orden; se rotula aparte con las mismas palabras que Cliente 360 («Bloqueo de la plataforma CAE»).
+    /// Solo se calcula para las filas de la página. No se serializa.
+    /// </summary>
+    [JsonIgnore]
+    public bool BloqueoPlataformaCae { get; init; }
+}
+
+/// <summary>Alertas de un Cliente empresarial por estado; <see cref="PorVencer"/> junta Urgente y Próximo, como la pastilla.</summary>
+public sealed record RecuentoAlertasClienteDto(int Vencidos, int Pendientes, int PorVencer)
+{
+    public static readonly RecuentoAlertasClienteDto Vacio = new(0, 0, 0);
+
+    public static RecuentoAlertasClienteDto De(IEnumerable<AlertaDto> alertas)
+    {
+        var lista = alertas as IReadOnlyCollection<AlertaDto> ?? alertas.ToList();
+        return new(
+            lista.Count(a => a.Estado == EstadoDocumento.Vencido),
+            lista.Count(a => a.Estado == EstadoDocumento.Faltante),
+            lista.Count(a => a.Estado is EstadoDocumento.Urgente or EstadoDocumento.Proximo));
+    }
 }
 
 /// <summary>
@@ -138,7 +174,8 @@ public sealed record IncidenciaClienteDto(
 /// </summary>
 public class ObtenerClientesQueryHandler(
     IEmpresasQueryContext dbContext, IContactosAgendaQueryContext contactosContext,
-    ICentrosQueryContext centrosContext, IMediator mediator, IAlcanceDatosService alcanceDatos)
+    ICentrosQueryContext centrosContext, IMediator mediator, IAlcanceDatosService alcanceDatos,
+    ICalculoEstadoCentroService calculoEstadoCentro)
     : IRequestHandler<ObtenerClientesQuery, ResultadoPaginado<ClienteListaDto>>
 {
     public async Task<ResultadoPaginado<ClienteListaDto>> Handle(ObtenerClientesQuery request, CancellationToken cancellationToken)
@@ -271,11 +308,17 @@ public class ObtenerClientesQueryHandler(
             .Select(g => new { ClienteId = g.Key, Cantidad = g.Count() })
             .ToDictionaryAsync(x => x.ClienteId, x => x.Cantidad, cancellationToken);
 
+        var clientesConBloqueo = await ClientesConBloqueoDePlataformaAsync(idsPagina, cancellationToken);
+
         var enriquecidos = elementos
             .Select(c => c with
             {
                 SinContactoEnAgenda = !conAgenda.Contains(c.Id),
-                Centros = centrosPorCliente.GetValueOrDefault(c.Id)
+                Centros = centrosPorCliente.GetValueOrDefault(c.Id),
+                Recuento = alertasPorCliente.TryGetValue(c.Id, out var alertas)
+                    ? RecuentoAlertasClienteDto.De(alertas)
+                    : RecuentoAlertasClienteDto.Vacio,
+                BloqueoPlataformaCae = clientesConBloqueo.Contains(c.Id)
             })
             .Select(c => request.ConDesgloseDocumental ? ConDesglose(c, alertasPorCliente) : c)
             .ToList();
@@ -285,6 +328,29 @@ public class ObtenerClientesQueryHandler(
             RecuentosPorEstado = recuentosPorEstado,
             TotalSinFiltroDeEstado = request.ConRecuentosPorEstado ? totalSinEstado : null
         };
+    }
+
+    /// <summary>
+    /// Clientes empresariales de la página con algún Centro de Trabajo en <see cref="EstadoCentro.Bloqueado"/>, con el
+    /// mismo cálculo que la pastilla de cada Centro en Cliente 360 (<see cref="ICalculoEstadoCentroService"/>): una sola
+    /// llamada para todos los Centros de la página.
+    /// </summary>
+    private async Task<HashSet<Guid>> ClientesConBloqueoDePlataformaAsync(
+        IReadOnlyList<Guid> idsPagina, CancellationToken cancellationToken)
+    {
+        if (idsPagina.Count == 0) return [];
+
+        var centros = await centrosContext.Centros
+            .Where(c => idsPagina.Contains(c.ClienteId))
+            .Select(c => new { c.Id, c.ClienteId })
+            .ToListAsync(cancellationToken);
+        if (centros.Count == 0) return [];
+
+        var estados = await calculoEstadoCentro.CalcularAsync(centros.Select(c => c.Id).ToList(), cancellationToken);
+        return centros
+            .Where(c => estados.TryGetValue(c.Id, out var estado) && estado.Estado == EstadoCentro.Bloqueado)
+            .Select(c => c.ClienteId)
+            .ToHashSet();
     }
 
     /// <summary>

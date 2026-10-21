@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -669,5 +669,11 @@
   </data>
   <data name="RequisitoGuardadoToast" xml:space="preserve">
     <value>Requisito guardado en este centro.</value>
+  </data>
+  <data name="TotalesAlDiaPorVencer" xml:space="preserve">
+    <value>(de ellos, {0} por vencer)</value>
+  </data>
+  <data name="TotalesSinValidar" xml:space="preserve">
+    <value>sin confirmar o sin validar en la plataforma: {0}</value>
   </data>
 </root>

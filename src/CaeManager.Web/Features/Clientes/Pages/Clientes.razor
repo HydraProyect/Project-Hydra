@@ -325,7 +325,7 @@
                             @if (context.EstadoDocumentalPeor is { } peor)
                             {
                                 var cliente = context;
-                                var motivo = MotivoEstadoDocumental(cliente.EstadoDocumentalCantidad);
+                                var motivo = MotivoEstadoDocumental(cliente);
                                 if (cliente.Incidencias.Count > 0)
                                 {
                                     <EstadoFila Tono="EstadoDocumentoUi.Tono(peor)" Texto="@EstadoDocumentoUi.Texto(peor)" Titulo="@TituloEstadoDocumental(peor)">
@@ -381,6 +381,13 @@
                             else
                             {
                                 <EstadoFila Correcto="true" Texto="@EstadoDocumentoUi.SinIncidencias" Titulo="@Textos["TituloSinIncidencias"]" />
+                            }
+                            @* Revisión 1:1 del 2026-10-21: el bloqueo de la plataforma CAE de algún Centro no es un estado documental
+                               (no cambia la pastilla), pero la fila no puede callarlo mientras Cliente 360 e Inicio lo dicen. Mismo
+                               rótulo que la fila del Centro en Cliente 360. *@
+                            @if (context.BloqueoPlataformaCae)
+                            {
+                                <span class="cliente-bloqueo-plataforma" data-bloqueo-plataforma>@Textos["RotuloBloqueoPlataforma"]</span>
                             }
                             </span>
                             @* Sin menú «⋯» (patrón de listados). «Abrir ficha 360» es este icono; «Editar», el lápiz del panel

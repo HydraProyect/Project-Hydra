@@ -646,7 +646,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// aquí, por eso el rótulo lo dice en vez de llamarlos «del centro».
     /// </para>
     /// </summary>
-    private (int Exigidos, int AlDia, int Vencidos, int Faltantes) TotalesDocumentales
+    private (int Exigidos, int AlDia, int PorVencer, int Vencidos, int Faltantes, int SinValidar) TotalesDocumentales
     {
         get
         {
@@ -654,11 +654,17 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
             // «Exigidos» y «al día» salen de CumplimientoDocumental (la porción de cada Trabajador del % del Centro): el
             // listado de documentos no trae los «Sin caducidad» y puede repetir un tipo (vencido y renovación).
             var cumplimiento = FraccionCumplimiento.Sumar(_trabajadores.Select(t => t.Cumplimiento));
+            var vencidos = documentos.Count(d => EstadoDocumentoUi.HaVencido(d.Estado));
+            var faltantes = documentos.Count(d => d.Estado == EstadoDocumento.Faltante);
+            // Revisión 1:1 del 2026-10-21: las partes no sumaban el total. «Al día» ya incluye los por vencer (siguen valiendo
+            // hoy) y deja fuera los «Sin confirmar» y los pendientes en la plataforma de un tipo bloqueante; el resto es eso.
             return (
                 cumplimiento.Requeridos,
                 cumplimiento.AlDia,
-                documentos.Count(d => EstadoDocumentoUi.HaVencido(d.Estado)),
-                documentos.Count(d => d.Estado == EstadoDocumento.Faltante));
+                documentos.Count(d => d.Estado is EstadoDocumento.Urgente or EstadoDocumento.Proximo),
+                vencidos,
+                faltantes,
+                Math.Max(0, cumplimiento.Requeridos - cumplimiento.AlDia - vencidos - faltantes));
         }
     }
 

@@ -128,15 +128,16 @@ public partial class ClientesListaGen2Tests
         var vencida = AlertaDeDocumento("Aptitud médica", "Nora Vidal", EstadoDocumento.Vencido, -12);
         var faltante = AlertaDeFaltante("Formación Art. 19", "Javier Salas", "Planta de Zaragoza");
         var proxima = AlertaDeDocumento("Contrato", "Nora Vidal", EstadoDocumento.Proximo, 25);
-        var alfa = ConIncidencias(Cliente("Alfa Montajes S.L.", peor: EstadoDocumento.Vencido, cantidad: 1), null, vencida, faltante, proxima);
+        var alfa = ConIncidencias(Cliente("Alfa Montajes S.L.", peor: EstadoDocumento.Vencido, cantidad: 1), null, vencida, faltante, proxima)
+            with { Recuento = new RecuentoAlertasClienteDto(1, 1, 1) };
         var cut = Renderizar(new MediatorFalso { Almacen = { alfa } });
 
         var celda = CeldaDeEstado(cut, "Alfa Montajes S.L.");
         celda.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Vencido", "la pastilla se pinta siempre");
         celda.QuerySelector(".estado-fila-motivo .ventana-contexto-disparador .motivo-incidencias-cliente")!.TextContent.Trim()
-            .Should().Be("1 documento", "el motivo sigue contando las alertas del peor estado");
+            .Should().Be("1 vencido · 1 pendiente · 1 por vencer", "el motivo reparte las alertas por estado, con las palabras del motivo de cada Centro (revisión 1:1 del 2026-10-21)");
         celda.QuerySelector(".ventana-contexto-disparador")!.GetAttribute("aria-label")
-            .Should().Be("Vencido: 1 documento. 3 documentos con incidencia entre sus trabajadores");
+            .Should().Be("Vencido: 1 vencido · 1 pendiente · 1 por vencer. 3 documentos con incidencia entre sus trabajadores");
         celda.QuerySelector(".ventana-contexto-titulo")!.TextContent.Trim()
             .Should().Be("3 documentos con incidencia entre sus trabajadores", "la ventana las lista todas, no solo las del peor estado");
 
@@ -228,7 +229,7 @@ public partial class ClientesListaGen2Tests
         var cut = Renderizar(new MediatorFalso { Almacen = { alfa, beta } });
 
         var celda = CeldaDeEstado(cut, "Alfa Montajes S.L.");
-        celda.QuerySelector(".estado-fila-motivo")!.TextContent.Trim().Should().Be("2 documentos");
+        celda.QuerySelector(".estado-fila-motivo")!.TextContent.Trim().Should().Be("2 vencidos", "sin recuento por estado, la cantidad del peor estado con su nombre");
         celda.QuerySelectorAll(".ventana-contexto").Should().BeEmpty("sin líneas que enseñar no se abre una ventana vacía");
         CeldaDeEstado(cut, "Beta Talleres Coop.").QuerySelectorAll(".ventana-contexto").Should().ContainSingle(
             "control positivo: la fila que sí trae incidencias lleva su ventana");

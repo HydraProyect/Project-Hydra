@@ -283,7 +283,7 @@ public partial class Empresa360PaginaTests : BunitContext
         cabecera.QuerySelector("h1").Should().NotBeNull();
         var entradilla = cabecera.QuerySelector(".cabecera-identidad-datos")!.TextContent;
         entradilla.Should().Contain("CIF B-48.220.917").And.Contain("2 Clientes").And.Contain("25 trabajadores");
-        cut.Find("[role=img]").GetAttribute("aria-label").Should().StartWith("72% de cumplimiento");
+        cut.Find("[role=img]").GetAttribute("aria-label").Should().StartWith("72% de los documentos exigidos");
         // El anillo va a la izquierda de la identidad, no entre las acciones (mockup).
         cabecera.QuerySelector(".cabecera-identidad-anillo [role=img]").Should().NotBeNull();
         cabecera.QuerySelector(".cabecera-identidad-acciones")!.QuerySelector("[role=img]").Should().BeNull();
