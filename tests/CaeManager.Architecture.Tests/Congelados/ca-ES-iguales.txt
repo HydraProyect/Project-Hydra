@@ -657,7 +657,6 @@ src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: Confi
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ConfirmarEliminarMensaje = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ConfirmarEliminarTitulo = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: DrawerTituloEditar = 1
-src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: DrawerTituloNueva = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ErrorActualizarEstado = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ErrorCargaDetalle = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ErrorCargaListaTitulo = 1
@@ -685,7 +684,6 @@ src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: Recue
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: TipoIncumplimiento = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: TituloPagina = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ToastActualizada = 1
-src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ToastCreada = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ToastEliminada = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ToastLoteEliminadas = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ToastLoteEliminadasConErrores = 1
