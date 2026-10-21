@@ -605,4 +605,36 @@ public class PestanaReclamarEmpresaTests : BunitContext
         Desplegar(cut);
         cut.Markup.Should().Contain("Certificado TGSS").And.NotContain("Plan de Prevención");
     }
+
+    [Fact]
+    public void Reclamar_lo_visible_no_lleva_al_cajon_los_documentos_vigentes()
+    {
+        var empresa = new LoteReclamacionAgrupadoDto(
+            EmpresaId, "Obras y Estructuras del Ebro S.L.", AmbitoAplicacion.Empresa, null,
+            [
+                new DocumentoReclamableDto(Guid.NewGuid(), null, null, Guid.NewGuid(), "RNT", Vence, EstadoDocumento.Vigente),
+                new DocumentoReclamableDto(Guid.NewGuid(), null, null, Guid.NewGuid(), "RLC", Vence, EstadoDocumento.Vigente),
+            ],
+            null, [new DestinatarioAgendaDto(Guid.NewGuid(), "Jon Arregi Lasa", "jon.arregi@ebro.example", [])]);
+        var trabajador = new LoteReclamacionAgrupadoDto(
+            EmpresaId, "Obras y Estructuras del Ebro S.L.", AmbitoAplicacion.Trabajador, null,
+            [
+                new DocumentoReclamableDto(Guid.NewGuid(), Jordi, "Jordi Ferrer Vidal", Guid.NewGuid(), "Formación Art. 19", Vence, EstadoDocumento.Vigente),
+                new DocumentoReclamableDto(Guid.NewGuid(), Jordi, "Jordi Ferrer Vidal", Guid.NewGuid(), "Reconocimiento médico", Vence, EstadoDocumento.Vencido),
+            ],
+            null, [new DestinatarioAgendaDto(Guid.NewGuid(), "Montse Puig Casals", "montse.puig@ebro.example", [])], null,
+            new DestinoEmpresaEmpleadoraDto(Cataluna, "Cataluña"));
+        var escenario = new Escenario();
+        escenario.Preventiva = _ => Task.FromResult(escenario.Dto([empresa, trabajador]));
+        var (cut, _) = Renderizar(escenario);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
+
+        Texto(cut.FindAll(".reclamar-empresa-ficha")[0]).Should().StartWith("0");
+        Boton(cut, "Reclamar lo visible (1)").Click();
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Reclamar en lote"));
+        var cajon = cut.Markup[cut.Markup.IndexOf("Reclamar en lote", StringComparison.Ordinal)..];
+        cajon.Should().Contain("Reconocimiento médico")
+            .And.NotContain("RNT").And.NotContain("RLC").And.NotContain("Formación Art. 19");
+    }
 }
