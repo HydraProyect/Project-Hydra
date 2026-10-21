@@ -199,14 +199,20 @@ public partial class VisionCartera : CaeManager.Web.Components.PaginaInteractiva
         ? Textos["SinCumplimientoDetalle"].Value
         : Textos["SinCumplimientoDetalleSinDatos"].Value;
 
-    private string DetalleMedia
+    /// <summary>
+    /// Cómo se calcula la media del anillo: lo que antes eran tres párrafos bajo el anillo y estiraban la tarjeta. Va en la ventana
+    /// de contexto junto al título. Sin la lista de tasas (ya es la tabla «Organizaciones con más riesgo») ni los nombres de las
+    /// organizaciones con bloqueo (los cuenta «Trabajadores bloqueados»); sí quién no entra en la media, porque eso no lo dice otra cifra.
+    /// </summary>
+    private string DetalleCalculoMedia
     {
         get
         {
-            var tasas = ConCartera.Where(o => !o.SinDatos).Select(o => o.TasaCumplimientoDocumental).OrderByDescending(t => t).ToList();
-            var partes = new List<string> { Textos["DetalleMedia", tasas.Count, Enumerar(tasas.Select(t => t.ToString()))].Value };
+            var entran = ConCartera.Count(o => !o.SinDatos);
+            var partes = new List<string> { Textos["DetalleMedia", entran].Value };
             if (SinCartera.Count > 0) partes.Add(DetalleExcluidas);
             if (SinDatos.Count > 0) partes.Add(DetalleSinDatos);
+            partes.Add(Textos["DetalleTasaOrganizacion"].Value);
             return string.Join(' ', partes);
         }
     }

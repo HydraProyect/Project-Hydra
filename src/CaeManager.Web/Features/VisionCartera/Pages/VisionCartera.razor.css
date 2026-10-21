@@ -77,6 +77,30 @@
     align-items: stretch;
 }
 
+/* Pie del anillo: la frase corta y, a su lado, la ventana con el cálculo. Sin párrafos: la tarjeta no se estira. */
+.anillo-cartera-pie {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+}
+
+.anillo-cartera-pie .dashboard-resumen-anillo-titulo {
+    min-width: 0;
+}
+
+.anillo-cartera-pie ::deep .anillo-cartera-calculo {
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+}
+
+/* El cálculo es largo: un panel algo más ancho que el de un recuento, para que no pase de unas diez líneas. */
+.anillo-cartera-pie ::deep .anillo-cartera-calculo > .ventana-contexto-panel {
+    max-width: min(320px, 85vw);
+    max-height: 380px;
+    text-align: left;
+}
+
 .actividad-cartera {
     display: flex;
     flex-direction: column;
