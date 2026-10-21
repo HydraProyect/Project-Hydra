@@ -1771,7 +1771,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         cut.FindAll(".trabajador360-centro-baja").Should().BeEmpty();
         cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Operación")).Click();
         cut.Find("[aria-label='Gestiones pendientes']").TextContent.Should().Contain("Reconocimiento médico");
-        cut.FindAll(".columna-accion button").Should().BeEmpty("Completar requiere escritura");
+        cut.Find("[aria-label='Gestiones pendientes']").QuerySelectorAll("button").Should().BeEmpty("Completar requiere escritura");
         AbrirCentros(cut);
         cut.FindAll(".fila-relacion-desplegado .fila-relacion-acciones button").Should().BeEmpty(
             "Subir, Renovar, Ver, Dar de baja y Completar son las únicas acciones de fila y todas escriben");
