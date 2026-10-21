@@ -169,8 +169,8 @@
                     <div class="fct-metricas">
                         <span>@Textos["Gestiones"] <b>@TextoGestiones(empresa)</b></span>
                         <span>@Textos["IngresoPorGestion"] <b>@DineroOSinDato(empresa.IngresoPorGestion, empresa)</b></span>
-                        <span>@Textos["CostoPorGestion"] <b>@DineroOSinDato(empresa.CostoPorGestion, empresa)</b></span>
-                        <span>@Textos["CostoPorExtranjero"] <b>@DineroOSinDato(empresa.CostoPorExtranjero, empresa)</b></span>
+                        <span>@Textos["CostoPorGestion"] <b data-metrica="costo-gestion">@CostoPorGestionConCuenta(empresa)</b></span>
+                        <span>@Textos["CostoPorExtranjero"] <b data-metrica="costo-extranjero">@CostoPorExtranjeroConCuenta(empresa)</b></span>
                         <span>@Textos["Relacion"] <b>@TextoRelacion(empresa)</b></span>
                         <a class="fct-enlace-cuadro" href="/direccion">@Textos["VerEnCuadro"]</a>
                     </div>

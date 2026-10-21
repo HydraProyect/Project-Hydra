@@ -171,6 +171,15 @@
   <data name="Gestiones" xml:space="preserve">
     <value>Gestiones</value>
   </data>
+  <data name="ValorConCuenta" xml:space="preserve">
+    <value>{0} ({1})</value>
+  </data>
+  <data name="CuentaGestionesNormales" xml:space="preserve">
+    <value>{0} ÷ {1} gestiones normales</value>
+  </data>
+  <data name="CuentaGestionesExtranjero" xml:space="preserve">
+    <value>{0} ÷ {1} de extranjero</value>
+  </data>
   <data name="GestionesDetalle" xml:space="preserve">
     <value>{0} normales + {1} de extranjero</value>
   </data>
@@ -205,10 +214,10 @@
     <value>Cuando tu organización gestione Empresas y tengas acceso completo a sus datos, aparecerán aquí con su cuota.</value>
   </data>
   <data name="SinAccesoCifrasTitulo" xml:space="preserve">
-    <value>Tu rol aún no puede leer las cifras del mes</value>
+    <value>Facturación no está disponible para tu rol</value>
   </data>
   <data name="SinAccesoCifrasDescripcion" xml:space="preserve">
-    <value>Disponible cuando se active el acceso del Administrador al Cuadro de dirección.</value>
+    <value>La ven Dirección CAE, Coordinación CAE y Administración del Operador CAE.</value>
   </data>
   <data name="DrawerTitulo" xml:space="preserve">
     <value>Tarifas de {0}</value>
