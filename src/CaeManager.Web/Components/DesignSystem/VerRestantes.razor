@@ -1,0 +1,38 @@
+@*
+    Pie de una fila desplegada que puede tener cientos de elementos: la fila enseña los primeros
+    (<see cref="Inicial"/>) y este botón despliega el resto («Ver los 290 restantes»). La pantalla guarda,
+    por fila, si ya se pidieron todos, y recorta con <see cref="Recortar{T}"/>.
+
+    Uso:
+
+        @foreach (var incidencia in VerRestantes.Recortar(incidencias, _filasCompletas.Contains(id)))
+        { ... }
+        <VerRestantes Total="incidencias.Count" Completa="_filasCompletas.Contains(id)" OnVerRestantes="() => _filasCompletas.Add(id)" />
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+@if (!Completa && Total > Inicial)
+{
+    <button type="button" class="ver-restantes-fila" data-accion="ver-restantes" @onclick="OnVerRestantes" @onclick:stopPropagation="true">
+        @Comunes["VerRestantes", Total - Inicial]
+    </button>
+}
+
+@code {
+    /// <summary>Cuántos elementos enseña una fila desplegada antes de pedir «Ver los N restantes».</summary>
+    public const int Inicial = 10;
+
+    /// <summary>Total de elementos de la fila.</summary>
+    [Parameter, EditorRequired] public int Total { get; set; }
+
+    /// <summary>Ya se pidieron todos: el botón desaparece.</summary>
+    [Parameter] public bool Completa { get; set; }
+
+    [Parameter] public EventCallback OnVerRestantes { get; set; }
+
+    /// <summary>Los primeros <see cref="Inicial"/> elementos, o todos si <paramref name="completa"/>.</summary>
+    public static IEnumerable<T> Recortar<T>(IReadOnlyList<T> elementos, bool completa) =>
+        completa ? elementos : elementos.Take(Inicial);
+}

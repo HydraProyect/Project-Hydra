@@ -146,6 +146,9 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// </summary>
     private readonly HashSet<Guid> _expandidos = [];
 
+    /// <summary>Filas desplegadas a las que se pidió «Ver los N restantes»: el resto enseña solo los primeros documentos.</summary>
+    private readonly HashSet<Guid> _incidenciasCompletas = [];
+
     private List<EmpresaListaDto> _elementosPagina = [];
     private Guid? _idEnfocado;
     private bool _eliminandoLote;

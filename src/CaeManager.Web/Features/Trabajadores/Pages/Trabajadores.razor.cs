@@ -122,6 +122,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private bool _parametrosInicializados;
     private CancellationTokenSource? _peticionActiva;
     private readonly HashSet<Guid> _expandidos = [];
+
+    /// <summary>Filas desplegadas a las que se pidió «Ver los N restantes»: el resto enseña solo los primeros documentos.</summary>
+    private readonly HashSet<Guid> _incidenciasCompletas = [];
     private readonly HashSet<Guid> _cerradasAMano = [];
 
     private Task CambiarPaginaAsync(int pagina)

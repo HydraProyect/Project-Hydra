@@ -90,6 +90,9 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
     /// <summary>Qué filas tienen el acordeón abierto — mismo criterio que Centros.razor.cs.</summary>
     private readonly HashSet<Guid> _expandidos = [];
+
+    /// <summary>Filas desplegadas a las que se pidió «Ver los N restantes»: el resto enseña solo los primeros documentos.</summary>
+    private readonly HashSet<Guid> _incidenciasCompletas = [];
     private List<SubcontrataListaDto> _elementosPagina = [];
     private Guid? _idEnfocado;
     private bool _eliminandoLote;

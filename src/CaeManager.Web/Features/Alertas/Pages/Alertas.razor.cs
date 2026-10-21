@@ -87,7 +87,8 @@ public partial class Alertas : CaeManager.Web.Components.PaginaInteractiva
     private int _versionCarga;
 
     private ModoAgrupacion _agrupacion = ModoAgrupacion.Severidad;
-    private readonly HashSet<string> _gruposCerrados = [];
+    /// <summary>Los grupos salen contraídos: con cientos de alertas, un grupo abierto se vuelve interminable.</summary>
+    private readonly HashSet<string> _gruposAbiertos = [];
 
     private FiltroLoteDocumental? _filtroLote;
     private bool _cargandoLote;
@@ -267,14 +268,14 @@ public partial class Alertas : CaeManager.Web.Components.PaginaInteractiva
     {
         if (_agrupacion == modo) return;
         _agrupacion = modo;
-        _gruposCerrados.Clear();
+        _gruposAbiertos.Clear();
         _pagina = 1;
     }
 
     private void AlternarGrupo(string clave)
     {
-        if (!_gruposCerrados.Remove(clave))
-            _gruposCerrados.Add(clave);
+        if (!_gruposAbiertos.Remove(clave))
+            _gruposAbiertos.Add(clave);
     }
 
     /// <summary>

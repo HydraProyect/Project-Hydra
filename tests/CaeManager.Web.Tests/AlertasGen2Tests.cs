@@ -139,6 +139,14 @@ public class AlertasGen2Tests : BunitContext
     private static List<string> InsigniasDeGrupo(IRenderedComponent<Features.Alertas.Pages.Alertas> cut) =>
         cut.FindAll(".alertas-grupo-cabecera .badge").Select(e => e.TextContent.Trim()).ToList();
 
+    /// <summary>Los bloques llegan plegados: despliega todos para leer sus filas.</summary>
+    private static async Task AbrirGrupos(IRenderedComponent<Features.Alertas.Pages.Alertas> cut)
+    {
+        // Cada pulsación repinta: se vuelve a buscar la cabecera en vez de reutilizar elementos viejos.
+        for (var i = 0; i < cut.FindAll(".alertas-grupo-cabecera").Count; i++)
+            await cut.FindAll(".alertas-grupo-cabecera")[i].ClickAsync(new MouseEventArgs());
+    }
+
     private static IElement CabeceraDeGrupo(IRenderedComponent<Features.Alertas.Pages.Alertas> cut, string titulo) =>
         cut.FindAll(".alertas-grupo-cabecera").Single(b => b.QuerySelector(".alertas-grupo-titulo")!.TextContent.Trim() == titulo);
 
@@ -229,6 +237,7 @@ public class AlertasGen2Tests : BunitContext
             "un bloque por tipo, el que tiene algo vencido delante");
         InsigniasDeGrupo(cut).Should().Equal(["Vencido", "Por vencer"], "la insignia es la peor severidad del bloque");
 
+        await AbrirGrupos(cut);
         var formacion = cut.FindAll(".alertas-grupo")[0];
         formacion.QuerySelectorAll("thead th").Select(t => t.TextContent.Trim()).Should().Contain("Severidad");
         formacion.QuerySelectorAll("tbody tr").Select(f => f.TextContent).Should().SatisfyRespectively(
@@ -237,17 +246,21 @@ public class AlertasGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Plegar_un_bloque_oculta_sus_filas_y_no_las_de_los_demas()
+    public async Task Los_bloques_llegan_plegados_y_desplegar_uno_no_toca_los_demas()
     {
         var cut = RenderizarLista(
             Alerta(EstadoDocumento.Vencido, trabajador: "Juan Pérez"),
             Alerta(EstadoDocumento.Proximo, trabajador: "Lucía Bengoa"));
 
+        CabeceraDeGrupo(cut, "Vencido").GetAttribute("aria-expanded").Should().Be("false");
+        cut.Markup.Should().NotContain("Juan Pérez", "los bloques llegan plegados");
+        cut.Markup.Should().NotContain("Lucía Bengoa", "los bloques llegan plegados");
+
         await CabeceraDeGrupo(cut, "Vencido").ClickAsync(new MouseEventArgs());
 
-        CabeceraDeGrupo(cut, "Vencido").GetAttribute("aria-expanded").Should().Be("false");
-        cut.Markup.Should().NotContain("Juan Pérez", "su bloque está plegado");
-        cut.Markup.Should().Contain("Lucía Bengoa", "plegar un bloque no toca los demás");
+        CabeceraDeGrupo(cut, "Vencido").GetAttribute("aria-expanded").Should().Be("true");
+        cut.Markup.Should().Contain("Juan Pérez");
+        cut.Markup.Should().NotContain("Lucía Bengoa", "desplegar un bloque no toca los demás");
     }
 
     /// <summary>
@@ -255,9 +268,10 @@ public class AlertasGen2Tests : BunitContext
     /// cabe en la página: diría 20 donde hay 25 vencidos.
     /// </summary>
     [Fact]
-    public void La_insignia_cuenta_todo_el_bloque_aunque_la_pagina_solo_muestre_una_parte()
+    public async Task La_insignia_cuenta_todo_el_bloque_aunque_la_pagina_solo_muestre_una_parte()
     {
         var cut = RenderizarLista(Enumerable.Range(0, 25).Select(_ => Alerta(EstadoDocumento.Vencido)).ToArray());
+        await AbrirGrupos(cut);
 
         InsigniasDeGrupo(cut).Should().Equal(["25"]);
         cut.Find(".alertas-grupo-meta").TextContent.Should().Contain("20 en esta página");

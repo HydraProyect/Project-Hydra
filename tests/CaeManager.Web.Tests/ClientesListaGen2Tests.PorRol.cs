@@ -55,8 +55,7 @@ public partial class ClientesListaGen2Tests
         cut.FindAll(".tarjeta-fila-acordeon").Single(t => t.QuerySelector(".enlace-nombre-fila")?.TextContent.Trim() == razonSocial);
 
     /// <summary>
-    /// Deja la fila desplegada y devuelve su contenido. La primera fila de la lista llega ya abierta (como en la maqueta):
-    /// solo se pulsa el chevron si está recogida.
+    /// Deja la fila desplegada y devuelve su contenido. Las filas llegan recogidas: se pulsa el chevron si lo está.
     /// </summary>
     private async Task<IElement> Desplegar(IRenderedComponent<Clientes> cut, string razonSocial)
     {
@@ -225,7 +224,8 @@ public partial class ClientesListaGen2Tests
         mediador.CentrosConEstadoPorCliente[cliente.Id] = [CentroConEstado(cliente.Id, "Sede Sevilla", EstadoCentro.Vencido, vencidos: 1)];
         var cut = Renderizar(mediador);
 
-        // La primera fila llega abierta y su petición es la que falla.
+        // Las filas llegan recogidas: la primera petición, la que falla, sale al desplegar.
+        await Tarjeta(cut, cliente.RazonSocial).QuerySelector("button.boton-expandir-fila")!.ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.Find(".centros-desplegados-aviso").TextContent.Should().Contain("No pudimos cargar los centros"));
 
         await Tarjeta(cut, cliente.RazonSocial).QuerySelector("button.boton-expandir-fila")!.ClickAsync(new MouseEventArgs());
@@ -234,38 +234,18 @@ public partial class ClientesListaGen2Tests
         contenido.QuerySelectorAll("li.centro-pendiente-cliente").Should().ContainSingle();
     }
 
-    /// <summary>
-    /// Como en la maqueta, la primera fila llega abierta (con sus Centros pedidos) y las demás, recogidas. Quien la recoge
-    /// la deja recogida: la regla se decide una sola vez, no en cada pintado.
-    /// </summary>
+    /// <summary>Todas las filas llegan recogidas: con datos reales una fila abierta se vuelve interminable. No se pide ningún Centro hasta desplegar.</summary>
     [Fact]
-    public async Task La_primera_fila_llega_abierta_y_las_demas_recogidas()
+    public void Todas_las_filas_llegan_recogidas_y_no_se_piden_Centros_hasta_desplegar()
     {
         var primera = ClienteConProblemas();
         var segunda = Cliente("Wayne Enterprises S.A.", centros: 2, peor: EstadoDocumento.Urgente, cantidad: 1);
         var mediador = new MediatorFalso { Almacen = { primera, segunda } };
-        mediador.CentrosConEstadoPorCliente[primera.Id] = [CentroConEstado(primera.Id, "Sede Sevilla", EstadoCentro.Vencido, vencidos: 1)];
-        mediador.CentrosConEstadoPorCliente[segunda.Id] = [CentroConEstado(segunda.Id, "Planta Bilbao", EstadoCentro.Vencido, vencidos: 1)];
         var cut = Renderizar(mediador);
 
-        cut.WaitForAssertion(() => Tarjeta(cut, primera.RazonSocial).QuerySelectorAll("li.centro-pendiente-cliente").Should().ContainSingle());
-        Tarjeta(cut, primera.RazonSocial).QuerySelector("button.boton-expandir-fila")!.GetAttribute("aria-expanded").Should().Be("true");
-        Tarjeta(cut, segunda.RazonSocial).QuerySelector("button.boton-expandir-fila")!.GetAttribute("aria-expanded").Should().Be("false");
-        Tarjeta(cut, segunda.RazonSocial).QuerySelector(".tarjeta-fila-acordeon-contenido").Should().BeNull("solo la primera llega abierta");
-
-        await Tarjeta(cut, primera.RazonSocial).QuerySelector("button.boton-expandir-fila")!.ClickAsync(new MouseEventArgs());
-
-        Tarjeta(cut, primera.RazonSocial).QuerySelector(".tarjeta-fila-acordeon-contenido").Should().BeNull("quien la recoge la deja recogida");
-    }
-
-    [Fact]
-    public void Si_la_primera_fila_no_tiene_Centros_que_enseñar_no_se_abre_ninguna()
-    {
-        var sinCentros = Cliente("Cyberdyne Ibérica S.A.", centros: 0, peor: EstadoDocumento.Vencido, cantidad: 2);
-        var conCentros = Cliente("Stark Industries S.A.", centros: 2, peor: EstadoDocumento.Urgente, cantidad: 1);
-        var cut = Renderizar(new MediatorFalso { Almacen = { sinCentros, conCentros } });
-
-        cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty("la primera fila no tiene qué desplegar y las demás no se abren por defecto");
+        cut.FindAll("button.boton-expandir-fila").Should().OnlyContain(b => b.GetAttribute("aria-expanded") == "false");
+        cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty();
+        mediador.Enviadas.OfType<ObtenerCentrosQuery>().Should().BeEmpty();
     }
 
     [Fact]
@@ -278,59 +258,7 @@ public partial class ClientesListaGen2Tests
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Should().BeEmpty();
     }
 
-    /// <summary>
-    /// La primera fila se abre una sola vez: quien la recoge no la ve reabrirse al filtrar, ordenar ni paginar.
-    /// </summary>
-    [Fact]
-    public async Task Despues_de_la_primera_carga_filtrar_ordenar_o_paginar_no_reabre_ninguna_fila()
-    {
-        var mediador = new MediatorFalso();
-        for (var i = 1; i <= 22; i++)
-        {
-            var cliente = Cliente($"Cliente {i:00}", critico: i <= 21, centros: 2, peor: EstadoDocumento.Urgente, cantidad: 1);
-            mediador.Almacen.Add(cliente);
-            mediador.CentrosConEstadoPorCliente[cliente.Id] = [CentroConEstado(cliente.Id, "Sede", EstadoCentro.Vencido, vencidos: 1)];
-        }
-        var cut = Renderizar(mediador);
-        cut.WaitForAssertion(() => cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().ContainSingle("la primera fila llega abierta"));
 
-        await cut.FindAll("button.boton-expandir-fila").First().ClickAsync(new MouseEventArgs());
-        cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty("punto de partida: recogida");
-
-        await cut.FindAll(".cabecera-columnas-clientes button.col-title").Single(b => b.TextContent.Trim() == "Cliente").ClickAsync(new MouseEventArgs());
-        cut.WaitForAssertion(() => UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(ClienteListaDto.RazonSocial)));
-        cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty("ordenar no reabre la primera fila");
-
-        await cut.FindAll(".paginador-pie-listado button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
-        cut.WaitForAssertion(() => UltimaConsulta(mediador).Pagina.Should().Be(2));
-        cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty("paginar no abre la primera fila de la página nueva");
-
-        await ElegirEnLaPastilla(cut, "Criticidad", "Solo críticos");
-        cut.WaitForAssertion(() => UltimaConsulta(mediador).SoloCriticos.Should().BeTrue());
-        cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty("filtrar no reabre la primera fila");
-    }
-
-    /// <summary>
-    /// La vista recordada sustituye a la de la primera carga: la primera fila se abre sobre la vista que de verdad se
-    /// queda, no sobre la que la restauración reemplaza.
-    /// </summary>
-    [Fact]
-    public void Al_restaurar_la_vista_recordada_se_abre_la_primera_fila_de_la_vista_restaurada()
-    {
-        var sinFiltrar = Cliente("Alfa Montajes S.L.", critico: false, centros: 2, peor: EstadoDocumento.Vencido, cantidad: 1);
-        var critico = Cliente("Beta Frío S.A.", critico: true, centros: 2, peor: EstadoDocumento.Urgente, cantidad: 1);
-        var mediador = ConVistaRecordada("{\"critico\":\"true\"}");
-        mediador.Almacen.Add(sinFiltrar);
-        mediador.Almacen.Add(critico);
-        mediador.CentrosConEstadoPorCliente[sinFiltrar.Id] = [CentroConEstado(sinFiltrar.Id, "Sede A", EstadoCentro.Vencido, vencidos: 1)];
-        mediador.CentrosConEstadoPorCliente[critico.Id] = [CentroConEstado(critico.Id, "Sede B", EstadoCentro.Vencido, vencidos: 1)];
-
-        var cut = Renderizar(mediador);
-
-        cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Beta Frío S.A."], "la vista recordada filtra por críticos"));
-        cut.WaitForAssertion(() => Tarjeta(cut, critico.RazonSocial).QuerySelectorAll("li.centro-pendiente-cliente").Should().ContainSingle(
-            "la primera fila de la vista restaurada llega abierta"));
-    }
     private static ObtenerCentrosQuery UltimaConsultaDeCentros(MediatorFalso mediador) =>
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last();
 }
