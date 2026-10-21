@@ -105,7 +105,7 @@ public partial class Visitas
     private string AriaOrden(string columna) => _ordenColumna == columna
         ? (_ordenDescendente ? "descending" : "ascending") : "none";
 
-    private static string ReferenciaVisita(Guid id) => $"VIS-{id.ToString("N")[..8].ToUpperInvariant()}";
+    private static string ReferenciaVisita(Guid id) => $"VIS-{id.ToString("N")[^8..].ToUpperInvariant()}";
 
     private static string AnchoPreparacion(VisitaListaDto visita) =>
         $"width: {new FraccionCumplimiento(visita.TrabajadoresListos ?? 0, visita.TotalTrabajadores).Porcentaje ?? 0}%";
