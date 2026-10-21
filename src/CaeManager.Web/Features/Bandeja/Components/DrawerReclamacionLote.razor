@@ -47,9 +47,9 @@
         }
         else if (_paso == Paso.SinResultados)
         {
-            @if (DocumentoIdsIniciales is not null)
+            @if (DocumentoIdsIniciales is not null || LotesIniciales is not null)
             {
-                @* Abierto con documentos concretos (Calendario): no hay otro filtro que probar, y se dice por qué no hay nada. *@
+                @* Abierto con documentos o lotes concretos (Calendario, Reclamar para acceso): no hay otro filtro que probar, y se dice por qué no hay nada. *@
                 @AvisosFuera
                 <EstadoVacio Titulo="@TextosMiTrabajo.Texto("ReclamacionNadaTitulo")" Descripcion="@TextosMiTrabajo.Texto("ReclamacionNadaDetalle")" />
             }
@@ -64,7 +64,7 @@
         }
         else
         {
-            @if (DocumentoIdsIniciales is null)
+            @if (DocumentoIdsIniciales is null && LotesIniciales is null)
             {
             <p class="texto-vacio-seccion">
                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _paso = Paso.Seleccion" Deshabilitado="_enviando">
@@ -150,12 +150,12 @@
                                 {
                                     <tr @key="documento.DocumentoId">
                                         <td>
-                                            <input type="checkbox" aria-label="@($"Incluir {documento.TipoDocumentoNombre}" + (muestraTrabajador ? $" de {documento.TrabajadorNombre}" : "") + $", vencimiento {documento.FechaVencimiento:dd/MM/yyyy}, en la reclamación")" checked="@seleccionados.Contains(documento.DocumentoId)"
+                                            <input type="checkbox" aria-label="@($"Incluir {documento.TipoDocumentoNombre}" + (muestraTrabajador && documento.TrabajadorNombre is not null ? $" de {documento.TrabajadorNombre}" : "") + $", vencimiento {documento.FechaVencimiento:dd/MM/yyyy}, en la reclamación")" checked="@seleccionados.Contains(documento.DocumentoId)"
                                                    @onchange="e => AlternarSeleccion(Clave(lote), documento.DocumentoId, (bool)e.Value!)" />
                                         </td>
                                         <td class="lote-reclamacion-documento">
                                             @documento.TipoDocumentoNombre
-                                            @if (muestraTrabajador)
+                                            @if (muestraTrabajador && documento.TrabajadorNombre is not null)
                                             {
                                                 <span class="lote-reclamacion-titular">@documento.TrabajadorNombre</span>
                                             }
@@ -174,7 +174,7 @@
                                     var estadoPendiente = pendiente.Motivo == MotivoPendienteDeReclamacion.Ausente ? EstadoDocumento.Faltante : EstadoDocumento.SinConfirmar;
                                     <tr @key="clavesPendientes.De(pendiente.Clave)">
                                         <td>
-                                            <input type="checkbox" aria-label="@EtiquetaIncluir(pendiente, muestraTrabajador)" checked="@pendientesSeleccionados.Contains(pendiente.Clave)"
+                                            <input type="checkbox" aria-label="@EtiquetaIncluir(pendiente, muestraTrabajador && pendiente.TrabajadorId is not null)" checked="@pendientesSeleccionados.Contains(pendiente.Clave)"
                                                    @onchange="e => AlternarPendiente(Clave(lote), pendiente.Clave, (bool)e.Value!)" />
                                         </td>
                                         <td class="lote-reclamacion-documento">
@@ -296,6 +296,14 @@
     /// queda fuera se dice, con su motivo, y no se reclama en silencio a otro.
     /// </summary>
     [Parameter] public Guid? TitularIdInicial { get; set; }
+    /// <summary>
+    /// Abre la revisión directamente con estos lotes, ya calculados por la pantalla que abre el cajón (Reclamar para acceso:
+    /// <c>ObtenerReclamacionPorAccesoQuery</c>). No es una vía de envío nueva ni amplía nada: cada tarjeta se envía con el mismo
+    /// comando de siempre, que vuelve a validar los documentos, el alcance de cartera y los destinatarios contra la base antes
+    /// de mandar nada. Null conserva el selector de lote habitual; vacío muestra «Nada pendiente».
+    /// </summary>
+    [Parameter] public IReadOnlyList<LoteReclamacionAgrupadoDto>? LotesIniciales { get; set; }
+    private bool _lotesInicialesCargados;
     private bool _inicialesCargados;
     private int _inicialesPedidos;
     private int _fueraTrabajadores;
@@ -317,7 +325,14 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (!Visible) { _inicialesCargados = false; _fueraTrabajadores = 0; _fueraVentana = 0; _inicialesPedidos = 0; }
+        if (!Visible) { _inicialesCargados = false; _lotesInicialesCargados = false; _fueraTrabajadores = 0; _fueraVentana = 0; _inicialesPedidos = 0; }
+        if (Visible && LotesIniciales is not null && !_lotesInicialesCargados)
+        {
+            _lotesInicialesCargados = true;
+            _lotes = LotesIniciales;
+            _filtroElegidoDifiere = false;
+            PrepararRevision();
+        }
         if (Visible && DocumentoIdsIniciales is not null && TitularIdInicial is null)
             throw new InvalidOperationException(
                 "DrawerReclamacionLote: con DocumentoIdsIniciales hay que indicar TitularIdInicial; sin él se ofrecerían lotes de cualquier titular.");

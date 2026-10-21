@@ -703,4 +703,8 @@
   <data name="VigenciaUnMes" xml:space="preserve">
     <value>1 mes</value>
   </data>
+  <data name="AccionReclamarAcceso" xml:space="preserve">
+    <value>Reclamar per a l&apos;accés</value>
+    <comment>Cabecera de Empresa 360: abre la reclamación por acceso de la Empresa.</comment>
+  </data>
 </root>
