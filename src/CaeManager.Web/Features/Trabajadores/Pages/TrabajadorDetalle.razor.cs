@@ -657,7 +657,11 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// </summary>
     private sealed record FilaDocumentacion(
         Guid TipoId, string Nombre, EstadoDocumento Estado, DateOnly? Vence, DateOnly? EnToleranciaHasta, string Alcance,
-        DocumentoRequeridoDto? Requerido, Guid? DocumentoId);
+        DocumentoRequeridoDto? Requerido, Guid? DocumentoId)
+    {
+        /// <summary>Identidad de la fila dentro de su grupo: el Documento si existe y, si falta, el Tipo (único por grupo).</summary>
+        public Guid FilaId => DocumentoId ?? TipoId;
+    }
 
     private sealed record GruposDocumentacion(
         IReadOnlyList<FilaDocumentacion> EnTodos, IReadOnlyList<FilaDocumentacion> EnAlgunos, IReadOnlyList<FilaDocumentacion> Otros)

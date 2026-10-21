@@ -709,7 +709,7 @@
             <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos[claveTitulo]">
                 @foreach (var fila in filas)
                 {
-                    <FilaRelacion @key="(claveTitulo, fila.TipoId, fila.DocumentoId)" Nombre="@fila.Nombre" Tono="@EstadoDocumentoFicha360.TonoFila(fila.Estado)">
+                    <FilaRelacion @key="fila.FilaId" Nombre="@fila.Nombre" Tono="@EstadoDocumentoFicha360.TonoFila(fila.Estado)">
                         <Detalle>@fila.Alcance</Detalle>
                         @* Solo la fecha va a la vista: «Caducidad: …» no cabe en la columna de 104 px y se montaba sobre la pastilla. *@
                         <Cifra><span class="trabajador360-solo-lectores">@Textos["ColumnaVence"]: </span><span class="trabajador360-vigencia @EstadoDocumentoUi.ClaseAvisoVigenciaSinConfirmar(fila.Estado)">@TextoVence(fila.Vence, fila.Estado)</span></Cifra>
