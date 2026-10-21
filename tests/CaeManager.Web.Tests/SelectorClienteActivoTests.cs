@@ -194,7 +194,7 @@ public class SelectorClienteActivoTests : BunitContext
 
         await Abrir(cut);
 
-        cut.Find(".selector-tenant-cabecera").TextContent.Should().Be("Mi cartera · 2 empresas");
+        cut.Find(".selector-tenant-cabecera").TextContent.Should().Be("Empresas gestionadas · 2");
         NombresDeLaLista(cut).Should().Equal("Empresa Norte", "Empresa Sur");
         var opciones = cut.FindAll("[role=option]");
         opciones.Should().HaveCount(3, "dos de la cartera y «Tu organización» debajo");
@@ -323,7 +323,7 @@ public class SelectorClienteActivoTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".selector-tenant-panel").Should().BeEmpty());
     }
 
-    // --- Búsqueda (15 o más empresas) ------------------------------------------------------------
+    // --- Búsqueda (más de 10 Empresas gestionadas, marco de Design del 20-10) ------------------------------------------------------------
 
     private static List<ClienteAutorizadoDto> Cartera(int n) =>
         Enumerable.Range(1, n)
@@ -331,21 +331,21 @@ public class SelectorClienteActivoTests : BunitContext
             .ToList();
 
     [Fact]
-    public async Task Con_catorce_empresas_no_hay_buscador()
+    public async Task Con_diez_empresas_no_hay_buscador()
     {
-        _lista = [Propio(), .. Cartera(14)];
+        _lista = [Propio(), .. Cartera(10)];
         var cut = Renderizar();
 
         await Abrir(cut);
 
         cut.FindAll(".selector-tenant-busqueda").Should().BeEmpty();
-        NombresDeLaLista(cut).Should().HaveCount(14);
+        NombresDeLaLista(cut).Should().HaveCount(10);
     }
 
     [Fact]
-    public async Task Con_quince_empresas_hay_buscador_que_filtra_sin_distinguir_tildes_ni_mayusculas()
+    public async Task Con_once_empresas_hay_buscador_que_filtra_sin_distinguir_tildes_ni_mayusculas()
     {
-        _lista = [Propio(), .. Cartera(15)];
+        _lista = [Propio(), .. Cartera(11)];
         var cut = Renderizar();
         await Abrir(cut);
 
@@ -358,13 +358,71 @@ public class SelectorClienteActivoTests : BunitContext
 
         await cut.Find(".selector-tenant-busqueda").InputAsync(new ChangeEventArgs { Value = "zzz" });
         NombresDeLaLista(cut).Should().BeEmpty();
-        cut.Find(".selector-tenant-vacio").TextContent.Should().Contain("Ninguna empresa coincide");
+        cut.Find(".selector-tenant-vacio").TextContent.Should().Be("Ninguna empresa coincide con «zzz»");
+    }
+
+    [Fact]
+    public async Task Con_58_empresas_gestionadas_el_titulo_las_cuenta_y_el_buscador_filtra_con_su_conteo()
+    {
+        _lista = [Propio(), .. Cartera(58)];
+        var cut = Renderizar();
+        await Abrir(cut);
+
+        cut.Find(".selector-tenant-cabecera-titulo").TextContent.Trim().Should().Be("Empresas gestionadas · 58");
+        cut.Find(".selector-tenant-busqueda").GetAttribute("aria-label").Should().Be("Buscar empresa gestionada");
+        cut.Find(".selector-tenant-ayuda").TextContent.Should().Contain("↑↓").And.Contain("Enter",
+            "sin texto, la línea de ayuda explica el teclado");
+        cut.Find("#selector-tenant-resto").TextContent.Trim().Should().Be("Todas las empresas");
+        NombresDeLaLista(cut).Should().HaveCount(58);
+
+        await cut.Find(".selector-tenant-busqueda").InputAsync(new ChangeEventArgs { Value = "empresa 5" });
+
+        // «Empresa 50»…«Empresa 58»: 9 de 58, en orden alfabético.
+        var nombres = NombresDeLaLista(cut);
+        nombres.Should().HaveCount(9);
+        nombres.Should().BeInAscendingOrder(StringComparer.CurrentCulture);
+        cut.Find(".selector-tenant-ayuda").TextContent.Should().Be("9 de 58 empresas");
+        cut.Find("#selector-tenant-resto").TextContent.Trim().Should().Be("Resultados");
+        cut.Find("[role=listbox][aria-labelledby=selector-tenant-resto]").Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Sin_resultados_el_estado_vacio_nombra_lo_buscado_y_no_ofrece_ninguna_empresa_gestionada()
+    {
+        _lista = [Propio(), .. Cartera(58)];
+        var cut = Renderizar();
+        await Abrir(cut);
+
+        await cut.Find(".selector-tenant-busqueda").InputAsync(new ChangeEventArgs { Value = "  zzz  " });
+
+        cut.Find(".selector-tenant-vacio").TextContent.Should().Be("Ninguna empresa coincide con «zzz»");
+        cut.Find(".selector-tenant-ayuda").TextContent.Should().Be("0 de 58 empresas");
+        cut.FindAll("#selector-tenant-resto").Should().BeEmpty("sin resultados no hay cabecera de lista");
+        cut.FindAll("[role=option]").Should().ContainSingle("solo queda «Tu organización», que siempre está fija")
+            .Which.TextContent.Should().Contain("Tu organización");
+    }
+
+    [Fact]
+    public async Task El_teclado_del_buscador_se_apoya_en_el_listener_delegado_y_en_opciones_de_envio()
+    {
+        // Las flechas y Intro viven en microinteracciones.js, delegadas sobre [data-selector-tenant]: el
+        // marcado ha de dejar al buscador dentro de ese contenedor, marcado, y a cada opción como botón de
+        // envío de un <form> con el token antiforgery (elegir = el mismo POST de siempre, nunca un @onchange).
+        _lista = [Propio(), .. Cartera(58)];
+        var cut = Renderizar();
+        await Abrir(cut);
+
+        var buscador = cut.Find("[data-selector-tenant] input[type=search][data-selector-tenant-buscador]");
+        buscador.Should().NotBeNull();
+        cut.FindAll(".selector-tenant-panel form button[type=submit][role=option]").Should().HaveCount(59,
+            "las 58 Empresas gestionadas y «Tu organización»");
+        cut.Find(".selector-tenant-panel form").GetAttribute("action").Should().Be("/cuenta/cliente-activo");
     }
 
     [Fact]
     public async Task El_buscador_va_fuera_del_formulario_para_que_Intro_no_envie_un_POST_sin_Tenant()
     {
-        _lista = [Propio(), .. Cartera(15)];
+        _lista = [Propio(), .. Cartera(11)];
         var cut = Renderizar();
         await Abrir(cut);
 
@@ -604,7 +662,7 @@ public class SelectorClienteActivoTests : BunitContext
         await AbrirConFijadas(cut);
 
         cut.WaitForAssertion(() => cut.Find("#selector-tenant-fijadas").TextContent.Trim().Should().Be("Fijadas"));
-        cut.Find("#selector-tenant-resto").TextContent.Trim().Should().Be("Resto de la cartera");
+        cut.Find("#selector-tenant-resto").TextContent.Trim().Should().Be("Resto de empresas");
         NombresDeLaLista(cut).Should().Equal("Empresa Sur", "Empresa Norte", "Empresa Este");
         var fijadas = cut.Find("[aria-labelledby=selector-tenant-fijadas]");
         fijadas.QuerySelector(".selector-tenant-atajo")!.TextContent.Trim().Should().Be("Alt 1");
@@ -643,7 +701,7 @@ public class SelectorClienteActivoTests : BunitContext
         var cut = Renderizar(seleccionado: Norte);
         await Abrir(cut);
         cut.FindAll("#selector-tenant-fijadas").Should().BeEmpty("sin fijadas no hay sección Fijadas");
-        cut.Find("#selector-tenant-resto").TextContent.Trim().Should().Be("Recientes",
+        cut.Find("#selector-tenant-resto").TextContent.Trim().Should().Be("Todas las empresas",
             "como en el marco de Design, sin fijadas la lista principal se titula «Recientes»");
 
         var estrellaDeSur = cut.Find("[role=option][value='" + Sur + "']").ParentElement!.QuerySelector(".selector-tenant-fijar")!;
@@ -720,7 +778,7 @@ public class SelectorClienteActivoTests : BunitContext
         solicitar.TextContent.Trim().Should().Be("+ Solicitar");
         solicitar.GetAttribute("href").Should().Be("/cartera/solicitudes");
         solicitar.GetAttribute("title").Should().Be("Solicitar acceso a otra empresa de la organización");
-        cut.Find(".selector-tenant-cabecera-titulo").TextContent.Trim().Should().StartWith("Mi cartera");
+        cut.Find(".selector-tenant-cabecera-titulo").TextContent.Trim().Should().StartWith("Empresas gestionadas");
     }
 
     [Fact]
@@ -736,7 +794,7 @@ public class SelectorClienteActivoTests : BunitContext
         // Norte (la activa) queda en la lista principal; fijando Norte también, la lista principal se vacía.
         await cut.Find("[role=option][value='" + Norte + "']").ParentElement!.QuerySelector(".selector-tenant-fijar")!.ClickAsync(new MouseEventArgs());
 
-        cut.FindAll("#selector-tenant-resto").Should().BeEmpty("sin filas no hay cabecera de «Resto de la cartera»");
+        cut.FindAll("#selector-tenant-resto").Should().BeEmpty("sin filas no hay cabecera de lista");
         cut.FindAll(".selector-tenant-vacio").Should().BeEmpty("«Sin resultados» solo tiene sentido al buscar");
     }
 

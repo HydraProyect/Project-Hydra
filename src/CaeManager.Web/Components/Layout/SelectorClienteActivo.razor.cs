@@ -32,9 +32,10 @@ public partial class SelectorClienteActivo
 {
     /// <summary>
     /// Desde cuántos Tenants la lista lleva buscador (contrato del selector,
-    /// decisión 7 ter): por debajo, el buscador es ruido.
+    /// decisión 7 ter): por debajo, el buscador es ruido. El marco de Design del
+    /// 20-10 (marco-talveg.js) lo pone con más de 10 Empresas gestionadas, es decir, desde 11.
     /// </summary>
-    public const int UmbralBusqueda = 15;
+    public const int UmbralBusqueda = 11;
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private IClienteActivoSeleccionado ClienteActivoSeleccionado { get; set; } = default!;
@@ -118,6 +119,11 @@ public partial class SelectorClienteActivo
 
     private bool Buscando => !string.IsNullOrWhiteSpace(_busqueda);
 
+    /// <summary>Línea bajo el buscador: cuántas Empresas gestionadas coinciden, o la ayuda de teclado si no hay texto.</summary>
+    private string AyudaDelBuscador => Buscando
+        ? Textos["SelectorTenantConteo", Filtrados.Count(), _totalCartera].Value
+        : Textos["SelectorTenantAyudaBuscar"].Value;
+
     private bool EsFijada(ClienteAutorizadoDto cliente) => _fijadas.Contains(cliente.TenantId);
 
     /// <summary>Tope de espera del contador: pasado, el selector sigue sin contador (nunca bloquea).</summary>
@@ -137,7 +143,8 @@ public partial class SelectorClienteActivo
     private IEnumerable<ClienteAutorizadoDto> Filtrados => string.IsNullOrWhiteSpace(_busqueda)
         ? _clientes!.Where(c => !c.EsOrigen && !Recientes.Contains(c) && !EsFijada(c))
         : _clientes!.Where(c => !c.EsOrigen && CultureInfo.CurrentCulture.CompareInfo.IndexOf(
-            c.Nombre, _busqueda.Trim(), CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0);
+                c.Nombre, _busqueda.Trim(), CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0)
+            .OrderBy(c => c.Nombre, StringComparer.CurrentCulture);
 
     /// <summary>
     /// Vuelve a la misma ruta SIN query: los filtros con Ids del Tenant anterior
@@ -173,10 +180,6 @@ public partial class SelectorClienteActivo
     /// <summary>URL versionada del logo del Tenant (§ 4.1.5), o <c>null</c> para pintar las iniciales.</summary>
     private static string? UrlLogo(ClienteAutorizadoDto cliente) =>
         CaeManager.Web.Components.DesignSystem.AvatarTenant.UrlDeLogo(cliente.TenantId, cliente.LogoVersion);
-
-    private string Empresas(int n) => n == 1
-        ? Textos["SelectorTenantEmpresasUna"].Value
-        : Textos["SelectorTenantEmpresasVarias", n].Value;
 
     private void Alternar()
     {

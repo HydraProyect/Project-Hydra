@@ -73,6 +73,20 @@ document.addEventListener('keydown', function (evento) {
     controles[siguiente].focus();
 });
 
+// Intro en el buscador del selector elige el primer resultado (marco de Design del 20-10): lo
+// pulsa como botón de envío, es decir, el mismo POST de siempre con su token antiforgery, que
+// el servidor revalida. Si el foco ya está en una opción (tras las flechas), Intro la envía solo.
+document.addEventListener('keydown', function (evento) {
+    if (evento.key !== 'Enter') return;
+    const buscador = evento.target.closest('[data-selector-tenant-buscador]');
+    if (!buscador) return;
+
+    evento.preventDefault();
+    const selector = buscador.closest('[data-selector-tenant]');
+    const primera = selector && selector.querySelector('button[type="submit"][role="option"]');
+    if (primera) primera.click();
+});
+
 // Las opciones de orden desaparecen tras elegir un campo. Devolver el foco
 // al botón nativo antes de retirar su control conserva el punto de teclado.
 function devolverFocoAlOrden(evento) {
