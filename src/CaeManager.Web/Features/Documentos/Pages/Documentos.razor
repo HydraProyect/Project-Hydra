@@ -283,7 +283,7 @@
                                             <tr @key="clavesFilas.De((documento.Id, true))" class="documentos-fila-hijos"><td colspan="@(7 + (_seleccionMultiple ? 1 : 0) + (HayDestinos ? 1 : 0))">
                                                 <div class="documentos-hijos" role="list" aria-label="@Textos["ListaDestino"]">
                                                     @{ var clavesDestinos = new ClavesDeHermanos(); }
-                                                    @foreach (var destino in documento.DestinosEnCentros)
+                                                    @foreach (var destino in VerRestantes.Recortar(documento.DestinosEnCentros, _destinosCompletos.Contains(documento.Id)))
                                                     {
                                                         <div class="documentos-hijo" role="listitem" @key="clavesDestinos.De((destino.CentroId, destino.PlataformaNombre))">
                                                             <a class="documentos-hijo-centro" href="@($"/centros/{destino.CentroId}")">@destino.CentroNombre</a>
@@ -293,6 +293,8 @@
                                                         </div>
                                                     }
                                                 </div>
+                                                <VerRestantes Total="documento.DestinosEnCentros.Count" Completa="_destinosCompletos.Contains(documento.Id)"
+                                                              OnVerRestantes="() => _destinosCompletos.Add(documento.Id)" />
                                             </td></tr>
                                         }
                                     }
