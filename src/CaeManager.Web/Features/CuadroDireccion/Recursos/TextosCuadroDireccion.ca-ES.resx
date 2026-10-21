@@ -651,6 +651,18 @@
   <data name="Cargando" xml:space="preserve">
     <value>Calculando…</value>
   </data>
+  <data name="CargaFaseEmpresas" xml:space="preserve">
+    <value>Reunint les dades de les Empreses gestionades…</value>
+  </data>
+  <data name="CargaFasePreparando" xml:space="preserve">
+    <value>Preparant el quadre…</value>
+  </data>
+  <data name="ExtranjerosError" xml:space="preserve">
+    <value>No hem pogut comptar els Treballadors estrangers. Torna-ho a provar.</value>
+  </data>
+  <data name="GestionesError" xml:space="preserve">
+    <value>No hem pogut calcular les gestions per dia. Torna-ho a provar.</value>
+  </data>
   <data name="EtiquetaMes" xml:space="preserve">
     <value>Mes</value>
   </data>

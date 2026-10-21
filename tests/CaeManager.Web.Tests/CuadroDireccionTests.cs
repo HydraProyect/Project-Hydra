@@ -76,8 +76,18 @@ public partial class CuadroDireccionTests : BunitContext
         public TaskCompletionSource<SerieCuadroDireccionDto>? SeriePendiente { get; init; }
         public TaskCompletionSource<ComunicacionesCuadroDireccionDto>? ComunicacionesPendientes { get; init; }
 
+        /// <summary>Si se fijan, el cuadro del mes y las gestiones por día responden cuando el test complete su tarea (pantalla de carga).</summary>
+        public TaskCompletionSource<CuadroDireccionDto>? CuadroPendiente { get; init; }
+        public TaskCompletionSource<GestionesPorDiaCuadroDireccionDto>? GestionesPendientes { get; init; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            if (request is ObtenerCuadroDireccionQuery && CuadroPendiente is { } cuadroPendiente)
+                return (Task<TResponse>)(object)cuadroPendiente.Task;
+
+            if (request is ObtenerGestionesPorDiaCuadroDireccionQuery && GestionesPendientes is { } gestionesPendientes)
+                return (Task<TResponse>)(object)gestionesPendientes.Task;
+
             if (request is ObtenerSerieCuadroDireccionQuery serieEnVuelo && SeriePendiente is { } seriePendiente)
             {
                 SeriesPedidas.Add(serieEnVuelo);

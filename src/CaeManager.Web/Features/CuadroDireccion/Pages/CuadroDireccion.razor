@@ -41,6 +41,13 @@
         </JuntoAlTitulo>
     </CabeceraPagina>
 
+    @* Barra de progreso simulada del borde superior y texto por fases: mientras algo sigue en vuelo, la directora ve que el
+       cuadro trabaja y no que se colgó. Se completa y se retira en cuanto llega o falla lo último (CargandoAlgo). Va superpuesta
+       sobre el margen superior de la pantalla (no ocupa sitio), para que al retirarse nada se mueva. *@
+    <div class="cuadro-progreso">
+        <ProgresoSimulado Activo="CargandoAlgo" Mensajes="MensajesCarga" />
+    </div>
+
     <div class="cuadro-barra">
         @* Periodo: un solo grupo ‹ [Mes 1 / Mes 6 / Año 3] › (maqueta). Los momentos llevan los meses reales; ‹ › recorren mes a mes. *@
         <div class="cuadro-periodo" role="group" aria-label="@Textos["EtiquetaMes"]">
@@ -113,7 +120,20 @@
     }
     else if (_cuadro is null)
     {
-        <EstadoCargando Filas="2" />
+        @* El hueco de lo que va a llegar (seis KPI y dos gráficas), con las mismas rejillas que el cuadro real para que al
+           llegar los datos nada se mueva. Oculto a los lectores de pantalla: lo anuncia la barra de la cabecera. *@
+        <div class="cuadro-carga" data-carga="cuadro" aria-busy="true">
+            <div class="cuadro-kpis" aria-hidden="true">
+                @foreach (var _ in Enumerable.Range(0, 6))
+                {
+                    <div class="cuadro-carga-kpi"><Esqueleto Forma="FormaEsqueleto.Metricas" Cantidad="1" /></div>
+                }
+            </div>
+            <div class="cuadro-carga-graficas" aria-hidden="true">
+                <div class="cuadro-bloque cuadro-ancha"><Esqueleto Forma="FormaEsqueleto.Grafica" Cantidad="1" Alto="280" /></div>
+                <div class="cuadro-bloque cuadro-ancha"><Esqueleto Forma="FormaEsqueleto.Grafica" Cantidad="1" Alto="280" /></div>
+            </div>
+        </div>
     }
     else if (_cuadro.SinCifras is { } motivo)
     {
@@ -191,16 +211,23 @@
                         case "k-fact":
                             <div class="cuadro-kpi" data-kpi="facturacion">
                                 <div class="cuadro-kpi-etiqueta">@Textos["KpiFacturacion"]</div>
-                                <div class="cuadro-kpi-valor">@(HayTarifas ? Importe(ImporteDe(PuntoActual)) : Textos["SinDato"].Value)</div>
+                                <div class="cuadro-kpi-valor">@if (_cargandoSerie) {<span class="cuadro-kpi-carga" aria-hidden="true"></span>} else {@(HayTarifas ? Importe(ImporteDe(PuntoActual)) : Textos["SinDato"].Value)}</div>
                                 <div class="cuadro-kpi-sub">@(HayTarifas ? (VariacionFacturacion is { } variacion ? Textos["KpiFacturacionSub", variacion].Value : Textos["KpiFacturacionSubSinPrevio"].Value) : _cargandoSerie ? Textos["Cargando"].Value : Textos["KpiFacturacionSinTarifas"].Value)</div>
-                                <GraficoSerie Compacto="true" Id="spark-facturacion" Linea="@Minigrafico(p => (double)ImporteDe(p))" TextoSinTendencia="@Textos["SinTendencia"]" />
+                                @if (_cargandoSerie)
+                                {
+                                    <span class="cuadro-kpi-spark-carga" aria-hidden="true"></span>
+                                }
+                                else
+                                {
+                                    <GraficoSerie Compacto="true" Id="spark-facturacion" Linea="@Minigrafico(p => (double)ImporteDe(p))" TextoSinTendencia="@Textos["SinTendencia"]" />
+                                }
                             </div>
                             break;
                         case "k-ext":
                             <div class="cuadro-kpi" data-kpi="extranjeros">
                                 <div class="cuadro-kpi-etiqueta">@Textos["KpiExtranjeros"]</div>
-                                <div class="cuadro-kpi-valor">@ValorExtranjeros</div>
-                                <div class="cuadro-kpi-sub">@Textos["KpiExtranjerosSub"]</div>
+                                <div class="cuadro-kpi-valor">@if (_cargandoExtranjeros) {<span class="cuadro-kpi-carga" aria-hidden="true"></span>} else {@ValorExtranjeros}</div>
+                                <div class="cuadro-kpi-sub">@(_errorExtranjeros ? Textos["ExtranjerosError"].Value : Textos["KpiExtranjerosSub"].Value)</div>
                             </div>
                             break;
                         case "k-trab":
@@ -208,7 +235,14 @@
                                 <div class="cuadro-kpi-etiqueta">@Textos["KpiTrabajadores"]</div>
                                 <div class="cuadro-kpi-valor">@Numero(c.TrabajadoresActivos.Valor)</div>
                                 <div class="cuadro-kpi-sub">@Textos["KpiTrabajadoresSub", Numero(c.AltasTrabajadores.Valor), Numero(c.BajasTrabajadores.Valor)]</div>
-                                <GraficoSerie Compacto="true" Id="spark-trabajadores" Linea="@Minigrafico(p => p.Cifras.TrabajadoresActivos.Valor)" TextoSinTendencia="@Textos["SinTendencia"]" />
+                                @if (_cargandoSerie)
+                                {
+                                    <span class="cuadro-kpi-spark-carga" aria-hidden="true"></span>
+                                }
+                                else
+                                {
+                                    <GraficoSerie Compacto="true" Id="spark-trabajadores" Linea="@Minigrafico(p => p.Cifras.TrabajadoresActivos.Valor)" TextoSinTendencia="@Textos["SinTendencia"]" />
+                                }
                             </div>
                             break;
                         case "k-centros":
@@ -216,7 +250,14 @@
                                 <div class="cuadro-kpi-etiqueta">@Textos["KpiCentros"]</div>
                                 <div class="cuadro-kpi-valor">@Numero(c.CentrosActivos.Valor)</div>
                                 <div class="cuadro-kpi-sub">@Textos["KpiCentrosSub", Numero(c.AltasCentros.Valor)]</div>
-                                <GraficoSerie Compacto="true" Id="spark-centros" Linea="@Minigrafico(p => p.Cifras.CentrosActivos.Valor)" TextoSinTendencia="@Textos["SinTendencia"]" />
+                                @if (_cargandoSerie)
+                                {
+                                    <span class="cuadro-kpi-spark-carga" aria-hidden="true"></span>
+                                }
+                                else
+                                {
+                                    <GraficoSerie Compacto="true" Id="spark-centros" Linea="@Minigrafico(p => p.Cifras.CentrosActivos.Valor)" TextoSinTendencia="@Textos["SinTendencia"]" />
+                                }
                             </div>
                             break;
                         case "k-revisar":
@@ -267,7 +308,14 @@
                                     }
                                     else if (PuntosSerie.Count == 0)
                                     {
-                                        <p class="cuadro-vacio">@TextoSerieSinPuntos</p>
+                                        @if (_cargandoSerie)
+                                        {
+                                            <EstadoDeBloque Texto="@TextoSerieSinPuntos" />
+                                        }
+                                        else
+                                        {
+                                            <p class="cuadro-vacio">@TextoSerieSinPuntos</p>
+                                        }
                                     }
                                     else
                                     {
@@ -291,7 +339,14 @@
                                     <p class="cuadro-nota">@Textos["RendimientoNota"]</p>
                                     @if (PuntosDispersion().Count == 0)
                                     {
-                                        <p class="cuadro-vacio">@(_cargandoSerie ? Textos["Cargando"].Value : Textos["FacturacionSinTarifas"].Value)</p>
+                                        @if (_cargandoSerie)
+                                        {
+                                            <EstadoDeBloque Texto="@Textos["Cargando"].Value" />
+                                        }
+                                        else
+                                        {
+                                            <p class="cuadro-vacio">@Textos["FacturacionSinTarifas"]</p>
+                                        }
                                     }
                                     else
                                     {
@@ -313,7 +368,14 @@
                                     }
                                     @if (pareto.Count == 0)
                                     {
-                                        <p class="cuadro-vacio">@(_cargandoSerie ? Textos["Cargando"].Value : Textos["FacturacionSinTarifas"].Value)</p>
+                                        @if (_cargandoSerie)
+                                        {
+                                            <EstadoDeBloque Texto="@Textos["Cargando"].Value" />
+                                        }
+                                        else
+                                        {
+                                            <p class="cuadro-vacio">@Textos["FacturacionSinTarifas"]</p>
+                                        }
                                     }
                                     else
                                     {
@@ -452,7 +514,14 @@
                                     }
                                     else if (franja is null)
                                     {
-                                        <p class="cuadro-vacio">@(_cargandoSerie ? Textos["Cargando"].Value : Textos["FranjaSinDatos"].Value)</p>
+                                        @if (_cargandoSerie)
+                                        {
+                                            <EstadoDeBloque Texto="@Textos["Cargando"].Value" Alto="120" />
+                                        }
+                                        else
+                                        {
+                                            <p class="cuadro-vacio">@Textos["FranjaSinDatos"]</p>
+                                        }
                                     }
                                     else
                                     {
@@ -486,7 +555,14 @@
                                     }
                                     else if (PuntosSerie.Count == 0)
                                     {
-                                        <p class="cuadro-vacio">@TextoSerieSinPuntos</p>
+                                        @if (_cargandoSerie)
+                                        {
+                                            <EstadoDeBloque Texto="@TextoSerieSinPuntos" />
+                                        }
+                                        else
+                                        {
+                                            <p class="cuadro-vacio">@TextoSerieSinPuntos</p>
+                                        }
                                     }
                                     else if (!UmbralAnonimatoCuadro.Cumple(null, SolicitudesPeriodo))
                                     {
@@ -543,7 +619,22 @@
                                     }
                                     @if (semanas.Count == 0)
                                     {
-                                        <p class="cuadro-vacio">@TextoSerieSinPuntos</p>
+                                        @if (_cargandoSerie)
+                                        {
+                                            <EstadoDeBloque Texto="@TextoSerieSinPuntos" />
+                                        }
+                                        else
+                                        {
+                                            <p class="cuadro-vacio">@TextoSerieSinPuntos</p>
+                                        }
+                                    }
+                                    else if (_cargandoGestiones)
+                                    {
+                                        <EstadoDeBloque Texto="@Textos["Cargando"].Value" />
+                                    }
+                                    else if (_errorGestiones)
+                                    {
+                                        <p class="cuadro-vacio">@Textos["GestionesError"]</p>
                                     }
                                     else if (maximoDia == 0)
                                     {
@@ -575,9 +666,13 @@
                                     @{
                                         var porMes = GestionesPorDiaSegunMes();
                                     }
-                                    @if (_cargandoAnual || _anual is null)
+                                    @if (_cargandoAnual || (_anual is null && !_errorAnual))
                                     {
-                                        <p class="cuadro-vacio">@Textos["Cargando"]</p>
+                                        <EstadoDeBloque Texto="@Textos["Cargando"].Value" />
+                                    }
+                                    else if (_anual is null)
+                                    {
+                                        <p class="cuadro-vacio">@Textos["SerieError"]</p>
                                     }
                                     else if (porMes.All(v => v is null))
                                     {
@@ -732,7 +827,14 @@
                                     <p class="cuadro-nota">@Textos["CmEstadosNota"]</p>
                                     @if (!HayComunicaciones)
                                     {
-                                        <p class="cuadro-vacio">@(_cargandoComunicaciones ? Textos["CmCargando"].Value : Textos["SerieError"].Value)</p>
+                                        @if (_cargandoComunicaciones)
+                                        {
+                                            <EstadoDeBloque Texto="@Textos["CmCargando"].Value" />
+                                        }
+                                        else
+                                        {
+                                            <p class="cuadro-vacio">@Textos["SerieError"]</p>
+                                        }
                                     }
                                     else if (!UmbralAnonimatoCuadro.Cumple(null, ConversacionesAbiertas))
                                     {
@@ -774,7 +876,14 @@
                                     <p class="cuadro-nota">@Textos["CmCanalNota"]</p>
                                     @if (!HayComunicaciones)
                                     {
-                                        <p class="cuadro-vacio">@(_cargandoComunicaciones ? Textos["CmCargando"].Value : Textos["SerieError"].Value)</p>
+                                        @if (_cargandoComunicaciones)
+                                        {
+                                            <EstadoDeBloque Texto="@Textos["CmCargando"].Value" />
+                                        }
+                                        else
+                                        {
+                                            <p class="cuadro-vacio">@Textos["SerieError"]</p>
+                                        }
                                     }
                                     else if (!UmbralAnonimatoCuadro.Cumple(null, SolicitudesPorCanal))
                                     {
@@ -814,9 +923,13 @@
                         case "cmp-linea":
                             <div class="cuadro-bloque cuadro-ancha" data-tarjeta="cmp-linea">
                                 <Tarjeta Titulo="@Textos["CmpLineaTitulo"]" Class="cuadro-tarjeta">
-                                    @if (_cargandoAnualFacturacion || _anualFacturacion is null)
+                                    @if (_cargandoAnualFacturacion || (_anualFacturacion is null && !_errorAnualFacturacion))
                                     {
-                                        <p class="cuadro-vacio">@Textos["CmpCargando"]</p>
+                                        <EstadoDeBloque Texto="@Textos["CmpCargando"].Value" />
+                                    }
+                                    else if (_anualFacturacion is null)
+                                    {
+                                        <p class="cuadro-vacio">@Textos["SerieError"]</p>
                                     }
                                     else
                                     {
@@ -850,9 +963,13 @@
                                     </AccionesHeader>
                                     <ChildContent>
                                     <p class="cuadro-nota">@Textos["CmpTablaNota"]</p>
-                                    @if (_cargandoAnualFacturacion || _anualFacturacion is null)
+                                    @if (_cargandoAnualFacturacion || (_anualFacturacion is null && !_errorAnualFacturacion))
                                     {
-                                        <p class="cuadro-vacio">@Textos["CmpCargando"]</p>
+                                        <EstadoDeBloque Texto="@Textos["CmpCargando"].Value" />
+                                    }
+                                    else if (_anualFacturacion is null)
+                                    {
+                                        <p class="cuadro-vacio">@Textos["SerieError"]</p>
                                     }
                                     else if (!HayAcumuladoComparable)
                                     {
