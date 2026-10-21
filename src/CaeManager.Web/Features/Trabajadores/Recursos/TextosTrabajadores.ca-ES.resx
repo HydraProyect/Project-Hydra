@@ -717,7 +717,11 @@
   <data name="FichaCopiarBajaEmpresa" xml:space="preserve"><value>la data de baixa a l’empresa</value></data>
   <data name="FichaCopiarCaducidadPermiso" xml:space="preserve"><value>la caducitat del permís de treball</value></data>
   <data name="FichaRotuloDni" xml:space="preserve"><value>DNI</value></data>
+  <data name="FichaRotuloNie" xml:space="preserve"><value>NIE</value></data>
+  <data name="FichaRotuloPasaporte" xml:space="preserve"><value>Passaport</value></data>
   <data name="FichaCopiarDni" xml:space="preserve"><value>el DNI</value></data>
+  <data name="FichaCopiarNie" xml:space="preserve"><value>el NIE</value></data>
+  <data name="FichaCopiarPasaporte" xml:space="preserve"><value>el passaport</value></data>
   <data name="FichaCopiarTelefono" xml:space="preserve"><value>el telèfon</value></data>
   <data name="FichaContactoEmergencia" xml:space="preserve"><value>Contacte d'emergència</value></data>
   <data name="FichaTelefonoEmergencia" xml:space="preserve"><value>Telèfon d'emergència</value></data>
@@ -790,7 +794,7 @@
     <value>Document actual</value>
   </data>
   <data name="PestanaPlataformas" xml:space="preserve"><value>Plataformes</value></data>
-  <data name="PlataformasDescripcion" xml:space="preserve"><value>Estat de la documentació a les plataformes de cada Client.</value></data>
+  <data name="PlataformasDescripcion" xml:space="preserve"><value>Estat de la seva documentació a la plataforma CAE de cada Client, per Centre.</value></data>
   <data name="PlataformasEstadoAceptada" xml:space="preserve"><value>Validat</value></data>
   <data name="PlataformasEstadoPendienteDeSubir" xml:space="preserve"><value>Pendent de pujar</value></data>
   <data name="PlataformasEstadoRechazada" xml:space="preserve"><value>Rebutjat</value></data>

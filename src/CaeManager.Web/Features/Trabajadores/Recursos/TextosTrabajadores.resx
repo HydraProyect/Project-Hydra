@@ -717,7 +717,11 @@
   <data name="FichaCopiarBajaEmpresa" xml:space="preserve"><value>la fecha de baja en la empresa</value></data>
   <data name="FichaCopiarCaducidadPermiso" xml:space="preserve"><value>la caducidad del permiso de trabajo</value></data>
   <data name="FichaRotuloDni" xml:space="preserve"><value>DNI</value></data>
+  <data name="FichaRotuloNie" xml:space="preserve"><value>NIE</value></data>
+  <data name="FichaRotuloPasaporte" xml:space="preserve"><value>Pasaporte</value></data>
   <data name="FichaCopiarDni" xml:space="preserve"><value>el DNI</value></data>
+  <data name="FichaCopiarNie" xml:space="preserve"><value>el NIE</value></data>
+  <data name="FichaCopiarPasaporte" xml:space="preserve"><value>el pasaporte</value></data>
   <data name="FichaCopiarTelefono" xml:space="preserve"><value>el teléfono</value></data>
   <data name="FichaContactoEmergencia" xml:space="preserve"><value>Contacto de emergencia</value></data>
   <data name="FichaTelefonoEmergencia" xml:space="preserve"><value>Teléfono de emergencia</value></data>
@@ -790,7 +794,7 @@
     <value>Documento actual</value>
   </data>
   <data name="PestanaPlataformas" xml:space="preserve"><value>Plataformas</value></data>
-  <data name="PlataformasDescripcion" xml:space="preserve"><value>Estado de la documentación en las plataformas de cada Cliente.</value></data>
+  <data name="PlataformasDescripcion" xml:space="preserve"><value>Estado de su documentación en la plataforma CAE de cada Cliente, por Centro.</value></data>
   <data name="PlataformasEstadoAceptada" xml:space="preserve"><value>Validado</value></data>
   <data name="PlataformasEstadoPendienteDeSubir" xml:space="preserve"><value>Pendiente de subir</value></data>
   <data name="PlataformasEstadoRechazada" xml:space="preserve"><value>Rechazado</value></data>

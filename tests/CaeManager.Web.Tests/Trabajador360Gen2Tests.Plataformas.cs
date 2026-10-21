@@ -47,6 +47,14 @@ public partial class Trabajador360Gen2Tests
     }
 
     [Fact]
+    public void Plataformas_se_presenta_con_el_texto_de_la_maqueta_del_20_10()
+    {
+        var cut = Render<PlataformasTrabajador>();
+        cut.Find(".plataformas-filtros p").TextContent
+            .Should().Be("Estado de su documentación en la plataforma CAE de cada Cliente, por Centro.");
+    }
+
+    [Fact]
     public void Plataformas_sin_datos_no_afirma_que_todo_esta_validado()
     {
         var cut = Render<PlataformasTrabajador>();
