@@ -15,6 +15,9 @@
 #      a pasarse con `-e VAR=valor` ni como argumento de `--data-urlencode`.
 #      El comportamiento real (que no salga en `ps`) solo se comprobaría con Docker
 #      y una app arrancada; esto solo impide reintroducir la forma que lo causó.
+#  (5) trinquete estático (P1-F3 cerrada): la bandera de claves sin cifrar se
+#      emite una sola vez y solo en la rama SIN --certificado-dp; con certificado
+#      el ensayo arranca como los compose desplegados, sin ella.
 #
 # Ejecutable a mano: bash scripts/ensayo-restauracion-borg.tests.sh
 set -uo pipefail
@@ -77,6 +80,10 @@ echo "== trinquete estático: la contraseña de login no va en argv"
 comprobar "sin docker exec -e ...CLAVE...=valor" '! grep -nE -- "-e +[A-Za-z_]*CLAVE[A-Za-z_]*=" "$SCRIPT"'
 comprobar "sin --data-urlencode Entrada.Password=valor" '! grep -nE -- "--data-urlencode +\"Entrada\.Password=" "$SCRIPT"'
 comprobar "la contraseña entra por stdin (Entrada.Password@-)" 'grep -q "Entrada\.Password@-" "$SCRIPT"'
+
+echo "== trinquete estático: con --certificado-dp, sin bandera de claves en claro"
+comprobar "la bandera se emite una sola vez" '[ "$(grep -c "^[^#]*PermitirClavesSinCifrar" "$SCRIPT")" -eq 1 ]'
+comprobar "y justo tras el else de la rama con certificado" 'grep -B1 "^[^#]*PermitirClavesSinCifrar" "$SCRIPT" | head -1 | grep -qx " *else"'
 
 echo ""
 echo "$PRUEBAS comprobaciones, $FALLOS fallo(s)"
