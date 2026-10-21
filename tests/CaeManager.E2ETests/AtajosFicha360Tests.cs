@@ -6,7 +6,7 @@ namespace CaeManager.E2ETests;
 /// Capa de teclado de las fichas 360 (<c>atajos-ficha.js</c>) sobre una ficha real, Subcontrata
 /// 360: no hay componente ni C# de por medio, así que solo un navegador puede probar que las
 /// teclas llegan al control que el usuario tiene delante. Un único recorrido encadenado:
-/// 1–9 cambian de pestaña, j/k recorren las filas, Alt enseña las pistas (las cifras sobre las
+/// 1–9 cambian de pestaña (la 3 es Plataformas, la de las filas con botón), j/k recorren las filas, Alt enseña las pistas (las cifras sobre las
 /// pestañas y E sobre el botón de la fila enfocada), «e» pulsa ese botón, y con el diálogo que
 /// abre ninguna tecla de ficha actúa.
 /// </summary>
@@ -41,10 +41,10 @@ public class AtajosFicha360Tests(WebAppFixture fixture)
         var encontrada = false;
         foreach (var ruta in rutas)
         {
-            await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}{ruta}?pestana=supervision");
+            await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}{ruta}?pestana=plataformas");
             await Assertions.Expect(page.Locator("[data-atajos-ficha]")).ToBeVisibleAsync(new() { Timeout = 30_000 });
             // La pestaña carga su lista por el circuito: se da margen a que pinte alguna fila.
-            try { await EsperarAsync(page, $"{PestanaActiva} === 1 && {FilaConBoton} >= 0", 5_000); }
+            try { await EsperarAsync(page, $"{PestanaActiva} === 2 && {FilaConBoton} >= 0", 5_000); }
             catch (TimeoutException) { continue; }
             encontrada = true;
             break;
@@ -54,8 +54,8 @@ public class AtajosFicha360Tests(WebAppFixture fixture)
         // --- 1–9 cambian de pestaña (la lista de pestañas es hermana del cuerpo de la ficha). ---
         await page.Keyboard.PressAsync("1");
         await EsperarAsync(page, $"{PestanaActiva} === 0");
-        await page.Keyboard.PressAsync("2");
-        await EsperarAsync(page, $"{PestanaActiva} === 1");
+        await page.Keyboard.PressAsync("3");
+        await EsperarAsync(page, $"{PestanaActiva} === 2");
         await EsperarAsync(page, $"{FilaConBoton} >= 0");
 
         // --- j/k recorren las filas; sin fila enfocada, la primera. La fila recibe el foco real. ---
@@ -80,7 +80,7 @@ public class AtajosFicha360Tests(WebAppFixture fixture)
         await page.Keyboard.PressAsync("Alt");
         await Assertions.Expect(html).ToHaveAttributeAsync("data-keytips", "raiz");
         var pintadas = (await page.Locator(".keytip").AllTextContentsAsync()).Select(l => l.Trim()).ToList();
-        foreach (var pista in new[] { "1", "2", "E" })
+        foreach (var pista in new[] { "1", "2", "3", "E" })
             Assert.Single(pintadas, l => l == pista);
         await page.Keyboard.PressAsync("Escape");
         await Assertions.Expect(page.Locator(".keytip")).ToHaveCountAsync(0);
@@ -95,7 +95,7 @@ public class AtajosFicha360Tests(WebAppFixture fixture)
         await page.Keyboard.PressAsync("1");
         await page.Keyboard.PressAsync("k");
         await Assertions.Expect(dialogo).ToBeVisibleAsync();
-        Assert.Equal(1, await page.EvaluateAsync<int>($"() => {PestanaActiva}"));
+        Assert.Equal(2, await page.EvaluateAsync<int>($"() => {PestanaActiva}"));
         Assert.Equal(indiceConBoton, await page.EvaluateAsync<int>($"() => {FilaEnfocada}"));
     }
 
