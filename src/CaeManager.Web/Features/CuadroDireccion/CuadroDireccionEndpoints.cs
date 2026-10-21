@@ -24,10 +24,12 @@ public static class CuadroDireccionEndpoints
 
     public static IEndpointRouteBuilder MapCuadroDireccionEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        // Los mismos roles que la página /direccion (su [Authorize]); la consulta vuelve a exigir
-        // AutorizacionCuadroDireccion, que es la regla, para que ninguna otra puerta la salte.
+        // Los mismos roles que leen la página /direccion, pero sin la Sesión Privilegiada: el libro es un volcado masivo de
+        // documentos de identidad (DNI y pasaportes) de un mes entero, y que la lectura de acceso total del Actor de
+        // Plataforma TALVEG incluya exportarlo no está decidido. La consulta vuelve a exigir AutorizacionCuadroDireccion,
+        // que es la regla, para que ninguna otra puerta la salte.
         endpoints.MapGet(RutaExtranjerosDelMes, ExportarExtranjerosDelMesAsync)
-            .RequireAuthorization(politica => politica.RequireRole(Roles.DireccionCae, Roles.CoordinadorCae));
+            .RequireAuthorization(politica => politica.RequireRole(Roles.DireccionCae, Roles.CoordinadorCae, Roles.Administrador));
 
         return endpoints;
     }

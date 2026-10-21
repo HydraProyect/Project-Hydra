@@ -47,8 +47,9 @@ public class MiTrabajoGen2Tests(WebAppFixture fixture)
     /// emita ese formulario lo fijan los tests bUnit de Mi trabajo Gen2. Aquí no
     /// se pulsa una fila real porque la siembra E2E no tiene ningún Gestor CAE
     /// con cartera en varias organizaciones: el Administrador opera las
-    /// delegadas con alcance cero por diseño (AlcanceRolesTests), y la siembra
-    /// de Dirección, que sí lo tiene, está apagada en E2E a propósito.
+    /// delegadas con su rol de origen y sin cartera (regla del 2026-10-20, ver
+    /// AlcanceRolesTests), no como Gestor CAE con cartera, y la siembra de
+    /// Dirección, que sí la tiene, está apagada en E2E a propósito.
     /// </summary>
     [Fact]
     public async Task El_POST_cross_Tenant_con_returnUrl_profundo_aterriza_en_esa_pantalla_con_la_organizacion_activa()

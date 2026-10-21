@@ -155,7 +155,7 @@ public class EmpresasGestionadasDeFacturacionBajoRlsTests : IAsyncLifetime
     {
         await using var scope = _arnes.Servicios.CreateAsyncScope();
         var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-        return await new ObtenerEmpresasGestionadasDelMesQueryHandler(_sesion, contexto)
+        return await new ObtenerEmpresasGestionadasDelMesQueryHandler(_sesion, contexto, new SinAccesoTotal())
             .Handle(new ObtenerEmpresasGestionadasDelMesQuery(anyo, mes), CancellationToken.None);
     }
 
@@ -206,5 +206,12 @@ public class EmpresasGestionadasDeFacturacionBajoRlsTests : IAsyncLifetime
         public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult(Rol);
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(TenantOrigenId);
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+
+    /// <summary>Sin Sesión Privilegiada: aquí se entra siempre por rol de negocio.</summary>
+    private sealed class SinAccesoTotal : IPoliticaNotaInterna
+    {
+        public Task<bool> PuedeLeerAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
+        public Task<bool> TieneAccesoTotalAlTenantAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
     }
 }

@@ -408,6 +408,12 @@ builder.Services.AddAuthorization(options =>
         .AddRequirements(new CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotal(
             CaeManager.Web.Services.Autorizacion.PoliticasFichas360.RolesProyectoYVisita)));
 
+    // Cuadro de dirección: Dirección CAE, Coordinador CAE y Administrador por rol, o Sesión Privilegiada de acceso total.
+    options.AddPolicy(CaeManager.Web.Services.Autorizacion.PoliticaCuadroDireccion.Nombre, policy => policy
+        .RequireAuthenticatedUser()
+        .AddRequirements(new CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotal(
+            CaeManager.Web.Services.Autorizacion.PoliticaCuadroDireccion.Roles)));
+
     // Solo el esquema ApiKey — sin esto, el FallbackPolicy (que no fija
     // esquema) aceptaría también la cookie de Identity, y un usuario con
     // sesión de navegador podría llamar a /api/v1 sin clave.

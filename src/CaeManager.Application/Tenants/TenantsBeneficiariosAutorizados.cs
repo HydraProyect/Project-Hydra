@@ -41,10 +41,14 @@ public sealed class AsignacionHeredadaVigente
 /// <list type="number">
 /// <item><b>Tenant de origen</b>: siempre autorizado sobre sí mismo (lo decide
 /// cada llamante comparando con el Tenant de origen; no necesita consulta).</item>
-/// <item><b>Operación</b> (<see cref="CarterasPorOperacion"/>): Asignación de
-/// Cartera vigente del usuario bajo una Asignación de Operación vigente, no raíz,
-/// cuyo Operador CAE es el Tenant de origen del usuario y cuyo Tenant propietario
-/// es otro.</item>
+/// <item><b>Operación</b> (<see cref="OperacionesQueAutorizan"/>): una Asignación de
+/// Operación vigente, no raíz, cuyo Operador CAE es el Tenant de origen del usuario y
+/// cuyo Tenant propietario es otro. Qué más hace falta lo decide el perfil del usuario
+/// en su Tenant de origen (decisión Chris 2026-10-20): Administrador, Dirección CAE,
+/// Coordinador CAE y Consulta entran por la operación de su organización, sin
+/// Asignación de Cartera, si la operación es del Tenant entero; el Gestor CAE sigue
+/// necesitando su Asignación de Cartera vigente bajo ella
+/// (<see cref="CarterasPorOperacion"/>). Cualquier otro perfil, o ninguno, no entra.</item>
 /// <item><b>Delegación heredada</b> (<see cref="AsignacionesHeredadasVigentes"/>): la del
 /// acceso de soporte, hasta que se retire.</item>
 /// </list>
@@ -107,24 +111,118 @@ public static class TenantsBeneficiariosAutorizados
         select new AsignacionHeredadaVigente { Asignacion = asignacion, Concesion = delegacion };
 
     /// <summary>
+    /// Perfiles que, en su Tenant de origen, abren los Tenants beneficiarios que su
+    /// organización opera <b>sin Asignación de Cartera</b> (decisión Chris 2026-10-20):
+    /// basta la Asignación de Operación vigente del Tenant entero. Códigos de
+    /// <c>Roles</c> repetidos a propósito: Application no referencia Infrastructure.Identity.
+    /// </summary>
+    public static readonly IReadOnlyList<string> RolesConAccesoPorOperacion =
+        ["Administrador", "DireccionCae", "CoordinadorCae", "Consulta"];
+
+    /// <summary>El único perfil que sigue acotado por su Asignación de Cartera.</summary>
+    public const string RolAcotadoPorCartera = "GestorCae";
+
+    /// <summary>
+    /// Las Asignaciones de Operación vigentes, externas y no raíz de la organización del
+    /// usuario (Operador CAE = su Tenant de origen) sobre otro Tenant, <b>del Tenant
+    /// entero</b>: sin ninguna dimensión de ámbito. Una operación acotada no se abre sin
+    /// cartera, porque los perfiles que entran por aquí tienen alcance de Tenant entero y
+    /// ese alcance excedería el de la operación: fallo cerrado.
+    /// </summary>
+    public static IQueryable<AsignacionOperacion> OperacionesDelTenantEnteroDeLaOrganizacion(
+        IOperacionesQueryContext operaciones, Guid tenantOrigenId, DateTime ahora) =>
+        operaciones.AsignacionesOperacion.Where(operacion =>
+            !operacion.EsRaiz
+            && operacion.OperadorTenantId == tenantOrigenId
+            && operacion.PropietarioTenantId != tenantOrigenId
+            && operacion.Estado == EstadoAsignacion.Vigente
+            && operacion.VigenciaDesde <= ahora
+            && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
+            && operacion.AmbitoRelacionClienteId == null
+            && operacion.AmbitoCentroId == null
+            && operacion.AmbitoTrabajadorId == null
+            && operacion.AmbitoProyectoId == null);
+
+    /// <summary>
+    /// Las Asignaciones de Operación por las que este usuario puede abrir un Tenant
+    /// beneficiario, según su perfil en el Tenant de origen (<paramref name="rolDeOrigen"/>,
+    /// el rol de la sesión en origen, nunca el ya sustituido por el del Tenant operado):
+    /// <list type="bullet">
+    /// <item><see cref="RolesConAccesoPorOperacion"/>: las del Tenant entero de su
+    /// organización, sin cartera.</item>
+    /// <item><see cref="RolAcotadoPorCartera"/>: solo aquellas bajo las que tiene
+    /// Asignación de Cartera vigente.</item>
+    /// <item>Cualquier otro perfil, o ninguno: ninguna (fallo cerrado).</item>
+    /// </list>
+    /// </summary>
+    public static IQueryable<AsignacionOperacion> OperacionesQueAutorizan(
+        IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, string? rolDeOrigen,
+        DateTime ahora)
+    {
+        if (rolDeOrigen is not null && RolesConAccesoPorOperacion.Contains(rolDeOrigen))
+            return OperacionesDelTenantEnteroDeLaOrganizacion(operaciones, tenantOrigenId, ahora);
+
+        if (rolDeOrigen == RolAcotadoPorCartera)
+            return CarterasPorOperacion(operaciones, usuarioId, tenantOrigenId, ahora).Select(v => v.Operacion);
+
+        return operaciones.AsignacionesOperacion.Where(_ => false);
+    }
+
+    /// <summary>
     /// La Asignación de Operación por la que el usuario puede abrir
     /// <paramref name="tenantId"/>, o <c>null</c>. Determinista (REC-136): si
     /// varias autorizan, la vigente más reciente y, a igualdad, la de menor Id.
     /// </summary>
     public static Task<Guid?> OperacionQueAutorizaAsync(
         IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
-        DateTime ahora, CancellationToken cancellationToken) =>
-        CarterasPorOperacion(operaciones, usuarioId, tenantOrigenId, ahora)
-            .Where(v => v.Operacion.PropietarioTenantId == tenantId)
-            .OrderByDescending(v => v.Operacion.VigenciaDesde)
-            .ThenBy(v => v.Operacion.Id)
-            .Select(v => (Guid?)v.Operacion.Id)
+        string? rolDeOrigen, DateTime ahora, CancellationToken cancellationToken) =>
+        OperacionesQueAutorizan(operaciones, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
+            .Where(o => o.PropietarioTenantId == tenantId)
+            .OrderByDescending(o => o.VigenciaDesde)
+            .ThenBy(o => o.Id)
+            .Select(o => (Guid?)o.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
-    /// <summary>Roles que una cartera EXTERNA puede aportar como rol efectivo en el Tenant propietario.</summary>
+    /// <summary>
+    /// <b>El rol efectivo en un Tenant beneficiario delegado</b> por la vía de Operación
+    /// (decisión Chris 2026-10-20): es el perfil del usuario en su Tenant de origen
+    /// (<paramref name="rolDeOrigen"/>), con todos sus poderes —también los de Propiedad—,
+    /// siempre que <paramref name="asignacionOperacionId"/> le siga autorizando ese Tenant
+    /// por <see cref="OperacionesQueAutorizan"/>. Si no, <c>null</c> (fallo cerrado).
+    ///
+    /// <para>
+    /// El rol guardado en la Asignación de Cartera ya no decide: la cartera solo da acceso
+    /// (al Gestor CAE) y alcance (<c>AlcanceDatosService</c>). Deroga la regla del
+    /// 2026-09-23 («la Operación nunca concede roles de Propiedad») y el techo por Encargo
+    /// de administración de ADR-011 § 2.7.7; el encargo queda sin efecto práctico en el
+    /// rol (deuda: sus tablas, comandos y políticas siguen, sin consumidor en el rol).
+    /// </para>
+    ///
+    /// <para>
+    /// El alcance lo decide <paramref name="rolDeOrigen"/> (el perfil de origen) y el rol
+    /// devuelto es <paramref name="rolDeSesionEnOrigen"/>. Coinciden salvo en una sesión
+    /// limitada a Consulta por login local: ahí el perfil anterior a la restricción decide el
+    /// alcance (un Gestor CAE sigue acotado por cartera) y el rol sigue siendo Consulta.
+    /// </para>
+    /// </summary>
+    public static async Task<string?> RolEnTenantDelegadoAsync(
+        IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
+        Guid asignacionOperacionId, string? rolDeOrigen, string? rolDeSesionEnOrigen, DateTime ahora,
+        CancellationToken cancellationToken) =>
+        await SigueAutorizadoPorOperacionAsync(
+            operaciones, usuarioId, tenantOrigenId, tenantId, asignacionOperacionId, rolDeOrigen, ahora,
+            cancellationToken)
+            ? rolDeSesionEnOrigen
+            : null;
+
+    /// <summary>Roles que una cartera EXTERNA puede guardar (ya no deciden el rol efectivo).</summary>
     public static readonly IReadOnlyList<string> RolesDelegablesPorOperacion = ["CoordinadorCae", "GestorCae", "Consulta"];
 
     /// <summary>
+    /// <b>Deuda (decisión Chris 2026-10-20):</b> el rol guardado en la cartera ya no es el rol
+    /// efectivo (ver <see cref="RolEnTenantDelegadoAsync"/>); solo lo usa
+    /// <see cref="TechoDeRolPorEncargo"/>, que se quedó sin consumidor en producción.
+    ///
     /// UNA sola definición del <b>rol de cartera</b> por la vía de Operación, para la
     /// operación ya elegida (<see cref="OperacionQueAutorizaAsync"/> o la del token):
     /// el par (operación, usuario) NO es único (los índices solo garantizan una universal
@@ -195,10 +293,9 @@ public static class TenantsBeneficiariosAutorizados
     /// </summary>
     public static Task<bool> SigueAutorizadoPorOperacionAsync(
         IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
-        Guid asignacionOperacionId, DateTime ahora, CancellationToken cancellationToken) =>
-        CarterasPorOperacion(operaciones, usuarioId, tenantOrigenId, ahora)
-            .AnyAsync(v => v.Operacion.Id == asignacionOperacionId
-                           && v.Operacion.PropietarioTenantId == tenantId,
+        Guid asignacionOperacionId, string? rolDeOrigen, DateTime ahora, CancellationToken cancellationToken) =>
+        OperacionesQueAutorizan(operaciones, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
+            .AnyAsync(o => o.Id == asignacionOperacionId && o.PropietarioTenantId == tenantId,
                 cancellationToken);
 
     /// <summary>La vía heredada autoriza <paramref name="tenantId"/> a este usuario.</summary>
@@ -216,10 +313,10 @@ public static class TenantsBeneficiariosAutorizados
     /// </summary>
     public static async Task<bool> EstaAutorizadoAsync(
         IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid usuarioId,
-        Guid tenantOrigenId, Guid tenantId, DateTime ahora, CancellationToken cancellationToken) =>
+        Guid tenantOrigenId, Guid tenantId, string? rolDeOrigen, DateTime ahora, CancellationToken cancellationToken) =>
         tenantId == tenantOrigenId
         || await OperacionQueAutorizaAsync(
-            operaciones, usuarioId, tenantOrigenId, tenantId, ahora, cancellationToken) is not null
+            operaciones, usuarioId, tenantOrigenId, tenantId, rolDeOrigen, ahora, cancellationToken) is not null
         || await AutorizadoPorViaHeredadaAsync(tenants, usuarioId, tenantId, ahora, cancellationToken);
 
     /// <summary>

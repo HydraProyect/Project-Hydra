@@ -460,11 +460,12 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
 
         // El Coordinador CAE relevado abre el Tenant con rol de Coordinador CAE…
         (await Abre(_coordinador, Roles.CoordinadorCae, _operador.Id, _beneficiario.Id)).Should().Be((true, Roles.CoordinadorCae));
-        // …y no lo abren ni otro Coordinador CAE del mismo Operador CAE ni el de otro Operador CAE.
-        (await Abre(_otroCoordinador, Roles.CoordinadorCae, _operador.Id, _beneficiario.Id)).Should().Be((false, null));
+        // …como lo abre, sin cartera, cualquier Coordinador CAE de su Operador CAE (decisión Chris
+        // 2026-10-20: la Asignación de Operación del Tenant entero basta), también donde no hubo relevo…
+        (await Abre(_otroCoordinador, Roles.CoordinadorCae, _operador.Id, _beneficiario.Id)).Should().Be((true, Roles.CoordinadorCae));
+        (await Abre(_coordinador, Roles.CoordinadorCae, _operador.Id, _beneficiarioSinPrincipal.Id)).Should().Be((true, Roles.CoordinadorCae));
+        // …pero no el de otro Operador CAE.
         (await Abre(_coordinadorAjeno, Roles.CoordinadorCae, _otroOperador.Id, _beneficiario.Id)).Should().Be((false, null));
-        // Ni él mismo el Tenant en el que no hubo relevo.
-        (await Abre(_coordinador, Roles.CoordinadorCae, _operador.Id, _beneficiarioSinPrincipal.Id)).Should().Be((false, null));
     }
 
     [Fact]
@@ -530,8 +531,8 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
     [Fact]
     public async Task Quien_asume_recibe_una_cartera_de_Coordinador_CAE_con_el_Tenant_propietario_como_ambito_y_abre_el_Tenant()
     {
-        (await Abre(_direccion, Roles.DireccionCae, _operador.Id, _beneficiarioSinNadie.Id)).Should().Be((false, null),
-            "premisa: sin cartera vigente, alcance cero, aunque sea Dirección CAE de su Operador CAE");
+        (await Abre(_direccion, Roles.DireccionCae, _operador.Id, _beneficiarioSinNadie.Id)).Should().Be((true, Roles.DireccionCae),
+            "decisión Chris 2026-10-20: Dirección CAE abre sin cartera los Tenants de la operación de su organización");
 
         var resultado = await Asumir(_direccion, Roles.DireccionCae, _operador.Id, _operacionSinNadie);
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
@@ -552,10 +553,11 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
             (await RolesDeAsync(propietario, _direccion)).Should().Equal([Roles.DireccionCae], "su rol en su organización no cambia");
         }
 
-        (await Abre(_direccion, Roles.DireccionCae, _operador.Id, _beneficiarioSinNadie.Id)).Should().Be((true, Roles.CoordinadorCae));
-        // No abre nada más, ni lo abre nadie más.
-        (await Abre(_direccion, Roles.DireccionCae, _operador.Id, _beneficiarioSinPrincipal.Id)).Should().Be((false, null));
-        (await Abre(_coordinador, Roles.CoordinadorCae, _operador.Id, _beneficiarioSinNadie.Id)).Should().Be((false, null));
+        // El rol efectivo sigue siendo su perfil de origen: el de la cartera ya no decide.
+        (await Abre(_direccion, Roles.DireccionCae, _operador.Id, _beneficiarioSinNadie.Id)).Should().Be((true, Roles.DireccionCae));
+        (await Abre(_direccion, Roles.DireccionCae, _operador.Id, _beneficiarioSinPrincipal.Id)).Should().Be((true, Roles.DireccionCae));
+        (await Abre(_coordinador, Roles.CoordinadorCae, _operador.Id, _beneficiarioSinNadie.Id)).Should().Be((true, Roles.CoordinadorCae));
+        // El Administrador de otro Operador CAE no lo abre.
         (await Abre(_administradorAjeno, Roles.Administrador, _otroOperador.Id, _beneficiarioSinNadie.Id)).Should().Be((false, null));
 
         (await Alerta(_direccion, Roles.DireccionCae, _operador.Id)).Operaciones
@@ -660,8 +662,9 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
         emitida.Should().Match<AsignacionCartera>(c => c.UsuarioId == _administradorUnipersonal && c.EsPrincipal
             && c.Rol == Roles.CoordinadorCae && c.PropietarioTenantId == _beneficiarioDelUnipersonal.Id
             && c.OperadorTenantId == _operadorUnipersonal.Id && c.Estado == EstadoAsignacion.Vigente);
+        // Decisión Chris 2026-10-20: el rol efectivo es su perfil de origen, no el de la cartera emitida.
         (await Abre(_administradorUnipersonal, Roles.Administrador, _operadorUnipersonal.Id, _beneficiarioDelUnipersonal.Id))
-            .Should().Be((true, Roles.CoordinadorCae));
+            .Should().Be((true, Roles.Administrador));
     }
 
     [Fact]
@@ -1107,13 +1110,14 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
         {
             var ahora = DateTime.UtcNow;
             var operacion = await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-                contexto, usuarioId, origen, tenantId, ahora, CancellationToken.None);
+                contexto, usuarioId, origen, tenantId, rolDeSesion, ahora, CancellationToken.None);
             if (operacion is null)
                 return (await TenantsBeneficiariosAutorizados.EstaAutorizadoAsync(
-                    contexto, contexto, usuarioId, origen, tenantId, ahora, CancellationToken.None), (string?)null);
+                    contexto, contexto, usuarioId, origen, tenantId, rolDeSesion, ahora, CancellationToken.None), (string?)null);
 
-            return (true, await TenantsBeneficiariosAutorizados.RolPorOperacionAsync(
-                contexto, usuarioId, origen, tenantId, operacion.Value, ahora, CancellationToken.None));
+            // Decisión Chris 2026-10-20: el rol efectivo es el perfil de origen, no el de la cartera.
+            return (true, await TenantsBeneficiariosAutorizados.RolEnTenantDelegadoAsync(
+                contexto, usuarioId, origen, tenantId, operacion.Value, rolDeSesion, rolDeSesion, ahora, CancellationToken.None));
         });
 
     private async Task<T> EnArnes<T>(

@@ -374,6 +374,12 @@
                     <dl class="mi-trabajo-detalle-datos">
                         <dt>@Textos["Empresa"]</dt>
                         <dd>@abierta.TenantNombre</dd>
+                        @* Maqueta Flujos 11, «Detalle de la tarea»: el Centro de la tarea va tras la Empresa. Solo si el ítem lo trae. *@
+                        @if (abierta.Item.CentroNombre is { Length: > 0 } centro)
+                        {
+                            <dt>@Textos["Centro"]</dt>
+                            <dd>@centro</dd>
+                        }
                         <dt>@Textos["Cliente"]</dt>
                         <dd>@(abierta.Item.ClienteNombre ?? Textos["SinCliente"])</dd>
                         @if (abierta.Item.ProveedorNombre is { Length: > 0 } plataforma)

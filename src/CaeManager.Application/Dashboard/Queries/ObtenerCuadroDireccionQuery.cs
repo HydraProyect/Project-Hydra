@@ -139,8 +139,9 @@ public record MedicionCuadroDireccion(
 
 /// <summary>
 /// Cuadro de dirección (incremento 2; sustituirá al Dashboard ejecutivo). Mismo patrón que
-/// <see cref="ObtenerDashboardEjecutivoQueryHandler"/>: por cada Tenant beneficiario autorizado
-/// (<see cref="ObtenerClientesAutorizadosQuery"/>), las consultas corren con
+/// <see cref="ObtenerDashboardEjecutivoQueryHandler"/>: por cada Tenant que lee quien mira
+/// (<see cref="ObtenerTenantsCuadroDireccionQuery"/>: los beneficiarios autorizados por rol, o solo el Tenant objetivo
+/// de una Sesión Privilegiada), las consultas corren con
 /// <see cref="AmbitoTenantExplicito"/> fijado a ese Tenant —filtro global y RLS de ese Tenant, ninguna cruza
 /// a otro— y el resultado se fusiona en memoria con <see cref="Fusionar"/>, que es pura. Secuencial por el
 /// mismo motivo que allí: el <c>DbContext</c> scoped no admite consultas concurrentes.
@@ -150,7 +151,9 @@ public record MedicionCuadroDireccion(
 /// (<see cref="IAlcanceDatosService.AlcanzaElTenantEnteroAsync"/>). Las cifras son del Tenant entero y las
 /// bajas cuentan filas eliminadas que ya no están en ninguna lista de alcance, así que no se pueden
 /// recortar a una cartera parcial: quien no alcanza el Tenant entero no las ve, y se dice cuántos Tenants
-/// quedaron fuera.
+/// quedaron fuera. Desde la decisión Chris 2026-10-20, Administrador, Dirección CAE, Coordinador CAE y
+/// Consulta del Operador CAE externo alcanzan entero, sin cartera, cada Tenant beneficiario de la Asignación
+/// de Operación de su organización; solo el Gestor CAE queda acotado por su cartera.
 /// </para>
 ///
 /// <para>
@@ -177,6 +180,7 @@ public class ObtenerCuadroDireccionQueryHandler(
     IReclamacionesQueryContext reclamacionesContext,
     IComunicacionesQueryContext comunicacionesContext,
     ICurrentUserService currentUserService,
+    IPoliticaNotaInterna politicaAcceso,
     IDirectorioUsuariosService directorioUsuarios,
     ICatalogoIncorporacionCartera catalogo,
     TimeProvider reloj,
@@ -189,7 +193,7 @@ public class ObtenerCuadroDireccionQueryHandler(
 {
     public async Task<CuadroDireccionDto> Handle(ObtenerCuadroDireccionQuery request, CancellationToken cancellationToken)
     {
-        await AutorizacionCuadroDireccion.ExigirLecturaAsync(currentUserService);
+        await AutorizacionCuadroDireccion.ExigirLecturaAsync(currentUserService, politicaAcceso);
         var ahoraUtc = reloj.GetUtcNow().UtcDateTime;
         if (!MesCuadroDireccion.EsValido(request.Anyo, request.Mes))
             return SinCifras(request.Anyo, request.Mes, null, ahoraUtc, CuadroDireccionSinCifras.MesNoValido);
@@ -199,7 +203,7 @@ public class ObtenerCuadroDireccionQueryHandler(
             return SinCifras(request.Anyo, request.Mes, mes, ahoraUtc, CuadroDireccionSinCifras.MesFuturo);
 
         var corteUtc = mes.CorteA(ahoraUtc);
-        var clientes = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        var clientes = await mediator.Send(new ObtenerTenantsCuadroDireccionQuery(), cancellationToken);
         var principales = await ObtenerPrincipalesAsync(cancellationToken);
 
         var porTenant = new List<(ClienteAutorizadoDto Cliente, MedicionCuadroDireccion Medicion)>();

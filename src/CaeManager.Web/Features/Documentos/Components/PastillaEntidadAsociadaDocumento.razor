@@ -1,0 +1,64 @@
+@implements IDisposable
+@using CaeManager.Application.Documentos.Queries.ObtenerEntidadesAsociadasDeDocumentos
+@using CaeManager.Domain.Documentos
+@using MediatR
+@using CaeManager.Web.Features.Documentos.Recursos
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosSelectorEntidadDocumento> Textos
+
+@* «Propietario» es el rótulo de Design para la entidad asociada; no designa al Tenant propietario. *@
+<div class="selector-entidad-documento" @onkeydown="TeclaAsync">
+    <button type="button" class="selector-disparador" aria-haspopup="dialog" aria-expanded="@(_abierto ? "true" : "false")"
+            aria-controls="@_panelId" @onclick="AlternarAsync" @ref="_disparador">
+        @Textos[Valor is null ? "Disparador" : "DisparadorActivo"]
+        <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+    </button>
+    @if (_abierto)
+    {
+        <div class="selector-superposicion" @onclick="CerrarAsync"></div>
+        <div id="@_panelId" class="selector-panel" role="dialog" aria-label="@Textos["FiltrarEtiqueta"]" tabindex="-1" @ref="_panel" data-lista-con-filtros>
+            <CampoTexto Etiqueta="@Textos["BuscarEtiqueta"]" Valor="_busqueda" ValorChanged="BuscarAsync" Placeholder="@Textos["BuscarPlaceholder"]" />
+            <button type="button" class="selector-opcion" aria-pressed="@(Valor is null ? "true" : "false")" @onclick="() => ElegirAsync(null)">@Textos["Todos"]</button>
+            @if (_cargando)
+            {
+                <p role="status">@Textos["Cargando"]</p>
+            }
+            else if (_error)
+            {
+                <p role="alert">@Textos["Error"]</p>
+                <button type="button" class="selector-opcion" @onclick="CargarAsync">@Textos["Reintentar"]</button>
+            }
+            else if (_elementos.Count == 0 && HayFiltrosActivos)
+            {
+                <p role="status">@Textos["VacioPorBusqueda"]</p>
+                <button type="button" class="selector-opcion" @onclick="() => BuscarAsync(string.Empty)">@Textos["QuitarBusqueda"]</button>
+            }
+            else if (_elementos.Count == 0)
+            {
+                <p role="status">@Textos["Vacio"]</p>
+            }
+            else
+            {
+                var claves = new ClavesDeHermanos();
+                @foreach (var entidad in _elementos)
+                {
+                    <button type="button" class="selector-opcion" @key="claves.De((entidad.Id, entidad.Ambito))"
+                            aria-pressed="@(entidad.Id == Valor && entidad.Ambito == Ambito ? "true" : "false")"
+                            @onclick="() => ElegirAsync(entidad)">
+                        <span>@entidad.Nombre</span><span class="selector-ambito">@TextoAmbito(entidad.Ambito)</span>
+                    </button>
+                }
+                @if (_totalPaginas > 1)
+                {
+                    <div class="selector-paginacion">
+                        <button type="button" disabled="@(_pagina <= 1)" @onclick="() => PaginarAsync(-1)">@Textos["Anterior"]</button>
+                        <span aria-live="polite">@Textos["Paginacion", _pagina, _totalPaginas]</span>
+                        <button type="button" disabled="@(_pagina >= _totalPaginas)" @onclick="() => PaginarAsync(1)">@Textos["Siguiente"]</button>
+                    </div>
+                }
+            }
+            <button type="button" class="selector-opcion" @onclick="CerrarAsync">@Textos["Cerrar"]</button>
+        </div>
+    }
+</div>

@@ -31,24 +31,29 @@ public record EmpresasGestionadasDelMesDto(bool EsOperadorCae, IReadOnlyDictiona
 /// Tenant de origen de quien mira, sea Administrador, Dirección CAE o Coordinador CAE; las vigencias son las de sus
 /// Asignaciones de Operación externas (<see cref="AutorizacionTarifasOperadorCae.VigenciasPorTenantBeneficiarioAsync"/>,
 /// la misma vigencia que usa la serie) y se leen con el ámbito en ese Tenant de origen, que es el propietario de las filas.
+/// Una Sesión Privilegiada lee el Cuadro pero no tiene Empresas gestionadas: el Actor de Plataforma TALVEG no es Operador
+/// CAE, y su Tenant de origen no es el que abrió (<see cref="AutorizacionCuadroDireccion.EntraPorRolAsync"/>).
 /// </summary>
-public class ObtenerEmpresasGestionadasDelMesQueryHandler(ICurrentUserService usuario, IOperacionesQueryContext operaciones)
+public class ObtenerEmpresasGestionadasDelMesQueryHandler(
+    ICurrentUserService usuario, IOperacionesQueryContext operaciones, IPoliticaNotaInterna politicaAcceso)
     : IRequestHandler<ObtenerEmpresasGestionadasDelMesQuery, EmpresasGestionadasDelMesDto>
 {
     public async Task<EmpresasGestionadasDelMesDto> Handle(ObtenerEmpresasGestionadasDelMesQuery request, CancellationToken cancellationToken)
     {
-        await AutorizacionCuadroDireccion.ExigirLecturaAsync(usuario);
+        await AutorizacionCuadroDireccion.ExigirLecturaAsync(usuario, politicaAcceso);
         return await LeerAsync(usuario, operaciones, request.Anyo, request.Mes, cancellationToken);
     }
 
     /// <summary>
-    /// Quien llama ya pasó <see cref="AutorizacionCuadroDireccion"/>. Sin Tenant de origen, con un mes no válido o sin
-    /// Asignaciones externas, no hay Empresas gestionadas.
+    /// Quien llama ya pasó <see cref="AutorizacionCuadroDireccion"/>. Sin Tenant de origen, sin entrar por rol de negocio,
+    /// con un mes no válido o sin Asignaciones externas, no hay Empresas gestionadas.
     /// </summary>
     public static async Task<EmpresasGestionadasDelMesDto> LeerAsync(
         ICurrentUserService usuario, IOperacionesQueryContext operaciones, int anyo, int numeroMes, CancellationToken cancellationToken)
     {
-        if (!MesCuadroDireccion.EsValido(anyo, numeroMes) || await usuario.ObtenerTenantOrigenIdAsync() is not { } operador)
+        if (!MesCuadroDireccion.EsValido(anyo, numeroMes)
+            || !await AutorizacionCuadroDireccion.EntraPorRolAsync(usuario)
+            || await usuario.ObtenerTenantOrigenIdAsync() is not { } operador)
             return EmpresasGestionadasDelMesDto.Ninguna;
 
         var mes = new MesCuadroDireccion(anyo, numeroMes);

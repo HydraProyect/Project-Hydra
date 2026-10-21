@@ -877,28 +877,27 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     }
 
     /// <summary>
-    /// El encargo surte efecto con la identidad real y por el camino de producción (<c>CurrentUserService</c> →
-    /// <c>TechoDeRolPorEncargo</c>, bajo el rol restringido): en un Tenant con encargo el Administrador del Operador CAE
-    /// externo es Administrador pleno y supera la autoridad de un acto de Administrador, activar la IA por encargo
-    /// (<c>ActivarTratamientoIaPorEncargoCommand</c>), que se detiene después, en «ya está activada», porque la siembra
-    /// deja la instrucción de demostración vigente. En C entra con el rol de su cartera, Coordinador CAE, sin encargo
-    /// que lo eleve, y el mismo acto se le niega por autoridad.
+    /// Decisión Chris 2026-10-20, con la identidad real y por el camino de producción (<c>CurrentUserService</c>,
+    /// bajo el rol restringido): el Administrador del Operador CAE externo es Administrador en todos los Tenants
+    /// beneficiarios que su organización opera por una Asignación de Operación vigente del Tenant entero —la siembra
+    /// la deja en los ocho—, tenga o no Encargo de administración y tenga o no el Tenant Administrador propio (C). El
+    /// encargo ya no eleva, así que no hay encargo pleno que lo señale, y el acto que solo existe «por encargo»
+    /// (<c>ActivarTratamientoIaPorEncargoCommand</c>) se niega en los dos: deuda declarada, la maquinaria del encargo
+    /// queda sin efecto hasta que se retire o se reasigne.
     /// </summary>
     [Fact]
-    public async Task El_Administrador_del_Operador_CAE_administra_por_encargo_un_Tenant_sin_Administrador_propio_y_C_no()
+    public async Task El_Administrador_del_Operador_CAE_es_Administrador_en_todos_los_Tenants_operados_con_o_sin_encargo()
     {
         var conEncargo = CatalogoPilotoOutbound.Tenants.First(t => !ReferenceEquals(t, C));
 
-        var enElDeEncargo = await ComoAdministradorDelOperadorEnAsync(conEncargo);
-        enElDeEncargo.Rol.Should().Be(Roles.Administrador);
-        enElDeEncargo.EncargoPleno.Should().NotBeNull("el encargo que eleva es pleno: el Tenant no tiene Administrador propio");
-        enElDeEncargo.Activar.Error.Should().Be(ActivarTratamientoIaPorEncargoCommandHandler.YaVigente,
-            "la autoridad pasa; lo que lo detiene es la instrucción de demostración ya vigente");
-
-        var enC = await ComoAdministradorDelOperadorEnAsync(C);
-        enC.Rol.Should().Be(Roles.CoordinadorCae, "sin encargo, el rol de su cartera");
-        enC.EncargoPleno.Should().BeNull();
-        enC.Activar.Error.Should().Be(ActivarTratamientoIaPorEncargoCommandHandler.NoAutorizado);
+        foreach (var tenant in new[] { conEncargo, C })
+        {
+            var medido = await ComoAdministradorDelOperadorEnAsync(tenant);
+            medido.Rol.Should().Be(Roles.Administrador, $"{tenant.Nombre}: rige el perfil de origen, sin encargo");
+            medido.EncargoPleno.Should().BeNull($"{tenant.Nombre}: el encargo ya no eleva el rol");
+            medido.Activar.Error.Should().Be(ActivarTratamientoIaPorEncargoCommandHandler.NoAutorizado,
+                $"{tenant.Nombre}: sin encargo pleno que lo señale, el acto por encargo no tiene autoridad (deuda)");
+        }
     }
 
     private async Task<(string? Rol, Guid? EncargoPleno, Result<Guid> Activar)> ComoAdministradorDelOperadorEnAsync(

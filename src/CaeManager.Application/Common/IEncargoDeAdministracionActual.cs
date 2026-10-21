@@ -32,7 +32,14 @@ namespace CaeManager.Application.Common;
 /// 2026-10-08. Lo consumen, y solo para levantar esas exclusiones, las
 /// exclusiones por área, la reserva de cuentas con rol de Propiedad, la
 /// renuncia al propio encargo y la activación del tratamiento con IA. Nunca
-/// concede acceso a un Tenant: sin cartera no hay rol, haya o no encargo.
+/// concede acceso a un Tenant.
+/// </para>
+///
+/// <para>
+/// <b>Deuda (decisión Chris 2026-10-20):</b> el rol efectivo en un Tenant delegado es
+/// ya el perfil de origen, con todos sus poderes y sin encargo, así que el encargo no
+/// eleva a nadie y estas dos señales devuelven siempre <c>null</c> en producción. Se
+/// conservan, con sus consumidores, hasta que se decida retirar el encargo.
 /// </para>
 /// </summary>
 public interface IEncargoDeAdministracionActual
@@ -65,6 +72,18 @@ public interface IEncargoDeAdministracionActual
     /// resolución dio el encargo por pleno. Para el middleware que deja el claim.
     /// </summary>
     bool EncargoPlenoDeLaUltimaResolucion(Guid asignacionOperacionId);
+
+    /// <summary>
+    /// Quien actúa opera ahora mismo un Tenant beneficiario delegado por la vía de
+    /// Asignación de Operación, con su perfil de origen como rol efectivo (decisión Chris
+    /// 2026-10-20). Con esa decisión el perfil de origen rige con todos sus poderes,
+    /// también los de Propiedad, así que la reserva de cuentas con rol de Propiedad
+    /// (<c>RolesReservadosAlTenantDeOrigen</c>) no se le aplica, igual que no se aplicaba
+    /// al encargo pleno. No concede acceso: lo da el predicado de Tenants autorizados, y
+    /// la autoridad sobre cuentas sigue exigiendo un rol que las gestione. Por defecto
+    /// <c>false</c> (fallo cerrado) para quien no resuelve el rol efectivo.
+    /// </summary>
+    Task<bool> OperaPorAsignacionDeOperacionAsync() => Task.FromResult(false);
 }
 
 /// <summary>

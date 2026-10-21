@@ -15,4 +15,36 @@
   <data name="AjustarAnchoLista" xml:space="preserve">
     <value>Ajustar el ancho de la lista de conversaciones</value>
   </data>
+  <data name="TodasConversaciones" xml:space="preserve"><value>Todas las conversaciones</value></data>
+  <data name="RecuentoConversaciones" xml:space="preserve"><value>{0} conversaciones</value></data>
+  <data name="Conversacion" xml:space="preserve"><value>Conversación</value></data>
+  <data name="Empresa" xml:space="preserve"><value>Empresa</value></data>
+  <data name="Prioridad" xml:space="preserve"><value>Prioridad</value></data>
+  <data name="Estado" xml:space="preserve"><value>Estado</value></data>
+  <data name="AsignadaA" xml:space="preserve"><value>Asignada a</value></data>
+  <data name="SinAsignar" xml:space="preserve"><value>Sin asignar</value></data>
+  <data name="Asignada" xml:space="preserve"><value>Asignada</value></data>
+  <data name="SinEmpresa" xml:space="preserve"><value>Sin Empresa asignada</value></data>
+  <data name="Correo" xml:space="preserve"><value>Correo</value></data>
+  <data name="VolverBandeja" xml:space="preserve"><value>Volver a la bandeja de entrada</value></data>
+  <data name="ErrorBuzon" xml:space="preserve"><value>No pudimos cargar el buzón</value></data>
+  <data name="ErrorBuzonAyuda" xml:space="preserve"><value>Las conversaciones siguen guardadas. Vuelve a intentarlo en unos segundos.</value></data>
+  <data name="Reintentar" xml:space="preserve"><value>Reintentar</value></data>
+  <data name="NingunaConversacion" xml:space="preserve"><value>Ninguna conversación abierta</value></data>
+  <data name="EligeConversacion" xml:space="preserve"><value>Elige una de la lista.</value></data>
+  <data name="Conversaciones" xml:space="preserve"><value>conversaciones</value></data>
+  <data name="SinResultados" xml:space="preserve"><value>Ninguna conversación con estos filtros</value></data>
+  <data name="SinResultadosAyuda" xml:space="preserve"><value>Ninguna coincide con la búsqueda ni con los filtros de estado y asignación.</value></data>
+  <data name="SinConversaciones" xml:space="preserve"><value>No hay conversaciones</value></data>
+  <data name="SinConversacionesAyuda" xml:space="preserve"><value>Cuando llegue el primer correo de un Cliente aparecerá aquí.</value></data>
+  <data name="QuitarFiltros" xml:space="preserve"><value>Quitar los filtros</value></data>
+  <data name="TipoMensaje" xml:space="preserve"><value>Tipo de mensaje</value></data>
+  <data name="RespuestaPublica" xml:space="preserve"><value>Respuesta pública</value></data>
+  <data name="NotaInterna" xml:space="preserve"><value>Nota interna</value></data>
+  <data name="Todas" xml:space="preserve"><value>Todas</value></data>
+  <data name="Mias" xml:space="preserve"><value>Mías</value></data>
+  <data name="EsperandoCliente" xml:space="preserve"><value>Esperando al Cliente</value></data>
+  <data name="BuscarBuzon" xml:space="preserve"><value>Buscar en el buzón</value></data>
+  <data name="BuscarPlaceholder" xml:space="preserve"><value>Buscar asunto, remitente o Trabajador</value></data>
+  <data name="RecuentoConversacion" xml:space="preserve"><value>{0} conversación</value></data>
 </root>

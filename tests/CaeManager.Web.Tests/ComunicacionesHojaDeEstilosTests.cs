@@ -35,13 +35,12 @@ public class ComunicacionesHojaDeEstilosTests
     }
 
     [Fact]
-    public void La_columna_de_la_lista_toma_su_ancho_de_la_variable_del_divisor_en_todos_los_cortes()
+    public void Los_anchos_de_bandeja_lista_y_contexto_siguen_la_maqueta()
     {
         var css = Leer(Bandeja);
-        Regla(css, @"\.bandeja-layout").Should().MatchRegex(@"--bandeja-ancho-lista\s*:\s*clamp\([^)]*--bandeja-lista-ancho");
-        Regex.Matches(css, @"grid-template-columns\s*:\s*(?!1fr)[^;]*").Select(m => m.Value).Where(v => v.Contains("minmax"))
-            .Should().OnlyContain(v => v.Contains("var(--bandeja-ancho-lista)") || v.StartsWith("grid-template-columns: auto"),
-                "una columna de ancho fijo en algún corte deja al divisor sin efecto");
+        Regla(css, @"\.bandeja-modo-tabla").Should().Contain("--bandeja-ancho-lista: 240px");
+        Regla(css, @"\.bandeja-modo-hilo").Should().Contain("--bandeja-ancho-lista: 304px");
+        Regla(css, @"\.bandeja-modo-hilo:has\(\.bandeja-cliente\)").Should().Contain("344px");
     }
 
     [Fact]

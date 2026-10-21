@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Application.Usuarios;
 using CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
 using FluentAssertions;
@@ -51,7 +51,7 @@ public class RolesReservadosAlTenantDeOrigenTests
     [Fact]
     public async Task Sin_la_senal_del_encargo_no_se_actua_por_encargo_pleno()
     {
-        (await RolesReservadosAlTenantDeOrigen.ActuaPorEncargoPlenoAsync(null)).Should().BeFalse();
+        (await RolesReservadosAlTenantDeOrigen.ActuaConAutoridadDePropiedadAsync(null)).Should().BeFalse();
     }
 
     [Theory]

@@ -398,12 +398,6 @@ src/CaeManager.Web/Features/Cumplimiento/Recursos/TextosCumplimiento.resx :: Enl
 src/CaeManager.Web/Features/Cumplimiento/Recursos/TextosCumplimiento.resx :: ErrorRegistro = 1
 src/CaeManager.Web/Features/Cumplimiento/Recursos/TextosCumplimiento.resx :: TextoConsentimiento = 1
 src/CaeManager.Web/Features/Cumplimiento/Recursos/TextosCumplimiento.resx :: TituloModal = 1
-src/CaeManager.Web/Features/Dashboard/Recursos/TextosInicio.resx :: EnlaceMiTrabajo = 1
-src/CaeManager.Web/Features/Dashboard/Recursos/TextosInicio.resx :: SinCarteraDescripcion = 1
-src/CaeManager.Web/Features/Dashboard/Recursos/TextosInicio.resx :: SinCarteraDescripcionCoordinador = 1
-src/CaeManager.Web/Features/Dashboard/Recursos/TextosInicio.resx :: SinCarteraEnEsteContextoDescripcion = 1
-src/CaeManager.Web/Features/Dashboard/Recursos/TextosInicio.resx :: SinCarteraEnEsteContextoTitulo = 1
-src/CaeManager.Web/Features/Dashboard/Recursos/TextosInicio.resx :: SinCarteraTitulo = 1
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: AlertaPresupuestoIaCierre = 1
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: AlertaPresupuestoIaInicio = 1
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: AlertaPresupuestoIaSinBloqueo = 1
@@ -654,7 +648,6 @@ src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: Confi
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ConfirmarEliminarMensaje = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ConfirmarEliminarTitulo = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: DrawerTituloEditar = 1
-src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: DrawerTituloNueva = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ErrorActualizarEstado = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ErrorCargaDetalle = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ErrorCargaListaTitulo = 1
@@ -682,7 +675,6 @@ src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: Recue
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: TipoIncumplimiento = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: TituloPagina = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ToastActualizada = 1
-src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ToastCreada = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ToastEliminada = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ToastLoteEliminadas = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ToastLoteEliminadasConErrores = 1

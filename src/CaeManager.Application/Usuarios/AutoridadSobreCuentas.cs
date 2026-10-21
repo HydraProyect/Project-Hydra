@@ -16,32 +16,26 @@ namespace CaeManager.Application.Usuarios;
 /// </para>
 ///
 /// <para>
-/// El rol que se evalúa es el <b>efectivo</b> (<see cref="ICurrentUserService.ObtenerRolEfectivoAsync"/>):
-/// dentro de un Workspace operativo derivado es el de la Asignación de Cartera,
-/// que nunca es Administrador ni Dirección CAE (la operación no concede roles
-/// de Propiedad), así que una persona de un Operador CAE externo no administra
-/// las cuentas del Tenant propietario <b>salvo que este haya registrado un
-/// Encargo de administración vigente</b> (decisión D-8, 2026-10-08): entonces
-/// el rol efectivo puede ser el perfil de Propiedad de esa persona en su Tenant
-/// de origen (<c>TechoDeRolPorEncargo</c>) y sí gestiona las cuentas con rol de
-/// Operación o de portal.
+/// El rol que se evalúa es el <b>efectivo</b> (<see cref="ICurrentUserService.ObtenerRolEfectivoAsync"/>).
+/// Dentro de un Tenant beneficiario delegado por Asignación de Operación es el
+/// perfil de origen de la persona del Operador CAE externo, con todos sus
+/// poderes, también los de Propiedad, y sin Encargo de administración (decisión
+/// Chris 2026-10-20, que deroga «la operación no concede roles de Propiedad» y,
+/// en el rol, la D-8 del 2026-10-08): su Administrador administra las cuentas
+/// del Tenant beneficiario como las de su propio Tenant.
 /// </para>
 ///
 /// <para>
-/// El encargo tiene dos regímenes, y ninguno se decide solo con el rol efectivo:
-/// <list type="bullet">
-/// <item><b>Encargo no pleno</b> (el Tenant propietario tiene Administrador
-/// propio, activo o pendiente de activar; decisión D-8, 2026-10-08): el encargo
-/// <b>no</b> abre conceder Administrador o Dirección CAE
-/// (<see cref="RolesReservadosAlTenantDeOrigen"/>) ni actuar sobre una cuenta que
-/// ya tiene uno de esos roles (<see cref="CuentasConRolDePropiedad"/>). Las dos
-/// reglas comparan el Tenant de origen de quien actúa con el Tenant activo.</item>
-/// <item><b>Encargo pleno</b> (el Tenant propietario no tiene Administrador
-/// propio; decisión de Chris, 2026-10-15): quien administra por encargo es
-/// Administrador pleno y las dos reglas lo dejan pasar. La señal es
-/// <see cref="IEncargoDeAdministracionActual.EncargoPlenoAsync"/>; sin ella
-/// (<c>null</c>) fallan cerradas, como en el régimen no pleno.</item>
-/// </list>
+/// Las dos reglas que comparan el Tenant de origen de quien actúa con el Tenant
+/// activo —no conceder Administrador o Dirección CAE
+/// (<see cref="RolesReservadosAlTenantDeOrigen"/>) y no actuar sobre una cuenta que
+/// ya tiene uno de esos roles (<see cref="CuentasConRolDePropiedad"/>)— dejan pasar a
+/// quien opera el Tenant por Asignación de Operación
+/// (<see cref="IEncargoDeAdministracionActual.OperaPorAsignacionDeOperacionAsync"/>) o
+/// por un Encargo de administración pleno
+/// (<see cref="IEncargoDeAdministracionActual.EncargoPlenoAsync"/>, decisión del
+/// 2026-10-15; deuda: ya no lo señala nadie). Sin señal fallan cerradas: la vía
+/// heredada (acceso de soporte) y la Sesión Privilegiada no la dan.
 /// </para>
 /// </summary>
 public static class AutoridadSobreCuentas

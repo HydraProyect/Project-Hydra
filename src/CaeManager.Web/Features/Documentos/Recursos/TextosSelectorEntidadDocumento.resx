@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="Disparador" xml:space="preserve"><value>Propietario</value></data>
+  <data name="DisparadorActivo" xml:space="preserve"><value>Propietario · 1</value></data>
+  <data name="FiltrarEtiqueta" xml:space="preserve"><value>Filtrar por propietario</value></data>
+  <data name="BuscarEtiqueta" xml:space="preserve"><value>Buscar propietario</value></data>
+  <data name="BuscarPlaceholder" xml:space="preserve"><value>Nombre de la entidad asociada</value></data>
+  <data name="Todos" xml:space="preserve"><value>Todos</value></data>
+  <data name="Cargando" xml:space="preserve"><value>Cargando propietarios…</value></data>
+  <data name="Error" xml:space="preserve"><value>No pudimos cargar los propietarios.</value></data>
+  <data name="Reintentar" xml:space="preserve"><value>Reintentar</value></data>
+  <data name="VacioPorBusqueda" xml:space="preserve"><value>Ningún propietario coincide con la búsqueda.</value></data>
+  <data name="QuitarBusqueda" xml:space="preserve"><value>Quitar búsqueda</value></data>
+  <data name="Vacio" xml:space="preserve"><value>Todavía no hay propietarios con documentos.</value></data>
+  <data name="Anterior" xml:space="preserve"><value>Anterior</value></data>
+  <data name="Paginacion" xml:space="preserve"><value>{0} de {1}</value></data>
+  <data name="Siguiente" xml:space="preserve"><value>Siguiente</value></data>
+  <data name="Cerrar" xml:space="preserve"><value>Cerrar</value></data>
+  <data name="AmbitoCliente" xml:space="preserve"><value>Cliente</value></data>
+  <data name="AmbitoEmpresa" xml:space="preserve"><value>Empresa</value></data>
+  <data name="AmbitoTrabajador" xml:space="preserve"><value>Trabajador</value></data>
+  <data name="AmbitoVehiculo" xml:space="preserve"><value>Vehículo</value></data>
+  <data name="AmbitoProyecto" xml:space="preserve"><value>Proyecto</value></data>
+</root>
+

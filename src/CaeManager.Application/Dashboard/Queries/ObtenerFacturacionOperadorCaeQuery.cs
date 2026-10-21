@@ -149,7 +149,7 @@ public static class CalculosFacturacionOperadorCae
 }
 
 public class ObtenerFacturacionOperadorCaeQueryHandler(
-    IMediator mediator, ICurrentUserService usuario, IOperacionesQueryContext operaciones, TimeProvider reloj)
+    IMediator mediator, ICurrentUserService usuario, IOperacionesQueryContext operaciones, IPoliticaNotaInterna politicaAcceso, TimeProvider reloj)
     : IRequestHandler<ObtenerFacturacionOperadorCaeQuery, FacturacionOperadorCaeDto>
 {
     private static FacturacionOperadorCaeDto Vacia(int anyo, int mes, CuadroDireccionSinCifras? motivo, int sinAlcance = 0) =>
@@ -174,7 +174,7 @@ public class ObtenerFacturacionOperadorCaeQueryHandler(
     /// </summary>
     public async Task<FacturacionOperadorCaeDto> Handle(ObtenerFacturacionOperadorCaeQuery request, CancellationToken cancellationToken)
     {
-        await AutorizacionCuadroDireccion.ExigirLecturaAsync(usuario);
+        await AutorizacionCuadroDireccion.ExigirLecturaAsync(usuario, politicaAcceso);
         var tramos = (await ObtenerEmpresasGestionadasDelMesQueryHandler.LeerAsync(
             usuario, operaciones, request.Anyo, request.Mes, cancellationToken)).Tramos;
 
