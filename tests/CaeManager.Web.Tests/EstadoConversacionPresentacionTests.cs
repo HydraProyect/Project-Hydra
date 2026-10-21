@@ -40,7 +40,7 @@ public class EstadoConversacionPresentacionTests
     [Theory]
     [InlineData(EstadoConversacion.Abierta, "Abierta", "Oberta")]
     [InlineData(EstadoConversacion.Pendiente, "Pendiente", "Pendent")]
-    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, "Esperando respuesta externa", "Esperant resposta externa")]
+    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, "Esperando al Cliente", "Esperant el Client")]
     [InlineData(EstadoConversacion.EnEsperaDeTercero, "En espera de tercero", "En espera d'un tercer")]
     [InlineData(EstadoConversacion.Resuelta, "Resuelta", "Resolta")]
     [InlineData(EstadoConversacion.Cerrada, "Cerrada", "Tancada")]

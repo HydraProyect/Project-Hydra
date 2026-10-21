@@ -12,7 +12,7 @@ public class SlaConversacionFilaTests : BunitContext
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void La_fila_muestra_el_reloj_y_distingue_un_SLA_vencido(bool vencido)
+    public void La_fila_del_nucleo_no_muestra_SLA_aunque_el_DTO_lo_incluya(bool vencido)
     {
         Services.AddLogging().AddLocalization();
         var conversacion = new ConversacionListaDto(Guid.NewGuid(), null, null, "Asunto", EstadoConversacion.Abierta,
@@ -22,7 +22,7 @@ public class SlaConversacionFilaTests : BunitContext
 
         var fila = Render<FilaConversacion>(p => p.Add(c => c.Conversacion, conversacion));
 
-        fila.Markup.Should().Contain("SLA").And.Contain("2 h 0 min");
-        fila.Markup.Contains("vencido", StringComparison.Ordinal).Should().Be(vencido);
+        fila.Markup.Should().NotContain("SLA").And.NotContain("2 h 0 min");
+        fila.Markup.Should().NotContain("vencido");
     }
 }

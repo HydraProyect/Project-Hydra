@@ -29,10 +29,20 @@ public class EmpresasOperadasEnElMesTests
     private static readonly Guid F = Guid.NewGuid();
     private static readonly Guid G = Guid.NewGuid();
 
-    private static async Task<IReadOnlyList<Guid>> PedirAsync(int anyo, int mes, string rol = "DireccionCae", Guid? origen = null)
+    private static async Task<IReadOnlyList<Guid>> PedirAsync(int anyo, int mes, string? rol = "DireccionCae", Guid? origen = null, bool accesoTotal = false)
     {
-        var handler = new ObtenerEmpresasGestionadasDelMesQueryHandler(new Usuario(rol, origen ?? Operador), new OperacionesFalsas());
+        var handler = new ObtenerEmpresasGestionadasDelMesQueryHandler(new Usuario(rol, origen ?? Operador), new OperacionesFalsas(), new PoliticaAccesoTotalFalsa(accesoTotal));
         return (await handler.Handle(new ObtenerEmpresasGestionadasDelMesQuery(anyo, mes), default)).Tramos.Keys.ToList();
+    }
+
+    /// <summary>
+    /// La Sesión Privilegiada lee el Cuadro, pero el Actor de Plataforma TALVEG no es Operador CAE: aunque su Tenant de
+    /// origen tuviera Asignaciones externas, no salen Empresas gestionadas (ni, por tanto, su Facturación).
+    /// </summary>
+    [Fact]
+    public async Task En_Sesion_Privilegiada_no_hay_Empresas_gestionadas()
+    {
+        (await PedirAsync(2026, 10, rol: null, accesoTotal: true)).Should().BeEmpty();
     }
 
     [Fact]
@@ -107,7 +117,7 @@ public class EmpresasOperadasEnElMesTests
         public IQueryable<AsignacionCartera> AsignacionesCartera => new TestAsyncQueryable<AsignacionCartera>(new List<AsignacionCartera>().AsQueryable());
     }
 
-    private sealed class Usuario(string rol, Guid origen) : ICurrentUserService
+    private sealed class Usuario(string? rol, Guid origen) : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
 

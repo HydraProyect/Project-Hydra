@@ -127,8 +127,8 @@ src/CaeManager.Web/Features/Centros/Components/AcordeonAsignacionesCentro.razor 
 src/CaeManager.Web/Features/Comunicaciones/Components/FilaConversacion.razor :: bandeja = 14
 src/CaeManager.Web/Features/Comunicaciones/Components/FilaMensajeBuzonPersonal.razor :: bandeja = 11
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: (nombre de fichero) = 1
-src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: CambiarPaginaBandejaAsync = 1
-src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: bandeja = 74
+src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: CambiarPaginaBandejaAsync = 2
+src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: bandeja = 70
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor.cs :: (nombre de fichero) = 1
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor.cs :: Bandeja = 2
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor.cs :: CambiarPaginaBandejaAsync = 1
@@ -164,3 +164,9 @@ src/CaeManager.Web/Services/ContadorPendientesSelectorTenant.cs :: Bandeja = 1
 src/CaeManager.Web/Features/Calendario/Pages/Calendario.razor :: Bandeja = 1
 # Reclamar para acceso reutiliza el Drawer de reclamaciones existente (DrawerReclamacionLote): referencia técnica a su namespace legacy, sin rótulo nuevo ni nueva ruta.
 src/CaeManager.Web/Features/Empresas/Pages/ReclamarParaAcceso.razor :: Bandeja = 1
+
+# Núcleo Comunicaciones: bandeja de entrada del correo, no Mi trabajo.
+src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: VolverABandejaAsync = 1
+src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: VolverBandeja = 1
+src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor.cs :: VolverABandejaAsync = 1
+src/CaeManager.Web/Features/Comunicaciones/Recursos/TextosListaConversaciones.resx :: bandeja = 1

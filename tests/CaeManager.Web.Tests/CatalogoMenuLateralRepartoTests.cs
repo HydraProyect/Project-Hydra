@@ -122,7 +122,7 @@ public class CatalogoMenuLateralRepartoTests
         if (rol == Roles.CoordinadorCae) comunes.Add("usuarios-equipo");
         if (rol is Roles.Administrador or Roles.DireccionCae or Roles.CoordinadorCae) comunes.Add("vision-cartera");
         // «Cuadro de dirección» (id dashboard-ejecutivo): los roles que admite /direccion. «Indicadores de IA y BPO»: los de su página.
-        if (rol is Roles.DireccionCae or Roles.CoordinadorCae) comunes.Add("dashboard-ejecutivo");
+        if (rol is Roles.Administrador or Roles.DireccionCae or Roles.CoordinadorCae) comunes.Add("dashboard-ejecutivo");
         if (rol is Roles.Administrador or Roles.DireccionCae or Roles.Consulta) comunes.Add("indicadores-ia-bpo");
         if (rol == Roles.Administrador)
             comunes.AddRange(

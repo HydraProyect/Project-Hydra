@@ -85,6 +85,7 @@ public class ObtenerExtranjerosDelMesQueryHandler(
     IEmpresasQueryContext empresasContext,
     IAuditoriaQueryContext auditoriaContext,
     ICurrentUserService currentUserService,
+    IPoliticaNotaInterna politicaAcceso,
     IDirectorioUsuariosService directorioUsuarios,
     TimeProvider reloj)
     : IRequestHandler<ObtenerExtranjerosDelMesQuery, ExtranjerosDelMesDto>
@@ -96,7 +97,7 @@ public class ObtenerExtranjerosDelMesQueryHandler(
 
     public async Task<ExtranjerosDelMesDto> Handle(ObtenerExtranjerosDelMesQuery request, CancellationToken cancellationToken)
     {
-        await AutorizacionCuadroDireccion.ExigirLecturaAsync(currentUserService);
+        await AutorizacionCuadroDireccion.ExigirLecturaAsync(currentUserService, politicaAcceso);
         if (!MesCuadroDireccion.EsValido(request.Anyo, request.Mes))
             return new ExtranjerosDelMesDto(request.Anyo, request.Mes, [], 0, CuadroDireccionSinCifras.MesNoValido);
 
@@ -104,7 +105,9 @@ public class ObtenerExtranjerosDelMesQueryHandler(
         if (mes.InicioUtc > reloj.GetUtcNow().UtcDateTime)
             return new ExtranjerosDelMesDto(request.Anyo, request.Mes, [], 0, CuadroDireccionSinCifras.MesFuturo);
 
-        var clientes = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        // Los mismos Tenants que el resto del Cuadro: por rol, los beneficiarios autorizados; por Sesión Privilegiada,
+        // solo el Tenant objetivo de la sesión.
+        var clientes = await mediator.Send(new ObtenerTenantsCuadroDireccionQuery(), cancellationToken);
         var filas = new List<Fila>();
         var nombres = new Dictionary<Guid, string>();
         var sinAlcanceCompleto = new List<Guid>();
@@ -251,7 +254,10 @@ public class ObtenerExtranjerosDelMesQueryHandler(
         if (Pendientes(filas, nombres).Count == 0)
             return;
 
-        if (await currentUserService.ObtenerTenantOrigenIdAsync() is not { } origen)
+        // Por Sesión Privilegiada no se consulta el Tenant de origen del Actor de Plataforma: la sesión solo abrió el
+        // Tenant objetivo, y un Gestor CAE que no se resuelva allí queda sin nombre.
+        if (!await AutorizacionCuadroDireccion.EntraPorRolAsync(currentUserService)
+            || await currentUserService.ObtenerTenantOrigenIdAsync() is not { } origen)
             return;
 
         using (AmbitoTenantExplicito.Establecer(origen))

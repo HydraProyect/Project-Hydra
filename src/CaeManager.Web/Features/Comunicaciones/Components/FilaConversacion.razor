@@ -1,8 +1,4 @@
-@*
-    Fila de la lista de conversaciones de la bandeja (ver Bandeja.razor) —
-    componente aparte en vez de una plantilla inline porque se repite en dos
-    secciones (Triage y agrupado por Cliente).
-*@
+@* Fila de la lista plana del hilo, en el mismo orden que la tabla de la bandeja. *@
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones
 @using CaeManager.Domain.Comunicaciones
 @using CaeManager.Web.Features.Comunicaciones.Recursos
@@ -31,13 +27,6 @@
         </div>
         <div class="bandeja-fila-linea3">
             <Badge Tono="EstadoConversacionPresentacion.Tono(Conversacion.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoConversacionPresentacion.Etiqueta(TextosEstados, Conversacion.Estado)</Badge>
-            @if (Conversacion.SlaRestante is { } restante)
-            {
-                <Badge Tono="@(SlaVencido ? TonoBadge.Peligro : TonoBadge.Neutro)" Tamano="TamanoBadge.Pequeno"
-                       title="@TextosPlazos["AyudaSla"]">
-                    @RelojSla(restante)
-                </Badge>
-            }
             @if (Conversacion.MensajesRuido > 0)
             {
                 <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno" title="Mensajes ya clasificados como ruido (repetición o sin cambios) — sin novedad que atender">
@@ -52,12 +41,6 @@
 @code {
     [Parameter, EditorRequired] public ConversacionListaDto Conversacion { get; set; } = default!;
     [Parameter] public bool Activa { get; set; }
-
-    private bool SlaVencido => Conversacion.VencimientoSlaUtc <= DateTime.UtcNow;
-
-    private string RelojSla(TimeSpan restante) => TextosPlazos["RelojSla",
-        TextosPlazos[Conversacion.Prioridad.ToString()].Value, SlaVencido ? TextosPlazos["Vencido"].Value : "",
-        Math.Abs((int)restante.TotalHours), Math.Abs(restante.Minutes)];
 
     /// <summary>Fila marcada por j/k (todavía no abierta): lleva la clase que <c>atajos-lista.js</c> usa para darle foco de DOM.</summary>
     [Parameter] public bool Enfocada { get; set; }

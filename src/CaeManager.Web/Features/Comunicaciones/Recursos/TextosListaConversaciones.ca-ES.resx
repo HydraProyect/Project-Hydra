@@ -15,4 +15,36 @@
   <data name="AjustarAnchoLista" xml:space="preserve">
     <value>Ajusta l'amplada de la llista de converses</value>
   </data>
+  <data name="TodasConversaciones" xml:space="preserve"><value>Totes les converses</value></data>
+  <data name="RecuentoConversaciones" xml:space="preserve"><value>{0} converses</value></data>
+  <data name="Conversacion" xml:space="preserve"><value>Conversa</value></data>
+  <data name="Empresa" xml:space="preserve"><value>Empresa</value></data>
+  <data name="Prioridad" xml:space="preserve"><value>Prioritat</value></data>
+  <data name="Estado" xml:space="preserve"><value>Estat</value></data>
+  <data name="AsignadaA" xml:space="preserve"><value>Assignada a</value></data>
+  <data name="SinAsignar" xml:space="preserve"><value>Sense assignar</value></data>
+  <data name="Asignada" xml:space="preserve"><value>Assignada</value></data>
+  <data name="SinEmpresa" xml:space="preserve"><value>Sense Empresa assignada</value></data>
+  <data name="Correo" xml:space="preserve"><value>Correu</value></data>
+  <data name="VolverBandeja" xml:space="preserve"><value>Tornar a la safata d'entrada</value></data>
+  <data name="ErrorBuzon" xml:space="preserve"><value>No hem pogut carregar la bústia</value></data>
+  <data name="ErrorBuzonAyuda" xml:space="preserve"><value>Les converses continuen desades. Torna-ho a provar d’aquí a uns segons.</value></data>
+  <data name="Reintentar" xml:space="preserve"><value>Torna-ho a provar</value></data>
+  <data name="NingunaConversacion" xml:space="preserve"><value>Cap conversa oberta</value></data>
+  <data name="EligeConversacion" xml:space="preserve"><value>Tria’n una de la llista.</value></data>
+  <data name="Conversaciones" xml:space="preserve"><value>converses</value></data>
+  <data name="SinResultados" xml:space="preserve"><value>Cap conversa amb aquests filtres</value></data>
+  <data name="SinResultadosAyuda" xml:space="preserve"><value>Cap coincideix amb la cerca ni amb els filtres d’estat i assignació.</value></data>
+  <data name="SinConversaciones" xml:space="preserve"><value>No hi ha converses</value></data>
+  <data name="SinConversacionesAyuda" xml:space="preserve"><value>Quan arribi el primer correu d’un Client apareixerà aquí.</value></data>
+  <data name="QuitarFiltros" xml:space="preserve"><value>Treure els filtres</value></data>
+  <data name="TipoMensaje" xml:space="preserve"><value>Tipus de missatge</value></data>
+  <data name="RespuestaPublica" xml:space="preserve"><value>Resposta pública</value></data>
+  <data name="NotaInterna" xml:space="preserve"><value>Nota interna</value></data>
+  <data name="Todas" xml:space="preserve"><value>Totes</value></data>
+  <data name="Mias" xml:space="preserve"><value>Meves</value></data>
+  <data name="EsperandoCliente" xml:space="preserve"><value>Esperant el Client</value></data>
+  <data name="BuscarBuzon" xml:space="preserve"><value>Cercar a la bústia</value></data>
+  <data name="BuscarPlaceholder" xml:space="preserve"><value>Cercar assumpte, remitent o Treballador</value></data>
+  <data name="RecuentoConversacion" xml:space="preserve"><value>{0} conversa</value></data>
 </root>
