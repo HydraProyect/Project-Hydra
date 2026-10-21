@@ -155,7 +155,7 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
             errores.ToString().Should().BeEmpty();
 
             var tenants = await TenantsDelPilotoAsync(arnes);
-            tenants.Should().HaveCount(9, "MEDIDO: ocho Tenants propietarios y el del Operador CAE externo");
+            tenants.Should().HaveCount(CatalogoPilotoOutbound.Tenants.Count + 1, "MEDIDO: once Tenants propietarios y el del Operador CAE externo");
             tenants.Should().OnlyContain(t => t.Marcado, "MEDIDO: todos llevan el marcador de demo");
             resultado.Tenants.Select(t => t.Nombre).Should().Equal(CatalogoPilotoOutbound.NombresTenants.Where(n => !CatalogoPilotoOutbound.NombresTenantsDeVersionesAnteriores.Contains(n)));
 
@@ -287,7 +287,7 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
 
             // B.3 Repetir la orden retira lo que faltaba.
             var resto = await RetirarAsync(arnes, ConfiguracionConfirmada, anunciados);
-            resto.Should().HaveCount(8);
+            resto.Should().HaveCount(CatalogoPilotoOutbound.Tenants.Count);
             anunciados.Should().Equal(vigentes, "MEDIDO: Tenants propietarios primero y el del Operador CAE externo al final");
 
             // B.3 bis. Los ficheros del ensayo se han ido, el descartado incluido; el del Tenant ajeno sigue y se lee.
