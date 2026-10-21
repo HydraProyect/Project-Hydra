@@ -333,6 +333,39 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         sinRespuesta.Should().OnlyContain(r => DateOnly.FromDateTime(r.FechaEnvioUtc) < d);
     }
 
+    /// <summary>
+    /// La reclamación por acceso reclama lo que el Centro 360 pinta vencido o ausente aunque el Centro no marque nada «bloquea
+    /// el acceso» (fallo del 2026-10-21: en C, la Fábrica de conservas de Calahorra salía «al día» con dos vencidos).
+    /// </summary>
+    [Fact]
+    public async Task C_la_reclamacion_por_acceso_reclama_lo_que_el_Centro_360_pinta_vencido_o_ausente()
+    {
+        var centro = C.Centros[4].Nombre;
+
+        var (documentacion, lotes) = await fixture.Arnes.ComoGestoraPrimeraEnAsync(C.Nombre, async sp =>
+        {
+            var db = sp.GetRequiredService<CaeManager.Infrastructure.Persistence.CaeManagerDbContext>();
+            var centroId = await db.Centros.Where(c => c.Nombre == centro).Select(c => c.Id).SingleAsync();
+            var sender = sp.GetRequiredService<ISender>();
+            var documentacion = await sender.Send(
+                new CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro.ObtenerAsignacionesDocumentacionPorCentroQuery(centroId));
+            var trabajadorIds = documentacion.Select(t => t.TrabajadorId).ToList();
+            var empresaId = await db.Trabajadores.Where(t => trabajadorIds.Contains(t.Id)).Select(t => t.EmpresaId!.Value).Distinct().SingleAsync();
+            var lotes = await sender.Send(
+                new CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionAEmpresaEmpleadora.ObtenerReclamacionPorAccesoQuery(empresaId, centroId, trabajadorIds));
+            return (documentacion, lotes);
+        });
+
+        var vencidos = documentacion.SelectMany(t => t.Documentos.Where(x => x.Estado == EstadoDocumento.Vencido).Select(x => x.DocumentoId!.Value)).ToList();
+        var ausentes = documentacion.SelectMany(t => t.Documentos.Where(x => x.Estado == EstadoDocumento.Faltante).Select(x => (t.TrabajadorId, x.TipoDocumentoId))).ToList();
+        salida.WriteLine($"MEDIDO C «{centro}»: {vencidos.Count} vencidos y {ausentes.Count} ausentes en Centro 360; {lotes.Count} lotes por acceso");
+
+        vencidos.Should().NotBeEmpty("control: la siembra deja vencidos en este Centro");
+        lotes.SelectMany(l => l.Documentos.Select(x => x.DocumentoId)).Should().Contain(vencidos);
+        lotes.SelectMany(l => (l.PendientesSinFecha ?? []).Where(p => p.TrabajadorId != null).Select(p => (p.TrabajadorId!.Value, p.TipoDocumentoId)))
+            .Should().Contain(ausentes);
+    }
+
     /// <summary>La tolerancia de un Centro: el mismo documento vencido se pinta «en tolerancia» donde el Centro la concede.</summary>
     [Fact]
     public async Task C_el_documento_vencido_en_el_Centro_con_tolerancia_se_pinta_en_tolerancia()

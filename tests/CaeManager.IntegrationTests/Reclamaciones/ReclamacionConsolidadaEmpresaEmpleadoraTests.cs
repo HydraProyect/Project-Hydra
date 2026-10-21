@@ -52,6 +52,7 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
     private readonly Guid _tenantSinPlan = Guid.NewGuid();
     private readonly Guid _tenantPlataforma = Guid.NewGuid();
     private readonly Guid _tenantAgenda = Guid.NewGuid();
+    private readonly Guid _tenantSinBloqueo = Guid.NewGuid();
     private readonly Guid _usuario = Guid.NewGuid();
     private readonly List<CaeManagerDbContext> _contextosRuntime = [];
 
@@ -61,6 +62,11 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
     private Escenario _sinPlan = null!;
     private Escenario _plataforma = null!;
     private Escenario _agenda = null!;
+    private EscenarioSinBloqueo _sinBloqueo = null!;
+
+    /// <summary>Un Centro que exige sin marcar nada «bloquea el acceso»: Ana con el certificado vencido, Bea sin él y el Plan vencido.</summary>
+    private sealed record EscenarioSinBloqueo(
+        Guid EmpresaId, Guid CentroId, Guid AnaId, Guid BeaId, Guid TipoCertificadoId, Guid DocAnaVencidoId, Guid DocPlanVencidoId);
 
     /// <summary>Todo lo que siembra un Tenant: una Empresa con dos Delegaciones, dos Trabajadores y un Centro que les exige lo bloqueante.</summary>
     private sealed record Escenario(
@@ -88,6 +94,7 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
         _sinPlan = await SembrarAsync(_tenantSinPlan, conPlanDePrevencion: false);
         _plataforma = await SembrarAsync(_tenantPlataforma, conPlanDePrevencion: true, conPlataforma: true);
         _agenda = await SembrarAsync(_tenantAgenda, conPlanDePrevencion: true, conAgendaPorTipo: true);
+        _sinBloqueo = await SembrarSinBloqueoAsync(_tenantSinBloqueo);
     }
 
     public async Task DisposeAsync()
@@ -204,6 +211,30 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
             new ObtenerReclamacionPorAccesoQuery(_a.EmpresaId, _a.CentroId, [_a.AnaId, _a.BeaId]), CancellationToken.None);
         var lote = ambas.Should().ContainSingle().Subject;
         lote.Documentos.Select(d => d.DocumentoId).Should().BeEquivalentTo([_a.DocBeaCertificadoId, _a.DocPlanId!.Value]);
+    }
+
+    [Fact]
+    public async Task Por_acceso_reclama_lo_exigido_vencido_y_pendiente_aunque_el_Centro_no_marque_nada_como_bloqueante()
+    {
+        // El caso de la siembra del piloto (2026-10-21): el Centro exige el certificado y el Plan sin marcar «bloquea el
+        // acceso»; Ana lo tiene vencido, a Bea le falta y el Plan de la Empresa está vencido. Antes salía «al día».
+        var s = _sinBloqueo;
+        var arnes = new Arnes(Runtime(_tenantSinBloqueo), new AlcanceDatosServiceFalso());
+
+        var lotes = await arnes.PorAcceso.Handle(
+            new ObtenerReclamacionPorAccesoQuery(s.EmpresaId, s.CentroId, [s.AnaId, s.BeaId]), CancellationToken.None);
+
+        var lote = lotes.Should().ContainSingle("sin Delegaciones todo va a la agenda de la Empresa, en un solo borrador").Subject;
+        lote.Documentos.Select(d => d.DocumentoId).Should().BeEquivalentTo([s.DocAnaVencidoId, s.DocPlanVencidoId]);
+        lote.Documentos.Single(d => d.DocumentoId == s.DocAnaVencidoId).Estado.Should().Be(EstadoDocumento.Vencido);
+        lote.PendientesSinFecha.Should().ContainSingle(p => p.TrabajadorId == s.BeaId && p.TipoDocumentoId == s.TipoCertificadoId,
+            "a Bea le falta el certificado que el Centro exige");
+        lote.Destinatarios.Should().ContainSingle().Which.Email.Should().Be("agenda@contratista.test");
+
+        // Fallo cerrado: un Centro fuera del alcance de quien pregunta no exige nada, tampoco lo de la Empresa.
+        var sinElCentro = new Arnes(Runtime(_tenantSinBloqueo), new AlcanceDatosServiceFalso(centroIds: [Guid.NewGuid()]));
+        (await sinElCentro.PorAcceso.Handle(
+            new ObtenerReclamacionPorAccesoQuery(s.EmpresaId, s.CentroId, [s.AnaId, s.BeaId]), CancellationToken.None)).Should().BeEmpty();
     }
 
     // ---------- Envío ----------
@@ -506,6 +537,43 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
             anaCertificado.Id, anaFormacion.Id, beaCertificado.Id, docPlan?.Id, plataforma);
     }
 
+    private async Task<EscenarioSinBloqueo> SembrarSinBloqueoAsync(Guid tenant)
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(tenant);
+        var c = _propietario;
+        var hoy = DiaDeNegocio.Hoy();
+
+        if (await c.ParametrosSistema.SingleOrDefaultAsync() is null)
+            c.ParametrosSistema.Add(new ParametroSistema(30, 15));
+
+        var cliente = Empresa.CrearComoCliente("Cliente Sur S.L.", "B12345674", false, null, null);
+        var empresa = new Empresa("Contratista Sin Bloqueo S.L.", "B87654323");
+        c.Empresas.AddRange(cliente, empresa);
+        c.ContactosAgenda.Add(ContactoAgenda.DeEmpresa(empresa.Id, "Agenda Contratista", "agenda@contratista.test", esPredeterminado: true));
+        var certificado = new TipoDocumento("Certificado médico", 12, true, 1, AmbitoAplicacion.Trabajador);
+        var plan = new TipoDocumento("Plan de prevención", 12, true, 2, AmbitoAplicacion.Empresa);
+        c.TiposDocumento.AddRange(certificado, plan);
+        await c.SaveChangesAsync();
+
+        var centro = new Centro(cliente.Id, empresa.Id, "Centro Sur");
+        c.Centros.Add(centro);
+        var ana = Trabajador.DeEmpresa(empresa.Id, "Ana", "Pérez", "00000000T");
+        var bea = Trabajador.DeEmpresa(empresa.Id, "Bea", "Ruiz", "00000001R");
+        c.Trabajadores.AddRange(ana, bea);
+        await c.SaveChangesAsync();
+
+        c.Asignaciones.AddRange(new Asignacion(ana.Id, centro.Id, hoy.AddMonths(-6)), new Asignacion(bea.Id, centro.Id, hoy.AddMonths(-6)));
+        // Exigidos, ninguno bloqueante: como los Centros de la siembra del piloto.
+        c.TiposDocumentoCentros.Add(new TipoDocumentoCentro(certificado.Id, centro.Id, incluido: true));
+        c.TiposDocumentoCentros.Add(new TipoDocumentoCentro(plan.Id, centro.Id, incluido: true));
+        var anaVencido = Documento.DeTrabajador(ana.Id, certificado.Id, hoy.AddMonths(-13), VigenciaDocumento.VenceEl(hoy.AddDays(-20)));
+        var planVencido = Documento.DeEmpresa(empresa.Id, plan.Id, hoy.AddMonths(-13), VigenciaDocumento.VenceEl(hoy.AddDays(-5)));
+        c.Documentos.AddRange(anaVencido, planVencido);
+        await c.SaveChangesAsync();
+
+        return new EscenarioSinBloqueo(empresa.Id, centro.Id, ana.Id, bea.Id, certificado.Id, anaVencido.Id, planVencido.Id);
+    }
+
     /// <summary>Buzón genérico del Tenant y la conversación (anclada a la Empresa) que el doble devuelve como enviada: la FK es real.</summary>
     private async Task<Guid> SembrarBuzonYConversacionAsync(Guid tenant, Guid empresaId)
     {
@@ -557,7 +625,7 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
                 c, c, new CatalogoTrabajadoresEmpresaRepository(c), alcance, PoliticaNotaInternaPruebas.Con("GestorCae"), agenda,
                 new DestinoDeReclamacionesEnviadasService(c, c, c, c, c, c));
             PorAcceso = new ObtenerReclamacionPorAccesoQueryHandler(
-                Mediador, alcance, c, new EvaluacionDeAccesoPorCentroService(c, c, c, c, c, alcance), servicio);
+                Mediador, alcance, c, c, c, c, new CalculoEstadoCentroService(c, c, c, c, c, c, c, c, c), servicio);
             Preventiva = new ObtenerReclamacionPreventivaEmpresaQueryHandler(Mediador, alcance, c, c, c, c, servicio);
             Envio = new EnviarReclamacionEmpresaEmpleadoraCommandHandler(
                 c, c, c, c, c, c, alcance, servicio,

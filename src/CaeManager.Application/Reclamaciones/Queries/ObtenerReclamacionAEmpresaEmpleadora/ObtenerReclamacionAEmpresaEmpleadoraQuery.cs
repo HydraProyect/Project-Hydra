@@ -3,10 +3,12 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Domain.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionEmpresa;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro;
+using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -17,8 +19,9 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionAEmpres
 /// <summary>
 /// Reclamación por acceso (decisión de Chris, 2026-10-19): uno o varios Trabajadores de una Empresa tienen que entrar a un
 /// Centro; se reclama a su Empresa empleadora, en un solo borrador, todo lo que ese Centro exige y está vencido o pendiente,
-/// de la Empresa y de esos Trabajadores. Qué exige el Centro lo dice <see cref="IEvaluacionDeAccesoPorCentroService"/>
-/// (la única fuente del bloqueo por Centro, sobre las Asignaciones activas); qué es reclamable y a quién va, los lotes de
+/// de la Empresa y de esos Trabajadores. Qué exige el Centro lo dicen sus pares exigidos
+/// (<see cref="ICalculoEstadoCentroService.ObtenerParesExigidosAsync"/>, los mismos que el Centro 360), no solo los requisitos
+/// que bloquean el acceso: un Centro sin ningún tipo «bloquea el acceso» también exige; qué es reclamable y a quién va, los lotes de
 /// siempre (<see cref="ObtenerLoteReclamacionQuery"/>, <see cref="ObtenerLoteReclamacionEmpresaQuery"/> y
 /// <see cref="ReclamacionEmpresaEmpleadoraService"/>). Esta query solo intersecta: no recuenta ni amplía nada.
 /// </summary>
@@ -72,14 +75,19 @@ public class ObtenerReclamacionPorAccesoQueryHandler(
     IMediator mediator,
     IAlcanceDatosService alcanceDatos,
     ITrabajadoresQueryContext trabajadoresContext,
-    IEvaluacionDeAccesoPorCentroService evaluacionDeAcceso,
+    IAsignacionesQueryContext asignacionesContext,
+    ICentrosQueryContext centrosContext,
+    ITiposDocumentoQueryContext tiposDocumentoContext,
+    ICalculoEstadoCentroService calculoEstadoCentro,
     ReclamacionEmpresaEmpleadoraService empresaEmpleadora)
     : IRequestHandler<ObtenerReclamacionPorAccesoQuery, IReadOnlyList<LoteReclamacionAgrupadoDto>>
 {
     public async Task<IReadOnlyList<LoteReclamacionAgrupadoDto>> Handle(ObtenerReclamacionPorAccesoQuery request, CancellationToken cancellationToken)
     {
-        // Fallo cerrado: fuera de la Asignación de Cartera no se ofrece nada (los envíos lo vuelven a comprobar).
-        if (request.TrabajadorIds.Count == 0 || !await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaId, cancellationToken))
+        // Fallo cerrado: fuera de la Asignación de Cartera no se ofrece nada (los envíos lo vuelven a comprobar), y un Centro
+        // que no se ve no exige nada a quien pregunta (tampoco lo de la Empresa, que no se acota por Centro en su lote).
+        if (request.TrabajadorIds.Count == 0 || !await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaId, cancellationToken)
+            || !await alcanceDatos.CentroVisibleAsync(request.CentroId, cancellationToken))
             return [];
 
         // Solo Trabajadores visibles y de esta Empresa (Trabajador.EmpresaId, no de una Subcontrata): los requisitos de los
@@ -92,12 +100,14 @@ public class ObtenerReclamacionPorAccesoQueryHandler(
         if (trabajadores.Count == 0)
             return [];
 
-        var evaluacion = await evaluacionDeAcceso.EvaluarAsync([request.CentroId], cancellationToken);
-        var requisitos = evaluacion.Requisitos.Where(r => r.CentroId == request.CentroId && trabajadores.Contains(r.TrabajadorId)).ToList();
-        var exigidosTrabajador = requisitos.Where(r => r.Ambito == AmbitoAplicacion.Trabajador)
-            .Select(r => (r.TrabajadorId, r.TipoDocumentoId)).ToHashSet();
-        var exigidosEmpresa = requisitos.Where(r => r.Ambito == AmbitoAplicacion.Empresa && r.EmpresaId == request.EmpresaId)
-            .Select(r => r.TipoDocumentoId).ToHashSet();
+        // Lo que el Centro exige, no solo lo que bloquea el acceso: los mismos pares exigidos que el Centro 360 y su %
+        // (ResolucionTipoDocumentoCentro, con la serie por tipo de contratación y los requisitos de evento). Un Centro que no
+        // marca nada «bloquea el acceso» sigue exigiendo su documentación, y reclamarla es justo lo que se pide aquí.
+        var paresExigidos = (await calculoEstadoCentro.ObtenerParesExigidosAsync([request.CentroId], cancellationToken))
+            .Where(p => p.CentroId == request.CentroId && trabajadores.Contains(p.TrabajadorId))
+            .ToList();
+        var exigidosTrabajador = paresExigidos.Select(p => (p.TrabajadorId, p.TipoDocumentoId)).ToHashSet();
+        var exigidosEmpresa = await TiposDeEmpresaExigidosAsync(request.CentroId, request.EmpresaId, trabajadores, cancellationToken);
 
         var lotesCliente = await mediator.Send(new ObtenerLoteReclamacionQuery(CentroId: request.CentroId, IncluirPendientesSinFecha: true), cancellationToken);
         var reagrupados = await empresaEmpleadora.ReagruparAsync(lotesCliente, cancellationToken);
@@ -143,6 +153,38 @@ public class ObtenerReclamacionPorAccesoQueryHandler(
             request.EmpresaId, receptor.EmpresaEmpleadora?.DelegacionEmpresaId, tipos, cancellationToken);
         unido = unido with { Destinatarios = destino.EsFallido ? [] : destino.Valor.Destinatarios };
         return [.. lotes.Select(l => ReferenceEquals(l, receptor) ? unido : l)];
+    }
+
+    /// <summary>
+    /// Los Tipos de ámbito Empresa que el Centro exige a la Empresa, con la misma regla que los pares de Empresa del % del
+    /// Centro (<see cref="ResolucionTipoDocumentoCentro"/>, sin serie por tipo de contratación, que es solo de ámbito Trabajador):
+    /// solo si el Centro tiene gestión CAE y alguno de los Trabajadores elegidos tiene allí una Asignación activa.
+    /// </summary>
+    private async Task<HashSet<Guid>> TiposDeEmpresaExigidosAsync(
+        Guid centroId, Guid empresaId, HashSet<Guid> trabajadores, CancellationToken cancellationToken)
+    {
+        if ((await CentrosSinGestionCae.FiltrarAsync(centrosContext, [centroId], cancellationToken)).Count > 0)
+            return [];
+
+        var trabajadorIds = trabajadores.ToList();
+        var conAsignacion = await asignacionesContext.Asignaciones
+            .AnyAsync(a => a.CentroId == centroId && a.FechaBaja == null && trabajadorIds.Contains(a.TrabajadorId), cancellationToken);
+        if (!conAsignacion)
+            return [];
+
+        var tipos = await tiposDocumentoContext.TiposDocumento
+            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa)
+            .Select(t => new { t.Id, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
+            .ToListAsync(cancellationToken);
+        var tipoIds = tipos.Select(t => t.Id).ToList();
+        var filasDelCentro = (await tiposDocumentoContext.TiposDocumentoCentros
+                .Where(tc => tc.CentroId == centroId && tipoIds.Contains(tc.TipoDocumentoId))
+                .ToListAsync(cancellationToken))
+            .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
+
+        return [.. tipos
+            .Where(t => ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, centroId, t.CuentaParaCumplimiento))
+            .Select(t => t.Id)];
     }
 }
 
