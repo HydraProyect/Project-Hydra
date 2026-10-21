@@ -881,8 +881,8 @@ public class Subcontrata360PaginaTests : BunitContext
 
     /// <summary>
     /// Regla 8 de LEEME-AUTORIDAD (Chris, 2026-10-18): «Gestionar» en una fila de supervisión no registra nada con un clic: abre
-    /// el formulario «Registrar verificación externa» con el Centro y el tipo de la fila ya elegidos, y la verificación solo
-    /// se registra al confirmar con «Registrar»; cancelar no deja rastro.
+    /// el formulario «Añadir verificación» con el Centro y el tipo de la fila ya elegidos, y la verificación solo
+    /// se registra al confirmar con «Guardar»; cancelar no deja rastro.
     /// </summary>
     [Fact]
     public async Task Gestionar_en_una_fila_de_supervision_abre_el_formulario_y_solo_registra_al_confirmar()
