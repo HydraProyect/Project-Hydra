@@ -40,12 +40,9 @@ public class EnviarReclamacionEmpresaCommandHandlerTests
         {
             alcanceDatos ??= new AlcanceDatosServiceFalso();
 
-            // El servicio REAL de lo pendiente sin fecha (con sus dos dependencias reales) sobre los dobles de contexto.
-            var pendientes = new PendientesDeReclamacionService(
-                Documentos, TiposDocumento, Trabajadores, Asignaciones, Centros, Empresas,
-                new DocumentosFaltantesService(TiposDocumento, Documentos, Centros),
-                new EvaluacionDeAccesoPorCentroService(Centros, TiposDocumento, Trabajadores, Asignaciones, Documentos, alcanceDatos),
-                alcanceDatos);
+            // El servicio REAL de lo pendiente sin fecha (con sus dependencias reales) sobre los dobles de contexto.
+            var pendientes = PendientesDeReclamacionPruebas.Crear(
+                Documentos, TiposDocumento, Trabajadores, Asignaciones, Centros, Empresas, alcanceDatos);
             return new(Empresas, Documentos, TiposDocumento, alcanceDatos, Agenda, RegistroEnvio, pendientes);
         }
     }

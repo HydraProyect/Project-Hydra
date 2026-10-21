@@ -193,6 +193,25 @@ public class AcordeonAsignacionesCentroIncidenciaEmpresaSinEstadoTests : BunitCo
         cut.FindAll(".separador-ambito").Select(e => e.TextContent.Trim()).Should().Equal("Empresa", "Trabajadores");
     }
 
+    /// <summary>
+    /// Decisión del 2026-10-21 (#1530): dentro de la fila desplegada de /centros la tarjeta de la Empresa nace contraída
+    /// (sus documentos no se ven hasta pulsar su chevron); en Centro 360 sigue desplegada de entrada.
+    /// </summary>
+    [Fact]
+    public void En_el_listado_de_Centros_la_fila_de_la_Empresa_nace_contraida()
+    {
+        var cut = RenderizarBloqueEmpresa(incidencias: 2, modoListado: true);
+        var chevron = () => cut.Find(".bloque-empresa-ambito .fila-relacion-desplegar");
+
+        chevron().GetAttribute("aria-expanded").Should().Be("false");
+        cut.FindAll(".bloque-empresa-ambito .fila-documento-requerido").Should().BeEmpty();
+        cut.Find(".bloque-empresa-ambito .fila-relacion-cifra").TextContent.Trim().Should().Be("2 doc.", "la cifra sí se ve contraída");
+
+        chevron().Click();
+
+        cut.FindAll(".bloque-empresa-ambito .fila-documento-requerido").Should().HaveCount(2);
+    }
+
     [Fact]
     public void La_fila_de_la_Empresa_se_pliega_y_se_despliega_con_su_chevron()
     {

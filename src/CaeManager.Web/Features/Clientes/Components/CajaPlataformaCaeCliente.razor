@@ -32,6 +32,12 @@
             else if (_plataforma is { Registrada: false })
             {
                 <p class="texto-vacio-seccion" data-plataforma-sin-registrar>@Textos["PlataformaCaeSinRegistrar"]</p>
+                @* Revisión 1:1 del 2026-10-21: «Sin plataforma» no puede leerse como «no hay plataforma» si sus Centros ya se
+                   acreditan en una (y uno puede estar bloqueado por ella). *@
+                @if (_plataforma.PlataformasDeSusCentros.Count > 0)
+                {
+                    <p class="texto-descriptivo" data-plataformas-de-sus-centros>@Textos["PlataformaCaeDeSusCentros", string.Join(", ", _plataforma.PlataformasDeSusCentros)]</p>
+                }
             }
             else if (_plataforma is not null)
             {

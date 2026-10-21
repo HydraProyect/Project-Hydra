@@ -524,12 +524,14 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         if (carga != _cargaTrabajadores) return null;
         var vencidos = await ContarAsync(empresaId, EstadoDocumento.Vencido, busqueda, conCatalogo);
         if (carga != _cargaTrabajadores) return null;
+        var pendientes = await ContarAsync(empresaId, EstadoDocumento.Faltante, busqueda, conCatalogo);
+        if (carga != _cargaTrabajadores) return null;
         var urgentes = await ContarAsync(empresaId, EstadoDocumento.Urgente, busqueda, conCatalogo);
         if (carga != _cargaTrabajadores) return null;
         var proximos = await ContarAsync(empresaId, EstadoDocumento.Proximo, busqueda, conCatalogo);
         if (carga != _cargaTrabajadores) return null;
 
-        return (new RecuentoTrabajadores(primera.TotalElementos, vencidos, urgentes, proximos), primera.Elementos);
+        return (new RecuentoTrabajadores(primera.TotalElementos, vencidos, urgentes, proximos, pendientes), primera.Elementos);
     }
 
     private static ObtenerTrabajadoresQuery ConsultaOrdenada(Guid empresaId, int pagina, string? busqueda, Guid? delegacionId, Guid? oficioId) =>
@@ -540,7 +542,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// <summary>
     /// Estados que deja pasar cada chip, para pedir a la consulta la página agrupada (el orden por Delegación u Oficio
     /// ya no deja cada chip como un tramo de la lista ordenada por estado). Los mismos tramos que
-    /// <see cref="Tramo"/>: «Al día» es todo lo que no es Vencido, Urgente ni Próximo.
+    /// <see cref="Tramo"/>: «Al día» es todo lo que no es Vencido, Pendiente, Urgente ni Próximo.
     /// </summary>
     private static string? EstadosDelChip(FiltroTrabajadores filtro) =>
         EstadosDeChip(filtro) is { } estados ? string.Join(',', estados.Select(e => e.ToString())) : null;
@@ -548,11 +550,11 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// <summary>
     /// Única fuente de los estados de cada chip: la usan la consulta agrupada (<see cref="EstadosDelChip"/>) y el filtro
     /// de filas de la lista sin agrupar (<see cref="Incluye"/>), para que la página coincida con el «Mostrando» del recuento
-    /// (<c>AlDia</c> es todo lo que no es Vencido, Urgente ni Próximo, así que incluye «Sin confirmar»).
+    /// (<c>AlDia</c> es todo lo que no es Vencido, Pendiente, Urgente ni Próximo, así que incluye «Sin confirmar»).
     /// </summary>
     private static EstadoDocumento[]? EstadosDeChip(FiltroTrabajadores filtro) => filtro switch
     {
-        FiltroTrabajadores.SinDocumentacionValida => [EstadoDocumento.Vencido],
+        FiltroTrabajadores.SinDocumentacionValida => [EstadoDocumento.Vencido, EstadoDocumento.Faltante],
         FiltroTrabajadores.PorVencer => [EstadoDocumento.Urgente, EstadoDocumento.Proximo],
         FiltroTrabajadores.AlDia => [EstadoDocumento.SinConfirmar, EstadoDocumento.Vigente, EstadoDocumento.SinCaducidad],
         _ => null
@@ -641,17 +643,17 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     }
 
     /// <summary>
-    /// Posición del chip en la lista ordenada por estado (Vencido, Urgente,
+    /// Posición del chip en la lista ordenada por estado (Vencido, Pendiente, Urgente,
     /// Próximo, Vigente, Sin caducidad) y la porción de él que cae en
     /// <paramref name="pagina"/>.
     /// </summary>
     internal static (int Desde, int Cantidad) Tramo(RecuentoTrabajadores recuentos, FiltroTrabajadores filtro, int pagina, int tamano)
     {
-        var finPorVencer = recuentos.Vencidos + recuentos.Urgentes + recuentos.Proximos;
+        var finPorVencer = recuentos.SinDocumentacionValida + recuentos.PorVencer;
         var (inicio, fin) = filtro switch
         {
-            FiltroTrabajadores.SinDocumentacionValida => (0, recuentos.Vencidos),
-            FiltroTrabajadores.PorVencer => (recuentos.Vencidos, finPorVencer),
+            FiltroTrabajadores.SinDocumentacionValida => (0, recuentos.SinDocumentacionValida),
+            FiltroTrabajadores.PorVencer => (recuentos.SinDocumentacionValida, finPorVencer),
             FiltroTrabajadores.AlDia => (finPorVencer, recuentos.Total),
             _ => (0, recuentos.Total)
         };
@@ -666,7 +668,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     private int TotalDelFiltro => _recuentosLista is not { } r ? 0 : _filtro switch
     {
-        FiltroTrabajadores.SinDocumentacionValida => r.Vencidos,
+        FiltroTrabajadores.SinDocumentacionValida => r.SinDocumentacionValida,
         FiltroTrabajadores.PorVencer => r.PorVencer,
         FiltroTrabajadores.AlDia => r.AlDia,
         _ => r.Total
@@ -1108,7 +1110,10 @@ public enum FiltroTrabajadores
 {
     Todos,
 
-    /// <summary>Peor documento vencido (el handler no produce Faltante: ver <see cref="EmpresaDetalle"/>).</summary>
+    /// <summary>
+    /// Peor documento vencido, o un Tipo exigido sin documento («Pendiente»): la maqueta suma Vencido y Pendiente en «sin
+    /// documentación válida». El estado ya llega combinado de <c>ObtenerTrabajadoresQuery</c>.
+    /// </summary>
     SinDocumentacionValida,
 
     /// <summary>Peor documento urgente o próximo.</summary>
@@ -1119,11 +1124,13 @@ public enum FiltroTrabajadores
 }
 
 /// <summary>
-/// Trabajadores de una Empresa por el peor estado de sus documentos. Los
-/// cuatro grupos parten el total: cada trabajador está en uno solo.
+/// Trabajadores de una Empresa por su estado documental (el de <c>ObtenerTrabajadoresQuery</c>, con lo exigido sin
+/// documento ya combinado). Los grupos parten el total: cada trabajador está en uno solo, en el orden de la lista
+/// ordenada por estado (Vencido, Pendiente, Urgente, Próximo y el resto).
 /// </summary>
-public sealed record RecuentoTrabajadores(int Total, int Vencidos, int Urgentes, int Proximos)
+public sealed record RecuentoTrabajadores(int Total, int Vencidos, int Urgentes, int Proximos, int Pendientes)
 {
+    public int SinDocumentacionValida => Vencidos + Pendientes;
     public int PorVencer => Urgentes + Proximos;
-    public int AlDia => Math.Max(0, Total - Vencidos - Urgentes - Proximos);
+    public int AlDia => Math.Max(0, Total - SinDocumentacionValida - PorVencer);
 }

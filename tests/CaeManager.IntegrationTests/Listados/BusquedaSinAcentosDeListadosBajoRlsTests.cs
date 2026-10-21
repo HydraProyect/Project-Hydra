@@ -331,7 +331,8 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
     private static async Task<IEnumerable<Guid>> BuscarClientesAsync(
         CaeManagerDbContext contexto, IAlcanceDatosService alcance, string termino)
     {
-        var handler = new ObtenerClientesQueryHandler(contexto, contexto, contexto, new MediadorSinAlertas(), alcance);
+        var calculo = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto);
+        var handler = new ObtenerClientesQueryHandler(contexto, contexto, contexto, new MediadorSinAlertas(), alcance, calculo);
         var resultado = await handler.Handle(new ObtenerClientesQuery(termino, SoloCriticos: null), CancellationToken.None);
         return resultado.Elementos.Select(c => c.Id).ToList();
     }

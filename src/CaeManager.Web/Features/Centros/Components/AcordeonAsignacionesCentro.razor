@@ -532,9 +532,17 @@ else
             <div class="nota-trabajadores-ocultos" data-totales-documentales>
                 <span>
                     Documentación de los trabajadores de este centro:
-                    @TotalesDocumentales.Exigidos exigidos · @TotalesDocumentales.AlDia al día ·
-                    @Textos[TotalesDocumentales.Vencidos == 1 ? "GrupoResumenVencidoUno" : "GrupoResumenVencidoVarios", TotalesDocumentales.Vencidos]
+                    @TotalesDocumentales.Exigidos exigidos · @TotalesDocumentales.AlDia al día
+                    @if (TotalesDocumentales.PorVencer > 0)
+                    {
+                        @Textos["TotalesAlDiaPorVencer", TotalesDocumentales.PorVencer]
+                    }
+                    · @Textos[TotalesDocumentales.Vencidos == 1 ? "GrupoResumenVencidoUno" : "GrupoResumenVencidoVarios", TotalesDocumentales.Vencidos]
                     · @Textos[TotalesDocumentales.Faltantes == 1 ? "GrupoResumenPendienteUno" : "GrupoResumenPendienteVarios", TotalesDocumentales.Faltantes]
+                    @if (TotalesDocumentales.SinValidar > 0)
+                    {
+                        @(" · " + Textos["TotalesSinValidar", TotalesDocumentales.SinValidar])
+                    }
                     @Textos["TotalesListaCompleta360"]
                 </span>
             </div>
