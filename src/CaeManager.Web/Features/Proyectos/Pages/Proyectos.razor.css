@@ -355,7 +355,7 @@
     .proyecto-expandir ::deep .icono { transition: none; }
 }
 @media (max-width: 767px) {
-    .tabla-proyectos { min-width: 860px; }
+    .tabla-proyectos { min-width: 1180px; }
 }
 .proyecto-plazo { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 /* Recuento de técnicos: el cero no abre nada y se lee como dato de apoyo. */

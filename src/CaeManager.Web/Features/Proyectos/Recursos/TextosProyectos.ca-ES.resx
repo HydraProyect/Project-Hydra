@@ -533,4 +533,5 @@
   <data name="ListaGestionar" xml:space="preserve"><value>Gestionar</value></data>
   <data name="ColumnaCumplimiento" xml:space="preserve"><value>Compliment</value></data>
   <data name="ColumnaEstadoDocumental" xml:space="preserve"><value>Estat documental</value></data>
+  <data name="AyudaDocumentosPropios" xml:space="preserve"><value>Segons els documents propis del projecte</value></data>
 </root>

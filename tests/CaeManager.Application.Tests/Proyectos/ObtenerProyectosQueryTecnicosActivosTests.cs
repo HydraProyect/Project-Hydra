@@ -40,7 +40,7 @@ public class ObtenerProyectosQueryTecnicosActivosTests
     public ObtenerProyectosQueryTecnicosActivosTests() => _empresas.ListaEmpresas.Add(ClienteEmpresarial);
 
     private ObtenerProyectosQueryHandler Handler() =>
-        new(_centros, _empresas, _proyectos, _trabajadores, new AlcanceDatosServiceFalso());
+        new(_centros, _empresas, _proyectos, _trabajadores, new AlcanceDatosServiceFalso(), new CalculoDocumentalFalso());
 
     private Proyecto NuevoProyecto(string nombre, DateOnly? inicio = null)
     {
