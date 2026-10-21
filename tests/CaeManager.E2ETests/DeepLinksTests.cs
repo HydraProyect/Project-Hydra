@@ -252,15 +252,19 @@ public class DeepLinksTests(WebAppFixture fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/comunicaciones");
 
+        // Bandeja plana: sin conversación abierta, el centro es la tabla de
+        // todas las conversaciones (TablaConversaciones, sin ".bandeja-fila");
+        // la lista lateral de filas solo existe con un hilo abierto. Se abre
+        // el primero desde la tabla y, ya en modo hilo, "filas" resuelve a la
+        // lista lateral con la que se cambia de hilo más abajo.
         var filas = page.Locator(".bandeja-fila");
-        await filas.First.WaitForAsync();
 
-        // Por el helper y no por un ClickAsync a secas: la fila es un
+        // Por el helper y no por un ClickAsync a secas: el botón es un
         // @onclick server-side sobre una página InteractiveServer, así que un
         // clic dado en la ventana del prerenderizado se pierde en silencio y
         // el fallo saldría 30 s después esperando el botón de copiar enlace,
-        // sin decir que la causa fue el clic (ver Ayudas.SeleccionarFilaBandejaAsync).
-        await Ayudas.SeleccionarFilaBandejaAsync(filas.First);
+        // sin decir que la causa fue el clic (ver Ayudas.AbrirConversacionDeTablaAsync).
+        await Ayudas.AbrirConversacionDeTablaAsync(page, page.Locator(".tabla-conversaciones-asunto button").First);
         await page.Locator(".bandeja-centro-copiar-enlace").WaitForAsync();
         var asuntoOriginal = (await page.Locator(".bandeja-centro-titulo-fila h2").TextContentAsync())!.Trim();
 
@@ -296,6 +300,7 @@ public class DeepLinksTests(WebAppFixture fixture)
         // y ningún otro test E2E crea, asigna ni borra conversaciones. Menos
         // de dos filas es un cambio de la siembra o del alcance que hay que
         // ver fallar, no una razón para no probar nada.
+        await filas.First.WaitForAsync();
         var totalFilas = await filas.CountAsync();
         Assert.True(
             totalFilas >= 2,

@@ -841,6 +841,20 @@ a.bandeja-documento-citado-nombre:hover {
     }
 }
 
+/* Sin hilo abierto no hay columna de Cliente: la tabla ocupa todo el resto.
+   Los escalones de ancho de arriba (<= 1439px) reservan una tercera columna
+   de 280px para esa ficha, y en esta composicion quedaba vacia y dejaba a la
+   tabla en ~400px, con la columna Conversacion aplastada a cero. */
+.bandeja-modo-tabla {
+    grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr);
+}
+
+@media (max-width: 1023px) {
+    .bandeja-modo-tabla {
+        grid-template-columns: 1fr;
+    }
+}
+
 .bandeja-modo-tabla .bandeja-filtros {
     border-radius: 0;
 }
