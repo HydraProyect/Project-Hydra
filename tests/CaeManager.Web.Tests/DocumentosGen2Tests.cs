@@ -332,9 +332,9 @@ public partial class DocumentosGen2Tests : BunitContext
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty();
         cut.FindAll("tbody tr:has(button.enlace-nombre-fila)").Should().ContainSingle();
         var cabecera = cut.Find(".cabecera-pagina");
-        cabecera.QuerySelector(".cabecera-pagina-kicker")!.TextContent.Trim().Should().Be("Negocio");
+        cabecera.QuerySelector(".cabecera-pagina-kicker").Should().BeNull();
         cabecera.QuerySelector("h1.titulo-pagina")!.TextContent.Trim().Should().Be("Documentos");
-        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("1");
+        cut.Find(".cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("1");
     }
 
     /// <summary>
@@ -498,7 +498,7 @@ public partial class DocumentosGen2Tests : BunitContext
         var (cut, _) = Renderizar();
 
         Pestana(cut, "Estado").QuerySelector(".pestanas-contador").Should().BeNull();
-        cut.Markup.Should().Contain("Aún no hay documentos",
+        cut.Markup.Should().Contain("Todavía no hay documentos",
             "la barrera: si la lista no hubiera respondido, la ausencia de píldora sería verde vacío");
     }
 
@@ -568,7 +568,7 @@ public partial class DocumentosGen2Tests : BunitContext
 
         Pestana(cut, "Estado").QuerySelector(".pestanas-contador")!.TextContent
             .Should().Contain("3", "el filtro vigente es «Vencidos y Por vencer», que devolvió tres: la respuesta de «solo Vencidos» llegó tarde");
-        cut.MarcadosEnFranja().Should().Equal("Vencidos", "Por vencer");
+        AbrirFiltrosAdicionalesDocumento(cut).MarcadosEnFranja().Should().Equal("Vencidos", "Por vencer");
     }
 
     /// <summary>
@@ -1173,13 +1173,13 @@ public partial class DocumentosGen2Tests : BunitContext
         var chips = cut.FindAll(".barra-filtros-pastillas .chip-filtro").Select(c => c.TextContent.Trim()).ToList();
         chips.Should().HaveCount(2);
         chips.Should().Contain(c => c.Contains("medico")).And.Contain(c => c.Contains("Trabajador"));
-        cut.MarcadosEnFranja().Should().Equal("Vencidos");
+        AbrirFiltrosAdicionalesDocumento(cut).MarcadosEnFranja().Should().Equal("Vencidos");
 
         cut.BotonDeFranja("Vencidos").Click();
 
         var navegacion = Services.GetRequiredService<NavigationManager>();
         navegacion.Uri.Should().NotContain("Estado=").And.Contain("Ambito=Trabajador").And.Contain("q=medico");
-        cut.MarcadosEnFranja().Should().Equal("Todos");
+        AbrirFiltrosAdicionalesDocumento(cut).MarcadosEnFranja().Should().Equal("Todos");
         UltimaConsultaDeDocumentos(mediador).Estados.Should().BeNull();
         cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().HaveCount(2);
 
@@ -1199,7 +1199,7 @@ public partial class DocumentosGen2Tests : BunitContext
     {
         var (cut, mediador) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
         var navegacion = Services.GetRequiredService<NavigationManager>();
-        cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Por vencer", "Sin confirmar", "Vigentes", "Sin caducidad");
+        AbrirFiltrosAdicionalesDocumento(cut).RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Por vencer", "Sin confirmar", "Vigentes", "Sin caducidad");
 
         cut.BotonDeFranja("Por vencer").Click();
 
@@ -1208,14 +1208,14 @@ public partial class DocumentosGen2Tests : BunitContext
         consulta.Estado.Should().BeNull("la página manda la lista, no el filtro de un solo estado");
         consulta.ConRecuentosPorEstado.Should().BeTrue("sin pedirlos, la franja no tendría cifras");
         Uri.UnescapeDataString(navegacion.Uri).Should().EndWith("Estado=Urgente,Proximo");
-        cut.MarcadosEnFranja().Should().Equal("Por vencer");
+        AbrirFiltrosAdicionalesDocumento(cut).MarcadosEnFranja().Should().Equal("Por vencer");
 
         cut.BotonDeFranja("Sin confirmar").Click();
 
         UltimaConsultaDeDocumentos(mediador).Estados
             .Should().Equal(EstadoDocumento.Urgente, EstadoDocumento.Proximo, EstadoDocumento.SinConfirmar);
         Uri.UnescapeDataString(navegacion.Uri).Should().EndWith("Estado=Urgente,Proximo,SinConfirmar");
-        cut.MarcadosEnFranja().Should().Equal("Por vencer", "Sin confirmar");
+        AbrirFiltrosAdicionalesDocumento(cut).MarcadosEnFranja().Should().Equal("Por vencer", "Sin confirmar");
     }
 
     [Fact]
@@ -1223,14 +1223,14 @@ public partial class DocumentosGen2Tests : BunitContext
     {
         var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")),
             url: "documentos?q=medico&Ambito=Trabajador&Estado=Vencido");
-        cut.MarcadosEnFranja().Should().Equal(["Vencidos"], "control positivo: el estado llegó de la URL y está marcado en la franja");
+        AbrirFiltrosAdicionalesDocumento(cut).MarcadosEnFranja().Should().Equal(["Vencidos"], "control positivo: el estado llegó de la URL y está marcado en la franja");
 
         cut.Find(".limpiar-filtros-barra").Click();
 
         var url = Services.GetRequiredService<NavigationManager>().Uri;
         url.Should().NotContain("q=").And.NotContain("Estado=").And.NotContain("Ambito=");
         cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().BeEmpty();
-        cut.MarcadosEnFranja().Should().Equal("Todos");
+        AbrirFiltrosAdicionalesDocumento(cut).MarcadosEnFranja().Should().Equal("Todos");
     }
 
     /// <summary>
@@ -1246,7 +1246,7 @@ public partial class DocumentosGen2Tests : BunitContext
         cut.Find(".limpiar-filtros-barra").Click();
 
         Services.GetRequiredService<NavigationManager>().Uri.Should().NotContain("Estado=");
-        cut.MarcadosEnFranja().Should().Equal("Todos");
+        AbrirFiltrosAdicionalesDocumento(cut).MarcadosEnFranja().Should().Equal("Todos");
     }
 
     [Fact]
@@ -1254,8 +1254,8 @@ public partial class DocumentosGen2Tests : BunitContext
     {
         var (cut, mediador) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty();
-        PastillaDocumentoFase1(cut, "Ámbito").GetAttribute("aria-label").Should().Be("Ámbito: Todos");
-        var franja = cut.Find(".franja-estado");
+        PastillaDocumentoFase1(cut, "Ámbito").GetAttribute("aria-label").Should().Be("Ámbito");
+        var franja = AbrirFiltrosAdicionalesDocumento(cut).Find(".franja-estado");
         franja.GetAttribute("role").Should().Be("group");
         franja.GetAttribute("aria-label").Should().Be("Filtrar por estado");
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(p => p.GetAttribute("aria-label"))
@@ -1340,12 +1340,12 @@ public partial class DocumentosGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// «Renovar» conserva su sitio en la fila: abre el mismo drawer que abría el menú (el que renueva con
-    /// archivo nuevo). Sin archivo, el botón dice «Subir».
+    /// «Gestionar» conserva el drawer de gestión (el que renueva con
+    /// archivo nuevo), también cuando todavía no hay archivo.
     /// </summary>
     [Theory]
-    [InlineData("blob/reconocimiento.pdf", "Renovar", "Renovar Reconocimiento médico de Javier Salas Moreno")]
-    [InlineData(null, "Subir", "Subir el archivo de Reconocimiento médico de Javier Salas Moreno")]
+    [InlineData("blob/reconocimiento.pdf", "Gestionar", "Gestionar Reconocimiento médico de Javier Salas Moreno")]
+    [InlineData(null, "Gestionar", "Gestionar Reconocimiento médico de Javier Salas Moreno")]
     public async Task La_accion_rapida_de_la_fila_abre_el_drawer_de_renovacion(string? archivoUrl, string rotulo, string nombreAccesible)
     {
         var documento = DocumentoDeFila(archivoUrl);
@@ -1491,7 +1491,7 @@ public partial class DocumentosGen2Tests : BunitContext
         var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico"), Documento("Formación PRL")),
             url: "documentos?Estado=Vencido");
 
-        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("2");
+        cut.Find(".cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("2");
     }
 
     // QuickGrid: eventos nativos de opciones/cabecera; las aserciones decisivas observan ObtenerDocumentosQuery.
@@ -1510,7 +1510,7 @@ public partial class DocumentosGen2Tests : BunitContext
     {
         var (cut, m) = Renderizar(ConDocumentos(Documento("Contrato de prueba")));
         var entidad = campo is "PropietarioNombre" or "Ambito";
-        var titulo = entidad ? "Pertenece a" : "Vigencia";
+        var titulo = entidad ? "Propietario" : "Vence";
         var previo = campo switch
         {
             "PropietarioNombre" => "Ambito",
@@ -1519,7 +1519,7 @@ public partial class DocumentosGen2Tests : BunitContext
             _ => "FechaEmision"
         };
         await ElegirOrdenDocumentoFase1(cut, previo);
-        await FijarSentidoDocumentoFase1(cut, m, mismaColumna ? titulo : "Tipo de documento", descendente);
+        await FijarSentidoDocumentoFase1(cut, m, mismaColumna ? titulo : "Documento", descendente);
         UltimoOrdenDocumentoFase1(m).OrdenarPor.Should().Be(mismaColumna ? previo : "TipoDocumentoNombre");
         UltimoOrdenDocumentoFase1(m).Descendente.Should().Be(descendente);
         var antes = m.Enviadas.OfType<ObtenerDocumentosQuery>().Count();
@@ -1544,7 +1544,7 @@ public partial class DocumentosGen2Tests : BunitContext
         m.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty();
         var filas = cut.FindAll("tbody tr:has(button.enlace-nombre-fila)");
         filas.Should().HaveCount(3);
-        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("3");
+        cut.Find(".cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("3");
         var celda = filas[0].QuerySelectorAll("td").Single(td => td.TextContent.Contains(vencido.PropietarioNombre));
         celda.TextContent.Should().Contain("Cliente").And.NotContain("Cliente empresarial");
         filas[0].TextContent.Should().Contain(vencido.FechaEmision.ToString("dd/MM/yyyy"))
@@ -1607,7 +1607,7 @@ public partial class DocumentosGen2Tests : BunitContext
         m.Enviadas.OfType<ObtenerDocumentosQuery>().Last();
 
     private static IElement CabeceraDocumentoFase1(IRenderedComponent<PaginaDocumentos> cut, string titulo) =>
-        cut.FindAll("thead th").Single(th => th.TextContent.Trim().StartsWith(titulo, StringComparison.Ordinal));
+        cut.FindAll(".tabla-datos thead th").Single(th => th.TextContent.Trim().StartsWith(titulo, StringComparison.Ordinal));
 
     private static async Task FijarSentidoDocumentoFase1(
         IRenderedComponent<PaginaDocumentos> cut, MediadorControlado m, string titulo, bool descendente)
@@ -1620,7 +1620,7 @@ public partial class DocumentosGen2Tests : BunitContext
 
     private static async Task ElegirOrdenDocumentoFase1(IRenderedComponent<PaginaDocumentos> cut, string campo)
     {
-        var titulo = campo is "PropietarioNombre" or "Ambito" ? "Pertenece a" : "Vigencia";
+        var titulo = campo is "PropietarioNombre" or "Ambito" ? "Propietario" : "Vence";
         var texto = campo switch
         {
             "PropietarioNombre" => "Ordenar por entidad asociada",
@@ -1628,21 +1628,31 @@ public partial class DocumentosGen2Tests : BunitContext
             "FechaEmision" => "Ordenar por emisión",
             _ => "Ordenar por vencimiento"
         };
-        await CabeceraDocumentoFase1(cut, titulo).QuerySelector("button.col-options-button")!.ClickAsync(new MouseEventArgs());
+        await CabeceraDocumentoFase1(cut, titulo).QuerySelector("button.documentos-opciones-boton")!.ClickAsync(new MouseEventArgs());
         await cut.FindAll(".documentos-opciones-orden button").Single(b => b.TextContent.Trim() == texto)
             .ClickAsync(new MouseEventArgs());
     }
 
 
     // Helpers de adaptación: insertar dentro de DocumentosGen2Tests.
-    private static IElement PastillaDocumentoFase1(IRenderedComponent<PaginaDocumentos> cut, string etiqueta) =>
-        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla")
+    private static IElement PastillaDocumentoFase1(IRenderedComponent<PaginaDocumentos> cut, string etiqueta)
+    {
+        if (etiqueta == "Tipo de documento") AbrirFiltrosAdicionalesDocumento(cut);
+        return cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla")
             .Single(b => b.GetAttribute("aria-label") is { } nombre &&
                 (nombre == etiqueta || nombre.StartsWith(etiqueta + ": ", StringComparison.Ordinal)));
+    }
+
+    private static IRenderedComponent<PaginaDocumentos> AbrirFiltrosAdicionalesDocumento(IRenderedComponent<PaginaDocumentos> cut)
+    {
+        var boton = cut.Find("button[aria-label='Más filtros']");
+        if (boton.GetAttribute("aria-expanded") != "true") boton.Click();
+        return cut;
+    }
 
     /// <summary>Marca o desmarca un botón de la franja de estado por su rótulo («Vencidos», «Por vencer»…).</summary>
     private static Task AlternarFranjaDocumentoFase1(IRenderedComponent<PaginaDocumentos> cut, string rotulo) =>
-        cut.BotonDeFranja(rotulo).ClickAsync(new MouseEventArgs());
+        AbrirFiltrosAdicionalesDocumento(cut).BotonDeFranja(rotulo).ClickAsync(new MouseEventArgs());
 
     private static ObtenerDocumentosQuery UltimaConsultaDeDocumentos(MediadorControlado mediador) =>
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last();
@@ -1708,7 +1718,7 @@ public partial class DocumentosGen2Tests : BunitContext
 
         UltimaConsultaDeDocumentos(mediador).OrdenarPor.Should().Be(ObtenerDocumentosQuery.OrdenPorSeveridad);
 
-        await FijarSentidoDocumentoFase1(cut, mediador, "Tipo de documento", descendente: true);
+        await FijarSentidoDocumentoFase1(cut, mediador, "Documento", descendente: true);
 
         UltimaConsultaDeDocumentos(mediador).OrdenarPor.Should().Be(nameof(DocumentoListaDto.TipoDocumentoNombre));
         UltimaConsultaDeDocumentos(mediador).Descendente.Should().BeTrue();
@@ -1761,7 +1771,7 @@ public partial class DocumentosGen2Tests : BunitContext
         var (cut, mediador) = Renderizar(ConOpcionesDeFiltro());
 
         cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).Should().NotBeNull());
-        await cut.FindAll(".menu-acciones-disparador").Single(d => d.GetAttribute("aria-label") == "Más filtros")
+        await PastillaDocumentoFase1(cut, "Portal")
             .ClickAsync(new MouseEventArgs());
         await cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]")
             .Single(b => b.TextContent.Trim() == "Nalanda").ClickAsync(new MouseEventArgs());

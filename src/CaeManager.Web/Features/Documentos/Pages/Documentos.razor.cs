@@ -7,6 +7,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Commands.EliminarDocumentos;
 using CaeManager.Application.Documentos.Commands.RenovarDocumento;
+using CaeManager.Application.Documentos.Queries.ObtenerEntidadesAsociadasDeDocumentos;
 using CaeManager.Application.Documentos.Commands.RestaurarDocumento;
 using CaeManager.Application.Documentos.Queries.DetectarCamposDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
@@ -104,6 +105,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     /// <summary>Filtro «Plataforma» de la rejilla: el Id de la plataforma CAE.</summary>
     [SupplyParameterFromQuery] public string? Plataforma { get; set; }
+
+    // «Propietario» es el rótulo de Design para la entidad asociada al Documento, nunca el Tenant propietario.
+    [SupplyParameterFromQuery] public string? Propietario { get; set; }
 
     /// <summary>Orden de columna de la rejilla (<c>?orden=vencimiento-desc</c>). Sin él, el de inicio: por severidad.</summary>
     [SupplyParameterFromQuery(Name = "orden")] public string? OrdenInicial { get; set; }
@@ -354,7 +358,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         var carga = _cargaVigente;
         try
         {
-            var resultado = await Mediator.Send(new ObtenerDocumentosQuery(TrabajadorId: null, Ambito: null, Busqueda: null, DocumentoId: id), _ciclo.Token);
+            var resultado = await Mediator.Send(new ObtenerDocumentosQuery(TrabajadorId: null, Ambito: null, Busqueda: null, DocumentoId: id, ConDestinosEnCentros: true), _ciclo.Token);
             var indice = _elementosPagina.FindIndex(e => e.Id == id);
             if (_desechado || _grid is null || _cargando || carga != _cargaVigente || indice < 0
                 || resultado.Elementos.FirstOrDefault() is not { } actualizada)
@@ -363,6 +367,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             _elementosPagina[indice] = actualizada;
             _servirPaginaEnMemoria = true;
             await _grid.RefreshDataAsync();
+            if (!_desechado && carga == _cargaVigente) StateHasChanged();
         }
         catch (Exception)
         {
@@ -404,6 +409,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
         _confirmarEliminarLoteVisible = false;
         _seleccionados.Clear();
+        _documentosAbiertos.Clear();
+        _opcionesOrdenVisible = null;
 
         _mostrarGuardarFiltro = false;
         _nombreFiltroNuevo = string.Empty;
@@ -455,7 +462,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>Error del servidor al guardar el filtro: se ve en el aviso fijo del ModalFormulario (D-20), no en un toast que desaparece.</summary>
     private string? _mensajeErrorFiltro;
 
-    private record FiltrosDocumentosJson(string? Busqueda, string? Ambito, string? Estado, string? Tipo = null, string? Plataforma = null);
+    private record FiltrosDocumentosJson(string? Busqueda, string? Ambito, string? Estado, string? Tipo = null, string? Plataforma = null, string? Propietario = null);
 
     private DrawerGestionDocumento _drawerGestion = default!;
     private PlataformaTab? _plataformaTab;
@@ -643,6 +650,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _ambitoFiltro = Ambito ?? string.Empty;
         _tipoFiltro = IdValido(Tipo);
         _plataformaFiltro = IdValido(Plataforma);
+        _propietarioFiltro = IdValido(Propietario);
         LeerOrden(OrdenInicial);
 
         // Deep-link de pestaña: lo usa el timeline de Comunicaciones para llevar
@@ -664,7 +672,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         // El separador no es decorativo: concatenando a pelo, mover una letra
         // de un filtro al siguiente daría la misma firma y el cambio pasaría
         // por no-cambio.
-        var contexto = string.Join('\n', _pestanaActiva, _busqueda, _ambitoFiltro, _estadoFiltro, _tipoFiltro, _plataformaFiltro);
+        var contexto = string.Join('\n', _pestanaActiva, _busqueda, _ambitoFiltro, _estadoFiltro, _tipoFiltro, _plataformaFiltro, _propietarioFiltro);
         if (_contextoEnPantalla is null)
             _contextoEnPantalla = contexto;
         else if (_contextoEnPantalla != contexto)
@@ -714,6 +722,11 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private bool _ultimoOrdenAscendente = true;
     private enum ColumnaOrdenListado { EntidadAsociada, Vigencia }
     private ColumnaOrdenListado? _columnaOrdenPendiente;
+    private ColumnaOrdenListado? _opcionesOrdenVisible;
+    private void CerrarOrdenConTecla(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") _opcionesOrdenVisible = null;
+    }
     private SortDirection _sentidoOrdenPendiente = SortDirection.Ascending;
     private static readonly GridSort<DocumentoListaDto> OrdenEntidadAsociadaListado = GridSort<DocumentoListaDto>.ByAscending(d => d.PropietarioNombre);
     private static readonly GridSort<DocumentoListaDto> OrdenAmbitoListado = GridSort<DocumentoListaDto>.ByAscending(d => d.Ambito);
@@ -722,12 +735,14 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     private void CambiarCampoOrdenEntidadAsociada(bool porAmbito)
     {
+        _opcionesOrdenVisible = null;
         _ordenEntidadAsociadaPorAmbito = porAmbito;
         ProgramarOrdenListado(ColumnaOrdenListado.EntidadAsociada, _columnaEntidadAsociada);
     }
 
     private void CambiarCampoOrdenVigencia(bool porEmision)
     {
+        _opcionesOrdenVisible = null;
         _ordenVigenciaPorEmision = porEmision;
         ProgramarOrdenListado(ColumnaOrdenListado.Vigencia, _columnaVigencia);
     }
@@ -760,9 +775,36 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         OpcionesAmbitoListado.FirstOrDefault(o => o.Valor == ambito.ToString())?.Texto ?? ambito.ToString();
 
     private string _busqueda = string.Empty;
+    private bool _agruparPorAmbito;
+    private readonly HashSet<Guid> _documentosAbiertos = [];
+
+    private List<DocumentoListaDto> ElementosVisibles => _elementosPagina;
+    private bool HayDestinos => _elementosPagina.Any(d => d.DestinosEnCentros is { Count: > 0 });
+
+    private void AlternarDocumento(Guid id)
+    {
+        if (!_documentosAbiertos.Add(id)) _documentosAbiertos.Remove(id);
+    }
+
+    private void ExpandirTodos() => _documentosAbiertos.UnionWith(
+        _elementosPagina.Where(d => d.DestinosEnCentros is { Count: > 0 }).Select(d => d.Id));
+
+    private void ContraerTodos() => _documentosAbiertos.Clear();
+
+    private string? MotivoDestino(DocumentoEnCentroListaDto destino, DocumentoListaDto documento) =>
+        destino.EnToleranciaHasta is { } hasta
+            ? Textos["ToleranciaHasta", hasta.ToString("dd/MM/yyyy")].Value
+            : EstadoDocumentoUi.MotivoDeDocumento(destino.Estado, documento.FechaVencimiento, _hoy);
+
+    private async Task CambiarAgrupacionAsync(bool agrupar)
+    {
+        _agruparPorAmbito = agrupar;
+        await RecargarAsync();
+    }
     private string _ambitoFiltro = string.Empty;
     private string _tipoFiltro = string.Empty;
     private string _plataformaFiltro = string.Empty;
+    private string _propietarioFiltro = string.Empty;
     private IReadOnlyList<OpcionEstado> _opcionesTipo = [];
     private IReadOnlyList<OpcionEstado> _opcionesPlataforma = [];
 
@@ -773,6 +815,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     /// <summary>Documentos por estado para la franja, sin el filtro de estado aplicado. <c>null</c> hasta la primera carga.</summary>
     private IReadOnlyDictionary<string, int>? _recuentosPorEstado;
+    private IReadOnlyDictionary<string, ResumenDeGrupo>? _resumenPorGrupo;
 
     /// <summary>Día de negocio con el que la columna de estado cuenta los días del motivo; se fija en cada carga.</summary>
     private DateOnly _hoy = DiaDeNegocio.Hoy();
@@ -841,12 +884,15 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
                 Estado: null,
                 Pagina: pagina,
                 TamanoPagina: _paginacion.ItemsPerPage,
+                PropietarioId: Guid.TryParse(_propietarioFiltro, out var entidadFiltro) ? entidadFiltro : null,
                 OrdenarPor: ordenarPor,
                 Descendente: descendente,
                 Estados: estadosFiltro.Count == 0 ? null : estadosFiltro,
                 ConRecuentosPorEstado: true,
                 TipoDocumentoId: Guid.TryParse(_tipoFiltro, out var tipoFiltro) ? tipoFiltro : null,
-                ProveedorPlataformaCaeId: Guid.TryParse(_plataformaFiltro, out var plataformaFiltro) ? plataformaFiltro : null), token);
+                ProveedorPlataformaCaeId: Guid.TryParse(_plataformaFiltro, out var plataformaFiltro) ? plataformaFiltro : null,
+                AgruparPorAmbito: _agruparPorAmbito,
+                ConDestinosEnCentros: true), token);
 
             // La respuesta de un filtro ya abandonado no puede pisar el total,
             // las filas ni la selección de la pregunta que sí se está mirando.
@@ -858,10 +904,12 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             _totalElementos = resultado.TotalElementos;
             _totalConocido = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
+            _resumenPorGrupo = resultado.ResumenPorGrupo;
             _hoy = DiaDeNegocio.Hoy();
 
             var elementos = resultado.Elementos.ToList();
             _elementosPagina = elementos;
+            _documentosAbiertos.IntersectWith(elementos.Select(d => d.Id));
             _seleccionados.Clear();
             _idEnfocado = null;
 
@@ -922,6 +970,18 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         await RecargarAsync();
     }
 
+    private async Task CambiarEntidadAsociadaAsync(EntidadAsociadaDocumentoDto? entidad)
+    {
+        _propietarioFiltro = entidad?.Id.ToString() ?? string.Empty;
+        if (entidad is not null) _ambitoFiltro = entidad.Ambito.ToString();
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            [nameof(Propietario)] = _propietarioFiltro,
+            [nameof(Ambito)] = _ambitoFiltro,
+        });
+        await RecargarAsync();
+    }
+
     private async Task CambiarEstadoFiltroAsync(string? valor)
     {
         _estadoFiltro = valor ?? string.Empty;
@@ -932,7 +992,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private bool HayFiltrosActivos =>
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
         || !string.IsNullOrWhiteSpace(_ambitoFiltro) || !string.IsNullOrWhiteSpace(_tipoFiltro)
-        || !string.IsNullOrWhiteSpace(_plataformaFiltro);
+        || !string.IsNullOrWhiteSpace(_plataformaFiltro) || !string.IsNullOrWhiteSpace(_propietarioFiltro);
 
     /// <summary>
     /// Quita todos los filtros, y todos <b>también de la URL</b>. Hasta ahora
@@ -955,6 +1015,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _ambitoFiltro = string.Empty;
         _tipoFiltro = string.Empty;
         _plataformaFiltro = string.Empty;
+        _propietarioFiltro = string.Empty;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = null,
@@ -962,6 +1023,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             [nameof(Ambito)] = null,
             [nameof(Tipo)] = null,
             [nameof(Plataforma)] = null,
+            [nameof(Propietario)] = null,
         });
         await RecargarAsync();
     }
@@ -986,12 +1048,12 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     // --- P3-31: selección múltiple ---
 
     private bool TodosSeleccionados =>
-        _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
+        ElementosVisibles.Count > 0 && ElementosVisibles.All(e => _seleccionados.Contains(e.Id));
 
     private void AlternarSeleccionTodos(bool marcar)
     {
         if (marcar)
-            foreach (var elemento in _elementosPagina) _seleccionados.Add(elemento.Id);
+            foreach (var elemento in ElementosVisibles) _seleccionados.Add(elemento.Id);
         else
             _seleccionados.Clear();
     }
@@ -1149,20 +1211,21 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     private async Task ManejarAtajoAsync(string tecla)
     {
-        if (_elementosPagina.Count == 0) return;
+        var visibles = ElementosVisibles;
+        if (visibles.Count == 0) return;
 
         switch (tecla)
         {
             case "j":
                 {
-                    var indiceActual = _idEnfocado is null ? -1 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Min(indiceActual + 1, _elementosPagina.Count - 1)].Id;
+                    var indiceActual = _idEnfocado is null ? -1 : visibles.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = visibles[Math.Min(indiceActual + 1, visibles.Count - 1)].Id;
                     break;
                 }
             case "k":
                 {
-                    var indiceActual = _idEnfocado is null ? 0 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Max(indiceActual - 1, 0)].Id;
+                    var indiceActual = _idEnfocado is null ? 0 : visibles.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = visibles[Math.Max(indiceActual - 1, 0)].Id;
                     break;
                 }
             case "x":
@@ -1262,6 +1325,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _estadoFiltro = EstadosValidos(valores.Estado);
         _tipoFiltro = IdValido(valores.Tipo);
         _plataformaFiltro = IdValido(valores.Plataforma);
+        _propietarioFiltro = IdValido(valores.Propietario);
 
         // Todos van también a la URL, y en una sola llamada. Sin esto, el
         // filtro guardado duraba hasta la siguiente pasada de parámetros:
@@ -1275,6 +1339,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             [nameof(Ambito)] = valores.Ambito,
             [nameof(Tipo)] = _tipoFiltro,
             [nameof(Plataforma)] = _plataformaFiltro,
+            [nameof(Propietario)] = _propietarioFiltro,
         });
         await RecargarAsync();
     }
@@ -1289,7 +1354,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// compartida y conservan su propio JSON, sin el orden de columna.
     /// </summary>
     public static readonly IReadOnlyList<string> ParametrosDeVista =
-        ["q", nameof(Estado), nameof(Ambito), nameof(Tipo), nameof(Plataforma), "orden"];
+        ["q", nameof(Estado), nameof(Ambito), nameof(Tipo), nameof(Plataforma), nameof(Propietario), "orden"];
 
     private readonly ConexionVistaRecordada _vistaRecordada = new();
 
@@ -1306,6 +1371,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _ambitoFiltro = vista.GetValueOrDefault(nameof(Ambito)) ?? string.Empty;
         _tipoFiltro = IdValido(vista.GetValueOrDefault(nameof(Tipo)));
         _plataformaFiltro = IdValido(vista.GetValueOrDefault(nameof(Plataforma)));
+        _propietarioFiltro = IdValido(vista.GetValueOrDefault(nameof(Propietario)));
         var cambiaElOrden = LeerOrden(vista.GetValueOrDefault("orden"));
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
@@ -1314,6 +1380,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             [nameof(Ambito)] = _ambitoFiltro,
             [nameof(Tipo)] = _tipoFiltro,
             [nameof(Plataforma)] = _plataformaFiltro,
+            [nameof(Propietario)] = _propietarioFiltro,
             ["orden"] = _orden.EnUrl,
         });
 
@@ -1359,7 +1426,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             string.IsNullOrWhiteSpace(_ambitoFiltro) ? null : _ambitoFiltro,
             string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
             string.IsNullOrWhiteSpace(_tipoFiltro) ? null : _tipoFiltro,
-            string.IsNullOrWhiteSpace(_plataformaFiltro) ? null : _plataformaFiltro));
+            string.IsNullOrWhiteSpace(_plataformaFiltro) ? null : _plataformaFiltro,
+            string.IsNullOrWhiteSpace(_propietarioFiltro) ? null : _propietarioFiltro));
 
         _guardandoFiltro = true;
         _mensajeErrorFiltro = null;
@@ -1446,6 +1514,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         ["estado"] = _estadoFiltro,
         ["tipo"] = _tipoFiltro,
         ["plataforma"] = _plataformaFiltro,
+        ["propietario"] = _propietarioFiltro,
+        ["agrupar"] = _agruparPorAmbito ? "ambito" : null,
         ["orden"] = _ordenExportar,
         ["desc"] = _descendenteExportar ? "true" : null,
     };

@@ -306,11 +306,14 @@
   <data name="CerrarDetalle" xml:space="preserve">
     <value>Tancar el detall</value>
   </data>
+  <data name="Centro" xml:space="preserve">
+    <value>Centre</value>
+  </data>
   <data name="AccionPedir" xml:space="preserve">
-    <value>Demanar</value>
+    <value>Reclamar</value>
   </data>
   <data name="AccionPedirTitulo" xml:space="preserve">
-    <value>Demana el que falta de {0} obrint «Reclamar en lot» a {1}</value>
+    <value>Reclama el que falta de {0} obrint «Reclamar en lot» a {1}</value>
   </data>
   <data name="ReclamacionIncluirFalta" xml:space="preserve">
     <value>Incloure {0} de {1}, que falta, a la reclamació</value>

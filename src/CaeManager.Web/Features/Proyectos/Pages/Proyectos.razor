@@ -506,6 +506,8 @@
 
         @if (NuevoEsEvento)
         {
+            <p class="texto-ayuda-campo">@Textos["AyudaFinEvento"]</p>
+
             @* Los requisitos de un evento se copian de una plantilla o de otro evento del mismo Cliente empresarial. *@
             <CampoSelect Etiqueta="@Textos["EtiquetaOrigenRequisitos"]" Valor="@_nuevoOrigenRequisitos" ValorChanged="v => _nuevoOrigenRequisitos = v">
                 <option value="">@Textos["OpcionSinRequisitos"]</option>

@@ -134,7 +134,7 @@ public partial class DocumentosGen2Tests
         var (cut, mediador) = Renderizar(ConOpcionesDeFiltro());
         ParametrosDeLaUrl().Should().NotContainKey("orden", "control: el orden de inicio no viaja");
 
-        await FijarSentidoDocumentoFase1(cut, mediador, "Tipo de documento", descendente: true);
+        await FijarSentidoDocumentoFase1(cut, mediador, "Documento", descendente: true);
 
         cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().Contain("orden", "tipo-desc"));
     }
