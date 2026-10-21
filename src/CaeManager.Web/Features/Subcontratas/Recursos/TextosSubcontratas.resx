@@ -456,6 +456,45 @@
   <data name="ErrorCargaSupervisionTitulo" xml:space="preserve">
     <value>No pudimos cargar la supervisión</value>
   </data>
+  <data name="VerificacionesErrorTitulo" xml:space="preserve">
+    <value>No se han podido cargar las verificaciones.</value>
+  </data>
+  <data name="VerificacionesVacioTitulo" xml:space="preserve">
+    <value>Sin verificaciones externas</value>
+  </data>
+  <data name="VerificacionesVacioDescripcion" xml:space="preserve">
+    <value>Con nivel Gestionada, TALVEG las hace por la Empresa; con Supervisada, las registra el Gestor CAE.</value>
+  </data>
+  <data name="BotonAnadirVerificacion" xml:space="preserve">
+    <value>Añadir verificación</value>
+  </data>
+  <data name="TituloDrawerVerificacionAlta" xml:space="preserve">
+    <value>Añadir verificación</value>
+  </data>
+  <data name="BotonGuardarVerificacion" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="RotuloEvidenciaVerificacion" xml:space="preserve">
+    <value>Evidencia</value>
+  </data>
+  <data name="AyudaEvidenciaVerificacion" xml:space="preserve">
+    <value>Captura o PDF del registro consultado. PDF, JPG o PNG, hasta 10 MB. Opcional.</value>
+  </data>
+  <data name="ToastVerificacionGuardada" xml:space="preserve">
+    <value>Verificación de «{0}» guardada.</value>
+  </data>
+  <data name="ToastVerificacionEliminadaDeTipo" xml:space="preserve">
+    <value>Verificación de «{0}» eliminada.</value>
+  </data>
+  <data name="ConfirmarEliminarVerificacionDeTipoTitulo" xml:space="preserve">
+    <value>¿Eliminar la verificación de «{0}»?</value>
+  </data>
+  <data name="ConfirmarEliminarVerificacionDeTipoMensaje" xml:space="preserve">
+    <value>Se quita el resultado y su evidencia de la supervisión. El semáforo volverá a calcularse con la verificación anterior, si la hay.</value>
+  </data>
+  <data name="BotonConfirmarEliminarVerificacion" xml:space="preserve">
+    <value>Eliminar verificación</value>
+  </data>
   <data name="ExplicacionSupervision" xml:space="preserve">
     <value>Cumplimiento de la subcontrata en las plataformas externas de cada centro, según las verificaciones que se registran a mano aquí. El semáforo se calcula con la última verificación y los umbrales del sistema.</value>
   </data>
@@ -676,7 +715,7 @@
     <value>Gestionar</value>
   </data>
   <data name="AccionRegistrarVerificacion" xml:space="preserve">
-    <value>Registrar verificación</value>
+    <value>Añadir verificación</value>
   </data>
   <data name="AnilloEtiqueta" xml:space="preserve">
     <value>{0} % · {1} de {2} al día</value>

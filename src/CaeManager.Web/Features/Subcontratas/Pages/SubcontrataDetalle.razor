@@ -139,7 +139,7 @@
                             else if (_errorSupervision)
                             {
                                 <Tarjeta>
-                                    <EstadoVacio Titulo="@Textos["ErrorCargaSupervisionTitulo"]" Descripcion="@Textos["ErrorIntentaNuevamente"]">
+                                    <EstadoVacio Titulo="@Textos["VerificacionesErrorTitulo"]" Descripcion="@Textos["ErrorIntentaNuevamente"]">
                                         <Accion>
                                             <Boton Variante="VarianteBoton.Secundario" OnClick="ReintentarSupervisionAsync">@Comunes["Reintentar"]</Boton>
                                         </Accion>
@@ -149,12 +149,12 @@
                             else if (_supervision is not null && CentrosSupervisados.Count == 0)
                             {
                                 <Tarjeta>
-                                    <EstadoVacio Titulo="@Textos["SupervisionVacioTitulo"]" NombreIcono="vacio"
-                                                 Descripcion="@(HayCentrosDondeVerificar ? Textos["SupervisionVacioSinVerificaciones"] : Textos["SupervisionVacioSinCentros"])">
+                                    <EstadoVacio Titulo="@Textos["VerificacionesVacioTitulo"]" NombreIcono="vacio"
+                                                 Descripcion="@(HayCentrosDondeVerificar ? Textos["VerificacionesVacioDescripcion"] : Textos["SupervisionVacioSinCentros"])">
                                         <Accion>
                                             <SoloConEscritura>
                                                 <Boton Variante="VarianteBoton.Secundario" OnClick="RegistrarVerificacionAsync" Deshabilitado="@(!HayCentrosDondeVerificar)">
-                                                    @Textos["BotonRegistrarVerificacion"]
+                                                    @Textos["BotonAnadirVerificacion"]
                                                 </Boton>
                                             </SoloConEscritura>
                                         </Accion>
@@ -176,7 +176,7 @@
                                             <span>@TextoUltimaVerificacion</span>
                                             <SoloConEscritura>
                                                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="RegistrarVerificacionAsync" Deshabilitado="@(!HayCentrosDondeVerificar)">
-                                                    @Textos["BotonRegistrarVerificacion"]
+                                                    @Textos["BotonAnadirVerificacion"]
                                                 </Boton>
                                             </SoloConEscritura>
                                         </span>
@@ -215,7 +215,7 @@
                                                             @* Eliminar es una orden denegada a Consulta; el nombre accesible distingue cuál borra. *@
                                                             <SoloConEscritura>
                                                                 <MenuAcciones EtiquetaAccesible="@Textos["AriaMasAccionesVerificacion", tipo.TipoDocumentoNombre, centro.CentroNombre]">
-                                                                    <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminarVerificacion(ultima.Id)"
+                                                                    <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminarVerificacion(ultima.Id, tipo.TipoDocumentoNombre)"
                                                                                     EtiquetaAccesible="@Textos["AriaEliminarVerificacion", tipo.TipoDocumentoNombre, centro.CentroNombre]">
                                                                         @Textos["BotonEliminarVerificacion"]
                                                                     </ItemMenuAccion>
@@ -513,12 +513,13 @@
         <DialogoConfirmacion
             Visible="_confirmarEliminarVerificacionVisible"
             VisibleChanged="v => _confirmarEliminarVerificacionVisible = v"
-            Titulo="@Textos["ConfirmarEliminarVerificacionTitulo"]"
-            Mensaje="@Textos["ConfirmarEliminarVerificacionMensaje"]"
+            Titulo="@Textos["ConfirmarEliminarVerificacionDeTipoTitulo", _verificacionAEliminarTipo]"
+            Mensaje="@Textos["ConfirmarEliminarVerificacionDeTipoMensaje"]"
+            TextoBotonConfirmar="@Textos["BotonConfirmarEliminarVerificacion"]"
             EnProgreso="_eliminandoVerificacion"
             OnConfirmar="ConfirmarEliminarVerificacionAsync" />
 
-        <DrawerVerificacionExternaSubcontrata @ref="_drawerVerificacion" SubcontrataId="_detalle.Id"
+        <DrawerVerificacionExternaSubcontrata @ref="_drawerVerificacion" SubcontrataId="_detalle.Id" Subtitulo="@SubtituloVerificacion"
                                               CentrosSeleccionables="@(_supervision?.CentrosSeleccionables ?? [])"
                                               OnRegistrada="CargarSupervisionAsync" />
 
