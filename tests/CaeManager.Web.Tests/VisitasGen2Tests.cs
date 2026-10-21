@@ -717,7 +717,7 @@ public partial class VisitasGen2Tests : BunitContext
         await BotonEnviarPorCorreo(cut).ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => cut.Find(".visitas-solicitud-correo .alerta-formulario").TextContent
-            .Should().Contain("3,1 MB").And.Contain("hasta 3 MB").And.Contain("Descárgalo"));
+            .Should().Contain("3,1 MB").And.Contain("el máximo por correo es 3 MB").And.Contain("Descárgalo"));
         cut.FindComponents<RedactarMensajeDrawer>().Single().Instance.Visible.Should().BeFalse("el ZIP no cabe en un correo: no se abre un compositor que acabaría fallando al enviar");
         cut.FindAll("a[href$='paquete-documental.zip']").Should().ContainSingle("la descarga sigue disponible como alternativa");
     }

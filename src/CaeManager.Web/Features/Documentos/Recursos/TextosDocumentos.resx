@@ -106,6 +106,9 @@
   <data name="RecBotonMarcaDocumento" xml:space="preserve">
     <value>Marca al menos un documento para reclamar.</value>
   </data>
+  <data name="PlatErrorCargaTitulo" xml:space="preserve">
+    <value>No se ha podido cargar el estado por plataforma.</value>
+  </data>
   <data name="PlatSinVigenciaResumen" xml:space="preserve">
     <value>{0} validada(s) sin vigencia</value>
   </data>

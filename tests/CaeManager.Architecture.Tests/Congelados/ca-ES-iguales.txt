@@ -1060,7 +1060,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Ari
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaSeleccionarPagina = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaSeleccionarTrabajador = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BadgeIncidenciasCentroVarios = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BotonAsignarACentro = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BotonAsignarIgualmente = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BotonNuevoTrabajador = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BotonSubirDocumento = 1
@@ -1075,7 +1074,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Dia
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: DocumentosPendientesUno = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: DocumentosPendientesVarios = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: DrawerNuevoTitulo = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ErrorAsignarLote = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ErrorCargaDetalle = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ErrorCargaListaTitulo = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ErrorCargaTrabajadorTitulo = 1
@@ -1103,7 +1101,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Eti
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: EtiquetaTipoDocumento = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: IncidenciasVarios = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: MigaTrabajadores = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ModalAsignarCentroTitulo = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ModalCrearGestionTitulo = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ModalGuardarFiltroTitulo = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ModalReclamarTitulo = 1

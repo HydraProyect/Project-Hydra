@@ -1448,7 +1448,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         ConmutadorSeleccion(cut).GetAttribute("aria-pressed").Should().Be("true");
         await cut.Find(".lista-filas-acordeon input[aria-label='Seleccionar a Bea Alonso']").ChangeAsync(new ChangeEventArgs { Value = true });
         cut.Find(".barra-acciones-lote-cantidad").TextContent.Trim().Should().Be("1 seleccionado en esta página");
-        cut.FindAll(".barra-acciones-lote button").Select(b => b.TextContent.Trim()).Should().Contain("Asignar a centro…");
+        cut.FindAll(".barra-acciones-lote button").Select(b => b.TextContent.Trim()).Should().Contain("Asignar a un centro");
 
         await AlternarSeleccionMultiple(cut);
 
@@ -2103,7 +2103,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// En «Asignar a centro…», elegir el centro A (lento, con faltantes) y
+    /// En «Asignar a un centro», elegir el centro A (lento, con faltantes) y
     /// después el B (sin faltantes): el aviso no puede hablar de A.
     /// </summary>
     [Fact]
@@ -2123,7 +2123,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
 
         await AlternarSeleccionMultiple(cut);
         await cut.Find(".lista-filas-acordeon input[aria-label='Seleccionar a Bea Alonso']").ChangeAsync(new ChangeEventArgs { Value = true });
-        await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Asignar a centro…").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Asignar a un centro").ClickAsync(new MouseEventArgs());
         var campo = cut.FindComponent<CampoBuscarSelect>();
 
         var eleccionA = cut.InvokeAsync(() => campo.Instance.ValorChanged.InvokeAsync(centroA.Id.ToString()));
@@ -2140,8 +2140,30 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
             .Should().Contain("Asignar").And.NotContain("Asignar igualmente");
     }
 
+    /// <summary>
+    /// Flujos 07 (maqueta 20-10): el diálogo de «Asignar a un centro» dice cuántos trabajadores se asignan,
+    /// en singular con uno y sin «(es)» con varios.
+    /// </summary>
+    [Theory]
+    [InlineData(1, "Asignar 1 trabajador a un centro")]
+    [InlineData(2, "Asignar 2 trabajadores a un centro")]
+    public async Task El_dialogo_de_asignar_a_un_centro_nombra_a_los_trabajadores_elegidos(int cuantos, string tituloEsperado)
+    {
+        var bea = Trabajador("Bea", "Alonso");
+        var carla = Trabajador("Carla", "Benito");
+        var mediador = new MediatorFalso { Almacen = { bea, carla } };
+        var cut = Renderizar(mediador);
+
+        await AlternarSeleccionMultiple(cut);
+        foreach (var trabajador in new[] { bea, carla }.Take(cuantos))
+            await cut.Find($".lista-filas-acordeon input[aria-label='Seleccionar a {trabajador.Dto.Nombre} {trabajador.Dto.Apellidos}']")
+                .ChangeAsync(new ChangeEventArgs { Value = true });
+        await BotonAsignarACentro(cut).ClickAsync(new MouseEventArgs());
+
+        cut.Find("[role=dialog]").TextContent.Should().Contain(tituloEsperado).And.NotContain("(es)");
+    }
     private static IElement BotonAsignarACentro(IRenderedComponent<Trabajadores> cut) =>
-        cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Asignar a centro…");
+        cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Asignar a un centro");
 
     private static async Task AbrirAsignarACentro(IRenderedComponent<Trabajadores> cut, Fila trabajador)
     {

@@ -201,6 +201,8 @@ public class VisitasTrabajadoresDesdePanelTests : BunitContext
         mediator.Comandos.Should().ContainSingle().Which.Should().Be(
             new QuitarTrabajadorDeVisitaCommand(mediator.VisitaId, oscar.Id, versionAlAbrir));
         PestanaActiva(cut).Should().Be("Trabajadores", "tras quitar se sigue donde se estaba, no se vuelve a «Información»");
+        // Flujos 06 (maqueta 20-10): el aviso dice «quitado», no «sale».
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje == "Óscar Bravo Nieto quitado de la visita.");
     }
 
     [Fact]
@@ -224,7 +226,7 @@ public class VisitasTrabajadoresDesdePanelTests : BunitContext
 
         var boton = BotonesQuitar(cut).Single();
         boton.HasAttribute("disabled").Should().BeTrue();
-        boton.GetAttribute("title").Should().Be("La visita debe incluir al menos un trabajador");
+        boton.GetAttribute("title").Should().Be("No se puede quitar al último: para eso está «Cancelar visita»");
     }
 
     [Fact]
