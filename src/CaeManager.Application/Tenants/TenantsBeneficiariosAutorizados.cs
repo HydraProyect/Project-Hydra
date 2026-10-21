@@ -215,6 +215,27 @@ public static class TenantsBeneficiariosAutorizados
             ? rolDeSesionEnOrigen
             : null;
 
+    /// <summary>
+    /// El rol que una persona del Operador CAE externo <b>ejerce</b> en el Tenant beneficiario de
+    /// una delegación, para enseñarlo en la lista de personas de <c>/delegaciones</c>: el mismo
+    /// criterio que <see cref="RolEnTenantDelegadoAsync"/> (decisión Chris 2026-10-20). Con un
+    /// perfil de origen que da acceso por Operación (<see cref="RolesConAccesoPorOperacion"/> o
+    /// <see cref="RolAcotadoPorCartera"/>), ese perfil: un Administrador del Operador CAE externo
+    /// es Administrador en la Empresa gestionada aunque su cartera guarde «GestorCae».
+    ///
+    /// <para>
+    /// El rol guardado (<paramref name="rolGuardado"/>) solo se enseña donde todavía decide o
+    /// donde no hay nada mejor que decir: en una delegación de Soporte TALVEG (vía heredada,
+    /// <c>CurrentUserService.ResolverRolViaHeredadaAsync</c>) y cuando el perfil de origen no se
+    /// conoce o no da acceso por Operación. Es una etiqueta, no autoridad: ninguna puerta lo lee.
+    /// </para>
+    /// </summary>
+    public static string RolEjercidoEnDelegacion(bool esSoporte, string rolGuardado, string? rolDeOrigen) =>
+        !esSoporte && rolDeOrigen is not null
+            && (RolesConAccesoPorOperacion.Contains(rolDeOrigen) || rolDeOrigen == RolAcotadoPorCartera)
+            ? rolDeOrigen
+            : rolGuardado;
+
     /// <summary>Roles que una cartera EXTERNA puede guardar (ya no deciden el rol efectivo).</summary>
     public static readonly IReadOnlyList<string> RolesDelegablesPorOperacion = ["CoordinadorCae", "GestorCae", "Consulta"];
 

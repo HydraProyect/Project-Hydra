@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Plataforma.Queries.ObtenerAccesosSoporteTalveg;
 using CaeManager.Domain.Plataforma;
+using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Commands.AbrirAccesoSoporte;
 using CaeManager.Application.Tenants.Commands.CerrarAccesoSoporte;
 using CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
@@ -39,6 +40,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
 
     private readonly CancellationTokenSource _cicloCarga = new();
     private readonly Dictionary<Guid, string> _nombresPorUsuarioId = [];
+    private readonly Dictionary<Guid, string?> _rolDeOrigenPorUsuarioId = [];
     private IReadOnlyList<DelegacionDto> _delegaciones = [];
     private bool _esAdministradorPlataforma;
 
@@ -218,7 +220,10 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
             var esTenantOrigenPlataforma = await Mediator.Send(new EsTenantOrigenPlataformaQuery(), token);
             var tenantPropietarioAutorizante = await Mediator.Send(new ObtenerTenantPropietarioAutorizanteQuery(), token);
             var accesosSoporteTalveg = await Mediator.Send(new ObtenerAccesosSoporteTalvegQuery(), token);
-            var delegaciones = await Mediator.Send(new ObtenerDelegacionesQuery(), token);
+            // Con un Tenant beneficiario seleccionado, solo las delegaciones que lo tienen en un
+            // extremo (hallazgo 16, 2026-10-21): la consulta sigue acotada al Tenant de origen.
+            var delegaciones = await Mediator.Send(
+                new ObtenerDelegacionesQuery(ClienteActivoSeleccionado.TenantIdSeleccionado), token);
             await CargarNombresDeOperadoresAsync(delegaciones.SelectMany(d => d.Operadores).Select(o => o.UsuarioId), token);
             await CargarCriteriosDeReactivacionAsync(
                 delegaciones.Where(e => !e.EsSoporte && !e.Activa).Select(e => (e.Id, e.TenantClienteId)), token);
@@ -468,8 +473,24 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
                 _nombresPorUsuarioId[usuarioId] = usuario is null
                     ? "Persona no encontrada"
                     : $"{usuario.NombreCompleto} ({usuario.Email})";
+                if (usuario is not null)
+                {
+                    // Un rol por cuenta; si hubiera dos, uno estable (mismo criterio que
+                    // DirectorioUsuariosTenant.ObtenerRolesDeCuentasAsync).
+                    _rolDeOrigenPorUsuarioId[usuarioId] = (await UserManager.GetRolesAsync(usuario))
+                        .Order(StringComparer.Ordinal).FirstOrDefault();
+                }
             }
         });
+
+    /// <summary>
+    /// El rol que la persona ejerce en el Tenant beneficiario, no el que guarda su cartera
+    /// (decisión Chris 2026-10-20; hallazgo 16 del 2026-10-21, un Administrador salía como
+    /// «Gestor CAE»). Ver <see cref="TenantsBeneficiariosAutorizados.RolEjercidoEnDelegacion"/>.
+    /// </summary>
+    private string RolEjercido(DelegacionDto delegacion, OperadorDelegadoDto operador) =>
+        TenantsBeneficiariosAutorizados.RolEjercidoEnDelegacion(
+            delegacion.EsSoporte, operador.Rol, _rolDeOrigenPorUsuarioId.GetValueOrDefault(operador.UsuarioId));
 
     /// <summary>
     /// Solo para las entidades con botón "Reactivar" visible hoy (no vigentes

@@ -46,7 +46,7 @@
     @if (OperandoWorkspaceAjeno)
     {
         <div class="delegaciones-aviso-ajeno" role="note">
-            Estás consultando una organización ajena. Las delegaciones se gestionan desde la organización de origen.
+            Estás consultando una organización ajena: solo ves las delegaciones que la afectan. Se gestionan desde la organización de origen.
         </div>
     }
 
@@ -179,7 +179,7 @@
                                             <td class="@(EsUsuarioNoResuelto(operador.UsuarioId) ? "delegaciones-persona-no-resuelta" : null)">
                                                 @NombreDeUsuario(operador.UsuarioId)
                                             </td>
-                                            <td>@NombreRol(operador.Rol)</td>
+                                            <td>@NombreRol(RolEjercido(delegacion, operador))</td>
                                             @if (!OperandoWorkspaceAjeno)
                                             {
                                                 <td>
