@@ -65,6 +65,19 @@
     margin-bottom: var(--space-4);
 }
 
+/* Gestiones pendientes: título en negrita sobre una tarjeta-lista con sombra suave (maqueta Trabajador 360). */
+.trabajador360-gestiones {
+    margin-bottom: var(--space-4);
+}
+
+.trabajador360-gestiones-titulo {
+    margin-bottom: var(--space-2);
+}
+
+.trabajador360-gestiones ::deep .lista-relaciones-tarjeta {
+    box-shadow: var(--shadow-tarjeta-lista);
+}
+
 /* Contacto y agenda, en el lateral de 300 px                           */
 /* ------------------------------------------------------------------ */
 

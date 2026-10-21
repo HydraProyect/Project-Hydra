@@ -221,39 +221,38 @@
                         un bloque vacío sin motivo: si no hay ninguna, el bloque
                         entero no aparece).
                     *@
+                    @* Maqueta Trabajador 360: título en negrita (como «Documentación base») y, debajo, una tarjeta-lista con una
+                       fila por Gestión (título, y en atenuado «Centro · creada dd/mm/aaaa») y la acción a la derecha. Sin cabecera de columnas. *@
                     @if (_cargandoGestiones)
                     {
-                        <div class="separador-ambito">@Textos["SeparadorGestionesPendientes"]</div>
-                        <EstadoCargando Filas="2" />
+                        <div class="trabajador360-gestiones">
+                            <div class="trabajador360-gestiones-titulo"><strong>@Textos["SeparadorGestionesPendientes"]</strong></div>
+                            <EstadoCargando Filas="2" />
+                        </div>
                     }
                     else if (_gestionesPendientes.Count > 0)
                     {
-                        <div class="separador-ambito">@Textos["SeparadorGestionesPendientes"]</div>
-                        <div class="tabla-documentos-requeridos" role="table" aria-label="@Textos["SeparadorGestionesPendientes"]">
-                            <div class="documentos-requeridos-cabecera" role="row">
-                                <span role="columnheader">@Textos["ColumnaGestion"]</span>
-                                <span role="columnheader">@Textos["ColumnaCentro"]</span>
-                                <span role="columnheader">@Textos["ColumnaCreada"]</span>
-                                <span role="columnheader" class="columna-accion">@Textos["ColumnaAccion"]</span>
-                            </div>
-                            @foreach (var gestion in _gestionesPendientes)
-                            {
-                                <div class="fila-documento-requerido" role="row" @key="gestion.Id">
-                                    <span class="celda-documento-nombre" role="cell">@gestion.TipoDocumentoNombre</span>
-                                    <span role="cell">@gestion.CentroNombre</span>
-                                    <span role="cell">@gestion.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</span>
-                                    <span class="columna-accion" role="cell">
-                                        @* CompletarGestionCommand es ICommand, denegado a Consulta. *@
-                                        <SoloConEscritura>
-                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                                   Cargando="_completandoGestion.Contains(gestion.Id)"
-                                                   OnClick="() => CompletarGestionAsync(gestion.Id)">
-                                                @Textos["AccionCompletar"]
-                                            </Boton>
-                                        </SoloConEscritura>
-                                    </span>
-                                </div>
-                            }
+                        <div class="trabajador360-gestiones">
+                            <div class="trabajador360-gestiones-titulo"><strong>@Textos["SeparadorGestionesPendientes"]</strong></div>
+                            <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["SeparadorGestionesPendientes"]">
+                                @foreach (var gestion in _gestionesPendientes)
+                                {
+                                    <FilaRelacion @key="gestion.Id" Nombre="@gestion.TipoDocumentoNombre">
+                                        <Detalle>@(" ")@Textos["GestionPendienteSub", gestion.CentroNombre, gestion.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")]</Detalle>
+                                        <Derecha>
+                                            @* CompletarGestionCommand es ICommand, denegado a Consulta. No hay página de detalle de
+                                               una Gestión (solo el listado /gestiones), así que no se ofrece «Abrir». *@
+                                            <SoloConEscritura>
+                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                       Cargando="_completandoGestion.Contains(gestion.Id)"
+                                                       OnClick="() => CompletarGestionAsync(gestion.Id)">
+                                                    @Textos["AccionCompletar"]
+                                                </Boton>
+                                            </SoloConEscritura>
+                                        </Derecha>
+                                    </FilaRelacion>
+                                }
+                            </ListaRelaciones>
                         </div>
                     }
                     break;
