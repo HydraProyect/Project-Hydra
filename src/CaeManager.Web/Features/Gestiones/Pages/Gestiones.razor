@@ -1,6 +1,5 @@
 @page "/gestiones"
 @rendermode InteractiveServer
-@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> ComunesLista
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Gestiones.Commands.CompletarGestion
@@ -87,9 +86,10 @@
                                    IsDefaultSortColumn="@_orden.Es("tipo")" InitialSortDirection="_orden.Direccion">
                         <span class="gestion-tipo-codigo">
                             <button type="button" class="gestion-nombre-tipo nombre-abre-vista-rapida" @onclick="() => AbrirVistaRapida(context)"><TextoResaltado Texto="@context.TipoDocumentoNombre" Termino="@_busqueda" /></button>
-                            <span class="gestion-centro"><BotonCopiar EnLinea="true" ConfirmarConIcono="true" Texto="@ReferenciaGestion(context.Id)" Valor="@context.Id.ToString()" NombreAccesible="@Textos["CopiarReferenciaGestion", context.TrabajadorNombre]" /></span>
+                            <span class="gestion-referencia"><BotonCopiar EnLinea="true" ConfirmarConIcono="true" Texto="@ReferenciaGestion(context.Id)" Valor="@context.Id.ToString()" NombreAccesible="@Textos["CopiarReferenciaGestion", context.TrabajadorNombre]" /></span>
                         </span>
-                    </TemplateColumn>                    <TemplateColumn @ref="_columnaTrabajador" Title="@Textos[_ordenTrabajadorPorCentro ? "ListaTrabajadorPorCentro" : "ColumnaTrabajador"]"
+                    </TemplateColumn>
+                    <TemplateColumn @ref="_columnaTrabajador" Title="@Textos[_ordenTrabajadorPorCentro ? "ListaTrabajadorPorCentro" : "ColumnaTrabajador"]"
                                     Sortable="true" SortBy="@(_ordenTrabajadorPorCentro ? OrdenCentroListado : OrdenTrabajadorListado)"
                                     IsDefaultSortColumn="@_orden.Es("trabajador", "centro")" InitialSortDirection="_orden.Direccion">
                         <ColumnOptions>

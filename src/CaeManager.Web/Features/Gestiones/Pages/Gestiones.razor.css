@@ -183,7 +183,7 @@
 .gestion-trabajador-centro, .gestion-tipo-codigo { display: flex; flex-direction: column; gap: var(--space-1); }
 .gestion-nombre-tipo { display: inline; padding: 0; margin: 0; border: 0; background: none; font: var(--font-body-md); font-weight: 600; color: var(--color-text); text-align: left; cursor: pointer; }
 .gestion-nombre-tipo:hover { color: var(--color-primary-500); text-decoration: underline; }
-.gestion-centro { font: var(--font-caption); color: var(--color-text-muted); }
+.gestion-centro, .gestion-referencia { font: var(--font-caption); color: var(--color-text-muted); }
 .gestion-completar, .gestion-reabrir { display: inline-flex; align-items: center; gap: var(--space-1); margin-right: var(--space-2); padding: var(--space-1) var(--space-2); border: var(--border-default); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); font: var(--font-label); cursor: pointer; }
 .gestion-completar:hover, .gestion-reabrir:hover { border-color: var(--color-border-strong); }
 .gestion-completar:focus-visible, .gestion-reabrir:focus-visible, .gestiones-opciones-orden button:focus-visible { outline: var(--border-focus); }

@@ -1233,7 +1233,8 @@ public partial class GestionesListaGen2Tests : BunitContext
     public void Las_columnas_van_Gestion_Trabajador_Creada_Estado_y_al_final_la_accion_rapida()
     {
         using var reloj = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijo(MediodiaUtc));
-        var m = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra", centro: "Centro Norte", documento: "Formación PRL específica") } };
+        var gestion = Gestion("Juan Pérez Ibarra", centro: "Centro Norte", documento: "Formación PRL específica");
+        var m = new MediatorFalso { Almacen = { gestion } };
         var cut = Renderizar(m);
 
         cut.FindAll("thead th .col-title-text").Select(t => t.TextContent.Trim())
@@ -1244,7 +1245,8 @@ public partial class GestionesListaGen2Tests : BunitContext
         celdas[1].QuerySelectorAll(".gestion-trabajador-centro .enlace-nombre-fila").Select(b => b.TextContent.Trim())
             .Should().Equal(["Juan Pérez Ibarra", "Centro Norte"], "el Centro va en la segunda línea de la celda del Trabajador");
         celdas[0].QuerySelector("button.nombre-abre-vista-rapida")!.TextContent.Trim().Should().Be("Formación PRL específica", "la primera columna es la Gestión: su tipo de documento");
-        celdas[0].TextContent.Should().MatchRegex(@"GES-[0-9A-F]{8}", "y debajo su referencia");
+        celdas[0].QuerySelector(".gestion-referencia")!.TextContent.Trim().Should().Be("GES-" + gestion.Id.ToString("N")[^8..].ToUpperInvariant(),
+            "debajo, la referencia sale de los ÚLTIMOS ocho caracteres del Id: los primeros de un Id v7 son el reloj");
         celdas[2].TextContent.Trim().Should().Be("14/08/2026");
         celdas[3].ClassList.Should().Contain("col-estado");
         celdas[3].QuerySelector(".badge")!.TextContent.Trim().Should().Be("Pendiente");

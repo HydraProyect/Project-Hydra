@@ -426,7 +426,8 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         StateHasChanged();
     }
 
-    private static string ReferenciaGestion(Guid id) => $"GES-{id.ToString("N")[..8].ToUpperInvariant()}";
+    // Los últimos ocho caracteres: en un Id v7 los primeros son el reloj y se repiten entre Gestiones creadas en el mismo minuto.
+    private static string ReferenciaGestion(Guid id) => $"GES-{id.ToString("N")[^8..].ToUpperInvariant()}";
 
     private static TonoBadge TonoEstado(EstadoGestion estado) =>
         estado == EstadoGestion.Completada ? TonoBadge.Exito : TonoBadge.Advertencia;
