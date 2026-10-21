@@ -292,7 +292,7 @@ public partial class DocumentoDetalle : CaeManager.Web.Components.PaginaInteract
     /// </summary>
     private string? TextoRecomendacion(CentroQueExigeDocumentoDto centro) =>
         centro.BloqueaAcceso && centro.Estado is EstadoDocumento.Vencido or EstadoDocumento.Faltante
-            ? Textos["RecomendacionRenovar"]
+            ? Textos["RecomendacionRenovar"].Value
             : null;
 
     // ----- Versiones -----
