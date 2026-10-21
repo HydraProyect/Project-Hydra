@@ -466,13 +466,13 @@
     <value>Con nivel Gestionada, TALVEG las hace por la Empresa; con Supervisada, las registra el Gestor CAE.</value>
   </data>
   <data name="BotonAnadirVerificacion" xml:space="preserve">
-    <value>Añadir verificación</value>
+    <value>Registrar verificación</value>
   </data>
   <data name="TituloDrawerVerificacionAlta" xml:space="preserve">
-    <value>Añadir verificación</value>
+    <value>Registrar verificación</value>
   </data>
   <data name="BotonGuardarVerificacion" xml:space="preserve">
-    <value>Guardar</value>
+    <value>Guardar verificación</value>
   </data>
   <data name="RotuloEvidenciaVerificacion" xml:space="preserve">
     <value>Evidencia</value>
@@ -715,7 +715,7 @@
     <value>Gestionar</value>
   </data>
   <data name="AccionRegistrarVerificacion" xml:space="preserve">
-    <value>Añadir verificación</value>
+    <value>Registrar verificación</value>
   </data>
   <data name="AnilloEtiqueta" xml:space="preserve">
     <value>{0} % · {1} de {2} al día</value>
