@@ -174,4 +174,27 @@ public partial class DocumentosGen2Tests
         await cut.FindAll(".cabecera-pagina [role=menuitem]").Single(b => b.TextContent.Trim() == "Contraer todo").ClickAsync(new MouseEventArgs());
         cut.FindAll(".documentos-fila-hijos").Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task Un_documento_con_muchos_destinos_ensena_diez_y_pide_el_resto_con_Ver_los_N_restantes()
+    {
+        var documento = DocumentoDeFila() with
+        {
+            DestinosEnCentros = [.. Enumerable.Range(1, 25).Select(i =>
+                new DocumentoEnCentroListaDto(Guid.NewGuid(), $"Centro {i}", "Empresa de prueba", "Nalanda", EstadoDocumento.Vencido))]
+        };
+        var (cut, _) = Renderizar(ConDocumentos(documento), rol: "Administrador");
+        await cut.Find("button.documentos-expandir").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".documentos-hijo").Should().HaveCount(10);
+        cut.Find("button.ver-restantes-fila").TextContent.Trim().Should().Be("Ver los 15 restantes");
+
+        await cut.Find("button.ver-restantes-fila").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".documentos-hijo").Should().HaveCount(25);
+        cut.FindAll("button.ver-restantes-fila").Should().BeEmpty();
+
+        await cut.Find("button.documentos-expandir").ClickAsync(new MouseEventArgs());
+        await cut.Find("button.documentos-expandir").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".documentos-hijo").Should().HaveCount(10, "recoger la fila reinicia el recorte");
+    }
 }
