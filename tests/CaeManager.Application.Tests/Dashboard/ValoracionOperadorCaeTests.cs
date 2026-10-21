@@ -191,8 +191,10 @@ public class ValoracionOperadorCaeTests
         var propia = Guid.NewGuid();
         var subcontrata = Guid.NewGuid();
         var centro = Guid.NewGuid();
-        ParDocumentalExigido Par(Guid? empresa, EstadoDocumento estado) =>
-            new(centro, Guid.NewGuid(), empresa, Guid.NewGuid(), Guid.NewGuid(), estado, PendienteEnPlataforma: false);
+        var otroCentro = Guid.NewGuid();
+        var otraPropia = Guid.NewGuid();
+        ParDocumentalExigido Par(Guid? empresa, EstadoDocumento estado, Guid? enCentro = null) =>
+            new(enCentro ?? centro, Guid.NewGuid(), empresa, Guid.NewGuid(), Guid.NewGuid(), estado, PendienteEnPlataforma: false);
 
         var pares = new[]
         {
@@ -201,13 +203,16 @@ public class ValoracionOperadorCaeTests
             Par(propia, EstadoDocumento.Vencido),
             Par(propia, EstadoDocumento.Faltante),
         }.Concat(Enumerable.Range(0, 20).Select(_ => Par(subcontrata, EstadoDocumento.Vigente)))
-         .Append(Par(null, EstadoDocumento.Vigente));
+         .Append(Par(null, EstadoDocumento.Vigente))
+         .Append(Par(otraPropia, EstadoDocumento.Faltante, otroCentro))
+         .Append(Par(propia, EstadoDocumento.Vigente, otroCentro));
+        var centrosPorEmpresa = new HashSet<(Guid, Guid)> { (propia, centro), (otraPropia, otroCentro) };
 
-        var fraccion = ObtenerCumplimientoExigidoTenantQueryHandler.DeEmpresasPropias(pares, [propia]);
+        var fraccion = ObtenerCumplimientoExigidoTenantQueryHandler.DeEmpresasPropias(pares, centrosPorEmpresa);
 
-        fraccion.Should().Be(new FraccionCumplimiento(1, 4),
-            "la subcontrata que comparte Centro y el Trabajador sin Empresa no entran: /empresas diría 25 %");
-        ObtenerCumplimientoExigidoTenantQueryHandler.DeEmpresasPropias(pares, []).Requeridos.Should().Be(0);
+        fraccion.Should().Be(new FraccionCumplimiento(1, 5),
+            "la subcontrata que comparte Centro, el Trabajador sin Empresa y el par de un evento en el Centro de otra Empresa propia no entran: es la suma de las filas de Empresa 360");
+        ObtenerCumplimientoExigidoTenantQueryHandler.DeEmpresasPropias(pares, new HashSet<(Guid, Guid)>()).Requeridos.Should().Be(0);
     }
 
     [Fact]

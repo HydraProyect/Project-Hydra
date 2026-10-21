@@ -33,24 +33,32 @@ public class ObtenerCumplimientoExigidoTenantQueryHandler(
         var empresasPropias = await empresasContext.Empresas.Where(e => e.EsPropia).Select(e => e.Id).ToListAsync(cancellationToken);
         if (empresasPropias.Count == 0) return FraccionCumplimiento.SinRequisitos;
 
-        var centroIds = await (
+        var centrosPorEmpresa = await (
             from asignacion in asignacionesContext.Asignaciones
             where asignacion.FechaBaja == null
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             where trabajador.EmpresaId != null && empresasPropias.Contains(trabajador.EmpresaId.Value)
-            select asignacion.CentroId)
+            select new { EmpresaId = trabajador.EmpresaId!.Value, asignacion.CentroId })
             .Distinct()
             .ToListAsync(cancellationToken);
-        if (centroIds.Count == 0) return FraccionCumplimiento.SinRequisitos;
+        if (centrosPorEmpresa.Count == 0) return FraccionCumplimiento.SinRequisitos;
 
-        var pares = await calculoEstadoCentro.ObtenerParesExigidosAsync(centroIds, cancellationToken);
-        return DeEmpresasPropias(pares, empresasPropias);
+        var pares = await calculoEstadoCentro.ObtenerParesExigidosAsync(
+            centrosPorEmpresa.Select(c => c.CentroId).Distinct().ToList(), cancellationToken);
+        return DeEmpresasPropias(pares, centrosPorEmpresa.Select(c => (c.EmpresaId, c.CentroId)).ToHashSet());
     }
 
-    /// <summary>La suma de las fracciones de cada Empresa propia; los pares de otras Empresas o sin Empresa no cuentan.</summary>
-    public static FraccionCumplimiento DeEmpresasPropias(IEnumerable<ParDocumentalExigido> pares, IReadOnlyCollection<Guid> empresasPropias)
+    /// <summary>
+    /// La suma de las fracciones de cada Empresa propia, cada una sobre sus propios Centros (los de sus Asignaciones
+    /// activas, como cada fila de /empresas): los pares de otras Empresas, sin Empresa o de un Centro que no es de la
+    /// Empresa del par (un evento en un Centro de otra Empresa propia) no cuentan. Una llamada al servicio para todas.
+    /// </summary>
+    public static FraccionCumplimiento DeEmpresasPropias(
+        IEnumerable<ParDocumentalExigido> pares, IReadOnlySet<(Guid EmpresaId, Guid CentroId)> centrosPorEmpresa)
     {
-        var porEmpresa = CumplimientoDocumental.PorContexto(ContextoCumplimiento.Empresa, pares);
-        return FraccionCumplimiento.Sumar(empresasPropias.Distinct().Select(id => porEmpresa.GetValueOrDefault(id, FraccionCumplimiento.SinRequisitos)));
+        var empresasPropias = centrosPorEmpresa.Select(c => c.EmpresaId).Distinct().ToList();
+        var propios = pares.Where(p => p.EmpresaId is { } empresa && centrosPorEmpresa.Contains((empresa, p.CentroId)));
+        var porEmpresa = CumplimientoDocumental.PorContexto(ContextoCumplimiento.Empresa, propios);
+        return FraccionCumplimiento.Sumar(empresasPropias.Select(id => porEmpresa.GetValueOrDefault(id, FraccionCumplimiento.SinRequisitos)));
     }
 }
