@@ -98,7 +98,7 @@
 
                 @if (_datos.TenantsSinAlcanceCompleto > 0)
                 {
-                    <p class="fact-nota" role="status">@T["EmpresasSinAlcance", _datos.TenantsSinAlcanceCompleto]</p>
+                    <p class="fact-nota" role="status" data-fact="sin-alcance" title="@T["FactSinAlcanceAyuda"]">@(_datos.TenantsSinAlcanceCompleto == 1 ? T["FactSinAlcanceUna"].Value : T["FactSinAlcance", _datos.TenantsSinAlcanceCompleto].Value)</p>
                 }
 
                 <section class="fact-tarjeta">
