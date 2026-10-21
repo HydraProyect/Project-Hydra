@@ -97,6 +97,36 @@
   <data name="RecReenvioTitulo" xml:space="preserve">
     <value>Reclamar de nuevo</value>
   </data>
+  <data name="RecReenvioAvisoTitulo" xml:space="preserve">
+    <value>Un correo enviado no se puede deshacer</value>
+  </data>
+  <data name="RecReenvioAvisoTexto" xml:space="preserve">
+    <value>Revisa destinatario y texto. Al enviar queda en el historial y en Comunicaciones.</value>
+  </data>
+  <data name="RecReenvioCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="RecReenvioEnviar" xml:space="preserve">
+    <value>Enviar reclamación</value>
+  </data>
+  <data name="RecReenvioToast" xml:space="preserve">
+    <value>Reclamación enviada a {0}.</value>
+  </data>
+  <data name="RecHistorialTitulo" xml:space="preserve">
+    <value>Historial de reclamaciones</value>
+  </data>
+  <data name="RecHistorialSubtitulo" xml:space="preserve">
+    <value>Lo que se ha pedido y si ha contestado.</value>
+  </data>
+  <data name="RecHistorialVacioTitulo" xml:space="preserve">
+    <value>Nunca reclamado</value>
+  </data>
+  <data name="RecHistorialVacioDetalle" xml:space="preserve">
+    <value>Todavía no se ha pedido nada desde TALVEG. Los lotes que envíes desde la pestaña "+ Nueva reclamación" aparecerán aquí.</value>
+  </data>
+  <data name="RecHistorialErrorTitulo" xml:space="preserve">
+    <value>No se ha podido cargar el historial.</value>
+  </data>
   <data name="RecBotonSinContacto" xml:space="preserve">
     <value>No hay ningún contacto en la agenda al que reclamar. Añade uno con «Añadir contacto».</value>
   </data>

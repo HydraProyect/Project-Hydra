@@ -210,7 +210,7 @@ public class ReclamacionesTabTests : BunitContext
 
     /// <summary>
     /// Un fallo de entrega por SMTP llega como <c>Result</c> fallido: el Gestor
-    /// CAE lo ve en un aviso de error y nunca como «Reclamación reenviada».
+    /// CAE lo ve en un aviso de error y nunca como «Reclamación enviada».
     /// Si la entrega fue parcial, la parte entregada ya está en el historial
     /// —<c>RegistroEnvioReclamacionService.CodigoEnvioParcial</c>—, así que el
     /// historial se recarga aunque el resultado sea un fallo.
@@ -228,7 +228,7 @@ public class ReclamacionesTabTests : BunitContext
 
         var (cut, _) = Renderizar(mediador);
         await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
-        await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
 
         var toasts = Services.GetRequiredService<ToastService>().Mensajes;
         toasts.Should().ContainSingle().Which.Should().Match<ToastMensaje>(
@@ -287,7 +287,7 @@ public class ReclamacionesTabTests : BunitContext
         };
 
         await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
-        var reenvio = BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+        var reenvio = BotonPorTexto(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
         var siguiente = cut.FindAll(".paginador button").Single(b => b.TextContent.Contains("Siguiente"))
             .ClickAsync(new MouseEventArgs());
 
@@ -455,8 +455,8 @@ public class ReclamacionesTabTests : BunitContext
         // Volver a buscarlo simula el clic real que sí llega tras ese primer
         // render — la guarda de entrada es la que tiene que pararlo.
         await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
-        var primero = BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
-        var segundo = BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+        var primero = BotonPorTexto(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
+        var segundo = BotonPorTexto(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
 
         await cut.InvokeAsync(() => retenido.SetResult(Result.Exito(new EnvioReclamacionResultado(reclamacion.DocumentoIds, []))));
         await primero;
@@ -526,7 +526,7 @@ public class ReclamacionesTabTests : BunitContext
         cut.Markup.Should().Contain("contacto@refrielectric.example").And.Contain("Asunto de la vista previa")
             .And.Contain("Texto de la vista previa");
 
-        await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
         var envio = mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle().Subject;
         envio.ContactoIdsSeleccionados.Should().NotBeNullOrEmpty("se envía a quien enseñó la revisión, no a lo que la agenda resuelva después");
     }
@@ -548,7 +548,7 @@ public class ReclamacionesTabTests : BunitContext
         var (cut, _) = Renderizar(mediador);
 
         await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
-        await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
 
         var consulta = mediador.Enviadas.OfType<PrepararVistaPreviaReclamacionCommand>().Should().ContainSingle().Subject;
         consulta.DocumentoIds.Should().BeEmpty();
@@ -567,7 +567,7 @@ public class ReclamacionesTabTests : BunitContext
         var (cut, _) = Renderizar(mediador);
 
         await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
-        await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<PrepararVistaPreviaReclamacionCommand>().Should().ContainSingle().Which.Pendientes.Should().Equal(pendientes);
         mediador.Enviadas.OfType<EnviarReclamacionEmpresaCommand>().Should().ContainSingle().Which.Pendientes.Should().Equal(pendientes);
@@ -581,9 +581,9 @@ public class ReclamacionesTabTests : BunitContext
         var (cut, _) = Renderizar(mediador);
 
         await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
-        await BotonPorTexto(cut, "Volver").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Cancelar").ClickAsync(new MouseEventArgs());
 
-        cut.Markup.Should().NotContain("Confirmar y enviar");
+        cut.Markup.Should().NotContain("Enviar reclamación");
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty();
     }
 
@@ -596,7 +596,7 @@ public class ReclamacionesTabTests : BunitContext
         var (cut, _) = Renderizar(mediador);
 
         await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
-        await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
 
         var consulta = mediador.Enviadas.OfType<PrepararVistaPreviaReclamacionCommand>().Should().ContainSingle().Subject;
         consulta.Ambito.Should().Be(AmbitoAplicacion.Empresa);
@@ -624,7 +624,7 @@ public class ReclamacionesTabTests : BunitContext
         var (cut, _) = Renderizar(mediador);
 
         await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
-        await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<PrepararVistaPreviaReclamacionCommand>().Should().ContainSingle()
             .Which.EmpresaEmpleadora.Should().Be(fila.EmpresaEmpleadora);
@@ -662,7 +662,7 @@ public class ReclamacionesTabTests : BunitContext
 
         await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
 
-        cut.Markup.Should().NotContain("Confirmar y enviar");
+        cut.Markup.Should().NotContain("Enviar reclamación");
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty();
         Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Error);
     }
@@ -842,5 +842,75 @@ public class ReclamacionesTabTests : BunitContext
         cut.FindAll("button").Count(b => b.TextContent.Contains("Añadir contacto")).Should().Be(1);
         cut.FindAll("a").Should().NotContain(a => a.TextContent.Trim() == "Ver en Comunicaciones",
             "el filtro de Comunicaciones es por Cliente y el titular de este lote es una Empresa");
+    }
+
+    // ------------------------------------------------- Flujos 04 (maqueta 20-10): estados y textos del historial
+
+    [Fact]
+    public void El_historial_se_presenta_con_su_titulo_y_su_linea_explicativa()
+    {
+        var (cut, _) = Renderizar(ConHistorial(ReclamacionEnviada()));
+
+        cut.Find(".reclamaciones-historial-cabecera h3").TextContent.Should().Be("Historial de reclamaciones");
+        cut.Find(".reclamaciones-historial-cabecera p").TextContent.Should().Be("Lo que se ha pedido y si ha contestado.");
+    }
+
+    [Fact]
+    public void Sin_reclamaciones_el_historial_dice_Nunca_reclamado()
+    {
+        var (cut, _) = Renderizar();
+
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("Nunca reclamado");
+        cut.Markup.Should().Contain("Todavía no se ha pedido nada desde TALVEG.");
+        cut.Markup.Should().NotContain("Todavía no se ha enviado ninguna reclamación");
+    }
+
+    [Fact]
+    public void Un_fallo_al_cargar_el_historial_lo_dice_y_ofrece_Reintentar()
+    {
+        var mediador = new MediadorControlado { Historial = _ => throw new InvalidOperationException("fallo de prueba") };
+        var (cut, _) = Renderizar(mediador);
+
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("No se ha podido cargar el historial.");
+        BotonPorTexto(cut, "Reintentar").Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task La_revision_del_reenvio_avisa_de_que_no_se_puede_deshacer_y_usa_Cancelar_y_Enviar_reclamacion()
+    {
+        var (cut, _) = Renderizar(ConHistorial(ReclamacionEnviada()));
+
+        await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
+
+        var aviso = cut.Find(".aviso-irreversible");
+        aviso.GetAttribute("role").Should().Be("note");
+        aviso.TextContent.Should().Contain("Un correo enviado no se puede deshacer")
+            .And.Contain("Revisa destinatario y texto. Al enviar queda en el historial y en Comunicaciones.");
+        BotonPorTexto(cut, "Cancelar").Should().NotBeNull();
+        BotonPorTexto(cut, "Enviar reclamación").Should().NotBeNull();
+        cut.Markup.Should().NotContain("Confirmar y enviar");
+    }
+
+    [Fact]
+    public void El_aviso_del_reenvio_no_aparece_hasta_abrir_la_revision()
+    {
+        var (cut, _) = Renderizar(ConHistorial(ReclamacionEnviada()));
+
+        cut.FindAll(".aviso-irreversible").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Tras_reclamar_de_nuevo_el_aviso_dice_a_quien_llego_y_no_ofrece_Deshacer()
+    {
+        var (cut, _) = Renderizar(ConHistorial(ReclamacionEnviada()));
+        var avisos = Services.GetRequiredService<ToastService>();
+
+        await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
+
+        var toast = avisos.Mensajes.Should().ContainSingle().Subject;
+        toast.Mensaje.Should().Be("Reclamación enviada a Contacto Refri.");
+        toast.Tono.Should().Be(TonoToast.Exito);
+        toast.TextoAccion.Should().BeNull("el correo ya ha salido: no hay «Deshacer»");
     }
 }

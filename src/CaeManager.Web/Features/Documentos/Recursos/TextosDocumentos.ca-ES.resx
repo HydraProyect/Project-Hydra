@@ -97,6 +97,36 @@
   <data name="RecReenvioTitulo" xml:space="preserve">
     <value>Reclama de nou</value>
   </data>
+  <data name="RecReenvioAvisoTitulo" xml:space="preserve">
+    <value>Un correu enviat no es pot desfer</value>
+  </data>
+  <data name="RecReenvioAvisoTexto" xml:space="preserve">
+    <value>Revisa el destinatari i el text. En enviar-lo queda a l'historial i a Comunicacions.</value>
+  </data>
+  <data name="RecReenvioCancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="RecReenvioEnviar" xml:space="preserve">
+    <value>Envia la reclamació</value>
+  </data>
+  <data name="RecReenvioToast" xml:space="preserve">
+    <value>Reclamació enviada a {0}.</value>
+  </data>
+  <data name="RecHistorialTitulo" xml:space="preserve">
+    <value>Historial de reclamacions</value>
+  </data>
+  <data name="RecHistorialSubtitulo" xml:space="preserve">
+    <value>El que s'ha demanat i si ha contestat.</value>
+  </data>
+  <data name="RecHistorialVacioTitulo" xml:space="preserve">
+    <value>Mai reclamat</value>
+  </data>
+  <data name="RecHistorialVacioDetalle" xml:space="preserve">
+    <value>Encara no s'ha demanat res des de TALVEG. Els lots que enviïs des de la pestanya "+ Nueva reclamación" apareixeran aquí.</value>
+  </data>
+  <data name="RecHistorialErrorTitulo" xml:space="preserve">
+    <value>No s'ha pogut carregar l'historial.</value>
+  </data>
   <data name="RecBotonSinContacto" xml:space="preserve">
     <value>No hi ha cap contacte a l&apos;agenda a qui reclamar. Afegeix-ne un amb «Afegeix contacte».</value>
   </data>
