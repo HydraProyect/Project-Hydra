@@ -368,7 +368,7 @@
                                 @if (empresa.Incidencias.Count > 0)
                                 {
                                     <ul class="documentos-pendientes-empresa" data-pieza="documentos-pendientes">
-                                        @foreach (var incidencia in empresa.Incidencias)
+                                        @foreach (var incidencia in VerRestantes.Recortar(empresa.Incidencias, _incidenciasCompletas.Contains(empresa.Id)))
                                         {
                                             <li class="documento-pendiente-empresa" @key="incidencia.DocumentoId">
                                                 <span class="documento-pendiente-nombre">@MotivoIncidenciasUi.NombreDeTipo(incidencia)</span>
@@ -383,6 +383,8 @@
                                             </li>
                                         }
                                     </ul>
+                                    <VerRestantes Total="empresa.Incidencias.Count" Completa="_incidenciasCompletas.Contains(empresa.Id)"
+                                                  OnVerRestantes="() => _incidenciasCompletas.Add(empresa.Id)" />
                                 }
                                 else
                                 {

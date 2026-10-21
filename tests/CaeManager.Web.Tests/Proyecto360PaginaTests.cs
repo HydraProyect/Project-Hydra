@@ -448,7 +448,7 @@ public class Proyecto360PaginaTests : BunitContext
         cut.FindAll("[data-pieza=nota-interna]").Should().ContainSingle();
         var nota = cut.Find("[data-pieza=lateral] [data-pieza=nota-interna]");
         nota.QuerySelector(".tarjeta-titulo")!.TextContent.Should().Be("Nota interna");
-        nota.TextContent.Should().Contain("Acceso por muelle 3.").And.Contain("No la ve el cliente.");
+        nota.TextContent.Should().Contain("Acceso por muelle 3.").And.Contain("No la ve el Cliente.");
         nota.QuerySelectorAll("button").Should().HaveCount(puedeEscribir ? 1 : 0);
         if (puedeEscribir)
         {

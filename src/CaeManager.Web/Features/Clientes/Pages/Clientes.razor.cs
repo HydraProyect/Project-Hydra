@@ -129,9 +129,6 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// <summary>Filas desplegadas (maqueta «Lista Clientes TALVEG»): las que enseñan sus Centros con problema.</summary>
     private readonly HashSet<Guid> _expandidos = [];
 
-    /// <summary>La primera fila abierta por defecto ya se decidió (una sola vez por visita de la página).</summary>
-    private bool _primeraFilaDecidida;
-
     /// <summary>
     /// Centros de cada Cliente empresarial desplegado, con su estado (<c>ObtenerCentrosQuery</c> por Cliente: la misma
     /// consulta de las filas de Centro de Cliente 360). Se piden al desplegar la fila y se olvidan con cada carga.
@@ -620,15 +617,6 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             OlvidarCentrosDeFila();
             OlvidarCentrosConEstado();
             _expandidos.IntersectWith(elementos.Where(PuedeDesplegarse).Select(e => e.Id));
-
-            // Como en la maqueta, la primera fila llega abierta: solo en la primera carga que trae filas (después, lo que
-            // desplegó o recogió quien mira manda) y solo si esa fila existe y tiene Centros que enseñar.
-            if (!_primeraFilaDecidida && elementos.Count > 0)
-            {
-                _primeraFilaDecidida = true;
-                if (PuedeDesplegarse(elementos[0]))
-                    _expandidos.Add(elementos[0].Id);
-            }
 
             if (_pagina > TotalPaginas)
             {
@@ -1492,9 +1480,6 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         _ejecutivoFiltro = GestorVisible(vista.GetValueOrDefault("gestor"));
         _estadoDocumentalFiltro = EstadosValidos(vista.GetValueOrDefault("estado"));
         _orden.Leer(vista.GetValueOrDefault("orden"));
-        // La vista recordada sustituye a la de la primera carga (que ya había decidido la fila abierta): la primera fila
-        // se decide de nuevo sobre la vista que de verdad se queda.
-        _primeraFilaDecidida = false;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = _busqueda,

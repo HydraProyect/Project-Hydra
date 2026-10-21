@@ -257,3 +257,10 @@
 .linea-estado-etiqueta { color: var(--color-text-muted); min-width: 7.5em; }
 .linea-estado-plataforma { color: var(--color-text-muted); }
 .linea-estado-plataforma--rechazada { color: var(--color-danger-700); }
+
+/* Centro 360 (maqueta del 20-10): la Empresa empleadora junto al nombre del Trabajador, en tono de apoyo. */
+.fila-trabajador-empleador {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+}

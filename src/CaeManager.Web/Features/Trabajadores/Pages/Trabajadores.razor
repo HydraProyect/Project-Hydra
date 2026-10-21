@@ -315,7 +315,7 @@
                                denegar. *@
                             <div class="@("tarjeta-fila-acordeon-contenido" + (_seleccionMultiple ? " contenido-con-seleccion" : string.Empty))">
                                 <ul class="documentos-pendientes-trabajador" data-pieza="documentos-pendientes">
-                                    @foreach (var incidencia in context.Incidencias)
+                                    @foreach (var incidencia in VerRestantes.Recortar(context.Incidencias, IncidenciasCompletas(context)))
                                     {
                                         <li class="@(SubcajaIncidenciasDocumentales.Coincide(incidencia, _busqueda) ? "documento-pendiente-trabajador coincidencia-incidencia" : "documento-pendiente-trabajador")" @key="incidencia.DocumentoId">
                                             <span class="documento-pendiente-nombre"><TextoResaltado Texto="@MotivoIncidenciasUi.NombreDeTipo(incidencia)" Termino="@_busqueda" /></span>
@@ -330,6 +330,8 @@
                                         </li>
                                     }
                                 </ul>
+                                <VerRestantes Total="context.Incidencias.Count" Completa="IncidenciasCompletas(context)"
+                                              OnVerRestantes="() => _incidenciasCompletas.Add(context.Id)" />
                             </div>
                         }
                     </div>

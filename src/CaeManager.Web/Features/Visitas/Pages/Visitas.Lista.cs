@@ -117,6 +117,7 @@ public partial class Visitas
 
     private async Task ExpandirTodoAsync()
     {
+        if (_expandiendoTodas) return;
         if (TodasExpandidas) { _expandidas.Clear(); return; }
         _expandiendoTodas = true;
         var carga = _cargaLista;

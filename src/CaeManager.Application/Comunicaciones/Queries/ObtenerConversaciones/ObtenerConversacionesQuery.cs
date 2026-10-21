@@ -237,7 +237,7 @@ public class ObtenerConversacionesQueryHandler(
 
         var mensajes = await comunicacionesContext.Mensajes
             .Where(m => conversacionIds.Contains(m.ConversacionId))
-            .Select(m => new { m.Id, m.ConversacionId, m.CuerpoHtml, m.FechaUtc, m.Direccion })
+            .Select(m => new { m.Id, m.ConversacionId, m.CuerpoHtml, m.FechaUtc, m.Direccion, m.Remitente })
             .ToListAsync(cancellationToken);
 
         var remitentes = await comunicacionesContext.ParticipantesConversacion
@@ -257,8 +257,11 @@ public class ObtenerConversacionesQueryHandler(
 
             return new ConversacionListaDto(
                 c.Id, c.ClienteId, c.ClienteRazonSocial, c.Asunto, c.Estado, c.EjecutivoAsignadoId,
-                // WhatsApp no tiene participantes de correo: el remitente es el teléfono del contacto.
-                remitentesPorConversacion.GetValueOrDefault(c.Id) ?? c.TelefonoContacto ?? "Remitente desconocido",
+                // WhatsApp no tiene participantes de correo: el remitente es el teléfono del contacto. Un hilo sin
+                // participante «De» enseña la dirección de su primer mensaje antes que un rótulo sin dato.
+                remitentesPorConversacion.GetValueOrDefault(c.Id) ?? c.TelefonoContacto
+                    ?? mensajesDeConversacion.OrderBy(m => m.FechaUtc).Select(m => m.Remitente).FirstOrDefault()
+                    ?? "Remitente desconocido",
                 TruncarParaPreview(ultimoMensaje?.CuerpoHtml),
                 c.FechaUltimoMensajeUtc, mensajesDeConversacion.Count, c.Canal, c.TelefonoContacto,
                 ultimoMensaje?.Direccion, mensajesRuidoPorConversacion.GetValueOrDefault(c.Id), c.Prioridad,

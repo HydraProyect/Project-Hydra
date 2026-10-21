@@ -48,9 +48,13 @@ else
     <SoloConEscritura>
         <div class="acordeon-asignaciones-cabecera">
             <Boton Variante="@(AsignarEsPrimaria ? VarianteBoton.Primario : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(new[] { CentroId })">+ Asignar trabajador</Boton>
-            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_seleccionados.Count == 0" OnClick="AbrirConfirmarBajaLoteAsync">
-                Dar de baja seleccionados
-            </Boton>
+            @* La maqueta de Centro 360 (20-10) no lo lleva: «sin Dar de baja seleccionados (no decidido)». *@
+            @if (!MostrarEstadoPlataforma)
+            {
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_seleccionados.Count == 0" OnClick="AbrirConfirmarBajaLoteAsync">
+                    Dar de baja seleccionados
+                </Boton>
+            }
         </div>
     </SoloConEscritura>
     }
@@ -251,6 +255,13 @@ else
                               OnAbrir360="@(ModoListado ? default : EventCallback.Factory.Create(this, () => AbrirDetalleTrabajador(trabajador)))"
                               Desplegada="expandido" DesplegadaChanged="_ => AlternarExpansionTrabajador(trabajador.AsignacionId)"
                               EtiquetaDesplegar="@($"Documentos exigidos a {trabajador.TrabajadorNombre}")">
+                    <JuntoAlNombre>
+                        @* Maqueta de Centro 360: la Empresa empleadora acompaña al Trabajador en la fila. *@
+                        @if (EmpleadorDe(trabajador.TrabajadorId) is { } empleador)
+                        {
+                            <span class="fila-trabajador-empleador" data-empleador>@empleador</span>
+                        }
+                    </JuntoAlNombre>
                     <Detalle>
                         @if (EstaBloqueado(trabajador.TrabajadorId))
                         {
