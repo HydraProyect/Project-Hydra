@@ -65,7 +65,7 @@
     <value>Editar l'empresa</value>
   </data>
   <data name="AnilloEtiqueta" xml:space="preserve">
-    <value>{0}% de compliment acumulat als centres on aquesta empresa té activitat</value>
+    <value>{0}% dels documents exigits als seus Treballadors als seus Centres, al dia</value>
   </data>
   <data name="AnilloSinDato" xml:space="preserve">
     <value>Sense activitat en cap centre amb requisits aplicables</value>
@@ -303,6 +303,9 @@
   </data>
   <data name="ColDetecciones" xml:space="preserve">
     <value>Deteccions</value>
+  </data>
+  <data name="TituloColCumplimiento" xml:space="preserve">
+    <value>Documents exigits als seus Treballadors als seus Centres que estan al dia; els que falten compten en contra</value>
   </data>
   <data name="ColCumplimiento" xml:space="preserve">
     <value>Compliment</value>

@@ -82,7 +82,7 @@
     <comment>Ítem del menú de acciones: abre el panel en Información.</comment>
   </data>
   <data name="AnilloEtiqueta" xml:space="preserve">
-    <value>{0}% de cumplimiento acumulado en los centros donde esta empresa tiene actividad</value>
+    <value>{0}% de los documentos exigidos a sus Trabajadores en sus Centros, al día</value>
     <comment>Nombre accesible del anillo. {0} = porcentaje.</comment>
   </data>
   <data name="AnilloSinDato" xml:space="preserve">
@@ -381,6 +381,9 @@
   </data>
   <data name="ColDetecciones" xml:space="preserve">
     <value>Detecciones</value>
+  </data>
+  <data name="TituloColCumplimiento" xml:space="preserve">
+    <value>Documentos exigidos a sus Trabajadores en sus Centros que están al día; los que faltan cuentan en contra</value>
   </data>
   <data name="ColCumplimiento" xml:space="preserve">
     <value>Cumplimiento</value>

@@ -664,4 +664,10 @@
   <data name="RequisitoGuardadoToast" xml:space="preserve">
     <value>Requisit desat en aquest centre.</value>
   </data>
+  <data name="TotalesAlDiaPorVencer" xml:space="preserve">
+    <value>(d'ells, {0} per vèncer)</value>
+  </data>
+  <data name="TotalesSinValidar" xml:space="preserve">
+    <value>sense confirmar o sense validar a la plataforma: {0}</value>
+  </data>
 </root>
