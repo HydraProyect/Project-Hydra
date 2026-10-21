@@ -1,0 +1,68 @@
+@*
+    Panel de contexto (?ctx=Tipo:Id) cuya consulta por Id devolvió null en el Tenant activo: el enlace o el
+    «Atrás» del navegador traen un ?ctx= de la Empresa gestionada anterior. Es la versión de panel de
+    FichaNoEncontrada (contrato del selector de Tenant, § 4.5, I15): se quita ese nivel del panel con un toast
+    informativo, en vez de dejar un «No pudimos cargar… Reintentar» que devolvería lo mismo.
+
+    Depende solo de quien mira, nunca de si la entidad existe en otro Tenant (no se consulta ninguno: sería
+    un oráculo de existencia). Con selector de Tenant el toast nombra la empresa ACTIVA; sin selector, o si
+    la lista autorizada no se puede leer, el toast es genérico. No cambia de Tenant ni navega fuera de la
+    página: cerrar el panel solo quita ?ctx= de la URL (ContextWorkspace, con replace).
+    El cierre espera a la fase interactiva (OnAfterRender): en el prerenderizado el toast se perdería.
+*@
+@using CaeManager.Application.Common
+@using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados
+@using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+
+<p class="panel-no-encontrado" role="status" data-panel-no-encontrado>@Textos["FichaNoDisponibleTitulo"]</p>
+
+@code {
+    [Inject] private IMediator Mediator { get; set; } = default!;
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
+    [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
+    [Inject] private ToastService Toasts { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosComunes> Textos { get; set; } = default!;
+
+    private bool _leido;
+    private bool _cerrado;
+    private string? _nombreActiva;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
+            var activa = ClientesAutorizados.Activo(autorizados, TenantActual.TenantId);
+            if (activa is not null && ClientesAutorizados.SelectorVisible(autorizados, activa))
+                _nombreActiva = activa.Nombre;
+        }
+        catch (Exception)
+        {
+            // Sin la lista autorizada el toast no nombra empresa; el panel se cierra igual.
+        }
+        finally
+        {
+            _leido = true;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_leido || _cerrado)
+            return;
+
+        _cerrado = true;
+        Toasts.Mostrar(_nombreActiva is null
+            ? Textos["FichaPanelNoDisponible"]
+            : Textos["FichaPanelNoEstaEnEmpresaActiva", _nombreActiva], TonoToast.Info);
+        // Solo se quita el nivel que falla: si el panel venía de otra ficha (NavegarAAsync), se vuelve a ella
+        // como haría Escape; si era el único nivel, se cierra el panel.
+        if (WorkspaceService.Pila.Count > 1)
+            await WorkspaceService.VolverAsync();
+        else
+            await WorkspaceService.CerrarAsync();
+    }
+}

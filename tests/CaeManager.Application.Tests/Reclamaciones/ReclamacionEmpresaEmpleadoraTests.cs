@@ -220,6 +220,177 @@ public class ReclamacionEmpresaEmpleadoraTests
         _registro.VecesLlamado.Should().Be(0);
     }
 
+    private Documento DocumentoDeEmpresaQueVence(Empresa empresa)
+    {
+        var tipoEmpresa = _tipos.ListaTiposDocumento.FirstOrDefault(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa)
+            ?? new TipoDocumento("Certificado de la Seguridad Social", null, false, 1, AmbitoAplicacion.Empresa);
+        if (!_tipos.ListaTiposDocumento.Contains(tipoEmpresa))
+            _tipos.ListaTiposDocumento.Add(tipoEmpresa);
+        var documento = Documento.DeEmpresa(empresa.Id, tipoEmpresa.Id, Hoy.AddYears(-1), VigenciaDocumento.VenceEl(Hoy.AddDays(5)));
+        _documentos.ListaDocumentos.Add(documento);
+        return documento;
+    }
+
+    [Fact]
+    public async Task Por_acceso_lo_de_la_Empresa_y_lo_de_su_Trabajador_salen_en_un_solo_correo_a_la_Delegacion()
+    {
+        var deAna = DocumentoQueVence(_anaSevilla);
+        var deLaEmpresa = DocumentoDeEmpresaQueVence(_contratista);
+
+        var resultado = await Handler().Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(_contratista.Id, _sevilla.Id, [deAna.Id, deLaEmpresa.Id]), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeFalse(resultado.EsFallido ? resultado.Error.Mensaje : null);
+        _registro.VecesLlamado.Should().Be(1, "un solo borrador");
+        _registro.UltimosDestinatarios.Should().Equal(CorreoSevilla);
+        _registro.UltimosDocumentoIds.Should().BeEquivalentTo([deAna.Id, deLaEmpresa.Id]);
+        _registro.UltimoCuerpoHtml.Should().Contain("Certificado de la Seguridad Social").And.Contain(EnviarReclamacionEmpresaEmpleadoraCommandHandler.RotuloEmpresa);
+    }
+
+    [Fact]
+    public async Task Un_documento_de_otra_Empresa_no_viaja_en_la_reclamacion_por_acceso()
+    {
+        var deAna = DocumentoQueVence(_anaSevilla);
+        var deOtraEmpresa = DocumentoDeEmpresaQueVence(_cliente);
+
+        var resultado = await Handler().Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(_contratista.Id, _sevilla.Id, [deAna.Id, deOtraEmpresa.Id]), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Reclamacion.DocumentosDesactualizados");
+        _registro.VecesLlamado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Lo_de_la_Empresa_fuera_de_la_Asignacion_de_Cartera_se_rechaza_sin_enviar()
+    {
+        var deLaEmpresa = DocumentoDeEmpresaQueVence(_contratista);
+        var fueraDeCartera = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsParaGestion: []);
+
+        var resultado = await Handler(fueraDeCartera).Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(_contratista.Id, null, [deLaEmpresa.Id]), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Reclamacion.SinAcceso");
+        _registro.VecesLlamado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Solo_lo_de_la_Empresa_sin_ningun_Trabajador_no_se_envia_por_este_comando()
+    {
+        var deLaEmpresa = DocumentoDeEmpresaQueVence(_contratista);
+
+        var resultado = await Handler().Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(_contratista.Id, null, [deLaEmpresa.Id]), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue("lo de la Empresa sola va por EnviarReclamacionEmpresaCommand");
+        resultado.Error.Codigo.Should().Be("Reclamacion.DocumentosDesactualizados");
+        _registro.VecesLlamado.Should().Be(0);
+    }
+
+    // ---- Lo pendiente sin fecha: de la Empresa, del Trabajador y lo que no es de este envío ----
+
+    private Documento DocumentoSinConfirmarDeEmpresa(Empresa empresa)
+    {
+        var tipoEmpresa = _tipos.ListaTiposDocumento.FirstOrDefault(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa)
+            ?? new TipoDocumento("Certificado de la Seguridad Social", null, false, 1, AmbitoAplicacion.Empresa);
+        if (!_tipos.ListaTiposDocumento.Contains(tipoEmpresa))
+            _tipos.ListaTiposDocumento.Add(tipoEmpresa);
+        var documento = Documento.DeEmpresa(empresa.Id, tipoEmpresa.Id, Hoy.AddYears(-1), VigenciaDocumento.SinConfirmar);
+        _documentos.ListaDocumentos.Add(documento);
+        return documento;
+    }
+
+    private Documento DocumentoSinConfirmarDeTrabajador(Trabajador trabajador)
+    {
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipo.Id, Hoy.AddYears(-1), VigenciaDocumento.SinConfirmar);
+        _documentos.ListaDocumentos.Add(documento);
+        return documento;
+    }
+
+    [Fact]
+    public async Task Un_sin_confirmar_de_un_documento_de_la_Empresa_sale_junto_a_lo_del_Trabajador()
+    {
+        var deAna = DocumentoQueVence(_anaSevilla);
+        var sinConfirmarEmpresa = DocumentoSinConfirmarDeEmpresa(_contratista);
+
+        var resultado = await Handler().Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(
+                _contratista.Id, _sevilla.Id, [deAna.Id], Pendientes: [PendienteSinFecha.SinConfirmar(sinConfirmarEmpresa.Id)]),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : null);
+        _registro.VecesLlamado.Should().Be(1);
+        _registro.UltimosDocumentoIds.Should().BeEquivalentTo([deAna.Id, sinConfirmarEmpresa.Id]);
+        _registro.UltimoCuerpoHtml.Should().Contain($">{EnviarReclamacionEmpresaEmpleadoraCommandHandler.RotuloEmpresa}<", "lo de la Empresa va con el rótulo de la Empresa");
+    }
+
+    [Fact]
+    public async Task Un_sin_confirmar_de_un_documento_de_un_Trabajador_de_la_Delegacion_sale_como_del_Trabajador()
+    {
+        var sinConfirmarDeAna = DocumentoSinConfirmarDeTrabajador(_anaSevilla);
+
+        var resultado = await Handler().Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(
+                _contratista.Id, _sevilla.Id, [], Pendientes: [PendienteSinFecha.SinConfirmar(sinConfirmarDeAna.Id)]),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : null);
+        _registro.UltimosDocumentoIds.Should().BeEquivalentTo([sinConfirmarDeAna.Id]);
+        _registro.UltimoCuerpoHtml.Should().Contain("Ana P&#233;rez", "va con el nombre del Trabajador (el HTML escapa la tilde), no con el rótulo de la Empresa");
+        _registro.UltimoCuerpoHtml.Should().NotContain($">{EnviarReclamacionEmpresaEmpleadoraCommandHandler.RotuloEmpresa}<");
+    }
+
+    [Fact]
+    public async Task Un_sin_confirmar_de_un_documento_de_otra_Empresa_falla_sin_enviar()
+    {
+        var deAna = DocumentoQueVence(_anaSevilla);
+        var sinConfirmarAjeno = DocumentoSinConfirmarDeEmpresa(_cliente);
+
+        var resultado = await Handler().Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(
+                _contratista.Id, _sevilla.Id, [deAna.Id], Pendientes: [PendienteSinFecha.SinConfirmar(sinConfirmarAjeno.Id)]),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(PendientesDeReclamacionService.ErrorDesactualizados().Codigo);
+        _registro.VecesLlamado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Un_ausente_con_el_Trabajador_de_otra_Empresa_falla_sin_enviar()
+    {
+        var requerido = new TipoDocumento("Formación PRL", null, false, 2, AmbitoAplicacion.Trabajador, RequisitoDocumental.Si);
+        _tipos.ListaTiposDocumento.Add(requerido);
+        var deAna = DocumentoQueVence(_anaSevilla);
+
+        var resultado = await Handler().Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(
+                _contratista.Id, _sevilla.Id, [deAna.Id], Pendientes: [PendienteSinFecha.Ausente(_saraSubcontrata.Id, requerido.Id)]),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(PendientesDeReclamacionService.ErrorDesactualizados().Codigo);
+        _registro.VecesLlamado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Un_pedido_con_forma_mixta_falla_sin_enviar()
+    {
+        var deAna = DocumentoQueVence(_anaSevilla);
+        var sinConfirmarDeAna = DocumentoSinConfirmarDeTrabajador(_anaSevilla);
+
+        // «Sin confirmar» (con Documento) que además trae Trabajador y Tipo: ninguna de las dos formas válidas.
+        var resultado = await Handler().Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(
+                _contratista.Id, _sevilla.Id, [deAna.Id],
+                Pendientes: [new PendienteSinFecha(sinConfirmarDeAna.Id, _anaSevilla.Id, _tipo.Id)]),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(PendientesDeReclamacionService.ErrorDesactualizados().Codigo);
+        _registro.VecesLlamado.Should().Be(0);
+    }
+
     [Fact]
     public async Task Sin_leer_la_nota_interna_el_envio_a_la_Delegacion_se_rechaza_sin_enviar()
     {

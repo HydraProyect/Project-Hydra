@@ -426,7 +426,7 @@ public class EnmascaradoAuditoriaTrabajadorAnonimizadoBajoRuntimeTests
         {
             var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
             var ejecucion = new EjecucionPurgaService(
-                contexto, contexto, contexto, new SolicitudPurgaRepository(contexto),
+                contexto, contexto, contexto, contexto, new SolicitudPurgaRepository(contexto),
                 new ExtraccionIaCacheRepository(contexto), new AlmacenamientoSinArchivos(),
                 ambito.ServiceProvider.GetRequiredService<ITenantActual>(), contexto,
                 new TransaccionDeComando(contexto), new EnmascaradoAuditoriaTrabajadorAnonimizado(contexto),

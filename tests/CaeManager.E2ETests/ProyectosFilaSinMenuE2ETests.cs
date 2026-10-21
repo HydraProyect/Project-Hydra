@@ -34,7 +34,7 @@ public class ProyectosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/proyectos");
 
         var selector = page.GetByRole(AriaRole.Button,
-            new PageGetByRoleOptions { NameRegex = new Regex(@"^Empresa(?:$|:)") });
+            new PageGetByRoleOptions { NameRegex = new Regex(@"^Cliente(?:$|:)") });
         var menu = await AbrirMenuClienteAsync(selector, page);
         var opciones = (await menu.GetByRole(AriaRole.Menuitemradio).AllTextContentsAsync())
             .Select(o => o.Trim()).Where(o => o.Length > 0 && o != "Todos").ToArray();
@@ -49,7 +49,7 @@ public class ProyectosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
             await opcion.FocusAsync();
             await opcion.PressAsync("Space");
             await Expect(menu).ToBeHiddenAsync();
-            await Expect(selector).ToHaveAttributeAsync("aria-label", "Empresa: " + nombre);
+            await Expect(selector).ToHaveAttributeAsync("aria-label", "Cliente: " + nombre);
             // La lista de ese Cliente empresarial ya está pintada (tabla o estado vacío) antes de leerla.
             await Expect(page.Locator("table.tabla-proyectos, .estado-vacio")).ToBeVisibleAsync();
 

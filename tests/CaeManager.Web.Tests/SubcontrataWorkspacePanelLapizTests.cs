@@ -167,6 +167,7 @@ public class SubcontrataWorkspacePanelLapizTests : BunitContext
         Services.AddScoped(_ => workspace);
         await workspace.AbrirEnEdicionAsync(EntidadWorkspace.Subcontrata, Id, "Pinturas Lauburu S.A.");
         _cargasSinFicha = 1;
+        ComponentFactories.AddStub<PanelNoEncontrado>();
 
         var cut = Renderizar("informacion");
 

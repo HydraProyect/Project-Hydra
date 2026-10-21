@@ -274,13 +274,22 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
                 "cliente.TenantId, mismo fan-out que ObtenerDashboardEjecutivoQuery y solo si AlcanzaElTenantEnteroAsync; y ObtenerTenantOrigenIdAsync() del propio usuario para leer el catálogo de carteras de su organización (mismo criterio que ObtenerOperacionesSinPrincipalQuery)"),
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerSerieCuadroDireccionQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
-                "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync"),
+                "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync; y el Tenant de origen del Operador CAE que devuelve AutorizacionTarifasOperadorCae.OperadorQueGestionaAsync (Administrador o Dirección CAE ahí) para leer sus tarifas y las vigencias de sus Asignaciones de Operación"),
+        ["src/CaeManager.Application/Dashboard/Queries/ObtenerEmpresasGestionadasDelMesQuery.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "el Tenant de origen del propio usuario (ObtenerTenantOrigenIdAsync), que es el Operador CAE: lee las vigencias de sus Asignaciones de Operación externas (AutorizacionTarifasOperadorCae.VigenciasPorTenantBeneficiarioAsync) tras AutorizacionCuadroDireccion.ExigirLecturaAsync (la Facturación, el detalle y el Excel por Empresa y el KPI de extranjeros leen la vigencia de aquí); el filtro de RLS sigue acotando a ese Tenant"),
+        ["src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "ObtenerTenantOrigenIdAsync() del propio usuario: las tarifas del Operador CAE son filas de su Tenant de origen, y solo se leen o escriben si el rol efectivo ahí es Administrador o Dirección CAE (AutorizacionTarifasOperadorCae)"),
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerComunicacionesCuadroDireccionQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync"),
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerGestionesPorDiaCuadroDireccionQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync"),
+        ["src/CaeManager.Application/Dashboard/Queries/ObtenerExtranjerosDelMesQuery.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync; y ObtenerTenantOrigenIdAsync() del propio usuario para los nombres de los Gestores CAE de su organización"),
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerKpisGlobalesQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "cliente.TenantId, mismo fan-out que ObtenerDashboardEjecutivoQuery"),
         ["src/CaeManager.Application/Bandeja/Queries/ObtenerMiTrabajoAgregado/ObtenerMiTrabajoAgregadoQuery.cs"] =
@@ -548,6 +557,11 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookWhatsAppHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Retencion/RetencionHostedService.cs"] = 3,
+            // Las tres con el Tenant de origen de quien pide: rol efectivo, lectura y escritura de sus tarifas.
+            ["src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs"] = 3,
+            // Una por Tenant beneficiario (fan-out) y otra con el Tenant de origen del Operador CAE que pasó la guarda.
+            ["src/CaeManager.Application/Dashboard/Queries/ObtenerSerieCuadroDireccionQuery.cs"] = 2,
+            ["src/CaeManager.Application/Dashboard/Queries/ObtenerEmpresasGestionadasDelMesQuery.cs"] = 1,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] = 12,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] = 4,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] = 3,
@@ -567,6 +581,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] = 2,
             ["src/CaeManager.Application/Operaciones/IncorporacionCartera/ContextoOperadorCae.cs"] = 2,
             ["src/CaeManager.Application/Dashboard/Queries/ObtenerCuadroDireccionQuery.cs"] = 2,
+            ["src/CaeManager.Application/Dashboard/Queries/ObtenerExtranjerosDelMesQuery.cs"] = 2,
         };
 
         foreach (var fichero in conocidos)

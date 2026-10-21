@@ -26,7 +26,7 @@ public class PulidoUxLoteFTests
 
         var medio = Regex.Match(css, @"(?m)^\.boton-medio\s*\{(?<c>[^}]*)\}");
         medio.Success.Should().BeTrue();
-        medio.Groups["c"].Value.Should().MatchRegex(@"min-height\s*:\s*40px").And.NotContain("14px").And.NotContain("0.875rem");
+        medio.Groups["c"].Value.Should().MatchRegex(@"min-height\s*:\s*40px").And.NotMatchRegex(@"padding\s*:\s*(14px|0\.875rem)\b", "sin el relleno vertical de 14 px que lo hacía medir 45,6 px (el 14 px de la maqueta es el tamaño de la letra)");
 
         var tactil = Regex.Match(css, @"@media \(max-width: 767px\), \(pointer: coarse\)\s*\{(?<c>.*?)\n\}", RegexOptions.Singleline);
         tactil.Groups["c"].Value.Should().MatchRegex(@"\.boton-medio\s*\{[^}]*min-height\s*:\s*44px", "el objetivo táctil de WCAG 2.5.5 sigue en 44 px");

@@ -16,23 +16,42 @@
 *@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
 
-<div class="cajas-ficha" data-pieza="cajas-ficha" @ref="_raiz">
+@if (ClaveOrden is not null)
+{
+    <div class="cajas-ficha-ayuda">
+        <span>@Comunes["TarjetasArrastrar"]</span>
+        <button type="button" class="cajas-ficha-restablecer" @onclick="RestablecerAsync">@Comunes["TarjetasRestablecer"]</button>
+    </div>
+}
+<div class="cajas-ficha @(ClaveOrden is not null ? "cajas-ficha-editables" : null)" data-pieza="cajas-ficha" @ref="_raiz">
     @{ var claves = new ClavesDeHermanos(); }
     @foreach (var caja in EnOrden)
     {
-        <div class="cajas-ficha-caja" data-caja="@caja.Clave" @key="claves.De(caja.Clave)">@caja.Contenido</div>
+        <div class="cajas-ficha-caja" data-caja="@caja.Clave" @key="claves.De(caja.Clave)"
+             @ondragover:preventDefault="@(ClaveOrden is not null)" @ondrop="() => SoltarAsync(caja.Clave)">
+            @if (ClaveOrden is not null)
+            {
+                <button type="button" class="cajas-ficha-asa" draggable="true" aria-label="@Comunes["TarjetasMover", caja.Clave]"
+                        @ondragstart="() => _arrastrada = caja.Clave" @ondragend="() => _arrastrada = null"
+                        @onkeydown="e => MoverConTecladoAsync(caja.Clave, e)">⠿</button>
+            }
+            @caja.Contenido
+        </div>
     }
 </div>
 
 @code {
     /// <summary>Las cajas de la pestaña, en cualquier orden: el componente las ordena por altura.</summary>
     [Parameter, EditorRequired] public IReadOnlyList<CajaFicha> Cajas { get; set; } = [];
+    [Parameter] public string? ClaveOrden { get; set; }
 
     private ElementReference _raiz;
     private IJSObjectReference? _modulo;
     private Dictionary<string, int> _posicion = [];
     private string _clavesMedidas = string.Empty;
+    private string? _arrastrada;
 
     /// <summary>Las cajas medidas, por su posición; una caja aún sin medir va al final, en su orden de llegada.</summary>
     private IEnumerable<CajaFicha> EnOrden =>
@@ -55,6 +74,13 @@
         try
         {
             _modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/cajas-ficha.js");
+            if (ClaveOrden is not null)
+            {
+                var guardadas = await _modulo.InvokeAsync<string[]?>("leerOrden", ClaveOrden);
+                AplicarOrden(guardadas ?? []);
+                StateHasChanged();
+                return;
+            }
             var alturas = await _modulo.InvokeAsync<double[]>("medirAlturas", _raiz);
             if (alturas.Length != pintadas.Count)
                 return;
@@ -78,6 +104,49 @@
             // circuito cerrado, componente ya desechado), las cajas se quedan en su orden de
             // llegada y la ficha sigue en pie.
         }
+    }
+
+    private void AplicarOrden(IEnumerable<string> claves)
+    {
+        _posicion = claves.Distinct().Select((clave, posicion) => (clave, posicion))
+            .ToDictionary(x => x.clave, x => x.posicion);
+    }
+
+    private async Task SoltarAsync(string destino)
+    {
+        if (ClaveOrden is null || _arrastrada is null || _arrastrada == destino) return;
+        var orden = EnOrden.Select(c => c.Clave).ToList();
+        var origen = _arrastrada;
+        _arrastrada = null;
+        orden.Remove(origen);
+        orden.Insert(orden.IndexOf(destino), origen);
+        AplicarOrden(orden);
+        await GuardarOrdenAsync(orden);
+    }
+
+    private Task MoverConTecladoAsync(string clave, Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key is not ("ArrowUp" or "ArrowDown")) return Task.CompletedTask;
+        var orden = EnOrden.Select(c => c.Clave).ToList();
+        var origen = orden.IndexOf(clave);
+        var destino = origen + (e.Key == "ArrowUp" ? -1 : 1);
+        if (destino < 0 || destino >= orden.Count) return Task.CompletedTask;
+        (orden[origen], orden[destino]) = (orden[destino], orden[origen]);
+        AplicarOrden(orden);
+        return GuardarOrdenAsync(orden);
+    }
+
+    private async Task RestablecerAsync()
+    {
+        _posicion = [];
+        await GuardarOrdenAsync([]);
+    }
+
+    private async Task GuardarOrdenAsync(IReadOnlyList<string> orden)
+    {
+        if (_modulo is null || ClaveOrden is null) return;
+        try { await _modulo.InvokeVoidAsync("guardarOrden", ClaveOrden, orden); }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or OperationCanceledException or ObjectDisposedException) { }
     }
 
     public async ValueTask DisposeAsync()

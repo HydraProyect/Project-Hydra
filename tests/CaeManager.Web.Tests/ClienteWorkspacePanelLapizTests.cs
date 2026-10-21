@@ -169,6 +169,7 @@ public class ClienteWorkspacePanelLapizTests : BunitContext
         Services.AddScoped(_ => workspace);
         await workspace.AbrirEnEdicionAsync(EntidadWorkspace.Cliente, Id, "Refrielectric S.A.");
         _cargasSinFicha = 1;
+        ComponentFactories.AddStub<PanelNoEncontrado>();
 
         var cut = Renderizar("informacion");
 

@@ -10,9 +10,27 @@
     gap: var(--space-3);
 }
 
-/* Buscador de la pestaña Trabajadores, sobre los chips de estado. */
+/* .barra-lista de la maqueta: chips de estado a la izquierda, buscador a la derecha. */
+.empresa360-barra {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
 .empresa360-buscador {
-    margin-bottom: var(--space-3);
+    min-width: 260px;
+}
+
+/* Sello de la pestaña Ficha: sección propia bajo las cajas (maqueta «Empresa 360»). */
+.empresa360-sello {
+    margin-top: var(--space-2);
+}
+
+.empresa360-sello-titulo {
+    margin: 0;
+    font: var(--font-h4);
 }
 
 .empresa360-chips {
@@ -76,4 +94,47 @@
 .empresa360-vacio-filtrado {
     font: var(--font-caption);
     color: var(--color-text-muted);
+}
+
+.empresa360-cifra-trabajador {
+    display: inline-block;
+    min-width: 2.5em;
+    text-align: right;
+    margin-right: var(--space-3);
+    font: var(--font-caption);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-muted);
+}
+
+/* Tarjeta «Se pide la documentación a» de la columna lateral (maqueta «Empresa 360»). */
+.empresa360-contacto {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.empresa360-contacto-identidad {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.empresa360-contacto-iniciales {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-full);
+    background: var(--color-primary-50);
+    color: var(--color-primary-700);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font: var(--font-caption);
+    font-weight: 600;
+}
+
+.empresa360-contacto-texto {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
 }

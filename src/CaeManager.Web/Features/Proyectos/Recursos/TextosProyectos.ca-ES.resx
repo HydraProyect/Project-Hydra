@@ -189,6 +189,21 @@
   <data name="BadgeActivo" xml:space="preserve">
     <value>Activo</value>
   </data>
+  <data name="BadgeSinAsignarAlCentro" xml:space="preserve">
+    <value>Sense assignar al Centre</value>
+  </data>
+  <data name="FraccionTecnico" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="MetaTecnicoSinAsignar" xml:space="preserve">
+    <value>no té assignació a {0}</value>
+  </data>
+  <data name="BotonAsignarAlCentro" xml:space="preserve">
+    <value>Assignar</value>
+  </data>
+  <data name="SubtituloTecnicosPorEstado" xml:space="preserve">
+    <value>{0}, del pitjor estat al millor · xifres amb els requisits de {1}</value>
+  </data>
   <data name="BotonDarDeBaja" xml:space="preserve">
     <value>Dar de baja</value>
   </data>
@@ -351,6 +366,7 @@
   <data name="AccionAsignarTecnico" xml:space="preserve"><value>Assignar tècnic</value></data>
   <data name="AccionReabrir" xml:space="preserve"><value>Reobrir</value></data>
   <data name="MenuMasAcciones" xml:space="preserve"><value>Més accions</value></data>
+  <data name="MenuCrearEvento" xml:space="preserve"><value>Crear Esdeveniment</value></data>
   <data name="MenuEditarProyecto" xml:space="preserve"><value>Editar projecte</value></data>
   <data name="MenuCerrarProyecto" xml:space="preserve"><value>Tancar projecte…</value></data>
   <data name="MenuEliminarProyecto" xml:space="preserve"><value>Eliminar projecte</value></data>
@@ -391,7 +407,7 @@
   <data name="VentanaTecnicoAyuda" xml:space="preserve"><value>Obrir la pestanya Tècnics del projecte</value></data>
   <data name="AriaEditarProyecto" xml:space="preserve"><value>Editar la informació del projecte</value></data>
   <data name="TituloEditarConAtajo" xml:space="preserve"><value>Editar (e)</value></data>
-  <data name="ListaFechas" xml:space="preserve"><value>Dates</value></data>
+  <data name="ListaFechas" xml:space="preserve"><value>Període</value></data>
   <data name="ListaSinFechaFin" xml:space="preserve"><value>sense data de fi</value></data>
   <data name="MotivoDuroUno" xml:space="preserve"><value>Va durar {0} dia</value></data>
   <data name="MotivoDuroVarios" xml:space="preserve"><value>Va durar {0} dies</value></data>
@@ -503,10 +519,10 @@
   <data name="ToastPlantillaGuardada" xml:space="preserve">
     <value>Plantilla desada.</value>
   </data>
-  <data name="ListaEmpresa" xml:space="preserve"><value>Empresa</value></data>
+  <data name="ListaEmpresa" xml:space="preserve"><value>Client</value></data>
   <data name="ListaAgrupar" xml:space="preserve"><value>Agrupar</value></data>
   <data name="ListaSinAgrupar" xml:space="preserve"><value>Sense agrupar</value></data>
-  <data name="ListaPorEmpresa" xml:space="preserve"><value>Per Empresa</value></data>
+  <data name="ListaPorEmpresa" xml:space="preserve"><value>Per Client</value></data>
   <data name="ListaDocumentacionDe" xml:space="preserve"><value>Documentació de {0}</value></data>
   <data name="ListaErrorDocumentacion" xml:space="preserve"><value>No hem pogut carregar la documentació</value></data>
   <data name="ListaSinDocumentos" xml:space="preserve"><value>Sense documents registrats per a aquest projecte.</value></data>

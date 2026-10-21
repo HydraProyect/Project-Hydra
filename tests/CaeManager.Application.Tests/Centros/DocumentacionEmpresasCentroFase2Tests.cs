@@ -2,6 +2,8 @@ using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionEmpresasDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Application.Documentos.SituacionEnCentro;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Integraciones;
@@ -46,7 +48,7 @@ public class DocumentacionEmpresasCentroFase2Tests
     }
     private Task<IReadOnlyList<DocumentacionEmpresaCentroDto>> Leer(IAlcanceDatosService? alcance = null) =>
         new ObtenerDocumentacionEmpresasDeCentroQueryHandler(_centros, _asignaciones, _trabajadores, _empresas,
-            _documentos, _configuracion, alcance ?? new AlcanceDatosServiceFalso(), _mediador).Handle(new(_centro.Id), CancellationToken.None);
+            _documentos, _configuracion, alcance ?? new AlcanceDatosServiceFalso(), _mediador, new SituacionDocumentosSinDatos()).Handle(new(_centro.Id), CancellationToken.None);
 
     [Fact]
     public async Task Fuera_del_alcance_del_Centro_no_revela_Empresa_ni_documentos_ni_consulta_requisitos()
@@ -150,6 +152,48 @@ public class DocumentacionEmpresasCentroFase2Tests
         var empresa = (await Leer()).Should().ContainSingle().Which;
         empresa.EmpresaId.Should().Be(_empresa.Id);
         empresa.Documentos.Should().ContainSingle().Which.Estado.Should().Be(EstadoDocumento.Faltante);
+    }
+
+    [Fact]
+    public async Task La_acreditacion_proyectada_pertenece_al_Centro_solicitado_y_no_al_estado_en_TALVEG()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var documento = Documento.DeEmpresa(_empresa.Id, _tipo, hoy, VigenciaDocumento.VenceEl(hoy.AddDays(90)));
+        _documentos.ListaDocumentos.Add(documento);
+        var acreditacion = new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.Rechazada);
+        var reclamacion = new UltimaReclamacionDocumentoDto(DateTime.UtcNow, true);
+        var situacion = new SituacionFalsa(new(
+            new Dictionary<(Guid, Guid), IReadOnlyList<AcreditacionResumenDto>>
+            {
+                [(_centro.Id, documento.Id)] = [acreditacion],
+                [(Guid.NewGuid(), documento.Id)] = [new(Guid.NewGuid(), "Otro portal", EstadoAcreditacion.Aceptada)]
+            }, new Dictionary<Guid, UltimaReclamacionDocumentoDto> { [documento.Id] = reclamacion },
+            new Dictionary<(Guid, Guid), UltimaReclamacionDocumentoDto>()));
+
+        var empresas = await new ObtenerDocumentacionEmpresasDeCentroQueryHandler(_centros, _asignaciones,
+            _trabajadores, _empresas, _documentos, _configuracion, new AlcanceDatosServiceFalso(), _mediador, situacion)
+            .Handle(new(_centro.Id), CancellationToken.None);
+
+        var fila = empresas.Should().ContainSingle().Which.Documentos.Should().ContainSingle().Which;
+        fila.Estado.Should().Be(EstadoDocumento.Vigente);
+        fila.AcreditacionesEnElCentro.Should().Equal(acreditacion);
+        fila.UltimaReclamacion.Should().Be(reclamacion);
+        situacion.Centros.Should().Equal(_centro.Id);
+        situacion.Documentos.Should().Equal(documento.Id);
+    }
+
+    private sealed class SituacionFalsa(SituacionDocumentosEnCentros resultado) : ISituacionDocumentosEnCentrosService
+    {
+        public IReadOnlyCollection<Guid> Centros { get; private set; } = [];
+        public IReadOnlyCollection<Guid> Documentos { get; private set; } = [];
+        public Task<SituacionDocumentosEnCentros> CargarAsync(IReadOnlyCollection<Guid> centroIds,
+            IReadOnlyCollection<Guid> documentoIds, IReadOnlyCollection<Guid> trabajadorIdsConAusentes,
+            IReadOnlyCollection<Guid> tipoDocumentoIdsDeAusentes, CancellationToken cancellationToken)
+        {
+            Centros = centroIds;
+            Documentos = documentoIds;
+            return Task.FromResult(resultado);
+        }
     }
 
     private sealed class AsignacionesFalso : IAsignacionesQueryContext

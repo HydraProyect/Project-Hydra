@@ -322,7 +322,7 @@ public static class GestorCaeCarteraMultiTenantSeeder
         // Mañana: dentro de las 48 h de aviso por defecto, así que entra en la cola como «Visita próxima».
         var visita = new Visita(centro.Id, hoy.AddDays(1), hoy.AddDays(1), notas: null, OrigenVisita.Plataforma);
         dbContext.Visitas.Add(visita);
-        dbContext.VisitasTrabajadores.Add(new VisitaTrabajador(visita.Id, trabajador.Id));
+        dbContext.VisitasTrabajadores.Add(AsignacionSembrada.De(visita, trabajador.Id));
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return cliente.Id;
