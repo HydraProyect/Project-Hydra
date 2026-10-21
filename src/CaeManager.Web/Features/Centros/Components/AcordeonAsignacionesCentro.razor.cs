@@ -393,7 +393,8 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         }
         catch (Exception)
         {
-            _empleadoresPorTrabajador = new Dictionary<Guid, string>();
+            if (carga == _cargaLista)
+                _empleadoresPorTrabajador = new Dictionary<Guid, string>();
         }
     }
 

@@ -692,6 +692,9 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             documentacion = null;
         }
 
+        // Como cada paso de la cadena: con otro Cliente empresarial en marcha no se toca más el DbContext del circuito.
+        if (generacion != _generacion) return;
+
         try
         {
             agenda = (await Mediator.Send(new ObtenerAgendaContactosQuery(TipoPropietarioAgenda.Cliente, detalle.Id), _cancelacion)).Count;
