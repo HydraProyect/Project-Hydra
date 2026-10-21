@@ -357,7 +357,11 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task El_POST_aceptado_invalida_los_pendientes_del_usuario_y_el_rechazado_no()
     {
-        var contador = new ContadorPendientesSelectorTenant(TimeProvider.System);
+        // Reloj fijo: la clave de la caché lleva el cubo temporal de ContadorPendientesSelectorTenant.Vida
+        // (10 s). Con el reloj del sistema, si el test cruzaba una frontera de cubo entre dos lecturas la
+        // segunda era otra entrada y recalculaba sin que nadie invalidase (falso rojo en la cola de fusión,
+        // y falso verde posible en la segunda aserción). Congelado, solo Invalidar puede forzar el recálculo.
+        var contador = new ContadorPendientesSelectorTenant(new RelojFijo(new DateTimeOffset(2026, 10, 21, 12, 0, 5, TimeSpan.Zero)));
         var alcance = new[] { new ClienteAutorizadoDto(_a, "A", false, true, EsCarteraGestorCae: true) };
         var calculos = 0;
         Task<CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado.MiTrabajoAgregadoDto> Calcular(CancellationToken _)
@@ -964,6 +968,11 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
 
     private static ClaimsPrincipal UsuarioAutenticado(Guid usuarioId) =>
         new(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, usuarioId.ToString())], "prueba"));
+
+    private sealed class RelojFijo(DateTimeOffset ahora) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => ahora;
+    }
 
     private sealed class TenantActualPorAmbito : ITenantActual
     {
