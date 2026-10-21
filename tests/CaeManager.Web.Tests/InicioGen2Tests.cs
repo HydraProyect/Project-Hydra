@@ -723,8 +723,12 @@ public class InicioGen2Tests : BunitContext
         {
             Kpis = new MediadorDeInicio().Kpis with
             {
-                DocumentosVigentes = 80, DocumentosVencidos = 10, DocumentosUrgentes = 5, DocumentosProximos = 10,
-                DocumentosSinConfirmar = 17, DocumentosSinCaducidad = 10
+                DocumentosVigentes = 80,
+                DocumentosVencidos = 10,
+                DocumentosUrgentes = 5,
+                DocumentosProximos = 10,
+                DocumentosSinConfirmar = 17,
+                DocumentosSinCaducidad = 10
             }
         });
 
