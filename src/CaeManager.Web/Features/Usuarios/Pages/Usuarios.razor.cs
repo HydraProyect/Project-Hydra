@@ -662,8 +662,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             var porSuCartera = TextosUsuarios["AlcanceCoordinadorCarteraPropia"].Value;
             var explicacion = !tienePropia ? porSuEquipo : gestores.Count == 0 ? porSuCartera : string.Join(' ', porSuCartera, porSuEquipo);
             if (porOperacion.Count > 0)
-                explicacion = string.Join(' ', explicacion,
-                    "Además entra sin Asignación de Cartera en las Empresas gestionadas que su organización opera enteras.");
+                explicacion = string.Join(' ', explicacion, TextosUsuarios["AlcanceCoordinadorPorOperacion"].Value);
             return DesdeCarteras(
                 gestores.Prepend(usuario.Id).Where(carteras.ContainsKey).Select(id => carteras[id]).ToList(),
                 porOperacion,
@@ -676,13 +675,13 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 carteras.TryGetValue(usuario.Id, out var propia) ? [propia] : [],
                 empresasGestionadas.PorCartera.GetValueOrDefault(usuario.Id) ?? [],
                 // «en esta organización» ya no es cierto: las Empresas gestionadas son Tenants beneficiarios.
-                explicacion: "Por sus Asignaciones de Cartera vigentes.",
+                explicacion: TextosUsuarios["AlcanceGestorPorCartera"].Value,
                 explicacionSinAlcance: "Sin Asignación de Cartera vigente no ve ningún Cliente, y toda lista le sale vacía.");
 
         return new("—", false, "Esta cuenta todavía no tiene rol, así que no alcanza nada.");
     }
 
-    private static AlcanceUsuarioDto DesdeCarteras(
+    private AlcanceUsuarioDto DesdeCarteras(
         IReadOnlyList<CarteraDeUsuario> carteras, IReadOnlyList<EmpresaGestionada> empresasGestionadas,
         string explicacion, string explicacionSinAlcance)
     {
@@ -704,11 +703,15 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             .ToList();
         if (empresas.Count > 0)
         {
-            partes.Add(DescribirCantidad(empresas.Count, "Empresa gestionada", "Empresas gestionadas"));
+            partes.Add(DescribirCantidad(empresas.Count,
+                TextosUsuarios["AlcanceEmpresaGestionada"].Value, TextosUsuarios["AlcanceEmpresasGestionadas"].Value));
             var nombres = empresas.Take(MaxNombresEnExplicacion)
-                .Select(e => e.Parcial ? $"{e.Nombre} (solo un Cliente empresarial)" : e.Nombre);
-            var resto = empresas.Count > MaxNombresEnExplicacion ? $" y {empresas.Count - MaxNombresEnExplicacion} más" : string.Empty;
-            explicacion = $"{explicacion} Empresas gestionadas: {string.Join(", ", nombres)}{resto}.";
+                .Select(e => e.Parcial ? TextosUsuarios["AlcanceEmpresaGestionadaParcial", e.Nombre].Value : e.Nombre);
+            var resto = empresas.Count > MaxNombresEnExplicacion
+                ? TextosUsuarios["AlcanceEmpresasGestionadasResto", empresas.Count - MaxNombresEnExplicacion].Value
+                : string.Empty;
+            explicacion = string.Join(' ', explicacion,
+                TextosUsuarios["AlcanceEmpresasGestionadasNombres", string.Join(", ", nombres), resto].Value);
         }
 
         return partes.Count == 0

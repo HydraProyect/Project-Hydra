@@ -2575,7 +2575,7 @@ public partial class UsuariosGen2Tests : BunitContext
         var deAnder = Fila(cut, "a.beitia@talveg.es").QuerySelector("td[title]")!;
         deAnder.TextContent.Trim().Should().Be("3 Empresas gestionadas", "una Empresa gestionada repetida cuenta una vez");
         deAnder.GetAttribute("title").Should().Contain(
-            "Montajes Ejemplo S.L., Obras Ejemplo S.A., Reformas Ejemplo S.L. (solo un Cliente empresarial)");
+            "Montajes Ejemplo S.L., Obras Ejemplo S.A., Reformas Ejemplo S.L. (solo un Cliente)");
 
         var deIker = Fila(cut, "i.larra@talveg.es").QuerySelector("td[title]")!;
         deIker.TextContent.Trim().Should().Be("2 Empresas gestionadas",
