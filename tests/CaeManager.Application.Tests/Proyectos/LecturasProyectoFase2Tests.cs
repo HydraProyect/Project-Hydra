@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.Proyectos.Queries.ObtenerEmpresasProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerVisitasProyecto;
@@ -9,6 +10,7 @@ using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Trabajadores;
@@ -58,9 +60,11 @@ public class LecturasProyectoFase2Tests
         _visitas.Lista.Add(new Visita(_centro.Id, new(2026, 10, 4), new(2026, 10, 5), null));
     }
 
+    private readonly CalculoDocumentalFalso Calculo = new();
+
     private Task<IReadOnlyList<EmpresaProyectoDto>> EmpresasAsync(IAlcanceDatosService? alcance = null) =>
         new ObtenerEmpresasProyectoQueryHandler(_proyectos, _trabajadores, _empresas, _centros,
-            alcance ?? new AlcanceDatosServiceFalso())
+            alcance ?? new AlcanceDatosServiceFalso(), Calculo)
             .Handle(new(_proyecto.Id), CancellationToken.None);
 
     private Task<IReadOnlyList<VisitaProyectoDto>> VisitasAsync(IAlcanceDatosService? alcance = null) =>
@@ -123,6 +127,27 @@ public class LecturasProyectoFase2Tests
         _proyectos.Tecnicos[0].DarDeBaja(new(2026, 10, 2));
         _proyectos.Tecnicos.Add(new ProyectoTecnico(Guid.NewGuid(), _trabajadores.ListaTrabajadores[0].Id, new(2026, 10, 1)));
         (await EmpresasAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Cada_Empresa_lleva_el_estado_y_la_cifra_de_sus_propios_documentos()
+    {
+        Calculo.PorPropietario[_empleadora.Id] = (EstadoDocumento.Vencido, new DesgloseDocumentalDto([], 8, 6));
+
+        var empresa = (await EmpresasAsync()).Should().ContainSingle().Which;
+
+        empresa.EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
+        empresa.DocumentosRegistrados.Should().Be(8);
+        empresa.DocumentosVigentes.Should().Be(6);
+    }
+
+    [Fact]
+    public async Task Una_Empresa_sin_documentos_no_lleva_estado()
+    {
+        var empresa = (await EmpresasAsync()).Should().ContainSingle().Which;
+
+        empresa.EstadoDocumental.Should().BeNull();
+        empresa.DocumentosRegistrados.Should().Be(0);
     }
 
     [Fact]

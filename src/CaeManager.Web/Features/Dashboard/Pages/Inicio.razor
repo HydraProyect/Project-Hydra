@@ -160,9 +160,9 @@
 
         @if (_mostrarRequiereAtencion)
         {
+            <h2 class="dashboard-subtitulo">Reclamado y sin respuesta</h2>
             @if (_sinRespuesta.Count > 0)
             {
-                <h2 class="dashboard-subtitulo">Reclamado y sin respuesta</h2>
                 <div class="dashboard-lista-unificada">
                     @foreach (var reclamacion in _sinRespuesta)
                     {
@@ -176,6 +176,18 @@
                             <a class="enlace-ver-todas" href="/documentos?pestana=reclamaciones">Revisar y reclamar →</a>
                         </div>
                     }
+                </div>
+            }
+            else
+            {
+                @* Mockup Inicio, estado «Sin reclamaciones»: el bloque conserva su cabecera y dice que
+                   ninguna reclamación pasa de 7 días sin respuesta, que es el corte de la consulta.
+                   El mockup decía «3 días hábiles» (decisión pendiente, ver la PR). *@
+                <div class="inicio-cierre" data-estado="sin-reclamaciones">
+                    <span class="inicio-cierre-marca" aria-hidden="true">
+                        <Icono Nombre="exito-circulo" Tamano="TamanoIcono.Pequeno" />
+                    </span>
+                    <p class="inicio-cierre-texto">@Textos["SinReclamacionesTexto"]</p>
                 </div>
             }
         }

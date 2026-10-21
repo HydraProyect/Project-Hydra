@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -382,6 +382,11 @@
   <data name="FichaErrorGuardar" xml:space="preserve">
     <value>No pudimos guardar la ficha del vehículo.</value>
   </data>
+  <data name="ListaColumnaEmpresa" xml:space="preserve"><value>Empresa</value></data>
+  <data name="ListaColumnaDocumentacion" xml:space="preserve"><value>Documentación</value></data>
+  <data name="EtiquetaAgrupar" xml:space="preserve"><value>Agrupar</value></data>
+  <data name="OpcionSinAgrupar" xml:space="preserve"><value>Sin agrupar</value></data>
+  <data name="AgruparPorEmpresa" xml:space="preserve"><value>Por Empresa</value></data>
   <data name="PestanaPlataformas360" xml:space="preserve"><value>Plataformas</value></data>
   <data name="FichaAlta" xml:space="preserve"><value>Alta</value></data>
   <data name="PlataformasIntroduccion" xml:space="preserve"><value>Estado de la documentación del vehículo en la plataforma CAE de cada Cliente, por Centro.</value></data>

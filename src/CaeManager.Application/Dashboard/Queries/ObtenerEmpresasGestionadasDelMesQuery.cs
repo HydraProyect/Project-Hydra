@@ -9,8 +9,8 @@ namespace CaeManager.Application.Dashboard.Queries;
 /// <summary>
 /// Las Empresas que el Operador CAE externo de quien mira gestiona en un mes, con los trozos del mes en que su Asignación
 /// de Operación externa estuvo en vigor. Es la única fuente de esa vigencia para la Facturación del Operador CAE: su
-/// consulta, el conteo de extranjeros, el detalle por Empresa, el Excel por Empresa y el KPI «Extranjeros» de la Visión
-/// general la leen de aquí, para que cifra, detalle y Excel no diverjan.
+/// consulta, el conteo de extranjeros, el detalle por Empresa, el Excel por Empresa, el Excel general de un Operador CAE y
+/// el KPI «Extranjeros» de la Visión general la leen de aquí, para que cifra, detalle y Excel no diverjan.
 /// </summary>
 public record ObtenerEmpresasGestionadasDelMesQuery(int Anyo, int Mes) : IRequest<EmpresasGestionadasDelMesDto>;
 
@@ -70,7 +70,14 @@ public class ObtenerEmpresasGestionadasDelMesQueryHandler(ICurrentUserService us
 /// Empresa; si no es una Empresa gestionada en el mes (el propio Tenant del Operador, un Tenant sin Asignación externa en
 /// vigor ese mes o uno ajeno), el resultado sale sin filas, nunca con datos de otro Tenant.
 /// </summary>
-public record ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(int Anyo, int Mes, Guid? TenantId = null) : IRequest<ExtranjerosDelMesDto>;
+/// <param name="GeneralSiNoEsOperadorCae">
+/// Para el Excel «Exportar extranjeros del mes» sin Empresa concreta: quien mira no es de un Operador CAE (no hay Asignación
+/// de Operación externa que acotar) y recibe el listado general de <see cref="ObtenerExtranjerosDelMesQuery"/>, como antes.
+/// Un Operador CAE recibe siempre las filas acotadas a la vigencia de cada Empresa gestionada, que son las que cuenta su
+/// cifra facturada; con <paramref name="TenantId"/> este indicador no se usa y quien no es Operador CAE sigue sin filas.
+/// </param>
+public record ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(
+    int Anyo, int Mes, Guid? TenantId = null, bool GeneralSiNoEsOperadorCae = false) : IRequest<ExtranjerosDelMesDto>;
 
 /// <summary>
 /// Misma autorización y mismo alcance que <see cref="ObtenerExtranjerosDelMesQuery"/> (de la que sale cada fila), y mismo
@@ -88,7 +95,12 @@ public class ObtenerExtranjerosDeEmpresasGestionadasDelMesQueryHandler(IMediator
         if (extranjeros.SinCifras is not null)
             return extranjeros;
 
-        var tramos = (await mediator.Send(new ObtenerEmpresasGestionadasDelMesQuery(request.Anyo, request.Mes), cancellationToken)).Tramos;
+        var gestionadas = await mediator.Send(new ObtenerEmpresasGestionadasDelMesQuery(request.Anyo, request.Mes), cancellationToken);
+        // Quien no es de un Operador CAE no tiene vigencia que aplicar: solo el Excel general sin Empresa pedida conserva el listado entero.
+        if (request.GeneralSiNoEsOperadorCae && request.TenantId is null && !gestionadas.EsOperadorCae)
+            return extranjeros;
+
+        var tramos = gestionadas.Tramos;
         bool Pedida(Guid tenantId) => request.TenantId is not { } pedida || pedida == tenantId;
 
         var filas = extranjeros.Filas

@@ -78,7 +78,10 @@ public class CuadroDireccionExtranjerosEndpointTests
         var resultado = await ExportarAsync("?anyo=2026&mes=9", Mes());
 
         resultado.Contexto.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
-        resultado.Mediador.Consultas.Should().ContainSingle().Which.Should().Be(new ObtenerExtranjerosDelMesQuery(2026, 9));
+        resultado.Mediador.Consultas.Should().BeEmpty("el Excel general también sale de la consulta acotada a la vigencia del Operador CAE");
+        resultado.Mediador.ConsultasPorEmpresa.Should().ContainSingle().Which
+            .Should().Be(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 9, null, GeneralSiNoEsOperadorCae: true),
+                "sin tenantId, un Operador CAE recibe las filas dentro de la vigencia de cada Empresa gestionada y quien no lo es, el listado entero");
 
         var filas = Filas(resultado.Contexto);
         filas.Should().HaveCount(3, "la cabecera y las dos filas del DTO, sin nota cuando todos los Tenants se alcanzan");
@@ -101,7 +104,8 @@ public class CuadroDireccionExtranjerosEndpointTests
         resultado.Contexto.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
         resultado.Mediador.Consultas.Should().BeEmpty("con tenantId el libro sale de la consulta acotada a la vigencia, no del Excel general");
         resultado.Mediador.ConsultasPorEmpresa.Should().ContainSingle().Which
-            .Should().Be(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 9, Oleg.TenantId));
+            .Should().Be(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 9, Oleg.TenantId),
+                "con tenantId no se pide el general: quien no es Operador CAE sigue sin filas de esa Empresa");
         var filas = Filas(resultado.Contexto);
         filas.Should().HaveCount(2, "la cabecera y la única fila de la Empresa pedida");
         filas[1][9].Should().Be("Oleg Ivanov");

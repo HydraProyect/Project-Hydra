@@ -14,7 +14,7 @@ namespace CaeManager.E2ETests;
 public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture)
 {
     [Fact]
-    public async Task Vehiculos_las_opciones_nativas_conservan_el_orden_por_Modelo_en_ambos_sentidos()
+    public async Task Vehiculos_las_opciones_nativas_conservan_el_orden_por_Matricula_en_ambos_sentidos()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
@@ -22,25 +22,22 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/vehiculos");
         var sufijo = Guid.NewGuid().ToString("N")[..8];
         var prefijo = $"F1-{sufijo}";
-        // Nombre y Modelo tienen órdenes opuestos; ignorar Modelo no puede pasar este caso.
-        await CrearVehiculoAsync(page, $"{prefijo} Alfa", "Modelo Z", $"{prefijo}-A");
-        await CrearVehiculoAsync(page, $"{prefijo} Beta", "Modelo A", $"{prefijo}-B");
+        // Nombre y Matrícula tienen órdenes opuestos; ignorar Matrícula no puede pasar este caso.
+        await CrearVehiculoAsync(page, $"{prefijo} Alfa", "Modelo Z", $"{prefijo}-Z");
+        await CrearVehiculoAsync(page, $"{prefijo} Beta", "Modelo A", $"{prefijo}-A");
         await page.GetByPlaceholder("Filtrar esta pantalla: nombre, modelo o matrícula").FillAsync(prefijo);
         var nombres = page.Locator("tbody .celda-vehiculo .enlace-nombre-fila");
-        var modelos = page.Locator("tbody .celda-vehiculo-modelo");
         await Expect(nombres).ToHaveCountAsync(2);
         var cabecera = Cabecera(page, "Vehículo");
         await cabecera.Locator(".col-options-button").ClickAsync();
         await cabecera.Locator(".col-options select").FocusAsync();
         await cabecera.Locator(".col-options").GetByLabel("Ordenar por", new LocatorGetByLabelOptions { Exact = true })
-            .SelectOptionAsync("Modelo");
+            .SelectOptionAsync("Matrícula");
         await cabecera.Locator(".col-options").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden });
         await Expect(cabecera.Locator("button.col-title")).ToBeFocusedAsync();
         await OrdenAscendenteAsync(cabecera);
-        await Expect(modelos).ToHaveTextAsync(["Modelo A", "Modelo Z"]);
         await Expect(nombres).ToHaveTextAsync([$"{prefijo} Beta", $"{prefijo} Alfa"]);
         await cabecera.Locator("button.col-title").ClickAsync();
-        await Expect(modelos).ToHaveTextAsync(["Modelo Z", "Modelo A"]);
         await Expect(nombres).ToHaveTextAsync([$"{prefijo} Alfa", $"{prefijo} Beta"]);
 
         // El clic anterior deja foco real en el botón nativo; j debe sacarlo de ese
@@ -57,7 +54,7 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture
         await panel.Locator("button.workspace-cerrar").ClickAsync();
         await Expect(panel).ToHaveCountAsync(0);
 
-        // El nombre de la segunda fila debe seguir abriendo Beta tras ordenar por Modelo.
+        // El nombre de la segunda fila debe seguir abriendo Beta tras ordenar por Matrícula.
         await filas.Nth(1).Locator(".nombre-abre-vista-rapida").ClickAsync();
         await Expect(panel.Locator(".workspace-titulo-entidad")).ToHaveTextAsync($"{prefijo} Beta");
     }

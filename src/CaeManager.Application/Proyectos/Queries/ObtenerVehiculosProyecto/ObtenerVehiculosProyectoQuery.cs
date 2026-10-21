@@ -1,8 +1,10 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Vehiculos;
+using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,7 +13,20 @@ namespace CaeManager.Application.Proyectos.Queries.ObtenerVehiculosProyecto;
 public record ObtenerVehiculosProyectoQuery(Guid ProyectoId) : IRequest<IReadOnlyList<VehiculoProyectoDto>>;
 
 /// <param name="EmpleadorId">Empresa a la que pertenece el Vehículo, por la ruta contextual con la que participa en el Proyecto.</param>
-public record VehiculoProyectoDto(Guid Id, string Nombre, string Modelo, string NumeroPlaca, Guid EmpleadorId, string EmpleadorNombre);
+public record VehiculoProyectoDto(Guid Id, string Nombre, string Modelo, string NumeroPlaca, Guid EmpleadorId, string EmpleadorNombre)
+{
+    /// <summary>Peor estado de los documentos del Vehículo. <c>null</c> si no tiene ninguno.</summary>
+    public EstadoDocumento? EstadoDocumental { get; init; }
+
+    /// <summary>Los documentos del Vehículo que explican su estado y los demás que piden atención, del más grave al menos.</summary>
+    public IReadOnlyList<IncidenciaDocumentalDto> Incidencias { get; init; } = [];
+
+    /// <summary>Documentos operativos del Vehículo, para la cifra «n de m».</summary>
+    public int DocumentosRegistrados { get; init; }
+
+    /// <summary>De ellos, los que están al día.</summary>
+    public int DocumentosVigentes { get; init; }
+}
 
 /// <summary>
 /// Vehículos de las Empresas que participan en el Proyecto: las empleadoras de sus técnicos activos,
@@ -25,7 +40,8 @@ public record VehiculoProyectoDto(Guid Id, string Nombre, string Modelo, string 
 public class ObtenerVehiculosProyectoQueryHandler(
     IProyectosQueryContext proyectosContext, ITrabajadoresQueryContext trabajadoresContext,
     IEmpresasQueryContext empresasContext, ICentrosQueryContext centrosContext,
-    IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
+    IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos,
+    ICalculoEstadoDocumentalService calculoEstadoDocumental)
     : IRequestHandler<ObtenerVehiculosProyectoQuery, IReadOnlyList<VehiculoProyectoDto>>
 {
     public async Task<IReadOnlyList<VehiculoProyectoDto>> Handle(ObtenerVehiculosProyectoQuery request, CancellationToken cancellationToken)
@@ -65,10 +81,27 @@ public class ObtenerVehiculosProyectoQueryHandler(
             .Select(v => new { v.Id, v.Nombre, v.Modelo, v.NumeroPlaca, v.EmpresaId, v.SubcontrataId })
             .ToListAsync(cancellationToken);
 
+        // Estado y cifra de los documentos de cada Vehículo (los mismos que enseña el listado de Vehículos).
+        var ids = vehiculos.Select(v => v.Id).ToList();
+        var estados = await calculoEstadoDocumental.CalcularPeorEstadoAsync(AmbitoAplicacion.Vehiculo, ids, cancellationToken);
+        var desgloses = await calculoEstadoDocumental.CalcularDesgloseAsync(AmbitoAplicacion.Vehiculo, ids, cancellationToken);
+
         return vehiculos
             .Select(v => (Vehiculo: v, EmpleadorId: v.EmpresaId ?? v.SubcontrataId!.Value))
-            .Select(x => new VehiculoProyectoDto(x.Vehiculo.Id, x.Vehiculo.Nombre, x.Vehiculo.Modelo, x.Vehiculo.NumeroPlaca,
-                x.EmpleadorId, nombres.GetValueOrDefault(x.EmpleadorId, string.Empty)))
+            .Select(x =>
+            {
+                var dto = new VehiculoProyectoDto(x.Vehiculo.Id, x.Vehiculo.Nombre, x.Vehiculo.Modelo, x.Vehiculo.NumeroPlaca,
+                    x.EmpleadorId, nombres.GetValueOrDefault(x.EmpleadorId, string.Empty));
+                return desgloses.TryGetValue(x.Vehiculo.Id, out var desglose)
+                    ? dto with
+                    {
+                        EstadoDocumental = estados.TryGetValue(x.Vehiculo.Id, out var estado) ? estado : null,
+                        Incidencias = desglose.Incidencias,
+                        DocumentosRegistrados = desglose.DocumentosRegistrados,
+                        DocumentosVigentes = desglose.DocumentosVigentes
+                    }
+                    : dto;
+            })
             .ToList();
     }
 }

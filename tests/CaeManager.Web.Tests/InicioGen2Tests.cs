@@ -1,4 +1,5 @@
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using System.Globalization;
 using System.Reflection;
@@ -752,6 +753,78 @@ public class InicioGen2Tests : BunitContext
 
         cut.FindAll("a").Should().Contain(a => a.TextContent.Contains("Ver todo en Mi trabajo"),
             "la maqueta deja «Ver todo en Mi trabajo →» siempre visible, también con la cola vacía");
+    }
+
+    // ------------------------------------------- reclamado y sin respuesta
+
+    /// <summary>
+    /// Mockup Inicio, estado «Sin reclamaciones»: el bloque no desaparece; conserva
+    /// su cabecera y dice que ninguna reclamación pasa del corte de 7 días.
+    /// </summary>
+    [Fact]
+    public void Sin_reclamaciones_el_bloque_conserva_su_cabecera_y_dice_que_ninguna_pasa_del_corte()
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            ProximoVencimiento = new ProximoVencimientoDto("A. García", "Formación PRL", new DateOnly(2026, 8, 28), 12)
+        });
+
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "Reclamado y sin respuesta");
+        cut.Find("[data-estado='sin-reclamaciones'] .inicio-cierre-texto").TextContent.Trim().Should().Be(
+            "Ninguna reclamación lleva más de 7 días sin respuesta.");
+        cut.FindAll(".dashboard-sin-respuesta-fila").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El rol Cliente no ve el bloque de reclamaciones ni su estado vacío, aunque
+    /// la consulta devolviera una reclamación: el bloque va dentro de «Requiere atención».
+    /// </summary>
+    [Fact]
+    public void El_rol_Cliente_no_ve_el_estado_vacio_del_bloque()
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            ProximoVencimiento = new ProximoVencimientoDto("A. García", "Formación PRL", new DateOnly(2026, 8, 28), 12)
+        }, rol: Roles.Cliente);
+
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Reclamado y sin respuesta");
+        cut.FindAll("[data-estado='sin-reclamaciones']").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void El_rol_Cliente_no_ve_las_reclamaciones_aunque_la_consulta_devuelva_alguna()
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            SinRespuesta =
+            [
+                new ReclamacionSinRespuestaDto(Guid.NewGuid(), Guid.NewGuid(), AmbitoAplicacion.Cliente,
+                    "Refrielectric S.A.", Guid.NewGuid(), DateTime.UtcNow.AddDays(-9), 9, 2),
+            ],
+        }, rol: Roles.Cliente);
+
+        cut.FindAll(".dashboard-sin-respuesta-fila").Should().BeEmpty();
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Reclamado y sin respuesta");
+    }
+
+    /// <summary>
+    /// Con reclamaciones pendientes, la lista sustituye al estado vacío: nunca se ven a la vez.
+    /// </summary>
+    [Fact]
+    public void Con_reclamaciones_sin_respuesta_la_lista_sustituye_al_estado_vacio()
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            SinRespuesta =
+            [
+                new ReclamacionSinRespuestaDto(Guid.NewGuid(), Guid.NewGuid(), AmbitoAplicacion.Cliente,
+                    "Refrielectric S.A.", Guid.NewGuid(), DateTime.UtcNow.AddDays(-9), 9, 2),
+            ],
+        });
+
+        cut.FindAll(".dashboard-sin-respuesta-fila").Should().HaveCount(1);
+        cut.Find(".dashboard-sin-respuesta-cliente").TextContent.Should().Be("Refrielectric S.A.");
+        cut.FindAll("[data-estado='sin-reclamaciones']").Should().BeEmpty();
     }
 
     // --------------------------------------------------- qué llegó sin ver

@@ -135,7 +135,8 @@ public partial class VehiculosEstadoDocumentalTests : BunitContext
 
     private static VehiculoListaDto Vehiculo(
         string nombre, EstadoDocumento? estado = EstadoDocumento.Vigente, params IncidenciaDocumentalDto[] incidencias) =>
-        new(Guid.NewGuid(), nombre, "Iveco Daily", "9012GHI", "Montajes Ebro S.L.", estado) { Incidencias = incidencias };
+        new(Guid.NewGuid(), nombre, "Iveco Daily", "9012GHI", "Montajes Ebro S.L.", estado)
+        { Incidencias = incidencias, DocumentosRegistrados = 4, DocumentosVigentes = 2 };
 
     private static IncidenciaDocumentalDto IncidenciaDe(string tipo, EstadoDocumento estado, int? diasHastaVencer = null) =>
         new(Guid.NewGuid(), Guid.NewGuid(), tipo, estado,
@@ -211,23 +212,65 @@ public partial class VehiculosEstadoDocumentalTests : BunitContext
             Almacen = { Vehiculo("Camión grúa", EstadoDocumento.Vencido, IncidenciaDe("ITV", EstadoDocumento.Vencido, -10)) }
         });
 
-        Cabeceras(cut).Should().Equal("Vehículo · Nombre", "Empleador", "Matrícula", "Estado documental", "");
+        Cabeceras(cut).Should().Equal("Vehículo · Nombre", "Empresa", "Modelo", "Documentación", "");
 
-        // Las celdas siguen a sus cabeceras: identidad, empleador, matrícula copiable, estado e icono 360.
+        // Las celdas siguen a sus cabeceras: identidad con la matrícula copiable debajo, Empresa, Modelo,
+        // Documentación (barra «n de m» y estado) e icono 360.
         var celdas = Filas(cut)[0].QuerySelectorAll("td").ToList();
         celdas.Should().HaveCount(5);
         celdas[0].QuerySelector("button.enlace-nombre-fila")!.TextContent.Trim().Should().Be("Camión grúa");
-        celdas[0].QuerySelector(".celda-vehiculo-modelo")!.TextContent.Trim().Should().Be("Iveco Daily");
+        celdas[0].QuerySelector(".celda-vehiculo-matricula")!.TextContent.Should().Contain("9012GHI");
+        celdas[0].QuerySelector(".celda-vehiculo-matricula button").Should().NotBeNull("la matrícula se sigue pudiendo copiar");
         celdas[1].TextContent.Trim().Should().Be("Montajes Ebro S.L.");
-        celdas[2].QuerySelector(".celda-vehiculo-matricula")!.TextContent.Should().Contain("9012GHI");
-        celdas[2].QuerySelector(".celda-vehiculo-matricula button").Should().NotBeNull("la matrícula se sigue pudiendo copiar");
+        celdas[2].TextContent.Trim().Should().Be("Iveco Daily");
         celdas[3].ClassList.Should().Contain("col-estado");
+        celdas[3].QuerySelector("[data-pieza=barra-cumplimiento]")!.TextContent.Should().Contain("2/4");
         celdas[4].QuerySelector("a.boton-360-pagina")!.GetAttribute("href").Should().StartWith("/vehiculos/");
 
         // Con la selección múltiple, la casilla va delante y el resto no se mueve.
         await AlternarSeleccionMultiple(cut);
-        Cabeceras(cut).Should().Equal("", "Vehículo · Nombre", "Empleador", "Matrícula", "Estado documental", "");
+        Cabeceras(cut).Should().Equal("", "Vehículo · Nombre", "Empresa", "Modelo", "Documentación", "");
         cut.Find("thead th input[type=checkbox]").Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Agrupar_por_Empresa_titula_cada_grupo_con_su_recuento_y_pide_el_orden_por_Empresa()
+    {
+        var mediador = new MediadorFalso
+        {
+            Almacen = { Vehiculo("Camión grúa"), Vehiculo("Furgoneta"), Vehiculo("Turismo") with { EmpleadorNombre = "Pinturas Lauburu S.A." } }
+        };
+
+        var cut = Renderizar(mediador, "vehiculos?agrupar=empresa");
+
+        var titulos = cut.FindAll("tr.vehiculo-grupo").Select(t => t.TextContent.Trim()).ToList();
+        titulos.Should().Equal("Montajes Ebro S.L.2", "Pinturas Lauburu S.A.1");
+        UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(VehiculoListaDto.EmpleadorNombre));
+    }
+
+    [Fact]
+    public async Task Ordenar_por_una_columna_deja_de_agrupar()
+    {
+        var mediador = new MediadorFalso { Almacen = { Vehiculo("Camión grúa"), Vehiculo("Furgoneta") } };
+        var cut = Renderizar(mediador, "vehiculos?agrupar=empresa");
+        cut.FindAll("tr.vehiculo-grupo").Should().HaveCount(1);
+
+        await cut.FindAll("thead th").Single(th => th.TextContent.Trim().StartsWith("Modelo", StringComparison.Ordinal))
+            .QuerySelector("button.col-title")!.ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.FindAll("tr.vehiculo-grupo").Should().BeEmpty();
+            UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(VehiculoListaDto.Modelo));
+        });
+    }
+
+    [Fact]
+    public void Sin_agrupar_no_hay_titulos_de_grupo()
+    {
+        var cut = Renderizar(new MediadorFalso { Almacen = { Vehiculo("Camión grúa") } });
+
+        cut.FindAll("tr.vehiculo-grupo").Should().BeEmpty();
     }
 
     // --- Estado documental: pastilla y motivo --------------------------------------------------
