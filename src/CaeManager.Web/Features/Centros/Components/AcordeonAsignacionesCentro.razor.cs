@@ -269,7 +269,11 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// </summary>
     private readonly HashSet<Guid> _expandidosTrabajador = [];
 
-    /// <summary>Fila plegable de la Empresa: desplegada de entrada, porque el bloque solo existe cuando hay incidencias que resolver.</summary>
+    /// <summary>
+    /// Fila plegable de la Empresa. En Centro 360 va desplegada de entrada, porque el bloque solo existe cuando hay incidencias que
+    /// resolver. Dentro de la fila desplegada de /centros (ModoListado) nace contraída, como todo lo desplegable de los listados
+    /// (decisión 2026-10-21, #1530): se abre con su chevron.
+    /// </summary>
     private bool _empresaDesplegada = true;
 
     private IReadOnlyList<TrabajadorSinAsignacionDto> _trabajadoresVisitaSinAsignacion = [];
@@ -282,7 +286,11 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
     private DrawerAsignacionMasiva _drawerAsignacion = default!;
 
-    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+    protected override void OnInitialized()
+    {
+        _cancelacion = _ciclo.Token;
+        _empresaDesplegada = !ModoListado;
+    }
 
     /// <summary>
     /// Apagar "Selección múltiple" limpia la selección de trabajadores — mismo

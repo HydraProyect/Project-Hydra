@@ -187,9 +187,13 @@
 
 .celda-estado-centro ::deep .estado-fila-motivo {
     display: inline-flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: var(--space-1);
+    gap: 0 var(--space-1);
+    min-width: 0;
+    max-width: 100%;
     overflow: visible;
+    white-space: normal;
 }
 
 /* El color no es el único portador: el texto ya dice «vencidos» o «por vencer». */
