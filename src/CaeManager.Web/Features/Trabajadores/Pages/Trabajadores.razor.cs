@@ -1347,7 +1347,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private void CambiarTipoEmpleador(string tipo)
     {
         _tipoEmpleador = tipo;
-        _empresaId = string.Empty;
+        // En modo silencioso la Empresa única no tiene selector: al volver a «Empresa» hay que restaurarla.
+        _empresaId = tipo == "empresa" && _resolverEmpresaEnSilencio && _empresasDisponibles.Count == 1
+            ? _empresasDisponibles[0].Id.ToString()
+            : string.Empty;
         _subcontrataId = string.Empty;
         _oficioId = string.Empty;
         _delegacionId = string.Empty;
