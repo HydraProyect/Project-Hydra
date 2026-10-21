@@ -19,6 +19,7 @@ using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Gestiones;
 using CaeManager.Domain.Trabajadores;
@@ -130,6 +131,9 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
     private TrabajadorDetalleDto? _detalle;
     private IReadOnlyList<CentroDocumentacionTrabajadorDto> _centros = [];
+
+    /// <summary>La fila del Trabajador en <see cref="ObtenerTrabajadoresQuery"/>: estado, faltantes y desglose de la cabecera.</summary>
+    private TrabajadorListaDto? _estadoTrabajador;
     private bool _cargando = true;
     private bool _error;
 
@@ -338,7 +342,11 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
     private int TotalConIncidencia => _centros.Sum(Incidencias);
 
-    private int TotalSinConfirmar => _centros.Sum(SinConfirmar);
+    /// <summary>
+    /// Documentos del Trabajador sin vigencia confirmada, cada uno una vez: del desglose de <see cref="_estadoTrabajador"/>,
+    /// no sumando Centros (un mismo documento exigido en dos Centros se contaba dos veces).
+    /// </summary>
+    private int TotalSinConfirmar => _estadoTrabajador?.Incidencias.Count(i => i.Estado == EstadoDocumento.SinConfirmar) ?? 0;
 
     private IReadOnlyList<BreadcrumbElemento> Miguero =>
         new[] { new BreadcrumbElemento(Textos["MigaTrabajadores"]), new BreadcrumbElemento(NombreCompleto ?? "…") };
@@ -353,16 +361,16 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     private CentroDocumentacionTrabajadorDto? CentroMasUrgente =>
         _centros.Count == 0 ? null : _centros.MinBy(c => SeveridadEstadoDocumento.Rango(c.PeorEstado));
 
-    private EstadoDocumento? PeorEstadoGlobal => CentroMasUrgente?.PeorEstado;
+    /// <summary>
+    /// El estado documental del Trabajador en la cabecera: el MISMO que su fila del listado de Trabajadores y de Empresa 360
+    /// (<see cref="ObtenerTrabajadoresQuery"/>, Vencido &gt; Pendiente &gt; Por vencer &gt; Sin incidencias), no el peor de los
+    /// Centros. El de un Centro mira solo lo que ese Centro exige y su tolerancia: con un vencido que ningún Centro exige
+    /// (o que un Centro tolera) la cabecera decía «Pendiente» mientras el listado decía «Vencido».
+    /// </summary>
+    private EstadoDocumento? PeorEstadoGlobal => _estadoTrabajador?.EstadoDocumental;
 
-    /// <summary>Los Tipos que algún Centro le exige y de los que no tiene documento, sin repetir (un Tipo exigido en dos Centros cuenta una vez).</summary>
-    private IReadOnlyList<string> TiposFaltantes => _centros
-        .SelectMany(c => c.Documentos)
-        .Where(d => d.DocumentoId is null && d.Estado == EstadoDocumento.Faltante)
-        .Select(d => d.TipoDocumentoNombre)
-        .Distinct()
-        .Order(StringComparer.CurrentCulture)
-        .ToList();
+    /// <summary>Los Tipos que algún Centro le exige y de los que no tiene documento, sin repetir: los del mismo cálculo que el estado.</summary>
+    private IReadOnlyList<string> TiposFaltantes => _estadoTrabajador?.DocumentosFaltantes ?? [];
 
     /// <summary>El primer documento faltante/vencido del centro más urgente — lo que abre el botón primario "Subir documento" de la cabecera (mockup § cabecera: el botón y el badge de urgencia hablan del mismo problema).</summary>
     private DocumentoRequeridoDto? DocumentoMasUrgente =>
@@ -495,6 +503,14 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
                 return;
 
             _centros = centros;
+
+            // El estado de la cabecera sale del cálculo único del listado (su fila, con faltantes y desglose).
+            var fila = await Mediator.Send(new ObtenerTrabajadoresQuery(
+                null, Pagina: 1, TamanoPagina: 1, ConDesgloseDocumental: true, TrabajadorId: trabajadorId), _ciclo.Token);
+            if (!EsVigente(carga))
+                return;
+
+            _estadoTrabajador = fila.Elementos.FirstOrDefault();
 
             // RendererInfo.IsInteractive: OnParametersSetAsync (y por tanto
             // CargarAsync) también corre durante el prerenderizado estático
