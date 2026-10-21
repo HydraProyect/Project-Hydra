@@ -67,7 +67,7 @@
                                 ValorChanged="OnClienteSeleccionadoAsync" Opciones="OpcionesClienteListado" />
             </Pastillas>
             <Estados>
-                <FranjaEstado Etiqueta="@ComunesLista["ListaEstado"]" Opciones="OpcionesEstado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                <FranjaEstado Opciones="OpcionesEstado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
                               Recuentos="_recuentosPorEstado" />
             </Estados>
             <Herramientas>
@@ -138,7 +138,7 @@
                                 <th>@Textos["ListaFechas"]</th>
                                 <th>@Textos["ColumnaTecnicos"]</th>
                                 <th class="col-plazo-transcurrido">@Textos["ListaPlazoTranscurrido"]</th>
-                                <th class="col-estado">@Textos["ColumnaCumplimiento"]</th>
+                                <th class="col-registrados-vigentes">@Textos["ColumnaCumplimiento"]</th>
                                 <th class="col-estado">@Textos["ColumnaEstadoDocumental"]</th>
                                 <th class="col-estado">@Textos["EtiquetaEstado"]</th>
                                 <th class="col-acciones"><span class="texto-solo-lectores">@Textos["ColumnaAcciones"]</span></th>
@@ -237,7 +237,7 @@
                                     </td>
                                     @* Cumplimiento % y Estado documental, como en Vehículos: salen de los Documentos del
                                        Proyecto, y sin ninguno la celda dice que no hay (no un 0 %). *@
-                                    <td class="col-estado">
+                                    <td class="col-registrados-vigentes">
                                         <BarraCumplimiento Porcentaje="PorcentajeDocumentacion(proyecto)"
                                                            Texto="@MotivoIncidenciasUi.RegistradosVigentes(proyecto.DocumentosVigentes, proyecto.DocumentosRegistrados)"
                                                            Etiqueta="@MotivoIncidenciasUi.RegistradosVigentesAccesible(proyecto.DocumentosVigentes, proyecto.DocumentosRegistrados)" />

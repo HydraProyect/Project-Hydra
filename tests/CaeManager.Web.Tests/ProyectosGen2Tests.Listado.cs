@@ -58,12 +58,12 @@ public partial class ProyectosGen2Tests
         celdas[2].QuerySelector(".proyecto-plazo").Should().NotBeNull("la tercera columna son las fechas");
         celdas[3].ClassList.Should().Contain("celda-tecnicos-proyecto");
         celdas[4].ClassList.Should().Contain("col-plazo-transcurrido");
-        celdas[5].ClassList.Should().Contain("col-estado");
+        celdas[5].ClassList.Should().Contain("col-registrados-vigentes");
         celdas[5].QuerySelector("[role=progressbar], .barra-cumplimiento").Should().NotBeNull("el cumplimiento es la barra de los demás listados");
         celdas[6].QuerySelector(".estado-fila").Should().NotBeNull("el estado documental es el semáforo de los demás listados");
         celdas[7].ClassList.Should().Contain("col-estado", "el estado cae en la columna de ancho fijo común a los listados");
         celdas[7].QuerySelector(".estado-fila").Should().NotBeNull();
-        cut.FindAll("thead th.col-estado").Select(th => th.TextContent.Trim()).Should().Equal("Cumplimiento", "Estado documental", "Estado");
+        cut.FindAll("thead th.col-registrados-vigentes, thead th.col-estado").Select(th => th.TextContent.Trim()).Should().Equal("Cumplimiento", "Estado documental", "Estado");
     }
 
     [Fact]

@@ -28,13 +28,18 @@ namespace CaeManager.Application.Proyectos.Queries.ObtenerProyectos;
 /// Texto que debe aparecer en el nombre del Proyecto o en el de su Centro, sin distinguir acentos ni
 /// mayúsculas y sin contar los espacios de alrededor (<see cref="TextoDeBusqueda.Contiene"/>).
 /// </param>
+/// <param name="ConDesgloseDocumental">
+/// Rellena, para las filas de la página, el estado documental y el cumplimiento (una consulta de Documentos para toda
+/// la página). Sin pedirlo, las filas llegan sin ellos: la exportación no los usa.
+/// </param>
 /// <param name="ConRecuentosPorEstado">
 /// Rellena <c>ResultadoPaginado.RecuentosPorEstado</c>: Proyectos abiertos y cerrados con los demás filtros
 /// aplicados y sin el de estado, para la franja de estado del listado.
 /// </param>
 public record ObtenerProyectosQuery(
     Guid? ClienteId = null, bool? SoloAbiertos = null, string? Busqueda = null,
-    int Pagina = 1, int TamanoPagina = 20, bool ConRecuentosPorEstado = false, bool AgruparPorEmpresa = false)
+    int Pagina = 1, int TamanoPagina = 20, bool ConRecuentosPorEstado = false, bool AgruparPorEmpresa = false,
+    bool ConDesgloseDocumental = false)
     : IRequest<ResultadoPaginado<ProyectoListaDto>>
 {
     /// <summary>Clave de <c>RecuentosPorEstado</c> de los Proyectos abiertos; es también el valor que viaja en la URL.</summary>
@@ -209,8 +214,9 @@ public class ObtenerProyectosQueryHandler(
             // Solo para los Proyectos de la página: Cumplimiento % y Estado documental son columnas, no filtros. Los
             // Documentos del Proyecto llevan los filtros de Tenant y RLS de su consulta. El peor estado sale de las
             // incidencias (el desglose las ordena de más a menos grave); sin incidencias y con documentos, Vigente.
-            var desgloses = await calculoEstadoDocumental.CalcularDesgloseAsync(
-                AmbitoAplicacion.Proyecto, proyectoIds, cancellationToken);
+            var desgloses = request.ConDesgloseDocumental
+                ? await calculoEstadoDocumental.CalcularDesgloseAsync(AmbitoAplicacion.Proyecto, proyectoIds, cancellationToken)
+                : new Dictionary<Guid, DesgloseDocumentalDto>();
             proyectos = proyectos
                 .Select(p =>
                 {

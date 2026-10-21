@@ -170,7 +170,7 @@ public class CalculoEstadoDocumentalService(
             AmbitoAplicacion.Proyecto => documentos
                 .Where(d => d.ProyectoId != null && ids.Contains(d.ProyectoId!.Value))
                 .Select(d => new { PropietarioId = d.ProyectoId!.Value, d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento }),
-            // Hoy lo piden los listados de Trabajadores, de Vehículos, de Empresas y de Proyectos (este último, desde
+            // Hoy lo piden los listados de Trabajadores, de Vehículos, de Empresas y de Proyectos (Empresas, desde
             // ObtenerEmpresasQuery). El ámbito de Cliente empresarial no se admite: no se añade aquí otro uso de
             // la columna legacy de Documento que ClienteIdNoSeExtiendeTests congela.
             _ => throw new ArgumentOutOfRangeException(

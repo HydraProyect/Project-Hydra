@@ -371,6 +371,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         var clienteId = _clienteSeleccionadoId;
         var consulta = new ObtenerProyectosQuery(
             ClienteId: clienteId == Guid.Empty ? null : clienteId,
+            ConDesgloseDocumental: true,
             SoloAbiertos: FiltroProyectos.SoloAbiertos(_estadoFiltro),
             Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
             Pagina: _paginaActual,
