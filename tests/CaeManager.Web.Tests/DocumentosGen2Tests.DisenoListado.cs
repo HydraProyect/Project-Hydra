@@ -196,5 +196,12 @@ public partial class DocumentosGen2Tests
         await cut.Find("button.documentos-expandir").ClickAsync(new MouseEventArgs());
         await cut.Find("button.documentos-expandir").ClickAsync(new MouseEventArgs());
         cut.FindAll(".documentos-hijo").Should().HaveCount(10, "recoger la fila reinicia el recorte");
+
+        await cut.Find("button.ver-restantes-fila").ClickAsync(new MouseEventArgs());
+        await cut.Find(".cabecera-pagina .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".cabecera-pagina [role=menuitem]").Single(b => b.TextContent.Trim() == "Contraer todo").ClickAsync(new MouseEventArgs());
+        await cut.Find(".cabecera-pagina .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".cabecera-pagina [role=menuitem]").Single(b => b.TextContent.Trim() == "Expandir todo").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".documentos-hijo").Should().HaveCount(10, "«Contraer todo» también reinicia el recorte");
     }
 }
