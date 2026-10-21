@@ -561,7 +561,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
     {
         if (documentoIds.Count == 0) return [];
 
-        // El LEFT JOIN conserva los canales sin proveedor y los proveedores no visibles.
+        // El LEFT JOIN conserva los canales sin proveedor (p. ej. por correo), que se rotulan «Plataforma».
         // Proyectar el nombre aquí evita una segunda lectura secuencial por página.
         var crudas = await (
             from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma

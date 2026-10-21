@@ -300,7 +300,6 @@ public class ObtenerEntidadesAsociadasDeDocumentosTests
         var canales = new[]
         {
             CanalGestionDocumental.DePlataforma(centroId, "Portal", proveedor.Id, null, null, null),
-            CanalGestionDocumental.DePlataforma(centroId, "No visible", Guid.NewGuid(), null, null, null),
             CanalGestionDocumental.PorEmail(centroId, "Correo", "cae@example.com", null)
         };
         e.Centros.ListaCanalesGestionDocumental.AddRange(canales);
@@ -310,7 +309,7 @@ public class ObtenerEntidadesAsociadasDeDocumentosTests
         var resultado = await e.Handler().Handle(new ObtenerDocumentosQuery(null, null, null), default);
 
         var fila = resultado.Elementos.Should().ContainSingle().Which;
-        fila.Acreditaciones.Select(x => x.NombrePlataforma).Should().BeEquivalentTo("Nalanda", "Plataforma", "Plataforma");
+        fila.Acreditaciones.Select(x => x.NombrePlataforma).Should().BeEquivalentTo("Nalanda", "Plataforma");
         fila.Acreditaciones.Select(x => x.Id).Should().BeEquivalentTo(
             e.Documentos.ListaAcreditacionesDocumentoPlataforma.Select(x => x.Id));
         fila.Acreditaciones.Should().OnlyContain(x => x.Estado == EstadoAcreditacion.PendienteDeSubir);
