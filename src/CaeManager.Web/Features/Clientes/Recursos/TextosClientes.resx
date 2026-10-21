@@ -644,6 +644,7 @@
   <data name="ExigidoEnCentros" xml:space="preserve"><value>En {0} de {1} Centros</value></data>
   <data name="Gestionar" xml:space="preserve"><value>Gestionar</value></data>
   <data name="RequisitoBloqueaAcceso" xml:space="preserve"><value>Bloquea el acceso</value></data>
+  <data name="RequisitoCertificadoDetalle" xml:space="preserve"><value>{0} · {1}</value></data>
   <data name="RequisitoSeExige" xml:space="preserve"><value>Se exige</value></data>
   <data name="RequisitoVerHistorial" xml:space="preserve"><value>Ver historial</value></data>
   <data name="RequisitoVerCentros" xml:space="preserve"><value>Ver Centros</value></data>

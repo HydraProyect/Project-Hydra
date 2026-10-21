@@ -52,8 +52,6 @@ else if (_empresas.Count == 0 && _documentacion.Requisitos.Count == 0)
 }
 else
 {
-    @* Un solo formato de fila (nombre | en cuántos Centros | estado | acción) en dos grupos plegados por defecto:
-       lo que se exige a la Empresa empleadora y lo que se exige a sus Trabajadores. *@
     <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["ListaDocumentosExigidos"]">
         @foreach (var ambito in _ambitos)
         {
@@ -61,12 +59,8 @@ else
             if (filas.Count == 0)
                 continue;
 
-            // Documentos, no filas: el certificado de la Seguridad Social es uno aunque tenga una fila por Empresa.
-            var documentos = filas.Select(f => f.Documento).Distinct().Count();
-            var bloquean = filas.Where(f => f.Bloquea).Select(f => f.Documento).Distinct().Count();
-            // Los grupos nacen plegados: el peor estado de sus filas se ve igualmente desde la cabecera.
-            var descubiertos = filas.Any(f => f.TonoFila == TonoFila.Peligro);
-            <FilaRelacion @key="ambito" Nombre="@Textos[ambito == AmbitoAplicacion.Empresa ? "RequisitoGrupoEmpresa" : "RequisitoGrupoTrabajador"]"
+            var (documentos, bloquean, descubiertos) = Resumir(filas);
+            <FilaRelacion Nombre="@Textos[ambito == AmbitoAplicacion.Empresa ? "RequisitoGrupoEmpresa" : "RequisitoGrupoTrabajador"]"
                           Tono="@(descubiertos ? TonoFila.Peligro : (TonoFila?)null)"
                           Desplegada="_gruposAbiertos.Contains(ambito)" DesplegadaChanged="v => AlternarGrupo(ambito, v)">
                 <Detalle>@Textos[documentos == 1 ? "RequisitoGrupoUno" : "RequisitoGrupoVarios", documentos]</Detalle>
@@ -86,9 +80,10 @@ else
                 </Estado>
                 <Desplegable>
                     <ListaRelaciones Etiqueta="@Textos[ambito == AmbitoAplicacion.Empresa ? "RequisitoGrupoEmpresa" : "RequisitoGrupoTrabajador"]">
+                        @{ var claves = new ClavesDeHermanos(); }
                         @foreach (var fila in VerRestantes.Recortar(filas, _gruposCompletos.Contains(ambito)))
                         {
-                            <FilaRelacion @key="fila.Clave" Compacta="true" Nombre="@fila.Nombre" Tono="@fila.TonoFila" Detalle="DetalleDe(fila)"
+                            <FilaRelacion @key="claves.De(fila.Clave)" Compacta="true" Nombre="@fila.Nombre" Tono="@fila.TonoFila" Detalle="DetalleDe(fila)"
                                           OnNombre="NombreDe(fila)">
                                 <Cifra><span>@fila.Cifra</span></Cifra>
                                 <Estado><Badge Tono="fila.Tono" Tamano="TamanoBadge.Pequeno">@fila.Estado</Badge></Estado>
@@ -295,7 +290,7 @@ else
                 var estado = empresa.UltimaSolicitud?.Estado;
                 filas.Add(new FilaDoc(
                     $"tgss-{empresa.EmpresaId}", "tgss", Textos["CertificadoSeguridadSocialTitulo"],
-                    $"{empresa.EmpresaRazonSocial} · {TextoSolicitudes(empresa.TotalSolicitudes)}", cifra,
+                    Textos["RequisitoCertificadoDetalle", empresa.EmpresaRazonSocial, TextoSolicitudes(empresa.TotalSolicitudes)].Value, cifra,
                     PestanaBlindaje42.Tono(estado), EtiquetaCertificado(estado), tgss?.BloqueaAcceso ?? false,
                     estado == EstadoBlindaje42.NoExonerada ? TonoFila.Peligro : null, empresa));
             }
@@ -314,6 +309,16 @@ else
 
         return filas;
     }
+
+    /// <summary>
+    /// Lo que la cabecera de un grupo plegado enseña de sus filas: documentos (no filas: el certificado de la Seguridad Social
+    /// es uno aunque tenga una fila por Empresa), cuántos bloquean el acceso y si alguna Empresa tiene descubiertos, para que
+    /// el peor estado se vea sin abrir el grupo.
+    /// </summary>
+    private static (int Documentos, int Bloquean, bool Descubiertos) Resumir(IReadOnlyList<FilaDoc> filas) => (
+        filas.Select(f => f.Documento).Distinct().Count(),
+        filas.Where(f => f.Bloquea).Select(f => f.Documento).Distinct().Count(),
+        filas.Any(f => f.TonoFila == TonoFila.Peligro));
 
     /// <summary>Solo el certificado de la Seguridad Social tiene historial que abrir al pulsar el nombre.</summary>
     private EventCallback NombreDe(FilaDoc fila) =>
