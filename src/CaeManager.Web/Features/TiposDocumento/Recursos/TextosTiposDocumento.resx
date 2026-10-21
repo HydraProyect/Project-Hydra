@@ -289,7 +289,10 @@
     <value>(sin marcar, cada centro sigue «¿Se pide?»)</value>
   </data>
   <data name="SinCentrosCreados" xml:space="preserve">
-    <value>Todavía no hay centros creados.</value>
+    <value>Todavía no hay Centros. Da de alta un Centro para elegir dónde se pide este tipo.</value>
+  </data>
+  <data name="BotonGuardarCambiosTipo" xml:space="preserve">
+    <value>Guardar cambios</value>
   </data>
   <data name="BotonCancelar" xml:space="preserve">
     <value>Cancelar</value>

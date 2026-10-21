@@ -238,7 +238,7 @@
                  HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
                  HayErroresDeCampo="@(_erroresCampo.Count > 0)" OnGuardar="GuardarAsync"
                  AlDescartarPorNavegacion="CerrarFormularioDescartando"
-                 TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+                 TextoGuardar="@(_editandoId is null ? Textos["BotonGuardar"].Value : Textos["BotonGuardarCambiosTipo"].Value)" TextoCancelar="@Textos["BotonCancelar"]">
     <p class="nivel-drawer">@Textos["NivelDrawer"]</p>
 
     <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Nombre))" />

@@ -468,7 +468,7 @@ else
     </Pestanas>
 
     <Drawer @ref="_drawerDoc" HayCambios="() => HayCambiosEnLosDrawers" Visible="_drawerDocVisible" VisibleChanged="v => _drawerDocVisible = v"
-            Titulo="@($"Configurar «{_nombreTipoDocumentoEditando}» en este centro")"
+            Titulo="@Textos["ConfigurarRequisitoTitulo"]"
             CerrarAlHacerClicFuera="@(_mensajeErrorDocumentacion is null && !_guardandoDocumentacion)">
         <ChildContent>
             @if (_mensajeErrorDocumentacion is not null)
@@ -479,9 +479,11 @@ else
                llegar marcado sin que este centro tenga fila propia, solo porque el tipo se pide
                siempre por defecto (nota de la lista, arriba). "Este centro lo exige" atribuía la
                marca inicial al centro incluso cuando venía del valor general del tipo. *@
+            <p class="workspace-metrica-inline">@_nombreTipoDocumentoEditando</p>
             <label class="campo-checkbox">
                 <input type="checkbox" @bind="_incluidoEdicion" /> Incluido en este centro
             </label>
+            <p class="workspace-nota-contextual">@Textos["IncluidoAyudaRequisito"]</p>
 
             <CampoSelect Etiqueta="Periodo especial de renovación" Valor="@_periodicidadSeleccionEdicion" ValorChanged="v => _periodicidadSeleccionEdicion = v">
                 <option value="">@Textos["PeriodicidadSinPropia"]</option>
@@ -517,7 +519,8 @@ else
             }
 
             <div class="campo">
-                <label>Formulario adjunto (Word o PDF, opcional)</label>
+                <label>@Textos["ArchivoCentroEtiqueta"]</label>
+                <p class="workspace-metrica-inline">@Textos["ArchivoCentroAyuda"]</p>
                 @if (_archivoUrlEdicion is not null)
                 {
                     <p class="workspace-metrica-inline">
@@ -1369,7 +1372,7 @@ else
                 return;
             }
 
-            ToastService.Mostrar("Documentación del centro actualizada.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["RequisitoGuardadoToast"].Value, TonoToast.Exito);
 
             _drawerDocVisible = false;
             await CargarDocumentacionAsync();
