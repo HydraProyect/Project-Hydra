@@ -46,7 +46,8 @@ public record ExtranjerosDelMesDto(
 
 /// <summary>
 /// Exportación mensual de Trabajadores extranjeros del Cuadro de dirección, con la que el Operador CAE externo cobra por
-/// cada Trabajador extranjero gestionado (decisión de Chris, 2026-10-20).
+/// cada Trabajador extranjero gestionado (decisión de Chris, 2026-10-20). Es el listado sin acotar: lo que descarga un
+/// Operador CAE sale de <see cref="ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery"/>, que lo recorta a la vigencia.
 ///
 /// <para>
 /// <b>Unidad</b>: una fila por asignación de Trabajador a Visita cuya foto lo marca como extranjero cobrable

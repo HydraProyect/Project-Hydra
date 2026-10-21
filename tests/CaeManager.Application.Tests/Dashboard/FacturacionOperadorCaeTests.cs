@@ -140,7 +140,7 @@ public class FacturacionOperadorCaeTests
         return (handler, mediator);
     }
 
-    private sealed class UsuarioFalso(string rol, Guid origen) : ICurrentUserService
+    private sealed class UsuarioFalso(string? rol, Guid origen) : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
         public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(rol);
@@ -382,9 +382,9 @@ public class FacturacionOperadorCaeTests
         new(2026, mes, dia, hora, minuto, 0, DateTimeKind.Utc);
 
     private static (ObtenerExtranjerosDeEmpresasGestionadasDelMesQueryHandler Detalle, ContarExtranjerosCobrablesDelMesQueryHandler Conteo)
-        ArmarDetalle(ExtranjerosDelMesDto excel, IReadOnlyList<AsignacionOperacion> asignaciones, string rol = "DireccionCae")
+        ArmarDetalle(ExtranjerosDelMesDto excel, IReadOnlyList<AsignacionOperacion> asignaciones, string? rol = "DireccionCae", bool accesoTotal = false)
     {
-        var empresas = new ObtenerEmpresasGestionadasDelMesQueryHandler(new UsuarioFalso(rol, Operador), new OperacionesFalsas(asignaciones), new PoliticaAccesoTotalFalsa(false));
+        var empresas = new ObtenerEmpresasGestionadasDelMesQueryHandler(new UsuarioFalso(rol, Operador), new OperacionesFalsas(asignaciones), new PoliticaAccesoTotalFalsa(accesoTotal));
         var mediador = new MediadorPorFuncion(async request => request switch
         {
             ObtenerExtranjerosDelMesQuery => excel,
@@ -394,6 +394,24 @@ public class FacturacionOperadorCaeTests
         return (new ObtenerExtranjerosDeEmpresasGestionadasDelMesQueryHandler(mediador), new ContarExtranjerosCobrablesDelMesQueryHandler(mediador));
     }
 
+    /// <summary>
+    /// En Sesión Privilegiada no hay Empresas gestionadas, aunque el Tenant de origen del Actor de Plataforma operase
+    /// Empresas: el Excel por Empresa sale sin filas y el general es el listado sin acotar, que ObtenerExtranjerosDelMesQuery
+    /// ya limita al Tenant objetivo de la sesión. El endpoint, además, exige rol (la sesión no llega a él).
+    /// </summary>
+    [Fact]
+    public async Task En_Sesion_Privilegiada_no_hay_Empresas_gestionadas_que_acotar_ni_Excel_por_Empresa()
+    {
+        var excel = new ExtranjerosDelMesDto(2026, 10, [FilaExcel(Ebro, new DateOnly(2026, 10, 12))], 0);
+        var (detalle, _) = ArmarDetalle(excel, [Externa(Ebro, Operador, Enero)], rol: null, accesoTotal: true);
+
+        var porEmpresa = await detalle.Handle(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10, Ebro), CancellationToken.None);
+        var general = await detalle.Handle(
+            new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10, GeneralSiNoEsOperadorCae: true), CancellationToken.None);
+
+        porEmpresa.Filas.Should().BeEmpty("el Actor de Plataforma TALVEG no es Operador CAE");
+        general.Filas.Should().ContainSingle("sin Empresas gestionadas, el listado general es el de los Tenants de la sesión");
+    }
     [Fact]
     public async Task El_detalle_por_Empresa_y_su_Excel_se_acotan_a_la_vigencia_igual_que_el_conteo_con_una_Asignacion_que_empieza_el_dia_10()
     {
@@ -415,6 +433,79 @@ public class FacturacionOperadorCaeTests
         delExcel.Filas.Select(f => f.FechaIngreso).Should().Equal(new DateOnly(2026, 10, 10), new DateOnly(2026, 10, 28));
         todas.Filas.Should().HaveCount(2);
         delExcel.Filas.Count.Should().Be(cifra.PorTenant.Single().Asignaciones, "la cifra de la pestaña, el detalle y el Excel no pueden divergir");
+    }
+
+    [Theory]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    public async Task El_Excel_general_de_un_Operador_CAE_se_acota_a_la_vigencia_y_sus_filas_son_la_cifra_facturada(string rol)
+    {
+        var otraGestionada = Guid.NewGuid();
+        var ajeno = Guid.NewGuid();
+        var excel = new ExtranjerosDelMesDto(2026, 10,
+        [
+            FilaExcel(Ebro, new DateOnly(2026, 10, 5)),
+            FilaExcel(Ebro, new DateOnly(2026, 10, 10)),
+            FilaExcel(Ebro, new DateOnly(2026, 10, 28)),
+            FilaExcel(otraGestionada, new DateOnly(2026, 10, 3)),
+            FilaExcel(ajeno, new DateOnly(2026, 10, 12)),
+            FilaExcel(Operador, new DateOnly(2026, 10, 12)),
+        ], 0);
+        var asignaciones = new[] { Externa(Ebro, Operador, Utc(10, 10)), Externa(otraGestionada, Operador, Enero) };
+        var (detalle, conteo) = ArmarDetalle(excel, asignaciones, rol);
+        var tramos = (await new ObtenerEmpresasGestionadasDelMesQueryHandler(new UsuarioFalso(rol, Operador), new OperacionesFalsas(asignaciones), new PoliticaAccesoTotalFalsa(false))
+            .Handle(new ObtenerEmpresasGestionadasDelMesQuery(2026, 10), CancellationToken.None)).Tramos;
+
+        var general = await detalle.Handle(
+            new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10, GeneralSiNoEsOperadorCae: true), CancellationToken.None);
+        var cifra = await conteo.Handle(new ContarExtranjerosCobrablesDelMesQuery(2026, 10, tramos), CancellationToken.None);
+
+        general.Filas.Select(f => (f.TenantId, f.FechaIngreso)).Should().BeEquivalentTo(
+            [(Ebro, new DateOnly(2026, 10, 10)), (Ebro, new DateOnly(2026, 10, 28)), (otraGestionada, new DateOnly(2026, 10, 3))],
+            "fuera quedan la Visita anterior a la Asignación, el Tenant ajeno y el propio Tenant del Operador");
+        general.Filas.Count.Should().Be(cifra.PorTenant.Sum(t => t.Asignaciones), "nº de filas del Excel = cifra facturada de extranjeros");
+    }
+
+    [Fact]
+    public async Task El_Excel_general_de_un_Operador_CAE_avisa_solo_de_las_Empresas_gestionadas_sin_alcance_completo()
+    {
+        var noGestionado = Guid.NewGuid();
+        var excel = new ExtranjerosDelMesDto(2026, 10, [FilaExcel(Ebro, new DateOnly(2026, 10, 12))], 2, IdsSinAlcanceCompleto: [Berriz, noGestionado]);
+        var (detalle, _) = ArmarDetalle(excel, [Externa(Ebro, Operador, Enero), Externa(Berriz, Operador, Enero)]);
+
+        var general = await detalle.Handle(
+            new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10, GeneralSiNoEsOperadorCae: true), CancellationToken.None);
+
+        general.TenantsSinAlcanceCompleto.Should().Be(1, "la nota del Excel cuenta como la de /facturacion: solo Empresas gestionadas");
+        general.IdsSinAlcanceCompleto.Should().Equal(Berriz);
+    }
+
+    [Fact]
+    public async Task Un_Operador_CAE_sin_Empresas_vigentes_en_el_mes_recibe_el_Excel_general_vacio()
+    {
+        var excel = new ExtranjerosDelMesDto(2026, 10, [FilaExcel(Ebro, new DateOnly(2026, 10, 12))], 0);
+        var (detalle, _) = ArmarDetalle(excel, [Externa(Ebro, Operador, Enero, hasta: Utc(9, 30))]);
+
+        var general = await detalle.Handle(
+            new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10, GeneralSiNoEsOperadorCae: true), CancellationToken.None);
+
+        general.Filas.Should().BeEmpty("es Operador CAE y en octubre no gestiona a nadie: la cifra es cero y el Excel también");
+    }
+
+    [Fact]
+    public async Task Quien_no_es_de_un_Operador_CAE_conserva_el_Excel_general_entero_y_con_Empresa_pedida_sigue_sin_filas()
+    {
+        var excel = new ExtranjerosDelMesDto(2026, 10,
+            [FilaExcel(Ebro, new DateOnly(2026, 10, 5)), FilaExcel(Guid.NewGuid(), new DateOnly(2026, 10, 12))], 1, IdsSinAlcanceCompleto: [Ebro]);
+        var (detalle, _) = ArmarDetalle(excel, [Externa(Ebro, Guid.NewGuid(), Enero)]);
+
+        var general = await detalle.Handle(
+            new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10, GeneralSiNoEsOperadorCae: true), CancellationToken.None);
+        var conEmpresa = await detalle.Handle(
+            new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10, Ebro, GeneralSiNoEsOperadorCae: true), CancellationToken.None);
+
+        general.Should().BeSameAs(excel, "sin Asignación de Operación externa propia no hay vigencia que aplicar");
+        conEmpresa.Filas.Should().BeEmpty();
     }
 
     [Fact]

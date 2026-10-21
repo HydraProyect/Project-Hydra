@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.Proyectos.Queries.ObtenerVehiculosProyecto;
 using CaeManager.Application.Tests.Clientes;
@@ -7,6 +8,7 @@ using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Vehiculos;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Trabajadores;
@@ -60,9 +62,11 @@ public class ObtenerVehiculosProyectoTests
         _vehiculos.Lista.Add(_furgoneta);
     }
 
+    private readonly CalculoDocumentalFalso Calculo = new();
+
     private Task<IReadOnlyList<VehiculoProyectoDto>> VehiculosAsync(IAlcanceDatosService? alcance = null) =>
         new ObtenerVehiculosProyectoQueryHandler(_proyectos, _trabajadores, _empresas, _centros, _vehiculos,
-            alcance ?? new AlcanceDatosServiceFalso())
+            alcance ?? new AlcanceDatosServiceFalso(), Calculo)
             .Handle(new(_proyecto.Id), CancellationToken.None);
 
     private AlcanceDatosServiceFalso Alcance(
@@ -79,6 +83,27 @@ public class ObtenerVehiculosProyectoTests
         fila.EmpleadorId.Should().Be(_empleadora.Id);
         fila.EmpleadorNombre.Should().Be("Empresa empleadora del Proyecto");
         fila.NumeroPlaca.Should().Be("1234ABC");
+    }
+
+    [Fact]
+    public async Task Cada_vehiculo_lleva_el_estado_y_la_cifra_de_sus_documentos()
+    {
+        Calculo.PorPropietario[_furgoneta.Id] = (EstadoDocumento.Vencido, new DesgloseDocumentalDto([], 3, 2));
+
+        var fila = (await VehiculosAsync()).Should().ContainSingle().Which;
+
+        fila.EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
+        fila.DocumentosRegistrados.Should().Be(3);
+        fila.DocumentosVigentes.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Un_vehiculo_sin_documentos_no_lleva_estado_ni_cifra()
+    {
+        var fila = (await VehiculosAsync()).Should().ContainSingle().Which;
+
+        fila.EstadoDocumental.Should().BeNull();
+        fila.DocumentosRegistrados.Should().Be(0);
     }
 
     [Fact]

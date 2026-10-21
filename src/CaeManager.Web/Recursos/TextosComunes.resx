@@ -638,6 +638,48 @@
   <data name="IrATuPantallaPrincipal" xml:space="preserve">
     <value>Ir a tu pantalla principal</value>
   </data>
+  <data name="CodigoParaSoporte" xml:space="preserve">
+    <value>Código para soporte</value>
+  </data>
+  <data name="CodigoParaSoporteAyuda" xml:space="preserve">
+    <value>Si se repite, envía este código a soporte.</value>
+  </data>
+  <data name="CodigoParaSoporteCopia" xml:space="preserve">
+    <value>el código para soporte</value>
+  </data>
+  <data name="VolverListaTrabajadores" xml:space="preserve">
+    <value>Volver a la lista de trabajadores</value>
+  </data>
+  <data name="VolverListaEmpresas" xml:space="preserve">
+    <value>Volver a la lista de empresas</value>
+  </data>
+  <data name="VolverListaCentros" xml:space="preserve">
+    <value>Volver a la lista de centros de trabajo</value>
+  </data>
+  <data name="VolverListaClientes" xml:space="preserve">
+    <value>Volver a la lista de clientes</value>
+  </data>
+  <data name="VolverListaSubcontratas" xml:space="preserve">
+    <value>Volver a la lista de subcontratas</value>
+  </data>
+  <data name="VolverListaVehiculos" xml:space="preserve">
+    <value>Volver a la lista de vehículos</value>
+  </data>
+  <data name="VolverListaProyectos" xml:space="preserve">
+    <value>Volver a la lista de proyectos</value>
+  </data>
+  <data name="VolverListaDocumentos" xml:space="preserve">
+    <value>Volver a la lista de documentos</value>
+  </data>
+  <data name="VolverListaVisitas" xml:space="preserve">
+    <value>Volver a la lista de visitas</value>
+  </data>
+  <data name="VolverListaGestiones" xml:space="preserve">
+    <value>Volver a la lista de gestiones</value>
+  </data>
+  <data name="VolverListaAlertas" xml:space="preserve">
+    <value>Volver a la lista de alertas</value>
+  </data>
   <data name="TarjetasRestablecer" xml:space="preserve"><value>Restablecer orden</value></data>
   <data name="TarjetasMover" xml:space="preserve"><value>Mover la tarjeta {0}. Usa las flechas arriba y abajo.</value></data>
   <data name="TarjetasArrastrar" xml:space="preserve"><value>Arrastra ⠿ para reordenar las tarjetas</value></data>

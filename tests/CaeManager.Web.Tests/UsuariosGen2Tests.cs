@@ -2017,7 +2017,7 @@ public partial class UsuariosGen2Tests : BunitContext
 
         var cut = Renderizar(actorId: MartaId);
 
-        Fila(cut, "a.beitia@talveg.es").TextContent.Should().Contain("Pendiente de activación")
+        Fila(cut, "a.beitia@talveg.es").TextContent.Should().Contain("Pendiente de activar")
             .And.NotContain("Activo");
 
         await AbrirMenuAsync(cut, "a.beitia@talveg.es");
