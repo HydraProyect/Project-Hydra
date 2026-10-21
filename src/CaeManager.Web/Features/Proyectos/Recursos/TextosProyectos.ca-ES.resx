@@ -465,6 +465,9 @@
   <data name="ErrorFinEvento" xml:space="preserve">
     <value>Un esdeveniment necessita data de final.</value>
   </data>
+  <data name="AyudaFinEvento" xml:space="preserve">
+    <value>Obligatòria. En passar la data de fi, l'esdeveniment es tanca i els seus tècnics es donen de baixa.</value>
+  </data>
   <data name="EtiquetaOrigenRequisitos" xml:space="preserve">
     <value>Requisits documentals</value>
   </data>
