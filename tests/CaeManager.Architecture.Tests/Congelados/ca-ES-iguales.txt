@@ -216,8 +216,6 @@ src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: O
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: OrdenMenuRolAdministrador = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: OrdenMenuRolCoordinadorCae = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: OrdenMenuRolDireccionCae = 1
-src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: OrdenMenuSinAccesoTexto = 1
-src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: OrdenMenuSinAccesoTitulo = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: OrdenMenuSinHistorial = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: OrdenMenuTitulo = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: OrdenMenuTituloDocumento = 1
