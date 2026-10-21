@@ -1124,10 +1124,8 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Res
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ResumenSinExigencia = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: SeparadorAgendaEmpleador = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: SeparadorDatosTrabajador = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: SeparadorDocumentacionPorCentro = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: SeparadorGestionesPendientes = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: TextoCentroSinExigencia = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: TextoExigenciaPorCentro = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: TituloPagina = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: TituloPaginaClienteDirecto = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ToastActualizado = 1
