@@ -85,6 +85,9 @@
   <data name="PestanaDocumentacion" xml:space="preserve">
     <value>Documentació</value>
   </data>
+  <data name="PestanaReclamar" xml:space="preserve">
+    <value>Reclamar</value>
+  </data>
   <data name="PestanaAgenda" xml:space="preserve">
     <value>Agenda</value>
   </data>
